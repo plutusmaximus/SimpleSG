@@ -9,6 +9,12 @@
 #include <vector>
 #include <string>
 
+extern "C"
+{
+    static bool ReadPNGFile(FILE* fp, png_structp png_ptr, png_infop info_ptr);
+    static bool ReadPNGRows(png_structp png_ptr, std::vector<png_bytep>& row_pointers);
+}
+
 Image::~Image()
 {
     delete[] Pixels;
@@ -20,6 +26,79 @@ Image::Create(const int width, const int height)
     std::uint8_t* pixels = new std::uint8_t[width * height * 4];
 
     return new Image(width, height, pixels);
+}
+
+std::expected<RefPtr<Image>, Error>
+Image::LoadPng(const std::string_view path)
+{
+    FILE* fp = fopen(path.data(), "rb");
+    expect(fp, "Failed to open file: {}", path);
+
+    png_byte header[8];
+    if (fread(header, 1, 8, fp) != 8 || png_sig_cmp(header, 0, 8))
+    {
+        fclose(fp);
+        return std::unexpected(Error("Not a valid PNG file: {}", path.data()));
+    }
+
+    png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+    if (!png_ptr)
+    {
+        fclose(fp);
+        return std::unexpected(Error("Failed to create png read struct"));
+    }
+
+    png_infop info_ptr = png_create_info_struct(png_ptr);
+    if (!info_ptr)
+    {
+        png_destroy_read_struct(&png_ptr, nullptr, nullptr);
+        fclose(fp);
+        return std::unexpected(Error("Failed to create png info struct"));
+    }
+
+    if (!ReadPNGFile(fp, png_ptr, info_ptr))
+    {
+        png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
+        fclose(fp);
+        return std::unexpected(Error("libpng error during read"));
+    }
+
+    png_size_t rowbytes = png_get_rowbytes(png_ptr, info_ptr);
+
+    png_uint_32 width;
+    png_uint_32 height;
+    int bit_depth;
+    int color_type;
+    int interlace;
+    int compression;
+    int filter;
+
+    png_get_IHDR(
+        png_ptr,
+        info_ptr,
+        &width,
+        &height,
+        &bit_depth,
+        &color_type,
+        &interlace,
+        &compression,
+        &filter
+    );
+
+    RefPtr<Image> img = Image::Create(width, height);
+
+    std::vector<png_bytep> row_pointers(height);
+    for (png_uint_32 y = 0; y < height; ++y)
+    {
+        row_pointers[y] = img->Pixels + y * rowbytes;
+    }
+
+    const bool readRows = ReadPNGRows(png_ptr, row_pointers);
+
+    png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
+    fclose(fp);
+
+    return readRows ? img : nullptr;
 }
 
 //Isolate setjmp to C code and disable warning C4611: interaction between '_setjmp' and C++ object destruction is non-portable 
@@ -112,75 +191,3 @@ extern "C"
     }
 }//extern "C"
 #pragma warning(pop)
-
-std::expected<RefPtr<Image>, Error> Image::LoadPng(const std::string_view path)
-{
-    FILE* fp = fopen(path.data(), "rb");
-    expect(fp, "Failed to open file: {}", path);
-
-    png_byte header[8];
-    if (fread(header, 1, 8, fp) != 8 || png_sig_cmp(header, 0, 8))
-    {
-        fclose(fp);
-        return std::unexpected(Error("Not a valid PNG file: {}", path.data()));
-    }
-
-    png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
-    if (!png_ptr)
-    {
-        fclose(fp);
-        return std::unexpected(Error("Failed to create png read struct"));
-    }
-
-    png_infop info_ptr = png_create_info_struct(png_ptr);
-    if (!info_ptr)
-    {
-        png_destroy_read_struct(&png_ptr, nullptr, nullptr);
-        fclose(fp);
-        return std::unexpected(Error("Failed to create png info struct"));
-    }
-
-    if (!ReadPNGFile(fp, png_ptr, info_ptr))
-    {
-        png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
-        fclose(fp);
-        return std::unexpected(Error("libpng error during read"));
-    }
-
-    png_size_t rowbytes = png_get_rowbytes(png_ptr, info_ptr);
-
-    png_uint_32 width;
-    png_uint_32 height;
-    int bit_depth;
-    int color_type;
-    int interlace;
-    int compression;
-    int filter;
-
-    png_get_IHDR(
-        png_ptr,
-        info_ptr,
-        &width,
-        &height,
-        &bit_depth,
-        &color_type,
-        &interlace,
-        &compression,
-        &filter
-    );
-
-    RefPtr<Image> img = Image::Create(width, height);
-
-    std::vector<png_bytep> row_pointers(height);
-    for (png_uint_32 y = 0; y < height; ++y)
-    {
-        row_pointers[y] = img->Pixels + y * rowbytes;
-    }
-
-    const bool readRows = ReadPNGRows(png_ptr, row_pointers);
-
-    png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
-    fclose(fp);
-
-    return readRows ? img : nullptr;
-}
