@@ -10,18 +10,13 @@ class Image
 {
 public:
 
-    static RefPtr<Image> Create(const int width, const int height)
-    {
-        const int size = sizeof(Image) + (width * height * 4);
+    ~Image();
 
-        uint8_t* mem = new uint8_t[size];
-
-        return new (mem) Image(width, height, &mem[sizeof(Image)]);
-    }
+    static RefPtr<Image> Create(const int width, const int height);
 
     const int Width;
     const int Height;
-    std::uint8_t* Pixels; // RGBA8
+    std::uint8_t* const Pixels; // RGBA8
 
 private:
 

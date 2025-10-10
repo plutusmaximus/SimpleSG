@@ -9,6 +9,19 @@
 #include <vector>
 #include <string>
 
+Image::~Image()
+{
+    delete[] Pixels;
+}
+
+RefPtr<Image>
+Image::Create(const int width, const int height)
+{
+    std::uint8_t* pixels = new std::uint8_t[width * height * 4];
+
+    return new Image(width, height, pixels);
+}
+
 //Isolate setjmp to C code and disable warning C4611: interaction between '_setjmp' and C++ object destruction is non-portable 
 #pragma warning(push)
 #pragma warning(disable:4611)
