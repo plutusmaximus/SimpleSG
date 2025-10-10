@@ -8,7 +8,6 @@
 #include "SdlHelpers.h"
 #include "ModelNode.h"
 #include "TransformNode.h"
-#include "RootNode.h"
 #include "MaterialDb.h"
 #include "SdlRenderGraph.h"
 #include "VecMath.h"
@@ -151,7 +150,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         RefPtr<Model> cubeModel = Model::Create(cubeMeshes);
         pcheck(cubeModel, "Model::Create failed");
 
-        RefPtr<RootNode> scene = new RootNode();
+        RefPtr<GroupNode> scene = new GroupNode();
 
         RefPtr<ModelNode> planetModelNode = new ModelNode(cubeModel);
         RefPtr<TransformNode> planetXFormNode = new TransformNode();
