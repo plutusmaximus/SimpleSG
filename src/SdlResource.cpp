@@ -3,7 +3,6 @@
 #include <SDL3/SDL_gpu.h>
 
 #include "Image.h"
-#include "SdlHelpers.h"
 #include "Mesh.h"
 
 template<>

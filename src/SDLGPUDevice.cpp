@@ -46,6 +46,16 @@ static std::expected<SDL_GPUTexture*, std::string> CreateTexture(
     const unsigned height,
     const uint8_t* pixels);
 
+static SDL_GPUShader* LoadVertexShader(
+    SDL_GPUDevice* gpuDevice,
+    const std::string_view fileName,
+    const int numUniformBuffers);
+
+static SDL_GPUShader* LoadFragmentShader(
+    SDL_GPUDevice* gpuDevice,
+    const std::string_view fileName,
+    const int numSamplers);
+
 class SDLVertexBuffer : public VertexBufferResource
 {
 public:
@@ -155,7 +165,87 @@ SDLGPUDevice::Create()
 
     expect(SDL_ClaimWindowForGPUDevice(gpuDevice.Get(), window.Get()), SDL_GetError());
 
-    return new SDLGPUDevice(window.Take(), gpuDevice.Take());
+    // Create shaders
+    const std::string vshaderFileName = std::string("shaders/Debug/VertexShader") + SHADER_EXTENSION;
+    SdlResource<SDL_GPUShader> vtxShader(gpuDevice.Get(), LoadVertexShader(gpuDevice.Get(), vshaderFileName, 3));
+    expect(vtxShader, "LoadVertexShader({}) failed", vshaderFileName);
+
+    const std::string fshaderFileName = std::string("shaders/Debug/FragmentShader") + SHADER_EXTENSION;
+    SdlResource<SDL_GPUShader> fragShader(gpuDevice.Get(), LoadFragmentShader(gpuDevice.Get(), fshaderFileName, 1));
+    expect(fragShader, "LoadFragmentShader({}) failed", fshaderFileName);
+
+    //Create the pipeline
+
+    SDL_GPUTextureCreateInfo depthCreateInfo
+    {
+        .type = SDL_GPU_TEXTURETYPE_2D,
+        .format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
+        .usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET,
+        .width = 0,
+        .height = 0,
+        .layer_count_or_depth = 1,
+        .num_levels = 1
+    };
+
+    SDL_GPUVertexBufferDescription vertexBufDescriptions[1] =
+    {
+        {
+            .slot = 0,
+            .pitch = sizeof(Vertex),
+            .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX
+        }
+    };
+    SDL_GPUVertexAttribute vertexAttributes[] =
+    {
+        {.location = 0, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = offsetof(Vertex, pos) },
+        {.location = 1, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = offsetof(Vertex, normal) },
+        {.location = 2, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = offsetof(Vertex, uv) }
+    };
+
+    SDL_GPUColorTargetDescription colorTargetDesc
+    {
+        .format = SDL_GetGPUSwapchainTextureFormat(gpuDevice.Get(), window.Get()),
+        .blend_state = {}
+    };
+
+    SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo
+    {
+        .vertex_shader = vtxShader.Get(),
+        .fragment_shader = fragShader.Get(),
+        .vertex_input_state =
+        {
+            .vertex_buffer_descriptions = vertexBufDescriptions,
+            .num_vertex_buffers = 1,
+            .vertex_attributes = vertexAttributes,
+            .num_vertex_attributes = std::size(vertexAttributes)
+        },
+        .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+        .rasterizer_state =
+        {
+            .fill_mode = SDL_GPU_FILLMODE_FILL,
+            .cull_mode = SDL_GPU_CULLMODE_BACK,
+            .front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
+            .enable_depth_clip = true
+        },
+        .depth_stencil_state =
+        {
+            .compare_op = SDL_GPU_COMPAREOP_LESS_OR_EQUAL,
+            .enable_depth_test = true,
+            .enable_depth_write = true
+        },
+        .target_info =
+        {
+            .color_target_descriptions = &colorTargetDesc,
+            .num_color_targets = 1,
+            .depth_stencil_format = depthCreateInfo.format,
+            .has_depth_stencil_target = true
+        }
+    };
+
+    SdlResource<SDL_GPUGraphicsPipeline> pipeline(gpuDevice.Get(), SDL_CreateGPUGraphicsPipeline(gpuDevice.Get(), &pipelineCreateInfo));
+    expect(pipeline, "SDL_CreateGPUGraphicsPipeline: {}", SDL_GetError());
+
+    return new SDLGPUDevice(window.Take(), gpuDevice.Take(), pipeline.Take());
 }
 
 SDLGPUDevice::~SDLGPUDevice()
@@ -370,4 +460,57 @@ static std::expected<SDL_GPUTexture*, std::string> CreateTexture(
     expect(SDL_SubmitGPUCommandBuffer(cmdBuffer), SDL_GetError());
 
     return texture.Take();
+}
+
+static SDL_GPUShader* LoadShader(
+    SDL_GPUDevice* gpuDevice,
+    const std::string_view fileName,
+    SDL_GPUShaderStage shaderStage,
+    const unsigned numUniformBuffers,
+    const unsigned numSamplers)
+{
+    void* shaderSrc = nullptr;
+    SDL_GPUShader* shader = nullptr;
+
+    etry
+    {
+        size_t fileSize;
+        shaderSrc = SDL_LoadFile(fileName.data(), &fileSize);
+        pcheck(shaderSrc, "SDL_LoadFile({}): {}", fileName, SDL_GetError());
+
+        SDL_GPUShaderCreateInfo shaderCreateInfo
+        {
+            .code_size = fileSize,
+            .code = (uint8_t*)shaderSrc,
+            .entrypoint = "main",
+            .format = SHADER_FORMAT,
+            .stage = shaderStage,
+            .num_samplers = numSamplers,
+            .num_uniform_buffers = numUniformBuffers
+        };
+
+        shader = SDL_CreateGPUShader(gpuDevice, &shaderCreateInfo);
+        pcheck(shader, "SDL_CreateGPUShader: {}", SDL_GetError());
+    }
+    ecatchall;
+
+    SDL_free(shaderSrc);
+
+    return shader;
+}
+
+static SDL_GPUShader* LoadVertexShader(
+    SDL_GPUDevice* gpuDevice,
+    const std::string_view fileName,
+    const int numUniformBuffers)
+{
+    return LoadShader(gpuDevice, fileName, SDL_GPU_SHADERSTAGE_VERTEX, numUniformBuffers, 0);
+}
+
+static SDL_GPUShader* LoadFragmentShader(
+    SDL_GPUDevice* gpuDevice,
+    const std::string_view fileName,
+    const int numSamplers)
+{
+    return LoadShader(gpuDevice, fileName, SDL_GPU_SHADERSTAGE_FRAGMENT, 0, numSamplers);
 }

@@ -86,6 +86,8 @@ public:
 
     virtual void* GetWindow() = 0;  //DO NOT SUBMIT
 
+    virtual void* GetPipeline() = 0;  //DO NOT SUBMIT
+
     IMPLEMENT_REFCOUNT(GPUDeviceResource);
 };
 

@@ -5,7 +5,6 @@
 
 #include "Error.h"
 #include "ModelVisitor.h"
-#include "SdlHelpers.h"
 #include "ModelNode.h"
 #include "TransformNode.h"
 #include "MaterialDb.h"
@@ -161,7 +160,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         planetXFormNode->AddChild(moonXFormNode);
         scene->AddChild(planetXFormNode);
 
-
         auto quadVb = gd->CreateVertexBuffer(quadVertices);
         pcheck(quadVb, quadVb.error());
         auto quadIb = gd->CreateIndexBuffer(quadIndices);
@@ -179,15 +177,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         RefPtr<TransformNode> quadXFormNode = new TransformNode();
         quadXFormNode->AddChild(quadModelNode);
 
-        // Create shaders
-        const std::string vshaderFileName = std::string("shaders/Debug/VertexShader") + SHADER_EXTENSION;
-        SdlResource<SDL_GPUShader> vtxShader(gpuDevice, LoadVertexShader(gpuDevice, vshaderFileName, 3));
-        pcheck(vtxShader, "LoadVertexShader({}) failed", vshaderFileName);
-
-        const std::string fshaderFileName = std::string("shaders/Debug/FragmentShader") + SHADER_EXTENSION;
-        SdlResource<SDL_GPUShader> fragShader(gpuDevice, LoadFragmentShader(gpuDevice, fshaderFileName, 1));
-        pcheck(vtxShader, "LoadFragmentShader({}) failed", fshaderFileName);
-
         SDL_GPUTextureCreateInfo depthCreateInfo
         {
             .type = SDL_GPU_TEXTURETYPE_2D,
@@ -198,65 +187,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             .layer_count_or_depth = 1,
             .num_levels = 1
         };
-
-        SDL_GPUVertexBufferDescription vertexBufDescriptions[1] =
-        {
-            {
-                .slot = 0,
-                .pitch = sizeof(Vertex),
-                .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX
-            }
-        };
-        SDL_GPUVertexAttribute vertexAttributes[] =
-        {
-            {.location = 0, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = offsetof(Vertex, pos) },
-            {.location = 1, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = offsetof(Vertex, normal) },
-            {.location = 2, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = offsetof(Vertex, uv) }
-        };
-
-        SDL_GPUColorTargetDescription colorTargetDesc
-        {
-            .format = SDL_GetGPUSwapchainTextureFormat(gpuDevice, window),
-            .blend_state = {}
-        };
-
-        SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo
-        {
-            .vertex_shader = vtxShader.Get(),
-            .fragment_shader = fragShader.Get(),
-            .vertex_input_state =
-            {
-                .vertex_buffer_descriptions = vertexBufDescriptions,
-                .num_vertex_buffers = 1,
-                .vertex_attributes = vertexAttributes,
-                .num_vertex_attributes = std::size(vertexAttributes)
-            },
-            .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-            .rasterizer_state =
-            {
-                .fill_mode = SDL_GPU_FILLMODE_FILL,
-                .cull_mode = SDL_GPU_CULLMODE_BACK,
-                .front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
-                .enable_depth_clip = true
-            },
-            .depth_stencil_state =
-            {
-                .compare_op = SDL_GPU_COMPAREOP_LESS_OR_EQUAL,
-                .enable_depth_test = true,
-                .enable_depth_write = true
-            },
-            .target_info =
-            {
-                .color_target_descriptions = &colorTargetDesc,
-                .num_color_targets = 1,
-                .depth_stencil_format = depthCreateInfo.format,
-                .has_depth_stencil_target = true
-            }
-        };
-
-        // Create pipeline
-        SdlResource<SDL_GPUGraphicsPipeline> pipeline(gpuDevice, SDL_CreateGPUGraphicsPipeline(gpuDevice, &pipelineCreateInfo));
-        pcheck(pipeline, "SDL_CreateGPUGraphicsPipeline: {}", SDL_GetError());
 
         RefPtr<SdlResource<SDL_GPUTexture>> depthBuffer;
 
@@ -372,9 +302,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
                 continue;
             }
 
-            SdlRenderGraph renderGraph(materialDb, cmdBuf, renderPass);
-
-            SDL_BindGPUGraphicsPipeline(renderPass, pipeline.Get());
+            SDL_BindGPUGraphicsPipeline(renderPass, (SDL_GPUGraphicsPipeline*) gd->GetPipeline());
 
             SDL_GPUViewport viewport
             {
@@ -382,10 +310,9 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             };
             SDL_SetGPUViewport(renderPass, &viewport);
 
+            SdlRenderGraph renderGraph(materialDb, cmdBuf, renderPass);
             ModelVisitor visitor(&renderGraph, camera);
-
             scene->Accept(&visitor);
-
             renderGraph.Render(camera);
 
             SDL_EndGPURenderPass(renderPass);
