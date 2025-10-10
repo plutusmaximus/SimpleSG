@@ -3,7 +3,7 @@
 #include <thread>
 #include <filesystem>
 
-#include "Assert.h"
+#include "Error.h"
 #include "ModelVisitor.h"
 #include "SdlHelpers.h"
 #include "ModelNode.h"
@@ -91,7 +91,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {
     spdlog::set_level(spdlog::level::debug);
 
-    ptry
+    etry
     {
         //DO NOT SUBMIT - path
         const std::string texPaths[] =
@@ -407,7 +407,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             SDL_ReleaseGPUFence(gpuDevice, fence);
         }
     }
-    pcatchall;
+    ecatchall;
 
     SDL_Quit();
 

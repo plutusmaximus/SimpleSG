@@ -16,7 +16,7 @@ static SDL_GPUShader* LoadShader(
     void* shaderSrc = nullptr;
     SDL_GPUShader* shader = nullptr;
 
-    ptry
+    etry
     {
         size_t fileSize;
         shaderSrc = SDL_LoadFile(fileName.data(), &fileSize);
@@ -36,7 +36,7 @@ static SDL_GPUShader* LoadShader(
         shader = SDL_CreateGPUShader(gpuDevice, &shaderCreateInfo);
         pcheck(shader, "SDL_CreateGPUShader: {}", SDL_GetError());
     }
-    pcatchall;
+    ecatchall;
 
     SDL_free(shaderSrc);
 

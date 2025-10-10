@@ -1,6 +1,6 @@
 #include "SDLGPUDevice.h"
 
-#include "Assert.h"
+#include "Error.h"
 #include "Mesh.h"
 #include "ImageLoader.h"
 
@@ -130,7 +130,7 @@ public:
     SDL_GPUTexture* const m_Texture;
 };
 
-std::expected<GPUDevice, std::string>
+std::expected<GPUDevice, Error>
 SDLGPUDevice::Create()
 {
     logInfo("Creating SDL GPU Device...");
@@ -162,7 +162,7 @@ SDLGPUDevice::~SDLGPUDevice()
 {
 }
 
-std::expected<VertexBuffer, std::string>
+std::expected<VertexBuffer, Error>
 SDLGPUDevice::CreateVertexBuffer(const Vertex* vertices, const unsigned vertexCount)
 {
     SDL_GPUBuffer* buffer = CreateGpuBuffer(m_GpuDevice.Get(), SDL_GPU_BUFFERUSAGE_VERTEX, vertices, vertexCount * sizeof(vertices[0]));
@@ -171,7 +171,7 @@ SDLGPUDevice::CreateVertexBuffer(const Vertex* vertices, const unsigned vertexCo
     return new SDLVertexBuffer(this, buffer);
 }
 
-std::expected<IndexBuffer, std::string>
+std::expected<IndexBuffer, Error>
 SDLGPUDevice::CreateIndexBuffer(const uint16_t* indices, const unsigned indexCount)
 {
     SDL_GPUBuffer* buffer = CreateGpuBuffer(m_GpuDevice.Get(), SDL_GPU_BUFFERUSAGE_INDEX, indices, indexCount * sizeof(indices[0]));
@@ -180,7 +180,7 @@ SDLGPUDevice::CreateIndexBuffer(const uint16_t* indices, const unsigned indexCou
     return new SDLIndexBuffer(this, buffer);
 }
 
-std::expected<Texture, std::string>
+std::expected<Texture, Error>
 SDLGPUDevice::CreateTextureFromPNG(const std::string_view path)
 {
     auto imgResult = ImageLoader::LoadPng(path);
@@ -200,7 +200,7 @@ static SDL_GPUBuffer* CreateGpuBuffer(
 {
     SDL_GPUBuffer* gpuBuffer = nullptr;
 
-    ptry
+    etry
     {
         SDL_GPUBufferCreateInfo bufferCreateInfo
         {
@@ -217,7 +217,7 @@ static SDL_GPUBuffer* CreateGpuBuffer(
 
         return gpuBuffer;
     }
-    pcatchall;
+    ecatchall;
 
     if (gpuBuffer)
     {
@@ -233,7 +233,7 @@ static bool CopyToGpuBuffer(
     const void* data,
     const unsigned sizeofData)
 {
-    ptry
+    etry
     {
         //Create a transfer buffer
         SDL_GPUTransferBufferCreateInfo xferBufCreateInfo
@@ -288,7 +288,7 @@ static bool CopyToGpuBuffer(
 
         return true;
     }
-    pcatchall;
+    ecatchall;
 
     return false;
 }

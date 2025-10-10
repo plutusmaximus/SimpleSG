@@ -2,7 +2,7 @@
 
 #include "Camera.h"
 
-#include "Assert.h"
+#include "Error.h"
 
 #include "SDLGPUDevice.h"
 

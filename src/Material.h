@@ -107,7 +107,7 @@ public:
         std::string_view Albedo;
     };
 
-    static std::expected<RefPtr<Material>, std::string> Create(GPUDevice gpuDevice, const Spec& spec);
+    static std::expected<RefPtr<Material>, Error> Create(GPUDevice gpuDevice, const Spec& spec);
 
     Material(const RgbaColorf& color, Texture albedo, RefPtr<SdlResource<SDL_GPUSampler>> albedoSampler)
         : Id(MaterialId::NextId())

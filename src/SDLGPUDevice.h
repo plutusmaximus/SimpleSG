@@ -13,19 +13,19 @@ class SDLGPUDevice : public GPUDeviceResource
 {
 public:
 
-    static std::expected<GPUDevice, std::string> Create();
+    static std::expected<GPUDevice, Error> Create();
 
     ~SDLGPUDevice() override;
 
-    std::expected<VertexBuffer, std::string> CreateVertexBuffer(
+    std::expected<VertexBuffer, Error> CreateVertexBuffer(
         const Vertex* vertices,
         const unsigned vertexCount) override;
 
-    std::expected<IndexBuffer, std::string> CreateIndexBuffer(
+    std::expected<IndexBuffer, Error> CreateIndexBuffer(
         const uint16_t* indices,
         const unsigned indexCount) override;
 
-    std::expected<Texture, std::string> CreateTextureFromPNG(const std::string_view path) override;
+    std::expected<Texture, Error> CreateTextureFromPNG(const std::string_view path) override;
 
     virtual void* GetDevice() { return m_GpuDevice.Get(); }  //DO NOT SUBMIT
 

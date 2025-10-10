@@ -1,10 +1,10 @@
 #pragma once
-#include <string>
-#include <vector>
 #include <expected>
 #include <cstdint>
 
 #include "RefCount.h"
+
+#include "Error.h"
 
 class Image
 {
@@ -38,5 +38,5 @@ private:
 class ImageLoader
 {
 public:
-    static std::expected<RefPtr<Image>, std::string> LoadPng(const std::string_view path);
+    static std::expected<RefPtr<Image>, Error> LoadPng(const std::string_view path);
 };

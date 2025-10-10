@@ -2,6 +2,8 @@
 
 #include "ImageLoader.h"
 
+#include "Error.h"
+
 #include <png.h>
 #include <cstdio>
 #include <vector>
@@ -98,26 +100,23 @@ extern "C"
 }//extern "C"
 #pragma warning(pop)
 
-std::expected<RefPtr<Image>, std::string> ImageLoader::LoadPng(const std::string_view path)
+std::expected<RefPtr<Image>, Error> ImageLoader::LoadPng(const std::string_view path)
 {
     FILE* fp = fopen(path.data(), "rb");
-    if (!fp)
-    {
-        return std::unexpected(std::string("Failed to open file: ") + path.data());
-    }
+    expect(fp, "Failed to open file: {}", path);
 
     png_byte header[8];
     if (fread(header, 1, 8, fp) != 8 || png_sig_cmp(header, 0, 8))
     {
         fclose(fp);
-        return std::unexpected(std::string("Not a valid PNG file: ") + path.data());
+        return std::unexpected(Error("Not a valid PNG file: {}", path.data()));
     }
 
     png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
     if (!png_ptr)
     {
         fclose(fp);
-        return std::unexpected("Failed to create png read struct");
+        return std::unexpected(Error("Failed to create png read struct"));
     }
 
     png_infop info_ptr = png_create_info_struct(png_ptr);
@@ -125,14 +124,14 @@ std::expected<RefPtr<Image>, std::string> ImageLoader::LoadPng(const std::string
     {
         png_destroy_read_struct(&png_ptr, nullptr, nullptr);
         fclose(fp);
-        return std::unexpected("Failed to create png info struct");
+        return std::unexpected(Error("Failed to create png info struct"));
     }
 
     if (!ReadPNGFile(fp, png_ptr, info_ptr))
     {
         png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
         fclose(fp);
-        return std::unexpected("libpng error during read");
+        return std::unexpected(Error("libpng error during read"));
     }
 
     png_size_t rowbytes = png_get_rowbytes(png_ptr, info_ptr);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "RefCount.h"
+#include "Error.h"
 
 #include <expected>
 #include <string>
@@ -60,26 +61,26 @@ public:
     virtual ~GPUDeviceResource() = 0 {}
 
     template<int COUNT>
-    std::expected<VertexBuffer, std::string> CreateVertexBuffer(const Vertex(&vertices)[COUNT])
+    std::expected<VertexBuffer, Error> CreateVertexBuffer(const Vertex(&vertices)[COUNT])
     {
         return CreateVertexBuffer(vertices, COUNT);
     }
 
-    virtual std::expected<VertexBuffer, std::string> CreateVertexBuffer(
+    virtual std::expected<VertexBuffer, Error> CreateVertexBuffer(
         const Vertex* vertices,
         const unsigned vertexCount) = 0;
 
     template<int COUNT>
-    std::expected<IndexBuffer, std::string> CreateIndexBuffer(const uint16_t(&indices)[COUNT])
+    std::expected<IndexBuffer, Error> CreateIndexBuffer(const uint16_t(&indices)[COUNT])
     {
         return CreateIndexBuffer(indices, COUNT);
     }
 
-    virtual std::expected<IndexBuffer, std::string> CreateIndexBuffer(
+    virtual std::expected<IndexBuffer, Error> CreateIndexBuffer(
         const uint16_t* indices,
         const unsigned indexCount) = 0;
 
-    virtual std::expected<Texture, std::string> CreateTextureFromPNG(const std::string_view path) = 0;
+    virtual std::expected<Texture, Error> CreateTextureFromPNG(const std::string_view path) = 0;
 
     virtual void* GetDevice() = 0;  //DO NOT SUBMIT
 

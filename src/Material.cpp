@@ -4,14 +4,14 @@
 
 #include "SdlResource.h"
 
-#include "Assert.h"
+#include "Error.h"
 
 #include <SDL3/SDL_gpu.h>
 
-std::expected<RefPtr<Material>, std::string>
+std::expected<RefPtr<Material>, Error>
 Material::Create(GPUDevice gpuDevice, const Spec& spec)
 {
-    ptry
+    etry
     {
         // Create sampler
         SDL_GPUSamplerCreateInfo samplerInfo =
@@ -34,7 +34,7 @@ Material::Create(GPUDevice gpuDevice, const Spec& spec)
 
         return new Material(spec.Color, texResult.value(), sampler);
     }
-    pcatchall;
+    ecatchall;
 
     return nullptr;
 }
