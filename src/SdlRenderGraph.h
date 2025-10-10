@@ -4,7 +4,7 @@
 #include <map>
 
 #include "RenderGraph.h"
-#include "Model.h"
+#include "ModelNode.h"
 #include "MaterialDb.h"
 
 struct SDL_GPUCommandBuffer;

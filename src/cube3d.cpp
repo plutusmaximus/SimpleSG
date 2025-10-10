@@ -5,7 +5,6 @@
 
 #include "Error.h"
 #include "ModelVisitor.h"
-#include "ModelNode.h"
 #include "TransformNode.h"
 #include "MaterialDb.h"
 #include "SdlRenderGraph.h"
@@ -134,12 +133,10 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
         RefPtr<GroupNode> scene = new GroupNode();
 
-        RefPtr<ModelNode> planetModelNode = new ModelNode(cubeModel);
         RefPtr<TransformNode> planetXFormNode = new TransformNode();
-        RefPtr<ModelNode> moonModelNode = new ModelNode(cubeModel);
         RefPtr<TransformNode> moonXFormNode = new TransformNode();
-        planetXFormNode->AddChild(planetModelNode);
-        moonXFormNode->AddChild(moonModelNode);
+        planetXFormNode->AddChild(cubeModel);
+        moonXFormNode->AddChild(cubeModel);
         planetXFormNode->AddChild(moonXFormNode);
         scene->AddChild(planetXFormNode);
 
@@ -156,9 +153,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         RefPtr<Model> quadModel = Model::Create(quadMeshes);
         pcheck(quadModel, "Model::Create failed");
 
-        RefPtr<ModelNode> quadModelNode = new ModelNode(quadModel);
         RefPtr<TransformNode> quadXFormNode = new TransformNode();
-        quadXFormNode->AddChild(quadModelNode);
+        quadXFormNode->AddChild(quadModel);
 
         SDL_GPUTextureCreateInfo depthCreateInfo
         {

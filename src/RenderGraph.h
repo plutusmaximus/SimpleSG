@@ -1,9 +1,8 @@
 #pragma once
 
-#include "Model.h"
+#include "ModelNode.h"
 
 class Camera;
-class Model;
 
 class RenderGraph
 {

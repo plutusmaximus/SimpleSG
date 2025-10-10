@@ -24,7 +24,7 @@ public:
 
     ~ModelVisitor() override {}
 
-    void Visit(ModelNode* node) override;
+    void Visit(Model* node) override;
 
     void Visit(GroupNode* node) override;
 

@@ -4,9 +4,9 @@
 #include "TransformNode.h"
 #include "RenderGraph.h"
 
-void ModelVisitor::Visit(ModelNode* node)
+void ModelVisitor::Visit(Model* node)
 {
-    m_RenderGraph->Add(GetTransform(), node->Model);
+    m_RenderGraph->Add(GetTransform(), node);
 }
 
 void
