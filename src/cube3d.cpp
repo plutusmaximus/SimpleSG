@@ -65,14 +65,14 @@ Uint16 cubeIndices[] =
     20, 23, 22,  20, 22, 21  // CCW: back-left -> front-left -> front-right, back-left -> front-right -> back-right
 };
 
-RgbaColorf Colors[] =
+Material::Spec MaterialSpecs[] =
 {
-    {1, 0, 0},
-    {0, 1, 0},
-    {0, 0, 1},
-    {1, 1, 1},
-    {0, 1, 1},
-    {1, 0, 1}
+    {.Color = {1, 0, 0}, .Albedo = "Images\\Ant.png"},
+    {.Color = {0, 1, 0}, .Albedo = "Images\\Bee.png"},
+    {.Color = {0, 0, 1}, .Albedo = "Images\\Butterfly.png"},
+    {.Color = {1, 1, 1}, .Albedo = "Images\\Frog.png"},
+    {.Color = {0, 1, 1}, .Albedo = "Images\\Lizard.png"},
+    {.Color = {1, 0, 1}, .Albedo = "Images\\Turtle.png"}
 };
 
 // Set up vertex data for quad
@@ -91,17 +91,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
     etry
     {
-        //DO NOT SUBMIT - path
-        const std::string texPaths[] =
-        {
-            "Images\\Ant.png",
-            "Images\\Bee.png",
-            "Images\\Butterfly.png",
-            "Images\\Frog.png",
-            "Images\\Lizard.png",
-            "Images\\Turtle.png",
-        };
-
         auto gdResult = SDLGPUDevice::Create();
         pcheck(gdResult, gdResult.error());
         auto gd = *gdResult;
@@ -115,14 +104,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
         for (int i = 0; i < NUM_MATERIALS; ++i)
         {
-            const auto& path = texPaths[i % std::size(texPaths)];
-            const auto& color = Colors[i % std::size(Colors)];
+            const Material::Spec& mtlSpec = MaterialSpecs[i % std::size(MaterialSpecs)];
 
-            Material::Spec mtlSpec
-            {
-                .Color = color,
-                .Albedo = path
-            };
             auto materialResult = Material::Create(gd, mtlSpec);
 
             materialDb->Add(materialResult.value());
