@@ -1,6 +1,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 
-#include "ImageLoader.h"
+#include "Image.h"
 
 #include "Error.h"
 
@@ -113,7 +113,7 @@ extern "C"
 }//extern "C"
 #pragma warning(pop)
 
-std::expected<RefPtr<Image>, Error> ImageLoader::LoadPng(const std::string_view path)
+std::expected<RefPtr<Image>, Error> Image::LoadPng(const std::string_view path)
 {
     FILE* fp = fopen(path.data(), "rb");
     expect(fp, "Failed to open file: {}", path);

@@ -18,6 +18,8 @@ public:
     const int Height;
     std::uint8_t* const Pixels; // RGBA8
 
+    static std::expected<RefPtr<Image>, Error> LoadPng(const std::string_view path);
+
 private:
 
     Image(const int width, const int height, uint8_t* pixels)
@@ -28,10 +30,4 @@ private:
     }
 
     IMPLEMENT_REFCOUNT(Image);
-};
-
-class ImageLoader
-{
-public:
-    static std::expected<RefPtr<Image>, Error> LoadPng(const std::string_view path);
 };

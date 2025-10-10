@@ -2,7 +2,7 @@
 
 #include "Error.h"
 #include "Mesh.h"
-#include "ImageLoader.h"
+#include "Image.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_gpu.h>
@@ -183,7 +183,7 @@ SDLGPUDevice::CreateIndexBuffer(const uint16_t* indices, const unsigned indexCou
 std::expected<Texture, Error>
 SDLGPUDevice::CreateTextureFromPNG(const std::string_view path)
 {
-    auto imgResult = ImageLoader::LoadPng(path);
+    auto imgResult = Image::LoadPng(path);
     expect(imgResult, imgResult.error());
     auto img = *imgResult;
     auto gpuTexResult = CreateTexture(m_GpuDevice.Get(), img->Width, img->Height, img->Pixels);
