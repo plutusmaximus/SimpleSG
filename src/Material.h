@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SdlResource.h"
+#include "GPUDevice.h"
 #include "VecMath.h"
 
 template<typename T>
@@ -106,9 +107,9 @@ public:
         std::string_view Albedo;
     };
 
-    static RefPtr<Material> Create(SDL_GPUDevice* gpuDevice, const Spec& spec);
+    static std::expected<RefPtr<Material>, std::string> Create(GPUDevice gpuDevice, const Spec& spec);
 
-    Material(const RgbaColorf& color, RefPtr<SdlResource<SDL_GPUTexture>> albedo, RefPtr<SdlResource<SDL_GPUSampler>> albedoSampler)
+    Material(const RgbaColorf& color, Texture albedo, RefPtr<SdlResource<SDL_GPUSampler>> albedoSampler)
         : Id(MaterialId::NextId())
         , Color(color)
         , Albedo(albedo)
@@ -123,13 +124,12 @@ public:
     const float Metallic{ 0 };
     const float Roughness{ 0 };
 
-    const RefPtr<SdlResource<SDL_GPUTexture>> Albedo;
+    const Texture Albedo;
     const RefPtr<SdlResource<SDL_GPUSampler>> AlbedoSampler;
-    const RefPtr<SdlResource<SDL_GPUTexture>> NormalMap;
+    const Texture NormalMap;
     const RefPtr<SdlResource<SDL_GPUTexture>> MetallicMap;
-    const RefPtr<SdlResource<SDL_GPUTexture>> RoughnessMap;
+    const Texture RoughnessMap;
     const RefPtr<SdlResource<SDL_GPUTexture>> EmissiveMap;
 
     IMPLEMENT_REFCOUNT(Material);
-    IMPLEMENT_NON_COPYABLE(Material);
 };

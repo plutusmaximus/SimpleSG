@@ -5,6 +5,7 @@
 
 #include "RenderGraph.h"
 #include "Model.h"
+#include "MaterialDb.h"
 
 struct SDL_GPUCommandBuffer;
 struct SDL_GPURenderPass;

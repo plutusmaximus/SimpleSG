@@ -13,27 +13,26 @@
 #include "SdlRenderGraph.h"
 #include "VecMath.h"
 
-#include <expected>
-#include "ImageLoader.h"
+#include "SDLGPUDevice.h"
 
 // Cube vertices (8 corners with positions, normals, and colors)
 Vertex cubeVertices[] =
 {
     // Front face
-    {{-0.5f, -0.5f,  0.5f}, {0.0f,  0.0f,  1.0f},  {0, 1}}, // 0
-    {{ 0.5f, -0.5f,  0.5f}, {0.0f,  0.0f,  1.0f},  {1, 1}}, // 1
-    {{ 0.5f,  0.5f,  0.5f}, {0.0f,  0.0f,  1.0f},  {1, 0}}, // 2
-    {{-0.5f,  0.5f,  0.5f}, {0.0f,  0.0f,  1.0f},  {0, 0}}, // 3
+    {{-0.5f, -0.5f,  0.5f}, {0.0f,  0.0f,  1.0f},  {1, 1}}, // 0
+    {{ 0.5f, -0.5f,  0.5f}, {0.0f,  0.0f,  1.0f},  {0, 1}}, // 1
+    {{ 0.5f,  0.5f,  0.5f}, {0.0f,  0.0f,  1.0f},  {0, 0}}, // 2
+    {{-0.5f,  0.5f,  0.5f}, {0.0f,  0.0f,  1.0f},  {1, 0}}, // 3
     // Back face
     {{-0.5f, -0.5f, -0.5f}, {0.0f,  0.0f, -1.0f},  {0, 1}}, // 4
     {{ 0.5f, -0.5f, -0.5f}, {0.0f,  0.0f, -1.0f},  {1, 1}}, // 5
     {{ 0.5f,  0.5f, -0.5f}, {0.0f,  0.0f, -1.0f},  {1, 0}}, // 6
     {{-0.5f,  0.5f, -0.5f}, {0.0f,  0.0f, -1.0f},  {0, 0}}, // 7
     // Left face
-    {{-0.5f, -0.5f, -0.5f}, {-1.0f,  0.0f,  0.0f},  {0, 1}}, // 8
-    {{-0.5f, -0.5f,  0.5f}, {-1.0f,  0.0f,  0.0f},  {1, 1}}, // 9
-    {{-0.5f,  0.5f,  0.5f}, {-1.0f,  0.0f,  0.0f},  {1, 0}}, // 10
-    {{-0.5f,  0.5f, -0.5f}, {-1.0f,  0.0f,  0.0f},  {0, 0}}, // 11
+    {{-0.5f, -0.5f, -0.5f}, {-1.0f,  0.0f,  0.0f},  {1, 1}}, // 8
+    {{-0.5f, -0.5f,  0.5f}, {-1.0f,  0.0f,  0.0f},  {0, 1}}, // 9
+    {{-0.5f,  0.5f,  0.5f}, {-1.0f,  0.0f,  0.0f},  {0, 0}}, // 10
+    {{-0.5f,  0.5f, -0.5f}, {-1.0f,  0.0f,  0.0f},  {1, 0}}, // 11
     // Right face
     {{0.5f, -0.5f,  0.5f}, {1.0f,  0.0f,  0.0f},  {1, 1}}, // 12
     {{0.5f, -0.5f, -0.5f}, {1.0f,  0.0f,  0.0f},  {0, 1}}, // 13
@@ -90,9 +89,7 @@ uint16_t quadIndices[] = { 0, 3, 2,  0, 2, 1 };
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {
-    auto cwd = std::filesystem::current_path();
-
-    SDL_SetLogPriorities(SDL_LOG_PRIORITY_DEBUG);
+    spdlog::set_level(spdlog::level::debug);
 
     ptry
     {
@@ -107,36 +104,14 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             "Images\\Turtle.png",
         };
 
-        pcheck(SDL_Init(SDL_INIT_VIDEO), "SDL_Init: {}", SDL_GetError());
-
-        pcheck(SDL_SetHint(SDL_HINT_RENDER_VULKAN_DEBUG, "1"));
-
-        // Create window
-        SdlResource<SDL_Window> window(nullptr, SDL_CreateWindow("SDL3 GPU Cube", 800, 600, SDL_WINDOW_RESIZABLE));
-        pcheck(window, "SDL_CreateWindow: {}", SDL_GetError());
-
-        // Initialize GPU device
-        const bool debugMode = true;
-        SdlResource<SDL_GPUDevice> gpuDevice(nullptr, SDL_CreateGPUDevice(SHADER_FORMAT, debugMode, DRIVER_NAME));
-        pcheck(gpuDevice, "SDL_CreateGPUDevice: {}", SDL_GetError());
-
-        pcheck(SDL_ClaimWindowForGPUDevice(gpuDevice, window), "SDL_ClaimWindowForGPUDevice: {}", SDL_GetError());
+        auto gdResult = SDLGPUDevice::Create();
+        pcheck(gdResult, gdResult.error());
+        auto gd = *gdResult;
+        SDL_GPUDevice* gpuDevice = (SDL_GPUDevice*)gd->GetDevice();//DO NOT SUBMIT
+        SDL_Window* window = (SDL_Window*)gd->GetWindow();//DO NOT SUBMIT
 
         RefPtr<MaterialDb> materialDb = MaterialDb::Create();
         std::vector<MaterialId> materialIds;
-
-        // Create sampler
-        SDL_GPUSamplerCreateInfo samplerInfo =
-        {
-            .min_filter = SDL_GPU_FILTER_NEAREST,
-            .mag_filter = SDL_GPU_FILTER_NEAREST,
-            .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
-            .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT
-        };
-
-        RefPtr<SdlResource<SDL_GPUSampler>> sampler =
-            new SdlResource<SDL_GPUSampler>(gpuDevice, SDL_CreateGPUSampler(gpuDevice, &samplerInfo));
-        pcheck(sampler, "SDL_CreateGPUSampler: {}", SDL_GetError());
 
         constexpr int NUM_MATERIALS = 6;
 
@@ -150,27 +125,27 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
                 .Color = color,
                 .Albedo = path
             };
-            auto material = Material::Create(gpuDevice, mtlSpec);
+            auto materialResult = Material::Create(gd, mtlSpec);
 
-            materialDb->Add(material);
+            materialDb->Add(materialResult.value());
 
-            materialIds.push_back(material->Id);
+            materialIds.push_back(materialResult.value()->Id);
         }
 
         // Create meshes
-        auto cubeVb = SdlVertexBuffer::Create(gpuDevice, cubeVertices, std::size(cubeVertices));
-        pcheck(cubeVb, "Mesh::CreateVertexBuffer failed");
-        auto cubeIb = SdlIndexBuffer::Create(gpuDevice, cubeIndices, std::size(cubeIndices));
-        pcheck(cubeIb, "Mesh::CreateIndexBuffer failed");
+        auto cubeVb = gd->CreateVertexBuffer(cubeVertices, std::size(cubeVertices));
+        pcheck(cubeVb, cubeVb.error());
+        auto cubeIb = gd->CreateIndexBuffer(cubeIndices, std::size(cubeIndices));
+        pcheck(cubeIb, cubeVb.error());
 
         RefPtr<Mesh> cubeMeshes[]
         {
-            Mesh::Create(cubeVb, cubeIb, 0, 6, materialIds[0]),
-            Mesh::Create(cubeVb, cubeIb, 6, 6, materialIds[1]),
-            Mesh::Create(cubeVb, cubeIb, 12, 6, materialIds[2]),
-            Mesh::Create(cubeVb, cubeIb, 18, 6, materialIds[3]),
-            Mesh::Create(cubeVb, cubeIb, 24, 6, materialIds[4]),
-            Mesh::Create(cubeVb, cubeIb, 30, 6, materialIds[5])
+            Mesh::Create(cubeVb.value(), cubeIb.value(), 0, 6, materialIds[0]),
+            Mesh::Create(cubeVb.value(), cubeIb.value(), 6, 6, materialIds[1]),
+            Mesh::Create(cubeVb.value(), cubeIb.value(), 12, 6, materialIds[2]),
+            Mesh::Create(cubeVb.value(), cubeIb.value(), 18, 6, materialIds[3]),
+            Mesh::Create(cubeVb.value(), cubeIb.value(), 24, 6, materialIds[4]),
+            Mesh::Create(cubeVb.value(), cubeIb.value(), 30, 6, materialIds[5])
         };
 
         RefPtr<Model> cubeModel = Model::Create(cubeMeshes);
@@ -187,14 +162,15 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         planetXFormNode->AddChild(moonXFormNode);
         scene->AddChild(planetXFormNode);
 
-        auto quadVb = SdlVertexBuffer::Create(gpuDevice, quadVertices);
-        pcheck(quadVb, "Mesh::CreateVertexBuffer failed");
-        auto quadIb = SdlIndexBuffer::Create(gpuDevice, quadIndices);
-        pcheck(quadIb, "Mesh::CreateIndexBuffer failed");
+
+        auto quadVb = gd->CreateVertexBuffer(quadVertices);
+        pcheck(quadVb, quadVb.error());
+        auto quadIb = gd->CreateIndexBuffer(quadIndices);
+        pcheck(quadIb, quadIb.error());
 
         RefPtr<Mesh> quadMeshes[]
         {
-            Mesh::Create(quadVb, quadIb, 0, std::size(quadIndices), materialIds[0])
+            Mesh::Create(quadVb.value(), quadIb.value(), 0, std::size(quadIndices), materialIds[0])
         };
 
         RefPtr<Model> quadModel = Model::Create(quadMeshes);
@@ -247,8 +223,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
         SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo
         {
-            .vertex_shader = vtxShader,
-            .fragment_shader = fragShader,
+            .vertex_shader = vtxShader.Get(),
+            .fragment_shader = fragShader.Get(),
             .vertex_input_state =
             {
                 .vertex_buffer_descriptions = vertexBufDescriptions,
@@ -377,7 +353,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
             SDL_GPUDepthStencilTargetInfo depthTargetInfo
             {
-                .texture = *depthBuffer,
+                .texture = (*depthBuffer).Get(),
                 .clear_depth = 1,
                 .load_op = SDL_GPU_LOADOP_CLEAR,
                 .store_op = SDL_GPU_STOREOP_STORE
@@ -399,23 +375,13 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
             SdlRenderGraph renderGraph(materialDb, cmdBuf, renderPass);
 
-            SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
+            SDL_BindGPUGraphicsPipeline(renderPass, pipeline.Get());
 
             SDL_GPUViewport viewport
             {
                 0, 0, (float)windowW, (float)windowH, 0, 1
             };
             SDL_SetGPUViewport(renderPass, &viewport);
-
-            /*auto mtl = materialDb->GetMaterial(materialIds[0]);
-
-            // Bind texture and sampler
-            SDL_GPUTextureSamplerBinding samplerBinding
-            {
-                .texture = mtl->Albedo->Get(),
-                .sampler = mtl->AlbedoSampler->Get()
-            };
-            SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);*/
 
             ModelVisitor visitor(&renderGraph, camera);
 

@@ -19,6 +19,4 @@ public:
 private:
 
     IMPLEMENT_REFCOUNT(SceneNode);
-
-    IMPLEMENT_NON_COPYABLE(SceneNode);
 };

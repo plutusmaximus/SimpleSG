@@ -41,7 +41,5 @@ private:
         Meshes.insert(Meshes.end(), &meshes[0], &meshes[meshCount]);
     }
 
-    IMPLEMENT_NON_COPYABLE(Model);
-
     IMPLEMENT_REFCOUNT(Model);
 };

@@ -33,7 +33,6 @@ private:
     }
 
     IMPLEMENT_REFCOUNT(Image);
-    IMPLEMENT_NON_COPYABLE(Image);
 };
 
 class ImageLoader

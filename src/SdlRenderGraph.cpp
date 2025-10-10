@@ -4,6 +4,8 @@
 
 #include "Assert.h"
 
+#include "SDLGPUDevice.h"
+
 #include <SDL3/SDL_gpu.h>
 
 SdlRenderGraph::SdlRenderGraph(RefPtr<MaterialDb> materialDb, SDL_GPUCommandBuffer* cmdBuf, SDL_GPURenderPass* renderPass)
@@ -50,7 +52,7 @@ SdlRenderGraph::Render(const Camera& camera)
         // Bind texture and sampler
         SDL_GPUTextureSamplerBinding samplerBinding
         {
-            .texture = mtl->Albedo->Get(),
+            .texture = (SDL_GPUTexture*)mtl->Albedo->GetTexture(),  //DO NOT SUBMIT
             .sampler = mtl->AlbedoSampler->Get()
         };
         SDL_BindGPUFragmentSamplers(m_RenderPass, 0, &samplerBinding, 1);
@@ -63,14 +65,14 @@ SdlRenderGraph::Render(const Camera& camera)
 
             SDL_GPUBufferBinding vertexBufferBinding
             {
-                .buffer = xmesh.Mesh->VertexBuffer->Get(),
+                .buffer = (SDL_GPUBuffer*)xmesh.Mesh->VtxBuffer->GetBuffer(),
                 .offset = 0
             };
             SDL_BindGPUVertexBuffers(m_RenderPass, 0, &vertexBufferBinding, 1);
 
             SDL_GPUBufferBinding indexBufferBinding
             {
-                .buffer = xmesh.Mesh->IndexBuffer->Get(),
+                .buffer = (SDL_GPUBuffer*)xmesh.Mesh->IdxBuffer->GetBuffer(),
                 .offset = 0
             };
             SDL_BindGPUIndexBuffer(m_RenderPass, &indexBufferBinding, SDL_GPU_INDEXELEMENTSIZE_16BIT);

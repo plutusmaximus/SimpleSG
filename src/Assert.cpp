@@ -45,18 +45,3 @@ bool ShowAssertDialog(const char* expression, const char* fileName, const int li
 
     return IDRETRY == msgboxValue;
 }
-
-std::string GetTimestamp()
-{
-    auto now = std::chrono::system_clock::now();
-    auto time = std::chrono::system_clock::to_time_t(now);
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-        now.time_since_epoch()) % 1000;
-
-    std::ostringstream oss;
-    tm tmDst;
-    localtime_s(&tmDst, &time);
-    oss << std::put_time(&tmDst, "%Y-%m-%d %H:%M:%S");
-    oss << std::format(".{:03d}", ms.count());
-    return oss.str();
-}

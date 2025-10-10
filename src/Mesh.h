@@ -1,6 +1,8 @@
 #pragma once
 
-#include "MaterialDb.h"
+#include "Material.h"
+
+#include "GPUDevice.h"
 
 struct UV2
 {
@@ -19,8 +21,8 @@ class Mesh
 public:
 
     static RefPtr<Mesh> Create(
-        SdlVertexBuffer vb,
-        SdlIndexBuffer ib,
+        VertexBuffer vb,
+        IndexBuffer ib,
         const int indexOffset,
         const int indexCount,
         const MaterialId materialId)
@@ -28,8 +30,8 @@ public:
         return new Mesh(vb, ib, indexOffset, indexCount, materialId);
     }
 
-    SdlVertexBuffer VertexBuffer;
-    SdlIndexBuffer IndexBuffer;
+    VertexBuffer VtxBuffer;
+    IndexBuffer IdxBuffer;
 
     const int IndexOffset;
     const int IndexCount;
@@ -40,20 +42,18 @@ private:
     Mesh() = delete;
 
     Mesh(
-        SdlVertexBuffer vb,
-        SdlIndexBuffer ib,
+        VertexBuffer vb,
+        IndexBuffer ib,
         const int indexOffset,
         const int indexCount,
         const ::MaterialId materialId)
-        : VertexBuffer(vb)
-        , IndexBuffer(ib)
+        : VtxBuffer(vb)
+        , IdxBuffer(ib)
         , IndexOffset(indexOffset)
         , IndexCount(indexCount)
         , MaterialId(materialId)
     {
     }
-
-    IMPLEMENT_NON_COPYABLE(Mesh);
 
     IMPLEMENT_REFCOUNT(Mesh);
 };

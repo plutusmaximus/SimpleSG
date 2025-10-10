@@ -34,9 +34,3 @@ SDL_GPUShader* LoadFragmentShader(
     SDL_GPUDevice* gpuDevice,
     const std::string_view fileName,
     const int numSamplers);
-
-SDL_GPUTexture* CreateTexture(
-    SDL_GPUDevice* gpuDevice,
-    const unsigned width,
-    const unsigned height,
-    const uint8_t* pixels);

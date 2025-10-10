@@ -130,6 +130,12 @@ bool operator!=(const RefPtr<T>& lhs, std::nullptr_t null) { return !operator==(
 template <typename T>
 bool operator!=(std::nullptr_t null, const RefPtr<T>& rhs) { return !operator==(null, rhs); }
 
+#define IMPLEMENT_NON_COPYABLE(ClassName)           \
+private:                                            \
+ClassName(const ClassName&) = delete;               \
+ClassName& operator=(const ClassName&) = delete;
+
+//Also implements NON_COPYABLE
 #define IMPLEMENT_REFCOUNT(ClassName)               \
  public:                                            \
   void AddRef() const {                             \
@@ -142,8 +148,5 @@ bool operator!=(std::nullptr_t null, const RefPtr<T>& rhs) { return !operator==(
   }                                                 \
                                                     \
  private:                                           \
-  RefCount m_RefCount;
-
-#define IMPLEMENT_NON_COPYABLE(ClassName)           \
-ClassName(const ClassName&) = delete;               \
-ClassName& operator=(const ClassName&) = delete;
+  RefCount m_RefCount;                              \
+IMPLEMENT_NON_COPYABLE(ClassName);

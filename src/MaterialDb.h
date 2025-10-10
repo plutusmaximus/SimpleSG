@@ -28,7 +28,4 @@ private:
     std::map<MaterialId, int> m_MaterialIndexById;
 
     IMPLEMENT_REFCOUNT(MaterialDb);
-
-    IMPLEMENT_NON_COPYABLE(MaterialDb);
-
 };
