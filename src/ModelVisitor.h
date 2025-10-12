@@ -15,9 +15,8 @@ public:
 
     ModelVisitor() = delete;
 
-    ModelVisitor(RenderGraph* renderGraph, const Camera& camera)
+    explicit ModelVisitor(RenderGraph* renderGraph)
         : m_RenderGraph(renderGraph)
-        , m_Camera(camera)
     {
         m_TransformStack.push(Mat44f::Identity());
     }
@@ -37,7 +36,6 @@ public:
 
 private:
 
-    Camera m_Camera;
     RenderGraph* m_RenderGraph;
 
     std::stack<Mat44f> m_TransformStack;

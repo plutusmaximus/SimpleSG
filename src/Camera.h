@@ -15,7 +15,7 @@ public:
         , m_Far(farClip)
         , m_ComputeViewProj(true)
     {
-        m_Transform = Mat44f::Identity();
+        m_ViewProj = m_Transform = Mat44f::Identity();
     }
 
     void SetAspect(const float aspect)

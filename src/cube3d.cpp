@@ -211,15 +211,15 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             
             planetXFormNode->Transform =
                 Mat44f::Identity()
-                .Rotate(Quaternionf(planetSpinAngle, Vec3f::YAXIS))
-                .Rotate(Degreesf(15), Vec3f::ZAXIS)
+                .Rotate(Quaternionf(planetSpinAngle, Vec3f::YAXIS)) //tilt
+                .Rotate(Degreesf(15), Vec3f::ZAXIS) //spin
                 .Translate(0, 0, 4);
             moonXFormNode->Transform =
                 Mat44f::Identity()
                 .Scale(0.25)
-                .Rotate(Quaternionf(-moonSpinAngle, Vec3f::YAXIS))
+                .Rotate(Quaternionf(-moonSpinAngle, Vec3f::YAXIS))  //spin
                 .Translate(0, 0, -2)
-                .Rotate(Quaternionf(-moonOrbitAngle, Vec3f::YAXIS));
+                .Rotate(Quaternionf(-moonOrbitAngle, Vec3f::YAXIS));    //orbit
 
             SDL_GPUCommandBuffer* cmdBuf = SDL_AcquireGPUCommandBuffer(gpuDevice);
 
@@ -290,7 +290,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             SDL_SetGPUViewport(renderPass, &viewport);
 
             SdlRenderGraph renderGraph(materialDb, cmdBuf, renderPass);
-            ModelVisitor visitor(&renderGraph, camera);
+            ModelVisitor visitor(&renderGraph);
             scene->Accept(&visitor);
             renderGraph.Render(camera);
 
