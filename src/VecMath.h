@@ -272,6 +272,29 @@ public:
     {
         return Vec3{ x * scale, y * scale, z * scale };
     }
+
+    Vec3 Cross(const Vec3& that) const
+    {
+        return Vec3(
+            y * that.z - z * that.y,
+            z * that.x - x * that.z,
+            x * that.y - y * that.x);
+    }
+
+    T Dot(const Vec3& that) const
+    {
+        return x * that.x + y * that.y + z * that.z;
+    }
+
+    Vec3 operator+(const Vec3& that) const
+    {
+        return Vec3(x + that.x, y + that.y, z + that.z);
+    }
+
+    Vec3 operator-(const Vec3& that) const
+    {
+        return Vec3(x - that.x, y - that.y, z - that.z);
+    }
 };
 
 template<typename T>
