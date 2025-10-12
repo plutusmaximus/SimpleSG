@@ -77,14 +77,6 @@ SdlRenderGraph::Render(const Camera& camera)
             };
             SDL_BindGPUIndexBuffer(m_RenderPass, &indexBufferBinding, SDL_GPU_INDEXELEMENTSIZE_16BIT);
 
-            /*// Bind texture and sampler
-            SDL_GPUTextureSamplerBinding samplerBinding
-            {
-                .texture = texture,
-                .sampler = sampler
-            };
-            SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);*/
-
             SDL_DrawGPUIndexedPrimitives(m_RenderPass, xmesh.Mesh->IndexCount, 1, xmesh.Mesh->IndexOffset, 0, 0);
         }
     }
