@@ -34,7 +34,6 @@ public:
     IMPLEMENT_REFCOUNT(IndexBufferResource);
 };
 
-
 class TextureResource
 {
 public:
@@ -48,9 +47,23 @@ public:
     IMPLEMENT_REFCOUNT(TextureResource);
 };
 
+class PipelineResource
+{
+public:
+
+    PipelineResource() {}
+
+    virtual ~PipelineResource() = 0 {}
+
+    virtual void* GetPipeline() = 0;  //DO NOT SUBMIT
+
+    IMPLEMENT_REFCOUNT(PipelineResource);
+};
+
 using VertexBuffer = RefPtr<VertexBufferResource>;
 using IndexBuffer = RefPtr<IndexBufferResource>;
 using Texture = RefPtr<TextureResource>;
+using Pipeline = RefPtr<PipelineResource>;
 
 class GPUDeviceResource
 {
@@ -82,11 +95,11 @@ public:
 
     virtual std::expected<Texture, Error> CreateTextureFromPNG(const std::string_view path) = 0;
 
+    virtual std::expected<Pipeline, Error> CreatePipeline() = 0;
+
     virtual void* GetDevice() = 0;  //DO NOT SUBMIT
 
     virtual void* GetWindow() = 0;  //DO NOT SUBMIT
-
-    virtual void* GetPipeline() = 0;  //DO NOT SUBMIT
 
     IMPLEMENT_REFCOUNT(GPUDeviceResource);
 };

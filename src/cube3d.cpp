@@ -172,6 +172,10 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         const Degreesf fov(45);
         Camera camera(fov, 1, 0.1f, 100);
 
+        auto pipelineResult = gd->CreatePipeline();
+        pcheck(pipelineResult, pipelineResult.error());
+        Pipeline pipeline = pipelineResult.value();
+
         // Main loop
         bool running = true;
         Radiansf planetSpinAngle(0), moonSpinAngle(0), moonOrbitAngle(0);
@@ -281,7 +285,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
                 continue;
             }
 
-            SDL_BindGPUGraphicsPipeline(renderPass, (SDL_GPUGraphicsPipeline*) gd->GetPipeline());
+            SDL_BindGPUGraphicsPipeline(renderPass, (SDL_GPUGraphicsPipeline*) pipeline->GetPipeline());
 
             SDL_GPUViewport viewport
             {
