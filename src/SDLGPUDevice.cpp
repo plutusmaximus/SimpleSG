@@ -1,5 +1,6 @@
 #include "SDLGPUDevice.h"
 
+#include "AutoDeleter.h"
 #include "Error.h"
 #include "Mesh.h"
 #include "Image.h"
@@ -502,55 +503,6 @@ static std::expected<SDL_GPUTexture*, std::string> CreateTexture(
     return texture.Take();
 }
 
-template<class F>
-class ScopeGuard
-{
-public:
-    explicit ScopeGuard(F f) : m_ReleaseFunc(std::move(f)), m_Active(true) {}
-
-    ScopeGuard(const ScopeGuard&) = delete;
-    ScopeGuard& operator=(const ScopeGuard&) = delete;
-
-    ScopeGuard(ScopeGuard&& other) noexcept
-        : m_ReleaseFunc(std::move(other.m_ReleaseFunc)), m_Active(other.m_Active)
-    {
-        other.m_Active = false;
-    }
-
-    ScopeGuard& operator=(ScopeGuard&& other) noexcept
-    {
-        if (this != &other)
-        {
-            if (m_Active)
-            {
-                m_ReleaseFunc();                 // clean up current resource
-            }
-            m_ReleaseFunc = std::move(other.m_ReleaseFunc);
-            m_Active = other.m_Active;
-            other.m_Active = false;
-        }
-        return *this;
-    }
-
-    ~ScopeGuard() noexcept
-    {
-        if (m_Active)
-        {
-            m_ReleaseFunc();
-        }
-    }
-
-private:
-    F m_ReleaseFunc;
-    bool m_Active;
-};
-
-template<class F>
-ScopeGuard<F> MakeScopeGuard(F releaseFunc)
-{
-    return ScopeGuard<F>(std::move(releaseFunc));
-}
-
 static std::expected<SDL_GPUShader*, Error> LoadShader(
     SDL_GPUDevice* gpuDevice,
     const std::string_view fileName,
@@ -562,7 +514,7 @@ static std::expected<SDL_GPUShader*, Error> LoadShader(
     void* shaderSrc = SDL_LoadFile(fileName.data(), &fileSize);
     expect(shaderSrc, fileName, SDL_GetError());
 
-    auto raii = MakeScopeGuard([shaderSrc]() {SDL_free(shaderSrc); });
+    auto ad = AutoDeleter(SDL_free, shaderSrc);
 
     SDL_GPUShaderCreateInfo shaderCreateInfo
     {
@@ -575,7 +527,7 @@ static std::expected<SDL_GPUShader*, Error> LoadShader(
         .num_uniform_buffers = numUniformBuffers
     };
 
-    SDL_GPUShader*  shader = SDL_CreateGPUShader(gpuDevice, &shaderCreateInfo);
+    SDL_GPUShader* shader = SDL_CreateGPUShader(gpuDevice, &shaderCreateInfo);
     expect(shader, SDL_GetError());
 
     return shader;
