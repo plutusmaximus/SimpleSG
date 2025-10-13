@@ -12,6 +12,14 @@ public:
     {
     }
 
+    ~AutoDeleter()
+    {
+        if (m_Active)
+        {
+            m_Deleter();
+        }
+    }
+
     // Non-copyable
     AutoDeleter(const AutoDeleter&) = delete;
     AutoDeleter& operator=(const AutoDeleter&) = delete;
@@ -20,9 +28,9 @@ public:
     AutoDeleter(AutoDeleter&& other) = delete;
     AutoDeleter& operator=(AutoDeleter&&) = delete;
 
-    ~AutoDeleter()
+    void Cancel()
     {
-        m_Deleter();
+        m_Active = false;
     }
 
 private:
@@ -38,6 +46,7 @@ private:
     using DeleterType = decltype(make_deleter(std::declval<F>(), std::declval<Args>()...));
 
     DeleterType m_Deleter;
+    bool m_Active = true;
 };
 
 // CTAD to help compiler deduce template args.

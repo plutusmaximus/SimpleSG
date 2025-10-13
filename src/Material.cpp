@@ -11,30 +11,24 @@
 std::expected<RefPtr<Material>, Error>
 Material::Create(GPUDevice gpuDevice, const Spec& spec)
 {
-    etry
+    // Create sampler
+    SDL_GPUSamplerCreateInfo samplerInfo =
     {
-        // Create sampler
-        SDL_GPUSamplerCreateInfo samplerInfo =
-        {
-            .min_filter = SDL_GPU_FILTER_NEAREST,
-            .mag_filter = SDL_GPU_FILTER_NEAREST,
-            .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
-            .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT
-        };
+        .min_filter = SDL_GPU_FILTER_NEAREST,
+        .mag_filter = SDL_GPU_FILTER_NEAREST,
+        .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
+        .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT
+    };
 
-        SDL_GPUDevice* gd = (SDL_GPUDevice*)gpuDevice->GetDevice();//DO NOT SUBMIT
+    SDL_GPUDevice* gd = (SDL_GPUDevice*)gpuDevice->GetDevice();//DO NOT SUBMIT
 
-        RefPtr<SdlResource<SDL_GPUSampler>> sampler =
-            new SdlResource<SDL_GPUSampler>(gd, SDL_CreateGPUSampler(gd, &samplerInfo));
-        expect(sampler, SDL_GetError());
+    RefPtr<SdlResource<SDL_GPUSampler>> sampler =
+        new SdlResource<SDL_GPUSampler>(gd, SDL_CreateGPUSampler(gd, &samplerInfo));
+    expect(sampler, SDL_GetError());
 
-        auto texResult = gpuDevice->CreateTextureFromPNG(spec.Albedo);
+    auto texResult = gpuDevice->CreateTextureFromPNG(spec.Albedo);
 
-        expect(texResult, texResult.error());
+    expect(texResult, texResult.error());
 
-        return new Material(spec.Color, texResult.value(), sampler);
-    }
-    ecatchall;
-
-    return nullptr;
+    return new Material(spec.Color, texResult.value(), sampler);
 }

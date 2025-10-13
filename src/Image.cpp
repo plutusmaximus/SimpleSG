@@ -4,6 +4,8 @@
 
 #include "Error.h"
 
+#include "AutoDeleter.h"
+
 #include <png.h>
 #include <cstdio>
 #include <vector>
@@ -34,34 +36,24 @@ Image::LoadPng(const std::string_view path)
     FILE* fp = fopen(path.data(), "rb");
     expect(fp, "Failed to open file: {}", path);
 
+    auto ad = AutoDeleter(fclose, fp);
+
     png_byte header[8];
-    if (fread(header, 1, 8, fp) != 8 || png_sig_cmp(header, 0, 8))
-    {
-        fclose(fp);
-        return std::unexpected(Error("Not a valid PNG file: {}", path.data()));
-    }
+    expect(fread(header, 1, 8, fp) == 8 && 0 == png_sig_cmp(header, 0, 8), "Not a valid PNG file: {}", path.data());
 
     png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
-    if (!png_ptr)
-    {
-        fclose(fp);
-        return std::unexpected(Error("Failed to create png read struct"));
-    }
+    expect(png_ptr, "Failed to create png read struct");
+
+    auto ad2 = AutoDeleter(png_destroy_read_struct, &png_ptr, nullptr, nullptr);
 
     png_infop info_ptr = png_create_info_struct(png_ptr);
-    if (!info_ptr)
-    {
-        png_destroy_read_struct(&png_ptr, nullptr, nullptr);
-        fclose(fp);
-        return std::unexpected(Error("Failed to create png info struct"));
-    }
+    expect(info_ptr, "Failed to create png info struct");
 
-    if (!ReadPNGFile(fp, png_ptr, info_ptr))
-    {
-        png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
-        fclose(fp);
-        return std::unexpected(Error("libpng error during read"));
-    }
+    ad2.Cancel();
+
+    auto ad3 = AutoDeleter(png_destroy_read_struct, &png_ptr, &info_ptr, nullptr);
+
+    expect(ReadPNGFile(fp, png_ptr, info_ptr), "libpng error during read");//DO NOT SUBMIT - more diagnostic
 
     png_size_t rowbytes = png_get_rowbytes(png_ptr, info_ptr);
 
@@ -94,9 +86,6 @@ Image::LoadPng(const std::string_view path)
     }
 
     const bool readRows = ReadPNGRows(png_ptr, row_pointers);
-
-    png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
-    fclose(fp);
 
     return readRows ? img : nullptr;
 }
