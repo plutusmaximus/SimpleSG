@@ -251,17 +251,6 @@ SDLGPUDevice::CreatePipeline()
     expect(fragShaderResult, fragShaderResult.error());
     RefPtr<SdlResource<SDL_GPUShader>> fragShader = new SdlResource<SDL_GPUShader>(m_GpuDevice.Get(), fragShaderResult.value());
 
-    SDL_GPUTextureCreateInfo depthCreateInfo
-    {
-        .type = SDL_GPU_TEXTURETYPE_2D,
-        .format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
-        .usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET,
-        .width = 0,
-        .height = 0,
-        .layer_count_or_depth = 1,
-        .num_levels = 1
-    };
-
     SDL_GPUVertexBufferDescription vertexBufDescriptions[1] =
     {
         {
@@ -312,7 +301,7 @@ SDLGPUDevice::CreatePipeline()
         {
             .color_target_descriptions = &colorTargetDesc,
             .num_color_targets = 1,
-            .depth_stencil_format = depthCreateInfo.format,
+            .depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
             .has_depth_stencil_target = true
         }
     };
