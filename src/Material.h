@@ -2,7 +2,6 @@
 
 #include "SdlResource.h"
 #include "GPUDevice.h"
-#include "VecMath.h"
 
 template<typename T>
 struct RgbaColor

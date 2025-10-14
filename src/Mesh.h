@@ -1,8 +1,8 @@
 #pragma once
 
 #include "Material.h"
-
 #include "GPUDevice.h"
+#include "VecMath.h"
 
 struct UV2
 {
