@@ -2,11 +2,10 @@
 
 #include "RefCount.h"
 #include "Error.h"
+#include "Vertex.h"
 
 #include <expected>
 #include <string>
-
-struct Vertex;
 
 class VertexBufferResource
 {

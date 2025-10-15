@@ -8,7 +8,6 @@ struct SDL_GPUDevice;
 struct SDL_GPUBuffer;
 struct SDL_GPUTexture;
 struct SDL_GPUSampler;
-struct Vertex;
 
 template<typename T>
 class SdlResource

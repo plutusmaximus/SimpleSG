@@ -2,19 +2,8 @@
 
 #include "Material.h"
 #include "GPUDevice.h"
-#include "VecMath.h"
 
-struct UV2
-{
-    float u, v;
-};
-
-struct Vertex
-{
-    Vec3f pos;
-    Vec3f normal;
-    UV2 uv;
-};
+#include "Vertex.h"
 
 class Mesh
 {
