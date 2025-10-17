@@ -90,11 +90,21 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
     etry
     {
-        auto gdResult = SDLGPUDevice::Create();
+        pcheck(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
+
+        SDL_Rect displayRect;
+        auto dm = SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &displayRect);
+        const int winW = displayRect.w * 0.75;
+        const int winH = displayRect.h * 0.75;
+
+        // Create window
+        SDL_Window* window = SDL_CreateWindow("SDL3 GPU Cube", winW, winH, SDL_WINDOW_RESIZABLE);
+        pcheck(window, SDL_GetError());
+
+        auto gdResult = SDLGPUDevice::Create(window);
         pcheck(gdResult, gdResult.error());
         auto gd = *gdResult;
         SDL_GPUDevice* gpuDevice = (SDL_GPUDevice*)gd->GetDevice();//DO NOT SUBMIT
-        SDL_Window* window = (SDL_Window*)gd->GetWindow();//DO NOT SUBMIT
 
         RefPtr<MaterialDb> materialDb = MaterialDb::Create();
         std::vector<MaterialId> materialIds;

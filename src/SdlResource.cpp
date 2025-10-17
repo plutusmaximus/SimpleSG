@@ -2,9 +2,6 @@
 
 #include <SDL3/SDL_gpu.h>
 
-#include "Image.h"
-#include "Mesh.h"
-
 template<>
 SdlResource<SDL_Window>::~SdlResource()
 {
@@ -15,12 +12,6 @@ template<>
 SdlResource<SDL_GPUDevice>::~SdlResource()
 {
     if (m_Resource) { SDL_DestroyGPUDevice(m_Resource); }
-}
-
-template<>
-SdlResource<SDL_GPUTransferBuffer>::~SdlResource()
-{
-    if (m_Resource) { SDL_ReleaseGPUTransferBuffer(m_GpuDevice, m_Resource); }
 }
 
 template<>
@@ -45,10 +36,4 @@ template<>
 SdlResource<SDL_GPUShader>::~SdlResource()
 {
     if (m_Resource) { SDL_ReleaseGPUShader(m_GpuDevice, m_Resource); }
-}
-
-template<>
-SdlResource<SDL_GPUGraphicsPipeline>::~SdlResource()
-{
-    if (m_Resource) { SDL_ReleaseGPUGraphicsPipeline(m_GpuDevice, m_Resource); }
 }

@@ -29,13 +29,13 @@ static const char* const SHADER_EXTENSION = ".spv";
 
 #endif
 
-static SDL_GPUBuffer* CreateGpuBuffer(
+static std::expected<SDL_GPUBuffer*, Error> CreateGpuBuffer(
     SDL_GPUDevice* gpuDevice,
     const SDL_GPUBufferUsageFlags usageFlags,
     const void* bufferData,
     const unsigned sizeofBuffer);
 
-static bool CopyToGpuBuffer(
+static std::expected<void, Error> CopyToGpuBuffer(
     SDL_GPUDevice* gpuDevice,
     SDL_GPUBuffer* gpuBuffer,
     const void* data,
@@ -131,38 +131,26 @@ public:
     SDL_GPUTexture* const m_Texture;
 };
 
-SDLGPUDevice::SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice)
+SDLGPUDevice::SDLGPUDevice(SDL_GPUDevice* gpuDevice)
     : m_GpuDevice(nullptr, gpuDevice)
-    , m_Window(nullptr, window)
 {
 }
 
 std::expected<GPUDevice, Error>
-SDLGPUDevice::Create()
+SDLGPUDevice::Create(SDL_Window* window)
 {
     logInfo("Creating SDL GPU Device...");
 
-    expect(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
-
     expect(SDL_SetHint(SDL_HINT_RENDER_VULKAN_DEBUG, "1"), SDL_GetError());
-
-    SDL_Rect displayRect;
-    auto dm = SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &displayRect);
-    const int winW = displayRect.w * 0.75;
-    const int winH = displayRect.h * 0.75;
-
-    // Create window
-    SdlResource<SDL_Window> window{ nullptr, SDL_CreateWindow("SDL3 GPU Cube", winW, winH, SDL_WINDOW_RESIZABLE) };
-    expect(window, SDL_GetError());
 
     // Initialize GPU device
     const bool debugMode = true;
     SdlResource<SDL_GPUDevice> gpuDevice{ nullptr, SDL_CreateGPUDevice(SHADER_FORMAT, debugMode, DRIVER_NAME) };
     expect(gpuDevice, SDL_GetError());
 
-    expect(SDL_ClaimWindowForGPUDevice(gpuDevice.Get(), window.Get()), SDL_GetError());
+    expect(SDL_ClaimWindowForGPUDevice(gpuDevice.Get(), window), SDL_GetError());
 
-    return new SDLGPUDevice(window.Take(), gpuDevice.Take());
+    return new SDLGPUDevice(gpuDevice.Take());
 }
 
 SDLGPUDevice::~SDLGPUDevice()
@@ -172,19 +160,21 @@ SDLGPUDevice::~SDLGPUDevice()
 std::expected<VertexBuffer, Error>
 SDLGPUDevice::CreateVertexBuffer(const Vertex* vertices, const unsigned vertexCount)
 {
-    SDL_GPUBuffer* buffer = CreateGpuBuffer(m_GpuDevice.Get(), SDL_GPU_BUFFERUSAGE_VERTEX, vertices, vertexCount * sizeof(vertices[0]));
-    expect(buffer, SDL_GetError());
+    auto result =
+        CreateGpuBuffer(m_GpuDevice.Get(), SDL_GPU_BUFFERUSAGE_VERTEX, vertices, vertexCount * sizeof(vertices[0]));
+    expect(result, result.error());
 
-    return new SDLVertexBuffer(this, buffer);
+    return new SDLVertexBuffer(this, result.value());
 }
 
 std::expected<IndexBuffer, Error>
 SDLGPUDevice::CreateIndexBuffer(const uint16_t* indices, const unsigned indexCount)
 {
-    SDL_GPUBuffer* buffer = CreateGpuBuffer(m_GpuDevice.Get(), SDL_GPU_BUFFERUSAGE_INDEX, indices, indexCount * sizeof(indices[0]));
-    expect(buffer, SDL_GetError());
+    auto result =
+        CreateGpuBuffer(m_GpuDevice.Get(), SDL_GPU_BUFFERUSAGE_INDEX, indices, indexCount * sizeof(indices[0]));
+    expect(result, result.error());
 
-    return new SDLIndexBuffer(this, buffer);
+    return new SDLIndexBuffer(this, result.value());
 }
 
 std::expected<Texture, Error>
@@ -199,105 +189,86 @@ SDLGPUDevice::CreateTextureFromPNG(const std::string_view path)
     return new SDLTexture(this, gpuTexResult.value());
 }
 
-static SDL_GPUBuffer* CreateGpuBuffer(
+static std::expected<SDL_GPUBuffer*, Error> CreateGpuBuffer(
     SDL_GPUDevice* gpuDevice,
     const SDL_GPUBufferUsageFlags usageFlags,
     const void* bufferData,
     const unsigned sizeofBuffer)
 {
-    SDL_GPUBuffer* gpuBuffer = nullptr;
-
-    etry
+    SDL_GPUBufferCreateInfo bufferCreateInfo
     {
-        SDL_GPUBufferCreateInfo bufferCreateInfo
-        {
-            .usage = usageFlags,
-            .size = sizeofBuffer
-        };
-        gpuBuffer = SDL_CreateGPUBuffer(gpuDevice, &bufferCreateInfo);
-        pcheck(gpuBuffer, "SDL_CreateGPUBuffer: {}", SDL_GetError());
+        .usage = usageFlags,
+        .size = sizeofBuffer
+    };
+    SDL_GPUBuffer* gpuBuffer = SDL_CreateGPUBuffer(gpuDevice, &bufferCreateInfo);
+    expect(gpuBuffer, SDL_GetError());
 
-        if (bufferData)
-        {
-            pcheck(CopyToGpuBuffer(gpuDevice, gpuBuffer, bufferData, sizeofBuffer));
-        }
+    auto gpuBufAd = AutoDeleter(SDL_ReleaseGPUBuffer, gpuDevice, gpuBuffer);
 
-        return gpuBuffer;
-    }
-    ecatchall;
-
-    if (gpuBuffer)
+    if (bufferData)
     {
-        SDL_ReleaseGPUBuffer(gpuDevice, gpuBuffer);
+        auto result = CopyToGpuBuffer(gpuDevice, gpuBuffer, bufferData, sizeofBuffer);
+        expect(result, result.error());
     }
 
-    return nullptr;
+    gpuBufAd.Cancel();
+    return gpuBuffer;
 }
 
-static bool CopyToGpuBuffer(
+static std::expected<void, Error> CopyToGpuBuffer(
     SDL_GPUDevice* gpuDevice,
     SDL_GPUBuffer* gpuBuffer,
     const void* data,
     const unsigned sizeofData)
 {
-    etry
+    //Create a transfer buffer
+    SDL_GPUTransferBufferCreateInfo xferBufCreateInfo
     {
-        //Create a transfer buffer
-        SDL_GPUTransferBufferCreateInfo xferBufCreateInfo
-        {
-            .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-            .size = sizeofData
-        };
-        SdlResource<SDL_GPUTransferBuffer> transferBuffer(gpuDevice, SDL_CreateGPUTransferBuffer(gpuDevice, &xferBufCreateInfo));
-        pcheck(transferBuffer, "SDL_CreateGPUTransferBuffer: {}", SDL_GetError());
+        .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+        .size = sizeofData
+    };
+    SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(gpuDevice, &xferBufCreateInfo);
+    expect(transferBuffer, SDL_GetError());
+    auto tbufferAd = AutoDeleter(SDL_ReleaseGPUTransferBuffer, gpuDevice, transferBuffer);
 
-        //Copy to transfer buffer
-        void* xferBuf = SDL_MapGPUTransferBuffer(gpuDevice, transferBuffer.Get(), false);
+    //Copy to transfer buffer
+    void* xferBuf = SDL_MapGPUTransferBuffer(gpuDevice, transferBuffer, false);
+    expect(xferBuf, SDL_GetError());
 
-        pcheck(xferBuf, "SDL_MapGPUTransferBuffer: {}", SDL_GetError());
+    ::memcpy(xferBuf, data, sizeofData);
 
-        ::memcpy(xferBuf, data, sizeofData);
+    SDL_UnmapGPUTransferBuffer(gpuDevice, transferBuffer);
 
-        SDL_UnmapGPUTransferBuffer(gpuDevice, transferBuffer.Get());
+    //Upload data to the buffer.
 
-        //Upload data to the buffer.
+    SDL_GPUCommandBuffer* uploadCmdBuf = SDL_AcquireGPUCommandBuffer(gpuDevice);
+    expect(uploadCmdBuf, SDL_GetError());
+    auto cmdBufAd = AutoDeleter(SDL_CancelGPUCommandBuffer, uploadCmdBuf);
 
-        SDL_GPUCommandBuffer* uploadCmdBuf = SDL_AcquireGPUCommandBuffer(gpuDevice);
-        pcheck(uploadCmdBuf, "SDL_AcquireGPUCommandBuffer: {}", SDL_GetError());
+    SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(uploadCmdBuf);
+    expect(copyPass, SDL_GetError());
 
-        SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(uploadCmdBuf);
-        if (!copyPass)
-        {
-            std::string error = SDL_GetError();
-            SDL_CancelGPUCommandBuffer(uploadCmdBuf);
-            pcheck(copyPass, "SDL_AcquireGPUCommandBuffer: {}", error);
+    SDL_GPUTransferBufferLocation xferBufLoc
+    {
+        .transfer_buffer = transferBuffer,
+        .offset = 0
+    };
+    SDL_GPUBufferRegion bufferRegion
+    {
+        .buffer = gpuBuffer,
+        .offset = 0,
+        .size = sizeofData
+    };
 
-        }
-        pcheck(copyPass, "SDL_BeginGPUCopyPass: {}", SDL_GetError());
+    SDL_UploadToGPUBuffer(copyPass, &xferBufLoc, &bufferRegion, false);
 
-        SDL_GPUTransferBufferLocation xferBufLoc
-        {
-            .transfer_buffer = transferBuffer.Get(),
-            .offset = 0
-        };
-        SDL_GPUBufferRegion bufferRegion
-        {
-            .buffer = gpuBuffer,
-            .offset = 0,
-            .size = sizeofData
-        };
+    SDL_EndGPUCopyPass(copyPass);
 
-        SDL_UploadToGPUBuffer(copyPass, &xferBufLoc, &bufferRegion, false);
+    cmdBufAd.Cancel();
 
-        SDL_EndGPUCopyPass(copyPass);
+    expect(SDL_SubmitGPUCommandBuffer(uploadCmdBuf), SDL_GetError());
 
-        pcheck(SDL_SubmitGPUCommandBuffer(uploadCmdBuf), "SDL_SubmitGPUCommandBuffer: {}", SDL_GetError());
-
-        return true;
-    }
-    ecatchall;
-
-    return false;
+    return {};
 }
 
 static std::expected<SDL_GPUTexture*, std::string> CreateTexture(
@@ -331,32 +302,29 @@ static std::expected<SDL_GPUTexture*, std::string> CreateTexture(
     };
 
     // Create transfer buffer for uploading pixel data
-    SdlResource<SDL_GPUTransferBuffer> transferBuffer(gpuDevice, SDL_CreateGPUTransferBuffer(gpuDevice, &xferBufferCreateInfo));
+    SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(gpuDevice, &xferBufferCreateInfo);
     expect(transferBuffer, SDL_GetError());
+    auto tbufferAd = AutoDeleter(SDL_ReleaseGPUTransferBuffer, gpuDevice, transferBuffer);
 
     // Copy pixel data to transfer buffer
-    void* mappedData = SDL_MapGPUTransferBuffer(gpuDevice, transferBuffer.Get(), false);
+    void* mappedData = SDL_MapGPUTransferBuffer(gpuDevice, transferBuffer, false);
     expect(mappedData, SDL_GetError());
 
     ::memcpy(mappedData, pixels, sizeofData);
 
-    SDL_UnmapGPUTransferBuffer(gpuDevice, transferBuffer.Get());
+    SDL_UnmapGPUTransferBuffer(gpuDevice, transferBuffer);
 
     // Upload to GPU texture
     SDL_GPUCommandBuffer* cmdBuffer = SDL_AcquireGPUCommandBuffer(gpuDevice);
     expect(cmdBuffer, SDL_GetError());
+    auto cmdBufAd = AutoDeleter(SDL_CancelGPUCommandBuffer, cmdBuffer);
 
     SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(cmdBuffer);
-    if (!copyPass)
-    {
-        std::string error = SDL_GetError();
-        SDL_CancelGPUCommandBuffer(cmdBuffer);
-        expect(copyPass, error);
-    }
+    expect(copyPass, SDL_GetError());
 
     SDL_GPUTextureTransferInfo transferInfo
     {
-        .transfer_buffer = transferBuffer.Get(),
+        .transfer_buffer = transferBuffer,
         .offset = 0,
         .pixels_per_row = width,
         .rows_per_layer = height
@@ -374,6 +342,7 @@ static std::expected<SDL_GPUTexture*, std::string> CreateTexture(
 
     SDL_EndGPUCopyPass(copyPass);
 
+    cmdBufAd.Cancel();
     expect(SDL_SubmitGPUCommandBuffer(cmdBuffer), SDL_GetError());
 
     return texture.Take();

@@ -82,8 +82,6 @@ public:
 
     virtual void* GetDevice() = 0;  //DO NOT SUBMIT
 
-    virtual void* GetWindow() = 0;  //DO NOT SUBMIT
-
     IMPLEMENT_REFCOUNT(GPUDeviceResource);
 };
 

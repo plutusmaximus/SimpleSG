@@ -27,7 +27,7 @@ public:
 
 private:
     
-    std::expected<SDL_GPUGraphicsPipeline*, Error> CreatePipeline(SDL_Window* window);
+    std::expected<SDL_GPUGraphicsPipeline*, Error> CreatePipeline(SDL_GPUTextureFormat colorTargetFormat);
 
     struct XformMesh
     {

@@ -10,7 +10,7 @@ class SDLGPUDevice : public GPUDeviceResource
 {
 public:
 
-    static std::expected<GPUDevice, Error> Create();
+    static std::expected<GPUDevice, Error> Create(SDL_Window* window);
 
     ~SDLGPUDevice() override;
 
@@ -26,17 +26,13 @@ public:
 
     void* GetDevice() override { return m_GpuDevice.Get(); }  //DO NOT SUBMIT
 
-    void* GetWindow() override { return m_Window.Get(); }  //DO NOT SUBMIT
-
     SDL_GPUDevice* GetSDLDevice() { return m_GpuDevice.Get(); }
 
 private:
 
     SDLGPUDevice() = delete;
 
-    SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice);
-
-    SdlResource<SDL_Window> m_Window;
+    SDLGPUDevice(SDL_GPUDevice* gpuDevice);
 
 private:
 

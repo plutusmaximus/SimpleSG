@@ -48,7 +48,8 @@ SdlRenderGraph::Render(const Camera& camera)
 {
     if (!m_Pipeline)
     {
-        auto pipelineResult = CreatePipeline(m_Window);
+        SDL_GPUTextureFormat colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(m_GpuDevice, m_Window);
+        auto pipelineResult = CreatePipeline(colorTargetFormat);
         expect(pipelineResult, pipelineResult.error());
 
         m_Pipeline = pipelineResult.value();
@@ -219,7 +220,7 @@ static std::expected<SDL_GPUShader*, Error> LoadFragmentShader(
     const int numSamplers);
 
 std::expected<SDL_GPUGraphicsPipeline*, Error>
-SdlRenderGraph::CreatePipeline(SDL_Window* window)
+SdlRenderGraph::CreatePipeline(SDL_GPUTextureFormat colorTargetFormat)
 {
     // Create shaders
     const std::string vshaderFileName = std::string("shaders/Debug/VertexShader") + SHADER_EXTENSION;
@@ -249,7 +250,7 @@ SdlRenderGraph::CreatePipeline(SDL_Window* window)
 
     SDL_GPUColorTargetDescription colorTargetDesc
     {
-        .format = SDL_GetGPUSwapchainTextureFormat(m_GpuDevice, window),
+        .format = colorTargetFormat,
         .blend_state = {}
     };
 
