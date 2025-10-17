@@ -1,7 +1,7 @@
 #pragma once
 
 #include "GPUDevice.h"
-#include "SdlResource.h"
+#include "SDLResource.h"
 
 struct SDL_GPUDevice;
 struct SDL_Window;
@@ -37,5 +37,5 @@ private:
 private:
 
     //Declare m_GpuDevice after m_Window so its destructor will be called first.
-    SdlResource<SDL_GPUDevice> m_GpuDevice;
+    SDLResource<SDL_GPUDevice> m_GpuDevice;
 };

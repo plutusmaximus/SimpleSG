@@ -2,7 +2,7 @@
 
 #include "Material.h"
 
-#include "SdlResource.h"
+#include "SDLResource.h"
 
 #include "Error.h"
 
@@ -22,8 +22,8 @@ Material::Create(GPUDevice gpuDevice, const Spec& spec)
 
     SDL_GPUDevice* gd = (SDL_GPUDevice*)gpuDevice->GetDevice();//DO NOT SUBMIT
 
-    RefPtr<SdlResource<SDL_GPUSampler>> sampler =
-        new SdlResource<SDL_GPUSampler>(gd, SDL_CreateGPUSampler(gd, &samplerInfo));
+    RefPtr<SDLResource<SDL_GPUSampler>> sampler =
+        new SDLResource<SDL_GPUSampler>(gd, SDL_CreateGPUSampler(gd, &samplerInfo));
     expect(sampler, SDL_GetError());
 
     auto texResult = gpuDevice->CreateTextureFromPNG(spec.Albedo);

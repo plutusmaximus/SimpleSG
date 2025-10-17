@@ -226,12 +226,12 @@ SdlRenderGraph::CreatePipeline(SDL_GPUTextureFormat colorTargetFormat)
     const std::string vshaderFileName = std::string("shaders/Debug/VertexShader") + SHADER_EXTENSION;
     auto vtxShaderResult = LoadVertexShader(m_GpuDevice, vshaderFileName, 3);
     expect(vtxShaderResult, vtxShaderResult.error());
-    RefPtr<SdlResource<SDL_GPUShader>> vtxShader = new SdlResource<SDL_GPUShader>(m_GpuDevice, vtxShaderResult.value());
+    RefPtr<SDLResource<SDL_GPUShader>> vtxShader = new SDLResource<SDL_GPUShader>(m_GpuDevice, vtxShaderResult.value());
 
     const std::string fshaderFileName = std::string("shaders/Debug/FragmentShader") + SHADER_EXTENSION;
     auto fragShaderResult = LoadFragmentShader(m_GpuDevice, fshaderFileName, 1);
     expect(fragShaderResult, fragShaderResult.error());
-    RefPtr<SdlResource<SDL_GPUShader>> fragShader = new SdlResource<SDL_GPUShader>(m_GpuDevice, fragShaderResult.value());
+    RefPtr<SDLResource<SDL_GPUShader>> fragShader = new SDLResource<SDL_GPUShader>(m_GpuDevice, fragShaderResult.value());
 
     SDL_GPUVertexBufferDescription vertexBufDescriptions[1] =
     {

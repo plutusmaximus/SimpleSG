@@ -145,7 +145,7 @@ SDLGPUDevice::Create(SDL_Window* window)
 
     // Initialize GPU device
     const bool debugMode = true;
-    SdlResource<SDL_GPUDevice> gpuDevice{ nullptr, SDL_CreateGPUDevice(SHADER_FORMAT, debugMode, DRIVER_NAME) };
+    SDLResource<SDL_GPUDevice> gpuDevice{ nullptr, SDL_CreateGPUDevice(SHADER_FORMAT, debugMode, DRIVER_NAME) };
     expect(gpuDevice, SDL_GetError());
 
     expect(SDL_ClaimWindowForGPUDevice(gpuDevice.Get(), window), SDL_GetError());
@@ -290,7 +290,7 @@ static std::expected<SDL_GPUTexture*, std::string> CreateTexture(
         .sample_count = SDL_GPU_SAMPLECOUNT_1
     };
 
-    SdlResource<SDL_GPUTexture> texture{ gpuDevice, SDL_CreateGPUTexture(gpuDevice, &textureInfo) };
+    SDLResource<SDL_GPUTexture> texture{ gpuDevice, SDL_CreateGPUTexture(gpuDevice, &textureInfo) };
     expect(texture, SDL_GetError());
 
     const unsigned sizeofData = width * height * 4;

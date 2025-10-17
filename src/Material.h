@@ -1,6 +1,6 @@
 #pragma once
 
-#include "SdlResource.h"
+#include "SDLResource.h"
 #include "GPUDevice.h"
 
 template<typename T>
@@ -108,7 +108,7 @@ public:
 
     static std::expected<RefPtr<Material>, Error> Create(GPUDevice gpuDevice, const Spec& spec);
 
-    Material(const RgbaColorf& color, Texture albedo, RefPtr<SdlResource<SDL_GPUSampler>> albedoSampler)
+    Material(const RgbaColorf& color, Texture albedo, RefPtr<SDLResource<SDL_GPUSampler>> albedoSampler)
         : Id(MaterialId::NextId())
         , Color(color)
         , Albedo(albedo)
@@ -124,11 +124,11 @@ public:
     const float Roughness{ 0 };
 
     const Texture Albedo;
-    const RefPtr<SdlResource<SDL_GPUSampler>> AlbedoSampler;
+    const RefPtr<SDLResource<SDL_GPUSampler>> AlbedoSampler;
     const Texture NormalMap;
-    const RefPtr<SdlResource<SDL_GPUTexture>> MetallicMap;
+    const RefPtr<SDLResource<SDL_GPUTexture>> MetallicMap;
     const Texture RoughnessMap;
-    const RefPtr<SdlResource<SDL_GPUTexture>> EmissiveMap;
+    const RefPtr<SDLResource<SDL_GPUTexture>> EmissiveMap;
 
     IMPLEMENT_REFCOUNT(Material);
 };

@@ -10,18 +10,18 @@ struct SDL_GPUTexture;
 struct SDL_GPUSampler;
 
 template<typename T>
-class SdlResource
+class SDLResource
 {
 public:
 
-    SdlResource(SDL_GPUDevice* gpuDevice, T* resource)
+    SDLResource(SDL_GPUDevice* gpuDevice, T* resource)
         : m_GpuDevice(gpuDevice)
         , m_Resource(resource)
     {
     }
 
     //Overloaded to release the resource.
-    ~SdlResource();
+    ~SDLResource();
 
     explicit operator bool() const { return m_Resource != nullptr; }
 
@@ -36,10 +36,10 @@ public:
 
 private:
 
-    SdlResource() = delete;
+    SDLResource() = delete;
 
     SDL_GPUDevice* m_GpuDevice = nullptr;
     T* m_Resource = nullptr;
 
-    IMPLEMENT_REFCOUNT(SdlResource);
+    IMPLEMENT_REFCOUNT(SDLResource);
 };
