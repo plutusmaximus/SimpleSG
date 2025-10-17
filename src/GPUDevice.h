@@ -80,7 +80,7 @@ public:
 
     virtual std::expected<Texture, Error> CreateTextureFromPNG(const std::string_view path) = 0;
 
-    //virtual void* GetDevice() = 0;  //DO NOT SUBMIT
+    virtual void* GetDevice() = 0;  //DO NOT SUBMIT
 
     virtual void* GetWindow() = 0;  //DO NOT SUBMIT
 
