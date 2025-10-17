@@ -47,16 +47,6 @@ static std::expected<SDL_GPUTexture*, std::string> CreateTexture(
     const unsigned height,
     const uint8_t* pixels);
 
-static std::expected<SDL_GPUShader*, Error> LoadVertexShader(
-    SDL_GPUDevice* gpuDevice,
-    const std::string_view fileName,
-    const int numUniformBuffers);
-
-static std::expected<SDL_GPUShader*, Error> LoadFragmentShader(
-    SDL_GPUDevice* gpuDevice,
-    const std::string_view fileName,
-    const int numSamplers);
-
 class SDLVertexBuffer : public VertexBufferResource
 {
 public:
@@ -71,7 +61,7 @@ public:
 
     ~SDLVertexBuffer() override
     {
-        if (m_Buffer) { SDL_ReleaseGPUBuffer(m_SDLGPUDevice->m_GpuDevice.Get(), m_Buffer); }
+        if (m_Buffer) { SDL_ReleaseGPUBuffer(m_SDLGPUDevice->GetSDLDevice(), m_Buffer); }
     }
 
     //DO NOT SUBMIT
@@ -99,7 +89,7 @@ public:
 
     ~SDLIndexBuffer() override
     {
-        if (m_Buffer) { SDL_ReleaseGPUBuffer(m_SDLGPUDevice->m_GpuDevice.Get(), m_Buffer); }
+        if (m_Buffer) { SDL_ReleaseGPUBuffer(m_SDLGPUDevice->GetSDLDevice(), m_Buffer); }
     }
 
     //DO NOT SUBMIT
@@ -127,7 +117,7 @@ public:
 
     ~SDLTexture() override
     {
-        if (m_Texture) { SDL_ReleaseGPUTexture(m_SDLGPUDevice->m_GpuDevice.Get(), m_Texture); }
+        if (m_Texture) { SDL_ReleaseGPUTexture(m_SDLGPUDevice->GetSDLDevice(), m_Texture); }
     }
 
     //DO NOT SUBMIT
@@ -139,34 +129,6 @@ public:
     RefPtr<SDLGPUDevice> m_SDLGPUDevice;
 
     SDL_GPUTexture* const m_Texture;
-};
-
-class SDLPipeline : public PipelineResource
-{
-public:
-
-    SDLPipeline() = delete;
-
-    SDLPipeline(RefPtr<SDLGPUDevice> gpuDevice, SDL_GPUGraphicsPipeline* pipeline)
-        : m_SDLGPUDevice(gpuDevice)
-        , m_Pipeline(pipeline)
-    {
-    }
-
-    ~SDLPipeline() override
-    {
-        if (m_Pipeline) { SDL_ReleaseGPUGraphicsPipeline(m_SDLGPUDevice->m_GpuDevice.Get(), m_Pipeline); }
-    }
-
-    //DO NOT SUBMIT
-    void* GetPipeline() override
-    {
-        return m_Pipeline;
-    }
-
-    RefPtr<SDLGPUDevice> m_SDLGPUDevice;
-
-    SDL_GPUGraphicsPipeline* const m_Pipeline;
 };
 
 SDLGPUDevice::SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice)
@@ -235,81 +197,6 @@ SDLGPUDevice::CreateTextureFromPNG(const std::string_view path)
     expect(gpuTexResult, gpuTexResult.error());
 
     return new SDLTexture(this, gpuTexResult.value());
-}
-
-std::expected<Pipeline, Error>
-SDLGPUDevice::CreatePipeline()
-{
-    // Create shaders
-    const std::string vshaderFileName = std::string("shaders/Debug/VertexShader") + SHADER_EXTENSION;
-    auto vtxShaderResult = LoadVertexShader(m_GpuDevice.Get(), vshaderFileName, 3);
-    expect(vtxShaderResult, vtxShaderResult.error());
-    RefPtr<SdlResource<SDL_GPUShader>> vtxShader = new SdlResource<SDL_GPUShader>(m_GpuDevice.Get(), vtxShaderResult.value());
-
-    const std::string fshaderFileName = std::string("shaders/Debug/FragmentShader") + SHADER_EXTENSION;
-    auto fragShaderResult = LoadFragmentShader(m_GpuDevice.Get(), fshaderFileName, 1);
-    expect(fragShaderResult, fragShaderResult.error());
-    RefPtr<SdlResource<SDL_GPUShader>> fragShader = new SdlResource<SDL_GPUShader>(m_GpuDevice.Get(), fragShaderResult.value());
-
-    SDL_GPUVertexBufferDescription vertexBufDescriptions[1] =
-    {
-        {
-            .slot = 0,
-            .pitch = sizeof(Vertex),
-            .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX
-        }
-    };
-    SDL_GPUVertexAttribute vertexAttributes[] =
-    {
-        {.location = 0, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = offsetof(Vertex, pos) },
-        {.location = 1, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = offsetof(Vertex, normal) },
-        {.location = 2, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = offsetof(Vertex, uvs) }
-    };
-
-    SDL_GPUColorTargetDescription colorTargetDesc
-    {
-        .format = SDL_GetGPUSwapchainTextureFormat(m_GpuDevice.Get(), m_Window.Get()),
-        .blend_state = {}
-    };
-
-    SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo
-    {
-        .vertex_shader = vtxShaderResult.value(),
-        .fragment_shader = fragShaderResult.value(),
-        .vertex_input_state =
-        {
-            .vertex_buffer_descriptions = vertexBufDescriptions,
-            .num_vertex_buffers = 1,
-            .vertex_attributes = vertexAttributes,
-            .num_vertex_attributes = std::size(vertexAttributes)
-        },
-        .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-        .rasterizer_state =
-        {
-            .fill_mode = SDL_GPU_FILLMODE_FILL,
-            .cull_mode = SDL_GPU_CULLMODE_BACK,
-            .front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
-            .enable_depth_clip = true
-        },
-        .depth_stencil_state =
-        {
-            .compare_op = SDL_GPU_COMPAREOP_LESS_OR_EQUAL,
-            .enable_depth_test = true,
-            .enable_depth_write = true
-        },
-        .target_info =
-        {
-            .color_target_descriptions = &colorTargetDesc,
-            .num_color_targets = 1,
-            .depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
-            .has_depth_stencil_target = true
-        }
-    };
-
-    SDL_GPUGraphicsPipeline* pipeline = SDL_CreateGPUGraphicsPipeline(m_GpuDevice.Get(), &pipelineCreateInfo);
-    expect(pipeline, "SDL_CreateGPUGraphicsPipeline: {}", SDL_GetError());
-
-    return new SDLPipeline(this, pipeline);
 }
 
 static SDL_GPUBuffer* CreateGpuBuffer(
@@ -490,50 +377,4 @@ static std::expected<SDL_GPUTexture*, std::string> CreateTexture(
     expect(SDL_SubmitGPUCommandBuffer(cmdBuffer), SDL_GetError());
 
     return texture.Take();
-}
-
-static std::expected<SDL_GPUShader*, Error> LoadShader(
-    SDL_GPUDevice* gpuDevice,
-    const std::string_view fileName,
-    SDL_GPUShaderStage shaderStage,
-    const unsigned numUniformBuffers,
-    const unsigned numSamplers)
-{
-    size_t fileSize;
-    void* shaderSrc = SDL_LoadFile(fileName.data(), &fileSize);
-    expect(shaderSrc, fileName, SDL_GetError());
-
-    auto ad = AutoDeleter(SDL_free, shaderSrc);
-
-    SDL_GPUShaderCreateInfo shaderCreateInfo
-    {
-        .code_size = fileSize,
-        .code = (uint8_t*)shaderSrc,
-        .entrypoint = "main",
-        .format = SHADER_FORMAT,
-        .stage = shaderStage,
-        .num_samplers = numSamplers,
-        .num_uniform_buffers = numUniformBuffers
-    };
-
-    SDL_GPUShader* shader = SDL_CreateGPUShader(gpuDevice, &shaderCreateInfo);
-    expect(shader, SDL_GetError());
-
-    return shader;
-}
-
-static std::expected<SDL_GPUShader*, Error> LoadVertexShader(
-    SDL_GPUDevice* gpuDevice,
-    const std::string_view fileName,
-    const int numUniformBuffers)
-{
-    return LoadShader(gpuDevice, fileName, SDL_GPU_SHADERSTAGE_VERTEX, numUniformBuffers, 0);
-}
-
-static std::expected<SDL_GPUShader*, Error> LoadFragmentShader(
-    SDL_GPUDevice* gpuDevice,
-    const std::string_view fileName,
-    const int numSamplers)
-{
-    return LoadShader(gpuDevice, fileName, SDL_GPU_SHADERSTAGE_FRAGMENT, 0, numSamplers);
 }

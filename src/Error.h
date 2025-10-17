@@ -2,7 +2,6 @@
 
 #include <string>
 #include <format>
-#include <string>
 
 #include <spdlog/spdlog.h>
 
@@ -44,6 +43,12 @@ public:
 
     const std::string Message;
 };
+
+template<typename... Args>
+void logTrace(const std::string& format, Args&&... args)
+{
+    spdlog::trace(fmt::runtime(format), std::forward<Args>(args)...);
+}
 
 template<typename... Args>
 void logDebug(const std::string& format, Args&&... args)

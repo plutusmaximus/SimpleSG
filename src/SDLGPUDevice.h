@@ -24,11 +24,11 @@ public:
 
     std::expected<Texture, Error> CreateTextureFromPNG(const std::string_view path) override;
 
-    std::expected<Pipeline, Error> CreatePipeline() override;
-
     void* GetDevice() override { return m_GpuDevice.Get(); }  //DO NOT SUBMIT
 
     void* GetWindow() override { return m_Window.Get(); }  //DO NOT SUBMIT
+
+    SDL_GPUDevice* GetSDLDevice() { return m_GpuDevice.Get(); }
 
 private:
 
@@ -38,7 +38,7 @@ private:
 
     SdlResource<SDL_Window> m_Window;
 
-public://DO NOT SUBMIT
+private:
 
     //Declare m_GpuDevice after m_Window so its destructor will be called first.
     SdlResource<SDL_GPUDevice> m_GpuDevice;

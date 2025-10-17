@@ -7,7 +7,7 @@
 #include "ModelVisitor.h"
 #include "TransformNode.h"
 #include "MaterialDb.h"
-#include "SdlRenderGraph.h"
+#include "SDLRenderGraph.h"
 #include "VecMath.h"
 
 #include "SDLGPUDevice.h"
@@ -156,25 +156,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         RefPtr<TransformNode> quadXFormNode = new TransformNode();
         quadXFormNode->AddChild(quadModel);
 
-        SDL_GPUTextureCreateInfo depthCreateInfo
-        {
-            .type = SDL_GPU_TEXTURETYPE_2D,
-            .format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
-            .usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET,
-            .width = 0,
-            .height = 0,
-            .layer_count_or_depth = 1,
-            .num_levels = 1
-        };
-
-        RefPtr<SdlResource<SDL_GPUTexture>> depthBuffer;
-
         const Degreesf fov(45);
         Camera camera(fov, 1, 0.1f, 100);
-
-        auto pipelineResult = gd->CreatePipeline();
-        pcheck(pipelineResult, pipelineResult.error());
-        Pipeline pipeline = pipelineResult.value();
 
         // Main loop
         bool running = true;
@@ -225,95 +208,24 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
                 .Translate(0, 0, -2)
                 .Rotate(Quaternionf(-moonOrbitAngle, Vec3f::YAXIS));    //orbit
 
-            SDL_GPUCommandBuffer* cmdBuf = SDL_AcquireGPUCommandBuffer(gpuDevice);
-
-            SDL_GPUTexture* swapChainTexture;
-            uint32_t windowW, windowH;
-            if (!SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuf, window, &swapChainTexture, &windowW, &windowH))
+            int windowW, windowH;
+            if (!SDL_GetWindowSizeInPixels(window, &windowW, &windowH))
             {
-                LOG_EXPR_ERROR("SDL_WaitAndAcquireGPUSwapchainTexture: {}", SDL_GetError());
-            }
-
-            if (nullptr == swapChainTexture)
-            {
-                //Perhaps window minimized
-                SDL_CancelGPUCommandBuffer(cmdBuf);
-                std::this_thread::yield();
+                logError(SDL_GetError());
                 continue;
             }
 
-            if (depthCreateInfo.width != windowW || depthCreateInfo.height != windowH)
-            {
-                depthCreateInfo.width = windowW;
-                depthCreateInfo.height = windowH;
+            camera.SetAspect(float(windowW) / windowH);
 
-                depthBuffer = new SdlResource<SDL_GPUTexture>(gpuDevice, SDL_CreateGPUTexture(gpuDevice, &depthCreateInfo));
-                pcheck(*depthBuffer, "SDL_CreateGPUTexture failed");
-
-                camera.SetAspect(float(windowW) / windowH);
-            }
-
-            SDL_GPUColorTargetInfo colorTargetInfo
-            {
-                .texture = swapChainTexture,
-                .mip_level = 0,
-                .layer_or_depth_plane = 0,
-                .clear_color = {0, 0, 0, 0},
-                .load_op = SDL_GPU_LOADOP_CLEAR,
-                .store_op = SDL_GPU_STOREOP_STORE
-            };
-
-            SDL_GPUDepthStencilTargetInfo depthTargetInfo
-            {
-                .texture = (*depthBuffer).Get(),
-                .clear_depth = 1,
-                .load_op = SDL_GPU_LOADOP_CLEAR,
-                .store_op = SDL_GPU_STOREOP_STORE
-            };
-
-            SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(
-                cmdBuf,
-                &colorTargetInfo,
-                1,
-                &depthTargetInfo);
-
-            if (!renderPass)
-            {
-                LOG_EXPR_ERROR("SDL_BeginGPURenderPass: {}", SDL_GetError());
-                SDL_CancelGPUCommandBuffer(cmdBuf);
-                std::this_thread::yield();
-                continue;
-            }
-
-            SDL_BindGPUGraphicsPipeline(renderPass, (SDL_GPUGraphicsPipeline*) pipeline->GetPipeline());
-
-            SDL_GPUViewport viewport
-            {
-                0, 0, (float)windowW, (float)windowH, 0, 1
-            };
-            SDL_SetGPUViewport(renderPass, &viewport);
-
-            SdlRenderGraph renderGraph(materialDb, cmdBuf, renderPass);
+            SdlRenderGraph renderGraph(window, gpuDevice, materialDb);
             ModelVisitor visitor(&renderGraph);
             scene->Accept(&visitor);
-            renderGraph.Render(camera);
-
-            SDL_EndGPURenderPass(renderPass);
-
-            auto fence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmdBuf);
-
-            if (!fence)
+            auto renderResult = renderGraph.Render(camera);
+            if (!renderResult)
             {
-                LOG_EXPR_ERROR("SDL_SubmitGPUCommandBufferAndAcquireFence: {}", SDL_GetError());
+                logError(renderResult.error().Message);
                 continue;
             }
-
-            if (!SDL_WaitForGPUFences(gpuDevice, true, &fence, 1))
-            {
-                LOG_EXPR_ERROR("SDL_WaitForGPUFences: {}", SDL_GetError());
-            }
-
-            SDL_ReleaseGPUFence(gpuDevice, fence);
         }
     }
     ecatchall;
