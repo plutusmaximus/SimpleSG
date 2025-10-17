@@ -88,6 +88,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {
     spdlog::set_level(spdlog::level::debug);
 
+    SDL_Window* window = nullptr;
+
     etry
     {
         pcheck(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
@@ -98,7 +100,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         const int winH = displayRect.h * 0.75;
 
         // Create window
-        SDL_Window* window = SDL_CreateWindow("SDL3 GPU Cube", winW, winH, SDL_WINDOW_RESIZABLE);
+        window = SDL_CreateWindow("SDL3 GPU Cube", winW, winH, SDL_WINDOW_RESIZABLE);
         pcheck(window, SDL_GetError());
 
         auto gdResult = SDLGPUDevice::Create(window);
@@ -239,6 +241,11 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         }
     }
     ecatchall;
+
+    if (window)
+    {
+        SDL_DestroyWindow(window);
+    }
 
     SDL_Quit();
 
