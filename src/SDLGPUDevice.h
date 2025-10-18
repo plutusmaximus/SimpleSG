@@ -19,7 +19,7 @@ public:
         const unsigned vertexCount) override;
 
     std::expected<IndexBuffer, Error> CreateIndexBuffer(
-        const uint16_t* indices,
+        const uint32_t* indices,
         const unsigned indexCount) override;
 
     std::expected<Texture, Error> CreateTextureFromPNG(const std::string_view path) override;

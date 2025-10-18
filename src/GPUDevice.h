@@ -69,13 +69,13 @@ public:
         const unsigned vertexCount) = 0;
 
     template<int COUNT>
-    std::expected<IndexBuffer, Error> CreateIndexBuffer(const uint16_t(&indices)[COUNT])
+    std::expected<IndexBuffer, Error> CreateIndexBuffer(const uint32_t(&indices)[COUNT])
     {
         return CreateIndexBuffer(indices, COUNT);
     }
 
     virtual std::expected<IndexBuffer, Error> CreateIndexBuffer(
-        const uint16_t* indices,
+        const uint32_t* indices,
         const unsigned indexCount) = 0;
 
     virtual std::expected<Texture, Error> CreateTextureFromPNG(const std::string_view path) = 0;

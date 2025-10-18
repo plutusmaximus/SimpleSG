@@ -157,7 +157,7 @@ SdlRenderGraph::Render(const Camera& camera)
                 .buffer = (SDL_GPUBuffer*)xmesh.Mesh->IdxBuffer->GetBuffer(),
                 .offset = 0
             };
-            SDL_BindGPUIndexBuffer(renderPass, &indexBufferBinding, SDL_GPU_INDEXELEMENTSIZE_16BIT);
+            SDL_BindGPUIndexBuffer(renderPass, &indexBufferBinding, SDL_GPU_INDEXELEMENTSIZE_32BIT);
 
             SDL_DrawGPUIndexedPrimitives(renderPass, xmesh.Mesh->IndexCount, 1, xmesh.Mesh->IndexOffset, 0, 0);
         }

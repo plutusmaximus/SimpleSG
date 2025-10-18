@@ -5,9 +5,6 @@
 #include <string>
 
 struct SDL_GPUDevice;
-struct SDL_GPUBuffer;
-struct SDL_GPUTexture;
-struct SDL_GPUSampler;
 
 template<typename T>
 class SDLResource

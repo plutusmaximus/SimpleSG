@@ -2,6 +2,10 @@
 
 #include <SDL3/SDL_gpu.h>
 
+struct SDL_GPUBuffer;
+struct SDL_GPUTexture;
+struct SDL_GPUSampler;
+
 template<>
 SDLResource<SDL_GPUDevice>::~SDLResource()
 {

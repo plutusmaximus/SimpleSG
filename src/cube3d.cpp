@@ -48,7 +48,7 @@ Vertex cubeVertices[] =
 };
 
 // Cube indices (36 indices for 12 triangles, 2 per face, all in CCW order)
-Uint16 cubeIndices[] =
+uint32_t cubeIndices[] =
 {
     // Front (z = 0.5, normal +z, view from front)
     0, 3, 2,  0, 2, 1,    // CCW: bottom-left -> top-left -> top-right, bottom-left -> top-right -> bottom-right
@@ -82,7 +82,7 @@ Vertex quadVertices[] =
     {{ 0.5f,  0.5f,  0.5f}, {0.0f,  0.0f,  1.0f},  {1, 0}}, // 2
     {{-0.5f,  0.5f,  0.5f}, {0.0f,  0.0f,  1.0f},  {0, 0}}, // 3
 };
-uint16_t quadIndices[] = { 0, 3, 2,  0, 2, 1 };
+uint32_t quadIndices[] = { 0, 3, 2,  0, 2, 1 };
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {

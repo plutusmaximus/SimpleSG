@@ -168,7 +168,7 @@ SDLGPUDevice::CreateVertexBuffer(const Vertex* vertices, const unsigned vertexCo
 }
 
 std::expected<IndexBuffer, Error>
-SDLGPUDevice::CreateIndexBuffer(const uint16_t* indices, const unsigned indexCount)
+SDLGPUDevice::CreateIndexBuffer(const uint32_t* indices, const unsigned indexCount)
 {
     auto result =
         CreateGpuBuffer(m_GpuDevice.Get(), SDL_GPU_BUFFERUSAGE_INDEX, indices, indexCount * sizeof(indices[0]));
