@@ -3,6 +3,8 @@
 #include "SDLResource.h"
 #include "GPUDevice.h"
 
+struct SDL_GPUSampler;//DO NOT SUBMIT
+
 template<typename T>
 struct RgbaColor
 {
@@ -108,14 +110,6 @@ public:
 
     static std::expected<RefPtr<Material>, Error> Create(GPUDevice gpuDevice, const Spec& spec);
 
-    Material(const RgbaColorf& color, Texture albedo, RefPtr<SDLResource<SDL_GPUSampler>> albedoSampler)
-        : Id(MaterialId::NextId())
-        , Color(color)
-        , Albedo(albedo)
-        , AlbedoSampler(albedoSampler)
-    {
-    }
-
     const MaterialId Id;
 
     const RgbaColorf Color;
@@ -125,10 +119,16 @@ public:
 
     const Texture Albedo;
     const RefPtr<SDLResource<SDL_GPUSampler>> AlbedoSampler;
-    const Texture NormalMap;
-    const RefPtr<SDLResource<SDL_GPUTexture>> MetallicMap;
-    const Texture RoughnessMap;
-    const RefPtr<SDLResource<SDL_GPUTexture>> EmissiveMap;
+
+private:
+
+    Material(const RgbaColorf& color, Texture albedo, RefPtr<SDLResource<SDL_GPUSampler>> albedoSampler)
+        : Id(MaterialId::NextId())
+        , Color(color)
+        , Albedo(albedo)
+        , AlbedoSampler(albedoSampler)
+    {
+    }
 
     IMPLEMENT_REFCOUNT(Material);
 };
