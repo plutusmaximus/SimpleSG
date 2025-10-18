@@ -9,7 +9,7 @@
 #include <SDL3/SDL_gpu.h>
 
 std::expected<RefPtr<Material>, Error>
-Material::Create(GPUDevice gpuDevice, const Spec& spec)
+Material::Create(GPUDevice gpuDevice, const MaterialSpec& spec)
 {
     // Create sampler
     SDL_GPUSamplerCreateInfo samplerInfo =

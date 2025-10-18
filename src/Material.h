@@ -94,21 +94,21 @@ private:
     explicit MaterialId(unsigned value) : m_Value(value) {}
 };
 
+struct MaterialSpec
+{
+    RgbaColorf Color;
+
+    float Metallic{ 0 };
+    float Roughness{ 0 };
+
+    std::string_view Albedo;
+};
+
 class Material
 {
 public:
 
-    struct Spec
-    {
-        RgbaColorf Color;
-
-        float Metallic{ 0 };
-        float Roughness{ 0 };
-
-        std::string_view Albedo;
-    };
-
-    static std::expected<RefPtr<Material>, Error> Create(GPUDevice gpuDevice, const Spec& spec);
+    static std::expected<RefPtr<Material>, Error> Create(GPUDevice gpuDevice, const MaterialSpec& spec);
 
     const MaterialId Id;
 

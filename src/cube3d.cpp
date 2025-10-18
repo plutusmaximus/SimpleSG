@@ -64,7 +64,7 @@ uint32_t cubeIndices[] =
     20, 23, 22,  20, 22, 21  // CCW: back-left -> front-left -> front-right, back-left -> front-right -> back-right
 };
 
-Material::Spec MaterialSpecs[] =
+MaterialSpec MaterialSpecs[] =
 {
     {.Color = {1, 0, 0}, .Albedo = "Images\\Ant.png"},
     {.Color = {0, 1, 0}, .Albedo = "Images\\Bee.png"},
@@ -115,7 +115,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
         for (int i = 0; i < NUM_MATERIALS; ++i)
         {
-            const Material::Spec& mtlSpec = MaterialSpecs[i % std::size(MaterialSpecs)];
+            const MaterialSpec& mtlSpec = MaterialSpecs[i % std::size(MaterialSpecs)];
 
             auto materialResult = Material::Create(gd, mtlSpec);
 
