@@ -12,12 +12,12 @@ public:
     template<int COUNT>
     static RefPtr<Model> Create(const RefPtr<Mesh> (&meshes)[COUNT])
     {
-        return Create(meshes, COUNT);
+        return Create(std::span<const RefPtr<Mesh>>(meshes));
     }
 
-    static RefPtr<Model> Create(const RefPtr<Mesh>* meshes, const int meshCount)
+    static RefPtr<Model> Create(std::span<const RefPtr<Mesh>> meshes)
     {
-        return new Model(meshes, meshCount);
+        return new Model(meshes);
     }
 
     class Meshes : private std::vector<RefPtr<Mesh>>
@@ -43,9 +43,9 @@ private:
 
     Model() = delete;
 
-    Model(const RefPtr<Mesh>* meshes, const int meshCount)
+    Model(std::span<const RefPtr<Mesh>> meshes)
     {
-        Meshes.insert(Meshes.end(), &meshes[0], &meshes[meshCount]);
+        Meshes.assign(meshes.begin(), meshes.end());
     }
 
     IMPLEMENT_REFCOUNT(Model);
