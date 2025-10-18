@@ -4,7 +4,7 @@
 #include <map>
 
 #include "RenderGraph.h"
-#include "ModelNode.h"
+#include "Model.h"
 #include "MaterialDb.h"
 
 #include <SDL3/SDL_gpu.h>

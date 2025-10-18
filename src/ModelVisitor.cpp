@@ -1,6 +1,6 @@
 #include "ModelVisitor.h"
 
-#include "ModelNode.h"
+#include "Model.h"
 #include "TransformNode.h"
 #include "RenderGraph.h"
 

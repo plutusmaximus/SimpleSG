@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ModelNode.h"
+#include "Model.h"
 
 class Camera;
 
