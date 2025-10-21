@@ -26,3 +26,7 @@ struct VertexT<0>
 };
 
 using Vertex = VertexT<1>;
+
+using VertexIndex = uint32_t;
+
+constexpr int VERTEX_INDEX_BITS = 32;
