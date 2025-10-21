@@ -16,6 +16,11 @@ public:
 
     Error() = delete;
 
+    Error(const char* message)
+        : Error(ErrorCode::System, message)
+    {
+    }
+
     Error(const std::string& message)
         : Error(ErrorCode::System, message)
     {

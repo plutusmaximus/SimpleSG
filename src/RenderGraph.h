@@ -1,12 +1,17 @@
 #pragma once
 
 #include "Model.h"
+#include "Error.h"
+
+#include <expected>
 
 class Camera;
 
 class RenderGraph
 {
 public:
+
+    RenderGraph() = default;
 
     virtual ~RenderGraph() = 0
     {
@@ -17,4 +22,6 @@ public:
     virtual std::expected<void, Error> Render(const Camera& camera) = 0;
 
     virtual void Reset() = 0;
+
+    IMPLEMENT_REFCOUNT(RenderGraph);
 };

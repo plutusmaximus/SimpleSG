@@ -5,19 +5,19 @@
 
 #include "RenderGraph.h"
 #include "Model.h"
-#include "MaterialDb.h"
 
 #include <SDL3/SDL_gpu.h>
 
 class Camera;
+class SDLGPUDevice;
 
-class SdlRenderGraph : public RenderGraph
+class SDLRenderGraph : public RenderGraph
 {
 public:
 
-    virtual ~SdlRenderGraph() override;
+    virtual ~SDLRenderGraph() override;
 
-    SdlRenderGraph(SDL_Window* window, SDL_GPUDevice* gpuDevice, RefPtr<MaterialDb> materialDb);
+    explicit SDLRenderGraph(SDLGPUDevice* gpuDevice);
 
     virtual void Add(const Mat44f& transform, RefPtr<Model> model) override;
 
@@ -35,12 +35,9 @@ private:
         RefPtr<Mesh> Mesh;
     };
 
-    RefPtr<MaterialDb> m_MaterialDb;
-
     std::vector<Mat44f> m_Transforms;
 
-    SDL_Window* m_Window;
-    SDL_GPUDevice* m_GpuDevice;
+    RefPtr<SDLGPUDevice> m_GpuDevice;
     SDL_GPUTexture* m_DepthBuffer = nullptr;
     SDL_GPUGraphicsPipeline* m_Pipeline = nullptr;
 

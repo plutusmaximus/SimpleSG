@@ -6,7 +6,6 @@
 #include "Error.h"
 #include "ModelVisitor.h"
 #include "TransformNode.h"
-#include "MaterialDb.h"
 #include "SDLRenderGraph.h"
 #include "VecMath.h"
 
@@ -48,7 +47,7 @@ Vertex cubeVertices[] =
 };
 
 // Cube indices (36 indices for 12 triangles, 2 per face, all in CCW order)
-uint32_t cubeIndices[] =
+VertexIndex cubeIndices[] =
 {
     // Front (z = 0.5, normal +z, view from front)
     0, 3, 2,  0, 2, 1,    // CCW: bottom-left -> top-left -> top-right, bottom-left -> top-right -> bottom-right
@@ -63,26 +62,6 @@ uint32_t cubeIndices[] =
     // Bottom (y = -0.5, normal -y, view from bottom)
     20, 23, 22,  20, 22, 21  // CCW: back-left -> front-left -> front-right, back-left -> front-right -> back-right
 };
-
-MaterialSpec MaterialSpecs[] =
-{
-    {.Color = {1, 0, 0}, .Albedo = "Images\\Ant.png"},
-    {.Color = {0, 1, 0}, .Albedo = "Images\\Bee.png"},
-    {.Color = {0, 0, 1}, .Albedo = "Images\\Butterfly.png"},
-    {.Color = {1, 1, 1}, .Albedo = "Images\\Frog.png"},
-    {.Color = {0, 1, 1}, .Albedo = "Images\\Lizard.png"},
-    {.Color = {1, 0, 1}, .Albedo = "Images\\Turtle.png"}
-};
-
-// Set up vertex data for quad
-Vertex quadVertices[] =
-{
-    {{-0.5f, -0.5f,  0.5f}, {0.0f,  0.0f,  1.0f},  {0, 1}}, // 0
-    {{ 0.5f, -0.5f,  0.5f}, {0.0f,  0.0f,  1.0f},  {1, 1}}, // 1
-    {{ 0.5f,  0.5f,  0.5f}, {0.0f,  0.0f,  1.0f},  {1, 0}}, // 2
-    {{-0.5f,  0.5f,  0.5f}, {0.0f,  0.0f,  1.0f},  {0, 0}}, // 3
-};
-uint32_t quadIndices[] = { 0, 3, 2,  0, 2, 1 };
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {
@@ -106,42 +85,48 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         auto gdResult = SDLGPUDevice::Create(window);
         pcheck(gdResult, gdResult.error());
         auto gd = *gdResult;
-        SDL_GPUDevice* gpuDevice = (SDL_GPUDevice*)gd->GetDevice();//DO NOT SUBMIT
 
-        RefPtr<MaterialDb> materialDb = MaterialDb::Create();
-        std::vector<MaterialId> materialIds;
-
-        constexpr int NUM_MATERIALS = 6;
-
-        for (int i = 0; i < NUM_MATERIALS; ++i)
+        MeshSpec cubeMeshSpecs[] =
         {
-            const MaterialSpec& mtlSpec = MaterialSpecs[i % std::size(MaterialSpecs)];
-
-            auto materialResult = Material::Create(gd, mtlSpec);
-
-            materialDb->Add(materialResult.value());
-
-            materialIds.push_back(materialResult.value()->Id);
-        }
-
-        // Create meshes
-        auto cubeVb = gd->CreateVertexBuffer(cubeVertices, std::size(cubeVertices));
-        pcheck(cubeVb, cubeVb.error());
-        auto cubeIb = gd->CreateIndexBuffer(cubeIndices, std::size(cubeIndices));
-        pcheck(cubeIb, cubeVb.error());
-
-        RefPtr<Mesh> cubeMeshes[]
-        {
-            Mesh::Create(cubeVb.value(), cubeIb.value(), 0, 6, materialIds[0]),
-            Mesh::Create(cubeVb.value(), cubeIb.value(), 6, 6, materialIds[1]),
-            Mesh::Create(cubeVb.value(), cubeIb.value(), 12, 6, materialIds[2]),
-            Mesh::Create(cubeVb.value(), cubeIb.value(), 18, 6, materialIds[3]),
-            Mesh::Create(cubeVb.value(), cubeIb.value(), 24, 6, materialIds[4]),
-            Mesh::Create(cubeVb.value(), cubeIb.value(), 30, 6, materialIds[5])
+            {
+                .Vertices = std::span<Vertex>(&cubeVertices[0], 4),
+                .Indices = std::span<VertexIndex>(&cubeIndices[0], 6),
+                .MtlSpec = {.Color = {1, 0, 0}, .Albedo = "Images\\Ant.png"}
+            },
+            {
+                .Vertices = std::span<Vertex>(&cubeVertices[4], 4),
+                .Indices = std::span<VertexIndex>(&cubeIndices[6], 6),
+                .MtlSpec = {.Color = {0, 1, 0}, .Albedo = "Images\\Bee.png"}
+            },
+            {
+                .Vertices = std::span<Vertex>(&cubeVertices[8], 4),
+                .Indices = std::span<VertexIndex>(&cubeIndices[12], 6),
+                .MtlSpec = {.Color = {0, 0, 1}, .Albedo = "Images\\Butterfly.png"}
+            },
+            {
+                .Vertices = std::span<Vertex>(&cubeVertices[12], 4),
+                .Indices = std::span<VertexIndex>(&cubeIndices[18], 6),
+                .MtlSpec = {.Color = {1, 1, 1}, .Albedo = "Images\\Frog.png"}
+            },
+            {
+                .Vertices = std::span<Vertex>(&cubeVertices[16], 4),
+                .Indices = std::span<VertexIndex>(&cubeIndices[24], 6),
+                .MtlSpec = {.Color = {0, 1, 1}, .Albedo = "Images\\Lizard.png"}
+            },
+            {
+                .Vertices = std::span<Vertex>(&cubeVertices[20], 4),
+                .Indices = std::span<VertexIndex>(&cubeIndices[30], 6),
+                .MtlSpec = {.Color = {1, 0, 1}, .Albedo = "Images\\Turtle.png"}
+            },
         };
 
-        RefPtr<Model> cubeModel = Model::Create(cubeMeshes);
-        pcheck(cubeModel, "Model::Create failed");
+        ModelSpec cubeModelSpec
+        {
+            .MeshSpecs = cubeMeshSpecs
+        };
+        auto cubeModelResult = gd->CreateModel(cubeModelSpec);
+        pcheck(cubeModelResult, "Model::Create failed");
+        auto cubeModel = cubeModelResult.value();
 
         RefPtr<GroupNode> scene = new GroupNode();
 
@@ -151,22 +136,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         moonXFormNode->AddChild(cubeModel);
         planetXFormNode->AddChild(moonXFormNode);
         scene->AddChild(planetXFormNode);
-
-        auto quadVb = gd->CreateVertexBuffer(quadVertices);
-        pcheck(quadVb, quadVb.error());
-        auto quadIb = gd->CreateIndexBuffer(quadIndices);
-        pcheck(quadIb, quadIb.error());
-
-        RefPtr<Mesh> quadMeshes[]
-        {
-            Mesh::Create(quadVb.value(), quadIb.value(), 0, std::size(quadIndices), materialIds[0])
-        };
-
-        RefPtr<Model> quadModel = Model::Create(quadMeshes);
-        pcheck(quadModel, "Model::Create failed");
-
-        RefPtr<TransformNode> quadXFormNode = new TransformNode();
-        quadXFormNode->AddChild(quadModel);
 
         const Degreesf fov(45);
         Camera camera(fov, 1, 0.1f, 100);
@@ -229,10 +198,14 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
             camera.SetAspect(float(windowW) / windowH);
 
-            SdlRenderGraph renderGraph(window, gpuDevice, materialDb);
-            ModelVisitor visitor(&renderGraph);
+            auto renderGraphResult = gd->CreateRenderGraph();
+            pcheck(renderGraphResult, "CreateRenderGraph() failed");
+
+            auto renderGraph = renderGraphResult.value();
+
+            ModelVisitor visitor(renderGraph);
             scene->Accept(&visitor);
-            auto renderResult = renderGraph.Render(camera);
+            auto renderResult = renderGraph->Render(camera);
             if (!renderResult)
             {
                 logError(renderResult.error().Message);

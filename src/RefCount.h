@@ -71,6 +71,12 @@ public:
 
     const T* Get() const { return m_Ptr; }
 
+    template<typename U>
+    U* Get() { return static_cast<U*>(m_Ptr); }
+
+    template<typename U>
+    const U* Get() const { return static_cast<const U*>(m_Ptr); }
+
     T& operator*() { return *m_Ptr; }
 
     T& operator*() const { return *m_Ptr; }

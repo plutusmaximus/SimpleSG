@@ -1,29 +1,60 @@
 #pragma once
 
 #include "Material.h"
-#include "GPUDevice.h"
-
 #include "Vertex.h"
+#include <RefCount.h>
+
+#include <span>
+
+class MeshSpec
+{
+public:
+    std::span<Vertex> Vertices;
+    std::span<VertexIndex> Indices;
+    MaterialSpec MtlSpec;
+};
+
+class VertexBuffer
+{
+public:
+
+    VertexBuffer() {}
+
+    virtual ~VertexBuffer() = 0 {}
+
+    IMPLEMENT_REFCOUNT(VertexBuffer);
+};
+
+class IndexBuffer
+{
+public:
+
+    IndexBuffer() {}
+
+    virtual ~IndexBuffer() = 0 {}
+
+    IMPLEMENT_REFCOUNT(IndexBuffer);
+};
 
 class Mesh
 {
 public:
 
     static RefPtr<Mesh> Create(
-        VertexBuffer vb,
-        IndexBuffer ib,
-        const int indexOffset,
-        const int indexCount,
+        VertexBuffer* vb,
+        IndexBuffer* ib,
+        const unsigned indexOffset,
+        const unsigned indexCount,
         const MaterialId materialId)
     {
         return new Mesh(vb, ib, indexOffset, indexCount, materialId);
     }
 
-    VertexBuffer VtxBuffer;
-    IndexBuffer IdxBuffer;
+    RefPtr<VertexBuffer> VtxBuffer;
+    RefPtr<IndexBuffer> IdxBuffer;
 
-    const int IndexOffset;
-    const int IndexCount;
+    const unsigned IndexOffset;
+    const unsigned IndexCount;
     const MaterialId MaterialId;
 
 private:
@@ -31,10 +62,10 @@ private:
     Mesh() = delete;
 
     Mesh(
-        VertexBuffer vb,
-        IndexBuffer ib,
-        const int indexOffset,
-        const int indexCount,
+        VertexBuffer* vb,
+        IndexBuffer* ib,
+        const unsigned indexOffset,
+        const unsigned indexCount,
         const ::MaterialId materialId)
         : VtxBuffer(vb)
         , IdxBuffer(ib)

@@ -5,27 +5,26 @@
 #include "Error.h"
 
 #include "AutoDeleter.h"
+#include "Assert.h"
 
 #include "SDLGPUDevice.h"
 
 #include <SDL3/SDL_gpu.h>
 
-SdlRenderGraph::SdlRenderGraph(SDL_Window* window, SDL_GPUDevice* gpuDevice, RefPtr<MaterialDb> materialDb)
-    : m_MaterialDb(materialDb)
-    , m_Window(window)
-    , m_GpuDevice(gpuDevice)
+SDLRenderGraph::SDLRenderGraph(SDLGPUDevice* gpuDevice)
+    : m_GpuDevice(gpuDevice)
 {
 }
 
-SdlRenderGraph::~SdlRenderGraph()
+SDLRenderGraph::~SDLRenderGraph()
 {
-    SDL_ReleaseGPUTexture(m_GpuDevice, m_DepthBuffer);
+    SDL_ReleaseGPUTexture(m_GpuDevice->m_GpuDevice, m_DepthBuffer);
 
-    SDL_ReleaseGPUGraphicsPipeline(m_GpuDevice, m_Pipeline);
+    SDL_ReleaseGPUGraphicsPipeline(m_GpuDevice->m_GpuDevice, m_Pipeline);
 }
 
 void
-SdlRenderGraph::Add(const Mat44f& transform, RefPtr<Model> model)
+SDLRenderGraph::Add(const Mat44f& transform, RefPtr<Model> model)
 {
     const int xfomIdx = static_cast<int>(m_Transforms.size());
     m_Transforms.push_back(transform);
@@ -34,34 +33,32 @@ SdlRenderGraph::Add(const Mat44f& transform, RefPtr<Model> model)
     {
         const MaterialId mtlId = mesh->MaterialId;
 
-        if (!Verify(m_MaterialDb->Contains(mtlId)))
-        {
-            continue;
-        }
-
         m_MeshGroups[mtlId].push_back({ xfomIdx, mesh });
     }
 }
 
 std::expected<void, Error>
-SdlRenderGraph::Render(const Camera& camera)
+SDLRenderGraph::Render(const Camera& camera)
 {
+    auto gpuDevice = m_GpuDevice->m_GpuDevice;
+    auto window = m_GpuDevice->m_Window;
+
     if (!m_Pipeline)
     {
-        SDL_GPUTextureFormat colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(m_GpuDevice, m_Window);
+        SDL_GPUTextureFormat colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(gpuDevice, window);
         auto pipelineResult = CreatePipeline(colorTargetFormat);
         expect(pipelineResult, pipelineResult.error());
 
         m_Pipeline = pipelineResult.value();
     }
 
-    SDL_GPUCommandBuffer* cmdBuf = SDL_AcquireGPUCommandBuffer(m_GpuDevice);
+    SDL_GPUCommandBuffer* cmdBuf = SDL_AcquireGPUCommandBuffer(gpuDevice);
 
     expect(cmdBuf, SDL_GetError());
 
     SDL_GPUTexture* swapChainTexture;
     uint32_t windowW, windowH;
-    expect(SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuf, m_Window, &swapChainTexture, &windowW, &windowH), SDL_GetError());
+    expect(SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuf, window, &swapChainTexture, &windowW, &windowH), SDL_GetError());
 
     if (nullptr == swapChainTexture)
     {
@@ -75,13 +72,13 @@ SdlRenderGraph::Render(const Camera& camera)
 
     if (!m_DepthBuffer || m_DepthCreateInfo.width != windowW || m_DepthCreateInfo.height != windowH)
     {
-        SDL_ReleaseGPUTexture(m_GpuDevice, m_DepthBuffer);
+        SDL_ReleaseGPUTexture(gpuDevice, m_DepthBuffer);
         m_DepthBuffer = nullptr;
 
         m_DepthCreateInfo.width = windowW;
         m_DepthCreateInfo.height = windowH;
 
-        m_DepthBuffer = SDL_CreateGPUTexture(m_GpuDevice, &m_DepthCreateInfo);
+        m_DepthBuffer = SDL_CreateGPUTexture(gpuDevice, &m_DepthCreateInfo);
         expect(m_DepthBuffer, SDL_GetError());
     }
 
@@ -121,7 +118,14 @@ SdlRenderGraph::Render(const Camera& camera)
 
     for (auto& [mtlId, xmeshes] : m_MeshGroups)
     {
-        auto mtl = m_MaterialDb->GetMaterial(mtlId);
+        auto mtlResult = m_GpuDevice->GetMaterial(mtlId);
+        if (!mtlResult)
+        {
+            logError(mtlResult.error().Message);
+            continue;
+        }
+
+        auto mtl = mtlResult.value();
 
         SDL_PushGPUVertexUniformData(cmdBuf, 1, &mtl->Color, sizeof(mtl->Color));
 
@@ -134,8 +138,8 @@ SdlRenderGraph::Render(const Camera& camera)
         // Bind texture and sampler
         SDL_GPUTextureSamplerBinding samplerBinding
         {
-            .texture = (SDL_GPUTexture*)mtl->Albedo->GetTexture(),  //DO NOT SUBMIT
-            .sampler = mtl->AlbedoSampler->Get()
+            .texture = mtl->Albedo,
+            .sampler = mtl->AlbedoSampler
         };
         SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
 
@@ -147,17 +151,25 @@ SdlRenderGraph::Render(const Camera& camera)
 
             SDL_GPUBufferBinding vertexBufferBinding
             {
-                .buffer = (SDL_GPUBuffer*)xmesh.Mesh->VtxBuffer->GetBuffer(),
+                .buffer = xmesh.Mesh->VtxBuffer.Get<SDLVertexBuffer>()->m_Buffer,
                 .offset = 0
             };
             SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBufferBinding, 1);
 
             SDL_GPUBufferBinding indexBufferBinding
             {
-                .buffer = (SDL_GPUBuffer*)xmesh.Mesh->IdxBuffer->GetBuffer(),
+                .buffer = xmesh.Mesh->IdxBuffer.Get<SDLIndexBuffer>()->m_Buffer,
                 .offset = 0
             };
-            SDL_BindGPUIndexBuffer(renderPass, &indexBufferBinding, SDL_GPU_INDEXELEMENTSIZE_32BIT);
+
+            static_assert(VERTEX_INDEX_BITS == 32 || VERTEX_INDEX_BITS == 16);
+
+            const SDL_GPUIndexElementSize idxElSize =
+                (VERTEX_INDEX_BITS == 32)
+                ? SDL_GPU_INDEXELEMENTSIZE_32BIT
+                : SDL_GPU_INDEXELEMENTSIZE_16BIT;
+
+            SDL_BindGPUIndexBuffer(renderPass, &indexBufferBinding, idxElSize);
 
             SDL_DrawGPUIndexedPrimitives(renderPass, xmesh.Mesh->IndexCount, 1, xmesh.Mesh->IndexOffset, 0, 0);
         }
@@ -171,15 +183,15 @@ SdlRenderGraph::Render(const Camera& camera)
 
     expect(fence, SDL_GetError());
 
-    expect(SDL_WaitForGPUFences(m_GpuDevice, true, &fence, 1), SDL_GetError())
+    expect(SDL_WaitForGPUFences(gpuDevice, true, &fence, 1), SDL_GetError())
 
-    SDL_ReleaseGPUFence(m_GpuDevice, fence);
+    SDL_ReleaseGPUFence(gpuDevice, fence);
 
     return {};
 }
 
 void
-SdlRenderGraph::Reset()
+SDLRenderGraph::Reset()
 {
     m_Transforms.clear();
     for (auto& [mtlId, meshes] : m_MeshGroups)
@@ -188,50 +200,19 @@ SdlRenderGraph::Reset()
     }
 }
 
-//#define GPU_DRIVER_DIRECT3D
-#define GPU_DRIVER_VULKAN
-
-#if defined(GPU_DRIVER_DIRECT3D)
-
-static const SDL_GPUShaderFormat SHADER_FORMAT = SDL_GPU_SHADERFORMAT_DXIL;
-static const char* const DRIVER_NAME = "direct3d12";
-static const char* const SHADER_EXTENSION = ".dxil";
-
-#elif defined(GPU_DRIVER_VULKAN)
-
-static const SDL_GPUShaderFormat SHADER_FORMAT = SDL_GPU_SHADERFORMAT_SPIRV;
-static const char* const DRIVER_NAME = "vulkan";
-static const char* const SHADER_EXTENSION = ".spv";
-
-#else
-
-#error Must define a GPU driver to use.
-
-#endif
-
-static std::expected<SDL_GPUShader*, Error> LoadVertexShader(
-    SDL_GPUDevice* gpuDevice,
-    const std::string_view fileName,
-    const int numUniformBuffers);
-
-static std::expected<SDL_GPUShader*, Error> LoadFragmentShader(
-    SDL_GPUDevice* gpuDevice,
-    const std::string_view fileName,
-    const int numSamplers);
-
 std::expected<SDL_GPUGraphicsPipeline*, Error>
-SdlRenderGraph::CreatePipeline(SDL_GPUTextureFormat colorTargetFormat)
+SDLRenderGraph::CreatePipeline(SDL_GPUTextureFormat colorTargetFormat)
 {
-    // Create shaders
-    const std::string vshaderFileName = std::string("shaders/Debug/VertexShader") + SHADER_EXTENSION;
-    auto vtxShaderResult = LoadVertexShader(m_GpuDevice, vshaderFileName, 3);
-    expect(vtxShaderResult, vtxShaderResult.error());
-    RefPtr<SDLResource<SDL_GPUShader>> vtxShader = new SDLResource<SDL_GPUShader>(m_GpuDevice, vtxShaderResult.value());
+    SDL_GPUDevice* gpuDevice = m_GpuDevice->m_GpuDevice;
 
-    const std::string fshaderFileName = std::string("shaders/Debug/FragmentShader") + SHADER_EXTENSION;
-    auto fragShaderResult = LoadFragmentShader(m_GpuDevice, fshaderFileName, 1);
+    // Create shaders
+    auto vtxShaderResult = m_GpuDevice->GetOrLoadVertexShader("shaders/Debug/VertexShader", 3);
+    expect(vtxShaderResult, vtxShaderResult.error());
+    auto vtxShader = vtxShaderResult;
+
+    auto fragShaderResult = m_GpuDevice->GetOrLoadFragmentShader("shaders/Debug/FragmentShader", 1);
     expect(fragShaderResult, fragShaderResult.error());
-    RefPtr<SDLResource<SDL_GPUShader>> fragShader = new SDLResource<SDL_GPUShader>(m_GpuDevice, fragShaderResult.value());
+    auto fragShader = fragShaderResult.value();
 
     SDL_GPUVertexBufferDescription vertexBufDescriptions[1] =
     {
@@ -288,54 +269,8 @@ SdlRenderGraph::CreatePipeline(SDL_GPUTextureFormat colorTargetFormat)
         }
     };
 
-    SDL_GPUGraphicsPipeline* pipeline = SDL_CreateGPUGraphicsPipeline(m_GpuDevice, &pipelineCreateInfo);
+    SDL_GPUGraphicsPipeline* pipeline = SDL_CreateGPUGraphicsPipeline(gpuDevice, &pipelineCreateInfo);
     expect(pipeline, SDL_GetError());
 
     return pipeline;
-}
-
-static std::expected<SDL_GPUShader*, Error> LoadShader(
-    SDL_GPUDevice* gpuDevice,
-    const std::string_view fileName,
-    SDL_GPUShaderStage shaderStage,
-    const unsigned numUniformBuffers,
-    const unsigned numSamplers)
-{
-    size_t fileSize;
-    void* shaderSrc = SDL_LoadFile(fileName.data(), &fileSize);
-    expect(shaderSrc, fileName, SDL_GetError());
-
-    auto ad = AutoDeleter(SDL_free, shaderSrc);
-
-    SDL_GPUShaderCreateInfo shaderCreateInfo
-    {
-        .code_size = fileSize,
-        .code = (uint8_t*)shaderSrc,
-        .entrypoint = "main",
-        .format = SHADER_FORMAT,
-        .stage = shaderStage,
-        .num_samplers = numSamplers,
-        .num_uniform_buffers = numUniformBuffers
-    };
-
-    SDL_GPUShader* shader = SDL_CreateGPUShader(gpuDevice, &shaderCreateInfo);
-    expect(shader, SDL_GetError());
-
-    return shader;
-}
-
-static std::expected<SDL_GPUShader*, Error> LoadVertexShader(
-    SDL_GPUDevice* gpuDevice,
-    const std::string_view fileName,
-    const int numUniformBuffers)
-{
-    return LoadShader(gpuDevice, fileName, SDL_GPU_SHADERSTAGE_VERTEX, numUniformBuffers, 0);
-}
-
-static std::expected<SDL_GPUShader*, Error> LoadFragmentShader(
-    SDL_GPUDevice* gpuDevice,
-    const std::string_view fileName,
-    const int numSamplers)
-{
-    return LoadShader(gpuDevice, fileName, SDL_GPU_SHADERSTAGE_FRAGMENT, 0, numSamplers);
 }

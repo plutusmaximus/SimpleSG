@@ -6,16 +6,17 @@
 
 #include <vector>
 
+class ModelSpec
+{
+public:
+    std::span<MeshSpec> MeshSpecs;
+};
+
 class Model : public SceneNode
 {
 public:
-    template<int COUNT>
-    static RefPtr<Model> Create(const RefPtr<Mesh> (&meshes)[COUNT])
-    {
-        return Create(std::span<const RefPtr<Mesh>>(meshes));
-    }
 
-    static RefPtr<Model> Create(std::span<const RefPtr<Mesh>> meshes)
+    static RefPtr<Model> Create(std::span<RefPtr<Mesh>> meshes)
     {
         return new Model(meshes);
     }
@@ -43,8 +44,9 @@ private:
 
     Model() = delete;
 
-    Model(std::span<const RefPtr<Mesh>> meshes)
+    Model(std::span<RefPtr<Mesh>> meshes)
     {
+        Meshes.reserve(meshes.size());
         Meshes.assign(meshes.begin(), meshes.end());
     }
 

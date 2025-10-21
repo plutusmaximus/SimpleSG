@@ -2,12 +2,11 @@
 
 #include <stack>
 
+#include "RenderGraph.h"
 #include "SceneVisitor.h"
 #include "VecMath.h"
 #include "RefCount.h"
 #include "Camera.h"
-
-class RenderGraph;
 
 class ModelVisitor : public SceneVisitor
 {
@@ -15,7 +14,7 @@ public:
 
     ModelVisitor() = delete;
 
-    explicit ModelVisitor(RenderGraph* renderGraph)
+    explicit ModelVisitor(RefPtr<RenderGraph> renderGraph)
         : m_RenderGraph(renderGraph)
     {
         m_TransformStack.push(Mat44f::Identity());
@@ -36,7 +35,7 @@ public:
 
 private:
 
-    RenderGraph* m_RenderGraph;
+    RefPtr<RenderGraph> m_RenderGraph;
 
     std::stack<Mat44f> m_TransformStack;
 

@@ -1,9 +1,6 @@
 #pragma once
 
-#include "SDLResource.h"
-#include "GPUDevice.h"
-
-struct SDL_GPUSampler;//DO NOT SUBMIT
+#include <string_view>
 
 template<typename T>
 struct RgbaColor
@@ -76,18 +73,17 @@ public:
         return m_Value >= other.m_Value;
     }
 
-private:
-    friend class Material;
-
     static MaterialId NextId()
     {
         static unsigned NEXT = 0x01100011;
 
         unsigned next;
-        for(next = NEXT++; INVALID_VALUE == next; next = NEXT++){ }
+        for (next = NEXT++; INVALID_VALUE == next; next = NEXT++) {}
 
         return MaterialId(next);
     }
+
+private:
 
     unsigned m_Value;
 
@@ -102,33 +98,4 @@ struct MaterialSpec
     float Roughness{ 0 };
 
     std::string_view Albedo;
-};
-
-class Material
-{
-public:
-
-    static std::expected<RefPtr<Material>, Error> Create(GPUDevice gpuDevice, const MaterialSpec& spec);
-
-    const MaterialId Id;
-
-    const RgbaColorf Color;
-
-    const float Metallic{ 0 };
-    const float Roughness{ 0 };
-
-    const Texture Albedo;
-    const RefPtr<SDLResource<SDL_GPUSampler>> AlbedoSampler;
-
-private:
-
-    Material(const RgbaColorf& color, Texture albedo, RefPtr<SDLResource<SDL_GPUSampler>> albedoSampler)
-        : Id(MaterialId::NextId())
-        , Color(color)
-        , Albedo(albedo)
-        , AlbedoSampler(albedoSampler)
-    {
-    }
-
-    IMPLEMENT_REFCOUNT(Material);
 };
