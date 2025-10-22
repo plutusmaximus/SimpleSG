@@ -89,39 +89,41 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         MeshSpec cubeMeshSpecs[] =
         {
             {
-                .Vertices = std::span<Vertex>(&cubeVertices[0], 4),
-                .Indices = std::span<VertexIndex>(&cubeIndices[0], 6),
+                .IndexOffset = 0,
+                .IndexCount = 6,
                 .MtlSpec = {.Color = {1, 0, 0}, .Albedo = "Images\\Ant.png"}
             },
             {
-                .Vertices = std::span<Vertex>(&cubeVertices[4], 4),
-                .Indices = std::span<VertexIndex>(&cubeIndices[6], 6),
+                .IndexOffset = 6,
+                .IndexCount = 6,
                 .MtlSpec = {.Color = {0, 1, 0}, .Albedo = "Images\\Bee.png"}
             },
             {
-                .Vertices = std::span<Vertex>(&cubeVertices[8], 4),
-                .Indices = std::span<VertexIndex>(&cubeIndices[12], 6),
+                .IndexOffset = 12,
+                .IndexCount = 6,
                 .MtlSpec = {.Color = {0, 0, 1}, .Albedo = "Images\\Butterfly.png"}
             },
             {
-                .Vertices = std::span<Vertex>(&cubeVertices[12], 4),
-                .Indices = std::span<VertexIndex>(&cubeIndices[18], 6),
+                .IndexOffset = 18,
+                .IndexCount = 6,
                 .MtlSpec = {.Color = {1, 1, 1}, .Albedo = "Images\\Frog.png"}
             },
             {
-                .Vertices = std::span<Vertex>(&cubeVertices[16], 4),
-                .Indices = std::span<VertexIndex>(&cubeIndices[24], 6),
+                .IndexOffset = 24,
+                .IndexCount = 6,
                 .MtlSpec = {.Color = {0, 1, 1}, .Albedo = "Images\\Lizard.png"}
             },
             {
-                .Vertices = std::span<Vertex>(&cubeVertices[20], 4),
-                .Indices = std::span<VertexIndex>(&cubeIndices[30], 6),
+                .IndexOffset = 30,
+                .IndexCount = 6,
                 .MtlSpec = {.Color = {1, 0, 1}, .Albedo = "Images\\Turtle.png"}
             },
         };
 
         ModelSpec cubeModelSpec
         {
+            .Vertices = cubeVertices,
+            .Indices = cubeIndices,
             .MeshSpecs = cubeMeshSpecs
         };
         auto cubeModelResult = gd->CreateModel(cubeModelSpec);

@@ -125,39 +125,13 @@ SDLGPUDevice::~SDLGPUDevice()
 std::expected<RefPtr<Model>, Error>
 SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
 {
-    //Create one vertex buffer and one index buffer for the whole model.
-    unsigned vtxCount = 0;
-    unsigned idxCount = 0;
-    std::vector<std::span<Vertex>> vtxSpans;
-    std::vector<std::span<VertexIndex>> idxSpans;
-    for (const auto& meshSpec : modelSpec.MeshSpecs)
-    {
-        vtxSpans.push_back(meshSpec.Vertices);
-        vtxCount += meshSpec.Vertices.size();
-
-        idxSpans.push_back(meshSpec.Indices);
-        idxCount += meshSpec.Indices.size();
-    }
-
-    auto vtxJoined = std::views::join(vtxSpans);
-    std::vector<Vertex> vertices;
-    vertices.reserve(vtxCount);
-    vertices.assign(vtxJoined.begin(), vtxJoined.end());
-
-    auto vbResult = CreateVertexBuffer(vertices);
+    auto vbResult = CreateVertexBuffer(modelSpec.Vertices);
     expect(vbResult, vbResult.error());
     auto vtxBuf = vbResult.value();
 
-    auto idxJoined = std::views::join(idxSpans);
-    std::vector<VertexIndex> indices;
-    indices.reserve(idxCount);
-    indices.assign(idxJoined.begin(), idxJoined.end());
-
-    auto ibResult = CreateIndexBuffer(indices);
+    auto ibResult = CreateIndexBuffer(modelSpec.Indices);
     expect(ibResult, ibResult.error());
     auto idxBuf = ibResult.value();
-
-    unsigned idxOffset = 0;
 
     std::vector<RefPtr<Mesh>> meshes;
 
@@ -181,7 +155,7 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
         //TODO - check material DB for existing material
 
         //TODO - texture DB
-        auto albedoResult = GetOrLoadTextureFromPNG(meshSpec.MtlSpec.Albedo);
+        auto albedoResult = GetOrCreateTextureFromPNG(meshSpec.MtlSpec.Albedo);
 
         expect(albedoResult, albedoResult.error());
 
@@ -190,11 +164,9 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
         m_MaterialIndexById[mtl->Id] = std::size(m_Materials);
         m_Materials.push_back(mtl);
 
-        auto mesh = Mesh::Create(vtxBuf, idxBuf, idxOffset, meshSpec.Indices.size(), mtl->Id);
+        auto mesh = Mesh::Create(vtxBuf, idxBuf, meshSpec.IndexOffset, meshSpec.IndexCount, mtl->Id);
 
         meshes.push_back(mesh);
-
-        idxOffset += meshSpec.Indices.size();
     }
 
     return Model::Create(meshes);
@@ -219,7 +191,7 @@ SDLGPUDevice::GetMaterial(const MaterialId& mtlId) const
 }
 
 std::expected<SDL_GPUShader*, Error>
-SDLGPUDevice::GetOrLoadVertexShader(
+SDLGPUDevice::GetOrCreateVertexShader(
     const std::string_view fileName,
     const int numUniformBuffers)
 {
@@ -240,7 +212,7 @@ SDLGPUDevice::GetOrLoadVertexShader(
 }
 
 std::expected<SDL_GPUShader*, Error>
-SDLGPUDevice::GetOrLoadFragmentShader(
+SDLGPUDevice::GetOrCreateFragmentShader(
     const std::string_view fileName,
     const int numSamplers)
 {
@@ -283,7 +255,7 @@ SDLGPUDevice::CreateIndexBuffer(const std::span<VertexIndex>& indices)
 }
 
 std::expected<SDL_GPUTexture*, Error>
-SDLGPUDevice::GetOrLoadTextureFromPNG(const std::string_view path)
+SDLGPUDevice::GetOrCreateTextureFromPNG(const std::string_view path)
 {
     SDL_GPUTexture* texture = GetTexture(path);
 

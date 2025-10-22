@@ -206,11 +206,11 @@ SDLRenderGraph::CreatePipeline(SDL_GPUTextureFormat colorTargetFormat)
     SDL_GPUDevice* gpuDevice = m_GpuDevice->m_GpuDevice;
 
     // Create shaders
-    auto vtxShaderResult = m_GpuDevice->GetOrLoadVertexShader("shaders/Debug/VertexShader", 3);
+    auto vtxShaderResult = m_GpuDevice->GetOrCreateVertexShader("shaders/Debug/VertexShader", 3);
     expect(vtxShaderResult, vtxShaderResult.error());
     auto vtxShader = vtxShaderResult;
 
-    auto fragShaderResult = m_GpuDevice->GetOrLoadFragmentShader("shaders/Debug/FragmentShader", 1);
+    auto fragShaderResult = m_GpuDevice->GetOrCreateFragmentShader("shaders/Debug/FragmentShader", 1);
     expect(fragShaderResult, fragShaderResult.error());
     auto fragShader = fragShaderResult.value();
 

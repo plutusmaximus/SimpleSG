@@ -9,8 +9,8 @@
 class MeshSpec
 {
 public:
-    std::span<Vertex> Vertices;
-    std::span<VertexIndex> Indices;
+    const unsigned IndexOffset;
+    const unsigned IndexCount;
     MaterialSpec MtlSpec;
 };
 

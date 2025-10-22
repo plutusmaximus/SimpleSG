@@ -9,6 +9,8 @@
 class ModelSpec
 {
 public:
+    std::span<Vertex> Vertices;
+    std::span<VertexIndex> Indices;
     std::span<MeshSpec> MeshSpecs;
 };
 

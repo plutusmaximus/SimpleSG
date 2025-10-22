@@ -99,11 +99,11 @@ public:
 
     std::expected<const SDLMaterial*, Error> GetMaterial(const MaterialId& mtlId) const;
 
-    std::expected<SDL_GPUShader*, Error> GetOrLoadVertexShader(
+    std::expected<SDL_GPUShader*, Error> GetOrCreateVertexShader(
         const std::string_view fileName,
         const int numUniformBuffers);
 
-    std::expected<SDL_GPUShader*, Error> GetOrLoadFragmentShader(
+    std::expected<SDL_GPUShader*, Error> GetOrCreateFragmentShader(
         const std::string_view fileName,
         const int numSamplers);
 
@@ -120,7 +120,7 @@ private:
 
     std::expected<IndexBuffer*, Error> CreateIndexBuffer(const std::span<VertexIndex>& indices);
 
-    std::expected<SDL_GPUTexture*, Error> GetOrLoadTextureFromPNG(const std::string_view path);
+    std::expected<SDL_GPUTexture*, Error> GetOrCreateTextureFromPNG(const std::string_view path);
 
     SDL_GPUTexture* GetTexture(const std::string_view fileName);
 
