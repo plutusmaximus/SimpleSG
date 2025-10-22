@@ -91,32 +91,68 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             {
                 .IndexOffset = 0,
                 .IndexCount = 6,
-                .MtlSpec = {.Color = {1, 0, 0}, .Albedo = "Images\\Ant.png"}
+                .MtlSpec =
+                {
+                    .Color = {1, 0, 0},
+                    .VertexShader = "shaders/Debug/VertexShader",
+                    .FragmentShader = "shaders/Debug/FragmentShader",
+                    .Albedo = "Images\\Ant.png"
+                }
             },
             {
                 .IndexOffset = 6,
                 .IndexCount = 6,
-                .MtlSpec = {.Color = {0, 1, 0}, .Albedo = "Images\\Bee.png"}
+                .MtlSpec =
+                {
+                    .Color = {0, 1, 0},
+                    .VertexShader = "shaders/Debug/VertexShader",
+                    .FragmentShader = "shaders/Debug/FragmentShader",
+                    .Albedo = "Images\\Bee.png"
+                }
             },
             {
                 .IndexOffset = 12,
                 .IndexCount = 6,
-                .MtlSpec = {.Color = {0, 0, 1}, .Albedo = "Images\\Butterfly.png"}
+                .MtlSpec =
+                {
+                    .Color = {0, 0, 1},
+                    .VertexShader = "shaders/Debug/VertexShader",
+                    .FragmentShader = "shaders/Debug/FragmentShader",
+                    .Albedo = "Images\\Butterfly.png"
+                }
             },
             {
                 .IndexOffset = 18,
                 .IndexCount = 6,
-                .MtlSpec = {.Color = {1, 1, 1}, .Albedo = "Images\\Frog.png"}
+                .MtlSpec =
+                {
+                    .Color = {1, 1, 1},
+                    .VertexShader = "shaders/Debug/VertexShader",
+                    .FragmentShader = "shaders/Debug/FragmentShader",
+                    .Albedo = "Images\\Frog.png"
+                }
             },
             {
                 .IndexOffset = 24,
                 .IndexCount = 6,
-                .MtlSpec = {.Color = {0, 1, 1}, .Albedo = "Images\\Lizard.png"}
+                .MtlSpec =
+                {
+                    .Color = {0, 1, 1},
+                    .VertexShader = "shaders/Debug/VertexShader",
+                    .FragmentShader = "shaders/Debug/FragmentShader",
+                    .Albedo = "Images\\Lizard.png"
+                }
             },
             {
                 .IndexOffset = 30,
                 .IndexCount = 6,
-                .MtlSpec = {.Color = {1, 0, 1}, .Albedo = "Images\\Turtle.png"}
+                .MtlSpec =
+                {
+                    .Color = {1, 0, 1},
+                    .VertexShader = "shaders/Debug/VertexShader",
+                    .FragmentShader = "shaders/Debug/FragmentShader",
+                    .Albedo = "Images\\Turtle.png"
+                }
             },
         };
 
@@ -127,7 +163,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             .MeshSpecs = cubeMeshSpecs
         };
         auto cubeModelResult = gd->CreateModel(cubeModelSpec);
-        pcheck(cubeModelResult, "Model::Create failed");
+        pcheck(cubeModelResult, cubeModelResult.error());
         auto cubeModel = cubeModelResult.value();
 
         RefPtr<GroupNode> scene = new GroupNode();
@@ -201,7 +237,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             camera.SetAspect(float(windowW) / windowH);
 
             auto renderGraphResult = gd->CreateRenderGraph();
-            pcheck(renderGraphResult, "CreateRenderGraph() failed");
+            pcheck(renderGraphResult, renderGraphResult.error());
 
             auto renderGraph = renderGraphResult.value();
 

@@ -37,7 +37,6 @@ private:
 
     RefPtr<SDLGPUDevice> m_GpuDevice;
     SDL_GPUTexture* m_DepthBuffer = nullptr;
-    SDL_GPUGraphicsPipeline* m_Pipeline = nullptr;
 
     SDL_GPUTextureCreateInfo m_DepthCreateInfo
     {

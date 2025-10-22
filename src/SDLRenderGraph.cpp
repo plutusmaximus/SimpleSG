@@ -11,9 +11,6 @@
 
 #include <SDL3/SDL_gpu.h>
 
-static std::expected<SDL_GPUGraphicsPipeline*, Error>
-CreatePipeline(SDLGPUDevice* gpuDevice, SDL_GPUTextureFormat colorTargetFormat);
-
 SDLRenderGraph::SDLRenderGraph(SDLGPUDevice* gpuDevice)
     : m_GpuDevice(gpuDevice)
 {
@@ -22,8 +19,6 @@ SDLRenderGraph::SDLRenderGraph(SDLGPUDevice* gpuDevice)
 SDLRenderGraph::~SDLRenderGraph()
 {
     SDL_ReleaseGPUTexture(m_GpuDevice->m_GpuDevice, m_DepthBuffer);
-
-    SDL_ReleaseGPUGraphicsPipeline(m_GpuDevice->m_GpuDevice, m_Pipeline);
 }
 
 void
@@ -46,22 +41,17 @@ SDLRenderGraph::Render(const Camera& camera)
     auto gpuDevice = m_GpuDevice->m_GpuDevice;
     auto window = m_GpuDevice->m_Window;
 
-    if (!m_Pipeline)
-    {
-        SDL_GPUTextureFormat colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(gpuDevice, window);
-        auto pipelineResult = CreatePipeline(m_GpuDevice.Get(), colorTargetFormat);
-        expect(pipelineResult, pipelineResult.error());
-
-        m_Pipeline = pipelineResult.value();
-    }
-
     SDL_GPUCommandBuffer* cmdBuf = SDL_AcquireGPUCommandBuffer(gpuDevice);
 
     expect(cmdBuf, SDL_GetError());
 
     SDL_GPUTexture* swapChainTexture;
     uint32_t windowW, windowH;
-    expect(SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuf, window, &swapChainTexture, &windowW, &windowH), SDL_GetError());
+    if (!SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuf, window, &swapChainTexture, &windowW, &windowH))
+    {
+        SDL_CancelGPUCommandBuffer(cmdBuf);
+        return std::unexpected(SDL_GetError());
+    }
 
     if (nullptr == swapChainTexture)
     {
@@ -111,8 +101,6 @@ SDLRenderGraph::Render(const Camera& camera)
 
     expect(renderPass, SDL_GetError());
 
-    SDL_BindGPUGraphicsPipeline(renderPass, m_Pipeline);
-
     SDL_GPUViewport viewport
     {
         0, 0, (float)windowW, (float)windowH, 0, 1
@@ -145,6 +133,12 @@ SDLRenderGraph::Render(const Camera& camera)
             .sampler = mtl->AlbedoSampler
         };
         SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
+
+        auto pipelineResult = m_GpuDevice->GetOrCreatePipeline(*mtl);
+
+        expect(pipelineResult, pipelineResult.error());
+
+        SDL_BindGPUGraphicsPipeline(renderPass, pipelineResult.value());
 
         for (auto& xmesh : xmeshes)
         {
@@ -201,77 +195,4 @@ SDLRenderGraph::Reset()
     {
         meshes.clear();
     }
-}
-
-static std::expected<SDL_GPUGraphicsPipeline*, Error>
-CreatePipeline(SDLGPUDevice* gpuDevice, SDL_GPUTextureFormat colorTargetFormat)
-{
-    // Create shaders
-    auto vtxShaderResult = gpuDevice->GetOrCreateVertexShader("shaders/Debug/VertexShader", 3);
-    expect(vtxShaderResult, vtxShaderResult.error());
-    auto vtxShader = vtxShaderResult;
-
-    auto fragShaderResult = gpuDevice->GetOrCreateFragmentShader("shaders/Debug/FragmentShader", 1);
-    expect(fragShaderResult, fragShaderResult.error());
-    auto fragShader = fragShaderResult.value();
-
-    SDL_GPUVertexBufferDescription vertexBufDescriptions[1] =
-    {
-        {
-            .slot = 0,
-            .pitch = sizeof(Vertex),
-            .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX
-        }
-    };
-    SDL_GPUVertexAttribute vertexAttributes[] =
-    {
-        {.location = 0, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = offsetof(Vertex, pos) },
-        {.location = 1, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = offsetof(Vertex, normal) },
-        {.location = 2, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = offsetof(Vertex, uvs) }
-    };
-
-    SDL_GPUColorTargetDescription colorTargetDesc
-    {
-        .format = colorTargetFormat,
-        .blend_state = {}
-    };
-
-    SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo
-    {
-        .vertex_shader = vtxShaderResult.value(),
-        .fragment_shader = fragShaderResult.value(),
-        .vertex_input_state =
-        {
-            .vertex_buffer_descriptions = vertexBufDescriptions,
-            .num_vertex_buffers = 1,
-            .vertex_attributes = vertexAttributes,
-            .num_vertex_attributes = std::size(vertexAttributes)
-        },
-        .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-        .rasterizer_state =
-        {
-            .fill_mode = SDL_GPU_FILLMODE_FILL,
-            .cull_mode = SDL_GPU_CULLMODE_BACK,
-            .front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
-            .enable_depth_clip = true
-        },
-        .depth_stencil_state =
-        {
-            .compare_op = SDL_GPU_COMPAREOP_LESS_OR_EQUAL,
-            .enable_depth_test = true,
-            .enable_depth_write = true
-        },
-        .target_info =
-        {
-            .color_target_descriptions = &colorTargetDesc,
-            .num_color_targets = 1,
-            .depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
-            .has_depth_stencil_target = true
-        }
-    };
-
-    SDL_GPUGraphicsPipeline* pipeline = SDL_CreateGPUGraphicsPipeline(gpuDevice->m_GpuDevice, &pipelineCreateInfo);
-    expect(pipeline, SDL_GetError());
-
-    return pipeline;
 }

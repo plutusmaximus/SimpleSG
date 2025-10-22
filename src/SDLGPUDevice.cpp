@@ -4,10 +4,7 @@
 #include "Image.h"
 #include "SDLRenderGraph.h"
 
-#include <ranges>
-
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_gpu.h>
 
 //#define GPU_DRIVER_DIRECT3D
 #define GPU_DRIVER_VULKAN
@@ -101,19 +98,29 @@ SDLGPUDevice::~SDLGPUDevice()
         delete mtl;
     }
 
+    for (const auto& [_, pipeline] : m_PipelinesByKey)
+    {
+        SDL_ReleaseGPUGraphicsPipeline(m_GpuDevice, pipeline);
+    }
+
     if (m_Sampler)
     {
         SDL_ReleaseGPUSampler(m_GpuDevice, m_Sampler);
     }
 
-    for (const auto& it : m_TexturesByName)
+    for (const auto& [_, texRec] : m_TexturesByName)
     {
-        SDL_ReleaseGPUTexture(m_GpuDevice, it.second.Texture);
+        SDL_ReleaseGPUTexture(m_GpuDevice, texRec.Texture);
     }
 
-    for (const auto& it : m_ShadersByName)
+    for (const auto& [_, shaderRec] : m_VertexShadersByName)
     {
-        SDL_ReleaseGPUShader(m_GpuDevice, it.second.Shader);
+        SDL_ReleaseGPUShader(m_GpuDevice, shaderRec.Shader);
+    }
+
+    for (const auto& [_, shaderRec] : m_FragShadersByName)
+    {
+        SDL_ReleaseGPUShader(m_GpuDevice, shaderRec.Shader);
     }
 
     if (m_GpuDevice)
@@ -156,12 +163,24 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
 
         //TODO - texture DB
         auto albedoResult = GetOrCreateTextureFromPNG(meshSpec.MtlSpec.Albedo);
-
         expect(albedoResult, albedoResult.error());
 
-        SDLMaterial* mtl = new SDLMaterial(meshSpec.MtlSpec.Color, albedoResult.value(), m_Sampler);
+        //FIXME - specify number of uniform buffers.
+        auto vertexShaderResult = GetOrCreateVertexShader(meshSpec.MtlSpec.VertexShader, 3);
+        expect(vertexShaderResult, vertexShaderResult.error());
 
-        m_MaterialIndexById[mtl->Id] = std::size(m_Materials);
+        //FIXME - specify number of uniform samplers.
+        auto fragShaderResult = GetOrCreateFragmentShader(meshSpec.MtlSpec.FragmentShader, 1);
+        expect(fragShaderResult, fragShaderResult.error());
+
+        SDLMaterial* mtl = new SDLMaterial(
+            meshSpec.MtlSpec.Color,
+            albedoResult.value(),
+            m_Sampler,
+            vertexShaderResult.value(),
+            fragShaderResult.value());
+
+        m_MaterialIndexById.emplace(mtl->Id, std::size(m_Materials));
         m_Materials.push_back(mtl);
 
         auto mesh = Mesh::Create(vtxBuf, idxBuf, meshSpec.IndexOffset, meshSpec.IndexCount, mtl->Id);
@@ -192,20 +211,20 @@ SDLGPUDevice::GetMaterial(const MaterialId& mtlId) const
 
 std::expected<SDL_GPUShader*, Error>
 SDLGPUDevice::GetOrCreateVertexShader(
-    const std::string_view fileName,
+    const std::string_view path,
     const int numUniformBuffers)
 {
-    SDL_GPUShader* shader = GetShader(fileName);
+    SDL_GPUShader* shader = GetVertexShader(path);
 
     if (!shader)
     {
-        auto shaderResult = LoadShader(m_GpuDevice, fileName, SDL_GPU_SHADERSTAGE_VERTEX, numUniformBuffers, 0);
+        auto shaderResult = LoadShader(m_GpuDevice, path, SDL_GPU_SHADERSTAGE_VERTEX, numUniformBuffers, 0);
 
         expect(shaderResult, shaderResult.error());
 
         shader = shaderResult.value();
 
-        m_ShadersByName.emplace(NAME_HASHER(fileName), ShaderRecord{ .Name{fileName}, .Shader = shader });
+        m_VertexShadersByName.emplace(NAME_HASHER(path), ShaderRecord{ .Name{path}, .Shader = shader });
     }
 
     return shader;
@@ -213,23 +232,103 @@ SDLGPUDevice::GetOrCreateVertexShader(
 
 std::expected<SDL_GPUShader*, Error>
 SDLGPUDevice::GetOrCreateFragmentShader(
-    const std::string_view fileName,
+    const std::string_view path,
     const int numSamplers)
 {
-    SDL_GPUShader* shader = GetShader(fileName);
+    SDL_GPUShader* shader = GetFragShader(path);
 
     if (!shader)
     {
-        auto shaderResult = LoadShader(m_GpuDevice, fileName, SDL_GPU_SHADERSTAGE_FRAGMENT, 0, numSamplers);
+        auto shaderResult = LoadShader(m_GpuDevice, path, SDL_GPU_SHADERSTAGE_FRAGMENT, 0, numSamplers);
 
         expect(shaderResult, shaderResult.error());
 
         shader = shaderResult.value();
 
-        m_ShadersByName.emplace(NAME_HASHER(fileName), ShaderRecord{ .Name{fileName}, .Shader = shader });
+        m_FragShadersByName.emplace(NAME_HASHER(path), ShaderRecord{ .Name{path}, .Shader = shader });
     }
 
     return shader;
+}
+
+std::expected<SDL_GPUGraphicsPipeline*, Error>
+SDLGPUDevice::GetOrCreatePipeline(const SDLMaterial& mtl)
+{
+    SDL_GPUTextureFormat colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(m_GpuDevice, m_Window);
+    PipelineKey key
+    {
+        .ColorFormat = colorTargetFormat,
+        .VertexShader = mtl.VertexShader,
+        .FragShader = mtl.FragmentShader
+    };
+
+    auto it = m_PipelinesByKey.find(key);
+    if (m_PipelinesByKey.end() != it)
+    {
+        return it->second;
+    }
+
+    SDL_GPUVertexBufferDescription vertexBufDescriptions[1] =
+    {
+        {
+            .slot = 0,
+            .pitch = sizeof(Vertex),
+            .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX
+        }
+    };
+    SDL_GPUVertexAttribute vertexAttributes[] =
+    {
+        {.location = 0, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = offsetof(Vertex, pos) },
+        {.location = 1, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = offsetof(Vertex, normal) },
+        {.location = 2, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = offsetof(Vertex, uvs) }
+    };
+
+    SDL_GPUColorTargetDescription colorTargetDesc
+    {
+        .format = colorTargetFormat,
+        .blend_state = {}
+    };
+
+    SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo
+    {
+        .vertex_shader = mtl.VertexShader,
+        .fragment_shader = mtl.FragmentShader,
+        .vertex_input_state =
+        {
+            .vertex_buffer_descriptions = vertexBufDescriptions,
+            .num_vertex_buffers = 1,
+            .vertex_attributes = vertexAttributes,
+            .num_vertex_attributes = std::size(vertexAttributes)
+        },
+        .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+        .rasterizer_state =
+        {
+            .fill_mode = SDL_GPU_FILLMODE_FILL,
+            .cull_mode = SDL_GPU_CULLMODE_BACK,
+            .front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
+            .enable_depth_clip = true
+        },
+        .depth_stencil_state =
+        {
+            .compare_op = SDL_GPU_COMPAREOP_LESS_OR_EQUAL,
+            .enable_depth_test = true,
+            .enable_depth_write = true
+        },
+        .target_info =
+        {
+            .color_target_descriptions = &colorTargetDesc,
+            .num_color_targets = 1,
+            .depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
+            .has_depth_stencil_target = true
+        }
+    };
+
+    SDL_GPUGraphicsPipeline* pipeline = SDL_CreateGPUGraphicsPipeline(m_GpuDevice, &pipelineCreateInfo);
+    expect(pipeline, SDL_GetError());
+
+    m_PipelinesByKey.emplace(key, pipeline);
+
+    return pipeline;
 }
 
 //private:
@@ -276,13 +375,13 @@ SDLGPUDevice::GetOrCreateTextureFromPNG(const std::string_view path)
 }
 
 SDL_GPUTexture*
-SDLGPUDevice::GetTexture(const std::string_view fileName)
+SDLGPUDevice::GetTexture(const std::string_view path)
 {
-    auto range = m_TexturesByName.equal_range(NAME_HASHER(fileName));
+    auto range = m_TexturesByName.equal_range(NAME_HASHER(path));
 
     for (auto it = range.first; it != range.second; ++it)
     {
-        if (fileName == it->second.Name)
+        if (path == it->second.Name)
         {
             return it->second.Texture;
         }
@@ -292,13 +391,29 @@ SDLGPUDevice::GetTexture(const std::string_view fileName)
 }
 
 SDL_GPUShader*
-SDLGPUDevice::GetShader(const std::string_view fileName)
+SDLGPUDevice::GetVertexShader(const std::string_view path)
 {
-    auto range = m_ShadersByName.equal_range(NAME_HASHER(fileName));
+    auto range = m_VertexShadersByName.equal_range(NAME_HASHER(path));
 
     for (auto it = range.first; it != range.second; ++it)
     {
-        if (fileName == it->second.Name)
+        if (path == it->second.Name)
+        {
+            return it->second.Shader;
+        }
+    }
+
+    return nullptr;
+}
+
+SDL_GPUShader*
+SDLGPUDevice::GetFragShader(const std::string_view path)
+{
+    auto range = m_FragShadersByName.equal_range(NAME_HASHER(path));
+
+    for (auto it = range.first; it != range.second; ++it)
+    {
+        if (path == it->second.Name)
         {
             return it->second.Shader;
         }
@@ -476,6 +591,8 @@ std::expected<SDL_GPUShader*, Error> LoadShader(
     const unsigned numUniformBuffers,
     const unsigned numSamplers)
 {
+    expect(fileName.size() > 0, "Invalid shader file name");
+
     auto fnWithExt = std::string(fileName) + SHADER_EXTENSION;
     size_t fileSize;
     void* shaderSrc = SDL_LoadFile(fnWithExt.data(), &fileSize);

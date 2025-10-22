@@ -94,6 +94,9 @@ struct MaterialSpec
 {
     RgbaColorf Color;
 
+    std::string_view VertexShader;
+    std::string_view FragmentShader;
+
     float Metallic{ 0 };
     float Roughness{ 0 };
 

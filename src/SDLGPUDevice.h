@@ -5,12 +5,7 @@
 
 #include <map>
 
-struct SDL_GPUDevice;
-struct SDL_Window;
-struct SDL_GPUBuffer;
-struct SDL_GPUTexture;
-struct SDL_GPUSampler;
-struct SDL_GPUShader;
+#include <SDL3/SDL_gpu.h>
 
 class SDLVertexBuffer : public VertexBuffer
 {
@@ -33,6 +28,8 @@ private:
     }
 
     SDL_GPUDevice* const m_GpuDevice;
+
+    IMPLEMENT_NON_COPYABLE(SDLVertexBuffer);
 };
 
 class SDLIndexBuffer : public IndexBuffer
@@ -56,11 +53,15 @@ private:
     }
 
     SDL_GPUDevice* const m_GpuDevice;
+
+    IMPLEMENT_NON_COPYABLE(SDLIndexBuffer);
 };
 
 class SDLMaterial
 {
 public:
+
+    SDLMaterial() = delete;
 
     const MaterialId Id;
 
@@ -69,20 +70,31 @@ public:
     const float Metallic{ 0 };
     const float Roughness{ 0 };
 
-    SDL_GPUTexture* const Albedo;
-    SDL_GPUSampler* const AlbedoSampler;
+    SDL_GPUTexture* const Albedo = nullptr;
+    SDL_GPUSampler* const AlbedoSampler = nullptr;
+    SDL_GPUShader* const VertexShader = nullptr;
+    SDL_GPUShader* const FragmentShader = nullptr;;
 
 private:
 
     friend class SDLGPUDevice;
 
-    SDLMaterial(const RgbaColorf& color, SDL_GPUTexture* albedo, SDL_GPUSampler* albedoSampler)
+    SDLMaterial(
+        const RgbaColorf& color,
+        SDL_GPUTexture* albedo,
+        SDL_GPUSampler* albedoSampler,
+        SDL_GPUShader* vertexShader,
+        SDL_GPUShader* fragmentShader)
         : Id(MaterialId::NextId())
         , Color(color)
         , Albedo(albedo)
         , AlbedoSampler(albedoSampler)
+        , VertexShader(vertexShader)
+        , FragmentShader(fragmentShader)
     {
     }
+
+    IMPLEMENT_NON_COPYABLE(SDLMaterial);
 };
 
 class SDLGPUDevice : public GPUDevice
@@ -100,12 +112,14 @@ public:
     std::expected<const SDLMaterial*, Error> GetMaterial(const MaterialId& mtlId) const;
 
     std::expected<SDL_GPUShader*, Error> GetOrCreateVertexShader(
-        const std::string_view fileName,
+        const std::string_view path,
         const int numUniformBuffers);
 
     std::expected<SDL_GPUShader*, Error> GetOrCreateFragmentShader(
-        const std::string_view fileName,
+        const std::string_view path,
         const int numSamplers);
+
+    std::expected<SDL_GPUGraphicsPipeline*, Error> GetOrCreatePipeline(const SDLMaterial& mtl);
 
     SDL_Window* const m_Window;
     SDL_GPUDevice* const m_GpuDevice;
@@ -122,9 +136,11 @@ private:
 
     std::expected<SDL_GPUTexture*, Error> GetOrCreateTextureFromPNG(const std::string_view path);
 
-    SDL_GPUTexture* GetTexture(const std::string_view fileName);
+    SDL_GPUTexture* GetTexture(const std::string_view path);
 
-    SDL_GPUShader* GetShader(const std::string_view fileName);
+    SDL_GPUShader* GetVertexShader(const std::string_view path);
+
+    SDL_GPUShader* GetFragShader(const std::string_view path);
 
     SDL_GPUSampler* m_Sampler = nullptr;
 
@@ -140,8 +156,24 @@ private:
         SDL_GPUShader* const Shader;
     };
 
+    struct PipelineKey
+    {
+        SDL_GPUTextureFormat const ColorFormat;
+        SDL_GPUShader* const VertexShader;
+        SDL_GPUShader* const FragShader;
+
+        bool operator<(const PipelineKey& other) const
+        {
+            return ColorFormat < other.ColorFormat
+                || VertexShader < other.VertexShader
+                || FragShader < other.FragShader;
+        }
+    };
+
+    std::map<PipelineKey, SDL_GPUGraphicsPipeline*> m_PipelinesByKey;
     std::map<size_t, TextureRecord> m_TexturesByName;
-    std::map<size_t, ShaderRecord> m_ShadersByName;
+    std::map<size_t, ShaderRecord> m_VertexShadersByName;
+    std::map<size_t, ShaderRecord> m_FragShadersByName;
     std::vector<SDLMaterial*> m_Materials;
-    std::map<MaterialId, int> m_MaterialIndexById;
+    std::map<MaterialId, size_t> m_MaterialIndexById;
 };
