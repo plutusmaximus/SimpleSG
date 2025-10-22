@@ -26,8 +26,6 @@ public:
     virtual void Reset() override;
 
 private:
-    
-    std::expected<SDL_GPUGraphicsPipeline*, Error> CreatePipeline(SDL_GPUTextureFormat colorTargetFormat);
 
     struct XformMesh
     {

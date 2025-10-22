@@ -11,6 +11,9 @@
 
 #include <SDL3/SDL_gpu.h>
 
+static std::expected<SDL_GPUGraphicsPipeline*, Error>
+CreatePipeline(SDLGPUDevice* gpuDevice, SDL_GPUTextureFormat colorTargetFormat);
+
 SDLRenderGraph::SDLRenderGraph(SDLGPUDevice* gpuDevice)
     : m_GpuDevice(gpuDevice)
 {
@@ -46,7 +49,7 @@ SDLRenderGraph::Render(const Camera& camera)
     if (!m_Pipeline)
     {
         SDL_GPUTextureFormat colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(gpuDevice, window);
-        auto pipelineResult = CreatePipeline(colorTargetFormat);
+        auto pipelineResult = CreatePipeline(m_GpuDevice.Get(), colorTargetFormat);
         expect(pipelineResult, pipelineResult.error());
 
         m_Pipeline = pipelineResult.value();
@@ -200,17 +203,15 @@ SDLRenderGraph::Reset()
     }
 }
 
-std::expected<SDL_GPUGraphicsPipeline*, Error>
-SDLRenderGraph::CreatePipeline(SDL_GPUTextureFormat colorTargetFormat)
+static std::expected<SDL_GPUGraphicsPipeline*, Error>
+CreatePipeline(SDLGPUDevice* gpuDevice, SDL_GPUTextureFormat colorTargetFormat)
 {
-    SDL_GPUDevice* gpuDevice = m_GpuDevice->m_GpuDevice;
-
     // Create shaders
-    auto vtxShaderResult = m_GpuDevice->GetOrCreateVertexShader("shaders/Debug/VertexShader", 3);
+    auto vtxShaderResult = gpuDevice->GetOrCreateVertexShader("shaders/Debug/VertexShader", 3);
     expect(vtxShaderResult, vtxShaderResult.error());
     auto vtxShader = vtxShaderResult;
 
-    auto fragShaderResult = m_GpuDevice->GetOrCreateFragmentShader("shaders/Debug/FragmentShader", 1);
+    auto fragShaderResult = gpuDevice->GetOrCreateFragmentShader("shaders/Debug/FragmentShader", 1);
     expect(fragShaderResult, fragShaderResult.error());
     auto fragShader = fragShaderResult.value();
 
@@ -269,7 +270,7 @@ SDLRenderGraph::CreatePipeline(SDL_GPUTextureFormat colorTargetFormat)
         }
     };
 
-    SDL_GPUGraphicsPipeline* pipeline = SDL_CreateGPUGraphicsPipeline(gpuDevice, &pipelineCreateInfo);
+    SDL_GPUGraphicsPipeline* pipeline = SDL_CreateGPUGraphicsPipeline(gpuDevice->m_GpuDevice, &pipelineCreateInfo);
     expect(pipeline, SDL_GetError());
 
     return pipeline;
