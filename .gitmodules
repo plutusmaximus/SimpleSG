@@ -1,9 +1,3 @@
-[submodule "zlib"]
-	path = zlib
-	url = https://github.com/madler/zlib.git
-[submodule "libpng"]
-	path = libpng
-	url = https://github.com/pnggroup/libpng.git
 [submodule "spdlog"]
 	path = spdlog
 	url = https://github.com/gabime/spdlog.git

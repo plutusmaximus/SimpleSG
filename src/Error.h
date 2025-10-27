@@ -3,7 +3,17 @@
 #include <string>
 #include <format>
 
+#define SPDLOG_WCHAR_TO_UTF8_SUPPORT
 #include <spdlog/spdlog.h>
+
+class Logging
+{
+public:
+
+    static spdlog::logger& GetLogger();
+
+    static void SetLogLevel(const spdlog::level::level_enum level);
+};
 
 enum class ErrorCode : int
 {
@@ -52,25 +62,49 @@ public:
 template<typename... Args>
 void logTrace(const std::string& format, Args&&... args)
 {
-    spdlog::trace(fmt::runtime(format), std::forward<Args>(args)...);
+    Logging::GetLogger().trace(fmt::runtime(format), std::forward<Args>(args)...);
+}
+
+template<typename... Args>
+void logTrace(const std::wstring& format, Args&&... args)
+{
+    Logging::GetLogger().trace(fmt::runtime(format), std::forward<Args>(args)...);
 }
 
 template<typename... Args>
 void logDebug(const std::string& format, Args&&... args)
 {
-    spdlog::debug(fmt::runtime(format), std::forward<Args>(args)...);
+    Logging::GetLogger().debug(fmt::runtime(format), std::forward<Args>(args)...);
+}
+
+template<typename... Args>
+void logDebug(const std::wstring& format, Args&&... args)
+{
+    Logging::GetLogger().debug(fmt::runtime(format), std::forward<Args>(args)...);
 }
 
 template<typename... Args>
 void logInfo(const std::string& format, Args&&... args)
 {
-    spdlog::info(fmt::runtime(format), std::forward<Args>(args)...);
+    Logging::GetLogger().info(fmt::runtime(format), std::forward<Args>(args)...);
+}
+
+template<typename... Args>
+void logInfo(const std::wstring& format, Args&&... args)
+{
+    Logging::GetLogger().info(fmt::runtime(format), std::forward<Args>(args)...);
 }
 
 template<typename... Args>
 void logError(const std::string& format, Args&&... args)
 {
-    spdlog::error(fmt::runtime(format), std::forward<Args>(args)...);
+    Logging::GetLogger().error(fmt::runtime(format), std::forward<Args>(args)...);
+}
+
+template<typename... Args>
+void logError(const std::wstring& format, Args&&... args)
+{
+    Logging::GetLogger().error(fmt::runtime(format), std::forward<Args>(args)...);
 }
 
 template<typename... Args>
@@ -144,3 +178,42 @@ inline void LogExprError(const char* file, const int line, const char* exprStr, 
 #define pcheck(expr, ...) except(expr, catchall, __VA_ARGS__)
 
 #define expect(expr, ...) {if(!(expr)){return std::unexpected(MAKE_EXPR_ERROR(#expr, __VA_ARGS__));}}
+
+
+
+#if defined(_MSC_VER)
+
+//
+// Enable/disable the assert dialog.
+// Returns the prior value
+//
+bool SetAssertDialogEnabled(const bool enabled);
+
+#ifndef NDEBUG
+
+bool ShowAssertDialog(const char* expression, const char* fileName, const int lineNum);
+
+#define Assert(expression)(void) ((!!(expression)) || (ShowAssertDialog(#expression, __FILE__, __LINE__) ? __debugbreak(), false : false))
+// verify is like assert excpet that it can be used in boolean expressions.
+// 
+// For ex.
+// 
+// if(Verify(nullptr != p))...
+// 
+// Or
+// 
+// return Verify(x > y) ? x : -1;
+// 
+// !! is used to ensure that any overloaded operators used to evaluate expr
+// do not end up at &&.
+#define Verify(expression) ((!!(expression)) || (ShowAssertDialog(#expression, __FILE__, __LINE__) ? __debugbreak(), false : false))
+
+#else	//NDEBUG
+
+#define	Verify(expr) (!!(expr))
+
+#endif	//NDEBUG
+
+#else	//_MSC_VER
+#error "Platform not supported"
+#endif	//_MSC_VER

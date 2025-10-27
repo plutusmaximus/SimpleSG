@@ -1,4 +1,37 @@
-#include "Assert.h"
+#include "Error.h"
+
+#include <spdlog/sinks/msvc_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+
+#include <memory>
+
+static spdlog::logger& CreateLogger()
+{
+    static auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    static auto msvc_sink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
+
+    static spdlog::logger logger("logger", { console_sink, msvc_sink });
+
+    logger.set_level(spdlog::level::debug);
+
+    return logger;
+}
+
+spdlog::logger&
+Logging::GetLogger()
+{
+    static spdlog::logger& logger = CreateLogger();
+
+    return logger;
+}
+
+void
+Logging::SetLogLevel(const spdlog::level::level_enum level)
+{
+    GetLogger().set_level(level);
+}
+
+
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
