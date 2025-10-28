@@ -1,27 +1,24 @@
 #pragma once
 
 #include <cmath>
+#include <numbers>
 
 template<typename T> class Radians;
 
 template <typename T>
 class Degrees
 {
-private:
-    static constexpr T PI = static_cast<T>(3.141592653589793);
-    T value;
-
 public:
 
     Degrees() = default;
 
-    explicit Degrees(const T value) : value(value)
+    explicit Degrees(const T value) : m_Value(value)
     {
     }
 
     Degrees<T>& operator=(const T other)
     {
-        value = other;
+        m_Value = other;
         return *this;
     }
 
@@ -31,72 +28,58 @@ public:
 
     Degrees<T> operator+(const Degrees<T> other) const
     {
-        Degrees<T> result = *this;
-        return result += other;
+        return Degrees<T>(m_Value + other.m_Value);
+    }
+
+    Degrees<T> operator+(const T other) const
+    {
+        return Degrees<T>(m_Value + other);
     }
 
     Degrees<T> operator-(const Degrees<T> other) const
     {
-        Radians<T> result = *this;
-        return result -= other;
+        return Degrees<T>(m_Value - other.m_Value);
+    }
+
+    Degrees<T> operator-(const T other) const
+    {
+        return Degrees<T>(m_Value - other);
     }
 
     Degrees<T> operator-() const
     {
-        return Degrees<T>(-value);
+        return Degrees<T>(-m_Value);
     }
 
     Degrees<T>& operator+=(const Degrees<T> other)
     {
-        value += other.value;
-
-        while (value > 360)
-        {
-            value -= 360;
-        }
-
-        while (value < -360)
-        {
-            value += 360;
-        }
-
-        return *this;
-    }
-
-    Degrees<T>& operator-=(const Degrees<T> other)
-    {
-        value -= other.value;
-
-        while (value > 360)
-        {
-            value -= 360;
-        }
-
-        while (value < -360)
-        {
-            value += 360;
-        }
-
+        m_Value += other.m_Value;
         return *this;
     }
 
     Degrees<T>& operator+=(const T other)
     {
-        value += other;
+        m_Value += other;
+        return *this;
+    }
+
+    Degrees<T>& operator-=(const Degrees<T> other)
+    {
+        m_Value -= other.m_Value;
         return *this;
     }
 
     Degrees<T>& operator-=(const T other)
     {
-        value -= other;
+        m_Value -= other;
         return *this;
     }
 
     bool operator==(const T other) const
     {
         // Using a small epsilon for floating-point comparison
-        const T EPSILON = static_cast<T>(1e-10);
-        return std::abs(value - other.value) < EPSILON;
+        constexpr T EPSILON = static_cast<T>(1e-10);
+        return std::abs(m_Value - other.m_Value) < EPSILON;
     }
 
     bool operator!=(const Degrees<T> other) const
@@ -106,34 +89,44 @@ public:
 
     T Value() const
     {
-        return value;
+        return m_Value;
     }
+
+    Degrees<T> Wrap() const
+    {
+        T t = m_Value;
+        while (t < MIN) { t += MAX; }
+        while (t > MAX) { t -= MAX; }
+        return Degrees<T>(t);
+    }
+
+private:
+    static constexpr T MAX = 360;
+    static constexpr T MIN = -360;
+
+    T m_Value;
 };
 
 template <typename T>
 class Radians
 {
-private:
-    static constexpr T PI = static_cast<T>(3.141592653589793);
-    T value;
-
 public:
 
     Radians() = default;
 
-    explicit Radians(const T value) : value(value)
+    explicit Radians(const T value) : m_Value(value)
     {
     }
 
     Radians<T>& operator=(const T other)
     {
-        value = other;
+        m_Value = other;
         return *this;
     }
 
     static Radians<T> FromDegrees(const Degrees<T> degrees)
     {
-        return Radians<T>(degrees.Value() * PI / 180);
+        return Radians<T>(degrees.Value() * std::numbers::pi_v<T> / 180);
     }
 
     Degrees<T> ToDegrees() const
@@ -143,72 +136,58 @@ public:
 
     Radians<T> operator+(const Radians<T> other) const
     {
-        Radians<T> result = *this;
-        return result += other;
+        return Radians<T>(m_Value + other.m_Value);
+    }
+
+    Radians<T> operator+(const T other) const
+    {
+        return Radians<T>(m_Value + other);
     }
 
     Radians<T> operator-(const Radians<T> other) const
     {
-        Radians<T> result = *this;
-        return result -= other;
+        return Radians<T>(m_Value - other.m_Value);
+    }
+
+    Radians<T> operator-(const T other) const
+    {
+        return Radians<T>(m_Value - other);
     }
 
     Radians<T> operator-() const
     {
-        return Radians<T>(-value);
+        return Radians<T>(-m_Value);
     }
 
     Radians<T>& operator+=(const Radians<T> other)
     {
-        value += other.value;
-
-        while (value > 2 * PI)
-        {
-            value -= 2 * PI;
-        }
-
-        while (value < -2 * PI)
-        {
-            value += 2 * PI;
-        }
-
-        return *this;
-    }
-
-    Radians<T>& operator-=(const Radians<T> other)
-    {
-        value -= other.value;
-
-        while (value > 2 * PI)
-        {
-            value -= 2 * PI;
-        }
-
-        while (value < -2 * PI)
-        {
-            value += 2 * PI;
-        }
-
+        m_Value += other.m_Value;
         return *this;
     }
 
     Radians<T>& operator+=(const T other)
     {
-        value += other;
+        m_Value += other;
+        return *this;
+    }
+
+    Radians<T>& operator-=(const Radians<T> other)
+    {
+        m_Value -= other.value;
         return *this;
     }
 
     Radians<T>& operator-=(const T other)
     {
-        value -= other;
+        m_Value -= other;
         return *this;
     }
 
     bool operator==(const T other) const
     {
         // Using a small epsilon for floating-point comparison
-        const T EPSILON = static_cast<T>(1e-10);
-        return std::abs(value - other.value) < EPSILON;
+        constexpr T EPSILON = static_cast<T>(1e-10);
+        return std::abs(m_Value - other.m_Value) < EPSILON;
     }
 
     bool operator!=(const Radians<T> other) const
@@ -218,14 +197,27 @@ public:
 
     T Value() const
     {
-        return value;
+        return m_Value;
     }
+
+    Radians<T> Wrap() const
+    {
+        T t = m_Value;
+        while (t < MIN) { t += MAX; }
+        while (t > MAX) { t -= MAX; }
+        return Radians<T>(t);
+    }
+
+private:
+    static constexpr T MAX = 2 * std::numbers::pi_v<T>;
+    static constexpr T MIN = -2 * std::numbers::pi_v<T>;
+    T m_Value;
 };
 
 template<typename T>
 inline Degrees<T> Degrees<T>::FromRadians(Radians<T> radians)
 {
-    return Radians<T>(radians.Value() * 180 / PI);
+    return Radians<T>(radians.Value() * 180 / std::numbers::pi_v<T>);
 }
 
 template<typename T>
