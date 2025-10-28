@@ -12,7 +12,7 @@ public:
 
     Degrees() = default;
 
-    explicit Degrees(const T value) : m_Value(value)
+    explicit constexpr Degrees(const T value) : m_Value(value)
     {
     }
 
@@ -22,72 +22,74 @@ public:
         return *this;
     }
 
-    static Degrees<T> FromRadians(const Radians<T> radians);
+    static constexpr Degrees<T> FromRadians(const Radians<T> radians);
 
-    Radians<T> ToRadians() const;
+    static constexpr Degrees<T> FromRadians(const T radians);
 
-    Degrees<T> operator+(const Degrees<T> other) const
+    constexpr Radians<T> ToRadians() const;
+
+    constexpr Degrees<T> operator+(const Degrees<T> other) const
     {
         return Degrees<T>(m_Value + other.m_Value);
     }
 
-    Degrees<T> operator+(const T other) const
+    constexpr Degrees<T> operator+(const T other) const
     {
         return Degrees<T>(m_Value + other);
     }
 
-    Degrees<T> operator-(const Degrees<T> other) const
+    constexpr Degrees<T> operator-(const Degrees<T> other) const
     {
         return Degrees<T>(m_Value - other.m_Value);
     }
 
-    Degrees<T> operator-(const T other) const
+    constexpr Degrees<T> operator-(const T other) const
     {
         return Degrees<T>(m_Value - other);
     }
 
-    Degrees<T> operator-() const
+    constexpr Degrees<T> operator-() const
     {
         return Degrees<T>(-m_Value);
     }
 
-    Degrees<T>& operator+=(const Degrees<T> other)
+    constexpr Degrees<T>& operator+=(const Degrees<T> other)
     {
         m_Value += other.m_Value;
         return *this;
     }
 
-    Degrees<T>& operator+=(const T other)
+    constexpr Degrees<T>& operator+=(const T other)
     {
         m_Value += other;
         return *this;
     }
 
-    Degrees<T>& operator-=(const Degrees<T> other)
+    constexpr Degrees<T>& operator-=(const Degrees<T> other)
     {
         m_Value -= other.m_Value;
         return *this;
     }
 
-    Degrees<T>& operator-=(const T other)
+    constexpr Degrees<T>& operator-=(const T other)
     {
         m_Value -= other;
         return *this;
     }
 
-    bool operator==(const T other) const
+    constexpr bool operator==(const T other) const
     {
         // Using a small epsilon for floating-point comparison
         constexpr T EPSILON = static_cast<T>(1e-10);
         return std::abs(m_Value - other.m_Value) < EPSILON;
     }
 
-    bool operator!=(const Degrees<T> other) const
+    constexpr bool operator!=(const Degrees<T> other) const
     {
         return !(*this == other);
     }
 
-    T Value() const
+    constexpr T Value() const
     {
         return m_Value;
     }
@@ -114,7 +116,7 @@ public:
 
     Radians() = default;
 
-    explicit Radians(const T value) : m_Value(value)
+    explicit constexpr Radians(const T value) : m_Value(value)
     {
     }
 
@@ -124,78 +126,83 @@ public:
         return *this;
     }
 
-    static Radians<T> FromDegrees(const Degrees<T> degrees)
+    static constexpr Radians<T> FromDegrees(const Degrees<T> degrees)
     {
-        return Radians<T>(degrees.Value() * std::numbers::pi_v<T> / 180);
+        return FromDegrees(degrees.Value());
     }
 
-    Degrees<T> ToDegrees() const
+    static constexpr Radians<T> FromDegrees(const T degrees)
+    {
+        return Radians<T>(degrees * std::numbers::pi_v<T> / 180);
+    }
+
+    constexpr Degrees<T> ToDegrees() const
     {
         return Degrees<T>::FromRadians(*this);
     }
 
-    Radians<T> operator+(const Radians<T> other) const
+    constexpr Radians<T> operator+(const Radians<T> other) const
     {
         return Radians<T>(m_Value + other.m_Value);
     }
 
-    Radians<T> operator+(const T other) const
+    constexpr Radians<T> operator+(const T other) const
     {
         return Radians<T>(m_Value + other);
     }
 
-    Radians<T> operator-(const Radians<T> other) const
+    constexpr Radians<T> operator-(const Radians<T> other) const
     {
         return Radians<T>(m_Value - other.m_Value);
     }
 
-    Radians<T> operator-(const T other) const
+    constexpr Radians<T> operator-(const T other) const
     {
         return Radians<T>(m_Value - other);
     }
 
-    Radians<T> operator-() const
+    constexpr Radians<T> operator-() const
     {
         return Radians<T>(-m_Value);
     }
 
-    Radians<T>& operator+=(const Radians<T> other)
+    constexpr Radians<T>& operator+=(const Radians<T> other)
     {
         m_Value += other.m_Value;
         return *this;
     }
 
-    Radians<T>& operator+=(const T other)
+    constexpr Radians<T>& operator+=(const T other)
     {
         m_Value += other;
         return *this;
     }
 
-    Radians<T>& operator-=(const Radians<T> other)
+    constexpr Radians<T>& operator-=(const Radians<T> other)
     {
         m_Value -= other.value;
         return *this;
     }
 
-    Radians<T>& operator-=(const T other)
+    constexpr Radians<T>& operator-=(const T other)
     {
         m_Value -= other;
         return *this;
     }
 
-    bool operator==(const T other) const
+    constexpr bool operator==(const T other) const
     {
         // Using a small epsilon for floating-point comparison
         constexpr T EPSILON = static_cast<T>(1e-10);
         return std::abs(m_Value - other.m_Value) < EPSILON;
     }
 
-    bool operator!=(const Radians<T> other) const
+    constexpr bool operator!=(const Radians<T> other) const
     {
         return !(*this == other);
     }
 
-    T Value() const
+    constexpr T Value() const
     {
         return m_Value;
     }
@@ -215,13 +222,19 @@ private:
 };
 
 template<typename T>
-inline Degrees<T> Degrees<T>::FromRadians(Radians<T> radians)
+inline constexpr Degrees<T> Degrees<T>::FromRadians(Radians<T> radians)
 {
-    return Radians<T>(radians.Value() * 180 / std::numbers::pi_v<T>);
+    return FromRadians(radians.Value());
 }
 
 template<typename T>
-inline Radians<T> Degrees<T>::ToRadians() const
+inline constexpr Degrees<T> Degrees<T>::FromRadians(const T radians)
+{
+    return Degrees<T>(radians * 180 / std::numbers::pi_v<T>);
+}
+
+template<typename T>
+inline constexpr Radians<T> Degrees<T>::ToRadians() const
 {
     return Radians<T>::FromDegrees(*this);
 }
@@ -231,11 +244,11 @@ class Vec3
 {
 public:
 
-    static const Vec3<T> XAXIS;
-    static const Vec3<T> YAXIS;
-    static const Vec3<T> ZAXIS;
-
     T x, y, z;
+
+    static inline consteval Vec3 XAXIS() { return Vec3{ 1, 0, 0 }; }
+    static inline consteval Vec3 YAXIS() { return Vec3{ 0, 1, 0 }; }
+    static inline consteval Vec3 ZAXIS() { return Vec3{ 0, 0, 1 }; }
 
     T& operator[](int index)
     {
@@ -260,41 +273,35 @@ public:
         return Vec3(0, 0, 0);
     }
 
-    Vec3 Scale(const T scale)
+    constexpr Vec3 Scale(const T scale)
     {
         return Vec3{ x * scale, y * scale, z * scale };
     }
-
-    Vec3 Cross(const Vec3& that) const
+    
+    constexpr Vec3 Cross(const Vec3& that) const noexcept
     {
         return Vec3(
-            y * that.z - z * that.y,
-            z * that.x - x * that.z,
-            x * that.y - y * that.x);
+            z * that.y - y * that.z,
+            x * that.z - z * that.x,
+            y * that.x - x * that.y);
     }
 
-    T Dot(const Vec3& that) const
+
+    constexpr T Dot(const Vec3& that) const
     {
         return x * that.x + y * that.y + z * that.z;
     }
 
-    Vec3 operator+(const Vec3& that) const
+    constexpr Vec3 operator+(const Vec3& that) const
     {
         return Vec3(x + that.x, y + that.y, z + that.z);
     }
 
-    Vec3 operator-(const Vec3& that) const
+    constexpr Vec3 operator-(const Vec3& that) const
     {
         return Vec3(x - that.x, y - that.y, z - that.z);
     }
 };
-
-template<typename T>
-const Vec3<T> Vec3<T>::XAXIS(1, 0, 0);
-template<typename T>
-const Vec3<T> Vec3<T>::YAXIS(0, 1, 0);
-template<typename T>
-const Vec3<T> Vec3<T>::ZAXIS(0, 0, 1);
 
 template<typename T>
 class Vec4
@@ -325,7 +332,7 @@ public:
         return Vec4(0, 0, 0, 0);
     }
 
-    Vec4 Scale(const T scale)
+    constexpr Vec4 Scale(const T scale)
     {
         return Vec4{ x * scale, y * scale, z * scale, w * scale };
     }
@@ -375,7 +382,7 @@ public:
         return result;
     }
 
-    Quaternion operator-() const
+    constexpr Quaternion operator-() const
     {
         Quaternion result;
         result.x = -x, result.y = -y, result.z = -z, result.w = -w;

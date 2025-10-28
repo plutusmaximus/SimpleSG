@@ -293,21 +293,23 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             planetSpinAngle = (planetSpinAngle + 0.001f).Wrap();
             moonSpinAngle = (moonSpinAngle - 0.005f).Wrap();
             moonOrbitAngle = (moonOrbitAngle - 0.005f).Wrap();
+
+            constexpr Radiansf planetTiltAngle = Radiansf::FromDegrees(15);
             
             planetXFormNode->Transform =
                 Mat44f::Identity()
-                .Rotate(planetSpinAngle, Vec3f::YAXIS)  //spin
-                .Rotate(Degreesf(15), Vec3f::ZAXIS) //tilt
+                .Rotate(planetSpinAngle, Vec3f::YAXIS())  //spin
+                .Rotate(planetTiltAngle, Vec3f::ZAXIS()) //tilt
                 .Translate(0, 0, 4);
                 //.Translate(0, 0, 150);
 
             moonXFormNode->Transform =
                 Mat44f::Identity()
                 .Scale(0.25f)
-                .Rotate(moonSpinAngle, Vec3f::YAXIS)  //spin
+                .Rotate(moonSpinAngle, Vec3f::YAXIS())  //spin
                 .Translate(0, 0, -2)
                 //.Translate(0, 0, -100)
-                .Rotate(moonOrbitAngle, Vec3f::YAXIS);    //orbit
+                .Rotate(moonOrbitAngle, Vec3f::YAXIS());    //orbit
 
             int windowW, windowH;
             if (!SDL_GetWindowSizeInPixels(window, &windowW, &windowH))
