@@ -11,6 +11,11 @@
 
 #include "SDLGPUDevice.h"
 
+#include "STLLoader.h"
+
+#include "glm/glm.hpp"
+#include "glm/ext/matrix_transform.hpp"
+
 // Cube vertices (8 corners with positions, normals, and colors)
 Vertex cubeVertices[] =
 {
@@ -65,9 +70,11 @@ VertexIndex cubeIndices[] =
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {
-    spdlog::set_level(spdlog::level::debug);
+    Logging::SetLogLevel(spdlog::level::trace);
 
     SDL_Window* window = nullptr;
+
+    auto cwd = std::filesystem::current_path();
 
     etry
     {
@@ -85,6 +92,72 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         auto gdResult = SDLGPUDevice::Create(window);
         pcheck(gdResult, gdResult.error());
         auto gd = *gdResult;
+
+        std::vector<Triangle> triangles;
+        auto stlResult = loadAsciiSTL(cwd.string() + "/Models/Pumpkin-DD.stl", triangles);
+        pcheck(stlResult, stlResult.error());
+        pcheck(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
+
+        std::map<TVertex, unsigned> vmap;
+        std::vector<Vertex> pumpkinVertices;
+        std::vector<unsigned> pumpkinIndices;
+        for (const auto& tri : triangles)
+        {
+            for(int i = 0; i < 3; ++i)
+            {
+                const TVertex& tv = tri.v[i];
+                unsigned index;
+
+                auto it = vmap.find(tv);
+                if (vmap.end() == it)
+                {
+                    index = vmap.size();
+                    vmap.emplace(tv, index);
+                    pumpkinVertices.push_back(tv);
+                    pumpkinVertices[index].normal = Vec3f(0, 0, 0);
+                }
+                else
+                {
+                    index = it->second;
+                }
+
+                const Vec3f& v0 = tv.pos;
+                const Vec3f& v1 = tri.v[(i + 1) % 3].pos;
+                const Vec3f& v2 = tri.v[(i + 2) % 3].pos;
+
+                Vec3 normal = (v2 - v0).Cross(v1 - v0).Normalize();
+                pumpkinVertices[index].normal = pumpkinVertices[index].normal + normal;
+
+                pumpkinIndices.push_back(index);
+            }
+        }
+
+        for (auto& v : pumpkinVertices)
+        {
+            v.normal = v.normal.Normalize();
+        }
+
+        MeshSpec pumpkinMeshSpecs[] =
+        {
+            {
+                .IndexOffset = 0,
+                .IndexCount = (unsigned)pumpkinIndices.size(),
+                .MtlSpec =
+                {
+                    .Color = {1, 0, 0},
+                    .VertexShader = "shaders/Debug/VertexShader",
+                    .FragmentShader = "shaders/Debug/ColorShader",
+                    .Albedo = "Images\\Ant.png"
+                }
+            },
+        };
+
+        ModelSpec pumpkinModelSpec
+        {
+            .Vertices = pumpkinVertices,
+            .Indices = pumpkinIndices,
+            .MeshSpecs = pumpkinMeshSpecs
+        };
 
         MeshSpec cubeMeshSpecs[] =
         {
@@ -166,17 +239,23 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         pcheck(cubeModelResult, cubeModelResult.error());
         auto cubeModel = cubeModelResult.value();
 
+        auto pumpkinModelResult = gd->CreateModel(pumpkinModelSpec);
+        pcheck(pumpkinModelResult, pumpkinModelResult.error());
+        auto pumpkinModel = pumpkinModelResult.value();
+
         RefPtr<GroupNode> scene = new GroupNode();
 
         RefPtr<TransformNode> planetXFormNode = new TransformNode();
         RefPtr<TransformNode> moonXFormNode = new TransformNode();
         planetXFormNode->AddChild(cubeModel);
         moonXFormNode->AddChild(cubeModel);
+        //planetXFormNode->AddChild(pumpkinModel);
+        //moonXFormNode->AddChild(pumpkinModel);
         planetXFormNode->AddChild(moonXFormNode);
         scene->AddChild(planetXFormNode);
 
         const Degreesf fov(45);
-        Camera camera(fov, 1, 0.1f, 100);
+        Camera camera(fov, 1, 0.1f, 1000);
 
         // Main loop
         bool running = true;
@@ -217,15 +296,18 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             
             planetXFormNode->Transform =
                 Mat44f::Identity()
-                .Rotate(Quaternionf(planetSpinAngle, Vec3f::YAXIS)) //tilt
-                .Rotate(Degreesf(15), Vec3f::ZAXIS) //spin
+                .Rotate(planetSpinAngle, Vec3f::YAXIS)  //spin
+                .Rotate(Degreesf(15), Vec3f::ZAXIS) //tilt
                 .Translate(0, 0, 4);
+                //.Translate(0, 0, 150);
+
             moonXFormNode->Transform =
                 Mat44f::Identity()
-                .Scale(0.25)
-                .Rotate(Quaternionf(-moonSpinAngle, Vec3f::YAXIS))  //spin
+                .Scale(0.25f)
+                .Rotate(-moonSpinAngle, Vec3f::YAXIS)  //spin
                 .Translate(0, 0, -2)
-                .Rotate(Quaternionf(-moonOrbitAngle, Vec3f::YAXIS));    //orbit
+                //.Translate(0, 0, -100)
+                .Rotate(-moonOrbitAngle, Vec3f::YAXIS);    //orbit
 
             int windowW, windowH;
             if (!SDL_GetWindowSizeInPixels(window, &windowW, &windowH))
