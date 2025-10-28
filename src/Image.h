@@ -18,7 +18,7 @@ public:
     const int Height;
     std::uint8_t* const Pixels; // RGBA8
 
-    static std::expected<RefPtr<Image>, Error> LoadPng(const std::string_view path);
+    static std::expected<RefPtr<Image>, Error> Load(const std::string_view path);
 
 private:
 

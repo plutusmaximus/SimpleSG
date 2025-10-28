@@ -164,9 +164,7 @@ private:
 
         bool operator<(const PipelineKey& other) const
         {
-            return ColorFormat < other.ColorFormat
-                || VertexShader < other.VertexShader
-                || FragShader < other.FragShader;
+            return std::memcmp(this, &other, sizeof(*this)) < 0;
         }
     };
 

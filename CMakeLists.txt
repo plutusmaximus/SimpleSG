@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.23)
 project(SimpleSG LANGUAGES C CXX)
 
+include(FetchContent)
+
+
 # ============================================================
 # Global: Prefer static libraries (no DLLs)
 # ============================================================
@@ -29,26 +32,6 @@ list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 #)
 
 # ============================================================
-# zlib (static-only)
-# ============================================================
-set(ZLIB_BUILD_SHARED  OFF CACHE BOOL "" FORCE)
-set(ZLIB_BUILD_STATIC  ON  CACHE BOOL "" FORCE)
-set(ZLIB_ENABLE_SHARED OFF CACHE BOOL "" FORCE)
-set(ZLIB_ENABLE_STATIC ON  CACHE BOOL "" FORCE)
-
-add_subdirectory(zlib zlib-build EXCLUDE_FROM_ALL)
-
-# Provide canonical alias
-if(TARGET zlibstatic AND NOT TARGET ZLIB::ZLIB)
-  add_library(ZLIB::ZLIB ALIAS zlibstatic)
-elseif(TARGET zlib)
-  get_target_property(_type zlib TYPE)
-  if(_type STREQUAL "STATIC_LIBRARY" AND NOT TARGET ZLIB::ZLIB)
-    add_library(ZLIB::ZLIB ALIAS zlib)
-  endif()
-endif()
-
-# ============================================================
 # SDL3 (static)
 # ============================================================
 set(SDL_TEST   OFF CACHE BOOL "" FORCE)
@@ -67,29 +50,32 @@ set(SPDLOG_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 set(SPDLOG_BUILD_TESTS  OFF CACHE BOOL "" FORCE)
 set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
 add_subdirectory(spdlog spdlog-build EXCLUDE_FROM_ALL)
+target_compile_definitions(spdlog PRIVATE SPDLOG_WCHAR_TO_UTF8_SUPPORT)
 if(NOT TARGET spdlog::spdlog)
   message(FATAL_ERROR "spdlog target not found — check the spdlog subdirectory")
 endif()
 
 # ============================================================
-# libpng (static, uses ZLIB::ZLIB)
+# glm
 # ============================================================
-set(PNG_SHARED OFF CACHE BOOL "" FORCE)
-set(PNG_STATIC ON  CACHE BOOL "" FORCE)
-set(PNG_TESTS  OFF CACHE BOOL "" FORCE)
-set(PNG_TOOLS  OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+	glm
+	GIT_REPOSITORY	https://github.com/g-truc/glm.git
+	GIT_TAG 	a532f5b1cf27d6a3c099437e6959cf7e398a0a67 #refs/tags/1.0.2
+)
 
-add_subdirectory(libpng libpng-build EXCLUDE_FROM_ALL)
+FetchContent_MakeAvailable(glm)
 
-if(NOT TARGET PNG::PNG)
-  if(TARGET png_static)
-    add_library(PNG::PNG ALIAS png_static)
-  elseif(TARGET png)
-    add_library(PNG::PNG ALIAS png)
-  else()
-    message(FATAL_ERROR "libpng did not define png_static or png")
-  endif()
-endif()
+# ============================================================
+# stb
+# ============================================================
+FetchContent_Declare(
+	stb
+	GIT_REPOSITORY	https://github.com/nothings/stb.git
+	GIT_TAG 	f1c79c02822848a9bed4315b12c8c8f3761e1296
+)
+
+FetchContent_MakeAvailable(stb)
 
 # ============================================================
 # Shaders
@@ -100,11 +86,18 @@ add_subdirectory(shaders shaders-build)
 # Images
 # ============================================================
 
-file(GLOB ImageFiles ${CMAKE_SOURCE_DIR}/Images/*.png ${CMAKE_SOURCE_DIR}/Images/*.jpeg ${CMAKE_SOURCE_DIR}/Images/*.jpg)
-
 add_custom_target(copy_images
     COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Images ${CMAKE_CURRENT_BINARY_DIR}/Images/
     COMMENT "Copying image files to build directory"
+)
+
+# ============================================================
+# Models
+# ============================================================
+
+add_custom_target(copy_models
+    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Models ${CMAKE_CURRENT_BINARY_DIR}/Models/
+    COMMENT "Copying model files to build directory"
 )
 
 # ============================================================
@@ -129,18 +122,17 @@ target_sources(SimpleSG
       FILES ${SIMPLESG_HEADERS}
 )
 
-target_include_directories(SimpleSG PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_include_directories(SimpleSG PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" ${stb_SOURCE_DIR})
 
 target_link_libraries(SimpleSG
   PRIVATE
 #    project_policies
-    PNG::PNG
-    ZLIB::ZLIB
     SDL3::SDL3-static
     spdlog::spdlog
+    glm::glm
 )
 
-add_dependencies(SimpleSG shaders copy_images)
+add_dependencies(SimpleSG shaders copy_images copy_models)
 
 target_compile_features(SimpleSG PRIVATE cxx_std_23)
 set_target_properties(SimpleSG PROPERTIES CXX_EXTENSIONS NO)
@@ -179,8 +171,6 @@ function(group_by_namespace ns folder)
 endfunction()
 
 group_by_namespace("SDL3"   "ThirdParty")
-group_by_namespace("ZLIB"   "ThirdParty")
-group_by_namespace("PNG"    "ThirdParty")
 group_by_namespace("spdlog" "ThirdParty")
 
 set_target_properties(shaders PROPERTIES FOLDER "Shaders")
@@ -194,8 +184,6 @@ message(STATUS "Build Summary:")
 message(STATUS "  Project:        SimpleSG")
 message(STATUS "  C++ Standard:   C++23")
 message(STATUS "  Unicode:        Enabled (UTF-8 source/exec)")
-message(STATUS "  PNG target:     PNG::PNG")
-message(STATUS "  ZLIB target:    ZLIB::ZLIB (static)")
 message(STATUS "  SDL target:     SDL3::SDL3-static")
 message(STATUS "  spdlog target:  spdlog::spdlog (static)")
 message(STATUS "  Shaders target: shaders")

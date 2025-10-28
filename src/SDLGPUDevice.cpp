@@ -144,26 +144,32 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
 
     for (const auto& meshSpec : modelSpec.MeshSpecs)
     {
-        if (!m_Sampler)
+        SDL_GPUTexture* albedo = nullptr;
+
+        if (!meshSpec.MtlSpec.Albedo.empty())
         {
-            // Create sampler
-            SDL_GPUSamplerCreateInfo samplerInfo =
+            if (!m_Sampler)
             {
-                .min_filter = SDL_GPU_FILTER_NEAREST,
-                .mag_filter = SDL_GPU_FILTER_NEAREST,
-                .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
-                .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT
-            };
+                // Create sampler
+                SDL_GPUSamplerCreateInfo samplerInfo =
+                {
+                    .min_filter = SDL_GPU_FILTER_NEAREST,
+                    .mag_filter = SDL_GPU_FILTER_NEAREST,
+                    .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
+                    .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT
+                };
 
-            m_Sampler = SDL_CreateGPUSampler(m_GpuDevice, &samplerInfo);
-            expect(m_Sampler, SDL_GetError());
+                m_Sampler = SDL_CreateGPUSampler(m_GpuDevice, &samplerInfo);
+                expect(m_Sampler, SDL_GetError());
+            }
+
+            //TODO - check material DB for existing material
+
+            auto albedoResult = GetOrCreateTextureFromPNG(meshSpec.MtlSpec.Albedo);
+            expect(albedoResult, albedoResult.error());
+
+            albedo = albedoResult.value();
         }
-
-        //TODO - check material DB for existing material
-
-        //TODO - texture DB
-        auto albedoResult = GetOrCreateTextureFromPNG(meshSpec.MtlSpec.Albedo);
-        expect(albedoResult, albedoResult.error());
 
         //FIXME - specify number of uniform buffers.
         auto vertexShaderResult = GetOrCreateVertexShader(meshSpec.MtlSpec.VertexShader, 3);
@@ -175,7 +181,7 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
 
         SDLMaterial* mtl = new SDLMaterial(
             meshSpec.MtlSpec.Color,
-            albedoResult.value(),
+            albedo,
             m_Sampler,
             vertexShaderResult.value(),
             fragShaderResult.value());
@@ -360,7 +366,7 @@ SDLGPUDevice::GetOrCreateTextureFromPNG(const std::string_view path)
 
     if (!texture)
     {
-        auto imgResult = Image::LoadPng(path);
+        auto imgResult = Image::Load(path);
         expect(imgResult, imgResult.error());
         auto img = *imgResult;
         auto texResult = CreateTexture(m_GpuDevice, img->Width, img->Height, img->Pixels);

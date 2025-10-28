@@ -126,13 +126,21 @@ SDLRenderGraph::Render(const Camera& camera)
         const int idx = 0;
         SDL_PushGPUVertexUniformData(cmdBuf, 2, &idx, sizeof(idx));
 
-        // Bind texture and sampler
-        SDL_GPUTextureSamplerBinding samplerBinding
+        if (mtl->Albedo)
         {
-            .texture = mtl->Albedo,
-            .sampler = mtl->AlbedoSampler
-        };
-        SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
+            if (!Verify(mtl->AlbedoSampler))
+            {
+                continue;
+            }
+
+            // Bind texture and sampler
+            SDL_GPUTextureSamplerBinding samplerBinding
+            {
+                .texture = mtl->Albedo,
+                .sampler = mtl->AlbedoSampler
+            };
+            SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
+        }
 
         auto pipelineResult = m_GpuDevice->GetOrCreatePipeline(*mtl);
 
