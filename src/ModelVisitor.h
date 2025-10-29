@@ -6,7 +6,6 @@
 #include "SceneVisitor.h"
 #include "VecMath.h"
 #include "RefCount.h"
-#include "Camera.h"
 
 class ModelVisitor : public SceneVisitor
 {
@@ -27,11 +26,6 @@ public:
     void Visit(GroupNode* node) override;
 
     void Visit(TransformNode* node) override;
-
-    const Mat44f& GetTransform()
-    {
-        return m_TransformStack.top();
-    }
 
 private:
 

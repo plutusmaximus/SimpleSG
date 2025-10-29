@@ -144,18 +144,6 @@ private:
 
     SDL_GPUSampler* m_Sampler = nullptr;
 
-    struct TextureRecord
-    {
-        const std::string Name;
-        SDL_GPUTexture* const Texture;
-    };
-
-    struct ShaderRecord
-    {
-        const std::string Name;
-        SDL_GPUShader* const Shader;
-    };
-
     struct PipelineKey
     {
         SDL_GPUTextureFormat const ColorFormat;
@@ -168,10 +156,51 @@ private:
         }
     };
 
+    static inline constexpr std::hash<std::string_view> MakeHashKey;
+
+    using HashKey = size_t;
+
+    template<typename T>
+    struct Record
+    {
+        const std::string Name;
+        T* const Item;
+    };
+
+    template<typename T>
+    class HashTable : public std::unordered_multimap<HashKey, Record<T>>
+    {
+    public:
+
+        void Add(const std::string_view path, T* item)
+        {
+            const HashKey hashKey = MakeHashKey(path);
+
+            this->emplace(hashKey, Record<T>{ .Name{path}, .Item = item });
+        }
+
+        T* Find(const std::string_view path)
+        {
+            const HashKey hashKey = MakeHashKey(path);
+
+            auto range = this->equal_range(hashKey);
+
+            for (auto it = range.first; it != range.second; ++it)
+            {
+                if (path == it->second.Name)
+                {
+                    return it->second.Item;
+                }
+            }
+
+            return nullptr;
+        }
+    };
+
     std::map<PipelineKey, SDL_GPUGraphicsPipeline*> m_PipelinesByKey;
-    std::map<size_t, TextureRecord> m_TexturesByName;
-    std::map<size_t, ShaderRecord> m_VertexShadersByName;
-    std::map<size_t, ShaderRecord> m_FragShadersByName;
+    HashTable<SDL_GPUTexture> m_TexturesByName;
+    HashTable<SDL_GPUShader> m_VertexShadersByName;
+    HashTable<SDL_GPUShader> m_FragShadersByName;
     std::vector<SDLMaterial*> m_Materials;
     std::map<MaterialId, size_t> m_MaterialIndexById;
 };

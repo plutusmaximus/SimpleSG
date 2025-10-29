@@ -6,7 +6,7 @@
 
 void ModelVisitor::Visit(Model* node)
 {
-    m_RenderGraph->Add(GetTransform(), node);
+    m_RenderGraph->Add(m_TransformStack.top(), node);
 }
 
 void
@@ -18,7 +18,7 @@ ModelVisitor::Visit(GroupNode* node)
 void
 ModelVisitor::Visit(TransformNode* node)
 {
-    m_TransformStack.push(GetTransform().Mul(node->Transform));
+    m_TransformStack.push(m_TransformStack.top().Mul(node->Transform));
 
     Visit((static_cast<GroupNode*>(node)));
 

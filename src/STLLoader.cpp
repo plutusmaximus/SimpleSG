@@ -39,13 +39,6 @@ std::expected<void, Error> loadAsciiSTL(const std::string& filename, std::vector
             iss >> v.pos.x >> v.pos.y >> v.pos.z;
             v.normal = facetNormal;
 
-            //STL uses a right handed coordinate system with
-            //Z up, Y into the screen, triangles winding counter clockwise.
-            //This swap changes to a left handed coordinate system
-            //with Y up, Z into the screen, and triangles winding clockwise.
-            std::swap(v.pos.y, v.pos.z);
-            std::swap(v.normal.y, v.normal.z);
-
             vertexCount++;
         }
         else if (word == "endfacet" && readingFacet)

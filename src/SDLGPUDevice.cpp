@@ -27,8 +27,6 @@ static const char* const SHADER_EXTENSION = ".spv";
 
 #endif
 
-static constexpr std::hash<std::string_view> NAME_HASHER;
-
 static std::expected<SDL_GPUBuffer*, Error> CreateGpuBuffer(
     SDL_GPUDevice* gpuDevice,
     const SDL_GPUBufferUsageFlags usageFlags,
@@ -108,19 +106,19 @@ SDLGPUDevice::~SDLGPUDevice()
         SDL_ReleaseGPUSampler(m_GpuDevice, m_Sampler);
     }
 
-    for (const auto& [_, texRec] : m_TexturesByName)
+    for (const auto& [_, rec] : m_TexturesByName)
     {
-        SDL_ReleaseGPUTexture(m_GpuDevice, texRec.Texture);
+        SDL_ReleaseGPUTexture(m_GpuDevice, rec.Item);
     }
 
-    for (const auto& [_, shaderRec] : m_VertexShadersByName)
+    for (const auto& [_, rec] : m_VertexShadersByName)
     {
-        SDL_ReleaseGPUShader(m_GpuDevice, shaderRec.Shader);
+        SDL_ReleaseGPUShader(m_GpuDevice, rec.Item);
     }
 
-    for (const auto& [_, shaderRec] : m_FragShadersByName)
+    for (const auto& [_, rec] : m_FragShadersByName)
     {
-        SDL_ReleaseGPUShader(m_GpuDevice, shaderRec.Shader);
+        SDL_ReleaseGPUShader(m_GpuDevice, rec.Item);
     }
 
     if (m_GpuDevice)
@@ -230,7 +228,9 @@ SDLGPUDevice::GetOrCreateVertexShader(
 
         shader = shaderResult.value();
 
-        m_VertexShadersByName.emplace(NAME_HASHER(path), ShaderRecord{ .Name{path}, .Shader = shader });
+        const HashKey hashKey = MakeHashKey(path);
+
+        m_VertexShadersByName.Add(path, shader);
     }
 
     return shader;
@@ -251,7 +251,9 @@ SDLGPUDevice::GetOrCreateFragmentShader(
 
         shader = shaderResult.value();
 
-        m_FragShadersByName.emplace(NAME_HASHER(path), ShaderRecord{ .Name{path}, .Shader = shader });
+        const HashKey hashKey = MakeHashKey(path);
+
+        m_FragShadersByName.Add(path, shader);
     }
 
     return shader;
@@ -311,7 +313,7 @@ SDLGPUDevice::GetOrCreatePipeline(const SDLMaterial& mtl)
         {
             .fill_mode = SDL_GPU_FILLMODE_FILL,
             .cull_mode = SDL_GPU_CULLMODE_BACK,
-            .front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
+            .front_face = SDL_GPU_FRONTFACE_CLOCKWISE,  //DO NOT SUBMIT - should be CLOCKWISE
             .enable_depth_clip = true
         },
         .depth_stencil_state =
@@ -374,7 +376,9 @@ SDLGPUDevice::GetOrCreateTexture(const std::string_view path)
 
         texture = texResult.value();
 
-        m_TexturesByName.emplace(NAME_HASHER(path), TextureRecord{ .Name{path}, .Texture = texture });
+        const HashKey hashKey = MakeHashKey(path);
+
+        m_TexturesByName.Add(path, texture);
     }
 
     return texture;
@@ -383,49 +387,19 @@ SDLGPUDevice::GetOrCreateTexture(const std::string_view path)
 SDL_GPUTexture*
 SDLGPUDevice::GetTexture(const std::string_view path)
 {
-    auto range = m_TexturesByName.equal_range(NAME_HASHER(path));
-
-    for (auto it = range.first; it != range.second; ++it)
-    {
-        if (path == it->second.Name)
-        {
-            return it->second.Texture;
-        }
-    }
-
-    return nullptr;
+    return m_TexturesByName.Find(path);
 }
 
 SDL_GPUShader*
 SDLGPUDevice::GetVertexShader(const std::string_view path)
 {
-    auto range = m_VertexShadersByName.equal_range(NAME_HASHER(path));
-
-    for (auto it = range.first; it != range.second; ++it)
-    {
-        if (path == it->second.Name)
-        {
-            return it->second.Shader;
-        }
-    }
-
-    return nullptr;
+    return m_VertexShadersByName.Find(path);
 }
 
 SDL_GPUShader*
 SDLGPUDevice::GetFragShader(const std::string_view path)
 {
-    auto range = m_FragShadersByName.equal_range(NAME_HASHER(path));
-
-    for (auto it = range.first; it != range.second; ++it)
-    {
-        if (path == it->second.Name)
-        {
-            return it->second.Shader;
-        }
-    }
-
-    return nullptr;
+    return m_FragShadersByName.Find(path);
 }
 
 static std::expected<SDL_GPUBuffer*, Error> CreateGpuBuffer(

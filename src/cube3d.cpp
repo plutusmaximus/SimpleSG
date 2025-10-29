@@ -1,6 +1,5 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_gpu.h>
-#include <thread>
 #include <filesystem>
 
 #include "Error.h"
@@ -8,13 +7,11 @@
 #include "TransformNode.h"
 #include "SDLRenderGraph.h"
 #include "VecMath.h"
+#include "Camera.h"
 
 #include "SDLGPUDevice.h"
 
 #include "STLLoader.h"
-
-#include "glm/glm.hpp"
-#include "glm/ext/matrix_transform.hpp"
 
 // Cube vertices (8 corners with positions, normals, and colors)
 Vertex cubeVertices[] =
@@ -51,21 +48,20 @@ Vertex cubeVertices[] =
     {{-0.5f, -0.5f,  0.5f}, {0.0f, -1.0f,  0.0f},  {0, 0}}, // 23
 };
 
-// Cube indices (36 indices for 12 triangles, 2 per face, all in CCW order)
 VertexIndex cubeIndices[] =
 {
-    // Front (z = 0.5, normal +z, view from front)
-    0, 3, 2,  0, 2, 1,    // CCW: bottom-left -> top-left -> top-right, bottom-left -> top-right -> bottom-right
-    // Back (z = -0.5, normal -z, view from back)
-    5, 6, 7,  5, 7, 4,    // CCW: bottom-right -> top-right -> top-left, bottom-right -> top-left -> bottom-left
-    // Left (x = -0.5, normal -x, view from left)
-    11, 10, 9,  8, 11, 9, // CCW: front-bottom -> front-top -> back-top, front-bottom -> back-top -> back-bottom
-    // Right (x = 0.5, normal +x, view from right)
-    15, 14, 13,  12, 15, 13, // CCW: back-bottom -> back-top -> front-top, back-bottom -> front-top -> front-bottom
-    // Top (y = 0.5, normal +y, view from top)
-    18, 17, 16,  19, 18, 16, // CCW: front-left -> front-right -> back-right, front-left -> back-right -> back-left
-    // Bottom (y = -0.5, normal -y, view from bottom)
-    20, 23, 22,  20, 22, 21  // CCW: back-left -> front-left -> front-right, back-left -> front-right -> back-right
+    // Front
+    0, 2, 3,  0, 1, 2,
+    // Back
+    5, 7, 6,  5, 4, 7,
+    // Left
+    11, 9, 10,  8, 9, 11,
+    // Right
+    15, 13, 14,  12, 13, 15,
+    // Top
+    18, 16, 17,  19, 16, 18,
+    // Bottom
+    20, 22, 23,  20, 21, 22
 };
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
@@ -103,9 +99,25 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         std::vector<unsigned> pumpkinIndices;
         for (const auto& tri : triangles)
         {
+            TVertex vertices[] =
+            {
+                //Change winding from CCW to CW
+                tri.v[0], tri.v[2], tri.v[1]
+            };
+
+            for (auto& v : vertices)
+            {
+                //STL uses a right handed coordinate system with
+                //Z up, Y into the screen, triangles winding counter clockwise.
+                //This swap changes to a left handed coordinate system
+                //with Y up, Z into the screen, and triangles winding clockwise.
+                std::swap(v.pos.y, v.pos.z);
+                std::swap(v.normal.y, v.normal.z);
+            }
+
             for(int i = 0; i < 3; ++i)
             {
-                const TVertex& tv = tri.v[i];
+                const TVertex& tv = vertices[i];
                 unsigned index;
 
                 auto it = vmap.find(tv);
@@ -122,10 +134,10 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
                 }
 
                 const Vec3f& v0 = tv.pos;
-                const Vec3f& v1 = tri.v[(i + 1) % 3].pos;
-                const Vec3f& v2 = tri.v[(i + 2) % 3].pos;
+                const Vec3f& v1 = vertices[(i + 1) % 3].pos;
+                const Vec3f& v2 = vertices[(i + 2) % 3].pos;
 
-                Vec3 normal = (v2 - v0).Cross(v1 - v0).Normalize();
+                Vec3 normal = (v1 - v0).Cross(v2 - v0).Normalize();
                 pumpkinVertices[index].normal = pumpkinVertices[index].normal + normal;
 
                 pumpkinIndices.push_back(index);
