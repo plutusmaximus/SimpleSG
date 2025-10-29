@@ -3,11 +3,10 @@ project(SimpleSG LANGUAGES C CXX)
 
 include(FetchContent)
 
-
 # ============================================================
 # Global: Prefer static libraries (no DLLs)
 # ============================================================
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
 
 # MSVC: Link the static runtime (/MT) so you don't depend on vcruntime DLLs.
 if(MSVC)
@@ -34,9 +33,9 @@ list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 # ============================================================
 # SDL3 (static)
 # ============================================================
-set(SDL_TEST   OFF CACHE BOOL "" FORCE)
-set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-set(SDL_STATIC ON  CACHE BOOL "" FORCE)
+set(SDL_TEST   OFF CACHE INTERNAL "")
+set(SDL_SHARED OFF CACHE INTERNAL "")
+set(SDL_STATIC ON  CACHE INTERNAL "")
 add_subdirectory(SDL SDL-build EXCLUDE_FROM_ALL)
 if(NOT TARGET SDL3::SDL3-static)
   message(FATAL_ERROR "Expected SDL3::SDL3-static target not found in SDL subdirectory")
@@ -45,15 +44,20 @@ endif()
 # ============================================================
 # spdlog (static)
 # ============================================================
-set(SPDLOG_HEADER_ONLY OFF CACHE BOOL "" FORCE)
-set(SPDLOG_BUILD_SHARED OFF CACHE BOOL "" FORCE)
-set(SPDLOG_BUILD_TESTS  OFF CACHE BOOL "" FORCE)
-set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
-add_subdirectory(spdlog spdlog-build EXCLUDE_FROM_ALL)
-target_compile_definitions(spdlog PRIVATE SPDLOG_WCHAR_TO_UTF8_SUPPORT)
-if(NOT TARGET spdlog::spdlog)
-  message(FATAL_ERROR "spdlog target not found — check the spdlog subdirectory")
-endif()
+set(SPDLOG_HEADER_ONLY OFF CACHE INTERNAL "")
+set(SPDLOG_BUILD_SHARED OFF CACHE INTERNAL "")
+set(SPDLOG_BUILD_STATIC ON CACHE INTERNAL "")
+set(SPDLOG_BUILD_TESTS  OFF CACHE INTERNAL "")
+set(SPDLOG_BUILD_EXAMPLE OFF CACHE INTERNAL "")
+set(SPDLOG_WCHAR_SUPPORT ON CACHE INTERNAL "")
+
+FetchContent_Declare(
+	spdlog
+	GIT_REPOSITORY	https://github.com/gabime/spdlog.git
+	GIT_TAG 	v1.16.0
+)
+
+FetchContent_MakeAvailable(spdlog)
 
 # ============================================================
 # glm
@@ -61,7 +65,7 @@ endif()
 FetchContent_Declare(
 	glm
 	GIT_REPOSITORY	https://github.com/g-truc/glm.git
-	GIT_TAG 	a532f5b1cf27d6a3c099437e6959cf7e398a0a67 #refs/tags/1.0.2
+	GIT_TAG 	1.0.2
 )
 
 FetchContent_MakeAvailable(glm)
