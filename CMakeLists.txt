@@ -15,34 +15,24 @@ endif()
 
 option(SIMPLESG_STRICT "Treat warnings as errors for project sources" ON)
 
-# Allow our Find*.cmake shims (e.g., FindZLIB.cmake)
-list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-
 # ============================================================
-# Project-wide options and UTF-8 enforcement
-# ============================================================
-#add_library(project_policies INTERFACE)
-#target_compile_definitions(project_policies INTERFACE
-#  $<$<PLATFORM_ID:Windows>:UNICODE;_UNICODE>
-#)
-#target_compile_options(project_policies INTERFACE
-#  $<$<CXX_COMPILER_ID:MSVC>:/utf-8 /W4>
-#  $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<COMPILE_LANGUAGE:CXX>>:-Wall -Wextra -Wpedantic>
-#)
-
-# ============================================================
-# SDL3 (static)
+# SDL3
 # ============================================================
 set(SDL_TEST   OFF CACHE INTERNAL "")
+set(SDL_TEST_LIBRARY   OFF CACHE INTERNAL "")
 set(SDL_SHARED OFF CACHE INTERNAL "")
 set(SDL_STATIC ON  CACHE INTERNAL "")
-add_subdirectory(SDL SDL-build EXCLUDE_FROM_ALL)
-if(NOT TARGET SDL3::SDL3-static)
-  message(FATAL_ERROR "Expected SDL3::SDL3-static target not found in SDL subdirectory")
-endif()
+
+FetchContent_Declare(
+	SDL3
+	GIT_REPOSITORY	https://github.com/libsdl-org/SDL.git
+	GIT_TAG 	release-3.2.24
+)
+
+FetchContent_MakeAvailable(SDL3)
 
 # ============================================================
-# spdlog (static)
+# spdlog
 # ============================================================
 set(SPDLOG_HEADER_ONLY OFF CACHE INTERNAL "")
 set(SPDLOG_BUILD_SHARED OFF CACHE INTERNAL "")
@@ -89,7 +79,6 @@ add_subdirectory(shaders shaders-build)
 # ============================================================
 # Images
 # ============================================================
-
 add_custom_target(copy_images
     COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Images ${CMAKE_CURRENT_BINARY_DIR}/Images/
     COMMENT "Copying image files to build directory"
@@ -98,7 +87,6 @@ add_custom_target(copy_images
 # ============================================================
 # Models
 # ============================================================
-
 add_custom_target(copy_models
     COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_SOURCE_DIR}/Models ${CMAKE_CURRENT_BINARY_DIR}/Models/
     COMMENT "Copying model files to build directory"
@@ -109,11 +97,9 @@ add_custom_target(copy_models
 # ============================================================
 file(GLOB_RECURSE SIMPLESG_CPP CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cxx"
 )
 file(GLOB_RECURSE SIMPLESG_HEADERS CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp"
 )
 
 add_executable(SimpleSG)
@@ -130,8 +116,7 @@ target_include_directories(SimpleSG PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" ${
 
 target_link_libraries(SimpleSG
   PRIVATE
-#    project_policies
-    SDL3::SDL3-static
+    SDL3::SDL3
     spdlog::spdlog
     glm::glm
 )
