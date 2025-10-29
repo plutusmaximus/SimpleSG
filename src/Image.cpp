@@ -9,15 +9,17 @@
 
 Image::~Image()
 {
-    delete[] Pixels;
+    m_FreePixels(Pixels);
 }
 
 RefPtr<Image>
 Image::Create(const int width, const int height)
 {
-    std::uint8_t* pixels = new std::uint8_t[width * height * 4];
+    uint8_t* pixels = new std::uint8_t[width * height * 4];
 
-    return new Image(width, height, pixels);
+    auto freePixels = [](uint8_t* p) { delete[] p; };
+
+    return new Image(width, height, pixels, freePixels);
 }
 
 std::expected<RefPtr<Image>, Error>
@@ -30,11 +32,7 @@ Image::Load(const std::string_view path)
 
     expect(data, stbi_failure_reason());
 
-    RefPtr<Image> img = Image::Create(width, height);
+    auto freePixels = [](uint8_t* p) { stbi_image_free(p); };
 
-    std::memcpy(img->Pixels, data, width * height * DESIRED_CHANNELS);
-
-    stbi_image_free(data);
-
-    return img;
+    return new Image(width, height, data, freePixels);
 }

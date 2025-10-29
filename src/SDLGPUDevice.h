@@ -134,7 +134,7 @@ private:
 
     std::expected<IndexBuffer*, Error> CreateIndexBuffer(const std::span<VertexIndex>& indices);
 
-    std::expected<SDL_GPUTexture*, Error> GetOrCreateTextureFromPNG(const std::string_view path);
+    std::expected<SDL_GPUTexture*, Error> GetOrCreateTexture(const std::string_view path);
 
     SDL_GPUTexture* GetTexture(const std::string_view path);
 

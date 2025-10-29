@@ -22,12 +22,15 @@ public:
 
 private:
 
-    Image(const int width, const int height, uint8_t* pixels)
+    Image(const int width, const int height, uint8_t* pixels, void (*freePixels)(uint8_t*))
         : Width(width)
         , Height(height)
         , Pixels(pixels)
+        , m_FreePixels(freePixels)
     {
     }
+
+    void (*m_FreePixels)(uint8_t*);
 
     IMPLEMENT_REFCOUNT(Image);
 };

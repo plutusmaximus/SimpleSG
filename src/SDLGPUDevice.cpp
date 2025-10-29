@@ -165,7 +165,7 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
 
             //TODO - check material DB for existing material
 
-            auto albedoResult = GetOrCreateTextureFromPNG(meshSpec.MtlSpec.Albedo);
+            auto albedoResult = GetOrCreateTexture(meshSpec.MtlSpec.Albedo);
             expect(albedoResult, albedoResult.error());
 
             albedo = albedoResult.value();
@@ -360,7 +360,7 @@ SDLGPUDevice::CreateIndexBuffer(const std::span<VertexIndex>& indices)
 }
 
 std::expected<SDL_GPUTexture*, Error>
-SDLGPUDevice::GetOrCreateTextureFromPNG(const std::string_view path)
+SDLGPUDevice::GetOrCreateTexture(const std::string_view path)
 {
     SDL_GPUTexture* texture = GetTexture(path);
 

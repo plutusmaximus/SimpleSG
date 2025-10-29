@@ -164,21 +164,3 @@ group_by_namespace("spdlog" "ThirdParty")
 
 set_target_properties(shaders PROPERTIES FOLDER "Shaders")
 set_target_properties(SimpleSG PROPERTIES FOLDER "")
-
-# ============================================================
-# Summary
-# ============================================================
-message(STATUS "-------------------------------------------------------")
-message(STATUS "Build Summary:")
-message(STATUS "  Project:        SimpleSG")
-message(STATUS "  C++ Standard:   C++23")
-message(STATUS "  Unicode:        Enabled (UTF-8 source/exec)")
-message(STATUS "  SDL target:     SDL3::SDL3-static")
-message(STATUS "  spdlog target:  spdlog::spdlog (static)")
-message(STATUS "  Shaders target: shaders")
-message(STATUS "  STRICT (Werror): ${SIMPLESG_STRICT}")
-message(STATUS "  BUILD_SHARED_LIBS: ${BUILD_SHARED_LIBS}")
-if(MSVC)
-  message(STATUS "  MSVC Runtime:   ${CMAKE_MSVC_RUNTIME_LIBRARY}")
-endif()
-message(STATUS "-------------------------------------------------------")
