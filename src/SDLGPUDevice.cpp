@@ -313,7 +313,7 @@ SDLGPUDevice::GetOrCreatePipeline(const SDLMaterial& mtl)
         {
             .fill_mode = SDL_GPU_FILLMODE_FILL,
             .cull_mode = SDL_GPU_CULLMODE_BACK,
-            .front_face = SDL_GPU_FRONTFACE_CLOCKWISE,  //DO NOT SUBMIT - should be CLOCKWISE
+            .front_face = SDL_GPU_FRONTFACE_CLOCKWISE,
             .enable_depth_clip = true
         },
         .depth_stencil_state =
