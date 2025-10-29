@@ -8,42 +8,40 @@ public:
 
     Camera() = delete;
 
-    Camera(const Degreesf fov, const float aspect, const float nearClip, const float farClip)
+    Camera(const Degreesf fov, const float width, const float height, const float nearClip, const float farClip)
         : m_Fov(fov)
-        , m_Aspect(aspect)
+        , m_Width(0)
+        , m_Height(0)
         , m_Near(nearClip)
         , m_Far(farClip)
-        , m_ComputeViewProj(true)
     {
-        m_ViewProj = m_Transform = Mat44f::Identity();
+        m_Transform = Mat44f::Identity();
+        SetBounds(width, height);
     }
 
-    void SetAspect(const float aspect)
+    void SetBounds(const float width, const float height)
     {
-        m_Aspect = aspect;
-        m_ComputeViewProj = true;
+        if (width != m_Width || height != m_Height)
+        {
+            m_Width = width;
+            m_Height = height;
+            m_Proj = Mat44f::PerspectiveLH(m_Fov, m_Width, m_Height, m_Near, m_Far);
+            m_ViewProj = m_Proj.Mul(m_Transform.Inverse());
+        }
     }
 
     const Mat44f& ViewProj() const
     {
-        if (m_ComputeViewProj)
-        {
-            Mat44f proj = Mat44f::PerspectiveLH(m_Fov, m_Aspect, m_Near, m_Far);
-            m_ViewProj = m_Transform.Inverse().Mul(proj);
-            m_ComputeViewProj = false;
-        }
-
         return m_ViewProj;
     }
 
 private:
 
     Degreesf m_Fov;
-    float m_Aspect;
+    float m_Width, m_Height;
     float m_Near;
     float m_Far;
     Mat44f m_Transform;
-    mutable Mat44f m_ViewProj;
-
-    mutable bool m_ComputeViewProj;
+    Mat44f m_Proj;
+    Mat44f m_ViewProj;
 };

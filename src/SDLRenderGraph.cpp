@@ -150,7 +150,7 @@ SDLRenderGraph::Render(const Camera& camera)
 
         for (auto& xmesh : xmeshes)
         {
-            const Mat44 xform = m_Transforms[xmesh.TransformIdx].Mul(camera.ViewProj());
+            const Mat44 xform = camera.ViewProj().Mul(m_Transforms[xmesh.TransformIdx]);
 
             SDL_PushGPUVertexUniformData(cmdBuf, 0, &xform, sizeof(xform));
 

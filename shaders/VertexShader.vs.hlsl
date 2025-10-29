@@ -34,9 +34,9 @@ struct VSOutput
 VSOutput main(VSInput input)
 {
     VSOutput output;
-    output.position = mul(float4(input.inPosition, 1.0), xform);
+    output.position = mul(xform, float4(input.inPosition, 1.0));
     output.fragColor = materials[materialIndex].color;
-    output.fragNormal = normalize(mul(float4(input.inNormal, 0.0), xform).xyz);
+    output.fragNormal = normalize(mul(xform, float4(input.inNormal, 0.0)).xyz);
     output.texCoord = input.inTexCoord;
     return output;
 };

@@ -18,7 +18,7 @@ ModelVisitor::Visit(GroupNode* node)
 void
 ModelVisitor::Visit(TransformNode* node)
 {
-    m_TransformStack.push(node->Transform.Mul(GetTransform()));
+    m_TransformStack.push(GetTransform().Mul(node->Transform));
 
     Visit((static_cast<GroupNode*>(node)));
 

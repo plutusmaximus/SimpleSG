@@ -255,7 +255,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         scene->AddChild(planetXFormNode);
 
         const Degreesf fov(45);
-        Camera camera(fov, 1, 0.1f, 1000);
+        Camera camera(fov, 100, 100, 0.1f, 1000);
 
         // Main loop
         bool running = true;
@@ -295,21 +295,21 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             moonOrbitAngle = (moonOrbitAngle - 0.005f).Wrap();
 
             constexpr Radiansf planetTiltAngle = Radiansf::FromDegrees(15);
-            
+
             planetXFormNode->Transform =
                 Mat44f::Identity()
-                .Rotate(planetSpinAngle, Vec3f::YAXIS())  //spin
+                .Translate(0, 0, 4)
+                //.Translate(0, 0, 150)
                 .Rotate(planetTiltAngle, Vec3f::ZAXIS()) //tilt
-                .Translate(0, 0, 4);
-                //.Translate(0, 0, 150);
+                .Rotate(planetSpinAngle, Vec3f::YAXIS());  //spin
 
             moonXFormNode->Transform =
                 Mat44f::Identity()
-                .Scale(0.25f)
-                .Rotate(moonSpinAngle, Vec3f::YAXIS())  //spin
+                .Rotate(moonOrbitAngle, Vec3f::YAXIS())    //orbit
                 .Translate(0, 0, -2)
                 //.Translate(0, 0, -100)
-                .Rotate(moonOrbitAngle, Vec3f::YAXIS());    //orbit
+                .Rotate(moonSpinAngle, Vec3f::YAXIS())  //spin
+                .Scale(0.25f);
 
             int windowW, windowH;
             if (!SDL_GetWindowSizeInPixels(window, &windowW, &windowH))
@@ -318,7 +318,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
                 continue;
             }
 
-            camera.SetAspect(float(windowW) / windowH);
+            camera.SetBounds(windowW, windowH);
 
             auto renderGraphResult = gd->CreateRenderGraph();
             pcheck(renderGraphResult, renderGraphResult.error());
