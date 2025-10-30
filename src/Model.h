@@ -20,9 +20,13 @@ class Model : public SceneNode
 {
 public:
 
-    static RefPtr<Model> Create(std::span<RefPtr<Mesh>> meshes)
+    static Result<RefPtr<Model>> Create(std::span<RefPtr<Mesh>> meshes)
     {
-        return new Model(meshes);
+        Model* model = new Model(meshes);
+
+        expectv(model, "Error allocating model");
+
+        return model;
     }
 
     class Meshes : private std::vector<RefPtr<Mesh>>

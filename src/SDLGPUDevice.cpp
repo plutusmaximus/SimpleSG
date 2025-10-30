@@ -86,7 +86,11 @@ SDLGPUDevice::Create(SDL_Window* window)
         return std::unexpected(SDL_GetError());
     }
 
-    return new SDLGPUDevice(window, gpuDevice);
+    SDLGPUDevice* device = new SDLGPUDevice(window, gpuDevice);
+
+    expectv(device, "Error allocating device");
+
+    return device;
 }
 
 SDLGPUDevice::~SDLGPUDevice()
@@ -184,6 +188,8 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
             vertexShaderResult.value(),
             fragShaderResult.value());
 
+        expectv(mtl, "Error allocating SDLMaterial");
+
         m_MaterialIndexById.emplace(mtl->Id, std::size(m_Materials));
         m_Materials.push_back(mtl);
 
@@ -200,7 +206,11 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
 Result<RefPtr<RenderGraph>>
 SDLGPUDevice::CreateRenderGraph()
 {
-    return new SDLRenderGraph(this);
+    SDLRenderGraph* renderGraph = new SDLRenderGraph(this);
+
+    expectv(renderGraph, "Error allocating SDLRenderGraph");
+
+    return renderGraph;
 }
 
 Result<const SDLMaterial*>
@@ -350,7 +360,11 @@ SDLGPUDevice::CreateVertexBuffer(const std::span<Vertex>& vertices)
         CreateGpuBuffer(m_GpuDevice, SDL_GPU_BUFFERUSAGE_VERTEX, vertices.data(), vertices.size() * sizeof(vertices[0]));
     expect(result, result.error());
 
-    return new SDLVertexBuffer(m_GpuDevice, result.value());
+    SDLVertexBuffer* vb = new SDLVertexBuffer(m_GpuDevice, result.value());
+
+    expectv(vb, "Error allocating SDLVertexBuffer");
+
+    return vb;
 }
 
 Result<IndexBuffer*>
@@ -360,7 +374,11 @@ SDLGPUDevice::CreateIndexBuffer(const std::span<VertexIndex>& indices)
         CreateGpuBuffer(m_GpuDevice, SDL_GPU_BUFFERUSAGE_INDEX, indices.data(), indices.size() * sizeof(indices[0]));
     expect(result, result.error());
 
-    return new SDLIndexBuffer(m_GpuDevice, result.value());
+    SDLIndexBuffer* ib = new SDLIndexBuffer(m_GpuDevice, result.value());
+
+    expectv(ib, "Error allocating SDLIndexBuffer");
+
+    return ib;
 }
 
 Result<SDL_GPUTexture*>
