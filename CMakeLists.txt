@@ -11,7 +11,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(SIMPLESG_STRICT "Treat warnings as errors" ON)
 
 if(MSVC)
-  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+# Enable MSVC STL hardening
+#   TODO - remove in release builds
+    add_compile_definitions(_MSVC_STL_HARDENING=2 _ITERATOR_DEBUG_LEVEL=2)
 endif()
 
 # ============================================================
