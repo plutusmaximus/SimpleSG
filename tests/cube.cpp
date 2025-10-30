@@ -144,6 +144,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             }
         }
 
+        Assert(false);
+
         for (auto& v : pumpkinVertices)
         {
             v.normal = v.normal.Normalize();
