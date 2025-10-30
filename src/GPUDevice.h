@@ -11,9 +11,9 @@ public:
 
     virtual ~GPUDevice() = 0 {}
 
-    virtual std::expected<RefPtr<Model>, Error> CreateModel(const ModelSpec& modelSpec) = 0;
+    virtual Result<RefPtr<Model>> CreateModel(const ModelSpec& modelSpec) = 0;
 
-    virtual std::expected<RefPtr<RenderGraph>, Error> CreateRenderGraph() = 0;
+    virtual Result<RefPtr<RenderGraph>> CreateRenderGraph() = 0;
 
     IMPLEMENT_REFCOUNT(GPUDevice);
 };

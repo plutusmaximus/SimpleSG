@@ -23,4 +23,4 @@ struct Triangle
     TVertex v[3];
 };
 
-std::expected<void, Error> loadAsciiSTL(const std::string& filename, std::vector<Triangle>& triangles);
+Result<void> loadAsciiSTL(const std::string& filename, std::vector<Triangle>& triangles);

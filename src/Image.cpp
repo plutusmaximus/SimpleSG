@@ -12,27 +12,39 @@ Image::~Image()
     m_FreePixels(Pixels);
 }
 
-RefPtr<Image>
+Result<RefPtr<Image>>
 Image::Create(const int width, const int height)
 {
-    uint8_t* pixels = new std::uint8_t[width * height * 4];
+    uint8_t* pixels = new uint8_t[width * height * 4];
+
+    expectv(pixels, "Error allocating pixels");
 
     auto freePixels = [](uint8_t* p) { delete[] p; };
 
-    return new Image(width, height, pixels, freePixels);
+    return Create(width, height, pixels, freePixels);
 }
 
-std::expected<RefPtr<Image>, Error>
+Result<RefPtr<Image>>
 Image::Load(const std::string_view path)
 {
     static constexpr int DESIRED_CHANNELS = 4;
 
     int width, height, channels;
-    unsigned char* data = stbi_load(path.data(), &width, &height, &channels, DESIRED_CHANNELS);
+    unsigned char* pixels = stbi_load(path.data(), &width, &height, &channels, DESIRED_CHANNELS);
 
-    expect(data, stbi_failure_reason());
+    expect(pixels, stbi_failure_reason());
 
     auto freePixels = [](uint8_t* p) { stbi_image_free(p); };
 
-    return new Image(width, height, data, freePixels);
+    return Create(width, height, pixels, freePixels);
+}
+
+Result<RefPtr<Image>>
+Image::Create(const int width, const int height, uint8_t* pixels, void (*freePixels)(uint8_t*))
+{
+    Image* image = new Image(width, height, pixels, freePixels);
+
+    expectv(pixels, "Error allocating image");
+
+    return image;
 }

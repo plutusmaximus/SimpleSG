@@ -21,7 +21,7 @@ public:
 
     virtual void Add(const Mat44f& transform, RefPtr<Model> model) override;
 
-    virtual std::expected<void, Error> Render(const Camera& camera) override;
+    virtual Result<void> Render(const Camera& camera) override;
 
     virtual void Reset() override;
 

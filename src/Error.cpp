@@ -1,9 +1,13 @@
 #include "Error.h"
 
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
+#include <string>
+#include <stacktrace>
+
 #include <spdlog/sinks/msvc_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
-
-#include <memory>
 
 static spdlog::logger& CreateLogger()
 {
@@ -31,15 +35,7 @@ Logging::SetLogLevel(const spdlog::level::level_enum level)
     GetLogger().set_level(level);
 }
 
-
-
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-
-#include <cstdlib>
-#include <cstdio>
-#include <string>
-#include <stacktrace>
+#if defined(_MSC_VER)
 
 static bool EnableAssertDialog = true;
 
@@ -52,18 +48,12 @@ bool SetAssertDialogEnabled(const bool enabled)
     return oldValue;
 }
 
-
 bool ShowAssertDialog(const char* expression, const char* fileName, const int lineNum)
 {
     if (!EnableAssertDialog) return false;
 
-    char buf[1024];
-    std::snprintf(buf, sizeof(buf) - 1, "%s\nFile:%s\nLine:%d", expression, fileName, lineNum);
-
-    std::string message = buf;
-    message += "\n";
-    auto trace = std::stacktrace::current();
-    message += std::to_string(trace);
+    auto trace = std::stacktrace::current(1);
+    std::string message = std::format("{}({}): {}\n\n{}", fileName, lineNum, expression, std::to_string(trace));
 
     const int msgboxValue = MessageBoxA(
         NULL,
@@ -78,3 +68,7 @@ bool ShowAssertDialog(const char* expression, const char* fileName, const int li
 
     return IDRETRY == msgboxValue;
 }
+
+#else	//_MSC_VER
+#error "Platform not supported"
+#endif	//_MSC_VER

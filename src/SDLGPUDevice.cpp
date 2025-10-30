@@ -27,25 +27,25 @@ static const char* const SHADER_EXTENSION = ".spv";
 
 #endif
 
-static std::expected<SDL_GPUBuffer*, Error> CreateGpuBuffer(
+static Result<SDL_GPUBuffer*> CreateGpuBuffer(
     SDL_GPUDevice* gpuDevice,
     const SDL_GPUBufferUsageFlags usageFlags,
     const void* bufferData,
     const unsigned sizeofBuffer);
 
-static std::expected<void, Error> CopyToGpuBuffer(
+static Result<void> CopyToGpuBuffer(
     SDL_GPUDevice* gpuDevice,
     SDL_GPUBuffer* gpuBuffer,
     const void* data,
     const unsigned sizeofData);
 
-static std::expected<SDL_GPUTexture*, std::string> CreateTexture(
+static Result<SDL_GPUTexture*> CreateTexture(
     SDL_GPUDevice* gpuDevice,
     const unsigned width,
     const unsigned height,
     const uint8_t* pixels);
 
-static std::expected<SDL_GPUShader*, Error> LoadShader(
+static Result<SDL_GPUShader*> LoadShader(
     SDL_GPUDevice* gpuDevice,
     const std::string_view fileName,
     SDL_GPUShaderStage shaderStage,
@@ -68,7 +68,7 @@ SDLGPUDevice::SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice)
 {
 }
 
-std::expected<RefPtr<GPUDevice>, Error>
+Result<RefPtr<GPUDevice>>
 SDLGPUDevice::Create(SDL_Window* window)
 {
     logInfo("Creating SDL GPU Device...");
@@ -127,7 +127,7 @@ SDLGPUDevice::~SDLGPUDevice()
     }
 }
 
-std::expected<RefPtr<Model>, Error>
+Result<RefPtr<Model>>
 SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
 {
     auto vbResult = CreateVertexBuffer(modelSpec.Vertices);
@@ -187,21 +187,23 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
         m_MaterialIndexById.emplace(mtl->Id, std::size(m_Materials));
         m_Materials.push_back(mtl);
 
-        auto mesh = Mesh::Create(vtxBuf, idxBuf, meshSpec.IndexOffset, meshSpec.IndexCount, mtl->Id);
+        auto meshResult = Mesh::Create(vtxBuf, idxBuf, meshSpec.IndexOffset, meshSpec.IndexCount, mtl->Id);
 
-        meshes.push_back(mesh);
+        expect(meshResult, meshResult.error());
+
+        meshes.push_back(meshResult.value());
     }
 
     return Model::Create(meshes);
 }
 
-std::expected<RefPtr<RenderGraph>, Error>
+Result<RefPtr<RenderGraph>>
 SDLGPUDevice::CreateRenderGraph()
 {
     return new SDLRenderGraph(this);
 }
 
-std::expected<const SDLMaterial*, Error>
+Result<const SDLMaterial*>
 SDLGPUDevice::GetMaterial(const MaterialId& mtlId) const
 {
     auto it = m_MaterialIndexById.find(mtlId);
@@ -213,7 +215,7 @@ SDLGPUDevice::GetMaterial(const MaterialId& mtlId) const
     return m_Materials[it->second];
 }
 
-std::expected<SDL_GPUShader*, Error>
+Result<SDL_GPUShader*>
 SDLGPUDevice::GetOrCreateVertexShader(
     const std::string_view path,
     const int numUniformBuffers)
@@ -236,7 +238,7 @@ SDLGPUDevice::GetOrCreateVertexShader(
     return shader;
 }
 
-std::expected<SDL_GPUShader*, Error>
+Result<SDL_GPUShader*>
 SDLGPUDevice::GetOrCreateFragmentShader(
     const std::string_view path,
     const int numSamplers)
@@ -259,7 +261,7 @@ SDLGPUDevice::GetOrCreateFragmentShader(
     return shader;
 }
 
-std::expected<SDL_GPUGraphicsPipeline*, Error>
+Result<SDL_GPUGraphicsPipeline*>
 SDLGPUDevice::GetOrCreatePipeline(const SDLMaterial& mtl)
 {
     SDL_GPUTextureFormat colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(m_GpuDevice, m_Window);
@@ -341,7 +343,7 @@ SDLGPUDevice::GetOrCreatePipeline(const SDLMaterial& mtl)
 
 //private:
 
-std::expected<VertexBuffer*, Error>
+Result<VertexBuffer*>
 SDLGPUDevice::CreateVertexBuffer(const std::span<Vertex>& vertices)
 {
     auto result =
@@ -351,7 +353,7 @@ SDLGPUDevice::CreateVertexBuffer(const std::span<Vertex>& vertices)
     return new SDLVertexBuffer(m_GpuDevice, result.value());
 }
 
-std::expected<IndexBuffer*, Error>
+Result<IndexBuffer*>
 SDLGPUDevice::CreateIndexBuffer(const std::span<VertexIndex>& indices)
 {
     auto result =
@@ -361,7 +363,7 @@ SDLGPUDevice::CreateIndexBuffer(const std::span<VertexIndex>& indices)
     return new SDLIndexBuffer(m_GpuDevice, result.value());
 }
 
-std::expected<SDL_GPUTexture*, Error>
+Result<SDL_GPUTexture*>
 SDLGPUDevice::GetOrCreateTexture(const std::string_view path)
 {
     SDL_GPUTexture* texture = GetTexture(path);
@@ -402,7 +404,7 @@ SDLGPUDevice::GetFragShader(const std::string_view path)
     return m_FragShadersByName.Find(path);
 }
 
-static std::expected<SDL_GPUBuffer*, Error> CreateGpuBuffer(
+static Result<SDL_GPUBuffer*> CreateGpuBuffer(
     SDL_GPUDevice* gpuDevice,
     const SDL_GPUBufferUsageFlags usageFlags,
     const void* bufferData,
@@ -428,7 +430,7 @@ static std::expected<SDL_GPUBuffer*, Error> CreateGpuBuffer(
     return gpuBuffer;
 }
 
-static std::expected<void, Error> CopyToGpuBuffer(
+static Result<void> CopyToGpuBuffer(
     SDL_GPUDevice* gpuDevice,
     SDL_GPUBuffer* gpuBuffer,
     const void* data,
@@ -484,7 +486,7 @@ static std::expected<void, Error> CopyToGpuBuffer(
     return {};
 }
 
-static std::expected<SDL_GPUTexture*, std::string> CreateTexture(
+static Result<SDL_GPUTexture*> CreateTexture(
     SDL_GPUDevice* gpuDevice,
     const unsigned width,
     const unsigned height,
@@ -564,7 +566,7 @@ static std::expected<SDL_GPUTexture*, std::string> CreateTexture(
     return texture;
 }
 
-std::expected<SDL_GPUShader*, Error> LoadShader(
+Result<SDL_GPUShader*> LoadShader(
     SDL_GPUDevice* gpuDevice,
     const std::string_view fileName,
     SDL_GPUShaderStage shaderStage,

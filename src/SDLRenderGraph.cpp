@@ -35,7 +35,7 @@ SDLRenderGraph::Add(const Mat44f& transform, RefPtr<Model> model)
     }
 }
 
-std::expected<void, Error>
+Result<void>
 SDLRenderGraph::Render(const Camera& camera)
 {
     auto gpuDevice = m_GpuDevice->m_GpuDevice;
@@ -128,7 +128,7 @@ SDLRenderGraph::Render(const Camera& camera)
 
         if (mtl->Albedo)
         {
-            if (!Verify(mtl->AlbedoSampler))
+            if (!everify(mtl->AlbedoSampler))
             {
                 continue;
             }

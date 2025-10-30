@@ -1,5 +1,6 @@
 #pragma once
 
+#include <expected>
 #include <string>
 #include <format>
 
@@ -57,6 +58,9 @@ public:
 
     const std::string Message;
 };
+
+template<typename T>
+using Result = std::expected<T, Error>;
 
 template<typename... Args>
 void logTrace(const std::string& format, Args&&... args)
@@ -157,29 +161,6 @@ inline void LogExprError(const char* file, const int line, const char* exprStr, 
 
     logError(message);
 }
-
-#define LOG_EXPR_ERROR(exprStr, ...) LogExprError(__FILE__, __LINE__, exprStr, __VA_ARGS__)
-
-#define MAKE_EXPR_ERROR(exprStr, ...) MakeExprError(__FILE__, __LINE__, exprStr, __VA_ARGS__)
-
-#define etry do
-
-#define everify(expr) {if(!Verify(expr)) ethrow(catchall);}
-
-#define ethrow(label) goto label;
-
-#define ecatch(label) while(false);label:
-
-#define ecatchall ecatch(catchall)
-
-#define except(expr, label, ...) while(!(expr)){LOG_EXPR_ERROR(#expr, __VA_ARGS__);ethrow(label);break;}
-
-#define pcheck(expr, ...) except(expr, catchall, __VA_ARGS__)
-
-#define expect(expr, ...) {if(!(expr)){return std::unexpected(MAKE_EXPR_ERROR(#expr, __VA_ARGS__));}}
-
-
-
 #if defined(_MSC_VER)
 
 //
@@ -192,20 +173,21 @@ bool SetAssertDialogEnabled(const bool enabled);
 
 bool ShowAssertDialog(const char* expression, const char* fileName, const int lineNum);
 
-#define Assert(expression)(void) ((!!(expression)) || (ShowAssertDialog(#expression, __FILE__, __LINE__) ? __debugbreak(), false : false))
-// verify is like assert excpet that it can be used in boolean expressions.
+// everify is like assert excpet that it can be used in boolean expressions.
 // 
 // For ex.
 // 
-// if(Verify(nullptr != p))...
+// if(everify(nullptr != p))...
 // 
 // Or
 // 
-// return Verify(x > y) ? x : -1;
+// return everify(x > y) ? x : -1;
 // 
 // !! is used to ensure that any overloaded operators used to evaluate expr
 // do not end up at &&.
-#define Verify(expression) ((!!(expression)) || (ShowAssertDialog(#expression, __FILE__, __LINE__) ? __debugbreak(), false : false))
+#define everify(expression) ((static_cast<bool>(expression)) || (ShowAssertDialog(#expression, __FILE__, __LINE__) ? __debugbreak(), false : false))
+
+#define eassert(expression) void(everify(expression))
 
 #else	//NDEBUG
 
@@ -216,3 +198,23 @@ bool ShowAssertDialog(const char* expression, const char* fileName, const int li
 #else	//_MSC_VER
 #error "Platform not supported"
 #endif	//_MSC_VER
+
+#define LOG_EXPR_ERROR(exprStr, ...) LogExprError(__FILE__, __LINE__, exprStr, __VA_ARGS__)
+
+#define MAKE_EXPR_ERROR(exprStr, ...) MakeExprError(__FILE__, __LINE__, exprStr, __VA_ARGS__)
+
+#define etry do
+
+#define ethrow(label) goto label;
+
+#define ecatch(label) while(false);label:
+
+#define ecatchall ecatch(catchall)
+
+#define except(expr, label, ...) while(!static_cast<bool>(expr)){LOG_EXPR_ERROR(#expr, __VA_ARGS__);ethrow(label);break;}
+
+#define pcheck(expr, ...) except(expr, catchall, __VA_ARGS__)
+
+#define expect(expr, ...) {if(!static_cast<bool>(expr)){return std::unexpected(MAKE_EXPR_ERROR(#expr, __VA_ARGS__));}}
+
+#define expectv(expr, ...) {if(!everify(expr)){return std::unexpected(MAKE_EXPR_ERROR(#expr, __VA_ARGS__));}}

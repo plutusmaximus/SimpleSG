@@ -12,15 +12,21 @@ public:
 
     ~Image();
 
-    static RefPtr<Image> Create(const int width, const int height);
+    static Result<RefPtr<Image>> Create(const int width, const int height);
+
+    static Result<RefPtr<Image>> Load(const std::string_view path);
 
     const int Width;
     const int Height;
     std::uint8_t* const Pixels; // RGBA8
 
-    static std::expected<RefPtr<Image>, Error> Load(const std::string_view path);
-
 private:
+
+    static Result<RefPtr<Image>> Create(
+        const int width,
+        const int height,
+        uint8_t* pixels,
+        void (*freePixels)(uint8_t*));
 
     Image(const int width, const int height, uint8_t* pixels, void (*freePixels)(uint8_t*))
         : Width(width)

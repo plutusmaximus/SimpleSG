@@ -19,7 +19,7 @@ public:
 
     virtual void Add(const Mat44f& transform, RefPtr<Model> model) = 0;
 
-    virtual std::expected<void, Error> Render(const Camera& camera) = 0;
+    virtual Result<void> Render(const Camera& camera) = 0;
 
     virtual void Reset() = 0;
 

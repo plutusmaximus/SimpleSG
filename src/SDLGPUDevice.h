@@ -101,25 +101,25 @@ class SDLGPUDevice : public GPUDevice
 {
 public:
 
-    static std::expected<RefPtr<GPUDevice>, Error> Create(SDL_Window* window);
+    static Result<RefPtr<GPUDevice>> Create(SDL_Window* window);
 
     ~SDLGPUDevice() override;
 
-    std::expected<RefPtr<Model>, Error> CreateModel(const ModelSpec& modelSpec) override;
+    Result<RefPtr<Model>> CreateModel(const ModelSpec& modelSpec) override;
 
-    std::expected<RefPtr<RenderGraph>, Error> CreateRenderGraph() override;
+    Result<RefPtr<RenderGraph>> CreateRenderGraph() override;
 
-    std::expected<const SDLMaterial*, Error> GetMaterial(const MaterialId& mtlId) const;
+    Result<const SDLMaterial*> GetMaterial(const MaterialId& mtlId) const;
 
-    std::expected<SDL_GPUShader*, Error> GetOrCreateVertexShader(
+    Result<SDL_GPUShader*> GetOrCreateVertexShader(
         const std::string_view path,
         const int numUniformBuffers);
 
-    std::expected<SDL_GPUShader*, Error> GetOrCreateFragmentShader(
+    Result<SDL_GPUShader*> GetOrCreateFragmentShader(
         const std::string_view path,
         const int numSamplers);
 
-    std::expected<SDL_GPUGraphicsPipeline*, Error> GetOrCreatePipeline(const SDLMaterial& mtl);
+    Result<SDL_GPUGraphicsPipeline*> GetOrCreatePipeline(const SDLMaterial& mtl);
 
     SDL_Window* const m_Window;
     SDL_GPUDevice* const m_GpuDevice;
@@ -130,11 +130,11 @@ private:
 
     SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice);
 
-    std::expected<VertexBuffer*, Error> CreateVertexBuffer(const std::span<Vertex>& vertices);
+    Result<VertexBuffer*> CreateVertexBuffer(const std::span<Vertex>& vertices);
 
-    std::expected<IndexBuffer*, Error> CreateIndexBuffer(const std::span<VertexIndex>& indices);
+    Result<IndexBuffer*> CreateIndexBuffer(const std::span<VertexIndex>& indices);
 
-    std::expected<SDL_GPUTexture*, Error> GetOrCreateTexture(const std::string_view path);
+    Result<SDL_GPUTexture*> GetOrCreateTexture(const std::string_view path);
 
     SDL_GPUTexture* GetTexture(const std::string_view path);
 

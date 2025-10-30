@@ -1,10 +1,8 @@
 #pragma once
 
 #include "Material.h"
-#include "Vertex.h"
-#include <RefCount.h>
-
-#include <span>
+#include "RefCount.h"
+#include "Error.h"
 
 class MeshSpec
 {
@@ -40,14 +38,18 @@ class Mesh
 {
 public:
 
-    static RefPtr<Mesh> Create(
+    static Result<RefPtr<Mesh>> Create(
         VertexBuffer* vb,
         IndexBuffer* ib,
         const unsigned indexOffset,
         const unsigned indexCount,
         const MaterialId materialId)
     {
-        return new Mesh(vb, ib, indexOffset, indexCount, materialId);
+        Mesh* mesh = new Mesh(vb, ib, indexOffset, indexCount, materialId);
+
+        expectv(mesh, "Error allocating mesh");
+
+        return mesh;
     }
 
     RefPtr<VertexBuffer> VtxBuffer;

@@ -3,8 +3,10 @@
 #include "Mesh.h"
 #include "SceneNode.h"
 #include "SceneVisitor.h"
+#include "Vertex.h"
 
 #include <vector>
+#include <span>
 
 class ModelSpec
 {

@@ -7,7 +7,7 @@
 
 #include "STLLoader.h"
 
-std::expected<void, Error> loadAsciiSTL(const std::string& filename, std::vector<Triangle>& triangles)
+Result<void> loadAsciiSTL(const std::string& filename, std::vector<Triangle>& triangles)
 {
     std::ifstream file(filename);
     expect(file.is_open(), "Could not open {}", filename);
