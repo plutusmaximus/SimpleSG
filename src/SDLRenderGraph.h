@@ -46,7 +46,8 @@ private:
         .width = 0,
         .height = 0,
         .layer_count_or_depth = 1,
-        .num_levels = 1
+        .num_levels = 1,
+        .props = SDL_CreateProperties()
     };
 
 

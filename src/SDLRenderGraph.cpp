@@ -63,6 +63,8 @@ SDLRenderGraph::Render(const Camera& camera)
 
     auto adCmdBuf = AutoDeleter(SDL_SubmitGPUCommandBuffer, cmdBuf);
 
+    static constexpr float CLEAR_DEPTH = 1.0f;
+
     if (!m_DepthBuffer || m_DepthCreateInfo.width != windowW || m_DepthCreateInfo.height != windowH)
     {
         SDL_ReleaseGPUTexture(gpuDevice, m_DepthBuffer);
@@ -70,6 +72,8 @@ SDLRenderGraph::Render(const Camera& camera)
 
         m_DepthCreateInfo.width = windowW;
         m_DepthCreateInfo.height = windowH;
+
+        SDL_SetFloatProperty(m_DepthCreateInfo.props, SDL_PROP_GPU_TEXTURE_CREATE_D3D12_CLEAR_DEPTH_FLOAT, CLEAR_DEPTH);
 
         m_DepthBuffer = SDL_CreateGPUTexture(gpuDevice, &m_DepthCreateInfo);
         expect(m_DepthBuffer, SDL_GetError());
@@ -88,7 +92,7 @@ SDLRenderGraph::Render(const Camera& camera)
     SDL_GPUDepthStencilTargetInfo depthTargetInfo
     {
         .texture = m_DepthBuffer,
-        .clear_depth = 1,
+        .clear_depth = CLEAR_DEPTH,
         .load_op = SDL_GPU_LOADOP_CLEAR,
         .store_op = SDL_GPU_STOREOP_STORE
     };

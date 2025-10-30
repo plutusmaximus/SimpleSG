@@ -22,7 +22,7 @@ struct VSInput
 {
     float3 inPosition : TEXCOORD0;
     float3 inNormal : TEXCOORD1;
-    float2 inTexCoord : TEXCOORD3;
+    float2 inTexCoord : TEXCOORD2;
 };
 struct VSOutput
 {
