@@ -13,44 +13,42 @@ option(SIMPLESG_STRICT "Treat warnings as errors" ON)
 if(MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
-# Enable MSVC STL hardening
-#   TODO - remove in release builds
+    # Enable MSVC STL hardening
+    #   TODO - remove in release builds
     add_compile_definitions(_MSVC_STL_HARDENING=2 _ITERATOR_DEBUG_LEVEL=2)
 endif()
 
 # ============================================================
 # Dependencies (SDL3, spdlog, glm, stb)
 # ============================================================
-FetchContent_Declare(SDL3
-  GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-  GIT_TAG release-3.2.24
-)
-FetchContent_MakeAvailable(SDL3)
 
-FetchContent_Declare(spdlog
-  GIT_REPOSITORY https://github.com/gabime/spdlog.git
-  GIT_TAG v1.16.0
-)
-FetchContent_MakeAvailable(spdlog)
+# --- SDL3
+set(SDL3_SOURCE_DIR ${CMAKE_SOURCE_DIR}/thirdparty/SDL)
 
-FetchContent_Declare(glm
-  GIT_REPOSITORY https://github.com/g-truc/glm.git
-  GIT_TAG 1.0.2
-)
-FetchContent_MakeAvailable(glm)
+set(SDL_SHARED OFF CACHE BOOL "Build shared SDL library" FORCE)
+set(SDL_STATIC ON CACHE BOOL "Build static SDL library" FORCE)
+set(SDL_TEST OFF CACHE BOOL "Build SDL test programs" FORCE)
+set(SDL_TESTS OFF CACHE BOOL "Build SDL tests" FORCE)
+set(SDL_TEST_LIBRARY OFF CACHE BOOL "Build SDL test library" FORCE)
 
-FetchContent_Declare(stb
-  GIT_REPOSITORY https://github.com/nothings/stb.git
-  GIT_TAG f1c79c02822848a9bed4315b12c8c8f3761e1296
-)
-FetchContent_MakeAvailable(stb)
-FetchContent_GetProperties(stb)
-if(NOT stb_POPULATED)
-  FetchContent_Populate(stb)
-endif()
-add_library(stb INTERFACE)
-target_include_directories(stb INTERFACE "${stb_SOURCE_DIR}")
-add_library(stb::stb ALIAS stb)
+add_subdirectory(${SDL3_SOURCE_DIR} ${CMAKE_BINARY_DIR}/thirdparty/SDL-build)
+
+# --- spdlog
+set(SPDLOG_BUILD_SHARED OFF CACHE BOOL "Build as shared library" FORCE)
+#set(SPDLOG_FMT_EXTERNAL OFF CACHE BOOL "Use external fmt library" FORCE)
+#set(SPDLOG_USE_STD_FORMAT ON CACHE BOOL "Use C++20 std::format" FORCE)
+set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "Disable tests" FORCE)
+set(SPDLOG_BUILD_EXAMPLES OFF CACHE BOOL "Disable examples" FORCE)
+set(SPDLOG_INSTALL OFF CACHE BOOL "Disable install target" FORCE)
+set(SPDLOG_HEADER_ONLY OFF CACHE BOOL "Disable header-only mode" FORCE)
+
+add_subdirectory(thirdparty/spdlog)
+
+# --- glm
+set(GLM_BUILD_TESTS OFF CACHE BOOL "Build GLM test programs" FORCE)
+set(GLM_BUILD_INSTALL OFF CACHE BOOL "Generate install target" FORCE)
+
+add_subdirectory(thirdparty/glm)
 
 # ============================================================
 # Shaders / Assets
@@ -78,8 +76,8 @@ add_library(ssg ${SSG_CPP})
 add_library(ssg::ssg ALIAS ssg)
 target_sources(ssg PUBLIC FILE_SET HEADERS BASE_DIRS src FILES ${SSG_HEADERS})
 
-target_link_libraries(ssg PUBLIC glm::glm spdlog::spdlog SDL3::SDL3 stb::stb)
-target_include_directories(ssg PUBLIC src)
+target_link_libraries(ssg PUBLIC glm::glm spdlog::spdlog SDL3::SDL3)
+target_include_directories(ssg PUBLIC src PRIVATE thirdparty/stb)
 
 if(MSVC)
   target_compile_definitions(ssg PRIVATE _HAS_EXCEPTIONS=0)
@@ -96,7 +94,7 @@ endif()
 # Executable: Cube
 # ============================================================
 add_executable(Cube tests/cube.cpp)
-target_link_libraries(Cube PRIVATE ssg::ssg)
+target_link_libraries(Cube PRIVATE ssg::ssg spdlog::spdlog)
 add_dependencies(Cube shaders copy_images copy_models)
 
 if(MSVC)

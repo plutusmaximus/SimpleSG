@@ -1,0 +1,12 @@
+[submodule "thirdparty/SDL"]
+	path = thirdparty/SDL
+	url = https://github.com/libsdl-org/SDL.git
+[submodule "thirdparty/spdlog"]
+	path = thirdparty/spdlog
+	url = https://github.com/gabime/spdlog.git
+[submodule "thirdparty/glm"]
+	path = thirdparty/glm
+	url = https://github.com/g-truc/glm.git
+[submodule "thirdparty/stb"]
+	path = thirdparty/stb
+	url = https://github.com/nothings/stb.git
