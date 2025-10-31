@@ -45,23 +45,18 @@ SDLRenderGraph::Render(const Camera& camera)
 
     expect(cmdBuf, SDL_GetError());
 
+    auto adCmdBuf = AutoDeleter(SDL_CancelGPUCommandBuffer, cmdBuf);
+
     SDL_GPUTexture* swapChainTexture;
     uint32_t windowW, windowH;
-    if (!SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuf, window, &swapChainTexture, &windowW, &windowH))
-    {
-        SDL_CancelGPUCommandBuffer(cmdBuf);
-        return std::unexpected(SDL_GetError());
-    }
+    expect(SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuf, window, &swapChainTexture, &windowW, &windowH), SDL_GetError())
 
     if (nullptr == swapChainTexture)
     {
         //Perhaps window minimized
-        SDL_CancelGPUCommandBuffer(cmdBuf);
         std::this_thread::yield();
         return {};
     }
-
-    auto adCmdBuf = AutoDeleter(SDL_SubmitGPUCommandBuffer, cmdBuf);
 
     static constexpr float CLEAR_DEPTH = 1.0f;
 
@@ -104,6 +99,13 @@ SDLRenderGraph::Render(const Camera& camera)
         &depthTargetInfo);
 
     expect(renderPass, SDL_GetError());
+
+    adCmdBuf.Cancel();
+
+    auto cleanup = AutoDeleter([](auto r, auto c)
+    {
+        SDL_EndGPURenderPass(r); SDL_SubmitGPUCommandBuffer(c);
+    }, renderPass, cmdBuf);
 
     SDL_GPUViewport viewport
     {
@@ -186,7 +188,7 @@ SDLRenderGraph::Render(const Camera& camera)
 
     SDL_EndGPURenderPass(renderPass);
 
-    adCmdBuf.Cancel();
+    cleanup.Cancel();
 
     auto fence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmdBuf);
 
