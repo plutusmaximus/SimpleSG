@@ -90,7 +90,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         auto gd = *gdResult;
 
         std::vector<Triangle> triangles;
-        auto stlResult = loadAsciiSTL(cwd.string() + "/Models/Pumpkin-DD.stl", triangles);
+        auto stlResult = loadAsciiSTL("models/Pumpkin-DD.stl", triangles);
         pcheck(stlResult, stlResult.error());
         pcheck(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
 
@@ -159,7 +159,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
                     .Color = {1, 0, 0},
                     .VertexShader = "shaders/Debug/VertexShader",
                     .FragmentShader = "shaders/Debug/ColorShader",
-                    .Albedo = "Images\\Ant.png"
+                    .Albedo = "images/Ant.png"
                 }
             },
         };
@@ -181,7 +181,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
                     .Color = {1, 0, 0},
                     .VertexShader = "shaders/Debug/VertexShader",
                     .FragmentShader = "shaders/Debug/FragmentShader",
-                    .Albedo = "Images\\Ant.png"
+                    .Albedo = "images/Ant.png"
                 }
             },
             {
@@ -192,7 +192,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
                     .Color = {0, 1, 0},
                     .VertexShader = "shaders/Debug/VertexShader",
                     .FragmentShader = "shaders/Debug/FragmentShader",
-                    .Albedo = "Images\\Bee.png"
+                    .Albedo = "images/Bee.png"
                 }
             },
             {
@@ -203,7 +203,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
                     .Color = {0, 0, 1},
                     .VertexShader = "shaders/Debug/VertexShader",
                     .FragmentShader = "shaders/Debug/FragmentShader",
-                    .Albedo = "Images\\Butterfly.png"
+                    .Albedo = "images/Butterfly.png"
                 }
             },
             {
@@ -214,7 +214,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
                     .Color = {1, 1, 1},
                     .VertexShader = "shaders/Debug/VertexShader",
                     .FragmentShader = "shaders/Debug/FragmentShader",
-                    .Albedo = "Images\\Frog.png"
+                    .Albedo = "images/Frog.png"
                 }
             },
             {
@@ -225,7 +225,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
                     .Color = {0, 1, 1},
                     .VertexShader = "shaders/Debug/VertexShader",
                     .FragmentShader = "shaders/Debug/FragmentShader",
-                    .Albedo = "Images\\Lizard.png"
+                    .Albedo = "images/Lizard.png"
                 }
             },
             {
@@ -236,7 +236,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
                     .Color = {1, 0, 1},
                     .VertexShader = "shaders/Debug/VertexShader",
                     .FragmentShader = "shaders/Debug/FragmentShader",
-                    .Albedo = "Images\\Turtle.png"
+                    .Albedo = "images/Turtle.png"
                 }
             },
         };
