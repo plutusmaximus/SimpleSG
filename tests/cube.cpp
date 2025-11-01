@@ -7,7 +7,7 @@
 #include "TransformNode.h"
 #include "SDLRenderGraph.h"
 #include "VecMath.h"
-#include "Camera.h"
+#include "CameraNode.h"
 
 #include "SDLGPUDevice.h"
 
@@ -266,9 +266,9 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         planetXFormNode->AddChild(moonXFormNode);
         scene->AddChild(planetXFormNode);
 
-        auto cameraResult = Camera::Create();
+        auto cameraResult = CameraNode::Create();
         pcheck(cameraResult, cameraResult.error());
-        RefPtr<Camera> camera = cameraResult.value();
+        RefPtr<CameraNode> camera = cameraResult.value();
         const Degreesf fov(45);
         camera->SetPerspective(fov, 100, 100, 0.1f, 1000);
         RefPtr<TransformNode> cameraXFormNode = new TransformNode();

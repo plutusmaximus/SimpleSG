@@ -133,7 +133,7 @@ SDLGPUDevice::~SDLGPUDevice()
     }
 }
 
-Result<RefPtr<Model>>
+Result<RefPtr<ModelNode>>
 SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
 {
     auto vbResult = CreateVertexBuffer(modelSpec.Vertices);
@@ -202,7 +202,7 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
         meshes.emplace_back(meshResult.value());
     }
 
-    return Model::Create(meshes);
+    return ModelNode::Create(meshes);
 }
 
 Result<RefPtr<RenderGraph>>

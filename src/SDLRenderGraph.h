@@ -4,11 +4,10 @@
 #include <map>
 
 #include "RenderGraph.h"
-#include "Model.h"
+#include "ModelNode.h"
 
 #include <SDL3/SDL_gpu.h>
 
-class Camera;
 class SDLGPUDevice;
 
 class SDLRenderGraph : public RenderGraph
@@ -19,7 +18,7 @@ public:
 
     explicit SDLRenderGraph(SDLGPUDevice* gpuDevice);
 
-    virtual void Add(const Mat44f& viewTransform, RefPtr<Model> model) override;
+    virtual void Add(const Mat44f& viewTransform, RefPtr<ModelNode> model) override;
 
     virtual Result<void> Render(const Mat44f& view, const Mat44f& projection) override;
 

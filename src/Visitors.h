@@ -60,7 +60,7 @@ public:
 
     ~ModelVisitor() override {}
 
-    void Visit(Model* node) override;
+    void Visit(ModelNode* node) override;
 
 private:
 
@@ -76,7 +76,7 @@ public:
     struct ViewspaceCamera
     {
         const Mat44f ViewTransform;
-        RefPtr<Camera> Camera;
+        RefPtr<CameraNode> Camera;
     };
 
     using CameraList = std::list<ViewspaceCamera>;
@@ -85,7 +85,7 @@ public:
 
     ~CameraVisitor() override {}
 
-    void Visit(Camera* node) override;
+    void Visit(CameraNode* node) override;
 
     CameraList GetCameras()
     {

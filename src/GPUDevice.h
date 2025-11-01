@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Model.h"
+#include "ModelNode.h"
 #include "RenderGraph.h"
 
 class GPUDevice
@@ -11,7 +11,7 @@ public:
 
     virtual ~GPUDevice() = 0 {}
 
-    virtual Result<RefPtr<Model>> CreateModel(const ModelSpec& modelSpec) = 0;
+    virtual Result<RefPtr<ModelNode>> CreateModel(const ModelSpec& modelSpec) = 0;
 
     virtual Result<RefPtr<RenderGraph>> CreateRenderGraph() = 0;
 

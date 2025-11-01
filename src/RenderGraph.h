@@ -1,11 +1,9 @@
 #pragma once
 
-#include "Model.h"
+#include "ModelNode.h"
 #include "Error.h"
 
 #include <expected>
-
-class Camera;
 
 class RenderGraph
 {
@@ -17,7 +15,7 @@ public:
     {
     }
 
-    virtual void Add(const Mat44f& viewTransform, RefPtr<Model> model) = 0;
+    virtual void Add(const Mat44f& viewTransform, RefPtr<ModelNode> model) = 0;
 
     virtual Result<void> Render(const Mat44f& view, const Mat44f& projection) = 0;
 

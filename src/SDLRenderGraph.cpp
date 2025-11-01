@@ -1,7 +1,5 @@
 #include "SDLRenderGraph.h"
 
-#include "Camera.h"
-
 #include "Error.h"
 
 #include "AutoDeleter.h"
@@ -22,7 +20,7 @@ SDLRenderGraph::~SDLRenderGraph()
 }
 
 void
-SDLRenderGraph::Add(const Mat44f& viewTransform, RefPtr<Model> model)
+SDLRenderGraph::Add(const Mat44f& viewTransform, RefPtr<ModelNode> model)
 {
     m_ViewTransforms.emplace_back(viewTransform);
 

@@ -16,13 +16,13 @@ public:
     std::span<MeshSpec> MeshSpecs;
 };
 
-class Model : public SceneNode
+class ModelNode : public SceneNode
 {
 public:
 
-    static Result<RefPtr<Model>> Create(std::span<RefPtr<Mesh>> meshes)
+    static Result<RefPtr<ModelNode>> Create(std::span<RefPtr<Mesh>> meshes)
     {
-        Model* model = new Model(meshes);
+        ModelNode* model = new ModelNode(meshes);
 
         expectv(model, "Error allocating model");
 
@@ -31,7 +31,7 @@ public:
 
     class Meshes : private std::vector<RefPtr<Mesh>>
     {
-        friend class Model;
+        friend class ModelNode;
     public:
 
         using iterator = std::vector<RefPtr<Mesh>>::iterator;
@@ -50,9 +50,9 @@ public:
 
 private:
 
-    Model() = delete;
+    ModelNode() = delete;
 
-    Model(std::span<RefPtr<Mesh>> meshes)
+    ModelNode(std::span<RefPtr<Mesh>> meshes)
     {
         Meshes.reserve(meshes.size());
         Meshes.assign(meshes.begin(), meshes.end());

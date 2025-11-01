@@ -1,8 +1,7 @@
 #include "Visitors.h"
 
-#include "Model.h"
 #include "TransformNode.h"
-#include "Camera.h"
+#include "CameraNode.h"
 #include "RenderGraph.h"
 
 void GroupVisitor::Visit(GroupNode* node)
@@ -19,12 +18,12 @@ void TransformVisitor::Visit(TransformNode* node)
     m_TransformStack.pop();
 }
 
-void ModelVisitor::Visit(Model* node)
+void ModelVisitor::Visit(ModelNode* node)
 {
     m_RenderGraph->Add(GetTransform(), node);
 }
 
-void CameraVisitor::Visit(Camera* node)
+void CameraVisitor::Visit(CameraNode* node)
 {
     m_CameraList.emplace_back(ViewspaceCamera{ .ViewTransform = GetTransform(), .Camera = node });
-}
+}   

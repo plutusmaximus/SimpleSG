@@ -4,20 +4,20 @@
 #include "SceneNode.h"
 #include "SceneVisitor.h"
 
-class Camera : public SceneNode
+class CameraNode : public SceneNode
 {
 public:
 
-    static Result<RefPtr<Camera>> Create()
+    static Result<RefPtr<CameraNode>> Create()
     {
-        Camera* camera = new Camera();
+        CameraNode* camera = new CameraNode();
 
         expectv(camera, "Error allocating camera");
 
         return camera;
     }
 
-    ~Camera() override {}
+    ~CameraNode() override {}
 
     void Accept(SceneVisitor* visitor) override
     {
@@ -49,7 +49,7 @@ public:
 
 private:
 
-    Camera() = default;
+    CameraNode() = default;
 
     Degreesf m_Fov{ 0 };
     float m_Width{ 0 }, m_Height{ 0 };
