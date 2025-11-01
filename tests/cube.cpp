@@ -3,7 +3,7 @@
 #include <filesystem>
 
 #include "Error.h"
-#include "ModelVisitor.h"
+#include "Visitors.h"
 #include "TransformNode.h"
 #include "SDLRenderGraph.h"
 #include "VecMath.h"
@@ -266,8 +266,14 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         planetXFormNode->AddChild(moonXFormNode);
         scene->AddChild(planetXFormNode);
 
+        auto cameraResult = Camera::Create();
+        pcheck(cameraResult, cameraResult.error());
+        RefPtr<Camera> camera = cameraResult.value();
         const Degreesf fov(45);
-        Camera camera(fov, 100, 100, 0.1f, 1000);
+        camera->SetPerspective(fov, 100, 100, 0.1f, 1000);
+        RefPtr<TransformNode> cameraXFormNode = new TransformNode();
+        cameraXFormNode->AddChild(camera);
+        scene->AddChild(cameraXFormNode);
 
         // Main loop
         bool running = true;
@@ -330,16 +336,20 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
                 continue;
             }
 
-            camera.SetBounds(windowW, windowH);
+            camera->SetBounds(windowW, windowH);
 
             auto renderGraphResult = gd->CreateRenderGraph();
             pcheck(renderGraphResult, renderGraphResult.error());
 
             auto renderGraph = renderGraphResult.value();
 
-            ModelVisitor visitor(renderGraph);
-            scene->Accept(&visitor);
-            auto renderResult = renderGraph->Render(camera);
+            CameraVisitor cameraVisitor;
+            ModelVisitor modelVisitor(renderGraph);
+            scene->Accept(&cameraVisitor);
+            scene->Accept(&modelVisitor);
+
+            auto vsCamera = cameraVisitor.GetCameras().front();
+            auto renderResult = renderGraph->Render(vsCamera.ViewTransform, vsCamera.Camera->GetProjection());
             if (!renderResult)
             {
                 logError(renderResult.error().Message);

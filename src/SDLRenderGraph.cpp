@@ -22,21 +22,22 @@ SDLRenderGraph::~SDLRenderGraph()
 }
 
 void
-SDLRenderGraph::Add(const Mat44f& transform, RefPtr<Model> model)
+SDLRenderGraph::Add(const Mat44f& viewTransform, RefPtr<Model> model)
 {
-    const int xfomIdx = static_cast<int>(m_Transforms.size());
-    m_Transforms.push_back(transform);
+    m_ViewTransforms.emplace_back(viewTransform);
 
     for (const auto& mesh : model->Meshes)
     {
         const MaterialId mtlId = mesh->MaterialId;
 
-        m_MeshGroups[mtlId].push_back({ xfomIdx, mesh });
+        auto& meshGroup = m_MeshGroups[mtlId];
+
+        meshGroup.emplace_back(XformMesh{ .ViewTransform = m_ViewTransforms.back(), .Mesh = mesh});
     }
 }
 
 Result<void>
-SDLRenderGraph::Render(const Camera& camera)
+SDLRenderGraph::Render(const Mat44f& view, const Mat44f& projection)
 {
     auto gpuDevice = m_GpuDevice->m_GpuDevice;
     auto window = m_GpuDevice->m_Window;
@@ -154,9 +155,11 @@ SDLRenderGraph::Render(const Camera& camera)
 
         SDL_BindGPUGraphicsPipeline(renderPass, pipelineResult.value());
 
+        const Mat44f viewProj = projection.Mul(view);
+
         for (auto& xmesh : xmeshes)
         {
-            const Mat44 xform = camera.ViewProj().Mul(m_Transforms[xmesh.TransformIdx]);
+            const Mat44f xform = viewProj.Mul(xmesh.ViewTransform);
 
             SDL_PushGPUVertexUniformData(cmdBuf, 0, &xform, sizeof(xform));
 
@@ -204,9 +207,5 @@ SDLRenderGraph::Render(const Camera& camera)
 void
 SDLRenderGraph::Reset()
 {
-    m_Transforms.clear();
-    for (auto& [mtlId, meshes] : m_MeshGroups)
-    {
-        meshes.clear();
-    }
+    m_MeshGroups.clear();
 }

@@ -57,6 +57,4 @@ private:
         Meshes.reserve(meshes.size());
         Meshes.assign(meshes.begin(), meshes.end());
     }
-
-    IMPLEMENT_REFCOUNT(Model);
 };

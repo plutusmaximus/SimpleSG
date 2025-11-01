@@ -1,6 +1,7 @@
 #pragma once
 
 class Model;
+class Camera;
 class GroupNode;
 class TransformNode;
 
@@ -12,9 +13,11 @@ public:
 
     virtual ~SceneVisitor() = 0 {}
 
-    virtual void Visit(Model* node) = 0;
+    virtual void Visit(Model* node) {}
 
-    virtual void Visit(TransformNode* node) = 0;
+    virtual void Visit(Camera* node) {}
 
-    virtual void Visit(GroupNode* node) = 0;
+    virtual void Visit(TransformNode* node) {}
+
+    virtual void Visit(GroupNode* node) {}
 };

@@ -17,9 +17,9 @@ public:
     {
     }
 
-    virtual void Add(const Mat44f& transform, RefPtr<Model> model) = 0;
+    virtual void Add(const Mat44f& viewTransform, RefPtr<Model> model) = 0;
 
-    virtual Result<void> Render(const Camera& camera) = 0;
+    virtual Result<void> Render(const Mat44f& view, const Mat44f& projection) = 0;
 
     virtual void Reset() = 0;
 

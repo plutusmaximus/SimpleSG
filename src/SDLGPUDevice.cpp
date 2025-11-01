@@ -193,13 +193,13 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
         expectv(mtl, "Error allocating SDLMaterial");
 
         m_MaterialIndexById.emplace(mtl->Id, std::size(m_Materials));
-        m_Materials.push_back(mtl);
+        m_Materials.emplace_back(mtl);
 
         auto meshResult = Mesh::Create(vtxBuf, idxBuf, meshSpec.IndexOffset, meshSpec.IndexCount, mtl->Id);
 
         expect(meshResult, meshResult.error());
 
-        meshes.push_back(meshResult.value());
+        meshes.emplace_back(meshResult.value());
     }
 
     return Model::Create(meshes);

@@ -19,9 +19,9 @@ public:
 
     explicit SDLRenderGraph(SDLGPUDevice* gpuDevice);
 
-    virtual void Add(const Mat44f& transform, RefPtr<Model> model) override;
+    virtual void Add(const Mat44f& viewTransform, RefPtr<Model> model) override;
 
-    virtual Result<void> Render(const Camera& camera) override;
+    virtual Result<void> Render(const Mat44f& view, const Mat44f& projection) override;
 
     virtual void Reset() override;
 
@@ -29,11 +29,11 @@ private:
 
     struct XformMesh
     {
-        const int TransformIdx;
+        const Mat44f& ViewTransform;
         RefPtr<Mesh> Mesh;
     };
 
-    std::vector<Mat44f> m_Transforms;
+    std::list<Mat44f> m_ViewTransforms;
 
     RefPtr<SDLGPUDevice> m_GpuDevice;
     SDL_GPUTexture* m_DepthBuffer = nullptr;
@@ -51,5 +51,5 @@ private:
     };
 
 
-    std::map<MaterialId, std::vector<XformMesh>> m_MeshGroups;
+    std::map<MaterialId, std::list<XformMesh>> m_MeshGroups;
 };
