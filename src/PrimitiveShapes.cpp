@@ -371,93 +371,80 @@ void MakeCone(const float diameter1, const float diameter2, const float smoothne
     }
 }
 
-void MakeTorus(const float majorDiameter, const float minorDiameter, const float smoothness,
-    std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
+void MakeTorus(
+    const float majorDiameter,
+    const float minorDiameter,
+    const float smoothness,
+    std::vector<Vertex>& vertices,
+    std::vector<uint32_t>& indices)
 {
     vertices.clear();
     indices.clear();
 
-    float majorRadius = majorDiameter * 0.5f; // Distance from origin to tube center
-    float minorRadius = minorDiameter * 0.5f; // Tube radius
+    const float majorRadius = majorDiameter * 0.5f;
+    const float minorRadius = minorDiameter * 0.5f;
 
-    // Clamp smoothness and calculate segments
-    float s = std::max(1.0f, std::min(10.0f, smoothness));
-    uint32_t majorSegments = static_cast<uint32_t>(8 + s * 4); // Around the ring
-    uint32_t minorSegments = static_cast<uint32_t>(6 + s * 2); // Around the tube
+    // Minimum smoothness of 3 to avoid degenerate geometry
+    const uint32_t numSegmentsMajor = std::max(3u, static_cast<uint32_t>(smoothness * 4));
+    const uint32_t numSegmentsMinor = std::max(3u, static_cast<uint32_t>(smoothness * 4));
 
-    vertices.reserve(majorSegments * minorSegments);
-    indices.reserve(majorSegments * minorSegments * 6);
+    const float dTheta = 2.0f * M_PI / static_cast<float>(numSegmentsMajor);
+    const float dPhi = 2.0f * M_PI / static_cast<float>(numSegmentsMinor);
 
-    // Generate vertices
-    for (uint32_t i = 0; i < majorSegments; ++i)
+    // Reserve memory to avoid reallocations
+    vertices.reserve(numSegmentsMajor * numSegmentsMinor);
+    indices.reserve(numSegmentsMajor * numSegmentsMinor * 6);
+
+    // --- Generate vertices ---
+    for (uint32_t i = 0; i < numSegmentsMajor; ++i)
     {
-        float u = 2.0f * M_PI * static_cast<float>(i) / static_cast<float>(majorSegments);
-        float cosU = std::cos(u);
-        float sinU = std::sin(u);
+        const float theta = i * dTheta;
+        const float cosTheta = std::cos(theta);
+        const float sinTheta = std::sin(theta);
 
-        for (uint32_t j = 0; j < minorSegments; ++j)
+        for (uint32_t j = 0; j < numSegmentsMinor; ++j)
         {
-            float v = 2.0f * M_PI * static_cast<float>(j) / static_cast<float>(minorSegments);
-            float cosV = std::cos(v);
-            float sinV = std::sin(v);
+            const float phi = j * dPhi;
+            const float cosPhi = std::cos(phi);
+            const float sinPhi = std::sin(phi);
 
-            // Position on the torus
-            float x = (majorRadius + minorRadius * cosV) * cosU;
-            float y = minorRadius * sinV;
-            float z = (majorRadius + minorRadius * cosV) * sinU;
+            // Vertex position (left-handed)
+            const float x = (majorRadius + minorRadius * cosPhi) * cosTheta;
+            const float y = (majorRadius + minorRadius * cosPhi) * sinTheta;
+            const float z = minorRadius * sinPhi;
 
-            // Normal calculation
-            // The normal at any point on the torus points from the tube center
-            float tubeX = majorRadius * cosU;
-            float tubeZ = majorRadius * sinU;
+            // Unit normal
+            const float nx = cosTheta * cosPhi;
+            const float ny = sinTheta * cosPhi;
+            const float nz = sinPhi;
 
-            VertexNormal normal = { x - tubeX, y, z - tubeZ };
-            Normalize(normal);
-
-            vertices.push_back({ { x, y, z }, normal });
+            vertices.push_back(Vertex{
+                { x, y, z },
+                { nx, ny, nz }
+                });
         }
     }
 
-    // Generate indices with corrected winding
-    for (uint32_t i = 0; i < majorSegments; ++i)
+    // --- Generate triangle indices (CLOCKWISE for left-handed system) ---
+    for (uint32_t i = 0; i < numSegmentsMajor; ++i)
     {
-        uint32_t nextI = (i + 1) % majorSegments;
-
-        for (uint32_t j = 0; j < minorSegments; ++j)
+        const uint32_t nextI = (i + 1) % numSegmentsMajor;
+        for (uint32_t j = 0; j < numSegmentsMinor; ++j)
         {
-            uint32_t nextJ = (j + 1) % minorSegments;
+            const uint32_t nextJ = (j + 1) % numSegmentsMinor;
 
-            uint32_t i0 = i * minorSegments + j;
-            uint32_t i1 = nextI * minorSegments + j;
-            uint32_t i2 = nextI * minorSegments + nextJ;
-            uint32_t i3 = i * minorSegments + nextJ;
+            const uint32_t i0 = i * numSegmentsMinor + j;
+            const uint32_t i1 = nextI * numSegmentsMinor + j;
+            const uint32_t i2 = nextI * numSegmentsMinor + nextJ;
+            const uint32_t i3 = i * numSegmentsMinor + nextJ;
 
-            // Determine winding based on distance from central axis
-            // Points closer to center hole need opposite winding
-            float v = 2.0f * M_PI * static_cast<float>(j) / static_cast<float>(minorSegments);
-            float cosV = std::cos(v);
-            float radiusAtPoint = majorRadius + minorRadius * cosV;
+            indices.push_back(i0);
+            indices.push_back(i1);
+            indices.push_back(i2);
 
-            if (radiusAtPoint < majorRadius) {
-                // Inner half of torus (facing center hole)
-                indices.push_back(i0);
-                indices.push_back(i1);
-                indices.push_back(i2);
-
-                indices.push_back(i0);
-                indices.push_back(i2);
-                indices.push_back(i3);
-            }
-            else {
-                // Outer half of torus (away from center hole)
-                indices.push_back(i0);
-                indices.push_back(i2);
-                indices.push_back(i1);
-
-                indices.push_back(i0);
-                indices.push_back(i3);
-                indices.push_back(i2);
-            }
+            indices.push_back(i0);
+            indices.push_back(i2);
+            indices.push_back(i3);
         }
     }
 }
