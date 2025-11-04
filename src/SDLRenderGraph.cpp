@@ -35,8 +35,10 @@ SDLRenderGraph::Add(const Mat44f& viewTransform, RefPtr<ModelNode> model)
 }
 
 Result<void>
-SDLRenderGraph::Render(const Mat44f& view, const Mat44f& projection)
+SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 {
+    const Mat44f viewXform = camera.Inverse();
+
     auto gpuDevice = m_GpuDevice->m_GpuDevice;
     auto window = m_GpuDevice->m_Window;
 
@@ -153,7 +155,7 @@ SDLRenderGraph::Render(const Mat44f& view, const Mat44f& projection)
 
         SDL_BindGPUGraphicsPipeline(renderPass, pipelineResult.value());
 
-        const Mat44f viewProj = projection.Mul(view);
+        const Mat44f viewProj = projection.Mul(viewXform);
 
         for (auto& xmesh : xmeshes)
         {

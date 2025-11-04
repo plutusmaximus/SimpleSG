@@ -25,5 +25,9 @@ void ModelVisitor::Visit(ModelNode* node)
 
 void CameraVisitor::Visit(CameraNode* node)
 {
-    m_CameraList.emplace_back(ViewspaceCamera{ .ViewTransform = GetTransform(), .Camera = node });
+    m_CameraList.emplace_back(ViewspaceCamera
+        {
+            .Transform = GetTransform(),
+            .Projection = node->GetProjection()
+        });
 }   

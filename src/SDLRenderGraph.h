@@ -20,7 +20,7 @@ public:
 
     virtual void Add(const Mat44f& viewTransform, RefPtr<ModelNode> model) override;
 
-    virtual Result<void> Render(const Mat44f& view, const Mat44f& projection) override;
+    virtual Result<void> Render(const Mat44f& camera, const Mat44f& projection) override;
 
     virtual void Reset() override;
 

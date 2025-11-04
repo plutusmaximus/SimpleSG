@@ -52,6 +52,11 @@ public:
         return Degrees<T>(m_Value - other);
     }
 
+    constexpr Degrees<T> operator*(const T other) const
+    {
+        return Degrees<T>(m_Value * other);
+    }
+
     constexpr Degrees<T> operator-() const
     {
         return Degrees<T>(-m_Value);
@@ -78,6 +83,12 @@ public:
     constexpr Degrees<T>& operator-=(const T other)
     {
         m_Value -= other;
+        return *this;
+    }
+
+    constexpr Degrees<T> operator*=(const T other)
+    {
+        m_Value *= other;
         return *this;
     }
 
@@ -165,6 +176,11 @@ public:
         return Radians<T>(m_Value - other);
     }
 
+    constexpr Radians<T> operator*(const T other) const
+    {
+        return Radians<T>(m_Value * other);
+    }
+
     constexpr Radians<T> operator-() const
     {
         return Radians<T>(-m_Value);
@@ -191,6 +207,12 @@ public:
     constexpr Radians<T>& operator-=(const T other)
     {
         m_Value -= other;
+        return *this;
+    }
+
+    constexpr Radians<T> operator*=(const T other)
+    {
+        m_Value *= other;
         return *this;
     }
 
@@ -244,6 +266,67 @@ inline constexpr Radians<T> Degrees<T>::ToRadians() const
 }
 
 template<typename T>
+inline constexpr Degrees<T> operator*(const T a, const Degrees<T> b)
+{
+    return b * a;
+}
+
+template<typename T>
+inline constexpr Radians<T> operator*(const T a, const Radians<T> b)
+{
+    return b * a;
+}
+
+template<typename T>
+class Vec2 : public glm::vec<2, T>
+{
+public:
+
+    constexpr Vec2(const glm::vec<2, T>& v)
+        : glm::vec<2, T>(v)
+    {
+    }
+
+    using glm::vec<2, T>::vec;
+    using glm::vec<2, T>::x;
+    using glm::vec<2, T>::y;
+
+    Vec2 Normalize() const
+    {
+        return glm::normalize(*this);
+    }
+
+    constexpr Vec2 Scale(const T scale)
+    {
+        return glm::scale(scale, *this);
+    }
+
+    constexpr Vec2 Cross(const Vec2& that) const
+    {
+        return glm::cross(*this, that);
+    }
+
+    constexpr T Dot(const Vec2& that) const
+    {
+        // This static_cast is needed because glm defines:
+        // T dot(T x, T y)
+        // And without the static cast calling dot() incorrectly resolves
+        // to that overload.
+        return glm::dot(static_cast<const glm::vec2&>(*this), that);
+    }
+
+    constexpr Vec2 operator+(const Vec2& that) const
+    {
+        return glm::operator+(*this, that);
+    }
+
+    constexpr Vec2 operator-(const Vec2& that) const
+    {
+        return glm::operator-(*this, that);
+    }
+};
+
+template<typename T>
 class Vec3 : public glm::vec<3, T>
 {
 public:
@@ -272,14 +355,18 @@ public:
         return glm::scale(scale, *this);
     }
     
-    constexpr Vec3 Cross(const Vec3& that) const noexcept
+    constexpr Vec3 Cross(const Vec3& that) const
     {
         return glm::cross(*this, that);
     }
 
     constexpr T Dot(const Vec3& that) const
     {
-        return glm::dot(*this, that);
+        // This static_cast is needed because glm defines:
+        // T dot(T x, T y)
+        // And without the static cast calling dot() incorrectly resolves
+        // to that overload.
+        return glm::dot(static_cast<const glm::vec3&>(*this), that);
     }
 
     constexpr Vec3 operator+(const Vec3& that) const
@@ -319,7 +406,7 @@ public:
         return glm::scale(scale, *this);
     }
 
-    constexpr Vec4 Cross(const Vec4& that) const noexcept
+    constexpr Vec4 Cross(const Vec4& that) const
     {
         return glm::cross(*this, that);
     }
@@ -433,6 +520,7 @@ public:
 
 using Degreesf = Degrees<float>;
 using Radiansf = Radians<float>;
+using Vec2f = Vec2<float>;
 using Vec3f = Vec3<float>;
 using Vec4f = Vec4<float>;
 using Mat44f = Mat44<float>;

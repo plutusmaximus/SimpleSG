@@ -75,8 +75,8 @@ public:
 
     struct ViewspaceCamera
     {
-        const Mat44f ViewTransform;
-        RefPtr<CameraNode> Camera;
+        const Mat44f Transform;
+        const Mat44f& Projection;
     };
 
     using CameraList = std::list<ViewspaceCamera>;
