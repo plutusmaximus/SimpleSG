@@ -7,8 +7,8 @@
 class MeshSpec
 {
 public:
-    const unsigned IndexOffset;
-    const unsigned IndexCount;
+    const uint32_t IndexOffset;
+    const uint32_t IndexCount;
     MaterialSpec MtlSpec;
 };
 
@@ -41,8 +41,8 @@ public:
     static Result<RefPtr<Mesh>> Create(
         VertexBuffer* vb,
         IndexBuffer* ib,
-        const unsigned indexOffset,
-        const unsigned indexCount,
+        const uint32_t indexOffset,
+        const uint32_t indexCount,
         const MaterialId materialId)
     {
         Mesh* mesh = new Mesh(vb, ib, indexOffset, indexCount, materialId);
@@ -55,8 +55,8 @@ public:
     RefPtr<VertexBuffer> VtxBuffer;
     RefPtr<IndexBuffer> IdxBuffer;
 
-    const unsigned IndexOffset;
-    const unsigned IndexCount;
+    const uint32_t IndexOffset;
+    const uint32_t IndexCount;
     const MaterialId MaterialId;
 
 private:
@@ -66,8 +66,8 @@ private:
     Mesh(
         VertexBuffer* vb,
         IndexBuffer* ib,
-        const unsigned indexOffset,
-        const unsigned indexCount,
+        const uint32_t indexOffset,
+        const uint32_t indexCount,
         const ::MaterialId materialId)
         : VtxBuffer(vb)
         , IdxBuffer(ib)
