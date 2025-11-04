@@ -413,8 +413,3 @@ static Result<RefPtr<ModelNode>> CreatePumpkin(RefPtr<GPUDevice> gpu)
 
     return gpu->CreateModel(pumpkinModelSpec);
 }
-
-inline GimbleMouseNav::GimbleMouseNav(RefPtr<TransformNode> transformNode)
-    : m_TransformNode(transformNode)
-{
-}

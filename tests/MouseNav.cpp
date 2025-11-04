@@ -6,6 +6,11 @@
 
 #include <algorithm>
 
+GimbleMouseNav::GimbleMouseNav(RefPtr<TransformNode> transformNode)
+    : m_TransformNode(transformNode)
+{
+}
+
 GimbleMouseNav::~GimbleMouseNav() {}
 
 void GimbleMouseNav::OnMouseDown(const Vec2f& mouseLoc, const Vec2f& screenBounds, const int mouseButton)
