@@ -82,54 +82,110 @@ void MakeBall(const float diameter, const float smoothness,
 
     float radius = diameter * 0.5f;
 
-    // Clamp smoothness and calculate segments
+    // Clamp smoothness to determine subdivision level
     float s = std::max(1.0f, std::min(10.0f, smoothness));
-    uint32_t segments = static_cast<uint32_t>(8 + s * 4); // 12 to 48 segments
-    uint32_t rings = segments / 2;
+    int subdivisions = static_cast<int>(s * 0.3f); // 0 to 3 subdivisions
 
-    vertices.reserve((rings + 1) * (segments + 1));
-    indices.reserve(rings * segments * 6);
+    // Reserve space (approximate - icosahedron subdivides by adding 3 midpoints per triangle)
+    // Vertices: 12 + sum(20 * 3 * 4^i) for i in [0, subdivisions)
+    // Indices: 20 * 3 * 4^subdivisions
+    int finalTriangles = 20 * (1 << (2 * subdivisions)); // 20 * 4^subdivisions
+    int approxVertices = 12 + finalTriangles * 3 / 2; // Rough estimate
+    vertices.reserve(approxVertices);
+    indices.reserve(finalTriangles * 3);
 
-    // Generate vertices
-    for (uint32_t ring = 0; ring <= rings; ++ring)
-    {
-        float phi = M_PI * static_cast<float>(ring) / static_cast<float>(rings);
-        float y = radius * std::cos(phi);
-        float ringRadius = radius * std::sin(phi);
+    // Create icosahedron base vertices
+    const float t = (1.0f + std::sqrt(5.0f)) / 2.0f;
+    const float len = std::sqrt(1.0f + t * t);
+    const float a = 1.0f / len;
+    const float b = t / len;
 
-        for (uint32_t seg = 0; seg <= segments; ++seg)
-        {
-            float theta = 2.0f * M_PI * static_cast<float>(seg) / static_cast<float>(segments);
-            float x = ringRadius * std::cos(theta);
-            float z = ringRadius * std::sin(theta);
+    // 12 vertices of icosahedron
+    vertices.push_back({ { -a,  b,  0 }, { -a,  b,  0 } });
+    vertices.push_back({ {  a,  b,  0 }, {  a,  b,  0 } });
+    vertices.push_back({ { -a, -b,  0 }, { -a, -b,  0 } });
+    vertices.push_back({ {  a, -b,  0 }, {  a, -b,  0 } });
+    vertices.push_back({ {  0, -a,  b }, {  0, -a,  b } });
+    vertices.push_back({ {  0,  a,  b }, {  0,  a,  b } });
+    vertices.push_back({ {  0, -a, -b }, {  0, -a, -b } });
+    vertices.push_back({ {  0,  a, -b }, {  0,  a, -b } });
+    vertices.push_back({ {  b,  0, -a }, {  b,  0, -a } });
+    vertices.push_back({ {  b,  0,  a }, {  b,  0,  a } });
+    vertices.push_back({ { -b,  0, -a }, { -b,  0, -a } });
+    vertices.push_back({ { -b,  0,  a }, { -b,  0,  a } });
 
-            Vertex v;
-            v.pos = { x, y, z };
-            v.normal = { x / radius, y / radius, z / radius };
-            Normalize(v.normal);
+    // 20 faces of icosahedron (clockwise winding)
+    uint32_t faces[][3] = {
+        {0, 11, 5}, {0, 5, 1}, {0, 1, 7}, {0, 7, 10}, {0, 10, 11},
+        {1, 5, 9}, {5, 11, 4}, {11, 10, 2}, {10, 7, 6}, {7, 1, 8},
+        {3, 9, 4}, {3, 4, 2}, {3, 2, 6}, {3, 6, 8}, {3, 8, 9},
+        {4, 9, 5}, {2, 4, 11}, {6, 2, 10}, {8, 6, 7}, {9, 8, 1}
+    };
 
-            vertices.push_back(v);
-        }
+    for (int i = 0; i < 20; ++i) {
+        indices.push_back(faces[i][0]);
+        indices.push_back(faces[i][1]);
+        indices.push_back(faces[i][2]);
     }
 
-    // Generate indices (clockwise winding for left-handed system)
-    for (uint32_t ring = 0; ring < rings; ++ring)
-    {
-        for (uint32_t seg = 0; seg < segments; ++seg)
-        {
-            VertexIndex current = ring * (segments + 1) + seg;
-            VertexIndex next = current + segments + 1;
+    // Subdivide triangles
+    for (int subdiv = 0; subdiv < subdivisions; ++subdiv) {
+        std::vector<uint32_t> newIndices;
+        newIndices.reserve(indices.size() * 4);
 
-            // First triangle (clockwise)
-            indices.push_back(current);
-            indices.push_back(current + 1);
-            indices.push_back(next);
+        for (size_t i = 0; i < indices.size(); i += 3) {
+            uint32_t v0 = indices[i];
+            uint32_t v1 = indices[i + 1];
+            uint32_t v2 = indices[i + 2];
 
-            // Second triangle (clockwise)
-            indices.push_back(next);
-            indices.push_back(current + 1);
-            indices.push_back(next + 1);
+            // Get midpoints
+            VertexPos mid01 = {
+                (vertices[v0].pos.x + vertices[v1].pos.x) * 0.5f,
+                (vertices[v0].pos.y + vertices[v1].pos.y) * 0.5f,
+                (vertices[v0].pos.z + vertices[v1].pos.z) * 0.5f
+            };
+            VertexPos mid12 = {
+                (vertices[v1].pos.x + vertices[v2].pos.x) * 0.5f,
+                (vertices[v1].pos.y + vertices[v2].pos.y) * 0.5f,
+                (vertices[v1].pos.z + vertices[v2].pos.z) * 0.5f
+            };
+            VertexPos mid20 = {
+                (vertices[v2].pos.x + vertices[v0].pos.x) * 0.5f,
+                (vertices[v2].pos.y + vertices[v0].pos.y) * 0.5f,
+                (vertices[v2].pos.z + vertices[v0].pos.z) * 0.5f
+            };
+
+            // Normalize to sphere
+            float len01 = std::sqrt(mid01.x * mid01.x + mid01.y * mid01.y + mid01.z * mid01.z);
+            float len12 = std::sqrt(mid12.x * mid12.x + mid12.y * mid12.y + mid12.z * mid12.z);
+            float len20 = std::sqrt(mid20.x * mid20.x + mid20.y * mid20.y + mid20.z * mid20.z);
+
+            mid01.x /= len01; mid01.y /= len01; mid01.z /= len01;
+            mid12.x /= len12; mid12.y /= len12; mid12.z /= len12;
+            mid20.x /= len20; mid20.y /= len20; mid20.z /= len20;
+
+            uint32_t m01 = vertices.size();
+            vertices.push_back({ mid01, {mid01.x, mid01.y, mid01.z} });
+            uint32_t m12 = vertices.size();
+            vertices.push_back({ mid12, {mid12.x, mid12.y, mid12.z} });
+            uint32_t m20 = vertices.size();
+            vertices.push_back({ mid20, {mid20.x, mid20.y, mid20.z} });
+
+            // Create 4 new triangles
+            newIndices.push_back(v0);  newIndices.push_back(m01); newIndices.push_back(m20);
+            newIndices.push_back(v1);  newIndices.push_back(m12); newIndices.push_back(m01);
+            newIndices.push_back(v2);  newIndices.push_back(m20); newIndices.push_back(m12);
+            newIndices.push_back(m01); newIndices.push_back(m12); newIndices.push_back(m20);
         }
+
+        indices = newIndices;
+    }
+
+    // Scale to desired radius
+    for (auto& v : vertices) {
+        v.pos.x *= radius;
+        v.pos.y *= radius;
+        v.pos.z *= radius;
     }
 }
 
@@ -174,12 +230,12 @@ void MakeCylinder(const float height, const float diameter, const float smoothne
 
         // First triangle (clockwise)
         indices.push_back(current);
-        indices.push_back(next);
         indices.push_back(current + 1);
+        indices.push_back(next);
 
         // Second triangle (clockwise)
-        indices.push_back(current + 1);
         indices.push_back(next);
+        indices.push_back(current + 1);
         indices.push_back(next + 1);
     }
 
@@ -197,8 +253,8 @@ void MakeCylinder(const float height, const float diameter, const float smoothne
         uint32_t next = ((seg + 1) % segments) * 2;
 
         indices.push_back(bottomCenter);
-        indices.push_back(next);
         indices.push_back(current);
+        indices.push_back(next);
     }
 
     // Top cap indices (clockwise from above, using side vertices)
@@ -208,8 +264,8 @@ void MakeCylinder(const float height, const float diameter, const float smoothne
         uint32_t next = ((seg + 1) % segments) * 2 + 1;
 
         indices.push_back(topCenter);
-        indices.push_back(current);
         indices.push_back(next);
+        indices.push_back(current);
     }
 }
 
@@ -267,14 +323,14 @@ void MakeCone(const float diameter1, const float diameter2, const float smoothne
 
         // First triangle (clockwise)
         indices.push_back(current);
-        indices.push_back(next);
         indices.push_back(current + 1);
+        indices.push_back(next);
 
         // Second triangle (clockwise) - only if both radii are non-zero
         if (radius1 > 0.0f && radius2 > 0.0f)
         {
-            indices.push_back(current + 1);
             indices.push_back(next);
+            indices.push_back(current + 1);
             indices.push_back(next + 1);
         }
     }
@@ -293,8 +349,8 @@ void MakeCone(const float diameter1, const float diameter2, const float smoothne
             uint32_t next = ((seg + 1) % segments) * 2;
 
             indices.push_back(bottomCenter);
-            indices.push_back(next);
             indices.push_back(current);
+            indices.push_back(next);
         }
     }
 
@@ -309,8 +365,8 @@ void MakeCone(const float diameter1, const float diameter2, const float smoothne
             uint32_t next = ((seg + 1) % segments) * 2 + 1;
 
             indices.push_back(topCenter);
-            indices.push_back(current);
             indices.push_back(next);
+            indices.push_back(current);
         }
     }
 }
@@ -362,7 +418,7 @@ void MakeTorus(const float majorDiameter, const float minorDiameter, const float
         }
     }
 
-    // Generate indices (clockwise winding)
+    // Generate indices with corrected winding
     for (uint32_t i = 0; i < majorSegments; ++i)
     {
         uint32_t nextI = (i + 1) % majorSegments;
@@ -376,15 +432,32 @@ void MakeTorus(const float majorDiameter, const float minorDiameter, const float
             uint32_t i2 = nextI * minorSegments + nextJ;
             uint32_t i3 = i * minorSegments + nextJ;
 
-            // First triangle (clockwise)
-            indices.push_back(i0);
-            indices.push_back(i1);
-            indices.push_back(i2);
+            // Determine winding based on distance from central axis
+            // Points closer to center hole need opposite winding
+            float v = 2.0f * M_PI * static_cast<float>(j) / static_cast<float>(minorSegments);
+            float cosV = std::cos(v);
+            float radiusAtPoint = majorRadius + minorRadius * cosV;
 
-            // Second triangle (clockwise)
-            indices.push_back(i0);
-            indices.push_back(i2);
-            indices.push_back(i3);
+            if (radiusAtPoint < majorRadius) {
+                // Inner half of torus (facing center hole)
+                indices.push_back(i0);
+                indices.push_back(i1);
+                indices.push_back(i2);
+
+                indices.push_back(i0);
+                indices.push_back(i2);
+                indices.push_back(i3);
+            }
+            else {
+                // Outer half of torus (away from center hole)
+                indices.push_back(i0);
+                indices.push_back(i2);
+                indices.push_back(i1);
+
+                indices.push_back(i0);
+                indices.push_back(i3);
+                indices.push_back(i2);
+            }
         }
     }
 }
