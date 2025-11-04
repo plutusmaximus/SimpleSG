@@ -12,12 +12,14 @@
 
 #include "SDLGPUDevice.h"
 
+#include "MouseNav.h"
+
 #include "STLLoader.h"
 
 static Result<RefPtr<ModelNode>> CreateCube(RefPtr<GPUDevice> gpu);
 static Result<RefPtr<ModelNode>> CreatePumpkin(RefPtr<GPUDevice> gpu);
 
-int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
+int main(int, [[maybe_unused]] char* argv[])
 {
     Logging::SetLogLevel(spdlog::level::trace);
 
@@ -68,30 +70,73 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         cameraXFormNode->AddChild(camera);
         scene->AddChild(cameraXFormNode);
 
+        cameraXFormNode->Transform =
+            Mat44f::Identity()
+            .Translate(0, 0, -4);
+
         // Main loop
         bool running = true;
         Radiansf planetSpinAngle(0), moonSpinAngle(0), moonOrbitAngle(0);
+
+        GimbleMouseNav gimbleMouseNav(cameraXFormNode);
+        MouseNav* mouseNav = &gimbleMouseNav;
+
         while (running)
         {
+            int windowW, windowH;
+            if (!SDL_GetWindowSizeInPixels(window, &windowW, &windowH))
+            {
+                logError(SDL_GetError());
+                continue;
+            }
+
             SDL_Event event;
             bool minimized = false;
             while (running && (minimized ? SDL_WaitEvent(&event) : SDL_PollEvent(&event)))
             {
-                if (event.type == SDL_EVENT_QUIT)
+                switch (event.type)
                 {
+                case SDL_EVENT_QUIT:
                     running = false;
-                }
-                else if (event.type == SDL_EVENT_WINDOW_MINIMIZED)
-                {
+                    break;
+
+                case SDL_EVENT_WINDOW_MINIMIZED:
                     minimized = true;
-                }
-                else if (event.type == SDL_EVENT_WINDOW_RESTORED)
-                {
+                    break;
+
+                case SDL_EVENT_WINDOW_RESTORED:
+                case SDL_EVENT_WINDOW_MAXIMIZED:
                     minimized = false;
-                }
-                else if (event.type == SDL_EVENT_WINDOW_MAXIMIZED)
-                {
-                    minimized = false;
+                    break;
+
+                case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+                case SDL_EVENT_WINDOW_FOCUS_GAINED:
+                case SDL_EVENT_WINDOW_FOCUS_LOST:
+                    mouseNav->ClearButtons();
+                    break;
+
+                case SDL_EVENT_MOUSE_MOTION:
+                    mouseNav->OnMouseMove(Vec2f(event.motion.xrel, event.motion.yrel));
+                    break;
+
+                case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                    mouseNav->OnMouseDown(Vec2f(event.button.x, event.button.y), Vec2f(windowW, windowH), event.button.button - 1);
+                    break;
+                case SDL_EVENT_MOUSE_BUTTON_UP:
+                    mouseNav->OnMouseUp(event.button.button - 1);
+                    break;
+
+                case SDL_EVENT_MOUSE_WHEEL:
+                    mouseNav->OnScroll(Vec2f(event.wheel.x, event.wheel.y));
+                    break;
+
+                case SDL_EVENT_KEY_DOWN:
+                    mouseNav->OnKeyDown(event.key.scancode);
+                    break;
+
+                case SDL_EVENT_KEY_UP:
+                    mouseNav->OnKeyUp(event.key.scancode);
+                    break;
                 }
             }
 
@@ -109,8 +154,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
             planetXFormNode->Transform =
                 Mat44f::Identity()
-                .Translate(0, 0, 4)
-                //.Translate(0, 0, 150)
                 .Rotate(planetTiltAngle, Vec3f::ZAXIS()) //tilt
                 .Rotate(planetSpinAngle, Vec3f::YAXIS());  //spin
 
@@ -121,13 +164,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
                 //.Translate(0, 0, -100)
                 .Rotate(moonSpinAngle, Vec3f::YAXIS())  //spin
                 .Scale(0.25f);
-
-            int windowW, windowH;
-            if (!SDL_GetWindowSizeInPixels(window, &windowW, &windowH))
-            {
-                logError(SDL_GetError());
-                continue;
-            }
 
             camera->SetBounds(windowW, windowH);
 
@@ -142,7 +178,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             scene->Accept(&modelVisitor);
 
             auto vsCamera = cameraVisitor.GetCameras().front();
-            auto renderResult = renderGraph->Render(vsCamera.ViewTransform, vsCamera.Camera->GetProjection());
+            auto renderResult = renderGraph->Render(vsCamera.Transform, vsCamera.Projection);
             if (!renderResult)
             {
                 logError(renderResult.error().Message);
@@ -376,4 +412,9 @@ static Result<RefPtr<ModelNode>> CreatePumpkin(RefPtr<GPUDevice> gpu)
     };
 
     return gpu->CreateModel(pumpkinModelSpec);
+}
+
+inline GimbleMouseNav::GimbleMouseNav(RefPtr<TransformNode> transformNode)
+    : m_TransformNode(transformNode)
+{
 }
