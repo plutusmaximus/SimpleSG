@@ -3,8 +3,7 @@
 #include <vector>
 
 #include "SceneNode.h"
-
-class SceneVisitor;
+#include "SceneVisitor.h"
 
 class GroupNode : public SceneNode
 {
