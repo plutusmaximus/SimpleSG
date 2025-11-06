@@ -154,5 +154,6 @@ ClassName& operator=(const ClassName&) = delete;
   }                                                 \
                                                     \
  private:                                           \
+  virtual void PreventMultipleInclusion() final {}  \
   RefCount m_RefCount;                              \
 IMPLEMENT_NON_COPYABLE(ClassName);
