@@ -217,4 +217,5 @@ bool ShowAssertDialog(const char* expression, const char* fileName, const int li
 
 #define expect(expr, ...) {if(!static_cast<bool>(expr)){return std::unexpected(MAKE_EXPR_ERROR(#expr, __VA_ARGS__));}}
 
+//Like expect but also calls verify and pops an assert if false.
 #define expectv(expr, ...) {if(!everify(expr)){return std::unexpected(MAKE_EXPR_ERROR(#expr, __VA_ARGS__));}}
