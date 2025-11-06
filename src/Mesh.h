@@ -12,26 +12,47 @@ public:
     MaterialSpec MtlSpec;
 };
 
+class GpuBuffer
+{
+public:
+
+    GpuBuffer() {}
+
+    virtual ~GpuBuffer() = 0 {}
+
+    IMPLEMENT_REFCOUNT(GpuBuffer);
+};
+
 class VertexBuffer
 {
 public:
 
-    VertexBuffer() {}
+    VertexBuffer() = delete;
 
-    virtual ~VertexBuffer() = 0 {}
+    VertexBuffer(RefPtr<GpuBuffer> gpuBuffer, const uint32_t offset)
+        : GpuBuffer(gpuBuffer)
+        , Offset(offset)
+    {
+    }
 
-    IMPLEMENT_REFCOUNT(VertexBuffer);
+    RefPtr<GpuBuffer> const GpuBuffer;
+    const uint32_t Offset;
 };
 
 class IndexBuffer
 {
 public:
 
-    IndexBuffer() {}
+    IndexBuffer() = delete;
 
-    virtual ~IndexBuffer() = 0 {}
+    IndexBuffer(RefPtr<GpuBuffer> gpuBuffer, const uint32_t offset)
+        : GpuBuffer(gpuBuffer)
+        , Offset(offset)
+    {
+    }
 
-    IMPLEMENT_REFCOUNT(IndexBuffer);
+    RefPtr<GpuBuffer> const GpuBuffer;
+    const uint32_t Offset;
 };
 
 class Mesh
@@ -39,8 +60,8 @@ class Mesh
 public:
 
     static Result<RefPtr<Mesh>> Create(
-        VertexBuffer* vb,
-        IndexBuffer* ib,
+        const VertexBuffer& vb,
+        const IndexBuffer& ib,
         const uint32_t indexOffset,
         const uint32_t indexCount,
         const MaterialId materialId)
@@ -52,8 +73,8 @@ public:
         return mesh;
     }
 
-    RefPtr<VertexBuffer> VtxBuffer;
-    RefPtr<IndexBuffer> IdxBuffer;
+    const VertexBuffer VtxBuffer;
+    const IndexBuffer IdxBuffer;
 
     const uint32_t IndexOffset;
     const uint32_t IndexCount;
@@ -64,8 +85,8 @@ private:
     Mesh() = delete;
 
     Mesh(
-        VertexBuffer* vb,
-        IndexBuffer* ib,
+        const VertexBuffer& vb,
+        const IndexBuffer& ib,
         const uint32_t indexOffset,
         const uint32_t indexCount,
         const ::MaterialId materialId)

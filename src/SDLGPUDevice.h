@@ -7,54 +7,27 @@
 
 #include <SDL3/SDL_gpu.h>
 
-class SDLVertexBuffer : public VertexBuffer
+class SDLGpuBuffer : public GpuBuffer
 {
 public:
 
-    SDLVertexBuffer() = delete;
+    SDLGpuBuffer() = delete;
 
-    ~SDLVertexBuffer() override;
+    ~SDLGpuBuffer();
 
-    SDL_GPUBuffer* const m_Buffer;
+    SDL_GPUBuffer* const Buffer;
 
 private:
 
     friend class SDLGPUDevice;
 
-    SDLVertexBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer)
+    SDLGpuBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer)
         : m_GpuDevice(gpuDevice)
-        , m_Buffer(buffer)
+        , Buffer(buffer)
     {
     }
 
     SDL_GPUDevice* const m_GpuDevice;
-
-    IMPLEMENT_NON_COPYABLE(SDLVertexBuffer);
-};
-
-class SDLIndexBuffer : public IndexBuffer
-{
-public:
-
-    SDLIndexBuffer() = delete;
-
-    ~SDLIndexBuffer() override;
-
-    SDL_GPUBuffer* const m_Buffer;
-
-private:
-
-    friend class SDLGPUDevice;
-
-    SDLIndexBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer)
-        : m_GpuDevice(gpuDevice)
-        , m_Buffer(buffer)
-    {
-    }
-
-    SDL_GPUDevice* const m_GpuDevice;
-
-    IMPLEMENT_NON_COPYABLE(SDLIndexBuffer);
 };
 
 class SDLMaterial
@@ -130,9 +103,9 @@ private:
 
     SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice);
 
-    Result<VertexBuffer*> CreateVertexBuffer(const std::span<Vertex>& vertices);
-
-    Result<IndexBuffer*> CreateIndexBuffer(const std::span<VertexIndex>& indices);
+    Result<std::tuple<VertexBuffer, IndexBuffer>> CreateBuffers(
+        const std::span<Vertex>& vertices,
+        const std::span<VertexIndex>& indices);
 
     Result<SDL_GPUTexture*> GetOrCreateTexture(const std::string_view path);
 
