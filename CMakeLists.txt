@@ -93,7 +93,7 @@ endif()
 # ============================================================
 # Executable: Cube
 # ============================================================
-add_executable(Cube tests/cube.cpp)
+add_executable(Cube tests/cube.cpp tests/MouseNav.cpp)
 target_link_libraries(Cube PRIVATE ssg::ssg spdlog::spdlog)
 add_dependencies(Cube shaders copy_images copy_models)
 
