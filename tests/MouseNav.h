@@ -1,7 +1,7 @@
 #pragma once
 
 #include "VecMath.h"
-#include "TransformNode.h"
+#include "SceneNodes.h"
 
 #include <array>
 
