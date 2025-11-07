@@ -3,11 +3,10 @@
 #include <filesystem>
 
 #include "Error.h"
-#include "Visitors.h"
-#include "TransformNode.h"
+#include "SceneVisitors.h"
+#include "SceneNodes.h"
 #include "SDLRenderGraph.h"
 #include "VecMath.h"
-#include "CameraNode.h"
 #include "AutoDeleter.h"
 
 #include "SDLGPUDevice.h"
@@ -16,8 +15,11 @@
 
 #include "STLLoader.h"
 
+#include "Shapes.h"
+
 static Result<RefPtr<ModelNode>> CreateCube(RefPtr<GPUDevice> gpu);
 static Result<RefPtr<ModelNode>> CreatePumpkin(RefPtr<GPUDevice> gpu);
+static Result<RefPtr<ModelNode>> CreateShape(RefPtr<GPUDevice> gpu);
 
 int main(int, [[maybe_unused]] char* argv[])
 {
@@ -50,12 +52,18 @@ int main(int, [[maybe_unused]] char* argv[])
         pcheck(pumpkinModelResult, pumpkinModelResult.error());
         auto pumpkinModel = pumpkinModelResult.value();
 
+        auto shapeModelResult = CreateShape(gd);
+        pcheck(shapeModelResult, shapeModelResult.error());
+        auto shapeModel = shapeModelResult.value();
+
         RefPtr<GroupNode> scene = new GroupNode();
 
         RefPtr<TransformNode> planetXFormNode = new TransformNode();
         RefPtr<TransformNode> moonXFormNode = new TransformNode();
-        planetXFormNode->AddChild(cubeModel);
-        moonXFormNode->AddChild(cubeModel);
+        planetXFormNode->AddChild(shapeModel);
+        moonXFormNode->AddChild(shapeModel);
+        //planetXFormNode->AddChild(cubeModel);
+        //moonXFormNode->AddChild(cubeModel);
         //planetXFormNode->AddChild(pumpkinModel);
         //moonXFormNode->AddChild(pumpkinModel);
         planetXFormNode->AddChild(moonXFormNode);
@@ -154,7 +162,8 @@ int main(int, [[maybe_unused]] char* argv[])
 
             planetXFormNode->Transform =
                 Mat44f::Identity()
-                .Rotate(planetTiltAngle, Vec3f::ZAXIS()) //tilt
+                //.Rotate(planetTiltAngle, Vec3f::ZAXIS()) //tilt
+                //.Rotate(planetTiltAngle*2, Vec3f::XAXIS()) //tilt
                 .Rotate(planetSpinAngle, Vec3f::YAXIS());  //spin
 
             moonXFormNode->Transform =
@@ -325,6 +334,40 @@ static Result<RefPtr<ModelNode>> CreateCube(RefPtr<GPUDevice> gpu)
     };
 
     return gpu->CreateModel(cubeModelSpec);
+}
+
+static Result<RefPtr<ModelNode>> CreateShape(RefPtr<GPUDevice> gpu)
+{
+    //MakeBox(1, 1, 1, vertices, indices);
+    //MakeBall(1, 5, vertices, indices);
+    //MakeCylinder(1, 1, 10, vertices, indices);
+    //MakeCone(1, 0.5f, 10, vertices, indices);
+    auto geometry = Shapes::Torus(1, 0.5f, 5);
+    const auto& [vertices, indices] = geometry;
+
+    const MeshSpec meshSpecs[] =
+    {
+        {
+            .IndexOffset = 0,
+            .IndexCount = static_cast<uint32_t>(indices.size()),
+            .MtlSpec =
+            {
+                .Color = {1, 0, 0},
+                .VertexShader = "shaders/Debug/VertexShader",
+                .FragmentShader = "shaders/Debug/FragmentShader",
+                .Albedo = "images/Ant.png"
+            }
+        }
+    };
+
+    ModelSpec modelSpec
+    {
+        .Vertices = vertices,
+        .Indices = indices,
+        .MeshSpecs = meshSpecs
+    };
+
+    return gpu->CreateModel(modelSpec);
 }
 
 static Result<RefPtr<ModelNode>> CreatePumpkin(RefPtr<GPUDevice> gpu)

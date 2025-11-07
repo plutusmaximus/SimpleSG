@@ -1,38 +1,26 @@
-#include "PrimitiveShapes.h"
+#include "Shapes.h"
 #include <cmath>
 #include <algorithm>
 #include <numbers>
 
 static constexpr float M_PI = std::numbers::pi_v<float>;
 
-// Helper function to normalize a vector
-static void Normalize(VertexNormal& n)
+Shapes::Geometry
+Shapes::Box(const float width, const float height, const float depth)
 {
-    float length = std::sqrt(n.x * n.x + n.y * n.y + n.z * n.z);
-    if (length > 0.0f)
-    {
-        n.x /= length;
-        n.y /= length;
-        n.z /= length;
-    }
-}
+    std::vector<Vertex> vertices;
+    std::vector<VertexIndex> indices;
 
-void MakeBox(const float width, const float height, const float depth,
-    std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
-{
-    vertices.clear();
-    indices.clear();
-
-    float hw = width * 0.5f;
-    float hh = height * 0.5f;
-    float hd = depth * 0.5f;
+    const float hw = width * 0.5f;
+    const float hh = height * 0.5f;
+    const float hd = depth * 0.5f;
 
     // 8 vertices - one per corner
     vertices.reserve(8);
     indices.reserve(36);
 
     // Calculate normalized normals for each corner (average of 3 adjacent faces)
-    float invSqrt3 = 1.0f / std::sqrt(3.0f);
+    const float invSqrt3 = 1.0f / std::sqrt(3.0f);
 
     // Vertex order:
     // 0: (-x, -y, -z)  1: (+x, -y, -z)
@@ -72,25 +60,27 @@ void MakeBox(const float width, const float height, const float depth,
     // Bottom face (-Y) - clockwise from bottom
     indices.push_back(0); indices.push_back(1); indices.push_back(5);
     indices.push_back(0); indices.push_back(5); indices.push_back(4);
+
+    return Geometry{ std::move(vertices), std::move(indices) };
 }
 
-void MakeBall(const float diameter, const float smoothness,
-    std::vector<Vertex>& vertices, std::vector<VertexIndex>& indices)
+Shapes::Geometry
+Shapes::Ball(const float diameter, const float smoothness)
 {
-    vertices.clear();
-    indices.clear();
+    std::vector<Vertex> vertices;
+    std::vector<VertexIndex> indices;
 
-    float radius = diameter * 0.5f;
+    const float radius = diameter * 0.5f;
 
     // Clamp smoothness to determine subdivision level
-    float s = std::max(1.0f, std::min(10.0f, smoothness));
-    int subdivisions = static_cast<int>(s * 0.3f); // 0 to 3 subdivisions
+    const float s = std::max(1.0f, std::min(10.0f, smoothness));
+    const int subdivisions = static_cast<int>(s * 0.3f); // 0 to 3 subdivisions
 
     // Reserve space (approximate - icosahedron subdivides by adding 3 midpoints per triangle)
     // Vertices: 12 + sum(20 * 3 * 4^i) for i in [0, subdivisions)
     // Indices: 20 * 3 * 4^subdivisions
-    int finalTriangles = 20 * (1 << (2 * subdivisions)); // 20 * 4^subdivisions
-    int approxVertices = 12 + finalTriangles * 3 / 2; // Rough estimate
+    const int finalTriangles = 20 * (1 << (2 * subdivisions)); // 20 * 4^subdivisions
+    const int approxVertices = 12 + finalTriangles * 3 / 2; // Rough estimate
     vertices.reserve(approxVertices);
     indices.reserve(finalTriangles * 3);
 
@@ -115,60 +105,67 @@ void MakeBall(const float diameter, const float smoothness,
     vertices.push_back({ { -b,  0,  a }, { -b,  0,  a } });
 
     // 20 faces of icosahedron (clockwise winding)
-    uint32_t faces[][3] = {
+    const VertexIndex faces[][3] =
+    {
         {0, 11, 5}, {0, 5, 1}, {0, 1, 7}, {0, 7, 10}, {0, 10, 11},
         {1, 5, 9}, {5, 11, 4}, {11, 10, 2}, {10, 7, 6}, {7, 1, 8},
         {3, 9, 4}, {3, 4, 2}, {3, 2, 6}, {3, 6, 8}, {3, 8, 9},
         {4, 9, 5}, {2, 4, 11}, {6, 2, 10}, {8, 6, 7}, {9, 8, 1}
     };
 
-    for (int i = 0; i < 20; ++i) {
+    for (int i = 0; i < 20; ++i)
+    {
         indices.push_back(faces[i][0]);
         indices.push_back(faces[i][1]);
         indices.push_back(faces[i][2]);
     }
 
     // Subdivide triangles
-    for (int subdiv = 0; subdiv < subdivisions; ++subdiv) {
+    for (int subdiv = 0; subdiv < subdivisions; ++subdiv)
+    {
         std::vector<uint32_t> newIndices;
         newIndices.reserve(indices.size() * 4);
 
-        for (size_t i = 0; i < indices.size(); i += 3) {
-            uint32_t v0 = indices[i];
-            uint32_t v1 = indices[i + 1];
-            uint32_t v2 = indices[i + 2];
+        for (size_t i = 0; i < indices.size(); i += 3)
+        {
+            const VertexIndex v0 = indices[i];
+            const VertexIndex v1 = indices[i + 1];
+            const VertexIndex v2 = indices[i + 2];
 
             // Get midpoints
-            VertexPos mid01 = {
+            VertexPos mid01
+            {
                 (vertices[v0].pos.x + vertices[v1].pos.x) * 0.5f,
                 (vertices[v0].pos.y + vertices[v1].pos.y) * 0.5f,
                 (vertices[v0].pos.z + vertices[v1].pos.z) * 0.5f
             };
-            VertexPos mid12 = {
+            VertexPos mid12
+            {
                 (vertices[v1].pos.x + vertices[v2].pos.x) * 0.5f,
                 (vertices[v1].pos.y + vertices[v2].pos.y) * 0.5f,
                 (vertices[v1].pos.z + vertices[v2].pos.z) * 0.5f
             };
-            VertexPos mid20 = {
+            VertexPos mid20
+            {
                 (vertices[v2].pos.x + vertices[v0].pos.x) * 0.5f,
                 (vertices[v2].pos.y + vertices[v0].pos.y) * 0.5f,
                 (vertices[v2].pos.z + vertices[v0].pos.z) * 0.5f
             };
 
             // Normalize to sphere
-            float len01 = std::sqrt(mid01.x * mid01.x + mid01.y * mid01.y + mid01.z * mid01.z);
-            float len12 = std::sqrt(mid12.x * mid12.x + mid12.y * mid12.y + mid12.z * mid12.z);
-            float len20 = std::sqrt(mid20.x * mid20.x + mid20.y * mid20.y + mid20.z * mid20.z);
+            const float len01 = std::sqrt(mid01.x * mid01.x + mid01.y * mid01.y + mid01.z * mid01.z);
+            const float len12 = std::sqrt(mid12.x * mid12.x + mid12.y * mid12.y + mid12.z * mid12.z);
+            const float len20 = std::sqrt(mid20.x * mid20.x + mid20.y * mid20.y + mid20.z * mid20.z);
 
             mid01.x /= len01; mid01.y /= len01; mid01.z /= len01;
             mid12.x /= len12; mid12.y /= len12; mid12.z /= len12;
             mid20.x /= len20; mid20.y /= len20; mid20.z /= len20;
 
-            uint32_t m01 = vertices.size();
+            const VertexIndex m01 = vertices.size();
             vertices.push_back({ mid01, {mid01.x, mid01.y, mid01.z} });
-            uint32_t m12 = vertices.size();
+            const VertexIndex m12 = vertices.size();
             vertices.push_back({ mid12, {mid12.x, mid12.y, mid12.z} });
-            uint32_t m20 = vertices.size();
+            const VertexIndex m20 = vertices.size();
             vertices.push_back({ mid20, {mid20.x, mid20.y, mid20.z} });
 
             // Create 4 new triangles
@@ -182,25 +179,28 @@ void MakeBall(const float diameter, const float smoothness,
     }
 
     // Scale to desired radius
-    for (auto& v : vertices) {
+    for (auto& v : vertices)
+    {
         v.pos.x *= radius;
         v.pos.y *= radius;
         v.pos.z *= radius;
     }
+
+    return Geometry{ std::move(vertices), std::move(indices) };
 }
 
-void MakeCylinder(const float height, const float diameter, const float smoothness,
-    std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
+Shapes::Geometry
+Shapes::Cylinder(const float height, const float diameter, const float smoothness)
 {
-    vertices.clear();
-    indices.clear();
+    std::vector<Vertex> vertices;
+    std::vector<VertexIndex> indices;
 
-    float radius = diameter * 0.5f;
-    float halfHeight = height * 0.5f;
+    const float radius = diameter * 0.5f;
+    const float halfHeight = height * 0.5f;
 
     // Clamp smoothness and calculate segments
-    float s = std::max(1.0f, std::min(10.0f, smoothness));
-    uint32_t segments = static_cast<uint32_t>(8 + s * 4); // 12 to 48 segments
+    const float s = std::max(1.0f, std::min(10.0f, smoothness));
+    const uint32_t segments = static_cast<uint32_t>(8 + s * 4); // 12 to 48 segments
 
     vertices.reserve(segments * 2 + 2);
     indices.reserve(segments * 12);
@@ -208,12 +208,11 @@ void MakeCylinder(const float height, const float diameter, const float smoothne
     // Side vertices (top and bottom rings)
     for (uint32_t seg = 0; seg < segments; ++seg)
     {
-        float theta = 2.0f * M_PI * static_cast<float>(seg) / static_cast<float>(segments);
-        float x = radius * std::cos(theta);
-        float z = radius * std::sin(theta);
+        const float theta = 2.0f * M_PI * static_cast<float>(seg) / static_cast<float>(segments);
+        const float x = radius * std::cos(theta);
+        const float z = radius * std::sin(theta);
 
-        VertexNormal normal = { x / radius, 0.0f, z / radius };
-        Normalize(normal);
+        const VertexNormal normal = VertexNormal( x / radius, 0.0f, z / radius ).Normalize();
 
         // Bottom vertex
         vertices.push_back({ { x, -halfHeight, z }, normal });
@@ -267,13 +266,15 @@ void MakeCylinder(const float height, const float diameter, const float smoothne
         indices.push_back(next);
         indices.push_back(current);
     }
+
+    return Geometry{ std::move(vertices), std::move(indices) };
 }
 
-void MakeCone(const float diameter1, const float diameter2, const float smoothness,
-    std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
+Shapes::Geometry
+Shapes::Cone(const float diameter1, const float diameter2, const float smoothness)
 {
-    vertices.clear();
-    indices.clear();
+    std::vector<Vertex> vertices;
+    std::vector<VertexIndex> indices;
 
     float radius1 = diameter1 * 0.5f; // Bottom radius
     float radius2 = diameter2 * 0.5f; // Top radius
@@ -305,8 +306,7 @@ void MakeCone(const float diameter1, const float diameter2, const float smoothne
         float x2 = radius2 * cosTheta;
         float z2 = radius2 * sinTheta;
 
-        VertexNormal normal = { cosTheta * normalXZ, normalY, sinTheta * normalXZ };
-        Normalize(normal);
+        const VertexNormal normal = VertexNormal{ cosTheta * normalXZ, normalY, sinTheta * normalXZ }.Normalize();
 
         // Bottom vertex
         vertices.push_back({ { x1, -halfHeight, z1 }, normal });
@@ -318,8 +318,8 @@ void MakeCone(const float diameter1, const float diameter2, const float smoothne
     // Generate side indices
     for (uint32_t seg = 0; seg < segments; ++seg)
     {
-        uint32_t current = seg * 2;
-        uint32_t next = ((seg + 1) % segments) * 2;
+        const uint32_t current = seg * 2;
+        const uint32_t next = ((seg + 1) % segments) * 2;
 
         // First triangle (clockwise)
         indices.push_back(current);
@@ -335,8 +335,8 @@ void MakeCone(const float diameter1, const float diameter2, const float smoothne
         }
     }
 
-    uint32_t bottomCenter = segments * 2;
-    uint32_t topCenter = bottomCenter + 1;
+    const uint32_t bottomCenter = segments * 2;
+    const uint32_t topCenter = bottomCenter + 1;
 
     // Bottom cap (only if radius1 > 0)
     if (radius1 > 0.0f)
@@ -345,8 +345,8 @@ void MakeCone(const float diameter1, const float diameter2, const float smoothne
 
         for (uint32_t seg = 0; seg < segments; ++seg)
         {
-            uint32_t current = seg * 2;
-            uint32_t next = ((seg + 1) % segments) * 2;
+            const uint32_t current = seg * 2;
+            const uint32_t next = ((seg + 1) % segments) * 2;
 
             indices.push_back(bottomCenter);
             indices.push_back(current);
@@ -361,25 +361,26 @@ void MakeCone(const float diameter1, const float diameter2, const float smoothne
 
         for (uint32_t seg = 0; seg < segments; ++seg)
         {
-            uint32_t current = seg * 2 + 1;
-            uint32_t next = ((seg + 1) % segments) * 2 + 1;
+            const uint32_t current = seg * 2 + 1;
+            const uint32_t next = ((seg + 1) % segments) * 2 + 1;
 
             indices.push_back(topCenter);
             indices.push_back(next);
             indices.push_back(current);
         }
     }
+
+    return Geometry{ std::move(vertices), std::move(indices) };
 }
 
-void MakeTorus(
+Shapes::Geometry
+Shapes::Torus(
     const float majorDiameter,
     const float minorDiameter,
-    const float smoothness,
-    std::vector<Vertex>& vertices,
-    std::vector<uint32_t>& indices)
+    const float smoothness)
 {
-    vertices.clear();
-    indices.clear();
+    std::vector<Vertex> vertices;
+    std::vector<VertexIndex> indices;
 
     const float majorRadius = majorDiameter * 0.5f;
     const float minorRadius = minorDiameter * 0.5f;
@@ -447,4 +448,6 @@ void MakeTorus(
             indices.push_back(i3);
         }
     }
+
+    return Geometry{ std::move(vertices), std::move(indices) };
 }
