@@ -4,8 +4,28 @@
 #include <list>
 
 #include "RenderGraph.h"
-#include "SceneVisitor.h"
-#include "VecMath.h"
+
+class ModelNode;
+class CameraNode;
+class GroupNode;
+class TransformNode;
+
+class SceneVisitor
+{
+public:
+
+    SceneVisitor() = default;
+
+    virtual ~SceneVisitor() = 0 {}
+
+    virtual void Visit(ModelNode* node) {}
+
+    virtual void Visit(CameraNode* node) {}
+
+    virtual void Visit(TransformNode* node) {}
+
+    virtual void Visit(GroupNode* node) {}
+};
 
 class GroupVisitor : public SceneVisitor
 {
@@ -53,10 +73,7 @@ public:
 
     ModelVisitor() = delete;
 
-    explicit ModelVisitor(RefPtr<RenderGraph> renderGraph)
-        : m_RenderGraph(renderGraph)
-    {
-    }
+    explicit ModelVisitor(RefPtr<RenderGraph> renderGraph);
 
     ~ModelVisitor() override {}
 

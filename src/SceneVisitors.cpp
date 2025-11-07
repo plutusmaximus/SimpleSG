@@ -1,7 +1,6 @@
-#include "Visitors.h"
+#include "SceneVisitors.h"
 
-#include "TransformNode.h"
-#include "CameraNode.h"
+#include "SceneNodes.h"
 #include "RenderGraph.h"
 
 void GroupVisitor::Visit(GroupNode* node)
@@ -16,6 +15,11 @@ void TransformVisitor::Visit(TransformNode* node)
     this->GroupVisitor::Visit(node);
 
     m_TransformStack.pop();
+}
+
+ModelVisitor::ModelVisitor(RefPtr<RenderGraph> renderGraph)
+    : m_RenderGraph(renderGraph)
+{
 }
 
 void ModelVisitor::Visit(ModelNode* node)

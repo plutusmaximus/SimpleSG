@@ -1,7 +1,11 @@
 #pragma once
 
-#include "ModelNode.h"
-#include "RenderGraph.h"
+#include "RefCount.h"
+#include "Error.h"
+
+class ModelNode;
+class RenderGraph;
+class ModelSpec;
 
 class GPUDevice
 {
@@ -16,4 +20,47 @@ public:
     virtual Result<RefPtr<RenderGraph>> CreateRenderGraph() = 0;
 
     IMPLEMENT_REFCOUNT(GPUDevice);
+};
+
+class GpuBuffer
+{
+public:
+
+    GpuBuffer() {}
+
+    virtual ~GpuBuffer() = 0 {}
+
+    IMPLEMENT_REFCOUNT(GpuBuffer);
+};
+
+class VertexBuffer
+{
+public:
+
+    VertexBuffer() = delete;
+
+    VertexBuffer(RefPtr<GpuBuffer> gpuBuffer, const uint32_t offset)
+        : GpuBuffer(gpuBuffer)
+        , Offset(offset)
+    {
+    }
+
+    RefPtr<GpuBuffer> const GpuBuffer;
+    const uint32_t Offset;
+};
+
+class IndexBuffer
+{
+public:
+
+    IndexBuffer() = delete;
+
+    IndexBuffer(RefPtr<GpuBuffer> gpuBuffer, const uint32_t offset)
+        : GpuBuffer(gpuBuffer)
+        , Offset(offset)
+    {
+    }
+
+    RefPtr<GpuBuffer> const GpuBuffer;
+    const uint32_t Offset;
 };

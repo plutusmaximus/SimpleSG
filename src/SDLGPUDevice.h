@@ -2,10 +2,18 @@
 
 #include "GPUDevice.h"
 #include "Material.h"
+#include "Vertex.h"
 
 #include <map>
+#include <span>
 
-#include <SDL3/SDL_gpu.h>
+struct SDL_Window;
+struct SDL_GPUDevice;
+struct SDL_GPUBuffer;
+struct SDL_GPUTexture;
+struct SDL_GPUSampler;
+struct SDL_GPUShader;
+struct SDL_GPUGraphicsPipeline;
 
 class SDLGpuBuffer : public GpuBuffer
 {
@@ -119,7 +127,7 @@ private:
 
     struct PipelineKey
     {
-        SDL_GPUTextureFormat const ColorFormat;
+        int const ColorFormat;
         SDL_GPUShader* const VertexShader;
         SDL_GPUShader* const FragShader;
 

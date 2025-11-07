@@ -1,9 +1,10 @@
 #pragma once
 
-#include "ModelNode.h"
+#include "RefCount.h"
+#include "VecMath.h"
 #include "Error.h"
 
-#include <expected>
+class ModelNode;
 
 class RenderGraph
 {

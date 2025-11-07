@@ -1,5 +1,6 @@
 #pragma once
 
+#include "GPUDevice.h"
 #include "Material.h"
 #include "RefCount.h"
 #include "Error.h"
@@ -10,49 +11,6 @@ public:
     const uint32_t IndexOffset;
     const uint32_t IndexCount;
     MaterialSpec MtlSpec;
-};
-
-class GpuBuffer
-{
-public:
-
-    GpuBuffer() {}
-
-    virtual ~GpuBuffer() = 0 {}
-
-    IMPLEMENT_REFCOUNT(GpuBuffer);
-};
-
-class VertexBuffer
-{
-public:
-
-    VertexBuffer() = delete;
-
-    VertexBuffer(RefPtr<GpuBuffer> gpuBuffer, const uint32_t offset)
-        : GpuBuffer(gpuBuffer)
-        , Offset(offset)
-    {
-    }
-
-    RefPtr<GpuBuffer> const GpuBuffer;
-    const uint32_t Offset;
-};
-
-class IndexBuffer
-{
-public:
-
-    IndexBuffer() = delete;
-
-    IndexBuffer(RefPtr<GpuBuffer> gpuBuffer, const uint32_t offset)
-        : GpuBuffer(gpuBuffer)
-        , Offset(offset)
-    {
-    }
-
-    RefPtr<GpuBuffer> const GpuBuffer;
-    const uint32_t Offset;
 };
 
 class Mesh
