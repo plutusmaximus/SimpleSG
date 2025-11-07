@@ -3,11 +3,17 @@
 #include <algorithm>
 #include <numbers>
 
+#include "Error.h"
+
 static constexpr float M_PI = std::numbers::pi_v<float>;
 
 Shapes::Geometry
 Shapes::Box(const float width, const float height, const float depth)
 {
+    eassert(width > 0);
+    eassert(height > 0);
+    eassert(depth > 0);
+
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
 
@@ -67,6 +73,9 @@ Shapes::Box(const float width, const float height, const float depth)
 Shapes::Geometry
 Shapes::Ball(const float diameter, const float smoothness)
 {
+    eassert(diameter > 0);
+    eassert(smoothness > 0);
+
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
 
@@ -201,6 +210,10 @@ Shapes::Ball(const float diameter, const float smoothness)
 Shapes::Geometry
 Shapes::Cylinder(const float height, const float diameter, const float smoothness)
 {
+    eassert(height > 0);
+    eassert(diameter > 0);
+    eassert(smoothness > 0);
+
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
     const float radius = diameter * 0.5f;
@@ -305,6 +318,11 @@ Shapes::Cylinder(const float height, const float diameter, const float smoothnes
 Shapes::Geometry
 Shapes::Cone(const float diameter1, const float diameter2, const float smoothness)
 {
+    eassert(diameter1 >= 0);
+    eassert(diameter2 >= 0);
+    eassert(diameter1 > 0 || diameter2 > 0);
+    eassert(smoothness > 0);
+
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
 
@@ -453,15 +471,24 @@ Shapes::Cone(const float diameter1, const float diameter2, const float smoothnes
 
 Shapes::Geometry
 Shapes::Torus(
-    const float majorDiameter,
-    const float minorDiameter,
+    const float ringDiameter,
+    const float tubeDiameter,
     const float smoothness)
 {
+    eassert(ringDiameter >= 0);
+    eassert(tubeDiameter > 0);
+    eassert(smoothness > 0);
+
+    if (0 == ringDiameter)
+    {
+        return Ball(tubeDiameter, smoothness);
+    }
+
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
 
-    const float majorRadius = majorDiameter * 0.5f;
-    const float minorRadius = minorDiameter * 0.5f;
+    const float ringRadius = ringDiameter * 0.5f;
+    const float tubeRadius = tubeDiameter * 0.5f;
 
     // Minimum smoothness of 3 to avoid degenerate geometry
     const uint32_t numSegmentsMajor = std::max(3u, static_cast<uint32_t>(smoothness * 4));
@@ -508,10 +535,10 @@ Shapes::Torus(
             const float sinPhi = sinPhiCache[j];
 
             // Vertex position (left-handed)
-            const float tubeRadius = majorRadius + minorRadius * cosPhi;
-            const float x = tubeRadius * cosTheta;
-            const float y = tubeRadius * sinTheta;
-            const float z = minorRadius * sinPhi;
+            const float distanceFromCenter = ringRadius + tubeRadius * cosPhi;
+            const float x = distanceFromCenter * cosTheta;
+            const float y = distanceFromCenter * sinTheta;
+            const float z = tubeRadius * sinPhi;
 
             // Unit normal (same calculation but clearer with explicit names)
             const float nx = cosTheta * cosPhi;

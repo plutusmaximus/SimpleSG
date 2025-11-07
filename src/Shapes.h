@@ -62,10 +62,12 @@ public:
     // Pass zero for one of the diameters to produce a pure cone.
     static Geometry Cone(const float diameter1, const float diameter2, const float smoothness);
 
-    // majorDiameter = diameter of the ring (center to center)
-    // minorDiameter = diameter of the tube
     // smoothness controls tessellation (1-10)
-    static Geometry Torus(const float majorDiameter, const float minorDiameter, const float smoothness);
+    // ringDiameter > tubeDiameter - Classic donut shape.
+    // ringDiameter == tubeDiameter - Horn torus.
+    // ringDiameter < tubeDiameter - Spindle torus (some geometry is overlapping).
+    // ringDiameter == 0 - Sphere of radius == tubeRadius.
+    static Geometry Torus(const float ringDiameter, const float tubeDiameter, const float smoothness);
 };
 
 // Specializations to enable structured binding for Shapes::Geometry.

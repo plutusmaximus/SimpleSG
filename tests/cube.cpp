@@ -342,7 +342,7 @@ static Result<RefPtr<ModelNode>> CreateShape(RefPtr<GPUDevice> gpu)
     //auto geometry = Shapes::Ball(1, 10);
     //auto geometry = Shapes::Cylinder(1, 1, 10);
     //auto geometry = Shapes::Cone(1, 0.5f, 10);
-    auto geometry = Shapes::Torus(1, 0.5f, 5);
+    auto geometry = Shapes::Torus(1, 0.5, 5);
     const auto& [vertices, indices] = geometry;
 
     const MeshSpec meshSpecs[] =
