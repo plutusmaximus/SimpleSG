@@ -118,27 +118,31 @@ Shapes::Ball(const float diameter, const float smoothness)
         {4, 9, 5}, {2, 4, 11}, {6, 2, 10}, {8, 6, 7}, {9, 8, 1}
     };
 
-    for (int i = 0; i < 20; ++i)
+    for (const auto& face : faces)
     {
-        indices.push_back(faces[i][0]);
-        indices.push_back(faces[i][1]);
-        indices.push_back(faces[i][2]);
+        indices.push_back(face[0]);
+        indices.push_back(face[1]);
+        indices.push_back(face[2]);
     }
 
-    // Pre-allocate newIndices with final size
-    std::vector<uint32_t> newIndices;
-    newIndices.reserve(finalIndices);
-
-    // Subdivide triangles
+    // Subdivide triangles using in-place modification
     for (int subdiv = 0; subdiv < subdivisions; ++subdiv)
     {
-        newIndices.clear();
+        const size_t currentTriangleCount = indices.size() / 3;
+        const size_t newIndexCount = currentTriangleCount * 12; // Each triangle becomes 4 triangles (12 indices)
 
-        for (size_t i = 0; i < indices.size(); i += 3)
+        // Resize to final size for this iteration
+        indices.resize(newIndexCount);
+
+        // Process triangles from back to front to avoid overwriting data we still need
+        for (int i = static_cast<int>(currentTriangleCount) - 1; i >= 0; --i)
         {
-            const VertexIndex v0 = indices[i];
-            const VertexIndex v1 = indices[i + 1];
-            const VertexIndex v2 = indices[i + 2];
+            const size_t oldOffset = i * 3;
+            const size_t newOffset = i * 12;
+
+            const VertexIndex v0 = indices[oldOffset];
+            const VertexIndex v1 = indices[oldOffset + 1];
+            const VertexIndex v2 = indices[oldOffset + 2];
 
             // Get midpoints
             VertexPos mid01
@@ -176,14 +180,12 @@ Shapes::Ball(const float diameter, const float smoothness)
             const VertexIndex m20 = vertices.size();
             vertices.push_back({ mid20, {mid20.x, mid20.y, mid20.z} });
 
-            // Create 4 new triangles
-            newIndices.push_back(v0);  newIndices.push_back(m01); newIndices.push_back(m20);
-            newIndices.push_back(v1);  newIndices.push_back(m12); newIndices.push_back(m01);
-            newIndices.push_back(v2);  newIndices.push_back(m20); newIndices.push_back(m12);
-            newIndices.push_back(m01); newIndices.push_back(m12); newIndices.push_back(m20);
+            // Create 4 new triangles directly in the output positions
+            indices[newOffset + 0] = v0;   indices[newOffset + 1] = m01;  indices[newOffset + 2] = m20;
+            indices[newOffset + 3] = v1;   indices[newOffset + 4] = m12;  indices[newOffset + 5] = m01;
+            indices[newOffset + 6] = v2;   indices[newOffset + 7] = m20;  indices[newOffset + 8] = m12;
+            indices[newOffset + 9] = m01;  indices[newOffset + 10] = m12; indices[newOffset + 11] = m20;
         }
-
-        std::swap(indices, newIndices);
     }
 
     // Scale to desired radius
