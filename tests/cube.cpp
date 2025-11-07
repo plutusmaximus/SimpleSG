@@ -338,10 +338,10 @@ static Result<RefPtr<ModelNode>> CreateCube(RefPtr<GPUDevice> gpu)
 
 static Result<RefPtr<ModelNode>> CreateShape(RefPtr<GPUDevice> gpu)
 {
-    //MakeBox(1, 1, 1, vertices, indices);
-    //MakeBall(1, 5, vertices, indices);
-    //MakeCylinder(1, 1, 10, vertices, indices);
-    //MakeCone(1, 0.5f, 10, vertices, indices);
+    //auto geometry = Shapes::Box(1, 1, 1);
+    //auto geometry = Shapes::Ball(1, 10);
+    //auto geometry = Shapes::Cylinder(1, 1, 10);
+    //auto geometry = Shapes::Cone(1, 0.5f, 10);
     auto geometry = Shapes::Torus(1, 0.5f, 5);
     const auto& [vertices, indices] = geometry;
 
