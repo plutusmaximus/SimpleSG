@@ -337,8 +337,8 @@ SDLGPUDevice::GetOrCreatePipeline(const SDLMaterial& mtl)
 
 Result<std::tuple<VertexBuffer, IndexBuffer>>
 SDLGPUDevice::CreateBuffers(
-    const std::span<Vertex>& vertices,
-    const std::span<VertexIndex>& indices)
+    const std::span<const Vertex>& vertices,
+    const std::span<const VertexIndex>& indices)
 {
     const uint32_t sizeofVerts = static_cast<Uint32>(vertices.size() * sizeof(vertices[0]));
     const uint32_t sizeofIndices = static_cast<Uint32>(indices.size() * sizeof(indices[0]));

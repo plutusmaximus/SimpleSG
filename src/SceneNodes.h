@@ -96,9 +96,9 @@ private:
 class ModelSpec
 {
 public:
-    std::span<Vertex> Vertices;
-    std::span<VertexIndex> Indices;
-    std::span<MeshSpec> MeshSpecs;
+    const std::span<const Vertex> Vertices;
+    const std::span<const VertexIndex> Indices;
+    const std::span<const MeshSpec> MeshSpecs;
 };
 
 class ModelNode : public SceneNode

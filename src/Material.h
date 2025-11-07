@@ -38,11 +38,6 @@ class MaterialId
 
 public:
 
-    MaterialId()
-        : m_Value(INVALID_VALUE)
-    {
-    }
-
     bool operator==(const MaterialId& other) const
     {
         return m_Value == other.m_Value;
@@ -80,25 +75,25 @@ public:
         unsigned next;
         for (next = NEXT++; INVALID_VALUE == next; next = NEXT++) {}
 
-        return MaterialId(next);
+        return MaterialId{ next };
     }
 
 private:
 
-    unsigned m_Value;
+    const unsigned m_Value = INVALID_VALUE;
 
     explicit MaterialId(unsigned value) : m_Value(value) {}
 };
 
 struct MaterialSpec
 {
-    RgbaColorf Color;
+    const RgbaColorf Color;
 
-    std::string_view VertexShader;
-    std::string_view FragmentShader;
+    const std::string_view VertexShader;
+    const std::string_view FragmentShader;
 
-    float Metallic{ 0 };
-    float Roughness{ 0 };
+    const float Metallic{ 0 };
+    const float Roughness{ 0 };
 
-    std::string_view Albedo;
+    const std::string_view Albedo;
 };

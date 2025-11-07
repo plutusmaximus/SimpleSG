@@ -112,8 +112,8 @@ private:
     SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice);
 
     Result<std::tuple<VertexBuffer, IndexBuffer>> CreateBuffers(
-        const std::span<Vertex>& vertices,
-        const std::span<VertexIndex>& indices);
+        const std::span<const Vertex>& vertices,
+        const std::span<const VertexIndex>& indices);
 
     Result<SDL_GPUTexture*> GetOrCreateTexture(const std::string_view path);
 
