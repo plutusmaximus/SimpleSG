@@ -76,13 +76,18 @@ Shapes::Ball(const float diameter, const float smoothness)
     const float s = std::max(1.0f, std::min(10.0f, smoothness));
     const int subdivisions = static_cast<int>(s * 0.3f); // 0 to 3 subdivisions
 
-    // Reserve space (approximate - icosahedron subdivides by adding 3 midpoints per triangle)
-    // Vertices: 12 + sum(20 * 3 * 4^i) for i in [0, subdivisions)
-    // Indices: 20 * 3 * 4^subdivisions
+    // Calculate exact final sizes
     const int finalTriangles = 20 * (1 << (2 * subdivisions)); // 20 * 4^subdivisions
-    const int approxVertices = 12 + finalTriangles * 3 / 2; // Rough estimate
-    vertices.reserve(approxVertices);
-    indices.reserve(finalTriangles * 3);
+    const int finalIndices = finalTriangles * 3;
+
+    // Calculate exact vertex count using closed-form formula
+    // Base: 12 vertices
+    // Subdivisions add: 60 * (4^subdivisions - 1) / 3 vertices
+    const int addedVertices = subdivisions > 0 ? 60 * ((1 << (2 * subdivisions)) - 1) / 3 : 0;
+    const int totalVertices = 12 + addedVertices;
+
+    vertices.reserve(totalVertices);
+    indices.reserve(finalIndices);
 
     // Create icosahedron base vertices
     const float t = (1.0f + std::sqrt(5.0f)) / 2.0f;
@@ -120,11 +125,14 @@ Shapes::Ball(const float diameter, const float smoothness)
         indices.push_back(faces[i][2]);
     }
 
+    // Pre-allocate newIndices with final size
+    std::vector<uint32_t> newIndices;
+    newIndices.reserve(finalIndices);
+
     // Subdivide triangles
     for (int subdiv = 0; subdiv < subdivisions; ++subdiv)
     {
-        std::vector<uint32_t> newIndices;
-        newIndices.reserve(indices.size() * 4);
+        newIndices.clear();
 
         for (size_t i = 0; i < indices.size(); i += 3)
         {
@@ -175,7 +183,7 @@ Shapes::Ball(const float diameter, const float smoothness)
             newIndices.push_back(m01); newIndices.push_back(m12); newIndices.push_back(m20);
         }
 
-        indices = newIndices;
+        std::swap(indices, newIndices);
     }
 
     // Scale to desired radius
