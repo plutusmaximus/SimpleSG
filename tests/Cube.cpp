@@ -50,7 +50,9 @@ int main(int, [[maybe_unused]] char* argv[])
         pcheck(modelResult, modelResult.error());
         auto model = modelResult.value();
 
-        RefPtr<GroupNode> scene = new GroupNode();
+        auto sceneResult = GroupNode::Create();
+        pcheck(sceneResult, sceneResult.error());
+        auto scene = sceneResult.value();
 
         auto planetNodeResult = ModelNode::Create(model);
         pcheck(planetNodeResult, planetNodeResult.error());
@@ -168,18 +170,15 @@ int main(int, [[maybe_unused]] char* argv[])
 
             camera->SetBounds(windowW, windowH);
 
-            auto renderGraphResult = gd->CreateRenderGraph();
-            pcheck(renderGraphResult, renderGraphResult.error());
-
-            auto renderGraph = renderGraphResult.value();
+            SDLRenderGraph renderGraph(gd.Get());
 
             CameraVisitor cameraVisitor;
-            ModelVisitor modelVisitor(renderGraph);
+            ModelVisitor modelVisitor(&renderGraph);
             scene->Accept(&cameraVisitor);
             scene->Accept(&modelVisitor);
 
             auto vsCamera = cameraVisitor.GetCameras().front();
-            auto renderResult = renderGraph->Render(vsCamera.Transform, vsCamera.Projection);
+            auto renderResult = renderGraph.Render(vsCamera.Transform, vsCamera.Projection);
             if (!renderResult)
             {
                 logError(renderResult.error().Message);

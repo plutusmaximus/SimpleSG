@@ -32,7 +32,7 @@ void TransformVisitor::PostVisit(TransformNode* node)
     this->GroupVisitor::PostVisit(node);
 }
 
-ModelVisitor::ModelVisitor(RefPtr<RenderGraph> renderGraph)
+ModelVisitor::ModelVisitor(RenderGraph* renderGraph)
     : m_RenderGraph(renderGraph)
 {
 }

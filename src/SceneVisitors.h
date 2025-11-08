@@ -1,14 +1,16 @@
 #pragma once
 
+#include "RefCount.h"
+#include "VecMath.h"
+
 #include <stack>
 #include <list>
-
-#include "RenderGraph.h"
 
 class ModelNode;
 class CameraNode;
 class GroupNode;
 class TransformNode;
+class RenderGraph;
 
 class SceneVisitor
 {
@@ -82,7 +84,7 @@ public:
 
     ModelVisitor() = delete;
 
-    explicit ModelVisitor(RefPtr<RenderGraph> renderGraph);
+    explicit ModelVisitor(RenderGraph* renderGraph);
 
     ~ModelVisitor() override {}
 
@@ -90,7 +92,7 @@ public:
 
 private:
 
-    RefPtr<RenderGraph> m_RenderGraph;
+    RenderGraph* const m_RenderGraph;
 
     IMPLEMENT_NON_COPYABLE(ModelVisitor);
 };

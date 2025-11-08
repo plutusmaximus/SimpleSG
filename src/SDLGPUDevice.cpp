@@ -46,12 +46,12 @@ SDLGpuBuffer::~SDLGpuBuffer()
 }
 
 SDLGPUDevice::SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice)
-    : m_Window(window)
-    , m_GpuDevice(gpuDevice)
+    : Window(window)
+    , Device(gpuDevice)
 {
 }
 
-Result<RefPtr<GPUDevice>>
+Result<RefPtr<SDLGPUDevice>>
 SDLGPUDevice::Create(SDL_Window* window)
 {
     logInfo("Creating SDL GPU Device...");
@@ -87,32 +87,32 @@ SDLGPUDevice::~SDLGPUDevice()
 
     for (const auto& [_, pipeline] : m_PipelinesByKey)
     {
-        SDL_ReleaseGPUGraphicsPipeline(m_GpuDevice, pipeline);
+        SDL_ReleaseGPUGraphicsPipeline(Device, pipeline);
     }
 
     if (m_Sampler)
     {
-        SDL_ReleaseGPUSampler(m_GpuDevice, m_Sampler);
+        SDL_ReleaseGPUSampler(Device, m_Sampler);
     }
 
     for (const auto& [_, rec] : m_TexturesByName)
     {
-        SDL_ReleaseGPUTexture(m_GpuDevice, rec.Item);
+        SDL_ReleaseGPUTexture(Device, rec.Item);
     }
 
     for (const auto& [_, rec] : m_VertexShadersByName)
     {
-        SDL_ReleaseGPUShader(m_GpuDevice, rec.Item);
+        SDL_ReleaseGPUShader(Device, rec.Item);
     }
 
     for (const auto& [_, rec] : m_FragShadersByName)
     {
-        SDL_ReleaseGPUShader(m_GpuDevice, rec.Item);
+        SDL_ReleaseGPUShader(Device, rec.Item);
     }
 
-    if (m_GpuDevice)
+    if (Device)
     {
-        SDL_DestroyGPUDevice(m_GpuDevice);
+        SDL_DestroyGPUDevice(Device);
     }
 }
 
@@ -143,7 +143,7 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
                     .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT
                 };
 
-                m_Sampler = SDL_CreateGPUSampler(m_GpuDevice, &samplerInfo);
+                m_Sampler = SDL_CreateGPUSampler(Device, &samplerInfo);
                 expect(m_Sampler, SDL_GetError());
             }
 
@@ -185,16 +185,6 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
     return Model::Create(meshes);
 }
 
-Result<RefPtr<RenderGraph>>
-SDLGPUDevice::CreateRenderGraph()
-{
-    SDLRenderGraph* renderGraph = new SDLRenderGraph(this);
-
-    expectv(renderGraph, "Error allocating SDLRenderGraph");
-
-    return renderGraph;
-}
-
 Result<const SDLMaterial*>
 SDLGPUDevice::GetMaterial(const MaterialId& mtlId) const
 {
@@ -216,7 +206,7 @@ SDLGPUDevice::GetOrCreateVertexShader(
 
     if (!shader)
     {
-        auto shaderResult = LoadShader(m_GpuDevice, path, SDL_GPU_SHADERSTAGE_VERTEX, numUniformBuffers, 0);
+        auto shaderResult = LoadShader(Device, path, SDL_GPU_SHADERSTAGE_VERTEX, numUniformBuffers, 0);
 
         expect(shaderResult, shaderResult.error());
 
@@ -239,7 +229,7 @@ SDLGPUDevice::GetOrCreateFragmentShader(
 
     if (!shader)
     {
-        auto shaderResult = LoadShader(m_GpuDevice, path, SDL_GPU_SHADERSTAGE_FRAGMENT, 0, numSamplers);
+        auto shaderResult = LoadShader(Device, path, SDL_GPU_SHADERSTAGE_FRAGMENT, 0, numSamplers);
 
         expect(shaderResult, shaderResult.error());
 
@@ -256,7 +246,7 @@ SDLGPUDevice::GetOrCreateFragmentShader(
 Result<SDL_GPUGraphicsPipeline*>
 SDLGPUDevice::GetOrCreatePipeline(const SDLMaterial& mtl)
 {
-    SDL_GPUTextureFormat colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(m_GpuDevice, m_Window);
+    SDL_GPUTextureFormat colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(Device, Window);
     PipelineKey key
     {
         .ColorFormat = colorTargetFormat,
@@ -325,7 +315,7 @@ SDLGPUDevice::GetOrCreatePipeline(const SDLMaterial& mtl)
         }
     };
 
-    SDL_GPUGraphicsPipeline* pipeline = SDL_CreateGPUGraphicsPipeline(m_GpuDevice, &pipelineCreateInfo);
+    SDL_GPUGraphicsPipeline* pipeline = SDL_CreateGPUGraphicsPipeline(Device, &pipelineCreateInfo);
     expect(pipeline, SDL_GetError());
 
     m_PipelinesByKey.emplace(key, pipeline);
@@ -351,10 +341,10 @@ SDLGPUDevice::CreateBuffers(
     bufferCreateInfo.usage = SDL_GPU_BUFFERUSAGE_VERTEX | SDL_GPU_BUFFERUSAGE_INDEX;
     bufferCreateInfo.size = sizeofData;
 
-    SDL_GPUBuffer* buf = SDL_CreateGPUBuffer(m_GpuDevice, &bufferCreateInfo);
+    SDL_GPUBuffer* buf = SDL_CreateGPUBuffer(Device, &bufferCreateInfo);
     expect(buf, SDL_GetError());
 
-    RefPtr<SDLGpuBuffer> gpuBuf = new SDLGpuBuffer(m_GpuDevice, buf);
+    RefPtr<SDLGpuBuffer> gpuBuf = new SDLGpuBuffer(Device, buf);
 
     expectv(gpuBuf, "Error allocating SDLGPUBuffer");
 
@@ -367,21 +357,21 @@ SDLGPUDevice::CreateBuffers(
         .size = sizeofData
     };
 
-    SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(m_GpuDevice, &xferBufCreateInfo);
+    SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(Device, &xferBufCreateInfo);
     expect(transferBuffer, SDL_GetError());
-    auto tbufferAd = AutoDeleter(SDL_ReleaseGPUTransferBuffer, m_GpuDevice, transferBuffer);
+    auto tbufferAd = AutoDeleter(SDL_ReleaseGPUTransferBuffer, Device, transferBuffer);
 
     //Copy to transfer buffer
-    void* xferBuf = SDL_MapGPUTransferBuffer(m_GpuDevice, transferBuffer, false);
+    void* xferBuf = SDL_MapGPUTransferBuffer(Device, transferBuffer, false);
     expect(xferBuf, SDL_GetError());
 
     ::memcpy(xferBuf, vertices.data(), sizeofVerts);
     ::memcpy(&((char*)xferBuf)[sizeofVerts], indices.data(), sizeofIndices);
 
-    SDL_UnmapGPUTransferBuffer(m_GpuDevice, transferBuffer);
+    SDL_UnmapGPUTransferBuffer(Device, transferBuffer);
 
     //Upload data to GPU mem.
-    SDL_GPUCommandBuffer* uploadCmdBuf = SDL_AcquireGPUCommandBuffer(m_GpuDevice);
+    SDL_GPUCommandBuffer* uploadCmdBuf = SDL_AcquireGPUCommandBuffer(Device);
     expect(uploadCmdBuf, SDL_GetError());
     auto cmdBufAd = AutoDeleter(SDL_CancelGPUCommandBuffer, uploadCmdBuf);
 
@@ -424,7 +414,7 @@ SDLGPUDevice::GetOrCreateTexture(const std::string_view path)
         auto imgResult = Image::Load(path);
         expect(imgResult, imgResult.error());
         auto img = *imgResult;
-        auto texResult = CreateTexture(m_GpuDevice, img->Width, img->Height, img->Pixels);
+        auto texResult = CreateTexture(Device, img->Width, img->Height, img->Pixels);
         expect(texResult, texResult.error());
 
         texture = texResult.value();

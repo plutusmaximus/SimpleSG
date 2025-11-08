@@ -83,13 +83,11 @@ class SDLGPUDevice : public GPUDevice
 {
 public:
 
-    static Result<RefPtr<GPUDevice>> Create(SDL_Window* window);
+    static Result<RefPtr<SDLGPUDevice>> Create(SDL_Window* window);
 
     ~SDLGPUDevice() override;
 
     Result<RefPtr<Model>> CreateModel(const ModelSpec& modelSpec) override;
-
-    Result<RefPtr<RenderGraph>> CreateRenderGraph() override;
 
     Result<const SDLMaterial*> GetMaterial(const MaterialId& mtlId) const;
 
@@ -103,8 +101,8 @@ public:
 
     Result<SDL_GPUGraphicsPipeline*> GetOrCreatePipeline(const SDLMaterial& mtl);
 
-    SDL_Window* const m_Window;
-    SDL_GPUDevice* const m_GpuDevice;
+    SDL_Window* const Window;
+    SDL_GPUDevice* const Device;
 
 private:
 

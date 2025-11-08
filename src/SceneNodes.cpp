@@ -5,6 +5,16 @@
 // GroupNode
 //
 
+Result<RefPtr<GroupNode>>
+GroupNode::Create()
+{
+    GroupNode* group = new GroupNode();
+
+    expectv(group, "Error allocating group");
+
+    return group;
+}
+
 void
 GroupNode::Accept(SceneVisitor* visitor)
 {
@@ -39,11 +49,6 @@ GroupNode::RemoveChild(RefPtr<SceneNode> child)
 //
 // TransformNode
 //
-
-TransformNode::TransformNode()
-{
-    Transform = Mat44f::Identity();
-}
 
 void
 TransformNode::PreAccept(SceneVisitor* visitor)

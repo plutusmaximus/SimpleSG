@@ -16,7 +16,7 @@ SDLRenderGraph::SDLRenderGraph(SDLGPUDevice* gpuDevice)
 
 SDLRenderGraph::~SDLRenderGraph()
 {
-    SDL_ReleaseGPUTexture(m_GpuDevice->m_GpuDevice, m_DepthBuffer);
+    SDL_ReleaseGPUTexture(m_GpuDevice->Device, m_DepthBuffer);
 }
 
 void
@@ -39,8 +39,8 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 {
     const Mat44f viewXform = camera.Inverse();
 
-    auto gpuDevice = m_GpuDevice->m_GpuDevice;
-    auto window = m_GpuDevice->m_Window;
+    auto gpuDevice = m_GpuDevice->Device;
+    auto window = m_GpuDevice->Window;
 
     SDL_GPUCommandBuffer* cmdBuf = SDL_AcquireGPUCommandBuffer(gpuDevice);
 

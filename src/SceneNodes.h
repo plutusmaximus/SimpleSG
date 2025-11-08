@@ -11,8 +11,6 @@ class SceneNode
 {
 public:
 
-    SceneNode() = default;
-
     virtual ~SceneNode() = 0 {}
 
     virtual void PreAccept(SceneVisitor* visitor) {}
@@ -20,6 +18,10 @@ public:
     virtual void Accept(SceneVisitor* visitor) = 0;
 
     virtual void PostAccept(SceneVisitor* visitor) {}
+
+protected:
+
+    SceneNode() = default;
 
 private:
 
@@ -30,7 +32,7 @@ class GroupNode : public SceneNode
 {
 public:
 
-    GroupNode() = default;
+    static Result<RefPtr<GroupNode>> Create();
 
     ~GroupNode() override {}
 
@@ -48,6 +50,10 @@ public:
     iterator end() { return m_Children.end(); }
     const_iterator end()const { return m_Children.end(); }
 
+protected:
+
+    GroupNode() = default;
+
 private:
 
     std::deque<RefPtr<SceneNode>> m_Children;
@@ -57,8 +63,6 @@ class TransformNode : public GroupNode
 {
 public:
 
-    TransformNode();
-
     ~TransformNode() override {}
 
     void PreAccept(SceneVisitor* visitor) override;
@@ -67,7 +71,11 @@ public:
 
     void PostAccept(SceneVisitor* visitor) override;
 
-    Mat44f Transform;
+    Mat44f Transform{ 1 };
+
+protected:
+
+    TransformNode() = default;
 };
 
 class CameraNode : public TransformNode

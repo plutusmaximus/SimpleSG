@@ -21,6 +21,4 @@ public:
     virtual Result<void> Render(const Mat44f& camera, const Mat44f& projection) = 0;
 
     virtual void Reset() = 0;
-
-    IMPLEMENT_REFCOUNT(RenderGraph);
 };
