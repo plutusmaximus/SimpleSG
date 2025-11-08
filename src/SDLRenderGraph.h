@@ -1,6 +1,5 @@
 #pragma once
 
-#include <vector>
 #include <map>
 
 #include "RenderGraph.h"
@@ -32,7 +31,7 @@ private:
         RefPtr<Mesh> Mesh;
     };
 
-    std::list<Mat44f> m_ViewTransforms;
+    std::deque<Mat44f> m_ViewTransforms;
 
     RefPtr<SDLGPUDevice> m_GpuDevice;
     SDL_GPUTexture* m_DepthBuffer = nullptr;
@@ -50,5 +49,5 @@ private:
     };
 
 
-    std::map<MaterialId, std::list<XformMesh>> m_MeshGroups;
+    std::map<MaterialId, std::deque<XformMesh>> m_MeshGroups;
 };

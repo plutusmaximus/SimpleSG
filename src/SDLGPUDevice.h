@@ -5,6 +5,7 @@
 #include "Vertex.h"
 
 #include <map>
+#include <deque>
 #include <span>
 
 struct SDL_Window;
@@ -182,6 +183,6 @@ private:
     HashTable<SDL_GPUTexture> m_TexturesByName;
     HashTable<SDL_GPUShader> m_VertexShadersByName;
     HashTable<SDL_GPUShader> m_FragShadersByName;
-    std::vector<SDLMaterial*> m_Materials;
+    std::deque<SDLMaterial*> m_Materials;
     std::map<MaterialId, size_t> m_MaterialIndexById;
 };

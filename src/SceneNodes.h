@@ -4,7 +4,7 @@
 #include "Mesh.h"
 #include "Vertex.h"
 
-#include <vector>
+#include <deque>
 #include <span>
 
 class SceneVisitor;
@@ -40,8 +40,8 @@ public:
 
     void RemoveChild(RefPtr<SceneNode> child);
 
-    using iterator = std::vector<RefPtr<SceneNode>>::iterator;
-    using const_iterator = std::vector<RefPtr<SceneNode>>::const_iterator;
+    using iterator = std::deque<RefPtr<SceneNode>>::iterator;
+    using const_iterator = std::deque<RefPtr<SceneNode>>::const_iterator;
 
     iterator begin() { return m_Children.begin(); }
     const_iterator begin()const { return m_Children.begin(); }
@@ -50,7 +50,7 @@ public:
 
 private:
 
-    std::vector<RefPtr<SceneNode>> m_Children;
+    std::deque<RefPtr<SceneNode>> m_Children;
 };
 
 class TransformNode : public GroupNode
