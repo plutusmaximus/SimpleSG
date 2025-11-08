@@ -18,13 +18,20 @@ public:
 
     virtual ~SceneVisitor() = 0 {}
 
+    virtual void PreVisit(ModelNode* node) {}
+    virtual void PreVisit(CameraNode* node) {}
+    virtual void PreVisit(TransformNode* node) {}
+    virtual void PreVisit(GroupNode* node) {}
+
     virtual void Visit(ModelNode* node) {}
-
     virtual void Visit(CameraNode* node) {}
-
     virtual void Visit(TransformNode* node) {}
-
     virtual void Visit(GroupNode* node) {}
+
+    virtual void PostVisit(ModelNode* node) {}
+    virtual void PostVisit(CameraNode* node) {}
+    virtual void PostVisit(TransformNode* node) {}
+    virtual void PostVisit(GroupNode* node) {}
 };
 
 class GroupVisitor : public SceneVisitor
@@ -53,7 +60,9 @@ public:
 
     ~TransformVisitor() override {}
 
+    void PreVisit(TransformNode* node) override;
     void Visit(TransformNode* node) override;
+    void PostVisit(TransformNode* node) override;
 
     const Mat44f& GetTransform() const
     {

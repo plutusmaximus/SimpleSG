@@ -15,7 +15,11 @@ public:
 
     virtual ~SceneNode() = 0 {}
 
+    virtual void PreAccept(SceneVisitor* visitor) {}
+
     virtual void Accept(SceneVisitor* visitor) = 0;
+
+    virtual void PostAccept(SceneVisitor* visitor) {}
 
 private:
 
@@ -57,7 +61,11 @@ public:
 
     ~TransformNode() override {}
 
+    void PreAccept(SceneVisitor* visitor) override;
+
     void Accept(SceneVisitor* visitor) override;
+
+    void PostAccept(SceneVisitor* visitor) override;
 
     Mat44f Transform;
 };

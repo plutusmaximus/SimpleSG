@@ -46,9 +46,21 @@ TransformNode::TransformNode()
 }
 
 void
+TransformNode::PreAccept(SceneVisitor* visitor)
+{
+    visitor->PreVisit(this);
+}
+
+void
 TransformNode::Accept(SceneVisitor* visitor)
 {
     visitor->Visit(this);
+}
+
+void
+TransformNode::PostAccept(SceneVisitor* visitor)
+{
+    visitor->PostVisit(this);
 }
 
 //
