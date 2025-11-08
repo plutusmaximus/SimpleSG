@@ -182,16 +182,14 @@ bool ShowAssertDialog(const char* expression, const char* fileName, const int li
 // Or
 // 
 // return everify(x > y) ? x : -1;
-// 
-// !! is used to ensure that any overloaded operators used to evaluate expr
-// do not end up at &&.
-#define everify(expression) ((static_cast<bool>(expression)) || (ShowAssertDialog(#expression, __FILE__, __LINE__) ? __debugbreak(), false : false))
+#define everify(expr) ((static_cast<bool>(expr)) || (ShowAssertDialog(#expr, __FILE__, __LINE__) ? __debugbreak(), false : false))
 
-#define eassert(expression) void(everify(expression))
+#define eassert(expr) void(everify(expr))
 
 #else	//NDEBUG
 
-#define	Verify(expr) (!!(expr))
+#define	everify(expr) (static_cast<bool>(expr))
+#define eassert(expr)
 
 #endif	//NDEBUG
 
