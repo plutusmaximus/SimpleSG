@@ -5,12 +5,15 @@
 
 void GroupVisitor::Visit(GroupNode* node)
 {
-    node->Traverse(this);
+    for (auto child : *node)
+    {
+        child->Accept(this);
+    }
 }
 
 void TransformVisitor::Visit(TransformNode* node)
 {
-    m_TransformStack.push(m_TransformStack.top().Mul(node->Transform));
+    m_TransformStack.push(GetTransform().Mul(node->Transform));
 
     this->GroupVisitor::Visit(node);
 
@@ -24,14 +27,18 @@ ModelVisitor::ModelVisitor(RefPtr<RenderGraph> renderGraph)
 
 void ModelVisitor::Visit(ModelNode* node)
 {
-    m_RenderGraph->Add(GetTransform(), node);
+    this->TransformVisitor::Visit(node);
+
+    m_RenderGraph->Add(GetTransform() * node->Transform, node);
 }
 
 void CameraVisitor::Visit(CameraNode* node)
 {
+    this->TransformVisitor::Visit(node);
+
     m_CameraList.emplace_back(ViewspaceCamera
         {
-            .Transform = GetTransform(),
+            .Transform = GetTransform() * node->Transform,
             .Projection = node->GetProjection()
         });
 }   

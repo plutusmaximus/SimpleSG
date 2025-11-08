@@ -20,11 +20,11 @@ SDLRenderGraph::~SDLRenderGraph()
 }
 
 void
-SDLRenderGraph::Add(const Mat44f& viewTransform, RefPtr<ModelNode> model)
+SDLRenderGraph::Add(const Mat44f& viewTransform, RefPtr<ModelNode> modelNode)
 {
     m_ViewTransforms.emplace_back(viewTransform);
 
-    for (const auto& mesh : model->Meshes)
+    for (const auto& mesh : modelNode->Model->Meshes)
     {
         const MaterialId mtlId = mesh->MaterialId;
 

@@ -17,9 +17,9 @@
 
 #include "Shapes.h"
 
-static Result<RefPtr<ModelNode>> CreateCube(RefPtr<GPUDevice> gpu);
-static Result<RefPtr<ModelNode>> CreatePumpkin(RefPtr<GPUDevice> gpu);
-static Result<RefPtr<ModelNode>> CreateShape(RefPtr<GPUDevice> gpu);
+static Result<RefPtr<Model>> CreateCube(RefPtr<GPUDevice> gpu);
+static Result<RefPtr<Model>> CreatePumpkin(RefPtr<GPUDevice> gpu);
+static Result<RefPtr<Model>> CreateShape(RefPtr<GPUDevice> gpu);
 
 int main(int, [[maybe_unused]] char* argv[])
 {
@@ -44,41 +44,33 @@ int main(int, [[maybe_unused]] char* argv[])
         pcheck(gdResult, gdResult.error());
         auto gd = *gdResult;
 
-        auto cubeModelResult = CreateCube(gd);
-        pcheck(cubeModelResult, cubeModelResult.error());
-        auto cubeModel = cubeModelResult.value();
-
-        auto pumpkinModelResult = CreatePumpkin(gd);
-        pcheck(pumpkinModelResult, pumpkinModelResult.error());
-        auto pumpkinModel = pumpkinModelResult.value();
-
-        auto shapeModelResult = CreateShape(gd);
-        pcheck(shapeModelResult, shapeModelResult.error());
-        auto shapeModel = shapeModelResult.value();
+        //auto modelResult = CreateCube(gd);
+        //auto modelResult = CreatePumpkin(gd);
+        auto modelResult = CreateShape(gd);
+        pcheck(modelResult, modelResult.error());
+        auto model = modelResult.value();
 
         RefPtr<GroupNode> scene = new GroupNode();
 
-        RefPtr<TransformNode> planetXFormNode = new TransformNode();
-        RefPtr<TransformNode> moonXFormNode = new TransformNode();
-        planetXFormNode->AddChild(shapeModel);
-        moonXFormNode->AddChild(shapeModel);
-        //planetXFormNode->AddChild(cubeModel);
-        //moonXFormNode->AddChild(cubeModel);
-        //planetXFormNode->AddChild(pumpkinModel);
-        //moonXFormNode->AddChild(pumpkinModel);
-        planetXFormNode->AddChild(moonXFormNode);
-        scene->AddChild(planetXFormNode);
+        auto planetNodeResult = ModelNode::Create(model);
+        pcheck(planetNodeResult, planetNodeResult.error());
+        auto planetNode = planetNodeResult.value();
+
+        auto moonNodeResult = ModelNode::Create(model);
+        pcheck(moonNodeResult, moonNodeResult.error());
+        auto moonNode = moonNodeResult.value();
+
+        planetNode->AddChild(moonNode);
+        scene->AddChild(planetNode);
 
         auto cameraResult = CameraNode::Create();
         pcheck(cameraResult, cameraResult.error());
         RefPtr<CameraNode> camera = cameraResult.value();
         const Degreesf fov(45);
         camera->SetPerspective(fov, 100, 100, 0.1f, 1000);
-        RefPtr<TransformNode> cameraXFormNode = new TransformNode();
-        cameraXFormNode->AddChild(camera);
-        scene->AddChild(cameraXFormNode);
+        scene->AddChild(camera);
 
-        cameraXFormNode->Transform =
+        camera->Transform =
             Mat44f::Identity()
             .Translate(0, 0, -4);
 
@@ -86,7 +78,7 @@ int main(int, [[maybe_unused]] char* argv[])
         bool running = true;
         Radiansf planetSpinAngle(0), moonSpinAngle(0), moonOrbitAngle(0);
 
-        GimbleMouseNav gimbleMouseNav(cameraXFormNode);
+        GimbleMouseNav gimbleMouseNav(camera);
         MouseNav* mouseNav = &gimbleMouseNav;
 
         while (running)
@@ -160,13 +152,13 @@ int main(int, [[maybe_unused]] char* argv[])
 
             constexpr Radiansf planetTiltAngle = Radiansf::FromDegrees(15);
 
-            planetXFormNode->Transform =
+            planetNode->Transform =
                 Mat44f::Identity()
                 //.Rotate(planetTiltAngle, Vec3f::ZAXIS()) //tilt
                 //.Rotate(planetTiltAngle*2, Vec3f::XAXIS()) //tilt
                 .Rotate(planetSpinAngle, Vec3f::YAXIS());  //spin
 
-            moonXFormNode->Transform =
+            moonNode->Transform =
                 Mat44f::Identity()
                 .Rotate(moonOrbitAngle, Vec3f::YAXIS())    //orbit
                 .Translate(0, 0, -2)
@@ -253,10 +245,9 @@ static VertexIndex cubeIndices[] =
     20, 22, 23,  20, 21, 22
 };
 
-static Result<RefPtr<ModelNode>> CreateCube(RefPtr<GPUDevice> gpu)
+static Result<RefPtr<Model>> CreateCube(RefPtr<GPUDevice> gpu)
 {
-
-    MeshSpec cubeMeshSpecs[] =
+    MeshSpec meshSpecs[] =
     {
         {
             .IndexOffset = 0,
@@ -326,17 +317,17 @@ static Result<RefPtr<ModelNode>> CreateCube(RefPtr<GPUDevice> gpu)
         },
     };
 
-    ModelSpec cubeModelSpec
+    ModelSpec modelSpec
     {
         .Vertices = cubeVertices,
         .Indices = cubeIndices,
-        .MeshSpecs = cubeMeshSpecs
+        .MeshSpecs = meshSpecs
     };
 
-    return gpu->CreateModel(cubeModelSpec);
+    return gpu->CreateModel(modelSpec);
 }
 
-static Result<RefPtr<ModelNode>> CreateShape(RefPtr<GPUDevice> gpu)
+static Result<RefPtr<Model>> CreateShape(RefPtr<GPUDevice> gpu)
 {
     //auto geometry = Shapes::Box(1, 1, 1);
     //auto geometry = Shapes::Ball(1, 10);
@@ -370,25 +361,24 @@ static Result<RefPtr<ModelNode>> CreateShape(RefPtr<GPUDevice> gpu)
     return gpu->CreateModel(modelSpec);
 }
 
-static Result<RefPtr<ModelNode>> CreatePumpkin(RefPtr<GPUDevice> gpu)
+static Result<RefPtr<Model>> CreatePumpkin(RefPtr<GPUDevice> gpu)
 {
-
     std::vector<Triangle> triangles;
     auto stlResult = loadAsciiSTL("models/Pumpkin-DD.stl", triangles);
     expect(stlResult, stlResult.error());
 
     std::map<TVertex, unsigned> vmap;
-    std::vector<Vertex> pumpkinVertices;
-    std::vector<unsigned> pumpkinIndices;
+    std::vector<Vertex> vertices;
+    std::vector<unsigned> indices;
     for (const auto& tri : triangles)
     {
-        TVertex vertices[] =
+        TVertex tverts[] =
         {
             //Change winding from CCW to CW
             tri.v[0], tri.v[2], tri.v[1]
         };
 
-        for (auto& v : vertices)
+        for (auto& v : tverts)
         {
             //STL uses a right handed coordinate system with
             //Z up, Y into the screen, triangles winding counter clockwise.
@@ -400,7 +390,7 @@ static Result<RefPtr<ModelNode>> CreatePumpkin(RefPtr<GPUDevice> gpu)
 
         for (int i = 0; i < 3; ++i)
         {
-            const TVertex& tv = vertices[i];
+            const TVertex& tv = tverts[i];
             unsigned index;
 
             auto it = vmap.find(tv);
@@ -408,8 +398,8 @@ static Result<RefPtr<ModelNode>> CreatePumpkin(RefPtr<GPUDevice> gpu)
             {
                 index = vmap.size();
                 vmap.emplace(tv, index);
-                pumpkinVertices.push_back(tv);
-                pumpkinVertices[index].normal = Vec3f(0, 0, 0);
+                vertices.push_back(tv);
+                vertices[index].normal = Vec3f(0, 0, 0);
             }
             else
             {
@@ -417,26 +407,26 @@ static Result<RefPtr<ModelNode>> CreatePumpkin(RefPtr<GPUDevice> gpu)
             }
 
             const Vec3f& v0 = tv.pos;
-            const Vec3f& v1 = vertices[(i + 1) % 3].pos;
-            const Vec3f& v2 = vertices[(i + 2) % 3].pos;
+            const Vec3f& v1 = tverts[(i + 1) % 3].pos;
+            const Vec3f& v2 = tverts[(i + 2) % 3].pos;
 
             Vec3 normal = (v1 - v0).Cross(v2 - v0).Normalize();
-            pumpkinVertices[index].normal = pumpkinVertices[index].normal + normal;
+            vertices[index].normal = vertices[index].normal + normal;
 
-            pumpkinIndices.push_back(index);
+            indices.push_back(index);
         }
     }
 
-    for (auto& v : pumpkinVertices)
+    for (auto& v : vertices)
     {
         v.normal = v.normal.Normalize();
     }
 
-    MeshSpec pumpkinMeshSpecs[] =
+    MeshSpec meshSpecs[] =
     {
         {
             .IndexOffset = 0,
-            .IndexCount = (unsigned)pumpkinIndices.size(),
+            .IndexCount = (unsigned)indices.size(),
             .MtlSpec =
             {
                 .Color = {1, 0, 0},
@@ -447,12 +437,12 @@ static Result<RefPtr<ModelNode>> CreatePumpkin(RefPtr<GPUDevice> gpu)
         },
     };
 
-    ModelSpec pumpkinModelSpec
+    ModelSpec modelSpec
     {
-        .Vertices = pumpkinVertices,
-        .Indices = pumpkinIndices,
-        .MeshSpecs = pumpkinMeshSpecs
+        .Vertices = vertices,
+        .Indices = indices,
+        .MeshSpecs = meshSpecs
     };
 
-    return gpu->CreateModel(pumpkinModelSpec);
+    return gpu->CreateModel(modelSpec);
 }

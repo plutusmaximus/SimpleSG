@@ -3,7 +3,7 @@
 #include "RefCount.h"
 #include "Error.h"
 
-class ModelNode;
+class Model;
 class RenderGraph;
 class ModelSpec;
 
@@ -15,7 +15,7 @@ public:
 
     virtual ~GPUDevice() = 0 {}
 
-    virtual Result<RefPtr<ModelNode>> CreateModel(const ModelSpec& modelSpec) = 0;
+    virtual Result<RefPtr<Model>> CreateModel(const ModelSpec& modelSpec) = 0;
 
     virtual Result<RefPtr<RenderGraph>> CreateRenderGraph() = 0;
 

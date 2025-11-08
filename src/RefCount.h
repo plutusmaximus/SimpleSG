@@ -91,7 +91,7 @@ public:
 
     RefPtr& operator=(RefPtr r) { std::swap(m_Ptr, r.m_Ptr); return *this; }
 
-    void Clear() { RefPtr().swap(*this); }
+    void Clear() { m_Ptr = nullptr; }
 
     explicit operator bool() const { return m_Ptr != nullptr; }
 
@@ -139,6 +139,7 @@ bool operator!=(std::nullptr_t null, const RefPtr<T>& rhs) { return !operator==(
 #define IMPLEMENT_NON_COPYABLE(ClassName)           \
 private:                                            \
 ClassName(const ClassName&) = delete;               \
+ClassName(ClassName&&) = delete;                    \
 ClassName& operator=(const ClassName&) = delete;
 
 //Also implements NON_COPYABLE

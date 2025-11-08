@@ -1,8 +1,6 @@
 #pragma once
 
-#include "RefCount.h"
-#include "Mesh.h"
-#include "Vertex.h"
+#include "Model.h"
 
 #include <deque>
 #include <span>
@@ -34,8 +32,6 @@ public:
 
     virtual void Accept(SceneVisitor* visitor) override;
 
-    void Traverse(SceneVisitor* visitor);
-
     void AddChild(RefPtr<SceneNode> child);
 
     void RemoveChild(RefPtr<SceneNode> child);
@@ -66,7 +62,7 @@ public:
     Mat44f Transform;
 };
 
-class CameraNode : public SceneNode
+class CameraNode : public TransformNode
 {
 public:
 
@@ -93,39 +89,19 @@ private:
     Mat44f m_Proj{ 1 };
 };
 
-class ModelSpec
-{
-public:
-    const std::span<const Vertex> Vertices;
-    const std::span<const VertexIndex> Indices;
-    const std::span<const MeshSpec> MeshSpecs;
-};
-
-class ModelNode : public SceneNode
+class ModelNode : public TransformNode
 {
 public:
 
-    class Meshes : private std::vector<RefPtr<Mesh>>
-    {
-        friend class ModelNode;
-    public:
-
-        using iterator = std::vector<RefPtr<Mesh>>::iterator;
-        using const_iterator = std::vector<RefPtr<Mesh>>::const_iterator;
-
-        using std::vector<RefPtr<Mesh>>::begin;
-        using std::vector<RefPtr<Mesh>>::end;
-    };
-
-    static Result<RefPtr<ModelNode>> Create(std::span<RefPtr<Mesh>> meshes);
+    static Result<RefPtr<ModelNode>> Create(RefPtr<Model> model);
 
     void Accept(SceneVisitor* visitor) override;
 
-    Meshes Meshes;
+    RefPtr<Model> const Model;
 
 private:
 
     ModelNode() = delete;
 
-    ModelNode(std::span<RefPtr<Mesh>> meshes);
+    ModelNode(RefPtr<::Model> model);
 };

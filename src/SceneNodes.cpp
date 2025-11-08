@@ -12,15 +12,6 @@ GroupNode::Accept(SceneVisitor* visitor)
 }
 
 void
-GroupNode::Traverse(SceneVisitor* visitor)
-{
-    for (auto child : *this)
-    {
-        child->Accept(visitor);
-    }
-}
-
-void
 GroupNode::AddChild(RefPtr<SceneNode> child)
 {
     m_Children.push_back(child);
@@ -110,20 +101,19 @@ CameraNode::GetProjection() const
 // ModelNode
 //
 
-ModelNode::ModelNode(std::span<RefPtr<Mesh>> meshes)
+ModelNode::ModelNode(RefPtr<::Model> model)
+    : Model(model)
 {
-    Meshes.reserve(meshes.size());
-    Meshes.assign(meshes.begin(), meshes.end());
 }
 
 Result<RefPtr<ModelNode>>
-ModelNode::Create(std::span<RefPtr<Mesh>> meshes)
+ModelNode::Create(RefPtr<::Model> model)
 {
-    ModelNode* model = new ModelNode(meshes);
+    ModelNode* modelNode = new ModelNode(model);
 
     expectv(model, "Error allocating model");
 
-    return model;
+    return modelNode;
 }
 
 void

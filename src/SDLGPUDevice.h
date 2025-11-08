@@ -87,7 +87,7 @@ public:
 
     ~SDLGPUDevice() override;
 
-    Result<RefPtr<ModelNode>> CreateModel(const ModelSpec& modelSpec) override;
+    Result<RefPtr<Model>> CreateModel(const ModelSpec& modelSpec) override;
 
     Result<RefPtr<RenderGraph>> CreateRenderGraph() override;
 
