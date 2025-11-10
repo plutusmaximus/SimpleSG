@@ -13,11 +13,7 @@ public:
 
     virtual ~SceneNode() = 0 {}
 
-    virtual void PreAccept(SceneVisitor* visitor) {}
-
     virtual void Accept(SceneVisitor* visitor) = 0;
-
-    virtual void PostAccept(SceneVisitor* visitor) {}
 
 protected:
 
@@ -63,13 +59,11 @@ class TransformNode : public GroupNode
 {
 public:
 
+    static Result<RefPtr<TransformNode>> Create();
+
     ~TransformNode() override {}
 
-    void PreAccept(SceneVisitor* visitor) override;
-
     void Accept(SceneVisitor* visitor) override;
-
-    void PostAccept(SceneVisitor* visitor) override;
 
     Mat44f Transform{ 1 };
 
@@ -78,7 +72,7 @@ protected:
     TransformNode() = default;
 };
 
-class CameraNode : public TransformNode
+class CameraNode : public SceneNode
 {
 public:
 
@@ -105,7 +99,7 @@ private:
     Mat44f m_Proj{ 1 };
 };
 
-class ModelNode : public TransformNode
+class ModelNode : public SceneNode
 {
 public:
 
@@ -120,4 +114,19 @@ private:
     ModelNode() = delete;
 
     ModelNode(RefPtr<::Model> model);
+};
+
+class PropNode : public TransformNode
+{
+public:
+
+    static Result<RefPtr<PropNode>> Create(RefPtr<Model> model);
+
+    RefPtr<ModelNode> const Model;
+
+private:
+
+    PropNode() = delete;
+
+    PropNode(RefPtr<ModelNode> model);
 };

@@ -8,11 +8,11 @@
 Result<RefPtr<GroupNode>>
 GroupNode::Create()
 {
-    GroupNode* group = new GroupNode();
+    GroupNode* groupNode = new GroupNode();
 
-    expectv(group, "Error allocating group");
+    expectv(groupNode, "Error allocating GroupNode");
 
-    return group;
+    return groupNode;
 }
 
 void
@@ -50,22 +50,20 @@ GroupNode::RemoveChild(RefPtr<SceneNode> child)
 // TransformNode
 //
 
-void
-TransformNode::PreAccept(SceneVisitor* visitor)
+Result<RefPtr<TransformNode>>
+TransformNode::Create()
 {
-    visitor->PreVisit(this);
+    TransformNode* xform = new TransformNode();
+
+    expectv(xform, "Error allocating TransformNode");
+
+    return xform;
 }
 
 void
 TransformNode::Accept(SceneVisitor* visitor)
 {
     visitor->Visit(this);
-}
-
-void
-TransformNode::PostAccept(SceneVisitor* visitor)
-{
-    visitor->PostVisit(this);
 }
 
 //
@@ -75,11 +73,11 @@ TransformNode::PostAccept(SceneVisitor* visitor)
 Result<RefPtr<CameraNode>>
 CameraNode::Create()
 {
-    CameraNode* camera = new CameraNode();
+    CameraNode* cameraNode = new CameraNode();
 
-    expectv(camera, "Error allocating camera");
+    expectv(cameraNode, "Error allocating CameraNode");
 
-    return camera;
+    return cameraNode;
 }
 
 void
@@ -128,7 +126,7 @@ ModelNode::Create(RefPtr<::Model> model)
 {
     ModelNode* modelNode = new ModelNode(model);
 
-    expectv(model, "Error allocating model");
+    expectv(modelNode, "Error allocating ModelNode");
 
     return modelNode;
 }
@@ -137,4 +135,26 @@ void
 ModelNode::Accept(SceneVisitor* visitor)
 {
     visitor->Visit(this);
+}
+
+//
+// PropNode
+//
+
+Result<RefPtr<PropNode>>
+PropNode::Create(RefPtr<::Model> model)
+{
+    auto modelNodeResult = ModelNode::Create(model);
+    expect(modelNodeResult, modelNodeResult.error());
+
+    PropNode* prop = new PropNode(modelNodeResult.value());
+    expect(prop, "Error allocating Prop");
+
+    return prop;
+}
+
+PropNode::PropNode(RefPtr<ModelNode> model)
+    : Model(model)
+{
+    AddChild(model);
 }
