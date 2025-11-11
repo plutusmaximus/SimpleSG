@@ -17,13 +17,31 @@
 
 #include "Shapes.h"
 
-static Result<RefPtr<Model>> CreateCube(RefPtr<GPUDevice> gpu);
-static Result<RefPtr<Model>> CreatePumpkin(RefPtr<GPUDevice> gpu);
-static Result<RefPtr<Model>> CreateShape(RefPtr<GPUDevice> gpu);
+#include "LuaRepl.h"
+
+static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu);
+static Result<RefPtr<Model>> CreatePumpkinModel(RefPtr<GPUDevice> gpu);
+static Result<RefPtr<Model>> CreateShapeModel(RefPtr<GPUDevice> gpu);
+
+static Result<RefPtr<PropNode>> CreateCube(RefPtr<GPUDevice> gpu);
+static Result<RefPtr<PropNode>> CreatePumpkin(RefPtr<GPUDevice> gpu);
+static Result<RefPtr<PropNode>> CreateShape(RefPtr<GPUDevice> gpu);
+
+static int Add(lua_State* L)
+{
+    int arg1 = luaL_checkinteger(L, 1);
+    int arg2 = luaL_checkinteger(L, 2);
+    lua_pushinteger(L, arg1 + arg2);
+    return 1;
+}
 
 int main(int, [[maybe_unused]] char* argv[])
 {
     Logging::SetLogLevel(spdlog::level::trace);
+
+    LuaRepl repl;
+
+    repl.ExportFunction(Add, "Add");
 
     etry
     {
@@ -46,7 +64,7 @@ int main(int, [[maybe_unused]] char* argv[])
 
         //auto modelResult = CreateCube(gd);
         //auto modelResult = CreatePumpkin(gd);
-        auto modelResult = CreateShape(gd);
+        auto modelResult = CreateShapeModel(gd);
         pcheck(modelResult, modelResult.error());
         auto model = modelResult.value();
 
@@ -54,25 +72,30 @@ int main(int, [[maybe_unused]] char* argv[])
         pcheck(sceneResult, sceneResult.error());
         auto scene = sceneResult.value();
 
-        auto planetNodeResult = ModelNode::Create(model);
-        pcheck(planetNodeResult, planetNodeResult.error());
-        auto planetNode = planetNodeResult.value();
+        auto planetResult = PropNode::Create(model);
+        pcheck(planetResult, planetResult.error());
+        auto planet = planetResult.value();
 
-        auto moonNodeResult = ModelNode::Create(model);
-        pcheck(moonNodeResult, moonNodeResult.error());
-        auto moonNode = moonNodeResult.value();
+        auto moonResult = PropNode::Create(model);
+        pcheck(moonResult, moonResult.error());
+        auto moon = moonResult.value();
 
-        planetNode->AddChild(moonNode);
-        scene->AddChild(planetNode);
+        planet->AddChild(moon);
+        scene->AddChild(planet);
+
+        auto camXformNodeResult = TransformNode::Create();
+        pcheck(camXformNodeResult, camXformNodeResult.error());
+        auto camXformNode = camXformNodeResult.value();
 
         auto cameraResult = CameraNode::Create();
         pcheck(cameraResult, cameraResult.error());
         RefPtr<CameraNode> camera = cameraResult.value();
         const Degreesf fov(45);
         camera->SetPerspective(fov, 100, 100, 0.1f, 1000);
-        scene->AddChild(camera);
+        camXformNode->AddChild(camera);
+        scene->AddChild(camXformNode);
 
-        camera->Transform =
+        camXformNode->Transform =
             Mat44f::Identity()
             .Translate(0, 0, -4);
 
@@ -80,7 +103,7 @@ int main(int, [[maybe_unused]] char* argv[])
         bool running = true;
         Radiansf planetSpinAngle(0), moonSpinAngle(0), moonOrbitAngle(0);
 
-        GimbleMouseNav gimbleMouseNav(camera);
+        GimbleMouseNav gimbleMouseNav(camXformNode);
         MouseNav* mouseNav = &gimbleMouseNav;
 
         while (running)
@@ -147,6 +170,8 @@ int main(int, [[maybe_unused]] char* argv[])
                 continue;
             }
 
+            repl.Update();
+
             // Update model matrix
             planetSpinAngle = (planetSpinAngle + 0.001f).Wrap();
             moonSpinAngle = (moonSpinAngle - 0.005f).Wrap();
@@ -154,13 +179,13 @@ int main(int, [[maybe_unused]] char* argv[])
 
             constexpr Radiansf planetTiltAngle = Radiansf::FromDegrees(15);
 
-            planetNode->Transform =
+            planet->Transform =
                 Mat44f::Identity()
                 //.Rotate(planetTiltAngle, Vec3f::ZAXIS()) //tilt
                 //.Rotate(planetTiltAngle*2, Vec3f::XAXIS()) //tilt
                 .Rotate(planetSpinAngle, Vec3f::YAXIS());  //spin
 
-            moonNode->Transform =
+            moon->Transform =
                 Mat44f::Identity()
                 .Rotate(moonOrbitAngle, Vec3f::YAXIS())    //orbit
                 .Translate(0, 0, -2)
@@ -244,7 +269,7 @@ static VertexIndex cubeIndices[] =
     20, 22, 23,  20, 21, 22
 };
 
-static Result<RefPtr<Model>> CreateCube(RefPtr<GPUDevice> gpu)
+static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
 {
     MeshSpec meshSpecs[] =
     {
@@ -326,7 +351,7 @@ static Result<RefPtr<Model>> CreateCube(RefPtr<GPUDevice> gpu)
     return gpu->CreateModel(modelSpec);
 }
 
-static Result<RefPtr<Model>> CreateShape(RefPtr<GPUDevice> gpu)
+static Result<RefPtr<Model>> CreateShapeModel(RefPtr<GPUDevice> gpu)
 {
     //auto geometry = Shapes::Box(1, 1, 1);
     //auto geometry = Shapes::Ball(1, 10);
@@ -360,7 +385,7 @@ static Result<RefPtr<Model>> CreateShape(RefPtr<GPUDevice> gpu)
     return gpu->CreateModel(modelSpec);
 }
 
-static Result<RefPtr<Model>> CreatePumpkin(RefPtr<GPUDevice> gpu)
+static Result<RefPtr<Model>> CreatePumpkinModel(RefPtr<GPUDevice> gpu)
 {
     std::vector<Triangle> triangles;
     auto stlResult = loadAsciiSTL("models/Pumpkin-DD.stl", triangles);
