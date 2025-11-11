@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.23)
-project(SimpleSG LANGUAGES CXX)
+project(SimpleSG LANGUAGES C CXX)
 include(FetchContent)
 
 # ============================================================
@@ -23,15 +23,13 @@ endif()
 # ============================================================
 
 # --- SDL3
-set(SDL3_SOURCE_DIR ${CMAKE_SOURCE_DIR}/thirdparty/SDL)
-
 set(SDL_SHARED OFF CACHE BOOL "Build shared SDL library" FORCE)
 set(SDL_STATIC ON CACHE BOOL "Build static SDL library" FORCE)
 set(SDL_TEST OFF CACHE BOOL "Build SDL test programs" FORCE)
 set(SDL_TESTS OFF CACHE BOOL "Build SDL tests" FORCE)
 set(SDL_TEST_LIBRARY OFF CACHE BOOL "Build SDL test library" FORCE)
 
-add_subdirectory(${SDL3_SOURCE_DIR} ${CMAKE_BINARY_DIR}/thirdparty/SDL-build)
+add_subdirectory(thirdparty/SDL)
 
 # --- spdlog
 set(SPDLOG_BUILD_SHARED OFF CACHE BOOL "Build as shared library" FORCE)
@@ -49,6 +47,45 @@ set(GLM_BUILD_TESTS OFF CACHE BOOL "Build GLM test programs" FORCE)
 set(GLM_BUILD_INSTALL OFF CACHE BOOL "Generate install target" FORCE)
 
 add_subdirectory(thirdparty/glm)
+
+# --- imgui
+add_library(imgui STATIC
+    thirdparty/imgui/imgui.cpp
+    thirdparty/imgui/imgui_draw.cpp
+    thirdparty/imgui/imgui_tables.cpp
+    thirdparty/imgui/imgui_widgets.cpp
+    thirdparty/imgui/imgui_demo.cpp
+    thirdparty/imgui/backends/imgui_impl_sdl3.cpp
+    thirdparty/imgui/backends/imgui_impl_sdlgpu3.cpp
+)
+
+target_sources(imgui PRIVATE
+    thirdparty/imgui/backends/imgui_impl_sdl3.cpp
+    # tests/imgui/backends/imgui_impl_vulkan.cpp
+)
+
+target_include_directories(imgui PUBLIC
+    thirdparty/imgui
+    thirdparty/imgui/backends
+)
+
+target_link_libraries(imgui PUBLIC SDL3::SDL3)
+
+# ---- Example app ----
+add_executable(example_sdl3_sdlgpu3
+    thirdparty/imgui/examples/example_sdl3_sdlgpu3/main.cpp
+)
+
+target_link_libraries(example_sdl3_sdlgpu3 PRIVATE imgui SDL3::SDL3)
+
+# --- lua
+file(GLOB LUA_SOURCES CONFIGURE_DEPENDS "thirdparty/lua/*.c")
+#Exclude onlua.c
+list(FILTER LUA_SOURCES EXCLUDE REGEX "[/\\]onelua\\.c$")
+
+# Create the Lua static library
+add_library(lua STATIC ${LUA_SOURCES})
+target_include_directories(lua PUBLIC thirdparty/lua)
 
 # ============================================================
 # Shaders / Assets
@@ -93,8 +130,8 @@ endif()
 # ============================================================
 # Executable: Cube
 # ============================================================
-add_executable(Cube tests/cube.cpp tests/MouseNav.cpp)
-target_link_libraries(Cube PRIVATE ssg::ssg spdlog::spdlog)
+add_executable(Cube tests/cube.cpp tests/MouseNav.cpp tests/LuaRepl.cpp)
+target_link_libraries(Cube PRIVATE ssg::ssg spdlog::spdlog imgui lua)
 add_dependencies(Cube shaders copy_images copy_models)
 
 if(MSVC)
