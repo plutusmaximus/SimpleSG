@@ -23,10 +23,6 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu);
 static Result<RefPtr<Model>> CreatePumpkinModel(RefPtr<GPUDevice> gpu);
 static Result<RefPtr<Model>> CreateShapeModel(RefPtr<GPUDevice> gpu);
 
-static Result<RefPtr<PropNode>> CreateCube(RefPtr<GPUDevice> gpu);
-static Result<RefPtr<PropNode>> CreatePumpkin(RefPtr<GPUDevice> gpu);
-static Result<RefPtr<PropNode>> CreateShape(RefPtr<GPUDevice> gpu);
-
 static int Add(lua_State* L)
 {
     int arg1 = luaL_checkinteger(L, 1);
@@ -76,11 +72,16 @@ int main(int, [[maybe_unused]] char* argv[])
         pcheck(planetResult, planetResult.error());
         auto planet = planetResult.value();
 
+        auto moonOrbitResult = TransformNode::Create();
+        pcheck(moonOrbitResult, moonOrbitResult.error());
+        auto moonOrbit = moonOrbitResult.value();
+
         auto moonResult = PropNode::Create(model);
         pcheck(moonResult, moonResult.error());
         auto moon = moonResult.value();
 
-        planet->AddChild(moon);
+        moonOrbit->AddChild(moon);
+        planet->AddChild(moonOrbit);
         scene->AddChild(planet);
 
         auto camXformNodeResult = TransformNode::Create();
@@ -95,9 +96,7 @@ int main(int, [[maybe_unused]] char* argv[])
         camXformNode->AddChild(camera);
         scene->AddChild(camXformNode);
 
-        camXformNode->Transform =
-            Mat44f::Identity()
-            .Translate(0, 0, -4);
+        camXformNode->Transform.T =Vec3f{0,0,-4};
 
         // Main loop
         bool running = true;
@@ -177,21 +176,15 @@ int main(int, [[maybe_unused]] char* argv[])
             moonSpinAngle = (moonSpinAngle - 0.005f).Wrap();
             moonOrbitAngle = (moonOrbitAngle - 0.005f).Wrap();
 
-            constexpr Radiansf planetTiltAngle = Radiansf::FromDegrees(15);
+            const Quatf planetTilt{ Radiansf::FromDegrees(15), Vec3f::ZAXIS() };
 
-            planet->Transform =
-                Mat44f::Identity()
-                //.Rotate(planetTiltAngle, Vec3f::ZAXIS()) //tilt
-                //.Rotate(planetTiltAngle*2, Vec3f::XAXIS()) //tilt
-                .Rotate(planetSpinAngle, Vec3f::YAXIS());  //spin
+            planet->Transform.R = planetTilt * Quatf{ planetSpinAngle, Vec3f::YAXIS() };
 
-            moon->Transform =
-                Mat44f::Identity()
-                .Rotate(moonOrbitAngle, Vec3f::YAXIS())    //orbit
-                .Translate(0, 0, -2)
-                //.Translate(0, 0, -100)
-                .Rotate(moonSpinAngle, Vec3f::YAXIS())  //spin
-                .Scale(0.25f);
+            moonOrbit->Transform.R = Quatf{ moonOrbitAngle, Vec3f::YAXIS() };
+
+            moon->Transform.T = Vec3f{ 0,0,-2 };
+            moon->Transform.R = Quatf{ moonSpinAngle, Vec3f::YAXIS() };
+            moon->Transform.S = Vec3f{ 0.25f };
 
             camera->SetBounds(windowW, windowH);
 

@@ -154,12 +154,14 @@ void GimbleMouseNav::UpdatePan(const Vec2f& mouseDelta)
     m_CurLoc.x += mouseDelta.x;
     m_CurLoc.y -= mouseDelta.y;
     Vec2f d = (m_CurLoc - m_StartLoc) * m_Scale;
-    m_TransformNode->Transform = m_Transform.Translate(d.x, d.y, 0);
+    m_Transform.T += Vec3f(d.x, d.y, 0);
+    m_TransformNode->Transform = m_Transform;
 }
 
 void GimbleMouseNav::UpdateDolly(const Vec2f& mouseDelta)
 {
-    m_TransformNode->Transform = m_Transform.Translate(0, 0, mouseDelta.y * m_Scale);
+    m_Transform.T += Vec3f(0, 0, mouseDelta.y * m_Scale);
+    m_TransformNode->Transform = m_Transform;
 }
 
 void GimbleMouseNav::UpdateRotation(const Vec2f& mouseDelta)
@@ -167,9 +169,8 @@ void GimbleMouseNav::UpdateRotation(const Vec2f& mouseDelta)
     m_CurLoc += mouseDelta;
     const Vec2f d = (m_CurLoc - m_StartLoc) * m_Scale * 0.001f;
 
-    const Mat44f rot = Mat44f::Identity()
-        .Rotate(Radiansf(d.x), Vec3f::YAXIS())
-        .Rotate(Radiansf(d.y), Vec3f::XAXIS());
+    const Quatf drot = Quatf(Radiansf(d.x), Vec3f::YAXIS()) * Quatf(Radiansf(d.y), Vec3f::XAXIS());
+    m_Transform.R *= drot;
 
-    m_TransformNode->Transform = m_Transform * rot;
+    m_TransformNode->Transform = m_Transform;
 }

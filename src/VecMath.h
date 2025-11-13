@@ -1,11 +1,9 @@
 #pragma once
 
-#include <cmath>
 #include <numbers>
 
-#include "glm/glm.hpp"
-#include "glm/ext/matrix_transform.hpp"
-#include "glm/ext/matrix_clip_space.hpp"
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 template<typename T> class Radians;
 
@@ -489,6 +487,49 @@ public:
     }
 };
 
+template<typename T>
+class Quat : public glm::qua<T, glm::qualifier::defaultp>
+{
+    using Base = glm::qua<T, glm::qualifier::defaultp>;
+
+public:
+
+    constexpr Quat(const Base& q)
+        : Base(q)
+    {
+    }
+
+    Quat(const Degrees<T> angle, const Vec3<T>& axis)
+        : Quat(angle.ToRadians(), axis)
+    {
+    }
+
+    Quat(const Radians<T> angle, const Vec3<T>& axis)
+        : Base(glm::angleAxis(angle.Value(), axis))
+    {
+    }
+
+    using Base::x;
+    using Base::y;
+    using Base::z;
+    using Base::w;
+
+    Quat Normalize() const
+    {
+        return glm::normalize(*this);
+    }
+
+    constexpr Quat operator*(const Quat& that) const
+    {
+        return Quat(glm::operator*(*this, that)).Normalize();
+    }
+
+    Quat& operator*=(const Quat& that)
+    {
+        return (*this = *this * that);
+    }
+};
+
 // 4x4 column-major matrix
 template<typename T>
 class Mat44 : public glm::mat<4, 4, T>
@@ -522,31 +563,6 @@ public:
     {
         this->Base::operator*=(static_cast<const Base&>(that));
         return *this;
-    }
-
-    Mat44 Translate(const Vec3<T>& t) const
-    {
-        return glm::translate(*this, t);
-    }
-
-    Mat44 Translate(const T tx, const T ty, const T tz) const
-    {
-        return Translate(Vec3<T>(tx, ty, tz));
-    }
-
-    Mat44 Rotate(const Degrees<T> deg, const Vec3<T>& axis) const
-    {
-        return Rotate(deg.ToRadians(), axis);
-    }
-
-    Mat44 Rotate(const Radians<T> rad, const Vec3<T>& axis) const
-    {
-        return glm::rotate(*this, rad.Value(), axis);
-    }
-
-    Mat44 Scale(const T scalar) const
-    {
-        return glm::scale(*this, glm::vec<3, T>(scalar));
     }
 
     Mat44 Inverse() const
@@ -587,9 +603,34 @@ public:
     }
 };
 
+template<typename NumType>
+
+class TrsTransform
+{
+public:
+
+    Vec3<NumType> T{ 0 };
+    Quat<NumType> R{ Radians<NumType>(0), Vec3<NumType>{0,1,0} };
+    Vec3<NumType> S{ 1 };
+
+    Mat44<NumType> ToMatrix() const
+    {
+        glm::mat4 M = glm::mat4_cast(R);
+        M[0] *= S.x;
+        M[1] *= S.y;
+        M[2] *= S.z;
+        M[3][0] = T.x;
+        M[3][1] = T.y;
+        M[3][2] = T.z;
+        return M;
+    }
+};
+
 using Degreesf = Degrees<float>;
 using Radiansf = Radians<float>;
 using Vec2f = Vec2<float>;
 using Vec3f = Vec3<float>;
 using Vec4f = Vec4<float>;
+using Quatf = Quat<float>;
 using Mat44f = Mat44<float>;
+using TrsTransformf = TrsTransform<float>;

@@ -13,7 +13,7 @@ void GroupVisitor::Visit(GroupNode* node)
 
 void TransformVisitor::Visit(TransformNode* node)
 {
-    m_TransformStack.push(GetTransform().Mul(node->Transform));
+    m_TransformStack.push(GetTransform().Mul(node->Transform.ToMatrix()));
 
     this->GroupVisitor::Visit(node);
 

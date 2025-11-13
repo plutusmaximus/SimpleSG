@@ -74,7 +74,7 @@ private:
     Vec2f m_StartLoc{ 0,0 };
     Vec2f m_CurLoc{ 0,0 };
     Vec2f m_ScreenBounds{ 0,0 };
-    Mat44f m_Transform{ 1 };
+    TrsTransformf m_Transform;
     float m_Scale{ 1 };
     bool m_LeftShift{ false }, m_RightShift{ false };
     bool m_Panning{ false };

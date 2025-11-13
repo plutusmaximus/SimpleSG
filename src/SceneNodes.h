@@ -65,7 +65,7 @@ public:
 
     void Accept(SceneVisitor* visitor) override;
 
-    Mat44f Transform{ 1 };
+    TrsTransformf Transform;
 
 protected:
 
