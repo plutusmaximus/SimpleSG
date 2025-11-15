@@ -87,6 +87,9 @@ list(FILTER LUA_SOURCES EXCLUDE REGEX "[/\\]onelua\\.c$")
 add_library(lua STATIC ${LUA_SOURCES})
 target_include_directories(lua PUBLIC thirdparty/lua)
 
+# --- google test
+add_subdirectory(thirdparty/googletest)
+
 # ============================================================
 # Shaders / Assets
 # ============================================================
@@ -144,3 +147,28 @@ endif()
 if(SIMPLESG_STRICT)
   set_property(TARGET Cube PROPERTY COMPILE_WARNING_AS_ERROR ON)
 endif()
+
+# ============================================================
+# Executable: RunAllTests
+# ============================================================
+add_executable(RunAllTests "tests/ECS.test.cpp")
+target_link_libraries(RunAllTests PRIVATE gtest_main ssg::ssg spdlog::spdlog imgui lua)
+#add_dependencies(RunAllTests shaders copy_images copy_models)
+
+if(MSVC)
+  target_compile_definitions(RunAllTests PRIVATE _HAS_EXCEPTIONS=0)
+  target_compile_options(RunAllTests PRIVATE /GR-)
+else()
+  target_compile_options(RunAllTests PRIVATE -fno-exceptions)
+endif()
+
+if(SIMPLESG_STRICT)
+  set_property(TARGET RunAllTests PROPERTY COMPILE_WARNING_AS_ERROR ON)
+endif()
+
+# Enable testing and register tests
+# In Visual Studio tests should show up in Test Explorer.
+# In VS Code install the CMake Test Explorer extension and open the testing view.
+include(GoogleTest)
+enable_testing()
+gtest_discover_tests(RunAllTests)
