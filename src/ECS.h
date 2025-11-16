@@ -12,16 +12,13 @@ class EntityId
 {
 public:
 
+    friend class EcsRegistry;
+
     using ValueType = uint32_t;
 
     static constexpr ValueType InvalidValue = std::numeric_limits<ValueType>::max();
 
     EntityId() = default;
-
-    explicit EntityId(const ValueType value)
-        : m_Value(value)
-    {
-    }
 
     operator ValueType()
     {
@@ -44,6 +41,11 @@ public:
     }
 
 private:
+
+    explicit EntityId(const ValueType value)
+        : m_Value(value)
+    {
+    }
 
     ValueType m_Value{ InvalidValue };
 };
@@ -113,6 +115,8 @@ public:
 
     /// @brief Assign a new value to the underlying component.
     /// Note that the underlying reference must be valid.
+    /// This overload is disabled for const components - we cannot assign to const.
+    template<typename T = C, std::enable_if_t<!std::is_const_v<T>, int> = 0>
     Component& operator=(const C& value)
     {
         if(*this)
@@ -126,6 +130,7 @@ public:
     /// Note that both Component references must be valid.
     Component& operator=(const Component& other)
     {
+        // Only assign if both underlying references are valid.
         if (other && *this)
         {
             m_Ref.value().get() = *other;
@@ -158,7 +163,7 @@ public:
     /// the underlying component of the Component reference.
     friend bool operator==(const C& lhs, const Component<C>& rhs)
     {
-        return operator==(rhs, lhs);
+        return rhs == lhs;
     }
 
     bool operator!=(const Component<C>& other) const
@@ -177,7 +182,6 @@ public:
     }
 
     /// @brief Rebinding the underlying reference is not allowed.
-    Component& operator=(C&) = delete;
     Component& operator=(std::reference_wrapper<C>) = delete;
     Component& operator=(std::optional<std::reference_wrapper<C>>) = delete;
 private:
@@ -194,6 +198,9 @@ public:
     using IndexType = EntityId::ValueType;
 
     /// @brief Add a component for the given entity ID.
+    /// Pass component constructor arguments.
+    /// Components are constructed in-place with the given arguments.
+    /// The consructed component is returned wrapped in a Component<C>.
     template<typename... Args>
     Component<C> Add(const EntityId eid, Args&&... args)
     {
@@ -221,7 +228,6 @@ public:
 
         const IndexType idx = m_Index[eid];
         return m_Components[idx];
-
     }
 
     /// @brief Get the component for the given entity ID (const version).
@@ -405,22 +411,21 @@ public:
 
         Iterator begin()
         {
-            return Iterator(m_Reg);
+            return Iterator(m_Reg, m_Reg.m_Alive.begin());
         }
 
         Iterator end()
         {
-            Iterator it(m_Reg);
-            it.m_It = m_Reg.m_Alive.end();
-            return it;
+            return Iterator (m_Reg, m_Reg.m_Alive.end());
         }
 
         class Iterator
         {
         public:
 
-            Iterator(EcsRegistry& reg)
+            Iterator(EcsRegistry& reg, std::set<EntityId>::iterator it)
                 : m_Reg(reg)
+                , m_It(it)
             {
                 Advance();
             }
@@ -428,6 +433,7 @@ public:
             Iterator& operator++()
             {
                 eassert(m_It != m_Reg.m_Alive.end());
+                ++m_It;
                 Advance();
                 return *this;
             }
@@ -458,7 +464,7 @@ public:
             }
 
             EcsRegistry& m_Reg;
-            decltype(m_Reg.m_Alive.begin()) m_It = m_Reg.m_Alive.begin();
+            std::set<EntityId>::iterator m_It;
         };
 
     private:

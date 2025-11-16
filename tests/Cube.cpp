@@ -2,6 +2,8 @@
 #include <SDL3/SDL_gpu.h>
 #include <filesystem>
 
+#include "ECS.h"
+
 #include "Error.h"
 #include "SceneVisitors.h"
 #include "SceneNodes.h"
@@ -58,6 +60,16 @@ int main(int, [[maybe_unused]] char* argv[])
         pcheck(gdResult, gdResult.error());
         auto gd = *gdResult;
 
+        EcsRegistry reg;
+
+        auto eplanet = reg.Create();
+        auto eorbit = reg.Create();
+        auto emoon = reg.Create();
+
+        auto planetXForm = reg.Add<TrsTransformf>(eplanet);
+        auto orbitXForm = reg.Add<TrsTransformf>(eorbit);
+        auto moonXForm = reg.Add<TrsTransformf>(emoon);
+
         //auto modelResult = CreateCube(gd);
         //auto modelResult = CreatePumpkin(gd);
         auto modelResult = CreateShapeModel(gd);
@@ -70,7 +82,7 @@ int main(int, [[maybe_unused]] char* argv[])
 
         auto planetResult = PropNode::Create(model);
         pcheck(planetResult, planetResult.error());
-        auto planet = planetResult.value();
+        auto planet = *reg.Add<RefPtr<PropNode>>(eplanet, planetResult.value());
 
         auto moonOrbitResult = TransformNode::Create();
         pcheck(moonOrbitResult, moonOrbitResult.error());
