@@ -694,9 +694,9 @@ namespace
             auto [expectedA, expectedB, expectedC] = components[eid];
             auto [actualA, actualB, actualC] = *view;
 
-            EXPECT_EQ(expectedA, *actualA);
-            EXPECT_EQ(expectedB, *actualB);
-            EXPECT_EQ(expectedC, *actualC);
+            EXPECT_EQ(expectedA, actualA);
+            EXPECT_EQ(expectedB, actualB);
+            EXPECT_EQ(expectedC, actualC);
         }
     }
 
@@ -936,8 +936,8 @@ namespace
         auto& view = *viewResult;
         auto [actualA, actualC] = view;
 
-        EXPECT_EQ(*actualA, compA);
-        EXPECT_EQ(*actualC, compC);
+        EXPECT_EQ(actualA, compA);
+        EXPECT_EQ(actualC, compC);
     }
 
     /// @brief Test adding components after partial view failure.
@@ -967,9 +967,9 @@ namespace
         auto& view = *viewResult2;
         auto [actualA, actualB, actualC] = view;
 
-        EXPECT_EQ(*actualA, compA);
-        EXPECT_EQ(*actualB, compB);
-        EXPECT_EQ(*actualC, compC);
+        EXPECT_EQ(actualA, compA);
+        EXPECT_EQ(actualB, compB);
+        EXPECT_EQ(actualC, compC);
     }
 
     /// @brief Helper to populate registry with entities with multiple components.
@@ -1002,7 +1002,7 @@ namespace
             auto view = reg.GetView<Cs...>(eid);
             EXPECT_TRUE(view);
 
-            auto actualTuple = std::make_tuple(*(*view).get<Cs>()...);
+            auto actualTuple = std::make_tuple((*view).get<Cs>()...);
 
             EXPECT_EQ(actualTuple, expectedTuple);
         }
@@ -1089,9 +1089,9 @@ namespace
         auto& view = *viewResult;
 
         // Access by index
-        EXPECT_EQ(*view.get<0>(), compA);
-        EXPECT_EQ(*view.get<1>(), compB);
-        EXPECT_EQ(*view.get<2>(), compC);
+        EXPECT_EQ(view.get<0>(), compA);
+        EXPECT_EQ(view.get<1>(), compB);
+        EXPECT_EQ(view.get<2>(), compC);
     }
 
     /// @brief Test EcsView element access via type.
@@ -1115,9 +1115,9 @@ namespace
         auto& view = *viewResult;
 
         // Access by type
-        EXPECT_EQ(*view.get<ComponentA>(), compA);
-        EXPECT_EQ(*view.get<ComponentB>(), compB);
-        EXPECT_EQ(*view.get<ComponentC>(), compC);
+        EXPECT_EQ(view.get<ComponentA>(), compA);
+        EXPECT_EQ(view.get<ComponentB>(), compB);
+        EXPECT_EQ(view.get<ComponentC>(), compC);
     }
 
     /// @brief Test EcsView const correctness.
@@ -1141,8 +1141,8 @@ namespace
         const auto a = view.get<0>();
         const auto b = view.get<1>();
 
-        EXPECT_EQ(*a, compA);
-        EXPECT_EQ(*b, compB);
+        EXPECT_EQ(a, compA);
+        EXPECT_EQ(b, compB);
     }
 
     /// @brief Test EcsView with single component.
@@ -1160,8 +1160,8 @@ namespace
 
         auto& view = *viewResult;
 
-        EXPECT_EQ(*view.get<0>(), compA);
-        EXPECT_EQ(*view.get<ComponentA>(), compA);
+        EXPECT_EQ(view.get<0>(), compA);
+        EXPECT_EQ(view.get<ComponentA>(), compA);
     }
 
     /// @brief Test structured bindings with EcsView.
@@ -1187,9 +1187,9 @@ namespace
         // Use structured bindings
         auto [actualA, actualB, actualC] = view;
 
-        EXPECT_EQ(*actualA, compA);
-        EXPECT_EQ(*actualB, compB);
-        EXPECT_EQ(*actualC, compC);
+        EXPECT_EQ(actualA, compA);
+        EXPECT_EQ(actualB, compB);
+        EXPECT_EQ(actualC, compC);
     }
 
     // ==================== FilteredView Tests ====================

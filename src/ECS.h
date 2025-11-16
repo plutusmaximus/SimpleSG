@@ -2,10 +2,15 @@
 
 #include "Error.h"
 
+#include <cstdint>
+#include <limits>
+#include <vector>
+#include <string>
+#include <format>
+#include <tuple>
+#include <type_traits>
 #include <typeindex>
 #include <unordered_map>
-#include <unordered_set>
-#include <optional>
 
 /// @brief An entity identifier.
 class EntityId
@@ -243,7 +248,7 @@ public:
             poolPtr->Remove(eid);
         }
 
-        m_IsAlive[eid.Value()] = false;;
+        m_IsAlive[eid.Value()] = false;
 
         m_FreeList.push_back(eid);
     }
@@ -269,7 +274,12 @@ public:
             return nullptr;
         }
 
-        return Pool<C>().Get(eid);
+        if (auto* pool = TryGetPool<C>())
+        {
+            return pool->Get(eid);
+        }
+
+        return nullptr;
     }
 
     /// @brief Get the component of type C for the given entity ID (const version).
@@ -306,7 +316,8 @@ public:
     template<typename C>
     bool Has(const EntityId eid) const
     {
-        return HavePool<C>() && Pool<C>().Has(eid);
+        const auto pool = TryGetPool<C>();
+        return pool && pool->Has(eid);
     }
 
     /// @brief Returns true if the given entity ID is alive.
@@ -331,6 +342,7 @@ public:
     template<typename... Cs>
     class FilteredView
     {
+        static_assert(sizeof...(Cs) > 0, "Filter requires at least one component type");
     public:
 
         class Iterator;
@@ -343,12 +355,12 @@ public:
 
         Iterator begin()
         {
-            return Iterator(m_Reg, m_It, m_EndIt);
+            return Iterator(m_Reg, m_Pools, m_It, m_EndIt);
         }
 
         Iterator end()
         {
-            return Iterator(m_Reg, m_EndIt, m_EndIt);
+            return Iterator(m_Reg, m_Pools, m_EndIt, m_EndIt);
         }
 
         using EntityIterator = typename std::vector<EntityId>::iterator;
@@ -359,9 +371,11 @@ public:
 
             Iterator(
                 EcsRegistry& reg,
+                const std::tuple<EcsComponentPool<Cs>*...>& pools,
                 EntityIterator it,
                 EntityIterator endIt)
                 : m_Reg(reg)
+                , m_Pools(pools)
                 , m_It(it)
                 , m_EndIt(endIt)
             {
@@ -389,12 +403,22 @@ public:
 
         private:
 
+            template<typename C>
+            bool HasComponent() const
+            {
+                return std::get<EcsComponentPool<C>*>(m_Pools)->Has(*m_It);
+            }
+
+            bool HasAllComponents() const
+            {
+                return (HasComponent<Cs>() && ...);
+            }
+
             void Advance()
             {
                 while (m_It != m_EndIt)
                 {
-                    const EntityId eid = *m_It;
-                    if ((m_Reg.Has<Cs>(eid) && ...))
+                    if(HasAllComponents())
                     {
                         break;
                     }
@@ -403,12 +427,18 @@ public:
             }
 
             EcsRegistry& m_Reg;
-
+            const std::tuple<EcsComponentPool<Cs>*...>& m_Pools;
             EntityIterator m_It;
             const EntityIterator m_EndIt;
         };
 
     private:
+    
+        static std::vector<EntityId>& EmptyList()
+        {
+            static std::vector<EntityId> s_empty;
+            return s_empty;
+        }
 
         void Init()
         {
@@ -416,13 +446,22 @@ public:
             (CheckMissingOrEmpty<Cs>(missingOrEmpty), ...);
             if (missingOrEmpty)
             {
-                m_It = {};
-                m_EndIt = {};
+                auto& empty = EmptyList();
+                m_It = empty.begin();
+                m_EndIt = empty.end();
                 return;
             }
 
+            (GetPool<Cs>(),...);
+
             std::size_t minSize = std::numeric_limits<std::size_t>::max();
             (SelectSmallestPool<Cs>(minSize),...);
+        }
+
+        template<typename C>
+        void GetPool()
+        {
+            std::get<EcsComponentPool<C>*>(m_Pools) = &m_Reg.Pool<C>();
         }
 
         template<typename C>
@@ -431,14 +470,15 @@ public:
             if (missingOrEmpty)
                 return;
 
-            if (!m_Reg.template HavePool<C>())
+            auto pool = m_Reg.TryGetPool<C>();
+
+            if (!pool)
             {
                 missingOrEmpty = true;
                 return;
             }
 
-            auto& pool = m_Reg.template Pool<C>();
-            if (pool.size() == 0)
+            if (pool->size() == 0)
             {
                 missingOrEmpty = true;
             }
@@ -447,15 +487,17 @@ public:
         template<typename C>
         void SelectSmallestPool(size_t& minSize)
         {
-            if(const size_t poolSize = m_Reg.Pool<C>().size(); poolSize < minSize)
+            auto pool = std::get<EcsComponentPool<C>*>(m_Pools);
+
+            if(const size_t poolSize = pool->size(); poolSize < minSize)
             {
                 minSize = poolSize;
-                m_It = m_Reg.Pool<C>().begin();
-                m_EndIt = m_Reg.Pool<C>().end();
+                m_It = pool->begin();
+                m_EndIt = pool->end();
             }
         }
         EcsRegistry& m_Reg;
-
+        std::tuple<EcsComponentPool<Cs>*...> m_Pools;
         EntityIterator m_It;
         EntityIterator m_EndIt;
     };
@@ -463,11 +505,19 @@ public:
 private:
 
     template<typename C>
-    bool HavePool() const
+    EcsComponentPool<C>* TryGetPool()
     {
         auto tid = std::type_index(typeid(C));
         auto it = m_Pools.find(tid);
-        return it != m_Pools.end();
+        return (it != m_Pools.end()) ? static_cast<EcsComponentPool<C>*>(it->second.get()) : nullptr;
+    }
+
+    template<typename C>
+    const EcsComponentPool<C>* TryGetPool() const
+    {
+        auto tid = std::type_index(typeid(C));
+        auto it = m_Pools.find(tid);
+        return (it != m_Pools.end()) ? static_cast<const EcsComponentPool<C>*>(it->second.get()) : nullptr;
     }
 
     template<typename C>
@@ -504,7 +554,8 @@ private:
     }
 
     std::vector<EntityId> m_FreeList;
-    std::vector<bool> m_IsAlive;
+    // Not using bool vector to avoid potential issues with bool specialization.
+    std::vector<uint8_t> m_IsAlive;
     std::unordered_map<std::type_index, std::unique_ptr<IEcsPool>> m_Pools;
 
     EntityId::ValueType m_NextId{ 0 };
@@ -521,34 +572,46 @@ public:
         : Eid(eid)
         , m_Reg(reg)
     {
+        eassert(HasAllComponents() && "EcsView created for entity without all components");
     }
 
     /// @brief Enable structured bindings.
     template<std::size_t I>
-    auto* get()
+    auto& get()
     {
         using T = std::tuple_element_t<I, std::tuple<Cs...>>;
-        return m_Reg.Get<T>(Eid);
+        return *m_Reg.Get<T>(Eid);
     }
 
     /// @brief Enable structured bindings.
     template<std::size_t I>
-    const auto* get() const
+    const auto& get() const
     {
         using T = std::tuple_element_t<I, std::tuple<Cs...>>;
-        return m_Reg.Get<T>(Eid);
+        return *m_Reg.Get<T>(Eid);
     }
 
     template<typename T>
-    T* get()
+    T& get()
     {
         static_assert((std::is_same_v<T, Cs> || ...), "T must be one of Cs...");
-        return m_Reg.Get<T>(Eid);
+        return *m_Reg.Get<T>(Eid);
     }
 
     const EntityId Eid;
 
 private:
+
+    template<typename C>
+    bool HasComponent() const
+    {
+        return m_Reg.Has<C>(Eid);
+    }
+
+    bool HasAllComponents() const
+    {
+        return (HasComponent<Cs>() && ...);
+    }
 
     EcsRegistry& m_Reg;
 };
@@ -562,6 +625,6 @@ namespace std
     template<size_t I, typename... Cs>
     struct tuple_element<I, EcsView<Cs...>>
     {
-        using type = std::tuple_element_t<I, std::tuple<std::add_pointer_t<Cs>...>>;
+        using type = std::tuple_element_t<I, std::tuple<Cs...>>;
     };
 }
