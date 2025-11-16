@@ -20,12 +20,7 @@ public:
 
     EntityId() = default;
 
-    operator ValueType()
-    {
-        return m_Value;
-    }
-
-    operator const ValueType() const
+    ValueType Value() const
     {
         return m_Value;
     }
@@ -38,6 +33,11 @@ public:
     constexpr bool operator<(const EntityId& that) const
     {
         return m_Value < that.m_Value;
+    }
+
+    constexpr bool operator==(const EntityId& that) const
+    {
+        return m_Value == that.m_Value;
     }
 
 private:
@@ -62,7 +62,7 @@ struct std::formatter<EntityId>
     template<typename FormatContext>
     auto format(const EntityId& eid, FormatContext& ctx) const
     {
-        return std::format_to(ctx.out(), "{}", EntityId::ValueType(eid));
+        return std::format_to(ctx.out(), "{}", eid.Value());
     }
 };
 
@@ -72,7 +72,7 @@ struct std::hash<EntityId>
 {
     std::size_t operator()(const EntityId eid) const noexcept
     {
-        return static_cast<EntityId::ValueType>(eid);
+        return eid.Value();
     }
 };
 
@@ -83,110 +83,6 @@ public:
     virtual ~IEcsPool() = default;
 
     virtual void Remove(const EntityId eid) = 0;
-};
-
-/// @brief A reference wrapper for a component associated with an entity.
-/// Check for validity before use by converting to bool or using operator!.
-/// Access the underlying component through operator*.
-/// @tparam C 
-template<typename C>
-struct EcsComponent
-{
-public:
-    EcsComponent() = default;
-    EcsComponent(C& c) : m_Ref(c) {}
-
-    explicit operator bool() const noexcept
-    {
-        return m_Ref.has_value();
-    }
-
-    C& operator*()
-    {
-        eassert(static_cast<bool>(*this));
-        return m_Ref.value().get();
-    }
-
-    const C& operator*() const
-    {
-        eassert(static_cast<bool>(*this));
-        return m_Ref.value().get();
-    }
-
-    /// @brief Assign a new value to the underlying component.
-    /// Note that the underlying reference must be valid.
-    /// This overload is disabled for const components - we cannot assign to const.
-    template<typename T = C, std::enable_if_t<!std::is_const_v<T>, int> = 0>
-    EcsComponent& operator=(const C& value)
-    {
-        if(*this)
-        {
-            m_Ref.value().get() = value;
-        }
-        return *this;
-    }
-
-    /// @brief Assign to the underlying component from another EcsComponent reference.
-    /// Note that both EcsComponent references must be valid.
-    EcsComponent& operator=(const EcsComponent& other)
-    {
-        // Only assign if both underlying references are valid.
-        if (other && *this)
-        {
-            m_Ref.value().get() = *other;
-        }
-        return *this;
-    }
-
-    /// @brief Returns true if both EcsComponent references are valid and their underlying components are equal.
-    bool operator==(const EcsComponent<C>& other) const
-    {
-        return
-            static_cast<bool>(*this)
-            && static_cast<bool>(other)
-            && (**this == *other);
-    }
-
-    /// @brief Returns true if the EcsComponent reference is valid and its underlying component
-    /// is equal to the given value.
-    /// @param lhs 
-    /// @param rhs 
-    /// @return 
-    friend bool operator==(const EcsComponent<C>& lhs, const C& rhs)
-    {
-        return
-            static_cast<bool>(lhs)
-            && (*lhs == rhs);
-    }
-
-    /// @brief Returns true if EcsComponent reference is valid and the given value is equal to
-    /// the underlying component of the EcsComponent reference.
-    friend bool operator==(const C& lhs, const EcsComponent<C>& rhs)
-    {
-        return rhs == lhs;
-    }
-
-    bool operator!=(const EcsComponent<C>& other) const
-    {
-        return !(operator==(other));
-    }
-
-    friend bool operator!=(const EcsComponent<C>& lhs, const C& rhs)
-    {
-        return !(lhs == rhs);
-    }
-
-    friend bool operator!=(const C& lhs, const EcsComponent<C>& rhs)
-    {
-        return !(lhs == rhs);
-    }
-
-    /// @brief Rebinding the underlying reference is not allowed.
-    EcsComponent& operator=(std::reference_wrapper<C>) = delete;
-    EcsComponent& operator=(std::optional<std::reference_wrapper<C>>) = delete;
-private:
-
-    std::optional<std::reference_wrapper<C>> m_Ref;
 };
 
 /// @brief A pool of components of type C associated with entity IDs.
@@ -202,11 +98,11 @@ public:
     /// Components are constructed in-place with the given arguments.
     /// The consructed component is returned wrapped in a EcsComponent<C>.
     template<typename... Args>
-    EcsComponent<C> Add(const EntityId eid, Args&&... args)
+    C* Add(const EntityId eid, Args&&... args)
     {
-        if (Has(eid))
+        if(!everify(!Has(eid) && "Component already exists for entity"))
         {
-            return {};
+            return nullptr;
         }
 
         EnsureIndexes(eid);
@@ -214,32 +110,32 @@ public:
         const IndexType idx = static_cast<IndexType>(m_EntityIds.size());
         m_EntityIds.push_back(eid);
         m_Components.emplace_back(std::forward<Args>(args)...);
-        m_Index[eid] = idx;
-        return m_Components.back();
+        m_Index[eid.Value()] = idx;
+        return &m_Components.back();
     }
 
     /// @brief Get the component for the given entity ID.
-    EcsComponent<C> Get(const EntityId eid)
+    C* Get(const EntityId eid)
     {
         if (!Has(eid))
         {
-            return {};
+            return nullptr;
         }
 
-        const IndexType idx = m_Index[eid];
-        return m_Components[idx];
+        const IndexType idx = m_Index[eid.Value()];
+        return &m_Components[idx];
     }
 
     /// @brief Get the component for the given entity ID (const version).
-    EcsComponent<const C> Get(const EntityId eid) const
+    const C* Get(const EntityId eid) const
     {
         if (!Has(eid))
         {
-            return {};
+            return nullptr;
         }
 
-        const IndexType idx = m_Index[eid];
-        return m_Components[idx];
+        const IndexType idx = m_Index[eid.Value()];
+        return &m_Components[idx];
     }
 
     /// @brief Remove the component for the given entity ID.
@@ -247,7 +143,7 @@ public:
     {
         if (!Has(eid)) return;
 
-        const IndexType idx = m_Index[eid];
+        const IndexType idx = m_Index[eid.Value()];
         const IndexType last = static_cast<IndexType>(m_EntityIds.size() - 1);
 
         if (idx != last)
@@ -258,18 +154,18 @@ public:
             const EntityId movedEntity = m_EntityIds[last];
             m_EntityIds[idx] = movedEntity;
             m_Components[idx] = std::move(m_Components[last]);
-            m_Index[movedEntity] = idx;
+            m_Index[movedEntity.Value()] = idx;
         }
 
         m_EntityIds.pop_back();
         m_Components.pop_back();
-        m_Index[eid] = EntityId::InvalidValue;
+        m_Index[eid.Value()] = EntityId::InvalidValue;
     }
 
     /// @brief Returns true if the given entity ID has an associated component.
     bool Has(const EntityId eid) const
     {
-        return eid < m_Index.size() && m_Index[eid] != EntityId::InvalidValue;
+        return eid.Value() < m_Index.size() && m_Index[eid.Value()] != EntityId::InvalidValue;
     }
 
     size_t size() const
@@ -293,9 +189,9 @@ private:
     /// @brief Ensure the index vector is large enough to contain the given entity ID.
     void EnsureIndexes(const EntityId eid)
     {
-        if (eid.IsValid() && eid >= m_Index.size())
+        if (eid.IsValid() && eid.Value() >= m_Index.size())
         {
-            m_Index.resize(eid + 1, EntityId::InvalidValue);
+            m_Index.resize(eid.Value() + 1, EntityId::InvalidValue);
         }
     }
 
@@ -323,13 +219,13 @@ public:
             EntityId eid = m_FreeList.back();
             m_FreeList.pop_back();
             eassert(!IsAlive(eid) && "Entity ID from free list is already alive");
-            m_IsAlive[eid] = true;
+            m_IsAlive[eid.Value()] = true;
             return eid;
         }
 
         EntityId eid{ m_NextId++ };
         EnsureIndexes(eid);
-        m_IsAlive[eid] = true;
+        m_IsAlive[eid.Value()] = true;
         return eid;
     }
 
@@ -347,34 +243,43 @@ public:
             poolPtr->Remove(eid);
         }
 
-        m_IsAlive[eid] = false;;
+        m_IsAlive[eid.Value()] = false;;
 
         m_FreeList.push_back(eid);
     }
 
     /// @brief Add a component of type C for the given entity ID.
     template<typename C, typename... Args>
-    EcsComponent<C> Add(const EntityId eid, Args&&... args)
+    C* Add(const EntityId eid, Args&&... args)
     {
-        eassert(IsAlive(eid) && "Entity is not alive");
+        if(!everify(IsAlive(eid) && "Entity is not alive"))
+        {
+            return nullptr;
+        }
 
         return Pool<C>().Add(eid, std::forward<Args>(args)...);
     }
 
     /// @brief Get the component of type C for the given entity ID.
     template<typename C>
-    EcsComponent<C> Get(const EntityId eid)
+    C* Get(const EntityId eid)
     {
-        eassert(IsAlive(eid) && "Entity is not alive");
+        if(!everify(IsAlive(eid) && "Entity is not alive"))
+        {
+            return nullptr;
+        }
 
         return Pool<C>().Get(eid);
     }
 
     /// @brief Get the component of type C for the given entity ID (const version).
     template<typename C>
-    EcsComponent<const C> Get(const EntityId eid) const
+    const C* Get(const EntityId eid) const
     {
-        eassert(IsAlive(eid) && "Entity is not alive");
+        if(!everify(IsAlive(eid) && "Entity is not alive"))
+        {
+            return nullptr;
+        }
 
         return Pool<C>().Get(eid);
     }
@@ -407,7 +312,7 @@ public:
     /// @brief Returns true if the given entity ID is alive.
     bool IsAlive(const EntityId eid) const
     {
-        return eid.IsValid() && eid < m_IsAlive.size() && m_IsAlive[eid];
+        return eid.IsValid() && eid.Value() < m_IsAlive.size() && m_IsAlive[eid.Value()];
     }
 
     /// Forward declaration of FilteredView
@@ -592,9 +497,9 @@ private:
     /// @brief Ensure the alive vector is large enough to contain the given entity ID.
     void EnsureIndexes(const EntityId eid)
     {
-        if (eid.IsValid() && eid >= m_IsAlive.size())
+        if (eid.IsValid() && eid.Value() >= m_IsAlive.size())
         {
-            m_IsAlive.resize(eid + 1, false);
+            m_IsAlive.resize(eid.Value() + 1, false);
         }
     }
 
@@ -620,25 +525,25 @@ public:
 
     /// @brief Enable structured bindings.
     template<std::size_t I>
-    auto& get()
+    auto* get()
     {
         using T = std::tuple_element_t<I, std::tuple<Cs...>>;
-        return *m_Reg.Get<T>(Eid);
+        return m_Reg.Get<T>(Eid);
     }
 
     /// @brief Enable structured bindings.
     template<std::size_t I>
-    const auto& get() const
+    const auto* get() const
     {
         using T = std::tuple_element_t<I, std::tuple<Cs...>>;
-        return *m_Reg.Get<T>(Eid);
+        return m_Reg.Get<T>(Eid);
     }
 
     template<typename T>
-    T& get()
+    T* get()
     {
         static_assert((std::is_same_v<T, Cs> || ...), "T must be one of Cs...");
-        return *m_Reg.Get<T>(Eid);
+        return m_Reg.Get<T>(Eid);
     }
 
     const EntityId Eid;
@@ -657,6 +562,6 @@ namespace std
     template<size_t I, typename... Cs>
     struct tuple_element<I, EcsView<Cs...>>
     {
-        using type = std::tuple_element_t<I, std::tuple<Cs...>>;
+        using type = std::tuple_element_t<I, std::tuple<std::add_pointer_t<Cs>...>>;
     };
 }

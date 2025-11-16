@@ -131,7 +131,7 @@ namespace
 
         //Default value of EntityId is InvalidValue
         EXPECT_FALSE(eid.IsValid());
-        EXPECT_EQ((EntityId::ValueType)eid, EntityId::InvalidValue);
+        EXPECT_EQ(eid.Value(), EntityId::InvalidValue);
     }
 
     /// @brief Confirm an EntityId constructed with a value is valid and
@@ -144,20 +144,20 @@ namespace
 
         //Ensure eid correctly initialized.
         EXPECT_TRUE(eid1.IsValid());
-        EXPECT_NE((EntityId::ValueType)eid1, EntityId::InvalidValue);
+        EXPECT_NE(eid1.Value(), EntityId::InvalidValue);
 
         //Ensure eid2 initialized from eid
         EntityId eid2 = eid1;
         EXPECT_TRUE(eid2.IsValid());
         EXPECT_EQ(eid1, eid2);
-        EXPECT_EQ((EntityId::ValueType)eid2, (EntityId::ValueType)eid1);
+        EXPECT_EQ(eid2.Value(), eid1.Value());
 
         //Ensure assignment
         EntityId eid3;
         eid3 = eid1;
         EXPECT_TRUE(eid3.IsValid());
         EXPECT_EQ(eid1, eid3);
-        EXPECT_EQ((EntityId::ValueType)eid3, (EntityId::ValueType)eid1);
+        EXPECT_EQ(eid3.Value(), eid1.Value());
     }
 
     /// @brief Test EntityId comparison operator for sorting.
@@ -194,7 +194,7 @@ namespace
         EcsRegistry reg;
         const auto eid = reg.Create();
         std::string formatted = std::format("{}", eid);
-        EXPECT_EQ(formatted, std::to_string((EntityId::ValueType)eid));
+        EXPECT_EQ(formatted, std::to_string(eid.Value()));
 
         EntityId invalidEid;
         std::string formattedInvalid = std::format("{}", invalidEid);
@@ -253,164 +253,9 @@ namespace
         EXPECT_FALSE(invalid < valid);
     }
 
-    // ==================== EcsComponent Tests ====================
-
-    /// @brief Test EcsComponent validity via bool conversion.
-    TEST(EcsComponent, Validity_OperatorBool_IndicatesValidity)
-    {
-        ComponentA compA{ 42 };
-        EcsComponent<ComponentA> validComponent(compA);
-        EcsComponent<ComponentA> invalidComponent;
-
-        EXPECT_TRUE(validComponent);
-        EXPECT_FALSE(invalidComponent);
-    }
-
-    /// @brief Test EcsComponent NOT operator.
-    TEST(EcsComponent, Validity_OperatorNot_IndicatesInvalidity)
-    {
-        ComponentA compA{ 42 };
-        EcsComponent<ComponentA> validComponent(compA);
-        EcsComponent<ComponentA> invalidComponent;
-
-        EXPECT_FALSE(!validComponent);
-        EXPECT_TRUE(!invalidComponent);
-    }
-
-    /// @brief Test EcsComponent value assignment modifies underlying value.
-    TEST(EcsComponent, Assignment_ValueAssignment_ModifiesUnderlying)
-    {
-        ComponentA compA{ 42 };
-        EcsComponent<ComponentA> component(compA);
-
-        EXPECT_EQ(*component, ComponentA{ 42 });
-
-        ComponentA newValue{ 100 };
-        component = newValue;
-
-        EXPECT_EQ(*component, newValue);
-        EXPECT_EQ(compA.a, 100);  // original should be modified
-    }
-
-    /// @brief Test EcsComponent-to-EcsComponent assignment.
-    TEST(EcsComponent, Assignment_ComponentToComponent_CopiesValue)
-    {
-        ComponentA compA{ 42 };
-        ComponentA compB{ 100 };
-        EcsComponent<ComponentA> componentA(compA);
-        EcsComponent<ComponentA> componentB(compB);
-
-        componentA = componentB;
-
-        EXPECT_EQ(*componentA, ComponentA{ 100 });
-        EXPECT_EQ(compA.a, 100);
-    }
-
-    /// @brief Test assignment to invalid component is safe (no-op).
-    /// Invalid component remains invalid after assignment becuause invalid components
-    /// do not have an underlying reference to modify.
-    TEST(EcsComponent, Assignment_ToInvalidComponent_SafeNoOp)
-    {
-        ComponentA compA{ 42 };
-        EcsComponent<ComponentA> validComponent(compA);
-        EcsComponent<ComponentA> invalidComponent;
-
-        // Should not throw or assert, just be a no-op
-        invalidComponent = validComponent;
-
-        EXPECT_EQ(*validComponent, ComponentA{ 42 });
-        EXPECT_FALSE(invalidComponent);
-    }
-
-    /// @brief Test EcsComponent dereference on invalid component.
-    TEST(EcsComponent, Dereference_OnInvalidComponent_AssertsOnDebug)
-    {
-        EcsComponent<ComponentA> invalidComponent;
-
-        // This should trigger an assertion in debug builds
-        // For this test, we just verify the component is invalid
-        EXPECT_FALSE(invalidComponent);
-    }
-
-    /// @brief Test EcsComponent equality: EcsComponent == EcsComponent.
-    TEST(EcsComponent, Equality_ComponentToComponent_CorrectComparison)
-    {
-        ComponentA compA{ 42 };
-        ComponentA compB{ 42 };
-        ComponentA compC{ 100 };
-
-        EcsComponent<ComponentA> componentA(compA);
-        EcsComponent<ComponentA> componentB(compB);
-        EcsComponent<ComponentA> componentC(compC);
-        EcsComponent<ComponentA> invalidComponent;
-
-        EXPECT_EQ(componentA, componentB);
-        EXPECT_NE(componentA, componentC);
-        EXPECT_NE(componentA, invalidComponent);
-        EXPECT_NE(invalidComponent, componentA);
-    }
-
-    /// @brief Test EcsComponent equality: EcsComponent == C.
-    TEST(EcsComponent, Equality_ComponentToValue_CorrectComparison)
-    {
-        ComponentA compA{ 42 };
-        ComponentA compB{ 42 };
-        ComponentA compC{ 100 };
-
-        EcsComponent<ComponentA> component(compA);
-        EcsComponent<ComponentA> invalidComponent;
-
-        EXPECT_EQ(component, compB);
-        EXPECT_NE(component, compC);
-        EXPECT_NE(invalidComponent, compB);
-    }
-
-    /// @brief Test EcsComponent equality: C == EcsComponent.
-    TEST(EcsComponent, Equality_ValueToComponent_CorrectComparison)
-    {
-        ComponentA compA{ 42 };
-        ComponentA compB{ 42 };
-        ComponentA compC{ 100 };
-
-        EcsComponent<ComponentA> component(compA);
-        EcsComponent<ComponentA> invalidComponent;
-
-        EXPECT_EQ(compB, component);
-        EXPECT_NE(compC, component);
-        EXPECT_NE(compB, invalidComponent);
-    }
-
-    /// @brief Test EcsComponent inequality operators.
-    TEST(EcsComponent, Inequality_AllForms_CorrectComparison)
-    {
-        ComponentA compA{ 42 };
-        ComponentA compC{ 100 };
-
-        EcsComponent<ComponentA> component(compA);
-        EcsComponent<ComponentA> otherComponent(compC);
-        EcsComponent<ComponentA> invalidComponent;
-
-        EXPECT_NE(component, otherComponent);
-        EXPECT_NE(component, compC);
-        EXPECT_NE(compA, otherComponent);
-        EXPECT_NE(component, invalidComponent);
-    }
-
-    /// @brief Test EcsComponent self-assignment is safe.
-    TEST(EcsComponent, Assignment_SelfAssignment_Safe)
-    {
-        ComponentA compA{ 42 };
-        EcsComponent<ComponentA> component(compA);
-
-        // This should not crash or cause issues
-        component = *component;
-
-        EXPECT_EQ(*component, ComponentA{ 42 });
-    }
-
     // ==================== EcsComponentPool Tests ====================
 
-/// @brief Test pool capacity management with many adds.
+    /// @brief Test pool capacity management with many adds.
     TEST(EcsComponentPool, Capacity_ManyAdds_HandlesResizing)
     {
         EcsRegistry reg;
@@ -539,9 +384,9 @@ namespace
         const auto eid2 = reg.Create(); // Should be 1
         const auto eid3 = reg.Create(); // Should be 2
 
-        EXPECT_EQ((EntityId::ValueType)eid1, 0);
-        EXPECT_EQ((EntityId::ValueType)eid2, 1);
-        EXPECT_EQ((EntityId::ValueType)eid3, 2);
+        EXPECT_EQ(eid1.Value(), 0);
+        EXPECT_EQ(eid2.Value(), 1);
+        EXPECT_EQ(eid3.Value(), 2);
 
         pool.Add(eid1, ComponentA{ 1 });
         pool.Add(eid3, ComponentA{ 3 });
@@ -697,7 +542,7 @@ namespace
             const auto& actual = reg.Get<ComponentC>(eid);
 
             //Component should have the expected value.
-            EXPECT_EQ(actual, expected);
+            EXPECT_EQ(*actual, expected);
         }
     }
 
@@ -768,7 +613,7 @@ namespace
             EXPECT_TRUE(actual);
 
             //Component should have the expected value.
-            EXPECT_EQ(actual, expected);
+            EXPECT_EQ(*actual, expected);
         }
     }
 
@@ -815,7 +660,7 @@ namespace
         //Confirm new eid has components.
         EXPECT_TRUE(reg.Has<ComponentC>(eidToRecycle));
 
-        EXPECT_EQ(reg.Get<ComponentC>(newEid), newC);
+        EXPECT_EQ(*reg.Get<ComponentC>(newEid), newC);
     }
 
     /// @brief Confirm viewing entities with multiple components works correctly.
@@ -849,9 +694,9 @@ namespace
             auto [expectedA, expectedB, expectedC] = components[eid];
             auto [actualA, actualB, actualC] = *view;
 
-            EXPECT_EQ(expectedA, actualA);
-            EXPECT_EQ(expectedB, actualB);
-            EXPECT_EQ(expectedC, actualC);
+            EXPECT_EQ(expectedA, *actualA);
+            EXPECT_EQ(expectedB, *actualB);
+            EXPECT_EQ(expectedC, *actualC);
         }
     }
 
@@ -917,10 +762,10 @@ namespace
         EXPECT_TRUE(reg.Has<ComponentC>(eid));
         EXPECT_TRUE(reg.Has<ComponentD>(eid));
 
-        EXPECT_EQ(reg.Get<ComponentA>(eid), compA);
-        EXPECT_EQ(reg.Get<ComponentB>(eid), compB);
-        EXPECT_EQ(reg.Get<ComponentC>(eid), compC);
-        EXPECT_EQ(reg.Get<ComponentD>(eid), compD);
+        EXPECT_EQ(*reg.Get<ComponentA>(eid), compA);
+        EXPECT_EQ(*reg.Get<ComponentB>(eid), compB);
+        EXPECT_EQ(*reg.Get<ComponentC>(eid), compC);
+        EXPECT_EQ(*reg.Get<ComponentD>(eid), compD);
     }
 
     /// @brief Test that destroying entity removes all component types.
@@ -985,7 +830,7 @@ namespace
         reg.Destroy(eid);
 
         const auto newEid = reg.Create();
-        
+
         auto newCompA = RandomValue<ComponentA>();
         auto newCompB = RandomValue<ComponentB>();
         auto newCompC = RandomValue<ComponentC>();
@@ -1001,10 +846,10 @@ namespace
         EXPECT_TRUE(reg.Has<ComponentC>(newEid));
         EXPECT_TRUE(reg.Has<ComponentD>(newEid));
 
-        EXPECT_EQ(reg.Get<ComponentA>(newEid), newCompA);
-        EXPECT_EQ(reg.Get<ComponentB>(newEid), newCompB);
-        EXPECT_EQ(reg.Get<ComponentC>(newEid), newCompC);
-        EXPECT_EQ(reg.Get<ComponentD>(newEid), newCompD);
+        EXPECT_EQ(*reg.Get<ComponentA>(newEid), newCompA);
+        EXPECT_EQ(*reg.Get<ComponentB>(newEid), newCompB);
+        EXPECT_EQ(*reg.Get<ComponentC>(newEid), newCompC);
+        EXPECT_EQ(*reg.Get<ComponentD>(newEid), newCompD);
     }
 
     /// @brief Test component access after entity destruction.
@@ -1091,8 +936,8 @@ namespace
         auto& view = *viewResult;
         auto [actualA, actualC] = view;
 
-        EXPECT_EQ(actualA, compA);
-        EXPECT_EQ(actualC, compC);
+        EXPECT_EQ(*actualA, compA);
+        EXPECT_EQ(*actualC, compC);
     }
 
     /// @brief Test adding components after partial view failure.
@@ -1122,9 +967,9 @@ namespace
         auto& view = *viewResult2;
         auto [actualA, actualB, actualC] = view;
 
-        EXPECT_EQ(actualA, compA);
-        EXPECT_EQ(actualB, compB);
-        EXPECT_EQ(actualC, compC);
+        EXPECT_EQ(*actualA, compA);
+        EXPECT_EQ(*actualB, compB);
+        EXPECT_EQ(*actualC, compC);
     }
 
     /// @brief Helper to populate registry with entities with multiple components.
@@ -1137,9 +982,10 @@ namespace
 
         for (auto eid : eids)
         {
-            (reg.Add<Cs>(eid, RandomValue<Cs>()), ...);
+            auto tuple = std::make_tuple(RandomValue<Cs>()...);
+            (reg.Add<Cs>(eid, std::get<Cs>(tuple)), ...);
             auto view = reg.GetView<Cs...>(eid);
-            components.emplace(eid, std::make_tuple((*view).get<Cs>()...));
+            components.emplace(eid, tuple);
         }
 
         return eids;
@@ -1156,7 +1002,7 @@ namespace
             auto view = reg.GetView<Cs...>(eid);
             EXPECT_TRUE(view);
 
-            auto actualTuple = std::make_tuple((*view).get<Cs>()...);
+            auto actualTuple = std::make_tuple(*(*view).get<Cs>()...);
 
             EXPECT_EQ(actualTuple, expectedTuple);
         }
@@ -1243,9 +1089,9 @@ namespace
         auto& view = *viewResult;
 
         // Access by index
-        EXPECT_EQ(view.get<0>(), compA);
-        EXPECT_EQ(view.get<1>(), compB);
-        EXPECT_EQ(view.get<2>(), compC);
+        EXPECT_EQ(*view.get<0>(), compA);
+        EXPECT_EQ(*view.get<1>(), compB);
+        EXPECT_EQ(*view.get<2>(), compC);
     }
 
     /// @brief Test EcsView element access via type.
@@ -1269,9 +1115,9 @@ namespace
         auto& view = *viewResult;
 
         // Access by type
-        EXPECT_EQ(view.get<ComponentA>(), compA);
-        EXPECT_EQ(view.get<ComponentB>(), compB);
-        EXPECT_EQ(view.get<ComponentC>(), compC);
+        EXPECT_EQ(*view.get<ComponentA>(), compA);
+        EXPECT_EQ(*view.get<ComponentB>(), compB);
+        EXPECT_EQ(*view.get<ComponentC>(), compC);
     }
 
     /// @brief Test EcsView const correctness.
@@ -1292,11 +1138,11 @@ namespace
         const auto& view = *viewResult;
 
         // These should be const references
-        const auto& a = view.get<0>();
-        const auto& b = view.get<1>();
+        const auto a = view.get<0>();
+        const auto b = view.get<1>();
 
-        EXPECT_EQ(a, compA);
-        EXPECT_EQ(b, compB);
+        EXPECT_EQ(*a, compA);
+        EXPECT_EQ(*b, compB);
     }
 
     /// @brief Test EcsView with single component.
@@ -1314,8 +1160,8 @@ namespace
 
         auto& view = *viewResult;
 
-        EXPECT_EQ(view.get<0>(), compA);
-        EXPECT_EQ(view.get<ComponentA>(), compA);
+        EXPECT_EQ(*view.get<0>(), compA);
+        EXPECT_EQ(*view.get<ComponentA>(), compA);
     }
 
     /// @brief Test structured bindings with EcsView.
@@ -1341,9 +1187,9 @@ namespace
         // Use structured bindings
         auto [actualA, actualB, actualC] = view;
 
-        EXPECT_EQ(actualA, compA);
-        EXPECT_EQ(actualB, compB);
-        EXPECT_EQ(actualC, compC);
+        EXPECT_EQ(*actualA, compA);
+        EXPECT_EQ(*actualB, compB);
+        EXPECT_EQ(*actualC, compC);
     }
 
     // ==================== FilteredView Tests ====================
