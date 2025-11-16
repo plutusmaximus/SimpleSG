@@ -48,9 +48,10 @@ bool SetAssertDialogEnabled(const bool enabled)
     return oldValue;
 }
 
-bool ShowAssertDialog(const char* expression, const char* fileName, const int lineNum)
+bool ShowAssertDialog(const char* expression, const char* fileName, const int lineNum, bool& disableFutureAsserts)
 {
-    if (!EnableAssertDialog) return false;
+    bool ignore = !EnableAssertDialog || disableFutureAsserts;
+    if (ignore) return false;
 
     auto trace = std::stacktrace::current(1);
     std::string message = std::format("{}({}): {}\n\n{}", fileName, lineNum, expression, std::to_string(trace));
@@ -64,6 +65,11 @@ bool ShowAssertDialog(const char* expression, const char* fileName, const int li
     if (IDABORT == msgboxValue)
     {
         std::exit(1);
+    }
+
+    if(IDIGNORE == msgboxValue)
+    {
+        disableFutureAsserts = true;
     }
 
     return IDRETRY == msgboxValue;

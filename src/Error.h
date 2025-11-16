@@ -171,7 +171,14 @@ bool SetAssertDialogEnabled(const bool enabled);
 
 #ifndef NDEBUG
 
-bool ShowAssertDialog(const char* expression, const char* fileName, const int lineNum);
+bool ShowAssertDialog(const char* expression, const char* fileName, const int lineNum, bool& disableFutureAsserts);
+
+template<int I>
+static inline bool& AssertDisabler()
+{
+    static bool disabled = false;
+    return disabled;
+}
 
 // everify is like assert excpet that it can be used in boolean expressions.
 // 
@@ -182,7 +189,7 @@ bool ShowAssertDialog(const char* expression, const char* fileName, const int li
 // Or
 // 
 // return everify(x > y) ? x : -1;
-#define everify(expr) ((static_cast<bool>(expr)) || (ShowAssertDialog(#expr, __FILE__, __LINE__) ? __debugbreak(), false : false))
+#define everify(expr) ((static_cast<bool>(expr)) || (ShowAssertDialog(#expr, __FILE__, __LINE__, AssertDisabler<__LINE__>()) ? __debugbreak(), false : false))
 
 #define eassert(expr) void(everify(expr))
 
