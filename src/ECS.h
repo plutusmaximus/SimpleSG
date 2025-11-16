@@ -303,19 +303,24 @@ public:
         {
             EntityId eid = m_FreeList.back();
             m_FreeList.pop_back();
-            m_Alive.insert(eid);
+            eassert(!IsAlive(eid) && "Entity ID from free list is already alive");
+            m_IsAlive[eid] = true;
             return eid;
         }
 
         EntityId eid{ m_NextId++ };
-        m_Alive.insert(eid);
+        EnsureIndexes(eid);
+        m_IsAlive[eid] = true;
         return eid;
     }
 
     /// @brief Destroy the given entity ID and remove all associated components.
     void Destroy(const EntityId eid)
     {
-        eassert(IsAlive(eid) && "Entity is not alive");
+        if(!everify(IsAlive(eid) && "Entity is not alive"))
+        {
+            return;
+        }
 
         //Remove components
         for (auto& [_, poolPtr] : m_Pools)
@@ -323,7 +328,7 @@ public:
             poolPtr->Remove(eid);
         }
 
-        m_Alive.erase(eid);
+        m_IsAlive[eid] = false;;
 
         m_FreeList.push_back(eid);
     }
@@ -383,7 +388,7 @@ public:
     /// @brief Returns true if the given entity ID is alive.
     bool IsAlive(const EntityId eid) const
     {
-        return m_Alive.contains(eid);
+        return eid.IsValid() && eid < m_IsAlive.size() && m_IsAlive[eid];
     }
 
     /// Forward declaration of FilteredView
@@ -413,60 +418,65 @@ public:
 
         Iterator begin()
         {
-            return Iterator(m_Reg, m_Reg.m_Alive.begin());
+            return Iterator(m_Reg, 0, m_Reg.m_IsAlive.size());
         }
 
         Iterator end()
         {
-            return Iterator (m_Reg, m_Reg.m_Alive.end());
+            return Iterator(m_Reg, m_Reg.m_IsAlive.size(), m_Reg.m_IsAlive.size());
         }
 
         class Iterator
         {
         public:
 
-            Iterator(EcsRegistry& reg, std::unordered_set<EntityId>::iterator it)
+            Iterator(
+                EcsRegistry& reg,
+                const EntityId::ValueType index,
+                const EntityId::ValueType endIndex)
                 : m_Reg(reg)
-                , m_It(it)
+                , m_Index(index)
+                , m_EndIndex(endIndex)
             {
                 Advance();
             }
 
             Iterator& operator++()
             {
-                eassert(m_It != m_Reg.m_Alive.end());
-                ++m_It;
+                eassert(m_Index != m_EndIndex);
+                ++m_Index;
                 Advance();
                 return *this;
             }
 
             bool operator!=(const Iterator& other) const
             {
-                return m_It != other.m_It;
+                return m_Index != other.m_Index;
             }
 
             EcsView<Cs...> operator*()
             {
-                eassert(m_It != m_Reg.m_Alive.end());
-                return EcsView<Cs...>(*m_It, m_Reg);
+                eassert(m_Index != m_EndIndex);
+                return EcsView<Cs...>(EntityId(m_Index), m_Reg);
             }
 
         private:
             void Advance()
             {
-                while (m_It != m_Reg.m_Alive.end())
+                while (m_Index < m_EndIndex)
                 {
-                    EntityId eid = *m_It;
+                    const EntityId eid(m_Index);
                     if ((m_Reg.Has<Cs>(eid) && ...))
                     {
                         break;
                     }
-                    ++m_It;
+                    ++m_Index;
                 }
             }
 
             EcsRegistry& m_Reg;
-            std::unordered_set<EntityId>::iterator m_It;
+            EntityId::ValueType m_Index;
+            const EntityId::ValueType m_EndIndex;
         };
 
     private:
@@ -507,8 +517,17 @@ private:
         return *static_cast<const EcsComponentPool<C>*>(it->second.get());
     }
 
+    /// @brief Ensure the alive vector is large enough to contain the given entity ID.
+    void EnsureIndexes(const EntityId eid)
+    {
+        if (eid.IsValid() && eid >= m_IsAlive.size())
+        {
+            m_IsAlive.resize(eid + 1, false);
+        }
+    }
+
     std::vector<EntityId> m_FreeList;
-    std::unordered_set<EntityId> m_Alive;
+    std::vector<bool> m_IsAlive;
     std::unordered_map<std::type_index, std::unique_ptr<IEcsPool>> m_Pools;
 
     EntityId::ValueType m_NextId{ 0 };
