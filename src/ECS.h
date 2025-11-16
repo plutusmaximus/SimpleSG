@@ -286,8 +286,8 @@ private:
     std::vector<IndexType> m_Index;
 };
 
-/// @brief forward declaration of View
-template<typename... Cs> class View;
+/// @brief forward declaration of EcsView
+template<typename... Cs> class EcsView;
 
 /// @brief The ECS registry that manages entity IDs and their associated components.
 class EcsRegistry
@@ -355,7 +355,7 @@ public:
 
     /// @brief Get a view over multiple components for the given entity ID.
     template<typename... Cs>
-    Result<View<Cs...>> GetView(const EntityId eid)
+    Result<EcsView<Cs...>> GetView(const EntityId eid)
     {
         if(!everify(IsAlive(eid)))
         {
@@ -368,7 +368,7 @@ public:
             return std::unexpected(Error("Entity {} does not have all requested components: {}", eid, missingComponents));
         }
 
-        return View<Cs...>(eid, *this);
+        return EcsView<Cs...>(eid, *this);
     }
 
     /// @brief Returns true if the given entity ID has a component of type C.
@@ -443,10 +443,10 @@ public:
                 return m_It != other.m_It;
             }
 
-            View<Cs...> operator*()
+            EcsView<Cs...> operator*()
             {
                 eassert(m_It != m_Reg.m_Alive.end());
-                return View<Cs...>(*m_It, m_Reg);
+                return EcsView<Cs...>(*m_It, m_Reg);
             }
 
         private:
@@ -515,11 +515,11 @@ private:
 
 /// @brief A view over multiple components for a given entity.
 template<typename... Cs>
-class View
+class EcsView
 {
 public:
 
-    View(const EntityId eid, EcsRegistry& reg)
+    EcsView(const EntityId eid, EcsRegistry& reg)
         : Eid(eid)
         , m_Reg(reg)
     {
@@ -559,10 +559,10 @@ private:
 namespace std
 {
     template<typename... Cs>
-    struct tuple_size<View<Cs...>> : std::integral_constant<size_t, sizeof...(Cs)> {};
+    struct tuple_size<EcsView<Cs...>> : std::integral_constant<size_t, sizeof...(Cs)> {};
 
     template<size_t I, typename... Cs>
-    struct tuple_element<I, View<Cs...>>
+    struct tuple_element<I, EcsView<Cs...>>
     {
         using type = std::tuple_element_t<I, std::tuple<Cs...>>;
     };

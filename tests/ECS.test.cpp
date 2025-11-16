@@ -122,6 +122,8 @@ namespace
         return CreateEntityIds(reg, MAX_ENTITIES);
     }
 
+    // ==================== EntityId Tests ====================
+
     /// @brief Confirm a default constructed EntityId contains an invalid value.
     TEST(EntityId, Construct_Default_InvalidValue)
     {
@@ -132,11 +134,9 @@ namespace
         EXPECT_EQ((EntityId::ValueType)eid, EntityId::InvalidValue);
     }
 
-    // ==================== EntityId Tests ====================
-
     /// @brief Confirm an EntityId constructed with a value is valid and
     /// contains the correct value.
-    TEST(EcsEntityId, Construct_WithValue_ValidValue)
+    TEST(EntityId, Construct_WithValue_ValidValue)
     {
         EcsRegistry reg;
         
@@ -161,7 +161,7 @@ namespace
     }
 
     /// @brief Test EntityId comparison operator for sorting.
-    TEST(EcsEntityId, Comparison_LessThan_SortsCorrectly)
+    TEST(EntityId, Comparison_LessThan_SortsCorrectly)
     {
         EcsRegistry reg;
 
@@ -189,7 +189,7 @@ namespace
     }
 
     /// @brief Test EntityId formatting with std::format.
-    TEST(EcsEntityId, Formatting_Format_ProducesCorrectString)
+    TEST(EntityId, Formatting_Format_ProducesCorrectString)
     {
         EcsRegistry reg;
         const auto eid = reg.Create();
@@ -202,7 +202,7 @@ namespace
     }
 
     /// @brief Test EntityId hashing for use in unordered containers.
-    TEST(EcsEntityId, Hashing_Hash_WorksInUnorderedMap)
+    TEST(EntityId, Hashing_Hash_WorksInUnorderedMap)
     {
         EcsRegistry reg;
 
@@ -222,7 +222,7 @@ namespace
     }
 
     /// @brief Test EntityId hashing in unordered_set.
-    TEST(EcsEntityId, Hashing_Hash_WorksInUnorderedSet)
+    TEST(EntityId, Hashing_Hash_WorksInUnorderedSet)
     {
         EcsRegistry reg;
 
@@ -242,7 +242,7 @@ namespace
     }
 
     /// @brief Test EntityId with InvalidValue in comparisons.
-    TEST(EcsEntityId, InvalidValue_Comparison_BehavesCorrectly)
+    TEST(EntityId, InvalidValue_Comparison_BehavesCorrectly)
     {
         EcsRegistry reg;
         const EntityId invalid;
@@ -1161,10 +1161,10 @@ namespace
         VerifyViewComponents(reg, componentsABC);
     }
 
-    // ==================== View Tests ====================
+    // ==================== EcsView Tests ====================
 
-    /// @brief Test View element access via index.
-    TEST(View, ElementAccess_ByIndex_CorrectRetrieval)
+    /// @brief Test EcsView element access via index.
+    TEST(EcsView, ElementAccess_ByIndex_CorrectRetrieval)
     {
         EcsRegistry reg;
 
@@ -1189,8 +1189,8 @@ namespace
         EXPECT_EQ(view.get<2>(), compC);
     }
 
-    /// @brief Test View element access via type.
-    TEST(View, ElementAccess_ByType_CorrectRetrieval)
+    /// @brief Test EcsView element access via type.
+    TEST(EcsView, ElementAccess_ByType_CorrectRetrieval)
     {
         EcsRegistry reg;
 
@@ -1215,8 +1215,8 @@ namespace
         EXPECT_EQ(view.get<ComponentC>(), compC);
     }
 
-    /// @brief Test View const correctness.
-    TEST(View, ConstCorrectness_ConstView_ReturnsConstReferences)
+    /// @brief Test EcsView const correctness.
+    TEST(EcsView, ConstCorrectness_ConstView_ReturnsConstReferences)
     {
         EcsRegistry reg;
 
@@ -1240,8 +1240,8 @@ namespace
         EXPECT_EQ(b, compB);
     }
 
-    /// @brief Test View with single component.
-    TEST(View, SingleComponent_View_WorksCorrectly)
+    /// @brief Test EcsView with single component.
+    TEST(EcsView, SingleComponent_View_WorksCorrectly)
     {
         EcsRegistry reg;
 
@@ -1259,8 +1259,8 @@ namespace
         EXPECT_EQ(view.get<ComponentA>(), compA);
     }
 
-    /// @brief Test structured bindings with View.
-    TEST(View, StructuredBindings_AutoDecomposition_CorrectValues)
+    /// @brief Test structured bindings with EcsView.
+    TEST(EcsView, StructuredBindings_AutoDecomposition_CorrectValues)
     {
         EcsRegistry reg;
 

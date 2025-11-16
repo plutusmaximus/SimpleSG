@@ -149,21 +149,21 @@ if(SIMPLESG_STRICT)
 endif()
 
 # ============================================================
-# Executable: RunAllTests
+# Executable: EcsTests
 # ============================================================
-add_executable(RunAllTests "tests/ECS.test.cpp")
-target_link_libraries(RunAllTests PRIVATE gtest_main ssg::ssg spdlog::spdlog imgui lua)
+add_executable(EcsTests "tests/ECS.test.cpp")
+target_link_libraries(EcsTests PRIVATE gtest_main ssg::ssg spdlog::spdlog imgui lua)
 #add_dependencies(RunAllTests shaders copy_images copy_models)
 
 if(MSVC)
-  target_compile_definitions(RunAllTests PRIVATE _HAS_EXCEPTIONS=0)
-  target_compile_options(RunAllTests PRIVATE /GR-)
+  target_compile_definitions(EcsTests PRIVATE _HAS_EXCEPTIONS=0)
+  target_compile_options(EcsTests PRIVATE /GR-)
 else()
-  target_compile_options(RunAllTests PRIVATE -fno-exceptions)
+  target_compile_options(EcsTests PRIVATE -fno-exceptions)
 endif()
 
 if(SIMPLESG_STRICT)
-  set_property(TARGET RunAllTests PROPERTY COMPILE_WARNING_AS_ERROR ON)
+  set_property(TARGET EcsTests PROPERTY COMPILE_WARNING_AS_ERROR ON)
 endif()
 
 # Enable testing and register tests
@@ -171,4 +171,4 @@ endif()
 # In VS Code install the CMake Test Explorer extension and open the testing view.
 include(GoogleTest)
 enable_testing()
-gtest_discover_tests(RunAllTests)
+gtest_discover_tests(EcsTests)
