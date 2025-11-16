@@ -272,6 +272,22 @@ public:
         return eid < m_Index.size() && m_Index[eid] != EntityId::InvalidValue;
     }
 
+    size_t size() const
+    {
+        return m_EntityIds.size();
+    }
+
+    using Iterator = typename std::vector<EntityId>::iterator;
+
+    Iterator begin()
+    {
+        return m_EntityIds.begin();
+    }
+    Iterator end()
+    {
+        return m_EntityIds.end();
+    }
+
 private:
 
     /// @brief Ensure the index vector is large enough to contain the given entity ID.
@@ -283,9 +299,12 @@ private:
         }
     }
 
-    std::vector<EntityId> m_EntityIds;
-    std::vector<C> m_Components;
+    // Mapping from EntityId to index in the component vector.
     std::vector<IndexType> m_Index;
+    // Entity IDs indexed by m_Index.
+    std::vector<EntityId> m_EntityIds;
+    // Components indexed by m_Index.
+    std::vector<C> m_Components;
 };
 
 /// @brief forward declaration of EcsView
@@ -414,17 +433,20 @@ public:
         FilteredView(EcsRegistry& reg)
             : m_Reg(reg)
         {
+            Init();
         }
 
         Iterator begin()
         {
-            return Iterator(m_Reg, 0, m_Reg.m_IsAlive.size());
+            return Iterator(m_Reg, m_It, m_EndIt);
         }
 
         Iterator end()
         {
-            return Iterator(m_Reg, m_Reg.m_IsAlive.size(), m_Reg.m_IsAlive.size());
+            return Iterator(m_Reg, m_EndIt, m_EndIt);
         }
+
+        using EntityIterator = typename std::vector<EntityId>::iterator;
 
         class Iterator
         {
@@ -432,55 +454,105 @@ public:
 
             Iterator(
                 EcsRegistry& reg,
-                const EntityId::ValueType index,
-                const EntityId::ValueType endIndex)
+                EntityIterator it,
+                EntityIterator endIt)
                 : m_Reg(reg)
-                , m_Index(index)
-                , m_EndIndex(endIndex)
+                , m_It(it)
+                , m_EndIt(endIt)
             {
                 Advance();
             }
 
             Iterator& operator++()
             {
-                eassert(m_Index != m_EndIndex);
-                ++m_Index;
+                eassert(m_It != m_EndIt);
+                ++m_It;
                 Advance();
                 return *this;
             }
 
             bool operator!=(const Iterator& other) const
             {
-                return m_Index != other.m_Index;
+                return m_It != other.m_It;
             }
 
             EcsView<Cs...> operator*()
             {
-                eassert(m_Index != m_EndIndex);
-                return EcsView<Cs...>(EntityId(m_Index), m_Reg);
+                eassert(m_It != m_EndIt);
+                return EcsView<Cs...>(*m_It, m_Reg);
             }
 
         private:
+
             void Advance()
             {
-                while (m_Index < m_EndIndex)
+                while (m_It != m_EndIt)
                 {
-                    const EntityId eid(m_Index);
+                    const EntityId eid = *m_It;
                     if ((m_Reg.Has<Cs>(eid) && ...))
                     {
                         break;
                     }
-                    ++m_Index;
+                    ++m_It;
                 }
             }
 
             EcsRegistry& m_Reg;
-            EntityId::ValueType m_Index;
-            const EntityId::ValueType m_EndIndex;
+
+            EntityIterator m_It;
+            const EntityIterator m_EndIt;
         };
 
     private:
+
+        void Init()
+        {
+            bool missingOrEmpty = false;
+            (CheckMissingOrEmpty<Cs>(missingOrEmpty), ...);
+            if (missingOrEmpty)
+            {
+                m_It = {};
+                m_EndIt = {};
+                return;
+            }
+
+            std::size_t minSize = std::numeric_limits<std::size_t>::max();
+            (SelectSmallestPool<Cs>(minSize),...);
+        }
+
+        template<typename C>
+        void CheckMissingOrEmpty(bool& missingOrEmpty)
+        {
+            if (missingOrEmpty)
+                return;
+
+            if (!m_Reg.template HavePool<C>())
+            {
+                missingOrEmpty = true;
+                return;
+            }
+
+            auto& pool = m_Reg.template Pool<C>();
+            if (pool.size() == 0)
+            {
+                missingOrEmpty = true;
+            }
+        }
+
+        template<typename C>
+        void SelectSmallestPool(size_t& minSize)
+        {
+            if(const size_t poolSize = m_Reg.Pool<C>().size(); poolSize < minSize)
+            {
+                minSize = poolSize;
+                m_It = m_Reg.Pool<C>().begin();
+                m_EndIt = m_Reg.Pool<C>().end();
+            }
+        }
         EcsRegistry& m_Reg;
+
+        EntityIterator m_It;
+        EntityIterator m_EndIt;
     };
 
 private:
