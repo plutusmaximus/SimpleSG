@@ -253,35 +253,35 @@ namespace
         EXPECT_FALSE(invalid < valid);
     }
 
-    // ==================== Component Tests ====================
+    // ==================== EcsComponent Tests ====================
 
-    /// @brief Test Component validity via bool conversion.
-    TEST(Component, Validity_OperatorBool_IndicatesValidity)
+    /// @brief Test EcsComponent validity via bool conversion.
+    TEST(EcsComponent, Validity_OperatorBool_IndicatesValidity)
     {
         ComponentA compA{ 42 };
-        Component<ComponentA> validComponent(compA);
-        Component<ComponentA> invalidComponent;
+        EcsComponent<ComponentA> validComponent(compA);
+        EcsComponent<ComponentA> invalidComponent;
 
         EXPECT_TRUE(validComponent);
         EXPECT_FALSE(invalidComponent);
     }
 
-    /// @brief Test Component NOT operator.
-    TEST(Component, Validity_OperatorNot_IndicatesInvalidity)
+    /// @brief Test EcsComponent NOT operator.
+    TEST(EcsComponent, Validity_OperatorNot_IndicatesInvalidity)
     {
         ComponentA compA{ 42 };
-        Component<ComponentA> validComponent(compA);
-        Component<ComponentA> invalidComponent;
+        EcsComponent<ComponentA> validComponent(compA);
+        EcsComponent<ComponentA> invalidComponent;
 
         EXPECT_FALSE(!validComponent);
         EXPECT_TRUE(!invalidComponent);
     }
 
-    /// @brief Test Component value assignment modifies underlying value.
-    TEST(Component, Assignment_ValueAssignment_ModifiesUnderlying)
+    /// @brief Test EcsComponent value assignment modifies underlying value.
+    TEST(EcsComponent, Assignment_ValueAssignment_ModifiesUnderlying)
     {
         ComponentA compA{ 42 };
-        Component<ComponentA> component(compA);
+        EcsComponent<ComponentA> component(compA);
 
         EXPECT_EQ(*component, ComponentA{ 42 });
 
@@ -292,13 +292,13 @@ namespace
         EXPECT_EQ(compA.a, 100);  // original should be modified
     }
 
-    /// @brief Test Component-to-Component assignment.
-    TEST(Component, Assignment_ComponentToComponent_CopiesValue)
+    /// @brief Test EcsComponent-to-EcsComponent assignment.
+    TEST(EcsComponent, Assignment_ComponentToComponent_CopiesValue)
     {
         ComponentA compA{ 42 };
         ComponentA compB{ 100 };
-        Component<ComponentA> componentA(compA);
-        Component<ComponentA> componentB(compB);
+        EcsComponent<ComponentA> componentA(compA);
+        EcsComponent<ComponentA> componentB(compB);
 
         componentA = componentB;
 
@@ -309,11 +309,11 @@ namespace
     /// @brief Test assignment to invalid component is safe (no-op).
     /// Invalid component remains invalid after assignment becuause invalid components
     /// do not have an underlying reference to modify.
-    TEST(Component, Assignment_ToInvalidComponent_SafeNoOp)
+    TEST(EcsComponent, Assignment_ToInvalidComponent_SafeNoOp)
     {
         ComponentA compA{ 42 };
-        Component<ComponentA> validComponent(compA);
-        Component<ComponentA> invalidComponent;
+        EcsComponent<ComponentA> validComponent(compA);
+        EcsComponent<ComponentA> invalidComponent;
 
         // Should not throw or assert, just be a no-op
         invalidComponent = validComponent;
@@ -322,27 +322,27 @@ namespace
         EXPECT_FALSE(invalidComponent);
     }
 
-    /// @brief Test Component dereference on invalid component.
-    TEST(Component, Dereference_OnInvalidComponent_AssertsOnDebug)
+    /// @brief Test EcsComponent dereference on invalid component.
+    TEST(EcsComponent, Dereference_OnInvalidComponent_AssertsOnDebug)
     {
-        Component<ComponentA> invalidComponent;
+        EcsComponent<ComponentA> invalidComponent;
 
         // This should trigger an assertion in debug builds
         // For this test, we just verify the component is invalid
         EXPECT_FALSE(invalidComponent);
     }
 
-    /// @brief Test Component equality: Component == Component.
-    TEST(Component, Equality_ComponentToComponent_CorrectComparison)
+    /// @brief Test EcsComponent equality: EcsComponent == EcsComponent.
+    TEST(EcsComponent, Equality_ComponentToComponent_CorrectComparison)
     {
         ComponentA compA{ 42 };
         ComponentA compB{ 42 };
         ComponentA compC{ 100 };
 
-        Component<ComponentA> componentA(compA);
-        Component<ComponentA> componentB(compB);
-        Component<ComponentA> componentC(compC);
-        Component<ComponentA> invalidComponent;
+        EcsComponent<ComponentA> componentA(compA);
+        EcsComponent<ComponentA> componentB(compB);
+        EcsComponent<ComponentA> componentC(compC);
+        EcsComponent<ComponentA> invalidComponent;
 
         EXPECT_EQ(componentA, componentB);
         EXPECT_NE(componentA, componentC);
@@ -350,45 +350,45 @@ namespace
         EXPECT_NE(invalidComponent, componentA);
     }
 
-    /// @brief Test Component equality: Component == C.
-    TEST(Component, Equality_ComponentToValue_CorrectComparison)
+    /// @brief Test EcsComponent equality: EcsComponent == C.
+    TEST(EcsComponent, Equality_ComponentToValue_CorrectComparison)
     {
         ComponentA compA{ 42 };
         ComponentA compB{ 42 };
         ComponentA compC{ 100 };
 
-        Component<ComponentA> component(compA);
-        Component<ComponentA> invalidComponent;
+        EcsComponent<ComponentA> component(compA);
+        EcsComponent<ComponentA> invalidComponent;
 
         EXPECT_EQ(component, compB);
         EXPECT_NE(component, compC);
         EXPECT_NE(invalidComponent, compB);
     }
 
-    /// @brief Test Component equality: C == Component.
-    TEST(Component, Equality_ValueToComponent_CorrectComparison)
+    /// @brief Test EcsComponent equality: C == EcsComponent.
+    TEST(EcsComponent, Equality_ValueToComponent_CorrectComparison)
     {
         ComponentA compA{ 42 };
         ComponentA compB{ 42 };
         ComponentA compC{ 100 };
 
-        Component<ComponentA> component(compA);
-        Component<ComponentA> invalidComponent;
+        EcsComponent<ComponentA> component(compA);
+        EcsComponent<ComponentA> invalidComponent;
 
         EXPECT_EQ(compB, component);
         EXPECT_NE(compC, component);
         EXPECT_NE(compB, invalidComponent);
     }
 
-    /// @brief Test Component inequality operators.
-    TEST(Component, Inequality_AllForms_CorrectComparison)
+    /// @brief Test EcsComponent inequality operators.
+    TEST(EcsComponent, Inequality_AllForms_CorrectComparison)
     {
         ComponentA compA{ 42 };
         ComponentA compC{ 100 };
 
-        Component<ComponentA> component(compA);
-        Component<ComponentA> otherComponent(compC);
-        Component<ComponentA> invalidComponent;
+        EcsComponent<ComponentA> component(compA);
+        EcsComponent<ComponentA> otherComponent(compC);
+        EcsComponent<ComponentA> invalidComponent;
 
         EXPECT_NE(component, otherComponent);
         EXPECT_NE(component, compC);
@@ -396,11 +396,11 @@ namespace
         EXPECT_NE(component, invalidComponent);
     }
 
-    /// @brief Test Component self-assignment is safe.
-    TEST(Component, Assignment_SelfAssignment_Safe)
+    /// @brief Test EcsComponent self-assignment is safe.
+    TEST(EcsComponent, Assignment_SelfAssignment_Safe)
     {
         ComponentA compA{ 42 };
-        Component<ComponentA> component(compA);
+        EcsComponent<ComponentA> component(compA);
 
         // This should not crash or cause issues
         component = *component;

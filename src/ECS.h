@@ -90,11 +90,11 @@ public:
 /// Access the underlying component through operator*.
 /// @tparam C 
 template<typename C>
-struct Component
+struct EcsComponent
 {
 public:
-    Component() = default;
-    Component(C& c) : m_Ref(c) {}
+    EcsComponent() = default;
+    EcsComponent(C& c) : m_Ref(c) {}
 
     explicit operator bool() const noexcept
     {
@@ -117,7 +117,7 @@ public:
     /// Note that the underlying reference must be valid.
     /// This overload is disabled for const components - we cannot assign to const.
     template<typename T = C, std::enable_if_t<!std::is_const_v<T>, int> = 0>
-    Component& operator=(const C& value)
+    EcsComponent& operator=(const C& value)
     {
         if(*this)
         {
@@ -126,9 +126,9 @@ public:
         return *this;
     }
 
-    /// @brief Assign to the underlying component from another Component reference.
-    /// Note that both Component references must be valid.
-    Component& operator=(const Component& other)
+    /// @brief Assign to the underlying component from another EcsComponent reference.
+    /// Note that both EcsComponent references must be valid.
+    EcsComponent& operator=(const EcsComponent& other)
     {
         // Only assign if both underlying references are valid.
         if (other && *this)
@@ -138,8 +138,8 @@ public:
         return *this;
     }
 
-    /// @brief Returns true if both Component references are valid and their underlying components are equal.
-    bool operator==(const Component<C>& other) const
+    /// @brief Returns true if both EcsComponent references are valid and their underlying components are equal.
+    bool operator==(const EcsComponent<C>& other) const
     {
         return
             static_cast<bool>(*this)
@@ -147,43 +147,43 @@ public:
             && (**this == *other);
     }
 
-    /// @brief Returns true if the Component reference is valid and its underlying component
+    /// @brief Returns true if the EcsComponent reference is valid and its underlying component
     /// is equal to the given value.
     /// @param lhs 
     /// @param rhs 
     /// @return 
-    friend bool operator==(const Component<C>& lhs, const C& rhs)
+    friend bool operator==(const EcsComponent<C>& lhs, const C& rhs)
     {
         return
             static_cast<bool>(lhs)
             && (*lhs == rhs);
     }
 
-    /// @brief Returns true if Component reference is valid and the given value is equal to
-    /// the underlying component of the Component reference.
-    friend bool operator==(const C& lhs, const Component<C>& rhs)
+    /// @brief Returns true if EcsComponent reference is valid and the given value is equal to
+    /// the underlying component of the EcsComponent reference.
+    friend bool operator==(const C& lhs, const EcsComponent<C>& rhs)
     {
         return rhs == lhs;
     }
 
-    bool operator!=(const Component<C>& other) const
+    bool operator!=(const EcsComponent<C>& other) const
     {
         return !(operator==(other));
     }
 
-    friend bool operator!=(const Component<C>& lhs, const C& rhs)
+    friend bool operator!=(const EcsComponent<C>& lhs, const C& rhs)
     {
         return !(lhs == rhs);
     }
 
-    friend bool operator!=(const C& lhs, const Component<C>& rhs)
+    friend bool operator!=(const C& lhs, const EcsComponent<C>& rhs)
     {
         return !(lhs == rhs);
     }
 
     /// @brief Rebinding the underlying reference is not allowed.
-    Component& operator=(std::reference_wrapper<C>) = delete;
-    Component& operator=(std::optional<std::reference_wrapper<C>>) = delete;
+    EcsComponent& operator=(std::reference_wrapper<C>) = delete;
+    EcsComponent& operator=(std::optional<std::reference_wrapper<C>>) = delete;
 private:
 
     std::optional<std::reference_wrapper<C>> m_Ref;
@@ -200,9 +200,9 @@ public:
     /// @brief Add a component for the given entity ID.
     /// Pass component constructor arguments.
     /// Components are constructed in-place with the given arguments.
-    /// The consructed component is returned wrapped in a Component<C>.
+    /// The consructed component is returned wrapped in a EcsComponent<C>.
     template<typename... Args>
-    Component<C> Add(const EntityId eid, Args&&... args)
+    EcsComponent<C> Add(const EntityId eid, Args&&... args)
     {
         if (Has(eid))
         {
@@ -219,7 +219,7 @@ public:
     }
 
     /// @brief Get the component for the given entity ID.
-    Component<C> Get(const EntityId eid)
+    EcsComponent<C> Get(const EntityId eid)
     {
         if (!Has(eid))
         {
@@ -231,7 +231,7 @@ public:
     }
 
     /// @brief Get the component for the given entity ID (const version).
-    Component<const C> Get(const EntityId eid) const
+    EcsComponent<const C> Get(const EntityId eid) const
     {
         if (!Has(eid))
         {
@@ -328,7 +328,7 @@ public:
 
     /// @brief Add a component of type C for the given entity ID.
     template<typename C, typename... Args>
-    Component<C> Add(const EntityId eid, Args&&... args)
+    EcsComponent<C> Add(const EntityId eid, Args&&... args)
     {
         eassert(IsAlive(eid) && "Entity is not alive");
 
@@ -337,7 +337,7 @@ public:
 
     /// @brief Get the component of type C for the given entity ID.
     template<typename C>
-    Component<C> Get(const EntityId eid)
+    EcsComponent<C> Get(const EntityId eid)
     {
         eassert(IsAlive(eid) && "Entity is not alive");
 
@@ -346,7 +346,7 @@ public:
 
     /// @brief Get the component of type C for the given entity ID (const version).
     template<typename C>
-    Component<const C> Get(const EntityId eid) const
+    EcsComponent<const C> Get(const EntityId eid) const
     {
         eassert(IsAlive(eid) && "Entity is not alive");
 
