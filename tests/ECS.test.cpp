@@ -948,6 +948,65 @@ namespace
         EXPECT_FALSE(reg.Has<ComponentD>(eid));
     }
 
+    /// @brief Test that when an entity is recycled, it has no components.
+    TEST(EcsRegistry, AddComponents_RecycleEntity_NoComponents)
+    {
+        EcsRegistry reg;
+
+        const auto eid = reg.Create();
+
+        reg.Add<ComponentA>(eid, RandomValue<ComponentA>());
+        reg.Add<ComponentB>(eid, RandomValue<ComponentB>());
+        reg.Add<ComponentC>(eid, RandomValue<ComponentC>());
+        reg.Add<ComponentD>(eid, RandomValue<ComponentD>());
+
+        reg.Destroy(eid);
+
+        const auto newEid = reg.Create();
+
+        EXPECT_FALSE(reg.Has<ComponentA>(newEid));
+        EXPECT_FALSE(reg.Has<ComponentB>(newEid));
+        EXPECT_FALSE(reg.Has<ComponentC>(newEid));
+        EXPECT_FALSE(reg.Has<ComponentD>(newEid));
+    }
+
+    /// @brief Test that when an entity is recycled, it has no components.
+    TEST(EcsRegistry, AddComponents_RecycleEntity_AddNewComponents_CorrectComponentsReturned)
+    {
+        EcsRegistry reg;
+
+        const auto eid = reg.Create();
+
+        reg.Add<ComponentA>(eid, RandomValue<ComponentA>());
+        reg.Add<ComponentB>(eid, RandomValue<ComponentB>());
+        reg.Add<ComponentC>(eid, RandomValue<ComponentC>());
+        reg.Add<ComponentD>(eid, RandomValue<ComponentD>());
+
+        reg.Destroy(eid);
+
+        const auto newEid = reg.Create();
+        
+        auto newCompA = RandomValue<ComponentA>();
+        auto newCompB = RandomValue<ComponentB>();
+        auto newCompC = RandomValue<ComponentC>();
+        auto newCompD = RandomValue<ComponentD>();
+
+        reg.Add<ComponentA>(newEid, newCompA);
+        reg.Add<ComponentB>(newEid, newCompB);
+        reg.Add<ComponentC>(newEid, newCompC);
+        reg.Add<ComponentD>(newEid, newCompD);
+
+        EXPECT_TRUE(reg.Has<ComponentA>(newEid));
+        EXPECT_TRUE(reg.Has<ComponentB>(newEid));
+        EXPECT_TRUE(reg.Has<ComponentC>(newEid));
+        EXPECT_TRUE(reg.Has<ComponentD>(newEid));
+
+        EXPECT_EQ(reg.Get<ComponentA>(newEid), newCompA);
+        EXPECT_EQ(reg.Get<ComponentB>(newEid), newCompB);
+        EXPECT_EQ(reg.Get<ComponentC>(newEid), newCompC);
+        EXPECT_EQ(reg.Get<ComponentD>(newEid), newCompD);
+    }
+
     /// @brief Test component access after entity destruction.
     TEST(EcsRegistry, ComponentAccess_AfterDestroy_ReturnsInvalid)
     {

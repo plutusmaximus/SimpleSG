@@ -3,8 +3,8 @@
 #include "Error.h"
 
 #include <typeindex>
-#include <set>
 #include <unordered_map>
+#include <unordered_set>
 #include <optional>
 
 /// @brief An entity identifier.
@@ -252,6 +252,8 @@ public:
 
         if (idx != last)
         {
+            //FIXME(KB) - instead of moving set to unused.
+
             // move last into removed slot
             const EntityId movedEntity = m_EntityIds[last];
             m_EntityIds[idx] = movedEntity;
@@ -423,7 +425,7 @@ public:
         {
         public:
 
-            Iterator(EcsRegistry& reg, std::set<EntityId>::iterator it)
+            Iterator(EcsRegistry& reg, std::unordered_set<EntityId>::iterator it)
                 : m_Reg(reg)
                 , m_It(it)
             {
@@ -464,7 +466,7 @@ public:
             }
 
             EcsRegistry& m_Reg;
-            std::set<EntityId>::iterator m_It;
+            std::unordered_set<EntityId>::iterator m_It;
         };
 
     private:
@@ -506,7 +508,7 @@ private:
     }
 
     std::vector<EntityId> m_FreeList;
-    std::set<EntityId> m_Alive;
+    std::unordered_set<EntityId> m_Alive;
     std::unordered_map<std::type_index, std::unique_ptr<IEcsPool>> m_Pools;
 
     EntityId::ValueType m_NextId{ 0 };
