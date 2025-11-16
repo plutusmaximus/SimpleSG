@@ -724,7 +724,7 @@ namespace
         auto view = reg.GetView<ComponentA, ComponentB, ComponentC>(eid);
         EXPECT_FALSE(view);
 
-        EXPECT_EQ(view.error().Message, std::format("Entity {} does not have all requested components:  {} {} {}", eid, typeid(ComponentA).name(), typeid(ComponentB).name(), typeid(ComponentC).name()));
+        EXPECT_EQ(view.error().Message, std::format("Entity {} does not have all requested components", eid));
     }
 
     /// @brief Confirm that requesting a view for an entity missing components returns an error.
@@ -739,8 +739,10 @@ namespace
         auto view = reg.GetView<ComponentA, ComponentB, ComponentC>(eid);
         EXPECT_FALSE(view);
 
-        EXPECT_EQ(view.error().Message, std::format("Entity {} does not have all requested components:  {} {}", eid, typeid(ComponentB).name(), typeid(ComponentC).name()));
-    }/// @brief Test adding multiple different component types to same entity.
+        EXPECT_EQ(view.error().Message, std::format("Entity {} does not have all requested components", eid));
+    }
+    
+    /// @brief Test adding multiple different component types to same entity.
     TEST(EcsRegistry, AddComponents_AddDifferentTypes_AllAccessible)
     {
         EcsRegistry reg;
@@ -1515,5 +1517,311 @@ namespace
             auto compD = reg.Get<ComponentD>(eids[i]);
             EXPECT_TRUE(compD);
         }
+    }
+
+    /// @brief Test removing a specific component type from an entity.
+    TEST(EcsRegistry, Remove_SpecificComponent_OnlyThatComponentRemoved)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+
+        auto compA = RandomValue<ComponentA>();
+        auto compB = RandomValue<ComponentB>();
+        auto compC = RandomValue<ComponentC>();
+        
+        reg.Add<ComponentA>(eid, compA);
+        reg.Add<ComponentB>(eid, compB);
+        reg.Add<ComponentC>(eid, compC);
+
+        EXPECT_TRUE(reg.Has<ComponentA>(eid));
+        EXPECT_TRUE(reg.Has<ComponentB>(eid));
+        EXPECT_TRUE(reg.Has<ComponentC>(eid));
+
+        // Remove only ComponentB
+        reg.Remove<ComponentB>(eid);
+
+        // ComponentB should be gone, but A and C remain
+        EXPECT_TRUE(reg.Has<ComponentA>(eid));
+        EXPECT_FALSE(reg.Has<ComponentB>(eid));
+        EXPECT_TRUE(reg.Has<ComponentC>(eid));
+
+        // Values should be unchanged
+        EXPECT_EQ(*reg.Get<ComponentA>(eid), compA);
+        EXPECT_EQ(*reg.Get<ComponentC>(eid), compC);
+    }
+
+    /// @brief Test removing a component that doesn't exist.
+    TEST(EcsRegistry, Remove_NonexistentComponent_NoEffect)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        auto compA = RandomValue<ComponentA>();
+        
+        reg.Add<ComponentA>(eid, compA);
+        EXPECT_TRUE(reg.Has<ComponentA>(eid));
+        EXPECT_FALSE(reg.Has<ComponentB>(eid));
+
+        // Remove ComponentB which doesn't exist
+        reg.Remove<ComponentB>(eid);
+
+        // ComponentA should still exist and be unchanged
+        EXPECT_TRUE(reg.Has<ComponentA>(eid));
+        EXPECT_EQ(*reg.Get<ComponentA>(eid), compA);
+        EXPECT_FALSE(reg.Has<ComponentB>(eid));
+    }
+
+    /// @brief Test removing a component when entity only has that component.
+    TEST(EcsRegistry, Remove_OnlyComponent_EntityHasNoComponentsAfter)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        auto compA = RandomValue<ComponentA>();
+        
+        reg.Add<ComponentA>(eid, compA);
+        EXPECT_TRUE(reg.Has<ComponentA>(eid));
+        EXPECT_TRUE(reg.IsAlive(eid));
+
+        reg.Remove<ComponentA>(eid);
+
+        // Component gone but entity still alive
+        EXPECT_FALSE(reg.Has<ComponentA>(eid));
+        EXPECT_TRUE(reg.IsAlive(eid));
+    }
+
+    /// @brief Test sequential removal of all component types.
+    TEST(EcsRegistry, Remove_AllComponentsSequentially_EntityAliveButEmpty)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+
+        reg.Add<ComponentA>(eid, RandomValue<ComponentA>());
+        reg.Add<ComponentB>(eid, RandomValue<ComponentB>());
+        reg.Add<ComponentC>(eid, RandomValue<ComponentC>());
+
+        // Remove each component
+        reg.Remove<ComponentA>(eid);
+        EXPECT_FALSE(reg.Has<ComponentA>(eid));
+        EXPECT_TRUE(reg.Has<ComponentB>(eid));
+        EXPECT_TRUE(reg.Has<ComponentC>(eid));
+
+        reg.Remove<ComponentB>(eid);
+        EXPECT_FALSE(reg.Has<ComponentA>(eid));
+        EXPECT_FALSE(reg.Has<ComponentB>(eid));
+        EXPECT_TRUE(reg.Has<ComponentC>(eid));
+
+        reg.Remove<ComponentC>(eid);
+        EXPECT_FALSE(reg.Has<ComponentA>(eid));
+        EXPECT_FALSE(reg.Has<ComponentB>(eid));
+        EXPECT_FALSE(reg.Has<ComponentC>(eid));
+
+        // Entity should still exist
+        EXPECT_TRUE(reg.IsAlive(eid));
+    }
+
+    /// @brief Test removing from multiple entities independently.
+    TEST(EcsRegistry, Remove_MultipleEntities_IndependentRemoval)
+    {
+        EcsRegistry reg;
+
+        auto eid1 = reg.Create();
+        auto eid2 = reg.Create();
+        auto eid3 = reg.Create();
+
+        auto compA1 = RandomValue<ComponentA>();
+        auto compA2 = RandomValue<ComponentA>();
+        auto compA3 = RandomValue<ComponentA>();
+
+        reg.Add<ComponentA>(eid1, compA1);
+        reg.Add<ComponentA>(eid2, compA2);
+        reg.Add<ComponentA>(eid3, compA3);
+
+        // Remove from only eid2
+        reg.Remove<ComponentA>(eid2);
+
+        // Check state
+        EXPECT_TRUE(reg.Has<ComponentA>(eid1));
+        EXPECT_FALSE(reg.Has<ComponentA>(eid2));
+        EXPECT_TRUE(reg.Has<ComponentA>(eid3));
+
+        // Values should be unchanged for eid1 and eid3
+        EXPECT_EQ(*reg.Get<ComponentA>(eid1), compA1);
+        EXPECT_EQ(*reg.Get<ComponentA>(eid3), compA3);
+    }
+
+    /// @brief Test removing component from dead entity (should verify entity is alive first).
+    TEST(EcsRegistry, Remove_DeadEntity_VerificationFails)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        auto compA = RandomValue<ComponentA>();
+        
+        reg.Add<ComponentA>(eid, compA);
+        EXPECT_TRUE(reg.IsAlive(eid));
+
+        reg.Destroy(eid);
+        EXPECT_FALSE(reg.IsAlive(eid));
+
+        // Try to remove component from dead entity
+        // Should verify entity is alive and return early
+        reg.Remove<ComponentA>(eid);
+
+        // Entity should still be dead
+        EXPECT_FALSE(reg.IsAlive(eid));
+    }
+
+    /// @brief Test remove and re-add component to same entity.
+    TEST(EcsRegistry, Remove_AndReaddComponent_NewValueAssigned)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+
+        auto origValue = RandomValue<ComponentA>();
+        reg.Add<ComponentA>(eid, origValue);
+        EXPECT_EQ(*reg.Get<ComponentA>(eid), origValue);
+
+        // Remove
+        reg.Remove<ComponentA>(eid);
+        EXPECT_FALSE(reg.Has<ComponentA>(eid));
+
+        // Re-add with different value
+        auto newValue = RandomValue<ComponentA>();
+        reg.Add<ComponentA>(eid, newValue);
+
+        EXPECT_TRUE(reg.Has<ComponentA>(eid));
+        EXPECT_EQ(*reg.Get<ComponentA>(eid), newValue);
+    }
+
+    /// @brief Test that filtered views update correctly after removal.
+    TEST(EcsRegistry, Remove_Component_FilteredViewUpdates)
+    {
+        EcsRegistry reg;
+
+        auto eid1 = reg.Create();
+        auto eid2 = reg.Create();
+
+        reg.Add<ComponentA>(eid1, RandomValue<ComponentA>());
+        reg.Add<ComponentB>(eid1, RandomValue<ComponentB>());
+
+        reg.Add<ComponentA>(eid2, RandomValue<ComponentA>());
+        reg.Add<ComponentB>(eid2, RandomValue<ComponentB>());
+
+        // Should have 2 entities with both A and B
+        int countBefore = 0;
+        for (auto view : reg.Filter<ComponentA, ComponentB>())
+        {
+            countBefore++;
+        }
+        EXPECT_EQ(countBefore, 2);
+
+        // Remove B from eid1
+        reg.Remove<ComponentB>(eid1);
+
+        // Should now have 1 entity with both A and B
+        int countAfter = 0;
+        for (auto view : reg.Filter<ComponentA, ComponentB>())
+        {
+            countAfter++;
+        }
+        EXPECT_EQ(countAfter, 1);
+    }
+
+    /// @brief Test stress: remove from many entities.
+    TEST(EcsRegistry, Remove_ManyEntities_ConsistentState)
+    {
+        EcsRegistry reg;
+
+        constexpr int NUM_ENTITIES = 1000;
+        std::vector<EntityId> eids;
+
+        // Create entities with multiple components
+        for (int i = 0; i < NUM_ENTITIES; ++i)
+        {
+            auto eid = reg.Create();
+            eids.push_back(eid);
+
+            reg.Add<ComponentA>(eid, ComponentA{ i });
+            reg.Add<ComponentB>(eid, RandomValue<ComponentB>());
+            if (i % 2 == 0)
+            {
+                reg.Add<ComponentC>(eid, RandomValue<ComponentC>());
+            }
+        }
+
+        // Remove ComponentA from all entities
+        for (auto eid : eids)
+        {
+            reg.Remove<ComponentA>(eid);
+        }
+
+        // Verify ComponentA is gone but B remains
+        for (auto eid : eids)
+        {
+            EXPECT_FALSE(reg.Has<ComponentA>(eid));
+            EXPECT_TRUE(reg.Has<ComponentB>(eid));
+        }
+
+        // Count entities with ComponentC after removal
+        int countWithC = 0;
+        for (auto eid : eids)
+        {
+            if (reg.Has<ComponentC>(eid))
+            {
+                countWithC++;
+            }
+        }
+        EXPECT_EQ(countWithC, NUM_ENTITIES / 2);
+
+        // Remove ComponentB from even-indexed entities
+        for (int i = 0; i < NUM_ENTITIES; i += 2)
+        {
+            reg.Remove<ComponentB>(eids[i]);
+        }
+
+        // Verify B removed from evens only
+        for (int i = 0; i < NUM_ENTITIES; ++i)
+        {
+            EXPECT_FALSE(reg.Has<ComponentA>(eids[i]));
+            if (i % 2 == 0)
+            {
+                EXPECT_FALSE(reg.Has<ComponentB>(eids[i]));
+            }
+            else
+            {
+                EXPECT_TRUE(reg.Has<ComponentB>(eids[i]));
+            }
+        }
+    }
+
+    /// @brief Test that GetView fails after removing required component.
+    TEST(EcsRegistry, Remove_RequiredComponentForView_ViewFails)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+
+        auto compA = RandomValue<ComponentA>();
+        auto compB = RandomValue<ComponentB>();
+        auto compC = RandomValue<ComponentC>();
+
+        reg.Add<ComponentA>(eid, compA);
+        reg.Add<ComponentB>(eid, compB);
+        reg.Add<ComponentC>(eid, compC);
+
+        // Should be able to get view
+        auto viewResult1 = reg.GetView<ComponentA, ComponentB, ComponentC>(eid);
+        EXPECT_TRUE(viewResult1);
+
+        // Remove one required component
+        reg.Remove<ComponentB>(eid);
+
+        // Now view should fail
+        auto viewResult2 = reg.GetView<ComponentA, ComponentB, ComponentC>(eid);
+        EXPECT_FALSE(viewResult2);
     }
 }
