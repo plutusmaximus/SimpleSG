@@ -7,7 +7,6 @@
 #include <vector>
 #include <string>
 #include <format>
-#include <memory>
 #include <tuple>
 #include <type_traits>
 #include <typeindex>
@@ -101,6 +100,7 @@ class EcsComponentPool : public IEcsPool
 public:
 
     using IndexType = EntityId::ValueType;
+    static constexpr IndexType InvalidIndex = EntityId::InvalidValue;
 
     /// @brief Add a component for the given entity ID.
     /// Pass component constructor arguments.
@@ -126,33 +126,27 @@ public:
     /// @brief Get the component for the given entity ID.
     C* Get(const EntityId eid)
     {
-        if (!Has(eid))
-        {
-            return nullptr;
-        }
-
-        const IndexType idx = m_Index[eid.Value()];
-        return &m_Components[idx];
+        const IndexType idx = GetIndex(eid);
+        return (InvalidIndex != idx) ? &m_Components[idx] : nullptr;
     }
 
     /// @brief Get the component for the given entity ID (const version).
     const C* Get(const EntityId eid) const
     {
-        if (!Has(eid))
-        {
-            return nullptr;
-        }
-
-        const IndexType idx = m_Index[eid.Value()];
-        return &m_Components[idx];
+        const IndexType idx = GetIndex(eid);
+        return (InvalidIndex != idx) ? &m_Components[idx] : nullptr;
     }
 
     /// @brief Remove the component for the given entity ID.
     void Remove(const EntityId eid) override
     {
-        if (!Has(eid)) return;
+        const IndexType idx = GetIndex(eid);
 
-        const IndexType idx = m_Index[eid.Value()];
+        if(InvalidIndex == idx)
+        {
+            return;
+        }
+
         const IndexType last = static_cast<IndexType>(m_EntityIds.size() - 1);
 
         if (idx != last)
@@ -201,6 +195,11 @@ private:
             m_Index.resize(eid.Value() + 1, EntityId::InvalidValue);
         }
     }
+
+    IndexType GetIndex(const EntityId eid) const
+    {
+        return eid.Value() < m_Index.size() ? m_Index[eid.Value()] : InvalidIndex;
+    } 
 
     // Mapping from EntityId to index in the component vector.
     std::vector<IndexType> m_Index;
@@ -547,21 +546,11 @@ private:
         auto it = m_Pools.find(tid);
         if (it == m_Pools.end())
         {
-            auto ptr = std::make_unique<EcsComponentPool<C>>();
-            auto* raw = ptr.get();
-            m_Pools.emplace(tid, std::move(ptr));
-            return *raw;
+            auto pool = new EcsComponentPool<C>();
+            m_Pools.emplace(tid, pool);
+            return *pool;
         }
         return *static_cast<EcsComponentPool<C>*>(it->second.get());
-    }
-
-    template<typename C>
-    const EcsComponentPool<C>& Pool() const
-    {
-        auto tid = std::type_index(typeid(C));
-        auto it = m_Pools.find(tid);
-        eassert(it != m_Pools.end() && "Pool does not exist");
-        return *static_cast<const EcsComponentPool<C>*>(it->second.get());
     }
 
     /// @brief Ensure the alive vector is large enough to contain the given entity ID.
