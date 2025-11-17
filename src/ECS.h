@@ -11,6 +11,12 @@
 #include <type_traits>
 #include <typeindex>
 #include <unordered_map>
+#include <unordered_set>
+#include <span>
+
+/// Potential Optimizations
+/// 1. Sort all component pools on entity ID.  After sort iterating filtered views
+///     will have better cache locality.
 
 /// @brief An entity identifier.
 class EntityId
@@ -123,20 +129,6 @@ public:
         return &m_Components.back();
     }
 
-    /// @brief Get the component for the given entity ID.
-    C* Get(const EntityId eid)
-    {
-        const IndexType idx = GetIndex(eid);
-        return (InvalidIndex != idx) ? &m_Components[idx] : nullptr;
-    }
-
-    /// @brief Get the component for the given entity ID (const version).
-    const C* Get(const EntityId eid) const
-    {
-        const IndexType idx = GetIndex(eid);
-        return (InvalidIndex != idx) ? &m_Components[idx] : nullptr;
-    }
-
     /// @brief Remove the component for the given entity ID.
     void Remove(const EntityId eid) override
     {
@@ -163,12 +155,62 @@ public:
         m_Index[eid.Value()] = EntityId::InvalidValue;
     }
 
+    /// @brief Reorder the components for the given entity IDs.
+    void Reorder(const std::span<EntityId>& entityIds)
+    {
+#if !NDEBUG
+            std::unordered_set<EntityId> entityIdSet(entityIds.begin(), entityIds.end());
+            eassert(entityIds.size() == m_EntityIds.size());
+            for(const auto eid : entityIds)
+            {
+                eassert(Has(eid));
+            }
+
+            for(const auto eid : m_EntityIds)
+            {
+                eassert(entityIdSet.contains(eid));
+            }
+#endif
+            // Reorder m_Components and m_Index to match entityIds order
+            std::vector<C> newComponents;
+            newComponents.reserve(entityIds.size());
+            std::vector<IndexType> newIndex(m_Index.size(), EntityId::InvalidValue);
+
+            for (size_t i = 0; i < entityIds.size(); ++i)
+            {
+                const EntityId eid = entityIds[i];
+                IndexType oldIdx = GetIndex(eid);
+                eassert(oldIdx != InvalidIndex);
+                newComponents.push_back(std::move(m_Components[oldIdx]));
+                newIndex[eid.Value()] = static_cast<IndexType>(i);
+            }
+
+            m_EntityIds.assign(entityIds.begin(), entityIds.end());
+            m_Components = std::move(newComponents);
+            m_Index = std::move(newIndex);
+    }
+
+    /// @brief Get the component for the given entity ID.
+    C* Get(const EntityId eid)
+    {
+        const IndexType idx = GetIndex(eid);
+        return (InvalidIndex != idx) ? &m_Components[idx] : nullptr;
+    }
+
+    /// @brief Get the component for the given entity ID (const version).
+    const C* Get(const EntityId eid) const
+    {
+        const IndexType idx = GetIndex(eid);
+        return (InvalidIndex != idx) ? &m_Components[idx] : nullptr;
+    }
+
     /// @brief Returns true if the given entity ID has an associated component.
     bool Has(const EntityId eid) const
     {
         return eid.Value() < m_Index.size() && m_Index[eid.Value()] != EntityId::InvalidValue;
     }
 
+    /// @brief Get the number of components in the pool.
     size_t size() const
     {
         return m_EntityIds.size();
@@ -176,10 +218,13 @@ public:
 
     using Iterator = typename std::vector<EntityId>::iterator;
 
+    /// @brief Get an iterator to the beginning of the entity IDs.
     Iterator begin()
     {
         return m_EntityIds.begin();
     }
+
+    /// @brief Get an iterator to the end of the entity IDs.
     Iterator end()
     {
         return m_EntityIds.end();
@@ -278,6 +323,16 @@ public:
         if(auto pool = TryGetPool<C>())
         {
             pool->Remove(eid);
+        }
+    }
+
+    /// @brief Reorder the components of type C for the given entity IDs.
+    template<typename C>
+    void Reorder(const std::span<EntityId>& entityIds)
+    {
+        if(auto* pool = TryGetPool<C>())
+        {
+            pool->Reorder(entityIds);
         }
     }
 

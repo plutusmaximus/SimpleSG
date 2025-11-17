@@ -423,6 +423,278 @@ namespace
 
         EXPECT_TRUE(comp);
         EXPECT_EQ(*comp, ComponentA{ 42 });
+    }/// @brief Test reordering components with a simple shuffle.
+    TEST(EcsComponentPool, Reorder_SimpleOrder)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentA> pool;
+        std::vector<EntityId> ids;
+        std::vector<int> values = {10, 20, 30, 40};
+        
+        for (int i = 0; i < 4; ++i) {
+            EntityId eid = reg.Create();
+            ids.push_back(eid);
+            pool.Add(eid, ComponentA{values[i]});
+        }
+        
+        // Shuffle the ids
+        std::vector<EntityId> newOrder = {ids[2], ids[0], ids[3], ids[1]};
+        pool.Reorder(std::span<EntityId>(newOrder));
+        
+        // Check that m_EntityIds matches newOrder
+        EXPECT_EQ(std::vector<EntityId>(pool.begin(), pool.end()), newOrder);
+        
+        // Check that m_Components are in the correct order
+        std::vector<int> expectedValues = {30, 10, 40, 20};
+        for (size_t i = 0; i < newOrder.size(); ++i) {
+            auto* comp = pool.Get(newOrder[i]);
+            ASSERT_NE(comp, nullptr);
+            EXPECT_EQ(comp->a, expectedValues[i]);
+        }
+    }
+
+    /// @brief Test reordering with reversed order.
+    TEST(EcsComponentPool, Reorder_ReverseOrder)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentA> pool;
+        std::vector<EntityId> ids;
+        
+        for (int i = 0; i < 5; ++i) {
+            EntityId eid = reg.Create();
+            ids.push_back(eid);
+            pool.Add(eid, ComponentA{i});
+        }
+        
+        std::vector<EntityId> reversed(ids.rbegin(), ids.rend());
+        pool.Reorder(std::span<EntityId>(reversed));
+        
+        EXPECT_EQ(std::vector<EntityId>(pool.begin(), pool.end()), reversed);
+        
+        for (size_t i = 0; i < reversed.size(); ++i) {
+            auto* comp = pool.Get(reversed[i]);
+            ASSERT_NE(comp, nullptr);
+            // Component value should match the original position
+            size_t originalIdx = ids.size() - 1 - i;
+            EXPECT_EQ(comp->a, static_cast<int>(originalIdx));
+        }
+    }
+
+    /// @brief Test reordering with a single element.
+    TEST(EcsComponentPool, Reorder_SingleElement)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentA> pool;
+        
+        EntityId eid = reg.Create();
+        pool.Add(eid, ComponentA{123});
+        
+        std::vector<EntityId> order = {eid};
+        pool.Reorder(std::span<EntityId>(order));
+        
+        EXPECT_EQ(std::vector<EntityId>(pool.begin(), pool.end()), order);
+        
+        auto* comp = pool.Get(eid);
+        ASSERT_NE(comp, nullptr);
+        EXPECT_EQ(comp->a, 123);
+    }
+
+    /// @brief Test reordering with identity (same order).
+    TEST(EcsComponentPool, Reorder_IdentityOrder)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentA> pool;
+        std::vector<EntityId> ids;
+        
+        for (int i = 0; i < 3; ++i) {
+            EntityId eid = reg.Create();
+            ids.push_back(eid);
+            pool.Add(eid, ComponentA{i * 5});
+        }
+        
+        pool.Reorder(std::span<EntityId>(ids));
+        
+        EXPECT_EQ(std::vector<EntityId>(pool.begin(), pool.end()), ids);
+        
+        for (size_t i = 0; i < ids.size(); ++i) {
+            auto* comp = pool.Get(ids[i]);
+            ASSERT_NE(comp, nullptr);
+            EXPECT_EQ(comp->a, i * 5);
+        }
+    }
+
+    /// @brief Test reordering preserves all components correctly.
+    TEST(EcsComponentPool, Reorder_PreservesAllComponents)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentC> pool;
+        std::vector<EntityId> ids;
+        std::vector<ComponentC> originals;
+        
+        for (int i = 0; i < 10; ++i) {
+            EntityId eid = reg.Create();
+            ids.push_back(eid);
+            ComponentC comp = RandomValue<ComponentC>();
+            originals.push_back(comp);
+            pool.Add(eid, comp);
+        }
+        
+        // Random shuffle
+        std::vector<EntityId> shuffled = {ids[7], ids[2], ids[9], ids[0], ids[5], 
+                                          ids[3], ids[1], ids[8], ids[4], ids[6]};
+        pool.Reorder(std::span<EntityId>(shuffled));
+        
+        // Verify all components are preserved with correct values
+        for (size_t i = 0; i < shuffled.size(); ++i) {
+            auto* comp = pool.Get(shuffled[i]);
+            ASSERT_NE(comp, nullptr);
+            
+            // Find original index
+            auto it = std::find(ids.begin(), ids.end(), shuffled[i]);
+            ASSERT_NE(it, ids.end());
+            size_t originalIdx = std::distance(ids.begin(), it);
+            
+            EXPECT_EQ(*comp, originals[originalIdx]);
+        }
+    }
+
+    /// @brief Test 1: Reorder after Remove - Verify reordering works after entities removed
+    TEST(EcsComponentPool, Reorder_AfterRemove_RemainingEntitiesReordered)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentA> pool;
+        std::vector<EntityId> ids;
+        
+        // Add 6 entities
+        for (int i = 0; i < 6; ++i) {
+            EntityId eid = reg.Create();
+            ids.push_back(eid);
+            pool.Add(eid, ComponentA{i * 10});
+        }
+        
+        // Remove entities at indices 1 and 4
+        pool.Remove(ids[1]);
+        pool.Remove(ids[4]);
+        
+        // Remaining entities: 0, 2, 3, 5
+        std::vector<EntityId> remaining = {ids[0], ids[2], ids[3], ids[5]};
+        
+        // Reorder remaining entities
+        std::vector<EntityId> newOrder = {ids[5], ids[0], ids[3], ids[2]};
+        pool.Reorder(std::span<EntityId>(newOrder));
+        
+        // Verify order
+        EXPECT_EQ(std::vector<EntityId>(pool.begin(), pool.end()), newOrder);
+        
+        // Verify component values
+        EXPECT_EQ(pool.Get(ids[5])->a, 50);
+        EXPECT_EQ(pool.Get(ids[0])->a, 0);
+        EXPECT_EQ(pool.Get(ids[3])->a, 30);
+        EXPECT_EQ(pool.Get(ids[2])->a, 20);
+        
+        // Verify removed entities still return nullptr
+        EXPECT_EQ(pool.Get(ids[1]), nullptr);
+        EXPECT_EQ(pool.Get(ids[4]), nullptr);
+    }
+
+    /// @brief Test 2: Add after Reorder - Verify adding components after reorder works
+    TEST(EcsComponentPool, Add_AfterReorder_NewComponentAdded)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentA> pool;
+        std::vector<EntityId> ids;
+        
+        // Add initial entities
+        for (int i = 0; i < 3; ++i) {
+            EntityId eid = reg.Create();
+            ids.push_back(eid);
+            pool.Add(eid, ComponentA{i});
+        }
+        
+        // Reorder
+        std::vector<EntityId> reordered = {ids[2], ids[0], ids[1]};
+        pool.Reorder(std::span<EntityId>(reordered));
+        
+        // Add new entity
+        EntityId newEid = reg.Create();
+        pool.Add(newEid, ComponentA{999});
+        
+        // Verify new entity is accessible
+        auto* newComp = pool.Get(newEid);
+        ASSERT_NE(newComp, nullptr);
+        EXPECT_EQ(newComp->a, 999);
+        
+        // Verify original entities still accessible
+        EXPECT_EQ(pool.Get(ids[0])->a, 0);
+        EXPECT_EQ(pool.Get(ids[1])->a, 1);
+        EXPECT_EQ(pool.Get(ids[2])->a, 2);
+    }
+
+    /// @brief Test 3: Remove after Reorder - Verify removing after reorder maintains integrity
+    TEST(EcsComponentPool, Remove_AfterReorder_ComponentRemoved)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentA> pool;
+        std::vector<EntityId> ids;
+        
+        for (int i = 0; i < 4; ++i) {
+            EntityId eid = reg.Create();
+            ids.push_back(eid);
+            pool.Add(eid, ComponentA{i * 5});
+        }
+        
+        // Reorder
+        std::vector<EntityId> reordered = {ids[3], ids[1], ids[0], ids[2]};
+        pool.Reorder(std::span<EntityId>(reordered));
+        
+        // Remove entity
+        pool.Remove(ids[1]);
+        
+        // Verify removed
+        EXPECT_EQ(pool.Get(ids[1]), nullptr);
+        
+        // Verify others still accessible
+        EXPECT_EQ(pool.Get(ids[0])->a, 0);
+        EXPECT_EQ(pool.Get(ids[2])->a, 10);
+        EXPECT_EQ(pool.Get(ids[3])->a, 15);
+        
+        EXPECT_EQ(pool.size(), 3);
+    }
+
+    /// @brief Test 4: Multiple consecutive Reorders - Ensure no state corruption
+    TEST(EcsComponentPool, Reorder_MultipleConsecutive_StateConsistent)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentA> pool;
+        std::vector<EntityId> ids;
+        
+        for (int i = 0; i < 5; ++i) {
+            EntityId eid = reg.Create();
+            ids.push_back(eid);
+            pool.Add(eid, ComponentA{i});
+        }
+        
+        // First reorder
+        std::vector<EntityId> order1 = {ids[4], ids[2], ids[0], ids[3], ids[1]};
+        pool.Reorder(std::span<EntityId>(order1));
+        
+        // Second reorder
+        std::vector<EntityId> order2 = {ids[1], ids[3], ids[4], ids[0], ids[2]};
+        pool.Reorder(std::span<EntityId>(order2));
+        
+        // Third reorder
+        std::vector<EntityId> order3 = {ids[0], ids[1], ids[2], ids[3], ids[4]};
+        pool.Reorder(std::span<EntityId>(order3));
+        
+        // Verify final state matches order3
+        EXPECT_EQ(std::vector<EntityId>(pool.begin(), pool.end()), order3);
+        
+        // Verify all components have correct values
+        for (size_t i = 0; i < ids.size(); ++i) {
+            auto* comp = pool.Get(ids[i]);
+            ASSERT_NE(comp, nullptr);
+            EXPECT_EQ(comp->a, static_cast<int>(i));
+        }
     }
     
     // ==================== EcsRegistry Tests ====================
