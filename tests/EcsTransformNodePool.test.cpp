@@ -29,9 +29,9 @@ namespace
     // ========== Basic Operations Tests ==========
 
     /// @brief Verifies that a single top-level part can be added and retrieved correctly.
-    TEST(AssemblyCollection, Add_SingleTopLevelPart_PartAddedSuccessfully)
+    TEST(EcsTransformNodePool, Add_SingleTopLevelPart_PartAddedSuccessfully)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId eid = idGen.NextId();
@@ -47,9 +47,9 @@ namespace
     }
 
     /// @brief Verifies that multiple top-level parts can be added independently.
-    TEST(AssemblyCollection, Add_MultipleTopLevelParts_AllPartsAddedSuccessfully)
+    TEST(EcsTransformNodePool, Add_MultipleTopLevelParts_AllPartsAddedSuccessfully)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId id1 = idGen.NextId();
@@ -83,9 +83,9 @@ namespace
     }
 
     /// @brief Verifies that a child part is added after its parent and maintains correct parent-child relationship.
-    TEST(AssemblyCollection, Add_SingleChildToParent_ChildAddedAfterParent)
+    TEST(EcsTransformNodePool, Add_SingleChildToParent_ChildAddedAfterParent)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId parentId = idGen.NextId();
@@ -110,9 +110,9 @@ namespace
     }
 
     /// @brief Verifies that multiple children are added consecutively after their parent with correct relationships.
-    TEST(AssemblyCollection, Add_MultipleChildrenToParent_AllChildrenAddedConsecutively)
+    TEST(EcsTransformNodePool, Add_MultipleChildrenToParent_AllChildrenAddedConsecutively)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId parentId = idGen.NextId();
@@ -147,9 +147,9 @@ namespace
     }
 
     /// @brief Verifies that attempting to add an invalid EntityId is rejected and collection remains unchanged.
-    TEST(AssemblyCollection, Add_InvalidEntityId_AddRejected)
+    TEST(EcsTransformNodePool, Add_InvalidEntityId_AddRejected)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         
         EntityId invalidId; // Default constructor creates invalid ID
         EXPECT_FALSE(invalidId.IsValid());
@@ -161,9 +161,9 @@ namespace
     }
 
     /// @brief Verifies that attempting to add a duplicate EntityId is rejected.
-    TEST(AssemblyCollection, Add_DuplicateEntityId_AddRejected)
+    TEST(EcsTransformNodePool, Add_DuplicateEntityId_AddRejected)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId partId = idGen.NextId();
@@ -177,9 +177,9 @@ namespace
     }
 
     /// @brief Verifies that attempting to add an entity with itself as parent is rejected.
-    TEST(AssemblyCollection, Add_EntityWithSelfAsParent_AddRejected)
+    TEST(EcsTransformNodePool, Add_EntityWithSelfAsParent_AddRejected)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId partId = idGen.NextId();
@@ -197,9 +197,9 @@ namespace
     }
 
     /// @brief Verifies that attempting to add a child with a non-existent parent is rejected.
-    TEST(AssemblyCollection, Add_ChildWithNonExistentParent_AddRejected)
+    TEST(EcsTransformNodePool, Add_ChildWithNonExistentParent_AddRejected)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId childId = idGen.NextId();
@@ -215,9 +215,9 @@ namespace
     // ========== Hierarchical Structure Tests ==========
 
     /// @brief Verifies that a three-level nested hierarchy maintains correct ordering and relationships.
-    TEST(AssemblyCollection, Add_ThreeLevelNestedHierarchy_CorrectOrderingMaintained)
+    TEST(EcsTransformNodePool, Add_ThreeLevelNestedHierarchy_CorrectOrderingMaintained)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId grandparent = idGen.NextId();
@@ -245,9 +245,9 @@ namespace
     }
 
     /// @brief Verifies that a hierarchy with multiple branches and grandchildren maintains proper structure.
-    TEST(AssemblyCollection, Add_MultipleBranchesWithGrandchildren_ProperStructureMaintained)
+    TEST(EcsTransformNodePool, Add_MultipleBranchesWithGrandchildren_ProperStructureMaintained)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId root = idGen.NextId();
@@ -296,9 +296,9 @@ namespace
     }
 
     /// @brief Verifies that adding a child to a middle node correctly inserts it and updates indices.
-    TEST(AssemblyCollection, Add_ChildToMiddleNode_InsertedCorrectlyWithUpdatedIndices)
+    TEST(EcsTransformNodePool, Add_ChildToMiddleNode_InsertedCorrectlyWithUpdatedIndices)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         // Build initial hierarchy
@@ -334,9 +334,9 @@ namespace
     // ========== Removal Tests ==========
 
     /// @brief Verifies that removing a top-level part without children completely removes it from the collection.
-    TEST(AssemblyCollection, Remove_TopLevelPartWithoutChildren_PartRemovedCompletely)
+    TEST(EcsTransformNodePool, Remove_TopLevelPartWithoutChildren_PartRemovedCompletely)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId partId = idGen.NextId();
@@ -353,9 +353,9 @@ namespace
     }
 
     /// @brief Verifies that removing a parent part also removes all its children (entire subtree).
-    TEST(AssemblyCollection, Remove_ParentWithChildren_EntireSubtreeRemoved)
+    TEST(EcsTransformNodePool, Remove_ParentWithChildren_EntireSubtreeRemoved)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId parent = idGen.NextId();
@@ -377,9 +377,9 @@ namespace
     }
 
     /// @brief Verifies that removing a middle child leaves its siblings intact.
-    TEST(AssemblyCollection, Remove_MiddleChild_SiblingsRemainIntact)
+    TEST(EcsTransformNodePool, Remove_MiddleChild_SiblingsRemainIntact)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId parent = idGen.NextId();
@@ -412,9 +412,9 @@ namespace
     }
 
     /// @brief Verifies that attempting to remove a non-existent entity has no effect on the collection.
-    TEST(AssemblyCollection, Remove_NonExistentEntity_NoEffect)
+    TEST(EcsTransformNodePool, Remove_NonExistentEntity_NoEffect)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId existingId = idGen.NextId();
@@ -430,9 +430,9 @@ namespace
     }
 
     /// @brief Verifies that removing a node in a deep hierarchy removes all its descendants.
-    TEST(AssemblyCollection, Remove_NodeInDeepHierarchy_AllDescendantsRemoved)
+    TEST(EcsTransformNodePool, Remove_NodeInDeepHierarchy_AllDescendantsRemoved)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         // Build 4-level hierarchy
@@ -462,9 +462,9 @@ namespace
     }
 
     /// @brief Verifies that an entity can be removed and re-added, both as top-level and as a child.
-    TEST(AssemblyCollection, Remove_ThenReAdd_EntityAddedSuccessfully)
+    TEST(EcsTransformNodePool, Remove_ThenReAdd_EntityAddedSuccessfully)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId partId = idGen.NextId();
@@ -495,9 +495,9 @@ namespace
     // ========== Query/Access Tests ==========
 
     /// @brief Verifies that Get() returns a valid pointer for an existing entity.
-    TEST(AssemblyCollection, Get_ExistingEntity_ValidPointerReturned)
+    TEST(EcsTransformNodePool, Get_ExistingEntity_ValidPointerReturned)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId partId = idGen.NextId();
@@ -509,9 +509,9 @@ namespace
     }
 
     /// @brief Verifies that Get() returns nullptr for a non-existent entity.
-    TEST(AssemblyCollection, Get_NonExistentEntity_NullptrReturned)
+    TEST(EcsTransformNodePool, Get_NonExistentEntity_NullptrReturned)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId nonExistentId = idGen.NextId();
@@ -521,9 +521,9 @@ namespace
     }
 
     /// @brief Verifies that Has() correctly identifies existing and non-existing entities.
-    TEST(AssemblyCollection, Has_ExistingAndNonExistentEntities_CorrectResultsReturned)
+    TEST(EcsTransformNodePool, Has_ExistingAndNonExistentEntities_CorrectResultsReturned)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId existingId = idGen.NextId();
@@ -536,15 +536,15 @@ namespace
     }
 
     /// @brief Verifies that the const version of Get() works correctly.
-    TEST(AssemblyCollection, Get_ConstVersion_ValidPointerReturned)
+    TEST(EcsTransformNodePool, Get_ConstVersion_ValidPointerReturned)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId partId = idGen.NextId();
         collection.Add(partId);
 
-        const AssemblyCollection& constCollection = collection;
+        const EcsTransformNodePool& constCollection = collection;
         const Part* part = constCollection.Get(partId);
 
         ASSERT_NE(part, nullptr);
@@ -554,17 +554,17 @@ namespace
     // ========== Iterator Tests ==========
 
     /// @brief Verifies that iterating over an empty collection works correctly (begin equals end).
-    TEST(AssemblyCollection, Iterator_EmptyCollection_BeginEqualsEnd)
+    TEST(EcsTransformNodePool, Iterator_EmptyCollection_BeginEqualsEnd)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
 
         EXPECT_EQ(collection.begin(), collection.end());
     }
 
     /// @brief Verifies that iteration traverses parts in depth-first order with parents before children.
-    TEST(AssemblyCollection, Iterator_HierarchicalCollection_DepthFirstOrderMaintained)
+    TEST(EcsTransformNodePool, Iterator_HierarchicalCollection_DepthFirstOrderMaintained)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId root = idGen.NextId();
@@ -592,9 +592,9 @@ namespace
     }
 
     /// @brief Verifies that all parts are stored contiguously in memory.
-    TEST(AssemblyCollection, Iterator_MultipleParts_ContiguousMemoryVerified)
+    TEST(EcsTransformNodePool, Iterator_MultipleParts_ContiguousMemoryVerified)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId id1 = idGen.NextId();
@@ -619,9 +619,9 @@ namespace
     // ========== Edge Cases & Stress Tests ==========
 
     /// @brief Verifies that the collection handles entities with large ID values correctly.
-    TEST(AssemblyCollection, Add_EntityWithLargeIdValue_HandledCorrectly)
+    TEST(EcsTransformNodePool, Add_EntityWithLargeIdValue_HandledCorrectly)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         EcsRegistry registry;
 
         // Create entities with large ID values by creating and destroying many
@@ -643,9 +643,9 @@ namespace
     }
 
     /// @brief Verifies that a sequence of add and remove operations maintains collection integrity.
-    TEST(AssemblyCollection, AddRemove_SequenceOfOperations_IntegrityMaintained)
+    TEST(EcsTransformNodePool, AddRemove_SequenceOfOperations_IntegrityMaintained)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         std::vector<EntityId> ids;
@@ -683,9 +683,9 @@ namespace
     }
 
     /// @brief Verifies that removing an intermediate generation in a multi-level hierarchy removes all descendants.
-    TEST(AssemblyCollection, Remove_IntermediateGeneration_AllDescendantsRemoved)
+    TEST(EcsTransformNodePool, Remove_IntermediateGeneration_AllDescendantsRemoved)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         // 4 generation hierarchy
@@ -712,9 +712,9 @@ namespace
     }
 
     /// @brief Verifies that the collection handles sparse entity IDs efficiently with appropriate index growth.
-    TEST(AssemblyCollection, Add_SparseEntityIds_IndexGrowsAppropriately)
+    TEST(EcsTransformNodePool, Add_SparseEntityIds_IndexGrowsAppropriately)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         EcsRegistry registry;
 
         // Create sparse IDs by creating and destroying intermediate ones
@@ -739,9 +739,9 @@ namespace
     // ========== Complex Scenario Tests ==========
 
     /// @brief Verifies that multiple independent hierarchies can coexist and be removed independently.
-    TEST(AssemblyCollection, AddRemove_MultipleIndependentHierarchies_IndependentManagement)
+    TEST(EcsTransformNodePool, AddRemove_MultipleIndependentHierarchies_IndependentManagement)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         // Create two separate hierarchies
@@ -775,9 +775,9 @@ namespace
     }
 
     /// @brief Verifies that adding grandchildren after siblings maintains correct hierarchical ordering.
-    TEST(AssemblyCollection, Add_GrandchildrenAfterSiblings_CorrectOrderingMaintained)
+    TEST(EcsTransformNodePool, Add_GrandchildrenAfterSiblings_CorrectOrderingMaintained)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         const EntityId root = idGen.NextId();
@@ -806,9 +806,9 @@ namespace
     }
 
     /// @brief Verifies that removing a single leaf from a complex hierarchy preserves the remaining structure.
-    TEST(AssemblyCollection, Remove_SingleLeafFromComplexHierarchy_RemainingStructurePreserved)
+    TEST(EcsTransformNodePool, Remove_SingleLeafFromComplexHierarchy_RemainingStructurePreserved)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         // Build complex tree
@@ -846,9 +846,9 @@ namespace
     // ========== Memory Layout Tests ==========
 
     /// @brief Verifies that all items in the collection are stored contiguously in physical memory.
-    TEST(AssemblyCollection, MemoryLayout_AllItems_StoredContiguouslyInPhysicalMemory)
+    TEST(EcsTransformNodePool, MemoryLayout_AllItems_StoredContiguouslyInPhysicalMemory)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         // Build a complex hierarchy with multiple levels and branches
@@ -891,9 +891,9 @@ namespace
     }
 
     /// @brief Verifies that each hierarchy (parts sharing a common ancestor) is stored contiguously in physical memory.
-    TEST(AssemblyCollection, MemoryLayout_EachHierarchy_StoredContiguouslyInPhysicalMemory)
+    TEST(EcsTransformNodePool, MemoryLayout_EachHierarchy_StoredContiguouslyInPhysicalMemory)
     {
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
 
         // Create first hierarchy (3 levels deep)
@@ -1001,7 +1001,7 @@ namespace
     };
 
     /// @brief Adds a new multi-level hierarchy with random children and grandchildren.
-    static void AddNewHierarchy(AssemblyCollection& collection, TestIdGenerator& idGen, std::vector<HierarchyInfo>& hierarchies)
+    static void AddNewHierarchy(EcsTransformNodePool& collection, TestIdGenerator& idGen, std::vector<HierarchyInfo>& hierarchies)
     {
         HierarchyInfo hierarchy;
         hierarchy.root = idGen.NextId();
@@ -1032,7 +1032,7 @@ namespace
     }
 
     /// @brief Adds parts to an existing hierarchy (either children or grandchildren).
-    static void AddToExistingHierarchy(AssemblyCollection& collection, TestIdGenerator& idGen, std::vector<HierarchyInfo>& hierarchies)
+    static void AddToExistingHierarchy(EcsTransformNodePool& collection, TestIdGenerator& idGen, std::vector<HierarchyInfo>& hierarchies)
     {
         if (hierarchies.empty())
         {
@@ -1060,7 +1060,7 @@ namespace
     }
 
     /// @brief Removes an entire hierarchy and verifies all parts are removed.
-    static void RemoveEntireHierarchy(AssemblyCollection& collection, std::vector<HierarchyInfo>& hierarchies)
+    static void RemoveEntireHierarchy(EcsTransformNodePool& collection, std::vector<HierarchyInfo>& hierarchies)
     {
         if (hierarchies.empty())
         {
@@ -1091,7 +1091,7 @@ namespace
     }
 
     /// @brief Removes a partial hierarchy (middle node with its descendants).
-    static void RemovePartialHierarchy(AssemblyCollection& collection, std::vector<HierarchyInfo>& hierarchies)
+    static void RemovePartialHierarchy(EcsTransformNodePool& collection, std::vector<HierarchyInfo>& hierarchies)
     {
         if (hierarchies.empty())
         {
@@ -1131,7 +1131,7 @@ namespace
     }
 
     /// @brief Adds standalone top-level parts and randomly removes half of them.
-    static void AddAndRemoveStandaloneParts(AssemblyCollection& collection, TestIdGenerator& idGen)
+    static void AddAndRemoveStandaloneParts(EcsTransformNodePool& collection, TestIdGenerator& idGen)
     {
         const int numParts = (rand() % 5) + 1;
         for (int i = 0; i < numParts; ++i)
@@ -1148,7 +1148,7 @@ namespace
     }
 
     /// @brief Verifies collection integrity including hierarchy relationships and memory contiguity.
-    static void VerifyCollectionIntegrity(const AssemblyCollection& collection, const std::vector<HierarchyInfo>& hierarchies, int iteration)
+    static void VerifyCollectionIntegrity(const EcsTransformNodePool& collection, const std::vector<HierarchyInfo>& hierarchies, int iteration)
     {
         // Verify all tracked hierarchies still exist correctly
         for (const auto& hierarchy : hierarchies)
@@ -1183,7 +1183,7 @@ namespace
     }
 
     /// @brief Performs final verification of all remaining hierarchies and memory contiguity.
-    static void VerifyFinalState(const AssemblyCollection& collection, const std::vector<HierarchyInfo>& hierarchies)
+    static void VerifyFinalState(const EcsTransformNodePool& collection, const std::vector<HierarchyInfo>& hierarchies)
     {
         // Verify all remaining hierarchies
         for (const auto& hierarchy : hierarchies)
@@ -1229,7 +1229,7 @@ namespace
     }
 
     /// @brief Initializes a collection with a specified number of items in random hierarchies.
-    static void InitializeCollectionWithRandomHierarchies(AssemblyCollection& collection, TestIdGenerator& idGen, 
+    static void InitializeCollectionWithRandomHierarchies(EcsTransformNodePool& collection, TestIdGenerator& idGen, 
                                                           std::vector<HierarchyInfo>& activeHierarchies, size_t targetItemCount)
     {
         std::cout << "Initializing collection with " << targetItemCount << " items...\n";
@@ -1367,14 +1367,14 @@ namespace
     }
 
     /// @brief Stress test that performs many add/remove operations on a large collection with complex hierarchies.
-    TEST(AssemblyCollection, StressTest_ManyOperationsOnLargeCollection_IntegrityMaintained)
+    TEST(EcsTransformNodePool, StressTest_ManyOperationsOnLargeCollection_IntegrityMaintained)
     {
         // Seed RNG with current time for randomness, but log it for reproducibility
         const unsigned int seed = static_cast<unsigned int>(std::time(nullptr));
         std::srand(seed);
         std::cout << "Stress test RNG seed: " << seed << " (use this seed to reproduce the test sequence)\n";
 
-        AssemblyCollection collection;
+        EcsTransformNodePool collection;
         TestIdGenerator idGen;
         std::vector<HierarchyInfo> activeHierarchies;
 

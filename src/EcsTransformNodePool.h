@@ -21,7 +21,7 @@ public:
 /// @brief Collection of Parts organized in a hierarchy.
 //template<>
 //class EcsComponentPool<Part> : public IEcsPool
-class AssemblyCollection
+class EcsTransformNodePool
 {
 public:
 
