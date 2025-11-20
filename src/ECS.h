@@ -132,7 +132,7 @@ public:
     /// @brief Remove the component for the given entity ID.
     void Remove(const EntityId eid) override
     {
-        const IndexType idx = GetIndex(eid);
+        const IndexType idx = IndexOf(eid);
 
         if(InvalidIndex == idx)
         {
@@ -179,7 +179,7 @@ public:
             for (size_t i = 0; i < entityIds.size(); ++i)
             {
                 const EntityId eid = entityIds[i];
-                IndexType oldIdx = GetIndex(eid);
+                IndexType oldIdx = IndexOf(eid);
                 eassert(oldIdx != InvalidIndex);
                 newComponents.push_back(std::move(m_Components[oldIdx]));
                 newIndex[eid.Value()] = static_cast<IndexType>(i);
@@ -193,21 +193,22 @@ public:
     /// @brief Get the component for the given entity ID.
     C* Get(const EntityId eid)
     {
-        const IndexType idx = GetIndex(eid);
+        const IndexType idx = IndexOf(eid);
         return (InvalidIndex != idx) ? &m_Components[idx] : nullptr;
     }
 
     /// @brief Get the component for the given entity ID (const version).
     const C* Get(const EntityId eid) const
     {
-        const IndexType idx = GetIndex(eid);
+        const IndexType idx = IndexOf(eid);
         return (InvalidIndex != idx) ? &m_Components[idx] : nullptr;
     }
 
     /// @brief Returns true if the given entity ID has an associated component.
     bool Has(const EntityId eid) const
     {
-        return eid.Value() < m_Index.size() && m_Index[eid.Value()] != EntityId::InvalidValue;
+        const auto value = eid.Value();
+        return value < m_Index.size() && m_Index[value] != EntityId::InvalidValue;
     }
 
     /// @brief Get the number of components in the pool.
@@ -241,7 +242,7 @@ private:
         }
     }
 
-    IndexType GetIndex(const EntityId eid) const
+    IndexType IndexOf(const EntityId eid) const
     {
         return eid.Value() < m_Index.size() ? m_Index[eid.Value()] : InvalidIndex;
     } 
