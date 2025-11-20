@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.23)
 project(SimpleSG LANGUAGES C CXX)
-include(FetchContent)
 
 # ============================================================
 # Global settings
@@ -16,6 +15,7 @@ if(MSVC)
     # Enable MSVC STL hardening
     #   TODO - remove in release builds
     add_compile_definitions(_MSVC_STL_HARDENING=2 _ITERATOR_DEBUG_LEVEL=2)
+    #add_compile_definitions(_MSVC_STL_HARDENING=0 _ITERATOR_DEBUG_LEVEL=0)
 endif()
 
 # ============================================================
@@ -152,7 +152,7 @@ endif()
 # Executable: EcsTests
 # ============================================================
 add_executable(EcsTests "tests/ECS.test.cpp")
-target_link_libraries(EcsTests PRIVATE gtest_main ssg::ssg spdlog::spdlog imgui lua)
+target_link_libraries(EcsTests PRIVATE gtest_main ssg::ssg spdlog::spdlog)
 #add_dependencies(RunAllTests shaders copy_images copy_models)
 
 if(MSVC)
@@ -166,9 +166,27 @@ if(SIMPLESG_STRICT)
   set_property(TARGET EcsTests PROPERTY COMPILE_WARNING_AS_ERROR ON)
 endif()
 
+# ============================================================
+# Executable: EcsTransformNodePoolTests
+# ============================================================
+add_executable(EcsTransformNodePoolTests "tests/EcsTransformNodePool.test.cpp")
+target_link_libraries(EcsTransformNodePoolTests PRIVATE gtest_main ssg::ssg spdlog::spdlog)
+
+if(MSVC)
+  target_compile_definitions(EcsTransformNodePoolTests PRIVATE _HAS_EXCEPTIONS=0)
+  target_compile_options(EcsTransformNodePoolTests PRIVATE /GR-)
+else()
+  target_compile_options(EcsTransformNodePoolTests PRIVATE -fno-exceptions)
+endif()
+
+if(SIMPLESG_STRICT)
+  set_property(TARGET EcsTransformNodePoolTests PROPERTY COMPILE_WARNING_AS_ERROR ON)
+endif()
+
 # Enable testing and register tests
 # In Visual Studio tests should show up in Test Explorer.
 # In VS Code install the CMake Test Explorer extension and open the testing view.
 include(GoogleTest)
 enable_testing()
 gtest_discover_tests(EcsTests)
+gtest_discover_tests(EcsTransformNodePoolTests)
