@@ -19,9 +19,8 @@ public:
 };
 
 /// @brief Collection of Parts organized in a hierarchy.
-//template<>
-//class EcsComponentPool<Part> : public IEcsPool
-class EcsTransformNodePool
+template<>
+class EcsComponentPool<Part> : public IEcsPool
 {
 public:
 
