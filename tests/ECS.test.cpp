@@ -125,34 +125,31 @@ namespace
     // ==================== EntityId Tests ====================
 
     /// @brief Confirm a default constructed EntityId contains an invalid value.
-    TEST(EntityId, Construct_Default_InvalidValue)
+    TEST(EntityId, DefaultConstruct_InvalidValue)
     {
         EntityId eid;
 
-        //Default value of EntityId is InvalidValue
         EXPECT_FALSE(eid.IsValid());
         EXPECT_EQ(eid.Value(), EntityId::InvalidValue);
     }
 
-    /// @brief Confirm an EntityId constructed with a value is valid and
-    /// contains the correct value.
-    TEST(EntityId, Construct_WithValue_ValidValue)
+    /// @brief Confirm an EntityId created via registry is valid.
+    TEST(EntityId, CreateViaRegistry_ValidValue)
     {
         EcsRegistry reg;
         
         const auto eid1 = reg.Create();
 
-        //Ensure eid correctly initialized.
         EXPECT_TRUE(eid1.IsValid());
         EXPECT_NE(eid1.Value(), EntityId::InvalidValue);
 
-        //Ensure eid2 initialized from eid
+        // Test copy constructor
         EntityId eid2 = eid1;
         EXPECT_TRUE(eid2.IsValid());
         EXPECT_EQ(eid1, eid2);
         EXPECT_EQ(eid2.Value(), eid1.Value());
 
-        //Ensure assignment
+        // Test assignment operator
         EntityId eid3;
         eid3 = eid1;
         EXPECT_TRUE(eid3.IsValid());
@@ -160,8 +157,8 @@ namespace
         EXPECT_EQ(eid3.Value(), eid1.Value());
     }
 
-    /// @brief Test EntityId comparison operator for sorting.
-    TEST(EntityId, Comparison_LessThan_SortsCorrectly)
+    /// @brief Test EntityId less-than operator for sorting.
+    TEST(EntityId, LessThanOperator_OrderingConsistency_SortsCorrectly)
     {
         EcsRegistry reg;
 
@@ -169,12 +166,9 @@ namespace
         const auto eid2 = reg.Create();
         const auto eid3 = reg.Create();
 
-        //With a new instance of EcsRegistry, eid1 < eid2 < eid3, assuming no eids have been destroyed.
-
         EXPECT_TRUE(eid1 < eid2);
         EXPECT_TRUE(eid1 < eid3);
         EXPECT_TRUE(eid2 < eid3);
-        EXPECT_TRUE(eid1 < eid3);
         EXPECT_FALSE(eid3 < eid2);
         EXPECT_FALSE(eid2 < eid1);
         EXPECT_FALSE(eid1 < eid1);
@@ -188,8 +182,21 @@ namespace
         EXPECT_EQ(eids[3], eid3);
     }
 
+    /// @brief Test EntityId equality operator.
+    TEST(EntityId, EqualityOperator_SameValue_ReturnsTrue)
+    {
+        EcsRegistry reg;
+        const auto eid1 = reg.Create();
+        const auto eid2 = eid1;
+        const auto eid3 = reg.Create();
+
+        EXPECT_TRUE(eid1 == eid2);
+        EXPECT_FALSE(eid1 == eid3);
+        EXPECT_TRUE(eid1 == eid1);
+    }
+
     /// @brief Test EntityId formatting with std::format.
-    TEST(EntityId, Formatting_Format_ProducesCorrectString)
+    TEST(EntityId, Format_ProducesCorrectString)
     {
         EcsRegistry reg;
         const auto eid = reg.Create();
@@ -202,13 +209,13 @@ namespace
     }
 
     /// @brief Test EntityId hashing for use in unordered containers.
-    TEST(EntityId, Hashing_Hash_WorksInUnorderedMap)
+    TEST(EntityId, Hash_UnorderedMap_WorksCorrectly)
     {
         EcsRegistry reg;
 
         const auto eid1 = reg.Create();
         const auto eid2 = reg.Create();
-        const EntityId eid3 = eid1;  // same value as eid1
+        const EntityId eid3 = eid1;
 
         std::unordered_map<EntityId, int> map;
 
@@ -222,13 +229,13 @@ namespace
     }
 
     /// @brief Test EntityId hashing in unordered_set.
-    TEST(EntityId, Hashing_Hash_WorksInUnorderedSet)
+    TEST(EntityId, Hash_UnorderedSet_WorksCorrectly)
     {
         EcsRegistry reg;
 
         const auto eid1 = reg.Create();
         const auto eid2 = reg.Create();
-        const EntityId eid3 = eid1;  // same value as eid1
+        const EntityId eid3 = eid1;
 
         std::unordered_set<EntityId> set;
 
@@ -242,7 +249,7 @@ namespace
     }
 
     /// @brief Test EntityId with InvalidValue in comparisons.
-    TEST(EntityId, InvalidValue_Comparison_BehavesCorrectly)
+    TEST(EntityId, InvalidValue_LessThanComparison_BehavesCorrectly)
     {
         EcsRegistry reg;
         const EntityId invalid;
@@ -255,8 +262,40 @@ namespace
 
     // ==================== EcsComponentPool Tests ====================
 
+    /// @brief Test adding a component to an entity.
+    TEST(EcsComponentPool, Add_NewComponent_ReturnsTrue)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentA> pool;
+
+        const auto eid = reg.Create();
+        ComponentA compA{ 42 };
+
+        const bool added = pool.Add(eid, compA);
+        EXPECT_TRUE(added);
+        EXPECT_TRUE(pool.Has(eid));
+        EXPECT_EQ(*pool.Get(eid), compA);
+        EXPECT_EQ(pool.size(), 1);
+    }
+
+    /// @brief Test adding a duplicate component fails.
+    TEST(EcsComponentPool, Add_DuplicateComponent_ReturnsFalse)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentA> pool;
+
+        const auto eid = reg.Create();
+        ComponentA compA{ 42 };
+
+        pool.Add(eid, compA);
+        const bool addedAgain = pool.Add(eid, ComponentA{ 100 });
+
+        EXPECT_FALSE(addedAgain);
+        EXPECT_EQ(*pool.Get(eid), compA); // Original value unchanged
+    }
+
     /// @brief Test pool capacity management with many adds.
-    TEST(EcsComponentPool, Capacity_ManyAdds_HandlesResizing)
+    TEST(EcsComponentPool, Add_ManyComponents_HandlesResizing)
     {
         EcsRegistry reg;
         EcsComponentPool<ComponentA> pool;
@@ -271,6 +310,8 @@ namespace
             pool.Add(eid, ComponentA{ i });
         }
 
+        EXPECT_EQ(pool.size(), COUNT);
+
         for (int i = 0; i < COUNT; ++i)
         {
             auto comp = pool.Get(eids[i]);
@@ -279,8 +320,40 @@ namespace
         }
     }
 
+    /// @brief Test removing a component.
+    TEST(EcsComponentPool, Remove_ExistingComponent_ComponentRemoved)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentA> pool;
+
+        const auto eid = reg.Create();
+        ComponentA compA{ 42 };
+
+        pool.Add(eid, compA);
+        EXPECT_TRUE(pool.Has(eid));
+
+        pool.Remove(eid);
+        EXPECT_FALSE(pool.Has(eid));
+        EXPECT_EQ(pool.Get(eid), nullptr);
+        EXPECT_EQ(pool.size(), 0);
+    }
+
+    /// @brief Test removing a non-existent component has no effect.
+    TEST(EcsComponentPool, Remove_NonExistentComponent_NoEffect)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentA> pool;
+
+        const auto eid = reg.Create();
+
+        EXPECT_FALSE(pool.Has(eid));
+        pool.Remove(eid); // Should not crash
+        EXPECT_FALSE(pool.Has(eid));
+        EXPECT_EQ(pool.size(), 0);
+    }
+
     /// @brief Test removing and re-adding to same entity.
-    TEST(EcsComponentPool, AddRemoveAdd_Succeeds)
+    TEST(EcsComponentPool, Remove_ThenAdd_Succeeds)
     {
         EcsRegistry reg;
         EcsComponentPool<ComponentA> pool;
@@ -289,28 +362,23 @@ namespace
         ComponentA compA{ 42 };
         ComponentA compB{ 100 };
 
-        // Add
-        const bool added = pool.Add(eid, compA);
-        EXPECT_TRUE(added);
+        pool.Add(eid, compA);
         EXPECT_EQ(*pool.Get(eid), compA);
 
-        // Remove
         pool.Remove(eid);
         EXPECT_FALSE(pool.Has(eid));
 
-        // Re-add
         const bool addedReAdd = pool.Add(eid, compB);
         EXPECT_TRUE(addedReAdd);
         EXPECT_EQ(*pool.Get(eid), compB);
     }
 
-    /// @brief Test remove correctly maintains association of component with entity ID.
-    TEST(EcsComponentPool, Remove_MaintainsCorrectDataForEntity)
+    /// @brief Test remove maintains correct associations for remaining entities.
+    TEST(EcsComponentPool, Remove_MiddleEntity_MaintainsCorrectAssociations)
     {
         EcsRegistry reg;
         EcsComponentPool<ComponentA> pool;
 
-        // Add 5 entities
         std::vector<EntityId> eids;
         for (int i = 0; i < 5; ++i)
         {
@@ -319,11 +387,11 @@ namespace
             pool.Add(eid, ComponentA{ i * 10 });
         }
 
-        // Remove entity at index 2
         pool.Remove(eids[2]);
 
-        // Remaining entities should still have correct values
         EXPECT_FALSE(pool.Has(eids[2]));
+        EXPECT_EQ(pool.size(), 4);
+
         for (int i = 0; i < 5; ++i)
         {
             if (i != 2)
@@ -335,47 +403,75 @@ namespace
         }
     }
 
-    /// @brief Test index consistency after mass add/remove operations.
-    TEST(EcsComponentPool, IndexConsistency_MassOperations_RemainConsistent)
+    /// @brief Test Get returns pointer to component.
+    TEST(EcsComponentPool, Get_ExistingComponent_ReturnsValidPointer)
     {
         EcsRegistry reg;
-        EcsComponentPool<ComponentC> pool;
+        EcsComponentPool<ComponentA> pool;
 
-        std::vector<EntityId> eids;
-        constexpr int COUNT = 1000;
+        const auto eid = reg.Create();
+        ComponentA compA{ 42 };
+        
+        pool.Add(eid, compA);
 
-        // Add many
-        for (int i = 0; i < COUNT; ++i)
-        {
-            const auto eid = reg.Create();
-            eids.push_back(eid);
-            pool.Add(eid, ComponentC{ static_cast<float>(i), static_cast<float>(i), static_cast<float>(i),
-                                       std::to_string(i), i });
-        }
-
-        // Remove every other one
-        for (int i = 0; i < COUNT; i += 2)
-        {
-            pool.Remove(eids[i]);
-        }
-
-        // Verify remaining entities
-        for (int i = 1; i < COUNT; i += 2)
-        {
-            auto comp = pool.Get(eids[i]);
-            EXPECT_TRUE(comp);
-            EXPECT_EQ((*comp).n, i);
-        }
-
-        // Verify removed entities
-        for (int i = 0; i < COUNT; i += 2)
-        {
-            EXPECT_FALSE(pool.Has(eids[i]));
-        }
+        auto comp = pool.Get(eid);
+        EXPECT_NE(comp, nullptr);
+        EXPECT_EQ(*comp, compA);
     }
 
-    /// @brief Test Has() with boundary EntityIds.
-    TEST(EcsComponentPool, Has_BoundaryEntityIds_HandledCorrectly)
+    /// @brief Test Get on non-existent entity.
+    TEST(EcsComponentPool, Get_NonExistentEntity_ReturnsNull)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentA> pool;
+
+        const auto eid = reg.Create();
+
+        auto comp = pool.Get(eid);
+        EXPECT_EQ(comp, nullptr);
+    }
+
+    /// @brief Test const Get method.
+    TEST(EcsComponentPool, Get_ConstVersion_ReturnsConstPointer)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentA> pool;
+
+        const auto eid = reg.Create();
+        pool.Add(eid, ComponentA{ 42 });
+
+        const EcsComponentPool<ComponentA>& constPool = pool;
+        auto comp = constPool.Get(eid);
+
+        EXPECT_NE(comp, nullptr);
+        EXPECT_EQ(*comp, ComponentA{ 42 });
+    }
+
+    /// @brief Test Has with existing component.
+    TEST(EcsComponentPool, Has_ExistingComponent_ReturnsTrue)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentA> pool;
+
+        const auto eid = reg.Create();
+        pool.Add(eid, ComponentA{ 42 });
+
+        EXPECT_TRUE(pool.Has(eid));
+    }
+
+    /// @brief Test Has with non-existent component.
+    TEST(EcsComponentPool, Has_NonExistentComponent_ReturnsFalse)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentA> pool;
+
+        const auto eid = reg.Create();
+
+        EXPECT_FALSE(pool.Has(eid));
+    }
+
+    /// @brief Test Has with boundary EntityIds.
+    TEST(EcsComponentPool, Has_BoundaryEntityIds_HandlesCorrectly)
     {
         EcsRegistry reg;
         EcsComponentPool<ComponentA> pool;
@@ -396,45 +492,133 @@ namespace
         EXPECT_TRUE(pool.Has(eid3));
     }
 
-    /// @brief Test Get on non-existent entity.
-    TEST(EcsComponentPool, Get_NonExistentEntity_ReturnsInvalid)
+    /// @brief Test size returns correct count.
+    TEST(EcsComponentPool, Size_AfterOperations_ReturnsCorrectCount)
     {
         EcsRegistry reg;
         EcsComponentPool<ComponentA> pool;
 
-        const auto eid = reg.Create();
+        EXPECT_EQ(pool.size(), 0);
 
-        auto comp = pool.Get(eid);
+        const auto eid1 = reg.Create();
+        pool.Add(eid1, ComponentA{ 1 });
+        EXPECT_EQ(pool.size(), 1);
 
-        EXPECT_FALSE(comp);
+        const auto eid2 = reg.Create();
+        pool.Add(eid2, ComponentA{ 2 });
+        EXPECT_EQ(pool.size(), 2);
+
+        pool.Remove(eid1);
+        EXPECT_EQ(pool.size(), 1);
+
+        pool.Remove(eid2);
+        EXPECT_EQ(pool.size(), 0);
     }
 
-    /// @brief Test const Get method.
-    TEST(EcsComponentPool, Get_ConstVersion_ReturnsConstComponent)
+    /// @brief Test iterator functionality for begin/end.
+    TEST(EcsComponentPool, Iterator_BeginEnd_IteratesAllEntities)
     {
         EcsRegistry reg;
         EcsComponentPool<ComponentA> pool;
 
-        const auto eid = reg.Create();
-        pool.Add(eid, ComponentA{ 42 });
+        std::vector<EntityId> eids;
+        for (int i = 0; i < 10; ++i)
+        {
+            const auto eid = reg.Create();
+            eids.push_back(eid);
+            pool.Add(eid, ComponentA{ i });
+        }
 
-        const EcsComponentPool<ComponentA>& constPool = pool;
-        auto comp = constPool.Get(eid);
+        std::vector<EntityId> iteratedEids;
+        for (auto it = pool.begin(); it != pool.end(); ++it)
+        {
+            iteratedEids.push_back(*it);
+        }
 
-        EXPECT_TRUE(comp);
-        EXPECT_EQ(*comp, ComponentA{ 42 });
+        EXPECT_EQ(iteratedEids.size(), eids.size());
+
+        // Both lists should contain same entity IDs (order may differ)
+        std::sort(eids.begin(), eids.end());
+        std::sort(iteratedEids.begin(), iteratedEids.end());
+        EXPECT_EQ(iteratedEids, eids);
+    }
+
+    /// @brief Test range-based for loop with iterator.
+    TEST(EcsComponentPool, Iterator_RangeBasedFor_IteratesAllEntities)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentA> pool;
+
+        std::vector<EntityId> eids;
+        for (int i = 0; i < 10; ++i)
+        {
+            const auto eid = reg.Create();
+            eids.push_back(eid);
+            pool.Add(eid, ComponentA{ i });
+        }
+
+        std::vector<EntityId> iteratedEids;
+        for (auto eid : pool)
+        {
+            iteratedEids.push_back(eid);
+        }
+
+        EXPECT_EQ(iteratedEids.size(), eids.size());
+
+        std::sort(eids.begin(), eids.end());
+        std::sort(iteratedEids.begin(), iteratedEids.end());
+        EXPECT_EQ(iteratedEids, eids);
+    }
+
+    /// @brief Test index consistency after mass add/remove operations.
+    TEST(EcsComponentPool, IndexConsistency_MassOperations_RemainsConsistent)
+    {
+        EcsRegistry reg;
+        EcsComponentPool<ComponentC> pool;
+
+        std::vector<EntityId> eids;
+        constexpr int COUNT = 1000;
+
+        for (int i = 0; i < COUNT; ++i)
+        {
+            const auto eid = reg.Create();
+            eids.push_back(eid);
+            pool.Add(eid, ComponentC{ static_cast<float>(i), static_cast<float>(i), static_cast<float>(i),
+                                       std::to_string(i), i });
+        }
+
+        // Remove every other one
+        for (int i = 0; i < COUNT; i += 2)
+        {
+            pool.Remove(eids[i]);
+        }
+
+        EXPECT_EQ(pool.size(), COUNT / 2);
+
+        // Verify remaining entities
+        for (int i = 1; i < COUNT; i += 2)
+        {
+            auto comp = pool.Get(eids[i]);
+            EXPECT_TRUE(comp);
+            EXPECT_EQ((*comp).n, i);
+        }
+
+        // Verify removed entities
+        for (int i = 0; i < COUNT; i += 2)
+        {
+            EXPECT_FALSE(pool.Has(eids[i]));
+        }
     }    
     
     // ==================== EcsRegistry Tests ====================
 
     /// @brief Confirm when a registry creates a new entity ID that it is valid and alive.
-    TEST(EcsRegistry, Create_NewEntityAlive)
+    TEST(EcsRegistry, Create_NewEntity_EntityIsAlive)
     {
         constexpr int NUM_TO_CREATE = 10;
 
         EcsRegistry reg;
 
-        //Create a bunch of eids
         std::vector<EntityId> eids(NUM_TO_CREATE);
         for (auto& eid : eids)
         {
@@ -442,11 +626,11 @@ namespace
             EXPECT_TRUE(eid.IsValid());
         }
 
-        //Expect all eids to be unique
+        // All eids should be unique
         std::set<EntityId> unique(eids.begin(), eids.end());
         EXPECT_EQ(unique.size(), eids.size());
 
-        //Expect all eids to be alive
+        // All eids should be alive
         for (auto eid : eids)
         {
             EXPECT_TRUE(reg.IsAlive(eid));
@@ -454,74 +638,119 @@ namespace
     }
 
     /// @brief Confirm when a registry destroys an entity ID that it is no longer alive.
-    TEST(EcsRegistry, Destroy_EntityNotAlive)
+    TEST(EcsRegistry, Destroy_Entity_EntityNotAlive)
     {
         EcsRegistry reg;
 
-        //Create a bunch of eids        
         auto eids = CreateEntityIds(reg);
 
-        //Destroy them
         for (auto eid : eids)
         {
             reg.Destroy(eid);
         }
 
-        //Expect no eids to be alive
         for (auto eid : eids)
         {
             EXPECT_FALSE(reg.IsAlive(eid));
         }
     }
 
-    /// @brief COnfirm when entity IDs are destroyed and new ones created that
+    /// @brief Confirm when entity IDs are destroyed and new ones created that
     /// the destroyed IDs are recycled.
-    TEST(EcsRegistry, CreateDelete_EntityIdRecycled)
+    TEST(EcsRegistry, Create_AfterDestroy_EntityIdsRecycled)
     {
         EcsRegistry reg;
 
-        //Create a bunch of eids        
         auto eids1 = CreateEntityIds(reg);
 
-        //Destroy them
         for (auto eid : eids1)
         {
             reg.Destroy(eid);
         }
 
-        //Create a bunch of new eids
         auto eids2 = CreateEntityIds(reg);
 
         std::set<EntityId> unique1(eids1.begin(), eids1.end());
         std::set<EntityId> unique2(eids2.begin(), eids2.end());
 
-        //All entity IDs should have been recycled.
         EXPECT_EQ(unique1, unique2);
     }
 
-    /// @brief Confirm getting a component for an entity that does not have that
-    /// component returns an invalid component.
-    TEST(EcsRegistry, GetComponent_NoComponent_ReturnsInvalidComponent)
+    /// @brief Test IsAlive returns false for non-existent entities.
+    TEST(EcsRegistry, IsAlive_NonExistentEntity_ReturnsFalse)
+    {
+        EcsRegistry reg;
+        EntityId eid;
+
+        EXPECT_FALSE(reg.IsAlive(eid));
+    }
+
+    /// @brief Test mixed create/destroy/recycle patterns.
+    TEST(EcsRegistry, Create_MixedDestroyCreateSequence_Consistent)
+    {
+        EcsRegistry reg;
+
+        std::vector<EntityId> alive;
+
+        for (int i = 0; i < 10; ++i)
+        {
+            alive.push_back(reg.Create());
+        }
+
+        reg.Destroy(alive[2]);
+        reg.Destroy(alive[5]);
+        alive.erase(alive.begin() + 5);
+        alive.erase(alive.begin() + 2);
+
+        EntityId recycled1 = reg.Create();
+        EntityId recycled2 = reg.Create();
+
+        EXPECT_TRUE(reg.IsAlive(recycled1));
+        EXPECT_TRUE(reg.IsAlive(recycled2));
+
+        for (auto eid : alive)
+        {
+            EXPECT_TRUE(reg.IsAlive(eid));
+        }
+    }
+
+    /// @brief Test adding a component to an entity.
+    TEST(EcsRegistry, Add_Component_ComponentAdded)
     {
         EcsRegistry reg;
 
         auto eid = reg.Create();
+        auto compA = RandomValue<ComponentA>();
 
-        auto component = reg.Get<ComponentA>(eid);
+        const bool added = reg.Add<ComponentA>(eid, compA);
 
-        EXPECT_FALSE(component);
+        EXPECT_TRUE(added);
+        EXPECT_TRUE(reg.Has<ComponentA>(eid));
+    }
+
+    /// @brief Test adding a component to a dead entity fails.
+    TEST(EcsRegistry, Add_ComponentToDeadEntity_ReturnsFalse)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        reg.Destroy(eid);
+
+        auto compA = RandomValue<ComponentA>();
+        const bool added = reg.Add<ComponentA>(eid, compA);
+
+        EXPECT_FALSE(added);
+        EXPECT_FALSE(reg.Has<ComponentA>(eid));
     }
 
     /// @brief Confirm adding components to entities works and the correct
     /// components are returned.
-    TEST(EcsRegistry, AddComponent_GetComponent_CorrectComponentReturned)
+    TEST(EcsRegistry, Add_MultipleComponents_CorrectComponentsReturned)
     {
         EcsRegistry reg;
 
-        //Create a bunch of eids        
         auto eids = CreateEntityIds(reg);
 
-        //Add components
         std::unordered_map<EntityId, ComponentC> Cs;
 
         for (auto eid : eids)
@@ -532,29 +761,25 @@ namespace
             EXPECT_TRUE(result);
         }
 
-        //Confirm components are correctly associated with entities.
         for (auto eid : eids)
         {
-            //Component should be present.
             EXPECT_TRUE(reg.Has<ComponentC>(eid));
 
             const auto& expected = Cs[eid];
             const auto actual = reg.Get<ComponentC>(eid);
 
-            //Component should have the expected value.
+            EXPECT_TRUE(actual);
             EXPECT_EQ(std::get<0>(*actual), expected);
         }
     }
 
     /// @brief Confirm adding a component to an entity that already has that component fails.
-    TEST(EcsRegistry, AddComponent_DuplicateAdd_Fails)
+    TEST(EcsRegistry, Add_DuplicateComponent_ReturnsFalse)
     {
         EcsRegistry reg;
 
-        //Create a bunch of eids        
         auto eids = CreateEntityIds(reg);
 
-        //Add components
         std::unordered_map<EntityId, ComponentC> Cs;
 
         for (auto eid : eids)
@@ -564,7 +789,6 @@ namespace
             reg.Add<ComponentC>(eid, c);
         }
 
-        //Re-add components
         for (auto eid : eids)
         {
             auto c = RandomValue<ComponentC>();
@@ -573,98 +797,8 @@ namespace
         }
     }
 
-    /// @brief Confirm replacing components through the reference returned by Get works.
-    TEST(EcsRegistry, AddComponent_ReplaceComponents_CorrectComponentReturned)
-    {
-        EcsRegistry reg;
-
-        //Create a bunch of eids        
-        auto eids = CreateEntityIds(reg);
-
-        //Add components
-        std::unordered_map<EntityId, ComponentC> Cs;
-
-        for (auto eid : eids)
-        {
-            auto c = RandomValue<ComponentC>();
-            Cs.emplace(eid, c);
-            reg.Add<ComponentC>(eid, c);
-        }
-
-        //Replace components
-        std::unordered_map<EntityId, ComponentC> newCs;
-
-        for (auto eid : eids)
-        {
-            auto c = RandomValue<ComponentC>();
-            newCs.emplace(eid, c);
-            *reg.Get<ComponentC>(eid) = c;
-        }
-
-        //Confirm components are correctly associated with entities.
-        for (auto eid : eids)
-        {
-            //Component should be present.
-            EXPECT_TRUE(reg.Has<ComponentC>(eid));
-
-            const auto& expected = newCs[eid];
-            const auto actual = reg.Get<ComponentC>(eid);
-
-            EXPECT_TRUE(actual);
-
-            //Component should have the expected value.
-            EXPECT_EQ(std::get<0>(*actual), expected);
-        }
-    }
-
-    /// @brief Confirm an entity ID with associated components that is recycled
-    /// no longer has components.
-    TEST(EcsRegistry, AddComponents_RecycleEntityId_NoComponentsForEntity)
-    {
-        EcsRegistry reg;
-
-        //Create a bunch of eids        
-        auto eids = CreateEntityIds(reg);
-
-        //Add components
-        std::unordered_map<EntityId, ComponentC> Cs;
-
-        for (auto eid : eids)
-        {
-            auto c = RandomValue<ComponentC>();
-            Cs.emplace(eid, c);
-            reg.Add<ComponentC>(eid, c);
-        }
-
-        //Destroy one of the entities
-        const auto eidToRecycle = eids[eids.size() / 2];
-        reg.Destroy(eidToRecycle);
-
-        //Componenets should have been removed.
-        EXPECT_FALSE(reg.Has<ComponentC>(eidToRecycle));
-
-        //Create a new eid.
-        const auto newEid = reg.Create();
-
-        //Eid should have been recycled.
-        EXPECT_EQ(eidToRecycle, newEid);
-
-        //Confirm new eid has no components.
-        EXPECT_FALSE(reg.Has<ComponentC>(eidToRecycle));
-
-        EXPECT_FALSE(reg.Get<ComponentC>(eidToRecycle));
-
-        auto newC = RandomValue<ComponentC>();
-        reg.Add<ComponentC>(newEid, newC);
-
-        //Confirm new eid has components.
-        EXPECT_TRUE(reg.Has<ComponentC>(eidToRecycle));
-
-        EXPECT_EQ(std::get<0>(*reg.Get<ComponentC>(newEid)), newC);
-    }
-    
     /// @brief Test adding multiple different component types to same entity.
-    TEST(EcsRegistry, AddComponents_AddDifferentTypes_AllAccessible)
+    TEST(EcsRegistry, Add_DifferentTypesToSameEntity_AllAccessible)
     {
         EcsRegistry reg;
 
@@ -692,7 +826,7 @@ namespace
     }
 
     /// @brief Test that destroying entity removes all component types.
-    TEST(EcsRegistry, AddComponents_DestroyEntity_AllRemoved)
+    TEST(EcsRegistry, Destroy_Entity_AllComponentsRemoved)
     {
         EcsRegistry reg;
 
@@ -717,7 +851,7 @@ namespace
     }
 
     /// @brief Test that when an entity is recycled, it has no components.
-    TEST(EcsRegistry, AddComponents_RecycleEntity_NoComponents)
+    TEST(EcsRegistry, RecycleEntity_NoComponentsOnRecycledEntity)
     {
         EcsRegistry reg;
 
@@ -738,8 +872,8 @@ namespace
         EXPECT_FALSE(reg.Has<ComponentD>(newEid));
     }
 
-    /// @brief Test that when an entity is recycled, it has no components.
-    TEST(EcsRegistry, AddComponents_RecycleEntity_AddNewComponents_CorrectComponentsReturned)
+    /// @brief Test recycled entity with new components has correct values.
+    TEST(EcsRegistry, RecycleEntity_AddNewComponents_CorrectValuesReturned)
     {
         EcsRegistry reg;
 
@@ -776,7 +910,7 @@ namespace
     }
 
     /// @brief Test component access after entity destruction.
-    TEST(EcsRegistry, ComponentAccess_AfterDestroy_ReturnsInvalid)
+    TEST(EcsRegistry, GetComponent_AfterDestroy_ReturnsError)
     {
         EcsRegistry reg;
 
@@ -792,47 +926,90 @@ namespace
         EXPECT_FALSE(comp);
     }
 
-    /// @brief Test that IsAlive returns false for non-existent entities.
-    TEST(EcsRegistry, IsAlive_NonExistentEntity_ReturnsFalse)
+    /// @brief Test replacing components through the reference returned by Get.
+    TEST(EcsRegistry, Get_ModifyThroughReference_ComponentUpdated)
     {
         EcsRegistry reg;
-        EntityId eid;
 
-        EXPECT_FALSE(reg.IsAlive(eid));
+        auto eids = CreateEntityIds(reg);
+
+        std::unordered_map<EntityId, ComponentC> Cs;
+
+        for (auto eid : eids)
+        {
+            auto c = RandomValue<ComponentC>();
+            Cs.emplace(eid, c);
+            reg.Add<ComponentC>(eid, c);
+        }
+
+        std::unordered_map<EntityId, ComponentC> newCs;
+
+        for (auto eid : eids)
+        {
+            auto c = RandomValue<ComponentC>();
+            newCs.emplace(eid, c);
+            std::get<0>(*reg.Get<ComponentC>(eid)) = c;
+        }
+
+        for (auto eid : eids)
+        {
+            EXPECT_TRUE(reg.Has<ComponentC>(eid));
+
+            const auto& expected = newCs[eid];
+            const auto actual = reg.Get<ComponentC>(eid);
+
+            EXPECT_TRUE(actual);
+            EXPECT_EQ(std::get<0>(*actual), expected);
+        }
     }
 
-    /// @brief Test mixed create/destroy/recycle patterns.
-    TEST(EcsRegistry, MixedPatterns_ComplexCreateDestroySequence_Consistent)
+    /// @brief Test Get<C> with entity that has no components.
+    TEST(EcsRegistry, Get_EntityWithNoComponents_ReturnsError)
     {
         EcsRegistry reg;
 
-        std::vector<EntityId> alive;
+        auto eid = reg.Create();
 
-        // Create some
-        for (int i = 0; i < 10; ++i)
+        auto component = reg.Get<ComponentA>(eid);
+
+        EXPECT_FALSE(component);
+    }
+
+    /// @brief Confirm an entity with associated components that is recycled no longer has old components.
+    TEST(EcsRegistry, RecycleEntity_OldComponentsRemoved)
+    {
+        EcsRegistry reg;
+
+        auto eids = CreateEntityIds(reg);
+
+        std::unordered_map<EntityId, ComponentC> Cs;
+
+        for (auto eid : eids)
         {
-            alive.push_back(reg.Create());
+            auto c = RandomValue<ComponentC>();
+            Cs.emplace(eid, c);
+            reg.Add<ComponentC>(eid, c);
         }
 
-        // Destroy some
-        reg.Destroy(alive[2]);
-        reg.Destroy(alive[5]);
-        alive.erase(alive.begin() + 5);
-        alive.erase(alive.begin() + 2);
+        const auto eidToRecycle = eids[eids.size() / 2];
+        reg.Destroy(eidToRecycle);
 
-        // Create new ones (should recycle)
-        EntityId recycled1 = reg.Create();
-        EntityId recycled2 = reg.Create();
+        EXPECT_FALSE(reg.Has<ComponentC>(eidToRecycle));
 
-        // Verify new ones are recycled IDs
-        EXPECT_TRUE(reg.IsAlive(recycled1));
-        EXPECT_TRUE(reg.IsAlive(recycled2));
+        const auto newEid = reg.Create();
 
-        // Verify all alive entities are still alive
-        for (auto eid : alive)
-        {
-            EXPECT_TRUE(reg.IsAlive(eid));
-        }
+        EXPECT_EQ(eidToRecycle, newEid);
+
+        EXPECT_FALSE(reg.Has<ComponentC>(eidToRecycle));
+
+        EXPECT_FALSE(reg.Get<ComponentC>(eidToRecycle));
+
+        auto newC = RandomValue<ComponentC>();
+        reg.Add<ComponentC>(newEid, newC);
+
+        EXPECT_TRUE(reg.Has<ComponentC>(eidToRecycle));
+
+        EXPECT_EQ(std::get<0>(*reg.Get<ComponentC>(newEid)), newC);
     }
 
     /// @brief Helper to populate registry with entities with multiple components.
@@ -1261,6 +1438,39 @@ namespace
         }
     }
 
+    /// @brief Test Has with existing component returns true.
+    TEST(EcsRegistry, Has_ComponentExists_ReturnsTrue)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        reg.Add<ComponentA>(eid, RandomValue<ComponentA>());
+
+        EXPECT_TRUE(reg.Has<ComponentA>(eid));
+    }
+
+    /// @brief Test Has with non-existent component returns false.
+    TEST(EcsRegistry, Has_ComponentDoesNotExist_ReturnsFalse)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+
+        EXPECT_FALSE(reg.Has<ComponentA>(eid));
+    }
+
+    /// @brief Test Has with dead entity returns false.
+    TEST(EcsRegistry, Has_DeadEntity_ReturnsFalse)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        reg.Add<ComponentA>(eid, RandomValue<ComponentA>());
+        reg.Destroy(eid);
+
+        EXPECT_FALSE(reg.Has<ComponentA>(eid));
+    }
+
     /// @brief Test removing a specific component type from an entity.
     TEST(EcsRegistry, Remove_SpecificComponent_OnlyThatComponentRemoved)
     {
@@ -1280,15 +1490,12 @@ namespace
         EXPECT_TRUE(reg.Has<ComponentB>(eid));
         EXPECT_TRUE(reg.Has<ComponentC>(eid));
 
-        // Remove only ComponentB
         reg.Remove<ComponentB>(eid);
 
-        // ComponentB should be gone, but A and C remain
         EXPECT_TRUE(reg.Has<ComponentA>(eid));
         EXPECT_FALSE(reg.Has<ComponentB>(eid));
         EXPECT_TRUE(reg.Has<ComponentC>(eid));
 
-        // Values should be unchanged
         EXPECT_EQ(std::get<0>(*reg.Get<ComponentA>(eid)), compA);
         EXPECT_EQ(std::get<0>(*reg.Get<ComponentC>(eid)), compC);
     }
@@ -1305,10 +1512,8 @@ namespace
         EXPECT_TRUE(reg.Has<ComponentA>(eid));
         EXPECT_FALSE(reg.Has<ComponentB>(eid));
 
-        // Remove ComponentB which doesn't exist
         reg.Remove<ComponentB>(eid);
 
-        // ComponentA should still exist and be unchanged
         EXPECT_TRUE(reg.Has<ComponentA>(eid));
         EXPECT_EQ(std::get<0>(*reg.Get<ComponentA>(eid)), compA);
         EXPECT_FALSE(reg.Has<ComponentB>(eid));
@@ -1328,7 +1533,6 @@ namespace
 
         reg.Remove<ComponentA>(eid);
 
-        // Component gone but entity still alive
         EXPECT_FALSE(reg.Has<ComponentA>(eid));
         EXPECT_TRUE(reg.IsAlive(eid));
     }
@@ -1344,7 +1548,6 @@ namespace
         reg.Add<ComponentB>(eid, RandomValue<ComponentB>());
         reg.Add<ComponentC>(eid, RandomValue<ComponentC>());
 
-        // Remove each component
         reg.Remove<ComponentA>(eid);
         EXPECT_FALSE(reg.Has<ComponentA>(eid));
         EXPECT_TRUE(reg.Has<ComponentB>(eid));
@@ -1360,12 +1563,11 @@ namespace
         EXPECT_FALSE(reg.Has<ComponentB>(eid));
         EXPECT_FALSE(reg.Has<ComponentC>(eid));
 
-        // Entity should still exist
         EXPECT_TRUE(reg.IsAlive(eid));
     }
 
     /// @brief Test removing from multiple entities independently.
-    TEST(EcsRegistry, Remove_MultipleEntities_IndependentRemoval)
+    TEST(EcsRegistry, Remove_MultipleEntitiesIndependent_CorrectRemoval)
     {
         EcsRegistry reg;
 
@@ -1381,21 +1583,18 @@ namespace
         reg.Add<ComponentA>(eid2, compA2);
         reg.Add<ComponentA>(eid3, compA3);
 
-        // Remove from only eid2
         reg.Remove<ComponentA>(eid2);
 
-        // Check state
         EXPECT_TRUE(reg.Has<ComponentA>(eid1));
         EXPECT_FALSE(reg.Has<ComponentA>(eid2));
         EXPECT_TRUE(reg.Has<ComponentA>(eid3));
 
-        // Values should be unchanged for eid1 and eid3
         EXPECT_EQ(std::get<0>(*reg.Get<ComponentA>(eid1)), compA1);
         EXPECT_EQ(std::get<0>(*reg.Get<ComponentA>(eid3)), compA3);
     }
 
-    /// @brief Test removing component from dead entity (should verify entity is alive first).
-    TEST(EcsRegistry, Remove_DeadEntity_VerificationFails)
+    /// @brief Test removing component from dead entity.
+    TEST(EcsRegistry, Remove_DeadEntity_NoEffect)
     {
         EcsRegistry reg;
 
@@ -1408,16 +1607,13 @@ namespace
         reg.Destroy(eid);
         EXPECT_FALSE(reg.IsAlive(eid));
 
-        // Try to remove component from dead entity
-        // Should verify entity is alive and return early
         reg.Remove<ComponentA>(eid);
 
-        // Entity should still be dead
         EXPECT_FALSE(reg.IsAlive(eid));
     }
 
     /// @brief Test remove and re-add component to same entity.
-    TEST(EcsRegistry, Remove_AndReaddComponent_NewValueAssigned)
+    TEST(EcsRegistry, Remove_ThenReaddComponent_NewValueAssigned)
     {
         EcsRegistry reg;
 
@@ -1427,11 +1623,9 @@ namespace
         reg.Add<ComponentA>(eid, origValue);
         EXPECT_EQ(std::get<0>(*reg.Get<ComponentA>(eid)), origValue);
 
-        // Remove
         reg.Remove<ComponentA>(eid);
         EXPECT_FALSE(reg.Has<ComponentA>(eid));
 
-        // Re-add with different value
         auto newValue = RandomValue<ComponentA>();
         reg.Add<ComponentA>(eid, newValue);
 
@@ -1440,7 +1634,7 @@ namespace
     }
 
     /// @brief Test that filtered views update correctly after removal.
-    TEST(EcsRegistry, Remove_Component_FilteredViewUpdates)
+    TEST(EcsRegistry, Remove_Component_ViewFiltersCorrectly)
     {
         EcsRegistry reg;
 
@@ -1453,7 +1647,6 @@ namespace
         reg.Add<ComponentA>(eid2, RandomValue<ComponentA>());
         reg.Add<ComponentB>(eid2, RandomValue<ComponentB>());
 
-        // Should have 2 entities with both A and B
         int countBefore = 0;
         for (auto row : reg.GetView<ComponentA, ComponentB>())
         {
@@ -1461,10 +1654,8 @@ namespace
         }
         EXPECT_EQ(countBefore, 2);
 
-        // Remove B from eid1
         reg.Remove<ComponentB>(eid1);
 
-        // Should now have 1 entity with both A and B
         int countAfter = 0;
         for (auto row : reg.GetView<ComponentA, ComponentB>())
         {
@@ -1481,7 +1672,6 @@ namespace
         constexpr int NUM_ENTITIES = 1000;
         std::vector<EntityId> eids;
 
-        // Create entities with multiple components
         for (int i = 0; i < NUM_ENTITIES; ++i)
         {
             auto eid = reg.Create();
@@ -1495,20 +1685,17 @@ namespace
             }
         }
 
-        // Remove ComponentA from all entities
         for (auto eid : eids)
         {
             reg.Remove<ComponentA>(eid);
         }
 
-        // Verify ComponentA is gone but B remains
         for (auto eid : eids)
         {
             EXPECT_FALSE(reg.Has<ComponentA>(eid));
             EXPECT_TRUE(reg.Has<ComponentB>(eid));
         }
 
-        // Count entities with ComponentC after removal
         int countWithC = 0;
         for (auto eid : eids)
         {
@@ -1519,13 +1706,11 @@ namespace
         }
         EXPECT_EQ(countWithC, NUM_ENTITIES / 2);
 
-        // Remove ComponentB from even-indexed entities
         for (int i = 0; i < NUM_ENTITIES; i += 2)
         {
             reg.Remove<ComponentB>(eids[i]);
         }
 
-        // Verify B removed from evens only
         for (int i = 0; i < NUM_ENTITIES; ++i)
         {
             EXPECT_FALSE(reg.Has<ComponentA>(eids[i]));
@@ -1540,8 +1725,8 @@ namespace
         }
     }
 
-    /// @brief Test that Get fails after removing required component.
-    TEST(EcsRegistry, Remove_RequiredComponentForGet_GetFails)
+    /// @brief Test that Get on multiple component types fails when required component missing.
+    TEST(EcsRegistry, Get_RequiredComponentMissing_GetFails)
     {
         EcsRegistry reg;
 
@@ -1555,22 +1740,19 @@ namespace
         reg.Add<ComponentB>(eid, compB);
         reg.Add<ComponentC>(eid, compC);
 
-        // Should be able to get view
         auto viewResult1 = reg.Get<ComponentA, ComponentB, ComponentC>(eid);
         EXPECT_TRUE(viewResult1);
 
-        // Remove one required component
         reg.Remove<ComponentB>(eid);
 
-        // Now view should fail
         auto viewResult2 = reg.Get<ComponentA, ComponentB, ComponentC>(eid);
         EXPECT_FALSE(viewResult2);
     }
 
-    // ==================== Get Tests ====================
+    // ==================== Get (Multi-Component) Tests ====================
 
     /// @brief Test Get with single component - returns tuple with one reference.
-    TEST(EcsRegistry, Get_SingleComponent_ReturnsTupleWithReference)
+    TEST(Get, SingleComponent_ReturnsTupleWithReference)
     {
         EcsRegistry reg;
 
@@ -1587,7 +1769,7 @@ namespace
     }
 
     /// @brief Test Get with multiple components - returns tuple with references.
-    TEST(EcsRegistry, Get_MultipleComponents_ReturnsTupleWithReferences)
+    TEST(Get, MultipleComponents_ReturnsTupleWithReferences)
     {
         EcsRegistry reg;
 
@@ -1610,7 +1792,7 @@ namespace
     }
 
     /// @brief Test Get with two components - common use case.
-    TEST(EcsRegistry, Get_TwoComponents_ReturnsCorrectReferences)
+    TEST(Get, TwoComponents_ReturnsCorrectReferences)
     {
         EcsRegistry reg;
 
@@ -1630,7 +1812,7 @@ namespace
     }
 
     /// @brief Test Get returns references that can modify components.
-    TEST(EcsRegistry, Get_ModifyThroughReference_ComponentsUpdated)
+    TEST(Get, ModifyThroughReference_ComponentsUpdated)
     {
         EcsRegistry reg;
 
@@ -1646,13 +1828,11 @@ namespace
 
         auto [refA, refB] = *result;
         
-        // Modify through references
         refA.a = 99;
         refB.x = 10.0f;
         refB.y = 20.0f;
         refB.z = 30.0f;
 
-        // Verify components were modified in registry
         EXPECT_EQ(std::get<0>((*reg.Get<ComponentA>(eid))).a, 99);
         EXPECT_EQ(std::get<0>((*reg.Get<ComponentB>(eid))).x, 10.0f);
         EXPECT_EQ(std::get<0>((*reg.Get<ComponentB>(eid))).y, 20.0f);
@@ -1660,7 +1840,7 @@ namespace
     }
 
     /// @brief Test Get fails when entity is not alive.
-    TEST(EcsRegistry, Get_EntityNotAlive_ReturnsError)
+    TEST(Get, EntityNotAlive_ReturnsError)
     {
         EcsRegistry reg;
 
@@ -1673,7 +1853,7 @@ namespace
     }
 
     /// @brief Test Get fails when entity has no components.
-    TEST(EcsRegistry, Get_NoComponents_ReturnsError)
+    TEST(Get, NoComponents_ReturnsError)
     {
         EcsRegistry reg;
 
@@ -1685,7 +1865,7 @@ namespace
     }
 
     /// @brief Test Get fails when entity is missing one or more components.
-    TEST(EcsRegistry, Get_MissingComponents_ReturnsError)
+    TEST(Get, MissingComponents_ReturnsError)
     {
         EcsRegistry reg;
 
@@ -1694,14 +1874,13 @@ namespace
         
         reg.Add<ComponentA>(eid, compA);
 
-        // Try to get A and B, but only A exists
         auto result = reg.Get<ComponentA, ComponentB>(eid);
         EXPECT_FALSE(result);
         EXPECT_EQ(result.error().Message, std::format("Entity {} does not have all requested components", eid));
     }
 
     /// @brief Test Get succeeds when entity has more components than requested.
-    TEST(EcsRegistry, Get_ExtraComponents_SucceedsWithRequestedOnly)
+    TEST(Get, ExtraComponents_SucceedsWithRequestedOnly)
     {
         EcsRegistry reg;
 
@@ -1716,7 +1895,6 @@ namespace
         reg.Add<ComponentC>(eid, compC);
         reg.Add<ComponentD>(eid, compD);
 
-        // Request only A and C
         auto result = reg.Get<ComponentA, ComponentC>(eid);
         EXPECT_TRUE(result);
 
@@ -1726,7 +1904,7 @@ namespace
     }
 
     /// @brief Test Get with all four component types.
-    TEST(EcsRegistry, Get_FourComponents_AllReturned)
+    TEST(Get, FourComponents_AllReturned)
     {
         EcsRegistry reg;
 
@@ -1752,7 +1930,7 @@ namespace
     }
 
     /// @brief Test Get after component modification via Get.
-    TEST(EcsRegistry, Get_AfterModification_ReturnsUpdatedValues)
+    TEST(Get, AfterModification_ReturnsUpdatedValues)
     {
         EcsRegistry reg;
 
@@ -1763,11 +1941,9 @@ namespace
         reg.Add<ComponentA>(eid, compA);
         reg.Add<ComponentB>(eid, compB);
 
-        // Modify via Get
         std::get<0>(*reg.Get<ComponentA>(eid)).a = 50;
         std::get<0>(*reg.Get<ComponentB>(eid)).x = 5.0f;
 
-        // Get should return modified values
         auto result = reg.Get<ComponentA, ComponentB>(eid);
         EXPECT_TRUE(result);
 
@@ -1777,13 +1953,12 @@ namespace
     }
 
     /// @brief Test Get with multiple entities - each gets correct components.
-    TEST(EcsRegistry, Get_MultipleEntities_EachGetsCorrectComponents)
+    TEST(Get, MultipleEntities_EachGetsCorrectComponents)
     {
         EcsRegistry reg;
 
         std::unordered_map<EntityId, std::tuple<ComponentA, ComponentB>> components;
 
-        // Create entities with different component values
         for (int i = 0; i < 10; ++i)
         {
             auto eid = reg.Create();
@@ -1796,7 +1971,6 @@ namespace
             components.emplace(eid, std::make_tuple(compA, compB));
         }
 
-        // Verify each entity returns correct components
         for (const auto& [eid, expected] : components)
         {
             auto result = reg.Get<ComponentA, ComponentB>(eid);
@@ -1811,7 +1985,7 @@ namespace
     }
 
     /// @brief Test Get after component removal - should fail.
-    TEST(EcsRegistry, Get_AfterComponentRemoval_ReturnsError)
+    TEST(Get, AfterComponentRemoval_ReturnsError)
     {
         EcsRegistry reg;
 
@@ -1822,21 +1996,18 @@ namespace
         reg.Add<ComponentA>(eid, compA);
         reg.Add<ComponentB>(eid, compB);
 
-        // Should succeed initially
         auto result1 = reg.Get<ComponentA, ComponentB>(eid);
         EXPECT_TRUE(result1);
 
-        // Remove one component
         reg.Remove<ComponentB>(eid);
 
-        // Should now fail
         auto result2 = reg.Get<ComponentA, ComponentB>(eid);
         EXPECT_FALSE(result2);
         EXPECT_EQ(result2.error().Message, std::format("Entity {} does not have all requested components", eid));
     }
 
     /// @brief Test Get with const registry (const version).
-    TEST(EcsRegistry, Get_ConstRegistry_ReturnsConstReferences)
+    TEST(Get, ConstRegistry_ReturnsConstReferences)
     {
         EcsRegistry reg;
 
@@ -1849,9 +2020,7 @@ namespace
 
         const EcsRegistry& constReg = reg;
 
-        // Note: Get doesn't have a const version in the current implementation,
-        // but this test documents expected behavior if added
-        auto result = reg.Get<ComponentA, ComponentB>(eid);
+        auto result = constReg.Get<ComponentA, ComponentB>(eid);
         EXPECT_TRUE(result);
 
         auto [actualA, actualB] = *result;
@@ -1860,7 +2029,7 @@ namespace
     }
 
     /// @brief Test Get with recycled entity ID - should work correctly.
-    TEST(EcsRegistry, Get_RecycledEntityId_ReturnsNewComponents)
+    TEST(Get, RecycledEntityId_ReturnsNewComponents)
     {
         EcsRegistry reg;
 
@@ -1870,9 +2039,8 @@ namespace
         reg.Add<ComponentA>(eid, compA1);
         reg.Destroy(eid);
 
-        // Recycle the entity ID
         auto newEid = reg.Create();
-        EXPECT_EQ(eid, newEid); // Should be recycled
+        EXPECT_EQ(eid, newEid);
 
         auto compA2 = ComponentA{ 200 };
         auto compB2 = ComponentB{ 1.0f, 2.0f, 3.0f };
@@ -1884,12 +2052,12 @@ namespace
         EXPECT_TRUE(result);
 
         auto [actualA, actualB] = *result;
-        EXPECT_EQ(actualA.a, 200); // New value, not old
+        EXPECT_EQ(actualA.a, 200);
         EXPECT_EQ(actualB.x, 1.0f);
     }
 
     /// @brief Test Get stress test with many entities.
-    TEST(EcsRegistry, Get_StressTest_ManyEntities_AllCorrect)
+    TEST(Get, StressTest_ManyEntities_AllCorrect)
     {
         EcsRegistry reg;
 
@@ -1897,7 +2065,6 @@ namespace
         std::vector<EntityId> eids;
         std::unordered_map<EntityId, std::tuple<ComponentA, ComponentC>> components;
 
-        // Create many entities
         for (int i = 0; i < NUM_ENTITIES; ++i)
         {
             auto eid = reg.Create();
@@ -1918,7 +2085,6 @@ namespace
             components.emplace(eid, std::make_tuple(compA, compC));
         }
 
-        // Verify all entities return correct components via Get2
         for (const auto& [eid, expected] : components)
         {
             auto result = reg.Get<ComponentA, ComponentC>(eid);
@@ -1933,7 +2099,7 @@ namespace
     }
 
     /// @brief Test Get with different component orderings - should work regardless of add order.
-    TEST(EcsRegistry, Get_DifferentComponentOrderings_WorksCorrectly)
+    TEST(Get, DifferentComponentOrderings_WorksCorrectly)
     {
         EcsRegistry reg;
 
@@ -1942,12 +2108,10 @@ namespace
         auto compB = RandomValue<ComponentB>();
         auto compC = RandomValue<ComponentC>();
         
-        // Add in order: C, A, B
         reg.Add<ComponentC>(eid, compC);
         reg.Add<ComponentA>(eid, compA);
         reg.Add<ComponentB>(eid, compB);
 
-        // Request in order: A, B, C
         auto result = reg.Get<ComponentA, ComponentB, ComponentC>(eid);
         EXPECT_TRUE(result);
 
