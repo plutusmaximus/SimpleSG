@@ -390,9 +390,7 @@ public:
 
         //Now that we know all components exist for the entity, get pointers to them.
 
-        auto components = std::make_tuple(std::get<EcsComponentPool<Cs>*>(pools)->Get(eid)...);
-
-        return EcsView<Cs...>(eid, components);
+        return EcsView<Cs...>(eid, pools);
     }
 
     /// @brief Returns true if the given entity ID has a component of type C.
@@ -494,8 +492,7 @@ public:
             {
                 eassert(m_It != m_EndIt);
                 const EntityId eid = *m_It;
-                auto components = std::make_tuple(std::get<EcsComponentPool<Cs>*>(m_Pools)->Get(eid)...);
-                return EcsView<Cs...>(eid, components);
+                return EcsView<Cs...>(eid, m_Pools);
             }
 
         private:
@@ -644,9 +641,9 @@ class EcsView
 
 public:
 
-    EcsView(const EntityId eid, const std::tuple<Cs*...>& components)
+    EcsView(const EntityId eid, const std::tuple<EcsComponentPool<Cs>*...>& pools)
         : Eid(eid)
-        , m_Components(components)
+        , m_Pools(pools)
     {
     }
 
@@ -654,14 +651,14 @@ public:
     template<std::size_t I>
     auto& get()
     {
-        return *std::get<I>(m_Components);
+        return *std::get<I>(m_Pools)->Get(Eid);
     }
 
     /// @brief Enable structured bindings.
     template<std::size_t I>
     const auto& get() const
     {
-        return *std::get<I>(m_Components);
+        return *std::get<I>(m_Pools)->Get(Eid);
     }
 
     template<typename T>
@@ -669,7 +666,7 @@ public:
     {
         static_assert((std::is_same_v<T, Cs> || ...), "T must be one of Cs...");
 
-        return *std::get<T*>(m_Components);
+        return *std::get<EcsComponentPool<T>*>(m_Pools)->Get(Eid);
     }
 
     template<typename T>
@@ -677,14 +674,14 @@ public:
     {
         static_assert((std::is_same_v<T, Cs> || ...), "T must be one of Cs...");
 
-        return *std::get<T*>(m_Components);
+        return *std::get<EcsComponentPool<T>*>(m_Pools)->Get(Eid);
     }
 
     const EntityId Eid;
 
 private:
 
-    std::tuple<Cs*...> m_Components;
+    std::tuple<EcsComponentPool<Cs>*...> m_Pools;
 };
 
 /// @brief Enable structured bindings for View.
