@@ -27,7 +27,7 @@ ModelVisitor::ModelVisitor(RenderGraph* renderGraph)
 
 void ModelVisitor::Visit(ModelNode* node)
 {
-    m_RenderGraph->Add(GetTransform(), node);
+    m_RenderGraph->Add(GetTransform(), node->Model);
 }
 
 void CameraVisitor::Visit(CameraNode* node)

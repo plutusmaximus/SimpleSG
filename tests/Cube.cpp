@@ -71,9 +71,9 @@ int main(int, [[maybe_unused]] char* argv[])
         auto eorbit = reg.Create();
         auto emoon = reg.Create();
 
-        auto planetXForm = reg.Add<TransformNode2>(eplanet, TransformNode2{ .Id = eplanet });
-        auto orbitXForm = reg.Add<TransformNode2>(eorbit, TransformNode2{ .Id = eorbit, .ParentId = eplanet });
-        auto moonXForm = reg.Add<TransformNode2>(emoon, TransformNode2{ .Id = emoon, .ParentId = eorbit });
+        reg.Add<TransformNode2>(eplanet, TransformNode2{ .Id = eplanet });
+        reg.Add<TransformNode2>(eorbit, TransformNode2{ .Id = eorbit, .ParentId = eplanet });
+        reg.Add<TransformNode2>(emoon, TransformNode2{ .Id = emoon, .ParentId = eorbit });
 
         //auto modelResult = CreateCube(gd);
         //auto modelResult = CreatePumpkin(gd);

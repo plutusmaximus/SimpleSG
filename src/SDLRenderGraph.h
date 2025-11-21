@@ -17,7 +17,7 @@ public:
 
     explicit SDLRenderGraph(SDLGPUDevice* gpuDevice);
 
-    virtual void Add(const Mat44f& viewTransform, RefPtr<ModelNode> modelNode) override;
+    virtual void Add(const Mat44f& viewTransform, RefPtr<Model> model) override;
 
     virtual Result<void> Render(const Mat44f& camera, const Mat44f& projection) override;
 
