@@ -21,6 +21,8 @@
 
 #include "LuaRepl.h"
 
+#include "EcsTransformNodePool.h"
+
 static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu);
 static Result<RefPtr<Model>> CreatePumpkinModel(RefPtr<GPUDevice> gpu);
 static Result<RefPtr<Model>> CreateShapeModel(RefPtr<GPUDevice> gpu);
@@ -40,6 +42,9 @@ int main(int, [[maybe_unused]] char* argv[])
     LuaRepl repl;
 
     repl.ExportFunction(Add, "Add");
+
+    auto cwd = std::filesystem::current_path();
+    logInfo("Current working directory: {}", cwd.string());
 
     etry
     {
@@ -66,9 +71,9 @@ int main(int, [[maybe_unused]] char* argv[])
         auto eorbit = reg.Create();
         auto emoon = reg.Create();
 
-        auto planetXForm = reg.Add<TrsTransformf>(eplanet);
-        auto orbitXForm = reg.Add<TrsTransformf>(eorbit);
-        auto moonXForm = reg.Add<TrsTransformf>(emoon);
+        auto planetXForm = reg.Add<TransformNode2>(eplanet, TransformNode2{ .Id = eplanet });
+        auto orbitXForm = reg.Add<TransformNode2>(eorbit, TransformNode2{ .Id = eorbit, .ParentId = eplanet });
+        auto moonXForm = reg.Add<TransformNode2>(emoon, TransformNode2{ .Id = emoon, .ParentId = eorbit });
 
         //auto modelResult = CreateCube(gd);
         //auto modelResult = CreatePumpkin(gd);
