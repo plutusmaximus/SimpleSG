@@ -87,7 +87,7 @@ int main(int, [[maybe_unused]] char* argv[])
 
         auto planetResult = PropNode::Create(model);
         pcheck(planetResult, planetResult.error());
-        auto planet = *reg.Add<RefPtr<PropNode>>(eplanet, planetResult.value());
+        auto planet = planetResult.value();
 
         auto moonOrbitResult = TransformNode::Create();
         pcheck(moonOrbitResult, moonOrbitResult.error());

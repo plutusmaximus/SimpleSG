@@ -37,23 +37,23 @@ public:
     /// The new node is inserted immediately after its parent and any existing children.
     /// This maintains a depth-first ordering of the hierarchy.
     /// Child nodes appear in the collection in reverse order of addition.
-    TransformNode2* Add(const EntityId eid, const TransformNode2& node)
+    bool Add(const EntityId eid, const TransformNode2& node)
     {
         const EntityId parentId = node.ParentId;
 
         if(!everify(eid.IsValid() && "EntityId must be valid"))
         {
-            return nullptr;
+            return false;
         }
 
         if(!everify(!Has(eid) && "Entity ID already in collection"))
         {
-            return nullptr;
+            return false;
         }
 
         if(!everify(eid != parentId && "Entity cannot be its own parent"))
         {
-            return nullptr;
+            return false;
         }
 
         //TODO(KB) - check for cycles in parentage.
@@ -75,20 +75,18 @@ public:
             // No parent, add as top-level node
             m_Index[eid.Value()] = static_cast<int>(m_Components.size());
             m_Components.emplace_back(node);
-            return &m_Components.back();
+            return true;
         }
 
         const int idxOfParent = IndexOf(parentId);
         if(!everify(idxOfParent != -1) && "Parent ID not found in collection")
         {
             // Parent not found, which shouldn't happen in a valid hierarchy
-            return nullptr;
+            return false;
         }
 
         int idx = idxOfParent + 1;
         auto it = m_Components.emplace(m_Components.begin() + idx, node);
-
-        auto result = &*it;
 
         //Update indexes for inserted node and all subsequent nodes
         for(const auto endIt = m_Components.end(); endIt != it; ++it, ++idx)
@@ -96,7 +94,7 @@ public:
             m_Index[(*it).Id.Value()] = idx;
         }
 
-        return result;
+        return true;
     }
 
     /// @brief Removes the sub-assembly node with the given entity ID, along with all its children.

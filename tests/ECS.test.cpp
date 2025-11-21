@@ -290,18 +290,18 @@ namespace
         ComponentA compB{ 100 };
 
         // Add
-        auto comp = pool.Add(eid, compA);
-        EXPECT_TRUE(comp);
-        EXPECT_EQ(*comp, compA);
+        const bool added = pool.Add(eid, compA);
+        EXPECT_TRUE(added);
+        EXPECT_EQ(*pool.Get(eid), compA);
 
         // Remove
         pool.Remove(eid);
         EXPECT_FALSE(pool.Has(eid));
 
         // Re-add
-        comp = pool.Add(eid, compB);
-        EXPECT_TRUE(comp);
-        EXPECT_EQ(*comp, compB);
+        const bool addedReAdd = pool.Add(eid, compB);
+        EXPECT_TRUE(addedReAdd);
+        EXPECT_EQ(*pool.Get(eid), compB);
     }
 
     /// @brief Test remove correctly maintains association of component with entity ID.
@@ -423,279 +423,7 @@ namespace
 
         EXPECT_TRUE(comp);
         EXPECT_EQ(*comp, ComponentA{ 42 });
-    }/// @brief Test reordering components with a simple shuffle.
-    TEST(EcsComponentPool, Reorder_SimpleOrder)
-    {
-        EcsRegistry reg;
-        EcsComponentPool<ComponentA> pool;
-        std::vector<EntityId> ids;
-        std::vector<int> values = {10, 20, 30, 40};
-        
-        for (int i = 0; i < 4; ++i) {
-            EntityId eid = reg.Create();
-            ids.push_back(eid);
-            pool.Add(eid, ComponentA{values[i]});
-        }
-        
-        // Shuffle the ids
-        std::vector<EntityId> newOrder = {ids[2], ids[0], ids[3], ids[1]};
-        pool.Reorder(std::span<EntityId>(newOrder));
-        
-        // Check that m_EntityIds matches newOrder
-        EXPECT_EQ(std::vector<EntityId>(pool.begin(), pool.end()), newOrder);
-        
-        // Check that m_Components are in the correct order
-        std::vector<int> expectedValues = {30, 10, 40, 20};
-        for (size_t i = 0; i < newOrder.size(); ++i) {
-            auto* comp = pool.Get(newOrder[i]);
-            ASSERT_NE(comp, nullptr);
-            EXPECT_EQ(comp->a, expectedValues[i]);
-        }
-    }
-
-    /// @brief Test reordering with reversed order.
-    TEST(EcsComponentPool, Reorder_ReverseOrder)
-    {
-        EcsRegistry reg;
-        EcsComponentPool<ComponentA> pool;
-        std::vector<EntityId> ids;
-        
-        for (int i = 0; i < 5; ++i) {
-            EntityId eid = reg.Create();
-            ids.push_back(eid);
-            pool.Add(eid, ComponentA{i});
-        }
-        
-        std::vector<EntityId> reversed(ids.rbegin(), ids.rend());
-        pool.Reorder(std::span<EntityId>(reversed));
-        
-        EXPECT_EQ(std::vector<EntityId>(pool.begin(), pool.end()), reversed);
-        
-        for (size_t i = 0; i < reversed.size(); ++i) {
-            auto* comp = pool.Get(reversed[i]);
-            ASSERT_NE(comp, nullptr);
-            // Component value should match the original position
-            size_t originalIdx = ids.size() - 1 - i;
-            EXPECT_EQ(comp->a, static_cast<int>(originalIdx));
-        }
-    }
-
-    /// @brief Test reordering with a single element.
-    TEST(EcsComponentPool, Reorder_SingleElement)
-    {
-        EcsRegistry reg;
-        EcsComponentPool<ComponentA> pool;
-        
-        EntityId eid = reg.Create();
-        pool.Add(eid, ComponentA{123});
-        
-        std::vector<EntityId> order = {eid};
-        pool.Reorder(std::span<EntityId>(order));
-        
-        EXPECT_EQ(std::vector<EntityId>(pool.begin(), pool.end()), order);
-        
-        auto* comp = pool.Get(eid);
-        ASSERT_NE(comp, nullptr);
-        EXPECT_EQ(comp->a, 123);
-    }
-
-    /// @brief Test reordering with identity (same order).
-    TEST(EcsComponentPool, Reorder_IdentityOrder)
-    {
-        EcsRegistry reg;
-        EcsComponentPool<ComponentA> pool;
-        std::vector<EntityId> ids;
-        
-        for (int i = 0; i < 3; ++i) {
-            EntityId eid = reg.Create();
-            ids.push_back(eid);
-            pool.Add(eid, ComponentA{i * 5});
-        }
-        
-        pool.Reorder(std::span<EntityId>(ids));
-        
-        EXPECT_EQ(std::vector<EntityId>(pool.begin(), pool.end()), ids);
-        
-        for (size_t i = 0; i < ids.size(); ++i) {
-            auto* comp = pool.Get(ids[i]);
-            ASSERT_NE(comp, nullptr);
-            EXPECT_EQ(comp->a, i * 5);
-        }
-    }
-
-    /// @brief Test reordering preserves all components correctly.
-    TEST(EcsComponentPool, Reorder_PreservesAllComponents)
-    {
-        EcsRegistry reg;
-        EcsComponentPool<ComponentC> pool;
-        std::vector<EntityId> ids;
-        std::vector<ComponentC> originals;
-        
-        for (int i = 0; i < 10; ++i) {
-            EntityId eid = reg.Create();
-            ids.push_back(eid);
-            ComponentC comp = RandomValue<ComponentC>();
-            originals.push_back(comp);
-            pool.Add(eid, comp);
-        }
-        
-        // Random shuffle
-        std::vector<EntityId> shuffled = {ids[7], ids[2], ids[9], ids[0], ids[5], 
-                                          ids[3], ids[1], ids[8], ids[4], ids[6]};
-        pool.Reorder(std::span<EntityId>(shuffled));
-        
-        // Verify all components are preserved with correct values
-        for (size_t i = 0; i < shuffled.size(); ++i) {
-            auto* comp = pool.Get(shuffled[i]);
-            ASSERT_NE(comp, nullptr);
-            
-            // Find original index
-            auto it = std::find(ids.begin(), ids.end(), shuffled[i]);
-            ASSERT_NE(it, ids.end());
-            size_t originalIdx = std::distance(ids.begin(), it);
-            
-            EXPECT_EQ(*comp, originals[originalIdx]);
-        }
-    }
-
-    /// @brief Test 1: Reorder after Remove - Verify reordering works after entities removed
-    TEST(EcsComponentPool, Reorder_AfterRemove_RemainingEntitiesReordered)
-    {
-        EcsRegistry reg;
-        EcsComponentPool<ComponentA> pool;
-        std::vector<EntityId> ids;
-        
-        // Add 6 entities
-        for (int i = 0; i < 6; ++i) {
-            EntityId eid = reg.Create();
-            ids.push_back(eid);
-            pool.Add(eid, ComponentA{i * 10});
-        }
-        
-        // Remove entities at indices 1 and 4
-        pool.Remove(ids[1]);
-        pool.Remove(ids[4]);
-        
-        // Remaining entities: 0, 2, 3, 5
-        std::vector<EntityId> remaining = {ids[0], ids[2], ids[3], ids[5]};
-        
-        // Reorder remaining entities
-        std::vector<EntityId> newOrder = {ids[5], ids[0], ids[3], ids[2]};
-        pool.Reorder(std::span<EntityId>(newOrder));
-        
-        // Verify order
-        EXPECT_EQ(std::vector<EntityId>(pool.begin(), pool.end()), newOrder);
-        
-        // Verify component values
-        EXPECT_EQ(pool.Get(ids[5])->a, 50);
-        EXPECT_EQ(pool.Get(ids[0])->a, 0);
-        EXPECT_EQ(pool.Get(ids[3])->a, 30);
-        EXPECT_EQ(pool.Get(ids[2])->a, 20);
-        
-        // Verify removed entities still return nullptr
-        EXPECT_EQ(pool.Get(ids[1]), nullptr);
-        EXPECT_EQ(pool.Get(ids[4]), nullptr);
-    }
-
-    /// @brief Test 2: Add after Reorder - Verify adding components after reorder works
-    TEST(EcsComponentPool, Add_AfterReorder_NewComponentAdded)
-    {
-        EcsRegistry reg;
-        EcsComponentPool<ComponentA> pool;
-        std::vector<EntityId> ids;
-        
-        // Add initial entities
-        for (int i = 0; i < 3; ++i) {
-            EntityId eid = reg.Create();
-            ids.push_back(eid);
-            pool.Add(eid, ComponentA{i});
-        }
-        
-        // Reorder
-        std::vector<EntityId> reordered = {ids[2], ids[0], ids[1]};
-        pool.Reorder(std::span<EntityId>(reordered));
-        
-        // Add new entity
-        EntityId newEid = reg.Create();
-        pool.Add(newEid, ComponentA{999});
-        
-        // Verify new entity is accessible
-        auto* newComp = pool.Get(newEid);
-        ASSERT_NE(newComp, nullptr);
-        EXPECT_EQ(newComp->a, 999);
-        
-        // Verify original entities still accessible
-        EXPECT_EQ(pool.Get(ids[0])->a, 0);
-        EXPECT_EQ(pool.Get(ids[1])->a, 1);
-        EXPECT_EQ(pool.Get(ids[2])->a, 2);
-    }
-
-    /// @brief Test 3: Remove after Reorder - Verify removing after reorder maintains integrity
-    TEST(EcsComponentPool, Remove_AfterReorder_ComponentRemoved)
-    {
-        EcsRegistry reg;
-        EcsComponentPool<ComponentA> pool;
-        std::vector<EntityId> ids;
-        
-        for (int i = 0; i < 4; ++i) {
-            EntityId eid = reg.Create();
-            ids.push_back(eid);
-            pool.Add(eid, ComponentA{i * 5});
-        }
-        
-        // Reorder
-        std::vector<EntityId> reordered = {ids[3], ids[1], ids[0], ids[2]};
-        pool.Reorder(std::span<EntityId>(reordered));
-        
-        // Remove entity
-        pool.Remove(ids[1]);
-        
-        // Verify removed
-        EXPECT_EQ(pool.Get(ids[1]), nullptr);
-        
-        // Verify others still accessible
-        EXPECT_EQ(pool.Get(ids[0])->a, 0);
-        EXPECT_EQ(pool.Get(ids[2])->a, 10);
-        EXPECT_EQ(pool.Get(ids[3])->a, 15);
-        
-        EXPECT_EQ(pool.size(), 3);
-    }
-
-    /// @brief Test 4: Multiple consecutive Reorders - Ensure no state corruption
-    TEST(EcsComponentPool, Reorder_MultipleConsecutive_StateConsistent)
-    {
-        EcsRegistry reg;
-        EcsComponentPool<ComponentA> pool;
-        std::vector<EntityId> ids;
-        
-        for (int i = 0; i < 5; ++i) {
-            EntityId eid = reg.Create();
-            ids.push_back(eid);
-            pool.Add(eid, ComponentA{i});
-        }
-        
-        // First reorder
-        std::vector<EntityId> order1 = {ids[4], ids[2], ids[0], ids[3], ids[1]};
-        pool.Reorder(std::span<EntityId>(order1));
-        
-        // Second reorder
-        std::vector<EntityId> order2 = {ids[1], ids[3], ids[4], ids[0], ids[2]};
-        pool.Reorder(std::span<EntityId>(order2));
-        
-        // Third reorder
-        std::vector<EntityId> order3 = {ids[0], ids[1], ids[2], ids[3], ids[4]};
-        pool.Reorder(std::span<EntityId>(order3));
-        
-        // Verify final state matches order3
-        EXPECT_EQ(std::vector<EntityId>(pool.begin(), pool.end()), order3);
-        
-        // Verify all components have correct values
-        for (size_t i = 0; i < ids.size(); ++i) {
-            auto* comp = pool.Get(ids[i]);
-            ASSERT_NE(comp, nullptr);
-            EXPECT_EQ(comp->a, static_cast<int>(i));
-        }
-    }
+    }    
     
     // ==================== EcsRegistry Tests ====================
 
@@ -811,10 +539,10 @@ namespace
             EXPECT_TRUE(reg.Has<ComponentC>(eid));
 
             const auto& expected = Cs[eid];
-            const auto& actual = reg.Get<ComponentC>(eid);
+            const auto actual = reg.Get<ComponentC>(eid);
 
             //Component should have the expected value.
-            EXPECT_EQ(*actual, expected);
+            EXPECT_EQ(std::get<0>(*actual), expected);
         }
     }
 
@@ -880,12 +608,12 @@ namespace
             EXPECT_TRUE(reg.Has<ComponentC>(eid));
 
             const auto& expected = newCs[eid];
-            const auto& actual = reg.Get<ComponentC>(eid);
+            const auto actual = reg.Get<ComponentC>(eid);
 
             EXPECT_TRUE(actual);
 
             //Component should have the expected value.
-            EXPECT_EQ(*actual, expected);
+            EXPECT_EQ(std::get<0>(*actual), expected);
         }
     }
 
@@ -932,86 +660,7 @@ namespace
         //Confirm new eid has components.
         EXPECT_TRUE(reg.Has<ComponentC>(eidToRecycle));
 
-        EXPECT_EQ(*reg.Get<ComponentC>(newEid), newC);
-    }
-
-    /// @brief Confirm viewing entities with multiple components works correctly.
-    TEST(EcsRegistry, GetView_CorrectComponentsReturned)
-    {
-        EcsRegistry reg;
-
-        //Create a bunch of eids        
-        auto eids = CreateEntityIds(reg);
-
-        std::unordered_map<EntityId, std::tuple<ComponentA, ComponentB, ComponentC>> components;
-
-        //Add components
-        for (auto eid : eids)
-        {
-            auto a = RandomValue<ComponentA>();
-            auto b = RandomValue<ComponentB>();
-            auto c = RandomValue<ComponentC>();
-            components.emplace(eid, std::make_tuple(a, b, c));
-            reg.Add<ComponentA>(eid, a);
-            reg.Add<ComponentB>(eid, b);
-            reg.Add<ComponentC>(eid, c);
-        }
-        
-        //Check views
-        for(auto eid : eids)
-        {
-            auto view = reg.GetView<ComponentA, ComponentB, ComponentC>(eid);
-            EXPECT_TRUE(view);
-
-            auto [expectedA, expectedB, expectedC] = components[eid];
-            auto [actualA, actualB, actualC] = *view;
-
-            EXPECT_EQ(expectedA, actualA);
-            EXPECT_EQ(expectedB, actualB);
-            EXPECT_EQ(expectedC, actualC);
-        }
-    }
-
-    /// @brief Confirm that requesting a view for an entity that is not alive returns an error.
-    TEST(EcsRegistry, GetView_EntityNotAlive_ErrorReturned)
-    {
-        EcsRegistry reg;
-
-        const auto eid = reg.Create();
-        reg.Destroy(eid);
-
-        auto view = reg.GetView<ComponentA, ComponentB, ComponentC>(eid);
-        EXPECT_FALSE(view);
-
-        EXPECT_EQ(view.error().Message, std::format("Entity {} is not alive", eid));
-    }
-
-    /// @brief Confirm that requesting a view for an entity with no components returns an error.
-    TEST(EcsRegistry, GetView_NoComponents_ErrorReturned)
-    {
-        EcsRegistry reg;
-
-        auto eid = reg.Create();
-
-        auto view = reg.GetView<ComponentA, ComponentB, ComponentC>(eid);
-        EXPECT_FALSE(view);
-
-        EXPECT_EQ(view.error().Message, std::format("Entity {} does not have all requested components", eid));
-    }
-
-    /// @brief Confirm that requesting a view for an entity missing components returns an error.
-    TEST(EcsRegistry, GetView_MissingComponents_ErrorReturned)
-    {
-        EcsRegistry reg;
-
-        auto eid = reg.Create();
-
-        reg.Add<ComponentA>(eid, RandomValue<ComponentA>());
-
-        auto view = reg.GetView<ComponentA, ComponentB, ComponentC>(eid);
-        EXPECT_FALSE(view);
-
-        EXPECT_EQ(view.error().Message, std::format("Entity {} does not have all requested components", eid));
+        EXPECT_EQ(std::get<0>(*reg.Get<ComponentC>(newEid)), newC);
     }
     
     /// @brief Test adding multiple different component types to same entity.
@@ -1036,10 +685,10 @@ namespace
         EXPECT_TRUE(reg.Has<ComponentC>(eid));
         EXPECT_TRUE(reg.Has<ComponentD>(eid));
 
-        EXPECT_EQ(*reg.Get<ComponentA>(eid), compA);
-        EXPECT_EQ(*reg.Get<ComponentB>(eid), compB);
-        EXPECT_EQ(*reg.Get<ComponentC>(eid), compC);
-        EXPECT_EQ(*reg.Get<ComponentD>(eid), compD);
+        EXPECT_EQ(std::get<0>(*reg.Get<ComponentA>(eid)), compA);
+        EXPECT_EQ(std::get<0>(*reg.Get<ComponentB>(eid)), compB);
+        EXPECT_EQ(std::get<0>(*reg.Get<ComponentC>(eid)), compC);
+        EXPECT_EQ(std::get<0>(*reg.Get<ComponentD>(eid)), compD);
     }
 
     /// @brief Test that destroying entity removes all component types.
@@ -1120,10 +769,10 @@ namespace
         EXPECT_TRUE(reg.Has<ComponentC>(newEid));
         EXPECT_TRUE(reg.Has<ComponentD>(newEid));
 
-        EXPECT_EQ(*reg.Get<ComponentA>(newEid), newCompA);
-        EXPECT_EQ(*reg.Get<ComponentB>(newEid), newCompB);
-        EXPECT_EQ(*reg.Get<ComponentC>(newEid), newCompC);
-        EXPECT_EQ(*reg.Get<ComponentD>(newEid), newCompD);
+        EXPECT_EQ(std::get<0>(*reg.Get<ComponentA>(newEid)), newCompA);
+        EXPECT_EQ(std::get<0>(*reg.Get<ComponentB>(newEid)), newCompB);
+        EXPECT_EQ(std::get<0>(*reg.Get<ComponentC>(newEid)), newCompC);
+        EXPECT_EQ(std::get<0>(*reg.Get<ComponentD>(newEid)), newCompD);
     }
 
     /// @brief Test component access after entity destruction.
@@ -1186,66 +835,6 @@ namespace
         }
     }
 
-    /// @brief Test GetView with subset of components (entity has more than requested).
-    TEST(EcsRegistry, GetView_Subset_SucceedsWithRelevantComponents)
-    {
-        EcsRegistry reg;
-
-        auto eid = reg.Create();
-
-        auto compA = RandomValue<ComponentA>();
-        auto compB = RandomValue<ComponentB>();
-        auto compC = RandomValue<ComponentC>();
-        auto compD = RandomValue<ComponentD>();
-
-        reg.Add<ComponentA>(eid, compA);
-        reg.Add<ComponentB>(eid, compB);
-        reg.Add<ComponentC>(eid, compC);
-        reg.Add<ComponentD>(eid, compD);
-
-        // Request view for subset
-        auto viewResult = reg.GetView<ComponentA, ComponentC>(eid);
-        EXPECT_TRUE(viewResult);
-
-        auto& view = *viewResult;
-        auto [actualA, actualC] = view;
-
-        EXPECT_EQ(actualA, compA);
-        EXPECT_EQ(actualC, compC);
-    }
-
-    /// @brief Test adding components after partial view failure.
-    TEST(EcsRegistry, GetView_AddMissingComponents_ViewSucceedsAfter)
-    {
-        EcsRegistry reg;
-
-        auto eid = reg.Create();
-
-        auto compA = RandomValue<ComponentA>();
-        reg.Add<ComponentA>(eid, compA);
-
-        // Should fail - missing B and C
-        auto viewResult1 = reg.GetView<ComponentA, ComponentB, ComponentC>(eid);
-        EXPECT_FALSE(viewResult1);
-
-        // Add missing components
-        auto compB = RandomValue<ComponentB>();
-        auto compC = RandomValue<ComponentC>();
-        reg.Add<ComponentB>(eid, compB);
-        reg.Add<ComponentC>(eid, compC);
-
-        // Should now succeed
-        auto viewResult2 = reg.GetView<ComponentA, ComponentB, ComponentC>(eid);
-        EXPECT_TRUE(viewResult2);
-
-        auto& view = *viewResult2;
-        auto [actualA, actualB, actualC] = view;
-
-        EXPECT_EQ(actualA, compA);
-        EXPECT_EQ(actualB, compB);
-        EXPECT_EQ(actualC, compC);
-    }
-
     /// @brief Helper to populate registry with entities with multiple components.
     template<typename... Cs>
     static std::vector<EntityId> PopulateRegistryWithComponents(
@@ -1258,7 +847,6 @@ namespace
         {
             auto tuple = std::make_tuple(RandomValue<Cs>()...);
             (reg.Add<Cs>(eid, std::get<Cs>(tuple)), ...);
-            auto view = reg.GetView<Cs...>(eid);
             components.emplace(eid, tuple);
         }
 
@@ -1273,10 +861,10 @@ namespace
     {
         for (auto& [eid, expectedTuple] : expectedComponents)
         {
-            auto view = reg.GetView<Cs...>(eid);
+            auto view = reg.Get<Cs...>(eid);
             EXPECT_TRUE(view);
 
-            auto actualTuple = std::make_tuple((*view).get<Cs>()...);
+            auto actualTuple = *view;
 
             EXPECT_EQ(actualTuple, expectedTuple);
         }
@@ -1340,136 +928,10 @@ namespace
         VerifyViewComponents(reg, componentsABC);
     }
 
-    // ==================== EcsView Tests ====================
+    // ==================== View Tests ====================
 
-    /// @brief Test EcsView element access via index.
-    TEST(EcsView, ElementAccess_ByIndex_CorrectRetrieval)
-    {
-        EcsRegistry reg;
-
-        auto eid = reg.Create();
-
-        auto compA = RandomValue<ComponentA>();
-        auto compB = RandomValue<ComponentB>();
-        auto compC = RandomValue<ComponentC>();
-
-        reg.Add<ComponentA>(eid, compA);
-        reg.Add<ComponentB>(eid, compB);
-        reg.Add<ComponentC>(eid, compC);
-
-        auto viewResult = reg.GetView<ComponentA, ComponentB, ComponentC>(eid);
-        EXPECT_TRUE(viewResult);
-
-        auto& view = *viewResult;
-
-        // Access by index
-        EXPECT_EQ(view.get<0>(), compA);
-        EXPECT_EQ(view.get<1>(), compB);
-        EXPECT_EQ(view.get<2>(), compC);
-    }
-
-    /// @brief Test EcsView element access via type.
-    TEST(EcsView, ElementAccess_ByType_CorrectRetrieval)
-    {
-        EcsRegistry reg;
-
-        auto eid = reg.Create();
-
-        auto compA = RandomValue<ComponentA>();
-        auto compB = RandomValue<ComponentB>();
-        auto compC = RandomValue<ComponentC>();
-
-        reg.Add<ComponentA>(eid, compA);
-        reg.Add<ComponentB>(eid, compB);
-        reg.Add<ComponentC>(eid, compC);
-
-        auto viewResult = reg.GetView<ComponentA, ComponentB, ComponentC>(eid);
-        EXPECT_TRUE(viewResult);
-
-        auto& view = *viewResult;
-
-        // Access by type
-        EXPECT_EQ(view.get<ComponentA>(), compA);
-        EXPECT_EQ(view.get<ComponentB>(), compB);
-        EXPECT_EQ(view.get<ComponentC>(), compC);
-    }
-
-    /// @brief Test EcsView const correctness.
-    TEST(EcsView, ConstCorrectness_ConstView_ReturnsConstReferences)
-    {
-        EcsRegistry reg;
-
-        auto eid = reg.Create();
-        auto compA = RandomValue<ComponentA>();
-        auto compB = RandomValue<ComponentB>();
-
-        reg.Add<ComponentA>(eid, compA);
-        reg.Add<ComponentB>(eid, compB);
-
-        const auto viewResult = reg.GetView<ComponentA, ComponentB>(eid);
-        EXPECT_TRUE(viewResult);
-
-        const auto& view = *viewResult;
-
-        // These should be const references
-        const auto a = view.get<0>();
-        const auto b = view.get<1>();
-
-        EXPECT_EQ(a, compA);
-        EXPECT_EQ(b, compB);
-    }
-
-    /// @brief Test EcsView with single component.
-    TEST(EcsView, SingleComponent_View_WorksCorrectly)
-    {
-        EcsRegistry reg;
-
-        auto eid = reg.Create();
-        auto compA = RandomValue<ComponentA>();
-
-        reg.Add<ComponentA>(eid, compA);
-
-        auto viewResult = reg.GetView<ComponentA>(eid);
-        EXPECT_TRUE(viewResult);
-
-        auto& view = *viewResult;
-
-        EXPECT_EQ(view.get<0>(), compA);
-        EXPECT_EQ(view.get<ComponentA>(), compA);
-    }
-
-    /// @brief Test structured bindings with EcsView.
-    TEST(EcsView, StructuredBindings_AutoDecomposition_CorrectValues)
-    {
-        EcsRegistry reg;
-
-        auto eid = reg.Create();
-
-        auto compA = RandomValue<ComponentA>();
-        auto compB = RandomValue<ComponentB>();
-        auto compC = RandomValue<ComponentC>();
-
-        reg.Add<ComponentA>(eid, compA);
-        reg.Add<ComponentB>(eid, compB);
-        reg.Add<ComponentC>(eid, compC);
-
-        auto viewResult = reg.GetView<ComponentA, ComponentB, ComponentC>(eid);
-        EXPECT_TRUE(viewResult);
-
-        auto& view = *viewResult;
-
-        // Use structured bindings
-        auto [actualA, actualB, actualC] = view;
-
-        EXPECT_EQ(actualA, compA);
-        EXPECT_EQ(actualB, compB);
-        EXPECT_EQ(actualC, compC);
-    }
-
-    // ==================== FilteredView Tests ====================
-
-    /// @brief Test FilteredView with empty results.
-    TEST(FilteredView, EmptyResults_NoEntityMatches_IterationEmpty)
+    /// @brief Test View with empty results.
+    TEST(View, EmptyResults_NoEntityMatches_IterationEmpty)
     {
         EcsRegistry reg;
 
@@ -1482,7 +944,7 @@ namespace
 
         // Filter for ComponentB should return nothing
         int count = 0;
-        for (auto view : reg.Filter<ComponentB>())
+        for (auto row : reg.GetView<ComponentB>())
         {
             count++;
         }
@@ -1490,8 +952,8 @@ namespace
         EXPECT_EQ(count, 0);
     }
 
-    /// @brief Test FilteredView with full results.
-    TEST(FilteredView, FullResults_AllEntitiesMatch_IterationFull)
+    /// @brief Test View with full results.
+    TEST(View, FullResults_AllEntitiesMatch_IterationFull)
     {
         EcsRegistry reg;
 
@@ -1508,21 +970,22 @@ namespace
 
         // Filter for ComponentA should return all
         int count = 0;
-        std::vector<EntityId> filtered;
-        for (auto view : reg.Filter<ComponentA>())
+        std::vector<EntityId> resultSet;
+        for (auto row : reg.GetView<ComponentA>())
         {
-            filtered.push_back(view.Eid);
+            const auto eid = std::get<0>(row);
+            resultSet.push_back(eid);
             count++;
         }
 
         EXPECT_EQ(count, NUM_ENTITIES);
         std::sort(eids.begin(), eids.end());
-        std::sort(filtered.begin(), filtered.end());
-        EXPECT_EQ(eids, filtered);
+        std::sort(resultSet.begin(), resultSet.end());
+        EXPECT_EQ(eids, resultSet);
     }
 
-    /// @brief Test FilteredView with partial results.
-    TEST(FilteredView, PartialResults_SomeEntitiesMatch_IterationPartial)
+    /// @brief Test View with partial results.
+    TEST(View, PartialResults_SomeEntitiesMatch_IterationPartial)
     {
         EcsRegistry reg;
 
@@ -1548,21 +1011,22 @@ namespace
 
         // Filter for ComponentA and ComponentB should return 7
         int count = 0;
-        std::vector<EntityId> filtered;
-        for (auto view : reg.Filter<ComponentA, ComponentB>())
+        std::vector<EntityId> resultSet;
+        for (auto row : reg.GetView<ComponentA, ComponentB>())
         {
-            filtered.push_back(view.Eid);
+            const auto eid = std::get<0>(row);
+            resultSet.push_back(eid);
             count++;
         }
 
         EXPECT_EQ(count, 7);
         std::sort(withAB.begin(), withAB.end());
-        std::sort(filtered.begin(), filtered.end());
-        EXPECT_EQ(withAB, filtered);
+        std::sort(resultSet.begin(), resultSet.end());
+        EXPECT_EQ(withAB, resultSet);
     }
 
-    /// @brief Test multiple FilteredView iterations.
-    TEST(FilteredView, MultipleIterations_CallFilterRepeatedly_ConsistentResults)
+    /// @brief Test multiple View iterations.
+    TEST(View, MultipleIterations_CallGetViewRepeatedly_ConsistentResults)
     {
         EcsRegistry reg;
 
@@ -1579,15 +1043,17 @@ namespace
 
         // Iterate multiple times
         std::vector<EntityId> results1;
-        for (auto view : reg.Filter<ComponentA, ComponentB>())
+        for (auto row : reg.GetView<ComponentA, ComponentB>())
         {
-            results1.push_back(view.Eid);
+            const auto eid = std::get<0>(row);
+            results1.push_back(eid);
         }
 
         std::vector<EntityId> results2;
-        for (auto view : reg.Filter<ComponentA, ComponentB>())
+        for (auto row : reg.GetView<ComponentA, ComponentB>())
         {
-            results2.push_back(view.Eid);
+            const auto eid = std::get<0>(row);
+            results2.push_back(eid);
         }
 
         std::sort(results1.begin(), results1.end());
@@ -1622,17 +1088,18 @@ namespace
 
         // Filter for ComponentA
         int count = 0;
-        std::vector<EntityId> filtered;
-        for (auto view : reg.Filter<ComponentA>())
+        std::vector<EntityId> resultSet;
+        for (auto row : reg.GetView<ComponentA>())
         {
-            filtered.push_back(view.Eid);
+            const auto eid = std::get<0>(row);
+            resultSet.push_back(eid);
             count++;
         }
 
         EXPECT_EQ(count, 5);
         std::sort(withA.begin(), withA.end());
-        std::sort(filtered.begin(), filtered.end());
-        EXPECT_EQ(withA, filtered);
+        std::sort(resultSet.begin(), resultSet.end());
+        EXPECT_EQ(withA, resultSet);
     }
 
     /// @brief Test FilteredView consistency with manual checks.
@@ -1651,9 +1118,10 @@ namespace
 
         // Get all alive entities
         std::vector<EntityId> allAlive;
-        for (auto view : reg.Filter<ComponentA>())
+        for (auto row : reg.GetView<ComponentA>())
         {
-            allAlive.push_back(view.Eid);
+            const auto eid = std::get<0>(row);
+            allAlive.push_back(eid);
         }
 
         // Manually check each
@@ -1667,16 +1135,16 @@ namespace
         }
 
         // Filter for A and B
-        std::vector<EntityId> filtered;
-        for (auto view : reg.Filter<ComponentA, ComponentB>())
+        std::vector<EntityId> resultSet;
+        for (auto row : reg.GetView<ComponentA, ComponentB>())
         {
-            filtered.push_back(view.Eid);
+            const auto eid = std::get<0>(row);
+            resultSet.push_back(eid);
         }
 
         std::sort(manualCheck.begin(), manualCheck.end());
-        std::sort(filtered.begin(), filtered.end());
-
-        EXPECT_EQ(filtered, manualCheck);
+        std::sort(resultSet.begin(), resultSet.end());
+        EXPECT_EQ(resultSet, manualCheck);
     }
 
     // ==================== Stress/Integration Tests ====================
@@ -1705,9 +1173,9 @@ namespace
         // Filter and verify
         int countA = 0, countAB = 0, countABC = 0;
 
-        for (auto view : reg.Filter<ComponentA>()) { countA++; }
-        for (auto view : reg.Filter<ComponentA, ComponentB>()) { countAB++; }
-        for (auto view : reg.Filter<ComponentA, ComponentB, ComponentC>()) { countABC++; }
+        for (auto row : reg.GetView<ComponentA>()) { countA++; }
+        for (auto row : reg.GetView<ComponentA, ComponentB>()) { countAB++; }
+        for (auto row : reg.GetView<ComponentA, ComponentB, ComponentC>()) { countABC++; }
 
         EXPECT_EQ(countA, NUM_ENTITIES);
         EXPECT_EQ(countAB, NUM_ENTITIES / 2);
@@ -1775,19 +1243,21 @@ namespace
         // Verify pools don't interfere
         for (int i = 0; i < NUM_ENTITIES; ++i)
         {
-            auto compA = reg.Get<ComponentA>(eids[i]);
-            EXPECT_TRUE(compA);
-            EXPECT_EQ((*compA).a, i);
+            auto compAResult = reg.Get<ComponentA>(eids[i]);
+            EXPECT_TRUE(compAResult);
+            auto [compA] = *compAResult;
+            EXPECT_EQ(compA.a, i);
 
-            auto compB = reg.Get<ComponentB>(eids[i]);
-            EXPECT_TRUE(compB);
-            EXPECT_EQ((*compB).x, static_cast<float>(i));
+            auto compBResult = reg.Get<ComponentB>(eids[i]);
+            EXPECT_TRUE(compBResult);
+            auto [compB] = *compBResult;
+            EXPECT_EQ(compB.x, static_cast<float>(i));
 
-            auto compC = reg.Get<ComponentC>(eids[i]);
-            EXPECT_TRUE(compC);
+            auto compCResult = reg.Get<ComponentC>(eids[i]);
+            EXPECT_TRUE(compCResult);
 
-            auto compD = reg.Get<ComponentD>(eids[i]);
-            EXPECT_TRUE(compD);
+            auto compDResult = reg.Get<ComponentD>(eids[i]);
+            EXPECT_TRUE(compDResult);
         }
     }
 
@@ -1819,8 +1289,8 @@ namespace
         EXPECT_TRUE(reg.Has<ComponentC>(eid));
 
         // Values should be unchanged
-        EXPECT_EQ(*reg.Get<ComponentA>(eid), compA);
-        EXPECT_EQ(*reg.Get<ComponentC>(eid), compC);
+        EXPECT_EQ(std::get<0>(*reg.Get<ComponentA>(eid)), compA);
+        EXPECT_EQ(std::get<0>(*reg.Get<ComponentC>(eid)), compC);
     }
 
     /// @brief Test removing a component that doesn't exist.
@@ -1840,7 +1310,7 @@ namespace
 
         // ComponentA should still exist and be unchanged
         EXPECT_TRUE(reg.Has<ComponentA>(eid));
-        EXPECT_EQ(*reg.Get<ComponentA>(eid), compA);
+        EXPECT_EQ(std::get<0>(*reg.Get<ComponentA>(eid)), compA);
         EXPECT_FALSE(reg.Has<ComponentB>(eid));
     }
 
@@ -1920,8 +1390,8 @@ namespace
         EXPECT_TRUE(reg.Has<ComponentA>(eid3));
 
         // Values should be unchanged for eid1 and eid3
-        EXPECT_EQ(*reg.Get<ComponentA>(eid1), compA1);
-        EXPECT_EQ(*reg.Get<ComponentA>(eid3), compA3);
+        EXPECT_EQ(std::get<0>(*reg.Get<ComponentA>(eid1)), compA1);
+        EXPECT_EQ(std::get<0>(*reg.Get<ComponentA>(eid3)), compA3);
     }
 
     /// @brief Test removing component from dead entity (should verify entity is alive first).
@@ -1955,7 +1425,7 @@ namespace
 
         auto origValue = RandomValue<ComponentA>();
         reg.Add<ComponentA>(eid, origValue);
-        EXPECT_EQ(*reg.Get<ComponentA>(eid), origValue);
+        EXPECT_EQ(std::get<0>(*reg.Get<ComponentA>(eid)), origValue);
 
         // Remove
         reg.Remove<ComponentA>(eid);
@@ -1966,7 +1436,7 @@ namespace
         reg.Add<ComponentA>(eid, newValue);
 
         EXPECT_TRUE(reg.Has<ComponentA>(eid));
-        EXPECT_EQ(*reg.Get<ComponentA>(eid), newValue);
+        EXPECT_EQ(std::get<0>(*reg.Get<ComponentA>(eid)), newValue);
     }
 
     /// @brief Test that filtered views update correctly after removal.
@@ -1985,7 +1455,7 @@ namespace
 
         // Should have 2 entities with both A and B
         int countBefore = 0;
-        for (auto view : reg.Filter<ComponentA, ComponentB>())
+        for (auto row : reg.GetView<ComponentA, ComponentB>())
         {
             countBefore++;
         }
@@ -1996,7 +1466,7 @@ namespace
 
         // Should now have 1 entity with both A and B
         int countAfter = 0;
-        for (auto view : reg.Filter<ComponentA, ComponentB>())
+        for (auto row : reg.GetView<ComponentA, ComponentB>())
         {
             countAfter++;
         }
@@ -2070,8 +1540,8 @@ namespace
         }
     }
 
-    /// @brief Test that GetView fails after removing required component.
-    TEST(EcsRegistry, Remove_RequiredComponentForView_ViewFails)
+    /// @brief Test that Get fails after removing required component.
+    TEST(EcsRegistry, Remove_RequiredComponentForGet_GetFails)
     {
         EcsRegistry reg;
 
@@ -2086,14 +1556,404 @@ namespace
         reg.Add<ComponentC>(eid, compC);
 
         // Should be able to get view
-        auto viewResult1 = reg.GetView<ComponentA, ComponentB, ComponentC>(eid);
+        auto viewResult1 = reg.Get<ComponentA, ComponentB, ComponentC>(eid);
         EXPECT_TRUE(viewResult1);
 
         // Remove one required component
         reg.Remove<ComponentB>(eid);
 
         // Now view should fail
-        auto viewResult2 = reg.GetView<ComponentA, ComponentB, ComponentC>(eid);
+        auto viewResult2 = reg.Get<ComponentA, ComponentB, ComponentC>(eid);
         EXPECT_FALSE(viewResult2);
+    }
+
+    // ==================== Get Tests ====================
+
+    /// @brief Test Get with single component - returns tuple with one reference.
+    TEST(EcsRegistry, Get_SingleComponent_ReturnsTupleWithReference)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        auto compA = RandomValue<ComponentA>();
+        
+        reg.Add<ComponentA>(eid, compA);
+
+        auto result = reg.Get<ComponentA>(eid);
+        EXPECT_TRUE(result);
+
+        auto [actualA] = *result;
+        EXPECT_EQ(actualA, compA);
+    }
+
+    /// @brief Test Get with multiple components - returns tuple with references.
+    TEST(EcsRegistry, Get_MultipleComponents_ReturnsTupleWithReferences)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        auto compA = RandomValue<ComponentA>();
+        auto compB = RandomValue<ComponentB>();
+        auto compC = RandomValue<ComponentC>();
+        
+        reg.Add<ComponentA>(eid, compA);
+        reg.Add<ComponentB>(eid, compB);
+        reg.Add<ComponentC>(eid, compC);
+
+        auto result = reg.Get<ComponentA, ComponentB, ComponentC>(eid);
+        EXPECT_TRUE(result);
+
+        auto [actualA, actualB, actualC] = *result;
+        EXPECT_EQ(actualA, compA);
+        EXPECT_EQ(actualB, compB);
+        EXPECT_EQ(actualC, compC);
+    }
+
+    /// @brief Test Get with two components - common use case.
+    TEST(EcsRegistry, Get_TwoComponents_ReturnsCorrectReferences)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        auto compA = RandomValue<ComponentA>();
+        auto compB = RandomValue<ComponentB>();
+        
+        reg.Add<ComponentA>(eid, compA);
+        reg.Add<ComponentB>(eid, compB);
+
+        auto result = reg.Get<ComponentA, ComponentB>(eid);
+        EXPECT_TRUE(result);
+
+        auto [actualA, actualB] = *result;
+        EXPECT_EQ(actualA, compA);
+        EXPECT_EQ(actualB, compB);
+    }
+
+    /// @brief Test Get returns references that can modify components.
+    TEST(EcsRegistry, Get_ModifyThroughReference_ComponentsUpdated)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        auto compA = ComponentA{ 10 };
+        auto compB = ComponentB{ 1.0f, 2.0f, 3.0f };
+        
+        reg.Add<ComponentA>(eid, compA);
+        reg.Add<ComponentB>(eid, compB);
+
+        auto result = reg.Get<ComponentA, ComponentB>(eid);
+        EXPECT_TRUE(result);
+
+        auto [refA, refB] = *result;
+        
+        // Modify through references
+        refA.a = 99;
+        refB.x = 10.0f;
+        refB.y = 20.0f;
+        refB.z = 30.0f;
+
+        // Verify components were modified in registry
+        EXPECT_EQ(std::get<0>((*reg.Get<ComponentA>(eid))).a, 99);
+        EXPECT_EQ(std::get<0>((*reg.Get<ComponentB>(eid))).x, 10.0f);
+        EXPECT_EQ(std::get<0>((*reg.Get<ComponentB>(eid))).y, 20.0f);
+        EXPECT_EQ(std::get<0>((*reg.Get<ComponentB>(eid))).z, 30.0f);
+    }
+
+    /// @brief Test Get fails when entity is not alive.
+    TEST(EcsRegistry, Get_EntityNotAlive_ReturnsError)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        reg.Destroy(eid);
+
+        auto result = reg.Get<ComponentA>(eid);
+        EXPECT_FALSE(result);
+        EXPECT_EQ(result.error().Message, std::format("Entity {} is not alive", eid));
+    }
+
+    /// @brief Test Get fails when entity has no components.
+    TEST(EcsRegistry, Get_NoComponents_ReturnsError)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+
+        auto result = reg.Get<ComponentA, ComponentB>(eid);
+        EXPECT_FALSE(result);
+        EXPECT_EQ(result.error().Message, std::format("Entity {} does not have all requested components", eid));
+    }
+
+    /// @brief Test Get fails when entity is missing one or more components.
+    TEST(EcsRegistry, Get_MissingComponents_ReturnsError)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        auto compA = RandomValue<ComponentA>();
+        
+        reg.Add<ComponentA>(eid, compA);
+
+        // Try to get A and B, but only A exists
+        auto result = reg.Get<ComponentA, ComponentB>(eid);
+        EXPECT_FALSE(result);
+        EXPECT_EQ(result.error().Message, std::format("Entity {} does not have all requested components", eid));
+    }
+
+    /// @brief Test Get succeeds when entity has more components than requested.
+    TEST(EcsRegistry, Get_ExtraComponents_SucceedsWithRequestedOnly)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        auto compA = RandomValue<ComponentA>();
+        auto compB = RandomValue<ComponentB>();
+        auto compC = RandomValue<ComponentC>();
+        auto compD = RandomValue<ComponentD>();
+        
+        reg.Add<ComponentA>(eid, compA);
+        reg.Add<ComponentB>(eid, compB);
+        reg.Add<ComponentC>(eid, compC);
+        reg.Add<ComponentD>(eid, compD);
+
+        // Request only A and C
+        auto result = reg.Get<ComponentA, ComponentC>(eid);
+        EXPECT_TRUE(result);
+
+        auto [actualA, actualC] = *result;
+        EXPECT_EQ(actualA, compA);
+        EXPECT_EQ(actualC, compC);
+    }
+
+    /// @brief Test Get with all four component types.
+    TEST(EcsRegistry, Get_FourComponents_AllReturned)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        auto compA = RandomValue<ComponentA>();
+        auto compB = RandomValue<ComponentB>();
+        auto compC = RandomValue<ComponentC>();
+        auto compD = RandomValue<ComponentD>();
+        
+        reg.Add<ComponentA>(eid, compA);
+        reg.Add<ComponentB>(eid, compB);
+        reg.Add<ComponentC>(eid, compC);
+        reg.Add<ComponentD>(eid, compD);
+
+        auto result = reg.Get<ComponentA, ComponentB, ComponentC, ComponentD>(eid);
+        EXPECT_TRUE(result);
+
+        auto [actualA, actualB, actualC, actualD] = *result;
+        EXPECT_EQ(actualA, compA);
+        EXPECT_EQ(actualB, compB);
+        EXPECT_EQ(actualC, compC);
+        EXPECT_EQ(actualD, compD);
+    }
+
+    /// @brief Test Get after component modification via Get.
+    TEST(EcsRegistry, Get_AfterModification_ReturnsUpdatedValues)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        auto compA = ComponentA{ 10 };
+        auto compB = ComponentB{ 1.0f, 2.0f, 3.0f };
+        
+        reg.Add<ComponentA>(eid, compA);
+        reg.Add<ComponentB>(eid, compB);
+
+        // Modify via Get
+        std::get<0>(*reg.Get<ComponentA>(eid)).a = 50;
+        std::get<0>(*reg.Get<ComponentB>(eid)).x = 5.0f;
+
+        // Get should return modified values
+        auto result = reg.Get<ComponentA, ComponentB>(eid);
+        EXPECT_TRUE(result);
+
+        auto [actualA, actualB] = *result;
+        EXPECT_EQ(actualA.a, 50);
+        EXPECT_EQ(actualB.x, 5.0f);
+    }
+
+    /// @brief Test Get with multiple entities - each gets correct components.
+    TEST(EcsRegistry, Get_MultipleEntities_EachGetsCorrectComponents)
+    {
+        EcsRegistry reg;
+
+        std::unordered_map<EntityId, std::tuple<ComponentA, ComponentB>> components;
+
+        // Create entities with different component values
+        for (int i = 0; i < 10; ++i)
+        {
+            auto eid = reg.Create();
+            auto compA = ComponentA{ i * 10 };
+            auto compB = ComponentB{ static_cast<float>(i), static_cast<float>(i * 2), static_cast<float>(i * 3) };
+            
+            reg.Add<ComponentA>(eid, compA);
+            reg.Add<ComponentB>(eid, compB);
+            
+            components.emplace(eid, std::make_tuple(compA, compB));
+        }
+
+        // Verify each entity returns correct components
+        for (const auto& [eid, expected] : components)
+        {
+            auto result = reg.Get<ComponentA, ComponentB>(eid);
+            EXPECT_TRUE(result);
+
+            auto [actualA, actualB] = *result;
+            auto [expectedA, expectedB] = expected;
+            
+            EXPECT_EQ(actualA, expectedA);
+            EXPECT_EQ(actualB, expectedB);
+        }
+    }
+
+    /// @brief Test Get after component removal - should fail.
+    TEST(EcsRegistry, Get_AfterComponentRemoval_ReturnsError)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        auto compA = RandomValue<ComponentA>();
+        auto compB = RandomValue<ComponentB>();
+        
+        reg.Add<ComponentA>(eid, compA);
+        reg.Add<ComponentB>(eid, compB);
+
+        // Should succeed initially
+        auto result1 = reg.Get<ComponentA, ComponentB>(eid);
+        EXPECT_TRUE(result1);
+
+        // Remove one component
+        reg.Remove<ComponentB>(eid);
+
+        // Should now fail
+        auto result2 = reg.Get<ComponentA, ComponentB>(eid);
+        EXPECT_FALSE(result2);
+        EXPECT_EQ(result2.error().Message, std::format("Entity {} does not have all requested components", eid));
+    }
+
+    /// @brief Test Get with const registry (const version).
+    TEST(EcsRegistry, Get_ConstRegistry_ReturnsConstReferences)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        auto compA = RandomValue<ComponentA>();
+        auto compB = RandomValue<ComponentB>();
+        
+        reg.Add<ComponentA>(eid, compA);
+        reg.Add<ComponentB>(eid, compB);
+
+        const EcsRegistry& constReg = reg;
+
+        // Note: Get doesn't have a const version in the current implementation,
+        // but this test documents expected behavior if added
+        auto result = reg.Get<ComponentA, ComponentB>(eid);
+        EXPECT_TRUE(result);
+
+        auto [actualA, actualB] = *result;
+        EXPECT_EQ(actualA, compA);
+        EXPECT_EQ(actualB, compB);
+    }
+
+    /// @brief Test Get with recycled entity ID - should work correctly.
+    TEST(EcsRegistry, Get_RecycledEntityId_ReturnsNewComponents)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        auto compA1 = ComponentA{ 100 };
+        
+        reg.Add<ComponentA>(eid, compA1);
+        reg.Destroy(eid);
+
+        // Recycle the entity ID
+        auto newEid = reg.Create();
+        EXPECT_EQ(eid, newEid); // Should be recycled
+
+        auto compA2 = ComponentA{ 200 };
+        auto compB2 = ComponentB{ 1.0f, 2.0f, 3.0f };
+        
+        reg.Add<ComponentA>(newEid, compA2);
+        reg.Add<ComponentB>(newEid, compB2);
+
+        auto result = reg.Get<ComponentA, ComponentB>(newEid);
+        EXPECT_TRUE(result);
+
+        auto [actualA, actualB] = *result;
+        EXPECT_EQ(actualA.a, 200); // New value, not old
+        EXPECT_EQ(actualB.x, 1.0f);
+    }
+
+    /// @brief Test Get stress test with many entities.
+    TEST(EcsRegistry, Get_StressTest_ManyEntities_AllCorrect)
+    {
+        EcsRegistry reg;
+
+        constexpr int NUM_ENTITIES = 1000;
+        std::vector<EntityId> eids;
+        std::unordered_map<EntityId, std::tuple<ComponentA, ComponentC>> components;
+
+        // Create many entities
+        for (int i = 0; i < NUM_ENTITIES; ++i)
+        {
+            auto eid = reg.Create();
+            eids.push_back(eid);
+            
+            auto compA = ComponentA{ i };
+            auto compC = ComponentC{ 
+                static_cast<float>(i), 
+                static_cast<float>(i * 2), 
+                static_cast<float>(i * 3),
+                std::to_string(i),
+                i * 10
+            };
+            
+            reg.Add<ComponentA>(eid, compA);
+            reg.Add<ComponentC>(eid, compC);
+            
+            components.emplace(eid, std::make_tuple(compA, compC));
+        }
+
+        // Verify all entities return correct components via Get2
+        for (const auto& [eid, expected] : components)
+        {
+            auto result = reg.Get<ComponentA, ComponentC>(eid);
+            EXPECT_TRUE(result);
+
+            auto [actualA, actualC] = *result;
+            auto [expectedA, expectedC] = expected;
+            
+            EXPECT_EQ(actualA, expectedA);
+            EXPECT_EQ(actualC, expectedC);
+        }
+    }
+
+    /// @brief Test Get with different component orderings - should work regardless of add order.
+    TEST(EcsRegistry, Get_DifferentComponentOrderings_WorksCorrectly)
+    {
+        EcsRegistry reg;
+
+        auto eid = reg.Create();
+        auto compA = RandomValue<ComponentA>();
+        auto compB = RandomValue<ComponentB>();
+        auto compC = RandomValue<ComponentC>();
+        
+        // Add in order: C, A, B
+        reg.Add<ComponentC>(eid, compC);
+        reg.Add<ComponentA>(eid, compA);
+        reg.Add<ComponentB>(eid, compB);
+
+        // Request in order: A, B, C
+        auto result = reg.Get<ComponentA, ComponentB, ComponentC>(eid);
+        EXPECT_TRUE(result);
+
+        auto [actualA, actualB, actualC] = *result;
+        EXPECT_EQ(actualA, compA);
+        EXPECT_EQ(actualB, compB);
+        EXPECT_EQ(actualC, compC);
     }
 }

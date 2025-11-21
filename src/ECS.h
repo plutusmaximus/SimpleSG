@@ -14,10 +14,6 @@
 #include <unordered_set>
 #include <span>
 
-/// Potential Optimizations
-/// 1. Sort all component pools on entity ID.  After sort iterating filtered views
-///     will have better cache locality.
-
 /// @brief An entity identifier.
 class EntityId
 {
@@ -113,11 +109,11 @@ public:
     /// Components are constructed in-place with the given arguments.
     /// A pointer to the newly added component is returned.
     template<typename... Args>
-    C* Add(const EntityId eid, Args&&... args)
+    bool Add(const EntityId eid, Args&&... args)
     {
         if(!everify(!Has(eid) && "Component already exists for entity"))
         {
-            return nullptr;
+            return false;
         }
 
         EnsureIndexes(eid);
@@ -126,7 +122,7 @@ public:
         m_EntityIds.push_back(eid);
         m_Components.emplace_back(std::forward<Args>(args)...);
         m_Index[eid.Value()] = idx;
-        return &m_Components.back();
+        return true;
     }
 
     /// @brief Remove the component for the given entity ID.
@@ -153,41 +149,6 @@ public:
         m_EntityIds.pop_back();
         m_Components.pop_back();
         m_Index[eid.Value()] = EntityId::InvalidValue;
-    }
-
-    /// @brief Reorder the components for the given entity IDs.
-    void Reorder(const std::span<EntityId>& entityIds)
-    {
-#if !NDEBUG
-            std::unordered_set<EntityId> entityIdSet(entityIds.begin(), entityIds.end());
-            eassert(entityIds.size() == m_EntityIds.size());
-            for(const auto eid : entityIds)
-            {
-                eassert(Has(eid));
-            }
-
-            for(const auto eid : m_EntityIds)
-            {
-                eassert(entityIdSet.contains(eid));
-            }
-#endif
-            // Reorder m_Components and m_Index to match entityIds order
-            std::vector<C> newComponents;
-            newComponents.reserve(entityIds.size());
-            std::vector<IndexType> newIndex(m_Index.size(), EntityId::InvalidValue);
-
-            for (size_t i = 0; i < entityIds.size(); ++i)
-            {
-                const EntityId eid = entityIds[i];
-                IndexType oldIdx = IndexOf(eid);
-                eassert(oldIdx != InvalidIndex);
-                newComponents.push_back(std::move(m_Components[oldIdx]));
-                newIndex[eid.Value()] = static_cast<IndexType>(i);
-            }
-
-            m_EntityIds.assign(entityIds.begin(), entityIds.end());
-            m_Components = std::move(newComponents);
-            m_Index = std::move(newIndex);
     }
 
     /// @brief Get the component for the given entity ID.
@@ -255,9 +216,6 @@ private:
     std::vector<C> m_Components;
 };
 
-/// @brief forward declaration of EcsView
-template<typename... Cs> class EcsView;
-
 /// @brief The ECS registry that manages entity IDs and their associated components.
 class EcsRegistry
 {
@@ -302,11 +260,11 @@ public:
 
     /// @brief Add a component of type C for the given entity ID.
     template<typename C, typename... Args>
-    C* Add(const EntityId eid, Args&&... args)
+    bool Add(const EntityId eid, Args&&... args)
     {
         if(!everify(IsAlive(eid) && "Entity is not alive"))
         {
-            return nullptr;
+            return false;
         }
 
         return Pool<C>().Add(eid, std::forward<Args>(args)...);
@@ -327,70 +285,40 @@ public:
         }
     }
 
-    /// @brief Reorder the components of type C for the given entity IDs.
-    template<typename C>
-    void Reorder(const std::span<EntityId>& entityIds)
-    {
-        if(auto* pool = TryGetPool<C>())
-        {
-            pool->Reorder(entityIds);
-        }
-    }
-
-    /// @brief Get the component of type C for the given entity ID.
-    template<typename C>
-    C* Get(const EntityId eid)
-    {
-        if(!everify(IsAlive(eid) && "Entity is not alive"))
-        {
-            return nullptr;
-        }
-
-        if (auto* pool = TryGetPool<C>())
-        {
-            return pool->Get(eid);
-        }
-
-        return nullptr;
-    }
-
-    /// @brief Get the component of type C for the given entity ID (const version).
-    template<typename C>
-    const C* Get(const EntityId eid) const
-    {
-        if(!everify(IsAlive(eid) && "Entity is not alive"))
-        {
-            return nullptr;
-        }
-
-        if (auto* pool = TryGetPool<C>())
-        {
-            return pool->Get(eid);
-        }
-
-        return nullptr;
-    }
-
-    /// @brief Get a view over multiple components for the given entity ID.
     template<typename... Cs>
-    Result<EcsView<Cs...>> GetView(const EntityId eid)
+    Result<std::tuple<Cs&...>> Get(const EntityId eid)
     {
         if(!everify(IsAlive(eid)))
         {
             return std::unexpected(Error("Entity {} is not alive", eid));
         }
-        
-        auto pools = std::make_tuple(TryGetPoolForEntity<Cs>(eid)...);
-        const bool hasAllComponents = (std::get<EcsComponentPool<Cs>*>(pools) &&...);
 
-        if(!hasAllComponents)
+        std::tuple<EcsComponentPool<Cs>*...> pools;
+        if(!EnsureEntityHasComponents(eid, pools))
         {
             return std::unexpected(Error("Entity {} does not have all requested components", eid));
         }
 
-        //Now that we know all components exist for the entity, get pointers to them.
+        // Return references to the components. References become invalid if pools mutate.
+        return std::tuple<Cs&...>{ *std::get<EcsComponentPool<Cs>*>(pools)->Get(eid)... };
+    }
 
-        return EcsView<Cs...>(eid, pools);
+    template<typename... Cs>
+    Result<std::tuple<const Cs&...>> Get(const EntityId eid) const
+    {
+        if(!everify(IsAlive(eid)))
+        {
+            return std::unexpected(Error("Entity {} is not alive", eid));
+        }
+
+        std::tuple<const EcsComponentPool<Cs>*...> pools;
+        if(!EnsureEntityHasComponents(eid, pools))
+        {
+            return std::unexpected(Error("Entity {} does not have all requested components", eid));
+        }
+
+        // Return const references to the components. References become invalid if pools mutate.
+        return std::tuple<const Cs&...>{ *std::get<const EcsComponentPool<Cs>*>(pools)->Get(eid)... };
     }
 
     /// @brief Returns true if the given entity ID has a component of type C.
@@ -407,30 +335,30 @@ public:
         return eid.IsValid() && eid.Value() < m_IsAlive.size() && m_IsAlive[eid.Value()];
     }
 
-    /// Forward declaration of FilteredView
-    template<typename... Cs> class FilteredView;
+    /// Forward declaration of View
+    template<typename... Cs> class View;
 
-    /// @brief Get a filtered view over all entities that have the given component types.
-    /// Range-based for loop can be used to iterate over the resulting FilteredView.
+    /// @brief Get a view over all entities that have the given component types.
+    /// Range-based for loop can be used to iterate over the resulting View.
     template<typename... Cs>
-    FilteredView<Cs...> Filter()
+    View<Cs...> GetView()
     {
         auto pools = std::make_tuple(TryGetPool<Cs>()...);
 
-        return FilteredView<Cs...>(pools);
+        return View<Cs...>(pools);
     }
 
-    /// @brief A filtered view over all entities that have the given component types.
-    /// Used in conjunction with EcsRegistry::Filter().
+    /// @brief A view over all entities that have the given component types.
+    /// Used in conjunction with EcsRegistry::GetView().
     template<typename... Cs>
-    class FilteredView
+    class View
     {
-        static_assert(sizeof...(Cs) > 0, "Filter requires at least one component type");
+        static_assert(sizeof...(Cs) > 0, "GetView requires at least one component type");
     public:
 
         class Iterator;
 
-        FilteredView(std::tuple<EcsComponentPool<Cs>*...> pools)
+        View(std::tuple<EcsComponentPool<Cs>*...> pools)
             : m_Pools(pools)
             , m_It(EmptyList().begin())
             , m_EndIt(EmptyList().end())
@@ -488,11 +416,11 @@ public:
                 return m_It != other.m_It;
             }
 
-            EcsView<Cs...> operator*()
+            std::tuple<EntityId, Cs&...> operator*()
             {
                 eassert(m_It != m_EndIt);
                 const EntityId eid = *m_It;
-                return EcsView<Cs...>(eid, m_Pools);
+                return std::tuple<EntityId, Cs&...>{ eid, *std::get<EcsComponentPool<Cs>*>(m_Pools)->Get(eid)... };
             }
 
         private:
@@ -562,6 +490,22 @@ public:
 
 private:
 
+    // Helper to populate pools tuple and verify presence of all component types (non-const version).
+    template<typename... Cs>
+    bool EnsureEntityHasComponents(const EntityId eid, std::tuple<EcsComponentPool<Cs>*...>& pools)
+    {
+        pools = std::make_tuple(TryGetPoolForEntity<Cs>(eid)...);
+        return (std::get<EcsComponentPool<Cs>*>(pools) && ...);
+    }
+
+    // Helper to populate pools tuple and verify presence of all component types (const version).
+    template<typename... Cs>
+    bool EnsureEntityHasComponents(const EntityId eid, std::tuple<const EcsComponentPool<Cs>*...>& pools) const
+    {
+        pools = std::make_tuple(TryGetPoolForEntity<Cs>(eid)...);
+        return (std::get<const EcsComponentPool<Cs>*>(pools) && ...);
+    }
+
     template<typename C>
     EcsComponentPool<C>* TryGetPool()
     {
@@ -616,83 +560,11 @@ private:
     }
 
     std::vector<EntityId> m_FreeList;
-    // Not using bool vector to avoid potential issues with bool specialization.
+
+    // Using uint8_t vector instead of bool vector to avoid potential issues with bool specialization.
     std::vector<uint8_t> m_IsAlive;
+
     std::unordered_map<std::type_index, std::unique_ptr<IEcsPool>> m_Pools;
 
     EntityId::ValueType m_NextId{ 0 };
-
 };
-
-namespace Detail
-{
-    template<class...>
-    constexpr bool all_unique = true;
-
-    template<class T, class... Rest>
-    constexpr bool all_unique<T, Rest...> =
-        ((!std::is_same_v<T, Rest>) && ...) && all_unique<Rest...>;
-}
-/// @brief A view over multiple components for a given entity.
-template<typename... Cs>
-class EcsView
-{
-    static_assert(Detail::all_unique<Cs...>, "EcsView: component types must be unique");
-
-public:
-
-    EcsView(const EntityId eid, const std::tuple<EcsComponentPool<Cs>*...>& pools)
-        : Eid(eid)
-        , m_Pools(pools)
-    {
-    }
-
-    /// @brief Enable structured bindings.
-    template<std::size_t I>
-    auto& get()
-    {
-        return *std::get<I>(m_Pools)->Get(Eid);
-    }
-
-    /// @brief Enable structured bindings.
-    template<std::size_t I>
-    const auto& get() const
-    {
-        return *std::get<I>(m_Pools)->Get(Eid);
-    }
-
-    template<typename T>
-    T& get()
-    {
-        static_assert((std::is_same_v<T, Cs> || ...), "T must be one of Cs...");
-
-        return *std::get<EcsComponentPool<T>*>(m_Pools)->Get(Eid);
-    }
-
-    template<typename T>
-    const T& get() const
-    {
-        static_assert((std::is_same_v<T, Cs> || ...), "T must be one of Cs...");
-
-        return *std::get<EcsComponentPool<T>*>(m_Pools)->Get(Eid);
-    }
-
-    const EntityId Eid;
-
-private:
-
-    std::tuple<EcsComponentPool<Cs>*...> m_Pools;
-};
-
-/// @brief Enable structured bindings for View.
-namespace std
-{
-    template<typename... Cs>
-    struct tuple_size<EcsView<Cs...>> : std::integral_constant<size_t, sizeof...(Cs)> {};
-
-    template<size_t I, typename... Cs>
-    struct tuple_element<I, EcsView<Cs...>>
-    {
-        using type = std::tuple_element_t<I, std::tuple<Cs...>>;
-    };
-}
