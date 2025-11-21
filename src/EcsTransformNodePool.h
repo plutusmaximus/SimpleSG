@@ -1,26 +1,27 @@
 #pragma once
 
 #include "ECS.h"
+#include "VecMath.h"
 
-class Part
+class TransformNode2
 {
 public:
 
     EntityId Id;
     EntityId ParentId;
-    float Transform[16];
+    TrsTransformf LocalTransform;
 
     /// @brief Implements less-than operator for sorting.
     /// Parent entities are always less than their children.
-    bool operator<(const Part& that) const
+    bool operator<(const TransformNode2& that) const
     {
         return ParentId < that.ParentId;
     }
 };
 
-/// @brief Collection of Parts organized in a hierarchy.
+/// @brief Collection of nodes organized in a hierarchy.
 template<>
-class EcsComponentPool<Part> : public IEcsPool
+class EcsComponentPool<TransformNode2> : public IEcsPool
 {
 public:
 
@@ -29,16 +30,16 @@ public:
 
     void Add(const EntityId eid)
     {
-        Add(eid, Part{ .Id = eid });
+        Add(eid, TransformNode2{ .Id = eid });
     }
 
-    /// @brief Adds a new sub-assembly part under the given parent.
-    /// The new part is inserted immediately after its parent and any existing children.
+    /// @brief Adds a new sub-assembly node under the given parent.
+    /// The new node is inserted immediately after its parent and any existing children.
     /// This maintains a depth-first ordering of the hierarchy.
-    /// Child parts appear in the collection in reverse order of addition.
-    void Add(const EntityId eid, const Part& part)
+    /// Child nodes appear in the collection in reverse order of addition.
+    void Add(const EntityId eid, const TransformNode2& node)
     {
-        const EntityId parentId = part.ParentId;
+        const EntityId parentId = node.ParentId;
 
         if(!everify(eid.IsValid() && "EntityId must be valid"))
         {
@@ -71,9 +72,9 @@ public:
 
         if(!parentId.IsValid())
         {
-            // No parent, add as top-level part
+            // No parent, add as top-level node
             m_Index[eid.Value()] = static_cast<int>(m_Components.size());
-            m_Components.emplace_back(part);
+            m_Components.emplace_back(node);
             return;
         }
 
@@ -85,16 +86,16 @@ public:
         }
 
         int idx = idxOfParent + 1;
-        auto it = m_Components.emplace(m_Components.begin() + idx, part);
+        auto it = m_Components.emplace(m_Components.begin() + idx, node);
 
-        //Update indexes for inserted part and all subsequent parts
+        //Update indexes for inserted node and all subsequent nodes
         for(const auto endIt = m_Components.end(); endIt != it; ++it, ++idx)
         {
             m_Index[(*it).Id.Value()] = idx;
         }
     }
 
-    /// @brief Removes the sub-assembly part with the given entity ID, along with all its children.
+    /// @brief Removes the sub-assembly node with the given entity ID, along with all its children.
     void Remove(const EntityId eid)
     {
         const int idx = IndexOf(eid);
@@ -121,13 +122,13 @@ public:
         }
     }
 
-    Part* Get(const EntityId eid)
+    TransformNode2* Get(const EntityId eid)
     {
         const IndexType idx = IndexOf(eid);
         return (InvalidIndex != idx) ? &m_Components[idx] : nullptr;
     }
 
-    const Part* Get(const EntityId eid) const
+    const TransformNode2* Get(const EntityId eid) const
     {
         const IndexType idx = IndexOf(eid);
         return (InvalidIndex != idx) ? &m_Components[idx] : nullptr;
@@ -143,8 +144,8 @@ public:
         return m_Components.size();
     }
 
-    using Iterator = typename std::vector<Part>::iterator;
-    using ConstIterator = typename std::vector<Part>::const_iterator;
+    using Iterator = typename std::vector<TransformNode2>::iterator;
+    using ConstIterator = typename std::vector<TransformNode2>::const_iterator;
 
     Iterator begin()
     {
@@ -168,7 +169,7 @@ public:
 
 private:
 
-    /// @brief Returns the index of the part with the given entity ID, or -1 if not found.
+    /// @brief Returns the index of the node with the given entity ID, or -1 if not found.
     int IndexOf(const EntityId id) const
     {
         const auto value = id.Value();
@@ -179,7 +180,7 @@ private:
     }
 
     /// @brief Returns an iterator to one past the end of the sub-assembly rooted at the given parent.
-    std::vector<Part>::iterator SubAssemblyBounds(const EntityId parentId)
+    std::vector<TransformNode2>::iterator SubAssemblyBounds(const EntityId parentId)
     {
         const int parentIdx = IndexOf(parentId);
         if(parentIdx == -1)
@@ -204,6 +205,6 @@ private:
         return childIt;
     }
 
-    std::vector<Part> m_Components;
+    std::vector<TransformNode2> m_Components;
     std::vector<int> m_Index;
 };
