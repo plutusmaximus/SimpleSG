@@ -179,6 +179,7 @@ public:
     }
 
     using Iterator = typename std::vector<EntityId>::iterator;
+    using ConstIterator = typename std::vector<EntityId>::const_iterator;
 
     /// @brief Get an iterator to the beginning of the entity IDs.
     Iterator begin()
@@ -188,6 +189,16 @@ public:
 
     /// @brief Get an iterator to the end of the entity IDs.
     Iterator end()
+    {
+        return m_EntityIds.end();
+    }
+
+    ConstIterator begin() const
+    {
+        return m_EntityIds.begin();
+    }
+
+    ConstIterator end() const
     {
         return m_EntityIds.end();
     }
@@ -214,6 +225,54 @@ private:
     std::vector<EntityId> m_EntityIds;
     // Components indexed by m_Index.
     std::vector<C> m_Components;
+};
+
+/// @brief A handle to an entity and its components.
+/// Allows access to components of types Cs for the given entity ID.
+/// Component references can be retrieved via Get<C>() even if the component pools mutate.
+/// However, the returned references may become invalid if the pools mutate.
+template<typename... Cs>
+class EcsEntityHandle
+{
+public:
+    EcsEntityHandle() = delete;
+
+    EcsEntityHandle(EntityId eid, const std::tuple<EcsComponentPool<Cs>*...>& pools)
+        : m_EntityId(eid)
+        , m_Pools(pools)
+    {
+    }
+
+    EntityId GetEntityId() const
+    {
+        return m_EntityId;
+    }
+
+    template<typename C>
+    C* Get()
+    {
+        auto pool = std::get<EcsComponentPool<C>*>(m_Pools);
+        if (everify(pool != nullptr && "Component pool not found in handle"))
+        {
+            return pool->Get(m_EntityId);
+        }
+        return nullptr;
+    }
+
+    template<typename C>
+    const C* Get() const
+    {
+        auto pool = std::get<EcsComponentPool<C>*>(m_Pools);
+        if (everify(pool != nullptr && "Component pool not found in handle"))
+        {
+            return pool->Get(m_EntityId);
+        }
+        return nullptr;
+    }
+    
+private:
+    const EntityId m_EntityId;
+    const std::tuple<EcsComponentPool<Cs>*...> m_Pools;
 };
 
 /// @brief The ECS registry that manages entity IDs and their associated components.
@@ -285,8 +344,13 @@ public:
         }
     }
 
+    /// @brief Returns a handle to the given entity ID and its components of types Cs.
+    /// A handle enables access to components of types Cs for the given entity ID.
+    /// Component references can be retrieved via EcsEntityHandle::Get<C>() even if
+    /// the component pools mutate.
+    /// However, the returned references may become invalid if the pools mutate.
     template<typename... Cs>
-    Result<std::tuple<Cs&...>> Get(const EntityId eid)
+    Result<EcsEntityHandle<Cs...>> GetHandle(const EntityId eid)
     {
         if(!everify(IsAlive(eid)))
         {
@@ -299,26 +363,7 @@ public:
             return std::unexpected(Error("Entity {} does not have all requested components", eid));
         }
 
-        // Return references to the components. References become invalid if pools mutate.
-        return std::tuple<Cs&...>{ *std::get<EcsComponentPool<Cs>*>(pools)->Get(eid)... };
-    }
-
-    template<typename... Cs>
-    Result<std::tuple<const Cs&...>> Get(const EntityId eid) const
-    {
-        if(!everify(IsAlive(eid)))
-        {
-            return std::unexpected(Error("Entity {} is not alive", eid));
-        }
-
-        std::tuple<const EcsComponentPool<Cs>*...> pools;
-        if(!EnsureEntityHasComponents(eid, pools))
-        {
-            return std::unexpected(Error("Entity {} does not have all requested components", eid));
-        }
-
-        // Return const references to the components. References become invalid if pools mutate.
-        return std::tuple<const Cs&...>{ *std::get<const EcsComponentPool<Cs>*>(pools)->Get(eid)... };
+        return EcsEntityHandle<Cs...>(eid, pools);
     }
 
     /// @brief Returns true if the given entity ID has a component of type C.
@@ -340,6 +385,7 @@ public:
 
     /// @brief Get a view over all entities that have the given component types.
     /// Range-based for loop can be used to iterate over the resulting View.
+    /// References to components become invalid if pools mutate.
     template<typename... Cs>
     View<Cs...> GetView()
     {
@@ -349,7 +395,6 @@ public:
     }
 
     /// @brief A view over all entities that have the given component types.
-    /// Used in conjunction with EcsRegistry::GetView().
     template<typename... Cs>
     class View
     {
@@ -506,6 +551,7 @@ private:
         return (std::get<const EcsComponentPool<Cs>*>(pools) && ...);
     }
 
+    /// @brief Attempt to get the component pool for type C.
     template<typename C>
     EcsComponentPool<C>* TryGetPool()
     {
@@ -514,6 +560,7 @@ private:
         return (it != m_Pools.end()) ? static_cast<EcsComponentPool<C>*>(it->second.get()) : nullptr;
     }
 
+    /// @brief Attempt to get the component pool for type C.
     template<typename C>
     const EcsComponentPool<C>* TryGetPool() const
     {
@@ -522,6 +569,7 @@ private:
         return (it != m_Pools.end()) ? static_cast<const EcsComponentPool<C>*>(it->second.get()) : nullptr;
     }
 
+    /// @brief Attempt to get the component pool for type C that contains the given entity ID.
     template<typename C>
     EcsComponentPool<C>* TryGetPoolForEntity(const EntityId eid)
     {
@@ -529,6 +577,7 @@ private:
         return (pool && pool->Has(eid)) ? pool : nullptr;
     }
 
+    /// @brief Attempt to get the component pool for type C that contains the given entity ID.
     template<typename C>
     const EcsComponentPool<C>* TryGetPoolForEntity(const EntityId eid) const
     {
@@ -536,6 +585,7 @@ private:
         return (pool && pool->Has(eid)) ? pool : nullptr;
     }
 
+    /// @brief Get the component pool for type C, creating it if it doesn't exist.
     template<typename C>
     EcsComponentPool<C>& Pool()
     {
@@ -559,6 +609,7 @@ private:
         }
     }
 
+    /// Collection of recycled entity IDs.
     std::vector<EntityId> m_FreeList;
 
     // Using uint8_t vector instead of bool vector to avoid potential issues with bool specialization.

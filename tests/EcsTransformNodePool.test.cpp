@@ -103,9 +103,9 @@ namespace
 
         // Verify child appears after parent in iteration order
         auto it = pool.begin();
-        EXPECT_EQ(it->Id, parentId);
+        EXPECT_EQ(*it, parentId);
         ++it;
-        EXPECT_EQ(it->Id, childId);
+        EXPECT_EQ(*it, childId);
     }
 
     /// @brief Verifies that multiple children are added consecutively after their parent with correct relationships.
@@ -133,16 +133,16 @@ namespace
 
         // Verify ordering: parent followed by all children, children in reverse order of addition
         auto it = pool.begin();
-        EXPECT_EQ(it->Id, parentId);
+        EXPECT_EQ(*it, parentId);
         ++it;
-        EXPECT_EQ(it->ParentId, parentId); // child3
-        EXPECT_EQ(it->Id, child3);
+        EXPECT_EQ(pool.Get(*it)->ParentId, parentId); // child3
+        EXPECT_EQ(*it, child3);
         ++it;
-        EXPECT_EQ(it->ParentId, parentId); // child2
-        EXPECT_EQ(it->Id, child2);
+        EXPECT_EQ(pool.Get(*it)->ParentId, parentId); // child2
+        EXPECT_EQ(*it, child2);
         ++it;
-        EXPECT_EQ(it->ParentId, parentId); // child1
-        EXPECT_EQ(it->Id, child1);
+        EXPECT_EQ(pool.Get(*it)->ParentId, parentId); // child1
+        EXPECT_EQ(*it, child1);
     }
 
     /// @brief Verifies that attempting to add an invalid EntityId is rejected and pool remains unchanged.
@@ -236,11 +236,11 @@ namespace
 
         // Verify ordering
         auto it = pool.begin();
-        EXPECT_EQ(it->Id, grandparent);
+        EXPECT_EQ(*it, grandparent);
         ++it;
-        EXPECT_EQ(it->Id, parent);
+        EXPECT_EQ(*it, parent);
         ++it;
-        EXPECT_EQ(it->Id, child);
+        EXPECT_EQ(*it, child);
     }
 
     /// @brief Verifies that a hierarchy with multiple branches and grandchildren maintains proper structure.
@@ -281,17 +281,17 @@ namespace
 
         // Verify depth first ordering
         auto it = pool.begin();
-        EXPECT_EQ(it->Id, root);
+        EXPECT_EQ(*it, root);
         ++it;
-        EXPECT_EQ(it->Id, child2);
+        EXPECT_EQ(*it, child2);
         ++it;
-        EXPECT_EQ(it->Id, grandchild2_1);
+        EXPECT_EQ(*it, grandchild2_1);
         ++it;
-        EXPECT_EQ(it->Id, child1);
+        EXPECT_EQ(*it, child1);
         ++it;
-        EXPECT_EQ(it->Id, grandchild1_2);
+        EXPECT_EQ(*it, grandchild1_2);
         ++it;
-        EXPECT_EQ(it->Id, grandchild1_1);
+        EXPECT_EQ(*it, grandchild1_1);
     }
 
     /// @brief Verifies that adding a child to a middle node correctly inserts it and updates indices.
@@ -321,13 +321,13 @@ namespace
 
         // Verify ordering: root, child2, grandchild, child1
         auto it = pool.begin();
-        EXPECT_EQ(it->Id, root);
+        EXPECT_EQ(*it, root);
         ++it;
-        EXPECT_EQ(it->Id, child2);
+        EXPECT_EQ(*it, child2);
         ++it;
-        EXPECT_EQ(it->Id, grandchild);
+        EXPECT_EQ(*it, grandchild);
         ++it;
-        EXPECT_EQ(it->Id, child1);
+        EXPECT_EQ(*it, child1);
     }
 
     // ========== Removal Tests ==========
@@ -402,11 +402,11 @@ namespace
 
         //Verify ordering: parent, child3, child1
         auto it = pool.begin();
-        EXPECT_EQ(it->Id, parent);
+        EXPECT_EQ(*it, parent);
         ++it;
-        EXPECT_EQ(it->Id, child3);
+        EXPECT_EQ(*it, child3);
         ++it;
-        EXPECT_EQ(it->Id, child1);
+        EXPECT_EQ(*it, child1);
     }
 
     /// @brief Verifies that attempting to remove a non-existent entity has no effect on the pool.
@@ -576,9 +576,9 @@ namespace
 
         // Verify depth-first ordering
         std::vector<EntityId> traversalOrder;
-        for (const auto& node : pool)
+        for (const auto& eid : pool)
         {
-            traversalOrder.push_back(node.Id);
+            traversalOrder.push_back(eid);
         }
 
         ASSERT_EQ(traversalOrder.size(), 4);
@@ -602,14 +602,14 @@ namespace
         pool.Add(id2, TransformNode2{ .Id = id2, .ParentId = id1 });
         pool.Add(id3, TransformNode2{ .Id = id3, .ParentId = id1 });
 
-        const TransformNode2* prevNode = nullptr;
-        for (const auto& node : pool)
+        const EntityId* prevEid = nullptr;
+        for (const auto& eid : pool)
         {
-            if (prevNode)
+            if (prevEid)
             {
-                EXPECT_EQ(&node, prevNode + 1) << "Nodes are not contiguous in memory";
+                EXPECT_EQ(&eid, prevEid + 1) << "Nodes are not contiguous in memory";
             }
-            prevNode = &node;
+            prevEid = &eid;
         }
     }
 
@@ -795,11 +795,11 @@ namespace
         pool.Add(grandchild1, TransformNode2{ .Id = grandchild1, .ParentId = child2 });
         // Expected order: root, child3, child2, grandchild1, child1
         auto it = pool.begin();
-        EXPECT_EQ(it->Id, root); ++it;
-        EXPECT_EQ(it->Id, child3); ++it;
-        EXPECT_EQ(it->Id, child2); ++it;
-        EXPECT_EQ(it->Id, grandchild1); ++it;
-        EXPECT_EQ(it->Id, child1);
+        EXPECT_EQ(*it, root); ++it;
+        EXPECT_EQ(*it, child3); ++it;
+        EXPECT_EQ(*it, child2); ++it;
+        EXPECT_EQ(*it, grandchild1); ++it;
+        EXPECT_EQ(*it, child1);
     }
 
     /// @brief Verifies that removing a single leaf from a complex hierarchy preserves the remaining structure.
@@ -868,14 +868,14 @@ namespace
 
         // Get pointer to first element
         auto it = pool.begin();
-        const TransformNode2* firstNode = &(*it);
+        const EntityId* firstEid = &(*it);
         
         // Verify all nodes are in a contiguous block of memory
         size_t index = 0;
-        for (const auto& node : pool)
+        for (const auto& eid : pool)
         {
-            const TransformNode2* expectedAddress = firstNode + index;
-            const TransformNode2* actualAddress = &node;
+            const EntityId* expectedAddress = firstEid + index;
+            const EntityId* actualAddress = &eid;
             
             EXPECT_EQ(actualAddress, expectedAddress) 
                 << "Node at index " << index << " is not at expected memory address. "
@@ -972,13 +972,13 @@ namespace
 
         // Also verify the entire pool is contiguous (all hierarchies together)
         auto it = pool.begin();
-        const TransformNode2* baseAddress = &(*it);
+        const EntityId* baseAddress = &(*it);
         
         size_t index = 0;
-        for (const auto& node : pool)
+        for (const auto& eid : pool)
         {
-            const TransformNode2* expectedAddress = baseAddress + index;
-            const TransformNode2* actualAddress = &node;
+            const EntityId* expectedAddress = baseAddress + index;
+            const EntityId* actualAddress = &eid;
             
             EXPECT_EQ(actualAddress, expectedAddress)
                 << "pool node at index " << index << " is not contiguous with the rest";
@@ -1166,15 +1166,15 @@ namespace
         if (pool.size() > 1)
         {
             auto it = pool.begin();
-            const TransformNode2* prevNode = &(*it);
+            const EntityId* prevEid = &(*it);
             ++it;
             
             for (; it != pool.end(); ++it)
             {
-                const TransformNode2* currentNode = &(*it);
-                EXPECT_EQ(currentNode, prevNode + 1) 
+                const EntityId* currentEid = &(*it);
+                EXPECT_EQ(currentEid, prevEid + 1) 
                     << "Iteration " << iteration << ": Nodes not contiguous in memory";
-                prevNode = currentNode;
+                prevEid = currentEid;
             }
         }
     }
@@ -1209,13 +1209,13 @@ namespace
         if (pool.size() > 0)
         {
             auto it = pool.begin();
-            const TransformNode2* firstNode = &(*it);
+            const EntityId* firstEid = &(*it);
             
             size_t index = 0;
-            for (const auto& node : pool)
+            for (const auto& eid : pool)
             {
-                const TransformNode2* expectedAddress = firstNode + index;
-                const TransformNode2* actualAddress = &node;
+                const EntityId* expectedAddress = firstEid + index;
+                const EntityId* actualAddress = &eid;
                 
                 EXPECT_EQ(actualAddress, expectedAddress) 
                     << "Final: Node at index " << index << " not contiguous";
@@ -1347,13 +1347,13 @@ namespace
         if (pool.size() > 1)
         {
             auto it = pool.begin();
-            const TransformNode2* firstNode = &(*it);
+            const EntityId* firstEid = &(*it);
             
             size_t index = 0;
-            for (const auto& node : pool)
+            for (const auto& eid : pool)
             {
-                const TransformNode2* expectedAddress = firstNode + index;
-                const TransformNode2* actualAddress = &node;
+                const EntityId* expectedAddress = firstEid + index;
+                const EntityId* actualAddress = &eid;
                 
                 EXPECT_EQ(actualAddress, expectedAddress) 
                     << "Initial: Node at index " << index << " not contiguous in memory";

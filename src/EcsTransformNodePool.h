@@ -25,8 +25,8 @@ class EcsComponentPool<TransformNode2> : public IEcsPool
 {
 public:
 
-    using IndexType = int;
-    static constexpr IndexType InvalidIndex = -1;
+    using IndexType = EntityId::ValueType;
+    static constexpr IndexType InvalidIndex = EntityId::InvalidValue;
 
     void Add(const EntityId eid)
     {
@@ -75,6 +75,7 @@ public:
             // No parent, add as top-level node
             m_Index[eid.Value()] = static_cast<int>(m_Components.size());
             m_Components.emplace_back(node);
+            m_EntityIds.emplace_back(eid);
             return true;
         }
 
@@ -85,13 +86,22 @@ public:
             return false;
         }
 
-        int idx = idxOfParent + 1;
-        auto it = m_Components.emplace(m_Components.begin() + idx, node);
+        int idxC = idxOfParent + 1;
+        auto itC = m_Components.emplace(m_Components.begin() + idxC, node);
 
         //Update indexes for inserted node and all subsequent nodes
-        for(const auto endIt = m_Components.end(); endIt != it; ++it, ++idx)
+        for(const auto endIt = m_Components.end(); endIt != itC; ++itC, ++idxC)
         {
-            m_Index[(*it).Id.Value()] = idx;
+            m_Index[(*itC).Id.Value()] = idxC;
+        }
+
+        int idxE = idxOfParent + 1;
+        auto itE = m_EntityIds.emplace(m_EntityIds.begin() + idxE, eid);
+
+        //Update indexes for inserted ID and all subsequent IDs
+        for(const auto endIt = m_EntityIds.end(); endIt != itE; ++itE, ++idxE)
+        {
+            m_Index[(*itE).Value()] = idxE;
         }
 
         return true;
@@ -100,27 +110,31 @@ public:
     /// @brief Removes the sub-assembly node with the given entity ID, along with all its children.
     void Remove(const EntityId eid)
     {
-        const int idx = IndexOf(eid);
-        if(idx == -1)
+        const int eidIdx = IndexOf(eid);
+        if(eidIdx == -1)
         {
             return;
         }
 
-        auto itFirst = m_Components.begin() + idx;
-        auto itBound = SubAssemblyBounds(eid);
+        const size_t boundIdx = SubAssemblyBounds(eid);
 
-        for(auto it = itFirst; it != itBound; ++it)
+        //Invalidate indexes for all nodes being removed
+        for(size_t idx = eidIdx; idx < boundIdx; ++idx)
         {
-            m_Index[it->Id.Value()] = -1;
+            const auto deletedEid = m_EntityIds[idx];
+            m_Index[deletedEid.Value()] = -1;
         }
 
-        // Remove starting from itFirst up to but not include itBound.
-        m_Components.erase(itFirst, itBound);
-        const size_t numRemoved = static_cast<size_t>(itBound - itFirst);
+        // Remove starting from the top of the sub-assembly up to but not include boundIdx.
+        m_Components.erase(m_Components.begin() + eidIdx, m_Components.begin() + boundIdx);
+        m_EntityIds.erase(m_EntityIds.begin() + eidIdx, m_EntityIds.begin() + boundIdx);
 
-        for(size_t i = idx; i < m_Components.size(); ++i)
+        //Remap indexes for all subsequent nodes
+        const size_t size = m_Components.size();
+        for(size_t i = eidIdx; i < size; ++i)
         {
-            m_Index[m_Components[i].Id.Value()] = static_cast<int>(i);
+            const EntityId currentEid = m_EntityIds[i];
+            m_Index[currentEid.Value()] = static_cast<IndexType>(i);
         }
     }
 
@@ -146,27 +160,27 @@ public:
         return m_Components.size();
     }
 
-    using Iterator = typename std::vector<TransformNode2>::iterator;
-    using ConstIterator = typename std::vector<TransformNode2>::const_iterator;
+    using Iterator = typename std::vector<EntityId>::iterator;
+    using ConstIterator = typename std::vector<EntityId>::const_iterator;
 
     Iterator begin()
     {
-        return m_Components.begin();
+        return m_EntityIds.begin();
     }
 
     Iterator end()
     {
-        return m_Components.end();
+        return m_EntityIds.end();
     }
 
     ConstIterator begin() const
     {
-        return m_Components.begin();
+        return m_EntityIds.begin();
     }
 
     ConstIterator end() const
     {
-        return m_Components.end();
+        return m_EntityIds.end();
     }
 
 private:
@@ -182,31 +196,34 @@ private:
     }
 
     /// @brief Returns an iterator to one past the end of the sub-assembly rooted at the given parent.
-    std::vector<TransformNode2>::iterator SubAssemblyBounds(const EntityId parentId)
+    size_t SubAssemblyBounds(const EntityId parentId)
     {
         const int parentIdx = IndexOf(parentId);
         if(parentIdx == -1)
         {
-            return m_Components.end();
+            return m_Components.size();
         }
 
-        const auto endIt = m_Components.end();
+        const size_t size = m_Components.size();
+        size_t childIdx = parentIdx + 1;
 
-        auto childIt = m_Components.begin() + parentIdx + 1;
-
-        while(endIt != childIt)
+        while(size != childIdx)
         {
-            if(childIt->ParentId != parentId)
+            if(m_Components[childIdx].ParentId != parentId)
             {
                 break;
             }
 
-            childIt = SubAssemblyBounds(childIt->Id);
+            childIdx = SubAssemblyBounds(m_Components[childIdx].Id);
         }
 
-        return childIt;
+        return childIdx;
     }
 
+    // Mapping from EntityId to index in the component vector.
+    std::vector<IndexType> m_Index;
+    // Entity IDs indexed by m_Index.
+    std::vector<EntityId> m_EntityIds;
+    // Components indexed by m_Index.
     std::vector<TransformNode2> m_Components;
-    std::vector<int> m_Index;
 };
