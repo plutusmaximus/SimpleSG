@@ -9,6 +9,7 @@
 
 #include <string>
 #include <stacktrace>
+#include <cstdarg>
 
 #include <spdlog/sinks/msvc_sink.h>
 #include <spdlog/sinks/ringbuffer_sink.h>
@@ -110,19 +111,19 @@ Asserts::Capture::~Capture()
 #if defined(_MSC_VER)
 
 bool
-Asserts::Log(const char* expression, const char* fileName, const int lineNum, bool& mute)
+Asserts::Log(const std::string_view message, bool& mute)
 {
     auto trace = std::stacktrace::current(1);
-    std::string message = std::format("{}({}): {}\n\n{}", fileName, lineNum, expression, std::to_string(trace));
+    std::string logMsg = std::format("{}\n\n{}", message, std::to_string(trace));
 
-    logAssert("{}", message);
+    logAssert("{}", logMsg);
 
     bool ignore = !s_EnableAssertDialog.load() || mute;
     if (ignore) return false;
 
     const int msgboxValue = MessageBoxA(
         NULL,
-        message.c_str(),
+        logMsg.c_str(),
         "Assertion Failed",
         MB_ICONEXCLAMATION | MB_ABORTRETRYIGNORE | MB_DEFBUTTON2);
 
