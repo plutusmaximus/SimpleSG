@@ -624,6 +624,11 @@ public:
         M[3][2] = T.z;
         return M;
     }
+
+    bool operator==(const TrsTransform<NumType>& that) const
+    {
+        return T == that.T && R == that.R && S == that.S;
+    }
 };
 
 using Degreesf = Degrees<float>;
