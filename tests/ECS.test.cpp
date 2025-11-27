@@ -288,9 +288,12 @@ namespace
         ComponentA compA{ 42 };
 
         pool.Add(eid, compA);
-        const bool addedAgain = pool.Add(eid, ComponentA{ 100 });
-
-        EXPECT_FALSE(addedAgain);
+        assert_capture(capture)
+        {
+            const bool addedAgain = pool.Add(eid, ComponentA{ 100 });
+            EXPECT_FALSE(addedAgain);
+            EXPECT_TRUE(capture.Message().contains("Component already exists for entity"));
+        }
         EXPECT_EQ(*pool.Get(eid), compA); // Original value unchanged
     }
 
@@ -737,9 +740,13 @@ namespace
         reg.Destroy(eid);
 
         auto compA = RandomValue<ComponentA>();
-        const bool added = reg.Add<ComponentA>(eid, compA);
-
-        EXPECT_FALSE(added);
+        assert_capture(capture)
+        {
+            const bool added = reg.Add<ComponentA>(eid, compA);
+            EXPECT_FALSE(added);
+            EXPECT_TRUE(capture.Message().contains("Entity is not alive"));
+        }
+        
         EXPECT_FALSE(reg.Has<ComponentA>(eid));
     }
 
@@ -792,8 +799,12 @@ namespace
         for (auto eid : eids)
         {
             auto c = RandomValue<ComponentC>();
-            auto result = reg.Add<ComponentC>(eid, c);
-            EXPECT_FALSE(result);
+            assert_capture(capture)
+            {
+                const auto result = reg.Add<ComponentC>(eid, c);
+                EXPECT_FALSE(result);
+                EXPECT_TRUE(capture.Message().contains("Component already exists for entity"));
+            }
         }
     }
 
@@ -922,8 +933,13 @@ namespace
         reg.Destroy(eid);
 
         EXPECT_FALSE(reg.Has<ComponentA>(eid));
-        auto comp = reg.GetHandle<ComponentA>(eid);
-        EXPECT_FALSE(comp);
+        
+        assert_capture(capture)
+        {
+            auto comp = reg.GetHandle<ComponentA>(eid);
+            EXPECT_FALSE(comp);
+            EXPECT_TRUE(capture.Message().contains("IsAlive(eid)"));
+        }
     }
 
     /// @brief Test replacing components through the reference returned by Get.
@@ -1607,7 +1623,11 @@ namespace
         reg.Destroy(eid);
         EXPECT_FALSE(reg.IsAlive(eid));
 
-        reg.Remove<ComponentA>(eid);
+        assert_capture(capture)
+        {
+            reg.Remove<ComponentA>(eid);
+            EXPECT_TRUE(capture.Message().contains("Entity is not alive"));
+        }
 
         EXPECT_FALSE(reg.IsAlive(eid));
     }
@@ -1873,9 +1893,13 @@ namespace
         reg.Add<ComponentA>(eid, RandomValue<ComponentA>());
         reg.Destroy(eid);
 
-        auto handleResult = reg.GetHandle<ComponentA>(eid);
-        EXPECT_FALSE(handleResult);
-        EXPECT_EQ(handleResult.error().Message, std::format("Entity {} is not alive", eid));
+        assert_capture(capture)
+        {
+            auto handleResult = reg.GetHandle<ComponentA>(eid);
+            EXPECT_FALSE(handleResult);
+            EXPECT_TRUE(capture.Message().contains("IsAlive(eid)"));
+            EXPECT_EQ(handleResult.error().Message, std::format("Entity {} is not alive", eid));
+        }
     }
 
     /// @brief Test GetHandle fails when entity has no components.
