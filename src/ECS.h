@@ -111,7 +111,7 @@ public:
     template<typename... Args>
     bool Add(const EntityId eid, Args&&... args)
     {
-        if(!everify(!Has(eid) && "Component already exists for entity"))
+        if(!everify(!Has(eid), "Component already exists for entity"))
         {
             return false;
         }
@@ -252,7 +252,7 @@ public:
     C* Get()
     {
         auto pool = std::get<EcsComponentPool<C>*>(m_Pools);
-        if (everify(pool != nullptr && "Component pool not found in handle"))
+        if (everify(pool != nullptr, "Component pool not found in handle"))
         {
             return pool->Get(m_EntityId);
         }
@@ -263,7 +263,7 @@ public:
     const C* Get() const
     {
         auto pool = std::get<EcsComponentPool<C>*>(m_Pools);
-        if (everify(pool != nullptr && "Component pool not found in handle"))
+        if (everify(pool != nullptr, "Component pool not found in handle"))
         {
             return pool->Get(m_EntityId);
         }
@@ -287,7 +287,7 @@ public:
         {
             EntityId eid = m_FreeList.back();
             m_FreeList.pop_back();
-            eassert(!IsAlive(eid) && "Entity ID from free list is already alive");
+            eassert(!IsAlive(eid), "Entity ID from free list is already alive");
             m_IsAlive[eid.Value()] = true;
             return eid;
         }
@@ -301,7 +301,7 @@ public:
     /// @brief Destroy the given entity ID and remove all associated components.
     void Destroy(const EntityId eid)
     {
-        if(!everify(IsAlive(eid) && "Entity is not alive"))
+        if(!everify(IsAlive(eid), "Entity is not alive"))
         {
             return;
         }
@@ -321,7 +321,7 @@ public:
     template<typename C, typename... Args>
     bool Add(const EntityId eid, Args&&... args)
     {
-        if(!everify(IsAlive(eid) && "Entity is not alive"))
+        if(!everify(IsAlive(eid), "Entity is not alive"))
         {
             return false;
         }
@@ -333,7 +333,7 @@ public:
     template<typename C>
     void Remove(const EntityId eid)
     {
-        if(!everify(IsAlive(eid) && "Entity is not alive"))
+        if(!everify(IsAlive(eid), "Entity is not alive"))
         {
             return;
         }
