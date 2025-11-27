@@ -3,14 +3,18 @@
 #include <expected>
 #include <string>
 #include <format>
+#include <memory>
 
 #include <spdlog/spdlog.h>
+#include <spdlog/sinks/sink.h>
 
 class Logging
 {
 public:
 
     static spdlog::logger& GetLogger();
+
+    static spdlog::logger& GetAssertLogger();
 
     static void SetLogLevel(const spdlog::level::level_enum level);
 };
@@ -57,6 +61,52 @@ public:
     const ErrorCode Code;
 
     const std::string Message;
+};
+
+/// @brief Assertion helper class.
+class Asserts
+{
+public:
+
+    /// @brief Enable or disable the assert dialog.
+    static bool SetDialogEnabled(const bool enabled);
+
+    class Capture
+    {
+    public:
+
+        Capture();
+
+        void Cancel();
+
+        bool IsCanceled() const;
+
+        std::string Message() const;
+
+        ~Capture();
+
+    private:
+        const bool m_OldValue;
+
+        bool m_Canceled = false;
+
+        std::shared_ptr<spdlog::sinks::sink> m_Sink;
+    };
+
+    /// @brief Returns a reference to a boolean that can be used to mute future
+    /// assert dialogs at this call site.
+    /// Used by the everify macro.
+    /// UNIQUE_ID is a unique integer per call site.
+    template<int UNIQUE_ID>
+    static inline bool& Muter()
+    {
+        static bool muted = false;
+        return muted;
+    }
+
+    /// @brief Log an assert and show the assert dialog (if dialogs are enabled).
+    /// Returns true to break into the debugger, false to continue execution.
+    static bool Log(const char* expression, const char* fileName, const int lineNum, bool& mute);
 };
 
 template<typename T>
@@ -110,6 +160,20 @@ void logError(const std::wstring& format, Args&&... args)
     Logging::GetLogger().error(fmt::runtime(format), std::forward<Args>(args)...);
 }
 
+/// Log an assertion failure
+template<typename... Args>
+void logAssert(const std::string& format, Args&&... args)
+{
+    Logging::GetAssertLogger().error(fmt::runtime(format), std::forward<Args>(args)...);
+}
+
+/// Log an assertion failure
+template<typename... Args>
+void logAssert(const std::wstring& format, Args&&... args)
+{
+    Logging::GetAssertLogger().error(fmt::runtime(format), std::forward<Args>(args)...);
+}
+
 template<typename... Args>
 inline std::string MakeExprError(const char* file, const int line, const char* exprStr, std::string_view format, Args&&... args)
 {
@@ -161,24 +225,8 @@ inline void LogExprError(const char* file, const int line, const char* exprStr, 
 
     logError(message);
 }
-#if defined(_MSC_VER)
-
-//
-// Enable/disable the assert dialog.
-// Returns the prior value
-//
-bool SetAssertDialogEnabled(const bool enabled);
 
 #ifndef NDEBUG
-
-bool ShowAssertDialog(const char* expression, const char* fileName, const int lineNum, bool& disableFutureAsserts);
-
-template<int I>
-static inline bool& AssertDisabler()
-{
-    static bool disabled = false;
-    return disabled;
-}
 
 // everify is like assert excpet that it can be used in boolean expressions.
 // 
@@ -189,9 +237,11 @@ static inline bool& AssertDisabler()
 // Or
 // 
 // return everify(x > y) ? x : -1;
-#define everify(expr) ((static_cast<bool>(expr)) || (ShowAssertDialog(#expr, __FILE__, __LINE__, AssertDisabler<__LINE__>()) ? __debugbreak(), false : false))
+#define everify(expr) ((static_cast<bool>(expr)) || (Asserts::Log(#expr, __FILE__, __LINE__, Asserts::Muter<__COUNTER__>()) ? __debugbreak(), false : false))
 
 #define eassert(expr) void(everify(expr))
+
+#define assert_capture(capName) for(Asserts::Capture capName;!capName.IsCanceled();capName.Cancel())
 
 #else	//NDEBUG
 
@@ -199,10 +249,6 @@ static inline bool& AssertDisabler()
 #define eassert(expr)
 
 #endif	//NDEBUG
-
-#else	//_MSC_VER
-#error "Platform not supported"
-#endif	//_MSC_VER
 
 #define LOG_EXPR_ERROR(exprStr, ...) LogExprError(__FILE__, __LINE__, exprStr, __VA_ARGS__)
 

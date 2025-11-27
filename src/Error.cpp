@@ -1,30 +1,54 @@
 #include "Error.h"
 
+#if defined(_MSC_VER)
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#else	//_MSC_VER
+#error "Platform not supported"
+#endif	//_MSC_VER
 
 #include <string>
 #include <stacktrace>
 
 #include <spdlog/sinks/msvc_sink.h>
+#include <spdlog/sinks/ringbuffer_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/sinks/dist_sink.h>
 
-static spdlog::logger& CreateLogger()
+static auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+static auto msvc_sink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
+static auto assert_sinks = std::make_shared<spdlog::sinks::dist_sink_mt>(); 
+
+static std::atomic<bool> s_InitializeSinks = true;
+
+static void InitializeSinks()
 {
-    static auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-    static auto msvc_sink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
+    if (s_InitializeSinks.exchange(false))
+    {
+        console_sink->set_level(spdlog::level::debug);
+        msvc_sink->set_level(spdlog::level::debug);
+        assert_sinks->set_level(spdlog::level::debug);
+    }
+}
+
+// ============== Logging =================
+
+spdlog::logger&
+Logging::GetLogger()
+{
+    InitializeSinks();
 
     static spdlog::logger logger("logger", { console_sink, msvc_sink });
-
-    logger.set_level(spdlog::level::debug);
 
     return logger;
 }
 
 spdlog::logger&
-Logging::GetLogger()
+Logging::GetAssertLogger()
 {
-    static spdlog::logger& logger = CreateLogger();
+    InitializeSinks();
+
+    static spdlog::logger logger("assert", assert_sinks);
 
     return logger;
 }
@@ -35,26 +59,66 @@ Logging::SetLogLevel(const spdlog::level::level_enum level)
     GetLogger().set_level(level);
 }
 
-#if defined(_MSC_VER)
+// ============== Asserts =================
 
-static bool EnableAssertDialog = true;
+static std::atomic<bool> s_EnableAssertDialog = true;
 
-bool SetAssertDialogEnabled(const bool enabled)
+bool
+Asserts::SetDialogEnabled(const bool enabled)
 {
-    const bool oldValue = EnableAssertDialog;
-
-    EnableAssertDialog = enabled;
-
-    return oldValue;
+    return s_EnableAssertDialog.exchange(enabled);
 }
 
-bool ShowAssertDialog(const char* expression, const char* fileName, const int lineNum, bool& disableFutureAsserts)
+Asserts::Capture::Capture()
+    : m_OldValue(Asserts::SetDialogEnabled(false))
+    , m_Sink(std::make_shared<spdlog::sinks::ringbuffer_sink_mt>(1))
 {
-    bool ignore = !EnableAssertDialog || disableFutureAsserts;
-    if (ignore) return false;
+    assert_sinks->add_sink(m_Sink);
+}
 
+void
+Asserts::Capture::Cancel()
+{
+    assert_sinks->remove_sink(m_Sink);
+    Asserts::SetDialogEnabled(m_OldValue);
+    m_Canceled = true;
+}
+
+bool
+Asserts::Capture::IsCanceled() const
+{
+    return m_Canceled;
+}
+
+std::string
+Asserts::Capture::Message() const
+{
+    auto sink = static_cast<spdlog::sinks::ringbuffer_sink_mt*>(m_Sink.get());
+    return sink->last_formatted().empty()
+        ? std::string()
+        : sink->last_formatted().back();
+}
+
+Asserts::Capture::~Capture()
+{
+    if (!m_Canceled)
+    {
+        Cancel();
+    }
+}
+
+#if defined(_MSC_VER)
+
+bool
+Asserts::Log(const char* expression, const char* fileName, const int lineNum, bool& mute)
+{
     auto trace = std::stacktrace::current(1);
     std::string message = std::format("{}({}): {}\n\n{}", fileName, lineNum, expression, std::to_string(trace));
+
+    logAssert("{}", message);
+
+    bool ignore = !s_EnableAssertDialog.load() || mute;
+    if (ignore) return false;
 
     const int msgboxValue = MessageBoxA(
         NULL,
@@ -69,7 +133,7 @@ bool ShowAssertDialog(const char* expression, const char* fileName, const int li
 
     if(IDIGNORE == msgboxValue)
     {
-        disableFutureAsserts = true;
+        mute = true;
     }
 
     return IDRETRY == msgboxValue;
