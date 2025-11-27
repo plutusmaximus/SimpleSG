@@ -7,7 +7,6 @@ class TransformNode2
 {
 public:
 
-    EntityId Id;
     EntityId ParentId;
     TrsTransformf LocalTransform;
 
@@ -28,9 +27,9 @@ public:
     using IndexType = EntityId::ValueType;
     static constexpr IndexType InvalidIndex = EntityId::InvalidValue;
 
-    void Add(const EntityId eid)
+    bool Add(const EntityId eid)
     {
-        Add(eid, TransformNode2{ .Id = eid });
+        return Add(eid, TransformNode2{});
     }
 
     /// @brief Adds a new sub-assembly node under the given parent.
@@ -41,17 +40,17 @@ public:
     {
         const EntityId parentId = node.ParentId;
 
-        if(!everify(eid.IsValid() && "EntityId must be valid"))
+        if(!everify(eid.IsValid(), "EntityId must be valid"))
         {
             return false;
         }
 
-        if(!everify(!Has(eid) && "Entity ID already in collection"))
+        if(!everify(!Has(eid), "Entity ID already in collection"))
         {
             return false;
         }
 
-        if(!everify(eid != parentId && "Entity cannot be its own parent"))
+        if(!everify(eid != parentId, "Entity cannot be its own parent"))
         {
             return false;
         }
@@ -80,28 +79,20 @@ public:
         }
 
         const int idxOfParent = IndexOf(parentId);
-        if(!everify(idxOfParent != -1) && "Parent ID not found in collection")
+        if(!everify(idxOfParent != -1, "Parent ID not found in collection"))
         {
             // Parent not found, which shouldn't happen in a valid hierarchy
             return false;
         }
 
-        int idxC = idxOfParent + 1;
-        auto itC = m_Components.emplace(m_Components.begin() + idxC, node);
-
-        //Update indexes for inserted node and all subsequent nodes
-        for(const auto endIt = m_Components.end(); endIt != itC; ++itC, ++idxC)
-        {
-            m_Index[(*itC).Id.Value()] = idxC;
-        }
-
-        int idxE = idxOfParent + 1;
-        auto itE = m_EntityIds.emplace(m_EntityIds.begin() + idxE, eid);
+        int idx = idxOfParent + 1;
+        m_Components.emplace(m_Components.begin() + idx, node);
+        auto it = m_EntityIds.emplace(m_EntityIds.begin() + idx, eid);
 
         //Update indexes for inserted ID and all subsequent IDs
-        for(const auto endIt = m_EntityIds.end(); endIt != itE; ++itE, ++idxE)
+        for(const auto endIt = m_EntityIds.end(); endIt != it; ++it, ++idx)
         {
-            m_Index[(*itE).Value()] = idxE;
+            m_Index[(*it).Value()] = idx;
         }
 
         return true;
@@ -214,7 +205,7 @@ private:
                 break;
             }
 
-            childIdx = SubAssemblyBounds(m_Components[childIdx].Id);
+            childIdx = SubAssemblyBounds(m_EntityIds[childIdx]);
         }
 
         return childIdx;
