@@ -130,20 +130,23 @@ public:
     const std::string Message;
 };
 
-/// @brief Formatter specialization for Error to support std::format.
-template <>
-struct std::formatter<Error> : std::formatter<std::string>
+namespace std
 {
-    constexpr auto parse(std::format_parse_context& ctx)
+    /// @brief Formatter specialization for Error to support std::format.
+    template <>
+    struct formatter<Error>
     {
-        return ctx.begin(); // No custom parsing; assumes default format
-    }
+        constexpr auto parse(std::format_parse_context& ctx)
+        {
+            return ctx.begin(); // No custom parsing; assumes default format
+        }
 
-    auto format(const Error& e, std::format_context& ctx) const
-    {
-        return std::format_to(ctx.out(), "{}", e.Message);
-    }
-};
+        auto format(const Error& e, std::format_context& ctx) const
+        {
+            return std::format_to(ctx.out(), "{}", e.Message);
+        }
+    };
+}
 
 /// @brief Assertion helper class.
 class Asserts
