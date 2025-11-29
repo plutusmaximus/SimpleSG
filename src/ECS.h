@@ -184,6 +184,13 @@ public:
         return value < m_Index.size() && m_Index[value] != EntityId::InvalidValue;
     }
 
+    /// @brief Get the index of the component for the given entity ID, or InvalidIndex if not found.
+    /// Adding and/or removing components may invalidate indices.
+    IndexType IndexOf(const EntityId eid) const
+    {
+        return eid.Value() < m_Index.size() ? m_Index[eid.Value()] : InvalidIndex;
+    }
+
     /// @brief Get the number of components in the pool.
     size_t size() const
     {
@@ -224,12 +231,6 @@ private:
         {
             m_Index.resize(eid.Value() + 1, EntityId::InvalidValue);
         }
-    }
-
-    /// @brief Get the index of the component for the given entity ID, or InvalidIndex if not found.
-    IndexType IndexOf(const EntityId eid) const
-    {
-        return eid.Value() < m_Index.size() ? m_Index[eid.Value()] : InvalidIndex;
     }
 
     // Mapping from EntityId to index in the component vector.

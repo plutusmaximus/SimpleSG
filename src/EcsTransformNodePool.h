@@ -155,6 +155,13 @@ public:
         return eid.Value() < m_Index.size() && m_Index[eid.Value()] != EntityId::InvalidValue;
     }
 
+    /// @brief Get the index of the component for the given entity ID, or InvalidIndex if not found.
+    /// Adding and/or removing components may invalidate indices.
+    IndexType IndexOf(const EntityId eid) const
+    {
+        return eid.Value() < m_Index.size() ? m_Index[eid.Value()] : InvalidIndex;
+    }
+
     size_t size() const
     {
         return m_Components.size();
@@ -185,20 +192,14 @@ public:
 
 private:
 
-    /// @brief Get the index of the component for the given entity ID, or InvalidIndex if not found.
-    IndexType IndexOf(const EntityId eid) const
-    {
-        return eid.Value() < m_Index.size() ? m_Index[eid.Value()] : InvalidIndex;
-    }
-
     /// @brief Returns an iterator to one past the end of the sub-assembly rooted at the given parent.
-    size_t SubAssemblyBounds(const EntityId parentId)
+    IndexType SubAssemblyBounds(const EntityId parentId)
     {
-        const int parentIdx = IndexOf(parentId);
-        eassert(parentIdx != -1, "Parent ID not found in collection");
+        const IndexType parentIdx = IndexOf(parentId);
+        eassert(parentIdx != InvalidIndex, "Parent ID not found in collection");
 
         const size_t size = m_Components.size();
-        size_t childIdx = parentIdx + 1;
+        IndexType childIdx = parentIdx + 1;
 
         while(childIdx < size)
         {
