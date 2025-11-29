@@ -243,7 +243,8 @@ private:
 /// @brief A handle to an entity and its components.
 /// Allows access to components of types Cs for the given entity ID.
 /// Component references can be retrieved via Get<C>() even if the component pools mutate.
-/// However, the returned references may become invalid if the pools mutate.
+/// However, the references returned by Get<C>() may become invalid if the pools mutate.
+/// If pools mutate call Get<C>() again to get valid references.
 template<typename... Cs>
 class EcsEntityHandle
 {
