@@ -27,11 +27,6 @@ public:
     using IndexType = EntityId::ValueType;
     static constexpr IndexType InvalidIndex = EntityId::InvalidValue;
 
-    bool Add(const EntityId eid)
-    {
-        return Add(eid, TransformNode2{});
-    }
-
     /// @brief Adds a new sub-assembly node under the given parent.
     /// The new node is inserted immediately after its parent and any existing children.
     /// This maintains a depth-first ordering of the hierarchy.
@@ -176,29 +171,22 @@ public:
 
 private:
 
-    /// @brief Returns the index of the node with the given entity ID, or -1 if not found.
-    int IndexOf(const EntityId id) const
+    /// @brief Get the index of the component for the given entity ID, or InvalidIndex if not found.
+    IndexType IndexOf(const EntityId eid) const
     {
-        const auto value = id.Value();
-
-        return value < static_cast<int>(m_Index.size())
-        ? m_Index[value]
-        : -1;
+        return eid.Value() < m_Index.size() ? m_Index[eid.Value()] : InvalidIndex;
     }
 
     /// @brief Returns an iterator to one past the end of the sub-assembly rooted at the given parent.
     size_t SubAssemblyBounds(const EntityId parentId)
     {
         const int parentIdx = IndexOf(parentId);
-        if(parentIdx == -1)
-        {
-            return m_Components.size();
-        }
+        eassert(parentIdx != -1, "Parent ID not found in collection");
 
         const size_t size = m_Components.size();
         size_t childIdx = parentIdx + 1;
 
-        while(size != childIdx)
+        while(childIdx < size)
         {
             if(m_Components[childIdx].ParentId != parentId)
             {

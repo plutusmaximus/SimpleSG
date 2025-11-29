@@ -214,10 +214,11 @@ private:
         }
     }
 
+    /// @brief Get the index of the component for the given entity ID, or InvalidIndex if not found.
     IndexType IndexOf(const EntityId eid) const
     {
         return eid.Value() < m_Index.size() ? m_Index[eid.Value()] : InvalidIndex;
-    } 
+    }
 
     // Mapping from EntityId to index in the component vector.
     std::vector<IndexType> m_Index;

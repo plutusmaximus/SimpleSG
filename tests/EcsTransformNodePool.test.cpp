@@ -94,7 +94,7 @@ namespace
         const EntityId existingId = idGen.NextId();
         const EntityId nonExistentId = idGen.NextId();
 
-        pool.Add(existingId);
+        pool.Add(existingId, {});
 
         EXPECT_TRUE(pool.Has(existingId));
         EXPECT_FALSE(pool.Has(nonExistentId));
@@ -107,7 +107,7 @@ namespace
         TestIdGenerator idGen;
 
         const EntityId nodeId = idGen.NextId();
-        pool.Add(nodeId);
+        pool.Add(nodeId, {});
 
         const EcsComponentPool<TransformNode2>& constpool = pool;
         const TransformNode2* node = constpool.Get(nodeId);
@@ -292,7 +292,7 @@ namespace
 
         assert_capture(capture)
         {
-            const bool added = pool.Add(invalidId);
+            const bool added = pool.Add(invalidId, {});
             EXPECT_FALSE(added);
             EXPECT_TRUE(capture.Message().contains("EntityId must be valid"));
         }
@@ -309,13 +309,13 @@ namespace
 
         const EntityId nodeId = idGen.NextId();
         
-        pool.Add(nodeId);
+        pool.Add(nodeId, {});
         EXPECT_EQ(pool.size(), 1);
 
         // Attempt to add same ID again
         assert_capture(capture)
         {
-            const bool added = pool.Add(nodeId);
+            const bool added = pool.Add(nodeId, {});
             EXPECT_FALSE(added);
             EXPECT_TRUE(capture.Message().contains("Entity ID already in collection"));
         }
@@ -332,7 +332,7 @@ namespace
         const EntityId nodeId = idGen.NextId();
         
         // Add as top-level first
-        pool.Add(nodeId);
+        pool.Add(nodeId, {});
         const size_t initialSize = pool.size();
 
         // Attempt to add same ID with itself as parent
@@ -558,7 +558,7 @@ namespace
         TestIdGenerator idGen;
 
         const EntityId nodeId = idGen.NextId();
-        pool.Add(nodeId);
+        pool.Add(nodeId, {});
 
         EXPECT_EQ(pool.size(), 1);
         EXPECT_TRUE(pool.Has(nodeId));
@@ -579,7 +579,7 @@ namespace
         const EntityId child1 = idGen.NextId();
         const EntityId child2 = idGen.NextId();
 
-        pool.Add(parent);
+        pool.Add(parent, {});
         pool.Add(child1, TransformNode2{ parent, RandomTrsTransform() });
         pool.Add(child2, TransformNode2{ parent, RandomTrsTransform() });
 
@@ -656,7 +656,7 @@ namespace
         const EntityId existingId = idGen.NextId();
         const EntityId nonExistentId = idGen.NextId();
 
-        pool.Add(existingId);
+        pool.Add(existingId, {});
         EXPECT_EQ(pool.size(), 1);
 
         pool.Remove(nonExistentId);
@@ -777,7 +777,7 @@ namespace
         const EntityId largeId = registry.Create();
         EXPECT_GT(largeId.Value(), 999);
 
-        pool.Add(largeId);
+        pool.Add(largeId, {});
 
         EXPECT_TRUE(pool.Has(largeId));
         EXPECT_EQ(pool.size(), 1);
@@ -1077,7 +1077,7 @@ namespace
     {
         HierarchyInfo hierarchy;
         hierarchy.root = idGen.NextId();
-        pool.Add(hierarchy.root);
+        pool.Add(hierarchy.root, {});
 
         // Add 1-5 children
         const int numChildren = (rand() % 5) + 1;
@@ -1209,7 +1209,7 @@ namespace
         for (int i = 0; i < numNodes; ++i)
         {
             EntityId standalone = idGen.NextId();
-            pool.Add(standalone);
+            pool.Add(standalone, {});
             
             // Immediately remove half of them (stress test)
             if (rand() % 2 == 0)
@@ -1315,7 +1315,7 @@ namespace
             {
                 // Add a standalone top-level node (20% chance)
                 EntityId standalone = idGen.NextId();
-                pool.Add(standalone);
+                pool.Add(standalone, {});
                 totalItemsAdded++;
             }
             else if (hierarchyType < 5)
@@ -1323,7 +1323,7 @@ namespace
                 // Add a simple 2-level hierarchy: 1 root + 1-3 children (30% chance)
                 HierarchyInfo hierarchy;
                 hierarchy.root = idGen.NextId();
-                pool.Add(hierarchy.root);
+                pool.Add(hierarchy.root, {});
                 totalItemsAdded++;
 
                 const int numChildren = (rand() % 3) + 1;
@@ -1342,7 +1342,7 @@ namespace
                 // Add a medium 3-level hierarchy: 1 root + 2-4 children + some grandchildren (30% chance)
                 HierarchyInfo hierarchy;
                 hierarchy.root = idGen.NextId();
-                pool.Add(hierarchy.root);
+                pool.Add(hierarchy.root, {});
                 totalItemsAdded++;
 
                 const int numChildren = (rand() % 3) + 2;
@@ -1374,7 +1374,7 @@ namespace
                 // Add a deep 4+ level hierarchy with multiple branches (20% chance)
                 HierarchyInfo hierarchy;
                 hierarchy.root = idGen.NextId();
-                pool.Add(hierarchy.root);
+                pool.Add(hierarchy.root, {});
                 totalItemsAdded++;
 
                 const int numChildren = (rand() % 4) + 3;
