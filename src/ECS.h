@@ -151,18 +151,30 @@ public:
         m_Index[eid.Value()] = EntityId::InvalidValue;
     }
 
-    /// @brief Get the component for the given entity ID.
-    C* Get(const EntityId eid)
+    std::tuple<EntityId, C&> operator[](IndexType index)
     {
-        const IndexType idx = IndexOf(eid);
-        return (InvalidIndex != idx) ? &m_Components[idx] : nullptr;
+        eassert(index < size(), "Index out of bounds");
+        return { m_EntityIds[index], m_Components[index] };
     }
 
-    /// @brief Get the component for the given entity ID (const version).
-    const C* Get(const EntityId eid) const
+    std::tuple<EntityId, const C&> operator[](IndexType index) const
     {
-        const IndexType idx = IndexOf(eid);
-        return (InvalidIndex != idx) ? &m_Components[idx] : nullptr;
+        eassert(index < size(), "Index out of bounds");
+        return { m_EntityIds[index], m_Components[index] };
+    }
+
+    C& operator[](const EntityId eid)
+    {
+        const IndexType index = IndexOf(eid);
+        eassert(index != InvalidIndex, "EntityId not found");
+        return m_Components[index];
+    }
+
+    const C& operator[](const EntityId eid) const
+    {
+        const IndexType index = IndexOf(eid);
+        eassert(index != InvalidIndex, "EntityId not found");
+        return m_Components[index];
     }
 
     /// @brief Returns true if the given entity ID has an associated component.
@@ -250,25 +262,19 @@ public:
     }
 
     template<typename C>
-    C* Get()
+    C& Get()
     {
         auto pool = std::get<EcsComponentPool<C>*>(m_Pools);
-        if (everify(pool != nullptr, "Component pool not found in handle"))
-        {
-            return pool->Get(m_EntityId);
-        }
-        return nullptr;
+        eassert(pool != nullptr, "Component pool not found in handle");
+        return pool->operator[](m_EntityId);
     }
 
     template<typename C>
-    const C* Get() const
+    const C& Get() const
     {
         auto pool = std::get<EcsComponentPool<C>*>(m_Pools);
-        if (everify(pool != nullptr, "Component pool not found in handle"))
-        {
-            return pool->Get(m_EntityId);
-        }
-        return nullptr;
+        eassert(pool != nullptr, "Component pool not found in handle");
+        return pool->operator[](m_EntityId);
     }
     
 private:
@@ -466,7 +472,7 @@ public:
             {
                 eassert(m_It != m_EndIt);
                 const EntityId eid = *m_It;
-                return std::tuple<EntityId, Cs&...>{ eid, *std::get<EcsComponentPool<Cs>*>(m_Pools)->Get(eid)... };
+                return std::tuple<EntityId, Cs&...>{ eid, std::get<EcsComponentPool<Cs>*>(m_Pools)->operator[](eid)... };
             }
 
         private:

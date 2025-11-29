@@ -274,7 +274,7 @@ namespace
         const bool added = pool.Add(eid, compA);
         EXPECT_TRUE(added);
         EXPECT_TRUE(pool.Has(eid));
-        EXPECT_EQ(*pool.Get(eid), compA);
+        EXPECT_EQ(pool[eid], compA);
         EXPECT_EQ(pool.size(), 1);
     }
 
@@ -294,7 +294,7 @@ namespace
             EXPECT_FALSE(addedAgain);
             EXPECT_TRUE(capture.Message().contains("Component already exists for entity"));
         }
-        EXPECT_EQ(*pool.Get(eid), compA); // Original value unchanged
+        EXPECT_EQ(pool[eid], compA); // Original value unchanged
     }
 
     /// @brief Test pool capacity management with many adds.
@@ -317,9 +317,8 @@ namespace
 
         for (int i = 0; i < COUNT; ++i)
         {
-            auto comp = pool.Get(eids[i]);
-            EXPECT_TRUE(comp);
-            EXPECT_EQ((*comp).a, i);
+            auto comp = pool[eids[i]];
+            EXPECT_EQ(comp.a, i);
         }
     }
 
@@ -337,7 +336,6 @@ namespace
 
         pool.Remove(eid);
         EXPECT_FALSE(pool.Has(eid));
-        EXPECT_EQ(pool.Get(eid), nullptr);
         EXPECT_EQ(pool.size(), 0);
     }
 
@@ -366,14 +364,14 @@ namespace
         ComponentA compB{ 100 };
 
         pool.Add(eid, compA);
-        EXPECT_EQ(*pool.Get(eid), compA);
+        EXPECT_EQ(pool[eid], compA);
 
         pool.Remove(eid);
         EXPECT_FALSE(pool.Has(eid));
 
         const bool addedReAdd = pool.Add(eid, compB);
         EXPECT_TRUE(addedReAdd);
-        EXPECT_EQ(*pool.Get(eid), compB);
+        EXPECT_EQ(pool[eid], compB);
     }
 
     /// @brief Test remove maintains correct associations for remaining entities.
@@ -399,15 +397,14 @@ namespace
         {
             if (i != 2)
             {
-                auto comp = pool.Get(eids[i]);
-                EXPECT_TRUE(comp);
-                EXPECT_EQ((*comp).a, i * 10);
+                auto comp = pool[eids[i]];
+                EXPECT_EQ(comp.a, i * 10);
             }
         }
     }
 
-    /// @brief Test Get returns pointer to component.
-    TEST(EcsComponentPool, Get_ExistingComponent_ReturnsValidPointer)
+    /// @brief Test operator[] returns pointer to component.
+    TEST(EcsComponentPool, Indexer_ExistingComponent_ReturnsValidPointer)
     {
         EcsRegistry reg;
         EcsComponentPool<ComponentA> pool;
@@ -417,25 +414,12 @@ namespace
         
         pool.Add(eid, compA);
 
-        auto comp = pool.Get(eid);
-        EXPECT_NE(comp, nullptr);
-        EXPECT_EQ(*comp, compA);
+        auto comp = pool[eid];
+        EXPECT_EQ(comp, compA);
     }
 
-    /// @brief Test Get on non-existent entity.
-    TEST(EcsComponentPool, Get_NonExistentEntity_ReturnsNull)
-    {
-        EcsRegistry reg;
-        EcsComponentPool<ComponentA> pool;
-
-        const auto eid = reg.Create();
-
-        auto comp = pool.Get(eid);
-        EXPECT_EQ(comp, nullptr);
-    }
-
-    /// @brief Test const Get method.
-    TEST(EcsComponentPool, Get_ConstVersion_ReturnsConstPointer)
+    /// @brief Test const operator[] method.
+    TEST(EcsComponentPool, Indexer_ConstVersion_ReturnsConstPointer)
     {
         EcsRegistry reg;
         EcsComponentPool<ComponentA> pool;
@@ -444,10 +428,9 @@ namespace
         pool.Add(eid, ComponentA{ 42 });
 
         const EcsComponentPool<ComponentA>& constPool = pool;
-        auto comp = constPool.Get(eid);
+        auto comp = constPool[eid];
 
-        EXPECT_NE(comp, nullptr);
-        EXPECT_EQ(*comp, ComponentA{ 42 });
+        EXPECT_EQ(comp, ComponentA{ 42 });
     }
 
     /// @brief Test Has with existing component.
@@ -601,9 +584,8 @@ namespace
         // Verify remaining entities
         for (int i = 1; i < COUNT; i += 2)
         {
-            auto comp = pool.Get(eids[i]);
-            EXPECT_TRUE(comp);
-            EXPECT_EQ((*comp).n, i);
+            auto comp = pool[eids[i]];
+            EXPECT_EQ(comp.n, i);
         }
 
         // Verify removed entities
@@ -776,7 +758,7 @@ namespace
             const auto actual = reg.GetHandle<ComponentC>(eid);
 
             EXPECT_TRUE(actual);
-            EXPECT_EQ(*actual->Get<ComponentC>(), expected);
+            EXPECT_EQ(actual->Get<ComponentC>(), expected);
         }
     }
 
@@ -830,10 +812,10 @@ namespace
         EXPECT_TRUE(reg.Has<ComponentC>(eid));
         EXPECT_TRUE(reg.Has<ComponentD>(eid));
 
-        EXPECT_EQ(*reg.GetHandle<ComponentA>(eid)->Get<ComponentA>(), compA);
-        EXPECT_EQ(*reg.GetHandle<ComponentB>(eid)->Get<ComponentB>(), compB);
-        EXPECT_EQ(*reg.GetHandle<ComponentC>(eid)->Get<ComponentC>(), compC);
-        EXPECT_EQ(*reg.GetHandle<ComponentD>(eid)->Get<ComponentD>(), compD);
+        EXPECT_EQ(reg.GetHandle<ComponentA>(eid)->Get<ComponentA>(), compA);
+        EXPECT_EQ(reg.GetHandle<ComponentB>(eid)->Get<ComponentB>(), compB);
+        EXPECT_EQ(reg.GetHandle<ComponentC>(eid)->Get<ComponentC>(), compC);
+        EXPECT_EQ(reg.GetHandle<ComponentD>(eid)->Get<ComponentD>(), compD);
     }
 
     /// @brief Test that destroying entity removes all component types.
@@ -914,10 +896,10 @@ namespace
         EXPECT_TRUE(reg.Has<ComponentC>(newEid));
         EXPECT_TRUE(reg.Has<ComponentD>(newEid));
 
-        EXPECT_EQ(*reg.GetHandle<ComponentA>(newEid)->Get<ComponentA>(), newCompA);
-        EXPECT_EQ(*reg.GetHandle<ComponentB>(newEid)->Get<ComponentB>(), newCompB);
-        EXPECT_EQ(*reg.GetHandle<ComponentC>(newEid)->Get<ComponentC>(), newCompC);
-        EXPECT_EQ(*reg.GetHandle<ComponentD>(newEid)->Get<ComponentD>(), newCompD);
+        EXPECT_EQ(reg.GetHandle<ComponentA>(newEid)->Get<ComponentA>(), newCompA);
+        EXPECT_EQ(reg.GetHandle<ComponentB>(newEid)->Get<ComponentB>(), newCompB);
+        EXPECT_EQ(reg.GetHandle<ComponentC>(newEid)->Get<ComponentC>(), newCompC);
+        EXPECT_EQ(reg.GetHandle<ComponentD>(newEid)->Get<ComponentD>(), newCompD);
     }
 
     /// @brief Test component access after entity destruction.
@@ -964,7 +946,7 @@ namespace
         {
             auto c = RandomValue<ComponentC>();
             newCs.emplace(eid, c);
-            *reg.GetHandle<ComponentC>(eid)->Get<ComponentC>() = c;
+            reg.GetHandle<ComponentC>(eid)->Get<ComponentC>() = c;
         }
 
         for (auto eid : eids)
@@ -975,7 +957,7 @@ namespace
             const auto actual = reg.GetHandle<ComponentC>(eid);
 
             EXPECT_TRUE(actual);
-            EXPECT_EQ(*actual->Get<ComponentC>(), expected);
+            EXPECT_EQ(actual->Get<ComponentC>(), expected);
         }
     }
 
@@ -1025,7 +1007,7 @@ namespace
 
         EXPECT_TRUE(reg.Has<ComponentC>(eidToRecycle));
 
-        EXPECT_EQ(*reg.GetHandle<ComponentC>(newEid)->Get<ComponentC>(), newC);
+        EXPECT_EQ(reg.GetHandle<ComponentC>(newEid)->Get<ComponentC>(), newC);
     }
 
     /// @brief Helper to populate registry with entities with multiple components.
@@ -1057,7 +1039,7 @@ namespace
             auto handle = reg.GetHandle<Cs...>(eid);
             EXPECT_TRUE(handle);
 
-            auto actualTuple = std::tuple<Cs&...>(*handle->Get<Cs>()...);
+            auto actualTuple = std::tuple<Cs&...>(handle->Get<Cs>()...);
 
             EXPECT_EQ(actualTuple, expectedTuple);
         }
@@ -1439,12 +1421,12 @@ namespace
             auto compAResult = reg.GetHandle<ComponentA>(eids[i]);
             EXPECT_TRUE(compAResult);
             auto compA = compAResult->Get<ComponentA>();
-            EXPECT_EQ(compA->a, i);
+            EXPECT_EQ(compA.a, i);
 
             auto compBResult = reg.GetHandle<ComponentB>(eids[i]);
             EXPECT_TRUE(compBResult);
             auto compB = compBResult->Get<ComponentB>();
-            EXPECT_EQ(compB->x, static_cast<float>(i));
+            EXPECT_EQ(compB.x, static_cast<float>(i));
 
             auto compCResult = reg.GetHandle<ComponentC>(eids[i]);
             EXPECT_TRUE(compCResult);
@@ -1512,8 +1494,8 @@ namespace
         EXPECT_FALSE(reg.Has<ComponentB>(eid));
         EXPECT_TRUE(reg.Has<ComponentC>(eid));
 
-        EXPECT_EQ(*reg.GetHandle<ComponentA>(eid)->Get<ComponentA>(), compA);
-        EXPECT_EQ(*reg.GetHandle<ComponentC>(eid)->Get<ComponentC>(), compC);
+        EXPECT_EQ(reg.GetHandle<ComponentA>(eid)->Get<ComponentA>(), compA);
+        EXPECT_EQ(reg.GetHandle<ComponentC>(eid)->Get<ComponentC>(), compC);
     }
 
     /// @brief Test removing a component that doesn't exist.
@@ -1531,7 +1513,7 @@ namespace
         reg.Remove<ComponentB>(eid);
 
         EXPECT_TRUE(reg.Has<ComponentA>(eid));
-        EXPECT_EQ(*reg.GetHandle<ComponentA>(eid)->Get<ComponentA>(), compA);
+        EXPECT_EQ(reg.GetHandle<ComponentA>(eid)->Get<ComponentA>(), compA);
         EXPECT_FALSE(reg.Has<ComponentB>(eid));
     }
 
@@ -1605,8 +1587,8 @@ namespace
         EXPECT_FALSE(reg.Has<ComponentA>(eid2));
         EXPECT_TRUE(reg.Has<ComponentA>(eid3));
 
-        EXPECT_EQ(*reg.GetHandle<ComponentA>(eid1)->Get<ComponentA>(), compA1);
-        EXPECT_EQ(*reg.GetHandle<ComponentA>(eid3)->Get<ComponentA>(), compA3);
+        EXPECT_EQ(reg.GetHandle<ComponentA>(eid1)->Get<ComponentA>(), compA1);
+        EXPECT_EQ(reg.GetHandle<ComponentA>(eid3)->Get<ComponentA>(), compA3);
     }
 
     /// @brief Test removing component from dead entity.
@@ -1641,7 +1623,7 @@ namespace
 
         auto origValue = RandomValue<ComponentA>();
         reg.Add<ComponentA>(eid, origValue);
-        EXPECT_EQ(*reg.GetHandle<ComponentA>(eid)->Get<ComponentA>(), origValue);
+        EXPECT_EQ(reg.GetHandle<ComponentA>(eid)->Get<ComponentA>(), origValue);
 
         reg.Remove<ComponentA>(eid);
         EXPECT_FALSE(reg.Has<ComponentA>(eid));
@@ -1650,7 +1632,7 @@ namespace
         reg.Add<ComponentA>(eid, newValue);
 
         EXPECT_TRUE(reg.Has<ComponentA>(eid));
-        EXPECT_EQ(*reg.GetHandle<ComponentA>(eid)->Get<ComponentA>(), newValue);
+        EXPECT_EQ(reg.GetHandle<ComponentA>(eid)->Get<ComponentA>(), newValue);
     }
 
     /// @brief Test that views update correctly after removal.
@@ -1787,9 +1769,8 @@ namespace
         auto handle = *handleResult;
         EXPECT_EQ(handle.GetEntityId(), eid);
         
-        auto* actualA = handle.Get<ComponentA>();
-        EXPECT_NE(actualA, nullptr);
-        EXPECT_EQ(*actualA, compA);
+        auto actualA = handle.Get<ComponentA>();
+        EXPECT_EQ(actualA, compA);
     }
 
     /// @brief Test GetHandle with multiple components returns valid handle.
@@ -1812,17 +1793,13 @@ namespace
         auto handle = *handleResult;
         EXPECT_EQ(handle.GetEntityId(), eid);
         
-        auto* actualA = handle.Get<ComponentA>();
-        auto* actualB = handle.Get<ComponentB>();
-        auto* actualC = handle.Get<ComponentC>();
+        auto actualA = handle.Get<ComponentA>();
+        auto actualB = handle.Get<ComponentB>();
+        auto actualC = handle.Get<ComponentC>();
         
-        EXPECT_NE(actualA, nullptr);
-        EXPECT_NE(actualB, nullptr);
-        EXPECT_NE(actualC, nullptr);
-        
-        EXPECT_EQ(*actualA, compA);
-        EXPECT_EQ(*actualB, compB);
-        EXPECT_EQ(*actualC, compC);
+        EXPECT_EQ(actualA, compA);
+        EXPECT_EQ(actualB, compB);
+        EXPECT_EQ(actualC, compC);
     }
 
     /// @brief Test GetHandle with two components - common use case.
@@ -1842,14 +1819,11 @@ namespace
 
         auto handle = *handleResult;
         
-        auto* actualA = handle.Get<ComponentA>();
-        auto* actualB = handle.Get<ComponentB>();
+        auto actualA = handle.Get<ComponentA>();
+        auto actualB = handle.Get<ComponentB>();
         
-        EXPECT_NE(actualA, nullptr);
-        EXPECT_NE(actualB, nullptr);
-        
-        EXPECT_EQ(*actualA, compA);
-        EXPECT_EQ(*actualB, compB);
+        EXPECT_EQ(actualA, compA);
+        EXPECT_EQ(actualB, compB);
     }
 
     /// @brief Test GetHandle allows component modification through Get.
@@ -1869,19 +1843,19 @@ namespace
 
         auto handle = *handleResult;
         
-        auto* refA = handle.Get<ComponentA>();
-        auto* refB = handle.Get<ComponentB>();
+        auto& refA = handle.Get<ComponentA>();
+        auto& refB = handle.Get<ComponentB>();
         
-        refA->a = 99;
-        refB->x = 10.0f;
-        refB->y = 20.0f;
-        refB->z = 30.0f;
+        refA.a = 99;
+        refB.x = 10.0f;
+        refB.y = 20.0f;
+        refB.z = 30.0f;
 
         // Verify changes persisted in registry
-        EXPECT_EQ(reg.GetHandle<ComponentA>(eid)->Get<ComponentA>()->a, 99);
-        EXPECT_EQ(reg.GetHandle<ComponentB>(eid)->Get<ComponentB>()->x, 10.0f);
-        EXPECT_EQ(reg.GetHandle<ComponentB>(eid)->Get<ComponentB>()->y, 20.0f);
-        EXPECT_EQ(reg.GetHandle<ComponentB>(eid)->Get<ComponentB>()->z, 30.0f);
+        EXPECT_EQ(reg.GetHandle<ComponentA>(eid)->Get<ComponentA>().a, 99);
+        EXPECT_EQ(reg.GetHandle<ComponentB>(eid)->Get<ComponentB>().x, 10.0f);
+        EXPECT_EQ(reg.GetHandle<ComponentB>(eid)->Get<ComponentB>().y, 20.0f);
+        EXPECT_EQ(reg.GetHandle<ComponentB>(eid)->Get<ComponentB>().z, 30.0f);
     }
 
     /// @brief Test GetHandle fails when entity is not alive.
@@ -1950,14 +1924,11 @@ namespace
 
         auto handle = *handleResult;
         
-        auto* actualA = handle.Get<ComponentA>();
-        auto* actualC = handle.Get<ComponentC>();
+        auto actualA = handle.Get<ComponentA>();
+        auto actualC = handle.Get<ComponentC>();
         
-        EXPECT_NE(actualA, nullptr);
-        EXPECT_NE(actualC, nullptr);
-        
-        EXPECT_EQ(*actualA, compA);
-        EXPECT_EQ(*actualC, compC);
+        EXPECT_EQ(actualA, compA);
+        EXPECT_EQ(actualC, compC);
     }
 
     /// @brief Test GetHandle with all four component types.
@@ -1981,20 +1952,15 @@ namespace
 
         auto handle = *handleResult;
         
-        auto* actualA = handle.Get<ComponentA>();
-        auto* actualB = handle.Get<ComponentB>();
-        auto* actualC = handle.Get<ComponentC>();
-        auto* actualD = handle.Get<ComponentD>();
+        auto actualA = handle.Get<ComponentA>();
+        auto actualB = handle.Get<ComponentB>();
+        auto actualC = handle.Get<ComponentC>();
+        auto actualD = handle.Get<ComponentD>();
         
-        EXPECT_NE(actualA, nullptr);
-        EXPECT_NE(actualB, nullptr);
-        EXPECT_NE(actualC, nullptr);
-        EXPECT_NE(actualD, nullptr);
-        
-        EXPECT_EQ(*actualA, compA);
-        EXPECT_EQ(*actualB, compB);
-        EXPECT_EQ(*actualC, compC);
-        EXPECT_EQ(*actualD, compD);
+        EXPECT_EQ(actualA, compA);
+        EXPECT_EQ(actualB, compB);
+        EXPECT_EQ(actualC, compC);
+        EXPECT_EQ(actualD, compD);
     }
 
     /// @brief Test GetHandle persists across registry mutations.
@@ -2026,14 +1992,11 @@ namespace
         reg.Destroy(eid2);
 
         // Handle should still be able to access components
-        auto* actualA = handle.Get<ComponentA>();
-        auto* actualB = handle.Get<ComponentB>();
+        auto actualA = handle.Get<ComponentA>();
+        auto actualB = handle.Get<ComponentB>();
         
-        EXPECT_NE(actualA, nullptr);
-        EXPECT_NE(actualB, nullptr);
-        
-        EXPECT_EQ(actualA->a, 10);
-        EXPECT_EQ(actualB->x, 1.0f);
+        EXPECT_EQ(actualA.a, 10);
+        EXPECT_EQ(actualB.x, 1.0f);
     }
 
     /// @brief Test GetHandle with multiple entities - each gets correct components.
@@ -2065,13 +2028,13 @@ namespace
 
             auto handle = *handleResult;
             
-            auto* actualA = handle.Get<ComponentA>();
-            auto* actualB = handle.Get<ComponentB>();
+            auto actualA = handle.Get<ComponentA>();
+            auto actualB = handle.Get<ComponentB>();
             
             auto [expectedA, expectedB] = expected;
             
-            EXPECT_EQ(*actualA, expectedA);
-            EXPECT_EQ(*actualB, expectedB);
+            EXPECT_EQ(actualA, expectedA);
+            EXPECT_EQ(actualB, expectedB);
         }
     }
 
@@ -2100,11 +2063,11 @@ namespace
 
         auto handle = *handleResult;
         
-        auto* actualA = handle.Get<ComponentA>();
-        auto* actualB = handle.Get<ComponentB>();
+        auto actualA = handle.Get<ComponentA>();
+        auto actualB = handle.Get<ComponentB>();
         
-        EXPECT_EQ(actualA->a, 200);
-        EXPECT_EQ(actualB->x, 1.0f);
+        EXPECT_EQ(actualA.a, 200);
+        EXPECT_EQ(actualB.x, 1.0f);
     }
 
     /// @brief Test GetHandle stress test with many entities.
@@ -2143,13 +2106,13 @@ namespace
 
             auto handle = *handleResult;
             
-            auto* actualA = handle.Get<ComponentA>();
-            auto* actualC = handle.Get<ComponentC>();
+            auto actualA = handle.Get<ComponentA>();
+            auto actualC = handle.Get<ComponentC>();
             
             auto [expectedA, expectedC] = expected;
             
-            EXPECT_EQ(*actualA, expectedA);
-            EXPECT_EQ(*actualC, expectedC);
+            EXPECT_EQ(actualA, expectedA);
+            EXPECT_EQ(actualC, expectedC);
         }
     }
 
@@ -2172,13 +2135,13 @@ namespace
 
         auto handle = *handleResult;
         
-        auto* actualA = handle.Get<ComponentA>();
-        auto* actualB = handle.Get<ComponentB>();
-        auto* actualC = handle.Get<ComponentC>();
+        auto actualA = handle.Get<ComponentA>();
+        auto actualB = handle.Get<ComponentB>();
+        auto actualC = handle.Get<ComponentC>();
         
-        EXPECT_EQ(*actualA, compA);
-        EXPECT_EQ(*actualB, compB);
-        EXPECT_EQ(*actualC, compC);
+        EXPECT_EQ(actualA, compA);
+        EXPECT_EQ(actualB, compB);
+        EXPECT_EQ(actualC, compC);
     }
 
     /// @brief Test GetHandle returns same EntityId as requested.
@@ -2216,18 +2179,16 @@ namespace
         auto handle1 = *handleResult;
         auto handle2 = handle1;
 
-        auto* comp1 = handle1.Get<ComponentA>();
-        auto* comp2 = handle2.Get<ComponentA>();
+        auto& comp1 = handle1.Get<ComponentA>();
+        auto& comp2 = handle2.Get<ComponentA>();
         
-        EXPECT_NE(comp1, nullptr);
-        EXPECT_NE(comp2, nullptr);
         EXPECT_EQ(comp1, comp2); // Should point to same component
-        EXPECT_EQ(comp1->a, 42);
-        EXPECT_EQ(comp2->a, 42);
+        EXPECT_EQ(comp1.a, 42);
+        EXPECT_EQ(comp2.a, 42);
 
         // Modify through one handle
-        comp1->a = 100;
-        EXPECT_EQ(comp2->a, 100); // Should reflect in other handle
+        comp1.a = 100;
+        EXPECT_EQ(comp2.a, 100); // Should reflect in other handle
     }
 
     /// @brief Test GetHandle after component modification via GetComponents.
@@ -2243,8 +2204,8 @@ namespace
         reg.Add<ComponentB>(eid, compB);
 
         // Modify via GetHandle
-        reg.GetHandle<ComponentA>(eid)->Get<ComponentA>()->a = 50;
-        reg.GetHandle<ComponentB>(eid)->Get<ComponentB>()->x = 5.0f;
+        reg.GetHandle<ComponentA>(eid)->Get<ComponentA>().a = 50;
+        reg.GetHandle<ComponentB>(eid)->Get<ComponentB>().x = 5.0f;
 
         // Get handle and verify it sees the modifications
         auto handleResult = reg.GetHandle<ComponentA, ComponentB>(eid);
@@ -2252,11 +2213,11 @@ namespace
 
         auto handle = *handleResult;
         
-        auto* actualA = handle.Get<ComponentA>();
-        auto* actualB = handle.Get<ComponentB>();
+        auto actualA = handle.Get<ComponentA>();
+        auto actualB = handle.Get<ComponentB>();
         
-        EXPECT_EQ(actualA->a, 50);
-        EXPECT_EQ(actualB->x, 5.0f);
+        EXPECT_EQ(actualA.a, 50);
+        EXPECT_EQ(actualB.x, 5.0f);
     }
 
     /// @brief Test multiple handles to same entity.
@@ -2279,45 +2240,13 @@ namespace
         auto handleBC = *reg.GetHandle<ComponentB, ComponentC>(eid);
 
         // All handles should access the same components
-        EXPECT_EQ(handleAB.Get<ComponentA>()->a, 10);
-        EXPECT_EQ(handleAC.Get<ComponentA>()->a, 10);
+        EXPECT_EQ(handleAB.Get<ComponentA>().a, 10);
+        EXPECT_EQ(handleAC.Get<ComponentA>().a, 10);
         
-        EXPECT_EQ(handleAB.Get<ComponentB>()->x, 1.0f);
-        EXPECT_EQ(handleBC.Get<ComponentB>()->x, 1.0f);
+        EXPECT_EQ(handleAB.Get<ComponentB>().x, 1.0f);
+        EXPECT_EQ(handleBC.Get<ComponentB>().x, 1.0f);
         
         EXPECT_EQ(handleAC.Get<ComponentC>(), handleBC.Get<ComponentC>());
-    }
-
-    /// @brief Test handle Get returns nullptr for component not in handle's type list.
-    /// This test verifies compilation and runtime behavior with component type not in handle.
-    TEST(GetHandle, GetComponentNotInHandle_CompilationCheck)
-    {
-        EcsRegistry reg;
-
-        auto eid = reg.Create();
-        auto compA = RandomValue<ComponentA>();
-        auto compB = RandomValue<ComponentB>();
-        auto compC = RandomValue<ComponentC>();
-        
-        reg.Add<ComponentA>(eid, compA);
-        reg.Add<ComponentB>(eid, compB);
-        reg.Add<ComponentC>(eid, compC);
-
-        // Get handle for only A and B
-        auto handleResult = reg.GetHandle<ComponentA, ComponentB>(eid);
-        EXPECT_TRUE(handleResult);
-
-        auto handle = *handleResult;
-        
-        // Can only access A and B through this handle
-        auto* actualA = handle.Get<ComponentA>();
-        auto* actualB = handle.Get<ComponentB>();
-        
-        EXPECT_NE(actualA, nullptr);
-        EXPECT_NE(actualB, nullptr);
-        
-        // Cannot access C through this handle (would not compile)
-        // auto* actualC = handle.Get<ComponentC>(); // This should not compile
     }
 
     /// @brief Test GetHandle fails after component removal.

@@ -124,16 +124,30 @@ public:
         }
     }
 
-    TransformNode2* Get(const EntityId eid)
+    std::tuple<EntityId, TransformNode2&> operator[](IndexType index)
     {
-        const IndexType idx = IndexOf(eid);
-        return (InvalidIndex != idx) ? &m_Components[idx] : nullptr;
+        eassert(index < size(), "Index out of bounds");
+        return { m_EntityIds[index], m_Components[index] };
     }
 
-    const TransformNode2* Get(const EntityId eid) const
+    std::tuple<EntityId, const TransformNode2&> operator[](IndexType index) const
     {
-        const IndexType idx = IndexOf(eid);
-        return (InvalidIndex != idx) ? &m_Components[idx] : nullptr;
+        eassert(index < size(), "Index out of bounds");
+        return { m_EntityIds[index], m_Components[index] };
+    }
+
+    TransformNode2& operator[](const EntityId eid)
+    {
+        const IndexType index = IndexOf(eid);
+        eassert(index != InvalidIndex, "EntityId not found");
+        return m_Components[index];
+    }
+
+    const TransformNode2& operator[](const EntityId eid) const
+    {
+        const IndexType index = IndexOf(eid);
+        eassert(index != InvalidIndex, "EntityId not found");
+        return m_Components[index];
     }
 
     bool Has(const EntityId eid) const
