@@ -638,7 +638,11 @@ namespace
         pool.Add(existingId, {});
         EXPECT_EQ(pool.size(), 1);
 
-        pool.Remove(nonExistentId);
+        assert_capture(capture)
+        {
+            pool.Remove(nonExistentId);
+            EXPECT_TRUE(capture.Message().contains("Entity ID not found"));
+        }
 
         EXPECT_EQ(pool.size(), 1);
         EXPECT_TRUE(pool.Has(existingId));

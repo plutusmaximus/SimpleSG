@@ -105,11 +105,8 @@ public:
     static constexpr IndexType InvalidIndex = EntityId::InvalidValue;
 
     /// @brief Add a component for the given entity ID.
-    /// Pass component constructor arguments.
-    /// Components are constructed in-place with the given arguments.
-    /// A pointer to the newly added component is returned.
-    template<typename... Args>
-    bool Add(const EntityId eid, Args&&... args)
+    /// Returns true if component was added.
+    bool Add(const EntityId eid, const C& component)
     {
         if(!everify(!Has(eid), "Component already exists for entity"))
         {
@@ -120,7 +117,7 @@ public:
 
         const IndexType idx = static_cast<IndexType>(m_EntityIds.size());
         m_EntityIds.push_back(eid);
-        m_Components.emplace_back(std::forward<Args>(args)...);
+        m_Components.emplace_back(component);
         m_Index[eid.Value()] = idx;
         return true;
     }
