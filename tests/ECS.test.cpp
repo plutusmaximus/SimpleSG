@@ -201,11 +201,13 @@ namespace
         EcsRegistry reg;
         const auto eid = reg.Create();
         std::string formatted = std::format("{}", eid);
-        EXPECT_EQ(formatted, std::to_string(eid.Value()));
+        std::string expected = std::format("{}:{}", eid.Value(), eid.Generation());
+        EXPECT_EQ(formatted, expected);
 
         EntityId invalidEid;
         std::string formattedInvalid = std::format("{}", invalidEid);
-        EXPECT_EQ(formattedInvalid, std::to_string(EntityId::InvalidValue));
+        std::string expectedInvalid = std::format("{}:{}", EntityId::InvalidValue, EntityId::InvalidGeneration);
+        EXPECT_EQ(formattedInvalid, expectedInvalid);
     }
 
     /// @brief Test EntityId hashing for use in unordered containers.
@@ -274,7 +276,7 @@ namespace
         const bool added = pool.Add(eid, compA);
         EXPECT_TRUE(added);
         EXPECT_TRUE(pool.Has(eid));
-        EXPECT_EQ(pool[eid], compA);
+        EXPECT_EQ(*pool[eid], compA);
         EXPECT_EQ(pool.size(), 1);
     }
 
@@ -294,7 +296,7 @@ namespace
             EXPECT_FALSE(addedAgain);
             EXPECT_TRUE(capture.Message().contains("Component already exists for entity"));
         }
-        EXPECT_EQ(pool[eid], compA); // Original value unchanged
+        EXPECT_EQ(*pool[eid], compA); // Original value unchanged
     }
 
     /// @brief Test pool capacity management with many adds.
@@ -318,7 +320,7 @@ namespace
         for (int i = 0; i < COUNT; ++i)
         {
             auto comp = pool[eids[i]];
-            EXPECT_EQ(comp.a, i);
+            EXPECT_EQ(comp->a, i);
         }
     }
 
@@ -364,14 +366,14 @@ namespace
         ComponentA compB{ 100 };
 
         pool.Add(eid, compA);
-        EXPECT_EQ(pool[eid], compA);
+        EXPECT_EQ(*pool[eid], compA);
 
         pool.Remove(eid);
         EXPECT_FALSE(pool.Has(eid));
 
         const bool addedReAdd = pool.Add(eid, compB);
         EXPECT_TRUE(addedReAdd);
-        EXPECT_EQ(pool[eid], compB);
+        EXPECT_EQ(*pool[eid], compB);
     }
 
     /// @brief Test remove maintains correct associations for remaining entities.
@@ -398,7 +400,7 @@ namespace
             if (i != 2)
             {
                 auto comp = pool[eids[i]];
-                EXPECT_EQ(comp.a, i * 10);
+                EXPECT_EQ(comp->a, i * 10);
             }
         }
     }
@@ -415,7 +417,7 @@ namespace
         pool.Add(eid, compA);
 
         auto comp = pool[eid];
-        EXPECT_EQ(comp, compA);
+        EXPECT_EQ(*comp, compA);
     }
 
     /// @brief Test const operator[] method.
@@ -430,7 +432,7 @@ namespace
         const EcsComponentPool<ComponentA>& constPool = pool;
         auto comp = constPool[eid];
 
-        EXPECT_EQ(comp, ComponentA{ 42 });
+        EXPECT_EQ(*comp, ComponentA{ 42 });
     }
 
     /// @brief Test Has with existing component.
@@ -586,7 +588,7 @@ namespace
         for (int i = 1; i < COUNT; i += 2)
         {
             auto comp = pool[eids[i]];
-            EXPECT_EQ(comp.n, i);
+            EXPECT_EQ(comp->n, i);
         }
 
         // Verify removed entities
@@ -659,7 +661,23 @@ namespace
         std::set<EntityId> unique1(eids1.begin(), eids1.end());
         std::set<EntityId> unique2(eids2.begin(), eids2.end());
 
-        EXPECT_EQ(unique1, unique2);
+        auto eid1Values = std::set<int>();
+        auto eid2Values = std::set<int>();
+        for (const auto& eid : unique1)
+        {
+            eid1Values.insert(eid.Value());
+        }
+
+        for (const auto& eid : unique2)
+        {
+            eid2Values.insert(eid.Value());
+        }
+
+        // The value sets should be identical since IDs are recycled
+        EXPECT_EQ(eid1Values, eid2Values);
+
+        // But the EntityIds themselves should not be equal due to generation changes
+        EXPECT_NE(unique1, unique2);
     }
 
     /// @brief Test IsAlive returns false for non-existent entities.
@@ -861,7 +879,9 @@ namespace
 
         const auto newEid = reg.Create();
 
-        EXPECT_EQ(eid, newEid);
+        EXPECT_NE(eid, newEid);
+        EXPECT_EQ(eid.Value(), newEid.Value());
+        EXPECT_NE(eid.Generation(), newEid.Generation());
 
         EXPECT_FALSE(reg.Has<ComponentA>(newEid));
         EXPECT_FALSE(reg.Has<ComponentB>(newEid));
@@ -885,7 +905,9 @@ namespace
 
         const auto newEid = reg.Create();
 
-        EXPECT_EQ(eid, newEid);
+        EXPECT_NE(eid, newEid);
+        EXPECT_EQ(eid.Value(), newEid.Value());
+        EXPECT_NE(eid.Generation(), newEid.Generation());
 
         auto newCompA = RandomValue<ComponentA>();
         auto newCompB = RandomValue<ComponentB>();

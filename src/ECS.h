@@ -18,14 +18,21 @@ public:
     friend class EcsRegistry;
 
     using ValueType = uint32_t;
+    using GenerationType = uint32_t;
 
     static constexpr ValueType InvalidValue = std::numeric_limits<ValueType>::max();
+    static constexpr GenerationType InvalidGeneration = std::numeric_limits<GenerationType>::max();
 
     EntityId() = default;
 
     ValueType Value() const
     {
         return m_Value;
+    }
+
+    GenerationType Generation() const
+    {
+        return m_Generation;
     }
 
     constexpr bool IsValid() const
@@ -35,22 +42,24 @@ public:
 
     constexpr bool operator<(const EntityId& that) const
     {
-        return m_Value < that.m_Value;
+        return m_Value < that.m_Value || (m_Value == that.m_Value && m_Generation < that.m_Generation);
     }
 
     constexpr bool operator==(const EntityId& that) const
     {
-        return m_Value == that.m_Value;
+        return m_Value == that.m_Value && m_Generation == that.m_Generation;
     }
 
 private:
 
-    explicit EntityId(const ValueType value)
+    explicit EntityId(const ValueType value, const GenerationType generation)
         : m_Value(value)
+        , m_Generation(generation)
     {
     }
 
     ValueType m_Value{ InvalidValue };
+    GenerationType m_Generation{ InvalidGeneration };
 };
 
 namespace std
@@ -77,7 +86,7 @@ namespace std
         template<typename FormatContext>
         auto format(const EntityId& eid, FormatContext& ctx) const
         {
-            return std::format_to(ctx.out(), "{}", eid.Value());
+            return std::format_to(ctx.out(), "{}:{}", eid.Value(), eid.Generation());
         }
     };
 }
@@ -156,25 +165,26 @@ public:
         return { m_EntityIds[index], m_Components[index] };
     }
 
-    C& operator[](const EntityId eid)
+    C* operator[](const EntityId eid)
     {
         const IndexType index = IndexOf(eid);
-        eassert(index != InvalidIndex, "EntityId not found");
-        return m_Components[index];
+        return everify(index != InvalidIndex, "EntityId not found")
+        ? &m_Components[index]
+        : nullptr;
     }
 
-    const C& operator[](const EntityId eid) const
+    const C* operator[](const EntityId eid) const
     {
         const IndexType index = IndexOf(eid);
-        eassert(index != InvalidIndex, "EntityId not found");
-        return m_Components[index];
+        return everify(index != InvalidIndex, "EntityId not found")
+        ? &m_Components[index]
+        : nullptr;
     }
 
     /// @brief Returns true if the given entity ID has an associated component.
     bool Has(const EntityId eid) const
     {
-        const auto value = eid.Value();
-        return value < m_Index.size() && m_Index[value] != EntityId::InvalidValue;
+        return IndexOf(eid) != InvalidIndex;
     }
 
     /// @brief Get the index of the component for the given entity ID, or InvalidIndex if not found.
@@ -182,7 +192,9 @@ public:
     IndexType IndexOf(const EntityId eid) const
     {
         const auto value = eid.Value();
-        return value < m_Index.size() && m_Index[value] != EntityId::InvalidValue
+        return value < m_Index.size()
+        && m_Index[value] != EntityId::InvalidValue
+        && m_EntityIds[m_Index[value]] == eid
         ? m_Index[value] : InvalidIndex;
     }
 
@@ -250,10 +262,10 @@ public:
             m_FreeList.pop_back();
             eassert(!IsAlive(eid), "Entity ID from free list is already alive");
             m_IsAlive[eid.Value()] = true;
-            return eid;
+            return EntityId{ eid.Value(), ++eid.m_Generation };
         }
 
-        EntityId eid{ m_NextId++ };
+        const EntityId eid{ m_NextId++, 0 };
         EnsureIndexes(eid);
         m_IsAlive[eid.Value()] = true;
         return eid;
@@ -315,7 +327,7 @@ public:
 
         return
         everify((std::get<EcsComponentPool<Cs>*>(pools) && ...), "Entity does not have all requested components")
-        ? std::tuple<Cs*...>{ &std::get<EcsComponentPool<Cs>*>(pools)->operator[](eid)... }
+        ? std::tuple<Cs*...>{ std::get<EcsComponentPool<Cs>*>(pools)->operator[](eid)... }
         : std::tuple<Cs*...>{ (static_cast<Cs*>(nullptr))... };
     }
 
@@ -327,7 +339,7 @@ public:
         auto pool = TryGetPoolForEntity<C>(eid);
 
         return everify(pool, "Entity does not have requested component")
-        ? &pool->operator[](eid)
+        ? pool->operator[](eid)
         : nullptr;
     }
 
@@ -426,11 +438,11 @@ public:
                 return m_It != other.m_It;
             }
 
-            std::tuple<EntityId, Cs&...> operator*()
+            std::tuple<EntityId, Cs*...> operator*()
             {
                 eassert(m_It != m_EndIt);
                 const EntityId eid = *m_It;
-                return std::tuple<EntityId, Cs&...>{ eid, std::get<EcsComponentPool<Cs>*>(m_Pools)->operator[](eid)... };
+                return std::tuple<EntityId, Cs*...>{ eid, std::get<EcsComponentPool<Cs>*>(m_Pools)->operator[](eid)... };
             }
 
         private:
