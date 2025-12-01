@@ -5,14 +5,10 @@
 #include <cstdint>
 #include <limits>
 #include <vector>
-#include <string>
 #include <format>
 #include <tuple>
-#include <type_traits>
 #include <typeindex>
 #include <unordered_map>
-#include <unordered_set>
-#include <span>
 
 /// @brief An entity identifier.
 class EntityId
@@ -185,7 +181,9 @@ public:
     /// Adding and/or removing components may invalidate indices.
     IndexType IndexOf(const EntityId eid) const
     {
-        return eid.Value() < m_Index.size() ? m_Index[eid.Value()] : InvalidIndex;
+        const auto value = eid.Value();
+        return value < m_Index.size() && m_Index[value] != EntityId::InvalidValue
+        ? m_Index[value] : InvalidIndex;
     }
 
     /// @brief Get the number of components in the pool.
@@ -236,49 +234,6 @@ private:
     std::vector<EntityId> m_EntityIds;
     // Components indexed by m_Index.
     std::vector<C> m_Components;
-};
-
-/// @brief A handle to an entity and its components.
-/// Allows access to components of types Cs for the given entity ID.
-/// Component references can be retrieved via Get<C>() even if the component pools mutate.
-/// However, the references returned by Get<C>() may become invalid if the pools mutate.
-/// If pools mutate call Get<C>() again to get valid references.
-template<typename... Cs>
-class EcsEntityHandle
-{
-public:
-    EcsEntityHandle() = delete;
-
-    EcsEntityHandle(EntityId eid, const std::tuple<EcsComponentPool<Cs>*...>& pools)
-        : m_EntityId(eid)
-        , m_Pools(pools)
-    {
-    }
-
-    EntityId GetEntityId() const
-    {
-        return m_EntityId;
-    }
-
-    template<typename C>
-    C& Get()
-    {
-        auto pool = std::get<EcsComponentPool<C>*>(m_Pools);
-        eassert(pool != nullptr, "Component pool not found in handle");
-        return pool->operator[](m_EntityId);
-    }
-
-    template<typename C>
-    const C& Get() const
-    {
-        auto pool = std::get<EcsComponentPool<C>*>(m_Pools);
-        eassert(pool != nullptr, "Component pool not found in handle");
-        return pool->operator[](m_EntityId);
-    }
-    
-private:
-    const EntityId m_EntityId;
-    const std::tuple<EcsComponentPool<Cs>*...> m_Pools;
 };
 
 /// @brief The ECS registry that manages entity IDs and their associated components.
@@ -350,26 +305,30 @@ public:
         }
     }
 
-    /// @brief Returns a handle to the given entity ID and its components of types Cs.
-    /// A handle enables access to components of types Cs for the given entity ID.
-    /// Component references can be retrieved via EcsEntityHandle::Get<C>() even if
-    /// the component pools mutate.
-    /// However, the returned references may become invalid if the pools mutate.
     template<typename... Cs>
-    Result<EcsEntityHandle<Cs...>> GetHandle(const EntityId eid)
+    requires (sizeof...(Cs) >= 2)
+    std::tuple<Cs*...> Get(const EntityId eid)
     {
-        if(!everify(IsAlive(eid)))
-        {
-            return std::unexpected(Error("Entity {} is not alive", eid));
-        }
+        eassert(IsAlive(eid), "Entity is not alive");
 
-        std::tuple<EcsComponentPool<Cs>*...> pools;
-        if(!EnsureEntityHasComponents(eid, pools))
-        {
-            return std::unexpected(Error("Entity {} does not have all requested components", eid));
-        }
+        auto pools = std::make_tuple(TryGetPoolForEntity<Cs>(eid)...);
 
-        return EcsEntityHandle<Cs...>(eid, pools);
+        return
+        everify((std::get<EcsComponentPool<Cs>*>(pools) && ...), "Entity does not have all requested components")
+        ? std::tuple<Cs*...>{ &std::get<EcsComponentPool<Cs>*>(pools)->operator[](eid)... }
+        : std::tuple<Cs*...>{ (static_cast<Cs*>(nullptr))... };
+    }
+
+    template<typename C>
+    C* Get(const EntityId eid)
+    {
+        eassert(IsAlive(eid), "Entity is not alive");
+
+        auto pool = TryGetPoolForEntity<C>(eid);
+
+        return everify(pool, "Entity does not have requested component")
+        ? &pool->operator[](eid)
+        : nullptr;
     }
 
     /// @brief Returns true if the given entity ID has a component of type C.

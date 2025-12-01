@@ -95,9 +95,12 @@ std::string
 Asserts::Capture::Message() const
 {
     auto sink = static_cast<spdlog::sinks::ringbuffer_sink_mt*>(m_Sink.get());
-    return sink->last_formatted().empty()
+    const auto message = 
+        sink->last_formatted().empty()
         ? std::string()
         : sink->last_formatted().back();
+
+    return message;
 }
 
 Asserts::Capture::~Capture()

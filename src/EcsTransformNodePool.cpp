@@ -29,10 +29,7 @@ EcsComponentPool<TransformNode2>::Add(const EntityId eid, const TransformNode2& 
     // Then check if the last item in the collection is childless and swap-remove
     // into the vacated slot.
 
-    if(eid.Value() >= static_cast<int>(m_Index.size()))
-    {
-        m_Index.resize(eid.Value() + 1, -1);
-    }
+    EnsureIndexes(eid);
 
     if(!parentId.IsValid())
     {
