@@ -167,20 +167,20 @@ if(SIMPLESG_STRICT)
 endif()
 
 # ============================================================
-# Executable: EcsTransformNodePoolTests
+# Executable: EcsChildTransformPoolTests
 # ============================================================
-add_executable(EcsTransformNodePoolTests "tests/EcsTransformNodePool.test.cpp")
-target_link_libraries(EcsTransformNodePoolTests PRIVATE gtest_main ssg::ssg spdlog::spdlog)
+add_executable(EcsChildTransformPoolTests "tests/EcsChildTransformPool.test.cpp")
+target_link_libraries(EcsChildTransformPoolTests PRIVATE gtest_main ssg::ssg spdlog::spdlog)
 
 if(MSVC)
-  target_compile_definitions(EcsTransformNodePoolTests PRIVATE _HAS_EXCEPTIONS=0)
-  target_compile_options(EcsTransformNodePoolTests PRIVATE /GR-)
+  target_compile_definitions(EcsChildTransformPoolTests PRIVATE _HAS_EXCEPTIONS=0)
+  target_compile_options(EcsChildTransformPoolTests PRIVATE /GR-)
 else()
-  target_compile_options(EcsTransformNodePoolTests PRIVATE -fno-exceptions)
+  target_compile_options(EcsChildTransformPoolTests PRIVATE -fno-exceptions)
 endif()
 
 if(SIMPLESG_STRICT)
-  set_property(TARGET EcsTransformNodePoolTests PROPERTY COMPILE_WARNING_AS_ERROR ON)
+  set_property(TARGET EcsChildTransformPoolTests PROPERTY COMPILE_WARNING_AS_ERROR ON)
 endif()
 
 # Enable testing and register tests
@@ -189,4 +189,4 @@ endif()
 include(GoogleTest)
 enable_testing()
 gtest_discover_tests(EcsTests)
-gtest_discover_tests(EcsTransformNodePoolTests)
+gtest_discover_tests(EcsChildTransformPoolTests)

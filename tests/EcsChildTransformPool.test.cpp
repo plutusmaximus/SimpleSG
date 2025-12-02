@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "EcsTransformNodePool.h"
+#include "EcsChildTransformPool.h"
 
 #include <algorithm>
 #include <random>
@@ -60,12 +60,12 @@ namespace
     /// @brief Verifies that indexer returns a valid component for an existing entity.
     TEST(EcsTransformNodePool, Get_ExistingEntity_ValidPointerReturned)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         const EntityId nodeId = idGen.NextId();
         auto xform = RandomTrsTransform();
-        pool.Add(nodeId, TransformNode2{ .LocalTransform = xform });
+        pool.Add(nodeId, ChildTransform{ .LocalTransform = xform });
 
         auto node = pool[nodeId];
         // Validate LocalTransform default scale instead of removed Id member
@@ -75,7 +75,7 @@ namespace
     /// @brief Verifies that Has() correctly identifies existing and non-existing entities.
     TEST(EcsTransformNodePool, Has_ExistingAndNonExistentEntities_CorrectResultsReturned)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         const EntityId existingId = idGen.NextId();
@@ -90,15 +90,15 @@ namespace
     /// @brief Verifies that the const version of operator[] works correctly.
     TEST(EcsTransformNodePool, Get_ConstVersion_ValidPointerReturned)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         const EntityId nodeId = idGen.NextId();
         auto xform = RandomTrsTransform();
-        pool.Add(nodeId, TransformNode2{ .LocalTransform = xform });
+        pool.Add(nodeId, ChildTransform{ .LocalTransform = xform });
 
-        const EcsComponentPool<TransformNode2>& constpool = pool;
-        const TransformNode2* node = constpool[nodeId];
+        const EcsComponentPool<ChildTransform>& constpool = pool;
+        const ChildTransform* node = constpool[nodeId];
 
         EXPECT_EQ(node->LocalTransform, xform);
     }
@@ -108,17 +108,17 @@ namespace
     /// @brief Verifies that a single top-level node can be added and retrieved correctly.
     TEST(EcsTransformNodePool, Add_SingleTopLevelNode_NodeAddedSuccessfully)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         const EntityId eid = idGen.NextId();
         auto localTransform = RandomTrsTransform();
-        pool.Add(eid, TransformNode2{ EntityId{}, localTransform });
+        pool.Add(eid, ChildTransform{ EntityId{}, localTransform });
 
         EXPECT_EQ(pool.size(), 1);
         EXPECT_TRUE(pool.Has(eid));
         
-        const TransformNode2* node = pool[eid];
+        const ChildTransform* node = pool[eid];
         EXPECT_EQ(node->LocalTransform, localTransform);
         EXPECT_FALSE(node->ParentId.IsValid());
     }
@@ -126,7 +126,7 @@ namespace
     /// @brief Verifies that multiple top-level nodes can be added independently.
     TEST(EcsTransformNodePool, Add_MultipleTopLevelNodes_AllNodesAddedSuccessfully)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         const EntityId id1 = idGen.NextId();
@@ -140,17 +140,17 @@ namespace
             RandomTrsTransform()
         };
 
-        pool.Add(id1, TransformNode2{ .LocalTransform = localTransforms[0] });
-        pool.Add(id2, TransformNode2{ .LocalTransform = localTransforms[1] });
-        pool.Add(id3, TransformNode2{ .LocalTransform = localTransforms[2] });
+        pool.Add(id1, ChildTransform{ .LocalTransform = localTransforms[0] });
+        pool.Add(id2, ChildTransform{ .LocalTransform = localTransforms[1] });
+        pool.Add(id3, ChildTransform{ .LocalTransform = localTransforms[2] });
         EXPECT_EQ(pool.size(), 3);
         EXPECT_TRUE(pool.Has(id1));
         EXPECT_TRUE(pool.Has(id2));
         EXPECT_TRUE(pool.Has(id3));
 
-        const TransformNode2* node1 = pool[id1];
-        const TransformNode2* node2 = pool[id2];
-        const TransformNode2* node3 = pool[id3];
+        const ChildTransform* node1 = pool[id1];
+        const ChildTransform* node2 = pool[id2];
+        const ChildTransform* node3 = pool[id3];
         
         EXPECT_EQ(node1->LocalTransform, localTransforms[0]);
         EXPECT_EQ(node2->LocalTransform, localTransforms[1]);
@@ -163,7 +163,7 @@ namespace
     /// @brief Verifies that a child node is added after its parent and maintains correct parent-child relationship.
     TEST(EcsTransformNodePool, Add_SingleChildToParent_ChildAddedAfterParent)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         const EntityId parentId = idGen.NextId();
@@ -175,24 +175,24 @@ namespace
             RandomTrsTransform()
         };
 
-        pool.Add(parentId, TransformNode2{ .LocalTransform = localTransforms[0] });
-        pool.Add(childId, TransformNode2{ parentId, localTransforms[1] });
+        pool.Add(parentId, ChildTransform{ .LocalTransform = localTransforms[0] });
+        pool.Add(childId, ChildTransform{ parentId, localTransforms[1] });
 
         EXPECT_EQ(pool.size(), 2);
         EXPECT_TRUE(pool.Has(parentId));
         EXPECT_TRUE(pool.Has(childId));
 
-        const TransformNode2* child = pool[childId];
+        const ChildTransform* child = pool[childId];
         EXPECT_EQ(child->LocalTransform, localTransforms[1]);
         EXPECT_EQ(child->ParentId, parentId);
 
         // Verify child appears after parent in iteration order
         auto it = pool.begin();
         EXPECT_EQ(*it, parentId);
-        const TransformNode2* parentNode = pool[*it];
+        const ChildTransform* parentNode = pool[*it];
         ++it;
         EXPECT_EQ(*it, childId);
-        const TransformNode2* childNode = pool[*it];
+        const ChildTransform* childNode = pool[*it];
 
         //Verify contiguity
         EXPECT_EQ(parentNode + 1, childNode);
@@ -201,7 +201,7 @@ namespace
     /// @brief Verifies that multiple children are added consecutively after their parent with correct relationships.
     TEST(EcsTransformNodePool, Add_MultipleChildrenToParent_AllChildrenAddedConsecutively)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         const EntityId parentId = idGen.NextId();
@@ -217,10 +217,10 @@ namespace
             RandomTrsTransform()
         };
 
-        pool.Add(parentId, TransformNode2{ .LocalTransform = localTransforms[0] });
-        pool.Add(child1, TransformNode2{ parentId, localTransforms[1] });
-        pool.Add(child2, TransformNode2{ parentId, localTransforms[2] });
-        pool.Add(child3, TransformNode2{ parentId, localTransforms[3] });
+        pool.Add(parentId, ChildTransform{ .LocalTransform = localTransforms[0] });
+        pool.Add(child1, ChildTransform{ parentId, localTransforms[1] });
+        pool.Add(child2, ChildTransform{ parentId, localTransforms[2] });
+        pool.Add(child3, ChildTransform{ parentId, localTransforms[3] });
 
         EXPECT_EQ(pool.size(), 4);
 
@@ -236,7 +236,7 @@ namespace
         EXPECT_EQ(pool[child3]->LocalTransform, localTransforms[3]);
 
         // Verify ordering: parent followed by all children, children in reverse order of addition
-        TransformNode2* ptrs[std::size(localTransforms)];
+        ChildTransform* ptrs[std::size(localTransforms)];
 
         auto it = pool.begin();
         EXPECT_EQ(*it, parentId);
@@ -264,7 +264,7 @@ namespace
     /// @brief Verifies that attempting to add an invalid EntityId is rejected and pool remains unchanged.
     TEST(EcsTransformNodePool, Add_InvalidEntityId_AddRejected)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         
         EntityId invalidId; // Default constructor creates invalid ID
         EXPECT_FALSE(invalidId.IsValid());
@@ -283,7 +283,7 @@ namespace
     /// @brief Verifies that attempting to add a duplicate EntityId is rejected.
     TEST(EcsTransformNodePool, Add_DuplicateEntityId_AddRejected)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         const EntityId nodeId = idGen.NextId();
@@ -305,7 +305,7 @@ namespace
     /// @brief Verifies that attempting to add an entity with itself as parent is rejected.
     TEST(EcsTransformNodePool, Add_EntityWithSelfAsParent_AddRejected)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         const EntityId nodeId = idGen.NextId();
@@ -318,7 +318,7 @@ namespace
         const EntityId sameId = idGen.NextId();
         assert_capture(capture)
         {
-            const bool added = pool.Add(sameId, TransformNode2{ sameId, RandomTrsTransform() });
+            const bool added = pool.Add(sameId, ChildTransform{ sameId, RandomTrsTransform() });
             EXPECT_FALSE(added);
             EXPECT_TRUE(capture.Message().contains("Entity cannot be its own parent"));
         }
@@ -330,7 +330,7 @@ namespace
     /// @brief Verifies that attempting to add a child with a non-existent parent is rejected.
     TEST(EcsTransformNodePool, Add_ChildWithNonExistentParent_AddRejected)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         const EntityId childId = idGen.NextId();
@@ -339,7 +339,7 @@ namespace
         // Attempt to add child with parent that doesn't exist
         assert_capture(capture)
         {
-            const bool added = pool.Add(childId, TransformNode2{ nonExistentParent, RandomTrsTransform() });
+            const bool added = pool.Add(childId, ChildTransform{ nonExistentParent, RandomTrsTransform() });
             EXPECT_FALSE(added);
             EXPECT_TRUE(capture.Message().contains("Parent ID not found in collection"));
         }
@@ -353,7 +353,7 @@ namespace
     /// @brief Verifies that a three-level nested hierarchy maintains correct ordering and relationships.
     TEST(EcsTransformNodePool, Add_ThreeLevelNestedHierarchy_CorrectOrderingMaintained)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         const EntityId grandparent = idGen.NextId();
@@ -367,9 +367,9 @@ namespace
             RandomTrsTransform()
         };
 
-        pool.Add(grandparent, TransformNode2{ .LocalTransform = localTransforms[0] });
-        pool.Add(parent, TransformNode2{ grandparent, localTransforms[1] });
-        pool.Add(child, TransformNode2{ parent, localTransforms[2] });
+        pool.Add(grandparent, ChildTransform{ .LocalTransform = localTransforms[0] });
+        pool.Add(parent, ChildTransform{ grandparent, localTransforms[1] });
+        pool.Add(child, ChildTransform{ parent, localTransforms[2] });
         EXPECT_EQ(pool.size(), 3);
 
         // Verify relationships
@@ -378,7 +378,7 @@ namespace
         EXPECT_EQ(pool[child]->ParentId, parent);
 
         // Verify ordering
-        TransformNode2* ptrs[std::size(localTransforms)];
+        ChildTransform* ptrs[std::size(localTransforms)];
         
         auto it = pool.begin();
         EXPECT_EQ(*it, grandparent);
@@ -400,7 +400,7 @@ namespace
     /// @brief Verifies that a hierarchy with multiple branches and grandchildren maintains proper structure.
     TEST(EcsTransformNodePool, Add_MultipleBranchesWithGrandchildren_ProperStructureMaintained)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         const EntityId root = idGen.NextId();
@@ -420,12 +420,12 @@ namespace
             RandomTrsTransform()
         };
 
-        pool.Add(root, TransformNode2{ .LocalTransform = localTransforms[0] });
-        pool.Add(child1, TransformNode2{ root, localTransforms[1] });
-        pool.Add(grandchild1_1, TransformNode2{ child1, localTransforms[2] });
-        pool.Add(grandchild1_2, TransformNode2{ child1, localTransforms[3] });
-        pool.Add(child2, TransformNode2{ root, localTransforms[4] });
-        pool.Add(grandchild2_1, TransformNode2{ child2, localTransforms[5] });
+        pool.Add(root, ChildTransform{ .LocalTransform = localTransforms[0] });
+        pool.Add(child1, ChildTransform{ root, localTransforms[1] });
+        pool.Add(grandchild1_1, ChildTransform{ child1, localTransforms[2] });
+        pool.Add(grandchild1_2, ChildTransform{ child1, localTransforms[3] });
+        pool.Add(child2, ChildTransform{ root, localTransforms[4] });
+        pool.Add(grandchild2_1, ChildTransform{ child2, localTransforms[5] });
         EXPECT_EQ(pool.size(), 6);
 
         // Verify all nodes exist
@@ -444,7 +444,7 @@ namespace
         EXPECT_EQ(pool[grandchild2_1]->ParentId, child2);
 
         // Verify depth first ordering
-        TransformNode2* ptrs[std::size(localTransforms)];
+        ChildTransform* ptrs[std::size(localTransforms)];
 
         auto it = pool.begin();
         EXPECT_EQ(*it, root);
@@ -475,7 +475,7 @@ namespace
     /// @brief Verifies that adding a child to a middle node correctly inserts it and updates indices.
     TEST(EcsTransformNodePool, Add_ChildToMiddleNode_InsertedCorrectlyWithUpdatedIndices)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         // Build initial hierarchy
@@ -491,22 +491,22 @@ namespace
             RandomTrsTransform()
         };
 
-        pool.Add(root, TransformNode2{ .LocalTransform = localTransforms[0] });
-        pool.Add(child1, TransformNode2{ root, localTransforms[1] });
-        pool.Add(child2, TransformNode2{ root, localTransforms[2] });
+        pool.Add(root, ChildTransform{ .LocalTransform = localTransforms[0] });
+        pool.Add(child1, ChildTransform{ root, localTransforms[1] });
+        pool.Add(child2, ChildTransform{ root, localTransforms[2] });
 
         EXPECT_EQ(pool.size(), 3);
 
         // Add a new child to the second child (middle of hierarchy)
         const EntityId grandchild = idGen.NextId();
-        pool.Add(grandchild, TransformNode2{ child2, localTransforms[3] });
+        pool.Add(grandchild, ChildTransform{ child2, localTransforms[3] });
 
         EXPECT_EQ(pool.size(), 4);
         EXPECT_TRUE(pool.Has(grandchild));
         EXPECT_EQ(pool[grandchild]->ParentId, child2);
 
         // Verify ordering: root, child2, grandchild, child1
-        TransformNode2* ptrs[std::size(localTransforms)];
+        ChildTransform* ptrs[std::size(localTransforms)];
 
         auto it = pool.begin();
         EXPECT_EQ(*it, root);
@@ -533,7 +533,7 @@ namespace
     /// @brief Verifies that removing a top-level node without children completely removes it from the pool.
     TEST(EcsTransformNodePool, Remove_TopLevelNodeWithoutChildren_NodeRemovedCompletely)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         const EntityId nodeId = idGen.NextId();
@@ -550,7 +550,7 @@ namespace
     /// @brief Verifies that removing a parent node also removes all its children (entire subtree).
     TEST(EcsTransformNodePool, Remove_ParentWithChildren_EntireSubtreeRemoved)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         const EntityId parent = idGen.NextId();
@@ -558,8 +558,8 @@ namespace
         const EntityId child2 = idGen.NextId();
 
         pool.Add(parent, {});
-        pool.Add(child1, TransformNode2{ parent, RandomTrsTransform() });
-        pool.Add(child2, TransformNode2{ parent, RandomTrsTransform() });
+        pool.Add(child1, ChildTransform{ parent, RandomTrsTransform() });
+        pool.Add(child2, ChildTransform{ parent, RandomTrsTransform() });
 
         EXPECT_EQ(pool.size(), 3);
 
@@ -574,7 +574,7 @@ namespace
     /// @brief Verifies that removing a middle child leaves its siblings intact.
     TEST(EcsTransformNodePool, Remove_MiddleChild_SiblingsRemainIntact)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         const EntityId parent = idGen.NextId();
@@ -590,10 +590,10 @@ namespace
             RandomTrsTransform()
         };
 
-        pool.Add(parent, TransformNode2{ .LocalTransform = localTransforms[0] });
-        pool.Add(child1, TransformNode2{ parent, localTransforms[1] });
-        pool.Add(child2, TransformNode2{ parent, localTransforms[2] });
-        pool.Add(child3, TransformNode2{ parent, localTransforms[3] });
+        pool.Add(parent, ChildTransform{ .LocalTransform = localTransforms[0] });
+        pool.Add(child1, ChildTransform{ parent, localTransforms[1] });
+        pool.Add(child2, ChildTransform{ parent, localTransforms[2] });
+        pool.Add(child3, ChildTransform{ parent, localTransforms[3] });
 
         EXPECT_EQ(pool.size(), 4);
 
@@ -606,7 +606,7 @@ namespace
         EXPECT_TRUE(pool.Has(child3));
 
         //Verify ordering: parent, child3, child1
-        TransformNode2* ptrs[std::size(localTransforms)];
+        ChildTransform* ptrs[std::size(localTransforms)];
 
         auto it = pool.begin();
         EXPECT_EQ(*it, parent);
@@ -628,7 +628,7 @@ namespace
     /// @brief Verifies that attempting to remove a non-existent entity has no effect on the pool.
     TEST(EcsTransformNodePool, Remove_NonExistentEntity_NoEffect)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         const EntityId existingId = idGen.NextId();
@@ -650,7 +650,7 @@ namespace
     /// @brief Verifies that removing a node in a deep hierarchy removes all its descendants.
     TEST(EcsTransformNodePool, Remove_NodeInDeepHierarchy_AllDescendantsRemoved)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         // Build 4-level hierarchy
@@ -669,12 +669,11 @@ namespace
             RandomTrsTransform()
         };
 
-        pool.Add(level1, TransformNode2{ .LocalTransform = localTransforms[0] });
-        pool.Add(level2, TransformNode2{ level1, localTransforms[1] });
-        pool.Add(level3, TransformNode2{ level2, localTransforms[2] });
-        pool.Add(level4, TransformNode2{ level3, localTransforms[3] });
-        pool.Add(level3_sibling, TransformNode2{ level2, localTransforms[4] });
-
+        pool.Add(level1, ChildTransform{ .LocalTransform = localTransforms[0] });
+        pool.Add(level2, ChildTransform{ level1, localTransforms[1] });
+        pool.Add(level3, ChildTransform{ level2, localTransforms[2] });
+        pool.Add(level4, ChildTransform{ level3, localTransforms[3] });
+        pool.Add(level3_sibling, ChildTransform{ level2, localTransforms[4] });
         EXPECT_EQ(pool.size(), 5);
 
         // Remove middle node (level2)
@@ -693,7 +692,7 @@ namespace
     /// @brief Verifies that an entity can be removed and re-added, both as top-level and as a child.
     TEST(EcsTransformNodePool, Remove_ThenReAdd_EntityAddedSuccessfully)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         const EntityId nodeId = idGen.NextId();
@@ -708,23 +707,23 @@ namespace
         };
         
         // Add, remove, then add again as top-level
-        pool.Add(nodeId, TransformNode2{ .LocalTransform = localTransforms[0] });
+        pool.Add(nodeId, ChildTransform{ .LocalTransform = localTransforms[0] });
         EXPECT_TRUE(pool.Has(nodeId));
         pool.Remove(nodeId);
         EXPECT_FALSE(pool.Has(nodeId));
 
-        pool.Add(nodeId, TransformNode2{ .LocalTransform = localTransforms[1] });
+        pool.Add(nodeId, ChildTransform{ .LocalTransform = localTransforms[1] });
         EXPECT_TRUE(pool.Has(nodeId));
         EXPECT_EQ(pool.size(), 1);
 
         // Now add as child
         const EntityId parentId = idGen.NextId();
-        pool.Add(parentId, TransformNode2{ .LocalTransform = localTransforms[2] });
+        pool.Add(parentId, ChildTransform{ .LocalTransform = localTransforms[2] });
         
         pool.Remove(nodeId);
         EXPECT_FALSE(pool.Has(nodeId));
         
-        pool.Add(nodeId, TransformNode2{ parentId, localTransforms[3] });
+        pool.Add(nodeId, ChildTransform{ parentId, localTransforms[3] });
         EXPECT_TRUE(pool.Has(nodeId));
         EXPECT_EQ(pool[nodeId]->ParentId, parentId);
 
@@ -742,7 +741,7 @@ namespace
     /// @brief Verifies that the pool handles entities with large ID values correctly.
     TEST(EcsTransformNodePool, Add_EntityWithLargeIdValue_HandledCorrectly)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         EcsRegistry registry;
 
         // Create entities with large ID values by creating and destroying many
@@ -765,7 +764,7 @@ namespace
     /// @brief Verifies that a sequence of add and remove operations maintains pool integrity.
     TEST(EcsTransformNodePool, AddRemove_SequenceOfOperations_IntegrityMaintained)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         TrsTransformf localTransforms[10] =
@@ -786,7 +785,7 @@ namespace
         for (int i = 0; i < std::size(localTransforms); ++i)
         {
             ids.push_back(idGen.NextId());
-            pool.Add(ids.back(), TransformNode2{ .LocalTransform = localTransforms[i] });
+            pool.Add(ids.back(), ChildTransform{ .LocalTransform = localTransforms[i] });
         }
         
         EXPECT_EQ(pool.size(), 10);
@@ -808,7 +807,7 @@ namespace
         // Add them back
         for (size_t i = 0; i < ids.size(); i += 2)
         {
-            pool.Add(ids[i], TransformNode2{ .LocalTransform = localTransforms[i] } );
+            pool.Add(ids[i], ChildTransform{ .LocalTransform = localTransforms[i] } );
         }
         EXPECT_EQ(pool.size(), 10);
 
@@ -822,7 +821,7 @@ namespace
     /// @brief Verifies that the pool handles sparse entity IDs efficiently with appropriate index growth.
     TEST(EcsTransformNodePool, Add_SparseEntityIds_IndexGrowsAppropriately)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         EcsRegistry registry;
 
         // Create sparse IDs by creating and destroying intermediate ones
@@ -842,8 +841,8 @@ namespace
             RandomTrsTransform()
         };
 
-        pool.Add(id1, TransformNode2{ .LocalTransform = localTransforms[0] });
-        pool.Add(id2, TransformNode2{ .LocalTransform = localTransforms[1] });
+        pool.Add(id1, ChildTransform{ .LocalTransform = localTransforms[0] });
+        pool.Add(id2, ChildTransform{ .LocalTransform = localTransforms[1] });
 
         EXPECT_EQ(pool.size(), 2);
         EXPECT_TRUE(pool.Has(id1));
@@ -858,7 +857,7 @@ namespace
     /// @brief Verifies that multiple independent hierarchies can coexist and be removed independently.
     TEST(EcsTransformNodePool, AddRemove_MultipleIndependentHierarchies_IndependentManagement)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         // Create two separate hierarchies
@@ -880,13 +879,13 @@ namespace
             RandomTrsTransform()
         };
 
-        pool.Add(root1, TransformNode2{ .LocalTransform = localTransforms[0] });
-        pool.Add(root1_child1, TransformNode2{ root1, localTransforms[1] });
-        pool.Add(root1_child2, TransformNode2{ root1, localTransforms[2] });
+        pool.Add(root1, ChildTransform{ .LocalTransform = localTransforms[0] });
+        pool.Add(root1_child1, ChildTransform{ root1, localTransforms[1] });
+        pool.Add(root1_child2, ChildTransform{ root1, localTransforms[2] });
 
-        pool.Add(root2, TransformNode2{ .LocalTransform = localTransforms[3] });
-        pool.Add(root2_child1, TransformNode2{ root2, localTransforms[4] });
-        pool.Add(root2_child2, TransformNode2{ root2, localTransforms[5] });
+        pool.Add(root2, ChildTransform{ .LocalTransform = localTransforms[3] });
+        pool.Add(root2_child1, ChildTransform{ root2, localTransforms[4] });
+        pool.Add(root2_child2, ChildTransform{ root2, localTransforms[5] });
         EXPECT_EQ(pool.size(), 6);
 
         // Remove first hierarchy
@@ -911,7 +910,7 @@ namespace
     /// @brief Verifies that adding grandchildren after siblings maintains correct hierarchical ordering.
     TEST(EcsTransformNodePool, Add_GrandchildrenAfterSiblings_CorrectOrderingMaintained)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         const EntityId root = idGen.NextId();
@@ -928,17 +927,17 @@ namespace
             RandomTrsTransform()
         };
 
-        pool.Add(root, TransformNode2{ .LocalTransform = localTransforms[0] });
+        pool.Add(root, ChildTransform{ .LocalTransform = localTransforms[0] });
         
         // Add children, but later add grandchildren to first child
         // Note the order in the pool is the reverse of addition order
-        pool.Add(child1, TransformNode2{ root, localTransforms[1] });
-        pool.Add(child2, TransformNode2{ root, localTransforms[2] });
-        pool.Add(child3, TransformNode2{ root, localTransforms[3] });
+        pool.Add(child1, ChildTransform{ root, localTransforms[1] });
+        pool.Add(child2, ChildTransform{ root, localTransforms[2] });
+        pool.Add(child3, ChildTransform{ root, localTransforms[3] });
 
         // Now add grandchild to child2 (should insert after child2)
         const EntityId grandchild1 = idGen.NextId();
-        pool.Add(grandchild1, TransformNode2{ child2, localTransforms[4] });
+        pool.Add(grandchild1, ChildTransform{ child2, localTransforms[4] });
         // Expected order: root, child3, child2, grandchild1, child1
         auto it = pool.begin();
         EXPECT_EQ(*it, root);
@@ -957,7 +956,7 @@ namespace
         EXPECT_EQ(pool[*it]->LocalTransform, localTransforms[1]);
 
         // Verify contiguity
-        TransformNode2* ptrs[] =
+        const ChildTransform* ptrs[] =
         {
             pool[root],
             pool[child3],
@@ -974,7 +973,7 @@ namespace
     /// @brief Verifies that removing a single leaf from a complex hierarchy preserves the remaining structure.
     TEST(EcsTransformNodePool, Remove_SingleLeafFromComplexHierarchy_RemainingStructurePreserved)
     {
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
 
         // Build complex tree
@@ -995,12 +994,12 @@ namespace
             RandomTrsTransform()
         };
 
-        pool.Add(root, TransformNode2{ .LocalTransform = localTransforms[0] });
-        pool.Add(branch1, TransformNode2{ root, localTransforms[1] });
-        pool.Add(leaf1_1, TransformNode2{ branch1, localTransforms[2] });
-        pool.Add(leaf1_2, TransformNode2{ branch1, localTransforms[3] });
-        pool.Add(branch2, TransformNode2{ root, localTransforms[4] });
-        pool.Add(leaf2_1, TransformNode2{ branch2, localTransforms[5] });
+        pool.Add(root, ChildTransform{ .LocalTransform = localTransforms[0] });
+        pool.Add(branch1, ChildTransform{ root, localTransforms[1] });
+        pool.Add(leaf1_1, ChildTransform{ branch1, localTransforms[2] });
+        pool.Add(leaf1_2, ChildTransform{ branch1, localTransforms[3] });
+        pool.Add(branch2, ChildTransform{ root, localTransforms[4] });
+        pool.Add(leaf2_1, ChildTransform{ branch2, localTransforms[5] });
         // Remove one leaf
         pool.Remove(leaf1_1);
 
@@ -1025,7 +1024,7 @@ namespace
         EXPECT_EQ(pool[leaf2_1]->LocalTransform, localTransforms[5]);
 
         // Verify ordering and contiguity
-        TransformNode2* ptrs[] =
+        const ChildTransform* ptrs[] =
         {
             pool[root],
             pool[branch2],
@@ -1050,7 +1049,7 @@ namespace
     };
 
     /// @brief Adds a new multi-level hierarchy with random children and grandchildren.
-    static void AddNewHierarchy(EcsComponentPool<TransformNode2>& pool, TestIdGenerator& idGen, std::vector<HierarchyInfo>& hierarchies)
+    static void AddNewHierarchy(EcsComponentPool<ChildTransform>& pool, TestIdGenerator& idGen, std::vector<HierarchyInfo>& hierarchies)
     {
         HierarchyInfo hierarchy;
         hierarchy.root = idGen.NextId();
@@ -1061,7 +1060,7 @@ namespace
         for (int i = 0; i < numChildren; ++i)
         {
             EntityId child = idGen.NextId();
-            pool.Add(child, TransformNode2{ hierarchy.root, RandomTrsTransform() });
+            pool.Add(child, ChildTransform{ hierarchy.root, RandomTrsTransform() });
             hierarchy.children.push_back(child);
 
             // 50% chance to add grandchildren to this child
@@ -1071,7 +1070,7 @@ namespace
                 for (int j = 0; j < numGrandchildren; ++j)
                 {
                     EntityId grandchild = idGen.NextId();
-                    pool.Add(grandchild, TransformNode2{ child, RandomTrsTransform() });
+                    pool.Add(grandchild, ChildTransform{ child, RandomTrsTransform() });
                     hierarchy.grandchildren.push_back(grandchild);
                 }
             }
@@ -1081,7 +1080,7 @@ namespace
     }
 
     /// @brief Adds nodes to an existing hierarchy (either children or grandchildren).
-    static void AddToExistingHierarchy(EcsComponentPool<TransformNode2>& pool, TestIdGenerator& idGen, std::vector<HierarchyInfo>& hierarchies)
+    static void AddToExistingHierarchy(EcsComponentPool<ChildTransform>& pool, TestIdGenerator& idGen, std::vector<HierarchyInfo>& hierarchies)
     {
         if (hierarchies.empty())
         {
@@ -1096,20 +1095,20 @@ namespace
             // Add a grandchild to a random child
             const size_t childIdx = rand() % hierarchy.children.size();
             EntityId grandchild = idGen.NextId();
-            pool.Add(grandchild, TransformNode2{ hierarchy.children[childIdx], RandomTrsTransform() });
+            pool.Add(grandchild, ChildTransform{ hierarchy.children[childIdx], RandomTrsTransform() });
             hierarchy.grandchildren.push_back(grandchild);
         }
         else
         {
             // Add a new child to the root
             EntityId child = idGen.NextId();
-            pool.Add(child, TransformNode2{ hierarchy.root, RandomTrsTransform() });
+            pool.Add(child, ChildTransform{ hierarchy.root, RandomTrsTransform() });
             hierarchy.children.push_back(child);
         }
     }
 
     /// @brief Removes an entire hierarchy and verifies all nodes are removed.
-    static void RemoveEntireHierarchy(EcsComponentPool<TransformNode2>& pool, std::vector<HierarchyInfo>& hierarchies)
+    static void RemoveEntireHierarchy(EcsComponentPool<ChildTransform>& pool, std::vector<HierarchyInfo>& hierarchies)
     {
         if (hierarchies.empty())
         {
@@ -1140,7 +1139,7 @@ namespace
     }
 
     /// @brief Removes a partial hierarchy (middle node with its descendants).
-    static void RemovePartialHierarchy(EcsComponentPool<TransformNode2>& pool, std::vector<HierarchyInfo>& hierarchies)
+    static void RemovePartialHierarchy(EcsComponentPool<ChildTransform>& pool, std::vector<HierarchyInfo>& hierarchies)
     {
         if (hierarchies.empty())
         {
@@ -1180,7 +1179,7 @@ namespace
     }
 
     /// @brief Adds standalone top-level nodes and randomly removes half of them.
-    static void AddAndRemoveStandaloneNodes(EcsComponentPool<TransformNode2>& pool, TestIdGenerator& idGen)
+    static void AddAndRemoveStandaloneNodes(EcsComponentPool<ChildTransform>& pool, TestIdGenerator& idGen)
     {
         const int numNodes = (rand() % 5) + 1;
         for (int i = 0; i < numNodes; ++i)
@@ -1197,7 +1196,7 @@ namespace
     }
 
     /// @brief Verifies pool integrity including hierarchy relationships and memory contiguity.
-    static void VerifypoolIntegrity(const EcsComponentPool<TransformNode2>& pool, const std::vector<HierarchyInfo>& hierarchies, int iteration)
+    static void VerifypoolIntegrity(const EcsComponentPool<ChildTransform>& pool, const std::vector<HierarchyInfo>& hierarchies, int iteration)
     {
         // Verify all tracked hierarchies still exist correctly
         for (const auto& hierarchy : hierarchies)
@@ -1232,20 +1231,20 @@ namespace
     }
 
     /// @brief Performs final verification of all remaining hierarchies and memory contiguity.
-    static void VerifyFinalState(const EcsComponentPool<TransformNode2>& pool, const std::vector<HierarchyInfo>& hierarchies)
+    static void VerifyFinalState(const EcsComponentPool<ChildTransform>& pool, const std::vector<HierarchyInfo>& hierarchies)
     {
         // Verify all remaining hierarchies
         for (const auto& hierarchy : hierarchies)
         {
             EXPECT_TRUE(pool.Has(hierarchy.root)) << "Final: Root should exist";
             
-            const TransformNode2* rootNode = pool[hierarchy.root];
+            const ChildTransform* rootNode = pool[hierarchy.root];
             EXPECT_FALSE(rootNode->ParentId.IsValid()) << "Final: Root should have no parent";
 
             for (const auto& child : hierarchy.children)
             {
                 EXPECT_TRUE(pool.Has(child)) << "Final: Child should exist";
-                const TransformNode2* childNode = pool[child];
+                const ChildTransform* childNode = pool[child];
                 EXPECT_EQ(childNode->ParentId, hierarchy.root) << "Final: Child should have correct parent";
             }
 
@@ -1276,7 +1275,7 @@ namespace
     }
 
     /// @brief Initializes a pool with a specified number of items in random hierarchies.
-    static void InitializepoolWithRandomHierarchies(EcsComponentPool<TransformNode2>& pool, TestIdGenerator& idGen, 
+    static void InitializepoolWithRandomHierarchies(EcsComponentPool<ChildTransform>& pool, TestIdGenerator& idGen, 
                                                           std::vector<HierarchyInfo>& activeHierarchies, size_t targetItemCount)
     {
         std::cout << "Initializing pool with " << targetItemCount << " items...\n";
@@ -1305,7 +1304,7 @@ namespace
                 for (int i = 0; i < numChildren && totalItemsAdded < targetItemCount; ++i)
                 {
                     EntityId child = idGen.NextId();
-                    pool.Add(child, TransformNode2{ hierarchy.root, RandomTrsTransform() });
+                    pool.Add(child, ChildTransform{ hierarchy.root, RandomTrsTransform() });
                     hierarchy.children.push_back(child);
                     totalItemsAdded++;
                 }
@@ -1324,7 +1323,7 @@ namespace
                 for (int i = 0; i < numChildren && totalItemsAdded < targetItemCount; ++i)
                 {
                     EntityId child = idGen.NextId();
-                    pool.Add(child, TransformNode2{ hierarchy.root, RandomTrsTransform() });
+                    pool.Add(child, ChildTransform{ hierarchy.root, RandomTrsTransform() });
                     hierarchy.children.push_back(child);
                     totalItemsAdded++;
 
@@ -1335,7 +1334,7 @@ namespace
                         for (int j = 0; j < numGrandchildren && totalItemsAdded < targetItemCount; ++j)
                         {
                             EntityId grandchild = idGen.NextId();
-                            pool.Add(grandchild, TransformNode2{ child, RandomTrsTransform() });
+                            pool.Add(grandchild, ChildTransform{ child, RandomTrsTransform() });
                             hierarchy.grandchildren.push_back(grandchild);
                             totalItemsAdded++;
                         }
@@ -1356,7 +1355,7 @@ namespace
                 for (int i = 0; i < numChildren && totalItemsAdded < targetItemCount; ++i)
                 {
                     EntityId child = idGen.NextId();
-                    pool.Add(child, TransformNode2{ hierarchy.root, RandomTrsTransform() });
+                    pool.Add(child, ChildTransform{ hierarchy.root, RandomTrsTransform() });
                     hierarchy.children.push_back(child);
                     totalItemsAdded++;
 
@@ -1365,7 +1364,7 @@ namespace
                     for (int j = 0; j < numGrandchildren && totalItemsAdded < targetItemCount; ++j)
                     {
                         EntityId grandchild = idGen.NextId();
-                        pool.Add(grandchild, TransformNode2{ child, RandomTrsTransform() });
+                        pool.Add(grandchild, ChildTransform{ child, RandomTrsTransform() });
                         hierarchy.grandchildren.push_back(grandchild);
                         totalItemsAdded++;
 
@@ -1376,7 +1375,7 @@ namespace
                             for (int k = 0; k < numGreatGrandchildren && totalItemsAdded < targetItemCount; ++k)
                             {
                                 EntityId greatGrandchild = idGen.NextId();
-                                pool.Add(greatGrandchild, TransformNode2{ grandchild, RandomTrsTransform() });
+                                pool.Add(greatGrandchild, ChildTransform{ grandchild, RandomTrsTransform() });
                                 totalItemsAdded++;
                             }
                         }
@@ -1421,7 +1420,7 @@ namespace
         std::srand(seed);
         std::cout << "Stress test RNG seed: " << seed << " (use this seed to reproduce the test sequence)\n";
 
-        EcsComponentPool<TransformNode2> pool;
+        EcsComponentPool<ChildTransform> pool;
         TestIdGenerator idGen;
         std::vector<HierarchyInfo> activeHierarchies;
 

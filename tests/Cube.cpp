@@ -19,7 +19,7 @@
 
 #include "LuaRepl.h"
 
-#include "EcsTransformNodePool.h"
+#include "EcsChildTransformPool.h"
 
 static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu);
 static Result<RefPtr<Model>> CreatePumpkinModel(RefPtr<GPUDevice> gpu);
@@ -88,19 +88,19 @@ int main(int, [[maybe_unused]] char* argv[])
 
         const Degreesf fov(45);
 
-        reg.Add(eidPlanet, TransformNode2{}, WorldMatrix{}, model);
-        reg.Add(eidMoonOrbit, TransformNode2{ .ParentId = eidPlanet }, WorldMatrix{});
-        reg.Add(eidMoon, TransformNode2{ .ParentId = eidMoonOrbit }, WorldMatrix{}, model);
-        reg.Add(eidCamera, TransformNode2{}, WorldMatrix{}, Camera{});
+        reg.Add(eidPlanet, ChildTransform{}, WorldMatrix{}, model);
+        reg.Add(eidMoonOrbit, ChildTransform{ .ParentId = eidPlanet }, WorldMatrix{});
+        reg.Add(eidMoon, ChildTransform{ .ParentId = eidMoonOrbit }, WorldMatrix{}, model);
+        reg.Add(eidCamera, ChildTransform{}, WorldMatrix{}, Camera{});
 
-        reg.Get<TransformNode2>(eidCamera)->LocalTransform.T = Vec3f{ 0,0,-4 };
+        reg.Get<ChildTransform>(eidCamera)->LocalTransform.T = Vec3f{ 0,0,-4 };
         reg.Get<Camera>(eidCamera)->SetPerspective(fov, static_cast<float>(winW), static_cast<float>(winH), 0.1f, 1000);
 
         // Main loop
         bool running = true;
         Radiansf planetSpinAngle(0), moonSpinAngle(0), moonOrbitAngle(0);
 
-        GimbleMouseNav gimbleMouseNav(reg.Get<TransformNode2>(eidCamera)->LocalTransform);
+        GimbleMouseNav gimbleMouseNav(reg.Get<ChildTransform>(eidCamera)->LocalTransform);
         MouseNav* mouseNav = &gimbleMouseNav;
 
         while (running)
@@ -176,13 +176,13 @@ int main(int, [[maybe_unused]] char* argv[])
 
             const Quatf planetTilt{ Radiansf::FromDegrees(15), Vec3f::ZAXIS() };
 
-            auto planetXform = reg.Get<TransformNode2>(eidPlanet);
+            auto planetXform = reg.Get<ChildTransform>(eidPlanet);
             planetXform->LocalTransform.R = planetTilt * Quatf{ planetSpinAngle, Vec3f::YAXIS() };
 
-            auto moonOrbitXform = reg.Get<TransformNode2>(eidMoonOrbit);
+            auto moonOrbitXform = reg.Get<ChildTransform>(eidMoonOrbit);
             moonOrbitXform->LocalTransform.R = Quatf{ moonOrbitAngle, Vec3f::YAXIS() };
 
-            auto moonXform = reg.Get<TransformNode2>(eidMoon);
+            auto moonXform = reg.Get<ChildTransform>(eidMoon);
             moonXform->LocalTransform.T = Vec3f{ 0,0,-2 };
             moonXform->LocalTransform.R = Quatf{ moonSpinAngle, Vec3f::YAXIS() };
             moonXform->LocalTransform.S = Vec3f{ 0.25f };
@@ -191,10 +191,10 @@ int main(int, [[maybe_unused]] char* argv[])
 
             SDLRenderGraph renderGraph(gd.Get());
 
-            auto cameraXform = reg.Get<TransformNode2>(eidCamera);
+            auto cameraXform = reg.Get<ChildTransform>(eidCamera);
             cameraXform->LocalTransform = gimbleMouseNav.GetTransform();
 
-            for(const auto& tuple : reg.GetView<TransformNode2, WorldMatrix>())
+            for(const auto& tuple : reg.GetView<ChildTransform, WorldMatrix>())
             {
                 const auto [eid, xform, worldMat] = tuple;
                 const Mat44f localMat = xform->LocalTransform.ToMatrix();

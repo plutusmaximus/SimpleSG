@@ -1,9 +1,9 @@
-#include "EcsTransformNodePool.h"
+#include "EcsChildTransformPool.h"
 
 bool
-EcsComponentPool<TransformNode2>::Add(const EntityId eid, const TransformNode2& node)
+EcsComponentPool<ChildTransform>::Add(const EntityId eid, const ChildTransform& child)
 {
-    const EntityId parentId = node.ParentId;
+    const EntityId parentId = child.ParentId;
 
     if(!everify(eid.IsValid(), "EntityId must be valid"))
     {
@@ -35,7 +35,7 @@ EcsComponentPool<TransformNode2>::Add(const EntityId eid, const TransformNode2& 
     {
         // No parent, add as top-level node
         m_Index[eid.Value()] = static_cast<IndexType>(m_Components.size());
-        m_Components.emplace_back(node);
+        m_Components.emplace_back(child);
         m_EntityIds.emplace_back(eid);
         return true;
     }
@@ -48,7 +48,7 @@ EcsComponentPool<TransformNode2>::Add(const EntityId eid, const TransformNode2& 
     }
 
     IndexType idx = idxOfParent + 1;
-    m_Components.emplace(m_Components.begin() + idx, node);
+    m_Components.emplace(m_Components.begin() + idx, child);
     auto it = m_EntityIds.emplace(m_EntityIds.begin() + idx, eid);
 
     //Update indexes for inserted ID and all subsequent IDs
@@ -61,7 +61,7 @@ EcsComponentPool<TransformNode2>::Add(const EntityId eid, const TransformNode2& 
 }
 
 void
-EcsComponentPool<TransformNode2>::Remove(const EntityId eid)
+EcsComponentPool<ChildTransform>::Remove(const EntityId eid)
 {
     const IndexType eidIdx = IndexOf(eid);
     if(!everify(eidIdx != InvalidIndex, "Entity ID not found"))
