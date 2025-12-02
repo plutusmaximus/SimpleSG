@@ -34,20 +34,20 @@ EcsComponentPool<TransformNode2>::Add(const EntityId eid, const TransformNode2& 
     if(!parentId.IsValid())
     {
         // No parent, add as top-level node
-        m_Index[eid.Value()] = static_cast<int>(m_Components.size());
+        m_Index[eid.Value()] = static_cast<IndexType>(m_Components.size());
         m_Components.emplace_back(node);
         m_EntityIds.emplace_back(eid);
         return true;
     }
 
-    const int idxOfParent = IndexOf(parentId);
-    if(!everify(idxOfParent != -1, "Parent ID not found in collection"))
+    const IndexType idxOfParent = IndexOf(parentId);
+    if(!everify(idxOfParent != InvalidIndex, "Parent ID not found in collection"))
     {
         // Parent not found, which shouldn't happen in a valid hierarchy
         return false;
     }
 
-    int idx = idxOfParent + 1;
+    IndexType idx = idxOfParent + 1;
     m_Components.emplace(m_Components.begin() + idx, node);
     auto it = m_EntityIds.emplace(m_EntityIds.begin() + idx, eid);
 
@@ -98,18 +98,20 @@ EcsComponentPool<TransformNode2>::Remove(const EntityId eid)
     for(IndexType idx = eidIdx; idx < boundIdx; ++idx)
     {
         const auto deletedEid = m_EntityIds[idx];
-        m_Index[deletedEid.Value()] = -1;
+        m_Index[deletedEid.Value()] = InvalidIndex;
     }
 
-    // Remove starting from the top of the sub-assembly up to but not include boundIdx.
-    m_Components.erase(m_Components.begin() + eidIdx, m_Components.begin() + boundIdx);
-    m_EntityIds.erase(m_EntityIds.begin() + eidIdx, m_EntityIds.begin() + boundIdx);
+    // Remove starting from the top of the sub-assembly up to but not including boundIdx.
+    auto compBegin = m_Components.begin();
+    auto entityBegin = m_EntityIds.begin();
+    m_Components.erase(compBegin + eidIdx, compBegin + boundIdx);
+    m_EntityIds.erase(entityBegin + eidIdx, entityBegin + boundIdx);
 
     //Remap indexes for all subsequent nodes
     const size_t size = m_Components.size();
     for(IndexType i = eidIdx; i < size; ++i)
     {
         const EntityId currentEid = m_EntityIds[i];
-        m_Index[currentEid.Value()] = static_cast<IndexType>(i);
+        m_Index[currentEid.Value()] = i;
     }
 }
