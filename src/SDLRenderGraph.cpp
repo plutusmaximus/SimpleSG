@@ -20,9 +20,9 @@ SDLRenderGraph::~SDLRenderGraph()
 }
 
 void
-SDLRenderGraph::Add(const Mat44f& viewTransform, RefPtr<Model> model)
+SDLRenderGraph::Add(const Mat44f& worldTransform, RefPtr<Model> model)
 {
-    m_ViewTransforms.emplace_back(viewTransform);
+    m_WorldTransforms.emplace_back(worldTransform);
 
     for (const auto& mesh : model->Meshes)
     {
@@ -30,7 +30,7 @@ SDLRenderGraph::Add(const Mat44f& viewTransform, RefPtr<Model> model)
 
         auto& meshGroup = m_MeshGroups[mtlId];
 
-        meshGroup.emplace_back(XformMesh{ .ViewTransform = m_ViewTransforms.back(), .Mesh = mesh});
+        meshGroup.emplace_back(XformMesh{ .WorldTransform = m_WorldTransforms.back(), .Mesh = mesh});
     }
 }
 
@@ -159,7 +159,7 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
         for (auto& xmesh : xmeshes)
         {
-            const Mat44f xform = viewProj.Mul(xmesh.ViewTransform);
+            const Mat44f xform = viewProj.Mul(xmesh.WorldTransform);
 
             SDL_PushGPUVertexUniformData(cmdBuf, 0, &xform, sizeof(xform));
 

@@ -290,16 +290,16 @@ public:
         m_FreeList.push_back(eid);
     }
 
-    /// @brief Add a component of type C for the given entity ID.
-    template<typename C, typename... Args>
-    bool Add(const EntityId eid, Args&&... args)
+    /// @brief Add components of types Cs for the given entity ID.
+    template<typename... Cs>
+    bool Add(const EntityId eid, const Cs&... components)
     {
         if(!everify(IsAlive(eid), "Entity is not alive"))
         {
             return false;
         }
 
-        return Pool<C>().Add(eid, std::forward<Args>(args)...);
+        return (Pool<Cs>().Add(eid, components) && ...);
     }
 
     /// @brief Remove the component of type C for the given entity ID.

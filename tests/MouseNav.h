@@ -1,7 +1,6 @@
 #pragma once
 
 #include "VecMath.h"
-#include "SceneNodes.h"
 
 #include <array>
 
@@ -24,12 +23,15 @@ public:
     virtual void OnMouseMove(const Vec2f& mouseDelta) = 0;
 
     virtual void ClearButtons() = 0;
+
+    virtual const TrsTransformf& GetTransform() const = 0;
+
 };
 
 class GimbleMouseNav : public MouseNav
 {
 public:
-    explicit GimbleMouseNav(RefPtr<TransformNode> transformNode);
+    explicit GimbleMouseNav(const TrsTransformf& initialTransform);
 
     ~GimbleMouseNav() override;
 
@@ -46,6 +48,11 @@ public:
     void OnMouseMove(const Vec2f& mouseDelta) override;
 
     void ClearButtons();
+
+    const TrsTransformf& GetTransform() const override
+    {
+        return m_Transform;
+    }
 
 private:
 
@@ -69,11 +76,12 @@ private:
 
     void UpdateRotation(const Vec2f& mouseDelta);
 
-    RefPtr<TransformNode> m_TransformNode;
     std::array<bool, 3> m_MouseButtons{ false };
     Vec2f m_StartLoc{ 0,0 };
     Vec2f m_CurLoc{ 0,0 };
     Vec2f m_ScreenBounds{ 0,0 };
+    Quatf m_StartRot;
+    Vec3f m_StartTrans;
     TrsTransformf m_Transform;
     float m_Scale{ 1 };
     bool m_LeftShift{ false }, m_RightShift{ false };

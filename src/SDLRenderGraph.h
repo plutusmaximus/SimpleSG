@@ -3,9 +3,10 @@
 #include <map>
 
 #include "RenderGraph.h"
-#include "SceneNodes.h"
+#include "Model.h"
 
 #include <SDL3/SDL_gpu.h>
+#include <deque>
 
 class SDLGPUDevice;
 
@@ -17,7 +18,7 @@ public:
 
     explicit SDLRenderGraph(SDLGPUDevice* gpuDevice);
 
-    virtual void Add(const Mat44f& viewTransform, RefPtr<Model> model) override;
+    virtual void Add(const Mat44f& worldTransform, RefPtr<Model> model) override;
 
     virtual Result<void> Render(const Mat44f& camera, const Mat44f& projection) override;
 
@@ -27,11 +28,11 @@ private:
 
     struct XformMesh
     {
-        const Mat44f& ViewTransform;
+        const Mat44f& WorldTransform;
         RefPtr<Mesh> Mesh;
     };
 
-    std::deque<Mat44f> m_ViewTransforms;
+    std::deque<Mat44f> m_WorldTransforms;
 
     RefPtr<SDLGPUDevice> m_GpuDevice;
     SDL_GPUTexture* m_DepthBuffer = nullptr;

@@ -5,10 +5,8 @@
 #include "ECS.h"
 
 #include "Error.h"
-#include "SceneVisitors.h"
-#include "SceneNodes.h"
+#include "Camera.h"
 #include "SDLRenderGraph.h"
-#include "VecMath.h"
 #include "AutoDeleter.h"
 
 #include "SDLGPUDevice.h"
@@ -26,6 +24,16 @@
 static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu);
 static Result<RefPtr<Model>> CreatePumpkinModel(RefPtr<GPUDevice> gpu);
 static Result<RefPtr<Model>> CreateShapeModel(RefPtr<GPUDevice> gpu);
+
+class WorldMatrix : public Mat44f
+{    
+public:
+    WorldMatrix& operator=(const Mat44& that)
+    {
+        this->Mat44f::operator=(that);
+        return *this;
+    }
+};
 
 static int Add(lua_State* L)
 {
@@ -67,13 +75,10 @@ int main(int, [[maybe_unused]] char* argv[])
 
         EcsRegistry reg;
 
-        auto eplanet = reg.Create();
-        auto eorbit = reg.Create();
-        auto emoon = reg.Create();
-
-        reg.Add<TransformNode2>(eplanet, TransformNode2{ .Id = eplanet });
-        reg.Add<TransformNode2>(eorbit, TransformNode2{ .Id = eorbit, .ParentId = eplanet });
-        reg.Add<TransformNode2>(emoon, TransformNode2{ .Id = emoon, .ParentId = eorbit });
+        auto eidPlanet = reg.Create();
+        auto eidMoonOrbit = reg.Create();
+        auto eidMoon = reg.Create();
+        auto eidCamera = reg.Create();
 
         //auto modelResult = CreateCube(gd);
         //auto modelResult = CreatePumpkin(gd);
@@ -81,45 +86,21 @@ int main(int, [[maybe_unused]] char* argv[])
         pcheck(modelResult, modelResult.error());
         auto model = modelResult.value();
 
-        auto sceneResult = GroupNode::Create();
-        pcheck(sceneResult, sceneResult.error());
-        auto scene = sceneResult.value();
-
-        auto planetResult = PropNode::Create(model);
-        pcheck(planetResult, planetResult.error());
-        auto planet = planetResult.value();
-
-        auto moonOrbitResult = TransformNode::Create();
-        pcheck(moonOrbitResult, moonOrbitResult.error());
-        auto moonOrbit = moonOrbitResult.value();
-
-        auto moonResult = PropNode::Create(model);
-        pcheck(moonResult, moonResult.error());
-        auto moon = moonResult.value();
-
-        moonOrbit->AddChild(moon);
-        planet->AddChild(moonOrbit);
-        scene->AddChild(planet);
-
-        auto camXformNodeResult = TransformNode::Create();
-        pcheck(camXformNodeResult, camXformNodeResult.error());
-        auto camXformNode = camXformNodeResult.value();
-
-        auto cameraResult = CameraNode::Create();
-        pcheck(cameraResult, cameraResult.error());
-        RefPtr<CameraNode> camera = cameraResult.value();
         const Degreesf fov(45);
-        camera->SetPerspective(fov, 100, 100, 0.1f, 1000);
-        camXformNode->AddChild(camera);
-        scene->AddChild(camXformNode);
 
-        camXformNode->Transform.T =Vec3f{0,0,-4};
+        reg.Add(eidPlanet, TransformNode2{}, WorldMatrix{}, model);
+        reg.Add(eidMoonOrbit, TransformNode2{ .ParentId = eidPlanet }, WorldMatrix{});
+        reg.Add(eidMoon, TransformNode2{ .ParentId = eidMoonOrbit }, WorldMatrix{}, model);
+        reg.Add(eidCamera, TransformNode2{}, WorldMatrix{}, Camera{});
+
+        reg.Get<TransformNode2>(eidCamera)->LocalTransform.T = Vec3f{ 0,0,-4 };
+        reg.Get<Camera>(eidCamera)->SetPerspective(fov, static_cast<float>(winW), static_cast<float>(winH), 0.1f, 1000);
 
         // Main loop
         bool running = true;
         Radiansf planetSpinAngle(0), moonSpinAngle(0), moonOrbitAngle(0);
 
-        GimbleMouseNav gimbleMouseNav(camXformNode);
+        GimbleMouseNav gimbleMouseNav(reg.Get<TransformNode2>(eidCamera)->LocalTransform);
         MouseNav* mouseNav = &gimbleMouseNav;
 
         while (running)
@@ -195,29 +176,57 @@ int main(int, [[maybe_unused]] char* argv[])
 
             const Quatf planetTilt{ Radiansf::FromDegrees(15), Vec3f::ZAXIS() };
 
-            planet->Transform.R = planetTilt * Quatf{ planetSpinAngle, Vec3f::YAXIS() };
+            auto planetXform = reg.Get<TransformNode2>(eidPlanet);
+            planetXform->LocalTransform.R = planetTilt * Quatf{ planetSpinAngle, Vec3f::YAXIS() };
 
-            moonOrbit->Transform.R = Quatf{ moonOrbitAngle, Vec3f::YAXIS() };
+            auto moonOrbitXform = reg.Get<TransformNode2>(eidMoonOrbit);
+            moonOrbitXform->LocalTransform.R = Quatf{ moonOrbitAngle, Vec3f::YAXIS() };
 
-            moon->Transform.T = Vec3f{ 0,0,-2 };
-            moon->Transform.R = Quatf{ moonSpinAngle, Vec3f::YAXIS() };
-            moon->Transform.S = Vec3f{ 0.25f };
+            auto moonXform = reg.Get<TransformNode2>(eidMoon);
+            moonXform->LocalTransform.T = Vec3f{ 0,0,-2 };
+            moonXform->LocalTransform.R = Quatf{ moonSpinAngle, Vec3f::YAXIS() };
+            moonXform->LocalTransform.S = Vec3f{ 0.25f };
 
-            camera->SetBounds(windowW, windowH);
+            reg.Get<Camera>(eidCamera)->SetBounds(windowW, windowH);
 
             SDLRenderGraph renderGraph(gd.Get());
 
-            CameraVisitor cameraVisitor;
-            ModelVisitor modelVisitor(&renderGraph);
-            scene->Accept(&cameraVisitor);
-            scene->Accept(&modelVisitor);
+            auto cameraXform = reg.Get<TransformNode2>(eidCamera);
+            cameraXform->LocalTransform = gimbleMouseNav.GetTransform();
 
-            auto vsCamera = cameraVisitor.GetCameras().front();
-            auto renderResult = renderGraph.Render(vsCamera.Transform, vsCamera.Projection);
-            if (!renderResult)
+            for(const auto& tuple : reg.GetView<TransformNode2, WorldMatrix>())
             {
-                logError(renderResult.error().Message);
-                continue;
+                const auto [eid, xform, worldMat] = tuple;
+                const Mat44f localMat = xform->LocalTransform.ToMatrix();
+
+                EntityId parentId = xform->ParentId;
+                if(!parentId.IsValid())
+                {
+                    *worldMat = localMat;
+                }
+                else
+                {
+                    const auto parentWorldMat = reg.Get<WorldMatrix>(parentId);
+                    *worldMat = (*parentWorldMat) * localMat;
+                }
+            }
+
+            for(const auto& cameraTuple : reg.GetView<WorldMatrix, Camera>())
+            {
+                for(const auto& tuple : reg.GetView<WorldMatrix, RefPtr<Model>>())
+                {
+                    const auto [eid, worldMat, model] = tuple;
+                    renderGraph.Add(*worldMat, *model);
+                }
+
+                const auto [camEid, camWorldMat, camera] = cameraTuple;
+                auto renderResult = renderGraph.Render(*camWorldMat, camera->GetProjection());
+                if (!renderResult)
+                {
+                    logError(renderResult.error().Message);
+                }
+
+                renderGraph.Reset();
             }
         }
     }

@@ -6,8 +6,10 @@
 
 #include <algorithm>
 
-GimbleMouseNav::GimbleMouseNav(RefPtr<TransformNode> transformNode)
-    : m_TransformNode(transformNode)
+GimbleMouseNav::GimbleMouseNav(const TrsTransformf& initialTransform)
+    : m_StartRot(initialTransform.R)
+    , m_StartTrans(initialTransform.T)
+    , m_Transform(initialTransform)
 {
 }
 
@@ -99,8 +101,8 @@ void GimbleMouseNav::BeginPan(const Vec2f& mouseLoc, const float scale)
     eassert(&GimbleMouseNav::UpdateNothing == m_UpdateFunc);
 
     m_StartLoc = m_CurLoc = mouseLoc;
-    m_Transform = m_TransformNode->Transform;
     m_Scale = scale;
+    m_StartTrans = m_Transform.T;
     m_UpdateFunc = &GimbleMouseNav::UpdatePan;
 }
 
@@ -108,8 +110,8 @@ void GimbleMouseNav::BeginDolly(const float scale)
 {
     eassert(&GimbleMouseNav::UpdateNothing == m_UpdateFunc);
 
-    m_Transform = m_TransformNode->Transform;
     m_Scale = scale;
+    m_StartTrans = m_Transform.T;
     m_UpdateFunc = &GimbleMouseNav::UpdateDolly;
 }
 
@@ -119,8 +121,8 @@ void GimbleMouseNav::BeginRotation(const Vec2f& mouseLoc, const Vec2f& screenBou
 
     m_StartLoc = m_CurLoc = mouseLoc;
     m_ScreenBounds = screenBounds;
-    m_Transform = m_TransformNode->Transform;
     m_Scale = scale;
+    m_StartRot = m_Transform.R;
     m_UpdateFunc = &GimbleMouseNav::UpdateRotation;
 }
 
@@ -154,14 +156,12 @@ void GimbleMouseNav::UpdatePan(const Vec2f& mouseDelta)
     m_CurLoc.x += mouseDelta.x;
     m_CurLoc.y -= mouseDelta.y;
     Vec2f d = (m_CurLoc - m_StartLoc) * m_Scale;
-    m_Transform.T += Vec3f(d.x, d.y, 0);
-    m_TransformNode->Transform = m_Transform;
+    m_Transform.T = m_StartTrans + Vec3f(d.x, d.y, 0);
 }
 
 void GimbleMouseNav::UpdateDolly(const Vec2f& mouseDelta)
 {
-    m_Transform.T += Vec3f(0, 0, mouseDelta.y * m_Scale);
-    m_TransformNode->Transform = m_Transform;
+    m_Transform.T = m_StartTrans + Vec3f(0, 0, mouseDelta.y * m_Scale);
 }
 
 void GimbleMouseNav::UpdateRotation(const Vec2f& mouseDelta)
@@ -170,7 +170,5 @@ void GimbleMouseNav::UpdateRotation(const Vec2f& mouseDelta)
     const Vec2f d = (m_CurLoc - m_StartLoc) * m_Scale * 0.001f;
 
     const Quatf drot = Quatf(Radiansf(d.x), Vec3f::YAXIS()) * Quatf(Radiansf(d.y), Vec3f::XAXIS());
-    m_Transform.R *= drot;
-
-    m_TransformNode->Transform = m_Transform;
+    m_Transform.R = m_StartRot * drot;
 }

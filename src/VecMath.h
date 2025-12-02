@@ -565,6 +565,12 @@ public:
         return *this;
     }
 
+    Mat44& operator=(const Mat44& that)
+    {
+        this->Base::operator=(static_cast<const Base&>(that));
+        return *this;
+    }
+
     Mat44 Inverse() const
     {
         return glm::inverse(*this);
