@@ -91,16 +91,16 @@ int main(int, [[maybe_unused]] char* argv[])
         reg.Add(eidPlanet, ChildTransform{}, WorldMatrix{}, model);
         reg.Add(eidMoonOrbit, ChildTransform{ .ParentId = eidPlanet }, WorldMatrix{});
         reg.Add(eidMoon, ChildTransform{ .ParentId = eidMoonOrbit }, WorldMatrix{}, model);
-        reg.Add(eidCamera, ChildTransform{}, WorldMatrix{}, Camera{});
+        reg.Add(eidCamera, TrsTransformf{}, WorldMatrix{}, Camera{});
 
-        reg.Get<ChildTransform>(eidCamera)->LocalTransform.T = Vec3f{ 0,0,-4 };
-        reg.Get<Camera>(eidCamera)->SetPerspective(fov, static_cast<float>(winW), static_cast<float>(winH), 0.1f, 1000);
+        reg.Get<TrsTransformf>(eidCamera).T = Vec3f{ 0,0,-4 };
+        reg.Get<Camera>(eidCamera).SetPerspective(fov, static_cast<float>(winW), static_cast<float>(winH), 0.1f, 1000);
 
         // Main loop
         bool running = true;
         Radiansf planetSpinAngle(0), moonSpinAngle(0), moonOrbitAngle(0);
 
-        GimbleMouseNav gimbleMouseNav(reg.Get<ChildTransform>(eidCamera)->LocalTransform);
+        GimbleMouseNav gimbleMouseNav(reg.Get<TrsTransformf>(eidCamera));
         MouseNav* mouseNav = &gimbleMouseNav;
 
         while (running)
@@ -176,51 +176,59 @@ int main(int, [[maybe_unused]] char* argv[])
 
             const Quatf planetTilt{ Radiansf::FromDegrees(15), Vec3f::ZAXIS() };
 
-            auto planetXform = reg.Get<ChildTransform>(eidPlanet);
-            planetXform->LocalTransform.R = planetTilt * Quatf{ planetSpinAngle, Vec3f::YAXIS() };
+            auto& planetXform = reg.Get<ChildTransform>(eidPlanet);
+            planetXform.LocalTransform.R = planetTilt * Quatf{ planetSpinAngle, Vec3f::YAXIS() };
 
-            auto moonOrbitXform = reg.Get<ChildTransform>(eidMoonOrbit);
-            moonOrbitXform->LocalTransform.R = Quatf{ moonOrbitAngle, Vec3f::YAXIS() };
+            auto& moonOrbitXform = reg.Get<ChildTransform>(eidMoonOrbit);
+            moonOrbitXform.LocalTransform.R = Quatf{ moonOrbitAngle, Vec3f::YAXIS() };
 
-            auto moonXform = reg.Get<ChildTransform>(eidMoon);
-            moonXform->LocalTransform.T = Vec3f{ 0,0,-2 };
-            moonXform->LocalTransform.R = Quatf{ moonSpinAngle, Vec3f::YAXIS() };
-            moonXform->LocalTransform.S = Vec3f{ 0.25f };
+            auto& moonXform = reg.Get<ChildTransform>(eidMoon);
+            moonXform.LocalTransform.T = Vec3f{ 0,0,-2 };
+            moonXform.LocalTransform.R = Quatf{ moonSpinAngle, Vec3f::YAXIS() };
+            moonXform.LocalTransform.S = Vec3f{ 0.25f };
 
-            reg.Get<Camera>(eidCamera)->SetBounds(windowW, windowH);
+            reg.Get<Camera>(eidCamera).SetBounds(windowW, windowH);
 
             SDLRenderGraph renderGraph(gd.Get());
 
-            auto cameraXform = reg.Get<ChildTransform>(eidCamera);
-            cameraXform->LocalTransform = gimbleMouseNav.GetTransform();
+            auto& cameraXform = reg.Get<TrsTransformf>(eidCamera);
+            cameraXform = gimbleMouseNav.GetTransform();
 
+            // Transform roots
+            for(const auto& tuple : reg.GetView<TrsTransformf, WorldMatrix>())
+            {
+                auto [eid, xform, worldMat] = tuple;
+                worldMat = xform.ToMatrix();
+            }
+
+            // Transform parent/child relationships
             for(const auto& tuple : reg.GetView<ChildTransform, WorldMatrix>())
             {
-                const auto [eid, xform, worldMat] = tuple;
-                const Mat44f localMat = xform->LocalTransform.ToMatrix();
+                auto [eid, xform, worldMat] = tuple;
 
-                EntityId parentId = xform->ParentId;
+                const EntityId parentId = xform.ParentId;
                 if(!parentId.IsValid())
                 {
-                    *worldMat = localMat;
+                    worldMat = xform.LocalTransform.ToMatrix();
                 }
                 else
                 {
                     const auto parentWorldMat = reg.Get<WorldMatrix>(parentId);
-                    *worldMat = (*parentWorldMat) * localMat;
+                    worldMat = parentWorldMat * xform.LocalTransform.ToMatrix();
                 }
             }
 
+            // Transform to camera space and render
             for(const auto& cameraTuple : reg.GetView<WorldMatrix, Camera>())
             {
                 for(const auto& tuple : reg.GetView<WorldMatrix, RefPtr<Model>>())
                 {
                     const auto [eid, worldMat, model] = tuple;
-                    renderGraph.Add(*worldMat, *model);
+                    renderGraph.Add(worldMat, model);
                 }
 
                 const auto [camEid, camWorldMat, camera] = cameraTuple;
-                auto renderResult = renderGraph.Render(*camWorldMat, camera->GetProjection());
+                auto renderResult = renderGraph.Render(camWorldMat, camera.GetProjection());
                 if (!renderResult)
                 {
                     logError(renderResult.error().Message);

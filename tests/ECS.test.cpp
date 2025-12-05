@@ -276,7 +276,7 @@ namespace
         const bool added = pool.Add(eid, compA);
         EXPECT_TRUE(added);
         EXPECT_TRUE(pool.Has(eid));
-        EXPECT_EQ(*pool[eid], compA);
+        EXPECT_EQ(pool[eid], compA);
         EXPECT_EQ(pool.size(), 1);
     }
 
@@ -296,7 +296,7 @@ namespace
             EXPECT_FALSE(addedAgain);
             EXPECT_TRUE(capture.Message().contains("Component already exists for entity"));
         }
-        EXPECT_EQ(*pool[eid], compA); // Original value unchanged
+        EXPECT_EQ(pool[eid], compA); // Original value unchanged
     }
 
     /// @brief Test pool capacity management with many adds.
@@ -319,8 +319,8 @@ namespace
 
         for (int i = 0; i < COUNT; ++i)
         {
-            auto comp = pool[eids[i]];
-            EXPECT_EQ(comp->a, i);
+            auto& comp = pool[eids[i]];
+            EXPECT_EQ(comp.a, i);
         }
     }
 
@@ -366,14 +366,14 @@ namespace
         ComponentA compB{ 100 };
 
         pool.Add(eid, compA);
-        EXPECT_EQ(*pool[eid], compA);
+        EXPECT_EQ(pool[eid], compA);
 
         pool.Remove(eid);
         EXPECT_FALSE(pool.Has(eid));
 
         const bool addedReAdd = pool.Add(eid, compB);
         EXPECT_TRUE(addedReAdd);
-        EXPECT_EQ(*pool[eid], compB);
+        EXPECT_EQ(pool[eid], compB);
     }
 
     /// @brief Test remove maintains correct associations for remaining entities.
@@ -399,8 +399,8 @@ namespace
         {
             if (i != 2)
             {
-                auto comp = pool[eids[i]];
-                EXPECT_EQ(comp->a, i * 10);
+                auto& comp = pool[eids[i]];
+                EXPECT_EQ(comp.a, i * 10);
             }
         }
     }
@@ -416,8 +416,8 @@ namespace
         
         pool.Add(eid, compA);
 
-        auto comp = pool[eid];
-        EXPECT_EQ(*comp, compA);
+        auto& comp = pool[eid];
+        EXPECT_EQ(comp, compA);
     }
 
     /// @brief Test const operator[] method.
@@ -430,9 +430,9 @@ namespace
         pool.Add(eid, ComponentA{ 42 });
 
         const EcsComponentPool<ComponentA>& constPool = pool;
-        auto comp = constPool[eid];
+        const auto& comp = constPool[eid];
 
-        EXPECT_EQ(*comp, ComponentA{ 42 });
+        EXPECT_EQ(comp, ComponentA{ 42 });
     }
 
     /// @brief Test Has with existing component.
@@ -499,61 +499,6 @@ namespace
         EXPECT_EQ(pool.size(), 0);
     }
 
-    /// @brief Test iterator functionality for begin/end.
-    TEST(EcsComponentPool, Iterator_BeginEnd_IteratesAllEntities)
-    {
-        EcsRegistry reg;
-        EcsComponentPool<ComponentA> pool;
-
-        std::vector<EntityId> eids;
-        for (int i = 0; i < 10; ++i)
-        {
-            const auto eid = reg.Create();
-            eids.push_back(eid);
-            pool.Add(eid, ComponentA{ i });
-        }
-
-        std::vector<EntityId> iteratedEids;
-        for (auto it = pool.begin(); it != pool.end(); ++it)
-        {
-            iteratedEids.push_back(*it);
-        }
-
-        EXPECT_EQ(iteratedEids.size(), eids.size());
-
-        // Both lists should contain same entity IDs (order may differ)
-        std::sort(eids.begin(), eids.end());
-        std::sort(iteratedEids.begin(), iteratedEids.end());
-        EXPECT_EQ(iteratedEids, eids);
-    }
-
-    /// @brief Test range-based for loop with iterator.
-    TEST(EcsComponentPool, Iterator_RangeBasedFor_IteratesAllEntities)
-    {
-        EcsRegistry reg;
-        EcsComponentPool<ComponentA> pool;
-
-        std::vector<EntityId> eids;
-        for (int i = 0; i < 10; ++i)
-        {
-            const auto eid = reg.Create();
-            eids.push_back(eid);
-            pool.Add(eid, ComponentA{ i });
-        }
-
-        std::vector<EntityId> iteratedEids;
-        for (auto eid : pool)
-        {
-            iteratedEids.push_back(eid);
-        }
-
-        EXPECT_EQ(iteratedEids.size(), eids.size());
-
-        std::sort(eids.begin(), eids.end());
-        std::sort(iteratedEids.begin(), iteratedEids.end());
-        EXPECT_EQ(iteratedEids, eids);
-    }
-
     /// @brief Test index consistency after mass add/remove operations.
     TEST(EcsComponentPool, IndexConsistency_MassOperations_RemainsConsistent)
     {
@@ -587,8 +532,8 @@ namespace
         // Verify remaining entities
         for (int i = 1; i < COUNT; i += 2)
         {
-            auto comp = pool[eids[i]];
-            EXPECT_EQ(comp->n, i);
+            auto& comp = pool[eids[i]];
+            EXPECT_EQ(comp.n, i);
         }
 
         // Verify removed entities
@@ -730,7 +675,7 @@ namespace
 
         EXPECT_TRUE(added);
         EXPECT_TRUE(reg.Has<ComponentA>(eid));
-        EXPECT_EQ(*reg.Get<ComponentA>(eid), compA);
+        EXPECT_EQ(reg.Get<ComponentA>(eid), compA);
     }
 
     /// @brief Test adding a component to a dead entity fails.
@@ -775,10 +720,9 @@ namespace
             EXPECT_TRUE(reg.Has<ComponentC>(eid));
 
             const auto& expected = Cs[eid];
-            const auto actual = reg.Get<ComponentC>(eid);
+            const auto& actual = reg.Get<ComponentC>(eid);
 
-            EXPECT_TRUE(actual);
-            EXPECT_EQ(*actual, expected);
+            EXPECT_EQ(actual, expected);
         }
     }
 
@@ -832,10 +776,10 @@ namespace
         EXPECT_TRUE(reg.Has<ComponentC>(eid));
         EXPECT_TRUE(reg.Has<ComponentD>(eid));
 
-        EXPECT_EQ(*reg.Get<ComponentA>(eid), compA);
-        EXPECT_EQ(*reg.Get<ComponentB>(eid), compB);
-        EXPECT_EQ(*reg.Get<ComponentC>(eid), compC);
-        EXPECT_EQ(*reg.Get<ComponentD>(eid), compD);
+        EXPECT_EQ(reg.Get<ComponentA>(eid), compA);
+        EXPECT_EQ(reg.Get<ComponentB>(eid), compB);
+        EXPECT_EQ(reg.Get<ComponentC>(eid), compC);
+        EXPECT_EQ(reg.Get<ComponentD>(eid), compD);
     }
 
     /// @brief Test that destroying entity removes all component types.
@@ -924,32 +868,10 @@ namespace
         EXPECT_TRUE(reg.Has<ComponentC>(newEid));
         EXPECT_TRUE(reg.Has<ComponentD>(newEid));
 
-        EXPECT_EQ(*reg.Get<ComponentA>(newEid), newCompA);
-        EXPECT_EQ(*reg.Get<ComponentB>(newEid), newCompB);
-        EXPECT_EQ(*reg.Get<ComponentC>(newEid), newCompC);
-        EXPECT_EQ(*reg.Get<ComponentD>(newEid), newCompD);
-    }
-
-    /// @brief Test component access after entity destruction.
-    TEST(EcsRegistry, GetComponent_AfterDestroy_ReturnsError)
-    {
-        EcsRegistry reg;
-
-        auto eid = reg.Create();
-        reg.Add<ComponentA>(eid, ComponentA{ 42 });
-
-        EXPECT_TRUE(reg.Has<ComponentA>(eid));
-
-        reg.Destroy(eid);
-
-        EXPECT_FALSE(reg.Has<ComponentA>(eid));
-        
-        assert_capture(capture)
-        {
-            auto comp = reg.Get<ComponentA>(eid);
-            EXPECT_FALSE(comp);
-            EXPECT_TRUE(capture.Message().contains("Entity does not have requested component"));
-        }
+        EXPECT_EQ(reg.Get<ComponentA>(newEid), newCompA);
+        EXPECT_EQ(reg.Get<ComponentB>(newEid), newCompB);
+        EXPECT_EQ(reg.Get<ComponentC>(newEid), newCompC);
+        EXPECT_EQ(reg.Get<ComponentD>(newEid), newCompD);
     }
 
     /// @brief Test replacing components through the reference returned by Get.
@@ -974,7 +896,7 @@ namespace
         {
             auto c = RandomValue<ComponentC>();
             newCs.emplace(eid, c);
-            *reg.Get<ComponentC>(eid) = c;
+            reg.Get<ComponentC>(eid) = c;
         }
 
         for (auto eid : eids)
@@ -982,25 +904,9 @@ namespace
             EXPECT_TRUE(reg.Has<ComponentC>(eid));
 
             const auto& expected = newCs[eid];
-            const auto actual = reg.Get<ComponentC>(eid);
+            const auto& actual = reg.Get<ComponentC>(eid);
 
-            EXPECT_TRUE(actual);
-            EXPECT_EQ(*actual, expected);
-        }
-    }
-
-    /// @brief Test Get<C> with entity that has no components.
-    TEST(EcsRegistry, Get_EntityWithNoComponents_ReturnsError)
-    {
-        EcsRegistry reg;
-
-        auto eid = reg.Create();
-
-        assert_capture(capture)
-        {
-            auto component = reg.Get<ComponentA>(eid);
-            EXPECT_FALSE(component);
-            EXPECT_TRUE(capture.Message().contains("Entity does not have requested component"));
+            EXPECT_EQ(actual, expected);
         }
     }
 
@@ -1032,7 +938,7 @@ namespace
         {
             auto hasAll = (reg.Has<Cs>(eid) && ...);
             EXPECT_TRUE(hasAll);
-            auto actualTuple = std::tuple<Cs&...>(*reg.Get<Cs>(eid)...);
+            auto actualTuple = std::tuple<Cs&...>(reg.Get<Cs>(eid)...);
 
             EXPECT_EQ(actualTuple, expectedTuple);
         }
@@ -1121,8 +1027,8 @@ namespace
         EXPECT_FALSE(reg.Has<ComponentB>(eid));
         EXPECT_TRUE(reg.Has<ComponentC>(eid));
 
-        EXPECT_EQ(*reg.Get<ComponentA>(eid), compA);
-        EXPECT_EQ(*reg.Get<ComponentC>(eid), compC);
+        EXPECT_EQ(reg.Get<ComponentA>(eid), compA);
+        EXPECT_EQ(reg.Get<ComponentC>(eid), compC);
     }
 
     /// @brief Test removing a component that doesn't exist.
@@ -1140,7 +1046,7 @@ namespace
         reg.Remove<ComponentB>(eid);
 
         EXPECT_TRUE(reg.Has<ComponentA>(eid));
-        EXPECT_EQ(*reg.Get<ComponentA>(eid), compA);
+        EXPECT_EQ(reg.Get<ComponentA>(eid), compA);
         EXPECT_FALSE(reg.Has<ComponentB>(eid));
     }
 
@@ -1214,8 +1120,8 @@ namespace
         EXPECT_FALSE(reg.Has<ComponentA>(eid2));
         EXPECT_TRUE(reg.Has<ComponentA>(eid3));
 
-        EXPECT_EQ(*reg.Get<ComponentA>(eid1), compA1);
-        EXPECT_EQ(*reg.Get<ComponentA>(eid3), compA3);
+        EXPECT_EQ(reg.Get<ComponentA>(eid1), compA1);
+        EXPECT_EQ(reg.Get<ComponentA>(eid3), compA3);
     }
 
     /// @brief Test removing component from dead entity.
@@ -1250,7 +1156,7 @@ namespace
 
         auto origValue = RandomValue<ComponentA>();
         reg.Add<ComponentA>(eid, origValue);
-        EXPECT_EQ(*reg.Get<ComponentA>(eid), origValue);
+        EXPECT_EQ(reg.Get<ComponentA>(eid), origValue);
 
         reg.Remove<ComponentA>(eid);
         EXPECT_FALSE(reg.Has<ComponentA>(eid));
@@ -1259,7 +1165,7 @@ namespace
         reg.Add<ComponentA>(eid, newValue);
 
         EXPECT_TRUE(reg.Has<ComponentA>(eid));
-        EXPECT_EQ(*reg.Get<ComponentA>(eid), newValue);
+        EXPECT_EQ(reg.Get<ComponentA>(eid), newValue);
     }
 
     /// @brief Test that views update correctly after removal.
@@ -1351,38 +1257,6 @@ namespace
             {
                 EXPECT_TRUE(reg.Has<ComponentB>(eids[i]));
             }
-        }
-    }
-
-    /// @brief Test that Get on multiple component types fails when required component missing.
-    TEST(EcsRegistry, Get_RequiredComponentMissing_GetFails)
-    {
-        EcsRegistry reg;
-
-        auto eid = reg.Create();
-
-        auto compA = RandomValue<ComponentA>();
-        auto compB = RandomValue<ComponentB>();
-        auto compC = RandomValue<ComponentC>();
-
-        reg.Add<ComponentA>(eid, compA);
-        reg.Add<ComponentB>(eid, compB);
-        reg.Add<ComponentC>(eid, compC);
-
-        auto viewResult1 = reg.Get<ComponentA, ComponentB, ComponentC>(eid);
-        EXPECT_TRUE(std::get<0>(viewResult1));
-        EXPECT_TRUE(std::get<1>(viewResult1));
-        EXPECT_TRUE(std::get<2>(viewResult1));
-
-        reg.Remove<ComponentB>(eid);
-
-        assert_capture(capture)
-        {
-            auto viewResult2 = reg.Get<ComponentA, ComponentB, ComponentC>(eid);
-            EXPECT_FALSE(std::get<0>(viewResult2));
-            EXPECT_FALSE(std::get<1>(viewResult2));
-            EXPECT_FALSE(std::get<2>(viewResult2));
-            EXPECT_TRUE(capture.Message().contains("Entity does not have all requested components"));
         }
     }
 
@@ -1701,21 +1575,15 @@ namespace
         // Verify pools don't interfere
         for (int i = 0; i < NUM_ENTITIES; ++i)
         {
-            auto compAResult = reg.Get<ComponentA>(eids[i]);
-            EXPECT_TRUE(compAResult);
-            auto compA = *compAResult;
+            auto& compA = reg.Get<ComponentA>(eids[i]);
             EXPECT_EQ(compA.a, i);
 
-            auto compBResult = reg.Get<ComponentB>(eids[i]);
-            EXPECT_TRUE(compBResult);
-            auto compB = *compBResult;
+            auto& compB = reg.Get<ComponentB>(eids[i]);
             EXPECT_EQ(compB.x, static_cast<float>(i));
 
-            auto compCResult = reg.Get<ComponentC>(eids[i]);
-            EXPECT_TRUE(compCResult);
+            const auto& compC = reg.Get<ComponentC>(eids[i]);
 
-            auto compDResult = reg.Get<ComponentD>(eids[i]);
-            EXPECT_TRUE(compDResult);
+            const auto& compD = reg.Get<ComponentD>(eids[i]);
         }
     }
 }

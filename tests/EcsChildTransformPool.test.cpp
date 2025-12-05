@@ -5,6 +5,7 @@
 #include <random>
 #include <ctime>
 #include <iostream>
+#include <tuple>
 
 namespace
 {
@@ -67,9 +68,9 @@ namespace
         auto xform = RandomTrsTransform();
         pool.Add(nodeId, ChildTransform{ .LocalTransform = xform });
 
-        auto node = pool[nodeId];
+        auto& node = pool[nodeId];
         // Validate LocalTransform default scale instead of removed Id member
-        EXPECT_EQ(node->LocalTransform, xform);
+        EXPECT_EQ(node.LocalTransform, xform);
     }
 
     /// @brief Verifies that Has() correctly identifies existing and non-existing entities.
@@ -98,9 +99,9 @@ namespace
         pool.Add(nodeId, ChildTransform{ .LocalTransform = xform });
 
         const EcsComponentPool<ChildTransform>& constpool = pool;
-        const ChildTransform* node = constpool[nodeId];
+        const ChildTransform& node = constpool[nodeId];
 
-        EXPECT_EQ(node->LocalTransform, xform);
+        EXPECT_EQ(node.LocalTransform, xform);
     }
 
     // ========== Basic Operations Tests ==========
@@ -118,9 +119,9 @@ namespace
         EXPECT_EQ(pool.size(), 1);
         EXPECT_TRUE(pool.Has(eid));
         
-        const ChildTransform* node = pool[eid];
-        EXPECT_EQ(node->LocalTransform, localTransform);
-        EXPECT_FALSE(node->ParentId.IsValid());
+        const ChildTransform& node = pool[eid];
+        EXPECT_EQ(node.LocalTransform, localTransform);
+        EXPECT_FALSE(node.ParentId.IsValid());
     }
 
     /// @brief Verifies that multiple top-level nodes can be added independently.
@@ -148,16 +149,16 @@ namespace
         EXPECT_TRUE(pool.Has(id2));
         EXPECT_TRUE(pool.Has(id3));
 
-        const ChildTransform* node1 = pool[id1];
-        const ChildTransform* node2 = pool[id2];
-        const ChildTransform* node3 = pool[id3];
+        const ChildTransform& node1 = pool[id1];
+        const ChildTransform& node2 = pool[id2];
+        const ChildTransform& node3 = pool[id3];
         
-        EXPECT_EQ(node1->LocalTransform, localTransforms[0]);
-        EXPECT_EQ(node2->LocalTransform, localTransforms[1]);
-        EXPECT_EQ(node3->LocalTransform, localTransforms[2]);
-        EXPECT_FALSE(node1->ParentId.IsValid());
-        EXPECT_FALSE(node2->ParentId.IsValid());
-        EXPECT_FALSE(node3->ParentId.IsValid());
+        EXPECT_EQ(node1.LocalTransform, localTransforms[0]);
+        EXPECT_EQ(node2.LocalTransform, localTransforms[1]);
+        EXPECT_EQ(node3.LocalTransform, localTransforms[2]);
+        EXPECT_FALSE(node1.ParentId.IsValid());
+        EXPECT_FALSE(node2.ParentId.IsValid());
+        EXPECT_FALSE(node3.ParentId.IsValid());
     }
 
     /// @brief Verifies that a child node is added after its parent and maintains correct parent-child relationship.
@@ -182,20 +183,18 @@ namespace
         EXPECT_TRUE(pool.Has(parentId));
         EXPECT_TRUE(pool.Has(childId));
 
-        const ChildTransform* child = pool[childId];
-        EXPECT_EQ(child->LocalTransform, localTransforms[1]);
-        EXPECT_EQ(child->ParentId, parentId);
+        const ChildTransform& child = pool[childId];
+        EXPECT_EQ(child.LocalTransform, localTransforms[1]);
+        EXPECT_EQ(child.ParentId, parentId);
 
         // Verify child appears after parent in iteration order
-        auto it = pool.begin();
-        EXPECT_EQ(*it, parentId);
-        const ChildTransform* parentNode = pool[*it];
-        ++it;
-        EXPECT_EQ(*it, childId);
-        const ChildTransform* childNode = pool[*it];
+        auto [parentEid, parentNode] = pool[0];
+        EXPECT_EQ(parentEid, parentId);
+        auto [childEid, childNode] = pool[1];
+        EXPECT_EQ(childEid, childId);
 
         //Verify contiguity
-        EXPECT_EQ(parentNode + 1, childNode);
+        EXPECT_EQ(&parentNode + 1, &childNode);
     }
 
     /// @brief Verifies that multiple children are added consecutively after their parent with correct relationships.
@@ -225,34 +224,27 @@ namespace
         EXPECT_EQ(pool.size(), 4);
 
         // Verify all children have correct parent
-        EXPECT_EQ(pool[child1]->ParentId, parentId);
-        EXPECT_EQ(pool[child2]->ParentId, parentId);
-        EXPECT_EQ(pool[child3]->ParentId, parentId);
+        EXPECT_EQ(pool[child1].ParentId, parentId);
+        EXPECT_EQ(pool[child2].ParentId, parentId);
+        EXPECT_EQ(pool[child3].ParentId, parentId);
 
         // Verify all entities have correct data
-        EXPECT_EQ(pool[parentId]->LocalTransform, localTransforms[0]);
-        EXPECT_EQ(pool[child1]->LocalTransform, localTransforms[1]);
-        EXPECT_EQ(pool[child2]->LocalTransform, localTransforms[2]);
-        EXPECT_EQ(pool[child3]->LocalTransform, localTransforms[3]);
+        EXPECT_EQ(pool[parentId].LocalTransform, localTransforms[0]);
+        EXPECT_EQ(pool[child1].LocalTransform, localTransforms[1]);
+        EXPECT_EQ(pool[child2].LocalTransform, localTransforms[2]);
+        EXPECT_EQ(pool[child3].LocalTransform, localTransforms[3]);
 
-        // Verify ordering: parent followed by all children, children in reverse order of addition
-        ChildTransform* ptrs[std::size(localTransforms)];
+        // Expected order
+        const EntityId ids[] = { parentId, child3, child2, child1 };
 
-        auto it = pool.begin();
-        EXPECT_EQ(*it, parentId);
-        ptrs[0] = pool[*it];
-        ++it;
-        EXPECT_EQ(pool[*it]->ParentId, parentId); // child3
-        EXPECT_EQ(*it, child3);
-        ptrs[1] = pool[*it];
-        ++it;
-        EXPECT_EQ(pool[*it]->ParentId, parentId); // child2
-        EXPECT_EQ(*it, child2);
-        ptrs[2] = pool[*it];
-        ++it;
-        EXPECT_EQ(pool[*it]->ParentId, parentId); // child1
-        EXPECT_EQ(*it, child1);
-        ptrs[3] = pool[*it];
+        ChildTransform* ptrs[std::size(ids)];      
+
+        for(int i = 0; i < std::size(ptrs); ++i)
+        {
+            auto [eid, node] = pool[i];
+            EXPECT_EQ(eid, ids[i]);
+            ptrs[i] = &node;
+        }
 
         // Verify contiguity
         for (size_t i = 0; i < std::size(ptrs) - 1; ++i)
@@ -373,22 +365,21 @@ namespace
         EXPECT_EQ(pool.size(), 3);
 
         // Verify relationships
-        EXPECT_FALSE(pool[grandparent]->ParentId.IsValid());
-        EXPECT_EQ(pool[parent]->ParentId, grandparent);
-        EXPECT_EQ(pool[child]->ParentId, parent);
+        EXPECT_FALSE(pool[grandparent].ParentId.IsValid());
+        EXPECT_EQ(pool[parent].ParentId, grandparent);
+        EXPECT_EQ(pool[child].ParentId, parent);
 
-        // Verify ordering
-        ChildTransform* ptrs[std::size(localTransforms)];
-        
-        auto it = pool.begin();
-        EXPECT_EQ(*it, grandparent);
-        ptrs[0] = pool[*it];
-        ++it;
-        EXPECT_EQ(*it, parent);
-        ptrs[1] = pool[*it];
-        ++it;
-        EXPECT_EQ(*it, child);
-        ptrs[2] = pool[*it];
+        // Expected order
+        const EntityId ids[] = { grandparent, parent, child };
+
+        ChildTransform* ptrs[std::size(ids)];      
+
+        for(int i = 0; i < std::size(ptrs); ++i)
+        {
+            auto [eid, node] = pool[i];
+            EXPECT_EQ(eid, ids[i]);
+            ptrs[i] = &node;
+        }
 
         // Verify contiguity
         for (size_t i = 0; i < std::size(ptrs) - 1; ++i)
@@ -437,33 +428,23 @@ namespace
         EXPECT_TRUE(pool.Has(grandchild2_1));
 
         // Verify relationships
-        EXPECT_EQ(pool[child1]->ParentId, root);
-        EXPECT_EQ(pool[child2]->ParentId, root);
-        EXPECT_EQ(pool[grandchild1_1]->ParentId, child1);
-        EXPECT_EQ(pool[grandchild1_2]->ParentId, child1);
-        EXPECT_EQ(pool[grandchild2_1]->ParentId, child2);
+        EXPECT_EQ(pool[child1].ParentId, root);
+        EXPECT_EQ(pool[child2].ParentId, root);
+        EXPECT_EQ(pool[grandchild1_1].ParentId, child1);
+        EXPECT_EQ(pool[grandchild1_2].ParentId, child1);
+        EXPECT_EQ(pool[grandchild2_1].ParentId, child2);
 
-        // Verify depth first ordering
-        ChildTransform* ptrs[std::size(localTransforms)];
+        // Expected order
+        const EntityId ids[] = { root, child2, grandchild2_1, child1, grandchild1_2, grandchild1_1 };
 
-        auto it = pool.begin();
-        EXPECT_EQ(*it, root);
-        ptrs[0] = pool[*it];
-        ++it;
-        EXPECT_EQ(*it, child2);
-        ptrs[1] = pool[*it];
-        ++it;
-        EXPECT_EQ(*it, grandchild2_1);
-        ptrs[2] = pool[*it];
-        ++it;
-        EXPECT_EQ(*it, child1);
-        ptrs[3] = pool[*it];
-        ++it;
-        EXPECT_EQ(*it, grandchild1_2);
-        ptrs[4] = pool[*it];
-        ++it;
-        EXPECT_EQ(*it, grandchild1_1);
-        ptrs[5] = pool[*it];
+        ChildTransform* ptrs[std::size(ids)];      
+
+        for(int i = 0; i < std::size(ptrs); ++i)
+        {
+            auto [eid, node] = pool[i];
+            EXPECT_EQ(eid, ids[i]);
+            ptrs[i] = &node;
+        }
 
         // Verify contiguity
         for (size_t i = 0; i < std::size(ptrs) - 1; ++i)
@@ -503,23 +484,19 @@ namespace
 
         EXPECT_EQ(pool.size(), 4);
         EXPECT_TRUE(pool.Has(grandchild));
-        EXPECT_EQ(pool[grandchild]->ParentId, child2);
+        EXPECT_EQ(pool[grandchild].ParentId, child2);
 
-        // Verify ordering: root, child2, grandchild, child1
-        ChildTransform* ptrs[std::size(localTransforms)];
+        // Expected order
+        const EntityId ids[] = { root, child2, grandchild, child1 };
 
-        auto it = pool.begin();
-        EXPECT_EQ(*it, root);
-        ptrs[0] = pool[*it];
-        ++it;
-        EXPECT_EQ(*it, child2);
-        ptrs[1] = pool[*it];
-        ++it;
-        EXPECT_EQ(*it, grandchild);
-        ptrs[2] = pool[*it];
-        ++it;
-        EXPECT_EQ(*it, child1);
-        ptrs[3] = pool[*it];
+        ChildTransform* ptrs[std::size(ids)];      
+
+        for(int i = 0; i < std::size(ptrs); ++i)
+        {
+            auto [eid, node] = pool[i];
+            EXPECT_EQ(eid, ids[i]);
+            ptrs[i] = &node;
+        }
 
         // Verify contiguity
         for (size_t i = 0; i < std::size(ptrs) - 1; ++i)
@@ -605,18 +582,17 @@ namespace
         EXPECT_FALSE(pool.Has(child2));
         EXPECT_TRUE(pool.Has(child3));
 
-        //Verify ordering: parent, child3, child1
-        ChildTransform* ptrs[std::size(localTransforms)];
+        // Expected order
+        const EntityId ids[] = { parent, child3, child1 };
 
-        auto it = pool.begin();
-        EXPECT_EQ(*it, parent);
-        ptrs[0] = pool[*it];
-        ++it;
-        EXPECT_EQ(*it, child3);
-        ptrs[1] = pool[*it];
-        ++it;
-        EXPECT_EQ(*it, child1);
-        ptrs[2] = pool[*it];
+        ChildTransform* ptrs[std::size(ids)];
+
+        for(int i = 0; i < std::size(ptrs); ++i)
+        {
+            auto [eid, node] = pool[i];
+            EXPECT_EQ(eid, ids[i]);
+            ptrs[i] = &node;
+        }
 
         // Verify contiguity
         for (size_t i = 0; i < 2; ++i)
@@ -686,7 +662,7 @@ namespace
         EXPECT_FALSE(pool.Has(level4));
         EXPECT_FALSE(pool.Has(level3_sibling));
 
-        EXPECT_EQ(pool[level1]->LocalTransform, localTransforms[0]);
+        EXPECT_EQ(pool[level1].LocalTransform, localTransforms[0]);
     }
 
     /// @brief Verifies that an entity can be removed and re-added, both as top-level and as a child.
@@ -725,15 +701,15 @@ namespace
         
         pool.Add(nodeId, ChildTransform{ parentId, localTransforms[3] });
         EXPECT_TRUE(pool.Has(nodeId));
-        EXPECT_EQ(pool[nodeId]->ParentId, parentId);
+        EXPECT_EQ(pool[nodeId].ParentId, parentId);
 
-        auto parentPtr = pool[parentId];
-        auto childPtr = pool[nodeId];
-        EXPECT_EQ(parentPtr->LocalTransform, localTransforms[2]);
-        EXPECT_EQ(childPtr->LocalTransform, localTransforms[3]);
+        auto& parent = pool[parentId];
+        auto& child = pool[nodeId];
+        EXPECT_EQ(parent.LocalTransform, localTransforms[2]);
+        EXPECT_EQ(child.LocalTransform, localTransforms[3]);
 
         // Verify contiguity
-        EXPECT_EQ(parentPtr + 1, childPtr);
+        EXPECT_EQ(&parent + 1, &child);
     }
 
     // ========== Edge Cases & Stress Tests ==========
@@ -801,7 +777,7 @@ namespace
         for (size_t i = 1; i < ids.size(); i += 2)
         {
             EXPECT_TRUE(pool.Has(ids[i]));
-            EXPECT_EQ(pool[ids[i]]->LocalTransform, localTransforms[i]);
+            EXPECT_EQ(pool[ids[i]].LocalTransform, localTransforms[i]);
         }
 
         // Add them back
@@ -814,7 +790,7 @@ namespace
         for(size_t i = 0; i < ids.size(); ++i)
         {
             EXPECT_TRUE(pool.Has(ids[i]));
-            EXPECT_EQ(pool[ids[i]]->LocalTransform, localTransforms[i]);
+            EXPECT_EQ(pool[ids[i]].LocalTransform, localTransforms[i]);
         }
     }
 
@@ -848,8 +824,8 @@ namespace
         EXPECT_TRUE(pool.Has(id1));
         EXPECT_TRUE(pool.Has(id2));
 
-        EXPECT_EQ(pool[id1]->LocalTransform, localTransforms[0]);
-        EXPECT_EQ(pool[id2]->LocalTransform, localTransforms[1]);
+        EXPECT_EQ(pool[id1].LocalTransform, localTransforms[0]);
+        EXPECT_EQ(pool[id2].LocalTransform, localTransforms[1]);
     }
 
     // ========== Complex Scenario Tests ==========
@@ -900,11 +876,11 @@ namespace
         EXPECT_TRUE(pool.Has(root2_child2));
 
         // Verify second hierarchy intact
-        EXPECT_EQ(pool[root2]->LocalTransform, localTransforms[3]);
-        EXPECT_EQ(pool[root2_child1]->ParentId, root2);
-        EXPECT_EQ(pool[root2_child1]->LocalTransform, localTransforms[4]);
-        EXPECT_EQ(pool[root2_child2]->ParentId, root2);
-        EXPECT_EQ(pool[root2_child2]->LocalTransform, localTransforms[5]);
+        EXPECT_EQ(pool[root2].LocalTransform, localTransforms[3]);
+        EXPECT_EQ(pool[root2_child1].ParentId, root2);
+        EXPECT_EQ(pool[root2_child1].LocalTransform, localTransforms[4]);
+        EXPECT_EQ(pool[root2_child2].ParentId, root2);
+        EXPECT_EQ(pool[root2_child2].LocalTransform, localTransforms[5]);
     }
 
     /// @brief Verifies that adding grandchildren after siblings maintains correct hierarchical ordering.
@@ -938,32 +914,20 @@ namespace
         // Now add grandchild to child2 (should insert after child2)
         const EntityId grandchild1 = idGen.NextId();
         pool.Add(grandchild1, ChildTransform{ child2, localTransforms[4] });
-        // Expected order: root, child3, child2, grandchild1, child1
-        auto it = pool.begin();
-        EXPECT_EQ(*it, root);
-        EXPECT_EQ(pool[*it]->LocalTransform, localTransforms[0]);
-         ++it;
-        EXPECT_EQ(*it, child3);
-        EXPECT_EQ(pool[*it]->LocalTransform, localTransforms[3]);
-         ++it;
-        EXPECT_EQ(*it, child2);
-        EXPECT_EQ(pool[*it]->LocalTransform, localTransforms[2]);
-         ++it;
-        EXPECT_EQ(*it, grandchild1);
-        EXPECT_EQ(pool[*it]->LocalTransform, localTransforms[4]);
-         ++it;
-        EXPECT_EQ(*it, child1);
-        EXPECT_EQ(pool[*it]->LocalTransform, localTransforms[1]);
+
+        // Expected order
+        const EntityId ids[] = { root, child3, child2, grandchild1, child1 };
+
+        ChildTransform* ptrs[std::size(ids)];      
+
+        for(int i = 0; i < std::size(ptrs); ++i)
+        {
+            auto [eid, node] = pool[i];
+            EXPECT_EQ(eid, ids[i]);
+            ptrs[i] = &node;
+        }
 
         // Verify contiguity
-        const ChildTransform* ptrs[] =
-        {
-            pool[root],
-            pool[child3],
-            pool[child2],
-            pool[grandchild1],
-            pool[child1]
-        };
         for (size_t i = 0; i < std::size(ptrs) - 1; ++i)
         {
             EXPECT_EQ(ptrs[i] + 1, ptrs[i + 1]);
@@ -1014,23 +978,23 @@ namespace
         EXPECT_TRUE(pool.Has(leaf2_1));
 
         // Verify relationships
-        EXPECT_EQ(pool[leaf1_2]->ParentId, branch1);
-        EXPECT_EQ(pool[leaf2_1]->ParentId, branch2);
+        EXPECT_EQ(pool[leaf1_2].ParentId, branch1);
+        EXPECT_EQ(pool[leaf2_1].ParentId, branch2);
 
-        EXPECT_EQ(pool[root]->LocalTransform, localTransforms[0]);
-        EXPECT_EQ(pool[branch1]->LocalTransform, localTransforms[1]);
-        EXPECT_EQ(pool[leaf1_2]->LocalTransform, localTransforms[3]);
-        EXPECT_EQ(pool[branch2]->LocalTransform, localTransforms[4]);
-        EXPECT_EQ(pool[leaf2_1]->LocalTransform, localTransforms[5]);
+        EXPECT_EQ(pool[root].LocalTransform, localTransforms[0]);
+        EXPECT_EQ(pool[branch1].LocalTransform, localTransforms[1]);
+        EXPECT_EQ(pool[leaf1_2].LocalTransform, localTransforms[3]);
+        EXPECT_EQ(pool[branch2].LocalTransform, localTransforms[4]);
+        EXPECT_EQ(pool[leaf2_1].LocalTransform, localTransforms[5]);
 
         // Verify ordering and contiguity
         const ChildTransform* ptrs[] =
         {
-            pool[root],
-            pool[branch2],
-            pool[leaf2_1],
-            pool[branch1],
-            pool[leaf1_2]
+            &pool[root],
+            &pool[branch2],
+            &pool[leaf2_1],
+            &pool[branch1],
+            &pool[leaf1_2]
         };
         for (size_t i = 0; i < std::size(ptrs) - 1; ++i)
         {
@@ -1208,7 +1172,7 @@ namespace
             {
                 EXPECT_TRUE(pool.Has(child)) 
                     << "Iteration " << iteration << ": Child should exist";
-                EXPECT_EQ(pool[child]->ParentId, hierarchy.root)
+                EXPECT_EQ(pool[child].ParentId, hierarchy.root)
                     << "Iteration " << iteration << ": Child should have correct parent";
             }
         }
@@ -1216,16 +1180,17 @@ namespace
         // Verify memory contiguity
         if (pool.size() > 1)
         {
-            auto it = pool.begin();
-            const EntityId* prevEid = &(*it);
-            ++it;
-            
-            for (; it != pool.end(); ++it)
+            int idx = 0;
+            const auto [_, prevVal] = pool[idx];
+            const auto* prev = &prevVal;
+
+            for (++idx; idx < pool.size(); ++idx)
             {
-                const EntityId* currentEid = &(*it);
-                EXPECT_EQ(currentEid, prevEid + 1) 
+                const auto [_, currentVal] = pool[idx];
+                const auto* current = &currentVal;
+                EXPECT_EQ(current, prev + 1) 
                     << "Iteration " << iteration << ": Nodes not contiguous in memory";
-                prevEid = currentEid;
+                prev = current;
             }
         }
     }
@@ -1238,14 +1203,14 @@ namespace
         {
             EXPECT_TRUE(pool.Has(hierarchy.root)) << "Final: Root should exist";
             
-            const ChildTransform* rootNode = pool[hierarchy.root];
-            EXPECT_FALSE(rootNode->ParentId.IsValid()) << "Final: Root should have no parent";
+            const ChildTransform& rootNode = pool[hierarchy.root];
+            EXPECT_FALSE(rootNode.ParentId.IsValid()) << "Final: Root should have no parent";
 
             for (const auto& child : hierarchy.children)
             {
                 EXPECT_TRUE(pool.Has(child)) << "Final: Child should exist";
-                const ChildTransform* childNode = pool[child];
-                EXPECT_EQ(childNode->ParentId, hierarchy.root) << "Final: Child should have correct parent";
+                const ChildTransform& childNode = pool[child];
+                EXPECT_EQ(childNode.ParentId, hierarchy.root) << "Final: Child should have correct parent";
             }
 
             for (const auto& grandchild : hierarchy.grandchildren)
@@ -1257,19 +1222,18 @@ namespace
         // Verify final memory contiguity
         if (pool.size() > 0)
         {
-            auto it = pool.begin();
-            const EntityId* firstEid = &(*it);
-            
-            size_t index = 0;
-            for (const auto& eid : pool)
+            int idx = 0;
+            const auto [_, eid] = pool[idx];
+            const auto* firstEid = &eid;
+
+            for (++idx; idx < pool.size(); ++idx)
             {
-                const EntityId* expectedAddress = firstEid + index;
-                const EntityId* actualAddress = &eid;
+                const auto [_, currentEid] = pool[idx];
+                const auto* expectedAddress = firstEid + idx;
+                const auto* actualAddress = &currentEid;
                 
                 EXPECT_EQ(actualAddress, expectedAddress) 
-                    << "Final: Node at index " << index << " not contiguous";
-                
-                ++index;
+                    << "Final: Node at index " << idx << " not contiguous";
             }
         }
     }
@@ -1393,21 +1357,20 @@ namespace
             << "pool should be initialized with exactly " << targetItemCount << " items";
 
         // Verify initial memory contiguity
-        if (pool.size() > 1)
+        if (pool.size() > 0)
         {
-            auto it = pool.begin();
-            const EntityId* firstEid = &(*it);
-            
-            size_t index = 0;
-            for (const auto& eid : pool)
+            int idx = 0;
+            const auto [_, eid] = pool[idx];
+            const auto* firstEid = &eid;
+
+            for (++idx; idx < pool.size(); ++idx)
             {
-                const EntityId* expectedAddress = firstEid + index;
-                const EntityId* actualAddress = &eid;
+                const auto [_, currentEid] = pool[idx];
+                const auto* expectedAddress = firstEid + idx;
+                const auto* actualAddress = &currentEid;
                 
                 EXPECT_EQ(actualAddress, expectedAddress) 
-                    << "Initial: Node at index " << index << " not contiguous in memory";
-                
-                ++index;
+                    << "Final: Node at index " << idx << " not contiguous";
             }
         }
     }
