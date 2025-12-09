@@ -91,36 +91,6 @@ namespace std
     };
 }
 
-/// @brief A view over a collection of EntityIds.
-class EntityView
-{
-public:
-
-    using Iterator = std::vector<EntityId>::iterator;
-    using ConstIterator = std::vector<EntityId>::const_iterator;
-
-    EntityView() = default;
-
-    EntityView(Iterator begin, Iterator end)
-        : m_Begin(begin)
-        , m_End(end)
-    {
-    }
-
-    Iterator begin() { return m_Begin; }
-
-    Iterator end() { return m_End; }
-
-    ConstIterator begin() const { return m_Begin; }
-
-    ConstIterator end() const { return m_End; }
-
-private:
-
-    Iterator m_Begin;
-    Iterator m_End;
-};
-
 /// @brief Interface for a component pool.
 class IEcsPool
 {
@@ -191,11 +161,6 @@ public:
         m_Index[eid.Value()] = EntityId::InvalidValue;
     }
 
-    EntityView Entities()
-    {
-        return EntityView(m_EntityIds.begin(), m_EntityIds.end());
-    }
-
     std::tuple<EntityId, C&> operator[](IndexType index)
     {
         eassert(index < size(), "Index out of bounds");
@@ -222,6 +187,26 @@ public:
         return m_Components[index];
     }
 
+    C* TryGet(const EntityId eid)
+    {
+        const IndexType index = IndexOf(eid);
+        if (index != InvalidIndex)
+        {
+            return &m_Components[index];
+        }
+        return nullptr;
+    }
+
+    const C* TryGet(const EntityId eid) const
+    {
+        const IndexType index = IndexOf(eid);
+        if (index != InvalidIndex)
+        {
+            return &m_Components[index];
+        }
+        return nullptr;
+    }
+
     /// @brief Returns true if the given entity ID has an associated component.
     bool Has(const EntityId eid) const
     {
@@ -233,7 +218,7 @@ public:
     IndexType IndexOf(const EntityId eid) const
     {
         const auto value = eid.Value();
-        if(value  < m_Index.size())
+        if(value < m_Index.size())
         {
             const auto index = m_Index[value];
             if(index != InvalidIndex && m_EntityIds[index] == eid)
@@ -277,26 +262,25 @@ class EcsView
     static_assert(sizeof...(Cs) > 0, "GetView requires at least one component type");
 public:
 
+    using IndexType = IEcsPool::IndexType;
+
     class Iterator
     {
     public:
 
-        Iterator(
-            const std::tuple<EcsComponentPool<Cs>*...>& pools,
-            EntityView::Iterator begin,
-            EntityView::ConstIterator end)
+        explicit Iterator(const std::tuple<EcsComponentPool<Cs>*...>& pools, const IndexType idx, const size_t size)
             : m_Pools(pools)
-            , m_It(begin)
-            , m_End(end)
+            , m_Idx(idx)
+            , m_Size(size)
         {
             Advance();
         }
 
         Iterator& operator++()
         {
-            if(everify(m_It != m_End))
+            if(everify(m_Idx < m_Size, "Index out of bounds"))
             {
-                ++m_It;
+                ++m_Idx;
                 Advance();
             }
             return *this;
@@ -304,85 +288,99 @@ public:
 
         bool operator==(const Iterator& other) const
         {
-            return m_It == other.m_It;
+            return m_Idx == other.m_Idx;
         }
 
         bool operator!=(const Iterator& other) const
         {
-            return m_It != other.m_It;
+            return m_Idx != other.m_Idx;
         }
 
         std::tuple<EntityId, Cs&...> operator*()
         {
-            eassert(m_It < m_End, "Index out of bounds");
-            const EntityId eid = *m_It;
-            return std::tuple<EntityId, Cs&...>{ eid, std::get<EcsComponentPool<Cs>*>(m_Pools)->operator[](eid)... };
+            eassert(m_Idx < m_Size, "Index out of bounds");
+            return MakeRefTuple(m_Current);
         }
 
     private:
 
-        template<typename C>
-        bool HasComponent() const
+        template<typename C1, typename... CRest>
+        std::tuple<CRest*...> TryGet(const EntityId eid) const
         {
-            return std::get<EcsComponentPool<C>*>(m_Pools)->Has(*m_It);
+            return std::tuple<CRest*...>{ std::get<EcsComponentPool<CRest>*>(m_Pools)->TryGet(eid)... };
         }
 
-        bool HasAllComponents() const
+        template<Cs...>
+        std::tuple<EntityId, Cs&...> MakeRefTuple(std::tuple<EntityId, Cs*...> ptrs)
         {
-            return (HasComponent<Cs>() && ...);
+            return std::apply([](EntityId eid, Cs*... ptrs)
+            {
+                return std::tuple<EntityId, Cs&...>{ eid, *ptrs... };
+            }, ptrs);
         }
 
+        /// @brief Advance the iterator to the next entity that has all components.
         void Advance()
         {
-            while (m_It != m_End)
+            while (m_Idx < m_Size)
             {
-                if(HasAllComponents())
+                // Component from first pool
+                auto current = std::get<0>(m_Pools)->operator[](m_Idx);
+                // EntityId of current component
+                const auto eid = std::get<0>(current);
+                // Try to get components from other pools
+                auto tryComp = TryGet<Cs...>(eid);
+
+                // Check if all components were found
+                bool hasAll = std::apply([](auto*... ptrs) { return (... && ptrs); }, tryComp);
+
+                if(hasAll)
                 {
+                    // All components found, build current tuple
+                    m_Current = std::tuple_cat(
+                        std::tuple{ eid, &std::get<1>(current) },
+                        tryComp);
                     break;
                 }
-                ++m_It;
+                
+                ++m_Idx;
             }
         }
 
+        // Pools for each component type
         const std::tuple<EcsComponentPool<Cs>*...>& m_Pools;
-        EntityView::Iterator m_It;
-        EntityView::ConstIterator m_End;
+        // Current index in iteration
+        IndexType m_Idx;
+        // Total number of elements in the first pool
+        const size_t m_Size;
+        // Current tuple of EntityId and component pointers
+        std::tuple<EntityId, Cs*...> m_Current;
     };
 
     explicit EcsView(std::tuple<EcsComponentPool<Cs>*...> pools)
         : m_Pools(pools)
+        , m_HaveAllPools(((std::get<EcsComponentPool<Cs>*>(m_Pools) != nullptr) &&...))
     {
-        const bool haveAllPools = ((std::get<EcsComponentPool<Cs>*>(m_Pools) != nullptr) &&...);
-
-        if(haveAllPools)
-        {
-            m_EntityView = std::get<0>(pools)->Entities();
-        }
-        else
-        {
-            m_EntityView = EmptyEntityView();
-        }
     }
 
     Iterator begin()
     {
-        return Iterator(m_Pools, m_EntityView.begin(), m_EntityView.end());
+        return m_HaveAllPools
+            ? Iterator(m_Pools, 0, std::get<0>(m_Pools)->size())
+            : Iterator(m_Pools, 0, 0);
     }
 
     Iterator end()
     {
-        return Iterator(m_Pools, m_EntityView.end(), m_EntityView.end());
+        return m_HaveAllPools
+            ? Iterator(m_Pools, std::get<0>(m_Pools)->size(), std::get<0>(m_Pools)->size())
+            : Iterator(m_Pools, 0, 0);
     }
 
 private:
 
-    static EntityView EmptyEntityView()
-    {
-        return EntityView({}, {});
-    }
-
     const std::tuple<EcsComponentPool<Cs>*...> m_Pools;
-    EntityView m_EntityView;
+    const bool m_HaveAllPools;
 };
 
 /// @brief The ECS registry that manages entity IDs and their associated components.
@@ -463,6 +461,7 @@ public:
         }
     }
 
+    /// @brief Get a tuple of references to the components of types Cs for the given entity ID.
     template<typename... Cs>
     requires (sizeof...(Cs) >= 2)
     std::tuple<Cs&...> Get(const EntityId eid)
@@ -477,6 +476,7 @@ public:
             std::tuple<Cs&...>{ std::get<EcsComponentPool<Cs>*>(pools)->operator[](eid)... };
     }
 
+    /// @brief Get a reference to the component of type C for the given entity ID.
     template<typename C>
     C& Get(const EntityId eid)
     {
