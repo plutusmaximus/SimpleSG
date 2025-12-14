@@ -22,64 +22,36 @@ public:
 
 // ====== Logging functions ======
 
+template<typename T>
+concept LogFormatString = std::convertible_to<T, std::string> || std::convertible_to<T, std::wstring>;
+
 template<typename... Args>
-void logTrace(const std::string& format, Args&&... args)
+void logTrace(const LogFormatString auto& format, Args&&... args)
 {
     Logging::GetLogger().trace(fmt::runtime(format), std::forward<Args>(args)...);
 }
 
 template<typename... Args>
-void logTrace(const std::wstring& format, Args&&... args)
-{
-    Logging::GetLogger().trace(fmt::runtime(format), std::forward<Args>(args)...);
-}
-
-template<typename... Args>
-void logDebug(const std::string& format, Args&&... args)
+void logDebug(const LogFormatString auto& format, Args&&... args)
 {
     Logging::GetLogger().debug(fmt::runtime(format), std::forward<Args>(args)...);
 }
 
 template<typename... Args>
-void logDebug(const std::wstring& format, Args&&... args)
-{
-    Logging::GetLogger().debug(fmt::runtime(format), std::forward<Args>(args)...);
-}
-
-template<typename... Args>
-void logInfo(const std::string& format, Args&&... args)
+void logInfo(const LogFormatString auto& format, Args&&... args)
 {
     Logging::GetLogger().info(fmt::runtime(format), std::forward<Args>(args)...);
 }
 
 template<typename... Args>
-void logInfo(const std::wstring& format, Args&&... args)
-{
-    Logging::GetLogger().info(fmt::runtime(format), std::forward<Args>(args)...);
-}
-
-template<typename... Args>
-void logError(const std::string& format, Args&&... args)
-{
-    Logging::GetLogger().error(fmt::runtime(format), std::forward<Args>(args)...);
-}
-
-template<typename... Args>
-void logError(const std::wstring& format, Args&&... args)
+void logError(const LogFormatString auto& format, Args&&... args)
 {
     Logging::GetLogger().error(fmt::runtime(format), std::forward<Args>(args)...);
 }
 
 /// Log an assertion failure
 template<typename... Args>
-void logAssert(const std::string& format, Args&&... args)
-{
-    Logging::GetAssertLogger().error(fmt::runtime(format), std::forward<Args>(args)...);
-}
-
-/// Log an assertion failure
-template<typename... Args>
-void logAssert(const std::wstring& format, Args&&... args)
+void logAssert(const LogFormatString auto& format, Args&&... args)
 {
     Logging::GetAssertLogger().error(fmt::runtime(format), std::forward<Args>(args)...);
 }
