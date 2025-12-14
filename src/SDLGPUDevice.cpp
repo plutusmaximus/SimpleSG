@@ -124,7 +124,7 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
 
     auto [vb, ib] = bufResult.value();
 
-    std::vector<RefPtr<Mesh>> meshes;
+    std::vector<Mesh> meshes;
 
     for (const auto& meshSpec : modelSpec.MeshSpecs)
     {
@@ -175,11 +175,9 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
         m_MaterialIndexById.emplace(mtl->Id, std::size(m_Materials));
         m_Materials.emplace_back(mtl);
 
-        auto meshResult = Mesh::Create(vb, ib, meshSpec.IndexOffset, meshSpec.IndexCount, mtl->Id);
+        Mesh mesh(vb, ib, meshSpec.IndexOffset, meshSpec.IndexCount, mtl->Id);
 
-        expect(meshResult, meshResult.error());
-
-        meshes.emplace_back(meshResult.value());
+        meshes.emplace_back(mesh);
     }
 
     return Model::Create(meshes);

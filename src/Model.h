@@ -18,7 +18,7 @@ class Model
 {
 public:
 
-    class Meshes : private std::vector<RefPtr<Mesh>>
+    class Meshes : private std::vector<Mesh>
     {
         friend class Model;
     public:
@@ -26,12 +26,12 @@ public:
         using iterator = std::vector<RefPtr<Mesh>>::iterator;
         using const_iterator = std::vector<RefPtr<Mesh>>::const_iterator;
 
-        using std::vector<RefPtr<Mesh>>::vector;
-        using std::vector<RefPtr<Mesh>>::begin;
-        using std::vector<RefPtr<Mesh>>::end;
+        using std::vector<Mesh>::vector;
+        using std::vector<Mesh>::begin;
+        using std::vector<Mesh>::end;
     };
 
-    static Result<RefPtr<Model>> Create(std::span<RefPtr<Mesh>> meshes);
+    static Result<RefPtr<Model>> Create(std::span<Mesh> meshes);
 
     Meshes const Meshes;
 
@@ -39,8 +39,7 @@ private:
 
     Model() = delete;
 
-    Model(std::span<RefPtr<Mesh>> meshes);
+    Model(std::span<Mesh> meshes);
 
     IMPLEMENT_REFCOUNT(Model);
-
 };

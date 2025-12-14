@@ -29,7 +29,7 @@ private:
     struct XformMesh
     {
         const Mat44f& WorldTransform;
-        RefPtr<Mesh> Mesh;
+        const Mesh Mesh;
     };
 
     std::deque<Mat44f> m_WorldTransforms;

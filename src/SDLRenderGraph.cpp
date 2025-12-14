@@ -26,7 +26,7 @@ SDLRenderGraph::Add(const Mat44f& worldTransform, RefPtr<Model> model)
 
     for (const auto& mesh : model->Meshes)
     {
-        const MaterialId mtlId = mesh->MaterialId;
+        const MaterialId mtlId = mesh.MaterialId;
 
         auto& meshGroup = m_MeshGroups[mtlId];
 
@@ -165,15 +165,15 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
             SDL_GPUBufferBinding vertexBufferBinding
             {
-                .buffer = xmesh.Mesh->VtxBuffer.GpuBuffer.Get<SDLGpuBuffer>()->Buffer,
-                .offset = xmesh.Mesh->VtxBuffer.Offset
+                .buffer = xmesh.Mesh.VtxBuffer.GpuBuffer.Get<SDLGpuBuffer>()->Buffer,
+                .offset = xmesh.Mesh.VtxBuffer.Offset
             };
             SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBufferBinding, 1);
 
             SDL_GPUBufferBinding indexBufferBinding
             {
-                .buffer = xmesh.Mesh->IdxBuffer.GpuBuffer.Get<SDLGpuBuffer>()->Buffer,
-                .offset = xmesh.Mesh->IdxBuffer.Offset
+                .buffer = xmesh.Mesh.IdxBuffer.GpuBuffer.Get<SDLGpuBuffer>()->Buffer,
+                .offset = xmesh.Mesh.IdxBuffer.Offset
             };
 
             static_assert(VERTEX_INDEX_BITS == 32 || VERTEX_INDEX_BITS == 16);
@@ -185,7 +185,7 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
             SDL_BindGPUIndexBuffer(renderPass, &indexBufferBinding, idxElSize);
 
-            SDL_DrawGPUIndexedPrimitives(renderPass, xmesh.Mesh->IndexCount, 1, xmesh.Mesh->IndexOffset, 0, 0);
+            SDL_DrawGPUIndexedPrimitives(renderPass, xmesh.Mesh.IndexCount, 1, xmesh.Mesh.IndexOffset, 0, 0);
         }
     }
 
