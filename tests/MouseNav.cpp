@@ -156,12 +156,12 @@ void GimbleMouseNav::UpdatePan(const Vec2f& mouseDelta)
     m_CurLoc.x += mouseDelta.x;
     m_CurLoc.y -= mouseDelta.y;
     Vec2f d = (m_CurLoc - m_StartLoc) * m_Scale;
-    m_Transform.T = m_StartTrans + Vec3f(d.x, d.y, 0);
+    m_Transform.T = m_StartTrans + (d.x * m_Transform.LocalXAxis()) + (d.y * m_Transform.LocalYAxis());
 }
 
 void GimbleMouseNav::UpdateDolly(const Vec2f& mouseDelta)
 {
-    m_Transform.T = m_StartTrans + Vec3f(0, 0, mouseDelta.y * m_Scale);
+    m_Transform.T = m_StartTrans + (mouseDelta.y * m_Scale * m_Transform.LocalZAxis());
 }
 
 void GimbleMouseNav::UpdateRotation(const Vec2f& mouseDelta)

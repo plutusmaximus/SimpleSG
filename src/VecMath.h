@@ -324,6 +324,11 @@ public:
         return glm::operator*(*this, that);
     }
 
+    constexpr Vec2 operator*(const T scalar) const
+    {
+        return glm::operator*(*this, scalar);
+    }
+
     Vec2& operator+=(const Vec2& that)
     {
         this->Base::operator+=(static_cast<const Base&>(that));
@@ -342,6 +347,12 @@ public:
         return *this;
     }
 };
+
+template<typename T>
+inline constexpr Vec2<T> operator*(const T a, const Vec2<T> b)
+{
+    return b * a;
+}
 
 template<typename T>
 class Vec3 : public glm::vec<3, T>
@@ -398,6 +409,11 @@ public:
         return glm::operator*(*this, that);
     }
 
+    constexpr Vec3 operator*(const T scalar) const
+    {
+        return glm::operator*(*this, scalar);
+    }
+
     Vec3& operator+=(const Vec3& that)
     {
         this->Base::operator+=(static_cast<const Base&>(that));
@@ -416,6 +432,12 @@ public:
         return *this;
     }
 };
+
+template<typename T>
+inline constexpr Vec3<T> operator*(const T a, const Vec3<T> b)
+{
+    return b * a;
+}
 
 template<typename T>
 class Vec4 : public glm::vec<4, T>
@@ -468,6 +490,11 @@ public:
         return glm::operator*(*this, that);
     }
 
+    constexpr Vec4 operator*(const T scalar) const
+    {
+        return glm::operator*(*this, scalar);
+    }
+
     Vec4& operator+=(const Vec4& that)
     {
         this->Base::operator+=(static_cast<const Base&>(that));
@@ -486,6 +513,12 @@ public:
         return *this;
     }
 };
+
+template<typename T>
+inline constexpr Vec4<T> operator*(const T a, const Vec4<T> b)
+{
+    return b * a;
+}
 
 template<typename T>
 class Quat : public glm::qua<T, glm::qualifier::defaultp>
@@ -527,6 +560,12 @@ public:
     Quat& operator*=(const Quat& that)
     {
         return (*this = *this * that);
+    }
+
+    Vec3<T> operator*(const Vec3<T>& v) const
+    {
+        const auto a = static_cast<const Base&>(*this);
+        return a * v;
     }
 };
 
@@ -581,6 +620,26 @@ public:
         return glm::transpose(*this);
     }
 
+    void Decompose(Vec3<T>& translation, Quat<T>& rotation, Vec3<T>& scale) const
+    {
+        // Extract translation
+        translation = glm::vec3(this->Base::operator[](3));
+
+        // Extract scale
+        scale.x = glm::length(glm::vec3(this->Base::operator[](0)));
+        scale.y = glm::length(glm::vec3(this->Base::operator[](1)));
+        scale.z = glm::length(glm::vec3(this->Base::operator[](2)));
+
+        // Extract rotation
+        glm::mat3 rotMat(
+            glm::vec3(this->Base::operator[](0)) / scale.x,
+            glm::vec3(this->Base::operator[](1)) / scale.y,
+            glm::vec3(this->Base::operator[](2)) / scale.z
+        );
+        
+        rotation = Quat<T>(rotMat);
+    }
+
     static constexpr const Mat44& Identity()
     {
         static constexpr Mat44 IDENT = Base(1);
@@ -610,7 +669,6 @@ public:
 };
 
 template<typename NumType>
-
 class TrsTransform
 {
 public:
@@ -629,6 +687,28 @@ public:
         M[3][1] = T.y;
         M[3][2] = T.z;
         return M;
+    }
+
+    static TrsTransform FromMatrix(const Mat44<NumType>& mat)
+    {
+        TrsTransform result;
+        mat.Decompose(result.T, result.R, result.S);
+        return result;
+    }
+
+    Vec3<NumType> LocalXAxis() const
+    {
+        return (R * Vec3<NumType>::XAXIS()).Normalize();
+    }
+
+    Vec3<NumType> LocalYAxis() const
+    {
+        return (R * Vec3<NumType>::YAXIS()).Normalize();
+    }
+
+    Vec3<NumType> LocalZAxis() const
+    {
+        return (R * Vec3<NumType>::ZAXIS()).Normalize();
     }
 
     bool operator==(const TrsTransform<NumType>& that) const
