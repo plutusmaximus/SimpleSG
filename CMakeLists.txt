@@ -48,6 +48,21 @@ set(GLM_BUILD_INSTALL OFF CACHE BOOL "Generate install target" FORCE)
 
 add_subdirectory(thirdparty/glm)
 
+# --- assimp
+set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "Build assimp tests" FORCE)
+set(ASSIMP_INSTALL OFF CACHE BOOL "Install assimp" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
+set(ASSIMP_BUILD_ALL_EXPORTERS_BY_DEFAULT OFF CACHE BOOL "Build all exporters by default" FORCE)
+set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "Build all importers by default" FORCE)
+set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "Build assimp tests" FORCE)
+set(ASSIMP_BUILD_ASSIMP_VIEW OFF CACHE BOOL "Build assimp viewer" FORCE)
+set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "Build glTF importer" FORCE)
+set(ASSIMP_BUILD_STL_IMPORTER ON CACHE BOOL "Build STL importer" FORCE)
+#set(ASSIMP_IMPORTER_GLTF2 ON CACHE BOOL "Build glTF2 importer" FORCE)
+#set(ASSIMP_IMPORTER_GLTF ON CACHE BOOL "Build glTF importer" FORCE)
+
+add_subdirectory(thirdparty/assimp)
+
 # --- imgui
 add_library(imgui STATIC
     thirdparty/imgui/imgui.cpp
@@ -70,13 +85,6 @@ target_include_directories(imgui PUBLIC
 )
 
 target_link_libraries(imgui PUBLIC SDL3::SDL3)
-
-# ---- Example app ----
-add_executable(example_sdl3_sdlgpu3
-    thirdparty/imgui/examples/example_sdl3_sdlgpu3/main.cpp
-)
-
-target_link_libraries(example_sdl3_sdlgpu3 PRIVATE imgui SDL3::SDL3)
 
 # --- lua
 file(GLOB LUA_SOURCES CONFIGURE_DEPENDS "thirdparty/lua/*.c")
@@ -116,7 +124,7 @@ add_library(ssg ${SSG_CPP})
 add_library(ssg::ssg ALIAS ssg)
 target_sources(ssg PUBLIC FILE_SET HEADERS BASE_DIRS src FILES ${SSG_HEADERS})
 
-target_link_libraries(ssg PUBLIC glm::glm spdlog::spdlog SDL3::SDL3)
+target_link_libraries(ssg PUBLIC glm::glm spdlog::spdlog SDL3::SDL3 assimp::assimp)
 target_include_directories(ssg PUBLIC src PRIVATE thirdparty/stb)
 
 if(MSVC)
@@ -134,7 +142,7 @@ endif()
 # Executable: Cube
 # ============================================================
 add_executable(Cube tests/cube.cpp tests/MouseNav.cpp tests/LuaRepl.cpp)
-target_link_libraries(Cube PRIVATE ssg::ssg spdlog::spdlog imgui lua)
+target_link_libraries(Cube PRIVATE ssg::ssg spdlog::spdlog imgui lua assimp::assimp)
 add_dependencies(Cube shaders copy_images copy_models)
 
 if(MSVC)
@@ -146,6 +154,24 @@ endif()
 
 if(SIMPLESG_STRICT)
   set_property(TARGET Cube PROPERTY COMPILE_WARNING_AS_ERROR ON)
+endif()
+
+# ============================================================
+# Executable: Sponza
+# ============================================================
+add_executable(Sponza tests/sponza.cpp tests/MouseNav.cpp)
+target_link_libraries(Sponza PRIVATE ssg::ssg spdlog::spdlog imgui assimp::assimp)
+add_dependencies(Sponza shaders copy_images copy_models)
+
+if(MSVC)
+  target_compile_definitions(Sponza PRIVATE _HAS_EXCEPTIONS=0)
+  target_compile_options(Sponza PRIVATE /GR-)
+else()
+  target_compile_options(Sponza PRIVATE -fno-exceptions)
+endif()
+
+if(SIMPLESG_STRICT)
+  set_property(TARGET Sponza PROPERTY COMPILE_WARNING_AS_ERROR ON)
 endif()
 
 # ============================================================
