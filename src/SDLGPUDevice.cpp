@@ -1,6 +1,6 @@
 #include "SDLGPUDevice.h"
 
-#include "AutoDeleter.h"
+#include "Finally.h"
 #include "Image.h"
 #include "SDLRenderGraph.h"
 
@@ -66,6 +66,16 @@ SDLGPUDevice::Create(SDL_Window* window)
     expect(gpuDevice, SDL_GetError());
 
     if (!SDL_ClaimWindowForGPUDevice(gpuDevice, window))
+    {
+        SDL_DestroyGPUDevice(gpuDevice);
+        return std::unexpected(SDL_GetError());
+    }
+
+    if(!SDL_SetGPUSwapchainParameters(
+        gpuDevice,
+        window,
+        SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
+        SDL_GPU_PRESENTMODE_MAILBOX))
     {
         SDL_DestroyGPUDevice(gpuDevice);
         return std::unexpected(SDL_GetError());
@@ -357,7 +367,10 @@ SDLGPUDevice::CreateBuffers(
 
     SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(Device, &xferBufCreateInfo);
     expect(transferBuffer, SDL_GetError());
-    auto tbufferAd = AutoDeleter(SDL_ReleaseGPUTransferBuffer, Device, transferBuffer);
+    auto tbufferFin = Finally([&]()
+    {
+        SDL_ReleaseGPUTransferBuffer(Device, transferBuffer);
+    });
 
     //Copy to transfer buffer
     void* xferBuf = SDL_MapGPUTransferBuffer(Device, transferBuffer, false);
@@ -371,7 +384,10 @@ SDLGPUDevice::CreateBuffers(
     //Upload data to GPU mem.
     SDL_GPUCommandBuffer* uploadCmdBuf = SDL_AcquireGPUCommandBuffer(Device);
     expect(uploadCmdBuf, SDL_GetError());
-    auto cmdBufAd = AutoDeleter(SDL_CancelGPUCommandBuffer, uploadCmdBuf);
+    auto cmdBufFin = Finally([&]()
+    {
+        SDL_CancelGPUCommandBuffer(uploadCmdBuf);
+    });
 
     SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(uploadCmdBuf);
     expect(copyPass, SDL_GetError());
@@ -394,7 +410,7 @@ SDLGPUDevice::CreateBuffers(
 
     expect(SDL_SubmitGPUCommandBuffer(uploadCmdBuf), SDL_GetError());
 
-    cmdBufAd.Cancel();
+    cmdBufFin.Cancel();
 
     VertexBuffer vb{ gpuBuf, 0 };
     IndexBuffer ib{ gpuBuf, sizeofVerts };
@@ -464,7 +480,10 @@ static Result<SDL_GPUTexture*> CreateTexture(
 
     SDL_GPUTexture* texture = SDL_CreateGPUTexture(gpuDevice, &textureInfo);
     expect(texture, SDL_GetError());
-    auto texAd = AutoDeleter(SDL_ReleaseGPUTexture, gpuDevice, texture);
+    auto texFin = Finally([&]()
+    {
+        SDL_ReleaseGPUTexture(gpuDevice, texture);
+    });
 
     const unsigned sizeofData = width * height * 4;
 
@@ -477,7 +496,10 @@ static Result<SDL_GPUTexture*> CreateTexture(
     // Create transfer buffer for uploading pixel data
     SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(gpuDevice, &xferBufferCreateInfo);
     expect(transferBuffer, SDL_GetError());
-    auto tbufferAd = AutoDeleter(SDL_ReleaseGPUTransferBuffer, gpuDevice, transferBuffer);
+    auto tbufferFin = Finally([&]()
+    {
+        SDL_ReleaseGPUTransferBuffer(gpuDevice, transferBuffer);
+    });
 
     // Copy pixel data to transfer buffer
     void* mappedData = SDL_MapGPUTransferBuffer(gpuDevice, transferBuffer, false);
@@ -490,7 +512,10 @@ static Result<SDL_GPUTexture*> CreateTexture(
     // Upload to GPU texture
     SDL_GPUCommandBuffer* cmdBuffer = SDL_AcquireGPUCommandBuffer(gpuDevice);
     expect(cmdBuffer, SDL_GetError());
-    auto cmdBufAd = AutoDeleter(SDL_CancelGPUCommandBuffer, cmdBuffer);
+    auto cmdBufFin = Finally([&]()
+    {
+        SDL_CancelGPUCommandBuffer(cmdBuffer);
+    });
 
     SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(cmdBuffer);
     expect(copyPass, SDL_GetError());
@@ -515,10 +540,10 @@ static Result<SDL_GPUTexture*> CreateTexture(
 
     SDL_EndGPUCopyPass(copyPass);
 
-    cmdBufAd.Cancel();
+    cmdBufFin.Cancel();
     expect(SDL_SubmitGPUCommandBuffer(cmdBuffer), SDL_GetError());
 
-    texAd.Cancel();
+    texFin.Cancel();
 
     return texture;
 }
@@ -537,7 +562,10 @@ Result<SDL_GPUShader*> LoadShader(
     void* shaderSrc = SDL_LoadFile(fnWithExt.data(), &fileSize);
     expect(shaderSrc, "{}: {}", fnWithExt, SDL_GetError());
 
-    auto ad = AutoDeleter(SDL_free, shaderSrc);
+    auto cleanup = Finally([&]()
+    {
+        SDL_free(shaderSrc);
+    });
 
     SDL_GPUShaderCreateInfo shaderCreateInfo
     {

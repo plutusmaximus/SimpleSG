@@ -2,7 +2,7 @@
 
 #include "Error.h"
 
-#include "AutoDeleter.h"
+#include "Finally.h"
 #include "Assert.h"
 
 #include "SDLGPUDevice.h"
@@ -46,7 +46,10 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
     expect(cmdBuf, SDL_GetError());
 
-    auto adCmdBuf = AutoDeleter(SDL_CancelGPUCommandBuffer, cmdBuf);
+    auto cmdBufFin = Finally([&]()
+    {
+        SDL_CancelGPUCommandBuffer(cmdBuf);
+    });
 
     SDL_GPUTexture* swapChainTexture;
     uint32_t windowW, windowH;
@@ -101,12 +104,13 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
     expect(renderPass, SDL_GetError());
 
-    adCmdBuf.Cancel();
+    cmdBufFin.Cancel();
 
-    auto cleanup = AutoDeleter([](auto r, auto c)
+    auto cleanup = Finally([&]()
     {
-        SDL_EndGPURenderPass(r); SDL_SubmitGPUCommandBuffer(c);
-    }, renderPass, cmdBuf);
+        SDL_EndGPURenderPass(renderPass);
+        SDL_SubmitGPUCommandBuffer(cmdBuf);
+    });
 
     SDL_GPUViewport viewport
     {

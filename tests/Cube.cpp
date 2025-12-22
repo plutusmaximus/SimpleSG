@@ -7,13 +7,13 @@
 #include "Error.h"
 #include "Camera.h"
 #include "SDLRenderGraph.h"
-#include "AutoDeleter.h"
+#include "Finally.h"
 
 #include "SDLGPUDevice.h"
 
 #include "MouseNav.h"
 
-#include "STLLoader.h"
+#include "ModelCatalog.h"
 
 #include "Shapes.h"
 
@@ -67,7 +67,10 @@ int main(int, [[maybe_unused]] char* argv[])
         SDL_Window* window = SDL_CreateWindow("SDL3 GPU Cube", winW, winH, SDL_WINDOW_RESIZABLE);
         pcheck(window, SDL_GetError());
 
-        auto windowDeleter = AutoDeleter(SDL_DestroyWindow, window);
+        auto windowFin = Finally([window]()
+        {
+            SDL_DestroyWindow(window);
+        });
 
         auto gdResult = SDLGPUDevice::Create(window);
         pcheck(gdResult, gdResult.error());
@@ -414,86 +417,8 @@ static Result<RefPtr<Model>> CreateShapeModel(RefPtr<GPUDevice> gpu)
 
 static Result<RefPtr<Model>> CreatePumpkinModel(RefPtr<GPUDevice> gpu)
 {
-    std::vector<Triangle> triangles;
-    auto stlResult = loadAsciiSTL("models/Pumpkin-DD.stl", triangles);
-    expect(stlResult, stlResult.error());
-
-    std::map<TVertex, unsigned> vmap;
-    std::vector<Vertex> vertices;
-    std::vector<unsigned> indices;
-    for (const auto& tri : triangles)
-    {
-        TVertex tverts[] =
-        {
-            //Change winding from CCW to CW
-            tri.v[0], tri.v[2], tri.v[1]
-        };
-
-        for (auto& v : tverts)
-        {
-            //STL uses a right handed coordinate system with
-            //Z up, Y into the screen, triangles winding counter clockwise.
-            //This swap changes to a left handed coordinate system
-            //with Y up, Z into the screen, and triangles winding clockwise.
-            std::swap(v.pos.y, v.pos.z);
-            std::swap(v.normal.y, v.normal.z);
-        }
-
-        for (int i = 0; i < 3; ++i)
-        {
-            const TVertex& tv = tverts[i];
-            unsigned index;
-
-            auto it = vmap.find(tv);
-            if (vmap.end() == it)
-            {
-                index = vmap.size();
-                vmap.emplace(tv, index);
-                vertices.push_back(tv);
-                vertices[index].normal = Vec3f(0, 0, 0);
-            }
-            else
-            {
-                index = it->second;
-            }
-
-            const Vec3f& v0 = tv.pos;
-            const Vec3f& v1 = tverts[(i + 1) % 3].pos;
-            const Vec3f& v2 = tverts[(i + 2) % 3].pos;
-
-            Vec3 normal = (v1 - v0).Cross(v2 - v0).Normalize();
-            vertices[index].normal = vertices[index].normal + normal;
-
-            indices.push_back(index);
-        }
-    }
-
-    for (auto& v : vertices)
-    {
-        v.normal = v.normal.Normalize();
-    }
-
-    MeshSpec meshSpecs[] =
-    {
-        {
-            .IndexOffset = 0,
-            .IndexCount = (unsigned)indices.size(),
-            .MtlSpec =
-            {
-                .Color = {1, 0, 0},
-                .VertexShader = "shaders/Debug/VertexShader",
-                .FragmentShader = "shaders/Debug/ColorShader",
-                .Albedo = "images/Ant.png"
-            }
-        },
-    };
-
-    ModelSpec modelSpec
-    {
-        .Vertices = vertices,
-        .Indices = indices,
-        .MeshSpecs = meshSpecs
-    };
-
-    return gpu->CreateModel(modelSpec);
+    ModelCatalog catalog;
+    auto specRes = catalog.LoadFromFile("Pumpkin", "models/Pumpkin-DD.stl");
+    expect(specRes, specRes.error());
+    return gpu->CreateModel(specRes.value());
 }

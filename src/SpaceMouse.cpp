@@ -17,8 +17,6 @@
 #pragma comment(lib, "setupapi.lib")
 #pragma comment(lib, "cfgmgr32.lib")
 
-#include "AutoDeleter.h"
-
 #ifndef QWORD
 typedef unsigned long long QWORD;
 #endif
