@@ -44,6 +44,12 @@ void logInfo(const LogFormatString auto& format, Args&&... args)
 }
 
 template<typename... Args>
+void logWarn(const LogFormatString auto& format, Args&&... args)
+{
+    Logging::GetLogger().warn(fmt::runtime(format), std::forward<Args>(args)...);
+}
+
+template<typename... Args>
 void logError(const LogFormatString auto& format, Args&&... args)
 {
     Logging::GetLogger().error(fmt::runtime(format), std::forward<Args>(args)...);
