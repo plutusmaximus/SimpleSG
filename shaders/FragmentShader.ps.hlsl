@@ -11,8 +11,9 @@ SamplerState textureSampler : register(s0, space2);
 
 float4 main(PSInput input) : SV_TARGET
 {
-    float3 lightDir = normalize(float3(0, 0, 1));
+    float3 lightDir = normalize(float3(1, -1, 1));
+    float ambient = 0.1;
     float diff = max(-dot(input.fragNormal, lightDir), 0.0);
     float4 diffuse = diff * input.fragColor;
-    return diffuse * texture.Sample(textureSampler, input.texCoord);
+    return (diffuse + ambient * input.fragColor) * texture.Sample(textureSampler, input.texCoord);
 };

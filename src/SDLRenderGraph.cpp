@@ -163,9 +163,13 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
         for (auto& xmesh : xmeshes)
         {
-            const Mat44f xform = viewProj.Mul(xmesh.WorldTransform);
+            const Mat44f matrices[] =
+            {
+                xmesh.WorldTransform,
+                viewProj.Mul(xmesh.WorldTransform)
+            };
 
-            SDL_PushGPUVertexUniformData(cmdBuf, 0, &xform, sizeof(xform));
+            SDL_PushGPUVertexUniformData(cmdBuf, 0, matrices, sizeof(matrices));
 
             SDL_GPUBufferBinding vertexBufferBinding
             {

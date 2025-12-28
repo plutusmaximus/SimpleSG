@@ -1,6 +1,7 @@
 cbuffer XForm : register(b0, space1)
 {
-    float4x4 xform;
+    float4x4 modelXform;
+    float4x4 modelViewProjXform;
 };
 
 struct Material
@@ -34,9 +35,9 @@ struct VSOutput
 VSOutput main(VSInput input)
 {
     VSOutput output;
-    output.position = mul(xform, float4(input.inPosition, 1.0));
+    output.position = mul(modelViewProjXform, float4(input.inPosition, 1.0));
     output.fragColor = materials[materialIndex].color;
-    output.fragNormal = normalize(mul(xform, float4(input.inNormal, 0.0)).xyz);
+    output.fragNormal = normalize(mul(modelXform, float4(input.inNormal, 0.0)).xyz);
     output.texCoord = input.inTexCoord;
     return output;
 };
