@@ -4,6 +4,7 @@
 
 #include <array>
 
+/// @brief Abstract base class for mouse navigation handling.
 class MouseNav
 {
 public:
@@ -26,8 +27,10 @@ public:
 
     virtual const TrsTransformf& GetTransform() const = 0;
 
+    virtual void Update(const float deltaSeconds) = 0;
 };
 
+/// @brief Mouse navigation implementation using gimble-style controls.
 class GimbleMouseNav : public MouseNav
 {
 public:
@@ -47,7 +50,9 @@ public:
 
     void OnMouseMove(const Vec2f& mouseDelta) override;
 
-    void ClearButtons();
+    void ClearButtons() override;
+
+    void Update(const float deltaSeconds) override;
 
     const TrsTransformf& GetTransform() const override
     {
@@ -88,4 +93,53 @@ private:
     bool m_Panning{ false };
 
     void (GimbleMouseNav::* m_UpdateFunc)(const Vec2f& delta) { &GimbleMouseNav::UpdateNothing };
+};
+
+/// @brief Mouse navigation implementation using walk-style controls.
+///       Similar to first-person shooter controls.
+///       W/A/S/D to move, mouse to look around.
+class WalkMouseNav : public MouseNav
+{
+public:
+    /// @brief Construct a WalkMouseNav object.
+    /// @param initialTransform The initial transform of the camera.
+    /// @param rotPerDXY Rotation amount (in fractions of a full rotation) per unit of mouse movement in X and Y directions.
+    /// @param movePerSec Movement speed in units per second.
+    WalkMouseNav(
+        const TrsTransformf& initialTransform,
+        const float rotPerDXY,
+        const float movePerSec);
+
+    ~WalkMouseNav() override;
+
+    void OnMouseDown(const Vec2f& mouseLoc, const Vec2f& screenBounds, const int mouseButton) override;
+
+    void OnMouseUp(const int mouseButton) override;
+
+    void OnKeyDown(const int keyCode) override;
+
+    void OnKeyUp(const int keyCode) override;
+
+    void OnScroll(const Vec2f& scroll) override;
+
+    void OnMouseMove(const Vec2f& mouseDelta) override;
+
+    void ClearButtons() override;
+
+    void Update(const float deltaSeconds) override;
+
+    const TrsTransformf& GetTransform() const override
+    {
+        return m_Transform;
+    }
+
+private:
+
+    bool m_AKey{ false }, m_SKey{ false }, m_DKey{ false }, m_WKey{ false };
+    Vec2f m_MouseDelta{ 0,0 };
+    TrsTransformf m_Transform;
+    Vec2f m_TargetRot;
+    Vec3f m_TargetTrans;
+    const float m_MovePerSec;
+    const float m_MouseMoveRotScale;
 };

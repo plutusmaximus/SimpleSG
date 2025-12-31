@@ -6,6 +6,8 @@
 
 #include <algorithm>
 
+//---- GimbleMouseNav Implementation ----//
+
 GimbleMouseNav::GimbleMouseNav(const TrsTransformf& initialTransform)
     : m_StartRot(initialTransform.R)
     , m_StartTrans(initialTransform.T)
@@ -96,6 +98,11 @@ void GimbleMouseNav::ClearButtons()
     m_MouseButtons.fill(false);
 }
 
+void GimbleMouseNav::Update(const float deltaSeconds)
+{
+    //No per-frame update needed for gimble nav
+}
+
 void GimbleMouseNav::BeginPan(const Vec2f& mouseLoc, const float scale)
 {
     eassert(&GimbleMouseNav::UpdateNothing == m_UpdateFunc);
@@ -171,4 +178,116 @@ void GimbleMouseNav::UpdateRotation(const Vec2f& mouseDelta)
 
     const Quatf drot = Quatf(Radiansf(d.x), Vec3f::YAXIS()) * Quatf(Radiansf(d.y), Vec3f::XAXIS());
     m_Transform.R = m_StartRot * drot;
+}
+
+//---- WalkMouseNav Implementation ----//
+
+WalkMouseNav::WalkMouseNav(
+        const TrsTransformf& initialTransform,
+        const float rotPerDXY,
+        const float movePerSec)
+    : m_Transform(initialTransform)
+    , m_TargetRot(initialTransform.R.GetRotation(Vec3f::XAXIS()), initialTransform.R.GetRotation(Vec3f::YAXIS()))
+    , m_TargetTrans(initialTransform.T)
+    , m_MovePerSec(movePerSec)
+    , m_MouseMoveRotScale(rotPerDXY * 2 * std::numbers::pi_v<float>)
+{
+}
+
+WalkMouseNav::~WalkMouseNav() {}
+
+void
+WalkMouseNav::OnMouseDown(const Vec2f& mouseLoc, const Vec2f& screenBounds, const int mouseButton)
+{
+}
+
+void
+WalkMouseNav::OnMouseUp(const int mouseButton)
+{
+}
+
+void
+WalkMouseNav::OnKeyDown(const int keyCode)
+{
+    m_AKey = (SDL_SCANCODE_A == keyCode) ? true : m_AKey;
+    m_SKey = (SDL_SCANCODE_S == keyCode) ? true : m_SKey;
+    m_DKey = (SDL_SCANCODE_D == keyCode) ? true : m_DKey;
+    m_WKey = (SDL_SCANCODE_W == keyCode) ? true : m_WKey;
+}
+
+void
+WalkMouseNav::OnKeyUp(const int keyCode)
+{
+    m_AKey = (SDL_SCANCODE_A == keyCode) ? false : m_AKey;
+    m_SKey = (SDL_SCANCODE_S == keyCode) ? false : m_SKey;
+    m_DKey = (SDL_SCANCODE_D == keyCode) ? false : m_DKey;
+    m_WKey = (SDL_SCANCODE_W == keyCode) ? false : m_WKey;
+}
+
+void
+WalkMouseNav::OnScroll(const Vec2f& scroll)
+{
+    m_TargetTrans.y += scroll.y * m_MovePerSec * 0.1f;
+}
+
+void
+WalkMouseNav::OnMouseMove(const Vec2f& mouseDelta)
+{
+    m_MouseDelta += mouseDelta;
+}
+
+void
+WalkMouseNav::ClearButtons()
+{
+    m_AKey = m_SKey = m_DKey = m_WKey = false;
+    m_MouseDelta = Vec2f{ 0,0 };
+}
+
+void
+WalkMouseNav::Update(const float deltaSeconds)
+{
+    //Update rotation
+    if (m_MouseDelta.x != 0 || m_MouseDelta.y != 0)
+    {
+        float rotX = m_MouseDelta.y * m_MouseMoveRotScale;
+        float rotY = m_MouseDelta.x * m_MouseMoveRotScale;
+
+        constexpr float PI = std::numbers::pi_v<float>;
+
+        rotX = std::max(rotX, -(PI / 2 - 0.01f));
+        rotX = std::min(rotX, PI / 2 - 0.01f);
+        rotY = std::max(rotY, -(PI / 2 - 0.01f));
+        rotY = std::min(rotY, PI / 2 - 0.01f);
+        m_TargetRot += Vec2f{rotX, rotY};
+        m_MouseDelta = Vec2f{ 0,0 };
+    }
+
+    //Update translation
+    Vec3f moveDelta{ 0 };
+    if (m_AKey)
+    {
+        moveDelta += -m_Transform.LocalXAxis() * m_MovePerSec * deltaSeconds;
+    }
+    if (m_DKey)
+    {
+        moveDelta += m_Transform.LocalXAxis() * m_MovePerSec * deltaSeconds;
+    }
+    if (m_WKey)
+    {
+        moveDelta += m_Transform.LocalZAxis() * m_MovePerSec * deltaSeconds;
+    }
+    if (m_SKey)
+    {
+        moveDelta += -m_Transform.LocalZAxis() * m_MovePerSec * deltaSeconds;
+    }
+
+    if (moveDelta.x != 0 || moveDelta.y != 0 || moveDelta.z != 0)
+    {
+        m_TargetTrans += moveDelta;
+    }
+
+    Quatf targetQuat = Quatf(Radiansf(m_TargetRot.y), Vec3f::YAXIS()) *
+                       Quatf(Radiansf(m_TargetRot.x), Vec3f::XAXIS());
+    m_Transform.R = targetQuat - ((targetQuat - m_Transform.R) * 0.1f);
+    m_Transform.T += (m_TargetTrans - m_Transform.T) * 0.1f;
 }
