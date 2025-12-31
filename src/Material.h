@@ -89,11 +89,11 @@ struct MaterialSpec
 {
     const RgbaColorf Color;
 
-    const std::string_view VertexShader;
-    const std::string_view FragmentShader;
+    const std::string VertexShader;
+    const std::string FragmentShader;
 
     const float Metallic{ 0 };
     const float Roughness{ 0 };
 
-    const std::string_view Albedo;
+    const std::string Albedo;
 };
