@@ -25,8 +25,10 @@ Image::Create(const int width, const int height)
 }
 
 Result<RefPtr<Image>>
-Image::Load(const std::string_view path)
+Image::LoadFromFile(const std::string_view path)
 {
+    logDebug("Loading image from file: {}", path);
+
     static constexpr int DESIRED_CHANNELS = 4;
 
     int width, height, channels;
@@ -38,6 +40,25 @@ Image::Load(const std::string_view path)
 
     return Create(width, height, pixels, freePixels);
 }
+
+Result<RefPtr<Image>>
+Image::LoadFromMemory(const std::span<const uint8_t> data)
+{
+    logDebug("Loading image from memory");
+
+    static constexpr int DESIRED_CHANNELS = 4;
+
+    int width, height, channels;
+    unsigned char* pixels = stbi_load_from_memory(data.data(), static_cast<int>(data.size()), &width, &height, &channels, DESIRED_CHANNELS);
+
+    expect(pixels, stbi_failure_reason());
+
+    auto freePixels = [](uint8_t* p) { stbi_image_free(p); };
+
+    return Create(width, height, pixels, freePixels);
+}
+
+//private:
 
 Result<RefPtr<Image>>
 Image::Create(const int width, const int height, uint8_t* pixels, void (*freePixels)(uint8_t*))

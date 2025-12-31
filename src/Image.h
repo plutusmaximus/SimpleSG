@@ -1,6 +1,7 @@
 #pragma once
 #include <expected>
 #include <cstdint>
+#include <span>
 
 #include "RefCount.h"
 
@@ -14,7 +15,9 @@ public:
 
     static Result<RefPtr<Image>> Create(const int width, const int height);
 
-    static Result<RefPtr<Image>> Load(const std::string_view path);
+    static Result<RefPtr<Image>> LoadFromFile(const std::string_view path);
+
+    static Result<RefPtr<Image>> LoadFromMemory(const std::span<const uint8_t> data);
 
     const int Width;
     const int Height;

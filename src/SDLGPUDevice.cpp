@@ -286,7 +286,21 @@ SDLGPUDevice::GetOrCreatePipeline(const SDLMaterial& mtl)
     SDL_GPUColorTargetDescription colorTargetDesc
     {
         .format = colorTargetFormat,
-        .blend_state = {}
+        .blend_state =
+        {
+            .src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+            .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+            .color_blend_op = SDL_GPU_BLENDOP_ADD,
+            .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
+            .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO,
+            .alpha_blend_op = SDL_GPU_BLENDOP_ADD,
+            .color_write_mask = SDL_GPU_COLORCOMPONENT_R |
+                               SDL_GPU_COLORCOMPONENT_G |
+                               SDL_GPU_COLORCOMPONENT_B |
+                               SDL_GPU_COLORCOMPONENT_A,
+            .enable_blend = true,
+            .enable_color_write_mask = false,
+        }
     };
 
     SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo
@@ -425,7 +439,7 @@ SDLGPUDevice::GetOrCreateTexture(const std::string_view path)
 
     if (!texture)
     {
-        auto imgResult = Image::Load(path);
+        auto imgResult = Image::LoadFromFile(path);
         expect(imgResult, imgResult.error());
         auto img = *imgResult;
         auto texResult = CreateTexture(Device, img->Width, img->Height, img->Pixels);
@@ -436,6 +450,24 @@ SDLGPUDevice::GetOrCreateTexture(const std::string_view path)
         const HashKey hashKey = MakeHashKey(path);
 
         m_TexturesByName.Add(path, texture);
+    }
+
+    return texture;
+}
+
+Result<SDL_GPUTexture*>
+SDLGPUDevice::GetOrCreateTexture(const std::string_view key, const Image& image)
+{
+    SDL_GPUTexture* texture = GetTexture(key);
+
+    if (!texture)
+    {
+        auto texResult = CreateTexture(Device, image.Width, image.Height, image.Pixels);
+        expect(texResult, texResult.error());
+
+        texture = texResult.value();
+
+        m_TexturesByName.Add(key, texture);
     }
 
     return texture;

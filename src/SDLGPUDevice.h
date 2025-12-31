@@ -15,6 +15,7 @@ struct SDL_GPUTexture;
 struct SDL_GPUSampler;
 struct SDL_GPUShader;
 struct SDL_GPUGraphicsPipeline;
+class Image;
 
 class SDLGpuBuffer : public GpuBuffer
 {
@@ -87,18 +88,23 @@ public:
 
     ~SDLGPUDevice() override;
 
+    /// @brief Creates a model from the given specification.
     Result<RefPtr<Model>> CreateModel(const ModelSpec& modelSpec) override;
 
+    /// @brief Retrieves a material by its ID.
     Result<const SDLMaterial*> GetMaterial(const MaterialId& mtlId) const;
 
+    /// @brief Retrieves or creates a vertex shader from a file path.
     Result<SDL_GPUShader*> GetOrCreateVertexShader(
         const std::string_view path,
         const int numUniformBuffers);
 
+    /// @brief Retrieves or creates a fragment shader from a file path.
     Result<SDL_GPUShader*> GetOrCreateFragmentShader(
         const std::string_view path,
         const int numSamplers);
 
+    /// @brief Retrieves or creates a graphics pipeline for the given material.
     Result<SDL_GPUGraphicsPipeline*> GetOrCreatePipeline(const SDLMaterial& mtl);
 
     SDL_Window* const Window;
@@ -114,14 +120,21 @@ private:
         const std::span<const Vertex>& vertices,
         const std::span<const VertexIndex>& indices);
 
+    /// @brief Retrieves or creates a texture from a file path.
     Result<SDL_GPUTexture*> GetOrCreateTexture(const std::string_view path);
 
-    SDL_GPUTexture* GetTexture(const std::string_view path);
+    /// @brief Retrieves or creates a texture from an image.
+    Result<SDL_GPUTexture*> GetOrCreateTexture(const std::string_view key, const Image& image);
 
+    /// @brief Retrieves a texture by its key.
+    SDL_GPUTexture* GetTexture(const std::string_view key);
+
+    /// @brief Retrieves a vertex shader by its path.
     SDL_GPUShader* GetVertexShader(const std::string_view path);
 
+    /// @brief Retrieves a fragment shader by its path.
     SDL_GPUShader* GetFragShader(const std::string_view path);
-
+    
     SDL_GPUSampler* m_Sampler = nullptr;
 
     struct PipelineKey
