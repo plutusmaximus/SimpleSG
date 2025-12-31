@@ -725,6 +725,36 @@ public:
     }
 };
 
+struct Extent
+{
+    float Width;
+    float Height;
+
+    bool operator==(const Extent& that) const
+    {
+        return Width == that.Width && Height == that.Height;
+    }
+    bool operator!=(const Extent& that) const
+    {
+        return !(*this == that);
+    }
+};
+
+struct Point
+{
+    float X;
+    float Y;
+
+    bool operator==(const Point& that) const
+    {
+        return X == that.X && Y == that.Y;
+    }
+    bool operator!=(const Point& that) const
+    {
+        return !(*this == that);
+    }
+};
+
 using Degreesf = Degrees<float>;
 using Radiansf = Radians<float>;
 using Vec2f = Vec2<float>;

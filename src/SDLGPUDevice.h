@@ -91,6 +91,9 @@ public:
     /// @brief Creates a model from the given specification.
     Result<RefPtr<Model>> CreateModel(const ModelSpec& modelSpec) override;
 
+    /// @brief Gets the renderable extent of the device.
+    Extent GetExtent() const override;
+
     /// @brief Retrieves a material by its ID.
     Result<const SDLMaterial*> GetMaterial(const MaterialId& mtlId) const;
 

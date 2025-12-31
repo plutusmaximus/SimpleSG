@@ -192,6 +192,16 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
 
     return Model::Create(meshes);
 }
+    
+Extent SDLGPUDevice::GetExtent() const
+{
+    int width = 0, height = 0;
+    if(!SDL_GetWindowSizeInPixels(Window, &width, &height))
+    {
+        logError("Failed to get window size: {}", SDL_GetError());
+    }
+    return Extent{static_cast<float>(width), static_cast<float>(height)};
+}
 
 Result<const SDLMaterial*>
 SDLGPUDevice::GetMaterial(const MaterialId& mtlId) const
