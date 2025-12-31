@@ -1,25 +1,15 @@
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_gpu.h>
-#include <filesystem>
 
-#include "ECS.h"
-
-#include "Error.h"
+#include "AppDriver.h"
+#include "Application.h"
 #include "Camera.h"
-#include "SDLRenderGraph.h"
-#include "Finally.h"
-
-#include "SDLGPUDevice.h"
-
-#include "MouseNav.h"
-
-#include "ModelCatalog.h"
-
-#include "Shapes.h"
-
-#include "LuaRepl.h"
-
+#include "ECS.h"
 #include "EcsChildTransformPool.h"
+#include "ModelCatalog.h"
+#include "MouseNav.h"
+#include "SDLGPUDevice.h"
+#include "SDLRenderGraph.h"
+#include "Shapes.h"
 
 static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu);
 static Result<RefPtr<Model>> CreatePumpkinModel(RefPtr<GPUDevice> gpu);
@@ -35,215 +25,233 @@ public:
     }
 };
 
-static int Add(lua_State* L)
+class CubeApp : public Application
 {
-    int arg1 = luaL_checkinteger(L, 1);
-    int arg2 = luaL_checkinteger(L, 2);
-    lua_pushinteger(L, arg1 + arg2);
-    return 1;
-}
+public:
+    ~CubeApp() override = default;
 
-int main(int, [[maybe_unused]] char* argv[])
-{
-    Logging::SetLogLevel(spdlog::level::trace);
-
-    LuaRepl repl;
-
-    repl.ExportFunction(Add, "Add");
-
-    auto cwd = std::filesystem::current_path();
-    logInfo("Current working directory: {}", cwd.string());
-
-    etry
+    std::string_view GetName() const override
     {
-        pcheck(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
+        return "Cube";
+    }
 
-        SDL_Rect displayRect;
-        auto dm = SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &displayRect);
-        const int winW = displayRect.w * 0.75;
-        const int winH = displayRect.h * 0.75;
-
-        // Create window
-        SDL_Window* window = SDL_CreateWindow("SDL3 GPU Cube", winW, winH, SDL_WINDOW_RESIZABLE);
-        pcheck(window, SDL_GetError());
-
-        auto windowFin = Finally([window]()
+    Result<void> Initialize(RefPtr<SDLGPUDevice> gpuDevice) override
+    {
+        if(!everify(State::None == m_State, "Application already initialized or running"))
         {
-            SDL_DestroyWindow(window);
-        });
+            return std::unexpected(Error("Application already initialized or running"));
+        }
 
-        auto gdResult = SDLGPUDevice::Create(window);
-        pcheck(gdResult, gdResult.error());
-        auto gd = *gdResult;
+        m_State = State::Initialized;
 
-        EcsRegistry reg;
+        m_RenderGraph = new SDLRenderGraph(gpuDevice.Get());
 
-        auto eidPlanet = reg.Create();
-        auto eidMoonOrbit = reg.Create();
-        auto eidMoon = reg.Create();
-        auto eidCamera = reg.Create();
+        if(!m_RenderGraph)
+        {
+            Shutdown();
+            return std::unexpected(Error("Failed to create SDLRenderGraph"));
+        }
+
+        m_GPUDevice = gpuDevice;
+        m_ScreenBounds = m_GPUDevice->GetExtent();
+        m_EidPlanet = m_Registry.Create();
+        m_EidMoonOrbit = m_Registry.Create();
+        m_EidMoon = m_Registry.Create();
+        m_EidCamera = m_Registry.Create();
 
         //auto modelResult = CreateCube(gd);
         //auto modelResult = CreatePumpkin(gd);
-        auto modelResult = CreateShapeModel(gd);
-        pcheck(modelResult, modelResult.error());
+        auto modelResult = CreateShapeModel(m_GPUDevice);
+        expect(modelResult, modelResult.error());
         auto model = modelResult.value();
 
         const Degreesf fov(45);
 
-        reg.Add(eidPlanet, ChildTransform{}, WorldMatrix{}, model);
-        reg.Add(eidMoonOrbit, ChildTransform{ .ParentId = eidPlanet }, WorldMatrix{});
-        reg.Add(eidMoon, ChildTransform{ .ParentId = eidMoonOrbit }, WorldMatrix{}, model);
-        reg.Add(eidCamera, TrsTransformf{}, WorldMatrix{}, Camera{});
+        m_Registry.Add(m_EidPlanet, ChildTransform{}, WorldMatrix{}, model);
+        m_Registry.Add(m_EidMoonOrbit, ChildTransform{ .ParentId = m_EidPlanet }, WorldMatrix{});
+        m_Registry.Add(m_EidMoon, ChildTransform{ .ParentId = m_EidMoonOrbit }, WorldMatrix{}, model);
+        m_Registry.Add(m_EidCamera, TrsTransformf{}, WorldMatrix{}, Camera{});
 
-        reg.Get<TrsTransformf>(eidCamera).T = Vec3f{ 0,0,-4 };
-        reg.Get<Camera>(eidCamera).SetPerspective(fov, static_cast<float>(winW), static_cast<float>(winH), 0.1f, 1000);
+        m_Registry.Get<TrsTransformf>(m_EidCamera).T = Vec3f{ 0,0,-4 };
+        m_Registry.Get<Camera>(m_EidCamera).SetPerspective(fov, m_ScreenBounds, 0.1f, 1000);
 
-        // Main loop
-        bool running = true;
-        Radiansf planetSpinAngle(0), moonSpinAngle(0), moonOrbitAngle(0);
+        m_GimbleMouseNav.SetTransform(m_Registry.Get<TrsTransformf>(m_EidCamera));
 
-        GimbleMouseNav gimbleMouseNav(reg.Get<TrsTransformf>(eidCamera));
-        MouseNav* mouseNav = &gimbleMouseNav;
+        m_State = State::Running;
 
-        while (running)
+        return {};
+    }
+
+    void Shutdown() override
+    {
+        if(State::Shutdown == m_State)
         {
-            int windowW, windowH;
-            if (!SDL_GetWindowSizeInPixels(window, &windowW, &windowH))
+            return;
+        }
+        m_State = State::Shutdown;
+
+        delete m_RenderGraph;
+        m_RenderGraph = nullptr;
+        m_Registry.Clear();
+        m_GPUDevice = nullptr;
+    }
+
+    void Update(const float deltaSeconds) override
+    {
+        if(!everify(State::Running == m_State, "Application is not running"))
+        {
+            return;
+        }
+        
+        m_ScreenBounds = m_GPUDevice->GetExtent();
+
+        m_Registry.Get<Camera>(m_EidCamera).SetBounds(m_ScreenBounds);
+
+        m_MouseNav->Update(deltaSeconds);
+        m_Registry.Get<TrsTransformf>(m_EidCamera) = m_MouseNav->GetTransform();
+
+        // Update model matrix
+        m_PlanetSpinAngle = (m_PlanetSpinAngle + 0.001f).Wrap();
+        m_MoonSpinAngle = (m_MoonSpinAngle - 0.005f).Wrap();
+        m_MoonOrbitAngle = (m_MoonOrbitAngle - 0.005f).Wrap();
+
+        const Quatf planetTilt{ Radiansf::FromDegrees(15), Vec3f::ZAXIS() };
+
+        auto& planetXform = m_Registry.Get<ChildTransform>(m_EidPlanet);
+        planetXform.LocalTransform.R = planetTilt * Quatf{ m_PlanetSpinAngle, Vec3f::YAXIS() };
+        auto& moonOrbitXform = m_Registry.Get<ChildTransform>(m_EidMoonOrbit);
+        moonOrbitXform.LocalTransform.R = Quatf{ m_MoonOrbitAngle, Vec3f::YAXIS() };
+
+        auto& moonXform = m_Registry.Get<ChildTransform>(m_EidMoon);
+        moonXform.LocalTransform.T = Vec3f{ 0,0,-2 };
+        moonXform.LocalTransform.R = Quatf{ m_MoonSpinAngle, Vec3f::YAXIS() };
+        moonXform.LocalTransform.S = Vec3f{ 0.25f };
+
+        // Transform roots
+        for(const auto& tuple : m_Registry.GetView<TrsTransformf, WorldMatrix>())
+        {
+            auto [eid, xform, worldMat] = tuple;
+            worldMat = xform.ToMatrix();
+        }
+
+        // Transform parent/child relationships
+        for(const auto& tuple : m_Registry.GetView<ChildTransform, WorldMatrix>())
+        {
+            auto [eid, xform, worldMat] = tuple;
+
+            const EntityId parentId = xform.ParentId;
+            if(!parentId.IsValid())
             {
-                logError(SDL_GetError());
-                continue;
+                worldMat = xform.LocalTransform.ToMatrix();
             }
-
-            SDL_Event event;
-            bool minimized = false;
-            while (running && (minimized ? SDL_WaitEvent(&event) : SDL_PollEvent(&event)))
+            else
             {
-                switch (event.type)
-                {
-                case SDL_EVENT_QUIT:
-                    running = false;
-                    break;
-
-                case SDL_EVENT_WINDOW_MINIMIZED:
-                    minimized = true;
-                    break;
-
-                case SDL_EVENT_WINDOW_RESTORED:
-                case SDL_EVENT_WINDOW_MAXIMIZED:
-                    minimized = false;
-                    break;
-
-                case SDL_EVENT_WINDOW_MOUSE_LEAVE:
-                case SDL_EVENT_WINDOW_FOCUS_GAINED:
-                case SDL_EVENT_WINDOW_FOCUS_LOST:
-                    mouseNav->ClearButtons();
-                    break;
-
-                case SDL_EVENT_MOUSE_MOTION:
-                    mouseNav->OnMouseMove(Vec2f(event.motion.xrel, event.motion.yrel));
-                    break;
-
-                case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                    mouseNav->OnMouseDown(Vec2f(event.button.x, event.button.y), Vec2f(windowW, windowH), event.button.button - 1);
-                    break;
-                case SDL_EVENT_MOUSE_BUTTON_UP:
-                    mouseNav->OnMouseUp(event.button.button - 1);
-                    break;
-
-                case SDL_EVENT_MOUSE_WHEEL:
-                    mouseNav->OnScroll(Vec2f(event.wheel.x, event.wheel.y));
-                    break;
-
-                case SDL_EVENT_KEY_DOWN:
-                    mouseNav->OnKeyDown(event.key.scancode);
-                    break;
-
-                case SDL_EVENT_KEY_UP:
-                    mouseNav->OnKeyUp(event.key.scancode);
-                    break;
-                }
-            }
-
-            if (!running)
-            {
-                continue;
-            }
-
-            repl.Update();
-
-            // Update model matrix
-            planetSpinAngle = (planetSpinAngle + 0.001f).Wrap();
-            moonSpinAngle = (moonSpinAngle - 0.005f).Wrap();
-            moonOrbitAngle = (moonOrbitAngle - 0.005f).Wrap();
-
-            const Quatf planetTilt{ Radiansf::FromDegrees(15), Vec3f::ZAXIS() };
-
-            auto& planetXform = reg.Get<ChildTransform>(eidPlanet);
-            planetXform.LocalTransform.R = planetTilt * Quatf{ planetSpinAngle, Vec3f::YAXIS() };
-
-            auto& moonOrbitXform = reg.Get<ChildTransform>(eidMoonOrbit);
-            moonOrbitXform.LocalTransform.R = Quatf{ moonOrbitAngle, Vec3f::YAXIS() };
-
-            auto& moonXform = reg.Get<ChildTransform>(eidMoon);
-            moonXform.LocalTransform.T = Vec3f{ 0,0,-2 };
-            moonXform.LocalTransform.R = Quatf{ moonSpinAngle, Vec3f::YAXIS() };
-            moonXform.LocalTransform.S = Vec3f{ 0.25f };
-
-            reg.Get<Camera>(eidCamera).SetBounds(windowW, windowH);
-
-            SDLRenderGraph renderGraph(gd.Get());
-
-            auto& cameraXform = reg.Get<TrsTransformf>(eidCamera);
-            cameraXform = gimbleMouseNav.GetTransform();
-
-            // Transform roots
-            for(const auto& tuple : reg.GetView<TrsTransformf, WorldMatrix>())
-            {
-                auto [eid, xform, worldMat] = tuple;
-                worldMat = xform.ToMatrix();
-            }
-
-            // Transform parent/child relationships
-            for(const auto& tuple : reg.GetView<ChildTransform, WorldMatrix>())
-            {
-                auto [eid, xform, worldMat] = tuple;
-
-                const EntityId parentId = xform.ParentId;
-                if(!parentId.IsValid())
-                {
-                    worldMat = xform.LocalTransform.ToMatrix();
-                }
-                else
-                {
-                    const auto parentWorldMat = reg.Get<WorldMatrix>(parentId);
-                    worldMat = parentWorldMat * xform.LocalTransform.ToMatrix();
-                }
-            }
-
-            // Transform to camera space and render
-            for(const auto& cameraTuple : reg.GetView<WorldMatrix, Camera>())
-            {
-                for(const auto& tuple : reg.GetView<WorldMatrix, RefPtr<Model>>())
-                {
-                    const auto [eid, worldMat, model] = tuple;
-                    renderGraph.Add(worldMat, model);
-                }
-
-                const auto [camEid, camWorldMat, camera] = cameraTuple;
-                auto renderResult = renderGraph.Render(camWorldMat, camera.GetProjection());
-                if (!renderResult)
-                {
-                    logError(renderResult.error().Message);
-                }
-
-                renderGraph.Reset();
+                const auto parentWorldMat = m_Registry.Get<WorldMatrix>(parentId);
+                worldMat = parentWorldMat * xform.LocalTransform.ToMatrix();
             }
         }
-    }
-    ecatchall;
 
-    SDL_Quit();
+        // Transform to camera space and render
+        for(const auto& cameraTuple : m_Registry.GetView<WorldMatrix, Camera>())
+        {
+            for(const auto& tuple : m_Registry.GetView<WorldMatrix, RefPtr<Model>>())
+            {
+                const auto [eid, worldMat, model] = tuple;
+                m_RenderGraph->Add(worldMat, model);
+            }
+
+            const auto [camEid, camWorldMat, camera] = cameraTuple;
+            auto renderResult = m_RenderGraph->Render(camWorldMat, camera.GetProjection());
+            if (!renderResult)
+            {
+                logError(renderResult.error().Message);
+            }
+
+            m_RenderGraph->Reset();
+        }
+    }
+
+    bool IsRunning() const override
+    {
+        return State::Running == m_State;
+    }
+
+    void OnMouseDown(const Point& mouseLoc, const int mouseButton) override
+    {
+        m_MouseNav->OnMouseDown(mouseLoc, m_ScreenBounds, mouseButton);
+    }
+
+    void OnMouseUp(const int mouseButton) override
+    {
+        m_MouseNav->OnMouseUp(mouseButton);
+    }
+
+    void OnKeyDown(const int keyCode) override
+    {
+        m_MouseNav->OnKeyDown(keyCode);
+        if(SDL_SCANCODE_ESCAPE == keyCode)
+        {
+            m_State = State::ShutdownRequested;
+        }
+    }
+
+    void OnKeyUp(const int keyCode) override
+    {
+        m_MouseNav->OnKeyUp(keyCode);
+    }
+
+    void OnScroll(const Vec2f& scroll) override
+    {
+        m_MouseNav->OnScroll(scroll);
+    }
+
+    void OnMouseMove(const Vec2f& mouseDelta) override
+    {
+        m_MouseNav->OnMouseMove(mouseDelta);
+    }
+
+    void OnFocusGained() override
+    {
+        m_MouseNav->ClearButtons();
+    }
+
+    void OnFocusLost() override
+    {
+        m_MouseNav->ClearButtons();
+    }
+
+private:
+
+        enum class State
+        {
+            None,
+            Initialized,
+            Running,
+            ShutdownRequested,
+            Shutdown
+        };
+
+        State m_State = State::None;
+
+        RefPtr<SDLGPUDevice> m_GPUDevice;
+        SDLRenderGraph* m_RenderGraph = nullptr;
+        EcsRegistry m_Registry;
+        GimbleMouseNav m_GimbleMouseNav{ TrsTransformf{}};
+        MouseNav* const m_MouseNav = &m_GimbleMouseNav;
+        EntityId m_EidCamera;
+        EntityId m_EidPlanet;
+        EntityId m_EidMoonOrbit;
+        EntityId m_EidMoon;
+        Extent m_ScreenBounds{0,0};
+        Radiansf m_PlanetSpinAngle{0}, m_MoonSpinAngle{0}, m_MoonOrbitAngle{0};
+};
+
+int main(int, [[maybe_unused]] char* argv[])
+{
+    CubeApp app;
+    AppDriver driver(&app);
+
+    auto result = driver.Run();
 
     return 0;
 }

@@ -141,7 +141,7 @@ endif()
 # ============================================================
 # Executable: Cube
 # ============================================================
-add_executable(Cube tests/cube.cpp tests/MouseNav.cpp tests/LuaRepl.cpp)
+add_executable(Cube tests/cube.cpp tests/MouseNav.cpp tests/AppDriver.cpp tests/LuaRepl.cpp)
 target_link_libraries(Cube PRIVATE ssg::ssg spdlog::spdlog imgui lua assimp::assimp)
 add_dependencies(Cube shaders copy_images copy_models)
 
@@ -159,7 +159,7 @@ endif()
 # ============================================================
 # Executable: Sponza
 # ============================================================
-add_executable(Sponza tests/sponza.cpp tests/MouseNav.cpp)
+add_executable(Sponza tests/sponza.cpp tests/MouseNav.cpp tests/AppDriver.cpp)
 target_link_libraries(Sponza PRIVATE ssg::ssg spdlog::spdlog imgui assimp::assimp)
 add_dependencies(Sponza shaders copy_images copy_models)
 

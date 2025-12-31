@@ -11,7 +11,7 @@ public:
 
     virtual ~MouseNav() = 0 {}
 
-    virtual void OnMouseDown(const Vec2f& mouseLoc, const Vec2f& screenBounds, const int mouseButton) = 0;
+    virtual void OnMouseDown(const Point& mouseLoc, const Extent& screenBounds, const int mouseButton) = 0;
 
     virtual void OnMouseUp(const int mouseButton) = 0;
 
@@ -38,7 +38,7 @@ public:
 
     ~GimbleMouseNav() override;
 
-    void OnMouseDown(const Vec2f& mouseLoc, const Vec2f& screenBounds, const int mouseButton) override;
+    void OnMouseDown(const Point& mouseLoc, const Extent& screenBounds, const int mouseButton) override;
 
     void OnMouseUp(const int mouseButton) override;
 
@@ -54,6 +54,11 @@ public:
 
     void Update(const float deltaSeconds) override;
 
+    void SetTransform(const TrsTransformf& transform)
+    {
+        m_Transform = transform;
+    }
+
     const TrsTransformf& GetTransform() const override
     {
         return m_Transform;
@@ -61,11 +66,11 @@ public:
 
 private:
 
-    void BeginPan(const Vec2f& mouseLoc, const float scale);
+    void BeginPan(const Point& mouseLoc, const float scale);
 
     void BeginDolly(const float scale);
 
-    void BeginRotation(const Vec2f& mouseLoc, const Vec2f& screenBounds, const float scale);
+    void BeginRotation(const Point& mouseLoc, const Extent& screenBounds, const float scale);
 
     void EndPan();
 
@@ -82,9 +87,9 @@ private:
     void UpdateRotation(const Vec2f& mouseDelta);
 
     std::array<bool, 3> m_MouseButtons{ false };
-    Vec2f m_StartLoc{ 0,0 };
-    Vec2f m_CurLoc{ 0,0 };
-    Vec2f m_ScreenBounds{ 0,0 };
+    Point m_StartLoc{ 0,0 };
+    Point m_CurLoc{ 0,0 };
+    Extent m_ScreenBounds{ 0,0 };
     Quatf m_StartRot;
     Vec3f m_StartTrans;
     TrsTransformf m_Transform;
@@ -112,7 +117,7 @@ public:
 
     ~WalkMouseNav() override;
 
-    void OnMouseDown(const Vec2f& mouseLoc, const Vec2f& screenBounds, const int mouseButton) override;
+    void OnMouseDown(const Point& mouseLoc, const Extent& screenBounds, const int mouseButton) override;
 
     void OnMouseUp(const int mouseButton) override;
 
@@ -127,6 +132,13 @@ public:
     void ClearButtons() override;
 
     void Update(const float deltaSeconds) override;
+
+    void SetTransform(const TrsTransformf& transform)
+    {
+        m_Transform = transform;
+        m_TargetRot = { transform.R.GetRotation(Vec3f::XAXIS()), transform.R.GetRotation(Vec3f::YAXIS()) };
+        m_TargetTrans = transform.T;
+    }
 
     const TrsTransformf& GetTransform() const override
     {

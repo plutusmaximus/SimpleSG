@@ -1,28 +1,14 @@
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_gpu.h>
-#include <filesystem>
 
-#include <assimp/Importer.hpp>      // C++ importer interface
-#include <assimp/scene.h>           // Output data structure
-#include <assimp/postprocess.h>     // Post processing flags
-
-#include "ECS.h"
-
+#include "AppDriver.h"
+#include "Application.h"
 #include "Camera.h"
-#include "SDLRenderGraph.h"
-#include "Finally.h"
-
-#include "SDLGPUDevice.h"
-
-#include "MouseNav.h"
-
-#include "ModelCatalog.h"
-
-#include "Shapes.h"
-
+#include "ECS.h"
 #include "EcsChildTransformPool.h"
-
-#include "Stopwatch.h"
+#include "ModelCatalog.h"
+#include "MouseNav.h"
+#include "SDLGPUDevice.h"
+#include "SDLRenderGraph.h"
 
 class WorldMatrix : public Mat44f
 {    
@@ -34,198 +20,210 @@ public:
     }
 };
 
-int main(int, [[maybe_unused]] char* argv[])
+class SponzaApp : public Application
 {
-    Logging::SetLogLevel(spdlog::level::trace);
+public:
+    ~SponzaApp() override = default;
 
-    auto cwd = std::filesystem::current_path();
-    logInfo("Current working directory: {}", cwd.string());
-
-    etry
+    std::string_view GetName() const override
     {
-        pcheck(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
+        return "Sponza";
+    }
 
-        SDL_Rect displayRect;
-        auto dm = SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &displayRect);
-        const int winW = displayRect.w * 0.75;
-        const int winH = displayRect.h * 0.75;
-
-        // Create window
-        SDL_Window* window = SDL_CreateWindow("SDL3 GPU Cube", winW, winH, SDL_WINDOW_RESIZABLE);
-        pcheck(window, SDL_GetError());
-
-        auto windowFinalizer = Finally([window]()
+    Result<void> Initialize(RefPtr<SDLGPUDevice> gpuDevice) override
+    {
+        if(!everify(State::None == m_State, "Application already initialized or running"))
         {
-            SDL_DestroyWindow(window);
-        });
-
-        if(!SDL_SetWindowRelativeMouseMode(window, true))
-        {
-            logError("Failed to set relative mouse mode: {}", SDL_GetError());
+            return std::unexpected(Error("Application already initialized or running"));
         }
 
-        auto gdResult = SDLGPUDevice::Create(window);
-        pcheck(gdResult, gdResult.error());
-        auto gd = *gdResult;
+        m_State = State::Initialized;
 
-        EcsRegistry reg;
-        ModelCatalog modelCatalog;
+        m_RenderGraph = new SDLRenderGraph(gpuDevice.Get());
 
-        auto modelSpec= modelCatalog.LoadFromFile("Sponza", "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf");
-        pcheck(modelSpec, modelSpec.error());
-
-        auto model = gd->CreateModel(*modelSpec);
-        pcheck(model, model.error());
-
-        auto eidModel = reg.Create();
-        reg.Add(eidModel, TrsTransformf{}, WorldMatrix{}, *model);
-
-        auto eidCamera = reg.Create();
-
-        const Degreesf fov(45);
-        
-        reg.Add(eidCamera, TrsTransformf{}, WorldMatrix{}, Camera{});
-
-        reg.Get<TrsTransformf>(eidCamera).T = Vec3f{ 0,0,-4 };
-        reg.Get<Camera>(eidCamera).SetPerspective(fov, static_cast<float>(winW), static_cast<float>(winH), 0.1f, 1000);
-
-        // Main loop
-        bool running = true;
-
-        WalkMouseNav walkMouseNav(reg.Get<TrsTransformf>(eidCamera), 0.0001f, 5.0f);
-        MouseNav* mouseNav = &walkMouseNav;
-
-        Stopwatch frameTimer;
-
-        while (running)
+        if(!m_RenderGraph)
         {
-            int windowW, windowH;
-            if (!SDL_GetWindowSizeInPixels(window, &windowW, &windowH))
+            Shutdown();
+            return std::unexpected(Error("Failed to create SDLRenderGraph"));
+        }
+
+        m_GPUDevice = gpuDevice;
+        auto modelSpec= m_ModelCatalog.LoadFromFile("Sponza", "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf");
+        expect(modelSpec, modelSpec.error());
+
+        auto model = m_GPUDevice->CreateModel(*modelSpec);
+        expect(model, model.error());
+
+        m_EidModel = m_Registry.Create();
+        m_Registry.Add(m_EidModel, TrsTransformf{}, WorldMatrix{}, *model);
+
+        m_EidCamera = m_Registry.Create();
+
+        m_ScreenBounds = m_GPUDevice->GetExtent();
+        
+        m_Registry.Add(m_EidCamera, TrsTransformf{}, WorldMatrix{}, Camera{});
+        m_Registry.Get<TrsTransformf>(m_EidCamera).T = Vec3f{ 0,0,-4 };
+        m_Registry.Get<Camera>(m_EidCamera).SetPerspective(Degreesf(45), m_ScreenBounds, 0.1f, 1000);
+        m_WalkMouseNav.SetTransform(m_Registry.Get<TrsTransformf>(m_EidCamera));
+
+        m_State = State::Running;
+
+        return {};
+    }
+
+    void Shutdown() override
+    {
+        if(State::Shutdown == m_State)
+        {
+            return;
+        }
+        m_State = State::Shutdown;
+
+        delete m_RenderGraph;
+        m_RenderGraph = nullptr;
+        m_Registry.Clear();
+        m_ModelCatalog.Clear();
+        m_GPUDevice = nullptr;
+    }
+
+    void Update(const float deltaSeconds) override
+    {
+        if(!everify(State::Running == m_State, "Application is not running"))
+        {
+            return;
+        }
+        
+        m_ScreenBounds = m_GPUDevice->GetExtent();
+
+        m_Registry.Get<Camera>(m_EidCamera).SetBounds(m_ScreenBounds);
+
+        m_MouseNav->Update(deltaSeconds);
+
+        m_Registry.Get<TrsTransformf>(m_EidCamera) = m_MouseNav->GetTransform();
+
+        // Transform roots
+        for(const auto& tuple : m_Registry.GetView<TrsTransformf, WorldMatrix>())
+        {
+            auto [eid, xform, worldMat] = tuple;
+            worldMat = xform.ToMatrix();
+        }
+
+        // Transform parent/child relationships
+        for(const auto& tuple : m_Registry.GetView<ChildTransform, WorldMatrix>())
+        {
+            auto [eid, xform, worldMat] = tuple;
+
+            const EntityId parentId = xform.ParentId;
+            if(!parentId.IsValid())
             {
-                logError(SDL_GetError());
-                continue;
+                worldMat = xform.LocalTransform.ToMatrix();
+            }
+            else
+            {
+                const auto parentWorldMat = m_Registry.Get<WorldMatrix>(parentId);
+                worldMat = parentWorldMat * xform.LocalTransform.ToMatrix();
+            }
+        }
+
+        // Transform to camera space and render
+        for(const auto& cameraTuple : m_Registry.GetView<WorldMatrix, Camera>())
+        {
+            for(const auto& tuple : m_Registry.GetView<WorldMatrix, RefPtr<Model>>())
+            {
+                const auto [eid, worldMat, model] = tuple;
+                m_RenderGraph->Add(worldMat, model);
             }
 
-            SDL_Event event;
-            bool minimized = false;
-            while (running && (minimized ? SDL_WaitEvent(&event) : SDL_PollEvent(&event)))
+            const auto [camEid, camWorldMat, camera] = cameraTuple;
+            auto renderResult = m_RenderGraph->Render(camWorldMat, camera.GetProjection());
+            if (!renderResult)
             {
-                switch (event.type)
-                {
-                case SDL_EVENT_QUIT:
-                    running = false;
-                    break;
-
-                case SDL_EVENT_WINDOW_MINIMIZED:
-                    minimized = true;
-                    break;
-
-                case SDL_EVENT_WINDOW_RESTORED:
-                case SDL_EVENT_WINDOW_MAXIMIZED:
-                    minimized = false;
-                    break;
-
-                case SDL_EVENT_WINDOW_MOUSE_LEAVE:
-                case SDL_EVENT_WINDOW_FOCUS_GAINED:
-                case SDL_EVENT_WINDOW_FOCUS_LOST:
-                    mouseNav->ClearButtons();
-                    break;
-
-                case SDL_EVENT_MOUSE_MOTION:
-                    mouseNav->OnMouseMove(Vec2f(event.motion.xrel, event.motion.yrel));
-                    break;
-
-                case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                    mouseNav->OnMouseDown(Vec2f(event.button.x, event.button.y), Vec2f(windowW, windowH), event.button.button - 1);
-                    break;
-                case SDL_EVENT_MOUSE_BUTTON_UP:
-                    mouseNav->OnMouseUp(event.button.button - 1);
-                    break;
-
-                case SDL_EVENT_MOUSE_WHEEL:
-                    mouseNav->OnScroll(Vec2f(event.wheel.x, event.wheel.y));
-                    break;
-
-                case SDL_EVENT_KEY_DOWN:
-                    if(SDL_SCANCODE_ESCAPE == event.key.scancode)
-                    {
-                        running = false;
-                    }
-                    else
-                    {
-                        mouseNav->OnKeyDown(event.key.scancode);
-                    }
-                    break;
-
-                case SDL_EVENT_KEY_UP:
-                    mouseNav->OnKeyUp(event.key.scancode);
-                    break;
-                }
+                logError(renderResult.error().Message);
             }
 
-            if (!running)
-            {
-                continue;
-            }
-
-            // Update model matrix
-
-            reg.Get<Camera>(eidCamera).SetBounds(windowW, windowH);
-
-            mouseNav->Update(frameTimer.Mark());
-
-            SDLRenderGraph renderGraph(gd.Get());
-
-            auto& cameraXform = reg.Get<TrsTransformf>(eidCamera);
-            cameraXform = mouseNav->GetTransform();
-
-            // Transform roots
-            for(const auto& tuple : reg.GetView<TrsTransformf, WorldMatrix>())
-            {
-                auto [eid, xform, worldMat] = tuple;
-                worldMat = xform.ToMatrix();
-            }
-
-            // Transform parent/child relationships
-            for(const auto& tuple : reg.GetView<ChildTransform, WorldMatrix>())
-            {
-                auto [eid, xform, worldMat] = tuple;
-
-                const EntityId parentId = xform.ParentId;
-                if(!parentId.IsValid())
-                {
-                    worldMat = xform.LocalTransform.ToMatrix();
-                }
-                else
-                {
-                    const auto parentWorldMat = reg.Get<WorldMatrix>(parentId);
-                    worldMat = parentWorldMat * xform.LocalTransform.ToMatrix();
-                }
-            }
-
-            // Transform to camera space and render
-            for(const auto& cameraTuple : reg.GetView<WorldMatrix, Camera>())
-            {
-                for(const auto& tuple : reg.GetView<WorldMatrix, RefPtr<Model>>())
-                {
-                    const auto [eid, worldMat, model] = tuple;
-                    renderGraph.Add(worldMat, model);
-                }
-
-                const auto [camEid, camWorldMat, camera] = cameraTuple;
-                auto renderResult = renderGraph.Render(camWorldMat, camera.GetProjection());
-                if (!renderResult)
-                {
-                    logError(renderResult.error().Message);
-                }
-
-                renderGraph.Reset();
-            }
+            m_RenderGraph->Reset();
         }
     }
-    ecatchall;
 
-    SDL_Quit();
+    bool IsRunning() const override
+    {
+        return State::Running == m_State;
+    }
+
+    void OnMouseDown(const Point& mouseLoc, const int mouseButton) override
+    {
+        m_MouseNav->OnMouseDown(mouseLoc, m_ScreenBounds, mouseButton);
+    }
+
+    void OnMouseUp(const int mouseButton) override
+    {
+        m_MouseNav->OnMouseUp(mouseButton);
+    }
+
+    void OnKeyDown(const int keyCode) override
+    {
+        m_MouseNav->OnKeyDown(keyCode);
+        if(SDL_SCANCODE_ESCAPE == keyCode)
+        {
+            m_State = State::ShutdownRequested;
+        }
+    }
+
+    void OnKeyUp(const int keyCode) override
+    {
+        m_MouseNav->OnKeyUp(keyCode);
+    }
+
+    void OnScroll(const Vec2f& scroll) override
+    {
+        m_MouseNav->OnScroll(scroll);
+    }
+
+    void OnMouseMove(const Vec2f& mouseDelta) override
+    {
+        m_MouseNav->OnMouseMove(mouseDelta);
+    }
+
+    void OnFocusGained() override
+    {
+        m_MouseNav->ClearButtons();
+    }
+
+    void OnFocusLost() override
+    {
+        m_MouseNav->ClearButtons();
+    }
+
+private:
+
+        enum class State
+        {
+            None,
+            Initialized,
+            Running,
+            ShutdownRequested,
+            Shutdown
+        };
+
+        State m_State = State::None;
+
+        RefPtr<SDLGPUDevice> m_GPUDevice;
+        SDLRenderGraph* m_RenderGraph = nullptr;
+        EcsRegistry m_Registry;
+        ModelCatalog m_ModelCatalog;
+        WalkMouseNav m_WalkMouseNav{ TrsTransformf{}, 0.0001f, 5.0f };
+        MouseNav* const m_MouseNav = &m_WalkMouseNav;
+        EntityId m_EidCamera;
+        EntityId m_EidModel;
+        Extent m_ScreenBounds{0,0};
+};
+
+int main(int, [[maybe_unused]] char* argv[])
+{
+    SponzaApp app;
+    AppDriver driver(&app);
+
+    auto result = driver.Run();
 
     return 0;
 }

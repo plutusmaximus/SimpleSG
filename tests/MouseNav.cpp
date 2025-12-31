@@ -17,7 +17,7 @@ GimbleMouseNav::GimbleMouseNav(const TrsTransformf& initialTransform)
 
 GimbleMouseNav::~GimbleMouseNav() {}
 
-void GimbleMouseNav::OnMouseDown(const Vec2f& mouseLoc, const Vec2f& screenBounds, const int mouseButton)
+void GimbleMouseNav::OnMouseDown(const Point& mouseLoc, const Extent& screenBounds, const int mouseButton)
 {
     if (1 == mouseButton)
     {
@@ -103,7 +103,7 @@ void GimbleMouseNav::Update(const float deltaSeconds)
     //No per-frame update needed for gimble nav
 }
 
-void GimbleMouseNav::BeginPan(const Vec2f& mouseLoc, const float scale)
+void GimbleMouseNav::BeginPan(const Point& mouseLoc, const float scale)
 {
     eassert(&GimbleMouseNav::UpdateNothing == m_UpdateFunc);
 
@@ -122,7 +122,7 @@ void GimbleMouseNav::BeginDolly(const float scale)
     m_UpdateFunc = &GimbleMouseNav::UpdateDolly;
 }
 
-void GimbleMouseNav::BeginRotation(const Vec2f& mouseLoc, const Vec2f& screenBounds, const float scale)
+void GimbleMouseNav::BeginRotation(const Point& mouseLoc, const Extent& screenBounds, const float scale)
 {
     eassert(&GimbleMouseNav::UpdateNothing == m_UpdateFunc);
 
@@ -160,9 +160,9 @@ void GimbleMouseNav::UpdateNothing(const Vec2f&)
 
 void GimbleMouseNav::UpdatePan(const Vec2f& mouseDelta)
 {
-    m_CurLoc.x += mouseDelta.x;
-    m_CurLoc.y -= mouseDelta.y;
-    Vec2f d = (m_CurLoc - m_StartLoc) * m_Scale;
+    m_CurLoc.X += mouseDelta.x;
+    m_CurLoc.Y -= mouseDelta.y;
+    Vec2f d = (Vec2f{m_CurLoc.X, m_CurLoc.Y} - Vec2f{m_StartLoc.X, m_StartLoc.Y}) * m_Scale;
     m_Transform.T = m_StartTrans + (d.x * m_Transform.LocalXAxis()) + (d.y * m_Transform.LocalYAxis());
 }
 
@@ -173,8 +173,9 @@ void GimbleMouseNav::UpdateDolly(const Vec2f& mouseDelta)
 
 void GimbleMouseNav::UpdateRotation(const Vec2f& mouseDelta)
 {
-    m_CurLoc += mouseDelta;
-    const Vec2f d = (m_CurLoc - m_StartLoc) * m_Scale * 0.001f;
+    m_CurLoc.X += mouseDelta.x;
+    m_CurLoc.Y += mouseDelta.y;
+    const Vec2f d = (Vec2f{m_CurLoc.X, m_CurLoc.Y} - Vec2f{m_StartLoc.X, m_StartLoc.Y}) * m_Scale * 0.001f;
 
     const Quatf drot = Quatf(Radiansf(d.x), Vec3f::YAXIS()) * Quatf(Radiansf(d.y), Vec3f::XAXIS());
     m_Transform.R = m_StartRot * drot;
@@ -197,7 +198,7 @@ WalkMouseNav::WalkMouseNav(
 WalkMouseNav::~WalkMouseNav() {}
 
 void
-WalkMouseNav::OnMouseDown(const Vec2f& mouseLoc, const Vec2f& screenBounds, const int mouseButton)
+WalkMouseNav::OnMouseDown(const Point& mouseLoc, const Extent& screenBounds, const int mouseButton)
 {
 }
 
