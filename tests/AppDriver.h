@@ -4,13 +4,18 @@
 #include "RefCount.h"
 
 class Application;
+struct SDL_Window;
 
 class AppDriver
 {
 public:
-    AppDriver(Application* app);
+    explicit AppDriver(Application* app);
 
     ~AppDriver();
+
+    void SetMouseCapture(const bool capture);
+
+    Result<void> Init();
 
     Result<void> Run();
 
@@ -18,11 +23,14 @@ private:
 
     enum class State
     {
-        Minimized,
-        Normal
+        None,
+        Initialized,
+        Running,
+        Stopped
     };
 
-    Application* const m_Application{ nullptr };
+    State m_State{ State::None };
 
-    State m_State{State::Normal};
+    Application* const m_Application{ nullptr };
+    SDL_Window* m_Window{ nullptr };
 };

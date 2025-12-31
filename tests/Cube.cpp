@@ -251,7 +251,20 @@ int main(int, [[maybe_unused]] char* argv[])
     CubeApp app;
     AppDriver driver(&app);
 
-    auto result = driver.Run();
+    auto initResult = driver.Init();
+    if(!initResult)
+    {
+        logError(initResult.error().Message);
+        return -1;
+    }
+
+    auto runResult = driver.Run();
+
+    if(!runResult)
+    {
+        logError(runResult.error().Message);
+        return -1;
+    }
 
     return 0;
 }

@@ -223,7 +223,22 @@ int main(int, [[maybe_unused]] char* argv[])
     SponzaApp app;
     AppDriver driver(&app);
 
-    auto result = driver.Run();
+    auto initResult = driver.Init();
+    if(!initResult)
+    {
+        logError(initResult.error().Message);
+        return -1;
+    }
+
+    driver.SetMouseCapture(true);
+
+    auto runResult = driver.Run();
+
+    if(!runResult)
+    {
+        logError(runResult.error().Message);
+        return -1;
+    }
 
     return 0;
 }
