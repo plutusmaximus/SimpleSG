@@ -112,7 +112,7 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
         SDL_SubmitGPUCommandBuffer(cmdBuf);
     });
 
-    SDL_GPUViewport viewport
+    const SDL_GPUViewport viewport
     {
         0, 0, (float)windowW, (float)windowH, 0, 1
     };

@@ -22,6 +22,8 @@
 
 #include "EcsChildTransformPool.h"
 
+#include "Stopwatch.h"
+
 class WorldMatrix : public Mat44f
 {    
 public:
@@ -57,6 +59,11 @@ int main(int, [[maybe_unused]] char* argv[])
             SDL_DestroyWindow(window);
         });
 
+        if(!SDL_SetWindowRelativeMouseMode(window, true))
+        {
+            logError("Failed to set relative mouse mode: {}", SDL_GetError());
+        }
+
         auto gdResult = SDLGPUDevice::Create(window);
         pcheck(gdResult, gdResult.error());
         auto gd = *gdResult;
@@ -64,8 +71,7 @@ int main(int, [[maybe_unused]] char* argv[])
         EcsRegistry reg;
         ModelCatalog modelCatalog;
 
-        auto modelSpec = modelCatalog.LoadFromFile("Box", "C:/Users/kbaca/Downloads/Box.gltf");
-        //auto modelSpec= modelCatalog.LoadFromFile("Sponza", "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf");
+        auto modelSpec= modelCatalog.LoadFromFile("Sponza", "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf");
         pcheck(modelSpec, modelSpec.error());
 
         auto model = gd->CreateModel(*modelSpec);
@@ -85,10 +91,11 @@ int main(int, [[maybe_unused]] char* argv[])
 
         // Main loop
         bool running = true;
-        Radiansf planetSpinAngle(0), moonSpinAngle(0), moonOrbitAngle(0);
 
-        GimbleMouseNav gimbleMouseNav(reg.Get<TrsTransformf>(eidCamera));
-        MouseNav* mouseNav = &gimbleMouseNav;
+        WalkMouseNav walkMouseNav(reg.Get<TrsTransformf>(eidCamera), 0.0001f, 5.0f);
+        MouseNav* mouseNav = &walkMouseNav;
+
+        Stopwatch frameTimer;
 
         while (running)
         {
@@ -140,7 +147,14 @@ int main(int, [[maybe_unused]] char* argv[])
                     break;
 
                 case SDL_EVENT_KEY_DOWN:
-                    mouseNav->OnKeyDown(event.key.scancode);
+                    if(SDL_SCANCODE_ESCAPE == event.key.scancode)
+                    {
+                        running = false;
+                    }
+                    else
+                    {
+                        mouseNav->OnKeyDown(event.key.scancode);
+                    }
                     break;
 
                 case SDL_EVENT_KEY_UP:
@@ -158,10 +172,12 @@ int main(int, [[maybe_unused]] char* argv[])
 
             reg.Get<Camera>(eidCamera).SetBounds(windowW, windowH);
 
+            mouseNav->Update(frameTimer.Mark());
+
             SDLRenderGraph renderGraph(gd.Get());
 
             auto& cameraXform = reg.Get<TrsTransformf>(eidCamera);
-            cameraXform = gimbleMouseNav.GetTransform();
+            cameraXform = mouseNav->GetTransform();
 
             // Transform roots
             for(const auto& tuple : reg.GetView<TrsTransformf, WorldMatrix>())
