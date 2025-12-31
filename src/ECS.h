@@ -514,6 +514,15 @@ public:
         return EcsView<Cs...>(pools);
     }
 
+    /// @brief Clear all entities and components from the registry.
+    void Clear()
+    {
+        m_Pools.clear();
+        m_IsAlive.clear();
+        m_FreeList.clear();
+        m_NextId = 0;
+    }
+
 private:
 
     // Helper to populate pools tuple and verify presence of all component types (non-const version).
