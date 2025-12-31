@@ -552,6 +552,14 @@ public:
         return glm::normalize(*this);
     }
 
+    float GetRotation(const Vec3<T>& axis) const
+    {
+        const auto normalizedThis = this->Normalize();
+        const auto rotatedVec = normalizedThis * axis;
+        const T dotProduct = axis.Dot(rotatedVec);
+        return std::acos(dotProduct) * 2;
+    }
+
     constexpr Quat operator*(const Quat& that) const
     {
         return Quat(glm::operator*(*this, that)).Normalize();
