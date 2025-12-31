@@ -27,6 +27,9 @@ public:
     /// @brief Returns the number of models in the catalog.
     size_t Size() const { return m_Entries.size(); }
 
+    /// @brief Clears all models from the catalog.
+    void Clear() { m_Entries.clear(); }
+
 private:
     struct Entry
     {
