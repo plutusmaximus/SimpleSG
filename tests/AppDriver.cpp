@@ -99,23 +99,24 @@ AppDriver::Run()
 
         SDL_Event event;
 
+        while(minimized && running && m_Application->IsRunning() && SDL_PollEvent(&event))
+        {
+            switch(event.type)
+            {
+                case SDL_EVENT_WINDOW_RESTORED:
+                case SDL_EVENT_WINDOW_MAXIMIZED:
+                    minimized = false;
+                    break;
+            }
+        }
+
         if(minimized)
         {
-            if(SDL_PollEvent(&event))
-            {
-                switch(event.type)
-                {
-                    case SDL_EVENT_WINDOW_RESTORED:
-                    case SDL_EVENT_WINDOW_MAXIMIZED:
-                        minimized = false;
-                        break;
-                }
-            }
-
+            std::this_thread::yield();
             continue;
         }
 
-        if(SDL_PollEvent(&event))
+        while(!minimized && running && m_Application->IsRunning() && SDL_PollEvent(&event))
         {
             switch (event.type)
             {
