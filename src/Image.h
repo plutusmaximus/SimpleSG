@@ -11,6 +11,12 @@ class Image
 {
 public:
 
+    enum Flags : unsigned
+    {
+        None = 0x0,
+        Translucent = 0x1,
+    };
+
     ~Image();
 
     static Result<RefPtr<Image>> Create(const int width, const int height);
@@ -21,6 +27,7 @@ public:
 
     const int Width;
     const int Height;
+    const Flags ImageFlags{ Flags::None };
     std::uint8_t* const Pixels; // RGBA8
 
 private:
@@ -31,9 +38,10 @@ private:
         uint8_t* pixels,
         void (*freePixels)(uint8_t*));
 
-    Image(const int width, const int height, uint8_t* pixels, void (*freePixels)(uint8_t*))
+    Image(const int width, const int height, uint8_t* pixels, const Flags flags, void (*freePixels)(uint8_t*))
         : Width(width)
         , Height(height)
+        , ImageFlags(flags)
         , Pixels(pixels)
         , m_FreePixels(freePixels)
     {

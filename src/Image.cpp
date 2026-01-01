@@ -63,7 +63,18 @@ Image::LoadFromMemory(const std::span<const uint8_t> data)
 Result<RefPtr<Image>>
 Image::Create(const int width, const int height, uint8_t* pixels, void (*freePixels)(uint8_t*))
 {
-    Image* image = new Image(width, height, pixels, freePixels);
+    const size_t imageSize = static_cast<size_t>(width) * static_cast<size_t>(height) * 4;
+    Flags flags = Flags::None;
+    for(size_t i = 3; i < imageSize; i += 4)
+    {
+        if(pixels[i] != 255)
+        {
+            flags = Flags::Translucent;
+            break;
+        }
+    }
+    
+    Image* image = new Image(width, height, pixels, flags, freePixels);
 
     expectv(pixels, "Error allocating image");
 
