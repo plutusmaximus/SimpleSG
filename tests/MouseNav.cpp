@@ -289,6 +289,7 @@ WalkMouseNav::Update(const float deltaSeconds)
 
     Quatf targetQuat = Quatf(Radiansf(m_TargetRot.y), Vec3f::YAXIS()) *
                        Quatf(Radiansf(m_TargetRot.x), Vec3f::XAXIS());
-    m_Transform.R = targetQuat - ((targetQuat - m_Transform.R) * 0.1f);
-    m_Transform.T += (m_TargetTrans - m_Transform.T) * 0.1f;
+    constexpr float TIME_TO_TARGET = 0.1f;
+    m_Transform.R = targetQuat - ((targetQuat - m_Transform.R) * (deltaSeconds / TIME_TO_TARGET));
+    m_Transform.T += (m_TargetTrans - m_Transform.T) * (deltaSeconds / TIME_TO_TARGET);
 }
