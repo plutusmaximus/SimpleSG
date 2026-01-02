@@ -160,8 +160,10 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
     std::vector<Mesh> meshes;
     uint32_t indexOffset = 0;
 
-    for (const auto& meshSpec : modelSpec.MeshSpecs)
+    for (size_t i = 0; i < modelSpec.MeshSpecs.size(); ++i)
     {
+        const MeshSpec& meshSpec = modelSpec.MeshSpecs[i];
+
         SDL_GPUTexture* albedo = nullptr;
 
         if (!meshSpec.MtlSpec.Albedo.empty())
@@ -210,13 +212,15 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
         m_Materials.emplace_back(mtl);
 
         const uint32_t indexCount = static_cast<uint32_t>(meshSpec.Indices.size());
-        Mesh mesh(meshSpec.Name, vb, ib, indexOffset, indexCount, mtl->Key.Id, meshSpec.Transform);
+        Mesh mesh(meshSpec.Name, vb, ib, indexOffset, indexCount, mtl->Key.Id);
         indexOffset += indexCount;
 
         meshes.emplace_back(mesh);
     }
 
-    return Model::Create(std::move(meshes));
+    std::vector<MeshInstance> meshInstances = modelSpec.MeshInstances;
+
+    return Model::Create(std::move(meshes), std::move(meshInstances));
 }
     
 Extent SDLGPUDevice::GetExtent() const

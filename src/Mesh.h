@@ -15,7 +15,6 @@ public:
     const std::vector<Vertex> Vertices;
     const std::vector<VertexIndex> Indices;
     const MaterialSpec MtlSpec;
-    const Mat44f Transform{1.0f};
 };
 
 /// @brief GPU representation of a mesh.
@@ -28,15 +27,13 @@ public:
         const IndexBuffer& ib,
         const uint32_t indexOffset,
         const uint32_t indexCount,
-        const MaterialId materialId,
-        const Mat44f& transform)
+        const MaterialId materialId)
         : Name(name)
         , VtxBuffer(vb)
         , IdxBuffer(ib)
         , IndexOffset(indexOffset)
         , IndexCount(indexCount)
         , MaterialId(materialId)
-        , Transform(transform)
     {
     }
 
@@ -47,7 +44,6 @@ public:
     const uint32_t IndexOffset;
     const uint32_t IndexCount;
     const MaterialId MaterialId;
-    const Mat44f Transform{1.0f};
 
 private:
 

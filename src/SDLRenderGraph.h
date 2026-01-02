@@ -32,8 +32,9 @@ private:
 
     struct XformMesh
     {
-        const Mat44f& WorldTransform;
-        const Mesh Mesh;
+        const Mat44f WorldTransform;
+        const RefPtr<Model> Model;
+        const int MeshInstanceIndex;
     };
 
     RefPtr<SDLGPUDevice> m_GpuDevice;
@@ -50,8 +51,6 @@ private:
         .num_levels = 1,
         .props = SDL_CreateProperties()
     };
-
-    std::deque<Mat44f> m_WorldTransforms;
 
     using MeshGroup = std::deque<XformMesh>;
     using MeshGroupCollection = std::map<MaterialId, MeshGroup>;

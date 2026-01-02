@@ -21,10 +21,9 @@ SDLRenderGraph::~SDLRenderGraph()
 void
 SDLRenderGraph::Add(const Mat44f& worldTransform, RefPtr<Model> model)
 {
-    m_WorldTransforms.emplace_back(worldTransform);
-
-    for (const auto& mesh : model->Meshes)
+    for (const auto& meshInstance : model->MeshInstances)
     {
+        const Mesh& mesh = model->Meshes[meshInstance.MeshIndex];
         const MaterialId mtlId = mesh.MaterialId;
 
         auto mtlResult = m_GpuDevice->GetMaterial(mtlId);
@@ -47,7 +46,14 @@ SDLRenderGraph::Add(const Mat44f& worldTransform, RefPtr<Model> model)
             meshGrp = &m_OpaqueMeshGroups[mtlId];
         }
 
-        meshGrp->emplace_back(XformMesh{ .WorldTransform = m_WorldTransforms.back(), .Mesh = mesh});
+        XformMesh xformMesh
+        {
+            .WorldTransform = worldTransform * meshInstance.Transform,
+            .Model = model,
+            .MeshInstanceIndex = meshInstance.MeshIndex
+        };
+
+        meshGrp->emplace_back(xformMesh);
     }
 }
 
@@ -137,7 +143,10 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
             for (auto& xmesh : xmeshes)
             {
-                const Mat44f meshXForm = xmesh.WorldTransform * xmesh.Mesh.Transform;
+                const MeshInstance& instance = xmesh.Model->MeshInstances[xmesh.MeshInstanceIndex];
+                const Mesh& mesh = xmesh.Model->Meshes[xmesh.MeshInstanceIndex];
+
+                const Mat44f meshXForm = xmesh.WorldTransform * instance.Transform;
                 const Mat44f matrices[] =
                 {
                     meshXForm,
@@ -148,15 +157,15 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
                 SDL_GPUBufferBinding vertexBufferBinding
                 {
-                    .buffer = xmesh.Mesh.VtxBuffer.GpuBuffer.Get<SDLGpuBuffer>()->Buffer,
-                    .offset = xmesh.Mesh.VtxBuffer.Offset
+                    .buffer = mesh.VtxBuffer.GpuBuffer.Get<SDLGpuBuffer>()->Buffer,
+                    .offset = mesh.VtxBuffer.Offset
                 };
                 SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBufferBinding, 1);
 
                 SDL_GPUBufferBinding indexBufferBinding
                 {
-                    .buffer = xmesh.Mesh.IdxBuffer.GpuBuffer.Get<SDLGpuBuffer>()->Buffer,
-                    .offset = xmesh.Mesh.IdxBuffer.Offset
+                    .buffer = mesh.IdxBuffer.GpuBuffer.Get<SDLGpuBuffer>()->Buffer,
+                    .offset = mesh.IdxBuffer.Offset
                 };
 
                 static_assert(VERTEX_INDEX_BITS == 32 || VERTEX_INDEX_BITS == 16);
@@ -168,7 +177,7 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
                 SDL_BindGPUIndexBuffer(renderPass, &indexBufferBinding, idxElSize);
 
-                SDL_DrawGPUIndexedPrimitives(renderPass, xmesh.Mesh.IndexCount, 1, xmesh.Mesh.IndexOffset, 0, 0);
+                SDL_DrawGPUIndexedPrimitives(renderPass, mesh.IndexCount, 1, mesh.IndexOffset, 0, 0);
             }
         }
     }
@@ -193,7 +202,6 @@ SDLRenderGraph::Reset()
 {
     m_OpaqueMeshGroups.clear();
     m_TranslucentMeshGroups.clear();
-    m_WorldTransforms.clear();
 }
 
 //private:

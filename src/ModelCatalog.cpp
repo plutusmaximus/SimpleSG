@@ -55,6 +55,7 @@ static void ProcessMeshes(
         const aiMatrix4x4& parentTransform,
         const MeshCollection& meshCollection,
         std::vector<MeshSpec>& meshSpecs,
+        std::vector<MeshInstance>& meshInstances,
         const std::filesystem::path& parentPath);
 
 Result<const ModelSpec*>
@@ -95,6 +96,7 @@ ModelCatalog::LoadFromFile(const std::string& key, const std::string& filePath)
     CollectMeshes(scene, scene->mRootNode, meshCollection);
 
     std::vector<MeshSpec> meshSpecs;
+    std::vector<MeshInstance> meshInstances;
 
     meshSpecs.reserve(meshCollection.Meshes.size());
 
@@ -107,10 +109,11 @@ ModelCatalog::LoadFromFile(const std::string& key, const std::string& filePath)
         aiMatrix4x4(),
         meshCollection,
         meshSpecs,
+        meshInstances,
         parentPath);
 
     // Insert and return spec
-    auto [insertIt, inserted] = m_Entries.emplace(key, ModelSpec{std::move(meshSpecs)});
+    auto [insertIt, inserted] = m_Entries.emplace(key, ModelSpec{std::move(meshSpecs), std::move(meshInstances)});
     expect(inserted, "Failed to insert catalog entry for {}", key);
 
     return &insertIt->second;
@@ -266,6 +269,7 @@ static void ProcessMeshes(
         const aiMatrix4x4& parentTransform,
         const MeshCollection& meshCollection,
         std::vector<MeshSpec>& meshSpecs,
+        std::vector<MeshInstance>& meshInstances,
         const std::filesystem::path& parentPath)
 {
     const aiMatrix4x4 globalTransform = parentTransform * node->mTransformation;
@@ -388,6 +392,7 @@ static void ProcessMeshes(
         };
 
         meshSpecs.emplace_back(std::move(spec));
+        meshInstances.emplace_back(MeshInstance{ static_cast<int>(meshSpecs.size() - 1), -1 });
     }
 
     for(unsigned i = 0; i < node->mNumChildren; ++i)
@@ -398,6 +403,7 @@ static void ProcessMeshes(
             globalTransform,
             meshCollection,
             meshSpecs,
+            meshInstances,
             parentPath);
     }
 };
