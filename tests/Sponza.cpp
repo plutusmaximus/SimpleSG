@@ -47,11 +47,17 @@ public:
             return std::unexpected(Error("Failed to create SDLRenderGraph"));
         }
 
-        m_GPUDevice = gpuDevice;
-        auto modelSpec= m_ModelCatalog.LoadFromFile("Sponza", "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf");
+        constexpr const char* SPONZA_MODEL_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
+        constexpr const char* AVOCADO_MODEL_PATH = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Avocado/glTF/Avocado.gltf";
+        constexpr const char* INSTANCE_MODEL_PATH = "C:/Dev/SimpleSG/assets/glTF-Asset-Generator/Output/Positive/Instancing/Instancing_06.gltf";
+        constexpr const char* SPONZA_MODEL_PATH_2 = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Sponza/glTF/Sponza.gltf";
+        constexpr const char* JUNGLE_RUINS = "C:/Users/kbaca/Downloads/JungleRuins/GLTF/JungleRuins_Main.gltf";
+
+        m_GpuDevice = gpuDevice;
+        auto modelSpec= m_ModelCatalog.LoadFromFile("Sponza", JUNGLE_RUINS);
         expect(modelSpec, modelSpec.error());
 
-        auto model = m_GPUDevice->CreateModel(*modelSpec);
+        auto model = m_GpuDevice->CreateModel(*modelSpec);
         expect(model, model.error());
 
         m_EidModel = m_Registry.Create();
@@ -59,7 +65,7 @@ public:
 
         m_EidCamera = m_Registry.Create();
 
-        m_ScreenBounds = m_GPUDevice->GetExtent();
+        m_ScreenBounds = m_GpuDevice->GetExtent();
         
         m_Registry.Add(m_EidCamera, TrsTransformf{}, WorldMatrix{}, Camera{});
         m_Registry.Get<TrsTransformf>(m_EidCamera).T = Vec3f{ 0,0,-4 };
@@ -83,7 +89,7 @@ public:
         m_RenderGraph = nullptr;
         m_Registry.Clear();
         m_ModelCatalog.Clear();
-        m_GPUDevice = nullptr;
+        m_GpuDevice = nullptr;
     }
 
     void Update(const float deltaSeconds) override
@@ -93,7 +99,7 @@ public:
             return;
         }
         
-        m_ScreenBounds = m_GPUDevice->GetExtent();
+        m_ScreenBounds = m_GpuDevice->GetExtent();
 
         m_Registry.Get<Camera>(m_EidCamera).SetBounds(m_ScreenBounds);
 
@@ -207,7 +213,7 @@ private:
 
         State m_State = State::None;
 
-        RefPtr<SDLGPUDevice> m_GPUDevice;
+        RefPtr<SDLGPUDevice> m_GpuDevice;
         SDLRenderGraph* m_RenderGraph = nullptr;
         EcsRegistry m_Registry;
         ModelCatalog m_ModelCatalog;

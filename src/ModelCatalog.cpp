@@ -6,54 +6,64 @@
 
 #include <filesystem>
 
-struct TexturePaths
+struct TextureProperty
 {
-    std::string Albedo;
-    std::string Diffuse;
-    std::string Specular;
-    std::string Normal;
-    std::string Emission;
-    std::string Metalness;
-    std::string Roughness;
-    std::string AmbientOcclusion;
+    std::string Path;
+    unsigned UVIndex = 0;
 };
 
-static TexturePaths GetTexturePathsFromMaterial(
+/// @brief Collection of texture properties for a material.
+struct TextureProperties
+{
+    TextureProperty Albedo;
+    TextureProperty Diffuse;
+    TextureProperty Specular;
+    TextureProperty Normal;
+    TextureProperty Emission;
+    TextureProperty Metalness;
+    TextureProperty Roughness;
+    TextureProperty AmbientOcclusion;
+};
+
+/// @brief Collection of meshes in a scene.
+struct MeshCollection
+{
+    std::unordered_map<unsigned, const aiMesh*> Meshes;
+    size_t TotalVertexCount = 0;
+    size_t TotalIndexCount = 0;
+};
+
+/// @brief Retrieves texture properties from a given material.
+static TextureProperties GetTexturePropertiesFromMaterial(
     const aiMaterial* material,
     const std::filesystem::path& parentPath);
 
-static inline Vertex AiVertexToVertex(const aiMesh* mesh, const unsigned i)
-{
-    const aiVector3D& v = mesh->mVertices[i];
-    const aiVector3D& n = mesh->mNormals[i];
+/// @brief Retrieves the name of a mesh.
+static inline std::string GetMeshName(const aiMesh* mesh);
 
-    Vertex out{};
-    out.pos = Vec3f{ v.x, v.y, v.z };
-    out.normal = Vec3f{ n.x, n.y, n.z };
+/// @brief Logs information about a mesh.
+static void LogMesh(const aiScene* scene, const unsigned meshIdx);
 
-    if(mesh->mTextureCoords[0])
-    {
-        const aiVector3D& uv = mesh->mTextureCoords[0][i];
-        //out.uvs[0] = UV2{ uv.x - std::floor(uv.x), uv.y - std::floor(uv.y) };
-        out.uvs[0] = UV2{ uv.x, uv.y };
+/// @brief Validates a mesh in a scene.
+static bool ValidateMesh(const aiScene* scene, const unsigned meshIdx);
 
-        //logDebug("Vertex {}: XYZ=({}, {}, {}) UV = ({}, {})", i, v.x, v.y, v.z, uv.x, uv.y);
-    }
-    else
-    {
-        out.uvs[0] = UV2{ 0, 0 };
-    }
+/// @brief Recursively collects meshes from scene nodes.
+static void CollectMeshes(const aiScene* scene, const aiNode* node, MeshCollection& outCollection);
 
-    return out;
-}
+/// @brief Processes meshes in a scene node and its children, applying transformations and collecting vertex/index data.
+static void ProcessMeshes(
+        const aiScene* scene,
+        const aiNode* node,
+        const aiMatrix4x4& parentTransform,
+        const MeshCollection& meshCollection,
+        std::vector<Vertex>& vertices,
+        std::vector<VertexIndex>& indices,
+        std::vector<MeshSpec>& meshSpecs,
+        const std::filesystem::path& parentPath);
 
 Result<ModelSpec> ModelCatalog::LoadFromFile(const std::string& key, const std::string& filePath)
 {
     logDebug("Loading model from file: {} (key: {})", filePath, key);
-
-    std::filesystem::path absPath = std::filesystem::absolute(filePath);
-    
-    const auto parentPath = absPath.parent_path();
 
     // Return existing entry without re-importing
     auto it = m_Entries.find(key);
@@ -62,24 +72,21 @@ Result<ModelSpec> ModelCatalog::LoadFromFile(const std::string& key, const std::
         return it->second.ToSpec();
     }
 
-    Entry entry;
-
     constexpr unsigned flags =
-        (
-        aiProcessPreset_TargetRealtime_Quality
-        | aiProcess_FlipWindingOrder        // glTF uses CCW; engine uses CW
-        | aiProcess_MakeLeftHanded          // Convert to left-handed coords
-        // Assimp's UV coordinate system has V=0 at bottom.
-        // Our convention is V=0 at top.
-        | aiProcess_FlipUVs                 // Flip UV coordinates
-        | aiProcess_PreTransformVertices    // Apply node transforms to vertices
-        //| aiProcess_DropNormals          // We generate our own normals
-        //| aiProcess_ForceGenNormals     // Ensure normals exist
-        ) & ~
-        (
-            aiProcess_SplitLargeMeshes
-        )
-    ;
+        aiProcess_CalcTangentSpace
+        //| aiProcess_GenSmoothNormals
+        | aiProcess_ImproveCacheLocality
+        | aiProcess_LimitBoneWeights
+        | aiProcess_RemoveRedundantMaterials
+        //| aiProcess_SplitLargeMeshes
+        | aiProcess_Triangulate
+        //| aiProcess_GenUVCoords
+        | aiProcess_SortByPType
+        | aiProcess_FindDegenerates
+        //| aiProcess_JoinIdenticalVertices
+        | aiProcess_FindInvalidData
+        | aiProcess_ConvertToLeftHanded
+        ;
 
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(filePath, flags);
@@ -87,134 +94,26 @@ Result<ModelSpec> ModelCatalog::LoadFromFile(const std::string& key, const std::
     expect(scene != nullptr, importer.GetErrorString());
     expect(scene->mNumMeshes > 0, "No meshes in model: {}", filePath);
 
-    // Flatten all meshes into contiguous buffers
-    for(unsigned meshIdx = 0; meshIdx < scene->mNumMeshes; ++meshIdx)
-    {
-        const aiMesh* mesh = scene->mMeshes[meshIdx];
+    MeshCollection meshCollection;
+    CollectMeshes(scene, scene->mRootNode, meshCollection);
 
-        logDebug("Processing mesh \"{}\"({}): {} vertices, {} faces",
-            mesh->mName.Empty() ? "<unnamed>" : mesh->mName.C_Str(),
-            meshIdx, mesh->mNumVertices, mesh->mNumFaces);
+    Entry entry;
 
-        if(!(mesh->mPrimitiveTypes & aiPrimitiveType_TRIANGLE ))
-        {
-            logWarn("Skipping non-triangle mesh {}", meshIdx);
-            continue;
-        }
+    entry.Vertices.reserve(meshCollection.TotalVertexCount);
+    entry.Indices.reserve(meshCollection.TotalIndexCount);
 
-        if(mesh->mNumVertices == 0 || mesh->mNumFaces == 0)
-        {
-            logWarn("Skipping empty mesh {}", meshIdx);
-            continue;
-        }
+    const auto absPath = std::filesystem::absolute(filePath);    
+    const auto parentPath = absPath.parent_path();
 
-        if(!mesh->HasNormals())
-        {
-            //TODO - generate normals
-            logWarn("Mesh {} has no normals", meshIdx);
-            continue;
-        }
-
-        // Only support first UV set for now
-        for(int i = 1; i < AI_MAX_NUMBER_OF_TEXTURECOORDS; ++i)
-        {
-            if(mesh->mTextureCoords[i])
-            {
-                logWarn("Mesh {} has multiple texture coordinate sets; only using first", meshIdx);
-                break;
-            }
-        }
-
-        std::string albedo;
-
-        const aiMaterial* material = scene->mMaterials ? scene->mMaterials[mesh->mMaterialIndex] : nullptr;
-
-        TexturePaths texPaths;
-        ai_real opacity{1.0f};
-        aiColor3D diffuseColor{1.0f, 1.0f, 1.0f};
-        if(material)
-        {
-            logDebug("Processing material \"{}\"",
-                material->GetName().C_Str());
-
-            for(int propIdx = 0;
-                material && propIdx < material->mNumProperties;
-                ++propIdx)
-            {
-                const aiMaterialProperty* prop = material->mProperties[propIdx];
-                logDebug("  Property {}: key=\"{}\", semantic={}, index={}, type={}, dataLength={}",
-                    propIdx,
-                    prop->mKey.C_Str(),
-                    prop->mSemantic,
-                    prop->mIndex,
-                    static_cast<int>(prop->mType),
-                    prop->mDataLength);
-            }
-
-            if(aiReturn_SUCCESS != material->Get(AI_MATKEY_OPACITY, &opacity, nullptr))
-            {
-                opacity = 1.0f;
-            }
-
-            if(aiReturn_SUCCESS != material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseColor))
-            {
-                diffuseColor = aiColor3D{1.0f, 1.0f, 1.0f};
-            }
-
-            texPaths = GetTexturePathsFromMaterial(material, parentPath);
-        }
-        else
-        {
-            logWarn("Mesh {} has no material", meshIdx);
-        }
-
-        if(!texPaths.Albedo.empty())
-        {
-            logDebug("Mesh {} has base color texture: {}", meshIdx, texPaths.Albedo);
-            albedo = texPaths.Albedo;
-        }
-        else
-        {
-            logWarn("Mesh {} has no base color texture", meshIdx);
-            albedo = "images/Ant.png"; // Default texture
-        }
-
-        const uint32_t baseVertex = static_cast<uint32_t>(entry.Vertices.size());
-        const uint32_t baseIndexOffset = static_cast<uint32_t>(entry.Indices.size());
-
-        entry.Vertices.reserve(entry.Vertices.size() + mesh->mNumVertices);
-        for(unsigned i = 0; i < mesh->mNumVertices; ++i)
-        {
-            entry.Vertices.emplace_back(AiVertexToVertex(mesh, i));
-        }
-
-        entry.Indices.reserve(entry.Indices.size() + mesh->mNumFaces * 3);
-        for(unsigned f = 0; f < mesh->mNumFaces; ++f)
-        {
-            const aiFace& face = mesh->mFaces[f];
-            expect(face.mNumIndices == 3, "Non-triangle face encountered");
-            for(unsigned j = 0; j < face.mNumIndices; ++j)
-            {
-                entry.Indices.emplace_back(baseVertex + face.mIndices[j]);
-            }
-        }
-
-        // Basic material spec defaults; shaders can be swapped by callers later
-        MeshSpec spec{
-            baseIndexOffset,
-            static_cast<uint32_t>(entry.Indices.size()) - baseIndexOffset,
-            MaterialSpec{
-                RgbaColorf{diffuseColor.r, diffuseColor.g, diffuseColor.b, opacity},
-                "shaders/Debug/VertexShader",
-                "shaders/Debug/FragmentShader",
-                0.0f,
-                0.0f,
-                albedo
-            }
-        };
-
-        entry.MeshSpecs.emplace_back(spec);
-    }
+    ProcessMeshes(
+        scene,
+        scene->mRootNode,
+        aiMatrix4x4(),
+        meshCollection,
+        entry.Vertices,
+        entry.Indices,
+        entry.MeshSpecs,
+        parentPath);
 
     // Insert and return spec
     auto [insertIt, inserted] = m_Entries.emplace(key, std::move(entry));
@@ -230,15 +129,15 @@ Result<ModelSpec> ModelCatalog::Get(const std::string& key) const
     return it->second.ToSpec();
 }
 
-static TexturePaths GetTexturePathsFromMaterial(
+static TextureProperties GetTexturePropertiesFromMaterial(
     const aiMaterial* material,
     const std::filesystem::path& parentPath)
 {
-    TexturePaths outPaths;
+    TextureProperties properties;
  
     aiString texPath;
     aiTextureMapping mapping;
-    unsigned int uvIndex;
+    unsigned uvIndex;
     ai_real blend;
     aiTextureOp op;
     aiTextureMapMode mapmode[2];
@@ -250,27 +149,265 @@ static TexturePaths GetTexturePathsFromMaterial(
         {
             logWarn("Base color texture has non-wrapping UV mode");
         }
-        outPaths.Albedo = (parentPath / texPath.C_Str()).string();
+        properties.Albedo.Path = (parentPath / texPath.C_Str()).string();
+        properties.Albedo.UVIndex = uvIndex;
     }
     if(material->GetTexture(aiTextureType_NORMAL_CAMERA, 0, &texPath, &mapping, &uvIndex, &blend, &op, mapmode) == aiReturn_SUCCESS)
     {
-        outPaths.Normal = (parentPath / texPath.C_Str()).string();
+        properties.Normal.Path = (parentPath / texPath.C_Str()).string();
+        properties.Normal.UVIndex = uvIndex;
     }
     if(material->GetTexture(aiTextureType_EMISSION_COLOR, 0, &texPath, &mapping, &uvIndex, &blend, &op, mapmode) == aiReturn_SUCCESS)
     {
-        outPaths.Emission = (parentPath / texPath.C_Str()).string();
+        properties.Emission.Path = (parentPath / texPath.C_Str()).string();
+        properties.Emission.UVIndex = uvIndex;
     }
     if(material->GetTexture(aiTextureType_METALNESS, 0, &texPath, &mapping, &uvIndex, &blend, &op, mapmode) == aiReturn_SUCCESS)
     {
-        outPaths.Metalness = (parentPath / texPath.C_Str()).string();
+        properties.Metalness.Path = (parentPath / texPath.C_Str()).string();
+        properties.Metalness.UVIndex = uvIndex;
     }
     if(material->GetTexture(aiTextureType_DIFFUSE_ROUGHNESS, 0, &texPath, &mapping, &uvIndex, &blend, &op, mapmode) == aiReturn_SUCCESS)
     {
-        outPaths.Roughness = (parentPath / texPath.C_Str()).string();
+        properties.Roughness.Path = (parentPath / texPath.C_Str()).string();
+        properties.Roughness.UVIndex = uvIndex;
     }
     if(material->GetTexture(aiTextureType_AMBIENT_OCCLUSION, 0, &texPath, &mapping, &uvIndex, &blend, &op, mapmode) == aiReturn_SUCCESS)
     {
-        outPaths.AmbientOcclusion = (parentPath / texPath.C_Str()).string();
+        properties.AmbientOcclusion.Path = (parentPath / texPath.C_Str()).string();
+        properties.AmbientOcclusion.UVIndex = uvIndex;
     }
-    return outPaths;
+    return properties;
 }
+
+static inline std::string GetMeshName(const aiMesh* mesh)
+{
+    return mesh->mName.Empty() ? "<unnamed>" : mesh->mName.C_Str();
+}
+
+static void LogMesh(const aiScene* scene, const unsigned meshIdx)
+{
+    const aiMesh* mesh = scene->mMeshes[meshIdx];
+    logDebug("  Mesh {}: {}", meshIdx, GetMeshName(mesh));
+    logDebug("  Vtx: {}, Tri: {}", mesh->mNumVertices, mesh->mNumFaces);
+    const aiMaterial* material = scene->mMaterials ? scene->mMaterials[mesh->mMaterialIndex] : nullptr;
+    if(material)
+    {
+        logDebug("  Material: \"{}\"", material->GetName().C_Str());
+    }
+};
+
+static void LogMaterialProperties(const aiMaterial* material)
+{
+    for (unsigned i = 0; i < material->mNumProperties; ++i)
+    {
+        const aiMaterialProperty* prop = material->mProperties[i];
+
+        if (prop->mKey == aiString("$tex.file"))
+        {
+            aiString propValue;
+            material->Get(prop->mKey.C_Str(), prop->mSemantic, prop->mIndex, propValue);
+
+            logDebug("  Property: key=\"{}\" semantic={} index={} value=\"{}\"",
+                prop->mKey.C_Str(),
+                prop->mSemantic,
+                prop->mIndex,
+                propValue.C_Str());
+        }
+    }
+};
+
+static bool ValidateMesh(const aiScene* scene, const unsigned meshIdx)
+{
+    const aiMesh* mesh = scene->mMeshes[meshIdx];
+    if(!(mesh->mPrimitiveTypes & aiPrimitiveType_TRIANGLE ))
+    {
+        logWarn("Skipping non-triangle mesh");
+        LogMesh(scene, meshIdx);
+        return false;
+    }
+
+    if(mesh->mNumVertices == 0 || mesh->mNumFaces == 0)
+    {
+        logWarn("Skipping empty mesh");
+        LogMesh(scene, meshIdx);
+        return false;
+    }
+
+    if(!mesh->HasNormals())
+    {
+        //TODO - generate normals
+        logWarn("Mesh has no normals; skipping");
+        LogMesh(scene, meshIdx);
+        return false;
+    }
+
+    return true;
+};
+
+static void CollectMeshes(const aiScene* scene, const aiNode* node, MeshCollection& outCollection)
+{
+    for(unsigned i = 0; i < node->mNumMeshes; ++i)
+    {
+        const unsigned meshIdx = node->mMeshes[i];
+        if(!ValidateMesh(scene, meshIdx))
+        {
+            continue;
+        }
+
+        const aiMesh* mesh = scene->mMeshes[meshIdx];
+
+        outCollection.TotalVertexCount += mesh->mNumVertices;
+        outCollection.TotalIndexCount += mesh->mNumFaces * 3;
+        outCollection.Meshes[meshIdx] = mesh;
+    }
+
+    for(unsigned i = 0; i < node->mNumChildren; ++i)
+    {
+        CollectMeshes(scene, node->mChildren[i], outCollection);
+    }
+};
+
+static void ProcessMeshes(
+        const aiScene* scene,
+        const aiNode* node,
+        const aiMatrix4x4& parentTransform,
+        const MeshCollection& meshCollection,
+        std::vector<Vertex>& vertices,
+        std::vector<VertexIndex>& indices,
+        std::vector<MeshSpec>& meshSpecs,
+        const std::filesystem::path& parentPath)
+{
+    const aiMatrix4x4 globalTransform = parentTransform * node->mTransformation;
+    const aiMatrix3x3 normalMatrix = aiMatrix3x3(globalTransform);
+
+    for(unsigned i = 0; i < node->mNumMeshes; ++i)
+    {
+        const unsigned meshIdx = node->mMeshes[i];
+        if(!meshCollection.Meshes.contains(meshIdx))
+        {
+            continue;
+        }
+
+        const aiMesh* mesh = meshCollection.Meshes.at(meshIdx);
+
+        const std::string meshName = GetMeshName(mesh);
+
+        logDebug("Processing mesh");
+        LogMesh(scene, meshIdx);
+
+        const aiMaterial* material = scene->mMaterials ? scene->mMaterials[mesh->mMaterialIndex] : nullptr;
+
+        LogMaterialProperties(material);
+
+        TextureProperties texProperties;
+        ai_real opacity{1.0f};
+        aiColor3D diffuseColor{1.0f, 1.0f, 1.0f};
+        if(material)
+        {
+            if(aiReturn_SUCCESS != material->Get(AI_MATKEY_OPACITY, &opacity, nullptr))
+            {
+                opacity = 1.0f;
+            }
+
+            if(aiReturn_SUCCESS != material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseColor))
+            {
+                diffuseColor = aiColor3D{1.0f, 1.0f, 1.0f};
+            }
+
+            logDebug("  Opacity: {}", opacity);
+            logDebug("  Diffuse color: R={} G={} B={}", diffuseColor.r, diffuseColor.g, diffuseColor.b);
+
+            texProperties = GetTexturePropertiesFromMaterial(material, parentPath);
+        }
+        else
+        {
+            logWarn("  Mesh has no material");
+        }
+
+        logDebug("  Albedo: {}", texProperties.Albedo.Path.empty() ? "<none>" : texProperties.Albedo.Path);
+        logDebug("  Normal: {}", texProperties.Normal.Path.empty() ? "<none>" : texProperties.Normal.Path);
+        logDebug("  Specular: {}", texProperties.Specular.Path.empty() ? "<none>" : texProperties.Specular.Path);
+        logDebug("  Diffuse: {}", texProperties.Diffuse.Path.empty() ? "<none>" : texProperties.Diffuse.Path);
+        logDebug("  Emission: {}", texProperties.Emission.Path.empty() ? "<none>" : texProperties.Emission.Path);
+        logDebug("  Metalness: {}", texProperties.Metalness.Path.empty() ? "<none>" : texProperties.Metalness.Path);
+        logDebug("  Roughness: {}", texProperties.Roughness.Path.empty() ? "<none>" : texProperties.Roughness.Path);
+        logDebug("  Ambient occlusion: {}", texProperties.AmbientOcclusion.Path.empty() ? "<none>" : texProperties.AmbientOcclusion.Path);
+
+        auto albedo = !texProperties.Albedo.Path.empty() ? texProperties.Albedo.Path : GPUDevice::MAGENTA_TEXTURE_KEY;
+
+        const VertexIndex baseVtxIndex = static_cast<VertexIndex>(vertices.size());
+        const uint32_t indexOffset = static_cast<uint32_t>(indices.size());
+
+        // Lambda to get UVs or return zero UVs if not present
+        auto getUV = texProperties.Albedo.Path.empty()
+            ? [](const aiMesh* mesh, const unsigned uvIndex, unsigned v) { return UV2{0.0f, 0.0f}; }
+            : [](const aiMesh* mesh, const unsigned uvIndex, unsigned v)
+            {
+                const aiVector3D& uv = mesh->mTextureCoords[uvIndex][v];
+                return UV2{ uv.x, uv.y };
+            };
+
+        // Transform mesh by node transform
+        for(unsigned v = 0; v < mesh->mNumVertices; ++v)
+        {
+            const aiVector3D transformedVert = globalTransform * mesh->mVertices[v];
+            const aiVector3D transformedNorm = normalMatrix * mesh->mNormals[v];
+
+            Vertex vtx
+            {
+                .pos = Vec3f{ transformedVert.x, transformedVert.y, transformedVert.z },
+                .normal = Vec3f{ transformedNorm.x, transformedNorm.y, transformedNorm.z }.Normalize(),
+                .uvs
+                {
+                    getUV(mesh, texProperties.Albedo.UVIndex, v)
+                }
+            };
+
+            vertices.emplace_back(vtx);
+        }
+
+        uint32_t indexCount = 0;
+
+        for(unsigned f = 0; f < mesh->mNumFaces; ++f)
+        {
+            const aiFace& face = mesh->mFaces[f];
+
+            indices.emplace_back(baseVtxIndex + face.mIndices[0]);
+            indices.emplace_back(baseVtxIndex + face.mIndices[1]);
+            indices.emplace_back(baseVtxIndex + face.mIndices[2]);
+
+            indexCount += 3;
+        }
+
+        MeshSpec spec
+        {
+            meshName,
+            indexOffset,
+            indexCount,
+            MaterialSpec{
+                RgbaColorf{diffuseColor.r, diffuseColor.g, diffuseColor.b, opacity},
+                "shaders/Debug/VertexShader",
+                "shaders/Debug/FragmentShader",
+                0.0f,
+                0.0f,
+                albedo
+            }
+        };
+
+        meshSpecs.emplace_back(spec);
+    }
+
+    for(unsigned i = 0; i < node->mNumChildren; ++i)
+    {
+        ProcessMeshes(
+            scene,
+            node->mChildren[i],
+            globalTransform,
+            meshCollection,
+            vertices,
+            indices,
+            meshSpecs,
+            parentPath);
+    }
+};

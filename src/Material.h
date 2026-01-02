@@ -1,7 +1,9 @@
 #pragma once
 
-#include <string_view>
+#include <string>
+#include <algorithm>
 
+/// @brief RGBA color representation.
 template<typename T>
 struct RgbaColor
 {
@@ -10,15 +12,12 @@ struct RgbaColor
     {
     }
 
-    RgbaColor(T inR, T inG, T inB)
+    RgbaColor(const T inR, const T inG, const T inB)
         : RgbaColor(inR, inG, inB, 1)
     {
     }
 
-    RgbaColor(T inR, T inG, T inB, T inA)
-        : r(inR), g(inG), b(inB), a(inA)
-    {
-    }
+    RgbaColor(const T inR, const T inG, const T inB, const T inA);
 
     T r, g, b, a;
 };
@@ -26,15 +25,28 @@ struct RgbaColor
 using RgbaColorf = RgbaColor<float>;
 using RgbaColoru8 = RgbaColor<uint8_t>;
 
-//Specialization for uint8_t to use 255 has max value.
-inline RgbaColor<uint8_t>::RgbaColor(uint8_t inR, uint8_t inG, uint8_t inB)
+//Specialization for uint8_t to use 255 as max value.
+inline RgbaColor<uint8_t>::RgbaColor(const uint8_t inR, const uint8_t inG, const uint8_t inB)
     : RgbaColor<uint8_t>(inR, inG, inB, 255)
 {
 }
 
+//Specialization for float to assert values are in [0,1] range.
+inline RgbaColor<float>::RgbaColor(const float inR, const float inG, const float inB, const float inA)
+    : r(std::clamp(inR, 0.0f, 1.0f)), g(std::clamp(inG, 0.0f, 1.0f)), b(std::clamp(inB, 0.0f, 1.0f)), a(std::clamp(inA, 0.0f, 1.0f))
+{
+    eassert(inR >= 0 && inR <= 1);
+    eassert(inG >= 0 && inG <= 1);
+    eassert(inB >= 0 && inB <= 1);
+    eassert(inA >= 0 && inA <= 1);
+}
+
+/// @brief Unique identifier for a material.
 class MaterialId
 {
     static constexpr unsigned INVALID_VALUE = 0;
+
+    friend std::hash<MaterialId>;
 
 public:
 
@@ -85,6 +97,63 @@ private:
     explicit MaterialId(unsigned value) : m_Value(value) {}
 };
 
+/// @brief Flags defining material properties.
+enum MaterialFlags : unsigned
+{
+    None = 0,
+    Translucent = 1 << 0,
+};
+
+/// @brief Unique key identifying a material by its ID and flags.
+/// Used to group meshes sharing the same material attributes.
+class MaterialKey
+{
+public:
+    MaterialKey(const MaterialId& id, const MaterialFlags flags)
+        : Id(id)
+        , Flags(flags)
+    {
+    }
+
+    bool operator==(const MaterialKey& other) const
+    {
+        return (Id == other.Id) && (Flags == other.Flags);
+    }
+
+    bool operator!=(const MaterialKey& other) const
+    {
+        return !(*this == other);
+    }
+
+    bool operator<(const MaterialKey& other) const
+    {
+        if (Id != other.Id)
+        {
+            return Id < other.Id;
+        }
+        return Flags < other.Flags;
+    }
+
+    bool operator>(const MaterialKey& other) const
+    {
+        return other < *this;
+    }
+
+    bool operator<=(const MaterialKey& other) const
+    {
+        return !(other < *this);
+    }
+
+    bool operator>=(const MaterialKey& other) const
+    {
+        return !(*this < other);
+    }
+
+    const MaterialId Id;
+    const MaterialFlags Flags{ MaterialFlags::None };
+};
+
+/// @brief Specification for creating a material.
 struct MaterialSpec
 {
     const RgbaColorf Color;
@@ -97,3 +166,16 @@ struct MaterialSpec
 
     const std::string Albedo;
 };
+
+namespace std
+{
+    /// @brief Enable hashing of MaterialId for use in unordered containers.
+    template<>
+    struct hash<MaterialId>
+    {
+        std::size_t operator()(const MaterialId id) const noexcept
+        {
+            return static_cast<std::size_t>(id.m_Value);
+        }
+    };
+}

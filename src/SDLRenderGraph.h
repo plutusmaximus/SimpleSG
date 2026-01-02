@@ -9,6 +9,8 @@
 #include <deque>
 
 class SDLGPUDevice;
+struct SDL_GPURenderPass;
+struct SDL_GPUCommandBuffer;
 
 class SDLRenderGraph : public RenderGraph
 {
@@ -26,13 +28,13 @@ public:
 
 private:
 
+    Result<SDL_GPURenderPass*> BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf);
+
     struct XformMesh
     {
         const Mat44f& WorldTransform;
         const Mesh Mesh;
     };
-
-    std::deque<Mat44f> m_WorldTransforms;
 
     RefPtr<SDLGPUDevice> m_GpuDevice;
     SDL_GPUTexture* m_DepthBuffer = nullptr;
@@ -49,6 +51,12 @@ private:
         .props = SDL_CreateProperties()
     };
 
+    std::deque<Mat44f> m_WorldTransforms;
 
-    std::map<MaterialId, std::deque<XformMesh>> m_MeshGroups;
+    using MeshGroup = std::deque<XformMesh>;
+    using MeshGroupCollection = std::map<MaterialId, MeshGroup>;
+
+    MeshGroupCollection m_TranslucentMeshGroups;
+
+    MeshGroupCollection m_OpaqueMeshGroups;
 };

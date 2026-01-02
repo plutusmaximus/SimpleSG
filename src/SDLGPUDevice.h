@@ -5,6 +5,7 @@
 #include "Vertex.h"
 
 #include <map>
+#include <unordered_map>
 #include <deque>
 #include <span>
 
@@ -46,7 +47,9 @@ public:
 
     SDLMaterial() = delete;
 
-    const MaterialId Id;
+    /// @brief Unique key identifying this material.
+    /// Used to group meshes sharing the same material attributes.
+    const MaterialKey Key;
 
     const RgbaColorf Color;
 
@@ -68,7 +71,7 @@ private:
         SDL_GPUSampler* albedoSampler,
         SDL_GPUShader* vertexShader,
         SDL_GPUShader* fragmentShader)
-        : Id(MaterialId::NextId())
+        : Key(MaterialId::NextId(), color.a < 1.0f ? MaterialFlags::Translucent : MaterialFlags::None)
         , Color(color)
         , Albedo(albedo)
         , AlbedoSampler(albedoSampler)
@@ -142,7 +145,7 @@ private:
 
     struct PipelineKey
     {
-        int const ColorFormat;
+        const int ColorFormat;
         SDL_GPUShader* const VertexShader;
         SDL_GPUShader* const FragShader;
 
@@ -198,5 +201,5 @@ private:
     HashTable<SDL_GPUShader> m_VertexShadersByName;
     HashTable<SDL_GPUShader> m_FragShadersByName;
     std::deque<SDLMaterial*> m_Materials;
-    std::map<MaterialId, size_t> m_MaterialIndexById;
+    std::unordered_map<MaterialId, size_t> m_MaterialIndexById;
 };

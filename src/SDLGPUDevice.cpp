@@ -85,6 +85,21 @@ SDLGPUDevice::Create(SDL_Window* window)
 
     expectv(device, "Error allocating device");
 
+    auto whiteTexture = CreateTexture(
+        gpuDevice,
+        1,
+        1,
+        reinterpret_cast<const uint8_t*>("\xFF\xFF\xFF\xFF")).value();
+
+    auto magentaTexture = CreateTexture(
+        gpuDevice,
+        1,
+        1,
+        reinterpret_cast<const uint8_t*>("\xFF\x00\xFF\xFF")).value();
+
+    device->m_TexturesByName.Add(GPUDevice::WHITE_TEXTURE_KEY, whiteTexture);
+    device->m_TexturesByName.Add(GPUDevice::MAGENTA_TEXTURE_KEY, magentaTexture);
+
     return device;
 }
 
@@ -182,10 +197,10 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
 
         expectv(mtl, "Error allocating SDLMaterial");
 
-        m_MaterialIndexById.emplace(mtl->Id, std::size(m_Materials));
+        m_MaterialIndexById.emplace(mtl->Key.Id, std::size(m_Materials));
         m_Materials.emplace_back(mtl);
 
-        Mesh mesh(vb, ib, meshSpec.IndexOffset, meshSpec.IndexCount, mtl->Id);
+        Mesh mesh(meshSpec.Name, vb, ib, meshSpec.IndexOffset, meshSpec.IndexCount, mtl->Key.Id);
 
         meshes.emplace_back(mesh);
     }
@@ -290,7 +305,7 @@ SDLGPUDevice::GetOrCreatePipeline(const SDLMaterial& mtl)
     {
         {.location = 0, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = offsetof(Vertex, pos) },
         {.location = 1, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = offsetof(Vertex, normal) },
-        {.location = 2, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = offsetof(Vertex, uvs) }
+        {.location = 2, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = offsetof(Vertex, uvs[0]) }
     };
 
     SDL_GPUColorTargetDescription colorTargetDesc

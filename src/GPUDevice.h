@@ -12,6 +12,9 @@ class GPUDevice
 {
 public:
 
+    static constexpr const char* WHITE_TEXTURE_KEY = "$white";
+    static constexpr const char* MAGENTA_TEXTURE_KEY = "$magenta";
+
     GPUDevice() {}
 
     virtual ~GPUDevice() = 0 {}
