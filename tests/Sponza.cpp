@@ -54,7 +54,7 @@ public:
         constexpr const char* JUNGLE_RUINS = "C:/Users/kbaca/Downloads/JungleRuins/GLTF/JungleRuins_Main.gltf";
 
         m_GpuDevice = gpuDevice;
-        auto modelSpec= m_ModelCatalog.LoadFromFile("Sponza", JUNGLE_RUINS);
+        auto modelSpec= m_ModelCatalog.LoadFromFile("Sponza", SPONZA_MODEL_PATH);
         expect(modelSpec, modelSpec.error());
 
         auto model = m_GpuDevice->CreateModel(*modelSpec);

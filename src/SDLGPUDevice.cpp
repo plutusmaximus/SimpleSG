@@ -200,7 +200,7 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
         m_MaterialIndexById.emplace(mtl->Key.Id, std::size(m_Materials));
         m_Materials.emplace_back(mtl);
 
-        Mesh mesh(meshSpec.Name, vb, ib, meshSpec.IndexOffset, meshSpec.IndexCount, mtl->Key.Id);
+        Mesh mesh(meshSpec.Name, vb, ib, meshSpec.IndexOffset, meshSpec.IndexCount, mtl->Key.Id, meshSpec.Transform);
 
         meshes.emplace_back(mesh);
     }

@@ -18,13 +18,10 @@ class Model
 {
 public:
 
-    class Meshes : private std::vector<Mesh>
+    class MesheCollection : private std::vector<Mesh>
     {
         friend class Model;
     public:
-
-        using iterator = std::vector<RefPtr<Mesh>>::iterator;
-        using const_iterator = std::vector<RefPtr<Mesh>>::const_iterator;
 
         using std::vector<Mesh>::vector;
         using std::vector<Mesh>::begin;
@@ -33,7 +30,7 @@ public:
 
     static Result<RefPtr<Model>> Create(std::span<Mesh> meshes);
 
-    Meshes const Meshes;
+    MesheCollection const Meshes;
 
 private:
 
