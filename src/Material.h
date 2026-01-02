@@ -161,7 +161,7 @@ struct MaterialSpec
     const std::string VertexShader;
     const std::string FragmentShader;
 
-    const float Metallic{ 0 };
+    const float Metalness{ 0 };
     const float Roughness{ 0 };
 
     const std::string Albedo;

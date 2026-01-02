@@ -57,7 +57,7 @@ public:
         auto modelSpec= m_ModelCatalog.LoadFromFile("Sponza", SPONZA_MODEL_PATH);
         expect(modelSpec, modelSpec.error());
 
-        auto model = m_GpuDevice->CreateModel(*modelSpec);
+        auto model = m_GpuDevice->CreateModel(*modelSpec.value());
         expect(model, model.error());
 
         m_EidModel = m_Registry.Create();

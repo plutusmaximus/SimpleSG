@@ -1,42 +1,32 @@
 #pragma once
 
 #include "Mesh.h"
-#include "Vertex.h"
 
 #include <vector>
-#include <span>
 
 class ModelSpec
 {
 public:
-    const std::span<const Vertex> Vertices;
-    const std::span<const VertexIndex> Indices;
-    const std::span<const MeshSpec> MeshSpecs;
+
+    const std::vector<MeshSpec> MeshSpecs;
 };
 
 class Model
 {
 public:
 
-    class MesheCollection : private std::vector<Mesh>
-    {
-        friend class Model;
-    public:
+    static Result<RefPtr<Model>> Create(std::vector<Mesh>&& meshes);
 
-        using std::vector<Mesh>::vector;
-        using std::vector<Mesh>::begin;
-        using std::vector<Mesh>::end;
-    };
-
-    static Result<RefPtr<Model>> Create(std::span<Mesh> meshes);
-
-    MesheCollection const Meshes;
+    const std::vector<Mesh> Meshes;
 
 private:
 
     Model() = delete;
 
-    Model(std::span<Mesh> meshes);
+    explicit Model(std::vector<Mesh>&& meshes)
+        : Meshes(std::move(meshes))
+    {
+    };
 
     IMPLEMENT_REFCOUNT(Model);
 };

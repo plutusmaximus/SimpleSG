@@ -2,14 +2,18 @@
 
 #include "GPUDevice.h"
 #include "Material.h"
+#include "Vertex.h"
+
+#include <string>
+#include <vector>
 
 /// @brief Specification for creating a mesh.
 class MeshSpec
 {
 public:
     const std::string Name;
-    const uint32_t IndexOffset;
-    const uint32_t IndexCount;
+    const std::vector<Vertex> Vertices;
+    const std::vector<VertexIndex> Indices;
     const MaterialSpec MtlSpec;
     const Mat44f Transform{1.0f};
 };

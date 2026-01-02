@@ -144,12 +144,21 @@ SDLGPUDevice::~SDLGPUDevice()
 Result<RefPtr<Model>>
 SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
 {
-    auto bufResult = CreateBuffers(modelSpec.Vertices, modelSpec.Indices);
+    std::vector<std::span<const Vertex>> vertexSpans;
+    std::vector<std::span<const VertexIndex>> indexSpans;
+    for(const auto& meshSpec : modelSpec.MeshSpecs)
+    {
+        vertexSpans.emplace_back(meshSpec.Vertices);
+        indexSpans.emplace_back(meshSpec.Indices);
+    }
+
+    auto bufResult = CreateBuffers(vertexSpans, indexSpans);
     expect(bufResult, bufResult.error());
 
     auto [vb, ib] = bufResult.value();
 
     std::vector<Mesh> meshes;
+    uint32_t indexOffset = 0;
 
     for (const auto& meshSpec : modelSpec.MeshSpecs)
     {
@@ -200,12 +209,14 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
         m_MaterialIndexById.emplace(mtl->Key.Id, std::size(m_Materials));
         m_Materials.emplace_back(mtl);
 
-        Mesh mesh(meshSpec.Name, vb, ib, meshSpec.IndexOffset, meshSpec.IndexCount, mtl->Key.Id, meshSpec.Transform);
+        const uint32_t indexCount = static_cast<uint32_t>(meshSpec.Indices.size());
+        Mesh mesh(meshSpec.Name, vb, ib, indexOffset, indexCount, mtl->Key.Id, meshSpec.Transform);
+        indexOffset += indexCount;
 
         meshes.emplace_back(mesh);
     }
 
-    return Model::Create(meshes);
+    return Model::Create(std::move(meshes));
 }
     
 Extent SDLGPUDevice::GetExtent() const
@@ -374,19 +385,30 @@ SDLGPUDevice::GetOrCreatePipeline(const SDLMaterial& mtl)
 
 Result<std::tuple<VertexBuffer, IndexBuffer>>
 SDLGPUDevice::CreateBuffers(
-    const std::span<const Vertex>& vertices,
-    const std::span<const VertexIndex>& indices)
+    const std::span<std::span<const Vertex>>& vertices,
+    const std::span<std::span<const VertexIndex>>& indices)
 {
-    const uint32_t sizeofVerts = static_cast<Uint32>(vertices.size() * sizeof(vertices[0]));
-    const uint32_t sizeofIndices = static_cast<Uint32>(indices.size() * sizeof(indices[0]));
-    const uint32_t sizeofData = sizeofVerts + sizeofIndices;
+    eassert(vertices.size() == indices.size());
+
+    const size_t numSrcBuffers = vertices.size();
+    size_t sizeofVerts = 0;
+    size_t sizeofIndices = 0;
+
+    for(int i = 0; i < numSrcBuffers; ++i)
+    {
+        sizeofVerts += vertices[i].size() * sizeof(vertices[i][0]);
+        sizeofIndices += indices[i].size() * sizeof(indices[i][0]);
+    }
+
+    const size_t sizeofData = sizeofVerts + sizeofIndices;
 
     //Create a single buffer to contain vertices and indices.
 
-    SDL_GPUBufferCreateInfo bufferCreateInfo{};
-
-    bufferCreateInfo.usage = SDL_GPU_BUFFERUSAGE_VERTEX | SDL_GPU_BUFFERUSAGE_INDEX;
-    bufferCreateInfo.size = sizeofData;
+    SDL_GPUBufferCreateInfo bufferCreateInfo
+    {
+        .usage = SDL_GPU_BUFFERUSAGE_VERTEX | SDL_GPU_BUFFERUSAGE_INDEX,
+        .size = static_cast<Uint32>(sizeofData)
+    };
 
     SDL_GPUBuffer* buf = SDL_CreateGPUBuffer(Device, &bufferCreateInfo);
     expect(buf, SDL_GetError());
@@ -401,7 +423,7 @@ SDLGPUDevice::CreateBuffers(
     SDL_GPUTransferBufferCreateInfo xferBufCreateInfo
     {
         .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-        .size = sizeofData
+        .size = static_cast<Uint32>(sizeofData)
     };
 
     SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(Device, &xferBufCreateInfo);
@@ -415,8 +437,26 @@ SDLGPUDevice::CreateBuffers(
     void* xferBuf = SDL_MapGPUTransferBuffer(Device, transferBuffer, false);
     expect(xferBuf, SDL_GetError());
 
-    ::memcpy(xferBuf, vertices.data(), sizeofVerts);
-    ::memcpy(&((char*)xferBuf)[sizeofVerts], indices.data(), sizeofIndices);
+    uint32_t vtxOffset = 0;
+    Vertex* dstVtx = reinterpret_cast<Vertex*>(xferBuf);
+    VertexIndex* dstIdx = reinterpret_cast<VertexIndex*>(static_cast<uint8_t*>(xferBuf) + sizeofVerts);
+
+    for(int i = 0; i < numSrcBuffers; ++i)
+    {
+        const auto& vertSpan = vertices[i];
+        const auto& indexSpan = indices[i];
+        const uint32_t vtxCount = static_cast<uint32_t>(vertSpan.size());
+        const uint32_t idxCount = static_cast<uint32_t>(indexSpan.size());
+        const uint32_t vtxBufSize = static_cast<uint32_t>(vtxCount * sizeof(Vertex));
+        ::memcpy(dstVtx, vertSpan.data(), vtxBufSize);
+        dstVtx += vtxCount;
+
+        for(int j = 0; j < idxCount; ++j, ++dstIdx)
+        {
+            *dstIdx = indexSpan[j] + vtxOffset;
+        }
+        vtxOffset += vtxCount;
+    }
 
     SDL_UnmapGPUTransferBuffer(Device, transferBuffer);
 
@@ -440,7 +480,7 @@ SDLGPUDevice::CreateBuffers(
     {
         .buffer = gpuBuf->Buffer,
         .offset = 0,
-        .size = sizeofData
+        .size = static_cast<Uint32>(sizeofData)
     };
 
     SDL_UploadToGPUBuffer(copyPass, &srcBuf, &dstBuf, false);
@@ -452,7 +492,7 @@ SDLGPUDevice::CreateBuffers(
     cmdBufFin.Cancel();
 
     VertexBuffer vb{ gpuBuf, 0 };
-    IndexBuffer ib{ gpuBuf, sizeofVerts };
+    IndexBuffer ib{ gpuBuf, static_cast<uint32_t>(sizeofVerts) };
 
     return std::make_tuple(vb, ib);
 }

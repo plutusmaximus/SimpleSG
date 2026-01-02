@@ -29,8 +29,6 @@ struct TextureProperties
 struct MeshCollection
 {
     std::unordered_map<unsigned, const aiMesh*> Meshes;
-    size_t TotalVertexCount = 0;
-    size_t TotalIndexCount = 0;
 };
 
 /// @brief Retrieves texture properties from a given material.
@@ -56,12 +54,11 @@ static void ProcessMeshes(
         const aiNode* node,
         const aiMatrix4x4& parentTransform,
         const MeshCollection& meshCollection,
-        std::vector<Vertex>& vertices,
-        std::vector<VertexIndex>& indices,
         std::vector<MeshSpec>& meshSpecs,
         const std::filesystem::path& parentPath);
 
-Result<ModelSpec> ModelCatalog::LoadFromFile(const std::string& key, const std::string& filePath)
+Result<const ModelSpec*>
+ModelCatalog::LoadFromFile(const std::string& key, const std::string& filePath)
 {
     logDebug("Loading model from file: {} (key: {})", filePath, key);
 
@@ -69,7 +66,7 @@ Result<ModelSpec> ModelCatalog::LoadFromFile(const std::string& key, const std::
     auto it = m_Entries.find(key);
     if(it != m_Entries.end())
     {
-        return it->second.ToSpec();
+        return &it->second;
     }
 
     constexpr unsigned flags =
@@ -97,10 +94,9 @@ Result<ModelSpec> ModelCatalog::LoadFromFile(const std::string& key, const std::
     MeshCollection meshCollection;
     CollectMeshes(scene, scene->mRootNode, meshCollection);
 
-    Entry entry;
+    std::vector<MeshSpec> meshSpecs;
 
-    entry.Vertices.reserve(meshCollection.TotalVertexCount);
-    entry.Indices.reserve(meshCollection.TotalIndexCount);
+    meshSpecs.reserve(meshCollection.Meshes.size());
 
     const auto absPath = std::filesystem::absolute(filePath);    
     const auto parentPath = absPath.parent_path();
@@ -110,23 +106,21 @@ Result<ModelSpec> ModelCatalog::LoadFromFile(const std::string& key, const std::
         scene->mRootNode,
         aiMatrix4x4(),
         meshCollection,
-        entry.Vertices,
-        entry.Indices,
-        entry.MeshSpecs,
+        meshSpecs,
         parentPath);
 
     // Insert and return spec
-    auto [insertIt, inserted] = m_Entries.emplace(key, std::move(entry));
+    auto [insertIt, inserted] = m_Entries.emplace(key, ModelSpec{std::move(meshSpecs)});
     expect(inserted, "Failed to insert catalog entry for {}", key);
 
-    return insertIt->second.ToSpec();
+    return &insertIt->second;
 }
 
-Result<ModelSpec> ModelCatalog::Get(const std::string& key) const
+Result<const ModelSpec*> ModelCatalog::Get(const std::string& key) const
 {
     auto it = m_Entries.find(key);
     expect(it != m_Entries.end(), "Model key not found: {}", key);
-    return it->second.ToSpec();
+    return &it->second;
 }
 
 static TextureProperties GetTexturePropertiesFromMaterial(
@@ -257,8 +251,6 @@ static void CollectMeshes(const aiScene* scene, const aiNode* node, MeshCollecti
 
         const aiMesh* mesh = scene->mMeshes[meshIdx];
 
-        outCollection.TotalVertexCount += mesh->mNumVertices;
-        outCollection.TotalIndexCount += mesh->mNumFaces * 3;
         outCollection.Meshes[meshIdx] = mesh;
     }
 
@@ -273,8 +265,6 @@ static void ProcessMeshes(
         const aiNode* node,
         const aiMatrix4x4& parentTransform,
         const MeshCollection& meshCollection,
-        std::vector<Vertex>& vertices,
-        std::vector<VertexIndex>& indices,
         std::vector<MeshSpec>& meshSpecs,
         const std::filesystem::path& parentPath)
 {
@@ -336,8 +326,10 @@ static void ProcessMeshes(
 
         auto albedo = !texProperties.Albedo.Path.empty() ? texProperties.Albedo.Path : GPUDevice::MAGENTA_TEXTURE_KEY;
 
-        const VertexIndex baseVtxIndex = static_cast<VertexIndex>(vertices.size());
-        const uint32_t indexOffset = static_cast<uint32_t>(indices.size());
+        std::vector<Vertex> vertices;
+        std::vector<VertexIndex> indices;
+        vertices.reserve(mesh->mNumVertices);
+        indices.reserve(mesh->mNumFaces * 3);
 
         // Lambda to get UVs or return zero UVs if not present
         auto getUV = texProperties.Albedo.Path.empty()
@@ -373,29 +365,29 @@ static void ProcessMeshes(
         {
             const aiFace& face = mesh->mFaces[f];
 
-            indices.emplace_back(baseVtxIndex + face.mIndices[0]);
-            indices.emplace_back(baseVtxIndex + face.mIndices[1]);
-            indices.emplace_back(baseVtxIndex + face.mIndices[2]);
+            indices.emplace_back(face.mIndices[0]);
+            indices.emplace_back(face.mIndices[1]);
+            indices.emplace_back(face.mIndices[2]);
 
             indexCount += 3;
         }
 
         MeshSpec spec
         {
-            meshName,
-            indexOffset,
-            indexCount,
-            MaterialSpec{
-                RgbaColorf{diffuseColor.r, diffuseColor.g, diffuseColor.b, opacity},
-                "shaders/Debug/VertexShader",
-                "shaders/Debug/FragmentShader",
-                0.0f,
-                0.0f,
-                albedo
+            .Name = meshName,
+            .Vertices = std::move(vertices),
+            .Indices = std::move(indices),
+            .MtlSpec = MaterialSpec{
+                .Color = RgbaColorf{diffuseColor.r, diffuseColor.g, diffuseColor.b, opacity},
+                .VertexShader = "shaders/Debug/VertexShader",
+                .FragmentShader = "shaders/Debug/FragmentShader",
+                .Metalness = 0.0f,
+                .Roughness = 0.0f,
+                .Albedo = albedo
             }
         };
 
-        meshSpecs.emplace_back(spec);
+        meshSpecs.emplace_back(std::move(spec));
     }
 
     for(unsigned i = 0; i < node->mNumChildren; ++i)
@@ -405,8 +397,6 @@ static void ProcessMeshes(
             node->mChildren[i],
             globalTransform,
             meshCollection,
-            vertices,
-            indices,
             meshSpecs,
             parentPath);
     }

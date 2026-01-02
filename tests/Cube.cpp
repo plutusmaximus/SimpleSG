@@ -270,7 +270,7 @@ int main(int, [[maybe_unused]] char* argv[])
 }
 
 // Cube vertices (8 corners with positions, normals, and colors)
-static Vertex cubeVertices[] =
+constexpr static const Vertex cubeVertices[] =
 {
     // Front face
     {{-0.5f, -0.5f,  0.5f}, {0.0f,  0.0f,  1.0f},  {1, 1}}, // 0
@@ -304,7 +304,7 @@ static Vertex cubeVertices[] =
     {{-0.5f, -0.5f,  0.5f}, {0.0f, -1.0f,  0.0f},  {0, 0}}, // 23
 };
 
-static VertexIndex cubeIndices[] =
+constexpr static const VertexIndex cubeIndices[] =
 {
     // Front
     0, 2, 3,  0, 1, 2,
@@ -320,13 +320,19 @@ static VertexIndex cubeIndices[] =
     20, 22, 23,  20, 21, 22
 };
 
+template<typename T>
+static std::vector<T> Subrange(const T* array, const size_t offset, const size_t count)
+{
+    return std::vector<T>(array + offset, array + offset + count);
+}
+
 static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
 {
-    MeshSpec meshSpecs[] =
+    std::vector<MeshSpec> meshSpecs =
     {
         {
-            .IndexOffset = 0,
-            .IndexCount = 6,
+            .Vertices = std::move(Subrange(cubeVertices, 0, 6)),
+            .Indices = std::move(Subrange(cubeIndices, 0, 6)),
             .MtlSpec =
             {
                 .Color = {1, 0, 0},
@@ -336,8 +342,8 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             }
         },
         {
-            .IndexOffset = 6,
-            .IndexCount = 6,
+            .Vertices = std::move(Subrange(cubeVertices, 6, 6)),
+            .Indices = std::move(Subrange(cubeIndices, 6, 6)),
             .MtlSpec =
             {
                 .Color = {0, 1, 0},
@@ -347,8 +353,8 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             }
         },
         {
-            .IndexOffset = 12,
-            .IndexCount = 6,
+            .Vertices = std::move(Subrange(cubeVertices, 12, 6)),
+            .Indices = std::move(Subrange(cubeIndices, 12, 6)),
             .MtlSpec =
             {
                 .Color = {0, 0, 1},
@@ -358,8 +364,8 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             }
         },
         {
-            .IndexOffset = 18,
-            .IndexCount = 6,
+            .Vertices = std::move(Subrange(cubeVertices, 18, 6)),
+            .Indices = std::move(Subrange(cubeIndices, 18, 6)),
             .MtlSpec =
             {
                 .Color = {1, 1, 1},
@@ -369,8 +375,8 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             }
         },
         {
-            .IndexOffset = 24,
-            .IndexCount = 6,
+            .Vertices = std::move(Subrange(cubeVertices, 24, 6)),
+            .Indices = std::move(Subrange(cubeIndices, 24, 6)),
             .MtlSpec =
             {
                 .Color = {0, 1, 1},
@@ -380,8 +386,8 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             }
         },
         {
-            .IndexOffset = 30,
-            .IndexCount = 6,
+            .Vertices = std::move(Subrange(cubeVertices, 30, 6)),
+            .Indices = std::move(Subrange(cubeIndices, 30, 6)),
             .MtlSpec =
             {
                 .Color = {1, 0, 1},
@@ -392,12 +398,7 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
         },
     };
 
-    ModelSpec modelSpec
-    {
-        .Vertices = cubeVertices,
-        .Indices = cubeIndices,
-        .MeshSpecs = meshSpecs
-    };
+    ModelSpec modelSpec{std::move(meshSpecs)};
 
     return gpu->CreateModel(modelSpec);
 }
@@ -411,11 +412,11 @@ static Result<RefPtr<Model>> CreateShapeModel(RefPtr<GPUDevice> gpu)
     auto geometry = Shapes::Torus(1, 0.5, 5);
     const auto& [vertices, indices] = geometry;
 
-    const MeshSpec meshSpecs[] =
+    std::vector<MeshSpec> meshSpecs =
     {
         {
-            .IndexOffset = 0,
-            .IndexCount = static_cast<uint32_t>(indices.size()),
+            .Vertices = std::move(vertices),
+            .Indices = std::move(indices),
             .MtlSpec =
             {
                 .Color = {1, 0, 0},
@@ -426,12 +427,7 @@ static Result<RefPtr<Model>> CreateShapeModel(RefPtr<GPUDevice> gpu)
         }
     };
 
-    ModelSpec modelSpec
-    {
-        .Vertices = vertices,
-        .Indices = indices,
-        .MeshSpecs = meshSpecs
-    };
+    ModelSpec modelSpec{std::move(meshSpecs)};
 
     return gpu->CreateModel(modelSpec);
 }
@@ -441,5 +437,5 @@ static Result<RefPtr<Model>> CreatePumpkinModel(RefPtr<GPUDevice> gpu)
     ModelCatalog catalog;
     auto specRes = catalog.LoadFromFile("Pumpkin", "models/Pumpkin-DD.stl");
     expect(specRes, specRes.error());
-    return gpu->CreateModel(specRes.value());
+    return gpu->CreateModel(*specRes.value());
 }
