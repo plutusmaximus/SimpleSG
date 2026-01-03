@@ -2,6 +2,7 @@
 
 #include <type_traits>
 
+/// @brief A scope guard that executes a provided callable when it goes out of scope, unless cancelled.
 template<typename F>
 requires std::is_invocable_v<F>
 class Finally
