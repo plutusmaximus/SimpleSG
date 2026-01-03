@@ -2,9 +2,11 @@
 
 ModelSpec::ModelSpec(
     std::vector<MeshSpec>&& meshSpecs,
-    std::vector<MeshInstance>&& meshInstances)
+    std::vector<MeshInstance>&& meshInstances,
+    std::vector<TransformNode>&& transformNodes)
     : MeshSpecs(std::move(meshSpecs))
     , MeshInstances(std::move(meshInstances))
+    , TransformNodes(std::move(transformNodes))
 {
     for(size_t i = 0; i < MeshInstances.size(); ++i)
     {
@@ -15,29 +17,52 @@ ModelSpec::ModelSpec(
             "Mesh instance {} has invalid mesh index {}", i, meshInstance.MeshIndex);
 
         eassert(
-            meshInstance.ParentIndex < static_cast<int>(MeshInstances.size()),
-            "Mesh instance {} has invalid parent index {}", i, meshInstance.ParentIndex);
+            meshInstance.NodeIndex >= 0 &&
+            meshInstance.NodeIndex < static_cast<int>(TransformNodes.size()),
+            "Mesh instance {} has invalid node index {}", i, meshInstance.NodeIndex);
+    }
+
+    for(size_t i = 0; i < TransformNodes.size(); ++i)
+    {
+        const TransformNode& node = TransformNodes[i];
+        eassert(node.ParentIndex < static_cast<int>(i),
+            "Transform node {} has invalid parent index {}, parent must be defined before child",
+            i, node.ParentIndex);
     }
 }
 
 Result<RefPtr<Model>>
-Model::Create(std::vector<Mesh>&& meshes, std::vector<MeshInstance>&& meshInstances)
+Model::Create(std::vector<Mesh>&& meshes, std::vector<MeshInstance>&& meshInstances, std::vector<TransformNode>&& transformNodes)
 {
     Model* model = new Model(
         std::forward<std::vector<Mesh>>(meshes),
-        std::forward<std::vector<MeshInstance>>(meshInstances));
-
+        std::forward<std::vector<MeshInstance>>(meshInstances),
+        std::forward<std::vector<TransformNode>>(transformNodes));
     expectv(model, "Error allocating model");
 
     return model;
 }
 
-Model::Model(std::vector<Mesh>&& meshes, std::vector<MeshInstance>&& meshInstances)
+Model::Model(std::vector<Mesh>&& meshes, std::vector<MeshInstance>&& meshInstances, std::vector<TransformNode>&& transformNodes)
     : Meshes(std::move(meshes))
     , MeshInstances(std::move(meshInstances))
+    , TransformNodes(std::move(transformNodes))
 {
+    logDebug(
+        "Creating model with {} meshes, {} mesh instances and {} transform nodes",
+        Meshes.size(),
+        MeshInstances.size(),
+        TransformNodes.size());
+
     for(size_t i = 0; i < MeshInstances.size(); ++i)
     {
+        logDebug(
+            "  Mesh instance {}: mesh index {}({}), node index {}",
+            i,
+            MeshInstances[i].MeshIndex,
+            Meshes[MeshInstances[i].MeshIndex].Name,
+            MeshInstances[i].NodeIndex);
+
         const MeshInstance& meshInstance = MeshInstances[i];
         eassert(
             meshInstance.MeshIndex >= 0 &&
@@ -45,7 +70,16 @@ Model::Model(std::vector<Mesh>&& meshes, std::vector<MeshInstance>&& meshInstanc
             "Mesh instance {} has invalid mesh index {}", i, meshInstance.MeshIndex);
 
         eassert(
-            meshInstance.ParentIndex < static_cast<int>(MeshInstances.size()),
-            "Mesh instance {} has invalid parent index {}", i, meshInstance.ParentIndex);
+            meshInstance.NodeIndex >= 0 &&
+            meshInstance.NodeIndex < static_cast<int>(TransformNodes.size()),
+            "Mesh instance {} has invalid node index {}", i, meshInstance.NodeIndex);
+    }
+
+    for(size_t i = 0; i < TransformNodes.size(); ++i)
+    {
+        const TransformNode& node = TransformNodes[i];
+        eassert(node.ParentIndex < static_cast<int>(i),
+            "Transform node {} has invalid parent index {}, parent must be defined before child",
+            i, node.ParentIndex);
     }
 };

@@ -219,10 +219,11 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
     }
 
     std::vector<MeshInstance> meshInstances = modelSpec.MeshInstances;
+    std::vector<TransformNode> transformNodes = modelSpec.TransformNodes;
 
-    return Model::Create(std::move(meshes), std::move(meshInstances));
+    return Model::Create(std::move(meshes), std::move(meshInstances), std::move(transformNodes));
 }
-    
+
 Extent SDLGPUDevice::GetExtent() const
 {
     int width = 0, height = 0;

@@ -398,17 +398,22 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
         },
     };
 
-    std::vector<MeshInstance> meshInstances
+    std::vector<TransformNode> transformNodes
     {
-        { .MeshIndex = 0 },
-        { .MeshIndex = 1 },
-        { .MeshIndex = 2 },
-        { .MeshIndex = 3 },
-        { .MeshIndex = 4 },
-        { .MeshIndex = 5 },
+        { .ParentIndex = -1 },
     };
 
-    const ModelSpec modelSpec{std::move(meshSpecs), std::move(meshInstances)};
+    std::vector<MeshInstance> meshInstances
+    {
+        { .MeshIndex = 0, .NodeIndex = 0 },
+        { .MeshIndex = 1, .NodeIndex = 0 },
+        { .MeshIndex = 2, .NodeIndex = 0 },
+        { .MeshIndex = 3, .NodeIndex = 0 },
+        { .MeshIndex = 4, .NodeIndex = 0 },
+        { .MeshIndex = 5, .NodeIndex = 0 },
+    };
+
+    const ModelSpec modelSpec{std::move(meshSpecs), std::move(meshInstances), std::move(transformNodes)};
 
     return gpu->CreateModel(modelSpec);
 }
@@ -437,12 +442,17 @@ static Result<RefPtr<Model>> CreateShapeModel(RefPtr<GPUDevice> gpu)
         }
     };
 
-    std::vector<MeshInstance> meshInstances
+    std::vector<TransformNode> transformNodes
     {
-        { .MeshIndex = 0 }
+        { .ParentIndex = -1 },
     };
 
-    const ModelSpec modelSpec{std::move(meshSpecs), std::move(meshInstances)};
+    std::vector<MeshInstance> meshInstances
+    {
+        { .MeshIndex = 0, .NodeIndex = 0 }
+    };
+
+    const ModelSpec modelSpec{std::move(meshSpecs), std::move(meshInstances), std::move(transformNodes)};
 
     return gpu->CreateModel(modelSpec);
 }

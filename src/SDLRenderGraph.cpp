@@ -21,6 +21,23 @@ SDLRenderGraph::~SDLRenderGraph()
 void
 SDLRenderGraph::Add(const Mat44f& worldTransform, RefPtr<Model> model)
 {
+    std::vector<Mat44f> worldXForms;
+    worldXForms.reserve(model->TransformNodes.size());
+
+    // Precompute world transforms for all nodes
+    for(const auto& node : model->TransformNodes)
+    {
+        if(node.ParentIndex >= 0)
+        {
+            worldXForms.emplace_back(
+                worldXForms[node.ParentIndex].Mul(node.Transform));
+        }
+        else
+        {
+            worldXForms.emplace_back(worldTransform.Mul(node.Transform));
+        }
+    }
+
     for (const auto& meshInstance : model->MeshInstances)
     {
         const Mesh& mesh = model->Meshes[meshInstance.MeshIndex];
@@ -35,6 +52,8 @@ SDLRenderGraph::Add(const Mat44f& worldTransform, RefPtr<Model> model)
 
         const auto& mtlKey = mtlResult.value()->Key;
 
+        // Determine mesh group based on material properties
+
         MeshGroup* meshGrp;
 
         if(mtlKey.Flags & MaterialFlags::Translucent)
@@ -48,7 +67,7 @@ SDLRenderGraph::Add(const Mat44f& worldTransform, RefPtr<Model> model)
 
         XformMesh xformMesh
         {
-            .WorldTransform = worldTransform * meshInstance.Transform,
+            .WorldTransform = worldXForms[meshInstance.NodeIndex],
             .Model = model,
             .MeshInstanceIndex = meshInstance.MeshIndex
         };
@@ -146,11 +165,10 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
                 const MeshInstance& instance = xmesh.Model->MeshInstances[xmesh.MeshInstanceIndex];
                 const Mesh& mesh = xmesh.Model->Meshes[xmesh.MeshInstanceIndex];
 
-                const Mat44f meshXForm = xmesh.WorldTransform * instance.Transform;
                 const Mat44f matrices[] =
                 {
-                    meshXForm,
-                    viewProj.Mul(meshXForm)
+                    xmesh.WorldTransform,
+                    viewProj.Mul(xmesh.WorldTransform)
                 };
 
                 SDL_PushGPUVertexUniformData(cmdBuf, 0, matrices, sizeof(matrices));

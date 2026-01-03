@@ -25,10 +25,15 @@ struct TextureProperties
     TextureProperty AmbientOcclusion;
 };
 
+using SceneMeshId = unsigned;
+
 /// @brief Collection of meshes in a scene.
-struct MeshCollection
+using SceneMeshCollection = std::unordered_map<SceneMeshId, const aiMesh*>;
+
+struct MeshSpecCollection
 {
-    std::unordered_map<unsigned, const aiMesh*> Meshes;
+    std::vector<MeshSpec> MeshSpecs;
+    std::unordered_map<SceneMeshId, int> MeshIdToSpecIndex;
 };
 
 /// @brief Retrieves texture properties from a given material.
@@ -46,16 +51,20 @@ static void LogMesh(const aiScene* scene, const unsigned meshIdx);
 static bool ValidateMesh(const aiScene* scene, const unsigned meshIdx);
 
 /// @brief Recursively collects meshes from scene nodes.
-static void CollectMeshes(const aiScene* scene, const aiNode* node, MeshCollection& outCollection);
+static void CollectMeshes(const aiScene* scene, const aiNode* node, SceneMeshCollection& outCollection);
 
-/// @brief Processes meshes in a scene node and its children, applying transformations and collecting vertex/index data.
-static void ProcessMeshes(
-        const aiScene* scene,
+static MeshSpecCollection CreateMeshSpecCollection(
+    const aiScene* scene,
+    const SceneMeshCollection& meshCollection,
+    const std::filesystem::path& parentPath);
+
+/// @brief Processes a scene node and its children.
+static void ProcessNodes(
         const aiNode* node,
-        const aiMatrix4x4& parentTransform,
-        const MeshCollection& meshCollection,
-        std::vector<MeshSpec>& meshSpecs,
+        const int parentNodeIndex,
+        const MeshSpecCollection& meshSpecCollection,
         std::vector<MeshInstance>& meshInstances,
+        std::vector<TransformNode>& transformNodes,
         const std::filesystem::path& parentPath);
 
 Result<const ModelSpec*>
@@ -92,28 +101,30 @@ ModelCatalog::LoadFromFile(const std::string& key, const std::string& filePath)
     expect(scene != nullptr, importer.GetErrorString());
     expect(scene->mNumMeshes > 0, "No meshes in model: {}", filePath);
 
-    MeshCollection meshCollection;
+    SceneMeshCollection meshCollection;
     CollectMeshes(scene, scene->mRootNode, meshCollection);
-
-    std::vector<MeshSpec> meshSpecs;
-    std::vector<MeshInstance> meshInstances;
-
-    meshSpecs.reserve(meshCollection.Meshes.size());
-
+    
     const auto absPath = std::filesystem::absolute(filePath);    
     const auto parentPath = absPath.parent_path();
 
-    ProcessMeshes(
+    auto meshSpecCollection = CreateMeshSpecCollection(
         scene,
-        scene->mRootNode,
-        aiMatrix4x4(),
         meshCollection,
-        meshSpecs,
+        parentPath);
+
+    std::vector<MeshInstance> meshInstances;
+    std::vector<TransformNode> transformNodes;
+
+    ProcessNodes(
+        scene->mRootNode,
+        -1,
+        meshSpecCollection,
         meshInstances,
+        transformNodes,
         parentPath);
 
     // Insert and return spec
-    auto [insertIt, inserted] = m_Entries.emplace(key, ModelSpec{std::move(meshSpecs), std::move(meshInstances)});
+    auto [insertIt, inserted] = m_Entries.emplace(key, ModelSpec{std::move(meshSpecCollection.MeshSpecs), std::move(meshInstances), std::move(transformNodes)});
     expect(inserted, "Failed to insert catalog entry for {}", key);
 
     return &insertIt->second;
@@ -182,10 +193,10 @@ static inline std::string GetMeshName(const aiMesh* mesh)
     return mesh->mName.Empty() ? "<unnamed>" : mesh->mName.C_Str();
 }
 
-static void LogMesh(const aiScene* scene, const unsigned meshIdx)
+static void LogMesh(const aiScene* scene, const SceneMeshId meshId)
 {
-    const aiMesh* mesh = scene->mMeshes[meshIdx];
-    logDebug("  Mesh {}: {}", meshIdx, GetMeshName(mesh));
+    const aiMesh* mesh = scene->mMeshes[meshId];
+    logDebug("  Mesh {}: {}", meshId, GetMeshName(mesh));
     logDebug("  Vtx: {}, Tri: {}", mesh->mNumVertices, mesh->mNumFaces);
     const aiMaterial* material = scene->mMaterials ? scene->mMaterials[mesh->mMaterialIndex] : nullptr;
     if(material)
@@ -242,7 +253,7 @@ static bool ValidateMesh(const aiScene* scene, const unsigned meshIdx)
     return true;
 };
 
-static void CollectMeshes(const aiScene* scene, const aiNode* node, MeshCollection& outCollection)
+static void CollectMeshes(const aiScene* scene, const aiNode* node, SceneMeshCollection& outCollection)
 {
     for(unsigned i = 0; i < node->mNumMeshes; ++i)
     {
@@ -254,7 +265,7 @@ static void CollectMeshes(const aiScene* scene, const aiNode* node, MeshCollecti
 
         const aiMesh* mesh = scene->mMeshes[meshIdx];
 
-        outCollection.Meshes[meshIdx] = mesh;
+        outCollection[meshIdx] = mesh;
     }
 
     for(unsigned i = 0; i < node->mNumChildren; ++i)
@@ -263,147 +274,222 @@ static void CollectMeshes(const aiScene* scene, const aiNode* node, MeshCollecti
     }
 };
 
-static void ProcessMeshes(
-        const aiScene* scene,
-        const aiNode* node,
-        const aiMatrix4x4& parentTransform,
-        const MeshCollection& meshCollection,
-        std::vector<MeshSpec>& meshSpecs,
-        std::vector<MeshInstance>& meshInstances,
-        const std::filesystem::path& parentPath)
+static MaterialSpec CreateMaterialSpec(
+    const aiMaterial* material,
+    const std::filesystem::path& parentPath)
 {
-    const aiMatrix4x4 globalTransform = parentTransform * node->mTransformation;
-    const aiMatrix3x3 normalMatrix = aiMatrix3x3(globalTransform);
+    LogMaterialProperties(material);
 
-    for(unsigned i = 0; i < node->mNumMeshes; ++i)
+    TextureProperties texProperties;
+    ai_real opacity{1.0f};
+    aiColor3D diffuseColor{1.0f, 1.0f, 1.0f};
+    if(material)
     {
-        const unsigned meshIdx = node->mMeshes[i];
-        if(!meshCollection.Meshes.contains(meshIdx))
+        if(aiReturn_SUCCESS != material->Get(AI_MATKEY_OPACITY, &opacity, nullptr))
         {
-            continue;
+            opacity = 1.0f;
         }
 
-        const aiMesh* mesh = meshCollection.Meshes.at(meshIdx);
-
-        const std::string meshName = GetMeshName(mesh);
-
-        logDebug("Processing mesh");
-        LogMesh(scene, meshIdx);
-
-        const aiMaterial* material = scene->mMaterials ? scene->mMaterials[mesh->mMaterialIndex] : nullptr;
-
-        LogMaterialProperties(material);
-
-        TextureProperties texProperties;
-        ai_real opacity{1.0f};
-        aiColor3D diffuseColor{1.0f, 1.0f, 1.0f};
-        if(material)
+        if(aiReturn_SUCCESS != material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseColor))
         {
-            if(aiReturn_SUCCESS != material->Get(AI_MATKEY_OPACITY, &opacity, nullptr))
+            diffuseColor = aiColor3D{1.0f, 1.0f, 1.0f};
+        }
+
+        logDebug("  Opacity: {}", opacity);
+        logDebug("  Diffuse color: R={} G={} B={}", diffuseColor.r, diffuseColor.g, diffuseColor.b);
+
+        texProperties = GetTexturePropertiesFromMaterial(material, parentPath);
+    }
+    else
+    {
+        logWarn("  Mesh has no material");
+    }
+
+    logDebug("  Albedo: {}", texProperties.Albedo.Path.empty() ? "<none>" : texProperties.Albedo.Path);
+    logDebug("  Normal: {}", texProperties.Normal.Path.empty() ? "<none>" : texProperties.Normal.Path);
+    logDebug("  Specular: {}", texProperties.Specular.Path.empty() ? "<none>" : texProperties.Specular.Path);
+    logDebug("  Diffuse: {}", texProperties.Diffuse.Path.empty() ? "<none>" : texProperties.Diffuse.Path);
+    logDebug("  Emission: {}", texProperties.Emission.Path.empty() ? "<none>" : texProperties.Emission.Path);
+    logDebug("  Metalness: {}", texProperties.Metalness.Path.empty() ? "<none>" : texProperties.Metalness.Path);
+    logDebug("  Roughness: {}", texProperties.Roughness.Path.empty() ? "<none>" : texProperties.Roughness.Path);
+    logDebug("  Ambient occlusion: {}", texProperties.AmbientOcclusion.Path.empty() ? "<none>" : texProperties.AmbientOcclusion.Path);
+
+    auto albedo = !texProperties.Albedo.Path.empty() ? texProperties.Albedo.Path : GPUDevice::MAGENTA_TEXTURE_KEY;
+
+    return MaterialSpec{
+        .Color = RgbaColorf{diffuseColor.r, diffuseColor.g, diffuseColor.b, opacity},
+        .VertexShader = "shaders/Debug/VertexShader",
+        .FragmentShader = "shaders/Debug/FragmentShader",
+        .Metalness = 0.0f,
+        .Roughness = 0.0f,
+        .Albedo = albedo
+    };
+}
+
+static MeshSpec CreateMeshSpecFromMesh(
+    const aiScene* scene,
+    const SceneMeshId meshId,
+    const std::filesystem::path& parentPath)
+{
+    const aiMesh* mesh = scene->mMeshes[meshId];
+    const std::string meshName = GetMeshName(mesh);
+
+    LogMesh(scene, meshId);
+
+    const aiMaterial* material = scene->mMaterials ? scene->mMaterials[mesh->mMaterialIndex] : nullptr;
+
+    const MaterialSpec mtlSpec = CreateMaterialSpec(material, parentPath);
+
+    std::vector<Vertex> vertices;
+    std::vector<VertexIndex> indices;
+    vertices.reserve(mesh->mNumVertices);
+    indices.reserve(mesh->mNumFaces * 3);
+
+    int albedoUvIndex = 0;
+    if(material)
+    {
+        aiGetMaterialInteger(material, AI_MATKEY_UVWSRC(aiTextureType_BASE_COLOR, 0), (int *)&albedoUvIndex);
+    }
+
+    // Lambda to get UVs or return zero UVs if not present
+    const bool hasAlbedo = !mtlSpec.Albedo.empty();
+    auto getUV = [hasAlbedo](const aiMesh* mesh, const unsigned uvIndex, unsigned v)
+    {
+        if (!hasAlbedo)
+        {
+            return UV2{ 0.0f, 0.0f };
+        }
+
+        const aiVector3D& uv = mesh->mTextureCoords[uvIndex][v];
+        return UV2{ uv.x, uv.y };
+    };
+    // Transform mesh by node transform
+    for(unsigned v = 0; v < mesh->mNumVertices; ++v)
+    {
+        const aiVector3D& srcVtx = mesh->mVertices[v];
+        const aiVector3D& srcNorm = mesh->mNormals[v];
+
+        Vertex vtx
+        {
+            .pos = Vec3f{ srcVtx.x, srcVtx.y, srcVtx.z },
+            .normal = Vec3f{ srcNorm.x, srcNorm.y, srcNorm.z }.Normalize(),
+            .uvs
             {
-                opacity = 1.0f;
-            }
-
-            if(aiReturn_SUCCESS != material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseColor))
-            {
-                diffuseColor = aiColor3D{1.0f, 1.0f, 1.0f};
-            }
-
-            logDebug("  Opacity: {}", opacity);
-            logDebug("  Diffuse color: R={} G={} B={}", diffuseColor.r, diffuseColor.g, diffuseColor.b);
-
-            texProperties = GetTexturePropertiesFromMaterial(material, parentPath);
-        }
-        else
-        {
-            logWarn("  Mesh has no material");
-        }
-
-        logDebug("  Albedo: {}", texProperties.Albedo.Path.empty() ? "<none>" : texProperties.Albedo.Path);
-        logDebug("  Normal: {}", texProperties.Normal.Path.empty() ? "<none>" : texProperties.Normal.Path);
-        logDebug("  Specular: {}", texProperties.Specular.Path.empty() ? "<none>" : texProperties.Specular.Path);
-        logDebug("  Diffuse: {}", texProperties.Diffuse.Path.empty() ? "<none>" : texProperties.Diffuse.Path);
-        logDebug("  Emission: {}", texProperties.Emission.Path.empty() ? "<none>" : texProperties.Emission.Path);
-        logDebug("  Metalness: {}", texProperties.Metalness.Path.empty() ? "<none>" : texProperties.Metalness.Path);
-        logDebug("  Roughness: {}", texProperties.Roughness.Path.empty() ? "<none>" : texProperties.Roughness.Path);
-        logDebug("  Ambient occlusion: {}", texProperties.AmbientOcclusion.Path.empty() ? "<none>" : texProperties.AmbientOcclusion.Path);
-
-        auto albedo = !texProperties.Albedo.Path.empty() ? texProperties.Albedo.Path : GPUDevice::MAGENTA_TEXTURE_KEY;
-
-        std::vector<Vertex> vertices;
-        std::vector<VertexIndex> indices;
-        vertices.reserve(mesh->mNumVertices);
-        indices.reserve(mesh->mNumFaces * 3);
-
-        // Lambda to get UVs or return zero UVs if not present
-        auto getUV = texProperties.Albedo.Path.empty()
-            ? [](const aiMesh* mesh, const unsigned uvIndex, unsigned v) { return UV2{0.0f, 0.0f}; }
-            : [](const aiMesh* mesh, const unsigned uvIndex, unsigned v)
-            {
-                const aiVector3D& uv = mesh->mTextureCoords[uvIndex][v];
-                return UV2{ uv.x, uv.y };
-            };
-
-        // Transform mesh by node transform
-        for(unsigned v = 0; v < mesh->mNumVertices; ++v)
-        {
-            const aiVector3D transformedVert = globalTransform * mesh->mVertices[v];
-            const aiVector3D transformedNorm = normalMatrix * mesh->mNormals[v];
-
-            Vertex vtx
-            {
-                .pos = Vec3f{ transformedVert.x, transformedVert.y, transformedVert.z },
-                .normal = Vec3f{ transformedNorm.x, transformedNorm.y, transformedNorm.z }.Normalize(),
-                .uvs
-                {
-                    getUV(mesh, texProperties.Albedo.UVIndex, v)
-                }
-            };
-
-            vertices.emplace_back(vtx);
-        }
-
-        uint32_t indexCount = 0;
-
-        for(unsigned f = 0; f < mesh->mNumFaces; ++f)
-        {
-            const aiFace& face = mesh->mFaces[f];
-
-            indices.emplace_back(face.mIndices[0]);
-            indices.emplace_back(face.mIndices[1]);
-            indices.emplace_back(face.mIndices[2]);
-
-            indexCount += 3;
-        }
-
-        MeshSpec spec
-        {
-            .Name = meshName,
-            .Vertices = std::move(vertices),
-            .Indices = std::move(indices),
-            .MtlSpec = MaterialSpec{
-                .Color = RgbaColorf{diffuseColor.r, diffuseColor.g, diffuseColor.b, opacity},
-                .VertexShader = "shaders/Debug/VertexShader",
-                .FragmentShader = "shaders/Debug/FragmentShader",
-                .Metalness = 0.0f,
-                .Roughness = 0.0f,
-                .Albedo = albedo
+                getUV(mesh, albedoUvIndex, v)
             }
         };
 
-        meshSpecs.emplace_back(std::move(spec));
-        meshInstances.emplace_back(MeshInstance{ static_cast<int>(meshSpecs.size() - 1), -1 });
+        vertices.emplace_back(vtx);
+    }
+
+    uint32_t indexCount = 0;
+
+    for(unsigned f = 0; f < mesh->mNumFaces; ++f)
+    {
+        const aiFace& face = mesh->mFaces[f];
+
+        indices.emplace_back(face.mIndices[0]);
+        indices.emplace_back(face.mIndices[1]);
+        indices.emplace_back(face.mIndices[2]);
+
+        indexCount += 3;
+    }
+
+    return MeshSpec
+    {
+        .Name = meshName,
+        .Vertices = std::move(vertices),
+        .Indices = std::move(indices),
+        .MtlSpec = mtlSpec
+    };
+}
+static MeshSpecCollection CreateMeshSpecCollection(
+    const aiScene* scene,
+    const SceneMeshCollection& meshCollection,
+    const std::filesystem::path& parentPath)
+{
+    MeshSpecCollection meshSpecCollection;
+
+    for(const auto& [meshId, mesh] : meshCollection)
+    {
+        MeshSpec spec = CreateMeshSpecFromMesh(scene, meshId, parentPath);
+
+        const int specIndex = static_cast<int>(meshSpecCollection.MeshSpecs.size());
+        meshSpecCollection.MeshSpecs.emplace_back(std::move(spec));
+        meshSpecCollection.MeshIdToSpecIndex[meshId] = specIndex;
+    }
+
+    return meshSpecCollection;
+}
+
+static void ProcessNodes(
+    const aiNode* node,
+    const int parentNodeIndex,
+    const MeshSpecCollection& meshSpecCollection,
+    std::vector<MeshInstance>& meshInstances,
+    std::vector<TransformNode>& transformNodes,
+    const std::filesystem::path& parentPath)
+{
+    logDebug("Processing node {}", node->mName.C_Str());
+
+    if(!node->mNumMeshes)
+    {
+        if(!node->mNumChildren)
+        {
+            logWarn("  Node {} has no meshes or children; skipping", node->mName.C_Str());
+            return;
+        }
+
+        //FIXME(KB) - collapse nodes with no meshes.
+        logWarn("  Node {} has no meshes", node->mName.C_Str());
+    }
+
+    const aiMatrix4x4& nodeTransform = node->mTransformation;
+    const int nodeIndex = static_cast<int>(transformNodes.size());
+    
+    transformNodes.emplace_back(
+        TransformNode
+        {
+            .ParentIndex = parentNodeIndex,
+            .Transform = Mat44f
+            {
+                // Assimp uses row-major order - transpose to column-major
+                nodeTransform.a1, nodeTransform.b1, nodeTransform.c1, nodeTransform.d1,
+                nodeTransform.a2, nodeTransform.b2, nodeTransform.c2, nodeTransform.d2,
+                nodeTransform.a3, nodeTransform.b3, nodeTransform.c3, nodeTransform.d3,
+                nodeTransform.a4, nodeTransform.b4, nodeTransform.c4, nodeTransform.d4,
+            }
+        });
+
+    for(unsigned i = 0; i < node->mNumMeshes; ++i)
+    {
+        const SceneMeshId sceneMeshId = node->mMeshes[i];
+        if(!meshSpecCollection.MeshIdToSpecIndex.contains(sceneMeshId))
+        {
+            logWarn("  Mesh {} not found in mesh spec collection; skipping", sceneMeshId);
+            continue;
+        }
+
+        const int meshSpecIndex = meshSpecCollection.MeshIdToSpecIndex.at(sceneMeshId);
+
+        const MeshSpec& meshSpec = meshSpecCollection.MeshSpecs[meshSpecIndex];
+
+        logDebug("  Adding mesh instance {}", meshSpec.Name);
+        meshInstances.emplace_back(MeshInstance
+            {
+                .MeshIndex = meshSpecIndex,
+                .NodeIndex = nodeIndex
+            });
     }
 
     for(unsigned i = 0; i < node->mNumChildren; ++i)
     {
-        ProcessMeshes(
-            scene,
+        ProcessNodes(
             node->mChildren[i],
-            globalTransform,
-            meshCollection,
-            meshSpecs,
+            nodeIndex,
+            meshSpecCollection,
             meshInstances,
+            transformNodes,
             parentPath);
     }
 };
