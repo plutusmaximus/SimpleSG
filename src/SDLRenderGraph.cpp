@@ -195,7 +195,7 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
                 SDL_BindGPUIndexBuffer(renderPass, &indexBufferBinding, idxElSize);
 
-                SDL_DrawGPUIndexedPrimitives(renderPass, mesh.IndexCount, 1, mesh.IndexOffset, 0, 0);
+                SDL_DrawGPUIndexedPrimitives(renderPass, mesh.IndexCount, 1, 0, 0, 0);
             }
         }
     }

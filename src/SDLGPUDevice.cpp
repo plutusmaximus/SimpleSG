@@ -212,7 +212,9 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
         m_Materials.emplace_back(mtl);
 
         const uint32_t indexCount = static_cast<uint32_t>(meshSpec.Indices.size());
-        Mesh mesh(meshSpec.Name, vb, ib, indexOffset, indexCount, mtl->Key.Id);
+
+        auto tmpIb = IndexBuffer(ib.GpuBuffer, ib.Offset + indexOffset * sizeof(VertexIndex));
+        Mesh mesh(meshSpec.Name, vb, tmpIb, indexCount, mtl->Key.Id);
         indexOffset += indexCount;
 
         meshes.emplace_back(mesh);

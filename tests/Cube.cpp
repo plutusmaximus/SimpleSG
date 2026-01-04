@@ -331,8 +331,8 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
     std::vector<MeshSpec> meshSpecs =
     {
         {
-            .Vertices = std::move(Subrange(cubeVertices, 0, 6)),
-            .Indices = std::move(Subrange(cubeIndices, 0, 6)),
+            .Vertices = Subrange(cubeVertices, 0, 6),
+            .Indices = Subrange(cubeIndices, 0, 6),
             .MtlSpec =
             {
                 .Color = {1, 0, 0},
@@ -342,8 +342,8 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             }
         },
         {
-            .Vertices = std::move(Subrange(cubeVertices, 6, 6)),
-            .Indices = std::move(Subrange(cubeIndices, 6, 6)),
+            .Vertices = Subrange(cubeVertices, 6, 6),
+            .Indices = Subrange(cubeIndices, 6, 6),
             .MtlSpec =
             {
                 .Color = {0, 1, 0},
@@ -353,8 +353,8 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             }
         },
         {
-            .Vertices = std::move(Subrange(cubeVertices, 12, 6)),
-            .Indices = std::move(Subrange(cubeIndices, 12, 6)),
+            .Vertices = Subrange(cubeVertices, 12, 6),
+            .Indices = Subrange(cubeIndices, 12, 6),
             .MtlSpec =
             {
                 .Color = {0, 0, 1},
@@ -364,8 +364,8 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             }
         },
         {
-            .Vertices = std::move(Subrange(cubeVertices, 18, 6)),
-            .Indices = std::move(Subrange(cubeIndices, 18, 6)),
+            .Vertices = Subrange(cubeVertices, 18, 6),
+            .Indices = Subrange(cubeIndices, 18, 6),
             .MtlSpec =
             {
                 .Color = {1, 1, 1},
@@ -375,8 +375,8 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             }
         },
         {
-            .Vertices = std::move(Subrange(cubeVertices, 24, 6)),
-            .Indices = std::move(Subrange(cubeIndices, 24, 6)),
+            .Vertices = Subrange(cubeVertices, 24, 6),
+            .Indices = Subrange(cubeIndices, 24, 6),
             .MtlSpec =
             {
                 .Color = {0, 1, 1},
@@ -386,8 +386,8 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             }
         },
         {
-            .Vertices = std::move(Subrange(cubeVertices, 30, 6)),
-            .Indices = std::move(Subrange(cubeIndices, 30, 6)),
+            .Vertices = Subrange(cubeVertices, 30, 6),
+            .Indices = Subrange(cubeIndices, 30, 6),
             .MtlSpec =
             {
                 .Color = {1, 0, 1},
@@ -430,8 +430,8 @@ static Result<RefPtr<Model>> CreateShapeModel(RefPtr<GPUDevice> gpu)
     std::vector<MeshSpec> meshSpecs =
     {
         {
-            .Vertices = std::move(vertices),
-            .Indices = std::move(indices),
+            .Vertices = vertices,
+            .Indices = indices,
             .MtlSpec =
             {
                 .Color = {1, 0, 0},

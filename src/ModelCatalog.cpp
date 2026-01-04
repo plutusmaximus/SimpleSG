@@ -403,6 +403,7 @@ static MeshSpec CreateMeshSpecFromMesh(
         .MtlSpec = mtlSpec
     };
 }
+
 static MeshSpecCollection CreateMeshSpecCollection(
     const aiScene* scene,
     const SceneMeshCollection& meshCollection,
