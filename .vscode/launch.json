@@ -17,6 +17,17 @@
             "console": "externalTerminal"
         },
         {
+            "name": "Triangle (Debug)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/Triangle.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build",
+            "environment": [],
+            "console": "externalTerminal"
+        },
+        {
             "name": "Sponza (Debug)",
             "type": "cppvsdbg",
             "request": "launch",

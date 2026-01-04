@@ -139,6 +139,24 @@ if(SIMPLESG_STRICT)
 endif()
 
 # ============================================================
+# Executable: Triangle
+# ============================================================
+add_executable(Triangle tests/triangle.cpp tests/MouseNav.cpp tests/AppDriver.cpp tests/LuaRepl.cpp)
+target_link_libraries(Triangle PRIVATE ssg::ssg spdlog::spdlog imgui lua assimp::assimp)
+add_dependencies(Triangle shaders copy_images copy_models)
+
+if(MSVC)
+  target_compile_definitions(Triangle PRIVATE _HAS_EXCEPTIONS=0)
+  target_compile_options(Triangle PRIVATE /GR-)
+else()
+  target_compile_options(Triangle PRIVATE -fno-exceptions)
+endif()
+
+if(SIMPLESG_STRICT)
+  set_property(TARGET Triangle PROPERTY COMPILE_WARNING_AS_ERROR ON)
+endif()
+
+# ============================================================
 # Executable: Cube
 # ============================================================
 add_executable(Cube tests/cube.cpp tests/MouseNav.cpp tests/AppDriver.cpp tests/LuaRepl.cpp)
