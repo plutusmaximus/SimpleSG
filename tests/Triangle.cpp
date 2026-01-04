@@ -135,8 +135,8 @@ static Result<RefPtr<Model>> CreateTriangleModel(RefPtr<GPUDevice> gpu)
             {
                 .Color = {1, 1, 1},
                 .Albedo = "images/Ant.png",
-                .VertexShader = "shaders/Debug/VertexShader",
-                .FragmentShader = "shaders/Debug/FragmentShader",
+                .VertexShaderPath = "shaders/Debug/VertexShader",
+                .FragmentShaderPath = "shaders/Debug/FragmentShader",
             }
         }
     };

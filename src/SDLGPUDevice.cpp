@@ -122,27 +122,12 @@ SDLGPUDevice::Create(SDL_Window* window)
 
 SDLGPUDevice::~SDLGPUDevice()
 {
-    for (auto mtl : m_Materials)
-    {
-        delete mtl;
-    }
-
     for (const auto& [_, pipeline] : m_PipelinesByKey)
     {
         SDL_ReleaseGPUGraphicsPipeline(Device, pipeline);
     }
 
     m_TexturesByName.clear();
-
-    for (const auto& [_, rec] : m_VertexShadersByName)
-    {
-        SDL_ReleaseGPUShader(Device, rec.Item);
-    }
-
-    for (const auto& [_, rec] : m_FragShadersByName)
-    {
-        SDL_ReleaseGPUShader(Device, rec.Item);
-    }
 
     if (Device)
     {
@@ -186,28 +171,27 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
         }
 
         //FIXME - specify number of uniform buffers.
-        auto vertexShaderResult = GetOrCreateVertexShader(meshSpec.MtlSpec.VertexShader, 3);
+        auto vertexShaderResult = CreateVertexShader(VertexShaderSpec{meshSpec.MtlSpec.VertexShaderPath, 3});
         expect(vertexShaderResult, vertexShaderResult.error());
 
-        //FIXME - specify number of uniform samplers.
-        auto fragShaderResult = GetOrCreateFragmentShader(meshSpec.MtlSpec.FragmentShader, 1);
+        //FIXME - specify number of samplers.
+        auto fragShaderResult = CreateFragmentShader(FragmentShaderSpec{meshSpec.MtlSpec.FragmentShaderPath, 1});
         expect(fragShaderResult, fragShaderResult.error());
 
-        SDLMaterial* mtl = new SDLMaterial(
+        Material mtl
+        {
             meshSpec.MtlSpec.Color,
+            meshSpec.MtlSpec.Metalness,
+            meshSpec.MtlSpec.Roughness,
             albedo,
             vertexShaderResult.value(),
-            fragShaderResult.value());
-
-        expectv(mtl, "Error allocating SDLMaterial");
-
-        m_MaterialIndexById.emplace(mtl->Key.Id, std::size(m_Materials));
-        m_Materials.emplace_back(mtl);
+            fragShaderResult.value()
+        };
 
         const uint32_t indexCount = static_cast<uint32_t>(meshSpec.Indices.size());
 
         auto tmpIb = GpuIndexBuffer(ib.GpuBuffer, ib.Offset + indexOffset * sizeof(VertexIndex));
-        Mesh mesh(meshSpec.Name, vb, tmpIb, indexCount, mtl->Key.Id);
+        Mesh mesh(meshSpec.Name, vb, tmpIb, indexCount, mtl);
         indexOffset += indexCount;
 
         meshes.emplace_back(mesh);
@@ -371,7 +355,7 @@ SDLGPUDevice::CreateTexture(const TextureSpec& textureSpec)
 }
 
 Result<RefPtr<GpuVertexShader>>
-SDLGPUDevice::CreateVertexShader(const ShaderSpec& shaderSpec)
+SDLGPUDevice::CreateVertexShader(const VertexShaderSpec& shaderSpec)
 {
     const std::string_view path = std::get<std::string>(shaderSpec.Source);
     auto shaderResult = LoadShader(
@@ -394,15 +378,15 @@ SDLGPUDevice::CreateVertexShader(const ShaderSpec& shaderSpec)
 }
 
 Result<RefPtr<GpuFragmentShader>>
-SDLGPUDevice::CreateFragmentShader(const ShaderSpec& shaderSpec)
+SDLGPUDevice::CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
 {
     const std::string_view path = std::get<std::string>(shaderSpec.Source);
     auto shaderResult = LoadShader(
         Device,
         path,
         SDL_GPU_SHADERSTAGE_FRAGMENT,
-        shaderSpec.NumUniformBuffers,
-        0);
+        0,
+        shaderSpec.NumSamplers);
 
     expect(shaderResult, shaderResult.error());
 
@@ -416,73 +400,15 @@ SDLGPUDevice::CreateFragmentShader(const ShaderSpec& shaderSpec)
     return gpuShader;
 }
 
-Result<const SDLMaterial*>
-SDLGPUDevice::GetMaterial(const MaterialId& mtlId) const
-{
-    auto it = m_MaterialIndexById.find(mtlId);
-    if (m_MaterialIndexById.end() == it)
-    {
-        return std::unexpected("Invalid material ID");
-    }
-
-    return m_Materials[it->second];
-}
-
-Result<SDL_GPUShader*>
-SDLGPUDevice::GetOrCreateVertexShader(
-    const std::string_view path,
-    const int numUniformBuffers)
-{
-    SDL_GPUShader* shader = GetVertexShader(path);
-
-    if (!shader)
-    {
-        auto shaderResult = LoadShader(Device, path, SDL_GPU_SHADERSTAGE_VERTEX, numUniformBuffers, 0);
-
-        expect(shaderResult, shaderResult.error());
-
-        shader = shaderResult.value();
-
-        const HashKey hashKey = MakeHashKey(path);
-
-        m_VertexShadersByName.Add(path, shader);
-    }
-
-    return shader;
-}
-
-Result<SDL_GPUShader*>
-SDLGPUDevice::GetOrCreateFragmentShader(
-    const std::string_view path,
-    const int numSamplers)
-{
-    SDL_GPUShader* shader = GetFragShader(path);
-
-    if (!shader)
-    {
-        auto shaderResult = LoadShader(Device, path, SDL_GPU_SHADERSTAGE_FRAGMENT, 0, numSamplers);
-
-        expect(shaderResult, shaderResult.error());
-
-        shader = shaderResult.value();
-
-        const HashKey hashKey = MakeHashKey(path);
-
-        m_FragShadersByName.Add(path, shader);
-    }
-
-    return shader;
-}
-
 Result<SDL_GPUGraphicsPipeline*>
-SDLGPUDevice::GetOrCreatePipeline(const SDLMaterial& mtl)
+SDLGPUDevice::GetOrCreatePipeline(const Material& mtl)
 {
     SDL_GPUTextureFormat colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(Device, Window);
     PipelineKey key
     {
         .ColorFormat = colorTargetFormat,
-        .VertexShader = mtl.VertexShader,
-        .FragShader = mtl.FragmentShader
+        .VertexShader = mtl.VertexShader.Get<SDLGpuVertexShader>()->Shader,
+        .FragShader = mtl.FragmentShader.Get<SDLGpuFragmentShader>()->Shader
     };
 
     auto it = m_PipelinesByKey.find(key);
@@ -528,8 +454,8 @@ SDLGPUDevice::GetOrCreatePipeline(const SDLMaterial& mtl)
 
     SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo
     {
-        .vertex_shader = mtl.VertexShader,
-        .fragment_shader = mtl.FragmentShader,
+        .vertex_shader = mtl.VertexShader.Get<SDLGpuVertexShader>()->Shader,
+        .fragment_shader = mtl.FragmentShader.Get<SDLGpuFragmentShader>()->Shader,
         .vertex_input_state =
         {
             .vertex_buffer_descriptions = vertexBufDescriptions,
@@ -743,18 +669,6 @@ RefPtr<GpuTexture>
 SDLGPUDevice::GetTexture(const std::string_view path)
 {
     return m_TexturesByName.Find(path);
-}
-
-SDL_GPUShader*
-SDLGPUDevice::GetVertexShader(const std::string_view path)
-{
-    return m_VertexShadersByName.Find(path);
-}
-
-SDL_GPUShader*
-SDLGPUDevice::GetFragShader(const std::string_view path)
-{
-    return m_FragShadersByName.Find(path);
 }
 
 Result<SDL_GPUShader*> LoadShader(

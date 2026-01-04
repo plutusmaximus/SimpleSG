@@ -316,13 +316,14 @@ static MaterialSpec CreateMaterialSpec(
 
     auto albedo = !texProperties.Albedo.Path.empty() ? texProperties.Albedo.Path : GPUDevice::MAGENTA_TEXTURE_KEY;
 
-    return MaterialSpec{
+    return MaterialSpec
+    {
         .Color = RgbaColorf{diffuseColor.r, diffuseColor.g, diffuseColor.b, opacity},
         .Metalness = 0.0f,
         .Roughness = 0.0f,
         .Albedo = albedo,
-        .VertexShader = "shaders/Debug/VertexShader",
-        .FragmentShader = "shaders/Debug/FragmentShader",
+        .VertexShaderPath = "shaders/Debug/VertexShader",
+        .FragmentShaderPath = "shaders/Debug/FragmentShader",
     };
 }
 

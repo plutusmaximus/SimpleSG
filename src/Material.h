@@ -1,5 +1,7 @@
 #pragma once
 
+#include "RefCount.h"
+#include "Error.h"
 #include <string>
 #include <algorithm>
 
@@ -167,27 +169,57 @@ struct MaterialSpec
 
     const std::string Albedo;
 
-    const std::string VertexShader;
-    const std::string FragmentShader;
+    const std::string VertexShaderPath;
+    const std::string FragmentShaderPath;
 };
 
+/// @brief Material used for rendering meshes.
 class Material
 {
 public:
+
+    Material(
+        const RgbaColorf color,
+        const float metalness,
+        const float roughness,
+        RefPtr<GpuTexture> albedo,
+        RefPtr<GpuVertexShader> vertexShader,
+        RefPtr<GpuFragmentShader> fragmentShader)
+        : Key(MaterialId::NextId(), color.a < 1.0f ? MaterialFlags::Translucent : MaterialFlags::None)
+        , Color(color)
+        , Metalness(metalness)
+        , Roughness(roughness)
+        , Albedo(albedo)
+        , VertexShader(vertexShader)
+        , FragmentShader(fragmentShader)
+    {
+    }
 
     /// @brief Unique key identifying this material.
     /// Used to group geometry sharing the same material attributes.
     const MaterialKey Key;
 
+    /// @brief Base color of the material.
     const RgbaColorf Color;
 
-    const float Metallic{ 0 };
+    /// @brief Metalness factor of the material.
+    const float Metalness{ 0 };
+
+    /// @brief Roughness factor of the material.
     const float Roughness{ 0 };
 
+    /// @brief Albedo (base color) texture of the material.
     RefPtr<GpuTexture> const Albedo;
 
+    /// @brief Vertex shader used by the material.
     RefPtr<GpuVertexShader> const VertexShader;
+
+    /// @brief Fragment shader used by the material.
     RefPtr<GpuFragmentShader> const FragmentShader;
+
+private:
+
+    Material() = delete;
 };
 
 namespace std

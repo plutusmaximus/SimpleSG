@@ -26,12 +26,12 @@ public:
         const GpuVertexBuffer& vb,
         const GpuIndexBuffer& ib,
         const uint32_t indexCount,
-        const MaterialId materialId)
+        const Material& material)
         : Name(name)
         , VtxBuffer(vb)
         , IdxBuffer(ib)
         , IndexCount(indexCount)
-        , MaterialId(materialId)
+        , Material(material)
     {
     }
 
@@ -39,7 +39,7 @@ public:
     const GpuVertexBuffer VtxBuffer;
     const GpuIndexBuffer IdxBuffer;
     const uint32_t IndexCount;
-    const MaterialId MaterialId;
+    const Material Material;
 
 private:
 

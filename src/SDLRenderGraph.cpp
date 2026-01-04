@@ -41,28 +41,25 @@ SDLRenderGraph::Add(const Mat44f& worldTransform, RefPtr<Model> model)
     for (const auto& meshInstance : model->MeshInstances)
     {
         const Mesh& mesh = model->Meshes[meshInstance.MeshIndex];
-        const MaterialId mtlId = mesh.MaterialId;
 
-        auto mtlResult = m_GpuDevice->GetMaterial(mtlId);
-        if (!mtlResult)
+        const Material& mtl = mesh.Material;
+
+        if(m_MaterialCache.find(mtl.Key.Id) == m_MaterialCache.end())
         {
-            logError(mtlResult.error().Message);
-            continue;
+            m_MaterialCache.emplace(mtl.Key.Id, mtl);
         }
-
-        const auto& mtlKey = mtlResult.value()->Key;
 
         // Determine mesh group based on material properties
 
         MeshGroup* meshGrp;
 
-        if(mtlKey.Flags & MaterialFlags::Translucent)
+        if(mtl.Key.Flags & MaterialFlags::Translucent)
         {
-            meshGrp = &m_TranslucentMeshGroups[mtlId];
+            meshGrp = &m_TranslucentMeshGroups[mtl.Key.Id];
         }
         else
         {
-            meshGrp = &m_OpaqueMeshGroups[mtlId];
+            meshGrp = &m_OpaqueMeshGroups[mtl.Key.Id];
         }
 
         XformMesh xformMesh
@@ -119,16 +116,9 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
     {
         for (auto& [mtlId, xmeshes] : *meshGrpPtr)
         {
-            auto mtlResult = m_GpuDevice->GetMaterial(mtlId);
-            if (!mtlResult)
-            {
-                logError(mtlResult.error().Message);
-                continue;
-            }
+            const Material& mtl = m_MaterialCache.at(mtlId);
 
-            auto mtl = mtlResult.value();
-
-            SDL_PushGPUVertexUniformData(cmdBuf, 1, &mtl->Color, sizeof(mtl->Color));
+            SDL_PushGPUVertexUniformData(cmdBuf, 1, &mtl.Color, sizeof(mtl.Color));
 
             //const int idx = m_MaterialDb->GetIndex(mtlId);
 
@@ -136,18 +126,18 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
             const int idx = 0;
             SDL_PushGPUVertexUniformData(cmdBuf, 2, &idx, sizeof(idx));
 
-            if (mtl->Albedo)
+            if (mtl.Albedo)
             {
                 // Bind texture and sampler
                 SDL_GPUTextureSamplerBinding samplerBinding
                 {
-                    .texture = mtl->Albedo.Get<SDLGpuTexture>()->Texture,
-                    .sampler = mtl->Albedo.Get<SDLGpuTexture>()->Sampler
+                    .texture = mtl.Albedo.Get<SDLGpuTexture>()->Texture,
+                    .sampler = mtl.Albedo.Get<SDLGpuTexture>()->Sampler
                 };
                 SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
             }
 
-            auto pipelineResult = m_GpuDevice->GetOrCreatePipeline(*mtl);
+            auto pipelineResult = m_GpuDevice->GetOrCreatePipeline(mtl);
 
             expect(pipelineResult, pipelineResult.error());
 
@@ -213,6 +203,7 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 void
 SDLRenderGraph::Reset()
 {
+    m_MaterialCache.clear();
     m_OpaqueMeshGroups.clear();
     m_TranslucentMeshGroups.clear();
 }

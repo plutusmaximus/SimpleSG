@@ -14,14 +14,17 @@ class RenderGraph;
 class ModelSpec;
 class Image;
 
+/// @brief Specification for creating a texture.
 class TextureSpec
 {
 public:
 
+    // FIXME(KB) - add support for resource paths.
     std::variant<std::string, RefPtr<Image>, RgbaColorf> Source;
 };
 
-class ShaderSpec
+/// @brief Specification for creating a vertex shader.
+class VertexShaderSpec
 {
 public:
 
@@ -30,6 +33,18 @@ public:
     std::variant<std::string> Source;
 
     const unsigned NumUniformBuffers{ 0 };
+};
+
+/// @brief Specification for creating a fragment shader.
+class FragmentShaderSpec
+{
+public:
+
+    //FIXME(KB) - add support for embedded source code.
+    //FIXME(KB) - add support for resource paths.
+    std::variant<std::string> Source;
+
+    const unsigned NumSamplers{ 0 };
 };
 
 class GpuBuffer
@@ -43,6 +58,7 @@ public:
     IMPLEMENT_REFCOUNT(GpuBuffer);
 };
 
+/// @brief GPU representation of a vertex buffer.
 class GpuVertexBuffer
 {
 public:
@@ -59,6 +75,7 @@ public:
     const uint32_t Offset;
 };
 
+/// @brief GPU representation of an index buffer.
 class GpuIndexBuffer
 {
 public:
@@ -75,6 +92,7 @@ public:
     const uint32_t Offset;
 };
 
+/// @brief GPU representation of a vertex shader.
 class GpuVertexShader
 {
 public:
@@ -86,6 +104,7 @@ public:
     IMPLEMENT_REFCOUNT(GpuVertexShader);
 };
 
+/// @brief GPU representation of a fragment shader.
 class GpuFragmentShader
 {
 public:
@@ -97,6 +116,7 @@ public:
     IMPLEMENT_REFCOUNT(GpuFragmentShader);
 };
 
+/// @brief GPU representation of a texture.
 class GpuTexture
 {
 public:
@@ -108,6 +128,7 @@ public:
     IMPLEMENT_REFCOUNT(GpuTexture);
 };
 
+/// @brief Abstract base class for GPU devices.
 class GPUDevice
 {
 public:
@@ -137,10 +158,10 @@ public:
     virtual Result<RefPtr<GpuTexture>> CreateTexture(const TextureSpec& textureSpec) = 0;
 
     /// @brief Creates a vertex shader from the given specification.
-    virtual Result<RefPtr<GpuVertexShader>> CreateVertexShader(const ShaderSpec& shaderSpec) = 0;
+    virtual Result<RefPtr<GpuVertexShader>> CreateVertexShader(const VertexShaderSpec& shaderSpec) = 0;
 
     /// @brief Creates a fragment shader from the given specification.
-    virtual Result<RefPtr<GpuFragmentShader>> CreateFragmentShader(const ShaderSpec& shaderSpec) = 0;
+    virtual Result<RefPtr<GpuFragmentShader>> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) = 0;
 
     IMPLEMENT_REFCOUNT(GPUDevice);
 };

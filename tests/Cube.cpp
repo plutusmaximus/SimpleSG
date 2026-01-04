@@ -337,8 +337,8 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             {
                 .Color = {1, 0, 0},
                 .Albedo = "images/Ant.png",
-                .VertexShader = "shaders/Debug/VertexShader",
-                .FragmentShader = "shaders/Debug/FragmentShader",
+                .VertexShaderPath = "shaders/Debug/VertexShader",
+                .FragmentShaderPath = "shaders/Debug/FragmentShader",
             }
         },
         {
@@ -348,8 +348,8 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             {
                 .Color = {0, 1, 0},
                 .Albedo = "images/Bee.png",
-                .VertexShader = "shaders/Debug/VertexShader",
-                .FragmentShader = "shaders/Debug/FragmentShader",
+                .VertexShaderPath = "shaders/Debug/VertexShader",
+                .FragmentShaderPath = "shaders/Debug/FragmentShader",
             }
         },
         {
@@ -359,8 +359,8 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             {
                 .Color = {0, 0, 1},
                 .Albedo = "images/Butterfly.png",
-                .VertexShader = "shaders/Debug/VertexShader",
-                .FragmentShader = "shaders/Debug/FragmentShader",
+                .VertexShaderPath = "shaders/Debug/VertexShader",
+                .FragmentShaderPath = "shaders/Debug/FragmentShader",
             }
         },
         {
@@ -370,8 +370,8 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             {
                 .Color = {1, 1, 1},
                 .Albedo = "images/Frog.png",
-                .VertexShader = "shaders/Debug/VertexShader",
-                .FragmentShader = "shaders/Debug/FragmentShader",
+                .VertexShaderPath = "shaders/Debug/VertexShader",
+                .FragmentShaderPath = "shaders/Debug/FragmentShader",
             }
         },
         {
@@ -381,8 +381,8 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             {
                 .Color = {0, 1, 1},
                 .Albedo = "images/Lizard.png",
-                .VertexShader = "shaders/Debug/VertexShader",
-                .FragmentShader = "shaders/Debug/FragmentShader",
+                .VertexShaderPath = "shaders/Debug/VertexShader",
+                .FragmentShaderPath = "shaders/Debug/FragmentShader",
             }
         },
         {
@@ -392,8 +392,8 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             {
                 .Color = {1, 0, 1},
                 .Albedo = "images/Turtle.png",
-                .VertexShader = "shaders/Debug/VertexShader",
-                .FragmentShader = "shaders/Debug/FragmentShader",
+                .VertexShaderPath = "shaders/Debug/VertexShader",
+                .FragmentShaderPath = "shaders/Debug/FragmentShader",
             }
         },
     };
@@ -436,8 +436,8 @@ static Result<RefPtr<Model>> CreateShapeModel(RefPtr<GPUDevice> gpu)
             {
                 .Color = {1, 0, 0},
                 .Albedo = "images/Ant.png",
-                .VertexShader = "shaders/Debug/VertexShader",
-                .FragmentShader = "shaders/Debug/FragmentShader",
+                .VertexShaderPath = "shaders/Debug/VertexShader",
+                .FragmentShaderPath = "shaders/Debug/FragmentShader",
             }
         }
     };

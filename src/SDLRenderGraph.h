@@ -7,6 +7,7 @@
 
 #include <SDL3/SDL_gpu.h>
 #include <deque>
+#include <unordered_map>
 
 class SDLGPUDevice;
 struct SDL_GPURenderPass;
@@ -54,6 +55,8 @@ private:
 
     using MeshGroup = std::deque<XformMesh>;
     using MeshGroupCollection = std::map<MaterialId, MeshGroup>;
+
+    std::unordered_map<MaterialId, Material> m_MaterialCache;
 
     MeshGroupCollection m_TranslucentMeshGroups;
 

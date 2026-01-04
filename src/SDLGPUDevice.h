@@ -112,45 +112,6 @@ private:
     SDL_GPUDevice* const m_GpuDevice;
 };
 
-class SDLMaterial
-{
-public:
-
-    SDLMaterial() = delete;
-
-    /// @brief Unique key identifying this material.
-    /// Used to group meshes sharing the same material attributes.
-    const MaterialKey Key;
-
-    const RgbaColorf Color;
-
-    const float Metallic{ 0 };
-    const float Roughness{ 0 };
-
-    RefPtr<GpuTexture> const Albedo;
-    SDL_GPUShader* const VertexShader = nullptr;
-    SDL_GPUShader* const FragmentShader = nullptr;;
-
-private:
-
-    friend class SDLGPUDevice;
-
-    SDLMaterial(
-        const RgbaColorf& color,
-        RefPtr<GpuTexture> albedo,
-        SDL_GPUShader* vertexShader,
-        SDL_GPUShader* fragmentShader)
-        : Key(MaterialId::NextId(), color.a < 1.0f ? MaterialFlags::Translucent : MaterialFlags::None)
-        , Color(color)
-        , Albedo(albedo)
-        , VertexShader(vertexShader)
-        , FragmentShader(fragmentShader)
-    {
-    }
-
-    IMPLEMENT_NON_COPYABLE(SDLMaterial);
-};
-
 class SDLGPUDevice : public GPUDevice
 {
 public:
@@ -171,25 +132,12 @@ public:
 
     Result<RefPtr<GpuTexture>> CreateTexture(const TextureSpec& textureSpec) override;
 
-    Result<RefPtr<GpuVertexShader>> CreateVertexShader(const ShaderSpec& shaderSpec) override;
+    Result<RefPtr<GpuVertexShader>> CreateVertexShader(const VertexShaderSpec& shaderSpec) override;
 
-    Result<RefPtr<GpuFragmentShader>> CreateFragmentShader(const ShaderSpec& shaderSpec) override;
-
-    /// @brief Retrieves a material by its ID.
-    Result<const SDLMaterial*> GetMaterial(const MaterialId& mtlId) const;
-
-    /// @brief Retrieves or creates a vertex shader from a file path.
-    Result<SDL_GPUShader*> GetOrCreateVertexShader(
-        const std::string_view path,
-        const int numUniformBuffers);
-
-    /// @brief Retrieves or creates a fragment shader from a file path.
-    Result<SDL_GPUShader*> GetOrCreateFragmentShader(
-        const std::string_view path,
-        const int numSamplers);
+    Result<RefPtr<GpuFragmentShader>> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) override;
 
     /// @brief Retrieves or creates a graphics pipeline for the given material.
-    Result<SDL_GPUGraphicsPipeline*> GetOrCreatePipeline(const SDLMaterial& mtl);
+    Result<SDL_GPUGraphicsPipeline*> GetOrCreatePipeline(const Material& mtl);
 
     SDL_Window* const Window;
     SDL_GPUDevice* const Device;
@@ -216,12 +164,6 @@ private:
 
     /// @brief Retrieves a texture by its key.
     RefPtr<GpuTexture> GetTexture(const std::string_view key);
-
-    /// @brief Retrieves a vertex shader by its path.
-    SDL_GPUShader* GetVertexShader(const std::string_view path);
-
-    /// @brief Retrieves a fragment shader by its path.
-    SDL_GPUShader* GetFragShader(const std::string_view path);
     
     struct PipelineKey
     {
@@ -278,8 +220,4 @@ private:
 
     std::map<PipelineKey, SDL_GPUGraphicsPipeline*> m_PipelinesByKey;
     HashTable<RefPtr<GpuTexture>> m_TexturesByName;
-    HashTable<SDL_GPUShader*> m_VertexShadersByName;
-    HashTable<SDL_GPUShader*> m_FragShadersByName;
-    std::deque<SDLMaterial*> m_Materials;
-    std::unordered_map<MaterialId, size_t> m_MaterialIndexById;
 };
