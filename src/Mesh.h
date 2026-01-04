@@ -23,8 +23,8 @@ class Mesh
 public:
 
     Mesh(const std::string& name,
-        const VertexBuffer& vb,
-        const IndexBuffer& ib,
+        const GpuVertexBuffer& vb,
+        const GpuIndexBuffer& ib,
         const uint32_t indexCount,
         const MaterialId materialId)
         : Name(name)
@@ -36,8 +36,8 @@ public:
     }
 
     const std::string Name;
-    const VertexBuffer VtxBuffer;
-    const IndexBuffer IdxBuffer;
+    const GpuVertexBuffer VtxBuffer;
+    const GpuIndexBuffer IdxBuffer;
     const uint32_t IndexCount;
     const MaterialId MaterialId;
 

@@ -122,7 +122,7 @@ private:
 
     SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice);
 
-    Result<std::tuple<VertexBuffer, IndexBuffer>> CreateBuffers(
+    Result<std::tuple<GpuVertexBuffer, GpuIndexBuffer>> CreateBuffers(
         const std::span<std::span<const Vertex>>& vertices,
         const std::span<std::span<const VertexIndex>>& indices);
 

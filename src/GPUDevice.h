@@ -39,13 +39,13 @@ public:
     IMPLEMENT_REFCOUNT(GpuBuffer);
 };
 
-class VertexBuffer
+class GpuVertexBuffer
 {
 public:
 
-    VertexBuffer() = delete;
+    GpuVertexBuffer() = delete;
 
-    VertexBuffer(RefPtr<GpuBuffer> gpuBuffer, const uint32_t offset)
+    GpuVertexBuffer(RefPtr<GpuBuffer> gpuBuffer, const uint32_t offset)
         : GpuBuffer(gpuBuffer)
         , Offset(offset)
     {
@@ -55,13 +55,13 @@ public:
     const uint32_t Offset;
 };
 
-class IndexBuffer
+class GpuIndexBuffer
 {
 public:
 
-    IndexBuffer() = delete;
-
-    IndexBuffer(RefPtr<GpuBuffer> gpuBuffer, const uint32_t offset)
+    GpuIndexBuffer() = delete;
+    
+    GpuIndexBuffer(RefPtr<GpuBuffer> gpuBuffer, const uint32_t offset)
         : GpuBuffer(gpuBuffer)
         , Offset(offset)
     {

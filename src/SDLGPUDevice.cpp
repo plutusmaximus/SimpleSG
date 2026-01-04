@@ -213,7 +213,7 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
 
         const uint32_t indexCount = static_cast<uint32_t>(meshSpec.Indices.size());
 
-        auto tmpIb = IndexBuffer(ib.GpuBuffer, ib.Offset + indexOffset * sizeof(VertexIndex));
+        auto tmpIb = GpuIndexBuffer(ib.GpuBuffer, ib.Offset + indexOffset * sizeof(VertexIndex));
         Mesh mesh(meshSpec.Name, vb, tmpIb, indexCount, mtl->Key.Id);
         indexOffset += indexCount;
 
@@ -390,7 +390,7 @@ SDLGPUDevice::GetOrCreatePipeline(const SDLMaterial& mtl)
 
 //private:
 
-Result<std::tuple<VertexBuffer, IndexBuffer>>
+Result<std::tuple<GpuVertexBuffer, GpuIndexBuffer>>
 SDLGPUDevice::CreateBuffers(
     const std::span<std::span<const Vertex>>& vertices,
     const std::span<std::span<const VertexIndex>>& indices)
@@ -435,7 +435,7 @@ SDLGPUDevice::CreateBuffers(
 
     SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(Device, &xferBufCreateInfo);
     expect(transferBuffer, SDL_GetError());
-    auto tbufferFin = Finally([&]()
+    auto tbufferCleanup = Finally([&]()
     {
         SDL_ReleaseGPUTransferBuffer(Device, transferBuffer);
     });
@@ -470,7 +470,7 @@ SDLGPUDevice::CreateBuffers(
     //Upload data to GPU mem.
     SDL_GPUCommandBuffer* uploadCmdBuf = SDL_AcquireGPUCommandBuffer(Device);
     expect(uploadCmdBuf, SDL_GetError());
-    auto cmdBufFin = Finally([&]()
+    auto cmdBufCleanup = Finally([&]()
     {
         SDL_CancelGPUCommandBuffer(uploadCmdBuf);
     });
@@ -496,10 +496,10 @@ SDLGPUDevice::CreateBuffers(
 
     expect(SDL_SubmitGPUCommandBuffer(uploadCmdBuf), SDL_GetError());
 
-    cmdBufFin.Cancel();
+    cmdBufCleanup.Cancel();
 
-    VertexBuffer vb{ gpuBuf, 0 };
-    IndexBuffer ib{ gpuBuf, static_cast<uint32_t>(sizeofVerts) };
+    GpuVertexBuffer vb{ gpuBuf, 0 };
+    GpuIndexBuffer ib{ gpuBuf, static_cast<uint32_t>(sizeofVerts) };
 
     return std::make_tuple(vb, ib);
 }
@@ -584,7 +584,7 @@ static Result<SDL_GPUTexture*> CreateTexture(
 
     SDL_GPUTexture* texture = SDL_CreateGPUTexture(gpuDevice, &textureInfo);
     expect(texture, SDL_GetError());
-    auto texFin = Finally([&]()
+    auto texCleanup = Finally([&]()
     {
         SDL_ReleaseGPUTexture(gpuDevice, texture);
     });
@@ -600,7 +600,7 @@ static Result<SDL_GPUTexture*> CreateTexture(
     // Create transfer buffer for uploading pixel data
     SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(gpuDevice, &xferBufferCreateInfo);
     expect(transferBuffer, SDL_GetError());
-    auto tbufferFin = Finally([&]()
+    auto tbufferCleanup = Finally([&]()
     {
         SDL_ReleaseGPUTransferBuffer(gpuDevice, transferBuffer);
     });
@@ -616,7 +616,7 @@ static Result<SDL_GPUTexture*> CreateTexture(
     // Upload to GPU texture
     SDL_GPUCommandBuffer* cmdBuffer = SDL_AcquireGPUCommandBuffer(gpuDevice);
     expect(cmdBuffer, SDL_GetError());
-    auto cmdBufFin = Finally([&]()
+    auto cmdBufCleanup = Finally([&]()
     {
         SDL_CancelGPUCommandBuffer(cmdBuffer);
     });
@@ -644,10 +644,10 @@ static Result<SDL_GPUTexture*> CreateTexture(
 
     SDL_EndGPUCopyPass(copyPass);
 
-    cmdBufFin.Cancel();
+    cmdBufCleanup.Cancel();
     expect(SDL_SubmitGPUCommandBuffer(cmdBuffer), SDL_GetError());
 
-    texFin.Cancel();
+    texCleanup.Cancel();
 
     return texture;
 }
