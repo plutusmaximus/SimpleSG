@@ -24,7 +24,7 @@ public:
 
     SDLGpuBuffer() = delete;
 
-    ~SDLGpuBuffer();
+    ~SDLGpuBuffer() override;
 
     SDL_GPUBuffer* const Buffer;
 
@@ -35,6 +35,31 @@ private:
     SDLGpuBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer)
         : m_GpuDevice(gpuDevice)
         , Buffer(buffer)
+    {
+    }
+
+    SDL_GPUDevice* const m_GpuDevice;
+};
+
+class SDLGpuTexture : public GpuTexture
+{
+public:
+
+    SDLGpuTexture() = delete;
+
+    ~SDLGpuTexture() override;
+
+    SDL_GPUTexture* const Texture;
+    SDL_GPUSampler* const Sampler;
+
+private:
+
+    friend class SDLGPUDevice;
+
+    SDLGpuTexture(SDL_GPUDevice* gpuDevice, SDL_GPUTexture* texture, SDL_GPUSampler* sampler)
+        : m_GpuDevice(gpuDevice)
+        , Texture(texture)
+        , Sampler(sampler)
     {
     }
 
@@ -56,8 +81,7 @@ public:
     const float Metallic{ 0 };
     const float Roughness{ 0 };
 
-    SDL_GPUTexture* const Albedo = nullptr;
-    SDL_GPUSampler* const AlbedoSampler = nullptr;
+    RefPtr<GpuTexture> const Albedo;
     SDL_GPUShader* const VertexShader = nullptr;
     SDL_GPUShader* const FragmentShader = nullptr;;
 
@@ -67,14 +91,12 @@ private:
 
     SDLMaterial(
         const RgbaColorf& color,
-        SDL_GPUTexture* albedo,
-        SDL_GPUSampler* albedoSampler,
+        RefPtr<GpuTexture> albedo,
         SDL_GPUShader* vertexShader,
         SDL_GPUShader* fragmentShader)
         : Key(MaterialId::NextId(), color.a < 1.0f ? MaterialFlags::Translucent : MaterialFlags::None)
         , Color(color)
         , Albedo(albedo)
-        , AlbedoSampler(albedoSampler)
         , VertexShader(vertexShader)
         , FragmentShader(fragmentShader)
     {
@@ -96,6 +118,16 @@ public:
 
     /// @brief Gets the renderable extent of the device.
     Extent GetExtent() const override;
+
+    Result<std::tuple<GpuVertexBuffer, GpuIndexBuffer>> CreateBuffers(
+        const std::span<std::span<const Vertex>>& vertices,
+        const std::span<std::span<const uint32_t>>& indices) override;
+
+    Result<RefPtr<GpuTexture>> CreateTexture(const TextureSpec& textureSpec) override;
+
+    //Result<RefPtr<GpuVertexShader>> CreateVertexShader(const ShaderSpec& shaderSpec) override;
+
+    //Result<RefPtr<GpuFragmentShader>> CreateFragmentShader(const ShaderSpec& shaderSpec) override;
 
     /// @brief Retrieves a material by its ID.
     Result<const SDLMaterial*> GetMaterial(const MaterialId& mtlId) const;
@@ -122,18 +154,22 @@ private:
 
     SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice);
 
-    Result<std::tuple<GpuVertexBuffer, GpuIndexBuffer>> CreateBuffers(
-        const std::span<std::span<const Vertex>>& vertices,
-        const std::span<std::span<const VertexIndex>>& indices);
+    /// @brief Creates a texture from an image.
+    Result<RefPtr<GpuTexture>> CreateTexture(const RefPtr<Image> image);
+
+    /// @brief Creates a 1x1 texture from a color.
+    Result<RefPtr<GpuTexture>> CreateTexture(const RgbaColorf& color);
+
+    Result<RefPtr<GpuTexture>> CreateTexture(const unsigned width, const unsigned height, const uint8_t* pixels);
 
     /// @brief Retrieves or creates a texture from a file path.
-    Result<SDL_GPUTexture*> GetOrCreateTexture(const std::string_view path);
+    Result<RefPtr<GpuTexture>> GetOrCreateTexture(const std::string_view path);
 
     /// @brief Retrieves or creates a texture from an image.
-    Result<SDL_GPUTexture*> GetOrCreateTexture(const std::string_view key, const Image& image);
+    Result<RefPtr<GpuTexture>> GetOrCreateTexture(const std::string_view key, const RefPtr<Image> image);
 
     /// @brief Retrieves a texture by its key.
-    SDL_GPUTexture* GetTexture(const std::string_view key);
+    RefPtr<GpuTexture> GetTexture(const std::string_view key);
 
     /// @brief Retrieves a vertex shader by its path.
     SDL_GPUShader* GetVertexShader(const std::string_view path);
@@ -141,8 +177,6 @@ private:
     /// @brief Retrieves a fragment shader by its path.
     SDL_GPUShader* GetFragShader(const std::string_view path);
     
-    SDL_GPUSampler* m_Sampler = nullptr;
-
     struct PipelineKey
     {
         const int ColorFormat;
@@ -163,7 +197,7 @@ private:
     struct Record
     {
         const std::string Name;
-        T* const Item;
+        T const Item;
     };
 
     template<typename T>
@@ -171,14 +205,14 @@ private:
     {
     public:
 
-        void Add(const std::string_view path, T* item)
+        void Add(const std::string_view path, T item)
         {
             const HashKey hashKey = MakeHashKey(path);
 
             this->emplace(hashKey, Record<T>{ .Name{path}, .Item = item });
         }
 
-        T* Find(const std::string_view path)
+        T Find(const std::string_view path)
         {
             const HashKey hashKey = MakeHashKey(path);
 
@@ -197,9 +231,9 @@ private:
     };
 
     std::map<PipelineKey, SDL_GPUGraphicsPipeline*> m_PipelinesByKey;
-    HashTable<SDL_GPUTexture> m_TexturesByName;
-    HashTable<SDL_GPUShader> m_VertexShadersByName;
-    HashTable<SDL_GPUShader> m_FragShadersByName;
+    HashTable<RefPtr<GpuTexture>> m_TexturesByName;
+    HashTable<SDL_GPUShader*> m_VertexShadersByName;
+    HashTable<SDL_GPUShader*> m_FragShadersByName;
     std::deque<SDLMaterial*> m_Materials;
     std::unordered_map<MaterialId, size_t> m_MaterialIndexById;
 };

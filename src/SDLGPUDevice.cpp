@@ -27,12 +27,6 @@ static const char* const SHADER_EXTENSION = ".spv";
 
 #endif
 
-static Result<SDL_GPUTexture*> CreateTexture(
-    SDL_GPUDevice* gpuDevice,
-    const unsigned width,
-    const unsigned height,
-    const uint8_t* pixels);
-
 static Result<SDL_GPUShader*> LoadShader(
     SDL_GPUDevice* gpuDevice,
     const std::string_view fileName,
@@ -43,6 +37,12 @@ static Result<SDL_GPUShader*> LoadShader(
 SDLGpuBuffer::~SDLGpuBuffer()
 {
     if (Buffer) { SDL_ReleaseGPUBuffer(m_GpuDevice, Buffer); }
+}
+
+SDLGpuTexture::~SDLGpuTexture()
+{
+    if (Texture) { SDL_ReleaseGPUTexture(m_GpuDevice, Texture); }
+    if (Sampler) { SDL_ReleaseGPUSampler(m_GpuDevice, Sampler); }
 }
 
 SDLGPUDevice::SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice)
@@ -65,9 +65,13 @@ SDLGPUDevice::Create(SDL_Window* window)
     SDL_GPUDevice* gpuDevice = SDL_CreateGPUDevice(SHADER_FORMAT, debugMode, DRIVER_NAME);
     expect(gpuDevice, SDL_GetError());
 
-    if (!SDL_ClaimWindowForGPUDevice(gpuDevice, window))
+    auto deviceCleanup = Finally([gpuDevice]()
     {
         SDL_DestroyGPUDevice(gpuDevice);
+    });
+
+    if (!SDL_ClaimWindowForGPUDevice(gpuDevice, window))
+    {
         return std::unexpected(SDL_GetError());
     }
 
@@ -77,7 +81,6 @@ SDLGPUDevice::Create(SDL_Window* window)
         SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
         SDL_GPU_PRESENTMODE_MAILBOX))
     {
-        SDL_DestroyGPUDevice(gpuDevice);
         return std::unexpected(SDL_GetError());
     }
 
@@ -85,20 +88,24 @@ SDLGPUDevice::Create(SDL_Window* window)
 
     expectv(device, "Error allocating device");
 
-    auto whiteTexture = CreateTexture(
-        gpuDevice,
-        1,
-        1,
-        reinterpret_cast<const uint8_t*>("\xFF\xFF\xFF\xFF")).value();
+    auto whiteTexture = device->CreateTexture(TextureSpec{RgbaColorf{1,1,1,1}});
 
-    auto magentaTexture = CreateTexture(
-        gpuDevice,
-        1,
-        1,
-        reinterpret_cast<const uint8_t*>("\xFF\x00\xFF\xFF")).value();
+    if(!whiteTexture)
+    {
+        return std::unexpected(whiteTexture.error());
+    }
 
-    device->m_TexturesByName.Add(GPUDevice::WHITE_TEXTURE_KEY, whiteTexture);
-    device->m_TexturesByName.Add(GPUDevice::MAGENTA_TEXTURE_KEY, magentaTexture);
+    auto magentaTexture = device->CreateTexture(TextureSpec{RgbaColorf{1,0,1,1}});
+
+    if(!magentaTexture)
+    {
+        return std::unexpected(magentaTexture.error());
+    }
+
+    device->m_TexturesByName.Add(GPUDevice::WHITE_TEXTURE_KEY, whiteTexture.value());
+    device->m_TexturesByName.Add(GPUDevice::MAGENTA_TEXTURE_KEY, magentaTexture.value());
+
+    deviceCleanup.Cancel();
 
     return device;
 }
@@ -115,15 +122,7 @@ SDLGPUDevice::~SDLGPUDevice()
         SDL_ReleaseGPUGraphicsPipeline(Device, pipeline);
     }
 
-    if (m_Sampler)
-    {
-        SDL_ReleaseGPUSampler(Device, m_Sampler);
-    }
-
-    for (const auto& [_, rec] : m_TexturesByName)
-    {
-        SDL_ReleaseGPUTexture(Device, rec.Item);
-    }
+    m_TexturesByName.clear();
 
     for (const auto& [_, rec] : m_VertexShadersByName)
     {
@@ -164,25 +163,10 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
     {
         const MeshSpec& meshSpec = modelSpec.MeshSpecs[i];
 
-        SDL_GPUTexture* albedo = nullptr;
+        RefPtr<GpuTexture> albedo;
 
         if (!meshSpec.MtlSpec.Albedo.empty())
         {
-            if (!m_Sampler)
-            {
-                // Create sampler
-                SDL_GPUSamplerCreateInfo samplerInfo =
-                {
-                    .min_filter = SDL_GPU_FILTER_NEAREST,
-                    .mag_filter = SDL_GPU_FILTER_NEAREST,
-                    .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
-                    .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT
-                };
-
-                m_Sampler = SDL_CreateGPUSampler(Device, &samplerInfo);
-                expect(m_Sampler, SDL_GetError());
-            }
-
             //TODO - check material DB for existing material
 
             auto albedoResult = GetOrCreateTexture(meshSpec.MtlSpec.Albedo);
@@ -202,7 +186,6 @@ SDLGPUDevice::CreateModel(const ModelSpec& modelSpec)
         SDLMaterial* mtl = new SDLMaterial(
             meshSpec.MtlSpec.Color,
             albedo,
-            m_Sampler,
             vertexShaderResult.value(),
             fragShaderResult.value());
 
@@ -234,6 +217,147 @@ Extent SDLGPUDevice::GetExtent() const
         logError("Failed to get window size: {}", SDL_GetError());
     }
     return Extent{static_cast<float>(width), static_cast<float>(height)};
+}
+
+Result<std::tuple<GpuVertexBuffer, GpuIndexBuffer>>
+SDLGPUDevice::CreateBuffers(
+    const std::span<std::span<const Vertex>>& vertices,
+    const std::span<std::span<const uint32_t>>& indices)
+{
+    if(!everify(vertices.size() == indices.size()))
+    {
+        return std::unexpected("Mismatched number of vertex and index buffers");
+    }
+
+    const size_t numSrcBuffers = vertices.size();
+    size_t sizeofVerts = 0;
+    size_t sizeofIndices = 0;
+
+    for(int i = 0; i < numSrcBuffers; ++i)
+    {
+        sizeofVerts += vertices[i].size() * sizeof(vertices[i][0]);
+        sizeofIndices += indices[i].size() * sizeof(indices[i][0]);
+    }
+
+    const size_t sizeofData = sizeofVerts + sizeofIndices;
+
+    //Create a single buffer to contain vertices and indices.
+
+    SDL_GPUBufferCreateInfo bufferCreateInfo
+    {
+        .usage = SDL_GPU_BUFFERUSAGE_VERTEX | SDL_GPU_BUFFERUSAGE_INDEX,
+        .size = static_cast<Uint32>(sizeofData)
+    };
+
+    SDL_GPUBuffer* buf = SDL_CreateGPUBuffer(Device, &bufferCreateInfo);
+    expect(buf, SDL_GetError());
+
+    RefPtr<SDLGpuBuffer> gpuBuf = new SDLGpuBuffer(Device, buf);
+
+    expectv(gpuBuf, "Error allocating SDLGPUBuffer");
+
+    //Transfer vertex/index data to GPU memory.
+
+    //Create transfer buffer
+    SDL_GPUTransferBufferCreateInfo xferBufCreateInfo
+    {
+        .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+        .size = static_cast<Uint32>(sizeofData)
+    };
+
+    SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(Device, &xferBufCreateInfo);
+    expect(transferBuffer, SDL_GetError());
+    auto tbufferCleanup = Finally([&]()
+    {
+        SDL_ReleaseGPUTransferBuffer(Device, transferBuffer);
+    });
+
+    // Copy to transfer buffer
+    void* xferBuf = SDL_MapGPUTransferBuffer(Device, transferBuffer, false);
+    expect(xferBuf, SDL_GetError());
+
+    Vertex* dstVtx = reinterpret_cast<Vertex*>(xferBuf);
+    // Indices follow vertices in the buffer.
+    VertexIndex* dstIdx = reinterpret_cast<VertexIndex*>(static_cast<uint8_t*>(xferBuf) + sizeofVerts);
+
+    for(int i = 0; i < numSrcBuffers; ++i)
+    {
+        // Offset to add to indices to account for multiple vertex buffers.
+        const uint32_t vtxOffset = static_cast<uint32_t>(dstVtx - reinterpret_cast<Vertex*>(xferBuf));
+
+        const auto& vertSpan = vertices[i];
+        if(!vertSpan.empty())
+        {
+            const uint32_t vtxCount = static_cast<uint32_t>(vertSpan.size());
+            const uint32_t vtxBufSize = static_cast<uint32_t>(vtxCount * sizeof(Vertex));
+            ::memcpy(dstVtx, vertSpan.data(), vtxBufSize);
+            dstVtx += vtxCount;
+        }
+
+        const auto& indexSpan = indices[i];
+        if(!indexSpan.empty())
+        {
+            const uint32_t idxCount = static_cast<uint32_t>(indexSpan.size());
+            for(int j = 0; j < idxCount; ++j, ++dstIdx)
+            {
+                *dstIdx = indexSpan[j] + vtxOffset;
+            }
+        }
+    }
+
+    SDL_UnmapGPUTransferBuffer(Device, transferBuffer);
+
+    //Upload data to GPU mem.
+    SDL_GPUCommandBuffer* uploadCmdBuf = SDL_AcquireGPUCommandBuffer(Device);
+    expect(uploadCmdBuf, SDL_GetError());
+    auto cmdBufCleanup = Finally([&]()
+    {
+        SDL_CancelGPUCommandBuffer(uploadCmdBuf);
+    });
+
+    SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(uploadCmdBuf);
+    expect(copyPass, SDL_GetError());
+
+    SDL_GPUTransferBufferLocation srcBuf
+    {
+        .transfer_buffer = transferBuffer,
+        .offset = 0
+    };
+    SDL_GPUBufferRegion dstBuf
+    {
+        .buffer = gpuBuf->Buffer,
+        .offset = 0,
+        .size = static_cast<Uint32>(sizeofData)
+    };
+
+    SDL_UploadToGPUBuffer(copyPass, &srcBuf, &dstBuf, false);
+
+    SDL_EndGPUCopyPass(copyPass);
+
+    expect(SDL_SubmitGPUCommandBuffer(uploadCmdBuf), SDL_GetError());
+
+    cmdBufCleanup.Cancel();
+
+    GpuVertexBuffer vb{ gpuBuf, 0 };
+    GpuIndexBuffer ib{ gpuBuf, static_cast<uint32_t>(sizeofVerts) };
+
+    return std::make_tuple(vb, ib);
+}
+
+template<class... Ts>
+struct overloaded : Ts... { using Ts::operator()...; };
+
+Result<RefPtr<GpuTexture>>
+SDLGPUDevice::CreateTexture(const TextureSpec& textureSpec)
+{
+    auto acceptor = overloaded
+    {
+        [this](const std::string& path) { return GetOrCreateTexture(path); },
+        [this](const RefPtr<Image>& image) { return CreateTexture(image); },
+        [this](const RgbaColorf& color) { return CreateTexture(color); }
+    };
+
+    return std::visit(acceptor, textureSpec.Source);
 }
 
 Result<const SDLMaterial*>
@@ -390,131 +514,145 @@ SDLGPUDevice::GetOrCreatePipeline(const SDLMaterial& mtl)
 
 //private:
 
-Result<std::tuple<GpuVertexBuffer, GpuIndexBuffer>>
-SDLGPUDevice::CreateBuffers(
-    const std::span<std::span<const Vertex>>& vertices,
-    const std::span<std::span<const VertexIndex>>& indices)
+Result<RefPtr<GpuTexture>>
+SDLGPUDevice::CreateTexture(const RefPtr<Image> image)
 {
-    eassert(vertices.size() == indices.size());
+    return CreateTexture(image->Width, image->Height, image->Pixels);
+}
 
-    const size_t numSrcBuffers = vertices.size();
-    size_t sizeofVerts = 0;
-    size_t sizeofIndices = 0;
-
-    for(int i = 0; i < numSrcBuffers; ++i)
+Result<RefPtr<GpuTexture>>
+SDLGPUDevice::CreateTexture(const RgbaColorf& color)
+{
+    const uint8_t pixelData[4]
     {
-        sizeofVerts += vertices[i].size() * sizeof(vertices[i][0]);
-        sizeofIndices += indices[i].size() * sizeof(indices[i][0]);
-    }
-
-    const size_t sizeofData = sizeofVerts + sizeofIndices;
-
-    //Create a single buffer to contain vertices and indices.
-
-    SDL_GPUBufferCreateInfo bufferCreateInfo
-    {
-        .usage = SDL_GPU_BUFFERUSAGE_VERTEX | SDL_GPU_BUFFERUSAGE_INDEX,
-        .size = static_cast<Uint32>(sizeofData)
+        static_cast<uint8_t>(std::clamp(color.r * 255.0f, 0.0f, 255.0f)),
+        static_cast<uint8_t>(std::clamp(color.g * 255.0f, 0.0f, 255.0f)),
+        static_cast<uint8_t>(std::clamp(color.b * 255.0f, 0.0f, 255.0f)),
+        static_cast<uint8_t>(std::clamp(color.a * 255.0f, 0.0f, 255.0f))
     };
 
-    SDL_GPUBuffer* buf = SDL_CreateGPUBuffer(Device, &bufferCreateInfo);
-    expect(buf, SDL_GetError());
+    return CreateTexture(1, 1, pixelData);
+}
 
-    RefPtr<SDLGpuBuffer> gpuBuf = new SDLGpuBuffer(Device, buf);
+Result<RefPtr<GpuTexture>>
+SDLGPUDevice::CreateTexture(const unsigned width, const unsigned height, const uint8_t* pixels)
+{
+    // Create GPU texture
+    SDL_GPUTextureCreateInfo textureInfo =
+    {
+        .type = SDL_GPU_TEXTURETYPE_2D,
+        .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+        .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
+        .width = width,
+        .height = height,
+        .layer_count_or_depth = 1,
+        .num_levels = 1,
+        .sample_count = SDL_GPU_SAMPLECOUNT_1
+    };
 
-    expectv(gpuBuf, "Error allocating SDLGPUBuffer");
+    SDL_GPUTexture* texture = SDL_CreateGPUTexture(Device, &textureInfo);
+    expect(texture, SDL_GetError());
+    auto texCleanup = Finally([&]()
+    {
+        SDL_ReleaseGPUTexture(Device, texture);
+    });
 
-    //Transfer vertex/index data to GPU memory.
+    const unsigned sizeofData = textureInfo.width * textureInfo.height * 4;
 
-    //Create transfer buffer
-    SDL_GPUTransferBufferCreateInfo xferBufCreateInfo
+    SDL_GPUTransferBufferCreateInfo xferBufferCreateInfo
     {
         .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-        .size = static_cast<Uint32>(sizeofData)
+        .size = sizeofData
     };
 
-    SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(Device, &xferBufCreateInfo);
+    // Create transfer buffer for uploading pixel data
+    SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(Device, &xferBufferCreateInfo);
     expect(transferBuffer, SDL_GetError());
     auto tbufferCleanup = Finally([&]()
     {
         SDL_ReleaseGPUTransferBuffer(Device, transferBuffer);
     });
 
-    //Copy to transfer buffer
-    void* xferBuf = SDL_MapGPUTransferBuffer(Device, transferBuffer, false);
-    expect(xferBuf, SDL_GetError());
+    // Copy pixel data to transfer buffer
+    void* mappedData = SDL_MapGPUTransferBuffer(Device, transferBuffer, false);
+    expect(mappedData, SDL_GetError());
 
-    uint32_t vtxOffset = 0;
-    Vertex* dstVtx = reinterpret_cast<Vertex*>(xferBuf);
-    VertexIndex* dstIdx = reinterpret_cast<VertexIndex*>(static_cast<uint8_t*>(xferBuf) + sizeofVerts);
-
-    for(int i = 0; i < numSrcBuffers; ++i)
-    {
-        const auto& vertSpan = vertices[i];
-        const auto& indexSpan = indices[i];
-        const uint32_t vtxCount = static_cast<uint32_t>(vertSpan.size());
-        const uint32_t idxCount = static_cast<uint32_t>(indexSpan.size());
-        const uint32_t vtxBufSize = static_cast<uint32_t>(vtxCount * sizeof(Vertex));
-        ::memcpy(dstVtx, vertSpan.data(), vtxBufSize);
-        dstVtx += vtxCount;
-
-        for(int j = 0; j < idxCount; ++j, ++dstIdx)
-        {
-            *dstIdx = indexSpan[j] + vtxOffset;
-        }
-        vtxOffset += vtxCount;
-    }
+    ::memcpy(mappedData, pixels, sizeofData);
 
     SDL_UnmapGPUTransferBuffer(Device, transferBuffer);
 
-    //Upload data to GPU mem.
-    SDL_GPUCommandBuffer* uploadCmdBuf = SDL_AcquireGPUCommandBuffer(Device);
-    expect(uploadCmdBuf, SDL_GetError());
+    // Upload to GPU texture
+    SDL_GPUCommandBuffer* cmdBuffer = SDL_AcquireGPUCommandBuffer(Device);
+    expect(cmdBuffer, SDL_GetError());
     auto cmdBufCleanup = Finally([&]()
     {
-        SDL_CancelGPUCommandBuffer(uploadCmdBuf);
+        SDL_CancelGPUCommandBuffer(cmdBuffer);
     });
 
-    SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(uploadCmdBuf);
+    SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(cmdBuffer);
     expect(copyPass, SDL_GetError());
 
-    SDL_GPUTransferBufferLocation srcBuf
+    SDL_GPUTextureTransferInfo transferInfo
     {
         .transfer_buffer = transferBuffer,
-        .offset = 0
-    };
-    SDL_GPUBufferRegion dstBuf
-    {
-        .buffer = gpuBuf->Buffer,
         .offset = 0,
-        .size = static_cast<Uint32>(sizeofData)
+        .pixels_per_row = textureInfo.width,
+        .rows_per_layer = textureInfo.height
     };
 
-    SDL_UploadToGPUBuffer(copyPass, &srcBuf, &dstBuf, false);
+    SDL_GPUTextureRegion textureRegion
+    {
+        .texture = texture,
+        .w = textureInfo.width,
+        .h = textureInfo.height,
+        .d = 1
+    };
+
+    SDL_UploadToGPUTexture(copyPass, &transferInfo, &textureRegion, false);
 
     SDL_EndGPUCopyPass(copyPass);
 
-    expect(SDL_SubmitGPUCommandBuffer(uploadCmdBuf), SDL_GetError());
-
     cmdBufCleanup.Cancel();
+    expect(SDL_SubmitGPUCommandBuffer(cmdBuffer), SDL_GetError());
 
-    GpuVertexBuffer vb{ gpuBuf, 0 };
-    GpuIndexBuffer ib{ gpuBuf, static_cast<uint32_t>(sizeofVerts) };
+    // Create sampler
+    SDL_GPUSamplerCreateInfo samplerInfo =
+    {
+        .min_filter = SDL_GPU_FILTER_NEAREST,
+        .mag_filter = SDL_GPU_FILTER_NEAREST,
+        .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
+        .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT
+    };
 
-    return std::make_tuple(vb, ib);
+    SDL_GPUSampler* sampler = SDL_CreateGPUSampler(Device, &samplerInfo);
+    expect(sampler, SDL_GetError());
+
+    auto samplerCleanup = Finally([&]()
+    {
+        SDL_ReleaseGPUSampler(Device, sampler);
+    });
+
+    RefPtr<SDLGpuTexture> gpuTex = new SDLGpuTexture(Device, texture, sampler);
+
+    expectv(gpuTex, "Error allocating SDLGPUTexture");
+
+    texCleanup.Cancel();
+    samplerCleanup.Cancel();
+
+    return gpuTex;
 }
 
-Result<SDL_GPUTexture*>
+Result<RefPtr<GpuTexture>>
 SDLGPUDevice::GetOrCreateTexture(const std::string_view path)
 {
-    SDL_GPUTexture* texture = GetTexture(path);
+    RefPtr<GpuTexture> texture = GetTexture(path);
 
     if (!texture)
     {
         auto imgResult = Image::LoadFromFile(path);
         expect(imgResult, imgResult.error());
         auto img = *imgResult;
-        auto texResult = CreateTexture(Device, img->Width, img->Height, img->Pixels);
+        auto texResult = CreateTexture(TextureSpec{ img });
         expect(texResult, texResult.error());
 
         texture = texResult.value();
@@ -527,14 +665,14 @@ SDLGPUDevice::GetOrCreateTexture(const std::string_view path)
     return texture;
 }
 
-Result<SDL_GPUTexture*>
-SDLGPUDevice::GetOrCreateTexture(const std::string_view key, const Image& image)
+Result<RefPtr<GpuTexture>>
+SDLGPUDevice::GetOrCreateTexture(const std::string_view key, const RefPtr<Image> image)
 {
-    SDL_GPUTexture* texture = GetTexture(key);
+    RefPtr<GpuTexture> texture = GetTexture(key);
 
     if (!texture)
     {
-        auto texResult = CreateTexture(Device, image.Width, image.Height, image.Pixels);
+        auto texResult = CreateTexture(TextureSpec{image});
         expect(texResult, texResult.error());
 
         texture = texResult.value();
@@ -545,7 +683,7 @@ SDLGPUDevice::GetOrCreateTexture(const std::string_view key, const Image& image)
     return texture;
 }
 
-SDL_GPUTexture*
+RefPtr<GpuTexture>
 SDLGPUDevice::GetTexture(const std::string_view path)
 {
     return m_TexturesByName.Find(path);
@@ -561,95 +699,6 @@ SDL_GPUShader*
 SDLGPUDevice::GetFragShader(const std::string_view path)
 {
     return m_FragShadersByName.Find(path);
-}
-
-static Result<SDL_GPUTexture*> CreateTexture(
-    SDL_GPUDevice* gpuDevice,
-    const unsigned width,
-    const unsigned height,
-    const uint8_t* pixels)
-{
-    // Create GPU texture
-    SDL_GPUTextureCreateInfo textureInfo =
-    {
-        .type = SDL_GPU_TEXTURETYPE_2D,
-        .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
-        .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
-        .width = width,
-        .height = height,
-        .layer_count_or_depth = 1,
-        .num_levels = 1,
-        .sample_count = SDL_GPU_SAMPLECOUNT_1
-    };
-
-    SDL_GPUTexture* texture = SDL_CreateGPUTexture(gpuDevice, &textureInfo);
-    expect(texture, SDL_GetError());
-    auto texCleanup = Finally([&]()
-    {
-        SDL_ReleaseGPUTexture(gpuDevice, texture);
-    });
-
-    const unsigned sizeofData = width * height * 4;
-
-    SDL_GPUTransferBufferCreateInfo xferBufferCreateInfo
-    {
-        .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-        .size = sizeofData
-    };
-
-    // Create transfer buffer for uploading pixel data
-    SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(gpuDevice, &xferBufferCreateInfo);
-    expect(transferBuffer, SDL_GetError());
-    auto tbufferCleanup = Finally([&]()
-    {
-        SDL_ReleaseGPUTransferBuffer(gpuDevice, transferBuffer);
-    });
-
-    // Copy pixel data to transfer buffer
-    void* mappedData = SDL_MapGPUTransferBuffer(gpuDevice, transferBuffer, false);
-    expect(mappedData, SDL_GetError());
-
-    ::memcpy(mappedData, pixels, sizeofData);
-
-    SDL_UnmapGPUTransferBuffer(gpuDevice, transferBuffer);
-
-    // Upload to GPU texture
-    SDL_GPUCommandBuffer* cmdBuffer = SDL_AcquireGPUCommandBuffer(gpuDevice);
-    expect(cmdBuffer, SDL_GetError());
-    auto cmdBufCleanup = Finally([&]()
-    {
-        SDL_CancelGPUCommandBuffer(cmdBuffer);
-    });
-
-    SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(cmdBuffer);
-    expect(copyPass, SDL_GetError());
-
-    SDL_GPUTextureTransferInfo transferInfo
-    {
-        .transfer_buffer = transferBuffer,
-        .offset = 0,
-        .pixels_per_row = width,
-        .rows_per_layer = height
-    };
-
-    SDL_GPUTextureRegion textureRegion
-    {
-        .texture = texture,
-        .w = width,
-        .h = height,
-        .d = 1
-    };
-
-    SDL_UploadToGPUTexture(copyPass, &transferInfo, &textureRegion, false);
-
-    SDL_EndGPUCopyPass(copyPass);
-
-    cmdBufCleanup.Cancel();
-    expect(SDL_SubmitGPUCommandBuffer(cmdBuffer), SDL_GetError());
-
-    texCleanup.Cancel();
-
-    return texture;
 }
 
 Result<SDL_GPUShader*> LoadShader(

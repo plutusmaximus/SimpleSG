@@ -138,16 +138,11 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
             if (mtl->Albedo)
             {
-                if (!everify(mtl->AlbedoSampler))
-                {
-                    continue;
-                }
-
                 // Bind texture and sampler
                 SDL_GPUTextureSamplerBinding samplerBinding
                 {
-                    .texture = mtl->Albedo,
-                    .sampler = mtl->AlbedoSampler
+                    .texture = mtl->Albedo.Get<SDLGpuTexture>()->Texture,
+                    .sampler = mtl->Albedo.Get<SDLGpuTexture>()->Sampler
                 };
                 SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
             }

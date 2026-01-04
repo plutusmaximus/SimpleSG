@@ -3,29 +3,28 @@
 #include "RefCount.h"
 #include "Error.h"
 #include "VecMath.h"
+#include "Vertex.h"
+#include "Material.h"
+#include <span>
+#include <tuple>
+#include <variant>
 
 class Model;
 class RenderGraph;
 class ModelSpec;
+class Image;
 
-class GPUDevice
+class TextureSpec
 {
 public:
 
-    static constexpr const char* WHITE_TEXTURE_KEY = "$white";
-    static constexpr const char* MAGENTA_TEXTURE_KEY = "$magenta";
+    std::variant<std::string, RefPtr<Image>, RgbaColorf> Source;
+};
 
-    GPUDevice() {}
-
-    virtual ~GPUDevice() = 0 {}
-
-    /// @brief Creates a model from the given specification.
-    virtual Result<RefPtr<Model>> CreateModel(const ModelSpec& modelSpec) = 0;
-
-    /// @brief Gets the renderable extent of the device.
-    virtual Extent GetExtent() const = 0;
-
-    IMPLEMENT_REFCOUNT(GPUDevice);
+class ShaderSpec
+{
+public:
+    const std::string SourceCode;
 };
 
 class GpuBuffer
@@ -60,7 +59,7 @@ class GpuIndexBuffer
 public:
 
     GpuIndexBuffer() = delete;
-    
+
     GpuIndexBuffer(RefPtr<GpuBuffer> gpuBuffer, const uint32_t offset)
         : GpuBuffer(gpuBuffer)
         , Offset(offset)
@@ -69,4 +68,92 @@ public:
 
     RefPtr<GpuBuffer> const GpuBuffer;
     const uint32_t Offset;
+};
+
+class GpuVertexShader
+{
+public:
+
+    GpuVertexShader() {}
+    
+    virtual ~GpuVertexShader() = 0 {}
+
+    IMPLEMENT_REFCOUNT(GpuVertexShader);
+};
+
+class GpuFragmentShader
+{
+public:
+
+    GpuFragmentShader() {}
+    
+    virtual ~GpuFragmentShader() = 0 {}
+
+    IMPLEMENT_REFCOUNT(GpuFragmentShader);
+};
+
+class GpuTexture
+{
+public:
+
+    GpuTexture() {}
+    
+    virtual ~GpuTexture() = 0 {}
+
+    IMPLEMENT_REFCOUNT(GpuTexture);
+};
+
+/*class GpuMaterial
+{
+public:
+
+    /// @brief Unique key identifying this material.
+    /// Used to group geometry sharing the same material attributes.
+    const MaterialKey Key;
+
+    const RgbaColorf Color;
+
+    const float Metallic{ 0 };
+    const float Roughness{ 0 };
+
+    RefPtr<GpuTexture> const Albedo;
+    RefPtr<GpuVertexShader> const VertexShader;
+    RefPtr<GpuFragmentShader> const FragmentShader;
+};*/
+
+class GPUDevice
+{
+public:
+
+    static constexpr const char* WHITE_TEXTURE_KEY = "$white";
+    static constexpr const char* MAGENTA_TEXTURE_KEY = "$magenta";
+
+    GPUDevice() {}
+
+    virtual ~GPUDevice() = 0 {}
+
+    /// @brief Creates a model from the given specification.
+    virtual Result<RefPtr<Model>> CreateModel(const ModelSpec& modelSpec) = 0;
+
+    /// @brief Gets the renderable extent of the device.
+    virtual Extent GetExtent() const = 0;
+
+    /// @brief Creates vertex and index buffers from the given vertices and indices.
+    /// Internally combines multiple source buffers into a single GPU buffer.
+    /// Pass empty spans to indicate no data for that source buffer.
+    /// The number of vertex and index buffers must match, even if some are empty.
+    virtual Result<std::tuple<GpuVertexBuffer, GpuIndexBuffer>> CreateBuffers(
+        const std::span<std::span<const Vertex>>& vertices,
+        const std::span<std::span<const uint32_t>>& indices) = 0;
+
+    /// @brief Creates a texture from the given specification.
+    virtual Result<RefPtr<GpuTexture>> CreateTexture(const TextureSpec& textureSpec) = 0;
+
+    /// @brief Creates a vertex shader from the given specification.
+    //virtual Result<RefPtr<GpuVertexShader>> CreateVertexShader(const ShaderSpec& shaderSpec) = 0;
+
+    /// @brief Creates a fragment shader from the given specification.
+    //virtual Result<RefPtr<GpuFragmentShader>> CreateFragmentShader(const ShaderSpec& shaderSpec) = 0;
+
+    IMPLEMENT_REFCOUNT(GPUDevice);
 };

@@ -55,13 +55,13 @@ Image::LoadFromMemory(const std::span<const uint8_t> data)
 
     auto freePixels = [](uint8_t* p) { stbi_image_free(p); };
 
-    return Create(width, height, pixels, freePixels);
+    return Create(static_cast<unsigned>(width), static_cast<unsigned>(height), pixels, freePixels);
 }
 
 //private:
 
 Result<RefPtr<Image>>
-Image::Create(const int width, const int height, uint8_t* pixels, void (*freePixels)(uint8_t*))
+Image::Create(const unsigned width, const unsigned height, uint8_t* pixels, void (*freePixels)(uint8_t*))
 {
     const size_t imageSize = static_cast<size_t>(width) * static_cast<size_t>(height) * 4;
     Flags flags = Flags::None;
