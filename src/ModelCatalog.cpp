@@ -318,11 +318,11 @@ static MaterialSpec CreateMaterialSpec(
 
     return MaterialSpec{
         .Color = RgbaColorf{diffuseColor.r, diffuseColor.g, diffuseColor.b, opacity},
-        .VertexShader = "shaders/Debug/VertexShader",
-        .FragmentShader = "shaders/Debug/FragmentShader",
         .Metalness = 0.0f,
         .Roughness = 0.0f,
-        .Albedo = albedo
+        .Albedo = albedo,
+        .VertexShader = "shaders/Debug/VertexShader",
+        .FragmentShader = "shaders/Debug/FragmentShader",
     };
 }
 

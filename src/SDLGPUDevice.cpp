@@ -45,6 +45,16 @@ SDLGpuTexture::~SDLGpuTexture()
     if (Sampler) { SDL_ReleaseGPUSampler(m_GpuDevice, Sampler); }
 }
 
+SDLGpuVertexShader::~SDLGpuVertexShader()
+{
+    if (Shader) { SDL_ReleaseGPUShader(m_GpuDevice, Shader); }
+}
+
+SDLGpuFragmentShader::~SDLGpuFragmentShader()
+{
+    if (Shader) { SDL_ReleaseGPUShader(m_GpuDevice, Shader); }
+}
+
 SDLGPUDevice::SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice)
     : Window(window)
     , Device(gpuDevice)
@@ -358,6 +368,52 @@ SDLGPUDevice::CreateTexture(const TextureSpec& textureSpec)
     };
 
     return std::visit(acceptor, textureSpec.Source);
+}
+
+Result<RefPtr<GpuVertexShader>>
+SDLGPUDevice::CreateVertexShader(const ShaderSpec& shaderSpec)
+{
+    const std::string_view path = std::get<std::string>(shaderSpec.Source);
+    auto shaderResult = LoadShader(
+        Device,
+        path,
+        SDL_GPU_SHADERSTAGE_VERTEX,
+        shaderSpec.NumUniformBuffers,
+        0);
+
+    expect(shaderResult, shaderResult.error());
+
+    RefPtr<GpuVertexShader> gpuShader = new SDLGpuVertexShader(Device, shaderResult.value());
+
+    if(!gpuShader)
+    {
+        return std::unexpected("Error allocating SDLGPUVertexShader");
+    }
+
+    return gpuShader;
+}
+
+Result<RefPtr<GpuFragmentShader>>
+SDLGPUDevice::CreateFragmentShader(const ShaderSpec& shaderSpec)
+{
+    const std::string_view path = std::get<std::string>(shaderSpec.Source);
+    auto shaderResult = LoadShader(
+        Device,
+        path,
+        SDL_GPU_SHADERSTAGE_FRAGMENT,
+        shaderSpec.NumUniformBuffers,
+        0);
+
+    expect(shaderResult, shaderResult.error());
+
+    RefPtr<GpuFragmentShader> gpuShader = new SDLGpuFragmentShader(Device, shaderResult.value());
+
+    if(!gpuShader)
+    {
+        return std::unexpected("Error allocating SDLGPUFragmentShader");
+    }
+
+    return gpuShader;
 }
 
 Result<const SDLMaterial*>

@@ -3,6 +3,10 @@
 #include <string>
 #include <algorithm>
 
+class GpuTexture;
+class GpuVertexShader;
+class GpuFragmentShader;
+
 /// @brief RGBA color representation.
 template<typename T>
 struct RgbaColor
@@ -158,13 +162,32 @@ struct MaterialSpec
 {
     const RgbaColorf Color;
 
-    const std::string VertexShader;
-    const std::string FragmentShader;
-
     const float Metalness{ 0 };
     const float Roughness{ 0 };
 
     const std::string Albedo;
+
+    const std::string VertexShader;
+    const std::string FragmentShader;
+};
+
+class Material
+{
+public:
+
+    /// @brief Unique key identifying this material.
+    /// Used to group geometry sharing the same material attributes.
+    const MaterialKey Key;
+
+    const RgbaColorf Color;
+
+    const float Metallic{ 0 };
+    const float Roughness{ 0 };
+
+    RefPtr<GpuTexture> const Albedo;
+
+    RefPtr<GpuVertexShader> const VertexShader;
+    RefPtr<GpuFragmentShader> const FragmentShader;
 };
 
 namespace std

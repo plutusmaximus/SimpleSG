@@ -336,9 +336,9 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             .MtlSpec =
             {
                 .Color = {1, 0, 0},
+                .Albedo = "images/Ant.png",
                 .VertexShader = "shaders/Debug/VertexShader",
                 .FragmentShader = "shaders/Debug/FragmentShader",
-                .Albedo = "images/Ant.png"
             }
         },
         {
@@ -347,9 +347,9 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             .MtlSpec =
             {
                 .Color = {0, 1, 0},
+                .Albedo = "images/Bee.png",
                 .VertexShader = "shaders/Debug/VertexShader",
                 .FragmentShader = "shaders/Debug/FragmentShader",
-                .Albedo = "images/Bee.png"
             }
         },
         {
@@ -358,9 +358,9 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             .MtlSpec =
             {
                 .Color = {0, 0, 1},
+                .Albedo = "images/Butterfly.png",
                 .VertexShader = "shaders/Debug/VertexShader",
                 .FragmentShader = "shaders/Debug/FragmentShader",
-                .Albedo = "images/Butterfly.png"
             }
         },
         {
@@ -369,9 +369,9 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             .MtlSpec =
             {
                 .Color = {1, 1, 1},
+                .Albedo = "images/Frog.png",
                 .VertexShader = "shaders/Debug/VertexShader",
                 .FragmentShader = "shaders/Debug/FragmentShader",
-                .Albedo = "images/Frog.png"
             }
         },
         {
@@ -380,9 +380,9 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             .MtlSpec =
             {
                 .Color = {0, 1, 1},
+                .Albedo = "images/Lizard.png",
                 .VertexShader = "shaders/Debug/VertexShader",
                 .FragmentShader = "shaders/Debug/FragmentShader",
-                .Albedo = "images/Lizard.png"
             }
         },
         {
@@ -391,9 +391,9 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
             .MtlSpec =
             {
                 .Color = {1, 0, 1},
+                .Albedo = "images/Turtle.png",
                 .VertexShader = "shaders/Debug/VertexShader",
                 .FragmentShader = "shaders/Debug/FragmentShader",
-                .Albedo = "images/Turtle.png"
             }
         },
     };
@@ -435,9 +435,9 @@ static Result<RefPtr<Model>> CreateShapeModel(RefPtr<GPUDevice> gpu)
             .MtlSpec =
             {
                 .Color = {1, 0, 0},
+                .Albedo = "images/Ant.png",
                 .VertexShader = "shaders/Debug/VertexShader",
                 .FragmentShader = "shaders/Debug/FragmentShader",
-                .Albedo = "images/Ant.png"
             }
         }
     };

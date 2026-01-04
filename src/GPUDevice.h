@@ -24,7 +24,12 @@ public:
 class ShaderSpec
 {
 public:
-    const std::string SourceCode;
+
+    //FIXME(KB) - add support for embedded source code.
+    //FIXME(KB) - add support for resource paths.
+    std::variant<std::string> Source;
+
+    const unsigned NumUniformBuffers{ 0 };
 };
 
 class GpuBuffer
@@ -103,24 +108,6 @@ public:
     IMPLEMENT_REFCOUNT(GpuTexture);
 };
 
-/*class GpuMaterial
-{
-public:
-
-    /// @brief Unique key identifying this material.
-    /// Used to group geometry sharing the same material attributes.
-    const MaterialKey Key;
-
-    const RgbaColorf Color;
-
-    const float Metallic{ 0 };
-    const float Roughness{ 0 };
-
-    RefPtr<GpuTexture> const Albedo;
-    RefPtr<GpuVertexShader> const VertexShader;
-    RefPtr<GpuFragmentShader> const FragmentShader;
-};*/
-
 class GPUDevice
 {
 public:
@@ -150,10 +137,10 @@ public:
     virtual Result<RefPtr<GpuTexture>> CreateTexture(const TextureSpec& textureSpec) = 0;
 
     /// @brief Creates a vertex shader from the given specification.
-    //virtual Result<RefPtr<GpuVertexShader>> CreateVertexShader(const ShaderSpec& shaderSpec) = 0;
+    virtual Result<RefPtr<GpuVertexShader>> CreateVertexShader(const ShaderSpec& shaderSpec) = 0;
 
     /// @brief Creates a fragment shader from the given specification.
-    //virtual Result<RefPtr<GpuFragmentShader>> CreateFragmentShader(const ShaderSpec& shaderSpec) = 0;
+    virtual Result<RefPtr<GpuFragmentShader>> CreateFragmentShader(const ShaderSpec& shaderSpec) = 0;
 
     IMPLEMENT_REFCOUNT(GPUDevice);
 };

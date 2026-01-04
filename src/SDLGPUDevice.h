@@ -66,6 +66,52 @@ private:
     SDL_GPUDevice* const m_GpuDevice;
 };
 
+class SDLGpuVertexShader : public GpuVertexShader
+{
+public:
+
+    SDLGpuVertexShader() = delete;
+    
+    ~SDLGpuVertexShader() override;
+
+    SDL_GPUShader* const Shader;
+
+private:
+
+    friend class SDLGPUDevice;
+
+    SDLGpuVertexShader(SDL_GPUDevice* gpuDevice, SDL_GPUShader* shader)
+        : m_GpuDevice(gpuDevice)
+        , Shader(shader)
+    {
+    }
+
+    SDL_GPUDevice* const m_GpuDevice;
+};
+
+class SDLGpuFragmentShader : public GpuFragmentShader
+{
+public:
+
+    SDLGpuFragmentShader() = delete;
+    
+    ~SDLGpuFragmentShader() override;
+
+    SDL_GPUShader* const Shader;
+
+private:
+
+    friend class SDLGPUDevice;
+
+    SDLGpuFragmentShader(SDL_GPUDevice* gpuDevice, SDL_GPUShader* shader)
+        : m_GpuDevice(gpuDevice)
+        , Shader(shader)
+    {
+    }
+
+    SDL_GPUDevice* const m_GpuDevice;
+};
+
 class SDLMaterial
 {
 public:
@@ -125,9 +171,9 @@ public:
 
     Result<RefPtr<GpuTexture>> CreateTexture(const TextureSpec& textureSpec) override;
 
-    //Result<RefPtr<GpuVertexShader>> CreateVertexShader(const ShaderSpec& shaderSpec) override;
+    Result<RefPtr<GpuVertexShader>> CreateVertexShader(const ShaderSpec& shaderSpec) override;
 
-    //Result<RefPtr<GpuFragmentShader>> CreateFragmentShader(const ShaderSpec& shaderSpec) override;
+    Result<RefPtr<GpuFragmentShader>> CreateFragmentShader(const ShaderSpec& shaderSpec) override;
 
     /// @brief Retrieves a material by its ID.
     Result<const SDLMaterial*> GetMaterial(const MaterialId& mtlId) const;
