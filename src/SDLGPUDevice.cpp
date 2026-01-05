@@ -72,21 +72,21 @@ SDLGPUDevice::Create(SDL_Window* window)
 
     // Initialize GPU device
     const bool debugMode = true;
-    SDL_GPUDevice* gpuDevice = SDL_CreateGPUDevice(SHADER_FORMAT, debugMode, DRIVER_NAME);
-    expect(gpuDevice, SDL_GetError());
+    SDL_GPUDevice* sdlDevice = SDL_CreateGPUDevice(SHADER_FORMAT, debugMode, DRIVER_NAME);
+    expect(sdlDevice, SDL_GetError());
 
-    auto deviceCleanup = Finally([gpuDevice]()
+    auto sdlDeviceCleanup = Finally([sdlDevice]()
     {
-        SDL_DestroyGPUDevice(gpuDevice);
+        SDL_DestroyGPUDevice(sdlDevice);
     });
 
-    if (!SDL_ClaimWindowForGPUDevice(gpuDevice, window))
+    if (!SDL_ClaimWindowForGPUDevice(sdlDevice, window))
     {
         return std::unexpected(SDL_GetError());
     }
 
     if(!SDL_SetGPUSwapchainParameters(
-        gpuDevice,
+        sdlDevice,
         window,
         SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
         SDL_GPU_PRESENTMODE_MAILBOX))
@@ -94,28 +94,11 @@ SDLGPUDevice::Create(SDL_Window* window)
         return std::unexpected(SDL_GetError());
     }
 
-    SDLGPUDevice* device = new SDLGPUDevice(window, gpuDevice);
+    SDLGPUDevice* device = new SDLGPUDevice(window, sdlDevice);
 
     expectv(device, "Error allocating device");
 
-    auto whiteTexture = device->CreateTexture(TextureSpec{RgbaColorf{1,1,1,1}});
-
-    if(!whiteTexture)
-    {
-        return std::unexpected(whiteTexture.error());
-    }
-
-    auto magentaTexture = device->CreateTexture(TextureSpec{RgbaColorf{1,0,1,1}});
-
-    if(!magentaTexture)
-    {
-        return std::unexpected(magentaTexture.error());
-    }
-
-    device->m_TexturesByName.Add(GPUDevice::WHITE_TEXTURE_KEY, whiteTexture.value());
-    device->m_TexturesByName.Add(GPUDevice::MAGENTA_TEXTURE_KEY, magentaTexture.value());
-
-    deviceCleanup.Cancel();
+    sdlDeviceCleanup.Cancel();
 
     return device;
 }
@@ -126,8 +109,6 @@ SDLGPUDevice::~SDLGPUDevice()
     {
         SDL_ReleaseGPUGraphicsPipeline(Device, pipeline);
     }
-
-    m_TexturesByName.clear();
 
     if (Device)
     {
@@ -278,7 +259,7 @@ SDLGPUDevice::CreateTexture(const TextureSpec& textureSpec)
 {
     auto acceptor = overloaded
     {
-        [this](const std::string& path) { return GetOrCreateTexture(path); },
+        [this](const std::string& path) { return CreateTexture(path); },
         [this](const RefPtr<Image>& image) { return CreateTexture(image); },
         [this](const RgbaColorf& color) { return CreateTexture(color); }
     };
@@ -557,50 +538,12 @@ SDLGPUDevice::CreateTexture(const unsigned width, const unsigned height, const u
 }
 
 Result<RefPtr<GpuTexture>>
-SDLGPUDevice::GetOrCreateTexture(const std::string_view path)
+SDLGPUDevice::CreateTexture(const std::string_view path)
 {
-    RefPtr<GpuTexture> texture = GetTexture(path);
-
-    if (!texture)
-    {
-        auto imgResult = Image::LoadFromFile(path);
-        expect(imgResult, imgResult.error());
-        auto img = *imgResult;
-        auto texResult = CreateTexture(TextureSpec{ img });
-        expect(texResult, texResult.error());
-
-        texture = texResult.value();
-
-        const HashKey hashKey = MakeHashKey(path);
-
-        m_TexturesByName.Add(path, texture);
-    }
-
-    return texture;
-}
-
-Result<RefPtr<GpuTexture>>
-SDLGPUDevice::GetOrCreateTexture(const std::string_view key, const RefPtr<Image> image)
-{
-    RefPtr<GpuTexture> texture = GetTexture(key);
-
-    if (!texture)
-    {
-        auto texResult = CreateTexture(TextureSpec{image});
-        expect(texResult, texResult.error());
-
-        texture = texResult.value();
-
-        m_TexturesByName.Add(key, texture);
-    }
-
-    return texture;
-}
-
-RefPtr<GpuTexture>
-SDLGPUDevice::GetTexture(const std::string_view path)
-{
-    return m_TexturesByName.Find(path);
+    auto imgResult = Image::LoadFromFile(path);
+    expect(imgResult, imgResult.error());
+    auto img = *imgResult;
+    return CreateTexture(img);
 }
 
 Result<SDL_GPUShader*> LoadShader(

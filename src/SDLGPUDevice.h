@@ -5,8 +5,6 @@
 #include "Vertex.h"
 
 #include <map>
-#include <unordered_map>
-#include <deque>
 #include <span>
 
 struct SDL_Window;
@@ -153,14 +151,8 @@ private:
 
     Result<RefPtr<GpuTexture>> CreateTexture(const unsigned width, const unsigned height, const uint8_t* pixels);
 
-    /// @brief Retrieves or creates a texture from a file path.
-    Result<RefPtr<GpuTexture>> GetOrCreateTexture(const std::string_view path);
-
-    /// @brief Retrieves or creates a texture from an image.
-    Result<RefPtr<GpuTexture>> GetOrCreateTexture(const std::string_view key, const RefPtr<Image> image);
-
-    /// @brief Retrieves a texture by its key.
-    RefPtr<GpuTexture> GetTexture(const std::string_view key);
+    /// @brief Creates a texture from a file path.
+    Result<RefPtr<GpuTexture>> CreateTexture(const std::string_view path);
     
     struct PipelineKey
     {
@@ -174,47 +166,5 @@ private:
         }
     };
 
-    static inline constexpr std::hash<std::string_view> MakeHashKey;
-
-    using HashKey = size_t;
-
-    template<typename T>
-    struct Record
-    {
-        const std::string Name;
-        T const Item;
-    };
-
-    template<typename T>
-    class HashTable : public std::unordered_multimap<HashKey, Record<T>>
-    {
-    public:
-
-        void Add(const std::string_view path, T item)
-        {
-            const HashKey hashKey = MakeHashKey(path);
-
-            this->emplace(hashKey, Record<T>{ .Name{path}, .Item = item });
-        }
-
-        T Find(const std::string_view path)
-        {
-            const HashKey hashKey = MakeHashKey(path);
-
-            auto range = this->equal_range(hashKey);
-
-            for (auto it = range.first; it != range.second; ++it)
-            {
-                if (path == it->second.Name)
-                {
-                    return it->second.Item;
-                }
-            }
-
-            return nullptr;
-        }
-    };
-
     std::map<PipelineKey, SDL_GPUGraphicsPipeline*> m_PipelinesByKey;
-    HashTable<RefPtr<GpuTexture>> m_TexturesByName;
 };

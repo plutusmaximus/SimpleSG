@@ -153,7 +153,7 @@ static Result<RefPtr<Model>> CreateTriangleModel(ModelCatalog& catalog)
             .MtlSpec =
             {
                 .Color = {1, 1, 1},
-                .Albedo = "images/Ant.png",
+                .Albedo = TextureSpec{"images/Ant.png"},
                 .VertexShaderPath = "shaders/Debug/VertexShader",
                 .FragmentShaderPath = "shaders/Debug/FragmentShader",
             }
@@ -172,5 +172,5 @@ static Result<RefPtr<Model>> CreateTriangleModel(ModelCatalog& catalog)
 
     const ModelSpec modelSpec{std::move(meshSpecs), std::move(meshInstances), std::move(transformNodes)};
 
-    return catalog.CreateModel("TriangleModel", modelSpec);
+    return catalog.CreateModel(CacheKey("TriangleModel"), modelSpec);
 }

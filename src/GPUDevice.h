@@ -9,26 +9,13 @@
 #include <tuple>
 #include <variant>
 
-class Model;
-class RenderGraph;
-class ModelSpec;
-class Image;
-
-/// @brief Specification for creating a texture.
-class TextureSpec
-{
-public:
-
-    // FIXME(KB) - add support for resource paths.
-    std::variant<std::string, RefPtr<Image>, RgbaColorf> Source;
-};
-
 /// @brief Specification for creating a vertex shader.
 class VertexShaderSpec
 {
 public:
 
     //FIXME(KB) - add support for embedded source code.
+    //FIXME(KB) - add a cache key.
     //FIXME(KB) - add support for resource paths.
     std::variant<std::string> Source;
 
@@ -41,6 +28,7 @@ class FragmentShaderSpec
 public:
 
     //FIXME(KB) - add support for embedded source code.
+    //FIXME(KB) - add a cache key.
     //FIXME(KB) - add support for resource paths.
     std::variant<std::string> Source;
 
@@ -132,9 +120,6 @@ public:
 class GPUDevice
 {
 public:
-
-    static constexpr const char* WHITE_TEXTURE_KEY = "$white";
-    static constexpr const char* MAGENTA_TEXTURE_KEY = "$magenta";
 
     GPUDevice() {}
 

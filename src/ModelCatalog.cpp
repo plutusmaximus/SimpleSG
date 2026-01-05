@@ -1,12 +1,21 @@
 #include "ModelCatalog.h"
 
-#include "Image.h"
-
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
 #include <filesystem>
+
+static constexpr const char* WHITE_TEXTURE_KEY = "$white";
+static constexpr const char* MAGENTA_TEXTURE_KEY = "$magenta";
+
+static const TextureSpec WHITE_TEXTURE_SPEC(
+    WHITE_TEXTURE_KEY,
+    RgbaColorf{ 1.0f, 1.0f, 1.0f, 1.0f });
+
+static const TextureSpec MAGENTA_TEXTURE_SPEC(
+    MAGENTA_TEXTURE_KEY,
+    RgbaColorf{ 1.0f, 0.0f, 1.0f, 1.0f });
 
 struct TextureProperty
 {
@@ -70,15 +79,19 @@ static void ProcessNodes(
         const std::filesystem::path& parentPath);
 
 Result<RefPtr<Model>>
-ModelCatalog::LoadModelFromFile(const std::string& key, const std::string& filePath)
+ModelCatalog::LoadModelFromFile(const CacheKey& cacheKey, const std::string& filePath)
 {
-    logDebug("Loading model from file: {} (key: {})", filePath, key);
+    logDebug("Loading model from file: {} (key: {})", filePath, cacheKey.ToString());
+
+    RefPtr<Model> model;
 
     // Return existing entry without re-importing
-    auto it = m_Entries.find(key);
-    if(it != m_Entries.end())
+    if(m_ModelCache.TryGet(cacheKey, model))
     {
-        return it->second;
+        //TODO(KB) - add a test to confirm cache behavior.
+
+        logDebug("  Model already exists in cache (key: {})", cacheKey.ToString());
+        return model;
     }
 
     constexpr unsigned flags =
@@ -132,20 +145,25 @@ ModelCatalog::LoadModelFromFile(const std::string& key, const std::string& fileP
         std::move(transformNodes)
     };
 
-    return CreateModel(key, ModelSpec);
+    return CreateModel(cacheKey, ModelSpec);
 }
 
 Result<RefPtr<Model>>
-ModelCatalog::CreateModel(const std::string& key, const ModelSpec& modelSpec)
+ModelCatalog::CreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec)
 {
-    logDebug("Creating model (key: {})", key);
+    logDebug("Creating model (key: {})", cacheKey.ToString());
 
-    // Return existing entry without re-creating
-    auto it = m_Entries.find(key);
-    if(it != m_Entries.end())
+    RefPtr<Model> model;
+
+    // Return existing entry without re-importing
+    if(m_ModelCache.TryGet(cacheKey, model))
     {
-        return it->second;
+        //TODO(KB) - add a test to confirm cache behavior.
+
+        logDebug("  Model already exists in cache (key: {})", cacheKey.ToString());
+        return model;
     }
+
     std::vector<std::span<const Vertex>> vertexSpans;
     std::vector<std::span<const VertexIndex>> indexSpans;
     for(const auto& meshSpec : modelSpec.MeshSpecs)
@@ -166,23 +184,17 @@ ModelCatalog::CreateModel(const std::string& key, const ModelSpec& modelSpec)
     {
         const MeshSpec& meshSpec = modelSpec.MeshSpecs[i];
 
-        RefPtr<GpuTexture> albedo;
+        auto albedoResult = GetOrCreateTexture(meshSpec.MtlSpec.Albedo);
+        expect(albedoResult, albedoResult.error());
 
-        if (!meshSpec.MtlSpec.Albedo.empty())
-        {
-            //FIXME(KB) - texture cache.
-            auto albedoResult = m_GpuDevice->CreateTexture(TextureSpec{meshSpec.MtlSpec.Albedo});
-            expect(albedoResult, albedoResult.error());
-
-            albedo = albedoResult.value();
-        }
+        RefPtr<GpuTexture> albedo = albedoResult.value();
 
         //FIXME - specify number of uniform buffers.
-        auto vertexShaderResult = m_GpuDevice->CreateVertexShader(VertexShaderSpec{meshSpec.MtlSpec.VertexShaderPath, 3});
+        auto vertexShaderResult = GetOrCreateVertexShader(VertexShaderSpec{meshSpec.MtlSpec.VertexShaderPath, 3});
         expect(vertexShaderResult, vertexShaderResult.error());
 
         //FIXME - specify number of samplers.
-        auto fragShaderResult = m_GpuDevice->CreateFragmentShader(FragmentShaderSpec{meshSpec.MtlSpec.FragmentShaderPath, 1});
+        auto fragShaderResult = GetOrCreateFragmentShader(FragmentShaderSpec{meshSpec.MtlSpec.FragmentShaderPath, 1});
         expect(fragShaderResult, fragShaderResult.error());
 
         Material mtl
@@ -209,17 +221,87 @@ ModelCatalog::CreateModel(const std::string& key, const ModelSpec& modelSpec)
 
     auto modelResult = Model::Create(std::move(meshes), std::move(meshInstances), std::move(transformNodes));
 
-    auto [insertIt, inserted] = m_Entries.emplace(key, modelResult.value());
-    expect(inserted, "Failed to insert catalog entry for {}", key);
+    expect(modelResult, modelResult.error());
 
-    return insertIt->second;
+    model = modelResult.value();
+
+    expect(
+        m_ModelCache.TryAdd(cacheKey, model),
+        "Failed to add model to cache: {}", cacheKey.ToString());
+
+    return model;
 }
 
-Result<RefPtr<Model>> ModelCatalog::GetModel(const std::string& key) const
+Result<RefPtr<Model>> ModelCatalog::GetModel(const CacheKey& cacheKey) const
 {
-    auto it = m_Entries.find(key);
-    expect(it != m_Entries.end(), "Model key not found: {}", key);
-    return it->second;
+    RefPtr<Model> model;
+    expect(m_ModelCache.TryGet(cacheKey, model), "Model key not found: {}", cacheKey.ToString());
+    return model;
+}
+
+// private:
+
+Result<RefPtr<GpuTexture>>
+ModelCatalog::GetOrCreateTexture(const TextureSpec& textureSpec)
+{
+    RefPtr<GpuTexture> texture;
+    if(m_TextureCache.TryGet(textureSpec.CacheKey, texture))
+    {
+        logDebug("  Texture already exists in cache (key: {})", textureSpec.CacheKey.ToString());
+        return texture;
+    }
+
+    logDebug("  Creating new texture (key: {})", textureSpec.CacheKey.ToString());
+    auto result = m_GpuDevice->CreateTexture(textureSpec);
+    expect(result, result.error());
+
+    texture = result.value();
+    expect(m_TextureCache.TryAdd(textureSpec.CacheKey, texture),
+        "Failed to add texture to cache: {}", textureSpec.CacheKey.ToString());
+
+    return texture;
+}
+
+Result<RefPtr<GpuVertexShader>>
+ModelCatalog::GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec)
+{
+    // FIXME(KB) - use a proper cache key.
+    // Assume the source variant holds a string path for now.
+    const CacheKey cacheKey(std::get<0>(shaderSpec.Source));
+    
+    RefPtr<GpuVertexShader> shader;
+    if(m_VertexShaderCache.TryGet(cacheKey, shader))
+    {
+        logDebug("  Vertex shader already exists in cache (key: {})", cacheKey.ToString());
+        return shader;
+    }
+
+    auto result = m_GpuDevice->CreateVertexShader(shaderSpec);
+    expect(result, result.error());
+    shader = result.value();
+    expect(m_VertexShaderCache.TryAdd(cacheKey, shader), "Failed to add vertex shader to cache: {}", cacheKey.ToString());
+    return shader;
+}
+
+Result<RefPtr<GpuFragmentShader>>
+ModelCatalog::GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec)
+{
+    // FIXME(KB) - use a proper cache key.
+    // Assume the source variant holds a string path for now.
+    const CacheKey cacheKey(std::get<0>(shaderSpec.Source));
+    
+    RefPtr<GpuFragmentShader> shader;
+    if(m_FragmentShaderCache.TryGet(cacheKey, shader))
+    {
+        logDebug("  Fragment shader already exists in cache (key: {})", cacheKey.ToString());
+        return shader;
+    }
+
+    auto result = m_GpuDevice->CreateFragmentShader(shaderSpec);
+    expect(result, result.error());
+    shader = result.value();
+    expect(m_FragmentShaderCache.TryAdd(cacheKey, shader), "Failed to add fragment shader to cache: {}", cacheKey.ToString());
+    return shader;
 }
 
 static TextureProperties GetTexturePropertiesFromMaterial(
@@ -399,7 +481,9 @@ static MaterialSpec CreateMaterialSpec(
     logDebug("  Roughness: {}", texProperties.Roughness.Path.empty() ? "<none>" : texProperties.Roughness.Path);
     logDebug("  Ambient occlusion: {}", texProperties.AmbientOcclusion.Path.empty() ? "<none>" : texProperties.AmbientOcclusion.Path);
 
-    auto albedo = !texProperties.Albedo.Path.empty() ? texProperties.Albedo.Path : GPUDevice::MAGENTA_TEXTURE_KEY;
+    const TextureSpec albedo = texProperties.Albedo.Path.empty()
+     ? MAGENTA_TEXTURE_SPEC
+     : TextureSpec{texProperties.Albedo.Path};
 
     return MaterialSpec
     {
@@ -438,7 +522,7 @@ static MeshSpec CreateMeshSpecFromMesh(
     }
 
     // Lambda to get UVs or return zero UVs if not present
-    const bool hasAlbedo = !mtlSpec.Albedo.empty();
+    const bool hasAlbedo = mtlSpec.HasAlbedo();
     auto getUV = [hasAlbedo](const aiMesh* mesh, const unsigned uvIndex, unsigned v)
     {
         if (!hasAlbedo)

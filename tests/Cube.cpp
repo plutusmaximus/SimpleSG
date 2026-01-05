@@ -358,7 +358,7 @@ static Result<RefPtr<Model>> CreateCubeModel(ModelCatalog& catalog)
             .MtlSpec =
             {
                 .Color = {1, 0, 0},
-                .Albedo = "images/Ant.png",
+                .Albedo = TextureSpec{"images/Ant.png"},
                 .VertexShaderPath = "shaders/Debug/VertexShader",
                 .FragmentShaderPath = "shaders/Debug/FragmentShader",
             }
@@ -369,7 +369,7 @@ static Result<RefPtr<Model>> CreateCubeModel(ModelCatalog& catalog)
             .MtlSpec =
             {
                 .Color = {0, 1, 0},
-                .Albedo = "images/Bee.png",
+                .Albedo = TextureSpec{"images/Bee.png"},
                 .VertexShaderPath = "shaders/Debug/VertexShader",
                 .FragmentShaderPath = "shaders/Debug/FragmentShader",
             }
@@ -380,7 +380,7 @@ static Result<RefPtr<Model>> CreateCubeModel(ModelCatalog& catalog)
             .MtlSpec =
             {
                 .Color = {0, 0, 1},
-                .Albedo = "images/Butterfly.png",
+                .Albedo = TextureSpec{"images/Butterfly.png"},
                 .VertexShaderPath = "shaders/Debug/VertexShader",
                 .FragmentShaderPath = "shaders/Debug/FragmentShader",
             }
@@ -391,7 +391,7 @@ static Result<RefPtr<Model>> CreateCubeModel(ModelCatalog& catalog)
             .MtlSpec =
             {
                 .Color = {1, 1, 1},
-                .Albedo = "images/Frog.png",
+                .Albedo = TextureSpec{"images/Frog.png"},
                 .VertexShaderPath = "shaders/Debug/VertexShader",
                 .FragmentShaderPath = "shaders/Debug/FragmentShader",
             }
@@ -402,7 +402,7 @@ static Result<RefPtr<Model>> CreateCubeModel(ModelCatalog& catalog)
             .MtlSpec =
             {
                 .Color = {0, 1, 1},
-                .Albedo = "images/Lizard.png",
+                .Albedo = TextureSpec{"images/Lizard.png"},
                 .VertexShaderPath = "shaders/Debug/VertexShader",
                 .FragmentShaderPath = "shaders/Debug/FragmentShader",
             }
@@ -413,7 +413,7 @@ static Result<RefPtr<Model>> CreateCubeModel(ModelCatalog& catalog)
             .MtlSpec =
             {
                 .Color = {1, 0, 1},
-                .Albedo = "images/Turtle.png",
+                .Albedo = TextureSpec{"images/Turtle.png"},
                 .VertexShaderPath = "shaders/Debug/VertexShader",
                 .FragmentShaderPath = "shaders/Debug/FragmentShader",
             }
@@ -437,7 +437,7 @@ static Result<RefPtr<Model>> CreateCubeModel(ModelCatalog& catalog)
 
     const ModelSpec modelSpec{std::move(meshSpecs), std::move(meshInstances), std::move(transformNodes)};
 
-    return catalog.CreateModel("CubeModel", modelSpec);
+    return catalog.CreateModel(CacheKey("CubeModel"), modelSpec);
 }
 
 static Result<RefPtr<Model>> CreateShapeModel(ModelCatalog& catalog)
@@ -457,7 +457,7 @@ static Result<RefPtr<Model>> CreateShapeModel(ModelCatalog& catalog)
             .MtlSpec =
             {
                 .Color = {1, 0, 0},
-                .Albedo = "images/Ant.png",
+                .Albedo = TextureSpec{"images/Ant.png"},
                 .VertexShaderPath = "shaders/Debug/VertexShader",
                 .FragmentShaderPath = "shaders/Debug/FragmentShader",
             }
@@ -476,5 +476,5 @@ static Result<RefPtr<Model>> CreateShapeModel(ModelCatalog& catalog)
 
     const ModelSpec modelSpec{std::move(meshSpecs), std::move(meshInstances), std::move(transformNodes)};
 
-    return catalog.CreateModel("ShapeModel", modelSpec);
+    return catalog.CreateModel(CacheKey("ShapeModel"), modelSpec);
 }

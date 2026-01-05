@@ -67,7 +67,7 @@ public:
         constexpr const char* JUNGLE_RUINS = "C:/Users/kbaca/Downloads/JungleRuins/GLTF/JungleRuins_Main.gltf";
 
         m_GpuDevice = gpuDevice;
-        auto modelResult = m_ModelCatalog->LoadModelFromFile("Sponza", SPONZA_MODEL_PATH);
+        auto modelResult = m_ModelCatalog->LoadModelFromFile(CacheKey("Sponza"), SPONZA_MODEL_PATH);
         expect(modelResult, modelResult.error());
 
         auto model = *modelResult;
