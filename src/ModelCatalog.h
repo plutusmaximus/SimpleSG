@@ -15,22 +15,28 @@
 class ModelCatalog
 {
 public:
+
+    explicit ModelCatalog(RefPtr<GPUDevice> gpuDevice)
+        : m_GpuDevice(gpuDevice)
+    {
+    }
+
     /// @brief Loads a model from file if not already loaded.
-    Result<const ModelSpec*> LoadFromFile(const std::string& key, const std::string& filePath);
+    Result<RefPtr<Model>> LoadModelFromFile(const std::string& key, const std::string& filePath);
+
+    Result<RefPtr<Model>> CreateModel(const std::string& key, const ModelSpec& modelSpec);
 
     /// @brief Retrieves a previously loaded model.
-    Result<const ModelSpec*> Get(const std::string& key) const;
+    Result<RefPtr<Model>> GetModel(const std::string& key) const;
 
     /// @brief Checks if a model with the given key exists in the catalog.
-    bool Contains(const std::string& key) const { return m_Entries.find(key) != m_Entries.end(); }
+    bool ContainsModel(const std::string& key) const { return m_Entries.find(key) != m_Entries.end(); }
 
     /// @brief Returns the number of models in the catalog.
     size_t Size() const { return m_Entries.size(); }
 
-    /// @brief Clears all models from the catalog.
-    void Clear() { m_Entries.clear(); }
-
 private:
 
-    std::unordered_map<std::string, ModelSpec> m_Entries;
+    RefPtr<GPUDevice> m_GpuDevice;
+    std::unordered_map<std::string, RefPtr<Model>> m_Entries;
 };

@@ -23,7 +23,14 @@ public:
 class SponzaApp : public Application
 {
 public:
-    ~SponzaApp() override = default;
+    ~SponzaApp() override
+    {
+        delete m_ModelCatalog;
+        m_ModelCatalog = nullptr;
+
+        delete m_RenderGraph;
+        m_RenderGraph = nullptr;
+    }
 
     std::string_view GetName() const override
     {
@@ -39,8 +46,14 @@ public:
 
         m_State = State::Initialized;
 
-        m_RenderGraph = new SDLRenderGraph(gpuDevice.Get());
+        m_ModelCatalog = new ModelCatalog(gpuDevice);
+        if(!m_ModelCatalog)
+        {
+            Shutdown();
+            return std::unexpected(Error("Failed to create ModelCatalog"));
+        }
 
+        m_RenderGraph = new SDLRenderGraph(gpuDevice.Get());
         if(!m_RenderGraph)
         {
             Shutdown();
@@ -54,14 +67,13 @@ public:
         constexpr const char* JUNGLE_RUINS = "C:/Users/kbaca/Downloads/JungleRuins/GLTF/JungleRuins_Main.gltf";
 
         m_GpuDevice = gpuDevice;
-        auto modelSpec= m_ModelCatalog.LoadFromFile("Sponza", SPONZA_MODEL_PATH);
-        expect(modelSpec, modelSpec.error());
+        auto modelResult = m_ModelCatalog->LoadModelFromFile("Sponza", SPONZA_MODEL_PATH);
+        expect(modelResult, modelResult.error());
 
-        auto model = m_GpuDevice->CreateModel(*modelSpec.value());
-        expect(model, model.error());
+        auto model = *modelResult;
 
         m_EidModel = m_Registry.Create();
-        m_Registry.Add(m_EidModel, TrsTransformf{}, WorldMatrix{}, *model);
+        m_Registry.Add(m_EidModel, TrsTransformf{}, WorldMatrix{}, model);
 
         m_EidCamera = m_Registry.Create();
 
@@ -85,10 +97,13 @@ public:
         }
         m_State = State::Shutdown;
 
+        delete m_ModelCatalog;
+        m_ModelCatalog = nullptr;
+
         delete m_RenderGraph;
         m_RenderGraph = nullptr;
+
         m_Registry.Clear();
-        m_ModelCatalog.Clear();
         m_GpuDevice = nullptr;
     }
 
@@ -214,9 +229,9 @@ private:
         State m_State = State::None;
 
         RefPtr<SDLGPUDevice> m_GpuDevice;
+        ModelCatalog* m_ModelCatalog = nullptr;
         SDLRenderGraph* m_RenderGraph = nullptr;
         EcsRegistry m_Registry;
-        ModelCatalog m_ModelCatalog;
         WalkMouseNav m_WalkMouseNav{ TrsTransformf{}, 0.0001f, 5.0f };
         MouseNav* const m_MouseNav = &m_WalkMouseNav;
         EntityId m_EidCamera;

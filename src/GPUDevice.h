@@ -140,9 +140,6 @@ public:
 
     virtual ~GPUDevice() = 0 {}
 
-    /// @brief Creates a model from the given specification.
-    virtual Result<RefPtr<Model>> CreateModel(const ModelSpec& modelSpec) = 0;
-
     /// @brief Gets the renderable extent of the device.
     virtual Extent GetExtent() const = 0;
 

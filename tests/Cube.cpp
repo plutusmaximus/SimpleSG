@@ -11,9 +11,8 @@
 #include "SDLRenderGraph.h"
 #include "Shapes.h"
 
-static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu);
-static Result<RefPtr<Model>> CreatePumpkinModel(RefPtr<GPUDevice> gpu);
-static Result<RefPtr<Model>> CreateShapeModel(RefPtr<GPUDevice> gpu);
+static Result<RefPtr<Model>> CreateCubeModel(ModelCatalog& catalog);
+static Result<RefPtr<Model>> CreateShapeModel(ModelCatalog& catalog);
 
 class WorldMatrix : public Mat44f
 {    
@@ -28,7 +27,14 @@ public:
 class CubeApp : public Application
 {
 public:
-    ~CubeApp() override = default;
+    ~CubeApp() override
+    {
+        delete m_ModelCatalog;
+        m_ModelCatalog = nullptr;
+
+        delete m_RenderGraph;
+        m_RenderGraph = nullptr;
+    }
 
     std::string_view GetName() const override
     {
@@ -37,12 +43,21 @@ public:
 
     Result<void> Initialize(RefPtr<SDLGPUDevice> gpuDevice) override
     {
+        logInfo("Initializing...");
+
         if(!everify(State::None == m_State, "Application already initialized or running"))
         {
             return std::unexpected(Error("Application already initialized or running"));
         }
 
         m_State = State::Initialized;
+
+        m_ModelCatalog = new ModelCatalog(gpuDevice);
+        if(!m_ModelCatalog)
+        {
+            Shutdown();
+            return std::unexpected(Error("Failed to create ModelCatalog"));
+        }
 
         m_RenderGraph = new SDLRenderGraph(gpuDevice.Get());
 
@@ -61,7 +76,7 @@ public:
 
         //auto modelResult = CreateCube(gd);
         //auto modelResult = CreatePumpkin(gd);
-        auto modelResult = CreateShapeModel(m_GPUDevice);
+        auto modelResult = CreateShapeModel(*m_ModelCatalog);
         expect(modelResult, modelResult.error());
         auto model = modelResult.value();
 
@@ -84,14 +99,20 @@ public:
 
     void Shutdown() override
     {
+        logInfo("Shutting down...");
+
         if(State::Shutdown == m_State)
         {
             return;
         }
         m_State = State::Shutdown;
 
+        delete m_ModelCatalog;
+        m_ModelCatalog = nullptr;
+
         delete m_RenderGraph;
         m_RenderGraph = nullptr;
+
         m_Registry.Clear();
         m_GPUDevice = nullptr;
     }
@@ -234,6 +255,7 @@ private:
         State m_State = State::None;
 
         RefPtr<SDLGPUDevice> m_GPUDevice;
+        ModelCatalog* m_ModelCatalog = nullptr;
         SDLRenderGraph* m_RenderGraph = nullptr;
         EcsRegistry m_Registry;
         GimbleMouseNav m_GimbleMouseNav{ TrsTransformf{}};
@@ -326,7 +348,7 @@ static std::vector<T> Subrange(const T* array, const size_t offset, const size_t
     return std::vector<T>(array + offset, array + offset + count);
 }
 
-static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
+static Result<RefPtr<Model>> CreateCubeModel(ModelCatalog& catalog)
 {
     std::vector<MeshSpec> meshSpecs =
     {
@@ -415,10 +437,10 @@ static Result<RefPtr<Model>> CreateCubeModel(RefPtr<GPUDevice> gpu)
 
     const ModelSpec modelSpec{std::move(meshSpecs), std::move(meshInstances), std::move(transformNodes)};
 
-    return gpu->CreateModel(modelSpec);
+    return catalog.CreateModel("CubeModel", modelSpec);
 }
 
-static Result<RefPtr<Model>> CreateShapeModel(RefPtr<GPUDevice> gpu)
+static Result<RefPtr<Model>> CreateShapeModel(ModelCatalog& catalog)
 {
     //auto geometry = Shapes::Box(1, 1, 1);
     //auto geometry = Shapes::Ball(1, 10);
@@ -454,13 +476,5 @@ static Result<RefPtr<Model>> CreateShapeModel(RefPtr<GPUDevice> gpu)
 
     const ModelSpec modelSpec{std::move(meshSpecs), std::move(meshInstances), std::move(transformNodes)};
 
-    return gpu->CreateModel(modelSpec);
-}
-
-static Result<RefPtr<Model>> CreatePumpkinModel(RefPtr<GPUDevice> gpu)
-{
-    ModelCatalog catalog;
-    auto specRes = catalog.LoadFromFile("Pumpkin", "models/Pumpkin-DD.stl");
-    expect(specRes, specRes.error());
-    return gpu->CreateModel(*specRes.value());
+    return catalog.CreateModel("ShapeModel", modelSpec);
 }

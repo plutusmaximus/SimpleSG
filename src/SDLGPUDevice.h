@@ -120,9 +120,6 @@ public:
 
     ~SDLGPUDevice() override;
 
-    /// @brief Creates a model from the given specification.
-    Result<RefPtr<Model>> CreateModel(const ModelSpec& modelSpec) override;
-
     /// @brief Gets the renderable extent of the device.
     Extent GetExtent() const override;
 

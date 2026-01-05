@@ -1,5 +1,7 @@
 #include "ModelCatalog.h"
 
+#include "Image.h"
+
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -67,8 +69,8 @@ static void ProcessNodes(
         std::vector<TransformNode>& transformNodes,
         const std::filesystem::path& parentPath);
 
-Result<const ModelSpec*>
-ModelCatalog::LoadFromFile(const std::string& key, const std::string& filePath)
+Result<RefPtr<Model>>
+ModelCatalog::LoadModelFromFile(const std::string& key, const std::string& filePath)
 {
     logDebug("Loading model from file: {} (key: {})", filePath, key);
 
@@ -76,7 +78,7 @@ ModelCatalog::LoadFromFile(const std::string& key, const std::string& filePath)
     auto it = m_Entries.find(key);
     if(it != m_Entries.end())
     {
-        return &it->second;
+        return it->second;
     }
 
     constexpr unsigned flags =
@@ -123,18 +125,101 @@ ModelCatalog::LoadFromFile(const std::string& key, const std::string& filePath)
         transformNodes,
         parentPath);
 
-    // Insert and return spec
-    auto [insertIt, inserted] = m_Entries.emplace(key, ModelSpec{std::move(meshSpecCollection.MeshSpecs), std::move(meshInstances), std::move(transformNodes)});
-    expect(inserted, "Failed to insert catalog entry for {}", key);
+    const ModelSpec ModelSpec
+    {
+        std::move(meshSpecCollection.MeshSpecs),
+        std::move(meshInstances),
+        std::move(transformNodes)
+    };
 
-    return &insertIt->second;
+    return CreateModel(key, ModelSpec);
 }
 
-Result<const ModelSpec*> ModelCatalog::Get(const std::string& key) const
+Result<RefPtr<Model>>
+ModelCatalog::CreateModel(const std::string& key, const ModelSpec& modelSpec)
+{
+    logDebug("Creating model (key: {})", key);
+
+    // Return existing entry without re-creating
+    auto it = m_Entries.find(key);
+    if(it != m_Entries.end())
+    {
+        return it->second;
+    }
+    std::vector<std::span<const Vertex>> vertexSpans;
+    std::vector<std::span<const VertexIndex>> indexSpans;
+    for(const auto& meshSpec : modelSpec.MeshSpecs)
+    {
+        vertexSpans.emplace_back(meshSpec.Vertices);
+        indexSpans.emplace_back(meshSpec.Indices);
+    }
+
+    auto bufResult = m_GpuDevice->CreateBuffers(vertexSpans, indexSpans);
+    expect(bufResult, bufResult.error());
+
+    auto [vb, ib] = bufResult.value();
+
+    std::vector<Mesh> meshes;
+    uint32_t indexOffset = 0;
+
+    for (size_t i = 0; i < modelSpec.MeshSpecs.size(); ++i)
+    {
+        const MeshSpec& meshSpec = modelSpec.MeshSpecs[i];
+
+        RefPtr<GpuTexture> albedo;
+
+        if (!meshSpec.MtlSpec.Albedo.empty())
+        {
+            //FIXME(KB) - texture cache.
+            auto albedoResult = m_GpuDevice->CreateTexture(TextureSpec{meshSpec.MtlSpec.Albedo});
+            expect(albedoResult, albedoResult.error());
+
+            albedo = albedoResult.value();
+        }
+
+        //FIXME - specify number of uniform buffers.
+        auto vertexShaderResult = m_GpuDevice->CreateVertexShader(VertexShaderSpec{meshSpec.MtlSpec.VertexShaderPath, 3});
+        expect(vertexShaderResult, vertexShaderResult.error());
+
+        //FIXME - specify number of samplers.
+        auto fragShaderResult = m_GpuDevice->CreateFragmentShader(FragmentShaderSpec{meshSpec.MtlSpec.FragmentShaderPath, 1});
+        expect(fragShaderResult, fragShaderResult.error());
+
+        Material mtl
+        {
+            meshSpec.MtlSpec.Color,
+            meshSpec.MtlSpec.Metalness,
+            meshSpec.MtlSpec.Roughness,
+            albedo,
+            vertexShaderResult.value(),
+            fragShaderResult.value()
+        };
+
+        const uint32_t indexCount = static_cast<uint32_t>(meshSpec.Indices.size());
+
+        auto tmpIb = GpuIndexBuffer(ib.GpuBuffer, ib.Offset + indexOffset * sizeof(VertexIndex));
+        Mesh mesh(meshSpec.Name, vb, tmpIb, indexCount, mtl);
+        indexOffset += indexCount;
+
+        meshes.emplace_back(mesh);
+    }
+
+    std::vector<MeshInstance> meshInstances = modelSpec.MeshInstances;
+    std::vector<TransformNode> transformNodes = modelSpec.TransformNodes;
+
+    auto modelResult = Model::Create(std::move(meshes), std::move(meshInstances), std::move(transformNodes));
+
+    auto [insertIt, inserted] = m_Entries.emplace(key, modelResult.value());
+    expect(inserted, "Failed to insert catalog entry for {}", key);
+
+    return insertIt->second;
+}
+
+Result<RefPtr<Model>> ModelCatalog::GetModel(const std::string& key) const
 {
     auto it = m_Entries.find(key);
     expect(it != m_Entries.end(), "Model key not found: {}", key);
-    return &it->second;
+    return it->second;
 }
 
 static TextureProperties GetTexturePropertiesFromMaterial(

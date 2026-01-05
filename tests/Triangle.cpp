@@ -5,13 +5,21 @@
 #include "Camera.h"
 #include "SDLGPUDevice.h"
 #include "SDLRenderGraph.h"
+#include "ModelCatalog.h"
 
-static Result<RefPtr<Model>> CreateTriangleModel(RefPtr<GPUDevice> gpu);
+static Result<RefPtr<Model>> CreateTriangleModel(ModelCatalog& catalog);
 
 class TriangleApp : public Application
 {
 public:
-    ~TriangleApp() override = default;
+    ~TriangleApp() override
+    {
+        delete m_ModelCatalog;
+        m_ModelCatalog = nullptr;
+
+        delete m_RenderGraph;
+        m_RenderGraph = nullptr;
+    }
 
     std::string_view GetName() const override
     {
@@ -20,8 +28,14 @@ public:
 
     Result<void> Initialize(RefPtr<SDLGPUDevice> gpuDevice) override
     {
-        m_RenderGraph = new SDLRenderGraph(gpuDevice.Get());
+        m_ModelCatalog = new ModelCatalog(gpuDevice);
+        if(!m_ModelCatalog)
+        {
+            Shutdown();
+            return std::unexpected(Error("Failed to create ModelCatalog"));
+        }
 
+        m_RenderGraph = new SDLRenderGraph(gpuDevice.Get());
         if(!m_RenderGraph)
         {
             Shutdown();
@@ -36,7 +50,7 @@ public:
         m_CameraXform.T = Vec3f{ 0,0,-4 };
         m_Camera.SetPerspective(fov, m_ScreenBounds, 0.1f, 1000);
 
-        auto modelResult = CreateTriangleModel(gpuDevice);
+        auto modelResult = CreateTriangleModel(*m_ModelCatalog);
         expect(modelResult, modelResult.error());
         m_Model = *modelResult;
 
@@ -47,8 +61,12 @@ public:
 
     void Shutdown() override
     {
+        delete m_ModelCatalog;
+        m_ModelCatalog = nullptr;
+
         delete m_RenderGraph;
         m_RenderGraph = nullptr;
+
         m_GPUDevice = nullptr;
         m_IsRunning = false;
     }
@@ -79,6 +97,7 @@ public:
 private:
 
         RefPtr<SDLGPUDevice> m_GPUDevice;
+        ModelCatalog* m_ModelCatalog = nullptr;
         SDLRenderGraph* m_RenderGraph = nullptr;
         TrsTransformf m_CameraXform;
         Camera m_Camera;
@@ -124,7 +143,7 @@ static const std::vector<VertexIndex> triangleIndices =
     0, 1, 2,
 };
 
-static Result<RefPtr<Model>> CreateTriangleModel(RefPtr<GPUDevice> gpu)
+static Result<RefPtr<Model>> CreateTriangleModel(ModelCatalog& catalog)
 {
     std::vector<MeshSpec> meshSpecs =
     {
@@ -153,5 +172,5 @@ static Result<RefPtr<Model>> CreateTriangleModel(RefPtr<GPUDevice> gpu)
 
     const ModelSpec modelSpec{std::move(meshSpecs), std::move(meshInstances), std::move(transformNodes)};
 
-    return gpu->CreateModel(modelSpec);
+    return catalog.CreateModel("TriangleModel", modelSpec);
 }
