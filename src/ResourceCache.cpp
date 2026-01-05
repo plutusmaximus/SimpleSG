@@ -1,4 +1,4 @@
-#include "ModelCatalog.h"
+#include "ResourceCache.h"
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -79,7 +79,7 @@ static void ProcessNodes(
         const std::filesystem::path& parentPath);
 
 Result<RefPtr<Model>>
-ModelCatalog::LoadModelFromFile(const CacheKey& cacheKey, const std::string& filePath)
+ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, const std::string& filePath)
 {
     logDebug("Loading model from file: {} (key: {})", filePath, cacheKey.ToString());
 
@@ -90,9 +90,11 @@ ModelCatalog::LoadModelFromFile(const CacheKey& cacheKey, const std::string& fil
     {
         //TODO(KB) - add a test to confirm cache behavior.
 
-        logDebug("  Model already exists in cache (key: {})", cacheKey.ToString());
+        logDebug("  Cache hit: {}", cacheKey.ToString());
         return model;
     }
+
+    logDebug("  Cache miss: {}", cacheKey.ToString());
 
     constexpr unsigned flags =
         aiProcess_CalcTangentSpace
@@ -145,11 +147,11 @@ ModelCatalog::LoadModelFromFile(const CacheKey& cacheKey, const std::string& fil
         std::move(transformNodes)
     };
 
-    return CreateModel(cacheKey, ModelSpec);
+    return GetOrCreateModel(cacheKey, ModelSpec);
 }
 
 Result<RefPtr<Model>>
-ModelCatalog::CreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec)
+ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec)
 {
     logDebug("Creating model (key: {})", cacheKey.ToString());
 
@@ -160,9 +162,11 @@ ModelCatalog::CreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec)
     {
         //TODO(KB) - add a test to confirm cache behavior.
 
-        logDebug("  Model already exists in cache (key: {})", cacheKey.ToString());
+        logDebug("  Cache hit: {}", cacheKey.ToString());
         return model;
     }
+
+    logDebug("  Cache miss: {}", cacheKey.ToString());
 
     std::vector<std::span<const Vertex>> vertexSpans;
     std::vector<std::span<const VertexIndex>> indexSpans;
@@ -237,33 +241,23 @@ ModelCatalog::CreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec)
 
     model = modelResult.value();
 
-    expect(
-        m_ModelCache.TryAdd(cacheKey, model),
+    expect(m_ModelCache.TryAdd(cacheKey, model),
         "Failed to add model to cache: {}", cacheKey.ToString());
 
     return model;
 }
 
-Result<RefPtr<Model>> ModelCatalog::GetModel(const CacheKey& cacheKey) const
-{
-    RefPtr<Model> model;
-    expect(m_ModelCache.TryGet(cacheKey, model), "Model key not found: {}", cacheKey.ToString());
-    return model;
-}
-
-// private:
-
 Result<RefPtr<GpuTexture>>
-ModelCatalog::GetOrCreateTexture(const TextureSpec& textureSpec)
+ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
 {
     RefPtr<GpuTexture> texture;
     if(m_TextureCache.TryGet(textureSpec.CacheKey, texture))
     {
-        logDebug("  Texture already exists in cache (key: {})", textureSpec.CacheKey.ToString());
+        logDebug("  Cache hit: {}", textureSpec.CacheKey.ToString());
         return texture;
     }
 
-    logDebug("  Creating new texture (key: {})", textureSpec.CacheKey.ToString());
+    logDebug("  Cache miss: {}", textureSpec.CacheKey.ToString());
     auto result = m_GpuDevice->CreateTexture(textureSpec);
     expect(result, result.error());
 
@@ -275,46 +269,83 @@ ModelCatalog::GetOrCreateTexture(const TextureSpec& textureSpec)
 }
 
 Result<RefPtr<GpuVertexShader>>
-ModelCatalog::GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec)
+ResourceCache::GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec)
 {
-    // FIXME(KB) - use a proper cache key.
-    // Assume the source variant holds a string path for now.
     const CacheKey cacheKey(std::get<0>(shaderSpec.Source));
     
     RefPtr<GpuVertexShader> shader;
     if(m_VertexShaderCache.TryGet(cacheKey, shader))
     {
-        logDebug("  Vertex shader already exists in cache (key: {})", cacheKey.ToString());
+        logDebug("  Cache hit: {}", cacheKey.ToString());
         return shader;
     }
 
+    logDebug("  Cache miss: {}", cacheKey.ToString());
+
     auto result = m_GpuDevice->CreateVertexShader(shaderSpec);
     expect(result, result.error());
+
     shader = result.value();
-    expect(m_VertexShaderCache.TryAdd(cacheKey, shader), "Failed to add vertex shader to cache: {}", cacheKey.ToString());
+    expect(m_VertexShaderCache.TryAdd(cacheKey, shader),
+        "Failed to add vertex shader to cache: {}", cacheKey.ToString());
     return shader;
 }
 
 Result<RefPtr<GpuFragmentShader>>
-ModelCatalog::GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec)
+ResourceCache::GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec)
 {
-    // FIXME(KB) - use a proper cache key.
-    // Assume the source variant holds a string path for now.
     const CacheKey cacheKey(std::get<0>(shaderSpec.Source));
     
     RefPtr<GpuFragmentShader> shader;
     if(m_FragmentShaderCache.TryGet(cacheKey, shader))
     {
-        logDebug("  Fragment shader already exists in cache (key: {})", cacheKey.ToString());
+        logDebug("  Cache hit: {}", cacheKey.ToString());
         return shader;
     }
 
+    logDebug("  Cache miss: {}", cacheKey.ToString());
     auto result = m_GpuDevice->CreateFragmentShader(shaderSpec);
     expect(result, result.error());
+
     shader = result.value();
-    expect(m_FragmentShaderCache.TryAdd(cacheKey, shader), "Failed to add fragment shader to cache: {}", cacheKey.ToString());
+    expect(m_FragmentShaderCache.TryAdd(cacheKey, shader),
+        "Failed to add fragment shader to cache: {}", cacheKey.ToString());
     return shader;
 }
+
+Result<RefPtr<Model>>
+ResourceCache::GetModel(const CacheKey& cacheKey) const
+{
+    RefPtr<Model> model;
+    expect(m_ModelCache.TryGet(cacheKey, model), "Model not found: {}", cacheKey.ToString());
+    return model;
+}
+
+Result<RefPtr<GpuTexture>>
+ResourceCache::GetTexture(const CacheKey& cacheKey) const
+{
+    RefPtr<GpuTexture> texture;
+    expect(m_TextureCache.TryGet(cacheKey, texture), "Texture not found: {}", cacheKey.ToString());
+    return texture;
+}
+
+Result<RefPtr<GpuVertexShader>>
+ResourceCache::GetVertexShader(const CacheKey& cacheKey) const
+{
+    RefPtr<GpuVertexShader> shader;
+    expect(m_VertexShaderCache.TryGet(cacheKey, shader), "Vertex shader not found: {}", cacheKey.ToString());
+    return shader;
+}
+
+Result<RefPtr<GpuFragmentShader>>
+ResourceCache::GetFragmentShader(const CacheKey& cacheKey) const
+{
+    RefPtr<GpuFragmentShader> shader;
+    expect(m_FragmentShaderCache.TryGet(cacheKey, shader), "Fragment shader not found: {}", cacheKey.ToString());
+    return shader;
+}
+
+// private:
 
 static TextureProperties GetTexturePropertiesFromMaterial(
     const aiMaterial* material,

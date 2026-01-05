@@ -5,18 +5,17 @@
 #include "Camera.h"
 #include "SDLGPUDevice.h"
 #include "SDLRenderGraph.h"
-#include "ModelCatalog.h"
+#include "ResourceCache.h"
 
-static Result<RefPtr<Model>> CreateTriangleModel(ModelCatalog& catalog);
+static Result<RefPtr<Model>> CreateTriangleModel(ResourceCache& cache);
 
 class TriangleApp : public Application
 {
 public:
     ~TriangleApp() override
     {
-        delete m_ModelCatalog;
-        m_ModelCatalog = nullptr;
-
+        delete m_ResourceCache;
+        m_ResourceCache = nullptr;
         delete m_RenderGraph;
         m_RenderGraph = nullptr;
     }
@@ -28,11 +27,11 @@ public:
 
     Result<void> Initialize(RefPtr<SDLGPUDevice> gpuDevice) override
     {
-        m_ModelCatalog = new ModelCatalog(gpuDevice);
-        if(!m_ModelCatalog)
+        m_ResourceCache = new ResourceCache(gpuDevice);
+        if(!m_ResourceCache)
         {
             Shutdown();
-            return std::unexpected(Error("Failed to create ModelCatalog"));
+            return std::unexpected(Error("Failed to create ResourceCache"));
         }
 
         m_RenderGraph = new SDLRenderGraph(gpuDevice.Get());
@@ -50,7 +49,7 @@ public:
         m_CameraXform.T = Vec3f{ 0,0,-4 };
         m_Camera.SetPerspective(fov, m_ScreenBounds, 0.1f, 1000);
 
-        auto modelResult = CreateTriangleModel(*m_ModelCatalog);
+        auto modelResult = CreateTriangleModel(*m_ResourceCache);
         expect(modelResult, modelResult.error());
         m_Model = *modelResult;
 
@@ -61,8 +60,8 @@ public:
 
     void Shutdown() override
     {
-        delete m_ModelCatalog;
-        m_ModelCatalog = nullptr;
+        delete m_ResourceCache;
+        m_ResourceCache = nullptr;
 
         delete m_RenderGraph;
         m_RenderGraph = nullptr;
@@ -97,7 +96,7 @@ public:
 private:
 
         RefPtr<SDLGPUDevice> m_GPUDevice;
-        ModelCatalog* m_ModelCatalog = nullptr;
+        ResourceCache* m_ResourceCache = nullptr;
         SDLRenderGraph* m_RenderGraph = nullptr;
         TrsTransformf m_CameraXform;
         Camera m_Camera;
@@ -143,7 +142,7 @@ static const std::vector<VertexIndex> triangleIndices =
     0, 1, 2,
 };
 
-static Result<RefPtr<Model>> CreateTriangleModel(ModelCatalog& catalog)
+static Result<RefPtr<Model>> CreateTriangleModel(ResourceCache& cache)
 {
     std::vector<MeshSpec> meshSpecs =
     {
@@ -172,5 +171,5 @@ static Result<RefPtr<Model>> CreateTriangleModel(ModelCatalog& catalog)
 
     const ModelSpec modelSpec{std::move(meshSpecs), std::move(meshInstances), std::move(transformNodes)};
 
-    return catalog.CreateModel(CacheKey("TriangleModel"), modelSpec);
+    return cache.GetOrCreateModel(CacheKey("TriangleModel"), modelSpec);
 }

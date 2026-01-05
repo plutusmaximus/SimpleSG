@@ -5,14 +5,14 @@
 #include "Camera.h"
 #include "ECS.h"
 #include "EcsChildTransformPool.h"
-#include "ModelCatalog.h"
+#include "ResourceCache.h"
 #include "MouseNav.h"
 #include "SDLGPUDevice.h"
 #include "SDLRenderGraph.h"
 #include "Shapes.h"
 
-static Result<RefPtr<Model>> CreateCubeModel(ModelCatalog& catalog);
-static Result<RefPtr<Model>> CreateShapeModel(ModelCatalog& catalog);
+static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache);
+static Result<RefPtr<Model>> CreateShapeModel(ResourceCache& cache);
 
 class WorldMatrix : public Mat44f
 {    
@@ -29,8 +29,8 @@ class CubeApp : public Application
 public:
     ~CubeApp() override
     {
-        delete m_ModelCatalog;
-        m_ModelCatalog = nullptr;
+        delete m_ResourceCache;
+        m_ResourceCache = nullptr;
 
         delete m_RenderGraph;
         m_RenderGraph = nullptr;
@@ -52,11 +52,11 @@ public:
 
         m_State = State::Initialized;
 
-        m_ModelCatalog = new ModelCatalog(gpuDevice);
-        if(!m_ModelCatalog)
+        m_ResourceCache = new ResourceCache(gpuDevice);
+        if(!m_ResourceCache)
         {
             Shutdown();
-            return std::unexpected(Error("Failed to create ModelCatalog"));
+            return std::unexpected(Error("Failed to create ResourceCache"));
         }
 
         m_RenderGraph = new SDLRenderGraph(gpuDevice.Get());
@@ -76,7 +76,7 @@ public:
 
         //auto modelResult = CreateCube(gd);
         //auto modelResult = CreatePumpkin(gd);
-        auto modelResult = CreateShapeModel(*m_ModelCatalog);
+        auto modelResult = CreateShapeModel(*m_ResourceCache);
         expect(modelResult, modelResult.error());
         auto model = modelResult.value();
 
@@ -107,8 +107,8 @@ public:
         }
         m_State = State::Shutdown;
 
-        delete m_ModelCatalog;
-        m_ModelCatalog = nullptr;
+        delete m_ResourceCache;
+        m_ResourceCache = nullptr;
 
         delete m_RenderGraph;
         m_RenderGraph = nullptr;
@@ -255,7 +255,7 @@ private:
         State m_State = State::None;
 
         RefPtr<SDLGPUDevice> m_GPUDevice;
-        ModelCatalog* m_ModelCatalog = nullptr;
+        ResourceCache* m_ResourceCache = nullptr;
         SDLRenderGraph* m_RenderGraph = nullptr;
         EcsRegistry m_Registry;
         GimbleMouseNav m_GimbleMouseNav{ TrsTransformf{}};
@@ -348,7 +348,7 @@ static std::vector<T> Subrange(const T* array, const size_t offset, const size_t
     return std::vector<T>(array + offset, array + offset + count);
 }
 
-static Result<RefPtr<Model>> CreateCubeModel(ModelCatalog& catalog)
+static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
 {
     std::vector<MeshSpec> meshSpecs =
     {
@@ -437,10 +437,10 @@ static Result<RefPtr<Model>> CreateCubeModel(ModelCatalog& catalog)
 
     const ModelSpec modelSpec{std::move(meshSpecs), std::move(meshInstances), std::move(transformNodes)};
 
-    return catalog.CreateModel(CacheKey("CubeModel"), modelSpec);
+    return cache.GetOrCreateModel(CacheKey("CubeModel"), modelSpec);
 }
 
-static Result<RefPtr<Model>> CreateShapeModel(ModelCatalog& catalog)
+static Result<RefPtr<Model>> CreateShapeModel(ResourceCache& cache)
 {
     //auto geometry = Shapes::Box(1, 1, 1);
     //auto geometry = Shapes::Ball(1, 10);
@@ -476,5 +476,5 @@ static Result<RefPtr<Model>> CreateShapeModel(ModelCatalog& catalog)
 
     const ModelSpec modelSpec{std::move(meshSpecs), std::move(meshInstances), std::move(transformNodes)};
 
-    return catalog.CreateModel(CacheKey("ShapeModel"), modelSpec);
+    return cache.GetOrCreateModel(CacheKey("ShapeModel"), modelSpec);
 }

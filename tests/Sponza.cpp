@@ -5,7 +5,7 @@
 #include "Camera.h"
 #include "ECS.h"
 #include "EcsChildTransformPool.h"
-#include "ModelCatalog.h"
+#include "ResourceCache.h"
 #include "MouseNav.h"
 #include "SDLGPUDevice.h"
 #include "SDLRenderGraph.h"
@@ -25,8 +25,8 @@ class SponzaApp : public Application
 public:
     ~SponzaApp() override
     {
-        delete m_ModelCatalog;
-        m_ModelCatalog = nullptr;
+        delete m_ResourceCache;
+        m_ResourceCache = nullptr;
 
         delete m_RenderGraph;
         m_RenderGraph = nullptr;
@@ -46,11 +46,11 @@ public:
 
         m_State = State::Initialized;
 
-        m_ModelCatalog = new ModelCatalog(gpuDevice);
-        if(!m_ModelCatalog)
+        m_ResourceCache = new ResourceCache(gpuDevice);
+        if(!m_ResourceCache)
         {
             Shutdown();
-            return std::unexpected(Error("Failed to create ModelCatalog"));
+            return std::unexpected(Error("Failed to create ResourceCache"));
         }
 
         m_RenderGraph = new SDLRenderGraph(gpuDevice.Get());
@@ -67,7 +67,7 @@ public:
         constexpr const char* JUNGLE_RUINS = "C:/Users/kbaca/Downloads/JungleRuins/GLTF/JungleRuins_Main.gltf";
 
         m_GpuDevice = gpuDevice;
-        auto modelResult = m_ModelCatalog->LoadModelFromFile(CacheKey("Sponza"), SPONZA_MODEL_PATH);
+        auto modelResult = m_ResourceCache->LoadModelFromFile(CacheKey("Sponza"), SPONZA_MODEL_PATH);
         expect(modelResult, modelResult.error());
 
         auto model = *modelResult;
@@ -97,8 +97,8 @@ public:
         }
         m_State = State::Shutdown;
 
-        delete m_ModelCatalog;
-        m_ModelCatalog = nullptr;
+        delete m_ResourceCache;
+        m_ResourceCache = nullptr;
 
         delete m_RenderGraph;
         m_RenderGraph = nullptr;
@@ -229,7 +229,7 @@ private:
         State m_State = State::None;
 
         RefPtr<SDLGPUDevice> m_GpuDevice;
-        ModelCatalog* m_ModelCatalog = nullptr;
+        ResourceCache* m_ResourceCache = nullptr;
         SDLRenderGraph* m_RenderGraph = nullptr;
         EcsRegistry m_Registry;
         WalkMouseNav m_WalkMouseNav{ TrsTransformf{}, 0.0001f, 5.0f };
