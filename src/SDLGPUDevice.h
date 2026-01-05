@@ -16,13 +16,18 @@ struct SDL_GPUShader;
 struct SDL_GPUGraphicsPipeline;
 class Image;
 
-class SDLGpuBuffer : public GpuBuffer
+class SDLGpuVertexBuffer : public GpuVertexBuffer
 {
 public:
 
-    SDLGpuBuffer() = delete;
+    SDLGpuVertexBuffer() = delete;
 
-    ~SDLGpuBuffer() override;
+    ~SDLGpuVertexBuffer() override;
+
+    /// @brief Retrieves a sub-range vertex buffer from this buffer.
+    Result<RefPtr<GpuVertexBuffer>> GetSubRange(
+        const uint32_t itemOffset,
+        const uint32_t itemCount) override;
 
     SDL_GPUBuffer* const Buffer;
 
@@ -30,13 +35,67 @@ private:
 
     friend class SDLGPUDevice;
 
-    SDLGpuBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer)
-        : m_GpuDevice(gpuDevice)
+    SDLGpuVertexBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer, const uint32_t itemOffset, const uint32_t itemCount)
+        : GpuVertexBuffer(itemOffset, itemCount)
         , Buffer(buffer)
+        , m_GpuDevice(gpuDevice)
     {
     }
 
+    SDLGpuVertexBuffer(RefPtr<GpuVertexBuffer> baseBuffer, const uint32_t itemOffset, const uint32_t itemCount)
+        : GpuVertexBuffer(itemOffset, itemCount)
+        , Buffer(baseBuffer.Get<SDLGpuVertexBuffer>()->Buffer)
+        , m_GpuDevice(baseBuffer.Get<SDLGpuVertexBuffer>()->m_GpuDevice)
+        , m_BaseBuffer(baseBuffer)
+    {
+        eassert(itemOffset + itemCount <= baseBuffer->ItemCount);
+    }
+
     SDL_GPUDevice* const m_GpuDevice;
+
+    /// @brief Base buffer from which this sub-range was created (if any).
+    RefPtr<GpuVertexBuffer> m_BaseBuffer;
+};
+
+class SDLGpuIndexBuffer : public GpuIndexBuffer
+{
+public:
+
+    SDLGpuIndexBuffer() = delete;
+
+    ~SDLGpuIndexBuffer() override;
+
+    /// @brief Retrieves a sub-range index buffer from this buffer.
+    Result<RefPtr<GpuIndexBuffer>> GetSubRange(
+        const uint32_t itemOffset,
+        const uint32_t itemCount) override;
+
+    SDL_GPUBuffer* const Buffer;
+
+private:
+
+    friend class SDLGPUDevice;
+
+    SDLGpuIndexBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer, const uint32_t itemOffset, const uint32_t itemCount)
+        : GpuIndexBuffer(itemOffset, itemCount)
+        , Buffer(buffer)
+        , m_GpuDevice(gpuDevice)
+    {
+    }
+
+    SDLGpuIndexBuffer(RefPtr<GpuIndexBuffer> baseBuffer, const uint32_t itemOffset, const uint32_t itemCount)
+        : GpuIndexBuffer(itemOffset, itemCount)
+        , Buffer(baseBuffer.Get<SDLGpuIndexBuffer>()->Buffer)
+        , m_GpuDevice(baseBuffer.Get<SDLGpuIndexBuffer>()->m_GpuDevice)
+        , m_BaseBuffer(baseBuffer)
+    {
+        eassert(itemOffset + itemCount <= baseBuffer->ItemCount);
+    }
+
+    SDL_GPUDevice* const m_GpuDevice;
+
+    /// @brief Base buffer from which this sub-range was created (if any).
+    RefPtr<GpuIndexBuffer> m_BaseBuffer;
 };
 
 class SDLGpuTexture : public GpuTexture
@@ -121,16 +180,16 @@ public:
     /// @brief Gets the renderable extent of the device.
     Extent GetExtent() const override;
 
-    Result<GpuIndexBuffer> CreateIndexBuffer(
+    Result<RefPtr<GpuIndexBuffer>> CreateIndexBuffer(
         const std::span<const VertexIndex>& indices) override;
 
-    Result<GpuVertexBuffer> CreateVertexBuffer(
+    Result<RefPtr<GpuVertexBuffer>> CreateVertexBuffer(
         const std::span<const Vertex>& vertices) override;
 
-    Result<GpuIndexBuffer> CreateIndexBuffer(
+    Result<RefPtr<GpuIndexBuffer>> CreateIndexBuffer(
         const std::span<std::span<const VertexIndex>>& indices) override;
 
-    Result<GpuVertexBuffer> CreateVertexBuffer(
+    Result<RefPtr<GpuVertexBuffer>> CreateVertexBuffer(
         const std::span<std::span<const Vertex>>& vertices) override;
 
     Result<RefPtr<GpuTexture>> CreateTexture(const TextureSpec& textureSpec) override;

@@ -35,17 +35,6 @@ public:
     const unsigned NumSamplers{ 0 };
 };
 
-class GpuBuffer
-{
-public:
-
-    GpuBuffer() {}
-
-    virtual ~GpuBuffer() = 0 {}
-
-    IMPLEMENT_REFCOUNT(GpuBuffer);
-};
-
 /// @brief GPU representation of a vertex buffer.
 class GpuVertexBuffer
 {
@@ -53,14 +42,28 @@ public:
 
     GpuVertexBuffer() = delete;
 
-    GpuVertexBuffer(RefPtr<GpuBuffer> gpuBuffer, const uint32_t offset)
-        : GpuBuffer(gpuBuffer)
-        , Offset(offset)
+    virtual ~GpuVertexBuffer() = 0 {}
+
+    /// @brief Retrieves a sub-range vertex buffer from this buffer.
+    virtual Result<RefPtr<GpuVertexBuffer>> GetSubRange(
+        const uint32_t itemOffset,
+        const uint32_t itemCount) = 0;
+
+    /// @brief Offset of first vertex in buffer, in bytes.
+    const uint32_t ByteOffset;
+
+    /// @brief Number of vertices in buffer.
+    const uint32_t ItemCount;
+
+protected:
+
+    GpuVertexBuffer(const uint32_t itemOffset, const uint32_t itemCount)
+        : ByteOffset(itemOffset * sizeof(Vertex))
+        , ItemCount(itemCount)
     {
     }
 
-    RefPtr<GpuBuffer> const GpuBuffer;
-    const uint32_t Offset;
+    IMPLEMENT_REFCOUNT(GpuVertexBuffer);
 };
 
 /// @brief GPU representation of an index buffer.
@@ -70,14 +73,28 @@ public:
 
     GpuIndexBuffer() = delete;
 
-    GpuIndexBuffer(RefPtr<GpuBuffer> gpuBuffer, const uint32_t offset)
-        : GpuBuffer(gpuBuffer)
-        , Offset(offset)
+    virtual ~GpuIndexBuffer() = 0 {}
+
+    /// @brief Retrieves a sub-range index buffer from this buffer.
+    virtual Result<RefPtr<GpuIndexBuffer>> GetSubRange(
+        const uint32_t itemOffset,
+        const uint32_t itemCount) = 0;
+
+    /// @brief Offset of first index in buffer, in bytes.
+    const uint32_t ByteOffset;
+
+    /// @brief Number of indices in buffer.
+    const uint32_t ItemCount;
+
+protected:
+
+    GpuIndexBuffer(const uint32_t itemOffset, const uint32_t itemCount)
+        : ByteOffset(itemOffset * sizeof(VertexIndex))
+        , ItemCount(itemCount)
     {
     }
 
-    RefPtr<GpuBuffer> const GpuBuffer;
-    const uint32_t Offset;
+    IMPLEMENT_REFCOUNT(GpuIndexBuffer);
 };
 
 /// @brief GPU representation of a vertex shader.
@@ -128,16 +145,20 @@ public:
     /// @brief Gets the renderable extent of the device.
     virtual Extent GetExtent() const = 0;
 
-    virtual Result<GpuIndexBuffer> CreateIndexBuffer(
+    /// @brief Creates an index buffer from the given indices.
+    virtual Result<RefPtr<GpuIndexBuffer>> CreateIndexBuffer(
         const std::span<const VertexIndex>& indices) = 0;
 
-    virtual Result<GpuVertexBuffer> CreateVertexBuffer(
+    /// @brief Creates a vertex buffer from the given vertices.
+    virtual Result<RefPtr<GpuVertexBuffer>> CreateVertexBuffer(
         const std::span<const Vertex>& vertices) = 0;
 
-    virtual Result<GpuIndexBuffer> CreateIndexBuffer(
+    /// @brief Creates an index buffer from multiple spans of indices.
+    virtual Result<RefPtr<GpuIndexBuffer>> CreateIndexBuffer(
         const std::span<std::span<const VertexIndex>>& indices) = 0;
 
-    virtual Result<GpuVertexBuffer> CreateVertexBuffer(
+    /// @brief Creates a vertex buffer from multiple spans of vertices.
+    virtual Result<RefPtr<GpuVertexBuffer>> CreateVertexBuffer(
         const std::span<std::span<const Vertex>>& vertices) = 0;
 
     /// @brief Creates a texture from the given specification.

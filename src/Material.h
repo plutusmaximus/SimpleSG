@@ -298,10 +298,10 @@ public:
     RefPtr<GpuTexture> const Albedo;
 
     /// @brief Vertex shader used by the material.
-    RefPtr<GpuVertexShader> const VertexShader;
+    const RefPtr<GpuVertexShader> VertexShader;
 
     /// @brief Fragment shader used by the material.
-    RefPtr<GpuFragmentShader> const FragmentShader;
+    const RefPtr<GpuFragmentShader> FragmentShader;
 
 private:
 

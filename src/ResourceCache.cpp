@@ -186,8 +186,8 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     auto vbResult = m_GpuDevice->CreateVertexBuffer(vertexSpans);
     expect(vbResult, vbResult.error());
 
-    auto ib = ibResult.value();
-    auto vb = vbResult.value();
+    auto baseIb = ibResult.value();
+    auto baseVb = vbResult.value();
 
     std::vector<Mesh> meshes;
     meshes.reserve(modelSpec.MeshSpecs.size());
@@ -222,9 +222,15 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
 
         // The index and vertex buffers were each created as a single large buffer,
         // so we need to adjust the offsets for each mesh.
-        auto tmpIb = GpuIndexBuffer(ib.GpuBuffer, ib.Offset + idxOffset * sizeof(VertexIndex));
-        auto tmpVb = GpuVertexBuffer(vb.GpuBuffer, vb.Offset + vtxOffset * sizeof(Vertex));
-        Mesh mesh(meshSpec.Name, tmpVb, tmpIb, idxCount, mtl);
+        auto ibSubrangeResult = baseIb->GetSubRange(idxOffset, idxCount);
+        expect(ibSubrangeResult, ibSubrangeResult.error());
+        auto vbSubrangeResult = baseVb->GetSubRange(vtxOffset, vtxCount);
+        expect(vbSubrangeResult, vbSubrangeResult.error());
+
+        auto ibSubrange = ibSubrangeResult.value();
+        auto vbSubrange = vbSubrangeResult.value();
+        
+        Mesh mesh(meshSpec.Name, vbSubrange, ibSubrange, idxCount, mtl);
         idxOffset += idxCount;
         vtxOffset += vtxCount;
 
