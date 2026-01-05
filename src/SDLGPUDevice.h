@@ -121,9 +121,17 @@ public:
     /// @brief Gets the renderable extent of the device.
     Extent GetExtent() const override;
 
-    Result<std::tuple<GpuVertexBuffer, GpuIndexBuffer>> CreateBuffers(
-        const std::span<std::span<const Vertex>>& vertices,
-        const std::span<std::span<const uint32_t>>& indices) override;
+    Result<GpuIndexBuffer> CreateIndexBuffer(
+        const std::span<const VertexIndex>& indices) override;
+
+    Result<GpuVertexBuffer> CreateVertexBuffer(
+        const std::span<const Vertex>& vertices) override;
+
+    Result<GpuIndexBuffer> CreateIndexBuffer(
+        const std::span<std::span<const VertexIndex>>& indices) override;
+
+    Result<GpuVertexBuffer> CreateVertexBuffer(
+        const std::span<std::span<const Vertex>>& vertices) override;
 
     Result<RefPtr<GpuTexture>> CreateTexture(const TextureSpec& textureSpec) override;
 

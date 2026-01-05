@@ -166,24 +166,32 @@ ModelCatalog::CreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec)
 
     std::vector<std::span<const Vertex>> vertexSpans;
     std::vector<std::span<const VertexIndex>> indexSpans;
+
+    vertexSpans.reserve(modelSpec.MeshSpecs.size());
+    indexSpans.reserve(modelSpec.MeshSpecs.size());
+
     for(const auto& meshSpec : modelSpec.MeshSpecs)
     {
         vertexSpans.emplace_back(meshSpec.Vertices);
         indexSpans.emplace_back(meshSpec.Indices);
     }
 
-    auto bufResult = m_GpuDevice->CreateBuffers(vertexSpans, indexSpans);
-    expect(bufResult, bufResult.error());
+    auto ibResult = m_GpuDevice->CreateIndexBuffer(indexSpans);
+    expect(ibResult, ibResult.error());
 
-    auto [vb, ib] = bufResult.value();
+    auto vbResult = m_GpuDevice->CreateVertexBuffer(vertexSpans);
+    expect(vbResult, vbResult.error());
+
+    auto ib = ibResult.value();
+    auto vb = vbResult.value();
 
     std::vector<Mesh> meshes;
-    uint32_t indexOffset = 0;
+    meshes.reserve(modelSpec.MeshSpecs.size());
 
-    for (size_t i = 0; i < modelSpec.MeshSpecs.size(); ++i)
+    uint32_t idxOffset = 0, vtxOffset = 0;
+
+    for(const auto& meshSpec : modelSpec.MeshSpecs)
     {
-        const MeshSpec& meshSpec = modelSpec.MeshSpecs[i];
-
         auto albedoResult = GetOrCreateTexture(meshSpec.MtlSpec.Albedo);
         expect(albedoResult, albedoResult.error());
 
@@ -205,17 +213,21 @@ ModelCatalog::CreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec)
             fragShaderResult.value()
         };
 
-        const uint32_t indexCount = static_cast<uint32_t>(meshSpec.Indices.size());
+        const uint32_t idxCount = static_cast<uint32_t>(meshSpec.Indices.size());
+        const uint32_t vtxCount = static_cast<uint32_t>(meshSpec.Vertices.size());
 
-        // The index and vertex buffers were created as a single large buffer,
+        // The index and vertex buffers were each created as a single large buffer,
         // so we need to adjust the offsets for each mesh.
-        auto tmpIb = GpuIndexBuffer(ib.GpuBuffer, ib.Offset + indexOffset * sizeof(VertexIndex));
-        Mesh mesh(meshSpec.Name, vb, tmpIb, indexCount, mtl);
-        indexOffset += indexCount;
+        auto tmpIb = GpuIndexBuffer(ib.GpuBuffer, ib.Offset + idxOffset * sizeof(VertexIndex));
+        auto tmpVb = GpuVertexBuffer(vb.GpuBuffer, vb.Offset + vtxOffset * sizeof(Vertex));
+        Mesh mesh(meshSpec.Name, tmpVb, tmpIb, idxCount, mtl);
+        idxOffset += idxCount;
+        vtxOffset += vtxCount;
 
         meshes.emplace_back(mesh);
     }
 
+    //Model::Create() expects to take ownership of these vectors, so create copies.
     std::vector<MeshInstance> meshInstances = modelSpec.MeshInstances;
     std::vector<TransformNode> transformNodes = modelSpec.TransformNodes;
 
@@ -515,29 +527,29 @@ static MeshSpec CreateMeshSpecFromMesh(
     vertices.reserve(mesh->mNumVertices);
     indices.reserve(mesh->mNumFaces * 3);
 
-    int albedoUvIndex = 0;
+    int albedoUvIndex = -1;
     if(material)
     {
-        aiGetMaterialInteger(material, AI_MATKEY_UVWSRC(aiTextureType_BASE_COLOR, 0), (int *)&albedoUvIndex);
+        aiGetMaterialInteger(material, AI_MATKEY_UVWSRC(aiTextureType_BASE_COLOR, 0), &albedoUvIndex);
     }
 
     // Lambda to get UVs or return zero UVs if not present
-    const bool hasAlbedo = mtlSpec.HasAlbedo();
-    auto getUV = [hasAlbedo](const aiMesh* mesh, const unsigned uvIndex, unsigned v)
+    auto getUV = [](const aiMesh* mesh, const int uvIndex, unsigned vtxIdx)
     {
-        if (!hasAlbedo)
+        if (uvIndex < 0 || !mesh->HasTextureCoords(uvIndex))
         {
             return UV2{ 0.0f, 0.0f };
         }
 
-        const aiVector3D& uv = mesh->mTextureCoords[uvIndex][v];
+        const aiVector3D& uv = mesh->mTextureCoords[uvIndex][vtxIdx];
         return UV2{ uv.x, uv.y };
     };
+
     // Transform mesh by node transform
-    for(unsigned v = 0; v < mesh->mNumVertices; ++v)
+    for(unsigned vtxIdx = 0; vtxIdx < mesh->mNumVertices; ++vtxIdx)
     {
-        const aiVector3D& srcVtx = mesh->mVertices[v];
-        const aiVector3D& srcNorm = mesh->mNormals[v];
+        const aiVector3D& srcVtx = mesh->mVertices[vtxIdx];
+        const aiVector3D& srcNorm = mesh->mNormals[vtxIdx];
 
         Vertex vtx
         {
@@ -545,14 +557,12 @@ static MeshSpec CreateMeshSpecFromMesh(
             .normal = Vec3f{ srcNorm.x, srcNorm.y, srcNorm.z }.Normalize(),
             .uvs
             {
-                getUV(mesh, albedoUvIndex, v)
+                getUV(mesh, albedoUvIndex, vtxIdx)
             }
         };
 
         vertices.emplace_back(vtx);
     }
-
-    uint32_t indexCount = 0;
 
     for(unsigned f = 0; f < mesh->mNumFaces; ++f)
     {
@@ -561,8 +571,6 @@ static MeshSpec CreateMeshSpecFromMesh(
         indices.emplace_back(face.mIndices[0]);
         indices.emplace_back(face.mIndices[1]);
         indices.emplace_back(face.mIndices[2]);
-
-        indexCount += 3;
     }
 
     return MeshSpec

@@ -128,13 +128,17 @@ public:
     /// @brief Gets the renderable extent of the device.
     virtual Extent GetExtent() const = 0;
 
-    /// @brief Creates vertex and index buffers from the given vertices and indices.
-    /// Internally combines multiple source buffers into a single GPU buffer.
-    /// Pass empty spans to indicate no data for that source buffer.
-    /// The number of vertex and index buffers must match, even if some are empty.
-    virtual Result<std::tuple<GpuVertexBuffer, GpuIndexBuffer>> CreateBuffers(
-        const std::span<std::span<const Vertex>>& vertices,
-        const std::span<std::span<const uint32_t>>& indices) = 0;
+    virtual Result<GpuIndexBuffer> CreateIndexBuffer(
+        const std::span<const VertexIndex>& indices) = 0;
+
+    virtual Result<GpuVertexBuffer> CreateVertexBuffer(
+        const std::span<const Vertex>& vertices) = 0;
+
+    virtual Result<GpuIndexBuffer> CreateIndexBuffer(
+        const std::span<std::span<const VertexIndex>>& indices) = 0;
+
+    virtual Result<GpuVertexBuffer> CreateVertexBuffer(
+        const std::span<std::span<const Vertex>>& vertices) = 0;
 
     /// @brief Creates a texture from the given specification.
     virtual Result<RefPtr<GpuTexture>> CreateTexture(const TextureSpec& textureSpec) = 0;

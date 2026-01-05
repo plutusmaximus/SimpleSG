@@ -27,12 +27,18 @@ static const char* const SHADER_EXTENSION = ".spv";
 
 #endif
 
+/// @brief Common function to load a shader from a file.
+template<typename T>
 static Result<SDL_GPUShader*> LoadShader(
     SDL_GPUDevice* gpuDevice,
     const std::string_view fileName,
-    SDL_GPUShaderStage shaderStage,
     const unsigned numUniformBuffers,
     const unsigned numSamplers);
+
+/// @brief Common function to create a GPU buffer from multiple spans.
+template<typename T>
+static Result<SDL_GPUBuffer*>
+CreateGpuBuffer(SDL_GPUDevice* gd, const std::span<const std::span<const T>>& spans);
 
 SDLGpuBuffer::~SDLGpuBuffer()
 {
@@ -126,133 +132,44 @@ Extent SDLGPUDevice::GetExtent() const
     return Extent{static_cast<float>(width), static_cast<float>(height)};
 }
 
-Result<std::tuple<GpuVertexBuffer, GpuIndexBuffer>>
-SDLGPUDevice::CreateBuffers(
-    const std::span<std::span<const Vertex>>& vertices,
-    const std::span<std::span<const uint32_t>>& indices)
+Result<GpuIndexBuffer>
+SDLGPUDevice::CreateIndexBuffer(const std::span<const VertexIndex>& indices)
 {
-    if(!everify(vertices.size() == indices.size()))
-    {
-        return std::unexpected("Mismatched number of vertex and index buffers");
-    }
+    std::span<const VertexIndex> spans[]{indices};
+    return CreateIndexBuffer(spans);
+}
 
-    const size_t numSrcBuffers = vertices.size();
-    size_t sizeofVtxBuffer = 0;
-    size_t sizeofIdxBuffer = 0;
+Result<GpuVertexBuffer>
+SDLGPUDevice::CreateVertexBuffer(const std::span<const Vertex>& vertices)
+{
+    std::span<const Vertex> spans[]{vertices};
+    return CreateVertexBuffer(spans);
+}
 
-    for(int i = 0; i < numSrcBuffers; ++i)
-    {
-        sizeofVtxBuffer += vertices[i].size() * sizeof(vertices[i][0]);
-        sizeofIdxBuffer += indices[i].size() * sizeof(indices[i][0]);
-    }
+Result<GpuIndexBuffer>
+SDLGPUDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& indices)
+{
+    auto result = CreateGpuBuffer<VertexIndex>(Device, indices);
+    expect(result, result.error());
 
-    const size_t sizeofData = sizeofVtxBuffer + sizeofIdxBuffer;
+    RefPtr<SDLGpuBuffer> gpuBuf = new SDLGpuBuffer(Device, *result);
 
-    //Create a single buffer to contain vertices and indices.
+    expect(gpuBuf, "Error allocating SDLGPUBuffer");
 
-    SDL_GPUBufferCreateInfo bufferCreateInfo
-    {
-        .usage = SDL_GPU_BUFFERUSAGE_VERTEX | SDL_GPU_BUFFERUSAGE_INDEX,
-        .size = static_cast<Uint32>(sizeofData)
-    };
+    return GpuIndexBuffer{ gpuBuf, 0 };
+}
 
-    SDL_GPUBuffer* buf = SDL_CreateGPUBuffer(Device, &bufferCreateInfo);
-    expect(buf, SDL_GetError());
+Result<GpuVertexBuffer>
+SDLGPUDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& vertices)
+{
+    auto result = CreateGpuBuffer<Vertex>(Device, vertices);
+    expect(result, result.error());
 
-    RefPtr<SDLGpuBuffer> gpuBuf = new SDLGpuBuffer(Device, buf);
+    RefPtr<SDLGpuBuffer> gpuBuf = new SDLGpuBuffer(Device, *result);
 
-    expectv(gpuBuf, "Error allocating SDLGPUBuffer");
+    expect(gpuBuf, "Error allocating SDLGPUBuffer");
 
-    //Transfer vertex/index data to GPU memory.
-
-    //Create transfer buffer
-    SDL_GPUTransferBufferCreateInfo xferBufCreateInfo
-    {
-        .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-        .size = static_cast<Uint32>(sizeofData)
-    };
-
-    SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(Device, &xferBufCreateInfo);
-    expect(transferBuffer, SDL_GetError());
-    auto tbufferCleanup = Finally([&]()
-    {
-        SDL_ReleaseGPUTransferBuffer(Device, transferBuffer);
-    });
-
-    // Copy to transfer buffer
-    uint8_t* xferBuf = static_cast<uint8_t*>(SDL_MapGPUTransferBuffer(Device, transferBuffer, false));
-    expect(xferBuf, SDL_GetError());
-
-    const size_t bufferOffsetOfVerts = 0;
-    const size_t bufferOffsetOfIndices = sizeofVtxBuffer;
-
-    Vertex* dstVtx = reinterpret_cast<Vertex*>(xferBuf + bufferOffsetOfVerts);
-    VertexIndex* dstIdx = reinterpret_cast<VertexIndex*>(xferBuf + bufferOffsetOfIndices);
-
-    const Vertex* vtxBase = dstVtx;
-
-    for(int i = 0; i < numSrcBuffers; ++i)
-    {
-        // Offset to add to indices to account for multiple vertex buffers.
-        const uint32_t vtxOffset = static_cast<uint32_t>(dstVtx - vtxBase);
-
-        const auto& vertSpan = vertices[i];
-        if(!vertSpan.empty())
-        {
-            const uint32_t vtxCount = static_cast<uint32_t>(vertSpan.size());
-            const uint32_t vtxBufSize = static_cast<uint32_t>(vtxCount * sizeof(Vertex));
-            ::memcpy(dstVtx, vertSpan.data(), vtxBufSize);
-            dstVtx += vtxCount;
-        }
-
-        const auto& indexSpan = indices[i];
-        if(!indexSpan.empty())
-        {
-            const uint32_t idxCount = static_cast<uint32_t>(indexSpan.size());
-            for(int j = 0; j < idxCount; ++j, ++dstIdx)
-            {
-                *dstIdx = indexSpan[j] + vtxOffset;
-            }
-        }
-    }
-
-    SDL_UnmapGPUTransferBuffer(Device, transferBuffer);
-
-    //Upload data to GPU mem.
-    SDL_GPUCommandBuffer* uploadCmdBuf = SDL_AcquireGPUCommandBuffer(Device);
-    expect(uploadCmdBuf, SDL_GetError());
-    auto cmdBufCleanup = Finally([&]()
-    {
-        SDL_CancelGPUCommandBuffer(uploadCmdBuf);
-    });
-
-    SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(uploadCmdBuf);
-    expect(copyPass, SDL_GetError());
-
-    SDL_GPUTransferBufferLocation srcBuf
-    {
-        .transfer_buffer = transferBuffer,
-        .offset = 0
-    };
-    SDL_GPUBufferRegion dstBuf
-    {
-        .buffer = gpuBuf->Buffer,
-        .offset = 0,
-        .size = static_cast<Uint32>(sizeofData)
-    };
-
-    SDL_UploadToGPUBuffer(copyPass, &srcBuf, &dstBuf, false);
-
-    SDL_EndGPUCopyPass(copyPass);
-
-    expect(SDL_SubmitGPUCommandBuffer(uploadCmdBuf), SDL_GetError());
-
-    cmdBufCleanup.Cancel();
-
-    GpuVertexBuffer vb{ gpuBuf, static_cast<uint32_t>(bufferOffsetOfVerts) };
-    GpuIndexBuffer ib{ gpuBuf, static_cast<uint32_t>(bufferOffsetOfIndices) };
-
-    return std::make_tuple(vb, ib);
+    return GpuVertexBuffer{ gpuBuf, 0 };
 }
 
 template<class... Ts>
@@ -275,21 +192,16 @@ Result<RefPtr<GpuVertexShader>>
 SDLGPUDevice::CreateVertexShader(const VertexShaderSpec& shaderSpec)
 {
     const std::string_view path = std::get<std::string>(shaderSpec.Source);
-    auto shaderResult = LoadShader(
+    auto shaderResult = LoadShader<GpuVertexShader>(
         Device,
         path,
-        SDL_GPU_SHADERSTAGE_VERTEX,
         shaderSpec.NumUniformBuffers,
         0);
 
     expect(shaderResult, shaderResult.error());
 
     RefPtr<GpuVertexShader> gpuShader = new SDLGpuVertexShader(Device, shaderResult.value());
-
-    if(!gpuShader)
-    {
-        return std::unexpected("Error allocating SDLGPUVertexShader");
-    }
+    expect(gpuShader, "Error allocating SDLGPUVertexShader");
 
     return gpuShader;
 }
@@ -298,21 +210,16 @@ Result<RefPtr<GpuFragmentShader>>
 SDLGPUDevice::CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
 {
     const std::string_view path = std::get<std::string>(shaderSpec.Source);
-    auto shaderResult = LoadShader(
+    auto shaderResult = LoadShader<GpuFragmentShader>(
         Device,
         path,
-        SDL_GPU_SHADERSTAGE_FRAGMENT,
         0,
         shaderSpec.NumSamplers);
 
     expect(shaderResult, shaderResult.error());
 
     RefPtr<GpuFragmentShader> gpuShader = new SDLGpuFragmentShader(Device, shaderResult.value());
-
-    if(!gpuShader)
-    {
-        return std::unexpected("Error allocating SDLGPUFragmentShader");
-    }
+    expect(gpuShader, "Error allocating SDLGPUFragmentShader");
 
     return gpuShader;
 }
@@ -550,10 +457,17 @@ SDLGPUDevice::CreateTexture(const std::string_view path)
     return CreateTexture(img);
 }
 
+/// @brief GPU shader stage type for type T.
+template <typename T>
+constexpr SDL_GPUShaderStage SHADER_STAGE;
+
+template<> constexpr SDL_GPUShaderStage SHADER_STAGE<GpuVertexShader> = SDL_GPU_SHADERSTAGE_VERTEX;
+template<> constexpr SDL_GPUShaderStage SHADER_STAGE<GpuFragmentShader> = SDL_GPU_SHADERSTAGE_FRAGMENT;
+
+template<typename T>
 Result<SDL_GPUShader*> LoadShader(
     SDL_GPUDevice* gpuDevice,
     const std::string_view fileName,
-    SDL_GPUShaderStage shaderStage,
     const unsigned numUniformBuffers,
     const unsigned numSamplers)
 {
@@ -575,7 +489,7 @@ Result<SDL_GPUShader*> LoadShader(
         .code = (uint8_t*)shaderSrc,
         .entrypoint = "main",
         .format = SHADER_FORMAT,
-        .stage = shaderStage,
+        .stage = SHADER_STAGE<T>,
         .num_samplers = numSamplers,
         .num_uniform_buffers = numUniformBuffers
     };
@@ -584,4 +498,103 @@ Result<SDL_GPUShader*> LoadShader(
     expect(shader, SDL_GetError());
 
     return shader;
+}
+
+/// @brief GPU buffer usage flags for type T.
+template <typename T>
+constexpr SDL_GPUBufferUsageFlags BUFFER_USAGE;
+
+template<> constexpr SDL_GPUBufferUsageFlags BUFFER_USAGE<VertexIndex> = SDL_GPU_BUFFERUSAGE_INDEX;
+template<> constexpr SDL_GPUBufferUsageFlags BUFFER_USAGE<Vertex> = SDL_GPU_BUFFERUSAGE_VERTEX;
+
+/// @brief Common function to create a GPU buffer from multiple spans.
+template<typename T>
+static Result<SDL_GPUBuffer*>
+CreateGpuBuffer(SDL_GPUDevice* gd, const std::span<const std::span<const T>>& spans)
+{
+    size_t sizeofBuffer = 0;
+
+    for(const auto& span : spans)
+    {
+        sizeofBuffer += span.size() * sizeof(span[0]);
+    }
+
+    SDL_GPUBufferCreateInfo bufferCreateInfo
+    {
+        .usage = BUFFER_USAGE<T>,
+        .size = static_cast<Uint32>(sizeofBuffer)
+    };
+
+    SDL_GPUBuffer* nativeBuf = SDL_CreateGPUBuffer(gd, &bufferCreateInfo);
+    expect(nativeBuf, SDL_GetError());
+
+    //Transfer data to GPU memory.
+
+    //Create transfer buffer
+    SDL_GPUTransferBufferCreateInfo xferBufCreateInfo
+    {
+        .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+        .size = static_cast<Uint32>(sizeofBuffer)
+    };
+
+    SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(gd, &xferBufCreateInfo);
+    expect(transferBuffer, SDL_GetError());
+    auto tbufferCleanup = Finally([&]()
+    {
+        SDL_ReleaseGPUTransferBuffer(gd, transferBuffer);
+    });
+
+    // Copy to transfer buffer
+    uint8_t* xferBuf = static_cast<uint8_t*>(SDL_MapGPUTransferBuffer(gd, transferBuffer, false));
+    expect(xferBuf, SDL_GetError());
+
+    T* dst = reinterpret_cast<T*>(xferBuf);
+
+    for(const auto& span : spans)
+    {
+        if(span.empty())
+        {
+            continue;
+        }
+
+        const size_t spanLen = span.size();
+        const size_t dataSize = spanLen * sizeof(span[0]);
+        ::memcpy(dst, span.data(), dataSize);
+        dst += spanLen;
+    }
+
+    SDL_UnmapGPUTransferBuffer(gd, transferBuffer);
+
+    //Upload data to GPU mem.
+    SDL_GPUCommandBuffer* uploadCmdBuf = SDL_AcquireGPUCommandBuffer(gd);
+    expect(uploadCmdBuf, SDL_GetError());
+    auto cmdBufCleanup = Finally([&]()
+    {
+        SDL_CancelGPUCommandBuffer(uploadCmdBuf);
+    });
+
+    SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(uploadCmdBuf);
+    expect(copyPass, SDL_GetError());
+
+    SDL_GPUTransferBufferLocation srcBuf
+    {
+        .transfer_buffer = transferBuffer,
+        .offset = 0
+    };
+    SDL_GPUBufferRegion dstBuf
+    {
+        .buffer = nativeBuf,
+        .offset = 0,
+        .size = static_cast<Uint32>(sizeofBuffer)
+    };
+
+    SDL_UploadToGPUBuffer(copyPass, &srcBuf, &dstBuf, false);
+
+    SDL_EndGPUCopyPass(copyPass);
+
+    expect(SDL_SubmitGPUCommandBuffer(uploadCmdBuf), SDL_GetError());
+
+    cmdBufCleanup.Cancel();
+
+    return nativeBuf;
 }
