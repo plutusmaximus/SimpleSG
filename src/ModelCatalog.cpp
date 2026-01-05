@@ -187,8 +187,6 @@ ModelCatalog::CreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec)
         auto albedoResult = GetOrCreateTexture(meshSpec.MtlSpec.Albedo);
         expect(albedoResult, albedoResult.error());
 
-        RefPtr<GpuTexture> albedo = albedoResult.value();
-
         //FIXME - specify number of uniform buffers.
         auto vertexShaderResult = GetOrCreateVertexShader(VertexShaderSpec{meshSpec.MtlSpec.VertexShaderPath, 3});
         expect(vertexShaderResult, vertexShaderResult.error());
@@ -202,13 +200,15 @@ ModelCatalog::CreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec)
             meshSpec.MtlSpec.Color,
             meshSpec.MtlSpec.Metalness,
             meshSpec.MtlSpec.Roughness,
-            albedo,
+            albedoResult.value(),
             vertexShaderResult.value(),
             fragShaderResult.value()
         };
 
         const uint32_t indexCount = static_cast<uint32_t>(meshSpec.Indices.size());
 
+        // The index and vertex buffers were created as a single large buffer,
+        // so we need to adjust the offsets for each mesh.
         auto tmpIb = GpuIndexBuffer(ib.GpuBuffer, ib.Offset + indexOffset * sizeof(VertexIndex));
         Mesh mesh(meshSpec.Name, vb, tmpIb, indexCount, mtl);
         indexOffset += indexCount;

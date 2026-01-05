@@ -137,16 +137,16 @@ SDLGPUDevice::CreateBuffers(
     }
 
     const size_t numSrcBuffers = vertices.size();
-    size_t sizeofVerts = 0;
-    size_t sizeofIndices = 0;
+    size_t sizeofVtxBuffer = 0;
+    size_t sizeofIdxBuffer = 0;
 
     for(int i = 0; i < numSrcBuffers; ++i)
     {
-        sizeofVerts += vertices[i].size() * sizeof(vertices[i][0]);
-        sizeofIndices += indices[i].size() * sizeof(indices[i][0]);
+        sizeofVtxBuffer += vertices[i].size() * sizeof(vertices[i][0]);
+        sizeofIdxBuffer += indices[i].size() * sizeof(indices[i][0]);
     }
 
-    const size_t sizeofData = sizeofVerts + sizeofIndices;
+    const size_t sizeofData = sizeofVtxBuffer + sizeofIdxBuffer;
 
     //Create a single buffer to contain vertices and indices.
 
@@ -180,17 +180,21 @@ SDLGPUDevice::CreateBuffers(
     });
 
     // Copy to transfer buffer
-    void* xferBuf = SDL_MapGPUTransferBuffer(Device, transferBuffer, false);
+    uint8_t* xferBuf = static_cast<uint8_t*>(SDL_MapGPUTransferBuffer(Device, transferBuffer, false));
     expect(xferBuf, SDL_GetError());
 
-    Vertex* dstVtx = reinterpret_cast<Vertex*>(xferBuf);
-    // Indices follow vertices in the buffer.
-    VertexIndex* dstIdx = reinterpret_cast<VertexIndex*>(static_cast<uint8_t*>(xferBuf) + sizeofVerts);
+    const size_t bufferOffsetOfVerts = 0;
+    const size_t bufferOffsetOfIndices = sizeofVtxBuffer;
+
+    Vertex* dstVtx = reinterpret_cast<Vertex*>(xferBuf + bufferOffsetOfVerts);
+    VertexIndex* dstIdx = reinterpret_cast<VertexIndex*>(xferBuf + bufferOffsetOfIndices);
+
+    const Vertex* vtxBase = dstVtx;
 
     for(int i = 0; i < numSrcBuffers; ++i)
     {
         // Offset to add to indices to account for multiple vertex buffers.
-        const uint32_t vtxOffset = static_cast<uint32_t>(dstVtx - reinterpret_cast<Vertex*>(xferBuf));
+        const uint32_t vtxOffset = static_cast<uint32_t>(dstVtx - vtxBase);
 
         const auto& vertSpan = vertices[i];
         if(!vertSpan.empty())
@@ -245,8 +249,8 @@ SDLGPUDevice::CreateBuffers(
 
     cmdBufCleanup.Cancel();
 
-    GpuVertexBuffer vb{ gpuBuf, 0 };
-    GpuIndexBuffer ib{ gpuBuf, static_cast<uint32_t>(sizeofVerts) };
+    GpuVertexBuffer vb{ gpuBuf, static_cast<uint32_t>(bufferOffsetOfVerts) };
+    GpuIndexBuffer ib{ gpuBuf, static_cast<uint32_t>(bufferOffsetOfIndices) };
 
     return std::make_tuple(vb, ib);
 }
