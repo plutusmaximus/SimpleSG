@@ -102,7 +102,7 @@ public:
     }
 
     /// @brief Constructs a texture spec from an image.
-    TextureSpec(const std::string& cacheKey, RefPtr<Image> image)
+    TextureSpec(const std::string& cacheKey, const Image& image)
         : CacheKey(cacheKey)
         , Source(image)
     {
@@ -119,7 +119,7 @@ public:
     const CacheKey CacheKey;
 
     // FIXME(KB) - add support for resource paths.
-    std::variant<std::string, RefPtr<Image>, RgbaColorf> Source;
+    std::variant<const std::string, const Image, const RgbaColorf> Source;
 
 private:
     TextureSpec() = delete;
@@ -249,14 +249,6 @@ struct MaterialSpec
 
     const std::string VertexShaderPath;
     const std::string FragmentShaderPath;
-
-    bool HasAlbedo() const
-    {
-        static_assert(std::variant_size_v<decltype(Albedo.Source)> == 3,
-            "Unexpected number of variants in TextureSpec::Source");
-        return std::get_if<std::string>(&Albedo.Source) != nullptr ||
-               std::get_if<RefPtr<Image>>(&Albedo.Source) != nullptr;
-    }
 };
 
 /// @brief Material used for rendering meshes.

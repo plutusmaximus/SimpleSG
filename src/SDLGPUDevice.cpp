@@ -247,7 +247,7 @@ SDLGPUDevice::CreateTexture(const TextureSpec& textureSpec)
     auto acceptor = overloaded
     {
         [this](const std::string& path) { return CreateTexture(path); },
-        [this](const RefPtr<Image>& image) { return CreateTexture(image); },
+        [this](const Image& image) { return CreateTexture(image); },
         [this](const RgbaColorf& color) { return CreateTexture(color); }
     };
 
@@ -387,9 +387,9 @@ SDLGPUDevice::GetOrCreatePipeline(const Material& mtl)
 //private:
 
 Result<RefPtr<GpuTexture>>
-SDLGPUDevice::CreateTexture(const RefPtr<Image> image)
+SDLGPUDevice::CreateTexture(const Image& image)
 {
-    return CreateTexture(image->Width, image->Height, image->Pixels);
+    return CreateTexture(image.Width, image.Height, image.Pixels);
 }
 
 Result<RefPtr<GpuTexture>>

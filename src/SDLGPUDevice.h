@@ -211,7 +211,7 @@ private:
     SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice);
 
     /// @brief Creates a texture from an image.
-    Result<RefPtr<GpuTexture>> CreateTexture(const RefPtr<Image> image);
+    Result<RefPtr<GpuTexture>> CreateTexture(const Image& image);
 
     /// @brief Creates a 1x1 texture from a color.
     Result<RefPtr<GpuTexture>> CreateTexture(const RgbaColorf& color);

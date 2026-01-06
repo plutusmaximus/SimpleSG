@@ -7,24 +7,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-Image::~Image()
-{
-    m_FreePixels(Pixels);
-}
-
-Result<RefPtr<Image>>
-Image::Create(const int width, const int height)
-{
-    uint8_t* pixels = new uint8_t[width * height * 4];
-
-    expectv(pixels, "Error allocating pixels");
-
-    auto freePixels = [](uint8_t* p) { delete[] p; };
-
-    return Create(width, height, pixels, freePixels);
-}
-
-Result<RefPtr<Image>>
+Result<Image>
 Image::LoadFromFile(const std::string_view path)
 {
     logDebug("Loading image from file: {}", path);
@@ -38,10 +21,14 @@ Image::LoadFromFile(const std::string_view path)
 
     auto freePixels = [](uint8_t* p) { stbi_image_free(p); };
 
-    return Create(width, height, pixels, freePixels);
+    auto sharedPixels = new SharedPixels(pixels, freePixels);
+    expect(sharedPixels, "Error allocating SharedPixels");
+
+    return Image(static_cast<unsigned>(width), static_cast<unsigned>(height), sharedPixels, Flags::None);
+
 }
 
-Result<RefPtr<Image>>
+Result<Image>
 Image::LoadFromMemory(const std::span<const uint8_t> data)
 {
     logDebug("Loading image from memory");
@@ -55,28 +42,8 @@ Image::LoadFromMemory(const std::span<const uint8_t> data)
 
     auto freePixels = [](uint8_t* p) { stbi_image_free(p); };
 
-    return Create(static_cast<unsigned>(width), static_cast<unsigned>(height), pixels, freePixels);
-}
+    auto sharedPixels = new SharedPixels(pixels, freePixels);
+    expect(sharedPixels, "Error allocating SharedPixels");
 
-//private:
-
-Result<RefPtr<Image>>
-Image::Create(const unsigned width, const unsigned height, uint8_t* pixels, void (*freePixels)(uint8_t*))
-{
-    const size_t imageSize = static_cast<size_t>(width) * static_cast<size_t>(height) * 4;
-    Flags flags = Flags::None;
-    for(size_t i = 3; i < imageSize; i += 4)
-    {
-        if(pixels[i] != 255)
-        {
-            flags = Flags::Translucent;
-            break;
-        }
-    }
-    
-    Image* image = new Image(width, height, pixels, flags, freePixels);
-
-    expectv(pixels, "Error allocating image");
-
-    return image;
+    return Image(static_cast<unsigned>(width), static_cast<unsigned>(height), sharedPixels, Flags::None);
 }

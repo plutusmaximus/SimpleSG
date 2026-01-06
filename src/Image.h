@@ -17,37 +17,49 @@ public:
         Translucent = 0x1,
     };
 
-    ~Image();
+    static Result<Image> LoadFromFile(const std::string_view path);
 
-    static Result<RefPtr<Image>> Create(const int width, const int height);
-
-    static Result<RefPtr<Image>> LoadFromFile(const std::string_view path);
-
-    static Result<RefPtr<Image>> LoadFromMemory(const std::span<const uint8_t> data);
+    static Result<Image> LoadFromMemory(const std::span<const uint8_t> data);
 
     const unsigned Width;
     const unsigned Height;
     const Flags ImageFlags{ Flags::None };
-    std::uint8_t* const Pixels; // RGBA8
+    const std::uint8_t* const Pixels; // RGBA8
 
 private:
 
-    static Result<RefPtr<Image>> Create(
-        const unsigned width,
-        const unsigned height,
-        uint8_t* pixels,
-        void (*freePixels)(uint8_t*));
+    Image() = delete;
 
-    Image(const unsigned width, const unsigned height, uint8_t* pixels, const Flags flags, void (*freePixels)(uint8_t*))
+    struct SharedPixels
+    {
+        SharedPixels(uint8_t* pixels, void (*freePixels)(uint8_t*))
+            : Pixels(pixels)
+            , FreePixels(freePixels)
+        {
+        }
+
+        ~SharedPixels()
+        {
+            if (FreePixels)
+            {
+                FreePixels(Pixels);
+            }
+        }
+
+        uint8_t* const Pixels;
+        void (*FreePixels)(uint8_t*);
+
+        IMPLEMENT_REFCOUNT(SharedPixels);
+    };
+
+    Image(const unsigned width, const unsigned height, RefPtr<SharedPixels> pixels, const Flags flags)
         : Width(width)
         , Height(height)
         , ImageFlags(flags)
-        , Pixels(pixels)
-        , m_FreePixels(freePixels)
+        , Pixels(pixels ? pixels->Pixels : nullptr)
+        , m_SharedPixels(pixels)
     {
     }
 
-    void (*m_FreePixels)(uint8_t*);
-
-    IMPLEMENT_REFCOUNT(Image);
+    RefPtr<SharedPixels> m_SharedPixels;
 };
