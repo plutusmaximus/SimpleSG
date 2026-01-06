@@ -161,8 +161,6 @@ public:
             {
                 logError(renderResult.error().Message);
             }
-
-            m_RenderGraph->Reset();
         }
     }
 

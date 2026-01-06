@@ -12,6 +12,7 @@
 class SDLGPUDevice;
 struct SDL_GPURenderPass;
 struct SDL_GPUCommandBuffer;
+struct SDL_GPUFence;
 
 class SDLRenderGraph : public RenderGraph
 {
@@ -24,8 +25,6 @@ public:
     virtual void Add(const Mat44f& worldTransform, RefPtr<Model> model) override;
 
     virtual Result<void> Render(const Mat44f& camera, const Mat44f& projection) override;
-
-    virtual void Reset() override;
 
 private:
 
@@ -56,9 +55,43 @@ private:
     using MeshGroup = std::deque<XformMesh>;
     using MeshGroupCollection = std::map<MaterialId, MeshGroup>;
 
-    std::unordered_map<MaterialId, Material> m_MaterialCache;
+    struct State
+    {
+        void Clear()
+        {
+            eassert(!m_RenderFence, "Render fence must be null when clearing state");
+            m_MaterialCache.clear();
+            m_OpaqueMeshGroups.clear();
+            m_TranslucentMeshGroups.clear();
+        }
 
-    MeshGroupCollection m_TranslucentMeshGroups;
+        std::unordered_map<MaterialId, Material> m_MaterialCache;
 
-    MeshGroupCollection m_OpaqueMeshGroups;
+        MeshGroupCollection m_TranslucentMeshGroups;
+
+        MeshGroupCollection m_OpaqueMeshGroups;
+
+        SDL_GPUFence* m_RenderFence = nullptr;
+    };
+
+    void WaitForFence();
+
+    void SwapStates()
+    {
+        eassert(!m_CurrentState->m_RenderFence, "Current state's render fence must be null when swapping states");
+        
+        if (m_CurrentState == &m_State[0])
+        {
+            m_CurrentState = &m_State[1];
+        }
+        else
+        {
+            m_CurrentState = &m_State[0];
+        }
+
+        m_CurrentState->Clear();
+    }
+
+    State m_State[2];
+    State* m_CurrentState = &m_State[0];
 };

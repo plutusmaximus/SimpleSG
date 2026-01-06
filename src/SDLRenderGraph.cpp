@@ -15,7 +15,14 @@ SDLRenderGraph::SDLRenderGraph(SDLGPUDevice* gpuDevice)
 
 SDLRenderGraph::~SDLRenderGraph()
 {
+    WaitForFence();
+
     SDL_ReleaseGPUTexture(m_GpuDevice->Device, m_DepthBuffer);
+
+    for(const auto& state: m_State)
+    {
+        eassert(!state.m_RenderFence, "Render fence must be null when destroying SDLRenderGraph");
+    }
 }
 
 void
@@ -44,9 +51,9 @@ SDLRenderGraph::Add(const Mat44f& worldTransform, RefPtr<Model> model)
 
         const Material& mtl = mesh.Material;
 
-        if(m_MaterialCache.find(mtl.Key.Id) == m_MaterialCache.end())
+        if(m_CurrentState->m_MaterialCache.find(mtl.Key.Id) == m_CurrentState->m_MaterialCache.end())
         {
-            m_MaterialCache.emplace(mtl.Key.Id, mtl);
+            m_CurrentState->m_MaterialCache.emplace(mtl.Key.Id, mtl);
         }
 
         // Determine mesh group based on material properties
@@ -55,11 +62,11 @@ SDLRenderGraph::Add(const Mat44f& worldTransform, RefPtr<Model> model)
 
         if(mtl.Key.Flags & MaterialFlags::Translucent)
         {
-            meshGrp = &m_TranslucentMeshGroups[mtl.Key.Id];
+            meshGrp = &m_CurrentState->m_TranslucentMeshGroups[mtl.Key.Id];
         }
         else
         {
-            meshGrp = &m_OpaqueMeshGroups[mtl.Key.Id];
+            meshGrp = &m_CurrentState->m_OpaqueMeshGroups[mtl.Key.Id];
         }
 
         XformMesh xformMesh
@@ -76,6 +83,9 @@ SDLRenderGraph::Add(const Mat44f& worldTransform, RefPtr<Model> model)
 Result<void>
 SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 {
+    //Wait for the previous frame to complete
+    WaitForFence();
+
     auto gpuDevice = m_GpuDevice->Device;
     auto window = m_GpuDevice->Window;
 
@@ -107,16 +117,21 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
         SDL_SubmitGPUCommandBuffer(cmdBuf);
     });
 
+    // Use inverse of camera transform as view matrix
     const Mat44f viewXform = camera.Inverse();
 
     // Render opaque meshes first
-    const MeshGroupCollection* meshGroups[] = { &m_OpaqueMeshGroups, &m_TranslucentMeshGroups };
-
+    const MeshGroupCollection* meshGroups[] =
+    {
+        &m_CurrentState->m_OpaqueMeshGroups,
+        &m_CurrentState->m_TranslucentMeshGroups
+    };
+    
     for(const auto meshGrpPtr : meshGroups)
     {
         for (auto& [mtlId, xmeshes] : *meshGrpPtr)
         {
-            const Material& mtl = m_MaterialCache.at(mtlId);
+            const Material& mtl = m_CurrentState->m_MaterialCache.at(mtlId);
 
             SDL_PushGPUVertexUniformData(cmdBuf, 1, &mtl.Color, sizeof(mtl.Color));
 
@@ -156,6 +171,7 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
                     viewProj.Mul(xmesh.WorldTransform)
                 };
 
+                // Send up the model and model-view-projection matrices
                 SDL_PushGPUVertexUniformData(cmdBuf, 0, matrices, sizeof(matrices));
 
                 SDL_GPUBufferBinding vertexBufferBinding
@@ -189,23 +205,14 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
     cleanup.Cancel();
 
-    auto fence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmdBuf);
+    SwapStates();
 
-    expect(fence, SDL_GetError());
+    eassert(!m_CurrentState->m_RenderFence, "Render fence should be null here");
+    m_CurrentState->m_RenderFence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmdBuf);
 
-    expect(SDL_WaitForGPUFences(gpuDevice, true, &fence, 1), SDL_GetError())
-
-    SDL_ReleaseGPUFence(gpuDevice, fence);
+    expect(m_CurrentState->m_RenderFence, SDL_GetError());
 
     return {};
-}
-
-void
-SDLRenderGraph::Reset()
-{
-    m_MaterialCache.clear();
-    m_OpaqueMeshGroups.clear();
-    m_TranslucentMeshGroups.clear();
 }
 
 //private:
@@ -279,4 +286,28 @@ SDLRenderGraph::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
     SDL_SetGPUViewport(renderPass, &viewport);
 
     return renderPass;
+}
+
+void
+SDLRenderGraph::WaitForFence()
+{
+    if(!m_CurrentState->m_RenderFence)
+    {
+        return;
+    }
+
+    bool success =
+        SDL_WaitForGPUFences(
+            m_GpuDevice->Device,
+            true,
+            &m_CurrentState->m_RenderFence,
+            1);
+            
+    if(!success)
+    {
+        logError("Error waiting for render fence during SDLRenderGraph destruction: {}", SDL_GetError());
+    }
+
+    SDL_ReleaseGPUFence(m_GpuDevice->Device, m_CurrentState->m_RenderFence);
+    m_CurrentState->m_RenderFence = nullptr;
 }

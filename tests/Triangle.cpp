@@ -84,8 +84,7 @@ public:
         if(!renderResult)
         {
             logError(renderResult.error().Message);
-        }   
-        m_RenderGraph->Reset();
+        }
     }    
 
     bool IsRunning() const override
