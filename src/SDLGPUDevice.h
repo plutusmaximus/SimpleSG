@@ -234,4 +234,7 @@ private:
     };
 
     std::map<PipelineKey, SDL_GPUGraphicsPipeline*> m_PipelinesByKey;
+
+    /// @brief Default sampler used for all textures.
+    SDL_GPUSampler* m_Sampler = nullptr;
 };

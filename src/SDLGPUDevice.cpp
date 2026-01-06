@@ -86,7 +86,7 @@ SDLGpuVertexBuffer::GetSubRange(const uint32_t itemOffset, const uint32_t itemCo
 SDLGpuTexture::~SDLGpuTexture()
 {
     if (Texture) { SDL_ReleaseGPUTexture(m_GpuDevice, Texture); }
-    if (Sampler) { SDL_ReleaseGPUSampler(m_GpuDevice, Sampler); }
+    // Sampler is released by the SDLGPUDevice destructor.
 }
 
 SDLGpuVertexShader::~SDLGpuVertexShader()
@@ -152,6 +152,12 @@ SDLGPUDevice::~SDLGPUDevice()
     for (const auto& [_, pipeline] : m_PipelinesByKey)
     {
         SDL_ReleaseGPUGraphicsPipeline(Device, pipeline);
+    }
+
+    if(m_Sampler)
+    {
+        SDL_ReleaseGPUSampler(Device, m_Sampler);
+        m_Sampler = nullptr;
     }
 
     if (Device)
@@ -487,29 +493,26 @@ SDLGPUDevice::CreateTexture(const unsigned width, const unsigned height, const u
     cmdBufCleanup.Cancel();
     expect(SDL_SubmitGPUCommandBuffer(cmdBuffer), SDL_GetError());
 
-    // Create sampler
-    SDL_GPUSamplerCreateInfo samplerInfo =
+    if(!m_Sampler)
     {
-        .min_filter = SDL_GPU_FILTER_NEAREST,
-        .mag_filter = SDL_GPU_FILTER_NEAREST,
-        .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
-        .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT
-    };
+        // Create sampler
+        SDL_GPUSamplerCreateInfo samplerInfo =
+        {
+            .min_filter = SDL_GPU_FILTER_NEAREST,
+            .mag_filter = SDL_GPU_FILTER_NEAREST,
+            .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
+            .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT
+        };
 
-    SDL_GPUSampler* sampler = SDL_CreateGPUSampler(Device, &samplerInfo);
-    expect(sampler, SDL_GetError());
+        m_Sampler = SDL_CreateGPUSampler(Device, &samplerInfo);
+        expect(m_Sampler, SDL_GetError());
+    }
 
-    auto samplerCleanup = Finally([&]()
-    {
-        SDL_ReleaseGPUSampler(Device, sampler);
-    });
-
-    RefPtr<SDLGpuTexture> gpuTex = new SDLGpuTexture(Device, texture, sampler);
+    RefPtr<SDLGpuTexture> gpuTex = new SDLGpuTexture(Device, texture, m_Sampler);
 
     expectv(gpuTex, "Error allocating SDLGPUTexture");
 
     texCleanup.Cancel();
-    samplerCleanup.Cancel();
 
     return gpuTex;
 }
