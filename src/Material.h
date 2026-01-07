@@ -131,6 +131,7 @@ class CacheKey
 public:
     explicit CacheKey(const std::string& key)
         : m_Key(key)
+        , m_HashCode(std::hash<std::string>()(key))
     {
         // CacheKey must not be empty.
         eassert(!key.empty());
@@ -138,17 +139,28 @@ public:
 
     bool operator==(const CacheKey& other) const
     {
-        return m_Key == other.m_Key;
+        return m_HashCode == other.m_HashCode && m_Key == other.m_Key;
     }
 
     bool operator!=(const CacheKey& other) const
     {
-        return m_Key != other.m_Key;
+        return !(*this == other);
     }
 
     bool operator<(const CacheKey& other) const
     {
-        return m_Key < other.m_Key;
+        if(m_HashCode < other.m_HashCode)
+        {
+            return true;
+        }
+        else if(m_HashCode > other.m_HashCode)
+        {
+            return false;
+        }
+        else
+        {
+            return m_Key < other.m_Key;
+        }
     }
 
     const std::string& ToString() const
@@ -160,6 +172,7 @@ private:
     CacheKey() = delete;
 
     std::string m_Key;
+    size_t m_HashCode;
 };
 
 /// @brief Specification for creating a texture.
@@ -426,7 +439,7 @@ namespace std
     {
         std::size_t operator()(const CacheKey& key) const noexcept
         {
-            return std::hash<std::string>()(key.m_Key);
+            return key.m_HashCode;
         }
     };
 
