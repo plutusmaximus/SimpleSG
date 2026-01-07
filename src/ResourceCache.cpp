@@ -1,3 +1,5 @@
+#define __LOGGER_NAME__ "RSRC"
+
 #include "ResourceCache.h"
 
 #include <assimp/Importer.hpp>

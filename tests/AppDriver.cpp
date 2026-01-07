@@ -46,7 +46,7 @@ AppDriver::Init()
         return std::unexpected(Error("AppDriver already initialized or running"));
     }
     
-    Logging::SetLogLevel(spdlog::level::trace);
+    logSetLevel(spdlog::level::trace);
 
     auto cwd = std::filesystem::current_path();
     logInfo("Current working directory: {}", cwd.string());

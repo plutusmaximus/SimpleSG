@@ -1,3 +1,5 @@
+#define __LOGGER_NAME__ "MODL"
+
 #include "Model.h"
 
 ModelSpec::ModelSpec(

@@ -8,58 +8,120 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/sink.h>
 
-/// @brief Logging utility class.
-class Logging
+// ====== Logger instance ======
+
+/// @brief  consteval string label that can be used as a non-type template parameter
+/// to specialize loggers by label.
+template <std::size_t N>
+struct LoggerLabel
 {
+    char value[N];
+
+    consteval LoggerLabel(const char (&str)[N])
+    {
+        for (std::size_t i = 0; i < N; ++i)
+        {
+            value[i] = str[i];
+        }
+    }
+
+    consteval std::string_view sv() const
+    {
+        return std::string_view(value, N - 1);
+    }
+};
+
+class LoggerBase
+{
+protected:
+    static std::shared_ptr<spdlog::logger> CreateLogger(const std::string_view name);
+};
+
+/// @brief Logger template class specialized by label.
+template<LoggerLabel S>
+class Logger : protected LoggerBase
+{
+    static inline std::shared_ptr<spdlog::logger> loggerPtr = LoggerBase::CreateLogger(S.sv());
+
 public:
 
-    static spdlog::logger& GetLogger();
+    void SetLevel(const spdlog::level::level_enum level)
+    {
+        loggerPtr->set_level(level);
+    }
 
-    static spdlog::logger& GetAssertLogger();
-
-    static void SetLogLevel(const spdlog::level::level_enum level);
+    spdlog::logger* operator->() const
+    {
+        return loggerPtr.get();
+    }
 };
+
+/// Define __LOGGER_NAME__ before including this header to create a logger with a specific name.
+/// Otherwise the default logger is used.
+/// Example:
+/// #define __LOGGER_NAME__ "my_logger"
+#ifndef __LOGGER_NAME__
+#define __LOGGER_NAME__ "****"
+#endif
+
+/// @brief Instance of a logger specialized by label.
+template<LoggerLabel S>
+static Logger<S> __LOGGER__;
 
 // ====== Logging functions ======
 
+/// @brief Concept to constrain format string types.
 template<typename T>
 concept LogFormatString = std::convertible_to<T, std::string> || std::convertible_to<T, std::wstring>;
 
 template<typename... Args>
-void logTrace(const LogFormatString auto& format, Args&&... args)
+inline void logTrace(const LogFormatString auto& format, Args&&... args)
 {
-    Logging::GetLogger().trace(fmt::runtime(format), std::forward<Args>(args)...);
+    __LOGGER__<__LOGGER_NAME__>->trace(fmt::runtime(format), std::forward<Args>(args)...);
 }
 
 template<typename... Args>
-void logDebug(const LogFormatString auto& format, Args&&... args)
+inline void logDebug(const LogFormatString auto& format, Args&&... args)
 {
-    Logging::GetLogger().debug(fmt::runtime(format), std::forward<Args>(args)...);
+    __LOGGER__<__LOGGER_NAME__>->debug(fmt::runtime(format), std::forward<Args>(args)...);
 }
 
 template<typename... Args>
-void logInfo(const LogFormatString auto& format, Args&&... args)
+inline void logInfo(const LogFormatString auto& format, Args&&... args)
 {
-    Logging::GetLogger().info(fmt::runtime(format), std::forward<Args>(args)...);
+    __LOGGER__<__LOGGER_NAME__>->info(fmt::runtime(format), std::forward<Args>(args)...);
 }
 
 template<typename... Args>
-void logWarn(const LogFormatString auto& format, Args&&... args)
+inline void logWarn(const LogFormatString auto& format, Args&&... args)
 {
-    Logging::GetLogger().warn(fmt::runtime(format), std::forward<Args>(args)...);
+    __LOGGER__<__LOGGER_NAME__>->warn(fmt::runtime(format), std::forward<Args>(args)...);
 }
 
 template<typename... Args>
-void logError(const LogFormatString auto& format, Args&&... args)
+inline void logError(const LogFormatString auto& format, Args&&... args)
 {
-    Logging::GetLogger().error(fmt::runtime(format), std::forward<Args>(args)...);
+    __LOGGER__<__LOGGER_NAME__>->error(fmt::runtime(format), std::forward<Args>(args)...);
 }
 
 /// Log an assertion failure
 template<typename... Args>
-void logAssert(const LogFormatString auto& format, Args&&... args)
+inline void logAssert(const LogFormatString auto& format, Args&&... args)
 {
-    Logging::GetAssertLogger().error(fmt::runtime(format), std::forward<Args>(args)...);
+    __LOGGER__<"assert">->error(fmt::runtime(format), std::forward<Args>(args)...);
+}
+
+/// @brief Sets the log level for a specific logger.
+template<LoggerLabel S>
+inline void logSetLevel(const spdlog::level::level_enum level)
+{
+    __LOGGER__<S>.SetLevel(level);
+}
+
+/// @brief Sets the global log level.
+inline void logSetLevel(const spdlog::level::level_enum level)
+{
+    spdlog::set_level(level);
 }
 
 /// @brief Error code enumeration.

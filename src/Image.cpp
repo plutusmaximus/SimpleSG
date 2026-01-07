@@ -1,3 +1,5 @@
+#define __LOGGER_NAME__ "IMAG"
+
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "Image.h"

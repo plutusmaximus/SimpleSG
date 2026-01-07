@@ -16,9 +16,9 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/dist_sink.h>
 
-static auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-static auto msvc_sink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
-static auto assert_sinks = std::make_shared<spdlog::sinks::dist_sink_mt>(); 
+static std::shared_ptr<spdlog::sinks::stdout_color_sink_mt> console_sink;
+static std::shared_ptr<spdlog::sinks::msvc_sink_mt> msvc_sink;
+static std::shared_ptr<spdlog::sinks::dist_sink_mt> assert_sinks;
 
 static std::atomic<bool> s_InitializeSinks = true;
 
@@ -26,6 +26,10 @@ static void InitializeSinks()
 {
     if (s_InitializeSinks.exchange(false))
     {
+        console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        msvc_sink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
+        assert_sinks = std::make_shared<spdlog::sinks::dist_sink_mt>();
+
         console_sink->set_level(spdlog::level::debug);
         msvc_sink->set_level(spdlog::level::debug);
         assert_sinks->set_level(spdlog::level::debug);
@@ -34,30 +38,16 @@ static void InitializeSinks()
 
 // ============== Logging =================
 
-spdlog::logger&
-Logging::GetLogger()
+std::shared_ptr<spdlog::logger>
+LoggerBase::CreateLogger(const std::string_view name)
 {
     InitializeSinks();
 
-    static spdlog::logger logger("logger", { console_sink, msvc_sink });
+    auto logger = std::make_shared<spdlog::logger>(std::string(name), spdlog::sinks_init_list{ console_sink, msvc_sink });
+
+    spdlog::register_logger(logger);
 
     return logger;
-}
-
-spdlog::logger&
-Logging::GetAssertLogger()
-{
-    InitializeSinks();
-
-    static spdlog::logger logger("assert", assert_sinks);
-
-    return logger;
-}
-
-void
-Logging::SetLogLevel(const spdlog::level::level_enum level)
-{
-    GetLogger().set_level(level);
 }
 
 // ============== Asserts =================
