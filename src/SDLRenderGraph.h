@@ -6,7 +6,6 @@
 #include "Model.h"
 
 #include <SDL3/SDL_gpu.h>
-#include <deque>
 #include <unordered_map>
 
 class SDLGPUDevice;
@@ -34,7 +33,7 @@ private:
     {
         const Mat44f WorldTransform;
         const RefPtr<Model> Model;
-        const int MeshInstanceIndex;
+        const Mesh& MeshInstance;
     };
 
     RefPtr<SDLGPUDevice> m_GpuDevice;
@@ -52,7 +51,7 @@ private:
         .props = SDL_CreateProperties()
     };
 
-    using MeshGroup = std::deque<XformMesh>;
+    using MeshGroup = std::vector<XformMesh>;
     using MeshGroupCollection = std::map<MaterialId, MeshGroup>;
 
     struct State
@@ -60,12 +59,9 @@ private:
         void Clear()
         {
             eassert(!m_RenderFence, "Render fence must be null when clearing state");
-            m_MaterialCache.clear();
             m_OpaqueMeshGroups.clear();
             m_TranslucentMeshGroups.clear();
         }
-
-        std::unordered_map<MaterialId, Material> m_MaterialCache;
 
         MeshGroupCollection m_TranslucentMeshGroups;
 

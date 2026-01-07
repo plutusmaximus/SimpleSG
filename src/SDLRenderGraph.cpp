@@ -51,11 +51,6 @@ SDLRenderGraph::Add(const Mat44f& worldTransform, RefPtr<Model> model)
 
         const Material& mtl = mesh.Material;
 
-        if(m_CurrentState->m_MaterialCache.find(mtl.Key.Id) == m_CurrentState->m_MaterialCache.end())
-        {
-            m_CurrentState->m_MaterialCache.emplace(mtl.Key.Id, mtl);
-        }
-
         // Determine mesh group based on material properties
 
         MeshGroup* meshGrp;
@@ -73,7 +68,7 @@ SDLRenderGraph::Add(const Mat44f& worldTransform, RefPtr<Model> model)
         {
             .WorldTransform = worldXForms[meshInstance.NodeIndex],
             .Model = model,
-            .MeshInstanceIndex = meshInstance.MeshIndex
+            .MeshInstance = mesh
         };
 
         meshGrp->emplace_back(xformMesh);
@@ -131,7 +126,7 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
     {
         for (auto& [mtlId, xmeshes] : *meshGrpPtr)
         {
-            const Material& mtl = m_CurrentState->m_MaterialCache.at(mtlId);
+            const Material& mtl = xmeshes[0].MeshInstance.Material;
 
             SDL_PushGPUVertexUniformData(cmdBuf, 1, &mtl.Color, sizeof(mtl.Color));
 
@@ -162,9 +157,6 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
             for (auto& xmesh : xmeshes)
             {
-                const MeshInstance& instance = xmesh.Model->MeshInstances[xmesh.MeshInstanceIndex];
-                const Mesh& mesh = xmesh.Model->Meshes[xmesh.MeshInstanceIndex];
-
                 const Mat44f matrices[] =
                 {
                     xmesh.WorldTransform,
@@ -173,6 +165,8 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
                 // Send up the model and model-view-projection matrices
                 SDL_PushGPUVertexUniformData(cmdBuf, 0, matrices, sizeof(matrices));
+
+                const Mesh& mesh = xmesh.MeshInstance;
 
                 SDL_GPUBufferBinding vertexBufferBinding
                 {
