@@ -543,8 +543,8 @@ static MaterialSpec CreateMaterialSpec(
         .Metalness{0.0f},
         .Roughness{0.0f},
         .Albedo = albedo,
-        .VertexShader{"shaders/Debug/VertexShader", 3},
-        .FragmentShader{"shaders/Debug/FragmentShader", 1},
+        .VertexShader{"shaders/Debug/VertexShader"},
+        .FragmentShader{"shaders/Debug/FragmentShader"},
     };
 }
 

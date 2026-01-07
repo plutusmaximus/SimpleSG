@@ -239,8 +239,6 @@ public:
     //FIXME(KB) - add a cache key.
     //FIXME(KB) - add support for resource paths.
     std::variant<std::string> Source;
-
-    const unsigned NumUniformBuffers{ 0 };
 };
 
 /// @brief Specification for creating a fragment shader.
@@ -252,8 +250,6 @@ public:
     //FIXME(KB) - add a cache key.
     //FIXME(KB) - add support for resource paths.
     std::variant<std::string> Source;
-
-    const unsigned NumSamplers{ 0 };
 };
 
 /// @brief Unique identifier for a material.
