@@ -270,7 +270,7 @@ SDLGPUDevice::CreateVertexShader(const VertexShaderSpec& shaderSpec)
     auto shaderResult = LoadShader<GpuVertexShader>(
         Device,
         path,
-        3,
+        shaderSpec.NumUniformBuffers,
         0);
 
     expect(shaderResult, shaderResult.error());
@@ -289,7 +289,7 @@ SDLGPUDevice::CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
         Device,
         path,
         0,
-        1);
+        shaderSpec.NumSamplers);
 
     expect(shaderResult, shaderResult.error());
 
