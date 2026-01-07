@@ -353,67 +353,67 @@ static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
         {
             .Vertices = Subrange(cubeVertices, 0, 6),
             .Indices = Subrange(cubeIndices, 0, 6),
-            .MtlSpec =
+            .MtlSpec
             {
-                .Color = {1, 0, 0},
-                .Albedo = TextureSpec{"images/Ant.png"},
-                .VertexShaderPath = "shaders/Debug/VertexShader",
-                .FragmentShaderPath = "shaders/Debug/FragmentShader",
+                .Color{1, 0, 0},
+                .Albedo{"images/Ant.png"},
+                .VertexShader{"shaders/Debug/VertexShader", 3},
+                .FragmentShader{"shaders/Debug/FragmentShader", 1},
             }
         },
         {
             .Vertices = Subrange(cubeVertices, 6, 6),
             .Indices = Subrange(cubeIndices, 6, 6),
-            .MtlSpec =
+            .MtlSpec
             {
-                .Color = {0, 1, 0},
-                .Albedo = TextureSpec{"images/Bee.png"},
-                .VertexShaderPath = "shaders/Debug/VertexShader",
-                .FragmentShaderPath = "shaders/Debug/FragmentShader",
+                .Color{0, 1, 0},
+                .Albedo{"images/Bee.png"},
+                .VertexShader{"shaders/Debug/VertexShader", 3},
+                .FragmentShader{"shaders/Debug/FragmentShader", 1},
             }
         },
         {
             .Vertices = Subrange(cubeVertices, 12, 6),
             .Indices = Subrange(cubeIndices, 12, 6),
-            .MtlSpec =
+            .MtlSpec
             {
-                .Color = {0, 0, 1},
-                .Albedo = TextureSpec{"images/Butterfly.png"},
-                .VertexShaderPath = "shaders/Debug/VertexShader",
-                .FragmentShaderPath = "shaders/Debug/FragmentShader",
+                .Color{0, 0, 1},
+                .Albedo{"images/Butterfly.png"},
+                .VertexShader{"shaders/Debug/VertexShader", 3},
+                .FragmentShader{"shaders/Debug/FragmentShader", 1},
             }
         },
         {
             .Vertices = Subrange(cubeVertices, 18, 6),
             .Indices = Subrange(cubeIndices, 18, 6),
-            .MtlSpec =
+            .MtlSpec
             {
-                .Color = {1, 1, 1},
-                .Albedo = TextureSpec{"images/Frog.png"},
-                .VertexShaderPath = "shaders/Debug/VertexShader",
-                .FragmentShaderPath = "shaders/Debug/FragmentShader",
+                .Color{1, 1, 1},
+                .Albedo{"images/Frog.png"},
+                .VertexShader{"shaders/Debug/VertexShader", 3},
+                .FragmentShader{"shaders/Debug/FragmentShader", 1},
             }
         },
         {
             .Vertices = Subrange(cubeVertices, 24, 6),
             .Indices = Subrange(cubeIndices, 24, 6),
-            .MtlSpec =
+            .MtlSpec
             {
-                .Color = {0, 1, 1},
-                .Albedo = TextureSpec{"images/Lizard.png"},
-                .VertexShaderPath = "shaders/Debug/VertexShader",
-                .FragmentShaderPath = "shaders/Debug/FragmentShader",
+                .Color{0, 1, 1},
+                .Albedo{"images/Lizard.png"},
+                .VertexShader{"shaders/Debug/VertexShader", 3},
+                .FragmentShader{"shaders/Debug/FragmentShader", 1},
             }
         },
         {
             .Vertices = Subrange(cubeVertices, 30, 6),
             .Indices = Subrange(cubeIndices, 30, 6),
-            .MtlSpec =
+            .MtlSpec
             {
-                .Color = {1, 0, 1},
-                .Albedo = TextureSpec{"images/Turtle.png"},
-                .VertexShaderPath = "shaders/Debug/VertexShader",
-                .FragmentShaderPath = "shaders/Debug/FragmentShader",
+                .Color{1, 0, 1},
+                .Albedo{"images/Turtle.png"},
+                .VertexShader{"shaders/Debug/VertexShader", 3},
+                .FragmentShader{"shaders/Debug/FragmentShader", 1},
             }
         },
     };
@@ -452,12 +452,12 @@ static Result<RefPtr<Model>> CreateShapeModel(ResourceCache& cache)
         {
             .Vertices = vertices,
             .Indices = indices,
-            .MtlSpec =
+            .MtlSpec
             {
-                .Color = {1, 0, 0},
-                .Albedo = TextureSpec{"images/Ant.png"},
-                .VertexShaderPath = "shaders/Debug/VertexShader",
-                .FragmentShaderPath = "shaders/Debug/FragmentShader",
+                .Color{1, 0, 0},
+                .Albedo{"images/Ant.png"},
+                .VertexShader{"shaders/Debug/VertexShader", 3},
+                .FragmentShader{"shaders/Debug/FragmentShader", 1},
             }
         }
     };

@@ -98,16 +98,12 @@ ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, const std::string& fi
 
     constexpr unsigned flags =
         aiProcess_CalcTangentSpace
-        //| aiProcess_GenSmoothNormals
         | aiProcess_ImproveCacheLocality
         | aiProcess_LimitBoneWeights
         | aiProcess_RemoveRedundantMaterials
-        //| aiProcess_SplitLargeMeshes
         | aiProcess_Triangulate
-        //| aiProcess_GenUVCoords
         | aiProcess_SortByPType
         | aiProcess_FindDegenerates
-        //| aiProcess_JoinIdenticalVertices
         | aiProcess_FindInvalidData
         | aiProcess_ConvertToLeftHanded
         ;
@@ -196,15 +192,20 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
 
     for(const auto& meshSpec : modelSpec.MeshSpecs)
     {
-        auto albedoResult = GetOrCreateTexture(meshSpec.MtlSpec.Albedo);
-        expect(albedoResult, albedoResult.error());
+        RefPtr<GpuTexture> albedo;
+        if(meshSpec.MtlSpec.Albedo.IsValid())
+        {
+            auto albedoResult = GetOrCreateTexture(meshSpec.MtlSpec.Albedo);
+            expect(albedoResult, albedoResult.error());
+            albedo = albedoResult.value();
+        }
 
         //FIXME - specify number of uniform buffers.
-        auto vertexShaderResult = GetOrCreateVertexShader(VertexShaderSpec{meshSpec.MtlSpec.VertexShaderPath, 3});
+        auto vertexShaderResult = GetOrCreateVertexShader(meshSpec.MtlSpec.VertexShader);
         expect(vertexShaderResult, vertexShaderResult.error());
 
         //FIXME - specify number of samplers.
-        auto fragShaderResult = GetOrCreateFragmentShader(FragmentShaderSpec{meshSpec.MtlSpec.FragmentShaderPath, 1});
+        auto fragShaderResult = GetOrCreateFragmentShader(meshSpec.MtlSpec.FragmentShader);
         expect(fragShaderResult, fragShaderResult.error());
 
         Material mtl
@@ -212,7 +213,7 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
             meshSpec.MtlSpec.Color,
             meshSpec.MtlSpec.Metalness,
             meshSpec.MtlSpec.Roughness,
-            albedoResult.value(),
+            albedo,
             vertexShaderResult.value(),
             fragShaderResult.value()
         };
@@ -536,12 +537,12 @@ static MaterialSpec CreateMaterialSpec(
 
     return MaterialSpec
     {
-        .Color = RgbaColorf{diffuseColor.r, diffuseColor.g, diffuseColor.b, opacity},
-        .Metalness = 0.0f,
-        .Roughness = 0.0f,
+        .Color{diffuseColor.r, diffuseColor.g, diffuseColor.b, opacity},
+        .Metalness{0.0f},
+        .Roughness{0.0f},
         .Albedo = albedo,
-        .VertexShaderPath = "shaders/Debug/VertexShader",
-        .FragmentShaderPath = "shaders/Debug/FragmentShader",
+        .VertexShader{"shaders/Debug/VertexShader", 3},
+        .FragmentShader{"shaders/Debug/FragmentShader", 1},
     };
 }
 

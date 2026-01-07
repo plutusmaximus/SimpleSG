@@ -9,32 +9,6 @@
 #include <tuple>
 #include <variant>
 
-/// @brief Specification for creating a vertex shader.
-class VertexShaderSpec
-{
-public:
-
-    //FIXME(KB) - add support for embedded source code.
-    //FIXME(KB) - add a cache key.
-    //FIXME(KB) - add support for resource paths.
-    std::variant<std::string> Source;
-
-    const unsigned NumUniformBuffers{ 0 };
-};
-
-/// @brief Specification for creating a fragment shader.
-class FragmentShaderSpec
-{
-public:
-
-    //FIXME(KB) - add support for embedded source code.
-    //FIXME(KB) - add a cache key.
-    //FIXME(KB) - add support for resource paths.
-    std::variant<std::string> Source;
-
-    const unsigned NumSamplers{ 0 };
-};
-
 /// @brief GPU representation of a vertex buffer.
 class GpuVertexBuffer
 {

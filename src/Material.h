@@ -15,17 +15,24 @@ class GpuFragmentShader;
 template<typename T>
 struct RgbaColor
 {
-    RgbaColor()
+    constexpr RgbaColor()
         : RgbaColor(0, 0, 0, 0)
     {
     }
 
-    RgbaColor(const T inR, const T inG, const T inB)
+    constexpr RgbaColor(const T inR, const T inG, const T inB)
         : RgbaColor(inR, inG, inB, 1)
     {
     }
 
-    RgbaColor(const T inR, const T inG, const T inB, const T inA);
+    constexpr RgbaColor(const T inR, const T inG, const T inB, const T inA)
+        : r(inR), g(inG), b(inB), a(inA)
+    {
+    }
+
+    /// @brief  Conversion constructor.
+    template<typename U>
+    explicit constexpr RgbaColor(const RgbaColor<U>& other);
 
     T r, g, b, a;
 };
@@ -33,20 +40,87 @@ struct RgbaColor
 using RgbaColorf = RgbaColor<float>;
 using RgbaColoru8 = RgbaColor<uint8_t>;
 
-//Specialization for uint8_t to use 255 as max value.
-inline RgbaColor<uint8_t>::RgbaColor(const uint8_t inR, const uint8_t inG, const uint8_t inB)
+/// @brief Specialization for uint8_t with default alpha of 255.
+inline constexpr RgbaColor<uint8_t>::RgbaColor(const uint8_t inR, const uint8_t inG, const uint8_t inB)
     : RgbaColor<uint8_t>(inR, inG, inB, 255)
 {
 }
 
-//Specialization for float to assert values are in [0,1] range.
-inline RgbaColor<float>::RgbaColor(const float inR, const float inG, const float inB, const float inA)
+/// @brief Specialization for converting from float to uint8_t.
+template<>
+template<>
+inline RgbaColor<uint8_t>::RgbaColor(const RgbaColor<float>& other)
+    : r(static_cast<uint8_t>(std::clamp(other.r * 255.0f, 0.0f, 255.0f)))
+    , g(static_cast<uint8_t>(std::clamp(other.g * 255.0f, 0.0f, 255.0f)))
+    , b(static_cast<uint8_t>(std::clamp(other.b * 255.0f, 0.0f, 255.0f)))
+    , a(static_cast<uint8_t>(std::clamp(other.a * 255.0f, 0.0f, 255.0f)))
+{
+}
+
+/// @brief Specialization for float with clamping between 0.0 and 1.0.
+inline constexpr RgbaColor<float>::RgbaColor(const float inR, const float inG, const float inB, const float inA)
     : r(std::clamp(inR, 0.0f, 1.0f)), g(std::clamp(inG, 0.0f, 1.0f)), b(std::clamp(inB, 0.0f, 1.0f)), a(std::clamp(inA, 0.0f, 1.0f))
 {
     eassert(inR >= 0 && inR <= 1);
     eassert(inG >= 0 && inG <= 1);
     eassert(inB >= 0 && inB <= 1);
     eassert(inA >= 0 && inA <= 1);
+}
+
+/// @brief Specialization for converting from uint8_t to float.
+template<>
+template<>
+inline RgbaColor<float>::RgbaColor(const RgbaColor<uint8_t>& other)
+    : r(static_cast<float>(other.r) / 255.0f)
+    , g(static_cast<float>(other.g) / 255.0f)
+    , b(static_cast<float>(other.b) / 255.0f)
+    , a(static_cast<float>(other.a) / 255.0f)
+{
+}
+
+/// @brief User-defined literal to convert a hex color code to an RGBA color.
+constexpr RgbaColor<uint8_t> operator"" _rgba(const char* str, size_t len)
+{
+    auto from_hex = [](char c) -> uint8_t
+    {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return 0;
+    };
+
+    size_t offset = (len > 0 && str[0] == '#') ? 1 : 0;
+    size_t digits = len - offset;
+
+    if (digits == 3)
+    {
+        // Shorthand RGB (e.g., #F0A), expand to full form which is #FF00AA
+        return RgbaColor<uint8_t>(
+            (from_hex(str[offset]) << 4) | from_hex(str[offset]),
+            (from_hex(str[offset+1]) << 4) | from_hex(str[offset+1]),
+            (from_hex(str[offset+2]) << 4) | from_hex(str[offset+2])
+        );
+    }
+    if (digits == 6)
+    {
+        // Full RGB (e.g., #FF00AA)
+        return RgbaColor<uint8_t>(
+            (from_hex(str[offset]) << 4) | from_hex(str[offset+1]),
+            (from_hex(str[offset+2]) << 4) | from_hex(str[offset+3]),
+            (from_hex(str[offset+4]) << 4) | from_hex(str[offset+5])
+        );
+    }
+    if (digits == 8)
+    {
+        // Full RGBA (e.g., #FF00AAFF)
+        return RgbaColor<uint8_t>(
+            (from_hex(str[offset]) << 4) | from_hex(str[offset+1]),
+            (from_hex(str[offset+2]) << 4) | from_hex(str[offset+3]),
+            (from_hex(str[offset+4]) << 4) | from_hex(str[offset+5]),
+            (from_hex(str[offset+6]) << 4) | from_hex(str[offset+7])
+        );
+    }
+    return RgbaColor<uint8_t>(); // default
 }
 
 /// @brief Unique key for caching resources.
@@ -93,6 +167,18 @@ class TextureSpec
 {
 public:
 
+    /// @brief Represents no texture.
+    struct None_t{};
+
+    /// @brief Constant representing no texture, used to initialize TextureSpec when no texture is desired.
+    constexpr static None_t None{};
+
+    explicit TextureSpec(None_t)
+        : CacheKey("$none")
+        , Source(None)
+    {
+    }
+
     /// @brief Constructs a texture spec from a file path.
     /// The cache key is set to the path.
     explicit TextureSpec(const std::string& path)
@@ -115,14 +201,46 @@ public:
     {
     }
 
+    /// @brief Returns true if the texture spec is valid (i.e., has a specified source).
+    bool IsValid() const
+    {
+        return !std::holds_alternative<None_t>(Source);
+    }
+
     /// @brief Unique key for caching the texture.
     const CacheKey CacheKey;
 
     // FIXME(KB) - add support for resource paths.
-    std::variant<const std::string, const Image, const RgbaColorf> Source;
+    std::variant<None_t, const std::string, const Image, const RgbaColorf> Source;
 
 private:
     TextureSpec() = delete;
+};
+
+/// @brief Specification for creating a vertex shader.
+class VertexShaderSpec
+{
+public:
+
+    //FIXME(KB) - add support for embedded source code.
+    //FIXME(KB) - add a cache key.
+    //FIXME(KB) - add support for resource paths.
+    std::variant<std::string> Source;
+
+    const unsigned NumUniformBuffers{ 0 };
+};
+
+/// @brief Specification for creating a fragment shader.
+class FragmentShaderSpec
+{
+public:
+
+    //FIXME(KB) - add support for embedded source code.
+    //FIXME(KB) - add a cache key.
+    //FIXME(KB) - add support for resource paths.
+    std::variant<std::string> Source;
+
+    const unsigned NumSamplers{ 0 };
 };
 
 /// @brief Unique identifier for a material.
@@ -247,8 +365,8 @@ struct MaterialSpec
 
     const TextureSpec Albedo;
 
-    const std::string VertexShaderPath;
-    const std::string FragmentShaderPath;
+    const VertexShaderSpec VertexShader;
+    const FragmentShaderSpec FragmentShader;
 };
 
 /// @brief Material used for rendering meshes.

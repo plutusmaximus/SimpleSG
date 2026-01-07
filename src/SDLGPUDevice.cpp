@@ -250,8 +250,11 @@ struct overloaded : Ts... { using Ts::operator()...; };
 Result<RefPtr<GpuTexture>>
 SDLGPUDevice::CreateTexture(const TextureSpec& textureSpec)
 {
+    eassert(textureSpec.IsValid());
+    
     auto acceptor = overloaded
     {
+        [this](TextureSpec::None_t)->Result<RefPtr<GpuTexture>> { return std::unexpected("Texture source is not specified"); },
         [this](const std::string& path) { return CreateTexture(path); },
         [this](const Image& image) { return CreateTexture(image); },
         [this](const RgbaColorf& color) { return CreateTexture(color); }

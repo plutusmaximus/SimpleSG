@@ -148,12 +148,12 @@ static Result<RefPtr<Model>> CreateTriangleModel(ResourceCache& cache)
         {
             .Vertices = triangleVertices,
             .Indices = triangleIndices,
-            .MtlSpec =
+            .MtlSpec
             {
-                .Color = {1, 1, 1},
-                .Albedo = TextureSpec{"images/Ant.png"},
-                .VertexShaderPath = "shaders/Debug/VertexShader",
-                .FragmentShaderPath = "shaders/Debug/FragmentShader",
+                .Color{"#FFA500"_rgba},
+                .Albedo{TextureSpec::None},//{"images/Ant.png"},
+                .VertexShader{"shaders/Debug/ColorVertexShader", 3},
+                .FragmentShader{"shaders/Debug/ColorFragmentShader", 0}
             }
         }
     };
