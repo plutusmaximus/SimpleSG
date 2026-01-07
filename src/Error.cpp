@@ -39,7 +39,7 @@ static void InitializeSinks()
 // ============== Logging =================
 
 std::shared_ptr<spdlog::logger>
-LoggerBase::CreateLogger(const std::string_view name)
+LogHelper::CreateLogger(const std::string_view name)
 {
     InitializeSinks();
 

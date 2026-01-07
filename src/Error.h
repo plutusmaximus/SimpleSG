@@ -31,29 +31,10 @@ struct LoggerLabel
     }
 };
 
-class LoggerBase
+class LogHelper
 {
-protected:
-    static std::shared_ptr<spdlog::logger> CreateLogger(const std::string_view name);
-};
-
-/// @brief Logger template class specialized by label.
-template<LoggerLabel S>
-class Logger : protected LoggerBase
-{
-    static inline std::shared_ptr<spdlog::logger> loggerPtr = LoggerBase::CreateLogger(S.sv());
-
 public:
-
-    void SetLevel(const spdlog::level::level_enum level)
-    {
-        loggerPtr->set_level(level);
-    }
-
-    spdlog::logger* operator->() const
-    {
-        return loggerPtr.get();
-    }
+    static std::shared_ptr<spdlog::logger> CreateLogger(const std::string_view name);
 };
 
 /// Define __LOGGER_NAME__ before including this header to create a logger with a specific name.
@@ -64,9 +45,9 @@ public:
 #define __LOGGER_NAME__ "****"
 #endif
 
-/// @brief Instance of a logger specialized by label.
+/// @brief Global instance of a logger specialized by label.
 template<LoggerLabel S>
-static Logger<S> __LOGGER__;
+inline std::shared_ptr<spdlog::logger> __LOGGER__ = LogHelper::CreateLogger(S.sv());
 
 // ====== Logging functions ======
 
@@ -115,7 +96,7 @@ inline void logAssert(const LogFormatString auto& format, Args&&... args)
 template<LoggerLabel S>
 inline void logSetLevel(const spdlog::level::level_enum level)
 {
-    __LOGGER__<S>.SetLevel(level);
+    __LOGGER__<S>->SetLevel(level);
 }
 
 /// @brief Sets the global log level.
