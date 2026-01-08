@@ -111,6 +111,67 @@ TEST(UriTest, NonNumericPort)
     EXPECT_EQ(u.port(), -1);
 }
 
+TEST(UriTest, SchemeAndPathNoAuthority)
+{
+    Uri u("file:/local/path");
+
+    EXPECT_EQ(u.scheme(), "file");
+    EXPECT_TRUE(u.has_strict_scheme());
+
+    EXPECT_FALSE(u.has_authority());
+    EXPECT_EQ(u.userinfo(), "");
+    EXPECT_EQ(u.host(), "");
+    EXPECT_EQ(u.port_str(), "");
+    EXPECT_EQ(u.port(), -1);
+
+    EXPECT_EQ(u.path(), "/local/path");
+}
+
+TEST(UriTest, SchemeTwoSlashesCreatesAuthority)
+{
+    // Double slash after scheme forces authority parsing, not path-only
+    Uri u("file://local/path");
+
+    EXPECT_EQ(u.scheme(), "file");
+    EXPECT_TRUE(u.has_strict_scheme());
+
+    // Has authority because of the //
+    EXPECT_TRUE(u.has_authority());
+    EXPECT_EQ(u.authority(), "local");
+    EXPECT_EQ(u.host(), "local");
+    EXPECT_EQ(u.path(), "/path");
+}
+
+TEST(UriTest, SchemeThreeSlashesEmptyAuthority)
+{
+    // file:///local/path: RFC 8089 compliant - empty authority, path is /local/path
+    Uri u("file:///local/path");
+
+    EXPECT_EQ(u.scheme(), "file");
+    EXPECT_TRUE(u.has_strict_scheme());
+
+    // Empty authority (/// means // for authority, nothing between //, then /)
+    EXPECT_FALSE(u.has_authority());
+    EXPECT_EQ(u.authority(), "");
+    EXPECT_EQ(u.host(), "");
+    EXPECT_EQ(u.path(), "/local/path");
+}
+
+TEST(UriTest, SchemeThreeSlashesEmptyAuthority2)
+{
+    // file:///local/path: RFC 8089 compliant - empty authority, path is /local/path
+    Uri u("file:////local/path");
+
+    EXPECT_EQ(u.scheme(), "file");
+    EXPECT_TRUE(u.has_strict_scheme());
+
+    // Empty authority (/// means // for authority, nothing between //, then /)
+    EXPECT_FALSE(u.has_authority());
+    EXPECT_EQ(u.authority(), "");
+    EXPECT_EQ(u.host(), "");
+    EXPECT_EQ(u.path(), "//local/path");
+}
+
 TEST(UriTest, EqualityByComponents)
 {
     Uri u1("http://host:80/path");
