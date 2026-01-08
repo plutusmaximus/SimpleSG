@@ -193,38 +193,21 @@ if(SIMPLESG_STRICT)
 endif()
 
 # ============================================================
-# Executable: EcsTests
+# Executable: Tests
 # ============================================================
-add_executable(EcsTests "tests/ECS.test.cpp")
-target_link_libraries(EcsTests PRIVATE gtest_main ssg::ssg spdlog::spdlog)
+add_executable(Tests "tests/ECS.test.cpp" "tests/imstring.test.cpp" "tests/EcsChildTransformPool.test.cpp")
+target_link_libraries(Tests PRIVATE gtest_main ssg::ssg spdlog::spdlog)
 #add_dependencies(RunAllTests shaders copy_images copy_models)
 
 if(MSVC)
-  target_compile_definitions(EcsTests PRIVATE _HAS_EXCEPTIONS=0)
-  target_compile_options(EcsTests PRIVATE /GR-)
+  target_compile_definitions(Tests PRIVATE _HAS_EXCEPTIONS=0)
+  target_compile_options(Tests PRIVATE /GR-)
 else()
-  target_compile_options(EcsTests PRIVATE -fno-exceptions)
+  target_compile_options(Tests PRIVATE -fno-exceptions)
 endif()
 
 if(SIMPLESG_STRICT)
-  set_property(TARGET EcsTests PROPERTY COMPILE_WARNING_AS_ERROR ON)
-endif()
-
-# ============================================================
-# Executable: EcsChildTransformPoolTests
-# ============================================================
-add_executable(EcsChildTransformPoolTests "tests/EcsChildTransformPool.test.cpp")
-target_link_libraries(EcsChildTransformPoolTests PRIVATE gtest_main ssg::ssg spdlog::spdlog)
-
-if(MSVC)
-  target_compile_definitions(EcsChildTransformPoolTests PRIVATE _HAS_EXCEPTIONS=0)
-  target_compile_options(EcsChildTransformPoolTests PRIVATE /GR-)
-else()
-  target_compile_options(EcsChildTransformPoolTests PRIVATE -fno-exceptions)
-endif()
-
-if(SIMPLESG_STRICT)
-  set_property(TARGET EcsChildTransformPoolTests PROPERTY COMPILE_WARNING_AS_ERROR ON)
+  set_property(TARGET Tests PROPERTY COMPILE_WARNING_AS_ERROR ON)
 endif()
 
 # Enable testing and register tests
@@ -232,5 +215,4 @@ endif()
 # In VS Code install the CMake Test Explorer extension and open the testing view.
 include(GoogleTest)
 enable_testing()
-gtest_discover_tests(EcsTests)
-gtest_discover_tests(EcsChildTransformPoolTests)
+gtest_discover_tests(Tests)

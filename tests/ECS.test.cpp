@@ -1263,7 +1263,7 @@ namespace
     // ==================== View Tests ====================
 
     /// @brief Test View with empty results.
-    TEST(View, EmptyResults_NoEntityMatches_IterationEmpty)
+    TEST(EcsRegistryView, EmptyResults_NoEntityMatches_IterationEmpty)
     {
         EcsRegistry reg;
 
@@ -1285,7 +1285,7 @@ namespace
     }
 
     /// @brief Test View with full results.
-    TEST(View, FullResults_AllEntitiesMatch_IterationFull)
+    TEST(EcsRegistryView, FullResults_AllEntitiesMatch_IterationFull)
     {
         EcsRegistry reg;
 
@@ -1317,7 +1317,7 @@ namespace
     }
 
     /// @brief Test View with partial results.
-    TEST(View, PartialResults_SomeEntitiesMatch_IterationPartial)
+    TEST(EcsRegistryView, PartialResults_SomeEntitiesMatch_IterationPartial)
     {
         EcsRegistry reg;
 
@@ -1358,7 +1358,7 @@ namespace
     }
 
     /// @brief Test multiple View iterations.
-    TEST(View, MultipleIterations_CallGetViewRepeatedly_ConsistentResults)
+    TEST(EcsRegistryView, MultipleIterations_CallGetViewRepeatedly_ConsistentResults)
     {
         EcsRegistry reg;
 
@@ -1395,7 +1395,7 @@ namespace
     }
 
     /// @brief Test View with single component.
-    TEST(View, SingleComponent_View_ReturnsCorrectEntities)
+    TEST(EcsRegistryView, SingleComponent_View_ReturnsCorrectEntities)
     {
         EcsRegistry reg;
 
@@ -1435,7 +1435,7 @@ namespace
     }
 
     /// @brief Test View consistency with manual checks.
-    TEST(View, Consistency_ViewVsManualCheck_MatchResults)
+    TEST(EcsRegistryView, Consistency_ViewVsManualCheck_MatchResults)
     {
         EcsRegistry reg;
 
@@ -1482,7 +1482,7 @@ namespace
     // ==================== Stress/Integration Tests ====================
 
     /// @brief Stress test with large entity population.
-    TEST(StressTest, LargePopulation_ManyEntitiesAndComponents_Stable)
+    TEST(EcsRegistryStressTest, LargePopulation_ManyEntitiesAndComponents_Stable)
     {
         EcsRegistry reg;
 
@@ -1515,7 +1515,7 @@ namespace
     }
 
     /// @brief Test add/remove patterns repeatedly.
-    TEST(StressTest, AddRemoveCycles_RepeatedCycles_MaintainsConsistency)
+    TEST(EcsRegistryStressTest, AddRemoveCycles_RepeatedCycles_MaintainsConsistency)
     {
         EcsRegistry reg;
 
@@ -1553,7 +1553,7 @@ namespace
     }
 
     /// @brief Test multiple component pool cohabitation.
-    TEST(StressTest, PoolCohabitation_ManyComponentTypes_NoInterference)
+    TEST(EcsRegistryStressTest, PoolCohabitation_ManyComponentTypes_NoInterference)
     {
         EcsRegistry reg;
 
