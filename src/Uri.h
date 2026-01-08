@@ -21,6 +21,25 @@ public:
         assign(std::move(uri));
     }
 
+    Uri(const Uri& other)
+    {
+        storage_ = other.storage_;
+        scheme_ = other.scheme_;
+        authority_ = other.authority_;
+        userinfo_ = other.userinfo_;
+        host_ = other.host_;
+        port_ = other.port_;
+        port_num_ = other.port_num_;
+        path_ = other.path_;
+        has_strict_scheme_ = other.has_strict_scheme_;
+    }
+
+    Uri(Uri&& other) noexcept
+    {
+        storage_ = std::move(other.storage_);
+        parse_views(static_cast<std::string_view>(storage_));
+    }
+
     const imstring& str() const noexcept
     {
         return storage_;
