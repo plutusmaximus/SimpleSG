@@ -195,7 +195,7 @@ endif()
 # ============================================================
 # Executable: Tests
 # ============================================================
-add_executable(Tests "tests/ECS.test.cpp" "tests/imstring.test.cpp" "tests/EcsChildTransformPool.test.cpp")
+add_executable(Tests "tests/ECS.test.cpp" "tests/imstring.test.cpp" "tests/EcsChildTransformPool.test.cpp" "tests/Uri.test.cpp")
 target_link_libraries(Tests PRIVATE gtest_main ssg::ssg spdlog::spdlog)
 #add_dependencies(RunAllTests shaders copy_images copy_models)
 
