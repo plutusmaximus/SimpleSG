@@ -1,8 +1,8 @@
 #include "AppDriver.h"
 #include "Application.h"
-#include "Finally.h"
 #include "SDLGPUDevice.h"
 #include "Stopwatch.h"
+#include "scope_exit.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_mouse.h>

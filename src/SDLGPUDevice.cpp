@@ -1,8 +1,8 @@
 #include "SDLGPUDevice.h"
 
-#include "Finally.h"
 #include "Image.h"
 #include "SDLRenderGraph.h"
+#include "scope_exit.h"
 
 #include <SDL3/SDL.h>
 
@@ -119,7 +119,7 @@ SDLGPUDevice::Create(SDL_Window* window)
     SDL_GPUDevice* sdlDevice = SDL_CreateGPUDevice(SHADER_FORMAT, debugMode, DRIVER_NAME);
     expect(sdlDevice, SDL_GetError());
 
-    auto sdlDeviceCleanup = Finally([sdlDevice]()
+    auto sdlDeviceCleanup = scope_exit([sdlDevice]()
     {
         SDL_DestroyGPUDevice(sdlDevice);
     });
@@ -142,7 +142,7 @@ SDLGPUDevice::Create(SDL_Window* window)
 
     expectv(device, "Error allocating device");
 
-    sdlDeviceCleanup.Cancel();
+    sdlDeviceCleanup.release();
 
     return device;
 }
@@ -433,7 +433,7 @@ SDLGPUDevice::CreateTexture(const unsigned width, const unsigned height, const u
 
     SDL_GPUTexture* texture = SDL_CreateGPUTexture(Device, &textureInfo);
     expect(texture, SDL_GetError());
-    auto texCleanup = Finally([&]()
+    auto texCleanup = scope_exit([&]()
     {
         SDL_ReleaseGPUTexture(Device, texture);
     });
@@ -449,7 +449,7 @@ SDLGPUDevice::CreateTexture(const unsigned width, const unsigned height, const u
     // Create transfer buffer for uploading pixel data
     SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(Device, &xferBufferCreateInfo);
     expect(transferBuffer, SDL_GetError());
-    auto tbufferCleanup = Finally([&]()
+    auto tbufferCleanup = scope_exit([&]()
     {
         SDL_ReleaseGPUTransferBuffer(Device, transferBuffer);
     });
@@ -465,7 +465,7 @@ SDLGPUDevice::CreateTexture(const unsigned width, const unsigned height, const u
     // Upload to GPU texture
     SDL_GPUCommandBuffer* cmdBuffer = SDL_AcquireGPUCommandBuffer(Device);
     expect(cmdBuffer, SDL_GetError());
-    auto cmdBufCleanup = Finally([&]()
+    auto cmdBufCleanup = scope_exit([&]()
     {
         SDL_CancelGPUCommandBuffer(cmdBuffer);
     });
@@ -493,7 +493,7 @@ SDLGPUDevice::CreateTexture(const unsigned width, const unsigned height, const u
 
     SDL_EndGPUCopyPass(copyPass);
 
-    cmdBufCleanup.Cancel();
+    cmdBufCleanup.release();
     expect(SDL_SubmitGPUCommandBuffer(cmdBuffer), SDL_GetError());
 
     if(!m_Sampler)
@@ -515,7 +515,7 @@ SDLGPUDevice::CreateTexture(const unsigned width, const unsigned height, const u
 
     expectv(gpuTex, "Error allocating SDLGPUTexture");
 
-    texCleanup.Cancel();
+    texCleanup.release();
 
     return gpuTex;
 }
@@ -550,7 +550,7 @@ Result<SDL_GPUShader*> LoadShader(
     void* shaderSrc = SDL_LoadFile(fnWithExt.data(), &fileSize);
     expect(shaderSrc, "{}: {}", fnWithExt, SDL_GetError());
 
-    auto cleanup = Finally([&]()
+    auto cleanup = scope_exit([&]()
     {
         SDL_free(shaderSrc);
     });
@@ -593,7 +593,7 @@ CreateGpuBuffer(SDL_GPUDevice* gd, const std::span<const std::span<const T>>& sp
     SDL_GPUBuffer* nativeBuf = SDL_CreateGPUBuffer(gd, &bufferCreateInfo);
     expect(nativeBuf, SDL_GetError());
 
-    auto bufCleanup = Finally([&]()
+    auto bufCleanup = scope_exit([&]()
     {
         SDL_ReleaseGPUBuffer(gd, nativeBuf);
     });
@@ -609,7 +609,7 @@ CreateGpuBuffer(SDL_GPUDevice* gd, const std::span<const std::span<const T>>& sp
 
     SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(gd, &xferBufCreateInfo);
     expect(transferBuffer, SDL_GetError());
-    auto tbufferCleanup = Finally([&]()
+    auto tbufferCleanup = scope_exit([&]()
     {
         SDL_ReleaseGPUTransferBuffer(gd, transferBuffer);
     });
@@ -638,7 +638,7 @@ CreateGpuBuffer(SDL_GPUDevice* gd, const std::span<const std::span<const T>>& sp
     //Upload data to GPU mem.
     SDL_GPUCommandBuffer* uploadCmdBuf = SDL_AcquireGPUCommandBuffer(gd);
     expect(uploadCmdBuf, SDL_GetError());
-    auto cmdBufCleanup = Finally([&]()
+    auto cmdBufCleanup = scope_exit([&]()
     {
         SDL_CancelGPUCommandBuffer(uploadCmdBuf);
     });
@@ -664,8 +664,8 @@ CreateGpuBuffer(SDL_GPUDevice* gd, const std::span<const std::span<const T>>& sp
 
     expect(SDL_SubmitGPUCommandBuffer(uploadCmdBuf), SDL_GetError());
 
-    cmdBufCleanup.Cancel();
-    bufCleanup.Cancel();
+    cmdBufCleanup.release();
+    bufCleanup.release();
 
     return nativeBuf;
 }

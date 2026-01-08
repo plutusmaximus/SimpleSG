@@ -1,8 +1,7 @@
 #include "SDLRenderGraph.h"
 
 #include "Error.h"
-
-#include "Finally.h"
+#include "scope_exit.h"
 
 #include "SDLGPUDevice.h"
 
@@ -106,7 +105,7 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
         return {};
     }
 
-    auto cleanup = Finally([&]()
+    auto cleanup = scope_exit([&]()
     {
         SDL_EndGPURenderPass(renderPass);
         SDL_SubmitGPUCommandBuffer(cmdBuf);
@@ -197,7 +196,7 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
     SDL_EndGPURenderPass(renderPass);
 
-    cleanup.Cancel();
+    cleanup.release();
 
     SwapStates();
 
