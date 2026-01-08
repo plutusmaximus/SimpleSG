@@ -71,20 +71,17 @@ public:
 };
 
 // Specializations to enable structured binding for Shapes::Geometry.
-namespace std
+template<>
+struct std::tuple_size<Shapes::Geometry> : std::integral_constant<std::size_t, 2> {};
+
+template<>
+struct std::tuple_element<0, Shapes::Geometry>
 {
-    template<>
-    struct tuple_size<Shapes::Geometry> : std::integral_constant<std::size_t, 2> {};
+    using type = std::vector<Vertex>;
+};
 
-    template<>
-    struct tuple_element<0, Shapes::Geometry>
-    {
-        using type = std::vector<Vertex>;
-    };
-
-    template<>
-    struct tuple_element<1, Shapes::Geometry>
-    {
-        using type = std::vector<uint32_t>;
-    };
-}
+template<>
+struct std::tuple_element<1, Shapes::Geometry>
+{
+    using type = std::vector<uint32_t>;
+};

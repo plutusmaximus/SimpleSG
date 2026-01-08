@@ -8,8 +8,8 @@
 
 #include <filesystem>
 
-static constexpr const char* WHITE_TEXTURE_KEY = "$white";
-static constexpr const char* MAGENTA_TEXTURE_KEY = "$magenta";
+static constexpr const std::string_view WHITE_TEXTURE_KEY("$white");
+static constexpr const std::string_view MAGENTA_TEXTURE_KEY("$magenta");
 
 static const TextureSpec WHITE_TEXTURE_SPEC(
     WHITE_TEXTURE_KEY,
@@ -81,7 +81,7 @@ static void ProcessNodes(
         const std::filesystem::path& parentPath);
 
 Result<RefPtr<Model>>
-ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, const std::string& filePath)
+ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view filePath)
 {
     logDebug("Loading model from file: {} (key: {})", filePath, cacheKey.ToString());
 
@@ -111,7 +111,7 @@ ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, const std::string& fi
         ;
 
     Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(filePath, flags);
+    const aiScene* scene = importer.ReadFile(std::string(filePath), flags);
 
     expect(scene != nullptr, importer.GetErrorString());
     expect(scene->mNumMeshes > 0, "No meshes in model: {}", filePath);

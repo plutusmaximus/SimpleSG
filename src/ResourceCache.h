@@ -19,7 +19,7 @@ public:
     }
 
     /// @brief Loads a model from file if not already loaded.
-    Result<RefPtr<Model>> LoadModelFromFile(const CacheKey& cacheKey, const std::string& filePath);
+    Result<RefPtr<Model>> LoadModelFromFile(const CacheKey& cacheKey, std::string_view filePath);
 
     /// @brief Creates a model from the given specification if not already created.
     Result<RefPtr<Model>> GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec);

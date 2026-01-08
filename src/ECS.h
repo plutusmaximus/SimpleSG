@@ -62,34 +62,31 @@ private:
     GenerationType m_Generation{ InvalidGeneration };
 };
 
-namespace std
+/// @brief Enable hashing of EntityId for use in unordered containers.
+template<>
+struct std::hash<EntityId>
 {
-    /// @brief Enable hashing of EntityId for use in unordered containers.
-    template<>
-    struct hash<EntityId>
+    std::size_t operator()(const EntityId eid) const noexcept
     {
-        std::size_t operator()(const EntityId eid) const noexcept
-        {
-            return static_cast<std::size_t>(eid.Value());
-        }
-    };
+        return static_cast<std::size_t>(eid.Value());
+    }
+};
 
-    /// @brief Enable formatting of EntityId via std::format.
-    template<>
-    struct formatter<EntityId>
+/// @brief Enable formatting of EntityId via std::format.
+template<>
+struct std::formatter<EntityId>
+{
+    constexpr auto parse(std::format_parse_context& ctx)
     {
-        constexpr auto parse(std::format_parse_context& ctx)
-        {
-            return ctx.begin();
-        }
+        return ctx.begin();
+    }
 
-        template<typename FormatContext>
-        auto format(const EntityId& eid, FormatContext& ctx) const
-        {
-            return std::format_to(ctx.out(), "{}:{}", eid.Value(), eid.Generation());
-        }
-    };
-}
+    template<typename FormatContext>
+    auto format(const EntityId& eid, FormatContext& ctx) const
+    {
+        return std::format_to(ctx.out(), "{}:{}", eid.Value(), eid.Generation());
+    }
+};
 
 /// @brief Interface for a component pool.
 class IEcsPool

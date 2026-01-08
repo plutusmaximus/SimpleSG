@@ -22,7 +22,7 @@ class Mesh
 {
 public:
 
-    Mesh(const std::string& name,
+    Mesh(std::string_view name,
         RefPtr<GpuVertexBuffer> vb,
         RefPtr<GpuIndexBuffer> ib,
         const uint32_t indexCount,

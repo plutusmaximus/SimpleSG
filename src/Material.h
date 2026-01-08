@@ -129,9 +129,9 @@ class CacheKey
     friend std::hash<CacheKey>;
 
 public:
-    explicit CacheKey(const std::string& key)
+    CacheKey(std::string_view key)
         : m_Key(key)
-        , m_HashCode(std::hash<std::string>()(key))
+        , m_HashCode(std::hash<std::string_view>()(key))
     {
         // CacheKey must not be empty.
         eassert(!key.empty());
@@ -194,21 +194,21 @@ public:
 
     /// @brief Constructs a texture spec from a file path.
     /// The cache key is set to the path.
-    explicit TextureSpec(const std::string& path)
+    explicit TextureSpec(std::string_view path)
         : CacheKey(path)
-        , Source(path)
+        , Source(std::string(path))
     {
     }
 
     /// @brief Constructs a texture spec from an image.
-    TextureSpec(const std::string& cacheKey, const Image& image)
+    TextureSpec(const CacheKey& cacheKey, const Image& image)
         : CacheKey(cacheKey)
         , Source(image)
     {
     }
 
     /// @brief Constructs a texture spec from a color.
-    TextureSpec(const std::string& cacheKey, const RgbaColorf& color)
+    TextureSpec(const CacheKey& cacheKey, const RgbaColorf& color)
         : CacheKey(cacheKey)
         , Source(color)
     {
@@ -431,25 +431,22 @@ private:
     Material() = delete;
 };
 
-namespace std
+/// @brief Enable hashing of CacheKey for use in unordered containers.
+template<>
+struct std::hash<CacheKey>
 {
-    /// @brief Enable hashing of CacheKey for use in unordered containers.
-    template<>
-    struct hash<CacheKey>
+    std::size_t operator()(const CacheKey& key) const noexcept
     {
-        std::size_t operator()(const CacheKey& key) const noexcept
-        {
-            return key.m_HashCode;
-        }
-    };
+        return key.m_HashCode;
+    }
+};
 
-    /// @brief Enable hashing of MaterialId for use in unordered containers.
-    template<>
-    struct hash<MaterialId>
+/// @brief Enable hashing of MaterialId for use in unordered containers.
+template<>
+struct std::hash<MaterialId>
+{
+    std::size_t operator()(const MaterialId id) const noexcept
     {
-        std::size_t operator()(const MaterialId id) const noexcept
-        {
-            return static_cast<std::size_t>(id.m_Value);
-        }
-    };
-}
+        return static_cast<std::size_t>(id.m_Value);
+    }
+};

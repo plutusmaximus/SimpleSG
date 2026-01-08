@@ -127,6 +127,11 @@ public:
         : Error(ErrorCode::System, message)
     {
     }
+
+    Error(std::string_view message)
+        : Error(ErrorCode::System, message)
+    {
+    }
     
     template<typename... Args>
     Error(std::format_string<Args...> fmt, Args&&... args)
@@ -134,7 +139,7 @@ public:
     {
     }
 
-    Error(const ErrorCode code, const std::string& message)
+    Error(const ErrorCode code, std::string_view message)
         : Code(code)
         , Message(message)
     {
@@ -151,23 +156,20 @@ public:
     const std::string Message;
 };
 
-namespace std
+/// @brief Formatter specialization for Error to support std::format.
+template <>
+struct std::formatter<Error>
 {
-    /// @brief Formatter specialization for Error to support std::format.
-    template <>
-    struct formatter<Error>
+    constexpr auto parse(std::format_parse_context& ctx)
     {
-        constexpr auto parse(std::format_parse_context& ctx)
-        {
-            return ctx.begin(); // No custom parsing; assumes default format
-        }
+        return ctx.begin(); // No custom parsing; assumes default format
+    }
 
-        auto format(const Error& e, std::format_context& ctx) const
-        {
-            return std::format_to(ctx.out(), "{}", e.Message);
-        }
-    };
-}
+    auto format(const Error& e, std::format_context& ctx) const
+    {
+        return std::format_to(ctx.out(), "{}", e.Message);
+    }
+};
 
 /// @brief Assertion helper class.
 class Asserts
