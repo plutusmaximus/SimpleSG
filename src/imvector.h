@@ -4,6 +4,7 @@
 #include <atomic>
 #include <concepts>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>      // std::abort
 #include <initializer_list>
 #include <iterator>
@@ -66,27 +67,39 @@ private:
         return reinterpret_cast<const T*>(storage);
     }
 
+    static bool is_empty_block(const block* b) noexcept
+    {
+        return b == empty_block();
+    }
+
     static void retain(block* b) noexcept
     {
-        if (b && b->refs != UINT32_MAX)
+        if (b && !is_empty_block(b))
         {
             b->refs.fetch_add(1, std::memory_order_relaxed);
         }
     }
 
+    static constexpr std::size_t header_bytes() noexcept
+    {
+        constexpr std::size_t a = alignof(T);
+        constexpr std::size_t h = sizeof(block);
+        return (h + (a - 1)) & ~(a - 1);
+    }
+
     static T* elements_ptr(block* b) noexcept
     {
-        return reinterpret_cast<T*>(reinterpret_cast<unsigned char*>(b) + sizeof(block));
+        return reinterpret_cast<T*>(reinterpret_cast<unsigned char*>(b) + header_bytes());
     }
 
     static const T* elements_ptr(const block* b) noexcept
     {
-        return reinterpret_cast<const T*>(reinterpret_cast<const unsigned char*>(b) + sizeof(block));
+        return reinterpret_cast<const T*>(reinterpret_cast<const unsigned char*>(b) + header_bytes());
     }
 
     static constexpr std::size_t bytes_for(size_type n) noexcept
     {
-        return sizeof(block) + n * sizeof(T);
+        return header_bytes() + n * sizeof(T);
     }
 
     static block* allocate_block(size_type n) noexcept
@@ -114,7 +127,7 @@ private:
     static void deallocate_block_raw(block* b) noexcept
     {
         if (!b) return;
-        if (b->refs == UINT32_MAX) return;
+        if (is_empty_block(b)) return;
 
         if constexpr (alignof(T) > __STDCPP_DEFAULT_NEW_ALIGNMENT__)
         {
@@ -144,7 +157,7 @@ private:
     static void release(block* b) noexcept
     {
         if (!b) return;
-        if (b->refs == UINT32_MAX) return;
+        if (is_empty_block(b)) return;
 
         if (b->refs.fetch_sub(1, std::memory_order_acq_rel) == 1)
         {
