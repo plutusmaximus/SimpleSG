@@ -146,8 +146,8 @@ static Result<RefPtr<Model>> CreateTriangleModel(ResourceCache& cache)
     std::vector<MeshSpec> meshSpecs =
     {
         {
-            .Vertices = triangleVertices,
-            .Indices = triangleIndices,
+            .Vertices{triangleVertices},
+            .Indices{triangleIndices},
             .MtlSpec
             {
                 .Color{"#FFA500"_rgba},

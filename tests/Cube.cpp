@@ -340,19 +340,13 @@ constexpr static const VertexIndex cubeIndices[] =
     20, 22, 23,  20, 21, 22
 };
 
-template<typename T>
-static std::vector<T> Subrange(const T* array, const size_t offset, const size_t count)
-{
-    return std::vector<T>(array + offset, array + offset + count);
-}
-
 static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
 {
     std::vector<MeshSpec> meshSpecs =
     {
         {
-            .Vertices = Subrange(cubeVertices, 0, 6),
-            .Indices = Subrange(cubeIndices, 0, 6),
+            .Vertices{std::span(cubeVertices + 0, 6)},
+            .Indices{std::span(cubeIndices + 0, 6)},
             .MtlSpec
             {
                 .Color{1, 0, 0},
@@ -362,8 +356,8 @@ static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
             }
         },
         {
-            .Vertices = Subrange(cubeVertices, 6, 6),
-            .Indices = Subrange(cubeIndices, 6, 6),
+            .Vertices{std::span(cubeVertices + 6, 6)},
+            .Indices{std::span(cubeIndices + 6, 6)},
             .MtlSpec
             {
                 .Color{0, 1, 0},
@@ -373,8 +367,8 @@ static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
             }
         },
         {
-            .Vertices = Subrange(cubeVertices, 12, 6),
-            .Indices = Subrange(cubeIndices, 12, 6),
+            .Vertices{std::span(cubeVertices + 12, 6)},
+            .Indices{std::span(cubeIndices + 12, 6)},
             .MtlSpec
             {
                 .Color{0, 0, 1},
@@ -384,8 +378,8 @@ static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
             }
         },
         {
-            .Vertices = Subrange(cubeVertices, 18, 6),
-            .Indices = Subrange(cubeIndices, 18, 6),
+            .Vertices{std::span(cubeVertices + 18, 6)},
+            .Indices{std::span(cubeIndices + 18, 6)},
             .MtlSpec
             {
                 .Color{1, 1, 1},
@@ -395,8 +389,8 @@ static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
             }
         },
         {
-            .Vertices = Subrange(cubeVertices, 24, 6),
-            .Indices = Subrange(cubeIndices, 24, 6),
+            .Vertices{std::span(cubeVertices + 24, 6)},
+            .Indices{std::span(cubeIndices + 24, 6)},
             .MtlSpec
             {
                 .Color{0, 1, 1},
@@ -406,8 +400,8 @@ static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
             }
         },
         {
-            .Vertices = Subrange(cubeVertices, 30, 6),
-            .Indices = Subrange(cubeIndices, 30, 6),
+            .Vertices{std::span(cubeVertices + 30, 6)},
+            .Indices{std::span(cubeIndices + 30, 6)},
             .MtlSpec
             {
                 .Color{1, 0, 1},
@@ -450,8 +444,8 @@ static Result<RefPtr<Model>> CreateShapeModel(ResourceCache& cache)
     std::vector<MeshSpec> meshSpecs =
     {
         {
-            .Vertices = vertices,
-            .Indices = indices,
+            .Vertices{vertices},
+            .Indices{indices},
             .MtlSpec
             {
                 .Color{1, 0, 0},

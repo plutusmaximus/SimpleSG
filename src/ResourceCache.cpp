@@ -645,10 +645,10 @@ static MeshSpec CreateMeshSpecFromMesh(
 
     return MeshSpec
     {
-        .Name = meshName,
-        .Vertices = std::move(vertices),
-        .Indices = std::move(indices),
-        .MtlSpec = mtlSpec
+        .Name{meshName},
+        .Vertices{vertices},
+        .Indices{indices},
+        .MtlSpec{mtlSpec}
     };
 }
 

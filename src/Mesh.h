@@ -3,17 +3,17 @@
 #include "GPUDevice.h"
 #include "Material.h"
 #include "Vertex.h"
+#include "imvector.h"
 
 #include <string>
-#include <vector>
 
 /// @brief Specification for creating a mesh.
 class MeshSpec
 {
 public:
     const std::string Name;
-    const std::vector<Vertex> Vertices;
-    const std::vector<VertexIndex> Indices;
+    const imvector<Vertex> Vertices;
+    const imvector<VertexIndex> Indices;
     const MaterialSpec MtlSpec;
 };
 
