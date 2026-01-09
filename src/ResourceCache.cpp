@@ -256,6 +256,9 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     return model;
 }
 
+template<class... Ts>
+struct overloaded : Ts... { using Ts::operator()...; };
+
 Result<RefPtr<GpuTexture>>
 ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
 {
@@ -267,7 +270,18 @@ ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
     }
 
     logDebug("  Cache miss: {}", textureSpec.CacheKey.ToString());
-    auto result = m_GpuDevice->CreateTexture(textureSpec);
+
+    eassert(textureSpec.IsValid());
+    
+    auto acceptor = overloaded
+    {
+        [this](TextureSpec::None_t)->Result<RefPtr<GpuTexture>> { return std::unexpected("Texture source is not specified"); },
+        [this](const std::string& path) { return CreateTexture(path); },
+        [this](const Image& image) { return m_GpuDevice->CreateTexture(image); },
+        [this](const RgbaColorf& color) { return m_GpuDevice->CreateTexture(color); }
+    };
+
+    auto result = std::visit(acceptor, textureSpec.Source);
     expect(result, result.error());
 
     texture = result.value();
@@ -355,6 +369,15 @@ ResourceCache::GetFragmentShader(const CacheKey& cacheKey) const
 }
 
 // private:
+
+Result<RefPtr<GpuTexture>>
+ResourceCache::CreateTexture(const std::string_view path)
+{
+    auto imgResult = Image::LoadFromFile(path);
+    expect(imgResult, imgResult.error());
+    auto img = *imgResult;
+    return m_GpuDevice->CreateTexture(img);
+}
 
 static TextureProperties GetTexturePropertiesFromMaterial(
     const aiMaterial* material,

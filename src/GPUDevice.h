@@ -135,8 +135,11 @@ public:
     virtual Result<RefPtr<GpuVertexBuffer>> CreateVertexBuffer(
         const std::span<std::span<const Vertex>>& vertices) = 0;
 
-    /// @brief Creates a texture from the given specification.
-    virtual Result<RefPtr<GpuTexture>> CreateTexture(const TextureSpec& textureSpec) = 0;
+    /// @brief Creates a texture from an image.
+    virtual Result<RefPtr<GpuTexture>> CreateTexture(const Image& image) = 0;
+
+    /// @brief Creates a 1x1 texture from a color.
+    virtual Result<RefPtr<GpuTexture>> CreateTexture(const RgbaColorf& color) = 0;
 
     /// @brief Creates a vertex shader from the given specification.
     virtual Result<RefPtr<GpuVertexShader>> CreateVertexShader(const VertexShaderSpec& shaderSpec) = 0;

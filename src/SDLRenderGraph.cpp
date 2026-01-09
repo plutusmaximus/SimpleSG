@@ -325,8 +325,6 @@ SDLRenderGraph::WaitForFence()
     m_CurrentState->m_RenderFence = nullptr;
 }
 
-
-
 Result<RefPtr<GpuTexture>>
 SDLRenderGraph::GetDefaultAlbedoTexture()
 {
@@ -334,8 +332,7 @@ SDLRenderGraph::GetDefaultAlbedoTexture()
     {
         static constexpr const std::string_view MAGENTA_TEXTURE_KEY("$magenta");
 
-        TextureSpec spec(MAGENTA_TEXTURE_KEY, "#FF00FFFF"_rgba);
-        auto result = m_GpuDevice->CreateTexture(spec);
+        auto result = m_GpuDevice->CreateTexture("#FF00FFFF"_rgba);
         expect(result, result.error());
 
         m_DefaultAlbedoTexture = result.value();

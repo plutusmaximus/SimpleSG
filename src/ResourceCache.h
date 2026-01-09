@@ -47,6 +47,9 @@ public:
 
 private:
 
+    /// @brief Loads a texture from the given file path.
+    Result<RefPtr<GpuTexture>> CreateTexture(const std::string_view path);
+
     template<typename Value>
     class Cache
     {

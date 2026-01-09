@@ -244,23 +244,24 @@ SDLGPUDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& verti
     return vb;
 }
 
-template<class... Ts>
-struct overloaded : Ts... { using Ts::operator()...; };
+Result<RefPtr<GpuTexture>>
+SDLGPUDevice::CreateTexture(const Image& image)
+{
+    return CreateTexture(image.Width, image.Height, image.Pixels);
+}
 
 Result<RefPtr<GpuTexture>>
-SDLGPUDevice::CreateTexture(const TextureSpec& textureSpec)
+SDLGPUDevice::CreateTexture(const RgbaColorf& color)
 {
-    eassert(textureSpec.IsValid());
-    
-    auto acceptor = overloaded
+    const uint8_t pixelData[4]
     {
-        [this](TextureSpec::None_t)->Result<RefPtr<GpuTexture>> { return std::unexpected("Texture source is not specified"); },
-        [this](const std::string& path) { return CreateTexture(path); },
-        [this](const Image& image) { return CreateTexture(image); },
-        [this](const RgbaColorf& color) { return CreateTexture(color); }
+        static_cast<uint8_t>(std::clamp(color.r * 255.0f, 0.0f, 255.0f)),
+        static_cast<uint8_t>(std::clamp(color.g * 255.0f, 0.0f, 255.0f)),
+        static_cast<uint8_t>(std::clamp(color.b * 255.0f, 0.0f, 255.0f)),
+        static_cast<uint8_t>(std::clamp(color.a * 255.0f, 0.0f, 255.0f))
     };
 
-    return std::visit(acceptor, textureSpec.Source);
+    return CreateTexture(1, 1, pixelData);
 }
 
 Result<RefPtr<GpuVertexShader>>
@@ -399,26 +400,6 @@ SDLGPUDevice::GetOrCreatePipeline(const Material& mtl)
 //private:
 
 Result<RefPtr<GpuTexture>>
-SDLGPUDevice::CreateTexture(const Image& image)
-{
-    return CreateTexture(image.Width, image.Height, image.Pixels);
-}
-
-Result<RefPtr<GpuTexture>>
-SDLGPUDevice::CreateTexture(const RgbaColorf& color)
-{
-    const uint8_t pixelData[4]
-    {
-        static_cast<uint8_t>(std::clamp(color.r * 255.0f, 0.0f, 255.0f)),
-        static_cast<uint8_t>(std::clamp(color.g * 255.0f, 0.0f, 255.0f)),
-        static_cast<uint8_t>(std::clamp(color.b * 255.0f, 0.0f, 255.0f)),
-        static_cast<uint8_t>(std::clamp(color.a * 255.0f, 0.0f, 255.0f))
-    };
-
-    return CreateTexture(1, 1, pixelData);
-}
-
-Result<RefPtr<GpuTexture>>
 SDLGPUDevice::CreateTexture(const unsigned width, const unsigned height, const uint8_t* pixels)
 {
     // Create GPU texture
@@ -521,15 +502,6 @@ SDLGPUDevice::CreateTexture(const unsigned width, const unsigned height, const u
     texCleanup.release();
 
     return gpuTex;
-}
-
-Result<RefPtr<GpuTexture>>
-SDLGPUDevice::CreateTexture(const std::string_view path)
-{
-    auto imgResult = Image::LoadFromFile(path);
-    expect(imgResult, imgResult.error());
-    auto img = *imgResult;
-    return CreateTexture(img);
 }
 
 /// @brief GPU shader stage type for type T.
