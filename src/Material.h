@@ -34,6 +34,9 @@ struct RgbaColor
     template<typename U>
     constexpr RgbaColor(const RgbaColor<U>& other);
 
+    /// @brief Converts the color to a hexadecimal string representation - #RRGGBBAA
+    std::string ToHexString() const;
+
     T r, g, b, a;
 };
 
@@ -76,6 +79,18 @@ inline RgbaColor<float>::RgbaColor(const RgbaColor<uint8_t>& other)
     , b(static_cast<float>(other.b) / 255.0f)
     , a(static_cast<float>(other.a) / 255.0f)
 {
+}
+
+inline std::string RgbaColor<uint8_t>::ToHexString() const
+{
+    char buf[10];
+    snprintf(buf, sizeof(buf), "#%02X%02X%02X%02X", r, g, b, a);
+    return std::string(buf);
+}
+
+inline std::string RgbaColor<float>::ToHexString() const
+{
+    return RgbaColor<uint8_t>(*this).ToHexString();
 }
 
 /// @brief User-defined literal to convert a hex color code to an RGBA color.
@@ -187,30 +202,20 @@ public:
     constexpr static None_t None{};
 
     explicit TextureSpec(None_t)
-        : CacheKey("$none")
-        , Source(None)
+        : Source(None)
     {
     }
 
     /// @brief Constructs a texture spec from a file path.
     /// The cache key is set to the path.
     explicit TextureSpec(std::string_view path)
-        : CacheKey(path)
-        , Source(std::string(path))
-    {
-    }
-
-    /// @brief Constructs a texture spec from an image.
-    TextureSpec(const CacheKey& cacheKey, const Image& image)
-        : CacheKey(cacheKey)
-        , Source(image)
+        : Source(std::string(path))
     {
     }
 
     /// @brief Constructs a texture spec from a color.
-    TextureSpec(const CacheKey& cacheKey, const RgbaColorf& color)
-        : CacheKey(cacheKey)
-        , Source(color)
+    TextureSpec(const RgbaColorf& color)
+        : Source(color)
     {
     }
 
@@ -220,11 +225,8 @@ public:
         return !std::holds_alternative<None_t>(Source);
     }
 
-    /// @brief Unique key for caching the texture.
-    const CacheKey CacheKey;
-
     // FIXME(KB) - add support for resource paths.
-    std::variant<None_t, const std::string, const Image, const RgbaColorf> Source;
+    std::variant<None_t, const std::string, const RgbaColorf> Source;
 
 private:
     TextureSpec() = delete;

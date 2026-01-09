@@ -8,16 +8,14 @@
 
 #include <filesystem>
 
-static constexpr const std::string_view WHITE_TEXTURE_KEY("$white");
-static constexpr const std::string_view MAGENTA_TEXTURE_KEY("$magenta");
+static constexpr const std::string_view WHITE_TEXTURE_KEY("#FFFFFFFF");
+static constexpr const std::string_view MAGENTA_TEXTURE_KEY("#FF00FFFF");
 
-static const TextureSpec WHITE_TEXTURE_SPEC(
-    WHITE_TEXTURE_KEY,
-    RgbaColorf{ 1.0f, 1.0f, 1.0f, 1.0f });
+static constexpr const RgbaColorf WHITE_COLOR(1.0f, 1.0f, 1.0f, 1.0f);
+static constexpr const RgbaColorf MAGENTA_COLOR(1.0f, 0.0f, 1.0f, 1.0f);
 
-static const TextureSpec MAGENTA_TEXTURE_SPEC(
-    MAGENTA_TEXTURE_KEY,
-    RgbaColorf{ 1.0f, 0.0f, 1.0f, 1.0f });
+static const TextureSpec WHITE_TEXTURE_SPEC(WHITE_COLOR);
+static const TextureSpec MAGENTA_TEXTURE_SPEC(MAGENTA_COLOR);
 
 struct TextureProperty
 {
@@ -256,37 +254,46 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     return model;
 }
 
+/// @brief Helper struct for visiting variants
 template<class... Ts>
-struct overloaded : Ts... { using Ts::operator()...; };
+struct acceptor : Ts... { using Ts::operator()...; };
 
 Result<RefPtr<GpuTexture>>
 ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
 {
-    RefPtr<GpuTexture> texture;
-    if(m_TextureCache.TryGet(textureSpec.CacheKey, texture))
+    expectv(textureSpec.IsValid(), "Texture spec is not specified");
+
+    auto cacheKeyAcceptor = acceptor
     {
-        logDebug("  Cache hit: {}", textureSpec.CacheKey.ToString());
+        [this](TextureSpec::None_t) { return CacheKey(""); },
+        [this](const std::string& path) { return CacheKey(path); },
+        [this](const RgbaColorf& color) { return CacheKey(color.ToHexString()); }
+    };
+
+    auto cacheKey = std::visit(cacheKeyAcceptor, textureSpec.Source);
+
+    RefPtr<GpuTexture> texture;
+    if(m_TextureCache.TryGet(cacheKey, texture))
+    {
+        logDebug("  Cache hit: {}", cacheKey.ToString());
         return texture;
     }
 
-    logDebug("  Cache miss: {}", textureSpec.CacheKey.ToString());
+    logDebug("  Cache miss: {}", cacheKey.ToString());
 
-    eassert(textureSpec.IsValid());
-    
-    auto acceptor = overloaded
+    auto createTexAcceptor = acceptor
     {
         [this](TextureSpec::None_t)->Result<RefPtr<GpuTexture>> { return std::unexpected("Texture source is not specified"); },
         [this](const std::string& path) { return CreateTexture(path); },
-        [this](const Image& image) { return m_GpuDevice->CreateTexture(image); },
         [this](const RgbaColorf& color) { return m_GpuDevice->CreateTexture(color); }
     };
 
-    auto result = std::visit(acceptor, textureSpec.Source);
+    auto result = std::visit(createTexAcceptor, textureSpec.Source);
     expect(result, result.error());
 
     texture = result.value();
-    expect(m_TextureCache.TryAdd(textureSpec.CacheKey, texture),
-        "Failed to add texture to cache: {}", textureSpec.CacheKey.ToString());
+    expect(m_TextureCache.TryAdd(cacheKey, texture),
+        "Failed to add texture to cache: {}", cacheKey.ToString());
 
     return texture;
 }
