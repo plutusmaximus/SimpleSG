@@ -32,7 +32,7 @@ struct RgbaColor
 
     /// @brief  Conversion constructor.
     template<typename U>
-    explicit constexpr RgbaColor(const RgbaColor<U>& other);
+    constexpr RgbaColor(const RgbaColor<U>& other);
 
     T r, g, b, a;
 };
@@ -252,8 +252,6 @@ public:
     //FIXME(KB) - add a cache key.
     //FIXME(KB) - add support for resource paths.
     std::variant<std::string> Source;
-
-    const unsigned NumSamplers{ 0 };
 };
 
 /// @brief Unique identifier for a material.

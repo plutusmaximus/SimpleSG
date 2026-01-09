@@ -284,12 +284,15 @@ SDLGPUDevice::CreateVertexShader(const VertexShaderSpec& shaderSpec)
 Result<RefPtr<GpuFragmentShader>>
 SDLGPUDevice::CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
 {
+    // All fragment shaders have the same number of samplers.
+    static constexpr unsigned numSamplers = 1;
+    
     const std::string_view path = std::get<std::string>(shaderSpec.Source);
     auto shaderResult = LoadShader<GpuFragmentShader>(
         Device,
         path,
         0,
-        shaderSpec.NumSamplers);
+        numSamplers);
 
     expect(shaderResult, shaderResult.error());
 

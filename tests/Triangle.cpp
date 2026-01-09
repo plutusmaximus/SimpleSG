@@ -153,7 +153,7 @@ static Result<RefPtr<Model>> CreateTriangleModel(ResourceCache& cache)
                 .Color{"#FFA500"_rgba},
                 .Albedo{TextureSpec::None},//{"images/Ant.png"},
                 .VertexShader{"shaders/Debug/ColorVertexShader", 3},
-                .FragmentShader{"shaders/Debug/ColorFragmentShader", 0}
+                .FragmentShader{"shaders/Debug/ColorFragmentShader"}
             }
         }
     };

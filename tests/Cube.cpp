@@ -358,7 +358,7 @@ static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
                 .Color{1, 0, 0},
                 .Albedo{"images/Ant.png"},
                 .VertexShader{"shaders/Debug/VertexShader", 3},
-                .FragmentShader{"shaders/Debug/FragmentShader", 1},
+                .FragmentShader{"shaders/Debug/FragmentShader"},
             }
         },
         {
@@ -369,7 +369,7 @@ static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
                 .Color{0, 1, 0},
                 .Albedo{"images/Bee.png"},
                 .VertexShader{"shaders/Debug/VertexShader", 3},
-                .FragmentShader{"shaders/Debug/FragmentShader", 1},
+                .FragmentShader{"shaders/Debug/FragmentShader"},
             }
         },
         {
@@ -380,7 +380,7 @@ static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
                 .Color{0, 0, 1},
                 .Albedo{"images/Butterfly.png"},
                 .VertexShader{"shaders/Debug/VertexShader", 3},
-                .FragmentShader{"shaders/Debug/FragmentShader", 1},
+                .FragmentShader{"shaders/Debug/FragmentShader"},
             }
         },
         {
@@ -391,7 +391,7 @@ static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
                 .Color{1, 1, 1},
                 .Albedo{"images/Frog.png"},
                 .VertexShader{"shaders/Debug/VertexShader", 3},
-                .FragmentShader{"shaders/Debug/FragmentShader", 1},
+                .FragmentShader{"shaders/Debug/FragmentShader"},
             }
         },
         {
@@ -402,7 +402,7 @@ static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
                 .Color{0, 1, 1},
                 .Albedo{"images/Lizard.png"},
                 .VertexShader{"shaders/Debug/VertexShader", 3},
-                .FragmentShader{"shaders/Debug/FragmentShader", 1},
+                .FragmentShader{"shaders/Debug/FragmentShader"},
             }
         },
         {
@@ -413,7 +413,7 @@ static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
                 .Color{1, 0, 1},
                 .Albedo{"images/Turtle.png"},
                 .VertexShader{"shaders/Debug/VertexShader", 3},
-                .FragmentShader{"shaders/Debug/FragmentShader", 1},
+                .FragmentShader{"shaders/Debug/FragmentShader"},
             }
         },
     };
@@ -457,7 +457,7 @@ static Result<RefPtr<Model>> CreateShapeModel(ResourceCache& cache)
                 .Color{1, 0, 0},
                 .Albedo{"images/Ant.png"},
                 .VertexShader{"shaders/Debug/VertexShader", 3},
-                .FragmentShader{"shaders/Debug/FragmentShader", 1},
+                .FragmentShader{"shaders/Debug/FragmentShader"},
             }
         }
     };

@@ -9,6 +9,7 @@
 #include <unordered_map>
 
 class SDLGPUDevice;
+class GpuTexture;
 struct SDL_GPURenderPass;
 struct SDL_GPUCommandBuffer;
 struct SDL_GPUFence;
@@ -88,6 +89,11 @@ private:
         m_CurrentState->Clear();
     }
 
+    /// Get or create the default texture.
+    /// The default texture is used when a material does not have an albedo texture.
+    Result<RefPtr<GpuTexture>> GetDefaultAlbedoTexture();
+
     State m_State[2];
     State* m_CurrentState = &m_State[0];
+    RefPtr<GpuTexture> m_DefaultAlbedoTexture;
 };

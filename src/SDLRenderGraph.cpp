@@ -145,6 +145,26 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
                 };
                 SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
             }
+            else
+            {
+                // No albedo texture
+                // Bind default texture
+
+                // All shaders have the same number of textures/samplers,
+                // even if they go unused.  So if a material doesn't have an albedo texture,
+                // we bind a default texture.
+                auto defaultTextResult = GetDefaultAlbedoTexture();
+                expect(defaultTextResult, defaultTextResult.error());
+
+                auto defaultTex = defaultTextResult.value();
+
+                SDL_GPUTextureSamplerBinding samplerBinding
+                {
+                    .texture = defaultTex.Get<SDLGpuTexture>()->Texture,
+                    .sampler = defaultTex.Get<SDLGpuTexture>()->Sampler
+                };
+                SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
+            }
 
             auto pipelineResult = m_GpuDevice->GetOrCreatePipeline(mtl);
 
@@ -303,4 +323,23 @@ SDLRenderGraph::WaitForFence()
 
     SDL_ReleaseGPUFence(m_GpuDevice->Device, m_CurrentState->m_RenderFence);
     m_CurrentState->m_RenderFence = nullptr;
+}
+
+
+
+Result<RefPtr<GpuTexture>>
+SDLRenderGraph::GetDefaultAlbedoTexture()
+{
+    if(!m_DefaultAlbedoTexture)
+    {
+        static constexpr const std::string_view MAGENTA_TEXTURE_KEY("$magenta");
+
+        TextureSpec spec(MAGENTA_TEXTURE_KEY, "#FF00FFFF"_rgba);
+        auto result = m_GpuDevice->CreateTexture(spec);
+        expect(result, result.error());
+
+        m_DefaultAlbedoTexture = result.value();
+    }
+
+    return m_DefaultAlbedoTexture;
 }
