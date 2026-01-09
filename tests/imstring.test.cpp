@@ -68,8 +68,10 @@ TEST(ImstringTest, StdStringConstructor)
 TEST(ImstringTest, CopyConstructor)
 {
     imstring s1("original");
+    const char* original = s1.c_str();
     imstring s2(s1);
     EXPECT_EQ(s1, s2);
+    EXPECT_EQ(s2.c_str(), original);
     EXPECT_STREQ(s2.c_str(), "original");
 }
 
@@ -77,8 +79,10 @@ TEST(ImstringTest, CopyConstructor)
 TEST(ImstringTest, MoveConstructor)
 {
     imstring s1("original");
+    const char* original = s1.c_str();
     imstring s2(std::move(s1));
     EXPECT_STREQ(s2.c_str(), "original");
+    EXPECT_EQ(s2.c_str(), original);
     EXPECT_EQ(s2.size(), 8);
     EXPECT_TRUE(s1.empty());
 }
@@ -87,9 +91,11 @@ TEST(ImstringTest, MoveConstructor)
 TEST(ImstringTest, CopyAssignment)
 {
     imstring s1("first");
+    const char* original = s1.c_str();
     imstring s2("second");
     s2 = s1;
     EXPECT_EQ(s1, s2);
+    EXPECT_EQ(s2.c_str(), original);
     EXPECT_STREQ(s2.c_str(), "first");
 }
 
@@ -98,8 +104,10 @@ TEST(ImstringTest, MoveAssignment)
 {
     imstring s1("original");
     imstring s2("other");
+    const char* original = s1.c_str();
     s2 = std::move(s1);
     EXPECT_STREQ(s2.c_str(), "original");
+    EXPECT_EQ(s2.c_str(), original);
     EXPECT_TRUE(s1.empty());
 }
 
