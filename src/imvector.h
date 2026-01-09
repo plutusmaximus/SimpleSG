@@ -492,6 +492,36 @@ public:
             ensure_capacity(n);
         }
 
+        void resize(size_type newSize) noexcept
+        {
+            if (newSize < m_size)
+            {
+                // Shrink: destroy excess elements
+                if constexpr (!std::is_trivially_destructible_v<T>)
+                {
+                    T* p = const_cast<T*>(elements_ptr(m_blk));
+                    for (size_type i = newSize; i < m_size; ++i)
+                    {
+                        p[i].~T();
+                    }
+                }
+                m_size = newSize;
+                return;
+            }
+
+            if (newSize > m_size)
+            {
+                // Grow: default-construct new elements
+                ensure_capacity(newSize);
+                T* p = const_cast<T*>(elements_ptr(m_blk));
+                for (size_type i = m_size; i < newSize; ++i)
+                {
+                    new (p + i) T();
+                }
+                m_size = newSize;
+            }
+        }
+
         void clear() noexcept
         {
             if (m_blk && m_size > 0)

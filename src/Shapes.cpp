@@ -14,8 +14,8 @@ Shapes::Box(const float width, const float height, const float depth)
     eassert(height > 0);
     eassert(depth > 0);
 
-    std::vector<Vertex> vertices;
-    std::vector<VertexIndex> indices;
+    imvector<Vertex>::builder vertices;
+    imvector<VertexIndex>::builder indices;
 
     const float hw = width * 0.5f;
     const float hh = height * 0.5f;
@@ -67,7 +67,7 @@ Shapes::Box(const float width, const float height, const float depth)
     indices.push_back(0); indices.push_back(1); indices.push_back(5);
     indices.push_back(0); indices.push_back(5); indices.push_back(4);
 
-    return Geometry{ std::move(vertices), std::move(indices) };
+    return Geometry{ vertices.build(), indices.build() };
 }
 
 Shapes::Geometry
@@ -76,8 +76,8 @@ Shapes::Ball(const float diameter, const float smoothness)
     eassert(diameter > 0);
     eassert(smoothness > 0);
 
-    std::vector<Vertex> vertices;
-    std::vector<VertexIndex> indices;
+    imvector<Vertex>::builder vertices;
+    imvector<VertexIndex>::builder indices;
 
     const float radius = diameter * 0.5f;
 
@@ -197,14 +197,14 @@ Shapes::Ball(const float diameter, const float smoothness)
     }
 
     // Scale to desired radius
-    for (auto& v : vertices)
+    for (size_t i = 0; i < vertices.size(); ++i)
     {
-        v.pos.x *= radius;
-        v.pos.y *= radius;
-        v.pos.z *= radius;
+        vertices[i].pos.x *= radius;
+        vertices[i].pos.y *= radius;
+        vertices[i].pos.z *= radius;
     }
 
-    return Geometry{ std::move(vertices), std::move(indices) };
+    return Geometry{ vertices.build(), indices.build() };
 }
 
 Shapes::Geometry
@@ -214,8 +214,8 @@ Shapes::Cylinder(const float height, const float diameter, const float smoothnes
     eassert(diameter > 0);
     eassert(smoothness > 0);
 
-    std::vector<Vertex> vertices;
-    std::vector<VertexIndex> indices;
+    imvector<Vertex>::builder vertices;
+    imvector<VertexIndex>::builder indices;
     const float radius = diameter * 0.5f;
     const float halfHeight = height * 0.5f;
 
@@ -312,7 +312,7 @@ Shapes::Cylinder(const float height, const float diameter, const float smoothnes
         indices.push_back(current);
     }
 
-    return Geometry{ std::move(vertices), std::move(indices) };
+    return Geometry{ vertices.build(), indices.build() };
 }
 
 Shapes::Geometry
@@ -323,8 +323,8 @@ Shapes::Cone(const float diameter1, const float diameter2, const float smoothnes
     eassert(diameter1 > 0 || diameter2 > 0);
     eassert(smoothness > 0);
 
-    std::vector<Vertex> vertices;
-    std::vector<VertexIndex> indices;
+    imvector<Vertex>::builder vertices;
+    imvector<VertexIndex>::builder indices;
 
     const float radius1 = diameter1 * 0.5f; // Bottom radius
     const float radius2 = diameter2 * 0.5f; // Top radius
@@ -466,7 +466,7 @@ Shapes::Cone(const float diameter1, const float diameter2, const float smoothnes
         }
     }
 
-    return Geometry{ std::move(vertices), std::move(indices) };
+    return Geometry{ vertices.build(), indices.build() };
 }
 
 Shapes::Geometry
@@ -484,8 +484,8 @@ Shapes::Torus(
         return Ball(tubeDiameter, smoothness);
     }
 
-    std::vector<Vertex> vertices;
-    std::vector<VertexIndex> indices;
+    imvector<Vertex>::builder vertices;
+    imvector<VertexIndex>::builder indices;
 
     const float ringRadius = ringDiameter * 0.5f;
     const float tubeRadius = tubeDiameter * 0.5f;
@@ -580,5 +580,5 @@ Shapes::Torus(
         }
     }
 
-    return Geometry{ std::move(vertices), std::move(indices) };
+    return Geometry{ vertices.build(), indices.build() };
 }

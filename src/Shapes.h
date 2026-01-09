@@ -1,8 +1,9 @@
 #pragma once
-#include <vector>
+#include <span>
 #include <cstdint>
 
 #include "Vertex.h"
+#include "imvector.h"
 
 class Shapes
 {
@@ -14,12 +15,12 @@ public:
 
     public:
 
-        const std::vector<Vertex>& GetVertices() const
+        const imvector<Vertex> GetVertices() const
         {
             return m_Vertices;
         }
 
-        const std::vector<VertexIndex>& GetIndices() const
+        const imvector<VertexIndex> GetIndices() const
         {
             return m_Indices;
         }
@@ -37,14 +38,14 @@ public:
         // Must use std::move() at the call site to avoid copies.
         // If std::move() is not used the compiler will throw an error similar to:
         // "no overloaded function could convert all the argument types"
-        Geometry(std::vector<Vertex>&& vertices, std::vector<VertexIndex>&& indices)
-            : m_Vertices(std::move(vertices))
-            , m_Indices(std::move(indices))
+        Geometry(const imvector<Vertex>& vertices, const imvector<VertexIndex>& indices)
+            : m_Vertices(vertices)
+            , m_Indices(indices)
         {
         }
 
-        std::vector<Vertex> m_Vertices;
-        std::vector<uint32_t> m_Indices;
+        imvector<Vertex> m_Vertices;
+        imvector<uint32_t> m_Indices;
     };
 
     static Geometry Box(const float width, const float height, const float depth);
@@ -77,11 +78,11 @@ struct std::tuple_size<Shapes::Geometry> : std::integral_constant<std::size_t, 2
 template<>
 struct std::tuple_element<0, Shapes::Geometry>
 {
-    using type = std::vector<Vertex>;
+    using type = imvector<Vertex>;
 };
 
 template<>
 struct std::tuple_element<1, Shapes::Geometry>
 {
-    using type = std::vector<uint32_t>;
+    using type = imvector<uint32_t>;
 };

@@ -128,7 +128,7 @@ int main(int, [[maybe_unused]] char* argv[])
 }
 
 // Triangle vertices
-static const std::vector<Vertex> triangleVertices =
+static const Vertex triangleVertices[] =
 {
     {{0.0f, 0.5f,  0.0f}, {0.0f,  0.0f,  -1.0f},  {1, 1}}, // 0
     {{0.5f, 0.0f,  0.0f}, {0.0f,  0.0f,  -1.0f},  {0, 1}}, // 1
@@ -136,7 +136,7 @@ static const std::vector<Vertex> triangleVertices =
 };
 
 // Triangle indices
-static const std::vector<VertexIndex> triangleIndices =
+static const VertexIndex triangleIndices[] =
 {
     0, 1, 2,
 };

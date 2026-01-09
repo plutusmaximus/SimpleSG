@@ -894,3 +894,230 @@ TEST(ImvectorBuilderTest, BuildedImvectorRefCounting)
     EXPECT_EQ(v1[0], v2[0]);
     EXPECT_EQ(v2[0], v3[0]);
 }
+
+// ========================================
+// Builder resize() Tests
+// ========================================
+
+// Test resize to grow builder with default-constructed elements
+TEST(ImvectorBuilderTest, ResizeGrow)
+{
+    imvector<int>::builder b;
+    b.push_back(10);
+    b.push_back(20);
+    
+    EXPECT_EQ(b.size(), 2);
+    EXPECT_EQ(b[0], 10);
+    EXPECT_EQ(b[1], 20);
+    
+    // Resize to grow: new elements should be default-constructed (0 for int)
+    b.resize(5);
+    
+    EXPECT_EQ(b.size(), 5);
+    EXPECT_EQ(b[0], 10);
+    EXPECT_EQ(b[1], 20);
+    EXPECT_EQ(b[2], 0);
+    EXPECT_EQ(b[3], 0);
+    EXPECT_EQ(b[4], 0);
+}
+
+// Test resize to shrink builder
+TEST(ImvectorBuilderTest, ResizeShrink)
+{
+    imvector<int>::builder b;
+    b.push_back(100);
+    b.push_back(200);
+    b.push_back(300);
+    b.push_back(400);
+    
+    EXPECT_EQ(b.size(), 4);
+    
+    // Resize to shrink
+    b.resize(2);
+    
+    EXPECT_EQ(b.size(), 2);
+    EXPECT_EQ(b[0], 100);
+    EXPECT_EQ(b[1], 200);
+}
+
+// Test resize to zero
+TEST(ImvectorBuilderTest, ResizeToZero)
+{
+    imvector<int>::builder b;
+    b.push_back(1);
+    b.push_back(2);
+    b.push_back(3);
+    
+    EXPECT_EQ(b.size(), 3);
+    
+    b.resize(0);
+    
+    EXPECT_TRUE(b.empty());
+    EXPECT_EQ(b.size(), 0);
+}
+
+// Test resize to same size (no-op)
+TEST(ImvectorBuilderTest, ResizeToSameSize)
+{
+    imvector<int>::builder b;
+    b.push_back(5);
+    b.push_back(10);
+    b.push_back(15);
+    
+    const int* original_data = b.data();
+    
+    b.resize(3);
+    
+    EXPECT_EQ(b.size(), 3);
+    EXPECT_EQ(b[0], 5);
+    EXPECT_EQ(b[1], 10);
+    EXPECT_EQ(b[2], 15);
+    // Data pointer should remain same for no-op
+    EXPECT_EQ(b.data(), original_data);
+}
+
+// Test resize grow then shrink
+TEST(ImvectorBuilderTest, ResizeGrowThenShrink)
+{
+    imvector<int>::builder b;
+    b.push_back(1);
+    b.push_back(2);
+    
+    // Grow
+    b.resize(5);
+    EXPECT_EQ(b.size(), 5);
+    EXPECT_EQ(b[0], 1);
+    EXPECT_EQ(b[1], 2);
+    EXPECT_EQ(b[2], 0);
+    
+    // Shrink back to original size
+    b.resize(2);
+    EXPECT_EQ(b.size(), 2);
+    EXPECT_EQ(b[0], 1);
+    EXPECT_EQ(b[1], 2);
+}
+
+// Test resize with non-trivial types (strings)
+TEST(ImvectorBuilderTest, ResizeWithNonTrivialTypes)
+{
+    imvector<std::string>::builder b;
+    b.push_back("hello");
+    b.push_back("world");
+    
+    EXPECT_EQ(b.size(), 2);
+    
+    // Resize to grow: new strings should be default-constructed (empty strings)
+    b.resize(4);
+    
+    EXPECT_EQ(b.size(), 4);
+    EXPECT_EQ(b[0], "hello");
+    EXPECT_EQ(b[1], "world");
+    EXPECT_EQ(b[2], "");
+    EXPECT_EQ(b[3], "");
+}
+
+// Test resize shrink with non-trivial types (strings) - destructors called
+TEST(ImvectorBuilderTest, ResizeShrinkNonTrivialTypes)
+{
+    imvector<std::string>::builder b;
+    b.push_back("first");
+    b.push_back("second");
+    b.push_back("third");
+    b.push_back("fourth");
+    
+    EXPECT_EQ(b.size(), 4);
+    
+    // Resize to shrink - destructors should be called on excess elements
+    b.resize(2);
+    
+    EXPECT_EQ(b.size(), 2);
+    EXPECT_EQ(b[0], "first");
+    EXPECT_EQ(b[1], "second");
+}
+
+// Test resize then build transfers ownership
+TEST(ImvectorBuilderTest, ResizeThenBuild)
+{
+    imvector<int>::builder b;
+    b.push_back(10);
+    b.push_back(20);
+    
+    // Grow via resize
+    b.resize(4);
+    
+    EXPECT_EQ(b.size(), 4);
+    const int* builder_data = b.data();
+    
+    imvector<int> v = b.build();
+    
+    EXPECT_EQ(v.size(), 4);
+    EXPECT_EQ(v[0], 10);
+    EXPECT_EQ(v[1], 20);
+    EXPECT_EQ(v[2], 0);
+    EXPECT_EQ(v[3], 0);
+    
+    // Verify ownership transferred
+    EXPECT_EQ(v.data(), builder_data);
+    EXPECT_NE(b.data(), builder_data);
+    EXPECT_EQ(b.size(), 0);
+    EXPECT_EQ(b.capacity(), 0);
+}
+
+// Test resize on empty builder
+TEST(ImvectorBuilderTest, ResizeEmptyBuilder)
+{
+    imvector<int>::builder b;
+    
+    EXPECT_TRUE(b.empty());
+    EXPECT_EQ(b.size(), 0);
+    
+    // Resize from empty should create default-constructed elements
+    b.resize(3);
+    
+    EXPECT_EQ(b.size(), 3);
+    EXPECT_EQ(b[0], 0);
+    EXPECT_EQ(b[1], 0);
+    EXPECT_EQ(b[2], 0);
+}
+
+// Test resize with reserve capacity
+TEST(ImvectorBuilderTest, ResizeWithReserveCapacity)
+{
+    imvector<int>::builder b;
+    b.reserve(10);
+    
+    EXPECT_EQ(b.capacity(), 10);
+    EXPECT_EQ(b.size(), 0);
+    
+    // Resize within reserved capacity
+    b.resize(5);
+    
+    EXPECT_EQ(b.size(), 5);
+    EXPECT_EQ(b.capacity(), 10);  // Capacity unchanged
+    for (int i = 0; i < 5; ++i)
+    {
+        EXPECT_EQ(b[i], 0);
+    }
+}
+
+// Test builder operator[] access after resize
+TEST(ImvectorBuilderTest, BuilderIndexAccessAfterResize)
+{
+    imvector<int>::builder b;
+    b.resize(3);
+    
+    // Should be able to access elements via operator[]
+    EXPECT_EQ(b[0], 0);
+    EXPECT_EQ(b[1], 0);
+    EXPECT_EQ(b[2], 0);
+    
+    // Modify elements after resize
+    for (int i = 0; i < b.size(); ++i)
+    {
+        b[i] = (i + 1) * 10;
+    }
+    
+    EXPECT_EQ(b[0], 10);
+    EXPECT_EQ(b[1], 20);
+    EXPECT_EQ(b[2], 30);
+}
