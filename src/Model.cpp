@@ -3,12 +3,12 @@
 #include "Model.h"
 
 ModelSpec::ModelSpec(
-    std::vector<MeshSpec>&& meshSpecs,
-    std::vector<MeshInstance>&& meshInstances,
-    std::vector<TransformNode>&& transformNodes)
-    : MeshSpecs(std::move(meshSpecs))
-    , MeshInstances(std::move(meshInstances))
-    , TransformNodes(std::move(transformNodes))
+    const imvector<MeshSpec>& meshSpecs,
+    const imvector<MeshInstance>& meshInstances,
+    const imvector<TransformNode>& transformNodes)
+    : MeshSpecs(meshSpecs)
+    , MeshInstances(meshInstances)
+    , TransformNodes(transformNodes)
 {
     for(size_t i = 0; i < MeshInstances.size(); ++i)
     {
@@ -34,21 +34,18 @@ ModelSpec::ModelSpec(
 }
 
 Result<RefPtr<Model>>
-Model::Create(std::vector<Mesh>&& meshes, std::vector<MeshInstance>&& meshInstances, std::vector<TransformNode>&& transformNodes)
+Model::Create(const imvector<Mesh>& meshes, const imvector<MeshInstance>& meshInstances, const imvector<TransformNode>& transformNodes)
 {
-    Model* model = new Model(
-        std::forward<std::vector<Mesh>>(meshes),
-        std::forward<std::vector<MeshInstance>>(meshInstances),
-        std::forward<std::vector<TransformNode>>(transformNodes));
+    Model* model = new Model(meshes, meshInstances, transformNodes);
     expectv(model, "Error allocating model");
 
     return model;
 }
 
-Model::Model(std::vector<Mesh>&& meshes, std::vector<MeshInstance>&& meshInstances, std::vector<TransformNode>&& transformNodes)
-    : Meshes(std::move(meshes))
-    , MeshInstances(std::move(meshInstances))
-    , TransformNodes(std::move(transformNodes))
+Model::Model(const imvector<Mesh>& meshes, const imvector<MeshInstance>& meshInstances, const imvector<TransformNode>& transformNodes)
+    : Meshes(meshes)
+    , MeshInstances(meshInstances)
+    , TransformNodes(transformNodes)
 {
     logDebug(
         "Creating model with {} meshes, {} mesh instances and {} transform nodes",

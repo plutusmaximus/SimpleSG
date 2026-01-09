@@ -143,7 +143,7 @@ static const std::vector<VertexIndex> triangleIndices =
 
 static Result<RefPtr<Model>> CreateTriangleModel(ResourceCache& cache)
 {
-    std::vector<MeshSpec> meshSpecs =
+    imvector<MeshSpec>::builder meshSpecs =
     {
         {
             .Vertices{triangleVertices},
@@ -158,17 +158,17 @@ static Result<RefPtr<Model>> CreateTriangleModel(ResourceCache& cache)
         }
     };
 
-    std::vector<TransformNode> transformNodes
+    imvector<TransformNode>::builder transformNodes
     {
         { .ParentIndex = -1 },
     };
 
-    std::vector<MeshInstance> meshInstances
+    imvector<MeshInstance>::builder meshInstances
     {
         { .MeshIndex = 0, .NodeIndex = 0 }
     };
 
-    const ModelSpec modelSpec{std::move(meshSpecs), std::move(meshInstances), std::move(transformNodes)};
+    const ModelSpec modelSpec{meshSpecs.build(), meshInstances.build(), transformNodes.build()};
 
     return cache.GetOrCreateModel(CacheKey("TriangleModel"), modelSpec);
 }

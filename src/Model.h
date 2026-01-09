@@ -30,17 +30,16 @@ class ModelSpec
 public:
 
     ModelSpec(
-        std::vector<MeshSpec>&& meshSpecs,
-        std::vector<MeshInstance>&& meshInstances,
-        std::vector<TransformNode>&& transformNodes);
+        const imvector<MeshSpec>& meshSpecs,
+        const imvector<MeshInstance>& meshInstances,
+        const imvector<TransformNode>& transformNodes);
 
     /// @brief List of mesh specifications that make up the model.
-    const std::vector<MeshSpec> MeshSpecs;
+    const imvector<MeshSpec> MeshSpecs;
     /// @brief List of mesh instances that make up the model.
-    const std::vector<MeshInstance> MeshInstances;
+    const imvector<MeshInstance> MeshInstances;
     /// @brief List of transform nodes that make up the model.
-    const std::vector<TransformNode> TransformNodes;
-
+    const imvector<TransformNode> TransformNodes;
 private:
         ModelSpec() = delete;
 };
@@ -50,22 +49,21 @@ class Model
 public:
 
     static Result<RefPtr<Model>> Create(
-        std::vector<Mesh>&& meshes,
-        std::vector<MeshInstance>&& meshInstances,
-        std::vector<TransformNode>&& transformNodes);
+        const imvector<Mesh>& meshes,
+        const imvector<MeshInstance>& meshInstances,
+        const imvector<TransformNode>& transformNodes);
 
-    const std::vector<Mesh> Meshes;
-    const std::vector<MeshInstance> MeshInstances;
-    const std::vector<TransformNode> TransformNodes;
-
+    const imvector<Mesh> Meshes;
+    const imvector<MeshInstance> MeshInstances;
+    const imvector<TransformNode> TransformNodes;
 private:
 
     Model() = delete;
 
     explicit Model(
-        std::vector<Mesh>&& meshes,
-        std::vector<MeshInstance>&& meshInstances,
-        std::vector<TransformNode>&& transformNodes);
+        const imvector<Mesh>& meshes,
+        const imvector<MeshInstance>& meshInstances,
+        const imvector<TransformNode>& transformNodes);
 
     IMPLEMENT_REFCOUNT(Model);
 };

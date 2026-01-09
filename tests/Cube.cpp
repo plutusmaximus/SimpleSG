@@ -342,7 +342,7 @@ constexpr static const VertexIndex cubeIndices[] =
 
 static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
 {
-    std::vector<MeshSpec> meshSpecs =
+    imvector<MeshSpec>::builder meshSpecs =
     {
         {
             .Vertices{std::span(cubeVertices + 0, 6)},
@@ -412,12 +412,12 @@ static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
         },
     };
 
-    std::vector<TransformNode> transformNodes
+    imvector<TransformNode>::builder transformNodes
     {
         { .ParentIndex = -1 },
     };
 
-    std::vector<MeshInstance> meshInstances
+    imvector<MeshInstance>::builder meshInstances
     {
         { .MeshIndex = 0, .NodeIndex = 0 },
         { .MeshIndex = 1, .NodeIndex = 0 },
@@ -427,7 +427,7 @@ static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
         { .MeshIndex = 5, .NodeIndex = 0 },
     };
 
-    const ModelSpec modelSpec{std::move(meshSpecs), std::move(meshInstances), std::move(transformNodes)};
+    const ModelSpec modelSpec{meshSpecs.build(), meshInstances.build(), transformNodes.build()};
 
     return cache.GetOrCreateModel(CacheKey("CubeModel"), modelSpec);
 }
@@ -441,7 +441,7 @@ static Result<RefPtr<Model>> CreateShapeModel(ResourceCache& cache)
     auto geometry = Shapes::Torus(1, 0.5, 5);
     const auto& [vertices, indices] = geometry;
 
-    std::vector<MeshSpec> meshSpecs =
+    imvector<MeshSpec>::builder meshSpecs =
     {
         {
             .Vertices{vertices},
@@ -456,17 +456,17 @@ static Result<RefPtr<Model>> CreateShapeModel(ResourceCache& cache)
         }
     };
 
-    std::vector<TransformNode> transformNodes
+    imvector<TransformNode>::builder transformNodes
     {
         { .ParentIndex = -1 },
     };
 
-    std::vector<MeshInstance> meshInstances
+    imvector<MeshInstance>::builder meshInstances
     {
         { .MeshIndex = 0, .NodeIndex = 0 }
     };
 
-    const ModelSpec modelSpec{std::move(meshSpecs), std::move(meshInstances), std::move(transformNodes)};
+    const ModelSpec modelSpec{meshSpecs.build(), meshInstances.build(), transformNodes.build()};
 
     return cache.GetOrCreateModel(CacheKey("ShapeModel"), modelSpec);
 }

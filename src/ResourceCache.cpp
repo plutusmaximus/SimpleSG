@@ -43,7 +43,7 @@ using SceneMeshCollection = std::unordered_map<SceneMeshId, const aiMesh*>;
 
 struct MeshSpecCollection
 {
-    std::vector<MeshSpec> MeshSpecs;
+    imvector<MeshSpec>::builder MeshSpecs;
     std::unordered_map<SceneMeshId, int> MeshIdToSpecIndex;
 };
 
@@ -74,8 +74,8 @@ static void ProcessNodes(
         const aiNode* node,
         const int parentNodeIndex,
         const MeshSpecCollection& meshSpecCollection,
-        std::vector<MeshInstance>& meshInstances,
-        std::vector<TransformNode>& transformNodes,
+        imvector<MeshInstance>::builder& meshInstances,
+        imvector<TransformNode>::builder& transformNodes,
         const std::filesystem::path& parentPath);
 
 Result<RefPtr<Model>>
@@ -125,8 +125,8 @@ ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view file
         meshCollection,
         parentPath);
 
-    std::vector<MeshInstance> meshInstances;
-    std::vector<TransformNode> transformNodes;
+    imvector<MeshInstance>::builder meshInstances;
+    imvector<TransformNode>::builder transformNodes;
 
     ProcessNodes(
         scene->mRootNode,
@@ -138,9 +138,9 @@ ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view file
 
     const ModelSpec ModelSpec
     {
-        std::move(meshSpecCollection.MeshSpecs),
-        std::move(meshInstances),
-        std::move(transformNodes)
+        meshSpecCollection.MeshSpecs.build(),
+        meshInstances.build(),
+        transformNodes.build()
     };
 
     return GetOrCreateModel(cacheKey, ModelSpec);
@@ -185,7 +185,7 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     auto baseIb = ibResult.value();
     auto baseVb = vbResult.value();
 
-    std::vector<Mesh> meshes;
+    imvector<Mesh>::builder meshes;
     meshes.reserve(modelSpec.MeshSpecs.size());
 
     uint32_t idxOffset = 0, vtxOffset = 0;
@@ -238,11 +238,7 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
         meshes.emplace_back(mesh);
     }
 
-    //Model::Create() expects to take ownership of these vectors, so create copies.
-    std::vector<MeshInstance> meshInstances = modelSpec.MeshInstances;
-    std::vector<TransformNode> transformNodes = modelSpec.TransformNodes;
-
-    auto modelResult = Model::Create(std::move(meshes), std::move(meshInstances), std::move(transformNodes));
+    auto modelResult = Model::Create(meshes.build(), modelSpec.MeshInstances, modelSpec.TransformNodes);
 
     expect(modelResult, modelResult.error());
 
@@ -675,8 +671,8 @@ static void ProcessNodes(
     const aiNode* node,
     const int parentNodeIndex,
     const MeshSpecCollection& meshSpecCollection,
-    std::vector<MeshInstance>& meshInstances,
-    std::vector<TransformNode>& transformNodes,
+    imvector<MeshInstance>::builder& meshInstances,
+    imvector<TransformNode>::builder& transformNodes,
     const std::filesystem::path& parentPath)
 {
     logDebug("Processing node {}", node->mName.C_Str());

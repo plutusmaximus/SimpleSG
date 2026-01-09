@@ -341,17 +341,17 @@ public:
         return (*this)[size() - 1];
     }
 
-// ------------------------------
-// imvector<T>::builder (ownership-transfer build)
-// Paste this inside class imvector<T> (public section).
-//
-// Properties:
-// - builder constructs elements directly into an internal block buffer.
-// - build() transfers the block pointer to the returned imvector (no element copy on build()).
-// - Growth reallocates a new block and move-constructs existing elements (like vector growth).
-// - No exceptions: uses IMVECTOR_FAIL_FAST() on invariant failures.
-// ------------------------------
-public:
+    // ------------------------------
+    // imvector<T>::builder (ownership-transfer build)
+    // Paste this inside class imvector<T> (public section).
+    //
+    // Properties:
+    // - builder constructs elements directly into an internal block buffer.
+    // - build() transfers the block pointer to the returned imvector (no element copy on build()).
+    // - Growth reallocates a new block and move-constructs existing elements (like vector growth).
+    // - No exceptions: uses IMVECTOR_FAIL_FAST() on invariant failures.
+    // ------------------------------
+
     class builder final
     {
     public:
@@ -442,6 +442,15 @@ public:
             o.m_blk  = nullptr;
             o.m_size = 0;
             o.m_cap  = 0;
+        }
+
+        builder(std::initializer_list<T> init) noexcept
+        {
+            reserve(static_cast<size_type>(init.size()));
+            for (const T& v : init)
+            {
+                emplace_back(v);
+            }
         }
 
         builder& operator=(builder&& o) noexcept
@@ -558,6 +567,54 @@ public:
                 return imvector::empty_data_ptr_const();
             }
             return elements_ptr(m_blk);
+        }
+
+        T& operator[](size_type i) noexcept
+        {
+            // Same as std::vector: unchecked.
+            return data()[i];
+        }
+
+        const T& operator[](size_type i) const noexcept
+        {
+            // Same as std::vector: unchecked.
+            return data()[i];
+        }
+
+        T& at(size_type i) noexcept
+        {
+            require(i < size());
+            return data()[i];
+        }
+
+        const T& at(size_type i) const noexcept
+        {
+            require(i < size());
+            return data()[i];
+        }
+
+        T& front() noexcept
+        {
+            require(!empty());
+            return (*this)[0];
+        }
+
+        const T& front() const noexcept
+        {
+            require(!empty());
+            return (*this)[0];
+        }
+
+        T& back() noexcept
+        {
+            require(!empty());
+            return (*this)[size() - 1];
+        }
+
+        const T& back() const noexcept
+        {
+            require(!empty());
+            return (*this)[size() - 1];
         }
 
         // Finalize: transfer ownership of the internal block to an imvector.
