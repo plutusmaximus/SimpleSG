@@ -569,367 +569,328 @@ TEST(ImvectorTest, EmptyInputIteratorConstructor)
     EXPECT_NE(v.data(), nullptr);
 }
 
-// ============================================================================
-// Builder Tests
-// ============================================================================
+// ========================================
+// Builder Tests: Data Transfer and Ownership
+// ========================================
 
-// Test builder default constructor
-TEST(ImvectorBuilderTest, DefaultConstructor)
+// Test builder push_back and build transfers data and ownership
+TEST(ImvectorBuilderTest, BuildTransfersData)
 {
-    imvector<int>::builder builder;
-    EXPECT_TRUE(builder.empty());
-    EXPECT_EQ(builder.size(), 0);
+    imvector<int>::builder b;
+    b.push_back(10);
+    b.push_back(20);
+    b.push_back(30);
+    
+    // Capture builder's data pointer before build
+    const int* builder_data_before = b.data();
+    EXPECT_NE(builder_data_before, nullptr);
+    EXPECT_EQ(b.size(), 3);
+    
+    imvector<int> v = b.build();
+    
+    // Verify imvector received the data (same pointer)
+    EXPECT_EQ(v.size(), 3);
+    EXPECT_EQ(v[0], 10);
+    EXPECT_EQ(v[1], 20);
+    EXPECT_EQ(v[2], 30);
+    EXPECT_EQ(v.data(), builder_data_before);
+    
+    // Verify ownership transferred: builder data pointer is now null or empty placeholder
+    EXPECT_EQ(b.size(), 0);
+    EXPECT_EQ(b.capacity(), 0);
+    EXPECT_TRUE(b.empty());
+    EXPECT_NE(b.data(), builder_data_before);
 }
 
-// Test builder with reserve
-TEST(ImvectorBuilderTest, ConstructorWithReserve)
+// Test builder can be reused after build() and ownership transfers each time
+TEST(ImvectorBuilderTest, BuilderReuseAfterBuild)
 {
-    imvector<int>::builder builder(100);
-    EXPECT_TRUE(builder.empty());
-    EXPECT_EQ(builder.size(), 0);
-    EXPECT_GE(builder.capacity(), 100);
-}
-
-// Test builder push_back
-TEST(ImvectorBuilderTest, PushBack)
-{
-    imvector<int>::builder builder;
-    builder.push_back(10);
-    builder.push_back(20);
-    builder.push_back(30);
+    imvector<int>::builder b;
     
-    EXPECT_EQ(builder.size(), 3);
-    EXPECT_FALSE(builder.empty());
-}
-
-// Test builder push_back with rvalue
-TEST(ImvectorBuilderTest, PushBackRvalue)
-{
-    imvector<std::string>::builder builder;
-    builder.push_back(std::string("hello"));
-    builder.push_back(std::string("world"));
+    // First build
+    b.push_back(1);
+    b.push_back(2);
+    const int* first_builder_data = b.data();
+    imvector<int> v1 = b.build();
     
-    EXPECT_EQ(builder.size(), 2);
-}
-
-// Test builder emplace_back
-TEST(ImvectorBuilderTest, EmplaceBack)
-{
-    imvector<Point>::builder builder;
-    builder.emplace_back(1, 2);
-    builder.emplace_back(3, 4);
-    builder.emplace_back(5, 6);
-    
-    EXPECT_EQ(builder.size(), 3);
-}
-
-// Test builder append with span
-TEST(ImvectorBuilderTest, AppendSpan)
-{
-    imvector<int>::builder builder;
-    std::vector<int> data = {1, 2, 3, 4, 5};
-    builder.append(std::span(data));
-    
-    EXPECT_EQ(builder.size(), 5);
-}
-
-// Test builder append empty span
-TEST(ImvectorBuilderTest, AppendEmptySpan)
-{
-    imvector<int>::builder builder;
-    builder.push_back(10);
-    
-    std::vector<int> empty;
-    builder.append(std::span(empty));
-    
-    EXPECT_EQ(builder.size(), 1);
-}
-
-// Test builder append with iterators
-TEST(ImvectorBuilderTest, AppendIterators)
-{
-    imvector<int>::builder builder;
-    builder.push_back(1);
-    
-    std::vector<int> data = {2, 3, 4};
-    builder.append(data.begin(), data.end());
-    
-    EXPECT_EQ(builder.size(), 4);
-}
-
-// Test builder clear
-TEST(ImvectorBuilderTest, Clear)
-{
-    imvector<int>::builder builder;
-    builder.push_back(10);
-    builder.push_back(20);
-    builder.push_back(30);
-    
-    EXPECT_EQ(builder.size(), 3);
-    
-    builder.clear();
-    
-    EXPECT_TRUE(builder.empty());
-    EXPECT_EQ(builder.size(), 0);
-}
-
-// Test builder reserve
-TEST(ImvectorBuilderTest, Reserve)
-{
-    imvector<int>::builder builder;
-    builder.reserve(50);
-    
-    EXPECT_GE(builder.capacity(), 50);
-    EXPECT_EQ(builder.size(), 0);
-}
-
-// Test builder build empty
-TEST(ImvectorBuilderTest, BuildEmpty)
-{
-    imvector<int>::builder builder;
-    imvector<int> v = builder.build();
-    
-    EXPECT_TRUE(v.empty());
-    EXPECT_EQ(v.size(), 0);
-    
-    // Builder should be cleared after build
-    EXPECT_TRUE(builder.empty());
-    EXPECT_EQ(builder.size(), 0);
-}
-
-// Test builder build with elements
-TEST(ImvectorBuilderTest, BuildWithElements)
-{
-    imvector<int>::builder builder;
-    builder.push_back(1);
-    builder.push_back(2);
-    builder.push_back(3);
-    builder.push_back(4);
-    builder.push_back(5);
-    
-    imvector<int> v = builder.build();
-    
-    EXPECT_EQ(v.size(), 5);
-    EXPECT_EQ(v[0], 1);
-    EXPECT_EQ(v[1], 2);
-    EXPECT_EQ(v[2], 3);
-    EXPECT_EQ(v[3], 4);
-    EXPECT_EQ(v[4], 5);
-    
-    // Builder should be cleared after build
-    EXPECT_TRUE(builder.empty());
-    EXPECT_EQ(builder.size(), 0);
-}
-
-// Test builder reuse after build
-TEST(ImvectorBuilderTest, ReuseAfterBuild)
-{
-    imvector<int>::builder builder;
-    builder.push_back(1);
-    builder.push_back(2);
-    
-    imvector<int> v1 = builder.build();
     EXPECT_EQ(v1.size(), 2);
+    EXPECT_EQ(v1[0], 1);
+    EXPECT_EQ(v1[1], 2);
+    EXPECT_EQ(v1.data(), first_builder_data);
+    EXPECT_NE(b.data(), first_builder_data);
     
-    // Builder should be cleared and reusable
-    EXPECT_TRUE(builder.empty());
+    // Builder can be reused immediately
+    b.push_back(10);
+    b.push_back(20);
+    b.push_back(30);
+    const int* second_builder_data = b.data();
+    imvector<int> v2 = b.build();
     
-    // Build again with new data
-    builder.push_back(10);
-    builder.push_back(20);
-    builder.push_back(30);
-    
-    imvector<int> v2 = builder.build();
     EXPECT_EQ(v2.size(), 3);
     EXPECT_EQ(v2[0], 10);
     EXPECT_EQ(v2[1], 20);
     EXPECT_EQ(v2[2], 30);
+    EXPECT_EQ(v2.data(), second_builder_data);
+    EXPECT_NE(b.data(), second_builder_data);
     
-    // Original vector should be unaffected
+    // Original v1 unchanged, owns different memory from v2
     EXPECT_EQ(v1.size(), 2);
     EXPECT_EQ(v1[0], 1);
     EXPECT_EQ(v1[1], 2);
+    EXPECT_NE(v1.data(), v2.data());
 }
 
-// Test builder with strings
-TEST(ImvectorBuilderTest, BuildStrings)
+// Test build with emplace_back and verify ownership transfer via data pointers
+TEST(ImvectorBuilderTest, BuildWithEmplaceBack)
 {
-    imvector<std::string>::builder builder;
-    builder.push_back("hello");
-    builder.push_back("world");
-    builder.emplace_back("test");
+    imvector<std::string>::builder b;
+    b.emplace_back("hello");
+    b.emplace_back("world");
+    b.emplace_back("test");
     
-    imvector<std::string> v = builder.build();
+    EXPECT_EQ(b.size(), 3);
+    const std::string* builder_data = b.data();
+    
+    imvector<std::string> v = b.build();
     
     EXPECT_EQ(v.size(), 3);
     EXPECT_EQ(v[0], "hello");
     EXPECT_EQ(v[1], "world");
     EXPECT_EQ(v[2], "test");
+    
+    // Verify ownership transferred: imvector owns the data, builder's pointer changed
+    EXPECT_EQ(v.data(), builder_data);
+    EXPECT_NE(b.data(), builder_data);
+    EXPECT_EQ(b.size(), 0);
+    EXPECT_EQ(b.capacity(), 0);
 }
 
-// Test builder with custom struct
-TEST(ImvectorBuilderTest, BuildCustomStruct)
+// Test build with append and verify ownership transfer
+TEST(ImvectorBuilderTest, BuildWithAppend)
 {
-    imvector<Point>::builder builder;
-    builder.emplace_back(1, 2);
-    builder.emplace_back(3, 4);
-    builder.push_back(Point{5, 6});
+    imvector<int>::builder b;
     
-    imvector<Point> v = builder.build();
+    std::vector<int> data = {5, 10, 15};
+    b.append(std::span<const int>(data));
+    
+    EXPECT_EQ(b.size(), 3);
+    const int* builder_data = b.data();
+    
+    imvector<int> v = b.build();
     
     EXPECT_EQ(v.size(), 3);
-    EXPECT_EQ(v[0].x, 1);
-    EXPECT_EQ(v[0].y, 2);
-    EXPECT_EQ(v[1].x, 3);
-    EXPECT_EQ(v[1].y, 4);
-    EXPECT_EQ(v[2].x, 5);
-    EXPECT_EQ(v[2].y, 6);
+    EXPECT_EQ(v[0], 5);
+    EXPECT_EQ(v[1], 10);
+    EXPECT_EQ(v[2], 15);
+    
+    // Verify ownership transferred: imvector owns the data, builder's pointer changed
+    EXPECT_EQ(v.data(), builder_data);
+    EXPECT_NE(b.data(), builder_data);
+    EXPECT_EQ(b.size(), 0);
+    EXPECT_EQ(b.capacity(), 0);
 }
 
-// Test builder incremental construction
-TEST(ImvectorBuilderTest, IncrementalConstruction)
+// Test build with reserve and capacity growth, verify ownership transfer
+TEST(ImvectorBuilderTest, BuildWithReserveAndGrowth)
 {
-    imvector<int>::builder builder;
+    imvector<int>::builder b;
+    b.reserve(10);
     
+    EXPECT_EQ(b.capacity(), 10);
+    EXPECT_EQ(b.size(), 0);
+    
+    b.push_back(1);
+    b.push_back(2);
+    b.push_back(3);
+    
+    const int* builder_data = b.data();
+    imvector<int> v = b.build();
+    
+    EXPECT_EQ(v.size(), 3);
+    EXPECT_EQ(v[0], 1);
+    EXPECT_EQ(v[1], 2);
+    EXPECT_EQ(v[2], 3);
+    
+    // Verify ownership transferred: imvector owns the data, builder's pointer changed
+    EXPECT_EQ(v.data(), builder_data);
+    EXPECT_NE(b.data(), builder_data);
+    EXPECT_EQ(b.size(), 0);
+    EXPECT_EQ(b.capacity(), 0);
+}
+
+// Test build with empty builder returns empty imvector
+TEST(ImvectorBuilderTest, BuildEmptyBuilder)
+{
+    imvector<int>::builder b;
+    
+    EXPECT_EQ(b.size(), 0);
+    EXPECT_TRUE(b.empty());
+    
+    imvector<int> v = b.build();
+    
+    EXPECT_TRUE(v.empty());
+    EXPECT_EQ(v.size(), 0);
+    EXPECT_NE(v.data(), nullptr);
+}
+
+// Test multiple imvectors built from same builder data (after separate builds)
+TEST(ImvectorBuilderTest, MultipleBuildCycles)
+{
+    imvector<int>::builder b;
+    
+    // First cycle
+    b.push_back(100);
+    b.push_back(200);
+    imvector<int> v1 = b.build();
+    
+    // Second cycle
+    b.push_back(1000);
+    b.push_back(2000);
+    b.push_back(3000);
+    imvector<int> v2 = b.build();
+    
+    // Third cycle
+    b.push_back(11);
+    imvector<int> v3 = b.build();
+    
+    // Verify all imvectors have correct independent data
+    EXPECT_EQ(v1.size(), 2);
+    EXPECT_EQ(v1[0], 100);
+    EXPECT_EQ(v1[1], 200);
+    
+    EXPECT_EQ(v2.size(), 3);
+    EXPECT_EQ(v2[0], 1000);
+    EXPECT_EQ(v2[1], 2000);
+    EXPECT_EQ(v2[2], 3000);
+    
+    EXPECT_EQ(v3.size(), 1);
+    EXPECT_EQ(v3[0], 11);
+    
+    // Builder should be empty after last build
+    EXPECT_EQ(b.size(), 0);
+    EXPECT_EQ(b.capacity(), 0);
+}
+
+// Test build with non-trivial types and verify ownership transfer
+TEST(ImvectorBuilderTest, BuildWithNonTrivialTypes)
+{
+    imvector<std::string>::builder b;
+    
+    std::string hello("hello");
+    std::string world("world");
+    std::string test("test");
+    
+    b.push_back(hello);
+    b.push_back(world);
+    b.push_back(test);
+    
+    EXPECT_EQ(b.size(), 3);
+    const std::string* builder_data = b.data();
+    
+    imvector<std::string> v = b.build();
+    
+    EXPECT_EQ(v.size(), 3);
+    EXPECT_EQ(v[0], "hello");
+    EXPECT_EQ(v[1], "world");
+    EXPECT_EQ(v[2], "test");
+    
+    // Verify ownership transferred: imvector owns the data, builder's pointer changed
+    EXPECT_EQ(v.data(), builder_data);
+    EXPECT_NE(b.data(), builder_data);
+    EXPECT_EQ(b.size(), 0);
+    EXPECT_EQ(b.capacity(), 0);
+}
+
+// Test build preserves data after multiple reallocations and verify ownership transfer
+TEST(ImvectorBuilderTest, BuildAfterMultipleReallocations)
+{
+    imvector<int>::builder b;
+    
+    // Add elements that will trigger multiple reallocations
+    // (assuming growth strategy: 1.5x, at least 8)
     for (int i = 0; i < 100; ++i)
     {
-        builder.push_back(i);
+        b.push_back(i);
     }
     
-    EXPECT_EQ(builder.size(), 100);
+    EXPECT_EQ(b.size(), 100);
+    const int* builder_data = b.data();
     
-    imvector<int> v = builder.build();
+    imvector<int> v = b.build();
     
     EXPECT_EQ(v.size(), 100);
     for (int i = 0; i < 100; ++i)
     {
         EXPECT_EQ(v[i], i);
     }
+    
+    // Verify ownership transferred: imvector owns the data, builder's pointer changed
+    EXPECT_EQ(v.data(), builder_data);
+    EXPECT_NE(b.data(), builder_data);
+    EXPECT_EQ(b.size(), 0);
+    EXPECT_EQ(b.capacity(), 0);
 }
 
-// Test builder append multiple chunks
-TEST(ImvectorBuilderTest, AppendMultipleChunks)
+// Test builder move ownership transfer and build transfer
+TEST(ImvectorBuilderTest, BuilderMoveOwnershipTransfer)
 {
-    imvector<int>::builder builder;
+    imvector<int>::builder b1;
+    b1.push_back(10);
+    b1.push_back(20);
+    b1.push_back(30);
     
-    std::vector<int> chunk1 = {1, 2, 3};
-    std::vector<int> chunk2 = {4, 5, 6};
-    std::vector<int> chunk3 = {7, 8, 9};
+    EXPECT_EQ(b1.size(), 3);
+    const int* b1_data = b1.data();
     
-    builder.append(std::span(chunk1));
-    builder.append(std::span(chunk2));
-    builder.append(std::span(chunk3));
+    // Move to b2
+    imvector<int>::builder b2 = std::move(b1);
     
-    EXPECT_EQ(builder.size(), 9);
+    // b1 should be empty after move, data pointer changed
+    EXPECT_EQ(b1.size(), 0);
+    EXPECT_EQ(b1.capacity(), 0);
+    EXPECT_NE(b1.data(), b1_data);
     
-    imvector<int> v = builder.build();
+    // b2 should own the data (same pointer as b1 had)
+    EXPECT_EQ(b2.size(), 3);
+    EXPECT_EQ(b2.data(), b1_data);
     
-    EXPECT_EQ(v.size(), 9);
-    for (int i = 0; i < 9; ++i)
-    {
-        EXPECT_EQ(v[i], i + 1);
-    }
-}
-
-// Test builder capacity retention after build
-TEST(ImvectorBuilderTest, CapacityRetentionAfterBuild)
-{
-    imvector<int>::builder builder(100);
+    imvector<int> v = b2.build();
     
-    for (int i = 0; i < 50; ++i)
-    {
-        builder.push_back(i);
-    }
-    
-    auto capacity_before = builder.capacity();
-    
-    imvector<int> v = builder.build();
-    
-    // Capacity should be retained after build (for reuse)
-    EXPECT_GE(builder.capacity(), capacity_before);
-    EXPECT_TRUE(builder.empty());
-}
-
-// Test builder with mixed operations
-TEST(ImvectorBuilderTest, MixedOperations)
-{
-    imvector<int>::builder builder;
-    
-    builder.push_back(1);
-    builder.emplace_back(2);
-    
-    std::vector<int> data = {3, 4, 5};
-    builder.append(std::span(data));
-    
-    builder.push_back(6);
-    
-    builder.append(data.begin(), data.end());
-    
-    EXPECT_EQ(builder.size(), 9);
-    
-    imvector<int> v = builder.build();
-    
-    EXPECT_EQ(v.size(), 9);
-    EXPECT_EQ(v[0], 1);
-    EXPECT_EQ(v[1], 2);
-    EXPECT_EQ(v[2], 3);
-    EXPECT_EQ(v[5], 6);
-    EXPECT_EQ(v[8], 5);
-}
-
-// Test builder clear and rebuild
-TEST(ImvectorBuilderTest, ClearAndRebuild)
-{
-    imvector<int>::builder builder;
-    
-    builder.push_back(1);
-    builder.push_back(2);
-    builder.push_back(3);
-    
-    builder.clear();
-    
-    builder.push_back(10);
-    builder.push_back(20);
-    
-    imvector<int> v = builder.build();
-    
-    EXPECT_EQ(v.size(), 2);
+    EXPECT_EQ(v.size(), 3);
     EXPECT_EQ(v[0], 10);
     EXPECT_EQ(v[1], 20);
+    EXPECT_EQ(v[2], 30);
+    
+    // Verify ownership transferred from b2 to v
+    EXPECT_EQ(v.data(), b1_data);
+    EXPECT_NE(b2.data(), b1_data);
 }
 
-// Test builder move semantics
-TEST(ImvectorBuilderTest, MoveSemantics)
+// Test built imvector shares storage with copies (ref-counting)
+TEST(ImvectorBuilderTest, BuildedImvectorRefCounting)
 {
-    imvector<std::string>::builder builder;
+    imvector<int>::builder b;
+    b.push_back(7);
+    b.push_back(14);
+    b.push_back(21);
     
-    std::string s1 = "hello";
-    std::string s2 = "world";
+    imvector<int> v1 = b.build();
+    const int* p1 = v1.data();
     
-    builder.push_back(std::move(s1));
-    builder.push_back(std::move(s2));
+    // Copy v1: should share storage
+    imvector<int> v2 = v1;
+    const int* p2 = v2.data();
     
-    imvector<std::string> v = builder.build();
+    EXPECT_EQ(p1, p2);
     
-    EXPECT_EQ(v.size(), 2);
-    EXPECT_EQ(v[0], "hello");
-    EXPECT_EQ(v[1], "world");
-}
-
-// Test builder large construction
-TEST(ImvectorBuilderTest, LargeConstruction)
-{
-    imvector<int>::builder builder(10000);
+    // Assign v1 to v3: should share storage
+    imvector<int> v3;
+    v3 = v1;
+    const int* p3 = v3.data();
     
-    for (int i = 0; i < 10000; ++i)
-    {
-        builder.push_back(i);
-    }
+    EXPECT_EQ(p1, p3);
     
-    imvector<int> v = builder.build();
-    
-    EXPECT_EQ(v.size(), 10000);
-    EXPECT_EQ(v[0], 0);
-    EXPECT_EQ(v[5000], 5000);
-    EXPECT_EQ(v[9999], 9999);
+    // All should have same values
+    EXPECT_EQ(v1[0], v2[0]);
+    EXPECT_EQ(v2[0], v3[0]);
 }

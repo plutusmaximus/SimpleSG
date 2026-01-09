@@ -58,7 +58,7 @@ private:
         return &empty;
     }
 
-    static const T* empty_data_ptr() noexcept
+    static const T* empty_data_ptr_const() noexcept
     {
         // Non-null, aligned, and stable for the lifetime of the program.
         // Must not be dereferenced (same rule-of-thumb as std::vector::data() for empty).
@@ -294,7 +294,7 @@ public:
 
     const T* data() const noexcept
     {
-        if (!m_blk || m_blk->size == 0) return empty_data_ptr();
+        if (!m_blk || m_blk->size == 0) return empty_data_ptr_const();
         return elements_ptr(m_blk);
     }
 
@@ -341,7 +341,17 @@ public:
         return (*this)[size() - 1];
     }
 
-    /// @brief Builder for creating an imvector.
+// ------------------------------
+// imvector<T>::builder (ownership-transfer build)
+// Paste this inside class imvector<T> (public section).
+//
+// Properties:
+// - builder constructs elements directly into an internal block buffer.
+// - build() transfers the block pointer to the returned imvector (no element copy on build()).
+// - Growth reallocates a new block and move-constructs existing elements (like vector growth).
+// - No exceptions: uses IMVECTOR_FAIL_FAST() on invariant failures.
+// ------------------------------
+public:
     class builder final
     {
     public:
@@ -349,46 +359,177 @@ public:
         using value_type = typename imvector::value_type;
 
     private:
-        std::vector<T> m_buf;
+        block*    m_blk  = nullptr; // owned by builder until build()
+        size_type m_size = 0;       // constructed elements
+        size_type m_cap  = 0;       // allocated capacity (in elements)        
+
+        static T* empty_data_ptr() noexcept
+        {
+            // Non-null, aligned, and stable for the lifetime of the program.
+            // Must not be dereferenced (same rule-of-thumb as std::vector::data() for empty).
+            alignas(T) static unsigned char storage[(sizeof(T) > 0) ? sizeof(T) : 1];
+            return reinterpret_cast<T*>(storage);
+        }
 
         static void require(bool ok) noexcept
         {
             if (!ok) IMVECTOR_FAIL_FAST();
         }
 
+        static void destroy_n(T* p, size_type n) noexcept
+        {
+            if constexpr (!std::is_trivially_destructible_v<T>)
+            {
+                for (size_type i = 0; i < n; ++i)
+                {
+                    p[i].~T();
+                }
+            }
+        }
+
+        static size_type grow_capacity(size_type cur, size_type need) noexcept
+        {
+            // Standard-ish growth: 1.5x, at least 8, and at least need.
+            size_type cap = (cur < 8) ? 8 : (cur + (cur >> 1));
+            if (cap < need) cap = need;
+            return cap;
+        }
+
+        void ensure_capacity(size_type need) noexcept
+        {
+            if (need <= m_cap) return;
+
+            const size_type newCap = grow_capacity(m_cap, need);
+
+            // Allocate a new block with capacity newCap; we will set size explicitly.
+            block* newBlk = allocate_block(newCap);
+            newBlk->size  = newCap; // while building, header holds capacity; finalized size set on build()
+
+            T* newDst = elements_ptr(newBlk);
+            T* oldSrc = m_blk ? const_cast<T*>(elements_ptr(m_blk)) : nullptr;
+
+            // Move-construct existing elements into new storage
+            for (size_type i = 0; i < m_size; ++i)
+            {
+                new (newDst + i) T(std::move(oldSrc[i]));
+            }
+
+            // Destroy old elements + free old storage
+            if (m_blk && m_cap > 0)
+            {
+                destroy_n(oldSrc, m_size);
+                deallocate_block_raw(m_blk);
+            }
+
+            m_blk = newBlk;
+            m_cap = newCap;
+        }
+
     public:
-        builder() = default;
+        builder() noexcept = default;
 
         explicit builder(size_type reserveCount) noexcept
         {
-            m_buf.reserve(reserveCount);
+            reserve(reserveCount);
         }
 
-        size_type size() const noexcept { return m_buf.size(); }
-        bool      empty() const noexcept { return m_buf.empty(); }
+        builder(const builder&)            = delete;
+        builder& operator=(const builder&) = delete;
 
-        void reserve(size_type n) noexcept { m_buf.reserve(n); }
-        size_type capacity() const noexcept { return m_buf.capacity(); }
+        builder(builder&& o) noexcept
+            : m_blk(o.m_blk), m_size(o.m_size), m_cap(o.m_cap)
+        {
+            o.m_blk  = nullptr;
+            o.m_size = 0;
+            o.m_cap  = 0;
+        }
 
-        void clear() noexcept { m_buf.clear(); }
+        builder& operator=(builder&& o) noexcept
+        {
+            if (this != &o)
+            {
+                clear();
+                if (m_blk && m_cap > 0)
+                {
+                    deallocate_block_raw(m_blk);
+                }
+
+                m_blk  = o.m_blk;
+                m_size = o.m_size;
+                m_cap  = o.m_cap;
+
+                o.m_blk  = nullptr;
+                o.m_size = 0;
+                o.m_cap  = 0;
+            }
+            return *this;
+        }
+
+        ~builder() noexcept
+        {
+            clear();
+            if (m_blk && m_cap > 0)
+            {
+                deallocate_block_raw(m_blk);
+            }
+        }
+
+        size_type size() const noexcept { return m_size; }
+        bool      empty() const noexcept { return m_size == 0; }
+        size_type capacity() const noexcept { return m_cap; }
+
+        void reserve(size_type n) noexcept
+        {
+            ensure_capacity(n);
+        }
+
+        void clear() noexcept
+        {
+            if (m_blk && m_size > 0)
+            {
+                T* p = const_cast<T*>(elements_ptr(m_blk));
+                destroy_n(p, m_size);
+            }
+            m_size = 0;
+        }
 
         // Add elements
-        void push_back(const T& v) noexcept { m_buf.push_back(v); }
-        void push_back(T&& v) noexcept { m_buf.push_back(std::move(v)); }
+        void push_back(const T& v) noexcept
+        {
+            ensure_capacity(m_size + 1);
+            T* p = const_cast<T*>(elements_ptr(m_blk));
+            new (p + m_size) T(v);
+            ++m_size;
+        }
+
+        void push_back(T&& v) noexcept
+        {
+            ensure_capacity(m_size + 1);
+            T* p = const_cast<T*>(elements_ptr(m_blk));
+            new (p + m_size) T(std::move(v));
+            ++m_size;
+        }
 
         template <class... Args>
         T& emplace_back(Args&&... args) noexcept
         {
-            return m_buf.emplace_back(std::forward<Args>(args)...);
+            ensure_capacity(m_size + 1);
+            T* p = const_cast<T*>(elements_ptr(m_blk));
+            T* e = new (p + m_size) T(std::forward<Args>(args)...);
+            ++m_size;
+            return *e;
         }
 
         void append(std::span<const T> s) noexcept
         {
-            // Avoid repeated reallocations if caller appends in chunks.
-            if (s.size() > 0)
+            if (s.size() == 0) return;
+            ensure_capacity(m_size + static_cast<size_type>(s.size()));
+            T* p = const_cast<T*>(elements_ptr(m_blk));
+            for (size_type i = 0; i < static_cast<size_type>(s.size()); ++i)
             {
-                m_buf.insert(m_buf.end(), s.begin(), s.end());
+                new (p + m_size + i) T(s[i]);
             }
+            m_size += static_cast<size_type>(s.size());
         }
 
         template <std::input_iterator It, std::sentinel_for<It> S>
@@ -396,35 +537,52 @@ public:
         {
             for (; first != last; ++first)
             {
-                m_buf.emplace_back(*first);
+                emplace_back(*first);
             }
         }
 
-        // Build an imvector. After build(), the builder is cleared (but retains capacity).
+        T* data() noexcept
+        {
+            if (!m_blk || m_size == 0)
+            {
+                return empty_data_ptr();
+            }
+            return elements_ptr(m_blk);
+        }
+
+        const T* data() const noexcept
+        {
+            if (!m_blk || m_size == 0)
+            {
+                // Reuse the same empty-data convention as imvector
+                return imvector::empty_data_ptr_const();
+            }
+            return elements_ptr(m_blk);
+        }
+
+        // Finalize: transfer ownership of the internal block to an imvector.
+        // No element copy occurs in build(); only sets final size and relinquishes builder ownership.
         imvector build() noexcept
         {
-            const size_type n = m_buf.size();
-            if (n == 0)
+            if (m_size == 0)
             {
-                m_buf.clear();
+                // Keep capacity for reuse; matches vector-like builder semantics.
                 return imvector();
             }
 
-            // Allocate immutable block and move-construct into it.
-            block* blk = allocate_block(n);
-            T*     dst = elements_ptr(blk);
+            require(m_blk != nullptr);
 
-            // With exceptions disabled, a throwing move/copy is undefined behavior if it actually throws.
-            // This assumes T's move/copy does not throw (typical for engine value types).
-            for (size_type i = 0; i < n; ++i)
-            {
-                new (dst + i) T(std::move(m_buf[i]));
-            }
+            // Finalize: set block size to actual element count.
+            m_blk->size = m_size;
 
-            // We must destroy the moved-from elements and reset the buffer.
-            m_buf.clear();
+            block* out = m_blk;
 
-            return imvector(blk);
+            // Relinquish ownership; builder can be reused via reserve()/push_back().
+            m_blk  = nullptr;
+            m_size = 0;
+            m_cap  = 0;
+
+            return imvector(out);
         }
-    };    
+    };
 };
