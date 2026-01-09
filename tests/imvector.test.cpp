@@ -568,3 +568,368 @@ TEST(ImvectorTest, EmptyInputIteratorConstructor)
     EXPECT_EQ(v.size(), 0);
     EXPECT_NE(v.data(), nullptr);
 }
+
+// ============================================================================
+// Builder Tests
+// ============================================================================
+
+// Test builder default constructor
+TEST(ImvectorBuilderTest, DefaultConstructor)
+{
+    imvector<int>::builder builder;
+    EXPECT_TRUE(builder.empty());
+    EXPECT_EQ(builder.size(), 0);
+}
+
+// Test builder with reserve
+TEST(ImvectorBuilderTest, ConstructorWithReserve)
+{
+    imvector<int>::builder builder(100);
+    EXPECT_TRUE(builder.empty());
+    EXPECT_EQ(builder.size(), 0);
+    EXPECT_GE(builder.capacity(), 100);
+}
+
+// Test builder push_back
+TEST(ImvectorBuilderTest, PushBack)
+{
+    imvector<int>::builder builder;
+    builder.push_back(10);
+    builder.push_back(20);
+    builder.push_back(30);
+    
+    EXPECT_EQ(builder.size(), 3);
+    EXPECT_FALSE(builder.empty());
+}
+
+// Test builder push_back with rvalue
+TEST(ImvectorBuilderTest, PushBackRvalue)
+{
+    imvector<std::string>::builder builder;
+    builder.push_back(std::string("hello"));
+    builder.push_back(std::string("world"));
+    
+    EXPECT_EQ(builder.size(), 2);
+}
+
+// Test builder emplace_back
+TEST(ImvectorBuilderTest, EmplaceBack)
+{
+    imvector<Point>::builder builder;
+    builder.emplace_back(1, 2);
+    builder.emplace_back(3, 4);
+    builder.emplace_back(5, 6);
+    
+    EXPECT_EQ(builder.size(), 3);
+}
+
+// Test builder append with span
+TEST(ImvectorBuilderTest, AppendSpan)
+{
+    imvector<int>::builder builder;
+    std::vector<int> data = {1, 2, 3, 4, 5};
+    builder.append(std::span(data));
+    
+    EXPECT_EQ(builder.size(), 5);
+}
+
+// Test builder append empty span
+TEST(ImvectorBuilderTest, AppendEmptySpan)
+{
+    imvector<int>::builder builder;
+    builder.push_back(10);
+    
+    std::vector<int> empty;
+    builder.append(std::span(empty));
+    
+    EXPECT_EQ(builder.size(), 1);
+}
+
+// Test builder append with iterators
+TEST(ImvectorBuilderTest, AppendIterators)
+{
+    imvector<int>::builder builder;
+    builder.push_back(1);
+    
+    std::vector<int> data = {2, 3, 4};
+    builder.append(data.begin(), data.end());
+    
+    EXPECT_EQ(builder.size(), 4);
+}
+
+// Test builder clear
+TEST(ImvectorBuilderTest, Clear)
+{
+    imvector<int>::builder builder;
+    builder.push_back(10);
+    builder.push_back(20);
+    builder.push_back(30);
+    
+    EXPECT_EQ(builder.size(), 3);
+    
+    builder.clear();
+    
+    EXPECT_TRUE(builder.empty());
+    EXPECT_EQ(builder.size(), 0);
+}
+
+// Test builder reserve
+TEST(ImvectorBuilderTest, Reserve)
+{
+    imvector<int>::builder builder;
+    builder.reserve(50);
+    
+    EXPECT_GE(builder.capacity(), 50);
+    EXPECT_EQ(builder.size(), 0);
+}
+
+// Test builder build empty
+TEST(ImvectorBuilderTest, BuildEmpty)
+{
+    imvector<int>::builder builder;
+    imvector<int> v = builder.build();
+    
+    EXPECT_TRUE(v.empty());
+    EXPECT_EQ(v.size(), 0);
+    
+    // Builder should be cleared after build
+    EXPECT_TRUE(builder.empty());
+    EXPECT_EQ(builder.size(), 0);
+}
+
+// Test builder build with elements
+TEST(ImvectorBuilderTest, BuildWithElements)
+{
+    imvector<int>::builder builder;
+    builder.push_back(1);
+    builder.push_back(2);
+    builder.push_back(3);
+    builder.push_back(4);
+    builder.push_back(5);
+    
+    imvector<int> v = builder.build();
+    
+    EXPECT_EQ(v.size(), 5);
+    EXPECT_EQ(v[0], 1);
+    EXPECT_EQ(v[1], 2);
+    EXPECT_EQ(v[2], 3);
+    EXPECT_EQ(v[3], 4);
+    EXPECT_EQ(v[4], 5);
+    
+    // Builder should be cleared after build
+    EXPECT_TRUE(builder.empty());
+    EXPECT_EQ(builder.size(), 0);
+}
+
+// Test builder reuse after build
+TEST(ImvectorBuilderTest, ReuseAfterBuild)
+{
+    imvector<int>::builder builder;
+    builder.push_back(1);
+    builder.push_back(2);
+    
+    imvector<int> v1 = builder.build();
+    EXPECT_EQ(v1.size(), 2);
+    
+    // Builder should be cleared and reusable
+    EXPECT_TRUE(builder.empty());
+    
+    // Build again with new data
+    builder.push_back(10);
+    builder.push_back(20);
+    builder.push_back(30);
+    
+    imvector<int> v2 = builder.build();
+    EXPECT_EQ(v2.size(), 3);
+    EXPECT_EQ(v2[0], 10);
+    EXPECT_EQ(v2[1], 20);
+    EXPECT_EQ(v2[2], 30);
+    
+    // Original vector should be unaffected
+    EXPECT_EQ(v1.size(), 2);
+    EXPECT_EQ(v1[0], 1);
+    EXPECT_EQ(v1[1], 2);
+}
+
+// Test builder with strings
+TEST(ImvectorBuilderTest, BuildStrings)
+{
+    imvector<std::string>::builder builder;
+    builder.push_back("hello");
+    builder.push_back("world");
+    builder.emplace_back("test");
+    
+    imvector<std::string> v = builder.build();
+    
+    EXPECT_EQ(v.size(), 3);
+    EXPECT_EQ(v[0], "hello");
+    EXPECT_EQ(v[1], "world");
+    EXPECT_EQ(v[2], "test");
+}
+
+// Test builder with custom struct
+TEST(ImvectorBuilderTest, BuildCustomStruct)
+{
+    imvector<Point>::builder builder;
+    builder.emplace_back(1, 2);
+    builder.emplace_back(3, 4);
+    builder.push_back(Point{5, 6});
+    
+    imvector<Point> v = builder.build();
+    
+    EXPECT_EQ(v.size(), 3);
+    EXPECT_EQ(v[0].x, 1);
+    EXPECT_EQ(v[0].y, 2);
+    EXPECT_EQ(v[1].x, 3);
+    EXPECT_EQ(v[1].y, 4);
+    EXPECT_EQ(v[2].x, 5);
+    EXPECT_EQ(v[2].y, 6);
+}
+
+// Test builder incremental construction
+TEST(ImvectorBuilderTest, IncrementalConstruction)
+{
+    imvector<int>::builder builder;
+    
+    for (int i = 0; i < 100; ++i)
+    {
+        builder.push_back(i);
+    }
+    
+    EXPECT_EQ(builder.size(), 100);
+    
+    imvector<int> v = builder.build();
+    
+    EXPECT_EQ(v.size(), 100);
+    for (int i = 0; i < 100; ++i)
+    {
+        EXPECT_EQ(v[i], i);
+    }
+}
+
+// Test builder append multiple chunks
+TEST(ImvectorBuilderTest, AppendMultipleChunks)
+{
+    imvector<int>::builder builder;
+    
+    std::vector<int> chunk1 = {1, 2, 3};
+    std::vector<int> chunk2 = {4, 5, 6};
+    std::vector<int> chunk3 = {7, 8, 9};
+    
+    builder.append(std::span(chunk1));
+    builder.append(std::span(chunk2));
+    builder.append(std::span(chunk3));
+    
+    EXPECT_EQ(builder.size(), 9);
+    
+    imvector<int> v = builder.build();
+    
+    EXPECT_EQ(v.size(), 9);
+    for (int i = 0; i < 9; ++i)
+    {
+        EXPECT_EQ(v[i], i + 1);
+    }
+}
+
+// Test builder capacity retention after build
+TEST(ImvectorBuilderTest, CapacityRetentionAfterBuild)
+{
+    imvector<int>::builder builder(100);
+    
+    for (int i = 0; i < 50; ++i)
+    {
+        builder.push_back(i);
+    }
+    
+    auto capacity_before = builder.capacity();
+    
+    imvector<int> v = builder.build();
+    
+    // Capacity should be retained after build (for reuse)
+    EXPECT_GE(builder.capacity(), capacity_before);
+    EXPECT_TRUE(builder.empty());
+}
+
+// Test builder with mixed operations
+TEST(ImvectorBuilderTest, MixedOperations)
+{
+    imvector<int>::builder builder;
+    
+    builder.push_back(1);
+    builder.emplace_back(2);
+    
+    std::vector<int> data = {3, 4, 5};
+    builder.append(std::span(data));
+    
+    builder.push_back(6);
+    
+    builder.append(data.begin(), data.end());
+    
+    EXPECT_EQ(builder.size(), 9);
+    
+    imvector<int> v = builder.build();
+    
+    EXPECT_EQ(v.size(), 9);
+    EXPECT_EQ(v[0], 1);
+    EXPECT_EQ(v[1], 2);
+    EXPECT_EQ(v[2], 3);
+    EXPECT_EQ(v[5], 6);
+    EXPECT_EQ(v[8], 5);
+}
+
+// Test builder clear and rebuild
+TEST(ImvectorBuilderTest, ClearAndRebuild)
+{
+    imvector<int>::builder builder;
+    
+    builder.push_back(1);
+    builder.push_back(2);
+    builder.push_back(3);
+    
+    builder.clear();
+    
+    builder.push_back(10);
+    builder.push_back(20);
+    
+    imvector<int> v = builder.build();
+    
+    EXPECT_EQ(v.size(), 2);
+    EXPECT_EQ(v[0], 10);
+    EXPECT_EQ(v[1], 20);
+}
+
+// Test builder move semantics
+TEST(ImvectorBuilderTest, MoveSemantics)
+{
+    imvector<std::string>::builder builder;
+    
+    std::string s1 = "hello";
+    std::string s2 = "world";
+    
+    builder.push_back(std::move(s1));
+    builder.push_back(std::move(s2));
+    
+    imvector<std::string> v = builder.build();
+    
+    EXPECT_EQ(v.size(), 2);
+    EXPECT_EQ(v[0], "hello");
+    EXPECT_EQ(v[1], "world");
+}
+
+// Test builder large construction
+TEST(ImvectorBuilderTest, LargeConstruction)
+{
+    imvector<int>::builder builder(10000);
+    
+    for (int i = 0; i < 10000; ++i)
+    {
+        builder.push_back(i);
+    }
+    
+    imvector<int> v = builder.build();
+    
+    EXPECT_EQ(v.size(), 10000);
+    EXPECT_EQ(v[0], 0);
+    EXPECT_EQ(v[5000], 5000);
+    EXPECT_EQ(v[9999], 9999);
+}

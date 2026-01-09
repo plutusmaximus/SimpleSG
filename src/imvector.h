@@ -340,4 +340,91 @@ public:
         require(!empty());
         return (*this)[size() - 1];
     }
+
+    /// @brief Builder for creating an imvector.
+    class builder final
+    {
+    public:
+        using size_type  = typename imvector::size_type;
+        using value_type = typename imvector::value_type;
+
+    private:
+        std::vector<T> m_buf;
+
+        static void require(bool ok) noexcept
+        {
+            if (!ok) IMVECTOR_FAIL_FAST();
+        }
+
+    public:
+        builder() = default;
+
+        explicit builder(size_type reserveCount) noexcept
+        {
+            m_buf.reserve(reserveCount);
+        }
+
+        size_type size() const noexcept { return m_buf.size(); }
+        bool      empty() const noexcept { return m_buf.empty(); }
+
+        void reserve(size_type n) noexcept { m_buf.reserve(n); }
+        size_type capacity() const noexcept { return m_buf.capacity(); }
+
+        void clear() noexcept { m_buf.clear(); }
+
+        // Add elements
+        void push_back(const T& v) noexcept { m_buf.push_back(v); }
+        void push_back(T&& v) noexcept { m_buf.push_back(std::move(v)); }
+
+        template <class... Args>
+        T& emplace_back(Args&&... args) noexcept
+        {
+            return m_buf.emplace_back(std::forward<Args>(args)...);
+        }
+
+        void append(std::span<const T> s) noexcept
+        {
+            // Avoid repeated reallocations if caller appends in chunks.
+            if (s.size() > 0)
+            {
+                m_buf.insert(m_buf.end(), s.begin(), s.end());
+            }
+        }
+
+        template <std::input_iterator It, std::sentinel_for<It> S>
+        void append(It first, S last) noexcept
+        {
+            for (; first != last; ++first)
+            {
+                m_buf.emplace_back(*first);
+            }
+        }
+
+        // Build an imvector. After build(), the builder is cleared (but retains capacity).
+        imvector build() noexcept
+        {
+            const size_type n = m_buf.size();
+            if (n == 0)
+            {
+                m_buf.clear();
+                return imvector();
+            }
+
+            // Allocate immutable block and move-construct into it.
+            block* blk = allocate_block(n);
+            T*     dst = elements_ptr(blk);
+
+            // With exceptions disabled, a throwing move/copy is undefined behavior if it actually throws.
+            // This assumes T's move/copy does not throw (typical for engine value types).
+            for (size_type i = 0; i < n; ++i)
+            {
+                new (dst + i) T(std::move(m_buf[i]));
+            }
+
+            // We must destroy the moved-from elements and reset the buffer.
+            m_buf.clear();
+
+            return imvector(blk);
+        }
+    };    
 };
