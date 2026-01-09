@@ -592,8 +592,8 @@ static MeshSpec CreateMeshSpecFromMesh(
 
     const MaterialSpec mtlSpec = CreateMaterialSpec(material, parentPath);
 
-    std::vector<Vertex> vertices;
-    std::vector<VertexIndex> indices;
+    imvector<Vertex>::builder vertices;
+    imvector<VertexIndex>::builder indices;
     vertices.reserve(mesh->mNumVertices);
     indices.reserve(mesh->mNumFaces * 3);
 
@@ -646,8 +646,8 @@ static MeshSpec CreateMeshSpecFromMesh(
     return MeshSpec
     {
         .Name{meshName},
-        .Vertices{vertices},
-        .Indices{indices},
+        .Vertices{vertices.build()},
+        .Indices{indices.build()},
         .MtlSpec{mtlSpec}
     };
 }
