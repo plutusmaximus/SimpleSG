@@ -5,6 +5,7 @@
 #include "scope_exit.h"
 
 #include <SDL3/SDL.h>
+#include <algorithm>
 
 //#define GPU_DRIVER_DIRECT3D
 #define GPU_DRIVER_VULKAN
@@ -50,37 +51,17 @@ template<> struct GpuBufferTraits<Vertex>
 
 /// @brief Common function to create a GPU buffer from multiple spans.
 template<typename T>
-static Result<SDL_GPUBuffer*>
+static Result<std::tuple<SDL_GPUBuffer*, size_t>>
 CreateGpuBuffer(SDL_GPUDevice* gd, const std::span<const std::span<const T>>& spans);
-
-SDLGpuIndexBuffer::~SDLGpuIndexBuffer()
-{
-    // Make sure we only release the buffer if this is not a sub-range buffer.
-    if (Buffer && !m_BaseBuffer) { SDL_ReleaseGPUBuffer(m_GpuDevice, Buffer); }
-}
-
-Result<RefPtr<GpuIndexBuffer>>
-SDLGpuIndexBuffer::GetSubRange(const uint32_t itemOffset, const uint32_t itemCount)
-{
-    eassert(itemOffset + itemCount <= this->ItemCount);
-    auto buf = new SDLGpuIndexBuffer(this, itemOffset, itemCount);
-    expect(buf, "Error allocating SDLGpuIndexBuffer");
-    return buf;
-}
 
 SDLGpuVertexBuffer::~SDLGpuVertexBuffer()
 {
-    // Make sure we only release the buffer if this is not a sub-range buffer.
-    if (Buffer && !m_BaseBuffer) { SDL_ReleaseGPUBuffer(m_GpuDevice, Buffer); }
+    SDL_ReleaseGPUBuffer(m_GpuDevice, Buffer);
 }
 
-Result<RefPtr<GpuVertexBuffer>>
-SDLGpuVertexBuffer::GetSubRange(const uint32_t itemOffset, const uint32_t itemCount)
+SDLGpuIndexBuffer::~SDLGpuIndexBuffer()
 {
-    eassert(itemOffset + itemCount <= this->ItemCount);
-    auto buf = new SDLGpuVertexBuffer(this, itemOffset, itemCount);
-    expect(buf, "Error allocating SDLGpuVertexBuffer");
-    return buf;
+    SDL_ReleaseGPUBuffer(m_GpuDevice, Buffer);
 }
 
 SDLGpuTexture::~SDLGpuTexture()
@@ -176,72 +157,59 @@ Extent SDLGPUDevice::GetExtent() const
     return Extent{static_cast<float>(width), static_cast<float>(height)};
 }
 
-Result<RefPtr<GpuIndexBuffer>>
-SDLGPUDevice::CreateIndexBuffer(const std::span<const VertexIndex>& indices)
-{
-    std::span<const VertexIndex> spans[]{indices};
-    return CreateIndexBuffer(spans);
-}
-
-Result<RefPtr<GpuVertexBuffer>>
+Result<VertexBuffer>
 SDLGPUDevice::CreateVertexBuffer(const std::span<const Vertex>& vertices)
 {
     std::span<const Vertex> spans[]{vertices};
     return CreateVertexBuffer(spans);
 }
 
-Result<RefPtr<GpuIndexBuffer>>
-SDLGPUDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& indices)
-{
-    auto nativeBuf = CreateGpuBuffer<VertexIndex>(Device, indices);
-    expect(nativeBuf, nativeBuf.error());
-
-    uint32_t count = 0;
-    for(const auto& span : indices)
-    {
-        count += static_cast<uint32_t>(span.size());
-    }
-
-    auto ib = new SDLGpuIndexBuffer(
-        Device,
-        nativeBuf.value(),
-        0,
-        count);
-
-    if(!ib)
-    {
-        SDL_ReleaseGPUBuffer(Device, nativeBuf.value());
-        return std::unexpected("Error allocating SDLGpuIndexBuffer");
-    }
-
-    return ib;
-}
-
-Result<RefPtr<GpuVertexBuffer>>
+Result<VertexBuffer>
 SDLGPUDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& vertices)
 {
-    auto nativeBuf = CreateGpuBuffer<Vertex>(Device, vertices);
-    expect(nativeBuf, nativeBuf.error());
+    auto nativeBufResult = CreateGpuBuffer<Vertex>(Device, vertices);
+    expect(nativeBufResult, nativeBufResult.error());
 
-    uint32_t count = 0;
-    for(const auto& span : vertices)
-    {
-        count += static_cast<uint32_t>(span.size());
-    }
+    auto [nativeBuf, sizeofBuffer] = nativeBufResult.value();
 
-    auto vb = new SDLGpuVertexBuffer(
-        Device,
-        nativeBuf.value(),
-        0,
-        count);
-
+    auto vb = new SDLGpuVertexBuffer(Device, nativeBuf);
     if(!vb)
     {
-        SDL_ReleaseGPUBuffer(Device, nativeBuf.value());
+        SDL_ReleaseGPUBuffer(Device, nativeBuf);
         return std::unexpected("Error allocating SDLGpuVertexBuffer");
     }
 
-    return vb;
+    const uint32_t count = sizeofBuffer / sizeof(Vertex);
+
+    return VertexBuffer(vb, 0, count);
+}
+
+Result<IndexBuffer>
+SDLGPUDevice::CreateIndexBuffer(const std::span<const VertexIndex>& indices)
+{
+    std::span<const VertexIndex> spans[]{indices};
+    return CreateIndexBuffer(spans);
+}
+
+Result<IndexBuffer>
+SDLGPUDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& indices)
+{
+    auto nativeBufResult = CreateGpuBuffer<VertexIndex>(Device, indices);
+    expect(nativeBufResult, nativeBufResult.error());
+
+    auto [nativeBuf, sizeofBuffer] = nativeBufResult.value();
+
+    auto ib = new SDLGpuIndexBuffer(Device, nativeBuf);
+
+    if(!ib)
+    {
+        SDL_ReleaseGPUBuffer(Device, nativeBuf);
+        return std::unexpected("Error allocating SDLGpuIndexBuffer");
+    }
+
+    const uint32_t count = sizeofBuffer / sizeof(VertexIndex);
+
+    return IndexBuffer(ib, 0, count);
 }
 
 Result<Texture>
@@ -549,15 +517,13 @@ Result<SDL_GPUShader*> LoadShader(
 
 /// @brief Common function to create a GPU buffer from multiple spans.
 template<typename T>
-static Result<SDL_GPUBuffer*>
+static Result<std::tuple<SDL_GPUBuffer*, size_t>>
 CreateGpuBuffer(SDL_GPUDevice* gd, const std::span<const std::span<const T>>& spans)
 {
-    size_t sizeofBuffer = 0;
-
-    for(const auto& span : spans)
+    const size_t sizeofBuffer = std::ranges::fold_left(spans, 0, [](size_t sum, const std::span<const T>& span)
     {
-        sizeofBuffer += span.size() * sizeof(span[0]);
-    }
+        return sum + span.size() * sizeof(T);
+    });
 
     SDL_GPUBufferCreateInfo bufferCreateInfo
     {
@@ -642,5 +608,5 @@ CreateGpuBuffer(SDL_GPUDevice* gd, const std::span<const std::span<const T>>& sp
     cmdBufCleanup.release();
     bufCleanup.release();
 
-    return nativeBuf;
+    return std::make_tuple(nativeBuf, sizeofBuffer);
 }

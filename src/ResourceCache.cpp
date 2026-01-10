@@ -219,9 +219,9 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
 
         // The index and vertex buffers were each created as a single large buffer,
         // so we need to adjust the offsets for each mesh.
-        auto ibSubrangeResult = baseIb->GetSubRange(idxOffset, idxCount);
+        auto ibSubrangeResult = baseIb.GetSubRange(idxOffset, idxCount);
         expect(ibSubrangeResult, ibSubrangeResult.error());
-        auto vbSubrangeResult = baseVb->GetSubRange(vtxOffset, vtxCount);
+        auto vbSubrangeResult = baseVb.GetSubRange(vtxOffset, vtxCount);
         expect(vbSubrangeResult, vbSubrangeResult.error());
 
         auto ibSubrange = ibSubrangeResult.value();

@@ -193,14 +193,14 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
                 SDL_GPUBufferBinding vertexBufferBinding
                 {
                     .buffer = mesh.VtxBuffer.Get<SDLGpuVertexBuffer>()->Buffer,
-                    .offset = mesh.VtxBuffer->ByteOffset
+                    .offset = mesh.VtxBuffer.ByteOffset
                 };
                 SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBufferBinding, 1);
 
                 SDL_GPUBufferBinding indexBufferBinding
                 {
                     .buffer = mesh.IdxBuffer.Get<SDLGpuIndexBuffer>()->Buffer,
-                    .offset = mesh.IdxBuffer->ByteOffset
+                    .offset = mesh.IdxBuffer.ByteOffset
                 };
 
                 static_assert(VERTEX_INDEX_BITS == 32 || VERTEX_INDEX_BITS == 16);
