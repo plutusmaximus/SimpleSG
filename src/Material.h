@@ -391,8 +391,8 @@ public:
         const float metalness,
         const float roughness,
         Texture albedo,
-        RefPtr<GpuVertexShader> vertexShader,
-        RefPtr<GpuFragmentShader> fragmentShader)
+        VertexShader vertexShader,
+        FragmentShader fragmentShader)
         : Key(MaterialId::NextId(), color.a < 1.0f ? MaterialFlags::Translucent : MaterialFlags::None)
         , Color(color)
         , Metalness(metalness)
@@ -420,10 +420,10 @@ public:
     const Texture Albedo;
 
     /// @brief Vertex shader used by the material.
-    const RefPtr<GpuVertexShader> VertexShader;
+    const VertexShader VertexShader;
 
     /// @brief Fragment shader used by the material.
-    const RefPtr<GpuFragmentShader> FragmentShader;
+    const FragmentShader FragmentShader;
 
 private:
 

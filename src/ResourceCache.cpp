@@ -289,7 +289,7 @@ ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
     return texture;
 }
 
-Result<RefPtr<GpuVertexShader>>
+Result<VertexShader>
 ResourceCache::GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec)
 {
     const CacheKey cacheKey(std::get<0>(shaderSpec.Source));
@@ -302,16 +302,15 @@ ResourceCache::GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec)
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
 
-    auto result = m_GpuDevice->CreateVertexShader(shaderSpec);
-    expect(result, result.error());
+    auto resultResult = m_GpuDevice->CreateVertexShader(shaderSpec);
+    expect(resultResult, resultResult.error());
 
-    RefPtr<GpuVertexShader> shader = result.value();
-    expect(m_VertexShaderCache.TryAdd(cacheKey, shader),
+    expect(m_VertexShaderCache.TryAdd(cacheKey, resultResult.value()),
         "Failed to add vertex shader to cache: {}", cacheKey.ToString());
-    return shader;
+    return resultResult.value();
 }
 
-Result<RefPtr<GpuFragmentShader>>
+Result<FragmentShader>
 ResourceCache::GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec)
 {
     const CacheKey cacheKey(std::get<0>(shaderSpec.Source));
@@ -323,13 +322,12 @@ ResourceCache::GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec)
     }
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
-    auto result = m_GpuDevice->CreateFragmentShader(shaderSpec);
-    expect(result, result.error());
+    auto shaderResult = m_GpuDevice->CreateFragmentShader(shaderSpec);
+    expect(shaderResult, shaderResult.error());
 
-    RefPtr<GpuFragmentShader> shader = result.value();
-    expect(m_FragmentShaderCache.TryAdd(cacheKey, shader),
+    expect(m_FragmentShaderCache.TryAdd(cacheKey, shaderResult.value()),
         "Failed to add fragment shader to cache: {}", cacheKey.ToString());
-    return shader;
+    return shaderResult.value();
 }
 
 Result<Model>
@@ -348,7 +346,7 @@ ResourceCache::GetTexture(const CacheKey& cacheKey) const
     return texture.value();
 }
 
-Result<RefPtr<GpuVertexShader>>
+Result<VertexShader>
 ResourceCache::GetVertexShader(const CacheKey& cacheKey) const
 {
     auto shader = m_VertexShaderCache.TryGet(cacheKey);
@@ -356,7 +354,7 @@ ResourceCache::GetVertexShader(const CacheKey& cacheKey) const
     return shader.value();
 }
 
-Result<RefPtr<GpuFragmentShader>>
+Result<FragmentShader>
 ResourceCache::GetFragmentShader(const CacheKey& cacheKey) const
 {
     auto shader = m_FragmentShaderCache.TryGet(cacheKey);

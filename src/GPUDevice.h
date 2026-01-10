@@ -162,6 +162,58 @@ private:
     RefPtr<GpuIndexBuffer> m_Buffer;
 };
 
+/// @brief API representation of a vertex shader.
+/// Contains a reference to the underlying GPU vertex shader.
+class VertexShader
+{
+public:
+
+    VertexShader() = default;
+
+    explicit VertexShader(RefPtr<GpuVertexShader> shader)
+        : m_Shader(shader)
+    {
+    }
+
+    template<typename T>
+    T* Get() { return m_Shader.Get<T>(); }
+
+    template<typename T>
+    const T* Get() const { return m_Shader.Get<T>(); }
+
+    bool IsValid() const { return m_Shader != nullptr; }
+
+private:
+
+    RefPtr<GpuVertexShader> m_Shader;
+};
+
+/// @brief API representation of a fragment shader.
+/// Contains a reference to the underlying GPU fragment shader.
+class FragmentShader
+{
+public:
+
+    FragmentShader() = default;
+
+    explicit FragmentShader(RefPtr<GpuFragmentShader> shader)
+        : m_Shader(shader)
+    {
+    }
+
+    template<typename T>
+    T* Get() { return m_Shader.Get<T>(); }
+
+    template<typename T>
+    const T* Get() const { return m_Shader.Get<T>(); }
+
+    bool IsValid() const { return m_Shader != nullptr; }
+
+private:
+
+    RefPtr<GpuFragmentShader> m_Shader;
+};
+
 /// @brief API representation of a texture.
 /// Contains a reference to the underlying GPU texture.
 class Texture
@@ -171,7 +223,7 @@ public:
     Texture() = default;
 
     explicit Texture(RefPtr<GpuTexture> texture)
-        : m_Texture(std::move(texture))
+        : m_Texture(texture)
     {
     }
 
@@ -223,10 +275,10 @@ public:
     virtual Result<Texture> CreateTexture(const RgbaColorf& color) = 0;
 
     /// @brief Creates a vertex shader from the given specification.
-    virtual Result<RefPtr<GpuVertexShader>> CreateVertexShader(const VertexShaderSpec& shaderSpec) = 0;
+    virtual Result<VertexShader> CreateVertexShader(const VertexShaderSpec& shaderSpec) = 0;
 
     /// @brief Creates a fragment shader from the given specification.
-    virtual Result<RefPtr<GpuFragmentShader>> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) = 0;
+    virtual Result<FragmentShader> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) = 0;
 
     IMPLEMENT_REFCOUNT(GPUDevice);
 };

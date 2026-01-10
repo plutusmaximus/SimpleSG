@@ -162,9 +162,9 @@ public:
     /// @brief Creates a 1x1 texture from a color.
     Result<Texture> CreateTexture(const RgbaColorf& color) override;
 
-    Result<RefPtr<GpuVertexShader>> CreateVertexShader(const VertexShaderSpec& shaderSpec) override;
+    Result<VertexShader> CreateVertexShader(const VertexShaderSpec& shaderSpec) override;
 
-    Result<RefPtr<GpuFragmentShader>> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) override;
+    Result<FragmentShader> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) override;
 
     /// @brief Retrieves or creates a graphics pipeline for the given material.
     Result<SDL_GPUGraphicsPipeline*> GetOrCreatePipeline(const Material& mtl);

@@ -29,10 +29,10 @@ public:
     Result<Texture> GetOrCreateTexture(const TextureSpec& textureSpec);
 
     /// @brief Retrieves or creates a vertex shader (if not already cached) from the given specification.
-    Result<RefPtr<GpuVertexShader>> GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec);
+    Result<VertexShader> GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec);
 
     /// @brief Retrieves or creates a fragment shader (if not already cached) from the given specification.
-    Result<RefPtr<GpuFragmentShader>> GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec);
+    Result<FragmentShader> GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec);
 
     /// @brief Retrieves a cached model.
     Result<Model> GetModel(const CacheKey& cacheKey) const;
@@ -41,10 +41,10 @@ public:
     Result<Texture> GetTexture(const CacheKey& cacheKey) const;
 
     /// @brief Retrieves a cached vertex shader.
-    Result<RefPtr<GpuVertexShader>> GetVertexShader(const CacheKey& cacheKey) const;
+    Result<VertexShader> GetVertexShader(const CacheKey& cacheKey) const;
 
     /// @brief Retrieves a cached fragment shader.
-    Result<RefPtr<GpuFragmentShader>> GetFragmentShader(const CacheKey& cacheKey) const;
+    Result<FragmentShader> GetFragmentShader(const CacheKey& cacheKey) const;
 
 private:
 
@@ -147,6 +147,6 @@ private:
     RefPtr<GPUDevice> m_GpuDevice;
     Cache<Model> m_ModelCache;
     Cache<Texture> m_TextureCache;
-    Cache<RefPtr<GpuVertexShader>> m_VertexShaderCache;
-    Cache<RefPtr<GpuFragmentShader>> m_FragmentShaderCache;
+    Cache<VertexShader> m_VertexShaderCache;
+    Cache<FragmentShader> m_FragmentShaderCache;
 };

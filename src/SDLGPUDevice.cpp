@@ -232,7 +232,7 @@ SDLGPUDevice::CreateTexture(const RgbaColorf& color)
     return CreateTexture(1, 1, pixelData);
 }
 
-Result<RefPtr<GpuVertexShader>>
+Result<VertexShader>
 SDLGPUDevice::CreateVertexShader(const VertexShaderSpec& shaderSpec)
 {
     const std::string_view path = std::get<std::string>(shaderSpec.Source);
@@ -247,10 +247,10 @@ SDLGPUDevice::CreateVertexShader(const VertexShaderSpec& shaderSpec)
     RefPtr<GpuVertexShader> gpuShader = new SDLGpuVertexShader(Device, shaderResult.value());
     expect(gpuShader, "Error allocating SDLGPUVertexShader");
 
-    return gpuShader;
+    return VertexShader(gpuShader);
 }
 
-Result<RefPtr<GpuFragmentShader>>
+Result<FragmentShader>
 SDLGPUDevice::CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
 {
     // All fragment shaders have the same number of samplers.
@@ -268,7 +268,7 @@ SDLGPUDevice::CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
     RefPtr<GpuFragmentShader> gpuShader = new SDLGpuFragmentShader(Device, shaderResult.value());
     expect(gpuShader, "Error allocating SDLGPUFragmentShader");
 
-    return gpuShader;
+    return FragmentShader(gpuShader);
 }
 
 Result<SDL_GPUGraphicsPipeline*>
