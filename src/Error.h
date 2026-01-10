@@ -123,11 +123,6 @@ public:
     {
     }
 
-    Error(const std::string& message)
-        : Error(ErrorCode::System, message)
-    {
-    }
-
     Error(std::string_view message)
         : Error(ErrorCode::System, message)
     {
@@ -250,7 +245,7 @@ public:
 
     /// @brief Used to create error messages for assertion failures.
     template<typename... Args>
-    static std::string MakeExprError(const char* file, const int line, const char* exprStr, std::string_view format, Args&&... args)
+    static Error MakeExprError(const char* file, const int line, const char* exprStr, std::string_view format, Args&&... args)
     {
         std::string message;
         if(!format.empty())
@@ -271,28 +266,12 @@ public:
                 exprStr);
         }
 
-        return message;
+        return Error(message);
     }
 
-    static std::string MakeExprError(const char* file, const int line, const char* exprStr, const Error& error)
+    static Error MakeExprError(const char* file, const int line, const char* exprStr, const Error& error)
     {
         return MakeExprError(file, line, exprStr, "{}", error);
-    }
-
-    /// @brief Log function for assertion failures that handles variadic arguments.
-    template<typename... Args>
-    static void LogExprError(const char* file, const int line, const char* exprStr, std::string_view format, Args&&... args)
-    {
-        std::string message = MakeExprError(file, line, exprStr, format, std::forward<Args>(args)...);
-
-        logError(message);
-    }
-
-    static void LogExprError(const char* file, const int line, const char* exprStr, const Error& error)
-    {
-        std::string message = MakeExprError(file, line, exprStr, error);
-
-        logError(message);
     }
 };
 
@@ -324,21 +303,7 @@ using Result = std::expected<T, Error>;
 
 #endif	//NDEBUG
 
-#define LOG_EXPR_ERROR(exprStr, ...) Asserts::LogExprError(__FILE__, __LINE__, exprStr, ##__VA_ARGS__)
-
 #define MAKE_EXPR_ERROR(exprStr, ...) Asserts::MakeExprError(__FILE__, __LINE__, exprStr, ##__VA_ARGS__)
-
-#define etry do
-
-#define ethrow(label) goto label;
-
-#define ecatch(label) while(false);label:
-
-#define ecatchall ecatch(catchall)
-
-#define except(expr, label, ...) while(!static_cast<bool>(expr)){LOG_EXPR_ERROR(#expr, ##__VA_ARGS__);ethrow(label);break;}
-
-#define pcheck(expr, ...) except(expr, catchall, ##__VA_ARGS__)
 
 #define expect(expr, ...) {if(!static_cast<bool>(expr)){return std::unexpected(MAKE_EXPR_ERROR(#expr, ##__VA_ARGS__));}}
 
