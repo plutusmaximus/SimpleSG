@@ -55,9 +55,11 @@ public:
         const imvector<MeshInstance> meshInstances,
         const imvector<TransformNode> transformNodes);
 
-    const imvector<Mesh> GetMeshes() const { return m_Data->Meshes; }
-    const imvector<MeshInstance> GetMeshInstances() const { return m_Data->MeshInstances; }
-    const imvector<TransformNode> GetTransformNodes() const { return m_Data->TransformNodes; }
+    bool IsValid() const { return m_Data != nullptr; }
+
+    const imvector<Mesh> GetMeshes() const { return eassert(IsValid()), m_Data->Meshes; }
+    const imvector<MeshInstance> GetMeshInstances() const { return eassert(IsValid()), m_Data->MeshInstances; }
+    const imvector<TransformNode> GetTransformNodes() const { return eassert(IsValid()), m_Data->TransformNodes; }
 
 private:
 
