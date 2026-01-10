@@ -4,10 +4,15 @@
 #include "Error.h"
 #include "VecMath.h"
 #include "Vertex.h"
-#include "Material.h"
 #include <span>
 #include <tuple>
 #include <variant>
+
+template<typename T> class RgbaColor;
+class Image;
+using RgbaColorf = RgbaColor<float>;
+class VertexShaderSpec;
+class FragmentShaderSpec;
 
 /// @brief GPU representation of a vertex buffer.
 class GpuVertexBuffer
@@ -107,6 +112,29 @@ public:
     IMPLEMENT_REFCOUNT(GpuTexture);
 };
 
+class Texture
+{
+public:
+
+    Texture() = default;
+
+    explicit Texture(RefPtr<GpuTexture> texture)
+        : m_Texture(std::move(texture))
+    {
+    }
+
+    template<typename T>
+    T* Get() { return m_Texture.Get<T>(); }
+
+    template<typename T>
+    const T* Get() const { return m_Texture.Get<T>(); }
+
+    bool IsValid() const { return m_Texture != nullptr; }
+
+private:
+    RefPtr<GpuTexture> m_Texture;
+};
+
 /// @brief Abstract base class for GPU devices.
 class GPUDevice
 {
@@ -136,10 +164,10 @@ public:
         const std::span<std::span<const Vertex>>& vertices) = 0;
 
     /// @brief Creates a texture from an image.
-    virtual Result<RefPtr<GpuTexture>> CreateTexture(const Image& image) = 0;
+    virtual Result<Texture> CreateTexture(const Image& image) = 0;
 
     /// @brief Creates a 1x1 texture from a color.
-    virtual Result<RefPtr<GpuTexture>> CreateTexture(const RgbaColorf& color) = 0;
+    virtual Result<Texture> CreateTexture(const RgbaColorf& color) = 0;
 
     /// @brief Creates a vertex shader from the given specification.
     virtual Result<RefPtr<GpuVertexShader>> CreateVertexShader(const VertexShaderSpec& shaderSpec) = 0;

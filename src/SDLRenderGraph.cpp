@@ -138,7 +138,7 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
             const int idx = 0;
             SDL_PushGPUVertexUniformData(cmdBuf, 2, &idx, sizeof(idx));
 
-            if (mtl.Albedo)
+            if (mtl.Albedo.IsValid())
             {
                 // Bind texture and sampler
                 SDL_GPUTextureSamplerBinding samplerBinding
@@ -328,10 +328,10 @@ SDLRenderGraph::WaitForFence()
     m_CurrentState->m_RenderFence = nullptr;
 }
 
-Result<RefPtr<GpuTexture>>
+Result<Texture>
 SDLRenderGraph::GetDefaultAlbedoTexture()
 {
-    if(!m_DefaultAlbedoTexture)
+    if(!m_DefaultAlbedoTexture.IsValid())
     {
         static constexpr const std::string_view MAGENTA_TEXTURE_KEY("$magenta");
 

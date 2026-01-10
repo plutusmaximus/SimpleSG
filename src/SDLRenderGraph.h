@@ -91,9 +91,9 @@ private:
 
     /// Get or create the default texture.
     /// The default texture is used when a material does not have an albedo texture.
-    Result<RefPtr<GpuTexture>> GetDefaultAlbedoTexture();
+    Result<Texture> GetDefaultAlbedoTexture();
 
     State m_State[2];
     State* m_CurrentState = &m_State[0];
-    RefPtr<GpuTexture> m_DefaultAlbedoTexture;
+    Texture m_DefaultAlbedoTexture;
 };

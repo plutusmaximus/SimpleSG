@@ -188,7 +188,7 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
 
     for(const auto& meshSpec : modelSpec.MeshSpecs)
     {
-        RefPtr<GpuTexture> albedo;
+        Texture albedo;
         if(meshSpec.MtlSpec.Albedo.IsValid())
         {
             auto albedoResult = GetOrCreateTexture(meshSpec.MtlSpec.Albedo);
@@ -250,7 +250,7 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
 template<class... Ts>
 struct acceptor : Ts... { using Ts::operator()...; };
 
-Result<RefPtr<GpuTexture>>
+Result<Texture>
 ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
 {
     expectv(textureSpec.IsValid(), "Texture spec is not specified");
@@ -274,7 +274,7 @@ ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
 
     auto createTexAcceptor = acceptor
     {
-        [this](TextureSpec::None_t)->Result<RefPtr<GpuTexture>> { return std::unexpected("Texture source is not specified"); },
+        [this](TextureSpec::None_t)->Result<Texture> { return std::unexpected("Texture source is not specified"); },
         [this](const std::string& path) { return CreateTexture(path); },
         [this](const RgbaColorf& color) { return m_GpuDevice->CreateTexture(color); }
     };
@@ -282,7 +282,7 @@ ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
     auto result = std::visit(createTexAcceptor, textureSpec.Source);
     expect(result, result.error());
 
-    RefPtr<GpuTexture> texture = result.value();
+    Texture texture = result.value();
     expect(m_TextureCache.TryAdd(cacheKey, texture),
         "Failed to add texture to cache: {}", cacheKey.ToString());
 
@@ -340,7 +340,7 @@ ResourceCache::GetModel(const CacheKey& cacheKey) const
     return model.value();
 }
 
-Result<RefPtr<GpuTexture>>
+Result<Texture>
 ResourceCache::GetTexture(const CacheKey& cacheKey) const
 {
     auto texture = m_TextureCache.TryGet(cacheKey);
@@ -366,7 +366,7 @@ ResourceCache::GetFragmentShader(const CacheKey& cacheKey) const
 
 // private:
 
-Result<RefPtr<GpuTexture>>
+Result<Texture>
 ResourceCache::CreateTexture(const std::string_view path)
 {
     auto imgResult = Image::LoadFromFile(path);

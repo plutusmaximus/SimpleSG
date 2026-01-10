@@ -244,13 +244,13 @@ SDLGPUDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& verti
     return vb;
 }
 
-Result<RefPtr<GpuTexture>>
+Result<Texture>
 SDLGPUDevice::CreateTexture(const Image& image)
 {
     return CreateTexture(image.Width, image.Height, image.Pixels);
 }
 
-Result<RefPtr<GpuTexture>>
+Result<Texture>
 SDLGPUDevice::CreateTexture(const RgbaColorf& color)
 {
     const uint8_t pixelData[4]
@@ -399,7 +399,7 @@ SDLGPUDevice::GetOrCreatePipeline(const Material& mtl)
 
 //private:
 
-Result<RefPtr<GpuTexture>>
+Result<Texture>
 SDLGPUDevice::CreateTexture(const unsigned width, const unsigned height, const uint8_t* pixels)
 {
     // Create GPU texture
@@ -501,7 +501,7 @@ SDLGPUDevice::CreateTexture(const unsigned width, const unsigned height, const u
 
     texCleanup.release();
 
-    return gpuTex;
+    return Texture(gpuTex);
 }
 
 /// @brief GPU shader stage type for type T.

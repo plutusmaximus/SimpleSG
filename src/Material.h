@@ -7,7 +7,6 @@
 #include <algorithm>
 #include <variant>
 
-class GpuTexture;
 class GpuVertexShader;
 class GpuFragmentShader;
 
@@ -391,7 +390,7 @@ public:
         const RgbaColorf color,
         const float metalness,
         const float roughness,
-        RefPtr<GpuTexture> albedo,
+        Texture albedo,
         RefPtr<GpuVertexShader> vertexShader,
         RefPtr<GpuFragmentShader> fragmentShader)
         : Key(MaterialId::NextId(), color.a < 1.0f ? MaterialFlags::Translucent : MaterialFlags::None)
@@ -418,7 +417,7 @@ public:
     const float Roughness{ 0 };
 
     /// @brief Albedo (base color) texture of the material.
-    RefPtr<GpuTexture> const Albedo;
+    const Texture Albedo;
 
     /// @brief Vertex shader used by the material.
     const RefPtr<GpuVertexShader> VertexShader;

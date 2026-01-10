@@ -193,10 +193,10 @@ public:
         const std::span<std::span<const Vertex>>& vertices) override;
 
     /// @brief Creates a texture from an image.
-    Result<RefPtr<GpuTexture>> CreateTexture(const Image& image) override;
+    Result<Texture> CreateTexture(const Image& image) override;
 
     /// @brief Creates a 1x1 texture from a color.
-    Result<RefPtr<GpuTexture>> CreateTexture(const RgbaColorf& color) override;
+    Result<Texture> CreateTexture(const RgbaColorf& color) override;
 
     Result<RefPtr<GpuVertexShader>> CreateVertexShader(const VertexShaderSpec& shaderSpec) override;
 
@@ -214,7 +214,7 @@ private:
 
     SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice);
 
-    Result<RefPtr<GpuTexture>> CreateTexture(const unsigned width, const unsigned height, const uint8_t* pixels);
+    Result<Texture> CreateTexture(const unsigned width, const unsigned height, const uint8_t* pixels);
     
     struct PipelineKey
     {
