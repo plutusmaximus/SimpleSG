@@ -1,9 +1,10 @@
 #pragma once
 
+#include "imstring.h"
+
 #include <expected>
 #include <string>
 #include <format>
-#include <memory>
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/sink.h>
@@ -53,43 +54,46 @@ inline std::shared_ptr<spdlog::logger> __LOGGER__ = LogHelper::CreateLogger(S.sv
 
 /// @brief Concept to constrain format string types.
 template<typename T>
-concept LogFormatString = std::convertible_to<T, std::string> || std::convertible_to<T, std::wstring>;
+concept LogFormatString =
+    std::convertible_to<T, std::string>
+    || std::convertible_to<T, std::wstring>
+    || std::convertible_to<T, imstring>;
 
 template<typename... Args>
 inline void logTrace(const LogFormatString auto& format, Args&&... args)
 {
-    __LOGGER__<__LOGGER_NAME__>->trace(fmt::runtime(format), std::forward<Args>(args)...);
+    __LOGGER__<__LOGGER_NAME__>->trace(fmt::runtime(std::data(format)), std::forward<Args>(args)...);
 }
 
 template<typename... Args>
 inline void logDebug(const LogFormatString auto& format, Args&&... args)
 {
-    __LOGGER__<__LOGGER_NAME__>->debug(fmt::runtime(format), std::forward<Args>(args)...);
+    __LOGGER__<__LOGGER_NAME__>->debug(fmt::runtime(std::data(format)), std::forward<Args>(args)...);
 }
 
 template<typename... Args>
 inline void logInfo(const LogFormatString auto& format, Args&&... args)
 {
-    __LOGGER__<__LOGGER_NAME__>->info(fmt::runtime(format), std::forward<Args>(args)...);
+    __LOGGER__<__LOGGER_NAME__>->info(fmt::runtime(std::data(format)), std::forward<Args>(args)...);
 }
 
 template<typename... Args>
 inline void logWarn(const LogFormatString auto& format, Args&&... args)
 {
-    __LOGGER__<__LOGGER_NAME__>->warn(fmt::runtime(format), std::forward<Args>(args)...);
+    __LOGGER__<__LOGGER_NAME__>->warn(fmt::runtime(std::data(format)), std::forward<Args>(args)...);
 }
 
 template<typename... Args>
 inline void logError(const LogFormatString auto& format, Args&&... args)
 {
-    __LOGGER__<__LOGGER_NAME__>->error(fmt::runtime(format), std::forward<Args>(args)...);
+    __LOGGER__<__LOGGER_NAME__>->error(fmt::runtime(std::data(format)), std::forward<Args>(args)...);
 }
 
 /// Log an assertion failure
 template<typename... Args>
 inline void logAssert(const LogFormatString auto& format, Args&&... args)
 {
-    __LOGGER__<"assert">->error(fmt::runtime(format), std::forward<Args>(args)...);
+    __LOGGER__<"assert">->error(fmt::runtime(std::data(format)), std::forward<Args>(args)...);
 }
 
 /// @brief Sets the log level for a specific logger.
@@ -148,7 +152,7 @@ public:
 
     const ErrorCode Code;
 
-    const std::string Message;
+    const imstring Message;
 };
 
 /// @brief Formatter specialization for Error to support std::format.
