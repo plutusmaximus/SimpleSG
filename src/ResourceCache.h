@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <optional>
 
 #include "Error.h"
 #include "Vertex.h"
@@ -19,10 +20,10 @@ public:
     }
 
     /// @brief Loads a model from file if not already loaded.
-    Result<RefPtr<Model>> LoadModelFromFile(const CacheKey& cacheKey, std::string_view filePath);
+    Result<Model> LoadModelFromFile(const CacheKey& cacheKey, std::string_view filePath);
 
     /// @brief Creates a model from the given specification if not already created.
-    Result<RefPtr<Model>> GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec);
+    Result<Model> GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec);
 
     /// @brief Retrieves or creates a texture (if not already cached) from the given specification.
     Result<RefPtr<GpuTexture>> GetOrCreateTexture(const TextureSpec& textureSpec);
@@ -34,7 +35,7 @@ public:
     Result<RefPtr<GpuFragmentShader>> GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec);
 
     /// @brief Retrieves a cached model.
-    Result<RefPtr<Model>> GetModel(const CacheKey& cacheKey) const;
+    Result<Model> GetModel(const CacheKey& cacheKey) const;
 
     /// @brief Retrieves a cached texture.
     Result<RefPtr<GpuTexture>> GetTexture(const CacheKey& cacheKey) const;
@@ -57,7 +58,7 @@ private:
         struct Entry
         {
             CacheKey Key;
-            Value Value;
+            std::optional<Value> Value;
         };
 
         using Iterator = typename std::vector<Entry>::iterator;
@@ -65,7 +66,7 @@ private:
 
         Cache() = default;
         ~Cache() = default;
-        bool TryAdd(const CacheKey& key, Value& value)
+        bool TryAdd(const CacheKey& key, const Value& value)
         {
             auto it = Find(key);
 
@@ -74,23 +75,20 @@ private:
                 return false;
             }
 
-            const size_t index = std::distance(m_Entries.begin(), it);
             m_Entries.insert(it, Entry{key, value});
             return true;
         }
 
-        bool TryGet(const CacheKey& key, Value& outValue) const
+        std::optional<Value> TryGet(const CacheKey& key) const
         {
             auto it = Find(key);
 
             if(it == m_Entries.end() || it->Key != key)
             {
-                return false;
+                return std::nullopt;
             }
 
-            const size_t index = std::distance(m_Entries.begin(), it);
-            outValue = it->Value;
-            return true;
+            return it->Value;
         }
 
         bool TryRemove(const CacheKey& key)
@@ -102,7 +100,6 @@ private:
                 return false;
             }
 
-            const size_t index = std::distance(m_Entries.begin(), it);
             m_Entries.erase(it);
             return true;
         }
@@ -148,7 +145,7 @@ private:
     };
 
     RefPtr<GPUDevice> m_GpuDevice;
-    Cache<RefPtr<Model>> m_ModelCache;
+    Cache<Model> m_ModelCache;
     Cache<RefPtr<GpuTexture>> m_TextureCache;
     Cache<RefPtr<GpuVertexShader>> m_VertexShaderCache;
     Cache<RefPtr<GpuFragmentShader>> m_FragmentShaderCache;

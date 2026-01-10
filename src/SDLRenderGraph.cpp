@@ -25,13 +25,17 @@ SDLRenderGraph::~SDLRenderGraph()
 }
 
 void
-SDLRenderGraph::Add(const Mat44f& worldTransform, RefPtr<Model> model)
+SDLRenderGraph::Add(const Mat44f& worldTransform, const Model& model)
 {
+    const auto meshes = model.GetMeshes();
+    const auto meshInstances = model.GetMeshInstances();
+    const auto transformNodes = model.GetTransformNodes();
+    
     std::vector<Mat44f> worldXForms;
-    worldXForms.reserve(model->TransformNodes.size());
+    worldXForms.reserve(transformNodes.size());
 
     // Precompute world transforms for all nodes
-    for(const auto& node : model->TransformNodes)
+    for(const auto& node : transformNodes)
     {
         if(node.ParentIndex >= 0)
         {
@@ -44,10 +48,9 @@ SDLRenderGraph::Add(const Mat44f& worldTransform, RefPtr<Model> model)
         }
     }
 
-    for (const auto& meshInstance : model->MeshInstances)
+    for (const auto& meshInstance : meshInstances)
     {
-        const Mesh& mesh = model->Meshes[meshInstance.MeshIndex];
-
+        const Mesh& mesh = meshes[meshInstance.MeshIndex];
         const Material& mtl = mesh.Material;
 
         // Determine mesh group based on material properties

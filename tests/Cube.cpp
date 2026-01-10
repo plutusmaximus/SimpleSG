@@ -11,8 +11,8 @@
 #include "SDLRenderGraph.h"
 #include "Shapes.h"
 
-static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache);
-static Result<RefPtr<Model>> CreateShapeModel(ResourceCache& cache);
+static Result<Model> CreateCubeModel(ResourceCache& cache);
+static Result<Model> CreateShapeModel(ResourceCache& cache);
 
 class WorldMatrix : public Mat44f
 {    
@@ -175,7 +175,7 @@ public:
         // Transform to camera space and render
         for(const auto& cameraTuple : m_Registry.GetView<WorldMatrix, Camera>())
         {
-            for(const auto& tuple : m_Registry.GetView<WorldMatrix, RefPtr<Model>>())
+            for(const auto& tuple : m_Registry.GetView<WorldMatrix, Model>())
             {
                 const auto [eid, worldMat, model] = tuple;
                 m_RenderGraph->Add(worldMat, model);
@@ -340,7 +340,7 @@ constexpr static const VertexIndex cubeIndices[] =
     20, 22, 23,  20, 21, 22
 };
 
-static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
+static Result<Model> CreateCubeModel(ResourceCache& cache)
 {
     imvector<MeshSpec>::builder meshSpecs =
     {
@@ -432,7 +432,7 @@ static Result<RefPtr<Model>> CreateCubeModel(ResourceCache& cache)
     return cache.GetOrCreateModel(CacheKey("CubeModel"), modelSpec);
 }
 
-static Result<RefPtr<Model>> CreateShapeModel(ResourceCache& cache)
+static Result<Model> CreateShapeModel(ResourceCache& cache)
 {
     //auto geometry = Shapes::Box(1, 1, 1);
     //auto geometry = Shapes::Ball(1, 10);

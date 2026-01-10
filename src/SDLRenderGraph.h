@@ -22,7 +22,7 @@ public:
 
     explicit SDLRenderGraph(SDLGPUDevice* gpuDevice);
 
-    virtual void Add(const Mat44f& worldTransform, RefPtr<Model> model) override;
+    virtual void Add(const Mat44f& worldTransform, const Model& model) override;
 
     virtual Result<void> Render(const Mat44f& camera, const Mat44f& projection) override;
 
@@ -33,7 +33,7 @@ private:
     struct XformMesh
     {
         const Mat44f WorldTransform;
-        const RefPtr<Model> Model;
+        const Model Model;
         const Mesh& MeshInstance;
     };
 

@@ -7,7 +7,7 @@
 #include "SDLRenderGraph.h"
 #include "ResourceCache.h"
 
-static Result<RefPtr<Model>> CreateTriangleModel(ResourceCache& cache);
+static Result<Model> CreateTriangleModel(ResourceCache& cache);
 
 class TriangleApp : public Application
 {
@@ -100,7 +100,7 @@ private:
         TrsTransformf m_CameraXform;
         Camera m_Camera;
         Extent m_ScreenBounds{0,0};
-        RefPtr<Model> m_Model;
+        Model m_Model;
         bool m_IsRunning = false;
 };
 
@@ -141,7 +141,7 @@ static const VertexIndex triangleIndices[] =
     0, 1, 2,
 };
 
-static Result<RefPtr<Model>> CreateTriangleModel(ResourceCache& cache)
+static Result<Model> CreateTriangleModel(ResourceCache& cache)
 {
     imvector<MeshSpec>::builder meshSpecs =
     {

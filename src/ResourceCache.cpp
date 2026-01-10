@@ -78,20 +78,18 @@ static void ProcessNodes(
         imvector<TransformNode>::builder& transformNodes,
         const std::filesystem::path& parentPath);
 
-Result<RefPtr<Model>>
+Result<Model>
 ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view filePath)
 {
     logDebug("Loading model from file: {} (key: {})", filePath, cacheKey.ToString());
 
-    RefPtr<Model> model;
-
     // Return existing entry without re-importing
-    if(m_ModelCache.TryGet(cacheKey, model))
+    if(auto model = m_ModelCache.TryGet(cacheKey))
     {
         //TODO(KB) - add a test to confirm cache behavior.
 
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return model;
+        return model.value();
     }
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
@@ -146,20 +144,18 @@ ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view file
     return GetOrCreateModel(cacheKey, ModelSpec);
 }
 
-Result<RefPtr<Model>>
+Result<Model>
 ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec)
 {
     logDebug("Creating model (key: {})", cacheKey.ToString());
 
-    RefPtr<Model> model;
-
     // Return existing entry without re-importing
-    if(m_ModelCache.TryGet(cacheKey, model))
+    if(auto model = m_ModelCache.TryGet(cacheKey))
     {
         //TODO(KB) - add a test to confirm cache behavior.
 
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return model;
+        return model.value();
     }
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
@@ -242,7 +238,7 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
 
     expect(modelResult, modelResult.error());
 
-    model = modelResult.value();
+    Model model = modelResult.value();
 
     expect(m_ModelCache.TryAdd(cacheKey, model),
         "Failed to add model to cache: {}", cacheKey.ToString());
@@ -268,11 +264,10 @@ ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
 
     auto cacheKey = std::visit(cacheKeyAcceptor, textureSpec.Source);
 
-    RefPtr<GpuTexture> texture;
-    if(m_TextureCache.TryGet(cacheKey, texture))
+    if(auto texture = m_TextureCache.TryGet(cacheKey))
     {
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return texture;
+        return texture.value();
     }
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
@@ -287,7 +282,7 @@ ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
     auto result = std::visit(createTexAcceptor, textureSpec.Source);
     expect(result, result.error());
 
-    texture = result.value();
+    RefPtr<GpuTexture> texture = result.value();
     expect(m_TextureCache.TryAdd(cacheKey, texture),
         "Failed to add texture to cache: {}", cacheKey.ToString());
 
@@ -299,11 +294,10 @@ ResourceCache::GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec)
 {
     const CacheKey cacheKey(std::get<0>(shaderSpec.Source));
     
-    RefPtr<GpuVertexShader> shader;
-    if(m_VertexShaderCache.TryGet(cacheKey, shader))
+    if(auto shader = m_VertexShaderCache.TryGet(cacheKey))
     {
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return shader;
+        return shader.value();
     }
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
@@ -311,7 +305,7 @@ ResourceCache::GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec)
     auto result = m_GpuDevice->CreateVertexShader(shaderSpec);
     expect(result, result.error());
 
-    shader = result.value();
+    RefPtr<GpuVertexShader> shader = result.value();
     expect(m_VertexShaderCache.TryAdd(cacheKey, shader),
         "Failed to add vertex shader to cache: {}", cacheKey.ToString());
     return shader;
@@ -322,53 +316,52 @@ ResourceCache::GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec)
 {
     const CacheKey cacheKey(std::get<0>(shaderSpec.Source));
     
-    RefPtr<GpuFragmentShader> shader;
-    if(m_FragmentShaderCache.TryGet(cacheKey, shader))
+    if(auto shader = m_FragmentShaderCache.TryGet(cacheKey))
     {
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return shader;
+        return shader.value();
     }
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
     auto result = m_GpuDevice->CreateFragmentShader(shaderSpec);
     expect(result, result.error());
 
-    shader = result.value();
+    RefPtr<GpuFragmentShader> shader = result.value();
     expect(m_FragmentShaderCache.TryAdd(cacheKey, shader),
         "Failed to add fragment shader to cache: {}", cacheKey.ToString());
     return shader;
 }
 
-Result<RefPtr<Model>>
+Result<Model>
 ResourceCache::GetModel(const CacheKey& cacheKey) const
 {
-    RefPtr<Model> model;
-    expect(m_ModelCache.TryGet(cacheKey, model), "Model not found: {}", cacheKey.ToString());
-    return model;
+    auto model = m_ModelCache.TryGet(cacheKey);
+    expect(model, "Model not found: {}", cacheKey.ToString());
+    return model.value();
 }
 
 Result<RefPtr<GpuTexture>>
 ResourceCache::GetTexture(const CacheKey& cacheKey) const
 {
-    RefPtr<GpuTexture> texture;
-    expect(m_TextureCache.TryGet(cacheKey, texture), "Texture not found: {}", cacheKey.ToString());
-    return texture;
+    auto texture = m_TextureCache.TryGet(cacheKey);
+    expect(texture, "Texture not found: {}", cacheKey.ToString());
+    return texture.value();
 }
 
 Result<RefPtr<GpuVertexShader>>
 ResourceCache::GetVertexShader(const CacheKey& cacheKey) const
 {
-    RefPtr<GpuVertexShader> shader;
-    expect(m_VertexShaderCache.TryGet(cacheKey, shader), "Vertex shader not found: {}", cacheKey.ToString());
-    return shader;
+    auto shader = m_VertexShaderCache.TryGet(cacheKey);
+    expect(shader, "Vertex shader not found: {}", cacheKey.ToString());
+    return shader.value();
 }
 
 Result<RefPtr<GpuFragmentShader>>
 ResourceCache::GetFragmentShader(const CacheKey& cacheKey) const
 {
-    RefPtr<GpuFragmentShader> shader;
-    expect(m_FragmentShaderCache.TryGet(cacheKey, shader), "Fragment shader not found: {}", cacheKey.ToString());
-    return shader;
+    auto shader = m_FragmentShaderCache.TryGet(cacheKey);
+    expect(shader, "Fragment shader not found: {}", cacheKey.ToString());
+    return shader.value();
 }
 
 // private:

@@ -33,52 +33,49 @@ ModelSpec::ModelSpec(
     }
 }
 
-Result<RefPtr<Model>>
-Model::Create(const imvector<Mesh>& meshes, const imvector<MeshInstance>& meshInstances, const imvector<TransformNode>& transformNodes)
-{
-    Model* model = new Model(meshes, meshInstances, transformNodes);
-    expectv(model, "Error allocating model");
-
-    return model;
-}
-
-Model::Model(const imvector<Mesh>& meshes, const imvector<MeshInstance>& meshInstances, const imvector<TransformNode>& transformNodes)
-    : Meshes(meshes)
-    , MeshInstances(meshInstances)
-    , TransformNodes(transformNodes)
+Result<Model>
+Model::Create(
+    const imvector<Mesh> meshes,
+    const imvector<MeshInstance> meshInstances,
+    const imvector<TransformNode> transformNodes)
 {
     logDebug(
         "Creating model with {} meshes, {} mesh instances and {} transform nodes",
-        Meshes.size(),
-        MeshInstances.size(),
-        TransformNodes.size());
+        meshes.size(),
+        meshInstances.size(),
+        transformNodes.size());
 
-    for(size_t i = 0; i < MeshInstances.size(); ++i)
+    for(size_t i = 0; i < meshInstances.size(); ++i)
     {
         logDebug(
             "  Mesh instance {}: mesh index {}({}), node index {}",
             i,
-            MeshInstances[i].MeshIndex,
-            Meshes[MeshInstances[i].MeshIndex].Name,
-            MeshInstances[i].NodeIndex);
+            meshInstances[i].MeshIndex,
+            meshes[meshInstances[i].MeshIndex].Name,
+            meshInstances[i].NodeIndex);
 
-        const MeshInstance& meshInstance = MeshInstances[i];
+        const MeshInstance& meshInstance = meshInstances[i];
         eassert(
             meshInstance.MeshIndex >= 0 &&
-            meshInstance.MeshIndex < static_cast<int>(Meshes.size()),
+            meshInstance.MeshIndex < static_cast<int>(meshes.size()),
             "Mesh instance {} has invalid mesh index {}", i, meshInstance.MeshIndex);
 
         eassert(
             meshInstance.NodeIndex >= 0 &&
-            meshInstance.NodeIndex < static_cast<int>(TransformNodes.size()),
+            meshInstance.NodeIndex < static_cast<int>(transformNodes.size()),
             "Mesh instance {} has invalid node index {}", i, meshInstance.NodeIndex);
     }
 
-    for(size_t i = 0; i < TransformNodes.size(); ++i)
+    for(size_t i = 0; i < transformNodes.size(); ++i)
     {
-        const TransformNode& node = TransformNodes[i];
+        const TransformNode& node = transformNodes[i];
         eassert(node.ParentIndex < static_cast<int>(i),
             "Transform node {} has invalid parent index {}, parent must be defined before child",
             i, node.ParentIndex);
     }
-};
+
+    Model::Data* data = new Model::Data(meshes, meshInstances, transformNodes);
+    expectv(data, "Error allocating model");
+
+    return Model{data};
+}

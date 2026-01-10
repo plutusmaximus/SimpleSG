@@ -48,22 +48,33 @@ class Model
 {
 public:
 
-    static Result<RefPtr<Model>> Create(
-        const imvector<Mesh>& meshes,
-        const imvector<MeshInstance>& meshInstances,
-        const imvector<TransformNode>& transformNodes);
+    Model() = default;
 
-    const imvector<Mesh> Meshes;
-    const imvector<MeshInstance> MeshInstances;
-    const imvector<TransformNode> TransformNodes;
+    static Result<Model> Create(
+        const imvector<Mesh> meshes,
+        const imvector<MeshInstance> meshInstances,
+        const imvector<TransformNode> transformNodes);
+
+    const imvector<Mesh> GetMeshes() const { return m_Data->Meshes; }
+    const imvector<MeshInstance> GetMeshInstances() const { return m_Data->MeshInstances; }
+    const imvector<TransformNode> GetTransformNodes() const { return m_Data->TransformNodes; }
+
 private:
 
-    Model() = delete;
+    struct Data
+    {
+        Data(const imvector<Mesh>& meshes, const imvector<MeshInstance>& meshInstances, const imvector<TransformNode>& transformNodes)
+            : Meshes(meshes), MeshInstances(meshInstances), TransformNodes(transformNodes) {}
+        const imvector<Mesh> Meshes;
+        const imvector<MeshInstance> MeshInstances;
+        const imvector<TransformNode> TransformNodes;
+        IMPLEMENT_REFCOUNT(Data);
+    };
 
-    explicit Model(
-        const imvector<Mesh>& meshes,
-        const imvector<MeshInstance>& meshInstances,
-        const imvector<TransformNode>& transformNodes);
+    explicit Model(RefPtr<Data> data)
+        : m_Data(std::move(data))
+    {
+    }
 
-    IMPLEMENT_REFCOUNT(Model);
+    RefPtr<Data> m_Data;
 };
