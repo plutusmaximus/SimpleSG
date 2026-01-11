@@ -1,8 +1,6 @@
 #pragma once
 
-#include "VecMath.h"
-#include "RefCount.h"
-#include "Error.h"
+#include "GpuDevice.h"
 
 class SDLGPUDevice;
 
@@ -14,7 +12,7 @@ public:
 
     virtual std::string_view GetName() const = 0;
 
-    virtual Result<void> Initialize(RefPtr<SDLGPUDevice> gpuDevice) = 0;
+    virtual Result<void> Initialize(AppContext* context) = 0;
 
     virtual void Shutdown() = 0;
 

@@ -84,7 +84,11 @@ AppDriver::Run()
 
     auto gpuDevice = *gdResult;
 
-    auto initResult = m_Application->Initialize(gpuDevice);
+    ResourceCache resourceCache(gpuDevice);
+
+    AppContext context{ gpuDevice, &resourceCache };
+
+    auto initResult = m_Application->Initialize(&context);
     expect(initResult, initResult.error());
 
     bool running = true;

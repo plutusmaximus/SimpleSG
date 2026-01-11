@@ -7,12 +7,13 @@
 #include "EcsChildTransformPool.h"
 #include "ResourceCache.h"
 #include "MouseNav.h"
-#include "SDLGPUDevice.h"
-#include "SDLRenderGraph.h"
+#include "GPUDevice.h"
 #include "Shapes.h"
 
-static Result<Model> CreateCubeModel(ResourceCache& cache);
-static Result<Model> CreateShapeModel(ResourceCache& cache);
+#include "scope_exit.h"
+
+static Result<Model> CreateCubeModel(ResourceCache* cache);
+static Result<Model> CreateShapeModel(ResourceCache* cache);
 
 class WorldMatrix : public Mat44f
 {    
@@ -29,11 +30,6 @@ class CubeApp : public Application
 public:
     ~CubeApp() override
     {
-        delete m_ResourceCache;
-        m_ResourceCache = nullptr;
-
-        delete m_RenderGraph;
-        m_RenderGraph = nullptr;
     }
 
     std::string_view GetName() const override
@@ -41,8 +37,13 @@ public:
         return "Cube";
     }
 
-    Result<void> Initialize(RefPtr<SDLGPUDevice> gpuDevice) override
+    Result<void> Initialize(AppContext* context) override
     {
+        auto cleanup = scope_exit([this]()
+        {
+            Shutdown();
+        });
+
         logInfo("Initializing...");
 
         if(!everify(State::None == m_State, "Application already initialized or running"))
@@ -52,23 +53,16 @@ public:
 
         m_State = State::Initialized;
 
-        m_ResourceCache = new ResourceCache(gpuDevice);
-        if(!m_ResourceCache)
-        {
-            Shutdown();
-            return std::unexpected(Error("Failed to create ResourceCache"));
-        }
+        m_GpuDevice = context->GetGpuDevice();
 
-        m_RenderGraph = new SDLRenderGraph(gpuDevice.Get());
+        m_ResourceCache = context->GetResourceCache();
 
-        if(!m_RenderGraph)
-        {
-            Shutdown();
-            return std::unexpected(Error("Failed to create SDLRenderGraph"));
-        }
+        auto renderGraphResult = m_GpuDevice.CreateRenderGraph();
+        expect(renderGraphResult, renderGraphResult.error());
 
-        m_GPUDevice = gpuDevice;
-        m_ScreenBounds = m_GPUDevice->GetExtent();
+        m_RenderGraph = *renderGraphResult;
+
+        m_ScreenBounds = m_GpuDevice.GetExtent();
         m_EidPlanet = m_Registry.Create();
         m_EidMoonOrbit = m_Registry.Create();
         m_EidMoon = m_Registry.Create();
@@ -76,7 +70,7 @@ public:
 
         //auto modelResult = CreateCube(gd);
         //auto modelResult = CreatePumpkin(gd);
-        auto modelResult = CreateShapeModel(*m_ResourceCache);
+        auto modelResult = CreateShapeModel(m_ResourceCache);
         expect(modelResult, modelResult.error());
         auto model = modelResult.value();
 
@@ -107,14 +101,9 @@ public:
         }
         m_State = State::Shutdown;
 
-        delete m_ResourceCache;
-        m_ResourceCache = nullptr;
-
-        delete m_RenderGraph;
-        m_RenderGraph = nullptr;
-
         m_Registry.Clear();
-        m_GPUDevice = nullptr;
+
+        m_ResourceCache = nullptr;
     }
 
     void Update(const float deltaSeconds) override
@@ -124,7 +113,7 @@ public:
             return;
         }
         
-        m_ScreenBounds = m_GPUDevice->GetExtent();
+        m_ScreenBounds = m_GpuDevice.GetExtent();
 
         m_Registry.Get<Camera>(m_EidCamera).SetBounds(m_ScreenBounds);
 
@@ -178,11 +167,11 @@ public:
             for(const auto& tuple : m_Registry.GetView<WorldMatrix, Model>())
             {
                 const auto [eid, worldMat, model] = tuple;
-                m_RenderGraph->Add(worldMat, model);
+                m_RenderGraph.Add(worldMat, model);
             }
 
             const auto [camEid, camWorldMat, camera] = cameraTuple;
-            auto renderResult = m_RenderGraph->Render(camWorldMat, camera.GetProjection());
+            auto renderResult = m_RenderGraph.Render(camWorldMat, camera.GetProjection());
             if (!renderResult)
             {
                 logError(renderResult.error().Message);
@@ -241,35 +230,35 @@ public:
 
 private:
 
-        enum class State
-        {
-            None,
-            Initialized,
-            Running,
-            ShutdownRequested,
-            Shutdown
-        };
+    enum class State
+    {
+        None,
+        Initialized,
+        Running,
+        ShutdownRequested,
+        Shutdown
+    };
 
-        State m_State = State::None;
+    State m_State = State::None;
 
-        RefPtr<SDLGPUDevice> m_GPUDevice;
-        ResourceCache* m_ResourceCache = nullptr;
-        SDLRenderGraph* m_RenderGraph = nullptr;
-        EcsRegistry m_Registry;
-        GimbleMouseNav m_GimbleMouseNav{ TrsTransformf{}};
-        MouseNav* const m_MouseNav = &m_GimbleMouseNav;
-        EntityId m_EidCamera;
-        EntityId m_EidPlanet;
-        EntityId m_EidMoonOrbit;
-        EntityId m_EidMoon;
-        Extent m_ScreenBounds{0,0};
-        Radiansf m_PlanetSpinAngle{0}, m_MoonSpinAngle{0}, m_MoonOrbitAngle{0};
+    GPUDevice m_GpuDevice;
+    ResourceCache* m_ResourceCache;
+    RenderGraph m_RenderGraph;
+    EcsRegistry m_Registry;
+    GimbleMouseNav m_GimbleMouseNav{ TrsTransformf{}};
+    MouseNav* const m_MouseNav = &m_GimbleMouseNav;
+    EntityId m_EidCamera;
+    EntityId m_EidPlanet;
+    EntityId m_EidMoonOrbit;
+    EntityId m_EidMoon;
+    Extent m_ScreenBounds{0,0};
+    Radiansf m_PlanetSpinAngle{0}, m_MoonSpinAngle{0}, m_MoonOrbitAngle{0};
 };
 
 int main(int, [[maybe_unused]] char* argv[])
 {
-    CubeApp app;
-    AppDriver driver(&app);
+    CubeApp* app = new CubeApp();
+    AppDriver driver(app);
 
     auto initResult = driver.Init();
     if(!initResult)
@@ -285,6 +274,8 @@ int main(int, [[maybe_unused]] char* argv[])
         logError(runResult.error().Message);
         return -1;
     }
+
+    delete app;
 
     return 0;
 }
@@ -340,7 +331,7 @@ constexpr static const VertexIndex cubeIndices[] =
     20, 22, 23,  20, 21, 22
 };
 
-static Result<Model> CreateCubeModel(ResourceCache& cache)
+static Result<Model> CreateCubeModel(ResourceCache* cache)
 {
     imvector<MeshSpec>::builder meshSpecs =
     {
@@ -429,10 +420,10 @@ static Result<Model> CreateCubeModel(ResourceCache& cache)
 
     const ModelSpec modelSpec{meshSpecs.build(), meshInstances.build(), transformNodes.build()};
 
-    return cache.GetOrCreateModel(CacheKey("CubeModel"), modelSpec);
+    return cache->GetOrCreateModel(CacheKey("CubeModel"), modelSpec);
 }
 
-static Result<Model> CreateShapeModel(ResourceCache& cache)
+static Result<Model> CreateShapeModel(ResourceCache* cache)
 {
     //auto geometry = Shapes::Box(1, 1, 1);
     //auto geometry = Shapes::Ball(1, 10);
@@ -468,5 +459,5 @@ static Result<Model> CreateShapeModel(ResourceCache& cache)
 
     const ModelSpec modelSpec{meshSpecs.build(), meshInstances.build(), transformNodes.build()};
 
-    return cache.GetOrCreateModel(CacheKey("ShapeModel"), modelSpec);
+    return cache->GetOrCreateModel(CacheKey("ShapeModel"), modelSpec);
 }

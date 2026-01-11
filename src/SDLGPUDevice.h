@@ -21,6 +21,8 @@ class SDLGpuVertexBuffer : public GpuVertexBuffer
 public:
 
     SDLGpuVertexBuffer() = delete;
+    SDLGpuVertexBuffer(const SDLGpuVertexBuffer&) = delete;
+    SDLGpuVertexBuffer& operator=(const SDLGpuVertexBuffer&) = delete;
 
     ~SDLGpuVertexBuffer() override;
 
@@ -44,6 +46,8 @@ class SDLGpuIndexBuffer : public GpuIndexBuffer
 public:
 
     SDLGpuIndexBuffer() = delete;
+    SDLGpuIndexBuffer(const SDLGpuIndexBuffer&) = delete;
+    SDLGpuIndexBuffer& operator=(const SDLGpuIndexBuffer&) = delete;
 
     ~SDLGpuIndexBuffer() override;
 
@@ -67,6 +71,8 @@ class SDLGpuTexture : public GpuTexture
 public:
 
     SDLGpuTexture() = delete;
+    SDLGpuTexture(const SDLGpuTexture&) = delete;
+    SDLGpuTexture& operator=(const SDLGpuTexture&) = delete;
 
     ~SDLGpuTexture() override;
 
@@ -92,6 +98,8 @@ class SDLGpuVertexShader : public GpuVertexShader
 public:
 
     SDLGpuVertexShader() = delete;
+    SDLGpuVertexShader(const SDLGpuVertexShader&) = delete;
+    SDLGpuVertexShader& operator=(const SDLGpuVertexShader&) = delete;
     
     ~SDLGpuVertexShader() override;
 
@@ -115,6 +123,8 @@ class SDLGpuFragmentShader : public GpuFragmentShader
 public:
 
     SDLGpuFragmentShader() = delete;
+    SDLGpuFragmentShader(const SDLGpuFragmentShader&) = delete;
+    SDLGpuFragmentShader& operator=(const SDLGpuFragmentShader&) = delete;
     
     ~SDLGpuFragmentShader() override;
 
@@ -133,11 +143,16 @@ private:
     SDL_GPUDevice* const m_GpuDevice;
 };
 
-class SDLGPUDevice : public GPUDevice
+/// @brief SDL GPU Device implementation.
+class SDLGPUDevice : public GPUDeviceImpl
 {
 public:
 
-    static Result<RefPtr<SDLGPUDevice>> Create(SDL_Window* window);
+    static Result<GPUDevice> Create(SDL_Window* window);
+
+    SDLGPUDevice() = delete;
+    SDLGPUDevice(const SDLGPUDevice&) = delete;
+    SDLGPUDevice& operator=(const SDLGPUDevice&) = delete;
 
     ~SDLGPUDevice() override;
 
@@ -166,6 +181,8 @@ public:
 
     Result<FragmentShader> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) override;
 
+    Result<RenderGraph> CreateRenderGraph() override;
+
     /// @brief Retrieves or creates a graphics pipeline for the given material.
     Result<SDL_GPUGraphicsPipeline*> GetOrCreatePipeline(const Material& mtl);
 
@@ -173,8 +190,6 @@ public:
     SDL_GPUDevice* const Device;
 
 private:
-
-    SDLGPUDevice() = delete;
 
     SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice);
 

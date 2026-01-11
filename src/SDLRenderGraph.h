@@ -12,19 +12,25 @@ struct SDL_GPURenderPass;
 struct SDL_GPUCommandBuffer;
 struct SDL_GPUFence;
 
-class SDLRenderGraph : public RenderGraph
+class SDLRenderGraph : public RenderGraphImpl
 {
 public:
 
-    virtual ~SDLRenderGraph() override;
+    SDLRenderGraph() = delete;
+    SDLRenderGraph(const SDLRenderGraph&) = delete;
+    SDLRenderGraph& operator=(const SDLRenderGraph&) = delete;
 
-    explicit SDLRenderGraph(SDLGPUDevice* gpuDevice);
+    virtual ~SDLRenderGraph() override;
 
     virtual void Add(const Mat44f& worldTransform, const Model& model) override;
 
     virtual Result<void> Render(const Mat44f& camera, const Mat44f& projection) override;
 
 private:
+
+    friend class SDLGPUDevice;
+
+    explicit SDLRenderGraph(RefPtr<SDLGPUDevice> gpuDevice);
 
     Result<SDL_GPURenderPass*> BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf);
 

@@ -3,21 +3,17 @@
 #include "AppDriver.h"
 #include "Application.h"
 #include "Camera.h"
-#include "SDLGPUDevice.h"
-#include "SDLRenderGraph.h"
+#include "GPUDevice.h"
 #include "ResourceCache.h"
+#include "scope_exit.h"
 
-static Result<Model> CreateTriangleModel(ResourceCache& cache);
+static Result<Model> CreateTriangleModel(ResourceCache* cache);
 
 class TriangleApp : public Application
 {
 public:
     ~TriangleApp() override
     {
-        delete m_ResourceCache;
-        m_ResourceCache = nullptr;
-        delete m_RenderGraph;
-        m_RenderGraph = nullptr;
     }
 
     std::string_view GetName() const override
@@ -25,62 +21,57 @@ public:
         return "Triangle";
     }
 
-    Result<void> Initialize(RefPtr<SDLGPUDevice> gpuDevice) override
+    Result<void> Initialize(AppContext* context) override
     {
-        m_ResourceCache = new ResourceCache(gpuDevice);
-        if(!m_ResourceCache)
+        auto cleanup = scope_exit([this]()
         {
             Shutdown();
-            return std::unexpected(Error("Failed to create ResourceCache"));
-        }
+        });
 
-        m_RenderGraph = new SDLRenderGraph(gpuDevice.Get());
-        if(!m_RenderGraph)
-        {
-            Shutdown();
-            return std::unexpected(Error("Failed to create SDLRenderGraph"));
-        }
+        m_GpuDevice = context->GetGpuDevice();
 
-        m_GPUDevice = gpuDevice;
-        m_ScreenBounds = m_GPUDevice->GetExtent();
+        m_ResourceCache = context->GetResourceCache();
+
+        auto renderGraphResult = m_GpuDevice.CreateRenderGraph();
+        expect(renderGraphResult, renderGraphResult.error());
+
+        m_RenderGraph = *renderGraphResult;
+
+        m_ScreenBounds = m_GpuDevice.GetExtent();
 
         const Degreesf fov(45);
         
         m_CameraXform.T = Vec3f{ 0,0,-4 };
         m_Camera.SetPerspective(fov, m_ScreenBounds, 0.1f, 1000);
 
-        auto modelResult = CreateTriangleModel(*m_ResourceCache);
+        auto modelResult = CreateTriangleModel(m_ResourceCache);
         expect(modelResult, modelResult.error());
         m_Model = *modelResult;
 
         m_IsRunning = true;
+
+        cleanup.release();
 
         return {};
     }
 
     void Shutdown() override
     {
-        delete m_ResourceCache;
-        m_ResourceCache = nullptr;
-
-        delete m_RenderGraph;
-        m_RenderGraph = nullptr;
-
-        m_GPUDevice = nullptr;
         m_IsRunning = false;
+        m_ResourceCache = nullptr;
     }
 
     void Update(const float deltaSeconds) override
     {
-        m_ScreenBounds = m_GPUDevice->GetExtent();
+        m_ScreenBounds = m_GpuDevice.GetExtent();
 
         m_Camera.SetBounds(m_ScreenBounds);
 
         TrsTransformf transform;
 
         // Transform to camera space and render
-        m_RenderGraph->Add(transform.ToMatrix(), m_Model);
-        auto renderResult = m_RenderGraph->Render(m_CameraXform.ToMatrix(), m_Camera.GetProjection());
+        m_RenderGraph.Add(transform.ToMatrix(), m_Model);
+        auto renderResult = m_RenderGraph.Render(m_CameraXform.ToMatrix(), m_Camera.GetProjection());
         if(!renderResult)
         {
             logError(renderResult.error().Message);
@@ -94,9 +85,9 @@ public:
 
 private:
 
-        RefPtr<SDLGPUDevice> m_GPUDevice;
-        ResourceCache* m_ResourceCache = nullptr;
-        SDLRenderGraph* m_RenderGraph = nullptr;
+        GPUDevice m_GpuDevice;
+        ResourceCache* m_ResourceCache;
+        RenderGraph m_RenderGraph;
         TrsTransformf m_CameraXform;
         Camera m_Camera;
         Extent m_ScreenBounds{0,0};
@@ -106,8 +97,8 @@ private:
 
 int main(int, [[maybe_unused]] char* argv[])
 {
-    TriangleApp app;
-    AppDriver driver(&app);
+    TriangleApp* app = new TriangleApp();
+    AppDriver driver(app);
 
     auto initResult = driver.Init();
     if(!initResult)
@@ -123,6 +114,8 @@ int main(int, [[maybe_unused]] char* argv[])
         logError(runResult.error().Message);
         return -1;
     }
+
+    delete app;
 
     return 0;
 }
@@ -141,7 +134,7 @@ static const VertexIndex triangleIndices[] =
     0, 1, 2,
 };
 
-static Result<Model> CreateTriangleModel(ResourceCache& cache)
+static Result<Model> CreateTriangleModel(ResourceCache* cache)
 {
     imvector<MeshSpec>::builder meshSpecs =
     {
@@ -170,5 +163,5 @@ static Result<Model> CreateTriangleModel(ResourceCache& cache)
 
     const ModelSpec modelSpec{meshSpecs.build(), meshInstances.build(), transformNodes.build()};
 
-    return cache.GetOrCreateModel(CacheKey("TriangleModel"), modelSpec);
+    return cache->GetOrCreateModel(CacheKey("TriangleModel"), modelSpec);
 }

@@ -172,10 +172,10 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
         indexSpans.emplace_back(meshSpec.Indices);
     }
 
-    auto ibResult = m_GpuDevice->CreateIndexBuffer(indexSpans);
+    auto ibResult = m_GpuDevice.CreateIndexBuffer(indexSpans);
     expect(ibResult, ibResult.error());
 
-    auto vbResult = m_GpuDevice->CreateVertexBuffer(vertexSpans);
+    auto vbResult = m_GpuDevice.CreateVertexBuffer(vertexSpans);
     expect(vbResult, vbResult.error());
 
     auto baseIb = ibResult.value();
@@ -276,7 +276,7 @@ ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
     {
         [this](TextureSpec::None_t)->Result<Texture> { return std::unexpected("Texture source is not specified"); },
         [this](const std::string& path) { return CreateTexture(path); },
-        [this](const RgbaColorf& color) { return m_GpuDevice->CreateTexture(color); }
+        [this](const RgbaColorf& color) { return m_GpuDevice.CreateTexture(color); }
     };
 
     auto result = std::visit(createTexAcceptor, textureSpec.Source);
@@ -302,7 +302,7 @@ ResourceCache::GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec)
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
 
-    auto resultResult = m_GpuDevice->CreateVertexShader(shaderSpec);
+    auto resultResult = m_GpuDevice.CreateVertexShader(shaderSpec);
     expect(resultResult, resultResult.error());
 
     expect(m_VertexShaderCache.TryAdd(cacheKey, resultResult.value()),
@@ -322,7 +322,7 @@ ResourceCache::GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec)
     }
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
-    auto shaderResult = m_GpuDevice->CreateFragmentShader(shaderSpec);
+    auto shaderResult = m_GpuDevice.CreateFragmentShader(shaderSpec);
     expect(shaderResult, shaderResult.error());
 
     expect(m_FragmentShaderCache.TryAdd(cacheKey, shaderResult.value()),
@@ -370,7 +370,7 @@ ResourceCache::CreateTexture(const std::string_view path)
     auto imgResult = Image::LoadFromFile(path);
     expect(imgResult, imgResult.error());
     auto img = *imgResult;
-    return m_GpuDevice->CreateTexture(img);
+    return m_GpuDevice.CreateTexture(img);
 }
 
 static TextureProperties GetTexturePropertiesFromMaterial(

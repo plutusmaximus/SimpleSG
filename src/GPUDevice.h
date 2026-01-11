@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RenderGraph.h"
 #include "RefCount.h"
 #include "Error.h"
 #include "VecMath.h"
@@ -9,8 +10,8 @@
 #include <variant>
 
 template<typename T> class RgbaColor;
-class Image;
 using RgbaColorf = RgbaColor<float>;
+class Image;
 class VertexShaderSpec;
 class FragmentShaderSpec;
 
@@ -240,14 +241,12 @@ private:
     RefPtr<GpuTexture> m_Texture;
 };
 
-/// @brief Abstract base class for GPU devices.
-class GPUDevice
+/// @brief Abstract base class for GPU device implementation.
+class GPUDeviceImpl
 {
 public:
 
-    GPUDevice() {}
-
-    virtual ~GPUDevice() = 0 {}
+    virtual ~GPUDeviceImpl() = 0 {};
 
     /// @brief Gets the renderable extent of the device.
     virtual Extent GetExtent() const = 0;
@@ -280,5 +279,92 @@ public:
     /// @brief Creates a fragment shader from the given specification.
     virtual Result<FragmentShader> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) = 0;
 
-    IMPLEMENT_REFCOUNT(GPUDevice);
+    virtual Result<RenderGraph> CreateRenderGraph() = 0;
+
+protected:
+    GPUDeviceImpl() = default;
+
+    IMPLEMENT_REFCOUNT(GPUDeviceImpl);
+};
+
+/// @brief API representation of a GPU device.
+class GPUDevice
+{
+public:
+
+    GPUDevice() = default;
+
+    explicit GPUDevice(RefPtr<GPUDeviceImpl> impl)
+        : m_Impl(impl)
+    {
+    }
+
+    bool IsValid() const { return m_Impl != nullptr; }
+
+    template<typename T>
+    const T* Get() const { return m_Impl.Get<T>(); }
+
+    /// @brief Gets the renderable extent of the device.
+    Extent GetExtent() const { return eassert(IsValid()), m_Impl->GetExtent(); }
+
+    /// @brief Creates a vertex buffer from the given vertices.
+    Result<VertexBuffer> CreateVertexBuffer(
+        const std::span<const Vertex>& vertices)
+    {
+        return eassert(IsValid()), m_Impl->CreateVertexBuffer(vertices);
+    }
+
+    /// @brief Creates a vertex buffer from multiple spans of vertices.
+    Result<VertexBuffer> CreateVertexBuffer(
+        const std::span<std::span<const Vertex>>& vertices)
+    {
+        return eassert(IsValid()), m_Impl->CreateVertexBuffer(vertices);
+    }
+
+    /// @brief Creates an index buffer from the given indices.
+    Result<IndexBuffer> CreateIndexBuffer(
+        const std::span<const VertexIndex>& indices)
+    {
+        return eassert(IsValid()), m_Impl->CreateIndexBuffer(indices);
+    }
+
+    /// @brief Creates an index buffer from multiple spans of indices.
+    Result<IndexBuffer> CreateIndexBuffer(
+        const std::span<std::span<const VertexIndex>>& indices)
+    {
+        return eassert(IsValid()), m_Impl->CreateIndexBuffer(indices);
+    }
+
+    /// @brief Creates a texture from an image.
+    Result<Texture> CreateTexture(const Image& image)
+    {
+        return eassert(IsValid()), m_Impl->CreateTexture(image);
+    }
+
+    /// @brief Creates a 1x1 texture from a color.
+    Result<Texture> CreateTexture(const RgbaColorf& color)
+    {
+        return eassert(IsValid()), m_Impl->CreateTexture(color);
+    }
+
+    /// @brief Creates a vertex shader from the given specification.
+    Result<VertexShader> CreateVertexShader(const VertexShaderSpec& shaderSpec)
+    {
+        return eassert(IsValid()), m_Impl->CreateVertexShader(shaderSpec);
+    }
+
+    /// @brief Creates a fragment shader from the given specification.
+    Result<FragmentShader> CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
+    {
+        return eassert(IsValid()), m_Impl->CreateFragmentShader(shaderSpec);
+    }
+
+    Result<RenderGraph> CreateRenderGraph()
+    {
+        return eassert(IsValid()), m_Impl->CreateRenderGraph();
+    }
+
+private:
+
+    RefPtr<GPUDeviceImpl> m_Impl;
 };

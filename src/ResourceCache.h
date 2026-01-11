@@ -12,7 +12,11 @@ class ResourceCache
 {
 public:
 
-    explicit ResourceCache(RefPtr<GPUDevice> gpuDevice)
+    ResourceCache() = delete;
+    ResourceCache(const ResourceCache&) = delete;
+    ResourceCache& operator=(const ResourceCache&) = delete;
+
+    explicit ResourceCache(GPUDevice gpuDevice)
         : m_GpuDevice(gpuDevice)
     {
     }
@@ -142,7 +146,7 @@ private:
         std::vector<Entry> m_Entries;
     };
 
-    RefPtr<GPUDevice> m_GpuDevice;
+    GPUDevice m_GpuDevice;
     Cache<Model> m_ModelCache;
     Cache<Texture> m_TextureCache;
     Cache<VertexShader> m_VertexShaderCache;

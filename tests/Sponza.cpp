@@ -7,8 +7,9 @@
 #include "EcsChildTransformPool.h"
 #include "ResourceCache.h"
 #include "MouseNav.h"
-#include "SDLGPUDevice.h"
-#include "SDLRenderGraph.h"
+#include "GPUDevice.h"
+
+#include "scope_exit.h"
 
 class WorldMatrix : public Mat44f
 {    
@@ -25,11 +26,6 @@ class SponzaApp : public Application
 public:
     ~SponzaApp() override
     {
-        delete m_ResourceCache;
-        m_ResourceCache = nullptr;
-
-        delete m_RenderGraph;
-        m_RenderGraph = nullptr;
     }
 
     std::string_view GetName() const override
@@ -37,8 +33,13 @@ public:
         return "Sponza";
     }
 
-    Result<void> Initialize(RefPtr<SDLGPUDevice> gpuDevice) override
+    Result<void> Initialize(AppContext* context) override
     {
+        auto cleanup = scope_exit([this]()
+        {
+            Shutdown();
+        });
+
         if(!everify(State::None == m_State, "Application already initialized or running"))
         {
             return std::unexpected(Error("Application already initialized or running"));
@@ -46,19 +47,14 @@ public:
 
         m_State = State::Initialized;
 
-        m_ResourceCache = new ResourceCache(gpuDevice);
-        if(!m_ResourceCache)
-        {
-            Shutdown();
-            return std::unexpected(Error("Failed to create ResourceCache"));
-        }
+        m_GpuDevice = context->GetGpuDevice();
 
-        m_RenderGraph = new SDLRenderGraph(gpuDevice.Get());
-        if(!m_RenderGraph)
-        {
-            Shutdown();
-            return std::unexpected(Error("Failed to create SDLRenderGraph"));
-        }
+        m_ResourceCache = context->GetResourceCache();
+
+        auto renderGraphResult = m_GpuDevice.CreateRenderGraph();
+        expect(renderGraphResult, renderGraphResult.error());
+
+        m_RenderGraph = *renderGraphResult;
 
         constexpr const char* SPONZA_MODEL_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
         constexpr const char* AVOCADO_MODEL_PATH = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Avocado/glTF/Avocado.gltf";
@@ -66,7 +62,6 @@ public:
         constexpr const char* SPONZA_MODEL_PATH_2 = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Sponza/glTF/Sponza.gltf";
         constexpr const char* JUNGLE_RUINS = "C:/Users/kbaca/Downloads/JungleRuins/GLTF/JungleRuins_Main.gltf";
 
-        m_GpuDevice = gpuDevice;
         auto modelResult = m_ResourceCache->LoadModelFromFile(CacheKey("Sponza"), SPONZA_MODEL_PATH);
         expect(modelResult, modelResult.error());
 
@@ -77,7 +72,7 @@ public:
 
         m_EidCamera = m_Registry.Create();
 
-        m_ScreenBounds = m_GpuDevice->GetExtent();
+        m_ScreenBounds = m_GpuDevice.GetExtent();
         
         m_Registry.Add(m_EidCamera, TrsTransformf{}, WorldMatrix{}, Camera{});
         m_Registry.Get<TrsTransformf>(m_EidCamera).T = Vec3f{ 0,0,-4 };
@@ -97,14 +92,9 @@ public:
         }
         m_State = State::Shutdown;
 
-        delete m_ResourceCache;
-        m_ResourceCache = nullptr;
-
-        delete m_RenderGraph;
-        m_RenderGraph = nullptr;
-
         m_Registry.Clear();
-        m_GpuDevice = nullptr;
+
+        m_ResourceCache = nullptr;
     }
 
     void Update(const float deltaSeconds) override
@@ -114,7 +104,7 @@ public:
             return;
         }
         
-        m_ScreenBounds = m_GpuDevice->GetExtent();
+        m_ScreenBounds = m_GpuDevice.GetExtent();
 
         m_Registry.Get<Camera>(m_EidCamera).SetBounds(m_ScreenBounds);
 
@@ -152,11 +142,11 @@ public:
             for(const auto& tuple : m_Registry.GetView<WorldMatrix, Model>())
             {
                 const auto [eid, worldMat, model] = tuple;
-                m_RenderGraph->Add(worldMat, model);
+                m_RenderGraph.Add(worldMat, model);
             }
 
             const auto [camEid, camWorldMat, camera] = cameraTuple;
-            auto renderResult = m_RenderGraph->Render(camWorldMat, camera.GetProjection());
+            auto renderResult = m_RenderGraph.Render(camWorldMat, camera.GetProjection());
             if (!renderResult)
             {
                 logError(renderResult.error().Message);
@@ -226,9 +216,9 @@ private:
 
         State m_State = State::None;
 
-        RefPtr<SDLGPUDevice> m_GpuDevice;
-        ResourceCache* m_ResourceCache = nullptr;
-        SDLRenderGraph* m_RenderGraph = nullptr;
+        GPUDevice m_GpuDevice;
+        ResourceCache* m_ResourceCache;
+        RenderGraph m_RenderGraph;
         EcsRegistry m_Registry;
         WalkMouseNav m_WalkMouseNav{ TrsTransformf{}, 0.0001f, 5.0f };
         MouseNav* const m_MouseNav = &m_WalkMouseNav;
@@ -239,8 +229,8 @@ private:
 
 int main(int, [[maybe_unused]] char* argv[])
 {
-    SponzaApp app;
-    AppDriver driver(&app);
+    SponzaApp* app = new SponzaApp();
+    AppDriver driver(app);
 
     auto initResult = driver.Init();
     if(!initResult)
@@ -258,6 +248,8 @@ int main(int, [[maybe_unused]] char* argv[])
         logError(runResult.error().Message);
         return -1;
     }
+
+    delete app;
 
     return 0;
 }
