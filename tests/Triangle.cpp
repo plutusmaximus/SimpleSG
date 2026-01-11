@@ -15,12 +15,7 @@ public:
     ~TriangleApp() override
     {
     }
-
-    std::string_view GetName() const override
-    {
-        return "Triangle";
-    }
-
+    
     Result<void> Initialize(AppContext* context) override
     {
         auto cleanup = scope_exit([this]()
@@ -28,16 +23,15 @@ public:
             Shutdown();
         });
 
-        m_GpuDevice = context->GetGpuDevice();
+        m_GpuDevice = context->GpuDevice;
+        m_ResourceCache = context->ResourceCache;
 
-        m_ResourceCache = context->GetResourceCache();
-
-        auto renderGraphResult = m_GpuDevice.CreateRenderGraph();
+        auto renderGraphResult = m_GpuDevice->CreateRenderGraph();
         expect(renderGraphResult, renderGraphResult.error());
 
         m_RenderGraph = *renderGraphResult;
 
-        m_ScreenBounds = m_GpuDevice.GetExtent();
+        m_ScreenBounds = m_GpuDevice->GetExtent();
 
         const Degreesf fov(45);
         
@@ -58,20 +52,27 @@ public:
     void Shutdown() override
     {
         m_IsRunning = false;
+
+        if(m_RenderGraph)
+        {
+            m_GpuDevice->DestroyRenderGraph(m_RenderGraph);
+        }
+        m_GpuDevice = nullptr;
+        m_RenderGraph = nullptr;
         m_ResourceCache = nullptr;
     }
 
     void Update(const float deltaSeconds) override
     {
-        m_ScreenBounds = m_GpuDevice.GetExtent();
+        m_ScreenBounds = m_GpuDevice->GetExtent();
 
         m_Camera.SetBounds(m_ScreenBounds);
 
         TrsTransformf transform;
 
         // Transform to camera space and render
-        m_RenderGraph.Add(transform.ToMatrix(), m_Model);
-        auto renderResult = m_RenderGraph.Render(m_CameraXform.ToMatrix(), m_Camera.GetProjection());
+        m_RenderGraph->Add(transform.ToMatrix(), m_Model);
+        auto renderResult = m_RenderGraph->Render(m_CameraXform.ToMatrix(), m_Camera.GetProjection());
         if(!renderResult)
         {
             logError(renderResult.error().Message);
@@ -85,9 +86,9 @@ public:
 
 private:
 
-        GPUDevice m_GpuDevice;
-        ResourceCache* m_ResourceCache;
-        RenderGraph m_RenderGraph;
+        GPUDevice* m_GpuDevice = nullptr;
+        ResourceCache* m_ResourceCache = nullptr;
+        RenderGraph* m_RenderGraph = nullptr;
         TrsTransformf m_CameraXform;
         Camera m_Camera;
         Extent m_ScreenBounds{0,0};
@@ -95,10 +96,29 @@ private:
         bool m_IsRunning = false;
 };
 
+class TriangleAppLifecycle : public AppLifecycle
+{
+public:
+    Application* Create() override
+    {
+        return new TriangleApp();
+    }
+
+    void Destroy(Application* app) override
+    {
+        delete app;
+    }
+
+    std::string_view GetName() const override
+    {
+        return "Triangle";
+    }
+};
+
 int main(int, [[maybe_unused]] char* argv[])
 {
-    TriangleApp* app = new TriangleApp();
-    AppDriver driver(app);
+    TriangleAppLifecycle appLifecycle;
+    AppDriver driver(&appLifecycle);
 
     auto initResult = driver.Init();
     if(!initResult)
@@ -114,8 +134,6 @@ int main(int, [[maybe_unused]] char* argv[])
         logError(runResult.error().Message);
         return -1;
     }
-
-    delete app;
 
     return 0;
 }

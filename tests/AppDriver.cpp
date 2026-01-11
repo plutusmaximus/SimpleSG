@@ -9,8 +9,8 @@
 #include <SDL3/SDL_gpu.h>
 #include <filesystem>
 
-AppDriver::AppDriver(Application* app)
-    : m_Application(app)
+AppDriver::AppDriver(AppLifecycle* appLC)
+    : m_AppLifecycle(appLC)
 {
 }
 
@@ -59,7 +59,7 @@ AppDriver::Init()
     const int winH = displayRect.h * 0.75;
 
     // Create window
-    auto window = SDL_CreateWindow(m_Application->GetName().data(), winW, winH, SDL_WINDOW_RESIZABLE);
+    auto window = SDL_CreateWindow(m_AppLifecycle->GetName().data(), winW, winH, SDL_WINDOW_RESIZABLE);
     expect(window, SDL_GetError());
 
     m_Window = window;
@@ -84,11 +84,14 @@ AppDriver::Run()
 
     auto gpuDevice = *gdResult;
 
-    ResourceCache resourceCache(gpuDevice);
+    ResourceCache* resourceCache = new ResourceCache(gpuDevice);
+    expect(resourceCache, "Failed to create ResourceCache");
 
-    AppContext context{ gpuDevice, &resourceCache };
+    AppContext context{ gpuDevice, resourceCache };
 
-    auto initResult = m_Application->Initialize(&context);
+    Application* app = m_AppLifecycle->Create();
+
+    auto initResult = app->Initialize(&context);
     expect(initResult, initResult.error());
 
     bool running = true;
@@ -97,13 +100,13 @@ AppDriver::Run()
 
     bool minimized = false;
 
-    while(running && m_Application->IsRunning())
+    while(running && app->IsRunning())
     {
-        m_Application->Update(stopwatch.Mark());
+        app->Update(stopwatch.Mark());
 
         SDL_Event event;
 
-        while(minimized && running && m_Application->IsRunning() && SDL_PollEvent(&event))
+        while(minimized && running && app->IsRunning() && SDL_PollEvent(&event))
         {
             switch(event.type)
             {
@@ -120,7 +123,7 @@ AppDriver::Run()
             continue;
         }
 
-        while(!minimized && running && m_Application->IsRunning() && SDL_PollEvent(&event))
+        while(!minimized && running && app->IsRunning() && SDL_PollEvent(&event))
         {
             switch (event.type)
             {
@@ -130,7 +133,7 @@ AppDriver::Run()
 
             case SDL_EVENT_WINDOW_RESIZED:
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-                m_Application->OnResize(event.window.data1, event.window.data2);
+                app->OnResize(event.window.data1, event.window.data2);
                 break;
 
             case SDL_EVENT_WINDOW_MINIMIZED:
@@ -139,41 +142,47 @@ AppDriver::Run()
 
             //case SDL_EVENT_WINDOW_MOUSE_LEAVE:
             case SDL_EVENT_WINDOW_FOCUS_GAINED:
-                m_Application->OnFocusGained();
+                app->OnFocusGained();
                 break;
 
             case SDL_EVENT_WINDOW_FOCUS_LOST:
-                m_Application->OnFocusLost();
+                app->OnFocusLost();
                 break;
 
             case SDL_EVENT_MOUSE_MOTION:
-                m_Application->OnMouseMove(Vec2f(event.motion.xrel, event.motion.yrel));
+                app->OnMouseMove(Vec2f(event.motion.xrel, event.motion.yrel));
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                m_Application->OnMouseDown(Point(event.button.x, event.button.y), event.button.button - 1);
+                app->OnMouseDown(Point(event.button.x, event.button.y), event.button.button - 1);
                 break;
                 
             case SDL_EVENT_MOUSE_BUTTON_UP:
-                m_Application->OnMouseUp(event.button.button - 1);
+                app->OnMouseUp(event.button.button - 1);
                 break;
 
             case SDL_EVENT_MOUSE_WHEEL:
-                m_Application->OnScroll(Vec2f(event.wheel.x, event.wheel.y));
+                app->OnScroll(Vec2f(event.wheel.x, event.wheel.y));
                 break;
 
             case SDL_EVENT_KEY_DOWN:
-                m_Application->OnKeyDown(event.key.scancode);
+                app->OnKeyDown(event.key.scancode);
                 break;
 
             case SDL_EVENT_KEY_UP:
-                m_Application->OnKeyUp(event.key.scancode);
+                app->OnKeyUp(event.key.scancode);
                 break;
             }
         }
     }
 
-    m_Application->Shutdown();
+    app->Shutdown();
+
+    m_AppLifecycle->Destroy(app);
+
+    delete resourceCache;
+    
+    SDLGPUDevice::Destroy(gpuDevice);
 
     m_State = State::Stopped;
 

@@ -10,8 +10,6 @@ public:
 
     virtual ~Application() = default;
 
-    virtual std::string_view GetName() const = 0;
-
     virtual Result<void> Initialize(AppContext* context) = 0;
 
     virtual void Shutdown() = 0;

@@ -1,9 +1,6 @@
 #pragma once
 
-#include <optional>
-
 #include "Error.h"
-#include "Vertex.h"
 #include "Mesh.h"
 #include "Model.h"
 
@@ -16,7 +13,7 @@ public:
     ResourceCache(const ResourceCache&) = delete;
     ResourceCache& operator=(const ResourceCache&) = delete;
 
-    explicit ResourceCache(GPUDevice gpuDevice)
+    explicit ResourceCache(GPUDevice* gpuDevice)
         : m_GpuDevice(gpuDevice)
     {
     }
@@ -60,7 +57,7 @@ private:
         struct Entry
         {
             CacheKey Key;
-            std::optional<Value> Value;
+            Value Value;
         };
 
         using Iterator = typename std::vector<Entry>::iterator;
@@ -81,16 +78,17 @@ private:
             return true;
         }
 
-        std::optional<Value> TryGet(const CacheKey& key) const
+        bool TryGet(const CacheKey& key, Value& value) const
         {
             auto it = Find(key);
 
             if(it == m_Entries.end() || it->Key != key)
             {
-                return std::nullopt;
+                return false;
             }
 
-            return it->Value;
+            value = it->Value;
+            return true;
         }
 
         bool TryRemove(const CacheKey& key)
@@ -146,7 +144,7 @@ private:
         std::vector<Entry> m_Entries;
     };
 
-    GPUDevice m_GpuDevice;
+    GPUDevice* const m_GpuDevice;
     Cache<Model> m_ModelCache;
     Cache<Texture> m_TextureCache;
     Cache<VertexShader> m_VertexShaderCache;

@@ -32,11 +32,6 @@ public:
     {
     }
 
-    std::string_view GetName() const override
-    {
-        return "Cube";
-    }
-
     Result<void> Initialize(AppContext* context) override
     {
         auto cleanup = scope_exit([this]()
@@ -53,16 +48,15 @@ public:
 
         m_State = State::Initialized;
 
-        m_GpuDevice = context->GetGpuDevice();
+        m_GpuDevice = context->GpuDevice;
+        m_ResourceCache = context->ResourceCache;
 
-        m_ResourceCache = context->GetResourceCache();
-
-        auto renderGraphResult = m_GpuDevice.CreateRenderGraph();
+        auto renderGraphResult = m_GpuDevice->CreateRenderGraph();
         expect(renderGraphResult, renderGraphResult.error());
 
         m_RenderGraph = *renderGraphResult;
 
-        m_ScreenBounds = m_GpuDevice.GetExtent();
+        m_ScreenBounds = m_GpuDevice->GetExtent();
         m_EidPlanet = m_Registry.Create();
         m_EidMoonOrbit = m_Registry.Create();
         m_EidMoon = m_Registry.Create();
@@ -88,6 +82,8 @@ public:
 
         m_State = State::Running;
 
+        cleanup.release();
+
         return {};
     }
 
@@ -102,7 +98,13 @@ public:
         m_State = State::Shutdown;
 
         m_Registry.Clear();
-
+        
+        if(m_RenderGraph)
+        {
+            m_GpuDevice->DestroyRenderGraph(m_RenderGraph);
+        }
+        m_GpuDevice = nullptr;
+        m_RenderGraph = nullptr;
         m_ResourceCache = nullptr;
     }
 
@@ -113,7 +115,7 @@ public:
             return;
         }
         
-        m_ScreenBounds = m_GpuDevice.GetExtent();
+        m_ScreenBounds = m_GpuDevice->GetExtent();
 
         m_Registry.Get<Camera>(m_EidCamera).SetBounds(m_ScreenBounds);
 
@@ -167,11 +169,11 @@ public:
             for(const auto& tuple : m_Registry.GetView<WorldMatrix, Model>())
             {
                 const auto [eid, worldMat, model] = tuple;
-                m_RenderGraph.Add(worldMat, model);
+                m_RenderGraph->Add(worldMat, model);
             }
 
             const auto [camEid, camWorldMat, camera] = cameraTuple;
-            auto renderResult = m_RenderGraph.Render(camWorldMat, camera.GetProjection());
+            auto renderResult = m_RenderGraph->Render(camWorldMat, camera.GetProjection());
             if (!renderResult)
             {
                 logError(renderResult.error().Message);
@@ -241,9 +243,9 @@ private:
 
     State m_State = State::None;
 
-    GPUDevice m_GpuDevice;
-    ResourceCache* m_ResourceCache;
-    RenderGraph m_RenderGraph;
+    GPUDevice* m_GpuDevice = nullptr;
+    ResourceCache* m_ResourceCache = nullptr;
+    RenderGraph* m_RenderGraph = nullptr;
     EcsRegistry m_Registry;
     GimbleMouseNav m_GimbleMouseNav{ TrsTransformf{}};
     MouseNav* const m_MouseNav = &m_GimbleMouseNav;
@@ -255,10 +257,29 @@ private:
     Radiansf m_PlanetSpinAngle{0}, m_MoonSpinAngle{0}, m_MoonOrbitAngle{0};
 };
 
+class CubeAppLifecycle : public AppLifecycle
+{
+public:
+    Application* Create() override
+    {
+        return new CubeApp();
+    }
+
+    void Destroy(Application* app) override
+    {
+        delete app;
+    }
+
+    std::string_view GetName() const override
+    {
+        return "Cube";
+    }
+};
+
 int main(int, [[maybe_unused]] char* argv[])
 {
-    CubeApp* app = new CubeApp();
-    AppDriver driver(app);
+    CubeAppLifecycle appLifecycle;
+    AppDriver driver(&appLifecycle);
 
     auto initResult = driver.Init();
     if(!initResult)
@@ -274,8 +295,6 @@ int main(int, [[maybe_unused]] char* argv[])
         logError(runResult.error().Message);
         return -1;
     }
-
-    delete app;
 
     return 0;
 }

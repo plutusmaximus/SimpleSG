@@ -12,7 +12,7 @@ struct SDL_GPURenderPass;
 struct SDL_GPUCommandBuffer;
 struct SDL_GPUFence;
 
-class SDLRenderGraph : public RenderGraphImpl
+class SDLRenderGraph : public RenderGraph
 {
 public:
 
@@ -30,7 +30,7 @@ private:
 
     friend class SDLGPUDevice;
 
-    explicit SDLRenderGraph(RefPtr<SDLGPUDevice> gpuDevice);
+    explicit SDLRenderGraph(SDLGPUDevice* gpuDevice);
 
     Result<SDL_GPURenderPass*> BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf);
 
@@ -41,7 +41,7 @@ private:
         const Mesh& MeshInstance;
     };
 
-    RefPtr<SDLGPUDevice> m_GpuDevice;
+    SDLGPUDevice* const m_GpuDevice;
     SDL_GPUTexture* m_DepthBuffer = nullptr;
 
     SDL_GPUTextureCreateInfo m_DepthCreateInfo

@@ -10,24 +10,32 @@ class AppContext
 {
 public:
 
-    AppContext(GPUDevice gpuDevice, ResourceCache* resourceCache)
-        : m_GpuDevice(gpuDevice), m_ResourceCache(resourceCache)
+    AppContext(GPUDevice* gpuDevice, ResourceCache* resourceCache)
+        : GpuDevice(gpuDevice), ResourceCache(resourceCache)
     {
     }
 
-    GPUDevice GetGpuDevice(){ return m_GpuDevice; }
+    GPUDevice* const GpuDevice;
+    ResourceCache* const ResourceCache;
+};
 
-    ResourceCache* GetResourceCache(){ return m_ResourceCache; }
+class AppLifecycle
+{
+public:
 
-private:
-    GPUDevice m_GpuDevice;
-    ResourceCache* m_ResourceCache;
+    virtual ~AppLifecycle() = default;
+
+    virtual Application* Create() = 0;
+
+    virtual void Destroy(Application* app) = 0;
+
+    virtual std::string_view GetName() const = 0;
 };
 
 class AppDriver
 {
 public:
-    explicit AppDriver(Application* app);
+    explicit AppDriver(AppLifecycle* appLC);
 
     ~AppDriver();
 
@@ -49,6 +57,6 @@ private:
 
     State m_State{ State::None };
 
-    Application* const m_Application{ nullptr };
     SDL_Window* m_Window{ nullptr };
+    AppLifecycle* const m_AppLifecycle{ nullptr };
 };

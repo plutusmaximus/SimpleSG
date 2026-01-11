@@ -86,7 +86,7 @@ SDLGPUDevice::SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice)
 {
 }
 
-Result<GPUDevice>
+Result<GPUDevice*>
 SDLGPUDevice::Create(SDL_Window* window)
 {
     logInfo("Creating SDL GPU Device...");
@@ -119,13 +119,18 @@ SDLGPUDevice::Create(SDL_Window* window)
         return std::unexpected(SDL_GetError());
     }
 
-    SDLGPUDevice* deviceImpl= new SDLGPUDevice(window, sdlDevice);
+    SDLGPUDevice* device = new SDLGPUDevice(window, sdlDevice);
 
-    expectv(deviceImpl, "Error allocating device");
+    expectv(device, "Error allocating device");
 
     sdlDeviceCleanup.release();
 
-    return GPUDevice(deviceImpl);
+    return device;
+}
+
+void SDLGPUDevice::Destroy(GPUDevice* device)
+{
+    delete device;
 }
 
 SDLGPUDevice::~SDLGPUDevice()
@@ -272,12 +277,17 @@ SDLGPUDevice::CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
     return FragmentShader(gpuShader);
 }
 
-Result<RenderGraph>
+Result<RenderGraph*>
 SDLGPUDevice::CreateRenderGraph()
 {
-    SDLRenderGraph* renderGraphImpl = new SDLRenderGraph(this);
-    expect(renderGraphImpl, "Error allocating SDLRenderGraph");
-    return RenderGraph(renderGraphImpl);
+    SDLRenderGraph* renderGraph = new SDLRenderGraph(this);
+    expect(renderGraph, "Error allocating SDLRenderGraph");
+    return renderGraph;
+}
+
+void SDLGPUDevice::DestroyRenderGraph(RenderGraph* renderGraph)
+{
+    delete renderGraph;
 }
 
 Result<SDL_GPUGraphicsPipeline*>

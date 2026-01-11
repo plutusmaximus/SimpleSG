@@ -83,13 +83,15 @@ ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view file
 {
     logDebug("Loading model from file: {} (key: {})", filePath, cacheKey.ToString());
 
+
     // Return existing entry without re-importing
-    if(auto model = m_ModelCache.TryGet(cacheKey))
+    Model model;
+    if(m_ModelCache.TryGet(cacheKey, model))
     {
         //TODO(KB) - add a test to confirm cache behavior.
 
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return model.value();
+        return model;
     }
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
@@ -150,12 +152,13 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     logDebug("Creating model (key: {})", cacheKey.ToString());
 
     // Return existing entry without re-importing
-    if(auto model = m_ModelCache.TryGet(cacheKey))
+    Model model;
+    if(m_ModelCache.TryGet(cacheKey, model))
     {
         //TODO(KB) - add a test to confirm cache behavior.
 
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return model.value();
+        return model;
     }
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
@@ -172,10 +175,10 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
         indexSpans.emplace_back(meshSpec.Indices);
     }
 
-    auto ibResult = m_GpuDevice.CreateIndexBuffer(indexSpans);
+    auto ibResult = m_GpuDevice->CreateIndexBuffer(indexSpans);
     expect(ibResult, ibResult.error());
 
-    auto vbResult = m_GpuDevice.CreateVertexBuffer(vertexSpans);
+    auto vbResult = m_GpuDevice->CreateVertexBuffer(vertexSpans);
     expect(vbResult, vbResult.error());
 
     auto baseIb = ibResult.value();
@@ -238,7 +241,7 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
 
     expect(modelResult, modelResult.error());
 
-    Model model = modelResult.value();
+    model = modelResult.value();
 
     expect(m_ModelCache.TryAdd(cacheKey, model),
         "Failed to add model to cache: {}", cacheKey.ToString());
@@ -264,10 +267,11 @@ ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
 
     auto cacheKey = std::visit(cacheKeyAcceptor, textureSpec.Source);
 
-    if(auto texture = m_TextureCache.TryGet(cacheKey))
+    Texture texture;
+    if(m_TextureCache.TryGet(cacheKey, texture))
     {
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return texture.value();
+        return texture;
     }
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
@@ -276,13 +280,13 @@ ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
     {
         [this](TextureSpec::None_t)->Result<Texture> { return std::unexpected("Texture source is not specified"); },
         [this](const std::string& path) { return CreateTexture(path); },
-        [this](const RgbaColorf& color) { return m_GpuDevice.CreateTexture(color); }
+        [this](const RgbaColorf& color) { return m_GpuDevice->CreateTexture(color); }
     };
 
     auto result = std::visit(createTexAcceptor, textureSpec.Source);
     expect(result, result.error());
 
-    Texture texture = result.value();
+    texture = result.value();
     expect(m_TextureCache.TryAdd(cacheKey, texture),
         "Failed to add texture to cache: {}", cacheKey.ToString());
 
@@ -294,15 +298,16 @@ ResourceCache::GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec)
 {
     const CacheKey cacheKey(std::get<0>(shaderSpec.Source));
     
-    if(auto shader = m_VertexShaderCache.TryGet(cacheKey))
+    VertexShader shader;
+    if(m_VertexShaderCache.TryGet(cacheKey, shader))
     {
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return shader.value();
+        return shader;
     }
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
 
-    auto resultResult = m_GpuDevice.CreateVertexShader(shaderSpec);
+    auto resultResult = m_GpuDevice->CreateVertexShader(shaderSpec);
     expect(resultResult, resultResult.error());
 
     expect(m_VertexShaderCache.TryAdd(cacheKey, resultResult.value()),
@@ -315,14 +320,15 @@ ResourceCache::GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec)
 {
     const CacheKey cacheKey(std::get<0>(shaderSpec.Source));
     
-    if(auto shader = m_FragmentShaderCache.TryGet(cacheKey))
+    FragmentShader shader;
+    if(m_FragmentShaderCache.TryGet(cacheKey, shader))
     {
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return shader.value();
+        return shader;
     }
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
-    auto shaderResult = m_GpuDevice.CreateFragmentShader(shaderSpec);
+    auto shaderResult = m_GpuDevice->CreateFragmentShader(shaderSpec);
     expect(shaderResult, shaderResult.error());
 
     expect(m_FragmentShaderCache.TryAdd(cacheKey, shaderResult.value()),
@@ -333,33 +339,33 @@ ResourceCache::GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec)
 Result<Model>
 ResourceCache::GetModel(const CacheKey& cacheKey) const
 {
-    auto model = m_ModelCache.TryGet(cacheKey);
-    expect(model, "Model not found: {}", cacheKey.ToString());
-    return model.value();
+    Model model;
+    expect(m_ModelCache.TryGet(cacheKey, model), "Model not found: {}", cacheKey.ToString());
+    return model;
 }
 
 Result<Texture>
 ResourceCache::GetTexture(const CacheKey& cacheKey) const
 {
-    auto texture = m_TextureCache.TryGet(cacheKey);
-    expect(texture, "Texture not found: {}", cacheKey.ToString());
-    return texture.value();
+    Texture texture;
+    expect(m_TextureCache.TryGet(cacheKey, texture), "Texture not found: {}", cacheKey.ToString());
+    return texture;
 }
 
 Result<VertexShader>
 ResourceCache::GetVertexShader(const CacheKey& cacheKey) const
 {
-    auto shader = m_VertexShaderCache.TryGet(cacheKey);
-    expect(shader, "Vertex shader not found: {}", cacheKey.ToString());
-    return shader.value();
+    VertexShader shader;
+    expect(m_VertexShaderCache.TryGet(cacheKey, shader), "Vertex shader not found: {}", cacheKey.ToString());
+    return shader;
 }
 
 Result<FragmentShader>
 ResourceCache::GetFragmentShader(const CacheKey& cacheKey) const
 {
-    auto shader = m_FragmentShaderCache.TryGet(cacheKey);
-    expect(shader, "Fragment shader not found: {}", cacheKey.ToString());
-    return shader.value();
+    FragmentShader shader;
+    expect(m_FragmentShaderCache.TryGet(cacheKey, shader), "Fragment shader not found: {}", cacheKey.ToString());
+    return shader;
 }
 
 // private:
@@ -370,7 +376,7 @@ ResourceCache::CreateTexture(const std::string_view path)
     auto imgResult = Image::LoadFromFile(path);
     expect(imgResult, imgResult.error());
     auto img = *imgResult;
-    return m_GpuDevice.CreateTexture(img);
+    return m_GpuDevice->CreateTexture(img);
 }
 
 static TextureProperties GetTexturePropertiesFromMaterial(

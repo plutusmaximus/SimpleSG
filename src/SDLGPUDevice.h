@@ -144,11 +144,13 @@ private:
 };
 
 /// @brief SDL GPU Device implementation.
-class SDLGPUDevice : public GPUDeviceImpl
+class SDLGPUDevice : public GPUDevice
 {
 public:
 
-    static Result<GPUDevice> Create(SDL_Window* window);
+    static Result<GPUDevice*> Create(SDL_Window* window);
+
+    static void Destroy(GPUDevice* device);
 
     SDLGPUDevice() = delete;
     SDLGPUDevice(const SDLGPUDevice&) = delete;
@@ -181,7 +183,9 @@ public:
 
     Result<FragmentShader> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) override;
 
-    Result<RenderGraph> CreateRenderGraph() override;
+    Result<RenderGraph*> CreateRenderGraph() override;
+
+    void DestroyRenderGraph(RenderGraph* renderGraph) override;
 
     /// @brief Retrieves or creates a graphics pipeline for the given material.
     Result<SDL_GPUGraphicsPipeline*> GetOrCreatePipeline(const Material& mtl);

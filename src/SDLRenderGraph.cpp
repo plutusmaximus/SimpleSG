@@ -7,7 +7,7 @@
 
 #include <SDL3/SDL_gpu.h>
 
-SDLRenderGraph::SDLRenderGraph(RefPtr<SDLGPUDevice> gpuDevice)
+SDLRenderGraph::SDLRenderGraph(SDLGPUDevice* gpuDevice)
     : m_GpuDevice(gpuDevice)
 {
 }

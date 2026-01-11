@@ -28,11 +28,6 @@ public:
     {
     }
 
-    std::string_view GetName() const override
-    {
-        return "Sponza";
-    }
-
     Result<void> Initialize(AppContext* context) override
     {
         auto cleanup = scope_exit([this]()
@@ -47,11 +42,10 @@ public:
 
         m_State = State::Initialized;
 
-        m_GpuDevice = context->GetGpuDevice();
+        m_GpuDevice = context->GpuDevice;
+        m_ResourceCache = context->ResourceCache;
 
-        m_ResourceCache = context->GetResourceCache();
-
-        auto renderGraphResult = m_GpuDevice.CreateRenderGraph();
+        auto renderGraphResult = m_GpuDevice->CreateRenderGraph();
         expect(renderGraphResult, renderGraphResult.error());
 
         m_RenderGraph = *renderGraphResult;
@@ -72,7 +66,7 @@ public:
 
         m_EidCamera = m_Registry.Create();
 
-        m_ScreenBounds = m_GpuDevice.GetExtent();
+        m_ScreenBounds = m_GpuDevice->GetExtent();
         
         m_Registry.Add(m_EidCamera, TrsTransformf{}, WorldMatrix{}, Camera{});
         m_Registry.Get<TrsTransformf>(m_EidCamera).T = Vec3f{ 0,0,-4 };
@@ -80,6 +74,8 @@ public:
         m_WalkMouseNav.SetTransform(m_Registry.Get<TrsTransformf>(m_EidCamera));
 
         m_State = State::Running;
+
+        cleanup.release();
 
         return {};
     }
@@ -94,6 +90,12 @@ public:
 
         m_Registry.Clear();
 
+        if(m_RenderGraph)
+        {
+            m_GpuDevice->DestroyRenderGraph(m_RenderGraph);
+        }
+        m_GpuDevice = nullptr;
+        m_RenderGraph = nullptr;
         m_ResourceCache = nullptr;
     }
 
@@ -104,7 +106,7 @@ public:
             return;
         }
         
-        m_ScreenBounds = m_GpuDevice.GetExtent();
+        m_ScreenBounds = m_GpuDevice->GetExtent();
 
         m_Registry.Get<Camera>(m_EidCamera).SetBounds(m_ScreenBounds);
 
@@ -142,11 +144,11 @@ public:
             for(const auto& tuple : m_Registry.GetView<WorldMatrix, Model>())
             {
                 const auto [eid, worldMat, model] = tuple;
-                m_RenderGraph.Add(worldMat, model);
+                m_RenderGraph->Add(worldMat, model);
             }
 
             const auto [camEid, camWorldMat, camera] = cameraTuple;
-            auto renderResult = m_RenderGraph.Render(camWorldMat, camera.GetProjection());
+            auto renderResult = m_RenderGraph->Render(camWorldMat, camera.GetProjection());
             if (!renderResult)
             {
                 logError(renderResult.error().Message);
@@ -216,9 +218,9 @@ private:
 
         State m_State = State::None;
 
-        GPUDevice m_GpuDevice;
-        ResourceCache* m_ResourceCache;
-        RenderGraph m_RenderGraph;
+        GPUDevice* m_GpuDevice = nullptr;
+        ResourceCache* m_ResourceCache = nullptr;
+        RenderGraph* m_RenderGraph = nullptr;
         EcsRegistry m_Registry;
         WalkMouseNav m_WalkMouseNav{ TrsTransformf{}, 0.0001f, 5.0f };
         MouseNav* const m_MouseNav = &m_WalkMouseNav;
@@ -227,10 +229,29 @@ private:
         Extent m_ScreenBounds{0,0};
 };
 
+class SponzaAppLifecycle : public AppLifecycle
+{
+public:
+    Application* Create() override
+    {
+        return new SponzaApp();
+    }
+
+    void Destroy(Application* app) override
+    {
+        delete app;
+    }
+
+    std::string_view GetName() const override
+    {
+        return "Sponza";
+    }
+};
+
 int main(int, [[maybe_unused]] char* argv[])
 {
-    SponzaApp* app = new SponzaApp();
-    AppDriver driver(app);
+    SponzaAppLifecycle appLifecycle;
+    AppDriver driver(&appLifecycle);
 
     auto initResult = driver.Init();
     if(!initResult)
@@ -248,8 +269,6 @@ int main(int, [[maybe_unused]] char* argv[])
         logError(runResult.error().Message);
         return -1;
     }
-
-    delete app;
 
     return 0;
 }
