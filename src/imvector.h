@@ -403,8 +403,30 @@ public:
         static size_type grow_capacity(size_type cur, size_type need) noexcept
         {
             // Standard-ish growth: 1.5x, at least 8, and at least need.
+            // Protect against overflow
+            constexpr size_type max_size = std::numeric_limits<size_type>::max() / sizeof(T);
+            
+            if (need > max_size)
+            {
+                IMVECTOR_FAIL_FAST(); // Cannot allocate more than max_size elements
+            }
+            
             size_type cap = (cur < 8) ? 8 : (cur + (cur >> 1));
+            
+            // Check for overflow in growth calculation
+            if (cap < cur) // Overflow occurred
+            {
+                cap = max_size;
+            }
+            
             if (cap < need) cap = need;
+            
+            // Final sanity check
+            if (cap > max_size)
+            {
+                cap = max_size;
+            }
+            
             return cap;
         }
 

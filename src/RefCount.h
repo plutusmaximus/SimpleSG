@@ -2,6 +2,9 @@
 
 #include <atomic>
 
+/// @brief Thread-safe reference counting base class.
+/// Uses atomic operations for thread-safe reference counting.
+/// AddRef uses relaxed ordering for performance, Release uses acquire-release semantics.
 class RefCount
 {
 public:
@@ -10,14 +13,14 @@ public:
     RefCount(const RefCount&) = delete;
     RefCount& operator=(const RefCount&) = delete;
 
-    //
-    // Returns the resulting ref count.
-    //
+    /// @brief Atomically increments the reference count.
+    /// @return The resulting reference count after increment.
+    /// @note Thread-safe. Uses relaxed memory ordering for performance.
     int AddRef() const { return m_RefCount.fetch_add(1, std::memory_order_relaxed) + 1; }
 
-    //
-    // Returns the resulting ref count.
-    //
+    /// @brief Atomically decrements the reference count.
+    /// @return The resulting reference count after decrement.
+    /// @note Thread-safe. Uses acquire-release ordering to ensure proper cleanup.
     int Release() const { return m_RefCount.fetch_sub(1, std::memory_order_acq_rel) - 1; }
 
 private:
@@ -67,23 +70,23 @@ public:
         }
     }
 
-    T* Get() { return m_Ptr; }
+    [[nodiscard]] T* Get() noexcept { return m_Ptr; }
 
-    const T* Get() const { return m_Ptr; }
-
-    template<typename U>
-    U* Get() { return static_cast<U*>(m_Ptr); }
+    [[nodiscard]] const T* Get() const noexcept { return m_Ptr; }
 
     template<typename U>
-    const U* Get() const { return static_cast<const U*>(m_Ptr); }
+    [[nodiscard]] U* Get() noexcept { return static_cast<U*>(m_Ptr); }
 
-    T& operator*() { return *m_Ptr; }
+    template<typename U>
+    [[nodiscard]] const U* Get() const noexcept { return static_cast<const U*>(m_Ptr); }
 
-    T& operator*() const { return *m_Ptr; }
+    [[nodiscard]] T& operator*() noexcept { return *m_Ptr; }
 
-    T* operator->() { return m_Ptr; }
+    [[nodiscard]] const T& operator*() const noexcept { return *m_Ptr; }
 
-    T* operator->() const { return m_Ptr; }
+    [[nodiscard]] T* operator->() noexcept { return m_Ptr; }
+
+    [[nodiscard]] const T* operator->() const noexcept { return m_Ptr; }
 
     RefPtr& operator=(std::nullptr_t) { Clear(); return *this; }
 
@@ -91,7 +94,14 @@ public:
 
     RefPtr& operator=(RefPtr r) { std::swap(m_Ptr, r.m_Ptr); return *this; }
 
-    void Clear() { m_Ptr = nullptr; }
+    void Clear()
+    {
+        if (m_Ptr)
+        {
+            m_Ptr->Release();
+            m_Ptr = nullptr;
+        }
+    }
 
     explicit operator bool() const { return m_Ptr != nullptr; }
 
