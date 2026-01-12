@@ -25,9 +25,11 @@ Image::LoadFromFile(const std::string_view path)
 
     auto freePixels = [](uint8_t* p) { stbi_image_free(p); };
 
-    // Use RefPtr constructor directly to avoid potential leak if allocation fails
-    // Note: With exceptions disabled, 'new' will terminate on failure, but we keep
-    // the check for consistency and to catch potential future changes
+    // Use RefPtr constructor directly to avoid potential leak if allocation fails.
+    // NOTE: With exceptions disabled (_HAS_EXCEPTIONS=0), 'new' will call std::terminate()
+    // on allocation failure. The expect() check below will never trigger in practice,
+    // but is kept for API consistency and defensive programming in case exception
+    // handling is re-enabled in the future.
     RefPtr<SharedPixels> sharedPixels(new SharedPixels(pixels, freePixels));
     expect(sharedPixels, "Error allocating SharedPixels");
 
@@ -53,9 +55,11 @@ Image::LoadFromMemory(const std::span<const uint8_t> data)
 
     auto freePixels = [](uint8_t* p) { stbi_image_free(p); };
 
-    // Use RefPtr constructor directly to avoid potential leak if allocation fails
-    // Note: With exceptions disabled, 'new' will terminate on failure, but we keep
-    // the check for consistency and to catch potential future changes
+    // Use RefPtr constructor directly to avoid potential leak if allocation fails.
+    // NOTE: With exceptions disabled (_HAS_EXCEPTIONS=0), 'new' will call std::terminate()
+    // on allocation failure. The expect() check below will never trigger in practice,
+    // but is kept for API consistency and defensive programming in case exception
+    // handling is re-enabled in the future.
     RefPtr<SharedPixels> sharedPixels(new SharedPixels(pixels, freePixels));
     expect(sharedPixels, "Error allocating SharedPixels");
 

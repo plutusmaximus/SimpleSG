@@ -421,7 +421,8 @@ public:
             {
                 // Check if cur + cur/2 would overflow before computing
                 const size_type half = cur >> 1;
-                if (cur > max_size - half) // Would overflow
+                // First check if half itself is too large, then check if addition would overflow
+                if (half > max_size || cur > max_size - half)
                 {
                     cap = max_size;
                 }
