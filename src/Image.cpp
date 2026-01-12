@@ -26,6 +26,8 @@ Image::LoadFromFile(const std::string_view path)
     auto freePixels = [](uint8_t* p) { stbi_image_free(p); };
 
     // Use RefPtr constructor directly to avoid potential leak if allocation fails
+    // Note: With exceptions disabled, 'new' will terminate on failure, but we keep
+    // the check for consistency and to catch potential future changes
     RefPtr<SharedPixels> sharedPixels(new SharedPixels(pixels, freePixels));
     expect(sharedPixels, "Error allocating SharedPixels");
 
@@ -52,6 +54,8 @@ Image::LoadFromMemory(const std::span<const uint8_t> data)
     auto freePixels = [](uint8_t* p) { stbi_image_free(p); };
 
     // Use RefPtr constructor directly to avoid potential leak if allocation fails
+    // Note: With exceptions disabled, 'new' will terminate on failure, but we keep
+    // the check for consistency and to catch potential future changes
     RefPtr<SharedPixels> sharedPixels(new SharedPixels(pixels, freePixels));
     expect(sharedPixels, "Error allocating SharedPixels");
 

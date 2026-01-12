@@ -80,13 +80,29 @@ public:
     template<typename U>
     [[nodiscard]] const U* Get() const noexcept { return static_cast<const U*>(m_Ptr); }
 
-    [[nodiscard]] T& operator*() noexcept { return *m_Ptr; }
+    [[nodiscard]] T& operator*() noexcept
+    {
+        eassert(m_Ptr != nullptr, "Dereferencing null RefPtr");
+        return *m_Ptr;
+    }
 
-    [[nodiscard]] const T& operator*() const noexcept { return *m_Ptr; }
+    [[nodiscard]] const T& operator*() const noexcept
+    {
+        eassert(m_Ptr != nullptr, "Dereferencing null RefPtr");
+        return *m_Ptr;
+    }
 
-    [[nodiscard]] T* operator->() noexcept { return m_Ptr; }
+    [[nodiscard]] T* operator->() noexcept
+    {
+        eassert(m_Ptr != nullptr, "Accessing null RefPtr");
+        return m_Ptr;
+    }
 
-    [[nodiscard]] const T* operator->() const noexcept { return m_Ptr; }
+    [[nodiscard]] const T* operator->() const noexcept
+    {
+        eassert(m_Ptr != nullptr, "Accessing null RefPtr");
+        return m_Ptr;
+    }
 
     RefPtr& operator=(std::nullptr_t) { Clear(); return *this; }
 
