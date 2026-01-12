@@ -91,6 +91,9 @@ SDLGPUDevice::Create(SDL_Window* window)
 {
     logInfo("Creating SDL GPU Device...");
 
+    // Validate input
+    expect(window != nullptr, "Window is null");
+
     //TODO - move these to environment variables.
     expect(SDL_SetHint(SDL_HINT_RENDER_VULKAN_DEBUG, "1"), SDL_GetError());
     expect(SDL_SetHint(SDL_HINT_RENDER_GPU_DEBUG, "1"), SDL_GetError());
@@ -130,7 +133,10 @@ SDLGPUDevice::Create(SDL_Window* window)
 
 void SDLGPUDevice::Destroy(GPUDevice* device)
 {
-    delete device;
+    if (device != nullptr)
+    {
+        delete device;
+    }
 }
 
 SDLGPUDevice::~SDLGPUDevice()

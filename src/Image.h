@@ -17,9 +17,9 @@ public:
         Translucent = 0x1,
     };
 
-    static Result<Image> LoadFromFile(const std::string_view path);
+    [[nodiscard]] static Result<Image> LoadFromFile(const std::string_view path);
 
-    static Result<Image> LoadFromMemory(const std::span<const uint8_t> data);
+    [[nodiscard]] static Result<Image> LoadFromMemory(const std::span<const uint8_t> data);
 
     const unsigned Width;
     const unsigned Height;

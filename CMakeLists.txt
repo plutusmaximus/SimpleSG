@@ -12,10 +12,12 @@ option(SIMPLESG_STRICT "Treat warnings as errors" ON)
 if(MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
-    # Enable MSVC STL hardening
-    #   TODO - remove in release builds
-    add_compile_definitions(_MSVC_STL_HARDENING=2 _ITERATOR_DEBUG_LEVEL=2)
-    #add_compile_definitions(_MSVC_STL_HARDENING=0 _ITERATOR_DEBUG_LEVEL=0)
+    # Enable MSVC STL hardening in debug builds
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        add_compile_definitions(_MSVC_STL_HARDENING=2 _ITERATOR_DEBUG_LEVEL=2)
+    else()
+        add_compile_definitions(_MSVC_STL_HARDENING=0 _ITERATOR_DEBUG_LEVEL=0)
+    endif()
 endif()
 
 # ============================================================
@@ -33,8 +35,6 @@ add_subdirectory(thirdparty/SDL)
 
 # --- spdlog
 set(SPDLOG_BUILD_SHARED OFF CACHE BOOL "Build as shared library" FORCE)
-#set(SPDLOG_FMT_EXTERNAL OFF CACHE BOOL "Use external fmt library" FORCE)
-#set(SPDLOG_USE_STD_FORMAT ON CACHE BOOL "Use C++20 std::format" FORCE)
 set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "Disable tests" FORCE)
 set(SPDLOG_BUILD_EXAMPLES OFF CACHE BOOL "Disable examples" FORCE)
 set(SPDLOG_INSTALL OFF CACHE BOOL "Disable install target" FORCE)
@@ -58,8 +58,6 @@ set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "Build assimp tests" FORCE)
 set(ASSIMP_BUILD_ASSIMP_VIEW OFF CACHE BOOL "Build assimp viewer" FORCE)
 set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "Build glTF importer" FORCE)
 set(ASSIMP_BUILD_STL_IMPORTER ON CACHE BOOL "Build STL importer" FORCE)
-#set(ASSIMP_IMPORTER_GLTF2 ON CACHE BOOL "Build glTF2 importer" FORCE)
-#set(ASSIMP_IMPORTER_GLTF ON CACHE BOOL "Build glTF importer" FORCE)
 
 add_subdirectory(thirdparty/assimp)
 
@@ -76,7 +74,6 @@ add_library(imgui STATIC
 
 target_sources(imgui PRIVATE
     thirdparty/imgui/backends/imgui_impl_sdl3.cpp
-    # tests/imgui/backends/imgui_impl_vulkan.cpp
 )
 
 target_include_directories(imgui PUBLIC
