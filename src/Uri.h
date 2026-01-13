@@ -16,7 +16,7 @@ public:
         assign(uri);
     }
 
-    explicit Uri(imstring&& uri)
+    explicit Uri(imstring&& uri) noexcept
     {
         assign(std::move(uri));
     }
@@ -233,7 +233,7 @@ private:
         parse_views(static_cast<std::string_view>(storage_));
     }
 
-    void assign(imstring&& uri)
+    void assign(imstring&& uri) noexcept
     {
         storage_ = std::move(uri);
         parse_views(static_cast<std::string_view>(storage_));

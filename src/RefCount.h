@@ -9,6 +9,8 @@ public:
 
     RefCount(const RefCount&) = delete;
     RefCount& operator=(const RefCount&) = delete;
+    RefCount(RefCount&&) = delete;
+    RefCount& operator=(RefCount&&) = delete;
 
     //
     // Returns the resulting ref count.
@@ -24,7 +26,16 @@ private:
     mutable std::atomic_int m_RefCount;
 };
 
-template <typename T>
+/// @brief Concept to constrain types that may be reference counted.
+template<typename T>
+concept RefCountable = requires(const T& t)
+{
+    { t.AddRef() } -> std::same_as<void>;
+    { t.Release() } -> std::same_as<void>;
+    { t.PreventMultipleInclusion() } -> std::same_as<void>;
+};
+
+template <RefCountable T>
 class RefPtr
 {
 public:
@@ -59,6 +70,23 @@ public:
         std::is_convertible<U*, T*>::value>::type>
     RefPtr(RefPtr<U>&& r) noexcept : RefPtr(r.m_Ptr) { r.m_Ptr = nullptr; }
 
+    // Move assignment operator.
+    RefPtr& operator=(RefPtr&& r) noexcept
+    {
+        std::swap(m_Ptr, r.m_Ptr);
+        return *this;
+    }
+
+    // Move conversion assignment operator.
+    template <typename U,
+        typename = typename std::enable_if<
+        std::is_convertible<U*, T*>::value>::type>
+    RefPtr& operator=(RefPtr<U>&& r) noexcept
+    {
+        std::swap(m_Ptr, r.m_Ptr);
+        return *this;
+    }
+
     ~RefPtr()
     {
         if (m_Ptr)
@@ -67,23 +95,36 @@ public:
         }
     }
 
-    T* Get() { return m_Ptr; }
+    // Delete rvalue overloads because they could lead to dangling pointers.
 
-    const T* Get() const { return m_Ptr; }
+    T* Get(this RefPtr& r) { return r.m_Ptr; }
+    T* Get(this RefPtr&& r) = delete;
+
+    const T* Get(this const RefPtr& r) { return r.m_Ptr; }
+    const T* Get(this const RefPtr&& r) = delete;
+
+    /// @brief Get the underlying pointer as a different type.
+    template<typename U>
+    U* Get(this RefPtr<T>& r) { return static_cast<U*>(r.m_Ptr); }
+    template<typename U>
+    U* Get(this RefPtr<T>&& r) = delete;
 
     template<typename U>
-    U* Get() { return static_cast<U*>(m_Ptr); }
-
+    const U* Get(this const RefPtr<T>& r) { return static_cast<const U*>(r.m_Ptr); }
     template<typename U>
-    const U* Get() const { return static_cast<const U*>(m_Ptr); }
+    const U* Get(this const RefPtr<T>&& r) = delete;
 
-    T& operator*() { return *m_Ptr; }
+    T& operator*(this RefPtr& r) { return *r.Get(); }
+    T& operator*(this RefPtr&& r) = delete;
 
-    T& operator*() const { return *m_Ptr; }
+    const T& operator*(this const RefPtr& r) { return *r.Get(); }
+    const T& operator*(this const RefPtr&& r) = delete;
 
-    T* operator->() { return m_Ptr; }
+    T* operator->(this RefPtr& r) { return r.Get(); }
+    T* operator->(this RefPtr&& r) = delete;
 
-    T* operator->() const { return m_Ptr; }
+    const T* operator->(this const RefPtr& r) { return r.Get(); }
+    const T* operator->(this const RefPtr&& r) = delete;
 
     RefPtr& operator=(std::nullptr_t) { Clear(); return *this; }
 
@@ -108,7 +149,7 @@ private:
     T* m_Ptr = nullptr;
 
     // Friend required for conversion constructors.
-    template <typename U>
+    template <RefCountable U>
     friend class RefPtr;
 };
 
@@ -154,7 +195,7 @@ ClassName& operator=(const ClassName&) = delete;
     }                                               \
   }                                                 \
                                                     \
+  virtual void PreventMultipleInclusion() const noexcept final {}  \
  private:                                           \
-  virtual void PreventMultipleInclusion() final {}  \
   RefCount m_RefCount;                              \
 IMPLEMENT_NON_COPYABLE(ClassName);
