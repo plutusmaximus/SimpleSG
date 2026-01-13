@@ -32,7 +32,6 @@ private:
 
     block* m_blk;
 
-private:
     template<size_type N>
     static block* make_block(const std::array<const char*, N>& ss, const std::array<size_type, N>& nn)
     {
@@ -89,7 +88,7 @@ private:
 public:
     constexpr imstring() noexcept : m_blk(nullptr) {}
 
-    imstring(const char* s)
+    explicit imstring(const char* s)
         : m_blk(make_block(std::array<const char*, 1>{ s }, std::array<size_type, 1>{ s ? std::char_traits<char>::length(s) : 0 }))
     {
     }
@@ -100,12 +99,12 @@ public:
         if (n && !s) throw std::invalid_argument("imstring");
     }
 
-    imstring(std::string_view sv)
+    explicit imstring(std::string_view sv)
         : m_blk(make_block(std::array<const char*, 1>{ sv.data() }, std::array<size_type, 1>{ sv.size() }))
     {
     }
 
-    imstring(const std::string& s)
+    explicit imstring(const std::string& s)
         : m_blk(make_block(std::array<const char*, 1>{ s.data() }, std::array<size_type, 1>{ s.size() }))
     {
     }
@@ -154,7 +153,6 @@ public:
         release(m_blk);
     }
 
-public:
     const char* data() const noexcept
     {
         return m_blk ? m_blk->data : "";
@@ -176,7 +174,6 @@ public:
 
     operator std::string_view() const noexcept { return view(); }
 
-public:
     char operator[](size_type i) const noexcept { return data()[i]; }
 
     char at(size_type i) const
@@ -185,7 +182,6 @@ public:
         return data()[i];
     }
 
-public:
     bool starts_with(std::string_view p) const noexcept
     {
         return size() >= p.size() && view().substr(0, p.size()) == p;
@@ -202,7 +198,6 @@ public:
         return find(n) != npos;
     }
 
-public:
     size_type find(char c, size_type pos = 0) const noexcept
     {
         for (size_type i = pos; i < size(); ++i)
@@ -251,7 +246,6 @@ public:
         return imstring(data() + pos, len);
     }
 
-public:
     friend imstring operator+(const imstring& a, const imstring& b)
     {
         if (a.empty()) return b;
@@ -284,13 +278,13 @@ inline std::ostream& operator<<(std::ostream& os, const imstring& s)
     return os << s.view();
 }
 
+/// @brief Formatter specialization for imstring to support std::format.
 template <>
-struct std::formatter<imstring, char> : std::formatter<std::string_view, char>
+struct std::formatter<imstring> : std::formatter<std::string_view>
 {
-    template <class Ctx>
-    auto format(const imstring& s, Ctx& ctx) const
+    auto format(const imstring& s, std::format_context& ctx) const
     {
-        return std::formatter<std::string_view, char>::format(s.view(), ctx);
+        return std::formatter<std::string_view>::format(s.view(), ctx);
     }
 };
 
@@ -304,6 +298,9 @@ struct std::hash<imstring>
     }
 };
 
+/// @brief User-defined literal for creating imstring from string literal.
+/// Example:
+///   imstring s = "hello"_is;
 inline imstring operator"" _is(const char* s, std::size_t n)
 {
     return imstring(s, n);

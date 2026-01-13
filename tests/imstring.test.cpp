@@ -459,3 +459,83 @@ TEST(ImstringTest, MultipleCopies)
     EXPECT_EQ(s1, s3);
     EXPECT_EQ(s1, s4);
 }
+
+// Test std::format basic
+TEST(ImstringTest, FormatBasic)
+{
+    imstring s("hello");
+    std::string result = std::format("{}", s);
+    EXPECT_EQ(result, "hello");
+}
+
+// Test std::format with multiple arguments
+TEST(ImstringTest, FormatMultipleArguments)
+{
+    imstring s1("world");
+    imstring s2("C++");
+    std::string result = std::format("Hello, {}! Welcome to {}.", s1, s2);
+    EXPECT_EQ(result, "Hello, world! Welcome to C++.");
+}
+
+// Test std::format with width and alignment
+TEST(ImstringTest, FormatWidthAndAlignment)
+{
+    imstring s("test");
+    // Left align
+    EXPECT_EQ(std::format("{:<10}", s), "test      ");
+    // Right align
+    EXPECT_EQ(std::format("{:>10}", s), "      test");
+    // Center align
+    EXPECT_EQ(std::format("{:^10}", s), "   test   ");
+}
+
+// Test std::format with fill character and alignment
+TEST(ImstringTest, FormatFillCharacter)
+{
+    imstring s("hi");
+    // Left align with fill
+    EXPECT_EQ(std::format("{:*<8}", s), "hi******");
+    // Right align with fill
+    EXPECT_EQ(std::format("{:*>8}", s), "******hi");
+    // Center align with fill
+    EXPECT_EQ(std::format("{:*^8}", s), "***hi***");
+}
+
+// Test std::format with mixed types
+TEST(ImstringTest, FormatMixedTypes)
+{
+    imstring name("Alice");
+    int age = 30;
+    double score = 95.5;
+    std::string result = std::format("Name: {}, Age: {}, Score: {:.1f}", name, age, score);
+    EXPECT_EQ(result, "Name: Alice, Age: 30, Score: 95.5");
+}
+
+// Test std::format with empty imstring
+TEST(ImstringTest, FormatEmptyImstring)
+{
+    imstring s;
+    std::string result = std::format("Empty: '{}'", s);
+    EXPECT_EQ(result, "Empty: ''");
+    
+    // Empty with alignment
+    EXPECT_EQ(std::format("{:>5}", s), "     ");
+    EXPECT_EQ(std::format("{:<5}", s), "     ");
+}
+
+// Test std::format with escaped braces
+TEST(ImstringTest, FormatEscapedBraces)
+{
+    imstring s("value");
+    std::string result = std::format("{{{}}} = {}", "key", s);
+    EXPECT_EQ(result, "{key} = value");
+}
+
+// Test std::format with special characters
+TEST(ImstringTest, FormatSpecialCharacters)
+{
+    imstring s1("hello\nworld");
+    imstring s2("tab\there");
+    std::string result = std::format("Line 1: {}\nLine 2: {}", s1, s2);
+    EXPECT_EQ(result, "Line 1: hello\nworld\nLine 2: tab\there");
+}
