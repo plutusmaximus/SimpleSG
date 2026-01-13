@@ -282,9 +282,7 @@ public:
     /// @brief Creates a texture from an image.
     virtual Result<Texture> CreateTexture(const Image& image) = 0;
 
-    /// @brief Creates (or fetches) a 1x1 texture from a color.
-    /// Color textures will be cached.  If the same color is requested again,
-    /// the cached texture will be returned.
+    /// @brief Creates a 1x1 texture from a color.
     virtual Result<Texture> CreateTexture(const RgbaColorf& color) = 0;
 
     /// @brief Destroys a texture.
