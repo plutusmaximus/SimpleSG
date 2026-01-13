@@ -99,4 +99,5 @@ private:
 
     State m_State[2];
     State* m_CurrentState = &m_State[0];
+    Texture m_DefaultAlbedoTexture;
 };

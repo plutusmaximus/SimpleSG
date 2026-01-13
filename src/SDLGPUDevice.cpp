@@ -140,11 +140,6 @@ SDLGPUDevice::~SDLGPUDevice()
         SDL_ReleaseGPUGraphicsPipeline(Device, pipeline);
     }
 
-    for(auto& [color, texture] : m_ColorTextureCache)
-    {
-        delete static_cast<SDLGpuTexture*>(texture);
-    }
-
     if(m_Sampler)
     {
         SDL_ReleaseGPUSampler(Device, m_Sampler);
@@ -263,40 +258,22 @@ Result<Texture>
 SDLGPUDevice::CreateTexture(const RgbaColorf& color)
 {
     RgbaColoru8 colorU8{color};
-    
-    auto it = std::lower_bound(m_ColorTextureCache.begin(), m_ColorTextureCache.end(), colorU8);
-    if (it != m_ColorTextureCache.end() && it->Color == colorU8)
-    {
-        return Texture{it->Texture};
-    }
-
     const uint8_t pixelData[4]{colorU8.r, colorU8.g, colorU8.b, colorU8.a};
 
-    auto texResult = CreateTexture(1, 1, pixelData);
-    if(!texResult)
-    {
-        return std::unexpected(texResult.error());
-    }
 
-    m_ColorTextureCache.insert(it, {colorU8, texResult.value().Get()});
-
-    return texResult.value();
+    return CreateTexture(1, 1, pixelData);
 }
 
 Result<void>
 SDLGPUDevice::DestroyTexture(Texture& texture)
 {
-    if (!IsCachedTexture(texture.Get<SDLGpuTexture>()))
+    auto sdlTexture = texture.Get<SDLGpuTexture>();
+    if (!sdlTexture)
     {
-        auto sdlTexture = texture.Get<SDLGpuTexture>();
-        if (!sdlTexture)
-        {
-            return std::unexpected("Invalid texture");
-        }
-        
-        delete sdlTexture;
+        return std::unexpected("Invalid texture");
     }
     
+    delete sdlTexture;
     texture = Texture();
 
     return {};
@@ -583,15 +560,6 @@ SDLGPUDevice::CreateTexture(const unsigned width, const unsigned height, const u
     texCleanup.release();
 
     return Texture(gpuTex);
-}
-
-bool
-SDLGPUDevice::IsCachedTexture(GpuTexture* texture) const
-{
-    return std::any_of(m_ColorTextureCache.begin(), m_ColorTextureCache.end(), [&](const CachedTexture& cached)
-    {
-        return cached.Texture == texture;
-    });
 }
 
 /// @brief GPU shader stage type for type T.
