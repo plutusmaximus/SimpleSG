@@ -55,45 +55,46 @@ inline std::shared_ptr<spdlog::logger> __LOGGER__ = LogHelper::CreateLogger(S.sv
 /// @brief Concept to constrain format string types.
 template<typename T>
 concept LogFormatString =
-    std::convertible_to<T, std::string>
+    std::convertible_to<T, const char*>
+    || std::convertible_to<T, std::string>
     || std::convertible_to<T, std::wstring>
     || std::convertible_to<T, imstring>;
 
 template<typename... Args>
 inline void logTrace(const LogFormatString auto& format, Args&&... args)
 {
-    __LOGGER__<__LOGGER_NAME__>->trace(fmt::runtime(std::data(format)), std::forward<Args>(args)...);
+    __LOGGER__<__LOGGER_NAME__>->trace(std::vformat(format, std::make_format_args(args...)));
 }
 
 template<typename... Args>
 inline void logDebug(const LogFormatString auto& format, Args&&... args)
 {
-    __LOGGER__<__LOGGER_NAME__>->debug(fmt::runtime(std::data(format)), std::forward<Args>(args)...);
+    __LOGGER__<__LOGGER_NAME__>->debug(std::vformat(format, std::make_format_args(args...)));
 }
 
 template<typename... Args>
 inline void logInfo(const LogFormatString auto& format, Args&&... args)
 {
-    __LOGGER__<__LOGGER_NAME__>->info(fmt::runtime(std::data(format)), std::forward<Args>(args)...);
+    __LOGGER__<__LOGGER_NAME__>->info(std::vformat(format, std::make_format_args(args...)));
 }
 
 template<typename... Args>
 inline void logWarn(const LogFormatString auto& format, Args&&... args)
 {
-    __LOGGER__<__LOGGER_NAME__>->warn(fmt::runtime(std::data(format)), std::forward<Args>(args)...);
+    __LOGGER__<__LOGGER_NAME__>->warn(std::vformat(format, std::make_format_args(args...)));
 }
 
 template<typename... Args>
 inline void logError(const LogFormatString auto& format, Args&&... args)
 {
-    __LOGGER__<__LOGGER_NAME__>->error(fmt::runtime(std::data(format)), std::forward<Args>(args)...);
+    __LOGGER__<__LOGGER_NAME__>->error(std::vformat(format, std::make_format_args(args...)));
 }
 
 /// Log an assertion failure
 template<typename... Args>
 inline void logAssert(const LogFormatString auto& format, Args&&... args)
 {
-    __LOGGER__<"assert">->error(fmt::runtime(std::data(format)), std::forward<Args>(args)...);
+    __LOGGER__<"assert">->error(std::vformat(format, std::make_format_args(args...)));
 }
 
 /// @brief Sets the log level for a specific logger.
@@ -157,16 +158,11 @@ public:
 
 /// @brief Formatter specialization for Error to support std::format.
 template <>
-struct std::formatter<Error>
+struct std::formatter<Error> : std::formatter<imstring>
 {
-    constexpr auto parse(std::format_parse_context& ctx)
-    {
-        return ctx.begin(); // No custom parsing; assumes default format
-    }
-
     auto format(const Error& e, std::format_context& ctx) const
     {
-        return std::format_to(ctx.out(), "{}", e.Message);
+        return std::formatter<imstring>::format(e.Message, ctx);
     }
 };
 

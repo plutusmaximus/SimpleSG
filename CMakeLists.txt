@@ -34,7 +34,7 @@ add_subdirectory(thirdparty/SDL)
 # --- spdlog
 set(SPDLOG_BUILD_SHARED OFF CACHE BOOL "Build as shared library" FORCE)
 #set(SPDLOG_FMT_EXTERNAL OFF CACHE BOOL "Use external fmt library" FORCE)
-#set(SPDLOG_USE_STD_FORMAT ON CACHE BOOL "Use C++20 std::format" FORCE)
+set(SPDLOG_USE_STD_FORMAT ON CACHE BOOL "Use C++20 std::format" FORCE)
 set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "Disable tests" FORCE)
 set(SPDLOG_BUILD_EXAMPLES OFF CACHE BOOL "Disable examples" FORCE)
 set(SPDLOG_INSTALL OFF CACHE BOOL "Disable install target" FORCE)
