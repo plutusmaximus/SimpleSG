@@ -320,6 +320,21 @@ SDLGPUDevice::CreateVertexShader(const VertexShaderSpec& shaderSpec)
     return VertexShader(gpuShader);
 }
 
+Result<void>
+SDLGPUDevice::DestroyVertexShader(VertexShader& shader)
+{
+    auto sdlShader = shader.Get<SDLGpuVertexShader>();
+    if (!sdlShader)
+    {
+        return std::unexpected("Invalid vertex shader");
+    }
+
+    delete sdlShader;
+    shader = VertexShader();
+
+    return {};
+}
+
 Result<FragmentShader>
 SDLGPUDevice::CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
 {
@@ -339,6 +354,21 @@ SDLGPUDevice::CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
     expect(gpuShader, "Error allocating SDLGPUFragmentShader");
 
     return FragmentShader(gpuShader);
+}
+
+Result<void>
+SDLGPUDevice::DestroyFragmentShader(FragmentShader& shader)
+{
+    auto sdlShader = shader.Get<SDLGpuFragmentShader>();
+    if (!sdlShader)
+    {
+        return std::unexpected("Invalid fragment shader");
+    }
+
+    delete sdlShader;
+    shader = FragmentShader();
+    
+    return {};
 }
 
 Result<RenderGraph*>

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "RenderGraph.h"
-#include "RefCount.h"
 #include "Error.h"
 #include "VecMath.h"
 #include "Vertex.h"
@@ -36,25 +35,19 @@ protected:
 /// @brief GPU representation of a vertex shader.
 class GpuVertexShader
 {
-public:
+protected:
 
-    GpuVertexShader() {}
-    
+    GpuVertexShader() {}    
     virtual ~GpuVertexShader() = 0 {}
-
-    IMPLEMENT_REFCOUNT(GpuVertexShader);
 };
 
 /// @brief GPU representation of a fragment shader.
 class GpuFragmentShader
 {
-public:
+protected:
 
-    GpuFragmentShader() {}
-    
+    GpuFragmentShader() {}    
     virtual ~GpuFragmentShader() = 0 {}
-
-    IMPLEMENT_REFCOUNT(GpuFragmentShader);
 };
 
 /// @brief GPU representation of a texture.
@@ -174,22 +167,25 @@ public:
 
     VertexShader() = default;
 
-    explicit VertexShader(RefPtr<GpuVertexShader> shader)
+    explicit VertexShader(GpuVertexShader* shader)
         : m_Shader(shader)
     {
     }
 
-    template<typename T>
-    T* Get() { return m_Shader.Get<T>(); }
+    GpuVertexShader* Get() { return m_Shader; }
+    const GpuVertexShader* Get() const { return m_Shader; }
 
     template<typename T>
-    const T* Get() const { return m_Shader.Get<T>(); }
+    T* Get() { return static_cast<T*>(m_Shader); }
+
+    template<typename T>
+    const T* Get() const { return static_cast<const T*>(m_Shader); }
 
     bool IsValid() const { return m_Shader != nullptr; }
 
 private:
 
-    RefPtr<GpuVertexShader> m_Shader;
+    GpuVertexShader* m_Shader{ nullptr };
 };
 
 /// @brief API representation of a fragment shader.
@@ -200,22 +196,25 @@ public:
 
     FragmentShader() = default;
 
-    explicit FragmentShader(RefPtr<GpuFragmentShader> shader)
+    explicit FragmentShader(GpuFragmentShader* shader)
         : m_Shader(shader)
     {
     }
 
-    template<typename T>
-    T* Get() { return m_Shader.Get<T>(); }
+    GpuFragmentShader* Get() { return m_Shader; }
+    const GpuFragmentShader* Get() const { return m_Shader; }
 
     template<typename T>
-    const T* Get() const { return m_Shader.Get<T>(); }
+    T* Get() { return static_cast<T*>(m_Shader); }
+
+    template<typename T>
+    const T* Get() const { return static_cast<const T*>(m_Shader); }
 
     bool IsValid() const { return m_Shader != nullptr; }
 
 private:
 
-    RefPtr<GpuFragmentShader> m_Shader;
+    GpuFragmentShader* m_Shader{ nullptr };
 };
 
 /// @brief API representation of a texture.
@@ -293,8 +292,14 @@ public:
     /// @brief Creates a vertex shader from the given specification.
     virtual Result<VertexShader> CreateVertexShader(const VertexShaderSpec& shaderSpec) = 0;
 
+    /// @brief Destroys a vertex shader.
+    virtual Result<void> DestroyVertexShader(VertexShader& shader) = 0;
+
     /// @brief Creates a fragment shader from the given specification.
     virtual Result<FragmentShader> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) = 0;
+
+    /// @brief Destroys a fragment shader.
+    virtual Result<void> DestroyFragmentShader(FragmentShader& shader) = 0;
 
     virtual Result<RenderGraph*> CreateRenderGraph() = 0;
 

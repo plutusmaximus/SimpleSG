@@ -110,6 +110,26 @@ ResourceCache::~ResourceCache()
             logError("Failed to destroy texture: {}", result.error());
         }
     }
+
+    for(auto& entry : m_VertexShaderCache)
+    {
+        // Release vertex shader resources
+        auto result = m_GpuDevice->DestroyVertexShader(entry.Value);
+        if(!result)
+        {
+            logError("Failed to destroy vertex shader: {}", result.error());
+        }
+    }
+
+    for(auto& entry : m_FragmentShaderCache)
+    {
+        // Release fragment shader resources
+        auto result = m_GpuDevice->DestroyFragmentShader(entry.Value);
+        if(!result)
+        {
+            logError("Failed to destroy fragment shader: {}", result.error());
+        }
+    }
 }
 
 Result<Model>

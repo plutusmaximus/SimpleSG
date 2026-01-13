@@ -188,9 +188,17 @@ public:
     /// @brief Destroys a texture.
     virtual Result<void> DestroyTexture(Texture& texture) override;
 
+    /// @brief Creates a vertex shader from the given specification.
     Result<VertexShader> CreateVertexShader(const VertexShaderSpec& shaderSpec) override;
 
+    /// @brief Destroys a vertex shader.
+    Result<void> DestroyVertexShader(VertexShader& shader) override;
+    
+    /// @brief Creates a fragment shader from the given specification.
     Result<FragmentShader> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) override;
+
+    /// @brief Destroys a fragment shader.
+    Result<void> DestroyFragmentShader(FragmentShader& shader) override;
 
     Result<RenderGraph*> CreateRenderGraph() override;
 

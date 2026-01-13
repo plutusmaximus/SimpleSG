@@ -1,6 +1,5 @@
 #pragma once
 
-#include "RefCount.h"
 #include "Error.h"
 #include "Image.h"
 #include <string>
