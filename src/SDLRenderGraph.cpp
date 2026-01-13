@@ -16,15 +16,6 @@ SDLRenderGraph::~SDLRenderGraph()
 {
     WaitForFence();
 
-    if(m_DefaultAlbedoTexture.IsValid())
-    {
-        auto result = m_GpuDevice->DestroyTexture(m_DefaultAlbedoTexture);
-        if(!result)
-        {
-            logError("Failed to destroy default albedo texture: {}", result.error());
-        }
-    }
-
     SDL_ReleaseGPUTexture(m_GpuDevice->Device, m_DepthBuffer);
 
     for(const auto& state: m_State)
@@ -340,15 +331,5 @@ SDLRenderGraph::WaitForFence()
 Result<Texture>
 SDLRenderGraph::GetDefaultAlbedoTexture()
 {
-    if(!m_DefaultAlbedoTexture.IsValid())
-    {
-        static constexpr const std::string_view MAGENTA_TEXTURE_KEY("$magenta");
-
-        auto result = m_GpuDevice->CreateTexture("#FF00FFFF"_rgba);
-        expect(result, result.error());
-
-        m_DefaultAlbedoTexture = result.value();
-    }
-
-    return m_DefaultAlbedoTexture;
+    return m_GpuDevice->CreateTexture("#FF00FFFF"_rgba);
 }

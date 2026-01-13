@@ -36,6 +36,16 @@ struct RgbaColor
     /// @brief Converts the color to a hexadecimal string representation - #RRGGBBAA
     std::string ToHexString() const;
 
+    bool operator==(const RgbaColor& other) const
+    {
+        return r == other.r && g == other.g && b == other.b && a == other.a;
+    }
+
+    bool operator!=(const RgbaColor& other) const
+    {
+        return !(*this == other);
+    }
+
     T r, g, b, a;
 };
 

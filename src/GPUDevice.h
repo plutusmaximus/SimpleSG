@@ -91,6 +91,9 @@ public:
         return VertexBuffer(m_Buffer, itemOffset, itemCount);
     }
 
+    GpuVertexBuffer* Get() { return m_Buffer; }
+    const GpuVertexBuffer* Get() const { return m_Buffer; }
+
     template<typename T>
     T* Get() { return static_cast<T*>(m_Buffer); }
     
@@ -138,6 +141,9 @@ public:
 
         return IndexBuffer(m_Buffer, itemOffset, itemCount);
     }
+
+    GpuIndexBuffer* Get() { return m_Buffer; }
+    const GpuIndexBuffer* Get() const { return m_Buffer; }
 
     template<typename T>
     T* Get() { return static_cast<T*>(m_Buffer); }
@@ -225,6 +231,9 @@ public:
     {
     }
 
+    GpuTexture* Get() { return m_Texture; }
+    const GpuTexture* Get() const { return m_Texture; }
+
     template<typename T>
     T* Get() { return static_cast<T*>(m_Texture); }
 
@@ -273,7 +282,9 @@ public:
     /// @brief Creates a texture from an image.
     virtual Result<Texture> CreateTexture(const Image& image) = 0;
 
-    /// @brief Creates a 1x1 texture from a color.
+    /// @brief Creates (or fetches) a 1x1 texture from a color.
+    /// Color textures will be cached.  If the same color is requested again,
+    /// the cached texture will be returned.
     virtual Result<Texture> CreateTexture(const RgbaColorf& color) = 0;
 
     /// @brief Destroys a texture.

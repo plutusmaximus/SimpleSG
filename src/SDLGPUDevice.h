@@ -207,6 +207,10 @@ private:
     SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice);
 
     Result<Texture> CreateTexture(const unsigned width, const unsigned height, const uint8_t* pixels);
+
+    /// @brief Returns true if the texture is cached.
+    /// Used when DestroyTexture() is called to avoid destroying cached textures.
+    bool IsCachedTexture(GpuTexture* texture) const;
     
     struct PipelineKey
     {
@@ -224,4 +228,20 @@ private:
 
     /// @brief Default sampler used for all textures.
     SDL_GPUSampler* m_Sampler = nullptr;
+
+    struct CachedTexture
+    {
+        RgbaColoru8 Color;
+        GpuTexture* Texture;
+
+        bool operator<(const RgbaColoru8& other) const
+        {
+            return Color.r < other.r
+                || (Color.r == other.r && Color.g < other.g)
+                || (Color.r == other.r && Color.g == other.g && Color.b < other.b)
+                || (Color.r == other.r && Color.g == other.g && Color.b == other.b && Color.a < other.a);
+        }
+    };
+
+    std::vector<CachedTexture> m_ColorTextureCache;
 };
