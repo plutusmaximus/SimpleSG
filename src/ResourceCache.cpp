@@ -1,6 +1,7 @@
 #define __LOGGER_NAME__ "RSRC"
 
 #include "ResourceCache.h"
+#include "scope_exit.h"
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -80,6 +81,26 @@ static void ProcessNodes(
 
 ResourceCache::~ResourceCache()
 {
+    for(auto& vb : m_VertexBuffers)
+    {
+        // Release vertex buffer resources
+        auto result = m_GpuDevice->DestroyVertexBuffer(vb);
+        if(!result)
+        {
+            logError("Failed to destroy vertex buffer: {}", result.error());
+        }
+    }
+
+    for(auto& ib : m_IndexBuffers)
+    {
+        // Release index buffer resources
+        auto result = m_GpuDevice->DestroyIndexBuffer(ib);
+        if(!result)
+        {
+            logError("Failed to destroy index buffer: {}", result.error());
+        }
+    }
+
     for(auto& entry : m_TextureCache)
     {
         // Release texture resources
@@ -176,6 +197,8 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
 
+    //Create a single vertex and index buffer for all meshes in the model.
+
     std::vector<std::span<const Vertex>> vertexSpans;
     std::vector<std::span<const VertexIndex>> indexSpans;
 
@@ -191,8 +214,26 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     auto ibResult = m_GpuDevice->CreateIndexBuffer(indexSpans);
     expect(ibResult, ibResult.error());
 
+    auto cleanupIb = scope_exit([&]()
+    {
+        auto result = m_GpuDevice->DestroyIndexBuffer(ibResult.value());
+        if(!result)
+        {
+            logError("Failed to destroy index buffer: {}", result.error());
+        }
+    });
+
     auto vbResult = m_GpuDevice->CreateVertexBuffer(vertexSpans);
     expect(vbResult, vbResult.error());
+
+    auto cleanupVb = scope_exit([&]()
+    {
+        auto result = m_GpuDevice->DestroyVertexBuffer(vbResult.value());
+        if(!result)
+        {
+            logError("Failed to destroy vertex buffer: {}", result.error());
+        }
+    });
 
     auto baseIb = ibResult.value();
     auto baseVb = vbResult.value();
@@ -258,6 +299,12 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
 
     expect(m_ModelCache.TryAdd(cacheKey, model),
         "Failed to add model to cache: {}", cacheKey.ToString());
+
+    cleanupIb.release();
+    cleanupVb.release();
+
+    m_VertexBuffers.push_back(baseVb);
+    m_IndexBuffers.push_back(baseIb);
 
     return model;
 }

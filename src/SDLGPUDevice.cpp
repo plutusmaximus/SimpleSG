@@ -190,6 +190,21 @@ SDLGPUDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& verti
     return VertexBuffer(vb, 0, count);
 }
 
+Result<void>
+SDLGPUDevice::DestroyVertexBuffer(VertexBuffer& buffer)
+{
+    auto sdlBuffer = buffer.Get<SDLGpuVertexBuffer>();
+    if (!sdlBuffer)
+    {
+        return std::unexpected("Invalid vertex buffer");
+    }
+    
+    delete sdlBuffer;
+    buffer = VertexBuffer(nullptr, 0, 0);
+
+    return {};
+}
+
 Result<IndexBuffer>
 SDLGPUDevice::CreateIndexBuffer(const std::span<const VertexIndex>& indices)
 {
@@ -216,6 +231,21 @@ SDLGPUDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& i
     const uint32_t count = sizeofBuffer / sizeof(VertexIndex);
 
     return IndexBuffer(ib, 0, count);
+}
+
+Result<void>
+SDLGPUDevice::DestroyIndexBuffer(IndexBuffer& buffer)
+{
+    auto sdlBuffer = buffer.Get<SDLGpuIndexBuffer>();
+    if (!sdlBuffer)
+    {
+        return std::unexpected("Invalid index buffer");
+    }
+    
+    delete sdlBuffer;
+    buffer = IndexBuffer(nullptr, 0, 0);
+    
+    return {};
 }
 
 Result<Texture>

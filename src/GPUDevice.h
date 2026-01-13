@@ -18,25 +18,19 @@ class FragmentShaderSpec;
 /// @brief GPU representation of a vertex buffer.
 class GpuVertexBuffer
 {
-public:
-
-    virtual ~GpuVertexBuffer() = 0 {}
 protected:
 
-    GpuVertexBuffer() = default;
-    IMPLEMENT_REFCOUNT(GpuVertexBuffer);
+    GpuVertexBuffer() {}
+    virtual ~GpuVertexBuffer() = 0 {}
 };
 
 /// @brief GPU representation of an index buffer.
 class GpuIndexBuffer
 {
-public:
-
-    virtual ~GpuIndexBuffer() = 0 {}
 protected:
 
-    GpuIndexBuffer() = default;
-    IMPLEMENT_REFCOUNT(GpuIndexBuffer);
+    GpuIndexBuffer() {}
+    virtual ~GpuIndexBuffer() = 0 {}
 };
 
 /// @brief GPU representation of a vertex shader.
@@ -69,7 +63,6 @@ class GpuTexture
 protected:
 
     GpuTexture() {}
-
     virtual ~GpuTexture() = 0 {}
 };
 
@@ -80,10 +73,10 @@ class VertexBuffer
 public:
 
     VertexBuffer() = default;
-    VertexBuffer(RefPtr<GpuVertexBuffer> buffer, const uint32_t itemOffset, const uint32_t itemCount)
+    VertexBuffer(GpuVertexBuffer* buffer, const uint32_t itemOffset, const uint32_t itemCount)
         : m_Buffer(buffer)
-        , ByteOffset(itemOffset * sizeof(Vertex))
-        , ItemCount(itemCount)
+        , m_ByteOffset(itemOffset * sizeof(Vertex))
+        , m_ItemCount(itemCount)
     {
     }
 
@@ -93,28 +86,32 @@ public:
         const uint32_t itemCount)
     {
         expect(IsValid(), "Invalid buffer");
-        expect(itemOffset + itemCount <= this->ItemCount, "Sub-range out of bounds");
+        expect(itemOffset + itemCount <= m_ItemCount, "Sub-range out of bounds");
 
         return VertexBuffer(m_Buffer, itemOffset, itemCount);
     }
 
     template<typename T>
-    T* Get() { return m_Buffer.Get<T>(); }
+    T* Get() { return static_cast<T*>(m_Buffer); }
     
     template<typename T>
-    const T* Get() const { return m_Buffer.Get<T>(); }
+    const T* Get() const { return static_cast<const T*>(m_Buffer); }
 
     bool IsValid() const { return m_Buffer != nullptr; }
 
     /// @brief Offset in bytes of first item in buffer.
-    const uint32_t ByteOffset;
+    uint32_t GetByteOffset() const { return m_ByteOffset; }
 
     /// @brief Number of items in buffer.
-    const uint32_t ItemCount;
+    uint32_t GetItemCount() const { return m_ItemCount; }
 
 private:
 
-    RefPtr<GpuVertexBuffer> m_Buffer;
+    GpuVertexBuffer* m_Buffer{nullptr};
+
+    uint32_t m_ByteOffset{0};
+
+    uint32_t m_ItemCount{0};
 };
 
 /// @brief API representation of an index buffer.
@@ -124,10 +121,10 @@ class IndexBuffer
 public:
 
     IndexBuffer() = default;
-    IndexBuffer(RefPtr<GpuIndexBuffer> buffer, const uint32_t itemOffset, const uint32_t itemCount)
+    IndexBuffer(GpuIndexBuffer* buffer, const uint32_t itemOffset, const uint32_t itemCount)
         : m_Buffer(buffer)
-        , ByteOffset(itemOffset * sizeof(VertexIndex))
-        , ItemCount(itemCount)
+        , m_ByteOffset(itemOffset * sizeof(VertexIndex))
+        , m_ItemCount(itemCount)
     {
     }
 
@@ -137,28 +134,30 @@ public:
         const uint32_t itemCount)
     {
         expect(IsValid(), "Invalid buffer");
-        expect(itemOffset + itemCount <= this->ItemCount, "Sub-range out of bounds");
+        expect(itemOffset + itemCount <= m_ItemCount, "Sub-range out of bounds");
 
         return IndexBuffer(m_Buffer, itemOffset, itemCount);
     }
 
     template<typename T>
-    T* Get() { return m_Buffer.Get<T>(); }
+    T* Get() { return static_cast<T*>(m_Buffer); }
     
     template<typename T>
-    const T* Get() const { return m_Buffer.Get<T>(); }
+    const T* Get() const { return static_cast<const T*>(m_Buffer); }
 
     bool IsValid() const { return m_Buffer != nullptr; }
 
-    /// @brief Offset in bytes of first item in buffer.
-    const uint32_t ByteOffset;
+    uint32_t GetByteOffset() const { return m_ByteOffset; }
 
-    /// @brief Number of items in buffer.
-    const uint32_t ItemCount;
+    uint32_t GetItemCount() const { return m_ItemCount; }
 
 private:
 
-    RefPtr<GpuIndexBuffer> m_Buffer;
+    GpuIndexBuffer* m_Buffer{nullptr};
+
+    uint32_t m_ByteOffset{0};
+
+    uint32_t m_ItemCount{0};
 };
 
 /// @brief API representation of a vertex shader.
@@ -257,6 +256,9 @@ public:
     virtual Result<VertexBuffer> CreateVertexBuffer(
         const std::span<std::span<const Vertex>>& vertices) = 0;
 
+    /// @brief Destroys a vertex buffer.
+    virtual Result<void> DestroyVertexBuffer(VertexBuffer& buffer) = 0;
+
     /// @brief Creates an index buffer from the given indices.
     virtual Result<IndexBuffer> CreateIndexBuffer(
         const std::span<const VertexIndex>& indices) = 0;
@@ -264,6 +266,9 @@ public:
     /// @brief Creates an index buffer from multiple spans of indices.
     virtual Result<IndexBuffer> CreateIndexBuffer(
         const std::span<std::span<const VertexIndex>>& indices) = 0;
+
+    /// @brief Destroys an index buffer.
+    virtual Result<void> DestroyIndexBuffer(IndexBuffer& buffer) = 0;
 
     /// @brief Creates a texture from an image.
     virtual Result<Texture> CreateTexture(const Image& image) = 0;

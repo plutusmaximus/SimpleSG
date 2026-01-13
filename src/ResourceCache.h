@@ -156,6 +156,8 @@ private:
     };
 
     GPUDevice* const m_GpuDevice;
+    std::vector<VertexBuffer> m_VertexBuffers;
+    std::vector<IndexBuffer> m_IndexBuffers;
     Cache<Model> m_ModelCache;
     Cache<Texture> m_TextureCache;
     Cache<VertexShader> m_VertexShaderCache;

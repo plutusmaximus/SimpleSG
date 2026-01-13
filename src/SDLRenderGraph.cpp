@@ -16,6 +16,15 @@ SDLRenderGraph::~SDLRenderGraph()
 {
     WaitForFence();
 
+    if(m_DefaultAlbedoTexture.IsValid())
+    {
+        auto result = m_GpuDevice->DestroyTexture(m_DefaultAlbedoTexture);
+        if(!result)
+        {
+            logError("Failed to destroy default albedo texture: {}", result.error());
+        }
+    }
+
     SDL_ReleaseGPUTexture(m_GpuDevice->Device, m_DepthBuffer);
 
     for(const auto& state: m_State)
@@ -193,14 +202,14 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
                 SDL_GPUBufferBinding vertexBufferBinding
                 {
                     .buffer = mesh.VtxBuffer.Get<SDLGpuVertexBuffer>()->Buffer,
-                    .offset = mesh.VtxBuffer.ByteOffset
+                    .offset = mesh.VtxBuffer.GetByteOffset()
                 };
                 SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBufferBinding, 1);
 
                 SDL_GPUBufferBinding indexBufferBinding
                 {
                     .buffer = mesh.IdxBuffer.Get<SDLGpuIndexBuffer>()->Buffer,
-                    .offset = mesh.IdxBuffer.ByteOffset
+                    .offset = mesh.IdxBuffer.GetByteOffset()
                 };
 
                 static_assert(VERTEX_INDEX_BITS == 32 || VERTEX_INDEX_BITS == 16);
