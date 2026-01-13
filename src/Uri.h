@@ -11,6 +11,11 @@ class Uri
 public:
     Uri() = default;
 
+    explicit Uri(const char* uri)
+    {
+        assign(uri);
+    }
+
     explicit Uri(const imstring& uri)
     {
         assign(uri);
@@ -225,6 +230,12 @@ private:
         }
 
         return v;
+    }
+
+    void assign(const char* uri)
+    {
+        storage_ = uri;
+        parse_views(static_cast<std::string_view>(storage_));
     }
 
     void assign(const imstring& uri)
