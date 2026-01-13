@@ -78,6 +78,19 @@ static void ProcessNodes(
         imvector<TransformNode>::builder& transformNodes,
         const std::filesystem::path& parentPath);
 
+ResourceCache::~ResourceCache()
+{
+    for(auto& entry : m_TextureCache)
+    {
+        // Release texture resources
+        auto result = m_GpuDevice->DestroyTexture(entry.Value);
+        if(!result)
+        {
+            logError("Failed to destroy texture: {}", result.error());
+        }
+    }
+}
+
 Result<Model>
 ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view filePath)
 {

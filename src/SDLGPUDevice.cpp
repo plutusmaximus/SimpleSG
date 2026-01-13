@@ -238,6 +238,21 @@ SDLGPUDevice::CreateTexture(const RgbaColorf& color)
     return CreateTexture(1, 1, pixelData);
 }
 
+Result<void>
+SDLGPUDevice::DestroyTexture(Texture& texture)
+{
+    auto sdlTexture = texture.Get<SDLGpuTexture>();
+    if (!sdlTexture)
+    {
+        return std::unexpected("Invalid texture");
+    }
+    
+    delete sdlTexture;
+    texture = Texture();
+
+    return {};
+}
+
 Result<VertexShader>
 SDLGPUDevice::CreateVertexShader(const VertexShaderSpec& shaderSpec)
 {

@@ -179,6 +179,9 @@ public:
     /// @brief Creates a 1x1 texture from a color.
     Result<Texture> CreateTexture(const RgbaColorf& color) override;
 
+    /// @brief Destroys a texture.
+    virtual Result<void> DestroyTexture(Texture& texture) override;
+
     Result<VertexShader> CreateVertexShader(const VertexShaderSpec& shaderSpec) override;
 
     Result<FragmentShader> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) override;

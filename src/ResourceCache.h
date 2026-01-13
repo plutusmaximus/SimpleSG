@@ -12,11 +12,15 @@ public:
     ResourceCache() = delete;
     ResourceCache(const ResourceCache&) = delete;
     ResourceCache& operator=(const ResourceCache&) = delete;
+    ResourceCache(ResourceCache&&) = delete;
+    ResourceCache& operator=(ResourceCache&&) = delete;
 
     explicit ResourceCache(GPUDevice* gpuDevice)
         : m_GpuDevice(gpuDevice)
     {
     }
+
+    ~ResourceCache();
 
     /// @brief Loads a model from file if not already loaded.
     Result<Model> LoadModelFromFile(const CacheKey& cacheKey, std::string_view filePath);
@@ -91,19 +95,6 @@ private:
             return true;
         }
 
-        bool TryRemove(const CacheKey& key)
-        {
-            auto it = Find(key);
-
-            if(it == m_Entries.end() || it->Key != key)
-            {
-                return false;
-            }
-
-            m_Entries.erase(it);
-            return true;
-        }
-
         bool Contains(const CacheKey& key) const
         {
             auto it = Find(key);
@@ -138,6 +129,26 @@ private:
                 {
                     return entry.Key < key;
                 });
+        }
+
+        Iterator begin()
+        {
+            return m_Entries.begin();
+        }
+
+        ConstIterator begin() const
+        {
+            return m_Entries.begin();
+        }
+
+        Iterator end()
+        {
+            return m_Entries.end();
+        }
+
+        ConstIterator end() const
+        {
+            return m_Entries.end();
         }
 
     private:

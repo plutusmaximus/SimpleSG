@@ -66,13 +66,11 @@ public:
 /// @brief GPU representation of a texture.
 class GpuTexture
 {
-public:
+protected:
 
     GpuTexture() {}
-    
-    virtual ~GpuTexture() = 0 {}
 
-    IMPLEMENT_REFCOUNT(GpuTexture);
+    virtual ~GpuTexture() = 0 {}
 };
 
 /// @brief API representation of a vertex buffer.
@@ -223,22 +221,22 @@ public:
 
     Texture() = default;
 
-    explicit Texture(RefPtr<GpuTexture> texture)
+    explicit Texture(GpuTexture* texture)
         : m_Texture(texture)
     {
     }
 
     template<typename T>
-    T* Get() { return m_Texture.Get<T>(); }
+    T* Get() { return static_cast<T*>(m_Texture); }
 
     template<typename T>
-    const T* Get() const { return m_Texture.Get<T>(); }
+    const T* Get() const { return static_cast<const T*>(m_Texture); }
 
     bool IsValid() const { return m_Texture != nullptr; }
 
 private:
 
-    RefPtr<GpuTexture> m_Texture;
+    GpuTexture* m_Texture{ nullptr };
 };
 
 /// @brief Abstract base class for GPU device implementation.
@@ -272,6 +270,9 @@ public:
 
     /// @brief Creates a 1x1 texture from a color.
     virtual Result<Texture> CreateTexture(const RgbaColorf& color) = 0;
+
+    /// @brief Destroys a texture.
+    virtual Result<void> DestroyTexture(Texture& texture) = 0;
 
     /// @brief Creates a vertex shader from the given specification.
     virtual Result<VertexShader> CreateVertexShader(const VertexShaderSpec& shaderSpec) = 0;
