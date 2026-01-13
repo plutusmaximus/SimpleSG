@@ -250,7 +250,7 @@ SDLGPUDevice::CreateVertexShader(const VertexShaderSpec& shaderSpec)
 
     expect(shaderResult, shaderResult.error());
 
-    RefPtr<GpuVertexShader> gpuShader = new SDLGpuVertexShader(Device, shaderResult.value());
+    GpuVertexShader* gpuShader = new SDLGpuVertexShader(Device, shaderResult.value());
     expect(gpuShader, "Error allocating SDLGPUVertexShader");
 
     return VertexShader(gpuShader);
@@ -271,7 +271,7 @@ SDLGPUDevice::CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
 
     expect(shaderResult, shaderResult.error());
 
-    RefPtr<GpuFragmentShader> gpuShader = new SDLGpuFragmentShader(Device, shaderResult.value());
+    GpuFragmentShader* gpuShader = new SDLGpuFragmentShader(Device, shaderResult.value());
     expect(gpuShader, "Error allocating SDLGPUFragmentShader");
 
     return FragmentShader(gpuShader);
@@ -482,7 +482,7 @@ SDLGPUDevice::CreateTexture(const unsigned width, const unsigned height, const u
         expect(m_Sampler, SDL_GetError());
     }
 
-    RefPtr<SDLGpuTexture> gpuTex = new SDLGpuTexture(Device, texture, m_Sampler);
+    SDLGpuTexture* gpuTex = new SDLGpuTexture(Device, texture, m_Sampler);
 
     expectv(gpuTex, "Error allocating SDLGPUTexture");
 
