@@ -245,6 +245,12 @@ private:
     }
 
     // Mapping from EntityId to index in the component vector.
+    // This allows for quick lookup of components by entity ID.
+    // It's a sparse index, so there will be gaps.
+    // It's length will be at least the maximum entity ID value.
+    // This is usually ok because entity IDs are recycled.
+    // The index will stabilize at some point - when the number of
+    // entities created and retired balance.
     std::vector<IndexType> m_Index;
     // Entity IDs indexed by m_Index.
     std::vector<EntityId> m_EntityIds;

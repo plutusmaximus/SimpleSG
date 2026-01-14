@@ -11,8 +11,9 @@ class GpuFragmentShader;
 
 /// @brief RGBA color representation.
 template<typename T>
-struct RgbaColor
+class RgbaColor
 {
+public:
     constexpr RgbaColor()
         : RgbaColor(0, 0, 0, 0)
     {

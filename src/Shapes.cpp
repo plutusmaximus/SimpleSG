@@ -156,7 +156,7 @@ Shapes::Ball(const float diameter, const float smoothness)
         const float len = std::sqrt(mid.x * mid.x + mid.y * mid.y + mid.z * mid.z);
         mid.x /= len; mid.y /= len; mid.z /= len;
 
-        VertexIndex newIdx = vertices.size();
+        VertexIndex newIdx = static_cast<VertexIndex>(vertices.size());
         vertices.push_back({ mid, {mid.x, mid.y, mid.z} });
         midpointCache[key] = newIdx;
         return newIdx;

@@ -185,7 +185,7 @@ SDLGPUDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& verti
         return std::unexpected("Error allocating SDLGpuVertexBuffer");
     }
 
-    const uint32_t count = sizeofBuffer / sizeof(Vertex);
+    const uint32_t count = static_cast<uint32_t>(sizeofBuffer / sizeof(Vertex));
 
     return VertexBuffer(vb, 0, count);
 }
@@ -228,7 +228,7 @@ SDLGPUDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& i
         return std::unexpected("Error allocating SDLGpuIndexBuffer");
     }
 
-    const uint32_t count = sizeofBuffer / sizeof(VertexIndex);
+    const uint32_t count = static_cast<uint32_t>(sizeofBuffer / sizeof(VertexIndex));
 
     return IndexBuffer(ib, 0, count);
 }

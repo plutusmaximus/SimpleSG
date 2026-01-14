@@ -35,28 +35,28 @@ private:
     template<size_type N>
     static block* make_block(const std::array<const char*, N>& ss, const std::array<size_type, N>& nn)
     {
-        size_type n = 0;
+        size_type totalLen = 0;
         for(size_type i = 0; i < N; ++i)
         {
-            n += nn[i];
+            totalLen += nn[i];
         }
 
-        if (n == 0)
+        if (totalLen == 0)
         {
             static block empty{ std::atomic_uint32_t{UINT32_MAX}, 0, { '\0' } };
             return &empty;
         }
 
-        auto* mem = ::operator new(sizeof(block) + n);
-        auto* b = new (mem) block{ std::atomic_uint32_t{1}, n, { 0 } };
+        auto* mem = ::operator new(sizeof(block) + totalLen);
+        auto* b = new (mem) block{ std::atomic_uint32_t{1}, totalLen, { 0 } };
 
         char* p = b->data;
         for(size_type i = 0; i < N; ++i)
         {
             const char* s = ss[i];
             if(!s) continue;
-            const size_type n = nn[i];
-            for(size_type j = 0; j < n; ++j, ++p, ++s)
+            const size_type len = nn[i];
+            for(size_type j = 0; j < len; ++j, ++p, ++s)
             {
                 *p = *s;
             }
@@ -64,7 +64,7 @@ private:
 
         *p = '\0';
 
-        b->hashCode = std::hash<std::string_view>{}(std::string_view(b->data, n));
+        b->hashCode = std::hash<std::string_view>{}(std::string_view(b->data, totalLen));
         return b;
     }
 
@@ -250,8 +250,6 @@ public:
     {
         if (a.empty()) return b;
         if (b.empty()) return a;
-
-        const size_type n = a.size() + b.size();
 
         // allocate via make_block, then fill
         block* blk = make_block(std::array{a.data(), b.data()}, std::array{a.size(), b.size()});
