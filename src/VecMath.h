@@ -5,131 +5,22 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
-template<typename T> class Radians;
-
-template <typename T>
-class Degrees
-{
-public:
-
-    Degrees() = default;
-
-    explicit constexpr Degrees(const T value) : m_Value(value)
-    {
-    }
-
-    Degrees<T>& operator=(const T other)
-    {
-        m_Value = other;
-        return *this;
-    }
-
-    static constexpr Degrees<T> FromRadians(const Radians<T> radians);
-
-    static constexpr Degrees<T> FromRadians(const T radians);
-
-    constexpr Radians<T> ToRadians() const;
-
-    constexpr Degrees<T> operator+(const Degrees<T> other) const
-    {
-        return Degrees<T>(m_Value + other.m_Value);
-    }
-
-    constexpr Degrees<T> operator+(const T other) const
-    {
-        return Degrees<T>(m_Value + other);
-    }
-
-    constexpr Degrees<T> operator-(const Degrees<T> other) const
-    {
-        return Degrees<T>(m_Value - other.m_Value);
-    }
-
-    constexpr Degrees<T> operator-(const T other) const
-    {
-        return Degrees<T>(m_Value - other);
-    }
-
-    constexpr Degrees<T> operator*(const T other) const
-    {
-        return Degrees<T>(m_Value * other);
-    }
-
-    constexpr Degrees<T> operator-() const
-    {
-        return Degrees<T>(-m_Value);
-    }
-
-    constexpr Degrees<T>& operator+=(const Degrees<T> other)
-    {
-        m_Value += other.m_Value;
-        return *this;
-    }
-
-    constexpr Degrees<T>& operator+=(const T other)
-    {
-        m_Value += other;
-        return *this;
-    }
-
-    constexpr Degrees<T>& operator-=(const Degrees<T> other)
-    {
-        m_Value -= other.m_Value;
-        return *this;
-    }
-
-    constexpr Degrees<T>& operator-=(const T other)
-    {
-        m_Value -= other;
-        return *this;
-    }
-
-    constexpr Degrees<T> operator*=(const T other)
-    {
-        m_Value *= other;
-        return *this;
-    }
-
-    constexpr bool operator==(const T other) const
-    {
-        // Using a small epsilon for floating-point comparison
-        constexpr T EPSILON = static_cast<T>(1e-10);
-        return std::abs(m_Value - other.m_Value) < EPSILON;
-    }
-
-    constexpr bool operator!=(const Degrees<T> other) const
-    {
-        return !(*this == other);
-    }
-
-    constexpr T Value() const
-    {
-        return m_Value;
-    }
-
-    Degrees<T> Wrap() const
-    {
-        T t = m_Value;
-        while (t < MIN) { t += MAX; }
-        while (t > MAX) { t -= MAX; }
-        return Degrees<T>(t);
-    }
-
-private:
-    static constexpr T MAX = 360;
-    static constexpr T MIN = -360;
-
-    T m_Value;
-};
-
 template <typename T>
 class Radians
 {
+    static constexpr T MAX = 2 * std::numbers::pi_v<T>;
+
+    constexpr static T Wrap(const T value)
+    {
+        return value - (static_cast<int>(value / MAX) * MAX);
+    }
+
 public:
 
     Radians() = default;
 
-    explicit constexpr Radians(const T value) : m_Value(value)
+    explicit constexpr Radians(const T value)
+     : m_Value(Wrap(value))
     {
     }
 
@@ -139,19 +30,9 @@ public:
         return *this;
     }
 
-    static constexpr Radians<T> FromDegrees(const Degrees<T> degrees)
-    {
-        return FromDegrees(degrees.Value());
-    }
-
     static constexpr Radians<T> FromDegrees(const T degrees)
     {
         return Radians<T>(degrees * std::numbers::pi_v<T> / 180);
-    }
-
-    constexpr Degrees<T> ToDegrees() const
-    {
-        return Degrees<T>::FromRadians(*this);
     }
 
     constexpr Radians<T> operator+(const Radians<T> other) const
@@ -186,42 +67,49 @@ public:
 
     constexpr Radians<T>& operator+=(const Radians<T> other)
     {
-        m_Value += other.m_Value;
-        return *this;
+        return *this = *this + other;
     }
 
     constexpr Radians<T>& operator+=(const T other)
     {
-        m_Value += other;
-        return *this;
+        return *this = *this + other;
     }
 
     constexpr Radians<T>& operator-=(const Radians<T> other)
     {
-        m_Value -= other.value;
-        return *this;
+        return *this = *this - other;
     }
 
     constexpr Radians<T>& operator-=(const T other)
     {
-        m_Value -= other;
-        return *this;
+        return *this = *this - other;
     }
 
-    constexpr Radians<T> operator*=(const T other)
+    constexpr Radians<T>& operator*=(const T other)
     {
-        m_Value *= other;
-        return *this;
+        return *this = *this * other;
     }
 
-    constexpr bool operator==(const T other) const
+    constexpr bool operator==(const Radians<T> other) const
     {
         // Using a small epsilon for floating-point comparison
         constexpr T EPSILON = static_cast<T>(1e-10);
         return std::abs(m_Value - other.m_Value) < EPSILON;
     }
 
+    constexpr bool operator==(const T other) const
+    {
+        // Using a small epsilon for floating-point comparison
+        constexpr T EPSILON = static_cast<T>(1e-10);
+        return std::abs(m_Value - other) < EPSILON;
+    }
+
     constexpr bool operator!=(const Radians<T> other) const
+    {
+        return !(*this == other);
+    }
+
+    constexpr bool operator!=(const T other) const
     {
         return !(*this == other);
     }
@@ -231,43 +119,10 @@ public:
         return m_Value;
     }
 
-    Radians<T> Wrap() const
-    {
-        T t = m_Value;
-        while (t < MIN) { t += MAX; }
-        while (t > MAX) { t -= MAX; }
-        return Radians<T>(t);
-    }
-
 private:
-    static constexpr T MAX = 2 * std::numbers::pi_v<T>;
-    static constexpr T MIN = -2 * std::numbers::pi_v<T>;
-    T m_Value;
+
+    T m_Value{0};
 };
-
-template<typename T>
-inline constexpr Degrees<T> Degrees<T>::FromRadians(Radians<T> radians)
-{
-    return FromRadians(radians.Value());
-}
-
-template<typename T>
-inline constexpr Degrees<T> Degrees<T>::FromRadians(const T radians)
-{
-    return Degrees<T>(radians * 180 / std::numbers::pi_v<T>);
-}
-
-template<typename T>
-inline constexpr Radians<T> Degrees<T>::ToRadians() const
-{
-    return Radians<T>::FromDegrees(*this);
-}
-
-template<typename T>
-inline constexpr Degrees<T> operator*(const T a, const Degrees<T> b)
-{
-    return b * a;
-}
 
 template<typename T>
 inline constexpr Radians<T> operator*(const T a, const Radians<T> b)
@@ -532,11 +387,6 @@ public:
     {
     }
 
-    Quat(const Degrees<T> angle, const Vec3<T>& axis)
-        : Quat(angle.ToRadians(), axis)
-    {
-    }
-
     Quat(const Radians<T> angle, const Vec3<T>& axis)
         : Base(glm::angleAxis(angle.Value(), axis))
     {
@@ -655,19 +505,9 @@ public:
         return IDENT;
     }
 
-    static Mat44 PerspectiveRH(const Degrees<T> fov, const T width, const T height, const T nearClip, const T farClip)
-    {
-        return PerspectiveRH(fov.ToRadians(), width, height, nearClip, farClip);
-    }
-
     static Mat44 PerspectiveRH(const Radians<T> fov, const T width, const T height, const T nearClip, const T farClip)
     {
         return glm::perspectiveFovRH(fov.Value(), width, height, nearClip, farClip);
-    }
-
-    static Mat44 PerspectiveLH(const Degrees<T> fov, const T width, const T height, const T nearClip, const T farClip)
-    {
-        return PerspectiveLH(fov.ToRadians(), width, height, nearClip, farClip);
     }
 
     static Mat44 PerspectiveLH(const Radians<T> fov, const T width, const T height, const T nearClip, const T farClip)
@@ -755,7 +595,6 @@ struct Point
     }
 };
 
-using Degreesf = Degrees<float>;
 using Radiansf = Radians<float>;
 using Vec2f = Vec2<float>;
 using Vec3f = Vec3<float>;

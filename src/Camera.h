@@ -8,7 +8,7 @@ public:
 
     Camera() = default;
 
-    void SetPerspective(const Degreesf fov, const Extent& screenBounds, const float nearClip, const float farClip);
+    void SetPerspective(const Radiansf fov, const Extent& screenBounds, const float nearClip, const float farClip);
 
     void SetBounds(const Extent& screenBounds);
 
@@ -16,7 +16,7 @@ public:
 
 private:
 
-    Degreesf m_Fov{ 0 };
+    Radiansf m_Fov;
     Extent m_Bounds{ 0,0 };
     float m_Near{ 0 };
     float m_Far{ 0 };

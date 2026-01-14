@@ -67,10 +67,12 @@ public:
         m_EidCamera = m_Registry.Create();
 
         m_ScreenBounds = m_GpuDevice->GetExtent();
+
+        constexpr Radiansf fov = Radiansf::FromDegrees(45);
         
         m_Registry.Add(m_EidCamera, TrsTransformf{}, WorldMatrix{}, Camera{});
         m_Registry.Get<TrsTransformf>(m_EidCamera).T = Vec3f{ 0,0,-4 };
-        m_Registry.Get<Camera>(m_EidCamera).SetPerspective(Degreesf(45), m_ScreenBounds, 0.1f, 1000);
+        m_Registry.Get<Camera>(m_EidCamera).SetPerspective(fov, m_ScreenBounds, 0.1f, 1000);
         m_WalkMouseNav.SetTransform(m_Registry.Get<TrsTransformf>(m_EidCamera));
 
         m_State = State::Running;

@@ -68,7 +68,7 @@ public:
         expect(modelResult, modelResult.error());
         auto model = modelResult.value();
 
-        const Degreesf fov(45);
+        constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
         m_Registry.Add(m_EidPlanet, ChildTransform{}, WorldMatrix{}, model);
         m_Registry.Add(m_EidMoonOrbit, ChildTransform{ .ParentId = m_EidPlanet }, WorldMatrix{});
@@ -123,9 +123,9 @@ public:
         m_Registry.Get<TrsTransformf>(m_EidCamera) = m_MouseNav->GetTransform();
 
         // Update model matrix
-        m_PlanetSpinAngle = (m_PlanetSpinAngle + 0.001f).Wrap();
-        m_MoonSpinAngle = (m_MoonSpinAngle - 0.005f).Wrap();
-        m_MoonOrbitAngle = (m_MoonOrbitAngle - 0.005f).Wrap();
+        m_PlanetSpinAngle += 0.001f;
+        m_MoonSpinAngle += 0.005f;
+        m_MoonOrbitAngle += 0.005f;
 
         const Quatf planetTilt{ Radiansf::FromDegrees(15), Vec3f::ZAXIS() };
 

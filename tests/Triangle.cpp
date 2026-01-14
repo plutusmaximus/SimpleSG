@@ -33,7 +33,7 @@ public:
 
         m_ScreenBounds = m_GpuDevice->GetExtent();
 
-        const Degreesf fov(45);
+        constexpr Radiansf fov = Radiansf::FromDegrees(45);
         
         m_CameraXform.T = Vec3f{ 0,0,-4 };
         m_Camera.SetPerspective(fov, m_ScreenBounds, 0.1f, 1000);

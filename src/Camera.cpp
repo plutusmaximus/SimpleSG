@@ -1,7 +1,7 @@
 #include "Camera.h"
 
 void
-Camera::SetPerspective(const Degreesf fov, const Extent& screenBounds, const float nearClip, const float farClip)
+Camera::SetPerspective(const Radiansf fov, const Extent& screenBounds, const float nearClip, const float farClip)
 {
     m_Fov = fov;
     m_Near = nearClip;
