@@ -27,12 +27,16 @@ Image::LoadFromFile(const std::string_view path)
 
     auto freePixels = [](uint8_t* p) { stbi_image_free(p); };
 
-    auto sharedPixels = new SharedPixels(pixels, freePixels);
+    auto sharedPixels = std::make_shared<SharedPixels>(pixels, freePixels);
     expect(sharedPixels, "Error allocating SharedPixels");
 
     cleanup.release();
 
-    return Image(static_cast<unsigned>(width), static_cast<unsigned>(height), sharedPixels, Flags::None);
+    return Image(
+        static_cast<unsigned>(width),
+        static_cast<unsigned>(height),
+        std::move(sharedPixels),
+        Image::Flags::None);
 
 }
 
@@ -55,7 +59,7 @@ Image::LoadFromMemory(const std::span<const uint8_t> data)
 
     auto freePixels = [](uint8_t* p) { stbi_image_free(p); };
 
-    auto sharedPixels = new SharedPixels(pixels, freePixels);
+    auto sharedPixels = std::make_shared<SharedPixels>(pixels, freePixels);
     expect(sharedPixels, "Error allocating SharedPixels");
 
     cleanup.release();

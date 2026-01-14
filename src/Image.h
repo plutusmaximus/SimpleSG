@@ -2,8 +2,7 @@
 #include <expected>
 #include <cstdint>
 #include <span>
-
-#include "RefCount.h"
+#include <memory>
 
 #include "Error.h"
 
@@ -16,6 +15,24 @@ public:
         None = 0x0,
         Translucent = 0x1,
     };
+
+    Image(const Image& other)
+        : Width(other.Width)
+        , Height(other.Height)
+        , ImageFlags(other.ImageFlags)
+        , Pixels(other.Pixels)
+        , m_SharedPixels(other.m_SharedPixels)
+    {
+    }
+
+    Image(Image&& other) noexcept
+        : Width(other.Width)
+        , Height(other.Height)
+        , ImageFlags(other.ImageFlags)
+        , Pixels(other.Pixels)
+        , m_SharedPixels(std::move(other.m_SharedPixels))
+    {
+    }
 
     static Result<Image> LoadFromFile(const std::string_view path);
 
@@ -48,11 +65,9 @@ private:
 
         uint8_t* const Pixels;
         void (*FreePixels)(uint8_t*);
-
-        IMPLEMENT_REFCOUNT(SharedPixels);
     };
 
-    Image(const unsigned width, const unsigned height, RefPtr<SharedPixels> pixels, const Flags flags)
+    Image(const unsigned width, const unsigned height, const std::shared_ptr<SharedPixels>& pixels, const Flags flags)
         : Width(width)
         , Height(height)
         , ImageFlags(flags)
@@ -61,5 +76,14 @@ private:
     {
     }
 
-    RefPtr<SharedPixels> m_SharedPixels;
+    Image(const unsigned width, const unsigned height, std::shared_ptr<SharedPixels>&& pixels, const Flags flags)
+        : Width(width)
+        , Height(height)
+        , ImageFlags(flags)
+        , Pixels(pixels ? pixels->Pixels : nullptr)
+        , m_SharedPixels(std::move(pixels))
+    {
+    }
+
+    std::shared_ptr<SharedPixels> m_SharedPixels;
 };

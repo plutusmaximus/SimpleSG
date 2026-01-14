@@ -74,8 +74,8 @@ Model::Create(
             i, node.ParentIndex);
     }
 
-    Model::Data* data = new Model::Data(meshes, meshInstances, transformNodes);
+    auto data = std::make_shared<Model::Data>(meshes, meshInstances, transformNodes);
     expectv(data, "Error allocating model");
 
-    return Model{data};
+    return Model{std::move(data)};
 }

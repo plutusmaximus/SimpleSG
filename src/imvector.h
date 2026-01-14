@@ -80,6 +80,18 @@ private:
         }
     }
 
+    static void release(block* b) noexcept
+    {
+        if (!b) return;
+        if (is_empty_block(b)) return;
+
+        if (b->refs.fetch_sub(1, std::memory_order_acq_rel) == 1)
+        {
+            destroy_elements(b);
+            deallocate_block_raw(b);
+        }
+    }
+
     static constexpr std::size_t header_bytes() noexcept
     {
         constexpr std::size_t a = alignof(T);
@@ -151,18 +163,6 @@ private:
             {
                 p[i].~T();
             }
-        }
-    }
-
-    static void release(block* b) noexcept
-    {
-        if (!b) return;
-        if (is_empty_block(b)) return;
-
-        if (b->refs.fetch_sub(1, std::memory_order_acq_rel) == 1)
-        {
-            destroy_elements(b);
-            deallocate_block_raw(b);
         }
     }
 
@@ -355,14 +355,12 @@ public:
     }
 
     // ------------------------------
-    // imvector<T>::builder (ownership-transfer build)
-    // Paste this inside class imvector<T> (public section).
+    // imvector<T>::builder
     //
     // Properties:
     // - builder constructs elements directly into an internal block buffer.
     // - build() transfers the block pointer to the returned imvector (no element copy on build()).
     // - Growth reallocates a new block and move-constructs existing elements (like vector growth).
-    // - No exceptions: uses IMVECTOR_FAIL_FAST() on invariant failures.
     // ------------------------------
 
     class builder final

@@ -9,6 +9,10 @@ class RenderGraph
 {
 public:
 
+    RenderGraph() = default;
+    RenderGraph(const RenderGraph&) = delete;
+    RenderGraph& operator=(const RenderGraph&) = delete;
+
     virtual ~RenderGraph() = 0
     {
     }

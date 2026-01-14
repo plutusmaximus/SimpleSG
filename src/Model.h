@@ -3,6 +3,7 @@
 #include "Mesh.h"
 
 #include <vector>
+#include <memory>
 
 /// @brief Node representing a transform in a model's hierarchy.
 /// Mesh instances reference these nodes for their transforms.
@@ -70,13 +71,17 @@ private:
         const imvector<Mesh> Meshes;
         const imvector<MeshInstance> MeshInstances;
         const imvector<TransformNode> TransformNodes;
-        IMPLEMENT_REFCOUNT(Data);
     };
 
-    explicit Model(RefPtr<Data> data)
+    explicit Model(const std::shared_ptr<Data>& data)
+        : m_Data(data)
+    {
+    }
+
+    explicit Model(std::shared_ptr<Data>&& data)
         : m_Data(std::move(data))
     {
     }
 
-    RefPtr<Data> m_Data;
+    std::shared_ptr<Data> m_Data;
 };
