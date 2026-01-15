@@ -117,21 +117,60 @@ add_custom_target(copy_models
 # ============================================================
 # Library: ssg
 # ============================================================
-file(GLOB_RECURSE SSG_CPP CONFIGURE_DEPENDS src/*.cpp)
-file(GLOB_RECURSE SSG_HEADERS CONFIGURE_DEPENDS src/*.h)
+set(SSG_SOURCES
+  src/Camera.cpp
+  src/EcsChildTransformPool.cpp
+  src/Error.cpp
+  src/Image.cpp
+  src/Model.cpp
+  src/ResourceCache.cpp
+  src/SDLGPUDevice.cpp
+  src/SDLRenderGraph.cpp
+  src/Shapes.cpp
+  src/SpaceMouse.cpp
+  src/Stopwatch.cpp
+)
 
-add_library(ssg ${SSG_CPP})
+set(SSG_HEADERS
+  src/Camera.h
+  src/ECS.h
+  src/EcsChildTransformPool.h
+  src/Error.h
+  src/GPUDevice.h
+  src/Image.h
+  src/Material.h
+  src/Mesh.h
+  src/Model.h
+  src/RenderGraph.h
+  src/ResourceCache.h
+  src/SDLGPUDevice.h
+  src/SDLRenderGraph.h
+  src/Shapes.h
+  src/SpaceMouse.h
+  src/Stopwatch.h
+  src/Uri.h
+  src/VecMath.h
+  src/Vertex.h
+  src/imstring.h
+  src/imvector.h
+  src/scope_exit.h
+)
+
+add_library(ssg)
 add_library(ssg::ssg ALIAS ssg)
-target_sources(ssg PUBLIC FILE_SET HEADERS BASE_DIRS src FILES ${SSG_HEADERS})
+target_sources(ssg
+  PRIVATE ${SSG_SOURCES}
+  PUBLIC FILE_SET HEADERS BASE_DIRS src FILES ${SSG_HEADERS}
+)
 
 target_link_libraries(ssg PUBLIC glm::glm spdlog::spdlog SDL3::SDL3 assimp::assimp)
 target_include_directories(ssg PUBLIC src PRIVATE thirdparty/stb)
 
 if(MSVC)
   target_compile_definitions(ssg PRIVATE _HAS_EXCEPTIONS=0)
-  target_compile_options(ssg PRIVATE /GR-)
+  target_compile_options(ssg PRIVATE /GR- /W4 /WX)
 else()
-  target_compile_options(ssg PRIVATE -fno-exceptions)
+  target_compile_options(ssg PRIVATE -fno-exceptions -Wall -Wextra -Wpedantic -Werror)
 endif()
 
 if(SIMPLESG_STRICT)
