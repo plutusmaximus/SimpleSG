@@ -1,0 +1,42 @@
+---
+# Based on the coding style in SimpleSG src directory
+Language: Cpp
+BasedOnStyle: LLVM
+
+# Column limit
+ColumnLimit: 100
+
+# Strings
+BreakStringLiterals: false
+
+# Braces
+BreakBeforeBraces: Allman
+Cpp11BracedListStyle: false
+
+# Spaces
+SpaceBeforeParens: Never
+SpaceAfterTemplateKeyword: false
+SpaceInTemplateSpecializations: false
+SpaceBeforeTemplateClosingAngleBracket: false
+
+# Includes
+SortIncludes: CaseInsensitive
+IncludeBlocks: Regroup
+
+# Function parameters
+BinPackParameters: OnePerLine
+BinPackArguments: false
+AllowAllArgumentsOnNextLine: false
+AlwaysBreakAfterReturnType: TopLevelDefinitions
+AlignAfterOpenBracket: DontAlign
+
+# Constructor initializers
+BreakConstructorInitializers: BeforeColon
+PackConstructorInitializers: Never
+
+# Indentation
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ContinuationIndentWidth: 4
+AccessModifierOffset: -4
