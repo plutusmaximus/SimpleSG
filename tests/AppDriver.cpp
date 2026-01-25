@@ -1,5 +1,6 @@
 #include "AppDriver.h"
 #include "Application.h"
+#include "FileIo.h"
 #include "SdlGpuDevice.h"
 #include "Stopwatch.h"
 #include "scope_exit.h"
@@ -42,7 +43,7 @@ AppDriver::Init()
 {
     if(!everify(State::None == m_State, "AppDriver already initialized or running"))
     {
-        return std::unexpected(Error("AppDriver already initialized or running"));
+        return Error("AppDriver already initialized or running");
     }
 
     logSetLevel(spdlog::level::trace);
@@ -73,10 +74,12 @@ AppDriver::Run()
 {
     if(!everify(State::Initialized == m_State, "AppDriver not initialized"))
     {
-        return std::unexpected(Error("AppDriver not initialized"));
+        return Error("AppDriver not initialized");
     }
 
     m_State = State::Running;
+
+    expect(FileIO::Startup(), "Failed to startup File I/O system");
 
     auto gdResult = SdlGpuDevice::Create(m_Window);
     expect(gdResult, gdResult.error());
@@ -101,6 +104,8 @@ AppDriver::Run()
 
     while(running && app->IsRunning())
     {
+        FileIO::ProcessEvents();
+
         app->Update(stopwatch.Mark());
 
         SDL_Event event;
@@ -182,6 +187,8 @@ AppDriver::Run()
     delete resourceCache;
 
     SdlGpuDevice::Destroy(gpuDevice);
+
+    FileIO::Shutdown();
 
     m_State = State::Stopped;
 

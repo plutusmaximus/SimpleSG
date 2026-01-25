@@ -103,7 +103,7 @@ SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
     if(!renderPassResult)
     {
         SDL_CancelGPUCommandBuffer(cmdBuf);
-        return std::unexpected(renderPassResult.error());
+        return Error(renderPassResult.error());
     }
 
     auto renderPass = renderPassResult.value();

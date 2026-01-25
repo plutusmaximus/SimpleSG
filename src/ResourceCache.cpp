@@ -170,8 +170,8 @@ ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view file
 
     SceneMeshCollection meshCollection;
     CollectMeshes(scene, scene->mRootNode, meshCollection);
-    
-    const auto absPath = std::filesystem::absolute(filePath);    
+
+    const auto absPath = std::filesystem::absolute(filePath);
     const auto parentPath = absPath.parent_path();
 
     auto meshSpecCollection = CreateMeshSpecCollection(
@@ -303,7 +303,7 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
 
         auto ibSubrange = ibSubrangeResult.value();
         auto vbSubrange = vbSubrangeResult.value();
-        
+
         Mesh mesh(meshSpec.Name, vbSubrange, ibSubrange, idxCount, mtl);
         idxOffset += idxCount;
         vtxOffset += vtxCount;
@@ -358,7 +358,7 @@ ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
 
     auto createTexAcceptor = acceptor
     {
-        [this](TextureSpec::None_t)->Result<Texture> { return std::unexpected("Texture source is not specified"); },
+        [this](TextureSpec::None_t)->Result<Texture> { return Error("Texture source is not specified"); },
         [this](const std::string& path) { return CreateTexture(path); },
         [this](const RgbaColorf& color) { return m_GpuDevice->CreateTexture(color); }
     };
@@ -377,7 +377,7 @@ Result<VertexShader>
 ResourceCache::GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec)
 {
     const CacheKey cacheKey(std::get<0>(shaderSpec.Source));
-    
+
     VertexShader shader;
     if(m_VertexShaderCache.TryGet(cacheKey, shader))
     {
@@ -399,7 +399,7 @@ Result<FragmentShader>
 ResourceCache::GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec)
 {
     const CacheKey cacheKey(std::get<0>(shaderSpec.Source));
-    
+
     FragmentShader shader;
     if(m_FragmentShaderCache.TryGet(cacheKey, shader))
     {
@@ -464,7 +464,7 @@ static TextureProperties GetTexturePropertiesFromMaterial(
     const std::filesystem::path& parentPath)
 {
     TextureProperties properties;
- 
+
     aiString texPath;
     aiTextureMapping mapping;
     unsigned uvIndex;
@@ -768,7 +768,7 @@ static void ProcessNodes(
 
     const aiMatrix4x4& nodeTransform = node->mTransformation;
     const int nodeIndex = static_cast<int>(transformNodes.size());
-    
+
     transformNodes.emplace_back(
         TransformNode
         {

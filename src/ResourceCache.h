@@ -4,6 +4,94 @@
 #include "Mesh.h"
 #include "Model.h"
 
+#include <memory>
+
+template<typename T>
+class ResourceResult
+{
+    friend class ResourceCache;
+
+public:
+
+    bool IsPending() const
+    {
+        return m_ResultOrState.index() == 1 && !IsCompleted();
+    }
+
+    bool IsCompleted() const
+    {
+        if(m_ResultOrState.index() == 0)
+        {
+            return true;
+        }
+
+        return m_ResultOrState.get<1>()->m_IsCompleted;
+    }
+
+    const Result<T>& GetResult() const
+    {
+        if(!IsCompleted())
+        {
+            return Error("Attempted to get result of a pending resource.");
+        }
+
+        if(m_ResultOrState.index() == 0)
+        {
+            return m_ResultOrState.get<0>().GetResult();
+        }
+
+        return m_ResultOrState.get<1>()->m_Result;
+    }
+
+private:
+
+    struct State
+    {
+        Result<T> m_Result;
+
+        bool m_IsCompleted{ false };
+    };
+
+    ResourceResult() = delete;
+
+    ResourceResult(const Result<T>& result)
+        : m_ResultOrState(result)
+    {
+    }
+
+    ResourceResult(Result<T>&& result)
+        : m_ResultOrState(std::move(result))
+    {
+    }
+
+    ResourceResult(const T& value)
+        : m_ResultOrState(Result<T>(value))
+    {
+    }
+
+    ResourceResult(T&& value)
+        : m_ResultOrState(Result<T>(std::move(value)))
+    {
+    }
+
+    ResourceResult(const Error& error)
+        : m_ResultOrState(Result<T>(error))
+    {
+    }
+
+    ResourceResult(Error&& error)
+        : m_ResultOrState(Result<T>(std::move(error)))
+    {
+    }
+
+    ResourceResult(const std::shared_ptr<State>& state)
+        : m_ResultOrState(state)
+    {
+    }
+
+    std::variant<Result<T>, std::shared_ptr<State>> m_ResultOrState;
+};
+
 /// @brief A cache for loading and storing GPU resources like models, textures, and shaders.
 class ResourceCache
 {

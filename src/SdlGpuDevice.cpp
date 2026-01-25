@@ -107,7 +107,7 @@ SdlGpuDevice::Create(SDL_Window* window)
 
     if (!SDL_ClaimWindowForGPUDevice(sdlDevice, window))
     {
-        return std::unexpected(SDL_GetError());
+        return Error(SDL_GetError());
     }
 
     if(!SDL_SetGPUSwapchainParameters(
@@ -116,7 +116,7 @@ SdlGpuDevice::Create(SDL_Window* window)
         SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
         SDL_GPU_PRESENTMODE_MAILBOX))
     {
-        return std::unexpected(SDL_GetError());
+        return Error(SDL_GetError());
     }
 
     SdlGpuDevice* device = new SdlGpuDevice(window, sdlDevice);
@@ -182,7 +182,7 @@ SdlGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& verti
     if(!vb)
     {
         SDL_ReleaseGPUBuffer(Device, nativeBuf);
-        return std::unexpected("Error allocating SDLGpuVertexBuffer");
+        return Error("Error allocating SDLGpuVertexBuffer");
     }
 
     const uint32_t count = static_cast<uint32_t>(sizeofBuffer / sizeof(Vertex));
@@ -196,7 +196,7 @@ SdlGpuDevice::DestroyVertexBuffer(VertexBuffer& buffer)
     auto sdlBuffer = buffer.Get<SdlGpuVertexBuffer>();
     if (!sdlBuffer)
     {
-        return std::unexpected("Invalid vertex buffer");
+        return Error("Invalid vertex buffer");
     }
 
     delete sdlBuffer;
@@ -225,7 +225,7 @@ SdlGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& i
     if(!ib)
     {
         SDL_ReleaseGPUBuffer(Device, nativeBuf);
-        return std::unexpected("Error allocating SDLGpuIndexBuffer");
+        return Error("Error allocating SDLGpuIndexBuffer");
     }
 
     const uint32_t count = static_cast<uint32_t>(sizeofBuffer / sizeof(VertexIndex));
@@ -239,7 +239,7 @@ SdlGpuDevice::DestroyIndexBuffer(IndexBuffer& buffer)
     auto sdlBuffer = buffer.Get<SdlGpuIndexBuffer>();
     if (!sdlBuffer)
     {
-        return std::unexpected("Invalid index buffer");
+        return Error("Invalid index buffer");
     }
 
     delete sdlBuffer;
@@ -270,7 +270,7 @@ SdlGpuDevice::DestroyTexture(Texture& texture)
     auto sdlTexture = texture.Get<SdlGpuTexture>();
     if (!sdlTexture)
     {
-        return std::unexpected("Invalid texture");
+        return Error("Invalid texture");
     }
 
     delete sdlTexture;
@@ -303,7 +303,7 @@ SdlGpuDevice::DestroyVertexShader(VertexShader& shader)
     auto sdlShader = shader.Get<SdlGpuVertexShader>();
     if (!sdlShader)
     {
-        return std::unexpected("Invalid vertex shader");
+        return Error("Invalid vertex shader");
     }
 
     delete sdlShader;
@@ -339,7 +339,7 @@ SdlGpuDevice::DestroyFragmentShader(FragmentShader& shader)
     auto sdlShader = shader.Get<SdlGpuFragmentShader>();
     if (!sdlShader)
     {
-        return std::unexpected("Invalid fragment shader");
+        return Error("Invalid fragment shader");
     }
 
     delete sdlShader;
