@@ -8,42 +8,66 @@ template<class F>
 using scope_exit = std::scope_exit<F>;
 
 #else
-#include <utility>
+#include <concepts>
+#include <functional>
 #include <type_traits>
+#include <utility>
+
+template<typename F>
+concept IsCallableWithNoArgs = std::invocable<F>;
+
+template<typename F>
+concept ReturnsVoid = std::same_as<std::invoke_result_t<F>, void>;
+
+template<typename F>
+concept CleanupFunc = IsCallableWithNoArgs<F> && ReturnsVoid<F>;
 
 /// @brief A scope guard that executes a provided callable when it goes out of scope.
 /// This is a replacement for std::scope_exit in case it's not available.
 /// As of MSVC 2022, std::scope_exit is not available.
-template<class F>
+template<CleanupFunc F>
 class scope_exit
 {
-public:
-    explicit scope_exit(F&& f) noexcept(std::is_nothrow_move_constructible_v<F>)
-        : f_(std::forward<F>(f)), active_(true) {}
+private:
+    // Always hold a value type (no references) to keep lifetime independent.
+    using StoredF = std::decay_t<F>;
 
-    scope_exit(scope_exit&& other) noexcept(std::is_nothrow_move_constructible_v<F>)
-        : f_(std::move(other.f_)), active_(other.active_)
+public:
+    template<typename U>
+    // Perfect-forward into the stored value: copies lvalues, moves rvalues.
+    explicit scope_exit(U&& f) noexcept(std::is_nothrow_constructible_v<StoredF, U>)
+        requires std::constructible_from<StoredF, U>
+        : m_Fn(std::forward<U>(f))
     {
-        other.active_ = false;
+    }
+
+    scope_exit(scope_exit&& other) noexcept
+        : m_Fn(std::move(other.m_Fn)),
+          m_Active(other.m_Active)
+    {
+        other.m_Active = false;
     }
 
     scope_exit(const scope_exit&) = delete;
     scope_exit& operator=(const scope_exit&) = delete;
     scope_exit& operator=(scope_exit&&) = delete;
 
-    ~scope_exit() noexcept(noexcept(std::declval<F&>()()))
+    ~scope_exit() noexcept
     {
-        if (active_) f_();
+        if(m_Active)
+        {
+            m_Fn();
+        }
     }
 
-    void release() noexcept { active_ = false; }
+    void release() noexcept { m_Active = false; }
 
 private:
-    F f_;
-    bool active_;
+    StoredF m_Fn;
+    bool m_Active{ true };
 };
 
-template<class F>
+template<CleanupFunc F>
 scope_exit(F) -> scope_exit<F>;
 
 #endif
