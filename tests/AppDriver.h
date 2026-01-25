@@ -1,6 +1,6 @@
 #pragma once
 
-#include "GPUDevice.h"
+#include "GpuDevice.h"
 #include "ResourceCache.h"
 
 class Application;

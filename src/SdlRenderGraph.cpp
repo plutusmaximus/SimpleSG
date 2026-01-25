@@ -1,9 +1,9 @@
-#include "SDLRenderGraph.h"
+#include "SdlRenderGraph.h"
 
 #include "Error.h"
 #include "scope_exit.h"
 
-#include "SDLGPUDevice.h"
+#include "SdlGpuDevice.h"
 
 #include <SDL3/SDL_gpu.h>
 

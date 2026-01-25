@@ -1,7 +1,7 @@
-#include "SDLGPUDevice.h"
+#include "SdlGpuDevice.h"
 
 #include "Image.h"
-#include "SDLRenderGraph.h"
+#include "SdlRenderGraph.h"
 #include "scope_exit.h"
 
 #include <SDL3/SDL.h>

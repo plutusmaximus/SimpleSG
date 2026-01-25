@@ -157,15 +157,15 @@ set(SSG_HEADERS
   src/ECS.h
   src/EcsChildTransformPool.h
   src/Error.h
-  src/GPUDevice.h
+  src/GpuDevice.h
   src/Image.h
   src/Material.h
   src/Mesh.h
   src/Model.h
   src/RenderGraph.h
   src/ResourceCache.h
-  src/SDLGPUDevice.h
-  src/SDLRenderGraph.h
+  src/SdlGpuDevice.h
+  src/SdlRenderGraph.h
   src/Shapes.h
   src/SpaceMouse.h
   src/Stopwatch.h

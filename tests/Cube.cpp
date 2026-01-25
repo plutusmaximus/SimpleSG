@@ -7,7 +7,7 @@
 #include "EcsChildTransformPool.h"
 #include "ResourceCache.h"
 #include "MouseNav.h"
-#include "GPUDevice.h"
+#include "GpuDevice.h"
 #include "Shapes.h"
 
 #include "scope_exit.h"

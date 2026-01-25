@@ -3,7 +3,7 @@
 #include "AppDriver.h"
 #include "Application.h"
 #include "Camera.h"
-#include "GPUDevice.h"
+#include "GpuDevice.h"
 #include "ResourceCache.h"
 #include "scope_exit.h"
 

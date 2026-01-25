@@ -1,6 +1,6 @@
 #include "AppDriver.h"
 #include "Application.h"
-#include "SDLGPUDevice.h"
+#include "SdlGpuDevice.h"
 #include "Stopwatch.h"
 #include "scope_exit.h"
 
