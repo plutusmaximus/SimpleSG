@@ -3,6 +3,9 @@
 Language: Cpp
 BasedOnStyle: LLVM
 
+# Templates
+BreakTemplateDeclarations: Yes
+
 # Column limit
 ColumnLimit: 100
 
@@ -12,12 +15,15 @@ BreakStringLiterals: false
 # Braces
 BreakBeforeBraces: Allman
 Cpp11BracedListStyle: false
+AllowShortBlocksOnASingleLine: Never
+#BracedInitializerIndentWidth: 1
 
 # Spaces
 SpaceBeforeParens: Never
 SpaceAfterTemplateKeyword: false
 SpaceInTemplateSpecializations: false
 SpaceBeforeTemplateClosingAngleBracket: false
+IndentCaseLabels: true
 
 # Includes
 SortIncludes: CaseInsensitive
