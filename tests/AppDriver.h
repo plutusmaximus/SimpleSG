@@ -10,12 +10,12 @@ class AppContext
 {
 public:
 
-    AppContext(GPUDevice* gpuDevice, ResourceCache* resourceCache)
+    AppContext(GpuDevice* gpuDevice, ResourceCache* resourceCache)
         : GpuDevice(gpuDevice), ResourceCache(resourceCache)
     {
     }
 
-    GPUDevice* const GpuDevice;
+    GpuDevice* const GpuDevice;
     ResourceCache* const ResourceCache;
 };
 

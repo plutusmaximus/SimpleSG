@@ -15,7 +15,7 @@ public:
     ResourceCache(ResourceCache&&) = delete;
     ResourceCache& operator=(ResourceCache&&) = delete;
 
-    explicit ResourceCache(GPUDevice* gpuDevice)
+    explicit ResourceCache(GpuDevice* gpuDevice)
         : m_GpuDevice(gpuDevice)
     {
     }
@@ -155,7 +155,7 @@ private:
         std::vector<Entry> m_Entries;
     };
 
-    GPUDevice* const m_GpuDevice;
+    GpuDevice* const m_GpuDevice;
     std::vector<VertexBuffer> m_VertexBuffers;
     std::vector<IndexBuffer> m_IndexBuffers;
     Cache<Model> m_ModelCache;

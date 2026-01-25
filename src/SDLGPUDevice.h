@@ -100,7 +100,7 @@ public:
     SDLGpuVertexShader() = delete;
     SDLGpuVertexShader(const SDLGpuVertexShader&) = delete;
     SDLGpuVertexShader& operator=(const SDLGpuVertexShader&) = delete;
-    
+
     ~SDLGpuVertexShader() override;
 
     SDL_GPUShader* const Shader;
@@ -125,7 +125,7 @@ public:
     SDLGpuFragmentShader() = delete;
     SDLGpuFragmentShader(const SDLGpuFragmentShader&) = delete;
     SDLGpuFragmentShader& operator=(const SDLGpuFragmentShader&) = delete;
-    
+
     ~SDLGpuFragmentShader() override;
 
     SDL_GPUShader* const Shader;
@@ -144,13 +144,13 @@ private:
 };
 
 /// @brief SDL GPU Device implementation.
-class SDLGPUDevice : public GPUDevice
+class SDLGPUDevice : public GpuDevice
 {
 public:
 
-    static Result<GPUDevice*> Create(SDL_Window* window);
+    static Result<GpuDevice*> Create(SDL_Window* window);
 
-    static void Destroy(GPUDevice* device);
+    static void Destroy(GpuDevice* device);
 
     SDLGPUDevice() = delete;
     SDLGPUDevice(const SDLGPUDevice&) = delete;
@@ -175,7 +175,7 @@ public:
 
     Result<IndexBuffer> CreateIndexBuffer(
         const std::span<std::span<const VertexIndex>>& indices) override;
-        
+
     /// @brief Destroys an index buffer.
     Result<void> DestroyIndexBuffer(IndexBuffer& buffer) override;
 
@@ -193,7 +193,7 @@ public:
 
     /// @brief Destroys a vertex shader.
     Result<void> DestroyVertexShader(VertexShader& shader) override;
-    
+
     /// @brief Creates a fragment shader from the given specification.
     Result<FragmentShader> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) override;
 
@@ -215,7 +215,7 @@ private:
     SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice);
 
     Result<Texture> CreateTexture(const unsigned width, const unsigned height, const uint8_t* pixels);
-    
+
     struct PipelineKey
     {
         const int ColorFormat;

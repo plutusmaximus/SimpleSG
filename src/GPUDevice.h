@@ -37,7 +37,7 @@ class GpuVertexShader
 {
 protected:
 
-    GpuVertexShader() {}    
+    GpuVertexShader() {}
     virtual ~GpuVertexShader() = 0 {}
 };
 
@@ -46,7 +46,7 @@ class GpuFragmentShader
 {
 protected:
 
-    GpuFragmentShader() {}    
+    GpuFragmentShader() {}
     virtual ~GpuFragmentShader() = 0 {}
 };
 
@@ -89,7 +89,7 @@ public:
 
     template<typename T>
     T* Get() { return static_cast<T*>(m_Buffer); }
-    
+
     template<typename T>
     const T* Get() const { return static_cast<const T*>(m_Buffer); }
 
@@ -140,7 +140,7 @@ public:
 
     template<typename T>
     T* Get() { return static_cast<T*>(m_Buffer); }
-    
+
     template<typename T>
     const T* Get() const { return static_cast<const T*>(m_Buffer); }
 
@@ -247,11 +247,11 @@ private:
 };
 
 /// @brief Abstract base class for GPU device implementation.
-class GPUDevice
+class GpuDevice
 {
 public:
 
-    virtual ~GPUDevice() = 0 {};
+    virtual ~GpuDevice() = 0 {};
 
     /// @brief Gets the renderable extent of the device.
     virtual Extent GetExtent() const = 0;

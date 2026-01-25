@@ -220,7 +220,7 @@ private:
 
         State m_State = State::None;
 
-        GPUDevice* m_GpuDevice = nullptr;
+        GpuDevice* m_GpuDevice = nullptr;
         ResourceCache* m_ResourceCache = nullptr;
         RenderGraph* m_RenderGraph = nullptr;
         EcsRegistry m_Registry;

@@ -86,7 +86,7 @@ SDLGPUDevice::SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice)
 {
 }
 
-Result<GPUDevice*>
+Result<GpuDevice*>
 SDLGPUDevice::Create(SDL_Window* window)
 {
     logInfo("Creating SDL GPU Device...");
@@ -128,7 +128,7 @@ SDLGPUDevice::Create(SDL_Window* window)
     return device;
 }
 
-void SDLGPUDevice::Destroy(GPUDevice* device)
+void SDLGPUDevice::Destroy(GpuDevice* device)
 {
     delete device;
 }
@@ -198,7 +198,7 @@ SDLGPUDevice::DestroyVertexBuffer(VertexBuffer& buffer)
     {
         return std::unexpected("Invalid vertex buffer");
     }
-    
+
     delete sdlBuffer;
     buffer = VertexBuffer(nullptr, 0, 0);
 
@@ -241,10 +241,10 @@ SDLGPUDevice::DestroyIndexBuffer(IndexBuffer& buffer)
     {
         return std::unexpected("Invalid index buffer");
     }
-    
+
     delete sdlBuffer;
     buffer = IndexBuffer(nullptr, 0, 0);
-    
+
     return {};
 }
 
@@ -272,7 +272,7 @@ SDLGPUDevice::DestroyTexture(Texture& texture)
     {
         return std::unexpected("Invalid texture");
     }
-    
+
     delete sdlTexture;
     texture = Texture();
 
@@ -317,7 +317,7 @@ SDLGPUDevice::CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
 {
     // All fragment shaders have the same number of samplers.
     static constexpr unsigned numSamplers = 1;
-    
+
     const std::string_view path = std::get<std::string>(shaderSpec.Source);
     auto shaderResult = LoadShader<GpuFragmentShader>(
         Device,
@@ -344,7 +344,7 @@ SDLGPUDevice::DestroyFragmentShader(FragmentShader& shader)
 
     delete sdlShader;
     shader = FragmentShader();
-    
+
     return {};
 }
 

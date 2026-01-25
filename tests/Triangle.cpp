@@ -86,7 +86,7 @@ public:
 
 private:
 
-        GPUDevice* m_GpuDevice = nullptr;
+        GpuDevice* m_GpuDevice = nullptr;
         ResourceCache* m_ResourceCache = nullptr;
         RenderGraph* m_RenderGraph = nullptr;
         TrsTransformf m_CameraXform;
