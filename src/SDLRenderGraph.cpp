@@ -39,7 +39,7 @@ SDLRenderGraph::Add(const Mat44f& worldTransform, const Model& model)
     const auto meshes = model.GetMeshes();
     const auto meshInstances = model.GetMeshInstances();
     const auto transformNodes = model.GetTransformNodes();
-    
+
     std::vector<Mat44f> worldXForms;
     worldXForms.reserve(transformNodes.size());
 
@@ -93,7 +93,6 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
     WaitForFence();
 
     auto gpuDevice = m_GpuDevice->Device;
-    auto window = m_GpuDevice->Window;
 
     SDL_GPUCommandBuffer* cmdBuf = SDL_AcquireGPUCommandBuffer(gpuDevice);
 
@@ -132,7 +131,7 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
         &m_CurrentState->m_OpaqueMeshGroups,
         &m_CurrentState->m_TranslucentMeshGroups
     };
-    
+
     for(const auto meshGrpPtr : meshGroups)
     {
         for (auto& [mtlId, xmeshes] : *meshGrpPtr)
@@ -300,7 +299,7 @@ SDLRenderGraph::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
         1,
         &depthTargetInfo);
 
-    expect(renderPass, SDL_GetError());    
+    expect(renderPass, SDL_GetError());
 
     const auto screenBounds = m_GpuDevice->GetExtent();
 
@@ -327,7 +326,7 @@ SDLRenderGraph::WaitForFence()
             true,
             &m_CurrentState->m_RenderFence,
             1);
-            
+
     if(!success)
     {
         logError("Error waiting for render fence during SDLRenderGraph destruction: {}", SDL_GetError());
