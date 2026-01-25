@@ -28,7 +28,6 @@ AppDriver::~AppDriver()
     }
 }
 
-
 void
 AppDriver::SetMouseCapture(const bool capture)
 {
@@ -79,7 +78,7 @@ AppDriver::Run()
 
     m_State = State::Running;
 
-    auto gdResult = SDLGPUDevice::Create(m_Window);
+    auto gdResult = SdlGpuDevice::Create(m_Window);
     expect(gdResult, gdResult.error());
 
     auto gpuDevice = *gdResult;
@@ -182,7 +181,7 @@ AppDriver::Run()
 
     delete resourceCache;
 
-    SDLGPUDevice::Destroy(gpuDevice);
+    SdlGpuDevice::Destroy(gpuDevice);
 
     m_State = State::Stopped;
 

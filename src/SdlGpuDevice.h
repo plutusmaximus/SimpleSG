@@ -16,23 +16,23 @@ struct SDL_GPUShader;
 struct SDL_GPUGraphicsPipeline;
 class Image;
 
-class SDLGpuVertexBuffer : public GpuVertexBuffer
+class SdlGpuVertexBuffer : public GpuVertexBuffer
 {
 public:
 
-    SDLGpuVertexBuffer() = delete;
-    SDLGpuVertexBuffer(const SDLGpuVertexBuffer&) = delete;
-    SDLGpuVertexBuffer& operator=(const SDLGpuVertexBuffer&) = delete;
+    SdlGpuVertexBuffer() = delete;
+    SdlGpuVertexBuffer(const SdlGpuVertexBuffer&) = delete;
+    SdlGpuVertexBuffer& operator=(const SdlGpuVertexBuffer&) = delete;
 
-    ~SDLGpuVertexBuffer() override;
+    ~SdlGpuVertexBuffer() override;
 
     SDL_GPUBuffer* const Buffer;
 
 private:
 
-    friend class SDLGPUDevice;
+    friend class SdlGpuDevice;
 
-    SDLGpuVertexBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer)
+    SdlGpuVertexBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer)
         : Buffer(buffer)
         , m_GpuDevice(gpuDevice)
     {
@@ -41,23 +41,23 @@ private:
     SDL_GPUDevice* const m_GpuDevice;
 };
 
-class SDLGpuIndexBuffer : public GpuIndexBuffer
+class SdlGpuIndexBuffer : public GpuIndexBuffer
 {
 public:
 
-    SDLGpuIndexBuffer() = delete;
-    SDLGpuIndexBuffer(const SDLGpuIndexBuffer&) = delete;
-    SDLGpuIndexBuffer& operator=(const SDLGpuIndexBuffer&) = delete;
+    SdlGpuIndexBuffer() = delete;
+    SdlGpuIndexBuffer(const SdlGpuIndexBuffer&) = delete;
+    SdlGpuIndexBuffer& operator=(const SdlGpuIndexBuffer&) = delete;
 
-    ~SDLGpuIndexBuffer() override;
+    ~SdlGpuIndexBuffer() override;
 
     SDL_GPUBuffer* const Buffer;
 
 private:
 
-    friend class SDLGPUDevice;
+    friend class SdlGpuDevice;
 
-    SDLGpuIndexBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer)
+    SdlGpuIndexBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer)
         : Buffer(buffer)
         , m_GpuDevice(gpuDevice)
     {
@@ -66,24 +66,24 @@ private:
     SDL_GPUDevice* const m_GpuDevice;
 };
 
-class SDLGpuTexture : public GpuTexture
+class SdlGpuTexture : public GpuTexture
 {
 public:
 
-    SDLGpuTexture() = delete;
-    SDLGpuTexture(const SDLGpuTexture&) = delete;
-    SDLGpuTexture& operator=(const SDLGpuTexture&) = delete;
+    SdlGpuTexture() = delete;
+    SdlGpuTexture(const SdlGpuTexture&) = delete;
+    SdlGpuTexture& operator=(const SdlGpuTexture&) = delete;
 
-    ~SDLGpuTexture() override;
+    ~SdlGpuTexture() override;
 
     SDL_GPUTexture* const Texture;
     SDL_GPUSampler* const Sampler;
 
 private:
 
-    friend class SDLGPUDevice;
+    friend class SdlGpuDevice;
 
-    SDLGpuTexture(SDL_GPUDevice* gpuDevice, SDL_GPUTexture* texture, SDL_GPUSampler* sampler)
+    SdlGpuTexture(SDL_GPUDevice* gpuDevice, SDL_GPUTexture* texture, SDL_GPUSampler* sampler)
         : m_GpuDevice(gpuDevice)
         , Texture(texture)
         , Sampler(sampler)
@@ -93,23 +93,23 @@ private:
     SDL_GPUDevice* const m_GpuDevice;
 };
 
-class SDLGpuVertexShader : public GpuVertexShader
+class SdlGpuVertexShader : public GpuVertexShader
 {
 public:
 
-    SDLGpuVertexShader() = delete;
-    SDLGpuVertexShader(const SDLGpuVertexShader&) = delete;
-    SDLGpuVertexShader& operator=(const SDLGpuVertexShader&) = delete;
+    SdlGpuVertexShader() = delete;
+    SdlGpuVertexShader(const SdlGpuVertexShader&) = delete;
+    SdlGpuVertexShader& operator=(const SdlGpuVertexShader&) = delete;
 
-    ~SDLGpuVertexShader() override;
+    ~SdlGpuVertexShader() override;
 
     SDL_GPUShader* const Shader;
 
 private:
 
-    friend class SDLGPUDevice;
+    friend class SdlGpuDevice;
 
-    SDLGpuVertexShader(SDL_GPUDevice* gpuDevice, SDL_GPUShader* shader)
+    SdlGpuVertexShader(SDL_GPUDevice* gpuDevice, SDL_GPUShader* shader)
         : m_GpuDevice(gpuDevice)
         , Shader(shader)
     {
@@ -118,23 +118,23 @@ private:
     SDL_GPUDevice* const m_GpuDevice;
 };
 
-class SDLGpuFragmentShader : public GpuFragmentShader
+class SdlGpuFragmentShader : public GpuFragmentShader
 {
 public:
 
-    SDLGpuFragmentShader() = delete;
-    SDLGpuFragmentShader(const SDLGpuFragmentShader&) = delete;
-    SDLGpuFragmentShader& operator=(const SDLGpuFragmentShader&) = delete;
+    SdlGpuFragmentShader() = delete;
+    SdlGpuFragmentShader(const SdlGpuFragmentShader&) = delete;
+    SdlGpuFragmentShader& operator=(const SdlGpuFragmentShader&) = delete;
 
-    ~SDLGpuFragmentShader() override;
+    ~SdlGpuFragmentShader() override;
 
     SDL_GPUShader* const Shader;
 
 private:
 
-    friend class SDLGPUDevice;
+    friend class SdlGpuDevice;
 
-    SDLGpuFragmentShader(SDL_GPUDevice* gpuDevice, SDL_GPUShader* shader)
+    SdlGpuFragmentShader(SDL_GPUDevice* gpuDevice, SDL_GPUShader* shader)
         : m_GpuDevice(gpuDevice)
         , Shader(shader)
     {
@@ -144,7 +144,7 @@ private:
 };
 
 /// @brief SDL GPU Device implementation.
-class SDLGPUDevice : public GpuDevice
+class SdlGpuDevice : public GpuDevice
 {
 public:
 
@@ -152,11 +152,11 @@ public:
 
     static void Destroy(GpuDevice* device);
 
-    SDLGPUDevice() = delete;
-    SDLGPUDevice(const SDLGPUDevice&) = delete;
-    SDLGPUDevice& operator=(const SDLGPUDevice&) = delete;
+    SdlGpuDevice() = delete;
+    SdlGpuDevice(const SdlGpuDevice&) = delete;
+    SdlGpuDevice& operator=(const SdlGpuDevice&) = delete;
 
-    ~SDLGPUDevice() override;
+    ~SdlGpuDevice() override;
 
     /// @brief Gets the renderable extent of the device.
     Extent GetExtent() const override;
@@ -212,7 +212,7 @@ public:
 
 private:
 
-    SDLGPUDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice);
+    SdlGpuDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice);
 
     Result<Texture> CreateTexture(const unsigned width, const unsigned height, const uint8_t* pixels);
 

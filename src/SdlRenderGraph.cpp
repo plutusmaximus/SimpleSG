@@ -7,7 +7,7 @@
 
 #include <SDL3/SDL_gpu.h>
 
-SDLRenderGraph::SDLRenderGraph(SDLGPUDevice* gpuDevice)
+SDLRenderGraph::SDLRenderGraph(SdlGpuDevice* gpuDevice)
     : m_GpuDevice(gpuDevice)
 {
 }
@@ -151,8 +151,8 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
                 // Bind texture and sampler
                 SDL_GPUTextureSamplerBinding samplerBinding
                 {
-                    .texture = mtl.Albedo.Get<SDLGpuTexture>()->Texture,
-                    .sampler = mtl.Albedo.Get<SDLGpuTexture>()->Sampler
+                    .texture = mtl.Albedo.Get<SdlGpuTexture>()->Texture,
+                    .sampler = mtl.Albedo.Get<SdlGpuTexture>()->Sampler
                 };
                 SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
             }
@@ -171,8 +171,8 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
                 SDL_GPUTextureSamplerBinding samplerBinding
                 {
-                    .texture = defaultTex.Get<SDLGpuTexture>()->Texture,
-                    .sampler = defaultTex.Get<SDLGpuTexture>()->Sampler
+                    .texture = defaultTex.Get<SdlGpuTexture>()->Texture,
+                    .sampler = defaultTex.Get<SdlGpuTexture>()->Sampler
                 };
                 SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
             }
@@ -200,14 +200,14 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
                 SDL_GPUBufferBinding vertexBufferBinding
                 {
-                    .buffer = mesh.VtxBuffer.Get<SDLGpuVertexBuffer>()->Buffer,
+                    .buffer = mesh.VtxBuffer.Get<SdlGpuVertexBuffer>()->Buffer,
                     .offset = mesh.VtxBuffer.GetByteOffset()
                 };
                 SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBufferBinding, 1);
 
                 SDL_GPUBufferBinding indexBufferBinding
                 {
-                    .buffer = mesh.IdxBuffer.Get<SDLGpuIndexBuffer>()->Buffer,
+                    .buffer = mesh.IdxBuffer.Get<SdlGpuIndexBuffer>()->Buffer,
                     .offset = mesh.IdxBuffer.GetByteOffset()
                 };
 

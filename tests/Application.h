@@ -2,7 +2,7 @@
 
 #include "GpuDevice.h"
 
-class SDLGPUDevice;
+class SdlGpuDevice;
 
 class Application
 {

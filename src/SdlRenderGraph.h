@@ -6,7 +6,7 @@
 #include <SDL3/SDL_gpu.h>
 #include <map>
 
-class SDLGPUDevice;
+class SdlGpuDevice;
 class GpuTexture;
 struct SDL_GPURenderPass;
 struct SDL_GPUCommandBuffer;
@@ -28,9 +28,9 @@ public:
 
 private:
 
-    friend class SDLGPUDevice;
+    friend class SdlGpuDevice;
 
-    explicit SDLRenderGraph(SDLGPUDevice* gpuDevice);
+    explicit SDLRenderGraph(SdlGpuDevice* gpuDevice);
 
     Result<SDL_GPURenderPass*> BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf);
 
@@ -41,7 +41,7 @@ private:
         const Mesh& MeshInstance;
     };
 
-    SDLGPUDevice* const m_GpuDevice;
+    SdlGpuDevice* const m_GpuDevice;
     SDL_GPUTexture* m_DepthBuffer = nullptr;
 
     SDL_GPUTextureCreateInfo m_DepthCreateInfo
@@ -80,7 +80,7 @@ private:
     void SwapStates()
     {
         eassert(!m_CurrentState->m_RenderFence, "Current state's render fence must be null when swapping states");
-        
+
         if (m_CurrentState == &m_State[0])
         {
             m_CurrentState = &m_State[1];
