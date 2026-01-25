@@ -351,7 +351,7 @@ SdlGpuDevice::DestroyFragmentShader(FragmentShader& shader)
 Result<RenderGraph*>
 SdlGpuDevice::CreateRenderGraph()
 {
-    SDLRenderGraph* renderGraph = new SDLRenderGraph(this);
+    SdlRenderGraph* renderGraph = new SdlRenderGraph(this);
     expect(renderGraph, "Error allocating SDLRenderGraph");
     return renderGraph;
 }

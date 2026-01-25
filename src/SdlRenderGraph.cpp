@@ -7,12 +7,12 @@
 
 #include <SDL3/SDL_gpu.h>
 
-SDLRenderGraph::SDLRenderGraph(SdlGpuDevice* gpuDevice)
+SdlRenderGraph::SdlRenderGraph(SdlGpuDevice* gpuDevice)
     : m_GpuDevice(gpuDevice)
 {
 }
 
-SDLRenderGraph::~SDLRenderGraph()
+SdlRenderGraph::~SdlRenderGraph()
 {
     WaitForFence();
 
@@ -34,7 +34,7 @@ SDLRenderGraph::~SDLRenderGraph()
 }
 
 void
-SDLRenderGraph::Add(const Mat44f& worldTransform, const Model& model)
+SdlRenderGraph::Add(const Mat44f& worldTransform, const Model& model)
 {
     const auto meshes = model.GetMeshes();
     const auto meshInstances = model.GetMeshInstances();
@@ -87,7 +87,7 @@ SDLRenderGraph::Add(const Mat44f& worldTransform, const Model& model)
 }
 
 Result<void>
-SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
+SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 {
     //Wait for the previous frame to complete
     WaitForFence();
@@ -242,7 +242,7 @@ SDLRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 //private:
 
 Result<SDL_GPURenderPass*>
-SDLRenderGraph::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
+SdlRenderGraph::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
 {
     auto gpuDevice = m_GpuDevice->Device;
     auto window = m_GpuDevice->Window;
@@ -313,7 +313,7 @@ SDLRenderGraph::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
 }
 
 void
-SDLRenderGraph::WaitForFence()
+SdlRenderGraph::WaitForFence()
 {
     if(!m_CurrentState->m_RenderFence)
     {
@@ -337,7 +337,7 @@ SDLRenderGraph::WaitForFence()
 }
 
 Result<Texture>
-SDLRenderGraph::GetDefaultAlbedoTexture()
+SdlRenderGraph::GetDefaultAlbedoTexture()
 {
     if(!m_DefaultAlbedoTexture.IsValid())
     {
