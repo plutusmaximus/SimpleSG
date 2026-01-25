@@ -151,8 +151,8 @@ SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
                 // Bind texture and sampler
                 SDL_GPUTextureSamplerBinding samplerBinding
                 {
-                    .texture = mtl.Albedo.Get<SdlGpuTexture>()->Texture,
-                    .sampler = mtl.Albedo.Get<SdlGpuTexture>()->Sampler
+                    .texture = mtl.Albedo.Get<SdlGpuTexture>()->GetTexture(),
+                    .sampler = mtl.Albedo.Get<SdlGpuTexture>()->GetSampler()
                 };
                 SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
             }
@@ -171,8 +171,8 @@ SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
                 SDL_GPUTextureSamplerBinding samplerBinding
                 {
-                    .texture = defaultTex.Get<SdlGpuTexture>()->Texture,
-                    .sampler = defaultTex.Get<SdlGpuTexture>()->Sampler
+                    .texture = defaultTex.Get<SdlGpuTexture>()->GetTexture(),
+                    .sampler = defaultTex.Get<SdlGpuTexture>()->GetSampler()
                 };
                 SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
             }
@@ -200,14 +200,14 @@ SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
                 SDL_GPUBufferBinding vertexBufferBinding
                 {
-                    .buffer = mesh.VtxBuffer.Get<SdlGpuVertexBuffer>()->Buffer,
+                    .buffer = mesh.VtxBuffer.Get<SdlGpuVertexBuffer>()->GetBuffer(),
                     .offset = mesh.VtxBuffer.GetByteOffset()
                 };
                 SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBufferBinding, 1);
 
                 SDL_GPUBufferBinding indexBufferBinding
                 {
-                    .buffer = mesh.IdxBuffer.Get<SdlGpuIndexBuffer>()->Buffer,
+                    .buffer = mesh.IdxBuffer.Get<SdlGpuIndexBuffer>()->GetBuffer(),
                     .offset = mesh.IdxBuffer.GetByteOffset()
                 };
 

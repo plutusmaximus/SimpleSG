@@ -26,19 +26,20 @@ public:
 
     ~SdlGpuVertexBuffer() override;
 
-    SDL_GPUBuffer* const Buffer;
+    SDL_GPUBuffer* GetBuffer() const { return m_Buffer; }
 
 private:
 
     friend class SdlGpuDevice;
 
     SdlGpuVertexBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer)
-        : Buffer(buffer)
+        : m_Buffer(buffer)
         , m_GpuDevice(gpuDevice)
     {
     }
 
     SDL_GPUDevice* const m_GpuDevice;
+    SDL_GPUBuffer* const m_Buffer;
 };
 
 class SdlGpuIndexBuffer : public GpuIndexBuffer
@@ -51,19 +52,20 @@ public:
 
     ~SdlGpuIndexBuffer() override;
 
-    SDL_GPUBuffer* const Buffer;
+    SDL_GPUBuffer* GetBuffer() const { return m_Buffer; }
 
 private:
 
     friend class SdlGpuDevice;
 
     SdlGpuIndexBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer)
-        : Buffer(buffer)
+        : m_Buffer(buffer)
         , m_GpuDevice(gpuDevice)
     {
     }
 
     SDL_GPUDevice* const m_GpuDevice;
+    SDL_GPUBuffer* const m_Buffer;
 };
 
 class SdlGpuTexture : public GpuTexture
@@ -76,8 +78,8 @@ public:
 
     ~SdlGpuTexture() override;
 
-    SDL_GPUTexture* const Texture;
-    SDL_GPUSampler* const Sampler;
+    SDL_GPUTexture* GetTexture() const { return m_Texture; }
+    SDL_GPUSampler* GetSampler() const { return m_Sampler; }
 
 private:
 
@@ -85,12 +87,14 @@ private:
 
     SdlGpuTexture(SDL_GPUDevice* gpuDevice, SDL_GPUTexture* texture, SDL_GPUSampler* sampler)
         : m_GpuDevice(gpuDevice)
-        , Texture(texture)
-        , Sampler(sampler)
+        , m_Texture(texture)
+        , m_Sampler(sampler)
     {
     }
 
     SDL_GPUDevice* const m_GpuDevice;
+    SDL_GPUTexture* const m_Texture;
+    SDL_GPUSampler* const m_Sampler;
 };
 
 class SdlGpuVertexShader : public GpuVertexShader
@@ -103,7 +107,7 @@ public:
 
     ~SdlGpuVertexShader() override;
 
-    SDL_GPUShader* const Shader;
+    SDL_GPUShader* GetShader() const { return m_Shader; }
 
 private:
 
@@ -111,11 +115,12 @@ private:
 
     SdlGpuVertexShader(SDL_GPUDevice* gpuDevice, SDL_GPUShader* shader)
         : m_GpuDevice(gpuDevice)
-        , Shader(shader)
+        , m_Shader(shader)
     {
     }
 
     SDL_GPUDevice* const m_GpuDevice;
+    SDL_GPUShader* const m_Shader;
 };
 
 class SdlGpuFragmentShader : public GpuFragmentShader
@@ -128,7 +133,7 @@ public:
 
     ~SdlGpuFragmentShader() override;
 
-    SDL_GPUShader* const Shader;
+    SDL_GPUShader* GetShader() const { return m_Shader; }
 
 private:
 
@@ -136,11 +141,12 @@ private:
 
     SdlGpuFragmentShader(SDL_GPUDevice* gpuDevice, SDL_GPUShader* shader)
         : m_GpuDevice(gpuDevice)
-        , Shader(shader)
+        , m_Shader(shader)
     {
     }
 
     SDL_GPUDevice* const m_GpuDevice;
+    SDL_GPUShader* const m_Shader;
 };
 
 /// @brief SDL GPU Device implementation.

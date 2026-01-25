@@ -56,28 +56,28 @@ CreateGpuBuffer(SDL_GPUDevice* gd, const std::span<const std::span<const T>>& sp
 
 SdlGpuVertexBuffer::~SdlGpuVertexBuffer()
 {
-    SDL_ReleaseGPUBuffer(m_GpuDevice, Buffer);
+    SDL_ReleaseGPUBuffer(m_GpuDevice, m_Buffer);
 }
 
 SdlGpuIndexBuffer::~SdlGpuIndexBuffer()
 {
-    SDL_ReleaseGPUBuffer(m_GpuDevice, Buffer);
+    SDL_ReleaseGPUBuffer(m_GpuDevice, m_Buffer);
 }
 
 SdlGpuTexture::~SdlGpuTexture()
 {
-    if (Texture) { SDL_ReleaseGPUTexture(m_GpuDevice, Texture); }
+    if (m_Texture) { SDL_ReleaseGPUTexture(m_GpuDevice, m_Texture); }
     // Sampler is released by the SDLGPUDevice destructor.
 }
 
 SdlGpuVertexShader::~SdlGpuVertexShader()
 {
-    if (Shader) { SDL_ReleaseGPUShader(m_GpuDevice, Shader); }
+    if (m_Shader) { SDL_ReleaseGPUShader(m_GpuDevice, m_Shader); }
 }
 
 SdlGpuFragmentShader::~SdlGpuFragmentShader()
 {
-    if (Shader) { SDL_ReleaseGPUShader(m_GpuDevice, Shader); }
+    if (m_Shader) { SDL_ReleaseGPUShader(m_GpuDevice, m_Shader); }
 }
 
 SdlGpuDevice::SdlGpuDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice)
@@ -368,8 +368,8 @@ SdlGpuDevice::GetOrCreatePipeline(const Material& mtl)
     PipelineKey key
     {
         .ColorFormat = colorTargetFormat,
-        .VertexShader = mtl.VertexShader.Get<SdlGpuVertexShader>()->Shader,
-        .FragShader = mtl.FragmentShader.Get<SdlGpuFragmentShader>()->Shader
+        .VertexShader = mtl.VertexShader.Get<SdlGpuVertexShader>()->GetShader(),
+        .FragShader = mtl.FragmentShader.Get<SdlGpuFragmentShader>()->GetShader()
     };
 
     auto it = m_PipelinesByKey.find(key);
@@ -415,8 +415,8 @@ SdlGpuDevice::GetOrCreatePipeline(const Material& mtl)
 
     SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo
     {
-        .vertex_shader = mtl.VertexShader.Get<SdlGpuVertexShader>()->Shader,
-        .fragment_shader = mtl.FragmentShader.Get<SdlGpuFragmentShader>()->Shader,
+        .vertex_shader = mtl.VertexShader.Get<SdlGpuVertexShader>()->GetShader(),
+        .fragment_shader = mtl.FragmentShader.Get<SdlGpuFragmentShader>()->GetShader(),
         .vertex_input_state =
         {
             .vertex_buffer_descriptions = vertexBufDescriptions,
