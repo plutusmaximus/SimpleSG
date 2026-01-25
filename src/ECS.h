@@ -345,7 +345,7 @@ public:
                         tryComp);
                     break;
                 }
-                
+
                 ++m_Idx;
             }
         }
@@ -376,7 +376,7 @@ public:
     Iterator end()
     {
         return m_HaveAllPools
-            ? Iterator(m_Pools, std::get<0>(m_Pools)->size(), std::get<0>(m_Pools)->size())
+            ? Iterator(m_Pools, static_cast<IndexType>(std::get<0>(m_Pools)->size()), std::get<0>(m_Pools)->size())
             : Iterator(m_Pools, 0, 0);
     }
 

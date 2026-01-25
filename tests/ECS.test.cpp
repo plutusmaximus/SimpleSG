@@ -13,13 +13,10 @@ namespace
     std::uniform_int_distribution<> RandomInt(0, 10000);
     std::uniform_real_distribution<float> RandomFloat(0, 10000);
     const std::string CharSet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-    std::uniform_int_distribution<> CharDist(0, CharSet.size() - 1);
+    std::uniform_int_distribution<> CharDist(0, static_cast<int>(CharSet.size()) - 1);
     std::uniform_int_distribution<> StringLenDist(5, 20);
 
     /// @brief Generates a random string.
-    /// @tparam Generator 
-    /// @param rng 
-    /// @return 
     template<typename Generator>
     std::string RandomString(Generator& rng)
     {
@@ -137,7 +134,7 @@ namespace
     TEST(EntityId, CreateViaRegistry_ValidValue)
     {
         EcsRegistry reg;
-        
+
         const auto eid1 = reg.Create();
 
         EXPECT_TRUE(eid1.IsValid());
@@ -413,7 +410,7 @@ namespace
 
         const auto eid = reg.Create();
         ComponentA compA{ 42 };
-        
+
         pool.Add(eid, compA);
 
         auto& comp = pool[eid];
@@ -541,8 +538,8 @@ namespace
         {
             EXPECT_FALSE(pool.Has(eids[i]));
         }
-    }    
-    
+    }
+
     // ==================== EcsRegistry Tests ====================
 
     /// @brief Confirm when a registry creates a new entity ID that it is valid and alive.
@@ -693,7 +690,7 @@ namespace
             EXPECT_FALSE(added);
             EXPECT_TRUE(capture.Message().contains("Entity is not alive"));
         }
-        
+
         EXPECT_FALSE(reg.Has<ComponentA>(eid));
     }
 
@@ -1012,7 +1009,7 @@ namespace
         auto compA = RandomValue<ComponentA>();
         auto compB = RandomValue<ComponentB>();
         auto compC = RandomValue<ComponentC>();
-        
+
         reg.Add<ComponentA>(eid, compA);
         reg.Add<ComponentB>(eid, compB);
         reg.Add<ComponentC>(eid, compC);
@@ -1038,7 +1035,7 @@ namespace
 
         auto eid = reg.Create();
         auto compA = RandomValue<ComponentA>();
-        
+
         reg.Add<ComponentA>(eid, compA);
         EXPECT_TRUE(reg.Has<ComponentA>(eid));
         EXPECT_FALSE(reg.Has<ComponentB>(eid));
@@ -1057,7 +1054,7 @@ namespace
 
         auto eid = reg.Create();
         auto compA = RandomValue<ComponentA>();
-        
+
         reg.Add<ComponentA>(eid, compA);
         EXPECT_TRUE(reg.Has<ComponentA>(eid));
         EXPECT_TRUE(reg.IsAlive(eid));
@@ -1131,7 +1128,7 @@ namespace
 
         auto eid = reg.Create();
         auto compA = RandomValue<ComponentA>();
-        
+
         reg.Add<ComponentA>(eid, compA);
         EXPECT_TRUE(reg.IsAlive(eid));
 
@@ -1581,9 +1578,9 @@ namespace
             auto& compB = reg.Get<ComponentB>(eids[i]);
             EXPECT_EQ(compB.x, static_cast<float>(i));
 
-            const auto& compC = reg.Get<ComponentC>(eids[i]);
+            //const auto& compC = reg.Get<ComponentC>(eids[i]);
 
-            const auto& compD = reg.Get<ComponentD>(eids[i]);
+            //const auto& compD = reg.Get<ComponentD>(eids[i]);
         }
     }
 }

@@ -45,7 +45,7 @@ AppDriver::Init()
     {
         return std::unexpected(Error("AppDriver already initialized or running"));
     }
-    
+
     logSetLevel(spdlog::level::trace);
 
     auto cwd = std::filesystem::current_path();
@@ -54,9 +54,9 @@ AppDriver::Init()
     expect(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
 
     SDL_Rect displayRect;
-    auto dm = SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &displayRect);
-    const int winW = displayRect.w * 0.75;
-    const int winH = displayRect.h * 0.75;
+    expect(SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &displayRect), SDL_GetError());
+    const int winW = displayRect.w * 3 / 4;//0.75
+    const int winH = displayRect.h * 3 / 4;//0.75
 
     // Create window
     auto window = SDL_CreateWindow(m_AppLifecycle->GetName().data(), winW, winH, SDL_WINDOW_RESIZABLE);
@@ -156,7 +156,7 @@ AppDriver::Run()
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
                 app->OnMouseDown(Point(event.button.x, event.button.y), event.button.button - 1);
                 break;
-                
+
             case SDL_EVENT_MOUSE_BUTTON_UP:
                 app->OnMouseUp(event.button.button - 1);
                 break;
@@ -181,7 +181,7 @@ AppDriver::Run()
     m_AppLifecycle->Destroy(app);
 
     delete resourceCache;
-    
+
     SDLGPUDevice::Destroy(gpuDevice);
 
     m_State = State::Stopped;

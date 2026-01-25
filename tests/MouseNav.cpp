@@ -98,7 +98,7 @@ void GimbleMouseNav::ClearButtons()
     m_MouseButtons.fill(false);
 }
 
-void GimbleMouseNav::Update(const float deltaSeconds)
+void GimbleMouseNav::Update(const float /*deltaSeconds*/)
 {
     //No per-frame update needed for gimble nav
 }
@@ -198,12 +198,12 @@ WalkMouseNav::WalkMouseNav(
 WalkMouseNav::~WalkMouseNav() {}
 
 void
-WalkMouseNav::OnMouseDown(const Point& mouseLoc, const Extent& screenBounds, const int mouseButton)
+WalkMouseNav::OnMouseDown(const Point& /*mouseLoc*/, const Extent& /*screenBounds*/, const int /*mouseButton*/)
 {
 }
 
 void
-WalkMouseNav::OnMouseUp(const int mouseButton)
+WalkMouseNav::OnMouseUp(const int /*mouseButton*/)
 {
 }
 

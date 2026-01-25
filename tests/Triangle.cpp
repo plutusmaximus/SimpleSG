@@ -15,7 +15,7 @@ public:
     ~TriangleApp() override
     {
     }
-    
+
     Result<void> Initialize(AppContext* context) override
     {
         auto cleanup = scope_exit([this]()
@@ -34,7 +34,7 @@ public:
         m_ScreenBounds = m_GpuDevice->GetExtent();
 
         constexpr Radiansf fov = Radiansf::FromDegrees(45);
-        
+
         m_CameraXform.T = Vec3f{ 0,0,-4 };
         m_Camera.SetPerspective(fov, m_ScreenBounds, 0.1f, 1000);
 
@@ -62,7 +62,7 @@ public:
         m_ResourceCache = nullptr;
     }
 
-    void Update(const float deltaSeconds) override
+    void Update(const float /*deltaSeconds*/) override
     {
         m_ScreenBounds = m_GpuDevice->GetExtent();
 
@@ -77,7 +77,7 @@ public:
         {
             logError(renderResult.error().Message);
         }
-    }    
+    }
 
     bool IsRunning() const override
     {
@@ -115,7 +115,7 @@ public:
     }
 };
 
-int main(int, [[maybe_unused]] char* argv[])
+int main(int, char* /*argv[]*/)
 {
     TriangleAppLifecycle appLifecycle;
     AppDriver driver(&appLifecycle);

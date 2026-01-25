@@ -12,7 +12,7 @@
 #include "scope_exit.h"
 
 class WorldMatrix : public Mat44f
-{    
+{
 public:
     WorldMatrix& operator=(const Mat44& that)
     {
@@ -50,11 +50,11 @@ public:
 
         m_RenderGraph = *renderGraphResult;
 
-        constexpr const char* SPONZA_MODEL_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
-        constexpr const char* AVOCADO_MODEL_PATH = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Avocado/glTF/Avocado.gltf";
-        constexpr const char* INSTANCE_MODEL_PATH = "C:/Dev/SimpleSG/assets/glTF-Asset-Generator/Output/Positive/Instancing/Instancing_06.gltf";
-        constexpr const char* SPONZA_MODEL_PATH_2 = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Sponza/glTF/Sponza.gltf";
-        constexpr const char* JUNGLE_RUINS = "C:/Users/kbaca/Downloads/JungleRuins/GLTF/JungleRuins_Main.gltf";
+        [[maybe_unused]] constexpr const char* SPONZA_MODEL_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
+        [[maybe_unused]] constexpr const char* AVOCADO_MODEL_PATH = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Avocado/glTF/Avocado.gltf";
+        [[maybe_unused]] constexpr const char* INSTANCE_MODEL_PATH = "C:/Dev/SimpleSG/assets/glTF-Asset-Generator/Output/Positive/Instancing/Instancing_06.gltf";
+        [[maybe_unused]] constexpr const char* SPONZA_MODEL_PATH_2 = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Sponza/glTF/Sponza.gltf";
+        [[maybe_unused]] constexpr const char* JUNGLE_RUINS = "C:/Users/kbaca/Downloads/JungleRuins/GLTF/JungleRuins_Main.gltf";
 
         auto modelResult = m_ResourceCache->LoadModelFromFile(CacheKey("Sponza"), SPONZA_MODEL_PATH);
         expect(modelResult, modelResult.error());
@@ -69,7 +69,7 @@ public:
         m_ScreenBounds = m_GpuDevice->GetExtent();
 
         constexpr Radiansf fov = Radiansf::FromDegrees(45);
-        
+
         m_Registry.Add(m_EidCamera, TrsTransformf{}, WorldMatrix{}, Camera{});
         m_Registry.Get<TrsTransformf>(m_EidCamera).T = Vec3f{ 0,0,-4 };
         m_Registry.Get<Camera>(m_EidCamera).SetPerspective(fov, m_ScreenBounds, 0.1f, 1000);
@@ -107,7 +107,7 @@ public:
         {
             return;
         }
-        
+
         m_ScreenBounds = m_GpuDevice->GetExtent();
 
         m_Registry.Get<Camera>(m_EidCamera).SetBounds(m_ScreenBounds);
@@ -250,7 +250,7 @@ public:
     }
 };
 
-int main(int, [[maybe_unused]] char* argv[])
+int main(int, char* /*argv[]*/)
 {
     SponzaAppLifecycle appLifecycle;
     AppDriver driver(&appLifecycle);

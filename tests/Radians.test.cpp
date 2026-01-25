@@ -332,7 +332,6 @@ TEST(Radiansf, Assignment_AssignmentOperatorLargeValue)
 {
     Radiansf r;
     r = 3 * PI;
-    float expected = NormalizeRadians(3 * PI);
     // Note: Assignment operator doesn't wrap, as per implementation
     EXPECT_FLOAT_EQ(r.Value(), 3 * PI);
 }

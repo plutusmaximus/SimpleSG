@@ -118,7 +118,7 @@ namespace
 
         EXPECT_EQ(pool.size(), 1);
         EXPECT_TRUE(pool.Has(eid));
-        
+
         const ChildTransform& node = pool[eid];
         EXPECT_EQ(node.LocalTransform, localTransform);
         EXPECT_FALSE(node.ParentId.IsValid());
@@ -152,7 +152,7 @@ namespace
         const ChildTransform& node1 = pool[id1];
         const ChildTransform& node2 = pool[id2];
         const ChildTransform& node3 = pool[id3];
-        
+
         EXPECT_EQ(node1.LocalTransform, localTransforms[0]);
         EXPECT_EQ(node2.LocalTransform, localTransforms[1]);
         EXPECT_EQ(node3.LocalTransform, localTransforms[2]);
@@ -237,7 +237,7 @@ namespace
         // Expected order
         const EntityId ids[] = { parentId, child3, child2, child1 };
 
-        ChildTransform* ptrs[std::size(ids)];      
+        ChildTransform* ptrs[std::size(ids)];
 
         for(int i = 0; i < std::size(ptrs); ++i)
         {
@@ -257,7 +257,7 @@ namespace
     TEST(EcsTransformNodePool, Add_InvalidEntityId_AddRejected)
     {
         EcsComponentPool<ChildTransform> pool;
-        
+
         EntityId invalidId; // Default constructor creates invalid ID
         EXPECT_FALSE(invalidId.IsValid());
 
@@ -279,7 +279,7 @@ namespace
         TestIdGenerator idGen;
 
         const EntityId nodeId = idGen.NextId();
-        
+
         pool.Add(nodeId, {});
         EXPECT_EQ(pool.size(), 1);
 
@@ -301,7 +301,7 @@ namespace
         TestIdGenerator idGen;
 
         const EntityId nodeId = idGen.NextId();
-        
+
         // Add as top-level first
         pool.Add(nodeId, {});
         const size_t initialSize = pool.size();
@@ -372,7 +372,7 @@ namespace
         // Expected order
         const EntityId ids[] = { grandparent, parent, child };
 
-        ChildTransform* ptrs[std::size(ids)];      
+        ChildTransform* ptrs[std::size(ids)];
 
         for(int i = 0; i < std::size(ptrs); ++i)
         {
@@ -437,7 +437,7 @@ namespace
         // Expected order
         const EntityId ids[] = { root, child2, grandchild2_1, child1, grandchild1_2, grandchild1_1 };
 
-        ChildTransform* ptrs[std::size(ids)];      
+        ChildTransform* ptrs[std::size(ids)];
 
         for(int i = 0; i < std::size(ptrs); ++i)
         {
@@ -489,7 +489,7 @@ namespace
         // Expected order
         const EntityId ids[] = { root, child2, grandchild, child1 };
 
-        ChildTransform* ptrs[std::size(ids)];      
+        ChildTransform* ptrs[std::size(ids)];
 
         for(int i = 0; i < std::size(ptrs); ++i)
         {
@@ -681,7 +681,7 @@ namespace
             RandomTrsTransform(),
             RandomTrsTransform()
         };
-        
+
         // Add, remove, then add again as top-level
         pool.Add(nodeId, ChildTransform{ .LocalTransform = localTransforms[0] });
         EXPECT_TRUE(pool.Has(nodeId));
@@ -695,10 +695,10 @@ namespace
         // Now add as child
         const EntityId parentId = idGen.NextId();
         pool.Add(parentId, ChildTransform{ .LocalTransform = localTransforms[2] });
-        
+
         pool.Remove(nodeId);
         EXPECT_FALSE(pool.Has(nodeId));
-        
+
         pool.Add(nodeId, ChildTransform{ parentId, localTransforms[3] });
         EXPECT_TRUE(pool.Has(nodeId));
         EXPECT_EQ(pool[nodeId].ParentId, parentId);
@@ -763,7 +763,7 @@ namespace
             ids.push_back(idGen.NextId());
             pool.Add(ids.back(), ChildTransform{ .LocalTransform = localTransforms[i] });
         }
-        
+
         EXPECT_EQ(pool.size(), 10);
 
         // Remove every other one
@@ -802,13 +802,13 @@ namespace
 
         // Create sparse IDs by creating and destroying intermediate ones
         const EntityId id1 = registry.Create();
-        
+
         for (int i = 0; i < 50; ++i)
         {
             // Satisfy [[nodiscard]] warning
             auto tempId = registry.Create();
         }
-        
+
         const EntityId id2 = registry.Create();
 
         TrsTransformf localTransforms[] =
@@ -904,7 +904,7 @@ namespace
         };
 
         pool.Add(root, ChildTransform{ .LocalTransform = localTransforms[0] });
-        
+
         // Add children, but later add grandchildren to first child
         // Note the order in the pool is the reverse of addition order
         pool.Add(child1, ChildTransform{ root, localTransforms[1] });
@@ -918,7 +918,7 @@ namespace
         // Expected order
         const EntityId ids[] = { root, child3, child2, grandchild1, child1 };
 
-        ChildTransform* ptrs[std::size(ids)];      
+        ChildTransform* ptrs[std::size(ids)];
 
         for(int i = 0; i < std::size(ptrs); ++i)
         {
@@ -969,7 +969,7 @@ namespace
 
         EXPECT_EQ(pool.size(), 5);
         EXPECT_FALSE(pool.Has(leaf1_1));
-        
+
         // Verify structure is preserved
         EXPECT_TRUE(pool.Has(root));
         EXPECT_TRUE(pool.Has(branch1));
@@ -1150,7 +1150,7 @@ namespace
         {
             EntityId standalone = idGen.NextId();
             pool.Add(standalone, {});
-            
+
             // Immediately remove half of them (stress test)
             if (rand() % 2 == 0)
             {
@@ -1165,12 +1165,12 @@ namespace
         // Verify all tracked hierarchies still exist correctly
         for (const auto& hierarchy : hierarchies)
         {
-            EXPECT_TRUE(pool.Has(hierarchy.root)) 
+            EXPECT_TRUE(pool.Has(hierarchy.root))
                 << "Iteration " << iteration << ": Root should exist";
-            
+
             for (const auto& child : hierarchy.children)
             {
-                EXPECT_TRUE(pool.Has(child)) 
+                EXPECT_TRUE(pool.Has(child))
                     << "Iteration " << iteration << ": Child should exist";
                 EXPECT_EQ(pool[child].ParentId, hierarchy.root)
                     << "Iteration " << iteration << ": Child should have correct parent";
@@ -1186,9 +1186,9 @@ namespace
 
             for (++idx; idx < pool.size(); ++idx)
             {
-                const auto [_, currentVal] = pool[idx];
+                const auto [__, currentVal] = pool[idx];
                 const auto* current = &currentVal;
-                EXPECT_EQ(current, prev + 1) 
+                EXPECT_EQ(current, prev + 1)
                     << "Iteration " << iteration << ": Nodes not contiguous in memory";
                 prev = current;
             }
@@ -1202,7 +1202,7 @@ namespace
         for (const auto& hierarchy : hierarchies)
         {
             EXPECT_TRUE(pool.Has(hierarchy.root)) << "Final: Root should exist";
-            
+
             const ChildTransform& rootNode = pool[hierarchy.root];
             EXPECT_FALSE(rootNode.ParentId.IsValid()) << "Final: Root should have no parent";
 
@@ -1228,27 +1228,27 @@ namespace
 
             for (++idx; idx < pool.size(); ++idx)
             {
-                const auto [_, currentEid] = pool[idx];
+                const auto [__, currentEid] = pool[idx];
                 const auto* expectedAddress = firstEid + idx;
                 const auto* actualAddress = &currentEid;
-                
-                EXPECT_EQ(actualAddress, expectedAddress) 
+
+                EXPECT_EQ(actualAddress, expectedAddress)
                     << "Final: Node at index " << idx << " not contiguous";
             }
         }
     }
 
     /// @brief Initializes a pool with a specified number of items in random hierarchies.
-    static void InitializepoolWithRandomHierarchies(EcsComponentPool<ChildTransform>& pool, TestIdGenerator& idGen, 
+    static void InitializepoolWithRandomHierarchies(EcsComponentPool<ChildTransform>& pool, TestIdGenerator& idGen,
                                                           std::vector<HierarchyInfo>& activeHierarchies, size_t targetItemCount)
     {
         std::cout << "Initializing pool with " << targetItemCount << " items...\n";
         size_t totalItemsAdded = 0;
-        
+
         while (totalItemsAdded < targetItemCount)
         {
             const int hierarchyType = rand() % 10;
-            
+
             if (hierarchyType < 2)
             {
                 // Add a standalone top-level node (20% chance)
@@ -1350,10 +1350,10 @@ namespace
             }
         }
 
-        std::cout << "Initialization complete. pool size: " << pool.size() 
+        std::cout << "Initialization complete. pool size: " << pool.size()
                   << ", Active hierarchies: " << activeHierarchies.size() << "\n";
-        
-        EXPECT_EQ(pool.size(), targetItemCount) 
+
+        EXPECT_EQ(pool.size(), targetItemCount)
             << "pool should be initialized with exactly " << targetItemCount << " items";
 
         // Verify initial memory contiguity
@@ -1365,11 +1365,11 @@ namespace
 
             for (++idx; idx < pool.size(); ++idx)
             {
-                const auto [_, currentEid] = pool[idx];
+                const auto [__, currentEid] = pool[idx];
                 const auto* expectedAddress = firstEid + idx;
                 const auto* actualAddress = &currentEid;
-                
-                EXPECT_EQ(actualAddress, expectedAddress) 
+
+                EXPECT_EQ(actualAddress, expectedAddress)
                     << "Final: Node at index " << idx << " not contiguous";
             }
         }

@@ -12,11 +12,11 @@
 
 #include "scope_exit.h"
 
-static Result<Model> CreateCubeModel(ResourceCache* cache);
+[[maybe_unused]] static Result<Model> CreateCubeModel(ResourceCache* cache);
 static Result<Model> CreateShapeModel(ResourceCache* cache);
 
 class WorldMatrix : public Mat44f
-{    
+{
 public:
     WorldMatrix& operator=(const Mat44& that)
     {
@@ -98,7 +98,7 @@ public:
         m_State = State::Shutdown;
 
         m_Registry.Clear();
-        
+
         if(m_RenderGraph)
         {
             m_GpuDevice->DestroyRenderGraph(m_RenderGraph);
@@ -114,7 +114,7 @@ public:
         {
             return;
         }
-        
+
         m_ScreenBounds = m_GpuDevice->GetExtent();
 
         m_Registry.Get<Camera>(m_EidCamera).SetBounds(m_ScreenBounds);
@@ -276,7 +276,7 @@ public:
     }
 };
 
-int main(int, [[maybe_unused]] char* argv[])
+int main(int, char* /*argv*/[])
 {
     CubeAppLifecycle appLifecycle;
     AppDriver driver(&appLifecycle);
