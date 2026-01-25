@@ -22,6 +22,10 @@ endif()
 # Dependencies (SDL3, spdlog, glm, stb)
 # ============================================================
 
+# --- Google Test
+# --- add google test before anything that might use it (like Dawn)
+add_subdirectory(thirdparty/googletest)
+
 # --- SDL3
 set(SDL_SHARED OFF CACHE BOOL "Build shared SDL library" FORCE)
 set(SDL_STATIC ON CACHE BOOL "Build static SDL library" FORCE)
@@ -30,6 +34,15 @@ set(SDL_TESTS OFF CACHE BOOL "Build SDL tests" FORCE)
 set(SDL_TEST_LIBRARY OFF CACHE BOOL "Build SDL test library" FORCE)
 
 add_subdirectory(thirdparty/SDL)
+
+# --- Dawn
+set(DAWN_FETCH_DEPENDENCIES ON)
+set(DAWN_BUILD_SAMPLES OFF CACHE BOOL "Disable samples" FORCE)
+set(DAWN_BUILD_TESTS OFF CACHE BOOL "Disable tests" FORCE)
+set(DAWN_ENABLE_INSTALL OFF CACHE BOOL "Disable Dawn install" FORCE)
+set(TINT_ENABLE_INSTALL OFF CACHE BOOL "Disable Tint install" FORCE)
+set(TINT_BUILD_TESTS OFF CACHE BOOL "Disable Tint tests" FORCE)
+add_subdirectory(thirdparty/dawn EXCLUDE_FROM_ALL)
 
 # --- spdlog
 set(SPDLOG_BUILD_SHARED OFF CACHE BOOL "Build as shared library" FORCE)
@@ -94,9 +107,6 @@ list(FILTER LUA_SOURCES EXCLUDE REGEX "[/\\]onelua\\.c$")
 # Create the Lua static library
 add_library(lua STATIC ${LUA_SOURCES})
 target_include_directories(lua PUBLIC thirdparty/lua)
-
-# --- google test
-add_subdirectory(thirdparty/googletest)
 
 # ============================================================
 # Shaders / Assets
@@ -181,7 +191,7 @@ endif()
 # Executable: Triangle
 # ============================================================
 add_executable(Triangle tests/triangle.cpp tests/MouseNav.cpp tests/AppDriver.cpp tests/LuaRepl.cpp)
-target_link_libraries(Triangle PRIVATE ssg::ssg spdlog::spdlog imgui lua assimp::assimp)
+target_link_libraries(Triangle PRIVATE ssg::ssg spdlog::spdlog imgui lua assimp::assimp webgpu_dawn webgpu_glfw glfw)
 add_dependencies(Triangle shaders copy_images copy_models)
 
 if(MSVC)
@@ -195,11 +205,24 @@ if(SIMPLESG_STRICT)
   set_property(TARGET Triangle PROPERTY COMPILE_WARNING_AS_ERROR ON)
 endif()
 
+  # Keep required runtime DLLs beside the executable so runs work outside System32.
+  if(WIN32)
+    set(WIN_SYSTEM_DIR "$ENV{SystemRoot}/System32")
+    add_custom_command(
+      TARGET Triangle POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              ${WIN_SYSTEM_DIR}/d3dcompiler_47.dll $<TARGET_FILE_DIR:Triangle>/
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              ${WIN_SYSTEM_DIR}/vulkan-1.dll $<TARGET_FILE_DIR:Triangle>/
+      COMMENT "Copying d3dcompiler_47.dll and vulkan-1.dll to the Triangle output directory"
+    )
+  endif()
+
 # ============================================================
 # Executable: Cube
 # ============================================================
 add_executable(Cube tests/cube.cpp tests/MouseNav.cpp tests/AppDriver.cpp tests/LuaRepl.cpp)
-target_link_libraries(Cube PRIVATE ssg::ssg spdlog::spdlog imgui lua assimp::assimp)
+target_link_libraries(Cube PRIVATE ssg::ssg spdlog::spdlog imgui lua assimp::assimp webgpu_dawn webgpu_glfw glfw)
 add_dependencies(Cube shaders copy_images copy_models)
 
 if(MSVC)
@@ -213,11 +236,24 @@ if(SIMPLESG_STRICT)
   set_property(TARGET Cube PROPERTY COMPILE_WARNING_AS_ERROR ON)
 endif()
 
+  # Keep required runtime DLLs beside the executable so runs work outside System32.
+  if(WIN32)
+    set(WIN_SYSTEM_DIR "$ENV{SystemRoot}/System32")
+    add_custom_command(
+      TARGET Cube POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              ${WIN_SYSTEM_DIR}/d3dcompiler_47.dll $<TARGET_FILE_DIR:Cube>/
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              ${WIN_SYSTEM_DIR}/vulkan-1.dll $<TARGET_FILE_DIR:Cube>/
+      COMMENT "Copying d3dcompiler_47.dll and vulkan-1.dll to the Cube output directory"
+    )
+  endif()
+
 # ============================================================
 # Executable: Sponza
 # ============================================================
 add_executable(Sponza tests/sponza.cpp tests/MouseNav.cpp tests/AppDriver.cpp)
-target_link_libraries(Sponza PRIVATE ssg::ssg spdlog::spdlog imgui assimp::assimp)
+target_link_libraries(Sponza PRIVATE ssg::ssg spdlog::spdlog imgui assimp::assimp webgpu_dawn webgpu_glfw glfw)
 add_dependencies(Sponza shaders copy_images copy_models)
 
 if(MSVC)
@@ -231,6 +267,29 @@ if(SIMPLESG_STRICT)
   set_property(TARGET Sponza PROPERTY COMPILE_WARNING_AS_ERROR ON)
 endif()
 
+#if(EMSCRIPTEN)
+#  set_target_properties(app PROPERTIES SUFFIX ".html")
+#  target_link_libraries(app PRIVATE emdawnwebgpu_cpp webgpu_glfw)
+#  target_link_options(app PRIVATE "-sASYNCIFY=1" "-sUSE_GLFW=3" "-sFETCH=1" "-D FETCH_DEBUG=1")
+#  #target_link_libraries(app PRIVATE webgpu_glfw)
+#  #target_link_options(app PRIVATE "-sASYNCIFY=1" "-sUSE_GLFW=3" --use-port=emdawnwebgpu)
+#else()
+#  target_link_libraries(app PRIVATE webgpu_dawn webgpu_glfw glfw)
+
+  # Keep required runtime DLLs beside the executable so runs work outside System32.
+  if(WIN32)
+    set(WIN_SYSTEM_DIR "$ENV{SystemRoot}/System32")
+    add_custom_command(
+      TARGET Sponza POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              ${WIN_SYSTEM_DIR}/d3dcompiler_47.dll $<TARGET_FILE_DIR:Sponza>/
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              ${WIN_SYSTEM_DIR}/vulkan-1.dll $<TARGET_FILE_DIR:Sponza>/
+      COMMENT "Copying d3dcompiler_47.dll and vulkan-1.dll to the Sponza output directory"
+    )
+  endif()
+#endif()
+
 # ============================================================
 # Executable: Tests
 # ============================================================
@@ -242,7 +301,7 @@ add_executable(Tests
   "tests/scope_exit.test.cpp"
   "tests/imvector.test.cpp"
   "tests/Radians.test.cpp")
-  
+
 target_link_libraries(Tests PRIVATE gtest_main ssg::ssg spdlog::spdlog)
 #add_dependencies(RunAllTests shaders copy_images copy_models)
 
