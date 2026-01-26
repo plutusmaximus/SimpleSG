@@ -142,6 +142,7 @@ set(SSG_SOURCES
   src/Camera.cpp
   src/EcsChildTransformPool.cpp
   src/Error.cpp
+  src/FileIo.cpp
   src/Image.cpp
   src/Model.cpp
   src/ResourceCache.cpp
@@ -157,6 +158,7 @@ set(SSG_HEADERS
   src/ECS.h
   src/EcsChildTransformPool.h
   src/Error.h
+  src/FileIo.h
   src/GpuDevice.h
   src/Image.h
   src/Material.h

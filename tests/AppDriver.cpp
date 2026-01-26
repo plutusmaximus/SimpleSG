@@ -79,7 +79,7 @@ AppDriver::Run()
 
     m_State = State::Running;
 
-    expect(FileIO::Startup(), "Failed to startup File I/O system");
+    expect(FileIo::Startup(), "Failed to startup File I/O system");
 
     auto gdResult = SdlGpuDevice::Create(m_Window);
     expect(gdResult, gdResult.error());
@@ -104,7 +104,7 @@ AppDriver::Run()
 
     while(running && app->IsRunning())
     {
-        FileIO::ProcessEvents();
+        FileIo::ProcessEvents();
 
         app->Update(stopwatch.Mark());
 
@@ -188,7 +188,7 @@ AppDriver::Run()
 
     SdlGpuDevice::Destroy(gpuDevice);
 
-    FileIO::Shutdown();
+    FileIo::Shutdown();
 
     m_State = State::Stopped;
 

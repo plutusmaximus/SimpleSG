@@ -1,5 +1,6 @@
 #define __LOGGER_NAME__ "RSRC"
 
+#include "FileIo.h"
 #include "ResourceCache.h"
 #include "scope_exit.h"
 
@@ -136,7 +137,6 @@ Result<Model>
 ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view filePath)
 {
     logDebug("Loading model from file: {} (key: {})", filePath, cacheKey.ToString());
-
 
     // Return existing entry without re-importing
     Model model;
