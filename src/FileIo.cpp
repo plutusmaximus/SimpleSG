@@ -7,9 +7,6 @@
 #include <limits>
 #include <mutex>
 
-// DO NOT SUBMIT
-#include <cassert>
-
 class ReadRequest
 {
 public:
@@ -27,8 +24,8 @@ public:
 
     void Link(ReadRequest* next)
     {
-        assert(!m_Next);
-        assert(!m_Prev);
+        eassert(!m_Next);
+        eassert(!m_Prev);
 
         m_Next = next;
         if(next)
