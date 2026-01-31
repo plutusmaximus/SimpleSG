@@ -2,7 +2,6 @@
 
 #include "ResourceCache.h"
 
-#include "FileIo.h"
 #include "scope_exit.h"
 
 #include <assimp/Importer.hpp>
@@ -78,19 +77,6 @@ static void ProcessNodes(const aiNode* node,
     imvector<TransformNode>::builder& transformNodes,
     const std::filesystem::path& parentPath);
 
-ResourceCache::AsyncToken
-ResourceCache::AsyncToken::NewToken()
-{
-    static std::atomic<ValueType> s_NextToken{ 1 };
-    ValueType tokenValue;
-    do
-    {
-        tokenValue = s_NextToken.fetch_add(1, std::memory_order_acquire);
-    } while(InvalidValue == tokenValue);
-
-    return AsyncToken(tokenValue);
-}
-
 ResourceCache::~ResourceCache()
 {
     for(auto& vb : m_VertexBuffers)
@@ -144,29 +130,58 @@ ResourceCache::~ResourceCache()
     }
 }
 
-#if 0
-static void
-OnModelFileRead(FileIo::ReadResult&& readResult, ResourceCache* resourceCache)
+bool
+ResourceCache::IsPending(const CacheKey& cacheKey) const
 {
-    if(!readResult.Succeeded())
+    // Check pending operations
+    for(AsyncOp* op = m_PendingOps; op != nullptr; op = op->Next())
     {
-        logError("Failed to read model file: {}", readResult.Error());
-        return;
+        if(op->GetCacheKey() == cacheKey)
+        {
+            return true;
+        }
     }
 
-    auto result = resourceCache->LoadModelFromMemory(
-        /* cacheKey */ CacheKey(""), // TODO(KB) - generate appropriate cache key
-        std::span<const uint8_t>(readResult.Data(), readResult.BytesRead()),
-        readResult.Path());
+    return false;
 }
 
-Result<ResourceCache::AsyncToken>
+void
+ResourceCache::ProcessPendingOperations()
+{
+    AsyncOp* op = m_PendingOps;
+    while(op)
+    {
+        AsyncOp* nextOp = op->Next();
+
+        op->Update();
+
+        if(op->IsComplete())
+        {
+            op->Dequeue(&m_PendingOps);
+            delete op;
+        }
+
+        op = nextOp;
+    }
+}
+
+Result<void>
 ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, std::string_view filePath)
 {
-    FileIo::QueueRead<ResourceCache, OnModelFileRead>(filePath, this);
-}
+    // Return existing entry without re-importing
+    if(m_ModelCache.Contains(cacheKey))
+    {
+        logDebug("  Cache hit: {}", cacheKey.ToString());
+        return {};
+    }
 
-#endif // 0
+    auto op = new LoadModelOp(this, cacheKey, filePath);
+    op->Start();
+
+    op->Enqueue(&m_PendingOps);
+
+    return {};
+}
 
 Result<Model>
 ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view filePath)
@@ -225,6 +240,15 @@ Result<Model>
 ResourceCache::LoadModelFromMemory(
     const CacheKey& cacheKey, const std::span<const uint8_t> data, std::string_view filePath)
 {
+    // Return existing entry without re-importing
+    if(Model model; m_ModelCache.TryGet(cacheKey, model))
+    {
+        // TODO(KB) - add a test to confirm cache behavior.
+
+        logDebug("  Cache hit: {}", cacheKey.ToString());
+        return model;
+    }
+
     constexpr unsigned flags =
         aiProcess_CalcTangentSpace | aiProcess_ImproveCacheLocality | aiProcess_LimitBoneWeights |
         aiProcess_RemoveRedundantMaterials | aiProcess_Triangulate | aiProcess_SortByPType |
@@ -516,6 +540,62 @@ ResourceCache::GetFragmentShader(const CacheKey& cacheKey) const
 }
 
 // private:
+
+void
+ResourceCache::LoadModelOp::Start()
+{
+    eassert(m_State == NotStarted);
+
+    auto result = FileIo::Fetch(m_Path);
+
+    if(result)
+    {
+        m_FileFetchToken = result.value();
+        m_State = LoadingFile;
+    }
+    else
+    {
+        SetResult(result.error());
+    }
+}
+
+void
+ResourceCache::LoadModelOp::Update()
+{
+    switch(m_State)
+    {
+        case NotStarted:
+            eassert(false);
+            break;
+
+        case LoadingFile:
+        {
+            if(FileIo::IsPending(m_FileFetchToken))
+            {
+                return;
+            }
+
+            auto result = FileIo::GetResult(m_FileFetchToken);
+
+            SetResult(LoadModel(result));
+            break;
+        }
+        case Completed:
+            // No-op
+            break;
+    }
+}
+
+Result<Model>
+ResourceCache::LoadModelOp::LoadModel(const Result<FileIo::FetchDataPtr>& fileData)
+{
+    if(!fileData)
+    {
+        return fileData.error();
+    }
+
+    return m_ResourceCache->LoadModelFromMemory(GetCacheKey(), fileData.value()->Bytes, m_Path);
+}
 
 Result<Texture>
 ResourceCache::CreateTexture(const std::string_view path)

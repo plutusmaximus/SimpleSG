@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Error.h"
+#include "FileIo.h"
 #include "Mesh.h"
 #include "Model.h"
 
@@ -21,41 +22,23 @@ public:
     {
     }
 
-    /// @brief Token representing the status of a file I/O operation.
-    /// Used to query the status or retrieve results of asynchronous operations.
-    class AsyncToken
-    {
-        using ValueType = uint32_t;
-
-    public:
-        AsyncToken() = default;
-
-        bool operator==(const AsyncToken& other) const { return m_Value == other.m_Value; }
-        bool operator!=(const AsyncToken& other) const { return m_Value != other.m_Value; }
-
-        static AsyncToken NewToken();
-
-    private:
-        inline static constexpr ValueType InvalidValue{ 0 };
-
-        explicit constexpr AsyncToken(ValueType value)
-            : m_Value(value)
-        {
-        }
-
-        ValueType m_Value{ 0 };
-    };
-
     ~ResourceCache();
 
-    Result<AsyncToken> LoadModelFromFileAsync(const CacheKey& cacheKey, std::string_view filePath);
+    /// @brief Checks if the asynchronous operation is still pending.
+    bool IsPending(const CacheKey& cacheKey) const;
+
+    /// @brief Processes pending asynchronous operations.
+    void ProcessPendingOperations();
+
+    /// @brief Loads a model from file asynchronously if not already loaded.
+    Result<void> LoadModelFromFileAsync(const CacheKey& cacheKey, std::string_view filePath);
 
     /// @brief Loads a model from file if not already loaded.
     Result<Model> LoadModelFromFile(const CacheKey& cacheKey, std::string_view filePath);
 
-    Result<Model> LoadModelFromMemory(const CacheKey& cacheKey,
-        const std::span<const uint8_t> data,
-        std::string_view filePath);
+    /// @brief Loads a model from memory if not already loaded.
+    Result<Model> LoadModelFromMemory(
+        const CacheKey& cacheKey, const std::span<const uint8_t> data, std::string_view filePath);
 
     /// @brief Creates a model from the given specification if not already created.
     Result<Model> GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec);
@@ -84,8 +67,134 @@ public:
     Result<FragmentShader> GetFragmentShader(const CacheKey& cacheKey) const;
 
 private:
-    /// @brief Loads a texture from the given file path.
-    Result<Texture> CreateTexture(const std::string_view path);
+
+    /// @brief Base class for asynchronous operations.
+    class AsyncOp
+    {
+    public:
+        virtual ~AsyncOp() = default;
+
+        virtual void Start() = 0;
+
+        virtual void Update() = 0;
+
+        virtual bool IsComplete() const = 0;
+
+        const CacheKey& GetCacheKey() const { return m_CacheKey; }
+
+        void Enqueue(AsyncOp** head)
+        {
+            eassert(m_Next == nullptr);
+            eassert(m_Prev == nullptr);
+
+            Link(*head);
+            *head = this;
+        }
+
+        void Dequeue(AsyncOp** head)
+        {
+            eassert(m_Next != nullptr || m_Prev != nullptr || *head == this);
+
+            if(*head == this)
+            {
+                *head = m_Next;
+            }
+            Unlink();
+        }
+
+        void Link(AsyncOp* next)
+        {
+            eassert(!m_Next);
+            eassert(!m_Prev);
+
+            m_Next = next;
+            if(next)
+            {
+                next->m_Prev = this;
+            }
+        }
+
+        void Unlink()
+        {
+            if(m_Prev)
+            {
+                m_Prev->m_Next = m_Next;
+            }
+            if(m_Next)
+            {
+                m_Next->m_Prev = m_Prev;
+            }
+            m_Next = nullptr;
+            m_Prev = nullptr;
+        }
+
+        AsyncOp* Next() { return m_Next; }
+
+    protected:
+
+        explicit AsyncOp(const CacheKey& cacheKey)
+            : m_CacheKey(cacheKey)
+        {
+        }
+
+    private:
+
+        CacheKey m_CacheKey;
+
+        AsyncOp* m_Next{ nullptr };
+        AsyncOp* m_Prev{ nullptr };
+    };
+
+    /// @brief Asynchronous operation for loading a model from file.
+    class LoadModelOp : public AsyncOp
+    {
+    public:
+        LoadModelOp(
+            ResourceCache* resourceCache, const CacheKey& cacheKey, const std::string_view path)
+            : AsyncOp(cacheKey),
+              m_ResourceCache(resourceCache),
+              m_Path(path)
+        {
+        }
+
+        void Start() override;
+
+        void Update() override;
+
+        bool IsComplete() const override { return m_State == Completed; }
+
+        const Result<Model>& GetResult() const
+        {
+            eassert(IsComplete());
+            return m_Result;
+        }
+
+    private:
+        void SetResult(const Result<Model>& result)
+        {
+            m_Result = result;
+            m_State = Completed;
+        }
+
+        Result<Model> LoadModel(const Result<FileIo::FetchDataPtr>& fileData);
+
+        ResourceCache* m_ResourceCache{ nullptr };
+
+        enum State
+        {
+            NotStarted,
+            LoadingFile,
+            Completed,
+        };
+
+        State m_State{ NotStarted };
+
+        imstring m_Path;
+
+        FileIo::AsyncToken m_FileFetchToken;
+
+        Result<Model> m_Result;
+    };
 
     template<typename Value>
     class Cache
@@ -165,6 +274,9 @@ private:
         std::vector<Entry> m_Entries;
     };
 
+    /// @brief Loads a texture from the given file path.
+    Result<Texture> CreateTexture(const std::string_view path);
+
     GpuDevice* const m_GpuDevice;
     std::vector<VertexBuffer> m_VertexBuffers;
     std::vector<IndexBuffer> m_IndexBuffers;
@@ -172,4 +284,6 @@ private:
     Cache<Texture> m_TextureCache;
     Cache<VertexShader> m_VertexShaderCache;
     Cache<FragmentShader> m_FragmentShaderCache;
+
+    AsyncOp* m_PendingOps{ nullptr };
 };
