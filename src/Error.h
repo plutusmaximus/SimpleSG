@@ -141,8 +141,8 @@ public:
     }
 
     Error(const ErrorCode code, std::string_view message)
-        : Code(code),
-          Message(message)
+        : m_Code(code),
+          m_Message(message)
     {
     }
 
@@ -154,14 +154,20 @@ public:
 
     bool operator==(const Error& other) const
     {
-        return Code == other.Code && Message == other.Message;
+        return m_Code == other.m_Code && m_Message == other.m_Message;
     }
 
     bool operator!=(const Error& other) const { return !(*this == other); }
 
-    const ErrorCode Code;
+    ErrorCode GetCode() const { return m_Code; }
 
-    const imstring Message;
+    const imstring& GetMessage() const { return m_Message; }
+
+private:
+
+    ErrorCode m_Code;
+
+    imstring m_Message;
 };
 
 /// @brief Formatter specialization for Error to support std::format.
@@ -170,7 +176,7 @@ struct std::formatter<Error> : std::formatter<imstring>
 {
     auto format(const Error& e, std::format_context& ctx) const
     {
-        return std::formatter<imstring>::format(e.Message, ctx);
+        return std::formatter<imstring>::format(e.GetMessage(), ctx);
     }
 };
 
@@ -318,6 +324,12 @@ public:
     Result(Result&& other) = default;
     Result& operator=(const Result& other) = default;
     Result& operator=(Result&& other) = default;
+
+    Result& operator=(const Error& error)
+    {
+        m_ValueOrError = error;
+        return *this;
+    }
 
     constexpr T& value() &
     {

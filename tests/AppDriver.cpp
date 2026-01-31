@@ -104,8 +104,6 @@ AppDriver::Run()
 
     while(running && app->IsRunning())
     {
-        FileIo::ProcessEvents();
-
         app->Update(stopwatch.Mark());
 
         SDL_Event event;

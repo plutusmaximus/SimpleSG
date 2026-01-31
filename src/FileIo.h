@@ -1,60 +1,74 @@
 #pragma once
 
+#include "Error.h"
+
 #include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <span>
 #include <string>
 
-/// @brief Provides asynchronous file input/output operations.
+/// @brief Provides asynchronous file I/O operations.
 class FileIo final
 {
+    friend class ReadRequest;
+
 public:
-
-    /// @brief Represents the result of a file read operation.
-    /// Passed to the read callback.
-    class ReadResult
+    /// @brief Abstract base class representing fetched file data.
+    class FetchData
     {
-        friend class FileIo;
     public:
+        virtual ~FetchData() = 0;
 
-        bool Succeeded() const { return m_Succeeded; }
+        const std::span<const uint8_t> Bytes;
 
-        const std::string& Error() const { return m_Error; }
-
-        const uint8_t* Data() const { return m_Data; }
-
-        size_t BytesRead() const { return m_BytesRead; }
-
-    private:
-        ReadResult(const uint8_t* data, const size_t bytesRead)
-            : m_Data(data),
-              m_BytesRead(bytesRead),
-              m_Succeeded(true)
+    protected:
+        FetchData(const uint8_t* bytes, const size_t bytesRead)
+            : Bytes(bytes, bytesRead)
         {
         }
-
-        explicit ReadResult(std::string_view error)
-            : m_Error(error),
-              m_Succeeded(false)
-        {
-        }
-
-        explicit ReadResult(std::string&& error) noexcept
-            : m_Error(std::move(error)),
-              m_Succeeded(false)
-        {
-        }
-        const uint8_t* m_Data{ nullptr };
-
-        size_t m_BytesRead{ 0 };
-        std::string m_Error;
-
-        bool m_Succeeded{ false };
     };
 
-    using ReadCallback = void (*)(const ReadResult& result, void* userData);
+    /// @brief Token representing the status of a file I/O operation.
+    /// Used to query the status or retrieve results of asynchronous operations.
+    class AsyncToken
+    {
+        using ValueType = uint32_t;
+
+    public:
+        AsyncToken() = default;
+
+        bool operator==(const AsyncToken& other) const { return m_Value == other.m_Value; }
+        bool operator!=(const AsyncToken& other) const { return m_Value != other.m_Value; }
+
+        static AsyncToken NewToken();
+
+    private:
+        inline static constexpr ValueType InvalidValue{ 0 };
+
+        explicit constexpr AsyncToken(ValueType value)
+            : m_Value(value)
+        {
+        }
+
+        ValueType m_Value{ 0 };
+    };
+
+    /// @brief Enumeration representing the status of a fetch operation.
+    enum FetchStatus
+    {
+        /// @brief The fetch operation has not started or the token is invalid.
+        None,
+        /// @brief The fetch operation is still in progress.
+        Pending,
+        /// @brief The fetch operation has completed (either successfully or with an error).
+        Completed,
+    };
+
+    /// @brief Smart pointer type for fetched file data.
+    using FetchDataPtr = std::unique_ptr<FetchData>;
 
     FileIo() = delete;
-
-    // Startup, Shutdown(), and ProcessEvents() must be called from the main thread.
 
     /// @brief  Initialize the FileIO system.
     static bool Startup();
@@ -62,17 +76,33 @@ public:
     /// @brief Shutdown the FileIO system.
     static void Shutdown();
 
-    /// @brief Process completed file I/O operations.
-    static void ProcessEvents();
+    /// @brief Initiates an asynchronous file fetch operation.
+    static Result<AsyncToken> Fetch(std::string_view path);
 
-    /// @brief Queue a file read operation.
-    static void QueueRead(std::string_view path, ReadCallback callback, void* userData);
+    /// @brief Gets the current status of a fetch operation.
+    static FetchStatus GetStatus(const AsyncToken token);
+
+    /// @brief Checks if a fetch operation is still pending.
+    static bool IsPending(const AsyncToken token)
+    {
+        return GetStatus(token) == FetchStatus::Pending;
+    }
+
+    /// @brief Retrieves the result of a completed fetch operation.
+    /// Returns an error if the operation failed, or the operation is not complete.
+    static Result<FetchDataPtr> GetResult(const AsyncToken token);
 
 private:
-
     /// @brief Platform-specific startup operations.
     static bool PlatformStartup();
 
     /// @brief Platform-specific shutdown operations.
     static bool PlatformShutdown();
+
+    /// @brief Processes completed fetch operations.
+    static void ProcessCompletions();
+
+    static void CompleteRequestSuccess(class ReadRequest* request, const size_t bytesRead);
+
+    static void CompleteRequestFailure(class ReadRequest* request, const Error& error);
 };

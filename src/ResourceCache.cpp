@@ -1,13 +1,13 @@
 #define __LOGGER_NAME__ "RSRC"
 
-#include "FileIo.h"
 #include "ResourceCache.h"
+
+#include "FileIo.h"
 #include "scope_exit.h"
 
 #include <assimp/Importer.hpp>
-#include <assimp/scene.h>
 #include <assimp/postprocess.h>
-
+#include <assimp/scene.h>
 #include <filesystem>
 
 static constexpr const std::string_view WHITE_TEXTURE_KEY("#FFFFFFFF");
@@ -50,8 +50,7 @@ struct MeshSpecCollection
 };
 
 /// @brief Retrieves texture properties from a given material.
-static TextureProperties GetTexturePropertiesFromMaterial(
-    const aiMaterial* material,
+static TextureProperties GetTexturePropertiesFromMaterial(const aiMaterial* material,
     const std::filesystem::path& parentPath);
 
 /// @brief Retrieves the name of a mesh.
@@ -64,21 +63,33 @@ static void LogMesh(const aiScene* scene, const unsigned meshIdx);
 static bool ValidateMesh(const aiScene* scene, const unsigned meshIdx);
 
 /// @brief Recursively collects meshes from scene nodes.
-static void CollectMeshes(const aiScene* scene, const aiNode* node, SceneMeshCollection& outCollection);
+static void CollectMeshes(
+    const aiScene* scene, const aiNode* node, SceneMeshCollection& outCollection);
 
-static MeshSpecCollection CreateMeshSpecCollection(
-    const aiScene* scene,
+static MeshSpecCollection CreateMeshSpecCollection(const aiScene* scene,
     const SceneMeshCollection& meshCollection,
     const std::filesystem::path& parentPath);
 
 /// @brief Processes a scene node and its children.
-static void ProcessNodes(
-        const aiNode* node,
-        const int parentNodeIndex,
-        const MeshSpecCollection& meshSpecCollection,
-        imvector<MeshInstance>::builder& meshInstances,
-        imvector<TransformNode>::builder& transformNodes,
-        const std::filesystem::path& parentPath);
+static void ProcessNodes(const aiNode* node,
+    const int parentNodeIndex,
+    const MeshSpecCollection& meshSpecCollection,
+    imvector<MeshInstance>::builder& meshInstances,
+    imvector<TransformNode>::builder& transformNodes,
+    const std::filesystem::path& parentPath);
+
+ResourceCache::AsyncToken
+ResourceCache::AsyncToken::NewToken()
+{
+    static std::atomic<ValueType> s_NextToken{ 1 };
+    ValueType tokenValue;
+    do
+    {
+        tokenValue = s_NextToken.fetch_add(1, std::memory_order_acquire);
+    } while(InvalidValue == tokenValue);
+
+    return AsyncToken(tokenValue);
+}
 
 ResourceCache::~ResourceCache()
 {
@@ -133,6 +144,30 @@ ResourceCache::~ResourceCache()
     }
 }
 
+#if 0
+static void
+OnModelFileRead(FileIo::ReadResult&& readResult, ResourceCache* resourceCache)
+{
+    if(!readResult.Succeeded())
+    {
+        logError("Failed to read model file: {}", readResult.Error());
+        return;
+    }
+
+    auto result = resourceCache->LoadModelFromMemory(
+        /* cacheKey */ CacheKey(""), // TODO(KB) - generate appropriate cache key
+        std::span<const uint8_t>(readResult.Data(), readResult.BytesRead()),
+        readResult.Path());
+}
+
+Result<ResourceCache::AsyncToken>
+ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, std::string_view filePath)
+{
+    FileIo::QueueRead<ResourceCache, OnModelFileRead>(filePath, this);
+}
+
+#endif // 0
+
 Result<Model>
 ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view filePath)
 {
@@ -142,7 +177,7 @@ ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view file
     Model model;
     if(m_ModelCache.TryGet(cacheKey, model))
     {
-        //TODO(KB) - add a test to confirm cache behavior.
+        // TODO(KB) - add a test to confirm cache behavior.
 
         logDebug("  Cache hit: {}", cacheKey.ToString());
         return model;
@@ -151,16 +186,9 @@ ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view file
     logDebug("  Cache miss: {}", cacheKey.ToString());
 
     constexpr unsigned flags =
-        aiProcess_CalcTangentSpace
-        | aiProcess_ImproveCacheLocality
-        | aiProcess_LimitBoneWeights
-        | aiProcess_RemoveRedundantMaterials
-        | aiProcess_Triangulate
-        | aiProcess_SortByPType
-        | aiProcess_FindDegenerates
-        | aiProcess_FindInvalidData
-        | aiProcess_ConvertToLeftHanded
-        ;
+        aiProcess_CalcTangentSpace | aiProcess_ImproveCacheLocality | aiProcess_LimitBoneWeights |
+        aiProcess_RemoveRedundantMaterials | aiProcess_Triangulate | aiProcess_SortByPType |
+        aiProcess_FindDegenerates | aiProcess_FindInvalidData | aiProcess_ConvertToLeftHanded;
 
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(std::string(filePath), flags);
@@ -174,28 +202,61 @@ ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view file
     const auto absPath = std::filesystem::absolute(filePath);
     const auto parentPath = absPath.parent_path();
 
-    auto meshSpecCollection = CreateMeshSpecCollection(
-        scene,
-        meshCollection,
-        parentPath);
+    auto meshSpecCollection = CreateMeshSpecCollection(scene, meshCollection, parentPath);
 
     imvector<MeshInstance>::builder meshInstances;
     imvector<TransformNode>::builder transformNodes;
 
-    ProcessNodes(
-        scene->mRootNode,
+    ProcessNodes(scene->mRootNode,
         -1,
         meshSpecCollection,
         meshInstances,
         transformNodes,
         parentPath);
 
-    const ModelSpec ModelSpec
-    {
-        meshSpecCollection.MeshSpecs.build(),
+    const ModelSpec ModelSpec{ meshSpecCollection.MeshSpecs.build(),
         meshInstances.build(),
-        transformNodes.build()
-    };
+        transformNodes.build() };
+
+    return GetOrCreateModel(cacheKey, ModelSpec);
+}
+
+Result<Model>
+ResourceCache::LoadModelFromMemory(
+    const CacheKey& cacheKey, const std::span<const uint8_t> data, std::string_view filePath)
+{
+    constexpr unsigned flags =
+        aiProcess_CalcTangentSpace | aiProcess_ImproveCacheLocality | aiProcess_LimitBoneWeights |
+        aiProcess_RemoveRedundantMaterials | aiProcess_Triangulate | aiProcess_SortByPType |
+        aiProcess_FindDegenerates | aiProcess_FindInvalidData | aiProcess_ConvertToLeftHanded;
+
+    Assimp::Importer importer;
+    const aiScene* scene = importer.ReadFileFromMemory(data.data(), data.size(), flags, nullptr);
+
+    expect(scene != nullptr, importer.GetErrorString());
+    expect(scene->mNumMeshes > 0, "No meshes in model: {}", filePath);
+
+    SceneMeshCollection meshCollection;
+    CollectMeshes(scene, scene->mRootNode, meshCollection);
+
+    const auto absPath = std::filesystem::absolute(filePath);
+    const auto parentPath = absPath.parent_path();
+
+    auto meshSpecCollection = CreateMeshSpecCollection(scene, meshCollection, parentPath);
+
+    imvector<MeshInstance>::builder meshInstances;
+    imvector<TransformNode>::builder transformNodes;
+
+    ProcessNodes(scene->mRootNode,
+        -1,
+        meshSpecCollection,
+        meshInstances,
+        transformNodes,
+        parentPath);
+
+    const ModelSpec ModelSpec{ meshSpecCollection.MeshSpecs.build(),
+        meshInstances.build(),
+        transformNodes.build() };
 
     return GetOrCreateModel(cacheKey, ModelSpec);
 }
@@ -209,7 +270,7 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     Model model;
     if(m_ModelCache.TryGet(cacheKey, model))
     {
-        //TODO(KB) - add a test to confirm cache behavior.
+        // TODO(KB) - add a test to confirm cache behavior.
 
         logDebug("  Cache hit: {}", cacheKey.ToString());
         return model;
@@ -217,7 +278,7 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
 
-    //Create a single vertex and index buffer for all meshes in the model.
+    // Create a single vertex and index buffer for all meshes in the model.
 
     std::vector<std::span<const Vertex>> vertexSpans;
     std::vector<std::span<const VertexIndex>> indexSpans;
@@ -234,26 +295,28 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     auto ibResult = m_GpuDevice->CreateIndexBuffer(indexSpans);
     expect(ibResult, ibResult.error());
 
-    auto cleanupIb = scope_exit([&]()
-    {
-        auto result = m_GpuDevice->DestroyIndexBuffer(ibResult.value());
-        if(!result)
+    auto cleanupIb = scope_exit(
+        [&]()
         {
-            logError("Failed to destroy index buffer: {}", result.error());
-        }
-    });
+            auto result = m_GpuDevice->DestroyIndexBuffer(ibResult.value());
+            if(!result)
+            {
+                logError("Failed to destroy index buffer: {}", result.error());
+            }
+        });
 
     auto vbResult = m_GpuDevice->CreateVertexBuffer(vertexSpans);
     expect(vbResult, vbResult.error());
 
-    auto cleanupVb = scope_exit([&]()
-    {
-        auto result = m_GpuDevice->DestroyVertexBuffer(vbResult.value());
-        if(!result)
+    auto cleanupVb = scope_exit(
+        [&]()
         {
-            logError("Failed to destroy vertex buffer: {}", result.error());
-        }
-    });
+            auto result = m_GpuDevice->DestroyVertexBuffer(vbResult.value());
+            if(!result)
+            {
+                logError("Failed to destroy vertex buffer: {}", result.error());
+            }
+        });
 
     auto baseIb = ibResult.value();
     auto baseVb = vbResult.value();
@@ -273,23 +336,20 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
             albedo = albedoResult.value();
         }
 
-        //FIXME - specify number of uniform buffers.
+        // FIXME - specify number of uniform buffers.
         auto vertexShaderResult = GetOrCreateVertexShader(meshSpec.MtlSpec.VertexShader);
         expect(vertexShaderResult, vertexShaderResult.error());
 
-        //FIXME - specify number of samplers.
+        // FIXME - specify number of samplers.
         auto fragShaderResult = GetOrCreateFragmentShader(meshSpec.MtlSpec.FragmentShader);
         expect(fragShaderResult, fragShaderResult.error());
 
-        Material mtl
-        {
-            meshSpec.MtlSpec.Color,
+        Material mtl{ meshSpec.MtlSpec.Color,
             meshSpec.MtlSpec.Metalness,
             meshSpec.MtlSpec.Roughness,
             albedo,
             vertexShaderResult.value(),
-            fragShaderResult.value()
-        };
+            fragShaderResult.value() };
 
         const uint32_t idxCount = static_cast<uint32_t>(meshSpec.Indices.size());
         const uint32_t vtxCount = static_cast<uint32_t>(meshSpec.Vertices.size());
@@ -311,14 +371,16 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
         meshes.emplace_back(mesh);
     }
 
-    auto modelResult = Model::Create(meshes.build(), modelSpec.MeshInstances, modelSpec.TransformNodes);
+    auto modelResult =
+        Model::Create(meshes.build(), modelSpec.MeshInstances, modelSpec.TransformNodes);
 
     expect(modelResult, modelResult.error());
 
     model = modelResult.value();
 
     expect(m_ModelCache.TryAdd(cacheKey, model),
-        "Failed to add model to cache: {}", cacheKey.ToString());
+        "Failed to add model to cache: {}",
+        cacheKey.ToString());
 
     cleanupIb.release();
     cleanupVb.release();
@@ -331,19 +393,19 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
 
 /// @brief Helper struct for visiting variants
 template<class... Ts>
-struct acceptor : Ts... { using Ts::operator()...; };
+struct acceptor : Ts...
+{
+    using Ts::operator()...;
+};
 
 Result<Texture>
 ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
 {
     expectv(textureSpec.IsValid(), "Texture spec is not specified");
 
-    auto cacheKeyAcceptor = acceptor
-    {
-        [this](TextureSpec::None_t) { return CacheKey(""); },
+    auto cacheKeyAcceptor = acceptor{ [this](TextureSpec::None_t) { return CacheKey(""); },
         [this](const std::string& path) { return CacheKey(path); },
-        [this](const RgbaColorf& color) { return CacheKey(color.ToHexString()); }
-    };
+        [this](const RgbaColorf& color) { return CacheKey(color.ToHexString()); } };
 
     auto cacheKey = std::visit(cacheKeyAcceptor, textureSpec.Source);
 
@@ -356,19 +418,18 @@ ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
 
-    auto createTexAcceptor = acceptor
-    {
-        [this](TextureSpec::None_t)->Result<Texture> { return Error("Texture source is not specified"); },
+    auto createTexAcceptor = acceptor{ [this](TextureSpec::None_t) -> Result<Texture>
+        { return Error("Texture source is not specified"); },
         [this](const std::string& path) { return CreateTexture(path); },
-        [this](const RgbaColorf& color) { return m_GpuDevice->CreateTexture(color); }
-    };
+        [this](const RgbaColorf& color) { return m_GpuDevice->CreateTexture(color); } };
 
     auto result = std::visit(createTexAcceptor, textureSpec.Source);
     expect(result, result.error());
 
     texture = result.value();
     expect(m_TextureCache.TryAdd(cacheKey, texture),
-        "Failed to add texture to cache: {}", cacheKey.ToString());
+        "Failed to add texture to cache: {}",
+        cacheKey.ToString());
 
     return texture;
 }
@@ -391,7 +452,8 @@ ResourceCache::GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec)
     expect(resultResult, resultResult.error());
 
     expect(m_VertexShaderCache.TryAdd(cacheKey, resultResult.value()),
-        "Failed to add vertex shader to cache: {}", cacheKey.ToString());
+        "Failed to add vertex shader to cache: {}",
+        cacheKey.ToString());
     return resultResult.value();
 }
 
@@ -412,7 +474,8 @@ ResourceCache::GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec)
     expect(shaderResult, shaderResult.error());
 
     expect(m_FragmentShaderCache.TryAdd(cacheKey, shaderResult.value()),
-        "Failed to add fragment shader to cache: {}", cacheKey.ToString());
+        "Failed to add fragment shader to cache: {}",
+        cacheKey.ToString());
     return shaderResult.value();
 }
 
@@ -436,7 +499,9 @@ Result<VertexShader>
 ResourceCache::GetVertexShader(const CacheKey& cacheKey) const
 {
     VertexShader shader;
-    expect(m_VertexShaderCache.TryGet(cacheKey, shader), "Vertex shader not found: {}", cacheKey.ToString());
+    expect(m_VertexShaderCache.TryGet(cacheKey, shader),
+        "Vertex shader not found: {}",
+        cacheKey.ToString());
     return shader;
 }
 
@@ -444,7 +509,9 @@ Result<FragmentShader>
 ResourceCache::GetFragmentShader(const CacheKey& cacheKey) const
 {
     FragmentShader shader;
-    expect(m_FragmentShaderCache.TryGet(cacheKey, shader), "Fragment shader not found: {}", cacheKey.ToString());
+    expect(m_FragmentShaderCache.TryGet(cacheKey, shader),
+        "Fragment shader not found: {}",
+        cacheKey.ToString());
     return shader;
 }
 
@@ -459,8 +526,8 @@ ResourceCache::CreateTexture(const std::string_view path)
     return m_GpuDevice->CreateTexture(img);
 }
 
-static TextureProperties GetTexturePropertiesFromMaterial(
-    const aiMaterial* material,
+static TextureProperties
+GetTexturePropertiesFromMaterial(const aiMaterial* material,
     const std::filesystem::path& parentPath)
 {
     TextureProperties properties;
@@ -472,9 +539,16 @@ static TextureProperties GetTexturePropertiesFromMaterial(
     aiTextureOp op;
     aiTextureMapMode mapmode[2];
 
-    if(material->GetTexture(aiTextureType_BASE_COLOR, 0, &texPath, &mapping, &uvIndex, &blend, &op, mapmode) == aiReturn_SUCCESS)
+    if(material->GetTexture(aiTextureType_BASE_COLOR,
+           0,
+           &texPath,
+           &mapping,
+           &uvIndex,
+           &blend,
+           &op,
+           mapmode) == aiReturn_SUCCESS)
     {
-        //DO NOT SUBMIT: Temporary warning for testing
+        // DO NOT SUBMIT: Temporary warning for testing
         if(mapmode[0] != aiTextureMapMode_Wrap || mapmode[1] != aiTextureMapMode_Wrap)
         {
             logWarn("Base color texture has non-wrapping UV mode");
@@ -482,27 +556,62 @@ static TextureProperties GetTexturePropertiesFromMaterial(
         properties.Albedo.Path = (parentPath / texPath.C_Str()).string();
         properties.Albedo.UVIndex = uvIndex;
     }
-    if(material->GetTexture(aiTextureType_NORMAL_CAMERA, 0, &texPath, &mapping, &uvIndex, &blend, &op, mapmode) == aiReturn_SUCCESS)
+    if(material->GetTexture(aiTextureType_NORMAL_CAMERA,
+           0,
+           &texPath,
+           &mapping,
+           &uvIndex,
+           &blend,
+           &op,
+           mapmode) == aiReturn_SUCCESS)
     {
         properties.Normal.Path = (parentPath / texPath.C_Str()).string();
         properties.Normal.UVIndex = uvIndex;
     }
-    if(material->GetTexture(aiTextureType_EMISSION_COLOR, 0, &texPath, &mapping, &uvIndex, &blend, &op, mapmode) == aiReturn_SUCCESS)
+    if(material->GetTexture(aiTextureType_EMISSION_COLOR,
+           0,
+           &texPath,
+           &mapping,
+           &uvIndex,
+           &blend,
+           &op,
+           mapmode) == aiReturn_SUCCESS)
     {
         properties.Emission.Path = (parentPath / texPath.C_Str()).string();
         properties.Emission.UVIndex = uvIndex;
     }
-    if(material->GetTexture(aiTextureType_METALNESS, 0, &texPath, &mapping, &uvIndex, &blend, &op, mapmode) == aiReturn_SUCCESS)
+    if(material->GetTexture(aiTextureType_METALNESS,
+           0,
+           &texPath,
+           &mapping,
+           &uvIndex,
+           &blend,
+           &op,
+           mapmode) == aiReturn_SUCCESS)
     {
         properties.Metalness.Path = (parentPath / texPath.C_Str()).string();
         properties.Metalness.UVIndex = uvIndex;
     }
-    if(material->GetTexture(aiTextureType_DIFFUSE_ROUGHNESS, 0, &texPath, &mapping, &uvIndex, &blend, &op, mapmode) == aiReturn_SUCCESS)
+    if(material->GetTexture(aiTextureType_DIFFUSE_ROUGHNESS,
+           0,
+           &texPath,
+           &mapping,
+           &uvIndex,
+           &blend,
+           &op,
+           mapmode) == aiReturn_SUCCESS)
     {
         properties.Roughness.Path = (parentPath / texPath.C_Str()).string();
         properties.Roughness.UVIndex = uvIndex;
     }
-    if(material->GetTexture(aiTextureType_AMBIENT_OCCLUSION, 0, &texPath, &mapping, &uvIndex, &blend, &op, mapmode) == aiReturn_SUCCESS)
+    if(material->GetTexture(aiTextureType_AMBIENT_OCCLUSION,
+           0,
+           &texPath,
+           &mapping,
+           &uvIndex,
+           &blend,
+           &op,
+           mapmode) == aiReturn_SUCCESS)
     {
         properties.AmbientOcclusion.Path = (parentPath / texPath.C_Str()).string();
         properties.AmbientOcclusion.UVIndex = uvIndex;
@@ -510,30 +619,34 @@ static TextureProperties GetTexturePropertiesFromMaterial(
     return properties;
 }
 
-static inline std::string GetMeshName(const aiMesh* mesh)
+static inline std::string
+GetMeshName(const aiMesh* mesh)
 {
     return mesh->mName.Empty() ? "<unnamed>" : mesh->mName.C_Str();
 }
 
-static void LogMesh(const aiScene* scene, const SceneMeshId meshId)
+static void
+LogMesh(const aiScene* scene, const SceneMeshId meshId)
 {
     const aiMesh* mesh = scene->mMeshes[meshId];
     logDebug("  Mesh {}: {}", meshId, GetMeshName(mesh));
     logDebug("  Vtx: {}, Tri: {}", mesh->mNumVertices, mesh->mNumFaces);
-    const aiMaterial* material = scene->mMaterials ? scene->mMaterials[mesh->mMaterialIndex] : nullptr;
+    const aiMaterial* material =
+        scene->mMaterials ? scene->mMaterials[mesh->mMaterialIndex] : nullptr;
     if(material)
     {
         logDebug("  Material: \"{}\"", material->GetName().C_Str());
     }
 };
 
-static void LogMaterialProperties(const aiMaterial* material)
+static void
+LogMaterialProperties(const aiMaterial* material)
 {
-    for (unsigned i = 0; i < material->mNumProperties; ++i)
+    for(unsigned i = 0; i < material->mNumProperties; ++i)
     {
         const aiMaterialProperty* prop = material->mProperties[i];
 
-        if (prop->mKey == aiString("$tex.file"))
+        if(prop->mKey == aiString("$tex.file"))
         {
             aiString propValue;
             material->Get(prop->mKey.C_Str(), prop->mSemantic, prop->mIndex, propValue);
@@ -547,10 +660,11 @@ static void LogMaterialProperties(const aiMaterial* material)
     }
 };
 
-static bool ValidateMesh(const aiScene* scene, const unsigned meshIdx)
+static bool
+ValidateMesh(const aiScene* scene, const unsigned meshIdx)
 {
     const aiMesh* mesh = scene->mMeshes[meshIdx];
-    if(!(mesh->mPrimitiveTypes & aiPrimitiveType_TRIANGLE ))
+    if(!(mesh->mPrimitiveTypes & aiPrimitiveType_TRIANGLE))
     {
         logWarn("Skipping non-triangle mesh");
         LogMesh(scene, meshIdx);
@@ -566,7 +680,7 @@ static bool ValidateMesh(const aiScene* scene, const unsigned meshIdx)
 
     if(!mesh->HasNormals())
     {
-        //TODO - generate normals
+        // TODO - generate normals
         logWarn("Mesh has no normals; skipping");
         LogMesh(scene, meshIdx);
         return false;
@@ -575,7 +689,8 @@ static bool ValidateMesh(const aiScene* scene, const unsigned meshIdx)
     return true;
 };
 
-static void CollectMeshes(const aiScene* scene, const aiNode* node, SceneMeshCollection& outCollection)
+static void
+CollectMeshes(const aiScene* scene, const aiNode* node, SceneMeshCollection& outCollection)
 {
     for(unsigned i = 0; i < node->mNumMeshes; ++i)
     {
@@ -596,15 +711,14 @@ static void CollectMeshes(const aiScene* scene, const aiNode* node, SceneMeshCol
     }
 };
 
-static MaterialSpec CreateMaterialSpec(
-    const aiMaterial* material,
-    const std::filesystem::path& parentPath)
+static MaterialSpec
+CreateMaterialSpec(const aiMaterial* material, const std::filesystem::path& parentPath)
 {
     LogMaterialProperties(material);
 
     TextureProperties texProperties;
-    ai_real opacity{1.0f};
-    aiColor3D diffuseColor{1.0f, 1.0f, 1.0f};
+    ai_real opacity{ 1.0f };
+    aiColor3D diffuseColor{ 1.0f, 1.0f, 1.0f };
     if(material)
     {
         if(aiReturn_SUCCESS != material->Get(AI_MATKEY_OPACITY, &opacity, nullptr))
@@ -614,7 +728,7 @@ static MaterialSpec CreateMaterialSpec(
 
         if(aiReturn_SUCCESS != material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseColor))
         {
-            diffuseColor = aiColor3D{1.0f, 1.0f, 1.0f};
+            diffuseColor = aiColor3D{ 1.0f, 1.0f, 1.0f };
         }
 
         logDebug("  Opacity: {}", opacity);
@@ -627,41 +741,49 @@ static MaterialSpec CreateMaterialSpec(
         logWarn("  Mesh has no material");
     }
 
-    logDebug("  Albedo: {}", texProperties.Albedo.Path.empty() ? "<none>" : texProperties.Albedo.Path);
-    logDebug("  Normal: {}", texProperties.Normal.Path.empty() ? "<none>" : texProperties.Normal.Path);
-    logDebug("  Specular: {}", texProperties.Specular.Path.empty() ? "<none>" : texProperties.Specular.Path);
-    logDebug("  Diffuse: {}", texProperties.Diffuse.Path.empty() ? "<none>" : texProperties.Diffuse.Path);
-    logDebug("  Emission: {}", texProperties.Emission.Path.empty() ? "<none>" : texProperties.Emission.Path);
-    logDebug("  Metalness: {}", texProperties.Metalness.Path.empty() ? "<none>" : texProperties.Metalness.Path);
-    logDebug("  Roughness: {}", texProperties.Roughness.Path.empty() ? "<none>" : texProperties.Roughness.Path);
-    logDebug("  Ambient occlusion: {}", texProperties.AmbientOcclusion.Path.empty() ? "<none>" : texProperties.AmbientOcclusion.Path);
+    logDebug("  Albedo: {}",
+        texProperties.Albedo.Path.empty() ? "<none>" : texProperties.Albedo.Path);
+    logDebug("  Normal: {}",
+        texProperties.Normal.Path.empty() ? "<none>" : texProperties.Normal.Path);
+    logDebug("  Specular: {}",
+        texProperties.Specular.Path.empty() ? "<none>" : texProperties.Specular.Path);
+    logDebug("  Diffuse: {}",
+        texProperties.Diffuse.Path.empty() ? "<none>" : texProperties.Diffuse.Path);
+    logDebug("  Emission: {}",
+        texProperties.Emission.Path.empty() ? "<none>" : texProperties.Emission.Path);
+    logDebug("  Metalness: {}",
+        texProperties.Metalness.Path.empty() ? "<none>" : texProperties.Metalness.Path);
+    logDebug("  Roughness: {}",
+        texProperties.Roughness.Path.empty() ? "<none>" : texProperties.Roughness.Path);
+    logDebug("  Ambient occlusion: {}",
+        texProperties.AmbientOcclusion.Path.empty() ? "<none>"
+                                                    : texProperties.AmbientOcclusion.Path);
 
     const TextureSpec albedo = texProperties.Albedo.Path.empty()
-     ? MAGENTA_TEXTURE_SPEC
-     : TextureSpec{texProperties.Albedo.Path};
+                                   ? MAGENTA_TEXTURE_SPEC
+                                   : TextureSpec{ texProperties.Albedo.Path };
 
-    return MaterialSpec
-    {
-        .Color{diffuseColor.r, diffuseColor.g, diffuseColor.b, opacity},
-        .Metalness{0.0f},
-        .Roughness{0.0f},
+    return MaterialSpec{
+        .Color{ diffuseColor.r, diffuseColor.g, diffuseColor.b, opacity },
+        .Metalness{ 0.0f },
+        .Roughness{ 0.0f },
         .Albedo = albedo,
-        .VertexShader{"shaders/Debug/VertexShader", 3},
-        .FragmentShader{"shaders/Debug/FragmentShader"},
+        .VertexShader{ "shaders/Debug/VertexShader", 3 },
+        .FragmentShader{ "shaders/Debug/FragmentShader" },
     };
 }
 
-static MeshSpec CreateMeshSpecFromMesh(
-    const aiScene* scene,
-    const SceneMeshId meshId,
-    const std::filesystem::path& parentPath)
+static MeshSpec
+CreateMeshSpecFromMesh(
+    const aiScene* scene, const SceneMeshId meshId, const std::filesystem::path& parentPath)
 {
     const aiMesh* mesh = scene->mMeshes[meshId];
     const std::string meshName = GetMeshName(mesh);
 
     LogMesh(scene, meshId);
 
-    const aiMaterial* material = scene->mMaterials ? scene->mMaterials[mesh->mMaterialIndex] : nullptr;
+    const aiMaterial* material =
+        scene->mMaterials ? scene->mMaterials[mesh->mMaterialIndex] : nullptr;
 
     const MaterialSpec mtlSpec = CreateMaterialSpec(material, parentPath);
 
@@ -673,13 +795,15 @@ static MeshSpec CreateMeshSpecFromMesh(
     int albedoUvIndex = -1;
     if(material)
     {
-        aiGetMaterialInteger(material, AI_MATKEY_UVWSRC(aiTextureType_BASE_COLOR, 0), &albedoUvIndex);
+        aiGetMaterialInteger(material,
+            AI_MATKEY_UVWSRC(aiTextureType_BASE_COLOR, 0),
+            &albedoUvIndex);
     }
 
     // Lambda to get UVs or return zero UVs if not present
     auto getUV = [](const aiMesh* mesh, const int uvIndex, unsigned vtxIdx)
     {
-        if (uvIndex < 0 || !mesh->HasTextureCoords(uvIndex))
+        if(uvIndex < 0 || !mesh->HasTextureCoords(uvIndex))
         {
             return UV2{ 0.0f, 0.0f };
         }
@@ -694,15 +818,9 @@ static MeshSpec CreateMeshSpecFromMesh(
         const aiVector3D& srcVtx = mesh->mVertices[vtxIdx];
         const aiVector3D& srcNorm = mesh->mNormals[vtxIdx];
 
-        Vertex vtx
-        {
-            .pos = Vec3f{ srcVtx.x, srcVtx.y, srcVtx.z },
+        Vertex vtx{ .pos = Vec3f{ srcVtx.x, srcVtx.y, srcVtx.z },
             .normal = Vec3f{ srcNorm.x, srcNorm.y, srcNorm.z }.Normalize(),
-            .uvs
-            {
-                getUV(mesh, albedoUvIndex, vtxIdx)
-            }
-        };
+            .uvs{ getUV(mesh, albedoUvIndex, vtxIdx) } };
 
         vertices.emplace_back(vtx);
     }
@@ -716,17 +834,14 @@ static MeshSpec CreateMeshSpecFromMesh(
         indices.emplace_back(face.mIndices[2]);
     }
 
-    return MeshSpec
-    {
-        .Name{meshName},
-        .Vertices{vertices.build()},
-        .Indices{indices.build()},
-        .MtlSpec{mtlSpec}
-    };
+    return MeshSpec{ .Name{ meshName },
+        .Vertices{ vertices.build() },
+        .Indices{ indices.build() },
+        .MtlSpec{ mtlSpec } };
 }
 
-static MeshSpecCollection CreateMeshSpecCollection(
-    const aiScene* scene,
+static MeshSpecCollection
+CreateMeshSpecCollection(const aiScene* scene,
     const SceneMeshCollection& meshCollection,
     const std::filesystem::path& parentPath)
 {
@@ -744,8 +859,8 @@ static MeshSpecCollection CreateMeshSpecCollection(
     return meshSpecCollection;
 }
 
-static void ProcessNodes(
-    const aiNode* node,
+static void
+ProcessNodes(const aiNode* node,
     const int parentNodeIndex,
     const MeshSpecCollection& meshSpecCollection,
     imvector<MeshInstance>::builder& meshInstances,
@@ -762,26 +877,33 @@ static void ProcessNodes(
             return;
         }
 
-        //FIXME(KB) - collapse nodes with no meshes.
+        // FIXME(KB) - collapse nodes with no meshes.
         logWarn("  Node {} has no meshes", node->mName.C_Str());
     }
 
     const aiMatrix4x4& nodeTransform = node->mTransformation;
     const int nodeIndex = static_cast<int>(transformNodes.size());
 
-    transformNodes.emplace_back(
-        TransformNode
-        {
-            .ParentIndex = parentNodeIndex,
-            .Transform = Mat44f
-            {
-                // Assimp uses row-major order - transpose to column-major
-                nodeTransform.a1, nodeTransform.b1, nodeTransform.c1, nodeTransform.d1,
-                nodeTransform.a2, nodeTransform.b2, nodeTransform.c2, nodeTransform.d2,
-                nodeTransform.a3, nodeTransform.b3, nodeTransform.c3, nodeTransform.d3,
-                nodeTransform.a4, nodeTransform.b4, nodeTransform.c4, nodeTransform.d4,
-            }
-        });
+    transformNodes.emplace_back(TransformNode{ .ParentIndex = parentNodeIndex,
+        .Transform = Mat44f{
+            // Assimp uses row-major order - transpose to column-major
+            nodeTransform.a1,
+            nodeTransform.b1,
+            nodeTransform.c1,
+            nodeTransform.d1,
+            nodeTransform.a2,
+            nodeTransform.b2,
+            nodeTransform.c2,
+            nodeTransform.d2,
+            nodeTransform.a3,
+            nodeTransform.b3,
+            nodeTransform.c3,
+            nodeTransform.d3,
+            nodeTransform.a4,
+            nodeTransform.b4,
+            nodeTransform.c4,
+            nodeTransform.d4,
+        } });
 
     for(unsigned i = 0; i < node->mNumMeshes; ++i)
     {
@@ -797,17 +919,13 @@ static void ProcessNodes(
         const MeshSpec& meshSpec = meshSpecCollection.MeshSpecs[meshSpecIndex];
 
         logDebug("  Adding mesh instance {}", meshSpec.Name);
-        meshInstances.emplace_back(MeshInstance
-            {
-                .MeshIndex = meshSpecIndex,
-                .NodeIndex = nodeIndex
-            });
+        meshInstances.emplace_back(
+            MeshInstance{ .MeshIndex = meshSpecIndex, .NodeIndex = nodeIndex });
     }
 
     for(unsigned i = 0; i < node->mNumChildren; ++i)
     {
-        ProcessNodes(
-            node->mChildren[i],
+        ProcessNodes(node->mChildren[i],
             nodeIndex,
             meshSpecCollection,
             meshInstances,

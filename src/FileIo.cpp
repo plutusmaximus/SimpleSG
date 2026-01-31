@@ -1,46 +1,35 @@
-#include "FileIO.h"
+#include "FileIo.h"
 
+#include <array>
 #include <atomic>
+#include <cstring>
 #include <format>
 #include <limits>
-#include <memory>
 #include <mutex>
 
-struct ReadRequest
+// DO NOT SUBMIT
+#include <cassert>
+
+class ReadRequest
 {
-    ReadRequest(std::string_view path, void* userData, FileIo::ReadCallback callback)
-        : Path(path),
-          UserData(userData),
-          Callback(callback)
+public:
+    explicit ReadRequest(const std::string& path)
+        : Path(path)
     {
     }
+
+    ReadRequest(const ReadRequest&) = delete;
+    ReadRequest& operator=(const ReadRequest&) = delete;
+    ReadRequest(ReadRequest&&) = delete;
+    ReadRequest& operator=(ReadRequest&&) = delete;
 
     virtual ~ReadRequest() = 0;
 
-    std::string Path;
-
-    const uint8_t* Buffer{ nullptr };
-    size_t BytesRead{ 0 };
-    std::string Error;
-
-    std::atomic<int> IsComplete{ 0 };
-
-    void* UserData{ nullptr };
-    FileIo::ReadCallback Callback{ nullptr };
-
-    template<typename T>
-    T* As()
-    {
-        return static_cast<T*>(this);
-    }
-    template<typename T>
-    const T* As() const
-    {
-        return static_cast<const T*>(this);
-    }
-
     void Link(ReadRequest* next)
     {
+        assert(!m_Next);
+        assert(!m_Prev);
+
         m_Next = next;
         if(next)
         {
@@ -62,22 +51,54 @@ struct ReadRequest
         m_Prev = nullptr;
     }
 
+    // TODO - make this imstring
+    std::string Path;
+
+    FileIo::AsyncToken Token = FileIo::AsyncToken::NewToken();
+
+    std::optional<Error> Error;
+
     ReadRequest* m_Next{ nullptr };
     ReadRequest* m_Prev{ nullptr };
 };
 
 ReadRequest::~ReadRequest() = default;
 
-static std::atomic<int> s_Running{ 0 };
+FileIo::FetchData::~FetchData() = default;
 
-// Set when there's an error in the worker thread that requires shutdown.
-static std::atomic<int> s_ShouldShutdown{ 0 };
+enum State
+{
+    NotStarted,
+    Running,
+    FatalError,
+};
+
+static std::atomic<State> s_State{ NotStarted };
 
 static std::mutex s_Mutex;
+static std::mutex s_IOCPMutex;
 static ReadRequest* s_Pending{ nullptr };
 static ReadRequest* s_Complete{ nullptr };
 
-void
+static bool
+IsRunning()
+{
+    return s_State.load(std::memory_order_acquire) == State::Running;
+}
+
+static bool
+HaveFatalError()
+{
+    return s_State.load(std::memory_order_acquire) == State::FatalError;
+}
+
+static bool
+IsShutdown()
+{
+    return s_State.load(std::memory_order_acquire) == State::NotStarted;
+}
+
+static void
 AddPendingRequest(ReadRequest* req)
 {
     std::lock_guard<std::mutex> lock(s_Mutex);
@@ -86,8 +107,8 @@ AddPendingRequest(ReadRequest* req)
     s_Pending = req;
 }
 
-void
-AddCompletedRequest(ReadRequest* req)
+static void
+MoveFromPendingToComplete(ReadRequest* req)
 {
     std::lock_guard<std::mutex> lock(s_Mutex);
 
@@ -97,26 +118,41 @@ AddCompletedRequest(ReadRequest* req)
     }
 
     req->Unlink();
+
     req->Link(s_Complete);
     s_Complete = req;
 }
 
+static void
+RemoveCompleteRequest(ReadRequest* req)
+{
+    std::lock_guard<std::mutex> lock(s_Mutex);
+
+    if(s_Complete == req)
+    {
+        s_Complete = req->m_Next;
+    }
+
+    req->Unlink();
+}
+
+// Platform-specific implementation used by GetResult.
+static Result<FileIo::FetchDataPtr> GetResultImpl(ReadRequest* req);
+
 bool
 FileIo::Startup()
 {
-    if(s_Running.load(std::memory_order_acquire))
+    if(!IsShutdown())
     {
-        return true; // Already started
+        return true; // Already started or starting
     }
-
-    s_ShouldShutdown.store(0, std::memory_order_release);
 
     if(!PlatformStartup())
     {
         return false;
     }
 
-    s_Running.store(1, std::memory_order_release);
+    s_State.store(State::Running, std::memory_order_release);
 
     return true;
 }
@@ -124,66 +160,160 @@ FileIo::Startup()
 void
 FileIo::Shutdown()
 {
-    if(!s_Running.load(std::memory_order_acquire))
+    if(IsShutdown())
     {
         return; // Already shutdown
     }
 
-    s_Running.store(0, std::memory_order_release);
-    s_ShouldShutdown.store(0, std::memory_order_release);
-
     PlatformShutdown();
 
-    ProcessEvents();
-}
-
-void
-FileIo::ProcessEvents()
-{
-    ReadRequest* completedRequests = nullptr;
+    // Drain any remaining completed requests.
+    ReadRequest* complete = nullptr;
     {
         std::lock_guard<std::mutex> lock(s_Mutex);
-        std::swap(s_Complete, completedRequests);
+        std::swap(complete, s_Complete);
     }
 
-    while(completedRequests)
+    for(ReadRequest* req = complete; req != nullptr;)
     {
-        ReadRequest* req = completedRequests;
-        completedRequests = completedRequests->m_Next;
-
-        FileIo::ReadResult result = req->Error.empty()
-                                        ? FileIo::ReadResult(req->Buffer, req->BytesRead)
-                                        : FileIo::ReadResult(std::string_view(req->Error));
-
-        req->Callback(result, req->UserData);
-
+        ReadRequest* next = req->m_Next;
         delete req;
+        req = next;
     }
 
-    if(s_ShouldShutdown.load(std::memory_order_acquire))
+    s_State.store(State::NotStarted, std::memory_order_release);
+}
+
+FileIo::FetchStatus
+FileIo::GetStatus(const AsyncToken token)
+{
+    if(HaveFatalError())
     {
         Shutdown();
     }
+
+    if(!IsRunning())
+    {
+        return FetchStatus::None;
+    }
+
+    ProcessCompletions();
+
+    std::lock_guard<std::mutex> lock(s_Mutex);
+
+    for(ReadRequest* req = s_Pending; req != nullptr; req = req->m_Next)
+    {
+        if(req->Token == token)
+        {
+            return FetchStatus::Pending;
+        }
+    }
+
+    for(ReadRequest* req = s_Complete; req != nullptr; req = req->m_Next)
+    {
+        if(req->Token == token)
+        {
+            return FetchStatus::Completed;
+        }
+    }
+
+    return FetchStatus::None;
+}
+
+Result<FileIo::FetchDataPtr>
+FileIo::GetResult(const AsyncToken token)
+{
+    if(HaveFatalError())
+    {
+        Shutdown();
+    }
+
+    if(!IsRunning())
+    {
+        return Error("FileIo is not running or is shutting down.");
+    }
+
+    ProcessCompletions();
+
+    ReadRequest* req;
+
+    {
+        std::lock_guard<std::mutex> lock(s_Mutex);
+
+        for(req = s_Complete; req != nullptr; req = req->m_Next)
+        {
+            if(req->Token == token)
+            {
+                break;
+            }
+        }
+    }
+
+    if(!req)
+    {
+        return Error("No completed request found for given token.");
+    }
+
+    RemoveCompleteRequest(req);
+
+    Result<FileIo::FetchDataPtr> result;
+
+    if(req->Error)
+    {
+        result = req->Error.value();
+    }
+    else
+    {
+        result = GetResultImpl(req);
+    }
+
+    delete req;
+
+    return result;
+}
+
+FileIo::AsyncToken
+FileIo::AsyncToken::NewToken()
+{
+    static std::atomic<ValueType> s_NextToken{ 1 };
+    ValueType tokenValue;
+    do
+    {
+        tokenValue = s_NextToken.fetch_add(1, std::memory_order_acquire);
+    } while(InvalidValue == tokenValue);
+
+    return AsyncToken(tokenValue);
 }
 
 #if defined(_WIN32) && !defined(__EMSCRIPTEN__)
 
-#include <iostream>
-#include <thread>
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <Windows.h>
 
 static HANDLE s_IOCP = nullptr;
-std::thread s_IocpWorker;
 
+static Result<void> IssueReadRequest(ReadRequest* req);
 static std::string GetWindowsErrorString(DWORD errorCode);
-
-static void WorkerLoop();
 
 struct Win32ReadRequest : ReadRequest
 {
-    using ReadRequest::ReadRequest;
+    Win32ReadRequest(std::string path,
+        HANDLE hFile,
+        std::unique_ptr<uint8_t[]> bytes,
+        const size_t bytesRequested)
+        : ReadRequest(path),
+          File(hFile),
+          Bytes(std::move(bytes)),
+          BytesRequested(bytesRequested)
+    {
+    }
+
+    Win32ReadRequest() = delete;
+    Win32ReadRequest(const Win32ReadRequest&) = delete;
+    Win32ReadRequest& operator=(const Win32ReadRequest&) = delete;
+    Win32ReadRequest(Win32ReadRequest&&) = delete;
+    Win32ReadRequest& operator=(Win32ReadRequest&&) = delete;
 
     ~Win32ReadRequest() override
     {
@@ -192,13 +322,258 @@ struct Win32ReadRequest : ReadRequest
             ::CloseHandle(File);
             File = INVALID_HANDLE_VALUE;
         }
-
-        delete[] Buffer;
     }
 
     HANDLE File{ INVALID_HANDLE_VALUE };
-    OVERLAPPED Ov{};
+    OVERLAPPED Ov{ 0 };
+    std::unique_ptr<uint8_t[]> Bytes;
+    const size_t BytesRequested{ 0 };
+    size_t BytesRead{ 0 };
 };
+
+Result<FileIo::AsyncToken>
+FileIo::Fetch(std::string_view filePath)
+{
+    if(!IsRunning())
+    {
+        return Error("FileIO is not running or is shutting down.");
+    }
+
+    // Convert to null-terminated string
+    auto pathStr = std::string(filePath);
+
+    // Open file
+    HANDLE hFile = ::CreateFileA(pathStr.c_str(),
+        GENERIC_READ,
+        FILE_SHARE_READ,
+        nullptr,
+        OPEN_EXISTING,
+        FILE_FLAG_OVERLAPPED | FILE_FLAG_SEQUENTIAL_SCAN,
+        nullptr);
+
+    if(hFile == INVALID_HANDLE_VALUE)
+    {
+        // Failed to open file; fulfill promise with 0 bytes read.
+        return Error("Failed to open file: {}, error: {}",
+            pathStr,
+            GetWindowsErrorString(::GetLastError()));
+    }
+
+    LARGE_INTEGER fsize;
+    if(!::GetFileSizeEx(hFile, &fsize))
+    {
+        ::CloseHandle(hFile);
+
+        return Error("Failed to get file size: {}, error: {}",
+            pathStr,
+            GetWindowsErrorString(::GetLastError()));
+    }
+
+    const int64_t fileSize = fsize.QuadPart;
+
+    if(fileSize < 0)
+    {
+        ::CloseHandle(hFile);
+
+        return Error("Failed to get file size for {}.", pathStr);
+    }
+
+    if(fileSize > std::numeric_limits<DWORD>::max())
+    {
+        ::CloseHandle(hFile);
+
+        return Error("File is too large to read: {}", pathStr);
+    }
+
+    if(!fileSize)
+    {
+        ::CloseHandle(hFile);
+
+        return Error("File is empty: {}", pathStr);
+    }
+
+    std::unique_ptr<uint8_t[]> bytes = std::make_unique<uint8_t[]>(fileSize);
+    if(!bytes)
+    {
+        ::CloseHandle(hFile);
+
+        return Error("Failed to allocate read buffer for file: {}", pathStr);
+    }
+
+    auto req =
+        new Win32ReadRequest(pathStr, hFile, std::move(bytes), static_cast<size_t>(fileSize));
+
+    // Used as key to identify the request on completion.
+    ULONG_PTR key = reinterpret_cast<ULONG_PTR>(req);
+
+    // Bind file to IOCP.
+    if(::CreateIoCompletionPort(req->File, s_IOCP, key, 0) == nullptr)
+    {
+        delete req;
+        return Error("Failed to bind file to IOCP: {}, error: {}",
+            pathStr,
+            GetWindowsErrorString(::GetLastError()));
+    }
+
+    AddPendingRequest(req);
+
+    auto result = IssueReadRequest(req);
+
+    if(!result)
+    {
+        CompleteRequestFailure(req, result.error());
+    }
+    else if(req->BytesRead >= req->BytesRequested)
+    {
+        // DO NOT SUBMIT - test reading more bytes than are in the file.
+        CompleteRequestSuccess(req, static_cast<size_t>(req->BytesRead));
+    }
+
+    return req->Token;
+}
+
+void
+FileIo::ProcessCompletions()
+{
+    if(!IsRunning())
+    {
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(s_Mutex);
+        if(!s_Pending)
+        {
+            // Nothing pending
+            return;
+        }
+    }
+
+    BOOL ok;
+    std::array<OVERLAPPED_ENTRY, 8> entries = {};
+    ULONG numEntriesRemoved = 0;
+    {
+        std::lock_guard<std::mutex> lock(s_IOCPMutex);
+
+        ok = ::GetQueuedCompletionStatusEx(s_IOCP,
+            entries.data(),
+            static_cast<ULONG>(entries.size()),
+            &numEntriesRemoved,
+            0,
+            FALSE);
+    }
+
+    if(!ok)
+    {
+        const DWORD err = ::GetLastError();
+
+        if(WAIT_TIMEOUT == err)
+        {
+            // No completions available
+            return;
+        }
+
+        if(ERROR_ABANDONED_WAIT_0 == err)
+        {
+            // IOCP was closed during shutdown.
+            return;
+        }
+
+        // Some other error occurred - assume it's fatal.
+        s_State.store(State::FatalError, std::memory_order_release);
+
+        return;
+    }
+
+    // If we get here, at least one read completed successfully.
+
+    for(ULONG i = 0; i < numEntriesRemoved; ++i)
+    {
+        OVERLAPPED_ENTRY& entry = entries[i];
+        Win32ReadRequest* req = reinterpret_cast<Win32ReadRequest*>(entry.lpCompletionKey);
+
+        if(!req)
+        {
+            continue;
+        }
+
+        const DWORD bytesRead = entry.dwNumberOfBytesTransferred;
+
+        req->BytesRead += bytesRead;
+
+        if(req->BytesRead < req->BytesRequested)
+        {
+            // Read more bytes
+            auto result = IssueReadRequest(req);
+
+            if(!result)
+            {
+                CompleteRequestFailure(req, result.error());
+                continue;
+            }
+        }
+
+        if(req->BytesRead >= req->BytesRequested)
+        {
+            CompleteRequestSuccess(req, static_cast<size_t>(req->BytesRead));
+        }
+    }
+
+    return;
+}
+
+static Result<void>
+IssueReadRequest(ReadRequest* req)
+{
+    Win32ReadRequest* win32Req = static_cast<Win32ReadRequest*>(req);
+
+    bool done = false;
+
+    while(win32Req->BytesRead < win32Req->BytesRequested && !done)
+    {
+        LARGE_INTEGER li;
+        li.QuadPart = win32Req->BytesRead;
+
+        // Set up the offset into the file from which to read.
+        win32Req->Ov.Offset = li.LowPart;
+        win32Req->Ov.OffsetHigh = li.HighPart;
+
+        const size_t bytesRemaining = win32Req->BytesRequested - win32Req->BytesRead;
+
+        DWORD bytesRead = 0;
+
+        // Re-issue read for remaining bytes
+        const BOOL ok = ::ReadFile(win32Req->File,
+            win32Req->Bytes.get() + win32Req->BytesRead,
+            static_cast<DWORD>(bytesRemaining),
+            &bytesRead,
+            &win32Req->Ov);
+
+        if(ok)
+        {
+            // Request completed synchronously - loop again if necessary
+            win32Req->BytesRead += bytesRead;
+            continue;
+        }
+
+        const DWORD err = ::GetLastError();
+
+        if(err == ERROR_IO_PENDING)
+        {
+            // Still pending, break out of the loop.
+            done = true;
+            continue;
+        }
+
+        return Error("Failed to issue read for file: {}, error: {}",
+            win32Req->Path,
+            GetWindowsErrorString(err));
+    }
+
+    return {};
+}
+
+// private:
 
 bool
 FileIo::PlatformStartup()
@@ -209,8 +584,6 @@ FileIo::PlatformStartup()
         return false;
     }
 
-    s_IocpWorker = std::thread(WorkerLoop);
-
     return true;
 }
 
@@ -220,68 +593,24 @@ FileIo::PlatformShutdown()
     ReadRequest* pending = nullptr;
     {
         std::lock_guard<std::mutex> lock(s_Mutex);
-        pending = s_Pending;
-        s_Pending = nullptr;
-    }
-
-    if(nullptr != s_IOCP)
-    {
-        // Wake worker.
-        ::PostQueuedCompletionStatus(s_IOCP, 0, 0, nullptr);
-    }
-
-    if(s_IocpWorker.joinable())
-    {
-        s_IocpWorker.join();
+        std::swap(pending, s_Pending);
     }
 
     // Cancel any pending IO
-    std::size_t pendingCount = 0;
-    for(ReadRequest* req = pending; req != nullptr; req = req->m_Next)
+    for(ReadRequest *req = pending, *next = nullptr; req != nullptr; req = next)
     {
-        auto win32Req = req->As<Win32ReadRequest>();
+        next = req->m_Next;
+
+        req->Unlink();
+
+        auto win32Req = static_cast<Win32ReadRequest*>(req);
 
         if(win32Req->File != INVALID_HANDLE_VALUE)
         {
             ::CancelIoEx(win32Req->File, &win32Req->Ov);
         }
 
-        ++pendingCount;
-    }
-
-    // Process any remaining completions
-    while(pendingCount > 0 && s_IOCP != nullptr)
-    {
-        DWORD bytes = 0;
-        ULONG_PTR key = 0;
-        LPOVERLAPPED pov = nullptr;
-
-        const BOOL ok = ::GetQueuedCompletionStatus(s_IOCP, &bytes, &key, &pov, INFINITE);
-
-        if(pov == nullptr && key == 0)
-        {
-            continue;
-        }
-
-        Win32ReadRequest* request = reinterpret_cast<Win32ReadRequest*>(key);
-        if(request == nullptr)
-        {
-            continue;
-        }
-
-        if(!ok)
-        {
-            if(request->Error.empty())
-            {
-                request->Error = "Async read cancelled due to FileIO shutdown";
-            }
-        }
-
-        request->BytesRead = static_cast<std::size_t>(bytes);
-        request->IsComplete.store(1, std::memory_order_release);
-
-        AddCompletedRequest(request);
-        --pendingCount;
+        CompleteRequestFailure(req, "Async read cancelled due to shutdown");
     }
 
     if(s_IOCP != nullptr)
@@ -294,193 +623,35 @@ FileIo::PlatformShutdown()
 }
 
 void
-FileIo::QueueRead(std::string_view filePath, ReadCallback callback, void* userData)
+FileIo::CompleteRequestSuccess(ReadRequest* request, const size_t bytesRead)
 {
-    Win32ReadRequest* req = new Win32ReadRequest(std::string(filePath), userData, callback);
+    Win32ReadRequest* req = static_cast<Win32ReadRequest*>(request);
 
-    if(!s_Running.load(std::memory_order_acquire) ||
-        s_ShouldShutdown.load(std::memory_order_acquire))
+    req->BytesRead = bytesRead;
+
+    if(req->File != INVALID_HANDLE_VALUE)
     {
-        req->Error = std::format("FileIO is not running or is shutting down.");
-        req->IsComplete.store(1, std::memory_order_release);
-
-        AddCompletedRequest(req);
-        return;
+        ::CloseHandle(req->File);
+        req->File = INVALID_HANDLE_VALUE;
     }
 
-    // Open file
-    req->File = ::CreateFileA(req->Path.c_str(),
-        GENERIC_READ,
-        FILE_SHARE_READ,
-        nullptr,
-        OPEN_EXISTING,
-        FILE_FLAG_OVERLAPPED | FILE_FLAG_SEQUENTIAL_SCAN,
-        nullptr);
-
-    if(req->File == INVALID_HANDLE_VALUE)
-    {
-        // Failed to open file; fulfill promise with 0 bytes read.
-        req->Error = std::format("Failed to open file: {}, error: {}",
-            req->Path,
-            GetWindowsErrorString(::GetLastError()));
-        req->IsComplete.store(1, std::memory_order_release);
-
-        AddCompletedRequest(req);
-        return;
-    }
-
-    LARGE_INTEGER fsize;
-    if(!::GetFileSizeEx(req->File, &fsize))
-    {
-        req->Error = std::format("Failed to get file size: {}, error: {}",
-            req->Path,
-            GetWindowsErrorString(::GetLastError()));
-        req->IsComplete.store(1, std::memory_order_release);
-
-        AddCompletedRequest(req);
-        return;
-    }
-
-    const int64_t fileSize = fsize.QuadPart;
-
-    if(fileSize < 0)
-    {
-        req->Error = std::format("Failed to get file size for {}.", req->Path);
-        req->IsComplete.store(1, std::memory_order_release);
-
-        AddCompletedRequest(req);
-        return;
-    }
-
-    if(fileSize > std::numeric_limits<DWORD>::max())
-    {
-        req->Error = std::format("File is too large to read: {}", req->Path);
-        req->IsComplete.store(1, std::memory_order_release);
-
-        AddCompletedRequest(req);
-        return;
-    }
-
-    if(!fileSize)
-    {
-        req->Error = std::format("File is empty: {}", req->Path);
-        req->IsComplete.store(1, std::memory_order_release);
-
-        AddCompletedRequest(req);
-        return;
-    }
-
-    // Used as key to identify the request on completion.
-    ULONG_PTR key = reinterpret_cast<ULONG_PTR>(req);
-
-    // Bind file to IOCP.
-    if(::CreateIoCompletionPort(req->File, s_IOCP, key, 0) == nullptr)
-    {
-        req->Error = std::format("Failed to bind file to IOCP: {}, error: {}",
-            req->Path,
-            GetWindowsErrorString(::GetLastError()));
-
-        req->IsComplete.store(1, std::memory_order_release);
-
-        AddCompletedRequest(req);
-        return;
-    }
-
-    uint8_t* buffer = new uint8_t[fileSize];
-    if(!buffer)
-    {
-        req->Error = std::format("Failed to allocate read buffer for file: {}", req->Path);
-        req->IsComplete.store(1, std::memory_order_release);
-
-        AddCompletedRequest(req);
-        return;
-    }
-
-    req->Buffer = buffer;
-
-    // Issue read
-    DWORD bytesRead = 0;
-    const BOOL ok =
-        ::ReadFile(req->File, buffer, static_cast<DWORD>(fileSize), &bytesRead, &req->Ov);
-
-    if(!ok)
-    {
-        const DWORD err = ::GetLastError();
-        if(err != ERROR_IO_PENDING)
-        {
-            req->Error = std::format("Failed to issue read for file: {}, error: {}",
-                req->Path,
-                GetWindowsErrorString(err));
-            req->IsComplete.store(1, std::memory_order_release);
-
-            AddCompletedRequest(req);
-            return;
-        }
-    }
-    else
-    {
-        // Read completed immediately (rare). Fulfill promise now.
-        // This is the other case where we can still use reqPtr.
-        req->BytesRead = static_cast<std::size_t>(bytesRead);
-        req->IsComplete.store(1, std::memory_order_release);
-
-        AddCompletedRequest(req);
-        return;
-    }
-
-    // Pending read; will be completed by worker thread.
-    AddPendingRequest(req);
+    MoveFromPendingToComplete(req);
 }
 
-// private:
-
-static void
-WorkerLoop()
+void
+FileIo::CompleteRequestFailure(ReadRequest* request, const Error& error)
 {
-    while(s_Running.load(std::memory_order_acquire) &&
-          !s_ShouldShutdown.load(std::memory_order_acquire))
+    Win32ReadRequest* req = static_cast<Win32ReadRequest*>(request);
+
+    req->Error = error;
+
+    if(req->File != INVALID_HANDLE_VALUE)
     {
-        DWORD bytes = 0;
-        ULONG_PTR key = 0;
-        LPOVERLAPPED pov = nullptr;
-
-        const BOOL ok = ::GetQueuedCompletionStatus(s_IOCP, &bytes, &key, &pov, INFINITE);
-
-        if(!ok)
-        {
-            std::cout << std::format("GetQueuedCompletionStatus failed: {}",
-                GetWindowsErrorString(::GetLastError()));
-
-            // Signal shutdown due to error.
-            s_ShouldShutdown.store(1, std::memory_order_release);
-
-            continue;
-        }
-
-        if(pov == nullptr && key == 0)
-        {
-            // Received shutdown signal
-            continue;
-        }
-
-        Win32ReadRequest* request = reinterpret_cast<Win32ReadRequest*>(key);
-        if(request == nullptr)
-        {
-            std::cout << "WorkerLoop: completed request is null\n";
-            continue;
-        }
-
-        if(request->File != INVALID_HANDLE_VALUE)
-        {
-            ::CloseHandle(request->File);
-            request->File = INVALID_HANDLE_VALUE;
-        }
-
-        request->BytesRead = static_cast<std::size_t>(bytes);
-        request->IsComplete.store(1, std::memory_order_release);
-
-        AddCompletedRequest(request);
+        ::CloseHandle(req->File);
+        req->File = INVALID_HANDLE_VALUE;
     }
+
+    MoveFromPendingToComplete(req);
 }
 
 static std::string
@@ -508,6 +679,31 @@ GetWindowsErrorString(DWORD errorCode)
     return message;
 }
 
+struct Win32FetchData : FileIo::FetchData
+{
+    Win32FetchData(std::unique_ptr<uint8_t[]>&& bytes, size_t bytesRead)
+        : FetchData(bytes.get(), bytesRead),
+          m_Bytes(std::move(bytes))
+    {
+    }
+
+private:
+    std::unique_ptr<uint8_t[]> m_Bytes{ nullptr };
+};
+
+static Result<FileIo::FetchDataPtr>
+GetResultImpl(ReadRequest* req)
+{
+    auto win32Req = static_cast<Win32ReadRequest*>(req);
+
+    auto fetchData =
+        std::make_unique<Win32FetchData>(std::move(win32Req->Bytes), win32Req->BytesRead);
+
+    auto result = FileIo::FetchDataPtr(std::move(fetchData));
+
+    return result;
+}
+
 #elif defined(__EMSCRIPTEN__)
 
 #include <emscripten/emscripten.h>
@@ -515,7 +711,16 @@ GetWindowsErrorString(DWORD errorCode)
 
 struct EmscriptenReadRequest : ReadRequest
 {
-    using ReadRequest::ReadRequest;
+    EmscriptenReadRequest(std::string path)
+        : ReadRequest(path)
+    {
+    }
+
+    EmscriptenReadRequest() = delete;
+    EmscriptenReadRequest(const EmscriptenReadRequest&) = delete;
+    EmscriptenReadRequest& operator=(const EmscriptenReadRequest&) = delete;
+    EmscriptenReadRequest(EmscriptenReadRequest&&) = delete;
+    EmscriptenReadRequest& operator=(EmscriptenReadRequest&&) = delete;
 
     ~EmscriptenReadRequest() override
     {
@@ -527,6 +732,54 @@ struct EmscriptenReadRequest : ReadRequest
 
     emscripten_fetch_t* FetchData{ nullptr };
 };
+
+Result<FileIo::StatusToken>
+FileIo::Fetch(std::string_view filePath)
+{
+    if(!IsRunning())
+    {
+        return std::unexpected("FileIO is not running or is shutting down.");
+    }
+
+    emscripten_fetch_attr_t attr{};
+    emscripten_fetch_attr_init(&attr);
+
+    auto* reqPtr = new EmscriptenReadRequest(std::string(filePath));
+
+    if(!reqPtr)
+    {
+        return std::unexpected("Failed to allocate read request.");
+    }
+
+    std::strcpy(attr.requestMethod, "GET");
+    attr.attributes = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY;
+    attr.userData = reqPtr;
+
+    attr.onsuccess = [](emscripten_fetch_t* fetch)
+    {
+        auto* req = static_cast<EmscriptenReadRequest*>(fetch->userData);
+
+        CompleteRequestSuccess(req, static_cast<size_t>(fetch->numBytes));
+    };
+    attr.onerror = [](emscripten_fetch_t* fetch)
+    {
+        auto* req = static_cast<EmscriptenReadRequest*>(fetch->userData);
+        Error error("Failed to fetch file: {}, status: {}/{}",
+            fetch->url,
+            fetch->status,
+            fetch->statusText);
+        CompleteRequestFailure(req, error);
+    };
+
+    reqPtr->FetchData = emscripten_fetch(&attr, reqPtr->Path.c_str());
+
+    // Pending fetch; will be completed by fetch callbacks.
+    AddPendingRequest(reqPtr);
+
+    return reqPtr->Token;
+}
+
+// private:
 
 bool
 FileIo::PlatformStartup()
@@ -540,16 +793,16 @@ FileIo::PlatformShutdown()
     ReadRequest* pending = nullptr;
     {
         std::lock_guard<std::mutex> lock(s_Mutex);
-        pending = s_Pending;
-        s_Pending = nullptr;
+        std::swap(pending, s_Pending);
     }
 
-    while(pending)
+    for(ReadRequest *req = pending, *next = nullptr; req != nullptr; req = next)
     {
-        ReadRequest* req = pending;
-        pending = pending->m_Next;
+        next = req->m_Next;
 
-        auto* emReq = req->As<EmscriptenReadRequest>();
+        req->Unlink();
+
+        auto* emReq = static_cast<EmscriptenReadRequest*>(req);
 
         if(emReq->FetchData)
         {
@@ -557,81 +810,65 @@ FileIo::PlatformShutdown()
             emReq->FetchData = nullptr;
         }
 
-        if(emReq->IsComplete.exchange(1, std::memory_order_acq_rel) == 1)
-        {
-            continue;
-        }
-
-        emReq->Error = "Async read cancelled due to FileIO shutdown";
-        AddCompletedRequest(emReq);
+        delete req;
     }
 
     return true;
 }
 
 void
-FileIo::QueueRead(std::string_view filePath, ReadCallback callback, void* userData)
+FileIo::ProcessCompletions()
 {
-    EmscriptenReadRequest* reqPtr = new EmscriptenReadRequest(filePath, userData, callback);
+    return;
+}
 
-    if(!s_Running.load(std::memory_order_acquire))
+void
+FileIo::CompleteRequestSuccess(ReadRequest* request, const size_t bytesRead)
+{
+    MoveFromPendingToComplete(request);
+}
+
+void
+FileIo::CompleteRequestFailure(ReadRequest* request, const Error& error)
+{
+    request->Error = error;
+
+    MoveFromPendingToComplete(request);
+}
+
+struct EmscriptenFetchData : FileIo::FetchData
+{
+    explicit EmscriptenFetchData(emscripten_fetch_t* fetch)
+        : FetchData(reinterpret_cast<const uint8_t*>(fetch->data), fetch->numBytes),
+          m_Fetch(fetch)
     {
-        reqPtr->Error = std::format("Startup() was not called before QueueRead().");
-        reqPtr->IsComplete.store(1, std::memory_order_release);
-
-        AddCompletedRequest(reqPtr);
-        return;
     }
 
-    emscripten_fetch_attr_t attr{};
-    emscripten_fetch_attr_init(&attr);
-
-    std::strcpy(attr.requestMethod, "GET");
-    attr.attributes = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY;
-    attr.userData = reqPtr;
-
-    attr.onsuccess = [](emscripten_fetch_t* fetch)
+    ~EmscriptenFetchData() override
     {
-        auto* req = static_cast<EmscriptenReadRequest*>(fetch->userData);
-
-        // Check if already completed (e.g., due to shutdown)
-        if(req->IsComplete.exchange(1, std::memory_order_acq_rel) == 1)
+        if(m_Fetch)
         {
-            return;
+            emscripten_fetch_close(m_Fetch);
+            m_Fetch = nullptr;
         }
+    }
 
-        req->Buffer = reinterpret_cast<const uint8_t*>(fetch->data);
-        req->BytesRead = static_cast<std::size_t>(fetch->numBytes);
-        req->FetchData = fetch;
+private:
+    emscripten_fetch_t* m_Fetch{ nullptr };
+};
 
-        req->IsComplete.store(1, std::memory_order_release);
+static Result<FileIo::FetchDataPtr>
+GetResultImpl(ReadRequest* req)
+{
+    auto emReq = static_cast<EmscriptenReadRequest*>(req);
 
-        AddCompletedRequest(req);
-    };
-    attr.onerror = [](emscripten_fetch_t* fetch)
-    {
-        auto* req = static_cast<EmscriptenReadRequest*>(fetch->userData);
+    auto fetchData = std::make_unique<EmscriptenFetchData>(emReq->FetchData);
 
-        // Check if already completed (e.g., due to shutdown)
-        if(req->IsComplete.exchange(1, std::memory_order_acq_rel) == 1)
-        {
-            return;
-        }
+    emReq->FetchData = nullptr;
 
-        req->Error = std::format("Failed to fetch file: {}, status: {}/{}",
-            fetch->url,
-            fetch->status,
-            fetch->statusText);
+    auto result = FileIo::FetchDataPtr(std::move(fetchData));
 
-        req->FetchData = fetch;
-
-        AddCompletedRequest(req);
-    };
-
-    reqPtr->FetchData = emscripten_fetch(&attr, reqPtr->Path.c_str());
-
-    // Pending fetch; will be completed by fetch callbacks.
-    AddPendingRequest(reqPtr);
+    return result;
 }
 
 #endif // _WIN32 && !__EMSCRIPTEN__

@@ -75,7 +75,7 @@ public:
         auto renderResult = m_RenderGraph->Render(m_CameraXform.ToMatrix(), m_Camera.GetProjection());
         if(!renderResult)
         {
-            logError(renderResult.error().Message);
+            logError(renderResult.error().GetMessage());
         }
     }
 
@@ -123,7 +123,7 @@ int main(int, char* /*argv[]*/)
     auto initResult = driver.Init();
     if(!initResult)
     {
-        logError(initResult.error().Message);
+        logError(initResult.error().GetMessage());
         return -1;
     }
 
@@ -131,7 +131,7 @@ int main(int, char* /*argv[]*/)
 
     if(!runResult)
     {
-        logError(runResult.error().Message);
+        logError(runResult.error().GetMessage());
         return -1;
     }
 

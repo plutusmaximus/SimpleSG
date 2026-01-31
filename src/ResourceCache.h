@@ -6,97 +6,10 @@
 
 #include <memory>
 
-template<typename T>
-class ResourceResult
-{
-    friend class ResourceCache;
-
-public:
-
-    bool IsPending() const
-    {
-        return m_ResultOrState.index() == 1 && !IsCompleted();
-    }
-
-    bool IsCompleted() const
-    {
-        if(m_ResultOrState.index() == 0)
-        {
-            return true;
-        }
-
-        return m_ResultOrState.get<1>()->m_IsCompleted;
-    }
-
-    const Result<T>& GetResult() const
-    {
-        if(!IsCompleted())
-        {
-            return Error("Attempted to get result of a pending resource.");
-        }
-
-        if(m_ResultOrState.index() == 0)
-        {
-            return m_ResultOrState.get<0>().GetResult();
-        }
-
-        return m_ResultOrState.get<1>()->m_Result;
-    }
-
-private:
-
-    struct State
-    {
-        Result<T> m_Result;
-
-        bool m_IsCompleted{ false };
-    };
-
-    ResourceResult() = delete;
-
-    ResourceResult(const Result<T>& result)
-        : m_ResultOrState(result)
-    {
-    }
-
-    ResourceResult(Result<T>&& result)
-        : m_ResultOrState(std::move(result))
-    {
-    }
-
-    ResourceResult(const T& value)
-        : m_ResultOrState(Result<T>(value))
-    {
-    }
-
-    ResourceResult(T&& value)
-        : m_ResultOrState(Result<T>(std::move(value)))
-    {
-    }
-
-    ResourceResult(const Error& error)
-        : m_ResultOrState(Result<T>(error))
-    {
-    }
-
-    ResourceResult(Error&& error)
-        : m_ResultOrState(Result<T>(std::move(error)))
-    {
-    }
-
-    ResourceResult(const std::shared_ptr<State>& state)
-        : m_ResultOrState(state)
-    {
-    }
-
-    std::variant<Result<T>, std::shared_ptr<State>> m_ResultOrState;
-};
-
 /// @brief A cache for loading and storing GPU resources like models, textures, and shaders.
 class ResourceCache
 {
 public:
-
     ResourceCache() = delete;
     ResourceCache(const ResourceCache&) = delete;
     ResourceCache& operator=(const ResourceCache&) = delete;
@@ -108,10 +21,41 @@ public:
     {
     }
 
+    /// @brief Token representing the status of a file I/O operation.
+    /// Used to query the status or retrieve results of asynchronous operations.
+    class AsyncToken
+    {
+        using ValueType = uint32_t;
+
+    public:
+        AsyncToken() = default;
+
+        bool operator==(const AsyncToken& other) const { return m_Value == other.m_Value; }
+        bool operator!=(const AsyncToken& other) const { return m_Value != other.m_Value; }
+
+        static AsyncToken NewToken();
+
+    private:
+        inline static constexpr ValueType InvalidValue{ 0 };
+
+        explicit constexpr AsyncToken(ValueType value)
+            : m_Value(value)
+        {
+        }
+
+        ValueType m_Value{ 0 };
+    };
+
     ~ResourceCache();
+
+    Result<AsyncToken> LoadModelFromFileAsync(const CacheKey& cacheKey, std::string_view filePath);
 
     /// @brief Loads a model from file if not already loaded.
     Result<Model> LoadModelFromFile(const CacheKey& cacheKey, std::string_view filePath);
+
+    Result<Model> LoadModelFromMemory(const CacheKey& cacheKey,
+        const std::span<const uint8_t> data,
+        std::string_view filePath);
 
     /// @brief Creates a model from the given specification if not already created.
     Result<Model> GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec);
@@ -119,10 +63,12 @@ public:
     /// @brief Retrieves or creates a texture (if not already cached) from the given specification.
     Result<Texture> GetOrCreateTexture(const TextureSpec& textureSpec);
 
-    /// @brief Retrieves or creates a vertex shader (if not already cached) from the given specification.
+    /// @brief Retrieves or creates a vertex shader (if not already cached) from the given
+    /// specification.
     Result<VertexShader> GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec);
 
-    /// @brief Retrieves or creates a fragment shader (if not already cached) from the given specification.
+    /// @brief Retrieves or creates a fragment shader (if not already cached) from the given
+    /// specification.
     Result<FragmentShader> GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec);
 
     /// @brief Retrieves a cached model.
@@ -138,7 +84,6 @@ public:
     Result<FragmentShader> GetFragmentShader(const CacheKey& cacheKey) const;
 
 private:
-
     /// @brief Loads a texture from the given file path.
     Result<Texture> CreateTexture(const std::string_view path);
 
@@ -166,7 +111,7 @@ private:
                 return false;
             }
 
-            m_Entries.insert(it, Entry{key, value});
+            m_Entries.insert(it, Entry{ key, value });
             return true;
         }
 
@@ -190,54 +135,31 @@ private:
             return it != m_Entries.end() && it->Key == key;
         }
 
-        size_t Size() const
-        {
-            return m_Entries.size();
-        }
+        size_t Size() const { return m_Entries.size(); }
 
         Iterator Find(const CacheKey& key)
         {
-            return std::lower_bound(
-                m_Entries.begin(),
+            return std::lower_bound(m_Entries.begin(),
                 m_Entries.end(),
                 key,
-                [](const Entry& entry, const CacheKey& key)
-                {
-                    return entry.Key < key;
-                });
+                [](const Entry& entry, const CacheKey& key) { return entry.Key < key; });
         }
 
         ConstIterator Find(const CacheKey& key) const
         {
-            return std::lower_bound(
-                m_Entries.begin(),
+            return std::lower_bound(m_Entries.begin(),
                 m_Entries.end(),
                 key,
-                [](const Entry& entry, const CacheKey& key)
-                {
-                    return entry.Key < key;
-                });
+                [](const Entry& entry, const CacheKey& key) { return entry.Key < key; });
         }
 
-        Iterator begin()
-        {
-            return m_Entries.begin();
-        }
+        Iterator begin() { return m_Entries.begin(); }
 
-        ConstIterator begin() const
-        {
-            return m_Entries.begin();
-        }
+        ConstIterator begin() const { return m_Entries.begin(); }
 
-        Iterator end()
-        {
-            return m_Entries.end();
-        }
+        Iterator end() { return m_Entries.end(); }
 
-        ConstIterator end() const
-        {
-            return m_Entries.end();
-        }
+        ConstIterator end() const { return m_Entries.end(); }
 
     private:
         std::vector<Entry> m_Entries;
