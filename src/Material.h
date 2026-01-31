@@ -2,6 +2,7 @@
 
 #include "Error.h"
 #include "Image.h"
+#include "imstring.h"
 #include <string>
 #include <algorithm>
 #include <variant>
@@ -160,6 +161,13 @@ public:
         // CacheKey must not be empty.
         eassert(!key.empty());
     }
+    CacheKey(const imstring& key)
+        : m_Key(key)
+        , m_HashCode(std::hash<std::string_view>()(key))
+    {
+        // CacheKey must not be empty.
+        eassert(!key.empty());
+    }
 
     bool operator==(const CacheKey& other) const
     {
@@ -187,7 +195,7 @@ public:
         }
     }
 
-    const std::string& ToString() const
+    const imstring& ToString() const
     {
         return m_Key;
     }
@@ -195,7 +203,7 @@ public:
 private:
     CacheKey() = delete;
 
-    std::string m_Key;
+    imstring m_Key;
     size_t m_HashCode;
 };
 
