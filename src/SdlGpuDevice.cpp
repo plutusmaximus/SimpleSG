@@ -202,7 +202,7 @@ SdlGpuDevice::DestroyVertexBuffer(VertexBuffer& buffer)
     delete sdlBuffer;
     buffer = VertexBuffer(nullptr, 0, 0);
 
-    return {};
+    return ResultOk;
 }
 
 Result<IndexBuffer>
@@ -245,7 +245,7 @@ SdlGpuDevice::DestroyIndexBuffer(IndexBuffer& buffer)
     delete sdlBuffer;
     buffer = IndexBuffer(nullptr, 0, 0);
 
-    return {};
+    return ResultOk;
 }
 
 Result<Texture>
@@ -396,7 +396,7 @@ SdlGpuDevice::DestroyTexture(Texture& texture)
     delete sdlTexture;
     texture = Texture();
 
-    return {};
+    return ResultOk;
 }
 
 Result<VertexShader>
@@ -429,7 +429,7 @@ SdlGpuDevice::DestroyVertexShader(VertexShader& shader)
     delete sdlShader;
     shader = VertexShader();
 
-    return {};
+    return ResultOk;
 }
 
 Result<FragmentShader>
@@ -465,7 +465,7 @@ SdlGpuDevice::DestroyFragmentShader(FragmentShader& shader)
     delete sdlShader;
     shader = FragmentShader();
 
-    return {};
+    return ResultOk;
 }
 
 Result<RenderGraph*>

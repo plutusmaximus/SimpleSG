@@ -113,7 +113,7 @@ SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
         //No render pass - likely window minimized.
         //This is not an error.
         SDL_CancelGPUCommandBuffer(cmdBuf);
-        return {};
+        return ResultOk;
     }
 
     auto cleanup = scope_exit([&]()
@@ -236,7 +236,7 @@ SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
     expect(m_CurrentState->m_RenderFence, SDL_GetError());
 
-    return {};
+    return ResultOk;
 }
 
 //private:

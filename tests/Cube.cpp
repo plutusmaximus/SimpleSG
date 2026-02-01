@@ -84,7 +84,7 @@ public:
 
         cleanup.release();
 
-        return {};
+        return ResultOk;
     }
 
     void Shutdown() override

@@ -1,3 +1,4 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include <SDL3/SDL.h>
 
 #include "AppDriver.h"
@@ -10,6 +11,9 @@
 #include "GpuDevice.h"
 
 #include "scope_exit.h"
+
+#define CGLTF_IMPLEMENTATION
+#include "cgltf.h"
 
 class WorldMatrix : public Mat44f
 {
@@ -79,7 +83,7 @@ public:
 
         cleanup.release();
 
-        return {};
+        return ResultOk;
     }
 
     void Shutdown() override
@@ -252,6 +256,14 @@ public:
 
 int main(int, char* /*argv[]*/)
 {
+    /*cgltf_options options = {0};
+    cgltf_data* data = NULL;
+    cgltf_result result = cgltf_parse_file(&options, "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf", &data);
+    if (result == cgltf_result_success)
+    {
+        cgltf_free(data);
+    }*/
+
     SponzaAppLifecycle appLifecycle;
     AppDriver driver(&appLifecycle);
 

@@ -567,7 +567,7 @@ IssueReadRequest(ReadRequest* req)
             GetWindowsErrorString(err));
     }
 
-    return {};
+    return ResultOk;
 }
 
 // private:

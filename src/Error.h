@@ -395,12 +395,27 @@ private:
     std::variant<Error, T> m_ValueOrError;
 };
 
+/// @brief Tag type to represent a successful void result.
+struct ResultOkTag
+{
+    explicit ResultOkTag() = default;
+};
+
+/// @brief Constant instance of ResultOkTag.
+/// Return this from functions returning Result<void> to indicate success.
+inline constexpr ResultOkTag ResultOk{};
+
 /// @brief Specialization of Result for void type.
 template<>
 class Result<void>
 {
 public:
-    Result() = default;
+    Result() = delete;
+
+    Result( ResultOkTag )
+        : m_ValueOrError(std::monostate{})
+    {
+    }
 
     Result(const Error& error)
         : m_ValueOrError(error)
@@ -444,9 +459,7 @@ public:
     bool operator!=(const Result& other) const { return !(*this == other); }
 
 private:
-    // Using monostate to represent the void value.
-    // Make sure std::monostate is the first alternative
-    // so that when Result<void> is default constructed, the variant holds monostate.
+
     std::variant<std::monostate, Error> m_ValueOrError;
 };
 

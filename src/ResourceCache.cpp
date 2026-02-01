@@ -177,7 +177,7 @@ ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, std::string_view
     if(m_ModelCache.Contains(cacheKey))
     {
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return {};
+        return ResultOk;
     }
 
     auto op = new LoadModelOp(this, cacheKey, filePath);
@@ -185,7 +185,7 @@ ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, std::string_view
 
     op->Enqueue(&m_PendingOps);
 
-    return {};
+    return ResultOk;
 }
 
 Result<Model>
@@ -822,7 +822,7 @@ ResourceCache::CreateTextureOp::AddDummyTextureToCache()
         return Error("Failed to add dummy texture to cache");
     }
 
-    return {};
+    return ResultOk;
 }
 
 Result<Texture>
