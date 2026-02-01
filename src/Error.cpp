@@ -45,7 +45,8 @@ LogHelper::CreateLogger(const std::string_view name)
 
     auto logger = std::make_shared<spdlog::logger>(std::string(name), spdlog::sinks_init_list{ console_sink, msvc_sink });
 
-    spdlog::register_logger(logger);
+    spdlog::initialize_logger(logger);
+    spdlog::register_or_replace(logger);
 
     return logger;
 }
@@ -85,7 +86,7 @@ std::string
 Asserts::Capture::Message() const
 {
     auto sink = static_cast<spdlog::sinks::ringbuffer_sink_mt*>(m_Sink.get());
-    const auto message = 
+    const auto message =
         sink->last_formatted().empty()
         ? std::string()
         : sink->last_formatted().back();

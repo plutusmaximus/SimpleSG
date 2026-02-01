@@ -44,7 +44,12 @@ public:
 
 /// @brief Global instance of a logger specialized by label.
 template<LoggerLabel S>
-inline std::shared_ptr<spdlog::logger> __LOGGER__ = LogHelper::CreateLogger(S.sv());
+inline std::shared_ptr<spdlog::logger> GetLogger()
+{
+    static std::shared_ptr<spdlog::logger> logger = LogHelper::CreateLogger(S.sv());
+
+    return logger;
+}
 
 // ====== Logging functions ======
 
@@ -58,35 +63,35 @@ template<typename... Args>
 inline void
 logTrace(const LogFormatString auto& format, Args&&... args)
 {
-    __LOGGER__<__LOGGER_NAME__>->trace(std::vformat(format, std::make_format_args(args...)));
+    GetLogger<__LOGGER_NAME__>()->trace(std::vformat(format, std::make_format_args(args...)));
 }
 
 template<typename... Args>
 inline void
 logDebug(const LogFormatString auto& format, Args&&... args)
 {
-    __LOGGER__<__LOGGER_NAME__>->debug(std::vformat(format, std::make_format_args(args...)));
+    GetLogger<__LOGGER_NAME__>()->debug(std::vformat(format, std::make_format_args(args...)));
 }
 
 template<typename... Args>
 inline void
 logInfo(const LogFormatString auto& format, Args&&... args)
 {
-    __LOGGER__<__LOGGER_NAME__>->info(std::vformat(format, std::make_format_args(args...)));
+    GetLogger<__LOGGER_NAME__>()->info(std::vformat(format, std::make_format_args(args...)));
 }
 
 template<typename... Args>
 inline void
 logWarn(const LogFormatString auto& format, Args&&... args)
 {
-    __LOGGER__<__LOGGER_NAME__>->warn(std::vformat(format, std::make_format_args(args...)));
+    GetLogger<__LOGGER_NAME__>()->warn(std::vformat(format, std::make_format_args(args...)));
 }
 
 template<typename... Args>
 inline void
 logError(const LogFormatString auto& format, Args&&... args)
 {
-    __LOGGER__<__LOGGER_NAME__>->error(std::vformat(format, std::make_format_args(args...)));
+    GetLogger<__LOGGER_NAME__>()->error(std::vformat(format, std::make_format_args(args...)));
 }
 
 /// Log an assertion failure
@@ -94,7 +99,7 @@ template<typename... Args>
 inline void
 logAssert(const LogFormatString auto& format, Args&&... args)
 {
-    __LOGGER__<"assert">->error(std::vformat(format, std::make_format_args(args...)));
+    GetLogger<"assert">()->error(std::vformat(format, std::make_format_args(args...)));
 }
 
 /// @brief Sets the log level for a specific logger.
@@ -102,7 +107,7 @@ template<LoggerLabel S>
 inline void
 logSetLevel(const spdlog::level::level_enum level)
 {
-    __LOGGER__<S>->SetLevel(level);
+    GetLogger<S>()->SetLevel(level);
 }
 
 /// @brief Sets the global log level.
@@ -122,7 +127,7 @@ enum class ErrorCode : int
 class Error
 {
 public:
-    Error() = delete;
+    Error() = default;
 
     Error(const char* message)
         : Error(ErrorCode::System, message)
@@ -387,7 +392,7 @@ public:
     bool operator!=(const Result& other) const { return !(*this == other); }
 
 private:
-    std::variant<T, Error> m_ValueOrError;
+    std::variant<Error, T> m_ValueOrError;
 };
 
 /// @brief Specialization of Result for void type.
@@ -439,6 +444,9 @@ public:
     bool operator!=(const Result& other) const { return !(*this == other); }
 
 private:
+    // Using monostate to represent the void value.
+    // Make sure std::monostate is the first alternative
+    // so that when Result<void> is default constructed, the variant holds monostate.
     std::variant<std::monostate, Error> m_ValueOrError;
 };
 
