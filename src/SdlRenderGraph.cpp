@@ -341,9 +341,9 @@ SdlRenderGraph::GetDefaultAlbedoTexture()
 {
     if(!m_DefaultAlbedoTexture.IsValid())
     {
-        static constexpr const std::string_view MAGENTA_TEXTURE_KEY("$magenta");
+        static constexpr const char* MAGENTA_TEXTURE_KEY = "$magenta";
 
-        auto result = m_GpuDevice->CreateTexture("#FF00FFFF"_rgba);
+        auto result = m_GpuDevice->CreateTexture("#FF00FFFF"_rgba, imstring(MAGENTA_TEXTURE_KEY));
         expect(result, result.error());
 
         m_DefaultAlbedoTexture = result.value();

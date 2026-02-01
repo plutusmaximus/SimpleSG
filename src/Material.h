@@ -3,7 +3,7 @@
 #include "Error.h"
 #include "Image.h"
 #include "imstring.h"
-#include <string>
+#include <string_view>
 #include <algorithm>
 #include <variant>
 
@@ -35,7 +35,7 @@ public:
     constexpr RgbaColor(const RgbaColor<U>& other);
 
     /// @brief Converts the color to a hexadecimal string representation - #RRGGBBAA
-    std::string ToHexString() const;
+    imstring ToHexString() const;
 
     bool operator==(const RgbaColor& other) const
     {
@@ -91,14 +91,14 @@ inline RgbaColor<float>::RgbaColor(const RgbaColor<uint8_t>& other)
 {
 }
 
-inline std::string RgbaColor<uint8_t>::ToHexString() const
+inline imstring RgbaColor<uint8_t>::ToHexString() const
 {
     char buf[10];
     snprintf(buf, sizeof(buf), "#%02X%02X%02X%02X", r, g, b, a);
-    return std::string(buf);
+    return imstring(buf);
 }
 
-inline std::string RgbaColor<float>::ToHexString() const
+inline imstring RgbaColor<float>::ToHexString() const
 {
     return RgbaColor<uint8_t>(*this).ToHexString();
 }
@@ -154,14 +154,23 @@ class CacheKey
     friend std::hash<CacheKey>;
 
 public:
-    CacheKey(std::string_view key)
+
+    explicit CacheKey(const char* key)
+        : m_Key(key ? key : "")
+        , m_HashCode(std::hash<std::string_view>()(key ? key : ""))
+    {
+        // CacheKey must not be empty.
+        eassert(key && key[0] != '\0');
+    }
+
+    explicit CacheKey(std::string_view key)
         : m_Key(key)
         , m_HashCode(std::hash<std::string_view>()(key))
     {
         // CacheKey must not be empty.
         eassert(!key.empty());
     }
-    CacheKey(const imstring& key)
+    explicit CacheKey(const imstring& key)
         : m_Key(key)
         , m_HashCode(std::hash<std::string_view>()(key))
     {
@@ -226,7 +235,7 @@ public:
     /// @brief Constructs a texture spec from a file path.
     /// The cache key is set to the path.
     explicit TextureSpec(std::string_view path)
-        : Source(std::string(path))
+        : Source(imstring(path))
     {
     }
 
@@ -242,8 +251,49 @@ public:
         return !std::holds_alternative<None_t>(Source);
     }
 
-    // FIXME(KB) - add support for resource paths.
-    std::variant<None_t, const std::string, const RgbaColorf> Source;
+    bool TryGetPath(imstring& outPath) const
+    {
+        if (const auto* path = std::get_if<imstring>(&Source))
+        {
+            outPath = *path;
+            return true;
+        }
+        return false;
+    }
+
+    bool TryGetColor(RgbaColorf& outColor) const
+    {
+        if (const auto* color = std::get_if<const RgbaColorf>(&Source))
+        {
+            outColor = *color;
+            return true;
+        }
+        return false;
+    }
+
+    CacheKey GetCacheKey() const
+    {
+        if(std::holds_alternative<None_t>(Source))
+        {
+            eassert(false && "TextureSpec has no source");
+            return CacheKey("");
+        }
+
+        if(std::holds_alternative<imstring>(Source))
+        {
+            return CacheKey(std::get<imstring>(Source));
+        }
+
+        if(std::holds_alternative<const RgbaColorf>(Source))
+        {
+            return CacheKey(std::get<const RgbaColorf>(Source).ToHexString());
+        }
+
+        eassert(false && "Unhandled TextureSpec source type");
+        return CacheKey("");
+    }
+
+    std::variant<None_t, imstring, const RgbaColorf> Source;
 
 private:
     TextureSpec() = delete;
@@ -257,7 +307,7 @@ public:
     //FIXME(KB) - add support for embedded source code.
     //FIXME(KB) - add a cache key.
     //FIXME(KB) - add support for resource paths.
-    std::variant<std::string> Source;
+    std::variant<imstring> Source;
 
     const unsigned NumUniformBuffers{ 0 };
 };
@@ -270,7 +320,7 @@ public:
     //FIXME(KB) - add support for embedded source code.
     //FIXME(KB) - add a cache key.
     //FIXME(KB) - add support for resource paths.
-    std::variant<std::string> Source;
+    std::variant<imstring> Source;
 };
 
 /// @brief Unique identifier for a material.

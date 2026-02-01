@@ -4,13 +4,18 @@
 
 #include "scope_exit.h"
 
+#include "Stopwatch.h"
+
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
+
+#include <stb_image.h>
+
 #include <filesystem>
 
-static constexpr const std::string_view WHITE_TEXTURE_KEY("#FFFFFFFF");
-static constexpr const std::string_view MAGENTA_TEXTURE_KEY("#FF00FFFF");
+static constexpr const char* WHITE_TEXTURE_KEY = "#FFFFFFFF";
+static constexpr const char* MAGENTA_TEXTURE_KEY = "#FF00FFFF";
 
 static constexpr const RgbaColorf WHITE_COLOR(1.0f, 1.0f, 1.0f, 1.0f);
 static constexpr const RgbaColorf MAGENTA_COLOR(1.0f, 0.0f, 1.0f, 1.0f);
@@ -200,13 +205,19 @@ ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view file
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
 
-    constexpr unsigned flags =
+    /*constexpr unsigned flags =
         aiProcess_CalcTangentSpace | aiProcess_ImproveCacheLocality | aiProcess_LimitBoneWeights |
         aiProcess_RemoveRedundantMaterials | aiProcess_Triangulate | aiProcess_SortByPType |
-        aiProcess_FindDegenerates | aiProcess_FindInvalidData | aiProcess_ConvertToLeftHanded;
+        aiProcess_FindDegenerates | aiProcess_FindInvalidData | aiProcess_ConvertToLeftHanded;*/
 
+    constexpr unsigned flags = aiProcess_ConvertToLeftHanded;
+
+    Stopwatch sw;
+    sw.Mark();
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(std::string(filePath), flags);
+
+    logDebug("  Assimp import time: {} ms", static_cast<int>(sw.Elapsed() * 1000.0f));
 
     expect(scene != nullptr, importer.GetErrorString());
     expect(scene->mNumMeshes > 0, "No meshes in model: {}", filePath);
@@ -233,7 +244,11 @@ ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view file
         meshInstances.build(),
         transformNodes.build() };
 
-    return GetOrCreateModel(cacheKey, ModelSpec);
+    auto modelResult = GetOrCreateModel(cacheKey, ModelSpec);
+
+    logDebug("  Total model load time: {} ms", static_cast<int>(sw.Elapsed() * 1000.0f));
+
+    return modelResult;
 }
 
 Result<Model>
@@ -348,6 +363,49 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     imvector<Mesh>::builder meshes;
     meshes.reserve(modelSpec.MeshSpecs.size());
 
+    // Load textures into cache
+    std::vector<std::tuple<CacheKey, CreateTextureOp*>> textureOps;
+    textureOps.reserve(modelSpec.MeshSpecs.size());
+    for(const auto& meshSpec : modelSpec.MeshSpecs)
+    {
+        if(meshSpec.MtlSpec.Albedo.IsValid())
+        {
+            const auto textureCacheKey = meshSpec.MtlSpec.Albedo.GetCacheKey();
+
+            auto textureOp = new CreateTextureOp(this, textureCacheKey, meshSpec.MtlSpec.Albedo);
+            textureOp->Start();
+            textureOps.push_back({textureCacheKey, textureOp});
+        }
+    }
+
+    std::vector<Result<CacheKey>> textureResults;
+    textureResults.reserve(textureOps.size());
+
+    bool done = false;
+    while(!done)
+    {
+        done = true;
+        for(auto& [textureCacheKey, textureOp] : textureOps)
+        {
+            textureOp->Update();
+            if(textureOp->IsComplete())
+            {
+                textureResults.push_back(textureOp->GetResult());
+
+                delete textureOp;
+            }
+            else
+            {
+                done = false;
+            }
+        }
+    }
+
+    for(const auto& result : textureResults)
+    {
+        expect(result, result.error());
+    }
+
     uint32_t idxOffset = 0, vtxOffset = 0;
 
     for(const auto& meshSpec : modelSpec.MeshSpecs)
@@ -415,23 +473,12 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     return model;
 }
 
-/// @brief Helper struct for visiting variants
-template<class... Ts>
-struct acceptor : Ts...
-{
-    using Ts::operator()...;
-};
-
 Result<Texture>
 ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
 {
     expectv(textureSpec.IsValid(), "Texture spec is not specified");
 
-    auto cacheKeyAcceptor = acceptor{ [this](TextureSpec::None_t) { return CacheKey(""); },
-        [this](const std::string& path) { return CacheKey(path); },
-        [this](const RgbaColorf& color) { return CacheKey(color.ToHexString()); } };
-
-    auto cacheKey = std::visit(cacheKeyAcceptor, textureSpec.Source);
+    auto cacheKey = textureSpec.GetCacheKey();
 
     Texture texture;
     if(m_TextureCache.TryGet(cacheKey, texture))
@@ -442,12 +489,24 @@ ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
 
-    auto createTexAcceptor = acceptor{ [this](TextureSpec::None_t) -> Result<Texture>
-        { return Error("Texture source is not specified"); },
-        [this](const std::string& path) { return CreateTexture(path); },
-        [this](const RgbaColorf& color) { return m_GpuDevice->CreateTexture(color); } };
+    Result<Texture> result;
 
-    auto result = std::visit(createTexAcceptor, textureSpec.Source);
+    if(std::holds_alternative<const RgbaColorf>(textureSpec.Source))
+    {
+        const auto& color = std::get<const RgbaColorf>(textureSpec.Source);
+        result = m_GpuDevice->CreateTexture(color, cacheKey.ToString());
+    }
+    else if(std::holds_alternative<imstring>(textureSpec.Source))
+    {
+        const auto& path = std::get<imstring>(textureSpec.Source);
+        result = CreateTexture(path);
+    }
+    else
+    {
+        eassert(false, "Unsupported texture source");
+        result = Error("Texture source is not specified");
+    }
+
     expect(result, result.error());
 
     texture = result.value();
@@ -541,10 +600,20 @@ ResourceCache::GetFragmentShader(const CacheKey& cacheKey) const
 
 // private:
 
+// === ResourceCache::LoadModelOp ===
+
+#define logOp(fmt, ...) \
+    logDebug("  {}: {}", CLASS_NAME, std::format(fmt, __VA_ARGS__))
+
 void
 ResourceCache::LoadModelOp::Start()
 {
     eassert(m_State == NotStarted);
+
+    logOp("Start() (key: {})", GetCacheKey().ToString());
+
+    // TODO(KB) - put a dummy model in the cache to prevent duplicate loads.
+    //logOp("Adding dummy model to cache to prevent duplicate loads (key: {})", GetCacheKey().ToString());
 
     auto result = FileIo::Fetch(m_Path);
 
@@ -575,6 +644,8 @@ ResourceCache::LoadModelOp::Update()
                 return;
             }
 
+            logOp("File fetch completed for model (key: {})", GetCacheKey().ToString());
+
             auto result = FileIo::GetResult(m_FileFetchToken);
 
             SetResult(LoadModel(result));
@@ -586,7 +657,7 @@ ResourceCache::LoadModelOp::Update()
     }
 }
 
-Result<Model>
+Result<CacheKey>
 ResourceCache::LoadModelOp::LoadModel(const Result<FileIo::FetchDataPtr>& fileData)
 {
     if(!fileData)
@@ -594,7 +665,198 @@ ResourceCache::LoadModelOp::LoadModel(const Result<FileIo::FetchDataPtr>& fileDa
         return fileData.error();
     }
 
-    return m_ResourceCache->LoadModelFromMemory(GetCacheKey(), fileData.value()->Bytes, m_Path);
+    logOp("Importing model from memory (key: {})", GetCacheKey().ToString());
+
+    auto result = m_ResourceCache->LoadModelFromMemory(GetCacheKey(), fileData.value()->Bytes, m_Path);
+
+    if(!result)
+    {
+        return result.error();
+    }
+
+    return GetCacheKey();
+}
+
+// === ResourceCache::CreateTextureOp ===
+
+void
+ResourceCache::CreateTextureOp::Start()
+{
+    eassert(m_State == NotStarted);
+
+    logOp("Start() (key: {})", GetCacheKey().ToString());
+
+    auto cacheResult = m_ResourceCache->GetTexture(GetCacheKey());
+    if(cacheResult)
+    {
+        logOp("Cache hit: {}", GetCacheKey().ToString());
+        SetResult(GetCacheKey());
+        return;
+    }
+
+    logOp("Cache miss: {}", GetCacheKey().ToString());
+
+    if(!everify(m_TextureSpec.IsValid(), "Texture spec is invalid"))
+    {
+        SetResult(Error("Texture spec is invalid"));
+        return;
+    }
+
+    if(RgbaColorf color; m_TextureSpec.TryGetColor(color))
+    {
+        logOp("Creating texture from color: {}", color.ToHexString());
+
+        auto result = m_ResourceCache->m_GpuDevice->CreateTexture(color, color.ToHexString());
+        if(!result)
+        {
+            SetResult(result.error());
+            return;
+        }
+
+        AddOrReplaceInCache(result.value());
+
+        SetResult(GetCacheKey());
+
+        return;
+    }
+    else if(imstring path; m_TextureSpec.TryGetPath(path))
+    {
+        if(path.empty())
+        {
+            SetResult(Error("Texture source path is empty"));
+            return;
+        }
+
+        logOp("Creating texture from file: {}", path);
+
+        AddDummyTextureToCache();
+
+        auto result = FileIo::Fetch(path);
+
+        if(!result)
+        {
+            SetResult(result.error());
+            return;
+        }
+
+        m_FileFetchToken = result.value();
+        m_State = LoadingFile;
+    }
+    else
+    {
+        SetResult(Error("Texture source is not specified"));
+        return;
+    }
+}
+
+void
+ResourceCache::CreateTextureOp::Update()
+{
+    switch(m_State)
+    {
+        case NotStarted:
+            eassert(false);
+            break;
+
+        case LoadingFile:
+        {
+            if(FileIo::IsPending(m_FileFetchToken))
+            {
+                return;
+            }
+
+            logOp("File fetch completed for texture (key: {})", GetCacheKey().ToString());
+
+            auto fileResult = FileIo::GetResult(m_FileFetchToken);
+
+            if(!fileResult)
+            {
+                SetResult(fileResult.error());
+                return;
+            }
+
+            logOp("Creating texture from fetched file data (key: {})", GetCacheKey().ToString());
+
+            auto textureResult = CreateTexture(fileResult.value());
+            if(!textureResult)
+            {
+                SetResult(textureResult.error());
+                return;
+            }
+
+            AddOrReplaceInCache(textureResult.value());
+
+            SetResult(GetCacheKey());
+
+            break;
+        }
+        case Completed:
+            // No-op
+            break;
+    }
+}
+
+Result<void>
+ResourceCache::CreateTextureOp::AddDummyTextureToCache()
+{
+    logOp("Adding dummy texture to cache to prevent duplicate loads (key: {})",
+        GetCacheKey().ToString());
+
+    CacheKey dummyKey(MAGENTA_TEXTURE_KEY);
+
+    Texture dummyTexture;
+    if(!m_ResourceCache->m_TextureCache.TryGet(dummyKey, dummyTexture))
+    {
+        auto dummyTextureResult = m_ResourceCache->m_GpuDevice->CreateTexture(MAGENTA_COLOR, dummyKey.ToString());
+        if(!dummyTextureResult)
+        {
+            return dummyTextureResult.error();
+        }
+        dummyTexture = dummyTextureResult.value();
+
+        m_ResourceCache->m_TextureCache.TryAdd(dummyKey, dummyTexture);
+    }
+
+    if(!m_ResourceCache->m_TextureCache.TryAdd(GetCacheKey(), dummyTexture))
+    {
+        return Error("Failed to add dummy texture to cache");
+    }
+
+    return {};
+}
+
+Result<Texture>
+ResourceCache::CreateTextureOp::CreateTexture(const FileIo::FetchDataPtr& fetchDataPtr)
+{
+    int width, height, channels;
+
+    stbi_uc* imgData = stbi_load_from_memory(fetchDataPtr->Bytes.data(),
+        static_cast<int>(fetchDataPtr->Bytes.size()),
+        &width,
+        &height,
+        &channels,
+        4);
+
+    expect(imgData != nullptr, "Failed to load image from memory: {}", stbi_failure_reason());
+
+    auto result = m_ResourceCache->m_GpuDevice->CreateTexture(
+        static_cast<unsigned>(width),
+        static_cast<unsigned>(height),
+        imgData,
+        static_cast<unsigned>(width * 4),
+        GetCacheKey().ToString());
+
+    stbi_image_free(imgData);
+
+    return result;
+}
+
+void
+ResourceCache::CreateTextureOp::AddOrReplaceInCache(const Texture& texture)
+{
+    logOp("Adding texture to cache (key: {})", GetCacheKey().ToString());
+
+    m_ResourceCache->m_TextureCache.AddOrReplace(GetCacheKey(), texture);
 }
 
 Result<Texture>

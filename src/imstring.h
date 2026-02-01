@@ -91,7 +91,7 @@ public:
 
     constexpr imstring() noexcept : m_blk(nullptr) {}
 
-    explicit imstring(const char* s)
+    imstring(const char* s)
         : m_blk(make_block(std::array<const char*, 1>{ s }, std::array<size_type, 1>{ s ? std::char_traits<char>::length(s) : 0 }))
     {
     }
@@ -102,12 +102,12 @@ public:
         if (n && !s) throw std::invalid_argument("imstring");
     }
 
-    explicit imstring(std::string_view sv)
+    imstring(std::string_view sv)
         : m_blk(make_block(std::array<const char*, 1>{ sv.data() }, std::array<size_type, 1>{ sv.size() }))
     {
     }
 
-    explicit imstring(const std::string& s)
+    imstring(const std::string& s)
         : m_blk(make_block(std::array<const char*, 1>{ s.data() }, std::array<size_type, 1>{ s.size() }))
     {
     }

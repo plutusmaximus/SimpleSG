@@ -1,14 +1,16 @@
 #pragma once
 
-#include "RenderGraph.h"
 #include "Error.h"
+#include "RenderGraph.h"
 #include "VecMath.h"
 #include "Vertex.h"
+
 #include <span>
 #include <tuple>
 #include <variant>
 
-template<typename T> class RgbaColor;
+template<typename T>
+class RgbaColor;
 using RgbaColorf = RgbaColor<float>;
 class Image;
 class VertexShaderSpec;
@@ -18,7 +20,6 @@ class FragmentShaderSpec;
 class GpuVertexBuffer
 {
 protected:
-
     GpuVertexBuffer() {}
     virtual ~GpuVertexBuffer() = 0 {}
 };
@@ -27,7 +28,6 @@ protected:
 class GpuIndexBuffer
 {
 protected:
-
     GpuIndexBuffer() {}
     virtual ~GpuIndexBuffer() = 0 {}
 };
@@ -36,7 +36,6 @@ protected:
 class GpuVertexShader
 {
 protected:
-
     GpuVertexShader() {}
     virtual ~GpuVertexShader() = 0 {}
 };
@@ -45,7 +44,6 @@ protected:
 class GpuFragmentShader
 {
 protected:
-
     GpuFragmentShader() {}
     virtual ~GpuFragmentShader() = 0 {}
 };
@@ -54,7 +52,6 @@ protected:
 class GpuTexture
 {
 protected:
-
     GpuTexture() {}
     virtual ~GpuTexture() = 0 {}
 };
@@ -64,19 +61,16 @@ protected:
 class VertexBuffer
 {
 public:
-
     VertexBuffer() = default;
     VertexBuffer(GpuVertexBuffer* buffer, const uint32_t itemOffset, const uint32_t itemCount)
-        : m_Buffer(buffer)
-        , m_ByteOffset(itemOffset * sizeof(Vertex))
-        , m_ItemCount(itemCount)
+        : m_Buffer(buffer),
+          m_ByteOffset(itemOffset * sizeof(Vertex)),
+          m_ItemCount(itemCount)
     {
     }
 
     /// @brief Retrieves a sub-range buffer from this buffer.
-    Result<VertexBuffer> GetSubRange(
-        const uint32_t itemOffset,
-        const uint32_t itemCount)
+    Result<VertexBuffer> GetSubRange(const uint32_t itemOffset, const uint32_t itemCount)
     {
         expect(IsValid(), "Invalid buffer");
         expect(itemOffset + itemCount <= m_ItemCount, "Sub-range out of bounds");
@@ -88,10 +82,16 @@ public:
     const GpuVertexBuffer* Get() const { return m_Buffer; }
 
     template<typename T>
-    T* Get() { return static_cast<T*>(m_Buffer); }
+    T* Get()
+    {
+        return static_cast<T*>(m_Buffer);
+    }
 
     template<typename T>
-    const T* Get() const { return static_cast<const T*>(m_Buffer); }
+    const T* Get() const
+    {
+        return static_cast<const T*>(m_Buffer);
+    }
 
     bool IsValid() const { return m_Buffer != nullptr; }
 
@@ -102,12 +102,11 @@ public:
     uint32_t GetItemCount() const { return m_ItemCount; }
 
 private:
+    GpuVertexBuffer* m_Buffer{ nullptr };
 
-    GpuVertexBuffer* m_Buffer{nullptr};
+    uint32_t m_ByteOffset{ 0 };
 
-    uint32_t m_ByteOffset{0};
-
-    uint32_t m_ItemCount{0};
+    uint32_t m_ItemCount{ 0 };
 };
 
 /// @brief API representation of an index buffer.
@@ -115,19 +114,16 @@ private:
 class IndexBuffer
 {
 public:
-
     IndexBuffer() = default;
     IndexBuffer(GpuIndexBuffer* buffer, const uint32_t itemOffset, const uint32_t itemCount)
-        : m_Buffer(buffer)
-        , m_ByteOffset(itemOffset * sizeof(VertexIndex))
-        , m_ItemCount(itemCount)
+        : m_Buffer(buffer),
+          m_ByteOffset(itemOffset * sizeof(VertexIndex)),
+          m_ItemCount(itemCount)
     {
     }
 
     /// @brief Retrieves a sub-range buffer from this buffer.
-    Result<IndexBuffer> GetSubRange(
-        const uint32_t itemOffset,
-        const uint32_t itemCount)
+    Result<IndexBuffer> GetSubRange(const uint32_t itemOffset, const uint32_t itemCount)
     {
         expect(IsValid(), "Invalid buffer");
         expect(itemOffset + itemCount <= m_ItemCount, "Sub-range out of bounds");
@@ -139,10 +135,16 @@ public:
     const GpuIndexBuffer* Get() const { return m_Buffer; }
 
     template<typename T>
-    T* Get() { return static_cast<T*>(m_Buffer); }
+    T* Get()
+    {
+        return static_cast<T*>(m_Buffer);
+    }
 
     template<typename T>
-    const T* Get() const { return static_cast<const T*>(m_Buffer); }
+    const T* Get() const
+    {
+        return static_cast<const T*>(m_Buffer);
+    }
 
     bool IsValid() const { return m_Buffer != nullptr; }
 
@@ -151,12 +153,11 @@ public:
     uint32_t GetItemCount() const { return m_ItemCount; }
 
 private:
+    GpuIndexBuffer* m_Buffer{ nullptr };
 
-    GpuIndexBuffer* m_Buffer{nullptr};
+    uint32_t m_ByteOffset{ 0 };
 
-    uint32_t m_ByteOffset{0};
-
-    uint32_t m_ItemCount{0};
+    uint32_t m_ItemCount{ 0 };
 };
 
 /// @brief API representation of a vertex shader.
@@ -164,7 +165,6 @@ private:
 class VertexShader
 {
 public:
-
     VertexShader() = default;
 
     explicit VertexShader(GpuVertexShader* shader)
@@ -176,15 +176,20 @@ public:
     const GpuVertexShader* Get() const { return m_Shader; }
 
     template<typename T>
-    T* Get() { return static_cast<T*>(m_Shader); }
+    T* Get()
+    {
+        return static_cast<T*>(m_Shader);
+    }
 
     template<typename T>
-    const T* Get() const { return static_cast<const T*>(m_Shader); }
+    const T* Get() const
+    {
+        return static_cast<const T*>(m_Shader);
+    }
 
     bool IsValid() const { return m_Shader != nullptr; }
 
 private:
-
     GpuVertexShader* m_Shader{ nullptr };
 };
 
@@ -193,7 +198,6 @@ private:
 class FragmentShader
 {
 public:
-
     FragmentShader() = default;
 
     explicit FragmentShader(GpuFragmentShader* shader)
@@ -205,15 +209,20 @@ public:
     const GpuFragmentShader* Get() const { return m_Shader; }
 
     template<typename T>
-    T* Get() { return static_cast<T*>(m_Shader); }
+    T* Get()
+    {
+        return static_cast<T*>(m_Shader);
+    }
 
     template<typename T>
-    const T* Get() const { return static_cast<const T*>(m_Shader); }
+    const T* Get() const
+    {
+        return static_cast<const T*>(m_Shader);
+    }
 
     bool IsValid() const { return m_Shader != nullptr; }
 
 private:
-
     GpuFragmentShader* m_Shader{ nullptr };
 };
 
@@ -222,7 +231,6 @@ private:
 class Texture
 {
 public:
-
     Texture() = default;
 
     explicit Texture(GpuTexture* texture)
@@ -234,15 +242,20 @@ public:
     const GpuTexture* Get() const { return m_Texture; }
 
     template<typename T>
-    T* Get() { return static_cast<T*>(m_Texture); }
+    T* Get()
+    {
+        return static_cast<T*>(m_Texture);
+    }
 
     template<typename T>
-    const T* Get() const { return static_cast<const T*>(m_Texture); }
+    const T* Get() const
+    {
+        return static_cast<const T*>(m_Texture);
+    }
 
     bool IsValid() const { return m_Texture != nullptr; }
 
 private:
-
     GpuTexture* m_Texture{ nullptr };
 };
 
@@ -250,15 +263,13 @@ private:
 class GpuDevice
 {
 public:
-
     virtual ~GpuDevice() = 0 {};
 
     /// @brief Gets the renderable extent of the device.
     virtual Extent GetExtent() const = 0;
 
     /// @brief Creates a vertex buffer from the given vertices.
-    virtual Result<VertexBuffer> CreateVertexBuffer(
-        const std::span<const Vertex>& vertices) = 0;
+    virtual Result<VertexBuffer> CreateVertexBuffer(const std::span<const Vertex>& vertices) = 0;
 
     /// @brief Creates a vertex buffer from multiple spans of vertices.
     virtual Result<VertexBuffer> CreateVertexBuffer(
@@ -268,8 +279,7 @@ public:
     virtual Result<void> DestroyVertexBuffer(VertexBuffer& buffer) = 0;
 
     /// @brief Creates an index buffer from the given indices.
-    virtual Result<IndexBuffer> CreateIndexBuffer(
-        const std::span<const VertexIndex>& indices) = 0;
+    virtual Result<IndexBuffer> CreateIndexBuffer(const std::span<const VertexIndex>& indices) = 0;
 
     /// @brief Creates an index buffer from multiple spans of indices.
     virtual Result<IndexBuffer> CreateIndexBuffer(
@@ -281,8 +291,18 @@ public:
     /// @brief Creates a texture from an image.
     virtual Result<Texture> CreateTexture(const Image& image) = 0;
 
+    /// @brief Creates a texture from raw pixel data.
+    /// Pixels are expected to be in RGBA8 format.
+    /// rowStride is the number of bytes between the start of each row.
+    /// rowStride must be at least width * 4.
+    virtual Result<Texture> CreateTexture(const unsigned width,
+        const unsigned height,
+        const uint8_t* pixels,
+        const unsigned rowStride,
+        const imstring& name) = 0;
+
     /// @brief Creates a 1x1 texture from a color.
-    virtual Result<Texture> CreateTexture(const RgbaColorf& color) = 0;
+    virtual Result<Texture> CreateTexture(const RgbaColorf& color, const imstring& name) = 0;
 
     /// @brief Destroys a texture.
     virtual Result<void> DestroyTexture(Texture& texture) = 0;

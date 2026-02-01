@@ -188,8 +188,18 @@ public:
     /// @brief Creates a texture from an image.
     Result<Texture> CreateTexture(const Image& image) override;
 
+    /// @brief Creates a texture from raw pixel data.
+    /// Pixels are expected to be in RGBA8 format.
+    /// rowStride is the number of bytes between the start of each row.
+    /// rowStride must be at least width * 4.
+    Result<Texture> CreateTexture(const unsigned width,
+        const unsigned height,
+        const uint8_t* pixels,
+        const unsigned rowStride,
+        const imstring& name) override;
+
     /// @brief Creates a 1x1 texture from a color.
-    Result<Texture> CreateTexture(const RgbaColorf& color) override;
+    Result<Texture> CreateTexture(const RgbaColorf& color, const imstring& name) override;
 
     /// @brief Destroys a texture.
     virtual Result<void> DestroyTexture(Texture& texture) override;
@@ -219,8 +229,6 @@ public:
 private:
 
     SdlGpuDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice);
-
-    Result<Texture> CreateTexture(const unsigned width, const unsigned height, const uint8_t* pixels);
 
     struct PipelineKey
     {

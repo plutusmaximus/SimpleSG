@@ -43,6 +43,9 @@ public:
     /// @brief Creates a model from the given specification if not already created.
     Result<Model> GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec);
 
+    Result<void> CreateTextureAsync(
+        const CacheKey& cacheKey, const TextureSpec& textureSpec);
+
     /// @brief Retrieves or creates a texture (if not already cached) from the given specification.
     Result<Texture> GetOrCreateTexture(const TextureSpec& textureSpec);
 
@@ -148,6 +151,8 @@ private:
     /// @brief Asynchronous operation for loading a model from file.
     class LoadModelOp : public AsyncOp
     {
+        static constexpr const char* CLASS_NAME = "LoadModelOp";
+
     public:
         LoadModelOp(
             ResourceCache* resourceCache, const CacheKey& cacheKey, const std::string_view path)
@@ -163,20 +168,20 @@ private:
 
         bool IsComplete() const override { return m_State == Completed; }
 
-        const Result<Model>& GetResult() const
+        const Result<CacheKey>& GetResult() const
         {
             eassert(IsComplete());
             return m_Result;
         }
 
     private:
-        void SetResult(const Result<Model>& result)
+        void SetResult(const Result<CacheKey>& result)
         {
             m_Result = result;
             m_State = Completed;
         }
 
-        Result<Model> LoadModel(const Result<FileIo::FetchDataPtr>& fileData);
+        Result<CacheKey> LoadModel(const Result<FileIo::FetchDataPtr>& fileData);
 
         ResourceCache* m_ResourceCache{ nullptr };
 
@@ -193,7 +198,64 @@ private:
 
         FileIo::AsyncToken m_FileFetchToken;
 
-        Result<Model> m_Result;
+        Result<CacheKey> m_Result;
+    };
+
+    /// @brief Asynchronous operation for creating a texture.
+    class CreateTextureOp : public AsyncOp
+    {
+        static constexpr const char* CLASS_NAME = "CreateTextureOp";
+
+    public:
+        CreateTextureOp(
+            ResourceCache* resourceCache, const CacheKey& cacheKey, const TextureSpec& textureSpec)
+            : AsyncOp(cacheKey),
+              m_ResourceCache(resourceCache),
+              m_TextureSpec(textureSpec)
+        {
+        }
+
+        void Start() override;
+
+        void Update() override;
+
+        bool IsComplete() const override { return m_State == Completed; }
+
+        const Result<CacheKey>& GetResult() const
+        {
+            eassert(IsComplete());
+            return m_Result;
+        }
+
+    private:
+        void SetResult(const Result<CacheKey>& result)
+        {
+            m_Result = result;
+            m_State = Completed;
+        }
+
+        Result<void> AddDummyTextureToCache();
+
+        Result<Texture> CreateTexture(const FileIo::FetchDataPtr& fetchDataPtr);
+
+        void AddOrReplaceInCache(const Texture& texture);
+
+        ResourceCache* m_ResourceCache{ nullptr };
+
+        enum State
+        {
+            NotStarted,
+            LoadingFile,
+            Completed,
+        };
+
+        State m_State{ NotStarted };
+
+        TextureSpec m_TextureSpec;
+
+        FileIo::AsyncToken m_FileFetchToken;
+
+        Result<CacheKey> m_Result;
     };
 
     template<typename Value>
@@ -235,6 +297,20 @@ private:
 
             value = it->Value;
             return true;
+        }
+
+        void AddOrReplace(const CacheKey& key, const Value& value)
+        {
+            auto it = Find(key);
+
+            if(it != m_Entries.end() && it->Key == key)
+            {
+                it->Value = value;
+            }
+            else
+            {
+                m_Entries.insert(it, Entry{ key, value });
+            }
         }
 
         bool Contains(const CacheKey& key) const

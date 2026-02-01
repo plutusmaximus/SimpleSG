@@ -251,17 +251,137 @@ SdlGpuDevice::DestroyIndexBuffer(IndexBuffer& buffer)
 Result<Texture>
 SdlGpuDevice::CreateTexture(const Image& image)
 {
-    return CreateTexture(image.Width, image.Height, image.Pixels);
+    return CreateTexture(image.Width, image.Height, image.Pixels, image.Width * 4, imstring("ImageTexture"));
 }
 
 Result<Texture>
-SdlGpuDevice::CreateTexture(const RgbaColorf& color)
+SdlGpuDevice::CreateTexture(const unsigned width, const unsigned height, const uint8_t* pixels, const unsigned rowStride, const imstring& name)
+{
+    SDL_PropertiesID props = SDL_CreateProperties();
+    auto propsCleanup = scope_exit([&]()
+    {
+        SDL_DestroyProperties(props);
+    });
+
+    SDL_SetStringProperty(props, SDL_PROP_GPU_TEXTURE_CREATE_NAME_STRING, name.c_str());
+
+    // Create GPU texture
+    SDL_GPUTextureCreateInfo textureInfo =
+    {
+        .type = SDL_GPU_TEXTURETYPE_2D,
+        .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+        .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
+        .width = width,
+        .height = height,
+        .layer_count_or_depth = 1,
+        .num_levels = 1,
+        .sample_count = SDL_GPU_SAMPLECOUNT_1,
+        .props = props
+    };
+
+    SDL_GPUTexture* texture = SDL_CreateGPUTexture(Device, &textureInfo);
+    expect(texture, SDL_GetError());
+    auto texCleanup = scope_exit([&]()
+    {
+        SDL_ReleaseGPUTexture(Device, texture);
+    });
+
+    const unsigned sizeofData = textureInfo.width * textureInfo.height * 4;
+
+    SDL_GPUTransferBufferCreateInfo xferBufferCreateInfo
+    {
+        .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+        .size = sizeofData
+    };
+
+    // Create transfer buffer for uploading pixel data
+    SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(Device, &xferBufferCreateInfo);
+    expect(transferBuffer, SDL_GetError());
+    auto tbufferCleanup = scope_exit([&]()
+    {
+        SDL_ReleaseGPUTransferBuffer(Device, transferBuffer);
+    });
+
+    // Copy pixel data to transfer buffer
+    void* mappedData = SDL_MapGPUTransferBuffer(Device, transferBuffer, false);
+    expect(mappedData, SDL_GetError());
+
+    const uint8_t* srcPixels = pixels;
+    uint8_t* dstPixels = static_cast<uint8_t*>(mappedData);
+    const ptrdiff_t dstRowBytes = textureInfo.width * 4;
+    for(unsigned row = 0; row < textureInfo.height; ++row, srcPixels += rowStride, dstPixels += dstRowBytes)
+    {
+        std::memcpy(dstPixels, srcPixels, textureInfo.width * 4);
+    }
+
+    SDL_UnmapGPUTransferBuffer(Device, transferBuffer);
+
+    // Upload to GPU texture
+    SDL_GPUCommandBuffer* cmdBuffer = SDL_AcquireGPUCommandBuffer(Device);
+    expect(cmdBuffer, SDL_GetError());
+    auto cmdBufCleanup = scope_exit([&]()
+    {
+        SDL_CancelGPUCommandBuffer(cmdBuffer);
+    });
+
+    SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(cmdBuffer);
+    expect(copyPass, SDL_GetError());
+
+    SDL_GPUTextureTransferInfo transferInfo
+    {
+        .transfer_buffer = transferBuffer,
+        .offset = 0,
+        .pixels_per_row = textureInfo.width,
+        .rows_per_layer = textureInfo.height
+    };
+
+    SDL_GPUTextureRegion textureRegion
+    {
+        .texture = texture,
+        .w = textureInfo.width,
+        .h = textureInfo.height,
+        .d = 1
+    };
+
+    SDL_UploadToGPUTexture(copyPass, &transferInfo, &textureRegion, false);
+
+    SDL_EndGPUCopyPass(copyPass);
+
+    cmdBufCleanup.release();
+    expect(SDL_SubmitGPUCommandBuffer(cmdBuffer), SDL_GetError());
+
+    if(!m_Sampler)
+    {
+        // Create sampler
+        SDL_GPUSamplerCreateInfo samplerInfo =
+        {
+            .min_filter = SDL_GPU_FILTER_NEAREST,
+            .mag_filter = SDL_GPU_FILTER_NEAREST,
+            .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
+            .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT
+        };
+
+        m_Sampler = SDL_CreateGPUSampler(Device, &samplerInfo);
+        expect(m_Sampler, SDL_GetError());
+    }
+
+    SdlGpuTexture* gpuTex = new SdlGpuTexture(Device, texture, m_Sampler);
+
+    expectv(gpuTex, "Error allocating SDLGPUTexture");
+
+    texCleanup.release();
+
+    return Texture(gpuTex);
+}
+
+Result<Texture>
+SdlGpuDevice::CreateTexture(const RgbaColorf& color, const imstring& name)
 {
     RgbaColoru8 colorU8{color};
     const uint8_t pixelData[4]{colorU8.r, colorU8.g, colorU8.b, colorU8.a};
 
 
-    return CreateTexture(1, 1, pixelData);
+    return CreateTexture(1, 1, pixelData, 4, name);
 }
 
 Result<void>
@@ -282,7 +402,7 @@ SdlGpuDevice::DestroyTexture(Texture& texture)
 Result<VertexShader>
 SdlGpuDevice::CreateVertexShader(const VertexShaderSpec& shaderSpec)
 {
-    const std::string_view path = std::get<std::string>(shaderSpec.Source);
+    const std::string_view path = std::get<imstring>(shaderSpec.Source);
     auto shaderResult = LoadShader<GpuVertexShader>(
         Device,
         path,
@@ -318,7 +438,7 @@ SdlGpuDevice::CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
     // All fragment shaders have the same number of samplers.
     static constexpr unsigned numSamplers = 1;
 
-    const std::string_view path = std::get<std::string>(shaderSpec.Source);
+    const std::string_view path = std::get<imstring>(shaderSpec.Source);
     auto shaderResult = LoadShader<GpuFragmentShader>(
         Device,
         path,
@@ -456,111 +576,6 @@ SdlGpuDevice::GetOrCreatePipeline(const Material& mtl)
 }
 
 //private:
-
-Result<Texture>
-SdlGpuDevice::CreateTexture(const unsigned width, const unsigned height, const uint8_t* pixels)
-{
-    // Create GPU texture
-    SDL_GPUTextureCreateInfo textureInfo =
-    {
-        .type = SDL_GPU_TEXTURETYPE_2D,
-        .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
-        .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
-        .width = width,
-        .height = height,
-        .layer_count_or_depth = 1,
-        .num_levels = 1,
-        .sample_count = SDL_GPU_SAMPLECOUNT_1
-    };
-
-    SDL_GPUTexture* texture = SDL_CreateGPUTexture(Device, &textureInfo);
-    expect(texture, SDL_GetError());
-    auto texCleanup = scope_exit([&]()
-    {
-        SDL_ReleaseGPUTexture(Device, texture);
-    });
-
-    const unsigned sizeofData = textureInfo.width * textureInfo.height * 4;
-
-    SDL_GPUTransferBufferCreateInfo xferBufferCreateInfo
-    {
-        .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-        .size = sizeofData
-    };
-
-    // Create transfer buffer for uploading pixel data
-    SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(Device, &xferBufferCreateInfo);
-    expect(transferBuffer, SDL_GetError());
-    auto tbufferCleanup = scope_exit([&]()
-    {
-        SDL_ReleaseGPUTransferBuffer(Device, transferBuffer);
-    });
-
-    // Copy pixel data to transfer buffer
-    void* mappedData = SDL_MapGPUTransferBuffer(Device, transferBuffer, false);
-    expect(mappedData, SDL_GetError());
-
-    ::memcpy(mappedData, pixels, sizeofData);
-
-    SDL_UnmapGPUTransferBuffer(Device, transferBuffer);
-
-    // Upload to GPU texture
-    SDL_GPUCommandBuffer* cmdBuffer = SDL_AcquireGPUCommandBuffer(Device);
-    expect(cmdBuffer, SDL_GetError());
-    auto cmdBufCleanup = scope_exit([&]()
-    {
-        SDL_CancelGPUCommandBuffer(cmdBuffer);
-    });
-
-    SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(cmdBuffer);
-    expect(copyPass, SDL_GetError());
-
-    SDL_GPUTextureTransferInfo transferInfo
-    {
-        .transfer_buffer = transferBuffer,
-        .offset = 0,
-        .pixels_per_row = textureInfo.width,
-        .rows_per_layer = textureInfo.height
-    };
-
-    SDL_GPUTextureRegion textureRegion
-    {
-        .texture = texture,
-        .w = textureInfo.width,
-        .h = textureInfo.height,
-        .d = 1
-    };
-
-    SDL_UploadToGPUTexture(copyPass, &transferInfo, &textureRegion, false);
-
-    SDL_EndGPUCopyPass(copyPass);
-
-    cmdBufCleanup.release();
-    expect(SDL_SubmitGPUCommandBuffer(cmdBuffer), SDL_GetError());
-
-    if(!m_Sampler)
-    {
-        // Create sampler
-        SDL_GPUSamplerCreateInfo samplerInfo =
-        {
-            .min_filter = SDL_GPU_FILTER_NEAREST,
-            .mag_filter = SDL_GPU_FILTER_NEAREST,
-            .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
-            .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT
-        };
-
-        m_Sampler = SDL_CreateGPUSampler(Device, &samplerInfo);
-        expect(m_Sampler, SDL_GetError());
-    }
-
-    SdlGpuTexture* gpuTex = new SdlGpuTexture(Device, texture, m_Sampler);
-
-    expectv(gpuTex, "Error allocating SDLGPUTexture");
-
-    texCleanup.release();
-
-    return Texture(gpuTex);
-}
 
 /// @brief GPU shader stage type for type T.
 template <typename T>
