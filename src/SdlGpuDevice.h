@@ -14,7 +14,6 @@ struct SDL_GPUTexture;
 struct SDL_GPUSampler;
 struct SDL_GPUShader;
 struct SDL_GPUGraphicsPipeline;
-class Image;
 
 class SdlGpuVertexBuffer : public GpuVertexBuffer
 {
@@ -184,9 +183,6 @@ public:
 
     /// @brief Destroys an index buffer.
     Result<void> DestroyIndexBuffer(IndexBuffer& buffer) override;
-
-    /// @brief Creates a texture from an image.
-    Result<Texture> CreateTexture(const Image& image) override;
 
     /// @brief Creates a texture from raw pixel data.
     /// Pixels are expected to be in RGBA8 format.

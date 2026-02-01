@@ -46,9 +46,6 @@ public:
     Result<void> CreateTextureAsync(
         const CacheKey& cacheKey, const TextureSpec& textureSpec);
 
-    /// @brief Retrieves or creates a texture (if not already cached) from the given specification.
-    Result<Texture> GetOrCreateTexture(const TextureSpec& textureSpec);
-
     /// @brief Retrieves or creates a vertex shader (if not already cached) from the given
     /// specification.
     Result<VertexShader> GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec);
@@ -349,9 +346,6 @@ private:
     private:
         std::vector<Entry> m_Entries;
     };
-
-    /// @brief Loads a texture from the given file path.
-    Result<Texture> CreateTexture(const std::string_view path);
 
     GpuDevice* const m_GpuDevice;
     std::vector<VertexBuffer> m_VertexBuffers;

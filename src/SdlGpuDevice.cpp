@@ -1,6 +1,5 @@
 #include "SdlGpuDevice.h"
 
-#include "Image.h"
 #include "SdlRenderGraph.h"
 #include "scope_exit.h"
 
@@ -246,12 +245,6 @@ SdlGpuDevice::DestroyIndexBuffer(IndexBuffer& buffer)
     buffer = IndexBuffer(nullptr, 0, 0);
 
     return ResultOk;
-}
-
-Result<Texture>
-SdlGpuDevice::CreateTexture(const Image& image)
-{
-    return CreateTexture(image.Width, image.Height, image.Pixels, image.Width * 4, imstring("ImageTexture"));
 }
 
 Result<Texture>

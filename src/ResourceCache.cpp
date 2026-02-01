@@ -10,6 +10,7 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 
+#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
 #include <filesystem>
@@ -413,7 +414,7 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
         Texture albedo;
         if(meshSpec.MtlSpec.Albedo.IsValid())
         {
-            auto albedoResult = GetOrCreateTexture(meshSpec.MtlSpec.Albedo);
+            auto albedoResult = GetTexture(meshSpec.MtlSpec.Albedo.GetCacheKey());
             expect(albedoResult, albedoResult.error());
             albedo = albedoResult.value();
         }
@@ -471,50 +472,6 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     m_IndexBuffers.push_back(baseIb);
 
     return model;
-}
-
-Result<Texture>
-ResourceCache::GetOrCreateTexture(const TextureSpec& textureSpec)
-{
-    expectv(textureSpec.IsValid(), "Texture spec is not specified");
-
-    auto cacheKey = textureSpec.GetCacheKey();
-
-    Texture texture;
-    if(m_TextureCache.TryGet(cacheKey, texture))
-    {
-        logDebug("  Cache hit: {}", cacheKey.ToString());
-        return texture;
-    }
-
-    logDebug("  Cache miss: {}", cacheKey.ToString());
-
-    Result<Texture> result;
-
-    if(std::holds_alternative<const RgbaColorf>(textureSpec.Source))
-    {
-        const auto& color = std::get<const RgbaColorf>(textureSpec.Source);
-        result = m_GpuDevice->CreateTexture(color, cacheKey.ToString());
-    }
-    else if(std::holds_alternative<imstring>(textureSpec.Source))
-    {
-        const auto& path = std::get<imstring>(textureSpec.Source);
-        result = CreateTexture(path);
-    }
-    else
-    {
-        eassert(false, "Unsupported texture source");
-        result = Error("Texture source is not specified");
-    }
-
-    expect(result, result.error());
-
-    texture = result.value();
-    expect(m_TextureCache.TryAdd(cacheKey, texture),
-        "Failed to add texture to cache: {}",
-        cacheKey.ToString());
-
-    return texture;
 }
 
 Result<VertexShader>
@@ -857,15 +814,6 @@ ResourceCache::CreateTextureOp::AddOrReplaceInCache(const Texture& texture)
     logOp("Adding texture to cache (key: {})", GetCacheKey().ToString());
 
     m_ResourceCache->m_TextureCache.AddOrReplace(GetCacheKey(), texture);
-}
-
-Result<Texture>
-ResourceCache::CreateTexture(const std::string_view path)
-{
-    auto imgResult = Image::LoadFromFile(path);
-    expect(imgResult, imgResult.error());
-    auto img = *imgResult;
-    return m_GpuDevice->CreateTexture(img);
 }
 
 static TextureProperties

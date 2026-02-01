@@ -12,7 +12,6 @@
 template<typename T>
 class RgbaColor;
 using RgbaColorf = RgbaColor<float>;
-class Image;
 class VertexShaderSpec;
 class FragmentShaderSpec;
 
@@ -287,9 +286,6 @@ public:
 
     /// @brief Destroys an index buffer.
     virtual Result<void> DestroyIndexBuffer(IndexBuffer& buffer) = 0;
-
-    /// @brief Creates a texture from an image.
-    virtual Result<Texture> CreateTexture(const Image& image) = 0;
 
     /// @brief Creates a texture from raw pixel data.
     /// Pixels are expected to be in RGBA8 format.
