@@ -86,6 +86,9 @@ private:
     }
 
 public:
+
+    static const imstring Empty;
+
     constexpr imstring() noexcept : m_blk(nullptr) {}
 
     explicit imstring(const char* s)
@@ -270,6 +273,8 @@ public:
         return a.view() <=> b.view();
     }
 };
+
+inline const imstring imstring::Empty{""};
 
 inline std::ostream& operator<<(std::ostream& os, const imstring& s)
 {
