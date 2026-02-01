@@ -135,5 +135,6 @@
         "xutility": "cpp",
         "regex": "cpp",
         "*.rh": "cpp"
-    }
+    },
+    "cmake.configureOnOpen": false
 }
