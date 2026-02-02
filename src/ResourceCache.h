@@ -4,6 +4,7 @@
 #include "FileIo.h"
 #include "Mesh.h"
 #include "Model.h"
+#include "Stopwatch.h"
 
 #include <memory>
 
@@ -229,18 +230,9 @@ private:
 
         void SetResult(const Result<CacheKey>& result)
         {
-            if(!result)
-            {
-                RemoveDummyTextureFromCache();
-            }
-
             m_Result = result;
             m_State = Completed;
         }
-
-        Result<void> AddDummyTextureToCache();
-
-        void RemoveDummyTextureFromCache();
 
         Result<Texture> CreateTexture(const FileIo::FetchDataPtr& fetchDataPtr);
 
@@ -262,6 +254,8 @@ private:
         FileIo::AsyncToken m_FileFetchToken;
 
         Result<CacheKey> m_Result;
+
+        Stopwatch m_Stopwatch;
     };
 
     template<typename Value>
@@ -271,7 +265,7 @@ private:
         struct Entry
         {
             CacheKey Key;
-            Value Value;
+            Result<Value> Result;
         };
 
         using Iterator = typename std::vector<Entry>::iterator;
@@ -279,7 +273,7 @@ private:
 
         Cache() = default;
         ~Cache() = default;
-        bool TryAdd(const CacheKey& key, const Value& value)
+        bool TryAdd(const CacheKey& key, const Result<Value>& result)
         {
             auto it = Find(key);
 
@@ -288,11 +282,11 @@ private:
                 return false;
             }
 
-            m_Entries.insert(it, Entry{ key, value });
+            m_Entries.insert(it, Entry{ key, result });
             return true;
         }
 
-        bool TryGet(const CacheKey& key, Value& value) const
+        bool TryGet(const CacheKey& key, Result<Value>& result) const
         {
             auto it = Find(key);
 
@@ -301,21 +295,21 @@ private:
                 return false;
             }
 
-            value = it->Value;
+            result = it->Result;
             return true;
         }
 
-        void AddOrReplace(const CacheKey& key, const Value& value)
+        void AddOrReplace(const CacheKey& key, const Result<Value>& result)
         {
             auto it = Find(key);
 
             if(it != m_Entries.end() && it->Key == key)
             {
-                it->Value = value;
+                it->Result = result;
             }
             else
             {
-                m_Entries.insert(it, Entry{ key, value });
+                m_Entries.insert(it, Entry{ key, result });
             }
         }
 

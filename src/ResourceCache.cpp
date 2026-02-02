@@ -3,7 +3,6 @@
 #include "ResourceCache.h"
 
 #include "scope_exit.h"
-#include "Stopwatch.h"
 
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
@@ -105,8 +104,12 @@ ResourceCache::~ResourceCache()
 
     for(auto& entry : m_TextureCache)
     {
-        // Release texture resources
-        auto result = m_GpuDevice->DestroyTexture(entry.Value);
+        if(!entry.Result)
+        {
+            continue;
+        }
+
+        auto result = m_GpuDevice->DestroyTexture(entry.Result.value());
         if(!result)
         {
             logError("Failed to destroy texture: {}", result.error());
@@ -115,8 +118,13 @@ ResourceCache::~ResourceCache()
 
     for(auto& entry : m_VertexShaderCache)
     {
+        if(!entry.Result)
+        {
+            continue;
+        }
+
         // Release vertex shader resources
-        auto result = m_GpuDevice->DestroyVertexShader(entry.Value);
+        auto result = m_GpuDevice->DestroyVertexShader(entry.Result.value());
         if(!result)
         {
             logError("Failed to destroy vertex shader: {}", result.error());
@@ -125,8 +133,12 @@ ResourceCache::~ResourceCache()
 
     for(auto& entry : m_FragmentShaderCache)
     {
+        if(!entry.Result)
+        {
+            continue;
+        }
         // Release fragment shader resources
-        auto result = m_GpuDevice->DestroyFragmentShader(entry.Value);
+        auto result = m_GpuDevice->DestroyFragmentShader(entry.Result.value());
         if(!result)
         {
             logError("Failed to destroy fragment shader: {}", result.error());
@@ -179,6 +191,12 @@ ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, std::string_view
         return ResultOk;
     }
 
+    if(IsPending(cacheKey))
+    {
+        logDebug("  Model load already pending: {}", cacheKey.ToString());
+        return ResultOk;
+    }
+
     auto op = new LoadModelOp(this, cacheKey, filePath);
     op->Start();
 
@@ -193,13 +211,13 @@ ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view file
     logDebug("Loading model from file: {} (key: {})", filePath, cacheKey.ToString());
 
     // Return existing entry without re-importing
-    Model model;
-    if(m_ModelCache.TryGet(cacheKey, model))
+    Result<Model> modelResult;
+    if(m_ModelCache.TryGet(cacheKey, modelResult))
     {
         // TODO(KB) - add a test to confirm cache behavior.
 
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return model;
+        return modelResult;
     }
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
@@ -243,7 +261,7 @@ ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view file
         meshInstances.build(),
         transformNodes.build() };
 
-    auto modelResult = GetOrCreateModel(cacheKey, ModelSpec);
+    modelResult = GetOrCreateModel(cacheKey, ModelSpec);
 
     logDebug("  Total model load time: {} ms", static_cast<int>(sw.Elapsed() * 1000.0f));
 
@@ -255,12 +273,12 @@ ResourceCache::LoadModelFromMemory(
     const CacheKey& cacheKey, const std::span<const uint8_t> data, std::string_view filePath)
 {
     // Return existing entry without re-importing
-    if(Model model; m_ModelCache.TryGet(cacheKey, model))
+    if(Result<Model> modelResult; m_ModelCache.TryGet(cacheKey, modelResult))
     {
         // TODO(KB) - add a test to confirm cache behavior.
 
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return model;
+        return modelResult;
     }
 
     constexpr unsigned flags =
@@ -305,13 +323,13 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     logDebug("Creating model (key: {})", cacheKey.ToString());
 
     // Return existing entry without re-importing
-    Model model;
-    if(m_ModelCache.TryGet(cacheKey, model))
+    Result<Model> modelResult;
+    if(m_ModelCache.TryGet(cacheKey, modelResult))
     {
         // TODO(KB) - add a test to confirm cache behavior.
 
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return model;
+        return modelResult;
     }
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
@@ -363,46 +381,34 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     meshes.reserve(modelSpec.MeshSpecs.size());
 
     // Load textures into cache
-    std::vector<std::tuple<CacheKey, CreateTextureOp*>> textureOps;
-    textureOps.reserve(modelSpec.MeshSpecs.size());
+    std::vector<CacheKey> textureCacheKeys;
     for(const auto& meshSpec : modelSpec.MeshSpecs)
     {
         if(meshSpec.MtlSpec.Albedo.IsValid())
         {
-            const auto textureCacheKey = meshSpec.MtlSpec.Albedo.GetCacheKey();
+            auto result =
+                CreateTextureAsync(meshSpec.MtlSpec.Albedo.GetCacheKey(), meshSpec.MtlSpec.Albedo);
 
-            auto textureOp = new CreateTextureOp(this, textureCacheKey, meshSpec.MtlSpec.Albedo);
-            textureOp->Start();
-            textureOps.push_back({ textureCacheKey, textureOp });
+            expect(result, result.error());
+
+            textureCacheKeys.push_back(meshSpec.MtlSpec.Albedo.GetCacheKey());
         }
     }
-
-    std::vector<Result<CacheKey>> textureResults;
-    textureResults.reserve(textureOps.size());
 
     bool done = false;
     while(!done)
     {
-        done = true;
-        for(auto& [textureCacheKey, textureOp] : textureOps)
-        {
-            textureOp->Update();
-            if(textureOp->IsComplete())
-            {
-                textureResults.push_back(textureOp->GetResult());
+        ProcessPendingOperations();
 
-                delete textureOp;
-            }
-            else
+        done = true;
+        for(const auto& textureCacheKey : textureCacheKeys)
+        {
+            if(IsPending(textureCacheKey))
             {
                 done = false;
+                break;
             }
         }
-    }
-
-    for(const auto& result : textureResults)
-    {
-        expect(result, result.error());
     }
 
     uint32_t idxOffset = 0, vtxOffset = 0;
@@ -452,14 +458,11 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
         meshes.emplace_back(mesh);
     }
 
-    auto modelResult =
-        Model::Create(meshes.build(), modelSpec.MeshInstances, modelSpec.TransformNodes);
+    modelResult = Model::Create(meshes.build(), modelSpec.MeshInstances, modelSpec.TransformNodes);
 
     expect(modelResult, modelResult.error());
 
-    model = modelResult.value();
-
-    expect(m_ModelCache.TryAdd(cacheKey, model),
+    expect(m_ModelCache.TryAdd(cacheKey, modelResult),
         "Failed to add model to cache: {}",
         cacheKey.ToString());
 
@@ -469,7 +472,30 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     m_VertexBuffers.push_back(baseVb);
     m_IndexBuffers.push_back(baseIb);
 
-    return model;
+    return modelResult;
+}
+
+/// @brief Creates a texture asynchronously if not already created.
+Result<void>
+ResourceCache::CreateTextureAsync(const CacheKey& cacheKey, const TextureSpec& textureSpec)
+{
+    // Return existing entry without re-creating
+    if(m_TextureCache.Contains(cacheKey))
+    {
+        logDebug("  Cache hit: {}", cacheKey.ToString());
+        return ResultOk;
+    }
+
+    if(IsPending(cacheKey))
+    {
+        logDebug("  Texture creation already pending: {}", cacheKey.ToString());
+        return ResultOk;
+    }
+
+    auto op = new CreateTextureOp(this, cacheKey, textureSpec);
+    op->Start();
+    op->Enqueue(&m_PendingOps);
+    return ResultOk;
 }
 
 Result<VertexShader>
@@ -477,22 +503,22 @@ ResourceCache::GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec)
 {
     const CacheKey cacheKey(std::get<0>(shaderSpec.Source));
 
-    VertexShader shader;
-    if(m_VertexShaderCache.TryGet(cacheKey, shader))
+    Result<VertexShader> shaderResult;
+    if(m_VertexShaderCache.TryGet(cacheKey, shaderResult))
     {
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return shader;
+        return shaderResult;
     }
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
 
-    auto resultResult = m_GpuDevice->CreateVertexShader(shaderSpec);
-    expect(resultResult, resultResult.error());
+    shaderResult = m_GpuDevice->CreateVertexShader(shaderSpec);
+    expect(shaderResult, shaderResult.error());
 
-    expect(m_VertexShaderCache.TryAdd(cacheKey, resultResult.value()),
+    expect(m_VertexShaderCache.TryAdd(cacheKey, shaderResult),
         "Failed to add vertex shader to cache: {}",
         cacheKey.ToString());
-    return resultResult.value();
+    return shaderResult;
 }
 
 Result<FragmentShader>
@@ -500,57 +526,59 @@ ResourceCache::GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec)
 {
     const CacheKey cacheKey(std::get<0>(shaderSpec.Source));
 
-    FragmentShader shader;
-    if(m_FragmentShaderCache.TryGet(cacheKey, shader))
+    Result<FragmentShader> shaderResult;
+    if(m_FragmentShaderCache.TryGet(cacheKey, shaderResult))
     {
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return shader;
+        return shaderResult;
     }
 
     logDebug("  Cache miss: {}", cacheKey.ToString());
-    auto shaderResult = m_GpuDevice->CreateFragmentShader(shaderSpec);
+    shaderResult = m_GpuDevice->CreateFragmentShader(shaderSpec);
     expect(shaderResult, shaderResult.error());
 
-    expect(m_FragmentShaderCache.TryAdd(cacheKey, shaderResult.value()),
+    expect(m_FragmentShaderCache.TryAdd(cacheKey, shaderResult),
         "Failed to add fragment shader to cache: {}",
         cacheKey.ToString());
-    return shaderResult.value();
+    return shaderResult;
 }
 
 Result<Model>
 ResourceCache::GetModel(const CacheKey& cacheKey) const
 {
-    Model model;
-    expect(m_ModelCache.TryGet(cacheKey, model), "Model not found: {}", cacheKey.ToString());
-    return model;
+    Result<Model> modelResult;
+    expect(m_ModelCache.TryGet(cacheKey, modelResult), "Model not found: {}", cacheKey.ToString());
+    return modelResult;
 }
 
 Result<Texture>
 ResourceCache::GetTexture(const CacheKey& cacheKey) const
 {
-    Texture texture;
-    expect(m_TextureCache.TryGet(cacheKey, texture), "Texture not found: {}", cacheKey.ToString());
-    return texture;
+    Result<Texture> textureResult;
+    expect(m_TextureCache.TryGet(cacheKey, textureResult),
+        "Texture not found: {}",
+        cacheKey.ToString());
+    return textureResult;
 }
 
 Result<VertexShader>
 ResourceCache::GetVertexShader(const CacheKey& cacheKey) const
 {
-    VertexShader shader;
-    expect(m_VertexShaderCache.TryGet(cacheKey, shader),
+    Result<VertexShader> shaderResult;
+    expect(m_VertexShaderCache.TryGet(cacheKey, shaderResult),
         "Vertex shader not found: {}",
         cacheKey.ToString());
-    return shader;
+    return shaderResult;
 }
 
 Result<FragmentShader>
 ResourceCache::GetFragmentShader(const CacheKey& cacheKey) const
 {
-    FragmentShader shader;
-    expect(m_FragmentShaderCache.TryGet(cacheKey, shader),
+    Result<FragmentShader> shaderResult;
+    expect(m_FragmentShaderCache.TryGet(cacheKey, shaderResult),
         "Fragment shader not found: {}",
         cacheKey.ToString());
-    return shader;
+    return shaderResult;
 }
 
 // private:
@@ -565,10 +593,6 @@ ResourceCache::LoadModelOp::Start()
     eassert(m_State == NotStarted);
 
     logOp("Start() (key: {})", GetCacheKey().ToString());
-
-    // TODO(KB) - put a dummy model in the cache to prevent duplicate loads.
-    // logOp("Adding dummy model to cache to prevent duplicate loads (key: {})",
-    // GetCacheKey().ToString());
 
     auto result = FileIo::Fetch(m_Path);
 
@@ -642,6 +666,8 @@ ResourceCache::CreateTextureOp::Start()
 
     logOp("Start() (key: {})", GetCacheKey().ToString());
 
+    m_Stopwatch.Mark();
+
     auto cacheResult = m_ResourceCache->GetTexture(GetCacheKey());
     if(cacheResult)
     {
@@ -672,8 +698,6 @@ ResourceCache::CreateTextureOp::Start()
         AddOrReplaceInCache(result.value());
 
         SetResult(GetCacheKey());
-
-        return;
     }
     else if(imstring path; m_TextureSpec.TryGetPath(path))
     {
@@ -684,8 +708,6 @@ ResourceCache::CreateTextureOp::Start()
         }
 
         logOp("Creating texture from file: {}", path);
-
-        AddDummyTextureToCache();
 
         auto result = FileIo::Fetch(path);
 
@@ -701,7 +723,6 @@ ResourceCache::CreateTextureOp::Start()
     else
     {
         SetResult(Error("Texture source is not specified"));
-        return;
     }
 }
 
@@ -721,7 +742,9 @@ ResourceCache::CreateTextureOp::Update()
                 return;
             }
 
-            logOp("File fetch completed for texture (key: {})", GetCacheKey().ToString());
+            logOp("File fetch completed in {} ms (key: {})",
+                static_cast<int>(m_Stopwatch.Elapsed() * 1000.0f),
+                GetCacheKey().ToString());
 
             auto fileResult = FileIo::GetResult(m_FileFetchToken);
 
@@ -733,12 +756,18 @@ ResourceCache::CreateTextureOp::Update()
 
             logOp("Creating texture from fetched file data (key: {})", GetCacheKey().ToString());
 
+            m_Stopwatch.Mark();
+
             auto textureResult = CreateTexture(fileResult.value());
             if(!textureResult)
             {
                 SetResult(textureResult.error());
                 return;
             }
+
+            logOp("Texture creation completed in {} ms (key: {})",
+                static_cast<int>(m_Stopwatch.Elapsed() * 1000.0f),
+                GetCacheKey().ToString());
 
             AddOrReplaceInCache(textureResult.value());
 
@@ -750,44 +779,6 @@ ResourceCache::CreateTextureOp::Update()
             // No-op
             break;
     }
-}
-
-Result<void>
-ResourceCache::CreateTextureOp::AddDummyTextureToCache()
-{
-    logOp("Adding dummy texture to cache to prevent duplicate loads (key: {})",
-        GetCacheKey().ToString());
-
-    CacheKey dummyKey(MAGENTA_TEXTURE_KEY);
-
-    Texture dummyTexture;
-    if(!m_ResourceCache->m_TextureCache.TryGet(dummyKey, dummyTexture))
-    {
-        auto dummyTextureResult =
-            m_ResourceCache->m_GpuDevice->CreateTexture(MAGENTA_COLOR, dummyKey.ToString());
-        if(!dummyTextureResult)
-        {
-            return dummyTextureResult.error();
-        }
-        dummyTexture = dummyTextureResult.value();
-
-        m_ResourceCache->m_TextureCache.TryAdd(dummyKey, dummyTexture);
-    }
-
-    if(!m_ResourceCache->m_TextureCache.TryAdd(GetCacheKey(), dummyTexture))
-    {
-        return Error("Failed to add dummy texture to cache");
-    }
-
-    return ResultOk;
-}
-
-void
-ResourceCache::CreateTextureOp::RemoveDummyTextureFromCache()
-{
-    logOp("Removing dummy texture from cache (key: {})", GetCacheKey().ToString());
-
-    m_ResourceCache->m_TextureCache.Remove(GetCacheKey());
 }
 
 Result<Texture>
