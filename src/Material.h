@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Error.h"
-#include "Image.h"
 #include "imstring.h"
 #include <string_view>
 #include <algorithm>

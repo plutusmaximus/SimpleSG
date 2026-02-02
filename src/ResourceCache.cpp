@@ -3,7 +3,6 @@
 #include "ResourceCache.h"
 
 #include "scope_exit.h"
-
 #include "Stopwatch.h"
 
 #include <assimp/Importer.hpp>
@@ -11,9 +10,8 @@
 #include <assimp/scene.h>
 
 #define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-
 #include <filesystem>
+#include <stb_image.h>
 
 static constexpr const char* WHITE_TEXTURE_KEY = "#FFFFFFFF";
 static constexpr const char* MAGENTA_TEXTURE_KEY = "#FF00FFFF";
@@ -375,7 +373,7 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
 
             auto textureOp = new CreateTextureOp(this, textureCacheKey, meshSpec.MtlSpec.Albedo);
             textureOp->Start();
-            textureOps.push_back({textureCacheKey, textureOp});
+            textureOps.push_back({ textureCacheKey, textureOp });
         }
     }
 
@@ -559,8 +557,7 @@ ResourceCache::GetFragmentShader(const CacheKey& cacheKey) const
 
 // === ResourceCache::LoadModelOp ===
 
-#define logOp(fmt, ...) \
-    logDebug("  {}: {}", CLASS_NAME, std::format(fmt, __VA_ARGS__))
+#define logOp(fmt, ...) logDebug("  {}: {}", CLASS_NAME, std::format(fmt, __VA_ARGS__))
 
 void
 ResourceCache::LoadModelOp::Start()
@@ -570,7 +567,8 @@ ResourceCache::LoadModelOp::Start()
     logOp("Start() (key: {})", GetCacheKey().ToString());
 
     // TODO(KB) - put a dummy model in the cache to prevent duplicate loads.
-    //logOp("Adding dummy model to cache to prevent duplicate loads (key: {})", GetCacheKey().ToString());
+    // logOp("Adding dummy model to cache to prevent duplicate loads (key: {})",
+    // GetCacheKey().ToString());
 
     auto result = FileIo::Fetch(m_Path);
 
@@ -624,7 +622,8 @@ ResourceCache::LoadModelOp::LoadModel(const Result<FileIo::FetchDataPtr>& fileDa
 
     logOp("Importing model from memory (key: {})", GetCacheKey().ToString());
 
-    auto result = m_ResourceCache->LoadModelFromMemory(GetCacheKey(), fileData.value()->Bytes, m_Path);
+    auto result =
+        m_ResourceCache->LoadModelFromMemory(GetCacheKey(), fileData.value()->Bytes, m_Path);
 
     if(!result)
     {
@@ -764,7 +763,8 @@ ResourceCache::CreateTextureOp::AddDummyTextureToCache()
     Texture dummyTexture;
     if(!m_ResourceCache->m_TextureCache.TryGet(dummyKey, dummyTexture))
     {
-        auto dummyTextureResult = m_ResourceCache->m_GpuDevice->CreateTexture(MAGENTA_COLOR, dummyKey.ToString());
+        auto dummyTextureResult =
+            m_ResourceCache->m_GpuDevice->CreateTexture(MAGENTA_COLOR, dummyKey.ToString());
         if(!dummyTextureResult)
         {
             return dummyTextureResult.error();
@@ -782,6 +782,14 @@ ResourceCache::CreateTextureOp::AddDummyTextureToCache()
     return ResultOk;
 }
 
+void
+ResourceCache::CreateTextureOp::RemoveDummyTextureFromCache()
+{
+    logOp("Removing dummy texture from cache (key: {})", GetCacheKey().ToString());
+
+    m_ResourceCache->m_TextureCache.Remove(GetCacheKey());
+}
+
 Result<Texture>
 ResourceCache::CreateTextureOp::CreateTexture(const FileIo::FetchDataPtr& fetchDataPtr)
 {
@@ -796,8 +804,7 @@ ResourceCache::CreateTextureOp::CreateTexture(const FileIo::FetchDataPtr& fetchD
 
     expect(imgData != nullptr, "Failed to load image from memory: {}", stbi_failure_reason());
 
-    auto result = m_ResourceCache->m_GpuDevice->CreateTexture(
-        static_cast<unsigned>(width),
+    auto result = m_ResourceCache->m_GpuDevice->CreateTexture(static_cast<unsigned>(width),
         static_cast<unsigned>(height),
         imgData,
         static_cast<unsigned>(width * 4),

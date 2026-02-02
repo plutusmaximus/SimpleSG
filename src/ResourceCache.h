@@ -43,6 +43,7 @@ public:
     /// @brief Creates a model from the given specification if not already created.
     Result<Model> GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec);
 
+    /// @brief Creates a texture asynchronously if not already created.
     Result<void> CreateTextureAsync(
         const CacheKey& cacheKey, const TextureSpec& textureSpec);
 
@@ -225,13 +226,21 @@ private:
         }
 
     private:
+
         void SetResult(const Result<CacheKey>& result)
         {
+            if(!result)
+            {
+                RemoveDummyTextureFromCache();
+            }
+
             m_Result = result;
             m_State = Completed;
         }
 
         Result<void> AddDummyTextureToCache();
+
+        void RemoveDummyTextureFromCache();
 
         Result<Texture> CreateTexture(const FileIo::FetchDataPtr& fetchDataPtr);
 
@@ -315,6 +324,16 @@ private:
             auto it = Find(key);
 
             return it != m_Entries.end() && it->Key == key;
+        }
+
+        void Remove(const CacheKey& key)
+        {
+            auto it = Find(key);
+
+            if(it != m_Entries.end() && it->Key == key)
+            {
+                m_Entries.erase(it);
+            }
         }
 
         size_t Size() const { return m_Entries.size(); }
