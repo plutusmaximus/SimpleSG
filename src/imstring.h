@@ -24,22 +24,13 @@ public:
 private:
     struct block
     {
-        block() = delete;
-        block(const block&) = delete;
-        block& operator=(const block&) = delete;
-        block(block&&) = delete;
-        block& operator=(block&&) = delete;
-
-        explicit block(const size_type sz)
-            : refs(1), size(sz), hashCode(0)
-        {
-        }
-
-        std::atomic_uint32_t refs{1};
-        size_type size{0};
-        std::size_t hashCode{0};
-        char data[1]{};
+        std::atomic_uint32_t refs;
+        size_type size;
+        std::size_t hashCode;
+        char data[1];
     };
+
+    static inline block EmptyBlock{ std::atomic_uint32_t{ UINT32_MAX }, 0, 0, { '\0' } };
 
     block* m_blk;
 
@@ -55,12 +46,11 @@ private:
 
         if(totalLen == 0)
         {
-            static block empty(0);
-            return &empty;
+            return &EmptyBlock;
         }
 
         auto* mem = ::operator new(sizeof(block) + totalLen);
-        auto* b = new(mem) block(totalLen);
+        auto* b = new(mem) block{ std::atomic_uint32_t{ 1 }, totalLen, 0, { 0 } };
 
         char* p = b->data;
         for(size_type i = 0; i < N; ++i)
@@ -81,7 +71,7 @@ private:
 
     static void retain(block* b)
     {
-        if(b && b->refs != UINT32_MAX)
+        if(b && &EmptyBlock != b)
         {
             b->refs.fetch_add(1, std::memory_order_relaxed);
         }
@@ -89,7 +79,7 @@ private:
 
     static void release(block* b)
     {
-        if(b && b->refs != UINT32_MAX && b->refs.fetch_sub(1, std::memory_order_acq_rel) == 1)
+        if(b && &EmptyBlock != b && b->refs.fetch_sub(1, std::memory_order_acq_rel) == 1)
         {
             ::operator delete(b);
         }
