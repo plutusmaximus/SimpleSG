@@ -18,7 +18,7 @@
 
 static std::shared_ptr<spdlog::sinks::stdout_color_sink_mt> console_sink;
 static std::shared_ptr<spdlog::sinks::msvc_sink_mt> msvc_sink;
-static std::shared_ptr<spdlog::sinks::dist_sink_mt> assert_sinks;
+static std::shared_ptr<spdlog::sinks::dist_sink_mt> mux_sink;
 
 static std::atomic<bool> s_InitializeSinks = true;
 
@@ -28,11 +28,14 @@ static void InitializeSinks()
     {
         console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
         msvc_sink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
-        assert_sinks = std::make_shared<spdlog::sinks::dist_sink_mt>();
+        mux_sink = std::make_shared<spdlog::sinks::dist_sink_mt>();
+
+        mux_sink->add_sink(console_sink);
+        mux_sink->add_sink(msvc_sink);
 
         console_sink->set_level(spdlog::level::debug);
         msvc_sink->set_level(spdlog::level::debug);
-        assert_sinks->set_level(spdlog::level::debug);
+        mux_sink->set_level(spdlog::level::debug);
     }
 }
 
@@ -43,7 +46,7 @@ LogHelper::CreateLogger(const std::string_view name)
 {
     InitializeSinks();
 
-    auto logger = std::make_shared<spdlog::logger>(std::string(name), spdlog::sinks_init_list{ console_sink, msvc_sink });
+    auto logger = std::make_shared<spdlog::logger>(std::string(name), mux_sink);
 
     spdlog::initialize_logger(logger);
     spdlog::register_or_replace(logger);
@@ -65,13 +68,16 @@ Asserts::Capture::Capture()
     : m_OldValue(Asserts::SetDialogEnabled(false))
     , m_Sink(std::make_shared<spdlog::sinks::ringbuffer_sink_mt>(1))
 {
-    assert_sinks->add_sink(m_Sink);
+    InitializeSinks();
+
+    //Add a ring buffer sink to capture the assert messages
+    mux_sink->add_sink(m_Sink);
 }
 
 void
 Asserts::Capture::Cancel()
 {
-    assert_sinks->remove_sink(m_Sink);
+    mux_sink->remove_sink(m_Sink);
     Asserts::SetDialogEnabled(m_OldValue);
     m_Canceled = true;
 }
