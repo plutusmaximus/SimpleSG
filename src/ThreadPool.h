@@ -1,5 +1,9 @@
 #pragma once
 
+#include "Error.h"
+
+#include "PoolAllocator.h"
+
 #include <concepts>
 #include <cstddef>
 #include <functional>
@@ -14,18 +18,6 @@ concept JobLike = std::invocable<F> && std::same_as<std::invoke_result_t<F>, voi
 class ThreadPool final
 {
 public:
-    /// @brief A wrapper for a job to be executed by the thread pool.
-    /// The buffer size must be large enough to hold any JobT instantiation,
-    /// which includes the callable object (like a lambda) used as the job.
-    struct JobWrapper
-    {
-        alignas(std::max_align_t) unsigned char m_CallableBuf[32];
-
-        void InvokeJob();
-
-        JobWrapper *m_Next{ nullptr };
-    };
-
     static void Startup();
 
     static void Shutdown();
@@ -35,22 +27,26 @@ public:
     {
         // Store decayed-by-value callables so lvalues are copied and rvalues moved,
         // avoiding dangling references to caller-owned lambdas.
-        using JFunc = JobT<std::decay_t<JF>>;
-        static_assert(sizeof(JFunc) <= sizeof(JobWrapper::m_CallableBuf),
+        using JFunc = std::decay_t<JF>;
+        static_assert(sizeof(JFunc) <= sizeof(Job::m_CallableBuf),
             "JobWrapper buffer too small for job function object");
 
-        JobWrapper *jobWrapper = AllocJobWrapper();
-        if(!jobWrapper)
+        Job *job = AllocJob();
+        if(!job)
         {
             return false;
         }
-        Job *job = ::new(static_cast<void *>(jobWrapper->m_CallableBuf))
-            JFunc{ std::forward<JF>(jobFunc) };
 
-        if(!Enqueue(jobWrapper))
+        ::new (job->m_CallableBuf) JFunc{ std::forward<JF>(jobFunc) };
+
+        job->InvokeCb = [](void *buf)
+        { std::invoke(*reinterpret_cast<JFunc *>(buf)); };
+        job->DestroyCb = [](void *buf)
+        { reinterpret_cast<JFunc *>(buf)->~JFunc(); };
+
+        if(!Enqueue(job))
         {
-            job->~Job();
-            FreeJobWrapper(jobWrapper);
+            FreeJob(job);
             return false;
         }
 
@@ -62,34 +58,42 @@ public:
 private:
     struct Job
     {
-        virtual ~Job() = default;
-
-        virtual void Invoke() = 0;
-    };
-
-    template<JobLike F>
-    struct JobT : public Job
-    {
-        // Always hold a value type (no references) to keep lifetime independent.
-        using StoredF = std::decay_t<F>;
-
-        template<typename U>
-            requires std::constructible_from<StoredF, U>
-        // Perfect-forward into the stored value: copies lvalues, moves rvalues.
-        explicit JobT(U &&f)
-            : fn(std::forward<U>(f))
+        ~Job()
         {
+            eassert(m_Next == nullptr);
+
+            if(DestroyCb)
+            {
+                DestroyCb(m_CallableBuf);
+            }
         }
 
-        void Invoke() override { std::invoke(fn); }
-        StoredF fn;
+        void Invoke()
+        {
+            eassert(InvokeCb != nullptr);
+            InvokeCb(m_CallableBuf);
+        }
+
+        Job *m_Next{ nullptr };
+
+        void (*InvokeCb)(void *buf){ nullptr };
+
+        void (*DestroyCb)(void *buf){ nullptr };
+
+        alignas(std::max_align_t) unsigned char m_CallableBuf[32];
     };
 
-    static JobWrapper *AllocJobWrapper();
-    static void FreeJobWrapper(ThreadPool::JobWrapper *jobWrapper);
+    static Job *AllocJob();
+    static void FreeJob(Job *job);
 
     // Enqueue a new job. Returns false if the pool is stopping or not accepting work.
-    static bool Enqueue(JobWrapper *job);
+    static bool Enqueue(Job *job);
 
     static void WorkerLoop();
+
+    using PoolAllocatorType = PoolAllocator<Job, 128>;
+    static PoolAllocatorType s_JobAllocator;
+
+    static Job *s_JobQueueHead;
+    static Job *s_JobQueueTail;
 };
