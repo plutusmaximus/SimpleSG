@@ -4,6 +4,7 @@
 #include "FileIo.h"
 #include "Mesh.h"
 #include "Model.h"
+#include "PoolAllocator.h"
 
 #include <atomic>
 #include <memory>
@@ -271,6 +272,34 @@ private:
         std::optional<Result<void>> m_DecodeImageResult;
         std::atomic<bool> m_DecodeImageComplete{ false };
     };
+
+    /// @brief Union for storing different types of asynchronous operations.
+    /// Used with PoolAllocator to manage memory for various AsyncOp types.
+    /// If new AsyncOp types are added, they must be included here.
+    union AsyncOpUnion
+    {
+        uint8_t LoadModelOp[sizeof(LoadModelOp)];
+        uint8_t CreateTextureOp[sizeof(CreateTextureOp)];
+    };
+
+    PoolAllocator<AsyncOpUnion, 16> m_AsyncOpAllocator;
+
+    /// @brief Allocates an asynchronous operation from the pool.
+    /// Passes the constructor arguments to the operation.
+    template<typename T, typename... Args>
+    T* AllocateOp(Args&&... args)
+    {
+        AsyncOpUnion* opUnion = m_AsyncOpAllocator.Alloc();
+        return new (opUnion) T(std::forward<Args>(args)...);
+    }
+
+    /// @brief Frees an asynchronous operation back to the pool.
+    template<typename T>
+    void FreeOp(T* op)
+    {
+        op->~T();
+        m_AsyncOpAllocator.Free(reinterpret_cast<AsyncOpUnion*>(op));
+    }
 
     template<typename Value>
     class Cache

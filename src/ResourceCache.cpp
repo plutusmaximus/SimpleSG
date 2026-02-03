@@ -175,7 +175,7 @@ ResourceCache::ProcessPendingOperations()
         if(op->IsComplete())
         {
             op->Dequeue(&m_PendingOps);
-            delete op;
+            FreeOp(op);
         }
 
         op = nextOp;
@@ -198,7 +198,7 @@ ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, std::string_view
         return ResultOk;
     }
 
-    auto op = new LoadModelOp(this, cacheKey, filePath);
+    auto op = AllocateOp<LoadModelOp>(this, cacheKey, filePath);
     op->Start();
 
     op->Enqueue(&m_PendingOps);
@@ -493,7 +493,7 @@ ResourceCache::CreateTextureAsync(const CacheKey& cacheKey, const TextureSpec& t
         return ResultOk;
     }
 
-    auto op = new CreateTextureOp(this, cacheKey, textureSpec);
+    auto op = AllocateOp<CreateTextureOp>(this, cacheKey, textureSpec);
     op->Start();
     op->Enqueue(&m_PendingOps);
     return ResultOk;
