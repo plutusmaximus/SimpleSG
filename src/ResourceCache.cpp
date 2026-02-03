@@ -817,6 +817,12 @@ ResourceCache::CreateTextureOp::DecodeImage()
 
     Stopwatch sw;
 
+    /*stbi_info_from_memory(m_FetchDataPtr->Bytes.data(),
+        static_cast<int>(m_FetchDataPtr->Bytes.size()),
+        &m_DecodedImageWidth,
+        &m_DecodedImageHeight,
+        &m_DecodedImageChannels);*/
+
     m_DecodedImageData = stbi_load_from_memory(m_FetchDataPtr->Bytes.data(),
         static_cast<int>(m_FetchDataPtr->Bytes.size()),
         &m_DecodedImageWidth,
