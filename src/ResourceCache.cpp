@@ -4,6 +4,8 @@
 
 #include "scope_exit.h"
 
+#include "Stopwatch.h"
+
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
@@ -11,6 +13,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <filesystem>
 #include <stb_image.h>
+
+#include <thread>
 
 static constexpr const char* WHITE_TEXTURE_KEY = "#FFFFFFFF";
 static constexpr const char* MAGENTA_TEXTURE_KEY = "#FF00FFFF";
@@ -659,14 +663,21 @@ ResourceCache::LoadModelOp::LoadModel(const Result<FileIo::FetchDataPtr>& fileDa
 
 // === ResourceCache::CreateTextureOp ===
 
+ResourceCache::CreateTextureOp::~CreateTextureOp()
+{
+    if(m_DecodedImageData)
+    {
+        stbi_image_free(m_DecodedImageData);
+        m_DecodedImageData = nullptr;
+    }
+}
+
 void
 ResourceCache::CreateTextureOp::Start()
 {
     eassert(m_State == NotStarted);
 
     logOp("Start() (key: {})", GetCacheKey().ToString());
-
-    m_Stopwatch.Mark();
 
     auto cacheResult = m_ResourceCache->GetTexture(GetCacheKey());
     if(cacheResult)
@@ -742,10 +753,6 @@ ResourceCache::CreateTextureOp::Update()
                 return;
             }
 
-            logOp("File fetch completed in {} ms (key: {})",
-                static_cast<int>(m_Stopwatch.Elapsed() * 1000.0f),
-                GetCacheKey().ToString());
-
             auto fileResult = FileIo::GetResult(m_FileFetchToken);
 
             if(!fileResult)
@@ -754,54 +761,91 @@ ResourceCache::CreateTextureOp::Update()
                 return;
             }
 
-            logOp("Creating texture from fetched file data (key: {})", GetCacheKey().ToString());
-
-            m_Stopwatch.Mark();
-
-            auto textureResult = CreateTexture(fileResult.value());
-            if(!textureResult)
+            m_DecodeImageFuture = std::async(std::launch::async, [this, fileResult = std::move(fileResult)]()
             {
-                SetResult(textureResult.error());
-                return;
-            }
+                auto decodeResult = DecodeImage(fileResult.value());
 
-            logOp("Texture creation completed in {} ms (key: {})",
-                static_cast<int>(m_Stopwatch.Elapsed() * 1000.0f),
-                GetCacheKey().ToString());
+                return decodeResult;
+            });
 
-            AddOrReplaceInCache(textureResult.value());
-
-            SetResult(GetCacheKey());
+            m_State = DecodingImage;
 
             break;
         }
+
+        case DecodingImage:
+
+            if (m_DecodeImageFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+            {
+                auto decodeResult = m_DecodeImageFuture.get();
+                if(!decodeResult)
+                {
+                    SetResult(decodeResult.error());
+                    return;
+                }
+
+                auto textureResult = CreateTexture();
+
+                if(!textureResult)
+                {
+                    SetResult(textureResult.error());
+                    return;
+                }
+
+                AddOrReplaceInCache(textureResult.value());
+
+                SetResult(GetCacheKey());
+
+                stbi_image_free(m_DecodedImageData);
+                m_DecodedImageData = nullptr;
+            }
+            break;
+
         case Completed:
             // No-op
             break;
     }
 }
 
-Result<Texture>
-ResourceCache::CreateTextureOp::CreateTexture(const FileIo::FetchDataPtr& fetchDataPtr)
+Result<void>
+ResourceCache::CreateTextureOp::DecodeImage(const FileIo::FetchDataPtr& fetchDataPtr)
 {
-    int width, height, channels;
+    logOp("Decoding image (key: {})", GetCacheKey().ToString());
 
-    stbi_uc* imgData = stbi_load_from_memory(fetchDataPtr->Bytes.data(),
+    Stopwatch sw;
+
+    m_DecodedImageData = stbi_load_from_memory(fetchDataPtr->Bytes.data(),
         static_cast<int>(fetchDataPtr->Bytes.size()),
-        &width,
-        &height,
-        &channels,
+        &m_DecodedImageWidth,
+        &m_DecodedImageHeight,
+        &m_DecodedImageChannels,
         4);
 
-    expect(imgData != nullptr, "Failed to load image from memory: {}", stbi_failure_reason());
+    expect(m_DecodedImageData != nullptr, "Failed to load image from memory: {}", stbi_failure_reason());
 
-    auto result = m_ResourceCache->m_GpuDevice->CreateTexture(static_cast<unsigned>(width),
-        static_cast<unsigned>(height),
-        imgData,
-        static_cast<unsigned>(width * 4),
+    logOp("Image decode completed in {} ms (key: {})",
+        static_cast<int>(sw.Elapsed() * 1000.0f),
         GetCacheKey().ToString());
 
-    stbi_image_free(imgData);
+    return ResultOk;
+}
+
+Result<Texture>
+ResourceCache::CreateTextureOp::CreateTexture()
+{
+    logOp("Creating texture (key: {})", GetCacheKey().ToString());
+
+    Stopwatch sw;
+
+    auto result = m_ResourceCache->m_GpuDevice->CreateTexture(static_cast<unsigned>(m_DecodedImageWidth),
+        static_cast<unsigned>(m_DecodedImageHeight),
+        static_cast<const uint8_t*>(m_DecodedImageData),
+        static_cast<unsigned>(m_DecodedImageWidth * 4),
+        GetCacheKey().ToString());
+
+    logOp("Texture creation completed in {} ms (key: {})",
+        static_cast<int>(sw.Elapsed() * 1000.0f),
+        GetCacheKey().ToString());
 
     return result;
 }
@@ -927,27 +971,6 @@ LogMesh(const aiScene* scene, const SceneMeshId meshId)
     }
 };
 
-static void
-LogMaterialProperties(const aiMaterial* material)
-{
-    for(unsigned i = 0; i < material->mNumProperties; ++i)
-    {
-        const aiMaterialProperty* prop = material->mProperties[i];
-
-        if(prop->mKey == aiString("$tex.file"))
-        {
-            aiString propValue;
-            material->Get(prop->mKey.C_Str(), prop->mSemantic, prop->mIndex, propValue);
-
-            logDebug("  Property: key=\"{}\" semantic={} index={} value=\"{}\"",
-                prop->mKey.C_Str(),
-                prop->mSemantic,
-                prop->mIndex,
-                propValue.C_Str());
-        }
-    }
-};
-
 static bool
 ValidateMesh(const aiScene* scene, const unsigned meshIdx)
 {
@@ -1002,8 +1025,6 @@ CollectMeshes(const aiScene* scene, const aiNode* node, SceneMeshCollection& out
 static MaterialSpec
 CreateMaterialSpec(const aiMaterial* material, const std::filesystem::path& parentPath)
 {
-    LogMaterialProperties(material);
-
     TextureProperties texProperties;
     ai_real opacity{ 1.0f };
     aiColor3D diffuseColor{ 1.0f, 1.0f, 1.0f };
@@ -1019,33 +1040,12 @@ CreateMaterialSpec(const aiMaterial* material, const std::filesystem::path& pare
             diffuseColor = aiColor3D{ 1.0f, 1.0f, 1.0f };
         }
 
-        logDebug("  Opacity: {}", opacity);
-        logDebug("  Diffuse color: R={} G={} B={}", diffuseColor.r, diffuseColor.g, diffuseColor.b);
-
         texProperties = GetTexturePropertiesFromMaterial(material, parentPath);
     }
     else
     {
         logWarn("  Mesh has no material");
     }
-
-    logDebug("  Albedo: {}",
-        texProperties.Albedo.Path.empty() ? "<none>" : texProperties.Albedo.Path);
-    logDebug("  Normal: {}",
-        texProperties.Normal.Path.empty() ? "<none>" : texProperties.Normal.Path);
-    logDebug("  Specular: {}",
-        texProperties.Specular.Path.empty() ? "<none>" : texProperties.Specular.Path);
-    logDebug("  Diffuse: {}",
-        texProperties.Diffuse.Path.empty() ? "<none>" : texProperties.Diffuse.Path);
-    logDebug("  Emission: {}",
-        texProperties.Emission.Path.empty() ? "<none>" : texProperties.Emission.Path);
-    logDebug("  Metalness: {}",
-        texProperties.Metalness.Path.empty() ? "<none>" : texProperties.Metalness.Path);
-    logDebug("  Roughness: {}",
-        texProperties.Roughness.Path.empty() ? "<none>" : texProperties.Roughness.Path);
-    logDebug("  Ambient occlusion: {}",
-        texProperties.AmbientOcclusion.Path.empty() ? "<none>"
-                                                    : texProperties.AmbientOcclusion.Path);
 
     const TextureSpec albedo = texProperties.Albedo.Path.empty()
                                    ? MAGENTA_TEXTURE_SPEC
@@ -1067,8 +1067,6 @@ CreateMeshSpecFromMesh(
 {
     const aiMesh* mesh = scene->mMeshes[meshId];
     const std::string meshName = GetMeshName(mesh);
-
-    LogMesh(scene, meshId);
 
     const aiMaterial* material =
         scene->mMaterials ? scene->mMaterials[mesh->mMaterialIndex] : nullptr;

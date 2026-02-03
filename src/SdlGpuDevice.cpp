@@ -3,6 +3,8 @@
 #include "SdlRenderGraph.h"
 #include "scope_exit.h"
 
+#include "Stopwatch.h"
+
 #include <SDL3/SDL.h>
 #include <algorithm>
 
@@ -250,6 +252,8 @@ SdlGpuDevice::DestroyIndexBuffer(IndexBuffer& buffer)
 Result<Texture>
 SdlGpuDevice::CreateTexture(const unsigned width, const unsigned height, const uint8_t* pixels, const unsigned rowStride, const imstring& name)
 {
+    Stopwatch sw1;
+
     SDL_PropertiesID props = SDL_CreateProperties();
     auto propsCleanup = scope_exit([&]()
     {
@@ -272,12 +276,17 @@ SdlGpuDevice::CreateTexture(const unsigned width, const unsigned height, const u
         .props = props
     };
 
+    Stopwatch sw;
+
     SDL_GPUTexture* texture = SDL_CreateGPUTexture(Device, &textureInfo);
     expect(texture, SDL_GetError());
     auto texCleanup = scope_exit([&]()
     {
         SDL_ReleaseGPUTexture(Device, texture);
     });
+
+    logDebug("SDL_CreateGPUTexture: {} ms", sw.Elapsed() * 1000.0f);
+    sw.Mark();
 
     const unsigned sizeofData = textureInfo.width * textureInfo.height * 4;
 
@@ -295,9 +304,15 @@ SdlGpuDevice::CreateTexture(const unsigned width, const unsigned height, const u
         SDL_ReleaseGPUTransferBuffer(Device, transferBuffer);
     });
 
+    logDebug("SDL_CreateGPUTransferBuffer: {} ms", sw.Elapsed() * 1000.0f);
+    sw.Mark();
+
     // Copy pixel data to transfer buffer
     void* mappedData = SDL_MapGPUTransferBuffer(Device, transferBuffer, false);
     expect(mappedData, SDL_GetError());
+
+    logDebug("SDL_MapGPUTransferBuffer: {} ms", sw.Elapsed() * 1000.0f);
+    sw.Mark();
 
     const uint8_t* srcPixels = pixels;
     uint8_t* dstPixels = static_cast<uint8_t*>(mappedData);
@@ -307,7 +322,13 @@ SdlGpuDevice::CreateTexture(const unsigned width, const unsigned height, const u
         std::memcpy(dstPixels, srcPixels, textureInfo.width * 4);
     }
 
+    logDebug("memcpy: {} ms", sw.Elapsed() * 1000.0f);
+    sw.Mark();
+
     SDL_UnmapGPUTransferBuffer(Device, transferBuffer);
+
+    logDebug("SDL_UnmapGPUTransferBuffer: {} ms", sw.Elapsed() * 1000.0f);
+    sw.Mark();
 
     // Upload to GPU texture
     SDL_GPUCommandBuffer* cmdBuffer = SDL_AcquireGPUCommandBuffer(Device);
@@ -317,8 +338,14 @@ SdlGpuDevice::CreateTexture(const unsigned width, const unsigned height, const u
         SDL_CancelGPUCommandBuffer(cmdBuffer);
     });
 
+    logDebug("SDL_AcquireGPUCommandBuffer: {} ms", sw.Elapsed() * 1000.0f);
+    sw.Mark();
+
     SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(cmdBuffer);
     expect(copyPass, SDL_GetError());
+
+    logDebug("SDL_BeginGPUCopyPass: {} ms", sw.Elapsed() * 1000.0f);
+    sw.Mark();
 
     SDL_GPUTextureTransferInfo transferInfo
     {
@@ -338,10 +365,19 @@ SdlGpuDevice::CreateTexture(const unsigned width, const unsigned height, const u
 
     SDL_UploadToGPUTexture(copyPass, &transferInfo, &textureRegion, false);
 
+    logDebug("SDL_UploadToGPUTexture: {} ms", sw.Elapsed() * 1000.0f);
+    sw.Mark();
+
     SDL_EndGPUCopyPass(copyPass);
+
+    logDebug("SDL_EndGPUCopyPass: {} ms", sw.Elapsed() * 1000.0f);
+    sw.Mark();
 
     cmdBufCleanup.release();
     expect(SDL_SubmitGPUCommandBuffer(cmdBuffer), SDL_GetError());
+
+    logDebug("SDL_SubmitGPUCommandBuffer: {} ms", sw.Elapsed() * 1000.0f);
+    sw.Mark();
 
     if(!m_Sampler)
     {
@@ -363,6 +399,8 @@ SdlGpuDevice::CreateTexture(const unsigned width, const unsigned height, const u
     expectv(gpuTex, "Error allocating SDLGPUTexture");
 
     texCleanup.release();
+
+    logDebug("SdlGpuDevice::CreateTexture: {} ms", sw1.Elapsed() * 1000.0f);
 
     return Texture(gpuTex);
 }

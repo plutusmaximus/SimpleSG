@@ -4,8 +4,8 @@
 #include "FileIo.h"
 #include "Mesh.h"
 #include "Model.h"
-#include "Stopwatch.h"
 
+#include <future>
 #include <memory>
 
 /// @brief A cache for loading and storing GPU resources like models, textures, and shaders.
@@ -214,6 +214,8 @@ private:
         {
         }
 
+        ~CreateTextureOp() override;
+
         void Start() override;
 
         void Update() override;
@@ -234,7 +236,9 @@ private:
             m_State = Completed;
         }
 
-        Result<Texture> CreateTexture(const FileIo::FetchDataPtr& fetchDataPtr);
+        Result<void> DecodeImage(const FileIo::FetchDataPtr& fetchDataPtr);
+
+        Result<Texture> CreateTexture();
 
         void AddOrReplaceInCache(const Texture& texture);
 
@@ -244,6 +248,7 @@ private:
         {
             NotStarted,
             LoadingFile,
+            DecodingImage,
             Completed,
         };
 
@@ -255,7 +260,12 @@ private:
 
         Result<CacheKey> m_Result;
 
-        Stopwatch m_Stopwatch;
+        void* m_DecodedImageData{ nullptr };
+        int m_DecodedImageWidth{ 0 };
+        int m_DecodedImageHeight{ 0 };
+        int m_DecodedImageChannels{ 0 };
+
+        std::future<Result<void>> m_DecodeImageFuture;
     };
 
     template<typename Value>
