@@ -5,8 +5,9 @@
 #include "Mesh.h"
 #include "Model.h"
 
-#include <future>
+#include <atomic>
 #include <memory>
+#include <optional>
 
 /// @brief A cache for loading and storing GPU resources like models, textures, and shaders.
 class ResourceCache
@@ -236,7 +237,7 @@ private:
             m_State = Completed;
         }
 
-        Result<void> DecodeImage(const FileIo::FetchDataPtr& fetchDataPtr);
+        Result<void> DecodeImage();
 
         Result<Texture> CreateTexture();
 
@@ -258,6 +259,8 @@ private:
 
         FileIo::AsyncToken m_FileFetchToken;
 
+        FileIo::FetchDataPtr m_FetchDataPtr;
+
         Result<CacheKey> m_Result;
 
         void* m_DecodedImageData{ nullptr };
@@ -265,7 +268,8 @@ private:
         int m_DecodedImageHeight{ 0 };
         int m_DecodedImageChannels{ 0 };
 
-        std::future<Result<void>> m_DecodeImageFuture;
+        std::optional<Result<void>> m_DecodeImageResult;
+        std::atomic<bool> m_DecodeImageComplete{ false };
     };
 
     template<typename Value>

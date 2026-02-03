@@ -1,10 +1,9 @@
 #define __LOGGER_NAME__ "RSRC"
 
 #include "ResourceCache.h"
-
 #include "scope_exit.h"
-
 #include "Stopwatch.h"
+#include "ThreadPool.h"
 
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
@@ -13,8 +12,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <filesystem>
 #include <stb_image.h>
-
-#include <thread>
 
 static constexpr const char* WHITE_TEXTURE_KEY = "#FFFFFFFF";
 static constexpr const char* MAGENTA_TEXTURE_KEY = "#FF00FFFF";
@@ -753,20 +750,26 @@ ResourceCache::CreateTextureOp::Update()
                 return;
             }
 
-            auto fileResult = FileIo::GetResult(m_FileFetchToken);
+            auto fetchResult = FileIo::GetResult(m_FileFetchToken);
 
-            if(!fileResult)
+            if(!fetchResult)
             {
-                SetResult(fileResult.error());
+                SetResult(fetchResult.error());
                 return;
             }
 
-            m_DecodeImageFuture = std::async(std::launch::async, [this, fileResult = std::move(fileResult)]()
-            {
-                auto decodeResult = DecodeImage(fileResult.value());
+            m_FetchDataPtr = std::move(fetchResult.value());
 
-                return decodeResult;
-            });
+            auto job = [this]()
+            {
+                auto decodeResult = DecodeImage();
+
+                m_DecodeImageResult = decodeResult;
+
+                m_DecodeImageComplete.store(true, std::memory_order_release);
+            };
+
+            ThreadPool::Enqueue(job);
 
             m_State = DecodingImage;
 
@@ -775,9 +778,9 @@ ResourceCache::CreateTextureOp::Update()
 
         case DecodingImage:
 
-            if (m_DecodeImageFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+            if (m_DecodeImageComplete.load(std::memory_order_acquire))
             {
-                auto decodeResult = m_DecodeImageFuture.get();
+                auto decodeResult = m_DecodeImageResult.value();
                 if(!decodeResult)
                 {
                     SetResult(decodeResult.error());
@@ -808,14 +811,14 @@ ResourceCache::CreateTextureOp::Update()
 }
 
 Result<void>
-ResourceCache::CreateTextureOp::DecodeImage(const FileIo::FetchDataPtr& fetchDataPtr)
+ResourceCache::CreateTextureOp::DecodeImage()
 {
     logOp("Decoding image (key: {})", GetCacheKey().ToString());
 
     Stopwatch sw;
 
-    m_DecodedImageData = stbi_load_from_memory(fetchDataPtr->Bytes.data(),
-        static_cast<int>(fetchDataPtr->Bytes.size()),
+    m_DecodedImageData = stbi_load_from_memory(m_FetchDataPtr->Bytes.data(),
+        static_cast<int>(m_FetchDataPtr->Bytes.size()),
         &m_DecodedImageWidth,
         &m_DecodedImageHeight,
         &m_DecodedImageChannels,
