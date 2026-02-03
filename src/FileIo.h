@@ -1,12 +1,12 @@
 #pragma once
 
 #include "Error.h"
+#include "imstring.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <span>
-#include <string>
 
 /// @brief Provides asynchronous file I/O operations.
 class FileIo final
@@ -77,7 +77,7 @@ public:
     static void Shutdown();
 
     /// @brief Initiates an asynchronous file fetch operation.
-    static Result<AsyncToken> Fetch(std::string_view path);
+    static Result<AsyncToken> Fetch(const imstring& path);
 
     /// @brief Gets the current status of a fetch operation.
     static FetchStatus GetStatus(const AsyncToken token);

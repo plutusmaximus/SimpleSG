@@ -1,4 +1,5 @@
 #include "FileIo.h"
+#include "PoolAllocator.h"
 
 #include <array>
 #include <atomic>
@@ -10,7 +11,7 @@
 class ReadRequest
 {
 public:
-    explicit ReadRequest(const std::string& path)
+    explicit ReadRequest(const imstring& path)
         : Path(path)
     {
     }
@@ -48,8 +49,7 @@ public:
         m_Prev = nullptr;
     }
 
-    // TODO - make this imstring
-    std::string Path;
+    imstring Path;
 
     FileIo::AsyncToken Token = FileIo::AsyncToken::NewToken();
 
@@ -133,6 +133,11 @@ RemoveCompleteRequest(ReadRequest* req)
     req->Unlink();
 }
 
+template<typename T, typename... Args>
+static T* AllocReadRequest(Args&&... args);
+
+static void FreeReadRequest(ReadRequest* req);
+
 // Platform-specific implementation used by GetResult.
 static Result<FileIo::FetchDataPtr> GetResultImpl(ReadRequest* req);
 
@@ -174,7 +179,7 @@ FileIo::Shutdown()
     for(ReadRequest* req = complete; req != nullptr;)
     {
         ReadRequest* next = req->m_Next;
-        delete req;
+        FreeReadRequest(req);
         req = next;
     }
 
@@ -264,7 +269,7 @@ FileIo::GetResult(const AsyncToken token)
         result = GetResultImpl(req);
     }
 
-    delete req;
+    FreeReadRequest(req);
 
     return result;
 }
@@ -295,7 +300,7 @@ static std::string GetWindowsErrorString(DWORD errorCode);
 
 struct Win32ReadRequest : ReadRequest
 {
-    Win32ReadRequest(std::string path,
+    Win32ReadRequest(const imstring& path,
         HANDLE hFile,
         std::unique_ptr<uint8_t[]> bytes,
         const size_t bytesRequested)
@@ -328,19 +333,30 @@ struct Win32ReadRequest : ReadRequest
     size_t BytesRead{ 0 };
 };
 
+static PoolAllocator<Win32ReadRequest, 64> s_ReadRequestPool;
+
+template<typename... Args>
+static Win32ReadRequest* AllocReadRequest(Args&&... args)
+{
+    return s_ReadRequestPool.Alloc(std::forward<Args>(args)...);
+}
+
+static void FreeReadRequest(ReadRequest* req)
+{
+    auto* win32Req = static_cast<Win32ReadRequest*>(req);
+    s_ReadRequestPool.Free(win32Req);
+}
+
 Result<FileIo::AsyncToken>
-FileIo::Fetch(std::string_view filePath)
+FileIo::Fetch(const imstring& filePath)
 {
     if(!IsRunning())
     {
         return Error("FileIO is not running or is shutting down.");
     }
 
-    // Convert to null-terminated string
-    auto pathStr = std::string(filePath);
-
     // Open file
-    HANDLE hFile = ::CreateFileA(pathStr.c_str(),
+    HANDLE hFile = ::CreateFileA(filePath.c_str(),
         GENERIC_READ,
         FILE_SHARE_READ,
         nullptr,
@@ -352,7 +368,7 @@ FileIo::Fetch(std::string_view filePath)
     {
         // Failed to open file; fulfill promise with 0 bytes read.
         return Error("Failed to open file: {}, error: {}",
-            pathStr,
+            filePath,
             GetWindowsErrorString(::GetLastError()));
     }
 
@@ -362,7 +378,7 @@ FileIo::Fetch(std::string_view filePath)
         ::CloseHandle(hFile);
 
         return Error("Failed to get file size: {}, error: {}",
-            pathStr,
+            filePath,
             GetWindowsErrorString(::GetLastError()));
     }
 
@@ -372,21 +388,21 @@ FileIo::Fetch(std::string_view filePath)
     {
         ::CloseHandle(hFile);
 
-        return Error("Failed to get file size for {}.", pathStr);
+        return Error("Failed to get file size for {}.", filePath);
     }
 
     if(fileSize > std::numeric_limits<DWORD>::max())
     {
         ::CloseHandle(hFile);
 
-        return Error("File is too large to read: {}", pathStr);
+        return Error("File is too large to read: {}", filePath);
     }
 
     if(!fileSize)
     {
         ::CloseHandle(hFile);
 
-        return Error("File is empty: {}", pathStr);
+        return Error("File is empty: {}", filePath);
     }
 
     std::unique_ptr<uint8_t[]> bytes = std::make_unique<uint8_t[]>(fileSize);
@@ -394,11 +410,15 @@ FileIo::Fetch(std::string_view filePath)
     {
         ::CloseHandle(hFile);
 
-        return Error("Failed to allocate read buffer for file: {}", pathStr);
+        return Error("Failed to allocate read buffer for file: {}", filePath);
     }
 
-    auto req =
-        new Win32ReadRequest(pathStr, hFile, std::move(bytes), static_cast<size_t>(fileSize));
+    auto req = AllocReadRequest(filePath, hFile, std::move(bytes), static_cast<size_t>(fileSize));
+
+    if(!req)
+    {
+        return Error("Failed to allocate read request.");
+    }
 
     // Used as key to identify the request on completion.
     ULONG_PTR key = reinterpret_cast<ULONG_PTR>(req);
@@ -406,9 +426,9 @@ FileIo::Fetch(std::string_view filePath)
     // Bind file to IOCP.
     if(::CreateIoCompletionPort(req->File, s_IOCP, key, 0) == nullptr)
     {
-        delete req;
+        FreeReadRequest(req);
         return Error("Failed to bind file to IOCP: {}, error: {}",
-            pathStr,
+            filePath,
             GetWindowsErrorString(::GetLastError()));
     }
 
@@ -708,7 +728,7 @@ GetResultImpl(ReadRequest* req)
 
 struct EmscriptenReadRequest : ReadRequest
 {
-    EmscriptenReadRequest(std::string path)
+    EmscriptenReadRequest(const imstring& path)
         : ReadRequest(path)
     {
     }
@@ -730,8 +750,23 @@ struct EmscriptenReadRequest : ReadRequest
     emscripten_fetch_t* FetchData{ nullptr };
 };
 
+
+static PoolAllocator<EmscriptenReadRequest, 64> s_ReadRequestPool;
+
+template<typename... Args>
+static EmscriptenReadRequest* AllocReadRequest(Args&&... args)
+{
+    return s_ReadRequestPool.Alloc(std::forward<Args>(args)...);
+}
+
+static void FreeReadRequest(ReadRequest* req)
+{
+    auto* emReq = static_cast<EmscriptenReadRequest*>(req);
+    s_ReadRequestPool.Free(emReq);
+}
+
 Result<FileIo::StatusToken>
-FileIo::Fetch(std::string_view filePath)
+FileIo::Fetch(const imstring& filePath)
 {
     if(!IsRunning())
     {
@@ -741,7 +776,7 @@ FileIo::Fetch(std::string_view filePath)
     emscripten_fetch_attr_t attr{};
     emscripten_fetch_attr_init(&attr);
 
-    auto* reqPtr = new EmscriptenReadRequest(std::string(filePath));
+    auto* reqPtr = AllocReadRequest(filePath);
 
     if(!reqPtr)
     {
@@ -807,7 +842,7 @@ FileIo::PlatformShutdown()
             emReq->FetchData = nullptr;
         }
 
-        delete req;
+        FreeReadRequest(req);
     }
 
     return true;
