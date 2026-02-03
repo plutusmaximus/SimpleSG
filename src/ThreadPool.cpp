@@ -10,20 +10,29 @@
 #include <thread>
 #include <utility>
 
+// Mutex to protect access to the job queue.
 static std::mutex s_Mutex;
+// Mutex to protect job allocation/freeing.
 static std::mutex s_AllocMutex;
+// Condition variable to notify worker threads of new jobs.
 static std::condition_variable s_Cv;
+// Head and tail of the job queue.  Implements a FIFO queue of jobs.
 ThreadPool::Job *ThreadPool::s_JobQueueHead{ nullptr };
 ThreadPool::Job *ThreadPool::s_JobQueueTail{ nullptr };
 
 ThreadPool::PoolAllocatorType ThreadPool::s_JobAllocator;
 
 static std::atomic<bool> s_Running{ false };
-static const std::size_t kDefaultThreadCount = std::thread::hardware_concurrency() > 0
-                                                   ? std::thread::hardware_concurrency()
-                                                   : 4;
 
-static std::thread s_WorkerThreads[32];
+static constexpr std::size_t MAX_WORKER_THREADS = 32;
+static std::thread s_WorkerThreads[MAX_WORKER_THREADS];
+
+static const std::size_t kDefaultThreadCount = std::thread::hardware_concurrency() > 0
+                                                   ? (std::thread::hardware_concurrency() >
+                                                                 MAX_WORKER_THREADS
+                                                             ? MAX_WORKER_THREADS
+                                                             : std::thread::hardware_concurrency())
+                                                   : 4;
 
 // Ensure ThreadPool is start/stopped automatically.
 static struct ThreadPoolStartStop
