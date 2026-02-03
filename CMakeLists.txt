@@ -150,6 +150,7 @@ set(SSG_SOURCES
   src/Shapes.cpp
   src/SpaceMouse.cpp
   src/Stopwatch.cpp
+  src/ThreadPool.cpp
 )
 
 set(SSG_HEADERS
@@ -158,10 +159,13 @@ set(SSG_HEADERS
   src/EcsChildTransformPool.h
   src/Error.h
   src/FileIo.h
+  src/imstring.h
+  src/imvector.h
   src/GpuDevice.h
   src/Material.h
   src/Mesh.h
   src/Model.h
+  src/PoolAllocator.h
   src/RenderGraph.h
   src/ResourceCache.h
   src/SdlGpuDevice.h
@@ -169,11 +173,10 @@ set(SSG_HEADERS
   src/Shapes.h
   src/SpaceMouse.h
   src/Stopwatch.h
+  src/ThreadPool.h
   src/Uri.h
   src/VecMath.h
   src/Vertex.h
-  src/imstring.h
-  src/imvector.h
   src/scope_exit.h
 )
 
@@ -233,12 +236,13 @@ add_sample_executable(Sponza tests/sponza.cpp)
 # ============================================================
 add_executable(Tests
   "tests/ECS.test.cpp"
-  "tests/imstring.test.cpp"
   "tests/EcsChildTransformPool.test.cpp"
-  "tests/Uri.test.cpp"
-  "tests/scope_exit.test.cpp"
+  "tests/imstring.test.cpp"
   "tests/imvector.test.cpp"
-  "tests/Radians.test.cpp")
+  "tests/PoolAllocator.test.cpp"
+  "tests/Radians.test.cpp"
+  "tests/scope_exit.test.cpp"
+  "tests/Uri.test.cpp")
 
 target_link_libraries(Tests PRIVATE gtest_main ssg::ssg spdlog::spdlog)
 #add_dependencies(RunAllTests shaders copy_images copy_models)
