@@ -5,7 +5,7 @@
 #include "../src/imstring.h"
 
 // Test default constructor
-TEST(ImstringTest, DefaultConstructor)
+TEST(imstring, DefaultConstructor)
 {
     imstring s;
     EXPECT_TRUE(s.empty());
@@ -15,7 +15,7 @@ TEST(ImstringTest, DefaultConstructor)
 }
 
 // Test C-string constructor
-TEST(ImstringTest, CStringConstructor)
+TEST(imstring, CStringConstructor)
 {
     imstring s("hello");
     EXPECT_EQ(s.size(), 5);
@@ -24,7 +24,7 @@ TEST(ImstringTest, CStringConstructor)
 }
 
 // Test C-string constructor with nullptr
-TEST(ImstringTest, CStringConstructorNull)
+TEST(imstring, CStringConstructorNull)
 {
     imstring s(nullptr);
     EXPECT_TRUE(s.empty());
@@ -32,7 +32,7 @@ TEST(ImstringTest, CStringConstructorNull)
 }
 
 // Test C-string constructor with explicit length
-TEST(ImstringTest, CStringConstructorWithLength)
+TEST(imstring, CStringConstructorWithLength)
 {
     const char* str = "hello world";
     imstring s(str, 5);
@@ -41,13 +41,13 @@ TEST(ImstringTest, CStringConstructorWithLength)
 }
 
 // Test C-string constructor with length but null pointer throws
-TEST(ImstringTest, CStringConstructorWithLengthAndNullThrows)
+TEST(imstring, CStringConstructorWithLengthAndNullThrows)
 {
     EXPECT_THROW(imstring(nullptr, 5), std::invalid_argument);
 }
 
 // Test string_view constructor
-TEST(ImstringTest, StringViewConstructor)
+TEST(imstring, StringViewConstructor)
 {
     std::string_view sv("test");
     imstring s(sv);
@@ -56,7 +56,7 @@ TEST(ImstringTest, StringViewConstructor)
 }
 
 // Test std::string constructor
-TEST(ImstringTest, StdStringConstructor)
+TEST(imstring, StdStringConstructor)
 {
     std::string str("content");
     imstring s(str);
@@ -65,7 +65,7 @@ TEST(ImstringTest, StdStringConstructor)
 }
 
 // Test copy constructor
-TEST(ImstringTest, CopyConstructor)
+TEST(imstring, CopyConstructor)
 {
     imstring s1("original");
     const char* original = s1.c_str();
@@ -76,7 +76,7 @@ TEST(ImstringTest, CopyConstructor)
 }
 
 // Test move constructor
-TEST(ImstringTest, MoveConstructor)
+TEST(imstring, MoveConstructor)
 {
     imstring s1("original");
     const char* original = s1.c_str();
@@ -88,7 +88,7 @@ TEST(ImstringTest, MoveConstructor)
 }
 
 // Test copy assignment
-TEST(ImstringTest, CopyAssignment)
+TEST(imstring, CopyAssignment)
 {
     imstring s1("first");
     const char* original = s1.c_str();
@@ -100,7 +100,7 @@ TEST(ImstringTest, CopyAssignment)
 }
 
 // Test move assignment
-TEST(ImstringTest, MoveAssignment)
+TEST(imstring, MoveAssignment)
 {
     imstring s1("original");
     imstring s2("other");
@@ -112,7 +112,7 @@ TEST(ImstringTest, MoveAssignment)
 }
 
 // Test string assignment
-TEST(ImstringTest, StringAssignment)
+TEST(imstring, StringAssignment)
 {
     imstring s;
     std::string str("assigned");
@@ -122,7 +122,7 @@ TEST(ImstringTest, StringAssignment)
 }
 
 // Test operator[] access
-TEST(ImstringTest, OperatorBrackets)
+TEST(imstring, OperatorBrackets)
 {
     imstring s("hello");
     EXPECT_EQ(s[0], 'h');
@@ -131,7 +131,7 @@ TEST(ImstringTest, OperatorBrackets)
 }
 
 // Test at() method
-TEST(ImstringTest, AtMethod)
+TEST(imstring, AtMethod)
 {
     imstring s("hello");
     EXPECT_EQ(s.at(0), 'h');
@@ -139,7 +139,7 @@ TEST(ImstringTest, AtMethod)
 }
 
 // Test at() out of range throws
-TEST(ImstringTest, AtMethodOutOfRangeThrows)
+TEST(imstring, AtMethodOutOfRangeThrows)
 {
     imstring s("hello");
     EXPECT_THROW(s.at(5), std::out_of_range);
@@ -147,7 +147,7 @@ TEST(ImstringTest, AtMethodOutOfRangeThrows)
 }
 
 // Test starts_with method
-TEST(ImstringTest, StartsWithMethod)
+TEST(imstring, StartsWithMethod)
 {
     imstring s("hello world");
     EXPECT_TRUE(s.starts_with("hello"));
@@ -157,14 +157,14 @@ TEST(ImstringTest, StartsWithMethod)
 }
 
 // Test starts_with with empty string
-TEST(ImstringTest, StartsWithEmpty)
+TEST(imstring, StartsWithEmpty)
 {
     imstring s("hello");
     EXPECT_TRUE(s.starts_with(""));
 }
 
 // Test ends_with method
-TEST(ImstringTest, EndsWithMethod)
+TEST(imstring, EndsWithMethod)
 {
     imstring s("hello world");
     EXPECT_TRUE(s.ends_with("world"));
@@ -174,14 +174,14 @@ TEST(ImstringTest, EndsWithMethod)
 }
 
 // Test ends_with with empty string
-TEST(ImstringTest, EndsWithEmpty)
+TEST(imstring, EndsWithEmpty)
 {
     imstring s("hello");
     EXPECT_TRUE(s.ends_with(""));
 }
 
 // Test contains method
-TEST(ImstringTest, ContainsMethod)
+TEST(imstring, ContainsMethod)
 {
     imstring s("hello world");
     EXPECT_TRUE(s.contains("world"));
@@ -192,7 +192,7 @@ TEST(ImstringTest, ContainsMethod)
 }
 
 // Test find character method
-TEST(ImstringTest, FindCharMethod)
+TEST(imstring, FindCharMethod)
 {
     imstring s("hello world");
     EXPECT_EQ(s.find('h'), 0);
@@ -201,7 +201,7 @@ TEST(ImstringTest, FindCharMethod)
 }
 
 // Test find character with position
-TEST(ImstringTest, FindCharWithPosition)
+TEST(imstring, FindCharWithPosition)
 {
     imstring s("hello world");
     EXPECT_EQ(s.find('o', 5), 7);
@@ -209,7 +209,7 @@ TEST(ImstringTest, FindCharWithPosition)
 }
 
 // Test find string method
-TEST(ImstringTest, FindStringMethod)
+TEST(imstring, FindStringMethod)
 {
     imstring s("hello world");
     EXPECT_EQ(s.find("world"), 6);
@@ -218,14 +218,14 @@ TEST(ImstringTest, FindStringMethod)
 }
 
 // Test find empty string
-TEST(ImstringTest, FindEmptyString)
+TEST(imstring, FindEmptyString)
 {
     imstring s("hello");
     EXPECT_EQ(s.find(""), 0);
 }
 
 // Test find with position
-TEST(ImstringTest, FindWithPosition)
+TEST(imstring, FindWithPosition)
 {
     imstring s("hello hello");
     EXPECT_EQ(s.find("hello", 0), 0);
@@ -233,7 +233,7 @@ TEST(ImstringTest, FindWithPosition)
 }
 
 // Test rfind character method
-TEST(ImstringTest, RfindCharMethod)
+TEST(imstring, RfindCharMethod)
 {
     imstring s("hello world");
     EXPECT_EQ(s.rfind('o'), 7);
@@ -242,7 +242,7 @@ TEST(ImstringTest, RfindCharMethod)
 }
 
 // Test rfind character with position
-TEST(ImstringTest, RfindCharWithPosition)
+TEST(imstring, RfindCharWithPosition)
 {
     imstring s("hello world");
     EXPECT_EQ(s.rfind('o', 4), 4);
@@ -250,7 +250,7 @@ TEST(ImstringTest, RfindCharWithPosition)
 }
 
 // Test rfind string method
-TEST(ImstringTest, RfindStringMethod)
+TEST(imstring, RfindStringMethod)
 {
     imstring s("hello hello");
     EXPECT_EQ(s.rfind("hello"), 6);
@@ -258,14 +258,14 @@ TEST(ImstringTest, RfindStringMethod)
 }
 
 // Test rfind empty string
-TEST(ImstringTest, RfindEmptyString)
+TEST(imstring, RfindEmptyString)
 {
     imstring s("hello");
     EXPECT_EQ(s.rfind(""), 5);
 }
 
 // Test substr method
-TEST(ImstringTest, SubstrMethod)
+TEST(imstring, SubstrMethod)
 {
     imstring s("hello world");
     imstring sub = s.substr(0, 5);
@@ -274,7 +274,7 @@ TEST(ImstringTest, SubstrMethod)
 }
 
 // Test substr with no length
-TEST(ImstringTest, SubstrNoLength)
+TEST(imstring, SubstrNoLength)
 {
     imstring s("hello world");
     imstring sub = s.substr(6);
@@ -282,14 +282,14 @@ TEST(ImstringTest, SubstrNoLength)
 }
 
 // Test substr out of range throws
-TEST(ImstringTest, SubstrOutOfRangeThrows)
+TEST(imstring, SubstrOutOfRangeThrows)
 {
     imstring s("hello");
     EXPECT_THROW(s.substr(10), std::out_of_range);
 }
 
 // Test operator+ concatenation
-TEST(ImstringTest, OperatorPlus)
+TEST(imstring, OperatorPlus)
 {
     imstring s1("hello");
     imstring s2(" world");
@@ -299,19 +299,19 @@ TEST(ImstringTest, OperatorPlus)
 }
 
 // Test operator+ with empty strings
-TEST(ImstringTest, OperatorPlusEmpty)
+TEST(imstring, OperatorPlusEmpty)
 {
     imstring s1("hello");
     imstring s2;
     imstring result1 = s1 + s2;
     EXPECT_STREQ(result1.c_str(), "hello");
-    
+
     imstring result2 = s2 + s1;
     EXPECT_STREQ(result2.c_str(), "hello");
 }
 
 // Test operator== equality
-TEST(ImstringTest, OperatorEquality)
+TEST(imstring, OperatorEquality)
 {
     imstring s1("test");
     imstring s2("test");
@@ -321,7 +321,7 @@ TEST(ImstringTest, OperatorEquality)
 }
 
 // Test operator<=> comparison
-TEST(ImstringTest, OperatorSpaceship)
+TEST(imstring, OperatorSpaceship)
 {
     imstring s1("abc");
     imstring s2("abc");
@@ -332,7 +332,7 @@ TEST(ImstringTest, OperatorSpaceship)
 }
 
 // Test operator<< for ostream
-TEST(ImstringTest, OperatorStreamOut)
+TEST(imstring, OperatorStreamOut)
 {
     imstring s("hello");
     std::ostringstream oss;
@@ -341,41 +341,41 @@ TEST(ImstringTest, OperatorStreamOut)
 }
 
 // Test string_view conversion
-TEST(ImstringTest, StringViewConversion)
+TEST(imstring, StringViewConversion)
 {
     imstring s("test");
     std::string_view sv = s.view();
     EXPECT_EQ(sv, "test");
-    
+
     std::string_view sv2 = static_cast<std::string_view>(s);
     EXPECT_EQ(sv2, "test");
 }
 
 // Test hashing
-TEST(ImstringTest, Hashing)
+TEST(imstring, Hashing)
 {
     imstring s1("hash test");
     imstring s2("hash test");
     imstring s3("different");
-    
+
     std::hash<imstring> hasher;
     EXPECT_EQ(hasher(s1), hasher(s2));
     EXPECT_NE(hasher(s1), hasher(s3));
 }
 
 // Test hash in unordered_map
-TEST(ImstringTest, UnorderedMapWithHash)
+TEST(imstring, UnorderedMapWithHash)
 {
     std::unordered_map<imstring, int> map;
     imstring key1("test");
     imstring key2("test");
-    
+
     map[key1] = 42;
     EXPECT_EQ(map[key2], 42);
 }
 
 // Test user-defined literal
-TEST(ImstringTest, UserDefinedLiteral)
+TEST(imstring, UserDefinedLiteral)
 {
     auto s = "literal test"_is;
     EXPECT_STREQ(s.c_str(), "literal test");
@@ -383,7 +383,7 @@ TEST(ImstringTest, UserDefinedLiteral)
 }
 
 // Test empty imstring
-TEST(ImstringTest, EmptyImstring)
+TEST(imstring, EmptyImstring)
 {
     imstring s;
     EXPECT_TRUE(s.empty());
@@ -394,14 +394,14 @@ TEST(ImstringTest, EmptyImstring)
 }
 
 // Test copy-on-write semantics
-TEST(ImstringTest, CopyOnWriteSemantics)
+TEST(imstring, CopyOnWriteSemantics)
 {
     imstring s1("original");
     imstring s2 = s1;
-    
+
     // Both should have the same content
     EXPECT_EQ(s1, s2);
-    
+
     // Reassign s2 - s1 should be unaffected
     s2 = imstring("modified");
     EXPECT_NE(s1, s2);
@@ -410,7 +410,7 @@ TEST(ImstringTest, CopyOnWriteSemantics)
 }
 
 // Test case sensitivity
-TEST(ImstringTest, CaseSensitivity)
+TEST(imstring, CaseSensitivity)
 {
     imstring s1("Hello");
     imstring s2("hello");
@@ -420,7 +420,7 @@ TEST(ImstringTest, CaseSensitivity)
 }
 
 // Test special characters
-TEST(ImstringTest, SpecialCharacters)
+TEST(imstring, SpecialCharacters)
 {
     imstring s("hello\nworld\t!");
     EXPECT_EQ(s.size(), 13);
@@ -429,7 +429,7 @@ TEST(ImstringTest, SpecialCharacters)
 }
 
 // Test very long string
-TEST(ImstringTest, LongString)
+TEST(imstring, LongString)
 {
     std::string longStr(10000, 'a');
     imstring s(longStr);
@@ -439,7 +439,7 @@ TEST(ImstringTest, LongString)
 }
 
 // Test substr of substr
-TEST(ImstringTest, SubstrOfSubstr)
+TEST(imstring, SubstrOfSubstr)
 {
     imstring s("hello world");
     imstring sub1 = s.substr(0, 8);
@@ -448,20 +448,20 @@ TEST(ImstringTest, SubstrOfSubstr)
 }
 
 // Test multiple copies
-TEST(ImstringTest, MultipleCopies)
+TEST(imstring, MultipleCopies)
 {
     imstring s1("original");
     imstring s2 = s1;
     imstring s3 = s1;
     imstring s4 = s2;
-    
+
     EXPECT_EQ(s1, s2);
     EXPECT_EQ(s1, s3);
     EXPECT_EQ(s1, s4);
 }
 
 // Test std::format basic
-TEST(ImstringTest, FormatBasic)
+TEST(imstring, FormatBasic)
 {
     imstring s("hello");
     std::string result = std::format("{}", s);
@@ -469,7 +469,7 @@ TEST(ImstringTest, FormatBasic)
 }
 
 // Test std::format with multiple arguments
-TEST(ImstringTest, FormatMultipleArguments)
+TEST(imstring, FormatMultipleArguments)
 {
     imstring s1("world");
     imstring s2("C++");
@@ -478,7 +478,7 @@ TEST(ImstringTest, FormatMultipleArguments)
 }
 
 // Test std::format with width and alignment
-TEST(ImstringTest, FormatWidthAndAlignment)
+TEST(imstring, FormatWidthAndAlignment)
 {
     imstring s("test");
     // Left align
@@ -490,7 +490,7 @@ TEST(ImstringTest, FormatWidthAndAlignment)
 }
 
 // Test std::format with fill character and alignment
-TEST(ImstringTest, FormatFillCharacter)
+TEST(imstring, FormatFillCharacter)
 {
     imstring s("hi");
     // Left align with fill
@@ -502,7 +502,7 @@ TEST(ImstringTest, FormatFillCharacter)
 }
 
 // Test std::format with mixed types
-TEST(ImstringTest, FormatMixedTypes)
+TEST(imstring, FormatMixedTypes)
 {
     imstring name("Alice");
     int age = 30;
@@ -512,19 +512,19 @@ TEST(ImstringTest, FormatMixedTypes)
 }
 
 // Test std::format with empty imstring
-TEST(ImstringTest, FormatEmptyImstring)
+TEST(imstring, FormatEmptyImstring)
 {
     imstring s;
     std::string result = std::format("Empty: '{}'", s);
     EXPECT_EQ(result, "Empty: ''");
-    
+
     // Empty with alignment
     EXPECT_EQ(std::format("{:>5}", s), "     ");
     EXPECT_EQ(std::format("{:<5}", s), "     ");
 }
 
 // Test std::format with escaped braces
-TEST(ImstringTest, FormatEscapedBraces)
+TEST(imstring, FormatEscapedBraces)
 {
     imstring s("value");
     std::string result = std::format("{{{}}} = {}", "key", s);
@@ -532,7 +532,7 @@ TEST(ImstringTest, FormatEscapedBraces)
 }
 
 // Test std::format with special characters
-TEST(ImstringTest, FormatSpecialCharacters)
+TEST(imstring, FormatSpecialCharacters)
 {
     imstring s1("hello\nworld");
     imstring s2("tab\there");
