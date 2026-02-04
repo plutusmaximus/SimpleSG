@@ -1,7 +1,7 @@
 #pragma once
 
+#include "Result.h"
 #include "VecMath.h"
-#include "Error.h"
 
 class Model;
 

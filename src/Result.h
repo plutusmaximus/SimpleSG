@@ -3,9 +3,9 @@
 #include "imstring.h"
 
 #include <format>
-#include <spdlog/sinks/sink.h>
-#include <spdlog/spdlog.h>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <variant>
 
 /// @brief Error code enumeration.

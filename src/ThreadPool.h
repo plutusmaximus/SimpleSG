@@ -1,8 +1,7 @@
 #pragma once
 
-#include "Error.h"
-
 #include "PoolAllocator.h"
+#include "Result.h"
 
 #include <concepts>
 #include <cstddef>

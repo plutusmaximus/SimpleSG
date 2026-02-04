@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Error.h"
 #include "imstring.h"
+#include "Result.h"
 
 #include <cstddef>
 #include <cstdint>

@@ -1,6 +1,6 @@
 #include "SdlRenderGraph.h"
 
-#include "Error.h"
+#include "Result.h"
 #include "scope_exit.h"
 
 #include "SdlGpuDevice.h"

@@ -1,9 +1,9 @@
 #include "Shapes.h"
+#include "Error.h"
+
 #include <cmath>
 #include <algorithm>
 #include <numbers>
-
-#include "Error.h"
 
 static constexpr float M_PI = std::numbers::pi_v<float>;
 
