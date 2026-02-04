@@ -1,4 +1,8 @@
+#define __LOGGER_NAME__ "SDL "
+
 #include "SdlRenderGraph.h"
+
+#include "Logging.h"
 
 #include "Result.h"
 #include "scope_exit.h"

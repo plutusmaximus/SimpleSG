@@ -6,12 +6,9 @@
 #include <cstddef>
 #include <format>
 #include <memory>
-#include <spdlog/sinks/sink.h>
 #include <spdlog/spdlog.h>
 #include <string>
 #include <string_view>
-
-// ====== Logger instance ======
 
 /// @brief  consteval string label that can be used as a non-type template parameter
 /// to specialize loggers by label.

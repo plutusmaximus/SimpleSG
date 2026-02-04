@@ -2,6 +2,8 @@
 
 #include "Model.h"
 
+#include "Logging.h"
+
 ModelSpec::ModelSpec(
     const imvector<MeshSpec>& meshSpecs,
     const imvector<MeshInstance>& meshInstances,

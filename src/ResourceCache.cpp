@@ -1,6 +1,8 @@
 #define __LOGGER_NAME__ "RSRC"
 
 #include "ResourceCache.h"
+
+#include "Logging.h"
 #include "scope_exit.h"
 #include "Stopwatch.h"
 #include "ThreadPool.h"

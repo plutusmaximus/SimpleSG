@@ -4,6 +4,7 @@
 #include "Application.h"
 #include "Camera.h"
 #include "GpuDevice.h"
+#include "Logging.h"
 #include "ResourceCache.h"
 #include "scope_exit.h"
 

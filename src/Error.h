@@ -2,14 +2,12 @@
 
 #include "imstring.h"
 
-#include <concepts>
-#include <cstddef>
 #include <format>
 #include <memory>
 #include <spdlog/sinks/sink.h>
-#include <spdlog/spdlog.h>
 #include <string>
 #include <string_view>
+#include <utility>
 
 /// @brief Assertion helper class.
 class Asserts
