@@ -168,6 +168,39 @@ public:
 
     const imstring& GetMessage() const { return m_Message; }
 
+    // ===== Expression error helpers ======
+
+    /// @brief Used to create error messages for assertion failures.
+    template<typename... Args>
+    static Error MakeExprError(const char* file,
+        const int line,
+        const char* exprStr,
+        std::string_view format,
+        Args&&... args)
+    {
+        std::string message;
+        if(!format.empty())
+        {
+            message = std::format("[{}:{}]:({}) {}",
+                file,
+                line,
+                exprStr,
+                std::vformat(format, std::make_format_args(args...)));
+        }
+        else
+        {
+            message = std::format("[{}:{}]:{}", file, line, exprStr);
+        }
+
+        return Error(message);
+    }
+
+    static Error MakeExprError(
+        const char* file, const int line, const char* exprStr, const Error& error)
+    {
+        return MakeExprError(file, line, exprStr, "{}", error);
+    }
+
 private:
 
     ErrorCode m_Code;
@@ -262,39 +295,6 @@ public:
         }
 
         return Log(message, mute);
-    }
-
-    // ===== Expression error helpers ======
-
-    /// @brief Used to create error messages for assertion failures.
-    template<typename... Args>
-    static Error MakeExprError(const char* file,
-        const int line,
-        const char* exprStr,
-        std::string_view format,
-        Args&&... args)
-    {
-        std::string message;
-        if(!format.empty())
-        {
-            message = std::format("[{}:{}]:({}) {}",
-                file,
-                line,
-                exprStr,
-                std::vformat(format, std::make_format_args(args...)));
-        }
-        else
-        {
-            message = std::format("[{}:{}]:{}", file, line, exprStr);
-        }
-
-        return Error(message);
-    }
-
-    static Error MakeExprError(
-        const char* file, const int line, const char* exprStr, const Error& error)
-    {
-        return MakeExprError(file, line, exprStr, "{}", error);
     }
 };
 
@@ -494,7 +494,7 @@ private:
 #endif // NDEBUG
 
 #define MAKE_EXPR_ERROR(exprStr, ...)                                                              \
-    Asserts::MakeExprError(__FILE__, __LINE__, exprStr, ##__VA_ARGS__)
+    Error::MakeExprError(__FILE__, __LINE__, exprStr, ##__VA_ARGS__)
 
 #define expect(expr, ...)                                                                          \
     {                                                                                              \
