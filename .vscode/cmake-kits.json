@@ -1,0 +1,55 @@
+[
+  {
+    "name": "VS 2022 x64 (MSVC env) + Ninja",
+    "visualStudio": "27d2c3ae",
+    "visualStudioArchitecture": "x64",
+    "isTrusted": true,
+    "preferredGenerator": {
+      "name": "Ninja"
+    }
+  },
+  {
+    "name": "Visual Studio Community 2022 Release - amd64",
+    "visualStudio": "27d2c3ae",
+    "visualStudioArchitecture": "x64",
+    "isTrusted": true,
+    "preferredGenerator": {
+      "name": "Visual Studio 17 2022",
+      "platform": "x64",
+      "toolset": "host=x64"
+    }
+  },
+  {
+    "name": "Visual Studio Community 2022 Release - amd64_x86",
+    "visualStudio": "27d2c3ae",
+    "visualStudioArchitecture": "x64",
+    "isTrusted": true,
+    "preferredGenerator": {
+      "name": "Visual Studio 17 2022",
+      "platform": "win32",
+      "toolset": "host=x64"
+    }
+  },
+  {
+    "name": "Visual Studio Community 2022 Release - x86",
+    "visualStudio": "27d2c3ae",
+    "visualStudioArchitecture": "x86",
+    "isTrusted": true,
+    "preferredGenerator": {
+      "name": "Visual Studio 17 2022",
+      "platform": "win32",
+      "toolset": "host=x86"
+    }
+  },
+  {
+    "name": "Visual Studio Community 2022 Release - x86_amd64",
+    "visualStudio": "27d2c3ae",
+    "visualStudioArchitecture": "x86",
+    "isTrusted": true,
+    "preferredGenerator": {
+      "name": "Visual Studio 17 2022",
+      "platform": "x64",
+      "toolset": "host=x86"
+    }
+  }
+]
