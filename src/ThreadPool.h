@@ -52,8 +52,6 @@ public:
         return true;
     }
 
-    static void ProcessCompletions();
-
 private:
     struct Job
     {
