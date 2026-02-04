@@ -31,7 +31,7 @@ function(compiler_flags target_name)
 endfunction()
 
 # ============================================================
-# Dependencies (SDL3, spdlog, glm, stb)
+# Dependencies (SDL3, spdlog, stb)
 # ============================================================
 
 # --- Google Test
@@ -66,12 +66,6 @@ set(SPDLOG_INSTALL OFF CACHE BOOL "Disable install target" FORCE)
 set(SPDLOG_HEADER_ONLY OFF CACHE BOOL "Disable header-only mode" FORCE)
 
 add_subdirectory(thirdparty/spdlog)
-
-# --- glm
-set(GLM_BUILD_TESTS OFF CACHE BOOL "Build GLM test programs" FORCE)
-set(GLM_BUILD_INSTALL OFF CACHE BOOL "Generate install target" FORCE)
-
-add_subdirectory(thirdparty/glm)
 
 # --- assimp
 set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "Build assimp tests" FORCE)
@@ -163,12 +157,14 @@ set(SSG_HEADERS
   src/imstring.h
   src/imvector.h
   src/GpuDevice.h
+  src/Logging.h
   src/Material.h
   src/Mesh.h
   src/Model.h
   src/PoolAllocator.h
   src/RenderGraph.h
   src/ResourceCache.h
+  src/Result.h
   src/SdlGpuDevice.h
   src/SdlRenderGraph.h
   src/Shapes.h
@@ -188,7 +184,7 @@ target_sources(ssg
   PUBLIC FILE_SET HEADERS BASE_DIRS src FILES ${SSG_HEADERS}
 )
 
-target_link_libraries(ssg PUBLIC glm::glm spdlog::spdlog SDL3::SDL3 assimp::assimp)
+target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 assimp::assimp)
 target_include_directories(ssg PUBLIC src PRIVATE thirdparty/stb)
 
 compiler_flags(ssg)
@@ -240,9 +236,14 @@ add_executable(Tests
   "tests/EcsChildTransformPool.test.cpp"
   "tests/imstring.test.cpp"
   "tests/imvector.test.cpp"
+  "tests/Mat44.test.cpp"
   "tests/PoolAllocator.test.cpp"
+  "tests/Quat.test.cpp"
   "tests/Radians.test.cpp"
   "tests/scope_exit.test.cpp"
+  "tests/Vec2.test.cpp"
+  "tests/Vec3.test.cpp"
+  "tests/Vec4.test.cpp"
   "tests/Uri.test.cpp")
 
 target_link_libraries(Tests PRIVATE gtest_main ssg::ssg spdlog::spdlog)

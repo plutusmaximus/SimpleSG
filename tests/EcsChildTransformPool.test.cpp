@@ -40,7 +40,7 @@ namespace
 
         Vec3f axis{ axisDist(rng), axisDist(rng), axisDist(rng) };
         // Ensure axis is non-zero; fallback to Y axis if too small.
-        if (glm::length(static_cast<glm::vec3>(axis)) < 1e-4f)
+        if (axis.Length() < 1e-4f)
         {
             axis = Vec3f{ 0.f, 1.f, 0.f };
         }

@@ -1,9 +1,12 @@
 #pragma once
 
-#include <numbers>
+#include "Error.h"
 
-#include <glm/glm.hpp>
-#include <glm/gtc/quaternion.hpp>
+#include <numbers>
+#include <cmath>
+#include <cstring>
+#include <cstddef>
+#include <type_traits>
 
 template <typename T>
 class Radians
@@ -17,14 +20,14 @@ class Radians
 
 public:
 
-    Radians() = default;
+    constexpr Radians() = default;
 
     explicit constexpr Radians(const T value)
      : m_Value(Wrap(value))
     {
     }
 
-    Radians<T>& operator=(const T other)
+    constexpr Radians<T>& operator=(const T other)
     {
         m_Value = other;
         return *this;
@@ -131,74 +134,122 @@ inline constexpr Radians<T> operator*(const T a, const Radians<T> b)
 }
 
 template<typename T>
-class Vec2 : public glm::vec<2, T>
+class Vec2
 {
-    using Base = glm::vec<2, T>;
 public:
 
-    constexpr Vec2(const Base& v)
-        : Base(v)
+    T x;
+    T y;
+
+    constexpr Vec2() = default;
+
+    constexpr Vec2(T value)
+        : x(value), y(value)
+    {
+    }
+    constexpr Vec2(T x, T y)
+        : x(x), y(y)
     {
     }
 
-    using Base::vec;
-    using Base::x;
-    using Base::y;
-
-    Vec2 Normalize() const
+    constexpr Vec2<T> Normalize() const
     {
-        return glm::normalize(*this);
+        const T length = std::sqrt(x * x + y * y);
+        return Vec2<T>(x / length, y / length);
+    }
+
+    constexpr T Length() const
+    {
+        return std::sqrt(x * x + y * y);
     }
 
     constexpr Vec2 Cross(const Vec2& that) const
     {
-        return glm::cross(*this, that);
+        return Vec2(x * that.y - y * that.x, y * that.x - x * that.y);
     }
 
     constexpr T Dot(const Vec2& that) const
     {
-        // This static_cast is needed because glm defines:
-        // T dot(T x, T y)
-        // And without the static cast calling dot() incorrectly resolves
-        // to that overload.
-        return glm::dot(static_cast<const Base&>(*this), that);
+        return x * that.x + y * that.y;
+    }
+
+    constexpr bool operator==(const Vec2& that) const
+    {
+        return x == that.x && y == that.y;
     }
 
     constexpr Vec2 operator+(const Vec2& that) const
     {
-        return glm::operator+(*this, that);
+        return Vec2(x + that.x, y + that.y);
     }
 
     constexpr Vec2 operator-(const Vec2& that) const
     {
-        return glm::operator-(*this, that);
+        return Vec2(x - that.x, y - that.y);
     }
 
     constexpr Vec2 operator*(const Vec2& that) const
     {
-        return glm::operator*(*this, that);
+        return Vec2(x * that.x, y * that.y);
     }
 
     constexpr Vec2 operator*(const T scalar) const
     {
-        return glm::operator*(*this, scalar);
+        return Vec2(x * scalar, y * scalar);
     }
 
-    Vec2& operator+=(const Vec2& that)
+    constexpr Vec2 operator-() const
     {
-        this->Base::operator+=(static_cast<const Base&>(that));
+        return Vec2(-x, -y);
+    }
+
+    constexpr T& operator[](size_t index)
+    {
+        switch (index)
+        {
+        case 0: return x;
+        case 1: return y;
+        default: eassert(false, "Index out of range");
+        return x; // This line will never be reached, but it silences compiler warnings.
+        }
+    }
+
+    constexpr const T& operator[](size_t index) const
+    {
+        switch (index)
+        {
+        case 0: return x;
+        case 1: return y;
+        default: eassert(false, "Index out of range");
+        return x; // This line will never be reached, but it silences compiler warnings.
+        }
+    }
+
+    constexpr Vec2& operator+=(const Vec2& that)
+    {
+        x += that.x;
+        y += that.y;
         return *this;
     }
 
-    Vec2& operator-=(const Vec2& that)
+    constexpr Vec2& operator-=(const Vec2& that)
     {
-        this->Base::operator-=(static_cast<const Base&>(that));
+        x -= that.x;
+        y -= that.y;
         return *this;
     }
 
-    Vec2& operator*=(const Vec2& that)
+    constexpr Vec2& operator*=(const Vec2& that)
     {
-        this->Base::operator*=(static_cast<const Base&>(that));
+        x *= that.x;
+        y *= that.y;
+        return *this;
+    }
+
+    constexpr Vec2<T>& operator*=(const T scalar)
+    {
+        x *= scalar;
+        y *= scalar;
         return *this;
     }
 };
@@ -210,80 +261,137 @@ inline constexpr Vec2<T> operator*(const T a, const Vec2<T> b)
 }
 
 template<typename T>
-class Vec3 : public glm::vec<3, T>
+class Vec3
 {
-    using Base = glm::vec<3, T>;
-
 public:
 
-    constexpr Vec3(const Base& v)
-        : Base(v)
+    T x;
+    T y;
+    T z;
+
+    constexpr Vec3() = default;
+
+    constexpr Vec3(T value)
+        : x(value), y(value), z(value)
     {
     }
-
-    using Base::vec;
-    using Base::x;
-    using Base::y;
-    using Base::z;
+    constexpr Vec3(T x, T y, T z)
+        : x(x), y(y), z(z)
+    {
+    }
 
     static inline consteval Vec3 XAXIS() { return Vec3{ 1, 0, 0 }; }
     static inline consteval Vec3 YAXIS() { return Vec3{ 0, 1, 0 }; }
     static inline consteval Vec3 ZAXIS() { return Vec3{ 0, 0, 1 }; }
 
-    Vec3 Normalize() const
+    constexpr Vec3 Normalize() const
     {
-        return glm::normalize(*this);
+        const T length = std::sqrt(x * x + y * y + z * z);
+        return Vec3(x / length, y / length, z / length);
     }
-    
+
+    constexpr T Length() const
+    {
+        return std::sqrt(x * x + y * y + z * z);
+    }
+
     constexpr Vec3 Cross(const Vec3& that) const
     {
-        return glm::cross(*this, that);
+        return Vec3(
+            y * that.z - z * that.y,
+            z * that.x - x * that.z,
+            x * that.y - y * that.x
+        );
     }
 
     constexpr T Dot(const Vec3& that) const
     {
-        // This static_cast is needed because glm defines:
-        // T dot(T x, T y)
-        // And without the static cast calling dot() incorrectly resolves
-        // to that overload.
-        return glm::dot(static_cast<const Base&>(*this), that);
+        return x * that.x + y * that.y + z * that.z;
+    }
+
+    constexpr bool operator==(const Vec3& that) const
+    {
+        return x == that.x && y == that.y && z == that.z;
     }
 
     constexpr Vec3 operator+(const Vec3& that) const
     {
-        return glm::operator+(*this, that);
+        return Vec3(x + that.x, y + that.y, z + that.z);
     }
 
     constexpr Vec3 operator-(const Vec3& that) const
     {
-        return glm::operator-(*this, that);
+        return Vec3(x - that.x, y - that.y, z - that.z);
     }
 
     constexpr Vec3 operator*(const Vec3& that) const
     {
-        return glm::operator*(*this, that);
+        return Vec3(x * that.x, y * that.y, z * that.z);
     }
 
     constexpr Vec3 operator*(const T scalar) const
     {
-        return glm::operator*(*this, scalar);
+        return Vec3(x * scalar, y * scalar, z * scalar);
     }
 
-    Vec3& operator+=(const Vec3& that)
+    constexpr Vec3 operator-() const
     {
-        this->Base::operator+=(static_cast<const Base&>(that));
+        return Vec3(-x, -y, -z);
+    }
+
+    constexpr T& operator[](size_t index)
+    {
+        switch (index)
+        {
+        case 0: return x;
+        case 1: return y;
+        case 2: return z;
+        default: eassert(false, "Index out of range");
+        return x; // This line will never be reached, but it silences compiler warnings.
+        }
+    }
+
+    constexpr const T& operator[](size_t index) const
+    {
+        switch (index)
+        {
+        case 0: return x;
+        case 1: return y;
+        case 2: return z;
+        default: eassert(false, "Index out of range");
+        return x; // This line will never be reached, but it silences compiler warnings.
+        }
+    }
+
+    constexpr Vec3& operator+=(const Vec3& that)
+    {
+        x += that.x;
+        y += that.y;
+        z += that.z;
         return *this;
     }
 
-    Vec3& operator-=(const Vec3& that)
+    constexpr Vec3& operator-=(const Vec3& that)
     {
-        this->Base::operator-=(static_cast<const Base&>(that));
+        x -= that.x;
+        y -= that.y;
+        z -= that.z;
         return *this;
     }
 
-    Vec3& operator*=(const Vec3& that)
+    constexpr Vec3& operator*=(const Vec3& that)
     {
-        this->Base::operator*=(static_cast<const Base&>(that));
+        x *= that.x;
+        y *= that.y;
+        z *= that.z;
+        return *this;
+    }
+
+    constexpr Vec3& operator*=(const T scalar)
+    {
+        x *= scalar;
+        y *= scalar;
+        z *= scalar;
         return *this;
     }
 };
@@ -295,76 +403,137 @@ inline constexpr Vec3<T> operator*(const T a, const Vec3<T> b)
 }
 
 template<typename T>
-class Vec4 : public glm::vec<4, T>
+class Vec4
 {
-    using Base = glm::vec<4, T>;
 public:
 
-    constexpr Vec4(const Base& v)
-        : Base(v)
+    T x;
+    T y;
+    T z;
+    T w;
+
+    constexpr Vec4() = default;
+
+    constexpr Vec4(T value)
+        : x(value), y(value), z(value), w(value)
     {
     }
 
-    using Base::vec;
-    using Base::x;
-    using Base::y;
-    using Base::z;
-    using Base::w;
-
-    Vec4 Normalize() const
+    constexpr Vec4(T x, T y, T z, T w)
+        : x(x), y(y), z(z), w(w)
     {
-        return glm::normalize(*this);
     }
 
-    constexpr Vec4 Cross(const Vec4& that) const
+    constexpr Vec4 Normalize() const
+    {
+        const T length = std::sqrt(x * x + y * y + z * z + w * w);
+        return Vec4(x / length, y / length, z / length, w / length);
+    }
+
+    constexpr T Length() const
+    {
+        return std::sqrt(x * x + y * y + z * z + w * w);
+    }
+
+    /*constexpr Vec4 Cross(const Vec4& that) const
     {
         return glm::cross(*this, that);
-    }
+    }*/
 
     constexpr T Dot(const Vec4& that) const
     {
-        // This static_cast is needed because glm defines:
-        // T dot(T x, T y)
-        // And without the static cast calling dot() incorrectly resolves
-        // to that overload.
-        return glm::dot(static_cast<const Base&>(*this), that);
+        return x * that.x + y * that.y + z * that.z + w * that.w;
+    }
+
+    constexpr bool operator==(const Vec4& that) const
+    {
+        return x == that.x && y == that.y && z == that.z && w == that.w;
     }
 
     constexpr Vec4 operator+(const Vec4& that) const
     {
-        return glm::operator+(*this, that);
+        return Vec4(x + that.x, y + that.y, z + that.z, w + that.w);
     }
 
     constexpr Vec4 operator-(const Vec4& that) const
     {
-        return glm::operator-(*this, that);
+        return Vec4(x - that.x, y - that.y, z - that.z, w - that.w);
     }
 
     constexpr Vec4 operator*(const Vec4& that) const
     {
-        return glm::operator*(*this, that);
+        return Vec4(x * that.x, y * that.y, z * that.z, w * that.w);
     }
 
     constexpr Vec4 operator*(const T scalar) const
     {
-        return glm::operator*(*this, scalar);
+        return Vec4(x * scalar, y * scalar, z * scalar, w * scalar);
     }
 
-    Vec4& operator+=(const Vec4& that)
+    constexpr Vec4 operator-() const
     {
-        this->Base::operator+=(static_cast<const Base&>(that));
+        return Vec4(-x, -y, -z, -w);
+    }
+
+    constexpr T& operator[](size_t index)
+    {
+        switch (index)
+        {
+        case 0: return x;
+        case 1: return y;
+        case 2: return z;
+        case 3: return w;
+        default: eassert(false, "Index out of range");
+        return x; // This line will never be reached, but it silences compiler warnings.
+        }
+    }
+
+    constexpr const T& operator[](size_t index) const
+    {
+        switch (index)
+        {
+        case 0: return x;
+        case 1: return y;
+        case 2: return z;
+        case 3: return w;
+        default: eassert(false, "Index out of range");
+        return x; // This line will never be reached, but it silences compiler warnings.
+        }
+    }
+
+    constexpr Vec4& operator+=(const Vec4& that)
+    {
+        x += that.x;
+        y += that.y;
+        z += that.z;
+        w += that.w;
         return *this;
     }
 
-    Vec4& operator-=(const Vec4& that)
+    constexpr Vec4& operator-=(const Vec4& that)
     {
-        this->Base::operator-=(static_cast<const Base&>(that));
+        x -= that.x;
+        y -= that.y;
+        z -= that.z;
+        w -= that.w;
         return *this;
     }
 
-    Vec4& operator*=(const Vec4& that)
+    constexpr Vec4& operator*=(const Vec4& that)
     {
-        this->Base::operator*=(static_cast<const Base&>(that));
+        x *= that.x;
+        y *= that.y;
+        z *= that.z;
+        w *= that.w;
+        return *this;
+    }
+
+    constexpr Vec4& operator*=(const T scalar)
+    {
+        x *= scalar;
+        y *= scalar;
+        z *= scalar;
+        w *= scalar;
         return *this;
     }
 };
@@ -376,30 +545,36 @@ inline constexpr Vec4<T> operator*(const T a, const Vec4<T> b)
 }
 
 template<typename T>
-class Quat : public glm::qua<T, glm::qualifier::defaultp>
+class Quat
 {
-    using Base = glm::qua<T, glm::qualifier::defaultp>;
-
 public:
 
-    constexpr Quat(const Base& q)
-        : Base(q)
+    T x;
+    T y;
+    T z;
+    T w;
+
+    constexpr Quat() = default;
+
+    constexpr Quat(T x, T y, T z, T w)
+        : x(x), y(y), z(z), w(w)
     {
     }
 
-    Quat(const Radians<T> angle, const Vec3<T>& axis)
-        : Base(glm::angleAxis(angle.Value(), axis))
+    constexpr Quat(const Radians<T> angle, const Vec3<T>& axis)
     {
+        const T ao2 = angle.Value() / 2;
+        const auto s = std::sin(ao2);
+        x = axis.x * s;
+        y = axis.y * s;
+        z = axis.z * s;
+        w = std::cos(ao2);
     }
 
-    using Base::x;
-    using Base::y;
-    using Base::z;
-    using Base::w;
-
-    Quat Normalize() const
+    constexpr Quat Normalize() const
     {
-        return glm::normalize(*this);
+        const T length = std::sqrt(x * x + y * y + z * z + w * w);
+        return Quat(x / length, y / length, z / length, w / length);
     }
 
     float GetRotation(const Vec3<T>& axis) const
@@ -410,109 +585,371 @@ public:
         return std::acos(dotProduct) * 2;
     }
 
+    constexpr Quat Conjugate() const
+    {
+        return Quat(-x, -y, -z, w);
+    }
+
     constexpr Quat operator*(const Quat& that) const
     {
-        return Quat(glm::operator*(*this, that)).Normalize();
+        return Quat(
+            w * that.x + x * that.w + y * that.z - z * that.y,
+            w * that.y - x * that.z + y * that.w + z * that.x,
+            w * that.z + x * that.y - y * that.x + z * that.w,
+            w * that.w - x * that.x - y * that.y - z * that.z
+        ).Normalize();
     }
 
-    Quat& operator*=(const Quat& that)
+    constexpr bool operator==(const Quat& that) const
+    {
+        return x == that.x && y == that.y && z == that.z && w == that.w;
+    }
+
+    constexpr Vec3<T> operator*(const Vec3<T>& v) const
+    {
+        const auto qv = Quat<T>(v.x, v.y, v.z, static_cast<T>(0));
+        const auto result = (*this * qv * this->Conjugate()).Normalize();
+        return Vec3<T>(result.x, result.y, result.z);
+    }
+
+    constexpr Quat operator-(const Quat& that) const
+    {
+        return Quat(x - that.x, y - that.y, z - that.z, w - that.w);
+    }
+
+    constexpr Quat operator-(const Vec3<T>& v) const
+    {
+        return Quat(x - v.x, y - v.y, z - v.z, w);
+    }
+
+    constexpr Quat operator-(const Vec4<T>& v) const
+    {
+        return Quat(x - v.x, y - v.y, z - v.z, w - v.w);
+    }
+
+    constexpr Quat operator-() const
+    {
+        return Quat(-x, -y, -z, -w);
+    }
+
+    constexpr Quat& operator*=(const Quat& that)
     {
         return (*this = *this * that);
-    }
-
-    Vec3<T> operator*(const Vec3<T>& v) const
-    {
-        const auto a = static_cast<const Base&>(*this);
-        return a * v;
     }
 };
 
 // 4x4 column-major matrix
 template<typename T>
-class Mat44 : public glm::mat<4, 4, T>
+class Mat44
 {
-    using Base = glm::mat<4, 4, T>;
 public:
 
-    constexpr Mat44(const Base& m)
-        : Base(m)
+    Vec4<T> m[4];
+
+    constexpr Mat44() = default;
+
+    constexpr explicit Mat44(T value)
     {
+        m[0][1] = m[0][2] = m[0][3] = static_cast<T>(0);
+        m[1][0] = m[1][2] = m[1][3] = static_cast<T>(0);
+        m[2][0] = m[2][1] = m[2][3] = static_cast<T>(0);
+        m[3][0] = m[3][1] = m[3][2] = static_cast<T>(0);
+
+        m[0][0] = m[1][1] = m[2][2] = m[3][3] = value;
     }
 
-    using Base::mat;
+    constexpr Mat44(T m00, T m01, T m02, T m03,
+          T m10, T m11, T m12, T m13,
+          T m20, T m21, T m22, T m23,
+          T m30, T m31, T m32, T m33)
+    {
+        m[0][0] = m00; m[0][1] = m01; m[0][2] = m02; m[0][3] = m03;
+        m[1][0] = m10; m[1][1] = m11; m[1][2] = m12; m[1][3] = m13;
+        m[2][0] = m20; m[2][1] = m21; m[2][2] = m22; m[2][3] = m23;
+        m[3][0] = m30; m[3][1] = m31; m[3][2] = m32; m[3][3] = m33;
+    }
 
-    Mat44 Mul(const Mat44& other) const
+    constexpr explicit Mat44(const Quat<T>& q)
+    {
+        const T x = q.x;
+        const T y = q.y;
+        const T z = q.z;
+        const T w = q.w;
+
+        const T xx = x * x;
+        const T yy = y * y;
+        const T zz = z * z;
+        const T xy = x * y;
+        const T xz = x * z;
+        const T yz = y * z;
+        const T wx = w * x;
+        const T wy = w * y;
+        const T wz = w * z;
+
+        // Column-major 4x4 rotation matrix
+        m[0][0] = static_cast<T>(1) - static_cast<T>(2) * (yy + zz);
+        m[0][1] = static_cast<T>(2) * (xy + wz);
+        m[0][2] = static_cast<T>(2) * (xz - wy);
+        m[0][3] = static_cast<T>(0);
+
+        m[1][0] = static_cast<T>(2) * (xy - wz);
+        m[1][1] = static_cast<T>(1) - static_cast<T>(2) * (xx + zz);
+        m[1][2] = static_cast<T>(2) * (yz + wx);
+        m[1][3] = static_cast<T>(0);
+
+        m[2][0] = static_cast<T>(2) * (xz + wy);
+        m[2][1] = static_cast<T>(2) * (yz - wx);
+        m[2][2] = static_cast<T>(1) - static_cast<T>(2) * (xx + yy);
+        m[2][3] = static_cast<T>(0);
+
+        m[3][0] = static_cast<T>(0);
+        m[3][1] = static_cast<T>(0);
+        m[3][2] = static_cast<T>(0);
+        m[3][3] = static_cast<T>(1);
+    }
+
+    constexpr Mat44 Mul(const Mat44& other) const
     {
         return *this * other;
     }
 
-    Vec4<T> Mul(const Vec4<T>& vector) const
+    constexpr Vec4<T> Mul(const Vec4<T>& vector) const
     {
         return *this * vector;
     }
 
-    Vec4<T> Mul(const Vec3<T>& vector) const
+    constexpr Vec4<T> Mul(const Vec3<T>& vector) const
     {
         return *this * vector;
     }
 
-    Mat44& operator*=(const Mat44& that)
+    constexpr bool operator==(const Mat44& that) const
     {
-        this->Base::operator*=(static_cast<const Base&>(that));
-        return *this;
+        return 0 == std::memcmp(this, &that, sizeof(*this));
     }
 
-    Mat44& operator=(const Mat44& that)
+    constexpr Mat44& operator*=(const Mat44& that)
     {
-        this->Base::operator=(static_cast<const Base&>(that));
-        return *this;
+        return *this = *this * that;
     }
 
-    Mat44 Inverse() const
+    constexpr Mat44 Inverse() const
     {
-        return glm::inverse(*this);
+        const auto& mm = *this;
+
+        const T m00 = mm[0][0], m01 = mm[0][1], m02 = mm[0][2], m03 = mm[0][3];
+        const T m10 = mm[1][0], m11 = mm[1][1], m12 = mm[1][2], m13 = mm[1][3];
+        const T m20 = mm[2][0], m21 = mm[2][1], m22 = mm[2][2], m23 = mm[2][3];
+        const T m30 = mm[3][0], m31 = mm[3][1], m32 = mm[3][2], m33 = mm[3][3];
+
+        T inv[16];
+        inv[0]  =  m11 * (m22 * m33 - m23 * m32) - m21 * (m12 * m33 - m13 * m32) + m31 * (m12 * m23 - m13 * m22);
+        inv[4]  = -m10 * (m22 * m33 - m23 * m32) + m20 * (m12 * m33 - m13 * m32) - m30 * (m12 * m23 - m13 * m22);
+        inv[8]  =  m10 * (m21 * m33 - m23 * m31) - m20 * (m11 * m33 - m13 * m31) + m30 * (m11 * m23 - m13 * m21);
+        inv[12] = -m10 * (m21 * m32 - m22 * m31) + m20 * (m11 * m32 - m12 * m31) - m30 * (m11 * m22 - m12 * m21);
+
+        inv[1]  = -m01 * (m22 * m33 - m23 * m32) + m21 * (m02 * m33 - m03 * m32) - m31 * (m02 * m23 - m03 * m22);
+        inv[5]  =  m00 * (m22 * m33 - m23 * m32) - m20 * (m02 * m33 - m03 * m32) + m30 * (m02 * m23 - m03 * m22);
+        inv[9]  = -m00 * (m21 * m33 - m23 * m31) + m20 * (m01 * m33 - m03 * m31) - m30 * (m01 * m23 - m03 * m21);
+        inv[13] =  m00 * (m21 * m32 - m22 * m31) - m20 * (m01 * m32 - m02 * m31) + m30 * (m01 * m22 - m02 * m21);
+
+        inv[2]  =  m01 * (m12 * m33 - m13 * m32) - m11 * (m02 * m33 - m03 * m32) + m31 * (m02 * m13 - m03 * m12);
+        inv[6]  = -m00 * (m12 * m33 - m13 * m32) + m10 * (m02 * m33 - m03 * m32) - m30 * (m02 * m13 - m03 * m12);
+        inv[10] =  m00 * (m11 * m33 - m13 * m31) - m10 * (m01 * m33 - m03 * m31) + m30 * (m01 * m13 - m03 * m11);
+        inv[14] = -m00 * (m11 * m32 - m12 * m31) + m10 * (m01 * m32 - m02 * m31) - m30 * (m01 * m12 - m02 * m11);
+
+        inv[3]  = -m01 * (m12 * m23 - m13 * m22) + m11 * (m02 * m23 - m03 * m22) - m21 * (m02 * m13 - m03 * m12);
+        inv[7]  =  m00 * (m12 * m23 - m13 * m22) - m10 * (m02 * m23 - m03 * m22) + m20 * (m02 * m13 - m03 * m12);
+        inv[11] = -m00 * (m11 * m23 - m13 * m21) + m10 * (m01 * m23 - m03 * m21) - m20 * (m01 * m13 - m03 * m11);
+        inv[15] =  m00 * (m11 * m22 - m12 * m21) - m10 * (m01 * m22 - m02 * m21) + m20 * (m01 * m12 - m02 * m11);
+
+        const T det = m00 * inv[0] + m01 * inv[4] + m02 * inv[8] + m03 * inv[12];
+        if (det == static_cast<T>(0))
+        {
+            return Mat44(static_cast<T>(0));
+        }
+
+        const T invDet = static_cast<T>(1) / det;
+        Mat44 result(static_cast<T>(0));
+        for (int c = 0; c < 4; ++c)
+        {
+            for (int r = 0; r < 4; ++r)
+            {
+                result[c][r] = inv[c * 4 + r] * invDet;
+            }
+        }
+        return result;
     }
 
-    Mat44 Transpose() const
+    constexpr Mat44 Transpose() const
     {
-        return glm::transpose(*this);
+        const auto& mm = *this;
+        Mat44 result(static_cast<T>(0));
+        for (int c = 0; c < 4; ++c)
+        {
+            for (int r = 0; r < 4; ++r)
+            {
+                result[r][c] = mm[c][r];
+            }
+        }
+        return result;
     }
 
-    void Decompose(Vec3<T>& translation, Quat<T>& rotation, Vec3<T>& scale) const
+    constexpr void Decompose(Vec3<T>& translation, Quat<T>& rotation, Vec3<T>& scale) const
     {
-        // Extract translation
-        translation = glm::vec3(this->Base::operator[](3));
+        const auto& mm = *this;
 
-        // Extract scale
-        scale.x = glm::length(glm::vec3(this->Base::operator[](0)));
-        scale.y = glm::length(glm::vec3(this->Base::operator[](1)));
-        scale.z = glm::length(glm::vec3(this->Base::operator[](2)));
+        // Extract translation (column 3)
+        translation = Vec3<T>(mm[3][0], mm[3][1], mm[3][2]);
 
-        // Extract rotation
-        glm::mat3 rotMat(
-            glm::vec3(this->Base::operator[](0)) / scale.x,
-            glm::vec3(this->Base::operator[](1)) / scale.y,
-            glm::vec3(this->Base::operator[](2)) / scale.z
+        // Extract scale (length of basis columns)
+        scale.x = std::sqrt(mm[0][0] * mm[0][0] + mm[0][1] * mm[0][1] + mm[0][2] * mm[0][2]);
+        scale.y = std::sqrt(mm[1][0] * mm[1][0] + mm[1][1] * mm[1][1] + mm[1][2] * mm[1][2]);
+        scale.z = std::sqrt(mm[2][0] * mm[2][0] + mm[2][1] * mm[2][1] + mm[2][2] * mm[2][2]);
+
+        // Build rotation matrix (row-major) from normalized columns
+        const T invX = scale.x != static_cast<T>(0) ? static_cast<T>(1) / scale.x : static_cast<T>(0);
+        const T invY = scale.y != static_cast<T>(0) ? static_cast<T>(1) / scale.y : static_cast<T>(0);
+        const T invZ = scale.z != static_cast<T>(0) ? static_cast<T>(1) / scale.z : static_cast<T>(0);
+
+        const T r00 = mm[0][0] * invX;
+        const T r01 = mm[1][0] * invY;
+        const T r02 = mm[2][0] * invZ;
+        const T r10 = mm[0][1] * invX;
+        const T r11 = mm[1][1] * invY;
+        const T r12 = mm[2][1] * invZ;
+        const T r20 = mm[0][2] * invX;
+        const T r21 = mm[1][2] * invY;
+        const T r22 = mm[2][2] * invZ;
+
+        // Convert rotation matrix to quaternion
+        const T trace = r00 + r11 + r22;
+        T qw, qx, qy, qz;
+        if (trace > static_cast<T>(0))
+        {
+            const T s = std::sqrt(trace + static_cast<T>(1)) * static_cast<T>(2);
+            qw = static_cast<T>(0.25) * s;
+            qx = (r21 - r12) / s;
+            qy = (r02 - r20) / s;
+            qz = (r10 - r01) / s;
+        }
+        else if (r00 > r11 && r00 > r22)
+        {
+            const T s = std::sqrt(static_cast<T>(1) + r00 - r11 - r22) * static_cast<T>(2);
+            qw = (r21 - r12) / s;
+            qx = static_cast<T>(0.25) * s;
+            qy = (r01 + r10) / s;
+            qz = (r02 + r20) / s;
+        }
+        else if (r11 > r22)
+        {
+            const T s = std::sqrt(static_cast<T>(1) + r11 - r00 - r22) * static_cast<T>(2);
+            qw = (r02 - r20) / s;
+            qx = (r01 + r10) / s;
+            qy = static_cast<T>(0.25) * s;
+            qz = (r12 + r21) / s;
+        }
+        else
+        {
+            const T s = std::sqrt(static_cast<T>(1) + r22 - r00 - r11) * static_cast<T>(2);
+            qw = (r10 - r01) / s;
+            qx = (r02 + r20) / s;
+            qy = (r12 + r21) / s;
+            qz = static_cast<T>(0.25) * s;
+        }
+
+        rotation.x = qx;
+        rotation.y = qy;
+        rotation.z = qz;
+        rotation.w = qw;
+    }
+
+    constexpr Vec4<T>& operator[](std::size_t index)
+    {
+        return m[index];
+    }
+
+    constexpr const Vec4<T>& operator[](std::size_t index) const
+    {
+        return m[index];
+    }
+
+    constexpr Mat44 operator*(const Mat44& that) const
+    {
+        const auto& a = *this;
+        const auto& b = that;
+
+        Mat44 result(0);
+        for (int c = 0; c < 4; ++c)
+        {
+            for (int r = 0; r < 4; ++r)
+            {
+                result[c][r] = a[0][r] * b[c][0]
+                            + a[1][r] * b[c][1]
+                            + a[2][r] * b[c][2]
+                            + a[3][r] * b[c][3];
+            }
+        }
+        return result;
+    }
+
+    constexpr Vec4<T> operator*(const Vec4<T>& vector) const
+    {
+        const auto& mm = *this;
+        return Vec4<T>(
+            mm[0][0] * vector.x + mm[1][0] * vector.y + mm[2][0] * vector.z + mm[3][0] * vector.w,
+            mm[0][1] * vector.x + mm[1][1] * vector.y + mm[2][1] * vector.z + mm[3][1] * vector.w,
+            mm[0][2] * vector.x + mm[1][2] * vector.y + mm[2][2] * vector.z + mm[3][2] * vector.w,
+            mm[0][3] * vector.x + mm[1][3] * vector.y + mm[2][3] * vector.z + mm[3][3] * vector.w
         );
-        
-        rotation = Quat<T>(rotMat);
+    }
+
+    constexpr Vec4<T> operator*(const Vec3<T>& vector) const
+    {
+        const auto& mm = *this;
+        return Vec4<T>(
+            mm[0][0] * vector.x + mm[1][0] * vector.y + mm[2][0] * vector.z + mm[3][0],
+            mm[0][1] * vector.x + mm[1][1] * vector.y + mm[2][1] * vector.z + mm[3][1],
+            mm[0][2] * vector.x + mm[1][2] * vector.y + mm[2][2] * vector.z + mm[3][2],
+            mm[0][3] * vector.x + mm[1][3] * vector.y + mm[2][3] * vector.z + mm[3][3]
+        );
     }
 
     static constexpr const Mat44& Identity()
     {
-        static constexpr Mat44 IDENT = Base(1);
+        static constexpr Mat44 IDENT(1);
 
         return IDENT;
     }
 
     static Mat44 PerspectiveRH(const Radians<T> fov, const T width, const T height, const T nearClip, const T farClip)
     {
-        return glm::perspectiveFovRH(fov.Value(), width, height, nearClip, farClip);
+        const T rad = fov.Value();
+        const T h = std::cos(static_cast<T>(0.5) * rad) / std::sin(static_cast<T>(0.5) * rad);
+        const T w = h * height / width;
+
+        Mat44 result(static_cast<T>(0));
+        result[0][0] = w;
+        result[1][1] = h;
+        result[2][2] = farClip / (nearClip - farClip);
+        result[2][3] = -static_cast<T>(1);
+        result[3][2] = -(farClip * nearClip) / (farClip - nearClip);
+        return result;
     }
 
     static Mat44 PerspectiveLH(const Radians<T> fov, const T width, const T height, const T nearClip, const T farClip)
     {
-        return glm::perspectiveFovLH(fov.Value(), width, height, nearClip, farClip);
+        const T rad = fov.Value();
+        const T h = std::cos(static_cast<T>(0.5) * rad) / std::sin(static_cast<T>(0.5) * rad);
+        const T w = h * height / width;
+
+        Mat44 result(static_cast<T>(0));
+        result[0][0] = w;
+        result[1][1] = h;
+        result[2][2] = farClip / (farClip - nearClip);
+        result[2][3] = static_cast<T>(1);
+        result[3][2] = -(farClip * nearClip) / (farClip - nearClip);
+        return result;
     }
 };
 
@@ -525,9 +962,9 @@ public:
     Quat<NumType> R{ Radians<NumType>(0), Vec3<NumType>{0,1,0} };
     Vec3<NumType> S{ 1 };
 
-    Mat44<NumType> ToMatrix() const
+    constexpr Mat44<NumType> ToMatrix() const
     {
-        glm::mat4 M = glm::mat4_cast(R);
+        Mat44<NumType> M(R);
         M[0] *= S.x;
         M[1] *= S.y;
         M[2] *= S.z;
@@ -544,22 +981,22 @@ public:
         return result;
     }
 
-    Vec3<NumType> LocalXAxis() const
+    constexpr Vec3<NumType> LocalXAxis() const
     {
         return (R * Vec3<NumType>::XAXIS()).Normalize();
     }
 
-    Vec3<NumType> LocalYAxis() const
+    constexpr Vec3<NumType> LocalYAxis() const
     {
         return (R * Vec3<NumType>::YAXIS()).Normalize();
     }
 
-    Vec3<NumType> LocalZAxis() const
+    constexpr Vec3<NumType> LocalZAxis() const
     {
         return (R * Vec3<NumType>::ZAXIS()).Normalize();
     }
 
-    bool operator==(const TrsTransform<NumType>& that) const
+    constexpr bool operator==(const TrsTransform<NumType>& that) const
     {
         return T == that.T && R == that.R && S == that.S;
     }
@@ -570,11 +1007,11 @@ struct Extent
     float Width;
     float Height;
 
-    bool operator==(const Extent& that) const
+    constexpr bool operator==(const Extent& that) const
     {
         return Width == that.Width && Height == that.Height;
     }
-    bool operator!=(const Extent& that) const
+    constexpr bool operator!=(const Extent& that) const
     {
         return !(*this == that);
     }
@@ -585,11 +1022,11 @@ struct Point
     float X;
     float Y;
 
-    bool operator==(const Point& that) const
+    constexpr bool operator==(const Point& that) const
     {
         return X == that.X && Y == that.Y;
     }
-    bool operator!=(const Point& that) const
+    constexpr bool operator!=(const Point& that) const
     {
         return !(*this == that);
     }
