@@ -590,16 +590,6 @@ public:
         return Quat(-x, -y, -z, w);
     }
 
-    constexpr Quat operator*(const Quat& that) const
-    {
-        return Quat(
-            w * that.x + x * that.w + y * that.z - z * that.y,
-            w * that.y - x * that.z + y * that.w + z * that.x,
-            w * that.z + x * that.y - y * that.x + z * that.w,
-            w * that.w - x * that.x - y * that.y - z * that.z
-        ).Normalize();
-    }
-
     constexpr bool operator==(const Quat& that) const
     {
         return x == that.x && y == that.y && z == that.z && w == that.w;
@@ -612,19 +602,29 @@ public:
         return Vec3<T>(result.x, result.y, result.z);
     }
 
+    constexpr Quat operator*(const T scalar) const
+    {
+        return Quat(x * scalar, y * scalar, z * scalar, w * scalar);
+    }
+
+    constexpr Quat operator*(const Quat& that) const
+    {
+        return Quat(
+            w * that.x + x * that.w + y * that.z - z * that.y,
+            w * that.y - x * that.z + y * that.w + z * that.x,
+            w * that.z + x * that.y - y * that.x + z * that.w,
+            w * that.w - x * that.x - y * that.y - z * that.z
+        ).Normalize();
+    }
+
+    constexpr Quat operator+(const Quat& that) const
+    {
+        return Quat(x + that.x, y + that.y, z + that.z, w + that.w);
+    }
+
     constexpr Quat operator-(const Quat& that) const
     {
         return Quat(x - that.x, y - that.y, z - that.z, w - that.w);
-    }
-
-    constexpr Quat operator-(const Vec3<T>& v) const
-    {
-        return Quat(x - v.x, y - v.y, z - v.z, w);
-    }
-
-    constexpr Quat operator-(const Vec4<T>& v) const
-    {
-        return Quat(x - v.x, y - v.y, z - v.z, w - v.w);
     }
 
     constexpr Quat operator-() const
@@ -632,9 +632,24 @@ public:
         return Quat(-x, -y, -z, -w);
     }
 
+    constexpr Quat& operator*=(const T scalar)
+    {
+        return (*this = *this * scalar);
+    }
+
     constexpr Quat& operator*=(const Quat& that)
     {
         return (*this = *this * that);
+    }
+
+    constexpr Quat& operator+=(const Quat& that)
+    {
+        return (*this = *this + that);
+    }
+
+    constexpr Quat& operator-=(const Quat& that)
+    {
+        return (*this = *this - that);
     }
 };
 

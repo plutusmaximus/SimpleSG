@@ -118,26 +118,25 @@ TEST(Quatf, Subtract_Quat)
     EXPECT_FLOAT_EQ(c.w, 4.0f);
 }
 
-TEST(Quatf, Subtract_Vec3)
+TEST(Quatf, Add_Quat)
 {
-    Quatf a(5.0f, 6.0f, 7.0f, 8.0f);
-    Vec3f v(1.0f, 2.0f, 3.0f);
-    Quatf c = a - v;
-    EXPECT_FLOAT_EQ(c.x, 4.0f);
-    EXPECT_FLOAT_EQ(c.y, 4.0f);
-    EXPECT_FLOAT_EQ(c.z, 4.0f);
-    EXPECT_FLOAT_EQ(c.w, 8.0f);
+    Quatf a(1.0f, 2.0f, 3.0f, 4.0f);
+    Quatf b(5.0f, 6.0f, 7.0f, 8.0f);
+    Quatf c = a + b;
+    EXPECT_FLOAT_EQ(c.x, 6.0f);
+    EXPECT_FLOAT_EQ(c.y, 8.0f);
+    EXPECT_FLOAT_EQ(c.z, 10.0f);
+    EXPECT_FLOAT_EQ(c.w, 12.0f);
 }
 
-TEST(Quatf, Subtract_Vec4)
+TEST(Quatf, Multiply_Scalar)
 {
-    Quatf a(5.0f, 6.0f, 7.0f, 8.0f);
-    Vec4f v(1.0f, 2.0f, 3.0f, 4.0f);
-    Quatf c = a - v;
-    EXPECT_FLOAT_EQ(c.x, 4.0f);
-    EXPECT_FLOAT_EQ(c.y, 4.0f);
-    EXPECT_FLOAT_EQ(c.z, 4.0f);
-    EXPECT_FLOAT_EQ(c.w, 4.0f);
+    Quatf a(1.0f, -2.0f, 3.0f, -4.0f);
+    Quatf c = a * 2.5f;
+    EXPECT_FLOAT_EQ(c.x, 2.5f);
+    EXPECT_FLOAT_EQ(c.y, -5.0f);
+    EXPECT_FLOAT_EQ(c.z, 7.5f);
+    EXPECT_FLOAT_EQ(c.w, -10.0f);
 }
 
 TEST(Quatf, UnaryNegation)
@@ -162,4 +161,36 @@ TEST(Quatf, CompoundMultiplication)
     EXPECT_NEAR(q.y, 0.0f, EPS);
     EXPECT_NEAR(q.z, std::sin(angle / 2.0f), EPS);
     EXPECT_NEAR(q.w, std::cos(angle / 2.0f), EPS);
+}
+
+TEST(Quatf, CompoundMultiplication_Scalar)
+{
+    Quatf a(1.0f, -2.0f, 3.0f, -4.0f);
+    a *= 2.0f;
+    EXPECT_FLOAT_EQ(a.x, 2.0f);
+    EXPECT_FLOAT_EQ(a.y, -4.0f);
+    EXPECT_FLOAT_EQ(a.z, 6.0f);
+    EXPECT_FLOAT_EQ(a.w, -8.0f);
+}
+
+TEST(Quatf, CompoundAddition)
+{
+    Quatf a(1.0f, 2.0f, 3.0f, 4.0f);
+    Quatf b(5.0f, 6.0f, 7.0f, 8.0f);
+    a += b;
+    EXPECT_FLOAT_EQ(a.x, 6.0f);
+    EXPECT_FLOAT_EQ(a.y, 8.0f);
+    EXPECT_FLOAT_EQ(a.z, 10.0f);
+    EXPECT_FLOAT_EQ(a.w, 12.0f);
+}
+
+TEST(Quatf, CompoundSubtraction)
+{
+    Quatf a(5.0f, 6.0f, 7.0f, 8.0f);
+    Quatf b(1.0f, 2.0f, 3.0f, 4.0f);
+    a -= b;
+    EXPECT_FLOAT_EQ(a.x, 4.0f);
+    EXPECT_FLOAT_EQ(a.y, 4.0f);
+    EXPECT_FLOAT_EQ(a.z, 4.0f);
+    EXPECT_FLOAT_EQ(a.w, 4.0f);
 }
