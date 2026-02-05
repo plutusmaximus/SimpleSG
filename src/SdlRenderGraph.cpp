@@ -64,7 +64,7 @@ SdlRenderGraph::Add(const Mat44f& worldTransform, const Model& model)
     for (const auto& meshInstance : meshInstances)
     {
         const Mesh& mesh = meshes[meshInstance.MeshIndex];
-        const Material& mtl = mesh.Material;
+        const Material& mtl = mesh.GetMaterial();
 
         // Determine mesh group based on material properties
 
@@ -140,7 +140,7 @@ SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
     {
         for (auto& [mtlId, xmeshes] : *meshGrpPtr)
         {
-            const Material& mtl = xmeshes[0].MeshInstance.Material;
+            const Material& mtl = xmeshes[0].MeshInstance.GetMaterial();
 
             SDL_PushGPUVertexUniformData(cmdBuf, 1, &mtl.Color, sizeof(mtl.Color));
 
@@ -204,15 +204,15 @@ SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
                 SDL_GPUBufferBinding vertexBufferBinding
                 {
-                    .buffer = mesh.VtxBuffer.Get<SdlGpuVertexBuffer>()->GetBuffer(),
-                    .offset = mesh.VtxBuffer.GetByteOffset()
+                    .buffer = mesh.GetVertexBuffer().Get<SdlGpuVertexBuffer>()->GetBuffer(),
+                    .offset = mesh.GetVertexBuffer().GetByteOffset()
                 };
                 SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBufferBinding, 1);
 
                 SDL_GPUBufferBinding indexBufferBinding
                 {
-                    .buffer = mesh.IdxBuffer.Get<SdlGpuIndexBuffer>()->GetBuffer(),
-                    .offset = mesh.IdxBuffer.GetByteOffset()
+                    .buffer = mesh.GetIndexBuffer().Get<SdlGpuIndexBuffer>()->GetBuffer(),
+                    .offset = mesh.GetIndexBuffer().GetByteOffset()
                 };
 
                 static_assert(VERTEX_INDEX_BITS == 32 || VERTEX_INDEX_BITS == 16);
@@ -224,7 +224,7 @@ SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
                 SDL_BindGPUIndexBuffer(renderPass, &indexBufferBinding, idxElSize);
 
-                SDL_DrawGPUIndexedPrimitives(renderPass, mesh.IndexCount, 1, 0, 0, 0);
+                SDL_DrawGPUIndexedPrimitives(renderPass, mesh.GetIndexCount(), 1, 0, 0, 0);
             }
         }
     }

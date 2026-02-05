@@ -5,6 +5,7 @@
 #include "VecMath.h"
 #include "Vertex.h"
 
+#include <memory>
 #include <span>
 #include <tuple>
 #include <variant>
@@ -18,41 +19,46 @@ class FragmentShaderSpec;
 /// @brief GPU representation of a vertex buffer.
 class GpuVertexBuffer
 {
+public:
+    virtual ~GpuVertexBuffer() = 0 {}
 protected:
     GpuVertexBuffer() {}
-    virtual ~GpuVertexBuffer() = 0 {}
 };
 
 /// @brief GPU representation of an index buffer.
 class GpuIndexBuffer
 {
+public:
+    virtual ~GpuIndexBuffer() = 0 {}
 protected:
     GpuIndexBuffer() {}
-    virtual ~GpuIndexBuffer() = 0 {}
 };
 
 /// @brief GPU representation of a vertex shader.
 class GpuVertexShader
 {
+public:
+    virtual ~GpuVertexShader() = 0 {}
 protected:
     GpuVertexShader() {}
-    virtual ~GpuVertexShader() = 0 {}
 };
 
 /// @brief GPU representation of a fragment shader.
 class GpuFragmentShader
 {
+public:
+    virtual ~GpuFragmentShader() = 0 {}
 protected:
     GpuFragmentShader() {}
-    virtual ~GpuFragmentShader() = 0 {}
 };
 
 /// @brief GPU representation of a texture.
 class GpuTexture
 {
+public:
+    virtual ~GpuTexture() = 0 {}
 protected:
     GpuTexture() {}
-    virtual ~GpuTexture() = 0 {}
 };
 
 /// @brief API representation of a vertex buffer.
@@ -60,50 +66,107 @@ protected:
 class VertexBuffer
 {
 public:
+
+    class Subrange
+    {
+        friend class VertexBuffer;
+    public:
+
+        Subrange() = default;
+
+        Subrange(const Subrange&) = delete;
+        Subrange& operator=(const Subrange&) = delete;
+        Subrange(Subrange&& other)
+        {
+            m_Owner = other.m_Owner;
+            m_ByteOffset = other.m_ByteOffset;
+            m_ItemCount = other.m_ItemCount;
+
+            other.m_Owner = nullptr;
+            other.m_ByteOffset = 0;
+            other.m_ItemCount = 0;
+        }
+
+        Subrange& operator=(Subrange&& other)
+        {
+            m_Owner = other.m_Owner;
+            m_ByteOffset = other.m_ByteOffset;
+            m_ItemCount = other.m_ItemCount;
+
+            other.m_Owner = nullptr;
+            other.m_ByteOffset = 0;
+            other.m_ItemCount = 0;
+
+            return *this;
+        }
+
+        bool IsValid() const { return m_Owner != nullptr; }
+
+        template<typename T>
+        T* Get()
+        {
+            eassert(IsValid(), "Invalid subrange");
+            return static_cast<T*>(m_Owner);
+        }
+
+        template<typename T>
+        const T* Get() const
+        {
+            eassert(IsValid(), "Invalid subrange");
+            return static_cast<const T*>(m_Owner);
+        }
+
+        /// @brief Offset in bytes of first item in buffer.
+        uint32_t GetByteOffset() const { return m_ByteOffset; }
+
+        /// @brief Number of items in buffer.
+        uint32_t GetItemCount() const { return m_ItemCount; }
+
+    private:
+
+        Subrange(GpuVertexBuffer* owner, const uint32_t itemOffset, const uint32_t itemCount)
+            : m_Owner(owner), m_ByteOffset(itemOffset * sizeof(Vertex)), m_ItemCount(itemCount)
+        {
+        }
+
+        // This pointer is borrowed from the parent VertexBuffer.
+        // It must not outlive its parent.
+        GpuVertexBuffer* m_Owner{ nullptr };
+        uint32_t m_ByteOffset{ 0 };
+        uint32_t m_ItemCount{ 0 };
+    };
+
     VertexBuffer() = default;
-    VertexBuffer(GpuVertexBuffer* buffer, const uint32_t itemOffset, const uint32_t itemCount)
-        : m_Buffer(buffer),
-          m_ByteOffset(itemOffset * sizeof(Vertex)),
+    VertexBuffer(std::unique_ptr<GpuVertexBuffer>&& buffer, const uint32_t itemCount)
+        : m_Buffer(std::move(buffer)),
           m_ItemCount(itemCount)
     {
     }
 
+    VertexBuffer(const VertexBuffer&) = delete;
+    VertexBuffer& operator=(const VertexBuffer&) = delete;
+    VertexBuffer(VertexBuffer&& other) = default;
+    VertexBuffer& operator=(VertexBuffer&& other) = default;
+
     /// @brief Retrieves a sub-range buffer from this buffer.
-    Result<VertexBuffer> GetSubRange(const uint32_t itemOffset, const uint32_t itemCount)
+    Result<Subrange> GetSubRange(const uint32_t itemOffset, const uint32_t itemCount)
     {
         expect(IsValid(), "Invalid buffer");
         expect(itemOffset + itemCount <= m_ItemCount, "Sub-range out of bounds");
 
-        return VertexBuffer(m_Buffer, itemOffset, itemCount);
+        return Subrange(m_Buffer.get(), itemOffset, itemCount);
     }
 
-    GpuVertexBuffer* Get() { return m_Buffer; }
-    const GpuVertexBuffer* Get() const { return m_Buffer; }
-
-    template<typename T>
-    T* Get()
-    {
-        return static_cast<T*>(m_Buffer);
-    }
-
-    template<typename T>
-    const T* Get() const
-    {
-        return static_cast<const T*>(m_Buffer);
-    }
+    GpuVertexBuffer* Get() { return m_Buffer.get(); }
+    const GpuVertexBuffer* Get() const { return m_Buffer.get(); }
 
     bool IsValid() const { return m_Buffer != nullptr; }
-
-    /// @brief Offset in bytes of first item in buffer.
-    uint32_t GetByteOffset() const { return m_ByteOffset; }
 
     /// @brief Number of items in buffer.
     uint32_t GetItemCount() const { return m_ItemCount; }
 
 private:
-    GpuVertexBuffer* m_Buffer{ nullptr };
-
-    uint32_t m_ByteOffset{ 0 };
+    std::unique_ptr<GpuVertexBuffer> m_Buffer{ nullptr };
 
     uint32_t m_ItemCount{ 0 };
 };
@@ -113,48 +176,106 @@ private:
 class IndexBuffer
 {
 public:
+
+    class Subrange
+    {
+        friend class IndexBuffer;
+    public:
+
+        Subrange() = default;
+
+        Subrange(const Subrange&) = delete;
+        Subrange& operator=(const Subrange&) = delete;
+        Subrange(Subrange&& other)
+        {
+            m_Owner = other.m_Owner;
+            m_ByteOffset = other.m_ByteOffset;
+            m_ItemCount = other.m_ItemCount;
+
+            other.m_Owner = nullptr;
+            other.m_ByteOffset = 0;
+            other.m_ItemCount = 0;
+        }
+
+        Subrange& operator=(Subrange&& other)
+        {
+            m_Owner = other.m_Owner;
+            m_ByteOffset = other.m_ByteOffset;
+            m_ItemCount = other.m_ItemCount;
+
+            other.m_Owner = nullptr;
+            other.m_ByteOffset = 0;
+            other.m_ItemCount = 0;
+
+            return *this;
+        }
+
+        bool IsValid() const { return m_Owner != nullptr; }
+
+        template<typename T>
+        T* Get()
+        {
+            eassert(IsValid(), "Invalid subrange");
+            return static_cast<T*>(m_Owner);
+        }
+
+        template<typename T>
+        const T* Get() const
+        {
+            eassert(IsValid(), "Invalid subrange");
+            return static_cast<const T*>(m_Owner);
+        }
+
+        /// @brief Offset in bytes of first item in buffer.
+        uint32_t GetByteOffset() const { return m_ByteOffset; }
+
+        /// @brief Number of items in buffer.
+        uint32_t GetItemCount() const { return m_ItemCount; }
+
+    private:
+
+        Subrange(GpuIndexBuffer* owner, const uint32_t itemOffset, const uint32_t itemCount)
+            : m_Owner(owner), m_ByteOffset(itemOffset * sizeof(VertexIndex)), m_ItemCount(itemCount)
+        {
+        }
+
+        // This pointer is borrowed from the parent VertexBuffer.
+        // It must not outlive its parent.
+        GpuIndexBuffer* m_Owner{ nullptr };
+        uint32_t m_ByteOffset{ 0 };
+        uint32_t m_ItemCount{ 0 };
+    };
+
     IndexBuffer() = default;
-    IndexBuffer(GpuIndexBuffer* buffer, const uint32_t itemOffset, const uint32_t itemCount)
-        : m_Buffer(buffer),
-          m_ByteOffset(itemOffset * sizeof(VertexIndex)),
+    IndexBuffer(std::unique_ptr<GpuIndexBuffer>&& buffer, const uint32_t itemCount)
+        : m_Buffer(std::move(buffer)),
           m_ItemCount(itemCount)
     {
     }
 
+    IndexBuffer(const IndexBuffer&) = delete;
+    IndexBuffer& operator=(const IndexBuffer&) = delete;
+    IndexBuffer(IndexBuffer&& other) = default;
+    IndexBuffer& operator=(IndexBuffer&& other) = default;
+
     /// @brief Retrieves a sub-range buffer from this buffer.
-    Result<IndexBuffer> GetSubRange(const uint32_t itemOffset, const uint32_t itemCount)
+    Result<Subrange> GetSubRange(const uint32_t itemOffset, const uint32_t itemCount)
     {
         expect(IsValid(), "Invalid buffer");
         expect(itemOffset + itemCount <= m_ItemCount, "Sub-range out of bounds");
 
-        return IndexBuffer(m_Buffer, itemOffset, itemCount);
+        return Subrange(m_Buffer.get(), itemOffset, itemCount);
     }
 
-    GpuIndexBuffer* Get() { return m_Buffer; }
-    const GpuIndexBuffer* Get() const { return m_Buffer; }
-
-    template<typename T>
-    T* Get()
-    {
-        return static_cast<T*>(m_Buffer);
-    }
-
-    template<typename T>
-    const T* Get() const
-    {
-        return static_cast<const T*>(m_Buffer);
-    }
+    GpuIndexBuffer* Get() { return m_Buffer.get(); }
+    const GpuIndexBuffer* Get() const { return m_Buffer.get(); }
 
     bool IsValid() const { return m_Buffer != nullptr; }
-
-    uint32_t GetByteOffset() const { return m_ByteOffset; }
 
     uint32_t GetItemCount() const { return m_ItemCount; }
 
 private:
-    GpuIndexBuffer* m_Buffer{ nullptr };
-
-    uint32_t m_ByteOffset{ 0 };
+    std::unique_ptr<GpuIndexBuffer> m_Buffer{ nullptr };
 
     uint32_t m_ItemCount{ 0 };
 };
@@ -274,18 +395,12 @@ public:
     virtual Result<VertexBuffer> CreateVertexBuffer(
         const std::span<std::span<const Vertex>>& vertices) = 0;
 
-    /// @brief Destroys a vertex buffer.
-    virtual Result<void> DestroyVertexBuffer(VertexBuffer& buffer) = 0;
-
     /// @brief Creates an index buffer from the given indices.
     virtual Result<IndexBuffer> CreateIndexBuffer(const std::span<const VertexIndex>& indices) = 0;
 
     /// @brief Creates an index buffer from multiple spans of indices.
     virtual Result<IndexBuffer> CreateIndexBuffer(
         const std::span<std::span<const VertexIndex>>& indices) = 0;
-
-    /// @brief Destroys an index buffer.
-    virtual Result<void> DestroyIndexBuffer(IndexBuffer& buffer) = 0;
 
     /// @brief Creates a texture from raw pixel data.
     /// Pixels are expected to be in RGBA8 format.

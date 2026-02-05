@@ -172,17 +172,11 @@ public:
     Result<VertexBuffer> CreateVertexBuffer(
         const std::span<std::span<const Vertex>>& vertices) override;
 
-    /// @brief Destroys a vertex buffer.
-    Result<void> DestroyVertexBuffer(VertexBuffer& buffer) override;
-
     Result<IndexBuffer> CreateIndexBuffer(
         const std::span<const VertexIndex>& indices) override;
 
     Result<IndexBuffer> CreateIndexBuffer(
         const std::span<std::span<const VertexIndex>>& indices) override;
-
-    /// @brief Destroys an index buffer.
-    Result<void> DestroyIndexBuffer(IndexBuffer& buffer) override;
 
     /// @brief Creates a texture from raw pixel data.
     /// Pixels are expected to be in RGBA8 format.

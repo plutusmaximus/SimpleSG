@@ -53,7 +53,7 @@ Model::Create(
             "  Mesh instance {}: mesh index {}({}), node index {}",
             i,
             meshInstances[i].MeshIndex,
-            meshes[meshInstances[i].MeshIndex].Name,
+            meshes[meshInstances[i].MeshIndex].GetName(),
             meshInstances[i].NodeIndex);
 
         const MeshInstance& meshInstance = meshInstances[i];

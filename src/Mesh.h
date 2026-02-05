@@ -4,14 +4,13 @@
 #include "Material.h"
 #include "Vertex.h"
 #include "imvector.h"
-
-#include <string>
+#include "imstring.h"
 
 /// @brief Specification for creating a mesh.
 class MeshSpec
 {
 public:
-    const std::string Name;
+    const imstring Name;
     const imvector<Vertex> Vertices;
     const imvector<VertexIndex> Indices;
     const MaterialSpec MtlSpec;
@@ -22,26 +21,37 @@ class Mesh
 {
 public:
 
-    Mesh(std::string_view name,
-        VertexBuffer vb,
-        IndexBuffer ib,
+    Mesh(const imstring& name,
+        VertexBuffer::Subrange&& vb,
+        IndexBuffer::Subrange&& ib,
         const uint32_t indexCount,
         const Material& material)
-        : Name(name)
-        , VtxBuffer(vb)
-        , IdxBuffer(ib)
-        , IndexCount(indexCount)
-        , Material(material)
+        : m_Name(name)
+        , m_VtxBuffer(std::move(vb))
+        , m_IdxBuffer(std::move(ib))
+        , m_IndexCount(indexCount)
+        , m_Material(material)
     {
     }
 
-    const std::string Name;
-    const VertexBuffer VtxBuffer;
-    const IndexBuffer IdxBuffer;
-    const uint32_t IndexCount;
-    const Material Material;
+    Mesh(const Mesh& other) = delete;
+    Mesh& operator=(const Mesh& other) = delete;
+    Mesh(Mesh&& other) = default;
+    Mesh& operator=(Mesh&& other) = default;
+
+    const imstring& GetName() const { return m_Name; }
+    const VertexBuffer::Subrange& GetVertexBuffer() const { return m_VtxBuffer; }
+    const IndexBuffer::Subrange& GetIndexBuffer() const { return m_IdxBuffer; }
+    uint32_t GetIndexCount() const { return m_IndexCount; }
+    const Material& GetMaterial() const { return m_Material; }
 
 private:
 
     Mesh() = delete;
+
+    imstring m_Name;
+    VertexBuffer::Subrange m_VtxBuffer;
+    IndexBuffer::Subrange m_IdxBuffer;
+    uint32_t m_IndexCount;
+    Material m_Material;
 };

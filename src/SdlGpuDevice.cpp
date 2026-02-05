@@ -183,6 +183,7 @@ SdlGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& verti
 
     auto [nativeBuf, sizeofBuffer] = nativeBufResult.value();
 
+    //TODO - Use a pool allocator.
     auto vb = new SdlGpuVertexBuffer(Device, nativeBuf);
     if(!vb)
     {
@@ -192,22 +193,7 @@ SdlGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& verti
 
     const uint32_t count = static_cast<uint32_t>(sizeofBuffer / sizeof(Vertex));
 
-    return VertexBuffer(vb, 0, count);
-}
-
-Result<void>
-SdlGpuDevice::DestroyVertexBuffer(VertexBuffer& buffer)
-{
-    auto sdlBuffer = buffer.Get<SdlGpuVertexBuffer>();
-    if (!sdlBuffer)
-    {
-        return Error("Invalid vertex buffer");
-    }
-
-    delete sdlBuffer;
-    buffer = VertexBuffer(nullptr, 0, 0);
-
-    return ResultOk;
+    return VertexBuffer(std::unique_ptr<SdlGpuVertexBuffer>(vb), count);
 }
 
 Result<IndexBuffer>
@@ -225,6 +211,7 @@ SdlGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& i
 
     auto [nativeBuf, sizeofBuffer] = nativeBufResult.value();
 
+    //TODO - Use a pool allocator.
     auto ib = new SdlGpuIndexBuffer(Device, nativeBuf);
 
     if(!ib)
@@ -235,22 +222,7 @@ SdlGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& i
 
     const uint32_t count = static_cast<uint32_t>(sizeofBuffer / sizeof(VertexIndex));
 
-    return IndexBuffer(ib, 0, count);
-}
-
-Result<void>
-SdlGpuDevice::DestroyIndexBuffer(IndexBuffer& buffer)
-{
-    auto sdlBuffer = buffer.Get<SdlGpuIndexBuffer>();
-    if (!sdlBuffer)
-    {
-        return Error("Invalid index buffer");
-    }
-
-    delete sdlBuffer;
-    buffer = IndexBuffer(nullptr, 0, 0);
-
-    return ResultOk;
+    return IndexBuffer(std::unique_ptr<SdlGpuIndexBuffer>(ib), count);
 }
 
 Result<Texture>

@@ -85,26 +85,6 @@ static void ProcessNodes(const aiNode* node,
 
 ResourceCache::~ResourceCache()
 {
-    for(auto& vb : m_VertexBuffers)
-    {
-        // Release vertex buffer resources
-        auto result = m_GpuDevice->DestroyVertexBuffer(vb);
-        if(!result)
-        {
-            logError("Failed to destroy vertex buffer: {}", result.error());
-        }
-    }
-
-    for(auto& ib : m_IndexBuffers)
-    {
-        // Release index buffer resources
-        auto result = m_GpuDevice->DestroyIndexBuffer(ib);
-        if(!result)
-        {
-            logError("Failed to destroy index buffer: {}", result.error());
-        }
-    }
-
     for(auto& entry : m_TextureCache)
     {
         if(!entry.Result)
@@ -354,31 +334,11 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     auto ibResult = m_GpuDevice->CreateIndexBuffer(indexSpans);
     expect(ibResult, ibResult.error());
 
-    auto cleanupIb = scope_exit(
-        [&]()
-        {
-            auto result = m_GpuDevice->DestroyIndexBuffer(ibResult.value());
-            if(!result)
-            {
-                logError("Failed to destroy index buffer: {}", result.error());
-            }
-        });
-
     auto vbResult = m_GpuDevice->CreateVertexBuffer(vertexSpans);
     expect(vbResult, vbResult.error());
 
-    auto cleanupVb = scope_exit(
-        [&]()
-        {
-            auto result = m_GpuDevice->DestroyVertexBuffer(vbResult.value());
-            if(!result)
-            {
-                logError("Failed to destroy vertex buffer: {}", result.error());
-            }
-        });
-
-    auto baseIb = ibResult.value();
-    auto baseVb = vbResult.value();
+    auto baseIb = std::move(ibResult.value());
+    auto baseVb = std::move(vbResult.value());
 
     imvector<Mesh>::builder meshes;
     meshes.reserve(modelSpec.MeshSpecs.size());
@@ -451,14 +411,14 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
         auto vbSubrangeResult = baseVb.GetSubRange(vtxOffset, vtxCount);
         expect(vbSubrangeResult, vbSubrangeResult.error());
 
-        auto ibSubrange = ibSubrangeResult.value();
-        auto vbSubrange = vbSubrangeResult.value();
+        meshes.emplace_back(meshSpec.Name,
+            std::move(vbSubrangeResult.value()),
+            std::move(ibSubrangeResult.value()),
+            idxCount,
+            mtl);
 
-        Mesh mesh(meshSpec.Name, vbSubrange, ibSubrange, idxCount, mtl);
         idxOffset += idxCount;
         vtxOffset += vtxCount;
-
-        meshes.emplace_back(mesh);
     }
 
     modelResult = Model::Create(meshes.build(), modelSpec.MeshInstances, modelSpec.TransformNodes);
@@ -469,11 +429,8 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
         "Failed to add model to cache: {}",
         cacheKey.ToString());
 
-    cleanupIb.release();
-    cleanupVb.release();
-
-    m_VertexBuffers.push_back(baseVb);
-    m_IndexBuffers.push_back(baseIb);
+    m_VertexBuffers.emplace_back(std::move(baseVb));
+    m_IndexBuffers.emplace_back(std::move(baseIb));
 
     return modelResult;
 }
