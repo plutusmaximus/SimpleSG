@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.23)
+cmake_policy(SET CMP0091 NEW) # Use the new MSVC runtime library flag behavior
 project(SimpleSG LANGUAGES C CXX)
 
 # ============================================================
@@ -17,7 +18,7 @@ foreach(OUTPUTCONFIG DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
 endforeach()
 
 if(MSVC)
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
 
     # Enable MSVC STL hardening
     #   TODO - remove in release builds
@@ -59,8 +60,13 @@ set(DAWN_FETCH_DEPENDENCIES ON)
 set(DAWN_BUILD_SAMPLES OFF CACHE BOOL "Disable samples" FORCE)
 set(DAWN_BUILD_TESTS OFF CACHE BOOL "Disable tests" FORCE)
 set(DAWN_ENABLE_INSTALL OFF CACHE BOOL "Disable Dawn install" FORCE)
+set(DAWN_BUILD_MONOLITHIC_LIBRARY STATIC CACHE STRING "Build Dawn monolithic library as static" FORCE)
+set(USE_MSVC_RUNTIME_LIBRARY_DLL OFF CACHE BOOL "Use static MSVC runtime in GLFW" FORCE)
+set(protobuf_MSVC_STATIC_RUNTIME ON CACHE BOOL "Use static MSVC runtime in protobuf" FORCE)
+set(ABSL_MSVC_STATIC_RUNTIME ON CACHE BOOL "Use static MSVC runtime in abseil" FORCE)
 set(TINT_ENABLE_INSTALL OFF CACHE BOOL "Disable Tint install" FORCE)
 set(TINT_BUILD_TESTS OFF CACHE BOOL "Disable Tint tests" FORCE)
+
 add_subdirectory(thirdparty/dawn EXCLUDE_FROM_ALL)
 
 # --- spdlog
@@ -142,13 +148,14 @@ add_custom_target(copy_models
 # ============================================================
 set(SSG_SOURCES
   src/Camera.cpp
+  src/DawnGpuDevice.cpp
   src/EcsChildTransformPool.cpp
   src/Error.cpp
   src/FileIo.cpp
   src/Model.cpp
   src/ResourceCache.cpp
-  src/SDLGPUDevice.cpp
-  src/SDLRenderGraph.cpp
+  src/SdlGpuDevice.cpp
+  src/SdlRenderGraph.cpp
   src/Shapes.cpp
   src/SpaceMouse.cpp
   src/Stopwatch.cpp
@@ -157,6 +164,7 @@ set(SSG_SOURCES
 
 set(SSG_HEADERS
   src/Camera.h
+  src/DawnGpuDevice.h
   src/ECS.h
   src/EcsChildTransformPool.h
   src/Error.h
@@ -191,7 +199,7 @@ target_sources(ssg
   PUBLIC FILE_SET HEADERS BASE_DIRS src FILES ${SSG_HEADERS}
 )
 
-target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 assimp::assimp)
+target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 assimp::assimp webgpu_dawn)
 target_include_directories(ssg PUBLIC src PRIVATE thirdparty/stb)
 
 compiler_flags(ssg)
