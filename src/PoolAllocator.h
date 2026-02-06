@@ -24,7 +24,6 @@ public:
 
     PoolAllocator(const PoolAllocator&) = delete;
     PoolAllocator& operator=(const PoolAllocator&) = delete;
-
     PoolAllocator(PoolAllocator&&) = delete;
     PoolAllocator& operator=(PoolAllocator&&) = delete;
 

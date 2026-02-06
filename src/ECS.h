@@ -395,6 +395,8 @@ public:
 
     EcsRegistry(const EcsRegistry&) = delete;
     EcsRegistry& operator=(const EcsRegistry&) = delete;
+    EcsRegistry(EcsRegistry&&) = delete;
+    EcsRegistry& operator=(EcsRegistry&&) = delete;
 
     /// @brief  Create a new entity ID.
     [[nodiscard]] EntityId Create()

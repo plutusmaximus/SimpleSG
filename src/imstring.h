@@ -130,7 +130,7 @@ public:
         o.m_blk = nullptr;
     }
 
-    imstring& operator=(const imstring& o)
+    imstring& operator=(const imstring& o) noexcept
     {
         if(this != &o)
         {

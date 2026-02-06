@@ -41,16 +41,10 @@ public:
     {
     }
 
-    scope_exit(scope_exit&& other) noexcept
-        : m_Fn(std::move(other.m_Fn)),
-          m_Active(other.m_Active)
-    {
-        other.m_Active = false;
-    }
-
     scope_exit(const scope_exit&) = delete;
     scope_exit& operator=(const scope_exit&) = delete;
-    scope_exit& operator=(scope_exit&&) = delete;
+    scope_exit(scope_exit&& other) = default;
+    scope_exit& operator=(scope_exit&&) = default;
 
     ~scope_exit() noexcept
     {
