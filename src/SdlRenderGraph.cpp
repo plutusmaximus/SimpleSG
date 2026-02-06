@@ -20,7 +20,7 @@ SdlRenderGraph::~SdlRenderGraph()
 {
     WaitForFence();
 
-    if(m_DefaultAlbedoTexture.IsValid())
+    if(m_DefaultAlbedoTexture)
     {
         auto result = m_GpuDevice->DestroyTexture(m_DefaultAlbedoTexture);
         if(!result)
@@ -70,13 +70,15 @@ SdlRenderGraph::Add(const Mat44f& worldTransform, const Model& model)
 
         MeshGroup* meshGrp;
 
-        if(mtl.Key.Flags & MaterialFlags::Translucent)
+        const MaterialKey& key = mtl.GetKey();
+
+        if(key.Flags & MaterialFlags::Translucent)
         {
-            meshGrp = &m_CurrentState->m_TranslucentMeshGroups[mtl.Key.Id];
+            meshGrp = &m_CurrentState->m_TranslucentMeshGroups[key.Id];
         }
         else
         {
-            meshGrp = &m_CurrentState->m_OpaqueMeshGroups[mtl.Key.Id];
+            meshGrp = &m_CurrentState->m_OpaqueMeshGroups[key.Id];
         }
 
         XformMesh xformMesh
@@ -142,7 +144,7 @@ SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
         {
             const Material& mtl = xmeshes[0].MeshInstance.GetMaterial();
 
-            SDL_PushGPUVertexUniformData(cmdBuf, 1, &mtl.Color, sizeof(mtl.Color));
+            SDL_PushGPUVertexUniformData(cmdBuf, 1, &mtl.GetColor(), sizeof(mtl.GetColor()));
 
             //const int idx = m_MaterialDb->GetIndex(mtlId);
 
@@ -150,13 +152,15 @@ SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
             const int idx = 0;
             SDL_PushGPUVertexUniformData(cmdBuf, 2, &idx, sizeof(idx));
 
-            if (mtl.Albedo.IsValid())
+            GpuTexture* albedo = mtl.GetAlbedo();
+
+            if (albedo)
             {
                 // Bind texture and sampler
                 SDL_GPUTextureSamplerBinding samplerBinding
                 {
-                    .texture = mtl.Albedo.Get<SdlGpuTexture>()->GetTexture(),
-                    .sampler = mtl.Albedo.Get<SdlGpuTexture>()->GetSampler()
+                    .texture = static_cast<SdlGpuTexture*>(albedo)->GetTexture(),
+                    .sampler = static_cast<SdlGpuTexture*>(albedo)->GetSampler()
                 };
                 SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
             }
@@ -171,12 +175,12 @@ SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
                 auto defaultTextResult = GetDefaultAlbedoTexture();
                 expect(defaultTextResult, defaultTextResult.error());
 
-                auto defaultTex = defaultTextResult.value();
+                GpuTexture* defaultTex = defaultTextResult.value();
 
                 SDL_GPUTextureSamplerBinding samplerBinding
                 {
-                    .texture = defaultTex.Get<SdlGpuTexture>()->GetTexture(),
-                    .sampler = defaultTex.Get<SdlGpuTexture>()->GetSampler()
+                    .texture = static_cast<SdlGpuTexture*>(defaultTex)->GetTexture(),
+                    .sampler = static_cast<SdlGpuTexture*>(defaultTex)->GetSampler()
                 };
                 SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
             }
@@ -202,16 +206,22 @@ SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 
                 const Mesh& mesh = xmesh.MeshInstance;
 
+                const SdlGpuVertexBuffer* sdlVb =
+                    static_cast<const SdlGpuVertexBuffer*>(mesh.GetVertexBuffer().GetBuffer());
+
                 SDL_GPUBufferBinding vertexBufferBinding
                 {
-                    .buffer = mesh.GetVertexBuffer().Get<SdlGpuVertexBuffer>()->GetBuffer(),
+                    .buffer = sdlVb->GetBuffer(),
                     .offset = mesh.GetVertexBuffer().GetByteOffset()
                 };
                 SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBufferBinding, 1);
 
+                const SdlGpuIndexBuffer* sdlIb =
+                    static_cast<const SdlGpuIndexBuffer*>(mesh.GetIndexBuffer().GetBuffer());
+
                 SDL_GPUBufferBinding indexBufferBinding
                 {
-                    .buffer = mesh.GetIndexBuffer().Get<SdlGpuIndexBuffer>()->GetBuffer(),
+                    .buffer = sdlIb->GetBuffer(),
                     .offset = mesh.GetIndexBuffer().GetByteOffset()
                 };
 
@@ -340,10 +350,10 @@ SdlRenderGraph::WaitForFence()
     m_CurrentState->m_RenderFence = nullptr;
 }
 
-Result<Texture>
+Result<GpuTexture*>
 SdlRenderGraph::GetDefaultAlbedoTexture()
 {
-    if(!m_DefaultAlbedoTexture.IsValid())
+    if(!m_DefaultAlbedoTexture)
     {
         static constexpr const char* MAGENTA_TEXTURE_KEY = "$magenta";
 

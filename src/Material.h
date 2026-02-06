@@ -457,44 +457,57 @@ public:
         const RgbaColorf color,
         const float metalness,
         const float roughness,
-        Texture albedo,
-        VertexShader vertexShader,
-        FragmentShader fragmentShader)
-        : Key(MaterialId::NextId(), color.a < 1.0f ? MaterialFlags::Translucent : MaterialFlags::None)
-        , Color(color)
-        , Metalness(metalness)
-        , Roughness(roughness)
-        , Albedo(albedo)
-        , VertexShader(vertexShader)
-        , FragmentShader(fragmentShader)
+        GpuTexture* albedo,
+        GpuVertexShader* vertexShader,
+        GpuFragmentShader* fragmentShader)
+        : m_Key(MaterialId::NextId(), color.a < 1.0f ? MaterialFlags::Translucent : MaterialFlags::None)
+        , m_Color(color)
+        , m_Metalness(metalness)
+        , m_Roughness(roughness)
+        , m_Albedo(albedo)
+        , m_VertexShader(vertexShader)
+        , m_FragmentShader(fragmentShader)
     {
     }
 
-    /// @brief Unique key identifying this material.
-    /// Used to group geometry sharing the same material attributes.
-    const MaterialKey Key;
+    Material(const Material&) = default;
+    Material& operator=(const Material&) = default;
+    Material(Material&&) = default;
+    Material& operator=(Material&&) = default;
 
-    /// @brief Base color of the material.
-    const RgbaColorf Color;
-
-    /// @brief Metalness factor of the material.
-    const float Metalness{ 0 };
-
-    /// @brief Roughness factor of the material.
-    const float Roughness{ 0 };
-
-    /// @brief Albedo (base color) texture of the material.
-    const Texture Albedo;
-
-    /// @brief Vertex shader used by the material.
-    const VertexShader VertexShader;
-
-    /// @brief Fragment shader used by the material.
-    const FragmentShader FragmentShader;
+    const MaterialKey& GetKey() const { return m_Key; }
+    const RgbaColorf& GetColor() const { return m_Color; }
+    float GetMetalness() const { return m_Metalness; }
+    float GetRoughness() const { return m_Roughness; }
+    GpuTexture* GetAlbedo() const { return m_Albedo; }
+    GpuVertexShader* GetVertexShader() const { return m_VertexShader; }
+    GpuFragmentShader* GetFragmentShader() const { return m_FragmentShader; }
 
 private:
 
     Material() = delete;
+
+    /// @brief Unique key identifying this material.
+    /// Used to group geometry sharing the same material attributes.
+    MaterialKey m_Key;
+
+    /// @brief Base color of the material.
+    RgbaColorf m_Color;
+
+    /// @brief Metalness factor of the material.
+    float m_Metalness{ 0 };
+
+    /// @brief Roughness factor of the material.
+    float m_Roughness{ 0 };
+
+    /// @brief Albedo (base color) texture of the material.
+    GpuTexture* m_Albedo{ nullptr };
+
+    /// @brief Vertex shader used by the material.
+    GpuVertexShader* m_VertexShader{ nullptr };
+
+    /// @brief Fragment shader used by the material.
+    GpuFragmentShader* m_FragmentShader{ nullptr };
 };
 
 /// @brief Enable hashing of CacheKey for use in unordered containers.

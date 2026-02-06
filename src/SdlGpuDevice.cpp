@@ -168,14 +168,14 @@ SdlGpuDevice::GetExtent() const
     return Extent{static_cast<float>(width), static_cast<float>(height)};
 }
 
-Result<VertexBuffer>
+Result<GpuVertexBuffer*>
 SdlGpuDevice::CreateVertexBuffer(const std::span<const Vertex>& vertices)
 {
     std::span<const Vertex> spans[]{vertices};
     return CreateVertexBuffer(spans);
 }
 
-Result<VertexBuffer>
+Result<GpuVertexBuffer*>
 SdlGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& vertices)
 {
     auto nativeBufResult = CreateGpuBuffer<Vertex>(Device, vertices);
@@ -183,27 +183,34 @@ SdlGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& verti
 
     auto [nativeBuf, sizeofBuffer] = nativeBufResult.value();
 
-    //TODO - Use a pool allocator.
-    auto vb = new SdlGpuVertexBuffer(Device, nativeBuf);
+    // TODO - Use a pool allocator.
+    GpuVertexBuffer* vb = new SdlGpuVertexBuffer(Device,
+        nativeBuf,
+        static_cast<uint32_t>(sizeofBuffer / sizeof(Vertex)));
     if(!vb)
     {
         SDL_ReleaseGPUBuffer(Device, nativeBuf);
         return Error("Error allocating SDLGpuVertexBuffer");
     }
 
-    const uint32_t count = static_cast<uint32_t>(sizeofBuffer / sizeof(Vertex));
-
-    return VertexBuffer(std::unique_ptr<SdlGpuVertexBuffer>(vb), count);
+    return vb;
 }
 
-Result<IndexBuffer>
+Result<void>
+SdlGpuDevice::DestroyVertexBuffer(GpuVertexBuffer* vb)
+{
+    delete vb;
+    return ResultOk;
+}
+
+Result<GpuIndexBuffer*>
 SdlGpuDevice::CreateIndexBuffer(const std::span<const VertexIndex>& indices)
 {
     std::span<const VertexIndex> spans[]{indices};
     return CreateIndexBuffer(spans);
 }
 
-Result<IndexBuffer>
+Result<GpuIndexBuffer*>
 SdlGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& indices)
 {
     auto nativeBufResult = CreateGpuBuffer<VertexIndex>(Device, indices);
@@ -211,8 +218,10 @@ SdlGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& i
 
     auto [nativeBuf, sizeofBuffer] = nativeBufResult.value();
 
-    //TODO - Use a pool allocator.
-    auto ib = new SdlGpuIndexBuffer(Device, nativeBuf);
+    // TODO - Use a pool allocator.
+    GpuIndexBuffer* ib = new SdlGpuIndexBuffer(Device,
+        nativeBuf,
+        static_cast<uint32_t>(sizeofBuffer / sizeof(VertexIndex)));
 
     if(!ib)
     {
@@ -220,12 +229,17 @@ SdlGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& i
         return Error("Error allocating SDLGpuIndexBuffer");
     }
 
-    const uint32_t count = static_cast<uint32_t>(sizeofBuffer / sizeof(VertexIndex));
-
-    return IndexBuffer(std::unique_ptr<SdlGpuIndexBuffer>(ib), count);
+    return ib;
 }
 
-Result<Texture>
+Result<void>
+SdlGpuDevice::DestroyIndexBuffer(GpuIndexBuffer* ib)
+{
+    delete ib;
+    return ResultOk;
+}
+
+Result<GpuTexture*>
 SdlGpuDevice::CreateTexture(const unsigned width, const unsigned height, const uint8_t* pixels, const unsigned rowStride, const imstring& name)
 {
     Stopwatch sw1;
@@ -370,7 +384,7 @@ SdlGpuDevice::CreateTexture(const unsigned width, const unsigned height, const u
         expect(m_Sampler, SDL_GetError());
     }
 
-    SdlGpuTexture* gpuTex = new SdlGpuTexture(Device, texture, m_Sampler);
+    GpuTexture* gpuTex = new SdlGpuTexture(Device, texture, m_Sampler);
 
     expectv(gpuTex, "Error allocating SDLGPUTexture");
 
@@ -378,10 +392,10 @@ SdlGpuDevice::CreateTexture(const unsigned width, const unsigned height, const u
 
     logDebug("SdlGpuDevice::CreateTexture: {} ms", sw1.Elapsed() * 1000.0f);
 
-    return Texture(gpuTex);
+    return gpuTex;
 }
 
-Result<Texture>
+Result<GpuTexture*>
 SdlGpuDevice::CreateTexture(const RgbaColorf& color, const imstring& name)
 {
     RgbaColoru8 colorU8{color};
@@ -392,21 +406,13 @@ SdlGpuDevice::CreateTexture(const RgbaColorf& color, const imstring& name)
 }
 
 Result<void>
-SdlGpuDevice::DestroyTexture(Texture& texture)
+SdlGpuDevice::DestroyTexture(GpuTexture* tex)
 {
-    auto sdlTexture = texture.Get<SdlGpuTexture>();
-    if (!sdlTexture)
-    {
-        return Error("Invalid texture");
-    }
-
-    delete sdlTexture;
-    texture = Texture();
-
+    delete tex;
     return ResultOk;
 }
 
-Result<VertexShader>
+Result<GpuVertexShader*>
 SdlGpuDevice::CreateVertexShader(const VertexShaderSpec& shaderSpec)
 {
     const std::string_view path = std::get<imstring>(shaderSpec.Source);
@@ -421,25 +427,17 @@ SdlGpuDevice::CreateVertexShader(const VertexShaderSpec& shaderSpec)
     GpuVertexShader* gpuShader = new SdlGpuVertexShader(Device, shaderResult.value());
     expect(gpuShader, "Error allocating SDLGPUVertexShader");
 
-    return VertexShader(gpuShader);
+    return gpuShader;
 }
 
 Result<void>
-SdlGpuDevice::DestroyVertexShader(VertexShader& shader)
+SdlGpuDevice::DestroyVertexShader(GpuVertexShader* shader)
 {
-    auto sdlShader = shader.Get<SdlGpuVertexShader>();
-    if (!sdlShader)
-    {
-        return Error("Invalid vertex shader");
-    }
-
-    delete sdlShader;
-    shader = VertexShader();
-
+    delete shader;
     return ResultOk;
 }
 
-Result<FragmentShader>
+Result<GpuFragmentShader*>
 SdlGpuDevice::CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
 {
     // All fragment shaders have the same number of samplers.
@@ -457,21 +455,13 @@ SdlGpuDevice::CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
     GpuFragmentShader* gpuShader = new SdlGpuFragmentShader(Device, shaderResult.value());
     expect(gpuShader, "Error allocating SDLGPUFragmentShader");
 
-    return FragmentShader(gpuShader);
+    return gpuShader;
 }
 
 Result<void>
-SdlGpuDevice::DestroyFragmentShader(FragmentShader& shader)
+SdlGpuDevice::DestroyFragmentShader(GpuFragmentShader* shader)
 {
-    auto sdlShader = shader.Get<SdlGpuFragmentShader>();
-    if (!sdlShader)
-    {
-        return Error("Invalid fragment shader");
-    }
-
-    delete sdlShader;
-    shader = FragmentShader();
-
+    delete shader;
     return ResultOk;
 }
 
@@ -495,8 +485,8 @@ SdlGpuDevice::GetOrCreatePipeline(const Material& mtl)
     PipelineKey key
     {
         .ColorFormat = colorTargetFormat,
-        .VertexShader = mtl.VertexShader.Get<SdlGpuVertexShader>()->GetShader(),
-        .FragShader = mtl.FragmentShader.Get<SdlGpuFragmentShader>()->GetShader()
+        .VertexShader = static_cast<SdlGpuVertexShader*>(mtl.GetVertexShader())->GetShader(),
+        .FragShader = static_cast<SdlGpuFragmentShader*>(mtl.GetFragmentShader())->GetShader()
     };
 
     auto it = m_PipelinesByKey.find(key);
@@ -542,8 +532,8 @@ SdlGpuDevice::GetOrCreatePipeline(const Material& mtl)
 
     SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo
     {
-        .vertex_shader = mtl.VertexShader.Get<SdlGpuVertexShader>()->GetShader(),
-        .fragment_shader = mtl.FragmentShader.Get<SdlGpuFragmentShader>()->GetShader(),
+        .vertex_shader = static_cast<SdlGpuVertexShader*>(mtl.GetVertexShader())->GetShader(),
+        .fragment_shader = static_cast<SdlGpuFragmentShader*>(mtl.GetFragmentShader())->GetShader(),
         .vertex_input_state =
         {
             .vertex_buffer_descriptions = vertexBufDescriptions,

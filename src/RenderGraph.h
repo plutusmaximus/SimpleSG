@@ -12,6 +12,8 @@ public:
     RenderGraph() = default;
     RenderGraph(const RenderGraph&) = delete;
     RenderGraph& operator=(const RenderGraph&) = delete;
+    RenderGraph(RenderGraph&&) = delete;
+    RenderGraph& operator=(RenderGraph&&) = delete;
 
     virtual ~RenderGraph() = 0
     {

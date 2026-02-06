@@ -9,6 +9,7 @@
 #include <atomic>
 #include <memory>
 #include <optional>
+#include <variant>
 
 /// @brief A cache for loading and storing GPU resources like models, textures, and shaders.
 class ResourceCache
@@ -52,25 +53,25 @@ public:
 
     /// @brief Retrieves or creates a vertex shader (if not already cached) from the given
     /// specification.
-    Result<VertexShader> GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec);
+    Result<GpuVertexShader*> GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec);
 
     /// @brief Retrieves or creates a fragment shader (if not already cached) from the given
     /// specification.
-    Result<FragmentShader> GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec);
+    Result<GpuFragmentShader*> GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec);
 
     /// @brief Retrieves a cached model.
     Result<Model> GetModel(const CacheKey& cacheKey) const;
 
     /// @brief Retrieves a cached texture.
-    Result<Texture> GetTexture(const CacheKey& cacheKey) const;
+    Result<GpuTexture*> GetTexture(const CacheKey& cacheKey) const;
 
     /// @brief Retrieves a cached vertex shader.
-    Result<VertexShader> GetVertexShader(const CacheKey& cacheKey) const;
+    Result<GpuVertexShader*> GetVertexShader(const CacheKey& cacheKey) const;
 
     /// @brief Retrieves a cached fragment shader.
-    Result<FragmentShader> GetFragmentShader(const CacheKey& cacheKey) const;
+    Result<GpuFragmentShader*> GetFragmentShader(const CacheKey& cacheKey) const;
 
-private:
+    private:
 
     /// @brief Base class for asynchronous operations.
     class AsyncOp
@@ -240,9 +241,9 @@ private:
 
         Result<void> DecodeImage();
 
-        Result<Texture> CreateTexture();
+        Result<GpuTexture*> CreateTexture();
 
-        void AddOrReplaceInCache(const Texture& texture);
+        void AddToCache(Result<GpuTexture*> texture);
 
         ResourceCache* m_ResourceCache{ nullptr };
 
@@ -301,14 +302,14 @@ private:
         m_AsyncOpAllocator.Free(reinterpret_cast<AsyncOpUnion*>(op));
     }
 
-    template<typename Value>
+    template<typename ValueT>
     class Cache
     {
     public:
         struct Entry
         {
             CacheKey Key;
-            Result<Value> Result;
+            Result<ValueT> Result;
         };
 
         using Iterator = typename std::vector<Entry>::iterator;
@@ -316,20 +317,22 @@ private:
 
         Cache() = default;
         ~Cache() = default;
-        bool TryAdd(const CacheKey& key, const Result<Value>& result)
+        bool TryAdd(const CacheKey& key, const Result<ValueT>& result)
         {
             auto it = Find(key);
 
             if(it != m_Entries.end() && it->Key == key)
             {
+                //Already exists
                 return false;
             }
 
             m_Entries.insert(it, Entry{ key, result });
+
             return true;
         }
 
-        bool TryGet(const CacheKey& key, Result<Value>& result) const
+        bool TryGet(const CacheKey& key, Result<ValueT>& outResult) const
         {
             auto it = Find(key);
 
@@ -338,22 +341,8 @@ private:
                 return false;
             }
 
-            result = it->Result;
+            outResult = it->Result;
             return true;
-        }
-
-        void AddOrReplace(const CacheKey& key, const Result<Value>& result)
-        {
-            auto it = Find(key);
-
-            if(it != m_Entries.end() && it->Key == key)
-            {
-                it->Result = result;
-            }
-            else
-            {
-                m_Entries.insert(it, Entry{ key, result });
-            }
         }
 
         bool Contains(const CacheKey& key) const
@@ -404,12 +393,12 @@ private:
     };
 
     GpuDevice* const m_GpuDevice;
-    std::vector<VertexBuffer> m_VertexBuffers;
-    std::vector<IndexBuffer> m_IndexBuffers;
+    std::vector<GpuVertexBuffer*> m_VertexBuffers;
+    std::vector<GpuIndexBuffer*> m_IndexBuffers;
     Cache<Model> m_ModelCache;
-    Cache<Texture> m_TextureCache;
-    Cache<VertexShader> m_VertexShaderCache;
-    Cache<FragmentShader> m_FragmentShaderCache;
+    Cache<GpuTexture*> m_TextureCache;
+    Cache<GpuVertexShader*> m_VertexShaderCache;
+    Cache<GpuFragmentShader*> m_FragmentShaderCache;
 
     AsyncOp* m_PendingOps{ nullptr };
 };

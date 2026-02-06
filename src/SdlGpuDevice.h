@@ -17,54 +17,92 @@ struct SDL_GPUGraphicsPipeline;
 
 class SdlGpuVertexBuffer : public GpuVertexBuffer
 {
+    class SdlSubrange : public Subrange
+    {
+    public:
+        SdlSubrange(SdlGpuVertexBuffer* owner, const uint32_t itemOffset, const uint32_t itemCount)
+            : Subrange(owner, itemOffset, itemCount)
+        {
+        }
+    };
+
 public:
 
     SdlGpuVertexBuffer() = delete;
     SdlGpuVertexBuffer(const SdlGpuVertexBuffer&) = delete;
     SdlGpuVertexBuffer& operator=(const SdlGpuVertexBuffer&) = delete;
+    SdlGpuVertexBuffer(SdlGpuVertexBuffer&&) = delete;
+    SdlGpuVertexBuffer& operator=(SdlGpuVertexBuffer&&) = delete;
 
     ~SdlGpuVertexBuffer() override;
 
     SDL_GPUBuffer* GetBuffer() const { return m_Buffer; }
 
+    Subrange GetSubrange(const uint32_t itemOffset, const uint32_t itemCount) override
+    {
+        eassert(itemOffset + itemCount <= m_ItemCount, "Sub-range out of bounds");
+        return SdlSubrange(this, itemOffset, itemCount);
+    }
+
 private:
 
     friend class SdlGpuDevice;
 
-    SdlGpuVertexBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer)
+    SdlGpuVertexBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer, const uint32_t itemCount)
         : m_Buffer(buffer)
         , m_GpuDevice(gpuDevice)
+        , m_ItemCount(itemCount)
     {
     }
 
     SDL_GPUDevice* const m_GpuDevice;
     SDL_GPUBuffer* const m_Buffer;
+    const uint32_t m_ItemCount;
 };
 
 class SdlGpuIndexBuffer : public GpuIndexBuffer
 {
+    class SdlSubrange : public Subrange
+    {
+    public:
+        SdlSubrange(SdlGpuIndexBuffer* owner, const uint32_t itemOffset, const uint32_t itemCount)
+            : Subrange(owner, itemOffset, itemCount)
+        {
+        }
+    };
+
 public:
 
     SdlGpuIndexBuffer() = delete;
     SdlGpuIndexBuffer(const SdlGpuIndexBuffer&) = delete;
     SdlGpuIndexBuffer& operator=(const SdlGpuIndexBuffer&) = delete;
+    SdlGpuIndexBuffer(SdlGpuIndexBuffer&&) = delete;
+    SdlGpuIndexBuffer& operator=(SdlGpuIndexBuffer&&) = delete;
 
     ~SdlGpuIndexBuffer() override;
 
     SDL_GPUBuffer* GetBuffer() const { return m_Buffer; }
 
+    Subrange GetSubrange(const uint32_t itemOffset, const uint32_t itemCount) override
+    {
+        eassert(itemOffset + itemCount <= m_ItemCount, "Sub-range out of bounds");
+        return SdlSubrange(this, itemOffset, itemCount);
+    }
+
 private:
 
     friend class SdlGpuDevice;
 
-    SdlGpuIndexBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer)
+    SdlGpuIndexBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer, const uint32_t itemCount)
         : m_Buffer(buffer)
         , m_GpuDevice(gpuDevice)
+        , m_ItemCount(itemCount)
     {
     }
 
     SDL_GPUDevice* const m_GpuDevice;
     SDL_GPUBuffer* const m_Buffer;
+    const uint32_t m_ItemCount;
 };
 
 class SdlGpuTexture : public GpuTexture
@@ -74,6 +112,8 @@ public:
     SdlGpuTexture() = delete;
     SdlGpuTexture(const SdlGpuTexture&) = delete;
     SdlGpuTexture& operator=(const SdlGpuTexture&) = delete;
+    SdlGpuTexture(SdlGpuTexture&&) = delete;
+    SdlGpuTexture& operator=(SdlGpuTexture&&) = delete;
 
     ~SdlGpuTexture() override;
 
@@ -103,6 +143,8 @@ public:
     SdlGpuVertexShader() = delete;
     SdlGpuVertexShader(const SdlGpuVertexShader&) = delete;
     SdlGpuVertexShader& operator=(const SdlGpuVertexShader&) = delete;
+    SdlGpuVertexShader(SdlGpuVertexShader&&) = delete;
+    SdlGpuVertexShader& operator=(SdlGpuVertexShader&&) = delete;
 
     ~SdlGpuVertexShader() override;
 
@@ -129,6 +171,8 @@ public:
     SdlGpuFragmentShader() = delete;
     SdlGpuFragmentShader(const SdlGpuFragmentShader&) = delete;
     SdlGpuFragmentShader& operator=(const SdlGpuFragmentShader&) = delete;
+    SdlGpuFragmentShader(SdlGpuFragmentShader&&) = delete;
+    SdlGpuFragmentShader& operator=(SdlGpuFragmentShader&&) = delete;
 
     ~SdlGpuFragmentShader() override;
 
@@ -160,57 +204,51 @@ public:
     SdlGpuDevice() = delete;
     SdlGpuDevice(const SdlGpuDevice&) = delete;
     SdlGpuDevice& operator=(const SdlGpuDevice&) = delete;
+    SdlGpuDevice(SdlGpuDevice&&) = delete;
+    SdlGpuDevice& operator=(SdlGpuDevice&&) = delete;
 
     ~SdlGpuDevice() override;
 
-    /// @brief Gets the renderable extent of the device.
     Extent GetExtent() const override;
 
-    Result<VertexBuffer> CreateVertexBuffer(
+    Result<GpuVertexBuffer*> CreateVertexBuffer(
         const std::span<const Vertex>& vertices) override;
 
-    Result<VertexBuffer> CreateVertexBuffer(
+    Result<GpuVertexBuffer*> CreateVertexBuffer(
         const std::span<std::span<const Vertex>>& vertices) override;
 
-    Result<IndexBuffer> CreateIndexBuffer(
+    Result<void> DestroyVertexBuffer(GpuVertexBuffer* buffer) override;
+
+    Result<GpuIndexBuffer*> CreateIndexBuffer(
         const std::span<const VertexIndex>& indices) override;
 
-    Result<IndexBuffer> CreateIndexBuffer(
+    Result<GpuIndexBuffer*> CreateIndexBuffer(
         const std::span<std::span<const VertexIndex>>& indices) override;
 
-    /// @brief Creates a texture from raw pixel data.
-    /// Pixels are expected to be in RGBA8 format.
-    /// rowStride is the number of bytes between the start of each row.
-    /// rowStride must be at least width * 4.
-    Result<Texture> CreateTexture(const unsigned width,
+    Result<void> DestroyIndexBuffer(GpuIndexBuffer* buffer) override;
+
+    Result<GpuTexture*> CreateTexture(const unsigned width,
         const unsigned height,
         const uint8_t* pixels,
         const unsigned rowStride,
         const imstring& name) override;
 
-    /// @brief Creates a 1x1 texture from a color.
-    Result<Texture> CreateTexture(const RgbaColorf& color, const imstring& name) override;
+    Result<GpuTexture*> CreateTexture(const RgbaColorf& color, const imstring& name) override;
 
-    /// @brief Destroys a texture.
-    virtual Result<void> DestroyTexture(Texture& texture) override;
+    Result<void> DestroyTexture(GpuTexture* texture) override;
 
-    /// @brief Creates a vertex shader from the given specification.
-    Result<VertexShader> CreateVertexShader(const VertexShaderSpec& shaderSpec) override;
+    Result<GpuVertexShader*> CreateVertexShader(const VertexShaderSpec& shaderSpec) override;
 
-    /// @brief Destroys a vertex shader.
-    Result<void> DestroyVertexShader(VertexShader& shader) override;
+    Result<void> DestroyVertexShader(GpuVertexShader* shader) override;
 
-    /// @brief Creates a fragment shader from the given specification.
-    Result<FragmentShader> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) override;
+    Result<GpuFragmentShader*> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) override;
 
-    /// @brief Destroys a fragment shader.
-    Result<void> DestroyFragmentShader(FragmentShader& shader) override;
+    Result<void> DestroyFragmentShader(GpuFragmentShader* shader) override;
 
     Result<RenderGraph*> CreateRenderGraph() override;
 
     void DestroyRenderGraph(RenderGraph* renderGraph) override;
 
-    /// @brief Retrieves or creates a graphics pipeline for the given material.
     Result<SDL_GPUGraphicsPipeline*> GetOrCreatePipeline(const Material& mtl);
 
     SDL_Window* const Window;

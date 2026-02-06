@@ -22,13 +22,13 @@ class Mesh
 public:
 
     Mesh(const imstring& name,
-        VertexBuffer::Subrange&& vb,
-        IndexBuffer::Subrange&& ib,
+        const GpuVertexBuffer::Subrange& vb,
+        const GpuIndexBuffer::Subrange& ib,
         const uint32_t indexCount,
         const Material& material)
         : m_Name(name)
-        , m_VtxBuffer(std::move(vb))
-        , m_IdxBuffer(std::move(ib))
+        , m_VtxBuffer(vb)
+        , m_IdxBuffer(ib)
         , m_IndexCount(indexCount)
         , m_Material(material)
     {
@@ -40,8 +40,8 @@ public:
     Mesh& operator=(Mesh&& other) = default;
 
     const imstring& GetName() const { return m_Name; }
-    const VertexBuffer::Subrange& GetVertexBuffer() const { return m_VtxBuffer; }
-    const IndexBuffer::Subrange& GetIndexBuffer() const { return m_IdxBuffer; }
+    const GpuVertexBuffer::Subrange& GetVertexBuffer() const { return m_VtxBuffer; }
+    const GpuIndexBuffer::Subrange& GetIndexBuffer() const { return m_IdxBuffer; }
     uint32_t GetIndexCount() const { return m_IndexCount; }
     const Material& GetMaterial() const { return m_Material; }
 
@@ -50,8 +50,8 @@ private:
     Mesh() = delete;
 
     imstring m_Name;
-    VertexBuffer::Subrange m_VtxBuffer;
-    IndexBuffer::Subrange m_IdxBuffer;
+    GpuVertexBuffer::Subrange m_VtxBuffer;
+    GpuIndexBuffer::Subrange m_IdxBuffer;
     uint32_t m_IndexCount;
     Material m_Material;
 };

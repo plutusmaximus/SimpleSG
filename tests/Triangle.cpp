@@ -1,140 +1,194 @@
 #include <SDL3/SDL.h>
 
-#include "AppDriver.h"
-#include "Application.h"
 #include "Camera.h"
-#include "GpuDevice.h"
+#include "DawnGpuDevice.h"
+#include "FileIo.h"
 #include "Logging.h"
 #include "ResourceCache.h"
+#include "SdlGpuDevice.h"
 #include "scope_exit.h"
+#include "Stopwatch.h"
+
+#include <filesystem>
 
 static Result<Model> CreateTriangleModel(ResourceCache* cache);
 
-class TriangleApp : public Application
+constexpr const char* kAppName = "Triangle";
+
+static Result<void> MainLoop()
 {
-public:
-    ~TriangleApp() override
-    {
-    }
+    logSetLevel(spdlog::level::trace);
 
-    Result<void> Initialize(AppContext* context) override
+    auto cwd = std::filesystem::current_path();
+    logInfo("Current working directory: {}", cwd.string());
+
+    expect(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
+
+    auto sdlCleanup = scope_exit([]()
     {
-        auto cleanup = scope_exit([this]()
+        SDL_Quit();
+    });
+
+    SDL_Rect displayRect;
+    expect(SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &displayRect), SDL_GetError());
+    const int winW = displayRect.w * 3 / 4;//0.75
+    const int winH = displayRect.h * 3 / 4;//0.75
+
+    // Create window
+    auto window = SDL_CreateWindow(kAppName, winW, winH, SDL_WINDOW_RESIZABLE);
+    expect(window, SDL_GetError());
+
+    auto windowCleanup = scope_exit([window]()
+    {
+        SDL_DestroyWindow(window);
+    });
+
+    expect(FileIo::Startup(), "Failed to startup File I/O system");
+
+    auto fileIoCleanup = scope_exit([]()
+    {
+        FileIo::Shutdown();
+    });
+
+    auto gdResult = SdlGpuDevice::Create(window);
+    //auto gdResult = DawnGpuDevice::Create(window);
+    expect(gdResult, gdResult.error());
+
+    auto gpuDevice = *gdResult;
+
+    auto gpuDeviceCleanup = scope_exit([gpuDevice]()
+    {
+        SdlGpuDevice::Destroy(gpuDevice);
+    });
+
+    ResourceCache resourceCache(gpuDevice);
+
+    auto screenBounds = gpuDevice->GetExtent();
+
+    constexpr Radiansf fov = Radiansf::FromDegrees(45);
+
+    TrsTransformf cameraXform;
+    cameraXform.T = Vec3f{ 0,0,-4 };
+    Camera camera;
+    camera.SetPerspective(fov, screenBounds, 0.1f, 1000);
+
+    auto modelResult = CreateTriangleModel(&resourceCache);
+    expect(modelResult, modelResult.error());
+    auto model = *modelResult;
+
+    auto renderGraphResult = gpuDevice->CreateRenderGraph();
+    expect(renderGraphResult, renderGraphResult.error());
+
+    auto renderGraph = *renderGraphResult;
+
+    auto renderGraphCleanup = scope_exit([gpuDevice, renderGraph]()
+    {
+        gpuDevice->DestroyRenderGraph(renderGraph);
+    });
+
+    Stopwatch stopwatch;
+
+    bool running = true;
+    bool minimized = false;
+
+    while(running)
+    {
+        SDL_Event event;
+
+        while(minimized && running && SDL_PollEvent(&event))
         {
-            Shutdown();
-        });
-
-        m_GpuDevice = context->GpuDevice;
-        m_ResourceCache = context->ResourceCache;
-
-        auto renderGraphResult = m_GpuDevice->CreateRenderGraph();
-        expect(renderGraphResult, renderGraphResult.error());
-
-        m_RenderGraph = *renderGraphResult;
-
-        m_ScreenBounds = m_GpuDevice->GetExtent();
-
-        constexpr Radiansf fov = Radiansf::FromDegrees(45);
-
-        m_CameraXform.T = Vec3f{ 0,0,-4 };
-        m_Camera.SetPerspective(fov, m_ScreenBounds, 0.1f, 1000);
-
-        auto modelResult = CreateTriangleModel(m_ResourceCache);
-        expect(modelResult, modelResult.error());
-        m_Model = *modelResult;
-
-        m_IsRunning = true;
-
-        cleanup.release();
-
-        return ResultOk;
-    }
-
-    void Shutdown() override
-    {
-        m_IsRunning = false;
-
-        if(m_RenderGraph)
-        {
-            m_GpuDevice->DestroyRenderGraph(m_RenderGraph);
+            switch(event.type)
+            {
+                case SDL_EVENT_WINDOW_RESTORED:
+                case SDL_EVENT_WINDOW_MAXIMIZED:
+                    minimized = false;
+                    break;
+            }
         }
-        m_GpuDevice = nullptr;
-        m_RenderGraph = nullptr;
-        m_ResourceCache = nullptr;
-    }
 
-    void Update(const float /*deltaSeconds*/) override
-    {
-        m_ScreenBounds = m_GpuDevice->GetExtent();
+        if(minimized)
+        {
+            std::this_thread::yield();
+            continue;
+        }
 
-        m_Camera.SetBounds(m_ScreenBounds);
+        while(!minimized && running && SDL_PollEvent(&event))
+        {
+            switch (event.type)
+            {
+            case SDL_EVENT_QUIT:
+                running = false;
+                break;
+
+            case SDL_EVENT_WINDOW_RESIZED:
+            case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+                break;
+
+            case SDL_EVENT_WINDOW_MINIMIZED:
+                minimized = true;
+                break;
+
+            //case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+            case SDL_EVENT_WINDOW_FOCUS_GAINED:
+                //app->OnFocusGained();
+                break;
+
+            case SDL_EVENT_WINDOW_FOCUS_LOST:
+                //app->OnFocusLost();
+                break;
+
+            case SDL_EVENT_MOUSE_MOTION:
+                //app->OnMouseMove(Vec2f(event.motion.xrel, event.motion.yrel));
+                break;
+
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                //app->OnMouseDown(Point(event.button.x, event.button.y), event.button.button - 1);
+                break;
+
+            case SDL_EVENT_MOUSE_BUTTON_UP:
+                //app->OnMouseUp(event.button.button - 1);
+                break;
+
+            case SDL_EVENT_MOUSE_WHEEL:
+                //app->OnScroll(Vec2f(event.wheel.x, event.wheel.y));
+                break;
+
+            case SDL_EVENT_KEY_DOWN:
+                //app->OnKeyDown(event.key.scancode);
+                break;
+
+            case SDL_EVENT_KEY_UP:
+                //app->OnKeyUp(event.key.scancode);
+                break;
+            }
+        }
+
+        if(minimized || !running)
+        {
+            continue;
+        }
+
+        screenBounds = gpuDevice->GetExtent();
+
+        camera.SetBounds(screenBounds);
 
         TrsTransformf transform;
 
         // Transform to camera space and render
-        m_RenderGraph->Add(transform.ToMatrix(), m_Model);
-        auto renderResult = m_RenderGraph->Render(m_CameraXform.ToMatrix(), m_Camera.GetProjection());
+        renderGraph->Add(transform.ToMatrix(), model);
+        auto renderResult = renderGraph->Render(cameraXform.ToMatrix(), camera.GetProjection());
         if(!renderResult)
         {
             logError(renderResult.error().GetMessage());
         }
     }
 
-    bool IsRunning() const override
-    {
-        return m_IsRunning;
-    }
-
-private:
-
-        GpuDevice* m_GpuDevice = nullptr;
-        ResourceCache* m_ResourceCache = nullptr;
-        RenderGraph* m_RenderGraph = nullptr;
-        TrsTransformf m_CameraXform;
-        Camera m_Camera;
-        Extent m_ScreenBounds{0,0};
-        Model m_Model;
-        bool m_IsRunning = false;
-};
-
-class TriangleAppLifecycle : public AppLifecycle
-{
-public:
-    Application* Create() override
-    {
-        return new TriangleApp();
-    }
-
-    void Destroy(Application* app) override
-    {
-        delete app;
-    }
-
-    std::string_view GetName() const override
-    {
-        return "Triangle";
-    }
-};
+    return ResultOk;
+}
 
 int main(int, char* /*argv[]*/)
 {
-    TriangleAppLifecycle appLifecycle;
-    AppDriver driver(&appLifecycle);
-
-    auto initResult = driver.Init();
-    if(!initResult)
-    {
-        logError(initResult.error().GetMessage());
-        return -1;
-    }
-
-    auto runResult = driver.Run();
-
-    if(!runResult)
-    {
-        logError(runResult.error().GetMessage());
-        return -1;
-    }
+    MainLoop();
 
     return 0;
 }

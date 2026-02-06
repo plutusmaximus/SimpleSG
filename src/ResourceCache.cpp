@@ -85,6 +85,24 @@ static void ProcessNodes(const aiNode* node,
 
 ResourceCache::~ResourceCache()
 {
+    for(auto vb : m_VertexBuffers)
+    {
+        auto result = m_GpuDevice->DestroyVertexBuffer(vb);
+        if(!result)
+        {
+            logError("Failed to destroy vertex buffer: {}", result.error());
+        }
+    }
+
+    for(auto ib : m_IndexBuffers)
+    {
+        auto result = m_GpuDevice->DestroyIndexBuffer(ib);
+        if(!result)
+        {
+            logError("Failed to destroy index buffer: {}", result.error());
+        }
+    }
+
     for(auto& entry : m_TextureCache)
     {
         if(!entry.Result)
@@ -256,7 +274,8 @@ ResourceCache::LoadModelFromMemory(
     const CacheKey& cacheKey, const std::span<const uint8_t> data, std::string_view filePath)
 {
     // Return existing entry without re-importing
-    if(Result<Model> modelResult; m_ModelCache.TryGet(cacheKey, modelResult))
+    Result<Model> modelResult;
+    if(m_ModelCache.TryGet(cacheKey, modelResult))
     {
         // TODO(KB) - add a test to confirm cache behavior.
 
@@ -306,8 +325,7 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     logDebug("Creating model (key: {})", cacheKey.ToString());
 
     // Return existing entry without re-importing
-    Result<Model> modelResult;
-    if(m_ModelCache.TryGet(cacheKey, modelResult))
+    if(Result<Model> modelResult; m_ModelCache.TryGet(cacheKey, modelResult))
     {
         // TODO(KB) - add a test to confirm cache behavior.
 
@@ -337,8 +355,8 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     auto vbResult = m_GpuDevice->CreateVertexBuffer(vertexSpans);
     expect(vbResult, vbResult.error());
 
-    auto baseIb = std::move(ibResult.value());
-    auto baseVb = std::move(vbResult.value());
+    auto baseIb = ibResult.value();
+    auto baseVb = vbResult.value();
 
     imvector<Mesh>::builder meshes;
     meshes.reserve(modelSpec.MeshSpecs.size());
@@ -378,7 +396,7 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
 
     for(const auto& meshSpec : modelSpec.MeshSpecs)
     {
-        Texture albedo;
+        GpuTexture* albedo = nullptr;
         if(meshSpec.MtlSpec.Albedo.IsValid())
         {
             auto albedoResult = GetTexture(meshSpec.MtlSpec.Albedo.GetCacheKey());
@@ -406,14 +424,12 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
 
         // The index and vertex buffers were each created as a single large buffer,
         // so we need to adjust the offsets for each mesh.
-        auto ibSubrangeResult = baseIb.GetSubRange(idxOffset, idxCount);
-        expect(ibSubrangeResult, ibSubrangeResult.error());
-        auto vbSubrangeResult = baseVb.GetSubRange(vtxOffset, vtxCount);
-        expect(vbSubrangeResult, vbSubrangeResult.error());
+        auto ibSubrange = baseIb->GetSubrange(idxOffset, idxCount);
+        auto vbSubrange = baseVb->GetSubrange(vtxOffset, vtxCount);
 
         meshes.emplace_back(meshSpec.Name,
-            std::move(vbSubrangeResult.value()),
-            std::move(ibSubrangeResult.value()),
+            vbSubrange,
+            ibSubrange,
             idxCount,
             mtl);
 
@@ -421,7 +437,7 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
         vtxOffset += vtxCount;
     }
 
-    modelResult = Model::Create(meshes.build(), modelSpec.MeshInstances, modelSpec.TransformNodes);
+    auto modelResult = Model::Create(meshes.build(), modelSpec.MeshInstances, modelSpec.TransformNodes);
 
     expect(modelResult, modelResult.error());
 
@@ -429,10 +445,10 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
         "Failed to add model to cache: {}",
         cacheKey.ToString());
 
-    m_VertexBuffers.emplace_back(std::move(baseVb));
-    m_IndexBuffers.emplace_back(std::move(baseIb));
+    m_VertexBuffers.emplace_back(baseVb);
+    m_IndexBuffers.emplace_back(baseIb);
 
-    return modelResult;
+    return GetModel(cacheKey);
 }
 
 /// @brief Creates a texture asynchronously if not already created.
@@ -458,12 +474,13 @@ ResourceCache::CreateTextureAsync(const CacheKey& cacheKey, const TextureSpec& t
     return ResultOk;
 }
 
-Result<VertexShader>
+Result<GpuVertexShader*>
 ResourceCache::GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec)
 {
     const CacheKey cacheKey(std::get<0>(shaderSpec.Source));
 
-    Result<VertexShader> shaderResult;
+    Result<GpuVertexShader*> shaderResult;
+
     if(m_VertexShaderCache.TryGet(cacheKey, shaderResult))
     {
         logDebug("  Cache hit: {}", cacheKey.ToString());
@@ -478,15 +495,16 @@ ResourceCache::GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec)
     expect(m_VertexShaderCache.TryAdd(cacheKey, shaderResult),
         "Failed to add vertex shader to cache: {}",
         cacheKey.ToString());
+
     return shaderResult;
 }
 
-Result<FragmentShader>
+Result<GpuFragmentShader*>
 ResourceCache::GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec)
 {
     const CacheKey cacheKey(std::get<0>(shaderSpec.Source));
 
-    Result<FragmentShader> shaderResult;
+    Result<GpuFragmentShader*> shaderResult;
     if(m_FragmentShaderCache.TryGet(cacheKey, shaderResult))
     {
         logDebug("  Cache hit: {}", cacheKey.ToString());
@@ -500,45 +518,48 @@ ResourceCache::GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec)
     expect(m_FragmentShaderCache.TryAdd(cacheKey, shaderResult),
         "Failed to add fragment shader to cache: {}",
         cacheKey.ToString());
+
     return shaderResult;
 }
 
 Result<Model>
 ResourceCache::GetModel(const CacheKey& cacheKey) const
 {
-    Result<Model> modelResult;
-    expect(m_ModelCache.TryGet(cacheKey, modelResult), "Model not found: {}", cacheKey.ToString());
-    return modelResult;
+    Result<Model> result;
+
+    expect(m_ModelCache.TryGet(cacheKey, result), "Model not found: {}", cacheKey.ToString());
+
+    return result;
 }
 
-Result<Texture>
+Result<GpuTexture*>
 ResourceCache::GetTexture(const CacheKey& cacheKey) const
 {
-    Result<Texture> textureResult;
-    expect(m_TextureCache.TryGet(cacheKey, textureResult),
-        "Texture not found: {}",
-        cacheKey.ToString());
-    return textureResult;
+    Result<GpuTexture*> result;
+
+    expect(m_TextureCache.TryGet(cacheKey, result), "Texture not found: {}", cacheKey.ToString());
+
+    return result;
 }
 
-Result<VertexShader>
+Result<GpuVertexShader*>
 ResourceCache::GetVertexShader(const CacheKey& cacheKey) const
 {
-    Result<VertexShader> shaderResult;
-    expect(m_VertexShaderCache.TryGet(cacheKey, shaderResult),
-        "Vertex shader not found: {}",
-        cacheKey.ToString());
-    return shaderResult;
+    Result<GpuVertexShader*> result;
+
+    expect(m_VertexShaderCache.TryGet(cacheKey, result), "Vertex shader not found: {}", cacheKey.ToString());
+
+    return result;
 }
 
-Result<FragmentShader>
+Result<GpuFragmentShader*>
 ResourceCache::GetFragmentShader(const CacheKey& cacheKey) const
 {
-    Result<FragmentShader> shaderResult;
-    expect(m_FragmentShaderCache.TryGet(cacheKey, shaderResult),
-        "Fragment shader not found: {}",
-        cacheKey.ToString());
-    return shaderResult;
+    Result<GpuFragmentShader*> result;
+
+    expect(m_FragmentShaderCache.TryGet(cacheKey, result), "Fragment shader not found: {}", cacheKey.ToString());
+
+    return result;
 }
 
 // private:
@@ -662,7 +683,7 @@ ResourceCache::CreateTextureOp::Start()
             return;
         }
 
-        AddOrReplaceInCache(result.value());
+        AddToCache(result);
 
         SetResult(GetCacheKey());
     }
@@ -754,7 +775,7 @@ ResourceCache::CreateTextureOp::Update()
                     return;
                 }
 
-                AddOrReplaceInCache(textureResult.value());
+                AddToCache(textureResult);
 
                 SetResult(GetCacheKey());
 
@@ -798,7 +819,7 @@ ResourceCache::CreateTextureOp::DecodeImage()
     return ResultOk;
 }
 
-Result<Texture>
+Result<GpuTexture*>
 ResourceCache::CreateTextureOp::CreateTexture()
 {
     logOp("Creating texture (key: {})", GetCacheKey().ToString());
@@ -819,11 +840,11 @@ ResourceCache::CreateTextureOp::CreateTexture()
 }
 
 void
-ResourceCache::CreateTextureOp::AddOrReplaceInCache(const Texture& texture)
+ResourceCache::CreateTextureOp::AddToCache(Result<GpuTexture*> texture)
 {
     logOp("Adding texture to cache (key: {})", GetCacheKey().ToString());
 
-    m_ResourceCache->m_TextureCache.AddOrReplace(GetCacheKey(), texture);
+    m_ResourceCache->m_TextureCache.TryAdd(GetCacheKey(), texture);
 }
 
 static TextureProperties
@@ -1106,7 +1127,7 @@ CreateMeshSpecCollection(const aiScene* scene,
         MeshSpec spec = CreateMeshSpecFromMesh(scene, meshId, parentPath);
 
         const int specIndex = static_cast<int>(meshSpecCollection.MeshSpecs.size());
-        meshSpecCollection.MeshSpecs.emplace_back(std::move(spec));
+        meshSpecCollection.MeshSpecs.emplace_back(spec);
         meshSpecCollection.MeshIdToSpecIndex[meshId] = specIndex;
     }
 

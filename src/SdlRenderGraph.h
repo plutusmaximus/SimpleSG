@@ -19,6 +19,8 @@ public:
     SdlRenderGraph() = delete;
     SdlRenderGraph(const SdlRenderGraph&) = delete;
     SdlRenderGraph& operator=(const SdlRenderGraph&) = delete;
+    SdlRenderGraph(SdlRenderGraph&&) = delete;
+    SdlRenderGraph& operator=(SdlRenderGraph&&) = delete;
 
     virtual ~SdlRenderGraph() override;
 
@@ -95,9 +97,9 @@ private:
 
     /// Get or create the default texture.
     /// The default texture is used when a material does not have an albedo texture.
-    Result<Texture> GetDefaultAlbedoTexture();
+    Result<GpuTexture*> GetDefaultAlbedoTexture();
 
     State m_State[2];
     State* m_CurrentState = &m_State[0];
-    Texture m_DefaultAlbedoTexture;
+    GpuTexture* m_DefaultAlbedoTexture{nullptr};
 };
