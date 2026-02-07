@@ -2,6 +2,7 @@
 
 #include "GpuDevice.h"
 #include "Material.h"
+#include "PoolAllocator.h"
 #include "Vertex.h"
 
 #include <map>
@@ -274,4 +275,18 @@ private:
 
     /// @brief Default sampler used for all textures.
     SDL_GPUSampler* m_Sampler = nullptr;
+
+    union GpuResource
+    {
+        GpuResource() {}
+        ~GpuResource() {}
+
+        SdlGpuVertexBuffer VertexBuffer;
+        SdlGpuIndexBuffer IndexBuffer;
+        SdlGpuTexture Texture;
+        SdlGpuVertexShader VertexShader;
+        SdlGpuFragmentShader FragmentShader;
+    };
+
+    PoolAllocator<GpuResource, 1024> m_ResourceAllocator;
 };

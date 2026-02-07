@@ -133,7 +133,7 @@ private:
             mem = ::operator new(bytes_for(n));
         }
 
-        return new (mem) block{ std::atomic_uint32_t{ 1 }, n };
+        return ::new (mem) block{ std::atomic_uint32_t{ 1 }, n };
     }
 
     static void deallocate_block_raw(block* b) noexcept
@@ -183,7 +183,7 @@ private:
         size_type i = 0;
         for (; first != last; ++first, ++i)
         {
-            new (p + i) T(*first);
+            ::new (p + i) T(*first);
         }
 
         return b;
@@ -216,7 +216,7 @@ private:
 
         for (size_type i = 0; i < n; ++i)
         {
-            new (p + i) T(value);
+            ::new (p + i) T(value);
         }
 
         return b;
@@ -372,7 +372,7 @@ public:
     private:
         block*    m_blk  = nullptr; // owned by builder until build()
         size_type m_size = 0;       // constructed elements
-        size_type m_cap  = 0;       // allocated capacity (in elements)        
+        size_type m_cap  = 0;       // allocated capacity (in elements)
 
         static T* empty_data_ptr() noexcept
         {
@@ -422,7 +422,7 @@ public:
             // Move-construct existing elements into new storage
             for (size_type i = 0; i < m_size; ++i)
             {
-                new (newDst + i) T(std::move(oldSrc[i]));
+                ::new (newDst + i) T(std::move(oldSrc[i]));
             }
 
             // Destroy old elements + free old storage
@@ -527,7 +527,7 @@ public:
                 T* p = const_cast<T*>(elements_ptr(m_blk));
                 for (size_type i = m_size; i < newSize; ++i)
                 {
-                    new (p + i) T();
+                    ::new (p + i) T();
                 }
                 m_size = newSize;
             }
@@ -548,7 +548,7 @@ public:
         {
             ensure_capacity(m_size + 1);
             T* p = const_cast<T*>(elements_ptr(m_blk));
-            new (p + m_size) T(v);
+            ::new (p + m_size) T(v);
             ++m_size;
         }
 
@@ -556,7 +556,7 @@ public:
         {
             ensure_capacity(m_size + 1);
             T* p = const_cast<T*>(elements_ptr(m_blk));
-            new (p + m_size) T(std::move(v));
+            ::new (p + m_size) T(std::move(v));
             ++m_size;
         }
 
@@ -565,7 +565,7 @@ public:
         {
             ensure_capacity(m_size + 1);
             T* p = const_cast<T*>(elements_ptr(m_blk));
-            T* e = new (p + m_size) T(std::forward<Args>(args)...);
+            T* e = ::new (p + m_size) T(std::forward<Args>(args)...);
             ++m_size;
             return *e;
         }
@@ -577,7 +577,7 @@ public:
             T* p = const_cast<T*>(elements_ptr(m_blk));
             for (size_type i = 0; i < static_cast<size_type>(s.size()); ++i)
             {
-                new (p + m_size + i) T(s[i]);
+                ::new (p + m_size + i) T(s[i]);
             }
             m_size += static_cast<size_type>(s.size());
         }

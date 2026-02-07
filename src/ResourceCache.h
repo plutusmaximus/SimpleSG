@@ -291,7 +291,7 @@ public:
     T* AllocateOp(Args&&... args)
     {
         AsyncOpUnion* opUnion = m_AsyncOpAllocator.Alloc();
-        return new (opUnion) T(std::forward<Args>(args)...);
+        return ::new (opUnion) T(std::forward<Args>(args)...);
     }
 
     /// @brief Frees an asynchronous operation back to the pool.
