@@ -202,6 +202,8 @@ target_sources(ssg
 target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 assimp::assimp webgpu_dawn)
 target_include_directories(ssg PUBLIC src PRIVATE thirdparty/stb)
 
+add_dependencies(ssg tint_cmd_tint_cmd)
+
 compiler_flags(ssg)
 
 # ============================================================

@@ -288,5 +288,5 @@ private:
         SdlGpuFragmentShader FragmentShader;
     };
 
-    PoolAllocator<GpuResource, 1024> m_ResourceAllocator;
+    PoolAllocator<GpuResource, 256> m_ResourceAllocator;
 };

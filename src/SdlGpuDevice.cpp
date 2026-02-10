@@ -92,6 +92,9 @@ SdlGpuDevice::SdlGpuDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice)
 {
 }
 
+#define VK_MAKE_VERSION(major, minor, patch) \
+    ((((uint32_t)(major)) << 22U) | (((uint32_t)(minor)) << 12U) | ((uint32_t)(patch)))
+
 Result<GpuDevice*>
 SdlGpuDevice::Create(SDL_Window* window)
 {
@@ -101,9 +104,21 @@ SdlGpuDevice::Create(SDL_Window* window)
     expect(SDL_SetHint(SDL_HINT_RENDER_VULKAN_DEBUG, "1"), SDL_GetError());
     expect(SDL_SetHint(SDL_HINT_RENDER_GPU_DEBUG, "1"), SDL_GetError());
 
+    SDL_GPUVulkanOptions options =
+    {
+        .vulkan_api_version = VK_MAKE_VERSION(1, 3, 0),
+        // Other fields can be set as needed
+    };
+
     // Initialize GPU device
     const bool debugMode = true;
-    SDL_GPUDevice* sdlDevice = SDL_CreateGPUDevice(SHADER_FORMAT, debugMode, DRIVER_NAME);
+
+    SDL_PropertiesID props = SDL_CreateProperties();
+    SDL_SetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_SHADERS_SPIRV_BOOLEAN, true);
+    SDL_SetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_DEBUGMODE_BOOLEAN, debugMode);
+    SDL_SetStringProperty(props, SDL_PROP_GPU_DEVICE_CREATE_NAME_STRING, DRIVER_NAME);
+    SDL_SetPointerProperty(props, SDL_PROP_GPU_DEVICE_CREATE_VULKAN_OPTIONS_POINTER, &options);
+    SDL_GPUDevice* sdlDevice = SDL_CreateGPUDeviceWithProperties(props);
     expect(sdlDevice, SDL_GetError());
 
     auto sdlDeviceCleanup = scope_exit([sdlDevice]()
@@ -198,10 +213,10 @@ SdlGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& verti
 }
 
 Result<void>
-SdlGpuDevice::DestroyVertexBuffer(GpuVertexBuffer* vb)
+SdlGpuDevice::DestroyVertexBuffer(GpuVertexBuffer* buffer)
 {
-    vb->~GpuVertexBuffer();
-    m_ResourceAllocator.Free(reinterpret_cast<GpuResource*>(vb));
+    buffer->~GpuVertexBuffer();
+    m_ResourceAllocator.Free(reinterpret_cast<GpuResource*>(buffer));
     return ResultOk;
 }
 
@@ -234,67 +249,62 @@ SdlGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& i
 }
 
 Result<void>
-SdlGpuDevice::DestroyIndexBuffer(GpuIndexBuffer* ib)
+SdlGpuDevice::DestroyIndexBuffer(GpuIndexBuffer* buffer)
 {
-    ib->~GpuIndexBuffer();
-    m_ResourceAllocator.Free(reinterpret_cast<GpuResource*>(ib));
+    buffer->~GpuIndexBuffer();
+    m_ResourceAllocator.Free(reinterpret_cast<GpuResource*>(buffer));
     return ResultOk;
 }
 
 Result<GpuTexture*>
-SdlGpuDevice::CreateTexture(const unsigned width, const unsigned height, const uint8_t* pixels, const unsigned rowStride, const imstring& name)
+SdlGpuDevice::CreateTexture(const unsigned width,
+    const unsigned height,
+    const uint8_t* pixels,
+    const unsigned rowStride,
+    const imstring& name)
 {
     Stopwatch sw1;
 
     SDL_PropertiesID props = SDL_CreateProperties();
-    auto propsCleanup = scope_exit([&]()
-    {
-        SDL_DestroyProperties(props);
-    });
+    auto propsCleanup = scope_exit([&]() { SDL_DestroyProperties(props); });
 
     SDL_SetStringProperty(props, SDL_PROP_GPU_TEXTURE_CREATE_NAME_STRING, name.c_str());
 
     // Create GPU texture
-    SDL_GPUTextureCreateInfo textureInfo =
-    {
-        .type = SDL_GPU_TEXTURETYPE_2D,
-        .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
-        .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
-        .width = width,
-        .height = height,
-        .layer_count_or_depth = 1,
-        .num_levels = 1,
-        .sample_count = SDL_GPU_SAMPLECOUNT_1,
-        .props = props
-    };
+    SDL_GPUTextureCreateInfo textureInfo = //
+        {
+            .type = SDL_GPU_TEXTURETYPE_2D,
+            .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+            .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
+            .width = width,
+            .height = height,
+            .layer_count_or_depth = 1,
+            .num_levels = 1,
+            .sample_count = SDL_GPU_SAMPLECOUNT_1,
+            .props = props,
+        };
 
     Stopwatch sw;
 
     SDL_GPUTexture* texture = SDL_CreateGPUTexture(Device, &textureInfo);
     expect(texture, SDL_GetError());
-    auto texCleanup = scope_exit([&]()
-    {
-        SDL_ReleaseGPUTexture(Device, texture);
-    });
+    auto texCleanup = scope_exit([&]() { SDL_ReleaseGPUTexture(Device, texture); });
 
     logDebug("SDL_CreateGPUTexture: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
 
     const unsigned sizeofData = textureInfo.width * textureInfo.height * 4;
 
-    SDL_GPUTransferBufferCreateInfo xferBufferCreateInfo
-    {
-        .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-        .size = sizeofData
-    };
+    SDL_GPUTransferBufferCreateInfo xferBufferCreateInfo{ .usage =
+                                                              SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+        .size = sizeofData };
 
     // Create transfer buffer for uploading pixel data
-    SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(Device, &xferBufferCreateInfo);
+    SDL_GPUTransferBuffer* transferBuffer =
+        SDL_CreateGPUTransferBuffer(Device, &xferBufferCreateInfo);
     expect(transferBuffer, SDL_GetError());
-    auto tbufferCleanup = scope_exit([&]()
-    {
-        SDL_ReleaseGPUTransferBuffer(Device, transferBuffer);
-    });
+    auto tbufferCleanup =
+        scope_exit([&]() { SDL_ReleaseGPUTransferBuffer(Device, transferBuffer); });
 
     logDebug("SDL_CreateGPUTransferBuffer: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
@@ -309,7 +319,8 @@ SdlGpuDevice::CreateTexture(const unsigned width, const unsigned height, const u
     const uint8_t* srcPixels = pixels;
     uint8_t* dstPixels = static_cast<uint8_t*>(mappedData);
     const ptrdiff_t dstRowBytes = textureInfo.width * 4;
-    for(unsigned row = 0; row < textureInfo.height; ++row, srcPixels += rowStride, dstPixels += dstRowBytes)
+    for(unsigned row = 0; row < textureInfo.height;
+        ++row, srcPixels += rowStride, dstPixels += dstRowBytes)
     {
         std::memcpy(dstPixels, srcPixels, textureInfo.width * 4);
     }
@@ -325,10 +336,7 @@ SdlGpuDevice::CreateTexture(const unsigned width, const unsigned height, const u
     // Upload to GPU texture
     SDL_GPUCommandBuffer* cmdBuffer = SDL_AcquireGPUCommandBuffer(Device);
     expect(cmdBuffer, SDL_GetError());
-    auto cmdBufCleanup = scope_exit([&]()
-    {
-        SDL_CancelGPUCommandBuffer(cmdBuffer);
-    });
+    auto cmdBufCleanup = scope_exit([&]() { SDL_CancelGPUCommandBuffer(cmdBuffer); });
 
     logDebug("SDL_AcquireGPUCommandBuffer: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
@@ -339,21 +347,21 @@ SdlGpuDevice::CreateTexture(const unsigned width, const unsigned height, const u
     logDebug("SDL_BeginGPUCopyPass: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
 
-    SDL_GPUTextureTransferInfo transferInfo
-    {
-        .transfer_buffer = transferBuffer,
-        .offset = 0,
-        .pixels_per_row = textureInfo.width,
-        .rows_per_layer = textureInfo.height
-    };
+    SDL_GPUTextureTransferInfo transferInfo //
+        {
+            .transfer_buffer = transferBuffer,
+            .offset = 0,
+            .pixels_per_row = textureInfo.width,
+            .rows_per_layer = textureInfo.height,
+        };
 
-    SDL_GPUTextureRegion textureRegion
-    {
-        .texture = texture,
-        .w = textureInfo.width,
-        .h = textureInfo.height,
-        .d = 1
-    };
+    SDL_GPUTextureRegion textureRegion //
+        {
+            .texture = texture,
+            .w = textureInfo.width,
+            .h = textureInfo.height,
+            .d = 1,
+        };
 
     SDL_UploadToGPUTexture(copyPass, &transferInfo, &textureRegion, false);
 
@@ -374,13 +382,10 @@ SdlGpuDevice::CreateTexture(const unsigned width, const unsigned height, const u
     if(!m_Sampler)
     {
         // Create sampler
-        SDL_GPUSamplerCreateInfo samplerInfo =
-        {
-            .min_filter = SDL_GPU_FILTER_NEAREST,
+        SDL_GPUSamplerCreateInfo samplerInfo = { .min_filter = SDL_GPU_FILTER_NEAREST,
             .mag_filter = SDL_GPU_FILTER_NEAREST,
             .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
-            .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT
-        };
+            .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT };
 
         m_Sampler = SDL_CreateGPUSampler(Device, &samplerInfo);
         expect(m_Sampler, SDL_GetError());
@@ -410,10 +415,10 @@ SdlGpuDevice::CreateTexture(const RgbaColorf& color, const imstring& name)
 }
 
 Result<void>
-SdlGpuDevice::DestroyTexture(GpuTexture* tex)
+SdlGpuDevice::DestroyTexture(GpuTexture* texture)
 {
-    tex->~GpuTexture();
-    m_ResourceAllocator.Free(reinterpret_cast<GpuResource*>(tex));
+    texture->~GpuTexture();
+    m_ResourceAllocator.Free(reinterpret_cast<GpuResource*>(texture));
     return ResultOk;
 }
 
