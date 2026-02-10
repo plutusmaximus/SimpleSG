@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Logging.h"
+
 #include "imstring.h"
 
 #include <format>
@@ -277,19 +279,23 @@ private:
 #define MAKE_EXPR_ERROR(exprStr, ...)                                                              \
     Error::MakeExprError(__FILE__, __LINE__, exprStr, ##__VA_ARGS__)
 
-#define expect(expr, ...)                                                                          \
-    {                                                                                              \
-        if(!static_cast<bool>(expr))                                                               \
-        {                                                                                          \
-            return Error(MAKE_EXPR_ERROR(#expr, ##__VA_ARGS__));                                   \
-        }                                                                                          \
+#define expect(expr, ...)                                               \
+    {                                                                   \
+        if(!static_cast<bool>(expr))                                    \
+        {                                                               \
+            const Error error = MAKE_EXPR_ERROR(#expr, ##__VA_ARGS__);  \
+            logError("{}", error);                                      \
+            return error;                                               \
+        }                                                               \
     }
 
 // Like expect but also calls verify and pops an assert if false.
-#define expectv(expr, ...)                                                                         \
-    {                                                                                              \
-        if(!everify(expr))                                                                         \
-        {                                                                                          \
-            return Error(MAKE_EXPR_ERROR(#expr, ##__VA_ARGS__));                                   \
-        }                                                                                          \
+#define expectv(expr, ...)                                              \
+    {                                                                   \
+        if(!everify(expr))                                              \
+        {                                                               \
+            const Error error = MAKE_EXPR_ERROR(#expr, ##__VA_ARGS__);  \
+            logError("{}", error);                                      \
+            return error;                                               \
+        }                                                               \
     }
