@@ -1,15 +1,23 @@
 cmake_minimum_required(VERSION 3.31)
-project(HLSLToSpirvAndDxil LANGUAGES CXX)
+project(WGSLToSpirv LANGUAGES CXX)
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-set(HLSL_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}" CACHE PATH "Where to search for *.hlsl")
+set(WGSL_SOURCES
+  "${CMAKE_CURRENT_LIST_DIR}/ColorFragmentShader.fs.wgsl"
+  "${CMAKE_CURRENT_LIST_DIR}/ColorVertexShader.vs.wgsl"
+  "${CMAKE_CURRENT_LIST_DIR}/FragmentShader.fs.wgsl"
+  "${CMAKE_CURRENT_LIST_DIR}/VertexShader.vs.wgsl"
+)
 
-# Use a single stable shader output directory for rule registration
-set(HLSL_BIN_DIR "${CMAKE_BINARY_DIR}/shaders" CACHE STRING "Where to place compiled shaders")
+set(HLSL_SOURCES
+  "${CMAKE_CURRENT_LIST_DIR}/FragmentShader.ps.hlsl"
+)
 
-set(HLSL_ENTRYPOINT "main" CACHE STRING "Default HLSL entry point name")
+set(TINT_EXE "${CMAKE_BINARY_DIR}/DEBUG/tint.exe" CACHE FILEPATH "Tint compiler executable")
+set(TINT_SPIRV_VERSION "1.3" CACHE STRING "SPIR-V version to target (e.g. 1.0, 1.3, 1.5)")
+set(_out_dir "${CMAKE_BINARY_DIR}/shaders/Debug")
 
 # ---------------------------------------------------------------------------
 # Find DXC from Vulkan SDK
@@ -37,86 +45,43 @@ if(NOT DEFINED DXC_EXE)
 endif()
 
 # ---------------------------------------------------------------------------
-# Infer shader stage from filename
+# Build rules
 # ---------------------------------------------------------------------------
-function(_infer_hlsl_profile OUT_PROFILE INPUT_PATH)
-  get_filename_component(_name "${INPUT_PATH}" NAME)
-  string(TOLOWER "${_name}" _lower)
-  set(_profile "")
+set(_spv_outputs)
 
-  string(REGEX REPLACE ".*\\.(ps|vs|fs)\\..*" "\\1" _token "${_lower}")
-  if(_token STREQUAL "vs")
-    set(_profile "vs_6_7")
-  elseif(_token STREQUAL "ps" OR _token STREQUAL "fs")
-    set(_profile "ps_6_7")
-  elseif(_token STREQUAL "cs")
-    set(_profile "cs_6_7")
-  elseif(_token STREQUAL "gs")
-    set(_profile "gs_6_7")
-  elseif(_token STREQUAL "hs")
-    set(_profile "hs_6_7")
-  elseif(_token STREQUAL "ds")
-    set(_profile "ds_6_7")
-  elseif(_token STREQUAL "ms")
-    set(_profile "ms_6_7")
-  elseif(_token STREQUAL "as")
-    set(_profile "as_6_7")
-  endif()
+foreach(_wgsl IN LISTS WGSL_SOURCES)
+  get_filename_component(_name "${_wgsl}" NAME)
+  string(REGEX REPLACE "\\.wgsl$" "" _base_name "${_name}")
+  set(_spv_out "${_out_dir}/${_base_name}.spv")
 
-  set(${OUT_PROFILE} "${_profile}" PARENT_SCOPE)
-endfunction()
-
-# ---------------------------------------------------------------------------
-# Gather shaders and create rules
-# ---------------------------------------------------------------------------
-file(GLOB HLSL_SOURCES CONFIGURE_DEPENDS "${HLSL_SRC_DIR}/*.hlsl")
-
-set(_all_outputs "")
-foreach(_src IN LISTS HLSL_SOURCES)
-  get_filename_component(_base "${_src}" NAME_WE)
-
-  _infer_hlsl_profile(_profile "${_src}")
-  if(_profile STREQUAL "")
-    message(WARNING "Skipping HLSL file (stage not recognized): ${_src}")
-    continue()
-  endif()
-
-  # Stable logical outputs (no $<CONFIG>)
-  set(_spv  "${HLSL_BIN_DIR}/${_base}.spv")
-  set(_dxil "${HLSL_BIN_DIR}/${_base}.dxil")
-
-  # Actual runtime output directory includes configuration
-  set(_outdir "${HLSL_BIN_DIR}/$<CONFIG>")
-
-  set(_common_args -T "${_profile}" -E "${HLSL_ENTRYPOINT}" -enable-16bit-types)
-
-  # --- SPIR-V ---
   add_custom_command(
-    OUTPUT "${_spv}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "$<SHELL_PATH:${_outdir}>"
-    COMMAND "${DXC_EXE}" ${_common_args} -spirv -fvk-use-dx-layout
-            -Fo "$<SHELL_PATH:${_outdir}>/${_base}.spv" "${_src}"
-    DEPENDS "${_src}"
-    BYPRODUCTS "$<SHELL_PATH:${_outdir}>/${_base}.spv"
-    COMMENT "DXC: ${_base}.hlsl -> ${_base}.spv"
+    OUTPUT "${_spv_out}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${_out_dir}"
+    COMMAND "${TINT_EXE}" "${_wgsl}" -o "${_spv_out}" --spirv-version "${TINT_SPIRV_VERSION}"
+    DEPENDS "${_wgsl}"
+    COMMENT "Tint: ${_base_name}.wgsl -> ${_base_name}.spv"
     VERBATIM
   )
 
-  # --- DXIL ---
-  add_custom_command(
-    OUTPUT "${_dxil}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "$<SHELL_PATH:${_outdir}>"
-    COMMAND "${DXC_EXE}" ${_common_args}
-            -Fo "$<SHELL_PATH:${_outdir}>/${_base}.dxil" "${_src}"
-    DEPENDS "${_src}"
-    BYPRODUCTS "$<SHELL_PATH:${_outdir}>/${_base}.dxil"
-    COMMENT "DXC: ${_base}.hlsl -> ${_base}.dxil"
-    VERBATIM
-  )
-
-  list(APPEND _all_outputs "${_spv}" "${_dxil}")
+  list(APPEND _spv_outputs "${_spv_out}")
 endforeach()
 
-# Aggregate target
-add_custom_target(shaders ALL DEPENDS ${_all_outputs})
+foreach(_hlsl IN LISTS HLSL_SOURCES)
+  get_filename_component(_name "${_hlsl}" NAME)
+  string(REGEX REPLACE "\\.hlsl$" "" _base_name "${_name}")
+  set(_spv_out "${_out_dir}/${_base_name}.spv")
+
+  add_custom_command(
+    OUTPUT "${_spv_out}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${_out_dir}"
+    COMMAND "${DXC_EXE}" -T ps_6_7 -E main -enable-16bit-types -spirv -fvk-use-dx-layout -Fo "${_spv_out}" "${_hlsl}"
+    DEPENDS "${_hlsl}"
+    COMMENT "Tint: ${_base_name}.hlsl -> ${_base_name}.spv"
+    VERBATIM
+  )
+
+  list(APPEND _spv_outputs "${_spv_out}")
+endforeach()
+
+add_custom_target(shaders ALL DEPENDS ${_spv_outputs})
 set_target_properties(shaders PROPERTIES FOLDER "Shaders")

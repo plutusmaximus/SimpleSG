@@ -1045,8 +1045,8 @@ CreateMaterialSpec(const aiMaterial* material, const std::filesystem::path& pare
         .Metalness{ 0.0f },
         .Roughness{ 0.0f },
         .Albedo = albedo,
-        .VertexShader{ "shaders/Debug/VertexShader", 3 },
-        .FragmentShader{ "shaders/Debug/FragmentShader" },
+        .VertexShader{ "shaders/Debug/VertexShader.vs", 3 },
+        .FragmentShader{ "shaders/Debug/FragmentShader.ps" },
     };
 }
 
