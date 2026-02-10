@@ -223,18 +223,15 @@ public:
     /// @brief Represents no texture.
     struct None_t{};
 
-    /// @brief Constant representing no texture, used to initialize TextureSpec when no texture is desired.
-    constexpr static None_t None{};
-
     explicit TextureSpec(None_t)
-        : Source(None)
+        : Source(None_t{})
     {
     }
 
     /// @brief Constructs a texture spec from a file path.
     /// The cache key is set to the path.
-    explicit TextureSpec(std::string_view path)
-        : Source(imstring(path))
+    explicit TextureSpec(const imstring& path)
+        : Source(path)
     {
     }
 
@@ -298,28 +295,95 @@ private:
     TextureSpec() = delete;
 };
 
-/// @brief Specification for creating a vertex shader.
-class VertexShaderSpec
+/// @brief Specification for creating a shader.
+class ShaderSpec
 {
 public:
+
+    /// @brief Represents no shader.
+    struct None_t{};
+
+    /// @brief Returns true if the shader spec is valid (i.e., has a specified source).
+    bool IsValid() const
+    {
+        return !std::holds_alternative<None_t>(Source);
+    }
+
+    bool TryGetPath(imstring& outPath) const
+    {
+        if (const auto* path = std::get_if<imstring>(&Source))
+        {
+            outPath = *path;
+            return true;
+        }
+        return false;
+    }
+
+    CacheKey GetCacheKey() const
+    {
+        if(std::holds_alternative<None_t>(Source))
+        {
+            eassert(false && "ShaderSpec has no source");
+            return CacheKey("");
+        }
+
+        if(std::holds_alternative<imstring>(Source))
+        {
+            return CacheKey(std::get<imstring>(Source));
+        }
+
+        eassert(false && "Unhandled ShaderSpec source type");
+        return CacheKey("");
+    }
 
     //FIXME(KB) - add support for embedded source code.
     //FIXME(KB) - add a cache key.
     //FIXME(KB) - add support for resource paths.
-    std::variant<imstring> Source;
+    std::variant<None_t, imstring> Source;
+
+protected:
+    explicit ShaderSpec(None_t)
+        : Source(None_t{})
+    {
+    }
+
+    explicit ShaderSpec(const imstring& path)
+        : Source(path)
+    {
+    }
+
+private:
+
+    ShaderSpec() = delete;
+};
+
+/// @brief Specification for creating a vertex shader.
+class VertexShaderSpec : public ShaderSpec
+{
+public:
+
+    VertexShaderSpec(None_t) : ShaderSpec(None_t{}) {}
+
+    VertexShaderSpec(const imstring& path, const unsigned numUniformBuffers)
+        : ShaderSpec(path)
+        , NumUniformBuffers(numUniformBuffers)
+    {
+    }
 
     const unsigned NumUniformBuffers{ 0 };
 };
 
 /// @brief Specification for creating a fragment shader.
-class FragmentShaderSpec
+class FragmentShaderSpec : public ShaderSpec
 {
 public:
 
-    //FIXME(KB) - add support for embedded source code.
-    //FIXME(KB) - add a cache key.
-    //FIXME(KB) - add support for resource paths.
-    std::variant<imstring> Source;
+    FragmentShaderSpec(None_t) : ShaderSpec(None_t{}) {}
+
+    explicit FragmentShaderSpec(const imstring& path)
+        : ShaderSpec(path)
+    {
+    }
 };
 
 /// @brief Unique identifier for a material.

@@ -240,9 +240,13 @@ public:
 
     Result<GpuVertexShader*> CreateVertexShader(const VertexShaderSpec& shaderSpec) override;
 
+    Result<GpuVertexShader*> CreateVertexShader(const std::span<const uint8_t>& shaderCode) override;
+
     Result<void> DestroyVertexShader(GpuVertexShader* shader) override;
 
     Result<GpuFragmentShader*> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) override;
+
+    Result<GpuFragmentShader*> CreateFragmentShader(const std::span<const uint8_t>& shaderCode) override;
 
     Result<void> DestroyFragmentShader(GpuFragmentShader* shader) override;
 

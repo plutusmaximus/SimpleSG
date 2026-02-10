@@ -15,6 +15,8 @@ static Result<Model> CreateTriangleModel(ResourceCache* cache);
 
 constexpr const char* kAppName = "Triangle";
 
+#define USE_DAWN_GPU_DEVICE 0
+
 static Result<void> MainLoop()
 {
     logSetLevel(spdlog::level::trace);
@@ -50,15 +52,23 @@ static Result<void> MainLoop()
         FileIo::Shutdown();
     });
 
+#if USE_DAWN_GPU_DEVICE
+    auto gdResult = DawnGpuDevice::Create(window);
+#else
     auto gdResult = SdlGpuDevice::Create(window);
-    //auto gdResult = DawnGpuDevice::Create(window);
+#endif
+
     expect(gdResult, gdResult.error());
 
     auto gpuDevice = *gdResult;
 
     auto gpuDeviceCleanup = scope_exit([gpuDevice]()
     {
+#if USE_DAWN_GPU_DEVICE
+        DawnGpuDevice::Destroy(gpuDevice);
+#else
         SdlGpuDevice::Destroy(gpuDevice);
+#endif
     });
 
     ResourceCache resourceCache(gpuDevice);
@@ -217,9 +227,12 @@ static Result<Model> CreateTriangleModel(ResourceCache* cache)
             .MtlSpec
             {
                 .Color{"#FFA500"_rgba},
-                .Albedo{TextureSpec::None},//{"images/Ant.png"},
-                .VertexShader{"shaders/Debug/ColorVertexShader", 3},
-                .FragmentShader{"shaders/Debug/ColorFragmentShader"}
+                //.Albedo{TextureSpec::None},
+                //.VertexShader{"shaders/Debug/ColorVertexShader.vs", 3},
+                //.FragmentShader{"shaders/Debug/ColorFragmentShader.fs"}
+                .Albedo{"images/Ant.png"},
+                .VertexShader{"shaders/Debug/VertexShader.vs", 3},
+                .FragmentShader{"shaders/Debug/FragmentShader.ps"}
             }
         }
     };

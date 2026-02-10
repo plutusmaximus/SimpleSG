@@ -177,11 +177,17 @@ public:
     /// @brief Creates a vertex shader from the given specification.
     virtual Result<GpuVertexShader*> CreateVertexShader(const VertexShaderSpec& shaderSpec) = 0;
 
+    /// @brief Creates a vertex shader from the given specification.
+    virtual Result<GpuVertexShader*> CreateVertexShader(const std::span<const uint8_t>& shaderCode) = 0;
+
     /// @brief Destroys a vertex shader.
     virtual Result<void> DestroyVertexShader(GpuVertexShader* vertexShader) = 0;
 
     /// @brief Creates a fragment shader from the given specification.
     virtual Result<GpuFragmentShader*> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) = 0;
+
+    /// @brief Creates a fragment shader from the given specification.
+    virtual Result<GpuFragmentShader*> CreateFragmentShader(const std::span<const uint8_t>& shaderCode) = 0;
 
     /// @brief Destroys a fragment shader.
     virtual Result<void> DestroyFragmentShader(GpuFragmentShader* fragmentShader) = 0;

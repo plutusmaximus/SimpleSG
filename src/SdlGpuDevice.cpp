@@ -441,6 +441,37 @@ SdlGpuDevice::CreateVertexShader(const VertexShaderSpec& shaderSpec)
     return ::new(&res->VertexShader) SdlGpuVertexShader(Device, shaderResult.value());
 }
 
+Result<GpuVertexShader*>
+SdlGpuDevice::CreateVertexShader(const std::span<const uint8_t>& shaderCode)
+{
+    SDL_GPUShaderCreateInfo shaderCreateInfo
+    {
+        .code_size = shaderCode.size(),
+        .code = shaderCode.data(),
+        .entrypoint = "main",
+        .format = SHADER_FORMAT,
+        .stage = SDL_GPU_SHADERSTAGE_VERTEX,
+        .num_samplers = 0,
+        .num_uniform_buffers = 3
+    };
+
+    SDL_GPUShader* shader = SDL_CreateGPUShader(Device, &shaderCreateInfo);
+    expect(shader, SDL_GetError());
+
+    auto shaderCleanup = scope_exit([&]()
+    {
+        SDL_ReleaseGPUShader(Device, shader);
+    });
+
+    GpuResource* res = m_ResourceAllocator.Alloc();
+
+    expectv(res, "Error allocating GpuResource");
+
+    shaderCleanup.release();
+
+    return ::new(&res->VertexShader) SdlGpuVertexShader(Device, shader);
+}
+
 Result<void>
 SdlGpuDevice::DestroyVertexShader(GpuVertexShader* shader)
 {
@@ -469,6 +500,37 @@ SdlGpuDevice::CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
     expectv(res, "Error allocating GpuResource");
 
     return ::new(&res->FragmentShader) SdlGpuFragmentShader(Device, shaderResult.value());
+}
+
+Result<GpuFragmentShader*>
+SdlGpuDevice::CreateFragmentShader(const std::span<const uint8_t>& shaderCode)
+{
+    SDL_GPUShaderCreateInfo shaderCreateInfo
+    {
+        .code_size = shaderCode.size(),
+        .code = shaderCode.data(),
+        .entrypoint = "main",
+        .format = SHADER_FORMAT,
+        .stage = SDL_GPU_SHADERSTAGE_FRAGMENT,
+        .num_samplers = 1,
+        .num_uniform_buffers = 0
+    };
+
+    SDL_GPUShader* shader = SDL_CreateGPUShader(Device, &shaderCreateInfo);
+    expect(shader, SDL_GetError());
+
+    auto shaderCleanup = scope_exit([&]()
+    {
+        SDL_ReleaseGPUShader(Device, shader);
+    });
+
+    GpuResource* res = m_ResourceAllocator.Alloc();
+
+    expectv(res, "Error allocating GpuResource");
+
+    shaderCleanup.release();
+
+    return ::new(&res->FragmentShader) SdlGpuFragmentShader(Device, shader);
 }
 
 Result<void>

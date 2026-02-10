@@ -58,7 +58,16 @@ public:
         [[maybe_unused]] constexpr const char* SPONZA_MODEL_PATH_2 = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Sponza/glTF/Sponza.gltf";
         [[maybe_unused]] constexpr const char* JUNGLE_RUINS = "C:/Users/kbaca/Downloads/JungleRuins/GLTF/JungleRuins_Main.gltf";
 
-        auto modelResult = m_ResourceCache->LoadModelFromFile(CacheKey("Sponza"), SPONZA_MODEL_PATH);
+        const CacheKey cacheKey("Sponza");
+        expect(m_ResourceCache->LoadModelFromFileAsync(cacheKey, SPONZA_MODEL_PATH),
+               "Failed to load model from file");
+
+        while(m_ResourceCache->IsPending(cacheKey))
+        {
+            m_ResourceCache->ProcessPendingOperations();
+        }
+
+        auto modelResult = m_ResourceCache->GetModel(cacheKey);
         expect(modelResult, modelResult.error());
 
         auto model = *modelResult;

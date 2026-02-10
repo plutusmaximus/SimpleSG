@@ -15,6 +15,9 @@
 #include <filesystem>
 #include <stb_image.h>
 
+
+static constexpr const char* SHADER_EXTENSION = ".spv";
+
 static constexpr const char* WHITE_TEXTURE_KEY = "#FFFFFFFF";
 static constexpr const char* MAGENTA_TEXTURE_KEY = "#FF00FFFF";
 
@@ -183,7 +186,7 @@ ResourceCache::ProcessPendingOperations()
 }
 
 Result<void>
-ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, std::string_view filePath)
+ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, const imstring& filePath)
 {
     // Return existing entry without re-importing
     if(m_ModelCache.Contains(cacheKey))
@@ -207,7 +210,7 @@ ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, std::string_view
 }
 
 Result<Model>
-ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view filePath)
+ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, const imstring& filePath)
 {
     logDebug("Loading model from file: {} (key: {})", filePath, cacheKey.ToString());
 
@@ -243,7 +246,7 @@ ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view file
     SceneMeshCollection meshCollection;
     CollectMeshes(scene, scene->mRootNode, meshCollection);
 
-    const auto absPath = std::filesystem::absolute(filePath);
+    const auto absPath = std::filesystem::absolute(filePath.c_str());
     const auto parentPath = absPath.parent_path();
 
     auto meshSpecCollection = CreateMeshSpecCollection(scene, meshCollection, parentPath);
@@ -271,7 +274,7 @@ ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, std::string_view file
 
 Result<Model>
 ResourceCache::LoadModelFromMemory(
-    const CacheKey& cacheKey, const std::span<const uint8_t> data, std::string_view filePath)
+    const CacheKey& cacheKey, const std::span<const uint8_t> data, const imstring& filePath)
 {
     // Return existing entry without re-importing
     Result<Model> modelResult;
@@ -283,13 +286,16 @@ ResourceCache::LoadModelFromMemory(
         return modelResult;
     }
 
-    constexpr unsigned flags =
+    /*constexpr unsigned flags =
         aiProcess_CalcTangentSpace | aiProcess_ImproveCacheLocality | aiProcess_LimitBoneWeights |
         aiProcess_RemoveRedundantMaterials | aiProcess_Triangulate | aiProcess_SortByPType |
-        aiProcess_FindDegenerates | aiProcess_FindInvalidData | aiProcess_ConvertToLeftHanded;
+        aiProcess_FindDegenerates | aiProcess_FindInvalidData | aiProcess_ConvertToLeftHanded;*/
+
+    constexpr unsigned flags = aiProcess_ConvertToLeftHanded;
 
     Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFileFromMemory(data.data(), data.size(), flags, nullptr);
+    const aiScene* scene =
+        importer.ReadFileFromMemory(data.data(), data.size(), flags, nullptr);
 
     expect(scene != nullptr, importer.GetErrorString());
     expect(scene->mNumMeshes > 0, "No meshes in model: {}", filePath);
@@ -297,7 +303,7 @@ ResourceCache::LoadModelFromMemory(
     SceneMeshCollection meshCollection;
     CollectMeshes(scene, scene->mRootNode, meshCollection);
 
-    const auto absPath = std::filesystem::absolute(filePath);
+    const auto absPath = std::filesystem::absolute(filePath.c_str());
     const auto parentPath = absPath.parent_path();
 
     auto meshSpecCollection = CreateMeshSpecCollection(scene, meshCollection, parentPath);
@@ -361,19 +367,29 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     imvector<Mesh>::builder meshes;
     meshes.reserve(modelSpec.MeshSpecs.size());
 
-    // Load textures into cache
-    std::vector<CacheKey> textureCacheKeys;
+    // Load textures and shaders into cache
+    std::vector<CacheKey> cacheKeys;
     for(const auto& meshSpec : modelSpec.MeshSpecs)
     {
         if(meshSpec.MtlSpec.Albedo.IsValid())
         {
-            auto result =
-                CreateTextureAsync(meshSpec.MtlSpec.Albedo.GetCacheKey(), meshSpec.MtlSpec.Albedo);
+            const CacheKey texCacheKey = meshSpec.MtlSpec.Albedo.GetCacheKey();
+            auto result = CreateTextureAsync(texCacheKey, meshSpec.MtlSpec.Albedo);
 
             expect(result, result.error());
 
-            textureCacheKeys.push_back(meshSpec.MtlSpec.Albedo.GetCacheKey());
+            cacheKeys.push_back(texCacheKey);
         }
+
+        const CacheKey vsCacheKey = meshSpec.MtlSpec.VertexShader.GetCacheKey();
+        auto vsResult = CreateVertexShaderAsync(vsCacheKey, meshSpec.MtlSpec.VertexShader);
+        expect(vsResult, vsResult.error());
+        cacheKeys.push_back(vsCacheKey);
+
+        const CacheKey fsCacheKey = meshSpec.MtlSpec.FragmentShader.GetCacheKey();
+        auto fsResult = CreateFragmentShaderAsync(fsCacheKey, meshSpec.MtlSpec.FragmentShader);
+        expect(fsResult, fsResult.error());
+        cacheKeys.push_back(fsCacheKey);
     }
 
     bool done = false;
@@ -382,9 +398,9 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
         ProcessPendingOperations();
 
         done = true;
-        for(const auto& textureCacheKey : textureCacheKeys)
+        for(const auto& ck : cacheKeys)
         {
-            if(IsPending(textureCacheKey))
+            if(IsPending(ck))
             {
                 done = false;
                 break;
@@ -404,20 +420,21 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
             albedo = albedoResult.value();
         }
 
-        // FIXME - specify number of uniform buffers.
-        auto vertexShaderResult = GetOrCreateVertexShader(meshSpec.MtlSpec.VertexShader);
+        auto vertexShaderResult = GetVertexShader(meshSpec.MtlSpec.VertexShader.GetCacheKey());
         expect(vertexShaderResult, vertexShaderResult.error());
 
-        // FIXME - specify number of samplers.
-        auto fragShaderResult = GetOrCreateFragmentShader(meshSpec.MtlSpec.FragmentShader);
+        auto fragShaderResult = GetFragmentShader(meshSpec.MtlSpec.FragmentShader.GetCacheKey());
         expect(fragShaderResult, fragShaderResult.error());
 
-        Material mtl{ meshSpec.MtlSpec.Color,
-            meshSpec.MtlSpec.Metalness,
-            meshSpec.MtlSpec.Roughness,
-            albedo,
-            vertexShaderResult.value(),
-            fragShaderResult.value() };
+        Material mtl //
+            {
+                meshSpec.MtlSpec.Color,
+                meshSpec.MtlSpec.Metalness,
+                meshSpec.MtlSpec.Roughness,
+                albedo,
+                vertexShaderResult.value(),
+                fragShaderResult.value(),
+            };
 
         const uint32_t idxCount = static_cast<uint32_t>(meshSpec.Indices.size());
         const uint32_t vtxCount = static_cast<uint32_t>(meshSpec.Vertices.size());
@@ -468,58 +485,60 @@ ResourceCache::CreateTextureAsync(const CacheKey& cacheKey, const TextureSpec& t
         return ResultOk;
     }
 
+    logDebug("Cache miss: {}", cacheKey.ToString());
+
     auto op = AllocateOp<CreateTextureOp>(this, cacheKey, textureSpec);
     op->Start();
     op->Enqueue(&m_PendingOps);
     return ResultOk;
 }
 
-Result<GpuVertexShader*>
-ResourceCache::GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec)
+Result<void>
+ResourceCache::CreateVertexShaderAsync(const CacheKey& cacheKey, const VertexShaderSpec& shaderSpec)
 {
-    const CacheKey cacheKey(std::get<0>(shaderSpec.Source));
-
-    Result<GpuVertexShader*> shaderResult;
-
-    if(m_VertexShaderCache.TryGet(cacheKey, shaderResult))
+    // Return existing entry without re-creating
+    if(m_VertexShaderCache.Contains(cacheKey))
     {
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return shaderResult;
+        return ResultOk;
     }
 
-    logDebug("  Cache miss: {}", cacheKey.ToString());
+    if(IsPending(cacheKey))
+    {
+        logDebug("  Shader creation already pending: {}", cacheKey.ToString());
+        return ResultOk;
+    }
 
-    shaderResult = m_GpuDevice->CreateVertexShader(shaderSpec);
-    expect(shaderResult, shaderResult.error());
+    logDebug("Cache miss: {}", cacheKey.ToString());
 
-    expect(m_VertexShaderCache.TryAdd(cacheKey, shaderResult),
-        "Failed to add vertex shader to cache: {}",
-        cacheKey.ToString());
-
-    return shaderResult;
+    auto op = AllocateOp<CreateVertexShaderOp>(this, cacheKey, shaderSpec);
+    op->Start();
+    op->Enqueue(&m_PendingOps);
+    return ResultOk;
 }
 
-Result<GpuFragmentShader*>
-ResourceCache::GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec)
+Result<void>
+ResourceCache::CreateFragmentShaderAsync(const CacheKey& cacheKey, const FragmentShaderSpec& shaderSpec)
 {
-    const CacheKey cacheKey(std::get<0>(shaderSpec.Source));
-
-    Result<GpuFragmentShader*> shaderResult;
-    if(m_FragmentShaderCache.TryGet(cacheKey, shaderResult))
+    // Return existing entry without re-creating
+    if(m_FragmentShaderCache.Contains(cacheKey))
     {
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return shaderResult;
+        return ResultOk;
     }
 
-    logDebug("  Cache miss: {}", cacheKey.ToString());
-    shaderResult = m_GpuDevice->CreateFragmentShader(shaderSpec);
-    expect(shaderResult, shaderResult.error());
+    if(IsPending(cacheKey))
+    {
+        logDebug("  Shader creation already pending: {}", cacheKey.ToString());
+        return ResultOk;
+    }
 
-    expect(m_FragmentShaderCache.TryAdd(cacheKey, shaderResult),
-        "Failed to add fragment shader to cache: {}",
-        cacheKey.ToString());
+    logDebug("Cache miss: {}", cacheKey.ToString());
 
-    return shaderResult;
+    auto op = AllocateOp<CreateFragmentShaderOp>(this, cacheKey, shaderSpec);
+    op->Start();
+    op->Enqueue(&m_PendingOps);
+    return ResultOk;
 }
 
 Result<Model>
@@ -527,7 +546,7 @@ ResourceCache::GetModel(const CacheKey& cacheKey) const
 {
     Result<Model> result;
 
-    expect(m_ModelCache.TryGet(cacheKey, result), "Model not found: {}", cacheKey.ToString());
+    expect(m_ModelCache.TryGet(cacheKey, result), "Model not in cache: {}", cacheKey.ToString());
 
     return result;
 }
@@ -537,7 +556,7 @@ ResourceCache::GetTexture(const CacheKey& cacheKey) const
 {
     Result<GpuTexture*> result;
 
-    expect(m_TextureCache.TryGet(cacheKey, result), "Texture not found: {}", cacheKey.ToString());
+    expect(m_TextureCache.TryGet(cacheKey, result), "Texture not in cache: {}", cacheKey.ToString());
 
     return result;
 }
@@ -547,7 +566,7 @@ ResourceCache::GetVertexShader(const CacheKey& cacheKey) const
 {
     Result<GpuVertexShader*> result;
 
-    expect(m_VertexShaderCache.TryGet(cacheKey, result), "Vertex shader not found: {}", cacheKey.ToString());
+    expect(m_VertexShaderCache.TryGet(cacheKey, result), "Vertex shader not in cache: {}", cacheKey.ToString());
 
     return result;
 }
@@ -557,7 +576,7 @@ ResourceCache::GetFragmentShader(const CacheKey& cacheKey) const
 {
     Result<GpuFragmentShader*> result;
 
-    expect(m_FragmentShaderCache.TryGet(cacheKey, result), "Fragment shader not found: {}", cacheKey.ToString());
+    expect(m_FragmentShaderCache.TryGet(cacheKey, result), "Fragment shader not in cache: {}", cacheKey.ToString());
 
     return result;
 }
@@ -575,7 +594,11 @@ ResourceCache::LoadModelOp::Start()
 
     logOp("Start() (key: {})", GetCacheKey().ToString());
 
-    auto result = FileIo::Fetch(m_Path);
+    auto loadModelResult = m_ResourceCache->LoadModelFromFile(GetCacheKey(), m_Path);
+
+    SetResult(loadModelResult);
+
+    /*auto result = FileIo::Fetch(m_Path);
 
     if(result)
     {
@@ -585,7 +608,7 @@ ResourceCache::LoadModelOp::Start()
     else
     {
         SetResult(result.error());
-    }
+    }*/
 }
 
 void
@@ -617,7 +640,13 @@ ResourceCache::LoadModelOp::Update()
     }
 }
 
-Result<CacheKey>
+void
+ResourceCache::LoadModelOp::SetResult(const Result<Model>& /*result*/)
+{
+    m_State = Completed;
+}
+
+Result<Model>
 ResourceCache::LoadModelOp::LoadModel(const Result<FileIo::FetchDataPtr>& fileData)
 {
     if(!fileData)
@@ -630,15 +659,17 @@ ResourceCache::LoadModelOp::LoadModel(const Result<FileIo::FetchDataPtr>& fileDa
     auto result =
         m_ResourceCache->LoadModelFromMemory(GetCacheKey(), fileData.value()->Bytes, m_Path);
 
-    if(!result)
-    {
-        return result.error();
-    }
-
-    return GetCacheKey();
+    return result;
 }
 
 // === ResourceCache::CreateTextureOp ===
+ResourceCache::CreateTextureOp::CreateTextureOp(
+    ResourceCache* resourceCache, const CacheKey& cacheKey, const TextureSpec& textureSpec)
+    : AsyncOp(cacheKey),
+      m_ResourceCache(resourceCache),
+      m_TextureSpec(textureSpec)
+{
+}
 
 ResourceCache::CreateTextureOp::~CreateTextureOp()
 {
@@ -657,14 +688,12 @@ ResourceCache::CreateTextureOp::Start()
     logOp("Start() (key: {})", GetCacheKey().ToString());
 
     auto cacheResult = m_ResourceCache->GetTexture(GetCacheKey());
-    if(cacheResult)
+    if(!everify(!cacheResult))
     {
-        logOp("Cache hit: {}", GetCacheKey().ToString());
-        SetResult(GetCacheKey());
+        logOp("Resource already in cache: {}", GetCacheKey().ToString());
+        SetResult(cacheResult);
         return;
     }
-
-    logOp("Cache miss: {}", GetCacheKey().ToString());
 
     if(!everify(m_TextureSpec.IsValid(), "Texture spec is invalid"))
     {
@@ -683,9 +712,7 @@ ResourceCache::CreateTextureOp::Start()
             return;
         }
 
-        AddToCache(result);
-
-        SetResult(GetCacheKey());
+        SetResult(result);
     }
     else if(imstring path; m_TextureSpec.TryGetPath(path))
     {
@@ -742,9 +769,7 @@ ResourceCache::CreateTextureOp::Update()
 
             auto job = [this]()
             {
-                auto decodeResult = DecodeImage();
-
-                m_DecodeImageResult = decodeResult;
+                m_DecodeImageResult = DecodeImage();
 
                 m_DecodeImageComplete.store(true, std::memory_order_release);
             };
@@ -769,18 +794,10 @@ ResourceCache::CreateTextureOp::Update()
 
                 auto textureResult = CreateTexture();
 
-                if(!textureResult)
-                {
-                    SetResult(textureResult.error());
-                    return;
-                }
-
-                AddToCache(textureResult);
-
-                SetResult(GetCacheKey());
-
                 stbi_image_free(m_DecodedImageData);
                 m_DecodedImageData = nullptr;
+
+                SetResult(textureResult);
             }
             break;
 
@@ -788,6 +805,16 @@ ResourceCache::CreateTextureOp::Update()
             // No-op
             break;
     }
+}
+void
+ResourceCache::CreateTextureOp::SetResult(Result<GpuTexture*> result)
+{
+    if(m_ResourceCache->m_TextureCache.TryAdd(GetCacheKey(), result))
+    {
+        logOp("Added texture to cache (key: {})", GetCacheKey().ToString());
+    }
+
+    m_State = Completed;
 }
 
 Result<void>
@@ -839,12 +866,252 @@ ResourceCache::CreateTextureOp::CreateTexture()
     return result;
 }
 
-void
-ResourceCache::CreateTextureOp::AddToCache(Result<GpuTexture*> texture)
-{
-    logOp("Adding texture to cache (key: {})", GetCacheKey().ToString());
+// === ResourceCache::CreateVertexShaderOp ===
 
-    m_ResourceCache->m_TextureCache.TryAdd(GetCacheKey(), texture);
+ResourceCache::CreateVertexShaderOp::CreateVertexShaderOp(
+    ResourceCache* resourceCache, const CacheKey& cacheKey, const VertexShaderSpec& shaderSpec)
+    : AsyncOp(cacheKey),
+      m_ResourceCache(resourceCache),
+      m_ShaderSpec(shaderSpec)
+{
+}
+
+ResourceCache::CreateVertexShaderOp::~CreateVertexShaderOp()
+{
+}
+
+void
+ResourceCache::CreateVertexShaderOp::Start()
+{
+    eassert(m_State == NotStarted);
+
+    logOp("Start() (key: {})", GetCacheKey().ToString());
+
+    auto cacheResult = m_ResourceCache->GetVertexShader(GetCacheKey());
+    if(!everify(!cacheResult))
+    {
+        logOp("Resource already in cache: {}", GetCacheKey().ToString());
+        SetResult(cacheResult);
+        return;
+    }
+
+    if(!everify(m_ShaderSpec.IsValid(), "Vertex shader spec is invalid"))
+    {
+        SetResult(Error("Vertex shader spec is invalid"));
+        return;
+    }
+
+    if(imstring path; m_ShaderSpec.TryGetPath(path))
+    {
+        if(path.empty())
+        {
+            SetResult(Error("Vertex shader source path is empty"));
+            return;
+        }
+
+        path = path + SHADER_EXTENSION;
+
+        logOp("Loading vertex shader from file: {}", path);
+
+        auto result = FileIo::Fetch(path);
+
+        if(!result)
+        {
+            SetResult(result.error());
+            return;
+        }
+
+        m_FileFetchToken = result.value();
+        m_State = LoadingFile;
+    }
+    else
+    {
+        SetResult(Error("Vertex shader source is not specified"));
+    }
+}
+
+void
+ResourceCache::CreateVertexShaderOp::Update()
+{
+    switch(m_State)
+    {
+        case NotStarted:
+            eassert(false);
+            break;
+
+        case LoadingFile:
+        {
+            if(FileIo::IsPending(m_FileFetchToken))
+            {
+                return;
+            }
+
+            auto fetchResult = FileIo::GetResult(m_FileFetchToken);
+
+            if(!fetchResult)
+            {
+                SetResult(fetchResult.error());
+                return;
+            }
+
+            auto shaderResult = CreateVertexShader(fetchResult.value());
+
+            SetResult(shaderResult);
+
+            m_State = Completed;
+
+            break;
+        }
+
+        case Completed:
+            // No-op
+            break;
+    }
+}
+void
+ResourceCache::CreateVertexShaderOp::SetResult(Result<GpuVertexShader*> result)
+{
+    if(m_ResourceCache->m_VertexShaderCache.TryAdd(GetCacheKey(), result))
+    {
+        logOp("Added vertex shader to cache (key: {})", GetCacheKey().ToString());
+    }
+
+    m_State = Completed;
+}
+
+Result<GpuVertexShader*>
+ResourceCache::CreateVertexShaderOp::CreateVertexShader(const FileIo::FetchDataPtr& fetchData)
+{
+    logOp("Creating vertex shader (key: {})", GetCacheKey().ToString());
+
+    auto span = std::span<const uint8_t>(fetchData->Bytes.data(), fetchData->Bytes.size());
+    auto result = m_ResourceCache->m_GpuDevice->CreateVertexShader(span);
+
+    return result;
+}
+
+// === ResourceCache::CreateFragmentShaderOp ===
+
+ResourceCache::CreateFragmentShaderOp::CreateFragmentShaderOp(
+    ResourceCache* resourceCache, const CacheKey& cacheKey, const FragmentShaderSpec& shaderSpec)
+    : AsyncOp(cacheKey),
+      m_ResourceCache(resourceCache),
+      m_ShaderSpec(shaderSpec)
+{
+}
+
+ResourceCache::CreateFragmentShaderOp::~CreateFragmentShaderOp()
+{
+}
+
+void
+ResourceCache::CreateFragmentShaderOp::Start()
+{
+    eassert(m_State == NotStarted);
+
+    logOp("Start() (key: {})", GetCacheKey().ToString());
+
+    auto cacheResult = m_ResourceCache->GetFragmentShader(GetCacheKey());
+    if(!everify(!cacheResult))
+    {
+        logOp("Resource already in cache: {}", GetCacheKey().ToString());
+        SetResult(cacheResult);
+        return;
+    }
+
+    if(!everify(m_ShaderSpec.IsValid(), "Fragment shader spec is invalid"))
+    {
+        SetResult(Error("Fragment shader spec is invalid"));
+        return;
+    }
+
+    if(imstring path; m_ShaderSpec.TryGetPath(path))
+    {
+        if(path.empty())
+        {
+            SetResult(Error("Fragment shader source path is empty"));
+            return;
+        }
+
+        path = path + SHADER_EXTENSION;
+
+        logOp("Loading Fragment shader from file: {}", path);
+
+        auto result = FileIo::Fetch(path);
+
+        if(!result)
+        {
+            SetResult(result.error());
+            return;
+        }
+
+        m_FileFetchToken = result.value();
+        m_State = LoadingFile;
+    }
+    else
+    {
+        SetResult(Error("Fragment shader source is not specified"));
+    }
+}
+
+void
+ResourceCache::CreateFragmentShaderOp::Update()
+{
+    switch(m_State)
+    {
+        case NotStarted:
+            eassert(false);
+            break;
+
+        case LoadingFile:
+        {
+            if(FileIo::IsPending(m_FileFetchToken))
+            {
+                return;
+            }
+
+            auto fetchResult = FileIo::GetResult(m_FileFetchToken);
+
+            if(!fetchResult)
+            {
+                SetResult(fetchResult.error());
+                return;
+            }
+
+            auto shaderResult = CreateFragmentShader(fetchResult.value());
+
+            SetResult(shaderResult);
+
+            m_State = Completed;
+
+            break;
+        }
+
+        case Completed:
+            // No-op
+            break;
+    }
+}
+void
+ResourceCache::CreateFragmentShaderOp::SetResult(Result<GpuFragmentShader*> result)
+{
+    if(m_ResourceCache->m_FragmentShaderCache.TryAdd(GetCacheKey(), result))
+    {
+        logOp("Added fragment shader to cache (key: {})", GetCacheKey().ToString());
+    }
+
+    m_State = Completed;
+}
+
+Result<GpuFragmentShader*>
+ResourceCache::CreateFragmentShaderOp::CreateFragmentShader(const FileIo::FetchDataPtr& fetchData)
+{
+    logOp("Creating fragment shader (key: {})", GetCacheKey().ToString());
+
+    auto span = std::span<const uint8_t>(fetchData->Bytes.data(), fetchData->Bytes.size());
+    auto result = m_ResourceCache->m_GpuDevice->CreateFragmentShader(span);
+
+    return result;
 }
 
 static TextureProperties

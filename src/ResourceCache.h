@@ -35,29 +35,35 @@ public:
     void ProcessPendingOperations();
 
     /// @brief Loads a model from file asynchronously if not already loaded.
-    Result<void> LoadModelFromFileAsync(const CacheKey& cacheKey, std::string_view filePath);
+    Result<void> LoadModelFromFileAsync(const CacheKey& cacheKey, const imstring& filePath);
 
     /// @brief Loads a model from file if not already loaded.
-    Result<Model> LoadModelFromFile(const CacheKey& cacheKey, std::string_view filePath);
+    Result<Model> LoadModelFromFile(const CacheKey& cacheKey, const imstring& filePath);
 
     /// @brief Loads a model from memory if not already loaded.
     Result<Model> LoadModelFromMemory(
-        const CacheKey& cacheKey, const std::span<const uint8_t> data, std::string_view filePath);
+        const CacheKey& cacheKey, const std::span<const uint8_t> data, const imstring& filePath);
 
     /// @brief Creates a model from the given specification if not already created.
     Result<Model> GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec);
 
     /// @brief Creates a texture asynchronously if not already created.
+    /// Call IsPending() to check if the operation is still pending.
+    /// When complete use GetTexture() to retrieve the created texture.
     Result<void> CreateTextureAsync(
         const CacheKey& cacheKey, const TextureSpec& textureSpec);
 
-    /// @brief Retrieves or creates a vertex shader (if not already cached) from the given
-    /// specification.
-    Result<GpuVertexShader*> GetOrCreateVertexShader(const VertexShaderSpec& shaderSpec);
+    /// @brief Creates a vertex shader asynchronously if not already created.
+    /// Call IsPending() to check if the operation is still pending.
+    /// When complete use GetVertexShader() to retrieve the created vertex shader.
+    Result<void> CreateVertexShaderAsync(
+        const CacheKey& cacheKey, const VertexShaderSpec& shaderSpec);
 
-    /// @brief Retrieves or creates a fragment shader (if not already cached) from the given
-    /// specification.
-    Result<GpuFragmentShader*> GetOrCreateFragmentShader(const FragmentShaderSpec& shaderSpec);
+    /// @brief Creates a fragment shader asynchronously if not already created.
+    /// Call IsPending() to check if the operation is still pending.
+    /// When complete use GetFragmentShader() to retrieve the created fragment shader.
+    Result<void> CreateFragmentShaderAsync(
+        const CacheKey& cacheKey, const FragmentShaderSpec& shaderSpec);
 
     /// @brief Retrieves a cached model.
     Result<Model> GetModel(const CacheKey& cacheKey) const;
@@ -157,7 +163,7 @@ public:
 
     public:
         LoadModelOp(
-            ResourceCache* resourceCache, const CacheKey& cacheKey, const std::string_view path)
+            ResourceCache* resourceCache, const CacheKey& cacheKey, const imstring& path)
             : AsyncOp(cacheKey),
               m_ResourceCache(resourceCache),
               m_Path(path)
@@ -170,20 +176,10 @@ public:
 
         bool IsComplete() const override { return m_State == Completed; }
 
-        const Result<CacheKey>& GetResult() const
-        {
-            eassert(IsComplete());
-            return m_Result;
-        }
-
     private:
-        void SetResult(const Result<CacheKey>& result)
-        {
-            m_Result = result;
-            m_State = Completed;
-        }
+        void SetResult(const Result<Model>& result);
 
-        Result<CacheKey> LoadModel(const Result<FileIo::FetchDataPtr>& fileData);
+        Result<Model> LoadModel(const Result<FileIo::FetchDataPtr>& fileData);
 
         ResourceCache* m_ResourceCache{ nullptr };
 
@@ -199,8 +195,6 @@ public:
         imstring m_Path;
 
         FileIo::AsyncToken m_FileFetchToken;
-
-        Result<CacheKey> m_Result;
     };
 
     /// @brief Asynchronous operation for creating a texture.
@@ -210,12 +204,7 @@ public:
 
     public:
         CreateTextureOp(
-            ResourceCache* resourceCache, const CacheKey& cacheKey, const TextureSpec& textureSpec)
-            : AsyncOp(cacheKey),
-              m_ResourceCache(resourceCache),
-              m_TextureSpec(textureSpec)
-        {
-        }
+            ResourceCache* resourceCache, const CacheKey& cacheKey, const TextureSpec& textureSpec);
 
         ~CreateTextureOp() override;
 
@@ -225,25 +214,13 @@ public:
 
         bool IsComplete() const override { return m_State == Completed; }
 
-        const Result<CacheKey>& GetResult() const
-        {
-            eassert(IsComplete());
-            return m_Result;
-        }
-
     private:
 
-        void SetResult(const Result<CacheKey>& result)
-        {
-            m_Result = result;
-            m_State = Completed;
-        }
+        void SetResult(Result<GpuTexture*> result);
 
         Result<void> DecodeImage();
 
         Result<GpuTexture*> CreateTexture();
-
-        void AddToCache(Result<GpuTexture*> texture);
 
         ResourceCache* m_ResourceCache{ nullptr };
 
@@ -263,8 +240,6 @@ public:
 
         FileIo::FetchDataPtr m_FetchDataPtr;
 
-        Result<CacheKey> m_Result;
-
         void* m_DecodedImageData{ nullptr };
         int m_DecodedImageWidth{ 0 };
         int m_DecodedImageHeight{ 0 };
@@ -274,6 +249,88 @@ public:
         std::atomic<bool> m_DecodeImageComplete{ false };
     };
 
+    /// @brief Asynchronous operation for creating a vertex shader.
+    class CreateVertexShaderOp : public AsyncOp
+    {
+        static constexpr const char* CLASS_NAME = "CreateVertexShaderOp";
+
+    public:
+        CreateVertexShaderOp(
+            ResourceCache* resourceCache, const CacheKey& cacheKey, const VertexShaderSpec& shaderSpec);
+
+        ~CreateVertexShaderOp() override;
+
+        void Start() override;
+
+        void Update() override;
+
+        bool IsComplete() const override { return m_State == Completed; }
+
+    private:
+
+        void SetResult(Result<GpuVertexShader*> result);
+
+        Result<void> DecodeImage();
+
+        Result<GpuVertexShader*> CreateVertexShader(const FileIo::FetchDataPtr& fetchData);
+
+        ResourceCache* m_ResourceCache{ nullptr };
+
+        enum State
+        {
+            NotStarted,
+            LoadingFile,
+            Completed,
+        };
+
+        State m_State{ NotStarted };
+
+        VertexShaderSpec m_ShaderSpec;
+
+        FileIo::AsyncToken m_FileFetchToken;
+    };
+
+    /// @brief Asynchronous operation for creating a vertex shader.
+    class CreateFragmentShaderOp : public AsyncOp
+    {
+        static constexpr const char* CLASS_NAME = "CreateFragmentShaderOp";
+
+    public:
+        CreateFragmentShaderOp(
+            ResourceCache* resourceCache, const CacheKey& cacheKey, const FragmentShaderSpec& shaderSpec);
+
+        ~CreateFragmentShaderOp() override;
+
+        void Start() override;
+
+        void Update() override;
+
+        bool IsComplete() const override { return m_State == Completed; }
+
+    private:
+
+        void SetResult(Result<GpuFragmentShader*> result);
+
+        Result<void> DecodeImage();
+
+        Result<GpuFragmentShader*> CreateFragmentShader(const FileIo::FetchDataPtr& fetchData);
+
+        ResourceCache* m_ResourceCache{ nullptr };
+
+        enum State
+        {
+            NotStarted,
+            LoadingFile,
+            Completed,
+        };
+
+        State m_State{ NotStarted };
+
+        FragmentShaderSpec m_ShaderSpec;
+
+        FileIo::AsyncToken m_FileFetchToken;
+    };
+
     /// @brief Union for storing different types of asynchronous operations.
     /// Used with PoolAllocator to manage memory for various AsyncOp types.
     /// If new AsyncOp types are added, they must be included here.
@@ -281,6 +338,7 @@ public:
     {
         uint8_t LoadModelOp[sizeof(LoadModelOp)];
         uint8_t CreateTextureOp[sizeof(CreateTextureOp)];
+        uint8_t CreateVertexShaderOp[sizeof(CreateVertexShaderOp)];
     };
 
     PoolAllocator<AsyncOpUnion, 16> m_AsyncOpAllocator;
