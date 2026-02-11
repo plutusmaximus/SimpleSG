@@ -82,6 +82,9 @@ public:
         --m_AllocatedCount;
 
         Chunk* chunk = reinterpret_cast<Chunk*>(ptr);
+#if !defined(NDEBUG)
+        ::memset(chunk->Storage, 0xFE, sizeof(chunk->Storage));
+#endif
         chunk->Next = m_FreeList;
         m_FreeList = chunk;
     }
