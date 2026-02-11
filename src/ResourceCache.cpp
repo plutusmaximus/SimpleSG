@@ -105,24 +105,6 @@ ResourceCache::~ResourceCache()
         m_ModelAllocator.Free(entry.Result.value().Get());
     }
 
-    for(auto vb : m_VertexBuffers)
-    {
-        auto result = m_GpuDevice->DestroyVertexBuffer(vb);
-        if(!result)
-        {
-            logError("Failed to destroy vertex buffer: {}", result.error());
-        }
-    }
-
-    for(auto ib : m_IndexBuffers)
-    {
-        auto result = m_GpuDevice->DestroyIndexBuffer(ib);
-        if(!result)
-        {
-            logError("Failed to destroy index buffer: {}", result.error());
-        }
-    }
-
     for(auto& entry : m_TextureCache)
     {
         if(!entry.Result)
@@ -435,7 +417,12 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
         vtxOffset += vtxCount;
     }
 
-    auto modelResult = Model::Create(meshes.build(), modelSpec.MeshInstances, modelSpec.TransformNodes);
+    auto modelResult = Model::Create(meshes.build(),
+        modelSpec.MeshInstances,
+        modelSpec.TransformNodes,
+        m_GpuDevice,
+        baseVb,
+        baseIb);
 
     expect(modelResult, modelResult.error());
 
@@ -444,9 +431,6 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
     expect(m_ModelCache.TryAdd(cacheKey, ModelResource(modelPtr)),
         "Failed to add model to cache: {}",
         cacheKey.ToString());
-
-    m_VertexBuffers.emplace_back(baseVb);
-    m_IndexBuffers.emplace_back(baseIb);
 
     return GetModel(cacheKey);
 }

@@ -2,6 +2,7 @@
 
 #include "Model.h"
 
+#include "GpuDevice.h"
 #include "Logging.h"
 
 ModelSpec::ModelSpec(
@@ -35,11 +36,38 @@ ModelSpec::ModelSpec(
     }
 }
 
+Model::~Model()
+{
+    if(m_GpuDevice)
+    {
+        if(m_VertexBuffer)
+        {
+            const auto res = m_GpuDevice->DestroyVertexBuffer(m_VertexBuffer);
+            if(!res)
+            {
+                logDebug("Failed to destroy vertex buffer: {}", res.error());
+            }
+        }
+
+        if(m_IndexBuffer)
+        {
+            const auto res = m_GpuDevice->DestroyIndexBuffer(m_IndexBuffer);
+            if(!res)
+            {
+                logDebug("Failed to destroy index buffer: {}", res.error());
+            }
+        }
+    }
+}
+
 Result<Model>
 Model::Create(
     const imvector<Mesh>& meshes,
     const imvector<MeshInstance>& meshInstances,
-    const imvector<TransformNode>& transformNodes)
+    const imvector<TransformNode>& transformNodes,
+    GpuDevice* gpuDevice,
+    GpuVertexBuffer* vertexBuffer,
+    GpuIndexBuffer* indexBuffer)
 {
     logDebug(
         "Creating model with {} meshes, {} mesh instances and {} transform nodes",
@@ -76,5 +104,5 @@ Model::Create(
             i, node.ParentIndex);
     }
 
-    return Model(meshes, meshInstances, transformNodes);
+    return Model(meshes, meshInstances, transformNodes, gpuDevice, vertexBuffer, indexBuffer);
 }

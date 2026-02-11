@@ -7,7 +7,6 @@
 #include "Result.h"
 
 #include <atomic>
-#include <memory>
 #include <optional>
 #include <variant>
 
@@ -473,8 +472,6 @@ public:
     PoolAllocator<Model, 1024> m_ModelAllocator;
 
     GpuDevice* const m_GpuDevice;
-    std::vector<GpuVertexBuffer*> m_VertexBuffers;
-    std::vector<GpuIndexBuffer*> m_IndexBuffers;
     Cache<ModelResource> m_ModelCache;
     Cache<GpuTexture*> m_TextureCache;
     Cache<GpuVertexShader*> m_VertexShaderCache;

@@ -2,6 +2,10 @@
 
 #include "Mesh.h"
 
+class GpuDevice;
+class GpuVertexBuffer;
+class GpuIndexBuffer;
+
 /// @brief Node representing a transform in a model's hierarchy.
 /// Mesh instances reference these nodes for their transforms.
 /// Multiple mesh instances can reference the same node.
@@ -47,32 +51,59 @@ class Model
 public:
 
     Model() = default;
+    ~Model();
     Model(const Model& other) = delete;
     Model& operator=(const Model& other) = delete;
-    Model(Model&& other) = default;
-    Model& operator=(Model&& other) = default;
+    Model(Model&& other)
+    {
+        m_Meshes = std::move(other.m_Meshes);
+        m_MeshInstances = std::move(other.m_MeshInstances);
+        m_TransformNodes = std::move(other.m_TransformNodes);
+        m_GpuDevice = other.m_GpuDevice;
+        m_VertexBuffer = other.m_VertexBuffer;
+        m_IndexBuffer = other.m_IndexBuffer;
+
+        other.m_GpuDevice = nullptr;
+        other.m_VertexBuffer = nullptr;
+        other.m_IndexBuffer = nullptr;
+    }
+
+    /// Disable move assignment because it will leak vertex/index buffers.
+    Model& operator=(Model&& other) = delete;
 
     static Result<Model> Create(
         const imvector<Mesh>& meshes,
         const imvector<MeshInstance>& meshInstances,
-        const imvector<TransformNode>& transformNodes);
+        const imvector<TransformNode>& transformNodes,
+        GpuDevice* gpuDevice,
+        GpuVertexBuffer* vertexBuffer,
+        GpuIndexBuffer* indexBuffer);
 
     const imvector<Mesh>& GetMeshes() const { return m_Meshes; }
     const imvector<MeshInstance>& GetMeshInstances() const { return m_MeshInstances; }
     const imvector<TransformNode>& GetTransformNodes() const { return m_TransformNodes; }
 
 private:
-
     Model(const imvector<Mesh>& meshes,
         const imvector<MeshInstance>& meshInstances,
-        const imvector<TransformNode>& transformNodes)
+        const imvector<TransformNode>& transformNodes,
+        GpuDevice* gpuDevice,
+        GpuVertexBuffer* vertexBuffer,
+        GpuIndexBuffer* indexBuffer)
         : m_Meshes(meshes),
           m_MeshInstances(meshInstances),
-          m_TransformNodes(transformNodes)
+          m_TransformNodes(transformNodes),
+          m_GpuDevice(gpuDevice),
+          m_VertexBuffer(vertexBuffer),
+          m_IndexBuffer(indexBuffer)
     {
     }
 
     imvector<Mesh> m_Meshes;
     imvector<MeshInstance> m_MeshInstances;
     imvector<TransformNode> m_TransformNodes;
+
+    GpuDevice* m_GpuDevice = nullptr;
+    GpuVertexBuffer* m_VertexBuffer = nullptr;
+    GpuIndexBuffer* m_IndexBuffer = nullptr;
 };
