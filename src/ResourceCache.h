@@ -11,6 +11,26 @@
 #include <optional>
 #include <variant>
 
+/// @brief Wrapper for a model resource in the cache.  By using a wrapper
+/// we can control the constness of the model pointer and ensure consistency
+/// in how the model is stored in the cache and how it's stored in the
+/// entity database.
+class ModelResource
+{
+public:
+
+    explicit ModelResource(Model* model) : m_Model(model) {}
+
+    const Model* operator->() const { return m_Model; }
+
+    const Model* Get() const { return m_Model; }
+
+    Model* Get() { return m_Model; }
+
+private:
+    Model* m_Model;
+};
+
 /// @brief A cache for loading and storing GPU resources like models, textures, and shaders.
 class ResourceCache
 {
@@ -38,14 +58,14 @@ public:
     Result<void> LoadModelFromFileAsync(const CacheKey& cacheKey, const imstring& filePath);
 
     /// @brief Loads a model from file if not already loaded.
-    Result<Model> LoadModelFromFile(const CacheKey& cacheKey, const imstring& filePath);
+    Result<ModelResource> LoadModelFromFile(const CacheKey& cacheKey, const imstring& filePath);
 
     /// @brief Loads a model from memory if not already loaded.
-    Result<Model> LoadModelFromMemory(
+    Result<ModelResource> LoadModelFromMemory(
         const CacheKey& cacheKey, const std::span<const uint8_t> data, const imstring& filePath);
 
     /// @brief Creates a model from the given specification if not already created.
-    Result<Model> GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec);
+    Result<ModelResource> GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec);
 
     /// @brief Creates a texture asynchronously if not already created.
     /// Call IsPending() to check if the operation is still pending.
@@ -66,7 +86,7 @@ public:
         const CacheKey& cacheKey, const FragmentShaderSpec& shaderSpec);
 
     /// @brief Retrieves a cached model.
-    Result<Model> GetModel(const CacheKey& cacheKey) const;
+    Result<ModelResource> GetModel(const CacheKey& cacheKey) const;
 
     /// @brief Retrieves a cached texture.
     Result<GpuTexture*> GetTexture(const CacheKey& cacheKey) const;
@@ -177,9 +197,9 @@ public:
         bool IsComplete() const override { return m_State == Completed; }
 
     private:
-        void SetResult(const Result<Model>& result);
+        void SetResult(const Result<ModelResource>& result);
 
-        Result<Model> LoadModel(const Result<FileIo::FetchDataPtr>& fileData);
+        Result<ModelResource> LoadModel(const Result<FileIo::FetchDataPtr>& fileData);
 
         ResourceCache* m_ResourceCache{ nullptr };
 
@@ -450,10 +470,12 @@ public:
         std::vector<Entry> m_Entries;
     };
 
+    PoolAllocator<Model, 1024> m_ModelAllocator;
+
     GpuDevice* const m_GpuDevice;
     std::vector<GpuVertexBuffer*> m_VertexBuffers;
     std::vector<GpuIndexBuffer*> m_IndexBuffers;
-    Cache<Model> m_ModelCache;
+    Cache<ModelResource> m_ModelCache;
     Cache<GpuTexture*> m_TextureCache;
     Cache<GpuVertexShader*> m_VertexShaderCache;
     Cache<GpuFragmentShader*> m_FragmentShaderCache;

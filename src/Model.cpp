@@ -37,9 +37,9 @@ ModelSpec::ModelSpec(
 
 Result<Model>
 Model::Create(
-    const imvector<Mesh> meshes,
-    const imvector<MeshInstance> meshInstances,
-    const imvector<TransformNode> transformNodes)
+    const imvector<Mesh>& meshes,
+    const imvector<MeshInstance>& meshInstances,
+    const imvector<TransformNode>& transformNodes)
 {
     logDebug(
         "Creating model with {} meshes, {} mesh instances and {} transform nodes",
@@ -76,8 +76,5 @@ Model::Create(
             i, node.ParentIndex);
     }
 
-    auto data = std::make_shared<Model::Data>(meshes, meshInstances, transformNodes);
-    expectv(data, "Error allocating model");
-
-    return Model{std::move(data)};
+    return Model(meshes, meshInstances, transformNodes);
 }

@@ -24,7 +24,7 @@ public:
 
     virtual ~SdlRenderGraph() override;
 
-    virtual void Add(const Mat44f& worldTransform, const Model& model) override;
+    virtual void Add(const Mat44f& worldTransform, const Model* model) override;
 
     virtual Result<void> Render(const Mat44f& camera, const Mat44f& projection) override;
 
@@ -39,7 +39,7 @@ private:
     struct XformMesh
     {
         const Mat44f WorldTransform;
-        const Model Model;
+        const Model* Model;
         const Mesh& MeshInstance;
     };
 

@@ -11,10 +11,10 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 
-#define STB_IMAGE_IMPLEMENTATION
 #include <filesystem>
-#include <stb_image.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
 
 static constexpr const char* SHADER_EXTENSION = ".spv";
 
@@ -88,8 +88,23 @@ static void ProcessNodes(const aiNode* node,
     imvector<TransformNode>::builder& transformNodes,
     const std::filesystem::path& parentPath);
 
+/// @brief Creates a model specification from a scene.
+static Result<ModelSpec>
+ProcessScene(const aiScene* scene, const imstring& filePath);
+
 ResourceCache::~ResourceCache()
 {
+    for(auto& entry : m_ModelCache)
+    {
+        if(!entry.Result)
+        {
+            continue;
+        }
+
+        // Release model resources
+        m_ModelAllocator.Free(entry.Result.value().Get());
+    }
+
     for(auto vb : m_VertexBuffers)
     {
         auto result = m_GpuDevice->DestroyVertexBuffer(vb);
@@ -211,44 +226,13 @@ ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, const imstring& 
     return ResultOk;
 }
 
-static Result<ModelSpec>
-ProcessScene(const aiScene* scene, const imstring& filePath)
-{
-    expect(scene->mNumMeshes > 0, "No meshes in model: {}", filePath);
-
-    const auto absPath = std::filesystem::absolute(filePath.c_str());
-    const auto parentPath = absPath.parent_path();
-
-    MeshSpecCollection meshSpecCollection;
-    CollectMeshSpecs(scene, scene->mRootNode, meshSpecCollection, parentPath);
-
-    imvector<MeshInstance>::builder meshInstances;
-    imvector<TransformNode>::builder transformNodes;
-
-    ProcessNodes(scene->mRootNode,
-        -1,
-        meshSpecCollection,
-        meshInstances,
-        transformNodes,
-        parentPath);
-
-    const ModelSpec modelSpec //
-        {
-            meshSpecCollection.MeshSpecs.build(),
-            meshInstances.build(),
-            transformNodes.build(),
-        };
-
-    return modelSpec;
-}
-
-Result<Model>
+Result<ModelResource>
 ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, const imstring& filePath)
 {
     logDebug("Loading model from file: {} (key: {})", filePath, cacheKey.ToString());
 
     // Return existing entry without re-importing
-    Result<Model> modelResult;
+    Result<ModelResource> modelResult;
     if(m_ModelCache.TryGet(cacheKey, modelResult))
     {
         // TODO(KB) - add a test to confirm cache behavior.
@@ -286,12 +270,12 @@ ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, const imstring& fileP
     return modelResult;
 }
 
-Result<Model>
+Result<ModelResource>
 ResourceCache::LoadModelFromMemory(
     const CacheKey& cacheKey, const std::span<const uint8_t> data, const imstring& filePath)
 {
     // Return existing entry without re-importing
-    Result<Model> modelResult;
+    Result<ModelResource> modelResult;
     if(m_ModelCache.TryGet(cacheKey, modelResult))
     {
         // TODO(KB) - add a test to confirm cache behavior.
@@ -322,13 +306,13 @@ ResourceCache::LoadModelFromMemory(
     return modelResult;
 }
 
-Result<Model>
+Result<ModelResource>
 ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& modelSpec)
 {
     logDebug("Creating model (key: {})", cacheKey.ToString());
 
     // Return existing entry without re-importing
-    if(Result<Model> modelResult; m_ModelCache.TryGet(cacheKey, modelResult))
+    if(Result<ModelResource> modelResult; m_ModelCache.TryGet(cacheKey, modelResult))
     {
         // TODO(KB) - add a test to confirm cache behavior.
 
@@ -455,7 +439,9 @@ ResourceCache::GetOrCreateModel(const CacheKey& cacheKey, const ModelSpec& model
 
     expect(modelResult, modelResult.error());
 
-    expect(m_ModelCache.TryAdd(cacheKey, modelResult),
+    auto modelPtr = m_ModelAllocator.Alloc(std::move(modelResult.value()));
+
+    expect(m_ModelCache.TryAdd(cacheKey, ModelResource(modelPtr)),
         "Failed to add model to cache: {}",
         cacheKey.ToString());
 
@@ -538,10 +524,10 @@ ResourceCache::CreateFragmentShaderAsync(const CacheKey& cacheKey, const Fragmen
     return ResultOk;
 }
 
-Result<Model>
+Result<ModelResource>
 ResourceCache::GetModel(const CacheKey& cacheKey) const
 {
-    Result<Model> result;
+    Result<ModelResource> result;
 
     expect(m_ModelCache.TryGet(cacheKey, result), "Model not in cache: {}", cacheKey.ToString());
 
@@ -638,12 +624,12 @@ ResourceCache::LoadModelOp::Update()
 }
 
 void
-ResourceCache::LoadModelOp::SetResult(const Result<Model>& /*result*/)
+ResourceCache::LoadModelOp::SetResult(const Result<ModelResource>& /*result*/)
 {
     m_State = Completed;
 }
 
-Result<Model>
+Result<ModelResource>
 ResourceCache::LoadModelOp::LoadModel(const Result<FileIo::FetchDataPtr>& fileData)
 {
     if(!fileData)
@@ -1380,6 +1366,37 @@ CreateMeshSpecFromMesh(
         .Vertices{ vertices.build() },
         .Indices{ indices.build() },
         .MtlSpec{ mtlSpec } };
+}
+
+static Result<ModelSpec>
+ProcessScene(const aiScene* scene, const imstring& filePath)
+{
+    expect(scene->mNumMeshes > 0, "No meshes in model: {}", filePath);
+
+    const auto absPath = std::filesystem::absolute(filePath.c_str());
+    const auto parentPath = absPath.parent_path();
+
+    MeshSpecCollection meshSpecCollection;
+    CollectMeshSpecs(scene, scene->mRootNode, meshSpecCollection, parentPath);
+
+    imvector<MeshInstance>::builder meshInstances;
+    imvector<TransformNode>::builder transformNodes;
+
+    ProcessNodes(scene->mRootNode,
+        -1,
+        meshSpecCollection,
+        meshInstances,
+        transformNodes,
+        parentPath);
+
+    const ModelSpec modelSpec //
+        {
+            meshSpecCollection.MeshSpecs.build(),
+            meshInstances.build(),
+            transformNodes.build(),
+        };
+
+    return modelSpec;
 }
 
 static void

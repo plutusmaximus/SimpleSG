@@ -11,7 +11,7 @@
 
 #include <filesystem>
 
-static Result<Model> CreateTriangleModel(ResourceCache* cache);
+static Result<ModelResource> CreateTriangleModel(ResourceCache* cache);
 
 constexpr const char* kAppName = "Triangle";
 
@@ -185,7 +185,7 @@ static Result<void> MainLoop()
         TrsTransformf transform;
 
         // Transform to camera space and render
-        renderGraph->Add(transform.ToMatrix(), model);
+        renderGraph->Add(transform.ToMatrix(), model.Get());
         auto renderResult = renderGraph->Render(cameraXform.ToMatrix(), camera.GetProjection());
         if(!renderResult)
         {
@@ -217,7 +217,7 @@ static const VertexIndex triangleIndices[] =
     0, 1, 2,
 };
 
-static Result<Model> CreateTriangleModel(ResourceCache* cache)
+static Result<ModelResource> CreateTriangleModel(ResourceCache* cache)
 {
     imvector<MeshSpec>::builder meshSpecs =
     {

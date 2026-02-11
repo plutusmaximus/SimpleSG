@@ -13,8 +13,8 @@
 
 #include "scope_exit.h"
 
-[[maybe_unused]] static Result<Model> CreateCubeModel(ResourceCache* cache);
-static Result<Model> CreateShapeModel(ResourceCache* cache);
+[[maybe_unused]] static Result<ModelResource> CreateCubeModel(ResourceCache* cache);
+static Result<ModelResource> CreateShapeModel(ResourceCache* cache);
 
 class WorldMatrix : public Mat44f
 {
@@ -167,10 +167,10 @@ public:
         // Transform to camera space and render
         for(const auto& cameraTuple : m_Registry.GetView<WorldMatrix, Camera>())
         {
-            for(const auto& tuple : m_Registry.GetView<WorldMatrix, Model>())
+            for(const auto& tuple : m_Registry.GetView<WorldMatrix, ModelResource>())
             {
                 const auto [eid, worldMat, model] = tuple;
-                m_RenderGraph->Add(worldMat, model);
+                m_RenderGraph->Add(worldMat, model.Get());
             }
 
             const auto [camEid, camWorldMat, camera] = cameraTuple;
@@ -351,7 +351,7 @@ constexpr static const VertexIndex cubeIndices[] =
     20, 22, 23,  20, 21, 22
 };
 
-static Result<Model> CreateCubeModel(ResourceCache* cache)
+static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
 {
     imvector<MeshSpec>::builder meshSpecs =
     {
@@ -443,7 +443,7 @@ static Result<Model> CreateCubeModel(ResourceCache* cache)
     return cache->GetOrCreateModel(CacheKey("CubeModel"), modelSpec);
 }
 
-static Result<Model> CreateShapeModel(ResourceCache* cache)
+static Result<ModelResource> CreateShapeModel(ResourceCache* cache)
 {
     //auto geometry = Shapes::Box(1, 1, 1);
     //auto geometry = Shapes::Ball(1, 10);

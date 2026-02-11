@@ -38,11 +38,16 @@ SdlRenderGraph::~SdlRenderGraph()
 }
 
 void
-SdlRenderGraph::Add(const Mat44f& worldTransform, const Model& model)
+SdlRenderGraph::Add(const Mat44f& worldTransform, const Model* model)
 {
-    const auto meshes = model.GetMeshes();
-    const auto meshInstances = model.GetMeshInstances();
-    const auto transformNodes = model.GetTransformNodes();
+    if(!everify(model, "Model pointer is null"))
+    {
+        return;
+    }
+
+    const auto& meshes = model->GetMeshes();
+    const auto& meshInstances = model->GetMeshInstances();
+    const auto& transformNodes = model->GetTransformNodes();
 
     std::vector<Mat44f> worldXForms;
     worldXForms.reserve(transformNodes.size());

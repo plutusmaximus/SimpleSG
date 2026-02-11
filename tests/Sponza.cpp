@@ -154,10 +154,10 @@ public:
         // Transform to camera space and render
         for(const auto& cameraTuple : m_Registry.GetView<WorldMatrix, Camera>())
         {
-            for(const auto& tuple : m_Registry.GetView<WorldMatrix, Model>())
+            for(const auto& tuple : m_Registry.GetView<WorldMatrix, ModelResource>())
             {
                 const auto [eid, worldMat, model] = tuple;
-                m_RenderGraph->Add(worldMat, model);
+                m_RenderGraph->Add(worldMat, model.Get());
             }
 
             const auto [camEid, camWorldMat, camera] = cameraTuple;

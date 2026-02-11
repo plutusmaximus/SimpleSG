@@ -2,9 +2,6 @@
 
 #include "Mesh.h"
 
-#include <vector>
-#include <memory>
-
 /// @brief Node representing a transform in a model's hierarchy.
 /// Mesh instances reference these nodes for their transforms.
 /// Multiple mesh instances can reference the same node.
@@ -50,38 +47,32 @@ class Model
 public:
 
     Model() = default;
+    Model(const Model& other) = delete;
+    Model& operator=(const Model& other) = delete;
+    Model(Model&& other) = default;
+    Model& operator=(Model&& other) = default;
 
     static Result<Model> Create(
-        const imvector<Mesh> meshes,
-        const imvector<MeshInstance> meshInstances,
-        const imvector<TransformNode> transformNodes);
+        const imvector<Mesh>& meshes,
+        const imvector<MeshInstance>& meshInstances,
+        const imvector<TransformNode>& transformNodes);
 
-    bool IsValid() const { return m_Data != nullptr; }
-
-    const imvector<Mesh> GetMeshes() const { return eassert(IsValid()), m_Data->Meshes; }
-    const imvector<MeshInstance> GetMeshInstances() const { return eassert(IsValid()), m_Data->MeshInstances; }
-    const imvector<TransformNode> GetTransformNodes() const { return eassert(IsValid()), m_Data->TransformNodes; }
+    const imvector<Mesh>& GetMeshes() const { return m_Meshes; }
+    const imvector<MeshInstance>& GetMeshInstances() const { return m_MeshInstances; }
+    const imvector<TransformNode>& GetTransformNodes() const { return m_TransformNodes; }
 
 private:
 
-    struct Data
-    {
-        Data(const imvector<Mesh>& meshes, const imvector<MeshInstance>& meshInstances, const imvector<TransformNode>& transformNodes)
-            : Meshes(meshes), MeshInstances(meshInstances), TransformNodes(transformNodes) {}
-        const imvector<Mesh> Meshes;
-        const imvector<MeshInstance> MeshInstances;
-        const imvector<TransformNode> TransformNodes;
-    };
-
-    explicit Model(const std::shared_ptr<Data>& data)
-        : m_Data(data)
+    Model(const imvector<Mesh>& meshes,
+        const imvector<MeshInstance>& meshInstances,
+        const imvector<TransformNode>& transformNodes)
+        : m_Meshes(meshes),
+          m_MeshInstances(meshInstances),
+          m_TransformNodes(transformNodes)
     {
     }
 
-    explicit Model(std::shared_ptr<Data>&& data)
-        : m_Data(std::move(data))
-    {
-    }
-
-    std::shared_ptr<Data> m_Data;
+    imvector<Mesh> m_Meshes;
+    imvector<MeshInstance> m_MeshInstances;
+    imvector<TransformNode> m_TransformNodes;
 };
