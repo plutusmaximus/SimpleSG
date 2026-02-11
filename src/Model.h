@@ -54,7 +54,7 @@ public:
     ~Model();
     Model(const Model& other) = delete;
     Model& operator=(const Model& other) = delete;
-    Model(Model&& other)
+    Model(Model&& other) noexcept
     {
         m_Meshes = std::move(other.m_Meshes);
         m_MeshInstances = std::move(other.m_MeshInstances);
