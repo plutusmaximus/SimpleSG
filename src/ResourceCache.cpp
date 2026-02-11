@@ -70,12 +70,14 @@ static void LogMesh(const aiScene* scene, const unsigned meshIdx);
 /// @brief Validates a mesh in a scene.
 static bool ValidateMesh(const aiScene* scene, const unsigned meshIdx);
 
-/// @brief Recursively collects meshes from scene nodes.
-static void CollectMeshes(
-    const aiScene* scene, const aiNode* node, SceneMeshCollection& outCollection);
+/// @brief Creates a mesh specification from a given mesh.
+static MeshSpec CreateMeshSpecFromMesh(
+    const aiScene* scene, const SceneMeshId meshId, const std::filesystem::path& parentPath);
 
-static MeshSpecCollection CreateMeshSpecCollection(const aiScene* scene,
-    const SceneMeshCollection& meshCollection,
+/// @brief Recursively collects mesh specs from scene nodes.
+static void CollectMeshSpecs(const aiScene* scene,
+    const aiNode* node,
+    MeshSpecCollection& outCollection,
     const std::filesystem::path& parentPath);
 
 /// @brief Processes a scene node and its children.
@@ -209,6 +211,37 @@ ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, const imstring& 
     return ResultOk;
 }
 
+static Result<ModelSpec>
+ProcessScene(const aiScene* scene, const imstring& filePath)
+{
+    expect(scene->mNumMeshes > 0, "No meshes in model: {}", filePath);
+
+    const auto absPath = std::filesystem::absolute(filePath.c_str());
+    const auto parentPath = absPath.parent_path();
+
+    MeshSpecCollection meshSpecCollection;
+    CollectMeshSpecs(scene, scene->mRootNode, meshSpecCollection, parentPath);
+
+    imvector<MeshInstance>::builder meshInstances;
+    imvector<TransformNode>::builder transformNodes;
+
+    ProcessNodes(scene->mRootNode,
+        -1,
+        meshSpecCollection,
+        meshInstances,
+        transformNodes,
+        parentPath);
+
+    const ModelSpec modelSpec //
+        {
+            meshSpecCollection.MeshSpecs.build(),
+            meshInstances.build(),
+            transformNodes.build(),
+        };
+
+    return modelSpec;
+}
+
 Result<Model>
 ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, const imstring& filePath)
 {
@@ -241,31 +274,12 @@ ResourceCache::LoadModelFromFile(const CacheKey& cacheKey, const imstring& fileP
     logDebug("  Assimp import time: {} ms", static_cast<int>(sw.Elapsed() * 1000.0f));
 
     expect(scene != nullptr, importer.GetErrorString());
-    expect(scene->mNumMeshes > 0, "No meshes in model: {}", filePath);
 
-    SceneMeshCollection meshCollection;
-    CollectMeshes(scene, scene->mRootNode, meshCollection);
+    auto modelSpecResult = ProcessScene(scene, filePath);
 
-    const auto absPath = std::filesystem::absolute(filePath.c_str());
-    const auto parentPath = absPath.parent_path();
+    expect(modelSpecResult, modelSpecResult.error());
 
-    auto meshSpecCollection = CreateMeshSpecCollection(scene, meshCollection, parentPath);
-
-    imvector<MeshInstance>::builder meshInstances;
-    imvector<TransformNode>::builder transformNodes;
-
-    ProcessNodes(scene->mRootNode,
-        -1,
-        meshSpecCollection,
-        meshInstances,
-        transformNodes,
-        parentPath);
-
-    const ModelSpec ModelSpec{ meshSpecCollection.MeshSpecs.build(),
-        meshInstances.build(),
-        transformNodes.build() };
-
-    modelResult = GetOrCreateModel(cacheKey, ModelSpec);
+    modelResult = GetOrCreateModel(cacheKey, modelSpecResult.value());
 
     logDebug("  Total model load time: {} ms", static_cast<int>(sw.Elapsed() * 1000.0f));
 
@@ -298,31 +312,14 @@ ResourceCache::LoadModelFromMemory(
         importer.ReadFileFromMemory(data.data(), data.size(), flags, nullptr);
 
     expect(scene != nullptr, importer.GetErrorString());
-    expect(scene->mNumMeshes > 0, "No meshes in model: {}", filePath);
 
-    SceneMeshCollection meshCollection;
-    CollectMeshes(scene, scene->mRootNode, meshCollection);
+    auto modelSpecResult = ProcessScene(scene, filePath);
 
-    const auto absPath = std::filesystem::absolute(filePath.c_str());
-    const auto parentPath = absPath.parent_path();
+    expect(modelSpecResult, modelSpecResult.error());
 
-    auto meshSpecCollection = CreateMeshSpecCollection(scene, meshCollection, parentPath);
+    modelResult = GetOrCreateModel(cacheKey, modelSpecResult.value());
 
-    imvector<MeshInstance>::builder meshInstances;
-    imvector<TransformNode>::builder transformNodes;
-
-    ProcessNodes(scene->mRootNode,
-        -1,
-        meshSpecCollection,
-        meshInstances,
-        transformNodes,
-        parentPath);
-
-    const ModelSpec ModelSpec{ meshSpecCollection.MeshSpecs.build(),
-        meshInstances.build(),
-        transformNodes.build() };
-
-    return GetOrCreateModel(cacheKey, ModelSpec);
+    return modelResult;
 }
 
 Result<Model>
@@ -1257,7 +1254,10 @@ ValidateMesh(const aiScene* scene, const unsigned meshIdx)
 };
 
 static void
-CollectMeshes(const aiScene* scene, const aiNode* node, SceneMeshCollection& outCollection)
+CollectMeshSpecs(const aiScene* scene,
+    const aiNode* node,
+    MeshSpecCollection& outCollection,
+    const std::filesystem::path& parentPath)
 {
     for(unsigned i = 0; i < node->mNumMeshes; ++i)
     {
@@ -1267,14 +1267,14 @@ CollectMeshes(const aiScene* scene, const aiNode* node, SceneMeshCollection& out
             continue;
         }
 
-        const aiMesh* mesh = scene->mMeshes[meshIdx];
-
-        outCollection[meshIdx] = mesh;
+        const auto meshSpec = CreateMeshSpecFromMesh(scene, meshIdx, parentPath);
+        outCollection.MeshIdToSpecIndex[meshIdx] = static_cast<int>(outCollection.MeshSpecs.size());
+        outCollection.MeshSpecs.emplace_back(meshSpec);
     }
 
     for(unsigned i = 0; i < node->mNumChildren; ++i)
     {
-        CollectMeshes(scene, node->mChildren[i], outCollection);
+        CollectMeshSpecs(scene, node->mChildren[i], outCollection, parentPath);
     }
 };
 
@@ -1380,25 +1380,6 @@ CreateMeshSpecFromMesh(
         .Vertices{ vertices.build() },
         .Indices{ indices.build() },
         .MtlSpec{ mtlSpec } };
-}
-
-static MeshSpecCollection
-CreateMeshSpecCollection(const aiScene* scene,
-    const SceneMeshCollection& meshCollection,
-    const std::filesystem::path& parentPath)
-{
-    MeshSpecCollection meshSpecCollection;
-
-    for(const auto& [meshId, mesh] : meshCollection)
-    {
-        MeshSpec spec = CreateMeshSpecFromMesh(scene, meshId, parentPath);
-
-        const int specIndex = static_cast<int>(meshSpecCollection.MeshSpecs.size());
-        meshSpecCollection.MeshSpecs.emplace_back(spec);
-        meshSpecCollection.MeshIdToSpecIndex[meshId] = specIndex;
-    }
-
-    return meshSpecCollection;
 }
 
 static void
