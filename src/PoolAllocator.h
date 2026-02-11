@@ -30,7 +30,9 @@ public:
     ~PoolAllocator()
     {
         // If this trips, something allocated from the pool wasn't freed.
-        eassert(m_AllocatedCount == 0);
+        eassert(m_AllocatedCount == 0,
+            "PoolAllocator is being destroyed but there are still {} allocated objects",
+            m_AllocatedCount);
 
         while(m_Heaps)
         {
