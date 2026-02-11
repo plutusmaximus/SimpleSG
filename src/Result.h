@@ -292,7 +292,7 @@ private:
 // Like expect but also calls verify and pops an assert if false.
 #define expectv(expr, ...)                                              \
     {                                                                   \
-        if(!everify(expr))                                              \
+        if(!everify(expr, ##__VA_ARGS__))                               \
         {                                                               \
             const Error error = MAKE_EXPR_ERROR(#expr, ##__VA_ARGS__);  \
             logError("{}", error);                                      \
