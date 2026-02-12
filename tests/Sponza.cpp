@@ -59,10 +59,10 @@ public:
         [[maybe_unused]] constexpr const char* JUNGLE_RUINS = "C:/Users/kbaca/Downloads/JungleRuins/GLTF/JungleRuins_Main.gltf";
 
         const CacheKey cacheKey("Sponza");
-        expect(m_ResourceCache->LoadModelFromFileAsync(cacheKey, SPONZA_MODEL_PATH),
-               "Failed to load model from file");
+        auto statusResult = m_ResourceCache->LoadModelFromFileAsync(cacheKey, SPONZA_MODEL_PATH);
+        expect(statusResult, statusResult.error());
 
-        while(m_ResourceCache->IsPending(cacheKey))
+        while(statusResult.value().IsPending())
         {
             m_ResourceCache->ProcessPendingOperations();
         }

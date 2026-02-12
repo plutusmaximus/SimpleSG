@@ -440,7 +440,18 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
 
     const ModelSpec modelSpec{meshSpecs.build(), meshInstances.build(), transformNodes.build()};
 
-    return cache->GetOrCreateModel(CacheKey("CubeModel"), modelSpec);
+    const CacheKey cacheKey = CacheKey("CubeModel");
+
+    auto result = cache->CreateModelAsync(cacheKey, modelSpec);
+    expect(result, result.error());
+
+    // Wait for the model to be created.
+    while(result.value().IsPending())
+    {
+        cache->ProcessPendingOperations();
+    }
+
+    return cache->GetModel(cacheKey);
 }
 
 static Result<ModelResource> CreateShapeModel(ResourceCache* cache)
@@ -479,5 +490,16 @@ static Result<ModelResource> CreateShapeModel(ResourceCache* cache)
 
     const ModelSpec modelSpec{meshSpecs.build(), meshInstances.build(), transformNodes.build()};
 
-    return cache->GetOrCreateModel(CacheKey("ShapeModel"), modelSpec);
+    const CacheKey cacheKey = CacheKey("ShapeModel");
+
+    auto result = cache->CreateModelAsync(cacheKey, modelSpec);
+    expect(result, result.error());
+
+    // Wait for the model to be created.
+    while(result.value().IsPending())
+    {
+        cache->ProcessPendingOperations();
+    }
+
+    return cache->GetModel(cacheKey);
 }

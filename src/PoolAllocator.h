@@ -9,38 +9,10 @@
 #include <utility>
 #include <vector>
 
-/// @brief A pool allocator for fixed-size objects.
-/// Objects are allocated in heaps of ItemsPerHeap objects.
-/// ItemsPerHeap specifies how many objects to allocate per heap.
-template<typename T, std::size_t ItemsPerHeap>
-class PoolAllocator
+template<typename T>
+class PoolAllocatorBase
 {
 public:
-    PoolAllocator()
-    {
-        static_assert(ItemsPerHeap > 0, "ItemsPerHeap must be > 0.");
-        AllocateHeap();
-    }
-
-    PoolAllocator(const PoolAllocator&) = delete;
-    PoolAllocator& operator=(const PoolAllocator&) = delete;
-    PoolAllocator(PoolAllocator&&) = delete;
-    PoolAllocator& operator=(PoolAllocator&&) = delete;
-
-    ~PoolAllocator()
-    {
-        // If this trips, something allocated from the pool wasn't freed.
-        eassert(m_AllocatedCount == 0,
-            "PoolAllocator is being destroyed but there are still {} allocated objects",
-            m_AllocatedCount);
-
-        while(m_Heaps)
-        {
-            Heap* nextHeap = m_Heaps->m_Next;
-            delete m_Heaps;
-            m_Heaps = nextHeap;
-        }
-    }
 
     /// @brief Allocate an object from the pool.
     /// Call the constructor with the given arguments.
@@ -50,6 +22,11 @@ public:
         if(m_FreeList == nullptr)
         {
             AllocateHeap();
+
+            if(!everify(m_FreeList != nullptr, "Failed to allocate heap for PoolAllocator"))
+            {
+                return nullptr;
+            }
         }
 
         Chunk* chunk = m_FreeList;
@@ -89,7 +66,25 @@ public:
         m_FreeList = chunk;
     }
 
-private:
+protected:
+    PoolAllocatorBase() = default;
+    virtual ~PoolAllocatorBase()
+    {
+        // If this trips, something allocated from the pool wasn't freed.
+        eassert(m_AllocatedCount == 0,
+            "PoolAllocator is being destroyed but there are still {} allocated objects",
+            m_AllocatedCount);
+
+    }
+
+    virtual void AllocateHeap() = 0;
+
+    virtual bool ValidatePointer(T* ptr) = 0;
+
+    PoolAllocatorBase(const PoolAllocatorBase&) = delete;
+    PoolAllocatorBase& operator=(const PoolAllocatorBase&) = delete;
+    PoolAllocatorBase(PoolAllocatorBase&&) = delete;
+    PoolAllocatorBase& operator=(PoolAllocatorBase&&) = delete;
 
     struct Chunk;
 
@@ -106,6 +101,43 @@ private:
         };
     };
 
+    Chunk* m_FreeList{ nullptr };
+    std::size_t m_AllocatedCount{ 0 };
+};
+
+/// @brief A pool allocator for fixed-size objects.
+/// Objects are allocated in heaps of ItemsPerHeap objects.
+/// ItemsPerHeap specifies how many objects to allocate per heap.
+template<typename T, std::size_t ItemsPerHeap>
+class PoolAllocator : public PoolAllocatorBase<T>
+{
+    using Base = PoolAllocatorBase<T>;
+    using Chunk = typename Base::Chunk;
+
+public:
+    PoolAllocator()
+    {
+        static_assert(ItemsPerHeap > 0, "ItemsPerHeap must be > 0.");
+        AllocateHeap();
+    }
+
+    PoolAllocator(const PoolAllocator&) = delete;
+    PoolAllocator& operator=(const PoolAllocator&) = delete;
+    PoolAllocator(PoolAllocator&&) = delete;
+    PoolAllocator& operator=(PoolAllocator&&) = delete;
+
+    ~PoolAllocator() override
+    {
+        while(m_Heaps)
+        {
+            Heap* nextHeap = m_Heaps->m_Next;
+            delete m_Heaps;
+            m_Heaps = nextHeap;
+        }
+    }
+
+private:
+
     struct Heap
     {
         Heap* m_Next{ nullptr };
@@ -113,7 +145,7 @@ private:
         Chunk m_Chunks[ItemsPerHeap];
     };
 
-    void AllocateHeap()
+    void AllocateHeap() override
     {
         Heap* heap = new Heap();
 
@@ -122,8 +154,8 @@ private:
         // locality).
         for(std::size_t i = 0; i < ItemsPerHeap; ++i)
         {
-            heap->m_Chunks[i].Next = m_FreeList;
-            m_FreeList = &heap->m_Chunks[i];
+            heap->m_Chunks[i].Next = Base::m_FreeList;
+            Base::m_FreeList = &heap->m_Chunks[i];
         }
 
         heap->m_Next = m_Heaps;
@@ -132,7 +164,7 @@ private:
     }
 
     /// @brief Check that a pointer being freed was allocated from this PoolAllocator.
-    bool ValidatePointer(T* ptr)
+    bool ValidatePointer(T* ptr) override
     {
         bool validated = false;
         for(Heap* heap = m_Heaps; heap != nullptr; heap = heap->m_Next)
@@ -151,8 +183,6 @@ private:
         return validated;
     }
 
-    Chunk* m_FreeList{ nullptr };
     Heap* m_Heaps{ nullptr };
     std::size_t m_HeapCount{ 0 };
-    std::size_t m_AllocatedCount{ 0 };
 };

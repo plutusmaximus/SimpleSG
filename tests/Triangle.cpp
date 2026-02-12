@@ -249,5 +249,16 @@ static Result<ModelResource> CreateTriangleModel(ResourceCache* cache)
 
     const ModelSpec modelSpec{meshSpecs.build(), meshInstances.build(), transformNodes.build()};
 
-    return cache->GetOrCreateModel(CacheKey("TriangleModel"), modelSpec);
+    const CacheKey cacheKey = CacheKey("TriangleModel");
+
+    auto result = cache->CreateModelAsync(cacheKey, modelSpec);
+    expect(result, result.error());
+
+    // Wait for the model to be created.
+    while(result.value().IsPending())
+    {
+        cache->ProcessPendingOperations();
+    }
+
+    return cache->GetModel(cacheKey);
 }

@@ -36,14 +36,18 @@ public:
         const imvector<MeshInstance>& meshInstances,
         const imvector<TransformNode>& transformNodes);
 
-    /// @brief List of mesh specifications that make up the model.
-    const imvector<MeshSpec> MeshSpecs;
-    /// @brief List of mesh instances that make up the model.
-    const imvector<MeshInstance> MeshInstances;
-    /// @brief List of transform nodes that make up the model.
-    const imvector<TransformNode> TransformNodes;
+        const imvector<MeshSpec>& GetMeshSpecs() const { return m_MeshSpecs; }
+        const imvector<MeshInstance>& GetMeshInstances() const { return m_MeshInstances; }
+        const imvector<TransformNode>& GetTransformNodes() const { return m_TransformNodes; }
 private:
         ModelSpec() = delete;
+
+    /// @brief List of mesh specifications that make up the model.
+    imvector<MeshSpec> m_MeshSpecs;
+    /// @brief List of mesh instances that make up the model.
+    imvector<MeshInstance> m_MeshInstances;
+    /// @brief List of transform nodes that make up the model.
+    imvector<TransformNode> m_TransformNodes;
 };
 
 class Model
