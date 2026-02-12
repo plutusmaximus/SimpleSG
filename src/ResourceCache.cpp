@@ -4,7 +4,6 @@
 
 #include "Logging.h"
 #include "scope_exit.h"
-#include "Stopwatch.h"
 #include "ThreadPool.h"
 
 #include <assimp/Importer.hpp>
@@ -197,163 +196,168 @@ ResourceCache::ProcessPendingOperations()
                 m_PendingOps = next;
             }
             op->RemoveFromGroup();
-            op->InvokeDeleter();
+
+            FreeOp(op);
         }
 
         op = next;
     }
 }
 
-static bool NotPendingFunc(ResourceCache* /*cache*/, const CacheKey& /*key*/)
-{
-    return false;
-}
-
-template<typename ResourceType>
-static bool IsOpPending(ResourceCache* cache, const CacheKey& key)
-{
-    return cache->IsPending<ResourceType>(key);
-}
-
 Result<ResourceCache::AsyncStatus>
 ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, const imstring& filePath)
 {
-    // Return existing entry without re-importing
-    if(m_ModelCache.Contains(cacheKey))
+    if(IsPending<ModelResource>(cacheKey))
+    {
+        logDebug("  Load already pending: {}", cacheKey.ToString());
+        auto op = AllocateOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<ModelResource>);
+        expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
+        Enqueue(op);
+    }
+    else if(m_ModelCache.Contains(cacheKey))
     {
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return AsyncStatus(this, cacheKey, NotPendingFunc);
     }
-
-    expectv(!IsPending<ModelResource>(cacheKey),
-        "  Model load already pending: {}",
-        cacheKey.ToString());
-
-    logDebug("  Cache miss: {}", cacheKey.ToString());
-
-    auto op = AllocateOp<LoadModelOp>(this, cacheKey, filePath);
-    expectv(op, "Failed to allocate LoadModelOp for key: {}", cacheKey.ToString());
-    if(!everify(m_ModelCache.TryReserve(cacheKey)))
+    else
     {
-        op->InvokeDeleter();
-        return Error("Failed to reserve cache entry for key: {}", cacheKey.ToString());
-    }
-    Enqueue(op);
+        logDebug("  Cache miss: {}", cacheKey.ToString());
 
-    return AsyncStatus(this, cacheKey, IsOpPending<ModelResource>);
+        auto op = AllocateOp<LoadModelOp>(this, cacheKey, filePath);
+        expectv(op, "Failed to allocate LoadModelOp for key: {}", cacheKey.ToString());
+        if(!everify(m_ModelCache.TryReserve(cacheKey)))
+        {
+            FreeOp(op);
+            return Error("Failed to reserve cache entry for key: {}", cacheKey.ToString());
+        }
+        Enqueue(op);
+    }
+
+    return AsyncStatus(this, cacheKey, &ResourceCache::IsPending<ModelResource>);
 }
 
 Result<ResourceCache::AsyncStatus>
 ResourceCache::CreateModelAsync(const CacheKey& cacheKey, const ModelSpec& modelSpec)
 {
-    // Return existing entry without re-importing
-    if(m_ModelCache.Contains(cacheKey))
+    if(IsPending<ModelResource>(cacheKey))
+    {
+        logDebug("  Creation already pending: {}", cacheKey.ToString());
+        auto op = AllocateOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<ModelResource>);
+        expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
+        Enqueue(op);
+    }
+    else if(m_ModelCache.Contains(cacheKey))
     {
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return AsyncStatus(this, cacheKey, NotPendingFunc);
     }
-
-    expectv(!IsPending<ModelResource>(cacheKey),
-        "  Model creation already pending: {}",
-        cacheKey.ToString());
-
-    logDebug("  Cache miss: {}", cacheKey.ToString());
-
-    auto op = AllocateOp<CreateModelOp>(this, cacheKey, modelSpec);
-    expectv(op, "Failed to allocate CreateModelOp for key: {}", cacheKey.ToString());
-    if(!everify(m_ModelCache.TryReserve(cacheKey)))
+    else
     {
-        op->InvokeDeleter();
-        return Error("Failed to reserve cache entry for key: {}", cacheKey.ToString());
-    }
-    Enqueue(op);
+        logDebug("  Cache miss: {}", cacheKey.ToString());
 
-    return AsyncStatus(this, cacheKey, IsOpPending<ModelResource>);
+        auto op = AllocateOp<CreateModelOp>(this, cacheKey, modelSpec);
+        expectv(op, "Failed to allocate CreateModelOp for key: {}", cacheKey.ToString());
+        if(!everify(m_ModelCache.TryReserve(cacheKey)))
+        {
+            FreeOp(op);
+            return Error("Failed to reserve cache entry for key: {}", cacheKey.ToString());
+        }
+        Enqueue(op);
+    }
+
+    return AsyncStatus(this, cacheKey, &ResourceCache::IsPending<ModelResource>);
 }
 
 /// @brief Creates a texture asynchronously if not already created.
 Result<ResourceCache::AsyncStatus>
 ResourceCache::CreateTextureAsync(const CacheKey& cacheKey, const TextureSpec& textureSpec)
 {
-    // Return existing entry without re-creating
-    if(m_TextureCache.Contains(cacheKey))
+    if(IsPending<GpuTexture*>(cacheKey))
+    {
+        logDebug("  Texture creation already pending: {}", cacheKey.ToString());
+        auto op = AllocateOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<GpuTexture*>);
+        expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
+        Enqueue(op);
+    }
+    else if(m_TextureCache.Contains(cacheKey))
     {
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return AsyncStatus(this, cacheKey, NotPendingFunc);
     }
-
-    expectv(!IsPending<GpuTexture*>(cacheKey),
-        "  Texture creation already pending: {}",
-        cacheKey.ToString());
-
-    logDebug("  Cache miss: {}", cacheKey.ToString());
-
-    auto op = AllocateOp<CreateTextureOp>(this, cacheKey, textureSpec);
-    expectv(op, "Failed to allocate CreateTextureOp for key: {}", cacheKey.ToString());
-    if(!everify(m_TextureCache.TryReserve(cacheKey)))
+    else
     {
-        op->InvokeDeleter();
-        return Error("Failed to reserve cache entry for key: {}", cacheKey.ToString());
-    }
-    Enqueue(op);
+        logDebug("  Cache miss: {}", cacheKey.ToString());
 
-    return AsyncStatus(this, cacheKey, IsOpPending<GpuTexture*>);
+        auto op = AllocateOp<CreateTextureOp>(this, cacheKey, textureSpec);
+        expectv(op, "Failed to allocate CreateTextureOp for key: {}", cacheKey.ToString());
+        if(!everify(m_TextureCache.TryReserve(cacheKey)))
+        {
+            FreeOp(op);
+            return Error("Failed to reserve cache entry for key: {}", cacheKey.ToString());
+        }
+        Enqueue(op);
+    }
+
+    return AsyncStatus(this, cacheKey, &ResourceCache::IsPending<GpuTexture*>);
 }
 
 Result<ResourceCache::AsyncStatus>
 ResourceCache::CreateVertexShaderAsync(const CacheKey& cacheKey, const VertexShaderSpec& shaderSpec)
 {
-    // Return existing entry without re-creating
-    if(m_VertexShaderCache.Contains(cacheKey))
+    if(IsPending<GpuVertexShader*>(cacheKey))
+    {
+        logDebug("  Vertex shader creation already pending: {}", cacheKey.ToString());
+        auto op = AllocateOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<GpuVertexShader*>);
+        expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
+        Enqueue(op);
+    }
+    else if(m_VertexShaderCache.Contains(cacheKey))
     {
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return AsyncStatus(this, cacheKey, NotPendingFunc);
     }
-
-    expectv(!IsPending<GpuVertexShader*>(cacheKey),
-        "  Vertex shader creation already pending: {}",
-        cacheKey.ToString());
-
-    logDebug("  Cache miss: {}", cacheKey.ToString());
-
-    auto op = AllocateOp<CreateVertexShaderOp>(this, cacheKey, shaderSpec);
-    expectv(op, "Failed to allocate CreateVertexShaderOp for key: {}", cacheKey.ToString());
-    if(!everify(m_VertexShaderCache.TryReserve(cacheKey)))
+    else
     {
-        op->InvokeDeleter();
-        return Error("Failed to reserve cache entry for key: {}", cacheKey.ToString());
-    }
-    Enqueue(op);
+        logDebug("  Cache miss: {}", cacheKey.ToString());
 
-    return AsyncStatus(this, cacheKey, IsOpPending<GpuVertexShader*>);
+        auto op = AllocateOp<CreateVertexShaderOp>(this, cacheKey, shaderSpec);
+        expectv(op, "Failed to allocate CreateVertexShaderOp for key: {}", cacheKey.ToString());
+        if(!everify(m_VertexShaderCache.TryReserve(cacheKey)))
+        {
+            FreeOp(op);
+            return Error("Failed to reserve cache entry for key: {}", cacheKey.ToString());
+        }
+        Enqueue(op);
+    }
+
+    return AsyncStatus(this, cacheKey, &ResourceCache::IsPending<GpuVertexShader*>);
 }
 
 Result<ResourceCache::AsyncStatus>
 ResourceCache::CreateFragmentShaderAsync(const CacheKey& cacheKey, const FragmentShaderSpec& shaderSpec)
 {
-    // Return existing entry without re-creating
-    if(m_FragmentShaderCache.Contains(cacheKey))
+    if(IsPending<GpuFragmentShader*>(cacheKey))
+    {
+        logDebug("  Fragment shader creation already pending: {}", cacheKey.ToString());
+        auto op = AllocateOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<GpuFragmentShader*>);
+        expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
+        Enqueue(op);
+    }
+    else if(m_FragmentShaderCache.Contains(cacheKey))
     {
         logDebug("  Cache hit: {}", cacheKey.ToString());
-        return AsyncStatus(this, cacheKey, NotPendingFunc);
     }
-
-    expectv(!IsPending<GpuFragmentShader*>(cacheKey),
-        "  Fragment shader creation already pending: {}",
-        cacheKey.ToString());
-
-    logDebug("  Cache miss: {}", cacheKey.ToString());
-
-    auto op = AllocateOp<CreateFragmentShaderOp>(this, cacheKey, shaderSpec);
-    expectv(op, "Failed to allocate CreateFragmentShaderOp for key: {}", cacheKey.ToString());
-    if(!everify(m_FragmentShaderCache.TryReserve(cacheKey)))
+    else
     {
-        op->InvokeDeleter();
-        return Error("Failed to reserve cache entry for key: {}", cacheKey.ToString());
-    }
-    Enqueue(op);
+        logDebug("  Cache miss: {}", cacheKey.ToString());
 
-    return AsyncStatus(this, cacheKey, IsOpPending<GpuFragmentShader*>);
+        auto op = AllocateOp<CreateFragmentShaderOp>(this, cacheKey, shaderSpec);
+        expectv(op, "Failed to allocate CreateFragmentShaderOp for key: {}", cacheKey.ToString());
+        if(!everify(m_FragmentShaderCache.TryReserve(cacheKey)))
+        {
+            FreeOp(op);
+            return Error("Failed to reserve cache entry for key: {}", cacheKey.ToString());
+        }
+        Enqueue(op);
+    }
+
+    return AsyncStatus(this, cacheKey, &ResourceCache::IsPending<GpuFragmentShader*>);
 }
 
 Result<ModelResource>
@@ -412,9 +416,45 @@ ResourceCache::Enqueue(AsyncOp* op)
     op->Start();
 }
 
-// === ResourceCache::CreateModelOp ===
-
 #define logOp(fmt, ...) logDebug("  {}: {}", CLASS_NAME, std::format(fmt, __VA_ARGS__))
+
+// === ResourceCache::WaitOp ===
+
+void
+ResourceCache::WaitOp::Start()
+{
+    eassert(m_State == NotStarted);
+
+    logOp("Start() (key: {})", GetCacheKey().ToString());
+
+    m_State = Waiting;
+}
+
+void
+ResourceCache::WaitOp::Update()
+{
+    switch(m_State)
+    {
+        case NotStarted:
+            eassert(false, "Start() should have been called before Update()");
+            break;
+
+        case Waiting:
+            if((m_ResourceCache->*m_IsPendingFunc)(GetCacheKey()))
+            {
+                return;
+            }
+
+            m_State = Complete;
+            break;
+
+            case Complete:
+                // No-op
+                break;
+    }
+}
+
+// === ResourceCache::CreateModelOp ===
 
 ResourceCache::CreateModelOp::~CreateModelOp()
 {
@@ -526,27 +566,27 @@ ResourceCache::CreateModelOp::Update()
                             m_State = Failed;
                             break;
                         }
+                    }
 
-                        const CacheKey vbCacheKey = meshSpec.MtlSpec.VertexShader.GetCacheKey();
-                        result = m_ResourceCache->CreateVertexShaderAsync(vbCacheKey,
-                            meshSpec.MtlSpec.VertexShader);
+                    const CacheKey vbCacheKey = meshSpec.MtlSpec.VertexShader.GetCacheKey();
+                    auto result = m_ResourceCache->CreateVertexShaderAsync(vbCacheKey,
+                        meshSpec.MtlSpec.VertexShader);
 
-                        if(!result)
-                        {
-                            m_FailError = result.error();
-                            m_State = Failed;
-                            break;
-                        }
-                        const CacheKey fsCacheKey = meshSpec.MtlSpec.FragmentShader.GetCacheKey();
-                        result = m_ResourceCache->CreateFragmentShaderAsync(fsCacheKey,
-                            meshSpec.MtlSpec.FragmentShader);
+                    if(!result)
+                    {
+                        m_FailError = result.error();
+                        m_State = Failed;
+                        break;
+                    }
+                    const CacheKey fsCacheKey = meshSpec.MtlSpec.FragmentShader.GetCacheKey();
+                    result = m_ResourceCache->CreateFragmentShaderAsync(fsCacheKey,
+                        meshSpec.MtlSpec.FragmentShader);
 
-                        if(!result)
-                        {
-                            m_FailError = result.error();
-                            m_State = Failed;
-                            break;
-                        }
+                    if(!result)
+                    {
+                        m_FailError = result.error();
+                        m_State = Failed;
+                        break;
                     }
                 }
 
@@ -693,6 +733,17 @@ ResourceCache::CreateModelOp::SetResult(Result<ModelResource> result)
 
 // === ResourceCache::LoadModelOp ===
 
+ResourceCache::LoadModelOp::~LoadModelOp()
+{
+    eassert(!m_CreateModelOp);
+
+    if(m_CreateModelOp)
+    {
+        m_ResourceCache->FreeOp(m_CreateModelOp);
+    }
+}
+
+
 void
 ResourceCache::LoadModelOp::Start()
 {
@@ -733,12 +784,14 @@ ResourceCache::LoadModelOp::Update()
 
             constexpr unsigned flags = aiProcess_ConvertToLeftHanded;
 
-            Stopwatch sw;
-            sw.Mark();
+            m_Stopwatch.Mark();
+
             Assimp::Importer importer;
             const aiScene* scene = importer.ReadFile(std::string(m_Path), flags);
 
-            logDebug("  Assimp import time: {} ms", static_cast<int>(sw.Elapsed() * 1000.0f));
+            logDebug("  Assimp import time: {} ms ({})",
+                static_cast<int>(m_Stopwatch.Elapsed() * 1000.0f),
+                GetCacheKey().ToString());
 
             if(!scene)
             {
@@ -778,14 +831,24 @@ ResourceCache::LoadModelOp::Update()
 
         case CreateModel:
 
-            m_CreateModelOp.emplace(m_ResourceCache, GetCacheKey(), m_ModelSpecResult.value());
-            m_ResourceCache->Enqueue(&m_CreateModelOp.value());
+            m_CreateModelOp = m_ResourceCache->AllocateOp<CreateModelOp>(m_ResourceCache,
+                GetCacheKey(),
+                m_ModelSpecResult.value());
+
+            if(!m_CreateModelOp)
+            {
+                SetResult(Error("Failed to allocate CreateModelOp"));
+                return;
+            }
+
+            m_CreateModelOp->Start();
             m_State = CreatingModel;
 
             break;
 
         case CreatingModel:
             // Wait for CreateModelOp to complete
+            m_CreateModelOp->Update();
             if(m_CreateModelOp->IsPending())
             {
                 return;
@@ -809,8 +872,18 @@ ResourceCache::LoadModelOp::SetResult(Result<ModelResource> result)
         m_ResourceCache->m_ModelCache.Set(GetCacheKey(), result);
     }
 
+    if(m_CreateModelOp)
+    {
+        m_ResourceCache->FreeOp(m_CreateModelOp);
+        m_CreateModelOp = nullptr;
+    }
+
     m_Result = result;
     m_State = Complete;
+
+    logDebug("  Total load time: {} ms ({})",
+        static_cast<int>(m_Stopwatch.Elapsed() * 1000.0f),
+        GetCacheKey().ToString());
 }
 
 // === ResourceCache::CreateTextureOp ===

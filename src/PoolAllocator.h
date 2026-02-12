@@ -9,8 +9,18 @@
 #include <utility>
 #include <vector>
 
-template<typename T>
 class PoolAllocatorBase
+{
+public:
+
+    virtual ~PoolAllocatorBase() = default;
+
+    /// @brief Free an object back to the pool.
+    virtual void Free(void* voidPtr) = 0;
+};
+
+template<typename T>
+class PoolAllocatorT : public PoolAllocatorBase
 {
 public:
 
@@ -41,12 +51,14 @@ public:
     }
 
     /// @brief Free an object back to the pool.
-    void Free(T* ptr)
+    void Free(void* voidPtr) override
     {
-        if(ptr == nullptr)
+        if(voidPtr == nullptr)
         {
             return;
         }
+
+        T* ptr = static_cast<T*>(voidPtr);
 
 #if !defined(NDEBUG)
         if(!ValidatePointer(ptr))
@@ -67,8 +79,8 @@ public:
     }
 
 protected:
-    PoolAllocatorBase() = default;
-    virtual ~PoolAllocatorBase()
+    PoolAllocatorT() = default;
+    virtual ~PoolAllocatorT()
     {
         // If this trips, something allocated from the pool wasn't freed.
         eassert(m_AllocatedCount == 0,
@@ -81,10 +93,10 @@ protected:
 
     virtual bool ValidatePointer(T* ptr) = 0;
 
-    PoolAllocatorBase(const PoolAllocatorBase&) = delete;
-    PoolAllocatorBase& operator=(const PoolAllocatorBase&) = delete;
-    PoolAllocatorBase(PoolAllocatorBase&&) = delete;
-    PoolAllocatorBase& operator=(PoolAllocatorBase&&) = delete;
+    PoolAllocatorT(const PoolAllocatorT&) = delete;
+    PoolAllocatorT& operator=(const PoolAllocatorT&) = delete;
+    PoolAllocatorT(PoolAllocatorT&&) = delete;
+    PoolAllocatorT& operator=(PoolAllocatorT&&) = delete;
 
     struct Chunk;
 
@@ -109,9 +121,9 @@ protected:
 /// Objects are allocated in heaps of ItemsPerHeap objects.
 /// ItemsPerHeap specifies how many objects to allocate per heap.
 template<typename T, std::size_t ItemsPerHeap>
-class PoolAllocator : public PoolAllocatorBase<T>
+class PoolAllocator : public PoolAllocatorT<T>
 {
-    using Base = PoolAllocatorBase<T>;
+    using Base = PoolAllocatorT<T>;
     using Chunk = typename Base::Chunk;
 
 public:

@@ -5,6 +5,7 @@
 #include "Model.h"
 #include "PoolAllocator.h"
 #include "Result.h"
+#include "Stopwatch.h"
 
 #include <atomic>
 #include <optional>
@@ -53,7 +54,7 @@ public:
 
         bool IsPending() const
         {
-            return m_IsPendingFunc(m_ResourceCache, m_CacheKey);
+            return (m_ResourceCache->*m_IsPendingFunc)(m_CacheKey);
         }
 
         const CacheKey& GetCacheKey() const { return m_CacheKey; }
@@ -61,14 +62,14 @@ public:
     private:
         AsyncStatus(ResourceCache* resourceCache,
             const CacheKey& cacheKey,
-            bool (*isPendingFunc)(ResourceCache* cache, const CacheKey& cacheKey))
+            bool (ResourceCache::*isPendingFunc)(const CacheKey&) const)
             : m_ResourceCache(resourceCache),
                 m_CacheKey(cacheKey),
                 m_IsPendingFunc(isPendingFunc)
         {
         }
 
-        bool (*m_IsPendingFunc)(ResourceCache* cache, const CacheKey& cacheKey);
+        bool (ResourceCache::*m_IsPendingFunc)(const CacheKey&) const;
 
         ResourceCache* m_ResourceCache{ nullptr };
         CacheKey m_CacheKey;
@@ -143,8 +144,6 @@ private:
 
         AsyncOpGroup* m_Next { nullptr };
     };
-
-    union AsyncOpUnion;
 
     /// @brief Base class for asynchronous operations.
     class AsyncOp
@@ -248,27 +247,6 @@ private:
         {
         }
 
-        template<typename U>
-        void SetDeleter(void (*deleter)(AsyncOp*, U* userData), U* userData)
-        {
-            m_DeleterInvoker = [](AsyncOp* op, void (*cb)(AsyncOp*, void* userData), void* userData)
-            {
-                auto deleter = reinterpret_cast<void (*)(AsyncOp*, U*)>(cb);
-                auto typedUserData = static_cast<U*>(userData);
-                deleter(op, typedUserData);
-            };
-            m_Deleter = reinterpret_cast<void (*)(AsyncOp*, void*)>(deleter);
-            m_DeleterUserData = userData;
-        }
-
-        void InvokeDeleter()
-        {
-            if(m_DeleterInvoker)
-            {
-                m_DeleterInvoker(this, m_Deleter, m_DeleterUserData);
-            }
-        }
-
     private:
         CacheKey m_CacheKey;
 
@@ -281,9 +259,7 @@ private:
         /// Group that this operation is part of.
         AsyncOpGroup* m_Group{ nullptr };
 
-        void (*m_DeleterInvoker)(AsyncOp* op, void (*cb)(AsyncOp*, void* userData), void* userData){ nullptr };
-        void (*m_Deleter)(AsyncOp* op, void* userData){ nullptr };
-        void* m_DeleterUserData{ nullptr };
+        PoolAllocatorBase* m_Allocator{ nullptr };
     };
 
     /// @brief Enqueues an asynchronous operation for processing.
@@ -304,6 +280,49 @@ private:
         m_AsyncOpGroupStack = group->m_Next;
         group->m_Next = nullptr;
     }
+
+    /// @brief Asynchronous operation for waiting on another asynchronous operation to complete.
+    /// This is used when, e.g., resource A depends on resource B, and when A attempts to load B, it
+    /// finds that B is already being loaded by another operation.  In this case, A can enqueue a
+    /// WaitOp that waits for B to finish loading, and then once the WaitOp completes, A can
+    /// retrieve B from the cache and continue loading itself.
+    class WaitOp : public AsyncOp
+    {
+        static constexpr const char* CLASS_NAME = "WaitOp";
+
+    public:
+        WaitOp(ResourceCache* resourceCache,
+            const CacheKey& cacheKey,
+            bool (ResourceCache::*isPendingFunc)(const CacheKey&) const)
+            : AsyncOp(cacheKey),
+              m_ResourceCache(resourceCache),
+              m_IsPendingFunc(isPendingFunc)
+        {
+        }
+
+        void Start() override;
+
+        void Update() override;
+
+        bool IsStarted() const override { return m_State != NotStarted; }
+        bool IsPending() const override { return m_State != Complete; }
+        bool IsComplete() const override { return m_State == Complete; }
+
+    private:
+
+        ResourceCache* m_ResourceCache{ nullptr };
+
+        bool (ResourceCache::*m_IsPendingFunc)(const CacheKey&) const;
+
+        enum State
+        {
+            NotStarted,
+            Waiting,
+            Complete,
+        };
+
+        State m_State{ NotStarted };
+    };
 
     /// @brief Asynchronous operation for creating a model from a model spec.
     class CreateModelOp : public AsyncOp
@@ -379,6 +398,8 @@ private:
         {
         }
 
+        ~LoadModelOp() override;
+
         void Start() override;
 
         void Update() override;
@@ -411,11 +432,13 @@ private:
 
         imstring m_Path;
 
-        std::optional<CreateModelOp> m_CreateModelOp;
+        CreateModelOp* m_CreateModelOp{nullptr};
 
         FileIo::AsyncToken m_FileFetchToken;
 
         Result<ModelSpec> m_ModelSpecResult;
+
+        Stopwatch m_Stopwatch;
 
         Result<ModelResource> m_Result;
     };
@@ -580,37 +603,51 @@ private:
         Result<GpuFragmentShader*> m_Result;
     };
 
-    /// @brief Union for storing different types of asynchronous operations.
-    /// Used with PoolAllocator to manage memory for various AsyncOp types.
-    /// If new AsyncOp types are added, they must be included here.
-    union AsyncOpUnion
-    {
-        uint8_t CreateModelOp[sizeof(CreateModelOp)];
-        uint8_t LoadModelOp[sizeof(LoadModelOp)];
-        uint8_t CreateTextureOp[sizeof(CreateTextureOp)];
-        uint8_t CreateVertexShaderOp[sizeof(CreateVertexShaderOp)];
-        uint8_t CreateFragmentShaderOp[sizeof(CreateFragmentShaderOp)];
-    };
+    template<typename T>
+    static constexpr size_t POOL_CAPACITY = 0;
 
-    PoolAllocator<AsyncOpUnion, 16> m_AsyncOpAllocator;
+    template<>
+    constexpr size_t POOL_CAPACITY<WaitOp> = 1024;
+    template<>
+    constexpr size_t POOL_CAPACITY<CreateModelOp> = 256;
+    template<>
+    constexpr size_t POOL_CAPACITY<LoadModelOp> = 256;
+    template<>
+    constexpr size_t POOL_CAPACITY<CreateTextureOp> = 256;
+    template<>
+    constexpr size_t POOL_CAPACITY<CreateVertexShaderOp> = 8;
+    template<>
+    constexpr size_t POOL_CAPACITY<CreateFragmentShaderOp> = 8;
+
+    std::tuple<PoolAllocator<WaitOp, POOL_CAPACITY<WaitOp>>,
+        PoolAllocator<CreateModelOp, POOL_CAPACITY<CreateModelOp>>,
+        PoolAllocator<LoadModelOp, POOL_CAPACITY<LoadModelOp>>,
+        PoolAllocator<CreateTextureOp, POOL_CAPACITY<CreateTextureOp>>,
+        PoolAllocator<CreateVertexShaderOp, POOL_CAPACITY<CreateVertexShaderOp>>,
+        PoolAllocator<CreateFragmentShaderOp, POOL_CAPACITY<CreateFragmentShaderOp>>> m_OpPools;
 
     /// @brief Allocates an asynchronous operation from the pool.
     /// Passes the constructor arguments to the operation.
     template<typename T, typename... Args>
     T* AllocateOp(Args&&... args)
     {
+        constexpr size_t kPoolCapacity = POOL_CAPACITY<T>;
+        static_assert(kPoolCapacity > 0, "POOL_CAPACITY must be defined for this AsyncOp type");
         static_assert(std::is_base_of_v<AsyncOp, T>, "T must be derived from AsyncOp");
-        static_assert(sizeof(T) <= sizeof(AsyncOpUnion), "T must fit within AsyncOpUnion");
-        AsyncOpUnion* opUnion = m_AsyncOpAllocator.Alloc();
-        T* t = ::new (opUnion) T(std::forward<Args>(args)...);
-        auto deleter = +[](AsyncOp* op, PoolAllocatorBase<AsyncOpUnion>* allocator)
-        {
-            T* t = static_cast<T*>(op);
-            t->~T();
-            allocator->Free(reinterpret_cast<AsyncOpUnion*>(t));
-        };
-        t->SetDeleter<PoolAllocatorBase<AsyncOpUnion>>(deleter, &m_AsyncOpAllocator);
+
+        auto mem = std::get<PoolAllocator<T, kPoolCapacity>>(m_OpPools).Alloc(std::forward<Args>(args)...);
+        T* t = ::new (mem) T(std::forward<Args>(args)...);
+        t->m_Allocator = &std::get<PoolAllocator<T, kPoolCapacity>>(m_OpPools);
         return t;
+    }
+
+    template<typename T>
+    void FreeOp(T* op)
+    {
+        static_assert(std::is_base_of_v<AsyncOp, T>, "T must be derived from AsyncOp");
+
+        op->~T();
+        op->m_Allocator->Free(op);
     }
 
     template<typename ValueT>
