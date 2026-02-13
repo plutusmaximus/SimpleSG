@@ -3,11 +3,14 @@
 #include "Error.h"
 #include "instack.h"
 
-class Item
+namespace
 {
-public:
-    instack_node<Item> StackNode;
-};
+    class Item
+    {
+    public:
+        instack_node<Item> StackNode;
+    };
+}
 
 TEST(instack, PushAndTop)
 {

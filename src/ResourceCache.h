@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CoopScheduler.h"
 #include "FileIo.h"
 #include "inlist.h"
 #include "instack.h"
@@ -124,39 +125,14 @@ public:
 
 private:
 
-    class AsyncOpGroup;
-
     /// @brief Base class for asynchronous operations.
-    class AsyncOp
+    class AsyncOp : public CoopTask
     {
         friend class ResourceCache;
     public:
-        virtual ~AsyncOp()
-        {
-            eassert(!m_PendingOpsNode.IsLinked(), "AsyncOp destroyed while still pending");
-            eassert(!m_GroupNode.IsLinked(), "AsyncOp destroyed while still part of a group");
-            eassert(!m_Group, "AsyncOp destroyed while still part of a group");
-        }
-
-        virtual void Start() = 0;
-
-        virtual void Update() = 0;
-
-        virtual bool IsStarted() const = 0;
-        virtual bool IsPending() const = 0;
-        virtual bool IsComplete() const = 0;
+        ~AsyncOp() override = default;
 
         const CacheKey& GetCacheKey() const { return m_CacheKey; }
-
-        void RemoveFromGroup()
-        {
-            if(!m_Group)
-            {
-                return;
-            }
-
-             m_Group->Remove(this);
-        }
 
     protected:
         explicit AsyncOp(const CacheKey& cacheKey)
@@ -164,75 +140,9 @@ private:
         {
         }
 
-        virtual void Delete() = 0;
-
     private:
         CacheKey m_CacheKey;
-
-        inlist_node<AsyncOp> m_PendingOpsNode;
-
-        inlist_node<AsyncOp> m_GroupNode;
-
-        /// Group that this operation is part of.
-        AsyncOpGroup* m_Group{ nullptr };
     };
-
-    /// @brief A group of asynchronous operations that are related and should be processed together.
-    /// As long as any operation in the group is pending, the group is considered pending.
-    class AsyncOpGroup
-    {
-        friend class ResourceCache;
-    public:
-
-        ~AsyncOpGroup()
-        {
-            eassert(!IsPending(), "AsyncOpGroup destroyed while operations still pending");
-        }
-
-        bool IsPending() const
-        {
-            return !m_Operations.empty();
-        }
-
-        void Add(AsyncOp* op)
-        {
-            eassert(op->m_Group == nullptr, "Invalid state: op already part of a group");
-            m_Operations.push_back(op);
-            op->m_Group = this;
-        }
-
-        void Remove(AsyncOp* op)
-        {
-            eassert(op->m_Group == this, "Invalid state: op not part of this group");
-            eassert(!m_Operations.empty(), "Invalid state: group is empty");
-
-            m_Operations.erase(op);
-            op->m_Group = nullptr;
-        }
-
-    private:
-
-        inlist<AsyncOp, &AsyncOp::m_GroupNode> m_Operations;
-
-        instack_node<AsyncOpGroup> m_GroupNode;
-    };
-
-    /// @brief Enqueues an asynchronous operation for processing.
-    void Enqueue(AsyncOp* op);
-
-    void PushGroup(AsyncOpGroup* group)
-    {
-        eassert(!group->IsPending(), "Cannot push group with pending operations");
-
-        m_AsyncOpGroups.push(group);
-    }
-
-    void PopGroup(AsyncOpGroup* group)
-    {
-        eassert(m_AsyncOpGroups.top() == group, "Invalid state: group not at top of stack");
-
-        m_AsyncOpGroups.pop();
-    }
 
     /// @brief Asynchronous operation for waiting on another asynchronous operation to complete.
     /// This is used when, e.g., resource A depends on resource B, and when A attempts to load B, it
@@ -263,7 +173,7 @@ private:
 
     private:
 
-        void Delete() override
+        void Dispose() override
         {
             m_ResourceCache->DeleteOp(this);
         }
@@ -319,7 +229,7 @@ private:
 
     private:
 
-        void Delete() override
+        void Dispose() override
         {
             m_ResourceCache->DeleteOp(this);
         }
@@ -348,7 +258,7 @@ private:
         GpuVertexBuffer* m_VertexBuffer{ nullptr };
         GpuIndexBuffer* m_IndexBuffer{ nullptr };
 
-        AsyncOpGroup m_OpGroup;
+        CoopTaskGroup m_TaskGroup;
 
         Error m_FailError;
 
@@ -385,7 +295,7 @@ private:
 
     private:
 
-        void Delete() override
+        void Dispose() override
         {
             m_ResourceCache->DeleteOp(this);
         }
@@ -438,7 +348,7 @@ private:
 
     private:
 
-        void Delete() override
+        void Dispose() override
         {
             m_ResourceCache->DeleteOp(this);
         }
@@ -502,7 +412,7 @@ private:
 
     private:
 
-        void Delete() override
+        void Dispose() override
         {
             m_ResourceCache->DeleteOp(this);
         }
@@ -534,6 +444,11 @@ private:
         FileIo::AsyncToken m_FileFetchToken;
     };
 
+    /// @brief Capacity of the asynchronous operation pools.  This is a template variable that is
+    /// specialized for each AsyncOp type, and is used to define the size of the pool allocator for
+    /// that type.  By using a template variable, we can easily define different capacities for
+    /// different AsyncOp types, and we can also easily change the capacity for a specific type
+    /// without having to change any other code.
     template<typename T>
     static constexpr size_t POOL_CAPACITY = 0;
 
@@ -548,12 +463,20 @@ private:
     template<>
     constexpr size_t POOL_CAPACITY<CreateShaderOp> = 8;
 
+    /// @brief Tuple of pool allocators for each AsyncOp type.  The index of each allocator in the
+    /// tuple corresponds to the AsyncOp type, and is used in the GetAllocator() function to
+    /// retrieve the correct allocator for a given AsyncOp type.  By using a tuple, we can easily
+    /// define a fixed set of allocators for our AsyncOp types, and we can easily add new AsyncOp
+    /// types and allocators in the future by simply adding them to the tuple and specializing the
+    /// POOL_CAPACITY variable for the new type.
     std::tuple<PoolAllocator<WaitOp, POOL_CAPACITY<WaitOp>>,
         PoolAllocator<CreateModelOp, POOL_CAPACITY<CreateModelOp>>,
         PoolAllocator<LoadModelOp, POOL_CAPACITY<LoadModelOp>>,
         PoolAllocator<CreateTextureOp, POOL_CAPACITY<CreateTextureOp>>,
-        PoolAllocator<CreateShaderOp, POOL_CAPACITY<CreateShaderOp>>> m_OpPools;
+        PoolAllocator<CreateShaderOp, POOL_CAPACITY<CreateShaderOp>>>
+        m_OpPools;
 
+    /// @brief Retrieves the pool allocator for a specific AsyncOp type.
     template<typename T>
     PoolAllocator<T, POOL_CAPACITY<T>>& GetAllocator()
     {
@@ -575,6 +498,7 @@ private:
         return t;
     }
 
+    /// @brief Deletes an asynchronous operation and returns it to the pool.
     template<typename T>
     void DeleteOp(T* op)
     {
@@ -587,7 +511,14 @@ private:
     template<typename ValueT>
     class Cache
     {
-        struct Pending{};
+        /// Tag type for pending cache entries.
+        struct Pending
+        {
+        };
+
+        /// @brief A cache entry that can either be pending (i.e. an asynchronous operation is still
+        /// in progress to load/create the resource), or it can have a value (i.e. the resource has
+        /// finished loading/creating and is stored in the cache.
         class CacheEntry : public std::variant<Pending, ValueT>
         {
         public:
@@ -609,17 +540,19 @@ private:
         Cache() = default;
         ~Cache() = default;
 
+        /// @brief Checks if a cache entry is pending for a given key.
         bool IsPending(const CacheKey& key) const
         {
             auto it = m_Map.find(key);
             return it != m_Map.end() && it->second.IsPending();
         }
 
-        bool TryReserve(const CacheKey& key)
-        {
-            return m_Map.try_emplace(key, CacheEntry{}).second;
-        }
+        /// @brief Attempts to reserve a cache entry for a given key.  After reserving, the entry
+        /// will be pending until Set() is called to set the value.
+        bool TryReserve(const CacheKey& key) { return m_Map.try_emplace(key, CacheEntry{}).second; }
 
+        /// @brief Sets the value of a cache entry for a given key.  The cache entry must have
+        /// already been reserved and must still be pending.
         bool Set(const CacheKey& key, const ValueT& value)
         {
             auto it = m_Map.find(key);
@@ -642,6 +575,7 @@ private:
             return true;
         }
 
+        /// @brief Attempts to get the value of a cache entry for a given key.
         bool TryGet(const CacheKey& key, ValueT& outValue) const
         {
             auto it = m_Map.find(key);
@@ -660,24 +594,24 @@ private:
             return true;
         }
 
+        /// @brief Checks if a cache entry exists for a given key.
         bool Contains(const CacheKey& key) const
         {
             return m_Map.contains(key);
         }
 
+        /// @brief Removes a cache entry for a given key.
         void Remove(const CacheKey& key)
         {
             m_Map.erase(key);
         }
 
-        size_t Size() const { return m_Map.size(); }
+        /// @brief Returns the number of cache entries.
+        size_t size() const { return m_Map.size(); }
 
         Iterator begin() { return m_Map.begin(); }
-
         ConstIterator begin() const { return m_Map.begin(); }
-
         Iterator end() { return m_Map.end(); }
-
         ConstIterator end() const { return m_Map.end(); }
 
     private:
@@ -694,7 +628,5 @@ private:
     Cache<Result<GpuVertexShader*>> m_VertexShaderCache;
     Cache<Result<GpuFragmentShader*>> m_FragmentShaderCache;
 
-    inlist<AsyncOp, &AsyncOp::m_PendingOpsNode> m_PendingOps;
-
-    instack<AsyncOpGroup, &AsyncOpGroup::m_GroupNode> m_AsyncOpGroups;
+    CoopScheduler m_Scheduler;
 };
