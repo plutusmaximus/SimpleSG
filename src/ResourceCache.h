@@ -247,6 +247,8 @@ private:
         {
         }
 
+        virtual void Delete() = 0;
+
     private:
         CacheKey m_CacheKey;
 
@@ -258,8 +260,6 @@ private:
 
         /// Group that this operation is part of.
         AsyncOpGroup* m_Group{ nullptr };
-
-        Allocator* m_Allocator{ nullptr };
     };
 
     /// @brief Enqueues an asynchronous operation for processing.
@@ -309,6 +309,11 @@ private:
         bool IsComplete() const override { return m_State == Complete; }
 
     private:
+
+        void Delete() override
+        {
+            m_ResourceCache->DeleteOp(this);
+        }
 
         ResourceCache* m_ResourceCache{ nullptr };
 
@@ -360,6 +365,11 @@ private:
         }
 
     private:
+
+        void Delete() override
+        {
+            m_ResourceCache->DeleteOp(this);
+        }
 
         Result<Model> CreateModel();
 
@@ -422,6 +432,11 @@ private:
 
     private:
 
+        void Delete() override
+        {
+            m_ResourceCache->DeleteOp(this);
+        }
+
         void SetResult(Result<ModelResource> result);
 
         ResourceCache* m_ResourceCache{ nullptr };
@@ -470,6 +485,11 @@ private:
 
     private:
 
+        void Delete() override
+        {
+            m_ResourceCache->DeleteOp(this);
+        }
+
         void SetResult(Result<GpuTexture*> result);
 
         Result<void> DecodeImage();
@@ -503,61 +523,21 @@ private:
         std::atomic<bool> m_DecodeImageComplete{ false };
     };
 
-    /// @brief Asynchronous operation for creating a vertex shader.
-    class CreateVertexShaderOp : public AsyncOp
+    /// @brief Asynchronous operation for creating a vertex/fragment shader.
+    class CreateShaderOp : public AsyncOp
     {
-        static constexpr const char* CLASS_NAME = "CreateVertexShaderOp";
+        static constexpr const char* CLASS_NAME = "CreateShaderOp";
 
     public:
-        CreateVertexShaderOp(ResourceCache* resourceCache,
+        CreateShaderOp(ResourceCache* resourceCache,
             const CacheKey& cacheKey,
             const VertexShaderSpec& shaderSpec);
 
-        ~CreateVertexShaderOp() override;
-
-        void Start() override;
-
-        void Update() override;
-
-        bool IsStarted() const override { return m_State != NotStarted; }
-        bool IsPending() const override { return m_State != Complete; }
-        bool IsComplete() const override { return m_State == Complete; }
-
-    private:
-
-        void SetResult(Result<GpuVertexShader*> result);
-
-        Result<void> DecodeImage();
-
-        Result<GpuVertexShader*> CreateVertexShader(const FileIo::FetchDataPtr& fetchData);
-
-        ResourceCache* m_ResourceCache{ nullptr };
-
-        enum State
-        {
-            NotStarted,
-            LoadingFile,
-            Complete,
-        };
-
-        State m_State{ NotStarted };
-
-        VertexShaderSpec m_ShaderSpec;
-
-        FileIo::AsyncToken m_FileFetchToken;
-    };
-
-    /// @brief Asynchronous operation for creating a vertex shader.
-    class CreateFragmentShaderOp : public AsyncOp
-    {
-        static constexpr const char* CLASS_NAME = "CreateFragmentShaderOp";
-
-    public:
-        CreateFragmentShaderOp(ResourceCache* resourceCache,
+        CreateShaderOp(ResourceCache* resourceCache,
             const CacheKey& cacheKey,
             const FragmentShaderSpec& shaderSpec);
 
-        ~CreateFragmentShaderOp() override;
+        ~CreateShaderOp() override;
 
         void Start() override;
 
@@ -569,9 +549,18 @@ private:
 
     private:
 
+        void Delete() override
+        {
+            m_ResourceCache->DeleteOp(this);
+        }
+
+        void SetResult(Result<GpuVertexShader*> result);
+
         void SetResult(Result<GpuFragmentShader*> result);
 
-        Result<void> DecodeImage();
+        void SetResult(const Error& result);
+
+        Result<GpuVertexShader*> CreateVertexShader(const FileIo::FetchDataPtr& fetchData);
 
         Result<GpuFragmentShader*> CreateFragmentShader(const FileIo::FetchDataPtr& fetchData);
 
@@ -580,13 +569,14 @@ private:
         enum State
         {
             NotStarted,
-            LoadingFile,
+            LoadingVsFile,
+            LoadingFsFile,
             Complete,
         };
 
         State m_State{ NotStarted };
 
-        FragmentShaderSpec m_ShaderSpec;
+        std::variant<VertexShaderSpec, FragmentShaderSpec> m_ShaderSpec;
 
         FileIo::AsyncToken m_FileFetchToken;
     };
@@ -603,40 +593,42 @@ private:
     template<>
     constexpr size_t POOL_CAPACITY<CreateTextureOp> = 256;
     template<>
-    constexpr size_t POOL_CAPACITY<CreateVertexShaderOp> = 8;
-    template<>
-    constexpr size_t POOL_CAPACITY<CreateFragmentShaderOp> = 8;
+    constexpr size_t POOL_CAPACITY<CreateShaderOp> = 8;
 
     std::tuple<PoolAllocator<WaitOp, POOL_CAPACITY<WaitOp>>,
         PoolAllocator<CreateModelOp, POOL_CAPACITY<CreateModelOp>>,
         PoolAllocator<LoadModelOp, POOL_CAPACITY<LoadModelOp>>,
         PoolAllocator<CreateTextureOp, POOL_CAPACITY<CreateTextureOp>>,
-        PoolAllocator<CreateVertexShaderOp, POOL_CAPACITY<CreateVertexShaderOp>>,
-        PoolAllocator<CreateFragmentShaderOp, POOL_CAPACITY<CreateFragmentShaderOp>>> m_OpPools;
+        PoolAllocator<CreateShaderOp, POOL_CAPACITY<CreateShaderOp>>> m_OpPools;
+
+    template<typename T>
+    PoolAllocator<T, POOL_CAPACITY<T>>& GetAllocator()
+    {
+        static_assert(POOL_CAPACITY<T> > 0, "POOL_CAPACITY must be defined for this AsyncOp type");
+
+        return std::get<PoolAllocator<T, POOL_CAPACITY<T>>>(m_OpPools);
+    }
 
     /// @brief Allocates an asynchronous operation from the pool.
     /// Passes the constructor arguments to the operation.
     template<typename T, typename... Args>
     T* NewOp(Args&&... args)
     {
-        constexpr size_t kPoolCapacity = POOL_CAPACITY<T>;
-        static_assert(kPoolCapacity > 0, "POOL_CAPACITY must be defined for this AsyncOp type");
         static_assert(std::is_base_of_v<AsyncOp, T>, "T must be derived from AsyncOp");
 
-        auto& allocator = std::get<PoolAllocator<T, kPoolCapacity>>(m_OpPools);
+        auto& allocator = GetAllocator<T>();
 
         T* t = allocator.New(std::forward<Args>(args)...);
-        //T* t = ::new (mem) T(std::forward<Args>(args)...);
-        t->m_Allocator = &allocator;
         return t;
     }
 
     template<typename T>
     void DeleteOp(T* op)
     {
+        static_assert(!std::is_same_v<AsyncOp, T>, "Can't delete a raw AsyncOp");
         static_assert(std::is_base_of_v<AsyncOp, T>, "T must be derived from AsyncOp");
 
-        op->m_Allocator->Delete(op);
+        GetAllocator<T>().Delete(op);
     }
 
     template<typename ValueT>

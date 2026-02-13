@@ -194,7 +194,7 @@ ResourceCache::ProcessPendingOperations()
             }
             op->RemoveFromGroup();
 
-            DeleteOp(op);
+            op->Delete();
         }
 
         op = next;
@@ -298,7 +298,7 @@ ResourceCache::CreateVertexShaderAsync(const CacheKey& cacheKey, const VertexSha
     {
         logDebug("  Cache miss: {}", cacheKey.ToString());
 
-        auto op = NewOp<CreateVertexShaderOp>(this, cacheKey, shaderSpec);
+        auto op = NewOp<CreateShaderOp>(this, cacheKey, shaderSpec);
         expectv(op, "Failed to allocate CreateVertexShaderOp for key: {}", cacheKey.ToString());
         Enqueue(op);
     }
@@ -324,7 +324,7 @@ ResourceCache::CreateFragmentShaderAsync(const CacheKey& cacheKey, const Fragmen
     {
         logDebug("  Cache miss: {}", cacheKey.ToString());
 
-        auto op = NewOp<CreateFragmentShaderOp>(this, cacheKey, shaderSpec);
+        auto op = NewOp<CreateShaderOp>(this, cacheKey, shaderSpec);
         expectv(op, "Failed to allocate CreateFragmentShaderOp for key: {}", cacheKey.ToString());
         Enqueue(op);
     }
@@ -1080,9 +1080,9 @@ ResourceCache::CreateTextureOp::CreateTexture()
     return result;
 }
 
-// === ResourceCache::CreateVertexShaderOp ===
+// === ResourceCache::CreateShaderOp ===
 
-ResourceCache::CreateVertexShaderOp::CreateVertexShaderOp(
+ResourceCache::CreateShaderOp::CreateShaderOp(
     ResourceCache* resourceCache, const CacheKey& cacheKey, const VertexShaderSpec& shaderSpec)
     : AsyncOp(cacheKey),
       m_ResourceCache(resourceCache),
@@ -1090,60 +1090,99 @@ ResourceCache::CreateVertexShaderOp::CreateVertexShaderOp(
 {
 }
 
-ResourceCache::CreateVertexShaderOp::~CreateVertexShaderOp()
+ResourceCache::CreateShaderOp::CreateShaderOp(
+    ResourceCache* resourceCache, const CacheKey& cacheKey, const FragmentShaderSpec& shaderSpec)
+    : AsyncOp(cacheKey),
+      m_ResourceCache(resourceCache),
+      m_ShaderSpec(shaderSpec)
+{
+}
+
+ResourceCache::CreateShaderOp::~CreateShaderOp()
 {
 }
 
 void
-ResourceCache::CreateVertexShaderOp::Start()
+ResourceCache::CreateShaderOp::Start()
 {
     eassert(m_State == NotStarted);
 
-    logOp("Start() (key: {})", GetCacheKey().ToString());
+    imstring path;
 
-    if(!everify(m_ShaderSpec.IsValid(), "Vertex shader spec is invalid"))
+    if(VertexShaderSpec* vsSpec; (vsSpec = std::get_if<VertexShaderSpec>(&m_ShaderSpec)))
     {
-        SetResult(Error("Vertex shader spec is invalid"));
-        return;
-    }
+        logOp("Start()[VertexShader] (key: {})", GetCacheKey().ToString());
 
-    if(!everify(m_ResourceCache->m_VertexShaderCache.TryReserve(GetCacheKey())))
-    {
-        SetResult(Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString()));
-        return;
-    }
-
-    if(imstring path; m_ShaderSpec.TryGetPath(path))
-    {
-        if(path.empty())
+        if(!everify(vsSpec->IsValid(), "Vertex shader spec is invalid"))
         {
-            SetResult(Error("Vertex shader source path is empty"));
+            SetResult(Error("Vertex shader spec is invalid"));
             return;
         }
 
-        path = path + SHADER_EXTENSION;
-
-        logOp("Loading vertex shader from file: {}", path);
-
-        auto result = FileIo::Fetch(path);
-
-        if(!result)
+        if(!everify(m_ResourceCache->m_VertexShaderCache.TryReserve(GetCacheKey())))
         {
-            SetResult(result.error());
+            SetResult(Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString()));
             return;
         }
 
-        m_FileFetchToken = result.value();
-        m_State = LoadingFile;
+        if(!vsSpec->TryGetPath(path))
+        {
+            SetResult(Error("Vertex shader source is not specified"));
+        }
+
+        m_State = LoadingVsFile;
+    }
+    else if(FragmentShaderSpec* fsSpec; (fsSpec = std::get_if<FragmentShaderSpec>(&m_ShaderSpec)))
+    {
+        logOp("Start()[FragmentShader] (key: {})", GetCacheKey().ToString());
+
+        if(!everify(fsSpec->IsValid(), "Fragment shader spec is invalid"))
+        {
+            SetResult(Error("Fragment shader spec is invalid"));
+            return;
+        }
+
+        if(!everify(m_ResourceCache->m_FragmentShaderCache.TryReserve(GetCacheKey())))
+        {
+            SetResult(Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString()));
+            return;
+        }
+
+        if(!fsSpec->TryGetPath(path))
+        {
+            SetResult(Error("Fragment shader source is not specified"));
+        }
+
+        m_State = LoadingFsFile;
     }
     else
     {
-        SetResult(Error("Vertex shader source is not specified"));
+        eassert(false, "Unknown shader variant");
     }
+
+    if(path.empty())
+    {
+        SetResult(Error("Shader source path is empty"));
+        return;
+    }
+
+    path = path + SHADER_EXTENSION;
+
+    logOp("Loading shader from file: {}", path);
+
+    auto result = FileIo::Fetch(path);
+
+    if(!result)
+    {
+        SetResult(result.error());
+        return;
+    }
+
+    m_FileFetchToken = result.value();
 }
 
 void
-ResourceCache::CreateVertexShaderOp::Update()
+ResourceCache::CreateShaderOp::Update()
 {
     switch(m_State)
     {
@@ -1151,7 +1190,8 @@ ResourceCache::CreateVertexShaderOp::Update()
             eassert(false, "Start() should have been called before Update()");
             break;
 
-        case LoadingFile:
+        case LoadingVsFile:
+        case LoadingFsFile:
         {
             if(FileIo::IsPending(m_FileFetchToken))
             {
@@ -1166,11 +1206,22 @@ ResourceCache::CreateVertexShaderOp::Update()
                 return;
             }
 
-            auto shaderResult = CreateVertexShader(fetchResult.value());
+            if(LoadingVsFile == m_State)
+            {
+                auto shaderResult = CreateVertexShader(fetchResult.value());
+                SetResult(shaderResult);
+            }
+            else if(LoadingFsFile == m_State)
+            {
+                auto shaderResult = CreateFragmentShader(fetchResult.value());
 
-            SetResult(shaderResult);
-
-            m_State = Complete;
+                SetResult(shaderResult);
+            }
+            else
+            {
+                eassert(false, "Unknown shader variant");
+                SetResult(Error("Invalid shader loading state"));
+            }
 
             break;
         }
@@ -1180,16 +1231,44 @@ ResourceCache::CreateVertexShaderOp::Update()
             break;
     }
 }
+
 void
-ResourceCache::CreateVertexShaderOp::SetResult(Result<GpuVertexShader*> result)
+ResourceCache::CreateShaderOp::SetResult(Result<GpuVertexShader*> result)
 {
     m_ResourceCache->m_VertexShaderCache.Set(GetCacheKey(), result);
 
     m_State = Complete;
 }
 
+void
+ResourceCache::CreateShaderOp::SetResult(Result<GpuFragmentShader*> result)
+{
+    m_ResourceCache->m_FragmentShaderCache.Set(GetCacheKey(), result);
+
+    m_State = Complete;
+}
+
+void
+ResourceCache::CreateShaderOp::SetResult(const Error& result)
+{
+    if(std::holds_alternative<VertexShaderSpec>(m_ShaderSpec))
+    {
+        m_ResourceCache->m_VertexShaderCache.Set(GetCacheKey(), result);
+    }
+    else if(std::holds_alternative<FragmentShaderSpec>(m_ShaderSpec))
+    {
+        m_ResourceCache->m_FragmentShaderCache.Set(GetCacheKey(), result);
+    }
+    else
+    {
+        eassert(false, "Unknown shader variant");
+    }
+
+    m_State = Complete;
+}
+
 Result<GpuVertexShader*>
-ResourceCache::CreateVertexShaderOp::CreateVertexShader(const FileIo::FetchDataPtr& fetchData)
+ResourceCache::CreateShaderOp::CreateVertexShader(const FileIo::FetchDataPtr& fetchData)
 {
     logOp("Creating vertex shader (key: {})", GetCacheKey().ToString());
 
@@ -1199,116 +1278,8 @@ ResourceCache::CreateVertexShaderOp::CreateVertexShader(const FileIo::FetchDataP
     return result;
 }
 
-// === ResourceCache::CreateFragmentShaderOp ===
-
-ResourceCache::CreateFragmentShaderOp::CreateFragmentShaderOp(
-    ResourceCache* resourceCache, const CacheKey& cacheKey, const FragmentShaderSpec& shaderSpec)
-    : AsyncOp(cacheKey),
-      m_ResourceCache(resourceCache),
-      m_ShaderSpec(shaderSpec)
-{
-}
-
-ResourceCache::CreateFragmentShaderOp::~CreateFragmentShaderOp()
-{
-}
-
-void
-ResourceCache::CreateFragmentShaderOp::Start()
-{
-    eassert(m_State == NotStarted);
-
-    logOp("Start() (key: {})", GetCacheKey().ToString());
-
-    if(!everify(m_ShaderSpec.IsValid(), "Fragment shader spec is invalid"))
-    {
-        SetResult(Error("Fragment shader spec is invalid"));
-        return;
-    }
-
-    if(!everify(m_ResourceCache->m_FragmentShaderCache.TryReserve(GetCacheKey())))
-    {
-        SetResult(Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString()));
-        return;
-    }
-
-    if(imstring path; m_ShaderSpec.TryGetPath(path))
-    {
-        if(path.empty())
-        {
-            SetResult(Error("Fragment shader source path is empty"));
-            return;
-        }
-
-        path = path + SHADER_EXTENSION;
-
-        logOp("Loading Fragment shader from file: {}", path);
-
-        auto result = FileIo::Fetch(path);
-
-        if(!result)
-        {
-            SetResult(result.error());
-            return;
-        }
-
-        m_FileFetchToken = result.value();
-        m_State = LoadingFile;
-    }
-    else
-    {
-        SetResult(Error("Fragment shader source is not specified"));
-    }
-}
-
-void
-ResourceCache::CreateFragmentShaderOp::Update()
-{
-    switch(m_State)
-    {
-        case NotStarted:
-            eassert(false, "Start() should have been called before Update()");
-            break;
-
-        case LoadingFile:
-        {
-            if(FileIo::IsPending(m_FileFetchToken))
-            {
-                return;
-            }
-
-            auto fetchResult = FileIo::GetResult(m_FileFetchToken);
-
-            if(!fetchResult)
-            {
-                SetResult(fetchResult.error());
-                return;
-            }
-
-            auto shaderResult = CreateFragmentShader(fetchResult.value());
-
-            SetResult(shaderResult);
-
-            m_State = Complete;
-
-            break;
-        }
-
-        case Complete:
-            // No-op
-            break;
-    }
-}
-void
-ResourceCache::CreateFragmentShaderOp::SetResult(Result<GpuFragmentShader*> result)
-{
-    m_ResourceCache->m_FragmentShaderCache.Set(GetCacheKey(), result);
-
-    m_State = Complete;
-}
-
 Result<GpuFragmentShader*>
-ResourceCache::CreateFragmentShaderOp::CreateFragmentShader(const FileIo::FetchDataPtr& fetchData)
+ResourceCache::CreateShaderOp::CreateFragmentShader(const FileIo::FetchDataPtr& fetchData)
 {
     logOp("Creating fragment shader (key: {})", GetCacheKey().ToString());
 
