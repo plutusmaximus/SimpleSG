@@ -258,6 +258,7 @@ add_executable(Tests
   "tests/EcsChildTransformPool.test.cpp"
   "tests/imstring.test.cpp"
   "tests/imvector.test.cpp"
+  "tests/inlist.test.cpp"
   "tests/Mat44.test.cpp"
   "tests/PoolAllocator.test.cpp"
   "tests/Quat.test.cpp"
