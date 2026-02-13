@@ -17,9 +17,6 @@
 
 static constexpr const char* SHADER_EXTENSION = ".spv";
 
-static constexpr const char* WHITE_TEXTURE_KEY = "#FFFFFFFF";
-static constexpr const char* MAGENTA_TEXTURE_KEY = "#FF00FFFF";
-
 static constexpr const RgbaColorf WHITE_COLOR(1.0f, 1.0f, 1.0f, 1.0f);
 static constexpr const RgbaColorf MAGENTA_COLOR(1.0f, 0.0f, 1.0f, 1.0f);
 
@@ -101,10 +98,10 @@ ResourceCache::~ResourceCache()
 
         // Release model resources
         auto model = it.second.GetValue().value().Get();
-        m_ModelAllocator.Free(model);
+        m_ModelAllocator.Delete(model);
     }
 
-    for(auto& it : m_TextureCache)
+    for(auto it : m_TextureCache)
     {
         eassert(!it.second.IsPending(),
             "Texture cache entry for key {} is still pending during ResourceCache destruction",
@@ -118,7 +115,7 @@ ResourceCache::~ResourceCache()
         }
     }
 
-    for(auto& it : m_VertexShaderCache)
+    for(auto it : m_VertexShaderCache)
     {
         eassert(!it.second.IsPending(),
             "Vertex shader cache entry for key {} is still pending during ResourceCache destruction",
@@ -133,7 +130,7 @@ ResourceCache::~ResourceCache()
         }
     }
 
-    for(auto& it : m_FragmentShaderCache)
+    for(auto it : m_FragmentShaderCache)
     {
         eassert(!it.second.IsPending(),
             "Fragment shader cache entry for key {} is still pending during ResourceCache destruction",
@@ -197,7 +194,7 @@ ResourceCache::ProcessPendingOperations()
             }
             op->RemoveFromGroup();
 
-            FreeOp(op);
+            DeleteOp(op);
         }
 
         op = next;
@@ -210,7 +207,7 @@ ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, const imstring& 
     if(IsPending<ModelResource>(cacheKey))
     {
         logDebug("  Load already pending: {}", cacheKey.ToString());
-        auto op = AllocateOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<ModelResource>);
+        auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<ModelResource>);
         expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
         Enqueue(op);
     }
@@ -222,13 +219,8 @@ ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, const imstring& 
     {
         logDebug("  Cache miss: {}", cacheKey.ToString());
 
-        auto op = AllocateOp<LoadModelOp>(this, cacheKey, filePath);
+        auto op = NewOp<LoadModelOp>(this, cacheKey, filePath);
         expectv(op, "Failed to allocate LoadModelOp for key: {}", cacheKey.ToString());
-        if(!everify(m_ModelCache.TryReserve(cacheKey)))
-        {
-            FreeOp(op);
-            return Error("Failed to reserve cache entry for key: {}", cacheKey.ToString());
-        }
         Enqueue(op);
     }
 
@@ -241,7 +233,7 @@ ResourceCache::CreateModelAsync(const CacheKey& cacheKey, const ModelSpec& model
     if(IsPending<ModelResource>(cacheKey))
     {
         logDebug("  Creation already pending: {}", cacheKey.ToString());
-        auto op = AllocateOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<ModelResource>);
+        auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<ModelResource>);
         expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
         Enqueue(op);
     }
@@ -253,13 +245,8 @@ ResourceCache::CreateModelAsync(const CacheKey& cacheKey, const ModelSpec& model
     {
         logDebug("  Cache miss: {}", cacheKey.ToString());
 
-        auto op = AllocateOp<CreateModelOp>(this, cacheKey, modelSpec);
+        auto op = NewOp<CreateModelOp>(this, cacheKey, modelSpec);
         expectv(op, "Failed to allocate CreateModelOp for key: {}", cacheKey.ToString());
-        if(!everify(m_ModelCache.TryReserve(cacheKey)))
-        {
-            FreeOp(op);
-            return Error("Failed to reserve cache entry for key: {}", cacheKey.ToString());
-        }
         Enqueue(op);
     }
 
@@ -273,7 +260,7 @@ ResourceCache::CreateTextureAsync(const CacheKey& cacheKey, const TextureSpec& t
     if(IsPending<GpuTexture*>(cacheKey))
     {
         logDebug("  Texture creation already pending: {}", cacheKey.ToString());
-        auto op = AllocateOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<GpuTexture*>);
+        auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<GpuTexture*>);
         expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
         Enqueue(op);
     }
@@ -285,13 +272,8 @@ ResourceCache::CreateTextureAsync(const CacheKey& cacheKey, const TextureSpec& t
     {
         logDebug("  Cache miss: {}", cacheKey.ToString());
 
-        auto op = AllocateOp<CreateTextureOp>(this, cacheKey, textureSpec);
+        auto op = NewOp<CreateTextureOp>(this, cacheKey, textureSpec);
         expectv(op, "Failed to allocate CreateTextureOp for key: {}", cacheKey.ToString());
-        if(!everify(m_TextureCache.TryReserve(cacheKey)))
-        {
-            FreeOp(op);
-            return Error("Failed to reserve cache entry for key: {}", cacheKey.ToString());
-        }
         Enqueue(op);
     }
 
@@ -304,7 +286,7 @@ ResourceCache::CreateVertexShaderAsync(const CacheKey& cacheKey, const VertexSha
     if(IsPending<GpuVertexShader*>(cacheKey))
     {
         logDebug("  Vertex shader creation already pending: {}", cacheKey.ToString());
-        auto op = AllocateOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<GpuVertexShader*>);
+        auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<GpuVertexShader*>);
         expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
         Enqueue(op);
     }
@@ -316,13 +298,8 @@ ResourceCache::CreateVertexShaderAsync(const CacheKey& cacheKey, const VertexSha
     {
         logDebug("  Cache miss: {}", cacheKey.ToString());
 
-        auto op = AllocateOp<CreateVertexShaderOp>(this, cacheKey, shaderSpec);
+        auto op = NewOp<CreateVertexShaderOp>(this, cacheKey, shaderSpec);
         expectv(op, "Failed to allocate CreateVertexShaderOp for key: {}", cacheKey.ToString());
-        if(!everify(m_VertexShaderCache.TryReserve(cacheKey)))
-        {
-            FreeOp(op);
-            return Error("Failed to reserve cache entry for key: {}", cacheKey.ToString());
-        }
         Enqueue(op);
     }
 
@@ -335,7 +312,7 @@ ResourceCache::CreateFragmentShaderAsync(const CacheKey& cacheKey, const Fragmen
     if(IsPending<GpuFragmentShader*>(cacheKey))
     {
         logDebug("  Fragment shader creation already pending: {}", cacheKey.ToString());
-        auto op = AllocateOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<GpuFragmentShader*>);
+        auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<GpuFragmentShader*>);
         expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
         Enqueue(op);
     }
@@ -347,13 +324,8 @@ ResourceCache::CreateFragmentShaderAsync(const CacheKey& cacheKey, const Fragmen
     {
         logDebug("  Cache miss: {}", cacheKey.ToString());
 
-        auto op = AllocateOp<CreateFragmentShaderOp>(this, cacheKey, shaderSpec);
+        auto op = NewOp<CreateFragmentShaderOp>(this, cacheKey, shaderSpec);
         expectv(op, "Failed to allocate CreateFragmentShaderOp for key: {}", cacheKey.ToString());
-        if(!everify(m_FragmentShaderCache.TryReserve(cacheKey)))
-        {
-            FreeOp(op);
-            return Error("Failed to reserve cache entry for key: {}", cacheKey.ToString());
-        }
         Enqueue(op);
     }
 
@@ -485,7 +457,25 @@ ResourceCache::CreateModelOp::Start()
 {
     eassert(m_State == NotStarted);
 
-    logOp("Start() (key: {})", GetCacheKey().ToString());
+    StartDoNotCache();
+
+    m_DoNotCache = false;
+
+    if(!everify(m_ResourceCache->m_ModelCache.TryReserve(GetCacheKey())))
+    {
+        SetResult(Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString()));
+        return;
+    }
+}
+
+void
+ResourceCache::CreateModelOp::StartDoNotCache()
+{
+    eassert(m_State == NotStarted);
+
+    logOp("StartDoNotCache() (key: {})", GetCacheKey().ToString());
+
+    m_DoNotCache = true;
 
     m_State = CreateVertexBuffer;
 }
@@ -609,7 +599,7 @@ ResourceCache::CreateModelOp::Update()
                         return;
                     }
 
-                    auto modelPtr = m_ResourceCache->m_ModelAllocator.Alloc(std::move(modelResult.value()));
+                    auto modelPtr = m_ResourceCache->m_ModelAllocator.New(std::move(modelResult.value()));
 
                     SetResult(ModelResource(modelPtr));
                 }
@@ -721,12 +711,12 @@ ResourceCache::CreateModelOp::SetResult(Result<ModelResource> result)
     m_VertexBuffer = nullptr;
     m_IndexBuffer = nullptr;
 
-    if(m_ResourceCache->m_ModelCache.IsPending(GetCacheKey()))
+    m_Result = result;
+
+    if(!m_DoNotCache)
     {
         m_ResourceCache->m_ModelCache.Set(GetCacheKey(), result);
     }
-
-    m_Result = result;
 
     m_State = Complete;
 }
@@ -739,7 +729,7 @@ ResourceCache::LoadModelOp::~LoadModelOp()
 
     if(m_CreateModelOp)
     {
-        m_ResourceCache->FreeOp(m_CreateModelOp);
+        m_ResourceCache->DeleteOp(m_CreateModelOp);
     }
 }
 
@@ -750,6 +740,12 @@ ResourceCache::LoadModelOp::Start()
     eassert(m_State == NotStarted);
 
     logOp("Start() (key: {})", GetCacheKey().ToString());
+
+    if(!everify(m_ResourceCache->m_ModelCache.TryReserve(GetCacheKey())))
+    {
+        SetResult(Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString()));
+        return;
+    }
 
     m_State = LoadFile;
 
@@ -831,7 +827,7 @@ ResourceCache::LoadModelOp::Update()
 
         case CreateModel:
 
-            m_CreateModelOp = m_ResourceCache->AllocateOp<CreateModelOp>(m_ResourceCache,
+            m_CreateModelOp = m_ResourceCache->NewOp<CreateModelOp>(m_ResourceCache,
                 GetCacheKey(),
                 m_ModelSpecResult.value());
 
@@ -841,7 +837,9 @@ ResourceCache::LoadModelOp::Update()
                 return;
             }
 
-            m_CreateModelOp->Start();
+            // Start the CreateModelOp without caching, since the LoadModelOp is responsible for
+            // caching the result when complete.
+            m_CreateModelOp->StartDoNotCache();
             m_State = CreatingModel;
 
             break;
@@ -867,23 +865,19 @@ ResourceCache::LoadModelOp::Update()
 void
 ResourceCache::LoadModelOp::SetResult(Result<ModelResource> result)
 {
-    if(m_ResourceCache->m_ModelCache.IsPending(GetCacheKey()))
-    {
-        m_ResourceCache->m_ModelCache.Set(GetCacheKey(), result);
-    }
+    m_ResourceCache->m_ModelCache.Set(GetCacheKey(), result);
 
     if(m_CreateModelOp)
     {
-        m_ResourceCache->FreeOp(m_CreateModelOp);
+        m_ResourceCache->DeleteOp(m_CreateModelOp);
         m_CreateModelOp = nullptr;
     }
-
-    m_Result = result;
-    m_State = Complete;
 
     logDebug("  Total load time: {} ms ({})",
         static_cast<int>(m_Stopwatch.Elapsed() * 1000.0f),
         GetCacheKey().ToString());
+
+    m_State = Complete;
 }
 
 // === ResourceCache::CreateTextureOp ===
@@ -912,17 +906,15 @@ ResourceCache::CreateTextureOp::Start()
 
     logOp("Start() (key: {})", GetCacheKey().ToString());
 
-    auto cacheResult = m_ResourceCache->GetTexture(GetCacheKey());
-    if(!everify(!cacheResult))
-    {
-        logOp("Resource already in cache: {}", GetCacheKey().ToString());
-        SetResult(cacheResult);
-        return;
-    }
-
     if(!everify(m_TextureSpec.IsValid(), "Texture spec is invalid"))
     {
         SetResult(Error("Texture spec is invalid"));
+        return;
+    }
+
+    if(!everify(m_ResourceCache->m_TextureCache.TryReserve(GetCacheKey())))
+    {
+        SetResult(Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString()));
         return;
     }
 
@@ -1034,12 +1026,8 @@ ResourceCache::CreateTextureOp::Update()
 void
 ResourceCache::CreateTextureOp::SetResult(Result<GpuTexture*> result)
 {
-    if(m_ResourceCache->m_TextureCache.IsPending(GetCacheKey()))
-    {
-        m_ResourceCache->m_TextureCache.Set(GetCacheKey(), result);
-    }
+    m_ResourceCache->m_TextureCache.Set(GetCacheKey(), result);
 
-    m_Result = result;
     m_State = Complete;
 }
 
@@ -1113,17 +1101,15 @@ ResourceCache::CreateVertexShaderOp::Start()
 
     logOp("Start() (key: {})", GetCacheKey().ToString());
 
-    auto cacheResult = m_ResourceCache->GetVertexShader(GetCacheKey());
-    if(!everify(!cacheResult))
-    {
-        logOp("Resource already in cache: {}", GetCacheKey().ToString());
-        SetResult(cacheResult);
-        return;
-    }
-
     if(!everify(m_ShaderSpec.IsValid(), "Vertex shader spec is invalid"))
     {
         SetResult(Error("Vertex shader spec is invalid"));
+        return;
+    }
+
+    if(!everify(m_ResourceCache->m_VertexShaderCache.TryReserve(GetCacheKey())))
+    {
+        SetResult(Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString()));
         return;
     }
 
@@ -1197,12 +1183,8 @@ ResourceCache::CreateVertexShaderOp::Update()
 void
 ResourceCache::CreateVertexShaderOp::SetResult(Result<GpuVertexShader*> result)
 {
-    if(m_ResourceCache->m_VertexShaderCache.IsPending(GetCacheKey()))
-    {
-        m_ResourceCache->m_VertexShaderCache.Set(GetCacheKey(), result);
-    }
+    m_ResourceCache->m_VertexShaderCache.Set(GetCacheKey(), result);
 
-    m_Result = result;
     m_State = Complete;
 }
 
@@ -1238,17 +1220,15 @@ ResourceCache::CreateFragmentShaderOp::Start()
 
     logOp("Start() (key: {})", GetCacheKey().ToString());
 
-    auto cacheResult = m_ResourceCache->GetFragmentShader(GetCacheKey());
-    if(!everify(!cacheResult))
-    {
-        logOp("Resource already in cache: {}", GetCacheKey().ToString());
-        SetResult(cacheResult);
-        return;
-    }
-
     if(!everify(m_ShaderSpec.IsValid(), "Fragment shader spec is invalid"))
     {
         SetResult(Error("Fragment shader spec is invalid"));
+        return;
+    }
+
+    if(!everify(m_ResourceCache->m_FragmentShaderCache.TryReserve(GetCacheKey())))
+    {
+        SetResult(Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString()));
         return;
     }
 
@@ -1322,12 +1302,8 @@ ResourceCache::CreateFragmentShaderOp::Update()
 void
 ResourceCache::CreateFragmentShaderOp::SetResult(Result<GpuFragmentShader*> result)
 {
-    if(m_ResourceCache->m_FragmentShaderCache.IsPending(GetCacheKey()))
-    {
-        m_ResourceCache->m_FragmentShaderCache.Set(GetCacheKey(), result);
-    }
+    m_ResourceCache->m_FragmentShaderCache.Set(GetCacheKey(), result);
 
-    m_Result = result;
     m_State = Complete;
 }
 

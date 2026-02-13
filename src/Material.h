@@ -232,12 +232,14 @@ public:
     /// The cache key is set to the path.
     explicit TextureSpec(const imstring& path)
         : Source(path)
+        , m_CacheKey(CacheKey(path))
     {
     }
 
     /// @brief Constructs a texture spec from a color.
     TextureSpec(const RgbaColorf& color)
         : Source(color)
+        , m_CacheKey(CacheKey(color.ToHexString()))
     {
     }
 
@@ -269,23 +271,22 @@ public:
 
     CacheKey GetCacheKey() const
     {
-        if(std::holds_alternative<None_t>(Source))
+        if(!everify(!std::holds_alternative<None_t>(Source), "TextureSpec has no source"))
         {
-            eassert(false && "TextureSpec has no source");
             return CacheKey("");
         }
 
         if(std::holds_alternative<imstring>(Source))
         {
-            return CacheKey(std::get<imstring>(Source));
+            return m_CacheKey.value();
         }
 
         if(std::holds_alternative<const RgbaColorf>(Source))
         {
-            return CacheKey(std::get<const RgbaColorf>(Source).ToHexString());
+            return m_CacheKey.value();
         }
 
-        eassert(false && "Unhandled TextureSpec source type");
+        eassert(false, "Unhandled TextureSpec source type");
         return CacheKey("");
     }
 
@@ -293,6 +294,8 @@ public:
 
 private:
     TextureSpec() = delete;
+
+    std::optional<CacheKey> m_CacheKey;
 };
 
 /// @brief Specification for creating a shader.
@@ -321,18 +324,17 @@ public:
 
     CacheKey GetCacheKey() const
     {
-        if(std::holds_alternative<None_t>(Source))
+        if(!everify(!std::holds_alternative<None_t>(Source), "ShaderSpec has no source"))
         {
-            eassert(false && "ShaderSpec has no source");
             return CacheKey("");
         }
 
         if(std::holds_alternative<imstring>(Source))
         {
-            return CacheKey(std::get<imstring>(Source));
+            return m_CacheKey.value();
         }
 
-        eassert(false && "Unhandled ShaderSpec source type");
+        eassert(false, "Unhandled ShaderSpec source type");
         return CacheKey("");
     }
 
@@ -349,12 +351,15 @@ protected:
 
     explicit ShaderSpec(const imstring& path)
         : Source(path)
+        , m_CacheKey(CacheKey(path))
     {
     }
 
 private:
 
     ShaderSpec() = delete;
+
+    std::optional<CacheKey> m_CacheKey;
 };
 
 /// @brief Specification for creating a vertex shader.

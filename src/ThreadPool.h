@@ -30,7 +30,7 @@ public:
         static_assert(sizeof(JFunc) <= sizeof(Job::m_CallableBuf),
             "JobWrapper buffer too small for job function object");
 
-        Job *job = AllocJob();
+        Job *job = NewJob();
         if(!job)
         {
             return false;
@@ -45,7 +45,7 @@ public:
 
         if(!Enqueue(job))
         {
-            FreeJob(job);
+            DeleteJob(job);
             return false;
         }
 
@@ -86,8 +86,8 @@ private:
         alignas(std::max_align_t) unsigned char m_CallableBuf[32];
     };
 
-    static Job *AllocJob();
-    static void FreeJob(Job *job);
+    static Job *NewJob();
+    static void DeleteJob(Job *job);
 
     // Enqueue a new job. Returns false if the pool is stopping or not accepting work.
     static bool Enqueue(Job *job);

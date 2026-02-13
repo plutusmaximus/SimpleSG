@@ -95,12 +95,12 @@ ThreadPool::Shutdown()
         pendingJobs = pendingJobs->m_Next;
         job->m_Next = nullptr;
 
-        FreeJob(job);
+        DeleteJob(job);
     }
 }
 
 ThreadPool::Job *
-ThreadPool::AllocJob()
+ThreadPool::NewJob()
 {
     std::lock_guard<std::mutex> lock(s_AllocMutex);
 
@@ -109,15 +109,15 @@ ThreadPool::AllocJob()
         return nullptr;
     }
 
-    return s_JobAllocator.Alloc();
+    return s_JobAllocator.New();
 }
 
 void
-ThreadPool::FreeJob(ThreadPool::Job *job)
+ThreadPool::DeleteJob(ThreadPool::Job *job)
 {
     std::lock_guard<std::mutex> lock(s_AllocMutex);
 
-    s_JobAllocator.Free(job);
+    s_JobAllocator.Delete(job);
 }
 
 // Enqueue a new job. Returns false if the pool is stopping or not accepting work.
@@ -185,6 +185,6 @@ ThreadPool::WorkerLoop()
             // Swallow exceptions to keep worker thread alive.
         }
 
-        FreeJob(job);
+        DeleteJob(job);
     }
 }

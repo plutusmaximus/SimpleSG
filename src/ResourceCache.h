@@ -259,7 +259,7 @@ private:
         /// Group that this operation is part of.
         AsyncOpGroup* m_Group{ nullptr };
 
-        PoolAllocatorBase* m_Allocator{ nullptr };
+        Allocator* m_Allocator{ nullptr };
     };
 
     /// @brief Enqueues an asynchronous operation for processing.
@@ -342,15 +342,22 @@ private:
 
         void Start() override;
 
+        // Call this when a parent async op handles caching the model.
+        // This is used when loading a model from file, where the LoadModelOp will use
+        // a CreateModelOp to create the model, but the LoadModelOp is responsible for caching it.
+        void StartDoNotCache();
+
         void Update() override;
 
         bool IsStarted() const override { return m_State != NotStarted; }
         bool IsPending() const override { return m_State != Complete; }
         bool IsComplete() const override { return m_State == Complete; }
 
-        const Result<ModelResource>& GetResult() const { return m_Result; }
-
-        ResourceCache* GetResourceCache() const { return m_ResourceCache; }
+        const Result<ModelResource>& GetResult() const
+        {
+            eassert(IsComplete(), "GetResult() called before operation is complete");
+            return m_Result;
+        }
 
     private:
 
@@ -378,11 +385,16 @@ private:
         GpuVertexBuffer* m_VertexBuffer{ nullptr };
         GpuIndexBuffer* m_IndexBuffer{ nullptr };
 
-        Result<ModelResource> m_Result;
-
         AsyncOpGroup m_OpGroup;
 
         Error m_FailError;
+
+        Result<ModelResource> m_Result;
+
+        // Whether this operation should skip caching the created model in the cache.  This is used
+        // when loading a model from file, where the LoadModelOp will reserve the cache entry and
+        // set it when complete.
+        bool m_DoNotCache{ false };
     };
 
     /// @brief Asynchronous operation for loading a model from file.
@@ -407,10 +419,6 @@ private:
         bool IsStarted() const override { return m_State != NotStarted; }
         bool IsPending() const override { return m_State != Complete; }
         bool IsComplete() const override { return m_State == Complete; }
-
-        const Result<ModelResource>& GetResult() const { return m_Result; }
-
-        ResourceCache* GetResourceCache() const { return m_ResourceCache; }
 
     private:
 
@@ -439,8 +447,6 @@ private:
         Result<ModelSpec> m_ModelSpecResult;
 
         Stopwatch m_Stopwatch;
-
-        Result<ModelResource> m_Result;
     };
 
     /// @brief Asynchronous operation for creating a texture.
@@ -461,10 +467,6 @@ private:
         bool IsStarted() const override { return m_State != NotStarted; }
         bool IsPending() const override { return m_State != Complete; }
         bool IsComplete() const override { return m_State == Complete; }
-
-        const Result<GpuTexture*>& GetResult() const { return m_Result; }
-
-        ResourceCache* GetResourceCache() const { return m_ResourceCache; }
 
     private:
 
@@ -499,8 +501,6 @@ private:
 
         std::optional<Result<void>> m_DecodeImageResult;
         std::atomic<bool> m_DecodeImageComplete{ false };
-
-        Result<GpuTexture*> m_Result;
     };
 
     /// @brief Asynchronous operation for creating a vertex shader.
@@ -522,10 +522,6 @@ private:
         bool IsStarted() const override { return m_State != NotStarted; }
         bool IsPending() const override { return m_State != Complete; }
         bool IsComplete() const override { return m_State == Complete; }
-
-        const Result<GpuVertexShader*>& GetResult() const { return m_Result; }
-
-        ResourceCache* GetResourceCache() const { return m_ResourceCache; }
 
     private:
 
@@ -549,8 +545,6 @@ private:
         VertexShaderSpec m_ShaderSpec;
 
         FileIo::AsyncToken m_FileFetchToken;
-
-        Result<GpuVertexShader*> m_Result;
     };
 
     /// @brief Asynchronous operation for creating a vertex shader.
@@ -572,10 +566,6 @@ private:
         bool IsStarted() const override { return m_State != NotStarted; }
         bool IsPending() const override { return m_State != Complete; }
         bool IsComplete() const override { return m_State == Complete; }
-
-        const Result<GpuFragmentShader*>& GetResult() const { return m_Result; }
-
-        ResourceCache* GetResourceCache() const { return m_ResourceCache; }
 
     private:
 
@@ -599,8 +589,6 @@ private:
         FragmentShaderSpec m_ShaderSpec;
 
         FileIo::AsyncToken m_FileFetchToken;
-
-        Result<GpuFragmentShader*> m_Result;
     };
 
     template<typename T>
@@ -629,25 +617,26 @@ private:
     /// @brief Allocates an asynchronous operation from the pool.
     /// Passes the constructor arguments to the operation.
     template<typename T, typename... Args>
-    T* AllocateOp(Args&&... args)
+    T* NewOp(Args&&... args)
     {
         constexpr size_t kPoolCapacity = POOL_CAPACITY<T>;
         static_assert(kPoolCapacity > 0, "POOL_CAPACITY must be defined for this AsyncOp type");
         static_assert(std::is_base_of_v<AsyncOp, T>, "T must be derived from AsyncOp");
 
-        auto mem = std::get<PoolAllocator<T, kPoolCapacity>>(m_OpPools).Alloc(std::forward<Args>(args)...);
-        T* t = ::new (mem) T(std::forward<Args>(args)...);
-        t->m_Allocator = &std::get<PoolAllocator<T, kPoolCapacity>>(m_OpPools);
+        auto& allocator = std::get<PoolAllocator<T, kPoolCapacity>>(m_OpPools);
+
+        T* t = allocator.New(std::forward<Args>(args)...);
+        //T* t = ::new (mem) T(std::forward<Args>(args)...);
+        t->m_Allocator = &allocator;
         return t;
     }
 
     template<typename T>
-    void FreeOp(T* op)
+    void DeleteOp(T* op)
     {
         static_assert(std::is_base_of_v<AsyncOp, T>, "T must be derived from AsyncOp");
 
-        op->~T();
-        op->m_Allocator->Free(op);
+        op->m_Allocator->Delete(op);
     }
 
     template<typename ValueT>

@@ -134,9 +134,9 @@ RemoveCompleteRequest(ReadRequest* req)
 }
 
 template<typename T, typename... Args>
-static T* AllocReadRequest(Args&&... args);
+static T* NewReadRequest(Args&&... args);
 
-static void FreeReadRequest(ReadRequest* req);
+static void DeleteReadRequest(ReadRequest* req);
 
 // Platform-specific implementation used by GetResult.
 static Result<FileIo::FetchDataPtr> GetResultImpl(ReadRequest* req);
@@ -179,7 +179,7 @@ FileIo::Shutdown()
     for(ReadRequest* req = complete; req != nullptr;)
     {
         ReadRequest* next = req->m_Next;
-        FreeReadRequest(req);
+        DeleteReadRequest(req);
         req = next;
     }
 
@@ -269,7 +269,7 @@ FileIo::GetResult(const AsyncToken token)
         result = GetResultImpl(req);
     }
 
-    FreeReadRequest(req);
+    DeleteReadRequest(req);
 
     return result;
 }
@@ -338,13 +338,13 @@ static PoolAllocator<Win32ReadRequest, 64> s_ReadRequestPool;
 template<typename... Args>
 static Win32ReadRequest* AllocReadRequest(Args&&... args)
 {
-    return s_ReadRequestPool.Alloc(std::forward<Args>(args)...);
+    return s_ReadRequestPool.New(std::forward<Args>(args)...);
 }
 
-static void FreeReadRequest(ReadRequest* req)
+static void DeleteReadRequest(ReadRequest* req)
 {
     auto* win32Req = static_cast<Win32ReadRequest*>(req);
-    s_ReadRequestPool.Free(win32Req);
+    s_ReadRequestPool.Delete(win32Req);
 }
 
 Result<FileIo::AsyncToken>
@@ -426,7 +426,7 @@ FileIo::Fetch(const imstring& filePath)
     // Bind file to IOCP.
     if(::CreateIoCompletionPort(req->File, s_IOCP, key, 0) == nullptr)
     {
-        FreeReadRequest(req);
+        DeleteReadRequest(req);
         return Error("Failed to bind file to IOCP: {}, error: {}",
             filePath,
             GetWindowsErrorString(::GetLastError()));
@@ -442,7 +442,6 @@ FileIo::Fetch(const imstring& filePath)
     }
     else if(req->BytesRead >= req->BytesRequested)
     {
-        // DO NOT SUBMIT - test reading more bytes than are in the file.
         CompleteRequestSuccess(req, static_cast<size_t>(req->BytesRead));
     }
 

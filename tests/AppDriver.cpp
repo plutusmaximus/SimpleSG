@@ -87,11 +87,10 @@ AppDriver::Run()
 
     auto gpuDevice = *gdResult;
 
-    ResourceCache* resourceCache = new ResourceCache(gpuDevice);
-    expect(resourceCache, "Failed to create ResourceCache");
+    std::optional<ResourceCache> resourceCache;
+    resourceCache.emplace(gpuDevice);
 
-    AppContext context{ gpuDevice, resourceCache };
-
+    AppContext context{ gpuDevice, &resourceCache.value() };
     Application* app = m_AppLifecycle->Create();
 
     auto initResult = app->Initialize(&context);
@@ -183,7 +182,7 @@ AppDriver::Run()
 
     m_AppLifecycle->Destroy(app);
 
-    delete resourceCache;
+    resourceCache.reset();
 
     SdlGpuDevice::Destroy(gpuDevice);
 

@@ -199,7 +199,7 @@ SdlGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& verti
 
     auto [nativeBuf, sizeofBuffer] = nativeBufResult.value();
 
-    GpuResource* res = m_ResourceAllocator.Alloc();
+    GpuResource* res = m_ResourceAllocator.New();
 
     if(!res)
     {
@@ -216,7 +216,7 @@ Result<void>
 SdlGpuDevice::DestroyVertexBuffer(GpuVertexBuffer* buffer)
 {
     buffer->~GpuVertexBuffer();
-    m_ResourceAllocator.Free(reinterpret_cast<GpuResource*>(buffer));
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(buffer));
     return ResultOk;
 }
 
@@ -235,7 +235,7 @@ SdlGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& i
 
     auto [nativeBuf, sizeofBuffer] = nativeBufResult.value();
 
-    GpuResource* res = m_ResourceAllocator.Alloc();
+    GpuResource* res = m_ResourceAllocator.New();
 
     if(!res)
     {
@@ -252,7 +252,7 @@ Result<void>
 SdlGpuDevice::DestroyIndexBuffer(GpuIndexBuffer* buffer)
 {
     buffer->~GpuIndexBuffer();
-    m_ResourceAllocator.Free(reinterpret_cast<GpuResource*>(buffer));
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(buffer));
     return ResultOk;
 }
 
@@ -391,7 +391,7 @@ SdlGpuDevice::CreateTexture(const unsigned width,
         expect(m_Sampler, SDL_GetError());
     }
 
-    GpuResource* res = m_ResourceAllocator.Alloc();
+    GpuResource* res = m_ResourceAllocator.New();
 
     expectv(res, "Error allocating GpuResource");
 
@@ -410,7 +410,6 @@ SdlGpuDevice::CreateTexture(const RgbaColorf& color, const imstring& name)
     RgbaColoru8 colorU8{color};
     const uint8_t pixelData[4]{colorU8.r, colorU8.g, colorU8.b, colorU8.a};
 
-
     return CreateTexture(1, 1, pixelData, 4, name);
 }
 
@@ -418,7 +417,7 @@ Result<void>
 SdlGpuDevice::DestroyTexture(GpuTexture* texture)
 {
     texture->~GpuTexture();
-    m_ResourceAllocator.Free(reinterpret_cast<GpuResource*>(texture));
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(texture));
     return ResultOk;
 }
 
@@ -434,7 +433,7 @@ SdlGpuDevice::CreateVertexShader(const VertexShaderSpec& shaderSpec)
 
     expect(shaderResult, shaderResult.error());
 
-    GpuResource* res = m_ResourceAllocator.Alloc();
+    GpuResource* res = m_ResourceAllocator.New();
 
     expectv(res, "Error allocating GpuResource");
 
@@ -463,7 +462,7 @@ SdlGpuDevice::CreateVertexShader(const std::span<const uint8_t>& shaderCode)
         SDL_ReleaseGPUShader(Device, shader);
     });
 
-    GpuResource* res = m_ResourceAllocator.Alloc();
+    GpuResource* res = m_ResourceAllocator.New();
 
     expectv(res, "Error allocating GpuResource");
 
@@ -476,7 +475,7 @@ Result<void>
 SdlGpuDevice::DestroyVertexShader(GpuVertexShader* shader)
 {
     shader->~GpuVertexShader();
-    m_ResourceAllocator.Free(reinterpret_cast<GpuResource*>(shader));
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(shader));
     return ResultOk;
 }
 
@@ -495,7 +494,7 @@ SdlGpuDevice::CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
 
     expect(shaderResult, shaderResult.error());
 
-    GpuResource* res = m_ResourceAllocator.Alloc();
+    GpuResource* res = m_ResourceAllocator.New();
 
     expectv(res, "Error allocating GpuResource");
 
@@ -524,7 +523,7 @@ SdlGpuDevice::CreateFragmentShader(const std::span<const uint8_t>& shaderCode)
         SDL_ReleaseGPUShader(Device, shader);
     });
 
-    GpuResource* res = m_ResourceAllocator.Alloc();
+    GpuResource* res = m_ResourceAllocator.New();
 
     expectv(res, "Error allocating GpuResource");
 
@@ -537,7 +536,7 @@ Result<void>
 SdlGpuDevice::DestroyFragmentShader(GpuFragmentShader* shader)
 {
     shader->~GpuFragmentShader();
-    m_ResourceAllocator.Free(reinterpret_cast<GpuResource*>(shader));
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(shader));
     return ResultOk;
 }
 

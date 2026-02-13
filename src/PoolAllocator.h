@@ -9,25 +9,31 @@
 #include <utility>
 #include <vector>
 
-class PoolAllocatorBase
+class Allocator
 {
 public:
 
-    virtual ~PoolAllocatorBase() = default;
+    virtual ~Allocator() = 0;
 
-    /// @brief Free an object back to the pool.
-    virtual void Free(void* voidPtr) = 0;
+    /// @brief Deletes an object and returns it back to the pool.
+    /// The object must have been allocated from this pool.
+    /// The destructor of the object will be called before it's freed.
+    virtual void Delete(void* voidPtr) = 0;
 };
 
+inline Allocator::~Allocator() = default;
+
 template<typename T>
-class PoolAllocatorT : public PoolAllocatorBase
+class PoolAllocatorT : public Allocator
 {
+    static constexpr uint32_t GUARD_VALUE = 0xFEEDFACE;
+
 public:
 
     /// @brief Allocate an object from the pool.
     /// Call the constructor with the given arguments.
     template<typename... Args>
-    T* Alloc(Args&&... args)
+    T* New(Args&&... args)
     {
         if(m_FreeList == nullptr)
         {
@@ -41,6 +47,7 @@ public:
 
         Chunk* chunk = m_FreeList;
         m_FreeList = m_FreeList->Next;
+        chunk->Next = nullptr;
 
         T* obj = ::new(static_cast<void*>(chunk->Storage)) T(std::forward<Args>(args)...);
         ++m_AllocatedCount;
@@ -50,27 +57,27 @@ public:
         return std::launder(obj);
     }
 
-    /// @brief Free an object back to the pool.
-    void Free(void* voidPtr) override
+    /// @brief Deletes an object and returns it back to the pool.
+    /// The object must have been allocated from this pool.
+    /// The destructor of the object will be called before it's freed.
+    void Delete(void* voidPtr) override
     {
         if(voidPtr == nullptr)
         {
             return;
         }
 
-        T* ptr = static_cast<T*>(voidPtr);
+        Chunk* chunk = Chunk::FromStorage(voidPtr);
+        eassert(this == chunk->Allocator,
+            "Pointer being freed was not allocated from this PoolAllocator");
+        eassert(nullptr == chunk->Next, "Double free detected in PoolAllocator");
+        eassert(chunk->Guard == GUARD_VALUE, "Memory corruption detected in PoolAllocator");
 
-#if !defined(NDEBUG)
-        if(!ValidatePointer(ptr))
-        {
-            return;
-        }
-#endif
+        T* ptr = static_cast<T*>(voidPtr);
 
         ptr->~T();
         --m_AllocatedCount;
 
-        Chunk* chunk = reinterpret_cast<Chunk*>(ptr);
 #if !defined(NDEBUG)
         ::memset(chunk->Storage, 0xFE, sizeof(chunk->Storage));
 #endif
@@ -91,8 +98,6 @@ protected:
 
     virtual void AllocateHeap() = 0;
 
-    virtual bool ValidatePointer(T* ptr) = 0;
-
     PoolAllocatorT(const PoolAllocatorT&) = delete;
     PoolAllocatorT& operator=(const PoolAllocatorT&) = delete;
     PoolAllocatorT(PoolAllocatorT&&) = delete;
@@ -104,13 +109,26 @@ protected:
         ? alignof(T)
         : alignof(Chunk*);
 
-    struct alignas(kChunkAlignment) Chunk
+    struct Chunk
     {
-        union
+        Chunk* Next;
+        // Allocator that owns this chunk.
+        Allocator* Allocator;
+        alignas(kChunkAlignment) char Storage[sizeof(T)];
+        uint32_t Guard{GUARD_VALUE}; // Used to detect memory corruption and double frees.
+
+        static Chunk* FromStorage(void* p) noexcept
         {
-            Chunk* Next;
-            char Storage[sizeof(T)];
-        };
+            // p must point to Storage[0] of some Chunk
+            auto base = reinterpret_cast<std::byte*>(p) - offsetof(Chunk, Storage);
+            return reinterpret_cast<Chunk*>(base);
+        }
+
+        static const Chunk* FromStorage(const void* p) noexcept
+        {
+            auto base = reinterpret_cast<const std::byte*>(p) - offsetof(Chunk, Storage);
+            return reinterpret_cast<const Chunk*>(base);
+        }
     };
 
     Chunk* m_FreeList{ nullptr };
@@ -159,40 +177,25 @@ private:
 
     void AllocateHeap() override
     {
-        Heap* heap = new Heap();
+        // Do not do this:
+        //  Heap* heap = new Heap();
+        // As that will value-initialize (zero-initialize) Heap.
+        Heap* heap = new Heap;
 
         // Push onto the free-list in index order so the head ends up being the last element:
         // LIFO allocation will then walk backward through the array (often slightly nicer
         // locality).
-        for(std::size_t i = 0; i < ItemsPerHeap; ++i)
+        Chunk* chunk = &heap->m_Chunks[0];
+        for(std::size_t i = 0; i < ItemsPerHeap; ++i, ++chunk)
         {
-            heap->m_Chunks[i].Next = Base::m_FreeList;
-            Base::m_FreeList = &heap->m_Chunks[i];
+            chunk->Next = Base::m_FreeList;
+            chunk->Allocator = this;
+            Base::m_FreeList = chunk;
         }
 
         heap->m_Next = m_Heaps;
         m_Heaps = heap;
         ++m_HeapCount;
-    }
-
-    /// @brief Check that a pointer being freed was allocated from this PoolAllocator.
-    bool ValidatePointer(T* ptr) override
-    {
-        bool validated = false;
-        for(Heap* heap = m_Heaps; heap != nullptr; heap = heap->m_Next)
-        {
-            if(reinterpret_cast<std::uintptr_t>(ptr) >=
-                    reinterpret_cast<std::uintptr_t>(heap->m_Chunks) &&
-                reinterpret_cast<std::uintptr_t>(ptr) <
-                    reinterpret_cast<std::uintptr_t>(heap->m_Chunks) + ItemsPerHeap * sizeof(Chunk))
-            {
-                validated = true;
-                break;
-            }
-        }
-        eassert(validated, "Pointer being freed was not allocated from this PoolAllocator");
-
-        return validated;
     }
 
     Heap* m_Heaps{ nullptr };

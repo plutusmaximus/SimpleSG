@@ -43,14 +43,14 @@ TEST(PoolAllocator, AllocConstructsAndFreeDestroys)
     Tracked::Reset();
 
     PoolAllocator<Tracked, 4> pool;
-    Tracked* obj = pool.Alloc(5);
+    Tracked* obj = pool.New(5);
 
     ASSERT_NE(obj, nullptr);
     EXPECT_EQ(Tracked::ctorCount, 1);
     EXPECT_EQ(Tracked::dtorCount, 0);
     EXPECT_EQ(Tracked::valueSum, 5);
 
-    pool.Free(obj);
+    pool.Delete(obj);
 
     EXPECT_EQ(Tracked::ctorCount, 1);
     EXPECT_EQ(Tracked::dtorCount, 1);
@@ -62,7 +62,7 @@ TEST(PoolAllocator, FreeNullptrIsNoOp)
     Tracked::Reset();
 
     PoolAllocator<Tracked, 2> pool;
-    pool.Free(nullptr);
+    pool.Delete(nullptr);
 
     EXPECT_EQ(Tracked::ctorCount, 0);
     EXPECT_EQ(Tracked::dtorCount, 0);
@@ -74,17 +74,17 @@ TEST(PoolAllocator, ReusesFreedChunk)
     Tracked::Reset();
 
     PoolAllocator<Tracked, 4> pool;
-    Tracked* first = pool.Alloc(1);
-    Tracked* second = pool.Alloc(2);
+    Tracked* first = pool.New(1);
+    Tracked* second = pool.New(2);
 
-    pool.Free(second);
+    pool.Delete(second);
 
-    Tracked* reused = pool.Alloc(3);
+    Tracked* reused = pool.New(3);
 
     EXPECT_EQ(reused, second);
 
-    pool.Free(reused);
-    pool.Free(first);
+    pool.Delete(reused);
+    pool.Delete(first);
 
     EXPECT_EQ(Tracked::ctorCount, 3);
     EXPECT_EQ(Tracked::dtorCount, 3);
@@ -96,9 +96,9 @@ TEST(PoolAllocator, AllocatesAdditionalHeapWhenExhausted)
     Tracked::Reset();
 
     PoolAllocator<Tracked, 2> pool;
-    Tracked* a = pool.Alloc(10);
-    Tracked* b = pool.Alloc(20);
-    Tracked* c = pool.Alloc(30);
+    Tracked* a = pool.New(10);
+    Tracked* b = pool.New(20);
+    Tracked* c = pool.New(30);
 
     ASSERT_NE(a, nullptr);
     ASSERT_NE(b, nullptr);
@@ -107,9 +107,9 @@ TEST(PoolAllocator, AllocatesAdditionalHeapWhenExhausted)
     EXPECT_NE(a, c);
     EXPECT_NE(b, c);
 
-    pool.Free(c);
-    pool.Free(b);
-    pool.Free(a);
+    pool.Delete(c);
+    pool.Delete(b);
+    pool.Delete(a);
 
     EXPECT_EQ(Tracked::ctorCount, 3);
     EXPECT_EQ(Tracked::dtorCount, 3);
