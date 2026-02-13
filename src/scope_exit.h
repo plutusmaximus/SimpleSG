@@ -43,8 +43,13 @@ public:
 
     scope_exit(const scope_exit&) = delete;
     scope_exit& operator=(const scope_exit&) = delete;
-    scope_exit(scope_exit&& other) = default;
-    scope_exit& operator=(scope_exit&&) = default;
+    scope_exit(scope_exit&& other)
+        : m_Fn(std::move(other.m_Fn)),
+          m_Active(other.m_Active)
+    {
+        other.release(); // Prevent the moved-from guard from running
+    }
+    scope_exit& operator=(scope_exit&&) = delete;
 
     ~scope_exit() noexcept
     {
