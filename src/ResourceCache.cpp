@@ -177,23 +177,7 @@ ResourceCache::IsPending<GpuFragmentShader*>(const CacheKey& cacheKey) const
 void
 ResourceCache::ProcessPendingOperations()
 {
-    auto it = m_PendingOps.begin();
-
-    while(it != m_PendingOps.end())
-    {
-        auto next = it;
-        ++next;
-
-        it->Update();
-
-        if(it->IsComplete())
-        {
-            m_PendingOps.erase(it);
-            it->RemoveFromGroup();
-            it->Delete();
-        }
-        it = next;
-    }
+    m_Scheduler.ProcessPendingTasks();
 }
 
 Result<ResourceCache::AsyncStatus>
@@ -204,7 +188,7 @@ ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, const imstring& 
         logDebug("  Load already pending: {}", cacheKey.ToString());
         auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<ModelResource>);
         expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
-        Enqueue(op);
+        m_Scheduler.Enqueue(op);
     }
     else if(m_ModelCache.Contains(cacheKey))
     {
@@ -216,7 +200,7 @@ ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, const imstring& 
 
         auto op = NewOp<LoadModelOp>(this, cacheKey, filePath);
         expectv(op, "Failed to allocate LoadModelOp for key: {}", cacheKey.ToString());
-        Enqueue(op);
+        m_Scheduler.Enqueue(op);
     }
 
     return AsyncStatus(this, cacheKey, &ResourceCache::IsPending<ModelResource>);
@@ -230,7 +214,7 @@ ResourceCache::CreateModelAsync(const CacheKey& cacheKey, const ModelSpec& model
         logDebug("  Creation already pending: {}", cacheKey.ToString());
         auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<ModelResource>);
         expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
-        Enqueue(op);
+        m_Scheduler.Enqueue(op);
     }
     else if(m_ModelCache.Contains(cacheKey))
     {
@@ -242,7 +226,7 @@ ResourceCache::CreateModelAsync(const CacheKey& cacheKey, const ModelSpec& model
 
         auto op = NewOp<CreateModelOp>(this, cacheKey, modelSpec);
         expectv(op, "Failed to allocate CreateModelOp for key: {}", cacheKey.ToString());
-        Enqueue(op);
+        m_Scheduler.Enqueue(op);
     }
 
     return AsyncStatus(this, cacheKey, &ResourceCache::IsPending<ModelResource>);
@@ -257,7 +241,7 @@ ResourceCache::CreateTextureAsync(const CacheKey& cacheKey, const TextureSpec& t
         logDebug("  Texture creation already pending: {}", cacheKey.ToString());
         auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<GpuTexture*>);
         expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
-        Enqueue(op);
+        m_Scheduler.Enqueue(op);
     }
     else if(m_TextureCache.Contains(cacheKey))
     {
@@ -269,7 +253,7 @@ ResourceCache::CreateTextureAsync(const CacheKey& cacheKey, const TextureSpec& t
 
         auto op = NewOp<CreateTextureOp>(this, cacheKey, textureSpec);
         expectv(op, "Failed to allocate CreateTextureOp for key: {}", cacheKey.ToString());
-        Enqueue(op);
+        m_Scheduler.Enqueue(op);
     }
 
     return AsyncStatus(this, cacheKey, &ResourceCache::IsPending<GpuTexture*>);
@@ -283,7 +267,7 @@ ResourceCache::CreateVertexShaderAsync(const CacheKey& cacheKey, const VertexSha
         logDebug("  Vertex shader creation already pending: {}", cacheKey.ToString());
         auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<GpuVertexShader*>);
         expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
-        Enqueue(op);
+        m_Scheduler.Enqueue(op);
     }
     else if(m_VertexShaderCache.Contains(cacheKey))
     {
@@ -295,7 +279,7 @@ ResourceCache::CreateVertexShaderAsync(const CacheKey& cacheKey, const VertexSha
 
         auto op = NewOp<CreateShaderOp>(this, cacheKey, shaderSpec);
         expectv(op, "Failed to allocate CreateVertexShaderOp for key: {}", cacheKey.ToString());
-        Enqueue(op);
+        m_Scheduler.Enqueue(op);
     }
 
     return AsyncStatus(this, cacheKey, &ResourceCache::IsPending<GpuVertexShader*>);
@@ -309,7 +293,7 @@ ResourceCache::CreateFragmentShaderAsync(const CacheKey& cacheKey, const Fragmen
         logDebug("  Fragment shader creation already pending: {}", cacheKey.ToString());
         auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<GpuFragmentShader*>);
         expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
-        Enqueue(op);
+        m_Scheduler.Enqueue(op);
     }
     else if(m_FragmentShaderCache.Contains(cacheKey))
     {
@@ -321,7 +305,7 @@ ResourceCache::CreateFragmentShaderAsync(const CacheKey& cacheKey, const Fragmen
 
         auto op = NewOp<CreateShaderOp>(this, cacheKey, shaderSpec);
         expectv(op, "Failed to allocate CreateFragmentShaderOp for key: {}", cacheKey.ToString());
-        Enqueue(op);
+        m_Scheduler.Enqueue(op);
     }
 
     return AsyncStatus(this, cacheKey, &ResourceCache::IsPending<GpuFragmentShader*>);
@@ -368,19 +352,6 @@ ResourceCache::GetFragmentShader(const CacheKey& cacheKey) const
 }
 
 // private:
-
-void
-ResourceCache::Enqueue(AsyncOp* op)
-{
-    if(!m_AsyncOpGroups.empty())
-    {
-        m_AsyncOpGroups.top()->Add(op);
-    }
-
-    m_PendingOps.push_back(op);
-
-    op->Start();
-}
 
 #define logOp(fmt, ...) logDebug("  {}: {}", CLASS_NAME, std::format(fmt, __VA_ARGS__))
 
@@ -534,7 +505,7 @@ ResourceCache::CreateModelOp::Update()
             case CreateTexturesAndShaders:
                 m_State = CreatingTexturesAndShaders;
 
-                m_ResourceCache->PushGroup(&m_OpGroup);
+                m_ResourceCache->m_Scheduler.PushGroup(&m_TaskGroup);
 
                 for(const auto& meshSpec : m_ModelSpec.GetMeshSpecs())
                 {
@@ -574,12 +545,12 @@ ResourceCache::CreateModelOp::Update()
                     }
                 }
 
-                m_ResourceCache->PopGroup(&m_OpGroup);
+                m_ResourceCache->m_Scheduler.PopGroup(&m_TaskGroup);
 
                 break;
 
             case CreatingTexturesAndShaders:
-                if(m_OpGroup.IsPending())
+                if(m_TaskGroup.IsPending())
                 {
                     return;
                 }
@@ -602,7 +573,7 @@ ResourceCache::CreateModelOp::Update()
 
             case Failed:
                 //Wait for pending ops to complete
-                if(m_OpGroup.IsPending())
+                if(m_TaskGroup.IsPending())
                 {
                     return;
                 }
