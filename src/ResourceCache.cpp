@@ -177,27 +177,22 @@ ResourceCache::IsPending<GpuFragmentShader*>(const CacheKey& cacheKey) const
 void
 ResourceCache::ProcessPendingOperations()
 {
-    AsyncOp* op = m_PendingOps;
+    auto it = m_PendingOps.begin();
 
-    while(op)
+    while(it != m_PendingOps.end())
     {
-        AsyncOp* next = op->m_Next;
+        auto next = it;
+        ++next;
 
-        op->Update();
+        it->Update();
 
-        if(op->IsComplete())
+        if(it->IsComplete())
         {
-            op->Unlink();
-            if(op == m_PendingOps)
-            {
-                m_PendingOps = next;
-            }
-            op->RemoveFromGroup();
-
-            op->Delete();
+            m_PendingOps.erase(it);
+            it->RemoveFromGroup();
+            it->Delete();
         }
-
-        op = next;
+        it = next;
     }
 }
 
@@ -377,13 +372,12 @@ ResourceCache::GetFragmentShader(const CacheKey& cacheKey) const
 void
 ResourceCache::Enqueue(AsyncOp* op)
 {
-    if(m_AsyncOpGroupStack)
+    if(!m_AsyncOpGroups.empty())
     {
-        op->AddToGroup(m_AsyncOpGroupStack);
+        m_AsyncOpGroups.top()->Add(op);
     }
 
-    op->Link(m_PendingOps);
-    m_PendingOps = op;
+    m_PendingOps.push_back(op);
 
     op->Start();
 }

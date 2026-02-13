@@ -1,6 +1,8 @@
 #pragma once
 
 #include "FileIo.h"
+#include "inlist.h"
+#include "instack.h"
 #include "Mesh.h"
 #include "Model.h"
 #include "PoolAllocator.h"
@@ -122,28 +124,7 @@ public:
 
 private:
 
-    class AsyncOp;
-
-    /// @brief A group of asynchronous operations that are related and should be processed together.
-    /// As long as any operation in the group is pending, the group is considered pending.
-    class AsyncOpGroup
-    {
-    public:
-
-        ~AsyncOpGroup()
-        {
-            eassert(!IsPending(), "AsyncOpGroup destroyed while operations still pending");
-        }
-
-        bool IsPending() const
-        {
-            return nullptr != m_Head;
-        }
-
-        AsyncOp* m_Head{ nullptr };
-
-        AsyncOpGroup* m_Next { nullptr };
-    };
+    class AsyncOpGroup;
 
     /// @brief Base class for asynchronous operations.
     class AsyncOp
@@ -152,9 +133,8 @@ private:
     public:
         virtual ~AsyncOp()
         {
-            eassert(!m_Next && !m_Prev, "AsyncOp destroyed while still pending");
-            eassert(!m_NextInGroup && !m_PrevInGroup && !m_Group,
-                "AsyncOp destroyed while still part of a group");
+            eassert(!m_PendingOpsNode.IsLinked(), "AsyncOp destroyed while still pending");
+            eassert(!m_GroupNode.IsLinked(), "AsyncOp destroyed while still part of a group");
             eassert(!m_Group, "AsyncOp destroyed while still part of a group");
         }
 
@@ -168,48 +148,6 @@ private:
 
         const CacheKey& GetCacheKey() const { return m_CacheKey; }
 
-        void Link(AsyncOp* next)
-        {
-            eassert(!m_Next);
-            eassert(!m_Prev);
-
-            m_Next = next;
-            if(next)
-            {
-                next->m_Prev = this;
-            }
-        }
-
-        void Unlink()
-        {
-            if(m_Prev)
-            {
-                m_Prev->m_Next = m_Next;
-            }
-            if(m_Next)
-            {
-                m_Next->m_Prev = m_Prev;
-            }
-            m_Next = nullptr;
-            m_Prev = nullptr;
-        }
-
-        void AddToGroup(AsyncOpGroup* group)
-        {
-            eassert(!m_NextInGroup);
-            eassert(!m_PrevInGroup);
-            eassert(!m_Group);
-
-            m_Group = group;
-
-            m_NextInGroup = group->m_Head;
-            if(group->m_Head)
-            {
-                group->m_Head->m_PrevInGroup = this;
-            }
-            group->m_Head = this;
-        }
-
         void RemoveFromGroup()
         {
             if(!m_Group)
@@ -217,28 +155,7 @@ private:
                 return;
             }
 
-            eassert(m_PrevInGroup || m_NextInGroup || this == m_Group->m_Head, "Invalid state");
-
-             AsyncOpGroup* group = m_Group;
-             m_Group = nullptr;
-
-            if(m_PrevInGroup)
-            {
-                m_PrevInGroup->m_NextInGroup = m_NextInGroup;
-            }
-            else
-            {
-                eassert(this == group->m_Head);
-                group->m_Head = m_NextInGroup;
-            }
-
-            if(m_NextInGroup)
-            {
-                m_NextInGroup->m_PrevInGroup = m_PrevInGroup;
-            }
-
-            m_NextInGroup = nullptr;
-            m_PrevInGroup = nullptr;
+             m_Group->Remove(this);
         }
 
     protected:
@@ -252,14 +169,52 @@ private:
     private:
         CacheKey m_CacheKey;
 
-        AsyncOp* m_Next{ nullptr };
-        AsyncOp* m_Prev{ nullptr };
+        inlist_node<AsyncOp> m_PendingOpsNode;
 
-        AsyncOp* m_NextInGroup{ nullptr };
-        AsyncOp* m_PrevInGroup{ nullptr };
+        inlist_node<AsyncOp> m_GroupNode;
 
         /// Group that this operation is part of.
         AsyncOpGroup* m_Group{ nullptr };
+    };
+
+    /// @brief A group of asynchronous operations that are related and should be processed together.
+    /// As long as any operation in the group is pending, the group is considered pending.
+    class AsyncOpGroup
+    {
+        friend class ResourceCache;
+    public:
+
+        ~AsyncOpGroup()
+        {
+            eassert(!IsPending(), "AsyncOpGroup destroyed while operations still pending");
+        }
+
+        bool IsPending() const
+        {
+            return !m_Operations.empty();
+        }
+
+        void Add(AsyncOp* op)
+        {
+            eassert(op->m_Group == nullptr, "Invalid state: op already part of a group");
+            m_Operations.push_back(op);
+            op->m_Group = this;
+        }
+
+        void Remove(AsyncOp* op)
+        {
+            eassert(op->m_Group == this, "Invalid state: op not part of this group");
+            eassert(!m_Operations.empty(), "Invalid state: group is empty");
+
+            m_Operations.erase(op);
+            op->m_Group = nullptr;
+        }
+
+    private:
+
+        inlist<AsyncOp, &AsyncOp::m_GroupNode> m_Operations;
+
+        instack_node<AsyncOpGroup> m_GroupNode;
     };
 
     /// @brief Enqueues an asynchronous operation for processing.
@@ -267,18 +222,16 @@ private:
 
     void PushGroup(AsyncOpGroup* group)
     {
-        eassert(!group->m_Head);
-        eassert(!group->m_Next);
+        eassert(!group->IsPending(), "Cannot push group with pending operations");
 
-        group->m_Next = m_AsyncOpGroupStack;
-        m_AsyncOpGroupStack = group;
+        m_AsyncOpGroups.push(group);
     }
 
     void PopGroup(AsyncOpGroup* group)
     {
-        eassert(m_AsyncOpGroupStack == group);
-        m_AsyncOpGroupStack = group->m_Next;
-        group->m_Next = nullptr;
+        eassert(m_AsyncOpGroups.top() == group, "Invalid state: group not at top of stack");
+
+        m_AsyncOpGroups.pop();
     }
 
     /// @brief Asynchronous operation for waiting on another asynchronous operation to complete.
@@ -741,7 +694,7 @@ private:
     Cache<Result<GpuVertexShader*>> m_VertexShaderCache;
     Cache<Result<GpuFragmentShader*>> m_FragmentShaderCache;
 
-    AsyncOp* m_PendingOps{ nullptr };
+    inlist<AsyncOp, &AsyncOp::m_PendingOpsNode> m_PendingOps;
 
-    AsyncOpGroup* m_AsyncOpGroupStack{ nullptr };
+    instack<AsyncOpGroup, &AsyncOpGroup::m_GroupNode> m_AsyncOpGroups;
 };
