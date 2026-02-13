@@ -3,13 +3,15 @@
 #include "Error.h"
 #include "inlist.h"
 
-class Item
+namespace
 {
-public:
-
-    inlist_node<Item> ListNode1;
-    inlist_node<Item> ListNode2;
-};
+    class Item
+    {
+    public:
+        inlist_node<Item> ListNode1;
+        inlist_node<Item> ListNode2;
+    };
+}
 
 TEST(inlist, PushAndFrontBack)
 {
