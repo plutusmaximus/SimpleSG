@@ -259,6 +259,7 @@ add_executable(Tests
   "tests/imstring.test.cpp"
   "tests/imvector.test.cpp"
   "tests/inlist.test.cpp"
+  "tests/instack.test.cpp"
   "tests/Mat44.test.cpp"
   "tests/PoolAllocator.test.cpp"
   "tests/Quat.test.cpp"

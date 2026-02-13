@@ -1,13 +1,38 @@
 #pragma once
 
+#include "Error.h"
+
 #include <cstddef>
 #include <iterator>
+
+/// @brief Intrusive doubly-linked list that stores existing objects without allocating.
+///
+/// Usage:
+/// - Add an inlist_node<T> member to your type.
+/// - Instantiate inlist<T, &T::YourNodeMember>.
+/// - Use push_front()/push_back() to add nodes and erase()/pop_front()/pop_back() to remove.
+/// - Iterate from head to tail with begin()/end().
+///
+/// Example:
+/// struct Item { inlist_node<Item> Node; int id; };
+/// inlist<Item, &Item::Node> items;
+/// Item a{ {}, 1 }, b{ {}, 2 };
+/// items.push_back(&a);
+/// items.push_back(&b);
+/// items.pop_front(); // a
+///
+/// Notes:
+/// - Nodes must not be in multiple lists using the same node member.
+/// - A node is considered linked when its Next or Prev pointer is non-null.
 
 /// @brief Node for an intrusive linked list
 template<typename T>
 class inlist_node
 {
 public:
+
+    bool IsLinked() const { return Next != nullptr || Prev != nullptr; }
+
     T* Next{ nullptr };
     T* Prev{ nullptr };
 };
@@ -211,6 +236,30 @@ public:
         ++m_Size;
     }
 
+    T* pop_front()
+    {
+        if(!m_Head)
+        {
+            return nullptr;
+        }
+
+        T* node = m_Head;
+        erase(iterator(node));
+        return node;
+    }
+
+    T* pop_back()
+    {
+        if(!m_Tail)
+        {
+            return nullptr;
+        }
+
+        T* node = m_Tail;
+        erase(iterator(node));
+        return node;
+    }
+
     T* front() const { return m_Head; }
 
     T* back() const { return m_Tail; }
@@ -248,6 +297,8 @@ public:
 
         return iterator(next);
     }
+
+    iterator erase(T* node) { return erase(iterator(node)); }
 
     iterator erase(const_iterator pos) { return erase(iterator(const_cast<T*>(pos.node()))); }
 
