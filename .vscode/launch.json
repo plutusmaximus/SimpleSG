@@ -14,7 +14,8 @@
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",
             "environment": [],
-            "console": "externalTerminal"
+            //"console": "externalTerminal"
+            "console": "integratedTerminal"
         },
         {
             "name": "Triangle (Debug)",
@@ -25,7 +26,8 @@
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",
             "environment": [],
-            "console": "externalTerminal"
+            //"console": "externalTerminal"
+            "console": "integratedTerminal"
         },
         {
             "name": "Sponza (Debug)",
@@ -36,7 +38,8 @@
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",
             "environment": [],
-            "console": "externalTerminal"
+            //"console": "externalTerminal"
+            "console": "integratedTerminal"
         }
     ]
 }
