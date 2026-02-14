@@ -187,11 +187,6 @@ add_custom_target(copy_models
           ${CMAKE_SOURCE_DIR}/models ${CMAKE_BINARY_DIR}/models
   COMMENT "Copying model files"
 )
-add_custom_target(copy_shaders
-  COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
-          ${CMAKE_SOURCE_DIR}/shaders ${CMAKE_BINARY_DIR}/shaders
-  COMMENT "Copying shaders files"
-)
 
 # ============================================================
 # Library: ssg
@@ -266,7 +261,7 @@ compiler_flags(ssg)
 function(add_sample_executable target_name source_file)
   add_executable(${target_name} ${source_file} tests/MouseNav.cpp tests/AppDriver.cpp tests/LuaRepl.cpp)
   target_link_libraries(${target_name} PRIVATE ssg::ssg spdlog::spdlog imgui lua assimp::assimp webgpu_dawn webgpu_glfw glfw)
-  add_dependencies(${target_name} shaders copy_images copy_models copy_shaders)
+  add_dependencies(${target_name} shaders copy_images copy_models)
 
   compiler_flags(${target_name})
 

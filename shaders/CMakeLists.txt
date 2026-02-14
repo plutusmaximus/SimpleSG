@@ -53,17 +53,20 @@ foreach(_wgsl IN LISTS WGSL_SOURCES)
   get_filename_component(_name "${_wgsl}" NAME)
   string(REGEX REPLACE "\\.wgsl$" "" _base_name "${_name}")
   set(_spv_out "${_out_dir}/${_base_name}.spv")
+  set(_wgsl_copy_out "${_out_dir}/${_name}")
 
   add_custom_command(
-    OUTPUT "${_spv_out}"
+    OUTPUT "${_spv_out}" "${_wgsl_copy_out}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${_out_dir}"
     COMMAND "${TINT_EXE}" "${_wgsl}" -o "${_spv_out}" --spirv-version "${TINT_SPIRV_VERSION}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_wgsl}" "${_wgsl_copy_out}"
     DEPENDS "${_wgsl}"
     COMMENT "Tint: ${_base_name}.wgsl -> ${_base_name}.spv"
     VERBATIM
   )
 
   list(APPEND _spv_outputs "${_spv_out}")
+  list(APPEND _spv_outputs "${_wgsl_copy_out}")
 endforeach()
 
 foreach(_hlsl IN LISTS HLSL_SOURCES)
