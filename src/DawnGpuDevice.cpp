@@ -97,14 +97,14 @@ DawnGpuDevice::GetExtent() const
     return Extent(0, 0);
 }
 
-Result<VertexBuffer>
+Result<GpuVertexBuffer*>
 DawnGpuDevice::CreateVertexBuffer(const std::span<const Vertex>& vertices)
 {
     std::span<const Vertex> spans[]{vertices};
     return CreateVertexBuffer(spans);
 }
 
-Result<VertexBuffer>
+Result<GpuVertexBuffer*>
 DawnGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& vertices)
 {
     auto nativeBufResult = CreateGpuBuffer<Vertex>(Device, vertices);
@@ -112,22 +112,30 @@ DawnGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& vert
 
     auto [nativeBuf, sizeofBuffer] = nativeBufResult.value();
 
-    auto vb = new DawnGpuVertexBuffer(nativeBuf);
-    expect(vb, "Error allocating DawnGpuVertexBuffer");
+    GpuResource* res = m_ResourceAllocator.New();
 
-    const uint32_t count = static_cast<uint32_t>(sizeofBuffer / sizeof(Vertex));
+    expectv(res, "Error allocating DawnGpuVertexBuffer");
 
-    return VertexBuffer(std::unique_ptr<DawnGpuVertexBuffer>(vb), count);
+    return ::new(&res->VertexBuffer)
+        DawnGpuVertexBuffer(nativeBuf, static_cast<uint32_t>(sizeofBuffer / sizeof(Vertex)));
 }
 
-Result<IndexBuffer>
+Result<void>
+DawnGpuDevice::DestroyVertexBuffer(GpuVertexBuffer* vb)
+{
+    vb->~GpuVertexBuffer();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(vb));
+    return ResultOk;
+}
+
+Result<GpuIndexBuffer*>
 DawnGpuDevice::CreateIndexBuffer(const std::span<const VertexIndex>& indices)
 {
     std::span<const VertexIndex> spans[]{indices};
     return CreateIndexBuffer(spans);
 }
 
-Result<IndexBuffer>
+Result<GpuIndexBuffer*>
 DawnGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& indices)
 {
     auto nativeBufResult = CreateGpuBuffer<VertexIndex>(Device, indices);
@@ -135,57 +143,250 @@ DawnGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& 
 
     auto [nativeBuf, sizeofBuffer] = nativeBufResult.value();
 
-    auto ib = new DawnGpuIndexBuffer(nativeBuf);
-    expect(ib, "Error allocating DawnGpuIndexBuffer");
+    GpuResource* res = m_ResourceAllocator.New();
 
-    const uint32_t count = static_cast<uint32_t>(sizeofBuffer / sizeof(VertexIndex));
+    expectv(res, "Error allocating DawnGpuIndexBuffer");
 
-    return IndexBuffer(std::unique_ptr<DawnGpuIndexBuffer>(ib), count);
-}
-
-Result<Texture>
-DawnGpuDevice::CreateTexture(const unsigned /*width*/,
-    const unsigned /*height*/,
-    const uint8_t* /*pixels*/,
-    const unsigned /*rowStride*/,
-    const imstring& /*name*/)
-{
-    return Result<Texture>();
-}
-
-Result<Texture>
-DawnGpuDevice::CreateTexture(const RgbaColorf& /*color*/, const imstring& /*name*/)
-{
-    return Result<Texture>();
+    return ::new(&res->IndexBuffer)
+        DawnGpuIndexBuffer(nativeBuf, static_cast<uint32_t>(sizeofBuffer / sizeof(VertexIndex)));
 }
 
 Result<void>
-DawnGpuDevice::DestroyTexture(Texture& /*texture*/)
+DawnGpuDevice::DestroyIndexBuffer(GpuIndexBuffer* buffer)
 {
+    buffer->~GpuIndexBuffer();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(buffer));
     return ResultOk;
 }
 
-Result<VertexShader>
+Result<GpuTexture*>
+DawnGpuDevice::CreateTexture(const unsigned width,
+    const unsigned height,
+    const uint8_t* pixels,
+    const unsigned rowStride,
+    const imstring& name)
+{
+    const uint32_t rowPitch = width * 4;
+    const uint32_t alignedRowPitch = (rowPitch + 255) & ~255;
+    const uint32_t stagingSize = alignedRowPitch * height;
+
+    wgpu::BufferDescriptor bufDesc = //
+        {
+            .label = name.c_str(),
+            .usage = wgpu::BufferUsage::CopySrc | wgpu::BufferUsage::MapWrite,
+            .size = stagingSize,
+            .mappedAtCreation = true,
+        };
+
+    wgpu::Buffer stagingBuffer = Device.CreateBuffer(&bufDesc);
+    expect(stagingBuffer, "Failed to create staging buffer of size {} for texture upload",
+            stagingSize);
+
+    void *mapped = stagingBuffer.GetMappedRange(0, stagingSize);
+    expect(mapped, "Failed to map staging buffer for texture upload");
+
+    uint8_t *dst = (uint8_t *)mapped;
+    const uint8_t *src = pixels;
+    for(uint32_t y = 0; y < height; ++y, dst += alignedRowPitch, src += rowStride)
+    {
+        ::memcpy(dst, src, width * 4);
+    }
+
+    stagingBuffer.Unmap();
+
+    wgpu::CommandEncoderDescriptor encDesc = { .label = name.c_str() };
+    wgpu::CommandEncoder encoder = Device.CreateCommandEncoder(&encDesc);
+    expect(encoder, "Failed to create command encoder for texture upload");
+
+    wgpu::TextureDescriptor textureDesc //
+        {
+            .label = name.c_str(),
+            .usage = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
+            .dimension = wgpu::TextureDimension::e2D,
+            .size = //
+            {
+                .width = width,
+                .height = height,
+                .depthOrArrayLayers = 1,
+            },
+            .format = wgpu::TextureFormat::RGBA8Unorm,
+            .mipLevelCount = 1,
+            .sampleCount = 1,
+        };
+
+    wgpu::Texture texture = Device.CreateTexture(&textureDesc);
+    expect(texture, "Failed to create texture");
+
+    wgpu::TexelCopyBufferInfo copySrc = //
+        {
+            .layout = //
+            {
+                .offset = 0,
+                .bytesPerRow = alignedRowPitch,
+                .rowsPerImage = height,
+            },
+            .buffer = stagingBuffer,
+        };
+
+    wgpu::TexelCopyTextureInfo copyDst = //
+        {
+            .texture = texture,
+            .mipLevel = 0,
+            .origin = { 0, 0, 0 },
+        };
+
+    wgpu::Extent3D copySize = //
+        {
+            .width = width,
+            .height = height,
+            .depthOrArrayLayers = 1,
+        };
+
+    encoder.CopyBufferToTexture(&copySrc, &copyDst, &copySize);
+    wgpu::CommandBuffer commandBuffer = encoder.Finish();
+
+    expect(commandBuffer, "Failed to finish command buffer for texture upload");
+
+    struct QueueSubmitResult
+    {
+        std::atomic<bool> done = false;
+        std::optional<Error> queueSubmitError;
+    };
+
+    QueueSubmitResult result;
+
+    //TODO - change API to separate creating a resource from populating it
+    Device.GetQueue().Submit(1, &commandBuffer);
+    Device.GetQueue().OnSubmittedWorkDone(
+        wgpu::CallbackMode::AllowProcessEvents,
+        +[](wgpu::QueueWorkDoneStatus status, wgpu::StringView message, QueueSubmitResult* result)
+        {
+            if(status != wgpu::QueueWorkDoneStatus::Success)
+            {
+                result->queueSubmitError =
+                    Error("Queue submit failed: {}", std::string(message.data, message.length));
+            }
+            result->done.store(true);
+        },
+        &result);
+
+    while(!result.done.load())
+    {
+        Instance.ProcessEvents();
+    }
+
+    if(result.queueSubmitError)
+    {
+        return result.queueSubmitError.value();
+    }
+
+    if(!m_Sampler)
+    {
+        // Create sampler
+        wgpu::SamplerDescriptor samplerDesc //
+            {
+                .label = "MainSampler",
+                .addressModeU = wgpu::AddressMode::Repeat,
+                .addressModeV = wgpu::AddressMode::Repeat,
+                .addressModeW = wgpu::AddressMode::Undefined,
+                .magFilter = wgpu::FilterMode::Linear,
+                .minFilter = wgpu::FilterMode::Linear,
+                .mipmapFilter = wgpu::MipmapFilterMode::Undefined,
+                .lodMinClamp = 0.0f,
+                .lodMaxClamp = 32.0f,
+                .compare = wgpu::CompareFunction::Undefined,
+                .maxAnisotropy = 1,
+            };
+
+        m_Sampler = Device.CreateSampler(&samplerDesc);
+        expect(m_Sampler, "Failed to create sampler");
+    }
+
+    GpuResource* res = m_ResourceAllocator.New();
+
+    expectv(res, "Error allocating DawnGpuTexture");
+
+    return ::new(&res->Texture) DawnGpuTexture(texture, m_Sampler);
+}
+
+Result<GpuTexture*>
+DawnGpuDevice::CreateTexture(const RgbaColorf& color, const imstring& name)
+{
+    RgbaColoru8 colorU8{color};
+    const uint8_t pixelData[4]{colorU8.r, colorU8.g, colorU8.b, colorU8.a};
+
+    return CreateTexture(1, 1, pixelData, 4, name);
+}
+
+Result<void>
+DawnGpuDevice::DestroyTexture(GpuTexture* texture)
+{
+    texture->~GpuTexture();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(texture));
+    return ResultOk;
+}
+
+Result<GpuVertexShader*>
 DawnGpuDevice::CreateVertexShader(const VertexShaderSpec& /*shaderSpec*/)
 {
-    return Result<VertexShader>();
+    eassert(false, "Not implemented");
+    return Result<GpuVertexShader*>();
+}
+
+Result<GpuVertexShader*>
+DawnGpuDevice::CreateVertexShader(const std::span<const uint8_t>& shaderCode)
+{
+    wgpu::StringView shaderCodeView{ reinterpret_cast<const char*>(shaderCode.data()),
+        shaderCode.size() };
+    wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCodeView } };
+    wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl };
+
+    wgpu::ShaderModule shaderModule = Device.CreateShaderModule(&shaderModuleDescriptor);
+    expect(shaderModule, "Failed to create shader module");
+
+    GpuResource* res = m_ResourceAllocator.New();
+
+    expectv(res, "Error allocating DawnGpuVertexShader");
+
+    return ::new(&res->VertexShader) DawnGpuVertexShader(shaderModule);
 }
 
 Result<void>
-DawnGpuDevice::DestroyVertexShader(VertexShader& /*shader*/)
+DawnGpuDevice::DestroyVertexShader(GpuVertexShader* shader)
 {
+    delete shader;
     return ResultOk;
 }
 
-Result<FragmentShader>
+Result<GpuFragmentShader*>
 DawnGpuDevice::CreateFragmentShader(const FragmentShaderSpec& /*shaderSpec*/)
 {
-    return Result<FragmentShader>();
+    eassert(false, "Not implemented");
+    return Result<GpuFragmentShader*>();
+}
+
+Result<GpuFragmentShader*>
+DawnGpuDevice::CreateFragmentShader(const std::span<const uint8_t>& shaderCode)
+{
+    wgpu::StringView shaderCodeView{ reinterpret_cast<const char*>(shaderCode.data()),
+        shaderCode.size() };
+    wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCodeView } };
+    wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl };
+
+    wgpu::ShaderModule shaderModule = Device.CreateShaderModule(&shaderModuleDescriptor);
+    expect(shaderModule, "Failed to create shader module");
+
+    GpuResource* res = m_ResourceAllocator.New();
+
+    expectv(res, "Error allocating DawnGpuFragmentShader");
+
+    return ::new(&res->FragmentShader) DawnGpuFragmentShader(shaderModule);
 }
 
 Result<void>
-DawnGpuDevice::DestroyFragmentShader(FragmentShader& /*shader*/)
+DawnGpuDevice::DestroyFragmentShader(GpuFragmentShader* shader)
 {
+    delete shader;
     return ResultOk;
 }
 
