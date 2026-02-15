@@ -351,13 +351,6 @@ DawnGpuDevice::DestroyDepthBuffer(GpuDepthBuffer* /*depthBuffer*/)
 }
 
 Result<GpuVertexShader*>
-DawnGpuDevice::CreateVertexShader(const VertexShaderSpec& /*shaderSpec*/)
-{
-    eassert(false, "Not implemented");
-    return Result<GpuVertexShader*>();
-}
-
-Result<GpuVertexShader*>
 DawnGpuDevice::CreateVertexShader(const std::span<const uint8_t>& shaderCode)
 {
     wgpu::StringView shaderCodeView{ reinterpret_cast<const char*>(shaderCode.data()),
@@ -384,13 +377,6 @@ DawnGpuDevice::DestroyVertexShader(GpuVertexShader* shader)
     dawnShader->~DawnGpuVertexShader();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(shader));
     return ResultOk;
-}
-
-Result<GpuFragmentShader*>
-DawnGpuDevice::CreateFragmentShader(const FragmentShaderSpec& /*shaderSpec*/)
-{
-    eassert(false, "Not implemented");
-    return Result<GpuFragmentShader*>();
 }
 
 Result<GpuFragmentShader*>

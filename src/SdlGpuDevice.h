@@ -334,13 +334,9 @@ public:
 
     Result<void> DestroyDepthBuffer(GpuDepthBuffer* depthBuffer) override;
 
-    Result<GpuVertexShader*> CreateVertexShader(const VertexShaderSpec& shaderSpec) override;
-
     Result<GpuVertexShader*> CreateVertexShader(const std::span<const uint8_t>& shaderByteCode) override;
 
     Result<void> DestroyVertexShader(GpuVertexShader* shader) override;
-
-    Result<GpuFragmentShader*> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) override;
 
     Result<GpuFragmentShader*> CreateFragmentShader(const std::span<const uint8_t>& shaderByteCode) override;
 

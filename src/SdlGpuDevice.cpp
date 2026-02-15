@@ -514,25 +514,6 @@ SdlGpuDevice::DestroyDepthBuffer(GpuDepthBuffer* depthBuffer)
 }
 
 Result<GpuVertexShader*>
-SdlGpuDevice::CreateVertexShader(const VertexShaderSpec& shaderSpec)
-{
-    const std::string_view path = std::get<imstring>(shaderSpec.Source);
-    auto shaderResult = LoadShader<GpuVertexShader>(
-        Device,
-        path,
-        shaderSpec.NumUniformBuffers,
-        0);
-
-    expect(shaderResult, shaderResult.error());
-
-    GpuResource* res = m_ResourceAllocator.New();
-
-    expectv(res, "Error allocating GpuResource");
-
-    return ::new(&res->VertexShader) SdlGpuVertexShader(this, shaderResult.value());
-}
-
-Result<GpuVertexShader*>
 SdlGpuDevice::CreateVertexShader(const std::span<const uint8_t>& shaderCode)
 {
     SDL_GPUShaderCreateInfo shaderCreateInfo
@@ -572,28 +553,6 @@ SdlGpuDevice::DestroyVertexShader(GpuVertexShader* shader)
     sdlShader->~SdlGpuVertexShader();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(shader));
     return ResultOk;
-}
-
-Result<GpuFragmentShader*>
-SdlGpuDevice::CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
-{
-    // All fragment shaders have the same number of samplers.
-    static constexpr unsigned numSamplers = 1;
-
-    const std::string_view path = std::get<imstring>(shaderSpec.Source);
-    auto shaderResult = LoadShader<GpuFragmentShader>(
-        Device,
-        path,
-        0,
-        numSamplers);
-
-    expect(shaderResult, shaderResult.error());
-
-    GpuResource* res = m_ResourceAllocator.New();
-
-    expectv(res, "Error allocating GpuResource");
-
-    return ::new(&res->FragmentShader) SdlGpuFragmentShader(this, shaderResult.value());
 }
 
 Result<GpuFragmentShader*>
@@ -902,49 +861,6 @@ SdlGpuDevice::GetOrCreatePipeline(const Material& mtl)
 }
 
 //private:
-
-/// @brief GPU shader stage type for type T.
-template <typename T>
-constexpr SDL_GPUShaderStage SHADER_STAGE;
-
-template<> constexpr SDL_GPUShaderStage SHADER_STAGE<GpuVertexShader> = SDL_GPU_SHADERSTAGE_VERTEX;
-template<> constexpr SDL_GPUShaderStage SHADER_STAGE<GpuFragmentShader> = SDL_GPU_SHADERSTAGE_FRAGMENT;
-
-template<typename T>
-Result<SDL_GPUShader*> LoadShader(
-    SDL_GPUDevice* gpuDevice,
-    const std::string_view fileName,
-    const unsigned numUniformBuffers,
-    const unsigned numSamplers)
-{
-    expect(fileName.size() > 0, "Invalid shader file name");
-
-    auto fnWithExt = std::string(fileName) + SHADER_EXTENSION;
-    size_t fileSize;
-    void* shaderSrc = SDL_LoadFile(fnWithExt.data(), &fileSize);
-    expect(shaderSrc, "{}: {}", fnWithExt, SDL_GetError());
-
-    auto cleanup = scope_exit([&]()
-    {
-        SDL_free(shaderSrc);
-    });
-
-    SDL_GPUShaderCreateInfo shaderCreateInfo
-    {
-        .code_size = fileSize,
-        .code = (uint8_t*)shaderSrc,
-        .entrypoint = "main",
-        .format = SHADER_FORMAT,
-        .stage = SHADER_STAGE<T>,
-        .num_samplers = numSamplers,
-        .num_uniform_buffers = numUniformBuffers
-    };
-
-    SDL_GPUShader* shader = SDL_CreateGPUShader(gpuDevice, &shaderCreateInfo);
-    expect(shader, SDL_GetError());
-
-    return shader;
-}
 
 /// @brief Common function to create a GPU buffer from multiple spans.
 template<typename T>
