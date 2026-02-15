@@ -208,24 +208,25 @@ private:
     std::variant<Error, T> m_ValueOrError;
 };
 
-/// @brief Tag type to represent a successful void result.
-struct ResultOkTag
-{
-    explicit ResultOkTag() = default;
-};
-
-/// @brief Constant instance of ResultOkTag.
-/// Return this from functions returning Result<void> to indicate success.
-inline constexpr ResultOkTag ResultOk{};
-
 /// @brief Specialization of Result for void type.
 template<>
 class Result<void>
 {
 public:
+
+    /// @brief Tag type to represent a successful void result.
+    struct SuccessTag
+    {
+        SuccessTag() = default;
+    };
+
+    /// @brief Constant instance of SuccessTag.
+    /// Return this from functions returning Result<void> to indicate success.
+    static constexpr SuccessTag Success{};
+
     Result() = delete;
 
-    Result( ResultOkTag )
+    Result( SuccessTag )
         : m_ValueOrError(std::monostate{})
     {
     }

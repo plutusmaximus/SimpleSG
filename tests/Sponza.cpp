@@ -95,7 +95,7 @@ public:
 
         cleanup.release();
 
-        return ResultOk;
+        return Result<void>::Success;
     }
 
     void Shutdown() override

@@ -248,7 +248,7 @@ SdlGpuDevice::DestroyVertexBuffer(GpuVertexBuffer* buffer)
 
     sdlBuffer->~SdlGpuVertexBuffer();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(buffer));
-    return ResultOk;
+    return Result<void>::Success;
 }
 
 Result<GpuIndexBuffer*>
@@ -288,7 +288,7 @@ SdlGpuDevice::DestroyIndexBuffer(GpuIndexBuffer* buffer)
 
     sdlBuffer->~SdlGpuIndexBuffer();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(buffer));
-    return ResultOk;
+    return Result<void>::Success;
 }
 
 Result<GpuTexture*>
@@ -459,7 +459,7 @@ SdlGpuDevice::DestroyTexture(GpuTexture* texture)
         "Texture does not belong to this device");
     sdlTexture->~SdlGpuTexture();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(texture));
-    return ResultOk;
+    return Result<void>::Success;
 }
 
 Result<GpuDepthBuffer*>
@@ -513,7 +513,7 @@ SdlGpuDevice::DestroyDepthBuffer(GpuDepthBuffer* depthBuffer)
         "Depth buffer does not belong to this device");
     sdlDepthBuffer->~SdlGpuDepthBuffer();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(depthBuffer));
-    return ResultOk;
+    return Result<void>::Success;
 }
 
 Result<GpuVertexShader*>
@@ -555,7 +555,7 @@ SdlGpuDevice::DestroyVertexShader(GpuVertexShader* shader)
         "Shader does not belong to this device");
     sdlShader->~SdlGpuVertexShader();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(shader));
-    return ResultOk;
+    return Result<void>::Success;
 }
 
 Result<GpuFragmentShader*>
@@ -597,7 +597,7 @@ SdlGpuDevice::DestroyFragmentShader(GpuFragmentShader* shader)
         "Shader does not belong to this device");
     sdlShader->~SdlGpuFragmentShader();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(shader));
-    return ResultOk;
+    return Result<void>::Success;
 }
 
 Result<GpuPipeline*>
@@ -716,7 +716,7 @@ SdlGpuDevice::DestroyPipeline(GpuPipeline* pipeline)
         "Pipeline does not belong to this device");
     sdlPipeline->~SdlGpuPipeline();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(pipeline));
-    return ResultOk;
+    return Result<void>::Success;
 }
 
 Result<GpuRenderPass*>
@@ -734,7 +734,7 @@ SdlGpuDevice::DestroyRenderPass(GpuRenderPass* renderPass)
         "RenderPass does not belong to this device");
     sdlRenderPass->~SdlGpuRenderPass();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(renderPass));
-    return ResultOk;
+    return Result<void>::Success;
 }
 
 Result<Renderer*>

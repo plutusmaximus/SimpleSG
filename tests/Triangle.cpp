@@ -198,7 +198,7 @@ static Result<void> MainLoop()
         }
     }
 
-    return ResultOk;
+    return Result<void>::Success;
 }
 
 int main(int, char* /*argv[]*/)

@@ -586,7 +586,7 @@ IssueReadRequest(ReadRequest* req)
             GetWindowsErrorString(err));
     }
 
-    return ResultOk;
+    return Result<void>::Success;
 }
 
 // private:

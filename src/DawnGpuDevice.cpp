@@ -129,7 +129,7 @@ DawnGpuDevice::DestroyVertexBuffer(GpuVertexBuffer* vb)
         "VertexBuffer does not belong to this device");
     dawnBuffer->~DawnGpuVertexBuffer();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(vb));
-    return ResultOk;
+    return Result<void>::Success;
 }
 
 Result<GpuIndexBuffer*>
@@ -163,7 +163,7 @@ DawnGpuDevice::DestroyIndexBuffer(GpuIndexBuffer* buffer)
         "IndexBuffer does not belong to this device");
     dawnBuffer->~DawnGpuIndexBuffer();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(buffer));
-    return ResultOk;
+    return Result<void>::Success;
 }
 
 Result<GpuTexture*>
@@ -333,7 +333,7 @@ DawnGpuDevice::DestroyTexture(GpuTexture* texture)
         "Texture does not belong to this device");
     dawnTexture->~DawnGpuTexture();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(texture));
-    return ResultOk;
+    return Result<void>::Success;
 }
 
 Result<GpuDepthBuffer*>
@@ -350,7 +350,7 @@ Result<void>
 DawnGpuDevice::DestroyDepthBuffer(GpuDepthBuffer* /*depthBuffer*/)
 {
     eassert(false, "Not implemented");
-    return ResultOk;
+    return Result<void>::Success;
 }
 
 Result<GpuVertexShader*>
@@ -379,7 +379,7 @@ DawnGpuDevice::DestroyVertexShader(GpuVertexShader* shader)
         "VertexShader does not belong to this device");
     dawnShader->~DawnGpuVertexShader();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(shader));
-    return ResultOk;
+    return Result<void>::Success;
 }
 
 Result<GpuFragmentShader*>
@@ -408,7 +408,7 @@ DawnGpuDevice::DestroyFragmentShader(GpuFragmentShader* shader)
         "FragmentShader does not belong to this device");
     dawnShader->~DawnGpuFragmentShader();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(shader));
-    return ResultOk;
+    return Result<void>::Success;
 }
 
 Result<GpuPipeline*>
@@ -429,7 +429,7 @@ DawnGpuDevice::DestroyPipeline(GpuPipeline* /*pipeline*/)
         "Pipeline does not belong to this device");
     dawnPipeline->~DawnGpuPipeline();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(pipeline));*/
-    return ResultOk;
+    return Result<void>::Success;
 }
 
 Result<GpuRenderPass*>
@@ -448,7 +448,7 @@ DawnGpuDevice::DestroyRenderPass(GpuRenderPass* /*renderPass*/)
         "RenderPass does not belong to this device");
     dawnRenderPass->~DawnGpuRenderPass();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(renderPass));*/
-    return ResultOk;
+    return Result<void>::Success;
 }
 
 Result<Renderer*>
