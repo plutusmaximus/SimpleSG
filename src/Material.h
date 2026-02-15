@@ -6,9 +6,6 @@
 #include <algorithm>
 #include <variant>
 
-class GpuVertexShader;
-class GpuFragmentShader;
-
 /// @brief RGBA color representation.
 template<typename T>
 class RgbaColor
@@ -512,9 +509,6 @@ struct MaterialSpec
     const float Roughness{ 0 };
 
     const TextureSpec Albedo;
-
-    const VertexShaderSpec VertexShader;
-    const FragmentShaderSpec FragmentShader;
 };
 
 /// @brief Material used for rendering meshes.
@@ -526,16 +520,12 @@ public:
         const RgbaColorf color,
         const float metalness,
         const float roughness,
-        GpuTexture* albedo,
-        GpuVertexShader* vertexShader,
-        GpuFragmentShader* fragmentShader)
+        GpuTexture* albedo)
         : m_Key(MaterialId::NextId(), color.a < 1.0f ? MaterialFlags::Translucent : MaterialFlags::None)
         , m_Color(color)
         , m_Metalness(metalness)
         , m_Roughness(roughness)
         , m_Albedo(albedo)
-        , m_VertexShader(vertexShader)
-        , m_FragmentShader(fragmentShader)
     {
     }
 
@@ -549,8 +539,6 @@ public:
     float GetMetalness() const { return m_Metalness; }
     float GetRoughness() const { return m_Roughness; }
     GpuTexture* GetAlbedo() const { return m_Albedo; }
-    GpuVertexShader* GetVertexShader() const { return m_VertexShader; }
-    GpuFragmentShader* GetFragmentShader() const { return m_FragmentShader; }
 
 private:
 
@@ -571,12 +559,6 @@ private:
 
     /// @brief Albedo (base color) texture of the material.
     GpuTexture* m_Albedo{ nullptr };
-
-    /// @brief Vertex shader used by the material.
-    GpuVertexShader* m_VertexShader{ nullptr };
-
-    /// @brief Fragment shader used by the material.
-    GpuFragmentShader* m_FragmentShader{ nullptr };
 };
 
 /// @brief Enable hashing of CacheKey for use in unordered containers.

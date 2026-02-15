@@ -264,8 +264,8 @@ private:
             NotStarted,
             CreateVertexBuffer,
             CreateIndexBuffer,
-            CreateTexturesAndShaders,
-            CreatingTexturesAndShaders,
+            CreateTextures,
+            CreatingTextures,
             Failed,
             Complete,
         };
@@ -277,7 +277,7 @@ private:
         GpuVertexBuffer* m_VertexBuffer{ nullptr };
         GpuIndexBuffer* m_IndexBuffer{ nullptr };
 
-        /// Group of tasks for creating textures and shaders needed by the model.
+        /// Group of tasks for creating dependencies needed by the model.
         CoopTaskGroup m_TaskGroup;
 
         Error m_FailError;

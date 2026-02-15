@@ -224,23 +224,16 @@ static const VertexIndex triangleIndices[] =
 
 static Result<ModelResource> CreateTriangleModel(ResourceCache* cache)
 {
-    imvector<MeshSpec>::builder meshSpecs =
-    {
+    imvector<MeshSpec>::builder meshSpecs = //
         {
-            .Vertices{triangleVertices},
-            .Indices{triangleIndices},
-            .MtlSpec
-            {
-                .Color{"#FFA500"_rgba},
-                .Albedo{"images/Ant.png"},
-                //.Albedo{TextureSpec::None},
-                //.VertexShader{"shaders/Debug/ColorVertexShader.vs", 3},
-                //.FragmentShader{"shaders/Debug/ColorFragmentShader.fs"}
-                .VertexShader{"shaders/Debug/VertexShader.vs", 3},
-                .FragmentShader{"shaders/Debug/FragmentShader.ps"}
-            }
-        }
-    };
+            {.Vertices{triangleVertices},
+             .Indices{triangleIndices},
+             .MtlSpec //
+             {
+                 .Color{"#FFA500"_rgba},
+                 .Albedo{"images/Ant.png"},
+             }},
+        };
 
     imvector<TransformNode>::builder transformNodes
     {

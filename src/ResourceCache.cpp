@@ -558,11 +558,11 @@ ResourceCache::CreateModelOp::Update()
                 m_IndexBuffer = result.value();
             }
 
-            m_State = CreateTexturesAndShaders;
+            m_State = CreateTextures;
             break;
 
-            case CreateTexturesAndShaders:
-                m_State = CreatingTexturesAndShaders;
+            case CreateTextures:
+                m_State = CreatingTextures;
 
                 m_ResourceCache->m_Scheduler.PushGroup(&m_TaskGroup);
 
@@ -581,34 +581,13 @@ ResourceCache::CreateModelOp::Update()
                             break;
                         }
                     }
-
-                    const CacheKey vbCacheKey = meshSpec.MtlSpec.VertexShader.GetCacheKey();
-                    auto result = m_ResourceCache->CreateVertexShaderAsync(vbCacheKey,
-                        meshSpec.MtlSpec.VertexShader);
-
-                    if(!result)
-                    {
-                        m_FailError = result.error();
-                        m_State = Failed;
-                        break;
-                    }
-                    const CacheKey fsCacheKey = meshSpec.MtlSpec.FragmentShader.GetCacheKey();
-                    result = m_ResourceCache->CreateFragmentShaderAsync(fsCacheKey,
-                        meshSpec.MtlSpec.FragmentShader);
-
-                    if(!result)
-                    {
-                        m_FailError = result.error();
-                        m_State = Failed;
-                        break;
-                    }
                 }
 
                 m_ResourceCache->m_Scheduler.PopGroup(&m_TaskGroup);
 
                 break;
 
-            case CreatingTexturesAndShaders:
+            case CreatingTextures:
                 if(m_TaskGroup.IsPending())
                 {
                     return;
@@ -665,20 +644,12 @@ ResourceCache::CreateModelOp::CreateModel()
             albedo = albedoResult.value();
         }
 
-        auto vertexShaderResult = m_ResourceCache->GetVertexShader(meshSpec.MtlSpec.VertexShader.GetCacheKey());
-        expect(vertexShaderResult, vertexShaderResult.error());
-
-        auto fragShaderResult = m_ResourceCache->GetFragmentShader(meshSpec.MtlSpec.FragmentShader.GetCacheKey());
-        expect(fragShaderResult, fragShaderResult.error());
-
         Material mtl //
             {
                 meshSpec.MtlSpec.Color,
                 meshSpec.MtlSpec.Metalness,
                 meshSpec.MtlSpec.Roughness,
                 albedo,
-                vertexShaderResult.value(),
-                fragShaderResult.value(),
             };
 
         const uint32_t idxCount = static_cast<uint32_t>(meshSpec.Indices.size());
@@ -1622,13 +1593,12 @@ CreateMaterialSpec(const aiMaterial* material, const std::filesystem::path& pare
                                    ? MAGENTA_TEXTURE_SPEC
                                    : TextureSpec{ texProperties.Albedo.Path };
 
-    return MaterialSpec{
+    return MaterialSpec//
+    {
         .Color{ diffuseColor.r, diffuseColor.g, diffuseColor.b, opacity },
         .Metalness{ 0.0f },
         .Roughness{ 0.0f },
         .Albedo = albedo,
-        .VertexShader{ "shaders/Debug/VertexShader.vs", 3 },
-        .FragmentShader{ "shaders/Debug/FragmentShader.ps" },
     };
 }
 
