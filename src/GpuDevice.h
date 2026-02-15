@@ -129,17 +129,40 @@ protected:
 /// @brief GPU representation of a texture.
 class GpuTexture
 {
+public:
+
+    virtual unsigned GetWidth() const = 0;
+    virtual unsigned GetHeight() const = 0;
+
 protected:
     GpuTexture() = default;
     virtual ~GpuTexture() = 0;
 };
 
-/// @brief GPU representation of a depth buffer.
-class GpuDepthBuffer
+/// @brief GPU representation of a render target.
+class GpuRenderTarget
 {
+public:
+
+    virtual unsigned GetWidth() const = 0;
+    virtual unsigned GetHeight() const = 0;
+
 protected:
-    GpuDepthBuffer() = default;
-    virtual ~GpuDepthBuffer() = 0;
+    GpuRenderTarget() = default;
+    virtual ~GpuRenderTarget() = 0;
+};
+
+/// @brief GPU representation of a depth target.
+class GpuDepthTarget
+{
+public:
+
+    virtual unsigned GetWidth() const = 0;
+    virtual unsigned GetHeight() const = 0;
+
+protected:
+    GpuDepthTarget() = default;
+    virtual ~GpuDepthTarget() = 0;
 };
 
 /// @brief GPU representation of a pipeline state.
@@ -202,12 +225,19 @@ public:
     /// @brief Destroys a texture.
     virtual Result<void> DestroyTexture(GpuTexture* texture) = 0;
 
-    virtual Result<GpuDepthBuffer*> CreateDepthBuffer(const unsigned width,
+    /// @brief Creates a render target with the given dimensions and name.
+    virtual Result<GpuRenderTarget*> CreateRenderTarget(
+        const unsigned width, const unsigned height, const imstring& name) = 0;
+
+    /// @brief Destroys a render target.
+    virtual Result<void> DestroyRenderTarget(GpuRenderTarget* renderTarget) = 0;
+
+    virtual Result<GpuDepthTarget*> CreateDepthTarget(const unsigned width,
         const unsigned height,
         const imstring& name) = 0;
 
-    /// @brief Destroys a depth buffer.
-    virtual Result<void> DestroyDepthBuffer(GpuDepthBuffer* depthBuffer) = 0;
+    /// @brief Destroys a depth target.
+    virtual Result<void> DestroyDepthTarget(GpuDepthTarget* depthTarget) = 0;
 
     /// @brief Creates a vertex shader from the given specification.
     virtual Result<GpuVertexShader*> CreateVertexShader(const std::span<const uint8_t>& shaderByteCode) = 0;
@@ -246,7 +276,8 @@ inline GpuIndexBuffer::~GpuIndexBuffer() = default;
 inline GpuVertexShader::~GpuVertexShader() = default;
 inline GpuFragmentShader::~GpuFragmentShader() = default;
 inline GpuTexture::~GpuTexture() = default;
-inline GpuDepthBuffer::~GpuDepthBuffer() = default;
+inline GpuRenderTarget::~GpuRenderTarget() = default;
+inline GpuDepthTarget::~GpuDepthTarget() = default;
 inline GpuPipeline::~GpuPipeline() = default;
 inline GpuRenderPass::~GpuRenderPass() = default;
 inline GpuDevice::~GpuDevice() = default;

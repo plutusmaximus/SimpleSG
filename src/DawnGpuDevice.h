@@ -111,48 +111,103 @@ public:
     // wgpu::Texture is ref counted so nothing to do here.
     ~DawnGpuTexture() override {};
 
+    unsigned GetWidth() const override { return m_Width; }
+    unsigned GetHeight() const override { return m_Height; }
+
     wgpu::Texture GetTexture() const { return m_Texture; }
     wgpu::Sampler GetSampler() const { return m_Sampler; }
 
 private:
     friend class DawnGpuDevice;
 
-    DawnGpuTexture(DawnGpuDevice* gpuDevice, wgpu::Texture texture, wgpu::Sampler sampler)
+    DawnGpuTexture(DawnGpuDevice* gpuDevice, wgpu::Texture texture, wgpu::Sampler sampler, const unsigned width, const unsigned height)
         : m_GpuDevice(gpuDevice),
           m_Texture(texture),
-          m_Sampler(sampler)
+          m_Sampler(sampler),
+          m_Width(width),
+          m_Height(height)
     {
     }
 
     DawnGpuDevice* m_GpuDevice;
     wgpu::Texture m_Texture;
     wgpu::Sampler m_Sampler;
+    unsigned m_Width;
+    unsigned m_Height;
 };
 
-class DawnGpuDepthBuffer : public GpuDepthBuffer
+class DawnGpuRenderTarget : public GpuRenderTarget
 {
 public:
-    DawnGpuDepthBuffer() = delete;
-    DawnGpuDepthBuffer(const DawnGpuDepthBuffer&) = delete;
-    DawnGpuDepthBuffer& operator=(const DawnGpuDepthBuffer&) = delete;
-    DawnGpuDepthBuffer(DawnGpuDepthBuffer&&) = default;
-    DawnGpuDepthBuffer& operator=(DawnGpuDepthBuffer&&) = default;
+    DawnGpuRenderTarget() = delete;
+    DawnGpuRenderTarget(const DawnGpuRenderTarget&) = delete;
+    DawnGpuRenderTarget& operator=(const DawnGpuRenderTarget&) = delete;
+    DawnGpuRenderTarget(DawnGpuRenderTarget&&) = default;
+    DawnGpuRenderTarget& operator=(DawnGpuRenderTarget&&) = default;
 
     // wgpu::Texture is ref counted so nothing to do here.
-    ~DawnGpuDepthBuffer() override {};
+    ~DawnGpuRenderTarget() override {};
 
-    wgpu::Texture GetDepthBuffer() const { return m_DepthBuffer; }
+    unsigned GetWidth() const override { return m_Width; }
+    unsigned GetHeight() const override { return m_Height; }
+
+    wgpu::Texture GetTexture() const { return m_Texture; }
+
 private:
     friend class DawnGpuDevice;
 
-    DawnGpuDepthBuffer(DawnGpuDevice* gpuDevice, wgpu::Texture depthBuffer)
+    DawnGpuRenderTarget(DawnGpuDevice* gpuDevice,
+        wgpu::Texture texture,
+        const unsigned width,
+        const unsigned height)
         : m_GpuDevice(gpuDevice),
-          m_DepthBuffer(depthBuffer)
+          m_Texture(texture),
+          m_Width(width),
+          m_Height(height)
     {
     }
 
     DawnGpuDevice* m_GpuDevice;
-    wgpu::Texture m_DepthBuffer;
+    wgpu::Texture m_Texture;
+    unsigned m_Width;
+    unsigned m_Height;
+};
+
+class DawnGpuDepthTarget : public GpuDepthTarget
+{
+public:
+    DawnGpuDepthTarget() = delete;
+    DawnGpuDepthTarget(const DawnGpuDepthTarget&) = delete;
+    DawnGpuDepthTarget& operator=(const DawnGpuDepthTarget&) = delete;
+    DawnGpuDepthTarget(DawnGpuDepthTarget&&) = default;
+    DawnGpuDepthTarget& operator=(DawnGpuDepthTarget&&) = default;
+
+    // wgpu::Texture is ref counted so nothing to do here.
+    ~DawnGpuDepthTarget() override {};
+
+    unsigned GetWidth() const override { return m_Width; }
+    unsigned GetHeight() const override { return m_Height; }
+
+    wgpu::Texture GetDepthTarget() const { return m_DepthTarget; }
+
+private:
+    friend class DawnGpuDevice;
+
+    DawnGpuDepthTarget(DawnGpuDevice* gpuDevice,
+        wgpu::Texture depthTarget,
+        const unsigned width,
+        const unsigned height)
+        : m_GpuDevice(gpuDevice),
+          m_DepthTarget(depthTarget),
+          m_Width(width),
+          m_Height(height)
+    {
+    }
+
+    DawnGpuDevice* m_GpuDevice;
+    wgpu::Texture m_DepthTarget;
+    unsigned m_Width;
+    unsigned m_Height;
 };
 
 class DawnGpuVertexShader : public GpuVertexShader
@@ -295,26 +350,26 @@ public:
 
     Result<void> DestroyIndexBuffer(GpuIndexBuffer* buffer) override;
 
-    /// @brief Creates a texture from raw pixel data.
-    /// Pixels are expected to be in RGBA8 format.
-    /// rowStride is the number of bytes between the start of each row.
-    /// rowStride must be at least width * 4.
     Result<GpuTexture*> CreateTexture(const unsigned width,
         const unsigned height,
         const uint8_t* pixels,
         const unsigned rowStride,
         const imstring& name) override;
 
-    /// @brief Creates a 1x1 texture from a color.
     Result<GpuTexture*> CreateTexture(const RgbaColorf& color, const imstring& name) override;
 
     Result<void> DestroyTexture(GpuTexture* texture) override;
 
-    Result<GpuDepthBuffer*> CreateDepthBuffer(const unsigned width,
+    Result<GpuRenderTarget*> CreateRenderTarget(
+        const unsigned width, const unsigned height, const imstring& name) override;
+
+    Result<void> DestroyRenderTarget(GpuRenderTarget* renderTarget) override;
+
+    Result<GpuDepthTarget*> CreateDepthTarget(const unsigned width,
         const unsigned height,
         const imstring& name) override;
 
-    Result<void> DestroyDepthBuffer(GpuDepthBuffer* depthBuffer) override;
+    Result<void> DestroyDepthTarget(GpuDepthTarget* depthTarget) override;
 
     Result<GpuVertexShader*> CreateVertexShader(const std::span<const uint8_t>& shaderCode) override;
 
@@ -362,7 +417,8 @@ private:
         DawnGpuVertexBuffer VertexBuffer;
         DawnGpuIndexBuffer IndexBuffer;
         DawnGpuTexture Texture;
-        DawnGpuDepthBuffer DepthBuffer;
+        DawnGpuRenderTarget RenderTarget;
+        DawnGpuDepthTarget DepthTarget;
         DawnGpuVertexShader VertexShader;
         DawnGpuFragmentShader FragmentShader;
         DawnGpuPipeline Pipeline;

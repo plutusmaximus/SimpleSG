@@ -68,9 +68,14 @@ SdlGpuTexture::~SdlGpuTexture()
     // Sampler is released by the SDLGPUDevice destructor.
 }
 
-SdlGpuDepthBuffer::~SdlGpuDepthBuffer()
+SdlGpuRenderTarget::~SdlGpuRenderTarget()
 {
-    if (m_DepthBuffer) { SDL_ReleaseGPUTexture(m_GpuDevice->Device, m_DepthBuffer); }
+    if (m_RenderTarget) { SDL_ReleaseGPUTexture(m_GpuDevice->Device, m_RenderTarget); }
+}
+
+SdlGpuDepthTarget::~SdlGpuDepthTarget()
+{
+    if (m_DepthTarget) { SDL_ReleaseGPUTexture(m_GpuDevice->Device, m_DepthTarget); }
 }
 
 SdlGpuVertexShader::~SdlGpuVertexShader()
@@ -106,7 +111,7 @@ SdlGpuDevice::Create(SDL_Window* window)
     expect(SDL_SetHint(SDL_HINT_RENDER_VULKAN_DEBUG, "1"), SDL_GetError());
     expect(SDL_SetHint(SDL_HINT_RENDER_GPU_DEBUG, "1"), SDL_GetError());
 
-    SDL_GPUVulkanOptions options =
+    SDL_GPUVulkanOptions vulkanOptions =
     {
         .vulkan_api_version = VK_MAKE_VERSION(1, 3, 0),
         // Other fields can be set as needed
@@ -127,7 +132,7 @@ SdlGpuDevice::Create(SDL_Window* window)
     expect(SDL_SetStringProperty(props, SDL_PROP_GPU_DEVICE_CREATE_NAME_STRING, DRIVER_NAME),
         SDL_GetError());
     expect(
-        SDL_SetPointerProperty(props, SDL_PROP_GPU_DEVICE_CREATE_VULKAN_OPTIONS_POINTER, &options),
+        SDL_SetPointerProperty(props, SDL_PROP_GPU_DEVICE_CREATE_VULKAN_OPTIONS_POINTER, &vulkanOptions),
         SDL_GetError());
 
     SDL_GPUDevice* sdlDevice = SDL_CreateGPUDeviceWithProperties(props);
@@ -435,7 +440,7 @@ SdlGpuDevice::CreateTexture(const unsigned width,
 
     texCleanup.release();
 
-    GpuTexture* gpuTex = ::new(&res->Texture) SdlGpuTexture(this, texture, m_Sampler);
+    GpuTexture* gpuTex = ::new(&res->Texture) SdlGpuTexture(this, texture, m_Sampler, width, height);
 
     logDebug("SdlGpuDevice::CreateTexture: {} ms", sw1.Elapsed() * 1000.0f);
 
@@ -462,8 +467,67 @@ SdlGpuDevice::DestroyTexture(GpuTexture* texture)
     return Result<void>::Success;
 }
 
-Result<GpuDepthBuffer*>
-SdlGpuDevice::CreateDepthBuffer(
+Result<GpuRenderTarget*>
+SdlGpuDevice::CreateRenderTarget(const unsigned width, const unsigned height, const imstring& name)
+{
+    SDL_PropertiesID props = SDL_CreateProperties();
+    expect(props, SDL_GetError());
+
+    auto propsCleanup = scope_exit([&]() { SDL_DestroyProperties(props); });
+
+    expect(SDL_SetStringProperty(props, SDL_PROP_GPU_TEXTURE_CREATE_NAME_STRING, name.c_str()),
+        SDL_GetError());
+
+    const SDL_GPUTextureFormat colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(Device, Window);
+    expect(SDL_GPU_TEXTUREFORMAT_INVALID != colorTargetFormat,
+        "Failed to get swapchain texture format: {}",
+        SDL_GetError());
+
+    // Create GPU texture
+    SDL_GPUTextureCreateInfo textureInfo = //
+        {
+            .type = SDL_GPU_TEXTURETYPE_2D,
+            .format = colorTargetFormat,
+            .usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET,
+            .width = width,
+            .height = height,
+            .layer_count_or_depth = 1,
+            .num_levels = 1,
+            .sample_count = SDL_GPU_SAMPLECOUNT_1,
+            .props = props,
+        };
+
+    SDL_GPUTexture* texture = SDL_CreateGPUTexture(Device, &textureInfo);
+    expect(texture, SDL_GetError());
+
+    GpuResource* res = m_ResourceAllocator.New();
+
+    if(!res)
+    {
+        SDL_ReleaseGPUTexture(Device, texture);
+        return Error("Error allocating GpuResource");
+    }
+
+    expectv(res, "Error allocating GpuResource");
+
+    GpuRenderTarget* gpuRenderTarget = ::new(&res->RenderTarget) SdlGpuRenderTarget(this, texture, width, height);
+
+    return gpuRenderTarget;
+}
+
+Result<void>
+SdlGpuDevice::DestroyRenderTarget(GpuRenderTarget* renderTarget)
+{
+    SdlGpuRenderTarget* sdlRenderTarget = static_cast<SdlGpuRenderTarget*>(renderTarget);
+    eassert(this == sdlRenderTarget->m_GpuDevice,
+        "Render target does not belong to this device");
+    sdlRenderTarget->~SdlGpuRenderTarget();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(renderTarget));
+    return Result<void>::Success;
+}
+
+Result<GpuDepthTarget*>
+SdlGpuDevice::CreateDepthTarget(
     const unsigned width, const unsigned height, const imstring& name)
 {
     auto props = SDL_CreateProperties();
@@ -502,17 +566,17 @@ SdlGpuDevice::CreateDepthBuffer(
 
     depthBufferCleanup.release();
 
-    return ::new(&res->Texture) SdlGpuDepthBuffer(this, depthBuffer);
+    return ::new(&res->Texture) SdlGpuDepthTarget(this, depthBuffer, width, height);
 }
 
 Result<void>
-SdlGpuDevice::DestroyDepthBuffer(GpuDepthBuffer* depthBuffer)
+SdlGpuDevice::DestroyDepthTarget(GpuDepthTarget* depthTarget)
 {
-    SdlGpuDepthBuffer* sdlDepthBuffer = static_cast<SdlGpuDepthBuffer*>(depthBuffer);
-    eassert(this == sdlDepthBuffer->m_GpuDevice,
-        "Depth buffer does not belong to this device");
-    sdlDepthBuffer->~SdlGpuDepthBuffer();
-    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(depthBuffer));
+    SdlGpuDepthTarget* sdlDepthTarget = static_cast<SdlGpuDepthTarget*>(depthTarget);
+    eassert(this == sdlDepthTarget->m_GpuDevice,
+        "Depth target does not belong to this device");
+    sdlDepthTarget->~SdlGpuDepthTarget();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(depthTarget));
     return Result<void>::Success;
 }
 

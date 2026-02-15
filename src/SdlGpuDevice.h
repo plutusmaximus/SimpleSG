@@ -118,6 +118,9 @@ public:
 
     ~SdlGpuTexture() override;
 
+    unsigned GetWidth() const override { return m_Width; }
+    unsigned GetHeight() const override { return m_Height; }
+
     SDL_GPUTexture* GetTexture() const { return m_Texture; }
     SDL_GPUSampler* GetSampler() const { return m_Sampler; }
 
@@ -125,44 +128,100 @@ private:
 
     friend class SdlGpuDevice;
 
-    SdlGpuTexture(SdlGpuDevice* gpuDevice, SDL_GPUTexture* texture, SDL_GPUSampler* sampler)
-        : m_GpuDevice(gpuDevice)
-        , m_Texture(texture)
-        , m_Sampler(sampler)
+    SdlGpuTexture(SdlGpuDevice* gpuDevice,
+        SDL_GPUTexture* texture,
+        SDL_GPUSampler* sampler,
+        const unsigned width,
+        const unsigned height)
+        : m_GpuDevice(gpuDevice),
+          m_Texture(texture),
+          m_Sampler(sampler),
+          m_Width(width),
+          m_Height(height)
     {
     }
 
     SdlGpuDevice* const m_GpuDevice;
     SDL_GPUTexture* const m_Texture;
     SDL_GPUSampler* const m_Sampler;
+    unsigned m_Width;
+    unsigned m_Height;
 };
 
-class SdlGpuDepthBuffer : public GpuDepthBuffer
+class SdlGpuRenderTarget : public GpuRenderTarget
 {
 public:
 
-    SdlGpuDepthBuffer() = delete;
-    SdlGpuDepthBuffer(const SdlGpuDepthBuffer&) = delete;
-    SdlGpuDepthBuffer& operator=(const SdlGpuDepthBuffer&) = delete;
-    SdlGpuDepthBuffer(SdlGpuDepthBuffer&&) = delete;
-    SdlGpuDepthBuffer& operator=(SdlGpuDepthBuffer&&) = delete;
+    SdlGpuRenderTarget() = delete;
+    SdlGpuRenderTarget(const SdlGpuRenderTarget&) = delete;
+    SdlGpuRenderTarget& operator=(const SdlGpuRenderTarget&) = delete;
+    SdlGpuRenderTarget(SdlGpuRenderTarget&&) = delete;
+    SdlGpuRenderTarget& operator=(SdlGpuRenderTarget&&) = delete;
 
-    ~SdlGpuDepthBuffer() override;
+    ~SdlGpuRenderTarget() override;
 
-    SDL_GPUTexture* GetTexture() const { return m_DepthBuffer; }
+    unsigned GetWidth() const override { return m_Width; }
+    unsigned GetHeight() const override { return m_Height; }
+
+    SDL_GPUTexture* GetRenderTarget() const { return m_RenderTarget; }
 
 private:
 
     friend class SdlGpuDevice;
 
-    SdlGpuDepthBuffer(SdlGpuDevice* gpuDevice, SDL_GPUTexture* depthBuffer)
-        : m_GpuDevice(gpuDevice)
-        , m_DepthBuffer(depthBuffer)
+    SdlGpuRenderTarget(SdlGpuDevice* gpuDevice,
+        SDL_GPUTexture* renderTarget,
+        const unsigned width,
+        const unsigned height)
+        : m_GpuDevice(gpuDevice),
+          m_RenderTarget(renderTarget),
+          m_Width(width),
+          m_Height(height)
     {
     }
 
     SdlGpuDevice* const m_GpuDevice;
-    SDL_GPUTexture* const m_DepthBuffer;
+    SDL_GPUTexture* const m_RenderTarget;
+    unsigned m_Width;
+    unsigned m_Height;
+};
+
+class SdlGpuDepthTarget : public GpuDepthTarget
+{
+public:
+
+    SdlGpuDepthTarget() = delete;
+    SdlGpuDepthTarget(const SdlGpuDepthTarget&) = delete;
+    SdlGpuDepthTarget& operator=(const SdlGpuDepthTarget&) = delete;
+    SdlGpuDepthTarget(SdlGpuDepthTarget&&) = delete;
+    SdlGpuDepthTarget& operator=(SdlGpuDepthTarget&&) = delete;
+
+    ~SdlGpuDepthTarget() override;
+
+    unsigned GetWidth() const override { return m_Width; }
+    unsigned GetHeight() const override { return m_Height; }
+
+    SDL_GPUTexture* GetDepthTarget() const { return m_DepthTarget; }
+
+private:
+
+    friend class SdlGpuDevice;
+
+    SdlGpuDepthTarget(SdlGpuDevice* gpuDevice,
+        SDL_GPUTexture* depthTarget,
+        const unsigned width,
+        const unsigned height)
+        : m_GpuDevice(gpuDevice),
+          m_DepthTarget(depthTarget),
+          m_Width(width),
+          m_Height(height)
+    {
+    }
+
+    SdlGpuDevice* const m_GpuDevice;
+    SDL_GPUTexture* const m_DepthTarget;
+    unsigned m_Width;
+    unsigned m_Height;
 };
 
 class SdlGpuVertexShader : public GpuVertexShader
@@ -322,11 +381,16 @@ public:
 
     Result<void> DestroyTexture(GpuTexture* texture) override;
 
-    Result<GpuDepthBuffer*> CreateDepthBuffer(const unsigned width,
+    Result<GpuRenderTarget*> CreateRenderTarget(
+        const unsigned width, const unsigned height, const imstring& name) override;
+
+    Result<void> DestroyRenderTarget(GpuRenderTarget* renderTarget) override;
+
+    Result<GpuDepthTarget*> CreateDepthTarget(const unsigned width,
         const unsigned height,
         const imstring& name) override;
 
-    Result<void> DestroyDepthBuffer(GpuDepthBuffer* depthBuffer) override;
+    Result<void> DestroyDepthTarget(GpuDepthTarget* depthTarget) override;
 
     Result<GpuVertexShader*> CreateVertexShader(const std::span<const uint8_t>& shaderByteCode) override;
 
@@ -368,7 +432,8 @@ private:
         SdlGpuVertexBuffer VertexBuffer;
         SdlGpuIndexBuffer IndexBuffer;
         SdlGpuTexture Texture;
-        SdlGpuDepthBuffer DepthBuffer;
+        SdlGpuRenderTarget RenderTarget;
+        SdlGpuDepthTarget DepthTarget;
         SdlGpuVertexShader VertexShader;
         SdlGpuFragmentShader FragmentShader;
         SdlGpuPipeline Pipeline;

@@ -64,32 +64,20 @@ private:
 
     void WaitForFence();
 
-    void SwapStates()
-    {
-        eassert(!m_CurrentState->m_RenderFence, "Current state's render fence must be null when swapping states");
+    void SwapStates();
 
-        if (m_CurrentState == &m_State[0])
-        {
-            m_CurrentState = &m_State[1];
-        }
-        else
-        {
-            m_CurrentState = &m_State[0];
-        }
-
-        m_CurrentState->Clear();
-    }
+    Result<void> CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf);
 
     /// Get or create the default texture.
     /// The default texture is used when a material does not have a base texture.
     Result<GpuTexture*> GetDefaultBaseTexture();
 
     SdlGpuDevice* const m_GpuDevice;
-    GpuDepthBuffer* m_DepthBuffer{ nullptr };
     GpuPipeline* m_Pipeline{ nullptr };
+    GpuRenderTarget* m_ColorTarget{ nullptr };
+    GpuDepthTarget* m_DepthTarget{ nullptr };
 
     State m_State[2];
     State* m_CurrentState = &m_State[0];
     GpuTexture* m_DefaultBaseTexture{nullptr};
-    unsigned m_TargetWidth{0}, m_TargetHeight{0};
 };

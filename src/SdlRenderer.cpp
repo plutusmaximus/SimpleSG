@@ -30,12 +30,21 @@ SdlRenderer::~SdlRenderer()
         }
     }
 
-    if(m_DepthBuffer)
+    if(m_ColorTarget)
     {
-        auto result = m_GpuDevice->DestroyDepthBuffer(m_DepthBuffer);
+        auto result = m_GpuDevice->DestroyRenderTarget(m_ColorTarget);
         if(!result)
         {
-            logError("Failed to destroy depth buffer: {}", result.error());
+            logError("Failed to destroy default color target: {}", result.error());
+        }
+    }
+
+    if(m_DepthTarget)
+    {
+        auto result = m_GpuDevice->DestroyDepthTarget(m_DepthTarget);
+        if(!result)
+        {
+            logError("Failed to destroy default depth target: {}", result.error());
         }
     }
 
@@ -134,7 +143,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
         return Result<void>::Success;
     }
 
-    auto cleanup = scope_exit([&]()
+    auto cleanupRenderPass = scope_exit([&]()
     {
         SDL_EndGPURenderPass(renderPass);
         SDL_SubmitGPUCommandBuffer(cmdBuf);
@@ -155,14 +164,14 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
         for (auto& [mtlId, xmeshes] : *meshGrpPtr)
         {
             const Material& mtl = xmeshes[0].MeshInstance.GetMaterial();
-            //const int idx = m_MaterialDb->GetIndex(mtlId);
+            //const int mtlIdx = m_MaterialDb->GetIndex(mtlId);
             const int mtlIdx = 0;
 
             GpuTexture* baseTexture = mtl.GetBaseTexture();
 
             if(!baseTexture)
             {
-                // If material doesn't have a base texture, bind a default white texture.
+                // If material doesn't have a base texture, bind a default texture.
                 auto defaultTextResult = GetDefaultBaseTexture();
                 expect(defaultTextResult, defaultTextResult.error());
 
@@ -231,7 +240,10 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 
     SDL_EndGPURenderPass(renderPass);
 
-    cleanup.release();
+    cleanupRenderPass.release();
+
+    auto copyResult = CopyColorTargetToSwapchain(cmdBuf);
+    expect(copyResult, copyResult.error());
 
     SwapStates();
 
@@ -248,44 +260,50 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 Result<SDL_GPURenderPass*>
 SdlRenderer::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
 {
-    auto window = m_GpuDevice->Window;
+    const auto screenBounds = m_GpuDevice->GetExtent();
 
-    SDL_GPUTexture* swapChainTexture;
-    uint32_t windowW, windowH;
-    expect(SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuf,
-               window,
-               &swapChainTexture,
-               &windowW,
-               &windowH),
-        SDL_GetError())
+    const unsigned targetWidth = static_cast<unsigned>(screenBounds.Width);
+    const unsigned targetHeight = static_cast<unsigned>(screenBounds.Height);
 
-        if(!swapChainTexture)
+    if(!m_ColorTarget || m_ColorTarget->GetWidth() != targetWidth ||
+        m_ColorTarget->GetHeight() != targetHeight)
     {
-        //Perhaps window minimized
-        //This is not an error, but callers must check for nullptr.
-        return nullptr;
-    }
-
-    if (!m_DepthBuffer || m_TargetWidth != windowW || m_TargetHeight != windowH)
-    {
-        if(m_DepthBuffer)
+        if(m_ColorTarget)
         {
-            m_GpuDevice->DestroyDepthBuffer(m_DepthBuffer);
-            m_DepthBuffer = nullptr;
+            auto result = m_GpuDevice->DestroyRenderTarget(m_ColorTarget);
+            if(!result)
+            {
+                logError("Failed to destroy default color target: {}", result.error());
+            }
+            m_ColorTarget = nullptr;
         }
 
-        m_TargetWidth = windowW;
-        m_TargetHeight = windowH;
+        auto result = m_GpuDevice->CreateRenderTarget(targetWidth, targetHeight, "RenderTarget");
+        expect(result, result.error());
+        m_ColorTarget = result.value();
+    }
 
-        auto depthBufferResult =
-            m_GpuDevice->CreateDepthBuffer(windowW, windowH, "SdlRenderer Depth Buffer");
-        expect(depthBufferResult, depthBufferResult.error());
-        m_DepthBuffer = depthBufferResult.value();
+    if(!m_DepthTarget || m_DepthTarget->GetWidth() != targetWidth ||
+        m_DepthTarget->GetHeight() != targetHeight)
+    {
+        if(m_DepthTarget)
+        {
+            auto result = m_GpuDevice->DestroyDepthTarget(m_DepthTarget);
+            if(!result)
+            {
+                logError("Failed to destroy default depth target: {}", result.error());
+            }
+            m_DepthTarget = nullptr;
+        }
+
+        auto result = m_GpuDevice->CreateDepthTarget(targetWidth, targetHeight, "DepthTarget");
+        expect(result, result.error());
+        m_DepthTarget = result.value();
     }
 
     SDL_GPUColorTargetInfo colorTargetInfo
     {
-        .texture = swapChainTexture,
+        .texture = static_cast<SdlGpuRenderTarget*>(m_ColorTarget)->GetRenderTarget(),
         .mip_level = 0,
         .layer_or_depth_plane = 0,
         .clear_color = {0, 0, 0, 0},
@@ -297,7 +315,7 @@ SdlRenderer::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
 
     SDL_GPUDepthStencilTargetInfo depthTargetInfo
     {
-        .texture = static_cast<SdlGpuDepthBuffer*>(m_DepthBuffer)->GetTexture(),
+        .texture = static_cast<SdlGpuDepthTarget*>(m_DepthTarget)->GetDepthTarget(),
         .clear_depth = CLEAR_DEPTH,
         .load_op = SDL_GPU_LOADOP_CLEAR,
         .store_op = SDL_GPU_STOREOP_STORE
@@ -309,9 +327,13 @@ SdlRenderer::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
         1,
         &depthTargetInfo);
 
-    expect(renderPass, SDL_GetError());
-
-    const auto screenBounds = m_GpuDevice->GetExtent();
+    if(!renderPass)
+    {
+        // If we fail to begin the render pass, it's likely because the window is minimized and the
+        // swapchain texture is not available. In this case, we can just skip rendering this frame
+        // without treating it as an error.
+        return nullptr;
+    }
 
     const SDL_GPUViewport viewport
     {
@@ -344,6 +366,68 @@ SdlRenderer::WaitForFence()
 
     SDL_ReleaseGPUFence(m_GpuDevice->Device, m_CurrentState->m_RenderFence);
     m_CurrentState->m_RenderFence = nullptr;
+}
+
+void
+SdlRenderer::SwapStates()
+{
+    eassert(!m_CurrentState->m_RenderFence, "Current state's render fence must be null when swapping states");
+
+    if (m_CurrentState == &m_State[0])
+    {
+        m_CurrentState = &m_State[1];
+    }
+    else
+    {
+        m_CurrentState = &m_State[0];
+    }
+
+    m_CurrentState->Clear();
+}
+
+Result<void>
+SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf)
+{
+
+    SDL_GPUTexture* swap;
+    unsigned swapW, swapH;
+    expect(
+        SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuf, m_GpuDevice->Window, &swap, &swapW, &swapH),
+        SDL_GetError());
+
+    auto copyPass = SDL_BeginGPUCopyPass(cmdBuf);
+    expect(copyPass, SDL_GetError());
+
+    const unsigned targetW = m_ColorTarget->GetWidth();
+    const unsigned targetH = m_ColorTarget->GetHeight();
+    unsigned copyW = (targetW  < swapW) ? targetW  : swapW;
+    unsigned copyH = (targetH < swapH) ? targetH : swapH;
+
+    SDL_GPUTextureLocation srcLoc = //
+        {
+            .texture = static_cast<SdlGpuRenderTarget*>(m_ColorTarget)->GetRenderTarget(),
+            .mip_level = 0,
+            .layer = 0,
+            .x = 0,
+            .y = 0,
+            .z = 0,
+        };
+
+    SDL_GPUTextureLocation dstLoc = //
+        {
+            .texture = swap,
+            .mip_level = 0,
+            .layer = 0,
+            .x = 0,
+            .y = 0,
+            .z = 0,
+        };
+
+    SDL_CopyGPUTextureToTexture(copyPass, &srcLoc, &dstLoc, copyW, copyH, 1, false);
+
+    SDL_EndGPUCopyPass(copyPass);
+
+    return Result<void>::Success;
 }
 
 Result<GpuTexture*>

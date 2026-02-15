@@ -313,7 +313,7 @@ DawnGpuDevice::CreateTexture(const unsigned width,
 
     expectv(res, "Error allocating DawnGpuTexture");
 
-    return ::new(&res->Texture) DawnGpuTexture(this, texture, m_Sampler);
+    return ::new(&res->Texture) DawnGpuTexture(this, texture, m_Sampler, width, height);
 }
 
 Result<GpuTexture*>
@@ -336,17 +336,57 @@ DawnGpuDevice::DestroyTexture(GpuTexture* texture)
     return Result<void>::Success;
 }
 
-Result<GpuDepthBuffer*>
-DawnGpuDevice::CreateDepthBuffer(const unsigned /*width*/,
+Result<GpuRenderTarget*>
+DawnGpuDevice::CreateRenderTarget(const unsigned width, const unsigned height, const imstring& name)
+{
+    wgpu::TextureDescriptor textureDesc //
+        {
+            .label = name.c_str(),
+            .usage = wgpu::TextureUsage::RenderAttachment,
+            .dimension = wgpu::TextureDimension::e2D,
+            .size = //
+            {
+                .width = width,
+                .height = height,
+                .depthOrArrayLayers = 1,
+            },
+            .format = wgpu::TextureFormat::RGBA8Unorm,
+            .mipLevelCount = 1,
+            .sampleCount = 1,
+        };
+
+    wgpu::Texture texture = Device.CreateTexture(&textureDesc);
+    expect(texture, "Failed to create texture");
+
+    GpuResource* res = m_ResourceAllocator.New();
+
+    expectv(res, "Error allocating DawnGpuRenderTarget");
+
+    return ::new(&res->RenderTarget) DawnGpuRenderTarget(this, texture, width, height);
+}
+
+Result<void>
+DawnGpuDevice::DestroyRenderTarget(GpuRenderTarget* renderTarget)
+{
+    DawnGpuRenderTarget* dawnRenderTarget = static_cast<DawnGpuRenderTarget*>(renderTarget);
+    eassert(this == dawnRenderTarget->m_GpuDevice,
+        "RenderTarget does not belong to this device");
+    dawnRenderTarget->~DawnGpuRenderTarget();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(renderTarget));
+    return Result<void>::Success;
+}
+
+Result<GpuDepthTarget*>
+DawnGpuDevice::CreateDepthTarget(const unsigned /*width*/,
     const unsigned /*height*/,
     const imstring& /*name*/)
 {
     eassert(false, "Not implemented");
-    return Result<GpuDepthBuffer*>();
+    return Result<GpuDepthTarget*>();
 }
 
 Result<void>
-DawnGpuDevice::DestroyDepthBuffer(GpuDepthBuffer* /*depthBuffer*/)
+DawnGpuDevice::DestroyDepthTarget(GpuDepthTarget* /*depthTarget*/)
 {
     eassert(false, "Not implemented");
     return Result<void>::Success;
