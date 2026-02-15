@@ -16,11 +16,20 @@ using RgbaColorf = RgbaColor<float>;
 class VertexShaderSpec;
 class FragmentShaderSpec;
 
+enum class GpuPipelineType
+{
+    Opaque
+};
+
+enum class GpuRenderPassType
+{
+    ColorDepth
+};
+
 /// @brief GPU representation of a vertex buffer.
 class GpuVertexBuffer
 {
 public:
-    virtual ~GpuVertexBuffer() = 0 {}
 
     class Subrange
     {
@@ -56,14 +65,14 @@ public:
     virtual Subrange GetSubrange(const uint32_t itemOffset, const uint32_t itemCount) = 0;
 
 protected:
-    GpuVertexBuffer() {}
+    GpuVertexBuffer() = default;
+    virtual ~GpuVertexBuffer() = 0;
 };
 
 /// @brief GPU representation of an index buffer.
 class GpuIndexBuffer
 {
 public:
-    virtual ~GpuIndexBuffer() = 0 {}
 
     class Subrange
     {
@@ -99,41 +108,62 @@ public:
     virtual Subrange GetSubrange(const uint32_t itemOffset, const uint32_t itemCount) = 0;
 
 protected:
-    GpuIndexBuffer() {}
+    GpuIndexBuffer() = default;
+    virtual ~GpuIndexBuffer() = 0;
 };
 
 /// @brief GPU representation of a vertex shader.
 class GpuVertexShader
 {
-public:
-    virtual ~GpuVertexShader() = 0 {}
 protected:
-    GpuVertexShader() {}
+    GpuVertexShader() = default;
+    virtual ~GpuVertexShader() = 0;
 };
 
 /// @brief GPU representation of a fragment shader.
 class GpuFragmentShader
 {
-public:
-    virtual ~GpuFragmentShader() = 0 {}
 protected:
-    GpuFragmentShader() {}
+    GpuFragmentShader() = default;
+    virtual ~GpuFragmentShader() = 0;
 };
 
 /// @brief GPU representation of a texture.
 class GpuTexture
 {
-public:
-    virtual ~GpuTexture() = 0 {}
 protected:
-    GpuTexture() {}
+    GpuTexture() = default;
+    virtual ~GpuTexture() = 0;
+};
+
+/// @brief GPU representation of a depth buffer.
+class GpuDepthBuffer
+{
+protected:
+    GpuDepthBuffer() = default;
+    virtual ~GpuDepthBuffer() = 0;
+};
+
+/// @brief GPU representation of a pipeline state.
+class GpuPipeline
+{
+protected:
+    GpuPipeline() = default;
+    virtual ~GpuPipeline() = 0;
+};
+
+/// @brief GPU representation of a render pass.
+class GpuRenderPass
+{
+protected:
+    GpuRenderPass() = default;
+    virtual ~GpuRenderPass() = 0;
 };
 
 /// @brief Abstract base class for GPU device implementation.
 class GpuDevice
 {
 public:
-    virtual ~GpuDevice() = 0 {};
 
     /// @brief Gets the renderable extent of the device.
     virtual Extent GetExtent() const = 0;
@@ -174,11 +204,17 @@ public:
     /// @brief Destroys a texture.
     virtual Result<void> DestroyTexture(GpuTexture* texture) = 0;
 
+    virtual Result<GpuDepthBuffer*> CreateDepthBuffer(
+        const unsigned width, const unsigned height, const imstring& name) = 0;
+
+    /// @brief Destroys a depth buffer.
+    virtual Result<void> DestroyDepthBuffer(GpuDepthBuffer* depthBuffer) = 0;
+
     /// @brief Creates a vertex shader from the given specification.
     virtual Result<GpuVertexShader*> CreateVertexShader(const VertexShaderSpec& shaderSpec) = 0;
 
     /// @brief Creates a vertex shader from the given specification.
-    virtual Result<GpuVertexShader*> CreateVertexShader(const std::span<const uint8_t>& shaderCode) = 0;
+    virtual Result<GpuVertexShader*> CreateVertexShader(const std::span<const uint8_t>& shaderByteCode) = 0;
 
     /// @brief Destroys a vertex shader.
     virtual Result<void> DestroyVertexShader(GpuVertexShader* vertexShader) = 0;
@@ -187,12 +223,37 @@ public:
     virtual Result<GpuFragmentShader*> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) = 0;
 
     /// @brief Creates a fragment shader from the given specification.
-    virtual Result<GpuFragmentShader*> CreateFragmentShader(const std::span<const uint8_t>& shaderCode) = 0;
+    virtual Result<GpuFragmentShader*> CreateFragmentShader(const std::span<const uint8_t>& shaderByteCode) = 0;
 
     /// @brief Destroys a fragment shader.
     virtual Result<void> DestroyFragmentShader(GpuFragmentShader* fragmentShader) = 0;
 
+    virtual Result<GpuPipeline*> CreatePipeline(const GpuPipelineType pipelineType,
+        const std::span<const uint8_t>& vertexShaderByteCode,
+        const std::span<const uint8_t>& fragmentShaderByteCode) = 0;
+
+    virtual Result<void> DestroyPipeline(GpuPipeline* pipeline) = 0;
+
+    virtual Result<GpuRenderPass*> CreateRenderPass(const GpuRenderPassType renderPassType) = 0;
+
+    virtual Result<void> DestroyRenderPass(GpuRenderPass* renderPass) = 0;
+
     virtual Result<RenderGraph*> CreateRenderGraph() = 0;
 
     virtual void DestroyRenderGraph(RenderGraph* renderGraph) = 0;
+
+protected:
+    GpuDevice() = default;
+
+    virtual ~GpuDevice() = 0;
 };
+
+inline GpuVertexBuffer::~GpuVertexBuffer() = default;
+inline GpuIndexBuffer::~GpuIndexBuffer() = default;
+inline GpuVertexShader::~GpuVertexShader() = default;
+inline GpuFragmentShader::~GpuFragmentShader() = default;
+inline GpuTexture::~GpuTexture() = default;
+inline GpuDepthBuffer::~GpuDepthBuffer() = default;
+inline GpuPipeline::~GpuPipeline() = default;
+inline GpuRenderPass::~GpuRenderPass() = default;
+inline GpuDevice::~GpuDevice() = default;

@@ -29,7 +29,14 @@ SdlRenderGraph::~SdlRenderGraph()
         }
     }
 
-    SDL_ReleaseGPUTexture(m_GpuDevice->Device, m_DepthBuffer);
+    if(m_DepthBuffer)
+    {
+        auto result = m_GpuDevice->DestroyDepthBuffer(m_DepthBuffer);
+        if(!result)
+        {
+            logError("Failed to destroy depth buffer: {}", result.error());
+        }
+    }
 
     for(const auto& state: m_State)
     {
@@ -247,7 +254,6 @@ SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 Result<SDL_GPURenderPass*>
 SdlRenderGraph::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
 {
-    auto gpuDevice = m_GpuDevice->Device;
     auto window = m_GpuDevice->Window;
 
     SDL_GPUTexture* swapChainTexture;
@@ -265,17 +271,18 @@ SdlRenderGraph::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
 
     if (!m_DepthBuffer || m_DepthCreateInfo.width != windowW || m_DepthCreateInfo.height != windowH)
     {
-        SDL_ReleaseGPUTexture(gpuDevice, m_DepthBuffer);
-        m_DepthBuffer = nullptr;
+        if(m_DepthBuffer)
+        {
+            m_GpuDevice->DestroyDepthBuffer(m_DepthBuffer);
+            m_DepthBuffer = nullptr;
+        }
 
         m_DepthCreateInfo.width = windowW;
         m_DepthCreateInfo.height = windowH;
 
-        // Avoid D3D12 warning about not specifying clear depth.
-        SDL_SetFloatProperty(m_DepthCreateInfo.props, SDL_PROP_GPU_TEXTURE_CREATE_D3D12_CLEAR_DEPTH_FLOAT, CLEAR_DEPTH);
-
-        m_DepthBuffer = SDL_CreateGPUTexture(gpuDevice, &m_DepthCreateInfo);
-        expect(m_DepthBuffer, SDL_GetError());
+        auto depthBufferResult = m_GpuDevice->CreateDepthBuffer(windowW, windowH, "RenderGraph Depth Buffer");
+        expect(depthBufferResult, depthBufferResult.error());
+        m_DepthBuffer = depthBufferResult.value();
     }
 
     SDL_GPUColorTargetInfo colorTargetInfo
@@ -290,7 +297,7 @@ SdlRenderGraph::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
 
     SDL_GPUDepthStencilTargetInfo depthTargetInfo
     {
-        .texture = m_DepthBuffer,
+        .texture = static_cast<SdlGpuDepthBuffer*>(m_DepthBuffer)->GetTexture(),
         .clear_depth = CLEAR_DEPTH,
         .load_op = SDL_GPU_LOADOP_CLEAR,
         .store_op = SDL_GPU_STOREOP_STORE

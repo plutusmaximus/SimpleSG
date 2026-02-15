@@ -117,13 +117,16 @@ DawnGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& vert
     expectv(res, "Error allocating DawnGpuVertexBuffer");
 
     return ::new(&res->VertexBuffer)
-        DawnGpuVertexBuffer(nativeBuf, static_cast<uint32_t>(sizeofBuffer / sizeof(Vertex)));
+        DawnGpuVertexBuffer(this, nativeBuf, static_cast<uint32_t>(sizeofBuffer / sizeof(Vertex)));
 }
 
 Result<void>
 DawnGpuDevice::DestroyVertexBuffer(GpuVertexBuffer* vb)
 {
-    vb->~GpuVertexBuffer();
+    DawnGpuVertexBuffer* dawnBuffer = static_cast<DawnGpuVertexBuffer*>(vb);
+    eassert(this == dawnBuffer->m_GpuDevice,
+        "VertexBuffer does not belong to this device");
+    dawnBuffer->~DawnGpuVertexBuffer();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(vb));
     return ResultOk;
 }
@@ -148,13 +151,16 @@ DawnGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& 
     expectv(res, "Error allocating DawnGpuIndexBuffer");
 
     return ::new(&res->IndexBuffer)
-        DawnGpuIndexBuffer(nativeBuf, static_cast<uint32_t>(sizeofBuffer / sizeof(VertexIndex)));
+        DawnGpuIndexBuffer(this, nativeBuf, static_cast<uint32_t>(sizeofBuffer / sizeof(VertexIndex)));
 }
 
 Result<void>
 DawnGpuDevice::DestroyIndexBuffer(GpuIndexBuffer* buffer)
 {
-    buffer->~GpuIndexBuffer();
+    DawnGpuIndexBuffer* dawnBuffer = static_cast<DawnGpuIndexBuffer*>(buffer);
+    eassert(this == dawnBuffer->m_GpuDevice,
+        "IndexBuffer does not belong to this device");
+    dawnBuffer->~DawnGpuIndexBuffer();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(buffer));
     return ResultOk;
 }
@@ -306,7 +312,7 @@ DawnGpuDevice::CreateTexture(const unsigned width,
 
     expectv(res, "Error allocating DawnGpuTexture");
 
-    return ::new(&res->Texture) DawnGpuTexture(texture, m_Sampler);
+    return ::new(&res->Texture) DawnGpuTexture(this, texture, m_Sampler);
 }
 
 Result<GpuTexture*>
@@ -321,8 +327,26 @@ DawnGpuDevice::CreateTexture(const RgbaColorf& color, const imstring& name)
 Result<void>
 DawnGpuDevice::DestroyTexture(GpuTexture* texture)
 {
-    texture->~GpuTexture();
+    DawnGpuTexture* dawnTexture = static_cast<DawnGpuTexture*>(texture);
+    eassert(this == dawnTexture->m_GpuDevice,
+        "Texture does not belong to this device");
+    dawnTexture->~DawnGpuTexture();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(texture));
+    return ResultOk;
+}
+
+Result<GpuDepthBuffer*>
+DawnGpuDevice::CreateDepthBuffer(
+    const unsigned /*width*/, const unsigned /*height*/, const imstring& /*name*/)
+{
+    eassert(false, "Not implemented");
+    return Result<GpuDepthBuffer*>();
+}
+
+Result<void>
+DawnGpuDevice::DestroyDepthBuffer(GpuDepthBuffer* /*depthBuffer*/)
+{
+    eassert(false, "Not implemented");
     return ResultOk;
 }
 
@@ -348,13 +372,17 @@ DawnGpuDevice::CreateVertexShader(const std::span<const uint8_t>& shaderCode)
 
     expectv(res, "Error allocating DawnGpuVertexShader");
 
-    return ::new(&res->VertexShader) DawnGpuVertexShader(shaderModule);
+    return ::new(&res->VertexShader) DawnGpuVertexShader(this, shaderModule);
 }
 
 Result<void>
 DawnGpuDevice::DestroyVertexShader(GpuVertexShader* shader)
 {
-    delete shader;
+    DawnGpuVertexShader* dawnShader = static_cast<DawnGpuVertexShader*>(shader);
+    eassert(this == dawnShader->m_GpuDevice,
+        "VertexShader does not belong to this device");
+    dawnShader->~DawnGpuVertexShader();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(shader));
     return ResultOk;
 }
 
@@ -380,13 +408,57 @@ DawnGpuDevice::CreateFragmentShader(const std::span<const uint8_t>& shaderCode)
 
     expectv(res, "Error allocating DawnGpuFragmentShader");
 
-    return ::new(&res->FragmentShader) DawnGpuFragmentShader(shaderModule);
+    return ::new(&res->FragmentShader) DawnGpuFragmentShader(this, shaderModule);
 }
 
 Result<void>
 DawnGpuDevice::DestroyFragmentShader(GpuFragmentShader* shader)
 {
-    delete shader;
+    DawnGpuFragmentShader* dawnShader = static_cast<DawnGpuFragmentShader*>(shader);
+    eassert(this == dawnShader->m_GpuDevice,
+        "FragmentShader does not belong to this device");
+    dawnShader->~DawnGpuFragmentShader();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(shader));
+    return ResultOk;
+}
+
+Result<GpuPipeline*>
+DawnGpuDevice::CreatePipeline(const GpuPipelineType /*pipelineType*/,
+    const std::span<const uint8_t>& /*vertexShaderByteCode*/,
+    const std::span<const uint8_t>& /*fragmentShaderByteCode*/)
+{
+    eassert(false, "Not implemented");
+    return Result<GpuPipeline*>();
+}
+
+Result<void>
+DawnGpuDevice::DestroyPipeline(GpuPipeline* /*pipeline*/)
+{
+    eassert(false, "Not implemented");
+    /*DawnGpuPipeline* dawnPipeline = static_cast<DawnGpuPipeline*>(pipeline);
+    eassert(this == dawnPipeline->m_GpuDevice,
+        "Pipeline does not belong to this device");
+    dawnPipeline->~DawnGpuPipeline();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(pipeline));*/
+    return ResultOk;
+}
+
+Result<GpuRenderPass*>
+DawnGpuDevice::CreateRenderPass(const GpuRenderPassType /*renderPassType*/)
+{
+    eassert(false, "Not implemented");
+    return Result<GpuRenderPass*>();
+}
+
+Result<void>
+DawnGpuDevice::DestroyRenderPass(GpuRenderPass* /*renderPass*/)
+{
+    eassert(false, "Not implemented");
+    /*DawnGpuRenderPass* dawnRenderPass = static_cast<DawnGpuRenderPass*>(renderPass);
+    eassert(this == dawnRenderPass->m_GpuDevice,
+        "RenderPass does not belong to this device");
+    dawnRenderPass->~DawnGpuRenderPass();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(renderPass));*/
     return ResultOk;
 }
 

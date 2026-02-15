@@ -62,29 +62,41 @@ CreateGpuBuffer(SDL_GPUDevice* gd, const std::span<const std::span<const T>>& sp
 
 SdlGpuVertexBuffer::~SdlGpuVertexBuffer()
 {
-    SDL_ReleaseGPUBuffer(m_GpuDevice, m_Buffer);
+    SDL_ReleaseGPUBuffer(m_GpuDevice->Device, m_Buffer);
 }
 
 SdlGpuIndexBuffer::~SdlGpuIndexBuffer()
 {
-    SDL_ReleaseGPUBuffer(m_GpuDevice, m_Buffer);
+    SDL_ReleaseGPUBuffer(m_GpuDevice->Device, m_Buffer);
 }
 
 SdlGpuTexture::~SdlGpuTexture()
 {
-    if (m_Texture) { SDL_ReleaseGPUTexture(m_GpuDevice, m_Texture); }
+    if (m_Texture) { SDL_ReleaseGPUTexture(m_GpuDevice->Device, m_Texture); }
     // Sampler is released by the SDLGPUDevice destructor.
+}
+
+SdlGpuDepthBuffer::~SdlGpuDepthBuffer()
+{
+    if (m_DepthBuffer) { SDL_ReleaseGPUTexture(m_GpuDevice->Device, m_DepthBuffer); }
 }
 
 SdlGpuVertexShader::~SdlGpuVertexShader()
 {
-    if (m_Shader) { SDL_ReleaseGPUShader(m_GpuDevice, m_Shader); }
+    if (m_Shader) { SDL_ReleaseGPUShader(m_GpuDevice->Device, m_Shader); }
 }
 
 SdlGpuFragmentShader::~SdlGpuFragmentShader()
 {
-    if (m_Shader) { SDL_ReleaseGPUShader(m_GpuDevice, m_Shader); }
+    if (m_Shader) { SDL_ReleaseGPUShader(m_GpuDevice->Device, m_Shader); }
 }
+
+SdlGpuPipeline::~SdlGpuPipeline()
+{
+    if (m_Pipeline) { SDL_ReleaseGPUGraphicsPipeline(m_GpuDevice->Device, m_Pipeline); }
+    if (m_VertexShader) { m_GpuDevice->DestroyVertexShader(m_VertexShader); }
+    if (m_FragmentShader) { m_GpuDevice->DestroyFragmentShader(m_FragmentShader); }
+};
 
 SdlGpuDevice::SdlGpuDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice)
     : Window(window)
@@ -114,10 +126,20 @@ SdlGpuDevice::Create(SDL_Window* window)
     const bool debugMode = true;
 
     SDL_PropertiesID props = SDL_CreateProperties();
-    SDL_SetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_SHADERS_SPIRV_BOOLEAN, true);
-    SDL_SetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_DEBUGMODE_BOOLEAN, debugMode);
-    SDL_SetStringProperty(props, SDL_PROP_GPU_DEVICE_CREATE_NAME_STRING, DRIVER_NAME);
-    SDL_SetPointerProperty(props, SDL_PROP_GPU_DEVICE_CREATE_VULKAN_OPTIONS_POINTER, &options);
+    expect(props, SDL_GetError());
+
+    auto propsCleanup = scope_exit([&]() { SDL_DestroyProperties(props); });
+
+    expect(SDL_SetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_SHADERS_SPIRV_BOOLEAN, true),
+        SDL_GetError());
+    expect(SDL_SetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_DEBUGMODE_BOOLEAN, debugMode),
+        SDL_GetError());
+    expect(SDL_SetStringProperty(props, SDL_PROP_GPU_DEVICE_CREATE_NAME_STRING, DRIVER_NAME),
+        SDL_GetError());
+    expect(
+        SDL_SetPointerProperty(props, SDL_PROP_GPU_DEVICE_CREATE_VULKAN_OPTIONS_POINTER, &options),
+        SDL_GetError());
+
     SDL_GPUDevice* sdlDevice = SDL_CreateGPUDeviceWithProperties(props);
     expect(sdlDevice, SDL_GetError());
 
@@ -151,7 +173,7 @@ SdlGpuDevice::Create(SDL_Window* window)
 
 void SdlGpuDevice::Destroy(GpuDevice* device)
 {
-    delete device;
+    delete static_cast<SdlGpuDevice*>(device);
 }
 
 SdlGpuDevice::~SdlGpuDevice()
@@ -207,7 +229,7 @@ SdlGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& verti
         return Error("Error allocating GpuResource");
     }
 
-    return ::new(&res->VertexBuffer)SdlGpuVertexBuffer(Device,
+    return ::new(&res->VertexBuffer)SdlGpuVertexBuffer(this,
         nativeBuf,
         static_cast<uint32_t>(sizeofBuffer / sizeof(Vertex)));
 }
@@ -215,7 +237,11 @@ SdlGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& verti
 Result<void>
 SdlGpuDevice::DestroyVertexBuffer(GpuVertexBuffer* buffer)
 {
-    buffer->~GpuVertexBuffer();
+    SdlGpuVertexBuffer* sdlBuffer = static_cast<SdlGpuVertexBuffer*>(buffer);
+    eassert(this == sdlBuffer->m_GpuDevice,
+        "Buffer does not belong to this device");
+
+    sdlBuffer->~SdlGpuVertexBuffer();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(buffer));
     return ResultOk;
 }
@@ -243,7 +269,7 @@ SdlGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& i
         return Error("Error allocating GpuResource");
     }
 
-    return ::new(&res->IndexBuffer)SdlGpuIndexBuffer(Device,
+    return ::new(&res->IndexBuffer)SdlGpuIndexBuffer(this,
         nativeBuf,
         static_cast<uint32_t>(sizeofBuffer / sizeof(VertexIndex)));
 }
@@ -251,7 +277,11 @@ SdlGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& i
 Result<void>
 SdlGpuDevice::DestroyIndexBuffer(GpuIndexBuffer* buffer)
 {
-    buffer->~GpuIndexBuffer();
+    SdlGpuIndexBuffer* sdlBuffer = static_cast<SdlGpuIndexBuffer*>(buffer);
+    eassert(this == sdlBuffer->m_GpuDevice,
+        "Buffer does not belong to this device");
+
+    sdlBuffer->~SdlGpuIndexBuffer();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(buffer));
     return ResultOk;
 }
@@ -266,9 +296,12 @@ SdlGpuDevice::CreateTexture(const unsigned width,
     Stopwatch sw1;
 
     SDL_PropertiesID props = SDL_CreateProperties();
+    expect(props, SDL_GetError());
+
     auto propsCleanup = scope_exit([&]() { SDL_DestroyProperties(props); });
 
-    SDL_SetStringProperty(props, SDL_PROP_GPU_TEXTURE_CREATE_NAME_STRING, name.c_str());
+    expect(SDL_SetStringProperty(props, SDL_PROP_GPU_TEXTURE_CREATE_NAME_STRING, name.c_str()),
+        SDL_GetError());
 
     // Create GPU texture
     SDL_GPUTextureCreateInfo textureInfo = //
@@ -397,7 +430,7 @@ SdlGpuDevice::CreateTexture(const unsigned width,
 
     texCleanup.release();
 
-    GpuTexture* gpuTex = ::new(&res->Texture) SdlGpuTexture(Device, texture, m_Sampler);
+    GpuTexture* gpuTex = ::new(&res->Texture) SdlGpuTexture(this, texture, m_Sampler);
 
     logDebug("SdlGpuDevice::CreateTexture: {} ms", sw1.Elapsed() * 1000.0f);
 
@@ -416,8 +449,67 @@ SdlGpuDevice::CreateTexture(const RgbaColorf& color, const imstring& name)
 Result<void>
 SdlGpuDevice::DestroyTexture(GpuTexture* texture)
 {
-    texture->~GpuTexture();
+    SdlGpuTexture* sdlTexture = static_cast<SdlGpuTexture*>(texture);
+    eassert(this == sdlTexture->m_GpuDevice,
+        "Texture does not belong to this device");
+    sdlTexture->~SdlGpuTexture();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(texture));
+    return ResultOk;
+}
+
+Result<GpuDepthBuffer*>
+SdlGpuDevice::CreateDepthBuffer(
+    const unsigned width, const unsigned height, const imstring& name)
+{
+    auto props = SDL_CreateProperties();
+    expect(props, SDL_GetError());
+
+    auto propsCleanup = scope_exit([&]() { SDL_DestroyProperties(props); });
+
+    expect(SDL_SetStringProperty(props, SDL_PROP_GPU_TEXTURE_CREATE_NAME_STRING, name.c_str()),
+        SDL_GetError());
+
+    SDL_GPUTextureCreateInfo m_DepthCreateInfo //
+        {
+            .type = SDL_GPU_TEXTURETYPE_2D,
+            .format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
+            .usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET,
+            .width = width,
+            .height = height,
+            .layer_count_or_depth = 1,
+            .num_levels = 1,
+            .props = props,
+        };
+
+    static constexpr float CLEAR_DEPTH = 1.0f;
+
+    // Avoid D3D12 warning about not specifying clear depth.
+    SDL_SetFloatProperty(m_DepthCreateInfo.props,
+        SDL_PROP_GPU_TEXTURE_CREATE_D3D12_CLEAR_DEPTH_FLOAT,
+        CLEAR_DEPTH);
+
+    auto depthBuffer = SDL_CreateGPUTexture(Device, &m_DepthCreateInfo);
+    expect(depthBuffer, SDL_GetError());
+
+    auto depthBufferCleanup = scope_exit([&]() { SDL_ReleaseGPUTexture(Device, depthBuffer); });
+
+    GpuResource* res = m_ResourceAllocator.New();
+
+    expectv(res, "Error allocating GpuResource");
+
+    depthBufferCleanup.release();
+
+    return ::new(&res->Texture) SdlGpuDepthBuffer(this, depthBuffer);
+}
+
+Result<void>
+SdlGpuDevice::DestroyDepthBuffer(GpuDepthBuffer* depthBuffer)
+{
+    SdlGpuDepthBuffer* sdlDepthBuffer = static_cast<SdlGpuDepthBuffer*>(depthBuffer);
+    eassert(this == sdlDepthBuffer->m_GpuDevice,
+        "Depth buffer does not belong to this device");
+    sdlDepthBuffer->~SdlGpuDepthBuffer();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(depthBuffer));
     return ResultOk;
 }
 
@@ -437,7 +529,7 @@ SdlGpuDevice::CreateVertexShader(const VertexShaderSpec& shaderSpec)
 
     expectv(res, "Error allocating GpuResource");
 
-    return ::new(&res->VertexShader) SdlGpuVertexShader(Device, shaderResult.value());
+    return ::new(&res->VertexShader) SdlGpuVertexShader(this, shaderResult.value());
 }
 
 Result<GpuVertexShader*>
@@ -468,13 +560,16 @@ SdlGpuDevice::CreateVertexShader(const std::span<const uint8_t>& shaderCode)
 
     shaderCleanup.release();
 
-    return ::new(&res->VertexShader) SdlGpuVertexShader(Device, shader);
+    return ::new(&res->VertexShader) SdlGpuVertexShader(this, shader);
 }
 
 Result<void>
 SdlGpuDevice::DestroyVertexShader(GpuVertexShader* shader)
 {
-    shader->~GpuVertexShader();
+    SdlGpuVertexShader* sdlShader = static_cast<SdlGpuVertexShader*>(shader);
+    eassert(this == sdlShader->m_GpuDevice,
+        "Shader does not belong to this device");
+    sdlShader->~SdlGpuVertexShader();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(shader));
     return ResultOk;
 }
@@ -498,7 +593,7 @@ SdlGpuDevice::CreateFragmentShader(const FragmentShaderSpec& shaderSpec)
 
     expectv(res, "Error allocating GpuResource");
 
-    return ::new(&res->FragmentShader) SdlGpuFragmentShader(Device, shaderResult.value());
+    return ::new(&res->FragmentShader) SdlGpuFragmentShader(this, shaderResult.value());
 }
 
 Result<GpuFragmentShader*>
@@ -529,14 +624,173 @@ SdlGpuDevice::CreateFragmentShader(const std::span<const uint8_t>& shaderCode)
 
     shaderCleanup.release();
 
-    return ::new(&res->FragmentShader) SdlGpuFragmentShader(Device, shader);
+    return ::new(&res->FragmentShader) SdlGpuFragmentShader(this, shader);
 }
 
 Result<void>
 SdlGpuDevice::DestroyFragmentShader(GpuFragmentShader* shader)
 {
-    shader->~GpuFragmentShader();
+    SdlGpuFragmentShader* sdlShader = static_cast<SdlGpuFragmentShader*>(shader);
+    eassert(this == sdlShader->m_GpuDevice,
+        "Shader does not belong to this device");
+    sdlShader->~SdlGpuFragmentShader();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(shader));
+    return ResultOk;
+}
+
+Result<GpuPipeline*>
+SdlGpuDevice::CreatePipeline(const GpuPipelineType pipelineType,
+    const std::span<const uint8_t>& vertexShaderByteCode,
+    const std::span<const uint8_t>& fragmentShaderByteCode)
+{
+    expectv(pipelineType == GpuPipelineType::Opaque,
+        "Only opaque pipelines are supported for now.");
+
+    auto vsResult = CreateVertexShader(vertexShaderByteCode);
+    expect(vsResult, vsResult.error());
+
+    auto vsCleanup = scope_exit([&]()
+    {
+        DestroyVertexShader(static_cast<GpuVertexShader*>(vsResult.value()));
+    });
+
+    auto fsResult = CreateFragmentShader(fragmentShaderByteCode);
+    expect(fsResult, fsResult.error());
+
+    auto fsCleanup = scope_exit([&]()
+    {
+        DestroyFragmentShader(static_cast<GpuFragmentShader*>(fsResult.value()));
+    });
+
+    const SDL_GPUTextureFormat colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(Device, Window);
+    expect(SDL_GPU_TEXTUREFORMAT_INVALID != colorTargetFormat,
+        "Failed to get swapchain texture format: {}",
+        SDL_GetError());
+
+    SDL_GPUVertexBufferDescription vertexBufDescriptions[1] = //
+        {
+            {
+                .slot = 0,
+                .pitch = sizeof(Vertex),
+                .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
+            },
+        };
+    SDL_GPUVertexAttribute vertexAttributes[] = //
+        {
+            { .location = 0,
+                .buffer_slot = 0,
+                .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
+                .offset = offsetof(Vertex, pos) },
+            { .location = 1,
+                .buffer_slot = 0,
+                .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
+                .offset = offsetof(Vertex, normal) },
+            { .location = 2,
+                .buffer_slot = 0,
+                .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
+                .offset = offsetof(Vertex, uvs[0]) },
+        };
+
+    SDL_GPUColorTargetDescription colorTargetDesc//
+    {
+        .format = colorTargetFormat,
+        .blend_state =
+        {
+            .src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+            .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+            .color_blend_op = SDL_GPU_BLENDOP_ADD,
+            .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
+            .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO,
+            .alpha_blend_op = SDL_GPU_BLENDOP_ADD,
+            .color_write_mask = SDL_GPU_COLORCOMPONENT_R |
+                               SDL_GPU_COLORCOMPONENT_G |
+                               SDL_GPU_COLORCOMPONENT_B |
+                               SDL_GPU_COLORCOMPONENT_A,
+            .enable_blend = true,
+            .enable_color_write_mask = false,
+        },
+    };
+
+    SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo //
+        {
+            .vertex_shader = static_cast<SdlGpuVertexShader*>(vsResult.value())->GetShader(),
+            .fragment_shader = static_cast<SdlGpuFragmentShader*>(fsResult.value())->GetShader(),
+            .vertex_input_state = //
+            {
+                .vertex_buffer_descriptions = vertexBufDescriptions,
+                .num_vertex_buffers = 1,
+                .vertex_attributes = vertexAttributes,
+                .num_vertex_attributes = std::size(vertexAttributes),
+            },
+            .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+            .rasterizer_state = //
+            {
+                .fill_mode = SDL_GPU_FILLMODE_FILL,
+                .cull_mode = SDL_GPU_CULLMODE_BACK,
+                .front_face = SDL_GPU_FRONTFACE_CLOCKWISE,
+                .enable_depth_clip = true,
+            },
+            .depth_stencil_state = //
+            {
+                .compare_op = SDL_GPU_COMPAREOP_LESS,
+                .enable_depth_test = true,
+                .enable_depth_write = true,
+            },
+            .target_info = //
+            {
+                .color_target_descriptions = &colorTargetDesc,
+                .num_color_targets = 1,
+                .depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
+                .has_depth_stencil_target = true,
+            },
+        };
+
+    SDL_GPUGraphicsPipeline* pipeline = SDL_CreateGPUGraphicsPipeline(Device, &pipelineCreateInfo);
+    expect(pipeline, SDL_GetError());
+
+    auto pipelineCleanup = scope_exit([&]()
+    {
+        SDL_ReleaseGPUGraphicsPipeline(Device, pipeline);
+    });
+
+    GpuResource* res = m_ResourceAllocator.New();
+
+    expectv(res, "Error allocating GpuResource");
+
+    pipelineCleanup.release();
+    fsCleanup.release();
+    vsCleanup.release();
+
+    return ::new(&res->Pipeline)
+        SdlGpuPipeline(this, pipeline, vsResult.value(), fsResult.value());
+}
+
+Result<void>
+SdlGpuDevice::DestroyPipeline(GpuPipeline* pipeline)
+{
+    SdlGpuPipeline* sdlPipeline = static_cast<SdlGpuPipeline*>(pipeline);
+    eassert(this == sdlPipeline->m_GpuDevice,
+        "Pipeline does not belong to this device");
+    sdlPipeline->~SdlGpuPipeline();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(pipeline));
+    return ResultOk;
+}
+
+Result<GpuRenderPass*>
+SdlGpuDevice::CreateRenderPass(const GpuRenderPassType /*renderPassType*/)
+{
+    eassert(false, "Not implemented");
+    return Result<GpuRenderPass*>();
+}
+
+Result<void>
+SdlGpuDevice::DestroyRenderPass(GpuRenderPass* renderPass)
+{
+    SdlGpuRenderPass* sdlRenderPass = static_cast<SdlGpuRenderPass*>(renderPass);
+    eassert(this == sdlRenderPass->m_GpuDevice,
+        "RenderPass does not belong to this device");
+    sdlRenderPass->~SdlGpuRenderPass();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(renderPass));
     return ResultOk;
 }
 

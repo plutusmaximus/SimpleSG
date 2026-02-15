@@ -43,12 +43,15 @@ public:
 private:
     friend class DawnGpuDevice;
 
-    explicit DawnGpuVertexBuffer(wgpu::Buffer buffer, const uint32_t itemCount)
-        : m_Buffer(buffer),
+    explicit DawnGpuVertexBuffer(
+        DawnGpuDevice* gpuDevice, wgpu::Buffer buffer, const uint32_t itemCount)
+        : m_GpuDevice(gpuDevice),
+          m_Buffer(buffer),
           m_ItemCount(itemCount)
     {
     }
 
+    DawnGpuDevice* m_GpuDevice;
     wgpu::Buffer m_Buffer;
     const uint32_t m_ItemCount;
 };
@@ -85,12 +88,15 @@ public:
 private:
     friend class DawnGpuDevice;
 
-    explicit DawnGpuIndexBuffer(wgpu::Buffer buffer, const uint32_t itemCount)
-        : m_Buffer(buffer),
+    explicit DawnGpuIndexBuffer(
+        DawnGpuDevice* gpuDevice, wgpu::Buffer buffer, const uint32_t itemCount)
+        : m_GpuDevice(gpuDevice),
+          m_Buffer(buffer),
           m_ItemCount(itemCount)
     {
     }
 
+    DawnGpuDevice* m_GpuDevice;
     wgpu::Buffer m_Buffer;
     const uint32_t m_ItemCount;
 };
@@ -113,14 +119,42 @@ public:
 private:
     friend class DawnGpuDevice;
 
-    DawnGpuTexture(wgpu::Texture texture, wgpu::Sampler sampler)
-        : m_Texture(texture),
+    DawnGpuTexture(DawnGpuDevice* gpuDevice, wgpu::Texture texture, wgpu::Sampler sampler)
+        : m_GpuDevice(gpuDevice),
+          m_Texture(texture),
           m_Sampler(sampler)
     {
     }
 
+    DawnGpuDevice* m_GpuDevice;
     wgpu::Texture m_Texture;
     wgpu::Sampler m_Sampler;
+};
+
+class DawnGpuDepthBuffer : public GpuDepthBuffer
+{
+public:
+    DawnGpuDepthBuffer() = delete;
+    DawnGpuDepthBuffer(const DawnGpuDepthBuffer&) = delete;
+    DawnGpuDepthBuffer& operator=(const DawnGpuDepthBuffer&) = delete;
+    DawnGpuDepthBuffer(DawnGpuDepthBuffer&&) = default;
+    DawnGpuDepthBuffer& operator=(DawnGpuDepthBuffer&&) = default;
+
+    // wgpu::Texture is ref counted so nothing to do here.
+    ~DawnGpuDepthBuffer() override {};
+
+    wgpu::Texture GetDepthBuffer() const { return m_DepthBuffer; }
+private:
+    friend class DawnGpuDevice;
+
+    DawnGpuDepthBuffer(DawnGpuDevice* gpuDevice, wgpu::Texture depthBuffer)
+        : m_GpuDevice(gpuDevice),
+          m_DepthBuffer(depthBuffer)
+    {
+    }
+
+    DawnGpuDevice* m_GpuDevice;
+    wgpu::Texture m_DepthBuffer;
 };
 
 class DawnGpuVertexShader : public GpuVertexShader
@@ -139,11 +173,13 @@ public:
 private:
     friend class DawnGpuDevice;
 
-    explicit DawnGpuVertexShader(wgpu::ShaderModule shader)
-        : m_Shader(shader)
+    explicit DawnGpuVertexShader(DawnGpuDevice* gpuDevice, wgpu::ShaderModule shader)
+        : m_GpuDevice(gpuDevice),
+          m_Shader(shader)
     {
     }
 
+    DawnGpuDevice* m_GpuDevice;
     wgpu::ShaderModule m_Shader;
 };
 
@@ -162,12 +198,76 @@ public:
 
 private:
     friend class DawnGpuDevice;
-    explicit DawnGpuFragmentShader(wgpu::ShaderModule shader)
-        : m_Shader(shader)
+    explicit DawnGpuFragmentShader(DawnGpuDevice* gpuDevice, wgpu::ShaderModule shader)
+        : m_GpuDevice(gpuDevice),
+          m_Shader(shader)
     {
     }
 
+    DawnGpuDevice* m_GpuDevice;
     wgpu::ShaderModule m_Shader;
+};
+
+class DawnGpuPipeline : public GpuPipeline
+{
+public:
+
+    DawnGpuPipeline() = delete;
+    DawnGpuPipeline(const DawnGpuPipeline&) = delete;
+    DawnGpuPipeline& operator=(const DawnGpuPipeline&) = delete;
+    DawnGpuPipeline(DawnGpuPipeline&&) = delete;
+    DawnGpuPipeline& operator=(DawnGpuPipeline&&) = delete;
+
+    ~DawnGpuPipeline() override;
+
+    wgpu::RenderPipeline* GetPipeline() const { return m_Pipeline; }
+
+private:
+    friend class DawnGpuDevice;
+
+    DawnGpuPipeline(DawnGpuDevice* gpuDevice,
+        wgpu::RenderPipeline* pipeline,
+        GpuVertexShader* vertexShader,
+        GpuFragmentShader* fragmentShader)
+        : m_GpuDevice(gpuDevice),
+          m_Pipeline(pipeline),
+          m_VertexShader(vertexShader),
+          m_FragmentShader(fragmentShader)
+    {
+    }
+
+    DawnGpuDevice* const m_GpuDevice;
+    wgpu::RenderPipeline* const m_Pipeline;
+    GpuVertexShader* m_VertexShader = nullptr;
+    GpuFragmentShader* m_FragmentShader = nullptr;
+};
+
+class DawnGpuRenderPass : public GpuRenderPass
+{
+public:
+
+    DawnGpuRenderPass() = delete;
+    DawnGpuRenderPass(const DawnGpuRenderPass&) = delete;
+    DawnGpuRenderPass& operator=(const DawnGpuRenderPass&) = delete;
+    DawnGpuRenderPass(DawnGpuRenderPass&&) = delete;
+    DawnGpuRenderPass& operator=(DawnGpuRenderPass&&) = delete;
+
+    ~DawnGpuRenderPass() override;
+
+    wgpu::RenderPassEncoder* GetRenderPass() const { return m_RenderPass; }
+
+private:
+
+    friend class DawnGpuDevice;
+
+    DawnGpuRenderPass(DawnGpuDevice* gpuDevice, wgpu::RenderPassEncoder* renderPass)
+        : m_GpuDevice(gpuDevice)
+        , m_RenderPass(renderPass)
+    {
+    }
+
+    DawnGpuDevice* const m_GpuDevice;
+    wgpu::RenderPassEncoder* const m_RenderPass;
 };
 
 /// @brief Dawn GPU Device implementation.
@@ -218,6 +318,11 @@ public:
 
     Result<void> DestroyTexture(GpuTexture* texture) override;
 
+    Result<GpuDepthBuffer*> CreateDepthBuffer(
+        const unsigned width, const unsigned height, const imstring& name) override;
+
+    Result<void> DestroyDepthBuffer(GpuDepthBuffer* depthBuffer) override;
+
     Result<GpuVertexShader*> CreateVertexShader(const VertexShaderSpec& shaderSpec) override;
 
     Result<GpuVertexShader*> CreateVertexShader(const std::span<const uint8_t>& shaderCode) override;
@@ -229,6 +334,16 @@ public:
     Result<GpuFragmentShader*> CreateFragmentShader(const std::span<const uint8_t>& shaderCode) override;
 
     Result<void> DestroyFragmentShader(GpuFragmentShader* shader) override;
+
+    Result<GpuPipeline*> CreatePipeline(const GpuPipelineType pipelineType,
+        const std::span<const uint8_t>& vertexShaderByteCode,
+        const std::span<const uint8_t>& fragmentShaderByteCode) override;
+
+    Result<void> DestroyPipeline(GpuPipeline* pipeline) override;
+
+    Result<GpuRenderPass*> CreateRenderPass(const GpuRenderPassType renderPassType) override;
+
+    Result<void> DestroyRenderPass(GpuRenderPass* renderPass) override;
 
     Result<RenderGraph*> CreateRenderGraph() override;
 
@@ -275,8 +390,11 @@ private:
         DawnGpuVertexBuffer VertexBuffer;
         DawnGpuIndexBuffer IndexBuffer;
         DawnGpuTexture Texture;
+        DawnGpuDepthBuffer DepthBuffer;
         DawnGpuVertexShader VertexShader;
         DawnGpuFragmentShader FragmentShader;
+        DawnGpuPipeline Pipeline;
+        DawnGpuRenderPass RenderPass;
     };
 
     PoolAllocator<GpuResource, 256> m_ResourceAllocator;

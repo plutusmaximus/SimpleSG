@@ -15,6 +15,7 @@ struct SDL_GPUTexture;
 struct SDL_GPUSampler;
 struct SDL_GPUShader;
 struct SDL_GPUGraphicsPipeline;
+struct SDL_GPURenderPass;
 
 class SdlGpuVertexBuffer : public GpuVertexBuffer
 {
@@ -49,14 +50,14 @@ private:
 
     friend class SdlGpuDevice;
 
-    SdlGpuVertexBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer, const uint32_t itemCount)
+    SdlGpuVertexBuffer(SdlGpuDevice* gpuDevice, SDL_GPUBuffer* buffer, const uint32_t itemCount)
         : m_Buffer(buffer)
         , m_GpuDevice(gpuDevice)
         , m_ItemCount(itemCount)
     {
     }
 
-    SDL_GPUDevice* const m_GpuDevice;
+    SdlGpuDevice* const m_GpuDevice;
     SDL_GPUBuffer* const m_Buffer;
     const uint32_t m_ItemCount;
 };
@@ -94,14 +95,14 @@ private:
 
     friend class SdlGpuDevice;
 
-    SdlGpuIndexBuffer(SDL_GPUDevice* gpuDevice, SDL_GPUBuffer* buffer, const uint32_t itemCount)
+    SdlGpuIndexBuffer(SdlGpuDevice* gpuDevice, SDL_GPUBuffer* buffer, const uint32_t itemCount)
         : m_Buffer(buffer)
         , m_GpuDevice(gpuDevice)
         , m_ItemCount(itemCount)
     {
     }
 
-    SDL_GPUDevice* const m_GpuDevice;
+    SdlGpuDevice* const m_GpuDevice;
     SDL_GPUBuffer* const m_Buffer;
     const uint32_t m_ItemCount;
 };
@@ -125,16 +126,44 @@ private:
 
     friend class SdlGpuDevice;
 
-    SdlGpuTexture(SDL_GPUDevice* gpuDevice, SDL_GPUTexture* texture, SDL_GPUSampler* sampler)
+    SdlGpuTexture(SdlGpuDevice* gpuDevice, SDL_GPUTexture* texture, SDL_GPUSampler* sampler)
         : m_GpuDevice(gpuDevice)
         , m_Texture(texture)
         , m_Sampler(sampler)
     {
     }
 
-    SDL_GPUDevice* const m_GpuDevice;
+    SdlGpuDevice* const m_GpuDevice;
     SDL_GPUTexture* const m_Texture;
     SDL_GPUSampler* const m_Sampler;
+};
+
+class SdlGpuDepthBuffer : public GpuDepthBuffer
+{
+public:
+
+    SdlGpuDepthBuffer() = delete;
+    SdlGpuDepthBuffer(const SdlGpuDepthBuffer&) = delete;
+    SdlGpuDepthBuffer& operator=(const SdlGpuDepthBuffer&) = delete;
+    SdlGpuDepthBuffer(SdlGpuDepthBuffer&&) = delete;
+    SdlGpuDepthBuffer& operator=(SdlGpuDepthBuffer&&) = delete;
+
+    ~SdlGpuDepthBuffer() override;
+
+    SDL_GPUTexture* GetTexture() const { return m_DepthBuffer; }
+
+private:
+
+    friend class SdlGpuDevice;
+
+    SdlGpuDepthBuffer(SdlGpuDevice* gpuDevice, SDL_GPUTexture* depthBuffer)
+        : m_GpuDevice(gpuDevice)
+        , m_DepthBuffer(depthBuffer)
+    {
+    }
+
+    SdlGpuDevice* const m_GpuDevice;
+    SDL_GPUTexture* const m_DepthBuffer;
 };
 
 class SdlGpuVertexShader : public GpuVertexShader
@@ -155,13 +184,13 @@ private:
 
     friend class SdlGpuDevice;
 
-    SdlGpuVertexShader(SDL_GPUDevice* gpuDevice, SDL_GPUShader* shader)
+    SdlGpuVertexShader(SdlGpuDevice* gpuDevice, SDL_GPUShader* shader)
         : m_GpuDevice(gpuDevice)
         , m_Shader(shader)
     {
     }
 
-    SDL_GPUDevice* const m_GpuDevice;
+    SdlGpuDevice* const m_GpuDevice;
     SDL_GPUShader* const m_Shader;
 };
 
@@ -183,14 +212,76 @@ private:
 
     friend class SdlGpuDevice;
 
-    SdlGpuFragmentShader(SDL_GPUDevice* gpuDevice, SDL_GPUShader* shader)
+    SdlGpuFragmentShader(SdlGpuDevice* gpuDevice, SDL_GPUShader* shader)
         : m_GpuDevice(gpuDevice)
         , m_Shader(shader)
     {
     }
 
-    SDL_GPUDevice* const m_GpuDevice;
+    SdlGpuDevice* const m_GpuDevice;
     SDL_GPUShader* const m_Shader;
+};
+
+class SdlGpuPipeline : public GpuPipeline
+{
+public:
+
+    SdlGpuPipeline() = delete;
+    SdlGpuPipeline(const SdlGpuPipeline&) = delete;
+    SdlGpuPipeline& operator=(const SdlGpuPipeline&) = delete;
+    SdlGpuPipeline(SdlGpuPipeline&&) = delete;
+    SdlGpuPipeline& operator=(SdlGpuPipeline&&) = delete;
+
+    ~SdlGpuPipeline() override;
+
+    SDL_GPUGraphicsPipeline* GetPipeline() const { return m_Pipeline; }
+
+private:
+    friend class SdlGpuDevice;
+
+    SdlGpuPipeline(SdlGpuDevice* gpuDevice,
+        SDL_GPUGraphicsPipeline* pipeline,
+        GpuVertexShader* vertexShader,
+        GpuFragmentShader* fragmentShader)
+        : m_GpuDevice(gpuDevice),
+          m_Pipeline(pipeline),
+          m_VertexShader(vertexShader),
+          m_FragmentShader(fragmentShader)
+    {
+    }
+
+    SdlGpuDevice* const m_GpuDevice;
+    SDL_GPUGraphicsPipeline* const m_Pipeline;
+    GpuVertexShader* m_VertexShader = nullptr;
+    GpuFragmentShader* m_FragmentShader = nullptr;
+};
+
+class SdlGpuRenderPass : public GpuRenderPass
+{
+public:
+
+    SdlGpuRenderPass() = delete;
+    SdlGpuRenderPass(const SdlGpuRenderPass&) = delete;
+    SdlGpuRenderPass& operator=(const SdlGpuRenderPass&) = delete;
+    SdlGpuRenderPass(SdlGpuRenderPass&&) = delete;
+    SdlGpuRenderPass& operator=(SdlGpuRenderPass&&) = delete;
+
+    ~SdlGpuRenderPass() override;
+
+    SDL_GPURenderPass* GetRenderPass() const { return m_RenderPass; }
+
+private:
+
+    friend class SdlGpuDevice;
+
+    SdlGpuRenderPass(SdlGpuDevice* gpuDevice, SDL_GPURenderPass* renderPass)
+        : m_GpuDevice(gpuDevice)
+        , m_RenderPass(renderPass)
+    {
+    }
+
+    SdlGpuDevice* const m_GpuDevice;
+    SDL_GPURenderPass* const m_RenderPass;
 };
 
 /// @brief SDL GPU Device implementation.
@@ -238,17 +329,32 @@ public:
 
     Result<void> DestroyTexture(GpuTexture* texture) override;
 
+    Result<GpuDepthBuffer*> CreateDepthBuffer(
+        const unsigned width, const unsigned height, const imstring& name) override;
+
+    Result<void> DestroyDepthBuffer(GpuDepthBuffer* depthBuffer) override;
+
     Result<GpuVertexShader*> CreateVertexShader(const VertexShaderSpec& shaderSpec) override;
 
-    Result<GpuVertexShader*> CreateVertexShader(const std::span<const uint8_t>& shaderCode) override;
+    Result<GpuVertexShader*> CreateVertexShader(const std::span<const uint8_t>& shaderByteCode) override;
 
     Result<void> DestroyVertexShader(GpuVertexShader* shader) override;
 
     Result<GpuFragmentShader*> CreateFragmentShader(const FragmentShaderSpec& shaderSpec) override;
 
-    Result<GpuFragmentShader*> CreateFragmentShader(const std::span<const uint8_t>& shaderCode) override;
+    Result<GpuFragmentShader*> CreateFragmentShader(const std::span<const uint8_t>& shaderByteCode) override;
 
     Result<void> DestroyFragmentShader(GpuFragmentShader* shader) override;
+
+    Result<GpuPipeline*> CreatePipeline(const GpuPipelineType pipelineType,
+        const std::span<const uint8_t>& vertexShaderByteCode,
+        const std::span<const uint8_t>& fragmentShaderByteCode) override;
+
+    Result<void> DestroyPipeline(GpuPipeline* pipeline) override;
+
+    Result<GpuRenderPass*> CreateRenderPass(const GpuRenderPassType renderPassType) override;
+
+    Result<void> DestroyRenderPass(GpuRenderPass* renderPass) override;
 
     Result<RenderGraph*> CreateRenderGraph() override;
 
@@ -289,8 +395,11 @@ private:
         SdlGpuVertexBuffer VertexBuffer;
         SdlGpuIndexBuffer IndexBuffer;
         SdlGpuTexture Texture;
+        SdlGpuDepthBuffer DepthBuffer;
         SdlGpuVertexShader VertexShader;
         SdlGpuFragmentShader FragmentShader;
+        SdlGpuPipeline Pipeline;
+        SdlGpuRenderPass RenderPass;
     };
 
     PoolAllocator<GpuResource, 256> m_ResourceAllocator;

@@ -44,7 +44,7 @@ private:
     };
 
     SdlGpuDevice* const m_GpuDevice;
-    SDL_GPUTexture* m_DepthBuffer = nullptr;
+    GpuDepthBuffer* m_DepthBuffer = nullptr;
 
     SDL_GPUTextureCreateInfo m_DepthCreateInfo
     {
