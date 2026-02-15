@@ -114,7 +114,6 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     auto gpuDevice = m_GpuDevice->Device;
 
     SDL_GPUCommandBuffer* cmdBuf = SDL_AcquireGPUCommandBuffer(gpuDevice);
-
     expect(cmdBuf, SDL_GetError());
 
     auto renderPassResult = BeginRenderPass(cmdBuf);
@@ -156,12 +155,8 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
         for (auto& [mtlId, xmeshes] : *meshGrpPtr)
         {
             const Material& mtl = xmeshes[0].MeshInstance.GetMaterial();
-
-            SDL_PushGPUVertexUniformData(cmdBuf, 1, &mtl.GetColor(), sizeof(mtl.GetColor()));
-
             //const int idx = m_MaterialDb->GetIndex(mtlId);
-            const int idx = 0;
-            SDL_PushGPUVertexUniformData(cmdBuf, 2, &idx, sizeof(idx));
+            const int mtlIdx = 0;
 
             GpuTexture* baseTexture = mtl.GetBaseTexture();
 
@@ -180,9 +175,12 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
                 .texture = static_cast<SdlGpuTexture*>(baseTexture)->GetTexture(),
                 .sampler = static_cast<SdlGpuTexture*>(baseTexture)->GetSampler()
             };
-            SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
 
             auto pipeline = static_cast<SdlGpuPipeline*>(m_Pipeline)->GetPipeline();
+
+            SDL_PushGPUVertexUniformData(cmdBuf, 1, &mtl.GetColor(), sizeof(mtl.GetColor()));
+            SDL_PushGPUVertexUniformData(cmdBuf, 2, &mtlIdx, sizeof(mtlIdx));
+            SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
             SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
 
             const Mat44f viewProj = projection.Mul(viewXform);
@@ -195,9 +193,6 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
                     viewProj.Mul(xmesh.WorldTransform)
                 };
 
-                // Send up the model and model-view-projection matrices
-                SDL_PushGPUVertexUniformData(cmdBuf, 0, matrices, sizeof(matrices));
-
                 const Mesh& mesh = xmesh.MeshInstance;
 
                 const SdlGpuVertexBuffer* sdlVb =
@@ -208,7 +203,6 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
                     .buffer = sdlVb->GetBuffer(),
                     .offset = mesh.GetVertexBuffer().GetByteOffset()
                 };
-                SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBufferBinding, 1);
 
                 const SdlGpuIndexBuffer* sdlIb =
                     static_cast<const SdlGpuIndexBuffer*>(mesh.GetIndexBuffer().GetBuffer());
@@ -221,13 +215,15 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 
                 static_assert(VERTEX_INDEX_BITS == 32 || VERTEX_INDEX_BITS == 16);
 
-                const SDL_GPUIndexElementSize idxElSize =
+                constexpr SDL_GPUIndexElementSize idxElSize =
                     (VERTEX_INDEX_BITS == 32)
                     ? SDL_GPU_INDEXELEMENTSIZE_32BIT
                     : SDL_GPU_INDEXELEMENTSIZE_16BIT;
 
+                // Send up the model and model-view-projection matrices
+                SDL_PushGPUVertexUniformData(cmdBuf, 0, matrices, sizeof(matrices));
+                SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBufferBinding, 1);
                 SDL_BindGPUIndexBuffer(renderPass, &indexBufferBinding, idxElSize);
-
                 SDL_DrawGPUIndexedPrimitives(renderPass, mesh.GetIndexCount(), 1, 0, 0, 0);
             }
         }
@@ -240,8 +236,8 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     SwapStates();
 
     eassert(!m_CurrentState->m_RenderFence, "Render fence should be null here");
-    m_CurrentState->m_RenderFence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmdBuf);
 
+    m_CurrentState->m_RenderFence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmdBuf);
     expect(m_CurrentState->m_RenderFence, SDL_GetError());
 
     return ResultOk;
