@@ -324,7 +324,6 @@ public:
 
     Result<GpuDepthBuffer*> CreateDepthBuffer(const unsigned width,
         const unsigned height,
-        const float clearDepth,
         const imstring& name) override;
 
     Result<void> DestroyDepthBuffer(GpuDepthBuffer* depthBuffer) override;

@@ -252,16 +252,19 @@ SdlRenderer::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
 
     SDL_GPUTexture* swapChainTexture;
     uint32_t windowW, windowH;
-    expect(SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuf, window, &swapChainTexture, &windowW, &windowH), SDL_GetError())
+    expect(SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuf,
+               window,
+               &swapChainTexture,
+               &windowW,
+               &windowH),
+        SDL_GetError())
 
-    if (!swapChainTexture)
+        if(!swapChainTexture)
     {
         //Perhaps window minimized
         //This is not an error, but callers must check for nullptr.
         return nullptr;
     }
-
-    static constexpr float CLEAR_DEPTH = 1.0f;
 
     if (!m_DepthBuffer || m_TargetWidth != windowW || m_TargetHeight != windowH)
     {
@@ -274,10 +277,8 @@ SdlRenderer::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
         m_TargetWidth = windowW;
         m_TargetHeight = windowH;
 
-        auto depthBufferResult = m_GpuDevice->CreateDepthBuffer(windowW,
-            windowH,
-            CLEAR_DEPTH,
-            "SdlRenderer Depth Buffer");
+        auto depthBufferResult =
+            m_GpuDevice->CreateDepthBuffer(windowW, windowH, "SdlRenderer Depth Buffer");
         expect(depthBufferResult, depthBufferResult.error());
         m_DepthBuffer = depthBufferResult.value();
     }
@@ -291,6 +292,8 @@ SdlRenderer::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
         .load_op = SDL_GPU_LOADOP_CLEAR,
         .store_op = SDL_GPU_STOREOP_STORE
     };
+
+    static constexpr float CLEAR_DEPTH = 1.0f;
 
     SDL_GPUDepthStencilTargetInfo depthTargetInfo
     {

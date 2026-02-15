@@ -204,7 +204,6 @@ public:
 
     virtual Result<GpuDepthBuffer*> CreateDepthBuffer(const unsigned width,
         const unsigned height,
-        const float clearDepth,
         const imstring& name) = 0;
 
     /// @brief Destroys a depth buffer.

@@ -339,7 +339,6 @@ DawnGpuDevice::DestroyTexture(GpuTexture* texture)
 Result<GpuDepthBuffer*>
 DawnGpuDevice::CreateDepthBuffer(const unsigned /*width*/,
     const unsigned /*height*/,
-    const float /*clearDepth*/,
     const imstring& /*name*/)
 {
     eassert(false, "Not implemented");

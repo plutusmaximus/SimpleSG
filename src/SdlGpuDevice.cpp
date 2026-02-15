@@ -464,7 +464,7 @@ SdlGpuDevice::DestroyTexture(GpuTexture* texture)
 
 Result<GpuDepthBuffer*>
 SdlGpuDevice::CreateDepthBuffer(
-    const unsigned width, const unsigned height, const float clearDepth, const imstring& name)
+    const unsigned width, const unsigned height, const imstring& name)
 {
     auto props = SDL_CreateProperties();
     expect(props, SDL_GetError());
@@ -487,9 +487,9 @@ SdlGpuDevice::CreateDepthBuffer(
         };
 
     // Avoid D3D12 warning about not specifying clear depth.
-    SDL_SetFloatProperty(m_DepthCreateInfo.props,
+    /*SDL_SetFloatProperty(m_DepthCreateInfo.props,
         SDL_PROP_GPU_TEXTURE_CREATE_D3D12_CLEAR_DEPTH_FLOAT,
-        clearDepth);
+        clearDepth);*/
 
     auto depthBuffer = SDL_CreateGPUTexture(Device, &m_DepthCreateInfo);
     expect(depthBuffer, SDL_GetError());
