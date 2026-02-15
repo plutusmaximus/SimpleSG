@@ -201,7 +201,7 @@ set(SSG_SOURCES
   src/Model.cpp
   src/ResourceCache.cpp
   src/SdlGpuDevice.cpp
-  src/SdlRenderGraph.cpp
+  src/SdlRenderer.cpp
   src/Shapes.cpp
   src/SpaceMouse.cpp
   src/Stopwatch.cpp
@@ -226,11 +226,11 @@ set(SSG_HEADERS
   src/Mesh.h
   src/Model.h
   src/PoolAllocator.h
-  src/RenderGraph.h
+  src/Renderer.h
   src/ResourceCache.h
   src/Result.h
   src/SdlGpuDevice.h
-  src/SdlRenderGraph.h
+  src/SdlRenderer.h
   src/Shapes.h
   src/SpaceMouse.h
   src/Stopwatch.h
