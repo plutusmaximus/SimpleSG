@@ -365,7 +365,7 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
             .MtlSpec
             {
                 .Color{1, 0, 0},
-                .Albedo{"images/Ant.png"},
+                .BaseTexture{"images/Ant.png"},
             }
         },
         {
@@ -374,7 +374,7 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
             .MtlSpec
             {
                 .Color{0, 1, 0},
-                .Albedo{"images/Bee.png"},
+                .BaseTexture{"images/Bee.png"},
             }
         },
         {
@@ -383,7 +383,7 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
             .MtlSpec
             {
                 .Color{0, 0, 1},
-                .Albedo{"images/Butterfly.png"},
+                .BaseTexture{"images/Butterfly.png"},
             }
         },
         {
@@ -392,7 +392,7 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
             .MtlSpec
             {
                 .Color{1, 1, 1},
-                .Albedo{"images/Frog.png"},
+                .BaseTexture{"images/Frog.png"},
             }
         },
         {
@@ -401,7 +401,7 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
             .MtlSpec
             {
                 .Color{0, 1, 1},
-                .Albedo{"images/Lizard.png"},
+                .BaseTexture{"images/Lizard.png"},
             }
         },
         {
@@ -410,7 +410,7 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
             .MtlSpec
             {
                 .Color{1, 0, 1},
-                .Albedo{"images/Turtle.png"},
+                .BaseTexture{"images/Turtle.png"},
             }
         },
     };
@@ -463,7 +463,7 @@ static Result<ModelResource> CreateShapeModel(ResourceCache* cache)
             .MtlSpec
             {
                 .Color{1, 0, 0},
-                .Albedo{"images/Ant.png"},
+                .BaseTexture{"images/Ant.png"},
             }
         }
     };

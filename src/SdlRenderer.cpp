@@ -21,12 +21,12 @@ SdlRenderer::~SdlRenderer()
 {
     WaitForFence();
 
-    if(m_DefaultAlbedoTexture)
+    if(m_DefaultBaseTexture)
     {
-        auto result = m_GpuDevice->DestroyTexture(m_DefaultAlbedoTexture);
+        auto result = m_GpuDevice->DestroyTexture(m_DefaultBaseTexture);
         if(!result)
         {
-            logError("Failed to destroy default albedo texture: {}", result.error());
+            logError("Failed to destroy default base texture: {}", result.error());
         }
     }
 
@@ -163,22 +163,22 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
             const int idx = 0;
             SDL_PushGPUVertexUniformData(cmdBuf, 2, &idx, sizeof(idx));
 
-            GpuTexture* albedo = mtl.GetAlbedo();
+            GpuTexture* baseTexture = mtl.GetBaseTexture();
 
-            if(!albedo)
+            if(!baseTexture)
             {
-                // If material doesn't have an albedo texture, bind a default white texture.
-                auto defaultTextResult = GetDefaultAlbedoTexture();
+                // If material doesn't have a base texture, bind a default white texture.
+                auto defaultTextResult = GetDefaultBaseTexture();
                 expect(defaultTextResult, defaultTextResult.error());
 
-                albedo = defaultTextResult.value();
+                baseTexture = defaultTextResult.value();
             }
 
             // Bind texture and sampler
             SDL_GPUTextureSamplerBinding samplerBinding
             {
-                .texture = static_cast<SdlGpuTexture*>(albedo)->GetTexture(),
-                .sampler = static_cast<SdlGpuTexture*>(albedo)->GetSampler()
+                .texture = static_cast<SdlGpuTexture*>(baseTexture)->GetTexture(),
+                .sampler = static_cast<SdlGpuTexture*>(baseTexture)->GetSampler()
             };
             SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
 
@@ -348,17 +348,17 @@ SdlRenderer::WaitForFence()
 }
 
 Result<GpuTexture*>
-SdlRenderer::GetDefaultAlbedoTexture()
+SdlRenderer::GetDefaultBaseTexture()
 {
-    if(!m_DefaultAlbedoTexture)
+    if(!m_DefaultBaseTexture)
     {
         static constexpr const char* MAGENTA_TEXTURE_KEY = "$magenta";
 
         auto result = m_GpuDevice->CreateTexture("#FF00FFFF"_rgba, imstring(MAGENTA_TEXTURE_KEY));
         expect(result, result.error());
 
-        m_DefaultAlbedoTexture = result.value();
+        m_DefaultBaseTexture = result.value();
     }
 
-    return m_DefaultAlbedoTexture;
+    return m_DefaultBaseTexture;
 }

@@ -226,13 +226,16 @@ static Result<ModelResource> CreateTriangleModel(ResourceCache* cache)
 {
     imvector<MeshSpec>::builder meshSpecs = //
         {
-            {.Vertices{triangleVertices},
-             .Indices{triangleIndices},
-             .MtlSpec //
-             {
-                 .Color{"#FFA500"_rgba},
-                 .Albedo{"images/Ant.png"},
-             }},
+            {
+                //
+                .Vertices{triangleVertices},
+                .Indices{triangleIndices},
+                .MtlSpec //
+                {
+                    .Color{"#FFA500"_rgba},
+                    .BaseTexture{"images/Ant.png"},
+                },
+            },
         };
 
     imvector<TransformNode>::builder transformNodes

@@ -508,7 +508,7 @@ struct MaterialSpec
     const float Metalness{ 0 };
     const float Roughness{ 0 };
 
-    const TextureSpec Albedo;
+    const TextureSpec BaseTexture;
 };
 
 /// @brief Material used for rendering meshes.
@@ -520,12 +520,12 @@ public:
         const RgbaColorf color,
         const float metalness,
         const float roughness,
-        GpuTexture* albedo)
+        GpuTexture* baseTexture)
         : m_Key(MaterialId::NextId(), color.a < 1.0f ? MaterialFlags::Translucent : MaterialFlags::None)
         , m_Color(color)
         , m_Metalness(metalness)
         , m_Roughness(roughness)
-        , m_Albedo(albedo)
+        , m_BaseTexture(baseTexture)
     {
     }
 
@@ -538,7 +538,7 @@ public:
     const RgbaColorf& GetColor() const { return m_Color; }
     float GetMetalness() const { return m_Metalness; }
     float GetRoughness() const { return m_Roughness; }
-    GpuTexture* GetAlbedo() const { return m_Albedo; }
+    GpuTexture* GetBaseTexture() const { return m_BaseTexture; }
 
 private:
 
@@ -557,8 +557,8 @@ private:
     /// @brief Roughness factor of the material.
     float m_Roughness{ 0 };
 
-    /// @brief Albedo (base color) texture of the material.
-    GpuTexture* m_Albedo{ nullptr };
+    /// @brief Base (albedo) texture of the material.
+    GpuTexture* m_BaseTexture{ nullptr };
 };
 
 /// @brief Enable hashing of CacheKey for use in unordered containers.

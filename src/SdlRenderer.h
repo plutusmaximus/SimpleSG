@@ -81,8 +81,8 @@ private:
     }
 
     /// Get or create the default texture.
-    /// The default texture is used when a material does not have an albedo texture.
-    Result<GpuTexture*> GetDefaultAlbedoTexture();
+    /// The default texture is used when a material does not have a base texture.
+    Result<GpuTexture*> GetDefaultBaseTexture();
 
     SdlGpuDevice* const m_GpuDevice;
     GpuDepthBuffer* m_DepthBuffer{ nullptr };
@@ -90,6 +90,6 @@ private:
 
     State m_State[2];
     State* m_CurrentState = &m_State[0];
-    GpuTexture* m_DefaultAlbedoTexture{nullptr};
+    GpuTexture* m_DefaultBaseTexture{nullptr};
     unsigned m_TargetWidth{0}, m_TargetHeight{0};
 };

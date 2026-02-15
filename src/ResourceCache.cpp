@@ -33,7 +33,7 @@ struct TextureProperty
 /// @brief Collection of texture properties for a material.
 struct TextureProperties
 {
-    TextureProperty Albedo;
+    TextureProperty Base;
     TextureProperty Diffuse;
     TextureProperty Specular;
     TextureProperty Normal;
@@ -568,11 +568,11 @@ ResourceCache::CreateModelOp::Update()
 
                 for(const auto& meshSpec : m_ModelSpec.GetMeshSpecs())
                 {
-                    if(meshSpec.MtlSpec.Albedo.IsValid())
+                    if(meshSpec.MtlSpec.BaseTexture.IsValid())
                     {
-                        const CacheKey texCacheKey = meshSpec.MtlSpec.Albedo.GetCacheKey();
+                        const CacheKey texCacheKey = meshSpec.MtlSpec.BaseTexture.GetCacheKey();
                         auto result = m_ResourceCache->CreateTextureAsync(texCacheKey,
-                            meshSpec.MtlSpec.Albedo);
+                            meshSpec.MtlSpec.BaseTexture);
 
                         if(!result)
                         {
@@ -636,12 +636,12 @@ ResourceCache::CreateModelOp::CreateModel()
 
     for(const auto& meshSpec : m_ModelSpec.GetMeshSpecs())
     {
-        GpuTexture* albedo = nullptr;
-        if(meshSpec.MtlSpec.Albedo.IsValid())
+        GpuTexture* baseTexture = nullptr;
+        if(meshSpec.MtlSpec.BaseTexture.IsValid())
         {
-            auto albedoResult = m_ResourceCache->GetTexture(meshSpec.MtlSpec.Albedo.GetCacheKey());
-            expect(albedoResult, albedoResult.error());
-            albedo = albedoResult.value();
+            auto baseTextureResult = m_ResourceCache->GetTexture(meshSpec.MtlSpec.BaseTexture.GetCacheKey());
+            expect(baseTextureResult, baseTextureResult.error());
+            baseTexture = baseTextureResult.value();
         }
 
         Material mtl //
@@ -649,7 +649,7 @@ ResourceCache::CreateModelOp::CreateModel()
                 meshSpec.MtlSpec.Color,
                 meshSpec.MtlSpec.Metalness,
                 meshSpec.MtlSpec.Roughness,
-                albedo,
+                baseTexture,
             };
 
         const uint32_t idxCount = static_cast<uint32_t>(meshSpec.Indices.size());
@@ -1424,8 +1424,8 @@ GetTexturePropertiesFromMaterial(const aiMaterial* material,
         {
             logWarn("Base color texture has non-wrapping UV mode");
         }
-        properties.Albedo.Path = (parentPath / texPath.C_Str()).string();
-        properties.Albedo.UVIndex = uvIndex;
+        properties.Base.Path = (parentPath / texPath.C_Str()).string();
+        properties.Base.UVIndex = uvIndex;
     }
     if(material->GetTexture(aiTextureType_NORMAL_CAMERA,
            0,
@@ -1589,16 +1589,16 @@ CreateMaterialSpec(const aiMaterial* material, const std::filesystem::path& pare
         logWarn("  Mesh has no material");
     }
 
-    const TextureSpec albedo = texProperties.Albedo.Path.empty()
+    const TextureSpec baseTextureSpec = texProperties.Base.Path.empty()
                                    ? MAGENTA_TEXTURE_SPEC
-                                   : TextureSpec{ texProperties.Albedo.Path };
+                                   : TextureSpec{ texProperties.Base.Path };
 
     return MaterialSpec//
     {
         .Color{ diffuseColor.r, diffuseColor.g, diffuseColor.b, opacity },
         .Metalness{ 0.0f },
         .Roughness{ 0.0f },
-        .Albedo = albedo,
+        .BaseTexture = baseTextureSpec,
     };
 }
 
@@ -1619,12 +1619,12 @@ CreateMeshSpecFromMesh(
     vertices.reserve(mesh->mNumVertices);
     indices.reserve(mesh->mNumFaces * 3);
 
-    int albedoUvIndex = -1;
+    int baseUvIndex = -1;
     if(material)
     {
         aiGetMaterialInteger(material,
             AI_MATKEY_UVWSRC(aiTextureType_BASE_COLOR, 0),
-            &albedoUvIndex);
+            &baseUvIndex);
     }
 
     // Lambda to get UVs or return zero UVs if not present
@@ -1647,7 +1647,7 @@ CreateMeshSpecFromMesh(
 
         Vertex vtx{ .pos = Vec3f{ srcVtx.x, srcVtx.y, srcVtx.z },
             .normal = Vec3f{ srcNorm.x, srcNorm.y, srcNorm.z }.Normalize(),
-            .uvs{ getUV(mesh, albedoUvIndex, vtxIdx) } };
+            .uvs{ getUV(mesh, baseUvIndex, vtxIdx) } };
 
         vertices.emplace_back(vtx);
     }
