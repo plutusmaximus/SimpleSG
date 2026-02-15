@@ -24,8 +24,8 @@ public:
     DawnGpuVertexBuffer() = delete;
     DawnGpuVertexBuffer(const DawnGpuVertexBuffer&) = delete;
     DawnGpuVertexBuffer& operator=(const DawnGpuVertexBuffer&) = delete;
-    DawnGpuVertexBuffer(DawnGpuVertexBuffer&&) = default;
-    DawnGpuVertexBuffer& operator=(DawnGpuVertexBuffer&&) = default;
+    DawnGpuVertexBuffer(DawnGpuVertexBuffer&&) = delete;
+    DawnGpuVertexBuffer& operator=(DawnGpuVertexBuffer&&) = delete;
 
     // wgpu::Buffer is ref counted so nothing to do here.
     ~DawnGpuVertexBuffer() override {};
@@ -69,8 +69,8 @@ public:
     DawnGpuIndexBuffer() = delete;
     DawnGpuIndexBuffer(const DawnGpuIndexBuffer&) = delete;
     DawnGpuIndexBuffer& operator=(const DawnGpuIndexBuffer&) = delete;
-    DawnGpuIndexBuffer(DawnGpuIndexBuffer&&) = default;
-    DawnGpuIndexBuffer& operator=(DawnGpuIndexBuffer&&) = default;
+    DawnGpuIndexBuffer(DawnGpuIndexBuffer&&) = delete;
+    DawnGpuIndexBuffer& operator=(DawnGpuIndexBuffer&&) = delete;
 
     // wgpu::Buffer is ref counted so nothing to do here.
     ~DawnGpuIndexBuffer() override {};
@@ -105,8 +105,8 @@ public:
     DawnGpuTexture() = delete;
     DawnGpuTexture(const DawnGpuTexture&) = delete;
     DawnGpuTexture& operator=(const DawnGpuTexture&) = delete;
-    DawnGpuTexture(DawnGpuTexture&&) = default;
-    DawnGpuTexture& operator=(DawnGpuTexture&&) = default;
+    DawnGpuTexture(DawnGpuTexture&&) = delete;
+    DawnGpuTexture& operator=(DawnGpuTexture&&) = delete;
 
     // wgpu::Texture is ref counted so nothing to do here.
     ~DawnGpuTexture() override {};
@@ -142,8 +142,8 @@ public:
     DawnGpuRenderTarget() = delete;
     DawnGpuRenderTarget(const DawnGpuRenderTarget&) = delete;
     DawnGpuRenderTarget& operator=(const DawnGpuRenderTarget&) = delete;
-    DawnGpuRenderTarget(DawnGpuRenderTarget&&) = default;
-    DawnGpuRenderTarget& operator=(DawnGpuRenderTarget&&) = default;
+    DawnGpuRenderTarget(DawnGpuRenderTarget&&) = delete;
+    DawnGpuRenderTarget& operator=(DawnGpuRenderTarget&&) = delete;
 
     // wgpu::Texture is ref counted so nothing to do here.
     ~DawnGpuRenderTarget() override {};
@@ -179,8 +179,8 @@ public:
     DawnGpuDepthTarget() = delete;
     DawnGpuDepthTarget(const DawnGpuDepthTarget&) = delete;
     DawnGpuDepthTarget& operator=(const DawnGpuDepthTarget&) = delete;
-    DawnGpuDepthTarget(DawnGpuDepthTarget&&) = default;
-    DawnGpuDepthTarget& operator=(DawnGpuDepthTarget&&) = default;
+    DawnGpuDepthTarget(DawnGpuDepthTarget&&) = delete;
+    DawnGpuDepthTarget& operator=(DawnGpuDepthTarget&&) = delete;
 
     // wgpu::Texture is ref counted so nothing to do here.
     ~DawnGpuDepthTarget() override {};
@@ -216,8 +216,8 @@ public:
     DawnGpuVertexShader() = delete;
     DawnGpuVertexShader(const DawnGpuVertexShader&) = delete;
     DawnGpuVertexShader& operator=(const DawnGpuVertexShader&) = delete;
-    DawnGpuVertexShader(DawnGpuVertexShader&&) = default;
-    DawnGpuVertexShader& operator=(DawnGpuVertexShader&&) = default;
+    DawnGpuVertexShader(DawnGpuVertexShader&&) = delete;
+    DawnGpuVertexShader& operator=(DawnGpuVertexShader&&) = delete;
 
     ~DawnGpuVertexShader() override {};
 
@@ -242,8 +242,8 @@ public:
     DawnGpuFragmentShader() = delete;
     DawnGpuFragmentShader(const DawnGpuFragmentShader&) = delete;
     DawnGpuFragmentShader& operator=(const DawnGpuFragmentShader&) = delete;
-    DawnGpuFragmentShader(DawnGpuFragmentShader&&) = default;
-    DawnGpuFragmentShader& operator=(DawnGpuFragmentShader&&) = default;
+    DawnGpuFragmentShader(DawnGpuFragmentShader&&) = delete;
+    DawnGpuFragmentShader& operator=(DawnGpuFragmentShader&&) = delete;
 
     ~DawnGpuFragmentShader() override {};
 
