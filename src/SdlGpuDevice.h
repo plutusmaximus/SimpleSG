@@ -266,12 +266,13 @@ private:
     struct PipelineKey
     {
         const int ColorFormat;
-        SDL_GPUShader* const VertexShader;
-        SDL_GPUShader* const FragShader;
+        GpuVertexShader* const VertexShader;
+        GpuFragmentShader* const FragShader;
 
         bool operator<(const PipelineKey& other) const
         {
-            return std::memcmp(this, &other, sizeof(*this)) < 0;
+            return std::tie(ColorFormat, VertexShader, FragShader) <
+                   std::tie(other.ColorFormat, other.VertexShader, other.FragShader);
         }
     };
 

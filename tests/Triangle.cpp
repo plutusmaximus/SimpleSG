@@ -15,6 +15,7 @@ static Result<ModelResource> CreateTriangleModel(ResourceCache* cache);
 
 constexpr const char* kAppName = "Triangle";
 
+//#define USE_DAWN_GPU_DEVICE 1
 #define USE_DAWN_GPU_DEVICE 0
 
 static Result<void> MainLoop()
@@ -227,10 +228,10 @@ static Result<ModelResource> CreateTriangleModel(ResourceCache* cache)
             .MtlSpec
             {
                 .Color{"#FFA500"_rgba},
+                .Albedo{"images/Ant.png"},
                 //.Albedo{TextureSpec::None},
                 //.VertexShader{"shaders/Debug/ColorVertexShader.vs", 3},
                 //.FragmentShader{"shaders/Debug/ColorFragmentShader.fs"}
-                .Albedo{"images/Ant.png"},
                 .VertexShader{"shaders/Debug/VertexShader.vs", 3},
                 .FragmentShader{"shaders/Debug/FragmentShader.ps"}
             }

@@ -16,6 +16,7 @@
 #include <stb_image.h>
 
 static constexpr const char* SHADER_EXTENSION = ".spv";
+//static constexpr const char* SHADER_EXTENSION = ".wgsl";
 
 static constexpr const RgbaColorf WHITE_COLOR(1.0f, 1.0f, 1.0f, 1.0f);
 static constexpr const RgbaColorf MAGENTA_COLOR(1.0f, 0.0f, 1.0f, 1.0f);

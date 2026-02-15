@@ -152,43 +152,27 @@ SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
             SDL_PushGPUVertexUniformData(cmdBuf, 1, &mtl.GetColor(), sizeof(mtl.GetColor()));
 
             //const int idx = m_MaterialDb->GetIndex(mtlId);
-
-            //SDL_PushGPUVertexUniformData(m_CmdBuf, 2, &idx, sizeof(idx));
             const int idx = 0;
             SDL_PushGPUVertexUniformData(cmdBuf, 2, &idx, sizeof(idx));
 
             GpuTexture* albedo = mtl.GetAlbedo();
 
-            if (albedo)
+            if(!albedo)
             {
-                // Bind texture and sampler
-                SDL_GPUTextureSamplerBinding samplerBinding
-                {
-                    .texture = static_cast<SdlGpuTexture*>(albedo)->GetTexture(),
-                    .sampler = static_cast<SdlGpuTexture*>(albedo)->GetSampler()
-                };
-                SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
-            }
-            else
-            {
-                // No albedo texture
-                // Bind default texture
-
-                // All shaders have the same number of textures/samplers,
-                // even if they go unused.  So if a material doesn't have an albedo texture,
-                // we bind a default texture.
+                // If material doesn't have an albedo texture, bind a default white texture.
                 auto defaultTextResult = GetDefaultAlbedoTexture();
                 expect(defaultTextResult, defaultTextResult.error());
 
-                GpuTexture* defaultTex = defaultTextResult.value();
-
-                SDL_GPUTextureSamplerBinding samplerBinding
-                {
-                    .texture = static_cast<SdlGpuTexture*>(defaultTex)->GetTexture(),
-                    .sampler = static_cast<SdlGpuTexture*>(defaultTex)->GetSampler()
-                };
-                SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
+                albedo = defaultTextResult.value();
             }
+
+            // Bind texture and sampler
+            SDL_GPUTextureSamplerBinding samplerBinding
+            {
+                .texture = static_cast<SdlGpuTexture*>(albedo)->GetTexture(),
+                .sampler = static_cast<SdlGpuTexture*>(albedo)->GetSampler()
+            };
+            SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
 
             auto pipelineResult = m_GpuDevice->GetOrCreatePipeline(mtl);
 

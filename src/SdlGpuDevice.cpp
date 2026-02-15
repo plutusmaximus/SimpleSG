@@ -560,8 +560,8 @@ SdlGpuDevice::GetOrCreatePipeline(const Material& mtl)
     PipelineKey key
     {
         .ColorFormat = colorTargetFormat,
-        .VertexShader = static_cast<SdlGpuVertexShader*>(mtl.GetVertexShader())->GetShader(),
-        .FragShader = static_cast<SdlGpuFragmentShader*>(mtl.GetFragmentShader())->GetShader()
+        .VertexShader = mtl.GetVertexShader(),
+        .FragShader = mtl.GetFragmentShader()
     };
 
     auto it = m_PipelinesByKey.find(key);
@@ -626,7 +626,7 @@ SdlGpuDevice::GetOrCreatePipeline(const Material& mtl)
         },
         .depth_stencil_state =
         {
-            .compare_op = SDL_GPU_COMPAREOP_LESS_OR_EQUAL,
+            .compare_op = SDL_GPU_COMPAREOP_LESS,
             .enable_depth_test = true,
             .enable_depth_write = true
         },
