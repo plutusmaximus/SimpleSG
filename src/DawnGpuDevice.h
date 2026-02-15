@@ -1,11 +1,9 @@
 #pragma once
 
 #include "GpuDevice.h"
-#include "Material.h"
 #include "PoolAllocator.h"
 #include "Vertex.h"
 
-#include <map>
 #include <span>
 #include <webgpu/webgpu_cpp.h>
 
@@ -226,20 +224,14 @@ private:
     friend class DawnGpuDevice;
 
     DawnGpuPipeline(DawnGpuDevice* gpuDevice,
-        wgpu::RenderPipeline* pipeline,
-        GpuVertexShader* vertexShader,
-        GpuFragmentShader* fragmentShader)
+        wgpu::RenderPipeline* pipeline)
         : m_GpuDevice(gpuDevice),
-          m_Pipeline(pipeline),
-          m_VertexShader(vertexShader),
-          m_FragmentShader(fragmentShader)
+          m_Pipeline(pipeline)
     {
     }
 
     DawnGpuDevice* const m_GpuDevice;
     wgpu::RenderPipeline* const m_Pipeline;
-    GpuVertexShader* m_VertexShader = nullptr;
-    GpuFragmentShader* m_FragmentShader = nullptr;
 };
 
 class DawnGpuRenderPass : public GpuRenderPass
@@ -318,8 +310,10 @@ public:
 
     Result<void> DestroyTexture(GpuTexture* texture) override;
 
-    Result<GpuDepthBuffer*> CreateDepthBuffer(
-        const unsigned width, const unsigned height, const imstring& name) override;
+    Result<GpuDepthBuffer*> CreateDepthBuffer(const unsigned width,
+        const unsigned height,
+        const float clearDepth,
+        const imstring& name) override;
 
     Result<void> DestroyDepthBuffer(GpuDepthBuffer* depthBuffer) override;
 
@@ -332,8 +326,8 @@ public:
     Result<void> DestroyFragmentShader(GpuFragmentShader* shader) override;
 
     Result<GpuPipeline*> CreatePipeline(const GpuPipelineType pipelineType,
-        const std::span<const uint8_t>& vertexShaderByteCode,
-        const std::span<const uint8_t>& fragmentShaderByteCode) override;
+        GpuVertexShader* vertexShader,
+        GpuFragmentShader* fragmentShader) override;
 
     Result<void> DestroyPipeline(GpuPipeline* pipeline) override;
 
@@ -341,12 +335,9 @@ public:
 
     Result<void> DestroyRenderPass(GpuRenderPass* renderPass) override;
 
-    Result<RenderGraph*> CreateRenderGraph() override;
+    Result<RenderGraph*> CreateRenderGraph(GpuPipeline* pipeline) override;
 
     void DestroyRenderGraph(RenderGraph* renderGraph) override;
-
-    /// @brief Retrieves or creates a graphics pipeline for the given material.
-    Result<wgpu::RenderPipeline*> GetOrCreatePipeline(const Material& mtl);
 
     SDL_Window* const Window;
     wgpu::Instance const Instance;
@@ -360,20 +351,6 @@ private:
         wgpu::Adapter adapter,
         wgpu::Device device,
         wgpu::Surface surface);
-
-    struct PipelineKey
-    {
-        const int ColorFormat;
-        wgpu::ShaderModule const VertexShader;
-        wgpu::ShaderModule const FragShader;
-
-        bool operator<(const PipelineKey& other) const
-        {
-            return std::memcmp(this, &other, sizeof(*this)) < 0;
-        }
-    };
-
-    std::map<PipelineKey, wgpu::RenderPipeline> m_PipelinesByKey;
 
     /// @brief Default sampler used for all textures.
     wgpu::Sampler m_Sampler = nullptr;

@@ -12,6 +12,7 @@
 #include <filesystem>
 
 static Result<ModelResource> CreateTriangleModel(ResourceCache* cache);
+static Result<GpuPipeline*> CreatePipeline(ResourceCache* cache);
 
 constexpr const char* kAppName = "Triangle";
 
@@ -87,7 +88,10 @@ static Result<void> MainLoop()
     expect(modelResult, modelResult.error());
     auto model = *modelResult;
 
-    auto renderGraphResult = gpuDevice->CreateRenderGraph();
+    auto pipelineResult = CreatePipeline(&resourceCache);
+    expect(pipelineResult, pipelineResult.error());
+
+    auto renderGraphResult = gpuDevice->CreateRenderGraph(pipelineResult.value());
     expect(renderGraphResult, renderGraphResult.error());
 
     auto renderGraph = *renderGraphResult;
@@ -262,4 +266,25 @@ static Result<ModelResource> CreateTriangleModel(ResourceCache* cache)
     }
 
     return cache->GetModel(cacheKey);
+}
+
+static Result<GpuPipeline*> CreatePipeline(ResourceCache* cache)
+{
+    const PipelineSpec pipelineSpec//
+    {
+        .PipelineType = GpuPipelineType::Opaque,
+        .VertexShader{"shaders/Debug/VertexShader.vs", 3},
+        .FragmentShader{"shaders/Debug/FragmentShader.ps"},
+    };
+
+    const CacheKey pipelineCacheKey("MainPipeline");
+    auto asyncResult = cache->CreatePipelineAsync(pipelineCacheKey, pipelineSpec);
+    expect(asyncResult, asyncResult.error());
+
+    while(asyncResult->IsPending())
+    {
+        cache->ProcessPendingOperations();
+    }
+
+    return cache->GetPipeline(pipelineCacheKey);
 }

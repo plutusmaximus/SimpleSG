@@ -202,8 +202,10 @@ public:
     /// @brief Destroys a texture.
     virtual Result<void> DestroyTexture(GpuTexture* texture) = 0;
 
-    virtual Result<GpuDepthBuffer*> CreateDepthBuffer(
-        const unsigned width, const unsigned height, const imstring& name) = 0;
+    virtual Result<GpuDepthBuffer*> CreateDepthBuffer(const unsigned width,
+        const unsigned height,
+        const float clearDepth,
+        const imstring& name) = 0;
 
     /// @brief Destroys a depth buffer.
     virtual Result<void> DestroyDepthBuffer(GpuDepthBuffer* depthBuffer) = 0;
@@ -221,8 +223,8 @@ public:
     virtual Result<void> DestroyFragmentShader(GpuFragmentShader* fragmentShader) = 0;
 
     virtual Result<GpuPipeline*> CreatePipeline(const GpuPipelineType pipelineType,
-        const std::span<const uint8_t>& vertexShaderByteCode,
-        const std::span<const uint8_t>& fragmentShaderByteCode) = 0;
+        GpuVertexShader* vertexShader,
+        GpuFragmentShader* fragmentShader) = 0;
 
     virtual Result<void> DestroyPipeline(GpuPipeline* pipeline) = 0;
 
@@ -230,7 +232,7 @@ public:
 
     virtual Result<void> DestroyRenderPass(GpuRenderPass* renderPass) = 0;
 
-    virtual Result<RenderGraph*> CreateRenderGraph() = 0;
+    virtual Result<RenderGraph*> CreateRenderGraph(GpuPipeline* pipeline) = 0;
 
     virtual void DestroyRenderGraph(RenderGraph* renderGraph) = 0;
 

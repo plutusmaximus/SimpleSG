@@ -145,6 +145,21 @@ ResourceCache::~ResourceCache()
             logError("Failed to destroy fragment shader: {}", result.error());
         }
     }
+
+    for(auto it : m_PipelineCache)
+    {
+        eassert(!it.second.IsPending(),
+            "Pipeline cache entry for key {} is still pending during ResourceCache destruction",
+            it.first.ToString());
+
+        // Release pipeline resources
+        auto pipeline = it.second.GetValue().value();
+        auto result = m_GpuDevice->DestroyPipeline(pipeline);
+        if(!result)
+        {
+            logError("Failed to destroy pipeline: {}", result.error());
+        }
+    }
 }
 
 template<>
@@ -173,6 +188,13 @@ bool
 ResourceCache::IsPending<GpuFragmentShader*>(const CacheKey& cacheKey) const
 {
     return m_FragmentShaderCache.IsPending(cacheKey);
+}
+
+template<>
+bool
+ResourceCache::IsPending<GpuPipeline*>(const CacheKey& cacheKey) const
+{
+    return m_PipelineCache.IsPending(cacheKey);
 }
 
 void
@@ -312,6 +334,32 @@ ResourceCache::CreateFragmentShaderAsync(const CacheKey& cacheKey, const Fragmen
     return AsyncStatus(this, cacheKey, &ResourceCache::IsPending<GpuFragmentShader*>);
 }
 
+Result<ResourceCache::AsyncStatus>
+ResourceCache::CreatePipelineAsync(const CacheKey& cacheKey, const PipelineSpec& pipelineSpec)
+{
+    if(IsPending<GpuPipeline*>(cacheKey))
+    {
+        logDebug("  Pipeline creation already pending: {}", cacheKey.ToString());
+        auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<GpuPipeline*>);
+        expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
+        m_Scheduler.Enqueue(op);
+    }
+    else if(m_PipelineCache.Contains(cacheKey))
+    {
+        logDebug("  Cache hit: {}", cacheKey.ToString());
+    }
+    else
+    {
+        logDebug("  Cache miss: {}", cacheKey.ToString());
+
+        auto op = NewOp<CreatePipelineOp>(this, cacheKey, pipelineSpec);
+        expectv(op, "Failed to allocate CreatePipelineOp for key: {}", cacheKey.ToString());
+        m_Scheduler.Enqueue(op);
+    }
+
+    return AsyncStatus(this, cacheKey, &ResourceCache::IsPending<GpuPipeline*>);
+}
+
 Result<ModelResource>
 ResourceCache::GetModel(const CacheKey& cacheKey) const
 {
@@ -348,6 +396,16 @@ ResourceCache::GetFragmentShader(const CacheKey& cacheKey) const
     Result<GpuFragmentShader*> result;
 
     expect(m_FragmentShaderCache.TryGet(cacheKey, result), "Fragment shader not in cache: {}", cacheKey.ToString());
+
+    return result;
+}
+
+Result<GpuPipeline*>
+ResourceCache::GetPipeline(const CacheKey& cacheKey) const
+{
+    Result<GpuPipeline*> result;
+
+    expect(m_PipelineCache.TryGet(cacheKey, result), "Pipeline not in cache: {}", cacheKey.ToString());
 
     return result;
 }
@@ -1253,6 +1311,119 @@ ResourceCache::CreateShaderOp::CreateFragmentShader(const FileIo::FetchDataPtr& 
     auto result = m_ResourceCache->m_GpuDevice->CreateFragmentShader(span);
 
     return result;
+}
+
+// === ResourceCache::CreatePipelineOp ===
+
+ResourceCache::CreatePipelineOp::CreatePipelineOp(
+    ResourceCache* resourceCache, const CacheKey& cacheKey, const PipelineSpec& pipelineSpec)
+    : AsyncOp(cacheKey),
+      m_ResourceCache(resourceCache),
+      m_PipelineSpec(pipelineSpec)
+{
+}
+
+ResourceCache::CreatePipelineOp::~CreatePipelineOp()
+{
+}
+
+void
+ResourceCache::CreatePipelineOp::Start()
+{
+    eassert(m_State == NotStarted);
+
+    if(!everify(m_ResourceCache->m_PipelineCache.TryReserve(GetCacheKey())))
+    {
+        SetResult(Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString()));
+        return;
+    }
+
+    m_State = LoadShaders;
+}
+
+void
+ResourceCache::CreatePipelineOp::Update()
+{
+    switch(m_State)
+    {
+        case NotStarted:
+            eassert(false, "Start() should have been called before Update()");
+            break;
+
+        case LoadShaders:
+
+            m_ResourceCache->m_Scheduler.PushGroup(&m_TaskGroup);
+
+            {
+                auto cleanup =
+                    scope_exit([&]() { m_ResourceCache->m_Scheduler.PopGroup(&m_TaskGroup); });
+
+                const auto& vsSpec = m_PipelineSpec.VertexShader;
+                auto result =
+                    m_ResourceCache->CreateVertexShaderAsync(vsSpec.GetCacheKey(), vsSpec);
+                if(!result)
+                {
+                    SetResult(result.error());
+                    return;
+                }
+                const auto& fsSpec = m_PipelineSpec.FragmentShader;
+                result = m_ResourceCache->CreateFragmentShaderAsync(fsSpec.GetCacheKey(), fsSpec);
+                if(!result)
+                {
+                    SetResult(result.error());
+                    return;
+                }
+            }
+
+            m_State = LoadingShaders;
+
+            break;
+
+        case LoadingShaders:
+            if(m_TaskGroup.IsPending())
+            {
+                return;
+            }
+
+            {
+                const auto& vsSpec = m_PipelineSpec.VertexShader;
+                auto vsResult = m_ResourceCache->GetVertexShader(vsSpec.GetCacheKey());
+                if(!vsResult)
+                {
+                    SetResult(vsResult.error());
+                    return;
+                }
+
+                const auto& fsSpec = m_PipelineSpec.FragmentShader;
+                auto fsResult = m_ResourceCache->GetFragmentShader(fsSpec.GetCacheKey());
+                if(!fsResult)
+                {
+                    SetResult(fsResult.error());
+                    return;
+                }
+
+                auto pipelineResult =
+                    m_ResourceCache->m_GpuDevice->CreatePipeline(m_PipelineSpec.PipelineType,
+                        vsResult.value(),
+                        fsResult.value());
+
+                SetResult(pipelineResult);
+            }
+
+            break;
+
+        case Complete:
+            // No-op
+            break;
+    }
+}
+
+void
+ResourceCache::CreatePipelineOp::SetResult(Result<GpuPipeline*> result)
+{
+    m_ResourceCache->m_PipelineCache.Set(GetCacheKey(), result);
+
+    m_State = Complete;
 }
 
 static TextureProperties

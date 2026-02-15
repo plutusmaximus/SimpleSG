@@ -1,11 +1,9 @@
 #pragma once
 
 #include "GpuDevice.h"
-#include "Material.h"
 #include "PoolAllocator.h"
 #include "Vertex.h"
 
-#include <map>
 #include <span>
 
 struct SDL_Window;
@@ -240,20 +238,14 @@ private:
     friend class SdlGpuDevice;
 
     SdlGpuPipeline(SdlGpuDevice* gpuDevice,
-        SDL_GPUGraphicsPipeline* pipeline,
-        GpuVertexShader* vertexShader,
-        GpuFragmentShader* fragmentShader)
+        SDL_GPUGraphicsPipeline* pipeline)
         : m_GpuDevice(gpuDevice),
-          m_Pipeline(pipeline),
-          m_VertexShader(vertexShader),
-          m_FragmentShader(fragmentShader)
+          m_Pipeline(pipeline)
     {
     }
 
     SdlGpuDevice* const m_GpuDevice;
     SDL_GPUGraphicsPipeline* const m_Pipeline;
-    GpuVertexShader* m_VertexShader = nullptr;
-    GpuFragmentShader* m_FragmentShader = nullptr;
 };
 
 class SdlGpuRenderPass : public GpuRenderPass
@@ -329,8 +321,10 @@ public:
 
     Result<void> DestroyTexture(GpuTexture* texture) override;
 
-    Result<GpuDepthBuffer*> CreateDepthBuffer(
-        const unsigned width, const unsigned height, const imstring& name) override;
+    Result<GpuDepthBuffer*> CreateDepthBuffer(const unsigned width,
+        const unsigned height,
+        const float clearDepth,
+        const imstring& name) override;
 
     Result<void> DestroyDepthBuffer(GpuDepthBuffer* depthBuffer) override;
 
@@ -343,8 +337,8 @@ public:
     Result<void> DestroyFragmentShader(GpuFragmentShader* shader) override;
 
     Result<GpuPipeline*> CreatePipeline(const GpuPipelineType pipelineType,
-        const std::span<const uint8_t>& vertexShaderByteCode,
-        const std::span<const uint8_t>& fragmentShaderByteCode) override;
+        GpuVertexShader* vertexShader,
+        GpuFragmentShader* fragmentShader) override;
 
     Result<void> DestroyPipeline(GpuPipeline* pipeline) override;
 
@@ -352,11 +346,9 @@ public:
 
     Result<void> DestroyRenderPass(GpuRenderPass* renderPass) override;
 
-    Result<RenderGraph*> CreateRenderGraph() override;
+    Result<RenderGraph*> CreateRenderGraph(GpuPipeline* pipeline) override;
 
     void DestroyRenderGraph(RenderGraph* renderGraph) override;
-
-    Result<SDL_GPUGraphicsPipeline*> GetOrCreatePipeline(const Material& mtl);
 
     SDL_Window* const Window;
     SDL_GPUDevice* const Device;
@@ -364,21 +356,6 @@ public:
 private:
 
     SdlGpuDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice);
-
-    struct PipelineKey
-    {
-        const int ColorFormat;
-        GpuVertexShader* const VertexShader;
-        GpuFragmentShader* const FragShader;
-
-        bool operator<(const PipelineKey& other) const
-        {
-            return std::tie(ColorFormat, VertexShader, FragShader) <
-                   std::tie(other.ColorFormat, other.VertexShader, other.FragShader);
-        }
-    };
-
-    std::map<PipelineKey, SDL_GPUGraphicsPipeline*> m_PipelinesByKey;
 
     /// @brief Default sampler used for all textures.
     SDL_GPUSampler* m_Sampler = nullptr;

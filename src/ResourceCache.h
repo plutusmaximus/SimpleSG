@@ -2,6 +2,7 @@
 
 #include "CoopScheduler.h"
 #include "FileIo.h"
+#include "GpuDevice.h"
 #include "inlist.h"
 #include "instack.h"
 #include "Mesh.h"
@@ -33,6 +34,14 @@ public:
 
 private:
     Model* m_Model;
+};
+
+class PipelineSpec
+{
+public:
+    const GpuPipelineType PipelineType;
+    const VertexShaderSpec VertexShader;
+    const FragmentShaderSpec FragmentShader;
 };
 
 /// @brief A cache for loading and storing GPU resources like models, textures, and shaders.
@@ -111,6 +120,13 @@ public:
     Result<AsyncStatus> CreateFragmentShaderAsync(
         const CacheKey& cacheKey, const FragmentShaderSpec& shaderSpec);
 
+    /// @brief Creates a pipeline asynchronously if not already created.
+    /// Call IsPending() to check if the operation is still pending.
+    /// When complete use GetPipeline() to retrieve the created pipeline.
+    Result<AsyncStatus> CreatePipelineAsync(
+        const CacheKey& cacheKey,
+        const PipelineSpec& pipelineSpec);
+
     /// @brief Retrieves a cached model.
     Result<ModelResource> GetModel(const CacheKey& cacheKey) const;
 
@@ -122,6 +138,9 @@ public:
 
     /// @brief Retrieves a cached fragment shader.
     Result<GpuFragmentShader*> GetFragmentShader(const CacheKey& cacheKey) const;
+
+    /// @brief Retrieves a cached pipeline.
+    Result<GpuPipeline*> GetPipeline(const CacheKey& cacheKey) const;
 
 private:
 
@@ -258,6 +277,7 @@ private:
         GpuVertexBuffer* m_VertexBuffer{ nullptr };
         GpuIndexBuffer* m_IndexBuffer{ nullptr };
 
+        /// Group of tasks for creating textures and shaders needed by the model.
         CoopTaskGroup m_TaskGroup;
 
         Error m_FailError;
@@ -444,6 +464,56 @@ private:
         FileIo::AsyncToken m_FileFetchToken;
     };
 
+    /// @brief Asynchronous operation for creating a texture.
+    class CreatePipelineOp : public AsyncOp
+    {
+        static constexpr const char* CLASS_NAME = "CreatePipelineOp";
+
+    public:
+        CreatePipelineOp(
+            ResourceCache* resourceCache, const CacheKey& cacheKey, const PipelineSpec& pipelineSpec);
+
+        ~CreatePipelineOp() override;
+
+        void Start() override;
+
+        void Update() override;
+
+        bool IsStarted() const override { return m_State != NotStarted; }
+        bool IsPending() const override { return m_State != Complete; }
+        bool IsComplete() const override { return m_State == Complete; }
+
+    private:
+
+        void Dispose() override
+        {
+            m_ResourceCache->DeleteOp(this);
+        }
+
+        void SetResult(Result<GpuPipeline*> result);
+
+        Result<void> DecodeImage();
+
+        Result<GpuPipeline*> CreatePipeline();
+
+        ResourceCache* m_ResourceCache{ nullptr };
+
+        enum State
+        {
+            NotStarted,
+            LoadShaders,
+            LoadingShaders,
+            Complete,
+        };
+
+        State m_State{ NotStarted };
+
+        PipelineSpec m_PipelineSpec;
+
+        /// Group of dependency tasks for creating the pipeline.
+        CoopTaskGroup m_TaskGroup;
+    };
+
     /// @brief Capacity of the asynchronous operation pools.  This is a template variable that is
     /// specialized for each AsyncOp type, and is used to define the size of the pool allocator for
     /// that type.  By using a template variable, we can easily define different capacities for
@@ -462,6 +532,8 @@ private:
     constexpr size_t POOL_CAPACITY<CreateTextureOp> = 256;
     template<>
     constexpr size_t POOL_CAPACITY<CreateShaderOp> = 8;
+    template<>
+    constexpr size_t POOL_CAPACITY<CreatePipelineOp> = 8;
 
     /// @brief Tuple of pool allocators for each AsyncOp type.  The index of each allocator in the
     /// tuple corresponds to the AsyncOp type, and is used in the GetAllocator() function to
@@ -473,7 +545,8 @@ private:
         PoolAllocator<CreateModelOp, POOL_CAPACITY<CreateModelOp>>,
         PoolAllocator<LoadModelOp, POOL_CAPACITY<LoadModelOp>>,
         PoolAllocator<CreateTextureOp, POOL_CAPACITY<CreateTextureOp>>,
-        PoolAllocator<CreateShaderOp, POOL_CAPACITY<CreateShaderOp>>>
+        PoolAllocator<CreateShaderOp, POOL_CAPACITY<CreateShaderOp>>,
+        PoolAllocator<CreatePipelineOp, POOL_CAPACITY<CreatePipelineOp>>>
         m_OpPools;
 
     /// @brief Retrieves the pool allocator for a specific AsyncOp type.
@@ -627,6 +700,7 @@ private:
     Cache<Result<GpuTexture*>> m_TextureCache;
     Cache<Result<GpuVertexShader*>> m_VertexShaderCache;
     Cache<Result<GpuFragmentShader*>> m_FragmentShaderCache;
+    Cache<Result<GpuPipeline*>> m_PipelineCache;
 
     CoopScheduler m_Scheduler;
 };

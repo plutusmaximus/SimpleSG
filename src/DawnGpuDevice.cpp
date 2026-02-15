@@ -1,6 +1,7 @@
 #include "DawnGpuDevice.h"
 
 #include "Logging.h"
+#include "Material.h"
 
 #include <iostream> //DO NOT SUBMIT
 #include <SDL3/SDL.h>
@@ -336,8 +337,10 @@ DawnGpuDevice::DestroyTexture(GpuTexture* texture)
 }
 
 Result<GpuDepthBuffer*>
-DawnGpuDevice::CreateDepthBuffer(
-    const unsigned /*width*/, const unsigned /*height*/, const imstring& /*name*/)
+DawnGpuDevice::CreateDepthBuffer(const unsigned /*width*/,
+    const unsigned /*height*/,
+    const float /*clearDepth*/,
+    const imstring& /*name*/)
 {
     eassert(false, "Not implemented");
     return Result<GpuDepthBuffer*>();
@@ -410,8 +413,8 @@ DawnGpuDevice::DestroyFragmentShader(GpuFragmentShader* shader)
 
 Result<GpuPipeline*>
 DawnGpuDevice::CreatePipeline(const GpuPipelineType /*pipelineType*/,
-    const std::span<const uint8_t>& /*vertexShaderByteCode*/,
-    const std::span<const uint8_t>& /*fragmentShaderByteCode*/)
+    GpuVertexShader* /*vertexShader*/,
+    GpuFragmentShader* /*fragmentShader*/)
 {
     eassert(false, "Not implemented");
     return Result<GpuPipeline*>();
@@ -449,21 +452,16 @@ DawnGpuDevice::DestroyRenderPass(GpuRenderPass* /*renderPass*/)
 }
 
 Result<RenderGraph*>
-DawnGpuDevice::CreateRenderGraph()
+DawnGpuDevice::CreateRenderGraph(GpuPipeline* /*pipeline*/)
 {
+    eassert(false, "Not implemented");
     return Result<RenderGraph*>();
 }
 
 void
 DawnGpuDevice::DestroyRenderGraph(RenderGraph* /*renderGraph*/)
 {
-}
-
-/// @brief Retrieves or creates a graphics pipeline for the given material.
-Result<wgpu::RenderPipeline*>
-DawnGpuDevice::GetOrCreatePipeline(const Material& /*mtl*/)
-{
-    return Result<wgpu::RenderPipeline*>();
+    eassert(false, "Not implemented");
 }
 
 static Result<wgpu::Instance>

@@ -34,14 +34,6 @@ static const char* const SHADER_EXTENSION = ".spv";
 
 #endif
 
-/// @brief Common function to load a shader from a file.
-template<typename T>
-static Result<SDL_GPUShader*> LoadShader(
-    SDL_GPUDevice* gpuDevice,
-    const std::string_view fileName,
-    const unsigned numUniformBuffers,
-    const unsigned numSamplers);
-
 /// @brief Traits to map a CPU-side buffer type to its corresponding GPU buffer type and usage flags.
 template<typename T> struct GpuBufferTraits;
 
@@ -94,8 +86,6 @@ SdlGpuFragmentShader::~SdlGpuFragmentShader()
 SdlGpuPipeline::~SdlGpuPipeline()
 {
     if (m_Pipeline) { SDL_ReleaseGPUGraphicsPipeline(m_GpuDevice->Device, m_Pipeline); }
-    if (m_VertexShader) { m_GpuDevice->DestroyVertexShader(m_VertexShader); }
-    if (m_FragmentShader) { m_GpuDevice->DestroyFragmentShader(m_FragmentShader); }
 };
 
 SdlGpuDevice::SdlGpuDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice)
@@ -153,13 +143,33 @@ SdlGpuDevice::Create(SDL_Window* window)
         return Error(SDL_GetError());
     }
 
-    if(!SDL_SetGPUSwapchainParameters(
-        sdlDevice,
-        window,
-        SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
-        SDL_GPU_PRESENTMODE_MAILBOX))
+    if(SDL_WindowSupportsGPUPresentMode(sdlDevice, window, SDL_GPU_PRESENTMODE_MAILBOX))
     {
-        return Error(SDL_GetError());
+        logInfo("Using SDL_GPU_PRESENTMODE_MAILBOX present mode.");
+
+        if(!SDL_SetGPUSwapchainParameters(sdlDevice,
+               window,
+               SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
+               SDL_GPU_PRESENTMODE_MAILBOX))
+        {
+            return Error(SDL_GetError());
+        }
+    }
+    else if(SDL_WindowSupportsGPUPresentMode(sdlDevice, window, SDL_GPU_PRESENTMODE_VSYNC))
+    {
+        logInfo("Using SDL_GPU_PRESENTMODE_VSYNC present mode.");
+
+        if(!SDL_SetGPUSwapchainParameters(sdlDevice,
+               window,
+               SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
+               SDL_GPU_PRESENTMODE_VSYNC))
+        {
+            return Error(SDL_GetError());
+        }
+    }
+    else
+    {
+        return Error("No supported present mode found for window.");
     }
 
     SdlGpuDevice* device = new SdlGpuDevice(window, sdlDevice);
@@ -178,11 +188,6 @@ void SdlGpuDevice::Destroy(GpuDevice* device)
 
 SdlGpuDevice::~SdlGpuDevice()
 {
-    for (const auto& [_, pipeline] : m_PipelinesByKey)
-    {
-        SDL_ReleaseGPUGraphicsPipeline(Device, pipeline);
-    }
-
     if(m_Sampler)
     {
         SDL_ReleaseGPUSampler(Device, m_Sampler);
@@ -459,7 +464,7 @@ SdlGpuDevice::DestroyTexture(GpuTexture* texture)
 
 Result<GpuDepthBuffer*>
 SdlGpuDevice::CreateDepthBuffer(
-    const unsigned width, const unsigned height, const imstring& name)
+    const unsigned width, const unsigned height, const float clearDepth, const imstring& name)
 {
     auto props = SDL_CreateProperties();
     expect(props, SDL_GetError());
@@ -481,12 +486,10 @@ SdlGpuDevice::CreateDepthBuffer(
             .props = props,
         };
 
-    static constexpr float CLEAR_DEPTH = 1.0f;
-
     // Avoid D3D12 warning about not specifying clear depth.
     SDL_SetFloatProperty(m_DepthCreateInfo.props,
         SDL_PROP_GPU_TEXTURE_CREATE_D3D12_CLEAR_DEPTH_FLOAT,
-        CLEAR_DEPTH);
+        clearDepth);
 
     auto depthBuffer = SDL_CreateGPUTexture(Device, &m_DepthCreateInfo);
     expect(depthBuffer, SDL_GetError());
@@ -599,27 +602,11 @@ SdlGpuDevice::DestroyFragmentShader(GpuFragmentShader* shader)
 
 Result<GpuPipeline*>
 SdlGpuDevice::CreatePipeline(const GpuPipelineType pipelineType,
-    const std::span<const uint8_t>& vertexShaderByteCode,
-    const std::span<const uint8_t>& fragmentShaderByteCode)
+    GpuVertexShader* vertexShader,
+    GpuFragmentShader* fragmentShader)
 {
     expectv(pipelineType == GpuPipelineType::Opaque,
         "Only opaque pipelines are supported for now.");
-
-    auto vsResult = CreateVertexShader(vertexShaderByteCode);
-    expect(vsResult, vsResult.error());
-
-    auto vsCleanup = scope_exit([&]()
-    {
-        DestroyVertexShader(static_cast<GpuVertexShader*>(vsResult.value()));
-    });
-
-    auto fsResult = CreateFragmentShader(fragmentShaderByteCode);
-    expect(fsResult, fsResult.error());
-
-    auto fsCleanup = scope_exit([&]()
-    {
-        DestroyFragmentShader(static_cast<GpuFragmentShader*>(fsResult.value()));
-    });
 
     const SDL_GPUTextureFormat colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(Device, Window);
     expect(SDL_GPU_TEXTUREFORMAT_INVALID != colorTargetFormat,
@@ -672,8 +659,8 @@ SdlGpuDevice::CreatePipeline(const GpuPipelineType pipelineType,
 
     SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo //
         {
-            .vertex_shader = static_cast<SdlGpuVertexShader*>(vsResult.value())->GetShader(),
-            .fragment_shader = static_cast<SdlGpuFragmentShader*>(fsResult.value())->GetShader(),
+            .vertex_shader = static_cast<SdlGpuVertexShader*>(vertexShader)->GetShader(),
+            .fragment_shader = static_cast<SdlGpuFragmentShader*>(fragmentShader)->GetShader(),
             .vertex_input_state = //
             {
                 .vertex_buffer_descriptions = vertexBufDescriptions,
@@ -717,11 +704,8 @@ SdlGpuDevice::CreatePipeline(const GpuPipelineType pipelineType,
     expectv(res, "Error allocating GpuResource");
 
     pipelineCleanup.release();
-    fsCleanup.release();
-    vsCleanup.release();
 
-    return ::new(&res->Pipeline)
-        SdlGpuPipeline(this, pipeline, vsResult.value(), fsResult.value());
+    return ::new(&res->Pipeline) SdlGpuPipeline(this, pipeline);
 }
 
 Result<void>
@@ -754,9 +738,9 @@ SdlGpuDevice::DestroyRenderPass(GpuRenderPass* renderPass)
 }
 
 Result<RenderGraph*>
-SdlGpuDevice::CreateRenderGraph()
+SdlGpuDevice::CreateRenderGraph(GpuPipeline* pipeline)
 {
-    SdlRenderGraph* renderGraph = new SdlRenderGraph(this);
+    SdlRenderGraph* renderGraph = new SdlRenderGraph(this, pipeline);
     expect(renderGraph, "Error allocating SDLRenderGraph");
     return renderGraph;
 }
@@ -764,100 +748,6 @@ SdlGpuDevice::CreateRenderGraph()
 void SdlGpuDevice::DestroyRenderGraph(RenderGraph* renderGraph)
 {
     delete renderGraph;
-}
-
-Result<SDL_GPUGraphicsPipeline*>
-SdlGpuDevice::GetOrCreatePipeline(const Material& mtl)
-{
-    SDL_GPUTextureFormat colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(Device, Window);
-    PipelineKey key
-    {
-        .ColorFormat = colorTargetFormat,
-        .VertexShader = mtl.GetVertexShader(),
-        .FragShader = mtl.GetFragmentShader()
-    };
-
-    auto it = m_PipelinesByKey.find(key);
-    if (m_PipelinesByKey.end() != it)
-    {
-        return it->second;
-    }
-
-    SDL_GPUVertexBufferDescription vertexBufDescriptions[1] =
-    {
-        {
-            .slot = 0,
-            .pitch = sizeof(Vertex),
-            .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX
-        }
-    };
-    SDL_GPUVertexAttribute vertexAttributes[] =
-    {
-        {.location = 0, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = offsetof(Vertex, pos) },
-        {.location = 1, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = offsetof(Vertex, normal) },
-        {.location = 2, .buffer_slot = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = offsetof(Vertex, uvs[0]) }
-    };
-
-    SDL_GPUColorTargetDescription colorTargetDesc
-    {
-        .format = colorTargetFormat,
-        .blend_state =
-        {
-            .src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
-            .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-            .color_blend_op = SDL_GPU_BLENDOP_ADD,
-            .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
-            .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO,
-            .alpha_blend_op = SDL_GPU_BLENDOP_ADD,
-            .color_write_mask = SDL_GPU_COLORCOMPONENT_R |
-                               SDL_GPU_COLORCOMPONENT_G |
-                               SDL_GPU_COLORCOMPONENT_B |
-                               SDL_GPU_COLORCOMPONENT_A,
-            .enable_blend = true,
-            .enable_color_write_mask = false,
-        }
-    };
-
-    SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo
-    {
-        .vertex_shader = static_cast<SdlGpuVertexShader*>(mtl.GetVertexShader())->GetShader(),
-        .fragment_shader = static_cast<SdlGpuFragmentShader*>(mtl.GetFragmentShader())->GetShader(),
-        .vertex_input_state =
-        {
-            .vertex_buffer_descriptions = vertexBufDescriptions,
-            .num_vertex_buffers = 1,
-            .vertex_attributes = vertexAttributes,
-            .num_vertex_attributes = std::size(vertexAttributes)
-        },
-        .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-        .rasterizer_state =
-        {
-            .fill_mode = SDL_GPU_FILLMODE_FILL,
-            .cull_mode = SDL_GPU_CULLMODE_BACK,
-            .front_face = SDL_GPU_FRONTFACE_CLOCKWISE,
-            .enable_depth_clip = true
-        },
-        .depth_stencil_state =
-        {
-            .compare_op = SDL_GPU_COMPAREOP_LESS,
-            .enable_depth_test = true,
-            .enable_depth_write = true
-        },
-        .target_info =
-        {
-            .color_target_descriptions = &colorTargetDesc,
-            .num_color_targets = 1,
-            .depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
-            .has_depth_stencil_target = true
-        }
-    };
-
-    SDL_GPUGraphicsPipeline* pipeline = SDL_CreateGPUGraphicsPipeline(Device, &pipelineCreateInfo);
-    expect(pipeline, SDL_GetError());
-
-    m_PipelinesByKey.emplace(key, pipeline);
-
-    return pipeline;
 }
 
 //private:

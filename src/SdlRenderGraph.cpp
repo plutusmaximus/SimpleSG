@@ -11,8 +11,9 @@
 
 #include <SDL3/SDL_gpu.h>
 
-SdlRenderGraph::SdlRenderGraph(SdlGpuDevice* gpuDevice)
+SdlRenderGraph::SdlRenderGraph(SdlGpuDevice* gpuDevice, GpuPipeline* pipeline)
     : m_GpuDevice(gpuDevice)
+    , m_Pipeline(pipeline)
 {
 }
 
@@ -181,11 +182,8 @@ SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
             };
             SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
 
-            auto pipelineResult = m_GpuDevice->GetOrCreatePipeline(mtl);
-
-            expect(pipelineResult, pipelineResult.error());
-
-            SDL_BindGPUGraphicsPipeline(renderPass, pipelineResult.value());
+            auto pipeline = static_cast<SdlGpuPipeline*>(m_Pipeline)->GetPipeline();
+            SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
 
             const Mat44f viewProj = projection.Mul(viewXform);
 
@@ -269,7 +267,7 @@ SdlRenderGraph::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
 
     static constexpr float CLEAR_DEPTH = 1.0f;
 
-    if (!m_DepthBuffer || m_DepthCreateInfo.width != windowW || m_DepthCreateInfo.height != windowH)
+    if (!m_DepthBuffer || m_TargetWidth != windowW || m_TargetHeight != windowH)
     {
         if(m_DepthBuffer)
         {
@@ -277,10 +275,13 @@ SdlRenderGraph::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
             m_DepthBuffer = nullptr;
         }
 
-        m_DepthCreateInfo.width = windowW;
-        m_DepthCreateInfo.height = windowH;
+        m_TargetWidth = windowW;
+        m_TargetHeight = windowH;
 
-        auto depthBufferResult = m_GpuDevice->CreateDepthBuffer(windowW, windowH, "RenderGraph Depth Buffer");
+        auto depthBufferResult = m_GpuDevice->CreateDepthBuffer(windowW,
+            windowH,
+            CLEAR_DEPTH,
+            "RenderGraph Depth Buffer");
         expect(depthBufferResult, depthBufferResult.error());
         m_DepthBuffer = depthBufferResult.value();
     }

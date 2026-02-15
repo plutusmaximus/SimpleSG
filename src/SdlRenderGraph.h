@@ -32,7 +32,7 @@ private:
 
     friend class SdlGpuDevice;
 
-    explicit SdlRenderGraph(SdlGpuDevice* gpuDevice);
+    SdlRenderGraph(SdlGpuDevice* gpuDevice, GpuPipeline* pipeline);
 
     Result<SDL_GPURenderPass*> BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf);
 
@@ -41,21 +41,6 @@ private:
         const Mat44f WorldTransform;
         const Model* Model;
         const Mesh& MeshInstance;
-    };
-
-    SdlGpuDevice* const m_GpuDevice;
-    GpuDepthBuffer* m_DepthBuffer = nullptr;
-
-    SDL_GPUTextureCreateInfo m_DepthCreateInfo
-    {
-        .type = SDL_GPU_TEXTURETYPE_2D,
-        .format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
-        .usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET,
-        .width = 0,
-        .height = 0,
-        .layer_count_or_depth = 1,
-        .num_levels = 1,
-        .props = SDL_CreateProperties()
     };
 
     using MeshGroup = std::vector<XformMesh>;
@@ -99,7 +84,12 @@ private:
     /// The default texture is used when a material does not have an albedo texture.
     Result<GpuTexture*> GetDefaultAlbedoTexture();
 
+    SdlGpuDevice* const m_GpuDevice;
+    GpuDepthBuffer* m_DepthBuffer{ nullptr };
+    GpuPipeline* m_Pipeline{ nullptr };
+
     State m_State[2];
     State* m_CurrentState = &m_State[0];
     GpuTexture* m_DefaultAlbedoTexture{nullptr};
+    unsigned m_TargetWidth{0}, m_TargetHeight{0};
 };
