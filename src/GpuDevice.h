@@ -1,6 +1,6 @@
 #pragma once
 
-#include "RenderGraph.h"
+#include "Renderer.h"
 #include "Result.h"
 #include "VecMath.h"
 #include "Vertex.h"
@@ -232,9 +232,9 @@ public:
 
     virtual Result<void> DestroyRenderPass(GpuRenderPass* renderPass) = 0;
 
-    virtual Result<RenderGraph*> CreateRenderGraph(GpuPipeline* pipeline) = 0;
+    virtual Result<Renderer*> CreateRenderer(GpuPipeline* pipeline) = 0;
 
-    virtual void DestroyRenderGraph(RenderGraph* renderGraph) = 0;
+    virtual void DestroyRenderer(Renderer* renderer) = 0;
 
 protected:
     GpuDevice() = default;

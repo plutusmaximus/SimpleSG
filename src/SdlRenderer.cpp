@@ -1,6 +1,6 @@
 #define __LOGGER_NAME__ "SDL "
 
-#include "SdlRenderGraph.h"
+#include "SdlRenderer.h"
 
 #include "Logging.h"
 
@@ -11,13 +11,13 @@
 
 #include <SDL3/SDL_gpu.h>
 
-SdlRenderGraph::SdlRenderGraph(SdlGpuDevice* gpuDevice, GpuPipeline* pipeline)
+SdlRenderer::SdlRenderer(SdlGpuDevice* gpuDevice, GpuPipeline* pipeline)
     : m_GpuDevice(gpuDevice)
     , m_Pipeline(pipeline)
 {
 }
 
-SdlRenderGraph::~SdlRenderGraph()
+SdlRenderer::~SdlRenderer()
 {
     WaitForFence();
 
@@ -41,12 +41,12 @@ SdlRenderGraph::~SdlRenderGraph()
 
     for(const auto& state: m_State)
     {
-        eassert(!state.m_RenderFence, "Render fence must be null when destroying SDLRenderGraph");
+        eassert(!state.m_RenderFence, "Render fence must be null when destroying SdlRenderer");
     }
 }
 
 void
-SdlRenderGraph::Add(const Mat44f& worldTransform, const Model* model)
+SdlRenderer::Add(const Mat44f& worldTransform, const Model* model)
 {
     if(!everify(model, "Model pointer is null"))
     {
@@ -106,7 +106,7 @@ SdlRenderGraph::Add(const Mat44f& worldTransform, const Model* model)
 }
 
 Result<void>
-SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
+SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 {
     //Wait for the previous frame to complete
     WaitForFence();
@@ -250,7 +250,7 @@ SdlRenderGraph::Render(const Mat44f& camera, const Mat44f& projection)
 //private:
 
 Result<SDL_GPURenderPass*>
-SdlRenderGraph::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
+SdlRenderer::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
 {
     auto window = m_GpuDevice->Window;
 
@@ -281,7 +281,7 @@ SdlRenderGraph::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
         auto depthBufferResult = m_GpuDevice->CreateDepthBuffer(windowW,
             windowH,
             CLEAR_DEPTH,
-            "RenderGraph Depth Buffer");
+            "SdlRenderer Depth Buffer");
         expect(depthBufferResult, depthBufferResult.error());
         m_DepthBuffer = depthBufferResult.value();
     }
@@ -324,7 +324,7 @@ SdlRenderGraph::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
 }
 
 void
-SdlRenderGraph::WaitForFence()
+SdlRenderer::WaitForFence()
 {
     if(!m_CurrentState->m_RenderFence)
     {
@@ -340,7 +340,7 @@ SdlRenderGraph::WaitForFence()
 
     if(!success)
     {
-        logError("Error waiting for render fence during SDLRenderGraph destruction: {}", SDL_GetError());
+        logError("Error waiting for render fence during SdlRenderer destruction: {}", SDL_GetError());
     }
 
     SDL_ReleaseGPUFence(m_GpuDevice->Device, m_CurrentState->m_RenderFence);
@@ -348,7 +348,7 @@ SdlRenderGraph::WaitForFence()
 }
 
 Result<GpuTexture*>
-SdlRenderGraph::GetDefaultAlbedoTexture()
+SdlRenderer::GetDefaultAlbedoTexture()
 {
     if(!m_DefaultAlbedoTexture)
     {

@@ -91,14 +91,14 @@ static Result<void> MainLoop()
     auto pipelineResult = CreatePipeline(&resourceCache);
     expect(pipelineResult, pipelineResult.error());
 
-    auto renderGraphResult = gpuDevice->CreateRenderGraph(pipelineResult.value());
-    expect(renderGraphResult, renderGraphResult.error());
+    auto rendererResult = gpuDevice->CreateRenderer(pipelineResult.value());
+    expect(rendererResult, rendererResult.error());
 
-    auto renderGraph = *renderGraphResult;
+    auto renderer = *rendererResult;
 
-    auto renderGraphCleanup = scope_exit([gpuDevice, renderGraph]()
+    auto rendererCleanup = scope_exit([gpuDevice, renderer]()
     {
-        gpuDevice->DestroyRenderGraph(renderGraph);
+        gpuDevice->DestroyRenderer(renderer);
     });
 
     Stopwatch stopwatch;
@@ -190,8 +190,8 @@ static Result<void> MainLoop()
         TrsTransformf transform;
 
         // Transform to camera space and render
-        renderGraph->Add(transform.ToMatrix(), model.Get());
-        auto renderResult = renderGraph->Render(cameraXform.ToMatrix(), camera.GetProjection());
+        renderer->Add(transform.ToMatrix(), model.Get());
+        auto renderResult = renderer->Render(cameraXform.ToMatrix(), camera.GetProjection());
         if(!renderResult)
         {
             logError(renderResult.error().GetMessage());

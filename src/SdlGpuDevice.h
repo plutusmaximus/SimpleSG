@@ -3,6 +3,7 @@
 #include "GpuDevice.h"
 #include "PoolAllocator.h"
 #include "Vertex.h"
+#include "SdlRenderer.h"
 
 #include <span>
 
@@ -346,9 +347,9 @@ public:
 
     Result<void> DestroyRenderPass(GpuRenderPass* renderPass) override;
 
-    Result<RenderGraph*> CreateRenderGraph(GpuPipeline* pipeline) override;
+    Result<Renderer*> CreateRenderer(GpuPipeline* pipeline) override;
 
-    void DestroyRenderGraph(RenderGraph* renderGraph) override;
+    void DestroyRenderer(Renderer* renderer) override;
 
     SDL_Window* const Window;
     SDL_GPUDevice* const Device;
@@ -376,4 +377,6 @@ private:
     };
 
     PoolAllocator<GpuResource, 256> m_ResourceAllocator;
+
+    PoolAllocator<SdlRenderer, 4> m_RendererAllocator;
 };

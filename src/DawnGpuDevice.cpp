@@ -451,15 +451,15 @@ DawnGpuDevice::DestroyRenderPass(GpuRenderPass* /*renderPass*/)
     return ResultOk;
 }
 
-Result<RenderGraph*>
-DawnGpuDevice::CreateRenderGraph(GpuPipeline* /*pipeline*/)
+Result<Renderer*>
+DawnGpuDevice::CreateRenderer(GpuPipeline* /*pipeline*/)
 {
     eassert(false, "Not implemented");
-    return Result<RenderGraph*>();
+    return Result<Renderer*>();
 }
 
 void
-DawnGpuDevice::DestroyRenderGraph(RenderGraph* /*renderGraph*/)
+DawnGpuDevice::DestroyRenderer(Renderer* /*renderer*/)
 {
     eassert(false, "Not implemented");
 }

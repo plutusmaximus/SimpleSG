@@ -1,6 +1,6 @@
 #pragma once
 
-#include "RenderGraph.h"
+#include "Renderer.h"
 #include "Model.h"
 
 #include <SDL3/SDL_gpu.h>
@@ -12,17 +12,19 @@ struct SDL_GPURenderPass;
 struct SDL_GPUCommandBuffer;
 struct SDL_GPUFence;
 
-class SdlRenderGraph : public RenderGraph
+class SdlRenderer : public Renderer
 {
 public:
 
-    SdlRenderGraph() = delete;
-    SdlRenderGraph(const SdlRenderGraph&) = delete;
-    SdlRenderGraph& operator=(const SdlRenderGraph&) = delete;
-    SdlRenderGraph(SdlRenderGraph&&) = delete;
-    SdlRenderGraph& operator=(SdlRenderGraph&&) = delete;
+    SdlRenderer() = delete;
+    SdlRenderer(const SdlRenderer&) = delete;
+    SdlRenderer& operator=(const SdlRenderer&) = delete;
+    SdlRenderer(SdlRenderer&&) = delete;
+    SdlRenderer& operator=(SdlRenderer&&) = delete;
 
-    virtual ~SdlRenderGraph() override;
+    SdlRenderer(SdlGpuDevice* gpuDevice, GpuPipeline* pipeline);
+
+    virtual ~SdlRenderer() override;
 
     virtual void Add(const Mat44f& worldTransform, const Model* model) override;
 
@@ -31,8 +33,6 @@ public:
 private:
 
     friend class SdlGpuDevice;
-
-    SdlRenderGraph(SdlGpuDevice* gpuDevice, GpuPipeline* pipeline);
 
     Result<SDL_GPURenderPass*> BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf);
 

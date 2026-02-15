@@ -335,9 +335,9 @@ public:
 
     Result<void> DestroyRenderPass(GpuRenderPass* renderPass) override;
 
-    Result<RenderGraph*> CreateRenderGraph(GpuPipeline* pipeline) override;
+    Result<Renderer*> CreateRenderer(GpuPipeline* pipeline) override;
 
-    void DestroyRenderGraph(RenderGraph* renderGraph) override;
+    void DestroyRenderer(Renderer* renderer) override;
 
     SDL_Window* const Window;
     wgpu::Instance const Instance;

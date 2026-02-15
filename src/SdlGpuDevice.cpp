@@ -4,7 +4,7 @@
 
 #include "Logging.h"
 
-#include "SdlRenderGraph.h"
+#include "SdlRenderer.h"
 #include "scope_exit.h"
 
 #include "Stopwatch.h"
@@ -737,17 +737,20 @@ SdlGpuDevice::DestroyRenderPass(GpuRenderPass* renderPass)
     return ResultOk;
 }
 
-Result<RenderGraph*>
-SdlGpuDevice::CreateRenderGraph(GpuPipeline* pipeline)
+Result<Renderer*>
+SdlGpuDevice::CreateRenderer(GpuPipeline* pipeline)
 {
-    SdlRenderGraph* renderGraph = new SdlRenderGraph(this, pipeline);
-    expect(renderGraph, "Error allocating SDLRenderGraph");
-    return renderGraph;
+    SdlRenderer* renderer = m_RendererAllocator.New(this, pipeline);
+    expect(renderer, "Error allocating SdlRenderer");
+    return renderer;
 }
 
-void SdlGpuDevice::DestroyRenderGraph(RenderGraph* renderGraph)
+void SdlGpuDevice::DestroyRenderer(Renderer* renderer)
 {
-    delete renderGraph;
+    SdlRenderer* sdlRenderer = static_cast<SdlRenderer*>(renderer);
+    eassert(this == sdlRenderer->m_GpuDevice,
+        "Renderer does not belong to this device");
+    m_RendererAllocator.Delete(sdlRenderer);
 }
 
 //private:

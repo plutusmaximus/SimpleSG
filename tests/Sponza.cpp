@@ -52,10 +52,10 @@ public:
         auto pipelineResult = CreatePipeline(m_ResourceCache);
         expect(pipelineResult, pipelineResult.error());
 
-        auto renderGraphResult = m_GpuDevice->CreateRenderGraph(pipelineResult.value());
-        expect(renderGraphResult, renderGraphResult.error());
+        auto rendererResult = m_GpuDevice->CreateRenderer(pipelineResult.value());
+        expect(rendererResult, rendererResult.error());
 
-        m_RenderGraph = *renderGraphResult;
+        m_Renderer = *rendererResult;
 
         [[maybe_unused]] constexpr const char* SPONZA_MODEL_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
         [[maybe_unused]] constexpr const char* AVOCADO_MODEL_PATH = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Avocado/glTF/Avocado.gltf";
@@ -108,12 +108,12 @@ public:
 
         m_Registry.Clear();
 
-        if(m_RenderGraph)
+        if(m_Renderer)
         {
-            m_GpuDevice->DestroyRenderGraph(m_RenderGraph);
+            m_GpuDevice->DestroyRenderer(m_Renderer);
         }
         m_GpuDevice = nullptr;
-        m_RenderGraph = nullptr;
+        m_Renderer = nullptr;
         m_ResourceCache = nullptr;
     }
 
@@ -162,11 +162,11 @@ public:
             for(const auto& tuple : m_Registry.GetView<WorldMatrix, ModelResource>())
             {
                 const auto [eid, worldMat, model] = tuple;
-                m_RenderGraph->Add(worldMat, model.Get());
+                m_Renderer->Add(worldMat, model.Get());
             }
 
             const auto [camEid, camWorldMat, camera] = cameraTuple;
-            auto renderResult = m_RenderGraph->Render(camWorldMat, camera.GetProjection());
+            auto renderResult = m_Renderer->Render(camWorldMat, camera.GetProjection());
             if (!renderResult)
             {
                 logError(renderResult.error().GetMessage());
@@ -238,7 +238,7 @@ private:
 
         GpuDevice* m_GpuDevice = nullptr;
         ResourceCache* m_ResourceCache = nullptr;
-        RenderGraph* m_RenderGraph = nullptr;
+        Renderer* m_Renderer = nullptr;
         EcsRegistry m_Registry;
         WalkMouseNav m_WalkMouseNav{ TrsTransformf{}, 0.0001f, 5.0f };
         MouseNav* const m_MouseNav = &m_WalkMouseNav;
