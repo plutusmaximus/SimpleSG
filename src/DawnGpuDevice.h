@@ -152,16 +152,19 @@ public:
     unsigned GetHeight() const override { return m_Height; }
 
     wgpu::Texture GetTexture() const { return m_Texture; }
+    wgpu::Sampler GetSampler() const { return m_Sampler; }
 
 private:
     friend class DawnGpuDevice;
 
     DawnGpuRenderTarget(DawnGpuDevice* gpuDevice,
         wgpu::Texture texture,
+        wgpu::Sampler sampler,
         const unsigned width,
         const unsigned height)
         : m_GpuDevice(gpuDevice),
           m_Texture(texture),
+          m_Sampler(sampler),
           m_Width(width),
           m_Height(height)
     {
@@ -169,6 +172,7 @@ private:
 
     DawnGpuDevice* m_GpuDevice;
     wgpu::Texture m_Texture;
+    wgpu::Sampler m_Sampler;
     unsigned m_Width;
     unsigned m_Height;
 };
@@ -405,6 +409,8 @@ private:
         wgpu::Adapter adapter,
         wgpu::Device device,
         wgpu::Surface surface);
+
+    Result<wgpu::Sampler> GetDefaultSampler();
 
     /// @brief Default sampler used for all textures.
     wgpu::Sampler m_Sampler = nullptr;

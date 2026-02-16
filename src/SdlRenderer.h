@@ -3,7 +3,6 @@
 #include "Renderer.h"
 #include "Model.h"
 
-#include <SDL3/SDL_gpu.h>
 #include <map>
 
 class SdlGpuDevice;
@@ -11,6 +10,7 @@ class GpuTexture;
 struct SDL_GPURenderPass;
 struct SDL_GPUCommandBuffer;
 struct SDL_GPUFence;
+struct SDL_GPUGraphicsPipeline;
 
 class SdlRenderer : public Renderer
 {
@@ -66,6 +66,7 @@ private:
 
     void SwapStates();
 
+    /// @brief Copy the color target to the swapchain texture.
     Result<void> CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf);
 
     /// Get or create the default texture.
@@ -80,4 +81,9 @@ private:
     State m_State[2];
     State* m_CurrentState = &m_State[0];
     GpuTexture* m_DefaultBaseTexture{nullptr};
+
+    /// These are used for copying the color target to the swapchain texture.
+    GpuVertexShader* m_CopyTextureVertexShader{ nullptr };
+    GpuFragmentShader* m_CopyTextureFragmentShader{ nullptr };
+    SDL_GPUGraphicsPipeline* m_CopyTexturePipeline{ nullptr };
 };

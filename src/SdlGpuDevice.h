@@ -164,6 +164,7 @@ public:
     unsigned GetHeight() const override { return m_Height; }
 
     SDL_GPUTexture* GetRenderTarget() const { return m_RenderTarget; }
+    SDL_GPUSampler* GetSampler() const { return m_Sampler; }
 
 private:
 
@@ -171,10 +172,12 @@ private:
 
     SdlGpuRenderTarget(SdlGpuDevice* gpuDevice,
         SDL_GPUTexture* renderTarget,
+        SDL_GPUSampler* sampler,
         const unsigned width,
         const unsigned height)
         : m_GpuDevice(gpuDevice),
           m_RenderTarget(renderTarget),
+          m_Sampler(sampler),
           m_Width(width),
           m_Height(height)
     {
@@ -182,6 +185,7 @@ private:
 
     SdlGpuDevice* const m_GpuDevice;
     SDL_GPUTexture* const m_RenderTarget;
+    SDL_GPUSampler* const m_Sampler;
     unsigned m_Width;
     unsigned m_Height;
 };
@@ -420,6 +424,8 @@ public:
 private:
 
     SdlGpuDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice);
+
+    Result<SDL_GPUSampler*> GetDefaultSampler();
 
     /// @brief Default sampler used for all textures.
     SDL_GPUSampler* m_Sampler = nullptr;

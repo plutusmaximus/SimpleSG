@@ -422,17 +422,8 @@ SdlGpuDevice::CreateTexture(const unsigned width,
     logDebug("SDL_SubmitGPUCommandBuffer: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
 
-    if(!m_Sampler)
-    {
-        // Create sampler
-        SDL_GPUSamplerCreateInfo samplerInfo = { .min_filter = SDL_GPU_FILTER_NEAREST,
-            .mag_filter = SDL_GPU_FILTER_NEAREST,
-            .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
-            .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT };
-
-        m_Sampler = SDL_CreateGPUSampler(Device, &samplerInfo);
-        expect(m_Sampler, SDL_GetError());
-    }
+    auto samplerResult = GetDefaultSampler();
+    expect(samplerResult, samplerResult.error());
 
     GpuResource* res = m_ResourceAllocator.New();
 
@@ -440,7 +431,8 @@ SdlGpuDevice::CreateTexture(const unsigned width,
 
     texCleanup.release();
 
-    GpuTexture* gpuTex = ::new(&res->Texture) SdlGpuTexture(this, texture, m_Sampler, width, height);
+    GpuTexture* gpuTex =
+        ::new(&res->Texture) SdlGpuTexture(this, texture, samplerResult.value(), width, height);
 
     logDebug("SdlGpuDevice::CreateTexture: {} ms", sw1.Elapsed() * 1000.0f);
 
@@ -488,7 +480,7 @@ SdlGpuDevice::CreateRenderTarget(const unsigned width, const unsigned height, co
         {
             .type = SDL_GPU_TEXTURETYPE_2D,
             .format = colorTargetFormat,
-            .usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET,
+            .usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER,
             .width = width,
             .height = height,
             .layer_count_or_depth = 1,
@@ -500,6 +492,9 @@ SdlGpuDevice::CreateRenderTarget(const unsigned width, const unsigned height, co
     SDL_GPUTexture* texture = SDL_CreateGPUTexture(Device, &textureInfo);
     expect(texture, SDL_GetError());
 
+    auto samplerResult = GetDefaultSampler();
+    expect(samplerResult, samplerResult.error());
+
     GpuResource* res = m_ResourceAllocator.New();
 
     if(!res)
@@ -510,7 +505,8 @@ SdlGpuDevice::CreateRenderTarget(const unsigned width, const unsigned height, co
 
     expectv(res, "Error allocating GpuResource");
 
-    GpuRenderTarget* gpuRenderTarget = ::new(&res->RenderTarget) SdlGpuRenderTarget(this, texture, width, height);
+    GpuRenderTarget* gpuRenderTarget = ::new(&res->RenderTarget)
+        SdlGpuRenderTarget(this, texture, samplerResult.value(), width, height);
 
     return gpuRenderTarget;
 }
@@ -818,6 +814,26 @@ void SdlGpuDevice::DestroyRenderer(Renderer* renderer)
 }
 
 //private:
+
+Result<SDL_GPUSampler*>
+SdlGpuDevice::GetDefaultSampler()
+{
+    if(!m_Sampler)
+    {
+        // Create sampler
+        SDL_GPUSamplerCreateInfo samplerInfo = //
+            {
+                .min_filter = SDL_GPU_FILTER_LINEAR,
+                .mag_filter = SDL_GPU_FILTER_LINEAR,
+                .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
+                .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
+            };
+
+        m_Sampler = SDL_CreateGPUSampler(Device, &samplerInfo);
+        expect(m_Sampler, SDL_GetError());
+    }
+    return m_Sampler;
+}
 
 /// @brief Common function to create a GPU buffer from multiple spans.
 template<typename T>

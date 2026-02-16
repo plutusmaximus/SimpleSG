@@ -492,8 +492,6 @@ private:
 
         void SetResult(Result<GpuPipeline*> result);
 
-        Result<void> DecodeImage();
-
         Result<GpuPipeline*> CreatePipeline();
 
         ResourceCache* m_ResourceCache{ nullptr };

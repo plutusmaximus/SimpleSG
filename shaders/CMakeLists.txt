@@ -9,10 +9,13 @@ set(WGSL_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/ColorVertexShader.vs.wgsl"
   "${CMAKE_CURRENT_LIST_DIR}/FragmentShader.fs.wgsl"
   "${CMAKE_CURRENT_LIST_DIR}/VertexShader.vs.wgsl"
+  "${CMAKE_CURRENT_LIST_DIR}/FullScreenTriangle.vs.wgsl"
+  "${CMAKE_CURRENT_LIST_DIR}/FullScreenTriangle.fs.wgsl"
 )
 
 set(HLSL_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/FragmentShader.ps.hlsl"
+  "${CMAKE_CURRENT_LIST_DIR}/FullScreenTriangle.ps.hlsl"
 )
 
 set(TINT_EXE "${CMAKE_BINARY_DIR}/DEBUG/tint.exe" CACHE FILEPATH "Tint compiler executable")

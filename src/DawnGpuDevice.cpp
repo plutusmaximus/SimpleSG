@@ -287,33 +287,14 @@ DawnGpuDevice::CreateTexture(const unsigned width,
         return result.queueSubmitError.value();
     }
 
-    if(!m_Sampler)
-    {
-        // Create sampler
-        wgpu::SamplerDescriptor samplerDesc //
-            {
-                .label = "MainSampler",
-                .addressModeU = wgpu::AddressMode::Repeat,
-                .addressModeV = wgpu::AddressMode::Repeat,
-                .addressModeW = wgpu::AddressMode::Undefined,
-                .magFilter = wgpu::FilterMode::Linear,
-                .minFilter = wgpu::FilterMode::Linear,
-                .mipmapFilter = wgpu::MipmapFilterMode::Undefined,
-                .lodMinClamp = 0.0f,
-                .lodMaxClamp = 32.0f,
-                .compare = wgpu::CompareFunction::Undefined,
-                .maxAnisotropy = 1,
-            };
-
-        m_Sampler = Device.CreateSampler(&samplerDesc);
-        expect(m_Sampler, "Failed to create sampler");
-    }
+    auto samplerResult = GetDefaultSampler();
+    expect(samplerResult, samplerResult.error());
 
     GpuResource* res = m_ResourceAllocator.New();
 
     expectv(res, "Error allocating DawnGpuTexture");
 
-    return ::new(&res->Texture) DawnGpuTexture(this, texture, m_Sampler, width, height);
+    return ::new(&res->Texture) DawnGpuTexture(this, texture, samplerResult.value(), width, height);
 }
 
 Result<GpuTexture*>
@@ -358,11 +339,15 @@ DawnGpuDevice::CreateRenderTarget(const unsigned width, const unsigned height, c
     wgpu::Texture texture = Device.CreateTexture(&textureDesc);
     expect(texture, "Failed to create texture");
 
+    auto samplerResult = GetDefaultSampler();
+    expect(samplerResult, samplerResult.error());
+
     GpuResource* res = m_ResourceAllocator.New();
 
     expectv(res, "Error allocating DawnGpuRenderTarget");
 
-    return ::new(&res->RenderTarget) DawnGpuRenderTarget(this, texture, width, height);
+    return ::new(&res->RenderTarget)
+        DawnGpuRenderTarget(this, texture, samplerResult.value(), width, height);
 }
 
 Result<void>
@@ -501,6 +486,35 @@ void
 DawnGpuDevice::DestroyRenderer(Renderer* /*renderer*/)
 {
     eassert(false, "Not implemented");
+}
+
+//private:
+
+Result<wgpu::Sampler>
+DawnGpuDevice::GetDefaultSampler()
+{
+    if(!m_Sampler)
+    {
+        // Create sampler
+        wgpu::SamplerDescriptor samplerDesc //
+            {
+                .label = "MainSampler",
+                .addressModeU = wgpu::AddressMode::Repeat,
+                .addressModeV = wgpu::AddressMode::Repeat,
+                .addressModeW = wgpu::AddressMode::Undefined,
+                .magFilter = wgpu::FilterMode::Linear,
+                .minFilter = wgpu::FilterMode::Linear,
+                .mipmapFilter = wgpu::MipmapFilterMode::Undefined,
+                .lodMinClamp = 0.0f,
+                .lodMaxClamp = 32.0f,
+                .compare = wgpu::CompareFunction::Undefined,
+                .maxAnisotropy = 1,
+            };
+
+        m_Sampler = Device.CreateSampler(&samplerDesc);
+        expect(m_Sampler, "Failed to create sampler");
+    }
+    return m_Sampler;
 }
 
 static Result<wgpu::Instance>

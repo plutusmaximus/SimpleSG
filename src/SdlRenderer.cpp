@@ -1,3 +1,5 @@
+#define _CRT_SECURE_NO_WARNINGS
+
 #define __LOGGER_NAME__ "SDL "
 
 #include "SdlRenderer.h"
@@ -10,6 +12,8 @@
 #include "SdlGpuDevice.h"
 
 #include <SDL3/SDL_gpu.h>
+
+#include <cstdio>
 
 SdlRenderer::SdlRenderer(SdlGpuDevice* gpuDevice, GpuPipeline* pipeline)
     : m_GpuDevice(gpuDevice)
@@ -46,6 +50,29 @@ SdlRenderer::~SdlRenderer()
         {
             logError("Failed to destroy default depth target: {}", result.error());
         }
+    }
+
+    if(m_CopyTextureVertexShader)
+    {
+        auto result = m_GpuDevice->DestroyVertexShader(m_CopyTextureVertexShader);
+        if(!result)
+        {
+            logError("Failed to destroy copy texture vertex shader: {}", result.error());
+        }
+    }
+
+    if(m_CopyTextureFragmentShader)
+    {
+        auto result = m_GpuDevice->DestroyFragmentShader(m_CopyTextureFragmentShader);
+        if(!result)
+        {
+            logError("Failed to destroy copy texture fragment shader: {}", result.error());
+        }
+    }
+
+    if(m_CopyTexturePipeline)
+    {
+        SDL_ReleaseGPUGraphicsPipeline(m_GpuDevice->Device, m_CopyTexturePipeline);
     }
 
     for(const auto& state: m_State)
@@ -337,7 +364,7 @@ SdlRenderer::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
 
     const SDL_GPUViewport viewport
     {
-        0, 0, screenBounds.Width, screenBounds.Height, 0, CLEAR_DEPTH
+        0, 0, static_cast<float>(targetWidth), static_cast<float>(targetHeight), 0, CLEAR_DEPTH
     };
     SDL_SetGPUViewport(renderPass, &viewport);
 
@@ -385,47 +412,130 @@ SdlRenderer::SwapStates()
     m_CurrentState->Clear();
 }
 
+static Result<void>
+LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer);
+
 Result<void>
 SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf)
 {
-
     SDL_GPUTexture* swap;
     unsigned swapW, swapH;
     expect(
         SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuf, m_GpuDevice->Window, &swap, &swapW, &swapH),
         SDL_GetError());
 
-    auto copyPass = SDL_BeginGPUCopyPass(cmdBuf);
-    expect(copyPass, SDL_GetError());
+    if(!m_CopyTextureVertexShader)
+    {
+        std::vector<uint8_t> shaderCode;
+        auto loadResult = LoadShaderCode("shaders/Debug/FullScreenTriangle.vs.spv", shaderCode);
+        expect(loadResult, loadResult.error());
 
-    const unsigned targetW = m_ColorTarget->GetWidth();
-    const unsigned targetH = m_ColorTarget->GetHeight();
-    unsigned copyW = (targetW  < swapW) ? targetW  : swapW;
-    unsigned copyH = (targetH < swapH) ? targetH : swapH;
+        std::span<uint8_t> shaderCodeSpan(shaderCode.data(), shaderCode.size());
 
-    SDL_GPUTextureLocation srcLoc = //
+        auto result = m_GpuDevice->CreateVertexShader(shaderCodeSpan);
+        expect(result, result.error());
+
+        m_CopyTextureVertexShader = result.value();
+    }
+
+    if(!m_CopyTextureFragmentShader)
+    {
+        std::vector<uint8_t> shaderCode;
+        auto loadResult = LoadShaderCode("shaders/Debug/FullScreenTriangle.ps.spv", shaderCode);
+        expect(loadResult, loadResult.error());
+
+        std::span<uint8_t> shaderCodeSpan(shaderCode.data(), shaderCode.size());
+
+        auto result = m_GpuDevice->CreateFragmentShader(shaderCodeSpan);
+        expect(result, result.error());
+
+        m_CopyTextureFragmentShader = result.value();
+    }
+
+    if(!m_CopyTexturePipeline)
+    {
+        auto colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(m_GpuDevice->Device, m_GpuDevice->Window);
+
+        SDL_GPUColorTargetDescription colorTargetDesc//
         {
-            .texture = static_cast<SdlGpuRenderTarget*>(m_ColorTarget)->GetRenderTarget(),
-            .mip_level = 0,
-            .layer = 0,
-            .x = 0,
-            .y = 0,
-            .z = 0,
+            .format = colorTargetFormat,
+            .blend_state =
+            {
+                .enable_blend = false,
+                .enable_color_write_mask = false,
+            },
         };
 
-    SDL_GPUTextureLocation dstLoc = //
-        {
-            .texture = swap,
-            .mip_level = 0,
-            .layer = 0,
-            .x = 0,
-            .y = 0,
-            .z = 0,
-        };
+        SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo //
+            {
+                .vertex_shader = static_cast<SdlGpuVertexShader*>(m_CopyTextureVertexShader)->GetShader(),
+                .fragment_shader = static_cast<SdlGpuFragmentShader*>(m_CopyTextureFragmentShader)->GetShader(),
+                .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+                .rasterizer_state = //
+                {
+                    .fill_mode = SDL_GPU_FILLMODE_FILL,
+                    .cull_mode = SDL_GPU_CULLMODE_BACK,
+                    .front_face = SDL_GPU_FRONTFACE_CLOCKWISE,
+                    .enable_depth_clip = false,
+                },
+                .depth_stencil_state = //
+                {
+                    .enable_depth_test = false,
+                    .enable_depth_write = false,
+                },
+                .target_info = //
+                {
+                    .color_target_descriptions = &colorTargetDesc,
+                    .num_color_targets = 1,
+                    .has_depth_stencil_target = false,
+                },
+            };
 
-    SDL_CopyGPUTextureToTexture(copyPass, &srcLoc, &dstLoc, copyW, copyH, 1, false);
+        m_CopyTexturePipeline = SDL_CreateGPUGraphicsPipeline(m_GpuDevice->Device, &pipelineCreateInfo);
+        expect(m_CopyTexturePipeline, SDL_GetError());
+    }
 
-    SDL_EndGPUCopyPass(copyPass);
+    SDL_GPUColorTargetInfo colorTargetInfo
+    {
+        .texture = swap,
+        .mip_level = 0,
+        .layer_or_depth_plane = 0,
+        .clear_color = {0, 0, 0, 0},
+        .load_op = SDL_GPU_LOADOP_CLEAR,
+        .store_op = SDL_GPU_STOREOP_STORE
+    };
+
+    SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(
+        cmdBuf,
+        &colorTargetInfo,
+        1,
+        nullptr);
+
+    if(!renderPass)
+    {
+        // If we fail to begin the render pass, it's likely because the window is minimized and the
+        // swapchain texture is not available. In this case, we can just skip rendering this frame
+        // without treating it as an error.
+        return Result<void>::Success;
+    }
+
+    const SDL_GPUViewport viewport//
+    {
+        0, 0, static_cast<float>(swapW), static_cast<float>(swapH), 0, 1.0f,
+    };
+    SDL_SetGPUViewport(renderPass, &viewport);
+
+    // Bind texture and sampler
+    SDL_GPUTextureSamplerBinding samplerBinding
+    {
+        .texture = static_cast<SdlGpuRenderTarget*>(m_ColorTarget)->GetRenderTarget(),
+        .sampler = static_cast<SdlGpuRenderTarget*>(m_ColorTarget)->GetSampler()
+    };
+
+    SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
+    SDL_BindGPUGraphicsPipeline(renderPass, m_CopyTexturePipeline);
+    SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 1);
+    SDL_EndGPURenderPass(renderPass);
 
     return Result<void>::Success;
 }
@@ -444,4 +554,34 @@ SdlRenderer::GetDefaultBaseTexture()
     }
 
     return m_DefaultBaseTexture;
+}
+
+static Result<void>
+LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
+{
+    FILE* fp = std::fopen(filePath, "rb");
+    expect(fp, "Failed to open shader file: {} ({})", filePath, std::strerror(errno));
+
+    auto cleanupFile = scope_exit([&]() { std::fclose(fp); });
+
+    //Get file size
+    if(std::fseek(fp, 0, SEEK_END) != 0)
+    {
+        return Error("Failed to seek in shader file: {} ({})", filePath, std::strerror(errno));
+    }
+
+    long fileSize = std::ftell(fp);
+    if(fileSize < 0)
+    {
+        return Error("Failed to get size of shader file: {} ({})", filePath, std::strerror(errno));
+    }
+    std::rewind(fp);
+
+    outBuffer.resize(static_cast<size_t>(fileSize));
+
+    expect(std::fread(outBuffer.data(), 1, static_cast<size_t>(fileSize), fp) ==
+                static_cast<size_t>(fileSize),
+            "Failed to read shader file: {} ({})", filePath, std::strerror(errno));
+
+    return Result<void>::Success;
 }
