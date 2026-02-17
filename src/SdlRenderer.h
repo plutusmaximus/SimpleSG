@@ -75,7 +75,7 @@ private:
 
     SdlGpuDevice* const m_GpuDevice;
     GpuPipeline* m_Pipeline{ nullptr };
-    GpuRenderTarget* m_ColorTarget{ nullptr };
+    GpuColorTarget* m_ColorTarget{ nullptr };
     GpuDepthTarget* m_DepthTarget{ nullptr };
 
     State m_State[2];

@@ -136,34 +136,37 @@ private:
     unsigned m_Height;
 };
 
-class DawnGpuRenderTarget : public GpuRenderTarget
+class DawnGpuColorTarget : public GpuColorTarget
 {
 public:
-    DawnGpuRenderTarget() = delete;
-    DawnGpuRenderTarget(const DawnGpuRenderTarget&) = delete;
-    DawnGpuRenderTarget& operator=(const DawnGpuRenderTarget&) = delete;
-    DawnGpuRenderTarget(DawnGpuRenderTarget&&) = delete;
-    DawnGpuRenderTarget& operator=(DawnGpuRenderTarget&&) = delete;
+    DawnGpuColorTarget() = delete;
+    DawnGpuColorTarget(const DawnGpuColorTarget&) = delete;
+    DawnGpuColorTarget& operator=(const DawnGpuColorTarget&) = delete;
+    DawnGpuColorTarget(DawnGpuColorTarget&&) = delete;
+    DawnGpuColorTarget& operator=(DawnGpuColorTarget&&) = delete;
 
     // wgpu::Texture is ref counted so nothing to do here.
-    ~DawnGpuRenderTarget() override {};
+    ~DawnGpuColorTarget() override {};
 
     unsigned GetWidth() const override { return m_Width; }
     unsigned GetHeight() const override { return m_Height; }
 
     wgpu::Texture GetTexture() const { return m_Texture; }
+    wgpu::TextureView GetTextureView() const { return m_TextureView; }
     wgpu::Sampler GetSampler() const { return m_Sampler; }
 
 private:
     friend class DawnGpuDevice;
 
-    DawnGpuRenderTarget(DawnGpuDevice* gpuDevice,
+    DawnGpuColorTarget(DawnGpuDevice* gpuDevice,
         wgpu::Texture texture,
+        wgpu::TextureView textureView,
         wgpu::Sampler sampler,
         const unsigned width,
         const unsigned height)
         : m_GpuDevice(gpuDevice),
           m_Texture(texture),
+          m_TextureView(textureView),
           m_Sampler(sampler),
           m_Width(width),
           m_Height(height)
@@ -172,6 +175,7 @@ private:
 
     DawnGpuDevice* m_GpuDevice;
     wgpu::Texture m_Texture;
+    wgpu::TextureView m_TextureView;
     wgpu::Sampler m_Sampler;
     unsigned m_Width;
     unsigned m_Height;
@@ -193,16 +197,19 @@ public:
     unsigned GetHeight() const override { return m_Height; }
 
     wgpu::Texture GetDepthTarget() const { return m_DepthTarget; }
+    wgpu::TextureView GetDepthTargetView() const { return m_DepthTargetView; }
 
 private:
     friend class DawnGpuDevice;
 
     DawnGpuDepthTarget(DawnGpuDevice* gpuDevice,
         wgpu::Texture depthTarget,
+        wgpu::TextureView depthTargetView,
         const unsigned width,
         const unsigned height)
         : m_GpuDevice(gpuDevice),
           m_DepthTarget(depthTarget),
+          m_DepthTargetView(depthTargetView),
           m_Width(width),
           m_Height(height)
     {
@@ -210,6 +217,7 @@ private:
 
     DawnGpuDevice* m_GpuDevice;
     wgpu::Texture m_DepthTarget;
+    wgpu::TextureView m_DepthTargetView;
     unsigned m_Width;
     unsigned m_Height;
 };
@@ -364,10 +372,10 @@ public:
 
     Result<void> DestroyTexture(GpuTexture* texture) override;
 
-    Result<GpuRenderTarget*> CreateRenderTarget(
+    Result<GpuColorTarget*> CreateColorTarget(
         const unsigned width, const unsigned height, const imstring& name) override;
 
-    Result<void> DestroyRenderTarget(GpuRenderTarget* renderTarget) override;
+    Result<void> DestroyColorTarget(GpuColorTarget* colorTarget) override;
 
     Result<GpuDepthTarget*> CreateDepthTarget(const unsigned width,
         const unsigned height,
@@ -423,7 +431,7 @@ private:
         DawnGpuVertexBuffer VertexBuffer;
         DawnGpuIndexBuffer IndexBuffer;
         DawnGpuTexture Texture;
-        DawnGpuRenderTarget RenderTarget;
+        DawnGpuColorTarget ColorTarget;
         DawnGpuDepthTarget DepthTarget;
         DawnGpuVertexShader VertexShader;
         DawnGpuFragmentShader FragmentShader;

@@ -139,8 +139,8 @@ protected:
     virtual ~GpuTexture() = 0;
 };
 
-/// @brief GPU representation of a render target.
-class GpuRenderTarget
+/// @brief GPU representation of a color render target.
+class GpuColorTarget
 {
 public:
 
@@ -148,8 +148,8 @@ public:
     virtual unsigned GetHeight() const = 0;
 
 protected:
-    GpuRenderTarget() = default;
-    virtual ~GpuRenderTarget() = 0;
+    GpuColorTarget() = default;
+    virtual ~GpuColorTarget() = 0;
 };
 
 /// @brief GPU representation of a depth target.
@@ -225,12 +225,12 @@ public:
     /// @brief Destroys a texture.
     virtual Result<void> DestroyTexture(GpuTexture* texture) = 0;
 
-    /// @brief Creates a render target with the given dimensions and name.
-    virtual Result<GpuRenderTarget*> CreateRenderTarget(
+    /// @brief Creates a color render target with the given dimensions and name.
+    virtual Result<GpuColorTarget*> CreateColorTarget(
         const unsigned width, const unsigned height, const imstring& name) = 0;
 
-    /// @brief Destroys a render target.
-    virtual Result<void> DestroyRenderTarget(GpuRenderTarget* renderTarget) = 0;
+    /// @brief Destroys a color render target.
+    virtual Result<void> DestroyColorTarget(GpuColorTarget* colorTarget) = 0;
 
     virtual Result<GpuDepthTarget*> CreateDepthTarget(const unsigned width,
         const unsigned height,
@@ -276,7 +276,7 @@ inline GpuIndexBuffer::~GpuIndexBuffer() = default;
 inline GpuVertexShader::~GpuVertexShader() = default;
 inline GpuFragmentShader::~GpuFragmentShader() = default;
 inline GpuTexture::~GpuTexture() = default;
-inline GpuRenderTarget::~GpuRenderTarget() = default;
+inline GpuColorTarget::~GpuColorTarget() = default;
 inline GpuDepthTarget::~GpuDepthTarget() = default;
 inline GpuPipeline::~GpuPipeline() = default;
 inline GpuRenderPass::~GpuRenderPass() = default;

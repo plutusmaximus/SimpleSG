@@ -36,7 +36,7 @@ SdlRenderer::~SdlRenderer()
 
     if(m_ColorTarget)
     {
-        auto result = m_GpuDevice->DestroyRenderTarget(m_ColorTarget);
+        auto result = m_GpuDevice->DestroyColorTarget(m_ColorTarget);
         if(!result)
         {
             logError("Failed to destroy default color target: {}", result.error());
@@ -297,7 +297,7 @@ SdlRenderer::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
     {
         if(m_ColorTarget)
         {
-            auto result = m_GpuDevice->DestroyRenderTarget(m_ColorTarget);
+            auto result = m_GpuDevice->DestroyColorTarget(m_ColorTarget);
             if(!result)
             {
                 logError("Failed to destroy default color target: {}", result.error());
@@ -305,7 +305,7 @@ SdlRenderer::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
             m_ColorTarget = nullptr;
         }
 
-        auto result = m_GpuDevice->CreateRenderTarget(targetWidth, targetHeight, "RenderTarget");
+        auto result = m_GpuDevice->CreateColorTarget(targetWidth, targetHeight, "ColorTarget");
         expect(result, result.error());
         m_ColorTarget = result.value();
     }
@@ -330,7 +330,7 @@ SdlRenderer::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
 
     SDL_GPUColorTargetInfo colorTargetInfo
     {
-        .texture = static_cast<SdlGpuRenderTarget*>(m_ColorTarget)->GetRenderTarget(),
+        .texture = static_cast<SdlGpuColorTarget*>(m_ColorTarget)->GetColorTarget(),
         .mip_level = 0,
         .layer_or_depth_plane = 0,
         .clear_color = {0, 0, 0, 0},
@@ -528,8 +528,8 @@ SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf)
     // Bind texture and sampler
     SDL_GPUTextureSamplerBinding samplerBinding
     {
-        .texture = static_cast<SdlGpuRenderTarget*>(m_ColorTarget)->GetRenderTarget(),
-        .sampler = static_cast<SdlGpuRenderTarget*>(m_ColorTarget)->GetSampler()
+        .texture = static_cast<SdlGpuColorTarget*>(m_ColorTarget)->GetColorTarget(),
+        .sampler = static_cast<SdlGpuColorTarget*>(m_ColorTarget)->GetSampler()
     };
 
     SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);

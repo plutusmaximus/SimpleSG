@@ -34,6 +34,10 @@ static const char* const SHADER_EXTENSION = ".spv";
 
 #endif
 
+static constexpr SDL_GPUTextureFormat kTextureFormat = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+static constexpr SDL_GPUTextureFormat kColorTargetFormat = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+static constexpr SDL_GPUTextureFormat kDepthTargetFormat = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
+
 /// @brief Traits to map a CPU-side buffer type to its corresponding GPU buffer type and usage flags.
 template<typename T> struct GpuBufferTraits;
 
@@ -68,9 +72,9 @@ SdlGpuTexture::~SdlGpuTexture()
     // Sampler is released by the SDLGPUDevice destructor.
 }
 
-SdlGpuRenderTarget::~SdlGpuRenderTarget()
+SdlGpuColorTarget::~SdlGpuColorTarget()
 {
-    if (m_RenderTarget) { SDL_ReleaseGPUTexture(m_GpuDevice->Device, m_RenderTarget); }
+    if (m_ColorTarget) { SDL_ReleaseGPUTexture(m_GpuDevice->Device, m_ColorTarget); }
 }
 
 SdlGpuDepthTarget::~SdlGpuDepthTarget()
@@ -317,7 +321,7 @@ SdlGpuDevice::CreateTexture(const unsigned width,
     SDL_GPUTextureCreateInfo textureInfo = //
         {
             .type = SDL_GPU_TEXTURETYPE_2D,
-            .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+            .format = kTextureFormat,
             .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
             .width = width,
             .height = height,
@@ -459,8 +463,8 @@ SdlGpuDevice::DestroyTexture(GpuTexture* texture)
     return Result<void>::Success;
 }
 
-Result<GpuRenderTarget*>
-SdlGpuDevice::CreateRenderTarget(const unsigned width, const unsigned height, const imstring& name)
+Result<GpuColorTarget*>
+SdlGpuDevice::CreateColorTarget(const unsigned width, const unsigned height, const imstring& name)
 {
     SDL_PropertiesID props = SDL_CreateProperties();
     expect(props, SDL_GetError());
@@ -470,16 +474,11 @@ SdlGpuDevice::CreateRenderTarget(const unsigned width, const unsigned height, co
     expect(SDL_SetStringProperty(props, SDL_PROP_GPU_TEXTURE_CREATE_NAME_STRING, name.c_str()),
         SDL_GetError());
 
-    const SDL_GPUTextureFormat colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(Device, Window);
-    expect(SDL_GPU_TEXTUREFORMAT_INVALID != colorTargetFormat,
-        "Failed to get swapchain texture format: {}",
-        SDL_GetError());
-
     // Create GPU texture
     SDL_GPUTextureCreateInfo textureInfo = //
         {
             .type = SDL_GPU_TEXTURETYPE_2D,
-            .format = colorTargetFormat,
+            .format = kColorTargetFormat,
             .usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER,
             .width = width,
             .height = height,
@@ -505,20 +504,20 @@ SdlGpuDevice::CreateRenderTarget(const unsigned width, const unsigned height, co
 
     expectv(res, "Error allocating GpuResource");
 
-    GpuRenderTarget* gpuRenderTarget = ::new(&res->RenderTarget)
-        SdlGpuRenderTarget(this, texture, samplerResult.value(), width, height);
+    GpuColorTarget* gpuColorTarget = ::new(&res->ColorTarget)
+        SdlGpuColorTarget(this, texture, samplerResult.value(), width, height);
 
-    return gpuRenderTarget;
+    return gpuColorTarget;
 }
 
 Result<void>
-SdlGpuDevice::DestroyRenderTarget(GpuRenderTarget* renderTarget)
+SdlGpuDevice::DestroyColorTarget(GpuColorTarget* colorTarget)
 {
-    SdlGpuRenderTarget* sdlRenderTarget = static_cast<SdlGpuRenderTarget*>(renderTarget);
-    eassert(this == sdlRenderTarget->m_GpuDevice,
-        "Render target does not belong to this device");
-    sdlRenderTarget->~SdlGpuRenderTarget();
-    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(renderTarget));
+    SdlGpuColorTarget* sdlColorTarget = static_cast<SdlGpuColorTarget*>(colorTarget);
+    eassert(this == sdlColorTarget->m_GpuDevice,
+        "Color target does not belong to this device");
+    sdlColorTarget->~SdlGpuColorTarget();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(colorTarget));
     return Result<void>::Success;
 }
 
@@ -537,7 +536,7 @@ SdlGpuDevice::CreateDepthTarget(
     SDL_GPUTextureCreateInfo m_DepthCreateInfo //
         {
             .type = SDL_GPU_TEXTURETYPE_2D,
-            .format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
+            .format = kDepthTargetFormat,
             .usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET,
             .width = width,
             .height = height,

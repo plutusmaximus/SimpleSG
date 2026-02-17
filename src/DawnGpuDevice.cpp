@@ -12,6 +12,11 @@
 #include <windows.h>
 #endif
 
+
+static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
+static constexpr wgpu::TextureFormat kColorTargetFormat = wgpu::TextureFormat::RGBA8Unorm;
+static constexpr wgpu::TextureFormat kDepthTargetFormat = wgpu::TextureFormat::Depth24Plus;
+
 static Result<wgpu::Instance> CreateInstance();
 
 static Result<wgpu::Adapter> CreateAdapter(wgpu::Instance instance);
@@ -86,11 +91,16 @@ DawnGpuDevice::Create(SDL_Window* window)
 }
 
 void
-DawnGpuDevice::Destroy(GpuDevice* /*device*/)
+DawnGpuDevice::Destroy(GpuDevice* device)
 {
+    delete static_cast<DawnGpuDevice*>(device);
 }
 
-DawnGpuDevice::~DawnGpuDevice() = default;
+DawnGpuDevice::~DawnGpuDevice()
+{
+    // Nothing to do here. The wgpu::Device, wgpu::Adapter, wgpu::Instance, and wgpu::Surface will
+    // be automatically released when their destructors are called.
+}
 
 Extent
 DawnGpuDevice::GetExtent() const
@@ -216,7 +226,7 @@ DawnGpuDevice::CreateTexture(const unsigned width,
                 .height = height,
                 .depthOrArrayLayers = 1,
             },
-            .format = wgpu::TextureFormat::RGBA8Unorm,
+            .format = kTextureFormat,
             .mipLevelCount = 1,
             .sampleCount = 1,
         };
@@ -317,10 +327,60 @@ DawnGpuDevice::DestroyTexture(GpuTexture* texture)
     return Result<void>::Success;
 }
 
-Result<GpuRenderTarget*>
-DawnGpuDevice::CreateRenderTarget(const unsigned width, const unsigned height, const imstring& name)
+Result<GpuColorTarget*>
+DawnGpuDevice::CreateColorTarget(const unsigned width, const unsigned height, const imstring& name)
 {
     wgpu::TextureDescriptor textureDesc //
+        {
+            .label = name.c_str(),
+            .usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc |
+                     wgpu::TextureUsage::TextureBinding,
+            .dimension = wgpu::TextureDimension::e2D,
+            .size = //
+            {
+                .width = width,
+                .height = height,
+                .depthOrArrayLayers = 1,
+            },
+            .format = kColorTargetFormat,
+            .mipLevelCount = 1,
+            .sampleCount = 1,
+        };
+
+    wgpu::Texture texture = Device.CreateTexture(&textureDesc);
+    expect(texture, "Failed to create color target texture");
+
+    wgpu::TextureView view = texture.CreateView();
+    expect(view, "Failed to create color target view");
+
+    auto samplerResult = GetDefaultSampler();
+    expect(samplerResult, samplerResult.error());
+
+    GpuResource* res = m_ResourceAllocator.New();
+
+    expectv(res, "Error allocating DawnGpuColorTarget");
+
+    return ::new(&res->ColorTarget)
+        DawnGpuColorTarget(this, texture, view, samplerResult.value(), width, height);
+}
+
+Result<void>
+DawnGpuDevice::DestroyColorTarget(GpuColorTarget* colorTarget)
+{
+    DawnGpuColorTarget* dawnColorTarget = static_cast<DawnGpuColorTarget*>(colorTarget);
+    eassert(this == dawnColorTarget->m_GpuDevice,
+        "ColorTarget does not belong to this device");
+    dawnColorTarget->~DawnGpuColorTarget();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(colorTarget));
+    return Result<void>::Success;
+}
+
+Result<GpuDepthTarget*>
+DawnGpuDevice::CreateDepthTarget(const unsigned width,
+    const unsigned height,
+    const imstring& name)
+{
+    wgpu::TextureDescriptor texDesc //
         {
             .label = name.c_str(),
             .usage = wgpu::TextureUsage::RenderAttachment,
@@ -331,49 +391,33 @@ DawnGpuDevice::CreateRenderTarget(const unsigned width, const unsigned height, c
                 .height = height,
                 .depthOrArrayLayers = 1,
             },
-            .format = wgpu::TextureFormat::RGBA8Unorm,
+            .format = kDepthTargetFormat,
             .mipLevelCount = 1,
             .sampleCount = 1,
         };
 
-    wgpu::Texture texture = Device.CreateTexture(&textureDesc);
-    expect(texture, "Failed to create texture");
+    wgpu::Texture texture = Device.CreateTexture(&texDesc);
+    expect(texture, "Failed to create depth target texture");
 
-    auto samplerResult = GetDefaultSampler();
-    expect(samplerResult, samplerResult.error());
+    wgpu::TextureView view = texture.CreateView();
+    expect(view, "Failed to create depth target view");
 
     GpuResource* res = m_ResourceAllocator.New();
 
-    expectv(res, "Error allocating DawnGpuRenderTarget");
+    expectv(res, "Error allocating DawnGpuDepthTarget");
 
-    return ::new(&res->RenderTarget)
-        DawnGpuRenderTarget(this, texture, samplerResult.value(), width, height);
+    return ::new(&res->DepthTarget)
+        DawnGpuDepthTarget(this, texture, view, width, height);
 }
 
 Result<void>
-DawnGpuDevice::DestroyRenderTarget(GpuRenderTarget* renderTarget)
+DawnGpuDevice::DestroyDepthTarget(GpuDepthTarget* depthTarget)
 {
-    DawnGpuRenderTarget* dawnRenderTarget = static_cast<DawnGpuRenderTarget*>(renderTarget);
-    eassert(this == dawnRenderTarget->m_GpuDevice,
-        "RenderTarget does not belong to this device");
-    dawnRenderTarget->~DawnGpuRenderTarget();
-    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(renderTarget));
-    return Result<void>::Success;
-}
-
-Result<GpuDepthTarget*>
-DawnGpuDevice::CreateDepthTarget(const unsigned /*width*/,
-    const unsigned /*height*/,
-    const imstring& /*name*/)
-{
-    eassert(false, "Not implemented");
-    return Result<GpuDepthTarget*>();
-}
-
-Result<void>
-DawnGpuDevice::DestroyDepthTarget(GpuDepthTarget* /*depthTarget*/)
-{
-    eassert(false, "Not implemented");
+    DawnGpuDepthTarget* dawnDepthTarget = static_cast<DawnGpuDepthTarget*>(depthTarget);
+    eassert(this == dawnDepthTarget->m_GpuDevice,
+        "DepthTarget does not belong to this device");
+    dawnDepthTarget->~DawnGpuDepthTarget();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(depthTarget));
     return Result<void>::Success;
 }
 

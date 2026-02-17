@@ -148,35 +148,35 @@ private:
     unsigned m_Height;
 };
 
-class SdlGpuRenderTarget : public GpuRenderTarget
+class SdlGpuColorTarget : public GpuColorTarget
 {
 public:
 
-    SdlGpuRenderTarget() = delete;
-    SdlGpuRenderTarget(const SdlGpuRenderTarget&) = delete;
-    SdlGpuRenderTarget& operator=(const SdlGpuRenderTarget&) = delete;
-    SdlGpuRenderTarget(SdlGpuRenderTarget&&) = delete;
-    SdlGpuRenderTarget& operator=(SdlGpuRenderTarget&&) = delete;
+    SdlGpuColorTarget() = delete;
+    SdlGpuColorTarget(const SdlGpuColorTarget&) = delete;
+    SdlGpuColorTarget& operator=(const SdlGpuColorTarget&) = delete;
+    SdlGpuColorTarget(SdlGpuColorTarget&&) = delete;
+    SdlGpuColorTarget& operator=(SdlGpuColorTarget&&) = delete;
 
-    ~SdlGpuRenderTarget() override;
+    ~SdlGpuColorTarget() override;
 
     unsigned GetWidth() const override { return m_Width; }
     unsigned GetHeight() const override { return m_Height; }
 
-    SDL_GPUTexture* GetRenderTarget() const { return m_RenderTarget; }
+    SDL_GPUTexture* GetColorTarget() const { return m_ColorTarget; }
     SDL_GPUSampler* GetSampler() const { return m_Sampler; }
 
 private:
 
     friend class SdlGpuDevice;
 
-    SdlGpuRenderTarget(SdlGpuDevice* gpuDevice,
-        SDL_GPUTexture* renderTarget,
+    SdlGpuColorTarget(SdlGpuDevice* gpuDevice,
+        SDL_GPUTexture* colorTarget,
         SDL_GPUSampler* sampler,
         const unsigned width,
         const unsigned height)
         : m_GpuDevice(gpuDevice),
-          m_RenderTarget(renderTarget),
+          m_ColorTarget(colorTarget),
           m_Sampler(sampler),
           m_Width(width),
           m_Height(height)
@@ -184,7 +184,7 @@ private:
     }
 
     SdlGpuDevice* const m_GpuDevice;
-    SDL_GPUTexture* const m_RenderTarget;
+    SDL_GPUTexture* const m_ColorTarget;
     SDL_GPUSampler* const m_Sampler;
     unsigned m_Width;
     unsigned m_Height;
@@ -385,10 +385,10 @@ public:
 
     Result<void> DestroyTexture(GpuTexture* texture) override;
 
-    Result<GpuRenderTarget*> CreateRenderTarget(
+    Result<GpuColorTarget*> CreateColorTarget(
         const unsigned width, const unsigned height, const imstring& name) override;
 
-    Result<void> DestroyRenderTarget(GpuRenderTarget* renderTarget) override;
+    Result<void> DestroyColorTarget(GpuColorTarget* colorTarget) override;
 
     Result<GpuDepthTarget*> CreateDepthTarget(const unsigned width,
         const unsigned height,
@@ -438,7 +438,7 @@ private:
         SdlGpuVertexBuffer VertexBuffer;
         SdlGpuIndexBuffer IndexBuffer;
         SdlGpuTexture Texture;
-        SdlGpuRenderTarget RenderTarget;
+        SdlGpuColorTarget ColorTarget;
         SdlGpuDepthTarget DepthTarget;
         SdlGpuVertexShader VertexShader;
         SdlGpuFragmentShader FragmentShader;
