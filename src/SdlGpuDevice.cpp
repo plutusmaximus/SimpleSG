@@ -667,11 +667,6 @@ SdlGpuDevice::CreatePipeline(const GpuPipelineType pipelineType,
     expectv(pipelineType == GpuPipelineType::Opaque,
         "Only opaque pipelines are supported for now.");
 
-    const SDL_GPUTextureFormat colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(Device, Window);
-    expect(SDL_GPU_TEXTUREFORMAT_INVALID != colorTargetFormat,
-        "Failed to get swapchain texture format: {}",
-        SDL_GetError());
-
     SDL_GPUVertexBufferDescription vertexBufDescriptions[1] = //
         {
             {
@@ -698,7 +693,7 @@ SdlGpuDevice::CreatePipeline(const GpuPipelineType pipelineType,
 
     SDL_GPUColorTargetDescription colorTargetDesc//
     {
-        .format = colorTargetFormat,
+        .format = kColorTargetFormat,
         .blend_state =
         {
             .src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,

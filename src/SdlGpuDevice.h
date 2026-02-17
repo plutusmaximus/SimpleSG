@@ -14,7 +14,6 @@ struct SDL_GPUTexture;
 struct SDL_GPUSampler;
 struct SDL_GPUShader;
 struct SDL_GPUGraphicsPipeline;
-struct SDL_GPURenderPass;
 
 class SdlGpuVertexBuffer : public GpuVertexBuffer
 {
@@ -312,34 +311,6 @@ private:
     SDL_GPUGraphicsPipeline* const m_Pipeline;
 };
 
-class SdlGpuRenderPass : public GpuRenderPass
-{
-public:
-
-    SdlGpuRenderPass() = delete;
-    SdlGpuRenderPass(const SdlGpuRenderPass&) = delete;
-    SdlGpuRenderPass& operator=(const SdlGpuRenderPass&) = delete;
-    SdlGpuRenderPass(SdlGpuRenderPass&&) = delete;
-    SdlGpuRenderPass& operator=(SdlGpuRenderPass&&) = delete;
-
-    ~SdlGpuRenderPass() override;
-
-    SDL_GPURenderPass* GetRenderPass() const { return m_RenderPass; }
-
-private:
-
-    friend class SdlGpuDevice;
-
-    SdlGpuRenderPass(SdlGpuDevice* gpuDevice, SDL_GPURenderPass* renderPass)
-        : m_GpuDevice(gpuDevice)
-        , m_RenderPass(renderPass)
-    {
-    }
-
-    SdlGpuDevice* const m_GpuDevice;
-    SDL_GPURenderPass* const m_RenderPass;
-};
-
 /// @brief SDL GPU Device implementation.
 class SdlGpuDevice : public GpuDevice
 {
@@ -439,7 +410,6 @@ private:
         SdlGpuVertexShader VertexShader;
         SdlGpuFragmentShader FragmentShader;
         SdlGpuPipeline Pipeline;
-        SdlGpuRenderPass RenderPass;
     };
 
     PoolAllocator<GpuResource, 256> m_ResourceAllocator;
