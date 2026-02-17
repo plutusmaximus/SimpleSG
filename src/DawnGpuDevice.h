@@ -283,50 +283,30 @@ public:
     DawnGpuPipeline(DawnGpuPipeline&&) = delete;
     DawnGpuPipeline& operator=(DawnGpuPipeline&&) = delete;
 
-    ~DawnGpuPipeline() override;
+    ~DawnGpuPipeline() override {};
 
-    wgpu::RenderPipeline* GetPipeline() const { return m_Pipeline; }
+    wgpu::RenderPipeline GetPipeline() const { return m_Pipeline; }
+    wgpu::BindGroupLayout GetVertexBindGroupLayout() const { return m_VertBindGroupLayout; }
+    wgpu::BindGroupLayout GetFragmentBindGroupLayout() const { return m_FragBindGroupLayout; }
 
 private:
     friend class DawnGpuDevice;
 
     DawnGpuPipeline(DawnGpuDevice* gpuDevice,
-        wgpu::RenderPipeline* pipeline)
+        wgpu::RenderPipeline pipeline,
+        wgpu::BindGroupLayout vertBindGroupLayout,
+        wgpu::BindGroupLayout fragBindGroupLayout)
         : m_GpuDevice(gpuDevice),
-          m_Pipeline(pipeline)
+          m_Pipeline(pipeline),
+          m_VertBindGroupLayout(vertBindGroupLayout),
+          m_FragBindGroupLayout(fragBindGroupLayout)
     {
     }
 
-    DawnGpuDevice* const m_GpuDevice;
-    wgpu::RenderPipeline* const m_Pipeline;
-};
-
-class DawnGpuRenderPass : public GpuRenderPass
-{
-public:
-
-    DawnGpuRenderPass() = delete;
-    DawnGpuRenderPass(const DawnGpuRenderPass&) = delete;
-    DawnGpuRenderPass& operator=(const DawnGpuRenderPass&) = delete;
-    DawnGpuRenderPass(DawnGpuRenderPass&&) = delete;
-    DawnGpuRenderPass& operator=(DawnGpuRenderPass&&) = delete;
-
-    ~DawnGpuRenderPass() override;
-
-    wgpu::RenderPassEncoder* GetRenderPass() const { return m_RenderPass; }
-
-private:
-
-    friend class DawnGpuDevice;
-
-    DawnGpuRenderPass(DawnGpuDevice* gpuDevice, wgpu::RenderPassEncoder* renderPass)
-        : m_GpuDevice(gpuDevice)
-        , m_RenderPass(renderPass)
-    {
-    }
-
-    DawnGpuDevice* const m_GpuDevice;
-    wgpu::RenderPassEncoder* const m_RenderPass;
+    DawnGpuDevice* m_GpuDevice;
+    wgpu::RenderPipeline m_Pipeline;
+    wgpu::BindGroupLayout m_VertBindGroupLayout;
+    wgpu::BindGroupLayout m_FragBindGroupLayout;
 };
 
 /// @brief Dawn GPU Device implementation.
@@ -432,7 +412,6 @@ private:
         DawnGpuVertexShader VertexShader;
         DawnGpuFragmentShader FragmentShader;
         DawnGpuPipeline Pipeline;
-        DawnGpuRenderPass RenderPass;
     };
 
     PoolAllocator<GpuResource, 256> m_ResourceAllocator;
