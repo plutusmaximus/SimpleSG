@@ -410,10 +410,6 @@ public:
 
     Result<void> DestroyPipeline(GpuPipeline* pipeline) override;
 
-    Result<GpuRenderPass*> CreateRenderPass(const GpuRenderPassType renderPassType) override;
-
-    Result<void> DestroyRenderPass(GpuRenderPass* renderPass) override;
-
     Result<Renderer*> CreateRenderer(GpuPipeline* pipeline) override;
 
     void DestroyRenderer(Renderer* renderer) override;

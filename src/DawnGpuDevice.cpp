@@ -500,25 +500,6 @@ DawnGpuDevice::DestroyPipeline(GpuPipeline* /*pipeline*/)
     return Result<void>::Success;
 }
 
-Result<GpuRenderPass*>
-DawnGpuDevice::CreateRenderPass(const GpuRenderPassType /*renderPassType*/)
-{
-    eassert(false, "Not implemented");
-    return Result<GpuRenderPass*>();
-}
-
-Result<void>
-DawnGpuDevice::DestroyRenderPass(GpuRenderPass* /*renderPass*/)
-{
-    eassert(false, "Not implemented");
-    /*DawnGpuRenderPass* dawnRenderPass = static_cast<DawnGpuRenderPass*>(renderPass);
-    eassert(this == dawnRenderPass->m_GpuDevice,
-        "RenderPass does not belong to this device");
-    dawnRenderPass->~DawnGpuRenderPass();
-    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(renderPass));*/
-    return Result<void>::Success;
-}
-
 Result<Renderer*>
 DawnGpuDevice::CreateRenderer(GpuPipeline* /*pipeline*/)
 {

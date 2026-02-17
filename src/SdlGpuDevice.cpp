@@ -778,24 +778,6 @@ SdlGpuDevice::DestroyPipeline(GpuPipeline* pipeline)
     return Result<void>::Success;
 }
 
-Result<GpuRenderPass*>
-SdlGpuDevice::CreateRenderPass(const GpuRenderPassType /*renderPassType*/)
-{
-    eassert(false, "Not implemented");
-    return Result<GpuRenderPass*>();
-}
-
-Result<void>
-SdlGpuDevice::DestroyRenderPass(GpuRenderPass* renderPass)
-{
-    SdlGpuRenderPass* sdlRenderPass = static_cast<SdlGpuRenderPass*>(renderPass);
-    eassert(this == sdlRenderPass->m_GpuDevice,
-        "RenderPass does not belong to this device");
-    sdlRenderPass->~SdlGpuRenderPass();
-    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(renderPass));
-    return Result<void>::Success;
-}
-
 Result<Renderer*>
 SdlGpuDevice::CreateRenderer(GpuPipeline* pipeline)
 {

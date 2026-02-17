@@ -19,11 +19,6 @@ enum class GpuPipelineType
     Opaque
 };
 
-enum class GpuRenderPassType
-{
-    ColorDepth
-};
-
 /// @brief GPU representation of a vertex buffer.
 class GpuVertexBuffer
 {
@@ -256,10 +251,6 @@ public:
         GpuFragmentShader* fragmentShader) = 0;
 
     virtual Result<void> DestroyPipeline(GpuPipeline* pipeline) = 0;
-
-    virtual Result<GpuRenderPass*> CreateRenderPass(const GpuRenderPassType renderPassType) = 0;
-
-    virtual Result<void> DestroyRenderPass(GpuRenderPass* renderPass) = 0;
 
     virtual Result<Renderer*> CreateRenderer(GpuPipeline* pipeline) = 0;
 
