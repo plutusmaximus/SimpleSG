@@ -18,7 +18,9 @@ struct MaterialBlock
 struct MaterialIndexBlock
 {
     materialIndex: i32,
-    _pad0: vec3<i32>,
+    _pad0: i32,
+    _pad1: i32,
+    _pad2: i32,
 };
 
 @group(1) @binding(0) var<uniform> xform: XForm;
