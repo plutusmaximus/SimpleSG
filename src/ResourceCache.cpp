@@ -98,8 +98,12 @@ ResourceCache::~ResourceCache()
             it.first.ToString());
 
         // Release model resources
-        auto model = it.second.GetValue().value().Get();
-        m_ModelAllocator.Delete(model);
+        auto result = it.second.GetValue();
+        if(result)
+        {
+            auto modelRsrc = result.value();
+            m_ModelAllocator.Delete(modelRsrc.Get());
+        }
     }
 
     for(auto it : m_TextureCache)
@@ -108,11 +112,15 @@ ResourceCache::~ResourceCache()
             "Texture cache entry for key {} is still pending during ResourceCache destruction",
             it.first.ToString());
 
-        auto texture = it.second.GetValue().value();
-        auto result = m_GpuDevice->DestroyTexture(texture);
-        if(!result)
+        auto result = it.second.GetValue();
+        if(result)
         {
-            logError("Failed to destroy texture: {}", result.error());
+            auto texture = result.value();
+            auto dr = m_GpuDevice->DestroyTexture(texture);
+            if(!dr)
+            {
+                logError("Failed to destroy texture: {}", dr.error());
+            }
         }
     }
 
@@ -122,12 +130,15 @@ ResourceCache::~ResourceCache()
             "Vertex shader cache entry for key {} is still pending during ResourceCache destruction",
             it.first.ToString());
 
-        // Release vertex shader resources
-        auto vertexShader = it.second.GetValue().value();
-        auto result = m_GpuDevice->DestroyVertexShader(vertexShader);
-        if(!result)
+        auto result = it.second.GetValue();
+        if(result)
         {
-            logError("Failed to destroy vertex shader: {}", result.error());
+            auto vertexShader = result.value();
+            auto dr = m_GpuDevice->DestroyVertexShader(vertexShader);
+            if(!dr)
+            {
+                logError("Failed to destroy vertex shader: {}", dr.error());
+            }
         }
     }
 
@@ -137,12 +148,15 @@ ResourceCache::~ResourceCache()
             "Fragment shader cache entry for key {} is still pending during ResourceCache destruction",
             it.first.ToString());
 
-        // Release fragment shader resources
-        auto fragmentShader = it.second.GetValue().value();
-        auto result = m_GpuDevice->DestroyFragmentShader(fragmentShader);
-        if(!result)
+        auto result = it.second.GetValue();
+        if(result)
         {
-            logError("Failed to destroy fragment shader: {}", result.error());
+            auto fragmentShader = result.value();
+            auto dr = m_GpuDevice->DestroyFragmentShader(fragmentShader);
+            if(!dr)
+            {
+                logError("Failed to destroy fragment shader: {}", dr.error());
+            }
         }
     }
 
@@ -152,12 +166,15 @@ ResourceCache::~ResourceCache()
             "Pipeline cache entry for key {} is still pending during ResourceCache destruction",
             it.first.ToString());
 
-        // Release pipeline resources
-        auto pipeline = it.second.GetValue().value();
-        auto result = m_GpuDevice->DestroyPipeline(pipeline);
-        if(!result)
+        auto result = it.second.GetValue();
+        if(result)
         {
-            logError("Failed to destroy pipeline: {}", result.error());
+            auto pipeline = result.value();
+            auto dr = m_GpuDevice->DestroyPipeline(pipeline);
+            if(!dr)
+            {
+                logError("Failed to destroy pipeline: {}", dr.error());
+            }
         }
     }
 }
@@ -301,7 +318,7 @@ ResourceCache::CreateVertexShaderAsync(const CacheKey& cacheKey, const VertexSha
         logDebug("  Cache miss: {}", cacheKey.ToString());
 
         auto op = NewOp<CreateShaderOp>(this, cacheKey, shaderSpec);
-        expectv(op, "Failed to allocate CreateVertexShaderOp for key: {}", cacheKey.ToString());
+        expectv(op, "Failed to allocate CreateShaderOp for key: {}", cacheKey.ToString());
         m_Scheduler.Enqueue(op);
     }
 
@@ -327,7 +344,7 @@ ResourceCache::CreateFragmentShaderAsync(const CacheKey& cacheKey, const Fragmen
         logDebug("  Cache miss: {}", cacheKey.ToString());
 
         auto op = NewOp<CreateShaderOp>(this, cacheKey, shaderSpec);
-        expectv(op, "Failed to allocate CreateFragmentShaderOp for key: {}", cacheKey.ToString());
+        expectv(op, "Failed to allocate CreateShaderOp for key: {}", cacheKey.ToString());
         m_Scheduler.Enqueue(op);
     }
 
