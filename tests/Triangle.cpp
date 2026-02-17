@@ -270,7 +270,11 @@ static Result<GpuPipeline*> CreatePipeline(ResourceCache* cache)
     {
         .PipelineType = GpuPipelineType::Opaque,
         .VertexShader{"shaders/Debug/VertexShader.vs", 3},
+    #if USE_DAWN_GPU_DEVICE
+        .FragmentShader{"shaders/Debug/FragmentShader.fs"},
+    #else
         .FragmentShader{"shaders/Debug/FragmentShader.ps"},
+    #endif
     };
 
     const CacheKey pipelineCacheKey("MainPipeline");
