@@ -412,14 +412,6 @@ SdlRenderer::SwapStates()
     m_CurrentState->Clear();
 }
 
-static Result<void> LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer);
-static Result<GpuVertexShader*> CreateCopyColorTargetVertexShader(GpuDevice* gpuDevice,
-    const char* filePath);
-static Result<GpuFragmentShader*> CreateCopyColorTargetFragmentShader(GpuDevice* gpuDevice,
-    const char* filePath);
-static Result<SDL_GPUGraphicsPipeline*> CreateCopyColorTargetPipeline(
-    SdlGpuDevice* gpuDevice, SdlGpuVertexShader* vs, SdlGpuFragmentShader* fs);
-
 Result<void>
 SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf)
 {
@@ -429,33 +421,10 @@ SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf)
         SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuf, m_GpuDevice->Window, &swap, &swapW, &swapH),
         SDL_GetError());
 
-    if(!m_CopyTextureVertexShader)
-    {
-        auto result = CreateCopyColorTargetVertexShader(m_GpuDevice,
-            "shaders/Debug/FullScreenTriangle.vs.spv");
-        expect(result, result.error());
+    auto pipelineResult = GetCopyColorTargetPipeline();
+    expect(pipelineResult, pipelineResult.error());
 
-        m_CopyTextureVertexShader = result.value();
-    }
-
-    if(!m_CopyTextureFragmentShader)
-    {
-        auto result = CreateCopyColorTargetFragmentShader(m_GpuDevice,
-            "shaders/Debug/FullScreenTriangle.ps.spv");
-        expect(result, result.error());
-
-        m_CopyTextureFragmentShader = result.value();
-    }
-
-    if(!m_CopyTexturePipeline)
-    {
-        auto vs = static_cast<SdlGpuVertexShader*>(m_CopyTextureVertexShader);
-        auto fs = static_cast<SdlGpuFragmentShader*>(m_CopyTextureFragmentShader);
-        auto result = CreateCopyColorTargetPipeline(m_GpuDevice, vs, fs);
-        expect(result, result.error());
-
-        m_CopyTexturePipeline = result.value();
-    }
+    auto pipeline = pipelineResult.value();
 
     SDL_GPUColorTargetInfo colorTargetInfo
     {
@@ -495,7 +464,7 @@ SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf)
     };
 
     SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
-    SDL_BindGPUGraphicsPipeline(renderPass, m_CopyTexturePipeline);
+    SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
     SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 1);
     SDL_EndGPURenderPass(renderPass);
 
@@ -548,35 +517,66 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
     return Result<void>::Success;
 }
 
-static
-Result<GpuVertexShader*> CreateCopyColorTargetVertexShader(GpuDevice* gpuDevice, const char* filePath)
+Result<GpuVertexShader*>
+SdlRenderer::GetCopyColorTargetVertexShader()
 {
+    if(m_CopyTextureVertexShader)
+    {
+        return m_CopyTextureVertexShader;
+    }
+
     std::vector<uint8_t> shaderCode;
-    auto loadResult = LoadShaderCode(filePath, shaderCode);
+    auto loadResult = LoadShaderCode("shaders/Debug/FullScreenTriangle.vs.spv", shaderCode);
     expect(loadResult, loadResult.error());
 
     std::span<uint8_t> shaderCodeSpan(shaderCode.data(), shaderCode.size());
 
-    return gpuDevice->CreateVertexShader(shaderCodeSpan);
+    auto vsResult = m_GpuDevice->CreateVertexShader(shaderCodeSpan);
+    expect(vsResult, vsResult.error());
+
+    m_CopyTextureVertexShader = vsResult.value();
+    return m_CopyTextureVertexShader;
 }
 
-static
-Result<GpuFragmentShader*> CreateCopyColorTargetFragmentShader(GpuDevice* gpuDevice, const char* filePath)
+Result<GpuFragmentShader*>
+SdlRenderer::GetCopyColorTargetFragmentShader()
 {
+    if(m_CopyTextureFragmentShader)
+    {
+        return m_CopyTextureFragmentShader;
+    }
+
     std::vector<uint8_t> shaderCode;
-    auto loadResult = LoadShaderCode(filePath, shaderCode);
+    auto loadResult = LoadShaderCode("shaders/Debug/FullScreenTriangle.ps.spv", shaderCode);
     expect(loadResult, loadResult.error());
 
     std::span<uint8_t> shaderCodeSpan(shaderCode.data(), shaderCode.size());
 
-    return gpuDevice->CreateFragmentShader(shaderCodeSpan);
+    auto fsResult = m_GpuDevice->CreateFragmentShader(shaderCodeSpan);
+    expect(fsResult, fsResult.error());
+
+    m_CopyTextureFragmentShader = fsResult.value();
+    return m_CopyTextureFragmentShader;
 }
 
-static Result<SDL_GPUGraphicsPipeline*>
-CreateCopyColorTargetPipeline(
-    SdlGpuDevice* gpuDevice, SdlGpuVertexShader* vs, SdlGpuFragmentShader* fs)
+Result<SDL_GPUGraphicsPipeline*>
+SdlRenderer::GetCopyColorTargetPipeline()
 {
-    auto colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(gpuDevice->Device, gpuDevice->Window);
+    if(m_CopyTexturePipeline)
+    {
+        return m_CopyTexturePipeline;
+    }
+
+    auto vsResult = GetCopyColorTargetVertexShader();
+    expect(vsResult, vsResult.error());
+
+    auto fsResult = GetCopyColorTargetFragmentShader();
+    expect(fsResult, fsResult.error());
+
+    auto vs = static_cast<SdlGpuVertexShader*>(vsResult.value());
+    auto fs = static_cast<SdlGpuFragmentShader*>(fsResult.value());
+
+    auto colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(m_GpuDevice->Device, m_GpuDevice->Window);
 
     SDL_GPUColorTargetDescription colorTargetDesc//
     {
@@ -613,8 +613,8 @@ CreateCopyColorTargetPipeline(
             },
         };
 
-    auto pipeline = SDL_CreateGPUGraphicsPipeline(gpuDevice->Device, &pipelineCreateInfo);
-    expect(pipeline, SDL_GetError());
+    m_CopyTexturePipeline = SDL_CreateGPUGraphicsPipeline(m_GpuDevice->Device, &pipelineCreateInfo);
+    expect(m_CopyTexturePipeline, SDL_GetError());
 
-    return pipeline;
+    return m_CopyTexturePipeline;
 }
