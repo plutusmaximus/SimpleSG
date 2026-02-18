@@ -69,6 +69,10 @@ private:
     /// @brief Copy the color target to the swapchain texture.
     Result<void> CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf);
 
+    Result<GpuVertexShader*> GetCopyColorTargetVertexShader();
+    Result<GpuFragmentShader*> GetCopyColorTargetFragmentShader();
+    Result<SDL_GPUGraphicsPipeline*> GetCopyColorTargetPipeline();
+
     /// Get or create the default texture.
     /// The default texture is used when a material does not have a base texture.
     Result<GpuTexture*> GetDefaultBaseTexture();

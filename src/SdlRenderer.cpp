@@ -412,8 +412,13 @@ SdlRenderer::SwapStates()
     m_CurrentState->Clear();
 }
 
-static Result<void>
-LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer);
+static Result<void> LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer);
+static Result<GpuVertexShader*> CreateCopyColorTargetVertexShader(GpuDevice* gpuDevice,
+    const char* filePath);
+static Result<GpuFragmentShader*> CreateCopyColorTargetFragmentShader(GpuDevice* gpuDevice,
+    const char* filePath);
+static Result<SDL_GPUGraphicsPipeline*> CreateCopyColorTargetPipeline(
+    SdlGpuDevice* gpuDevice, SdlGpuVertexShader* vs, SdlGpuFragmentShader* fs);
 
 Result<void>
 SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf)
@@ -426,13 +431,8 @@ SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf)
 
     if(!m_CopyTextureVertexShader)
     {
-        std::vector<uint8_t> shaderCode;
-        auto loadResult = LoadShaderCode("shaders/Debug/FullScreenTriangle.vs.spv", shaderCode);
-        expect(loadResult, loadResult.error());
-
-        std::span<uint8_t> shaderCodeSpan(shaderCode.data(), shaderCode.size());
-
-        auto result = m_GpuDevice->CreateVertexShader(shaderCodeSpan);
+        auto result = CreateCopyColorTargetVertexShader(m_GpuDevice,
+            "shaders/Debug/FullScreenTriangle.vs.spv");
         expect(result, result.error());
 
         m_CopyTextureVertexShader = result.value();
@@ -440,13 +440,8 @@ SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf)
 
     if(!m_CopyTextureFragmentShader)
     {
-        std::vector<uint8_t> shaderCode;
-        auto loadResult = LoadShaderCode("shaders/Debug/FullScreenTriangle.ps.spv", shaderCode);
-        expect(loadResult, loadResult.error());
-
-        std::span<uint8_t> shaderCodeSpan(shaderCode.data(), shaderCode.size());
-
-        auto result = m_GpuDevice->CreateFragmentShader(shaderCodeSpan);
+        auto result = CreateCopyColorTargetFragmentShader(m_GpuDevice,
+            "shaders/Debug/FullScreenTriangle.ps.spv");
         expect(result, result.error());
 
         m_CopyTextureFragmentShader = result.value();
@@ -454,45 +449,12 @@ SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf)
 
     if(!m_CopyTexturePipeline)
     {
-        auto colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(m_GpuDevice->Device, m_GpuDevice->Window);
+        auto vs = static_cast<SdlGpuVertexShader*>(m_CopyTextureVertexShader);
+        auto fs = static_cast<SdlGpuFragmentShader*>(m_CopyTextureFragmentShader);
+        auto result = CreateCopyColorTargetPipeline(m_GpuDevice, vs, fs);
+        expect(result, result.error());
 
-        SDL_GPUColorTargetDescription colorTargetDesc//
-        {
-            .format = colorTargetFormat,
-            .blend_state =
-            {
-                .enable_blend = false,
-                .enable_color_write_mask = false,
-            },
-        };
-
-        SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo //
-            {
-                .vertex_shader = static_cast<SdlGpuVertexShader*>(m_CopyTextureVertexShader)->GetShader(),
-                .fragment_shader = static_cast<SdlGpuFragmentShader*>(m_CopyTextureFragmentShader)->GetShader(),
-                .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-                .rasterizer_state = //
-                {
-                    .fill_mode = SDL_GPU_FILLMODE_FILL,
-                    .cull_mode = SDL_GPU_CULLMODE_BACK,
-                    .front_face = SDL_GPU_FRONTFACE_CLOCKWISE,
-                    .enable_depth_clip = false,
-                },
-                .depth_stencil_state = //
-                {
-                    .enable_depth_test = false,
-                    .enable_depth_write = false,
-                },
-                .target_info = //
-                {
-                    .color_target_descriptions = &colorTargetDesc,
-                    .num_color_targets = 1,
-                    .has_depth_stencil_target = false,
-                },
-            };
-
-        m_CopyTexturePipeline = SDL_CreateGPUGraphicsPipeline(m_GpuDevice->Device, &pipelineCreateInfo);
-        expect(m_CopyTexturePipeline, SDL_GetError());
+        m_CopyTexturePipeline = result.value();
     }
 
     SDL_GPUColorTargetInfo colorTargetInfo
@@ -584,4 +546,75 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
             "Failed to read shader file: {} ({})", filePath, std::strerror(errno));
 
     return Result<void>::Success;
+}
+
+static
+Result<GpuVertexShader*> CreateCopyColorTargetVertexShader(GpuDevice* gpuDevice, const char* filePath)
+{
+    std::vector<uint8_t> shaderCode;
+    auto loadResult = LoadShaderCode(filePath, shaderCode);
+    expect(loadResult, loadResult.error());
+
+    std::span<uint8_t> shaderCodeSpan(shaderCode.data(), shaderCode.size());
+
+    return gpuDevice->CreateVertexShader(shaderCodeSpan);
+}
+
+static
+Result<GpuFragmentShader*> CreateCopyColorTargetFragmentShader(GpuDevice* gpuDevice, const char* filePath)
+{
+    std::vector<uint8_t> shaderCode;
+    auto loadResult = LoadShaderCode(filePath, shaderCode);
+    expect(loadResult, loadResult.error());
+
+    std::span<uint8_t> shaderCodeSpan(shaderCode.data(), shaderCode.size());
+
+    return gpuDevice->CreateFragmentShader(shaderCodeSpan);
+}
+
+static Result<SDL_GPUGraphicsPipeline*>
+CreateCopyColorTargetPipeline(
+    SdlGpuDevice* gpuDevice, SdlGpuVertexShader* vs, SdlGpuFragmentShader* fs)
+{
+    auto colorTargetFormat = SDL_GetGPUSwapchainTextureFormat(gpuDevice->Device, gpuDevice->Window);
+
+    SDL_GPUColorTargetDescription colorTargetDesc//
+    {
+        .format = colorTargetFormat,
+        .blend_state =
+        {
+            .enable_blend = false,
+            .enable_color_write_mask = false,
+        },
+    };
+
+    SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo //
+        {
+            .vertex_shader = vs->GetShader(),
+            .fragment_shader = fs->GetShader(),
+            .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+            .rasterizer_state = //
+            {
+                .fill_mode = SDL_GPU_FILLMODE_FILL,
+                .cull_mode = SDL_GPU_CULLMODE_BACK,
+                .front_face = SDL_GPU_FRONTFACE_CLOCKWISE,
+                .enable_depth_clip = false,
+            },
+            .depth_stencil_state = //
+            {
+                .enable_depth_test = false,
+                .enable_depth_write = false,
+            },
+            .target_info = //
+            {
+                .color_target_descriptions = &colorTargetDesc,
+                .num_color_targets = 1,
+                .has_depth_stencil_target = false,
+            },
+        };
+
+    auto pipeline = SDL_CreateGPUGraphicsPipeline(gpuDevice->Device, &pipelineCreateInfo);
+    expect(pipeline, SDL_GetError());
+
+    return pipeline;
 }
