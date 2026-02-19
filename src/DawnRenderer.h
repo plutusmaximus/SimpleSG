@@ -93,6 +93,7 @@ private:
     GpuFragmentShader* m_CopyTextureFragmentShader{ nullptr };
     wgpu::RenderPipeline m_CopyTexturePipeline;
     wgpu::BindGroupLayout m_CopyTextureBindGroupLayout;
+    wgpu::BindGroup m_CopyTextureBindGroup;
 
     std::unordered_map<MaterialId, wgpu::BindGroup> m_MaterialBindGroups;
 

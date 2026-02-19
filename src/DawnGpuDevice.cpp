@@ -833,6 +833,13 @@ CreateAdapter(wgpu::Instance instance)
             .nextInChain = nullptr,
             .powerPreference = wgpu::PowerPreference::HighPerformance,
             .forceFallbackAdapter = false,
+#if defined(_WIN32)
+            .backendType = wgpu::BackendType::D3D12,
+#elif defined(__EMSCRIPTEN__)
+            .backendType = wgpu::BackendType::WebGPU,
+#else
+            .backendType = wgpu::BackendType::Vulkan,
+#endif
             .compatibleSurface = nullptr,
         };
 

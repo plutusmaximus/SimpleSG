@@ -549,35 +549,6 @@ DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder)
 
     auto pipeline = pipelineResult.value();
 
-    wgpu::TextureView texView = static_cast<DawnGpuColorTarget*>(m_ColorTarget)->GetTextureView();
-    expect(texView, "Failed to get wgpu::TextureView for color target");
-
-    wgpu::Sampler sampler = static_cast<DawnGpuColorTarget*>(m_ColorTarget)->GetSampler();
-    expect(sampler, "Failed to get wgpu::Sampler for color target");
-
-    wgpu::BindGroupEntry bgEntries[] = //
-        {
-            {
-                .binding = 0,
-                .textureView = texView,
-            },
-            {
-                .binding = 1,
-                .sampler = sampler,
-            },
-        };
-
-    wgpu::BindGroupDescriptor bgDesc //
-        {
-            .label = "ColorTargetCopyBindGroup",
-            .layout = m_CopyTextureBindGroupLayout,
-            .entryCount = std::size(bgEntries),
-            .entries = bgEntries,
-        };
-
-    wgpu::BindGroup bindGroup = m_GpuDevice->Device.CreateBindGroup(&bgDesc);
-    expect(bindGroup, "Failed to create wgpu::BindGroup for copying color target to swapchain");
-
     wgpu::RenderPassColorAttachment attachment //
         {
             .view = backbuffer.texture.CreateView(),
@@ -597,7 +568,7 @@ DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder)
     expect(renderPass, "Failed to begin render pass for copying color target to swapchain");
 
     renderPass.SetPipeline(pipeline);
-    renderPass.SetBindGroup(2, bindGroup, 0, nullptr);
+    renderPass.SetBindGroup(2, m_CopyTextureBindGroup, 0, nullptr);
     renderPass.Draw(3, 1, 0, 0);
     renderPass.End();
 
@@ -819,8 +790,42 @@ DawnRenderer::GetCopyColorTargetPipeline()
         .fragment = &fragmentState,
     };
 
-    m_CopyTexturePipeline = m_GpuDevice->Device.CreateRenderPipeline(&descriptor);
-    expect(m_CopyTexturePipeline, "Failed to create render pipeline for copying color target to swapchain");
+    auto pipeline = m_GpuDevice->Device.CreateRenderPipeline(&descriptor);
+    expect(pipeline, "Failed to create render pipeline for copying color target to swapchain");
+
+    // Create bind group for the color target texture and sampler
+
+    wgpu::TextureView texView = static_cast<DawnGpuColorTarget*>(m_ColorTarget)->GetTextureView();
+    expect(texView, "Failed to get wgpu::TextureView for color target");
+
+    wgpu::Sampler sampler = static_cast<DawnGpuColorTarget*>(m_ColorTarget)->GetSampler();
+    expect(sampler, "Failed to get wgpu::Sampler for color target");
+
+    wgpu::BindGroupEntry bgEntries[] = //
+        {
+            {
+                .binding = 0,
+                .textureView = texView,
+            },
+            {
+                .binding = 1,
+                .sampler = sampler,
+            },
+        };
+
+    wgpu::BindGroupDescriptor bgDesc //
+        {
+            .label = "ColorTargetCopyBindGroup",
+            .layout = m_CopyTextureBindGroupLayout,
+            .entryCount = std::size(bgEntries),
+            .entries = bgEntries,
+        };
+
+    wgpu::BindGroup bindGroup = m_GpuDevice->Device.CreateBindGroup(&bgDesc);
+    expect(bindGroup, "Failed to create wgpu::BindGroup for copying color target to swapchain");
+
+    m_CopyTextureBindGroup = bindGroup;
+    m_CopyTexturePipeline = pipeline;
 
     return m_CopyTexturePipeline;
 }
