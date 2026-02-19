@@ -328,7 +328,7 @@ public:
 
     ~SdlGpuDevice() override;
 
-    Extent GetExtent() const override;
+    Extent GetScreenBounds() const override;
 
     Result<GpuVertexBuffer*> CreateVertexBuffer(
         const std::span<const Vertex>& vertices) override;

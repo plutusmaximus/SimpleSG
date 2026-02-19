@@ -192,7 +192,6 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
         {
             const Material& mtl = xmeshes[0].MeshInstance.GetMaterial();
             //const int mtlIdx = m_MaterialDb->GetIndex(mtlId);
-            const int mtlIdx = 0;
 
             GpuTexture* baseTexture = mtl.GetBaseTexture();
 
@@ -215,7 +214,6 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
             auto pipeline = static_cast<SdlGpuPipeline*>(m_Pipeline)->GetPipeline();
 
             SDL_PushGPUVertexUniformData(cmdBuf, 1, &mtl.GetColor(), sizeof(mtl.GetColor()));
-            SDL_PushGPUVertexUniformData(cmdBuf, 2, &mtlIdx, sizeof(mtlIdx));
             SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
             SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
 
@@ -287,7 +285,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 Result<SDL_GPURenderPass*>
 SdlRenderer::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
 {
-    const auto screenBounds = m_GpuDevice->GetExtent();
+    const auto screenBounds = m_GpuDevice->GetScreenBounds();
 
     const unsigned targetWidth = static_cast<unsigned>(screenBounds.Width);
     const unsigned targetHeight = static_cast<unsigned>(screenBounds.Height);

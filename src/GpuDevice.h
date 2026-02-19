@@ -10,6 +10,9 @@
 #include <tuple>
 #include <variant>
 
+#define DAWN_GPU 1
+//#define DAWN_GPU 0
+
 template<typename T>
 class RgbaColor;
 using RgbaColorf = RgbaColor<float>;
@@ -182,7 +185,7 @@ class GpuDevice
 public:
 
     /// @brief Gets the renderable extent of the device.
-    virtual Extent GetExtent() const = 0;
+    virtual Extent GetScreenBounds() const = 0;
 
     /// @brief Creates a vertex buffer from the given vertices.
     virtual Result<GpuVertexBuffer*> CreateVertexBuffer(const std::span<const Vertex>& vertices) = 0;

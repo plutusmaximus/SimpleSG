@@ -15,8 +15,11 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#if DAWN_GPU
+static constexpr const char* SHADER_EXTENSION = ".wgsl";
+#else
 static constexpr const char* SHADER_EXTENSION = ".spv";
-//static constexpr const char* SHADER_EXTENSION = ".wgsl";
+#endif
 
 static constexpr const RgbaColorf WHITE_COLOR(1.0f, 1.0f, 1.0f, 1.0f);
 static constexpr const RgbaColorf MAGENTA_COLOR(1.0f, 0.0f, 1.0f, 1.0f);

@@ -3,6 +3,7 @@
 #include "FileIo.h"
 #include "Logging.h"
 #include "SdlGpuDevice.h"
+#include "DawnGpuDevice.h"
 #include "Stopwatch.h"
 #include "scope_exit.h"
 
@@ -82,7 +83,12 @@ AppDriver::Run()
 
     expect(FileIo::Startup(), "Failed to startup File I/O system");
 
-    auto gdResult = SdlGpuDevice::Create(m_Window);
+    #if DAWN_GPU
+        auto gdResult = DawnGpuDevice::Create(m_Window);
+    #else
+        auto gdResult = SdlGpuDevice::Create(m_Window);
+    #endif
+
     expect(gdResult, gdResult.error());
 
     auto gpuDevice = *gdResult;
@@ -176,6 +182,14 @@ AppDriver::Run()
                 break;
             }
         }
+#if DAWN_GPU
+#if !defined(__EMSCRIPTEN__)
+        auto dawnGpuDevice = static_cast<DawnGpuDevice*>(gpuDevice);
+        expect(dawnGpuDevice->Surface.Present(), "Failed to present backbuffer");
+#endif
+
+        dawnGpuDevice->Instance.ProcessEvents();
+#endif  //DAWN_GPU
     }
 
     app->Shutdown();
@@ -184,7 +198,11 @@ AppDriver::Run()
 
     resourceCache.reset();
 
+#if DAWN_GPU
+    DawnGpuDevice::Destroy(gpuDevice);
+#else
     SdlGpuDevice::Destroy(gpuDevice);
+#endif
 
     FileIo::Shutdown();
 

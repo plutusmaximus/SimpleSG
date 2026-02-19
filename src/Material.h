@@ -534,6 +534,7 @@ public:
     Material(Material&&) = default;
     Material& operator=(Material&&) = default;
 
+    const MaterialId GetId() const { return m_Key.Id; }
     const MaterialKey& GetKey() const { return m_Key; }
     const RgbaColorf& GetColor() const { return m_Color; }
     float GetMetalness() const { return m_Metalness; }

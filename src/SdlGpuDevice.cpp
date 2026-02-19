@@ -4,7 +4,6 @@
 
 #include "Logging.h"
 
-#include "SdlRenderer.h"
 #include "scope_exit.h"
 
 #include "Stopwatch.h"
@@ -210,7 +209,7 @@ SdlGpuDevice::~SdlGpuDevice()
 }
 
 Extent
-SdlGpuDevice::GetExtent() const
+SdlGpuDevice::GetScreenBounds() const
 {
     int width = 0, height = 0;
     if(!SDL_GetWindowSizeInPixels(Window, &width, &height))
@@ -677,18 +676,26 @@ SdlGpuDevice::CreatePipeline(const GpuPipelineType pipelineType,
         };
     SDL_GPUVertexAttribute vertexAttributes[] = //
         {
-            { .location = 0,
+            {
+                //
+                .location = 0,
                 .buffer_slot = 0,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
-                .offset = offsetof(Vertex, pos) },
-            { .location = 1,
+                .offset = offsetof(Vertex, pos),
+            },
+            {
+                //
+                .location = 1,
                 .buffer_slot = 0,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
-                .offset = offsetof(Vertex, normal) },
-            { .location = 2,
+                .offset = offsetof(Vertex, normal),
+            },
+            { //
+                .location = 2,
                 .buffer_slot = 0,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
-                .offset = offsetof(Vertex, uvs[0]) },
+                .offset = offsetof(Vertex, uvs[0]),
+            },
         };
 
     SDL_GPUColorTargetDescription colorTargetDesc//

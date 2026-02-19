@@ -12,10 +12,29 @@
 #include <windows.h>
 #endif
 
-
 static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
 static constexpr wgpu::TextureFormat kColorTargetFormat = wgpu::TextureFormat::RGBA8Unorm;
 static constexpr wgpu::TextureFormat kDepthTargetFormat = wgpu::TextureFormat::Depth24Plus;
+
+/// @brief Traits to map a CPU-side buffer type to its corresponding GPU buffer type and usage flags.
+template<typename T> struct GpuBufferTraits;
+
+template<> struct GpuBufferTraits<VertexIndex>
+{
+    static constexpr wgpu::BufferUsage Usage = wgpu::BufferUsage::Index;
+    static constexpr const char* DebugName = "IndexBuffer";
+};
+
+template<> struct GpuBufferTraits<Vertex>
+{
+    static constexpr wgpu::BufferUsage Usage = wgpu::BufferUsage::Vertex;
+    static constexpr const char* DebugName = "VertexBuffer";
+};
+
+// Helper function to create a GPU buffer from multiple spans of data
+template<typename T>
+static Result<std::tuple<wgpu::Buffer, size_t>>
+CreateGpuBuffer(wgpu::Device device, const std::span<const std::span<const T>>& spans);
 
 static Result<wgpu::Instance> CreateInstance();
 
@@ -36,11 +55,6 @@ static Result<wgpu::TextureFormat> ConfigureSurface(wgpu::Adapter adapter,
     wgpu::Surface surface,
     const uint32_t width,
     const uint32_t height);
-
-// Helper function to create a GPU buffer from multiple spans of data
-template<typename T>
-static Result<std::tuple<wgpu::Buffer, size_t>>
-CreateGpuBuffer(wgpu::Device device, const std::span<const std::span<const T>>& spans);
 
 DawnGpuDevice::DawnGpuDevice(
     SDL_Window* window, wgpu::Instance instance, wgpu::Adapter adapter, wgpu::Device device, wgpu::Surface surface)
@@ -103,9 +117,14 @@ DawnGpuDevice::~DawnGpuDevice()
 }
 
 Extent
-DawnGpuDevice::GetExtent() const
+DawnGpuDevice::GetScreenBounds() const
 {
-    return Extent(0, 0);
+    int width = 0, height = 0;
+    if(!SDL_GetWindowSizeInPixels(Window, &width, &height))
+    {
+        logError("Failed to get window size: {}", SDL_GetError());
+    }
+    return Extent{static_cast<float>(width), static_cast<float>(height)};
 }
 
 Result<GpuVertexBuffer*>
@@ -301,10 +320,12 @@ DawnGpuDevice::CreateTexture(const unsigned width,
     expect(samplerResult, samplerResult.error());
 
     GpuResource* res = m_ResourceAllocator.New();
-
     expectv(res, "Error allocating DawnGpuTexture");
 
-    return ::new(&res->Texture) DawnGpuTexture(this, texture, samplerResult.value(), width, height);
+    auto texView = texture.CreateView();
+    expect(texView, "Failed to create texture view for texture");
+
+    return ::new(&res->Texture) DawnGpuTexture(this, texture, texView, samplerResult.value(), width, height);
 }
 
 Result<GpuTexture*>
@@ -487,21 +508,6 @@ DawnGpuDevice::CreatePipeline(const GpuPipelineType pipelineType,
     expectv(pipelineType == GpuPipelineType::Opaque,
         "Only opaque pipelines are supported for now.");
 
-    // Bind group zero is unused.
-    wgpu::BindGroupLayoutEntry unusedBglEntries[] =//
-    {
-        {
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Vertex,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::Uniform,
-                .hasDynamicOffset = false,
-                .minBindingSize = 0,
-            },
-        },
-    };
-
     // Bind group 1 is for vertex shaders.
     wgpu::BindGroupLayoutEntry vertBglEntries[] =//
     {
@@ -518,20 +524,12 @@ DawnGpuDevice::CreatePipeline(const GpuPipelineType pipelineType,
             .buffer =
             {
                 .type = wgpu::BufferBindingType::Uniform,
-                .hasDynamicOffset = false,
-                .minBindingSize = sizeof(float) * 4 * 4 * 2,
+                .hasDynamicOffset = true,
+                .minBindingSize = sizeof(Mat44f) * 2,
             },
         },
         /*
-            struct Material
-            {
-                color: vec4<f32>,
-            };
-
-            struct MaterialBlock
-            {
-                materials: array<Material, 16>,
-            };
+            color: vec4<f32>,
         */
         {
             .binding = 1,
@@ -540,28 +538,20 @@ DawnGpuDevice::CreatePipeline(const GpuPipelineType pipelineType,
             {
                 .type = wgpu::BufferBindingType::Uniform,
                 .hasDynamicOffset = false,
-                .minBindingSize = sizeof(float) * 4 * 16,
-            },
-        },
-        /*
-            // Uniform buffers must be 16-byte aligned; pad out the rest of the 16 bytes.
-            struct MaterialIndexBlock
-            {
-                materialIndex: i32,
-                _pad0: vec3<i32>,
-            };
-        */
-        {
-            .binding = 2,
-            .visibility = wgpu::ShaderStage::Vertex,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::Uniform,
-                .hasDynamicOffset = false,
-                .minBindingSize = 16,
+                .minBindingSize = sizeof(Vec4f),
             },
         },
     };
+
+    wgpu::BindGroupLayoutDescriptor vertBglDesc = //
+        {
+            .label = "ColorTargetVertBGL",
+            .entryCount = std::size(vertBglEntries),
+            .entries = vertBglEntries,
+        };
+
+    wgpu::BindGroupLayout vertBgl = Device.CreateBindGroupLayout(&vertBglDesc);
+    expect(vertBgl, "Failed to create BindGroupLayout");
 
     // Bind group 2 is for fragment shaders.
     wgpu::BindGroupLayoutEntry fragBglEntries[] =//
@@ -586,20 +576,6 @@ DawnGpuDevice::CreatePipeline(const GpuPipelineType pipelineType,
         }
     };
 
-    wgpu::BindGroupLayoutDescriptor unusedBglDesc = //
-        {
-            .label = "ColorTargetEmptyBGL",
-            .entryCount = std::size(unusedBglEntries),
-            .entries = unusedBglEntries,
-        };
-
-    wgpu::BindGroupLayoutDescriptor vertBglDesc = //
-        {
-            .label = "ColorTargetVertBGL",
-            .entryCount = std::size(vertBglEntries),
-            .entries = vertBglEntries,
-        };
-
     wgpu::BindGroupLayoutDescriptor fragBglDesc = //
         {
             .label = "ColorTargetFragBGL",
@@ -607,18 +583,12 @@ DawnGpuDevice::CreatePipeline(const GpuPipelineType pipelineType,
             .entries = fragBglEntries,
         };
 
-    wgpu::BindGroupLayout unusedBgl = Device.CreateBindGroupLayout(&unusedBglDesc);
-    expect(unusedBgl, "Failed to create BindGroupLayout");
-
-    wgpu::BindGroupLayout vertBgl = Device.CreateBindGroupLayout(&vertBglDesc);
-    expect(vertBgl, "Failed to create BindGroupLayout");
-
     wgpu::BindGroupLayout fragBgl = Device.CreateBindGroupLayout(&fragBglDesc);
     expect(fragBgl, "Failed to create BindGroupLayout");
 
     wgpu::BindGroupLayout bgl[] = //
         {
-            unusedBgl,
+            nullptr, // Group 0 unused
             vertBgl,
             fragBgl,
         };
@@ -767,7 +737,6 @@ DawnGpuDevice::CreatePipeline(const GpuPipelineType pipelineType,
 Result<void>
 DawnGpuDevice::DestroyPipeline(GpuPipeline* pipeline)
 {
-    eassert(false, "Not implemented");
     DawnGpuPipeline* dawnPipeline = static_cast<DawnGpuPipeline*>(pipeline);
     eassert(this == dawnPipeline->m_GpuDevice,
         "Pipeline does not belong to this device");
@@ -777,16 +746,20 @@ DawnGpuDevice::DestroyPipeline(GpuPipeline* pipeline)
 }
 
 Result<Renderer*>
-DawnGpuDevice::CreateRenderer(GpuPipeline* /*pipeline*/)
+DawnGpuDevice::CreateRenderer(GpuPipeline* pipeline)
 {
-    eassert(false, "Not implemented");
-    return Result<Renderer*>();
+    DawnRenderer* renderer = m_RendererAllocator.New(this, pipeline);
+    expect(renderer, "Error allocating DawnRenderer");
+    return renderer;
 }
 
 void
-DawnGpuDevice::DestroyRenderer(Renderer* /*renderer*/)
+DawnGpuDevice::DestroyRenderer(Renderer* renderer)
 {
-    eassert(false, "Not implemented");
+    DawnRenderer* dawnRenderer = static_cast<DawnRenderer*>(renderer);
+    eassert(this == dawnRenderer->m_GpuDevice,
+        "Renderer does not belong to this device");
+    m_RendererAllocator.Delete(dawnRenderer);
 }
 
 //private:
@@ -955,6 +928,7 @@ ChoosePresentMode(const wgpu::PresentMode* availableModes, size_t modeCount)
             }
         }
     }
+
     return presentMode;
 }
 
@@ -1064,17 +1038,17 @@ CreateGpuBuffer(wgpu::Device device, const std::span<const std::span<const T>>& 
 
     wgpu::BufferDescriptor bufferDesc //
         {
-            .label = "VertexBuffer",
-            .usage = wgpu::BufferUsage::Vertex,
+            .label = wgpu::StringView{std::string_view{GpuBufferTraits<T>::DebugName}},
+            .usage = GpuBufferTraits<T>::Usage,
             .size = sizeofBuffer,
             .mappedAtCreation = true,
         };
 
     wgpu::Buffer buffer = device.CreateBuffer(&bufferDesc);
-    expect(buffer, "Failed to create vertex buffer");
+    expect(buffer, "Failed to create {} buffer", GpuBufferTraits<T>::DebugName);
 
     void *p = buffer.GetMappedRange(0,  sizeofBuffer);
-    expect(p, "Failed to map vertex buffer");
+    expect(p, "Failed to map {} buffer", GpuBufferTraits<T>::DebugName);
 
     T* dst = reinterpret_cast<T*>(p);
 

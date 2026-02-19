@@ -16,9 +16,6 @@ static Result<GpuPipeline*> CreatePipeline(ResourceCache* cache);
 
 constexpr const char* kAppName = "Triangle";
 
-//#define USE_DAWN_GPU_DEVICE 1
-#define USE_DAWN_GPU_DEVICE 0
-
 static Result<void> MainLoop()
 {
     logSetLevel(spdlog::level::trace);
@@ -54,7 +51,7 @@ static Result<void> MainLoop()
         FileIo::Shutdown();
     });
 
-#if USE_DAWN_GPU_DEVICE
+#if DAWN_GPU
     auto gdResult = DawnGpuDevice::Create(window);
 #else
     auto gdResult = SdlGpuDevice::Create(window);
@@ -66,7 +63,7 @@ static Result<void> MainLoop()
 
     auto gpuDeviceCleanup = scope_exit([gpuDevice]()
     {
-#if USE_DAWN_GPU_DEVICE
+#if DAWN_GPU
         DawnGpuDevice::Destroy(gpuDevice);
 #else
         SdlGpuDevice::Destroy(gpuDevice);
@@ -75,7 +72,7 @@ static Result<void> MainLoop()
 
     ResourceCache resourceCache(gpuDevice);
 
-    auto screenBounds = gpuDevice->GetExtent();
+    auto screenBounds = gpuDevice->GetScreenBounds();
 
     constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
@@ -183,7 +180,7 @@ static Result<void> MainLoop()
             continue;
         }
 
-        screenBounds = gpuDevice->GetExtent();
+        screenBounds = gpuDevice->GetScreenBounds();
 
         camera.SetBounds(screenBounds);
 
@@ -196,6 +193,14 @@ static Result<void> MainLoop()
         {
             logError(renderResult.error().GetMessage());
         }
+#if DAWN_GPU
+#if !defined(__EMSCRIPTEN__)
+        auto dawnGpuDevice = static_cast<DawnGpuDevice*>(gpuDevice);
+        expect(dawnGpuDevice->Surface.Present(), "Failed to present backbuffer");
+#endif
+
+        dawnGpuDevice->Instance.ProcessEvents();
+#endif  //DAWN_GPU
     }
 
     return Result<void>::Success;
@@ -270,7 +275,7 @@ static Result<GpuPipeline*> CreatePipeline(ResourceCache* cache)
     {
         .PipelineType = GpuPipelineType::Opaque,
         .VertexShader{"shaders/Debug/VertexShader.vs", 3},
-    #if USE_DAWN_GPU_DEVICE
+    #if DAWN_GPU
         .FragmentShader{"shaders/Debug/FragmentShader.fs"},
     #else
         .FragmentShader{"shaders/Debug/FragmentShader.ps"},

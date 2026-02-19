@@ -4,28 +4,8 @@ struct XForm
     modelViewProjXform: mat4x4<f32>,
 };
 
-struct Material
-{
-    color: vec4<f32>,
-};
-
-struct MaterialBlock
-{
-    materials: array<Material, 16>,
-};
-
-// Uniform buffers must be 16-byte aligned; pad out the rest of the 16 bytes.
-struct MaterialIndexBlock
-{
-    materialIndex: i32,
-    _pad0: i32,
-    _pad1: i32,
-    _pad2: i32,
-};
-
 @group(1) @binding(0) var<uniform> xform: XForm;
-@group(1) @binding(1) var<uniform> materialBlock: MaterialBlock;
-@group(1) @binding(2) var<uniform> materialIndexBlock: MaterialIndexBlock;
+@group(1) @binding(1) var<uniform> color: vec4<f32>;
 
 struct VSInput
 {
@@ -48,7 +28,7 @@ fn main(input: VSInput) -> VSOutput
     var output: VSOutput;
 
     output.position = xform.modelViewProjXform * vec4<f32>(input.inPosition, 1.0);
-    output.fragColor = materialBlock.materials[materialIndexBlock.materialIndex].color;
+    output.fragColor = color;
     output.fragNormal = normalize((xform.modelXform * vec4<f32>(input.inNormal, 0.0)).xyz);
     output.texCoord = input.inTexCoord;
 

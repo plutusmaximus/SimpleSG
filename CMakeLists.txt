@@ -195,6 +195,7 @@ set(SSG_SOURCES
   src/Camera.cpp
   src/CoopScheduler.cpp
   src/DawnGpuDevice.cpp
+  src/DawnRenderer.cpp
   src/EcsChildTransformPool.cpp
   src/Error.cpp
   src/FileIo.cpp
@@ -212,6 +213,7 @@ set(SSG_HEADERS
   src/Camera.h
   src/CoopScheduler.h
   src/DawnGpuDevice.h
+  src/DawnRenderer.h
   src/ECS.h
   src/EcsChildTransformPool.h
   src/Error.h

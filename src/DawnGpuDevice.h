@@ -1,5 +1,6 @@
 #pragma once
 
+#include "DawnRenderer.h"
 #include "GpuDevice.h"
 #include "PoolAllocator.h"
 #include "Vertex.h"
@@ -11,10 +12,10 @@ struct SDL_Window;
 
 class DawnGpuVertexBuffer : public GpuVertexBuffer
 {
-    class SdlSubrange : public Subrange
+    class DawnSubrange : public Subrange
     {
     public:
-        SdlSubrange(DawnGpuVertexBuffer* owner, const uint32_t itemOffset, const uint32_t itemCount)
+        DawnSubrange(DawnGpuVertexBuffer* owner, const uint32_t itemOffset, const uint32_t itemCount)
             : Subrange(owner, itemOffset, itemCount)
         {
         }
@@ -35,7 +36,7 @@ public:
     Subrange GetSubrange(const uint32_t itemOffset, const uint32_t itemCount) override
     {
         eassert(itemOffset + itemCount <= m_ItemCount, "Sub-range out of bounds");
-        return SdlSubrange(this, itemOffset, itemCount);
+        return DawnSubrange(this, itemOffset, itemCount);
     }
 
 private:
@@ -56,10 +57,10 @@ private:
 
 class DawnGpuIndexBuffer : public GpuIndexBuffer
 {
-    class SdlSubrange : public Subrange
+    class DawnSubrange : public Subrange
     {
     public:
-        SdlSubrange(DawnGpuIndexBuffer* owner, const uint32_t itemOffset, const uint32_t itemCount)
+        DawnSubrange(DawnGpuIndexBuffer* owner, const uint32_t itemOffset, const uint32_t itemCount)
             : Subrange(owner, itemOffset, itemCount)
         {
         }
@@ -80,7 +81,7 @@ public:
     Subrange GetSubrange(const uint32_t itemOffset, const uint32_t itemCount) override
     {
         eassert(itemOffset + itemCount <= m_ItemCount, "Sub-range out of bounds");
-        return SdlSubrange(this, itemOffset, itemCount);
+        return DawnSubrange(this, itemOffset, itemCount);
     }
 
 private:
@@ -115,14 +116,21 @@ public:
     unsigned GetHeight() const override { return m_Height; }
 
     wgpu::Texture GetTexture() const { return m_Texture; }
+    wgpu::TextureView GetTextureView() const { return m_TextureView; }
     wgpu::Sampler GetSampler() const { return m_Sampler; }
 
 private:
     friend class DawnGpuDevice;
 
-    DawnGpuTexture(DawnGpuDevice* gpuDevice, wgpu::Texture texture, wgpu::Sampler sampler, const unsigned width, const unsigned height)
+    DawnGpuTexture(DawnGpuDevice* gpuDevice,
+        wgpu::Texture texture,
+        wgpu::TextureView textureView,
+        wgpu::Sampler sampler,
+        const unsigned width,
+        const unsigned height)
         : m_GpuDevice(gpuDevice),
           m_Texture(texture),
+          m_TextureView(textureView),
           m_Sampler(sampler),
           m_Width(width),
           m_Height(height)
@@ -131,6 +139,7 @@ private:
 
     DawnGpuDevice* m_GpuDevice;
     wgpu::Texture m_Texture;
+    wgpu::TextureView m_TextureView;
     wgpu::Sampler m_Sampler;
     unsigned m_Width;
     unsigned m_Height;
@@ -196,8 +205,8 @@ public:
     unsigned GetWidth() const override { return m_Width; }
     unsigned GetHeight() const override { return m_Height; }
 
-    wgpu::Texture GetDepthTarget() const { return m_DepthTarget; }
-    wgpu::TextureView GetDepthTargetView() const { return m_DepthTargetView; }
+    wgpu::Texture GetTexture() const { return m_DepthTarget; }
+    wgpu::TextureView GetTextureView() const { return m_DepthTargetView; }
 
 private:
     friend class DawnGpuDevice;
@@ -326,7 +335,7 @@ public:
     ~DawnGpuDevice() override;
 
     /// @brief Gets the renderable extent of the device.
-    Extent GetExtent() const override;
+    Extent GetScreenBounds() const override;
 
     Result<GpuVertexBuffer*> CreateVertexBuffer(const std::span<const Vertex>& vertices) override;
 
@@ -415,4 +424,6 @@ private:
     };
 
     PoolAllocator<GpuResource, 256> m_ResourceAllocator;
+
+    PoolAllocator<DawnRenderer, 4> m_RendererAllocator;
 };

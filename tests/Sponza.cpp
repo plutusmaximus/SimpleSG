@@ -82,7 +82,7 @@ public:
 
         m_EidCamera = m_Registry.Create();
 
-        m_ScreenBounds = m_GpuDevice->GetExtent();
+        m_ScreenBounds = m_GpuDevice->GetScreenBounds();
 
         constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
@@ -124,7 +124,7 @@ public:
             return;
         }
 
-        m_ScreenBounds = m_GpuDevice->GetExtent();
+        m_ScreenBounds = m_GpuDevice->GetScreenBounds();
 
         m_Registry.Get<Camera>(m_EidCamera).SetBounds(m_ScreenBounds);
 
@@ -297,7 +297,7 @@ static Result<GpuPipeline*> CreatePipeline(ResourceCache* cache)
     {
         .PipelineType = GpuPipelineType::Opaque,
         .VertexShader{"shaders/Debug/VertexShader.vs", 3},
-    #if USE_DAWN_GPU_DEVICE
+    #if DAWN_GPU
         .FragmentShader{"shaders/Debug/FragmentShader.fs"},
     #else
         .FragmentShader{"shaders/Debug/FragmentShader.ps"},
