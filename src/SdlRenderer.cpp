@@ -83,6 +83,10 @@ SdlRenderer::~SdlRenderer()
     {
         eassert(!state.m_RenderFence, "Render fence must be null when destroying SdlRenderer");
     }
+
+    ImGui_ImplSDLGPU3_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
+    ImGui::DestroyContext(m_ImGuiContext);
 }
 
 Result<void>
