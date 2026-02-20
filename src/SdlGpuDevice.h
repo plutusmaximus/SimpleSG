@@ -7,6 +7,8 @@
 
 #include <span>
 
+#include <SDL3/SDL.h>
+
 struct SDL_Window;
 struct SDL_GPUDevice;
 struct SDL_GPUBuffer;
@@ -384,6 +386,8 @@ public:
     Result<Renderer*> CreateRenderer(GpuPipeline* pipeline) override;
 
     void DestroyRenderer(Renderer* renderer) override;
+
+    SDL_GPUTextureFormat GetSwapChainFormat() const;
 
     SDL_Window* const Window;
     SDL_GPUDevice* const Device;

@@ -390,6 +390,8 @@ public:
 
     void DestroyRenderer(Renderer* renderer) override;
 
+    wgpu::TextureFormat GetSwapChainFormat() const;
+
     SDL_Window* const Window;
     wgpu::Instance const Instance;
     wgpu::Adapter const Adapter;
@@ -426,4 +428,6 @@ private:
     PoolAllocator<GpuResource, 256> m_ResourceAllocator;
 
     PoolAllocator<DawnRenderer, 4> m_RendererAllocator;
+
+    wgpu::TextureFormat m_SwapChainFormat{ wgpu::TextureFormat::Undefined };
 };

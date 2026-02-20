@@ -146,22 +146,20 @@ add_library(imgui STATIC
     thirdparty/imgui/imgui_draw.cpp
     thirdparty/imgui/imgui_tables.cpp
     thirdparty/imgui/imgui_widgets.cpp
-    thirdparty/imgui/imgui_demo.cpp
     thirdparty/imgui/backends/imgui_impl_sdl3.cpp
     thirdparty/imgui/backends/imgui_impl_sdlgpu3.cpp
-)
-
-target_sources(imgui PRIVATE
-    thirdparty/imgui/backends/imgui_impl_sdl3.cpp
-    # tests/imgui/backends/imgui_impl_vulkan.cpp
+    thirdparty/imgui/backends/imgui_impl_wgpu.cpp
 )
 
 target_include_directories(imgui PUBLIC
     thirdparty/imgui
     thirdparty/imgui/backends
+    thirdparty/dawn/include
+    ${CMAKE_BINARY_DIR}/thirdparty/dawn/gen/include
 )
 
 target_link_libraries(imgui PUBLIC SDL3::SDL3)
+target_compile_definitions(imgui PRIVATE IMGUI_IMPL_WEBGPU_BACKEND_DAWN)
 
 # --- lua
 file(GLOB LUA_SOURCES CONFIGURE_DEPENDS "thirdparty/lua/*.c")
@@ -250,7 +248,7 @@ target_sources(ssg
   PUBLIC FILE_SET HEADERS BASE_DIRS src FILES ${SSG_HEADERS}
 )
 
-target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 assimp::assimp webgpu_dawn)
+target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 assimp::assimp webgpu_dawn imgui)
 target_include_directories(ssg PUBLIC src PRIVATE thirdparty/stb)
 
 add_dependencies(ssg tint_cmd_tint_cmd)

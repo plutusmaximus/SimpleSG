@@ -9,7 +9,6 @@
 #include "Stopwatch.h"
 
 #include <algorithm>
-#include <SDL3/SDL.h>
 #include <new>
 
 //#define GPU_DRIVER_DIRECT3D
@@ -794,6 +793,12 @@ void SdlGpuDevice::DestroyRenderer(Renderer* renderer)
     eassert(this == sdlRenderer->m_GpuDevice,
         "Renderer does not belong to this device");
     m_RendererAllocator.Delete(sdlRenderer);
+}
+
+SDL_GPUTextureFormat
+SdlGpuDevice::GetSwapChainFormat() const
+{
+    return SDL_GetGPUSwapchainTextureFormat(Device, Window);
 }
 
 //private:

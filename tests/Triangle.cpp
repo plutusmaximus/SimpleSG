@@ -1,4 +1,6 @@
 #include <SDL3/SDL.h>
+#include <imgui.h>
+#include <imgui_impl_sdl3.h>
 
 #include "Camera.h"
 #include "DawnGpuDevice.h"
@@ -15,6 +17,8 @@ static Result<ModelResource> CreateTriangleModel(ResourceCache* cache);
 static Result<GpuPipeline*> CreatePipeline(ResourceCache* cache);
 
 constexpr const char* kAppName = "Triangle";
+
+static Result<void> RenderGui();
 
 static Result<void> MainLoop()
 {
@@ -126,6 +130,8 @@ static Result<void> MainLoop()
 
         while(!minimized && running && SDL_PollEvent(&event))
         {
+            ImGui_ImplSDL3_ProcessEvent(&event);
+
             switch (event.type)
             {
             case SDL_EVENT_QUIT:
@@ -186,8 +192,13 @@ static Result<void> MainLoop()
 
         TrsTransformf transform;
 
+        renderer->BeginFrame();
+
         // Transform to camera space and render
-        renderer->Add(transform.ToMatrix(), model.Get());
+        renderer->AddModel(transform.ToMatrix(), model.Get());
+
+        RenderGui();
+
         auto renderResult = renderer->Render(cameraXform.ToMatrix(), camera.GetProjection());
         if(!renderResult)
         {
@@ -211,6 +222,82 @@ int main(int, char* /*argv[]*/)
     MainLoop();
 
     return 0;
+}
+
+static bool show_demo_window = true;
+static bool show_another_window = false;
+static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
+static Result<void> RenderGui()
+{
+#if 0
+    // [If using SDL_MAIN_USE_CALLBACKS: all code below would likely be your SDL_AppIterate() function]
+    // React to changes in screen size
+    int width, height;
+    SDL_GetWindowSize(window, &width, &height);
+    if (width != wgpu_surface_width || height != wgpu_surface_height)
+        ResizeSurface(width, height);
+
+    // Check surface status for error. If texture is not optimal, try to reconfigure the surface.
+    WGPUSurfaceTexture surface_texture;
+    wgpuSurfaceGetCurrentTexture(wgpu_surface, &surface_texture);
+    if (ImGui_ImplWGPU_IsSurfaceStatusError(surface_texture.status))
+    {
+        fprintf(stderr, "Unrecoverable Surface Texture status=%#.8x\n", surface_texture.status);
+        abort();
+    }
+    if (ImGui_ImplWGPU_IsSurfaceStatusSubOptimal(surface_texture.status))
+    {
+        if (surface_texture.texture)
+            wgpuTextureRelease(surface_texture.texture);
+        if (width > 0 && height > 0)
+            ResizeSurface(width, height);
+        continue;
+    }
+#endif
+
+    // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
+    //if (show_demo_window)
+        //ImGui::ShowDemoWindow(&show_demo_window);
+
+    // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
+    {
+        static float f = 0.0f;
+        static int counter = 0;
+
+        ImGui::Begin("Hello, world!");                                // Create a window called "Hello, world!" and append into it.
+
+        ImGui::Text("This is some useful text.");                     // Display some text (you can use a format strings too)
+        ImGui::Checkbox("Demo Window", &show_demo_window);            // Edit bools storing our window open/close state
+        ImGui::Checkbox("Another Window", &show_another_window);
+
+        ImGui::SliderFloat("float", &f, 0.0f, 1.0f);                  // Edit 1 float using a slider from 0.0f to 1.0f
+        ImGui::ColorEdit3("clear color", (float*)&clear_color);       // Edit 3 floats representing a color
+
+        if (ImGui::Button("Button"))                                  // Buttons return true when clicked (most widgets return true when edited/activated)
+            counter++;
+        ImGui::SameLine();
+        ImGui::Text("counter = %d", counter);
+
+        ImGuiIO& io = ImGui::GetIO();
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+        ImGui::End();
+    }
+
+    // 3. Show another simple window.
+    if (show_another_window)
+    {
+        ImGui::Begin("Another Window", &show_another_window);         // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
+        ImGui::Text("Hello from another window!");
+        if (ImGui::Button("Close Me"))
+            show_another_window = false;
+        ImGui::End();
+    }
+
+    // Rendering
+    //ImGui::Render();
+
+    return Result<void>::Success;
 }
 
 // Triangle vertices

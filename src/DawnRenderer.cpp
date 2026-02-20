@@ -11,7 +11,10 @@
 
 #include "DawnGpuDevice.h"
 
-#include <SDL3/SDL_gpu.h>
+#include <SDL3/SDL.h>
+#include <imgui.h>
+#include <imgui_impl_sdl3.h>
+#include <imgui_impl_wgpu.h>
 
 #include <cstdio>
 
@@ -19,6 +22,7 @@ DawnRenderer::DawnRenderer(DawnGpuDevice* gpuDevice, GpuPipeline* pipeline)
     : m_GpuDevice(gpuDevice)
     , m_Pipeline(pipeline)
 {
+    InitGui();
 }
 
 DawnRenderer::~DawnRenderer()
@@ -82,13 +86,40 @@ DawnRenderer::~DawnRenderer()
     {
         eassert(!state.m_RenderFence, "Render fence must be null when destroying SdlRenderer");
     }*/
+
+    ImGui_ImplWGPU_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
+    ImGui::DestroyContext(m_ImGuiContext);
+}
+
+Result<void>
+DawnRenderer::BeginFrame()
+{
+    if(!everify(m_BeginFrameCount == m_RenderCount))
+    {
+        return Result<void>::Success;
+    }
+
+    ++m_BeginFrameCount;
+
+    ImGui_ImplWGPU_NewFrame();
+    ImGui_ImplSDL3_NewFrame();
+    ImGui::NewFrame();
+
+    return Result<void>::Success;
 }
 
 void
-DawnRenderer::Add(const Mat44f& worldTransform, const Model* model)
+DawnRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
 {
     if(!everify(model, "Model pointer is null"))
     {
+        return;
+    }
+
+    if(!everify(m_RenderCount == m_BeginFrameCount - 1))
+    {
+        // Forgot to call BeginFrame()
         return;
     }
 
@@ -153,6 +184,13 @@ static inline constexpr uint32_t alignup(const uint32_t value, const uint32_t al
 Result<void>
 DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 {
+    if(!everify(m_RenderCount == m_BeginFrameCount - 1))
+    {
+        return Error("Render called without a matching BeginFrame");
+    }
+
+    ++m_RenderCount;
+
     //Wait for the previous frame to complete
     //DO NOT SUBMIT
     //WaitForFence();
@@ -379,8 +417,22 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     //DO NOT SUBMIT
     //cleanupRenderPass.release();
 
-    auto copyResult = CopyColorTargetToSwapchain(cmdEncoder);
+    wgpu::SurfaceTexture backbuffer;
+    m_GpuDevice->Surface.GetCurrentTexture(&backbuffer);
+    expect(backbuffer.texture, "Failed to get current surface texture for render pass");
+
+    // TODO - handle SuccessSuboptimal, Timeout, Outdated, Lost, Error statuses
+    expect(backbuffer.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal,
+        std::format("Backbuffer status: {}", (int)backbuffer.status));
+
+    wgpu::TextureView swapchainTextureView = backbuffer.texture.CreateView();
+    expect(swapchainTextureView, "Failed to create texture view for swapchain texture");
+
+    auto copyResult = CopyColorTargetToSwapchain(cmdEncoder, swapchainTextureView);
     expect(copyResult, copyResult.error());
+
+    auto renderGuiResult = RenderGui(cmdEncoder, swapchainTextureView);
+    expect(renderGuiResult, renderGuiResult.error());
 
     SwapStates();
 
@@ -534,16 +586,9 @@ DawnRenderer::SwapStates()
 }
 
 Result<void>
-DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder)
+DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder,
+    wgpu::TextureView swapchainTextureView)
 {
-    wgpu::SurfaceTexture backbuffer;
-    m_GpuDevice->Surface.GetCurrentTexture(&backbuffer);
-    expect(backbuffer.texture, "Failed to get current surface texture for render pass");
-
-    // TODO - handle sureface lost and other status cases
-    expect(backbuffer.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal,
-        std::format("Backbuffer status: {}", (int)backbuffer.status));
-
     auto pipelineResult = GetCopyColorTargetPipeline();
     expect(pipelineResult, pipelineResult.error());
 
@@ -551,7 +596,7 @@ DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder)
 
     wgpu::RenderPassColorAttachment attachment //
         {
-            .view = backbuffer.texture.CreateView(),
+            .view = swapchainTextureView,
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
             .clearValue = { 0.0f, 0.0f, 0.0f, 1.0f },
@@ -573,22 +618,6 @@ DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder)
     renderPass.End();
 
     return Result<void>::Success;
-}
-
-Result<GpuTexture*>
-DawnRenderer::GetDefaultBaseTexture()
-{
-    if(!m_DefaultBaseTexture)
-    {
-        static constexpr const char* MAGENTA_TEXTURE_KEY = "$magenta";
-
-        auto result = m_GpuDevice->CreateTexture("#FF00FFFF"_rgba, imstring(MAGENTA_TEXTURE_KEY));
-        expect(result, result.error());
-
-        m_DefaultBaseTexture = result.value();
-    }
-
-    return m_DefaultBaseTexture;
 }
 
 static Result<void>
@@ -742,13 +771,9 @@ DawnRenderer::GetCopyColorTargetPipeline()
             },
         };
 
-    wgpu::SurfaceTexture backbuffer;
-    m_GpuDevice->Surface.GetCurrentTexture(&backbuffer);
-    expect(backbuffer.texture, "Failed to get current surface texture for render pass");
-
     wgpu::ColorTargetState colorTargetState //
         {
-            .format = backbuffer.texture.GetFormat(),
+            .format = m_GpuDevice->GetSwapChainFormat(),
             .blend = &blendState,
             .writeMask = wgpu::ColorWriteMask::All,
         };
@@ -828,4 +853,110 @@ DawnRenderer::GetCopyColorTargetPipeline()
     m_CopyTexturePipeline = pipeline;
 
     return m_CopyTexturePipeline;
+}
+
+Result<GpuTexture*>
+DawnRenderer::GetDefaultBaseTexture()
+{
+    if(!m_DefaultBaseTexture)
+    {
+        static constexpr const char* MAGENTA_TEXTURE_KEY = "$magenta";
+
+        auto result = m_GpuDevice->CreateTexture("#FF00FFFF"_rgba, imstring(MAGENTA_TEXTURE_KEY));
+        expect(result, result.error());
+
+        m_DefaultBaseTexture = result.value();
+    }
+
+    return m_DefaultBaseTexture;
+}
+
+Result<void>
+DawnRenderer::InitGui()
+{
+    if(m_ImGuiContext)
+    {
+        // Already initialized
+        return Result<void>::Success;
+    }
+
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    m_ImGuiContext = ImGui::CreateContext();
+
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    //io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
+    //io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+    //ImGui::StyleColorsLight();
+
+    float main_scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
+
+    // Setup scaling
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
+    style.FontScaleDpi = main_scale;        // Set initial font scale. (in docking branch: using io.ConfigDpiScaleFonts=true automatically overrides this for every window depending on the current monitor)
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplSDL3_InitForOther(m_GpuDevice->Window);
+
+    ImGui_ImplWGPU_InitInfo init_info;
+    init_info.Device = m_GpuDevice->Device.Get();
+    init_info.NumFramesInFlight = 3;
+    init_info.RenderTargetFormat = static_cast<WGPUTextureFormat>(m_GpuDevice->GetSwapChainFormat());
+    init_info.DepthStencilFormat = WGPUTextureFormat_Undefined;
+    ImGui_ImplWGPU_Init(&init_info);
+
+    return Result<void>::Success;
+}
+
+Result<void>
+DawnRenderer::RenderGui(wgpu::CommandEncoder cmdEncoder, wgpu::TextureView swapchainTextureView)
+{
+    ImGui::Render();
+
+    ImDrawData* drawData = ImGui::GetDrawData();
+
+    if(!drawData || drawData->TotalVtxCount == 0)
+    {
+        // Nothing to render for ImGui
+        return Result<void>::Success;
+    }
+
+    const bool is_minimized = (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f);
+
+    if(is_minimized)
+    {
+        // Window is minimized, skip rendering ImGui
+        return Result<void>::Success;
+    }
+
+    wgpu::RenderPassColorAttachment colorAttachment //
+    {
+        .view = swapchainTextureView,
+        .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+        .loadOp = wgpu::LoadOp::Load,
+        .storeOp = wgpu::StoreOp::Store,
+        .clearValue = { 0.0f, 0.0f, 0.0f, 1.0f },
+    };
+
+    wgpu::RenderPassDescriptor renderPassDesc //
+    {
+        .label = "ImGuiRenderPass",
+        .colorAttachmentCount = 1,
+        .colorAttachments = &colorAttachment,
+        .depthStencilAttachment = nullptr,
+    };
+
+    wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
+
+    ImGui_ImplWGPU_RenderDrawData(drawData, renderPass.Get());
+
+    renderPass.End();
+
+    return Result<void>::Success;
 }

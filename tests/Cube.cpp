@@ -168,13 +168,15 @@ public:
             }
         }
 
+        m_Renderer->BeginFrame();
+
         // Transform to camera space and render
         for(const auto& cameraTuple : m_Registry.GetView<WorldMatrix, Camera>())
         {
             for(const auto& tuple : m_Registry.GetView<WorldMatrix, ModelResource>())
             {
                 const auto [eid, worldMat, model] = tuple;
-                m_Renderer->Add(worldMat, model.Get());
+                m_Renderer->AddModel(worldMat, model.Get());
             }
 
             const auto [camEid, camWorldMat, camera] = cameraTuple;

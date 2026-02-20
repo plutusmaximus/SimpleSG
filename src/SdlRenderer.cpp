@@ -12,6 +12,9 @@
 #include "SdlGpuDevice.h"
 
 #include <SDL3/SDL_gpu.h>
+#include <imgui.h>
+#include <imgui_impl_sdl3.h>
+#include <imgui_impl_sdlgpu3.h>
 
 #include <cstdio>
 
@@ -19,6 +22,7 @@ SdlRenderer::SdlRenderer(SdlGpuDevice* gpuDevice, GpuPipeline* pipeline)
     : m_GpuDevice(gpuDevice)
     , m_Pipeline(pipeline)
 {
+    InitGui();
 }
 
 SdlRenderer::~SdlRenderer()
@@ -81,11 +85,34 @@ SdlRenderer::~SdlRenderer()
     }
 }
 
+Result<void>
+SdlRenderer::BeginFrame()
+{
+    if(!everify(m_BeginFrameCount == m_RenderCount))
+    {
+        return Result<void>::Success;
+    }
+
+    ++m_BeginFrameCount;
+
+    ImGui_ImplSDLGPU3_NewFrame();
+    ImGui_ImplSDL3_NewFrame();
+    ImGui::NewFrame();
+
+    return Result<void>::Success;
+}
+
 void
-SdlRenderer::Add(const Mat44f& worldTransform, const Model* model)
+SdlRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
 {
     if(!everify(model, "Model pointer is null"))
     {
+        return;
+    }
+
+    if(!everify(m_RenderCount == m_BeginFrameCount - 1))
+    {
+        // Forgot to call BeginFrame()
         return;
     }
 
@@ -144,6 +171,13 @@ SdlRenderer::Add(const Mat44f& worldTransform, const Model* model)
 Result<void>
 SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 {
+    if(!everify(m_RenderCount == m_BeginFrameCount - 1))
+    {
+        return Error("Render called without a matching BeginFrame");
+    }
+
+    ++m_RenderCount;
+
     //Wait for the previous frame to complete
     WaitForFence();
 
@@ -151,6 +185,19 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 
     SDL_GPUCommandBuffer* cmdBuf = SDL_AcquireGPUCommandBuffer(gpuDevice);
     expect(cmdBuf, SDL_GetError());
+
+    SDL_GPUTexture* swapchainTexture;
+    expect(
+        SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuf, m_GpuDevice->Window, &swapchainTexture, nullptr, nullptr),
+        SDL_GetError());
+
+    if(!swapchainTexture)
+    {
+        // No swapchain texture - likely window is minimized.
+        // This is not an error, just skip rendering.
+         SDL_CancelGPUCommandBuffer(cmdBuf);
+         return Result<void>::Success;
+    }
 
     auto renderPassResult = BeginRenderPass(cmdBuf);
 
@@ -267,8 +314,11 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 
     cleanupRenderPass.release();
 
-    auto copyResult = CopyColorTargetToSwapchain(cmdBuf);
+    auto copyResult = CopyColorTargetToSwapchain(cmdBuf, swapchainTexture);
     expect(copyResult, copyResult.error());
+
+    auto renderGuiResult = RenderGui(cmdBuf, swapchainTexture);
+    expect(renderGuiResult, renderGuiResult.error());
 
     SwapStates();
 
@@ -411,14 +461,8 @@ SdlRenderer::SwapStates()
 }
 
 Result<void>
-SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf)
+SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTexture* target)
 {
-    SDL_GPUTexture* swap;
-    unsigned swapW, swapH;
-    expect(
-        SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuf, m_GpuDevice->Window, &swap, &swapW, &swapH),
-        SDL_GetError());
-
     auto pipelineResult = GetCopyColorTargetPipeline();
     expect(pipelineResult, pipelineResult.error());
 
@@ -426,7 +470,7 @@ SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf)
 
     SDL_GPUColorTargetInfo colorTargetInfo
     {
-        .texture = swap,
+        .texture = target,
         .mip_level = 0,
         .layer_or_depth_plane = 0,
         .clear_color = {0, 0, 0, 0},
@@ -448,12 +492,6 @@ SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf)
         return Result<void>::Success;
     }
 
-    const SDL_GPUViewport viewport//
-    {
-        0, 0, static_cast<float>(swapW), static_cast<float>(swapH), 0, 1.0f,
-    };
-    SDL_SetGPUViewport(renderPass, &viewport);
-
     // Bind texture and sampler
     SDL_GPUTextureSamplerBinding samplerBinding
     {
@@ -467,22 +505,6 @@ SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf)
     SDL_EndGPURenderPass(renderPass);
 
     return Result<void>::Success;
-}
-
-Result<GpuTexture*>
-SdlRenderer::GetDefaultBaseTexture()
-{
-    if(!m_DefaultBaseTexture)
-    {
-        static constexpr const char* MAGENTA_TEXTURE_KEY = "$magenta";
-
-        auto result = m_GpuDevice->CreateTexture("#FF00FFFF"_rgba, imstring(MAGENTA_TEXTURE_KEY));
-        expect(result, result.error());
-
-        m_DefaultBaseTexture = result.value();
-    }
-
-    return m_DefaultBaseTexture;
 }
 
 static Result<void>
@@ -615,4 +637,109 @@ SdlRenderer::GetCopyColorTargetPipeline()
     expect(m_CopyTexturePipeline, SDL_GetError());
 
     return m_CopyTexturePipeline;
+}
+
+Result<GpuTexture*>
+SdlRenderer::GetDefaultBaseTexture()
+{
+    if(!m_DefaultBaseTexture)
+    {
+        static constexpr const char* MAGENTA_TEXTURE_KEY = "$magenta";
+
+        auto result = m_GpuDevice->CreateTexture("#FF00FFFF"_rgba, imstring(MAGENTA_TEXTURE_KEY));
+        expect(result, result.error());
+
+        m_DefaultBaseTexture = result.value();
+    }
+
+    return m_DefaultBaseTexture;
+}
+
+Result<void>
+SdlRenderer::InitGui()
+{
+    if(m_ImGuiContext)
+    {
+        // Already initialized
+        return Result<void>::Success;
+    }
+
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    m_ImGuiContext = ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    //io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
+    //io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+    //ImGui::StyleColorsLight();
+
+    float main_scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
+
+    // Setup scaling
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
+    style.FontScaleDpi = main_scale;        // Set initial font scale. (in docking branch: using io.ConfigDpiScaleFonts=true automatically overrides this for every window depending on the current monitor)
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplSDL3_InitForSDLGPU(m_GpuDevice->Window);
+    ImGui_ImplSDLGPU3_InitInfo init_info = {};
+    init_info.Device = m_GpuDevice->Device;
+    init_info.ColorTargetFormat = m_GpuDevice->GetSwapChainFormat();
+    init_info.MSAASamples = SDL_GPU_SAMPLECOUNT_1;                      // Only used in multi-viewports mode.
+    init_info.SwapchainComposition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;  // Only used in multi-viewports mode.
+    init_info.PresentMode = SDL_GPU_PRESENTMODE_VSYNC;
+    ImGui_ImplSDLGPU3_Init(&init_info);
+
+    return Result<void>::Success;
+}
+
+Result<void>
+SdlRenderer::RenderGui(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTexture* target)
+{
+    ImGui::Render();
+
+    ImDrawData* drawData = ImGui::GetDrawData();
+
+    if(!drawData || drawData->TotalVtxCount == 0)
+    {
+        // Nothing to render for ImGui
+        return Result<void>::Success;
+    }
+
+    const bool is_minimized = (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f);
+
+    if(is_minimized || !target)
+    {
+        // If the window is minimized, we can skip rendering the GUI without treating it as an error.
+        return Result<void>::Success;
+    }
+
+    // This is mandatory: call ImGui_ImplSDLGPU3_PrepareDrawData() to upload the vertex/index buffer!
+    ImGui_ImplSDLGPU3_PrepareDrawData(drawData, cmdBuf);
+
+    // Setup and start a render pass
+    SDL_GPUColorTargetInfo target_info//
+    {
+        .texture = target,
+        .mip_level = 0,
+        .layer_or_depth_plane = 0,
+        .clear_color = {0, 0, 0, 0},
+        .load_op = SDL_GPU_LOADOP_LOAD,
+        .store_op = SDL_GPU_STOREOP_STORE,
+        .cycle = false,
+    };
+
+    SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(cmdBuf, &target_info, 1, nullptr);
+    expect(renderPass, SDL_GetError());
+
+    // Render ImGui
+    ImGui_ImplSDLGPU3_RenderDrawData(drawData, cmdBuf, renderPass);
+
+    SDL_EndGPURenderPass(renderPass);
+
+    return Result<void>::Success;
 }

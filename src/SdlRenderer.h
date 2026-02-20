@@ -11,6 +11,8 @@ struct SDL_GPURenderPass;
 struct SDL_GPUCommandBuffer;
 struct SDL_GPUFence;
 struct SDL_GPUGraphicsPipeline;
+struct SDL_GPUTexture;
+struct ImGuiContext;
 
 class SdlRenderer : public Renderer
 {
@@ -24,11 +26,13 @@ public:
 
     SdlRenderer(SdlGpuDevice* gpuDevice, GpuPipeline* pipeline);
 
-    virtual ~SdlRenderer() override;
+    ~SdlRenderer() override;
 
-    virtual void Add(const Mat44f& worldTransform, const Model* model) override;
+    Result<void> BeginFrame() override;
 
-    virtual Result<void> Render(const Mat44f& camera, const Mat44f& projection) override;
+    void AddModel(const Mat44f& worldTransform, const Model* model) override;
+
+    Result<void> Render(const Mat44f& camera, const Mat44f& projection) override;
 
 private:
 
@@ -67,7 +71,7 @@ private:
     void SwapStates();
 
     /// @brief Copy the color target to the swapchain texture.
-    Result<void> CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf);
+    Result<void> CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTexture* target);
 
     Result<GpuVertexShader*> GetCopyColorTargetVertexShader();
     Result<GpuFragmentShader*> GetCopyColorTargetFragmentShader();
@@ -76,6 +80,9 @@ private:
     /// Get or create the default texture.
     /// The default texture is used when a material does not have a base texture.
     Result<GpuTexture*> GetDefaultBaseTexture();
+
+    Result<void> InitGui();
+    Result<void> RenderGui(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTexture* target);
 
     SdlGpuDevice* const m_GpuDevice;
     GpuPipeline* m_Pipeline{ nullptr };
@@ -90,4 +97,9 @@ private:
     GpuVertexShader* m_CopyTextureVertexShader{ nullptr };
     GpuFragmentShader* m_CopyTextureFragmentShader{ nullptr };
     SDL_GPUGraphicsPipeline* m_CopyTexturePipeline{ nullptr };
+
+    ImGuiContext* m_ImGuiContext{ nullptr };
+
+    unsigned m_BeginFrameCount{0};
+    unsigned m_RenderCount{0};
 };

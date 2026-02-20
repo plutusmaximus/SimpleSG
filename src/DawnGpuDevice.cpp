@@ -101,6 +101,8 @@ DawnGpuDevice::Create(SDL_Window* window)
 
     expectv(dawnDevice, "Error allocating device");
 
+    dawnDevice->m_SwapChainFormat = configureSurfaceResult.value();
+
     return dawnDevice;
 }
 
@@ -760,6 +762,12 @@ DawnGpuDevice::DestroyRenderer(Renderer* renderer)
     eassert(this == dawnRenderer->m_GpuDevice,
         "Renderer does not belong to this device");
     m_RendererAllocator.Delete(dawnRenderer);
+}
+
+wgpu::TextureFormat
+DawnGpuDevice::GetSwapChainFormat() const
+{
+    return m_SwapChainFormat;
 }
 
 //private:
