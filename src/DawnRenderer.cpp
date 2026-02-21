@@ -185,7 +185,8 @@ static inline constexpr uint32_t alignup(const uint32_t value, const uint32_t al
 Result<void>
 DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 {
-    auto scopedRenderTimer = PerfMetrics::StartScopedTimer("Renderer");
+    static PerfTimer renderTimer("Renderer.Render");
+    auto scopedRenderTimer = renderTimer.StartScoped();
 
     if(!everify(m_RenderCount == m_BeginFrameCount - 1))
     {
@@ -351,7 +352,8 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     int mtlCount = 0;
     int meshCount = 0;
 
-    PerfMetrics::StartTimer("Renderer.Draw");
+    static PerfTimer drawTimer("Renderer.Draw");
+    drawTimer.Start();
 
     for(const auto meshGrpPtr : meshGroups)
     {
@@ -465,23 +467,26 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
         }
     }
 
-    PerfMetrics::StopTimer("Renderer.Draw");
+    drawTimer.Stop();
 
     renderPass.End();
 
     //DO NOT SUBMIT
     //cleanupRenderPass.release();
 
-    PerfMetrics::StartTimer("Renderer.Resolve");
+    static PerfTimer resolveTimer("Renderer.Resolve");
+    resolveTimer.Start();
 
     {
-        auto scopedTimer = PerfMetrics::StartScopedTimer("Renderer.Resolve.CopyColorTarget");
-       auto copyResult = CopyColorTargetToSwapchain(cmdEncoder, swapchainTextureView);
+        static PerfTimer copyTimer("Renderer.Resolve.CopyColorTarget");
+        auto scopedTimer = copyTimer.StartScoped();
+        auto copyResult = CopyColorTargetToSwapchain(cmdEncoder, swapchainTextureView);
        expect(copyResult, copyResult.error());
     }
 
     {
-        auto scopedTimer = PerfMetrics::StartScopedTimer("Renderer.Resolve.RenderGUI");
+        static PerfTimer renderGuiTimer("Renderer.Resolve.RenderGUI");
+        auto scopedTimer = renderGuiTimer.StartScoped();
         auto renderGuiResult = RenderGui(cmdEncoder, swapchainTextureView);
         expect(renderGuiResult, renderGuiResult.error());
     }
@@ -496,20 +501,22 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 
     wgpu::CommandBuffer cmd;
     {
-        auto scopedTimer = PerfMetrics::StartScopedTimer("Renderer.Resolve.FinishCommandBuffer");
+        static PerfTimer finishCmdBufferTimer("Renderer.Resolve.FinishCommandBuffer");
+        auto scopedTimer = finishCmdBufferTimer.StartScoped();
         cmd = cmdEncoder.Finish(nullptr);
         expect(cmd, "Failed to finish command buffer for render pass");
     }
 
     {
-        auto scopedTimer = PerfMetrics::StartScopedTimer("Renderer.Resolve.SubmitCommandBuffer");
+        static PerfTimer submitCmdBufferTimer("Renderer.Resolve.SubmitCommandBuffer");
+        auto scopedTimer = submitCmdBufferTimer.StartScoped();
         wgpu::Queue queue = m_GpuDevice->Device.GetQueue();
         expect(queue, "Failed to get WGPUQueue for render pass");
 
         queue.Submit(1, &cmd);
     }
 
-    PerfMetrics::StopTimer("Renderer.Resolve");
+    resolveTimer.Stop();
 
     return Result<void>::Success;
 }
@@ -527,6 +534,8 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
     if(!m_ColorTarget || m_ColorTarget->GetWidth() != targetWidth ||
         m_ColorTarget->GetHeight() != targetHeight)
     {
+        logDebug("Creating new color target for render pass with size {}x{}", targetWidth, targetHeight);
+
         if(m_ColorTarget)
         {
             auto result = m_GpuDevice->DestroyColorTarget(m_ColorTarget);
@@ -545,6 +554,8 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
     if(!m_DepthTarget || m_DepthTarget->GetWidth() != targetWidth ||
         m_DepthTarget->GetHeight() != targetHeight)
     {
+        logDebug("Creating new depth target for render pass with size {}x{}", targetWidth, targetHeight);
+
         if(m_DepthTarget)
         {
             auto result = m_GpuDevice->DestroyDepthTarget(m_DepthTarget);

@@ -112,11 +112,11 @@ static Result<void> MainLoop()
 
     while(running)
     {
-        PerfMetrics::BeginFrame();
+        static PerfTimer frameTimer("Frame");
+        auto scopedFrameTimer = frameTimer.StartScoped();
 
-        auto frameTimer = PerfMetrics::StartScopedTimer("Frame");
-
-        PerfMetrics::StartTimer("Non-GPU Work");
+        static PerfTimer nonGpuWorkTimer("Non-GPU Work");
+        nonGpuWorkTimer.Start();
 
         SDL_Event event;
 
@@ -208,7 +208,7 @@ static Result<void> MainLoop()
 
         RenderGui();
 
-        PerfMetrics::StopTimer("Non-GPU Work");
+        nonGpuWorkTimer.Stop();
 
         auto renderResult = renderer->Render(cameraXform.ToMatrix(), camera.GetProjection());
         if(!renderResult)
@@ -227,8 +227,6 @@ static Result<void> MainLoop()
 
         dawnGpuDevice->Instance.ProcessEvents();
 #endif  //DAWN_GPU
-
-        PerfMetrics::EndFrame();
     }
 
     DumpTimers();
