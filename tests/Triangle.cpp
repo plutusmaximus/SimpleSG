@@ -1,6 +1,6 @@
-#include <SDL3/SDL.h>
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
+#include <SDL3/SDL.h>
 
 #include "Camera.h"
 #include "DawnGpuDevice.h"
@@ -112,8 +112,10 @@ static Result<void> MainLoop()
 
     while(running)
     {
+        PerfMetrics::BeginFrame();
+
         static PerfTimer frameTimer("Frame");
-        auto scopedFrameTimer = frameTimer.StartScoped();
+        frameTimer.Start();
 
         static PerfTimer nonGpuWorkTimer("Non-GPU Work");
         nonGpuWorkTimer.Start();
@@ -216,10 +218,11 @@ static Result<void> MainLoop()
             logError(renderResult.error().GetMessage());
         }
 #if DAWN_GPU
+        auto dawnGpuDevice = static_cast<DawnGpuDevice*>(gpuDevice);
+
 #if !defined(__EMSCRIPTEN__)
 
 #if !OFFSCREEN_RENDERING
-        auto dawnGpuDevice = static_cast<DawnGpuDevice*>(gpuDevice);
         expect(dawnGpuDevice->Surface.Present(), "Failed to present backbuffer");
 #endif
 
@@ -227,6 +230,10 @@ static Result<void> MainLoop()
 
         dawnGpuDevice->Instance.ProcessEvents();
 #endif  //DAWN_GPU
+
+        frameTimer.Stop();
+
+        PerfMetrics::EndFrame();
     }
 
     DumpTimers();
@@ -303,9 +310,6 @@ static Result<void> RenderGui()
             show_another_window = false;
         ImGui::End();
     }
-
-    // Rendering
-    //ImGui::Render();
 
     return Result<void>::Success;
 }

@@ -11,7 +11,9 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-std::mutex s_TimerMutex;
+static std::mutex s_TimerMutex;
+
+static bool s_IsFrameActive = false;
 
 inlist<PerfTimer, &PerfTimer::m_ListNode> PerfMetrics::m_Timers;
 
@@ -70,12 +72,58 @@ PerfTimer::PerfTimer::Stop()
     QueryPerformanceCounter(&curTime);
     const uint64_t elapsed = curTime.QuadPart - m_StartTime;
 
-    m_Sum += elapsed;
+    m_Elapsed += elapsed;
+    m_IsRunning = false;
+}
+
+void
+PerfTimer::PerfTimer::Sample()
+{
+    if(!everify(!m_IsRunning,
+        "Failed to sample timer '{}': Timer is still running", m_Name))
+    {
+        logError("Failed to sample timer '{}': Timer is still running", m_Name);
+        return;
+    }
+
+    m_Sum += m_Elapsed;
     m_SampleIndex = (m_SampleIndex + 1) % NUM_SAMPLES;
     m_Sum -= m_Samples[m_SampleIndex];
-    m_Samples[m_SampleIndex] = elapsed;
+    m_Samples[m_SampleIndex] = m_Elapsed;
 
+    m_Elapsed = 0;
     m_IsRunning = false;
+}
+
+void
+PerfMetrics::BeginFrame()
+{
+    if(!everify(!s_IsFrameActive, "BeginFrame() called while a frame is already active"))
+    {
+        logError("BeginFrame() called while a frame is already active");
+        return;
+    }
+
+    s_IsFrameActive = true;
+}
+
+void
+PerfMetrics::EndFrame()
+{
+    if(!everify(s_IsFrameActive, "EndFrame() called without a matching BeginFrame()"))
+    {
+        logError("EndFrame() called without a matching BeginFrame()");
+        return;
+    }
+
+    s_IsFrameActive = false;
+
+    std::lock_guard lock(s_TimerMutex);
+
+    for(auto& timer : m_Timers)
+    {
+        timer.Sample();
+    }
 }
 
 unsigned

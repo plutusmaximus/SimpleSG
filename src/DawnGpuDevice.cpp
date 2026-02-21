@@ -56,6 +56,8 @@ static Result<wgpu::TextureFormat> ConfigureSurface(wgpu::Adapter adapter,
     const uint32_t width,
     const uint32_t height);
 
+static void DumpDawnToggles(const wgpu::Device& device);
+
 DawnGpuDevice::DawnGpuDevice(
     SDL_Window* window, wgpu::Instance instance, wgpu::Adapter adapter, wgpu::Device device, wgpu::Surface surface)
     : Window(window),
@@ -891,7 +893,30 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
             std::string(message.data, message.length));
     };
 
-    wgpu::DeviceDescriptor deviceDesc{ { .label = "MainDevice" } };
+    /*const char* enabledToggles[] =
+    {
+        "skip_validation",
+        "disable_robustness",
+    };
+
+    const char* disabledToggles[] =
+    {
+        "lazy_clear_resource_on_first_use",
+    };
+
+    wgpu::DawnTogglesDescriptor toggles;
+    toggles.enabledToggleCount = std::size(enabledToggles);
+    toggles.enabledToggles = enabledToggles;
+    toggles.disabledToggleCount = std::size(disabledToggles);
+    toggles.disabledToggles = disabledToggles;*/
+
+    wgpu::DeviceDescriptor deviceDesc //
+        {
+            {
+                //.nextInChain = &toggles,
+                .label = "MainDevice",
+            },
+        };
     deviceDesc.SetDeviceLostCallback(wgpu::CallbackMode::AllowProcessEvents, deviceLostCb);
     deviceDesc.SetUncapturedErrorCallback(uncapturedErrorCb);
 
@@ -917,6 +942,8 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
     wgpu::WaitStatus waitStatus = instance.WaitAny(fut, UINT64_MAX);
 
     expect(waitStatus == wgpu::WaitStatus::Success, "Failed to create WGPUDevice - WaitAny failed");
+
+    DumpDawnToggles(result.value());
 
     return result;
 }
@@ -1083,4 +1110,21 @@ CreateGpuBuffer(wgpu::Device device, const std::span<const std::span<const T>>& 
     buffer.Unmap();
 
     return std::make_tuple(buffer, sizeofBuffer);
+}
+
+#include <dawn/native/DawnNative.h> // provides dawn::native::GetTogglesUsed
+#include <iostream>
+
+static void DumpToggles(const char* label, const std::vector<const char*>& toggles)
+{
+    std::cout << label << " (" << toggles.size() << "):\n";
+    for (const char* t : toggles)
+    {
+        std::cout << "  " << t << "\n";
+    }
+}
+
+static void DumpDawnToggles(const wgpu::Device& device)
+{
+    DumpToggles("Device enabled toggles",  dawn::native::GetTogglesUsed(device.Get()));
 }

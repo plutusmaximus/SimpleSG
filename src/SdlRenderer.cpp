@@ -187,12 +187,21 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     ++m_RenderCount;
 
     //Wait for the previous frame to complete
-    WaitForFence();
+    static PerfTimer waitForFenceTimer("Renderer.Render.WaitForFence");
+    {
+        auto scopedWaitForFenceTimer = waitForFenceTimer.StartScoped();
+        WaitForFence();
+    }
 
     auto gpuDevice = m_GpuDevice->Device;
 
-    SDL_GPUCommandBuffer* cmdBuf = SDL_AcquireGPUCommandBuffer(gpuDevice);
-    expect(cmdBuf, SDL_GetError());
+    static PerfTimer acquireCmdBufTimer("Renderer.Render.AcquireCommandBuffer");
+    SDL_GPUCommandBuffer* cmdBuf;
+    {
+        auto scopedAcquireCmdBufTimer = acquireCmdBufTimer.StartScoped();
+        cmdBuf = SDL_AcquireGPUCommandBuffer(gpuDevice);
+        expect(cmdBuf, SDL_GetError());
+    }
 
     SDL_GPUTexture* swapchainTexture = nullptr;
 
@@ -210,15 +219,20 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     }
 #endif
 
-    auto renderPassResult = BeginRenderPass(cmdBuf);
-
-    if(!renderPassResult)
+    SDL_GPURenderPass* renderPass = nullptr;
+    static PerfTimer beginRenderPassTimer("Renderer.Render.BeginRenderPass");
     {
-        SDL_CancelGPUCommandBuffer(cmdBuf);
-        return Error(renderPassResult.error());
-    }
+        auto scopedBeginRenderPassTimer = beginRenderPassTimer.StartScoped();
+        auto renderPassResult = BeginRenderPass(cmdBuf);
 
-    auto renderPass = renderPassResult.value();
+        if(!renderPassResult)
+        {
+            SDL_CancelGPUCommandBuffer(cmdBuf);
+            return Error(renderPassResult.error());
+        }
+
+        renderPass = renderPassResult.value();
+    }
 
     if(!renderPass)
     {
@@ -244,7 +258,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
         &m_CurrentState->m_TranslucentMeshGroups
     };
 
-    static PerfTimer drawTimer("Renderer.Draw");
+    static PerfTimer drawTimer("Renderer.Render.Draw");
     drawTimer.Start();
 
     for(const auto meshGrpPtr : meshGroups)
@@ -330,18 +344,18 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 
     cleanupRenderPass.release();
 
-    static PerfTimer resolveTimer("Renderer.Resolve");
+    static PerfTimer resolveTimer("Renderer.Render.Resolve");
     resolveTimer.Start();
 
+    static PerfTimer copyTimer("Renderer.Render.Resolve.CopyColorTarget");
     {
-        static PerfTimer copyTimer("Renderer.Resolve.CopyColorTarget");
         auto scopedTimer = copyTimer.StartScoped();
         auto copyResult = CopyColorTargetToSwapchain(cmdBuf, swapchainTexture);
         expect(copyResult, copyResult.error());
     }
 
+    static PerfTimer renderGuiTimer("Renderer.Render.Resolve.RenderGUI");
     {
-        static PerfTimer renderGuiTimer("Renderer.Resolve.RenderGUI");
         auto scopedTimer = renderGuiTimer.StartScoped();
         auto renderGuiResult = RenderGui(cmdBuf, swapchainTexture);
         expect(renderGuiResult, renderGuiResult.error());
@@ -351,8 +365,8 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 
     eassert(!m_CurrentState->m_RenderFence, "Render fence should be null here");
 
+    static PerfTimer submitCmdBufferTimer("Renderer.Render.Resolve.SubmitCommandBuffer");
     {
-        static PerfTimer submitCmdBufferTimer("Renderer.Resolve.SubmitCommandBuffer");
         auto scopedTimer = submitCmdBufferTimer.StartScoped();
         //expect(SDL_SubmitGPUCommandBuffer(cmdBuf), SDL_GetError());
         m_CurrentState->m_RenderFence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmdBuf);

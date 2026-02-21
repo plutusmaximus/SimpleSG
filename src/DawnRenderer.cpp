@@ -225,15 +225,24 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     expect(swapchainTextureView, "Failed to create texture view for swapchain texture");
 #endif
 
-    auto renderPassResult = BeginRenderPass(cmdEncoder);
-    expect(renderPassResult, renderPassResult.error());
+    wgpu::RenderPassEncoder renderPass;
+    static PerfTimer beginRenderPassTimer("Renderer.Render.BeginRenderPass");
+    {
+        auto scopedBeginRenderPassTimer = beginRenderPassTimer.StartScoped();
+        auto renderPassResult = BeginRenderPass(cmdEncoder);
+        expect(renderPassResult, renderPassResult.error());
 
-    auto renderPass = renderPassResult.value();
+        renderPass = renderPassResult.value();
+    }
 
     auto dawnGpuPipeline = static_cast<DawnGpuPipeline*>(m_Pipeline);
 
-    renderPass.SetPipeline(dawnGpuPipeline->GetPipeline());
-    renderPass.SetBindGroup(0, nullptr, 0, nullptr);
+    static PerfTimer setPipelineTimer("Renderer.Render.SetPipeline");
+    {
+        auto scopedSetPipelineTimer = setPipelineTimer.StartScoped();
+        renderPass.SetPipeline(dawnGpuPipeline->GetPipeline());
+        renderPass.SetBindGroup(0, nullptr, 0, nullptr);
+    }
 
     // Set to true to indicate that we need to remake the vertex shader bind group with the new
     // buffers.
@@ -352,7 +361,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     int mtlCount = 0;
     int meshCount = 0;
 
-    static PerfTimer drawTimer("Renderer.Draw");
+    static PerfTimer drawTimer("Renderer.Render.Draw");
     drawTimer.Start();
 
     for(const auto meshGrpPtr : meshGroups)
@@ -403,12 +412,20 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
                 itFragShaderBG = m_FragShaderBindGroups.try_emplace(mtlId, fsBindGroup).first;
             }
 
-            renderPass.SetBindGroup(2, itFragShaderBG->second, 0, nullptr);
+            static PerfTimer setBindGroupTimer("Renderer.Render.Draw.SetBindGroup");
+            {
+                auto scopedTimer = setBindGroupTimer.StartScoped();
+                renderPass.SetBindGroup(2, itFragShaderBG->second, 0, nullptr);
+            }
 
-            gpuDevice.GetQueue().WriteBuffer(m_MaterialColorBuf,
-                sizeofAlignedMaterialColor * mtlCount,
-                &mtl.GetColor(),
-                sizeof(mtl.GetColor()));
+            static PerfTimer writeMaterialTimer("Renderer.Render.Draw.WriteMaterialBuffer");
+            {
+                auto scopedTimer = writeMaterialTimer.StartScoped();
+                gpuDevice.GetQueue().WriteBuffer(m_MaterialColorBuf,
+                    sizeofAlignedMaterialColor * mtlCount,
+                    &mtl.GetColor(),
+                    sizeof(mtl.GetColor()));
+            }
 
             const Mat44f viewProj = projection.Mul(viewXform);
 
@@ -434,31 +451,47 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 
                 constexpr unsigned idxSize = (VERTEX_INDEX_BITS == 32) ? sizeof(uint32_t) : sizeof(uint16_t);
 
-                renderPass.SetVertexBuffer(0,
-                    static_cast<const DawnGpuVertexBuffer*>(vbSubrange.GetBuffer())->GetBuffer(),
-                    vbSubrange.GetByteOffset(),
-                    vbSubrange.GetItemCount() * sizeof(Vertex));
-
-                renderPass.SetIndexBuffer(
-                    static_cast<const DawnGpuIndexBuffer*>(ibSubrange.GetBuffer())->GetBuffer(),
-                    idxFmt,
-                    ibSubrange.GetByteOffset(),
-                    ibSubrange.GetItemCount() * idxSize);
-
-                // Send up the model and model-view-projection matrices
-                gpuDevice.GetQueue().WriteBuffer(m_WorldAndProjBuf,
-                    sizeofAlignedTransforms * meshCount,
-                    matrices,
-                    sizeof(matrices));
-
-                uint32_t offsets[] =
+                static PerfTimer setBuffersTimer("Renderer.Render.Draw.SetBuffers");
                 {
-                    static_cast<uint32_t>(sizeofAlignedTransforms * meshCount),
-                    static_cast<uint32_t>(sizeofAlignedMaterialColor * mtlCount)
-                };
-                renderPass.SetBindGroup(1, m_VertexShaderBindGroup, std::size(offsets), offsets);
+                    auto scopedTimer = setBuffersTimer.StartScoped();
+                    renderPass.SetVertexBuffer(0,
+                        static_cast<const DawnGpuVertexBuffer*>(vbSubrange.GetBuffer())->GetBuffer(),
+                        vbSubrange.GetByteOffset(),
+                        vbSubrange.GetItemCount() * sizeof(Vertex));
 
-                renderPass.DrawIndexed(mesh.GetIndexCount(), 1, 0, 0, 0);
+                    renderPass.SetIndexBuffer(
+                        static_cast<const DawnGpuIndexBuffer*>(ibSubrange.GetBuffer())->GetBuffer(),
+                        idxFmt,
+                        ibSubrange.GetByteOffset(),
+                        ibSubrange.GetItemCount() * idxSize);
+                }
+
+                static PerfTimer writeTransformTimer("Renderer.Render.Draw.WriteTransformBuffer");
+                {
+                    auto scopedTimer = writeTransformTimer.StartScoped();
+                    // Send up the model and model-view-projection matrices
+                    gpuDevice.GetQueue().WriteBuffer(m_WorldAndProjBuf,
+                        sizeofAlignedTransforms * meshCount,
+                        matrices,
+                        sizeof(matrices));
+                }
+
+                static PerfTimer setVsBindGroupTimer("Renderer.Render.Draw.SetVsBindGroup");
+                {
+                    auto scopedTimer = setVsBindGroupTimer.StartScoped();
+                    uint32_t offsets[] =
+                    {
+                        static_cast<uint32_t>(sizeofAlignedTransforms * meshCount),
+                        static_cast<uint32_t>(sizeofAlignedMaterialColor * mtlCount)
+                    };
+                    renderPass.SetBindGroup(1, m_VertexShaderBindGroup, std::size(offsets), offsets);
+                }
+
+                static PerfTimer drawIndexedTimer("Renderer.Render.Draw.DrawIndexed");
+                {
+                    auto scopedTimer = drawIndexedTimer.StartScoped();
+                    renderPass.DrawIndexed(mesh.GetIndexCount(), 1, 0, 0, 0);
+                }
 
                 ++meshCount;
             }
@@ -474,18 +507,18 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     //DO NOT SUBMIT
     //cleanupRenderPass.release();
 
-    static PerfTimer resolveTimer("Renderer.Resolve");
+    static PerfTimer resolveTimer("Renderer.Render.Resolve");
     resolveTimer.Start();
 
+    static PerfTimer copyTimer("Renderer.Render.Resolve.CopyColorTarget");
     {
-        static PerfTimer copyTimer("Renderer.Resolve.CopyColorTarget");
         auto scopedTimer = copyTimer.StartScoped();
         auto copyResult = CopyColorTargetToSwapchain(cmdEncoder, swapchainTextureView);
-       expect(copyResult, copyResult.error());
+        expect(copyResult, copyResult.error());
     }
 
+    static PerfTimer renderGuiTimer("Renderer.Render.Resolve.RenderGUI");
     {
-        static PerfTimer renderGuiTimer("Renderer.Resolve.RenderGUI");
         auto scopedTimer = renderGuiTimer.StartScoped();
         auto renderGuiResult = RenderGui(cmdEncoder, swapchainTextureView);
         expect(renderGuiResult, renderGuiResult.error());
@@ -500,15 +533,15 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     expect(m_CurrentState->m_RenderFence, SDL_GetError());*/
 
     wgpu::CommandBuffer cmd;
+    static PerfTimer finishCmdBufferTimer("Renderer.Render.Resolve.FinishCommandBuffer");
     {
-        static PerfTimer finishCmdBufferTimer("Renderer.Resolve.FinishCommandBuffer");
         auto scopedTimer = finishCmdBufferTimer.StartScoped();
         cmd = cmdEncoder.Finish(nullptr);
         expect(cmd, "Failed to finish command buffer for render pass");
     }
 
+    static PerfTimer submitCmdBufferTimer("Renderer.Render.Resolve.SubmitCommandBuffer");
     {
-        static PerfTimer submitCmdBufferTimer("Renderer.Resolve.SubmitCommandBuffer");
         auto scopedTimer = submitCmdBufferTimer.StartScoped();
         wgpu::Queue queue = m_GpuDevice->Device.GetQueue();
         expect(queue, "Failed to get WGPUQueue for render pass");
