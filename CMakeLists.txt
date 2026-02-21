@@ -198,6 +198,7 @@ set(SSG_SOURCES
   src/Error.cpp
   src/FileIo.cpp
   src/Model.cpp
+  src/PerfMetrics.cpp
   src/ResourceCache.cpp
   src/SdlGpuDevice.cpp
   src/SdlRenderer.cpp
@@ -225,6 +226,7 @@ set(SSG_HEADERS
   src/Material.h
   src/Mesh.h
   src/Model.h
+  src/PerfMetrics.h
   src/PoolAllocator.h
   src/Renderer.h
   src/ResourceCache.h

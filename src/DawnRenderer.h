@@ -73,7 +73,7 @@ private:
 
     /// @brief Copy the color target to the swapchain texture.
     Result<void> CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder,
-        wgpu::TextureView swapchainTextureView);
+        wgpu::TextureView target);
 
     Result<GpuVertexShader*> GetCopyColorTargetVertexShader();
     Result<GpuFragmentShader*> GetCopyColorTargetFragmentShader();
@@ -84,7 +84,7 @@ private:
     Result<GpuTexture*> GetDefaultBaseTexture();
 
     Result<void> InitGui();
-    Result<void> RenderGui(wgpu::CommandEncoder cmdEncoder, wgpu::TextureView swapchainTextureView);
+    Result<void> RenderGui(wgpu::CommandEncoder cmdEncoder, wgpu::TextureView target);
 
     DawnGpuDevice* const m_GpuDevice;
     GpuPipeline* m_Pipeline{ nullptr };
@@ -102,9 +102,10 @@ private:
     wgpu::BindGroupLayout m_CopyTextureBindGroupLayout;
     wgpu::BindGroup m_CopyTextureBindGroup;
 
-    std::unordered_map<MaterialId, wgpu::BindGroup> m_MaterialBindGroups;
+    std::unordered_map<MaterialId, wgpu::BindGroup> m_FragShaderBindGroups;
 
     size_t m_SizeofTransformBuffer{0};
+    size_t m_SizeofMaterialColorBuffer{0};
     wgpu::Buffer m_WorldAndProjBuf;
     wgpu::Buffer m_MaterialColorBuf;
     wgpu::BindGroup m_VertexShaderBindGroup;

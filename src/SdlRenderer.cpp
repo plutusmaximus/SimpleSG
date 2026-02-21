@@ -10,6 +10,7 @@
 #include "scope_exit.h"
 
 #include "SdlGpuDevice.h"
+#include "PerfMetrics.h"
 
 #include <SDL3/SDL_gpu.h>
 #include <imgui.h>
@@ -175,6 +176,8 @@ SdlRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
 Result<void>
 SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 {
+    auto scopedRenderTimer = PerfMetrics::StartScopedTimer("Renderer");
+
     if(!everify(m_RenderCount == m_BeginFrameCount - 1))
     {
         return Error("Render called without a matching BeginFrame");
@@ -190,7 +193,9 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     SDL_GPUCommandBuffer* cmdBuf = SDL_AcquireGPUCommandBuffer(gpuDevice);
     expect(cmdBuf, SDL_GetError());
 
-    SDL_GPUTexture* swapchainTexture;
+    SDL_GPUTexture* swapchainTexture = nullptr;
+
+#if !OFFSCREEN_RENDERING
     expect(
         SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuf, m_GpuDevice->Window, &swapchainTexture, nullptr, nullptr),
         SDL_GetError());
@@ -202,6 +207,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
          SDL_CancelGPUCommandBuffer(cmdBuf);
          return Result<void>::Success;
     }
+#endif
 
     auto renderPassResult = BeginRenderPass(cmdBuf);
 
@@ -236,6 +242,8 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
         &m_CurrentState->m_OpaqueMeshGroups,
         &m_CurrentState->m_TranslucentMeshGroups
     };
+
+    PerfMetrics::StartTimer("Renderer.Draw");
 
     for(const auto meshGrpPtr : meshGroups)
     {
@@ -314,22 +322,38 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
         }
     }
 
+    PerfMetrics::StopTimer("Renderer.Draw");
+
     SDL_EndGPURenderPass(renderPass);
 
     cleanupRenderPass.release();
 
-    auto copyResult = CopyColorTargetToSwapchain(cmdBuf, swapchainTexture);
-    expect(copyResult, copyResult.error());
+    PerfMetrics::StartTimer("Renderer.Resolve");
 
-    auto renderGuiResult = RenderGui(cmdBuf, swapchainTexture);
-    expect(renderGuiResult, renderGuiResult.error());
+    {
+        auto scopedTimer = PerfMetrics::StartScopedTimer("Renderer.Resolve.CopyColorTarget");
+        auto copyResult = CopyColorTargetToSwapchain(cmdBuf, swapchainTexture);
+        expect(copyResult, copyResult.error());
+    }
+
+    {
+        auto scopedTimer = PerfMetrics::StartScopedTimer("Renderer.Resolve.RenderGUI");
+        auto renderGuiResult = RenderGui(cmdBuf, swapchainTexture);
+        expect(renderGuiResult, renderGuiResult.error());
+    }
 
     SwapStates();
 
     eassert(!m_CurrentState->m_RenderFence, "Render fence should be null here");
 
-    m_CurrentState->m_RenderFence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmdBuf);
-    expect(m_CurrentState->m_RenderFence, SDL_GetError());
+    {
+        auto scopedTimer = PerfMetrics::StartScopedTimer("Renderer.Resolve.SubmitCommandBuffer");
+        //expect(SDL_SubmitGPUCommandBuffer(cmdBuf), SDL_GetError());
+        m_CurrentState->m_RenderFence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmdBuf);
+        expect(m_CurrentState->m_RenderFence, SDL_GetError());
+    }
+
+    PerfMetrics::StopTimer("Renderer.Resolve");
 
     return Result<void>::Success;
 }
@@ -414,11 +438,11 @@ SdlRenderer::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
         return nullptr;
     }
 
-    const SDL_GPUViewport viewport
+    /*const SDL_GPUViewport viewport
     {
         0, 0, static_cast<float>(targetWidth), static_cast<float>(targetHeight), 0, CLEAR_DEPTH
     };
-    SDL_SetGPUViewport(renderPass, &viewport);
+    SDL_SetGPUViewport(renderPass, &viewport);*/
 
     return renderPass;
 }
@@ -467,6 +491,12 @@ SdlRenderer::SwapStates()
 Result<void>
 SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTexture* target)
 {
+    if(!target)
+    {
+        // Offscreen rendering - no swapchain texture available. Not an error, just skip copying.
+        return Result<void>::Success;
+    }
+
     auto pipelineResult = GetCopyColorTargetPipeline();
     expect(pipelineResult, pipelineResult.error());
 
@@ -719,6 +749,12 @@ SdlRenderer::RenderGui(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTexture* target)
     if(is_minimized || !target)
     {
         // If the window is minimized, we can skip rendering the GUI without treating it as an error.
+        return Result<void>::Success;
+    }
+
+    if(!target)
+    {
+        // Offscreen rendering - no swapchain texture available. Not an error, just skip copying.
         return Result<void>::Success;
     }
 

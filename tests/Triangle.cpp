@@ -6,6 +6,7 @@
 #include "DawnGpuDevice.h"
 #include "FileIo.h"
 #include "Logging.h"
+#include "PerfMetrics.h"
 #include "ResourceCache.h"
 #include "SdlGpuDevice.h"
 #include "scope_exit.h"
@@ -17,6 +18,8 @@ static Result<ModelResource> CreateTriangleModel(ResourceCache* cache);
 static Result<GpuPipeline*> CreatePipeline(ResourceCache* cache);
 
 constexpr const char* kAppName = "Triangle";
+
+static void DumpTimers();
 
 static Result<void> RenderGui();
 
@@ -109,6 +112,12 @@ static Result<void> MainLoop()
 
     while(running)
     {
+        PerfMetrics::BeginFrame();
+
+        auto frameTimer = PerfMetrics::StartScopedTimer("Frame");
+
+        PerfMetrics::StartTimer("Non-GPU Work");
+
         SDL_Event event;
 
         while(minimized && running && SDL_PollEvent(&event))
@@ -199,6 +208,8 @@ static Result<void> MainLoop()
 
         RenderGui();
 
+        PerfMetrics::StopTimer("Non-GPU Work");
+
         auto renderResult = renderer->Render(cameraXform.ToMatrix(), camera.GetProjection());
         if(!renderResult)
         {
@@ -206,13 +217,21 @@ static Result<void> MainLoop()
         }
 #if DAWN_GPU
 #if !defined(__EMSCRIPTEN__)
+
+#if !OFFSCREEN_RENDERING
         auto dawnGpuDevice = static_cast<DawnGpuDevice*>(gpuDevice);
         expect(dawnGpuDevice->Surface.Present(), "Failed to present backbuffer");
 #endif
 
+#endif
+
         dawnGpuDevice->Instance.ProcessEvents();
 #endif  //DAWN_GPU
+
+        PerfMetrics::EndFrame();
     }
+
+    DumpTimers();
 
     return Result<void>::Success;
 }
@@ -224,38 +243,22 @@ int main(int, char* /*argv[]*/)
     return 0;
 }
 
+static void DumpTimers()
+{
+    PerfMetrics::TimerStat timers[256];
+    unsigned timerCount = PerfMetrics::GetTimers(timers, std::size(timers));
+    for(unsigned i = 0; i < timerCount; ++i)
+    {
+        logInfo("{}: {} ms", timers[i].GetName(), timers[i].GetValue() * 1000.0f);
+    }
+}
+
 static bool show_demo_window = true;
 static bool show_another_window = false;
 static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 static Result<void> RenderGui()
 {
-#if 0
-    // [If using SDL_MAIN_USE_CALLBACKS: all code below would likely be your SDL_AppIterate() function]
-    // React to changes in screen size
-    int width, height;
-    SDL_GetWindowSize(window, &width, &height);
-    if (width != wgpu_surface_width || height != wgpu_surface_height)
-        ResizeSurface(width, height);
-
-    // Check surface status for error. If texture is not optimal, try to reconfigure the surface.
-    WGPUSurfaceTexture surface_texture;
-    wgpuSurfaceGetCurrentTexture(wgpu_surface, &surface_texture);
-    if (ImGui_ImplWGPU_IsSurfaceStatusError(surface_texture.status))
-    {
-        fprintf(stderr, "Unrecoverable Surface Texture status=%#.8x\n", surface_texture.status);
-        abort();
-    }
-    if (ImGui_ImplWGPU_IsSurfaceStatusSubOptimal(surface_texture.status))
-    {
-        if (surface_texture.texture)
-            wgpuTextureRelease(surface_texture.texture);
-        if (width > 0 && height > 0)
-            ResizeSurface(width, height);
-        continue;
-    }
-#endif
-
     // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
     //if (show_demo_window)
         //ImGui::ShowDemoWindow(&show_demo_window);
@@ -281,6 +284,15 @@ static Result<void> RenderGui()
 
         ImGuiIO& io = ImGui::GetIO();
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+        ImGui::End();
+
+        ImGui::Begin("Timers");
+        PerfMetrics::TimerStat timers[256];
+        unsigned timerCount = PerfMetrics::GetTimers(timers, std::size(timers));
+        for(unsigned i = 0; i < timerCount; ++i)
+        {
+            ImGui::Text("%s: %.3f ms", timers[i].GetName().c_str(), timers[i].GetValue() * 1000.0f);
+        }
         ImGui::End();
     }
 

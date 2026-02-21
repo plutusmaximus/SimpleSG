@@ -539,7 +539,7 @@ DawnGpuDevice::CreatePipeline(const GpuPipelineType pipelineType,
             .buffer =
             {
                 .type = wgpu::BufferBindingType::Uniform,
-                .hasDynamicOffset = false,
+                .hasDynamicOffset = true,
                 .minBindingSize = sizeof(Vec4f),
             },
         },
@@ -633,7 +633,7 @@ DawnGpuDevice::CreatePipeline(const GpuPipelineType pipelineType,
             .format = kDepthTargetFormat,
             .depthWriteEnabled = true,
             .depthCompare = wgpu::CompareFunction::Less,
-            .stencilFront =
+            /*.stencilFront =
             {
                 .compare = wgpu::CompareFunction::Always,
                 .failOp = wgpu::StencilOperation::Keep,
@@ -648,7 +648,7 @@ DawnGpuDevice::CreatePipeline(const GpuPipelineType pipelineType,
                 .passOp = wgpu::StencilOperation::Keep,
             },
             .stencilReadMask = 0xFF,
-            .stencilWriteMask = 0xFF,
+            .stencilWriteMask = 0xFF,*/
             .depthBias = 0,
             .depthBiasSlopeScale = 0.0f,
             .depthBiasClamp = 0.0f,

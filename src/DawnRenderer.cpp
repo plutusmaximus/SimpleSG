@@ -10,6 +10,7 @@
 #include "scope_exit.h"
 
 #include "DawnGpuDevice.h"
+#include "PerfMetrics.h"
 
 #include <SDL3/SDL.h>
 #include <imgui.h>
@@ -184,6 +185,8 @@ static inline constexpr uint32_t alignup(const uint32_t value, const uint32_t al
 Result<void>
 DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 {
+    auto scopedRenderTimer = PerfMetrics::StartScopedTimer("Renderer");
+
     if(!everify(m_RenderCount == m_BeginFrameCount - 1))
     {
         return Error("Render called without a matching BeginFrame");
@@ -207,6 +210,20 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
     expect(cmdEncoder, "Failed to create command encoder");
 
+    wgpu::TextureView swapchainTextureView;
+#if !OFFSCREEN_RENDERING
+    wgpu::SurfaceTexture backbuffer;
+    m_GpuDevice->Surface.GetCurrentTexture(&backbuffer);
+    expect(backbuffer.texture, "Failed to get current surface texture for render pass");
+
+    // TODO - handle SuccessSuboptimal, Timeout, Outdated, Lost, Error statuses
+    expect(backbuffer.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal,
+        std::format("Backbuffer status: {}", (int)backbuffer.status));
+
+    swapchainTextureView = backbuffer.texture.CreateView();
+    expect(swapchainTextureView, "Failed to create texture view for swapchain texture");
+#endif
+
     auto renderPassResult = BeginRenderPass(cmdEncoder);
     expect(renderPassResult, renderPassResult.error());
 
@@ -217,17 +234,21 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     renderPass.SetPipeline(dawnGpuPipeline->GetPipeline());
     renderPass.SetBindGroup(0, nullptr, 0, nullptr);
 
+    // Set to true to indicate that we need to remake the vertex shader bind group with the new
+    // buffers.
+    bool remakeVsBindGroup = false;
+
+    // Size of the buffer needed to hold the world and projection matrices for all meshes in the
+    // current frame.
     constexpr size_t sizeofTransforms = sizeof(Mat44f) * 2; // World and projection matrices
     const size_t sizeofAlignedTransforms = alignup(sizeofTransforms, bufferAlign);
     const size_t sizeofTransformBuffer = sizeofAlignedTransforms * m_CurrentState->m_MeshCount;
 
     if(!m_WorldAndProjBuf || m_SizeofTransformBuffer < sizeofTransformBuffer)
     {
-        m_SizeofTransformBuffer = sizeofTransformBuffer;
+        // Re-allocate the world and projection buffer.
 
-        constexpr size_t sizeofMaterialColor = sizeof(Vec4f); // Assuming material color is the only data and is a vec4
-        const size_t sizeofAlignedMaterialColor = alignup(sizeofMaterialColor, bufferAlign);
-        const size_t sizeofMaterialColorBuffer = sizeofAlignedMaterialColor;
+        m_SizeofTransformBuffer = sizeofTransformBuffer;
 
         wgpu::BufferDescriptor worldAndProjBufDesc //
         {
@@ -240,6 +261,24 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
         m_WorldAndProjBuf = gpuDevice.CreateBuffer(&worldAndProjBufDesc);
         expect(m_WorldAndProjBuf, "Failed to create world and projection buffer");
 
+        remakeVsBindGroup = true;
+    }
+
+    const size_t numMeshGroups =
+        m_CurrentState->m_OpaqueMeshGroups.size() + m_CurrentState->m_TranslucentMeshGroups.size();
+
+    // Size of the buffer needed to hold the material color for all meshes in the current frame.
+    constexpr size_t sizeofMaterialColor =
+        sizeof(Vec4f); // Assuming material color is the only data and is a vec4
+    const size_t sizeofAlignedMaterialColor = alignup(sizeofMaterialColor, bufferAlign);
+    const size_t sizeofMaterialColorBuffer = sizeofAlignedMaterialColor * numMeshGroups;
+
+    if(!m_MaterialColorBuf || m_SizeofMaterialColorBuffer < sizeofMaterialColorBuffer)
+    {
+        // Re-allocate the material color buffer.
+
+        m_SizeofMaterialColorBuffer = sizeofMaterialColorBuffer;
+
         wgpu::BufferDescriptor materialColorBufDesc //
         {
             .label = "MaterialColor",
@@ -251,6 +290,11 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
         m_MaterialColorBuf = gpuDevice.CreateBuffer(&materialColorBufDesc);
         expect(m_MaterialColorBuf, "Failed to create material color buffer");
 
+        remakeVsBindGroup = true;
+    }
+
+    if(remakeVsBindGroup)
+    {
         wgpu::BindGroupEntry vsBgEntries[] = //
             {
                 {
@@ -263,7 +307,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
                     .binding = 1,
                     .buffer = m_MaterialColorBuf,
                     .offset = 0,
-                    .size = wgpu::kWholeSize,
+                    .size = sizeofAlignedMaterialColor,
                 }
             };
 
@@ -304,7 +348,10 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
         &m_CurrentState->m_TranslucentMeshGroups
     };
 
-    int count = 0;
+    int mtlCount = 0;
+    int meshCount = 0;
+
+    PerfMetrics::StartTimer("Renderer.Draw");
 
     for(const auto meshGrpPtr : meshGroups)
     {
@@ -312,8 +359,8 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
         {
             const Material& mtl = xmeshes[0].MeshInstance.GetMaterial();
 
-            auto itMtlBindGroup = m_MaterialBindGroups.find(mtlId);
-            if(itMtlBindGroup == m_MaterialBindGroups.end())
+            auto itFragShaderBG = m_FragShaderBindGroups.find(mtlId);
+            if(itFragShaderBG == m_FragShaderBindGroups.end())
             {
                 // Material bind group doesn't exist yet, create it.
 
@@ -351,12 +398,15 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
                 wgpu::BindGroup fsBindGroup = gpuDevice.CreateBindGroup(&fsBgDesc);
                 expect(fsBindGroup, "Failed to create WGPUBindGroup");
 
-                itMtlBindGroup = m_MaterialBindGroups.try_emplace(mtlId, fsBindGroup).first;
+                itFragShaderBG = m_FragShaderBindGroups.try_emplace(mtlId, fsBindGroup).first;
             }
 
-            renderPass.SetBindGroup(2, itMtlBindGroup->second, 0, nullptr);
+            renderPass.SetBindGroup(2, itFragShaderBG->second, 0, nullptr);
 
-            gpuDevice.GetQueue().WriteBuffer(m_MaterialColorBuf, 0, &mtl.GetColor(), sizeof(mtl.GetColor()));
+            gpuDevice.GetQueue().WriteBuffer(m_MaterialColorBuf,
+                sizeofAlignedMaterialColor * mtlCount,
+                &mtl.GetColor(),
+                sizeof(mtl.GetColor()));
 
             const Mat44f viewProj = projection.Mul(viewXform);
 
@@ -395,44 +445,46 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 
                 // Send up the model and model-view-projection matrices
                 gpuDevice.GetQueue().WriteBuffer(m_WorldAndProjBuf,
-                    sizeofAlignedTransforms * count,
+                    sizeofAlignedTransforms * meshCount,
                     matrices,
                     sizeof(matrices));
 
                 uint32_t offsets[] =
                 {
-                    static_cast<uint32_t>(sizeofAlignedTransforms * count)
+                    static_cast<uint32_t>(sizeofAlignedTransforms * meshCount),
+                    static_cast<uint32_t>(sizeofAlignedMaterialColor * mtlCount)
                 };
                 renderPass.SetBindGroup(1, m_VertexShaderBindGroup, std::size(offsets), offsets);
 
                 renderPass.DrawIndexed(mesh.GetIndexCount(), 1, 0, 0, 0);
 
-                ++count;
+                ++meshCount;
             }
+
+            ++mtlCount;
         }
     }
+
+    PerfMetrics::StopTimer("Renderer.Draw");
 
     renderPass.End();
 
     //DO NOT SUBMIT
     //cleanupRenderPass.release();
 
-    wgpu::SurfaceTexture backbuffer;
-    m_GpuDevice->Surface.GetCurrentTexture(&backbuffer);
-    expect(backbuffer.texture, "Failed to get current surface texture for render pass");
+    PerfMetrics::StartTimer("Renderer.Resolve");
 
-    // TODO - handle SuccessSuboptimal, Timeout, Outdated, Lost, Error statuses
-    expect(backbuffer.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal,
-        std::format("Backbuffer status: {}", (int)backbuffer.status));
+    {
+        auto scopedTimer = PerfMetrics::StartScopedTimer("Renderer.Resolve.CopyColorTarget");
+       auto copyResult = CopyColorTargetToSwapchain(cmdEncoder, swapchainTextureView);
+       expect(copyResult, copyResult.error());
+    }
 
-    wgpu::TextureView swapchainTextureView = backbuffer.texture.CreateView();
-    expect(swapchainTextureView, "Failed to create texture view for swapchain texture");
-
-    auto copyResult = CopyColorTargetToSwapchain(cmdEncoder, swapchainTextureView);
-    expect(copyResult, copyResult.error());
-
-    auto renderGuiResult = RenderGui(cmdEncoder, swapchainTextureView);
-    expect(renderGuiResult, renderGuiResult.error());
+    {
+        auto scopedTimer = PerfMetrics::StartScopedTimer("Renderer.Resolve.RenderGUI");
+        auto renderGuiResult = RenderGui(cmdEncoder, swapchainTextureView);
+        expect(renderGuiResult, renderGuiResult.error());
+    }
 
     SwapStates();
 
@@ -442,13 +494,22 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     m_CurrentState->m_RenderFence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmdBuf);
     expect(m_CurrentState->m_RenderFence, SDL_GetError());*/
 
-    wgpu::CommandBuffer cmd = cmdEncoder.Finish(nullptr);
-    expect(cmd, "Failed to finish command buffer for render pass");
+    wgpu::CommandBuffer cmd;
+    {
+        auto scopedTimer = PerfMetrics::StartScopedTimer("Renderer.Resolve.FinishCommandBuffer");
+        cmd = cmdEncoder.Finish(nullptr);
+        expect(cmd, "Failed to finish command buffer for render pass");
+    }
 
-    wgpu::Queue queue = m_GpuDevice->Device.GetQueue();
-    expect(queue, "Failed to get WGPUQueue for render pass");
+    {
+        auto scopedTimer = PerfMetrics::StartScopedTimer("Renderer.Resolve.SubmitCommandBuffer");
+        wgpu::Queue queue = m_GpuDevice->Device.GetQueue();
+        expect(queue, "Failed to get WGPUQueue for render pass");
 
-    queue.Submit(1, &cmd);
+        queue.Submit(1, &cmd);
+    }
+
+    PerfMetrics::StopTimer("Renderer.Resolve");
 
     return Result<void>::Success;
 }
@@ -505,7 +566,7 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
             .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
-            .clearValue = { 0.0f, 0.0f, 0.0f, 1.0f },
+            .clearValue = { 0.0f, 0.0f, 0.0f, 0.0f },
         };
 
     static constexpr float CLEAR_DEPTH = 1.0f;
@@ -586,9 +647,14 @@ DawnRenderer::SwapStates()
 }
 
 Result<void>
-DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder,
-    wgpu::TextureView swapchainTextureView)
+DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder, wgpu::TextureView target)
 {
+    if(!target)
+    {
+        // Off-screen rendering, skip rendering ImGui
+        return Result<void>::Success;
+    }
+
     auto pipelineResult = GetCopyColorTargetPipeline();
     expect(pipelineResult, pipelineResult.error());
 
@@ -596,7 +662,7 @@ DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder,
 
     wgpu::RenderPassColorAttachment attachment //
         {
-            .view = swapchainTextureView,
+            .view = target,
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
             .clearValue = { 0.0f, 0.0f, 0.0f, 1.0f },
@@ -915,7 +981,7 @@ DawnRenderer::InitGui()
 }
 
 Result<void>
-DawnRenderer::RenderGui(wgpu::CommandEncoder cmdEncoder, wgpu::TextureView swapchainTextureView)
+DawnRenderer::RenderGui(wgpu::CommandEncoder cmdEncoder, wgpu::TextureView target)
 {
     ImGui::Render();
 
@@ -935,9 +1001,15 @@ DawnRenderer::RenderGui(wgpu::CommandEncoder cmdEncoder, wgpu::TextureView swapc
         return Result<void>::Success;
     }
 
+    if(!target)
+    {
+        // Off-screen rendering, skip rendering ImGui
+        return Result<void>::Success;
+    }
+
     wgpu::RenderPassColorAttachment colorAttachment //
     {
-        .view = swapchainTextureView,
+        .view = target,
         .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
         .loadOp = wgpu::LoadOp::Load,
         .storeOp = wgpu::StoreOp::Store,
