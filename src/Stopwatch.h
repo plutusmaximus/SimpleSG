@@ -12,7 +12,7 @@ public:
     float Mark();
 
     /// @brief Returns the elapsed time in seconds since the last mark without updating the last time.
-    float Elapsed();
+    float Elapsed() const;
 
 private:
 
