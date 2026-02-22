@@ -49,6 +49,8 @@ public:
     /// @brief  Gets the average elapsed time in seconds across the last NUM_SAMPLES runs.
     float GetValue() const;
 
+    unsigned GetCount() const;
+
 private:
 
     friend class PerfMetrics;
@@ -61,10 +63,13 @@ private:
 
     imstring m_Name;
     uint64_t m_StartTime{ 0 };
-    uint64_t m_Samples[NUM_SAMPLES]{};
+    uint64_t m_ElapsedSamples[NUM_SAMPLES]{};
+    unsigned m_CountSamples[NUM_SAMPLES]{};
     unsigned m_SampleIndex{ 0 };
-    uint64_t m_Sum{ 0 };
+    uint64_t m_ElapsedSum{ 0 };
+    uint64_t m_CountSum{ 0 };
     uint64_t m_Elapsed{ 0 }; // Accumulated elapsed time across Start/Stop calls until Sample() is called.
+    unsigned m_Count{ 0 };  // Number of times Start/Stop has been called since the last Sample().
     bool m_IsRunning{ false };
 
     inlist_node<PerfTimer> m_ListNode;
@@ -79,8 +84,8 @@ public:
     public:
 
         TimerStat() = default;
-        explicit TimerStat(const imstring& name, const float value)
-            : m_Name(name), m_Value(value)
+        explicit TimerStat(const imstring& name, const float value, const unsigned count)
+            : m_Name(name), m_Value(value), m_Count(count)
         {
         }
 
@@ -88,9 +93,12 @@ public:
 
         float GetValue() const { return m_Value; }
 
+        unsigned GetCount() const { return m_Count; }
+
     private:
         imstring m_Name;
         float m_Value{ 0 };
+        unsigned m_Count{ 0 };
     };
 
     /// @brief  Begins a new frame. This should be called at the beginning of each frame before any
@@ -109,6 +117,9 @@ public:
     /// @brief Gets the recorded timers. The caller should provide a buffer of sufficient size based
     /// on GetTimerCount().
     static unsigned GetTimers(TimerStat* outStats, const unsigned timerCount);
+
+    /// @brief Logs all timers to log output.
+    static void LogTimers();
 
 private:
 

@@ -39,7 +39,13 @@ PerfTimer::PerfTimer(const imstring& name)
 float
 PerfTimer::PerfTimer::GetValue() const
 {
-    return static_cast<float>(m_Sum) / NUM_SAMPLES / static_cast<float>(GetFrequency());
+    return m_ElapsedSum / NUM_SAMPLES / static_cast<float>(GetFrequency());
+}
+
+unsigned
+PerfTimer::PerfTimer::GetCount() const
+{
+    return static_cast<unsigned>(m_CountSum / NUM_SAMPLES);
 }
 
 void
@@ -55,6 +61,7 @@ PerfTimer::PerfTimer::Start()
     LARGE_INTEGER curTime;
     QueryPerformanceCounter(&curTime);
     m_StartTime = curTime.QuadPart;
+    ++m_Count;
     m_IsRunning = true;
 }
 
@@ -86,12 +93,19 @@ PerfTimer::PerfTimer::Sample()
         return;
     }
 
-    m_Sum += m_Elapsed;
+    m_ElapsedSum += m_Elapsed;
+    m_CountSum += m_Count;
+
     m_SampleIndex = (m_SampleIndex + 1) % NUM_SAMPLES;
-    m_Sum -= m_Samples[m_SampleIndex];
-    m_Samples[m_SampleIndex] = m_Elapsed;
+
+    m_ElapsedSum -= m_ElapsedSamples[m_SampleIndex];
+    m_CountSum -= m_CountSamples[m_SampleIndex];
+
+    m_ElapsedSamples[m_SampleIndex] = m_Elapsed;
+    m_CountSamples[m_SampleIndex] = m_Count;
 
     m_Elapsed = 0;
+    m_Count = 0;
     m_IsRunning = false;
 }
 
@@ -148,8 +162,17 @@ PerfMetrics::GetTimers(TimerStat* outStats, const unsigned timerCount)
             return timerCount;
         }
 
-        outStats[count++] = TimerStat(timer.GetName(), timer.GetValue());
+        outStats[count++] = TimerStat(timer.GetName(), timer.GetValue(), timer.GetCount());
     }
 
     return count;
+}
+
+void
+PerfMetrics::LogTimers()
+{
+    for(auto& timer : m_Timers)
+    {
+        logInfo("{}: {} ms, Count: {}", timer.GetName(), timer.GetValue() * 1000.0f, timer.GetCount());
+    }
 }
