@@ -19,11 +19,6 @@ template<typename T>
 class RgbaColor;
 using RgbaColorf = RgbaColor<float>;
 
-enum class GpuPipelineType
-{
-    Opaque
-};
-
 /// @brief GPU representation of a vertex buffer.
 class GpuVertexBuffer
 {
@@ -165,14 +160,6 @@ protected:
     virtual ~GpuDepthTarget() = 0;
 };
 
-/// @brief GPU representation of a pipeline state.
-class GpuPipeline
-{
-protected:
-    GpuPipeline() = default;
-    virtual ~GpuPipeline() = 0;
-};
-
 /// @brief GPU representation of a render pass.
 class GpuRenderPass
 {
@@ -251,13 +238,7 @@ public:
     /// @brief Destroys a fragment shader.
     virtual Result<void> DestroyFragmentShader(GpuFragmentShader* fragmentShader) = 0;
 
-    virtual Result<GpuPipeline*> CreatePipeline(const GpuPipelineType pipelineType,
-        GpuVertexShader* vertexShader,
-        GpuFragmentShader* fragmentShader) = 0;
-
-    virtual Result<void> DestroyPipeline(GpuPipeline* pipeline) = 0;
-
-    virtual Result<Renderer*> CreateRenderer(GpuPipeline* pipeline) = 0;
+    virtual Result<Renderer*> CreateRenderer() = 0;
 
     virtual void DestroyRenderer(Renderer* renderer) = 0;
 
@@ -274,6 +255,5 @@ inline GpuFragmentShader::~GpuFragmentShader() = default;
 inline GpuTexture::~GpuTexture() = default;
 inline GpuColorTarget::~GpuColorTarget() = default;
 inline GpuDepthTarget::~GpuDepthTarget() = default;
-inline GpuPipeline::~GpuPipeline() = default;
 inline GpuRenderPass::~GpuRenderPass() = default;
 inline GpuDevice::~GpuDevice() = default;

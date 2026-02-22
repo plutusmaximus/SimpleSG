@@ -159,6 +159,7 @@ public:
 
     unsigned GetWidth() const override { return m_Width; }
     unsigned GetHeight() const override { return m_Height; }
+    wgpu::TextureFormat GetFormat() const { return m_Format; }
 
     wgpu::Texture GetTexture() const { return m_Texture; }
     wgpu::TextureView GetTextureView() const { return m_TextureView; }
@@ -172,13 +173,15 @@ private:
         wgpu::TextureView textureView,
         wgpu::Sampler sampler,
         const unsigned width,
-        const unsigned height)
+        const unsigned height,
+        wgpu::TextureFormat format)
         : m_GpuDevice(gpuDevice),
           m_Texture(texture),
           m_TextureView(textureView),
           m_Sampler(sampler),
           m_Width(width),
-          m_Height(height)
+          m_Height(height),
+          m_Format(format)
     {
     }
 
@@ -188,6 +191,7 @@ private:
     wgpu::Sampler m_Sampler;
     unsigned m_Width;
     unsigned m_Height;
+    wgpu::TextureFormat m_Format;
 };
 
 class DawnGpuDepthTarget : public GpuDepthTarget
@@ -204,6 +208,7 @@ public:
 
     unsigned GetWidth() const override { return m_Width; }
     unsigned GetHeight() const override { return m_Height; }
+    wgpu::TextureFormat GetFormat() const { return m_Format; }
 
     wgpu::Texture GetTexture() const { return m_DepthTarget; }
     wgpu::TextureView GetTextureView() const { return m_DepthTargetView; }
@@ -215,12 +220,14 @@ private:
         wgpu::Texture depthTarget,
         wgpu::TextureView depthTargetView,
         const unsigned width,
-        const unsigned height)
+        const unsigned height,
+        wgpu::TextureFormat format)
         : m_GpuDevice(gpuDevice),
           m_DepthTarget(depthTarget),
           m_DepthTargetView(depthTargetView),
           m_Width(width),
-          m_Height(height)
+          m_Height(height),
+          m_Format(format)
     {
     }
 
@@ -229,6 +236,7 @@ private:
     wgpu::TextureView m_DepthTargetView;
     unsigned m_Width;
     unsigned m_Height;
+    wgpu::TextureFormat m_Format;
 };
 
 class DawnGpuVertexShader : public GpuVertexShader
@@ -280,42 +288,6 @@ private:
 
     DawnGpuDevice* m_GpuDevice;
     wgpu::ShaderModule m_Shader;
-};
-
-class DawnGpuPipeline : public GpuPipeline
-{
-public:
-
-    DawnGpuPipeline() = delete;
-    DawnGpuPipeline(const DawnGpuPipeline&) = delete;
-    DawnGpuPipeline& operator=(const DawnGpuPipeline&) = delete;
-    DawnGpuPipeline(DawnGpuPipeline&&) = delete;
-    DawnGpuPipeline& operator=(DawnGpuPipeline&&) = delete;
-
-    ~DawnGpuPipeline() override {};
-
-    wgpu::RenderPipeline GetPipeline() const { return m_Pipeline; }
-    wgpu::BindGroupLayout GetVertexBindGroupLayout() const { return m_VertBindGroupLayout; }
-    wgpu::BindGroupLayout GetFragmentBindGroupLayout() const { return m_FragBindGroupLayout; }
-
-private:
-    friend class DawnGpuDevice;
-
-    DawnGpuPipeline(DawnGpuDevice* gpuDevice,
-        wgpu::RenderPipeline pipeline,
-        wgpu::BindGroupLayout vertBindGroupLayout,
-        wgpu::BindGroupLayout fragBindGroupLayout)
-        : m_GpuDevice(gpuDevice),
-          m_Pipeline(pipeline),
-          m_VertBindGroupLayout(vertBindGroupLayout),
-          m_FragBindGroupLayout(fragBindGroupLayout)
-    {
-    }
-
-    DawnGpuDevice* m_GpuDevice;
-    wgpu::RenderPipeline m_Pipeline;
-    wgpu::BindGroupLayout m_VertBindGroupLayout;
-    wgpu::BindGroupLayout m_FragBindGroupLayout;
 };
 
 /// @brief Dawn GPU Device implementation.
@@ -380,13 +352,7 @@ public:
 
     Result<void> DestroyFragmentShader(GpuFragmentShader* shader) override;
 
-    Result<GpuPipeline*> CreatePipeline(const GpuPipelineType pipelineType,
-        GpuVertexShader* vertexShader,
-        GpuFragmentShader* fragmentShader) override;
-
-    Result<void> DestroyPipeline(GpuPipeline* pipeline) override;
-
-    Result<Renderer*> CreateRenderer(GpuPipeline* pipeline) override;
+    Result<Renderer*> CreateRenderer() override;
 
     void DestroyRenderer(Renderer* renderer) override;
 
@@ -422,7 +388,6 @@ private:
         DawnGpuDepthTarget DepthTarget;
         DawnGpuVertexShader VertexShader;
         DawnGpuFragmentShader FragmentShader;
-        DawnGpuPipeline Pipeline;
     };
 
     PoolAllocator<GpuResource, 256> m_ResourceAllocator;

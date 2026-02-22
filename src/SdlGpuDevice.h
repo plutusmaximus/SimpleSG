@@ -163,24 +163,26 @@ public:
 
     unsigned GetWidth() const override { return m_Width; }
     unsigned GetHeight() const override { return m_Height; }
+    SDL_GPUTextureFormat GetFormat() const { return m_Format; }
 
     SDL_GPUTexture* GetColorTarget() const { return m_ColorTarget; }
     SDL_GPUSampler* GetSampler() const { return m_Sampler; }
 
 private:
-
     friend class SdlGpuDevice;
 
     SdlGpuColorTarget(SdlGpuDevice* gpuDevice,
         SDL_GPUTexture* colorTarget,
         SDL_GPUSampler* sampler,
         const unsigned width,
-        const unsigned height)
+        const unsigned height,
+        SDL_GPUTextureFormat format)
         : m_GpuDevice(gpuDevice),
           m_ColorTarget(colorTarget),
           m_Sampler(sampler),
           m_Width(width),
-          m_Height(height)
+          m_Height(height),
+          m_Format(format)
     {
     }
 
@@ -189,6 +191,7 @@ private:
     SDL_GPUSampler* const m_Sampler;
     unsigned m_Width;
     unsigned m_Height;
+    SDL_GPUTextureFormat m_Format;
 };
 
 class SdlGpuDepthTarget : public GpuDepthTarget
@@ -205,6 +208,7 @@ public:
 
     unsigned GetWidth() const override { return m_Width; }
     unsigned GetHeight() const override { return m_Height; }
+    SDL_GPUTextureFormat GetFormat() const { return m_Format; }
 
     SDL_GPUTexture* GetDepthTarget() const { return m_DepthTarget; }
 
@@ -215,11 +219,13 @@ private:
     SdlGpuDepthTarget(SdlGpuDevice* gpuDevice,
         SDL_GPUTexture* depthTarget,
         const unsigned width,
-        const unsigned height)
+        const unsigned height,
+        SDL_GPUTextureFormat format)
         : m_GpuDevice(gpuDevice),
           m_DepthTarget(depthTarget),
           m_Width(width),
-          m_Height(height)
+          m_Height(height),
+          m_Format(format)
     {
     }
 
@@ -227,6 +233,7 @@ private:
     SDL_GPUTexture* const m_DepthTarget;
     unsigned m_Width;
     unsigned m_Height;
+    SDL_GPUTextureFormat m_Format;
 };
 
 class SdlGpuVertexShader : public GpuVertexShader
@@ -283,34 +290,6 @@ private:
 
     SdlGpuDevice* const m_GpuDevice;
     SDL_GPUShader* const m_Shader;
-};
-
-class SdlGpuPipeline : public GpuPipeline
-{
-public:
-
-    SdlGpuPipeline() = delete;
-    SdlGpuPipeline(const SdlGpuPipeline&) = delete;
-    SdlGpuPipeline& operator=(const SdlGpuPipeline&) = delete;
-    SdlGpuPipeline(SdlGpuPipeline&&) = delete;
-    SdlGpuPipeline& operator=(SdlGpuPipeline&&) = delete;
-
-    ~SdlGpuPipeline() override;
-
-    SDL_GPUGraphicsPipeline* GetPipeline() const { return m_Pipeline; }
-
-private:
-    friend class SdlGpuDevice;
-
-    SdlGpuPipeline(SdlGpuDevice* gpuDevice,
-        SDL_GPUGraphicsPipeline* pipeline)
-        : m_GpuDevice(gpuDevice),
-          m_Pipeline(pipeline)
-    {
-    }
-
-    SdlGpuDevice* const m_GpuDevice;
-    SDL_GPUGraphicsPipeline* const m_Pipeline;
 };
 
 /// @brief SDL GPU Device implementation.
@@ -377,13 +356,7 @@ public:
 
     Result<void> DestroyFragmentShader(GpuFragmentShader* shader) override;
 
-    Result<GpuPipeline*> CreatePipeline(const GpuPipelineType pipelineType,
-        GpuVertexShader* vertexShader,
-        GpuFragmentShader* fragmentShader) override;
-
-    Result<void> DestroyPipeline(GpuPipeline* pipeline) override;
-
-    Result<Renderer*> CreateRenderer(GpuPipeline* pipeline) override;
+    Result<Renderer*> CreateRenderer() override;
 
     void DestroyRenderer(Renderer* renderer) override;
 
@@ -413,7 +386,6 @@ private:
         SdlGpuDepthTarget DepthTarget;
         SdlGpuVertexShader VertexShader;
         SdlGpuFragmentShader FragmentShader;
-        SdlGpuPipeline Pipeline;
     };
 
     PoolAllocator<GpuResource, 256> m_ResourceAllocator;

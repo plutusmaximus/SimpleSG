@@ -15,7 +15,6 @@
 
 [[maybe_unused]] static Result<ModelResource> CreateCubeModel(ResourceCache* cache);
 static Result<ModelResource> CreateShapeModel(ResourceCache* cache);
-static Result<GpuPipeline*> CreatePipeline(ResourceCache* cache);
 
 class WorldMatrix : public Mat44f
 {
@@ -53,10 +52,7 @@ public:
         m_GpuDevice = context->GpuDevice;
         m_ResourceCache = context->ResourceCache;
 
-        auto pipelineResult = CreatePipeline(m_ResourceCache);
-        expect(pipelineResult, pipelineResult.error());
-
-        auto rendererResult = m_GpuDevice->CreateRenderer(pipelineResult.value());
+        auto rendererResult = m_GpuDevice->CreateRenderer();
         expect(rendererResult, rendererResult.error());
 
         m_Renderer = *rendererResult;
@@ -492,29 +488,4 @@ static Result<ModelResource> CreateShapeModel(ResourceCache* cache)
     }
 
     return cache->GetModel(cacheKey);
-}
-
-static Result<GpuPipeline*> CreatePipeline(ResourceCache* cache)
-{
-    const PipelineSpec pipelineSpec//
-    {
-        .PipelineType = GpuPipelineType::Opaque,
-        .VertexShader{"shaders/Debug/VertexShader.vs", 3},
-    #if DAWN_GPU
-        .FragmentShader{"shaders/Debug/FragmentShader.fs"},
-    #else
-        .FragmentShader{"shaders/Debug/FragmentShader.ps"},
-    #endif
-    };
-
-    const CacheKey pipelineCacheKey("MainPipeline");
-    auto asyncResult = cache->CreatePipelineAsync(pipelineCacheKey, pipelineSpec);
-    expect(asyncResult, asyncResult.error());
-
-    while(asyncResult->IsPending())
-    {
-        cache->ProcessPendingOperations();
-    }
-
-    return cache->GetPipeline(pipelineCacheKey);
 }

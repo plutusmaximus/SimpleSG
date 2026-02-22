@@ -386,7 +386,7 @@ DawnGpuDevice::CreateColorTarget(const unsigned width, const unsigned height, co
     expectv(res, "Error allocating DawnGpuColorTarget");
 
     return ::new(&res->ColorTarget)
-        DawnGpuColorTarget(this, texture, view, samplerResult.value(), width, height);
+        DawnGpuColorTarget(this, texture, view, samplerResult.value(), width, height, kColorTargetFormat);
 }
 
 Result<void>
@@ -432,7 +432,7 @@ DawnGpuDevice::CreateDepthTarget(const unsigned width,
     expectv(res, "Error allocating DawnGpuDepthTarget");
 
     return ::new(&res->DepthTarget)
-        DawnGpuDepthTarget(this, texture, view, width, height);
+        DawnGpuDepthTarget(this, texture, view, width, height, kDepthTargetFormat);
 }
 
 Result<void>
@@ -504,255 +504,10 @@ DawnGpuDevice::DestroyFragmentShader(GpuFragmentShader* shader)
     return Result<void>::Success;
 }
 
-Result<GpuPipeline*>
-DawnGpuDevice::CreatePipeline(const GpuPipelineType pipelineType,
-    GpuVertexShader* vertexShader,
-    GpuFragmentShader* fragmentShader)
-{
-    expectv(pipelineType == GpuPipelineType::Opaque,
-        "Only opaque pipelines are supported for now.");
-
-    // Bind group 1 is for vertex shaders.
-    wgpu::BindGroupLayoutEntry vertBglEntries[] =//
-    {
-        {
-            /*
-                struct XForm
-                {
-                    modelXform: mat4x4<f32>,
-                    modelViewProjXform: mat4x4<f32>,
-                };
-            */
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Vertex,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::Uniform,
-                .hasDynamicOffset = true,
-                .minBindingSize = sizeof(Mat44f) * 2,
-            },
-        },
-        /*
-            color: vec4<f32>,
-        */
-        {
-            .binding = 1,
-            .visibility = wgpu::ShaderStage::Vertex,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::Uniform,
-                .hasDynamicOffset = true,
-                .minBindingSize = sizeof(Vec4f),
-            },
-        },
-    };
-
-    wgpu::BindGroupLayoutDescriptor vertBglDesc = //
-        {
-            .label = "ColorTargetVertBGL",
-            .entryCount = std::size(vertBglEntries),
-            .entries = vertBglEntries,
-        };
-
-    wgpu::BindGroupLayout vertBgl = Device.CreateBindGroupLayout(&vertBglDesc);
-    expect(vertBgl, "Failed to create BindGroupLayout");
-
-    // Bind group 2 is for fragment shaders.
-    wgpu::BindGroupLayoutEntry fragBglEntries[] =//
-    {
-        {
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .texture =
-            {
-                .sampleType = wgpu::TextureSampleType::Float,
-                .viewDimension = wgpu::TextureViewDimension::e2D,
-                .multisampled = false,
-            },
-        },
-        {
-            .binding = 1,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .sampler =
-            {
-                .type = wgpu::SamplerBindingType::Filtering,
-            },
-        }
-    };
-
-    wgpu::BindGroupLayoutDescriptor fragBglDesc = //
-        {
-            .label = "ColorTargetFragBGL",
-            .entryCount = std::size(fragBglEntries),
-            .entries = fragBglEntries,
-        };
-
-    wgpu::BindGroupLayout fragBgl = Device.CreateBindGroupLayout(&fragBglDesc);
-    expect(fragBgl, "Failed to create BindGroupLayout");
-
-    wgpu::BindGroupLayout bgl[] = //
-        {
-            nullptr, // Group 0 unused
-            vertBgl,
-            fragBgl,
-        };
-
-    wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
-        {
-            .label = "ColorTargetPipelineLayout",
-            .bindGroupLayoutCount = std::size(bgl),
-            .bindGroupLayouts = bgl,
-        };
-
-    wgpu::PipelineLayout pipelineLayout = Device.CreatePipelineLayout(&pipelineLayoutDesc);
-    expect(pipelineLayout, "Failed to create PipelineLayout");
-
-    wgpu::BlendState blendState //
-        {
-            .color =
-            {
-                .operation = wgpu::BlendOperation::Add,
-                .srcFactor = wgpu::BlendFactor::SrcAlpha,
-                .dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha,
-            },
-            .alpha =
-            {
-                .operation = wgpu::BlendOperation::Add,
-                .srcFactor = wgpu::BlendFactor::One,
-                .dstFactor = wgpu::BlendFactor::Zero,
-            },
-        };
-
-    wgpu::ColorTargetState colorTargetState //
-        {
-            .format = kColorTargetFormat,
-            .blend = &blendState,
-            .writeMask = wgpu::ColorWriteMask::All,
-        };
-
-    wgpu::DepthStencilState depthStencilState //
-        {
-            .format = kDepthTargetFormat,
-            .depthWriteEnabled = true,
-            .depthCompare = wgpu::CompareFunction::Less,
-            /*.stencilFront =
-            {
-                .compare = wgpu::CompareFunction::Always,
-                .failOp = wgpu::StencilOperation::Keep,
-                .depthFailOp = wgpu::StencilOperation::Keep,
-                .passOp = wgpu::StencilOperation::Keep,
-            },
-            .stencilBack =
-            {
-                .compare = wgpu::CompareFunction::Always,
-                .failOp = wgpu::StencilOperation::Keep,
-                .depthFailOp = wgpu::StencilOperation::Keep,
-                .passOp = wgpu::StencilOperation::Keep,
-            },
-            .stencilReadMask = 0xFF,
-            .stencilWriteMask = 0xFF,*/
-            .depthBias = 0,
-            .depthBiasSlopeScale = 0.0f,
-            .depthBiasClamp = 0.0f,
-        };
-
-    wgpu::FragmentState fragmentState //
-        {
-            .module = static_cast<DawnGpuFragmentShader*>(fragmentShader)->GetShader(),
-            .entryPoint = "main",
-            .targetCount = 1,
-            .targets = &colorTargetState,
-        };
-
-    wgpu::VertexAttribute vertexAttributes[] //
-        {
-            {
-                .format = wgpu::VertexFormat::Float32x3,
-                .offset = offsetof(Vertex, pos),
-                .shaderLocation = 0,
-            },
-            {
-                .format = wgpu::VertexFormat::Float32x3,
-                .offset = offsetof(Vertex, normal),
-                .shaderLocation = 1,
-            },
-            {
-                .format = wgpu::VertexFormat::Float32x2,
-                .offset = offsetof(Vertex, uvs[0]),
-                .shaderLocation = 2,
-            },
-        };
-    wgpu::VertexBufferLayout vertexBufferLayout //
-        {
-            .stepMode = wgpu::VertexStepMode::Vertex,
-            .arrayStride = sizeof(Vertex),
-            .attributeCount = std::size(vertexAttributes),
-            .attributes = vertexAttributes,
-        };
-
-    wgpu::RenderPipelineDescriptor descriptor//
-    {
-        .label = "ColorTargetPipeline",
-        .layout = pipelineLayout,
-        .vertex =
-        {
-            .module = static_cast<DawnGpuVertexShader*>(vertexShader)->GetShader(),
-            .entryPoint = "main",
-            .bufferCount = 1,
-            .buffers = &vertexBufferLayout,
-        },
-        .primitive =
-        {
-            .topology = wgpu::PrimitiveTopology::TriangleList,
-            .stripIndexFormat = wgpu::IndexFormat::Undefined,
-            .frontFace = wgpu::FrontFace::CW,
-            .cullMode = wgpu::CullMode::Back,
-            .unclippedDepth = false,
-        },
-        .depthStencil = &depthStencilState,
-        .multisample =
-        {
-            .count = 1,
-            .mask = 0xFFFFFFFF,
-            .alphaToCoverageEnabled = false,
-        },
-        .fragment = &fragmentState,
-    };
-
-    wgpu::RenderPipeline pipeline = Device.CreateRenderPipeline(&descriptor);
-
-    /*m_Device.CreateRenderPipelineAsync(
-        &descriptor,
-        wgpu::CallbackMode::AllowProcessEvents,
-        +[](wgpu::CreatePipelineAsyncStatus status,
-                wgpu::RenderPipeline pipeline,
-                wgpu::StringView message,
-                CreateRenderPipelineOp *self)
-        { self->OnPipelineCreated(status, pipeline, message); },
-        this);*/
-
-    GpuResource* res = m_ResourceAllocator.New();
-
-    expectv(res, "Error allocating DawnGpuPipeline");
-
-    return ::new(&res->Pipeline) DawnGpuPipeline(this, pipeline, vertBgl, fragBgl);
-}
-
-Result<void>
-DawnGpuDevice::DestroyPipeline(GpuPipeline* pipeline)
-{
-    DawnGpuPipeline* dawnPipeline = static_cast<DawnGpuPipeline*>(pipeline);
-    eassert(this == dawnPipeline->m_GpuDevice,
-        "Pipeline does not belong to this device");
-    dawnPipeline->~DawnGpuPipeline();
-    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(pipeline));
-    return Result<void>::Success;
-}
-
 Result<Renderer*>
-DawnGpuDevice::CreateRenderer(GpuPipeline* pipeline)
+DawnGpuDevice::CreateRenderer()
 {
-    DawnRenderer* renderer = m_RendererAllocator.New(this, pipeline);
+    DawnRenderer* renderer = m_RendererAllocator.New(this);
     expect(renderer, "Error allocating DawnRenderer");
     return renderer;
 }
@@ -914,7 +669,7 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
     wgpu::DeviceDescriptor deviceDesc //
         {
             {
-                .nextInChain = &toggles,
+                //.nextInChain = &toggles,
                 .label = "MainDevice",
             },
         };

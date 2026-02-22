@@ -24,7 +24,7 @@ public:
     SdlRenderer(SdlRenderer&&) = delete;
     SdlRenderer& operator=(SdlRenderer&&) = delete;
 
-    SdlRenderer(SdlGpuDevice* gpuDevice, GpuPipeline* pipeline);
+    SdlRenderer(SdlGpuDevice* gpuDevice);
 
     ~SdlRenderer() override;
 
@@ -73,9 +73,16 @@ private:
     /// @brief Copy the color target to the swapchain texture.
     Result<void> CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTexture* target);
 
+    Result<GpuVertexShader*> GetColorVertexShader();
+    Result<GpuFragmentShader*> GetColorFragmentShader();
+    Result<SDL_GPUGraphicsPipeline*> GetColorPipeline();
+
     Result<GpuVertexShader*> GetCopyColorTargetVertexShader();
     Result<GpuFragmentShader*> GetCopyColorTargetFragmentShader();
     Result<SDL_GPUGraphicsPipeline*> GetCopyColorTargetPipeline();
+
+    Result<GpuVertexShader*> CreateVertexShader(const char* path);
+    Result<GpuFragmentShader*> CreateFragmentShader(const char* path);
 
     /// Get or create the default texture.
     /// The default texture is used when a material does not have a base texture.
@@ -85,13 +92,17 @@ private:
     Result<void> RenderGui(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTexture* target);
 
     SdlGpuDevice* const m_GpuDevice;
-    GpuPipeline* m_Pipeline{ nullptr };
     GpuColorTarget* m_ColorTarget{ nullptr };
     GpuDepthTarget* m_DepthTarget{ nullptr };
 
     State m_State[2];
     State* m_CurrentState = &m_State[0];
     GpuTexture* m_DefaultBaseTexture{nullptr};
+
+    /// These are used for rendering to the color target texture.
+    GpuVertexShader* m_ColorVertexShader{ nullptr };
+    GpuFragmentShader* m_ColorFragmentShader{ nullptr };
+    SDL_GPUGraphicsPipeline* m_ColorPipeline{ nullptr };
 
     /// These are used for copying the color target to the swapchain texture.
     GpuVertexShader* m_CopyTextureVertexShader{ nullptr };

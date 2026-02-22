@@ -19,9 +19,14 @@
 
 #include <cstdio>
 
-DawnRenderer::DawnRenderer(DawnGpuDevice* gpuDevice, GpuPipeline* pipeline)
+static constexpr const char* COMPOSITE_COLOR_TARGET_VS = "shaders/Debug/FullScreenTriangle.vs.wgsl";
+static constexpr const char* COMPOSITE_COLOR_TARGET_FS = "shaders/Debug/FullScreenTriangle.fs.wgsl";
+
+static constexpr const char* COLOR_PIPELINE_VS = "shaders/Debug/VertexShader.vs.wgsl";
+static constexpr const char* COLOR_PIPELINE_FS = "shaders/Debug/FragmentShader.fs.wgsl";
+
+DawnRenderer::DawnRenderer(DawnGpuDevice* gpuDevice)
     : m_GpuDevice(gpuDevice)
-    , m_Pipeline(pipeline)
 {
     InitGui();
 }
@@ -58,6 +63,24 @@ DawnRenderer::~DawnRenderer()
         }
     }
 
+    if(m_ColorVertexShader)
+    {
+        auto result = m_GpuDevice->DestroyVertexShader(m_ColorVertexShader);
+        if(!result)
+        {
+            logError("Failed to destroy color vertex shader: {}", result.error());
+        }
+    }
+
+    if(m_ColorFragmentShader)
+    {
+        auto result = m_GpuDevice->DestroyFragmentShader(m_ColorFragmentShader);
+        if(!result)
+        {
+            logError("Failed to destroy color fragment shader: {}", result.error());
+        }
+    }
+
     if(m_CopyTextureVertexShader)
     {
         auto result = m_GpuDevice->DestroyVertexShader(m_CopyTextureVertexShader);
@@ -78,8 +101,7 @@ DawnRenderer::~DawnRenderer()
 
     if(m_CopyTexturePipeline)
     {
-        //DO NOT SUBMIT
-        //SDL_ReleaseGPUGraphicsPipeline(m_GpuDevice->Device, m_CopyTexturePipeline);
+        // m_CopyTexturePipeline is ref-counted, so nothing to do here
     }
 
     //DO NOT SUBMIT
@@ -235,12 +257,16 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
         renderPass = renderPassResult.value();
     }
 
-    auto dawnGpuPipeline = static_cast<DawnGpuPipeline*>(m_Pipeline);
-
     static PerfTimer setPipelineTimer("Renderer.Render.SetPipeline");
     {
         auto scopedSetPipelineTimer = setPipelineTimer.StartScoped();
-        renderPass.SetPipeline(dawnGpuPipeline->GetPipeline());
+
+        auto pipelineResult = GetColorPipeline();
+        expect(pipelineResult, pipelineResult.error());
+        auto pipeline = pipelineResult.value();
+
+        renderPass.SetPipeline(pipeline);
+        //Bind group zero is unused.
         renderPass.SetBindGroup(0, nullptr, 0, nullptr);
     }
 
@@ -324,7 +350,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
         wgpu::BindGroupDescriptor vsBgDesc //
             {
                 .label = "vsBindGroup",
-                .layout = dawnGpuPipeline->GetVertexBindGroupLayout(),
+                .layout = m_VsBindGroupLayout,
                 .entryCount = std::size(vsBgEntries),
                 .entries = vsBgEntries,
             };
@@ -403,7 +429,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
                 wgpu::BindGroupDescriptor fsBgDesc //
                     {
                         .label = "fsBindGroup",
-                        .layout = dawnGpuPipeline->GetFragmentBindGroupLayout(),
+                        .layout = m_FsBindGroupLayout,
                         .entryCount = std::size(fsBgEntries),
                         .entries = fsBgEntries,
                     };
@@ -765,6 +791,280 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
 }
 
 Result<GpuVertexShader*>
+DawnRenderer::GetColorVertexShader()
+{
+    if(m_ColorVertexShader)
+    {
+        return m_ColorVertexShader;
+    }
+
+    auto vsResult = CreateVertexShader(COLOR_PIPELINE_VS);
+    expect(vsResult, vsResult.error());
+
+    m_ColorVertexShader = vsResult.value();
+    return m_ColorVertexShader;
+}
+
+Result<GpuFragmentShader*>
+DawnRenderer::GetColorFragmentShader()
+{
+    if(m_ColorFragmentShader)
+    {
+        return m_ColorFragmentShader;
+    }
+
+    auto fsResult = CreateFragmentShader(COLOR_PIPELINE_FS);
+    expect(fsResult, fsResult.error());
+
+    m_ColorFragmentShader = fsResult.value();
+    return m_ColorFragmentShader;
+}
+
+Result<wgpu::RenderPipeline>
+DawnRenderer::GetColorPipeline()
+{
+    if(m_ColorPipeline)
+    {
+        return m_ColorPipeline;
+    }
+
+    if(!everify(m_ColorTarget, "Color target is null"))
+    {
+        return Error("Color target is null");
+    }
+
+    auto vertexShaderResult = GetColorVertexShader();
+    expect(vertexShaderResult, vertexShaderResult.error());
+    auto vertexShader = vertexShaderResult.value();
+
+    auto fragmentShaderResult = GetColorFragmentShader();
+    expect(fragmentShaderResult, fragmentShaderResult.error());
+    auto fragmentShader = fragmentShaderResult.value();
+
+    // Bind group 1 is for vertex shaders.
+    wgpu::BindGroupLayoutEntry vertBglEntries[] =//
+    {
+        {
+            /*
+                struct XForm
+                {
+                    modelXform: mat4x4<f32>,
+                    modelViewProjXform: mat4x4<f32>,
+                };
+            */
+            .binding = 0,
+            .visibility = wgpu::ShaderStage::Vertex,
+            .buffer =
+            {
+                .type = wgpu::BufferBindingType::Uniform,
+                .hasDynamicOffset = true,
+                .minBindingSize = sizeof(Mat44f) * 2,
+            },
+        },
+        /*
+            color: vec4<f32>,
+        */
+        {
+            .binding = 1,
+            .visibility = wgpu::ShaderStage::Vertex,
+            .buffer =
+            {
+                .type = wgpu::BufferBindingType::Uniform,
+                .hasDynamicOffset = true,
+                .minBindingSize = sizeof(Vec4f),
+            },
+        },
+    };
+
+    wgpu::BindGroupLayoutDescriptor vertBglDesc = //
+        {
+            .label = "ColorTargetVertBGL",
+            .entryCount = std::size(vertBglEntries),
+            .entries = vertBglEntries,
+        };
+
+    m_VsBindGroupLayout = m_GpuDevice->Device.CreateBindGroupLayout(&vertBglDesc);
+    expect(m_VsBindGroupLayout, "Failed to create BindGroupLayout");
+
+    // Bind group 2 is for fragment shaders.
+    wgpu::BindGroupLayoutEntry fragBglEntries[] =//
+    {
+        {
+            .binding = 0,
+            .visibility = wgpu::ShaderStage::Fragment,
+            .texture =
+            {
+                .sampleType = wgpu::TextureSampleType::Float,
+                .viewDimension = wgpu::TextureViewDimension::e2D,
+                .multisampled = false,
+            },
+        },
+        {
+            .binding = 1,
+            .visibility = wgpu::ShaderStage::Fragment,
+            .sampler =
+            {
+                .type = wgpu::SamplerBindingType::Filtering,
+            },
+        }
+    };
+
+    wgpu::BindGroupLayoutDescriptor fragBglDesc = //
+        {
+            .label = "ColorTargetFragBGL",
+            .entryCount = std::size(fragBglEntries),
+            .entries = fragBglEntries,
+        };
+
+    m_FsBindGroupLayout = m_GpuDevice->Device.CreateBindGroupLayout(&fragBglDesc);
+    expect(m_FsBindGroupLayout, "Failed to create BindGroupLayout");
+
+    wgpu::BindGroupLayout bgl[] = //
+        {
+            nullptr, // Group 0 unused
+            m_VsBindGroupLayout,
+            m_FsBindGroupLayout,
+        };
+
+    wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
+        {
+            .label = "ColorTargetPipelineLayout",
+            .bindGroupLayoutCount = std::size(bgl),
+            .bindGroupLayouts = bgl,
+        };
+
+    wgpu::PipelineLayout pipelineLayout = m_GpuDevice->Device.CreatePipelineLayout(&pipelineLayoutDesc);
+    expect(pipelineLayout, "Failed to create PipelineLayout");
+
+    wgpu::BlendState blendState //
+        {
+            .color =
+            {
+                .operation = wgpu::BlendOperation::Add,
+                .srcFactor = wgpu::BlendFactor::SrcAlpha,
+                .dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha,
+            },
+            .alpha =
+            {
+                .operation = wgpu::BlendOperation::Add,
+                .srcFactor = wgpu::BlendFactor::One,
+                .dstFactor = wgpu::BlendFactor::Zero,
+            },
+        };
+
+    wgpu::ColorTargetState colorTargetState //
+        {
+            .format = static_cast<DawnGpuColorTarget*>(m_ColorTarget)->GetFormat(),
+            .blend = &blendState,
+            .writeMask = wgpu::ColorWriteMask::All,
+        };
+
+    wgpu::DepthStencilState depthStencilState //
+        {
+            .format = static_cast<DawnGpuDepthTarget*>(m_DepthTarget)->GetFormat(),
+            .depthWriteEnabled = true,
+            .depthCompare = wgpu::CompareFunction::Less,
+            /*.stencilFront =
+            {
+                .compare = wgpu::CompareFunction::Always,
+                .failOp = wgpu::StencilOperation::Keep,
+                .depthFailOp = wgpu::StencilOperation::Keep,
+                .passOp = wgpu::StencilOperation::Keep,
+            },
+            .stencilBack =
+            {
+                .compare = wgpu::CompareFunction::Always,
+                .failOp = wgpu::StencilOperation::Keep,
+                .depthFailOp = wgpu::StencilOperation::Keep,
+                .passOp = wgpu::StencilOperation::Keep,
+            },
+            .stencilReadMask = 0xFF,
+            .stencilWriteMask = 0xFF,*/
+            .depthBias = 0,
+            .depthBiasSlopeScale = 0.0f,
+            .depthBiasClamp = 0.0f,
+        };
+
+    wgpu::FragmentState fragmentState //
+        {
+            .module = static_cast<DawnGpuFragmentShader*>(fragmentShader)->GetShader(),
+            .entryPoint = "main",
+            .targetCount = 1,
+            .targets = &colorTargetState,
+        };
+
+    wgpu::VertexAttribute vertexAttributes[] //
+        {
+            {
+                .format = wgpu::VertexFormat::Float32x3,
+                .offset = offsetof(Vertex, pos),
+                .shaderLocation = 0,
+            },
+            {
+                .format = wgpu::VertexFormat::Float32x3,
+                .offset = offsetof(Vertex, normal),
+                .shaderLocation = 1,
+            },
+            {
+                .format = wgpu::VertexFormat::Float32x2,
+                .offset = offsetof(Vertex, uvs[0]),
+                .shaderLocation = 2,
+            },
+        };
+    wgpu::VertexBufferLayout vertexBufferLayout //
+        {
+            .stepMode = wgpu::VertexStepMode::Vertex,
+            .arrayStride = sizeof(Vertex),
+            .attributeCount = std::size(vertexAttributes),
+            .attributes = vertexAttributes,
+        };
+
+    wgpu::RenderPipelineDescriptor descriptor//
+    {
+        .label = "ColorTargetPipeline",
+        .layout = pipelineLayout,
+        .vertex =
+        {
+            .module = static_cast<DawnGpuVertexShader*>(vertexShader)->GetShader(),
+            .entryPoint = "main",
+            .bufferCount = 1,
+            .buffers = &vertexBufferLayout,
+        },
+        .primitive =
+        {
+            .topology = wgpu::PrimitiveTopology::TriangleList,
+            .stripIndexFormat = wgpu::IndexFormat::Undefined,
+            .frontFace = wgpu::FrontFace::CW,
+            .cullMode = wgpu::CullMode::Back,
+            .unclippedDepth = false,
+        },
+        .depthStencil = &depthStencilState,
+        .multisample =
+        {
+            .count = 1,
+            .mask = 0xFFFFFFFF,
+            .alphaToCoverageEnabled = false,
+        },
+        .fragment = &fragmentState,
+    };
+
+    m_ColorPipeline = m_GpuDevice->Device.CreateRenderPipeline(&descriptor);
+    expect(m_ColorPipeline, "Failed to create render pipeline");
+
+    return m_ColorPipeline;
+
+    /*m_Device.CreateRenderPipelineAsync(
+        &descriptor,
+        wgpu::CallbackMode::AllowProcessEvents,
+        +[](wgpu::CreatePipelineAsyncStatus status,
+                wgpu::RenderPipeline pipeline,
+                wgpu::StringView message,
+                CreateRenderPipelineOp *self)
+        { self->OnPipelineCreated(status, pipeline, message); },
+        this);*/
+}
+
+Result<GpuVertexShader*>
 DawnRenderer::GetCopyColorTargetVertexShader()
 {
     if(m_CopyTextureVertexShader)
@@ -772,13 +1072,7 @@ DawnRenderer::GetCopyColorTargetVertexShader()
         return m_CopyTextureVertexShader;
     }
 
-    std::vector<uint8_t> shaderCode;
-    auto loadResult = LoadShaderCode("shaders/Debug/FullScreenTriangle.vs.wgsl", shaderCode);
-    expect(loadResult, loadResult.error());
-
-    std::span<uint8_t> shaderCodeSpan(shaderCode.data(), shaderCode.size());
-
-    auto vsResult = m_GpuDevice->CreateVertexShader(shaderCodeSpan);
+    auto vsResult = CreateVertexShader(COMPOSITE_COLOR_TARGET_VS);
     expect(vsResult, vsResult.error());
 
     m_CopyTextureVertexShader = vsResult.value();
@@ -793,13 +1087,7 @@ DawnRenderer::GetCopyColorTargetFragmentShader()
         return m_CopyTextureFragmentShader;
     }
 
-    std::vector<uint8_t> shaderCode;
-    auto loadResult = LoadShaderCode("shaders/Debug/FullScreenTriangle.fs.wgsl", shaderCode);
-    expect(loadResult, loadResult.error());
-
-    std::span<uint8_t> shaderCodeSpan(shaderCode.data(), shaderCode.size());
-
-    auto fsResult = m_GpuDevice->CreateFragmentShader(shaderCodeSpan);
+    auto fsResult = CreateFragmentShader(COMPOSITE_COLOR_TARGET_FS);
     expect(fsResult, fsResult.error());
 
     m_CopyTextureFragmentShader = fsResult.value();
@@ -967,6 +1255,30 @@ DawnRenderer::GetCopyColorTargetPipeline()
     m_CopyTexturePipeline = pipeline;
 
     return m_CopyTexturePipeline;
+}
+
+Result<GpuVertexShader*>
+DawnRenderer::CreateVertexShader(const char* path)
+{
+    std::vector<uint8_t> shaderCode;
+    auto loadResult = LoadShaderCode(path, shaderCode);
+    expect(loadResult, loadResult.error());
+
+    std::span<uint8_t> shaderCodeSpan(shaderCode.data(), shaderCode.size());
+
+    return m_GpuDevice->CreateVertexShader(shaderCodeSpan);
+}
+
+Result<GpuFragmentShader*>
+DawnRenderer::CreateFragmentShader(const char* path)
+{
+    std::vector<uint8_t> shaderCode;
+    auto loadResult = LoadShaderCode(path, shaderCode);
+    expect(loadResult, loadResult.error());
+
+    std::span<uint8_t> shaderCodeSpan(shaderCode.data(), shaderCode.size());
+
+    return m_GpuDevice->CreateFragmentShader(shaderCodeSpan);
 }
 
 Result<GpuTexture*>

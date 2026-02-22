@@ -90,11 +90,6 @@ SdlGpuFragmentShader::~SdlGpuFragmentShader()
     if (m_Shader) { SDL_ReleaseGPUShader(m_GpuDevice->Device, m_Shader); }
 }
 
-SdlGpuPipeline::~SdlGpuPipeline()
-{
-    if (m_Pipeline) { SDL_ReleaseGPUGraphicsPipeline(m_GpuDevice->Device, m_Pipeline); }
-};
-
 SdlGpuDevice::SdlGpuDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice)
     : Window(window)
     , Device(gpuDevice)
@@ -503,7 +498,7 @@ SdlGpuDevice::CreateColorTarget(const unsigned width, const unsigned height, con
     expectv(res, "Error allocating GpuResource");
 
     GpuColorTarget* gpuColorTarget = ::new(&res->ColorTarget)
-        SdlGpuColorTarget(this, texture, samplerResult.value(), width, height);
+        SdlGpuColorTarget(this, texture, samplerResult.value(), width, height, kColorTargetFormat);
 
     return gpuColorTarget;
 }
@@ -559,7 +554,7 @@ SdlGpuDevice::CreateDepthTarget(
 
     depthBufferCleanup.release();
 
-    return ::new(&res->Texture) SdlGpuDepthTarget(this, depthBuffer, width, height);
+    return ::new(&res->Texture) SdlGpuDepthTarget(this, depthBuffer, width, height, kDepthTargetFormat);
 }
 
 Result<void>
@@ -657,132 +652,10 @@ SdlGpuDevice::DestroyFragmentShader(GpuFragmentShader* shader)
     return Result<void>::Success;
 }
 
-Result<GpuPipeline*>
-SdlGpuDevice::CreatePipeline(const GpuPipelineType pipelineType,
-    GpuVertexShader* vertexShader,
-    GpuFragmentShader* fragmentShader)
-{
-    expectv(pipelineType == GpuPipelineType::Opaque,
-        "Only opaque pipelines are supported for now.");
-
-    SDL_GPUVertexBufferDescription vertexBufDescriptions[1] = //
-        {
-            {
-                .slot = 0,
-                .pitch = sizeof(Vertex),
-                .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
-            },
-        };
-    SDL_GPUVertexAttribute vertexAttributes[] = //
-        {
-            {
-                //
-                .location = 0,
-                .buffer_slot = 0,
-                .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
-                .offset = offsetof(Vertex, pos),
-            },
-            {
-                //
-                .location = 1,
-                .buffer_slot = 0,
-                .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
-                .offset = offsetof(Vertex, normal),
-            },
-            { //
-                .location = 2,
-                .buffer_slot = 0,
-                .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
-                .offset = offsetof(Vertex, uvs[0]),
-            },
-        };
-
-    SDL_GPUColorTargetDescription colorTargetDesc//
-    {
-        .format = kColorTargetFormat,
-        .blend_state =
-        {
-            .src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
-            .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-            .color_blend_op = SDL_GPU_BLENDOP_ADD,
-            .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
-            .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO,
-            .alpha_blend_op = SDL_GPU_BLENDOP_ADD,
-            .color_write_mask = SDL_GPU_COLORCOMPONENT_R |
-                               SDL_GPU_COLORCOMPONENT_G |
-                               SDL_GPU_COLORCOMPONENT_B |
-                               SDL_GPU_COLORCOMPONENT_A,
-            .enable_blend = true,
-            .enable_color_write_mask = false,
-        },
-    };
-
-    SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo //
-        {
-            .vertex_shader = static_cast<SdlGpuVertexShader*>(vertexShader)->GetShader(),
-            .fragment_shader = static_cast<SdlGpuFragmentShader*>(fragmentShader)->GetShader(),
-            .vertex_input_state = //
-            {
-                .vertex_buffer_descriptions = vertexBufDescriptions,
-                .num_vertex_buffers = 1,
-                .vertex_attributes = vertexAttributes,
-                .num_vertex_attributes = std::size(vertexAttributes),
-            },
-            .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-            .rasterizer_state = //
-            {
-                .fill_mode = SDL_GPU_FILLMODE_FILL,
-                .cull_mode = SDL_GPU_CULLMODE_BACK,
-                .front_face = SDL_GPU_FRONTFACE_CLOCKWISE,
-                .enable_depth_clip = true,
-            },
-            .depth_stencil_state = //
-            {
-                .compare_op = SDL_GPU_COMPAREOP_LESS,
-                .enable_depth_test = true,
-                .enable_depth_write = true,
-            },
-            .target_info = //
-            {
-                .color_target_descriptions = &colorTargetDesc,
-                .num_color_targets = 1,
-                .depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
-                .has_depth_stencil_target = true,
-            },
-        };
-
-    SDL_GPUGraphicsPipeline* pipeline = SDL_CreateGPUGraphicsPipeline(Device, &pipelineCreateInfo);
-    expect(pipeline, SDL_GetError());
-
-    auto pipelineCleanup = scope_exit([&]()
-    {
-        SDL_ReleaseGPUGraphicsPipeline(Device, pipeline);
-    });
-
-    GpuResource* res = m_ResourceAllocator.New();
-
-    expectv(res, "Error allocating GpuResource");
-
-    pipelineCleanup.release();
-
-    return ::new(&res->Pipeline) SdlGpuPipeline(this, pipeline);
-}
-
-Result<void>
-SdlGpuDevice::DestroyPipeline(GpuPipeline* pipeline)
-{
-    SdlGpuPipeline* sdlPipeline = static_cast<SdlGpuPipeline*>(pipeline);
-    eassert(this == sdlPipeline->m_GpuDevice,
-        "Pipeline does not belong to this device");
-    sdlPipeline->~SdlGpuPipeline();
-    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(pipeline));
-    return Result<void>::Success;
-}
-
 Result<Renderer*>
-SdlGpuDevice::CreateRenderer(GpuPipeline* pipeline)
+SdlGpuDevice::CreateRenderer()
 {
-    SdlRenderer* renderer = m_RendererAllocator.New(this, pipeline);
+    SdlRenderer* renderer = m_RendererAllocator.New(this);
     expect(renderer, "Error allocating SdlRenderer");
     return renderer;
 }

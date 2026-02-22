@@ -15,7 +15,6 @@
 #include <filesystem>
 
 static Result<ModelResource> CreateTriangleModel(ResourceCache* cache);
-static Result<GpuPipeline*> CreatePipeline(ResourceCache* cache);
 
 constexpr const char* kAppName = "Triangle";
 
@@ -90,10 +89,7 @@ static Result<void> MainLoop()
     expect(modelResult, modelResult.error());
     auto model = *modelResult;
 
-    auto pipelineResult = CreatePipeline(&resourceCache);
-    expect(pipelineResult, pipelineResult.error());
-
-    auto rendererResult = gpuDevice->CreateRenderer(pipelineResult.value());
+    auto rendererResult = gpuDevice->CreateRenderer();
     expect(rendererResult, rendererResult.error());
 
     auto renderer = *rendererResult;
@@ -318,29 +314,4 @@ static Result<ModelResource> CreateTriangleModel(ResourceCache* cache)
     }
 
     return cache->GetModel(cacheKey);
-}
-
-static Result<GpuPipeline*> CreatePipeline(ResourceCache* cache)
-{
-    const PipelineSpec pipelineSpec//
-    {
-        .PipelineType = GpuPipelineType::Opaque,
-        .VertexShader{"shaders/Debug/VertexShader.vs", 3},
-    #if DAWN_GPU
-        .FragmentShader{"shaders/Debug/FragmentShader.fs"},
-    #else
-        .FragmentShader{"shaders/Debug/FragmentShader.ps"},
-    #endif
-    };
-
-    const CacheKey pipelineCacheKey("MainPipeline");
-    auto asyncResult = cache->CreatePipelineAsync(pipelineCacheKey, pipelineSpec);
-    expect(asyncResult, asyncResult.error());
-
-    while(asyncResult->IsPending())
-    {
-        cache->ProcessPendingOperations();
-    }
-
-    return cache->GetPipeline(pipelineCacheKey);
 }
