@@ -34,9 +34,8 @@ if(MSVC)
   endif()
 
     # Enable MSVC STL hardening
-    #   TODO - remove in release builds
-    add_compile_definitions(_MSVC_STL_HARDENING=2 _ITERATOR_DEBUG_LEVEL=2)
-    #add_compile_definitions(_MSVC_STL_HARDENING=0 _ITERATOR_DEBUG_LEVEL=0)
+    add_compile_definitions($<$<CONFIG:Debug>:_MSVC_STL_HARDENING=2> $<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=2>)
+    #add_compile_definitions($<$<CONFIG:Debug>:_MSVC_STL_HARDENING=0> $<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=0>)
 endif()
 
 # Helper function to set compiler flags for a target

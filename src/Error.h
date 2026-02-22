@@ -114,7 +114,10 @@ public:
 
 #else // NDEBUG
 
-#define everify(expr) (static_cast<bool>(expr))
-#define eassert(expr)
+#define everify(expr, ...) (static_cast<bool>(expr))
+#define eassert(expr, ...)
+
+#define assert_capture(capName)                                                                    \
+    for(Asserts::Capture capName; false;)
 
 #endif // NDEBUG

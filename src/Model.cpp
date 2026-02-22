@@ -15,24 +15,22 @@ ModelSpec::ModelSpec(
 {
     for(size_t i = 0; i < m_MeshInstances.size(); ++i)
     {
-        const MeshInstance& meshInstance = m_MeshInstances[i];
         eassert(
-            meshInstance.MeshIndex >= 0 &&
-            meshInstance.MeshIndex < static_cast<int>(m_MeshSpecs.size()),
-            "Mesh instance {} has invalid mesh index {}", i, meshInstance.MeshIndex);
+            m_MeshInstances[i].MeshIndex >= 0 &&
+            m_MeshInstances[i].MeshIndex < static_cast<int>(m_MeshSpecs.size()),
+            "Mesh instance {} has invalid mesh index {}", i, m_MeshInstances[i].MeshIndex);
 
         eassert(
-            meshInstance.NodeIndex >= 0 &&
-            meshInstance.NodeIndex < static_cast<int>(m_TransformNodes.size()),
-            "Mesh instance {} has invalid node index {}", i, meshInstance.NodeIndex);
+            m_MeshInstances[i].NodeIndex >= 0 &&
+            m_MeshInstances[i].NodeIndex < static_cast<int>(m_TransformNodes.size()),
+            "Mesh instance {} has invalid node index {}", i, m_MeshInstances[i].NodeIndex);
     }
 
     for(size_t i = 0; i < m_TransformNodes.size(); ++i)
     {
-        const TransformNode& node = m_TransformNodes[i];
-        eassert(node.ParentIndex < static_cast<int>(i),
+        eassert(m_TransformNodes[i].ParentIndex < static_cast<int>(i),
             "Transform node {} has invalid parent index {}, parent must be defined before child",
-            i, node.ParentIndex);
+            i, m_TransformNodes[i].ParentIndex);
     }
 }
 
@@ -84,24 +82,22 @@ Model::Create(
             meshes[meshInstances[i].MeshIndex].GetName(),
             meshInstances[i].NodeIndex);
 
-        const MeshInstance& meshInstance = meshInstances[i];
         eassert(
-            meshInstance.MeshIndex >= 0 &&
-            meshInstance.MeshIndex < static_cast<int>(meshes.size()),
-            "Mesh instance {} has invalid mesh index {}", i, meshInstance.MeshIndex);
+            meshInstances[i].MeshIndex >= 0 &&
+            meshInstances[i].MeshIndex < static_cast<int>(meshes.size()),
+            "Mesh instance {} has invalid mesh index {}", i, meshInstances[i].MeshIndex);
 
         eassert(
-            meshInstance.NodeIndex >= 0 &&
-            meshInstance.NodeIndex < static_cast<int>(transformNodes.size()),
-            "Mesh instance {} has invalid node index {}", i, meshInstance.NodeIndex);
+            meshInstances[i].NodeIndex >= 0 &&
+            meshInstances[i].NodeIndex < static_cast<int>(transformNodes.size()),
+            "Mesh instance {} has invalid node index {}", i, meshInstances[i].NodeIndex);
     }
 
     for(size_t i = 0; i < transformNodes.size(); ++i)
     {
-        const TransformNode& node = transformNodes[i];
-        eassert(node.ParentIndex < static_cast<int>(i),
+        eassert(transformNodes[i].ParentIndex < static_cast<int>(i),
             "Transform node {} has invalid parent index {}, parent must be defined before child",
-            i, node.ParentIndex);
+            i, transformNodes[i].ParentIndex);
     }
 
     return Model(meshes, meshInstances, transformNodes, gpuDevice, vertexBuffer, indexBuffer);
