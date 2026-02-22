@@ -19,8 +19,6 @@ static Result<GpuPipeline*> CreatePipeline(ResourceCache* cache);
 
 constexpr const char* kAppName = "Triangle";
 
-static void DumpTimers();
-
 static Result<void> RenderGui();
 
 static Result<void> MainLoop()
@@ -203,7 +201,7 @@ static Result<void> MainLoop()
 
         TrsTransformf transform;
 
-        renderer->BeginFrame();
+        renderer->NewFrame();
 
         // Transform to camera space and render
         renderer->AddModel(transform.ToMatrix(), model.Get());
@@ -236,7 +234,7 @@ static Result<void> MainLoop()
         PerfMetrics::EndFrame();
     }
 
-    DumpTimers();
+    PerfMetrics::LogTimers();
 
     return Result<void>::Success;
 }
@@ -248,68 +246,20 @@ int main(int, char* /*argv[]*/)
     return 0;
 }
 
-static void DumpTimers()
-{
-    PerfMetrics::TimerStat timers[256];
-    unsigned timerCount = PerfMetrics::GetTimers(timers, std::size(timers));
-    for(unsigned i = 0; i < timerCount; ++i)
-    {
-        logInfo("{}: {} ms", timers[i].GetName(), timers[i].GetValue() * 1000.0f);
-    }
-}
-
 static bool show_demo_window = true;
 static bool show_another_window = false;
 static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 static Result<void> RenderGui()
 {
-    // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-    //if (show_demo_window)
-        //ImGui::ShowDemoWindow(&show_demo_window);
-
-    // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
+    ImGui::Begin("Timers");
+    PerfMetrics::TimerStat timers[256];
+    unsigned timerCount = PerfMetrics::GetTimers(timers, std::size(timers));
+    for(unsigned i = 0; i < timerCount; ++i)
     {
-        static float f = 0.0f;
-        static int counter = 0;
-
-        ImGui::Begin("Hello, world!");                                // Create a window called "Hello, world!" and append into it.
-
-        ImGui::Text("This is some useful text.");                     // Display some text (you can use a format strings too)
-        ImGui::Checkbox("Demo Window", &show_demo_window);            // Edit bools storing our window open/close state
-        ImGui::Checkbox("Another Window", &show_another_window);
-
-        ImGui::SliderFloat("float", &f, 0.0f, 1.0f);                  // Edit 1 float using a slider from 0.0f to 1.0f
-        ImGui::ColorEdit3("clear color", (float*)&clear_color);       // Edit 3 floats representing a color
-
-        if (ImGui::Button("Button"))                                  // Buttons return true when clicked (most widgets return true when edited/activated)
-            counter++;
-        ImGui::SameLine();
-        ImGui::Text("counter = %d", counter);
-
-        ImGuiIO& io = ImGui::GetIO();
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-        ImGui::End();
-
-        ImGui::Begin("Timers");
-        PerfMetrics::TimerStat timers[256];
-        unsigned timerCount = PerfMetrics::GetTimers(timers, std::size(timers));
-        for(unsigned i = 0; i < timerCount; ++i)
-        {
-            ImGui::Text("%s: %.3f ms", timers[i].GetName().c_str(), timers[i].GetValue() * 1000.0f);
-        }
-        ImGui::End();
+        ImGui::Text("%s: %.3f ms", timers[i].GetName().c_str(), timers[i].GetValue() * 1000.0f);
     }
-
-    // 3. Show another simple window.
-    if (show_another_window)
-    {
-        ImGui::Begin("Another Window", &show_another_window);         // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-        ImGui::Text("Hello from another window!");
-        if (ImGui::Button("Close Me"))
-            show_another_window = false;
-        ImGui::End();
-    }
+    ImGui::End();
 
     return Result<void>::Success;
 }

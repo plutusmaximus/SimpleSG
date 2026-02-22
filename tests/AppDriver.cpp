@@ -1,11 +1,12 @@
 #include "AppDriver.h"
 #include "Application.h"
+#include "DawnGpuDevice.h"
 #include "FileIo.h"
 #include "Logging.h"
-#include "SdlGpuDevice.h"
-#include "DawnGpuDevice.h"
-#include "Stopwatch.h"
+#include "PerfMetrics.h"
 #include "scope_exit.h"
+#include "SdlGpuDevice.h"
+#include "Stopwatch.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_mouse.h>
@@ -110,6 +111,8 @@ AppDriver::Run()
 
     while(running && app->IsRunning())
     {
+        PerfMetrics::BeginFrame();
+
         app->Update(stopwatch.Mark());
 
         SDL_Event event;
@@ -190,6 +193,8 @@ AppDriver::Run()
 
         dawnGpuDevice->Instance.ProcessEvents();
 #endif  //DAWN_GPU
+
+        PerfMetrics::EndFrame();
     }
 
     app->Shutdown();

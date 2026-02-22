@@ -80,10 +80,12 @@ SdlRenderer::~SdlRenderer()
         SDL_ReleaseGPUGraphicsPipeline(m_GpuDevice->Device, m_CopyTexturePipeline);
     }
 
+#ifndef NDEBUG
     for(const auto& state: m_State)
     {
         eassert(!state.m_RenderFence, "Render fence must be null when destroying SdlRenderer");
     }
+#endif  // NDEBUG
 
     ImGui_ImplSDLGPU3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
@@ -91,14 +93,14 @@ SdlRenderer::~SdlRenderer()
 }
 
 Result<void>
-SdlRenderer::BeginFrame()
+SdlRenderer::NewFrame()
 {
-    if(!everify(m_BeginFrameCount == m_RenderCount))
+    if(!everify(m_NewFrameCount == m_RenderCount))
     {
         return Result<void>::Success;
     }
 
-    ++m_BeginFrameCount;
+    ++m_NewFrameCount;
 
     ImGui_ImplSDLGPU3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
@@ -115,9 +117,9 @@ SdlRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
         return;
     }
 
-    if(!everify(m_RenderCount == m_BeginFrameCount - 1))
+    if(!everify(m_RenderCount == m_NewFrameCount - 1))
     {
-        // Forgot to call BeginFrame()
+        // Forgot to call NewFrame()
         return;
     }
 
@@ -179,9 +181,9 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     static PerfTimer renderTimer("Renderer.Render");
     auto scopedRenderTimer = renderTimer.StartScoped();
 
-    if(!everify(m_RenderCount == m_BeginFrameCount - 1))
+    if(!everify(m_RenderCount == m_NewFrameCount - 1))
     {
-        return Error("Render called without a matching BeginFrame");
+        return Error("Render called without a matching NewFrame");
     }
 
     ++m_RenderCount;
@@ -261,6 +263,13 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     static PerfTimer drawTimer("Renderer.Render.Draw");
     drawTimer.Start();
 
+    static PerfTimer setPipelineTimer("Renderer.Render.SetPipeline");
+    {
+        auto scopedTimer = setPipelineTimer.StartScoped();
+        auto pipeline = static_cast<SdlGpuPipeline*>(m_Pipeline)->GetPipeline();
+        SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
+    }
+
     for(const auto meshGrpPtr : meshGroups)
     {
         for (auto& [mtlId, xmeshes] : *meshGrpPtr)
@@ -279,18 +288,23 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
                 baseTexture = defaultTextResult.value();
             }
 
+            static PerfTimer writeMaterialTimer("Renderer.Render.Draw.WriteMaterialBuffer");
+            {
+                auto scopedTimer = writeMaterialTimer.StartScoped();
+                SDL_PushGPUVertexUniformData(cmdBuf, 1, &mtl.GetColor(), sizeof(mtl.GetColor()));
+            }
+
             // Bind texture and sampler
             SDL_GPUTextureSamplerBinding samplerBinding
             {
                 .texture = static_cast<SdlGpuTexture*>(baseTexture)->GetTexture(),
                 .sampler = static_cast<SdlGpuTexture*>(baseTexture)->GetSampler()
             };
-
-            auto pipeline = static_cast<SdlGpuPipeline*>(m_Pipeline)->GetPipeline();
-
-            SDL_PushGPUVertexUniformData(cmdBuf, 1, &mtl.GetColor(), sizeof(mtl.GetColor()));
-            SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
-            SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
+            static PerfTimer fsBindingTimer("Renderer.Render.Draw.FsBindings");
+            {
+                auto scopedTimer = fsBindingTimer.StartScoped();
+                SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
+            }
 
             const Mat44f viewProj = projection.Mul(viewXform);
 
@@ -329,11 +343,25 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
                     ? SDL_GPU_INDEXELEMENTSIZE_32BIT
                     : SDL_GPU_INDEXELEMENTSIZE_16BIT;
 
-                // Send up the model and model-view-projection matrices
-                SDL_PushGPUVertexUniformData(cmdBuf, 0, matrices, sizeof(matrices));
-                SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBufferBinding, 1);
-                SDL_BindGPUIndexBuffer(renderPass, &indexBufferBinding, idxElSize);
-                SDL_DrawGPUIndexedPrimitives(renderPass, mesh.GetIndexCount(), 1, 0, 0, 0);
+                static PerfTimer setBuffersTimer("Renderer.Render.Draw.SetBuffers");
+                {
+                    auto scopedTimer = setBuffersTimer.StartScoped();
+                    SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBufferBinding, 1);
+                    SDL_BindGPUIndexBuffer(renderPass, &indexBufferBinding, idxElSize);
+                }
+
+                static PerfTimer writeTransformTimer("Renderer.Render.Draw.WriteTransformBuffer");
+                {
+                    auto scopedTimer = writeTransformTimer.StartScoped();
+                    // Send up the model and model-view-projection matrices
+                    SDL_PushGPUVertexUniformData(cmdBuf, 0, matrices, sizeof(matrices));
+                }
+
+                static PerfTimer drawIndexedTimer("Renderer.Render.Draw.DrawIndexed");
+                {
+                    auto scopedTimer = drawIndexedTimer.StartScoped();
+                    SDL_DrawGPUIndexedPrimitives(renderPass, mesh.GetIndexCount(), 1, 0, 0, 0);
+                }
             }
         }
     }

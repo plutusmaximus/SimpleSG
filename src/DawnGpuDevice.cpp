@@ -844,7 +844,8 @@ CreateAdapter(wgpu::Instance instance)
             .powerPreference = wgpu::PowerPreference::HighPerformance,
             .forceFallbackAdapter = false,
 #if defined(_WIN32)
-            .backendType = wgpu::BackendType::D3D12,
+            .backendType = wgpu::BackendType::Vulkan,
+            //.backendType = wgpu::BackendType::D3D12,
 #elif defined(__EMSCRIPTEN__)
             .backendType = wgpu::BackendType::WebGPU,
 #else
@@ -893,7 +894,7 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
             std::string(message.data, message.length));
     };
 
-    /*const char* enabledToggles[] =
+    const char* enabledToggles[] =
     {
         "skip_validation",
         "disable_robustness",
@@ -908,12 +909,12 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
     toggles.enabledToggleCount = std::size(enabledToggles);
     toggles.enabledToggles = enabledToggles;
     toggles.disabledToggleCount = std::size(disabledToggles);
-    toggles.disabledToggles = disabledToggles;*/
+    toggles.disabledToggles = disabledToggles;
 
     wgpu::DeviceDescriptor deviceDesc //
         {
             {
-                //.nextInChain = &toggles,
+                .nextInChain = &toggles,
                 .label = "MainDevice",
             },
         };

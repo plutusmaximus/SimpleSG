@@ -28,7 +28,7 @@ public:
 
     ~SdlRenderer() override;
 
-    Result<void> BeginFrame() override;
+    Result<void> NewFrame() override;
 
     void AddModel(const Mat44f& worldTransform, const Model* model) override;
 
@@ -100,6 +100,6 @@ private:
 
     ImGuiContext* m_ImGuiContext{ nullptr };
 
-    unsigned m_BeginFrameCount{0};
+    unsigned m_NewFrameCount{0};
     unsigned m_RenderCount{0};
 };

@@ -22,7 +22,7 @@ public:
     }
 
     /// @brief Called once per frame before any calls to AddModel() or Render().
-    virtual Result<void> BeginFrame() = 0;
+    virtual Result<void> NewFrame() = 0;
 
     /// @brief Adds a model to be rendered for the current frame. The viewTransform is the
     virtual void AddModel(const Mat44f& viewTransform, const Model* model) = 0;

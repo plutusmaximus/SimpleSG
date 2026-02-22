@@ -168,23 +168,21 @@ public:
             }
         }
 
-        m_Renderer->BeginFrame();
+        m_Renderer->NewFrame();
 
         // Transform to camera space and render
-        for(const auto& cameraTuple : m_Registry.GetView<WorldMatrix, Camera>())
+        auto cameraTuple = m_Registry.Get<WorldMatrix, Camera>(m_EidCamera);
+        for(const auto& tuple : m_Registry.GetView<WorldMatrix, ModelResource>())
         {
-            for(const auto& tuple : m_Registry.GetView<WorldMatrix, ModelResource>())
-            {
-                const auto [eid, worldMat, model] = tuple;
-                m_Renderer->AddModel(worldMat, model.Get());
-            }
+            const auto [eid, worldMat, model] = tuple;
+            m_Renderer->AddModel(worldMat, model.Get());
+        }
 
-            const auto [camEid, camWorldMat, camera] = cameraTuple;
-            auto renderResult = m_Renderer->Render(camWorldMat, camera.GetProjection());
-            if (!renderResult)
-            {
-                logError(renderResult.error().GetMessage());
-            }
+        const auto [camWorldMat, camera] = cameraTuple;
+        auto renderResult = m_Renderer->Render(camWorldMat, camera.GetProjection());
+        if (!renderResult)
+        {
+            logError(renderResult.error().GetMessage());
         }
     }
 

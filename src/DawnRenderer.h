@@ -24,7 +24,7 @@ public:
 
     ~DawnRenderer() override;
 
-    Result<void> BeginFrame() override;
+    Result<void> NewFrame() override;
 
     void AddModel(const Mat44f& worldTransform, const Model* model) override;
 
@@ -102,7 +102,7 @@ private:
     wgpu::BindGroupLayout m_CopyTextureBindGroupLayout;
     wgpu::BindGroup m_CopyTextureBindGroup;
 
-    std::unordered_map<MaterialId, wgpu::BindGroup> m_FragShaderBindGroups;
+    std::unordered_map<void*, wgpu::BindGroup> m_FragShaderBindGroups;
 
     size_t m_SizeofTransformBuffer{0};
     size_t m_SizeofMaterialColorBuffer{0};
@@ -112,6 +112,6 @@ private:
 
     ImGuiContext* m_ImGuiContext{ nullptr };
 
-    unsigned m_BeginFrameCount{0};
+    unsigned m_NewFrameCount{0};
     unsigned m_RenderCount{0};
 };

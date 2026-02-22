@@ -1,4 +1,6 @@
 #define _CRT_SECURE_NO_WARNINGS
+#include <imgui.h>
+#include <imgui_impl_sdl3.h>
 #include <SDL3/SDL.h>
 
 #include "AppDriver.h"
@@ -9,9 +11,12 @@
 #include "GpuDevice.h"
 #include "Logging.h"
 #include "MouseNav.h"
+#include "PerfMetrics.h"
 #include "ResourceCache.h"
 
 #include "scope_exit.h"
+
+static Result<void> RenderGui();
 
 static Result<GpuPipeline*> CreatePipeline(ResourceCache* cache);
 
@@ -156,23 +161,23 @@ public:
             }
         }
 
-        m_Renderer->BeginFrame();
+        m_Renderer->NewFrame();
 
         // Transform to camera space and render
-        for(const auto& cameraTuple : m_Registry.GetView<WorldMatrix, Camera>())
+        auto cameraTuple = m_Registry.Get<WorldMatrix, Camera>(m_EidCamera);
+        for(const auto& tuple : m_Registry.GetView<WorldMatrix, ModelResource>())
         {
-            for(const auto& tuple : m_Registry.GetView<WorldMatrix, ModelResource>())
-            {
-                const auto [eid, worldMat, model] = tuple;
-                m_Renderer->AddModel(worldMat, model.Get());
-            }
+            const auto [eid, worldMat, model] = tuple;
+            m_Renderer->AddModel(worldMat, model.Get());
+        }
 
-            const auto [camEid, camWorldMat, camera] = cameraTuple;
-            auto renderResult = m_Renderer->Render(camWorldMat, camera.GetProjection());
-            if (!renderResult)
-            {
-                logError(renderResult.error().GetMessage());
-            }
+        RenderGui();
+
+        const auto [camWorldMat, camera] = cameraTuple;
+        auto renderResult = m_Renderer->Render(camWorldMat, camera.GetProjection());
+        if (!renderResult)
+        {
+            logError(renderResult.error().GetMessage());
         }
     }
 
@@ -284,6 +289,8 @@ int main(int, char* /*argv[]*/)
 
     auto runResult = driver.Run();
 
+    PerfMetrics::LogTimers();
+
     if(!runResult)
     {
         logError(runResult.error().GetMessage());
@@ -316,4 +323,18 @@ static Result<GpuPipeline*> CreatePipeline(ResourceCache* cache)
     }
 
     return cache->GetPipeline(pipelineCacheKey);
+}
+
+static Result<void> RenderGui()
+{
+    ImGui::Begin("Timers");
+    PerfMetrics::TimerStat timers[256];
+    unsigned timerCount = PerfMetrics::GetTimers(timers, std::size(timers));
+    for(unsigned i = 0; i < timerCount; ++i)
+    {
+        ImGui::Text("%s: %.3f ms", timers[i].GetName().c_str(), timers[i].GetValue() * 1000.0f);
+    }
+    ImGui::End();
+
+    return Result<void>::Success;
 }

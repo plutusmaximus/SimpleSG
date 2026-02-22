@@ -94,14 +94,14 @@ DawnRenderer::~DawnRenderer()
 }
 
 Result<void>
-DawnRenderer::BeginFrame()
+DawnRenderer::NewFrame()
 {
-    if(!everify(m_BeginFrameCount == m_RenderCount))
+    if(!everify(m_NewFrameCount == m_RenderCount))
     {
         return Result<void>::Success;
     }
 
-    ++m_BeginFrameCount;
+    ++m_NewFrameCount;
 
     ImGui_ImplWGPU_NewFrame();
     ImGui_ImplSDL3_NewFrame();
@@ -118,9 +118,9 @@ DawnRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
         return;
     }
 
-    if(!everify(m_RenderCount == m_BeginFrameCount - 1))
+    if(!everify(m_RenderCount == m_NewFrameCount - 1))
     {
-        // Forgot to call BeginFrame()
+        // Forgot to call NewFrame()
         return;
     }
 
@@ -188,9 +188,9 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     static PerfTimer renderTimer("Renderer.Render");
     auto scopedRenderTimer = renderTimer.StartScoped();
 
-    if(!everify(m_RenderCount == m_BeginFrameCount - 1))
+    if(!everify(m_RenderCount == m_NewFrameCount - 1))
     {
-        return Error("Render called without a matching BeginFrame");
+        return Error("Render called without a matching NewFrame");
     }
 
     ++m_RenderCount;
@@ -364,27 +364,29 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     static PerfTimer drawTimer("Renderer.Render.Draw");
     drawTimer.Start();
 
+    wgpu::BindGroup lastFsBindGroup;
+
     for(const auto meshGrpPtr : meshGroups)
     {
         for (auto& [mtlId, xmeshes] : *meshGrpPtr)
         {
             const Material& mtl = xmeshes[0].MeshInstance.GetMaterial();
 
-            auto itFragShaderBG = m_FragShaderBindGroups.find(mtlId);
+            GpuTexture* baseTexture = mtl.GetBaseTexture();
+
+            if(!baseTexture)
+            {
+                // If material doesn't have a base texture, bind a default texture.
+                auto defaultTextResult = GetDefaultBaseTexture();
+                expect(defaultTextResult, defaultTextResult.error());
+
+                baseTexture = defaultTextResult.value();
+            }
+
+            auto itFragShaderBG = m_FragShaderBindGroups.find(baseTexture);
             if(itFragShaderBG == m_FragShaderBindGroups.end())
             {
                 // Material bind group doesn't exist yet, create it.
-
-                GpuTexture* baseTexture = mtl.GetBaseTexture();
-
-                if(!baseTexture)
-                {
-                    // If material doesn't have a base texture, bind a default texture.
-                    auto defaultTextResult = GetDefaultBaseTexture();
-                    expect(defaultTextResult, defaultTextResult.error());
-
-                    baseTexture = defaultTextResult.value();
-                }
 
                 wgpu::BindGroupEntry fsBgEntries[] = //
                     {
@@ -409,13 +411,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
                 wgpu::BindGroup fsBindGroup = gpuDevice.CreateBindGroup(&fsBgDesc);
                 expect(fsBindGroup, "Failed to create WGPUBindGroup");
 
-                itFragShaderBG = m_FragShaderBindGroups.try_emplace(mtlId, fsBindGroup).first;
-            }
-
-            static PerfTimer setBindGroupTimer("Renderer.Render.Draw.SetBindGroup");
-            {
-                auto scopedTimer = setBindGroupTimer.StartScoped();
-                renderPass.SetBindGroup(2, itFragShaderBG->second, 0, nullptr);
+                itFragShaderBG = m_FragShaderBindGroups.try_emplace(baseTexture, fsBindGroup).first;
             }
 
             static PerfTimer writeMaterialTimer("Renderer.Render.Draw.WriteMaterialBuffer");
@@ -425,6 +421,14 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
                     sizeofAlignedMaterialColor * mtlCount,
                     &mtl.GetColor(),
                     sizeof(mtl.GetColor()));
+            }
+
+            static PerfTimer fsBindingTimer("Renderer.Render.Draw.FsBindings");
+            if(itFragShaderBG->second.Get() != lastFsBindGroup.Get())
+            {
+                auto scopedTimer = fsBindingTimer.StartScoped();
+                renderPass.SetBindGroup(2, itFragShaderBG->second, 0, nullptr);
+                lastFsBindGroup = itFragShaderBG->second;
             }
 
             const Mat44f viewProj = projection.Mul(viewXform);
