@@ -160,15 +160,6 @@ target_include_directories(imgui PUBLIC
 target_link_libraries(imgui PUBLIC SDL3::SDL3)
 target_compile_definitions(imgui PRIVATE IMGUI_IMPL_WEBGPU_BACKEND_DAWN)
 
-# --- lua
-file(GLOB LUA_SOURCES CONFIGURE_DEPENDS "thirdparty/lua/*.c")
-#Exclude onlua.c
-list(FILTER LUA_SOURCES EXCLUDE REGEX "[/\\]onelua\\.c$")
-
-# Create the Lua static library
-add_library(lua STATIC ${LUA_SOURCES})
-target_include_directories(lua PUBLIC thirdparty/lua)
-
 # ============================================================
 # Shaders / Assets
 # ============================================================
@@ -257,8 +248,8 @@ compiler_flags(ssg)
 # Helper function for sample executables
 # ============================================================
 function(add_sample_executable target_name source_file)
-  add_executable(${target_name} ${source_file} tests/MouseNav.cpp tests/AppDriver.cpp tests/LuaRepl.cpp)
-  target_link_libraries(${target_name} PRIVATE ssg::ssg spdlog::spdlog imgui lua assimp::assimp webgpu_dawn webgpu_glfw glfw)
+  add_executable(${target_name} ${source_file} tests/MouseNav.cpp tests/AppDriver.cpp)
+  target_link_libraries(${target_name} PRIVATE ssg::ssg spdlog::spdlog imgui assimp::assimp webgpu_dawn webgpu_glfw glfw)
   add_dependencies(${target_name} shaders copy_images copy_models)
 
   compiler_flags(${target_name})
