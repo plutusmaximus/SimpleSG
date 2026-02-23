@@ -579,7 +579,7 @@ SdlGpuDevice::CreateVertexShader(const std::span<const uint8_t>& shaderCode)
         .format = SHADER_FORMAT,
         .stage = SDL_GPU_SHADERSTAGE_VERTEX,
         .num_samplers = 0,
-        .num_uniform_buffers = 3
+        .num_uniform_buffers = 1
     };
 
     SDL_GPUShader* shader = SDL_CreateGPUShader(Device, &shaderCreateInfo);
@@ -621,7 +621,7 @@ SdlGpuDevice::CreateFragmentShader(const std::span<const uint8_t>& shaderCode)
         .format = SHADER_FORMAT,
         .stage = SDL_GPU_SHADERSTAGE_FRAGMENT,
         .num_samplers = 1,
-        .num_uniform_buffers = 0
+        .num_uniform_buffers = 1
     };
 
     SDL_GPUShader* shader = SDL_CreateGPUShader(Device, &shaderCreateInfo);

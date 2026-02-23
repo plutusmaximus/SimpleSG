@@ -115,12 +115,16 @@ private:
     wgpu::BindGroupLayout m_CopyTextureBindGroupLayout;
     wgpu::BindGroup m_CopyTextureBindGroup;
 
-    std::unordered_map<void*, wgpu::BindGroup> m_FragShaderBindGroups;
+    struct FsBindGroup
+    {
+        wgpu::Buffer MaterialConstantsBuf;
+        wgpu::BindGroup BindGroup;
+    };
+
+    std::unordered_map<void*, FsBindGroup> m_FragShaderBindGroups;
 
     size_t m_SizeofTransformBuffer{0};
-    size_t m_SizeofMaterialColorBuffer{0};
     wgpu::Buffer m_WorldAndProjBuf;
-    wgpu::Buffer m_MaterialColorBuf;
     wgpu::BindGroup m_VertexShaderBindGroup;
 
     ImGuiContext* m_ImGuiContext{ nullptr };

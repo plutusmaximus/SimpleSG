@@ -5,14 +5,15 @@
 
 #include <map>
 
-class SdlGpuDevice;
 class GpuTexture;
-struct SDL_GPURenderPass;
+struct ImGuiContext;
+struct SDL_GPUBuffer;
 struct SDL_GPUCommandBuffer;
 struct SDL_GPUFence;
 struct SDL_GPUGraphicsPipeline;
+struct SDL_GPURenderPass;
 struct SDL_GPUTexture;
-struct ImGuiContext;
+class SdlGpuDevice;
 
 class SdlRenderer : public Renderer
 {
