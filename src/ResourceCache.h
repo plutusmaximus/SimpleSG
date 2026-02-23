@@ -36,7 +36,7 @@ private:
     Model* m_Model;
 };
 
-/// @brief A cache for loading and storing GPU resources like models, textures, and shaders.
+/// @brief A cache for loading and storing GPU resources like models and textures.
 class ResourceCache
 {
 public:
@@ -100,29 +100,11 @@ public:
     Result<AsyncStatus> CreateTextureAsync(
         const CacheKey& cacheKey, const TextureSpec& textureSpec);
 
-    /// @brief Creates a vertex shader asynchronously if not already created.
-    /// Call IsPending() to check if the operation is still pending.
-    /// When complete use GetVertexShader() to retrieve the created vertex shader.
-    Result<AsyncStatus> CreateVertexShaderAsync(
-        const CacheKey& cacheKey, const VertexShaderSpec& shaderSpec);
-
-    /// @brief Creates a fragment shader asynchronously if not already created.
-    /// Call IsPending() to check if the operation is still pending.
-    /// When complete use GetFragmentShader() to retrieve the created fragment shader.
-    Result<AsyncStatus> CreateFragmentShaderAsync(
-        const CacheKey& cacheKey, const FragmentShaderSpec& shaderSpec);
-
     /// @brief Retrieves a cached model.
     Result<ModelResource> GetModel(const CacheKey& cacheKey) const;
 
     /// @brief Retrieves a cached texture.
     Result<GpuTexture*> GetTexture(const CacheKey& cacheKey) const;
-
-    /// @brief Retrieves a cached vertex shader.
-    Result<GpuVertexShader*> GetVertexShader(const CacheKey& cacheKey) const;
-
-    /// @brief Retrieves a cached fragment shader.
-    Result<GpuFragmentShader*> GetFragmentShader(const CacheKey& cacheKey) const;
 
 private:
 
@@ -388,64 +370,6 @@ private:
         std::atomic<bool> m_DecodeImageComplete{ false };
     };
 
-    /// @brief Asynchronous operation for creating a vertex/fragment shader.
-    class CreateShaderOp : public AsyncOp
-    {
-        static constexpr const char* CLASS_NAME = "CreateShaderOp";
-
-    public:
-        CreateShaderOp(ResourceCache* resourceCache,
-            const CacheKey& cacheKey,
-            const VertexShaderSpec& shaderSpec);
-
-        CreateShaderOp(ResourceCache* resourceCache,
-            const CacheKey& cacheKey,
-            const FragmentShaderSpec& shaderSpec);
-
-        ~CreateShaderOp() override;
-
-        void Start() override;
-
-        void Update() override;
-
-        bool IsStarted() const override { return m_State != NotStarted; }
-        bool IsPending() const override { return m_State != Complete; }
-        bool IsComplete() const override { return m_State == Complete; }
-
-    private:
-
-        void Dispose() override
-        {
-            m_ResourceCache->DeleteOp(this);
-        }
-
-        void SetResult(Result<GpuVertexShader*> result);
-
-        void SetResult(Result<GpuFragmentShader*> result);
-
-        void SetResult(const Error& result);
-
-        Result<GpuVertexShader*> CreateVertexShader(const FileIo::FetchDataPtr& fetchData);
-
-        Result<GpuFragmentShader*> CreateFragmentShader(const FileIo::FetchDataPtr& fetchData);
-
-        ResourceCache* m_ResourceCache{ nullptr };
-
-        enum State
-        {
-            NotStarted,
-            LoadingVsFile,
-            LoadingFsFile,
-            Complete,
-        };
-
-        State m_State{ NotStarted };
-
-        std::variant<VertexShaderSpec, FragmentShaderSpec> m_ShaderSpec;
-
-        FileIo::AsyncToken m_FileFetchToken;
-    };
-
     /// @brief Capacity of the asynchronous operation pools.  This is a template variable that is
     /// specialized for each AsyncOp type, and is used to define the size of the pool allocator for
     /// that type.  By using a template variable, we can easily define different capacities for
@@ -462,8 +386,6 @@ private:
     constexpr size_t POOL_CAPACITY<LoadModelOp> = 256;
     template<>
     constexpr size_t POOL_CAPACITY<CreateTextureOp> = 256;
-    template<>
-    constexpr size_t POOL_CAPACITY<CreateShaderOp> = 8;
 
     /// @brief Tuple of pool allocators for each AsyncOp type.  The index of each allocator in the
     /// tuple corresponds to the AsyncOp type, and is used in the GetAllocator() function to
@@ -474,8 +396,7 @@ private:
     std::tuple<PoolAllocator<WaitOp, POOL_CAPACITY<WaitOp>>,
         PoolAllocator<CreateModelOp, POOL_CAPACITY<CreateModelOp>>,
         PoolAllocator<LoadModelOp, POOL_CAPACITY<LoadModelOp>>,
-        PoolAllocator<CreateTextureOp, POOL_CAPACITY<CreateTextureOp>>,
-        PoolAllocator<CreateShaderOp, POOL_CAPACITY<CreateShaderOp>>>
+        PoolAllocator<CreateTextureOp, POOL_CAPACITY<CreateTextureOp>>>
         m_OpPools;
 
     /// @brief Retrieves the pool allocator for a specific AsyncOp type.
@@ -627,8 +548,6 @@ private:
 
     Cache<Result<ModelResource>> m_ModelCache;
     Cache<Result<GpuTexture*>> m_TextureCache;
-    Cache<Result<GpuVertexShader*>> m_VertexShaderCache;
-    Cache<Result<GpuFragmentShader*>> m_FragmentShaderCache;
 
     CoopScheduler m_Scheduler;
 };

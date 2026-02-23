@@ -134,6 +134,14 @@ protected:
     virtual ~GpuTexture() = 0;
 };
 
+/// @brief GPU representation of material constants, like base color, metalness, roughness, etc.
+class GpuMaterialConstants
+{
+protected:
+    GpuMaterialConstants() = default;
+    virtual ~GpuMaterialConstants() = 0;
+};
+
 /// @brief GPU representation of a color render target.
 class GpuColorTarget
 {
@@ -253,6 +261,7 @@ inline GpuIndexBuffer::~GpuIndexBuffer() = default;
 inline GpuVertexShader::~GpuVertexShader() = default;
 inline GpuFragmentShader::~GpuFragmentShader() = default;
 inline GpuTexture::~GpuTexture() = default;
+inline GpuMaterialConstants::~GpuMaterialConstants() = default;
 inline GpuColorTarget::~GpuColorTarget() = default;
 inline GpuDepthTarget::~GpuDepthTarget() = default;
 inline GpuRenderPass::~GpuRenderPass() = default;

@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <variant>
 
+class GpuTexture;
+
 /// @brief RGBA color representation.
 template<typename T>
 class RgbaColor
@@ -293,99 +295,6 @@ private:
     TextureSpec() = delete;
 
     std::optional<CacheKey> m_CacheKey;
-};
-
-/// @brief Specification for creating a shader.
-class ShaderSpec
-{
-public:
-
-    /// @brief Represents no shader.
-    struct None_t{};
-
-    /// @brief Returns true if the shader spec is valid (i.e., has a specified source).
-    bool IsValid() const
-    {
-        return !std::holds_alternative<None_t>(Source);
-    }
-
-    bool TryGetPath(imstring& outPath) const
-    {
-        if (const auto* path = std::get_if<imstring>(&Source))
-        {
-            outPath = *path;
-            return true;
-        }
-        return false;
-    }
-
-    CacheKey GetCacheKey() const
-    {
-        if(!everify(!std::holds_alternative<None_t>(Source), "ShaderSpec has no source"))
-        {
-            return CacheKey("");
-        }
-
-        if(std::holds_alternative<imstring>(Source))
-        {
-            return m_CacheKey.value();
-        }
-
-        eassert(false, "Unhandled ShaderSpec source type");
-        return CacheKey("");
-    }
-
-    //FIXME(KB) - add support for embedded source code.
-    //FIXME(KB) - add a cache key.
-    //FIXME(KB) - add support for resource paths.
-    std::variant<None_t, imstring> Source;
-
-protected:
-    explicit ShaderSpec(None_t)
-        : Source(None_t{})
-    {
-    }
-
-    explicit ShaderSpec(const imstring& path)
-        : Source(path)
-        , m_CacheKey(CacheKey(path))
-    {
-    }
-
-private:
-
-    ShaderSpec() = delete;
-
-    std::optional<CacheKey> m_CacheKey;
-};
-
-/// @brief Specification for creating a vertex shader.
-class VertexShaderSpec : public ShaderSpec
-{
-public:
-
-    VertexShaderSpec(None_t) : ShaderSpec(None_t{}) {}
-
-    VertexShaderSpec(const imstring& path, const unsigned numUniformBuffers)
-        : ShaderSpec(path)
-        , NumUniformBuffers(numUniformBuffers)
-    {
-    }
-
-    const unsigned NumUniformBuffers{ 0 };
-};
-
-/// @brief Specification for creating a fragment shader.
-class FragmentShaderSpec : public ShaderSpec
-{
-public:
-
-    FragmentShaderSpec(None_t) : ShaderSpec(None_t{}) {}
-
-    explicit FragmentShaderSpec(const imstring& path)
-        : ShaderSpec(path)
-    {
-    }
 };
 
 /// @brief Unique identifier for a material.
