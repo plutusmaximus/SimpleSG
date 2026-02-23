@@ -25,14 +25,18 @@ static constexpr const char* COMPOSITE_COLOR_TARGET_FS = "shaders/Debug/FullScre
 static constexpr const char* COLOR_PIPELINE_VS = "shaders/Debug/VertexShader.vs.spv";
 static constexpr const char* COLOR_PIPELINE_FS = "shaders/Debug/FragmentShader.ps.spv";
 
-struct MaterialConstants
+namespace
 {
-    RgbaColorf Color;
-    float Roughness;
-    float Metalness;
-    float pad0;
-    float pad1;
-};
+    // Material constants uniform data
+    struct MaterialConstantsUd
+    {
+        RgbaColorf Color;
+        float Roughness;
+        float Metalness;
+        float pad0;
+        float pad1;
+    };
+}
 
 SdlRenderer::SdlRenderer(SdlGpuDevice* gpuDevice)
     : m_GpuDevice(gpuDevice)
@@ -331,7 +335,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
             {
                 auto scopedTimer = writeMaterialTimer.StartScoped();
 
-                MaterialConstants mtlc//
+                MaterialConstantsUd mtlc//
                 {
                     .Color = mtl.GetColor(),
                     .Roughness = mtl.GetRoughness(),

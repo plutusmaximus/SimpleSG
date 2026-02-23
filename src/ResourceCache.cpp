@@ -477,9 +477,9 @@ ResourceCache::CreateModelOp::CreateModel()
 
         Material mtl //
             {
-                meshSpec.MtlSpec.Color,
-                meshSpec.MtlSpec.Metalness,
-                meshSpec.MtlSpec.Roughness,
+                meshSpec.MtlSpec.Constants.Color,
+                meshSpec.MtlSpec.Constants.Metalness,
+                meshSpec.MtlSpec.Constants.Roughness,
                 baseTexture,
             };
 
@@ -1104,9 +1104,12 @@ CreateMaterialSpec(const aiMaterial* material, const std::filesystem::path& pare
 
     return MaterialSpec//
     {
-        .Color{ diffuseColor.r, diffuseColor.g, diffuseColor.b, opacity },
-        .Metalness{ 0.0f },
-        .Roughness{ 0.0f },
+        .Constants//
+        {
+            .Color{ diffuseColor.r, diffuseColor.g, diffuseColor.b, opacity },
+            .Metalness{ 0.0f },
+            .Roughness{ 0.0f },
+        },
         .BaseTexture = baseTextureSpec,
     };
 }

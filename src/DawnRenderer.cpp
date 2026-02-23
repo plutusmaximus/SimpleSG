@@ -25,14 +25,18 @@ static constexpr const char* COMPOSITE_COLOR_TARGET_FS = "shaders/Debug/FullScre
 static constexpr const char* COLOR_PIPELINE_VS = "shaders/Debug/VertexShader.vs.wgsl";
 static constexpr const char* COLOR_PIPELINE_FS = "shaders/Debug/FragmentShader.fs.wgsl";
 
-struct MaterialConstants
+namespace
 {
-    RgbaColorf Color;
-    float Roughness;
-    float Metalness;
-    float pad0;
-    float pad1;
-};
+    // Material constants uniform data
+    struct MaterialConstantsUd
+    {
+        RgbaColorf Color;
+        float Roughness;
+        float Metalness;
+        float pad0;
+        float pad1;
+    };
+}
 
 DawnRenderer::DawnRenderer(DawnGpuDevice* gpuDevice)
     : m_GpuDevice(gpuDevice)
@@ -344,11 +348,11 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
             {
                 // Material bind group doesn't exist yet, create it.
 
-                const size_t sizeofAlignedBuffer = alignup(sizeof(MaterialConstants), bufferAlign);
+                const size_t sizeofAlignedBuffer = alignup(sizeof(MaterialConstantsUd), bufferAlign);
 
                 wgpu::BufferDescriptor mtlConstantsBufferDesc //
                 {
-                    .label = "MaterialConstants",
+                    .label = "MaterialConstantsUd",
                     .usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
                     .size = sizeofAlignedBuffer,
                     .mappedAtCreation = false,
@@ -360,7 +364,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
                 static PerfTimer writeMaterialTimer("Renderer.Render.Draw.WriteMaterialBuffer");
                 {
                     auto scopedTimer = writeMaterialTimer.StartScoped();
-                    MaterialConstants mtlConstants //
+                    MaterialConstantsUd mtlc //
                         {
                             .Color = mtl.GetColor(),
                             .Roughness = mtl.GetRoughness(),
@@ -368,8 +372,8 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
                         };
                     gpuDevice.GetQueue().WriteBuffer(mtlConstantsBuf,
                         0,
-                        &mtlConstants,
-                        sizeof(MaterialConstants));
+                        &mtlc,
+                        sizeof(MaterialConstantsUd));
                 }
 
                 wgpu::BindGroupEntry fsBgEntries[] = //
@@ -866,7 +870,7 @@ DawnRenderer::GetColorPipeline()
             },
         },
         /*
-            MaterialConstants
+            MaterialConstantsUd
         */
         {
             .binding = 2,
@@ -875,7 +879,7 @@ DawnRenderer::GetColorPipeline()
             {
                 .type = wgpu::BufferBindingType::Uniform,
                 .hasDynamicOffset = false,
-                .minBindingSize = sizeof(MaterialConstants),
+                .minBindingSize = sizeof(MaterialConstantsUd),
             },
         }
     };

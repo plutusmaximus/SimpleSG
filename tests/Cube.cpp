@@ -360,7 +360,10 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
             .Indices{std::span(cubeIndices + 0, 6)},
             .MtlSpec
             {
-                .Color{1, 0, 0},
+                .Constants//
+                {
+                    .Color{1, 0, 0}
+                },
                 .BaseTexture{"images/Ant.png"},
             }
         },
@@ -369,7 +372,10 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
             .Indices{std::span(cubeIndices + 6, 6)},
             .MtlSpec
             {
-                .Color{0, 1, 0},
+                .Constants//
+                {
+                    .Color{0, 1, 0}
+                },
                 .BaseTexture{"images/Bee.png"},
             }
         },
@@ -378,7 +384,10 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
             .Indices{std::span(cubeIndices + 12, 6)},
             .MtlSpec
             {
-                .Color{0, 0, 1},
+                .Constants//
+                {
+                    .Color{0, 0, 1}
+                },
                 .BaseTexture{"images/Butterfly.png"},
             }
         },
@@ -387,7 +396,10 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
             .Indices{std::span(cubeIndices + 18, 6)},
             .MtlSpec
             {
-                .Color{1, 1, 1},
+                .Constants//
+                {
+                    .Color{1, 1, 1}
+                },
                 .BaseTexture{"images/Frog.png"},
             }
         },
@@ -396,7 +408,10 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
             .Indices{std::span(cubeIndices + 24, 6)},
             .MtlSpec
             {
-                .Color{0, 1, 1},
+                .Constants//
+                {
+                    .Color{0, 1, 1}
+                },
                 .BaseTexture{"images/Lizard.png"},
             }
         },
@@ -405,7 +420,10 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
             .Indices{std::span(cubeIndices + 30, 6)},
             .MtlSpec
             {
-                .Color{1, 0, 1},
+                .Constants//
+                {
+                    .Color{1, 0, 1}
+                },
                 .BaseTexture{"images/Turtle.png"},
             }
         },
@@ -458,7 +476,10 @@ static Result<ModelResource> CreateShapeModel(ResourceCache* cache)
             .Indices{indices},
             .MtlSpec
             {
-                .Color{1, 0, 0},
+                .Constants//
+                {
+                    .Color{1, 0, 0}
+                },
                 .BaseTexture{"images/Ant.png"},
             }
         }

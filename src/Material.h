@@ -201,13 +201,18 @@ public:
     const MaterialFlags Flags{ MaterialFlags::None };
 };
 
-/// @brief Specification for creating a material.
-struct MaterialSpec
+struct MaterialConstants
 {
     const RgbaColorf Color;
 
     const float Metalness{ 0 };
     const float Roughness{ 0 };
+};
+
+/// @brief Specification for creating a material.
+struct MaterialSpec
+{
+    const MaterialConstants Constants;
 
     const TextureSpec BaseTexture;
 };
