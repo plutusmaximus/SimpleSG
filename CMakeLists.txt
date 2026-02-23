@@ -202,7 +202,6 @@ set(SSG_SOURCES
   src/SdlGpuDevice.cpp
   src/SdlRenderer.cpp
   src/Shapes.cpp
-  src/SpaceMouse.cpp
   src/Stopwatch.cpp
   src/ThreadPool.cpp
 )
@@ -233,10 +232,8 @@ set(SSG_HEADERS
   src/SdlGpuDevice.h
   src/SdlRenderer.h
   src/Shapes.h
-  src/SpaceMouse.h
   src/Stopwatch.h
   src/ThreadPool.h
-  src/Uri.h
   src/VecMath.h
   src/Vertex.h
   src/scope_exit.h
@@ -315,8 +312,7 @@ add_executable(Tests
   "tests/scope_exit.test.cpp"
   "tests/Vec2.test.cpp"
   "tests/Vec3.test.cpp"
-  "tests/Vec4.test.cpp"
-  "tests/Uri.test.cpp")
+  "tests/Vec4.test.cpp")
 
 target_link_libraries(Tests PRIVATE gtest_main ssg::ssg spdlog::spdlog)
 #add_dependencies(RunAllTests shaders copy_images copy_models)
