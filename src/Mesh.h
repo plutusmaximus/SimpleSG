@@ -25,12 +25,14 @@ public:
         const GpuVertexBuffer::Subrange& vb,
         const GpuIndexBuffer::Subrange& ib,
         const uint32_t indexCount,
-        const Material& material)
+        const Material& material,
+        GpuMaterial* gpuMaterial)
         : m_Name(name)
         , m_VtxBuffer(vb)
         , m_IdxBuffer(ib)
         , m_IndexCount(indexCount)
         , m_Material(material)
+        , m_GpuMaterial(gpuMaterial)
     {
     }
 
@@ -44,6 +46,7 @@ public:
     const GpuIndexBuffer::Subrange& GetIndexBuffer() const { return m_IdxBuffer; }
     uint32_t GetIndexCount() const { return m_IndexCount; }
     const Material& GetMaterial() const { return m_Material; }
+    GpuMaterial* GetGpuMaterial() const { return m_GpuMaterial; }
 
 private:
 
@@ -54,4 +57,5 @@ private:
     GpuIndexBuffer::Subrange m_IdxBuffer;
     uint32_t m_IndexCount;
     Material m_Material;
+    GpuMaterial* m_GpuMaterial{ nullptr };
 };

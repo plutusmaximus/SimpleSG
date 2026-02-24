@@ -100,11 +100,18 @@ public:
     Result<AsyncStatus> CreateTextureAsync(
         const CacheKey& cacheKey, const TextureSpec& textureSpec);
 
+    /// @brief Creates a material asynchronously if not already created.
+    Result<AsyncStatus> CreateMaterialAsync(const CacheKey& cacheKey,
+        const MaterialSpec& materialSpec);
+
     /// @brief Retrieves a cached model.
     Result<ModelResource> GetModel(const CacheKey& cacheKey) const;
 
     /// @brief Retrieves a cached texture.
     Result<GpuTexture*> GetTexture(const CacheKey& cacheKey) const;
+
+    /// @brief Retrieves a cached material.
+    Result<GpuMaterial*> GetMaterial(const CacheKey& cacheKey) const;
 
 private:
 
@@ -228,8 +235,8 @@ private:
             NotStarted,
             CreateVertexBuffer,
             CreateIndexBuffer,
-            CreateTextures,
-            CreatingTextures,
+            CreateMaterials,
+            CreatingMaterials,
             Failed,
             Complete,
         };
@@ -370,6 +377,49 @@ private:
         std::atomic<bool> m_DecodeImageComplete{ false };
     };
 
+    /// @brief Asynchronous operation for creating a material.
+    class CreateMaterialOp : public AsyncOp
+    {
+        static constexpr const char* CLASS_NAME = "CreateMaterialOp";
+
+    public:
+        CreateMaterialOp(ResourceCache* resourceCache,
+            const CacheKey& cacheKey,
+            const MaterialSpec& materialSpec);
+
+        ~CreateMaterialOp() override;
+
+        void Start() override;
+
+        void Update() override;
+
+        bool IsStarted() const override { return m_State != NotStarted; }
+        bool IsPending() const override { return m_State != Complete; }
+        bool IsComplete() const override { return m_State == Complete; }
+
+    private:
+
+        void Dispose() override
+        {
+            m_ResourceCache->DeleteOp(this);
+        }
+
+        void SetResult(Result<GpuMaterial*> result);
+
+        ResourceCache* m_ResourceCache{ nullptr };
+
+        enum State
+        {
+            NotStarted,
+            CreatingTexture,
+            Complete,
+        };
+
+        State m_State{ NotStarted };
+
+        MaterialSpec m_MaterialSpec;
+    };
+
     /// @brief Capacity of the asynchronous operation pools.  This is a template variable that is
     /// specialized for each AsyncOp type, and is used to define the size of the pool allocator for
     /// that type.  By using a template variable, we can easily define different capacities for
@@ -386,6 +436,8 @@ private:
     constexpr size_t POOL_CAPACITY<LoadModelOp> = 256;
     template<>
     constexpr size_t POOL_CAPACITY<CreateTextureOp> = 256;
+    template<>
+    constexpr size_t POOL_CAPACITY<CreateMaterialOp> = 256;
 
     /// @brief Tuple of pool allocators for each AsyncOp type.  The index of each allocator in the
     /// tuple corresponds to the AsyncOp type, and is used in the GetAllocator() function to
@@ -396,7 +448,8 @@ private:
     std::tuple<PoolAllocator<WaitOp, POOL_CAPACITY<WaitOp>>,
         PoolAllocator<CreateModelOp, POOL_CAPACITY<CreateModelOp>>,
         PoolAllocator<LoadModelOp, POOL_CAPACITY<LoadModelOp>>,
-        PoolAllocator<CreateTextureOp, POOL_CAPACITY<CreateTextureOp>>>
+        PoolAllocator<CreateTextureOp, POOL_CAPACITY<CreateTextureOp>>,
+        PoolAllocator<CreateMaterialOp, POOL_CAPACITY<CreateMaterialOp>>>
         m_OpPools;
 
     /// @brief Retrieves the pool allocator for a specific AsyncOp type.
@@ -548,6 +601,7 @@ private:
 
     Cache<Result<ModelResource>> m_ModelCache;
     Cache<Result<GpuTexture*>> m_TextureCache;
+    Cache<Result<GpuMaterial*>> m_MaterialCache;
 
     CoopScheduler m_Scheduler;
 };

@@ -166,32 +166,25 @@ public:
     ~SdlGpuMaterial() override {};
 
     GpuTexture* GetBaseTexture() const override { return m_BaseTexture; }
-    const RgbaColorf& GetColor() const override { return m_Color; }
-    float GetMetalness() const override { return m_Metalness; }
-    float GetRoughness() const override { return m_Roughness; }
+
+    const MaterialConstants& GetConstants() const override { return m_Constants; }
 
 private:
     friend class SdlGpuDevice;
 
     SdlGpuMaterial(SdlGpuDevice* gpuDevice,
         GpuTexture* baseTexture,
-        const RgbaColorf& color,
-        const float metalness,
-        const float roughness)
+        const MaterialConstants& constants)
         : m_GpuDevice(gpuDevice),
           m_BaseTexture(baseTexture),
-          m_Color(color),
-          m_Metalness(metalness),
-          m_Roughness(roughness)
+          m_Constants(constants)
 
     {
     }
 
     SdlGpuDevice* const m_GpuDevice;
     GpuTexture* m_BaseTexture;
-    RgbaColorf m_Color;
-    float m_Metalness;
-    float m_Roughness;
+    MaterialConstants m_Constants;
 };
 
 class SdlGpuColorTarget : public GpuColorTarget

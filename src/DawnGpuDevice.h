@@ -162,9 +162,8 @@ public:
     ~DawnGpuMaterial() override {};
 
     GpuTexture* GetBaseTexture() const override { return m_BaseTexture; }
-    const RgbaColorf& GetColor() const override { return m_Color; }
-    float GetMetalness() const override { return m_Metalness; }
-    float GetRoughness() const override { return m_Roughness; }
+
+    const MaterialConstants& GetConstants() const override { return m_Constants; }
 
     wgpu::BindGroup GetBindGroup() const { return m_BindGroup; }
 
@@ -175,16 +174,12 @@ private:
         GpuTexture* baseTexture,
         wgpu::Buffer constantsBuffer,
         wgpu::BindGroup bindGroup,
-        const RgbaColorf& color,
-        const float metalness,
-        const float roughness)
+        const MaterialConstants& constants)
         : m_GpuDevice(gpuDevice),
           m_BaseTexture(baseTexture),
           m_ConstantsBuffer(constantsBuffer),
           m_BindGroup(bindGroup),
-          m_Color(color),
-          m_Metalness(metalness),
-          m_Roughness(roughness)
+          m_Constants(constants)
 
     {
     }
@@ -193,9 +188,7 @@ private:
     GpuTexture* m_BaseTexture;
     wgpu::Buffer m_ConstantsBuffer;
     wgpu::BindGroup m_BindGroup;
-    RgbaColorf m_Color;
-    float m_Metalness;
-    float m_Roughness;
+    MaterialConstants m_Constants;
 };
 
 class DawnGpuColorTarget : public GpuColorTarget

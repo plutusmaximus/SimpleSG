@@ -106,15 +106,6 @@ DawnRenderer::~DawnRenderer()
         // m_CopyTexturePipeline is ref-counted, so nothing to do here
     }
 
-    for(auto& [mtlId, mtl] : m_Materials)
-    {
-        auto result = m_GpuDevice->DestroyMaterial(mtl);
-        if(!result)
-        {
-            logError("Failed to destroy material: {}", result.error());
-        }
-    }
-
     //DO NOT SUBMIT
     /*for(const auto& state: m_State)
     {
@@ -329,32 +320,12 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     {
         for (auto& [mtlId, xmeshes] : *meshGrpPtr)
         {
-            const Material& mtl = xmeshes[0].MeshInstance.GetMaterial();
-
-            /*GpuTexture* baseTexture = mtl.GetBaseTexture();
-
-            if(!baseTexture)
-            {
-                // If material doesn't have a base texture, bind a default texture.
-                auto defaultTextResult = GetDefaultBaseTexture();
-                expect(defaultTextResult, defaultTextResult.error());
-
-                baseTexture = defaultTextResult.value();
-            }*/
-
-            auto itMtl = m_Materials.find(mtlId);
-            if(itMtl == m_Materials.end())
-            {
-                auto mtlResult = m_GpuDevice->CreateMaterial(mtl.GetConstants(), mtl.GetBaseTexture());
-                expect(mtlResult, mtlResult.error());
-
-                itMtl = m_Materials.try_emplace(mtlId, mtlResult.value()).first;
-            }
+            GpuMaterial* gpuMtl = xmeshes[0].MeshInstance.GetGpuMaterial();
 
             static PerfTimer fsBindingTimer("Renderer.Render.Draw.SetMaterialBindGroup");
             {
                 auto scopedTimer = fsBindingTimer.StartScoped();
-                DawnGpuMaterial* dawnMtl = static_cast<DawnGpuMaterial*>(itMtl->second);
+                DawnGpuMaterial* dawnMtl = static_cast<DawnGpuMaterial*>(gpuMtl);
                 wgpu::BindGroup bindGroup = dawnMtl->GetBindGroup();
                 renderPass.SetBindGroup(2, bindGroup, 0, nullptr);
             }

@@ -429,13 +429,8 @@ DawnGpuDevice::CreateMaterial(const MaterialConstants& mtlConstants, GpuTexture*
         return Error("Error allocating GpuResource");
     }
 
-    return ::new(&res->Material) DawnGpuMaterial(this,
-        baseTexture,
-        mtlConstantsBuf,
-        bindGroup,
-        mtlConstants.Color,
-        mtlConstants.Metalness,
-        mtlConstants.Roughness);
+    return ::new(&res->Material)
+        DawnGpuMaterial(this, baseTexture, mtlConstantsBuf, bindGroup, mtlConstants);
 }
 
 Result<void>

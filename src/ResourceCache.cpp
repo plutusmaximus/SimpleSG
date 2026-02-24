@@ -120,6 +120,24 @@ ResourceCache::~ResourceCache()
             }
         }
     }
+
+    for(auto it : m_MaterialCache)
+    {
+        eassert(!it.second.IsPending(),
+            "Material cache entry for key {} is still pending during ResourceCache destruction",
+            it.first.ToString());
+
+        auto result = it.second.GetValue();
+        if(result)
+        {
+            auto material = result.value();
+            auto dr = m_GpuDevice->DestroyMaterial(material);
+            if(!dr)
+            {
+                logError("Failed to destroy material: {}", dr.error());
+            }
+        }
+    }
 }
 
 template<>
@@ -134,6 +152,13 @@ bool
 ResourceCache::IsPending<GpuTexture*>(const CacheKey& cacheKey) const
 {
     return m_TextureCache.IsPending(cacheKey);
+}
+
+template<>
+bool
+ResourceCache::IsPending<GpuMaterial*>(const CacheKey& cacheKey) const
+{
+    return m_MaterialCache.IsPending(cacheKey);
 }
 
 void
@@ -194,7 +219,6 @@ ResourceCache::CreateModelAsync(const CacheKey& cacheKey, const ModelSpec& model
     return AsyncStatus(this, cacheKey, &ResourceCache::IsPending<ModelResource>);
 }
 
-/// @brief Creates a texture asynchronously if not already created.
 Result<ResourceCache::AsyncStatus>
 ResourceCache::CreateTextureAsync(const CacheKey& cacheKey, const TextureSpec& textureSpec)
 {
@@ -221,6 +245,32 @@ ResourceCache::CreateTextureAsync(const CacheKey& cacheKey, const TextureSpec& t
     return AsyncStatus(this, cacheKey, &ResourceCache::IsPending<GpuTexture*>);
 }
 
+Result<ResourceCache::AsyncStatus>
+ResourceCache::CreateMaterialAsync(const CacheKey& cacheKey, const MaterialSpec& materialSpec)
+{
+    if(IsPending<GpuMaterial*>(cacheKey))
+    {
+        logDebug("  Material creation already pending: {}", cacheKey.ToString());
+        auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<GpuMaterial*>);
+        expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
+        m_Scheduler.Enqueue(op);
+    }
+    else if(m_MaterialCache.Contains(cacheKey))
+    {
+        logDebug("  Cache hit: {}", cacheKey.ToString());
+    }
+    else
+    {
+        logDebug("  Cache miss: {}", cacheKey.ToString());
+
+        auto op = NewOp<CreateMaterialOp>(this, cacheKey, materialSpec);
+        expectv(op, "Failed to allocate CreateMaterialOp for key: {}", cacheKey.ToString());
+        m_Scheduler.Enqueue(op);
+    }
+
+    return AsyncStatus(this, cacheKey, &ResourceCache::IsPending<GpuMaterial*>);
+}
+
 Result<ModelResource>
 ResourceCache::GetModel(const CacheKey& cacheKey) const
 {
@@ -237,6 +287,18 @@ ResourceCache::GetTexture(const CacheKey& cacheKey) const
     Result<GpuTexture*> result;
 
     expect(m_TextureCache.TryGet(cacheKey, result), "Texture not in cache: {}", cacheKey.ToString());
+
+    return result;
+}
+
+Result<GpuMaterial*>
+ResourceCache::GetMaterial(const CacheKey& cacheKey) const
+{
+    Result<GpuMaterial*> result;
+
+    expect(m_MaterialCache.TryGet(cacheKey, result),
+        "Material not in cache: {}",
+        cacheKey.ToString());
 
     return result;
 }
@@ -389,11 +451,10 @@ ResourceCache::CreateModelOp::Update()
                 m_IndexBuffer = result.value();
             }
 
-            m_State = CreateTextures;
+            m_State = CreateMaterials;
             break;
 
-            case CreateTextures:
-                m_State = CreatingTextures;
+            case CreateMaterials:
 
                 m_ResourceCache->m_Scheduler.PushGroup(&m_TaskGroup);
 
@@ -401,9 +462,9 @@ ResourceCache::CreateModelOp::Update()
                 {
                     if(meshSpec.MtlSpec.BaseTexture.IsValid())
                     {
-                        const CacheKey texCacheKey = meshSpec.MtlSpec.BaseTexture.GetCacheKey();
-                        auto result = m_ResourceCache->CreateTextureAsync(texCacheKey,
-                            meshSpec.MtlSpec.BaseTexture);
+                        auto result =
+                            m_ResourceCache->CreateMaterialAsync(meshSpec.MtlSpec.GetCacheKey(),
+                                meshSpec.MtlSpec);
 
                         if(!result)
                         {
@@ -416,9 +477,11 @@ ResourceCache::CreateModelOp::Update()
 
                 m_ResourceCache->m_Scheduler.PopGroup(&m_TaskGroup);
 
+                m_State = CreatingMaterials;
+
                 break;
 
-            case CreatingTextures:
+            case CreatingMaterials:
                 if(m_TaskGroup.IsPending())
                 {
                     return;
@@ -467,15 +530,14 @@ ResourceCache::CreateModelOp::CreateModel()
 
     for(const auto& meshSpec : m_ModelSpec.GetMeshSpecs())
     {
-        GpuTexture* baseTexture = nullptr;
-        if(meshSpec.MtlSpec.BaseTexture.IsValid())
-        {
-            auto baseTextureResult = m_ResourceCache->GetTexture(meshSpec.MtlSpec.BaseTexture.GetCacheKey());
-            expect(baseTextureResult, baseTextureResult.error());
-            baseTexture = baseTextureResult.value();
-        }
+        auto mtlResult = m_ResourceCache->GetMaterial(meshSpec.MtlSpec.GetCacheKey());
+        expect(mtlResult,
+            "Material not found in cache for key: {}",
+            meshSpec.MtlSpec.GetCacheKey().ToString());
 
-        const Material mtl(meshSpec.MtlSpec.Constants, baseTexture);
+        GpuMaterial* gpuMtl = mtlResult.value();
+
+        const Material mtl(meshSpec.MtlSpec.Constants, gpuMtl->GetBaseTexture());
 
         const uint32_t idxCount = static_cast<uint32_t>(meshSpec.Indices.size());
         const uint32_t vtxCount = static_cast<uint32_t>(meshSpec.Vertices.size());
@@ -489,7 +551,8 @@ ResourceCache::CreateModelOp::CreateModel()
             vbSubrange,
             ibSubrange,
             idxCount,
-            mtl);
+            mtl,
+            gpuMtl);
 
         idxOffset += idxCount;
         vtxOffset += vtxCount;
@@ -898,6 +961,92 @@ ResourceCache::CreateTextureOp::CreateTexture()
         GetCacheKey().ToString());
 
     return result;
+}
+
+// === ResourceCache::CreateMaterialOp ===
+
+ResourceCache::CreateMaterialOp::CreateMaterialOp(
+    ResourceCache* resourceCache, const CacheKey& cacheKey, const MaterialSpec& materialSpec)
+    : AsyncOp(cacheKey),
+      m_ResourceCache(resourceCache),
+      m_MaterialSpec(materialSpec)
+{
+}
+
+ResourceCache::CreateMaterialOp::~CreateMaterialOp()
+{
+}
+
+void
+ResourceCache::CreateMaterialOp::Start()
+{
+    eassert(m_State == NotStarted);
+
+    logOp("Start() (key: {})", GetCacheKey().ToString());
+
+    if(!everify(m_ResourceCache->m_MaterialCache.TryReserve(GetCacheKey())))
+    {
+        SetResult(Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString()));
+        return;
+    }
+
+    const auto& baseTextureSpec = m_MaterialSpec.BaseTexture;
+
+    if(!everify(baseTextureSpec.IsValid(), "Base texture spec is invalid"))
+    {
+        SetResult(Error("Base texture spec is invalid"));
+        return;
+    }
+
+    auto result = m_ResourceCache->CreateTextureAsync(baseTextureSpec.GetCacheKey(), baseTextureSpec);
+
+    if(!result)
+    {
+        SetResult(result.error());
+        return;
+    }
+
+    m_State = CreatingTexture;
+}
+
+void
+ResourceCache::CreateMaterialOp::Update()
+{
+    switch(m_State)
+    {
+        case NotStarted:
+            eassert(false, "Start() should have been called before Update()");
+            break;
+
+        case CreatingTexture:
+            if(!m_ResourceCache->IsPending<GpuTexture*>(m_MaterialSpec.BaseTexture.GetCacheKey()))
+            {
+                auto texResult = m_ResourceCache->GetTexture(m_MaterialSpec.BaseTexture.GetCacheKey());
+                if(!texResult)
+                {
+                    SetResult(texResult.error());
+                    return;
+                }
+
+                auto mtlResult =
+                    m_ResourceCache->m_GpuDevice->CreateMaterial(m_MaterialSpec.Constants,
+                        texResult.value());
+
+                SetResult(mtlResult);
+            }
+            break;
+
+        case Complete:
+            // No-op
+            break;
+    }
+}
+void
+ResourceCache::CreateMaterialOp::SetResult(Result<GpuMaterial*> result)
+{
+    m_ResourceCache->m_MaterialCache.Set(GetCacheKey(), result);
+
+    m_State = Complete;
 }
 
 static TextureProperties

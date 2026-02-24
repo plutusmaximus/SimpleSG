@@ -155,9 +155,7 @@ class GpuMaterial
 public:
 
     virtual GpuTexture* GetBaseTexture() const = 0;
-    virtual const RgbaColorf& GetColor() const = 0;
-    virtual float GetMetalness() const = 0;
-    virtual float GetRoughness() const = 0;
+    virtual const MaterialConstants& GetConstants() const = 0;
 
 protected:
     GpuMaterial() = default;

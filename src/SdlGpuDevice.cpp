@@ -472,11 +472,7 @@ SdlGpuDevice::CreateMaterial(const MaterialConstants& mtlConstants, GpuTexture* 
         return Error("Error allocating GpuResource");
     }
 
-    return ::new(&res->Material) SdlGpuMaterial(this,
-        baseTexture,
-        mtlConstants.Color,
-        mtlConstants.Metalness,
-        mtlConstants.Roughness);
+    return ::new(&res->Material) SdlGpuMaterial(this, baseTexture, mtlConstants);
 }
 
 Result<void>

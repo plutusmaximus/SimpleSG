@@ -307,30 +307,18 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     {
         for (auto& [mtlId, xmeshes] : *meshGrpPtr)
         {
-            const Material& mtl = xmeshes[0].MeshInstance.GetMaterial();
-            //const int mtlIdx = m_MaterialDb->GetIndex(mtlId);
-
-            /*GpuTexture* baseTexture = mtl.GetBaseTexture();
-
-            if(!baseTexture)
-            {
-                // If material doesn't have a base texture, bind a default texture.
-                auto defaultTextResult = GetDefaultBaseTexture();
-                expect(defaultTextResult, defaultTextResult.error());
-
-                baseTexture = defaultTextResult.value();
-            }*/
+            GpuMaterial* gpuMtl = xmeshes[0].MeshInstance.GetGpuMaterial();
 
             static PerfTimer writeMaterialTimer("Renderer.Render.Draw.WriteMaterialBuffer");
             {
                 auto scopedTimer = writeMaterialTimer.StartScoped();
 
-                SDL_PushGPUFragmentUniformData(cmdBuf, 0, &mtl.GetConstants(), sizeof(MaterialConstants));
+                SDL_PushGPUFragmentUniformData(cmdBuf, 0, &gpuMtl->GetConstants(), sizeof(MaterialConstants));
             }
 
             // Bind texture and sampler
 
-            GpuTexture* baseTexture = mtl.GetBaseTexture();
+            GpuTexture* baseTexture = gpuMtl->GetBaseTexture();
 
             SDL_GPUTextureSamplerBinding samplerBinding
             {

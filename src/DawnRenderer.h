@@ -116,8 +116,6 @@ private:
     wgpu::BindGroupLayout m_CopyTextureBindGroupLayout;
     wgpu::BindGroup m_CopyTextureBindGroup;
 
-    std::unordered_map<MaterialId, GpuMaterial*> m_Materials;
-
     size_t m_SizeofTransformBuffer{0};
     wgpu::Buffer m_WorldAndProjBuf;
     wgpu::BindGroup m_VertexShaderBindGroup;
