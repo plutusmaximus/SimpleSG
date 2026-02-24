@@ -355,80 +355,39 @@ constexpr static const VertexIndex cubeIndices[] =
 static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
 {
     imvector<MeshSpec>::builder meshSpecs =
-    {
         {
-            .Vertices{std::span(cubeVertices + 0, 6)},
-            .Indices{std::span(cubeIndices + 0, 6)},
-            .MtlSpec
             {
-                .Constants//
-                {
-                    .Color{1, 0, 0}
-                },
-                .BaseTexture{"images/Ant.png"},
-            }
-        },
-        {
-            .Vertices{std::span(cubeVertices + 6, 6)},
-            .Indices{std::span(cubeIndices + 6, 6)},
-            .MtlSpec
+                .Vertices{std::span(cubeVertices + 0, 6)},
+                .Indices{std::span(cubeIndices + 0, 6)},
+                .MtlSpec{MaterialConstants{.Color{1, 0, 0}, .Metalness{0}, .Roughness{0}}, TextureSpec{"images/Ant.png"}},
+            },
             {
-                .Constants//
-                {
-                    .Color{0, 1, 0}
-                },
-                .BaseTexture{"images/Bee.png"},
-            }
-        },
-        {
-            .Vertices{std::span(cubeVertices + 12, 6)},
-            .Indices{std::span(cubeIndices + 12, 6)},
-            .MtlSpec
+                .Vertices{std::span(cubeVertices + 6, 6)},
+                .Indices{std::span(cubeIndices + 6, 6)},
+                .MtlSpec{MaterialConstants{.Color{0, 1, 0}, .Metalness{0}, .Roughness{0}}, TextureSpec{"images/Bee.png"}},
+            },
+
             {
-                .Constants//
-                {
-                    .Color{0, 0, 1}
-                },
-                .BaseTexture{"images/Butterfly.png"},
-            }
-        },
-        {
-            .Vertices{std::span(cubeVertices + 18, 6)},
-            .Indices{std::span(cubeIndices + 18, 6)},
-            .MtlSpec
+                .Vertices{std::span(cubeVertices + 12, 6)},
+                .Indices{std::span(cubeIndices + 12, 6)},
+                .MtlSpec{MaterialConstants{.Color{0, 0, 1}, .Metalness{0}, .Roughness{0}}, TextureSpec{"images/Butterfly.png"}},
+            },
             {
-                .Constants//
-                {
-                    .Color{1, 1, 1}
-                },
-                .BaseTexture{"images/Frog.png"},
-            }
-        },
-        {
-            .Vertices{std::span(cubeVertices + 24, 6)},
-            .Indices{std::span(cubeIndices + 24, 6)},
-            .MtlSpec
+                .Vertices{std::span(cubeVertices + 18, 6)},
+                .Indices{std::span(cubeIndices + 18, 6)},
+                .MtlSpec{MaterialConstants{.Color{1, 1, 1}, .Metalness{0}, .Roughness{0}}, TextureSpec{"images/Frog.png"}},
+            },
             {
-                .Constants//
-                {
-                    .Color{0, 1, 1}
-                },
-                .BaseTexture{"images/Lizard.png"},
-            }
-        },
-        {
-            .Vertices{std::span(cubeVertices + 30, 6)},
-            .Indices{std::span(cubeIndices + 30, 6)},
-            .MtlSpec
+                .Vertices{std::span(cubeVertices + 24, 6)},
+                .Indices{std::span(cubeIndices + 24, 6)},
+                .MtlSpec{MaterialConstants{.Color{0, 1, 1}, .Metalness{0}, .Roughness{0}}, TextureSpec{"images/Lizard.png"}},
+            },
             {
-                .Constants//
-                {
-                    .Color{1, 0, 1}
-                },
-                .BaseTexture{"images/Turtle.png"},
-            }
-        },
-    };
+                .Vertices{std::span(cubeVertices + 30, 6)},
+                .Indices{std::span(cubeIndices + 30, 6)},
+                .MtlSpec{MaterialConstants{.Color{1, 0, 1}, .Metalness{0}, .Roughness{0}}, TextureSpec{"images/Turtle.png"}},
+            },
+        };
 
     imvector<TransformNode>::builder transformNodes
     {
@@ -468,23 +427,16 @@ static Result<ModelResource> CreateShapeModel(ResourceCache* cache)
     //auto geometry = Shapes::Cylinder(1, 1, 10);
     //auto geometry = Shapes::Cone(1, 0.5f, 10);
     auto geometry = Shapes::Torus(1, 0.5, 5);
-    const auto& [vertices, indices] = geometry;
+    const auto &[vertices, indices] = geometry;
 
     imvector<MeshSpec>::builder meshSpecs =
-    {
         {
-            .Vertices{vertices},
-            .Indices{indices},
-            .MtlSpec
             {
-                .Constants//
-                {
-                    .Color{1, 0, 0}
-                },
-                .BaseTexture{"images/Ant.png"},
-            }
-        }
-    };
+                .Vertices{vertices},
+                .Indices{indices},
+                .MtlSpec{MaterialConstants{.Color{1, 0, 0}, .Metalness{0}, .Roughness{0}}, TextureSpec{"images/Ant.png"}},
+            },
+        };
 
     imvector<TransformNode>::builder transformNodes
     {

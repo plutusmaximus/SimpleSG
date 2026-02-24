@@ -282,14 +282,7 @@ static Result<ModelResource> CreateTriangleModel(ResourceCache* cache)
                 //
                 .Vertices{triangleVertices},
                 .Indices{triangleIndices},
-                .MtlSpec //
-                {
-                    .Constants//
-                    {
-                        .Color{"#FFA500"_rgba}
-                    },
-                    .BaseTexture{"images/Ant.png"},
-                },
+                .MtlSpec{MaterialConstants{.Color{"#FFA500"_rgba}, .Metalness{0}, .Roughness{0}}, TextureSpec{"images/Ant.png"}},
             },
         };
 

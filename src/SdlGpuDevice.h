@@ -46,6 +46,8 @@ public:
         return SdlSubrange(this, itemOffset, itemCount);
     }
 
+    uint32_t GetVertexCount() const override { return m_ItemCount; }
+
 private:
 
     friend class SdlGpuDevice;
@@ -90,6 +92,8 @@ public:
         eassert(itemOffset + itemCount <= m_ItemCount, "Sub-range out of bounds");
         return SdlSubrange(this, itemOffset, itemCount);
     }
+
+    uint32_t GetIndexCount() const override { return m_ItemCount; }
 
 private:
 

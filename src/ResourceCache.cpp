@@ -1093,19 +1093,17 @@ CreateMaterialSpec(const aiMaterial* material, const std::filesystem::path& pare
     }
 
     const TextureSpec baseTextureSpec = texProperties.Base.Path.empty()
-                                   ? MAGENTA_TEXTURE_SPEC
-                                   : TextureSpec{ texProperties.Base.Path };
+                                            ? MAGENTA_TEXTURE_SPEC
+                                            : TextureSpec{ texProperties.Base.Path };
 
-    return MaterialSpec//
-    {
-        .Constants//
+    const MaterialConstants materialConstants //
         {
             .Color{ diffuseColor.r, diffuseColor.g, diffuseColor.b, opacity },
             .Metalness{ 0.0f },
             .Roughness{ 0.0f },
-        },
-        .BaseTexture = baseTextureSpec,
-    };
+        };
+
+    return MaterialSpec(materialConstants, baseTextureSpec);
 }
 
 static MeshSpec

@@ -291,6 +291,9 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     static PerfTimer drawTimer("Renderer.Render.Draw");
     drawTimer.Start();
 
+    const SdlGpuVertexBuffer* lastVb = nullptr;
+    const SdlGpuIndexBuffer* lastIb = nullptr;
+
     static PerfTimer setPipelineTimer("Renderer.Render.SetPipeline");
     {
         auto scopedTimer = setPipelineTimer.StartScoped();
@@ -352,23 +355,11 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 
                 const Mesh& mesh = xmesh.MeshInstance;
 
-                const SdlGpuVertexBuffer* sdlVb =
-                    static_cast<const SdlGpuVertexBuffer*>(mesh.GetVertexBuffer().GetBuffer());
+                const auto& vbSubrange = mesh.GetVertexBuffer();
+                const auto& ibSubrange = mesh.GetIndexBuffer();
 
-                SDL_GPUBufferBinding vertexBufferBinding
-                {
-                    .buffer = sdlVb->GetBuffer(),
-                    .offset = mesh.GetVertexBuffer().GetByteOffset()
-                };
-
-                const SdlGpuIndexBuffer* sdlIb =
-                    static_cast<const SdlGpuIndexBuffer*>(mesh.GetIndexBuffer().GetBuffer());
-
-                SDL_GPUBufferBinding indexBufferBinding
-                {
-                    .buffer = sdlIb->GetBuffer(),
-                    .offset = mesh.GetIndexBuffer().GetByteOffset()
-                };
+                auto vb = static_cast<const SdlGpuVertexBuffer*>(vbSubrange.GetBuffer());
+                auto ib = static_cast<const SdlGpuIndexBuffer*>(ibSubrange.GetBuffer());
 
                 static_assert(VERTEX_INDEX_BITS == 32 || VERTEX_INDEX_BITS == 16);
 
@@ -378,10 +369,26 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
                     : SDL_GPU_INDEXELEMENTSIZE_16BIT;
 
                 static PerfTimer setBuffersTimer("Renderer.Render.Draw.SetBuffers");
+                if(lastVb != vb || lastIb != ib)
                 {
                     auto scopedTimer = setBuffersTimer.StartScoped();
+
+                    SDL_GPUBufferBinding vertexBufferBinding//
+                    {
+                        .buffer = vb->GetBuffer(),
+                        .offset = 0,
+                    };
+
+                    SDL_GPUBufferBinding indexBufferBinding//
+                    {
+                        .buffer = ib->GetBuffer(),
+                        .offset = 0,
+                    };
+
                     SDL_BindGPUVertexBuffers(renderPass, 0, &vertexBufferBinding, 1);
                     SDL_BindGPUIndexBuffer(renderPass, &indexBufferBinding, idxElSize);
+                    lastVb = vb;
+                    lastIb = ib;
                 }
 
                 static PerfTimer writeTransformTimer("Renderer.Render.Draw.WriteTransformBuffer");
@@ -394,7 +401,12 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
                 static PerfTimer drawIndexedTimer("Renderer.Render.Draw.DrawIndexed");
                 {
                     auto scopedTimer = drawIndexedTimer.StartScoped();
-                    SDL_DrawGPUIndexedPrimitives(renderPass, mesh.GetIndexCount(), 1, 0, 0, 0);
+                    SDL_DrawGPUIndexedPrimitives(renderPass,
+                        mesh.GetIndexCount(),
+                        1,
+                        ibSubrange.GetIndexOffset(),
+                        vbSubrange.GetVertexOffset(),
+                        0);
                 }
             }
         }

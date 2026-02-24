@@ -39,6 +39,8 @@ public:
         return DawnSubrange(this, itemOffset, itemCount);
     }
 
+    uint32_t GetVertexCount() const override { return m_ItemCount; }
+
 private:
     friend class DawnGpuDevice;
 
@@ -83,6 +85,8 @@ public:
         eassert(itemOffset + itemCount <= m_ItemCount, "Sub-range out of bounds");
         return DawnSubrange(this, itemOffset, itemCount);
     }
+
+    uint32_t GetIndexCount() const override { return m_ItemCount; }
 
 private:
     friend class DawnGpuDevice;

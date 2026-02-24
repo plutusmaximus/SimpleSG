@@ -322,6 +322,9 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     static PerfTimer drawTimer("Renderer.Render.Draw");
     drawTimer.Start();
 
+    const DawnGpuVertexBuffer* lastVb = nullptr;
+    const DawnGpuIndexBuffer* lastIb = nullptr;
+
     for(const auto meshGrpPtr : meshGroups)
     {
         for (auto& [mtlId, xmeshes] : *meshGrpPtr)
@@ -380,19 +383,26 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 
                 constexpr unsigned idxSize = (VERTEX_INDEX_BITS == 32) ? sizeof(uint32_t) : sizeof(uint16_t);
 
+                auto vb = static_cast<const DawnGpuVertexBuffer*>(vbSubrange.GetBuffer());
+                auto ib = static_cast<const DawnGpuIndexBuffer*>(ibSubrange.GetBuffer());
+
                 static PerfTimer setBuffersTimer("Renderer.Render.Draw.SetBuffers");
+                if(lastVb != vb || lastIb != ib)
                 {
                     auto scopedTimer = setBuffersTimer.StartScoped();
-                    renderPass.SetVertexBuffer(0,
-                        static_cast<const DawnGpuVertexBuffer*>(vbSubrange.GetBuffer())->GetBuffer(),
-                        vbSubrange.GetByteOffset(),
-                        vbSubrange.GetItemCount() * sizeof(Vertex));
 
-                    renderPass.SetIndexBuffer(
-                        static_cast<const DawnGpuIndexBuffer*>(ibSubrange.GetBuffer())->GetBuffer(),
+                    renderPass.SetVertexBuffer(0,
+                        vb->GetBuffer(),
+                        0,
+                        vb->GetVertexCount() * sizeof(Vertex));
+
+                    renderPass.SetIndexBuffer(ib->GetBuffer(),
                         idxFmt,
-                        ibSubrange.GetByteOffset(),
-                        ibSubrange.GetItemCount() * idxSize);
+                        0,
+                        ib->GetIndexCount() * idxSize);
+
+                    lastVb = vb;
+                    lastIb = ib;
                 }
 
                 static PerfTimer writeTransformTimer("Renderer.Render.Draw.WriteTransformBuffer");
@@ -412,13 +422,20 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
                     {
                         static_cast<uint32_t>(sizeofAlignedTransforms * meshCount),
                     };
-                    renderPass.SetBindGroup(1, m_VertexShaderBindGroup, std::size(dynamicOffsets), dynamicOffsets);
+                    renderPass.SetBindGroup(1,
+                        m_VertexShaderBindGroup,
+                        std::size(dynamicOffsets),
+                        dynamicOffsets);
                 }
 
                 static PerfTimer drawIndexedTimer("Renderer.Render.Draw.DrawIndexed");
                 {
                     auto scopedTimer = drawIndexedTimer.StartScoped();
-                    renderPass.DrawIndexed(mesh.GetIndexCount(), 1, 0, 0, 0);
+                    renderPass.DrawIndexed(mesh.GetIndexCount(),
+                        1,
+                        ibSubrange.GetIndexOffset(),
+                        vbSubrange.GetVertexOffset(),
+                        0);
                 }
 
                 ++meshCount;

@@ -34,25 +34,34 @@ public:
         /// @brief Offset in bytes of first item in buffer.
         uint32_t GetByteOffset() const { return m_ByteOffset; }
 
+        /// @brief Offset in items of first item in buffer.
+        uint32_t GetVertexOffset() const { return m_ItemOffset; }
+
         /// @brief Number of items in buffer.
-        uint32_t GetItemCount() const { return m_ItemCount; }
+        uint32_t GetVertexCount() const { return m_ItemCount; }
 
     protected:
-
         Subrange(GpuVertexBuffer* owner, const uint32_t itemOffset, const uint32_t itemCount)
-            : m_Owner(owner), m_ByteOffset(itemOffset * sizeof(Vertex)), m_ItemCount(itemCount)
+            : m_Owner(owner),
+              m_ByteOffset(itemOffset * sizeof(Vertex)),
+              m_ItemOffset(itemOffset),
+              m_ItemCount(itemCount)
         {
         }
+
     private:
 
         // This pointer is borrowed from the parent VertexBuffer.
         // It must not outlive its parent.
         GpuVertexBuffer* m_Owner{ nullptr };
         uint32_t m_ByteOffset{ 0 };
+        uint32_t m_ItemOffset{ 0 };
         uint32_t m_ItemCount{ 0 };
     };
 
     virtual Subrange GetSubrange(const uint32_t itemOffset, const uint32_t itemCount) = 0;
+
+    virtual uint32_t GetVertexCount() const = 0;
 
 protected:
     GpuVertexBuffer() = default;
@@ -77,25 +86,34 @@ public:
         /// @brief Offset in bytes of first item in buffer.
         uint32_t GetByteOffset() const { return m_ByteOffset; }
 
+        /// @brief Offset in items of first item in buffer.
+        uint32_t GetIndexOffset() const { return m_ItemOffset; }
+
         /// @brief Number of items in buffer.
-        uint32_t GetItemCount() const { return m_ItemCount; }
+        uint32_t GetIndexCount() const { return m_ItemCount; }
 
     protected:
-
         Subrange(GpuIndexBuffer* owner, const uint32_t itemOffset, const uint32_t itemCount)
-            : m_Owner(owner), m_ByteOffset(itemOffset * sizeof(VertexIndex)), m_ItemCount(itemCount)
+            : m_Owner(owner),
+              m_ByteOffset(itemOffset * sizeof(VertexIndex)),
+              m_ItemOffset(itemOffset),
+              m_ItemCount(itemCount)
         {
         }
+
     private:
 
         // This pointer is borrowed from the parent VertexBuffer.
         // It must not outlive its parent.
         GpuIndexBuffer* m_Owner{ nullptr };
         uint32_t m_ByteOffset{ 0 };
+        uint32_t m_ItemOffset{ 0 };
         uint32_t m_ItemCount{ 0 };
     };
 
     virtual Subrange GetSubrange(const uint32_t itemOffset, const uint32_t itemCount) = 0;
+
+    virtual uint32_t GetIndexCount() const = 0;
 
 protected:
     GpuIndexBuffer() = default;

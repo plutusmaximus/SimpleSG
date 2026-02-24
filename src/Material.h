@@ -218,10 +218,32 @@ public:
 class MaterialSpec
 {
 public:
+    MaterialSpec(const MaterialConstants& constants, const TextureSpec& baseTexture)
+        : Constants(constants),
+          BaseTexture(baseTexture),
+          // The cache key is a combination of the material constants and the base texture's cache key.
+          m_CacheKey(std::format("{}:{}:{}:{}",
+              Constants.Color.ToHexString(),
+              Constants.Metalness,
+              Constants.Roughness,
+              BaseTexture.GetCacheKey().ToString()))
+    {
+    }
 
     const MaterialConstants Constants;
 
     const TextureSpec BaseTexture;
+
+    const CacheKey& GetCacheKey() const
+    {
+        return m_CacheKey;
+    }
+
+private:
+
+    CacheKey m_CacheKey;
+
+    char m_CacheKeyBuffer[256];
 };
 
 /// @brief Material used for rendering meshes.
