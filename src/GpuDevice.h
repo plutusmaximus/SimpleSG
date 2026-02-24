@@ -14,6 +14,7 @@ template<typename T>
 class RgbaColor;
 using RgbaColorf = RgbaColor<float>;
 class Renderer;
+class MaterialConstants;
 
 /// @brief GPU representation of a vertex buffer.
 class GpuVertexBuffer
@@ -130,12 +131,19 @@ protected:
     virtual ~GpuTexture() = 0;
 };
 
-/// @brief GPU representation of material constants, like base color, metalness, roughness, etc.
-class GpuMaterialConstants
+/// @brief GPU representation of a material.
+class GpuMaterial
 {
+public:
+
+    virtual GpuTexture* GetBaseTexture() const = 0;
+    virtual const RgbaColorf& GetColor() const = 0;
+    virtual float GetMetalness() const = 0;
+    virtual float GetRoughness() const = 0;
+
 protected:
-    GpuMaterialConstants() = default;
-    virtual ~GpuMaterialConstants() = 0;
+    GpuMaterial() = default;
+    virtual ~GpuMaterial() = 0;
 };
 
 /// @brief GPU representation of a color render target.
@@ -242,6 +250,11 @@ public:
     /// @brief Destroys a fragment shader.
     virtual Result<void> DestroyFragmentShader(GpuFragmentShader* fragmentShader) = 0;
 
+    virtual Result<GpuMaterial*> CreateMaterial(const MaterialConstants& constants,
+        GpuTexture* baseTexture) = 0;
+
+    virtual Result<void> DestroyMaterial(GpuMaterial* material) = 0;
+
     virtual Result<Renderer*> CreateRenderer() = 0;
 
     virtual void DestroyRenderer(Renderer* renderer) = 0;
@@ -257,7 +270,7 @@ inline GpuIndexBuffer::~GpuIndexBuffer() = default;
 inline GpuVertexShader::~GpuVertexShader() = default;
 inline GpuFragmentShader::~GpuFragmentShader() = default;
 inline GpuTexture::~GpuTexture() = default;
-inline GpuMaterialConstants::~GpuMaterialConstants() = default;
+inline GpuMaterial::~GpuMaterial() = default;
 inline GpuColorTarget::~GpuColorTarget() = default;
 inline GpuDepthTarget::~GpuDepthTarget() = default;
 inline GpuRenderPass::~GpuRenderPass() = default;

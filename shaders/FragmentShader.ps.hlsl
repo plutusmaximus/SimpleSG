@@ -8,8 +8,8 @@ struct PSInput
 struct Material
 {
     float4 color;
+    float metalness;
     float roughness;
-    float metallic;
     float pad0;
     float pad1;
 };

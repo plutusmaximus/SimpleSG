@@ -149,6 +149,47 @@ private:
     unsigned m_Height;
 };
 
+class SdlGpuMaterial : public GpuMaterial
+{
+public:
+
+    SdlGpuMaterial() = delete;
+    SdlGpuMaterial(const SdlGpuMaterial&) = delete;
+    SdlGpuMaterial& operator=(const SdlGpuMaterial&) = delete;
+    SdlGpuMaterial(SdlGpuMaterial&&) = delete;
+    SdlGpuMaterial& operator=(SdlGpuMaterial&&) = delete;
+
+    ~SdlGpuMaterial() override {};
+
+    GpuTexture* GetBaseTexture() const override { return m_BaseTexture; }
+    const RgbaColorf& GetColor() const override { return m_Color; }
+    float GetMetalness() const override { return m_Metalness; }
+    float GetRoughness() const override { return m_Roughness; }
+
+private:
+    friend class SdlGpuDevice;
+
+    SdlGpuMaterial(SdlGpuDevice* gpuDevice,
+        GpuTexture* baseTexture,
+        const RgbaColorf& color,
+        const float metalness,
+        const float roughness)
+        : m_GpuDevice(gpuDevice),
+          m_BaseTexture(baseTexture),
+          m_Color(color),
+          m_Metalness(metalness),
+          m_Roughness(roughness)
+
+    {
+    }
+
+    SdlGpuDevice* const m_GpuDevice;
+    GpuTexture* m_BaseTexture;
+    RgbaColorf m_Color;
+    float m_Metalness;
+    float m_Roughness;
+};
+
 class SdlGpuColorTarget : public GpuColorTarget
 {
 public:
@@ -356,6 +397,11 @@ public:
 
     Result<void> DestroyFragmentShader(GpuFragmentShader* shader) override;
 
+    Result<GpuMaterial*> CreateMaterial(const MaterialConstants& constants,
+        GpuTexture* baseTexture) override;
+
+    Result<void> DestroyMaterial(GpuMaterial* material) override;
+
     Result<Renderer*> CreateRenderer() override;
 
     void DestroyRenderer(Renderer* renderer) override;
@@ -382,6 +428,7 @@ private:
         SdlGpuVertexBuffer VertexBuffer;
         SdlGpuIndexBuffer IndexBuffer;
         SdlGpuTexture Texture;
+        SdlGpuMaterial Material;
         SdlGpuColorTarget ColorTarget;
         SdlGpuDepthTarget DepthTarget;
         SdlGpuVertexShader VertexShader;

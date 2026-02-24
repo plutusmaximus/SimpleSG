@@ -25,19 +25,6 @@ static constexpr const char* COMPOSITE_COLOR_TARGET_FS = "shaders/Debug/FullScre
 static constexpr const char* COLOR_PIPELINE_VS = "shaders/Debug/VertexShader.vs.spv";
 static constexpr const char* COLOR_PIPELINE_FS = "shaders/Debug/FragmentShader.ps.spv";
 
-namespace
-{
-    // Material constants uniform data
-    struct MaterialConstantsUd
-    {
-        RgbaColorf Color;
-        float Roughness;
-        float Metalness;
-        float pad0;
-        float pad1;
-    };
-}
-
 SdlRenderer::SdlRenderer(SdlGpuDevice* gpuDevice)
     : m_GpuDevice(gpuDevice)
 {
@@ -320,7 +307,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
             const Material& mtl = xmeshes[0].MeshInstance.GetMaterial();
             //const int mtlIdx = m_MaterialDb->GetIndex(mtlId);
 
-            GpuTexture* baseTexture = mtl.GetBaseTexture();
+            /*GpuTexture* baseTexture = mtl.GetBaseTexture();
 
             if(!baseTexture)
             {
@@ -329,25 +316,19 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
                 expect(defaultTextResult, defaultTextResult.error());
 
                 baseTexture = defaultTextResult.value();
-            }
+            }*/
 
             static PerfTimer writeMaterialTimer("Renderer.Render.Draw.WriteMaterialBuffer");
             {
                 auto scopedTimer = writeMaterialTimer.StartScoped();
 
-                MaterialConstantsUd mtlc//
-                {
-                    .Color = mtl.GetColor(),
-                    .Roughness = mtl.GetRoughness(),
-                    .Metalness = mtl.GetMetalness(),
-                    .pad0 = 0,
-                    .pad1 = 0
-                };
-
-                SDL_PushGPUFragmentUniformData(cmdBuf, 0, &mtlc, sizeof(mtlc));
+                SDL_PushGPUFragmentUniformData(cmdBuf, 0, &mtl.GetConstants(), sizeof(MaterialConstants));
             }
 
             // Bind texture and sampler
+
+            GpuTexture* baseTexture = mtl.GetBaseTexture();
+
             SDL_GPUTextureSamplerBinding samplerBinding
             {
                 .texture = static_cast<SdlGpuTexture*>(baseTexture)->GetTexture(),

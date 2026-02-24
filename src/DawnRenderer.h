@@ -94,6 +94,7 @@ private:
     Result<void> RenderGui(wgpu::CommandEncoder cmdEncoder, wgpu::TextureView target);
 
     DawnGpuDevice* const m_GpuDevice;
+    wgpu::Limits m_GpuLimits;
     GpuColorTarget* m_ColorTarget{ nullptr };
     GpuDepthTarget* m_DepthTarget{ nullptr };
 
@@ -115,13 +116,7 @@ private:
     wgpu::BindGroupLayout m_CopyTextureBindGroupLayout;
     wgpu::BindGroup m_CopyTextureBindGroup;
 
-    struct FsBindGroup
-    {
-        wgpu::Buffer MaterialConstantsBuf;
-        wgpu::BindGroup BindGroup;
-    };
-
-    std::unordered_map<void*, FsBindGroup> m_FragShaderBindGroups;
+    std::unordered_map<MaterialId, GpuMaterial*> m_Materials;
 
     size_t m_SizeofTransformBuffer{0};
     wgpu::Buffer m_WorldAndProjBuf;

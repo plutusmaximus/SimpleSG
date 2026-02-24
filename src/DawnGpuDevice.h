@@ -145,6 +145,55 @@ private:
     unsigned m_Height;
 };
 
+class DawnGpuMaterial : public GpuMaterial
+{
+public:
+
+    DawnGpuMaterial() = delete;
+    DawnGpuMaterial(const DawnGpuMaterial&) = delete;
+    DawnGpuMaterial& operator=(const DawnGpuMaterial&) = delete;
+    DawnGpuMaterial(DawnGpuMaterial&&) = delete;
+    DawnGpuMaterial& operator=(DawnGpuMaterial&&) = delete;
+
+    ~DawnGpuMaterial() override {};
+
+    GpuTexture* GetBaseTexture() const override { return m_BaseTexture; }
+    const RgbaColorf& GetColor() const override { return m_Color; }
+    float GetMetalness() const override { return m_Metalness; }
+    float GetRoughness() const override { return m_Roughness; }
+
+    wgpu::BindGroup GetBindGroup() const { return m_BindGroup; }
+
+private:
+    friend class DawnGpuDevice;
+
+    DawnGpuMaterial(DawnGpuDevice* gpuDevice,
+        GpuTexture* baseTexture,
+        wgpu::Buffer constantsBuffer,
+        wgpu::BindGroup bindGroup,
+        const RgbaColorf& color,
+        const float metalness,
+        const float roughness)
+        : m_GpuDevice(gpuDevice),
+          m_BaseTexture(baseTexture),
+          m_ConstantsBuffer(constantsBuffer),
+          m_BindGroup(bindGroup),
+          m_Color(color),
+          m_Metalness(metalness),
+          m_Roughness(roughness)
+
+    {
+    }
+
+    DawnGpuDevice* const m_GpuDevice;
+    GpuTexture* m_BaseTexture;
+    wgpu::Buffer m_ConstantsBuffer;
+    wgpu::BindGroup m_BindGroup;
+    RgbaColorf m_Color;
+    float m_Metalness;
+    float m_Roughness;
+};
+
 class DawnGpuColorTarget : public GpuColorTarget
 {
 public:
@@ -352,6 +401,11 @@ public:
 
     Result<void> DestroyFragmentShader(GpuFragmentShader* shader) override;
 
+    Result<GpuMaterial*> CreateMaterial(const MaterialConstants& constants,
+        GpuTexture* baseTexture) override;
+
+    Result<void> DestroyMaterial(GpuMaterial* material) override;
+
     Result<Renderer*> CreateRenderer() override;
 
     void DestroyRenderer(Renderer* renderer) override;
@@ -373,8 +427,14 @@ private:
 
     Result<wgpu::Sampler> GetDefaultSampler();
 
+    /// @brief Gets the default bind group layout for fragment shaders.
+    Result<wgpu::BindGroupLayout> GetFsBindGroupLayout();
+
     /// @brief Default sampler used for all textures.
-    wgpu::Sampler m_Sampler = nullptr;
+    wgpu::Sampler m_Sampler;
+
+    /// @brief Default bind group layout for fragment shaders.
+    wgpu::BindGroupLayout m_FsBindGroupLayout;
 
     union GpuResource
     {
@@ -384,6 +444,7 @@ private:
         DawnGpuVertexBuffer VertexBuffer;
         DawnGpuIndexBuffer IndexBuffer;
         DawnGpuTexture Texture;
+        DawnGpuMaterial Material;
         DawnGpuColorTarget ColorTarget;
         DawnGpuDepthTarget DepthTarget;
         DawnGpuVertexShader VertexShader;

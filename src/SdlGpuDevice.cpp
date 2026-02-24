@@ -18,13 +18,11 @@
 
 static const SDL_GPUShaderFormat SHADER_FORMAT = SDL_GPU_SHADERFORMAT_DXIL;
 static const char* const DRIVER_NAME = "direct3d12";
-static const char* const SHADER_EXTENSION = ".dxil";
 
 #elif defined(GPU_DRIVER_VULKAN)
 
 static const SDL_GPUShaderFormat SHADER_FORMAT = SDL_GPU_SHADERFORMAT_SPIRV;
 static const char* const DRIVER_NAME = "vulkan";
-static const char* const SHADER_EXTENSION = ".spv";
 
 #else
 
@@ -453,6 +451,42 @@ SdlGpuDevice::DestroyTexture(GpuTexture* texture)
         "Texture does not belong to this device");
     sdlTexture->~SdlGpuTexture();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(texture));
+    return Result<void>::Success;
+}
+
+Result<GpuMaterial*>
+SdlGpuDevice::CreateMaterial(const MaterialConstants& mtlConstants, GpuTexture* baseTexture)
+{
+    SdlGpuTexture* sdlBaseTexture = static_cast<SdlGpuTexture*>(baseTexture);
+
+    if(!everify(sdlBaseTexture->m_GpuDevice == this,
+           "Base texture must belong to this device"))
+    {
+        return Error("Base texture must belong to this device");
+    }
+
+    GpuResource* res = m_ResourceAllocator.New();
+
+    if(!res)
+    {
+        return Error("Error allocating GpuResource");
+    }
+
+    return ::new(&res->Material) SdlGpuMaterial(this,
+        baseTexture,
+        mtlConstants.Color,
+        mtlConstants.Metalness,
+        mtlConstants.Roughness);
+}
+
+Result<void>
+SdlGpuDevice::DestroyMaterial(GpuMaterial* material)
+{
+    SdlGpuMaterial* sdlMaterial = static_cast<SdlGpuMaterial*>(material);
+    eassert(this == sdlMaterial->m_GpuDevice,
+        "Material does not belong to this device");
+    sdlMaterial->~SdlGpuMaterial();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(material));
     return Result<void>::Success;
 }
 

@@ -25,22 +25,11 @@ static constexpr const char* COMPOSITE_COLOR_TARGET_FS = "shaders/Debug/FullScre
 static constexpr const char* COLOR_PIPELINE_VS = "shaders/Debug/VertexShader.vs.wgsl";
 static constexpr const char* COLOR_PIPELINE_FS = "shaders/Debug/FragmentShader.fs.wgsl";
 
-namespace
-{
-    // Material constants uniform data
-    struct MaterialConstantsUd
-    {
-        RgbaColorf Color;
-        float Roughness;
-        float Metalness;
-        float pad0;
-        float pad1;
-    };
-}
-
 DawnRenderer::DawnRenderer(DawnGpuDevice* gpuDevice)
     : m_GpuDevice(gpuDevice)
 {
+    gpuDevice->Device.GetLimits(&m_GpuLimits);
+
     InitGui();
 }
 
@@ -115,6 +104,15 @@ DawnRenderer::~DawnRenderer()
     if(m_CopyTexturePipeline)
     {
         // m_CopyTexturePipeline is ref-counted, so nothing to do here
+    }
+
+    for(auto& [mtlId, mtl] : m_Materials)
+    {
+        auto result = m_GpuDevice->DestroyMaterial(mtl);
+        if(!result)
+        {
+            logError("Failed to destroy material: {}", result.error());
+        }
     }
 
     //DO NOT SUBMIT
@@ -212,9 +210,12 @@ DawnRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
     }
 }
 
-static inline constexpr uint32_t alignup(const uint32_t value, const uint32_t alignment)
+template<typename T>
+static inline size_t alignUniformBuffer(const wgpu::Limits& limits)
 {
-    return (value + alignment - 1) & ~(alignment - 1);
+    const size_t alignment = limits.minUniformBufferOffsetAlignment;
+
+    return (sizeof(T) + alignment - 1) & ~(alignment - 1);
 }
 
 Result<void>
@@ -231,11 +232,6 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     ++m_RenderCount;
 
     auto gpuDevice = m_GpuDevice->Device;
-
-    wgpu::Limits limits {};
-    gpuDevice.GetLimits(&limits);
-
-    const uint32_t bufferAlign = limits.minUniformBufferOffsetAlignment;
 
     wgpu::CommandEncoderDescriptor encoderDesc = { .label = "MainRenderEncoder" };
 
@@ -267,8 +263,8 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 
     // Size of the buffer needed to hold the world and projection matrices for all meshes in the
     // current frame.
-    constexpr size_t sizeofTransforms = sizeof(Mat44f) * 2; // World and projection matrices
-    const size_t sizeofAlignedTransforms = alignup(sizeofTransforms, bufferAlign);
+    using XFormBuffer = Mat44f[2];  // World and projection matrices
+    const size_t sizeofAlignedTransforms = alignUniformBuffer<XFormBuffer>(m_GpuLimits);
     const size_t sizeofTransformBuffer = sizeofAlignedTransforms * m_CurrentState->m_MeshCount;
 
     if(!m_WorldAndProjBuf || m_SizeofTransformBuffer < sizeofTransformBuffer)
@@ -332,7 +328,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
         {
             const Material& mtl = xmeshes[0].MeshInstance.GetMaterial();
 
-            GpuTexture* baseTexture = mtl.GetBaseTexture();
+            /*GpuTexture* baseTexture = mtl.GetBaseTexture();
 
             if(!baseTexture)
             {
@@ -341,84 +337,23 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
                 expect(defaultTextResult, defaultTextResult.error());
 
                 baseTexture = defaultTextResult.value();
-            }
+            }*/
 
-            auto itFragShaderBG = m_FragShaderBindGroups.find(baseTexture);
-            if(itFragShaderBG == m_FragShaderBindGroups.end())
+            auto itMtl = m_Materials.find(mtlId);
+            if(itMtl == m_Materials.end())
             {
-                // Material bind group doesn't exist yet, create it.
+                auto mtlResult = m_GpuDevice->CreateMaterial(mtl.GetConstants(), mtl.GetBaseTexture());
+                expect(mtlResult, mtlResult.error());
 
-                const size_t sizeofAlignedBuffer = alignup(sizeof(MaterialConstantsUd), bufferAlign);
-
-                wgpu::BufferDescriptor mtlConstantsBufferDesc //
-                {
-                    .label = "MaterialConstantsUd",
-                    .usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
-                    .size = sizeofAlignedBuffer,
-                    .mappedAtCreation = false,
-                };
-
-                wgpu::Buffer mtlConstantsBuf = gpuDevice.CreateBuffer(&mtlConstantsBufferDesc);
-                expect(mtlConstantsBuf, "Failed to create material constants buffer");
-
-                static PerfTimer writeMaterialTimer("Renderer.Render.Draw.WriteMaterialBuffer");
-                {
-                    auto scopedTimer = writeMaterialTimer.StartScoped();
-                    MaterialConstantsUd mtlc //
-                        {
-                            .Color = mtl.GetColor(),
-                            .Roughness = mtl.GetRoughness(),
-                            .Metalness = mtl.GetMetalness(),
-                        };
-                    gpuDevice.GetQueue().WriteBuffer(mtlConstantsBuf,
-                        0,
-                        &mtlc,
-                        sizeof(MaterialConstantsUd));
-                }
-
-                wgpu::BindGroupEntry fsBgEntries[] = //
-                    {
-                        {
-                            .binding = 0,
-                            .textureView = static_cast<DawnGpuTexture*>(baseTexture)->GetTextureView(),
-                        },
-                        {
-                            .binding = 1,
-                            .sampler = static_cast<DawnGpuTexture*>(baseTexture)->GetSampler(),
-                        },
-                        {
-                            .binding = 2,
-                            .buffer = mtlConstantsBuf,
-                            .offset = 0,
-                            .size = sizeofAlignedBuffer,
-                        },
-                    };
-
-                wgpu::BindGroupDescriptor fsBgDesc //
-                    {
-                        .label = "fsBindGroup",
-                        .layout = m_FsBindGroupLayout,
-                        .entryCount = std::size(fsBgEntries),
-                        .entries = fsBgEntries,
-                    };
-
-                wgpu::BindGroup bindGroup = gpuDevice.CreateBindGroup(&fsBgDesc);
-                expect(bindGroup, "Failed to create WGPUBindGroup");
-
-                FsBindGroup fsBindGroup
-                {
-                    .MaterialConstantsBuf = mtlConstantsBuf,
-                    .BindGroup = bindGroup,
-                };
-
-                itFragShaderBG = m_FragShaderBindGroups.try_emplace(baseTexture, fsBindGroup).first;
+                itMtl = m_Materials.try_emplace(mtlId, mtlResult.value()).first;
             }
 
-            static PerfTimer fsBindingTimer("Renderer.Render.Draw.FsBindings");
+            static PerfTimer fsBindingTimer("Renderer.Render.Draw.SetMaterialBindGroup");
             {
                 auto scopedTimer = fsBindingTimer.StartScoped();
-                const FsBindGroup& fsBindGroup = itFragShaderBG->second;
-                renderPass.SetBindGroup(2, fsBindGroup.BindGroup, 0, nullptr);
+                DawnGpuMaterial* dawnMtl = static_cast<DawnGpuMaterial*>(itMtl->second);
+                wgpu::BindGroup bindGroup = dawnMtl->GetBindGroup();
+                renderPass.SetBindGroup(2, bindGroup, 0, nullptr);
             }
 
             const Mat44f viewProj = projection.Mul(viewXform);
@@ -870,7 +805,7 @@ DawnRenderer::GetColorPipeline()
             },
         },
         /*
-            MaterialConstantsUd
+            MaterialConstants
         */
         {
             .binding = 2,
@@ -879,7 +814,7 @@ DawnRenderer::GetColorPipeline()
             {
                 .type = wgpu::BufferBindingType::Uniform,
                 .hasDynamicOffset = false,
-                .minBindingSize = sizeof(MaterialConstantsUd),
+                .minBindingSize = alignUniformBuffer<MaterialConstants>(m_GpuLimits),
             },
         }
     };

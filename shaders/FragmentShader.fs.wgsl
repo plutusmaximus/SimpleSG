@@ -8,8 +8,8 @@ struct PSInput
 struct Material
 {
     color : vec4<f32>,
+    metalness : f32,
     roughness : f32,
-    metallic : f32,
     pad0 : f32,
     pad1 : f32
 };

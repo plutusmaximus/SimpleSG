@@ -58,6 +58,15 @@ static Result<wgpu::TextureFormat> ConfigureSurface(wgpu::Adapter adapter,
 
 static void DumpDawnToggles(const wgpu::Device& device);
 
+/// @brief Aligns the size of a uniform buffer to the GPU's minimum alignment requirements.
+template<typename T>
+static inline size_t alignUniformBuffer(const wgpu::Limits& limits)
+{
+    const size_t alignment = limits.minUniformBufferOffsetAlignment;
+
+    return (sizeof(T) + alignment - 1) & ~(alignment - 1);
+}
+
 DawnGpuDevice::DawnGpuDevice(
     SDL_Window* window, wgpu::Instance instance, wgpu::Adapter adapter, wgpu::Device device, wgpu::Surface surface)
     : Window(window),
@@ -352,6 +361,94 @@ DawnGpuDevice::DestroyTexture(GpuTexture* texture)
     return Result<void>::Success;
 }
 
+Result<GpuMaterial*>
+DawnGpuDevice::CreateMaterial(const MaterialConstants& mtlConstants, GpuTexture* baseTexture)
+{
+    DawnGpuTexture* dawnBaseTexture = static_cast<DawnGpuTexture*>(baseTexture);
+
+    if(!everify(dawnBaseTexture->m_GpuDevice == this,
+           "Base texture must belong to this device"))
+    {
+        return Error("Base texture must belong to this device");
+    }
+
+    wgpu::Limits gpuLimits;
+    Device.GetLimits(&gpuLimits);
+
+    const size_t alignedConstantsSize = alignUniformBuffer<MaterialConstants>(gpuLimits);
+
+    wgpu::BufferDescriptor mtlConstantsBufferDesc //
+    {
+        .label = "MaterialConstants",
+        .usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
+        .size = alignedConstantsSize,
+        .mappedAtCreation = false,
+    };
+
+    wgpu::Buffer mtlConstantsBuf = Device.CreateBuffer(&mtlConstantsBufferDesc);
+    expect(mtlConstantsBuf, "Failed to create material constants buffer");
+
+    Device.GetQueue().WriteBuffer(mtlConstantsBuf, 0, &mtlConstants, sizeof(MaterialConstants));
+
+    wgpu::BindGroupEntry fsBgEntries[] = //
+        {
+            {
+                .binding = 0,
+                .textureView = static_cast<DawnGpuTexture*>(baseTexture)->GetTextureView(),
+            },
+            {
+                .binding = 1,
+                .sampler = static_cast<DawnGpuTexture*>(baseTexture)->GetSampler(),
+            },
+            {
+                .binding = 2,
+                .buffer = mtlConstantsBuf,
+                .offset = 0,
+                .size = alignedConstantsSize,
+            },
+        };
+
+    auto fsBindGroupLayoutResult = GetFsBindGroupLayout();
+    expect(fsBindGroupLayoutResult, fsBindGroupLayoutResult.error());
+
+    wgpu::BindGroupDescriptor fsBgDesc //
+        {
+            .label = "fsBindGroup",
+            .layout = fsBindGroupLayoutResult.value(),
+            .entryCount = std::size(fsBgEntries),
+            .entries = fsBgEntries,
+        };
+
+    wgpu::BindGroup bindGroup = Device.CreateBindGroup(&fsBgDesc);
+    expect(bindGroup, "Failed to create wgpu::BindGroup");
+
+    GpuResource* res = m_ResourceAllocator.New();
+
+    if(!res)
+    {
+        return Error("Error allocating GpuResource");
+    }
+
+    return ::new(&res->Material) DawnGpuMaterial(this,
+        baseTexture,
+        mtlConstantsBuf,
+        bindGroup,
+        mtlConstants.Color,
+        mtlConstants.Metalness,
+        mtlConstants.Roughness);
+}
+
+Result<void>
+DawnGpuDevice::DestroyMaterial(GpuMaterial* material)
+{
+    DawnGpuMaterial* dawnMaterial = static_cast<DawnGpuMaterial*>(material);
+    eassert(this == dawnMaterial->m_GpuDevice,
+        "Material does not belong to this device");
+    dawnMaterial->~DawnGpuMaterial();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(material));
+    return Result<void>::Success;
+}
+
 Result<GpuColorTarget*>
 DawnGpuDevice::CreateColorTarget(const unsigned width, const unsigned height, const imstring& name)
 {
@@ -554,6 +651,60 @@ DawnGpuDevice::GetDefaultSampler()
         expect(m_Sampler, "Failed to create sampler");
     }
     return m_Sampler;
+}
+
+Result<wgpu::BindGroupLayout>
+DawnGpuDevice::GetFsBindGroupLayout()
+{
+    if(!m_FsBindGroupLayout)
+    {
+        wgpu::Limits gpuLimits;
+        Device.GetLimits(&gpuLimits);
+
+        wgpu::BindGroupLayoutEntry entries[] = //
+            {
+                {
+                    .binding = 0,
+                    .visibility = wgpu::ShaderStage::Fragment,
+                    .texture = //
+                    {
+                        .sampleType = wgpu::TextureSampleType::Float,
+                        .viewDimension = wgpu::TextureViewDimension::e2D,
+                        .multisampled = false,
+                    },
+                },
+                {
+                    .binding = 1,
+                    .visibility = wgpu::ShaderStage::Fragment,
+                    .sampler = //
+                    {
+                        .type = wgpu::SamplerBindingType::Filtering,
+                    },
+                },
+                {
+                    .binding = 2,
+                    .visibility = wgpu::ShaderStage::Fragment,
+                    .buffer = //
+                    {
+                        .type = wgpu::BufferBindingType::Uniform,
+                        .hasDynamicOffset = false,
+                        .minBindingSize = alignUniformBuffer<MaterialConstants>(gpuLimits),
+                    },
+                },
+            };
+
+        wgpu::BindGroupLayoutDescriptor layoutDesc //
+            {
+                .label = "fsBindGroupLayout",
+                .entryCount = std::size(entries),
+                .entries = entries,
+            };
+
+        m_FsBindGroupLayout = Device.CreateBindGroupLayout(&layoutDesc);
+        expect(m_FsBindGroupLayout, "Failed to create bind group layout");
+    }
+
+    return m_FsBindGroupLayout;
 }
 
 static Result<wgpu::Instance>

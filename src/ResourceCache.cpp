@@ -475,13 +475,7 @@ ResourceCache::CreateModelOp::CreateModel()
             baseTexture = baseTextureResult.value();
         }
 
-        Material mtl //
-            {
-                meshSpec.MtlSpec.Constants.Color,
-                meshSpec.MtlSpec.Constants.Metalness,
-                meshSpec.MtlSpec.Constants.Roughness,
-                baseTexture,
-            };
+        const Material mtl(meshSpec.MtlSpec.Constants, baseTexture);
 
         const uint32_t idxCount = static_cast<uint32_t>(meshSpec.Indices.size());
         const uint32_t vtxCount = static_cast<uint32_t>(meshSpec.Vertices.size());

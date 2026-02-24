@@ -201,17 +201,24 @@ public:
     const MaterialFlags Flags{ MaterialFlags::None };
 };
 
-struct MaterialConstants
+class MaterialConstants
 {
+public:
+    /// @brief Base color of the material.
     const RgbaColorf Color;
 
+    /// @brief Metalness factor of the material.
     const float Metalness{ 0 };
+
+    /// @brief Roughness factor of the material.
     const float Roughness{ 0 };
 };
 
 /// @brief Specification for creating a material.
-struct MaterialSpec
+class MaterialSpec
 {
+public:
+
     const MaterialConstants Constants;
 
     const TextureSpec BaseTexture;
@@ -223,14 +230,10 @@ class Material
 public:
 
     Material(
-        const RgbaColorf color,
-        const float metalness,
-        const float roughness,
+        const MaterialConstants& constants,
         GpuTexture* baseTexture)
-        : m_Key(MaterialId::NextId(), color.a < 1.0f ? MaterialFlags::Translucent : MaterialFlags::None)
-        , m_Color(color)
-        , m_Metalness(metalness)
-        , m_Roughness(roughness)
+        : m_Key(MaterialId::NextId(), constants.Color.a < 1.0f ? MaterialFlags::Translucent : MaterialFlags::None)
+        , m_Constants(constants)
         , m_BaseTexture(baseTexture)
     {
     }
@@ -242,9 +245,10 @@ public:
 
     const MaterialId GetId() const { return m_Key.Id; }
     const MaterialKey& GetKey() const { return m_Key; }
-    const RgbaColorf& GetColor() const { return m_Color; }
-    float GetMetalness() const { return m_Metalness; }
-    float GetRoughness() const { return m_Roughness; }
+    const MaterialConstants& GetConstants() const { return m_Constants;}
+    const RgbaColorf& GetColor() const { return m_Constants.Color; }
+    float GetMetalness() const { return m_Constants.Metalness; }
+    float GetRoughness() const { return m_Constants.Roughness; }
     GpuTexture* GetBaseTexture() const { return m_BaseTexture; }
 
 private:
@@ -255,14 +259,8 @@ private:
     /// Used to group geometry sharing the same material attributes.
     MaterialKey m_Key;
 
-    /// @brief Base color of the material.
-    RgbaColorf m_Color;
-
-    /// @brief Metalness factor of the material.
-    float m_Metalness{ 0 };
-
-    /// @brief Roughness factor of the material.
-    float m_Roughness{ 0 };
+    /// @brief Constants defining the material properties.
+    MaterialConstants m_Constants;
 
     /// @brief Base (albedo) texture of the material.
     GpuTexture* m_BaseTexture{ nullptr };
