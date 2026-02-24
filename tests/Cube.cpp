@@ -8,6 +8,7 @@
 #include "GpuDevice.h"
 #include "Logging.h"
 #include "MouseNav.h"
+#include "Renderer.h"
 #include "ResourceCache.h"
 #include "Shapes.h"
 

@@ -1,14 +1,9 @@
 #pragma once
 
-#include "Renderer.h"
 #include "Result.h"
-#include "VecMath.h"
 #include "Vertex.h"
 
-#include <memory>
 #include <span>
-#include <tuple>
-#include <variant>
 
 #define DAWN_GPU 1
 //#define DAWN_GPU 0
@@ -18,6 +13,7 @@
 template<typename T>
 class RgbaColor;
 using RgbaColorf = RgbaColor<float>;
+class Renderer;
 
 /// @brief GPU representation of a vertex buffer.
 class GpuVertexBuffer

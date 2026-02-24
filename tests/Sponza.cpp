@@ -12,6 +12,7 @@
 #include "Logging.h"
 #include "MouseNav.h"
 #include "PerfMetrics.h"
+#include "Renderer.h"
 #include "ResourceCache.h"
 
 #include "scope_exit.h"
