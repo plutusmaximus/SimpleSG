@@ -77,6 +77,7 @@ static void CollectMeshSpecs(const aiScene* scene,
 /// @brief Processes a scene node and its children.
 static void ProcessNodes(const aiNode* node,
     const int parentNodeIndex,
+    const Mat44f* coalescingTransform,  // Used to coallesce parent transforms that have no meshes.
     const MeshSpecCollection& meshSpecCollection,
     imvector<MeshInstance>::builder& meshInstances,
     imvector<TransformNode>::builder& transformNodes,
@@ -1336,6 +1337,7 @@ ProcessScene(const aiScene* scene, const imstring& filePath)
 
     ProcessNodes(scene->mRootNode,
         -1,
+        nullptr,
         meshSpecCollection,
         meshInstances,
         transformNodes,
@@ -1354,6 +1356,7 @@ ProcessScene(const aiScene* scene, const imstring& filePath)
 static void
 ProcessNodes(const aiNode* node,
     const int parentNodeIndex,
+    const Mat44f* coalescingTransform,
     const MeshSpecCollection& meshSpecCollection,
     imvector<MeshInstance>::builder& meshInstances,
     imvector<TransformNode>::builder& transformNodes,
@@ -1361,64 +1364,87 @@ ProcessNodes(const aiNode* node,
 {
     logDebug("Processing node {}", node->mName.C_Str());
 
-    if(!node->mNumMeshes)
+    if(!node->mNumMeshes && !node->mNumChildren)
     {
-        if(!node->mNumChildren)
-        {
             logWarn("  Node {} has no meshes or children; skipping", node->mName.C_Str());
             return;
-        }
-
-        // FIXME(KB) - collapse nodes with no meshes.
-        logWarn("  Node {} has no meshes", node->mName.C_Str());
     }
 
     const aiMatrix4x4& nodeTransform = node->mTransformation;
-    const int nodeIndex = static_cast<int>(transformNodes.size());
 
-    transformNodes.emplace_back(TransformNode{ .ParentIndex = parentNodeIndex,
-        .Transform = Mat44f{
-            // Assimp uses row-major order - transpose to column-major
-            nodeTransform.a1,
-            nodeTransform.b1,
-            nodeTransform.c1,
-            nodeTransform.d1,
-            nodeTransform.a2,
-            nodeTransform.b2,
-            nodeTransform.c2,
-            nodeTransform.d2,
-            nodeTransform.a3,
-            nodeTransform.b3,
-            nodeTransform.c3,
-            nodeTransform.d3,
-            nodeTransform.a4,
-            nodeTransform.b4,
-            nodeTransform.c4,
-            nodeTransform.d4,
-        } });
-
-    for(unsigned i = 0; i < node->mNumMeshes; ++i)
+    Mat44f transform//
     {
-        const SceneMeshId sceneMeshId = node->mMeshes[i];
-        if(!meshSpecCollection.MeshIdToSpecIndex.contains(sceneMeshId))
+        // Assimp uses row-major order - transpose to column-major
+        nodeTransform.a1,
+        nodeTransform.b1,
+        nodeTransform.c1,
+        nodeTransform.d1,
+        nodeTransform.a2,
+        nodeTransform.b2,
+        nodeTransform.c2,
+        nodeTransform.d2,
+        nodeTransform.a3,
+        nodeTransform.b3,
+        nodeTransform.c3,
+        nodeTransform.d3,
+        nodeTransform.a4,
+        nodeTransform.b4,
+        nodeTransform.c4,
+        nodeTransform.d4,
+    };
+
+    if(coalescingTransform)
+    {
+        transform = *coalescingTransform * transform;
+    }
+
+    int nodeIndex;
+    const Mat44f* curCoalescingTransform;
+
+    if(!node->mNumMeshes)
+    {
+        nodeIndex = parentNodeIndex;
+        // This node has no meshes.  Its transform can be coalesced into
+        // the child node transforms.
+        curCoalescingTransform = &transform;
+    }
+    else
+    {
+        nodeIndex = static_cast<int>(transformNodes.size());
+        curCoalescingTransform = nullptr;
+
+        const TransformNode transformNode//
+            {
+                .ParentIndex = parentNodeIndex,
+                .Transform = transform,
+            };
+
+        transformNodes.emplace_back(transformNode);
+
+        for(unsigned i = 0; i < node->mNumMeshes; ++i)
         {
-            logWarn("  Mesh {} not found in mesh spec collection; skipping", sceneMeshId);
-            continue;
+            const SceneMeshId sceneMeshId = node->mMeshes[i];
+            if(!meshSpecCollection.MeshIdToSpecIndex.contains(sceneMeshId))
+            {
+                logWarn("  Mesh {} not found in mesh spec collection; skipping", sceneMeshId);
+                continue;
+            }
+
+            const int meshSpecIndex = meshSpecCollection.MeshIdToSpecIndex.at(sceneMeshId);
+
+            const MeshSpec& meshSpec = meshSpecCollection.MeshSpecs[meshSpecIndex];
+
+            logDebug("  Adding mesh instance {}", meshSpec.Name);
+            meshInstances.emplace_back(
+                MeshInstance{ .MeshIndex = meshSpecIndex, .NodeIndex = nodeIndex });
         }
-
-        const int meshSpecIndex = meshSpecCollection.MeshIdToSpecIndex.at(sceneMeshId);
-
-        const MeshSpec& meshSpec = meshSpecCollection.MeshSpecs[meshSpecIndex];
-
-        logDebug("  Adding mesh instance {}", meshSpec.Name);
-        meshInstances.emplace_back(
-            MeshInstance{ .MeshIndex = meshSpecIndex, .NodeIndex = nodeIndex });
     }
 
     for(unsigned i = 0; i < node->mNumChildren; ++i)
     {
         ProcessNodes(node->mChildren[i],
             nodeIndex,
+            curCoalescingTransform,
             meshSpecCollection,
             meshInstances,
             transformNodes,
