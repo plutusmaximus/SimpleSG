@@ -9,6 +9,7 @@
 #include "ECS.h"
 #include "EcsChildTransformPool.h"
 #include "GpuDevice.h"
+#include "ImGuiRenderer.h"
 #include "Logging.h"
 #include "MouseNav.h"
 #include "PerfMetrics.h"
@@ -56,6 +57,7 @@ public:
 
         m_Renderer = m_GpuDevice->GetRenderer();
         m_RenderCompositor = m_GpuDevice->GetRenderCompositor();
+        m_ImGuiRenderer = new ImGuiRenderer(m_GpuDevice);
 
         [[maybe_unused]] constexpr const char* SPONZA_MODEL_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
         [[maybe_unused]] constexpr const char* AVOCADO_MODEL_PATH = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Avocado/glTF/Avocado.gltf";
@@ -108,6 +110,8 @@ public:
 
         m_Registry.Clear();
 
+        delete m_ImGuiRenderer;
+
         m_GpuDevice = nullptr;
         m_Renderer = nullptr;
         m_ResourceCache = nullptr;
@@ -158,7 +162,7 @@ public:
             logError(beginFrameResult.error().GetMessage());
         }
 
-        m_Renderer->NewFrame();
+        m_ImGuiRenderer->NewFrame();
 
         // Transform to camera space and render
         auto cameraTuple = m_Registry.Get<WorldMatrix, Camera>(m_EidCamera);
@@ -176,6 +180,8 @@ public:
         {
             logError(renderResult.error().GetMessage());
         }
+
+        m_ImGuiRenderer->Render(m_RenderCompositor);
 
         auto endFrameResult = m_RenderCompositor->EndFrame();
         if(!endFrameResult)
@@ -250,6 +256,7 @@ private:
         ResourceCache* m_ResourceCache = nullptr;
         RenderCompositor* m_RenderCompositor = nullptr;
         Renderer* m_Renderer = nullptr;
+    ImGuiRenderer* m_ImGuiRenderer = nullptr;
         EcsRegistry m_Registry;
         WalkMouseNav m_WalkMouseNav{ TrsTransformf{}, 0.0001f, 5.0f };
         MouseNav* const m_MouseNav = &m_WalkMouseNav;

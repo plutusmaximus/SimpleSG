@@ -6,7 +6,6 @@
 #include <map>
 
 class GpuTexture;
-struct ImGuiContext;
 struct SDL_GPUBuffer;
 struct SDL_GPUCommandBuffer;
 struct SDL_GPUGraphicsPipeline;
@@ -25,8 +24,6 @@ public:
     SdlRenderer& operator=(SdlRenderer&&) = delete;
 
     ~SdlRenderer() override;
-
-    Result<void> NewFrame() override;
 
     void AddModel(const Mat44f& worldTransform, const Model* model) override;
 
@@ -84,9 +81,6 @@ private:
     /// The default texture is used when a material does not have a base texture.
     Result<GpuTexture*> GetDefaultBaseTexture();
 
-    Result<void> InitGui();
-    Result<void> RenderGui(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTexture* target);
-
     SdlGpuDevice* const m_GpuDevice;
     GpuColorTarget* m_ColorTarget{ nullptr };
     GpuDepthTarget* m_DepthTarget{ nullptr };
@@ -104,9 +98,4 @@ private:
     GpuVertexShader* m_CopyTextureVertexShader{ nullptr };
     GpuFragmentShader* m_CopyTextureFragmentShader{ nullptr };
     SDL_GPUGraphicsPipeline* m_CopyTexturePipeline{ nullptr };
-
-    ImGuiContext* m_ImGuiContext{ nullptr };
-
-    unsigned m_NewFrameCount{0};
-    unsigned m_RenderCount{0};
 };

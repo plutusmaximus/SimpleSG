@@ -120,7 +120,7 @@ SdlRenderCompositor::WaitForFence()
     }
 
     //Wait for the previous frame to complete
-    static PerfTimer waitForFenceTimer("RendererCompositor.WaitForFence");
+    static PerfTimer waitForFenceTimer("RenderCompositor.WaitForFence");
     {
         auto scopedWaitForFenceTimer = waitForFenceTimer.StartScoped();
 

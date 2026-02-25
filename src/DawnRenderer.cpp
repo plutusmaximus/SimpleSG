@@ -12,11 +12,6 @@
 #include "DawnGpuDevice.h"
 #include "PerfMetrics.h"
 
-#include <SDL3/SDL.h>
-#include <imgui.h>
-#include <imgui_impl_sdl3.h>
-#include <imgui_impl_wgpu.h>
-
 #include <cstdio>
 
 static constexpr const char* COMPOSITE_COLOR_TARGET_VS = "shaders/Debug/FullScreenTriangle.vs.wgsl";
@@ -29,15 +24,10 @@ DawnRenderer::DawnRenderer(DawnGpuDevice* gpuDevice)
     : m_GpuDevice(gpuDevice)
 {
     gpuDevice->Device.GetLimits(&m_GpuLimits);
-
-    InitGui();
 }
 
 DawnRenderer::~DawnRenderer()
 {
-    //DO NOT SUBMIT
-    //WaitForFence();
-
     if(m_DefaultBaseTexture)
     {
         auto result = m_GpuDevice->DestroyTexture(m_DefaultBaseTexture);
@@ -105,33 +95,6 @@ DawnRenderer::~DawnRenderer()
     {
         // m_CopyTexturePipeline is ref-counted, so nothing to do here
     }
-
-    //DO NOT SUBMIT
-    /*for(const auto& state: m_State)
-    {
-        eassert(!state.m_RenderFence, "Render fence must be null when destroying SdlRenderer");
-    }*/
-
-    ImGui_ImplWGPU_Shutdown();
-    ImGui_ImplSDL3_Shutdown();
-    ImGui::DestroyContext(m_ImGuiContext);
-}
-
-Result<void>
-DawnRenderer::NewFrame()
-{
-    if(!everify(m_NewFrameCount == m_RenderCount))
-    {
-        return Result<void>::Success;
-    }
-
-    ++m_NewFrameCount;
-
-    ImGui_ImplWGPU_NewFrame();
-    ImGui_ImplSDL3_NewFrame();
-    ImGui::NewFrame();
-
-    return Result<void>::Success;
 }
 
 void
@@ -139,12 +102,6 @@ DawnRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
 {
     if(!everify(model, "Model pointer is null"))
     {
-        return;
-    }
-
-    if(!everify(m_RenderCount == m_NewFrameCount - 1))
-    {
-        // Forgot to call NewFrame()
         return;
     }
 
@@ -214,13 +171,6 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
 {
     static PerfTimer renderTimer("Renderer.Render");
     auto scopedRenderTimer = renderTimer.StartScoped();
-
-    if(!everify(m_RenderCount == m_NewFrameCount - 1))
-    {
-        return Error("Render called without a matching NewFrame");
-    }
-
-    ++m_RenderCount;
 
     auto gpuDevice = m_GpuDevice->Device;
 
@@ -417,9 +367,6 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
 
     renderPass.End();
 
-    //DO NOT SUBMIT
-    //cleanupRenderPass.release();
-
     static PerfTimer resolveTimer("Renderer.Render.Resolve");
     resolveTimer.Start();
 
@@ -428,13 +375,6 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
         auto scopedTimer = copyTimer.StartScoped();
         auto copyResult = CopyColorTargetToSwapchain(cmdEncoder, dawnCompositor->GetTarget());
         expect(copyResult, copyResult.error());
-    }
-
-    wgpu::CommandBuffer guiCmdBuf;
-    static PerfTimer renderGuiTimer("Renderer.Render.Resolve.RenderGUI");
-    {
-        auto scopedTimer = renderGuiTimer.StartScoped();
-        auto renderGuiResult = RenderGui(cmdEncoder, dawnCompositor->GetTarget());
     }
 
     SwapStates();
@@ -537,37 +477,9 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
     return renderPass;
 }
 
-//DO NOT SUBMIT
-/*void
-SdlRenderer::WaitForFence()
-{
-    if(!m_CurrentState->m_RenderFence)
-    {
-        return;
-    }
-
-    bool success =
-        SDL_WaitForGPUFences(
-            m_GpuDevice->Device,
-            true,
-            &m_CurrentState->m_RenderFence,
-            1);
-
-    if(!success)
-    {
-        logError("Error waiting for render fence during SdlRenderer destruction: {}", SDL_GetError());
-    }
-
-    SDL_ReleaseGPUFence(m_GpuDevice->Device, m_CurrentState->m_RenderFence);
-    m_CurrentState->m_RenderFence = nullptr;
-}*/
-
 void
 DawnRenderer::SwapStates()
 {
-    //DO NOT SUBMIT
-    //eassert(!m_CurrentState->m_RenderFence, "Current state's render fence must be null when swapping states");
-
     if (m_CurrentState == &m_State[0])
     {
         m_CurrentState = &m_State[1];
@@ -585,7 +497,7 @@ DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder, wgpu::
 {
     if(!target)
     {
-        // Off-screen rendering, skip rendering ImGui
+        // Off-screen rendering, skip rendering to swapchain
         return Result<void>::Success;
     }
 
@@ -1155,100 +1067,4 @@ DawnRenderer::GetDefaultBaseTexture()
     }
 
     return m_DefaultBaseTexture;
-}
-
-Result<void>
-DawnRenderer::InitGui()
-{
-    if(m_ImGuiContext)
-    {
-        // Already initialized
-        return Result<void>::Success;
-    }
-
-    // Setup Dear ImGui context
-    IMGUI_CHECKVERSION();
-    m_ImGuiContext = ImGui::CreateContext();
-
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-    //io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
-    //io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
-
-    // Setup Dear ImGui style
-    ImGui::StyleColorsDark();
-    //ImGui::StyleColorsLight();
-
-    float main_scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
-
-    // Setup scaling
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
-    style.FontScaleDpi = main_scale;        // Set initial font scale. (in docking branch: using io.ConfigDpiScaleFonts=true automatically overrides this for every window depending on the current monitor)
-
-    // Setup Platform/Renderer backends
-    ImGui_ImplSDL3_InitForOther(m_GpuDevice->Window);
-
-    ImGui_ImplWGPU_InitInfo init_info;
-    init_info.Device = m_GpuDevice->Device.Get();
-    init_info.NumFramesInFlight = 3;
-    init_info.RenderTargetFormat = static_cast<WGPUTextureFormat>(m_GpuDevice->GetSwapChainFormat());
-    init_info.DepthStencilFormat = WGPUTextureFormat_Undefined;
-    ImGui_ImplWGPU_Init(&init_info);
-
-    return Result<void>::Success;
-}
-
-Result<void>
-DawnRenderer::RenderGui(wgpu::CommandEncoder cmdEncoder, wgpu::TextureView target)
-{
-    ImGui::Render();
-
-    ImDrawData* drawData = ImGui::GetDrawData();
-
-    if(!drawData || drawData->TotalVtxCount == 0)
-    {
-        // Nothing to render for ImGui
-        return Result<void>::Success;
-    }
-
-    const bool is_minimized = (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f);
-
-    if(is_minimized)
-    {
-        // Window is minimized, skip rendering ImGui
-        return Result<void>::Success;
-    }
-
-    if(!target)
-    {
-        // Off-screen rendering, skip rendering ImGui
-        return Result<void>::Success;
-    }
-
-    wgpu::RenderPassColorAttachment colorAttachment //
-    {
-        .view = target,
-        .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
-        .loadOp = wgpu::LoadOp::Load,
-        .storeOp = wgpu::StoreOp::Store,
-        .clearValue = { 0.0f, 0.0f, 0.0f, 1.0f },
-    };
-
-    wgpu::RenderPassDescriptor renderPassDesc //
-    {
-        .label = "ImGuiRenderPass",
-        .colorAttachmentCount = 1,
-        .colorAttachments = &colorAttachment,
-        .depthStencilAttachment = nullptr,
-    };
-
-    wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
-
-    ImGui_ImplWGPU_RenderDrawData(drawData, renderPass.Get());
-
-    renderPass.End();
-
-    return Result<void>::Success;
 }

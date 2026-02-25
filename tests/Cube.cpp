@@ -6,6 +6,7 @@
 #include "ECS.h"
 #include "EcsChildTransformPool.h"
 #include "GpuDevice.h"
+#include "ImGuiRenderer.h"
 #include "Logging.h"
 #include "MouseNav.h"
 #include "RenderCompositor.h"
@@ -56,6 +57,7 @@ public:
 
         m_Renderer = m_GpuDevice->GetRenderer();
         m_RenderCompositor = m_GpuDevice->GetRenderCompositor();
+        m_ImGuiRenderer = new ImGuiRenderer(m_GpuDevice);
 
         m_ScreenBounds = m_GpuDevice->GetScreenBounds();
         m_EidPlanet = m_Registry.Create();
@@ -63,8 +65,6 @@ public:
         m_EidMoon = m_Registry.Create();
         m_EidCamera = m_Registry.Create();
 
-        //auto modelResult = CreateCube(gd);
-        //auto modelResult = CreatePumpkin(gd);
         auto modelResult = CreateShapeModel(m_ResourceCache);
         expect(modelResult, modelResult.error());
         auto model = modelResult.value();
@@ -99,6 +99,8 @@ public:
         m_State = State::Shutdown;
 
         m_Registry.Clear();
+
+        delete m_ImGuiRenderer;
 
         m_GpuDevice = nullptr;
         m_Renderer = nullptr;
@@ -166,7 +168,7 @@ public:
             logError(beginFrameResult.error().GetMessage());
         }
 
-        m_Renderer->NewFrame();
+        m_ImGuiRenderer->NewFrame();
 
         // Transform to camera space and render
         auto cameraTuple = m_Registry.Get<WorldMatrix, Camera>(m_EidCamera);
@@ -182,6 +184,8 @@ public:
         {
             logError(renderResult.error().GetMessage());
         }
+
+        m_ImGuiRenderer->Render(m_RenderCompositor);
 
         auto endFrameResult = m_RenderCompositor->EndFrame();
         if(!endFrameResult)
@@ -256,6 +260,7 @@ private:
     ResourceCache* m_ResourceCache = nullptr;
     RenderCompositor* m_RenderCompositor = nullptr;
     Renderer* m_Renderer = nullptr;
+    ImGuiRenderer* m_ImGuiRenderer = nullptr;
     EcsRegistry m_Registry;
     GimbleMouseNav m_GimbleMouseNav{ TrsTransformf{}};
     MouseNav* const m_MouseNav = &m_GimbleMouseNav;

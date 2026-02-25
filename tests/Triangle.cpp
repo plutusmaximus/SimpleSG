@@ -5,6 +5,7 @@
 #include "Camera.h"
 #include "DawnGpuDevice.h"
 #include "FileIo.h"
+#include "ImGuiRenderer.h"
 #include "Logging.h"
 #include "PerfMetrics.h"
 #include "ResourceCache.h"
@@ -91,6 +92,7 @@ static Result<void> MainLoop()
 
     Renderer* renderer = gpuDevice->GetRenderer();
     RenderCompositor* renderCompositor = gpuDevice->GetRenderCompositor();
+    ImGuiRenderer imGuiRenderer(gpuDevice);
 
     Stopwatch stopwatch;
 
@@ -193,7 +195,7 @@ static Result<void> MainLoop()
         auto beginFrameResult = renderCompositor->BeginFrame();
         expect(beginFrameResult, beginFrameResult.error());
 
-        renderer->NewFrame();
+        imGuiRenderer.NewFrame();
 
         // Transform to camera space and render
         renderer->AddModel(transform.ToMatrix(), model.Get());
@@ -204,6 +206,9 @@ static Result<void> MainLoop()
 
         auto renderResult = renderer->Render(cameraXform.ToMatrix(), camera.GetProjection(), renderCompositor);
         expect(renderResult, renderResult.error());
+
+        auto imGuiRenderResult = imGuiRenderer.Render(renderCompositor);
+        expect(imGuiRenderResult, imGuiRenderResult.error());
 
         auto endFrameResult = renderCompositor->EndFrame();
         expect(endFrameResult, endFrameResult.error());

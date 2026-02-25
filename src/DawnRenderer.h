@@ -8,7 +8,6 @@
 
 class DawnGpuDevice;
 class GpuTexture;
-struct ImGuiContext;
 
 class DawnRenderer : public Renderer
 {
@@ -21,8 +20,6 @@ public:
     DawnRenderer& operator=(DawnRenderer&&) = delete;
 
     ~DawnRenderer() override;
-
-    Result<void> NewFrame() override;
 
     void AddModel(const Mat44f& worldTransform, const Model* model) override;
 
@@ -91,9 +88,6 @@ private:
     /// The default texture is used when a material does not have a base texture.
     Result<GpuTexture*> GetDefaultBaseTexture();
 
-    Result<void> InitGui();
-    Result<void> RenderGui(wgpu::CommandEncoder cmdEncoder, wgpu::TextureView target);
-
     DawnGpuDevice* const m_GpuDevice;
     wgpu::Limits m_GpuLimits;
     GpuColorTarget* m_ColorTarget{ nullptr };
@@ -120,9 +114,4 @@ private:
     size_t m_SizeofTransformBuffer{0};
     wgpu::Buffer m_WorldAndProjBuf;
     wgpu::BindGroup m_VertexShaderBindGroup;
-
-    ImGuiContext* m_ImGuiContext{ nullptr };
-
-    unsigned m_NewFrameCount{0};
-    unsigned m_RenderCount{0};
 };

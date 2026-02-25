@@ -14,9 +14,6 @@
 #include "PerfMetrics.h"
 
 #include <SDL3/SDL_gpu.h>
-#include <imgui.h>
-#include <imgui_impl_sdl3.h>
-#include <imgui_impl_sdlgpu3.h>
 
 #include <cstdio>
 
@@ -29,7 +26,6 @@ static constexpr const char* COLOR_PIPELINE_FS = "shaders/Debug/FragmentShader.p
 SdlRenderer::SdlRenderer(SdlGpuDevice* gpuDevice)
     : m_GpuDevice(gpuDevice)
 {
-    InitGui();
 }
 
 SdlRenderer::~SdlRenderer()
@@ -106,27 +102,6 @@ SdlRenderer::~SdlRenderer()
     {
         SDL_ReleaseGPUGraphicsPipeline(m_GpuDevice->Device, m_CopyTexturePipeline);
     }
-
-    ImGui_ImplSDLGPU3_Shutdown();
-    ImGui_ImplSDL3_Shutdown();
-    ImGui::DestroyContext(m_ImGuiContext);
-}
-
-Result<void>
-SdlRenderer::NewFrame()
-{
-    if(!everify(m_NewFrameCount == m_RenderCount))
-    {
-        return Result<void>::Success;
-    }
-
-    ++m_NewFrameCount;
-
-    ImGui_ImplSDLGPU3_NewFrame();
-    ImGui_ImplSDL3_NewFrame();
-    ImGui::NewFrame();
-
-    return Result<void>::Success;
 }
 
 void
@@ -134,12 +109,6 @@ SdlRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
 {
     if(!everify(model, "Model pointer is null"))
     {
-        return;
-    }
-
-    if(!everify(m_RenderCount == m_NewFrameCount - 1))
-    {
-        // Forgot to call NewFrame()
         return;
     }
 
@@ -200,13 +169,6 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
 {
     static PerfTimer renderTimer("Renderer.Render");
     auto scopedRenderTimer = renderTimer.StartScoped();
-
-    if(!everify(m_RenderCount == m_NewFrameCount - 1))
-    {
-        return Error("Render called without a matching NewFrame");
-    }
-
-    ++m_RenderCount;
 
     SdlRenderCompositor* sdlCompositor = static_cast<SdlRenderCompositor*>(compositor);
 
@@ -383,13 +345,6 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
         auto scopedTimer = copyTimer.StartScoped();
         auto copyResult = CopyColorTargetToSwapchain(cmdBuf, sdlCompositor->GetTarget());
         expect(copyResult, copyResult.error());
-    }
-
-    static PerfTimer renderGuiTimer("Renderer.Render.Resolve.RenderGUI");
-    {
-        auto scopedTimer = renderGuiTimer.StartScoped();
-        auto renderGuiResult = RenderGui(cmdBuf, sdlCompositor->GetTarget());
-        expect(renderGuiResult, renderGuiResult.error());
     }
 
     SwapStates();
@@ -855,99 +810,4 @@ SdlRenderer::GetDefaultBaseTexture()
     }
 
     return m_DefaultBaseTexture;
-}
-
-Result<void>
-SdlRenderer::InitGui()
-{
-    if(m_ImGuiContext)
-    {
-        // Already initialized
-        return Result<void>::Success;
-    }
-
-    // Setup Dear ImGui context
-    IMGUI_CHECKVERSION();
-    m_ImGuiContext = ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-    //io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
-    //io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
-
-    // Setup Dear ImGui style
-    ImGui::StyleColorsDark();
-    //ImGui::StyleColorsLight();
-
-    float main_scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
-
-    // Setup scaling
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
-    style.FontScaleDpi = main_scale;        // Set initial font scale. (in docking branch: using io.ConfigDpiScaleFonts=true automatically overrides this for every window depending on the current monitor)
-
-    // Setup Platform/Renderer backends
-    ImGui_ImplSDL3_InitForSDLGPU(m_GpuDevice->Window);
-    ImGui_ImplSDLGPU3_InitInfo init_info = {};
-    init_info.Device = m_GpuDevice->Device;
-    init_info.ColorTargetFormat = m_GpuDevice->GetSwapChainFormat();
-    init_info.MSAASamples = SDL_GPU_SAMPLECOUNT_1;                      // Only used in multi-viewports mode.
-    init_info.SwapchainComposition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;  // Only used in multi-viewports mode.
-    init_info.PresentMode = SDL_GPU_PRESENTMODE_VSYNC;
-    ImGui_ImplSDLGPU3_Init(&init_info);
-
-    return Result<void>::Success;
-}
-
-Result<void>
-SdlRenderer::RenderGui(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTexture* target)
-{
-    ImGui::Render();
-
-    ImDrawData* drawData = ImGui::GetDrawData();
-
-    if(!drawData || drawData->TotalVtxCount == 0)
-    {
-        // Nothing to render for ImGui
-        return Result<void>::Success;
-    }
-
-    const bool is_minimized = (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f);
-
-    if(is_minimized || !target)
-    {
-        // If the window is minimized, we can skip rendering the GUI without treating it as an error.
-        return Result<void>::Success;
-    }
-
-    if(!target)
-    {
-        // Off-screen rendering, skip rendering ImGui
-        return Result<void>::Success;
-    }
-
-    // This is mandatory: call ImGui_ImplSDLGPU3_PrepareDrawData() to upload the vertex/index buffer!
-    ImGui_ImplSDLGPU3_PrepareDrawData(drawData, cmdBuf);
-
-    // Setup and start a render pass
-    SDL_GPUColorTargetInfo target_info//
-    {
-        .texture = target,
-        .mip_level = 0,
-        .layer_or_depth_plane = 0,
-        .clear_color = {0, 0, 0, 0},
-        .load_op = SDL_GPU_LOADOP_LOAD,
-        .store_op = SDL_GPU_STOREOP_STORE,
-        .cycle = false,
-    };
-
-    SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(cmdBuf, &target_info, 1, nullptr);
-    expect(renderPass, SDL_GetError());
-
-    // Render ImGui
-    ImGui_ImplSDLGPU3_RenderDrawData(drawData, cmdBuf, renderPass);
-
-    SDL_EndGPURenderPass(renderPass);
-
-    return Result<void>::Success;
 }

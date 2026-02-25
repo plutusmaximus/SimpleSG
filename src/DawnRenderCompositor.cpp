@@ -59,7 +59,7 @@ DawnRenderCompositor::EndFrame()
     m_CommandEncoder = nullptr;
 
     wgpu::CommandBuffer cmdBuf;
-    static PerfTimer finishCmdBufferTimer("RendererCompositor.FinishCommandBuffer");
+    static PerfTimer finishCmdBufferTimer("RenderCompositor.FinishCommandBuffer");
     {
         auto scopedTimer = finishCmdBufferTimer.StartScoped();
         cmdBuf = cmdEncoder.Finish(nullptr);
@@ -67,7 +67,7 @@ DawnRenderCompositor::EndFrame()
         expect(cmdBuf, "Failed to finish command buffer");
     }
 
-    static PerfTimer submitCmdBufferTimer("RendererCompositor.SubmitCommandBuffer");
+    static PerfTimer submitCmdBufferTimer("RenderCompositor.SubmitCommandBuffer");
     {
         auto scopedTimer = submitCmdBufferTimer.StartScoped();
         wgpu::Queue queue = m_GpuDevice->Device.GetQueue();

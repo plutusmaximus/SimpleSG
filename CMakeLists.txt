@@ -188,6 +188,7 @@ set(SSG_SOURCES
   src/EcsChildTransformPool.cpp
   src/Error.cpp
   src/FileIo.cpp
+  src/ImGuiRenderer.cpp
   src/Model.cpp
   src/PerfMetrics.cpp
   src/ResourceCache.cpp
@@ -209,6 +210,7 @@ set(SSG_HEADERS
   src/EcsChildTransformPool.h
   src/Error.h
   src/FileIo.h
+  src/ImGuiRenderer.h
   src/imstring.h
   src/imvector.h
   src/inlist.h
