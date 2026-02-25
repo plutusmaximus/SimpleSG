@@ -210,7 +210,7 @@ static inline size_t alignUniformBuffer(const wgpu::Limits& limits)
 }
 
 Result<void>
-DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
+DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompositor* compositor)
 {
     static PerfTimer renderTimer("Renderer.Render");
     auto scopedRenderTimer = renderTimer.StartScoped();
@@ -224,10 +224,9 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 
     auto gpuDevice = m_GpuDevice->Device;
 
-    wgpu::CommandEncoderDescriptor encoderDesc = { .label = "MainRenderEncoder" };
+    DawnRenderCompositor* dawnCompositor = static_cast<DawnRenderCompositor*>(compositor);
 
-    wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
-    expect(cmdEncoder, "Failed to create command encoder");
+    wgpu::CommandEncoder cmdEncoder = dawnCompositor->GetCommandEncoder();
 
     wgpu::RenderPassEncoder renderPass;
     static PerfTimer beginRenderPassTimer("Renderer.Render.BeginRenderPass");
@@ -424,58 +423,21 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     static PerfTimer resolveTimer("Renderer.Render.Resolve");
     resolveTimer.Start();
 
-    wgpu::TextureView swapchainTextureView;
-#if !OFFSCREEN_RENDERING
-    wgpu::SurfaceTexture backbuffer;
-    m_GpuDevice->Surface.GetCurrentTexture(&backbuffer);
-    expect(backbuffer.texture, "Failed to get current surface texture for render pass");
-
-    // TODO - handle SuccessSuboptimal, Timeout, Outdated, Lost, Error statuses
-    expect(backbuffer.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal,
-        std::format("Backbuffer status: {}", (int)backbuffer.status));
-
-    swapchainTextureView = backbuffer.texture.CreateView();
-    expect(swapchainTextureView, "Failed to create texture view for swapchain texture");
-#endif
-
     static PerfTimer copyTimer("Renderer.Render.Resolve.CopyColorTarget");
     {
         auto scopedTimer = copyTimer.StartScoped();
-        auto copyResult = CopyColorTargetToSwapchain(cmdEncoder, swapchainTextureView);
+        auto copyResult = CopyColorTargetToSwapchain(cmdEncoder, dawnCompositor->GetTarget());
         expect(copyResult, copyResult.error());
     }
 
+    wgpu::CommandBuffer guiCmdBuf;
     static PerfTimer renderGuiTimer("Renderer.Render.Resolve.RenderGUI");
     {
         auto scopedTimer = renderGuiTimer.StartScoped();
-        auto renderGuiResult = RenderGui(cmdEncoder, swapchainTextureView);
-        expect(renderGuiResult, renderGuiResult.error());
+        auto renderGuiResult = RenderGui(cmdEncoder, dawnCompositor->GetTarget());
     }
 
     SwapStates();
-
-    //DO NOT SUBMIT
-   /* eassert(!m_CurrentState->m_RenderFence, "Render fence should be null here");
-
-    m_CurrentState->m_RenderFence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmdBuf);
-    expect(m_CurrentState->m_RenderFence, SDL_GetError());*/
-
-    wgpu::CommandBuffer cmd;
-    static PerfTimer finishCmdBufferTimer("Renderer.Render.Resolve.FinishCommandBuffer");
-    {
-        auto scopedTimer = finishCmdBufferTimer.StartScoped();
-        cmd = cmdEncoder.Finish(nullptr);
-        expect(cmd, "Failed to finish command buffer for render pass");
-    }
-
-    static PerfTimer submitCmdBufferTimer("Renderer.Render.Resolve.SubmitCommandBuffer");
-    {
-        auto scopedTimer = submitCmdBufferTimer.StartScoped();
-        wgpu::Queue queue = m_GpuDevice->Device.GetQueue();
-        expect(queue, "Failed to get WGPUQueue for render pass");
-
-        queue.Submit(1, &cmd);
-    }
 
     resolveTimer.Stop();
 

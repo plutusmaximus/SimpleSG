@@ -20,19 +20,20 @@ public:
     DawnRenderer(DawnRenderer&&) = delete;
     DawnRenderer& operator=(DawnRenderer&&) = delete;
 
-    DawnRenderer(DawnGpuDevice* gpuDevice);
-
     ~DawnRenderer() override;
 
     Result<void> NewFrame() override;
 
     void AddModel(const Mat44f& worldTransform, const Model* model) override;
 
-    Result<void> Render(const Mat44f& camera, const Mat44f& projection) override;
+    Result<void> Render(
+        const Mat44f& camera, const Mat44f& projection, RenderCompositor* compositor) override;
 
 private:
 
     friend class DawnGpuDevice;
+
+    explicit DawnRenderer(DawnGpuDevice* gpuDevice);
 
     Result<wgpu::RenderPassEncoder> BeginRenderPass(wgpu::CommandEncoder cmdEncoder);
 

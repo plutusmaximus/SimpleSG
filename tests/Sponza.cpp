@@ -12,6 +12,7 @@
 #include "Logging.h"
 #include "MouseNav.h"
 #include "PerfMetrics.h"
+#include "RenderCompositor.h"
 #include "Renderer.h"
 #include "ResourceCache.h"
 
@@ -53,10 +54,8 @@ public:
         m_GpuDevice = context->GpuDevice;
         m_ResourceCache = context->ResourceCache;
 
-        auto rendererResult = m_GpuDevice->CreateRenderer();
-        expect(rendererResult, rendererResult.error());
-
-        m_Renderer = *rendererResult;
+        m_Renderer = m_GpuDevice->GetRenderer();
+        m_RenderCompositor = m_GpuDevice->GetRenderCompositor();
 
         [[maybe_unused]] constexpr const char* SPONZA_MODEL_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
         [[maybe_unused]] constexpr const char* AVOCADO_MODEL_PATH = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Avocado/glTF/Avocado.gltf";
@@ -109,10 +108,6 @@ public:
 
         m_Registry.Clear();
 
-        if(m_Renderer)
-        {
-            m_GpuDevice->DestroyRenderer(m_Renderer);
-        }
         m_GpuDevice = nullptr;
         m_Renderer = nullptr;
         m_ResourceCache = nullptr;
@@ -157,6 +152,12 @@ public:
             }
         }
 
+        auto beginFrameResult = m_RenderCompositor->BeginFrame();
+        if (!beginFrameResult)
+        {
+            logError(beginFrameResult.error().GetMessage());
+        }
+
         m_Renderer->NewFrame();
 
         // Transform to camera space and render
@@ -170,10 +171,16 @@ public:
         RenderGui();
 
         const auto [camWorldMat, camera] = cameraTuple;
-        auto renderResult = m_Renderer->Render(camWorldMat, camera.GetProjection());
+        auto renderResult = m_Renderer->Render(camWorldMat, camera.GetProjection(), m_RenderCompositor);
         if (!renderResult)
         {
             logError(renderResult.error().GetMessage());
+        }
+
+        auto endFrameResult = m_RenderCompositor->EndFrame();
+        if(!endFrameResult)
+        {
+            logError(endFrameResult.error().GetMessage());
         }
     }
 
@@ -241,6 +248,7 @@ private:
 
         GpuDevice* m_GpuDevice = nullptr;
         ResourceCache* m_ResourceCache = nullptr;
+        RenderCompositor* m_RenderCompositor = nullptr;
         Renderer* m_Renderer = nullptr;
         EcsRegistry m_Registry;
         WalkMouseNav m_WalkMouseNav{ TrsTransformf{}, 0.0001f, 5.0f };

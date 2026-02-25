@@ -92,6 +92,8 @@ SdlGpuDevice::SdlGpuDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice)
     : Window(window)
     , Device(gpuDevice)
 {
+    m_Renderer = ::new(m_RendererBuffer)SdlRenderer(this);
+    m_RenderCompositor = ::new(m_RenderCompositorBuffer)SdlRenderCompositor(this);
 }
 
 #define VK_MAKE_VERSION(major, minor, patch) \
@@ -188,6 +190,12 @@ void SdlGpuDevice::Destroy(GpuDevice* device)
 
 SdlGpuDevice::~SdlGpuDevice()
 {
+    m_Renderer->~SdlRenderer();
+    m_RenderCompositor->~SdlRenderCompositor();
+
+    m_Renderer = nullptr;
+    m_RenderCompositor = nullptr;
+
     if(m_Sampler)
     {
         SDL_ReleaseGPUSampler(Device, m_Sampler);
@@ -682,20 +690,16 @@ SdlGpuDevice::DestroyFragmentShader(GpuFragmentShader* shader)
     return Result<void>::Success;
 }
 
-Result<Renderer*>
-SdlGpuDevice::CreateRenderer()
+Renderer*
+SdlGpuDevice::GetRenderer()
 {
-    SdlRenderer* renderer = m_RendererAllocator.New(this);
-    expect(renderer, "Error allocating SdlRenderer");
-    return renderer;
+    return m_Renderer;
 }
 
-void SdlGpuDevice::DestroyRenderer(Renderer* renderer)
+RenderCompositor*
+SdlGpuDevice::GetRenderCompositor()
 {
-    SdlRenderer* sdlRenderer = static_cast<SdlRenderer*>(renderer);
-    eassert(this == sdlRenderer->m_GpuDevice,
-        "Renderer does not belong to this device");
-    m_RendererAllocator.Delete(sdlRenderer);
+    return m_RenderCompositor;
 }
 
 SDL_GPUTextureFormat

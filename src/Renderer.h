@@ -6,12 +6,12 @@ class Model;
 template<typename T>
 class Mat44;
 using Mat44f = Mat44<float>;
+class RenderCompositor;
 
 class Renderer
 {
 public:
 
-    Renderer() = default;
     Renderer(const Renderer&) = delete;
     Renderer& operator=(const Renderer&) = delete;
     Renderer(Renderer&&) = delete;
@@ -28,5 +28,9 @@ public:
     virtual void AddModel(const Mat44f& viewTransform, const Model* model) = 0;
 
     /// @brief Renders the current frame using the provided camera and projection matrices.
-    virtual Result<void> Render(const Mat44f& camera, const Mat44f& projection) = 0;
+    virtual Result<void> Render(
+        const Mat44f& camera, const Mat44f& projection, RenderCompositor* compositor) = 0;
+
+protected:
+    Renderer() = default;
 };

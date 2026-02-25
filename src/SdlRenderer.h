@@ -9,7 +9,6 @@ class GpuTexture;
 struct ImGuiContext;
 struct SDL_GPUBuffer;
 struct SDL_GPUCommandBuffer;
-struct SDL_GPUFence;
 struct SDL_GPUGraphicsPipeline;
 struct SDL_GPURenderPass;
 struct SDL_GPUTexture;
@@ -25,19 +24,20 @@ public:
     SdlRenderer(SdlRenderer&&) = delete;
     SdlRenderer& operator=(SdlRenderer&&) = delete;
 
-    SdlRenderer(SdlGpuDevice* gpuDevice);
-
     ~SdlRenderer() override;
 
     Result<void> NewFrame() override;
 
     void AddModel(const Mat44f& worldTransform, const Model* model) override;
 
-    Result<void> Render(const Mat44f& camera, const Mat44f& projection) override;
+    Result<void> Render(
+        const Mat44f& camera, const Mat44f& projection, RenderCompositor* compositor) override;
 
 private:
 
     friend class SdlGpuDevice;
+
+    explicit SdlRenderer(SdlGpuDevice* gpuDevice);
 
     Result<SDL_GPURenderPass*> BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf);
 
@@ -55,7 +55,6 @@ private:
     {
         void Clear()
         {
-            eassert(!m_RenderFence, "Render fence must be null when clearing state");
             m_OpaqueMeshGroups.clear();
             m_TranslucentMeshGroups.clear();
         }
@@ -63,11 +62,7 @@ private:
         MeshGroupCollection m_TranslucentMeshGroups;
 
         MeshGroupCollection m_OpaqueMeshGroups;
-
-        SDL_GPUFence* m_RenderFence = nullptr;
     };
-
-    void WaitForFence();
 
     void SwapStates();
 

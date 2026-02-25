@@ -3,6 +3,7 @@
 #include "GpuDevice.h"
 #include "PoolAllocator.h"
 #include "Vertex.h"
+#include "SdlRenderCompositor.h"
 #include "SdlRenderer.h"
 
 #include <span>
@@ -399,9 +400,9 @@ public:
 
     Result<void> DestroyMaterial(GpuMaterial* material) override;
 
-    Result<Renderer*> CreateRenderer() override;
+    Renderer* GetRenderer() override;
 
-    void DestroyRenderer(Renderer* renderer) override;
+    RenderCompositor* GetRenderCompositor() override;
 
     SDL_GPUTextureFormat GetSwapChainFormat() const;
 
@@ -434,5 +435,12 @@ private:
 
     PoolAllocator<GpuResource, 256> m_ResourceAllocator;
 
-    PoolAllocator<SdlRenderer, 4> m_RendererAllocator;
+    // Renderer and RenderCompositor are initialized with ::new(), so
+    // theny can be destroyed explicitly before the GPU device is destroyed (as they hold GPU
+    // resources and must be destroyed first).
+    uint8_t m_RendererBuffer[sizeof(SdlRenderer)];
+    uint8_t m_RenderCompositorBuffer[sizeof(SdlRenderCompositor)];
+
+    SdlRenderer* m_Renderer{nullptr};
+    SdlRenderCompositor* m_RenderCompositor{nullptr};
 };

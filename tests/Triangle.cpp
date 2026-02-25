@@ -89,15 +89,8 @@ static Result<void> MainLoop()
     expect(modelResult, modelResult.error());
     auto model = *modelResult;
 
-    auto rendererResult = gpuDevice->CreateRenderer();
-    expect(rendererResult, rendererResult.error());
-
-    auto renderer = *rendererResult;
-
-    auto rendererCleanup = scope_exit([gpuDevice, renderer]()
-    {
-        gpuDevice->DestroyRenderer(renderer);
-    });
+    Renderer* renderer = gpuDevice->GetRenderer();
+    RenderCompositor* renderCompositor = gpuDevice->GetRenderCompositor();
 
     Stopwatch stopwatch;
 
@@ -197,6 +190,9 @@ static Result<void> MainLoop()
 
         TrsTransformf transform;
 
+        auto beginFrameResult = renderCompositor->BeginFrame();
+        expect(beginFrameResult, beginFrameResult.error());
+
         renderer->NewFrame();
 
         // Transform to camera space and render
@@ -206,11 +202,12 @@ static Result<void> MainLoop()
 
         nonGpuWorkTimer.Stop();
 
-        auto renderResult = renderer->Render(cameraXform.ToMatrix(), camera.GetProjection());
-        if(!renderResult)
-        {
-            logError(renderResult.error().GetMessage());
-        }
+        auto renderResult = renderer->Render(cameraXform.ToMatrix(), camera.GetProjection(), renderCompositor);
+        expect(renderResult, renderResult.error());
+
+        auto endFrameResult = renderCompositor->EndFrame();
+        expect(endFrameResult, endFrameResult.error());
+
 #if DAWN_GPU
         auto dawnGpuDevice = static_cast<DawnGpuDevice*>(gpuDevice);
 

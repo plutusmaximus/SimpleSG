@@ -67,14 +67,21 @@ static inline size_t alignUniformBuffer(const wgpu::Limits& limits)
     return (sizeof(T) + alignment - 1) & ~(alignment - 1);
 }
 
-DawnGpuDevice::DawnGpuDevice(
-    SDL_Window* window, wgpu::Instance instance, wgpu::Adapter adapter, wgpu::Device device, wgpu::Surface surface)
+DawnGpuDevice::DawnGpuDevice(SDL_Window* window,
+    wgpu::Instance instance,
+    wgpu::Adapter adapter,
+    wgpu::Device device,
+    wgpu::Surface surface,
+    const wgpu::TextureFormat surfaceFormat)
     : Window(window),
       Instance(instance),
       Adapter(adapter),
       Device(device),
-      Surface(surface)
+      Surface(surface),
+      m_SwapChainFormat(surfaceFormat)
 {
+    m_Renderer = ::new(m_RendererBuffer)DawnRenderer(this);
+    m_RenderCompositor = ::new(m_RenderCompositorBuffer)DawnRenderCompositor(this);
 }
 
 Result<GpuDevice*>
@@ -108,11 +115,10 @@ DawnGpuDevice::Create(SDL_Window* window)
         static_cast<uint32_t>(height));
     expect(configureSurfaceResult, configureSurfaceResult.error());
 
-    DawnGpuDevice* dawnDevice = new DawnGpuDevice(window, instance, adapter, device, surface);
+    wgpu::TextureFormat surfaceFormat = configureSurfaceResult.value();
 
+    DawnGpuDevice* dawnDevice = new DawnGpuDevice(window, instance, adapter, device, surface, surfaceFormat);
     expectv(dawnDevice, "Error allocating device");
-
-    dawnDevice->m_SwapChainFormat = configureSurfaceResult.value();
 
     return dawnDevice;
 }
@@ -125,7 +131,13 @@ DawnGpuDevice::Destroy(GpuDevice* device)
 
 DawnGpuDevice::~DawnGpuDevice()
 {
-    // Nothing to do here. The wgpu::Device, wgpu::Adapter, wgpu::Instance, and wgpu::Surface will
+    m_Renderer->~DawnRenderer();
+    m_RenderCompositor->~DawnRenderCompositor();
+
+    m_Renderer = nullptr;
+    m_RenderCompositor = nullptr;
+
+    // Nothing else to do here. The wgpu::Device, wgpu::Adapter, wgpu::Instance, and wgpu::Surface will
     // be automatically released when their destructors are called.
 }
 
@@ -596,21 +608,16 @@ DawnGpuDevice::DestroyFragmentShader(GpuFragmentShader* shader)
     return Result<void>::Success;
 }
 
-Result<Renderer*>
-DawnGpuDevice::CreateRenderer()
+Renderer*
+DawnGpuDevice::GetRenderer()
 {
-    DawnRenderer* renderer = m_RendererAllocator.New(this);
-    expect(renderer, "Error allocating DawnRenderer");
-    return renderer;
+    return m_Renderer;
 }
 
-void
-DawnGpuDevice::DestroyRenderer(Renderer* renderer)
+RenderCompositor*
+DawnGpuDevice::GetRenderCompositor()
 {
-    DawnRenderer* dawnRenderer = static_cast<DawnRenderer*>(renderer);
-    eassert(this == dawnRenderer->m_GpuDevice,
-        "Renderer does not belong to this device");
-    m_RendererAllocator.Delete(dawnRenderer);
+    return m_RenderCompositor;
 }
 
 wgpu::TextureFormat

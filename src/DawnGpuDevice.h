@@ -1,5 +1,6 @@
 #pragma once
 
+#include "DawnRenderCompositor.h"
 #include "DawnRenderer.h"
 #include "GpuDevice.h"
 #include "PoolAllocator.h"
@@ -403,9 +404,9 @@ public:
 
     Result<void> DestroyMaterial(GpuMaterial* material) override;
 
-    Result<Renderer*> CreateRenderer() override;
+    Renderer* GetRenderer() override;
 
-    void DestroyRenderer(Renderer* renderer) override;
+    RenderCompositor* GetRenderCompositor() override;
 
     wgpu::TextureFormat GetSwapChainFormat() const;
 
@@ -420,7 +421,8 @@ private:
         wgpu::Instance instance,
         wgpu::Adapter adapter,
         wgpu::Device device,
-        wgpu::Surface surface);
+        wgpu::Surface surface,
+        const wgpu::TextureFormat surfaceFormat);
 
     Result<wgpu::Sampler> GetDefaultSampler();
 
@@ -450,7 +452,14 @@ private:
 
     PoolAllocator<GpuResource, 256> m_ResourceAllocator;
 
-    PoolAllocator<DawnRenderer, 4> m_RendererAllocator;
+    // Renderer and RenderCompositor are initialized with ::new(), so
+    // theny can be destroyed explicitly before the GPU device is destroyed (as they hold GPU
+    // resources and must be destroyed first).
+    uint8_t m_RendererBuffer[sizeof(DawnRenderer)];
+    uint8_t m_RenderCompositorBuffer[sizeof(DawnRenderCompositor)];
 
-    wgpu::TextureFormat m_SwapChainFormat{ wgpu::TextureFormat::Undefined };
+    DawnRenderer* m_Renderer{nullptr};
+    DawnRenderCompositor* m_RenderCompositor{nullptr};
+
+    const wgpu::TextureFormat m_SwapChainFormat{ wgpu::TextureFormat::Undefined };
 };

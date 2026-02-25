@@ -183,6 +183,7 @@ set(SSG_SOURCES
   src/Camera.cpp
   src/CoopScheduler.cpp
   src/DawnGpuDevice.cpp
+  src/DawnRenderCompositor.cpp
   src/DawnRenderer.cpp
   src/EcsChildTransformPool.cpp
   src/Error.cpp
@@ -191,6 +192,7 @@ set(SSG_SOURCES
   src/PerfMetrics.cpp
   src/ResourceCache.cpp
   src/SdlGpuDevice.cpp
+  src/SdlRenderCompositor.cpp
   src/SdlRenderer.cpp
   src/Shapes.cpp
   src/Stopwatch.cpp
@@ -201,6 +203,7 @@ set(SSG_HEADERS
   src/Camera.h
   src/CoopScheduler.h
   src/DawnGpuDevice.h
+  src/DawnRenderCompositor.h
   src/DawnRenderer.h
   src/ECS.h
   src/EcsChildTransformPool.h
@@ -217,10 +220,12 @@ set(SSG_HEADERS
   src/Model.h
   src/PerfMetrics.h
   src/PoolAllocator.h
+  src/RenderCompositor.h
   src/Renderer.h
   src/ResourceCache.h
   src/Result.h
   src/SdlGpuDevice.h
+  src/SdlRenderCompositor.h
   src/SdlRenderer.h
   src/Shapes.h
   src/Stopwatch.h

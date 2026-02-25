@@ -13,6 +13,7 @@
 template<typename T>
 class RgbaColor;
 using RgbaColorf = RgbaColor<float>;
+class RenderCompositor;
 class Renderer;
 class MaterialConstants;
 
@@ -200,6 +201,10 @@ protected:
 class GpuDevice
 {
 public:
+    GpuDevice(const GpuDevice&) = delete;
+    GpuDevice& operator=(const GpuDevice&) = delete;
+    GpuDevice(GpuDevice&&) = delete;
+    GpuDevice& operator=(GpuDevice&&) = delete;
 
     /// @brief Gets the renderable extent of the device.
     virtual Extent GetScreenBounds() const = 0;
@@ -271,9 +276,9 @@ public:
 
     virtual Result<void> DestroyMaterial(GpuMaterial* material) = 0;
 
-    virtual Result<Renderer*> CreateRenderer() = 0;
+    virtual Renderer* GetRenderer() = 0;
 
-    virtual void DestroyRenderer(Renderer* renderer) = 0;
+    virtual RenderCompositor* GetRenderCompositor() = 0;
 
 protected:
     GpuDevice() = default;

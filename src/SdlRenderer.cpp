@@ -10,6 +10,7 @@
 #include "scope_exit.h"
 
 #include "SdlGpuDevice.h"
+#include "SdlRenderCompositor.h"
 #include "PerfMetrics.h"
 
 #include <SDL3/SDL_gpu.h>
@@ -33,8 +34,6 @@ SdlRenderer::SdlRenderer(SdlGpuDevice* gpuDevice)
 
 SdlRenderer::~SdlRenderer()
 {
-    WaitForFence();
-
     if(m_DefaultBaseTexture)
     {
         auto result = m_GpuDevice->DestroyTexture(m_DefaultBaseTexture);
@@ -107,13 +106,6 @@ SdlRenderer::~SdlRenderer()
     {
         SDL_ReleaseGPUGraphicsPipeline(m_GpuDevice->Device, m_CopyTexturePipeline);
     }
-
-#ifndef NDEBUG
-    for(const auto& state: m_State)
-    {
-        eassert(!state.m_RenderFence, "Render fence must be null when destroying SdlRenderer");
-    }
-#endif  // NDEBUG
 
     ImGui_ImplSDLGPU3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
@@ -204,7 +196,7 @@ SdlRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
 }
 
 Result<void>
-SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
+SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompositor* compositor)
 {
     static PerfTimer renderTimer("Renderer.Render");
     auto scopedRenderTimer = renderTimer.StartScoped();
@@ -216,38 +208,15 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
 
     ++m_RenderCount;
 
-    //Wait for the previous frame to complete
-    static PerfTimer waitForFenceTimer("Renderer.Render.WaitForFence");
+    SdlRenderCompositor* sdlCompositor = static_cast<SdlRenderCompositor*>(compositor);
+
+    SDL_GPUCommandBuffer* cmdBuf = sdlCompositor->GetCommandBuffer();
+    if(!cmdBuf)
     {
-        auto scopedWaitForFenceTimer = waitForFenceTimer.StartScoped();
-        WaitForFence();
+        // No command buffer - likely window minimized.
+        // This is not an error.
+        return Result<void>::Success;
     }
-
-    auto gpuDevice = m_GpuDevice->Device;
-
-    static PerfTimer acquireCmdBufTimer("Renderer.Render.AcquireCommandBuffer");
-    SDL_GPUCommandBuffer* cmdBuf;
-    {
-        auto scopedAcquireCmdBufTimer = acquireCmdBufTimer.StartScoped();
-        cmdBuf = SDL_AcquireGPUCommandBuffer(gpuDevice);
-        expect(cmdBuf, SDL_GetError());
-    }
-
-    SDL_GPUTexture* swapchainTexture = nullptr;
-
-#if !OFFSCREEN_RENDERING
-    expect(
-        SDL_WaitAndAcquireGPUSwapchainTexture(cmdBuf, m_GpuDevice->Window, &swapchainTexture, nullptr, nullptr),
-        SDL_GetError());
-
-    if(!swapchainTexture)
-    {
-        // No swapchain texture - likely window is minimized.
-        // This is not an error, just skip rendering.
-         SDL_CancelGPUCommandBuffer(cmdBuf);
-         return Result<void>::Success;
-    }
-#endif
 
     SDL_GPURenderPass* renderPass = nullptr;
     static PerfTimer beginRenderPassTimer("Renderer.Render.BeginRenderPass");
@@ -412,28 +381,18 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection)
     static PerfTimer copyTimer("Renderer.Render.Resolve.CopyColorTarget");
     {
         auto scopedTimer = copyTimer.StartScoped();
-        auto copyResult = CopyColorTargetToSwapchain(cmdBuf, swapchainTexture);
+        auto copyResult = CopyColorTargetToSwapchain(cmdBuf, sdlCompositor->GetTarget());
         expect(copyResult, copyResult.error());
     }
 
     static PerfTimer renderGuiTimer("Renderer.Render.Resolve.RenderGUI");
     {
         auto scopedTimer = renderGuiTimer.StartScoped();
-        auto renderGuiResult = RenderGui(cmdBuf, swapchainTexture);
+        auto renderGuiResult = RenderGui(cmdBuf, sdlCompositor->GetTarget());
         expect(renderGuiResult, renderGuiResult.error());
     }
 
     SwapStates();
-
-    eassert(!m_CurrentState->m_RenderFence, "Render fence should be null here");
-
-    static PerfTimer submitCmdBufferTimer("Renderer.Render.Resolve.SubmitCommandBuffer");
-    {
-        auto scopedTimer = submitCmdBufferTimer.StartScoped();
-        //expect(SDL_SubmitGPUCommandBuffer(cmdBuf), SDL_GetError());
-        m_CurrentState->m_RenderFence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmdBuf);
-        expect(m_CurrentState->m_RenderFence, SDL_GetError());
-    }
 
     resolveTimer.Stop();
 
@@ -534,34 +493,8 @@ SdlRenderer::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
 }
 
 void
-SdlRenderer::WaitForFence()
-{
-    if(!m_CurrentState->m_RenderFence)
-    {
-        return;
-    }
-
-    bool success =
-        SDL_WaitForGPUFences(
-            m_GpuDevice->Device,
-            true,
-            &m_CurrentState->m_RenderFence,
-            1);
-
-    if(!success)
-    {
-        logError("Error waiting for render fence during SdlRenderer destruction: {}", SDL_GetError());
-    }
-
-    SDL_ReleaseGPUFence(m_GpuDevice->Device, m_CurrentState->m_RenderFence);
-    m_CurrentState->m_RenderFence = nullptr;
-}
-
-void
 SdlRenderer::SwapStates()
 {
-    eassert(!m_CurrentState->m_RenderFence, "Current state's render fence must be null when swapping states");
-
     if (m_CurrentState == &m_State[0])
     {
         m_CurrentState = &m_State[1];
@@ -989,7 +922,7 @@ SdlRenderer::RenderGui(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTexture* target)
 
     if(!target)
     {
-        // Offscreen rendering - no swapchain texture available. Not an error, just skip copying.
+        // Off-screen rendering, skip rendering ImGui
         return Result<void>::Success;
     }
 
