@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/build/Debug/Cube.exe",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
+            "cwd": "${workspaceFolder}/build/Debug",
             "environment": [],
             //"console": "externalTerminal"
             "console": "integratedTerminal"
@@ -23,7 +23,7 @@
             "program": "${workspaceFolder}/build/Debug/Triangle.exe",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
+            "cwd": "${workspaceFolder}/build/Debug",
             "environment": [],
             //"console": "externalTerminal"
             "console": "integratedTerminal"
@@ -35,7 +35,7 @@
             "program": "${workspaceFolder}/build/Debug/Sponza.exe",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
+            "cwd": "${workspaceFolder}/build/Debug",
             "environment": [],
             //"console": "externalTerminal"
             "console": "integratedTerminal"
@@ -47,7 +47,7 @@
             "program": "${workspaceFolder}/build/Release/Cube.exe",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
+            "cwd": "${workspaceFolder}/build/Release",
             "environment": [],
             //"console": "externalTerminal"
             "console": "integratedTerminal"
@@ -59,7 +59,7 @@
             "program": "${workspaceFolder}/build/Release/Triangle.exe",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
+            "cwd": "${workspaceFolder}/build/Release",
             "environment": [],
             //"console": "externalTerminal"
             "console": "integratedTerminal"
@@ -71,7 +71,7 @@
             "program": "${workspaceFolder}/build/Release/Sponza.exe",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build",
+            "cwd": "${workspaceFolder}/build/Release",
             "environment": [],
             //"console": "externalTerminal"
             "console": "integratedTerminal"

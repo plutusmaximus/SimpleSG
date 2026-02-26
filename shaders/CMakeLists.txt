@@ -5,8 +5,6 @@ project(WGSLToSpirv LANGUAGES CXX)
 # Configuration
 # ---------------------------------------------------------------------------
 set(WGSL_SOURCES
-  "${CMAKE_CURRENT_LIST_DIR}/ColorFragmentShader.fs.wgsl"
-  "${CMAKE_CURRENT_LIST_DIR}/ColorVertexShader.vs.wgsl"
   "${CMAKE_CURRENT_LIST_DIR}/FragmentShader.fs.wgsl"
   "${CMAKE_CURRENT_LIST_DIR}/VertexShader.vs.wgsl"
   "${CMAKE_CURRENT_LIST_DIR}/FullScreenTriangle.vs.wgsl"
@@ -18,9 +16,9 @@ set(HLSL_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/FullScreenTriangle.ps.hlsl"
 )
 
-set(TINT_EXE "${CMAKE_BINARY_DIR}/DEBUG/tint.exe" CACHE FILEPATH "Tint compiler executable")
+set(TINT_EXE "${CMAKE_BINARY_DIR}/thirdparty/dawn/tint.exe" CACHE FILEPATH "Tint compiler executable")
 set(TINT_SPIRV_VERSION "1.3" CACHE STRING "SPIR-V version to target (e.g. 1.0, 1.3, 1.5)")
-set(_out_dir "${CMAKE_BINARY_DIR}/shaders/Debug")
+set(_out_dir "${CMAKE_BINARY_DIR}/shaders")
 
 # ---------------------------------------------------------------------------
 # Find DXC from Vulkan SDK

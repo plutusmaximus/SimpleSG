@@ -18,13 +18,6 @@ if(MSVC AND SSG_ENABLE_ASAN)
   add_compile_options(/fsanitize=address /Zi /bigobj)
 endif()
 
-# Place build outputs in per-config folders (e.g., build/Debug, build/Release)
-foreach(OUTPUTCONFIG DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
-  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${CMAKE_BINARY_DIR}/${OUTPUTCONFIG})
-  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${CMAKE_BINARY_DIR}/${OUTPUTCONFIG})
-  set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${CMAKE_BINARY_DIR}/${OUTPUTCONFIG})
-endforeach()
-
 if(MSVC)
   if(SSG_ENABLE_ASAN)
     # ASan on MSVC requires the DLL runtime (/MD or /MDd).
@@ -163,7 +156,7 @@ target_compile_definitions(imgui PRIVATE IMGUI_IMPL_WEBGPU_BACKEND_DAWN)
 # ============================================================
 # Shaders / Assets
 # ============================================================
-add_subdirectory(shaders shaders-build)
+add_subdirectory(shaders)
 
 add_custom_target(copy_images
   COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different

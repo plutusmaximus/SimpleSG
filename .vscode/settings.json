@@ -136,5 +136,7 @@
         "regex": "cpp",
         "*.rh": "cpp"
     },
-    "cmake.configureOnOpen": false
+    "cmake.configureOnOpen": false,
+    "cmake.buildDirectory": "${workspaceFolder}/build/${buildType}",
+    "cmake.deleteBuildDirOnCleanConfigure": false
 }

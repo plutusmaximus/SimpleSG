@@ -17,11 +17,11 @@
 
 #include <cstdio>
 
-static constexpr const char* COMPOSITE_COLOR_TARGET_VS = "shaders/Debug/FullScreenTriangle.vs.spv";
-static constexpr const char* COMPOSITE_COLOR_TARGET_FS = "shaders/Debug/FullScreenTriangle.ps.spv";
+static constexpr const char* COMPOSITE_COLOR_TARGET_VS = "shaders/FullScreenTriangle.vs.spv";
+static constexpr const char* COMPOSITE_COLOR_TARGET_FS = "shaders/FullScreenTriangle.ps.spv";
 
-static constexpr const char* COLOR_PIPELINE_VS = "shaders/Debug/VertexShader.vs.spv";
-static constexpr const char* COLOR_PIPELINE_FS = "shaders/Debug/FragmentShader.ps.spv";
+static constexpr const char* COLOR_PIPELINE_VS = "shaders/VertexShader.vs.spv";
+static constexpr const char* COLOR_PIPELINE_FS = "shaders/FragmentShader.ps.spv";
 
 class XFormBuffer
 {

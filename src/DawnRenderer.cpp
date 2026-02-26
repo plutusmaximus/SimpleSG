@@ -14,11 +14,11 @@
 
 #include <cstdio>
 
-static constexpr const char* COMPOSITE_COLOR_TARGET_VS = "shaders/Debug/FullScreenTriangle.vs.wgsl";
-static constexpr const char* COMPOSITE_COLOR_TARGET_FS = "shaders/Debug/FullScreenTriangle.fs.wgsl";
+static constexpr const char* COMPOSITE_COLOR_TARGET_VS = "shaders/FullScreenTriangle.vs.wgsl";
+static constexpr const char* COMPOSITE_COLOR_TARGET_FS = "shaders/FullScreenTriangle.fs.wgsl";
 
-static constexpr const char* COLOR_PIPELINE_VS = "shaders/Debug/VertexShader.vs.wgsl";
-static constexpr const char* COLOR_PIPELINE_FS = "shaders/Debug/FragmentShader.fs.wgsl";
+static constexpr const char* COLOR_PIPELINE_VS = "shaders/VertexShader.vs.wgsl";
+static constexpr const char* COLOR_PIPELINE_FS = "shaders/FragmentShader.fs.wgsl";
 
 class XFormBuffer
 {
