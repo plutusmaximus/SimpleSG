@@ -341,9 +341,11 @@ SdlGpuDevice::CreateTexture(const unsigned width,
 
     const unsigned sizeofData = textureInfo.width * textureInfo.height * 4;
 
-    SDL_GPUTransferBufferCreateInfo xferBufferCreateInfo{ .usage =
-                                                              SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-        .size = sizeofData };
+    SDL_GPUTransferBufferCreateInfo xferBufferCreateInfo //
+        {
+            .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+            .size = sizeofData,
+        };
 
     // Create transfer buffer for uploading pixel data
     SDL_GPUTransferBuffer* transferBuffer =
@@ -617,7 +619,7 @@ SdlGpuDevice::CreateVertexShader(const std::span<const uint8_t>& shaderCode)
         .format = SHADER_FORMAT,
         .stage = SDL_GPU_SHADERSTAGE_VERTEX,
         .num_samplers = 0,
-        .num_uniform_buffers = 1
+        .num_storage_buffers = 1
     };
 
     SDL_GPUShader* shader = SDL_CreateGPUShader(Device, &shaderCreateInfo);

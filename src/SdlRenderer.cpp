@@ -23,6 +23,15 @@ static constexpr const char* COMPOSITE_COLOR_TARGET_FS = "shaders/Debug/FullScre
 static constexpr const char* COLOR_PIPELINE_VS = "shaders/Debug/VertexShader.vs.spv";
 static constexpr const char* COLOR_PIPELINE_FS = "shaders/Debug/FragmentShader.ps.spv";
 
+class XFormBuffer
+{
+public:
+
+    Mat44f ModelXform;
+    Mat44f ModelViewProjXform;
+
+};
+
 SdlRenderer::SdlRenderer(SdlGpuDevice* gpuDevice)
     : m_GpuDevice(gpuDevice)
 {
@@ -37,6 +46,8 @@ SdlRenderer::~SdlRenderer()
         {
             logError("Failed to destroy default base texture: {}", result.error());
         }
+
+        m_DefaultBaseTexture = nullptr;
     }
 
     if(m_ColorTarget)
@@ -46,6 +57,8 @@ SdlRenderer::~SdlRenderer()
         {
             logError("Failed to destroy default color target: {}", result.error());
         }
+
+        m_ColorTarget = nullptr;
     }
 
     if(m_DepthTarget)
@@ -55,52 +68,68 @@ SdlRenderer::~SdlRenderer()
         {
             logError("Failed to destroy default depth target: {}", result.error());
         }
+
+        m_DepthTarget = nullptr;
     }
 
     if(m_ColorVertexShader)
     {
-        auto result = m_GpuDevice->DestroyVertexShader(m_ColorVertexShader);
-        if(!result)
-        {
-            logError("Failed to destroy color vertex shader: {}", result.error());
-        }
+        SDL_ReleaseGPUShader(m_GpuDevice->Device, m_ColorVertexShader);
+
+        m_ColorVertexShader = nullptr;
     }
 
     if(m_ColorFragmentShader)
     {
-        auto result = m_GpuDevice->DestroyFragmentShader(m_ColorFragmentShader);
-        if(!result)
-        {
-            logError("Failed to destroy color fragment shader: {}", result.error());
-        }
+        SDL_ReleaseGPUShader(m_GpuDevice->Device, m_ColorFragmentShader);
+
+        m_ColorFragmentShader = nullptr;
     }
 
     if(m_ColorPipeline)
     {
         SDL_ReleaseGPUGraphicsPipeline(m_GpuDevice->Device, m_ColorPipeline);
+
+        m_ColorPipeline = nullptr;
     }
 
     if(m_CopyTextureVertexShader)
     {
-        auto result = m_GpuDevice->DestroyVertexShader(m_CopyTextureVertexShader);
-        if(!result)
-        {
-            logError("Failed to destroy copy texture vertex shader: {}", result.error());
-        }
+        SDL_ReleaseGPUShader(m_GpuDevice->Device, m_CopyTextureVertexShader);
+
+        m_CopyTextureVertexShader = nullptr;
     }
 
     if(m_CopyTextureFragmentShader)
     {
-        auto result = m_GpuDevice->DestroyFragmentShader(m_CopyTextureFragmentShader);
-        if(!result)
-        {
-            logError("Failed to destroy copy texture fragment shader: {}", result.error());
-        }
+        SDL_ReleaseGPUShader(m_GpuDevice->Device, m_CopyTextureFragmentShader);
+
+        m_CopyTextureFragmentShader = nullptr;
+    }
+
+    if(m_CopyTextureFragmentShader)
+    {
+        SDL_ReleaseGPUShader(m_GpuDevice->Device, m_CopyTextureFragmentShader);
+
+        m_CopyTextureFragmentShader = nullptr;
     }
 
     if(m_CopyTexturePipeline)
     {
         SDL_ReleaseGPUGraphicsPipeline(m_GpuDevice->Device, m_CopyTexturePipeline);
+        m_CopyTexturePipeline = nullptr;
+    }
+
+    if(m_WorldAndProjBuf)
+    {
+        SDL_ReleaseGPUBuffer(m_GpuDevice->Device, m_WorldAndProjBuf);
+        m_WorldAndProjBuf = nullptr;
+    }
+
+    if(m_WorldAndProjXferBuf)
+    {
+        SDL_ReleaseGPUTransferBuffer(m_GpuDevice->Device, m_WorldAndProjXferBuf);
+        m_WorldAndProjXferBuf = nullptr;
     }
 }
 
@@ -161,6 +190,7 @@ SdlRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
         };
 
         meshGrp->emplace_back(xformMesh);
+        ++m_CurrentState->m_MeshCount;
     }
 }
 
@@ -180,17 +210,20 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
         return Result<void>::Success;
     }
 
+    static PerfTimer updateXformTimer("Renderer.Render.UpdateXformBuffer");
+    {
+        auto scopedTimer = updateXformTimer.StartScoped();
+
+        auto updateXformBufResult = UpdateXformBuffer(cmdBuf, camera, projection);
+        expect(updateXformBufResult, updateXformBufResult.error());
+    }
+
     SDL_GPURenderPass* renderPass = nullptr;
     static PerfTimer beginRenderPassTimer("Renderer.Render.BeginRenderPass");
     {
         auto scopedBeginRenderPassTimer = beginRenderPassTimer.StartScoped();
         auto renderPassResult = BeginRenderPass(cmdBuf);
-
-        if(!renderPassResult)
-        {
-            SDL_CancelGPUCommandBuffer(cmdBuf);
-            return Error(renderPassResult.error());
-        }
+        expect(renderPassResult, renderPassResult.error());
 
         renderPass = renderPassResult.value();
     }
@@ -199,18 +232,35 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
     {
         //No render pass - likely window minimized.
         //This is not an error.
-        SDL_CancelGPUCommandBuffer(cmdBuf);
         return Result<void>::Success;
     }
 
     auto cleanupRenderPass = scope_exit([&]()
     {
         SDL_EndGPURenderPass(renderPass);
-        SDL_SubmitGPUCommandBuffer(cmdBuf);
     });
 
-    // Use inverse of camera transform as view matrix
-    const Mat44f viewXform = camera.Inverse();
+    SDL_BindGPUVertexStorageBuffers(renderPass, 0, &m_WorldAndProjBuf, 1);
+
+    static PerfTimer setPipelineTimer("Renderer.Render.SetPipeline");
+    {
+        auto scopedTimer = setPipelineTimer.StartScoped();
+        auto pipelineResult = GetColorPipeline();
+        expect(pipelineResult, pipelineResult.error());
+        auto pipeline = pipelineResult.value();
+        SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
+    }
+
+    static PerfTimer setVsBindGroupTimer("Renderer.Render.SetVsBindGroup");
+    {
+        auto scopedTimer = setVsBindGroupTimer.StartScoped();
+        SDL_GPUBufferBinding bufferBinding//
+        {
+            .buffer = m_WorldAndProjBuf,
+            .offset = 0,
+        };
+        SDL_BindGPUVertexBuffers(renderPass, 0, &bufferBinding, 1);
+    }
 
     // Render opaque meshes first
     const MeshGroupCollection* meshGroups[] =
@@ -225,14 +275,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
     const SdlGpuVertexBuffer* lastVb = nullptr;
     const SdlGpuIndexBuffer* lastIb = nullptr;
 
-    static PerfTimer setPipelineTimer("Renderer.Render.SetPipeline");
-    {
-        auto scopedTimer = setPipelineTimer.StartScoped();
-        auto pipelineResult = GetColorPipeline();
-        expect(pipelineResult, pipelineResult.error());
-        auto pipeline = pipelineResult.value();
-        SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
-    }
+    unsigned meshCount = 0;
 
     for(const auto meshGrpPtr : meshGroups)
     {
@@ -262,16 +305,8 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
                 SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
             }
 
-            const Mat44f viewProj = projection.Mul(viewXform);
-
             for (auto& xmesh : xmeshes)
             {
-                const Mat44f matrices[] =
-                {
-                    xmesh.WorldTransform,
-                    viewProj.Mul(xmesh.WorldTransform)
-                };
-
                 const Mesh& mesh = xmesh.MeshInstance;
 
                 const auto& vbSubrange = mesh.GetVertexBuffer();
@@ -310,13 +345,6 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
                     lastIb = ib;
                 }
 
-                static PerfTimer writeTransformTimer("Renderer.Render.Draw.WriteTransformBuffer");
-                {
-                    auto scopedTimer = writeTransformTimer.StartScoped();
-                    // Send up the model and model-view-projection matrices
-                    SDL_PushGPUVertexUniformData(cmdBuf, 0, matrices, sizeof(matrices));
-                }
-
                 static PerfTimer drawIndexedTimer("Renderer.Render.Draw.DrawIndexed");
                 {
                     auto scopedTimer = drawIndexedTimer.StartScoped();
@@ -325,8 +353,10 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
                         1,
                         ibSubrange.GetIndexOffset(),
                         vbSubrange.GetVertexOffset(),
-                        0);
+                        meshCount);
                 }
+
+                ++meshCount;
             }
         }
     }
@@ -545,11 +575,17 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
     return Result<void>::Success;
 }
 
-Result<GpuVertexShader*> SdlRenderer::GetColorVertexShader()
+Result<SDL_GPUShader*> SdlRenderer::GetColorVertexShader()
 {
     if(!m_ColorVertexShader)
     {
-        auto vsResult = CreateVertexShader(COLOR_PIPELINE_VS);
+        ShaderCreateInfo createInfo//
+        {
+            .path = COLOR_PIPELINE_VS,
+            .numStorageBuffers = 1,
+            .numUniformBuffers = 0
+        };
+        auto vsResult = CreateVertexShader(createInfo);
         expect(vsResult, vsResult.error());
 
         m_ColorVertexShader = vsResult.value();
@@ -558,11 +594,17 @@ Result<GpuVertexShader*> SdlRenderer::GetColorVertexShader()
     return m_ColorVertexShader;
 }
 
-Result<GpuFragmentShader*> SdlRenderer::GetColorFragmentShader()
+Result<SDL_GPUShader*> SdlRenderer::GetColorFragmentShader()
 {
     if(!m_ColorFragmentShader)
     {
-        auto fsResult = CreateFragmentShader(COLOR_PIPELINE_FS);
+        ShaderCreateInfo createInfo//
+        {
+            .path = COLOR_PIPELINE_FS,
+            .numStorageBuffers = 0,
+            .numUniformBuffers = 1
+        };
+        auto fsResult = CreateFragmentShader(createInfo);
         expect(fsResult, fsResult.error());
 
         m_ColorFragmentShader = fsResult.value();
@@ -646,8 +688,8 @@ SdlRenderer::GetColorPipeline()
 
     SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo //
         {
-            .vertex_shader = static_cast<SdlGpuVertexShader*>(vertexShader)->GetShader(),
-            .fragment_shader = static_cast<SdlGpuFragmentShader*>(fragmentShader)->GetShader(),
+            .vertex_shader = vertexShader,
+            .fragment_shader = fragmentShader,
             .vertex_input_state = //
             {
                 .vertex_buffer_descriptions = vertexBufDescriptions,
@@ -684,12 +726,18 @@ SdlRenderer::GetColorPipeline()
     return m_ColorPipeline;
 }
 
-Result<GpuVertexShader*>
+Result<SDL_GPUShader*>
 SdlRenderer::GetCopyColorTargetVertexShader()
 {
     if(!m_CopyTextureVertexShader)
     {
-        auto vsResult = CreateVertexShader(COMPOSITE_COLOR_TARGET_VS);
+        ShaderCreateInfo createInfo//
+        {
+            .path = COMPOSITE_COLOR_TARGET_VS,
+            .numStorageBuffers = 0,
+            .numUniformBuffers = 0,
+        };
+        auto vsResult = CreateVertexShader(createInfo);
         expect(vsResult, vsResult.error());
 
         m_CopyTextureVertexShader = vsResult.value();
@@ -698,12 +746,18 @@ SdlRenderer::GetCopyColorTargetVertexShader()
     return m_CopyTextureVertexShader;
 }
 
-Result<GpuFragmentShader*>
+Result<SDL_GPUShader*>
 SdlRenderer::GetCopyColorTargetFragmentShader()
 {
     if(!m_CopyTextureFragmentShader)
     {
-        auto fsResult = CreateFragmentShader(COMPOSITE_COLOR_TARGET_FS);
+        ShaderCreateInfo createInfo//
+        {
+            .path = COMPOSITE_COLOR_TARGET_FS,
+            .numStorageBuffers = 0,
+            .numUniformBuffers = 0,
+        };
+        auto fsResult = CreateFragmentShader(createInfo);
         expect(fsResult, fsResult.error());
 
         m_CopyTextureFragmentShader = fsResult.value();
@@ -726,9 +780,6 @@ SdlRenderer::GetCopyColorTargetPipeline()
     auto fsResult = GetCopyColorTargetFragmentShader();
     expect(fsResult, fsResult.error());
 
-    auto vs = static_cast<SdlGpuVertexShader*>(vsResult.value());
-    auto fs = static_cast<SdlGpuFragmentShader*>(fsResult.value());
-
     auto colorTargetFormat = m_GpuDevice->GetSwapChainFormat();
 
     SDL_GPUColorTargetDescription colorTargetDesc//
@@ -743,8 +794,8 @@ SdlRenderer::GetCopyColorTargetPipeline()
 
     SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo //
         {
-            .vertex_shader = vs->GetShader(),
-            .fragment_shader = fs->GetShader(),
+            .vertex_shader = vsResult.value(),
+            .fragment_shader = fsResult.value(),
             .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
             .rasterizer_state = //
             {
@@ -772,28 +823,156 @@ SdlRenderer::GetCopyColorTargetPipeline()
     return m_CopyTexturePipeline;
 }
 
-Result<GpuVertexShader*>
-SdlRenderer::CreateVertexShader(const char* path)
+Result<SDL_GPUShader*>
+SdlRenderer::CreateVertexShader(const ShaderCreateInfo& createInfo)
 {
     std::vector<uint8_t> shaderCode;
-    auto loadResult = LoadShaderCode(path, shaderCode);
+    auto loadResult = LoadShaderCode(createInfo.path, shaderCode);
     expect(loadResult, loadResult.error());
 
-    std::span<uint8_t> shaderCodeSpan(shaderCode.data(), shaderCode.size());
+    SDL_GPUShaderCreateInfo shaderCreateInfo
+    {
+        .code_size = shaderCode.size(),
+        .code = shaderCode.data(),
+        .entrypoint = "main",
+        .format = SDL_GPU_SHADERFORMAT_SPIRV,
+        .stage = SDL_GPU_SHADERSTAGE_VERTEX,
+        .num_samplers = 0,
+        .num_storage_buffers = createInfo.numStorageBuffers
+    };
 
-    return m_GpuDevice->CreateVertexShader(shaderCodeSpan);
+    SDL_GPUShader* shader = SDL_CreateGPUShader(m_GpuDevice->Device, &shaderCreateInfo);
+    expect(shader, SDL_GetError());
+
+    return shader;
 }
 
-Result<GpuFragmentShader*>
-SdlRenderer::CreateFragmentShader(const char* path)
+Result<SDL_GPUShader*>
+SdlRenderer::CreateFragmentShader(const ShaderCreateInfo& createInfo)
 {
     std::vector<uint8_t> shaderCode;
-    auto loadResult = LoadShaderCode(path, shaderCode);
+    auto loadResult = LoadShaderCode(createInfo.path, shaderCode);
     expect(loadResult, loadResult.error());
 
-    std::span<uint8_t> shaderCodeSpan(shaderCode.data(), shaderCode.size());
+    SDL_GPUShaderCreateInfo shaderCreateInfo
+    {
+        .code_size = shaderCode.size(),
+        .code = shaderCode.data(),
+        .entrypoint = "main",
+        .format = SDL_GPU_SHADERFORMAT_SPIRV,
+        .stage = SDL_GPU_SHADERSTAGE_FRAGMENT,
+        .num_samplers = 1,
+        .num_uniform_buffers = createInfo.numUniformBuffers
+    };
 
-    return m_GpuDevice->CreateFragmentShader(shaderCodeSpan);
+    SDL_GPUShader* shader = SDL_CreateGPUShader(m_GpuDevice->Device, &shaderCreateInfo);
+    expect(shader, SDL_GetError());
+
+    return shader;
+}
+
+Result<void>
+SdlRenderer::UpdateXformBuffer(
+    SDL_GPUCommandBuffer* cmdBuf, const Mat44f& camera, const Mat44f& projection)
+{
+    // Size of the buffer needed to hold the world and projection matrices for all meshes in the
+    // current frame.
+    const size_t sizeofTransformBuffer = sizeof(XFormBuffer) * m_CurrentState->m_MeshCount;
+
+    if(!m_WorldAndProjBuf || !m_WorldAndProjXferBuf ||
+        m_SizeofTransformBuffer < sizeofTransformBuffer)
+    {
+        if(m_WorldAndProjBuf)
+        {
+            SDL_ReleaseGPUBuffer(m_GpuDevice->Device, m_WorldAndProjBuf);
+            m_WorldAndProjBuf = nullptr;
+        }
+
+        if(m_WorldAndProjXferBuf)
+        {
+            SDL_ReleaseGPUTransferBuffer(m_GpuDevice->Device, m_WorldAndProjXferBuf);
+            m_WorldAndProjXferBuf = nullptr;
+        }
+
+        SDL_GPUBufferCreateInfo bufferCreateInfo//
+        {
+            .usage = SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
+            .size = static_cast<uint32_t>(sizeofTransformBuffer)
+        };
+
+        m_WorldAndProjBuf = SDL_CreateGPUBuffer(m_GpuDevice->Device, &bufferCreateInfo);
+        expect(m_WorldAndProjBuf, SDL_GetError());
+
+        SDL_GPUTransferBufferCreateInfo xferBufferCreateInfo //
+            {
+                .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+                .size = static_cast<uint32_t>(sizeofTransformBuffer),
+            };
+
+        m_WorldAndProjXferBuf =
+            SDL_CreateGPUTransferBuffer(m_GpuDevice->Device, &xferBufferCreateInfo);
+        expect(m_WorldAndProjXferBuf, SDL_GetError());
+    }
+
+    // Copy data to transfer buffer
+    XFormBuffer* mappedData = reinterpret_cast<XFormBuffer*>(
+        SDL_MapGPUTransferBuffer(m_GpuDevice->Device, m_WorldAndProjXferBuf, false));
+    expect(mappedData, SDL_GetError());
+
+    const MeshGroupCollection* meshGroups[] =
+    {
+        &m_CurrentState->m_OpaqueMeshGroups,
+        &m_CurrentState->m_TranslucentMeshGroups
+    };
+
+    // Use inverse of camera transform as view matrix
+    const Mat44f viewXform = camera.Inverse();
+
+    // Projection transform
+    const Mat44f viewProj = projection.Mul(viewXform);
+
+    unsigned meshCount = 0;
+
+    for(const auto meshGrpPtr : meshGroups)
+    {
+        for (auto& [mtlId, xmeshes] : *meshGrpPtr)
+        {
+            for (auto& xmesh : xmeshes)
+            {
+                mappedData[meshCount] =//
+                {
+                    .ModelXform = xmesh.WorldTransform,
+                    .ModelViewProjXform = viewProj.Mul(xmesh.WorldTransform),
+                };
+
+                ++meshCount;
+            }
+        }
+    }
+
+    SDL_UnmapGPUTransferBuffer(m_GpuDevice->Device, m_WorldAndProjXferBuf);
+
+    SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(cmdBuf);
+    expect(copyPass, SDL_GetError());
+
+    SDL_GPUTransferBufferLocation src//
+    {
+        .transfer_buffer = m_WorldAndProjXferBuf,
+        .offset = 0,
+    };
+
+    SDL_GPUBufferRegion dst//
+    {
+        .buffer = m_WorldAndProjBuf,
+        .offset = 0,
+        .size = static_cast<uint32_t>(sizeofTransformBuffer),
+    };
+
+    SDL_UploadToGPUBuffer(copyPass, &src, &dst, false);
+
+    SDL_EndGPUCopyPass(copyPass);
+
+    return Result<void>::Success;
 }
 
 Result<GpuTexture*>

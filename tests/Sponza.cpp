@@ -124,6 +124,9 @@ public:
             return;
         }
 
+        static PerfTimer frameTimer("Frame");
+        auto scopedFrameTimer = frameTimer.StartScoped();
+
         m_ScreenBounds = m_GpuDevice->GetScreenBounds();
 
         m_Registry.Get<Camera>(m_EidCamera).SetBounds(m_ScreenBounds);

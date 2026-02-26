@@ -20,6 +20,15 @@ static constexpr const char* COMPOSITE_COLOR_TARGET_FS = "shaders/Debug/FullScre
 static constexpr const char* COLOR_PIPELINE_VS = "shaders/Debug/VertexShader.vs.wgsl";
 static constexpr const char* COLOR_PIPELINE_FS = "shaders/Debug/FragmentShader.fs.wgsl";
 
+class XFormBuffer
+{
+public:
+
+    Mat44f ModelXform;
+    Mat44f ModelViewProjXform;
+
+};
+
 DawnRenderer::DawnRenderer(DawnGpuDevice* gpuDevice)
     : m_GpuDevice(gpuDevice)
 {
@@ -55,46 +64,21 @@ DawnRenderer::~DawnRenderer()
         }
     }
 
-    if(m_ColorVertexShader)
-    {
-        auto result = m_GpuDevice->DestroyVertexShader(m_ColorVertexShader);
-        if(!result)
-        {
-            logError("Failed to destroy color vertex shader: {}", result.error());
-        }
-    }
+    // Nothing to do for the following resources as they are managed by Dawn and will be
+    // automatically released
 
-    if(m_ColorFragmentShader)
-    {
-        auto result = m_GpuDevice->DestroyFragmentShader(m_ColorFragmentShader);
-        if(!result)
-        {
-            logError("Failed to destroy color fragment shader: {}", result.error());
-        }
-    }
-
-    if(m_CopyTextureVertexShader)
-    {
-        auto result = m_GpuDevice->DestroyVertexShader(m_CopyTextureVertexShader);
-        if(!result)
-        {
-            logError("Failed to destroy copy texture vertex shader: {}", result.error());
-        }
-    }
-
-    if(m_CopyTextureFragmentShader)
-    {
-        auto result = m_GpuDevice->DestroyFragmentShader(m_CopyTextureFragmentShader);
-        if(!result)
-        {
-            logError("Failed to destroy copy texture fragment shader: {}", result.error());
-        }
-    }
-
-    if(m_CopyTexturePipeline)
-    {
-        // m_CopyTexturePipeline is ref-counted, so nothing to do here
-    }
+    // m_ColorVertexShader
+    // m_ColorFragmentShader
+    // m_ColorPipeline
+    // m_VsBindGroupLayout
+    // m_FsBindGroupLayout
+    // m_CopyTextureVertexShader
+    // m_CopyTextureFragmentShader
+    // m_CopyTexturePipeline
+    // m_CopyTextureBindGroupLayout
+    // m_CopyTextureBindGroup
+    // m_WorldAndProjBuf
+    // m_VertexShaderBindGroup
 }
 
 void
@@ -197,54 +181,20 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
         auto pipeline = pipelineResult.value();
 
         renderPass.SetPipeline(pipeline);
-        //Bind group zero is unused.
-        renderPass.SetBindGroup(0, nullptr, 0, nullptr);
     }
 
-    // Size of the buffer needed to hold the world and projection matrices for all meshes in the
-    // current frame.
-    using XFormBuffer = Mat44f[2];  // World and projection matrices
-    const size_t sizeofAlignedTransforms = alignUniformBuffer<XFormBuffer>(m_GpuLimits);
-    const size_t sizeofTransformBuffer = sizeofAlignedTransforms * m_CurrentState->m_MeshCount;
-
-    if(!m_WorldAndProjBuf || m_SizeofTransformBuffer < sizeofTransformBuffer)
+    static PerfTimer updateXformTimer("Renderer.Render.UpdateXformBuffer");
     {
-        // Re-allocate the world and projection buffer.
+        auto scopedTimer = updateXformTimer.StartScoped();
 
-        m_SizeofTransformBuffer = sizeofTransformBuffer;
+        auto updateXformBufResult = UpdateXformBuffer(cmdEncoder, camera, projection);
+        expect(updateXformBufResult, updateXformBufResult.error());
+    }
 
-        wgpu::BufferDescriptor worldAndProjBufDesc //
-        {
-            .label = "WorldAndProjection",
-            .usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
-            .size = sizeofTransformBuffer,
-            .mappedAtCreation = false,
-        };
-
-        m_WorldAndProjBuf = gpuDevice.CreateBuffer(&worldAndProjBufDesc);
-        expect(m_WorldAndProjBuf, "Failed to create world and projection buffer");
-
-        // Recreate the vertex shader bind group with the new buffer.
-        wgpu::BindGroupEntry vsBgEntries[] = //
-            {
-                {
-                    .binding = 0,
-                    .buffer = m_WorldAndProjBuf,
-                    .offset = 0,
-                    .size = sizeofAlignedTransforms,
-                }
-            };
-
-        wgpu::BindGroupDescriptor vsBgDesc //
-            {
-                .label = "vsBindGroup",
-                .layout = m_VsBindGroupLayout,
-                .entryCount = std::size(vsBgEntries),
-                .entries = vsBgEntries,
-            };
-
-        m_VertexShaderBindGroup = gpuDevice.CreateBindGroup(&vsBgDesc);
-        expect(m_VertexShaderBindGroup, "Failed to create WGPUBindGroup");
+    static PerfTimer setVsBindGroupTimer("Renderer.Render.Draw.SetVsBindGroup");
+    {
+        auto scopedTimer = setVsBindGroupTimer.StartScoped();
+        renderPass.SetBindGroup(0, m_VertexShaderBindGroup, 0, nullptr);
     }
 
     // Use inverse of camera transform as view matrix
@@ -257,13 +207,13 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
         &m_CurrentState->m_TranslucentMeshGroups
     };
 
-    int meshCount = 0;
-
     static PerfTimer drawTimer("Renderer.Render.Draw");
     drawTimer.Start();
 
     const DawnGpuVertexBuffer* lastVb = nullptr;
     const DawnGpuIndexBuffer* lastIb = nullptr;
+
+    unsigned meshCount = 0;
 
     for(const auto meshGrpPtr : meshGroups)
     {
@@ -325,28 +275,15 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
                     lastIb = ib;
                 }
 
-                static PerfTimer writeTransformTimer("Renderer.Render.Draw.WriteTransformBuffer");
+                /*static PerfTimer writeTransformTimer("Renderer.Render.Draw.WriteTransformBuffer");
                 {
                     auto scopedTimer = writeTransformTimer.StartScoped();
                     // Send up the model and model-view-projection matrices
                     gpuDevice.GetQueue().WriteBuffer(m_WorldAndProjBuf,
-                        sizeofAlignedTransforms * meshCount,
+                        sizeof(XFormBuffer) * meshCount,
                         matrices,
                         sizeof(matrices));
-                }
-
-                static PerfTimer setVsBindGroupTimer("Renderer.Render.Draw.SetVsBindGroup");
-                {
-                    auto scopedTimer = setVsBindGroupTimer.StartScoped();
-                    uint32_t dynamicOffsets[] =
-                    {
-                        static_cast<uint32_t>(sizeofAlignedTransforms * meshCount),
-                    };
-                    renderPass.SetBindGroup(1,
-                        m_VertexShaderBindGroup,
-                        std::size(dynamicOffsets),
-                        dynamicOffsets);
-                }
+                }*/
 
                 static PerfTimer drawIndexedTimer("Renderer.Render.Draw.DrawIndexed");
                 {
@@ -355,7 +292,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
                         1,
                         ibSubrange.GetIndexOffset(),
                         vbSubrange.GetVertexOffset(),
-                        0);
+                        meshCount);
                 }
 
                 ++meshCount;
@@ -562,7 +499,7 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
     return Result<void>::Success;
 }
 
-Result<GpuVertexShader*>
+Result<wgpu::ShaderModule>
 DawnRenderer::GetColorVertexShader()
 {
     if(m_ColorVertexShader)
@@ -577,7 +514,7 @@ DawnRenderer::GetColorVertexShader()
     return m_ColorVertexShader;
 }
 
-Result<GpuFragmentShader*>
+Result<wgpu::ShaderModule>
 DawnRenderer::GetColorFragmentShader()
 {
     if(m_ColorFragmentShader)
@@ -628,9 +565,9 @@ DawnRenderer::GetColorPipeline()
             .visibility = wgpu::ShaderStage::Vertex,
             .buffer =
             {
-                .type = wgpu::BufferBindingType::Uniform,
-                .hasDynamicOffset = true,
-                .minBindingSize = sizeof(Mat44f) * 2,
+                .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                .hasDynamicOffset = false,
+                .minBindingSize = sizeof(XFormBuffer),
             },
         },
     };
@@ -693,8 +630,8 @@ DawnRenderer::GetColorPipeline()
 
     wgpu::BindGroupLayout bgl[] = //
         {
-            nullptr, // Group 0 unused
             m_VsBindGroupLayout,
+            nullptr, // Group 1 unused
             m_FsBindGroupLayout,
         };
 
@@ -759,7 +696,7 @@ DawnRenderer::GetColorPipeline()
 
     wgpu::FragmentState fragmentState //
         {
-            .module = static_cast<DawnGpuFragmentShader*>(fragmentShader)->GetShader(),
+            .module = fragmentShader,
             .entryPoint = "main",
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -797,7 +734,7 @@ DawnRenderer::GetColorPipeline()
         .layout = pipelineLayout,
         .vertex =
         {
-            .module = static_cast<DawnGpuVertexShader*>(vertexShader)->GetShader(),
+            .module = vertexShader,
             .entryPoint = "main",
             .bufferCount = 1,
             .buffers = &vertexBufferLayout,
@@ -836,7 +773,7 @@ DawnRenderer::GetColorPipeline()
         this);*/
 }
 
-Result<GpuVertexShader*>
+Result<wgpu::ShaderModule>
 DawnRenderer::GetCopyColorTargetVertexShader()
 {
     if(m_CopyTextureVertexShader)
@@ -851,7 +788,7 @@ DawnRenderer::GetCopyColorTargetVertexShader()
     return m_CopyTextureVertexShader;
 }
 
-Result<GpuFragmentShader*>
+Result<wgpu::ShaderModule>
 DawnRenderer::GetCopyColorTargetFragmentShader()
 {
     if(m_CopyTextureFragmentShader)
@@ -954,7 +891,7 @@ DawnRenderer::GetCopyColorTargetPipeline()
 
     wgpu::FragmentState fragmentState //
         {
-            .module = static_cast<DawnGpuFragmentShader*>(fsResult.value())->GetShader(),
+            .module = fsResult.value(),
             .entryPoint = "main",
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -966,7 +903,7 @@ DawnRenderer::GetCopyColorTargetPipeline()
         .layout = pipelineLayout,
         .vertex =
         {
-            .module = static_cast<DawnGpuVertexShader*>(vsResult.value())->GetShader(),
+            .module = vsResult.value(),
             .entryPoint = "main",
             .bufferCount = 0,
             .buffers = nullptr,
@@ -1029,28 +966,162 @@ DawnRenderer::GetCopyColorTargetPipeline()
     return m_CopyTexturePipeline;
 }
 
-Result<GpuVertexShader*>
+Result<wgpu::ShaderModule>
 DawnRenderer::CreateVertexShader(const char* path)
 {
     std::vector<uint8_t> shaderCode;
     auto loadResult = LoadShaderCode(path, shaderCode);
     expect(loadResult, loadResult.error());
 
-    std::span<uint8_t> shaderCodeSpan(shaderCode.data(), shaderCode.size());
+    wgpu::StringView shaderCodeView{ reinterpret_cast<const char*>(shaderCode.data()),
+        shaderCode.size() };
+    wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCodeView } };
+    wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl };
 
-    return m_GpuDevice->CreateVertexShader(shaderCodeSpan);
+    wgpu::ShaderModule shaderModule = m_GpuDevice->Device.CreateShaderModule(&shaderModuleDescriptor);
+    expect(shaderModule, "Failed to create shader module");
+
+    return shaderModule;
 }
 
-Result<GpuFragmentShader*>
+Result<wgpu::ShaderModule>
 DawnRenderer::CreateFragmentShader(const char* path)
 {
     std::vector<uint8_t> shaderCode;
     auto loadResult = LoadShaderCode(path, shaderCode);
     expect(loadResult, loadResult.error());
 
-    std::span<uint8_t> shaderCodeSpan(shaderCode.data(), shaderCode.size());
+    wgpu::StringView shaderCodeView{ reinterpret_cast<const char*>(shaderCode.data()),
+        shaderCode.size() };
+    wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCodeView } };
+    wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl };
 
-    return m_GpuDevice->CreateFragmentShader(shaderCodeSpan);
+    wgpu::ShaderModule shaderModule = m_GpuDevice->Device.CreateShaderModule(&shaderModuleDescriptor);
+    expect(shaderModule, "Failed to create shader module");
+
+    return shaderModule;
+}
+
+Result<void>
+DawnRenderer::UpdateXformBuffer(
+    wgpu::CommandEncoder /*cmdEncoder*/, const Mat44f& camera, const Mat44f& projection)
+{
+    // Size of the buffer needed to hold the world and projection matrices for all meshes in the
+    // current frame.
+    const size_t sizeofTransformBuffer = sizeof(XFormBuffer) * m_CurrentState->m_MeshCount;
+
+    if(!m_WorldAndProjBuf || !m_WorldAndProjXferBuf ||
+        m_SizeofTransformBuffer < sizeofTransformBuffer)
+    {
+        // Re-allocate the world and projection buffer.
+
+        m_SizeofTransformBuffer = sizeofTransformBuffer;
+
+        wgpu::BufferDescriptor worldAndProjBufDesc //
+        {
+            .label = "WorldAndProjection",
+            .usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
+            .size = sizeofTransformBuffer,
+            .mappedAtCreation = false,
+        };
+
+        m_WorldAndProjBuf = m_GpuDevice->Device.CreateBuffer(&worldAndProjBufDesc);
+        expect(m_WorldAndProjBuf, "Failed to create world and projection buffer");
+
+        wgpu::BufferDescriptor xferBufDesc //
+        {
+            .label = "WorldAndProjectionXfer",
+            .usage = wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc,
+            .size = sizeofTransformBuffer,
+            .mappedAtCreation = false,
+        };
+
+        m_WorldAndProjXferBuf = m_GpuDevice->Device.CreateBuffer(&xferBufDesc);
+        expect(m_WorldAndProjXferBuf, "Failed to create world and projection transfer buffer");
+
+        // Recreate the vertex shader bind group with the new buffer.
+        wgpu::BindGroupEntry vsBgEntries[] = //
+            {
+                {
+                    .binding = 0,
+                    .buffer = m_WorldAndProjBuf,
+                    .offset = 0,
+                    .size = sizeofTransformBuffer,
+                }
+            };
+
+        wgpu::BindGroupDescriptor vsBgDesc //
+            {
+                .label = "vsBindGroup",
+                .layout = m_VsBindGroupLayout,
+                .entryCount = std::size(vsBgEntries),
+                .entries = vsBgEntries,
+            };
+
+        m_VertexShaderBindGroup = m_GpuDevice->Device.CreateBindGroup(&vsBgDesc);
+        expect(m_VertexShaderBindGroup, "Failed to create WGPUBindGroup");
+    }
+
+    /*m_WorldAndProjXferBuf.MapAsync(wgpu::MapMode::Write, 0, m_SizeofTransformBuffer);
+
+    XFormBuffer* mappedData = reinterpret_cast<XFormBuffer*>(
+        m_WorldAndProjXferBuf.GetMappedRange(0, m_SizeofTransformBuffer));*/
+
+    const MeshGroupCollection* meshGroups[] =
+    {
+        &m_CurrentState->m_OpaqueMeshGroups,
+        &m_CurrentState->m_TranslucentMeshGroups
+    };
+
+    // Use inverse of camera transform as view matrix
+    const Mat44f viewXform = camera.Inverse();
+
+    // Projection transform
+    const Mat44f viewProj = projection.Mul(viewXform);
+
+    unsigned meshCount = 0;
+
+    for(const auto meshGrpPtr : meshGroups)
+    {
+        for (auto& [mtlId, xmeshes] : *meshGrpPtr)
+        {
+            for (auto& xmesh : xmeshes)
+            {
+                XFormBuffer matrices =
+                {
+                    .ModelXform = xmesh.WorldTransform,
+                    .ModelViewProjXform = viewProj.Mul(xmesh.WorldTransform),
+                };
+
+                m_GpuDevice->Device.GetQueue().WriteBuffer(m_WorldAndProjBuf,
+                        sizeof(XFormBuffer) * meshCount,
+                        &matrices,
+                        sizeof(matrices));
+
+                /*mappedData[meshCount] =//
+                {
+                    .ModelXform = xmesh.WorldTransform,
+                    .ModelViewProjXform = viewProj.Mul(xmesh.WorldTransform),
+                };*/
+
+                ++meshCount;
+            }
+        }
+    }
+
+    /*m_WorldAndProjXferBuf.Unmap();
+
+    uint64_t srcOffset = 0;
+    uint64_t dstOffset = 0;
+    uint64_t numBytes  = m_SizeofTransformBuffer;
+
+    cmdEncoder.CopyBufferToBuffer(m_WorldAndProjXferBuf,
+        srcOffset,
+        m_WorldAndProjBuf,
+        dstOffset,
+        numBytes);*/
+
+    return Result<void>::Success;
 }
 
 Result<GpuTexture*>
