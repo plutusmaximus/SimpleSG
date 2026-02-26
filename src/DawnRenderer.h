@@ -113,6 +113,8 @@ private:
 
     size_t m_SizeofTransformBuffer{0};
     wgpu::Buffer m_WorldAndProjBuf;
-    wgpu::Buffer m_WorldAndProjXferBuf; // Transfer buffer for world and projection matrices
     wgpu::BindGroup m_VertexShaderBindGroup;
+
+    size_t m_SizeofDrawIndirectBuffer{0};
+    wgpu::Buffer m_DrawIndirectBuffer;
 };

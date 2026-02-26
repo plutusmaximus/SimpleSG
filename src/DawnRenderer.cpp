@@ -20,14 +20,27 @@ static constexpr const char* COMPOSITE_COLOR_TARGET_FS = "shaders/FullScreenTria
 static constexpr const char* COLOR_PIPELINE_VS = "shaders/VertexShader.vs.wgsl";
 static constexpr const char* COLOR_PIPELINE_FS = "shaders/FragmentShader.fs.wgsl";
 
-class XFormBuffer
+namespace
 {
-public:
+    class XFormBuffer
+    {
+    public:
 
-    Mat44f ModelXform;
-    Mat44f ModelViewProjXform;
+        Mat44f ModelXform;
+        Mat44f ModelViewProjXform;
 
-};
+    };
+
+    class DrawIndirectBufferParams
+    {
+    public:
+        uint32_t IndexCount;
+        uint32_t InstanceCount;
+        uint32_t FirstIndex;
+        uint32_t BaseVertex;
+        uint32_t FirstInstance;
+    };
+}
 
 DawnRenderer::DawnRenderer(DawnGpuDevice* gpuDevice)
     : m_GpuDevice(gpuDevice)
@@ -272,24 +285,17 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
                     lastIb = ib;
                 }
 
-                /*static PerfTimer writeTransformTimer("Renderer.Render.Draw.WriteTransformBuffer");
-                {
-                    auto scopedTimer = writeTransformTimer.StartScoped();
-                    // Send up the model and model-view-projection matrices
-                    gpuDevice.GetQueue().WriteBuffer(m_WorldAndProjBuf,
-                        sizeof(XFormBuffer) * meshCount,
-                        matrices,
-                        sizeof(matrices));
-                }*/
-
                 static PerfTimer drawIndexedTimer("Renderer.Render.Draw.DrawIndexed");
                 {
                     auto scopedTimer = drawIndexedTimer.StartScoped();
-                    renderPass.DrawIndexed(mesh.GetIndexCount(),
+                    /*renderPass.DrawIndexed(mesh.GetIndexCount(),
                         1,
                         mesh.GetIndexOffset(),
                         mesh.GetVertexOffset(),
-                        meshCount);
+                        meshCount);*/
+
+                    renderPass.DrawIndexedIndirect(m_DrawIndirectBuffer,
+                        sizeof(DrawIndirectBufferParams) * meshCount);
                 }
 
                 ++meshCount;
@@ -999,6 +1005,22 @@ DawnRenderer::CreateFragmentShader(const char* path)
     return shaderModule;
 }
 
+static Result<wgpu::Buffer>
+CreateBuffer(wgpu::Device device, wgpu::BufferUsage usage, size_t size, const char* label)
+{
+    wgpu::BufferDescriptor desc //
+    {
+        .label = label,
+        .usage = usage,
+        .size = size,
+        .mappedAtCreation = false,
+    };
+
+    auto buffer = device.CreateBuffer(&desc);
+    expect(buffer, "Failed to create buffer");
+    return buffer;
+}
+
 Result<void>
 DawnRenderer::UpdateXformBuffer(
     wgpu::CommandEncoder /*cmdEncoder*/, const Mat44f& camera, const Mat44f& projection)
@@ -1006,35 +1028,31 @@ DawnRenderer::UpdateXformBuffer(
     // Size of the buffer needed to hold the world and projection matrices for all meshes in the
     // current frame.
     const size_t sizeofTransformBuffer = sizeof(XFormBuffer) * m_CurrentState->m_MeshCount;
+    const size_t sizeofDrawIndirectBuffer =
+        sizeof(DrawIndirectBufferParams) * m_CurrentState->m_MeshCount;
 
-    if(!m_WorldAndProjBuf || !m_WorldAndProjXferBuf ||
-        m_SizeofTransformBuffer < sizeofTransformBuffer)
+    if(!m_WorldAndProjBuf || !m_DrawIndirectBuffer ||
+        m_SizeofTransformBuffer < sizeofTransformBuffer ||
+        m_SizeofDrawIndirectBuffer < sizeofDrawIndirectBuffer)
     {
-        // Re-allocate the world and projection buffer.
+        // Re-allocate buffers.
 
         m_SizeofTransformBuffer = sizeofTransformBuffer;
+        m_SizeofDrawIndirectBuffer = sizeofDrawIndirectBuffer;
 
-        wgpu::BufferDescriptor worldAndProjBufDesc //
-        {
-            .label = "WorldAndProjection",
-            .usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
-            .size = sizeofTransformBuffer,
-            .mappedAtCreation = false,
-        };
+        auto result = CreateBuffer(m_GpuDevice->Device,
+            wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
+            sizeofTransformBuffer,
+            "WorldAndProjection");
+        expect(result, result.error());
+        m_WorldAndProjBuf = *result;
 
-        m_WorldAndProjBuf = m_GpuDevice->Device.CreateBuffer(&worldAndProjBufDesc);
-        expect(m_WorldAndProjBuf, "Failed to create world and projection buffer");
-
-        wgpu::BufferDescriptor xferBufDesc //
-        {
-            .label = "WorldAndProjectionXfer",
-            .usage = wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc,
-            .size = sizeofTransformBuffer,
-            .mappedAtCreation = false,
-        };
-
-        m_WorldAndProjXferBuf = m_GpuDevice->Device.CreateBuffer(&xferBufDesc);
-        expect(m_WorldAndProjXferBuf, "Failed to create world and projection transfer buffer");
+        result = CreateBuffer(m_GpuDevice->Device,
+            wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
+            sizeofDrawIndirectBuffer,
+            "DrawIndirect");
+        expect(result, result.error());
+        m_DrawIndirectBuffer = *result;
 
         // Recreate the vertex shader bind group with the new buffer.
         wgpu::BindGroupEntry vsBgEntries[] = //
@@ -1059,11 +1077,6 @@ DawnRenderer::UpdateXformBuffer(
         expect(m_VertexShaderBindGroup, "Failed to create WGPUBindGroup");
     }
 
-    /*m_WorldAndProjXferBuf.MapAsync(wgpu::MapMode::Write, 0, m_SizeofTransformBuffer);
-
-    XFormBuffer* mappedData = reinterpret_cast<XFormBuffer*>(
-        m_WorldAndProjXferBuf.GetMappedRange(0, m_SizeofTransformBuffer));*/
-
     const MeshGroupCollection* meshGroups[] =
     {
         &m_CurrentState->m_OpaqueMeshGroups,
@@ -1078,45 +1091,45 @@ DawnRenderer::UpdateXformBuffer(
 
     unsigned meshCount = 0;
 
+    std::vector<XFormBuffer> transformBuffers;
+    std::vector<DrawIndirectBufferParams> drawIndirectBuffers;
+
+    transformBuffers.reserve(m_CurrentState->m_MeshCount);
+    drawIndirectBuffers.reserve(m_CurrentState->m_MeshCount);
+
     for(const auto meshGrpPtr : meshGroups)
     {
         for (auto& [mtlId, xmeshes] : *meshGrpPtr)
         {
             for (auto& xmesh : xmeshes)
             {
-                XFormBuffer matrices =
-                {
+                transformBuffers.emplace_back(XFormBuffer{
                     .ModelXform = xmesh.WorldTransform,
                     .ModelViewProjXform = viewProj.Mul(xmesh.WorldTransform),
-                };
+                });
 
-                m_GpuDevice->Device.GetQueue().WriteBuffer(m_WorldAndProjBuf,
-                        sizeof(XFormBuffer) * meshCount,
-                        &matrices,
-                        sizeof(matrices));
-
-                /*mappedData[meshCount] =//
-                {
-                    .ModelXform = xmesh.WorldTransform,
-                    .ModelViewProjXform = viewProj.Mul(xmesh.WorldTransform),
-                };*/
+                drawIndirectBuffers.emplace_back(DrawIndirectBufferParams{
+                    .IndexCount = xmesh.MeshInstance.GetIndexCount(),
+                    .InstanceCount = 1,
+                    .FirstIndex = xmesh.MeshInstance.GetIndexOffset(),
+                    .BaseVertex = xmesh.MeshInstance.GetVertexOffset(),
+                    .FirstInstance = meshCount,
+                });
 
                 ++meshCount;
             }
         }
     }
 
-    /*m_WorldAndProjXferBuf.Unmap();
+    m_GpuDevice->Device.GetQueue().WriteBuffer(m_WorldAndProjBuf,
+            0,
+            transformBuffers.data(),
+            sizeof(XFormBuffer) * transformBuffers.size());
 
-    uint64_t srcOffset = 0;
-    uint64_t dstOffset = 0;
-    uint64_t numBytes  = m_SizeofTransformBuffer;
-
-    cmdEncoder.CopyBufferToBuffer(m_WorldAndProjXferBuf,
-        srcOffset,
-        m_WorldAndProjBuf,
-        dstOffset,
-        numBytes);*/
+    m_GpuDevice->Device.GetQueue().WriteBuffer(m_DrawIndirectBuffer,
+            0,
+            drawIndirectBuffers.data(),
+            sizeof(DrawIndirectBufferParams) * drawIndirectBuffers.size());
 
     return Result<void>::Success;
 }

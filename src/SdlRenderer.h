@@ -117,4 +117,8 @@ private:
     size_t m_SizeofTransformBuffer{0};
     SDL_GPUBuffer* m_WorldAndProjBuf{nullptr};  // Transform buffer for world and projection matrices
     SDL_GPUTransferBuffer* m_WorldAndProjXferBuf{nullptr};
+
+    size_t m_SizeofDrawIndirectBuffer{0};
+    SDL_GPUBuffer* m_DrawIndirectBuffer{nullptr};
+    SDL_GPUTransferBuffer* m_DrawIndirectXferBuffer{nullptr}; // Transfer buffer for draw indirect draw params
 };

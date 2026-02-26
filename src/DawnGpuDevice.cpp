@@ -712,6 +712,11 @@ CreateAdapter(wgpu::Instance instance)
     expect(waitStatus == wgpu::WaitStatus::Success,
         "Failed to create WGPUAdapter - WaitAny failed");
 
+    const bool supported =
+        result.value().HasFeature(wgpu::FeatureName::IndirectFirstInstance);
+
+    expect(supported, "IndirectFirstInstance feature is not supported");
+
     return result;
 }
 
@@ -761,11 +766,18 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
     toggles.disabledToggleCount = std::size(disabledToggles);
     toggles.disabledToggles = disabledToggles;
 
+    wgpu::FeatureName requiredFeatures[] = //
+        {
+            wgpu::FeatureName::IndirectFirstInstance,
+        };
+
     wgpu::DeviceDescriptor deviceDesc //
         {
             {
                 //.nextInChain = &toggles,
                 .label = "MainDevice",
+                .requiredFeatureCount = std::size(requiredFeatures),
+                .requiredFeatures = requiredFeatures,
             },
         };
     deviceDesc.SetDeviceLostCallback(wgpu::CallbackMode::AllowProcessEvents, deviceLostCb);

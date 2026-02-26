@@ -23,14 +23,17 @@ static constexpr const char* COMPOSITE_COLOR_TARGET_FS = "shaders/FullScreenTria
 static constexpr const char* COLOR_PIPELINE_VS = "shaders/VertexShader.vs.spv";
 static constexpr const char* COLOR_PIPELINE_FS = "shaders/FragmentShader.ps.spv";
 
-class XFormBuffer
+namespace
 {
-public:
+    class XFormBuffer
+    {
+    public:
 
-    Mat44f ModelXform;
-    Mat44f ModelViewProjXform;
+        Mat44f ModelXform;
+        Mat44f ModelViewProjXform;
 
-};
+    };
+}
 
 SdlRenderer::SdlRenderer(SdlGpuDevice* gpuDevice)
     : m_GpuDevice(gpuDevice)
@@ -130,6 +133,18 @@ SdlRenderer::~SdlRenderer()
     {
         SDL_ReleaseGPUTransferBuffer(m_GpuDevice->Device, m_WorldAndProjXferBuf);
         m_WorldAndProjXferBuf = nullptr;
+    }
+
+    if(m_DrawIndirectBuffer)
+    {
+        SDL_ReleaseGPUBuffer(m_GpuDevice->Device, m_DrawIndirectBuffer);
+        m_DrawIndirectBuffer = nullptr;
+    }
+
+    if(m_DrawIndirectXferBuffer)
+    {
+        SDL_ReleaseGPUTransferBuffer(m_GpuDevice->Device, m_DrawIndirectXferBuffer);
+        m_DrawIndirectXferBuffer = nullptr;
     }
 }
 
@@ -868,6 +883,36 @@ SdlRenderer::CreateFragmentShader(const ShaderCreateInfo& createInfo)
     return shader;
 }
 
+static Result<SDL_GPUBuffer*>
+CreateBuffer(SDL_GPUDevice* device, size_t size, SDL_GPUBufferUsageFlags usage)
+{
+    SDL_GPUBufferCreateInfo bufferCreateInfo //
+        {
+            .usage = usage,
+            .size = static_cast<uint32_t>(size),
+        };
+
+    SDL_GPUBuffer* buffer = SDL_CreateGPUBuffer(device, &bufferCreateInfo);
+
+    expect(buffer, SDL_GetError());
+    return buffer;
+}
+
+static Result<SDL_GPUTransferBuffer*>
+CreateXferBuffer(SDL_GPUDevice* device, size_t size, SDL_GPUTransferBufferUsage usage)
+{
+    SDL_GPUTransferBufferCreateInfo bufferCreateInfo //
+        {
+            .usage = usage,
+            .size = static_cast<uint32_t>(size),
+        };
+
+    SDL_GPUTransferBuffer* buffer = SDL_CreateGPUTransferBuffer(device, &bufferCreateInfo);
+
+    expect(buffer, SDL_GetError());
+    return buffer;
+}
+
 Result<void>
 SdlRenderer::UpdateXformBuffer(
     SDL_GPUCommandBuffer* cmdBuf, const Mat44f& camera, const Mat44f& projection)
@@ -875,9 +920,12 @@ SdlRenderer::UpdateXformBuffer(
     // Size of the buffer needed to hold the world and projection matrices for all meshes in the
     // current frame.
     const size_t sizeofTransformBuffer = sizeof(XFormBuffer) * m_CurrentState->m_MeshCount;
+    const size_t sizeofDrawIndirectBuffer =
+        sizeof(SDL_GPUIndexedIndirectDrawCommand) * m_CurrentState->m_MeshCount;
 
-    if(!m_WorldAndProjBuf || !m_WorldAndProjXferBuf ||
-        m_SizeofTransformBuffer < sizeofTransformBuffer)
+    if(!m_WorldAndProjBuf || !m_DrawIndirectBuffer ||
+        m_SizeofTransformBuffer < sizeofTransformBuffer ||
+        m_SizeofDrawIndirectBuffer < sizeofDrawIndirectBuffer)
     {
         if(m_WorldAndProjBuf)
         {
@@ -891,30 +939,60 @@ SdlRenderer::UpdateXformBuffer(
             m_WorldAndProjXferBuf = nullptr;
         }
 
-        SDL_GPUBufferCreateInfo bufferCreateInfo//
+        if(m_DrawIndirectBuffer)
         {
-            .usage = SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
-            .size = static_cast<uint32_t>(sizeofTransformBuffer)
-        };
+            SDL_ReleaseGPUBuffer(m_GpuDevice->Device, m_DrawIndirectBuffer);
+            m_DrawIndirectBuffer = nullptr;
+        }
 
-        m_WorldAndProjBuf = SDL_CreateGPUBuffer(m_GpuDevice->Device, &bufferCreateInfo);
-        expect(m_WorldAndProjBuf, SDL_GetError());
+        if(m_DrawIndirectXferBuffer)
+        {
+            SDL_ReleaseGPUTransferBuffer(m_GpuDevice->Device, m_DrawIndirectXferBuffer);
+            m_DrawIndirectXferBuffer = nullptr;
+        }
 
-        SDL_GPUTransferBufferCreateInfo xferBufferCreateInfo //
-            {
-                .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-                .size = static_cast<uint32_t>(sizeofTransformBuffer),
-            };
+        m_SizeofTransformBuffer = sizeofTransformBuffer;
+        m_SizeofDrawIndirectBuffer = sizeofDrawIndirectBuffer;
 
-        m_WorldAndProjXferBuf =
-            SDL_CreateGPUTransferBuffer(m_GpuDevice->Device, &xferBufferCreateInfo);
-        expect(m_WorldAndProjXferBuf, SDL_GetError());
+        auto bufferResult = CreateBuffer(m_GpuDevice->Device,
+            sizeofTransformBuffer,
+            SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ);
+        expect(bufferResult, bufferResult.error());
+        m_WorldAndProjBuf = bufferResult.value();
+
+        auto xferResult = CreateXferBuffer(m_GpuDevice->Device,
+            sizeofTransformBuffer,
+            SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD);
+        expect(xferResult, xferResult.error());
+        m_WorldAndProjXferBuf = xferResult.value();
+
+        auto bufferResult2 = CreateBuffer(m_GpuDevice->Device,
+            sizeofDrawIndirectBuffer,
+            SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ);
+        expect(bufferResult2, bufferResult2.error());
+        m_DrawIndirectBuffer = bufferResult2.value();
+
+        auto xferResult2 = CreateXferBuffer(m_GpuDevice->Device,
+            sizeofDrawIndirectBuffer,
+            SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD);
+        expect(xferResult2, xferResult2.error());
+        m_DrawIndirectXferBuffer = xferResult2.value();
     }
 
-    // Copy data to transfer buffer
-    XFormBuffer* mappedData = reinterpret_cast<XFormBuffer*>(
+    // Copy data to transfer buffers
+
+    XFormBuffer* mappedXformBuffer = reinterpret_cast<XFormBuffer*>(
         SDL_MapGPUTransferBuffer(m_GpuDevice->Device, m_WorldAndProjXferBuf, false));
-    expect(mappedData, SDL_GetError());
+    expect(mappedXformBuffer, SDL_GetError());
+
+    auto xferBufferCleanup = scope_exit([this]()
+    {
+        SDL_UnmapGPUTransferBuffer(m_GpuDevice->Device, m_WorldAndProjXferBuf);
+    });
+
+    SDL_GPUIndexedIndirectDrawCommand* mappedDrawIndirectBuffer = reinterpret_cast<SDL_GPUIndexedIndirectDrawCommand*>(
+        SDL_MapGPUTransferBuffer(m_GpuDevice->Device, m_DrawIndirectXferBuffer, false));
+    expect(mappedDrawIndirectBuffer, SDL_GetError());
 
     const MeshGroupCollection* meshGroups[] =
     {
@@ -936,10 +1014,19 @@ SdlRenderer::UpdateXformBuffer(
         {
             for (auto& xmesh : xmeshes)
             {
-                mappedData[meshCount] =//
+                mappedXformBuffer[meshCount] =//
                 {
                     .ModelXform = xmesh.WorldTransform,
                     .ModelViewProjXform = viewProj.Mul(xmesh.WorldTransform),
+                };
+
+                mappedDrawIndirectBuffer[meshCount] =//
+                {
+                    .num_indices = xmesh.MeshInstance.GetIndexCount(),
+                    .num_instances = 1,
+                    .first_index = xmesh.MeshInstance.GetIndexOffset(),
+                    .vertex_offset = static_cast<Sint32>(xmesh.MeshInstance.GetVertexOffset()),
+                    .first_instance = meshCount,
                 };
 
                 ++meshCount;
@@ -948,24 +1035,41 @@ SdlRenderer::UpdateXformBuffer(
     }
 
     SDL_UnmapGPUTransferBuffer(m_GpuDevice->Device, m_WorldAndProjXferBuf);
+    SDL_UnmapGPUTransferBuffer(m_GpuDevice->Device, m_DrawIndirectXferBuffer);
+
+    xferBufferCleanup.release();
 
     SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(cmdBuf);
     expect(copyPass, SDL_GetError());
 
-    SDL_GPUTransferBufferLocation src//
+    SDL_GPUTransferBufferLocation xformSrc//
     {
         .transfer_buffer = m_WorldAndProjXferBuf,
         .offset = 0,
     };
 
-    SDL_GPUBufferRegion dst//
+    SDL_GPUBufferRegion xformDst//
     {
         .buffer = m_WorldAndProjBuf,
         .offset = 0,
         .size = static_cast<uint32_t>(sizeofTransformBuffer),
     };
 
-    SDL_UploadToGPUBuffer(copyPass, &src, &dst, false);
+    SDL_GPUTransferBufferLocation drawIndirectSrc//
+    {
+        .transfer_buffer = m_DrawIndirectXferBuffer,
+        .offset = 0,
+    };
+
+    SDL_GPUBufferRegion drawIndirectDst//
+    {
+        .buffer = m_DrawIndirectBuffer,
+        .offset = 0,
+        .size = static_cast<uint32_t>(sizeofDrawIndirectBuffer),
+    };
+
+    SDL_UploadToGPUBuffer(copyPass, &xformSrc, &xformDst, false);
+    SDL_UploadToGPUBuffer(copyPass, &drawIndirectSrc, &drawIndirectDst, false);
 
     SDL_EndGPUCopyPass(copyPass);
 
