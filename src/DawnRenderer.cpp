@@ -241,9 +241,6 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
 
                 const Mesh& mesh = xmesh.MeshInstance;
 
-                const auto& vbSubrange = mesh.GetVertexBuffer();
-                const auto& ibSubrange = mesh.GetIndexBuffer();
-
                 static_assert(VERTEX_INDEX_BITS == 32 || VERTEX_INDEX_BITS == 16);
 
                 constexpr wgpu::IndexFormat idxFmt =
@@ -253,8 +250,8 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
 
                 constexpr unsigned idxSize = (VERTEX_INDEX_BITS == 32) ? sizeof(uint32_t) : sizeof(uint16_t);
 
-                auto vb = static_cast<const DawnGpuVertexBuffer*>(vbSubrange.GetBuffer());
-                auto ib = static_cast<const DawnGpuIndexBuffer*>(ibSubrange.GetBuffer());
+                auto vb = static_cast<const DawnGpuVertexBuffer*>(mesh.GetGpuVertexBuffer());
+                auto ib = static_cast<const DawnGpuIndexBuffer*>(mesh.GetGpuIndexBuffer());
 
                 static PerfTimer setBuffersTimer("Renderer.Render.Draw.SetBuffers");
                 if(lastVb != vb || lastIb != ib)
@@ -290,8 +287,8 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
                     auto scopedTimer = drawIndexedTimer.StartScoped();
                     renderPass.DrawIndexed(mesh.GetIndexCount(),
                         1,
-                        ibSubrange.GetIndexOffset(),
-                        vbSubrange.GetVertexOffset(),
+                        mesh.GetIndexOffset(),
+                        mesh.GetVertexOffset(),
                         meshCount);
                 }
 

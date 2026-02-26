@@ -527,7 +527,7 @@ ResourceCache::CreateModelOp::CreateModel()
     imvector<Mesh>::builder meshes;
     meshes.reserve(m_ModelSpec.GetMeshSpecs().size());
 
-    uint32_t idxOffset = 0, vtxOffset = 0;
+    unsigned idxOffset = 0, vtxOffset = 0;
 
     for(const auto& meshSpec : m_ModelSpec.GetMeshSpecs())
     {
@@ -540,18 +540,15 @@ ResourceCache::CreateModelOp::CreateModel()
 
         const Material mtl(meshSpec.MtlSpec.Constants, gpuMtl->GetBaseTexture());
 
-        const uint32_t idxCount = static_cast<uint32_t>(meshSpec.Indices.size());
-        const uint32_t vtxCount = static_cast<uint32_t>(meshSpec.Vertices.size());
-
-        // The index and vertex buffers were each created as a single large buffer,
-        // so we need to adjust the offsets for each mesh.
-        auto ibSubrange = m_IndexBuffer->GetSubrange(idxOffset, idxCount);
-        auto vbSubrange = m_VertexBuffer->GetSubrange(vtxOffset, vtxCount);
+        const unsigned idxCount = static_cast<unsigned>(meshSpec.Indices.size());
+        const unsigned vtxCount = static_cast<unsigned>(meshSpec.Vertices.size());
 
         meshes.emplace_back(meshSpec.Name,
-            vbSubrange,
-            ibSubrange,
+            m_VertexBuffer,
+            m_IndexBuffer,
             idxCount,
+            vtxOffset,
+            idxOffset,
             mtl,
             gpuMtl);
 

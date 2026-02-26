@@ -22,9 +22,11 @@ class Mesh
 public:
 
     Mesh(const imstring& name,
-        const GpuVertexBuffer::Subrange& vb,
-        const GpuIndexBuffer::Subrange& ib,
-        const uint32_t indexCount,
+        const GpuVertexBuffer* vb,
+        const GpuIndexBuffer* ib,
+        const unsigned indexCount,
+        const unsigned vertexOffset,
+        const unsigned indexOffset,
         const Material& material,
         GpuMaterial* gpuMaterial)
         : m_Name(name)
@@ -33,6 +35,8 @@ public:
         , m_IndexCount(indexCount)
         , m_Material(material)
         , m_GpuMaterial(gpuMaterial)
+        , m_IndexOffset(indexOffset)
+        , m_VertexOffset(vertexOffset)
     {
     }
 
@@ -42,20 +46,24 @@ public:
     Mesh& operator=(Mesh&& other) = default;
 
     const imstring& GetName() const { return m_Name; }
-    const GpuVertexBuffer::Subrange& GetVertexBuffer() const { return m_VtxBuffer; }
-    const GpuIndexBuffer::Subrange& GetIndexBuffer() const { return m_IdxBuffer; }
-    uint32_t GetIndexCount() const { return m_IndexCount; }
+    unsigned GetIndexOffset() const { return m_IndexOffset; }
+    unsigned GetVertexOffset() const { return m_VertexOffset; }
+    unsigned GetIndexCount() const { return m_IndexCount; }
     const Material& GetMaterial() const { return m_Material; }
     GpuMaterial* GetGpuMaterial() const { return m_GpuMaterial; }
+    const GpuVertexBuffer* GetGpuVertexBuffer() const { return m_VtxBuffer; }
+    const GpuIndexBuffer* GetGpuIndexBuffer() const { return m_IdxBuffer; }
 
 private:
 
     Mesh() = delete;
 
     imstring m_Name;
-    GpuVertexBuffer::Subrange m_VtxBuffer;
-    GpuIndexBuffer::Subrange m_IdxBuffer;
-    uint32_t m_IndexCount;
+    const GpuVertexBuffer* m_VtxBuffer;
+    const GpuIndexBuffer* m_IdxBuffer;
+    unsigned m_IndexOffset;
+    unsigned m_VertexOffset;
+    unsigned m_IndexCount;
     Material m_Material;
     GpuMaterial* m_GpuMaterial{ nullptr };
 };

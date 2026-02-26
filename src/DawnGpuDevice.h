@@ -13,15 +13,6 @@ struct SDL_Window;
 
 class DawnGpuVertexBuffer : public GpuVertexBuffer
 {
-    class DawnSubrange : public Subrange
-    {
-    public:
-        DawnSubrange(DawnGpuVertexBuffer* owner, const uint32_t itemOffset, const uint32_t itemCount)
-            : Subrange(owner, itemOffset, itemCount)
-        {
-        }
-    };
-
 public:
     DawnGpuVertexBuffer() = delete;
     DawnGpuVertexBuffer(const DawnGpuVertexBuffer&) = delete;
@@ -34,19 +25,13 @@ public:
 
     wgpu::Buffer GetBuffer() const { return m_Buffer; }
 
-    Subrange GetSubrange(const uint32_t itemOffset, const uint32_t itemCount) override
-    {
-        eassert(itemOffset + itemCount <= m_ItemCount, "Sub-range out of bounds");
-        return DawnSubrange(this, itemOffset, itemCount);
-    }
-
-    uint32_t GetVertexCount() const override { return m_ItemCount; }
+    unsigned GetVertexCount() const override { return m_ItemCount; }
 
 private:
     friend class DawnGpuDevice;
 
     explicit DawnGpuVertexBuffer(
-        DawnGpuDevice* gpuDevice, wgpu::Buffer buffer, const uint32_t itemCount)
+        DawnGpuDevice* gpuDevice, wgpu::Buffer buffer, const unsigned itemCount)
         : m_GpuDevice(gpuDevice),
           m_Buffer(buffer),
           m_ItemCount(itemCount)
@@ -55,20 +40,11 @@ private:
 
     DawnGpuDevice* m_GpuDevice;
     wgpu::Buffer m_Buffer;
-    const uint32_t m_ItemCount;
+    const unsigned m_ItemCount;
 };
 
 class DawnGpuIndexBuffer : public GpuIndexBuffer
 {
-    class DawnSubrange : public Subrange
-    {
-    public:
-        DawnSubrange(DawnGpuIndexBuffer* owner, const uint32_t itemOffset, const uint32_t itemCount)
-            : Subrange(owner, itemOffset, itemCount)
-        {
-        }
-    };
-
 public:
     DawnGpuIndexBuffer() = delete;
     DawnGpuIndexBuffer(const DawnGpuIndexBuffer&) = delete;
@@ -81,19 +57,13 @@ public:
 
     wgpu::Buffer GetBuffer() const { return m_Buffer; }
 
-    Subrange GetSubrange(const uint32_t itemOffset, const uint32_t itemCount) override
-    {
-        eassert(itemOffset + itemCount <= m_ItemCount, "Sub-range out of bounds");
-        return DawnSubrange(this, itemOffset, itemCount);
-    }
-
-    uint32_t GetIndexCount() const override { return m_ItemCount; }
+    unsigned GetIndexCount() const override { return m_ItemCount; }
 
 private:
     friend class DawnGpuDevice;
 
     explicit DawnGpuIndexBuffer(
-        DawnGpuDevice* gpuDevice, wgpu::Buffer buffer, const uint32_t itemCount)
+        DawnGpuDevice* gpuDevice, wgpu::Buffer buffer, const unsigned itemCount)
         : m_GpuDevice(gpuDevice),
           m_Buffer(buffer),
           m_ItemCount(itemCount)
@@ -102,7 +72,7 @@ private:
 
     DawnGpuDevice* m_GpuDevice;
     wgpu::Buffer m_Buffer;
-    const uint32_t m_ItemCount;
+    const unsigned m_ItemCount;
 };
 
 class DawnGpuTexture : public GpuTexture

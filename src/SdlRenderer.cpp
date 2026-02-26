@@ -309,11 +309,8 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
             {
                 const Mesh& mesh = xmesh.MeshInstance;
 
-                const auto& vbSubrange = mesh.GetVertexBuffer();
-                const auto& ibSubrange = mesh.GetIndexBuffer();
-
-                auto vb = static_cast<const SdlGpuVertexBuffer*>(vbSubrange.GetBuffer());
-                auto ib = static_cast<const SdlGpuIndexBuffer*>(ibSubrange.GetBuffer());
+                auto vb = static_cast<const SdlGpuVertexBuffer*>(mesh.GetGpuVertexBuffer());
+                auto ib = static_cast<const SdlGpuIndexBuffer*>(mesh.GetGpuIndexBuffer());
 
                 static_assert(VERTEX_INDEX_BITS == 32 || VERTEX_INDEX_BITS == 16);
 
@@ -351,8 +348,8 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
                     SDL_DrawGPUIndexedPrimitives(renderPass,
                         mesh.GetIndexCount(),
                         1,
-                        ibSubrange.GetIndexOffset(),
-                        vbSubrange.GetVertexOffset(),
+                        mesh.GetIndexOffset(),
+                        mesh.GetVertexOffset(),
                         meshCount);
                 }
 
