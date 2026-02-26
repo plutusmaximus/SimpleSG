@@ -54,6 +54,35 @@ public:
         ValueType m_Value{ 0 };
     };
 
+    class ReadRequest
+    {
+    public:
+        explicit ReadRequest(const imstring& path)
+            : Path(path)
+        {
+        }
+
+        ReadRequest(const ReadRequest&) = delete;
+        ReadRequest& operator=(const ReadRequest&) = delete;
+        ReadRequest(ReadRequest&&) = delete;
+        ReadRequest& operator=(ReadRequest&&) = delete;
+
+        virtual ~ReadRequest() = 0;
+
+        void Link(ReadRequest* next);
+
+        void Unlink();
+
+        imstring Path;
+
+        FileIo::AsyncToken Token = FileIo::AsyncToken::NewToken();
+
+        std::optional<Error> Error;
+
+        ReadRequest* m_Next{ nullptr };
+        ReadRequest* m_Prev{ nullptr };
+    };
+
     /// @brief Enumeration representing the status of a fetch operation.
     enum FetchStatus
     {
@@ -93,6 +122,7 @@ public:
     static Result<FetchDataPtr> GetResult(const AsyncToken token);
 
 private:
+
     /// @brief Platform-specific startup operations.
     static bool PlatformStartup();
 

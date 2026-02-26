@@ -8,58 +8,33 @@
 #include <limits>
 #include <mutex>
 
-class ReadRequest
+FileIo::ReadRequest::~ReadRequest() = default;
+
+void FileIo::ReadRequest::Link(ReadRequest* next)
 {
-public:
-    explicit ReadRequest(const imstring& path)
-        : Path(path)
+    eassert(!m_Next);
+    eassert(!m_Prev);
+
+    m_Next = next;
+    if(next)
     {
+        next->m_Prev = this;
     }
+}
 
-    ReadRequest(const ReadRequest&) = delete;
-    ReadRequest& operator=(const ReadRequest&) = delete;
-    ReadRequest(ReadRequest&&) = delete;
-    ReadRequest& operator=(ReadRequest&&) = delete;
-
-    virtual ~ReadRequest() = 0;
-
-    void Link(ReadRequest* next)
+void FileIo::ReadRequest::Unlink()
+{
+    if(m_Prev)
     {
-        eassert(!m_Next);
-        eassert(!m_Prev);
-
-        m_Next = next;
-        if(next)
-        {
-            next->m_Prev = this;
-        }
+        m_Prev->m_Next = m_Next;
     }
-
-    void Unlink()
+    if(m_Next)
     {
-        if(m_Prev)
-        {
-            m_Prev->m_Next = m_Next;
-        }
-        if(m_Next)
-        {
-            m_Next->m_Prev = m_Prev;
-        }
-        m_Next = nullptr;
-        m_Prev = nullptr;
+        m_Next->m_Prev = m_Prev;
     }
-
-    imstring Path;
-
-    FileIo::AsyncToken Token = FileIo::AsyncToken::NewToken();
-
-    std::optional<Error> Error;
-
-    ReadRequest* m_Next{ nullptr };
-    ReadRequest* m_Prev{ nullptr };
-};
-
-ReadRequest::~ReadRequest() = default;
+    m_Next = nullptr;
+    m_Prev = nullptr;
+}
 
 FileIo::FetchData::~FetchData() = default;
 
@@ -74,8 +49,8 @@ static std::atomic<State> s_State{ NotStarted };
 
 static std::mutex s_Mutex;
 static std::mutex s_IOCPMutex;
-static ReadRequest* s_Pending{ nullptr };
-static ReadRequest* s_Complete{ nullptr };
+static FileIo::ReadRequest* s_Pending{ nullptr };
+static FileIo::ReadRequest* s_Complete{ nullptr };
 
 static bool
 IsRunning()
@@ -96,7 +71,7 @@ IsShutdown()
 }
 
 static void
-AddPendingRequest(ReadRequest* req)
+AddPendingRequest(FileIo::ReadRequest* req)
 {
     std::lock_guard<std::mutex> lock(s_Mutex);
 
@@ -105,7 +80,7 @@ AddPendingRequest(ReadRequest* req)
 }
 
 static void
-MoveFromPendingToComplete(ReadRequest* req)
+MoveFromPendingToComplete(FileIo::ReadRequest* req)
 {
     std::lock_guard<std::mutex> lock(s_Mutex);
 
@@ -121,7 +96,7 @@ MoveFromPendingToComplete(ReadRequest* req)
 }
 
 static void
-RemoveCompleteRequest(ReadRequest* req)
+RemoveCompleteRequest(FileIo::ReadRequest* req)
 {
     std::lock_guard<std::mutex> lock(s_Mutex);
 
@@ -136,10 +111,10 @@ RemoveCompleteRequest(ReadRequest* req)
 template<typename T, typename... Args>
 static T* NewReadRequest(Args&&... args);
 
-static void DeleteReadRequest(ReadRequest* req);
+static void DeleteReadRequest(FileIo::ReadRequest* req);
 
 // Platform-specific implementation used by GetResult.
-static Result<FileIo::FetchDataPtr> GetResultImpl(ReadRequest* req);
+static Result<FileIo::FetchDataPtr> GetResultImpl(FileIo::ReadRequest* req);
 
 bool
 FileIo::Startup()
@@ -295,10 +270,10 @@ FileIo::AsyncToken::NewToken()
 
 static HANDLE s_IOCP = nullptr;
 
-static Result<void> IssueReadRequest(ReadRequest* req);
+static Result<void> IssueReadRequest(FileIo::ReadRequest* req);
 static std::string GetWindowsErrorString(DWORD errorCode);
 
-struct Win32ReadRequest : ReadRequest
+struct Win32ReadRequest : FileIo::ReadRequest
 {
     Win32ReadRequest(const imstring& path,
         HANDLE hFile,
@@ -341,7 +316,7 @@ static Win32ReadRequest* AllocReadRequest(Args&&... args)
     return s_ReadRequestPool.New(std::forward<Args>(args)...);
 }
 
-static void DeleteReadRequest(ReadRequest* req)
+static void DeleteReadRequest(FileIo::ReadRequest* req)
 {
     auto* win32Req = static_cast<Win32ReadRequest*>(req);
     s_ReadRequestPool.Delete(win32Req);
@@ -539,7 +514,7 @@ FileIo::ProcessCompletions()
 }
 
 static Result<void>
-IssueReadRequest(ReadRequest* req)
+IssueReadRequest(FileIo::ReadRequest* req)
 {
     Win32ReadRequest* win32Req = static_cast<Win32ReadRequest*>(req);
 
@@ -708,7 +683,7 @@ private:
 };
 
 static Result<FileIo::FetchDataPtr>
-GetResultImpl(ReadRequest* req)
+GetResultImpl(FileIo::ReadRequest* req)
 {
     auto win32Req = static_cast<Win32ReadRequest*>(req);
 
@@ -725,7 +700,7 @@ GetResultImpl(ReadRequest* req)
 #include <emscripten/emscripten.h>
 #include <emscripten/fetch.h>
 
-struct EmscriptenReadRequest : ReadRequest
+struct EmscriptenReadRequest : FileIo::ReadRequest
 {
     EmscriptenReadRequest(const imstring& path)
         : ReadRequest(path)
@@ -758,7 +733,7 @@ static EmscriptenReadRequest* AllocReadRequest(Args&&... args)
     return s_ReadRequestPool.Alloc(std::forward<Args>(args)...);
 }
 
-static void FreeReadRequest(ReadRequest* req)
+static void FreeReadRequest(FileIo::ReadRequest* req)
 {
     auto* emReq = static_cast<EmscriptenReadRequest*>(req);
     s_ReadRequestPool.Free(emReq);
@@ -821,13 +796,13 @@ FileIo::PlatformStartup()
 bool
 FileIo::PlatformShutdown()
 {
-    ReadRequest* pending = nullptr;
+    FileIo::ReadRequest* pending = nullptr;
     {
         std::lock_guard<std::mutex> lock(s_Mutex);
         std::swap(pending, s_Pending);
     }
 
-    for(ReadRequest *req = pending, *next = nullptr; req != nullptr; req = next)
+    for(FileIo::ReadRequest *req = pending, *next = nullptr; req != nullptr; req = next)
     {
         next = req->m_Next;
 
@@ -854,13 +829,13 @@ FileIo::ProcessCompletions()
 }
 
 void
-FileIo::CompleteRequestSuccess(ReadRequest* request, const size_t bytesRead)
+FileIo::CompleteRequestSuccess(FileIo::ReadRequest* request, const size_t bytesRead)
 {
     MoveFromPendingToComplete(request);
 }
 
 void
-FileIo::CompleteRequestFailure(ReadRequest* request, const Error& error)
+FileIo::CompleteRequestFailure(FileIo::ReadRequest* request, const Error& error)
 {
     request->Error = error;
 
@@ -889,7 +864,7 @@ private:
 };
 
 static Result<FileIo::FetchDataPtr>
-GetResultImpl(ReadRequest* req)
+GetResultImpl(FileIo::ReadRequest* req)
 {
     auto emReq = static_cast<EmscriptenReadRequest*>(req);
 

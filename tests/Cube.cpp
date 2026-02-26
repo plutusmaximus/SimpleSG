@@ -16,6 +16,8 @@
 
 #include "scope_exit.h"
 
+namespace
+{
 [[maybe_unused]] static Result<ModelResource> CreateCubeModel(ResourceCache* cache);
 static Result<ModelResource> CreateShapeModel(ResourceCache* cache);
 
@@ -291,29 +293,6 @@ public:
     }
 };
 
-int main(int, char* /*argv*/[])
-{
-    CubeAppLifecycle appLifecycle;
-    AppDriver driver(&appLifecycle);
-
-    auto initResult = driver.Init();
-    if(!initResult)
-    {
-        logError(initResult.error().GetMessage());
-        return -1;
-    }
-
-    auto runResult = driver.Run();
-
-    if(!runResult)
-    {
-        logError(runResult.error().GetMessage());
-        return -1;
-    }
-
-    return 0;
-}
-
 // Cube vertices (8 corners with positions, normals, and colors)
 constexpr static const Vertex cubeVertices[] =
 {
@@ -475,4 +454,28 @@ static Result<ModelResource> CreateShapeModel(ResourceCache* cache)
     }
 
     return cache->GetModel(cacheKey);
+}
+}
+
+int main(int, char* /*argv*/[])
+{
+    CubeAppLifecycle appLifecycle;
+    AppDriver driver(&appLifecycle);
+
+    auto initResult = driver.Init();
+    if(!initResult)
+    {
+        logError(initResult.error().GetMessage());
+        return -1;
+    }
+
+    auto runResult = driver.Run();
+
+    if(!runResult)
+    {
+        logError(runResult.error().GetMessage());
+        return -1;
+    }
+
+    return 0;
 }

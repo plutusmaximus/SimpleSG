@@ -19,6 +19,8 @@
 
 #include "scope_exit.h"
 
+namespace
+{
 static Result<void> RenderGui();
 
 class WorldMatrix : public Mat44f
@@ -287,33 +289,6 @@ public:
     }
 };
 
-int main(int, char* /*argv[]*/)
-{
-    SponzaAppLifecycle appLifecycle;
-    AppDriver driver(&appLifecycle);
-
-    auto initResult = driver.Init();
-    if(!initResult)
-    {
-        logError(initResult.error().GetMessage());
-        return -1;
-    }
-
-    driver.SetMouseCapture(true);
-
-    auto runResult = driver.Run();
-
-    PerfMetrics::LogTimers();
-
-    if(!runResult)
-    {
-        logError(runResult.error().GetMessage());
-        return -1;
-    }
-
-    return 0;
-}
-
 static Result<void> RenderGui()
 {
     const char* buildType;
@@ -343,4 +318,32 @@ static Result<void> RenderGui()
     ImGui::End();
 
     return Result<void>::Success;
+}
+}
+
+int main(int, char* /*argv[]*/)
+{
+    SponzaAppLifecycle appLifecycle;
+    AppDriver driver(&appLifecycle);
+
+    auto initResult = driver.Init();
+    if(!initResult)
+    {
+        logError(initResult.error().GetMessage());
+        return -1;
+    }
+
+    driver.SetMouseCapture(true);
+
+    auto runResult = driver.Run();
+
+    PerfMetrics::LogTimers();
+
+    if(!runResult)
+    {
+        logError(runResult.error().GetMessage());
+        return -1;
+    }
+
+    return 0;
 }
