@@ -316,7 +316,24 @@ int main(int, char* /*argv[]*/)
 
 static Result<void> RenderGui()
 {
-    ImGui::Begin("Timers");
+    const char* buildType;
+    const char* backend;
+#if defined (NDEBUG)
+    buildType = "Release";
+#else
+    buildType = "Debug";
+#endif
+
+#if DAWN_GPU
+    backend = "Dawn";
+#else
+    backend = "SDL";
+#endif
+
+    auto title = std::format("Timers: {}/{}", buildType, backend);
+
+    ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
+    ImGui::Begin(title.c_str());
     PerfMetrics::TimerStat timers[256];
     unsigned timerCount = PerfMetrics::GetTimers(timers, std::size(timers));
     for(unsigned i = 0; i < timerCount; ++i)
