@@ -550,64 +550,6 @@ DawnGpuDevice::DestroyDepthTarget(GpuDepthTarget* depthTarget)
     return Result<void>::Success;
 }
 
-Result<GpuVertexShader*>
-DawnGpuDevice::CreateVertexShader(const std::span<const uint8_t>& shaderCode)
-{
-    wgpu::StringView shaderCodeView{ reinterpret_cast<const char*>(shaderCode.data()),
-        shaderCode.size() };
-    wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCodeView } };
-    wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl };
-
-    wgpu::ShaderModule shaderModule = Device.CreateShaderModule(&shaderModuleDescriptor);
-    expect(shaderModule, "Failed to create shader module");
-
-    GpuResource* res = m_ResourceAllocator.New();
-
-    expectv(res, "Error allocating DawnGpuVertexShader");
-
-    return ::new(&res->VertexShader) DawnGpuVertexShader(this, shaderModule);
-}
-
-Result<void>
-DawnGpuDevice::DestroyVertexShader(GpuVertexShader* shader)
-{
-    DawnGpuVertexShader* dawnShader = static_cast<DawnGpuVertexShader*>(shader);
-    eassert(this == dawnShader->m_GpuDevice,
-        "VertexShader does not belong to this device");
-    dawnShader->~DawnGpuVertexShader();
-    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(shader));
-    return Result<void>::Success;
-}
-
-Result<GpuFragmentShader*>
-DawnGpuDevice::CreateFragmentShader(const std::span<const uint8_t>& shaderCode)
-{
-    wgpu::StringView shaderCodeView{ reinterpret_cast<const char*>(shaderCode.data()),
-        shaderCode.size() };
-    wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCodeView } };
-    wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl };
-
-    wgpu::ShaderModule shaderModule = Device.CreateShaderModule(&shaderModuleDescriptor);
-    expect(shaderModule, "Failed to create shader module");
-
-    GpuResource* res = m_ResourceAllocator.New();
-
-    expectv(res, "Error allocating DawnGpuFragmentShader");
-
-    return ::new(&res->FragmentShader) DawnGpuFragmentShader(this, shaderModule);
-}
-
-Result<void>
-DawnGpuDevice::DestroyFragmentShader(GpuFragmentShader* shader)
-{
-    DawnGpuFragmentShader* dawnShader = static_cast<DawnGpuFragmentShader*>(shader);
-    eassert(this == dawnShader->m_GpuDevice,
-        "FragmentShader does not belong to this device");
-    dawnShader->~DawnGpuFragmentShader();
-    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(shader));
-    return Result<void>::Success;
-}
-
 Renderer*
 DawnGpuDevice::GetRenderer()
 {

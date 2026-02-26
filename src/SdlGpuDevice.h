@@ -275,62 +275,6 @@ private:
     SDL_GPUTextureFormat m_Format;
 };
 
-class SdlGpuVertexShader : public GpuVertexShader
-{
-public:
-
-    SdlGpuVertexShader() = delete;
-    SdlGpuVertexShader(const SdlGpuVertexShader&) = delete;
-    SdlGpuVertexShader& operator=(const SdlGpuVertexShader&) = delete;
-    SdlGpuVertexShader(SdlGpuVertexShader&&) = delete;
-    SdlGpuVertexShader& operator=(SdlGpuVertexShader&&) = delete;
-
-    ~SdlGpuVertexShader() override;
-
-    SDL_GPUShader* GetShader() const { return m_Shader; }
-
-private:
-
-    friend class SdlGpuDevice;
-
-    SdlGpuVertexShader(SdlGpuDevice* gpuDevice, SDL_GPUShader* shader)
-        : m_GpuDevice(gpuDevice)
-        , m_Shader(shader)
-    {
-    }
-
-    SdlGpuDevice* const m_GpuDevice;
-    SDL_GPUShader* const m_Shader;
-};
-
-class SdlGpuFragmentShader : public GpuFragmentShader
-{
-public:
-
-    SdlGpuFragmentShader() = delete;
-    SdlGpuFragmentShader(const SdlGpuFragmentShader&) = delete;
-    SdlGpuFragmentShader& operator=(const SdlGpuFragmentShader&) = delete;
-    SdlGpuFragmentShader(SdlGpuFragmentShader&&) = delete;
-    SdlGpuFragmentShader& operator=(SdlGpuFragmentShader&&) = delete;
-
-    ~SdlGpuFragmentShader() override;
-
-    SDL_GPUShader* GetShader() const { return m_Shader; }
-
-private:
-
-    friend class SdlGpuDevice;
-
-    SdlGpuFragmentShader(SdlGpuDevice* gpuDevice, SDL_GPUShader* shader)
-        : m_GpuDevice(gpuDevice)
-        , m_Shader(shader)
-    {
-    }
-
-    SdlGpuDevice* const m_GpuDevice;
-    SDL_GPUShader* const m_Shader;
-};
-
 /// @brief SDL GPU Device implementation.
 class SdlGpuDevice : public GpuDevice
 {
@@ -387,14 +331,6 @@ public:
 
     Result<void> DestroyDepthTarget(GpuDepthTarget* depthTarget) override;
 
-    Result<GpuVertexShader*> CreateVertexShader(const std::span<const uint8_t>& shaderByteCode) override;
-
-    Result<void> DestroyVertexShader(GpuVertexShader* shader) override;
-
-    Result<GpuFragmentShader*> CreateFragmentShader(const std::span<const uint8_t>& shaderByteCode) override;
-
-    Result<void> DestroyFragmentShader(GpuFragmentShader* shader) override;
-
     Result<GpuMaterial*> CreateMaterial(const MaterialConstants& constants,
         GpuTexture* baseTexture) override;
 
@@ -429,8 +365,6 @@ private:
         SdlGpuMaterial Material;
         SdlGpuColorTarget ColorTarget;
         SdlGpuDepthTarget DepthTarget;
-        SdlGpuVertexShader VertexShader;
-        SdlGpuFragmentShader FragmentShader;
     };
 
     PoolAllocator<GpuResource, 256> m_ResourceAllocator;

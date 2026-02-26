@@ -121,22 +121,6 @@ protected:
     virtual ~GpuIndexBuffer() = 0;
 };
 
-/// @brief GPU representation of a vertex shader.
-class GpuVertexShader
-{
-protected:
-    GpuVertexShader() = default;
-    virtual ~GpuVertexShader() = 0;
-};
-
-/// @brief GPU representation of a fragment shader.
-class GpuFragmentShader
-{
-protected:
-    GpuFragmentShader() = default;
-    virtual ~GpuFragmentShader() = 0;
-};
-
 /// @brief GPU representation of a texture.
 class GpuTexture
 {
@@ -259,18 +243,6 @@ public:
     /// @brief Destroys a depth target.
     virtual Result<void> DestroyDepthTarget(GpuDepthTarget* depthTarget) = 0;
 
-    /// @brief Creates a vertex shader from the given specification.
-    virtual Result<GpuVertexShader*> CreateVertexShader(const std::span<const uint8_t>& shaderByteCode) = 0;
-
-    /// @brief Destroys a vertex shader.
-    virtual Result<void> DestroyVertexShader(GpuVertexShader* vertexShader) = 0;
-
-    /// @brief Creates a fragment shader from the given specification.
-    virtual Result<GpuFragmentShader*> CreateFragmentShader(const std::span<const uint8_t>& shaderByteCode) = 0;
-
-    /// @brief Destroys a fragment shader.
-    virtual Result<void> DestroyFragmentShader(GpuFragmentShader* fragmentShader) = 0;
-
     virtual Result<GpuMaterial*> CreateMaterial(const MaterialConstants& constants,
         GpuTexture* baseTexture) = 0;
 
@@ -288,8 +260,6 @@ protected:
 
 inline GpuVertexBuffer::~GpuVertexBuffer() = default;
 inline GpuIndexBuffer::~GpuIndexBuffer() = default;
-inline GpuVertexShader::~GpuVertexShader() = default;
-inline GpuFragmentShader::~GpuFragmentShader() = default;
 inline GpuTexture::~GpuTexture() = default;
 inline GpuMaterial::~GpuMaterial() = default;
 inline GpuColorTarget::~GpuColorTarget() = default;

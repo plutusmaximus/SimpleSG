@@ -16,12 +16,10 @@
 
 #if defined(GPU_DRIVER_DIRECT3D)
 
-static const SDL_GPUShaderFormat SHADER_FORMAT = SDL_GPU_SHADERFORMAT_DXIL;
 static const char* const DRIVER_NAME = "direct3d12";
 
 #elif defined(GPU_DRIVER_VULKAN)
 
-static const SDL_GPUShaderFormat SHADER_FORMAT = SDL_GPU_SHADERFORMAT_SPIRV;
 static const char* const DRIVER_NAME = "vulkan";
 
 #else
@@ -76,16 +74,6 @@ SdlGpuColorTarget::~SdlGpuColorTarget()
 SdlGpuDepthTarget::~SdlGpuDepthTarget()
 {
     if (m_DepthTarget) { SDL_ReleaseGPUTexture(m_GpuDevice->Device, m_DepthTarget); }
-}
-
-SdlGpuVertexShader::~SdlGpuVertexShader()
-{
-    if (m_Shader) { SDL_ReleaseGPUShader(m_GpuDevice->Device, m_Shader); }
-}
-
-SdlGpuFragmentShader::~SdlGpuFragmentShader()
-{
-    if (m_Shader) { SDL_ReleaseGPUShader(m_GpuDevice->Device, m_Shader); }
 }
 
 SdlGpuDevice::SdlGpuDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice)
@@ -605,90 +593,6 @@ SdlGpuDevice::DestroyDepthTarget(GpuDepthTarget* depthTarget)
         "Depth target does not belong to this device");
     sdlDepthTarget->~SdlGpuDepthTarget();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(depthTarget));
-    return Result<void>::Success;
-}
-
-Result<GpuVertexShader*>
-SdlGpuDevice::CreateVertexShader(const std::span<const uint8_t>& shaderCode)
-{
-    SDL_GPUShaderCreateInfo shaderCreateInfo
-    {
-        .code_size = shaderCode.size(),
-        .code = shaderCode.data(),
-        .entrypoint = "main",
-        .format = SHADER_FORMAT,
-        .stage = SDL_GPU_SHADERSTAGE_VERTEX,
-        .num_samplers = 0,
-        .num_storage_buffers = 1
-    };
-
-    SDL_GPUShader* shader = SDL_CreateGPUShader(Device, &shaderCreateInfo);
-    expect(shader, SDL_GetError());
-
-    auto shaderCleanup = scope_exit([&]()
-    {
-        SDL_ReleaseGPUShader(Device, shader);
-    });
-
-    GpuResource* res = m_ResourceAllocator.New();
-
-    expectv(res, "Error allocating GpuResource");
-
-    shaderCleanup.release();
-
-    return ::new(&res->VertexShader) SdlGpuVertexShader(this, shader);
-}
-
-Result<void>
-SdlGpuDevice::DestroyVertexShader(GpuVertexShader* shader)
-{
-    SdlGpuVertexShader* sdlShader = static_cast<SdlGpuVertexShader*>(shader);
-    eassert(this == sdlShader->m_GpuDevice,
-        "Shader does not belong to this device");
-    sdlShader->~SdlGpuVertexShader();
-    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(shader));
-    return Result<void>::Success;
-}
-
-Result<GpuFragmentShader*>
-SdlGpuDevice::CreateFragmentShader(const std::span<const uint8_t>& shaderCode)
-{
-    SDL_GPUShaderCreateInfo shaderCreateInfo
-    {
-        .code_size = shaderCode.size(),
-        .code = shaderCode.data(),
-        .entrypoint = "main",
-        .format = SHADER_FORMAT,
-        .stage = SDL_GPU_SHADERSTAGE_FRAGMENT,
-        .num_samplers = 1,
-        .num_uniform_buffers = 1
-    };
-
-    SDL_GPUShader* shader = SDL_CreateGPUShader(Device, &shaderCreateInfo);
-    expect(shader, SDL_GetError());
-
-    auto shaderCleanup = scope_exit([&]()
-    {
-        SDL_ReleaseGPUShader(Device, shader);
-    });
-
-    GpuResource* res = m_ResourceAllocator.New();
-
-    expectv(res, "Error allocating GpuResource");
-
-    shaderCleanup.release();
-
-    return ::new(&res->FragmentShader) SdlGpuFragmentShader(this, shader);
-}
-
-Result<void>
-SdlGpuDevice::DestroyFragmentShader(GpuFragmentShader* shader)
-{
-    SdlGpuFragmentShader* sdlShader = static_cast<SdlGpuFragmentShader*>(shader);
-    eassert(this == sdlShader->m_GpuDevice,
-        "Shader does not belong to this device");
-    sdlShader->~SdlGpuFragmentShader();
-    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(shader));
     return Result<void>::Success;
 }
 

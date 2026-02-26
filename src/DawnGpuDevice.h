@@ -286,57 +286,6 @@ private:
     wgpu::TextureFormat m_Format;
 };
 
-class DawnGpuVertexShader : public GpuVertexShader
-{
-public:
-    DawnGpuVertexShader() = delete;
-    DawnGpuVertexShader(const DawnGpuVertexShader&) = delete;
-    DawnGpuVertexShader& operator=(const DawnGpuVertexShader&) = delete;
-    DawnGpuVertexShader(DawnGpuVertexShader&&) = delete;
-    DawnGpuVertexShader& operator=(DawnGpuVertexShader&&) = delete;
-
-    ~DawnGpuVertexShader() override {};
-
-    wgpu::ShaderModule GetShader() const { return m_Shader; }
-
-private:
-    friend class DawnGpuDevice;
-
-    explicit DawnGpuVertexShader(DawnGpuDevice* gpuDevice, wgpu::ShaderModule shader)
-        : m_GpuDevice(gpuDevice),
-          m_Shader(shader)
-    {
-    }
-
-    DawnGpuDevice* m_GpuDevice;
-    wgpu::ShaderModule m_Shader;
-};
-
-class DawnGpuFragmentShader : public GpuFragmentShader
-{
-public:
-    DawnGpuFragmentShader() = delete;
-    DawnGpuFragmentShader(const DawnGpuFragmentShader&) = delete;
-    DawnGpuFragmentShader& operator=(const DawnGpuFragmentShader&) = delete;
-    DawnGpuFragmentShader(DawnGpuFragmentShader&&) = delete;
-    DawnGpuFragmentShader& operator=(DawnGpuFragmentShader&&) = delete;
-
-    ~DawnGpuFragmentShader() override {};
-
-    wgpu::ShaderModule GetShader() const { return m_Shader; }
-
-private:
-    friend class DawnGpuDevice;
-    explicit DawnGpuFragmentShader(DawnGpuDevice* gpuDevice, wgpu::ShaderModule shader)
-        : m_GpuDevice(gpuDevice),
-          m_Shader(shader)
-    {
-    }
-
-    DawnGpuDevice* m_GpuDevice;
-    wgpu::ShaderModule m_Shader;
-};
-
 /// @brief Dawn GPU Device implementation.
 class DawnGpuDevice : public GpuDevice
 {
@@ -391,14 +340,6 @@ public:
 
     Result<void> DestroyDepthTarget(GpuDepthTarget* depthTarget) override;
 
-    Result<GpuVertexShader*> CreateVertexShader(const std::span<const uint8_t>& shaderCode) override;
-
-    Result<void> DestroyVertexShader(GpuVertexShader* shader) override;
-
-    Result<GpuFragmentShader*> CreateFragmentShader(const std::span<const uint8_t>& shaderCode) override;
-
-    Result<void> DestroyFragmentShader(GpuFragmentShader* shader) override;
-
     Result<GpuMaterial*> CreateMaterial(const MaterialConstants& constants,
         GpuTexture* baseTexture) override;
 
@@ -446,8 +387,6 @@ private:
         DawnGpuMaterial Material;
         DawnGpuColorTarget ColorTarget;
         DawnGpuDepthTarget DepthTarget;
-        DawnGpuVertexShader VertexShader;
-        DawnGpuFragmentShader FragmentShader;
     };
 
     PoolAllocator<GpuResource, 256> m_ResourceAllocator;
