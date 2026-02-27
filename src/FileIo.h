@@ -14,16 +14,16 @@ class FileIo final
     friend class ReadRequest;
 
 public:
-    /// @brief Abstract base class representing fetched file data.
-    class FetchData
+    /// @brief Abstract base class representing fetched file data for a specific platform.
+    class PlatformFetchData
     {
     public:
-        virtual ~FetchData() = 0;
+        virtual ~PlatformFetchData() = 0;
 
         const std::span<const uint8_t> Bytes;
 
     protected:
-        FetchData(const uint8_t* bytes, const size_t bytesRead)
+        PlatformFetchData(const uint8_t* bytes, const size_t bytesRead)
             : Bytes(bytes, bytesRead)
         {
         }
@@ -94,8 +94,29 @@ public:
         Completed,
     };
 
-    /// @brief Smart pointer type for fetched file data.
-    using FetchDataPtr = std::unique_ptr<FetchData>;
+    class FetchData
+    {
+        friend class FileIo;
+    public:
+
+        const uint8_t* data() const { return m_DataPtr ? m_DataPtr->Bytes.data() : nullptr; }
+        size_t size() const { return m_DataPtr ? m_DataPtr->Bytes.size() : 0; }
+
+        FetchData() = default;
+        FetchData(const FetchData&) = delete;
+        FetchData& operator=(const FetchData&) = delete;
+        FetchData(FetchData&&) = default;
+        FetchData& operator=(FetchData&&) = default;
+
+    private:
+
+        explicit FetchData(std::unique_ptr<PlatformFetchData>&& dataPtr)
+            : m_DataPtr(std::move(dataPtr))
+        {
+        }
+
+        std::unique_ptr<PlatformFetchData> m_DataPtr;
+    };
 
     FileIo() = delete;
 
@@ -119,7 +140,7 @@ public:
 
     /// @brief Retrieves the result of a completed fetch operation.
     /// Returns an error if the operation failed, or the operation is not complete.
-    static Result<FetchDataPtr> GetResult(const AsyncToken token);
+    static Result<FetchData> GetResult(const AsyncToken token);
 
 private:
 
@@ -135,4 +156,6 @@ private:
     static void CompleteRequestSuccess(class ReadRequest* request, const size_t bytesRead);
 
     static void CompleteRequestFailure(class ReadRequest* request, const Error& error);
+
+    static Result<FileIo::FetchData> GetResultImpl(FileIo::ReadRequest* req);
 };

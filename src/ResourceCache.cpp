@@ -863,7 +863,7 @@ ResourceCache::CreateTextureOp::Update()
                 return;
             }
 
-            m_FetchDataPtr = std::move(fetchResult.value());
+            m_FetchData = std::move(fetchResult.value());
 
             auto job = [this]()
             {
@@ -919,14 +919,14 @@ ResourceCache::CreateTextureOp::DecodeImage()
 
     Stopwatch sw;
 
-    /*stbi_info_from_memory(m_FetchDataPtr->Bytes.data(),
-        static_cast<int>(m_FetchDataPtr->Bytes.size()),
+    /*stbi_info_from_memory(m_FetchData.Bytes.data(),
+        static_cast<int>(m_FetchData.Bytes.size()),
         &m_DecodedImageWidth,
         &m_DecodedImageHeight,
         &m_DecodedImageChannels);*/
 
-    m_DecodedImageData = stbi_load_from_memory(m_FetchDataPtr->Bytes.data(),
-        static_cast<int>(m_FetchDataPtr->Bytes.size()),
+    m_DecodedImageData = stbi_load_from_memory(m_FetchData.data(),
+        static_cast<int>(m_FetchData.size()),
         &m_DecodedImageWidth,
         &m_DecodedImageHeight,
         &m_DecodedImageChannels,

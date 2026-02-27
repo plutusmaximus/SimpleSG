@@ -36,7 +36,7 @@ void FileIo::ReadRequest::Unlink()
     m_Prev = nullptr;
 }
 
-FileIo::FetchData::~FetchData() = default;
+FileIo::PlatformFetchData::~PlatformFetchData() = default;
 
 enum State
 {
@@ -112,9 +112,6 @@ template<typename T, typename... Args>
 static T* NewReadRequest(Args&&... args);
 
 static void DeleteReadRequest(FileIo::ReadRequest* req);
-
-// Platform-specific implementation used by GetResult.
-static Result<FileIo::FetchDataPtr> GetResultImpl(FileIo::ReadRequest* req);
 
 bool
 FileIo::Startup()
@@ -197,7 +194,7 @@ FileIo::GetStatus(const AsyncToken token)
     return FetchStatus::None;
 }
 
-Result<FileIo::FetchDataPtr>
+Result<FileIo::FetchData>
 FileIo::GetResult(const AsyncToken token)
 {
     if(HaveFatalError())
@@ -233,7 +230,7 @@ FileIo::GetResult(const AsyncToken token)
 
     RemoveCompleteRequest(req);
 
-    Result<FileIo::FetchDataPtr> result;
+    Result<FileIo::FetchData> result;
 
     if(req->Error)
     {
@@ -670,10 +667,10 @@ GetWindowsErrorString(DWORD errorCode)
     return message;
 }
 
-struct Win32FetchData : FileIo::FetchData
+struct Win32FetchData : FileIo::PlatformFetchData
 {
     Win32FetchData(std::unique_ptr<uint8_t[]>&& bytes, size_t bytesRead)
-        : FetchData(bytes.get(), bytesRead),
+        : PlatformFetchData(bytes.get(), bytesRead),
           m_Bytes(std::move(bytes))
     {
     }
@@ -682,15 +679,15 @@ private:
     std::unique_ptr<uint8_t[]> m_Bytes{ nullptr };
 };
 
-static Result<FileIo::FetchDataPtr>
-GetResultImpl(FileIo::ReadRequest* req)
+Result<FileIo::FetchData>
+FileIo::GetResultImpl(FileIo::ReadRequest* req)
 {
     auto win32Req = static_cast<Win32ReadRequest*>(req);
 
     auto fetchData =
         std::make_unique<Win32FetchData>(std::move(win32Req->Bytes), win32Req->BytesRead);
 
-    auto result = FileIo::FetchDataPtr(std::move(fetchData));
+    auto result = FileIo::FetchData(std::move(fetchData));
 
     return result;
 }
@@ -842,10 +839,10 @@ FileIo::CompleteRequestFailure(FileIo::ReadRequest* request, const Error& error)
     MoveFromPendingToComplete(request);
 }
 
-struct EmscriptenFetchData : FileIo::FetchData
+struct EmscriptenFetchData : FileIo::PlatformFetchData
 {
     explicit EmscriptenFetchData(emscripten_fetch_t* fetch)
-        : FetchData(reinterpret_cast<const uint8_t*>(fetch->data), fetch->numBytes),
+        : PlatformFetchData(reinterpret_cast<const uint8_t*>(fetch->data), fetch->numBytes),
           m_Fetch(fetch)
     {
     }
@@ -863,8 +860,8 @@ private:
     emscripten_fetch_t* m_Fetch{ nullptr };
 };
 
-static Result<FileIo::FetchDataPtr>
-GetResultImpl(FileIo::ReadRequest* req)
+Result<FileIo::FetchData>
+FileIo::GetResultImpl(FileIo::ReadRequest* req)
 {
     auto emReq = static_cast<EmscriptenReadRequest*>(req);
 
@@ -872,7 +869,7 @@ GetResultImpl(FileIo::ReadRequest* req)
 
     emReq->FetchData = nullptr;
 
-    auto result = FileIo::FetchDataPtr(std::move(fetchData));
+    auto result = FileIo::FetchData(std::move(fetchData));
 
     return result;
 }

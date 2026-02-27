@@ -366,7 +366,7 @@ private:
 
         FileIo::AsyncToken m_FileFetchToken;
 
-        FileIo::FetchDataPtr m_FetchDataPtr;
+        FileIo::FetchData m_FetchData;
 
         void* m_DecodedImageData{ nullptr };
         int m_DecodedImageWidth{ 0 };
