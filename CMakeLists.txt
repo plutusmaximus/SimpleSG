@@ -286,6 +286,12 @@ add_sample_executable(Cube tests/cube.cpp)
 add_sample_executable(Sponza tests/sponza.cpp)
 
 # ============================================================
+# Executable: GLTF
+# ============================================================
+add_sample_executable(GLTF tests/GLTF.cpp)
+target_include_directories(GLTF PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/cgltf ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/stb)
+
+# ============================================================
 # Executable: Tests
 # ============================================================
 add_executable(Tests

@@ -41,6 +41,18 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "GLTF (Debug)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/GLTF.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/Debug",
+            "environment": [],
+            //"console": "externalTerminal"
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Cube (Release)",
             "type": "cppvsdbg",
             "request": "launch",
@@ -75,6 +87,6 @@
             "environment": [],
             //"console": "externalTerminal"
             "console": "integratedTerminal"
-        }
+        },
     ]
 }
