@@ -8,10 +8,17 @@
 #include <filesystem>
 #include <format>
 #include <iostream>
+#include <ranges>
 #include <stack>
 #include <thread>
 #include <type_traits>
 #include <unordered_map>
+
+// TODO
+// * Handle materials that don't have PBR metallic-roughness properties
+// * Handle materials that don't have a base color texture
+// * Option to treat failed primitive/material loading as fatal.
+// * Add FileIo::FetchRange()
 
 static constexpr int MAX_TEX_COORDS = 6;
 
@@ -32,13 +39,20 @@ namespace
         float u, v;
     };
 
+    struct Color
+    {
+        float r, g, b, a;
+    };
+
     struct Material
     {
+        std::string Name;
         std::string BaseTextureUri;
         std::string MetallicRoughnessTextureUri;
-        float BaseColor[4];
-        float MetallicFactor;
-        float RoughnessFactor;
+        Color BaseColor{0, 0, 0, 0};
+        float MetallicFactor{0};
+        float RoughnessFactor{0};
+        bool DoubleSided{false};
     };
 
     struct Primitive
@@ -50,77 +64,115 @@ namespace
 
         Material Mtl;
     };
+
+    template<typename F>
+    class Defer
+    {
+    public:
+        explicit Defer(F&& f) : m_Func(std::forward<F>(f)) {}
+        ~Defer()
+        {
+            m_Func();
+        }
+
+    private:
+        F m_Func;
+    };
 } // namespace
 
-static std::vector<std::string> s_ErrorPrefixStack;
-static std::string s_ErrorPrefix;
+static std::vector<std::string> s_LogPrefixStack;
+static std::string s_LogPrefix;
 
-static void MakeErrorPrefix()
+static void MakeLogPrefix()
 {
-    s_ErrorPrefix.clear();
-    for(const auto& prefix : s_ErrorPrefixStack)
+    s_LogPrefix = "[";
+
+    int count = 0;
+
+    for(const auto& prefix : s_LogPrefixStack)
     {
-        if(!s_ErrorPrefix.empty())
+        if(count > 0)
         {
-            s_ErrorPrefix += ": ";
+            s_LogPrefix += ": ";
         }
-        s_ErrorPrefix += prefix;
+        s_LogPrefix += prefix;
+        ++count;
     }
+
+    s_LogPrefix += "] ";
 }
 
 template<typename... Args>
-static void PushErrorPrefix(std::format_string<Args...> fmt, Args&&... args)
+static void PushLogPrefix(std::format_string<Args...> fmt, Args&&... args)
 {
-    s_ErrorPrefixStack.push_back(std::format(fmt, std::forward<Args>(args)...));
-    MakeErrorPrefix();
+    s_LogPrefixStack.push_back(std::format(fmt, std::forward<Args>(args)...));
+    MakeLogPrefix();
 }
 
-static void PopErrorPrefix()
+static void PopLogPrefix()
 {
-    if(!s_ErrorPrefixStack.empty())
+    if(!s_LogPrefixStack.empty())
     {
-        s_ErrorPrefixStack.pop_back();
-        MakeErrorPrefix();
+        s_LogPrefixStack.pop_back();
+        MakeLogPrefix();
     }
 }
 
 namespace
 {
-struct ErrorScope
+struct LogScope
 {
     template<typename... Args>
-    ErrorScope(std::format_string<Args...> fmt, Args&&... args)
+    LogScope(std::format_string<Args...> fmt, Args&&... args)
     {
-        PushErrorPrefix(fmt, std::forward<Args>(args)...);
+        PushLogPrefix(fmt, std::forward<Args>(args)...);
     }
 
-    ~ErrorScope()
+    ~LogScope()
     {
-        PopErrorPrefix();
+        PopLogPrefix();
     }
 };
 }
 
 template<typename... Args>
+static inline void MLE_LOG(const std::string& prefix, std::format_string<Args...> fmt, Args&&... args)
+{
+    std::cerr << prefix << std::format(fmt, std::forward<Args>(args)...) << std::endl;
+}
+
+static inline void MLE_LOG(const std::string& prefix, std::string_view msg)
+{
+    std::cerr << prefix << msg << std::endl;
+}
+
+static inline void MLE_LOG() {}
+
+template<typename... Args>
 static inline void LOG_ERROR(std::format_string<Args...> fmt, Args&&... args)
 {
-    if(!s_ErrorPrefix.empty())
-    {
-        std::cerr << s_ErrorPrefix << ": ";
-    }
-    std::cerr << std::format(fmt, std::forward<Args>(args)...) << std::endl;
+    MLE_LOG("[ERR] " + s_LogPrefix, fmt, std::forward<Args>(args)...);
 }
 
 static inline void LOG_ERROR(std::string_view msg)
 {
-    if(!s_ErrorPrefix.empty())
-    {
-        std::cerr << s_ErrorPrefix << ": ";
-    }
-    std::cerr << msg << std::endl;
+    MLE_LOG("[ERR] " + s_LogPrefix, msg);
 }
 
 static inline void LOG_ERROR() {}
+
+template<typename... Args>
+static inline void LOG_DEBUG(std::format_string<Args...> fmt, Args&&... args)
+{
+    MLE_LOG("[DBG] " + s_LogPrefix, fmt, std::forward<Args>(args)...);
+}
+
+static inline void LOG_DEBUG(std::string_view msg)
+{
+    MLE_LOG("[DBG] " + s_LogPrefix, msg);
+}
+
+static inline void LOG_DEBUG() {}
 
 #define MLG_CHECK(expr, stmt, ...) \
     do { \
@@ -129,6 +181,35 @@ static inline void LOG_ERROR() {}
             stmt; \
         } \
     } while (0)
+
+// A range of FileIo::AsyncToken objects.
+template <class R>
+concept AsyncTokenRange =
+    std::ranges::input_range<R> && // “works with range-for” (at least input iteration)
+    std::same_as<
+        std::remove_cvref_t<std::ranges::range_reference_t<R>>,
+        FileIo::AsyncToken
+    >;
+
+// Wait for all async tokens in the range to complete.
+template <AsyncTokenRange R>
+static void WaitForPendingLoads(const R& asyncTokens)
+{
+    bool pending = true;
+    while(pending)
+    {
+        pending = false;
+        for (const auto& token : asyncTokens)
+        {
+            if (FileIo::IsPending(token))
+            {
+                pending = true;
+                break;
+            }
+        }
+        std::this_thread::yield();
+    }
+}
 
 static inline const char*
 cgltf_result_to_string(cgltf_result r)
@@ -145,6 +226,22 @@ cgltf_result_to_string(cgltf_result r)
         case cgltf_result_io_error:             return "io_error";
         case cgltf_result_out_of_memory:        return "out_of_memory";
         case cgltf_result_legacy_gltf:          return "legacy_gltf";
+        default:                                return "unknown";
+    }
+}
+
+static inline const char*
+cgltf_attribute_type_to_string(cgltf_attribute_type type)
+{
+    switch (type)
+    {
+        case cgltf_attribute_type_position:     return "position";
+        case cgltf_attribute_type_normal:       return "normal";
+        case cgltf_attribute_type_tangent:      return "tangent";
+        case cgltf_attribute_type_texcoord:     return "texcoord";
+        case cgltf_attribute_type_color:        return "color";
+        case cgltf_attribute_type_joints:       return "joints";
+        case cgltf_attribute_type_weights:      return "weights";
         default:                                return "unknown";
     }
 }
@@ -169,10 +266,7 @@ static bool LoadGLTF(const std::filesystem::path& gltfFilePath, cgltf_data*& out
         fetchResult.error());
     auto fetchToken = *fetchResult;
 
-    while(FileIo::IsPending(fetchToken))
-    {
-        std::this_thread::yield();
-    }
+    WaitForPendingLoads(std::views::single(fetchToken));
 
     auto resultData = FileIo::GetResult(fetchToken);
     MLG_CHECK(resultData,
@@ -211,15 +305,10 @@ static bool LoadBuffers(const cgltf_data *data, const std::filesystem::path &par
         asyncTokens.emplace(buffer->uri, *result);
     }
 
-    for (auto& [uri, token] : asyncTokens)
-    {
-        if (FileIo::IsPending(token))
-        {
-            std::this_thread::yield();
-        }
-    }
+    auto tokensView = std::views::values(asyncTokens);
+    WaitForPendingLoads(tokensView);
 
-    for (auto& [uri, token] : asyncTokens)
+    for (const auto& [uri, token] : asyncTokens)
     {
         auto result = FileIo::GetResult(token);
         MLG_CHECK(result, return false, "Failed to get buffer {}: {}", uri, result.error());
@@ -283,7 +372,10 @@ static bool LoadMetallicRoughnessTexture(const cgltf_texture_view& textureView, 
 
 static bool LoadMaterial(const cgltf_material& material, Material& outMaterial)
 {
-    ErrorScope attributeScope("mtrl {}", material.name ? material.name : "<unnamed material>");
+    LogScope attributeScope("mtrl {}", material.name ? material.name : "<unnamed material>");
+
+    outMaterial.Name = material.name ? material.name : "<unnamed material>";
+    outMaterial.DoubleSided = material.double_sided;
 
     MLG_CHECK(material.has_pbr_metallic_roughness,
         return false,
@@ -302,7 +394,10 @@ static bool LoadMaterial(const cgltf_material& material, Material& outMaterial)
 
     const cgltf_float (&baseColorFactor)[4] = material.pbr_metallic_roughness.base_color_factor;
 
-    std::copy(baseColorFactor, baseColorFactor + 4, outMaterial.BaseColor);
+    outMaterial.BaseColor.r = baseColorFactor[0];
+    outMaterial.BaseColor.g = baseColorFactor[1];
+    outMaterial.BaseColor.b = baseColorFactor[2];
+    outMaterial.BaseColor.a = baseColorFactor[3];
 
     return true;
 }
@@ -462,7 +557,7 @@ static bool LoadPrimitive(const cgltf_primitive& primitive,
 
     for(cgltf_size attributeIdx = 0; attributeIdx < attributes.size(); ++attributeIdx)
     {
-        ErrorScope attributeScope("attr {}", attributeIdx);
+        LogScope attributeScope("attr {}", attributeIdx);
 
         const cgltf_attribute& attribute = attributes[attributeIdx];
 
@@ -496,7 +591,9 @@ static bool LoadPrimitive(const cgltf_primitive& primitive,
                 break;
 
             default:
-                LOG_ERROR("Unsupported attribute type {}", std::to_underlying(attribute.type));
+                LOG_ERROR("Unsupported attribute type \"{}\"/{}",
+                    cgltf_attribute_type_to_string(attribute.type),
+                    std::to_underlying(attribute.type));
                 break;
         }
     }
@@ -508,7 +605,12 @@ int main(int, char* /*argv[]*/)
 {
     FileIo::Startup();
 
-    const std::filesystem::path gltfFilePath{"C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf"};
+    auto cleanup = Defer([]{ FileIo::Shutdown(); });
+
+    [[maybe_unused]] constexpr const char* path1 = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
+    [[maybe_unused]] constexpr const char* path2 = "C:/Users/kbaca/Downloads/HiddenAlley2/ph_hidden_alley.gltf";
+
+    const std::filesystem::path gltfFilePath{path2};
     const std::filesystem::path parentPath = gltfFilePath.parent_path();
 
     cgltf_data* data = nullptr;
@@ -530,27 +632,21 @@ int main(int, char* /*argv[]*/)
     textureFetchTokens.reserve(textureUris.size());
     for(const auto& uri : textureUris)
     {
-        std::cout << "Fetching texture: " << (parentPath / uri).string() << std::endl;
+        LOG_DEBUG("Fetching texture: {}", (parentPath / uri).string());
 
         auto result = FileIo::Fetch((parentPath / uri).string());
         MLG_CHECK(result, return -1, result.error().GetMessage().c_str());
         textureFetchTokens.emplace_back(std::move(*result));
     }
 
-    for (auto& token : textureFetchTokens)
-    {
-        if (FileIo::IsPending(token))
-        {
-            std::this_thread::yield();
-        }
-    }
+    WaitForPendingLoads(textureFetchTokens);
 
     std::vector<Material> materials;
     materials.reserve(data->materials_count);
     for(cgltf_size mtlIdx = 0; mtlIdx < data->materials_count; ++mtlIdx)
     {
         const cgltf_material& material = data->materials[mtlIdx];
-        MLG_CHECK(LoadMaterial(material, materials.emplace_back()), return -1);
+        LoadMaterial(material, materials.emplace_back());
     }
 
     size_t primitiveCount = 0;
@@ -564,17 +660,20 @@ int main(int, char* /*argv[]*/)
 
     for(cgltf_size meshIdx = 0; meshIdx < data->meshes_count; ++meshIdx)
     {
-        ErrorScope meshScope("mesh {}", meshIdx);
-
         const cgltf_mesh& mesh = data->meshes[meshIdx];
+
+        const std::string meshName = mesh.name ? mesh.name : "<unnamed mesh>";
+        LogScope meshScope("mesh {}/{}", meshName, meshIdx);
 
         for(cgltf_size primitiveIdx = 0; primitiveIdx < mesh.primitives_count; ++primitiveIdx)
         {
-            ErrorScope primitiveScope("prim {}", primitiveIdx);
+            LOG_DEBUG("Loading primitive : {}", primitiveIdx);
+
+            LogScope primitiveScope("prim {}", primitiveIdx);
 
             const cgltf_primitive& primitive = mesh.primitives[primitiveIdx];
 
-            MLG_CHECK(LoadPrimitive(primitive, bufferData, primitives.emplace_back()), return -1);
+            LoadPrimitive(primitive, bufferData, primitives.emplace_back());
         }
     }
 
