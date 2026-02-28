@@ -59,27 +59,6 @@ struct Color
     float r, g, b, a;
 };
 
-struct Material
-{
-    std::string Name;
-    std::string BaseTextureUri;
-    std::string MetallicRoughnessTextureUri;
-    Color BaseColor{ 0, 0, 0, 0 };
-    float MetallicFactor{ 0 };
-    float RoughnessFactor{ 0 };
-    bool DoubleSided{ false };
-};
-
-struct Primitive
-{
-    std::vector<uint32_t> Indices;
-    std::span<const Position> Positions;
-    std::span<const Normal> Normals;
-    std::span<const TexCoord> TexCoords[kMaxTexCoords];
-
-    Material Mtl;
-};
-
 template<typename F>
 class Defer
 {
@@ -239,8 +218,26 @@ class Gltf final
 {
 public:
 
-    static constexpr const char* SCENE1_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
-    static constexpr const char* SCENE2_PATH = "C:/Users/kbaca/Downloads/HiddenAlley2/ph_hidden_alley.gltf";
+    struct Material
+    {
+        std::string Name;
+        std::string BaseTextureUri;
+        std::string MetallicRoughnessTextureUri;
+        Color BaseColor{ 0, 0, 0, 0 };
+        float MetallicFactor{ 0 };
+        float RoughnessFactor{ 0 };
+        bool DoubleSided{ false };
+    };
+
+    struct Primitive
+    {
+        std::vector<uint32_t> Indices;
+        std::span<const Position> Positions;
+        std::span<const Normal> Normals;
+        std::span<const TexCoord> TexCoords[kMaxTexCoords];
+
+        Material Mtl;
+    };
 
     static inline const char*
     cgltf_result_to_string(cgltf_result r)
@@ -622,45 +619,45 @@ public:
         return true;
     }
 
-    static bool Load()
+    static bool Load(const char* path)
     {
-        const std::filesystem::path gltfFilePath{SCENE2_PATH};
+        const std::filesystem::path gltfFilePath{path};
         const std::filesystem::path parentPath = gltfFilePath.parent_path();
 
         cgltf_data* data = nullptr;
-        MLG_CHECK(mlg::Gltf::LoadGLTF(gltfFilePath, data), return false);
+        MLG_CHECK(LoadGLTF(gltfFilePath, data), return false);
 
         std::unordered_map<std::string, FileIo::FetchData> bufferData;
 
-        MLG_CHECK(mlg::Gltf::LoadBuffers(data, parentPath, bufferData), return false);
+        MLG_CHECK(LoadBuffers(data, parentPath, bufferData), return false);
 
         std::vector<std::string> textureUris;
         textureUris.reserve(data->textures_count);
         for(cgltf_size texIdx = 0; texIdx < data->textures_count; ++texIdx)
         {
             const cgltf_texture& texture = data->textures[texIdx];
-            MLG_CHECK(mlg::Gltf::LoadTexture(texture, textureUris.emplace_back()), return false);
+            MLG_CHECK(LoadTexture(texture, textureUris.emplace_back()), return false);
         }
 
         std::vector<FileIo::AsyncToken> textureFetchTokens;
         textureFetchTokens.reserve(textureUris.size());
         for(const auto& uri : textureUris)
         {
-            mlg::Log::Debug("Fetching texture: {}", (parentPath / uri).string());
+            Log::Debug("Fetching texture: {}", (parentPath / uri).string());
 
             auto result = FileIo::Fetch((parentPath / uri).string());
             MLG_CHECK(result, return false, result.error().GetMessage().c_str());
             textureFetchTokens.emplace_back(std::move(*result));
         }
 
-        mlg::WaitForPendingLoads(textureFetchTokens);
+        WaitForPendingLoads(textureFetchTokens);
 
-        std::vector<mlg::Material> materials;
+        std::vector<Material> materials;
         materials.reserve(data->materials_count);
         for(cgltf_size mtlIdx = 0; mtlIdx < data->materials_count; ++mtlIdx)
         {
             const cgltf_material& material = data->materials[mtlIdx];
-            mlg::Gltf::LoadMaterial(material, materials.emplace_back());
+            LoadMaterial(material, materials.emplace_back());
         }
 
         size_t primitiveCount = 0;
@@ -669,7 +666,7 @@ public:
             primitiveCount += data->meshes[meshIdx].primitives_count;
         }
 
-        std::vector<mlg::Primitive> primitives;
+        std::vector<Primitive> primitives;
         primitives.reserve(primitiveCount);
 
         for(cgltf_size meshIdx = 0; meshIdx < data->meshes_count; ++meshIdx)
@@ -677,17 +674,17 @@ public:
             const cgltf_mesh& mesh = data->meshes[meshIdx];
 
             const std::string meshName = mesh.name ? mesh.name : "<unnamed mesh>";
-            mlg::LogScope meshScope("mesh {}/{}", meshName, meshIdx);
+            LogScope meshScope("mesh {}/{}", meshName, meshIdx);
 
             for(cgltf_size primitiveIdx = 0; primitiveIdx < mesh.primitives_count; ++primitiveIdx)
             {
-                mlg::Log::Debug("Loading primitive : {}", primitiveIdx);
+                Log::Debug("Loading primitive : {}", primitiveIdx);
 
-                mlg::LogScope primitiveScope("prim {}", primitiveIdx);
+                LogScope primitiveScope("prim {}", primitiveIdx);
 
                 const cgltf_primitive& primitive = mesh.primitives[primitiveIdx];
 
-                mlg::Gltf::LoadPrimitive(primitive, bufferData, primitives.emplace_back());
+                LoadPrimitive(primitive, bufferData, primitives.emplace_back());
             }
         }
 
@@ -1099,12 +1096,12 @@ public:
 bool Startup()
 {
     FileIo::Startup();
-    return mlg::Wgpu::Startup();
+    return Wgpu::Startup();
 }
 
 bool Shutdown()
 {
-    mlg::Wgpu::Shutdown();
+    Wgpu::Shutdown();
     FileIo::Shutdown();
     return true;
 }
@@ -1113,11 +1110,14 @@ bool Shutdown()
 
 int main(int, char* /*argv[]*/)
 {
+    static constexpr const char* SCENE1_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
+    static constexpr const char* SCENE2_PATH = "C:/Users/kbaca/Downloads/HiddenAlley2/ph_hidden_alley.gltf";
+
     MLG_CHECK(mlg::Startup(), return -1);
 
     auto cleanup = mlg::Defer([]{ mlg::Shutdown(); });
 
-    MLG_CHECK(mlg::Gltf::Load(), return -1);
+    MLG_CHECK(mlg::Gltf::Load(SCENE2_PATH), return -1);
 
     cleanup.Cancel();
 
