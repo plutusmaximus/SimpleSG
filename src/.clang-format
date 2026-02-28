@@ -24,6 +24,7 @@ SpaceAfterTemplateKeyword: false
 SpaceInTemplateSpecializations: false
 SpaceBeforeTemplateClosingAngleBracket: false
 IndentCaseLabels: true
+NamespaceIndentation: None
 
 # Includes
 SortIncludes: CaseInsensitive
