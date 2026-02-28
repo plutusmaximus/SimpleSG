@@ -39,6 +39,9 @@ static constexpr wgpu::TextureFormat kDepthTargetFormat = wgpu::TextureFormat::D
 
 namespace mlg
 {
+template<typename T>
+using Result2 = std::optional<T>;
+
 struct Position
 {
     float x, y, z;
@@ -177,11 +180,11 @@ struct LogScope
     }
 };
 
-#define MLG_CHECK(expr, stmt, ...) \
+#define MLG_CHECK(expr, ...) \
     do { \
         if (!(expr)) { \
             mlg::Log::Error(__VA_ARGS__); \
-            stmt; \
+            return {}; \
         } \
     } while (0)
 
@@ -274,11 +277,10 @@ public:
         }
     }
 
-    static bool LoadGLTF(const std::filesystem::path& gltfFilePath, cgltf_data*& outData)
+    static Result2<bool> LoadGLTF(const std::filesystem::path& gltfFilePath, cgltf_data*& outData)
     {
         auto fetchResult = FileIo::Fetch(gltfFilePath.string());
         MLG_CHECK(fetchResult,
-            return false,
             "Failed to fetch glTF file {}: {}",
             gltfFilePath.string(),
             fetchResult.error());
@@ -288,7 +290,6 @@ public:
 
         auto resultData = FileIo::GetResult(fetchToken);
         MLG_CHECK(resultData,
-            return false,
             "Failed to get glTF file {}: {}",
             gltfFilePath.string(),
             resultData.error());
@@ -297,7 +298,6 @@ public:
         cgltf_data* data = NULL;
         cgltf_result parseResult = cgltf_parse(&options, resultData->data(), resultData->size(), &data);
         MLG_CHECK(parseResult == cgltf_result_success,
-            return false,
             "Failed to parse glTF file: {}",
             cgltf_result_to_string(parseResult));
 
@@ -305,7 +305,7 @@ public:
         return true;
     }
 
-    static bool LoadBuffers(const cgltf_data *data, const std::filesystem::path &parentPath, std::unordered_map<std::string, FileIo::FetchData> &bufferData)
+    static Result2<bool> LoadBuffers(const cgltf_data *data, const std::filesystem::path &parentPath, std::unordered_map<std::string, FileIo::FetchData> &bufferData)
     {
         bufferData.clear();
         bufferData.reserve(data->buffers_count);
@@ -318,7 +318,7 @@ public:
             cgltf_buffer* buffer = &data->buffers[i];
             auto result = FileIo::Fetch((parentPath / buffer->uri).string());
 
-            MLG_CHECK(result, return false, "Failed to fetch buffer {}: {}", buffer->uri, result.error());
+            MLG_CHECK(result, "Failed to fetch buffer {}: {}", buffer->uri, result.error());
 
             asyncTokens.emplace(buffer->uri, *result);
         }
@@ -329,18 +329,18 @@ public:
         for (const auto& [uri, token] : asyncTokens)
         {
             auto result = FileIo::GetResult(token);
-            MLG_CHECK(result, return false, "Failed to get buffer {}: {}", uri, result.error());
+            MLG_CHECK(result, "Failed to get buffer {}: {}", uri, result.error());
             bufferData.emplace(uri, std::move(*result));
         }
         return true;
     }
 
-    static const uint8_t*
+    static Result2<const uint8_t*>
     GetBufferData(const cgltf_attribute& attribute,
         const std::unordered_map<std::string, FileIo::FetchData>& bufferData)
     {
         const cgltf_accessor& accessor = *attribute.data;
-        MLG_CHECK(!accessor.is_sparse, return nullptr, "{}:{}:{} is sparse, which is not supported yet",
+        MLG_CHECK(!accessor.is_sparse, "{}:{}:{} is sparse, which is not supported yet",
                             attribute.name ? attribute.name : "<unnamed attribute>",
                             accessor.name ? accessor.name : "<unnamed accessor>",
                             attribute.data->buffer_view->buffer->uri);
@@ -348,47 +348,47 @@ public:
         const cgltf_buffer_view& bufferView = *accessor.buffer_view;
         const cgltf_buffer& buffer = *bufferView.buffer;
         auto it = bufferData.find(buffer.uri);
-        MLG_CHECK(it != bufferData.end(), return nullptr, "Buffer {} not found", buffer.uri);
+        MLG_CHECK(it != bufferData.end(), "Buffer {} not found", buffer.uri);
         return it->second.data() + bufferView.offset + accessor.offset;
     }
 
-    static bool LoadTexture(const cgltf_texture& texture, std::string& uri)
+    static Result2<bool> LoadTexture(const cgltf_texture& texture, std::string& uri)
     {
         uri.clear();
 
-        MLG_CHECK(texture.image, return false, "Texture image is not set");
-        MLG_CHECK(texture.image->uri, return false, "Texture image URI is not set");
+        MLG_CHECK(texture.image, "Texture image is not set");
+        MLG_CHECK(texture.image->uri, "Texture image URI is not set");
         uri = texture.image->uri;
 
-        MLG_CHECK(!uri.empty(), return false, "Texture URI is empty");
+        MLG_CHECK(!uri.empty(), "Texture URI is empty");
 
         return true;
     }
 
-    static bool LoadBaseTexture(const cgltf_texture_view& textureView, Material& outMaterial)
+    static Result2<bool> LoadBaseTexture(const cgltf_texture_view& textureView, Material& outMaterial)
     {
         if(!textureView.texture)
         {
             return true;
         }
 
-        MLG_CHECK(LoadTexture(*textureView.texture, outMaterial.BaseTextureUri), return false);
+        MLG_CHECK(LoadTexture(*textureView.texture, outMaterial.BaseTextureUri));
 
         return true;
     }
 
-    static bool LoadMetallicRoughnessTexture(const cgltf_texture_view& textureView, Material& outMaterial)
+    static Result2<bool> LoadMetallicRoughnessTexture(const cgltf_texture_view& textureView, Material& outMaterial)
     {
         if(!textureView.texture)
         {
             return true;
         }
 
-        MLG_CHECK(LoadTexture(*textureView.texture, outMaterial.MetallicRoughnessTextureUri), return false);
+        MLG_CHECK(LoadTexture(*textureView.texture, outMaterial.MetallicRoughnessTextureUri));
         return true;
     }
 
-    static bool LoadMaterial(const cgltf_material& material, Material& outMaterial)
+    static Result2<bool> LoadMaterial(const cgltf_material& material, Material& outMaterial)
     {
         LogScope attributeScope("mtrl {}", material.name ? material.name : "<unnamed material>");
 
@@ -396,16 +396,15 @@ public:
         outMaterial.DoubleSided = material.double_sided;
 
         MLG_CHECK(material.has_pbr_metallic_roughness,
-            return false,
             "Material does not have PBR metallic-roughness");
 
         const cgltf_texture_view& baseTexture = material.pbr_metallic_roughness.base_color_texture;
 
-        MLG_CHECK(LoadBaseTexture(baseTexture, outMaterial), return false);
+        MLG_CHECK(LoadBaseTexture(baseTexture, outMaterial));
 
         const cgltf_texture_view& metallicRoughnessTexture = material.pbr_metallic_roughness.metallic_roughness_texture;
 
-        MLG_CHECK(LoadMetallicRoughnessTexture(metallicRoughnessTexture, outMaterial), return false);
+        MLG_CHECK(LoadMetallicRoughnessTexture(metallicRoughnessTexture, outMaterial));
 
         outMaterial.MetallicFactor = material.pbr_metallic_roughness.metallic_factor;
         outMaterial.RoughnessFactor = material.pbr_metallic_roughness.roughness_factor;
@@ -420,7 +419,7 @@ public:
         return true;
     }
 
-    static bool LoadIndices(const cgltf_primitive& primitive,
+    static Result2<bool> LoadIndices(const cgltf_primitive& primitive,
         const std::unordered_map<std::string, FileIo::FetchData>& bufferData,
         std::vector<uint32_t>& outIndices)
     {
@@ -440,18 +439,18 @@ public:
                 }
             }
 
-            MLG_CHECK(!outIndices.empty(), return false, "Failed to generate indices for primitive without indices");
+            MLG_CHECK(!outIndices.empty(), "Failed to generate indices for primitive without indices");
 
             return true;
         }
 
         const cgltf_accessor& accessor = *primitive.indices;
-        MLG_CHECK(!accessor.is_sparse, return false, "Sparse indices are not supported");
+        MLG_CHECK(!accessor.is_sparse, "Sparse indices are not supported");
 
         const cgltf_buffer_view& bufferView = *accessor.buffer_view;
         const cgltf_buffer& buffer = *bufferView.buffer;
         auto it = bufferData.find(buffer.uri);
-        MLG_CHECK(it != bufferData.end(), return false, "Buffer {} not found", buffer.uri);
+        MLG_CHECK(it != bufferData.end(), "Buffer {} not found", buffer.uri);
 
         const uint8_t* bufferDataPtr = it->second.data() + bufferView.offset + accessor.offset;
 
@@ -490,7 +489,6 @@ public:
             break;
             default:
                 MLG_CHECK(false,
-                    return false,
                     "Unsupported index component type {}",
                     std::to_underlying(accessor.component_type));
         }
@@ -521,25 +519,23 @@ public:
     };
 
     template<cgltf_attribute_type AttrType>
-    static bool
+    static Result2<bool>
     LoadAttributes(const cgltf_attribute& attribute,
         const std::unordered_map<std::string, FileIo::FetchData>& bufferData,
         std::span<const typename AttributeTraits<AttrType>::type>& outData)
     {
         MLG_CHECK(attribute.data->component_type == AttributeTraits<AttrType>::component_type,
-            return false,
             "Attribute {} has unsupported component type {}",
             attribute.name ? attribute.name : "<unnamed attribute>",
             std::to_underlying(attribute.data->component_type));
 
-        const uint8_t* bufferDataPtr = GetBufferData(attribute, bufferData);
+        auto bufferDataPtr = GetBufferData(attribute, bufferData);
         MLG_CHECK(bufferDataPtr,
-            return false,
             "Failed to get buffer data for attribute {}",
             attribute.name ? attribute.name : "<unnamed attribute>");
 
         const typename AttributeTraits<AttrType>::type* data =
-            reinterpret_cast<const typename AttributeTraits<AttrType>::type*>(bufferDataPtr);
+            reinterpret_cast<const typename AttributeTraits<AttrType>::type*>(*bufferDataPtr);
 
         outData =
             std::span<const typename AttributeTraits<AttrType>::type>(data, attribute.data->count);
@@ -547,29 +543,26 @@ public:
         return true;
     }
 
-    static bool LoadPrimitive(const cgltf_primitive& primitive,
+    static Result2<bool> LoadPrimitive(const cgltf_primitive& primitive,
         const std::unordered_map<std::string, FileIo::FetchData>& bufferData,
         Primitive& outAttributes)
     {
         MLG_CHECK(primitive.type == cgltf_primitive_type_triangles,
-            return false,
             "Only triangle primitives are supported");
 
-        MLG_CHECK(primitive.material, return false, "Primitive does not have a material");
+        MLG_CHECK(primitive.material, "Primitive does not have a material");
 
         MLG_CHECK(primitive.attributes_count > 0,
-            return false,
             "Primitive does not have any attributes");
 
-        MLG_CHECK(primitive.targets_count == 0, return false, "Morph targets are not supported");
+        MLG_CHECK(primitive.targets_count == 0, "Morph targets are not supported");
 
         MLG_CHECK(!primitive.has_draco_mesh_compression,
-            return false,
             "Draco mesh compression is not supported");
 
-        MLG_CHECK(LoadMaterial(*primitive.material, outAttributes.Mtl), return false);
+        MLG_CHECK(LoadMaterial(*primitive.material, outAttributes.Mtl));
 
-        MLG_CHECK(LoadIndices(primitive, bufferData, outAttributes.Indices), return false);
+        MLG_CHECK(LoadIndices(primitive, bufferData, outAttributes.Indices));
 
         const std::span<const cgltf_attribute> attributes(primitive.attributes, primitive.attributes_count);
 
@@ -584,28 +577,24 @@ public:
                 case cgltf_attribute_type_position:
                     MLG_CHECK(LoadAttributes<cgltf_attribute_type_position>(attribute,
                             bufferData,
-                            outAttributes.Positions),
-                        return false);
+                            outAttributes.Positions));
                     break;
 
                 case cgltf_attribute_type_normal:
                     MLG_CHECK(LoadAttributes<cgltf_attribute_type_normal>(attribute,
                             bufferData,
-                            outAttributes.Normals),
-                        return false);
+                            outAttributes.Normals));
                     break;
 
                 case cgltf_attribute_type_texcoord:
                     MLG_CHECK(attribute.index < kMaxTexCoords,
-                        return false,
                         "Texture coordinate index {} exceeds maximum supported {}",
                         attribute.index,
                         kMaxTexCoords);
 
                     MLG_CHECK(LoadAttributes<cgltf_attribute_type_texcoord>(attribute,
                             bufferData,
-                            outAttributes.TexCoords[attribute.index]),
-                        return false);
+                            outAttributes.TexCoords[attribute.index]));
                     break;
 
                 default:
@@ -619,24 +608,23 @@ public:
         return true;
     }
 
-    static bool Load(const char* path)
+    static Result2<bool> Load(const char* path)
     {
         const std::filesystem::path gltfFilePath{path};
         const std::filesystem::path parentPath = gltfFilePath.parent_path();
 
         cgltf_data* data = nullptr;
-        MLG_CHECK(LoadGLTF(gltfFilePath, data), return false);
-
+        MLG_CHECK(LoadGLTF(gltfFilePath, data));
         std::unordered_map<std::string, FileIo::FetchData> bufferData;
 
-        MLG_CHECK(LoadBuffers(data, parentPath, bufferData), return false);
+        MLG_CHECK(LoadBuffers(data, parentPath, bufferData));
 
         std::vector<std::string> textureUris;
         textureUris.reserve(data->textures_count);
         for(cgltf_size texIdx = 0; texIdx < data->textures_count; ++texIdx)
         {
             const cgltf_texture& texture = data->textures[texIdx];
-            MLG_CHECK(LoadTexture(texture, textureUris.emplace_back()), return false);
+            MLG_CHECK(LoadTexture(texture, textureUris.emplace_back()));
         }
 
         std::vector<FileIo::AsyncToken> textureFetchTokens;
@@ -646,7 +634,7 @@ public:
             Log::Debug("Fetching texture: {}", (parentPath / uri).string());
 
             auto result = FileIo::Fetch((parentPath / uri).string());
-            MLG_CHECK(result, return false, result.error().GetMessage().c_str());
+            MLG_CHECK(result, result.error().GetMessage().c_str());
             textureFetchTokens.emplace_back(std::move(*result));
         }
 
@@ -719,7 +707,7 @@ public:
     static inline uint8_t s_ContextBuf[sizeof(Context)]{};
     static inline Context* s_Context{nullptr};
 
-    static wgpu::Instance CreateInstance()
+    static Result2<wgpu::Instance> CreateInstance()
     {
         static const auto kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
         wgpu::InstanceDescriptor instanceDesc //
@@ -729,12 +717,12 @@ public:
             };
         wgpu::Instance instance = wgpu::CreateInstance(&instanceDesc);
 
-        MLG_CHECK(instance, return instance, "Failed to create WGPUInstance");
+        MLG_CHECK(instance, "Failed to create WGPUInstance");
 
         return instance;
     }
 
-    static wgpu::Adapter CreateAdapter(wgpu::Instance instance)
+    static Result2<wgpu::Adapter> CreateAdapter(wgpu::Instance instance)
     {
         static const auto kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
 
@@ -776,20 +764,18 @@ public:
         wgpu::WaitStatus waitStatus = instance.WaitAny(fut, UINT64_MAX);
 
         MLG_CHECK(waitStatus == wgpu::WaitStatus::Success,
-            return nullptr,
             "Failed to create WGPUAdapter - WaitAny failed");
 
         const bool sunpportsIndirectFirstInstance =
             adapter.HasFeature(wgpu::FeatureName::IndirectFirstInstance);
 
         MLG_CHECK(sunpportsIndirectFirstInstance,
-            return nullptr,
             "IndirectFirstInstance feature is not supported");
 
         return adapter;
     }
 
-    static wgpu::Device CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
+    static Result2<wgpu::Device> CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
     {
         // TODO(KB) - handle device lost.
         auto deviceLostCb = [](const wgpu::Device& device [[maybe_unused]],
@@ -855,7 +841,6 @@ public:
         wgpu::WaitStatus waitStatus = instance.WaitAny(fut, UINT64_MAX);
 
         MLG_CHECK(waitStatus == wgpu::WaitStatus::Success,
-            return nullptr,
             "Failed to create WGPUDevice - WaitAny failed");
 
         return device;
@@ -863,7 +848,7 @@ public:
 
     #if defined(__EMSCRIPTEN__)
 
-    static wgpu::Surface
+    static Result2<wgpu::Surface>
     CreateWgpuSurface(wgpu::Instance instance, SDL_Window* window)
     {
         wgpu::EmscriptenSurfaceSourceCanvasHTMLSelector canvas_desc = {};
@@ -873,14 +858,14 @@ public:
         surface_desc.nextInChain = &canvas_desc;
         wgpu::Surface surface = instance.CreateSurface(&surface_desc);
 
-        MLG_CHECK(surface, return nullptr, "Failed to create WGPUSurface from SDL window");
+        MLG_CHECK(surface, "Failed to create WGPUSurface from SDL window");
 
         return surface;
     }
 
     #else
 
-    static wgpu::Surface CreateSurface(wgpu::Instance instance, SDL_Window* window)
+    static Result2<wgpu::Surface> CreateSurface(wgpu::Instance instance, SDL_Window* window)
     {
         SDL_PropertiesID props = SDL_GetWindowProperties(window);
         void* hwnd = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
@@ -897,7 +882,7 @@ public:
 
         wgpu::Surface surface = wgpu::Surface::Acquire(rawSurface);
 
-        MLG_CHECK(surface, return nullptr, "Failed to create WGPUSurface from SDL window");
+        MLG_CHECK(surface, "Failed to create WGPUSurface from SDL window");
 
         return surface;
     }
@@ -944,7 +929,7 @@ public:
         return availableFormats[0];
     }
 
-    static bool ConfigureSurface(wgpu::Adapter adapter,
+    static Result2<bool> ConfigureSurface(wgpu::Adapter adapter,
         wgpu::Device device,
         wgpu::Surface surface,
         const uint32_t width,
@@ -953,19 +938,16 @@ public:
     {
         wgpu::SurfaceCapabilities capabilities;
         MLG_CHECK(surface.GetCapabilities(adapter, &capabilities),
-            return false,
             "surface.GetCapabilities failed");
 
         wgpu::PresentMode presentMode =
             ChoosePresentMode(capabilities.presentModes, capabilities.presentModeCount);
         MLG_CHECK(presentMode != wgpu::PresentMode::Undefined,
-            return false,
             "No supported present mode found");
 
         wgpu::TextureFormat format =
             ChooseBackbufferFormat(capabilities.formats, capabilities.formatCount);
         MLG_CHECK(format != wgpu::TextureFormat::Undefined,
-            return false,
             "No supported backbuffer format found");
 
         wgpu::SurfaceConfiguration config //
@@ -1012,10 +994,10 @@ public:
             };
 
         wgpu::Texture texture = ctx->Device.CreateTexture(&textureDesc);
-        MLG_CHECK(texture, return false, "Failed to create texture");
+        MLG_CHECK(texture, "Failed to create texture");
 
         wgpu::TextureView texView = texture.CreateView();
-        MLG_CHECK(texView, return false, "Failed to create texture view for texture");
+        MLG_CHECK(texView, "Failed to create texture view for texture");
 
 
         outTexture = Texture//
@@ -1030,47 +1012,45 @@ public:
         return true;
     }
 
-    static Context* Startup()
+    static Result2<Context*> Startup()
     {
-        MLG_CHECK(!s_Context, return nullptr, "WGPU already started");
+        MLG_CHECK(!s_Context, "WGPU already started");
 
-        MLG_CHECK(SDL_Init(SDL_INIT_VIDEO), return nullptr, SDL_GetError());
+        MLG_CHECK(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
 
         SDL_Rect displayRect;
         MLG_CHECK(SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &displayRect),
-            return nullptr,
             SDL_GetError());
         const int winW = displayRect.w * 3 / 4; // 0.75
         const int winH = displayRect.h * 3 / 4;//0.75
 
         auto window = SDL_CreateWindow(APP_NAME, winW, winH, SDL_WINDOW_RESIZABLE);
-        MLG_CHECK(window, return nullptr, SDL_GetError());
+        MLG_CHECK(window, SDL_GetError());
 
         auto cleanup = Defer([&](){SDL_DestroyWindow(window);});
 
-        wgpu::Instance instance = CreateInstance();
-        MLG_CHECK(instance, return nullptr);
+        auto instance = CreateInstance();
+        MLG_CHECK(instance);
 
-        wgpu::Adapter adapter = CreateAdapter(instance);
-        MLG_CHECK(adapter, return nullptr);
+        auto adapter = CreateAdapter(*instance);
+        MLG_CHECK(adapter);
 
-        wgpu::Device device = CreateDevice(instance, adapter);
-        MLG_CHECK(device, return nullptr);
+        auto device = CreateDevice(*instance, *adapter);
+        MLG_CHECK(device);
 
-        wgpu::Surface surface = CreateSurface(instance, window);
-        MLG_CHECK(surface, return nullptr);
+        auto surface = CreateSurface(*instance, window);
+        MLG_CHECK(surface);
 
         wgpu::TextureFormat surfaceFormat;
-        MLG_CHECK(ConfigureSurface(adapter, device, surface, winW, winH, surfaceFormat),
-            return nullptr);
+        MLG_CHECK(ConfigureSurface(*adapter, *device, *surface, winW, winH, surfaceFormat));
 
         s_Context = ::new(s_ContextBuf) Context//
         {
             .Window = window,
-            .Instance = instance,
-            .Adapter = adapter,
-            .Device = device,
-            .Surface = surface,
+            .Instance = *instance,
+            .Adapter = *adapter,
+            .Device = *device,
+            .Surface = *surface,
             .SurfaceFormat = surfaceFormat,
         };
 
@@ -1090,16 +1070,17 @@ public:
         SDL_Quit();
 
         ::memset(s_ContextBuf, 0xFE, sizeof(s_ContextBuf));
+        s_Context = nullptr;
     }
 };
 
-bool Startup()
+Result2<Wgpu::Context*> Startup()
 {
     FileIo::Startup();
     return Wgpu::Startup();
 }
 
-bool Shutdown()
+Result2<bool> Shutdown()
 {
     Wgpu::Shutdown();
     FileIo::Shutdown();
@@ -1108,20 +1089,29 @@ bool Shutdown()
 
 }   // namespace mlg
 
-int main(int, char* /*argv[]*/)
+mlg::Result2<bool> MainLoop()
 {
     static constexpr const char* SCENE1_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
     static constexpr const char* SCENE2_PATH = "C:/Users/kbaca/Downloads/HiddenAlley2/ph_hidden_alley.gltf";
 
-    MLG_CHECK(mlg::Startup(), return -1);
+    MLG_CHECK(mlg::Startup());
 
     auto cleanup = mlg::Defer([]{ mlg::Shutdown(); });
 
-    MLG_CHECK(mlg::Gltf::Load(SCENE2_PATH), return -1);
+    MLG_CHECK(mlg::Gltf::Load(SCENE2_PATH));
 
     cleanup.Cancel();
 
     mlg::Shutdown();
 
+    return true;
+}
+
+int main(int, char* /*argv[]*/)
+{
+    if(!MainLoop())
+    {
+        return -1;
+    }
     return 0;
 }
