@@ -1019,15 +1019,27 @@ public:
         ::memset(s_ContextBuf, 0xFE, sizeof(s_ContextBuf));
     }
 };
+
+bool Startup()
+{
+    FileIo::Startup();
+    return mlg::Wgpu::Startup();
+}
+
+bool Shutdown()
+{
+    mlg::Wgpu::Shutdown();
+    FileIo::Shutdown();
+    return true;
+}
+
 }   // namespace mlg
 
 int main(int, char* /*argv[]*/)
 {
-    FileIo::Startup();
+    MLG_CHECK(mlg::Startup(), return -1);
 
-    MLG_CHECK(mlg::Wgpu::Startup(), return -1);
-
-    auto cleanup = mlg::Defer([]{ mlg::Wgpu::Shutdown(); FileIo::Shutdown(); });
+    auto cleanup = mlg::Defer([]{ mlg::Shutdown(); });
 
     [[maybe_unused]] constexpr const char* path1 = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
     [[maybe_unused]] constexpr const char* path2 = "C:/Users/kbaca/Downloads/HiddenAlley2/ph_hidden_alley.gltf";
@@ -1101,9 +1113,7 @@ int main(int, char* /*argv[]*/)
 
     cleanup.Cancel();
 
-    mlg::Wgpu::Shutdown();
-
-    FileIo::Shutdown();
+    mlg::Shutdown();
 
     return 0;
 }
