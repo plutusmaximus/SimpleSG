@@ -44,22 +44,28 @@ using Result2 = std::optional<T>;
 
 struct Position
 {
-    float x, y, z;
+    float X, Y, Z;
 };
 
 struct Normal
 {
-    float x, y, z;
+    float X, Y, Z;
 };
 
 struct TexCoord
 {
-    float u, v;
+    float U, V;
 };
 
 struct Color
 {
-    float r, g, b, a;
+    float R, G, B, A;
+};
+
+struct ByteRange
+{
+    size_t Offset;
+    size_t Length;
 };
 
 template<typename F>
@@ -101,7 +107,7 @@ public:
         {
             if(count > 0)
             {
-                s_LogPrefix += ": ";
+                s_LogPrefix += " : ";
             }
             s_LogPrefix += prefix;
             ++count;
@@ -186,36 +192,7 @@ struct LogScope
             mlg::Log::Error(__VA_ARGS__); \
             return {}; \
         } \
-    } while (0)
-
-// A range of FileIo::AsyncToken objects.
-template <class R>
-concept AsyncTokenRange =
-    std::ranges::input_range<R> && // “works with range-for” (at least input iteration)
-    std::same_as<
-        std::remove_cvref_t<std::ranges::range_reference_t<R>>,
-        FileIo::AsyncToken
-    >;
-
-// Wait for all async tokens in the range to complete.
-template <AsyncTokenRange R>
-static void WaitForPendingLoads(const R& asyncTokens)
-{
-    bool pending = true;
-    while(pending)
-    {
-        pending = false;
-        for (const auto& token : asyncTokens)
-        {
-            if (FileIo::IsPending(token))
-            {
-                pending = true;
-                break;
-            }
-        }
-        std::this_thread::yield();
-    }
-}
+    } while (0);
 
 class Gltf final
 {
@@ -234,13 +211,78 @@ public:
 
     struct Primitive
     {
-        std::vector<uint32_t> Indices;
-        std::span<const Position> Positions;
-        std::span<const Normal> Normals;
-        std::span<const TexCoord> TexCoords[kMaxTexCoords];
-
+        ByteRange IndexRange;
+        ByteRange PositionRange;
+        ByteRange NormalRange;
+        ByteRange TexCoordRange[kMaxTexCoords];
         Material Mtl;
     };
+
+    explicit Gltf(const std::filesystem::path& gltfFilePath)
+        : GltfFilePath(gltfFilePath)
+    {
+    }
+
+    bool IsPending() const { return CurState != Success && CurState != Fail; }
+
+    bool Succeeded() const { return CurState == Success; }
+
+    void Update()
+    {
+        switch(CurState)
+        {
+            case Begin:
+                FetchToken = FileIo::Fetch(GltfFilePath.string());
+                if(!FetchToken)
+                {
+                    CurState = Fail;
+                }
+                else
+                {
+                    CurState = LoadingGltfFile;
+                }
+                break;
+            case LoadingGltfFile:
+                if(!FileIo::IsPending(*FetchToken))
+                {
+                    auto resultData = FileIo::GetResult(*FetchToken);
+                    if(!resultData)
+                    {
+                        CurState = Fail;
+                    }
+                    else
+                    {
+                        cgltf_options options{};
+                        cgltf_data* data = NULL;
+                        cgltf_result parseResult =
+                            cgltf_parse(&options, resultData->data(), resultData->size(), &data);
+                        if(parseResult != cgltf_result_success)
+                        {
+                            CurState = Fail;
+                        }
+                        else
+                        {
+                            auto result = LoadScenes(data);
+                            if(!result)
+                            {
+                                CurState = Fail;
+                            }
+                            else
+                            {
+                                CurState = Success;
+                            }
+                        }
+                    }
+                }
+                break;
+            case Success:
+                break;
+            case Fail:
+                break;
+        }
+    }
+
+private:
 
     static inline const char*
     cgltf_result_to_string(cgltf_result r)
@@ -277,82 +319,38 @@ public:
         }
     }
 
-    static Result2<bool> LoadGLTF(const std::filesystem::path& gltfFilePath, cgltf_data*& outData)
+    Result2<ByteRange>
+    GetAccessorRange(const cgltf_accessor& accessor)
     {
-        auto fetchResult = FileIo::Fetch(gltfFilePath.string());
-        MLG_CHECK(fetchResult,
-            "Failed to fetch glTF file {}: {}",
-            gltfFilePath.string(),
-            fetchResult.error());
-        auto fetchToken = *fetchResult;
+        MLG_CHECK(!accessor.is_sparse,
+            "{} is sparse - unsupported",
+            accessor.name ? accessor.name : "<unnamed accessor>");
 
-        WaitForPendingLoads(std::views::single(fetchToken));
+        const cgltf_buffer_view& bufferView = *accessor.buffer_view;
 
-        auto resultData = FileIo::GetResult(fetchToken);
-        MLG_CHECK(resultData,
-            "Failed to get glTF file {}: {}",
-            gltfFilePath.string(),
-            resultData.error());
-
-        cgltf_options options{};
-        cgltf_data* data = NULL;
-        cgltf_result parseResult = cgltf_parse(&options, resultData->data(), resultData->size(), &data);
-        MLG_CHECK(parseResult == cgltf_result_success,
-            "Failed to parse glTF file: {}",
-            cgltf_result_to_string(parseResult));
-
-        outData = data;
-        return true;
+        return ByteRange //
+            {
+                bufferView.offset + accessor.offset,
+                accessor.count * cgltf_num_components(accessor.type) *
+                    cgltf_component_size(accessor.component_type),
+            };
     }
 
-    static Result2<bool> LoadBuffers(const cgltf_data *data, const std::filesystem::path &parentPath, std::unordered_map<std::string, FileIo::FetchData> &bufferData)
-    {
-        bufferData.clear();
-        bufferData.reserve(data->buffers_count);
-
-        std::unordered_map<std::string, FileIo::AsyncToken> asyncTokens;
-        asyncTokens.reserve(data->buffers_count);
-
-        for (cgltf_size i = 0; i < data->buffers_count; ++i)
-        {
-            cgltf_buffer* buffer = &data->buffers[i];
-            auto result = FileIo::Fetch((parentPath / buffer->uri).string());
-
-            MLG_CHECK(result, "Failed to fetch buffer {}: {}", buffer->uri, result.error());
-
-            asyncTokens.emplace(buffer->uri, *result);
-        }
-
-        auto tokensView = std::views::values(asyncTokens);
-        WaitForPendingLoads(tokensView);
-
-        for (const auto& [uri, token] : asyncTokens)
-        {
-            auto result = FileIo::GetResult(token);
-            MLG_CHECK(result, "Failed to get buffer {}: {}", uri, result.error());
-            bufferData.emplace(uri, std::move(*result));
-        }
-        return true;
-    }
-
-    static Result2<const uint8_t*>
-    GetBufferData(const cgltf_attribute& attribute,
+    Result2<const uint8_t*>
+    GetBufferData(const cgltf_accessor& accessor,
         const std::unordered_map<std::string, FileIo::FetchData>& bufferData)
     {
-        const cgltf_accessor& accessor = *attribute.data;
-        MLG_CHECK(!accessor.is_sparse, "{}:{}:{} is sparse, which is not supported yet",
-                            attribute.name ? attribute.name : "<unnamed attribute>",
-                            accessor.name ? accessor.name : "<unnamed accessor>",
-                            attribute.data->buffer_view->buffer->uri);
+        auto range = GetAccessorRange(accessor);
+        MLG_CHECK(range);
 
         const cgltf_buffer_view& bufferView = *accessor.buffer_view;
         const cgltf_buffer& buffer = *bufferView.buffer;
         auto it = bufferData.find(buffer.uri);
         MLG_CHECK(it != bufferData.end(), "Buffer {} not found", buffer.uri);
-        return it->second.data() + bufferView.offset + accessor.offset;
+        return it->second.data() + range->Offset;
     }
 
-    static Result2<bool> LoadTexture(const cgltf_texture& texture, std::string& uri)
+    Result2<bool> LoadTexture(const cgltf_texture& texture, std::string& uri)
     {
         uri.clear();
 
@@ -365,7 +363,7 @@ public:
         return true;
     }
 
-    static Result2<bool> LoadBaseTexture(const cgltf_texture_view& textureView, Material& outMaterial)
+    Result2<bool> LoadBaseTexture(const cgltf_texture_view& textureView, Material& outMaterial)
     {
         if(!textureView.texture)
         {
@@ -377,7 +375,7 @@ public:
         return true;
     }
 
-    static Result2<bool> LoadMetallicRoughnessTexture(const cgltf_texture_view& textureView, Material& outMaterial)
+    Result2<bool> LoadMetallicRoughnessTexture(const cgltf_texture_view& textureView, Material& outMaterial)
     {
         if(!textureView.texture)
         {
@@ -388,10 +386,11 @@ public:
         return true;
     }
 
-    static Result2<bool> LoadMaterial(const cgltf_material& material, Material& outMaterial)
+    Result2<Material> LoadMaterial(const cgltf_material& material)
     {
         LogScope attributeScope("mtrl {}", material.name ? material.name : "<unnamed material>");
 
+        Material outMaterial;
         outMaterial.Name = material.name ? material.name : "<unnamed material>";
         outMaterial.DoubleSided = material.double_sided;
 
@@ -411,89 +410,12 @@ public:
 
         const cgltf_float (&baseColorFactor)[4] = material.pbr_metallic_roughness.base_color_factor;
 
-        outMaterial.BaseColor.r = baseColorFactor[0];
-        outMaterial.BaseColor.g = baseColorFactor[1];
-        outMaterial.BaseColor.b = baseColorFactor[2];
-        outMaterial.BaseColor.a = baseColorFactor[3];
+        outMaterial.BaseColor.R = baseColorFactor[0];
+        outMaterial.BaseColor.G = baseColorFactor[1];
+        outMaterial.BaseColor.B = baseColorFactor[2];
+        outMaterial.BaseColor.A = baseColorFactor[3];
 
-        return true;
-    }
-
-    static Result2<bool> LoadIndices(const cgltf_primitive& primitive,
-        const std::unordered_map<std::string, FileIo::FetchData>& bufferData,
-        std::vector<uint32_t>& outIndices)
-    {
-        outIndices.clear();
-
-        if(!primitive.indices)
-        {
-            for(cgltf_size i = 0; i < primitive.attributes_count; ++i)
-            {
-                const cgltf_attribute& attribute = primitive.attributes[i];
-                if(attribute.type == cgltf_attribute_type_position)
-                {
-                    for(cgltf_size j = 0; j < attribute.data->count; ++j)
-                    {
-                        outIndices.push_back(static_cast<uint32_t>(j));
-                    }
-                }
-            }
-
-            MLG_CHECK(!outIndices.empty(), "Failed to generate indices for primitive without indices");
-
-            return true;
-        }
-
-        const cgltf_accessor& accessor = *primitive.indices;
-        MLG_CHECK(!accessor.is_sparse, "Sparse indices are not supported");
-
-        const cgltf_buffer_view& bufferView = *accessor.buffer_view;
-        const cgltf_buffer& buffer = *bufferView.buffer;
-        auto it = bufferData.find(buffer.uri);
-        MLG_CHECK(it != bufferData.end(), "Buffer {} not found", buffer.uri);
-
-        const uint8_t* bufferDataPtr = it->second.data() + bufferView.offset + accessor.offset;
-
-        outIndices.reserve(accessor.count);
-
-        switch(accessor.component_type)
-        {
-            case cgltf_component_type_r_8:
-            case cgltf_component_type_r_8u:
-            {
-                const uint8_t* data = reinterpret_cast<const uint8_t*>(bufferDataPtr);
-                for(cgltf_size i = 0; i < accessor.count; ++i)
-                {
-                    outIndices.push_back(static_cast<uint32_t>(data[i]));
-                }
-            }
-            break;
-            case cgltf_component_type_r_16:
-            case cgltf_component_type_r_16u:
-            {
-                const uint16_t* data = reinterpret_cast<const uint16_t*>(bufferDataPtr);
-                for(cgltf_size i = 0; i < accessor.count; ++i)
-                {
-                    outIndices.push_back(static_cast<uint32_t>(data[i]));
-                }
-            }
-            break;
-            case cgltf_component_type_r_32u:
-            {
-                const uint32_t* data = reinterpret_cast<const uint32_t*>(bufferDataPtr);
-                for(cgltf_size i = 0; i < accessor.count; ++i)
-                {
-                    outIndices.push_back(static_cast<uint32_t>(data[i]));
-                }
-            }
-            break;
-            default:
-                MLG_CHECK(false,
-                    "Unsupported index component type {}",
-                    std::to_underlying(accessor.component_type));
-        }
-
-        return true;
+        return outMaterial;
     }
 
     template<cgltf_attribute_type AttrType>
@@ -518,34 +440,7 @@ public:
         static constexpr cgltf_component_type component_type = cgltf_component_type_r_32f;
     };
 
-    template<cgltf_attribute_type AttrType>
-    static Result2<bool>
-    LoadAttributes(const cgltf_attribute& attribute,
-        const std::unordered_map<std::string, FileIo::FetchData>& bufferData,
-        std::span<const typename AttributeTraits<AttrType>::type>& outData)
-    {
-        MLG_CHECK(attribute.data->component_type == AttributeTraits<AttrType>::component_type,
-            "Attribute {} has unsupported component type {}",
-            attribute.name ? attribute.name : "<unnamed attribute>",
-            std::to_underlying(attribute.data->component_type));
-
-        auto bufferDataPtr = GetBufferData(attribute, bufferData);
-        MLG_CHECK(bufferDataPtr,
-            "Failed to get buffer data for attribute {}",
-            attribute.name ? attribute.name : "<unnamed attribute>");
-
-        const typename AttributeTraits<AttrType>::type* data =
-            reinterpret_cast<const typename AttributeTraits<AttrType>::type*>(*bufferDataPtr);
-
-        outData =
-            std::span<const typename AttributeTraits<AttrType>::type>(data, attribute.data->count);
-
-        return true;
-    }
-
-    static Result2<bool> LoadPrimitive(const cgltf_primitive& primitive,
-        const std::unordered_map<std::string, FileIo::FetchData>& bufferData,
-        Primitive& outAttributes)
+    Result2<Primitive> LoadPrimitive(const cgltf_primitive& primitive)
     {
         MLG_CHECK(primitive.type == cgltf_primitive_type_triangles,
             "Only triangle primitives are supported");
@@ -560,30 +455,36 @@ public:
         MLG_CHECK(!primitive.has_draco_mesh_compression,
             "Draco mesh compression is not supported");
 
-        MLG_CHECK(LoadMaterial(*primitive.material, outAttributes.Mtl));
+        MLG_CHECK(primitive.indices, "Primitive does not have indices");
 
-        MLG_CHECK(LoadIndices(primitive, bufferData, outAttributes.Indices));
+        Primitive outPrim;
+
+        auto material = LoadMaterial(*primitive.material);
+        MLG_CHECK(material);
+        outPrim.Mtl = std::move(*material);
+
+        auto indexRange = GetAccessorRange(*primitive.indices);
+        MLG_CHECK(indexRange);
+
+        outPrim.IndexRange = *indexRange;
 
         const std::span<const cgltf_attribute> attributes(primitive.attributes, primitive.attributes_count);
 
-        for(cgltf_size attributeIdx = 0; attributeIdx < attributes.size(); ++attributeIdx)
+        for(const auto& attribute : attributes)
         {
-            LogScope attributeScope("attr {}", attributeIdx);
+            LogScope attributeScope("attr {}", attribute.name ? attribute.name : "<unnamed attribute>");
 
-            const cgltf_attribute& attribute = attributes[attributeIdx];
+            auto range = GetAccessorRange(*attribute.data);
+            MLG_CHECK(range);
 
             switch(attribute.type)
             {
                 case cgltf_attribute_type_position:
-                    MLG_CHECK(LoadAttributes<cgltf_attribute_type_position>(attribute,
-                            bufferData,
-                            outAttributes.Positions));
+                    outPrim.PositionRange = *range;
                     break;
 
                 case cgltf_attribute_type_normal:
-                    MLG_CHECK(LoadAttributes<cgltf_attribute_type_normal>(attribute,
-                            bufferData,
-                            outAttributes.Normals));
+                    outPrim.NormalRange = *range;
                     break;
 
                 case cgltf_attribute_type_texcoord:
@@ -592,9 +493,7 @@ public:
                         attribute.index,
                         kMaxTexCoords);
 
-                    MLG_CHECK(LoadAttributes<cgltf_attribute_type_texcoord>(attribute,
-                            bufferData,
-                            outAttributes.TexCoords[attribute.index]));
+                    outPrim.TexCoordRange[attribute.index] = *range;
                     break;
 
                 default:
@@ -605,79 +504,75 @@ public:
             }
         }
 
-        return true;
+        return outPrim;
     }
 
-    static Result2<bool> Load(const char* path)
+    Result2<bool> LoadScenes(const cgltf_data* gltf)
     {
-        const std::filesystem::path gltfFilePath{path};
-        const std::filesystem::path parentPath = gltfFilePath.parent_path();
+        std::span<const cgltf_scene> scenes(gltf->scenes, gltf->scenes_count);
 
-        cgltf_data* data = nullptr;
-        MLG_CHECK(LoadGLTF(gltfFilePath, data));
-        std::unordered_map<std::string, FileIo::FetchData> bufferData;
-
-        MLG_CHECK(LoadBuffers(data, parentPath, bufferData));
-
-        std::vector<std::string> textureUris;
-        textureUris.reserve(data->textures_count);
-        for(cgltf_size texIdx = 0; texIdx < data->textures_count; ++texIdx)
+        for(const auto& scene : scenes)
         {
-            const cgltf_texture& texture = data->textures[texIdx];
-            MLG_CHECK(LoadTexture(texture, textureUris.emplace_back()));
-        }
+            LogScope sceneScope("scene {}", scene.name ? scene.name : "<unnamed scene>");
 
-        std::vector<FileIo::AsyncToken> textureFetchTokens;
-        textureFetchTokens.reserve(textureUris.size());
-        for(const auto& uri : textureUris)
-        {
-            Log::Debug("Fetching texture: {}", (parentPath / uri).string());
+            std::span<cgltf_node*> nodes(scene.nodes, scene.nodes_count);
 
-            auto result = FileIo::Fetch((parentPath / uri).string());
-            MLG_CHECK(result, result.error().GetMessage().c_str());
-            textureFetchTokens.emplace_back(std::move(*result));
-        }
-
-        WaitForPendingLoads(textureFetchTokens);
-
-        std::vector<Material> materials;
-        materials.reserve(data->materials_count);
-        for(cgltf_size mtlIdx = 0; mtlIdx < data->materials_count; ++mtlIdx)
-        {
-            const cgltf_material& material = data->materials[mtlIdx];
-            LoadMaterial(material, materials.emplace_back());
+            for(const auto& node : nodes)
+            {
+                LogScope nodeScope("node {}", node->name ? node->name : "<unnamed node>");
+            }
         }
 
         size_t primitiveCount = 0;
-        for(cgltf_size meshIdx = 0; meshIdx < data->meshes_count; ++meshIdx)
+        for(cgltf_size meshIdx = 0; meshIdx < gltf->meshes_count; ++meshIdx)
         {
-            primitiveCount += data->meshes[meshIdx].primitives_count;
+            primitiveCount += gltf->meshes[meshIdx].primitives_count;
         }
 
         std::vector<Primitive> primitives;
         primitives.reserve(primitiveCount);
 
-        for(cgltf_size meshIdx = 0; meshIdx < data->meshes_count; ++meshIdx)
+        for(cgltf_size meshIdx = 0; meshIdx < gltf->meshes_count; ++meshIdx)
         {
-            const cgltf_mesh& mesh = data->meshes[meshIdx];
+            const cgltf_mesh& mesh = gltf->meshes[meshIdx];
 
             const std::string meshName = mesh.name ? mesh.name : "<unnamed mesh>";
             LogScope meshScope("mesh {}/{}", meshName, meshIdx);
 
             for(cgltf_size primitiveIdx = 0; primitiveIdx < mesh.primitives_count; ++primitiveIdx)
             {
-                Log::Debug("Loading primitive : {}", primitiveIdx);
-
                 LogScope primitiveScope("prim {}", primitiveIdx);
+
+                Log::Debug("Loading primitive");
 
                 const cgltf_primitive& primitive = mesh.primitives[primitiveIdx];
 
-                LoadPrimitive(primitive, bufferData, primitives.emplace_back());
+                auto prim = LoadPrimitive(primitive);
+                if(!prim)
+                {
+                    Log::Error("Failed to load primitive");
+                    continue;
+                }
+                primitives.emplace_back(std::move(*prim));
             }
         }
 
         return true;
     }
+
+    const std::filesystem::path GltfFilePath;
+
+    enum State
+    {
+        Begin,
+        LoadingGltfFile,
+        Success,
+        Fail
+    };
+
+    State CurState{Begin};
+
+    Result<FileIo::AsyncToken> FetchToken;
 };
 
 class Wgpu final
@@ -1098,7 +993,13 @@ mlg::Result2<bool> MainLoop()
 
     auto cleanup = mlg::Defer([]{ mlg::Shutdown(); });
 
-    MLG_CHECK(mlg::Gltf::Load(SCENE2_PATH));
+    mlg::Gltf gltf{SCENE2_PATH};
+    while(gltf.IsPending())
+    {
+        gltf.Update();
+    }
+
+    MLG_CHECK(gltf.Succeeded());
 
     cleanup.Cancel();
 
