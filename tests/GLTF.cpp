@@ -37,7 +37,7 @@ static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8
 static constexpr wgpu::TextureFormat kColorTargetFormat = wgpu::TextureFormat::RGBA8Unorm;
 static constexpr wgpu::TextureFormat kDepthTargetFormat = wgpu::TextureFormat::Depth24Plus;
 
-namespace
+namespace mlg
 {
 struct Position
 {
@@ -103,125 +103,105 @@ private:
     bool m_Cancelled{ false };
 };
 
-struct Texture
+class Log final
 {
-    wgpu::Texture Handle;
-    wgpu::TextureView View;
-    wgpu::TextureFormat Format;
-    unsigned Width{ 0 };
-    unsigned Height{ 0 };
-    unsigned RowStride{ 0 };
-};
+    static inline std::vector<std::string> s_LogPrefixStack;
+    static inline std::string s_LogPrefix;
 
-struct WgpuContext
-{
-    SDL_Window* Window{ nullptr };
-    wgpu::Instance Instance;
-    wgpu::Adapter Adapter;
-    wgpu::Device Device;
-    wgpu::Surface Surface;
-    wgpu::TextureFormat SurfaceFormat;
-};
-} // namespace
-
-static std::vector<std::string> s_LogPrefixStack;
-static std::string s_LogPrefix;
-
-static void MakeLogPrefix()
-{
-    s_LogPrefix = "[";
-
-    int count = 0;
-
-    for(const auto& prefix : s_LogPrefixStack)
+public:
+    static void MakePrefix()
     {
-        if(count > 0)
+        s_LogPrefix = "[";
+
+        int count = 0;
+
+        for(const auto& prefix : s_LogPrefixStack)
         {
-            s_LogPrefix += ": ";
+            if(count > 0)
+            {
+                s_LogPrefix += ": ";
+            }
+            s_LogPrefix += prefix;
+            ++count;
         }
-        s_LogPrefix += prefix;
-        ++count;
+
+        s_LogPrefix += "] ";
     }
 
-    s_LogPrefix += "] ";
-}
-
-template<typename... Args>
-static void PushLogPrefix(std::format_string<Args...> fmt, Args&&... args)
-{
-    s_LogPrefixStack.push_back(std::format(fmt, std::forward<Args>(args)...));
-    MakeLogPrefix();
-}
-
-static void PopLogPrefix()
-{
-    if(!s_LogPrefixStack.empty())
+    template<typename... Args>
+    static void PushPrefix(std::format_string<Args...> fmt, Args&&... args)
     {
-        s_LogPrefixStack.pop_back();
-        MakeLogPrefix();
+        s_LogPrefixStack.push_back(std::format(fmt, std::forward<Args>(args)...));
+        MakePrefix();
     }
-}
 
-namespace
-{
+    static void PopPrefix()
+    {
+        if(!s_LogPrefixStack.empty())
+        {
+            s_LogPrefixStack.pop_back();
+            MakePrefix();
+        }
+    }
+
+    template<typename... Args>
+    static inline void LogTo(std::ostream& stream, const std::string& prefix, std::format_string<Args...> fmt, Args&&... args)
+    {
+        stream << prefix << std::format(fmt, std::forward<Args>(args)...) << std::endl;
+    }
+
+    static inline void LogTo(std::ostream& stream, const std::string& prefix, std::string_view msg)
+    {
+        stream << prefix << msg << std::endl;
+    }
+
+    static inline void LogTo() {}
+
+    template<typename... Args>
+    static inline void Error(std::format_string<Args...> fmt, Args&&... args)
+    {
+        LogTo(std::cerr, "[ERR] " + s_LogPrefix, fmt, std::forward<Args>(args)...);
+    }
+
+    static inline void Error(std::string_view msg)
+    {
+        LogTo(std::cerr, "[ERR] " + s_LogPrefix, msg);
+    }
+
+    static inline void Error() {}
+
+    template<typename... Args>
+    static inline void Debug(std::format_string<Args...> fmt, Args&&... args)
+    {
+        LogTo(std::cout, "[DBG] " + s_LogPrefix, fmt, std::forward<Args>(args)...);
+    }
+
+    static inline void Debug(std::string_view msg)
+    {
+        LogTo(std::cout, "[DBG] " + s_LogPrefix, msg);
+    }
+
+    static inline void Debug() {}
+};
+
 struct LogScope
 {
     template<typename... Args>
     LogScope(std::format_string<Args...> fmt, Args&&... args)
     {
-        PushLogPrefix(fmt, std::forward<Args>(args)...);
+        Log::PushPrefix(fmt, std::forward<Args>(args)...);
     }
 
     ~LogScope()
     {
-        PopLogPrefix();
+        Log::PopPrefix();
     }
 };
-}
-
-template<typename... Args>
-static inline void MLG_LOG(const std::string& prefix, std::format_string<Args...> fmt, Args&&... args)
-{
-    std::cerr << prefix << std::format(fmt, std::forward<Args>(args)...) << std::endl;
-}
-
-static inline void MLG_LOG(const std::string& prefix, std::string_view msg)
-{
-    std::cerr << prefix << msg << std::endl;
-}
-
-static inline void MLG_LOG() {}
-
-template<typename... Args>
-static inline void LOG_ERROR(std::format_string<Args...> fmt, Args&&... args)
-{
-    MLG_LOG("[ERR] " + s_LogPrefix, fmt, std::forward<Args>(args)...);
-}
-
-static inline void LOG_ERROR(std::string_view msg)
-{
-    MLG_LOG("[ERR] " + s_LogPrefix, msg);
-}
-
-static inline void LOG_ERROR() {}
-
-template<typename... Args>
-static inline void LOG_DEBUG(std::format_string<Args...> fmt, Args&&... args)
-{
-    MLG_LOG("[DBG] " + s_LogPrefix, fmt, std::forward<Args>(args)...);
-}
-
-static inline void LOG_DEBUG(std::string_view msg)
-{
-    MLG_LOG("[DBG] " + s_LogPrefix, msg);
-}
-
-static inline void LOG_DEBUG() {}
 
 #define MLG_CHECK(expr, stmt, ...) \
     do { \
         if (!(expr)) { \
-            LOG_ERROR(__VA_ARGS__); \
+            mlg::Log::Error(__VA_ARGS__); \
             stmt; \
         } \
     } while (0)
@@ -628,7 +608,7 @@ public:
                     break;
 
                 default:
-                    LOG_ERROR("Unsupported attribute type \"{}\"/{}",
+                    Log::Error("Unsupported attribute type \"{}\"/{}",
                         cgltf_attribute_type_to_string(attribute.type),
                         std::to_underlying(attribute.type));
                     break;
@@ -642,6 +622,30 @@ public:
 class Wgpu final
 {
 public:
+
+    struct Texture
+    {
+        wgpu::Texture Handle;
+        wgpu::TextureView View;
+        wgpu::TextureFormat Format;
+        unsigned Width{ 0 };
+        unsigned Height{ 0 };
+        unsigned RowStride{ 0 };
+    };
+
+    struct Context
+    {
+        SDL_Window* Window{ nullptr };
+        wgpu::Instance Instance;
+        wgpu::Adapter Adapter;
+        wgpu::Device Device;
+        wgpu::Surface Surface;
+        wgpu::TextureFormat SurfaceFormat;
+    };
+
+    static inline uint8_t s_ContextBuf[sizeof(Context)]{};
+    static inline Context* s_Context{nullptr};
+
     static wgpu::Instance CreateInstance()
     {
         static const auto kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
@@ -669,7 +673,7 @@ public:
         {
             if(status != wgpu::RequestAdapterStatus::Success)
             {
-                LOG_ERROR("RequestAdapter failed: {}", std::string(message.data, message.length));
+                Log::Error("RequestAdapter failed: {}", std::string(message.data, message.length));
             }
             else
             {
@@ -719,7 +723,7 @@ public:
                                 wgpu::DeviceLostReason reason,
                                 wgpu::StringView message)
         {
-            LOG_ERROR("Device lost (reason:{}): {}",
+            Log::Error("Device lost (reason:{}): {}",
                 static_cast<int>(reason),
                 std::string(message.data, message.length));
 
@@ -735,7 +739,7 @@ public:
                                     wgpu::ErrorType errorType,
                                     wgpu::StringView message)
         {
-            LOG_ERROR("Uncaptured error (type:{}): {}",
+            Log::Error("Uncaptured error (type:{}): {}",
                 static_cast<int>(errorType),
                 std::string(message.data, message.length));
         };
@@ -764,7 +768,7 @@ public:
         {
             if(status != wgpu::RequestDeviceStatus::Success)
             {
-                LOG_ERROR("RequestDevice failed: {}", std::string(message.data, message.length));
+                Log::Error("RequestDevice failed: {}", std::string(message.data, message.length));
             }
             else
             {
@@ -909,7 +913,7 @@ public:
         return true;
     }
 
-    static bool CreateTexture(WgpuContext* ctx,
+    static bool CreateTexture(Context* ctx,
         const unsigned width,
         const unsigned height,
         const std::string& name,
@@ -953,12 +957,9 @@ public:
         return true;
     }
 
-    static inline uint8_t s_WgpuContextBuf[sizeof(WgpuContext)]{};
-    static inline WgpuContext* s_WgpuContext{nullptr};
-
-    static WgpuContext* Startup()
+    static Context* Startup()
     {
-        MLG_CHECK(!s_WgpuContext, return nullptr, "WGPU already started");
+        MLG_CHECK(!s_Context, return nullptr, "WGPU already started");
 
         MLG_CHECK(SDL_Init(SDL_INIT_VIDEO), return nullptr, SDL_GetError());
 
@@ -990,7 +991,7 @@ public:
         MLG_CHECK(ConfigureSurface(adapter, device, surface, winW, winH, surfaceFormat),
             return nullptr);
 
-        s_WgpuContext = ::new(s_WgpuContextBuf) WgpuContext//
+        s_Context = ::new(s_ContextBuf) Context//
         {
             .Window = window,
             .Instance = instance,
@@ -1002,30 +1003,31 @@ public:
 
         cleanup.Cancel();
 
-        return s_WgpuContext;
+        return s_Context;
     }
 
     static void Shutdown()
     {
-        if(!s_WgpuContext)
+        if(!s_Context)
         {
             return;
         }
 
-        SDL_DestroyWindow(s_WgpuContext->Window);
+        SDL_DestroyWindow(s_Context->Window);
         SDL_Quit();
 
-        ::memset(s_WgpuContextBuf, 0xFE, sizeof(s_WgpuContextBuf));
+        ::memset(s_ContextBuf, 0xFE, sizeof(s_ContextBuf));
     }
 };
+}   // namespace mlg
 
 int main(int, char* /*argv[]*/)
 {
     FileIo::Startup();
 
-    MLG_CHECK(Wgpu::Startup(), return -1);
+    MLG_CHECK(mlg::Wgpu::Startup(), return -1);
 
-    auto cleanup = Defer([]{ Wgpu::Shutdown(); FileIo::Shutdown(); });
+    auto cleanup = mlg::Defer([]{ mlg::Wgpu::Shutdown(); FileIo::Shutdown(); });
 
     [[maybe_unused]] constexpr const char* path1 = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
     [[maybe_unused]] constexpr const char* path2 = "C:/Users/kbaca/Downloads/HiddenAlley2/ph_hidden_alley.gltf";
@@ -1034,39 +1036,39 @@ int main(int, char* /*argv[]*/)
     const std::filesystem::path parentPath = gltfFilePath.parent_path();
 
     cgltf_data* data = nullptr;
-    MLG_CHECK(Gltf::LoadGLTF(gltfFilePath, data), return -1);
+    MLG_CHECK(mlg::Gltf::LoadGLTF(gltfFilePath, data), return -1);
 
     std::unordered_map<std::string, FileIo::FetchData> bufferData;
 
-    MLG_CHECK(Gltf::LoadBuffers(data, parentPath, bufferData), return -1);
+    MLG_CHECK(mlg::Gltf::LoadBuffers(data, parentPath, bufferData), return -1);
 
     std::vector<std::string> textureUris;
     textureUris.reserve(data->textures_count);
     for(cgltf_size texIdx = 0; texIdx < data->textures_count; ++texIdx)
     {
         const cgltf_texture& texture = data->textures[texIdx];
-        MLG_CHECK(Gltf::LoadTexture(texture, textureUris.emplace_back()), return -1);
+        MLG_CHECK(mlg::Gltf::LoadTexture(texture, textureUris.emplace_back()), return -1);
     }
 
     std::vector<FileIo::AsyncToken> textureFetchTokens;
     textureFetchTokens.reserve(textureUris.size());
     for(const auto& uri : textureUris)
     {
-        LOG_DEBUG("Fetching texture: {}", (parentPath / uri).string());
+        mlg::Log::Debug("Fetching texture: {}", (parentPath / uri).string());
 
         auto result = FileIo::Fetch((parentPath / uri).string());
         MLG_CHECK(result, return -1, result.error().GetMessage().c_str());
         textureFetchTokens.emplace_back(std::move(*result));
     }
 
-    WaitForPendingLoads(textureFetchTokens);
+    mlg::WaitForPendingLoads(textureFetchTokens);
 
-    std::vector<Material> materials;
+    std::vector<mlg::Material> materials;
     materials.reserve(data->materials_count);
     for(cgltf_size mtlIdx = 0; mtlIdx < data->materials_count; ++mtlIdx)
     {
         const cgltf_material& material = data->materials[mtlIdx];
-        Gltf::LoadMaterial(material, materials.emplace_back());
+        mlg::Gltf::LoadMaterial(material, materials.emplace_back());
     }
 
     size_t primitiveCount = 0;
@@ -1075,7 +1077,7 @@ int main(int, char* /*argv[]*/)
         primitiveCount += data->meshes[meshIdx].primitives_count;
     }
 
-    std::vector<Primitive> primitives;
+    std::vector<mlg::Primitive> primitives;
     primitives.reserve(primitiveCount);
 
     for(cgltf_size meshIdx = 0; meshIdx < data->meshes_count; ++meshIdx)
@@ -1083,23 +1085,23 @@ int main(int, char* /*argv[]*/)
         const cgltf_mesh& mesh = data->meshes[meshIdx];
 
         const std::string meshName = mesh.name ? mesh.name : "<unnamed mesh>";
-        LogScope meshScope("mesh {}/{}", meshName, meshIdx);
+        mlg::LogScope meshScope("mesh {}/{}", meshName, meshIdx);
 
         for(cgltf_size primitiveIdx = 0; primitiveIdx < mesh.primitives_count; ++primitiveIdx)
         {
-            LOG_DEBUG("Loading primitive : {}", primitiveIdx);
+            mlg::Log::Debug("Loading primitive : {}", primitiveIdx);
 
-            LogScope primitiveScope("prim {}", primitiveIdx);
+            mlg::LogScope primitiveScope("prim {}", primitiveIdx);
 
             const cgltf_primitive& primitive = mesh.primitives[primitiveIdx];
 
-            Gltf::LoadPrimitive(primitive, bufferData, primitives.emplace_back());
+            mlg::Gltf::LoadPrimitive(primitive, bufferData, primitives.emplace_back());
         }
     }
 
     cleanup.Cancel();
 
-    Wgpu::Shutdown();
+    mlg::Wgpu::Shutdown();
 
     FileIo::Shutdown();
 
