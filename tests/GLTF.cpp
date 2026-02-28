@@ -13,8 +13,6 @@
 #include <windows.h>
 #endif
 
-#include "FileIo.h"
-
 #include <filesystem>
 #include <format>
 #include <iostream>
@@ -23,6 +21,7 @@
 #include <thread>
 #include <type_traits>
 #include <unordered_map>
+#include <variant>
 
 // TODO
 // * Handle materials that don't have PBR metallic-roughness properties
@@ -39,8 +38,47 @@ static constexpr wgpu::TextureFormat kDepthTargetFormat = wgpu::TextureFormat::D
 
 namespace mlg
 {
-template<typename T>
-using Result2 = std::optional<T>;
+
+struct ResultFail final {};
+
+struct ResultSuccess final {};
+
+template<typename T = ResultSuccess>
+class Result2 : private std::variant<ResultFail, T>
+{
+public:
+
+    using Base = std::variant<ResultFail, T>;
+
+    using Base::Base;
+
+    operator bool() const
+    {
+        return std::holds_alternative<T>(*this);
+    }
+
+    T& operator*()
+    {
+        return std::get<T>(*this);
+    }
+
+    const T& operator*() const
+    {
+        return std::get<T>(*this);
+    }
+
+    T* operator->()
+    {
+        return &std::get<T>(*this);
+    }
+
+    const T* operator->() const
+    {
+        return &std::get<T>(*this);
+    }
+};
+
+using Index = uint32_t;
 
 struct Position
 {
@@ -62,10 +100,11 @@ struct Color
     float R, G, B, A;
 };
 
-struct ByteRange
+struct BufferRange
 {
-    size_t Offset;
-    size_t Length;
+    size_t ByteOffset;
+    size_t ByteCount;
+    size_t ItemCount;
 };
 
 template<typename F>
@@ -194,6 +233,234 @@ struct LogScope
         } \
     } while (0);
 
+class FileFetcher
+{
+public:
+
+    enum RequestStatus
+    {
+        None,
+        Failure,
+        Pending,
+        Success,
+    };
+
+    class Request
+    {
+    public:
+
+        explicit Request(const std::string& filePath)
+            : FilePath(filePath)
+        {
+        }
+
+        ~Request()
+        {
+            if(IsPending())
+            {
+                SetComplete(Failure);
+            }
+        }
+
+        bool IsPending() const { return m_Status == Pending; }
+        bool Succeeded() const { return m_Status == Success; }
+
+        std::string FilePath;
+        std::vector<uint8_t> Data;
+        size_t BytesRequested{0};
+        size_t BytesRead{0};
+
+    private:
+
+        friend class FileFetcher;
+
+        void SetComplete(RequestStatus status)
+        {
+            if(!IsPending())
+            {
+                return;
+            }
+
+            if(m_hFile)
+            {
+                ::CancelIoEx(m_hFile, &m_Ov);
+                ::CloseHandle(m_hFile);
+                m_hFile = nullptr;
+            }
+
+            m_Status = status;
+        }
+
+        HANDLE m_hFile{nullptr};
+        OVERLAPPED m_Ov{0};
+        RequestStatus m_Status{None};
+    };
+
+    static Result2<ResultSuccess> Fetch(Request& request)
+    {
+        request.m_hFile = ::CreateFileA(request.FilePath.c_str(),
+            GENERIC_READ,
+            FILE_SHARE_READ,
+            nullptr,
+            OPEN_EXISTING,
+            FILE_FLAG_OVERLAPPED | FILE_FLAG_SEQUENTIAL_SCAN,
+            nullptr);
+
+        MLG_CHECK(request.m_hFile != INVALID_HANDLE_VALUE, "Failed to open file: {}", request.FilePath);
+
+        if(request.BytesRequested == 0)
+        {
+            auto result = GetFileSize(request);
+            MLG_CHECK(result, "Failed to get file size: {}", request.FilePath);
+            request.BytesRequested = *result;
+        }
+
+        if(request.Data.size() < request.BytesRequested)
+        {
+            request.Data.resize(request.BytesRequested);
+        }
+
+        const ULONG_PTR completionKey = reinterpret_cast<ULONG_PTR>(&request);
+        MLG_CHECK(nullptr != ::CreateIoCompletionPort(request.m_hFile, s_IOCP, completionKey, 0),
+            "Failed to bind file to IOCP: {}, error: {}",
+            request.FilePath,
+            ::GetLastError());
+
+        MLG_CHECK(IssueRead(request));
+
+        request.m_Status = Pending;
+
+        return ResultSuccess{};
+    }
+
+    static Result2<ResultSuccess> ProcessCompletions()
+    {
+        BOOL ok;
+        std::array<OVERLAPPED_ENTRY, 8> entries = {};
+        ULONG numEntriesRemoved = 0;
+        {
+            ok = ::GetQueuedCompletionStatusEx(s_IOCP,
+                entries.data(),
+                static_cast<ULONG>(entries.size()),
+                &numEntriesRemoved,
+                0,
+                FALSE);
+        }
+
+        if(!ok)
+        {
+            const DWORD err = ::GetLastError();
+
+            if(WAIT_TIMEOUT == err)
+            {
+                // No completions available
+                return ResultSuccess{};
+            }
+
+            if(ERROR_ABANDONED_WAIT_0 == err)
+            {
+                // IOCP was closed during shutdown.
+                return ResultSuccess{};
+            }
+
+            // Some other error occurred - assume it's fatal.
+            Log::Error("GetQueuedCompletionStatusEx failed, error: {}", err);
+
+            return {};
+        }
+
+        // If we get here, at least one read completed successfully.
+
+        for(ULONG i = 0; i < numEntriesRemoved; ++i)
+        {
+            OVERLAPPED_ENTRY& entry = entries[i];
+            Request* req = reinterpret_cast<Request*>(entry.lpCompletionKey);
+
+            if(!req)
+            {
+                continue;
+            }
+
+            req->BytesRead += entry.dwNumberOfBytesTransferred;
+
+            // Attempt to read more bytes.  This could complete immediately.
+            IssueRead(*req);
+        }
+
+        return ResultSuccess{};
+    }
+
+private:
+
+    static Result2<size_t> GetFileSize(const Request& request)
+    {
+        static_assert(sizeof(size_t) >= sizeof(LARGE_INTEGER::QuadPart), "size_t is too small to hold file size");
+        LARGE_INTEGER size;
+        MLG_CHECK(GetFileSizeEx(request.m_hFile, &size),
+            "Failed to open file: {}, error: {}",
+            request.m_hFile,
+            ::GetLastError());
+
+        return static_cast<size_t>(size.QuadPart);
+    }
+
+    static Result2<ResultSuccess> IssueRead(Request& req)
+    {
+        bool done = false;
+        while(req.BytesRead < req.BytesRequested && !done)
+        {
+            LARGE_INTEGER li;
+            li.QuadPart = req.BytesRead;
+
+            // Set up the offset into the file from which to read.
+            req.m_Ov.Offset = li.LowPart;
+            req.m_Ov.OffsetHigh = li.HighPart;
+
+            const size_t bytesRemaining = req.BytesRequested - req.BytesRead;
+
+            DWORD bytesRead = 0;
+
+            // Re-issue read for remaining bytes
+            const BOOL ok = ::ReadFile(req.m_hFile,
+                req.Data.data() + req.BytesRead,
+                static_cast<DWORD>(bytesRemaining),
+                &bytesRead,
+                &req.m_Ov);
+
+            if(ok)
+            {
+                // Request completed synchronously - loop again if necessary
+                req.BytesRead += bytesRead;
+                continue;
+            }
+
+            const DWORD err = ::GetLastError();
+
+            if(err == ERROR_IO_PENDING)
+            {
+                // Still pending, break out of the loop.
+                done = true;
+                continue;
+            }
+
+            Log::Error("Failed to issue read for file: {}, error: {}", req.FilePath, err);
+
+            req.SetComplete(Failure);
+
+            return {};
+        }
+
+        if(req.IsPending() && req.BytesRead >= req.BytesRequested)
+        {
+            req.SetComplete(Success);
+        }
+
+        return ResultSuccess{};
+    }
+
+    static inline HANDLE s_IOCP = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 0);
+};
+
 class Gltf final
 {
 public:
@@ -211,66 +478,76 @@ public:
 
     struct Primitive
     {
-        ByteRange IndexRange;
-        ByteRange PositionRange;
-        ByteRange NormalRange;
-        ByteRange TexCoordRange[kMaxTexCoords];
+        BufferRange IndexRange;
+        BufferRange PositionRange;
+        BufferRange NormalRange;
+        BufferRange TexCoordRange[kMaxTexCoords];
         Material Mtl;
     };
 
     explicit Gltf(const std::filesystem::path& gltfFilePath)
-        : GltfFilePath(gltfFilePath)
+        : m_GltfFetchRequest(gltfFilePath.string())
     {
     }
 
-    bool IsPending() const { return CurState != Success && CurState != Fail; }
+    Result2<ResultSuccess> Load()
+    {
+        MLG_CHECK(None == m_CurState, "Gltf is already loading or has been loaded");
+        m_CurState = Begin;
+        return ResultSuccess{};
+    }
 
-    bool Succeeded() const { return CurState == Success; }
+    bool IsPending() const { return m_CurState != Success && m_CurState != Fail; }
+
+    bool Succeeded() const { return m_CurState == Success; }
 
     void Update()
     {
-        switch(CurState)
+        switch(m_CurState)
         {
+            case None:
+                Log::Error("Gltf is in None state - cannot update");
+                break;
+
             case Begin:
-                FetchToken = FileIo::Fetch(GltfFilePath.string());
-                if(!FetchToken)
+                if(FileFetcher::Fetch(m_GltfFetchRequest))
                 {
-                    CurState = Fail;
+                    m_CurState = LoadingGltfFile;
                 }
                 else
                 {
-                    CurState = LoadingGltfFile;
+                    m_CurState = Fail;
                 }
                 break;
             case LoadingGltfFile:
-                if(!FileIo::IsPending(*FetchToken))
+                if(m_GltfFetchRequest.IsPending())
                 {
-                    auto resultData = FileIo::GetResult(*FetchToken);
-                    if(!resultData)
+                    return;
+                }
+                else if(!m_GltfFetchRequest.Succeeded())
+                {
+                    m_CurState = Fail;
+                }
+                else
+                {
+                    cgltf_options options{};
+                    cgltf_data* data = NULL;
+                    cgltf_result parseResult =
+                        cgltf_parse(&options, m_GltfFetchRequest.Data.data(), m_GltfFetchRequest.Data.size(), &data);
+                    if(parseResult != cgltf_result_success)
                     {
-                        CurState = Fail;
+                        m_CurState = Fail;
                     }
                     else
                     {
-                        cgltf_options options{};
-                        cgltf_data* data = NULL;
-                        cgltf_result parseResult =
-                            cgltf_parse(&options, resultData->data(), resultData->size(), &data);
-                        if(parseResult != cgltf_result_success)
+                        auto result = LoadScenes(data);
+                        if(!result)
                         {
-                            CurState = Fail;
+                            m_CurState = Fail;
                         }
                         else
                         {
-                            auto result = LoadScenes(data);
-                            if(!result)
-                            {
-                                CurState = Fail;
-                            }
-                            else
-                            {
-                                CurState = Success;
-                            }
+                            m_CurState = Success;
                         }
                     }
                 }
@@ -319,7 +596,7 @@ private:
         }
     }
 
-    Result2<ByteRange>
+    Result2<BufferRange>
     GetAccessorRange(const cgltf_accessor& accessor)
     {
         MLG_CHECK(!accessor.is_sparse,
@@ -328,62 +605,26 @@ private:
 
         const cgltf_buffer_view& bufferView = *accessor.buffer_view;
 
-        return ByteRange //
+        return BufferRange //
             {
-                bufferView.offset + accessor.offset,
-                accessor.count * cgltf_num_components(accessor.type) *
-                    cgltf_component_size(accessor.component_type),
+                .ByteOffset = bufferView.offset + accessor.offset,
+                .ByteCount = accessor.count * cgltf_num_components(accessor.type) *
+                             cgltf_component_size(accessor.component_type),
+                .ItemCount = accessor.count,
             };
     }
 
-    Result2<const uint8_t*>
-    GetBufferData(const cgltf_accessor& accessor,
-        const std::unordered_map<std::string, FileIo::FetchData>& bufferData)
+    Result2<std::string> GetTextureUri(const cgltf_texture_view& textureView)
     {
-        auto range = GetAccessorRange(accessor);
-        MLG_CHECK(range);
-
-        const cgltf_buffer_view& bufferView = *accessor.buffer_view;
-        const cgltf_buffer& buffer = *bufferView.buffer;
-        auto it = bufferData.find(buffer.uri);
-        MLG_CHECK(it != bufferData.end(), "Buffer {} not found", buffer.uri);
-        return it->second.data() + range->Offset;
-    }
-
-    Result2<bool> LoadTexture(const cgltf_texture& texture, std::string& uri)
-    {
-        uri.clear();
-
+        MLG_CHECK(textureView.texture, "Texture view does not have a texture");
+        const cgltf_texture& texture = *textureView.texture;
         MLG_CHECK(texture.image, "Texture image is not set");
         MLG_CHECK(texture.image->uri, "Texture image URI is not set");
-        uri = texture.image->uri;
+        std::string uri = texture.image->uri;
 
         MLG_CHECK(!uri.empty(), "Texture URI is empty");
 
-        return true;
-    }
-
-    Result2<bool> LoadBaseTexture(const cgltf_texture_view& textureView, Material& outMaterial)
-    {
-        if(!textureView.texture)
-        {
-            return true;
-        }
-
-        MLG_CHECK(LoadTexture(*textureView.texture, outMaterial.BaseTextureUri));
-
-        return true;
-    }
-
-    Result2<bool> LoadMetallicRoughnessTexture(const cgltf_texture_view& textureView, Material& outMaterial)
-    {
-        if(!textureView.texture)
-        {
-            return true;
-        }
-
-        MLG_CHECK(LoadTexture(*textureView.texture, outMaterial.MetallicRoughnessTextureUri));
-        return true;
+        return uri;
     }
 
     Result2<Material> LoadMaterial(const cgltf_material& material)
@@ -398,12 +639,14 @@ private:
             "Material does not have PBR metallic-roughness");
 
         const cgltf_texture_view& baseTexture = material.pbr_metallic_roughness.base_color_texture;
-
-        MLG_CHECK(LoadBaseTexture(baseTexture, outMaterial));
+        auto uriResult = GetTextureUri(baseTexture);
+        MLG_CHECK(uriResult);
+        outMaterial.BaseTextureUri = *uriResult;
 
         const cgltf_texture_view& metallicRoughnessTexture = material.pbr_metallic_roughness.metallic_roughness_texture;
-
-        MLG_CHECK(LoadMetallicRoughnessTexture(metallicRoughnessTexture, outMaterial));
+        auto metallicRoughnessUriResult = GetTextureUri(metallicRoughnessTexture);
+        MLG_CHECK(metallicRoughnessUriResult);
+        outMaterial.MetallicRoughnessTextureUri = *metallicRoughnessUriResult;
 
         outMaterial.MetallicFactor = material.pbr_metallic_roughness.metallic_factor;
         outMaterial.RoughnessFactor = material.pbr_metallic_roughness.roughness_factor;
@@ -507,7 +750,7 @@ private:
         return outPrim;
     }
 
-    Result2<bool> LoadScenes(const cgltf_data* gltf)
+    Result2<ResultSuccess> LoadScenes(const cgltf_data* gltf)
     {
         std::span<const cgltf_scene> scenes(gltf->scenes, gltf->scenes_count);
 
@@ -523,29 +766,29 @@ private:
             }
         }
 
-        size_t primitiveCount = 0;
-        for(cgltf_size meshIdx = 0; meshIdx < gltf->meshes_count; ++meshIdx)
-        {
-            primitiveCount += gltf->meshes[meshIdx].primitives_count;
-        }
+        std::unordered_map<std::string, const cgltf_mesh*> meshes;
+        meshes.reserve(gltf->meshes_count);
 
-        std::vector<Primitive> primitives;
-        primitives.reserve(primitiveCount);
+        m_Materials.reserve(gltf->materials_count);
 
+        m_TexturePaths.reserve(gltf->textures_count);
+
+        size_t primCount = 0;
         for(cgltf_size meshIdx = 0; meshIdx < gltf->meshes_count; ++meshIdx)
         {
             const cgltf_mesh& mesh = gltf->meshes[meshIdx];
+            meshes.emplace(mesh.name ? mesh.name : "<unnamed mesh>:" + std::to_string(meshIdx), &mesh);
+            primCount += mesh.primitives_count;
+        }
 
-            const std::string meshName = mesh.name ? mesh.name : "<unnamed mesh>";
-            LogScope meshScope("mesh {}/{}", meshName, meshIdx);
+        m_Primitives.reserve(primCount);
 
-            for(cgltf_size primitiveIdx = 0; primitiveIdx < mesh.primitives_count; ++primitiveIdx)
+        for(const auto& [meshName, mesh] : meshes)
+        {
+            for(cgltf_size primitiveIdx = 0; primitiveIdx < mesh->primitives_count; ++primitiveIdx)
             {
-                LogScope primitiveScope("prim {}", primitiveIdx);
-
-                Log::Debug("Loading primitive");
-
-                const cgltf_primitive& primitive = mesh.primitives[primitiveIdx];
+                const cgltf_primitive& primitive = mesh->primitives[primitiveIdx];
+                LogScope primitiveScope("prim {}:{}", meshName, primitiveIdx);
 
                 auto prim = LoadPrimitive(primitive);
                 if(!prim)
@@ -553,26 +796,65 @@ private:
                     Log::Error("Failed to load primitive");
                     continue;
                 }
-                primitives.emplace_back(std::move(*prim));
+
+                m_Primitives.emplace_back(std::move(*prim));
             }
         }
 
-        return true;
-    }
+        std::vector<const Primitive*> byIndexOffset;
+        byIndexOffset.reserve(m_Primitives.size());
 
-    const std::filesystem::path GltfFilePath;
+        for(const auto& prim : m_Primitives)
+        {
+            byIndexOffset.push_back(&prim);
+        }
+
+        std::vector<const Primitive*> byPositionOffset = byIndexOffset;
+        std::vector<const Primitive*> byNormalOffset = byIndexOffset;
+
+        std::ranges::sort(byIndexOffset,
+            [](const Primitive* a, const Primitive* b)
+            { return a->IndexRange.ByteOffset < b->IndexRange.ByteOffset; });
+
+        std::ranges::sort(byPositionOffset,
+            [](const Primitive* a, const Primitive* b)
+            { return a->PositionRange.ByteOffset < b->PositionRange.ByteOffset; });
+
+        std::ranges::sort(byNormalOffset,
+            [](const Primitive* a, const Primitive* b)
+            { return a->NormalRange.ByteOffset < b->NormalRange.ByteOffset; });
+
+        size_t vertexCount = 0;
+        for(const auto& prim : m_Primitives)
+        {
+            vertexCount += prim.PositionRange.ItemCount;
+        }
+
+        size_t indexCount = 0;
+        for(const auto& prim : m_Primitives)
+        {
+            indexCount += prim.IndexRange.ItemCount;
+        }
+
+        return ResultSuccess{};
+    }
 
     enum State
     {
+        None,
         Begin,
         LoadingGltfFile,
         Success,
         Fail
     };
 
-    State CurState{Begin};
+    State m_CurState{None};
 
-    Result<FileIo::AsyncToken> FetchToken;
+    FileFetcher::Request m_GltfFetchRequest;
+
+    std::vector<Primitive> m_Primitives;
+    std::unordered_map<std::string, Material> m_Materials;
+    std::vector<std::string> m_TexturePaths;
 };
 
 class Wgpu final
@@ -583,7 +865,18 @@ public:
     {
         wgpu::Texture Handle;
         wgpu::TextureView View;
+        wgpu::Buffer StagingBuffer;
+
+        // webgpu texture rows must be 256-byte aligned
+        unsigned GetRowStride() const { return ((Handle.GetWidth() * 4) + 255) & ~255; }
+    };
+
+    struct Buffer
+    {
+        wgpu::Buffer Handle;
+        wgpu::TextureView View;
         wgpu::TextureFormat Format;
+        wgpu::Buffer StagingBuffer;
         unsigned Width{ 0 };
         unsigned Height{ 0 };
         unsigned RowStride{ 0 };
@@ -824,12 +1117,11 @@ public:
         return availableFormats[0];
     }
 
-    static Result2<bool> ConfigureSurface(wgpu::Adapter adapter,
+    static Result2<wgpu::TextureFormat> ConfigureSurface(wgpu::Adapter adapter,
         wgpu::Device device,
         wgpu::Surface surface,
         const uint32_t width,
-        const uint32_t height,
-        wgpu::TextureFormat& textureFormat)
+        const uint32_t height)
     {
         wgpu::SurfaceCapabilities capabilities;
         MLG_CHECK(surface.GetCapabilities(adapter, &capabilities),
@@ -858,20 +1150,14 @@ public:
 
         surface.Configure(&config);
 
-        textureFormat = format;
-
-        return true;
+        return format;
     }
 
-    static bool CreateTexture(Context* ctx,
+    static Result2<Texture> CreateTexture(Context* ctx,
         const unsigned width,
         const unsigned height,
-        const std::string& name,
-        Texture& outTexture)
+        const std::string& name)
     {
-        const uint32_t rowPitch = width * 4;
-        const uint32_t alignedRowPitch = (rowPitch + 255) & ~255;
-
         wgpu::TextureDescriptor textureDesc //
             {
                 .label = name.c_str(),
@@ -894,17 +1180,43 @@ public:
         wgpu::TextureView texView = texture.CreateView();
         MLG_CHECK(texView, "Failed to create texture view for texture");
 
-
-        outTexture = Texture//
+        return Texture//
         {
             .Handle = texture,
-            .View = texView,
-            .Width = width,
-            .Height = height,
-            .RowStride = alignedRowPitch
+            .View = texView
         };
+    }
 
-        return true;
+    static Result2<wgpu::Buffer> CreateVertexBuffer(
+        Context* ctx, const unsigned size, const std::string& name)
+    {
+        wgpu::BufferDescriptor bufferDesc //
+            {
+                .label = name.c_str(),
+                .usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst,
+                .size = size,
+            };
+
+        wgpu::Buffer buffer = ctx->Device.CreateBuffer(&bufferDesc);
+        MLG_CHECK(buffer, "Failed to create vertex buffer");
+
+        return buffer;
+    }
+
+    static Result2<wgpu::Buffer> CreateIndexBuffer(
+        Context* ctx, const unsigned size, const std::string& name)
+    {
+        wgpu::BufferDescriptor bufferDesc //
+            {
+                .label = name.c_str(),
+                .usage = wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst,
+                .size = size,
+            };
+
+        wgpu::Buffer buffer = ctx->Device.CreateBuffer(&bufferDesc);
+        MLG_CHECK(buffer, "Failed to create index buffer");
+
+        return buffer;
     }
 
     static Result2<Context*> Startup()
@@ -936,8 +1248,8 @@ public:
         auto surface = CreateSurface(*instance, window);
         MLG_CHECK(surface);
 
-        wgpu::TextureFormat surfaceFormat;
-        MLG_CHECK(ConfigureSurface(*adapter, *device, *surface, winW, winH, surfaceFormat));
+        auto surfaceFormat = ConfigureSurface(*adapter, *device, *surface, winW, winH);
+        MLG_CHECK(surfaceFormat);
 
         s_Context = ::new(s_ContextBuf) Context//
         {
@@ -946,7 +1258,7 @@ public:
             .Adapter = *adapter,
             .Device = *device,
             .Surface = *surface,
-            .SurfaceFormat = surfaceFormat,
+            .SurfaceFormat = *surfaceFormat,
         };
 
         cleanup.Cancel();
@@ -971,14 +1283,12 @@ public:
 
 Result2<Wgpu::Context*> Startup()
 {
-    FileIo::Startup();
     return Wgpu::Startup();
 }
 
 Result2<bool> Shutdown()
 {
     Wgpu::Shutdown();
-    FileIo::Shutdown();
     return true;
 }
 
@@ -994,9 +1304,12 @@ mlg::Result2<bool> MainLoop()
     auto cleanup = mlg::Defer([]{ mlg::Shutdown(); });
 
     mlg::Gltf gltf{SCENE2_PATH};
+    gltf.Load();
+
     while(gltf.IsPending())
     {
         gltf.Update();
+        MLG_CHECK(mlg::FileFetcher::ProcessCompletions());
     }
 
     MLG_CHECK(gltf.Succeeded());
