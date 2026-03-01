@@ -21,6 +21,7 @@
 #include <thread>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 #include <variant>
 
 // TODO
@@ -100,11 +101,19 @@ struct Color
     float R, G, B, A;
 };
 
+struct Vertex
+{
+    Position Pos;
+    Normal Norm;
+    TexCoord UV;
+};
+
 struct BufferRange
 {
     size_t ByteOffset;
     size_t ByteCount;
     size_t ItemCount;
+    std::string BufferUri;
 };
 
 template<typename F>
@@ -497,7 +506,7 @@ public:
         return ResultSuccess{};
     }
 
-    bool IsPending() const { return m_CurState != Success && m_CurState != Fail; }
+    bool IsPending() const { return m_CurState != Success && m_CurState != Failure; }
 
     bool Succeeded() const { return m_CurState == Success; }
 
@@ -516,7 +525,7 @@ public:
                 }
                 else
                 {
-                    m_CurState = Fail;
+                    m_CurState = Failure;
                 }
                 break;
             case LoadingGltfFile:
@@ -526,7 +535,7 @@ public:
                 }
                 else if(!m_GltfFetchRequest.Succeeded())
                 {
-                    m_CurState = Fail;
+                    m_CurState = Failure;
                 }
                 else
                 {
@@ -536,14 +545,14 @@ public:
                         cgltf_parse(&options, m_GltfFetchRequest.Data.data(), m_GltfFetchRequest.Data.size(), &data);
                     if(parseResult != cgltf_result_success)
                     {
-                        m_CurState = Fail;
+                        m_CurState = Failure;
                     }
                     else
                     {
                         auto result = LoadScenes(data);
                         if(!result)
                         {
-                            m_CurState = Fail;
+                            m_CurState = Failure;
                         }
                         else
                         {
@@ -554,10 +563,12 @@ public:
                 break;
             case Success:
                 break;
-            case Fail:
+            case Failure:
                 break;
         }
     }
+
+    std::span<const Primitive> GetPrimitives() const { return m_Primitives; }
 
 private:
 
@@ -599,11 +610,13 @@ private:
     Result2<BufferRange>
     GetAccessorRange(const cgltf_accessor& accessor)
     {
-        MLG_CHECK(!accessor.is_sparse,
-            "{} is sparse - unsupported",
-            accessor.name ? accessor.name : "<unnamed accessor>");
+        auto logScope = LogScope("accessor {}", accessor.name ? accessor.name : "<unnamed accessor>");
+
+        MLG_CHECK(!accessor.is_sparse, "Sparse accessors are unsupported");
 
         const cgltf_buffer_view& bufferView = *accessor.buffer_view;
+
+        MLG_CHECK(bufferView.buffer->uri, "Buffer does not have a URI");
 
         return BufferRange //
             {
@@ -611,6 +624,7 @@ private:
                 .ByteCount = accessor.count * cgltf_num_components(accessor.type) *
                              cgltf_component_size(accessor.component_type),
                 .ItemCount = accessor.count,
+                .BufferUri = bufferView.buffer->uri,
             };
     }
 
@@ -716,8 +730,9 @@ private:
         for(const auto& attribute : attributes)
         {
             LogScope attributeScope("attr {}", attribute.name ? attribute.name : "<unnamed attribute>");
+            const cgltf_accessor& accessor = *attribute.data;
 
-            auto range = GetAccessorRange(*attribute.data);
+            auto range = GetAccessorRange(accessor);
             MLG_CHECK(range);
 
             switch(attribute.type)
@@ -801,41 +816,6 @@ private:
             }
         }
 
-        std::vector<const Primitive*> byIndexOffset;
-        byIndexOffset.reserve(m_Primitives.size());
-
-        for(const auto& prim : m_Primitives)
-        {
-            byIndexOffset.push_back(&prim);
-        }
-
-        std::vector<const Primitive*> byPositionOffset = byIndexOffset;
-        std::vector<const Primitive*> byNormalOffset = byIndexOffset;
-
-        std::ranges::sort(byIndexOffset,
-            [](const Primitive* a, const Primitive* b)
-            { return a->IndexRange.ByteOffset < b->IndexRange.ByteOffset; });
-
-        std::ranges::sort(byPositionOffset,
-            [](const Primitive* a, const Primitive* b)
-            { return a->PositionRange.ByteOffset < b->PositionRange.ByteOffset; });
-
-        std::ranges::sort(byNormalOffset,
-            [](const Primitive* a, const Primitive* b)
-            { return a->NormalRange.ByteOffset < b->NormalRange.ByteOffset; });
-
-        size_t vertexCount = 0;
-        for(const auto& prim : m_Primitives)
-        {
-            vertexCount += prim.PositionRange.ItemCount;
-        }
-
-        size_t indexCount = 0;
-        for(const auto& prim : m_Primitives)
-        {
-            indexCount += prim.IndexRange.ItemCount;
-        }
-
         return ResultSuccess{};
     }
 
@@ -845,7 +825,7 @@ private:
         Begin,
         LoadingGltfFile,
         Success,
-        Fail
+        Failure
     };
 
     State m_CurState{None};
@@ -1188,13 +1168,13 @@ public:
     }
 
     static Result2<wgpu::Buffer> CreateVertexBuffer(
-        Context* ctx, const unsigned size, const std::string& name)
+        Context* ctx, const size_t vertexCount, const std::string& name)
     {
         wgpu::BufferDescriptor bufferDesc //
             {
                 .label = name.c_str(),
                 .usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst,
-                .size = size,
+                .size = vertexCount * sizeof(Vertex),
             };
 
         wgpu::Buffer buffer = ctx->Device.CreateBuffer(&bufferDesc);
@@ -1204,13 +1184,13 @@ public:
     }
 
     static Result2<wgpu::Buffer> CreateIndexBuffer(
-        Context* ctx, const unsigned size, const std::string& name)
+        Context* ctx, const size_t indexCount, const std::string& name)
     {
         wgpu::BufferDescriptor bufferDesc //
             {
                 .label = name.c_str(),
                 .usage = wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst,
-                .size = size,
+                .size = indexCount * sizeof(uint32_t),
             };
 
         wgpu::Buffer buffer = ctx->Device.CreateBuffer(&bufferDesc);
@@ -1281,25 +1261,128 @@ public:
     }
 };
 
+class ResourceLoader final
+{
+public:
+
+    explicit ResourceLoader(const std::span<const mlg::Gltf::Primitive>& primitives)
+        : m_Primitives(primitives)
+    {
+    }
+
+    bool IsPending() const { return m_CurState != Success && m_CurState != Failure; }
+
+    bool Succeeded() const { return m_CurState == Success; }
+
+    Result2<ResultSuccess> Load()
+    {
+        MLG_CHECK(None == m_CurState, "Resources are already loading or have been loaded");
+        m_CurState = Begin;
+        return ResultSuccess{};
+    }
+
+    void Update()
+    {
+        switch(m_CurState)
+        {
+            case None:
+                Log::Error("ResourceLoader is in None state - cannot update");
+                break;
+            case Begin:
+
+                {
+                    std::unordered_set<std::string> bufferUris;
+
+                    for(const auto& prim : m_Primitives)
+                    {
+                        bufferUris.insert(prim.IndexRange.BufferUri);
+                    }
+
+                    for(const auto& uri : bufferUris)
+                    {
+                        m_Requests.emplace_back(uri);
+                        if(!FileFetcher::Fetch(m_Requests.back()))
+                        {
+                            m_CurState = Failure;
+                        }
+                        else
+                        {
+                            m_CurState = LoadingBuffers;
+                        }
+                    }
+                }
+                break;
+            case LoadingBuffers:
+                for(auto& request : m_Requests)
+                {
+                    if(request.IsPending())
+                    {
+                        return;
+                    }
+                }
+                m_CurState = LoadingVertices;
+                m_CurState = Success;
+                break;
+            case LoadingVertices:
+                // Load vertices
+                m_CurState = LoadingIndices;
+                break;
+            case LoadingIndices:
+                // Load indices
+                m_CurState = LoadingTextures;
+                break;
+            case LoadingTextures:
+                // Load textures
+                m_CurState = Success;
+                break;
+            case Success:
+                break;
+            case Failure:
+                break;
+        }
+    }
+
+private:
+
+    enum State
+    {
+        None,
+        Begin,
+        LoadingBuffers,
+        LoadingVertices,
+        LoadingIndices,
+        LoadingTextures,
+        Success,
+        Failure
+    };
+
+    std::span<const mlg::Gltf::Primitive> m_Primitives;
+
+    std::vector<FileFetcher::Request> m_Requests;
+
+    State m_CurState{None};
+};
+
 Result2<Wgpu::Context*> Startup()
 {
     return Wgpu::Startup();
 }
 
-Result2<bool> Shutdown()
+Result2<mlg::ResultSuccess> Shutdown()
 {
     Wgpu::Shutdown();
-    return true;
+    return mlg::ResultSuccess{};
 }
 
 }   // namespace mlg
 
-mlg::Result2<bool> MainLoop()
+mlg::Result2<mlg::ResultSuccess> MainLoop()
 {
     static constexpr const char* SCENE1_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
     static constexpr const char* SCENE2_PATH = "C:/Users/kbaca/Downloads/HiddenAlley2/ph_hidden_alley.gltf";
 
-    MLG_CHECK(mlg::Startup());
+    auto wgpuCtx = mlg::Startup();
+    MLG_CHECK(wgpuCtx);
 
     auto cleanup = mlg::Defer([]{ mlg::Shutdown(); });
 
@@ -1312,13 +1395,67 @@ mlg::Result2<bool> MainLoop()
         MLG_CHECK(mlg::FileFetcher::ProcessCompletions());
     }
 
+    const auto& primitives = gltf.GetPrimitives();
+
+    /*mlg::ResourceLoader loader{primitives};
+    loader.Load();
+
+    while(loader.IsPending())
+    {
+        loader.Update();
+        MLG_CHECK(mlg::FileFetcher::ProcessCompletions());
+    }*/
+
+    std::vector<const mlg::Gltf::Primitive*> byIndexOffset;
+    byIndexOffset.reserve(primitives.size());
+
+    for(const auto& prim : primitives)
+    {
+        byIndexOffset.push_back(&prim);
+    }
+
+    std::vector<const mlg::Gltf::Primitive*> byPositionOffset = byIndexOffset;
+    std::vector<const mlg::Gltf::Primitive*> byNormalOffset = byIndexOffset;
+
+    std::ranges::sort(byIndexOffset,
+        [](const mlg::Gltf::Primitive* a, const mlg::Gltf::Primitive* b)
+        { return a->IndexRange.ByteOffset < b->IndexRange.ByteOffset; });
+
+    std::ranges::sort(byPositionOffset,
+        [](const mlg::Gltf::Primitive* a, const mlg::Gltf::Primitive* b)
+        { return a->PositionRange.ByteOffset < b->PositionRange.ByteOffset; });
+
+    std::ranges::sort(byNormalOffset,
+        [](const mlg::Gltf::Primitive* a, const mlg::Gltf::Primitive* b)
+        { return a->NormalRange.ByteOffset < b->NormalRange.ByteOffset; });
+
+    size_t vertexCount = 0;
+    for(const auto& prim : primitives)
+    {
+        vertexCount += prim.PositionRange.ItemCount;
+    }
+
+    auto vb = mlg::Wgpu::CreateVertexBuffer(*wgpuCtx, vertexCount, "VertexBuffer");
+    MLG_CHECK(vb);
+
+    //void* vbData = vb->GetMappedRange();
+
+    size_t indexCount = 0;
+    for(const auto& prim : primitives)
+    {
+        indexCount += prim.IndexRange.ItemCount;
+    }
+
+    auto ib = mlg::Wgpu::CreateIndexBuffer(*wgpuCtx, indexCount, "IndexBuffer");
+    MLG_CHECK(ib);
+
     MLG_CHECK(gltf.Succeeded());
 
     cleanup.Cancel();
 
     mlg::Shutdown();
 
-    return true;
+    return mlg::ResultSuccess{};
 }
 
 int main(int, char* /*argv[]*/)
