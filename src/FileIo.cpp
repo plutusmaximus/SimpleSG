@@ -267,7 +267,7 @@ FileIo::AsyncToken::NewToken()
 
 static HANDLE s_IOCP = nullptr;
 
-static Result<void> IssueReadRequest(FileIo::ReadRequest* req);
+static Result<> IssueReadRequest(FileIo::ReadRequest* req);
 static std::string GetWindowsErrorString(DWORD errorCode);
 
 struct Win32ReadRequest : FileIo::ReadRequest
@@ -510,7 +510,7 @@ FileIo::ProcessCompletions()
     return;
 }
 
-static Result<void>
+static Result<>
 IssueReadRequest(FileIo::ReadRequest* req)
 {
     Win32ReadRequest* win32Req = static_cast<Win32ReadRequest*>(req);
@@ -558,7 +558,7 @@ IssueReadRequest(FileIo::ReadRequest* req)
             GetWindowsErrorString(err));
     }
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
 // private:

@@ -12,7 +12,7 @@ DawnRenderCompositor::~DawnRenderCompositor()
 {
 }
 
-Result<void>
+Result<>
 DawnRenderCompositor::BeginFrame()
 {
     if(!everify(!m_FrameStarted, "Frame already started"))
@@ -40,10 +40,10 @@ DawnRenderCompositor::BeginFrame()
     expect(m_Target, "Failed to create texture view for swapchain texture");
 #endif
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
-Result<void>
+Result<>
 DawnRenderCompositor::EndFrame()
 {
     if(!everify(m_FrameStarted, "Frame not started"))
@@ -76,7 +76,7 @@ DawnRenderCompositor::EndFrame()
         queue.Submit(1, &cmdBuf);
     }
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
 wgpu::TextureView

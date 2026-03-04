@@ -111,9 +111,22 @@ struct std::formatter<Error> : std::formatter<imstring>
     }
 };
 
+struct ResultFail final {};
+
+struct ResultSuccess final {};
+
+template<typename T> class ResultBase{};
+
+template<>
+class ResultBase<ResultSuccess>
+{
+public:
+    static constexpr ResultSuccess Success = ResultSuccess{};
+};
+
 /// @brief Representation of a result that can either be a value of type T or an Error.
-template<typename T>
-class Result
+template<typename T = ResultSuccess>
+class Result final : public ResultBase<T>
 {
 public:
     Result() = default;
@@ -206,75 +219,6 @@ public:
 
 private:
     std::variant<Error, T> m_ValueOrError;
-};
-
-/// @brief Specialization of Result for void type.
-template<>
-class Result<void>
-{
-public:
-
-    /// @brief Tag type to represent a successful void result.
-    struct SuccessTag
-    {
-        SuccessTag() = default;
-    };
-
-    /// @brief Constant instance of SuccessTag.
-    /// Return this from functions returning Result<void> to indicate success.
-    static constexpr SuccessTag Success{};
-
-    Result() = delete;
-
-    Result( SuccessTag )
-        : m_ValueOrError(std::monostate{})
-    {
-    }
-
-    Result(const Error& error)
-        : m_ValueOrError(error)
-    {
-    }
-
-    Result(Error&& error)
-        : m_ValueOrError(std::move(error))
-    {
-    }
-
-    Result(const Result& other) = default;
-    Result(Result&& other) = default;
-    Result& operator=(const Result& other) = default;
-    Result& operator=(Result&& other) = default;
-
-    constexpr Error& error() & { return std::get<Error>(m_ValueOrError); }
-    constexpr const Error& error() const& { return std::get<Error>(m_ValueOrError); }
-    constexpr Error&& error() && { return std::move(std::get<Error>(m_ValueOrError)); }
-    constexpr const Error&& error() const&& { return std::move(std::get<Error>(m_ValueOrError)); }
-
-    bool has_error() const { return std::holds_alternative<Error>(m_ValueOrError); }
-
-    operator bool() const { return !has_error(); }
-
-    bool operator==(const Result& other) const
-    {
-        if(has_error() != other.has_error())
-        {
-            return false;
-        }
-
-        if(has_error())
-        {
-            return (error() == other.error());
-        }
-
-        return true;
-    }
-
-    bool operator!=(const Result& other) const { return !(*this == other); }
-
-private:
-
-    std::variant<std::monostate, Error> m_ValueOrError;
 };
 
 #define MAKE_EXPR_ERROR(exprStr, ...)                                                              \

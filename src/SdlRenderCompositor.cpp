@@ -20,7 +20,7 @@ SdlRenderCompositor::~SdlRenderCompositor()
     }
 }
 
-Result<void>
+Result<>
 SdlRenderCompositor::BeginFrame()
 {
     if(!everify(!m_FrameStarted, "Frame already started"))
@@ -56,14 +56,14 @@ SdlRenderCompositor::BeginFrame()
         // This is not an error, just skip rendering.
          SDL_CancelGPUCommandBuffer(m_CommandBuffer);
          m_CommandBuffer = nullptr;
-         return Result<void>::Success;
+         return Result<>::Success;
     }
 #endif
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
-Result<void>
+Result<>
 SdlRenderCompositor::EndFrame()
 {
     if(!everify(m_FrameStarted, "Frame not started"))
@@ -76,7 +76,7 @@ SdlRenderCompositor::EndFrame()
     if(!m_CommandBuffer)
     {
         // No command buffer - likely window is minimized. This is not an error, just skip submitting.
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     m_Target = nullptr;
@@ -92,7 +92,7 @@ SdlRenderCompositor::EndFrame()
         expect(m_RenderFence, SDL_GetError());
     }
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
 SDL_GPUTexture*
@@ -111,12 +111,12 @@ SdlRenderCompositor::GetCommandBuffer()
     return m_CommandBuffer;
 }
 
-Result<void>
+Result<>
 SdlRenderCompositor::WaitForFence()
 {
     if(!m_RenderFence)
     {
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     //Wait for the previous frame to complete
@@ -137,5 +137,5 @@ SdlRenderCompositor::WaitForFence()
         m_RenderFence = nullptr;
     }
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }

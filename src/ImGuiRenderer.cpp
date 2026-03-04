@@ -28,7 +28,7 @@ ImGuiRenderer::~ImGuiRenderer()
 #endif
 }
 
-Result<void>
+Result<>
 ImGuiRenderer::NewFrame()
 {
 #if DAWN_GPU
@@ -38,7 +38,7 @@ ImGuiRenderer::NewFrame()
 #endif
 }
 
-Result<void>
+Result<>
 ImGuiRenderer::Render(RenderCompositor* renderCompositor)
 {
     static PerfTimer renderGuiTimer("ImGuiRenderer.Render");
@@ -53,13 +53,13 @@ ImGuiRenderer::Render(RenderCompositor* renderCompositor)
 
 //private:
 
-Result<void>
+Result<>
 ImGuiRenderer::DawnStartup()
 {
     if(m_Context)
     {
         // Already initialized
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     DawnGpuDevice* dawnDevice = static_cast<DawnGpuDevice*>(m_GpuDevice);
@@ -95,15 +95,15 @@ ImGuiRenderer::DawnStartup()
     init_info.DepthStencilFormat = WGPUTextureFormat_Undefined;
     ImGui_ImplWGPU_Init(&init_info);
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
-Result<void>
+Result<>
 ImGuiRenderer::DawnShutdown()
 {
     if(!m_Context)
     {
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     ImGui_ImplWGPU_Shutdown();
@@ -112,20 +112,20 @@ ImGuiRenderer::DawnShutdown()
 
     m_Context = nullptr;
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
-Result<void>
+Result<>
 ImGuiRenderer::DawnNewFrame()
 {
     ImGui_ImplWGPU_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
-Result<void>
+Result<>
 ImGuiRenderer::DawnRender(RenderCompositor* renderCompositor)
 {
     ImGui::Render();
@@ -135,7 +135,7 @@ ImGuiRenderer::DawnRender(RenderCompositor* renderCompositor)
     if(!drawData || drawData->TotalVtxCount == 0)
     {
         // Nothing to render for ImGui
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     const bool is_minimized = (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f);
@@ -143,7 +143,7 @@ ImGuiRenderer::DawnRender(RenderCompositor* renderCompositor)
     if(is_minimized)
     {
         // Window is minimized, skip rendering ImGui
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     DawnRenderCompositor* dawnCompositor = static_cast<DawnRenderCompositor*>(renderCompositor);
@@ -154,7 +154,7 @@ ImGuiRenderer::DawnRender(RenderCompositor* renderCompositor)
     if(!target)
     {
         // Off-screen rendering, skip rendering ImGui
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     wgpu::RenderPassColorAttachment colorAttachment //
@@ -180,16 +180,16 @@ ImGuiRenderer::DawnRender(RenderCompositor* renderCompositor)
 
     renderPass.End();
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
-Result<void>
+Result<>
 ImGuiRenderer::SdlStartup()
 {
     if(m_Context)
     {
         // Already initialized
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     SdlGpuDevice* sdlDevice = static_cast<SdlGpuDevice*>(m_GpuDevice);
@@ -224,15 +224,15 @@ ImGuiRenderer::SdlStartup()
     init_info.PresentMode = SDL_GPU_PRESENTMODE_VSYNC;
     ImGui_ImplSDLGPU3_Init(&init_info);
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
-Result<void>
+Result<>
 ImGuiRenderer::SdlShutdown()
 {
     if(!m_Context)
     {
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     ImGui_ImplSDLGPU3_Shutdown();
@@ -241,20 +241,20 @@ ImGuiRenderer::SdlShutdown()
 
     m_Context = nullptr;
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
-Result<void>
+Result<>
 ImGuiRenderer::SdlNewFrame()
 {
     ImGui_ImplSDLGPU3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
-Result<void>
+Result<>
 ImGuiRenderer::SdlRender(RenderCompositor* renderCompositor)
 {
     ImGui::Render();
@@ -264,7 +264,7 @@ ImGuiRenderer::SdlRender(RenderCompositor* renderCompositor)
     if(!drawData || drawData->TotalVtxCount == 0)
     {
         // Nothing to render for ImGui
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     const bool is_minimized = (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f);
@@ -277,13 +277,13 @@ ImGuiRenderer::SdlRender(RenderCompositor* renderCompositor)
     if(is_minimized || !target)
     {
         // If the window is minimized, we can skip rendering the GUI without treating it as an error.
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     if(!target)
     {
         // Off-screen rendering, skip rendering ImGui
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     // This is mandatory: call ImGui_ImplSDLGPU3_PrepareDrawData() to upload the vertex/index buffer!
@@ -309,5 +309,5 @@ ImGuiRenderer::SdlRender(RenderCompositor* renderCompositor)
 
     SDL_EndGPURenderPass(renderPass);
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }

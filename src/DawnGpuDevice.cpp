@@ -175,7 +175,7 @@ DawnGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& vert
         DawnGpuVertexBuffer(this, nativeBuf, static_cast<uint32_t>(sizeofBuffer / sizeof(Vertex)));
 }
 
-Result<void>
+Result<>
 DawnGpuDevice::DestroyVertexBuffer(GpuVertexBuffer* vb)
 {
     DawnGpuVertexBuffer* dawnBuffer = static_cast<DawnGpuVertexBuffer*>(vb);
@@ -183,7 +183,7 @@ DawnGpuDevice::DestroyVertexBuffer(GpuVertexBuffer* vb)
         "VertexBuffer does not belong to this device");
     dawnBuffer->~DawnGpuVertexBuffer();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(vb));
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
 Result<GpuIndexBuffer*>
@@ -209,7 +209,7 @@ DawnGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& 
         DawnGpuIndexBuffer(this, nativeBuf, static_cast<uint32_t>(sizeofBuffer / sizeof(VertexIndex)));
 }
 
-Result<void>
+Result<>
 DawnGpuDevice::DestroyIndexBuffer(GpuIndexBuffer* buffer)
 {
     DawnGpuIndexBuffer* dawnBuffer = static_cast<DawnGpuIndexBuffer*>(buffer);
@@ -217,7 +217,7 @@ DawnGpuDevice::DestroyIndexBuffer(GpuIndexBuffer* buffer)
         "IndexBuffer does not belong to this device");
     dawnBuffer->~DawnGpuIndexBuffer();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(buffer));
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
 Result<GpuTexture*>
@@ -362,7 +362,7 @@ DawnGpuDevice::CreateTexture(const RgbaColorf& color, const imstring& name)
     return CreateTexture(1, 1, pixelData, 4, name);
 }
 
-Result<void>
+Result<>
 DawnGpuDevice::DestroyTexture(GpuTexture* texture)
 {
     DawnGpuTexture* dawnTexture = static_cast<DawnGpuTexture*>(texture);
@@ -370,7 +370,7 @@ DawnGpuDevice::DestroyTexture(GpuTexture* texture)
         "Texture does not belong to this device");
     dawnTexture->~DawnGpuTexture();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(texture));
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
 Result<GpuMaterial*>
@@ -445,7 +445,7 @@ DawnGpuDevice::CreateMaterial(const MaterialConstants& mtlConstants, GpuTexture*
         DawnGpuMaterial(this, baseTexture, mtlConstantsBuf, bindGroup, mtlConstants);
 }
 
-Result<void>
+Result<>
 DawnGpuDevice::DestroyMaterial(GpuMaterial* material)
 {
     DawnGpuMaterial* dawnMaterial = static_cast<DawnGpuMaterial*>(material);
@@ -453,7 +453,7 @@ DawnGpuDevice::DestroyMaterial(GpuMaterial* material)
         "Material does not belong to this device");
     dawnMaterial->~DawnGpuMaterial();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(material));
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
 Result<GpuColorTarget*>
@@ -493,7 +493,7 @@ DawnGpuDevice::CreateColorTarget(const unsigned width, const unsigned height, co
         DawnGpuColorTarget(this, texture, view, samplerResult.value(), width, height, kColorTargetFormat);
 }
 
-Result<void>
+Result<>
 DawnGpuDevice::DestroyColorTarget(GpuColorTarget* colorTarget)
 {
     DawnGpuColorTarget* dawnColorTarget = static_cast<DawnGpuColorTarget*>(colorTarget);
@@ -501,7 +501,7 @@ DawnGpuDevice::DestroyColorTarget(GpuColorTarget* colorTarget)
         "ColorTarget does not belong to this device");
     dawnColorTarget->~DawnGpuColorTarget();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(colorTarget));
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
 Result<GpuDepthTarget*>
@@ -539,7 +539,7 @@ DawnGpuDevice::CreateDepthTarget(const unsigned width,
         DawnGpuDepthTarget(this, texture, view, width, height, kDepthTargetFormat);
 }
 
-Result<void>
+Result<>
 DawnGpuDevice::DestroyDepthTarget(GpuDepthTarget* depthTarget)
 {
     DawnGpuDepthTarget* dawnDepthTarget = static_cast<DawnGpuDepthTarget*>(depthTarget);
@@ -547,7 +547,7 @@ DawnGpuDevice::DestroyDepthTarget(GpuDepthTarget* depthTarget)
         "DepthTarget does not belong to this device");
     dawnDepthTarget->~DawnGpuDepthTarget();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(depthTarget));
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
 Renderer*

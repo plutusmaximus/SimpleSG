@@ -209,7 +209,7 @@ SdlRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
     }
 }
 
-Result<void>
+Result<>
 SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompositor* compositor)
 {
     static PerfTimer renderTimer("Renderer.Render");
@@ -222,7 +222,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
     {
         // No command buffer - likely window minimized.
         // This is not an error.
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     static PerfTimer updateXformTimer("Renderer.Render.UpdateXformBuffer");
@@ -247,7 +247,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
     {
         //No render pass - likely window minimized.
         //This is not an error.
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     auto cleanupRenderPass = scope_exit([&]()
@@ -393,7 +393,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
 
     resolveTimer.Stop();
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
 //private:
@@ -504,13 +504,13 @@ SdlRenderer::SwapStates()
     m_CurrentState->Clear();
 }
 
-Result<void>
+Result<>
 SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTexture* target)
 {
     if(!target)
     {
         // Offscreen rendering - no swapchain texture available. Not an error, just skip copying.
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     auto pipelineResult = GetCopyColorTargetPipeline();
@@ -539,7 +539,7 @@ SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTex
         // If we fail to begin the render pass, it's likely because the window is minimized and the
         // swapchain texture is not available. In this case, we can just skip rendering this frame
         // without treating it as an error.
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     // Bind texture and sampler
@@ -554,10 +554,10 @@ SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTex
     SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 1);
     SDL_EndGPURenderPass(renderPass);
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
-static Result<void>
+static Result<>
 LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
 {
     FILE* fp = std::fopen(filePath, "rb");
@@ -584,7 +584,7 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
                 static_cast<size_t>(fileSize),
             "Failed to read shader file: {} ({})", filePath, std::strerror(errno));
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
 Result<SDL_GPUShader*> SdlRenderer::GetColorVertexShader()
@@ -913,7 +913,7 @@ CreateXferBuffer(SDL_GPUDevice* device, size_t size, SDL_GPUTransferBufferUsage 
     return buffer;
 }
 
-Result<void>
+Result<>
 SdlRenderer::UpdateXformBuffer(
     SDL_GPUCommandBuffer* cmdBuf, const Mat44f& camera, const Mat44f& projection)
 {
@@ -1073,7 +1073,7 @@ SdlRenderer::UpdateXformBuffer(
 
     SDL_EndGPUCopyPass(copyPass);
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
 Result<GpuTexture*>

@@ -12,9 +12,9 @@ public:
 
     virtual ~RenderCompositor() = 0;
 
-    virtual Result<void> BeginFrame() = 0;
+    virtual Result<> BeginFrame() = 0;
 
-    virtual Result<void> EndFrame() = 0;
+    virtual Result<> EndFrame() = 0;
 
 protected:
     RenderCompositor() = default;

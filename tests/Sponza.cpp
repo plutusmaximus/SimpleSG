@@ -21,7 +21,7 @@
 
 namespace
 {
-static Result<void> RenderGui();
+static Result<> RenderGui();
 
 class WorldMatrix : public Mat44f
 {
@@ -40,7 +40,7 @@ public:
     {
     }
 
-    Result<void> Initialize(AppContext* context) override
+    Result<> Initialize(AppContext* context) override
     {
         auto cleanup = scope_exit([this]()
         {
@@ -99,7 +99,7 @@ public:
 
         cleanup.release();
 
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     void Shutdown() override
@@ -289,7 +289,7 @@ public:
     }
 };
 
-static Result<void> RenderGui()
+static Result<> RenderGui()
 {
     const char* buildType;
     const char* backend;
@@ -317,7 +317,7 @@ static Result<void> RenderGui()
     }
     ImGui::End();
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 }
 

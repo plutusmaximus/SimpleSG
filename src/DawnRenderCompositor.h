@@ -12,9 +12,9 @@ public:
 
     ~DawnRenderCompositor() override;
 
-    Result<void> BeginFrame() override;
+    Result<> BeginFrame() override;
 
-    Result<void> EndFrame() override;
+    Result<> EndFrame() override;
 
     wgpu::TextureView GetTarget();
 

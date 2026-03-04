@@ -14,9 +14,9 @@ public:
 
     ~SdlRenderCompositor() override;
 
-    Result<void> BeginFrame() override;
+    Result<> BeginFrame() override;
 
-    Result<void> EndFrame() override;
+    Result<> EndFrame() override;
 
     /// @brief Get the current render target.  Can return null if no target is available (e.g.
     /// window minimized, or when rendering offscreen).
@@ -32,7 +32,7 @@ private:
 
     explicit SdlRenderCompositor(SdlGpuDevice* gpuDevice);
 
-    Result<void> WaitForFence();
+    Result<> WaitForFence();
 
     SdlGpuDevice* m_GpuDevice{ nullptr };
     SDL_GPUTexture* m_Target{ nullptr };

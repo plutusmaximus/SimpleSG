@@ -38,7 +38,7 @@ public:
     {
     }
 
-    Result<void> Initialize(AppContext* context) override
+    Result<> Initialize(AppContext* context) override
     {
         auto cleanup = scope_exit([this]()
         {
@@ -87,7 +87,7 @@ public:
 
         cleanup.release();
 
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     void Shutdown() override

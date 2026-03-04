@@ -10,7 +10,7 @@ public:
 
     virtual ~Application() = default;
 
-    virtual Result<void> Initialize(AppContext* context) = 0;
+    virtual Result<> Initialize(AppContext* context) = 0;
 
     virtual void Shutdown() = 0;
 

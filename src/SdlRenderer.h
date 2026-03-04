@@ -29,7 +29,7 @@ public:
 
     void AddModel(const Mat44f& worldTransform, const Model* model) override;
 
-    Result<void> Render(
+    Result<> Render(
         const Mat44f& camera, const Mat44f& projection, RenderCompositor* compositor) override;
 
 private:
@@ -69,7 +69,7 @@ private:
     void SwapStates();
 
     /// @brief Copy the color target to the swapchain texture.
-    Result<void> CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTexture* target);
+    Result<> CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTexture* target);
 
     Result<SDL_GPUShader*> GetColorVertexShader();
     Result<SDL_GPUShader*> GetColorFragmentShader();
@@ -89,7 +89,7 @@ private:
     Result<SDL_GPUShader*> CreateVertexShader(const ShaderCreateInfo& createInfo);
     Result<SDL_GPUShader*> CreateFragmentShader(const ShaderCreateInfo& createInfo);
 
-    Result<void> UpdateXformBuffer(
+    Result<> UpdateXformBuffer(
         SDL_GPUCommandBuffer* cmdBuf, const Mat44f& camera, const Mat44f& projection);
 
     /// Get or create the default texture.

@@ -19,9 +19,9 @@ static Result<ModelResource> CreateTriangleModel(ResourceCache* cache);
 
 constexpr const char* kAppName = "Triangle";
 
-static Result<void> RenderGui();
+static Result<> RenderGui();
 
-static Result<void> MainLoop()
+static Result<> MainLoop()
 {
     logSetLevel(spdlog::level::trace);
 
@@ -234,7 +234,7 @@ static Result<void> MainLoop()
 
     PerfMetrics::LogTimers();
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
 int main(int, char* /*argv[]*/)
@@ -248,7 +248,7 @@ static bool show_demo_window = true;
 static bool show_another_window = false;
 static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-static Result<void> RenderGui()
+static Result<> RenderGui()
 {
     ImGui::Begin("Timers");
     PerfMetrics::TimerStat timers[256];
@@ -259,7 +259,7 @@ static Result<void> RenderGui()
     }
     ImGui::End();
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
 // Triangle vertices

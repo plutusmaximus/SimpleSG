@@ -163,7 +163,7 @@ static inline size_t alignUniformBuffer(const wgpu::Limits& limits)
     return (sizeof(T) + alignment - 1) & ~(alignment - 1);
 }
 
-Result<void>
+Result<>
 DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompositor* compositor)
 {
     static PerfTimer renderTimer("Renderer.Render");
@@ -321,7 +321,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
 
     resolveTimer.Stop();
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
 //private:
@@ -432,13 +432,13 @@ DawnRenderer::SwapStates()
     m_CurrentState->Clear();
 }
 
-Result<void>
+Result<>
 DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder, wgpu::TextureView target)
 {
     if(!target)
     {
         // Off-screen rendering, skip rendering to swapchain
-        return Result<void>::Success;
+        return Result<>::Success;
     }
 
     auto pipelineResult = GetCopyColorTargetPipeline();
@@ -469,10 +469,10 @@ DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder, wgpu::
     renderPass.Draw(3, 1, 0, 0);
     renderPass.End();
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
-static Result<void>
+static Result<>
 LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
 {
     FILE* fp = std::fopen(filePath, "rb");
@@ -499,7 +499,7 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
                 static_cast<size_t>(fileSize),
             "Failed to read shader file: {} ({})", filePath, std::strerror(errno));
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
 Result<wgpu::ShaderModule>
@@ -1021,7 +1021,7 @@ CreateBuffer(wgpu::Device device, wgpu::BufferUsage usage, size_t size, const ch
     return buffer;
 }
 
-Result<void>
+Result<>
 DawnRenderer::UpdateXformBuffer(
     wgpu::CommandEncoder /*cmdEncoder*/, const Mat44f& camera, const Mat44f& projection)
 {
@@ -1131,7 +1131,7 @@ DawnRenderer::UpdateXformBuffer(
             drawIndirectBuffers.data(),
             sizeof(DrawIndirectBufferParams) * drawIndirectBuffers.size());
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
 Result<GpuTexture*>

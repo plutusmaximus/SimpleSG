@@ -280,14 +280,14 @@ public:
     Result<GpuVertexBuffer*> CreateVertexBuffer(
         const std::span<std::span<const Vertex>>& vertices) override;
 
-    Result<void> DestroyVertexBuffer(GpuVertexBuffer* buffer) override;
+    Result<> DestroyVertexBuffer(GpuVertexBuffer* buffer) override;
 
     Result<GpuIndexBuffer*> CreateIndexBuffer(const std::span<const VertexIndex>& indices) override;
 
     Result<GpuIndexBuffer*> CreateIndexBuffer(
         const std::span<std::span<const VertexIndex>>& indices) override;
 
-    Result<void> DestroyIndexBuffer(GpuIndexBuffer* buffer) override;
+    Result<> DestroyIndexBuffer(GpuIndexBuffer* buffer) override;
 
     Result<GpuTexture*> CreateTexture(const unsigned width,
         const unsigned height,
@@ -297,23 +297,23 @@ public:
 
     Result<GpuTexture*> CreateTexture(const RgbaColorf& color, const imstring& name) override;
 
-    Result<void> DestroyTexture(GpuTexture* texture) override;
+    Result<> DestroyTexture(GpuTexture* texture) override;
 
     Result<GpuColorTarget*> CreateColorTarget(
         const unsigned width, const unsigned height, const imstring& name) override;
 
-    Result<void> DestroyColorTarget(GpuColorTarget* colorTarget) override;
+    Result<> DestroyColorTarget(GpuColorTarget* colorTarget) override;
 
     Result<GpuDepthTarget*> CreateDepthTarget(const unsigned width,
         const unsigned height,
         const imstring& name) override;
 
-    Result<void> DestroyDepthTarget(GpuDepthTarget* depthTarget) override;
+    Result<> DestroyDepthTarget(GpuDepthTarget* depthTarget) override;
 
     Result<GpuMaterial*> CreateMaterial(const MaterialConstants& constants,
         GpuTexture* baseTexture) override;
 
-    Result<void> DestroyMaterial(GpuMaterial* material) override;
+    Result<> DestroyMaterial(GpuMaterial* material) override;
 
     Renderer* GetRenderer() override;
 

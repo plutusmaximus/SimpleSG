@@ -41,9 +41,9 @@ public:
 
     void SetMouseCapture(const bool capture);
 
-    Result<void> Init();
+    Result<> Init();
 
-    Result<void> Run();
+    Result<> Run();
 
 private:
 

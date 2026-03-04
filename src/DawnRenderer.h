@@ -23,7 +23,7 @@ public:
 
     void AddModel(const Mat44f& worldTransform, const Model* model) override;
 
-    Result<void> Render(
+    Result<> Render(
         const Mat44f& camera, const Mat44f& projection, RenderCompositor* compositor) override;
 
 private:
@@ -67,7 +67,7 @@ private:
     void SwapStates();
 
     /// @brief Copy the color target to the swapchain texture.
-    Result<void> CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder,
+    Result<> CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder,
         wgpu::TextureView target);
 
     Result<wgpu::ShaderModule> GetColorVertexShader();
@@ -81,7 +81,7 @@ private:
     Result<wgpu::ShaderModule> CreateVertexShader(const char* path);
     Result<wgpu::ShaderModule> CreateFragmentShader(const char* path);
 
-    Result<void> UpdateXformBuffer(
+    Result<> UpdateXformBuffer(
         wgpu::CommandEncoder cmdEncoder, const Mat44f& camera, const Mat44f& projection);
 
     /// Get or create the default texture.

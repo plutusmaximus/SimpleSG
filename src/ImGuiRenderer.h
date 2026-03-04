@@ -14,21 +14,21 @@ public:
 
     ~ImGuiRenderer();
 
-    Result<void> NewFrame();
+    Result<> NewFrame();
 
-    Result<void> Render(RenderCompositor* renderCompositor);
+    Result<> Render(RenderCompositor* renderCompositor);
 
 private:
 
-    Result<void> DawnStartup();
-    Result<void> DawnShutdown();
-    Result<void> DawnNewFrame();
-    Result<void> DawnRender(RenderCompositor* renderCompositor);
+    Result<> DawnStartup();
+    Result<> DawnShutdown();
+    Result<> DawnNewFrame();
+    Result<> DawnRender(RenderCompositor* renderCompositor);
 
-    Result<void> SdlStartup();
-    Result<void> SdlShutdown();
-    Result<void> SdlNewFrame();
-    Result<void> SdlRender(RenderCompositor* renderCompositor);
+    Result<> SdlStartup();
+    Result<> SdlShutdown();
+    Result<> SdlNewFrame();
+    Result<> SdlRender(RenderCompositor* renderCompositor);
 
     GpuDevice* m_GpuDevice;
 

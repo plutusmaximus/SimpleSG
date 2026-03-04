@@ -912,7 +912,7 @@ ResourceCache::CreateTextureOp::SetResult(Result<GpuTexture*> result)
     m_State = Complete;
 }
 
-Result<void>
+Result<>
 ResourceCache::CreateTextureOp::DecodeImage()
 {
     logOp("Decoding image (key: {})", GetCacheKey().ToString());
@@ -938,7 +938,7 @@ ResourceCache::CreateTextureOp::DecodeImage()
         static_cast<int>(sw.Elapsed() * 1000.0f),
         GetCacheKey().ToString());
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
 Result<GpuTexture*>

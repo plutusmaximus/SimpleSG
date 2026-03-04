@@ -41,7 +41,7 @@ AppDriver::SetMouseCapture(const bool capture)
     }
 }
 
-Result<void>
+Result<>
 AppDriver::Init()
 {
     if(!everify(State::None == m_State, "AppDriver already initialized or running"))
@@ -69,10 +69,10 @@ AppDriver::Init()
 
     m_State = State::Initialized;
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }
 
-Result<void>
+Result<>
 AppDriver::Run()
 {
     if(!everify(State::Initialized == m_State, "AppDriver not initialized"))
@@ -213,5 +213,5 @@ AppDriver::Run()
 
     m_State = State::Stopped;
 
-    return Result<void>::Success;
+    return Result<>::Success;
 }

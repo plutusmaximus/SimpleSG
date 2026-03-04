@@ -121,7 +121,7 @@ public:
         const std::span<std::span<const Vertex>>& vertices) = 0;
 
     /// @brief Destroys a vertex buffer.
-    virtual Result<void> DestroyVertexBuffer(GpuVertexBuffer* vertexBuffer) = 0;
+    virtual Result<> DestroyVertexBuffer(GpuVertexBuffer* vertexBuffer) = 0;
 
     /// @brief Creates an index buffer from the given indices.
     virtual Result<GpuIndexBuffer*> CreateIndexBuffer(const std::span<const VertexIndex>& indices) = 0;
@@ -131,7 +131,7 @@ public:
         const std::span<std::span<const VertexIndex>>& indices) = 0;
 
     /// @brief Destroys an index buffer.
-    virtual Result<void> DestroyIndexBuffer(GpuIndexBuffer* indexBuffer) = 0;
+    virtual Result<> DestroyIndexBuffer(GpuIndexBuffer* indexBuffer) = 0;
 
     /// @brief Creates a texture from raw pixel data.
     /// Pixels are expected to be in RGBA8 format.
@@ -147,26 +147,26 @@ public:
     virtual Result<GpuTexture*> CreateTexture(const RgbaColorf& color, const imstring& name) = 0;
 
     /// @brief Destroys a texture.
-    virtual Result<void> DestroyTexture(GpuTexture* texture) = 0;
+    virtual Result<> DestroyTexture(GpuTexture* texture) = 0;
 
     /// @brief Creates a color render target with the given dimensions and name.
     virtual Result<GpuColorTarget*> CreateColorTarget(
         const unsigned width, const unsigned height, const imstring& name) = 0;
 
     /// @brief Destroys a color render target.
-    virtual Result<void> DestroyColorTarget(GpuColorTarget* colorTarget) = 0;
+    virtual Result<> DestroyColorTarget(GpuColorTarget* colorTarget) = 0;
 
     virtual Result<GpuDepthTarget*> CreateDepthTarget(const unsigned width,
         const unsigned height,
         const imstring& name) = 0;
 
     /// @brief Destroys a depth target.
-    virtual Result<void> DestroyDepthTarget(GpuDepthTarget* depthTarget) = 0;
+    virtual Result<> DestroyDepthTarget(GpuDepthTarget* depthTarget) = 0;
 
     virtual Result<GpuMaterial*> CreateMaterial(const MaterialConstants& constants,
         GpuTexture* baseTexture) = 0;
 
-    virtual Result<void> DestroyMaterial(GpuMaterial* material) = 0;
+    virtual Result<> DestroyMaterial(GpuMaterial* material) = 0;
 
     virtual Renderer* GetRenderer() = 0;
 

@@ -346,7 +346,7 @@ private:
 
         void SetResult(Result<GpuTexture*> result);
 
-        Result<void> DecodeImage();
+        Result<> DecodeImage();
 
         Result<GpuTexture*> CreateTexture();
 
@@ -373,7 +373,7 @@ private:
         int m_DecodedImageHeight{ 0 };
         int m_DecodedImageChannels{ 0 };
 
-        std::optional<Result<void>> m_DecodeImageResult;
+        std::optional<Result<>> m_DecodeImageResult;
         std::atomic<bool> m_DecodeImageComplete{ false };
     };
 
