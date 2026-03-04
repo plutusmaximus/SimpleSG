@@ -53,53 +53,83 @@ inline std::shared_ptr<spdlog::logger> GetLogger()
 
 // ====== Logging functions ======
 
-/// @brief Concept to constrain format string types.
-template<typename T>
-concept LogFormatString =
-    std::convertible_to<T, const char*> || std::convertible_to<T, std::string> ||
-    std::convertible_to<T, std::wstring> || std::convertible_to<T, imstring>;
-
 template<typename... Args>
 inline void
-logTrace(const LogFormatString auto& format, Args&&... args)
+logTrace(std::format_string<Args...> fmt, Args&&... args)
 {
-    GetLogger<__LOGGER_NAME__>()->trace(std::vformat(format, std::make_format_args(args...)));
+    GetLogger<__LOGGER_NAME__>()->trace(std::format(fmt, std::forward<Args>(args)...));
+}
+
+inline void
+logTrace(std::string_view message)
+{
+    GetLogger<__LOGGER_NAME__>()->trace(message);
 }
 
 template<typename... Args>
 inline void
-logDebug(const LogFormatString auto& format, Args&&... args)
+logDebug(std::format_string<Args...> fmt, Args&&... args)
 {
-    GetLogger<__LOGGER_NAME__>()->debug(std::vformat(format, std::make_format_args(args...)));
+    GetLogger<__LOGGER_NAME__>()->debug(std::format(fmt, std::forward<Args>(args)...));
+}
+
+inline void
+logDebug(std::string_view message)
+{
+    GetLogger<__LOGGER_NAME__>()->debug(message);
 }
 
 template<typename... Args>
 inline void
-logInfo(const LogFormatString auto& format, Args&&... args)
+logInfo(std::format_string<Args...> fmt, Args&&... args)
 {
-    GetLogger<__LOGGER_NAME__>()->info(std::vformat(format, std::make_format_args(args...)));
+    GetLogger<__LOGGER_NAME__>()->info(std::format(fmt, std::forward<Args>(args)...));
+}
+
+inline void
+logInfo(std::string_view message)
+{
+    GetLogger<__LOGGER_NAME__>()->info(message);
 }
 
 template<typename... Args>
 inline void
-logWarn(const LogFormatString auto& format, Args&&... args)
+logWarn(std::format_string<Args...> fmt, Args&&... args)
 {
-    GetLogger<__LOGGER_NAME__>()->warn(std::vformat(format, std::make_format_args(args...)));
+    GetLogger<__LOGGER_NAME__>()->warn(std::format(fmt, std::forward<Args>(args)...));
+}
+
+inline void
+logWarn(std::string_view message)
+{
+    GetLogger<__LOGGER_NAME__>()->warn(message);
 }
 
 template<typename... Args>
 inline void
-logError(const LogFormatString auto& format, Args&&... args)
+logError(std::format_string<Args...> fmt, Args&&... args)
 {
-    GetLogger<__LOGGER_NAME__>()->error(std::vformat(format, std::make_format_args(args...)));
+    GetLogger<__LOGGER_NAME__>()->error(std::format(fmt, std::forward<Args>(args)...));
+}
+
+inline void
+logError(std::string_view message)
+{
+    GetLogger<__LOGGER_NAME__>()->error(message);
 }
 
 /// Log an assertion failure
 template<typename... Args>
 inline void
-logAssert(const LogFormatString auto& format, Args&&... args)
+logAssert(std::format_string<Args...> fmt, Args&&... args)
 {
-    GetLogger<"assert">()->error(std::vformat(format, std::make_format_args(args...)));
+    GetLogger<"assert">()->error(std::format(fmt, std::forward<Args>(args)...));
+}
+
+inline void
+logAssert(std::string_view message)
+{
+    GetLogger<"assert">()->error(message);
 }
 
 /// @brief Sets the log level for a specific logger.
