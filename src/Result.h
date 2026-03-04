@@ -284,9 +284,8 @@ private:
     {                                                                   \
         if(!static_cast<bool>(expr))                                    \
         {                                                               \
-            const Error error = MAKE_EXPR_ERROR(#expr, ##__VA_ARGS__);  \
-            logError("{}", error);                                      \
-            return error;                                               \
+            logError("[{}:{}]:{}", __FILE__, __LINE__, __VA_ARGS__);    \
+            return MAKE_EXPR_ERROR(#expr, ##__VA_ARGS__);               \
         }                                                               \
     }
 
@@ -295,8 +294,7 @@ private:
     {                                                                   \
         if(!everify(expr, ##__VA_ARGS__))                               \
         {                                                               \
-            const Error error = MAKE_EXPR_ERROR(#expr, ##__VA_ARGS__);  \
-            logError("{}", error);                                      \
-            return error;                                               \
+            logError("[{}:{}]:{}", __FILE__, __LINE__, __VA_ARGS__);    \
+            return MAKE_EXPR_ERROR(#expr, ##__VA_ARGS__);               \
         }                                                               \
     }
