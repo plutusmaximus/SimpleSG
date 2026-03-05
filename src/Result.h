@@ -61,39 +61,6 @@ public:
 
     const imstring& GetMessage() const { return m_Message; }
 
-    // ===== Expression error helpers ======
-
-    /// @brief Used to create error messages for assertion failures.
-    template<typename... Args>
-    static Error MakeExprError(const char* file,
-        const int line,
-        const char* exprStr,
-        std::string_view format,
-        Args&&... args)
-    {
-        std::string message;
-        if(!format.empty())
-        {
-            message = std::format("[{}:{}]:({}) {}",
-                file,
-                line,
-                exprStr,
-                std::vformat(format, std::make_format_args(args...)));
-        }
-        else
-        {
-            message = std::format("[{}:{}]:{}", file, line, exprStr);
-        }
-
-        return Error(message);
-    }
-
-    static Error MakeExprError(
-        const char* file, const int line, const char* exprStr, const Error& error)
-    {
-        return MakeExprError(file, line, exprStr, "{}", error);
-    }
-
 private:
 
     ErrorCode m_Code;
@@ -126,57 +93,33 @@ public:
 
 /// @brief Representation of a result that can either be a value of type T or an Error.
 template<typename T = ResultSuccess>
-class Result final : public ResultBase<T>
+class Result final : public ResultBase<T>, private std::variant<Error, T>
 {
+    using Base = std::variant<Error, T>;
 public:
-    Result() = default;
 
-    Result(const T& t)
-        : m_ValueOrError(t)
-    {
-    }
-
-    Result(T&& t)
-        : m_ValueOrError(std::move(t))
-    {
-    }
-
-    Result(const Error& error)
-        : m_ValueOrError(error)
-    {
-    }
-
-    Result(Error&& error)
-        : m_ValueOrError(std::move(error))
-    {
-    }
+    using Base::Base;
 
     Result(const Result& other) = default;
     Result(Result&& other) = default;
     Result& operator=(const Result& other) = default;
     Result& operator=(Result&& other) = default;
 
-    Result& operator=(const Error& error)
-    {
-        m_ValueOrError = error;
-        return *this;
-    }
-
     constexpr T& value() &
     {
-        return std::get<T>(m_ValueOrError);
+        return std::get<T>(*this);
     }
     constexpr const T& value() const&
     {
-        return std::get<T>(m_ValueOrError);
+        return std::get<T>(*this);
     }
     constexpr T&& value() &&
     {
-        return std::move(std::get<T>(m_ValueOrError));
+        return std::move(std::get<T>(*this));
     }
     constexpr const T&& value() const&&
     {
-        return std::move(std::get<T>(m_ValueOrError));
+        return std::move(std::get<T>(*this));
     }
 
     constexpr T& operator*() & { return value(); }
@@ -187,14 +130,14 @@ public:
     constexpr T* operator->() { return &value(); }
     constexpr const T* operator->() const { return &value(); }
 
-    constexpr Error& error() & { return std::get<Error>(m_ValueOrError); }
-    constexpr const Error& error() const& { return std::get<Error>(m_ValueOrError); }
-    constexpr Error&& error() && { return std::move(std::get<Error>(m_ValueOrError)); }
-    constexpr const Error&& error() const&& { return std::move(std::get<Error>(m_ValueOrError)); }
+    constexpr Error& error() & { return std::get<Error>(*this); }
+    constexpr const Error& error() const& { return std::get<Error>(*this); }
+    constexpr Error&& error() && { return std::move(std::get<Error>(*this)); }
+    constexpr const Error&& error() const&& { return std::move(std::get<Error>(*this)); }
 
-    bool has_value() const { return std::holds_alternative<T>(m_ValueOrError); }
+    bool has_value() const { return std::holds_alternative<T>(*this); }
 
-    bool has_error() const { return std::holds_alternative<Error>(m_ValueOrError); }
+    bool has_error() const { return std::holds_alternative<Error>(*this); }
 
     operator bool() const { return has_value(); }
 
@@ -217,19 +160,45 @@ public:
 
     bool operator!=(const Result& other) const { return !(*this == other); }
 
-private:
-    std::variant<Error, T> m_ValueOrError;
-};
+    template<typename... Args>
+    static inline std::string Format(std::format_string<Args...> fmt, Args&&... args)
+    {
+        return std::format(fmt, std::forward<Args>(args)...);
+    }
 
-#define MAKE_EXPR_ERROR(exprStr, ...)                                                              \
-    Error::MakeExprError(__FILE__, __LINE__, exprStr, ##__VA_ARGS__)
+    static inline std::string Format()
+    {
+        static std::string empty = "";
+        return empty;
+    }
+
+    static inline const std::string& Format(const std::string& str)
+    {
+        return str;
+    }
+
+    static inline std::string_view Format(const std::string_view str)
+    {
+        return str;
+    }
+
+    static inline const char* Format(const char* str)
+    {
+        return str;
+    }
+
+    static inline const imstring& Format(const Error& error)
+    {
+        return error.GetMessage();
+    }
+};
 
 #define expect(expr, ...)                                               \
     {                                                                   \
         if(!static_cast<bool>(expr))                                    \
         {                                                               \
-            logError("[{}:{}]:{}", __FILE__, __LINE__, __VA_ARGS__);    \
-            return MAKE_EXPR_ERROR(#expr, ##__VA_ARGS__);               \
+            logError("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__));    \
+            return Error("");               \
         }                                                               \
     }
 
@@ -238,7 +207,7 @@ private:
     {                                                                   \
         if(!everify(expr, ##__VA_ARGS__))                               \
         {                                                               \
-            logError("[{}:{}]:{}", __FILE__, __LINE__, __VA_ARGS__);    \
-            return MAKE_EXPR_ERROR(#expr, ##__VA_ARGS__);               \
+            logError("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__));    \
+            return Error("");               \
         }                                                               \
     }
