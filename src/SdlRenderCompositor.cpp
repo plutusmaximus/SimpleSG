@@ -23,10 +23,7 @@ SdlRenderCompositor::~SdlRenderCompositor()
 Result<>
 SdlRenderCompositor::BeginFrame()
 {
-    if(!everify(!m_FrameStarted, "Frame already started"))
-    {
-        return Error("Frame already started");
-    }
+    expectv(!m_FrameStarted, "Frame already started");
 
     m_FrameStarted = true;
 
@@ -66,10 +63,7 @@ SdlRenderCompositor::BeginFrame()
 Result<>
 SdlRenderCompositor::EndFrame()
 {
-    if(!everify(m_FrameStarted, "Frame not started"))
-    {
-        return Error("Frame not started");
-    }
+    expectv(m_FrameStarted, "Frame not started");
 
     m_FrameStarted = false;
 

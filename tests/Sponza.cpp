@@ -47,10 +47,7 @@ public:
             Shutdown();
         });
 
-        if(!everify(State::None == m_State, "Application already initialized or running"))
-        {
-            return Error("Application already initialized or running");
-        }
+        expectv(State::None == m_State, "Application already initialized or running");
 
         m_State = State::Initialized;
 

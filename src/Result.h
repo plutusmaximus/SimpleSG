@@ -94,7 +94,7 @@ public:
 };
 
 /// @brief Representation of a result that can either be a value of type T or an Error.
-template<typename SuccessType = ResultOk, typename ErrorType = Error>
+template<typename SuccessType = ResultOk, typename ErrorType = ResultFail>
 class Result final : public ResultBase<SuccessType>, private std::variant<ErrorType, SuccessType>
 {
     using Base = std::variant<ErrorType, SuccessType>;
@@ -155,7 +155,7 @@ public:
         if(!static_cast<bool>(expr))                                    \
         {                                                               \
             logError("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__));    \
-            return Error("");               \
+            return Result<>::Fail;               \
         }                                                               \
     }
 
@@ -165,6 +165,6 @@ public:
         if(!everify(expr, ##__VA_ARGS__))                               \
         {                                                               \
             logError("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__));    \
-            return Error("");               \
+            return Result<>::Fail;               \
         }                                                               \
     }

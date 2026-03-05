@@ -307,7 +307,7 @@ DawnGpuDevice::CreateTexture(const unsigned width,
     struct QueueSubmitResult
     {
         std::atomic<bool> done = false;
-        std::optional<Error> queueSubmitError;
+        Result<> queueSubmitResult = Result<>::Ok;
     };
 
     QueueSubmitResult result;
@@ -320,8 +320,8 @@ DawnGpuDevice::CreateTexture(const unsigned width,
         {
             if(status != wgpu::QueueWorkDoneStatus::Success)
             {
-                result->queueSubmitError =
-                    Error("Queue submit failed: {}", std::string(message.data, message.length));
+                logError("Queue submit failed: {}", std::string(message.data, message.length));
+                result->queueSubmitResult = Result<>::Fail;
             }
             result->done.store(true);
         },
@@ -332,10 +332,7 @@ DawnGpuDevice::CreateTexture(const unsigned width,
         Instance.ProcessEvents();
     }
 
-    if(result.queueSubmitError)
-    {
-        return result.queueSubmitError.value();
-    }
+    expect(result.queueSubmitResult);
 
     auto samplerResult = GetDefaultSampler();
     expect(samplerResult);
@@ -374,11 +371,8 @@ DawnGpuDevice::CreateMaterial(const MaterialConstants& mtlConstants, GpuTexture*
 {
     DawnGpuTexture* dawnBaseTexture = static_cast<DawnGpuTexture*>(baseTexture);
 
-    if(!everify(dawnBaseTexture->m_GpuDevice == this,
-           "Base texture must belong to this device"))
-    {
-        return Error("Base texture must belong to this device");
-    }
+    expectv(dawnBaseTexture->m_GpuDevice == this,
+           "Base texture must belong to this device");
 
     wgpu::Limits gpuLimits;
     Device.GetLimits(&gpuLimits);
@@ -672,7 +666,8 @@ CreateAdapter(wgpu::Instance instance)
     {
         if(status != wgpu::RequestAdapterStatus::Success)
         {
-            result = Error("RequestAdapter failed: {}", std::string(message.data, message.length));
+            logError("RequestAdapter failed: {}", std::string(message.data, message.length));
+            result = Result<>::Fail;
         }
         else
         {
@@ -783,7 +778,8 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
     {
         if(status != wgpu::RequestDeviceStatus::Success)
         {
-            result = Error("RequestDevice failed: {}", std::string(message.data, message.length));
+            logError("RequestDevice failed: {}", std::string(message.data, message.length));
+            result = Result<>::Fail;
         }
         else
         {

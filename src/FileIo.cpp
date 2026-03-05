@@ -1,5 +1,6 @@
 #include "FileIo.h"
 #include "PoolAllocator.h"
+#include "scope_exit.h"
 
 #include <array>
 #include <atomic>
@@ -202,10 +203,7 @@ FileIo::GetResult(const AsyncToken token)
         Shutdown();
     }
 
-    if(!IsRunning())
-    {
-        return Error("FileIo is not running or is shutting down.");
-    }
+    expect(IsRunning(), "FileIo is not running or is shutting down.");
 
     ProcessCompletions();
 
@@ -223,10 +221,7 @@ FileIo::GetResult(const AsyncToken token)
         }
     }
 
-    if(!req)
-    {
-        return Error("No completed request found for given token.");
-    }
+    expect(req, "No completed request found for given token.");
 
     RemoveCompleteRequest(req);
 
@@ -315,10 +310,7 @@ static void DeleteReadRequest(FileIo::ReadRequest* req)
 Result<FileIo::AsyncToken>
 FileIo::Fetch(const imstring& filePath)
 {
-    if(!IsRunning())
-    {
-        return Error("FileIO is not running or is shutting down.");
-    }
+    expect(IsRunning(), "FileIO is not running or is shutting down.");
 
     // Open file
     HANDLE hFile = ::CreateFileA(filePath.c_str(),
@@ -329,75 +321,56 @@ FileIo::Fetch(const imstring& filePath)
         FILE_FLAG_OVERLAPPED | FILE_FLAG_SEQUENTIAL_SCAN,
         nullptr);
 
-    if(hFile == INVALID_HANDLE_VALUE)
-    {
-        // Failed to open file; fulfill promise with 0 bytes read.
-        return Error("Failed to open file: {}, error: {}",
-            filePath,
-            GetWindowsErrorString(::GetLastError()));
-    }
+    expect(hFile != INVALID_HANDLE_VALUE,
+        "Failed to open file: {}, error: {}",
+        filePath,
+        GetWindowsErrorString(::GetLastError()));
 
-    LARGE_INTEGER fsize;
-    if(!::GetFileSizeEx(hFile, &fsize))
+    auto cleanupFile = scope_exit([hFile]()
     {
         ::CloseHandle(hFile);
+    });
 
-        return Error("Failed to get file size: {}, error: {}",
-            filePath,
-            GetWindowsErrorString(::GetLastError()));
-    }
+    LARGE_INTEGER fsize;
+    expect(::GetFileSizeEx(hFile, &fsize),
+        "Failed to get file size: {}, error: {}",
+        filePath,
+        GetWindowsErrorString(::GetLastError()));
 
     const int64_t fileSize = fsize.QuadPart;
 
-    if(fileSize < 0)
-    {
-        ::CloseHandle(hFile);
+    expect(fileSize >= 0, "Failed to get file size for {}.", filePath);
 
-        return Error("Failed to get file size for {}.", filePath);
-    }
+    expect(fileSize <= std::numeric_limits<DWORD>::max(), "File is too large to read: {}", filePath);
 
-    if(fileSize > std::numeric_limits<DWORD>::max())
-    {
-        ::CloseHandle(hFile);
-
-        return Error("File is too large to read: {}", filePath);
-    }
-
-    if(!fileSize)
-    {
-        ::CloseHandle(hFile);
-
-        return Error("File is empty: {}", filePath);
-    }
+    expect(fileSize, "File is empty: {}", filePath);
 
     std::unique_ptr<uint8_t[]> bytes = std::make_unique<uint8_t[]>(fileSize);
-    if(!bytes)
-    {
-        ::CloseHandle(hFile);
-
-        return Error("Failed to allocate read buffer for file: {}", filePath);
-    }
+    expect(bytes, "Failed to allocate read buffer for file: {}", filePath);
 
     auto req = AllocReadRequest(filePath, hFile, std::move(bytes), static_cast<size_t>(fileSize));
 
-    if(!req)
+    expect(req, "Failed to allocate read request.");
+
+    cleanupFile.release();
+
+    auto cleanupReq = scope_exit([req]()
     {
-        return Error("Failed to allocate read request.");
-    }
+        DeleteReadRequest(req);
+    });
 
     // Used as key to identify the request on completion.
     ULONG_PTR key = reinterpret_cast<ULONG_PTR>(req);
 
     // Bind file to IOCP.
-    if(::CreateIoCompletionPort(req->File, s_IOCP, key, 0) == nullptr)
-    {
-        DeleteReadRequest(req);
-        return Error("Failed to bind file to IOCP: {}, error: {}",
-            filePath,
-            GetWindowsErrorString(::GetLastError()));
-    }
+    expect(::CreateIoCompletionPort(req->File, s_IOCP, key, 0) != nullptr,
+        "Failed to bind file to IOCP: {}, error: {}",
+        filePath,
+        GetWindowsErrorString(::GetLastError()));
 
     AddPendingRequest(req);
+
+    cleanupReq.release();
 
     auto result = IssueReadRequest(req);
 
@@ -546,9 +519,11 @@ IssueReadRequest(FileIo::ReadRequest* req)
             continue;
         }
 
-        return Error("Failed to issue read for file: {}, error: {}",
+        logError("Failed to issue read for file: {}, error: {}",
             win32Req->Path,
             GetWindowsErrorString(err));
+
+        return Result<>::Fail;
     }
 
     return Result<>::Ok;
@@ -591,7 +566,8 @@ FileIo::PlatformShutdown()
             ::CancelIoEx(win32Req->File, &win32Req->Ov);
         }
 
-        CompleteRequestFailure(req, "Async read cancelled due to shutdown");
+        logError("Async read cancelled due to shutdown: {}", req->Path);
+        CompleteRequestFailure(req, Result<>::Fail);
     }
 
     if(s_IOCP != nullptr)

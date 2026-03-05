@@ -128,38 +128,30 @@ SdlGpuDevice::Create(SDL_Window* window)
         SDL_DestroyGPUDevice(sdlDevice);
     });
 
-    if (!SDL_ClaimWindowForGPUDevice(sdlDevice, window))
-    {
-        return Error(SDL_GetError());
-    }
+    expect(SDL_ClaimWindowForGPUDevice(sdlDevice, window), SDL_GetError());
 
     if(SDL_WindowSupportsGPUPresentMode(sdlDevice, window, SDL_GPU_PRESENTMODE_MAILBOX))
     {
         logInfo("Using SDL_GPU_PRESENTMODE_MAILBOX present mode.");
 
-        if(!SDL_SetGPUSwapchainParameters(sdlDevice,
+        expect(SDL_SetGPUSwapchainParameters(sdlDevice,
                window,
                SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
-               SDL_GPU_PRESENTMODE_MAILBOX))
-        {
-            return Error(SDL_GetError());
-        }
+               SDL_GPU_PRESENTMODE_MAILBOX), SDL_GetError());
     }
     else if(SDL_WindowSupportsGPUPresentMode(sdlDevice, window, SDL_GPU_PRESENTMODE_VSYNC))
     {
         logInfo("Using SDL_GPU_PRESENTMODE_VSYNC present mode.");
 
-        if(!SDL_SetGPUSwapchainParameters(sdlDevice,
+        expect(SDL_SetGPUSwapchainParameters(sdlDevice,
                window,
                SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
-               SDL_GPU_PRESENTMODE_VSYNC))
-        {
-            return Error(SDL_GetError());
-        }
+               SDL_GPU_PRESENTMODE_VSYNC), SDL_GetError());
     }
     else
     {
-        return Error("No supported present mode found for window.");
+        logError("No supported present mode found for window.");
+        return Result<>::Fail;
     }
 
     SdlGpuDevice* device = new SdlGpuDevice(window, sdlDevice);
@@ -227,7 +219,8 @@ SdlGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& verti
     if(!res)
     {
         SDL_ReleaseGPUBuffer(Device, nativeBuf);
-        return Error("Error allocating GpuResource");
+        logError("Error allocating GpuResource");
+        return Result<>::Fail;
     }
 
     return ::new(&res->VertexBuffer)SdlGpuVertexBuffer(this,
@@ -267,7 +260,8 @@ SdlGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& i
     if(!res)
     {
         SDL_ReleaseGPUBuffer(Device, nativeBuf);
-        return Error("Error allocating GpuResource");
+        logError("Error allocating GpuResource");
+        return Result<>::Fail;
     }
 
     return ::new(&res->IndexBuffer)SdlGpuIndexBuffer(this,
@@ -457,18 +451,12 @@ SdlGpuDevice::CreateMaterial(const MaterialConstants& mtlConstants, GpuTexture* 
 {
     SdlGpuTexture* sdlBaseTexture = static_cast<SdlGpuTexture*>(baseTexture);
 
-    if(!everify(sdlBaseTexture->m_GpuDevice == this,
-           "Base texture must belong to this device"))
-    {
-        return Error("Base texture must belong to this device");
-    }
+    expectv(sdlBaseTexture->m_GpuDevice == this,
+           "Base texture must belong to this device");
 
     GpuResource* res = m_ResourceAllocator.New();
 
-    if(!res)
-    {
-        return Error("Error allocating GpuResource");
-    }
+    expect(res, "Error allocating GpuResource");
 
     return ::new(&res->Material) SdlGpuMaterial(this, baseTexture, mtlConstants);
 }
@@ -520,7 +508,7 @@ SdlGpuDevice::CreateColorTarget(const unsigned width, const unsigned height, con
     if(!res)
     {
         SDL_ReleaseGPUTexture(Device, texture);
-        return Error("Error allocating GpuResource");
+        return Result<>::Fail;
     }
 
     expectv(res, "Error allocating GpuResource");

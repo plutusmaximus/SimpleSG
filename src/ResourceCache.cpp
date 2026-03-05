@@ -378,7 +378,8 @@ ResourceCache::CreateModelOp::Start()
 
     if(!everify(m_ResourceCache->m_ModelCache.TryReserve(GetCacheKey())))
     {
-        SetResult(Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString()));
+        logError("Failed to reserve cache entry for key: {}", GetCacheKey().ToString());
+        SetResult(Result<>::Fail);
         return;
     }
 }
@@ -418,7 +419,7 @@ ResourceCache::CreateModelOp::Update()
                 auto result = m_ResourceCache->m_GpuDevice->CreateVertexBuffer(vertexSpans);
                 if(!result)
                 {
-                    SetResult({});
+                    SetResult(Result<>::Fail);
                     return;
                 }
 
@@ -442,7 +443,7 @@ ResourceCache::CreateModelOp::Update()
                 auto result = m_ResourceCache->m_GpuDevice->CreateIndexBuffer(indexSpans);
                 if(!result)
                 {
-                    SetResult({});
+                    SetResult(Result<>::Fail);
                     return;
                 }
 
@@ -489,7 +490,7 @@ ResourceCache::CreateModelOp::Update()
 
                     if(!modelResult)
                     {
-                        SetResult({});
+                        SetResult(Result<>::Fail);
                         return;
                     }
 
@@ -507,7 +508,7 @@ ResourceCache::CreateModelOp::Update()
                     return;
                 }
 
-                SetResult({});
+                SetResult(Result<>::Fail);
 
                 break;
 
@@ -620,7 +621,8 @@ ResourceCache::LoadModelOp::Start()
 
     if(!everify(m_ResourceCache->m_ModelCache.TryReserve(GetCacheKey())))
     {
-        SetResult(Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString()));
+        logError("Failed to reserve cache entry for key: {}", GetCacheKey().ToString());
+        SetResult(Result<>::Fail);
         return;
     }
 
@@ -668,7 +670,8 @@ ResourceCache::LoadModelOp::Update()
 
             if(!scene)
             {
-                SetResult(Error(importer.GetErrorString()));
+                logError("Failed to load model file: {} ({})", m_Path, importer.GetErrorString());
+                SetResult(Result<>::Fail);
                 return;
             }
 
@@ -676,7 +679,7 @@ ResourceCache::LoadModelOp::Update()
 
             if(!m_ModelSpecResult)
             {
-                SetResult({});
+                SetResult(Result<>::Fail);
                 return;
             }
 
@@ -710,7 +713,8 @@ ResourceCache::LoadModelOp::Update()
 
             if(!m_CreateModelOp)
             {
-                SetResult(Error("Failed to allocate CreateModelOp"));
+                logError("Failed to allocate CreateModelOp");
+                SetResult(Result<>::Fail);
                 return;
             }
 
@@ -785,13 +789,15 @@ ResourceCache::CreateTextureOp::Start()
 
     if(!everify(m_TextureSpec.IsValid(), "Texture spec is invalid"))
     {
-        SetResult(Error("Texture spec is invalid"));
+        logError("Texture spec is invalid");
+        SetResult(Result<>::Fail);
         return;
     }
 
     if(!everify(m_ResourceCache->m_TextureCache.TryReserve(GetCacheKey())))
     {
-        SetResult(Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString()));
+        logError("Failed to reserve cache entry for key: {}", GetCacheKey().ToString());
+        SetResult(Result<>::Fail);
         return;
     }
 
@@ -802,7 +808,7 @@ ResourceCache::CreateTextureOp::Start()
         auto result = m_ResourceCache->m_GpuDevice->CreateTexture(color, color.ToHexString());
         if(!result)
         {
-            SetResult({});
+            SetResult(Result<>::Fail);
             return;
         }
 
@@ -813,7 +819,7 @@ ResourceCache::CreateTextureOp::Start()
         if(path.empty())
         {
             logError("Texture source path is empty");
-            SetResult({});
+            SetResult(Result<>::Fail);
             return;
         }
 
@@ -823,7 +829,7 @@ ResourceCache::CreateTextureOp::Start()
 
         if(!result)
         {
-            SetResult({});
+            SetResult(Result<>::Fail);
 
             return;
         }
@@ -834,7 +840,7 @@ ResourceCache::CreateTextureOp::Start()
     else
     {
         logError("Texture source is not specified");
-        SetResult({});
+        SetResult(Result<>::Fail);
     }
 }
 
@@ -858,7 +864,7 @@ ResourceCache::CreateTextureOp::Update()
 
             if(!fetchResult)
             {
-                SetResult({});
+                SetResult(Result<>::Fail);
                 return;
             }
 
@@ -885,7 +891,7 @@ ResourceCache::CreateTextureOp::Update()
                 auto decodeResult = m_DecodeImageResult.value();
                 if(!decodeResult)
                 {
-                    SetResult({});
+                    SetResult(Result<>::Fail);
                     return;
                 }
 
@@ -983,7 +989,8 @@ ResourceCache::CreateMaterialOp::Start()
 
     if(!everify(m_ResourceCache->m_MaterialCache.TryReserve(GetCacheKey())))
     {
-        SetResult(Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString()));
+        logError("Failed to reserve cache entry for key: {}", GetCacheKey().ToString());
+        SetResult(Result<>::Fail);
         return;
     }
 
@@ -991,7 +998,8 @@ ResourceCache::CreateMaterialOp::Start()
 
     if(!everify(baseTextureSpec.IsValid(), "Base texture spec is invalid"))
     {
-        SetResult(Error("Base texture spec is invalid"));
+        logError("Base texture spec is invalid");
+        SetResult(Result<>::Fail);
         return;
     }
 
@@ -999,7 +1007,7 @@ ResourceCache::CreateMaterialOp::Start()
 
     if(!result)
     {
-        SetResult({});
+        SetResult(Result<>::Fail);
         return;
     }
 
@@ -1021,7 +1029,7 @@ ResourceCache::CreateMaterialOp::Update()
                 auto texResult = m_ResourceCache->GetTexture(m_MaterialSpec.BaseTexture.GetCacheKey());
                 if(!texResult)
                 {
-                    SetResult({});
+                    SetResult(Result<>::Fail);
                     return;
                 }
 

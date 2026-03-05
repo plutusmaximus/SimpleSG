@@ -478,16 +478,16 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
     auto cleanupFile = scope_exit([&]() { std::fclose(fp); });
 
     //Get file size
-    if(std::fseek(fp, 0, SEEK_END) != 0)
-    {
-        return Error("Failed to seek in shader file: {} ({})", filePath, std::strerror(errno));
-    }
+    expect(std::fseek(fp, 0, SEEK_END) == 0,
+        "Failed to seek in shader file: {} ({})",
+        filePath,
+        std::strerror(errno));
 
     long fileSize = std::ftell(fp);
-    if(fileSize < 0)
-    {
-        return Error("Failed to get size of shader file: {} ({})", filePath, std::strerror(errno));
-    }
+    expect(fileSize >= 0,
+        "Failed to get size of shader file: {} ({})",
+        filePath,
+        std::strerror(errno));
     std::rewind(fp);
 
     outBuffer.resize(static_cast<size_t>(fileSize));
@@ -537,10 +537,7 @@ DawnRenderer::GetColorPipeline()
         return m_ColorPipeline;
     }
 
-    if(!everify(m_ColorTarget, "Color target is null"))
-    {
-        return Error("Color target is null");
-    }
+    expectv(m_ColorTarget, "Color target is null");
 
     auto vertexShaderResult = GetColorVertexShader();
     expect(vertexShaderResult);

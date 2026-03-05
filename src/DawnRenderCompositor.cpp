@@ -15,10 +15,7 @@ DawnRenderCompositor::~DawnRenderCompositor()
 Result<>
 DawnRenderCompositor::BeginFrame()
 {
-    if(!everify(!m_FrameStarted, "Frame already started"))
-    {
-        return Error("Frame already started");
-    }
+    expectv(!m_FrameStarted, "Frame already started");
 
     m_FrameStarted = true;
 
@@ -46,10 +43,7 @@ DawnRenderCompositor::BeginFrame()
 Result<>
 DawnRenderCompositor::EndFrame()
 {
-    if(!everify(m_FrameStarted, "Frame not started"))
-    {
-        return Error("Frame not started");
-    }
+    expectv(m_FrameStarted, "Frame not started");
 
     m_FrameStarted = false;
 

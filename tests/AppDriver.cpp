@@ -44,10 +44,7 @@ AppDriver::SetMouseCapture(const bool capture)
 Result<>
 AppDriver::Init()
 {
-    if(!everify(State::None == m_State, "AppDriver already initialized or running"))
-    {
-        return Error("AppDriver already initialized or running");
-    }
+    expectv(State::None == m_State, "AppDriver already initialized or running");
 
     logSetLevel(spdlog::level::trace);
 
@@ -75,10 +72,7 @@ AppDriver::Init()
 Result<>
 AppDriver::Run()
 {
-    if(!everify(State::Initialized == m_State, "AppDriver not initialized"))
-    {
-        return Error("AppDriver not initialized");
-    }
+    expectv(State::Initialized == m_State, "AppDriver not initialized");
 
     m_State = State::Running;
 
