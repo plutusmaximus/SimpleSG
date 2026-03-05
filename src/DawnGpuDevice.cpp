@@ -179,7 +179,7 @@ DawnGpuDevice::DestroyVertexBuffer(GpuVertexBuffer* vb)
         "VertexBuffer does not belong to this device");
     dawnBuffer->~DawnGpuVertexBuffer();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(vb));
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<GpuIndexBuffer*>
@@ -213,7 +213,7 @@ DawnGpuDevice::DestroyIndexBuffer(GpuIndexBuffer* buffer)
         "IndexBuffer does not belong to this device");
     dawnBuffer->~DawnGpuIndexBuffer();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(buffer));
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<GpuTexture*>
@@ -366,7 +366,7 @@ DawnGpuDevice::DestroyTexture(GpuTexture* texture)
         "Texture does not belong to this device");
     dawnTexture->~DawnGpuTexture();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(texture));
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<GpuMaterial*>
@@ -445,7 +445,7 @@ DawnGpuDevice::DestroyMaterial(GpuMaterial* material)
         "Material does not belong to this device");
     dawnMaterial->~DawnGpuMaterial();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(material));
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<GpuColorTarget*>
@@ -493,7 +493,7 @@ DawnGpuDevice::DestroyColorTarget(GpuColorTarget* colorTarget)
         "ColorTarget does not belong to this device");
     dawnColorTarget->~DawnGpuColorTarget();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(colorTarget));
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<GpuDepthTarget*>
@@ -539,7 +539,7 @@ DawnGpuDevice::DestroyDepthTarget(GpuDepthTarget* depthTarget)
         "DepthTarget does not belong to this device");
     dawnDepthTarget->~DawnGpuDepthTarget();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(depthTarget));
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Renderer*

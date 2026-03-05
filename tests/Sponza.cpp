@@ -99,7 +99,7 @@ public:
 
         cleanup.release();
 
-        return Result<>::Success;
+        return Result<>::Ok;
     }
 
     void Shutdown() override
@@ -305,7 +305,7 @@ static Result<> RenderGui()
     }
     ImGui::End();
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 }
 

@@ -551,7 +551,7 @@ IssueReadRequest(FileIo::ReadRequest* req)
             GetWindowsErrorString(err));
     }
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 // private:

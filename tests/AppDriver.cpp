@@ -69,7 +69,7 @@ AppDriver::Init()
 
     m_State = State::Initialized;
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<>
@@ -213,5 +213,5 @@ AppDriver::Run()
 
     m_State = State::Stopped;
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }

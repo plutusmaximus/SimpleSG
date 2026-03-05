@@ -59,7 +59,7 @@ ImGuiRenderer::DawnStartup()
     if(m_Context)
     {
         // Already initialized
-        return Result<>::Success;
+        return Result<>::Ok;
     }
 
     DawnGpuDevice* dawnDevice = static_cast<DawnGpuDevice*>(m_GpuDevice);
@@ -95,7 +95,7 @@ ImGuiRenderer::DawnStartup()
     init_info.DepthStencilFormat = WGPUTextureFormat_Undefined;
     ImGui_ImplWGPU_Init(&init_info);
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<>
@@ -103,7 +103,7 @@ ImGuiRenderer::DawnShutdown()
 {
     if(!m_Context)
     {
-        return Result<>::Success;
+        return Result<>::Ok;
     }
 
     ImGui_ImplWGPU_Shutdown();
@@ -112,7 +112,7 @@ ImGuiRenderer::DawnShutdown()
 
     m_Context = nullptr;
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<>
@@ -122,7 +122,7 @@ ImGuiRenderer::DawnNewFrame()
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<>
@@ -135,7 +135,7 @@ ImGuiRenderer::DawnRender(RenderCompositor* renderCompositor)
     if(!drawData || drawData->TotalVtxCount == 0)
     {
         // Nothing to render for ImGui
-        return Result<>::Success;
+        return Result<>::Ok;
     }
 
     const bool is_minimized = (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f);
@@ -143,7 +143,7 @@ ImGuiRenderer::DawnRender(RenderCompositor* renderCompositor)
     if(is_minimized)
     {
         // Window is minimized, skip rendering ImGui
-        return Result<>::Success;
+        return Result<>::Ok;
     }
 
     DawnRenderCompositor* dawnCompositor = static_cast<DawnRenderCompositor*>(renderCompositor);
@@ -154,7 +154,7 @@ ImGuiRenderer::DawnRender(RenderCompositor* renderCompositor)
     if(!target)
     {
         // Off-screen rendering, skip rendering ImGui
-        return Result<>::Success;
+        return Result<>::Ok;
     }
 
     wgpu::RenderPassColorAttachment colorAttachment //
@@ -180,7 +180,7 @@ ImGuiRenderer::DawnRender(RenderCompositor* renderCompositor)
 
     renderPass.End();
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<>
@@ -189,7 +189,7 @@ ImGuiRenderer::SdlStartup()
     if(m_Context)
     {
         // Already initialized
-        return Result<>::Success;
+        return Result<>::Ok;
     }
 
     SdlGpuDevice* sdlDevice = static_cast<SdlGpuDevice*>(m_GpuDevice);
@@ -224,7 +224,7 @@ ImGuiRenderer::SdlStartup()
     init_info.PresentMode = SDL_GPU_PRESENTMODE_VSYNC;
     ImGui_ImplSDLGPU3_Init(&init_info);
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<>
@@ -232,7 +232,7 @@ ImGuiRenderer::SdlShutdown()
 {
     if(!m_Context)
     {
-        return Result<>::Success;
+        return Result<>::Ok;
     }
 
     ImGui_ImplSDLGPU3_Shutdown();
@@ -241,7 +241,7 @@ ImGuiRenderer::SdlShutdown()
 
     m_Context = nullptr;
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<>
@@ -251,7 +251,7 @@ ImGuiRenderer::SdlNewFrame()
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<>
@@ -264,7 +264,7 @@ ImGuiRenderer::SdlRender(RenderCompositor* renderCompositor)
     if(!drawData || drawData->TotalVtxCount == 0)
     {
         // Nothing to render for ImGui
-        return Result<>::Success;
+        return Result<>::Ok;
     }
 
     const bool is_minimized = (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f);
@@ -277,13 +277,13 @@ ImGuiRenderer::SdlRender(RenderCompositor* renderCompositor)
     if(is_minimized || !target)
     {
         // If the window is minimized, we can skip rendering the GUI without treating it as an error.
-        return Result<>::Success;
+        return Result<>::Ok;
     }
 
     if(!target)
     {
         // Off-screen rendering, skip rendering ImGui
-        return Result<>::Success;
+        return Result<>::Ok;
     }
 
     // This is mandatory: call ImGui_ImplSDLGPU3_PrepareDrawData() to upload the vertex/index buffer!
@@ -309,5 +309,5 @@ ImGuiRenderer::SdlRender(RenderCompositor* renderCompositor)
 
     SDL_EndGPURenderPass(renderPass);
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }

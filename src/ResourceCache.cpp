@@ -937,7 +937,7 @@ ResourceCache::CreateTextureOp::DecodeImage()
         static_cast<int>(sw.Elapsed() * 1000.0f),
         GetCacheKey().ToString());
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<GpuTexture*>

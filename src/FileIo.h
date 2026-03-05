@@ -77,7 +77,7 @@ public:
 
         FileIo::AsyncToken Token = FileIo::AsyncToken::NewToken();
 
-        Result<> ReadResult = Result<>::Success;
+        Result<> ReadResult = Result<>::Ok;
 
         ReadRequest* m_Next{ nullptr };
         ReadRequest* m_Prev{ nullptr };

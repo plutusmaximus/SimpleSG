@@ -222,7 +222,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
     {
         // No command buffer - likely window minimized.
         // This is not an error.
-        return Result<>::Success;
+        return Result<>::Ok;
     }
 
     static PerfTimer updateXformTimer("Renderer.Render.UpdateXformBuffer");
@@ -247,7 +247,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
     {
         //No render pass - likely window minimized.
         //This is not an error.
-        return Result<>::Success;
+        return Result<>::Ok;
     }
 
     auto cleanupRenderPass = scope_exit([&]()
@@ -392,7 +392,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
 
     resolveTimer.Stop();
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 //private:
@@ -509,7 +509,7 @@ SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTex
     if(!target)
     {
         // Offscreen rendering - no swapchain texture available. Not an error, just skip copying.
-        return Result<>::Success;
+        return Result<>::Ok;
     }
 
     auto pipelineResult = GetCopyColorTargetPipeline();
@@ -536,7 +536,7 @@ SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTex
         // If we fail to begin the render pass, it's likely because the window is minimized and the
         // swapchain texture is not available. In this case, we can just skip rendering this frame
         // without treating it as an error.
-        return Result<>::Success;
+        return Result<>::Ok;
     }
 
     // Bind texture and sampler
@@ -551,7 +551,7 @@ SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTex
     SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 1);
     SDL_EndGPURenderPass(renderPass);
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 static Result<>
@@ -581,7 +581,7 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
                 static_cast<size_t>(fileSize),
             "Failed to read shader file: {} ({})", filePath, std::strerror(errno));
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<SDL_GPUShader*> SdlRenderer::GetColorVertexShader()
@@ -1068,7 +1068,7 @@ SdlRenderer::UpdateXformBuffer(
 
     SDL_EndGPUCopyPass(copyPass);
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<GpuTexture*>

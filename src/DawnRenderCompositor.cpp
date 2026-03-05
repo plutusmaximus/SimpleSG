@@ -40,7 +40,7 @@ DawnRenderCompositor::BeginFrame()
     expect(m_Target, "Failed to create texture view for swapchain texture");
 #endif
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<>
@@ -76,7 +76,7 @@ DawnRenderCompositor::EndFrame()
         queue.Submit(1, &cmdBuf);
     }
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 wgpu::TextureView

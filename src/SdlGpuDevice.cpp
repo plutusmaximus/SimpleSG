@@ -244,7 +244,7 @@ SdlGpuDevice::DestroyVertexBuffer(GpuVertexBuffer* buffer)
 
     sdlBuffer->~SdlGpuVertexBuffer();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(buffer));
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<GpuIndexBuffer*>
@@ -284,7 +284,7 @@ SdlGpuDevice::DestroyIndexBuffer(GpuIndexBuffer* buffer)
 
     sdlBuffer->~SdlGpuIndexBuffer();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(buffer));
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<GpuTexture*>
@@ -449,7 +449,7 @@ SdlGpuDevice::DestroyTexture(GpuTexture* texture)
         "Texture does not belong to this device");
     sdlTexture->~SdlGpuTexture();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(texture));
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<GpuMaterial*>
@@ -481,7 +481,7 @@ SdlGpuDevice::DestroyMaterial(GpuMaterial* material)
         "Material does not belong to this device");
     sdlMaterial->~SdlGpuMaterial();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(material));
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<GpuColorTarget*>
@@ -539,7 +539,7 @@ SdlGpuDevice::DestroyColorTarget(GpuColorTarget* colorTarget)
         "Color target does not belong to this device");
     sdlColorTarget->~SdlGpuColorTarget();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(colorTarget));
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<GpuDepthTarget*>
@@ -593,7 +593,7 @@ SdlGpuDevice::DestroyDepthTarget(GpuDepthTarget* depthTarget)
         "Depth target does not belong to this device");
     sdlDepthTarget->~SdlGpuDepthTarget();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(depthTarget));
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Renderer*

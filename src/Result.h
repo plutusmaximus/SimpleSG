@@ -80,22 +80,24 @@ struct std::formatter<Error> : std::formatter<imstring>
 
 struct ResultFail final {};
 
-struct ResultSuccess final {};
+struct ResultOk final {};
 
 template<typename T> class ResultBase{};
 
 template<>
-class ResultBase<ResultSuccess>
+class ResultBase<ResultOk>
 {
 public:
-    static constexpr ResultSuccess Success = ResultSuccess{};
+    static constexpr ResultOk Ok;
+
+    static constexpr ResultFail Fail;
 };
 
 /// @brief Representation of a result that can either be a value of type T or an Error.
-template<typename T = ResultSuccess>
-class Result final : public ResultBase<T>, private std::variant<Error, T>
+template<typename SuccessType = ResultOk, typename ErrorType = Error>
+class Result final : public ResultBase<SuccessType>, private std::variant<ErrorType, SuccessType>
 {
-    using Base = std::variant<Error, T>;
+    using Base = std::variant<ErrorType, SuccessType>;
 public:
 
     using Base::Base;
@@ -105,15 +107,15 @@ public:
     Result& operator=(const Result& other) = default;
     Result& operator=(Result&& other) = default;
 
-    constexpr T& operator*() & { return std::get<T>(*this); }
-    constexpr const T& operator*() const& { return std::get<T>(*this); }
-    constexpr T&& operator*() && { return std::move(std::get<T>(*this)); }
-    constexpr const T&& operator*() const&& { return std::move(std::get<T>(*this)); }
+    constexpr SuccessType& operator*() & { return std::get<SuccessType>(*this); }
+    constexpr const SuccessType& operator*() const& { return std::get<SuccessType>(*this); }
+    constexpr SuccessType&& operator*() && { return std::move(std::get<SuccessType>(*this)); }
+    constexpr const SuccessType&& operator*() const&& { return std::move(std::get<SuccessType>(*this)); }
 
-    constexpr T* operator->() { return &std::get<T>(*this); }
-    constexpr const T* operator->() const { return &std::get<T>(*this); }
+    constexpr SuccessType* operator->() { return &std::get<SuccessType>(*this); }
+    constexpr const SuccessType* operator->() const { return &std::get<SuccessType>(*this); }
 
-    operator bool() const { return std::holds_alternative<T>(*this); }
+    operator bool() const { return std::holds_alternative<SuccessType>(*this); }
 
     template<typename... Args>
     static inline std::string Format(std::format_string<Args...> fmt, Args&&... args)

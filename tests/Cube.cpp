@@ -86,7 +86,7 @@ public:
 
         cleanup.release();
 
-        return Result<>::Success;
+        return Result<>::Ok;
     }
 
     void Shutdown() override

@@ -233,7 +233,7 @@ static Result<> MainLoop()
 
     PerfMetrics::LogTimers();
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 int main(int, char* /*argv[]*/)
@@ -258,7 +258,7 @@ static Result<> RenderGui()
     }
     ImGui::End();
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 // Triangle vertices

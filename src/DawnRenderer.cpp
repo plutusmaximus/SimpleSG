@@ -320,7 +320,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
 
     resolveTimer.Stop();
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 //private:
@@ -437,7 +437,7 @@ DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder, wgpu::
     if(!target)
     {
         // Off-screen rendering, skip rendering to swapchain
-        return Result<>::Success;
+        return Result<>::Ok;
     }
 
     auto pipelineResult = GetCopyColorTargetPipeline();
@@ -466,7 +466,7 @@ DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder, wgpu::
     renderPass.Draw(3, 1, 0, 0);
     renderPass.End();
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 static Result<>
@@ -496,7 +496,7 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
                 static_cast<size_t>(fileSize),
             "Failed to read shader file: {} ({})", filePath, std::strerror(errno));
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<wgpu::ShaderModule>
@@ -1126,7 +1126,7 @@ DawnRenderer::UpdateXformBuffer(
             drawIndirectBuffers.data(),
             sizeof(DrawIndirectBufferParams) * drawIndirectBuffers.size());
 
-    return Result<>::Success;
+    return Result<>::Ok;
 }
 
 Result<GpuTexture*>
