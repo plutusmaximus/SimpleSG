@@ -240,7 +240,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
         auto renderPassResult = BeginRenderPass(cmdBuf);
         expect(renderPassResult, renderPassResult.error());
 
-        renderPass = renderPassResult.value();
+        renderPass = *renderPassResult;
     }
 
     if(!renderPass)
@@ -262,8 +262,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
         auto scopedTimer = setPipelineTimer.StartScoped();
         auto pipelineResult = GetColorPipeline();
         expect(pipelineResult, pipelineResult.error());
-        auto pipeline = pipelineResult.value();
-        SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
+        SDL_BindGPUGraphicsPipeline(renderPass, *pipelineResult);
     }
 
     static PerfTimer setVsBindGroupTimer("Renderer.Render.SetVsBindGroup");
@@ -423,7 +422,7 @@ SdlRenderer::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
 
         auto result = m_GpuDevice->CreateColorTarget(targetWidth, targetHeight, "ColorTarget");
         expect(result, result.error());
-        m_ColorTarget = result.value();
+        m_ColorTarget = *result;
     }
 
     if(!m_DepthTarget || m_DepthTarget->GetWidth() != targetWidth ||
@@ -443,7 +442,7 @@ SdlRenderer::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
 
         auto result = m_GpuDevice->CreateDepthTarget(targetWidth, targetHeight, "DepthTarget");
         expect(result, result.error());
-        m_DepthTarget = result.value();
+        m_DepthTarget = *result;
     }
 
     SDL_GPUColorTargetInfo colorTargetInfo
@@ -516,8 +515,6 @@ SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTex
     auto pipelineResult = GetCopyColorTargetPipeline();
     expect(pipelineResult, pipelineResult.error());
 
-    auto pipeline = pipelineResult.value();
-
     SDL_GPUColorTargetInfo colorTargetInfo
     {
         .texture = target,
@@ -550,7 +547,7 @@ SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTex
     };
 
     SDL_BindGPUFragmentSamplers(renderPass, 0, &samplerBinding, 1);
-    SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
+    SDL_BindGPUGraphicsPipeline(renderPass, *pipelineResult);
     SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 1);
     SDL_EndGPURenderPass(renderPass);
 
@@ -600,7 +597,7 @@ Result<SDL_GPUShader*> SdlRenderer::GetColorVertexShader()
         auto vsResult = CreateVertexShader(createInfo);
         expect(vsResult, vsResult.error());
 
-        m_ColorVertexShader = vsResult.value();
+        m_ColorVertexShader = *vsResult;
     }
 
     return m_ColorVertexShader;
@@ -619,7 +616,7 @@ Result<SDL_GPUShader*> SdlRenderer::GetColorFragmentShader()
         auto fsResult = CreateFragmentShader(createInfo);
         expect(fsResult, fsResult.error());
 
-        m_ColorFragmentShader = fsResult.value();
+        m_ColorFragmentShader = *fsResult;
     }
 
     return m_ColorFragmentShader;
@@ -640,11 +637,9 @@ SdlRenderer::GetColorPipeline()
 
     auto vertexShaderResult = GetColorVertexShader();
     expect(vertexShaderResult, vertexShaderResult.error());
-    auto vertexShader = vertexShaderResult.value();
 
     auto fragmentShaderResult = GetColorFragmentShader();
     expect(fragmentShaderResult, fragmentShaderResult.error());
-    auto fragmentShader = fragmentShaderResult.value();
 
     SDL_GPUVertexBufferDescription vertexBufDescriptions[1] = //
         {
@@ -700,8 +695,8 @@ SdlRenderer::GetColorPipeline()
 
     SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo //
         {
-            .vertex_shader = vertexShader,
-            .fragment_shader = fragmentShader,
+            .vertex_shader = *vertexShaderResult,
+            .fragment_shader = *fragmentShaderResult,
             .vertex_input_state = //
             {
                 .vertex_buffer_descriptions = vertexBufDescriptions,
@@ -752,7 +747,7 @@ SdlRenderer::GetCopyColorTargetVertexShader()
         auto vsResult = CreateVertexShader(createInfo);
         expect(vsResult, vsResult.error());
 
-        m_CopyTextureVertexShader = vsResult.value();
+        m_CopyTextureVertexShader = *vsResult;
     }
 
     return m_CopyTextureVertexShader;
@@ -772,7 +767,7 @@ SdlRenderer::GetCopyColorTargetFragmentShader()
         auto fsResult = CreateFragmentShader(createInfo);
         expect(fsResult, fsResult.error());
 
-        m_CopyTextureFragmentShader = fsResult.value();
+        m_CopyTextureFragmentShader = *fsResult;
     }
 
     return m_CopyTextureFragmentShader;
@@ -806,8 +801,8 @@ SdlRenderer::GetCopyColorTargetPipeline()
 
     SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo //
         {
-            .vertex_shader = vsResult.value(),
-            .fragment_shader = fsResult.value(),
+            .vertex_shader = *vsResult,
+            .fragment_shader = *fsResult,
             .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
             .rasterizer_state = //
             {
@@ -958,25 +953,25 @@ SdlRenderer::UpdateXformBuffer(
             sizeofTransformBuffer,
             SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ);
         expect(bufferResult, bufferResult.error());
-        m_WorldAndProjBuf = bufferResult.value();
+        m_WorldAndProjBuf = *bufferResult;
 
         auto xferResult = CreateXferBuffer(m_GpuDevice->Device,
             sizeofTransformBuffer,
             SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD);
         expect(xferResult, xferResult.error());
-        m_WorldAndProjXferBuf = xferResult.value();
+        m_WorldAndProjXferBuf = *xferResult;
 
         auto bufferResult2 = CreateBuffer(m_GpuDevice->Device,
             sizeofDrawIndirectBuffer,
             SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ);
         expect(bufferResult2, bufferResult2.error());
-        m_DrawIndirectBuffer = bufferResult2.value();
+        m_DrawIndirectBuffer = *bufferResult2;
 
         auto xferResult2 = CreateXferBuffer(m_GpuDevice->Device,
             sizeofDrawIndirectBuffer,
             SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD);
         expect(xferResult2, xferResult2.error());
-        m_DrawIndirectXferBuffer = xferResult2.value();
+        m_DrawIndirectXferBuffer = *xferResult2;
     }
 
     // Copy data to transfer buffers
@@ -1086,7 +1081,7 @@ SdlRenderer::GetDefaultBaseTexture()
         auto result = m_GpuDevice->CreateTexture("#FF00FFFF"_rgba, imstring(MAGENTA_TEXTURE_KEY));
         expect(result, result.error());
 
-        m_DefaultBaseTexture = result.value();
+        m_DefaultBaseTexture = *result;
     }
 
     return m_DefaultBaseTexture;

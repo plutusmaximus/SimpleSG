@@ -105,30 +105,13 @@ public:
     Result& operator=(const Result& other) = default;
     Result& operator=(Result&& other) = default;
 
-    constexpr T& value() &
-    {
-        return std::get<T>(*this);
-    }
-    constexpr const T& value() const&
-    {
-        return std::get<T>(*this);
-    }
-    constexpr T&& value() &&
-    {
-        return std::move(std::get<T>(*this));
-    }
-    constexpr const T&& value() const&&
-    {
-        return std::move(std::get<T>(*this));
-    }
+    constexpr T& operator*() & { return std::get<T>(*this); }
+    constexpr const T& operator*() const& { return std::get<T>(*this); }
+    constexpr T&& operator*() && { return std::move(std::get<T>(*this)); }
+    constexpr const T&& operator*() const&& { return std::move(std::get<T>(*this)); }
 
-    constexpr T& operator*() & { return value(); }
-    constexpr const T& operator*() const& { return value(); }
-    constexpr T&& operator*() && { return std::move(value()); }
-    constexpr const T&& operator*() const&& { return std::move(value()); }
-
-    constexpr T* operator->() { return &value(); }
-    constexpr const T* operator->() const { return &value(); }
+    constexpr T* operator->() { return &std::get<T>(*this); }
+    constexpr const T* operator->() const { return &std::get<T>(*this); }
 
     constexpr Error& error() & { return std::get<Error>(*this); }
     constexpr const Error& error() const& { return std::get<Error>(*this); }
@@ -140,25 +123,6 @@ public:
     bool has_error() const { return std::holds_alternative<Error>(*this); }
 
     operator bool() const { return has_value(); }
-
-    bool operator==(const Result& other) const
-    {
-        if(has_value() != other.has_value())
-        {
-            return false;
-        }
-
-        if(has_value())
-        {
-            return value() == other.value();
-        }
-        else
-        {
-            return error() == other.error();
-        }
-    }
-
-    bool operator!=(const Result& other) const { return !(*this == other); }
 
     template<typename... Args>
     static inline std::string Format(std::format_string<Args...> fmt, Args&&... args)

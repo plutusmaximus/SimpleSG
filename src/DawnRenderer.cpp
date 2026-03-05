@@ -182,7 +182,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
         auto renderPassResult = BeginRenderPass(cmdEncoder);
         expect(renderPassResult, renderPassResult.error());
 
-        renderPass = renderPassResult.value();
+        renderPass = *renderPassResult;
     }
 
     static PerfTimer setPipelineTimer("Renderer.Render.SetPipeline");
@@ -191,9 +191,8 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
 
         auto pipelineResult = GetColorPipeline();
         expect(pipelineResult, pipelineResult.error());
-        auto pipeline = pipelineResult.value();
 
-        renderPass.SetPipeline(pipeline);
+        renderPass.SetPipeline(*pipelineResult);
     }
 
     static PerfTimer updateXformTimer("Renderer.Render.UpdateXformBuffer");
@@ -351,7 +350,7 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
 
         auto result = m_GpuDevice->CreateColorTarget(targetWidth, targetHeight, "ColorTarget");
         expect(result, result.error());
-        m_ColorTarget = result.value();
+        m_ColorTarget = *result;
     }
 
     if(!m_DepthTarget || m_DepthTarget->GetWidth() != targetWidth ||
@@ -371,7 +370,7 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
 
         auto result = m_GpuDevice->CreateDepthTarget(targetWidth, targetHeight, "DepthTarget");
         expect(result, result.error());
-        m_DepthTarget = result.value();
+        m_DepthTarget = *result;
     }
 
     wgpu::RenderPassColorAttachment attachment //
@@ -444,8 +443,6 @@ DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder, wgpu::
     auto pipelineResult = GetCopyColorTargetPipeline();
     expect(pipelineResult, pipelineResult.error());
 
-    auto pipeline = pipelineResult.value();
-
     wgpu::RenderPassColorAttachment attachment //
         {
             .view = target,
@@ -464,7 +461,7 @@ DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder, wgpu::
     wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
     expect(renderPass, "Failed to begin render pass for copying color target to swapchain");
 
-    renderPass.SetPipeline(pipeline);
+    renderPass.SetPipeline(*pipelineResult);
     renderPass.SetBindGroup(2, m_CopyTextureBindGroup, 0, nullptr);
     renderPass.Draw(3, 1, 0, 0);
     renderPass.End();
@@ -513,7 +510,7 @@ DawnRenderer::GetColorVertexShader()
     auto vsResult = CreateVertexShader(COLOR_PIPELINE_VS);
     expect(vsResult, vsResult.error());
 
-    m_ColorVertexShader = vsResult.value();
+    m_ColorVertexShader = *vsResult;
     return m_ColorVertexShader;
 }
 
@@ -528,7 +525,7 @@ DawnRenderer::GetColorFragmentShader()
     auto fsResult = CreateFragmentShader(COLOR_PIPELINE_FS);
     expect(fsResult, fsResult.error());
 
-    m_ColorFragmentShader = fsResult.value();
+    m_ColorFragmentShader = *fsResult;
     return m_ColorFragmentShader;
 }
 
@@ -547,11 +544,9 @@ DawnRenderer::GetColorPipeline()
 
     auto vertexShaderResult = GetColorVertexShader();
     expect(vertexShaderResult, vertexShaderResult.error());
-    auto vertexShader = vertexShaderResult.value();
 
     auto fragmentShaderResult = GetColorFragmentShader();
     expect(fragmentShaderResult, fragmentShaderResult.error());
-    auto fragmentShader = fragmentShaderResult.value();
 
     // Bind group 1 is for vertex shaders.
     wgpu::BindGroupLayoutEntry vertBglEntries[] =//
@@ -699,7 +694,7 @@ DawnRenderer::GetColorPipeline()
 
     wgpu::FragmentState fragmentState //
         {
-            .module = fragmentShader,
+            .module = *fragmentShaderResult,
             .entryPoint = "main",
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -737,7 +732,7 @@ DawnRenderer::GetColorPipeline()
         .layout = pipelineLayout,
         .vertex =
         {
-            .module = vertexShader,
+            .module = *vertexShaderResult,
             .entryPoint = "main",
             .bufferCount = 1,
             .buffers = &vertexBufferLayout,
@@ -787,7 +782,7 @@ DawnRenderer::GetCopyColorTargetVertexShader()
     auto vsResult = CreateVertexShader(COMPOSITE_COLOR_TARGET_VS);
     expect(vsResult, vsResult.error());
 
-    m_CopyTextureVertexShader = vsResult.value();
+    m_CopyTextureVertexShader = *vsResult;
     return m_CopyTextureVertexShader;
 }
 
@@ -802,7 +797,7 @@ DawnRenderer::GetCopyColorTargetFragmentShader()
     auto fsResult = CreateFragmentShader(COMPOSITE_COLOR_TARGET_FS);
     expect(fsResult, fsResult.error());
 
-    m_CopyTextureFragmentShader = fsResult.value();
+    m_CopyTextureFragmentShader = *fsResult;
     return m_CopyTextureFragmentShader;
 }
 
@@ -894,7 +889,7 @@ DawnRenderer::GetCopyColorTargetPipeline()
 
     wgpu::FragmentState fragmentState //
         {
-            .module = fsResult.value(),
+            .module = *fsResult,
             .entryPoint = "main",
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -906,7 +901,7 @@ DawnRenderer::GetCopyColorTargetPipeline()
         .layout = pipelineLayout,
         .vertex =
         {
-            .module = vsResult.value(),
+            .module = *vsResult,
             .entryPoint = "main",
             .bufferCount = 0,
             .buffers = nullptr,
@@ -1144,7 +1139,7 @@ DawnRenderer::GetDefaultBaseTexture()
         auto result = m_GpuDevice->CreateTexture("#FF00FFFF"_rgba, imstring(MAGENTA_TEXTURE_KEY));
         expect(result, result.error());
 
-        m_DefaultBaseTexture = result.value();
+        m_DefaultBaseTexture = *result;
     }
 
     return m_DefaultBaseTexture;

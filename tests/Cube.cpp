@@ -69,13 +69,12 @@ public:
 
         auto modelResult = CreateShapeModel(m_ResourceCache);
         expect(modelResult, modelResult.error());
-        auto model = modelResult.value();
 
         constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
-        m_Registry.Add(m_EidPlanet, ChildTransform{}, WorldMatrix{}, model);
+        m_Registry.Add(m_EidPlanet, ChildTransform{}, WorldMatrix{}, *modelResult);
         m_Registry.Add(m_EidMoonOrbit, ChildTransform{ .ParentId = m_EidPlanet }, WorldMatrix{});
-        m_Registry.Add(m_EidMoon, ChildTransform{ .ParentId = m_EidMoonOrbit }, WorldMatrix{}, model);
+        m_Registry.Add(m_EidMoon, ChildTransform{ .ParentId = m_EidMoonOrbit }, WorldMatrix{}, *modelResult);
         m_Registry.Add(m_EidCamera, TrsTransformf{}, WorldMatrix{}, Camera{});
 
         m_Registry.Get<TrsTransformf>(m_EidCamera).T = Vec3f{ 0,0,-4 };
@@ -404,7 +403,7 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
     expect(result, result.error());
 
     // Wait for the model to be created.
-    while(result.value().IsPending())
+    while(result->IsPending())
     {
         cache->ProcessPendingOperations();
     }
@@ -448,7 +447,7 @@ static Result<ModelResource> CreateShapeModel(ResourceCache* cache)
     expect(result, result.error());
 
     // Wait for the model to be created.
-    while(result.value().IsPending())
+    while(result->IsPending())
     {
         cache->ProcessPendingOperations();
     }

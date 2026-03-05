@@ -306,7 +306,7 @@ static Result<ModelResource> CreateTriangleModel(ResourceCache* cache)
     expect(result, result.error());
 
     // Wait for the model to be created.
-    while(result.value().IsPending())
+    while(result->IsPending())
     {
         cache->ProcessPendingOperations();
     }

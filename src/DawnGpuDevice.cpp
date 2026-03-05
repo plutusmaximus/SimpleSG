@@ -90,34 +90,30 @@ DawnGpuDevice::Create(SDL_Window* window)
     logInfo("Creating Dawn GPU Device...");
 
     auto instanceResult = CreateInstance();
-    expect(instanceResult, instanceResult.error());
-    auto instance = instanceResult.value();
+    expect(instanceResult);
 
-    auto adapterResult = CreateAdapter(instance);
-    expect(adapterResult, adapterResult.error());
-    auto adapter = adapterResult.value();
+    auto adapterResult = CreateAdapter(*instanceResult);
+    expect(adapterResult);
 
-    auto deviceResult = CreateDevice(instance, adapter);
-    expect(deviceResult, deviceResult.error());
-    auto device = deviceResult.value();
+    auto deviceResult = CreateDevice(*instanceResult, *adapterResult);
+    expect(deviceResult);
 
-    auto surfaceResult = CreateSurface(instance, window);
-    expect(surfaceResult, surfaceResult.error());
-    auto surface = surfaceResult.value();
+    auto surfaceResult = CreateSurface(*instanceResult, window);
+    expect(surfaceResult);
 
     int width, height;
     SDL_GetWindowSize(window, &width, &height);
 
-    auto configureSurfaceResult = ConfigureSurface(adapter,
-        device,
-        surface,
+    auto configureSurfaceResult = ConfigureSurface(*adapterResult,
+        *deviceResult,
+        *surfaceResult,
         static_cast<uint32_t>(width),
         static_cast<uint32_t>(height));
-    expect(configureSurfaceResult, configureSurfaceResult.error());
+    expect(configureSurfaceResult);
 
-    wgpu::TextureFormat surfaceFormat = configureSurfaceResult.value();
+    wgpu::TextureFormat surfaceFormat = *configureSurfaceResult;
 
-    DawnGpuDevice* dawnDevice = new DawnGpuDevice(window, instance, adapter, device, surface, surfaceFormat);
+    DawnGpuDevice* dawnDevice = new DawnGpuDevice(window, *instanceResult, *adapterResult, *deviceResult, *surfaceResult, surfaceFormat);
     expectv(dawnDevice, "Error allocating device");
 
     return dawnDevice;
@@ -163,9 +159,9 @@ Result<GpuVertexBuffer*>
 DawnGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& vertices)
 {
     auto nativeBufResult = CreateGpuBuffer<Vertex>(Device, vertices);
-    expect(nativeBufResult, nativeBufResult.error());
+    expect(nativeBufResult);
 
-    auto [nativeBuf, sizeofBuffer] = nativeBufResult.value();
+    auto [nativeBuf, sizeofBuffer] = *nativeBufResult;
 
     GpuResource* res = m_ResourceAllocator.New();
 
@@ -197,9 +193,9 @@ Result<GpuIndexBuffer*>
 DawnGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& indices)
 {
     auto nativeBufResult = CreateGpuBuffer<VertexIndex>(Device, indices);
-    expect(nativeBufResult, nativeBufResult.error());
+    expect(nativeBufResult);
 
-    auto [nativeBuf, sizeofBuffer] = nativeBufResult.value();
+    auto [nativeBuf, sizeofBuffer] = *nativeBufResult;
 
     GpuResource* res = m_ResourceAllocator.New();
 
@@ -350,7 +346,7 @@ DawnGpuDevice::CreateTexture(const unsigned width,
     auto texView = texture.CreateView();
     expect(texView, "Failed to create texture view for texture");
 
-    return ::new(&res->Texture) DawnGpuTexture(this, texture, texView, samplerResult.value(), width, height);
+    return ::new(&res->Texture) DawnGpuTexture(this, texture, texView, *samplerResult, width, height);
 }
 
 Result<GpuTexture*>
@@ -426,7 +422,7 @@ DawnGpuDevice::CreateMaterial(const MaterialConstants& mtlConstants, GpuTexture*
     wgpu::BindGroupDescriptor fsBgDesc //
         {
             .label = "fsBindGroup",
-            .layout = fsBindGroupLayoutResult.value(),
+            .layout = *fsBindGroupLayoutResult,
             .entryCount = std::size(fsBgEntries),
             .entries = fsBgEntries,
         };
@@ -490,7 +486,7 @@ DawnGpuDevice::CreateColorTarget(const unsigned width, const unsigned height, co
     expectv(res, "Error allocating DawnGpuColorTarget");
 
     return ::new(&res->ColorTarget)
-        DawnGpuColorTarget(this, texture, view, samplerResult.value(), width, height, kColorTargetFormat);
+        DawnGpuColorTarget(this, texture, view, *samplerResult, width, height, kColorTargetFormat);
 }
 
 Result<>
@@ -713,7 +709,7 @@ CreateAdapter(wgpu::Instance instance)
         "Failed to create WGPUAdapter - WaitAny failed");
 
     const bool supported =
-        result.value().HasFeature(wgpu::FeatureName::IndirectFirstInstance);
+        result->HasFeature(wgpu::FeatureName::IndirectFirstInstance);
 
     expect(supported, "IndirectFirstInstance feature is not supported");
 
@@ -806,7 +802,7 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
 
     expect(waitStatus == wgpu::WaitStatus::Success, "Failed to create WGPUDevice - WaitAny failed");
 
-    DumpDawnToggles(result.value());
+    DumpDawnToggles(*result);
 
     return result;
 }

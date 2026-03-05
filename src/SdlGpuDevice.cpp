@@ -220,7 +220,7 @@ SdlGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& verti
     auto nativeBufResult = CreateGpuBuffer<Vertex>(Device, vertices);
     expect(nativeBufResult, nativeBufResult.error());
 
-    auto [nativeBuf, sizeofBuffer] = nativeBufResult.value();
+    auto [nativeBuf, sizeofBuffer] = *nativeBufResult;
 
     GpuResource* res = m_ResourceAllocator.New();
 
@@ -260,7 +260,7 @@ SdlGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& i
     auto nativeBufResult = CreateGpuBuffer<VertexIndex>(Device, indices);
     expect(nativeBufResult, nativeBufResult.error());
 
-    auto [nativeBuf, sizeofBuffer] = nativeBufResult.value();
+    auto [nativeBuf, sizeofBuffer] = *nativeBufResult;
 
     GpuResource* res = m_ResourceAllocator.New();
 
@@ -425,7 +425,7 @@ SdlGpuDevice::CreateTexture(const unsigned width,
     texCleanup.release();
 
     GpuTexture* gpuTex =
-        ::new(&res->Texture) SdlGpuTexture(this, texture, samplerResult.value(), width, height);
+        ::new(&res->Texture) SdlGpuTexture(this, texture, *samplerResult, width, height);
 
     logDebug("SdlGpuDevice::CreateTexture: {} ms", sw1.Elapsed() * 1000.0f);
 
@@ -526,7 +526,7 @@ SdlGpuDevice::CreateColorTarget(const unsigned width, const unsigned height, con
     expectv(res, "Error allocating GpuResource");
 
     GpuColorTarget* gpuColorTarget = ::new(&res->ColorTarget)
-        SdlGpuColorTarget(this, texture, samplerResult.value(), width, height, kColorTargetFormat);
+        SdlGpuColorTarget(this, texture, *samplerResult, width, height, kColorTargetFormat);
 
     return gpuColorTarget;
 }

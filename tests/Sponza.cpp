@@ -71,7 +71,7 @@ public:
         auto statusResult = m_ResourceCache->LoadModelFromFileAsync(cacheKey, SPONZA_MODEL_PATH);
         expect(statusResult, statusResult.error());
 
-        while(statusResult.value().IsPending())
+        while(statusResult->IsPending())
         {
             m_ResourceCache->ProcessPendingOperations();
         }

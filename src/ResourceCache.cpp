@@ -99,8 +99,7 @@ ResourceCache::~ResourceCache()
         auto result = it.second.GetValue();
         if(result)
         {
-            auto modelRsrc = result.value();
-            m_ModelAllocator.Delete(modelRsrc.Get());
+            m_ModelAllocator.Delete(result->Get());
         }
     }
 
@@ -113,8 +112,7 @@ ResourceCache::~ResourceCache()
         auto result = it.second.GetValue();
         if(result)
         {
-            auto texture = result.value();
-            auto dr = m_GpuDevice->DestroyTexture(texture);
+            auto dr = m_GpuDevice->DestroyTexture(*result);
             if(!dr)
             {
                 logError("Failed to destroy texture: {}", dr.error());
@@ -131,8 +129,7 @@ ResourceCache::~ResourceCache()
         auto result = it.second.GetValue();
         if(result)
         {
-            auto material = result.value();
-            auto dr = m_GpuDevice->DestroyMaterial(material);
+            auto dr = m_GpuDevice->DestroyMaterial(*result);
             if(!dr)
             {
                 logError("Failed to destroy material: {}", dr.error());
@@ -425,7 +422,7 @@ ResourceCache::CreateModelOp::Update()
                     return;
                 }
 
-                m_VertexBuffer = result.value();
+                m_VertexBuffer = *result;
             }
 
             m_State = CreateIndexBuffer;
@@ -449,7 +446,7 @@ ResourceCache::CreateModelOp::Update()
                     return;
                 }
 
-                m_IndexBuffer = result.value();
+                m_IndexBuffer = *result;
             }
 
             m_State = CreateMaterials;
@@ -497,7 +494,7 @@ ResourceCache::CreateModelOp::Update()
                         return;
                     }
 
-                    auto modelPtr = m_ResourceCache->m_ModelAllocator.New(std::move(modelResult.value()));
+                    auto modelPtr = m_ResourceCache->m_ModelAllocator.New(std::move(*modelResult));
 
                     SetResult(ModelResource(modelPtr));
                 }
@@ -536,7 +533,7 @@ ResourceCache::CreateModelOp::CreateModel()
             "Material not found in cache for key: {}",
             meshSpec.MtlSpec.GetCacheKey().ToString());
 
-        GpuMaterial* gpuMtl = mtlResult.value();
+        GpuMaterial* gpuMtl = *mtlResult;
 
         const Material mtl(meshSpec.MtlSpec.Constants, gpuMtl->GetBaseTexture());
 
@@ -710,7 +707,7 @@ ResourceCache::LoadModelOp::Update()
 
             m_CreateModelOp = m_ResourceCache->NewOp<CreateModelOp>(m_ResourceCache,
                 GetCacheKey(),
-                m_ModelSpecResult.value());
+                *m_ModelSpecResult);
 
             if(!m_CreateModelOp)
             {
@@ -830,7 +827,7 @@ ResourceCache::CreateTextureOp::Start()
             return;
         }
 
-        m_FileFetchToken = result.value();
+        m_FileFetchToken = *result;
         m_State = LoadingFile;
     }
     else
@@ -863,7 +860,7 @@ ResourceCache::CreateTextureOp::Update()
                 return;
             }
 
-            m_FetchData = std::move(fetchResult.value());
+            m_FetchData = std::move(*fetchResult);
 
             auto job = [this]()
             {
@@ -1028,7 +1025,7 @@ ResourceCache::CreateMaterialOp::Update()
 
                 auto mtlResult =
                     m_ResourceCache->m_GpuDevice->CreateMaterial(m_MaterialSpec.Constants,
-                        texResult.value());
+                        *texResult);
 
                 SetResult(mtlResult);
             }
