@@ -1376,10 +1376,98 @@ Result2<mlg::ResultSuccess> Shutdown()
 
 }   // namespace mlg
 
+static inline size_t GetOffset(const cgltf_accessor& a)
+{
+    if(a.is_sparse)
+    {
+        if(a.sparse.indices_buffer_view)
+        {
+            return a.sparse.indices_byte_offset + a.sparse.indices_buffer_view->offset;
+        }
+        else if(a.sparse.values_buffer_view)
+        {
+            return a.sparse.values_byte_offset + a.sparse.values_buffer_view->offset;
+        }
+    }
+
+    return a.offset + a.buffer_view->offset;
+}
+
 mlg::Result2<mlg::ResultSuccess> MainLoop()
 {
-    static constexpr const char* SCENE1_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
+    //static constexpr const char* SCENE1_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
     static constexpr const char* SCENE2_PATH = "C:/Users/kbaca/Downloads/HiddenAlley2/ph_hidden_alley.gltf";
+    cgltf_options options{};
+    cgltf_data* data = NULL;
+    cgltf_result parseResult = cgltf_parse_file(&options, SCENE2_PATH, &data);
+    MLG_CHECK(parseResult == cgltf_result_success);
+
+    std::span<const cgltf_accessor> accessorsSpan(data->accessors, data->accessors + data->accessors_count);
+    auto nonSparseAccessors = accessorsSpan | std::views::filter([](const cgltf_accessor& a){ return !a.is_sparse; });
+    std::vector<cgltf_accessor> accessors(nonSparseAccessors.begin(), nonSparseAccessors.end());
+    std::ranges::sort(accessors, [](const cgltf_accessor& a, const cgltf_accessor& b)
+    {
+        if(a.type != b.type)
+        {
+            return a.type < b.type;
+        }
+
+        if(a.component_type != b.component_type)
+        {
+            return a.component_type < b.component_type;
+        }
+
+        const size_t offsetA = GetOffset(a);
+        const size_t offsetB = GetOffset(b);
+
+        return offsetA < offsetB;
+    });
+
+    std::filesystem::path basePath = SCENE2_PATH;
+    basePath = basePath.parent_path();
+
+    std::unordered_map<std::string, mlg::FileFetcher::Request> requests;
+    requests.reserve(data->buffers_count);
+    for(size_t i = 0; i < data->buffers_count; ++i)
+    {
+        const std::string bufferPath = (basePath / data->buffers[i].uri).string();
+        auto [it, inserted] = requests.emplace(data->buffers[i].uri, mlg::FileFetcher::Request(bufferPath));
+        MLG_CHECK(mlg::FileFetcher::Fetch(it->second));
+    }
+
+    bool done = false;
+    while(!done)
+    {
+        done = true;
+        for(auto& [key, request] : requests)
+        {
+            if(request.IsPending())
+            {
+                done = false;
+                break;
+            }
+        }
+
+        MLG_CHECK(mlg::FileFetcher::ProcessCompletions());
+    }
+
+    size_t totalBufferSize = 0;
+    for(const auto& [key, request] : requests)
+    {
+        totalBufferSize += request.Data.size();
+    }
+
+    std::vector<uint8_t> combinedBuffer(totalBufferSize);
+    size_t offset = 0;
+    for(auto& accessor : accessors)
+    {
+        const uint8_t* buffer = requests.at(accessor.buffer_view->buffer->uri).Data.data();
+        const size_t oldOffset = GetOffset(accessor);
+        const uint8_t* src = buffer + oldOffset;
+        const size_t itemSize = cgltf_num_components(accessor.type) * cgltf_component_size(accessor.component_type);
+        std::memcpy(combinedBuffer.data() + offset, src, accessor.count * itemSize);
+        offset += accessor.count * itemSize;
+    }
 
     auto wgpuCtx = mlg::Startup();
     MLG_CHECK(wgpuCtx);
