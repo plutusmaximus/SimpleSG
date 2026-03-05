@@ -10,74 +10,6 @@
 #include <utility>
 #include <variant>
 
-/// @brief Error code enumeration.
-enum class ErrorCode : int
-{
-    System = 1
-};
-
-/// @brief Representation of an error with code and message.
-class Error
-{
-public:
-    Error() = default;
-
-    Error(const char* message)
-        : Error(ErrorCode::System, message)
-    {
-    }
-
-    Error(std::string_view message)
-        : Error(ErrorCode::System, message)
-    {
-    }
-
-    template<typename... Args>
-    Error(std::format_string<Args...> fmt, Args&&... args)
-        : Error(ErrorCode::System, fmt, std::forward<Args>(args)...)
-    {
-    }
-
-    Error(const ErrorCode code, std::string_view message)
-        : m_Code(code),
-          m_Message(message)
-    {
-    }
-
-    template<typename... Args>
-    Error(ErrorCode code, std::format_string<Args...> fmt, Args&&... args)
-        : Error(code, std::format(fmt, std::forward<Args>(args)...))
-    {
-    }
-
-    bool operator==(const Error& other) const
-    {
-        return m_Code == other.m_Code && m_Message == other.m_Message;
-    }
-
-    bool operator!=(const Error& other) const { return !(*this == other); }
-
-    ErrorCode GetCode() const { return m_Code; }
-
-    const imstring& GetMessage() const { return m_Message; }
-
-private:
-
-    ErrorCode m_Code;
-
-    imstring m_Message;
-};
-
-/// @brief Formatter specialization for Error to support std::format.
-template<>
-struct std::formatter<Error> : std::formatter<imstring>
-{
-    auto format(const Error& e, std::format_context& ctx) const
-    {
-        return std::formatter<imstring>::format(e.GetMessage(), ctx);
-    }
-};
-
 struct ResultFail final {};
 
 struct ResultOk final {};
@@ -142,11 +74,6 @@ public:
     static inline const char* Format(const char* str)
     {
         return str;
-    }
-
-    static inline const imstring& Format(const Error& error)
-    {
-        return error.GetMessage();
     }
 };
 
