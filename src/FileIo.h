@@ -77,7 +77,7 @@ public:
 
         FileIo::AsyncToken Token = FileIo::AsyncToken::NewToken();
 
-        std::optional<Error> Error;
+        Result<> ReadResult = Result<>::Success;
 
         ReadRequest* m_Next{ nullptr };
         ReadRequest* m_Prev{ nullptr };
@@ -155,7 +155,7 @@ private:
 
     static void CompleteRequestSuccess(class ReadRequest* request, const size_t bytesRead);
 
-    static void CompleteRequestFailure(class ReadRequest* request, const Error& error);
+    static void CompleteRequestFailure(class ReadRequest* request, const Result<>& result);
 
     static Result<FileIo::FetchData> GetResultImpl(FileIo::ReadRequest* req);
 };

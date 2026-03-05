@@ -115,7 +115,7 @@ ResourceCache::~ResourceCache()
             auto dr = m_GpuDevice->DestroyTexture(*result);
             if(!dr)
             {
-                logError("Failed to destroy texture: {}", dr.error());
+                logError("Failed to destroy texture");
             }
         }
     }
@@ -132,7 +132,7 @@ ResourceCache::~ResourceCache()
             auto dr = m_GpuDevice->DestroyMaterial(*result);
             if(!dr)
             {
-                logError("Failed to destroy material: {}", dr.error());
+                logError("Failed to destroy material");
             }
         }
     }
@@ -353,7 +353,7 @@ ResourceCache::CreateModelOp::~CreateModelOp()
         auto result = m_ResourceCache->m_GpuDevice->DestroyVertexBuffer(m_VertexBuffer);
         if(!result)
         {
-            logError("Failed to destroy vertex buffer: {}", result.error());
+            logError("Failed to destroy vertex buffer");
         }
     }
 
@@ -362,7 +362,7 @@ ResourceCache::CreateModelOp::~CreateModelOp()
         auto result = m_ResourceCache->m_GpuDevice->DestroyIndexBuffer(m_IndexBuffer);
         if(!result)
         {
-            logError("Failed to destroy index buffer: {}", result.error());
+            logError("Failed to destroy index buffer");
         }
     }
 }
@@ -418,7 +418,7 @@ ResourceCache::CreateModelOp::Update()
                 auto result = m_ResourceCache->m_GpuDevice->CreateVertexBuffer(vertexSpans);
                 if(!result)
                 {
-                    SetResult(result.error());
+                    SetResult({});
                     return;
                 }
 
@@ -442,7 +442,7 @@ ResourceCache::CreateModelOp::Update()
                 auto result = m_ResourceCache->m_GpuDevice->CreateIndexBuffer(indexSpans);
                 if(!result)
                 {
-                    SetResult(result.error());
+                    SetResult({});
                     return;
                 }
 
@@ -466,7 +466,6 @@ ResourceCache::CreateModelOp::Update()
 
                         if(!result)
                         {
-                            m_FailError = result.error();
                             m_State = Failed;
                             break;
                         }
@@ -490,7 +489,7 @@ ResourceCache::CreateModelOp::Update()
 
                     if(!modelResult)
                     {
-                        SetResult(modelResult.error());
+                        SetResult({});
                         return;
                     }
 
@@ -508,7 +507,7 @@ ResourceCache::CreateModelOp::Update()
                     return;
                 }
 
-                SetResult(m_FailError);
+                SetResult({});
 
                 break;
 
@@ -573,7 +572,7 @@ ResourceCache::CreateModelOp::SetResult(Result<ModelResource> result)
             auto vbResult = m_ResourceCache->m_GpuDevice->DestroyVertexBuffer(m_VertexBuffer);
             if(!vbResult)
             {
-                logError("Failed to destroy vertex buffer: {}", vbResult.error());
+                logError("Failed to destroy vertex buffer");
             }
         }
         if(m_IndexBuffer)
@@ -581,7 +580,7 @@ ResourceCache::CreateModelOp::SetResult(Result<ModelResource> result)
             auto ibResult = m_ResourceCache->m_GpuDevice->DestroyIndexBuffer(m_IndexBuffer);
             if(!ibResult)
             {
-                logError("Failed to destroy index buffer: {}", ibResult.error());
+                logError("Failed to destroy index buffer");
             }
         }
     }
@@ -677,7 +676,7 @@ ResourceCache::LoadModelOp::Update()
 
             if(!m_ModelSpecResult)
             {
-                SetResult(m_ModelSpecResult.error());
+                SetResult({});
                 return;
             }
 
@@ -803,7 +802,7 @@ ResourceCache::CreateTextureOp::Start()
         auto result = m_ResourceCache->m_GpuDevice->CreateTexture(color, color.ToHexString());
         if(!result)
         {
-            SetResult(result.error());
+            SetResult({});
             return;
         }
 
@@ -813,7 +812,8 @@ ResourceCache::CreateTextureOp::Start()
     {
         if(path.empty())
         {
-            SetResult(Error("Texture source path is empty"));
+            logError("Texture source path is empty");
+            SetResult({});
             return;
         }
 
@@ -823,7 +823,8 @@ ResourceCache::CreateTextureOp::Start()
 
         if(!result)
         {
-            SetResult(result.error());
+            SetResult({});
+
             return;
         }
 
@@ -832,7 +833,8 @@ ResourceCache::CreateTextureOp::Start()
     }
     else
     {
-        SetResult(Error("Texture source is not specified"));
+        logError("Texture source is not specified");
+        SetResult({});
     }
 }
 
@@ -856,7 +858,7 @@ ResourceCache::CreateTextureOp::Update()
 
             if(!fetchResult)
             {
-                SetResult(fetchResult.error());
+                SetResult({});
                 return;
             }
 
@@ -883,7 +885,7 @@ ResourceCache::CreateTextureOp::Update()
                 auto decodeResult = m_DecodeImageResult.value();
                 if(!decodeResult)
                 {
-                    SetResult(decodeResult.error());
+                    SetResult({});
                     return;
                 }
 
@@ -997,7 +999,7 @@ ResourceCache::CreateMaterialOp::Start()
 
     if(!result)
     {
-        SetResult(result.error());
+        SetResult({});
         return;
     }
 
@@ -1019,7 +1021,7 @@ ResourceCache::CreateMaterialOp::Update()
                 auto texResult = m_ResourceCache->GetTexture(m_MaterialSpec.BaseTexture.GetCacheKey());
                 if(!texResult)
                 {
-                    SetResult(texResult.error());
+                    SetResult({});
                     return;
                 }
 

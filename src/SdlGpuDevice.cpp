@@ -218,7 +218,7 @@ Result<GpuVertexBuffer*>
 SdlGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& vertices)
 {
     auto nativeBufResult = CreateGpuBuffer<Vertex>(Device, vertices);
-    expect(nativeBufResult, nativeBufResult.error());
+    expect(nativeBufResult);
 
     auto [nativeBuf, sizeofBuffer] = *nativeBufResult;
 
@@ -258,7 +258,7 @@ Result<GpuIndexBuffer*>
 SdlGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& indices)
 {
     auto nativeBufResult = CreateGpuBuffer<VertexIndex>(Device, indices);
-    expect(nativeBufResult, nativeBufResult.error());
+    expect(nativeBufResult);
 
     auto [nativeBuf, sizeofBuffer] = *nativeBufResult;
 
@@ -416,7 +416,7 @@ SdlGpuDevice::CreateTexture(const unsigned width,
     sw.Mark();
 
     auto samplerResult = GetDefaultSampler();
-    expect(samplerResult, samplerResult.error());
+    expect(samplerResult);
 
     GpuResource* res = m_ResourceAllocator.New();
 
@@ -513,7 +513,7 @@ SdlGpuDevice::CreateColorTarget(const unsigned width, const unsigned height, con
     expect(texture, SDL_GetError());
 
     auto samplerResult = GetDefaultSampler();
-    expect(samplerResult, samplerResult.error());
+    expect(samplerResult);
 
     GpuResource* res = m_ResourceAllocator.New();
 

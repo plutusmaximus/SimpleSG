@@ -69,7 +69,7 @@ public:
 
         const CacheKey cacheKey("Sponza");
         auto statusResult = m_ResourceCache->LoadModelFromFileAsync(cacheKey, SPONZA_MODEL_PATH);
-        expect(statusResult, statusResult.error());
+        expect(statusResult);
 
         while(statusResult->IsPending())
         {
@@ -77,7 +77,7 @@ public:
         }
 
         auto modelResult = m_ResourceCache->GetModel(cacheKey);
-        expect(modelResult, modelResult.error());
+        expect(modelResult);
 
         auto model = *modelResult;
 
@@ -161,11 +161,7 @@ public:
             }
         }
 
-        auto beginFrameResult = m_RenderCompositor->BeginFrame();
-        if (!beginFrameResult)
-        {
-            logError(beginFrameResult.error().GetMessage());
-        }
+        m_RenderCompositor->BeginFrame();
 
         m_ImGuiRenderer->NewFrame();
 
@@ -180,19 +176,11 @@ public:
         RenderGui();
 
         const auto [camWorldMat, camera] = cameraTuple;
-        auto renderResult = m_Renderer->Render(camWorldMat, camera.GetProjection(), m_RenderCompositor);
-        if (!renderResult)
-        {
-            logError(renderResult.error().GetMessage());
-        }
+        m_Renderer->Render(camWorldMat, camera.GetProjection(), m_RenderCompositor);
 
         m_ImGuiRenderer->Render(m_RenderCompositor);
 
-        auto endFrameResult = m_RenderCompositor->EndFrame();
-        if(!endFrameResult)
-        {
-            logError(endFrameResult.error().GetMessage());
-        }
+        m_RenderCompositor->EndFrame();
     }
 
     bool IsRunning() const override
@@ -329,7 +317,6 @@ int main(int, char* /*argv[]*/)
     auto initResult = driver.Init();
     if(!initResult)
     {
-        logError(initResult.error().GetMessage());
         return -1;
     }
 
@@ -341,7 +328,6 @@ int main(int, char* /*argv[]*/)
 
     if(!runResult)
     {
-        logError(runResult.error().GetMessage());
         return -1;
     }
 

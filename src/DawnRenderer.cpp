@@ -55,7 +55,7 @@ DawnRenderer::~DawnRenderer()
         auto result = m_GpuDevice->DestroyTexture(m_DefaultBaseTexture);
         if(!result)
         {
-            logError("Failed to destroy default base texture: {}", result.error());
+            logError("Failed to destroy default base texture");
         }
     }
 
@@ -64,7 +64,7 @@ DawnRenderer::~DawnRenderer()
         auto result = m_GpuDevice->DestroyColorTarget(m_ColorTarget);
         if(!result)
         {
-            logError("Failed to destroy default color target: {}", result.error());
+            logError("Failed to destroy default color target");
         }
     }
 
@@ -73,7 +73,7 @@ DawnRenderer::~DawnRenderer()
         auto result = m_GpuDevice->DestroyDepthTarget(m_DepthTarget);
         if(!result)
         {
-            logError("Failed to destroy default depth target: {}", result.error());
+            logError("Failed to destroy default depth target");
         }
     }
 
@@ -180,7 +180,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
     {
         auto scopedTimer = beginRenderPassTimer.StartScoped();
         auto renderPassResult = BeginRenderPass(cmdEncoder);
-        expect(renderPassResult, renderPassResult.error());
+        expect(renderPassResult);
 
         renderPass = *renderPassResult;
     }
@@ -190,7 +190,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
         auto scopedTimer = setPipelineTimer.StartScoped();
 
         auto pipelineResult = GetColorPipeline();
-        expect(pipelineResult, pipelineResult.error());
+        expect(pipelineResult);
 
         renderPass.SetPipeline(*pipelineResult);
     }
@@ -200,7 +200,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
         auto scopedTimer = updateXformTimer.StartScoped();
 
         auto updateXformBufResult = UpdateXformBuffer(cmdEncoder, camera, projection);
-        expect(updateXformBufResult, updateXformBufResult.error());
+        expect(updateXformBufResult);
     }
 
     static PerfTimer setVsBindGroupTimer("Renderer.Render.Draw.SetVsBindGroup");
@@ -313,7 +313,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
     {
         auto scopedTimer = copyTimer.StartScoped();
         auto copyResult = CopyColorTargetToSwapchain(cmdEncoder, dawnCompositor->GetTarget());
-        expect(copyResult, copyResult.error());
+        expect(copyResult);
     }
 
     SwapStates();
@@ -343,13 +343,13 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
             auto result = m_GpuDevice->DestroyColorTarget(m_ColorTarget);
             if(!result)
             {
-                logError("Failed to destroy default color target: {}", result.error());
+                logError("Failed to destroy default color target");
             }
             m_ColorTarget = nullptr;
         }
 
         auto result = m_GpuDevice->CreateColorTarget(targetWidth, targetHeight, "ColorTarget");
-        expect(result, result.error());
+        expect(result);
         m_ColorTarget = *result;
     }
 
@@ -363,13 +363,13 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
             auto result = m_GpuDevice->DestroyDepthTarget(m_DepthTarget);
             if(!result)
             {
-                logError("Failed to destroy default depth target: {}", result.error());
+                logError("Failed to destroy default depth target");
             }
             m_DepthTarget = nullptr;
         }
 
         auto result = m_GpuDevice->CreateDepthTarget(targetWidth, targetHeight, "DepthTarget");
-        expect(result, result.error());
+        expect(result);
         m_DepthTarget = *result;
     }
 
@@ -441,7 +441,7 @@ DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder, wgpu::
     }
 
     auto pipelineResult = GetCopyColorTargetPipeline();
-    expect(pipelineResult, pipelineResult.error());
+    expect(pipelineResult);
 
     wgpu::RenderPassColorAttachment attachment //
         {
@@ -508,7 +508,7 @@ DawnRenderer::GetColorVertexShader()
     }
 
     auto vsResult = CreateVertexShader(COLOR_PIPELINE_VS);
-    expect(vsResult, vsResult.error());
+    expect(vsResult);
 
     m_ColorVertexShader = *vsResult;
     return m_ColorVertexShader;
@@ -523,7 +523,7 @@ DawnRenderer::GetColorFragmentShader()
     }
 
     auto fsResult = CreateFragmentShader(COLOR_PIPELINE_FS);
-    expect(fsResult, fsResult.error());
+    expect(fsResult);
 
     m_ColorFragmentShader = *fsResult;
     return m_ColorFragmentShader;
@@ -543,10 +543,10 @@ DawnRenderer::GetColorPipeline()
     }
 
     auto vertexShaderResult = GetColorVertexShader();
-    expect(vertexShaderResult, vertexShaderResult.error());
+    expect(vertexShaderResult);
 
     auto fragmentShaderResult = GetColorFragmentShader();
-    expect(fragmentShaderResult, fragmentShaderResult.error());
+    expect(fragmentShaderResult);
 
     // Bind group 1 is for vertex shaders.
     wgpu::BindGroupLayoutEntry vertBglEntries[] =//
@@ -780,7 +780,7 @@ DawnRenderer::GetCopyColorTargetVertexShader()
     }
 
     auto vsResult = CreateVertexShader(COMPOSITE_COLOR_TARGET_VS);
-    expect(vsResult, vsResult.error());
+    expect(vsResult);
 
     m_CopyTextureVertexShader = *vsResult;
     return m_CopyTextureVertexShader;
@@ -795,7 +795,7 @@ DawnRenderer::GetCopyColorTargetFragmentShader()
     }
 
     auto fsResult = CreateFragmentShader(COMPOSITE_COLOR_TARGET_FS);
-    expect(fsResult, fsResult.error());
+    expect(fsResult);
 
     m_CopyTextureFragmentShader = *fsResult;
     return m_CopyTextureFragmentShader;
@@ -810,10 +810,10 @@ DawnRenderer::GetCopyColorTargetPipeline()
     }
 
     auto vsResult = GetCopyColorTargetVertexShader();
-    expect(vsResult, vsResult.error());
+    expect(vsResult);
 
     auto fsResult = GetCopyColorTargetFragmentShader();
-    expect(fsResult, fsResult.error());
+    expect(fsResult);
 
     wgpu::BindGroupLayoutEntry bglEntries[] =//
     {
@@ -969,7 +969,7 @@ DawnRenderer::CreateVertexShader(const char* path)
 {
     std::vector<uint8_t> shaderCode;
     auto loadResult = LoadShaderCode(path, shaderCode);
-    expect(loadResult, loadResult.error());
+    expect(loadResult);
 
     wgpu::StringView shaderCodeView{ reinterpret_cast<const char*>(shaderCode.data()),
         shaderCode.size() };
@@ -987,7 +987,7 @@ DawnRenderer::CreateFragmentShader(const char* path)
 {
     std::vector<uint8_t> shaderCode;
     auto loadResult = LoadShaderCode(path, shaderCode);
-    expect(loadResult, loadResult.error());
+    expect(loadResult);
 
     wgpu::StringView shaderCodeView{ reinterpret_cast<const char*>(shaderCode.data()),
         shaderCode.size() };
@@ -1039,14 +1039,14 @@ DawnRenderer::UpdateXformBuffer(
             wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
             sizeofTransformBuffer,
             "WorldAndProjection");
-        expect(result, result.error());
+        expect(result);
         m_WorldAndProjBuf = *result;
 
         result = CreateBuffer(m_GpuDevice->Device,
             wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
             sizeofDrawIndirectBuffer,
             "DrawIndirect");
-        expect(result, result.error());
+        expect(result);
         m_DrawIndirectBuffer = *result;
 
         // Recreate the vertex shader bind group with the new buffer.
@@ -1137,7 +1137,7 @@ DawnRenderer::GetDefaultBaseTexture()
         static constexpr const char* MAGENTA_TEXTURE_KEY = "$magenta";
 
         auto result = m_GpuDevice->CreateTexture("#FF00FFFF"_rgba, imstring(MAGENTA_TEXTURE_KEY));
-        expect(result, result.error());
+        expect(result);
 
         m_DefaultBaseTexture = *result;
     }

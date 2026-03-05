@@ -15,7 +15,7 @@ SdlRenderCompositor::~SdlRenderCompositor()
         auto result = WaitForFence();
         if(!result)
         {
-            logError("Error waiting for render fence during SdlRenderCompositor destruction: {}", result.error());
+            logError("Error waiting for render fence during SdlRenderCompositor destruction");
         }
     }
 }
@@ -31,7 +31,7 @@ SdlRenderCompositor::BeginFrame()
     m_FrameStarted = true;
 
     auto fenceResult = WaitForFence();
-    expect(fenceResult, fenceResult.error());
+    expect(fenceResult);
 
     eassert(!m_Target, "Target should be null at the beginning of the frame");
     eassert(!m_CommandBuffer, "Command buffer should be null at the beginning of the frame");

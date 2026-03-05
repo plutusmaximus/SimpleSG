@@ -113,16 +113,7 @@ public:
     constexpr T* operator->() { return &std::get<T>(*this); }
     constexpr const T* operator->() const { return &std::get<T>(*this); }
 
-    constexpr Error& error() & { return std::get<Error>(*this); }
-    constexpr const Error& error() const& { return std::get<Error>(*this); }
-    constexpr Error&& error() && { return std::move(std::get<Error>(*this)); }
-    constexpr const Error&& error() const&& { return std::move(std::get<Error>(*this)); }
-
-    bool has_value() const { return std::holds_alternative<T>(*this); }
-
-    bool has_error() const { return std::holds_alternative<Error>(*this); }
-
-    operator bool() const { return has_value(); }
+    operator bool() const { return std::holds_alternative<T>(*this); }
 
     template<typename... Args>
     static inline std::string Format(std::format_string<Args...> fmt, Args&&... args)

@@ -230,16 +230,9 @@ FileIo::GetResult(const AsyncToken token)
 
     RemoveCompleteRequest(req);
 
-    Result<FileIo::FetchData> result;
+    expect(req->ReadResult);
 
-    if(req->Error)
-    {
-        result = req->Error.value();
-    }
-    else
-    {
-        result = GetResultImpl(req);
-    }
+    auto result = GetResultImpl(req);
 
     DeleteReadRequest(req);
 
@@ -410,7 +403,7 @@ FileIo::Fetch(const imstring& filePath)
 
     if(!result)
     {
-        CompleteRequestFailure(req, result.error());
+        CompleteRequestFailure(req, result);
     }
     else if(req->BytesRead >= req->BytesRequested)
     {
@@ -496,7 +489,7 @@ FileIo::ProcessCompletions()
 
             if(!result)
             {
-                CompleteRequestFailure(req, result.error());
+                CompleteRequestFailure(req, result);
                 continue;
             }
         }
@@ -627,11 +620,11 @@ FileIo::CompleteRequestSuccess(ReadRequest* request, const size_t bytesRead)
 }
 
 void
-FileIo::CompleteRequestFailure(ReadRequest* request, const Error& error)
+FileIo::CompleteRequestFailure(ReadRequest* request, const Result<>& result)
 {
     Win32ReadRequest* req = static_cast<Win32ReadRequest*>(request);
 
-    req->Error = error;
+    req->ReadResult = result;
 
     if(req->File != INVALID_HANDLE_VALUE)
     {

@@ -338,7 +338,7 @@ DawnGpuDevice::CreateTexture(const unsigned width,
     }
 
     auto samplerResult = GetDefaultSampler();
-    expect(samplerResult, samplerResult.error());
+    expect(samplerResult);
 
     GpuResource* res = m_ResourceAllocator.New();
     expectv(res, "Error allocating DawnGpuTexture");
@@ -417,7 +417,7 @@ DawnGpuDevice::CreateMaterial(const MaterialConstants& mtlConstants, GpuTexture*
         };
 
     auto fsBindGroupLayoutResult = GetFsBindGroupLayout();
-    expect(fsBindGroupLayoutResult, fsBindGroupLayoutResult.error());
+    expect(fsBindGroupLayoutResult);
 
     wgpu::BindGroupDescriptor fsBgDesc //
         {
@@ -428,14 +428,10 @@ DawnGpuDevice::CreateMaterial(const MaterialConstants& mtlConstants, GpuTexture*
         };
 
     wgpu::BindGroup bindGroup = Device.CreateBindGroup(&fsBgDesc);
-    expect(bindGroup, "Failed to create wgpu::BindGroup");
+    expect(bindGroup);
 
     GpuResource* res = m_ResourceAllocator.New();
-
-    if(!res)
-    {
-        return Error("Error allocating GpuResource");
-    }
+    expect(res, "Error allocating GpuResource");
 
     return ::new(&res->Material)
         DawnGpuMaterial(this, baseTexture, mtlConstantsBuf, bindGroup, mtlConstants);
@@ -479,7 +475,7 @@ DawnGpuDevice::CreateColorTarget(const unsigned width, const unsigned height, co
     expect(view, "Failed to create color target view");
 
     auto samplerResult = GetDefaultSampler();
-    expect(samplerResult, samplerResult.error());
+    expect(samplerResult);
 
     GpuResource* res = m_ResourceAllocator.New();
 

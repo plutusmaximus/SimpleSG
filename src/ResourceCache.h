@@ -251,8 +251,6 @@ private:
         /// Group of tasks for creating dependencies needed by the model.
         CoopTaskGroup m_TaskGroup;
 
-        Error m_FailError;
-
         Result<ModelResource> m_Result;
 
         // Whether this operation should skip caching the created model in the cache.  This is used

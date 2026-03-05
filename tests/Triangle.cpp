@@ -62,7 +62,7 @@ static Result<> MainLoop()
     auto gdResult = SdlGpuDevice::Create(window);
 #endif
 
-    expect(gdResult, gdResult.error());
+    expect(gdResult);
 
     auto gpuDevice = *gdResult;
 
@@ -87,7 +87,7 @@ static Result<> MainLoop()
     camera.SetPerspective(fov, screenBounds, 0.1f, 1000);
 
     auto modelResult = CreateTriangleModel(&resourceCache);
-    expect(modelResult, modelResult.error());
+    expect(modelResult);
     auto model = *modelResult;
 
     Renderer* renderer = gpuDevice->GetRenderer();
@@ -192,8 +192,7 @@ static Result<> MainLoop()
 
         TrsTransformf transform;
 
-        auto beginFrameResult = renderCompositor->BeginFrame();
-        expect(beginFrameResult, beginFrameResult.error());
+        renderCompositor->BeginFrame();
 
         imGuiRenderer.NewFrame();
 
@@ -205,13 +204,13 @@ static Result<> MainLoop()
         nonGpuWorkTimer.Stop();
 
         auto renderResult = renderer->Render(cameraXform.ToMatrix(), camera.GetProjection(), renderCompositor);
-        expect(renderResult, renderResult.error());
+        expect(renderResult);
 
         auto imGuiRenderResult = imGuiRenderer.Render(renderCompositor);
-        expect(imGuiRenderResult, imGuiRenderResult.error());
+        expect(imGuiRenderResult);
 
         auto endFrameResult = renderCompositor->EndFrame();
-        expect(endFrameResult, endFrameResult.error());
+        expect(endFrameResult);
 
 #if DAWN_GPU
         auto dawnGpuDevice = static_cast<DawnGpuDevice*>(gpuDevice);
@@ -303,7 +302,7 @@ static Result<ModelResource> CreateTriangleModel(ResourceCache* cache)
     const CacheKey cacheKey = CacheKey("TriangleModel");
 
     auto result = cache->CreateModelAsync(cacheKey, modelSpec);
-    expect(result, result.error());
+    expect(result);
 
     // Wait for the model to be created.
     while(result->IsPending())

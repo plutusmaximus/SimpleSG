@@ -90,7 +90,7 @@ AppDriver::Run()
         auto gdResult = SdlGpuDevice::Create(m_Window);
     #endif
 
-    expect(gdResult, gdResult.error());
+    expect(gdResult);
 
     auto gpuDevice = *gdResult;
 
@@ -101,7 +101,7 @@ AppDriver::Run()
     Application* app = m_AppLifecycle->Create();
 
     auto initResult = app->Initialize(&context);
-    expect(initResult, initResult.error());
+    expect(initResult);
 
     bool running = true;
 

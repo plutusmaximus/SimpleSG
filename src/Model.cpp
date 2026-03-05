@@ -43,7 +43,7 @@ Model::~Model()
             const auto res = m_GpuDevice->DestroyVertexBuffer(m_VertexBuffer);
             if(!res)
             {
-                logDebug("Failed to destroy vertex buffer: {}", res.error());
+                logDebug("Failed to destroy vertex buffer");
             }
         }
 
@@ -52,7 +52,7 @@ Model::~Model()
             const auto res = m_GpuDevice->DestroyIndexBuffer(m_IndexBuffer);
             if(!res)
             {
-                logDebug("Failed to destroy index buffer: {}", res.error());
+                logDebug("Failed to destroy index buffer");
             }
         }
     }

@@ -68,7 +68,7 @@ public:
         m_EidCamera = m_Registry.Create();
 
         auto modelResult = CreateShapeModel(m_ResourceCache);
-        expect(modelResult, modelResult.error());
+        expect(modelResult);
 
         constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
@@ -163,11 +163,7 @@ public:
             }
         }
 
-        auto beginFrameResult = m_RenderCompositor->BeginFrame();
-        if (!beginFrameResult)
-        {
-            logError(beginFrameResult.error().GetMessage());
-        }
+        m_RenderCompositor->BeginFrame();
 
         m_ImGuiRenderer->NewFrame();
 
@@ -180,19 +176,11 @@ public:
         }
 
         const auto [camWorldMat, camera] = cameraTuple;
-        auto renderResult = m_Renderer->Render(camWorldMat, camera.GetProjection(), m_RenderCompositor);
-        if (!renderResult)
-        {
-            logError(renderResult.error().GetMessage());
-        }
+        m_Renderer->Render(camWorldMat, camera.GetProjection(), m_RenderCompositor);
 
         m_ImGuiRenderer->Render(m_RenderCompositor);
 
-        auto endFrameResult = m_RenderCompositor->EndFrame();
-        if(!endFrameResult)
-        {
-            logError(endFrameResult.error().GetMessage());
-        }
+        m_RenderCompositor->EndFrame();
     }
 
     bool IsRunning() const override
@@ -400,7 +388,7 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
     const CacheKey cacheKey = CacheKey("CubeModel");
 
     auto result = cache->CreateModelAsync(cacheKey, modelSpec);
-    expect(result, result.error());
+    expect(result);
 
     // Wait for the model to be created.
     while(result->IsPending())
@@ -444,7 +432,7 @@ static Result<ModelResource> CreateShapeModel(ResourceCache* cache)
     const CacheKey cacheKey = CacheKey("ShapeModel");
 
     auto result = cache->CreateModelAsync(cacheKey, modelSpec);
-    expect(result, result.error());
+    expect(result);
 
     // Wait for the model to be created.
     while(result->IsPending())
@@ -464,7 +452,6 @@ int main(int, char* /*argv*/[])
     auto initResult = driver.Init();
     if(!initResult)
     {
-        logError(initResult.error().GetMessage());
         return -1;
     }
 
@@ -472,7 +459,6 @@ int main(int, char* /*argv*/[])
 
     if(!runResult)
     {
-        logError(runResult.error().GetMessage());
         return -1;
     }
 
