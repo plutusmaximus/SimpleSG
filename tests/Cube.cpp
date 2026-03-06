@@ -45,7 +45,7 @@ public:
             Shutdown();
         });
 
-        logInfo("Initializing...");
+        Log::Info("Initializing...");
 
         expectv(State::None == m_State, "Application already initialized or running");
 
@@ -88,7 +88,7 @@ public:
 
     void Shutdown() override
     {
-        logInfo("Shutting down...");
+        Log::Info("Shutting down...");
 
         if(State::Shutdown == m_State)
         {

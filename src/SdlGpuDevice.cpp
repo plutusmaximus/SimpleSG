@@ -90,7 +90,7 @@ SdlGpuDevice::SdlGpuDevice(SDL_Window* window, SDL_GPUDevice* gpuDevice)
 Result<GpuDevice*>
 SdlGpuDevice::Create(SDL_Window* window)
 {
-    logInfo("Creating SDL GPU Device...");
+    Log::Info("Creating SDL GPU Device...");
 
     //TODO - move these to environment variables.
     expect(SDL_SetHint(SDL_HINT_RENDER_VULKAN_DEBUG, "1"), SDL_GetError());
@@ -132,7 +132,7 @@ SdlGpuDevice::Create(SDL_Window* window)
 
     if(SDL_WindowSupportsGPUPresentMode(sdlDevice, window, SDL_GPU_PRESENTMODE_MAILBOX))
     {
-        logInfo("Using SDL_GPU_PRESENTMODE_MAILBOX present mode.");
+        Log::Info("Using SDL_GPU_PRESENTMODE_MAILBOX present mode.");
 
         expect(SDL_SetGPUSwapchainParameters(sdlDevice,
                window,
@@ -141,7 +141,7 @@ SdlGpuDevice::Create(SDL_Window* window)
     }
     else if(SDL_WindowSupportsGPUPresentMode(sdlDevice, window, SDL_GPU_PRESENTMODE_VSYNC))
     {
-        logInfo("Using SDL_GPU_PRESENTMODE_VSYNC present mode.");
+        Log::Info("Using SDL_GPU_PRESENTMODE_VSYNC present mode.");
 
         expect(SDL_SetGPUSwapchainParameters(sdlDevice,
                window,
@@ -150,7 +150,7 @@ SdlGpuDevice::Create(SDL_Window* window)
     }
     else
     {
-        logError("No supported present mode found for window.");
+        Log::Error("No supported present mode found for window.");
         return Result<>::Fail;
     }
 
@@ -194,7 +194,7 @@ SdlGpuDevice::GetScreenBounds() const
     int width = 0, height = 0;
     if(!SDL_GetWindowSizeInPixels(Window, &width, &height))
     {
-        logError("Failed to get window size: {}", SDL_GetError());
+        Log::Error("Failed to get window size: {}", SDL_GetError());
     }
     return Extent{static_cast<float>(width), static_cast<float>(height)};
 }
@@ -219,7 +219,7 @@ SdlGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& verti
     if(!res)
     {
         SDL_ReleaseGPUBuffer(Device, nativeBuf);
-        logError("Error allocating GpuResource");
+        Log::Error("Error allocating GpuResource");
         return Result<>::Fail;
     }
 
@@ -260,7 +260,7 @@ SdlGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& i
     if(!res)
     {
         SDL_ReleaseGPUBuffer(Device, nativeBuf);
-        logError("Error allocating GpuResource");
+        Log::Error("Error allocating GpuResource");
         return Result<>::Fail;
     }
 
@@ -318,7 +318,7 @@ SdlGpuDevice::CreateTexture(const unsigned width,
     expect(texture, SDL_GetError());
     auto texCleanup = scope_exit([&]() { SDL_ReleaseGPUTexture(Device, texture); });
 
-    logDebug("SDL_CreateGPUTexture: {} ms", sw.Elapsed() * 1000.0f);
+    Log::Debug("SDL_CreateGPUTexture: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
 
     const unsigned sizeofData = textureInfo.width * textureInfo.height * 4;
@@ -336,14 +336,14 @@ SdlGpuDevice::CreateTexture(const unsigned width,
     auto tbufferCleanup =
         scope_exit([&]() { SDL_ReleaseGPUTransferBuffer(Device, transferBuffer); });
 
-    logDebug("SDL_CreateGPUTransferBuffer: {} ms", sw.Elapsed() * 1000.0f);
+    Log::Debug("SDL_CreateGPUTransferBuffer: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
 
     // Copy pixel data to transfer buffer
     void* mappedData = SDL_MapGPUTransferBuffer(Device, transferBuffer, false);
     expect(mappedData, SDL_GetError());
 
-    logDebug("SDL_MapGPUTransferBuffer: {} ms", sw.Elapsed() * 1000.0f);
+    Log::Debug("SDL_MapGPUTransferBuffer: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
 
     const uint8_t* srcPixels = pixels;
@@ -355,12 +355,12 @@ SdlGpuDevice::CreateTexture(const unsigned width,
         std::memcpy(dstPixels, srcPixels, textureInfo.width * 4);
     }
 
-    logDebug("memcpy: {} ms", sw.Elapsed() * 1000.0f);
+    Log::Debug("memcpy: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
 
     SDL_UnmapGPUTransferBuffer(Device, transferBuffer);
 
-    logDebug("SDL_UnmapGPUTransferBuffer: {} ms", sw.Elapsed() * 1000.0f);
+    Log::Debug("SDL_UnmapGPUTransferBuffer: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
 
     // Upload to GPU texture
@@ -368,13 +368,13 @@ SdlGpuDevice::CreateTexture(const unsigned width,
     expect(cmdBuffer, SDL_GetError());
     auto cmdBufCleanup = scope_exit([&]() { SDL_CancelGPUCommandBuffer(cmdBuffer); });
 
-    logDebug("SDL_AcquireGPUCommandBuffer: {} ms", sw.Elapsed() * 1000.0f);
+    Log::Debug("SDL_AcquireGPUCommandBuffer: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
 
     SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(cmdBuffer);
     expect(copyPass, SDL_GetError());
 
-    logDebug("SDL_BeginGPUCopyPass: {} ms", sw.Elapsed() * 1000.0f);
+    Log::Debug("SDL_BeginGPUCopyPass: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
 
     SDL_GPUTextureTransferInfo transferInfo //
@@ -395,18 +395,18 @@ SdlGpuDevice::CreateTexture(const unsigned width,
 
     SDL_UploadToGPUTexture(copyPass, &transferInfo, &textureRegion, false);
 
-    logDebug("SDL_UploadToGPUTexture: {} ms", sw.Elapsed() * 1000.0f);
+    Log::Debug("SDL_UploadToGPUTexture: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
 
     SDL_EndGPUCopyPass(copyPass);
 
-    logDebug("SDL_EndGPUCopyPass: {} ms", sw.Elapsed() * 1000.0f);
+    Log::Debug("SDL_EndGPUCopyPass: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
 
     cmdBufCleanup.release();
     expect(SDL_SubmitGPUCommandBuffer(cmdBuffer), SDL_GetError());
 
-    logDebug("SDL_SubmitGPUCommandBuffer: {} ms", sw.Elapsed() * 1000.0f);
+    Log::Debug("SDL_SubmitGPUCommandBuffer: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
 
     auto samplerResult = GetDefaultSampler();
@@ -421,7 +421,7 @@ SdlGpuDevice::CreateTexture(const unsigned width,
     GpuTexture* gpuTex =
         ::new(&res->Texture) SdlGpuTexture(this, texture, *samplerResult, width, height);
 
-    logDebug("SdlGpuDevice::CreateTexture: {} ms", sw1.Elapsed() * 1000.0f);
+    Log::Debug("SdlGpuDevice::CreateTexture: {} ms", sw1.Elapsed() * 1000.0f);
 
     return gpuTex;
 }

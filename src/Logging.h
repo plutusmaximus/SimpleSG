@@ -2,37 +2,12 @@
 
 #include "imstring.h"
 
-#include <concepts>
 #include <cstddef>
 #include <format>
 #include <memory>
 #include <spdlog/spdlog.h>
 #include <string>
 #include <string_view>
-
-/// @brief  consteval string label that can be used as a non-type template parameter
-/// to specialize loggers by label.
-template<std::size_t N>
-struct LoggerLabel
-{
-    char value[N];
-
-    consteval LoggerLabel(const char (&str)[N])
-    {
-        for(std::size_t i = 0; i < N; ++i)
-        {
-            value[i] = str[i];
-        }
-    }
-
-    consteval std::string_view sv() const { return std::string_view(value, N - 1); }
-};
-
-class LogHelper
-{
-public:
-    static std::shared_ptr<spdlog::logger> CreateLogger(const std::string_view name);
-};
 
 /// Define __LOGGER_NAME__ before including this header to create a logger with a specific name.
 /// Otherwise the default logger is used.
@@ -42,107 +17,133 @@ public:
 #define __LOGGER_NAME__ "****"
 #endif
 
-/// @brief Global instance of a logger specialized by label.
-template<LoggerLabel S>
-inline std::shared_ptr<spdlog::logger> GetLogger()
+class Log final
 {
-    static std::shared_ptr<spdlog::logger> logger = LogHelper::CreateLogger(S.sv());
+    /// @brief  consteval string label that can be used as a non-type template parameter
+    /// to specialize loggers by label.
+    template<std::size_t N>
+    struct LoggerLabel
+    {
+        char value[N];
 
-    return logger;
-}
+        consteval LoggerLabel(const char (&str)[N])
+        {
+            for(std::size_t i = 0; i < N; ++i)
+            {
+                value[i] = str[i];
+            }
+        }
 
-// ====== Logging functions ======
+        consteval std::string_view sv() const { return std::string_view(value, N - 1); }
+    };
 
-template<typename... Args>
-inline void
-logTrace(std::format_string<Args...> fmt, Args&&... args)
-{
-    GetLogger<__LOGGER_NAME__>()->trace(std::format(fmt, std::forward<Args>(args)...));
-}
+public:
+    template<typename... Args>
+    static inline void Trace(std::format_string<Args...> fmt, Args &&...args)
+    {
+        GetLogger<__LOGGER_NAME__>()->trace(std::format(fmt, std::forward<Args>(args)...));
+    }
 
-inline void
-logTrace(std::string_view message)
-{
-    GetLogger<__LOGGER_NAME__>()->trace(message);
-}
+    static inline void Trace(std::string_view message) { GetLogger<__LOGGER_NAME__>()->trace(message); }
 
-template<typename... Args>
-inline void
-logDebug(std::format_string<Args...> fmt, Args&&... args)
-{
-    GetLogger<__LOGGER_NAME__>()->debug(std::format(fmt, std::forward<Args>(args)...));
-}
+    template<typename... Args>
+    static inline void Debug(std::format_string<Args...> fmt, Args &&...args)
+    {
+        GetLogger<__LOGGER_NAME__>()->debug(std::format(fmt, std::forward<Args>(args)...));
+    }
 
-inline void
-logDebug(std::string_view message)
-{
-    GetLogger<__LOGGER_NAME__>()->debug(message);
-}
+    static inline void Debug(std::string_view message) { GetLogger<__LOGGER_NAME__>()->debug(message);
+    }
 
-template<typename... Args>
-inline void
-logInfo(std::format_string<Args...> fmt, Args&&... args)
-{
-    GetLogger<__LOGGER_NAME__>()->info(std::format(fmt, std::forward<Args>(args)...));
-}
+    template<typename... Args>
+    static inline void Info(std::format_string<Args...> fmt, Args &&...args)
+    {
+        GetLogger<__LOGGER_NAME__>()->info(std::format(fmt, std::forward<Args>(args)...));
+    }
 
-inline void
-logInfo(std::string_view message)
-{
-    GetLogger<__LOGGER_NAME__>()->info(message);
-}
+    static inline void Info(std::string_view message) { GetLogger<__LOGGER_NAME__>()->info(message); }
 
-template<typename... Args>
-inline void
-logWarn(std::format_string<Args...> fmt, Args&&... args)
-{
-    GetLogger<__LOGGER_NAME__>()->warn(std::format(fmt, std::forward<Args>(args)...));
-}
+    template<typename... Args>
+    static inline void Warn(std::format_string<Args...> fmt, Args &&...args)
+    {
+        GetLogger<__LOGGER_NAME__>()->warn(std::format(fmt, std::forward<Args>(args)...));
+    }
 
-inline void
-logWarn(std::string_view message)
-{
-    GetLogger<__LOGGER_NAME__>()->warn(message);
-}
+    static inline void Warn(std::string_view message) { GetLogger<__LOGGER_NAME__>()->warn(message); }
 
-template<typename... Args>
-inline void
-logError(std::format_string<Args...> fmt, Args&&... args)
-{
-    GetLogger<__LOGGER_NAME__>()->error(std::format(fmt, std::forward<Args>(args)...));
-}
+    template<typename... Args>
+    static inline void Error(std::format_string<Args...> fmt, Args &&...args)
+    {
+        GetLogger<__LOGGER_NAME__>()->error(std::format(fmt, std::forward<Args>(args)...));
+    }
 
-inline void
-logError(std::string_view message)
-{
-    GetLogger<__LOGGER_NAME__>()->error(message);
-}
+    static inline void Error(std::string_view message) { GetLogger<__LOGGER_NAME__>()->error(message); }
 
-/// Log an assertion failure
-template<typename... Args>
-inline void
-logAssert(std::format_string<Args...> fmt, Args&&... args)
-{
-    GetLogger<"assert">()->error(std::format(fmt, std::forward<Args>(args)...));
-}
+    /// Log an assertion failure
+    template<typename... Args>
+    static inline void Assert(std::format_string<Args...> fmt, Args &&...args)
+    {
+        GetLogger<"assert">()->error(std::format(fmt, std::forward<Args>(args)...));
+    }
 
-inline void
-logAssert(std::string_view message)
-{
-    GetLogger<"assert">()->error(message);
-}
+    static inline void Assert(std::string_view message) { GetLogger<"assert">()->error(message); }
 
-/// @brief Sets the log level for a specific logger.
-template<LoggerLabel S>
-inline void
-logSetLevel(const spdlog::level::level_enum level)
-{
-    GetLogger<S>()->SetLevel(level);
-}
+    /// @brief Sets the log level for a specific logger.
+    template<LoggerLabel S>
+    static inline void SetLevel(const spdlog::level::level_enum level)
+    {
+        GetLogger<S>()->SetLevel(level);
+    }
 
-/// @brief Sets the global log level.
-inline void
-logSetLevel(const spdlog::level::level_enum level)
-{
-    spdlog::set_level(level);
-}
+    /// @brief Sets the global log level.
+    static inline void SetLevel(const spdlog::level::level_enum level) { spdlog::set_level(level); }
+
+    /// @brief RAII class to capture messages.
+    /// Assert dialogs are disabled while this object is alive.
+    /// Usage:
+    /// {
+    ///     Asserts::Capture capture;
+    ///     // code that may trigger asserts
+    /// }
+    /// If you want to cancel the capture before destruction, call Cancel().
+    /// Otherwise, the capture will be canceled automatically in the destructor.
+    /// Typically the eassert_capture macro is used to simplify usage.
+    /// Example:
+    ///     assert_capture(capture)
+    ///     {
+    ///         // code that may trigger asserts
+    ///         // use capture.Message() to get the last assert message
+    ///         EXPECT_TRUE(capture.Message().contains("expected text"));
+    ///     }
+    class Capture
+    {
+    public:
+        Capture();
+
+        void Cancel();
+
+        bool IsCanceled() const;
+
+        std::string Message() const;
+
+        ~Capture();
+
+    private:
+
+        bool m_Canceled = false;
+
+        std::shared_ptr<spdlog::sinks::sink> m_Sink;
+    };
+
+private:
+    static std::shared_ptr<spdlog::logger> CreateLogger(const std::string_view name);
+
+    /// @brief Global instance of a logger specialized by label.
+    template<LoggerLabel S>
+    static inline std::shared_ptr<spdlog::logger> GetLogger()
+    {
+        static std::shared_ptr<spdlog::logger> logger = CreateLogger(S.sv());
+
+        return logger;
+    }
+};

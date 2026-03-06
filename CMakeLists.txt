@@ -182,6 +182,7 @@ set(SSG_SOURCES
   src/Error.cpp
   src/FileIo.cpp
   src/ImGuiRenderer.cpp
+  src/Log.cpp
   src/Model.cpp
   src/PerfMetrics.cpp
   src/ResourceCache.cpp

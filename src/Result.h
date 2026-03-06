@@ -81,7 +81,7 @@ public:
     {                                                                   \
         if(!static_cast<bool>(expr))                                    \
         {                                                               \
-            logError("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__));    \
+            Log::Error("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__));    \
             return Result<>::Fail;               \
         }                                                               \
     }
@@ -91,7 +91,7 @@ public:
     {                                                                   \
         if(!everify(expr, ##__VA_ARGS__))                               \
         {                                                               \
-            logError("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__));    \
+            Log::Error("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__));    \
             return Result<>::Fail;               \
         }                                                               \
     }

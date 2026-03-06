@@ -54,7 +54,7 @@ PerfTimer::PerfTimer::Start()
     if(!everify(!m_IsRunning,
         "Failed to start timer '{}': Timer is already running", m_Name))
     {
-        logError("Failed to start timer '{}': Timer is already running", m_Name);
+        Log::Error("Failed to start timer '{}': Timer is already running", m_Name);
         return;
     }
 
@@ -71,7 +71,7 @@ PerfTimer::PerfTimer::Stop()
     if(!everify(m_IsRunning,
         "Failed to stop timer '{}': Timer is not running", m_Name))
     {
-        logError("Failed to stop timer '{}': Timer is not running", m_Name);
+        Log::Error("Failed to stop timer '{}': Timer is not running", m_Name);
         return;
     }
 
@@ -89,7 +89,7 @@ PerfTimer::PerfTimer::Sample()
     if(!everify(!m_IsRunning,
         "Failed to sample timer '{}': Timer is still running", m_Name))
     {
-        logError("Failed to sample timer '{}': Timer is still running", m_Name);
+        Log::Error("Failed to sample timer '{}': Timer is still running", m_Name);
         return;
     }
 
@@ -114,7 +114,7 @@ PerfMetrics::BeginFrame()
 {
     if(!everify(!s_IsFrameActive, "BeginFrame() called while a frame is already active"))
     {
-        logError("BeginFrame() called while a frame is already active");
+        Log::Error("BeginFrame() called while a frame is already active");
         return;
     }
 
@@ -126,7 +126,7 @@ PerfMetrics::EndFrame()
 {
     if(!everify(s_IsFrameActive, "EndFrame() called without a matching BeginFrame()"))
     {
-        logError("EndFrame() called without a matching BeginFrame()");
+        Log::Error("EndFrame() called without a matching BeginFrame()");
         return;
     }
 
@@ -173,6 +173,6 @@ PerfMetrics::LogTimers()
 {
     for(auto& timer : m_Timers)
     {
-        logInfo("{}: {} ms, Count: {}", timer.GetName(), timer.GetValue() * 1000.0f, timer.GetCount());
+        Log::Info("{}: {} ms, Count: {}", timer.GetName(), timer.GetValue() * 1000.0f, timer.GetCount());
     }
 }

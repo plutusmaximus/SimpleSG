@@ -1,10 +1,10 @@
 #pragma once
 
 #include "imstring.h"
+#include "Logging.h"
 
 #include <format>
 #include <memory>
-#include <spdlog/sinks/sink.h>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -15,44 +15,6 @@ class Asserts
 public:
     /// @brief Enable or disable the assert dialog.
     static bool SetDialogEnabled(const bool enabled);
-
-    /// @brief RAII class to capture assert messages.
-    /// Assert dialogs are disabled while this object is alive.
-    /// Usage:
-    /// {
-    ///     Asserts::Capture capture;
-    ///     // code that may trigger asserts
-    /// }
-    /// If you want to cancel the capture before destruction, call Cancel().
-    /// Otherwise, the capture will be canceled automatically in the destructor.
-    /// Typically the eassert_capture macro is used to simplify usage.
-    /// Example:
-    ///     assert_capture(capture)
-    ///     {
-    ///         // code that may trigger asserts
-    ///         // use capture.Message() to get the last assert message
-    ///         EXPECT_TRUE(capture.Message().contains("expected text"));
-    ///     }
-    class Capture
-    {
-    public:
-        Capture();
-
-        void Cancel();
-
-        bool IsCanceled() const;
-
-        std::string Message() const;
-
-        ~Capture();
-
-    private:
-        const bool m_OldValue;
-
-        bool m_Canceled = false;
-
-        std::shared_ptr<spdlog::sinks::sink> m_Sink;
-    };
 
     /// @brief Returns a reference to a boolean that can be used to mute future
     /// assert dialogs at this call site.
@@ -110,14 +72,17 @@ public:
 #define eassert(expr, ...) void(everify(expr, ##__VA_ARGS__))
 
 #define assert_capture(capName)                                                                    \
-    for(Asserts::Capture capName; !capName.IsCanceled(); capName.Cancel())
+    for(struct{bool en = Asserts::SetDialogEnabled(false);\
+        Log::Capture capName;\
+        std::string Message(){return capName.Message();}} capName;\
+        !capName.capName.IsCanceled();\
+        capName.capName.Cancel(), Asserts::SetDialogEnabled(capName.en))
 
 #else // NDEBUG
 
 #define everify(expr, ...) (static_cast<bool>(expr))
 #define eassert(expr, ...)
 
-#define assert_capture(capName)                                                                    \
-    for(Asserts::Capture capName; false;)
+#define assert_capture(capName)
 
 #endif // NDEBUG

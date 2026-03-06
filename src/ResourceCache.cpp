@@ -115,7 +115,7 @@ ResourceCache::~ResourceCache()
             auto dr = m_GpuDevice->DestroyTexture(*result);
             if(!dr)
             {
-                logError("Failed to destroy texture");
+                Log::Error("Failed to destroy texture");
             }
         }
     }
@@ -132,7 +132,7 @@ ResourceCache::~ResourceCache()
             auto dr = m_GpuDevice->DestroyMaterial(*result);
             if(!dr)
             {
-                logError("Failed to destroy material");
+                Log::Error("Failed to destroy material");
             }
         }
     }
@@ -170,18 +170,18 @@ ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, const imstring& 
 {
     if(IsPending<ModelResource>(cacheKey))
     {
-        logDebug("  Load already pending: {}", cacheKey.ToString());
+        Log::Debug("  Load already pending: {}", cacheKey.ToString());
         auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<ModelResource>);
         expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
         m_Scheduler.Enqueue(op);
     }
     else if(m_ModelCache.Contains(cacheKey))
     {
-        logDebug("  Cache hit: {}", cacheKey.ToString());
+        Log::Debug("  Cache hit: {}", cacheKey.ToString());
     }
     else
     {
-        logDebug("  Cache miss: {}", cacheKey.ToString());
+        Log::Debug("  Cache miss: {}", cacheKey.ToString());
 
         auto op = NewOp<LoadModelOp>(this, cacheKey, filePath);
         expectv(op, "Failed to allocate LoadModelOp for key: {}", cacheKey.ToString());
@@ -196,18 +196,18 @@ ResourceCache::CreateModelAsync(const CacheKey& cacheKey, const ModelSpec& model
 {
     if(IsPending<ModelResource>(cacheKey))
     {
-        logDebug("  Creation already pending: {}", cacheKey.ToString());
+        Log::Debug("  Creation already pending: {}", cacheKey.ToString());
         auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<ModelResource>);
         expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
         m_Scheduler.Enqueue(op);
     }
     else if(m_ModelCache.Contains(cacheKey))
     {
-        logDebug("  Cache hit: {}", cacheKey.ToString());
+        Log::Debug("  Cache hit: {}", cacheKey.ToString());
     }
     else
     {
-        logDebug("  Cache miss: {}", cacheKey.ToString());
+        Log::Debug("  Cache miss: {}", cacheKey.ToString());
 
         auto op = NewOp<CreateModelOp>(this, cacheKey, modelSpec);
         expectv(op, "Failed to allocate CreateModelOp for key: {}", cacheKey.ToString());
@@ -222,18 +222,18 @@ ResourceCache::CreateTextureAsync(const CacheKey& cacheKey, const TextureSpec& t
 {
     if(IsPending<GpuTexture*>(cacheKey))
     {
-        logDebug("  Texture creation already pending: {}", cacheKey.ToString());
+        Log::Debug("  Texture creation already pending: {}", cacheKey.ToString());
         auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<GpuTexture*>);
         expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
         m_Scheduler.Enqueue(op);
     }
     else if(m_TextureCache.Contains(cacheKey))
     {
-        logDebug("  Cache hit: {}", cacheKey.ToString());
+        Log::Debug("  Cache hit: {}", cacheKey.ToString());
     }
     else
     {
-        logDebug("  Cache miss: {}", cacheKey.ToString());
+        Log::Debug("  Cache miss: {}", cacheKey.ToString());
 
         auto op = NewOp<CreateTextureOp>(this, cacheKey, textureSpec);
         expectv(op, "Failed to allocate CreateTextureOp for key: {}", cacheKey.ToString());
@@ -248,18 +248,18 @@ ResourceCache::CreateMaterialAsync(const CacheKey& cacheKey, const MaterialSpec&
 {
     if(IsPending<GpuMaterial*>(cacheKey))
     {
-        logDebug("  Material creation already pending: {}", cacheKey.ToString());
+        Log::Debug("  Material creation already pending: {}", cacheKey.ToString());
         auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<GpuMaterial*>);
         expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
         m_Scheduler.Enqueue(op);
     }
     else if(m_MaterialCache.Contains(cacheKey))
     {
-        logDebug("  Cache hit: {}", cacheKey.ToString());
+        Log::Debug("  Cache hit: {}", cacheKey.ToString());
     }
     else
     {
-        logDebug("  Cache miss: {}", cacheKey.ToString());
+        Log::Debug("  Cache miss: {}", cacheKey.ToString());
 
         auto op = NewOp<CreateMaterialOp>(this, cacheKey, materialSpec);
         expectv(op, "Failed to allocate CreateMaterialOp for key: {}", cacheKey.ToString());
@@ -303,7 +303,7 @@ ResourceCache::GetMaterial(const CacheKey& cacheKey) const
 
 // private:
 
-#define logOp(fmt, ...) logDebug("  {}: {}", CLASS_NAME, std::format(fmt, __VA_ARGS__))
+#define logOp(fmt, ...) Log::Debug("  {}: {}", CLASS_NAME, std::format(fmt, __VA_ARGS__))
 
 // === ResourceCache::WaitOp ===
 
@@ -353,7 +353,7 @@ ResourceCache::CreateModelOp::~CreateModelOp()
         auto result = m_ResourceCache->m_GpuDevice->DestroyVertexBuffer(m_VertexBuffer);
         if(!result)
         {
-            logError("Failed to destroy vertex buffer");
+            Log::Error("Failed to destroy vertex buffer");
         }
     }
 
@@ -362,7 +362,7 @@ ResourceCache::CreateModelOp::~CreateModelOp()
         auto result = m_ResourceCache->m_GpuDevice->DestroyIndexBuffer(m_IndexBuffer);
         if(!result)
         {
-            logError("Failed to destroy index buffer");
+            Log::Error("Failed to destroy index buffer");
         }
     }
 }
@@ -378,7 +378,7 @@ ResourceCache::CreateModelOp::Start()
 
     if(!everify(m_ResourceCache->m_ModelCache.TryReserve(GetCacheKey())))
     {
-        logError("Failed to reserve cache entry for key: {}", GetCacheKey().ToString());
+        Log::Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString());
         SetResult(Result<>::Fail);
         return;
     }
@@ -573,7 +573,7 @@ ResourceCache::CreateModelOp::SetResult(Result<ModelResource> result)
             auto vbResult = m_ResourceCache->m_GpuDevice->DestroyVertexBuffer(m_VertexBuffer);
             if(!vbResult)
             {
-                logError("Failed to destroy vertex buffer");
+                Log::Error("Failed to destroy vertex buffer");
             }
         }
         if(m_IndexBuffer)
@@ -581,7 +581,7 @@ ResourceCache::CreateModelOp::SetResult(Result<ModelResource> result)
             auto ibResult = m_ResourceCache->m_GpuDevice->DestroyIndexBuffer(m_IndexBuffer);
             if(!ibResult)
             {
-                logError("Failed to destroy index buffer");
+                Log::Error("Failed to destroy index buffer");
             }
         }
     }
@@ -621,7 +621,7 @@ ResourceCache::LoadModelOp::Start()
 
     if(!everify(m_ResourceCache->m_ModelCache.TryReserve(GetCacheKey())))
     {
-        logError("Failed to reserve cache entry for key: {}", GetCacheKey().ToString());
+        Log::Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString());
         SetResult(Result<>::Fail);
         return;
     }
@@ -664,13 +664,13 @@ ResourceCache::LoadModelOp::Update()
             Assimp::Importer importer;
             const aiScene* scene = importer.ReadFile(std::string(m_Path), flags);
 
-            logDebug("  Assimp import time: {} ms ({})",
+            Log::Debug("  Assimp import time: {} ms ({})",
                 static_cast<int>(m_Stopwatch.Elapsed() * 1000.0f),
                 GetCacheKey().ToString());
 
             if(!scene)
             {
-                logError("Failed to load model file: {} ({})", m_Path, importer.GetErrorString());
+                Log::Error("Failed to load model file: {} ({})", m_Path, importer.GetErrorString());
                 SetResult(Result<>::Fail);
                 return;
             }
@@ -713,7 +713,7 @@ ResourceCache::LoadModelOp::Update()
 
             if(!m_CreateModelOp)
             {
-                logError("Failed to allocate CreateModelOp");
+                Log::Error("Failed to allocate CreateModelOp");
                 SetResult(Result<>::Fail);
                 return;
             }
@@ -754,7 +754,7 @@ ResourceCache::LoadModelOp::SetResult(Result<ModelResource> result)
         m_CreateModelOp = nullptr;
     }
 
-    logDebug("  Total load time: {} ms ({})",
+    Log::Debug("  Total load time: {} ms ({})",
         static_cast<int>(m_Stopwatch.Elapsed() * 1000.0f),
         GetCacheKey().ToString());
 
@@ -789,14 +789,14 @@ ResourceCache::CreateTextureOp::Start()
 
     if(!everify(m_TextureSpec.IsValid(), "Texture spec is invalid"))
     {
-        logError("Texture spec is invalid");
+        Log::Error("Texture spec is invalid");
         SetResult(Result<>::Fail);
         return;
     }
 
     if(!everify(m_ResourceCache->m_TextureCache.TryReserve(GetCacheKey())))
     {
-        logError("Failed to reserve cache entry for key: {}", GetCacheKey().ToString());
+        Log::Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString());
         SetResult(Result<>::Fail);
         return;
     }
@@ -818,7 +818,7 @@ ResourceCache::CreateTextureOp::Start()
     {
         if(path.empty())
         {
-            logError("Texture source path is empty");
+            Log::Error("Texture source path is empty");
             SetResult(Result<>::Fail);
             return;
         }
@@ -839,7 +839,7 @@ ResourceCache::CreateTextureOp::Start()
     }
     else
     {
-        logError("Texture source is not specified");
+        Log::Error("Texture source is not specified");
         SetResult(Result<>::Fail);
     }
 }
@@ -989,7 +989,7 @@ ResourceCache::CreateMaterialOp::Start()
 
     if(!everify(m_ResourceCache->m_MaterialCache.TryReserve(GetCacheKey())))
     {
-        logError("Failed to reserve cache entry for key: {}", GetCacheKey().ToString());
+        Log::Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString());
         SetResult(Result<>::Fail);
         return;
     }
@@ -998,7 +998,7 @@ ResourceCache::CreateMaterialOp::Start()
 
     if(!everify(baseTextureSpec.IsValid(), "Base texture spec is invalid"))
     {
-        logError("Base texture spec is invalid");
+        Log::Error("Base texture spec is invalid");
         SetResult(Result<>::Fail);
         return;
     }
@@ -1079,7 +1079,7 @@ GetTexturePropertiesFromMaterial(const aiMaterial* material,
         // DO NOT SUBMIT: Temporary warning for testing
         if(mapmode[0] != aiTextureMapMode_Wrap || mapmode[1] != aiTextureMapMode_Wrap)
         {
-            logWarn("Base color texture has non-wrapping UV mode");
+            Log::Warn("Base color texture has non-wrapping UV mode");
         }
         properties.Base.Path = (parentPath / texPath.C_Str()).string();
         properties.Base.UVIndex = uvIndex;
@@ -1157,13 +1157,13 @@ static void
 LogMesh(const aiScene* scene, const SceneMeshId meshId)
 {
     const aiMesh* mesh = scene->mMeshes[meshId];
-    logDebug("  Mesh {}: {}", meshId, GetMeshName(mesh));
-    logDebug("  Vtx: {}, Tri: {}", mesh->mNumVertices, mesh->mNumFaces);
+    Log::Debug("  Mesh {}: {}", meshId, GetMeshName(mesh));
+    Log::Debug("  Vtx: {}, Tri: {}", mesh->mNumVertices, mesh->mNumFaces);
     const aiMaterial* material =
         scene->mMaterials ? scene->mMaterials[mesh->mMaterialIndex] : nullptr;
     if(material)
     {
-        logDebug("  Material: \"{}\"", material->GetName().C_Str());
+        Log::Debug("  Material: \"{}\"", material->GetName().C_Str());
     }
 };
 
@@ -1173,14 +1173,14 @@ ValidateMesh(const aiScene* scene, const unsigned meshIdx)
     const aiMesh* mesh = scene->mMeshes[meshIdx];
     if(!(mesh->mPrimitiveTypes & aiPrimitiveType_TRIANGLE))
     {
-        logWarn("Skipping non-triangle mesh");
+        Log::Warn("Skipping non-triangle mesh");
         LogMesh(scene, meshIdx);
         return false;
     }
 
     if(mesh->mNumVertices == 0 || mesh->mNumFaces == 0)
     {
-        logWarn("Skipping empty mesh");
+        Log::Warn("Skipping empty mesh");
         LogMesh(scene, meshIdx);
         return false;
     }
@@ -1188,7 +1188,7 @@ ValidateMesh(const aiScene* scene, const unsigned meshIdx)
     if(!mesh->HasNormals())
     {
         // TODO - generate normals
-        logWarn("Mesh has no normals; skipping");
+        Log::Warn("Mesh has no normals; skipping");
         LogMesh(scene, meshIdx);
         return false;
     }
@@ -1243,7 +1243,7 @@ CreateMaterialSpec(const aiMaterial* material, const std::filesystem::path& pare
     }
     else
     {
-        logWarn("  Mesh has no material");
+        Log::Warn("  Mesh has no material");
     }
 
     const TextureSpec baseTextureSpec = texProperties.Base.Path.empty()
@@ -1366,11 +1366,11 @@ ProcessNodes(const aiNode* node,
     imvector<TransformNode>::builder& transformNodes,
     const std::filesystem::path& parentPath)
 {
-    logDebug("Processing node {}", node->mName.C_Str());
+    Log::Debug("Processing node {}", node->mName.C_Str());
 
     if(!node->mNumMeshes && !node->mNumChildren)
     {
-            logWarn("  Node {} has no meshes or children; skipping", node->mName.C_Str());
+            Log::Warn("  Node {} has no meshes or children; skipping", node->mName.C_Str());
             return;
     }
 
@@ -1430,7 +1430,7 @@ ProcessNodes(const aiNode* node,
             const SceneMeshId sceneMeshId = node->mMeshes[i];
             if(!meshSpecCollection.MeshIdToSpecIndex.contains(sceneMeshId))
             {
-                logWarn("  Mesh {} not found in mesh spec collection; skipping", sceneMeshId);
+                Log::Warn("  Mesh {} not found in mesh spec collection; skipping", sceneMeshId);
                 continue;
             }
 
@@ -1438,7 +1438,7 @@ ProcessNodes(const aiNode* node,
 
             const MeshSpec& meshSpec = meshSpecCollection.MeshSpecs[meshSpecIndex];
 
-            logDebug("  Adding mesh instance {}", meshSpec.Name);
+            Log::Debug("  Adding mesh instance {}", meshSpec.Name);
             meshInstances.emplace_back(
                 MeshInstance{ .MeshIndex = meshSpecIndex, .NodeIndex = nodeIndex });
         }

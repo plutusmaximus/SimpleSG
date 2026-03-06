@@ -87,7 +87,7 @@ DawnGpuDevice::DawnGpuDevice(SDL_Window* window,
 Result<GpuDevice*>
 DawnGpuDevice::Create(SDL_Window* window)
 {
-    logInfo("Creating Dawn GPU Device...");
+    Log::Info("Creating Dawn GPU Device...");
 
     auto instanceResult = CreateInstance();
     expect(instanceResult);
@@ -143,7 +143,7 @@ DawnGpuDevice::GetScreenBounds() const
     int width = 0, height = 0;
     if(!SDL_GetWindowSizeInPixels(Window, &width, &height))
     {
-        logError("Failed to get window size: {}", SDL_GetError());
+        Log::Error("Failed to get window size: {}", SDL_GetError());
     }
     return Extent{static_cast<float>(width), static_cast<float>(height)};
 }
@@ -320,7 +320,7 @@ DawnGpuDevice::CreateTexture(const unsigned width,
         {
             if(status != wgpu::QueueWorkDoneStatus::Success)
             {
-                logError("Queue submit failed: {}", std::string(message.data, message.length));
+                Log::Error("Queue submit failed: {}", std::string(message.data, message.length));
                 result->queueSubmitResult = Result<>::Fail;
             }
             result->done.store(true);
@@ -666,7 +666,7 @@ CreateAdapter(wgpu::Instance instance)
     {
         if(status != wgpu::RequestAdapterStatus::Success)
         {
-            logError("RequestAdapter failed: {}", std::string(message.data, message.length));
+            Log::Error("RequestAdapter failed: {}", std::string(message.data, message.length));
             result = Result<>::Fail;
         }
         else
@@ -715,7 +715,7 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
                             wgpu::DeviceLostReason reason,
                             wgpu::StringView message)
     {
-        logError("Device lost (reason:{}): {}",
+        Log::Error("Device lost (reason:{}): {}",
             static_cast<int>(reason),
             std::string(message.data, message.length));
 
@@ -731,31 +731,33 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
                                  wgpu::ErrorType errorType,
                                  wgpu::StringView message)
     {
-        logError("Uncaptured error (type:{}): {}",
+        Log::Error("Uncaptured error (type:{}): {}",
             static_cast<int>(errorType),
             std::string(message.data, message.length));
     };
 
     const char* enabledToggles[] =
     {
-        "skip_validation",
-        "disable_robustness",
+        //"skip_validation",
+        //"disable_robustness",
+        "allow_unsafe_apis",    // Required for MultiDrawIndirect
     };
 
-    const char* disabledToggles[] =
-    {
-        "lazy_clear_resource_on_first_use",
-    };
+    //const char* disabledToggles[] =
+    //{
+    //    "lazy_clear_resource_on_first_use",
+    //};
 
     wgpu::DawnTogglesDescriptor toggles;
     toggles.enabledToggleCount = std::size(enabledToggles);
     toggles.enabledToggles = enabledToggles;
-    toggles.disabledToggleCount = std::size(disabledToggles);
-    toggles.disabledToggles = disabledToggles;
+    //toggles.disabledToggleCount = std::size(disabledToggles);
+    //toggles.disabledToggles = disabledToggles;
 
     wgpu::FeatureName requiredFeatures[] = //
         {
             wgpu::FeatureName::IndirectFirstInstance,
+            //wgpu::FeatureName::MultiDrawIndirect
         };
 
     wgpu::DeviceDescriptor deviceDesc //
@@ -778,7 +780,7 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
     {
         if(status != wgpu::RequestDeviceStatus::Success)
         {
-            logError("RequestDevice failed: {}", std::string(message.data, message.length));
+            Log::Error("RequestDevice failed: {}", std::string(message.data, message.length));
             result = Result<>::Fail;
         }
         else
@@ -793,6 +795,8 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
     wgpu::WaitStatus waitStatus = instance.WaitAny(fut, UINT64_MAX);
 
     expect(waitStatus == wgpu::WaitStatus::Success, "Failed to create WGPUDevice - WaitAny failed");
+
+    expect(result);
 
     DumpDawnToggles(*result);
 

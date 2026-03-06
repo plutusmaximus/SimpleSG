@@ -46,10 +46,10 @@ AppDriver::Init()
 {
     expectv(State::None == m_State, "AppDriver already initialized or running");
 
-    logSetLevel(spdlog::level::trace);
+    Log::SetLevel(spdlog::level::trace);
 
     auto cwd = std::filesystem::current_path();
-    logInfo("Current working directory: {}", cwd.string());
+    Log::Info("Current working directory: {}", cwd.string());
 
     expect(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
 

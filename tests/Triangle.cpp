@@ -23,10 +23,10 @@ static Result<> RenderGui();
 
 static Result<> MainLoop()
 {
-    logSetLevel(spdlog::level::trace);
+    Log::SetLevel(spdlog::level::trace);
 
     auto cwd = std::filesystem::current_path();
-    logInfo("Current working directory: {}", cwd.string());
+    Log::Info("Current working directory: {}", cwd.string());
 
     expect(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
 

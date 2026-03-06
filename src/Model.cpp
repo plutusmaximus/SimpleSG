@@ -43,7 +43,7 @@ Model::~Model()
             const auto res = m_GpuDevice->DestroyVertexBuffer(m_VertexBuffer);
             if(!res)
             {
-                logDebug("Failed to destroy vertex buffer");
+                Log::Debug("Failed to destroy vertex buffer");
             }
         }
 
@@ -52,7 +52,7 @@ Model::~Model()
             const auto res = m_GpuDevice->DestroyIndexBuffer(m_IndexBuffer);
             if(!res)
             {
-                logDebug("Failed to destroy index buffer");
+                Log::Debug("Failed to destroy index buffer");
             }
         }
     }
@@ -67,7 +67,7 @@ Model::Create(
     GpuVertexBuffer* vertexBuffer,
     GpuIndexBuffer* indexBuffer)
 {
-    logDebug(
+    Log::Debug(
         "Creating model with {} meshes, {} mesh instances and {} transform nodes",
         meshes.size(),
         meshInstances.size(),
@@ -75,7 +75,7 @@ Model::Create(
 
     for(size_t i = 0; i < meshInstances.size(); ++i)
     {
-        logDebug(
+        Log::Debug(
             "  Mesh instance {}: mesh index {}({}), node index {}",
             i,
             meshInstances[i].MeshIndex,

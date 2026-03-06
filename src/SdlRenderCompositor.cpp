@@ -15,7 +15,7 @@ SdlRenderCompositor::~SdlRenderCompositor()
         auto result = WaitForFence();
         if(!result)
         {
-            logError("Error waiting for render fence during SdlRenderCompositor destruction");
+            Log::Error("Error waiting for render fence during SdlRenderCompositor destruction");
         }
     }
 }
