@@ -173,13 +173,13 @@ add_custom_target(copy_models
 # Library: ssg
 # ============================================================
 set(SSG_SOURCES
+  src/AssertHelper.cpp
   src/Camera.cpp
   src/CoopScheduler.cpp
   src/DawnGpuDevice.cpp
   src/DawnRenderCompositor.cpp
   src/DawnRenderer.cpp
   src/EcsChildTransformPool.cpp
-  src/Error.cpp
   src/FileIo.cpp
   src/ImGuiRenderer.cpp
   src/Log.cpp
@@ -195,6 +195,7 @@ set(SSG_SOURCES
 )
 
 set(SSG_HEADERS
+  src/AssertHelper.h
   src/Camera.h
   src/CoopScheduler.h
   src/DawnGpuDevice.h
@@ -202,7 +203,6 @@ set(SSG_HEADERS
   src/DawnRenderer.h
   src/ECS.h
   src/EcsChildTransformPool.h
-  src/Error.h
   src/FileIo.h
   src/ImGuiRenderer.h
   src/imstring.h

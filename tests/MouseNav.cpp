@@ -1,6 +1,6 @@
 #include "MouseNav.h"
 
-#include "Error.h"
+#include "AssertHelper.h"
 
 #include <SDL3/SDL_scancode.h>
 

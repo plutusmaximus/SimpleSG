@@ -1,4 +1,4 @@
-#include "Error.h"
+#include "AssertHelper.h"
 
 #include "Log.h"
 
@@ -9,16 +9,13 @@
 #error "Platform not supported"
 #endif	//_MSC_VER
 
-#include <string>
+#include <atomic>
 #include <stacktrace>
-#include <cstdarg>
-
-// ============== Asserts =================
 
 static std::atomic<bool> s_EnableAssertDialog = true;
 
 bool
-Asserts::SetDialogEnabled(const bool enabled)
+AssertHelper::SetDialogEnabled(const bool enabled)
 {
     return s_EnableAssertDialog.exchange(enabled);
 }
@@ -26,12 +23,12 @@ Asserts::SetDialogEnabled(const bool enabled)
 #if defined(_MSC_VER)
 
 bool
-Asserts::Log(const std::string_view message, bool& mute)
+AssertHelper::Log(const std::string& message, bool& mute)
 {
     auto trace = std::stacktrace::current(1);
     std::string logMsg = std::format("{}\n\n{}", message, std::to_string(trace));
 
-    Log::Assert("{}", logMsg);
+    Log::Assert(logMsg);
 
     bool ignore = !s_EnableAssertDialog.load() || mute;
     if (ignore) return false;

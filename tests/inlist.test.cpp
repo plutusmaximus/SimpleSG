@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include "Error.h"
 #include "inlist.h"
 
 namespace

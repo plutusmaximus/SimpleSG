@@ -1,16 +1,11 @@
 #pragma once
 
-#include "imstring.h"
 #include "Log.h"
 
 #include <format>
-#include <memory>
 #include <string>
-#include <string_view>
-#include <utility>
 
-/// @brief Assertion helper class.
-class Asserts
+class AssertHelper
 {
 public:
     /// @brief Enable or disable the assert dialog.
@@ -27,28 +22,36 @@ public:
         return muted;
     }
 
-    /// @brief Log an assertion failure and display a dialog if enabled.
-    static bool Log(const std::string_view message, bool& mute);
-
-    /// @brief Log an assertion failure and display a dialog if enabled.
+    /// @brief Log an assertion failure.
     template<typename... Args>
     static bool Log(const char* expression,
         const char* fileName,
         const int lineNum,
         bool& mute,
-        const std::string_view format_str = "",
+        std::format_string<Args...> fmt,
         Args&&... args)
     {
-        std::string message = std::format("{}({}): {}", fileName, lineNum, expression);
-        if(!format_str.empty())
-        {
-            auto userMsg =
-                std::vformat(format_str, std::make_format_args(std::forward<Args>(args)...));
-            message = std::format("{} - {}", message, userMsg);
-        }
+        std::string userMsg = std::format(fmt, std::forward<Args>(args)...);
+        std::string message = std::format("{}({}): {} - {}", fileName, lineNum, expression, userMsg);
 
         return Log(message, mute);
     }
+
+    /// @brief Log an assertion failure.
+    static bool Log(const char* expression,
+        const char* fileName,
+        const int lineNum,
+        bool& mute)
+    {
+        std::string message = std::format("{}({}): {}", fileName, lineNum, expression);
+
+        return Log(message, mute);
+    }
+
+private:
+
+    /// @brief Log an assertion failure.
+    static bool Log(const std::string& message, bool& mute);
 };
 
 #ifndef NDEBUG
@@ -64,19 +67,26 @@ public:
 // return everify(x > y) ? x : -1;
 #define everify(expr, ...)                                                                         \
     ((static_cast<bool>(expr)) ||                                                                  \
-        (Asserts::Log(#expr, __FILE__, __LINE__, Asserts::Muter<__COUNTER__>(), ##__VA_ARGS__)     \
+        (AssertHelper::Log(#expr, __FILE__, __LINE__, AssertHelper::Muter<__COUNTER__>(), ##__VA_ARGS__)     \
             ? __debugbreak(),                                                                      \
             false                                                                                  \
             : false))
 
+#undef everify
+
+#define everify(expr, ...)                                                                      \
+    (static_cast<bool>(expr) ||                                                               \
+        (AssertHelper::Log(#expr, __FILE__, __LINE__, AssertHelper::Muter<__COUNTER__>(), ##__VA_ARGS__)  \
+            ? (__debugbreak(), false) : false))
+
 #define eassert(expr, ...) void(everify(expr, ##__VA_ARGS__))
 
 #define assert_capture(capName)                                                                    \
-    for(struct{bool en = Asserts::SetDialogEnabled(false);\
+    for(struct{bool en = AssertHelper::SetDialogEnabled(false);\
         Log::Capture capName;\
         std::string Message(){return capName.Message();}} capName;\
         !capName.capName.IsCanceled();\
-        capName.capName.Cancel(), Asserts::SetDialogEnabled(capName.en))
+        capName.capName.Cancel(), AssertHelper::SetDialogEnabled(capName.en))
 
 #else // NDEBUG
 
