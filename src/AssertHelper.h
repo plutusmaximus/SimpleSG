@@ -56,36 +56,37 @@ private:
 
 #ifndef NDEBUG
 
-// everify is like assert excpet that it can be used in boolean expressions.
+// MLG_VERIFY is like MLG_ASSERT excpet that it can be used in boolean expressions.
 //
 // For ex.
 //
-// if(everify(nullptr != p))...
+// if(MLG_VERIFY(nullptr != p))...
 //
 // Or
 //
-// return everify(x > y) ? x : -1;
-#define everify(expr, ...)                                                                         \
-    ((static_cast<bool>(expr)) ||                                                                  \
-        (AssertHelper::Log(#expr, __FILE__, __LINE__, AssertHelper::Muter<__COUNTER__>(), ##__VA_ARGS__)     \
-            ? __debugbreak(),                                                                      \
-            false                                                                                  \
-            : false))
+// return MLG_VERIFY(x > y) ? x : -1;
 
-#undef everify
-
-#define everify(expr, ...)                                                                      \
-    (static_cast<bool>(expr) ||                                                               \
-        (AssertHelper::Log(#expr, __FILE__, __LINE__, AssertHelper::Muter<__COUNTER__>(), ##__VA_ARGS__)  \
-            ? (__debugbreak(), false) : false))
-
-#define eassert(expr, ...) void(everify(expr, ##__VA_ARGS__))
+#define eassert(expr, ...) void(MLG_VERIFY(expr, ##__VA_ARGS__))
 
 #define assert_capture(capName)                                                                    \
     for(struct{bool en = AssertHelper::SetDialogEnabled(false);\
         Log::Capture capName;\
         std::string Message(){return capName.Message();}} capName;\
         !capName.capName.IsCanceled();\
+        capName.capName.Cancel(), AssertHelper::SetDialogEnabled(capName.en))
+
+#define MLG_VERIFY(expr, ...) \
+    (static_cast<bool>(expr) || \
+        (AssertHelper::Log(#expr, __FILE__, __LINE__, AssertHelper::Muter<__COUNTER__>(), ##__VA_ARGS__) \
+            ? (__debugbreak(), false) : false))
+
+#define MLG_ASSERT(expr, ...) void(MLG_VERIFY(expr, ##__VA_ARGS__))
+
+#define MLG_ASSERT_CAPTURE(capName) \
+    for(struct{bool en = AssertHelper::SetDialogEnabled(false); \
+        Log::Capture capName; \
+        std::string Message(){return capName.Message();}} capName; \
+        !capName.capName.IsCanceled(); \
         capName.capName.Cancel(), AssertHelper::SetDialogEnabled(capName.en))
 
 #else // NDEBUG

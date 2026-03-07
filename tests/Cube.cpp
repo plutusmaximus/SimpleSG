@@ -107,7 +107,7 @@ public:
 
     void Update(const float deltaSeconds) override
     {
-        if(!everify(State::Running == m_State, "Application is not running"))
+        if(!MLG_VERIFY(State::Running == m_State, "Application is not running"))
         {
             return;
         }

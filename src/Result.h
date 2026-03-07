@@ -89,7 +89,7 @@ public:
 // Like expect but also calls verify and pops an assert if false.
 #define expectv(expr, ...)                                              \
     {                                                                   \
-        if(!everify(expr, ##__VA_ARGS__))                               \
+        if(!MLG_VERIFY(expr, ##__VA_ARGS__))                               \
         {                                                               \
             Log::Error("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__));    \
             return Result<>::Fail;               \

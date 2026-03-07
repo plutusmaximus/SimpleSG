@@ -118,7 +118,7 @@ public:
     /// Returns true if component was added.
     bool Add(const EntityId eid, const C& component)
     {
-        if(!everify(!Has(eid), "Component already exists for entity"))
+        if(!MLG_VERIFY(!Has(eid), "Component already exists for entity"))
         {
             return false;
         }
@@ -281,7 +281,7 @@ public:
 
         Iterator& operator++()
         {
-            if(everify(m_Idx < m_Size, "Index out of bounds"))
+            if(MLG_VERIFY(m_Idx < m_Size, "Index out of bounds"))
             {
                 ++m_Idx;
                 Advance();
@@ -419,7 +419,7 @@ public:
     /// @brief Destroy the given entity ID and remove all associated components.
     void Destroy(const EntityId eid)
     {
-        if(!everify(IsAlive(eid), "Entity is not alive"))
+        if(!MLG_VERIFY(IsAlive(eid), "Entity is not alive"))
         {
             return;
         }
@@ -448,7 +448,7 @@ public:
     template<typename... Cs>
     bool Add(const EntityId eid, const Cs&... components)
     {
-        if(!everify(IsAlive(eid), "Entity is not alive"))
+        if(!MLG_VERIFY(IsAlive(eid), "Entity is not alive"))
         {
             return false;
         }
@@ -460,7 +460,7 @@ public:
     template<typename C>
     void Remove(const EntityId eid)
     {
-        if(!everify(IsAlive(eid), "Entity is not alive"))
+        if(!MLG_VERIFY(IsAlive(eid), "Entity is not alive"))
         {
             return;
         }

@@ -62,7 +62,7 @@ public:
 
     CacheKey GetCacheKey() const
     {
-        if(!everify(!std::holds_alternative<None_t>(Source), "TextureSpec has no source"))
+        if(!MLG_VERIFY(!std::holds_alternative<None_t>(Source), "TextureSpec has no source"))
         {
             return CacheKey("");
         }

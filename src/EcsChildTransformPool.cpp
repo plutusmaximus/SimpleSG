@@ -5,17 +5,17 @@ EcsComponentPool<ChildTransform>::Add(const EntityId eid, const ChildTransform& 
 {
     const EntityId parentId = child.ParentId;
 
-    if(!everify(eid.IsValid(), "EntityId must be valid"))
+    if(!MLG_VERIFY(eid.IsValid(), "EntityId must be valid"))
     {
         return false;
     }
 
-    if(!everify(!Has(eid), "Entity ID already in collection"))
+    if(!MLG_VERIFY(!Has(eid), "Entity ID already in collection"))
     {
         return false;
     }
 
-    if(!everify(eid != parentId, "Entity cannot be its own parent"))
+    if(!MLG_VERIFY(eid != parentId, "Entity cannot be its own parent"))
     {
         return false;
     }
@@ -41,7 +41,7 @@ EcsComponentPool<ChildTransform>::Add(const EntityId eid, const ChildTransform& 
     }
 
     const IndexType idxOfParent = IndexOf(parentId);
-    if(!everify(idxOfParent != InvalidIndex, "Parent ID not found in collection"))
+    if(!MLG_VERIFY(idxOfParent != InvalidIndex, "Parent ID not found in collection"))
     {
         // Parent not found, which shouldn't happen in a valid hierarchy
         return false;
@@ -64,7 +64,7 @@ void
 EcsComponentPool<ChildTransform>::Remove(const EntityId eid)
 {
     const IndexType eidIdx = IndexOf(eid);
-    if(!everify(eidIdx != InvalidIndex, "Entity ID not found"))
+    if(!MLG_VERIFY(eidIdx != InvalidIndex, "Entity ID not found"))
     {
         return;
     }

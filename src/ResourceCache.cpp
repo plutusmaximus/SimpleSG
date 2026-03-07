@@ -376,7 +376,7 @@ ResourceCache::CreateModelOp::Start()
 
     m_DoNotCache = false;
 
-    if(!everify(m_ResourceCache->m_ModelCache.TryReserve(GetCacheKey())))
+    if(!MLG_VERIFY(m_ResourceCache->m_ModelCache.TryReserve(GetCacheKey())))
     {
         Log::Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString());
         SetResult(Result<>::Fail);
@@ -619,7 +619,7 @@ ResourceCache::LoadModelOp::Start()
 
     logOp("Start() (key: {})", GetCacheKey().ToString());
 
-    if(!everify(m_ResourceCache->m_ModelCache.TryReserve(GetCacheKey())))
+    if(!MLG_VERIFY(m_ResourceCache->m_ModelCache.TryReserve(GetCacheKey())))
     {
         Log::Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString());
         SetResult(Result<>::Fail);
@@ -787,14 +787,14 @@ ResourceCache::CreateTextureOp::Start()
 
     logOp("Start() (key: {})", GetCacheKey().ToString());
 
-    if(!everify(m_TextureSpec.IsValid(), "Texture spec is invalid"))
+    if(!MLG_VERIFY(m_TextureSpec.IsValid(), "Texture spec is invalid"))
     {
         Log::Error("Texture spec is invalid");
         SetResult(Result<>::Fail);
         return;
     }
 
-    if(!everify(m_ResourceCache->m_TextureCache.TryReserve(GetCacheKey())))
+    if(!MLG_VERIFY(m_ResourceCache->m_TextureCache.TryReserve(GetCacheKey())))
     {
         Log::Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString());
         SetResult(Result<>::Fail);
@@ -987,7 +987,7 @@ ResourceCache::CreateMaterialOp::Start()
 
     logOp("Start() (key: {})", GetCacheKey().ToString());
 
-    if(!everify(m_ResourceCache->m_MaterialCache.TryReserve(GetCacheKey())))
+    if(!MLG_VERIFY(m_ResourceCache->m_MaterialCache.TryReserve(GetCacheKey())))
     {
         Log::Error("Failed to reserve cache entry for key: {}", GetCacheKey().ToString());
         SetResult(Result<>::Fail);
@@ -996,7 +996,7 @@ ResourceCache::CreateMaterialOp::Start()
 
     const auto& baseTextureSpec = m_MaterialSpec.BaseTexture;
 
-    if(!everify(baseTextureSpec.IsValid(), "Base texture spec is invalid"))
+    if(!MLG_VERIFY(baseTextureSpec.IsValid(), "Base texture spec is invalid"))
     {
         Log::Error("Base texture spec is invalid");
         SetResult(Result<>::Fail);

@@ -39,7 +39,7 @@ public:
         {
             AllocateHeap();
 
-            if(!everify(m_FreeList != nullptr, "Failed to allocate heap for PoolAllocator"))
+            if(!MLG_VERIFY(m_FreeList != nullptr, "Failed to allocate heap for PoolAllocator"))
             {
                 return nullptr;
             }

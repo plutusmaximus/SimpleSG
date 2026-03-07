@@ -97,7 +97,7 @@ DawnRenderer::~DawnRenderer()
 void
 DawnRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
 {
-    if(!everify(model, "Model pointer is null"))
+    if(!MLG_VERIFY(model, "Model pointer is null"))
     {
         return;
     }

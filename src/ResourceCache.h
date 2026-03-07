@@ -531,14 +531,14 @@ private:
         {
             auto it = m_Map.find(key);
 
-            if(!everify(it != m_Map.end(),
+            if(!MLG_VERIFY(it != m_Map.end(),
                    "Cache entry for key {} has not been reserved",
                    key.ToString()))
             {
                 return false;
             }
 
-            if(!everify(it->second.IsPending(),
+            if(!MLG_VERIFY(it->second.IsPending(),
                    "Cache entry for key {} is not pending",
                    key.ToString()))
             {
