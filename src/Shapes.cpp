@@ -11,9 +11,9 @@ static constexpr float M_PI = std::numbers::pi_v<float>;
 Shapes::Geometry
 Shapes::Box(const float width, const float height, const float depth)
 {
-    eassert(width > 0);
-    eassert(height > 0);
-    eassert(depth > 0);
+    MLG_ASSERT(width > 0);
+    MLG_ASSERT(height > 0);
+    MLG_ASSERT(depth > 0);
 
     imvector<Vertex>::builder vertices;
     imvector<VertexIndex>::builder indices;
@@ -74,8 +74,8 @@ Shapes::Box(const float width, const float height, const float depth)
 Shapes::Geometry
 Shapes::Ball(const float diameter, const float smoothness)
 {
-    eassert(diameter > 0);
-    eassert(smoothness > 0);
+    MLG_ASSERT(diameter > 0);
+    MLG_ASSERT(smoothness > 0);
 
     imvector<Vertex>::builder vertices;
     imvector<VertexIndex>::builder indices;
@@ -211,9 +211,9 @@ Shapes::Ball(const float diameter, const float smoothness)
 Shapes::Geometry
 Shapes::Cylinder(const float height, const float diameter, const float smoothness)
 {
-    eassert(height > 0);
-    eassert(diameter > 0);
-    eassert(smoothness > 0);
+    MLG_ASSERT(height > 0);
+    MLG_ASSERT(diameter > 0);
+    MLG_ASSERT(smoothness > 0);
 
     imvector<Vertex>::builder vertices;
     imvector<VertexIndex>::builder indices;
@@ -319,10 +319,10 @@ Shapes::Cylinder(const float height, const float diameter, const float smoothnes
 Shapes::Geometry
 Shapes::Cone(const float diameter1, const float diameter2, const float smoothness)
 {
-    eassert(diameter1 >= 0);
-    eassert(diameter2 >= 0);
-    eassert(diameter1 > 0 || diameter2 > 0);
-    eassert(smoothness > 0);
+    MLG_ASSERT(diameter1 >= 0);
+    MLG_ASSERT(diameter2 >= 0);
+    MLG_ASSERT(diameter1 > 0 || diameter2 > 0);
+    MLG_ASSERT(smoothness > 0);
 
     imvector<Vertex>::builder vertices;
     imvector<VertexIndex>::builder indices;
@@ -476,9 +476,9 @@ Shapes::Torus(
     const float tubeDiameter,
     const float smoothness)
 {
-    eassert(ringDiameter >= 0);
-    eassert(tubeDiameter > 0);
-    eassert(smoothness > 0);
+    MLG_ASSERT(ringDiameter >= 0);
+    MLG_ASSERT(tubeDiameter > 0);
+    MLG_ASSERT(smoothness > 0);
 
     if (0 == ringDiameter)
     {

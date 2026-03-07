@@ -91,7 +91,7 @@ ResourceCache::~ResourceCache()
 {
     for(auto& it : m_ModelCache)
     {
-        eassert(!it.second.IsPending(),
+        MLG_ASSERT(!it.second.IsPending(),
             "Model cache entry for key {} is still pending during ResourceCache destruction",
             it.first.ToString());
 
@@ -105,7 +105,7 @@ ResourceCache::~ResourceCache()
 
     for(auto it : m_TextureCache)
     {
-        eassert(!it.second.IsPending(),
+        MLG_ASSERT(!it.second.IsPending(),
             "Texture cache entry for key {} is still pending during ResourceCache destruction",
             it.first.ToString());
 
@@ -122,7 +122,7 @@ ResourceCache::~ResourceCache()
 
     for(auto it : m_MaterialCache)
     {
-        eassert(!it.second.IsPending(),
+        MLG_ASSERT(!it.second.IsPending(),
             "Material cache entry for key {} is still pending during ResourceCache destruction",
             it.first.ToString());
 
@@ -310,7 +310,7 @@ ResourceCache::GetMaterial(const CacheKey& cacheKey) const
 void
 ResourceCache::WaitOp::Start()
 {
-    eassert(m_State == NotStarted);
+    MLG_ASSERT(m_State == NotStarted);
 
     logOp("Start() (key: {})", GetCacheKey().ToString());
 
@@ -323,7 +323,7 @@ ResourceCache::WaitOp::Update()
     switch(m_State)
     {
         case NotStarted:
-            eassert(false, "Start() should have been called before Update()");
+            MLG_ASSERT(false, "Start() should have been called before Update()");
             break;
 
         case Waiting:
@@ -345,8 +345,8 @@ ResourceCache::WaitOp::Update()
 
 ResourceCache::CreateModelOp::~CreateModelOp()
 {
-    eassert(!m_VertexBuffer);
-    eassert(!m_IndexBuffer);
+    MLG_ASSERT(!m_VertexBuffer);
+    MLG_ASSERT(!m_IndexBuffer);
 
     if(m_VertexBuffer)
     {
@@ -370,7 +370,7 @@ ResourceCache::CreateModelOp::~CreateModelOp()
 void
 ResourceCache::CreateModelOp::Start()
 {
-    eassert(m_State == NotStarted);
+    MLG_ASSERT(m_State == NotStarted);
 
     StartDoNotCache();
 
@@ -387,7 +387,7 @@ ResourceCache::CreateModelOp::Start()
 void
 ResourceCache::CreateModelOp::StartDoNotCache()
 {
-    eassert(m_State == NotStarted);
+    MLG_ASSERT(m_State == NotStarted);
 
     logOp("StartDoNotCache() (key: {})", GetCacheKey().ToString());
 
@@ -402,7 +402,7 @@ ResourceCache::CreateModelOp::Update()
     switch(m_State)
     {
         case NotStarted:
-            eassert(false, "Start() should have been called before Update()");
+            MLG_ASSERT(false, "Start() should have been called before Update()");
             break;
 
         case CreateVertexBuffer:
@@ -603,7 +603,7 @@ ResourceCache::CreateModelOp::SetResult(Result<ModelResource> result)
 
 ResourceCache::LoadModelOp::~LoadModelOp()
 {
-    eassert(!m_CreateModelOp);
+    MLG_ASSERT(!m_CreateModelOp);
 
     if(m_CreateModelOp)
     {
@@ -615,7 +615,7 @@ ResourceCache::LoadModelOp::~LoadModelOp()
 void
 ResourceCache::LoadModelOp::Start()
 {
-    eassert(m_State == NotStarted);
+    MLG_ASSERT(m_State == NotStarted);
 
     logOp("Start() (key: {})", GetCacheKey().ToString());
 
@@ -647,7 +647,7 @@ ResourceCache::LoadModelOp::Update()
     switch(m_State)
     {
         case NotStarted:
-            eassert(false, "Start() should have been called before Update()");
+            MLG_ASSERT(false, "Start() should have been called before Update()");
             break;
 
         case LoadFile:
@@ -783,7 +783,7 @@ ResourceCache::CreateTextureOp::~CreateTextureOp()
 void
 ResourceCache::CreateTextureOp::Start()
 {
-    eassert(m_State == NotStarted);
+    MLG_ASSERT(m_State == NotStarted);
 
     logOp("Start() (key: {})", GetCacheKey().ToString());
 
@@ -850,7 +850,7 @@ ResourceCache::CreateTextureOp::Update()
     switch(m_State)
     {
         case NotStarted:
-            eassert(false, "Start() should have been called before Update()");
+            MLG_ASSERT(false, "Start() should have been called before Update()");
             break;
 
         case LoadingFile:
@@ -983,7 +983,7 @@ ResourceCache::CreateMaterialOp::~CreateMaterialOp()
 void
 ResourceCache::CreateMaterialOp::Start()
 {
-    eassert(m_State == NotStarted);
+    MLG_ASSERT(m_State == NotStarted);
 
     logOp("Start() (key: {})", GetCacheKey().ToString());
 
@@ -1020,7 +1020,7 @@ ResourceCache::CreateMaterialOp::Update()
     switch(m_State)
     {
         case NotStarted:
-            eassert(false, "Start() should have been called before Update()");
+            MLG_ASSERT(false, "Start() should have been called before Update()");
             break;
 
         case CreatingTexture:

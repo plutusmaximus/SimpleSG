@@ -232,7 +232,7 @@ Result<>
 SdlGpuDevice::DestroyVertexBuffer(GpuVertexBuffer* buffer)
 {
     SdlGpuVertexBuffer* sdlBuffer = static_cast<SdlGpuVertexBuffer*>(buffer);
-    eassert(this == sdlBuffer->m_GpuDevice,
+    MLG_ASSERT(this == sdlBuffer->m_GpuDevice,
         "Buffer does not belong to this device");
 
     sdlBuffer->~SdlGpuVertexBuffer();
@@ -273,7 +273,7 @@ Result<>
 SdlGpuDevice::DestroyIndexBuffer(GpuIndexBuffer* buffer)
 {
     SdlGpuIndexBuffer* sdlBuffer = static_cast<SdlGpuIndexBuffer*>(buffer);
-    eassert(this == sdlBuffer->m_GpuDevice,
+    MLG_ASSERT(this == sdlBuffer->m_GpuDevice,
         "Buffer does not belong to this device");
 
     sdlBuffer->~SdlGpuIndexBuffer();
@@ -439,7 +439,7 @@ Result<>
 SdlGpuDevice::DestroyTexture(GpuTexture* texture)
 {
     SdlGpuTexture* sdlTexture = static_cast<SdlGpuTexture*>(texture);
-    eassert(this == sdlTexture->m_GpuDevice,
+    MLG_ASSERT(this == sdlTexture->m_GpuDevice,
         "Texture does not belong to this device");
     sdlTexture->~SdlGpuTexture();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(texture));
@@ -465,7 +465,7 @@ Result<>
 SdlGpuDevice::DestroyMaterial(GpuMaterial* material)
 {
     SdlGpuMaterial* sdlMaterial = static_cast<SdlGpuMaterial*>(material);
-    eassert(this == sdlMaterial->m_GpuDevice,
+    MLG_ASSERT(this == sdlMaterial->m_GpuDevice,
         "Material does not belong to this device");
     sdlMaterial->~SdlGpuMaterial();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(material));
@@ -523,7 +523,7 @@ Result<>
 SdlGpuDevice::DestroyColorTarget(GpuColorTarget* colorTarget)
 {
     SdlGpuColorTarget* sdlColorTarget = static_cast<SdlGpuColorTarget*>(colorTarget);
-    eassert(this == sdlColorTarget->m_GpuDevice,
+    MLG_ASSERT(this == sdlColorTarget->m_GpuDevice,
         "Color target does not belong to this device");
     sdlColorTarget->~SdlGpuColorTarget();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(colorTarget));
@@ -577,7 +577,7 @@ Result<>
 SdlGpuDevice::DestroyDepthTarget(GpuDepthTarget* depthTarget)
 {
     SdlGpuDepthTarget* sdlDepthTarget = static_cast<SdlGpuDepthTarget*>(depthTarget);
-    eassert(this == sdlDepthTarget->m_GpuDevice,
+    MLG_ASSERT(this == sdlDepthTarget->m_GpuDevice,
         "Depth target does not belong to this device");
     sdlDepthTarget->~SdlGpuDepthTarget();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(depthTarget));

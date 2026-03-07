@@ -76,7 +76,7 @@ DawnRenderCompositor::EndFrame()
 wgpu::TextureView
 DawnRenderCompositor::GetTarget()
 {
-    eassert(m_FrameStarted, "GetTarget() called outside of a frame");
+    MLG_ASSERT(m_FrameStarted, "GetTarget() called outside of a frame");
 
     return m_Target;
 
@@ -85,7 +85,7 @@ DawnRenderCompositor::GetTarget()
 wgpu::CommandEncoder
 DawnRenderCompositor::GetCommandEncoder()
 {
-    eassert(m_FrameStarted, "GetCommandBuffer() called outside of a frame");
+    MLG_ASSERT(m_FrameStarted, "GetCommandBuffer() called outside of a frame");
 
     return m_CommandEncoder;
 }

@@ -261,7 +261,7 @@ namespace
         EntityId invalidId; // Default constructor creates invalid ID
         EXPECT_FALSE(invalidId.IsValid());
 
-        assert_capture(capture)
+        MLG_ASSERT_CAPTURE(capture)
         {
             const bool added = pool.Add(invalidId, {});
             EXPECT_FALSE(added);
@@ -284,7 +284,7 @@ namespace
         EXPECT_EQ(pool.size(), 1);
 
         // Attempt to add same ID again
-        assert_capture(capture)
+        MLG_ASSERT_CAPTURE(capture)
         {
             const bool added = pool.Add(nodeId, {});
             EXPECT_FALSE(added);
@@ -308,7 +308,7 @@ namespace
 
         // Attempt to add same ID with itself as parent
         const EntityId sameId = idGen.NextId();
-        assert_capture(capture)
+        MLG_ASSERT_CAPTURE(capture)
         {
             const bool added = pool.Add(sameId, ChildTransform{ sameId, RandomTrsTransform() });
             EXPECT_FALSE(added);
@@ -329,7 +329,7 @@ namespace
         const EntityId nonExistentParent = idGen.NextId();
 
         // Attempt to add child with parent that doesn't exist
-        assert_capture(capture)
+        MLG_ASSERT_CAPTURE(capture)
         {
             const bool added = pool.Add(childId, ChildTransform{ nonExistentParent, RandomTrsTransform() });
             EXPECT_FALSE(added);
@@ -613,7 +613,7 @@ namespace
         pool.Add(existingId, {});
         EXPECT_EQ(pool.size(), 1);
 
-        assert_capture(capture)
+        MLG_ASSERT_CAPTURE(capture)
         {
             pool.Remove(nonExistentId);
             EXPECT_TRUE(capture.Message().contains("Entity ID not found"));

@@ -66,15 +66,6 @@ private:
 //
 // return MLG_VERIFY(x > y) ? x : -1;
 
-#define eassert(expr, ...) void(MLG_VERIFY(expr, ##__VA_ARGS__))
-
-#define assert_capture(capName)                                                                    \
-    for(struct{bool en = AssertHelper::SetDialogEnabled(false);\
-        Log::Capture capName;\
-        std::string Message(){return capName.Message();}} capName;\
-        !capName.capName.IsCanceled();\
-        capName.capName.Cancel(), AssertHelper::SetDialogEnabled(capName.en))
-
 #define MLG_VERIFY(expr, ...) \
     (static_cast<bool>(expr) || \
         (AssertHelper::Log(#expr, __FILE__, __LINE__, AssertHelper::Muter<__COUNTER__>(), ##__VA_ARGS__) \
@@ -91,9 +82,9 @@ private:
 
 #else // NDEBUG
 
-#define everify(expr, ...) (static_cast<bool>(expr))
-#define eassert(expr, ...)
+#define MLG_VERIFY(expr, ...) (static_cast<bool>(expr))
+#define MLG_ASSERT(expr, ...)
 
-#define assert_capture(capName)
+#define MLG_ASSERT_CAPTURE(capName)
 
 #endif // NDEBUG

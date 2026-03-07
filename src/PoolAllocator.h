@@ -68,10 +68,10 @@ public:
         }
 
         Chunk* chunk = Chunk::FromStorage(voidPtr);
-        eassert(this == chunk->Allocator,
+        MLG_ASSERT(this == chunk->Allocator,
             "Pointer being freed was not allocated from this PoolAllocator");
-        eassert(nullptr == chunk->Next, "Double free detected in PoolAllocator");
-        eassert(chunk->Guard == GUARD_VALUE, "Memory corruption detected in PoolAllocator");
+        MLG_ASSERT(nullptr == chunk->Next, "Double free detected in PoolAllocator");
+        MLG_ASSERT(chunk->Guard == GUARD_VALUE, "Memory corruption detected in PoolAllocator");
 
         T* ptr = static_cast<T*>(voidPtr);
 
@@ -90,7 +90,7 @@ protected:
     virtual ~PoolAllocatorT()
     {
         // If this trips, something allocated from the pool wasn't freed.
-        eassert(m_AllocatedCount == 0,
+        MLG_ASSERT(m_AllocatedCount == 0,
             "PoolAllocator is being destroyed but there are still {} allocated objects",
             m_AllocatedCount);
 

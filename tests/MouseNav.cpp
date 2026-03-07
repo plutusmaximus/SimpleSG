@@ -105,7 +105,7 @@ void GimbleMouseNav::Update(const float /*deltaSeconds*/)
 
 void GimbleMouseNav::BeginPan(const Point& mouseLoc, const float scale)
 {
-    eassert(&GimbleMouseNav::UpdateNothing == m_UpdateFunc);
+    MLG_ASSERT(&GimbleMouseNav::UpdateNothing == m_UpdateFunc);
 
     m_StartLoc = m_CurLoc = mouseLoc;
     m_Scale = scale;
@@ -115,7 +115,7 @@ void GimbleMouseNav::BeginPan(const Point& mouseLoc, const float scale)
 
 void GimbleMouseNav::BeginDolly(const float scale)
 {
-    eassert(&GimbleMouseNav::UpdateNothing == m_UpdateFunc);
+    MLG_ASSERT(&GimbleMouseNav::UpdateNothing == m_UpdateFunc);
 
     m_Scale = scale;
     m_StartTrans = m_Transform.T;
@@ -124,7 +124,7 @@ void GimbleMouseNav::BeginDolly(const float scale)
 
 void GimbleMouseNav::BeginRotation(const Point& mouseLoc, const Extent& screenBounds, const float scale)
 {
-    eassert(&GimbleMouseNav::UpdateNothing == m_UpdateFunc);
+    MLG_ASSERT(&GimbleMouseNav::UpdateNothing == m_UpdateFunc);
 
     m_StartLoc = m_CurLoc = mouseLoc;
     m_ScreenBounds = screenBounds;
@@ -135,21 +135,21 @@ void GimbleMouseNav::BeginRotation(const Point& mouseLoc, const Extent& screenBo
 
 void GimbleMouseNav::EndPan()
 {
-    eassert(&GimbleMouseNav::UpdatePan == m_UpdateFunc);
+    MLG_ASSERT(&GimbleMouseNav::UpdatePan == m_UpdateFunc);
 
     m_UpdateFunc = &GimbleMouseNav::UpdateNothing;
 }
 
 void GimbleMouseNav::EndDolly()
 {
-    eassert(&GimbleMouseNav::UpdateDolly == m_UpdateFunc);
+    MLG_ASSERT(&GimbleMouseNav::UpdateDolly == m_UpdateFunc);
 
     m_UpdateFunc = &GimbleMouseNav::UpdateNothing;
 }
 
 void GimbleMouseNav::EndRotation()
 {
-    eassert(&GimbleMouseNav::UpdateRotation == m_UpdateFunc);
+    MLG_ASSERT(&GimbleMouseNav::UpdateRotation == m_UpdateFunc);
 
     m_UpdateFunc = &GimbleMouseNav::UpdateNothing;
 }

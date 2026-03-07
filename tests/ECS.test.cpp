@@ -287,7 +287,7 @@ namespace
         ComponentA compA{ 42 };
 
         pool.Add(eid, compA);
-        assert_capture(capture)
+        MLG_ASSERT_CAPTURE(capture)
         {
             const bool addedAgain = pool.Add(eid, ComponentA{ 100 });
             EXPECT_FALSE(addedAgain);
@@ -684,7 +684,7 @@ namespace
         reg.Destroy(eid);
 
         auto compA = RandomValue<ComponentA>();
-        assert_capture(capture)
+        MLG_ASSERT_CAPTURE(capture)
         {
             const bool added = reg.Add<ComponentA>(eid, compA);
             EXPECT_FALSE(added);
@@ -742,7 +742,7 @@ namespace
         for (auto eid : eids)
         {
             auto c = RandomValue<ComponentC>();
-            assert_capture(capture)
+            MLG_ASSERT_CAPTURE(capture)
             {
                 const auto result = reg.Add<ComponentC>(eid, c);
                 EXPECT_FALSE(result);
@@ -1135,7 +1135,7 @@ namespace
         reg.Destroy(eid);
         EXPECT_FALSE(reg.IsAlive(eid));
 
-        assert_capture(capture)
+        MLG_ASSERT_CAPTURE(capture)
         {
             reg.Remove<ComponentA>(eid);
             EXPECT_TRUE(capture.Message().contains("Entity is not alive"));

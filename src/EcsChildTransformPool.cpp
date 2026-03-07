@@ -73,7 +73,7 @@ EcsComponentPool<ChildTransform>::Remove(const EntityId eid)
     auto subAssemblyBounds = [this](this auto self, const EntityId parentId) -> IndexType
     {
         const IndexType parentIdx = IndexOf(parentId);
-        eassert(parentIdx != -1, "Parent ID not found");
+        MLG_ASSERT(parentIdx != -1, "Parent ID not found");
 
         const size_t endIdx = this->size();
         IndexType childIdx = parentIdx + 1;

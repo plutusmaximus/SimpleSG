@@ -49,7 +49,7 @@ private:
         void Clear()
         {
             //DO NOT SUBMIT
-            //eassert(!m_RenderFence, "Render fence must be null when clearing state");
+            //MLG_ASSERT(!m_RenderFence, "Render fence must be null when clearing state");
             m_OpaqueMeshGroups.clear();
             m_TranslucentMeshGroups.clear();
             m_MeshCount = 0;

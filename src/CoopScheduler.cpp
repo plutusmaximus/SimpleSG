@@ -14,7 +14,7 @@ CoopTask::RemoveFromGroup()
 void
 CoopTaskGroup::Add(CoopTask* task)
 {
-    eassert(task->m_Group == nullptr, "Invalid state: task already part of a group");
+    MLG_ASSERT(task->m_Group == nullptr, "Invalid state: task already part of a group");
     m_Operations.push_back(task);
     task->m_Group = this;
 }
@@ -22,8 +22,8 @@ CoopTaskGroup::Add(CoopTask* task)
 void
 CoopTaskGroup::Remove(CoopTask* task)
 {
-    eassert(task->m_Group == this, "Invalid state: task not part of this group");
-    eassert(!m_Operations.empty(), "Invalid state: group is empty");
+    MLG_ASSERT(task->m_Group == this, "Invalid state: task not part of this group");
+    MLG_ASSERT(!m_Operations.empty(), "Invalid state: group is empty");
 
     m_Operations.erase(task);
     task->m_Group = nullptr;
@@ -45,7 +45,7 @@ CoopScheduler::Enqueue(CoopTask* task)
 void
 CoopScheduler::PushGroup(CoopTaskGroup* group)
 {
-    eassert(!group->IsPending(), "Cannot push group with pending operations");
+    MLG_ASSERT(!group->IsPending(), "Cannot push group with pending operations");
 
     m_TaskGroups.push(group);
 }
@@ -53,7 +53,7 @@ CoopScheduler::PushGroup(CoopTaskGroup* group)
 void
 CoopScheduler::PopGroup(CoopTaskGroup* [[maybe_unused]] group)
 {
-    eassert(m_TaskGroups.top() == group, "Invalid state: group not at top of stack");
+    MLG_ASSERT(m_TaskGroups.top() == group, "Invalid state: group not at top of stack");
 
     m_TaskGroups.pop();
 }

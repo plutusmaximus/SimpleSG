@@ -68,10 +68,10 @@ inline RgbaColor<uint8_t>::RgbaColor(const RgbaColor<float>& other)
 inline constexpr RgbaColor<float>::RgbaColor(const float inR, const float inG, const float inB, const float inA)
     : r(std::clamp(inR, 0.0f, 1.0f)), g(std::clamp(inG, 0.0f, 1.0f)), b(std::clamp(inB, 0.0f, 1.0f)), a(std::clamp(inA, 0.0f, 1.0f))
 {
-    eassert(inR >= 0 && inR <= 1);
-    eassert(inG >= 0 && inG <= 1);
-    eassert(inB >= 0 && inB <= 1);
-    eassert(inA >= 0 && inA <= 1);
+    MLG_ASSERT(inR >= 0 && inR <= 1);
+    MLG_ASSERT(inG >= 0 && inG <= 1);
+    MLG_ASSERT(inB >= 0 && inB <= 1);
+    MLG_ASSERT(inA >= 0 && inA <= 1);
 }
 
 /// @brief Specialization for converting from uint8_t to float.

@@ -15,12 +15,12 @@ ModelSpec::ModelSpec(
 {
     for(size_t i = 0; i < m_MeshInstances.size(); ++i)
     {
-        eassert(
+        MLG_ASSERT(
             m_MeshInstances[i].MeshIndex >= 0 &&
             m_MeshInstances[i].MeshIndex < static_cast<int>(m_MeshSpecs.size()),
             "Mesh instance {} has invalid mesh index {}", i, m_MeshInstances[i].MeshIndex);
 
-        eassert(
+        MLG_ASSERT(
             m_MeshInstances[i].NodeIndex >= 0 &&
             m_MeshInstances[i].NodeIndex < static_cast<int>(m_TransformNodes.size()),
             "Mesh instance {} has invalid node index {}", i, m_MeshInstances[i].NodeIndex);
@@ -28,7 +28,7 @@ ModelSpec::ModelSpec(
 
     for(size_t i = 0; i < m_TransformNodes.size(); ++i)
     {
-        eassert(m_TransformNodes[i].ParentIndex < static_cast<int>(i),
+        MLG_ASSERT(m_TransformNodes[i].ParentIndex < static_cast<int>(i),
             "Transform node {} has invalid parent index {}, parent must be defined before child",
             i, m_TransformNodes[i].ParentIndex);
     }
@@ -82,12 +82,12 @@ Model::Create(
             meshes[meshInstances[i].MeshIndex].GetName(),
             meshInstances[i].NodeIndex);
 
-        eassert(
+        MLG_ASSERT(
             meshInstances[i].MeshIndex >= 0 &&
             meshInstances[i].MeshIndex < static_cast<int>(meshes.size()),
             "Mesh instance {} has invalid mesh index {}", i, meshInstances[i].MeshIndex);
 
-        eassert(
+        MLG_ASSERT(
             meshInstances[i].NodeIndex >= 0 &&
             meshInstances[i].NodeIndex < static_cast<int>(transformNodes.size()),
             "Mesh instance {} has invalid node index {}", i, meshInstances[i].NodeIndex);
@@ -95,7 +95,7 @@ Model::Create(
 
     for(size_t i = 0; i < transformNodes.size(); ++i)
     {
-        eassert(transformNodes[i].ParentIndex < static_cast<int>(i),
+        MLG_ASSERT(transformNodes[i].ParentIndex < static_cast<int>(i),
             "Transform node {} has invalid parent index {}, parent must be defined before child",
             i, transformNodes[i].ParentIndex);
     }

@@ -135,7 +135,7 @@ public:
     /// }
     /// If you want to cancel the capture before destruction, call Cancel().
     /// Otherwise, the capture will be canceled automatically in the destructor.
-    /// Typically the eassert_capture macro is used to simplify usage.
+    /// Typically the MLG_ASSERT_capture macro is used to simplify usage.
     /// Example:
     ///     assert_capture(capture)
     ///     {

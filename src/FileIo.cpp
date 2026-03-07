@@ -13,8 +13,8 @@ FileIo::ReadRequest::~ReadRequest() = default;
 
 void FileIo::ReadRequest::Link(ReadRequest* next)
 {
-    eassert(!m_Next);
-    eassert(!m_Prev);
+    MLG_ASSERT(!m_Next);
+    MLG_ASSERT(!m_Prev);
 
     m_Next = next;
     if(next)

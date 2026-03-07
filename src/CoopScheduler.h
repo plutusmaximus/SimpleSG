@@ -68,9 +68,9 @@ class CoopTask
 public:
     virtual ~CoopTask()
     {
-        eassert(!m_PendingTaskNode.IsLinked(), "CoopTask destroyed while still pending");
-        eassert(!m_GroupNode.IsLinked(), "CoopTask destroyed while still part of a group");
-        eassert(!m_Group, "CoopTask destroyed while still part of a group");
+        MLG_ASSERT(!m_PendingTaskNode.IsLinked(), "CoopTask destroyed while still pending");
+        MLG_ASSERT(!m_GroupNode.IsLinked(), "CoopTask destroyed while still part of a group");
+        MLG_ASSERT(!m_Group, "CoopTask destroyed while still part of a group");
     }
 
     virtual void Start() = 0;
@@ -104,7 +104,7 @@ class CoopTaskGroup
     friend class CoopScheduler;
 
 public:
-    ~CoopTaskGroup() { eassert(!IsPending(), "CoopTaskGroup destroyed while tasks still pending"); }
+    ~CoopTaskGroup() { MLG_ASSERT(!IsPending(), "CoopTaskGroup destroyed while tasks still pending"); }
 
     bool IsPending() const { return !m_Operations.empty(); }
 

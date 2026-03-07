@@ -160,27 +160,27 @@ public:
 
     std::tuple<EntityId, C&> operator[](IndexType index)
     {
-        eassert(index < size(), "Index out of bounds");
+        MLG_ASSERT(index < size(), "Index out of bounds");
         return { m_EntityIds[index], m_Components[index] };
     }
 
     std::tuple<EntityId, const C&> operator[](IndexType index) const
     {
-        eassert(index < size(), "Index out of bounds");
+        MLG_ASSERT(index < size(), "Index out of bounds");
         return { m_EntityIds[index], m_Components[index] };
     }
 
     C& operator[](const EntityId eid)
     {
         const IndexType index = IndexOf(eid);
-        eassert(index != InvalidIndex, "EntityId not found");
+        MLG_ASSERT(index != InvalidIndex, "EntityId not found");
         return m_Components[index];
     }
 
     const C& operator[](const EntityId eid) const
     {
         const IndexType index = IndexOf(eid);
-        eassert(index != InvalidIndex, "EntityId not found");
+        MLG_ASSERT(index != InvalidIndex, "EntityId not found");
         return m_Components[index];
     }
 
@@ -301,7 +301,7 @@ public:
 
         std::tuple<EntityId, Cs&...> operator*()
         {
-            eassert(m_Idx < m_Size, "Index out of bounds");
+            MLG_ASSERT(m_Idx < m_Size, "Index out of bounds");
             return MakeRefTuple(m_Current);
         }
 
@@ -405,7 +405,7 @@ public:
         {
             EntityId eid = m_FreeList.back();
             m_FreeList.pop_back();
-            eassert(!IsAlive(eid), "Entity ID from free list is already alive");
+            MLG_ASSERT(!IsAlive(eid), "Entity ID from free list is already alive");
             m_IsAlive[eid.Value()] = true;
             return EntityId{ eid.Value(), ++eid.m_Generation };
         }
@@ -476,11 +476,11 @@ public:
     requires (sizeof...(Cs) >= 2)
     std::tuple<Cs&...> Get(const EntityId eid)
     {
-        eassert(IsAlive(eid), "Entity is not alive");
+        MLG_ASSERT(IsAlive(eid), "Entity is not alive");
 
         auto pools = std::make_tuple(TryGetPoolForEntity<Cs>(eid)...);
 
-        eassert((std::get<EcsComponentPool<Cs>*>(pools) && ...), "Entity does not have all requested components");
+        MLG_ASSERT((std::get<EcsComponentPool<Cs>*>(pools) && ...), "Entity does not have all requested components");
 
         return
             std::tuple<Cs&...>{ std::get<EcsComponentPool<Cs>*>(pools)->operator[](eid)... };
@@ -490,11 +490,11 @@ public:
     template<typename C>
     C& Get(const EntityId eid)
     {
-        eassert(IsAlive(eid), "Entity is not alive");
+        MLG_ASSERT(IsAlive(eid), "Entity is not alive");
 
         auto pool = TryGetPoolForEntity<C>(eid);
 
-        eassert(pool, "Entity does not have requested component");
+        MLG_ASSERT(pool, "Entity does not have requested component");
 
         return pool->operator[](eid);
     }

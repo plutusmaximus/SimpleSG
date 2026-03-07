@@ -213,7 +213,7 @@ private:
 
         const Result<ModelResource>& GetResult() const
         {
-            eassert(IsComplete(), "GetResult() called before operation is complete");
+            MLG_ASSERT(IsComplete(), "GetResult() called before operation is complete");
             return m_Result;
         }
 
@@ -500,8 +500,8 @@ private:
 
             bool IsPending() const { return std::holds_alternative<Pending>(*this); }
 
-            ValueT& GetValue() { eassert(!IsPending()); return std::get<ValueT>(*this); }
-            const ValueT& GetValue() const { eassert(!IsPending()); return std::get<ValueT>(*this); }
+            ValueT& GetValue() { MLG_ASSERT(!IsPending()); return std::get<ValueT>(*this); }
+            const ValueT& GetValue() const { MLG_ASSERT(!IsPending()); return std::get<ValueT>(*this); }
         };
 
         using MapType = std::unordered_map<CacheKey, CacheEntry>;

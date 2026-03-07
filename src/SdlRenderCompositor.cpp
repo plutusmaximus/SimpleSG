@@ -30,8 +30,8 @@ SdlRenderCompositor::BeginFrame()
     auto fenceResult = WaitForFence();
     expect(fenceResult);
 
-    eassert(!m_Target, "Target should be null at the beginning of the frame");
-    eassert(!m_CommandBuffer, "Command buffer should be null at the beginning of the frame");
+    MLG_ASSERT(!m_Target, "Target should be null at the beginning of the frame");
+    MLG_ASSERT(!m_CommandBuffer, "Command buffer should be null at the beginning of the frame");
 
     auto gpuDevice = m_GpuDevice->Device;
 
@@ -92,7 +92,7 @@ SdlRenderCompositor::EndFrame()
 SDL_GPUTexture*
 SdlRenderCompositor::GetTarget()
 {
-    eassert(m_FrameStarted, "GetTarget() called outside of a frame");
+    MLG_ASSERT(m_FrameStarted, "GetTarget() called outside of a frame");
 
     return m_Target;
 }
@@ -100,7 +100,7 @@ SdlRenderCompositor::GetTarget()
 SDL_GPUCommandBuffer*
 SdlRenderCompositor::GetCommandBuffer()
 {
-    eassert(m_FrameStarted, "GetCommandBuffer() called outside of a frame");
+    MLG_ASSERT(m_FrameStarted, "GetCommandBuffer() called outside of a frame");
 
     return m_CommandBuffer;
 }

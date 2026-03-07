@@ -92,7 +92,7 @@ public:
 
         iterator& operator++()
         {
-            eassert(m_Node != nullptr && "Cannot increment end iterator");
+            MLG_ASSERT(m_Node != nullptr && "Cannot increment end iterator");
             m_Node = m_Node ? (m_Node->*NodeMember).Next : nullptr;
             return *this;
         }
@@ -106,7 +106,7 @@ public:
 
         iterator& operator--()
         {
-            eassert(m_Node != nullptr && "Cannot decrement end iterator");
+            MLG_ASSERT(m_Node != nullptr && "Cannot decrement end iterator");
             m_Node = m_Node ? (m_Node->*NodeMember).Prev : nullptr;
             return *this;
         }
@@ -151,7 +151,7 @@ public:
 
         const_iterator& operator++()
         {
-            eassert(m_Node != nullptr && "Cannot increment end iterator");
+            MLG_ASSERT(m_Node != nullptr && "Cannot increment end iterator");
             m_Node = m_Node ? (const_cast<T*>(m_Node)->*NodeMember).Next : nullptr;
             return *this;
         }
@@ -165,7 +165,7 @@ public:
 
         const_iterator& operator--()
         {
-            eassert(m_Node != nullptr && "Cannot decrement end iterator");
+            MLG_ASSERT(m_Node != nullptr && "Cannot decrement end iterator");
             m_Node = m_Node ? (const_cast<T*>(m_Node)->*NodeMember).Prev : nullptr;
             return *this;
         }
@@ -188,9 +188,9 @@ public:
 
     void push_back(T* node)
     {
-        eassert(node != nullptr && "Node cannot be null");
+        MLG_ASSERT(node != nullptr && "Node cannot be null");
         auto& listNode = node->*NodeMember;
-        eassert(
+        MLG_ASSERT(
             listNode.Next == nullptr && listNode.Prev == nullptr && "Node is already in a list");
 
         listNode.Next = nullptr;
@@ -213,9 +213,9 @@ public:
 
     void push_front(T* node)
     {
-        eassert(node != nullptr && "Node cannot be null");
+        MLG_ASSERT(node != nullptr && "Node cannot be null");
         auto& listNode = node->*NodeMember;
-        eassert(
+        MLG_ASSERT(
             listNode.Next == nullptr && listNode.Prev == nullptr && "Node is already in a list");
 
         listNode.Next = m_Head;
@@ -267,7 +267,7 @@ public:
     iterator erase(iterator pos)
     {
         T* node = pos.node();
-        eassert(node != nullptr && "Cannot erase end iterator");
+        MLG_ASSERT(node != nullptr && "Cannot erase end iterator");
 
         auto& listNode = node->*NodeMember;
         T* next = listNode.Next;

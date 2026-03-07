@@ -86,7 +86,7 @@ public:
 
         iterator& operator++()
         {
-            eassert(m_Node != nullptr && "Cannot increment end iterator");
+            MLG_ASSERT(m_Node != nullptr && "Cannot increment end iterator");
             m_Node = m_Node ? (m_Node->*NodeMember).Next : nullptr;
             return *this;
         }
@@ -131,7 +131,7 @@ public:
 
         const_iterator& operator++()
         {
-            eassert(m_Node != nullptr && "Cannot increment end iterator");
+            MLG_ASSERT(m_Node != nullptr && "Cannot increment end iterator");
             m_Node = m_Node ? (const_cast<T*>(m_Node)->*NodeMember).Next : nullptr;
             return *this;
         }
@@ -154,9 +154,9 @@ public:
 
     void push(T* node)
     {
-        eassert(node != nullptr && "Node cannot be null");
+        MLG_ASSERT(node != nullptr && "Node cannot be null");
         auto& stackNode = node->*NodeMember;
-        eassert(stackNode.Next == nullptr && "Node is already in a stack");
+        MLG_ASSERT(stackNode.Next == nullptr && "Node is already in a stack");
 
         stackNode.Next = m_Top;
 

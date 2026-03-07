@@ -16,7 +16,7 @@ public:
         , m_HashCode(std::hash<std::string_view>()(key ? key : ""))
     {
         // CacheKey must not be empty.
-        eassert(key && key[0] != '\0');
+        MLG_ASSERT(key && key[0] != '\0');
     }
 
     explicit CacheKey(const imstring& key)
@@ -24,7 +24,7 @@ public:
         , m_HashCode(std::hash<std::string_view>()(key))
     {
         // CacheKey must not be empty.
-        eassert(!key.empty());
+        MLG_ASSERT(!key.empty());
     }
 
     bool operator==(const CacheKey& other) const

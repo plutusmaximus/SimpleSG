@@ -63,7 +63,7 @@ private:
 
         ~Job()
         {
-            eassert(m_Next == nullptr);
+            MLG_ASSERT(m_Next == nullptr);
 
             if(DestroyCb)
             {
@@ -73,7 +73,7 @@ private:
 
         void Invoke()
         {
-            eassert(InvokeCb != nullptr);
+            MLG_ASSERT(InvokeCb != nullptr);
             InvokeCb(m_CallableBuf);
         }
 

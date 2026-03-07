@@ -77,7 +77,7 @@ public:
             return m_CacheKey.value();
         }
 
-        eassert(false, "Unhandled TextureSpec source type");
+        MLG_ASSERT(false, "Unhandled TextureSpec source type");
         return CacheKey("");
     }
 

@@ -209,7 +209,7 @@ public:
         {
         case 0: return x;
         case 1: return y;
-        default: eassert(false, "Index out of range");
+        default: MLG_ASSERT(false, "Index out of range");
         return x; // This line will never be reached, but it silences compiler warnings.
         }
     }
@@ -220,7 +220,7 @@ public:
         {
         case 0: return x;
         case 1: return y;
-        default: eassert(false, "Index out of range");
+        default: MLG_ASSERT(false, "Index out of range");
         return x; // This line will never be reached, but it silences compiler warnings.
         }
     }
@@ -346,7 +346,7 @@ public:
         case 0: return x;
         case 1: return y;
         case 2: return z;
-        default: eassert(false, "Index out of range");
+        default: MLG_ASSERT(false, "Index out of range");
         return x; // This line will never be reached, but it silences compiler warnings.
         }
     }
@@ -358,7 +358,7 @@ public:
         case 0: return x;
         case 1: return y;
         case 2: return z;
-        default: eassert(false, "Index out of range");
+        default: MLG_ASSERT(false, "Index out of range");
         return x; // This line will never be reached, but it silences compiler warnings.
         }
     }
@@ -483,7 +483,7 @@ public:
         case 1: return y;
         case 2: return z;
         case 3: return w;
-        default: eassert(false, "Index out of range");
+        default: MLG_ASSERT(false, "Index out of range");
         return x; // This line will never be reached, but it silences compiler warnings.
         }
     }
@@ -496,7 +496,7 @@ public:
         case 1: return y;
         case 2: return z;
         case 3: return w;
-        default: eassert(false, "Index out of range");
+        default: MLG_ASSERT(false, "Index out of range");
         return x; // This line will never be reached, but it silences compiler warnings.
         }
     }
