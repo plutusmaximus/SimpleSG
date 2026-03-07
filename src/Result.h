@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Logging.h"
+#include "Log.h"
 
 #include "imstring.h"
 

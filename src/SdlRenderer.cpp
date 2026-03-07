@@ -4,7 +4,7 @@
 
 #include "SdlRenderer.h"
 
-#include "Logging.h"
+#include "Log.h"
 
 #include "Result.h"
 #include "scope_exit.h"

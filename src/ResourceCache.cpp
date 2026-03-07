@@ -2,7 +2,7 @@
 
 #include "ResourceCache.h"
 
-#include "Logging.h"
+#include "Log.h"
 #include "scope_exit.h"
 #include "ThreadPool.h"
 

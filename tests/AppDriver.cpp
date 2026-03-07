@@ -2,7 +2,7 @@
 #include "Application.h"
 #include "DawnGpuDevice.h"
 #include "FileIo.h"
-#include "Logging.h"
+#include "Log.h"
 #include "PerfMetrics.h"
 #include "scope_exit.h"
 #include "SdlGpuDevice.h"

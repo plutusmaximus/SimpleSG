@@ -2,7 +2,7 @@
 
 #include "PerfMetrics.h"
 
-#include "Logging.h"
+#include "Log.h"
 #include "PoolAllocator.h"
 
 #include <mutex>

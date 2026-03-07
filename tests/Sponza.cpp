@@ -10,7 +10,7 @@
 #include "EcsChildTransformPool.h"
 #include "GpuDevice.h"
 #include "ImGuiRenderer.h"
-#include "Logging.h"
+#include "Log.h"
 #include "MouseNav.h"
 #include "PerfMetrics.h"
 #include "RenderCompositor.h"

@@ -6,7 +6,7 @@
 #include "DawnGpuDevice.h"
 #include "FileIo.h"
 #include "ImGuiRenderer.h"
-#include "Logging.h"
+#include "Log.h"
 #include "PerfMetrics.h"
 #include "ResourceCache.h"
 #include "SdlGpuDevice.h"

@@ -210,7 +210,7 @@ set(SSG_HEADERS
   src/inlist.h
   src/instack.h
   src/GpuDevice.h
-  src/Logging.h
+  src/Log.h
   src/Material.h
   src/Mesh.h
   src/Model.h

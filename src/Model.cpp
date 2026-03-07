@@ -3,7 +3,7 @@
 #include "Model.h"
 
 #include "GpuDevice.h"
-#include "Logging.h"
+#include "Log.h"
 
 ModelSpec::ModelSpec(
     const imvector<MeshSpec>& meshSpecs,

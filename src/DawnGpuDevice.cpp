@@ -1,6 +1,6 @@
 #include "DawnGpuDevice.h"
 
-#include "Logging.h"
+#include "Log.h"
 #include "Material.h"
 
 #include <iostream> //DO NOT SUBMIT

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "imstring.h"
-#include "Logging.h"
+#include "Log.h"
 
 #include <format>
 #include <memory>

@@ -2,7 +2,7 @@
 
 #include "SdlGpuDevice.h"
 
-#include "Logging.h"
+#include "Log.h"
 
 #include "scope_exit.h"
 

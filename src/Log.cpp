@@ -1,4 +1,4 @@
-#include "Logging.h"
+#include "Log.h"
 
 #include <spdlog/sinks/msvc_sink.h>
 #include <spdlog/sinks/ringbuffer_sink.h>
