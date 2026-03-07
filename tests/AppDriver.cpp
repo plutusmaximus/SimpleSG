@@ -12,6 +12,7 @@
 #include <SDL3/SDL_mouse.h>
 #include <SDL3/SDL_gpu.h>
 #include <filesystem>
+#include <thread>
 
 AppDriver::AppDriver(AppLifecycle* appLC)
     : m_AppLifecycle(appLC)
@@ -46,7 +47,7 @@ AppDriver::Init()
 {
     expectv(State::None == m_State, "AppDriver already initialized or running");
 
-    Log::SetLevel(spdlog::level::trace);
+    Log::SetLevel(Log::Level::Trace);
 
     auto cwd = std::filesystem::current_path();
     Log::Info("Current working directory: {}", cwd.string());

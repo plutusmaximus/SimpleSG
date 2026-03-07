@@ -14,6 +14,7 @@
 #include "Stopwatch.h"
 
 #include <filesystem>
+#include <thread>
 
 static Result<ModelResource> CreateTriangleModel(ResourceCache* cache);
 
@@ -23,7 +24,7 @@ static Result<> RenderGui();
 
 static Result<> MainLoop()
 {
-    Log::SetLevel(spdlog::level::trace);
+    Log::SetLevel(Log::Level::Trace);
 
     auto cwd = std::filesystem::current_path();
     Log::Info("Current working directory: {}", cwd.string());

@@ -2,10 +2,7 @@
 
 #include "imstring.h"
 
-#include <cstddef>
 #include <format>
-#include <memory>
-#include <spdlog/spdlog.h>
 #include <string>
 #include <string_view>
 
@@ -38,6 +35,35 @@ class Log final
     };
 
 public:
+
+    enum class Level : uint8_t
+    {
+        Trace = 0,
+        Debug,
+        Info,
+        Warn,
+        Error
+    };
+
+    class Logger
+    {
+    public:
+
+        virtual void trace(const std::string& message) = 0;
+        virtual void debug(const std::string& message) = 0;
+        virtual void info(const std::string& message) = 0;
+        virtual void warn(const std::string& message) = 0;
+        virtual void error(const std::string& message) = 0;
+
+        virtual void trace(const std::string_view message) = 0;
+        virtual void debug(const std::string_view message) = 0;
+        virtual void info(const std::string_view message) = 0;
+        virtual void warn(const std::string_view message) = 0;
+        virtual void error(const std::string_view message) = 0;
+
+        virtual void SetLevel(Level level) = 0;
+    };
+
     template<typename... Args>
     static inline void Trace(std::format_string<Args...> fmt, Args &&...args)
     {
@@ -52,7 +78,9 @@ public:
         GetLogger<__LOGGER_NAME__>()->debug(std::format(fmt, std::forward<Args>(args)...));
     }
 
-    static inline void Debug(std::string_view message) { GetLogger<__LOGGER_NAME__>()->debug(message);
+    static inline void Debug(std::string_view message)
+    {
+        GetLogger<__LOGGER_NAME__>()->debug(message);
     }
 
     template<typename... Args>
@@ -90,13 +118,13 @@ public:
 
     /// @brief Sets the log level for a specific logger.
     template<LoggerLabel S>
-    static inline void SetLevel(const spdlog::level::level_enum level)
+    static inline void SetLevel(const Level level)
     {
         GetLogger<S>()->SetLevel(level);
     }
 
     /// @brief Sets the global log level.
-    static inline void SetLevel(const spdlog::level::level_enum level) { spdlog::set_level(level); }
+    static void SetLevel(const Level level);
 
     /// @brief RAII class to capture messages.
     /// Assert dialogs are disabled while this object is alive.
@@ -132,17 +160,18 @@ public:
 
         bool m_Canceled = false;
 
-        std::shared_ptr<spdlog::sinks::sink> m_Sink;
+        uint8_t m_SinkBuffer[16];
     };
 
 private:
-    static std::shared_ptr<spdlog::logger> CreateLogger(const std::string_view name);
+    static Logger* CreateLogger(const std::string_view name, uint8_t* buffer, const size_t size);
 
     /// @brief Global instance of a logger specialized by label.
     template<LoggerLabel S>
-    static inline std::shared_ptr<spdlog::logger> GetLogger()
+    static inline Logger* GetLogger()
     {
-        static std::shared_ptr<spdlog::logger> logger = CreateLogger(S.sv());
+        static uint8_t s_LoggerBuffer[32];
+        static Logger* logger = CreateLogger(S.sv(), s_LoggerBuffer, std::size(s_LoggerBuffer));
 
         return logger;
     }
