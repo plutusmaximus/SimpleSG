@@ -146,6 +146,8 @@ public:
     class Capture
     {
     public:
+        ~Capture();
+
         Capture();
 
         void Cancel();
@@ -154,24 +156,44 @@ public:
 
         std::string Message() const;
 
-        ~Capture();
-
     private:
 
         bool m_Canceled = false;
 
+        // Allocate the sink into this buffer so we don't
+        // end up with lots of tiny heap allocations.
         uint8_t m_SinkBuffer[16];
     };
 
 private:
-    static Logger* CreateLogger(const std::string_view name, uint8_t* buffer, const size_t size);
+    struct LoggerBuffer
+    {
+        ~LoggerBuffer()
+        {
+            if (Deleter)
+            {
+                Deleter(m_Logger);
+            }
+        }
+
+        // Calls the destructor for the internal logger.
+        void (*Deleter)(Logger*);
+
+        // Allocate the internal logger into this buffer so
+        // we don't end up with heap allocations hanging around
+        // as static variables don't get destroyed until program exit.
+        uint8_t m_Buffer[32];
+        Logger* m_Logger = reinterpret_cast<Logger*>(m_Buffer);
+    };
+
+    static Logger* CreateLogger(const std::string_view name, LoggerBuffer& buffer);
 
     /// @brief Global instance of a logger specialized by label.
     template<LoggerLabel S>
     static inline Logger* GetLogger()
     {
-        static uint8_t s_LoggerBuffer[32];
-        static Logger* logger = CreateLogger(S.sv(), s_LoggerBuffer, std::size(s_LoggerBuffer));
+        static LoggerBuffer s_LoggerBuffer;
+        static Logger* logger = CreateLogger(S.sv(), s_LoggerBuffer);
 
         return logger;
     }

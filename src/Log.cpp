@@ -119,12 +119,9 @@ Log::SetLevel(const Level level)
 }
 
 Log::Logger*
-Log::CreateLogger(const std::string_view name, uint8_t* buffer, const size_t size)
+Log::CreateLogger(const std::string_view name, LoggerBuffer& buffer)
 {
-    if(size < sizeof(SpdLogLogger))
-    {
-        return nullptr;
-    }
+    static_assert(sizeof(buffer.m_Buffer) >= sizeof(SpdLogLogger));
 
     InitializeSinks();
 
@@ -133,7 +130,20 @@ Log::CreateLogger(const std::string_view name, uint8_t* buffer, const size_t siz
     spdlog::initialize_logger(logger);
     spdlog::register_or_replace(logger);
 
-    return ::new (buffer) SpdLogLogger(std::move(logger));
+    Logger* loggerPtr = ::new (buffer.m_Buffer) SpdLogLogger(std::move(logger));
+    buffer.Deleter = [](Logger* self) { self->~Logger(); };
+    return loggerPtr;
+}
+
+Log::Capture::~Capture()
+{
+    if (!m_Canceled)
+    {
+        Cancel();
+    }
+
+    auto sinkPtr = reinterpret_cast<spdlog::sink_ptr*>(m_SinkBuffer);
+    sinkPtr->~shared_ptr<spdlog::sinks::sink>();
 }
 
 Log::Capture::Capture()
@@ -174,15 +184,4 @@ Log::Capture::Message() const
         : sink->last_formatted().back();
 
     return message;
-}
-
-Log::Capture::~Capture()
-{
-    if (!m_Canceled)
-    {
-        Cancel();
-    }
-
-    auto sinkPtr = reinterpret_cast<spdlog::sink_ptr*>(m_SinkBuffer);
-    sinkPtr->~shared_ptr<spdlog::sinks::sink>();
 }
