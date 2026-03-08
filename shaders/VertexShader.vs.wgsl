@@ -4,7 +4,13 @@ struct XForm
     modelViewProjXform: mat4x4<f32>,
 };
 
+struct MeshToTransformMap
+{
+    transformIndex : u32,
+};
+
 @group(0) @binding(0) var<storage> xforms: array<XForm>;
+@group(0) @binding(1) var<storage> meshToTransformMap: array<MeshToTransformMap>;
 
 struct VSInput
 {
@@ -25,7 +31,7 @@ fn main(input: VSInput, @builtin(instance_index) instance_index: u32) -> VSOutpu
 {
     var output: VSOutput;
 
-    var xform = xforms[instance_index];
+    var xform = xforms[meshToTransformMap[instance_index].transformIndex];
 
     output.position = xform.modelViewProjXform * vec4<f32>(input.inPosition, 1.0);
     output.fragNormal = normalize((xform.modelXform * vec4<f32>(input.inNormal, 0.0)).xyz);
