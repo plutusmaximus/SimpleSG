@@ -157,7 +157,7 @@ SdlRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
     }
 
     const auto& meshes = model->GetMeshes();
-    const auto& meshInstances = model->GetMeshInstances();
+    const auto& meshToTransformMapping = model->GetMeshToTransformMapping();
     const auto& transformNodes = model->GetTransformNodes();
 
     std::vector<Mat44f> worldXForms;
@@ -177,9 +177,8 @@ SdlRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
         }
     }
 
-    for (const auto& meshInstance : meshInstances)
+    for (const auto& mesh : meshes)
     {
-        const Mesh& mesh = meshes[meshInstance.MeshIndex];
         const Material& mtl = mesh.GetMaterial();
 
         // Determine mesh group based on material properties
@@ -199,7 +198,7 @@ SdlRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
 
         XformMesh xformMesh
         {
-            .WorldTransform = worldXForms[meshInstance.NodeIndex],
+            .WorldTransform = worldXForms[meshToTransformMapping[&mesh - &meshes[0]]],
             .MeshInstance = mesh
         };
 

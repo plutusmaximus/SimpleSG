@@ -367,20 +367,15 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
 
     imvector<TransformNode>::builder transformNodes
     {
-        { .ParentIndex = -1 },
+        { .ParentIndex = kInvalidTransformIndex },
     };
 
-    imvector<MeshInstance>::builder meshInstances
+    imvector<TransformIndex>::builder meshToTransformMapping
     {
-        { .MeshIndex = 0, .NodeIndex = 0 },
-        { .MeshIndex = 1, .NodeIndex = 0 },
-        { .MeshIndex = 2, .NodeIndex = 0 },
-        { .MeshIndex = 3, .NodeIndex = 0 },
-        { .MeshIndex = 4, .NodeIndex = 0 },
-        { .MeshIndex = 5, .NodeIndex = 0 },
+        0,0,0,0,0,0
     };
 
-    const ModelSpec modelSpec{meshSpecs.build(), meshInstances.build(), transformNodes.build()};
+    const ModelSpec modelSpec{meshSpecs.build(), meshToTransformMapping.build(), transformNodes.build()};
 
     const CacheKey cacheKey = CacheKey("CubeModel");
 
@@ -416,15 +411,15 @@ static Result<ModelResource> CreateShapeModel(ResourceCache* cache)
 
     imvector<TransformNode>::builder transformNodes
     {
-        { .ParentIndex = -1 },
+        { .ParentIndex = kInvalidTransformIndex },
     };
 
-    imvector<MeshInstance>::builder meshInstances
+    imvector<TransformIndex>::builder meshToTransformMapping
     {
-        { .MeshIndex = 0, .NodeIndex = 0 }
+        0
     };
 
-    const ModelSpec modelSpec{meshSpecs.build(), meshInstances.build(), transformNodes.build()};
+    const ModelSpec modelSpec{meshSpecs.build(), meshToTransformMapping.build(), transformNodes.build()};
 
     const CacheKey cacheKey = CacheKey("ShapeModel");
 

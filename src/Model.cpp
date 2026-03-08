@@ -7,30 +7,26 @@
 
 ModelSpec::ModelSpec(
     const imvector<MeshSpec>& meshSpecs,
-    const imvector<MeshInstance>& meshInstances,
+    const imvector<TransformIndex>& meshToTransformMapping,
     const imvector<TransformNode>& transformNodes)
     : m_MeshSpecs(meshSpecs)
-    , m_MeshInstances(meshInstances)
+    , m_MeshToTransformMapping(meshToTransformMapping)
     , m_TransformNodes(transformNodes)
 {
-    for(size_t i = 0; i < m_MeshInstances.size(); ++i)
+    for(size_t i = 0; i < meshToTransformMapping.size(); ++i)
     {
         MLG_ASSERT(
-            m_MeshInstances[i].MeshIndex >= 0 &&
-            m_MeshInstances[i].MeshIndex < static_cast<int>(m_MeshSpecs.size()),
-            "Mesh instance {} has invalid mesh index {}", i, m_MeshInstances[i].MeshIndex);
-
-        MLG_ASSERT(
-            m_MeshInstances[i].NodeIndex >= 0 &&
-            m_MeshInstances[i].NodeIndex < static_cast<int>(m_TransformNodes.size()),
-            "Mesh instance {} has invalid node index {}", i, m_MeshInstances[i].NodeIndex);
+            meshToTransformMapping[i] < static_cast<int>(m_TransformNodes.size()),
+            "Mesh instance {} has invalid mesh index {}", i, meshToTransformMapping[i]);
     }
 
-    for(size_t i = 0; i < m_TransformNodes.size(); ++i)
+    for(size_t i = 0; i < transformNodes.size(); ++i)
     {
-        MLG_ASSERT(m_TransformNodes[i].ParentIndex < static_cast<int>(i),
+        MLG_ASSERT(transformNodes[i].ParentIndex < static_cast<int>(i) ||
+                       transformNodes[i].ParentIndex == kInvalidTransformIndex,
             "Transform node {} has invalid parent index {}, parent must be defined before child",
-            i, m_TransformNodes[i].ParentIndex);
+            i,
+            transformNodes[i].ParentIndex);
     }
 }
 
@@ -61,44 +57,33 @@ Model::~Model()
 Result<Model>
 Model::Create(
     const imvector<Mesh>& meshes,
-    const imvector<MeshInstance>& meshInstances,
+    const imvector<TransformIndex>& meshToTransformMapping,
     const imvector<TransformNode>& transformNodes,
     GpuDevice* gpuDevice,
     GpuVertexBuffer* vertexBuffer,
     GpuIndexBuffer* indexBuffer)
 {
     Log::Debug(
-        "Creating model with {} meshes, {} mesh instances and {} transform nodes",
+        "Creating model with {} meshes, {} transform nodes",
         meshes.size(),
-        meshInstances.size(),
+        meshToTransformMapping.size(),
         transformNodes.size());
 
-    for(size_t i = 0; i < meshInstances.size(); ++i)
+    for(size_t i = 0; i < meshToTransformMapping.size(); ++i)
     {
-        Log::Debug(
-            "  Mesh instance {}: mesh index {}({}), node index {}",
-            i,
-            meshInstances[i].MeshIndex,
-            meshes[meshInstances[i].MeshIndex].GetName(),
-            meshInstances[i].NodeIndex);
-
         MLG_ASSERT(
-            meshInstances[i].MeshIndex >= 0 &&
-            meshInstances[i].MeshIndex < static_cast<int>(meshes.size()),
-            "Mesh instance {} has invalid mesh index {}", i, meshInstances[i].MeshIndex);
-
-        MLG_ASSERT(
-            meshInstances[i].NodeIndex >= 0 &&
-            meshInstances[i].NodeIndex < static_cast<int>(transformNodes.size()),
-            "Mesh instance {} has invalid node index {}", i, meshInstances[i].NodeIndex);
+            meshToTransformMapping[i] < static_cast<int>(transformNodes.size()),
+            "Mesh instance {} has invalid mesh index {}", i, meshToTransformMapping[i]);
     }
 
     for(size_t i = 0; i < transformNodes.size(); ++i)
     {
-        MLG_ASSERT(transformNodes[i].ParentIndex < static_cast<int>(i),
+        MLG_ASSERT(transformNodes[i].ParentIndex < static_cast<int>(i) ||
+                       transformNodes[i].ParentIndex == kInvalidTransformIndex,
             "Transform node {} has invalid parent index {}, parent must be defined before child",
-            i, transformNodes[i].ParentIndex);
+            i,
+            transformNodes[i].ParentIndex);
     }
 
-    return Model(meshes, meshInstances, transformNodes, gpuDevice, vertexBuffer, indexBuffer);
+    return Model(meshes, meshToTransformMapping, transformNodes, gpuDevice, vertexBuffer, indexBuffer);
 }

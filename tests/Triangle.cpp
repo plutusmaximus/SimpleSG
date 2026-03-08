@@ -290,15 +290,15 @@ static Result<ModelResource> CreateTriangleModel(ResourceCache* cache)
 
     imvector<TransformNode>::builder transformNodes
     {
-        { .ParentIndex = -1 },
+        { .ParentIndex = kInvalidTransformIndex },
     };
 
-    imvector<MeshInstance>::builder meshInstances
+    imvector<TransformIndex>::builder meshToTransformMapping
     {
-        { .MeshIndex = 0, .NodeIndex = 0 }
+        0
     };
 
-    const ModelSpec modelSpec{meshSpecs.build(), meshInstances.build(), transformNodes.build()};
+    const ModelSpec modelSpec{meshSpecs.build(), meshToTransformMapping.build(), transformNodes.build()};
 
     const CacheKey cacheKey = CacheKey("TriangleModel");
 

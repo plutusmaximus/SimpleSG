@@ -1,6 +1,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 
-#define CGLTF_IMPLEMENTATION
+//#define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
 
 #include <stb_image.h>

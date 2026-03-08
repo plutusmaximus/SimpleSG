@@ -2,9 +2,15 @@
 
 #include "Mesh.h"
 
+#include <limits>
+
 class GpuDevice;
 class GpuVertexBuffer;
 class GpuIndexBuffer;
+
+using TransformIndex = uint32_t;
+
+static inline const TransformIndex kInvalidTransformIndex = std::numeric_limits<TransformIndex>::max();
 
 /// @brief Node representing a transform in a model's hierarchy.
 /// Mesh instances reference these nodes for their transforms.
@@ -12,18 +18,8 @@ class GpuIndexBuffer;
 class TransformNode
 {
 public:
-    const int ParentIndex = -1;
+    const TransformIndex ParentIndex = kInvalidTransformIndex;
     const Mat44f Transform{ 1.0f };
-};
-
-/// @brief Instance of a mesh within a model.
-class MeshInstance
-{
-public:
-    /// @brief Index of the mesh in the model's mesh list.
-    const int MeshIndex = -1;
-    /// @brief Index of the transform node in the model's transform node list.
-    const int NodeIndex = -1;
 };
 
 /// @brief Specification for creating a model.
@@ -33,19 +29,19 @@ public:
 
     ModelSpec(
         const imvector<MeshSpec>& meshSpecs,
-        const imvector<MeshInstance>& meshInstances,
+        const imvector<TransformIndex>& meshToTransformMapping,
         const imvector<TransformNode>& transformNodes);
 
         const imvector<MeshSpec>& GetMeshSpecs() const { return m_MeshSpecs; }
-        const imvector<MeshInstance>& GetMeshInstances() const { return m_MeshInstances; }
+        const imvector<TransformIndex>& GetMeshToTransformMapping() const { return m_MeshToTransformMapping; }
         const imvector<TransformNode>& GetTransformNodes() const { return m_TransformNodes; }
 private:
         ModelSpec() = delete;
 
     /// @brief List of mesh specifications that make up the model.
     imvector<MeshSpec> m_MeshSpecs;
-    /// @brief List of mesh instances that make up the model.
-    imvector<MeshInstance> m_MeshInstances;
+    /// @brief Mapping from meshes to transforms.
+    imvector<TransformIndex> m_MeshToTransformMapping;
     /// @brief List of transform nodes that make up the model.
     imvector<TransformNode> m_TransformNodes;
 };
@@ -61,7 +57,7 @@ public:
     Model(Model&& other) noexcept
     {
         m_Meshes = std::move(other.m_Meshes);
-        m_MeshInstances = std::move(other.m_MeshInstances);
+        m_MeshToTransformMapping = std::move(other.m_MeshToTransformMapping);
         m_TransformNodes = std::move(other.m_TransformNodes);
         m_GpuDevice = other.m_GpuDevice;
         m_VertexBuffer = other.m_VertexBuffer;
@@ -77,25 +73,25 @@ public:
 
     static Result<Model> Create(
         const imvector<Mesh>& meshes,
-        const imvector<MeshInstance>& meshInstances,
+        const imvector<TransformIndex>& meshToTransformMapping,
         const imvector<TransformNode>& transformNodes,
         GpuDevice* gpuDevice,
         GpuVertexBuffer* vertexBuffer,
         GpuIndexBuffer* indexBuffer);
 
     const imvector<Mesh>& GetMeshes() const { return m_Meshes; }
-    const imvector<MeshInstance>& GetMeshInstances() const { return m_MeshInstances; }
+    const imvector<TransformIndex>& GetMeshToTransformMapping() const { return m_MeshToTransformMapping; }
     const imvector<TransformNode>& GetTransformNodes() const { return m_TransformNodes; }
 
 private:
     Model(const imvector<Mesh>& meshes,
-        const imvector<MeshInstance>& meshInstances,
+        const imvector<TransformIndex>& meshToTransformMapping,
         const imvector<TransformNode>& transformNodes,
         GpuDevice* gpuDevice,
         GpuVertexBuffer* vertexBuffer,
         GpuIndexBuffer* indexBuffer)
         : m_Meshes(meshes),
-          m_MeshInstances(meshInstances),
+          m_MeshToTransformMapping(meshToTransformMapping),
           m_TransformNodes(transformNodes),
           m_GpuDevice(gpuDevice),
           m_VertexBuffer(vertexBuffer),
@@ -104,7 +100,7 @@ private:
     }
 
     imvector<Mesh> m_Meshes;
-    imvector<MeshInstance> m_MeshInstances;
+    imvector<TransformIndex> m_MeshToTransformMapping;
     imvector<TransformNode> m_TransformNodes;
 
     GpuDevice* m_GpuDevice = nullptr;

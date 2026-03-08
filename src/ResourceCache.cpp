@@ -2,6 +2,7 @@
 
 #include "ResourceCache.h"
 
+#include "CgltfModelLoader.h"
 #include "Log.h"
 #include "scope_exit.h"
 #include "ThreadPool.h"
@@ -76,10 +77,10 @@ static void CollectMeshSpecs(const aiScene* scene,
 
 /// @brief Processes a scene node and its children.
 static void ProcessNodes(const aiNode* node,
-    const int parentNodeIndex,
+    const TransformIndex parentNodeIndex,
     const Mat44f* coalescingTransform,  // Used to coallesce parent transforms that have no meshes.
     const MeshSpecCollection& meshSpecCollection,
-    imvector<MeshInstance>::builder& meshInstances,
+    imvector<TransformIndex>::builder& meshToTransformMapping,
     imvector<TransformNode>::builder& transformNodes,
     const std::filesystem::path& parentPath);
 
@@ -554,7 +555,7 @@ ResourceCache::CreateModelOp::CreateModel()
     }
 
     auto modelResult = Model::Create(meshes.build(),
-        m_ModelSpec.GetMeshInstances(),
+        m_ModelSpec.GetMeshToTransformMapping(),
         m_ModelSpec.GetTransformNodes(),
         m_ResourceCache->m_GpuDevice,
         m_VertexBuffer,
@@ -610,7 +611,6 @@ ResourceCache::LoadModelOp::~LoadModelOp()
         m_ResourceCache->DeleteOp(m_CreateModelOp);
     }
 }
-
 
 void
 ResourceCache::LoadModelOp::Start()
@@ -676,6 +676,22 @@ ResourceCache::LoadModelOp::Update()
             }
 
             m_ModelSpecResult = ProcessScene(scene, m_Path);
+
+            if(!m_ModelSpecResult)
+            {
+                SetResult(Result<>::Fail);
+                return;
+            }
+
+            m_State = LoadingFile;
+        }
+        break;
+
+        case LoadFile2:
+        {
+            m_Stopwatch.Mark();
+
+            m_ModelSpecResult = CgltfModelLoader::LoadModel(std::string(m_Path));
 
             if(!m_ModelSpecResult)
             {
@@ -1336,21 +1352,21 @@ ProcessScene(const aiScene* scene, const imstring& filePath)
     MeshSpecCollection meshSpecCollection;
     CollectMeshSpecs(scene, scene->mRootNode, meshSpecCollection, parentPath);
 
-    imvector<MeshInstance>::builder meshInstances;
+    imvector<TransformIndex>::builder meshToTransformMapping;
     imvector<TransformNode>::builder transformNodes;
 
     ProcessNodes(scene->mRootNode,
-        -1,
+        kInvalidTransformIndex,
         nullptr,
         meshSpecCollection,
-        meshInstances,
+        meshToTransformMapping,
         transformNodes,
         parentPath);
 
     const ModelSpec modelSpec //
         {
             meshSpecCollection.MeshSpecs.build(),
-            meshInstances.build(),
+            meshToTransformMapping.build(),
             transformNodes.build(),
         };
 
@@ -1359,10 +1375,10 @@ ProcessScene(const aiScene* scene, const imstring& filePath)
 
 static void
 ProcessNodes(const aiNode* node,
-    const int parentNodeIndex,
+    const TransformIndex parentNodeIndex,
     const Mat44f* coalescingTransform,
     const MeshSpecCollection& meshSpecCollection,
-    imvector<MeshInstance>::builder& meshInstances,
+    imvector<TransformIndex>::builder& meshToTransformMapping,
     imvector<TransformNode>::builder& transformNodes,
     const std::filesystem::path& parentPath)
 {
@@ -1414,7 +1430,7 @@ ProcessNodes(const aiNode* node,
     }
     else
     {
-        nodeIndex = static_cast<int>(transformNodes.size());
+        nodeIndex = static_cast<TransformIndex>(transformNodes.size());
         curCoalescingTransform = nullptr;
 
         const TransformNode transformNode//
@@ -1439,8 +1455,7 @@ ProcessNodes(const aiNode* node,
             const MeshSpec& meshSpec = meshSpecCollection.MeshSpecs[meshSpecIndex];
 
             Log::Debug("  Adding mesh instance {}", meshSpec.Name);
-            meshInstances.emplace_back(
-                MeshInstance{ .MeshIndex = meshSpecIndex, .NodeIndex = nodeIndex });
+            meshToTransformMapping.emplace_back(nodeIndex);
         }
     }
 
@@ -1450,7 +1465,7 @@ ProcessNodes(const aiNode* node,
             nodeIndex,
             curCoalescingTransform,
             meshSpecCollection,
-            meshInstances,
+            meshToTransformMapping,
             transformNodes,
             parentPath);
     }
