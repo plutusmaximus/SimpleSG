@@ -33,18 +33,6 @@ public:
         }
     }
 
-    void Log(const Log::Level level, const std::string_view message) override
-    {
-        switch(level)
-        {
-            case Log::Level::Trace: m_Logger->trace(message); break;
-            case Log::Level::Debug: m_Logger->debug(message); break;
-            case Log::Level::Info: m_Logger->info(message); break;
-            case Log::Level::Warn: m_Logger->warn(message); break;
-            case Log::Level::Error: m_Logger->error(message); break;
-        }
-    }
-
     void SetLevel(const Log::Level level) override
     {
         static_assert(std::underlying_type_t<Log::Level>(Log::Level::Trace) == spdlog::level::trace);

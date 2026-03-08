@@ -5,7 +5,6 @@
 #include <format>
 #include <mutex>
 #include <string>
-#include <string_view>
 #include <vector>
 
 /// Define __LOGGER_NAME__ before including this header to create a logger with a specific name.
@@ -52,7 +51,6 @@ public:
     public:
 
         virtual void Log(const Level level, const std::string& message) = 0;
-        virtual void Log(const Level level, const std::string_view message) = 0;
 
         virtual void SetLevel(const Level level) = 0;
     };
@@ -64,7 +62,7 @@ public:
             Prefix(fmt, std::forward<Args>(args)...));
     }
 
-    static inline void Trace(std::string_view message)
+    static inline void Trace(const std::string& message)
     {
         GetLogger<__LOGGER_NAME__>()->Log(Log::Level::Trace, Prefix(message));
     }
@@ -76,7 +74,7 @@ public:
             Prefix(fmt, std::forward<Args>(args)...));
     }
 
-    static inline void Debug(std::string_view message)
+    static inline void Debug(const std::string& message)
     {
         GetLogger<__LOGGER_NAME__>()->Log(Log::Level::Debug, Prefix(message));
     }
@@ -88,7 +86,7 @@ public:
             Prefix(fmt, std::forward<Args>(args)...));
     }
 
-    static inline void Info(std::string_view message)
+    static inline void Info(const std::string& message)
     {
         GetLogger<__LOGGER_NAME__>()->Log(Log::Level::Info, Prefix(message));
     }
@@ -100,7 +98,7 @@ public:
             Prefix(fmt, std::forward<Args>(args)...));
     }
 
-    static inline void Warn(std::string_view message)
+    static inline void Warn(const std::string& message)
     {
         GetLogger<__LOGGER_NAME__>()->Log(Log::Level::Warn, Prefix(message));
     }
@@ -112,7 +110,7 @@ public:
             Prefix(fmt, std::forward<Args>(args)...));
     }
 
-    static inline void Error(std::string_view message)
+    static inline void Error(const std::string& message)
     {
         GetLogger<__LOGGER_NAME__>()->Log(Log::Level::Error, Prefix(message));
     }
@@ -124,7 +122,7 @@ public:
         GetLogger<"assert">()->Log(Log::Level::Error, Prefix(fmt, std::forward<Args>(args)...));
     }
 
-    static inline void Assert(std::string_view message)
+    static inline void Assert(const std::string& message)
     {
         GetLogger<"assert">()->Log(Log::Level::Error, Prefix(message));
     }
@@ -143,6 +141,12 @@ public:
     static void PushPrefix(std::format_string<Args...> fmt, Args&&... args)
     {
         s_LogPrefixStack.push_back(std::format(fmt, std::forward<Args>(args)...));
+        MakePrefix();
+    }
+
+    static void PushPrefix(const std::string& message)
+    {
+        s_LogPrefixStack.push_back(message);
         MakePrefix();
     }
 
@@ -257,10 +261,10 @@ private:
         return s_LogPrefix + std::format(fmt, std::forward<Args>(args)...);
     }
 
-    static std::string Prefix(std::string_view message)
+    static std::string Prefix(const std::string& message)
     {
         std::lock_guard<std::mutex> lock(s_LogPrefixMutex);
-        return s_LogPrefix + std::string(message);
+        return s_LogPrefix + message;
     }
 
     static inline std::mutex s_LogPrefixMutex;
@@ -276,6 +280,11 @@ struct LogScope
     LogScope(std::format_string<Args...> fmt, Args&&... args)
     {
         Log::PushPrefix(fmt, std::forward<Args>(args)...);
+    }
+
+    LogScope(const std::string& message)
+    {
+        Log::PushPrefix(message);
     }
 
     ~LogScope()
