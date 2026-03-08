@@ -200,7 +200,6 @@ SdlRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
         XformMesh xformMesh
         {
             .WorldTransform = worldXForms[meshInstance.NodeIndex],
-            .Model = model,
             .MeshInstance = mesh
         };
 

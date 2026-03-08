@@ -43,7 +43,6 @@ private:
     struct XformMesh
     {
         const Mat44f WorldTransform;
-        const Model* Model;
         const Mesh& MeshInstance;
     };
 
