@@ -21,57 +21,31 @@ public:
     {
     }
 
-    void trace(const std::string& message) override
+    void Log(const Log::Level level, const std::string& message) override
     {
-        m_Logger->trace(message);
+        switch(level)
+        {
+            case Log::Level::Trace: m_Logger->trace(message); break;
+            case Log::Level::Debug: m_Logger->debug(message); break;
+            case Log::Level::Info: m_Logger->info(message); break;
+            case Log::Level::Warn: m_Logger->warn(message); break;
+            case Log::Level::Error: m_Logger->error(message); break;
+        }
     }
 
-    void debug(const std::string& message) override
+    void Log(const Log::Level level, const std::string_view message) override
     {
-        m_Logger->debug(message);
+        switch(level)
+        {
+            case Log::Level::Trace: m_Logger->trace(message); break;
+            case Log::Level::Debug: m_Logger->debug(message); break;
+            case Log::Level::Info: m_Logger->info(message); break;
+            case Log::Level::Warn: m_Logger->warn(message); break;
+            case Log::Level::Error: m_Logger->error(message); break;
+        }
     }
 
-    void info(const std::string& message) override
-    {
-        m_Logger->info(message);
-    }
-
-    void warn(const std::string& message) override
-    {
-        m_Logger->warn(message);
-    }
-
-    void error(const std::string& message) override
-    {
-        m_Logger->error(message);
-    }
-
-    void trace(const std::string_view message) override
-    {
-        m_Logger->trace(message);
-    }
-
-    void debug(const std::string_view message) override
-    {
-        m_Logger->debug(message);
-    }
-
-    void info(const std::string_view message) override
-    {
-        m_Logger->info(message);
-    }
-
-    void warn(const std::string_view message) override
-    {
-        m_Logger->warn(message);
-    }
-
-    void error(const std::string_view message) override
-    {
-        m_Logger->error(message);
-    }
-
-    void SetLevel(Log::Level level) override
+    void SetLevel(const Log::Level level) override
     {
         static_assert(std::underlying_type_t<Log::Level>(Log::Level::Trace) == spdlog::level::trace);
         static_assert(std::underlying_type_t<Log::Level>(Log::Level::Debug) == spdlog::level::debug);
