@@ -40,23 +40,17 @@ private:
         const Mesh& MeshInstance;
     };
 
-    using MeshGroup = std::vector<XformMesh>;
-    using MeshGroupCollection = std::unordered_map<MaterialId, MeshGroup>;
-
     struct State
     {
         void Clear()
         {
-            //DO NOT SUBMIT
-            //MLG_ASSERT(!m_RenderFence, "Render fence must be null when clearing state");
-            m_OpaqueMeshGroups.clear();
-            m_TranslucentMeshGroups.clear();
+            m_Meshes.clear();
             m_MeshCount = 0;
         }
 
-        MeshGroupCollection m_TranslucentMeshGroups;
+        std::vector<XformMesh> m_Meshes;
 
-        MeshGroupCollection m_OpaqueMeshGroups;
+        std::vector<Mat44f> m_Transforms;
 
         size_t m_MeshCount = 0;
     };
@@ -111,7 +105,11 @@ private:
     wgpu::BindGroup m_CopyTextureBindGroup;
 
     size_t m_SizeofTransformBuffer{0};
-    wgpu::Buffer m_WorldAndProjBuf;
+    wgpu::Buffer m_TransformBuf;
+
+    size_t m_SizeofMeshToTransformMapBuffer{0};
+    wgpu::Buffer m_MeshToTransformMapBuf;
+
     wgpu::BindGroup m_VertexShaderBindGroup;
 
     size_t m_SizeofDrawIndirectBuffer{0};

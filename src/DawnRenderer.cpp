@@ -124,30 +124,13 @@ DawnRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
 
     for (const auto& mesh : meshes)
     {
-        const Material& mtl = mesh.GetMaterial();
-
-        // Determine mesh group based on material properties
-
-        MeshGroup* meshGrp;
-
-        const MaterialKey& key = mtl.GetKey();
-
-        if(key.Flags & MaterialFlags::Translucent)
-        {
-            meshGrp = &m_CurrentState->m_TranslucentMeshGroups[key.Id];
-        }
-        else
-        {
-            meshGrp = &m_CurrentState->m_OpaqueMeshGroups[key.Id];
-        }
-
         XformMesh xformMesh
         {
             .WorldTransform = worldXForms[meshToTransformMapping[&mesh - &meshes[0]]],
             .MeshInstance = mesh
         };
 
-        meshGrp->emplace_back(xformMesh);
+        m_CurrentState->m_Meshes.emplace_back(xformMesh);
         ++m_CurrentState->m_MeshCount;
     }
 }
@@ -206,16 +189,6 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
         renderPass.SetBindGroup(0, m_VertexShaderBindGroup, 0, nullptr);
     }
 
-    // Use inverse of camera transform as view matrix
-    const Mat44f viewXform = camera.Inverse();
-
-    // Render opaque meshes first
-    const MeshGroupCollection* meshGroups[] =
-    {
-        &m_CurrentState->m_OpaqueMeshGroups,
-        &m_CurrentState->m_TranslucentMeshGroups
-    };
-
     static PerfTimer drawTimer("Renderer.Render.Draw");
     drawTimer.Start();
 
@@ -224,79 +197,65 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
 
     unsigned meshCount = 0;
 
-    for(const auto meshGrpPtr : meshGroups)
+    for(const auto& xmesh : m_CurrentState->m_Meshes)
     {
-        for (auto& [mtlId, xmeshes] : *meshGrpPtr)
+        GpuMaterial* gpuMtl = xmesh.MeshInstance.GetGpuMaterial();
+
+        static PerfTimer fsBindingTimer("Renderer.Render.Draw.SetMaterialBindGroup");
         {
-            GpuMaterial* gpuMtl = xmeshes[0].MeshInstance.GetGpuMaterial();
-
-            static PerfTimer fsBindingTimer("Renderer.Render.Draw.SetMaterialBindGroup");
-            {
-                auto scopedTimer = fsBindingTimer.StartScoped();
-                DawnGpuMaterial* dawnMtl = static_cast<DawnGpuMaterial*>(gpuMtl);
-                wgpu::BindGroup bindGroup = dawnMtl->GetBindGroup();
-                renderPass.SetBindGroup(2, bindGroup, 0, nullptr);
-            }
-
-            const Mat44f viewProj = projection.Mul(viewXform);
-
-            for (auto& xmesh : xmeshes)
-            {
-                const Mat44f matrices[] =
-                {
-                    xmesh.WorldTransform,
-                    viewProj.Mul(xmesh.WorldTransform)
-                };
-
-                const Mesh& mesh = xmesh.MeshInstance;
-
-                static_assert(VERTEX_INDEX_BITS == 32 || VERTEX_INDEX_BITS == 16);
-
-                constexpr wgpu::IndexFormat idxFmt =
-                    (VERTEX_INDEX_BITS == 32)
-                    ? wgpu::IndexFormat::Uint32
-                    : wgpu::IndexFormat::Uint16;
-
-                constexpr unsigned idxSize = (VERTEX_INDEX_BITS == 32) ? sizeof(uint32_t) : sizeof(uint16_t);
-
-                auto vb = static_cast<const DawnGpuVertexBuffer*>(mesh.GetGpuVertexBuffer());
-                auto ib = static_cast<const DawnGpuIndexBuffer*>(mesh.GetGpuIndexBuffer());
-
-                static PerfTimer setBuffersTimer("Renderer.Render.Draw.SetBuffers");
-                if(lastVb != vb || lastIb != ib)
-                {
-                    auto scopedTimer = setBuffersTimer.StartScoped();
-
-                    renderPass.SetVertexBuffer(0,
-                        vb->GetBuffer(),
-                        0,
-                        vb->GetVertexCount() * sizeof(Vertex));
-
-                    renderPass.SetIndexBuffer(ib->GetBuffer(),
-                        idxFmt,
-                        0,
-                        ib->GetIndexCount() * idxSize);
-
-                    lastVb = vb;
-                    lastIb = ib;
-                }
-
-                static PerfTimer drawIndexedTimer("Renderer.Render.Draw.DrawIndexed");
-                {
-                    auto scopedTimer = drawIndexedTimer.StartScoped();
-                    /*renderPass.DrawIndexed(mesh.GetIndexCount(),
-                        1,
-                        mesh.GetIndexOffset(),
-                        mesh.GetVertexOffset(),
-                        meshCount);*/
-
-                    renderPass.DrawIndexedIndirect(m_DrawIndirectBuffer,
-                        sizeof(DrawIndirectBufferParams) * meshCount);
-                }
-
-                ++meshCount;
-            }
+            auto scopedTimer = fsBindingTimer.StartScoped();
+            DawnGpuMaterial* dawnMtl = static_cast<DawnGpuMaterial*>(gpuMtl);
+            wgpu::BindGroup bindGroup = dawnMtl->GetBindGroup();
+            renderPass.SetBindGroup(2, bindGroup, 0, nullptr);
         }
+
+        const Mesh& mesh = xmesh.MeshInstance;
+
+        static_assert(VERTEX_INDEX_BITS == 32 || VERTEX_INDEX_BITS == 16);
+
+        constexpr wgpu::IndexFormat idxFmt =
+            (VERTEX_INDEX_BITS == 32)
+            ? wgpu::IndexFormat::Uint32
+            : wgpu::IndexFormat::Uint16;
+
+        constexpr unsigned idxSize = (VERTEX_INDEX_BITS == 32) ? sizeof(uint32_t) : sizeof(uint16_t);
+
+        auto vb = static_cast<const DawnGpuVertexBuffer*>(mesh.GetGpuVertexBuffer());
+        auto ib = static_cast<const DawnGpuIndexBuffer*>(mesh.GetGpuIndexBuffer());
+
+        static PerfTimer setBuffersTimer("Renderer.Render.Draw.SetBuffers");
+        if(lastVb != vb || lastIb != ib)
+        {
+            auto scopedTimer = setBuffersTimer.StartScoped();
+
+            renderPass.SetVertexBuffer(0,
+                vb->GetBuffer(),
+                0,
+                vb->GetVertexCount() * sizeof(Vertex));
+
+            renderPass.SetIndexBuffer(ib->GetBuffer(),
+                idxFmt,
+                0,
+                ib->GetIndexCount() * idxSize);
+
+            lastVb = vb;
+            lastIb = ib;
+        }
+
+        static PerfTimer drawIndexedTimer("Renderer.Render.Draw.DrawIndexed");
+        {
+            auto scopedTimer = drawIndexedTimer.StartScoped();
+            /*renderPass.DrawIndexed(mesh.GetIndexCount(),
+                1,
+                mesh.GetIndexOffset(),
+                mesh.GetVertexOffset(),
+                meshCount);*/
+
+            renderPass.DrawIndexedIndirect(m_DrawIndirectBuffer,
+                sizeof(DrawIndirectBufferParams) * meshCount);
+        }
+
+        ++meshCount;
     }
 
     drawTimer.Stop();
@@ -560,6 +519,17 @@ DawnRenderer::GetColorPipeline()
                 .type = wgpu::BufferBindingType::ReadOnlyStorage,
                 .hasDynamicOffset = false,
                 .minBindingSize = sizeof(XFormBuffer),
+            },
+        },
+        //Mesh to transform index mapping
+        {
+            .binding = 1,
+            .visibility = wgpu::ShaderStage::Vertex,
+            .buffer =
+            {
+                .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                .hasDynamicOffset = false,
+                .minBindingSize = sizeof(TransformIndex),
             },
         },
     };
@@ -1019,27 +989,38 @@ DawnRenderer::UpdateXformBuffer(
     const size_t sizeofTransformBuffer = sizeof(XFormBuffer) * m_CurrentState->m_MeshCount;
     const size_t sizeofDrawIndirectBuffer =
         sizeof(DrawIndirectBufferParams) * m_CurrentState->m_MeshCount;
+    const size_t sizeofMeshToTransformMapBuffer =
+        sizeof(TransformIndex) * m_CurrentState->m_MeshCount;
 
-    if(!m_WorldAndProjBuf || !m_DrawIndirectBuffer ||
+    if(!m_TransformBuf || !m_DrawIndirectBuffer || !m_MeshToTransformMapBuf ||
         m_SizeofTransformBuffer < sizeofTransformBuffer ||
+        m_SizeofMeshToTransformMapBuffer < sizeofMeshToTransformMapBuffer ||
         m_SizeofDrawIndirectBuffer < sizeofDrawIndirectBuffer)
     {
         // Re-allocate buffers.
 
         m_SizeofTransformBuffer = sizeofTransformBuffer;
         m_SizeofDrawIndirectBuffer = sizeofDrawIndirectBuffer;
+        m_SizeofMeshToTransformMapBuffer = sizeofMeshToTransformMapBuffer;
 
         auto result = CreateBuffer(m_GpuDevice->Device,
             wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
             sizeofTransformBuffer,
-            "WorldAndProjection");
+            "TransformBuffer");
         MLG_CHECK(result);
-        m_WorldAndProjBuf = *result;
+        m_TransformBuf = *result;
+
+        result = CreateBuffer(m_GpuDevice->Device,
+            wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
+            sizeofMeshToTransformMapBuffer,
+            "MeshToTransformMapBuffer");
+        MLG_CHECK(result);
+        m_MeshToTransformMapBuf = *result;
 
         result = CreateBuffer(m_GpuDevice->Device,
             wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
             sizeofDrawIndirectBuffer,
-            "DrawIndirect");
+            "DrawIndirectBuffer");
         MLG_CHECK(result);
         m_DrawIndirectBuffer = *result;
 
@@ -1048,9 +1029,15 @@ DawnRenderer::UpdateXformBuffer(
             {
                 {
                     .binding = 0,
-                    .buffer = m_WorldAndProjBuf,
+                    .buffer = m_TransformBuf,
                     .offset = 0,
                     .size = sizeofTransformBuffer,
+                },
+                {
+                    .binding = 1,
+                    .buffer = m_MeshToTransformMapBuf,
+                    .offset = 0,
+                    .size = sizeofMeshToTransformMapBuffer,
                 }
             };
 
@@ -1066,12 +1053,6 @@ DawnRenderer::UpdateXformBuffer(
         MLG_CHECK(m_VertexShaderBindGroup, "Failed to create WGPUBindGroup");
     }
 
-    const MeshGroupCollection* meshGroups[] =
-    {
-        &m_CurrentState->m_OpaqueMeshGroups,
-        &m_CurrentState->m_TranslucentMeshGroups
-    };
-
     // Use inverse of camera transform as view matrix
     const Mat44f viewXform = camera.Inverse();
 
@@ -1081,39 +1062,47 @@ DawnRenderer::UpdateXformBuffer(
     unsigned meshCount = 0;
 
     std::vector<XFormBuffer> transformBuffers;
+    std::vector<TransformIndex> meshToTransformMapBuffers;
     std::vector<DrawIndirectBufferParams> drawIndirectBuffers;
 
     transformBuffers.reserve(m_CurrentState->m_MeshCount);
+    meshToTransformMapBuffers.reserve(m_CurrentState->m_MeshCount);
     drawIndirectBuffers.reserve(m_CurrentState->m_MeshCount);
 
-    for(const auto meshGrpPtr : meshGroups)
+    TransformIndex transformIndex = 0;
+
+    for (auto& xmesh : m_CurrentState->m_Meshes)
     {
-        for (auto& [mtlId, xmeshes] : *meshGrpPtr)
-        {
-            for (auto& xmesh : xmeshes)
+        transformBuffers.emplace_back(XFormBuffer //
             {
-                transformBuffers.emplace_back(XFormBuffer{
-                    .ModelXform = xmesh.WorldTransform,
-                    .ModelViewProjXform = viewProj.Mul(xmesh.WorldTransform),
-                });
+                .ModelXform = xmesh.WorldTransform,
+                .ModelViewProjXform = viewProj.Mul(xmesh.WorldTransform),
+            });
 
-                drawIndirectBuffers.emplace_back(DrawIndirectBufferParams{
-                    .IndexCount = xmesh.MeshInstance.GetIndexCount(),
-                    .InstanceCount = 1,
-                    .FirstIndex = xmesh.MeshInstance.GetIndexOffset(),
-                    .BaseVertex = xmesh.MeshInstance.GetVertexOffset(),
-                    .FirstInstance = meshCount,
-                });
+        meshToTransformMapBuffers.emplace_back(transformIndex);
+        ++transformIndex;
 
-                ++meshCount;
-            }
-        }
+        drawIndirectBuffers.emplace_back(DrawIndirectBufferParams //
+            {
+                .IndexCount = xmesh.MeshInstance.GetIndexCount(),
+                .InstanceCount = 1,
+                .FirstIndex = xmesh.MeshInstance.GetIndexOffset(),
+                .BaseVertex = xmesh.MeshInstance.GetVertexOffset(),
+                .FirstInstance = meshCount,
+            });
+
+        ++meshCount;
     }
 
-    m_GpuDevice->Device.GetQueue().WriteBuffer(m_WorldAndProjBuf,
+    m_GpuDevice->Device.GetQueue().WriteBuffer(m_TransformBuf,
             0,
             transformBuffers.data(),
             sizeof(XFormBuffer) * transformBuffers.size());
+
+    m_GpuDevice->Device.GetQueue().WriteBuffer(m_MeshToTransformMapBuf,
+        0,
+        meshToTransformMapBuffers.data(),
+        sizeof(TransformIndex) * meshToTransformMapBuffers.size());
 
     m_GpuDevice->Device.GetQueue().WriteBuffer(m_DrawIndirectBuffer,
             0,
