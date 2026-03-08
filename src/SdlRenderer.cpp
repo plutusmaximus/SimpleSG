@@ -230,7 +230,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
         auto scopedTimer = updateXformTimer.StartScoped();
 
         auto updateXformBufResult = UpdateXformBuffer(cmdBuf, camera, projection);
-        expect(updateXformBufResult);
+        MLG_CHECK(updateXformBufResult);
     }
 
     SDL_GPURenderPass* renderPass = nullptr;
@@ -238,7 +238,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
     {
         auto scopedBeginRenderPassTimer = beginRenderPassTimer.StartScoped();
         auto renderPassResult = BeginRenderPass(cmdBuf);
-        expect(renderPassResult);
+        MLG_CHECK(renderPassResult);
 
         renderPass = *renderPassResult;
     }
@@ -261,7 +261,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
     {
         auto scopedTimer = setPipelineTimer.StartScoped();
         auto pipelineResult = GetColorPipeline();
-        expect(pipelineResult);
+        MLG_CHECK(pipelineResult);
         SDL_BindGPUGraphicsPipeline(renderPass, *pipelineResult);
     }
 
@@ -385,7 +385,7 @@ SdlRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompos
     {
         auto scopedTimer = copyTimer.StartScoped();
         auto copyResult = CopyColorTargetToSwapchain(cmdBuf, sdlCompositor->GetTarget());
-        expect(copyResult);
+        MLG_CHECK(copyResult);
     }
 
     SwapStates();
@@ -421,7 +421,7 @@ SdlRenderer::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
         }
 
         auto result = m_GpuDevice->CreateColorTarget(targetWidth, targetHeight, "ColorTarget");
-        expect(result);
+        MLG_CHECK(result);
         m_ColorTarget = *result;
     }
 
@@ -441,7 +441,7 @@ SdlRenderer::BeginRenderPass(SDL_GPUCommandBuffer* cmdBuf)
         }
 
         auto result = m_GpuDevice->CreateDepthTarget(targetWidth, targetHeight, "DepthTarget");
-        expect(result);
+        MLG_CHECK(result);
         m_DepthTarget = *result;
     }
 
@@ -513,7 +513,7 @@ SdlRenderer::CopyColorTargetToSwapchain(SDL_GPUCommandBuffer* cmdBuf, SDL_GPUTex
     }
 
     auto pipelineResult = GetCopyColorTargetPipeline();
-    expect(pipelineResult);
+    MLG_CHECK(pipelineResult);
 
     SDL_GPUColorTargetInfo colorTargetInfo
     {
@@ -558,18 +558,18 @@ static Result<>
 LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
 {
     FILE* fp = std::fopen(filePath, "rb");
-    expect(fp, "Failed to open shader file: {} ({})", filePath, std::strerror(errno));
+    MLG_CHECK(fp, "Failed to open shader file: {} ({})", filePath, std::strerror(errno));
 
     auto cleanupFile = scope_exit([&]() { std::fclose(fp); });
 
     //Get file size
-    expect(std::fseek(fp, 0, SEEK_END) == 0,
+    MLG_CHECK(std::fseek(fp, 0, SEEK_END) == 0,
         "Failed to seek in shader file: {} ({})",
         filePath,
         std::strerror(errno));
 
     long fileSize = std::ftell(fp);
-    expect(fileSize >= 0,
+    MLG_CHECK(fileSize >= 0,
         "Failed to get size of shader file: {} ({})",
         filePath,
         std::strerror(errno));
@@ -577,7 +577,7 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
 
     outBuffer.resize(static_cast<size_t>(fileSize));
 
-    expect(std::fread(outBuffer.data(), 1, static_cast<size_t>(fileSize), fp) ==
+    MLG_CHECK(std::fread(outBuffer.data(), 1, static_cast<size_t>(fileSize), fp) ==
                 static_cast<size_t>(fileSize),
             "Failed to read shader file: {} ({})", filePath, std::strerror(errno));
 
@@ -595,7 +595,7 @@ Result<SDL_GPUShader*> SdlRenderer::GetColorVertexShader()
             .numUniformBuffers = 0
         };
         auto vsResult = CreateVertexShader(createInfo);
-        expect(vsResult);
+        MLG_CHECK(vsResult);
 
         m_ColorVertexShader = *vsResult;
     }
@@ -614,7 +614,7 @@ Result<SDL_GPUShader*> SdlRenderer::GetColorFragmentShader()
             .numUniformBuffers = 1
         };
         auto fsResult = CreateFragmentShader(createInfo);
-        expect(fsResult);
+        MLG_CHECK(fsResult);
 
         m_ColorFragmentShader = *fsResult;
     }
@@ -630,13 +630,13 @@ SdlRenderer::GetColorPipeline()
         return m_ColorPipeline;
     }
 
-    expectv(m_ColorTarget, "Color target is null");
+    MLG_CHECKV(m_ColorTarget, "Color target is null");
 
     auto vertexShaderResult = GetColorVertexShader();
-    expect(vertexShaderResult);
+    MLG_CHECK(vertexShaderResult);
 
     auto fragmentShaderResult = GetColorFragmentShader();
-    expect(fragmentShaderResult);
+    MLG_CHECK(fragmentShaderResult);
 
     SDL_GPUVertexBufferDescription vertexBufDescriptions[1] = //
         {
@@ -725,7 +725,7 @@ SdlRenderer::GetColorPipeline()
         };
 
     m_ColorPipeline = SDL_CreateGPUGraphicsPipeline(m_GpuDevice->Device, &pipelineCreateInfo);
-    expect(m_ColorPipeline, SDL_GetError());
+    MLG_CHECK(m_ColorPipeline, SDL_GetError());
 
     return m_ColorPipeline;
 }
@@ -742,7 +742,7 @@ SdlRenderer::GetCopyColorTargetVertexShader()
             .numUniformBuffers = 0,
         };
         auto vsResult = CreateVertexShader(createInfo);
-        expect(vsResult);
+        MLG_CHECK(vsResult);
 
         m_CopyTextureVertexShader = *vsResult;
     }
@@ -762,7 +762,7 @@ SdlRenderer::GetCopyColorTargetFragmentShader()
             .numUniformBuffers = 0,
         };
         auto fsResult = CreateFragmentShader(createInfo);
-        expect(fsResult);
+        MLG_CHECK(fsResult);
 
         m_CopyTextureFragmentShader = *fsResult;
     }
@@ -779,10 +779,10 @@ SdlRenderer::GetCopyColorTargetPipeline()
     }
 
     auto vsResult = GetCopyColorTargetVertexShader();
-    expect(vsResult);
+    MLG_CHECK(vsResult);
 
     auto fsResult = GetCopyColorTargetFragmentShader();
-    expect(fsResult);
+    MLG_CHECK(fsResult);
 
     auto colorTargetFormat = m_GpuDevice->GetSwapChainFormat();
 
@@ -822,7 +822,7 @@ SdlRenderer::GetCopyColorTargetPipeline()
         };
 
     m_CopyTexturePipeline = SDL_CreateGPUGraphicsPipeline(m_GpuDevice->Device, &pipelineCreateInfo);
-    expect(m_CopyTexturePipeline, SDL_GetError());
+    MLG_CHECK(m_CopyTexturePipeline, SDL_GetError());
 
     return m_CopyTexturePipeline;
 }
@@ -832,7 +832,7 @@ SdlRenderer::CreateVertexShader(const ShaderCreateInfo& createInfo)
 {
     std::vector<uint8_t> shaderCode;
     auto loadResult = LoadShaderCode(createInfo.path, shaderCode);
-    expect(loadResult);
+    MLG_CHECK(loadResult);
 
     SDL_GPUShaderCreateInfo shaderCreateInfo
     {
@@ -846,7 +846,7 @@ SdlRenderer::CreateVertexShader(const ShaderCreateInfo& createInfo)
     };
 
     SDL_GPUShader* shader = SDL_CreateGPUShader(m_GpuDevice->Device, &shaderCreateInfo);
-    expect(shader, SDL_GetError());
+    MLG_CHECK(shader, SDL_GetError());
 
     return shader;
 }
@@ -856,7 +856,7 @@ SdlRenderer::CreateFragmentShader(const ShaderCreateInfo& createInfo)
 {
     std::vector<uint8_t> shaderCode;
     auto loadResult = LoadShaderCode(createInfo.path, shaderCode);
-    expect(loadResult);
+    MLG_CHECK(loadResult);
 
     SDL_GPUShaderCreateInfo shaderCreateInfo
     {
@@ -870,7 +870,7 @@ SdlRenderer::CreateFragmentShader(const ShaderCreateInfo& createInfo)
     };
 
     SDL_GPUShader* shader = SDL_CreateGPUShader(m_GpuDevice->Device, &shaderCreateInfo);
-    expect(shader, SDL_GetError());
+    MLG_CHECK(shader, SDL_GetError());
 
     return shader;
 }
@@ -886,7 +886,7 @@ CreateBuffer(SDL_GPUDevice* device, size_t size, SDL_GPUBufferUsageFlags usage)
 
     SDL_GPUBuffer* buffer = SDL_CreateGPUBuffer(device, &bufferCreateInfo);
 
-    expect(buffer, SDL_GetError());
+    MLG_CHECK(buffer, SDL_GetError());
     return buffer;
 }
 
@@ -901,7 +901,7 @@ CreateXferBuffer(SDL_GPUDevice* device, size_t size, SDL_GPUTransferBufferUsage 
 
     SDL_GPUTransferBuffer* buffer = SDL_CreateGPUTransferBuffer(device, &bufferCreateInfo);
 
-    expect(buffer, SDL_GetError());
+    MLG_CHECK(buffer, SDL_GetError());
     return buffer;
 }
 
@@ -949,25 +949,25 @@ SdlRenderer::UpdateXformBuffer(
         auto bufferResult = CreateBuffer(m_GpuDevice->Device,
             sizeofTransformBuffer,
             SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ);
-        expect(bufferResult);
+        MLG_CHECK(bufferResult);
         m_WorldAndProjBuf = *bufferResult;
 
         auto xferResult = CreateXferBuffer(m_GpuDevice->Device,
             sizeofTransformBuffer,
             SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD);
-        expect(xferResult);
+        MLG_CHECK(xferResult);
         m_WorldAndProjXferBuf = *xferResult;
 
         auto bufferResult2 = CreateBuffer(m_GpuDevice->Device,
             sizeofDrawIndirectBuffer,
             SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ);
-        expect(bufferResult2);
+        MLG_CHECK(bufferResult2);
         m_DrawIndirectBuffer = *bufferResult2;
 
         auto xferResult2 = CreateXferBuffer(m_GpuDevice->Device,
             sizeofDrawIndirectBuffer,
             SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD);
-        expect(xferResult2);
+        MLG_CHECK(xferResult2);
         m_DrawIndirectXferBuffer = *xferResult2;
     }
 
@@ -975,7 +975,7 @@ SdlRenderer::UpdateXformBuffer(
 
     XFormBuffer* mappedXformBuffer = reinterpret_cast<XFormBuffer*>(
         SDL_MapGPUTransferBuffer(m_GpuDevice->Device, m_WorldAndProjXferBuf, false));
-    expect(mappedXformBuffer, SDL_GetError());
+    MLG_CHECK(mappedXformBuffer, SDL_GetError());
 
     auto xferBufferCleanup = scope_exit([this]()
     {
@@ -984,7 +984,7 @@ SdlRenderer::UpdateXformBuffer(
 
     SDL_GPUIndexedIndirectDrawCommand* mappedDrawIndirectBuffer = reinterpret_cast<SDL_GPUIndexedIndirectDrawCommand*>(
         SDL_MapGPUTransferBuffer(m_GpuDevice->Device, m_DrawIndirectXferBuffer, false));
-    expect(mappedDrawIndirectBuffer, SDL_GetError());
+    MLG_CHECK(mappedDrawIndirectBuffer, SDL_GetError());
 
     const MeshGroupCollection* meshGroups[] =
     {
@@ -1032,7 +1032,7 @@ SdlRenderer::UpdateXformBuffer(
     xferBufferCleanup.release();
 
     SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(cmdBuf);
-    expect(copyPass, SDL_GetError());
+    MLG_CHECK(copyPass, SDL_GetError());
 
     SDL_GPUTransferBufferLocation xformSrc//
     {
@@ -1076,7 +1076,7 @@ SdlRenderer::GetDefaultBaseTexture()
         static constexpr const char* MAGENTA_TEXTURE_KEY = "$magenta";
 
         auto result = m_GpuDevice->CreateTexture("#FF00FFFF"_rgba, imstring(MAGENTA_TEXTURE_KEY));
-        expect(result);
+        MLG_CHECK(result);
 
         m_DefaultBaseTexture = *result;
     }

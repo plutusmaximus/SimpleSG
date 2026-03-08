@@ -180,7 +180,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
     {
         auto scopedTimer = beginRenderPassTimer.StartScoped();
         auto renderPassResult = BeginRenderPass(cmdEncoder);
-        expect(renderPassResult);
+        MLG_CHECK(renderPassResult);
 
         renderPass = *renderPassResult;
     }
@@ -190,7 +190,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
         auto scopedTimer = setPipelineTimer.StartScoped();
 
         auto pipelineResult = GetColorPipeline();
-        expect(pipelineResult);
+        MLG_CHECK(pipelineResult);
 
         renderPass.SetPipeline(*pipelineResult);
     }
@@ -200,7 +200,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
         auto scopedTimer = updateXformTimer.StartScoped();
 
         auto updateXformBufResult = UpdateXformBuffer(cmdEncoder, camera, projection);
-        expect(updateXformBufResult);
+        MLG_CHECK(updateXformBufResult);
     }
 
     static PerfTimer setVsBindGroupTimer("Renderer.Render.Draw.SetVsBindGroup");
@@ -313,7 +313,7 @@ DawnRenderer::Render(const Mat44f& camera, const Mat44f& projection, RenderCompo
     {
         auto scopedTimer = copyTimer.StartScoped();
         auto copyResult = CopyColorTargetToSwapchain(cmdEncoder, dawnCompositor->GetTarget());
-        expect(copyResult);
+        MLG_CHECK(copyResult);
     }
 
     SwapStates();
@@ -349,7 +349,7 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
         }
 
         auto result = m_GpuDevice->CreateColorTarget(targetWidth, targetHeight, "ColorTarget");
-        expect(result);
+        MLG_CHECK(result);
         m_ColorTarget = *result;
     }
 
@@ -369,7 +369,7 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
         }
 
         auto result = m_GpuDevice->CreateDepthTarget(targetWidth, targetHeight, "DepthTarget");
-        expect(result);
+        MLG_CHECK(result);
         m_DepthTarget = *result;
     }
 
@@ -404,7 +404,7 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
         };
 
     wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
-    expect(renderPass, "Failed to begin render pass");
+    MLG_CHECK(renderPass, "Failed to begin render pass");
 
     //DO NOT SUBMIT
     /*const SDL_GPUViewport viewport
@@ -441,7 +441,7 @@ DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder, wgpu::
     }
 
     auto pipelineResult = GetCopyColorTargetPipeline();
-    expect(pipelineResult);
+    MLG_CHECK(pipelineResult);
 
     wgpu::RenderPassColorAttachment attachment //
         {
@@ -459,7 +459,7 @@ DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder, wgpu::
         };
 
     wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
-    expect(renderPass, "Failed to begin render pass for copying color target to swapchain");
+    MLG_CHECK(renderPass, "Failed to begin render pass for copying color target to swapchain");
 
     renderPass.SetPipeline(*pipelineResult);
     renderPass.SetBindGroup(2, m_CopyTextureBindGroup, 0, nullptr);
@@ -473,18 +473,18 @@ static Result<>
 LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
 {
     FILE* fp = std::fopen(filePath, "rb");
-    expect(fp, "Failed to open shader file: {} ({})", filePath, std::strerror(errno));
+    MLG_CHECK(fp, "Failed to open shader file: {} ({})", filePath, std::strerror(errno));
 
     auto cleanupFile = scope_exit([&]() { std::fclose(fp); });
 
     //Get file size
-    expect(std::fseek(fp, 0, SEEK_END) == 0,
+    MLG_CHECK(std::fseek(fp, 0, SEEK_END) == 0,
         "Failed to seek in shader file: {} ({})",
         filePath,
         std::strerror(errno));
 
     long fileSize = std::ftell(fp);
-    expect(fileSize >= 0,
+    MLG_CHECK(fileSize >= 0,
         "Failed to get size of shader file: {} ({})",
         filePath,
         std::strerror(errno));
@@ -492,7 +492,7 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
 
     outBuffer.resize(static_cast<size_t>(fileSize));
 
-    expect(std::fread(outBuffer.data(), 1, static_cast<size_t>(fileSize), fp) ==
+    MLG_CHECK(std::fread(outBuffer.data(), 1, static_cast<size_t>(fileSize), fp) ==
                 static_cast<size_t>(fileSize),
             "Failed to read shader file: {} ({})", filePath, std::strerror(errno));
 
@@ -508,7 +508,7 @@ DawnRenderer::GetColorVertexShader()
     }
 
     auto vsResult = CreateVertexShader(COLOR_PIPELINE_VS);
-    expect(vsResult);
+    MLG_CHECK(vsResult);
 
     m_ColorVertexShader = *vsResult;
     return m_ColorVertexShader;
@@ -523,7 +523,7 @@ DawnRenderer::GetColorFragmentShader()
     }
 
     auto fsResult = CreateFragmentShader(COLOR_PIPELINE_FS);
-    expect(fsResult);
+    MLG_CHECK(fsResult);
 
     m_ColorFragmentShader = *fsResult;
     return m_ColorFragmentShader;
@@ -537,13 +537,13 @@ DawnRenderer::GetColorPipeline()
         return m_ColorPipeline;
     }
 
-    expectv(m_ColorTarget, "Color target is null");
+    MLG_CHECKV(m_ColorTarget, "Color target is null");
 
     auto vertexShaderResult = GetColorVertexShader();
-    expect(vertexShaderResult);
+    MLG_CHECK(vertexShaderResult);
 
     auto fragmentShaderResult = GetColorFragmentShader();
-    expect(fragmentShaderResult);
+    MLG_CHECK(fragmentShaderResult);
 
     // Bind group 1 is for vertex shaders.
     wgpu::BindGroupLayoutEntry vertBglEntries[] =//
@@ -575,7 +575,7 @@ DawnRenderer::GetColorPipeline()
         };
 
     m_VsBindGroupLayout = m_GpuDevice->Device.CreateBindGroupLayout(&vertBglDesc);
-    expect(m_VsBindGroupLayout, "Failed to create BindGroupLayout");
+    MLG_CHECK(m_VsBindGroupLayout, "Failed to create BindGroupLayout");
 
     // Bind group 2 is for fragment shaders.
     wgpu::BindGroupLayoutEntry fragBglEntries[] =//
@@ -621,7 +621,7 @@ DawnRenderer::GetColorPipeline()
         };
 
     m_FsBindGroupLayout = m_GpuDevice->Device.CreateBindGroupLayout(&fragBglDesc);
-    expect(m_FsBindGroupLayout, "Failed to create BindGroupLayout");
+    MLG_CHECK(m_FsBindGroupLayout, "Failed to create BindGroupLayout");
 
     wgpu::BindGroupLayout bgl[] = //
         {
@@ -638,7 +638,7 @@ DawnRenderer::GetColorPipeline()
         };
 
     wgpu::PipelineLayout pipelineLayout = m_GpuDevice->Device.CreatePipelineLayout(&pipelineLayoutDesc);
-    expect(pipelineLayout, "Failed to create PipelineLayout");
+    MLG_CHECK(pipelineLayout, "Failed to create PipelineLayout");
 
     wgpu::BlendState blendState //
         {
@@ -753,7 +753,7 @@ DawnRenderer::GetColorPipeline()
     };
 
     m_ColorPipeline = m_GpuDevice->Device.CreateRenderPipeline(&descriptor);
-    expect(m_ColorPipeline, "Failed to create render pipeline");
+    MLG_CHECK(m_ColorPipeline, "Failed to create render pipeline");
 
     return m_ColorPipeline;
 
@@ -777,7 +777,7 @@ DawnRenderer::GetCopyColorTargetVertexShader()
     }
 
     auto vsResult = CreateVertexShader(COMPOSITE_COLOR_TARGET_VS);
-    expect(vsResult);
+    MLG_CHECK(vsResult);
 
     m_CopyTextureVertexShader = *vsResult;
     return m_CopyTextureVertexShader;
@@ -792,7 +792,7 @@ DawnRenderer::GetCopyColorTargetFragmentShader()
     }
 
     auto fsResult = CreateFragmentShader(COMPOSITE_COLOR_TARGET_FS);
-    expect(fsResult);
+    MLG_CHECK(fsResult);
 
     m_CopyTextureFragmentShader = *fsResult;
     return m_CopyTextureFragmentShader;
@@ -807,10 +807,10 @@ DawnRenderer::GetCopyColorTargetPipeline()
     }
 
     auto vsResult = GetCopyColorTargetVertexShader();
-    expect(vsResult);
+    MLG_CHECK(vsResult);
 
     auto fsResult = GetCopyColorTargetFragmentShader();
-    expect(fsResult);
+    MLG_CHECK(fsResult);
 
     wgpu::BindGroupLayoutEntry bglEntries[] =//
     {
@@ -842,7 +842,7 @@ DawnRenderer::GetCopyColorTargetPipeline()
         };
 
     m_CopyTextureBindGroupLayout = m_GpuDevice->Device.CreateBindGroupLayout(&bglDesc);
-    expect(m_CopyTextureBindGroupLayout, "CreateBindGroupLayout failed for copy color target pipeline");
+    MLG_CHECK(m_CopyTextureBindGroupLayout, "CreateBindGroupLayout failed for copy color target pipeline");
 
     wgpu::BindGroupLayout bgl[] = //
         {
@@ -859,7 +859,7 @@ DawnRenderer::GetCopyColorTargetPipeline()
         };
 
     wgpu::PipelineLayout pipelineLayout = m_GpuDevice->Device.CreatePipelineLayout(&pipelineLayoutDesc);
-    expect(pipelineLayout, "Failed to create PipelineLayout");
+    MLG_CHECK(pipelineLayout, "Failed to create PipelineLayout");
 
     wgpu::BlendState blendState //
         {
@@ -922,15 +922,15 @@ DawnRenderer::GetCopyColorTargetPipeline()
     };
 
     auto pipeline = m_GpuDevice->Device.CreateRenderPipeline(&descriptor);
-    expect(pipeline, "Failed to create render pipeline for copying color target to swapchain");
+    MLG_CHECK(pipeline, "Failed to create render pipeline for copying color target to swapchain");
 
     // Create bind group for the color target texture and sampler
 
     wgpu::TextureView texView = static_cast<DawnGpuColorTarget*>(m_ColorTarget)->GetTextureView();
-    expect(texView, "Failed to get wgpu::TextureView for color target");
+    MLG_CHECK(texView, "Failed to get wgpu::TextureView for color target");
 
     wgpu::Sampler sampler = static_cast<DawnGpuColorTarget*>(m_ColorTarget)->GetSampler();
-    expect(sampler, "Failed to get wgpu::Sampler for color target");
+    MLG_CHECK(sampler, "Failed to get wgpu::Sampler for color target");
 
     wgpu::BindGroupEntry bgEntries[] = //
         {
@@ -953,7 +953,7 @@ DawnRenderer::GetCopyColorTargetPipeline()
         };
 
     wgpu::BindGroup bindGroup = m_GpuDevice->Device.CreateBindGroup(&bgDesc);
-    expect(bindGroup, "Failed to create wgpu::BindGroup for copying color target to swapchain");
+    MLG_CHECK(bindGroup, "Failed to create wgpu::BindGroup for copying color target to swapchain");
 
     m_CopyTextureBindGroup = bindGroup;
     m_CopyTexturePipeline = pipeline;
@@ -966,7 +966,7 @@ DawnRenderer::CreateVertexShader(const char* path)
 {
     std::vector<uint8_t> shaderCode;
     auto loadResult = LoadShaderCode(path, shaderCode);
-    expect(loadResult);
+    MLG_CHECK(loadResult);
 
     wgpu::StringView shaderCodeView{ reinterpret_cast<const char*>(shaderCode.data()),
         shaderCode.size() };
@@ -974,7 +974,7 @@ DawnRenderer::CreateVertexShader(const char* path)
     wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl };
 
     wgpu::ShaderModule shaderModule = m_GpuDevice->Device.CreateShaderModule(&shaderModuleDescriptor);
-    expect(shaderModule, "Failed to create shader module");
+    MLG_CHECK(shaderModule, "Failed to create shader module");
 
     return shaderModule;
 }
@@ -984,7 +984,7 @@ DawnRenderer::CreateFragmentShader(const char* path)
 {
     std::vector<uint8_t> shaderCode;
     auto loadResult = LoadShaderCode(path, shaderCode);
-    expect(loadResult);
+    MLG_CHECK(loadResult);
 
     wgpu::StringView shaderCodeView{ reinterpret_cast<const char*>(shaderCode.data()),
         shaderCode.size() };
@@ -992,7 +992,7 @@ DawnRenderer::CreateFragmentShader(const char* path)
     wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl };
 
     wgpu::ShaderModule shaderModule = m_GpuDevice->Device.CreateShaderModule(&shaderModuleDescriptor);
-    expect(shaderModule, "Failed to create shader module");
+    MLG_CHECK(shaderModule, "Failed to create shader module");
 
     return shaderModule;
 }
@@ -1009,7 +1009,7 @@ CreateBuffer(wgpu::Device device, wgpu::BufferUsage usage, size_t size, const ch
     };
 
     auto buffer = device.CreateBuffer(&desc);
-    expect(buffer, "Failed to create buffer");
+    MLG_CHECK(buffer, "Failed to create buffer");
     return buffer;
 }
 
@@ -1036,14 +1036,14 @@ DawnRenderer::UpdateXformBuffer(
             wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
             sizeofTransformBuffer,
             "WorldAndProjection");
-        expect(result);
+        MLG_CHECK(result);
         m_WorldAndProjBuf = *result;
 
         result = CreateBuffer(m_GpuDevice->Device,
             wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
             sizeofDrawIndirectBuffer,
             "DrawIndirect");
-        expect(result);
+        MLG_CHECK(result);
         m_DrawIndirectBuffer = *result;
 
         // Recreate the vertex shader bind group with the new buffer.
@@ -1066,7 +1066,7 @@ DawnRenderer::UpdateXformBuffer(
             };
 
         m_VertexShaderBindGroup = m_GpuDevice->Device.CreateBindGroup(&vsBgDesc);
-        expect(m_VertexShaderBindGroup, "Failed to create WGPUBindGroup");
+        MLG_CHECK(m_VertexShaderBindGroup, "Failed to create WGPUBindGroup");
     }
 
     const MeshGroupCollection* meshGroups[] =
@@ -1134,7 +1134,7 @@ DawnRenderer::GetDefaultBaseTexture()
         static constexpr const char* MAGENTA_TEXTURE_KEY = "$magenta";
 
         auto result = m_GpuDevice->CreateTexture("#FF00FFFF"_rgba, imstring(MAGENTA_TEXTURE_KEY));
-        expect(result);
+        MLG_CHECK(result);
 
         m_DefaultBaseTexture = *result;
     }

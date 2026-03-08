@@ -90,16 +90,16 @@ DawnGpuDevice::Create(SDL_Window* window)
     Log::Info("Creating Dawn GPU Device...");
 
     auto instanceResult = CreateInstance();
-    expect(instanceResult);
+    MLG_CHECK(instanceResult);
 
     auto adapterResult = CreateAdapter(*instanceResult);
-    expect(adapterResult);
+    MLG_CHECK(adapterResult);
 
     auto deviceResult = CreateDevice(*instanceResult, *adapterResult);
-    expect(deviceResult);
+    MLG_CHECK(deviceResult);
 
     auto surfaceResult = CreateSurface(*instanceResult, window);
-    expect(surfaceResult);
+    MLG_CHECK(surfaceResult);
 
     int width, height;
     SDL_GetWindowSize(window, &width, &height);
@@ -109,12 +109,12 @@ DawnGpuDevice::Create(SDL_Window* window)
         *surfaceResult,
         static_cast<uint32_t>(width),
         static_cast<uint32_t>(height));
-    expect(configureSurfaceResult);
+    MLG_CHECK(configureSurfaceResult);
 
     wgpu::TextureFormat surfaceFormat = *configureSurfaceResult;
 
     DawnGpuDevice* dawnDevice = new DawnGpuDevice(window, *instanceResult, *adapterResult, *deviceResult, *surfaceResult, surfaceFormat);
-    expectv(dawnDevice, "Error allocating device");
+    MLG_CHECKV(dawnDevice, "Error allocating device");
 
     return dawnDevice;
 }
@@ -159,13 +159,13 @@ Result<GpuVertexBuffer*>
 DawnGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& vertices)
 {
     auto nativeBufResult = CreateGpuBuffer<Vertex>(Device, vertices);
-    expect(nativeBufResult);
+    MLG_CHECK(nativeBufResult);
 
     auto [nativeBuf, sizeofBuffer] = *nativeBufResult;
 
     GpuResource* res = m_ResourceAllocator.New();
 
-    expectv(res, "Error allocating DawnGpuVertexBuffer");
+    MLG_CHECKV(res, "Error allocating DawnGpuVertexBuffer");
 
     return ::new(&res->VertexBuffer)
         DawnGpuVertexBuffer(this, nativeBuf, static_cast<uint32_t>(sizeofBuffer / sizeof(Vertex)));
@@ -193,13 +193,13 @@ Result<GpuIndexBuffer*>
 DawnGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& indices)
 {
     auto nativeBufResult = CreateGpuBuffer<VertexIndex>(Device, indices);
-    expect(nativeBufResult);
+    MLG_CHECK(nativeBufResult);
 
     auto [nativeBuf, sizeofBuffer] = *nativeBufResult;
 
     GpuResource* res = m_ResourceAllocator.New();
 
-    expectv(res, "Error allocating DawnGpuIndexBuffer");
+    MLG_CHECKV(res, "Error allocating DawnGpuIndexBuffer");
 
     return ::new(&res->IndexBuffer)
         DawnGpuIndexBuffer(this, nativeBuf, static_cast<uint32_t>(sizeofBuffer / sizeof(VertexIndex)));
@@ -236,11 +236,11 @@ DawnGpuDevice::CreateTexture(const unsigned width,
         };
 
     wgpu::Buffer stagingBuffer = Device.CreateBuffer(&bufDesc);
-    expect(stagingBuffer, "Failed to create staging buffer of size {} for texture upload",
+    MLG_CHECK(stagingBuffer, "Failed to create staging buffer of size {} for texture upload",
             stagingSize);
 
     void *mapped = stagingBuffer.GetMappedRange(0, stagingSize);
-    expect(mapped, "Failed to map staging buffer for texture upload");
+    MLG_CHECK(mapped, "Failed to map staging buffer for texture upload");
 
     uint8_t *dst = (uint8_t *)mapped;
     const uint8_t *src = pixels;
@@ -253,7 +253,7 @@ DawnGpuDevice::CreateTexture(const unsigned width,
 
     wgpu::CommandEncoderDescriptor encDesc = { .label = name.c_str() };
     wgpu::CommandEncoder encoder = Device.CreateCommandEncoder(&encDesc);
-    expect(encoder, "Failed to create command encoder for texture upload");
+    MLG_CHECK(encoder, "Failed to create command encoder for texture upload");
 
     wgpu::TextureDescriptor textureDesc //
         {
@@ -272,7 +272,7 @@ DawnGpuDevice::CreateTexture(const unsigned width,
         };
 
     wgpu::Texture texture = Device.CreateTexture(&textureDesc);
-    expect(texture, "Failed to create texture");
+    MLG_CHECK(texture, "Failed to create texture");
 
     wgpu::TexelCopyBufferInfo copySrc = //
         {
@@ -302,7 +302,7 @@ DawnGpuDevice::CreateTexture(const unsigned width,
     encoder.CopyBufferToTexture(&copySrc, &copyDst, &copySize);
     wgpu::CommandBuffer commandBuffer = encoder.Finish();
 
-    expect(commandBuffer, "Failed to finish command buffer for texture upload");
+    MLG_CHECK(commandBuffer, "Failed to finish command buffer for texture upload");
 
     struct QueueSubmitResult
     {
@@ -332,16 +332,16 @@ DawnGpuDevice::CreateTexture(const unsigned width,
         Instance.ProcessEvents();
     }
 
-    expect(result.queueSubmitResult);
+    MLG_CHECK(result.queueSubmitResult);
 
     auto samplerResult = GetDefaultSampler();
-    expect(samplerResult);
+    MLG_CHECK(samplerResult);
 
     GpuResource* res = m_ResourceAllocator.New();
-    expectv(res, "Error allocating DawnGpuTexture");
+    MLG_CHECKV(res, "Error allocating DawnGpuTexture");
 
     auto texView = texture.CreateView();
-    expect(texView, "Failed to create texture view for texture");
+    MLG_CHECK(texView, "Failed to create texture view for texture");
 
     return ::new(&res->Texture) DawnGpuTexture(this, texture, texView, *samplerResult, width, height);
 }
@@ -371,7 +371,7 @@ DawnGpuDevice::CreateMaterial(const MaterialConstants& mtlConstants, GpuTexture*
 {
     DawnGpuTexture* dawnBaseTexture = static_cast<DawnGpuTexture*>(baseTexture);
 
-    expectv(dawnBaseTexture->m_GpuDevice == this,
+    MLG_CHECKV(dawnBaseTexture->m_GpuDevice == this,
            "Base texture must belong to this device");
 
     wgpu::Limits gpuLimits;
@@ -388,7 +388,7 @@ DawnGpuDevice::CreateMaterial(const MaterialConstants& mtlConstants, GpuTexture*
     };
 
     wgpu::Buffer mtlConstantsBuf = Device.CreateBuffer(&mtlConstantsBufferDesc);
-    expect(mtlConstantsBuf, "Failed to create material constants buffer");
+    MLG_CHECK(mtlConstantsBuf, "Failed to create material constants buffer");
 
     Device.GetQueue().WriteBuffer(mtlConstantsBuf, 0, &mtlConstants, sizeof(MaterialConstants));
 
@@ -411,7 +411,7 @@ DawnGpuDevice::CreateMaterial(const MaterialConstants& mtlConstants, GpuTexture*
         };
 
     auto fsBindGroupLayoutResult = GetFsBindGroupLayout();
-    expect(fsBindGroupLayoutResult);
+    MLG_CHECK(fsBindGroupLayoutResult);
 
     wgpu::BindGroupDescriptor fsBgDesc //
         {
@@ -422,10 +422,10 @@ DawnGpuDevice::CreateMaterial(const MaterialConstants& mtlConstants, GpuTexture*
         };
 
     wgpu::BindGroup bindGroup = Device.CreateBindGroup(&fsBgDesc);
-    expect(bindGroup);
+    MLG_CHECK(bindGroup);
 
     GpuResource* res = m_ResourceAllocator.New();
-    expect(res, "Error allocating GpuResource");
+    MLG_CHECK(res, "Error allocating GpuResource");
 
     return ::new(&res->Material)
         DawnGpuMaterial(this, baseTexture, mtlConstantsBuf, bindGroup, mtlConstants);
@@ -463,17 +463,17 @@ DawnGpuDevice::CreateColorTarget(const unsigned width, const unsigned height, co
         };
 
     wgpu::Texture texture = Device.CreateTexture(&textureDesc);
-    expect(texture, "Failed to create color target texture");
+    MLG_CHECK(texture, "Failed to create color target texture");
 
     wgpu::TextureView view = texture.CreateView();
-    expect(view, "Failed to create color target view");
+    MLG_CHECK(view, "Failed to create color target view");
 
     auto samplerResult = GetDefaultSampler();
-    expect(samplerResult);
+    MLG_CHECK(samplerResult);
 
     GpuResource* res = m_ResourceAllocator.New();
 
-    expectv(res, "Error allocating DawnGpuColorTarget");
+    MLG_CHECKV(res, "Error allocating DawnGpuColorTarget");
 
     return ::new(&res->ColorTarget)
         DawnGpuColorTarget(this, texture, view, *samplerResult, width, height, kColorTargetFormat);
@@ -512,14 +512,14 @@ DawnGpuDevice::CreateDepthTarget(const unsigned width,
         };
 
     wgpu::Texture texture = Device.CreateTexture(&texDesc);
-    expect(texture, "Failed to create depth target texture");
+    MLG_CHECK(texture, "Failed to create depth target texture");
 
     wgpu::TextureView view = texture.CreateView();
-    expect(view, "Failed to create depth target view");
+    MLG_CHECK(view, "Failed to create depth target view");
 
     GpuResource* res = m_ResourceAllocator.New();
 
-    expectv(res, "Error allocating DawnGpuDepthTarget");
+    MLG_CHECKV(res, "Error allocating DawnGpuDepthTarget");
 
     return ::new(&res->DepthTarget)
         DawnGpuDepthTarget(this, texture, view, width, height, kDepthTargetFormat);
@@ -578,7 +578,7 @@ DawnGpuDevice::GetDefaultSampler()
             };
 
         m_Sampler = Device.CreateSampler(&samplerDesc);
-        expect(m_Sampler, "Failed to create sampler");
+        MLG_CHECK(m_Sampler, "Failed to create sampler");
     }
     return m_Sampler;
 }
@@ -631,7 +631,7 @@ DawnGpuDevice::GetFsBindGroupLayout()
             };
 
         m_FsBindGroupLayout = Device.CreateBindGroupLayout(&layoutDesc);
-        expect(m_FsBindGroupLayout, "Failed to create bind group layout");
+        MLG_CHECK(m_FsBindGroupLayout, "Failed to create bind group layout");
     }
 
     return m_FsBindGroupLayout;
@@ -648,7 +648,7 @@ CreateInstance()
         };
     wgpu::Instance instance = wgpu::CreateInstance(&instanceDesc);
 
-    expect(instance, "Failed to create WGPUInstance");
+    MLG_CHECK(instance, "Failed to create WGPUInstance");
 
     return instance;
 }
@@ -696,13 +696,13 @@ CreateAdapter(wgpu::Instance instance)
 
     wgpu::WaitStatus waitStatus = instance.WaitAny(fut, UINT64_MAX);
 
-    expect(waitStatus == wgpu::WaitStatus::Success,
+    MLG_CHECK(waitStatus == wgpu::WaitStatus::Success,
         "Failed to create WGPUAdapter - WaitAny failed");
 
     const bool supported =
         result->HasFeature(wgpu::FeatureName::IndirectFirstInstance);
 
-    expect(supported, "IndirectFirstInstance feature is not supported");
+    MLG_CHECK(supported, "IndirectFirstInstance feature is not supported");
 
     return result;
 }
@@ -794,9 +794,9 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
 
     wgpu::WaitStatus waitStatus = instance.WaitAny(fut, UINT64_MAX);
 
-    expect(waitStatus == wgpu::WaitStatus::Success, "Failed to create WGPUDevice - WaitAny failed");
+    MLG_CHECK(waitStatus == wgpu::WaitStatus::Success, "Failed to create WGPUDevice - WaitAny failed");
 
-    expect(result);
+    MLG_CHECK(result);
 
     DumpDawnToggles(*result);
 
@@ -857,7 +857,7 @@ CreateSurface(wgpu::Instance instance, SDL_Window* window)
     surface_desc.nextInChain = &canvas_desc;
     wgpu::Surface surface = instance.CreateSurface(&surface_desc);
 
-    expect(surface, "Failed to create WGPUSurface from SDL window");
+    MLG_CHECK(surface, "Failed to create WGPUSurface from SDL window");
 
     return surface;
 }
@@ -882,7 +882,7 @@ CreateSurface(wgpu::Instance instance, SDL_Window* window)
 
     wgpu::Surface surface = wgpu::Surface::Acquire(rawSurface);
 
-    expect(surface, "Failed to create WGPUSurface from SDL window");
+    MLG_CHECK(surface, "Failed to create WGPUSurface from SDL window");
 
     return surface;
 }
@@ -897,15 +897,15 @@ ConfigureSurface(wgpu::Adapter adapter,
     const uint32_t height)
 {
     wgpu::SurfaceCapabilities capabilities;
-    expect(surface.GetCapabilities(adapter, &capabilities), "surface.GetCapabilities failed");
+    MLG_CHECK(surface.GetCapabilities(adapter, &capabilities), "surface.GetCapabilities failed");
 
     wgpu::PresentMode presentMode =
         ChoosePresentMode(capabilities.presentModes, capabilities.presentModeCount);
-    expect(presentMode != wgpu::PresentMode::Undefined, "No supported present mode found");
+    MLG_CHECK(presentMode != wgpu::PresentMode::Undefined, "No supported present mode found");
 
     wgpu::TextureFormat format =
         ChooseBackbufferFormat(capabilities.formats, capabilities.formatCount);
-    expect(format != wgpu::TextureFormat::Undefined, "No supported backbuffer format found");
+    MLG_CHECK(format != wgpu::TextureFormat::Undefined, "No supported backbuffer format found");
 
     wgpu::SurfaceConfiguration config //
         {
@@ -942,10 +942,10 @@ CreateGpuBuffer(wgpu::Device device, const std::span<const std::span<const T>>& 
         };
 
     wgpu::Buffer buffer = device.CreateBuffer(&bufferDesc);
-    expect(buffer, "Failed to create {} buffer", GpuBufferTraits<T>::DebugName);
+    MLG_CHECK(buffer, "Failed to create {} buffer", GpuBufferTraits<T>::DebugName);
 
     void *p = buffer.GetMappedRange(0,  sizeofBuffer);
-    expect(p, "Failed to map {} buffer", GpuBufferTraits<T>::DebugName);
+    MLG_CHECK(p, "Failed to map {} buffer", GpuBufferTraits<T>::DebugName);
 
     T* dst = reinterpret_cast<T*>(p);
 

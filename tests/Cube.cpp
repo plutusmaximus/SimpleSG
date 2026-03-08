@@ -47,7 +47,7 @@ public:
 
         Log::Info("Initializing...");
 
-        expectv(State::None == m_State, "Application already initialized or running");
+        MLG_CHECKV(State::None == m_State, "Application already initialized or running");
 
         m_State = State::Initialized;
 
@@ -65,7 +65,7 @@ public:
         m_EidCamera = m_Registry.Create();
 
         auto modelResult = CreateShapeModel(m_ResourceCache);
-        expect(modelResult);
+        MLG_CHECK(modelResult);
 
         constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
@@ -385,7 +385,7 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
     const CacheKey cacheKey = CacheKey("CubeModel");
 
     auto result = cache->CreateModelAsync(cacheKey, modelSpec);
-    expect(result);
+    MLG_CHECK(result);
 
     // Wait for the model to be created.
     while(result->IsPending())
@@ -429,7 +429,7 @@ static Result<ModelResource> CreateShapeModel(ResourceCache* cache)
     const CacheKey cacheKey = CacheKey("ShapeModel");
 
     auto result = cache->CreateModelAsync(cacheKey, modelSpec);
-    expect(result);
+    MLG_CHECK(result);
 
     // Wait for the model to be created.
     while(result->IsPending())

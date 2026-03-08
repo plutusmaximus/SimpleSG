@@ -302,7 +302,7 @@ ImGuiRenderer::SdlRender(RenderCompositor* renderCompositor)
     };
 
     SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(cmdBuf, &target_info, 1, nullptr);
-    expect(renderPass, SDL_GetError());
+    MLG_CHECK(renderPass, SDL_GetError());
 
     // Render ImGui
     ImGui_ImplSDLGPU3_RenderDrawData(drawData, cmdBuf, renderPass);

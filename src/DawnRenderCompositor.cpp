@@ -15,26 +15,26 @@ DawnRenderCompositor::~DawnRenderCompositor()
 Result<>
 DawnRenderCompositor::BeginFrame()
 {
-    expectv(!m_FrameStarted, "Frame already started");
+    MLG_CHECKV(!m_FrameStarted, "Frame already started");
 
     m_FrameStarted = true;
 
     wgpu::CommandEncoderDescriptor encoderDesc = { .label = "RenderCompositorEncoder" };
 
     m_CommandEncoder = m_GpuDevice->Device.CreateCommandEncoder(&encoderDesc);
-    expect(m_CommandEncoder, "Failed to create command encoder");
+    MLG_CHECK(m_CommandEncoder, "Failed to create command encoder");
 
 #if !OFFSCREEN_RENDERING
     wgpu::SurfaceTexture backbuffer;
     m_GpuDevice->Surface.GetCurrentTexture(&backbuffer);
-    expect(backbuffer.texture, "Failed to get current surface texture for render pass");
+    MLG_CHECK(backbuffer.texture, "Failed to get current surface texture for render pass");
 
     // TODO - handle SuccessSuboptimal, Timeout, Outdated, Lost, Error statuses
-    expect(backbuffer.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal,
+    MLG_CHECK(backbuffer.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal,
         std::format("Backbuffer status: {}", (int)backbuffer.status));
 
     m_Target = backbuffer.texture.CreateView();
-    expect(m_Target, "Failed to create texture view for swapchain texture");
+    MLG_CHECK(m_Target, "Failed to create texture view for swapchain texture");
 #endif
 
     return Result<>::Ok;
@@ -43,7 +43,7 @@ DawnRenderCompositor::BeginFrame()
 Result<>
 DawnRenderCompositor::EndFrame()
 {
-    expectv(m_FrameStarted, "Frame not started");
+    MLG_CHECKV(m_FrameStarted, "Frame not started");
 
     m_FrameStarted = false;
 
@@ -58,14 +58,14 @@ DawnRenderCompositor::EndFrame()
         auto scopedTimer = finishCmdBufferTimer.StartScoped();
         cmdBuf = cmdEncoder.Finish(nullptr);
 
-        expect(cmdBuf, "Failed to finish command buffer");
+        MLG_CHECK(cmdBuf, "Failed to finish command buffer");
     }
 
     static PerfTimer submitCmdBufferTimer("RenderCompositor.SubmitCommandBuffer");
     {
         auto scopedTimer = submitCmdBufferTimer.StartScoped();
         wgpu::Queue queue = m_GpuDevice->Device.GetQueue();
-        expect(queue, "Failed to get wgpu::Queue");
+        MLG_CHECK(queue, "Failed to get wgpu::Queue");
 
         queue.Submit(1, &cmdBuf);
     }

@@ -172,7 +172,7 @@ ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, const imstring& 
     {
         Log::Debug("  Load already pending: {}", cacheKey.ToString());
         auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<ModelResource>);
-        expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
+        MLG_CHECKV(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
         m_Scheduler.Enqueue(op);
     }
     else if(m_ModelCache.Contains(cacheKey))
@@ -184,7 +184,7 @@ ResourceCache::LoadModelFromFileAsync(const CacheKey& cacheKey, const imstring& 
         Log::Debug("  Cache miss: {}", cacheKey.ToString());
 
         auto op = NewOp<LoadModelOp>(this, cacheKey, filePath);
-        expectv(op, "Failed to allocate LoadModelOp for key: {}", cacheKey.ToString());
+        MLG_CHECKV(op, "Failed to allocate LoadModelOp for key: {}", cacheKey.ToString());
         m_Scheduler.Enqueue(op);
     }
 
@@ -198,7 +198,7 @@ ResourceCache::CreateModelAsync(const CacheKey& cacheKey, const ModelSpec& model
     {
         Log::Debug("  Creation already pending: {}", cacheKey.ToString());
         auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<ModelResource>);
-        expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
+        MLG_CHECKV(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
         m_Scheduler.Enqueue(op);
     }
     else if(m_ModelCache.Contains(cacheKey))
@@ -210,7 +210,7 @@ ResourceCache::CreateModelAsync(const CacheKey& cacheKey, const ModelSpec& model
         Log::Debug("  Cache miss: {}", cacheKey.ToString());
 
         auto op = NewOp<CreateModelOp>(this, cacheKey, modelSpec);
-        expectv(op, "Failed to allocate CreateModelOp for key: {}", cacheKey.ToString());
+        MLG_CHECKV(op, "Failed to allocate CreateModelOp for key: {}", cacheKey.ToString());
         m_Scheduler.Enqueue(op);
     }
 
@@ -224,7 +224,7 @@ ResourceCache::CreateTextureAsync(const CacheKey& cacheKey, const TextureSpec& t
     {
         Log::Debug("  Texture creation already pending: {}", cacheKey.ToString());
         auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<GpuTexture*>);
-        expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
+        MLG_CHECKV(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
         m_Scheduler.Enqueue(op);
     }
     else if(m_TextureCache.Contains(cacheKey))
@@ -236,7 +236,7 @@ ResourceCache::CreateTextureAsync(const CacheKey& cacheKey, const TextureSpec& t
         Log::Debug("  Cache miss: {}", cacheKey.ToString());
 
         auto op = NewOp<CreateTextureOp>(this, cacheKey, textureSpec);
-        expectv(op, "Failed to allocate CreateTextureOp for key: {}", cacheKey.ToString());
+        MLG_CHECKV(op, "Failed to allocate CreateTextureOp for key: {}", cacheKey.ToString());
         m_Scheduler.Enqueue(op);
     }
 
@@ -250,7 +250,7 @@ ResourceCache::CreateMaterialAsync(const CacheKey& cacheKey, const MaterialSpec&
     {
         Log::Debug("  Material creation already pending: {}", cacheKey.ToString());
         auto op = NewOp<WaitOp>(this, cacheKey, &ResourceCache::IsPending<GpuMaterial*>);
-        expectv(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
+        MLG_CHECKV(op, "Failed to allocate WaitOp for key: {}", cacheKey.ToString());
         m_Scheduler.Enqueue(op);
     }
     else if(m_MaterialCache.Contains(cacheKey))
@@ -262,7 +262,7 @@ ResourceCache::CreateMaterialAsync(const CacheKey& cacheKey, const MaterialSpec&
         Log::Debug("  Cache miss: {}", cacheKey.ToString());
 
         auto op = NewOp<CreateMaterialOp>(this, cacheKey, materialSpec);
-        expectv(op, "Failed to allocate CreateMaterialOp for key: {}", cacheKey.ToString());
+        MLG_CHECKV(op, "Failed to allocate CreateMaterialOp for key: {}", cacheKey.ToString());
         m_Scheduler.Enqueue(op);
     }
 
@@ -274,7 +274,7 @@ ResourceCache::GetModel(const CacheKey& cacheKey) const
 {
     Result<ModelResource> result;
 
-    expect(m_ModelCache.TryGet(cacheKey, result), "Model not in cache: {}", cacheKey.ToString());
+    MLG_CHECK(m_ModelCache.TryGet(cacheKey, result), "Model not in cache: {}", cacheKey.ToString());
 
     return result;
 }
@@ -284,7 +284,7 @@ ResourceCache::GetTexture(const CacheKey& cacheKey) const
 {
     Result<GpuTexture*> result;
 
-    expect(m_TextureCache.TryGet(cacheKey, result), "Texture not in cache: {}", cacheKey.ToString());
+    MLG_CHECK(m_TextureCache.TryGet(cacheKey, result), "Texture not in cache: {}", cacheKey.ToString());
 
     return result;
 }
@@ -294,7 +294,7 @@ ResourceCache::GetMaterial(const CacheKey& cacheKey) const
 {
     Result<GpuMaterial*> result;
 
-    expect(m_MaterialCache.TryGet(cacheKey, result),
+    MLG_CHECK(m_MaterialCache.TryGet(cacheKey, result),
         "Material not in cache: {}",
         cacheKey.ToString());
 
@@ -529,7 +529,7 @@ ResourceCache::CreateModelOp::CreateModel()
     for(const auto& meshSpec : m_ModelSpec.GetMeshSpecs())
     {
         auto mtlResult = m_ResourceCache->GetMaterial(meshSpec.MtlSpec.GetCacheKey());
-        expect(mtlResult,
+        MLG_CHECK(mtlResult,
             "Material not found in cache for key: {}",
             meshSpec.MtlSpec.GetCacheKey().ToString());
 
@@ -937,7 +937,7 @@ ResourceCache::CreateTextureOp::DecodeImage()
         &m_DecodedImageChannels,
         4);
 
-    expect(m_DecodedImageData != nullptr, "Failed to load image from memory: {}", stbi_failure_reason());
+    MLG_CHECK(m_DecodedImageData != nullptr, "Failed to load image from memory: {}", stbi_failure_reason());
 
     logOp("Image decode completed in {} ms (key: {})",
         static_cast<int>(sw.Elapsed() * 1000.0f),
@@ -1328,7 +1328,7 @@ CreateMeshSpecFromMesh(
 static Result<ModelSpec>
 ProcessScene(const aiScene* scene, const imstring& filePath)
 {
-    expect(scene->mNumMeshes > 0, "No meshes in model: {}", filePath);
+    MLG_CHECK(scene->mNumMeshes > 0, "No meshes in model: {}", filePath);
 
     const auto absPath = std::filesystem::absolute(filePath.c_str());
     const auto parentPath = absPath.parent_path();

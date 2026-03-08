@@ -203,7 +203,7 @@ FileIo::GetResult(const AsyncToken token)
         Shutdown();
     }
 
-    expect(IsRunning(), "FileIo is not running or is shutting down.");
+    MLG_CHECK(IsRunning(), "FileIo is not running or is shutting down.");
 
     ProcessCompletions();
 
@@ -221,11 +221,11 @@ FileIo::GetResult(const AsyncToken token)
         }
     }
 
-    expect(req, "No completed request found for given token.");
+    MLG_CHECK(req, "No completed request found for given token.");
 
     RemoveCompleteRequest(req);
 
-    expect(req->ReadResult);
+    MLG_CHECK(req->ReadResult);
 
     auto result = GetResultImpl(req);
 
@@ -310,7 +310,7 @@ static void DeleteReadRequest(FileIo::ReadRequest* req)
 Result<FileIo::AsyncToken>
 FileIo::Fetch(const imstring& filePath)
 {
-    expect(IsRunning(), "FileIO is not running or is shutting down.");
+    MLG_CHECK(IsRunning(), "FileIO is not running or is shutting down.");
 
     // Open file
     HANDLE hFile = ::CreateFileA(filePath.c_str(),
@@ -321,7 +321,7 @@ FileIo::Fetch(const imstring& filePath)
         FILE_FLAG_OVERLAPPED | FILE_FLAG_SEQUENTIAL_SCAN,
         nullptr);
 
-    expect(hFile != INVALID_HANDLE_VALUE,
+    MLG_CHECK(hFile != INVALID_HANDLE_VALUE,
         "Failed to open file: {}, error: {}",
         filePath,
         GetWindowsErrorString(::GetLastError()));
@@ -332,25 +332,25 @@ FileIo::Fetch(const imstring& filePath)
     });
 
     LARGE_INTEGER fsize;
-    expect(::GetFileSizeEx(hFile, &fsize),
+    MLG_CHECK(::GetFileSizeEx(hFile, &fsize),
         "Failed to get file size: {}, error: {}",
         filePath,
         GetWindowsErrorString(::GetLastError()));
 
     const int64_t fileSize = fsize.QuadPart;
 
-    expect(fileSize >= 0, "Failed to get file size for {}.", filePath);
+    MLG_CHECK(fileSize >= 0, "Failed to get file size for {}.", filePath);
 
-    expect(fileSize <= std::numeric_limits<DWORD>::max(), "File is too large to read: {}", filePath);
+    MLG_CHECK(fileSize <= std::numeric_limits<DWORD>::max(), "File is too large to read: {}", filePath);
 
-    expect(fileSize, "File is empty: {}", filePath);
+    MLG_CHECK(fileSize, "File is empty: {}", filePath);
 
     std::unique_ptr<uint8_t[]> bytes = std::make_unique<uint8_t[]>(fileSize);
-    expect(bytes, "Failed to allocate read buffer for file: {}", filePath);
+    MLG_CHECK(bytes, "Failed to allocate read buffer for file: {}", filePath);
 
     auto req = AllocReadRequest(filePath, hFile, std::move(bytes), static_cast<size_t>(fileSize));
 
-    expect(req, "Failed to allocate read request.");
+    MLG_CHECK(req, "Failed to allocate read request.");
 
     cleanupFile.release();
 
@@ -363,7 +363,7 @@ FileIo::Fetch(const imstring& filePath)
     ULONG_PTR key = reinterpret_cast<ULONG_PTR>(req);
 
     // Bind file to IOCP.
-    expect(::CreateIoCompletionPort(req->File, s_IOCP, key, 0) != nullptr,
+    MLG_CHECK(::CreateIoCompletionPort(req->File, s_IOCP, key, 0) != nullptr,
         "Failed to bind file to IOCP: {}, error: {}",
         filePath,
         GetWindowsErrorString(::GetLastError()));

@@ -47,7 +47,7 @@ public:
             Shutdown();
         });
 
-        expectv(State::None == m_State, "Application already initialized or running");
+        MLG_CHECKV(State::None == m_State, "Application already initialized or running");
 
         m_State = State::Initialized;
 
@@ -66,7 +66,7 @@ public:
 
         const CacheKey cacheKey("Sponza");
         auto statusResult = m_ResourceCache->LoadModelFromFileAsync(cacheKey, SPONZA_MODEL_PATH);
-        expect(statusResult);
+        MLG_CHECK(statusResult);
 
         while(statusResult->IsPending())
         {
@@ -74,7 +74,7 @@ public:
         }
 
         auto modelResult = m_ResourceCache->GetModel(cacheKey);
-        expect(modelResult);
+        MLG_CHECK(modelResult);
 
         auto model = *modelResult;
 

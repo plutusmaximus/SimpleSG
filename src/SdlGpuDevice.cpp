@@ -93,8 +93,8 @@ SdlGpuDevice::Create(SDL_Window* window)
     Log::Info("Creating SDL GPU Device...");
 
     //TODO - move these to environment variables.
-    expect(SDL_SetHint(SDL_HINT_RENDER_VULKAN_DEBUG, "1"), SDL_GetError());
-    expect(SDL_SetHint(SDL_HINT_RENDER_GPU_DEBUG, "1"), SDL_GetError());
+    MLG_CHECK(SDL_SetHint(SDL_HINT_RENDER_VULKAN_DEBUG, "1"), SDL_GetError());
+    MLG_CHECK(SDL_SetHint(SDL_HINT_RENDER_GPU_DEBUG, "1"), SDL_GetError());
 
     SDL_GPUVulkanOptions vulkanOptions =
     {
@@ -106,35 +106,35 @@ SdlGpuDevice::Create(SDL_Window* window)
     const bool debugMode = true;
 
     SDL_PropertiesID props = SDL_CreateProperties();
-    expect(props, SDL_GetError());
+    MLG_CHECK(props, SDL_GetError());
 
     auto propsCleanup = scope_exit([&]() { SDL_DestroyProperties(props); });
 
-    expect(SDL_SetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_SHADERS_SPIRV_BOOLEAN, true),
+    MLG_CHECK(SDL_SetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_SHADERS_SPIRV_BOOLEAN, true),
         SDL_GetError());
-    expect(SDL_SetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_DEBUGMODE_BOOLEAN, debugMode),
+    MLG_CHECK(SDL_SetBooleanProperty(props, SDL_PROP_GPU_DEVICE_CREATE_DEBUGMODE_BOOLEAN, debugMode),
         SDL_GetError());
-    expect(SDL_SetStringProperty(props, SDL_PROP_GPU_DEVICE_CREATE_NAME_STRING, DRIVER_NAME),
+    MLG_CHECK(SDL_SetStringProperty(props, SDL_PROP_GPU_DEVICE_CREATE_NAME_STRING, DRIVER_NAME),
         SDL_GetError());
-    expect(
+    MLG_CHECK(
         SDL_SetPointerProperty(props, SDL_PROP_GPU_DEVICE_CREATE_VULKAN_OPTIONS_POINTER, &vulkanOptions),
         SDL_GetError());
 
     SDL_GPUDevice* sdlDevice = SDL_CreateGPUDeviceWithProperties(props);
-    expect(sdlDevice, SDL_GetError());
+    MLG_CHECK(sdlDevice, SDL_GetError());
 
     auto sdlDeviceCleanup = scope_exit([sdlDevice]()
     {
         SDL_DestroyGPUDevice(sdlDevice);
     });
 
-    expect(SDL_ClaimWindowForGPUDevice(sdlDevice, window), SDL_GetError());
+    MLG_CHECK(SDL_ClaimWindowForGPUDevice(sdlDevice, window), SDL_GetError());
 
     if(SDL_WindowSupportsGPUPresentMode(sdlDevice, window, SDL_GPU_PRESENTMODE_MAILBOX))
     {
         Log::Info("Using SDL_GPU_PRESENTMODE_MAILBOX present mode.");
 
-        expect(SDL_SetGPUSwapchainParameters(sdlDevice,
+        MLG_CHECK(SDL_SetGPUSwapchainParameters(sdlDevice,
                window,
                SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
                SDL_GPU_PRESENTMODE_MAILBOX), SDL_GetError());
@@ -143,7 +143,7 @@ SdlGpuDevice::Create(SDL_Window* window)
     {
         Log::Info("Using SDL_GPU_PRESENTMODE_VSYNC present mode.");
 
-        expect(SDL_SetGPUSwapchainParameters(sdlDevice,
+        MLG_CHECK(SDL_SetGPUSwapchainParameters(sdlDevice,
                window,
                SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
                SDL_GPU_PRESENTMODE_VSYNC), SDL_GetError());
@@ -156,7 +156,7 @@ SdlGpuDevice::Create(SDL_Window* window)
 
     SdlGpuDevice* device = new SdlGpuDevice(window, sdlDevice);
 
-    expectv(device, "Error allocating device");
+    MLG_CHECKV(device, "Error allocating device");
 
     sdlDeviceCleanup.release();
 
@@ -210,7 +210,7 @@ Result<GpuVertexBuffer*>
 SdlGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& vertices)
 {
     auto nativeBufResult = CreateGpuBuffer<Vertex>(Device, vertices);
-    expect(nativeBufResult);
+    MLG_CHECK(nativeBufResult);
 
     auto [nativeBuf, sizeofBuffer] = *nativeBufResult;
 
@@ -251,7 +251,7 @@ Result<GpuIndexBuffer*>
 SdlGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& indices)
 {
     auto nativeBufResult = CreateGpuBuffer<VertexIndex>(Device, indices);
-    expect(nativeBufResult);
+    MLG_CHECK(nativeBufResult);
 
     auto [nativeBuf, sizeofBuffer] = *nativeBufResult;
 
@@ -291,11 +291,11 @@ SdlGpuDevice::CreateTexture(const unsigned width,
     Stopwatch sw1;
 
     SDL_PropertiesID props = SDL_CreateProperties();
-    expect(props, SDL_GetError());
+    MLG_CHECK(props, SDL_GetError());
 
     auto propsCleanup = scope_exit([&]() { SDL_DestroyProperties(props); });
 
-    expect(SDL_SetStringProperty(props, SDL_PROP_GPU_TEXTURE_CREATE_NAME_STRING, name.c_str()),
+    MLG_CHECK(SDL_SetStringProperty(props, SDL_PROP_GPU_TEXTURE_CREATE_NAME_STRING, name.c_str()),
         SDL_GetError());
 
     // Create GPU texture
@@ -315,7 +315,7 @@ SdlGpuDevice::CreateTexture(const unsigned width,
     Stopwatch sw;
 
     SDL_GPUTexture* texture = SDL_CreateGPUTexture(Device, &textureInfo);
-    expect(texture, SDL_GetError());
+    MLG_CHECK(texture, SDL_GetError());
     auto texCleanup = scope_exit([&]() { SDL_ReleaseGPUTexture(Device, texture); });
 
     Log::Debug("SDL_CreateGPUTexture: {} ms", sw.Elapsed() * 1000.0f);
@@ -332,7 +332,7 @@ SdlGpuDevice::CreateTexture(const unsigned width,
     // Create transfer buffer for uploading pixel data
     SDL_GPUTransferBuffer* transferBuffer =
         SDL_CreateGPUTransferBuffer(Device, &xferBufferCreateInfo);
-    expect(transferBuffer, SDL_GetError());
+    MLG_CHECK(transferBuffer, SDL_GetError());
     auto tbufferCleanup =
         scope_exit([&]() { SDL_ReleaseGPUTransferBuffer(Device, transferBuffer); });
 
@@ -341,7 +341,7 @@ SdlGpuDevice::CreateTexture(const unsigned width,
 
     // Copy pixel data to transfer buffer
     void* mappedData = SDL_MapGPUTransferBuffer(Device, transferBuffer, false);
-    expect(mappedData, SDL_GetError());
+    MLG_CHECK(mappedData, SDL_GetError());
 
     Log::Debug("SDL_MapGPUTransferBuffer: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
@@ -365,14 +365,14 @@ SdlGpuDevice::CreateTexture(const unsigned width,
 
     // Upload to GPU texture
     SDL_GPUCommandBuffer* cmdBuffer = SDL_AcquireGPUCommandBuffer(Device);
-    expect(cmdBuffer, SDL_GetError());
+    MLG_CHECK(cmdBuffer, SDL_GetError());
     auto cmdBufCleanup = scope_exit([&]() { SDL_CancelGPUCommandBuffer(cmdBuffer); });
 
     Log::Debug("SDL_AcquireGPUCommandBuffer: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
 
     SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(cmdBuffer);
-    expect(copyPass, SDL_GetError());
+    MLG_CHECK(copyPass, SDL_GetError());
 
     Log::Debug("SDL_BeginGPUCopyPass: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
@@ -404,17 +404,17 @@ SdlGpuDevice::CreateTexture(const unsigned width,
     sw.Mark();
 
     cmdBufCleanup.release();
-    expect(SDL_SubmitGPUCommandBuffer(cmdBuffer), SDL_GetError());
+    MLG_CHECK(SDL_SubmitGPUCommandBuffer(cmdBuffer), SDL_GetError());
 
     Log::Debug("SDL_SubmitGPUCommandBuffer: {} ms", sw.Elapsed() * 1000.0f);
     sw.Mark();
 
     auto samplerResult = GetDefaultSampler();
-    expect(samplerResult);
+    MLG_CHECK(samplerResult);
 
     GpuResource* res = m_ResourceAllocator.New();
 
-    expectv(res, "Error allocating GpuResource");
+    MLG_CHECKV(res, "Error allocating GpuResource");
 
     texCleanup.release();
 
@@ -451,12 +451,12 @@ SdlGpuDevice::CreateMaterial(const MaterialConstants& mtlConstants, GpuTexture* 
 {
     SdlGpuTexture* sdlBaseTexture = static_cast<SdlGpuTexture*>(baseTexture);
 
-    expectv(sdlBaseTexture->m_GpuDevice == this,
+    MLG_CHECKV(sdlBaseTexture->m_GpuDevice == this,
            "Base texture must belong to this device");
 
     GpuResource* res = m_ResourceAllocator.New();
 
-    expect(res, "Error allocating GpuResource");
+    MLG_CHECK(res, "Error allocating GpuResource");
 
     return ::new(&res->Material) SdlGpuMaterial(this, baseTexture, mtlConstants);
 }
@@ -476,11 +476,11 @@ Result<GpuColorTarget*>
 SdlGpuDevice::CreateColorTarget(const unsigned width, const unsigned height, const imstring& name)
 {
     SDL_PropertiesID props = SDL_CreateProperties();
-    expect(props, SDL_GetError());
+    MLG_CHECK(props, SDL_GetError());
 
     auto propsCleanup = scope_exit([&]() { SDL_DestroyProperties(props); });
 
-    expect(SDL_SetStringProperty(props, SDL_PROP_GPU_TEXTURE_CREATE_NAME_STRING, name.c_str()),
+    MLG_CHECK(SDL_SetStringProperty(props, SDL_PROP_GPU_TEXTURE_CREATE_NAME_STRING, name.c_str()),
         SDL_GetError());
 
     // Create GPU texture
@@ -498,10 +498,10 @@ SdlGpuDevice::CreateColorTarget(const unsigned width, const unsigned height, con
         };
 
     SDL_GPUTexture* texture = SDL_CreateGPUTexture(Device, &textureInfo);
-    expect(texture, SDL_GetError());
+    MLG_CHECK(texture, SDL_GetError());
 
     auto samplerResult = GetDefaultSampler();
-    expect(samplerResult);
+    MLG_CHECK(samplerResult);
 
     GpuResource* res = m_ResourceAllocator.New();
 
@@ -511,7 +511,7 @@ SdlGpuDevice::CreateColorTarget(const unsigned width, const unsigned height, con
         return Result<>::Fail;
     }
 
-    expectv(res, "Error allocating GpuResource");
+    MLG_CHECKV(res, "Error allocating GpuResource");
 
     GpuColorTarget* gpuColorTarget = ::new(&res->ColorTarget)
         SdlGpuColorTarget(this, texture, *samplerResult, width, height, kColorTargetFormat);
@@ -535,11 +535,11 @@ SdlGpuDevice::CreateDepthTarget(
     const unsigned width, const unsigned height, const imstring& name)
 {
     auto props = SDL_CreateProperties();
-    expect(props, SDL_GetError());
+    MLG_CHECK(props, SDL_GetError());
 
     auto propsCleanup = scope_exit([&]() { SDL_DestroyProperties(props); });
 
-    expect(SDL_SetStringProperty(props, SDL_PROP_GPU_TEXTURE_CREATE_NAME_STRING, name.c_str()),
+    MLG_CHECK(SDL_SetStringProperty(props, SDL_PROP_GPU_TEXTURE_CREATE_NAME_STRING, name.c_str()),
         SDL_GetError());
 
     SDL_GPUTextureCreateInfo m_DepthCreateInfo //
@@ -560,13 +560,13 @@ SdlGpuDevice::CreateDepthTarget(
         clearDepth);*/
 
     auto depthBuffer = SDL_CreateGPUTexture(Device, &m_DepthCreateInfo);
-    expect(depthBuffer, SDL_GetError());
+    MLG_CHECK(depthBuffer, SDL_GetError());
 
     auto depthBufferCleanup = scope_exit([&]() { SDL_ReleaseGPUTexture(Device, depthBuffer); });
 
     GpuResource* res = m_ResourceAllocator.New();
 
-    expectv(res, "Error allocating GpuResource");
+    MLG_CHECKV(res, "Error allocating GpuResource");
 
     depthBufferCleanup.release();
 
@@ -619,7 +619,7 @@ SdlGpuDevice::GetDefaultSampler()
             };
 
         m_Sampler = SDL_CreateGPUSampler(Device, &samplerInfo);
-        expect(m_Sampler, SDL_GetError());
+        MLG_CHECK(m_Sampler, SDL_GetError());
     }
     return m_Sampler;
 }
@@ -641,7 +641,7 @@ CreateGpuBuffer(SDL_GPUDevice* gd, const std::span<const std::span<const T>>& sp
     };
 
     SDL_GPUBuffer* nativeBuf = SDL_CreateGPUBuffer(gd, &bufferCreateInfo);
-    expect(nativeBuf, SDL_GetError());
+    MLG_CHECK(nativeBuf, SDL_GetError());
 
     auto bufCleanup = scope_exit([&]()
     {
@@ -658,7 +658,7 @@ CreateGpuBuffer(SDL_GPUDevice* gd, const std::span<const std::span<const T>>& sp
     };
 
     SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(gd, &xferBufCreateInfo);
-    expect(transferBuffer, SDL_GetError());
+    MLG_CHECK(transferBuffer, SDL_GetError());
     auto tbufferCleanup = scope_exit([&]()
     {
         SDL_ReleaseGPUTransferBuffer(gd, transferBuffer);
@@ -666,7 +666,7 @@ CreateGpuBuffer(SDL_GPUDevice* gd, const std::span<const std::span<const T>>& sp
 
     // Copy to transfer buffer
     uint8_t* xferBuf = static_cast<uint8_t*>(SDL_MapGPUTransferBuffer(gd, transferBuffer, false));
-    expect(xferBuf, SDL_GetError());
+    MLG_CHECK(xferBuf, SDL_GetError());
 
     T* dst = reinterpret_cast<T*>(xferBuf);
 
@@ -687,14 +687,14 @@ CreateGpuBuffer(SDL_GPUDevice* gd, const std::span<const std::span<const T>>& sp
 
     //Upload data to GPU mem.
     SDL_GPUCommandBuffer* uploadCmdBuf = SDL_AcquireGPUCommandBuffer(gd);
-    expect(uploadCmdBuf, SDL_GetError());
+    MLG_CHECK(uploadCmdBuf, SDL_GetError());
     auto cmdBufCleanup = scope_exit([&]()
     {
         SDL_CancelGPUCommandBuffer(uploadCmdBuf);
     });
 
     SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(uploadCmdBuf);
-    expect(copyPass, SDL_GetError());
+    MLG_CHECK(copyPass, SDL_GetError());
 
     SDL_GPUTransferBufferLocation srcBuf
     {
@@ -712,7 +712,7 @@ CreateGpuBuffer(SDL_GPUDevice* gd, const std::span<const std::span<const T>>& sp
 
     SDL_EndGPUCopyPass(copyPass);
 
-    expect(SDL_SubmitGPUCommandBuffer(uploadCmdBuf), SDL_GetError());
+    MLG_CHECK(SDL_SubmitGPUCommandBuffer(uploadCmdBuf), SDL_GetError());
 
     cmdBufCleanup.release();
     bufCleanup.release();

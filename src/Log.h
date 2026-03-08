@@ -268,6 +268,23 @@ private:
     static inline std::string s_LogPrefix;
 };
 
+namespace mlg
+{
+struct LogScope
+{
+    template<typename... Args>
+    LogScope(std::format_string<Args...> fmt, Args&&... args)
+    {
+        Log::PushPrefix(fmt, std::forward<Args>(args)...);
+    }
+
+    ~LogScope()
+    {
+        Log::PopPrefix();
+    }
+};
+}
+
 // Helper macros for scoping log messages.
 // Usage:
 //  Log::Debug("Starting...");

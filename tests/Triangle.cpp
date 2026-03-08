@@ -29,7 +29,7 @@ static Result<> MainLoop()
     auto cwd = std::filesystem::current_path();
     Log::Info("Current working directory: {}", cwd.string());
 
-    expect(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
+    MLG_CHECK(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
 
     auto sdlCleanup = scope_exit([]()
     {
@@ -37,20 +37,20 @@ static Result<> MainLoop()
     });
 
     SDL_Rect displayRect;
-    expect(SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &displayRect), SDL_GetError());
+    MLG_CHECK(SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &displayRect), SDL_GetError());
     const int winW = displayRect.w * 3 / 4;//0.75
     const int winH = displayRect.h * 3 / 4;//0.75
 
     // Create window
     auto window = SDL_CreateWindow(kAppName, winW, winH, SDL_WINDOW_RESIZABLE);
-    expect(window, SDL_GetError());
+    MLG_CHECK(window, SDL_GetError());
 
     auto windowCleanup = scope_exit([window]()
     {
         SDL_DestroyWindow(window);
     });
 
-    expect(FileIo::Startup(), "Failed to startup File I/O system");
+    MLG_CHECK(FileIo::Startup(), "Failed to startup File I/O system");
 
     auto fileIoCleanup = scope_exit([]()
     {
@@ -63,7 +63,7 @@ static Result<> MainLoop()
     auto gdResult = SdlGpuDevice::Create(window);
 #endif
 
-    expect(gdResult);
+    MLG_CHECK(gdResult);
 
     auto gpuDevice = *gdResult;
 
@@ -88,7 +88,7 @@ static Result<> MainLoop()
     camera.SetPerspective(fov, screenBounds, 0.1f, 1000);
 
     auto modelResult = CreateTriangleModel(&resourceCache);
-    expect(modelResult);
+    MLG_CHECK(modelResult);
     auto model = *modelResult;
 
     Renderer* renderer = gpuDevice->GetRenderer();
@@ -205,13 +205,13 @@ static Result<> MainLoop()
         nonGpuWorkTimer.Stop();
 
         auto renderResult = renderer->Render(cameraXform.ToMatrix(), camera.GetProjection(), renderCompositor);
-        expect(renderResult);
+        MLG_CHECK(renderResult);
 
         auto imGuiRenderResult = imGuiRenderer.Render(renderCompositor);
-        expect(imGuiRenderResult);
+        MLG_CHECK(imGuiRenderResult);
 
         auto endFrameResult = renderCompositor->EndFrame();
-        expect(endFrameResult);
+        MLG_CHECK(endFrameResult);
 
 #if DAWN_GPU
         auto dawnGpuDevice = static_cast<DawnGpuDevice*>(gpuDevice);
@@ -219,7 +219,7 @@ static Result<> MainLoop()
 #if !defined(__EMSCRIPTEN__)
 
 #if !OFFSCREEN_RENDERING
-        expect(dawnGpuDevice->Surface.Present(), "Failed to present backbuffer");
+        MLG_CHECK(dawnGpuDevice->Surface.Present(), "Failed to present backbuffer");
 #endif
 
 #endif
@@ -303,7 +303,7 @@ static Result<ModelResource> CreateTriangleModel(ResourceCache* cache)
     const CacheKey cacheKey = CacheKey("TriangleModel");
 
     auto result = cache->CreateModelAsync(cacheKey, modelSpec);
-    expect(result);
+    MLG_CHECK(result);
 
     // Wait for the model to be created.
     while(result->IsPending())

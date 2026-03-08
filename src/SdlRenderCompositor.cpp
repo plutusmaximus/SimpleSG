@@ -23,12 +23,12 @@ SdlRenderCompositor::~SdlRenderCompositor()
 Result<>
 SdlRenderCompositor::BeginFrame()
 {
-    expectv(!m_FrameStarted, "Frame already started");
+    MLG_CHECKV(!m_FrameStarted, "Frame already started");
 
     m_FrameStarted = true;
 
     auto fenceResult = WaitForFence();
-    expect(fenceResult);
+    MLG_CHECK(fenceResult);
 
     MLG_ASSERT(!m_Target, "Target should be null at the beginning of the frame");
     MLG_ASSERT(!m_CommandBuffer, "Command buffer should be null at the beginning of the frame");
@@ -39,11 +39,11 @@ SdlRenderCompositor::BeginFrame()
     {
         auto scopedAcquireCmdBufTimer = acquireCmdBufTimer.StartScoped();
         m_CommandBuffer = SDL_AcquireGPUCommandBuffer(gpuDevice);
-        expect(m_CommandBuffer, SDL_GetError());
+        MLG_CHECK(m_CommandBuffer, SDL_GetError());
     }
 
 #if !OFFSCREEN_RENDERING
-    expect(
+    MLG_CHECK(
         SDL_WaitAndAcquireGPUSwapchainTexture(m_CommandBuffer, m_GpuDevice->Window, &m_Target, nullptr, nullptr),
         SDL_GetError());
 
@@ -63,7 +63,7 @@ SdlRenderCompositor::BeginFrame()
 Result<>
 SdlRenderCompositor::EndFrame()
 {
-    expectv(m_FrameStarted, "Frame not started");
+    MLG_CHECKV(m_FrameStarted, "Frame not started");
 
     m_FrameStarted = false;
 
@@ -81,9 +81,9 @@ SdlRenderCompositor::EndFrame()
     static PerfTimer submitCmdBufferTimer("RenderCompositor.SubmitCommandBuffer");
     {
         auto scopedTimer = submitCmdBufferTimer.StartScoped();
-        //expect(SDL_SubmitGPUCommandBuffer(cmdBuf), SDL_GetError());
+        //MLG_CHECK(SDL_SubmitGPUCommandBuffer(cmdBuf), SDL_GetError());
         m_RenderFence = SDL_SubmitGPUCommandBufferAndAcquireFence(cmdBuf);
-        expect(m_RenderFence, SDL_GetError());
+        MLG_CHECK(m_RenderFence, SDL_GetError());
     }
 
     return Result<>::Ok;
@@ -125,7 +125,7 @@ SdlRenderCompositor::WaitForFence()
                 &m_RenderFence,
                 1);
 
-        expect(success, SDL_GetError());
+        MLG_CHECK(success, SDL_GetError());
 
         SDL_ReleaseGPUFence(m_GpuDevice->Device, m_RenderFence);
         m_RenderFence = nullptr;

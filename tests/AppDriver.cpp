@@ -45,23 +45,23 @@ AppDriver::SetMouseCapture(const bool capture)
 Result<>
 AppDriver::Init()
 {
-    expectv(State::None == m_State, "AppDriver already initialized or running");
+    MLG_CHECKV(State::None == m_State, "AppDriver already initialized or running");
 
     Log::SetLevel(Log::Level::Trace);
 
     auto cwd = std::filesystem::current_path();
     Log::Info("Current working directory: {}", cwd.string());
 
-    expect(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
+    MLG_CHECK(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
 
     SDL_Rect displayRect;
-    expect(SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &displayRect), SDL_GetError());
+    MLG_CHECK(SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &displayRect), SDL_GetError());
     const int winW = displayRect.w * 3 / 4;//0.75
     const int winH = displayRect.h * 3 / 4;//0.75
 
     // Create window
     auto window = SDL_CreateWindow(m_AppLifecycle->GetName().data(), winW, winH, SDL_WINDOW_RESIZABLE);
-    expect(window, SDL_GetError());
+    MLG_CHECK(window, SDL_GetError());
 
     m_Window = window;
 
@@ -73,11 +73,11 @@ AppDriver::Init()
 Result<>
 AppDriver::Run()
 {
-    expectv(State::Initialized == m_State, "AppDriver not initialized");
+    MLG_CHECKV(State::Initialized == m_State, "AppDriver not initialized");
 
     m_State = State::Running;
 
-    expect(FileIo::Startup(), "Failed to startup File I/O system");
+    MLG_CHECK(FileIo::Startup(), "Failed to startup File I/O system");
 
     #if DAWN_GPU
         auto gdResult = DawnGpuDevice::Create(m_Window);
@@ -85,7 +85,7 @@ AppDriver::Run()
         auto gdResult = SdlGpuDevice::Create(m_Window);
     #endif
 
-    expect(gdResult);
+    MLG_CHECK(gdResult);
 
     auto gpuDevice = *gdResult;
 
@@ -96,7 +96,7 @@ AppDriver::Run()
     Application* app = m_AppLifecycle->Create();
 
     auto initResult = app->Initialize(&context);
-    expect(initResult);
+    MLG_CHECK(initResult);
 
     bool running = true;
 
@@ -183,7 +183,7 @@ AppDriver::Run()
 #if DAWN_GPU
 #if !defined(__EMSCRIPTEN__)
         auto dawnGpuDevice = static_cast<DawnGpuDevice*>(gpuDevice);
-        expect(dawnGpuDevice->Surface.Present(), "Failed to present backbuffer");
+        MLG_CHECK(dawnGpuDevice->Surface.Present(), "Failed to present backbuffer");
 #endif
 
         dawnGpuDevice->Instance.ProcessEvents();

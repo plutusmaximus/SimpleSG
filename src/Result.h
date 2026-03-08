@@ -77,21 +77,21 @@ public:
     }
 };
 
-#define expect(expr, ...)                                               \
-    {                                                                   \
-        if(!static_cast<bool>(expr))                                    \
-        {                                                               \
-            Log::Error("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__));    \
-            return Result<>::Fail;               \
-        }                                                               \
-    }
+#define MLG_CHECK(expr, ...) \
+    do{ \
+        if(!static_cast<bool>(expr)) \
+        { \
+            Log::Error("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__)); \
+            return Result<>::Fail; \
+        } \
+    } while(0)
 
-// Like expect but also calls verify and pops an assert if false.
-#define expectv(expr, ...)                                              \
-    {                                                                   \
-        if(!MLG_VERIFY(expr, ##__VA_ARGS__))                               \
-        {                                                               \
-            Log::Error("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__));    \
-            return Result<>::Fail;               \
-        }                                                               \
-    }
+// Like MLG_CHECK but also calls verify and pops an assert if false.
+#define MLG_CHECKV(expr, ...) \
+    do{ \
+        if(!MLG_VERIFY(expr, ##__VA_ARGS__)) \
+        { \
+            Log::Error("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__)); \
+            return Result<>::Fail; \
+        } \
+    } while(0)
