@@ -51,30 +51,31 @@ Model::~Model()
                 Log::Debug("Failed to destroy index buffer");
             }
         }
+
+        if(m_MeshToTransformMapping)
+        {
+            const auto res = m_GpuDevice->DestroyReadonlyBuffer(m_MeshToTransformMapping);
+            if(!res)
+            {
+                Log::Debug("Failed to destroy mesh to transform mapping buffer");
+            }
+        }
     }
 }
 
 Result<Model>
 Model::Create(
     const imvector<Mesh>& meshes,
-    const imvector<TransformIndex>& meshToTransformMapping,
     const imvector<TransformNode>& transformNodes,
     GpuDevice* gpuDevice,
+    GpuReadonlyBuffer* meshToTransformMapping,
     GpuVertexBuffer* vertexBuffer,
     GpuIndexBuffer* indexBuffer)
 {
     Log::Debug(
         "Creating model with {} meshes, {} transform nodes",
         meshes.size(),
-        meshToTransformMapping.size(),
         transformNodes.size());
-
-    for(size_t i = 0; i < meshToTransformMapping.size(); ++i)
-    {
-        MLG_ASSERT(
-            meshToTransformMapping[i] < static_cast<int>(transformNodes.size()),
-            "Mesh instance {} has invalid mesh index {}", i, meshToTransformMapping[i]);
-    }
 
     for(size_t i = 0; i < transformNodes.size(); ++i)
     {
@@ -85,5 +86,5 @@ Model::Create(
             transformNodes[i].ParentIndex);
     }
 
-    return Model(meshes, meshToTransformMapping, transformNodes, gpuDevice, vertexBuffer, indexBuffer);
+    return Model(meshes, transformNodes, gpuDevice, meshToTransformMapping, vertexBuffer, indexBuffer);
 }

@@ -1,5 +1,7 @@
 #pragma once
 
+#if 0
+
 #include "Renderer.h"
 #include "Model.h"
 
@@ -121,3 +123,5 @@ private:
     SDL_GPUBuffer* m_DrawIndirectBuffer{nullptr};
     SDL_GPUTransferBuffer* m_DrawIndirectXferBuffer{nullptr}; // Transfer buffer for draw indirect draw params
 };
+
+#endif  //0

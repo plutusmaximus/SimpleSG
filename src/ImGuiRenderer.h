@@ -25,10 +25,12 @@ private:
     Result<> DawnNewFrame();
     Result<> DawnRender(RenderCompositor* renderCompositor);
 
+#if 0
     Result<> SdlStartup();
     Result<> SdlShutdown();
     Result<> SdlNewFrame();
     Result<> SdlRender(RenderCompositor* renderCompositor);
+#endif  //0
 
     GpuDevice* m_GpuDevice;
 

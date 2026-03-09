@@ -67,6 +67,14 @@ static inline size_t alignUniformBuffer(const wgpu::Limits& limits)
     return (sizeof(T) + alignment - 1) & ~(alignment - 1);
 }
 
+Result<>
+DawnGpuReadonlyBuffer::WriteBuffer(const std::span<const uint8_t>& data)
+{
+    m_GpuDevice->Device.GetQueue().WriteBuffer(m_Buffer, 0, data.data(), data.size());
+
+    return Result<>::Ok;
+}
+
 DawnGpuDevice::DawnGpuDevice(SDL_Window* window,
     wgpu::Instance instance,
     wgpu::Adapter adapter,
@@ -213,6 +221,41 @@ DawnGpuDevice::DestroyIndexBuffer(GpuIndexBuffer* buffer)
         "IndexBuffer does not belong to this device");
     dawnBuffer->~DawnGpuIndexBuffer();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(buffer));
+    return Result<>::Ok;
+}
+
+Result<GpuReadonlyBuffer*>
+DawnGpuDevice::CreateReadonlyBuffer(const size_t size)
+{
+    // Size must be a multiple of 4
+    const size_t bufferSize = (size + 3) & ~0x03;
+
+    wgpu::BufferDescriptor bufferDesc //
+        {
+            .label = "ReadonlyBuffer",
+            .usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
+            .size = bufferSize,
+            .mappedAtCreation = false,
+        };
+
+    wgpu::Buffer buffer = Device.CreateBuffer(&bufferDesc);
+    MLG_CHECK(buffer, "Failed to create readonly buffer");
+
+    GpuResource* res = m_ResourceAllocator.New();
+
+    MLG_CHECKV(res, "Error allocating DawnGpuReadonlyBuffer");
+
+    return ::new(&res->ReadonlyBuffer) DawnGpuReadonlyBuffer(this, buffer);
+}
+
+Result<>
+DawnGpuDevice::DestroyReadonlyBuffer(GpuReadonlyBuffer* readonlyBuffer)
+{
+    DawnGpuReadonlyBuffer* dawnBuffer = static_cast<DawnGpuReadonlyBuffer*>(readonlyBuffer);
+    MLG_ASSERT(this == dawnBuffer->m_GpuDevice,
+        "ReadonlyBuffer does not belong to this device");
+    dawnBuffer->~DawnGpuReadonlyBuffer();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(readonlyBuffer));
     return Result<>::Ok;
 }
 

@@ -22,16 +22,12 @@ class Mesh
 public:
 
     Mesh(const imstring& name,
-        const GpuVertexBuffer* vb,
-        const GpuIndexBuffer* ib,
         const unsigned indexCount,
         const unsigned vertexOffset,
         const unsigned indexOffset,
         const Material& material,
         GpuMaterial* gpuMaterial)
         : m_Name(name)
-        , m_VtxBuffer(vb)
-        , m_IdxBuffer(ib)
         , m_IndexCount(indexCount)
         , m_Material(material)
         , m_GpuMaterial(gpuMaterial)
@@ -51,16 +47,12 @@ public:
     unsigned GetIndexCount() const { return m_IndexCount; }
     const Material& GetMaterial() const { return m_Material; }
     GpuMaterial* GetGpuMaterial() const { return m_GpuMaterial; }
-    const GpuVertexBuffer* GetGpuVertexBuffer() const { return m_VtxBuffer; }
-    const GpuIndexBuffer* GetGpuIndexBuffer() const { return m_IdxBuffer; }
 
 private:
 
     Mesh() = delete;
 
     imstring m_Name;
-    const GpuVertexBuffer* m_VtxBuffer;
-    const GpuIndexBuffer* m_IdxBuffer;
     unsigned m_IndexOffset;
     unsigned m_VertexOffset;
     unsigned m_IndexCount;

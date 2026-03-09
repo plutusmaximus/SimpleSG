@@ -73,37 +73,39 @@ public:
 
     static Result<Model> Create(
         const imvector<Mesh>& meshes,
-        const imvector<TransformIndex>& meshToTransformMapping,
         const imvector<TransformNode>& transformNodes,
         GpuDevice* gpuDevice,
+        GpuReadonlyBuffer* meshToTransformMapping,
         GpuVertexBuffer* vertexBuffer,
         GpuIndexBuffer* indexBuffer);
 
     const imvector<Mesh>& GetMeshes() const { return m_Meshes; }
-    const imvector<TransformIndex>& GetMeshToTransformMapping() const { return m_MeshToTransformMapping; }
     const imvector<TransformNode>& GetTransformNodes() const { return m_TransformNodes; }
+    const GpuReadonlyBuffer* GetMeshToTransformMapping() const { return m_MeshToTransformMapping; }
+    const GpuVertexBuffer* GetGpuVertexBuffer() const { return m_VertexBuffer; }
+    const GpuIndexBuffer* GetGpuIndexBuffer() const { return m_IndexBuffer; }
 
 private:
     Model(const imvector<Mesh>& meshes,
-        const imvector<TransformIndex>& meshToTransformMapping,
         const imvector<TransformNode>& transformNodes,
         GpuDevice* gpuDevice,
+        GpuReadonlyBuffer* meshToTransformMapping,
         GpuVertexBuffer* vertexBuffer,
         GpuIndexBuffer* indexBuffer)
         : m_Meshes(meshes),
-          m_MeshToTransformMapping(meshToTransformMapping),
           m_TransformNodes(transformNodes),
           m_GpuDevice(gpuDevice),
+          m_MeshToTransformMapping(meshToTransformMapping),
           m_VertexBuffer(vertexBuffer),
           m_IndexBuffer(indexBuffer)
     {
     }
 
     imvector<Mesh> m_Meshes;
-    imvector<TransformIndex> m_MeshToTransformMapping;
     imvector<TransformNode> m_TransformNodes;
 
-    GpuDevice* m_GpuDevice = nullptr;
-    GpuVertexBuffer* m_VertexBuffer = nullptr;
-    GpuIndexBuffer* m_IndexBuffer = nullptr;
+    GpuDevice* m_GpuDevice{nullptr};
+    GpuReadonlyBuffer* m_MeshToTransformMapping{nullptr};
+    GpuVertexBuffer* m_VertexBuffer{nullptr};
+    GpuIndexBuffer* m_IndexBuffer{nullptr};
 };

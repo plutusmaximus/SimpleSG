@@ -204,7 +204,12 @@ static Result<> MainLoop()
 
         nonGpuWorkTimer.Stop();
 
-        auto renderResult = renderer->Render(cameraXform.ToMatrix(), camera.GetProjection(), renderCompositor);
+        auto renderResult = renderer->Render(cameraXform.ToMatrix(),
+            camera.GetProjection(),
+            model.Get(),
+            1,
+            renderCompositor);
+
         MLG_CHECK(renderResult);
 
         auto imGuiRenderResult = imGuiRenderer.Render(renderCompositor);

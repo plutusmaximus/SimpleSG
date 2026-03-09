@@ -23,8 +23,11 @@ public:
 
     void AddModel(const Mat44f& worldTransform, const Model* model) override;
 
-    Result<> Render(
-        const Mat44f& camera, const Mat44f& projection, RenderCompositor* compositor) override;
+    Result<> Render(const Mat44f& camera,
+        const Mat44f& projection,
+        const Model* models,
+        const size_t modelCount,
+        RenderCompositor* compositor) override;
 
 private:
 
@@ -34,23 +37,23 @@ private:
 
     Result<wgpu::RenderPassEncoder> BeginRenderPass(wgpu::CommandEncoder cmdEncoder);
 
-    struct XformMesh
-    {
-        const Mat44f WorldTransform;
-        const Mesh& MeshInstance;
-    };
-
     struct State
     {
         void Clear()
         {
             m_Meshes.clear();
+            m_Transforms.clear();
+            m_Materials.clear();
             m_MeshCount = 0;
         }
 
-        std::vector<XformMesh> m_Meshes;
+        std::vector<const Mesh*> m_Meshes;
 
         std::vector<Mat44f> m_Transforms;
+
+        std::vector<TransformIndex> m_MeshToTransformMap;
+
+        std::vector<const GpuMaterial*> m_Materials;
 
         size_t m_MeshCount = 0;
     };
@@ -74,8 +77,11 @@ private:
     Result<wgpu::ShaderModule> CreateVertexShader(const char* path);
     Result<wgpu::ShaderModule> CreateFragmentShader(const char* path);
 
-    Result<> UpdateXformBuffer(
-        wgpu::CommandEncoder cmdEncoder, const Mat44f& camera, const Mat44f& projection);
+    Result<> UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
+        const Mat44f& camera,
+        const Mat44f& projection,
+        const Model* models,
+        const size_t modelCount);
 
     /// Get or create the default texture.
     /// The default texture is used when a material does not have a base texture.
@@ -106,9 +112,6 @@ private:
 
     size_t m_SizeofTransformBuffer{0};
     wgpu::Buffer m_TransformBuf;
-
-    size_t m_SizeofMeshToTransformMapBuffer{0};
-    wgpu::Buffer m_MeshToTransformMapBuf;
 
     wgpu::BindGroup m_VertexShaderBindGroup;
 

@@ -542,8 +542,6 @@ ResourceCache::CreateModelOp::CreateModel()
         const unsigned vtxCount = static_cast<unsigned>(meshSpec.Vertices.size());
 
         meshes.emplace_back(meshSpec.Name,
-            m_VertexBuffer,
-            m_IndexBuffer,
             idxCount,
             vtxOffset,
             idxOffset,
@@ -554,10 +552,17 @@ ResourceCache::CreateModelOp::CreateModel()
         vtxOffset += vtxCount;
     }
 
+    const auto& mapping = m_ModelSpec.GetMeshToTransformMapping();
+    const size_t sizeofBuffer = mapping.size() * sizeof(TransformIndex);
+    auto meshToTransformMappingBuffer = m_ResourceCache->m_GpuDevice->CreateReadonlyBuffer(sizeofBuffer);
+    MLG_CHECK(meshToTransformMappingBuffer);
+    const std::span<const uint8_t> span(reinterpret_cast<const uint8_t*>(mapping.data()), sizeofBuffer);
+    (*meshToTransformMappingBuffer)->WriteBuffer(span);
+
     auto modelResult = Model::Create(meshes.build(),
-        m_ModelSpec.GetMeshToTransformMapping(),
         m_ModelSpec.GetTransformNodes(),
         m_ResourceCache->m_GpuDevice,
+        *meshToTransformMappingBuffer,
         m_VertexBuffer,
         m_IndexBuffer);
 

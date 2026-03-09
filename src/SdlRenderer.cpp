@@ -1,3 +1,5 @@
+#if 0
+
 #define _CRT_SECURE_NO_WARNINGS
 
 #define __LOGGER_NAME__ "SDL "
@@ -1081,3 +1083,5 @@ SdlRenderer::GetDefaultBaseTexture()
 
     return m_DefaultBaseTexture;
 }
+
+#endif  //0

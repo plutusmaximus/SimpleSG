@@ -25,8 +25,11 @@ public:
     virtual void AddModel(const Mat44f& viewTransform, const Model* model) = 0;
 
     /// @brief Renders the current frame using the provided camera and projection matrices.
-    virtual Result<> Render(
-        const Mat44f& camera, const Mat44f& projection, RenderCompositor* compositor) = 0;
+    virtual Result<> Render(const Mat44f& camera,
+        const Mat44f& projection,
+        const Model* models,
+        const size_t modelCount,
+        RenderCompositor* compositor) = 0;
 
 protected:
     Renderer() = default;

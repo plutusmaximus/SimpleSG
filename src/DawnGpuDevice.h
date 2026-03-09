@@ -75,6 +75,35 @@ private:
     const unsigned m_ItemCount;
 };
 
+class DawnGpuReadonlyBuffer : public GpuReadonlyBuffer
+{
+public:
+    DawnGpuReadonlyBuffer() = delete;
+    DawnGpuReadonlyBuffer(const DawnGpuReadonlyBuffer&) = delete;
+    DawnGpuReadonlyBuffer& operator=(const DawnGpuReadonlyBuffer&) = delete;
+    DawnGpuReadonlyBuffer(DawnGpuReadonlyBuffer&&) = delete;
+    DawnGpuReadonlyBuffer& operator=(DawnGpuReadonlyBuffer&&) = delete;
+
+    // wgpu::Buffer is ref counted so nothing to do here.
+    ~DawnGpuReadonlyBuffer() override {};
+
+    Result<> WriteBuffer(const std::span<const uint8_t>& data) override;
+
+    wgpu::Buffer GetBuffer() const { return m_Buffer; }
+
+private:
+    friend class DawnGpuDevice;
+
+    explicit DawnGpuReadonlyBuffer(DawnGpuDevice* gpuDevice, wgpu::Buffer buffer)
+        : m_GpuDevice(gpuDevice),
+          m_Buffer(buffer)
+    {
+    }
+
+    DawnGpuDevice* m_GpuDevice;
+    wgpu::Buffer m_Buffer;
+};
+
 class DawnGpuTexture : public GpuTexture
 {
 public:
@@ -289,6 +318,10 @@ public:
 
     Result<> DestroyIndexBuffer(GpuIndexBuffer* buffer) override;
 
+    Result<GpuReadonlyBuffer*> CreateReadonlyBuffer(const size_t size) override;
+
+    Result<> DestroyReadonlyBuffer(GpuReadonlyBuffer* readonlyBuffer) override;
+
     Result<GpuTexture*> CreateTexture(const unsigned width,
         const unsigned height,
         const uint8_t* pixels,
@@ -353,6 +386,7 @@ private:
 
         DawnGpuVertexBuffer VertexBuffer;
         DawnGpuIndexBuffer IndexBuffer;
+        DawnGpuReadonlyBuffer ReadonlyBuffer;
         DawnGpuTexture Texture;
         DawnGpuMaterial Material;
         DawnGpuColorTarget ColorTarget;
@@ -362,7 +396,7 @@ private:
     PoolAllocator<GpuResource, 256> m_ResourceAllocator;
 
     // Renderer and RenderCompositor are initialized with ::new(), so
-    // theny can be destroyed explicitly before the GPU device is destroyed (as they hold GPU
+    // they can be destroyed explicitly before the GPU device is destroyed (as they hold GPU
     // resources and must be destroyed first).
     uint8_t m_RendererBuffer[sizeof(DawnRenderer)];
     uint8_t m_RenderCompositorBuffer[sizeof(DawnRenderCompositor)];

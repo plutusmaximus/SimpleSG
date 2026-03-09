@@ -54,6 +54,18 @@ protected:
     virtual ~GpuTexture() = 0;
 };
 
+/// @brief GPU representation of a readonly storage buffer.
+class GpuReadonlyBuffer
+{
+public:
+
+    virtual Result<> WriteBuffer(const std::span<const uint8_t>& data) = 0;
+
+protected:
+    GpuReadonlyBuffer() = default;
+    virtual ~GpuReadonlyBuffer() = 0;
+};
+
 /// @brief GPU representation of a material.
 class GpuMaterial
 {
@@ -133,6 +145,12 @@ public:
     /// @brief Destroys an index buffer.
     virtual Result<> DestroyIndexBuffer(GpuIndexBuffer* indexBuffer) = 0;
 
+    /// @brief Creates a readonly buffer from multiple spans of indices.
+    virtual Result<GpuReadonlyBuffer*> CreateReadonlyBuffer(const size_t size) = 0;
+
+    /// @brief Destroys a readonly buffer.
+    virtual Result<> DestroyReadonlyBuffer(GpuReadonlyBuffer* readonlyBuffer) = 0;
+
     /// @brief Creates a texture from raw pixel data.
     /// Pixels are expected to be in RGBA8 format.
     /// rowStride is the number of bytes between the start of each row.
@@ -180,6 +198,7 @@ protected:
 
 inline GpuVertexBuffer::~GpuVertexBuffer() = default;
 inline GpuIndexBuffer::~GpuIndexBuffer() = default;
+inline GpuReadonlyBuffer::~GpuReadonlyBuffer() = default;
 inline GpuTexture::~GpuTexture() = default;
 inline GpuMaterial::~GpuMaterial() = default;
 inline GpuColorTarget::~GpuColorTarget() = default;

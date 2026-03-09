@@ -170,10 +170,9 @@ public:
         {
             const auto [eid, worldMat, model] = tuple;
             m_Renderer->AddModel(worldMat, model.Get());
+            const auto [camWorldMat, camera] = cameraTuple;
+            m_Renderer->Render(camWorldMat, camera.GetProjection(), model.Get(), 1, m_RenderCompositor);
         }
-
-        const auto [camWorldMat, camera] = cameraTuple;
-        m_Renderer->Render(camWorldMat, camera.GetProjection(), m_RenderCompositor);
 
         m_ImGuiRenderer->Render(m_RenderCompositor);
 

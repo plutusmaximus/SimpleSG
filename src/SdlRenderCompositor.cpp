@@ -1,3 +1,5 @@
+#if 0
+
 #include "SdlRenderCompositor.h"
 
 #include "PerfMetrics.h"
@@ -133,3 +135,5 @@ SdlRenderCompositor::WaitForFence()
 
     return Result<>::Ok;
 }
+
+#endif  //0

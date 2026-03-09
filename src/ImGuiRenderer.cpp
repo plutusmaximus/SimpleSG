@@ -183,6 +183,8 @@ ImGuiRenderer::DawnRender(RenderCompositor* renderCompositor)
     return Result<>::Ok;
 }
 
+#if 0
+
 Result<>
 ImGuiRenderer::SdlStartup()
 {
@@ -311,3 +313,5 @@ ImGuiRenderer::SdlRender(RenderCompositor* renderCompositor)
 
     return Result<>::Ok;
 }
+
+#endif  //0

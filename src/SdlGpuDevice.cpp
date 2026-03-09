@@ -1,5 +1,7 @@
 #define __LOGGER_NAME__ "SDL "
 
+#if 0
+
 #include "SdlGpuDevice.h"
 
 #include "Log.h"
@@ -719,3 +721,5 @@ CreateGpuBuffer(SDL_GPUDevice* gd, const std::span<const std::span<const T>>& sp
 
     return std::make_tuple(nativeBuf, sizeofBuffer);
 }
+
+#endif  //0

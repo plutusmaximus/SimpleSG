@@ -1,5 +1,7 @@
 #pragma once
 
+#if 0
+
 #include "GpuDevice.h"
 #include "PoolAllocator.h"
 #include "Vertex.h"
@@ -348,3 +350,5 @@ private:
     SdlRenderer* m_Renderer{nullptr};
     SdlRenderCompositor* m_RenderCompositor{nullptr};
 };
+
+#endif  //0
