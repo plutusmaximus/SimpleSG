@@ -20,6 +20,18 @@ static constexpr const char* COMPOSITE_COLOR_TARGET_FS = "shaders/FullScreenTria
 static constexpr const char* COLOR_PIPELINE_VS = "shaders/VertexShader.vs.wgsl";
 static constexpr const char* COLOR_PIPELINE_FS = "shaders/FragmentShader.fs.wgsl";
 
+static constexpr const char* TRANSFORM_SHADER_CS = "shaders/TransformShader.cs.wgsl";
+
+static Result<wgpu::BindGroup>
+CreateTransformBindGroup(wgpu::Device device,
+    wgpu::ComputePipeline pipeline,
+    wgpu::Buffer inputBuffer,
+    wgpu::Buffer outputBuffer,
+    wgpu::Buffer viewProjBuffer);
+
+static Result<wgpu::Buffer>
+CreateBuffer(wgpu::Device device, wgpu::BufferUsage usage, size_t size, const char* label);
+
 namespace
 {
     class XFormBuffer
@@ -102,16 +114,10 @@ DawnRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
     }
 
     const auto& meshes = model->GetMeshes();
-    //DO NOT SUBMIT const auto& meshToTransformMapping = model->GetMeshToTransformMapping();
     const auto& transformNodes = model->GetTransformNodes();
 
-    //DO NOT SUBMIT const TransformIndex baseXFormIdx =
-        //static_cast<TransformIndex>(m_CurrentState->m_Transforms.size());
     m_CurrentState->m_Transforms.reserve(
         m_CurrentState->m_Transforms.size() + transformNodes.size());
-
-    //DO NOT SUBMIT m_CurrentState->m_MeshToTransformMap.reserve(
-        //m_CurrentState->m_MeshToTransformMap.size() + meshes.size());
 
     m_CurrentState->m_Materials.reserve(
         m_CurrentState->m_Materials.size() + meshes.size());
@@ -133,10 +139,8 @@ DawnRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
     for(size_t i = 0; i < meshes.size(); ++i)
     {
         const auto& mesh = meshes[i];
-        //DO NOT SUBMIT const TransformIndex xformIdx = baseXFormIdx + meshToTransformMapping[i];
 
         m_CurrentState->m_Meshes.emplace_back(&mesh);
-        //DO NOT SUBMIT m_CurrentState->m_MeshToTransformMap.emplace_back(xformIdx);
         m_CurrentState->m_Materials.emplace_back(mesh.GetGpuMaterial());
         ++m_CurrentState->m_MeshCount;
     }
@@ -166,6 +170,14 @@ DawnRenderer::Render(const Mat44f& camera,
 
     wgpu::CommandEncoder cmdEncoder = dawnCompositor->GetCommandEncoder();
 
+    static PerfTimer updateXformTimer("Renderer.Render.UpdateXformBuffer");
+    {
+        auto scopedTimer = updateXformTimer.StartScoped();
+
+        auto updateXformBufResult = UpdateXformBuffer(cmdEncoder, camera, projection, models, modelCount);
+        MLG_CHECK(updateXformBufResult);
+    }
+
     wgpu::RenderPassEncoder renderPass;
     static PerfTimer beginRenderPassTimer("Renderer.Render.BeginRenderPass");
     {
@@ -186,18 +198,10 @@ DawnRenderer::Render(const Mat44f& camera,
         renderPass.SetPipeline(*pipelineResult);
     }
 
-    static PerfTimer updateXformTimer("Renderer.Render.UpdateXformBuffer");
-    {
-        auto scopedTimer = updateXformTimer.StartScoped();
-
-        auto updateXformBufResult = UpdateXformBuffer(cmdEncoder, camera, projection, models, modelCount);
-        MLG_CHECK(updateXformBufResult);
-    }
-
     static PerfTimer setVsBindGroupTimer("Renderer.Render.Draw.SetVsBindGroup");
     {
         auto scopedTimer = setVsBindGroupTimer.StartScoped();
-        renderPass.SetBindGroup(0, m_VertexShaderBindGroup, 0, nullptr);
+        renderPass.SetBindGroup(0, m_ColorPipeline.VsBindGroup, 0, nullptr);
     }
 
     static PerfTimer setBuffersTimer("Renderer.Render.Draw.SetBuffers");
@@ -423,7 +427,7 @@ DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder, wgpu::
     MLG_CHECK(renderPass, "Failed to begin render pass for copying color target to swapchain");
 
     renderPass.SetPipeline(*pipelineResult);
-    renderPass.SetBindGroup(2, m_CopyTextureBindGroup, 0, nullptr);
+    renderPass.SetBindGroup(2, m_BltPipeline.FsBindGroup, 0, nullptr);
     renderPass.Draw(3, 1, 0, 0);
     renderPass.End();
 
@@ -460,157 +464,27 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
     return Result<>::Ok;
 }
 
-Result<wgpu::ShaderModule>
-DawnRenderer::GetColorVertexShader()
-{
-    if(m_ColorVertexShader)
-    {
-        return m_ColorVertexShader;
-    }
-
-    auto vsResult = CreateVertexShader(COLOR_PIPELINE_VS);
-    MLG_CHECK(vsResult);
-
-    m_ColorVertexShader = *vsResult;
-    return m_ColorVertexShader;
-}
-
-Result<wgpu::ShaderModule>
-DawnRenderer::GetColorFragmentShader()
-{
-    if(m_ColorFragmentShader)
-    {
-        return m_ColorFragmentShader;
-    }
-
-    auto fsResult = CreateFragmentShader(COLOR_PIPELINE_FS);
-    MLG_CHECK(fsResult);
-
-    m_ColorFragmentShader = *fsResult;
-    return m_ColorFragmentShader;
-}
-
 Result<wgpu::RenderPipeline>
 DawnRenderer::GetColorPipeline()
 {
-    if(m_ColorPipeline)
+    if(m_ColorPipeline.Pipeline)
     {
-        return m_ColorPipeline;
+        return m_ColorPipeline.Pipeline;
     }
+
+    MLG_CHECK(CreateLayouts());
 
     MLG_CHECKV(m_ColorTarget, "Color target is null");
 
-    auto vertexShaderResult = GetColorVertexShader();
-    MLG_CHECK(vertexShaderResult);
+    auto vsResult = CreateShader(COLOR_PIPELINE_VS);
+    MLG_CHECK(vsResult);
 
-    auto fragmentShaderResult = GetColorFragmentShader();
-    MLG_CHECK(fragmentShaderResult);
+    m_ColorPipeline.VertexShader = *vsResult;
 
-    // Bind group 1 is for vertex shaders.
-    wgpu::BindGroupLayoutEntry vertBglEntries[] =//
-    {
-        {
-            /*
-                struct XForm
-                {
-                    modelXform: mat4x4<f32>,
-                    modelViewProjXform: mat4x4<f32>,
-                };
-            */
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Vertex,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                .hasDynamicOffset = false,
-                .minBindingSize = sizeof(XFormBuffer),
-            },
-        },
-        //Mesh to transform index mapping
-        {
-            .binding = 1,
-            .visibility = wgpu::ShaderStage::Vertex,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                .hasDynamicOffset = false,
-                .minBindingSize = sizeof(TransformIndex),
-            },
-        },
-    };
+    auto fsResult = CreateShader(COLOR_PIPELINE_FS);
+    MLG_CHECK(fsResult);
 
-    wgpu::BindGroupLayoutDescriptor vertBglDesc = //
-        {
-            .label = "ColorTargetVertBGL",
-            .entryCount = std::size(vertBglEntries),
-            .entries = vertBglEntries,
-        };
-
-    m_VsBindGroupLayout = m_GpuDevice->Device.CreateBindGroupLayout(&vertBglDesc);
-    MLG_CHECK(m_VsBindGroupLayout, "Failed to create BindGroupLayout");
-
-    // Bind group 2 is for fragment shaders.
-    wgpu::BindGroupLayoutEntry fragBglEntries[] =//
-    {
-        {
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .texture =
-            {
-                .sampleType = wgpu::TextureSampleType::Float,
-                .viewDimension = wgpu::TextureViewDimension::e2D,
-                .multisampled = false,
-            },
-        },
-        {
-            .binding = 1,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .sampler =
-            {
-                .type = wgpu::SamplerBindingType::Filtering,
-            },
-        },
-        /*
-            MaterialConstants
-        */
-        {
-            .binding = 2,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::Uniform,
-                .hasDynamicOffset = false,
-                .minBindingSize = alignUniformBuffer<MaterialConstants>(m_GpuLimits),
-            },
-        }
-    };
-
-    wgpu::BindGroupLayoutDescriptor fragBglDesc = //
-        {
-            .label = "ColorTargetFragBGL",
-            .entryCount = std::size(fragBglEntries),
-            .entries = fragBglEntries,
-        };
-
-    m_FsBindGroupLayout = m_GpuDevice->Device.CreateBindGroupLayout(&fragBglDesc);
-    MLG_CHECK(m_FsBindGroupLayout, "Failed to create BindGroupLayout");
-
-    wgpu::BindGroupLayout bgl[] = //
-        {
-            m_VsBindGroupLayout,
-            nullptr, // Group 1 unused
-            m_FsBindGroupLayout,
-        };
-
-    wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
-        {
-            .label = "ColorTargetPipelineLayout",
-            .bindGroupLayoutCount = std::size(bgl),
-            .bindGroupLayouts = bgl,
-        };
-
-    wgpu::PipelineLayout pipelineLayout = m_GpuDevice->Device.CreatePipelineLayout(&pipelineLayoutDesc);
-    MLG_CHECK(pipelineLayout, "Failed to create PipelineLayout");
+    m_ColorPipeline.FragmentShader = *fsResult;
 
     wgpu::BlendState blendState //
         {
@@ -663,7 +537,7 @@ DawnRenderer::GetColorPipeline()
 
     wgpu::FragmentState fragmentState //
         {
-            .module = *fragmentShaderResult,
+            .module = m_ColorPipeline.FragmentShader,
             .entryPoint = "main",
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -698,10 +572,10 @@ DawnRenderer::GetColorPipeline()
     wgpu::RenderPipelineDescriptor descriptor//
     {
         .label = "ColorTargetPipeline",
-        .layout = pipelineLayout,
+        .layout = m_ColorPipeline.PipelineLayout,
         .vertex =
         {
-            .module = *vertexShaderResult,
+            .module = m_ColorPipeline.VertexShader,
             .entryPoint = "main",
             .bufferCount = 1,
             .buffers = &vertexBufferLayout,
@@ -724,10 +598,10 @@ DawnRenderer::GetColorPipeline()
         .fragment = &fragmentState,
     };
 
-    m_ColorPipeline = m_GpuDevice->Device.CreateRenderPipeline(&descriptor);
-    MLG_CHECK(m_ColorPipeline, "Failed to create render pipeline");
+    m_ColorPipeline.Pipeline = m_GpuDevice->Device.CreateRenderPipeline(&descriptor);
+    MLG_CHECK(m_ColorPipeline.Pipeline, "Failed to create render pipeline");
 
-    return m_ColorPipeline;
+    return m_ColorPipeline.Pipeline;
 
     /*m_Device.CreateRenderPipelineAsync(
         &descriptor,
@@ -740,98 +614,25 @@ DawnRenderer::GetColorPipeline()
         this);*/
 }
 
-Result<wgpu::ShaderModule>
-DawnRenderer::GetCopyColorTargetVertexShader()
-{
-    if(m_CopyTextureVertexShader)
-    {
-        return m_CopyTextureVertexShader;
-    }
-
-    auto vsResult = CreateVertexShader(COMPOSITE_COLOR_TARGET_VS);
-    MLG_CHECK(vsResult);
-
-    m_CopyTextureVertexShader = *vsResult;
-    return m_CopyTextureVertexShader;
-}
-
-Result<wgpu::ShaderModule>
-DawnRenderer::GetCopyColorTargetFragmentShader()
-{
-    if(m_CopyTextureFragmentShader)
-    {
-        return m_CopyTextureFragmentShader;
-    }
-
-    auto fsResult = CreateFragmentShader(COMPOSITE_COLOR_TARGET_FS);
-    MLG_CHECK(fsResult);
-
-    m_CopyTextureFragmentShader = *fsResult;
-    return m_CopyTextureFragmentShader;
-}
-
 Result<wgpu::RenderPipeline>
 DawnRenderer::GetCopyColorTargetPipeline()
 {
-    if(m_CopyTexturePipeline)
+    if(m_BltPipeline.Pipeline)
     {
-        return m_CopyTexturePipeline;
+        return m_BltPipeline.Pipeline;
     }
 
-    auto vsResult = GetCopyColorTargetVertexShader();
+    MLG_CHECK(CreateLayouts());
+
+    auto vsResult = CreateShader(COMPOSITE_COLOR_TARGET_VS);
     MLG_CHECK(vsResult);
 
-    auto fsResult = GetCopyColorTargetFragmentShader();
+    m_BltPipeline.VertexShader = *vsResult;
+
+    auto fsResult = CreateShader(COMPOSITE_COLOR_TARGET_FS);
     MLG_CHECK(fsResult);
 
-    wgpu::BindGroupLayoutEntry bglEntries[] =//
-    {
-        {
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .texture =
-            {
-                .sampleType = wgpu::TextureSampleType::Float,
-                .viewDimension = wgpu::TextureViewDimension::e2D,
-                .multisampled = false,
-            },
-        },
-        {
-            .binding = 1,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .sampler =
-            {
-                .type = wgpu::SamplerBindingType::Filtering,
-            },
-        },
-    };
-
-    wgpu::BindGroupLayoutDescriptor bglDesc = //
-        {
-            .label = "CopyColorTargetBGL",
-            .entryCount = std::size(bglEntries),
-            .entries = bglEntries,
-        };
-
-    m_CopyTextureBindGroupLayout = m_GpuDevice->Device.CreateBindGroupLayout(&bglDesc);
-    MLG_CHECK(m_CopyTextureBindGroupLayout, "CreateBindGroupLayout failed for copy color target pipeline");
-
-    wgpu::BindGroupLayout bgl[] = //
-        {
-            nullptr, // Group 0 unused
-            nullptr, // Group 1 unused
-            m_CopyTextureBindGroupLayout, // Group 2 for texture and sampler
-        };
-
-    wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
-        {
-            .label = "ColorTargetPipelineLayout",
-            .bindGroupLayoutCount = std::size(bgl),
-            .bindGroupLayouts = bgl,
-        };
-
-    wgpu::PipelineLayout pipelineLayout = m_GpuDevice->Device.CreatePipelineLayout(&pipelineLayoutDesc);
-    MLG_CHECK(pipelineLayout, "Failed to create PipelineLayout");
+    m_BltPipeline.FragmentShader = *fsResult;
 
     wgpu::BlendState blendState //
         {
@@ -858,7 +659,7 @@ DawnRenderer::GetCopyColorTargetPipeline()
 
     wgpu::FragmentState fragmentState //
         {
-            .module = *fsResult,
+            .module = m_BltPipeline.FragmentShader,
             .entryPoint = "main",
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -867,10 +668,10 @@ DawnRenderer::GetCopyColorTargetPipeline()
     wgpu::RenderPipelineDescriptor descriptor//
     {
         .label = "CopyColorTargetPipeline",
-        .layout = pipelineLayout,
+        .layout = m_BltPipeline.PipelineLayout,
         .vertex =
         {
-            .module = *vsResult,
+            .module = m_BltPipeline.VertexShader,
             .entryPoint = "main",
             .bufferCount = 0,
             .buffers = nullptr,
@@ -892,9 +693,6 @@ DawnRenderer::GetCopyColorTargetPipeline()
         },
         .fragment = &fragmentState,
     };
-
-    auto pipeline = m_GpuDevice->Device.CreateRenderPipeline(&descriptor);
-    MLG_CHECK(pipeline, "Failed to create render pipeline for copying color target to swapchain");
 
     // Create bind group for the color target texture and sampler
 
@@ -919,100 +717,282 @@ DawnRenderer::GetCopyColorTargetPipeline()
     wgpu::BindGroupDescriptor bgDesc //
         {
             .label = "ColorTargetCopyBindGroup",
-            .layout = m_CopyTextureBindGroupLayout,
+            .layout = m_BltPipeline.FsBindGroupLayout,
             .entryCount = std::size(bgEntries),
             .entries = bgEntries,
         };
 
-    wgpu::BindGroup bindGroup = m_GpuDevice->Device.CreateBindGroup(&bgDesc);
-    MLG_CHECK(bindGroup, "Failed to create wgpu::BindGroup for copying color target to swapchain");
+    m_BltPipeline.FsBindGroup = m_GpuDevice->Device.CreateBindGroup(&bgDesc);
+    MLG_CHECK(m_BltPipeline.FsBindGroup, "Failed to create wgpu::BindGroup for BLT pipeline");
 
-    m_CopyTextureBindGroup = bindGroup;
-    m_CopyTexturePipeline = pipeline;
+    m_BltPipeline.Pipeline = m_GpuDevice->Device.CreateRenderPipeline(&descriptor);
+    MLG_CHECK(m_BltPipeline.Pipeline, "Failed to create render pipeline for BLT pipeline");
 
-    return m_CopyTexturePipeline;
+    return m_BltPipeline.Pipeline;
 }
 
-Result<wgpu::ShaderModule>
-DawnRenderer::CreateVertexShader(const char* path)
+Result<wgpu::ComputePipeline>
+DawnRenderer::GetTransformPipeline()
 {
-    std::vector<uint8_t> shaderCode;
-    auto loadResult = LoadShaderCode(path, shaderCode);
-    MLG_CHECK(loadResult);
-
-    wgpu::StringView shaderCodeView{ reinterpret_cast<const char*>(shaderCode.data()),
-        shaderCode.size() };
-    wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCodeView } };
-    wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl };
-
-    wgpu::ShaderModule shaderModule = m_GpuDevice->Device.CreateShaderModule(&shaderModuleDescriptor);
-    MLG_CHECK(shaderModule, "Failed to create shader module");
-
-    return shaderModule;
-}
-
-Result<wgpu::ShaderModule>
-DawnRenderer::CreateFragmentShader(const char* path)
-{
-    std::vector<uint8_t> shaderCode;
-    auto loadResult = LoadShaderCode(path, shaderCode);
-    MLG_CHECK(loadResult);
-
-    wgpu::StringView shaderCodeView{ reinterpret_cast<const char*>(shaderCode.data()),
-        shaderCode.size() };
-    wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCodeView } };
-    wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl };
-
-    wgpu::ShaderModule shaderModule = m_GpuDevice->Device.CreateShaderModule(&shaderModuleDescriptor);
-    MLG_CHECK(shaderModule, "Failed to create shader module");
-
-    return shaderModule;
-}
-
-static Result<wgpu::Buffer>
-CreateBuffer(wgpu::Device device, wgpu::BufferUsage usage, size_t size, const char* label)
-{
-    wgpu::BufferDescriptor desc //
+    if(m_TransformPipeline)
     {
-        .label = label,
-        .usage = usage,
-        .size = size,
-        .mappedAtCreation = false,
-    };
+        return m_TransformPipeline;
+    }
 
-    auto buffer = device.CreateBuffer(&desc);
-    MLG_CHECK(buffer, "Failed to create buffer");
-    return buffer;
+    auto csResult = CreateShader(TRANSFORM_SHADER_CS);
+    MLG_CHECK(csResult);
+
+    m_TransformShader = *csResult;
+
+    wgpu::ComputePipelineDescriptor pipelineDesc//
+    {
+        .layout = nullptr,
+        .compute//
+        {
+            .module = m_TransformShader,
+            .entryPoint = "main",
+        },
+    };;
+
+    m_TransformPipeline = m_GpuDevice->Device.CreateComputePipeline(&pipelineDesc);
+    MLG_CHECK(m_TransformPipeline, "Failed to create compute pipeline for transform");
+
+    return m_TransformPipeline;
 }
 
 Result<>
-DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder /*cmdEncoder*/,
+DawnRenderer::CreateLayouts()
+{
+    if(!m_ColorPipeline.PipelineLayout || !m_ColorPipeline.VsBindGroupLayout ||
+        !m_ColorPipeline.FsBindGroupLayout || !m_BltPipeline.PipelineLayout ||
+        !m_BltPipeline.FsBindGroupLayout)
+    {
+        // Vertex shader bind group layout
+        wgpu::BindGroupLayoutEntry vertBglEntries[] =//
+        {
+            {
+                /*
+                    struct XForm
+                    {
+                        modelXform: mat4x4<f32>,
+                        modelViewProjXform: mat4x4<f32>,
+                    };
+                */
+                .binding = 0,
+                .visibility = wgpu::ShaderStage::Vertex,
+                .buffer =
+                {
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = sizeof(XFormBuffer),
+                },
+            },
+            //Mesh to transform index mapping
+            {
+                .binding = 1,
+                .visibility = wgpu::ShaderStage::Vertex,
+                .buffer =
+                {
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = sizeof(TransformIndex),
+                },
+            },
+        };
+
+        wgpu::BindGroupLayoutDescriptor vertBglDesc = //
+            {
+                .label = "ColorTargetVertBGL",
+                .entryCount = std::size(vertBglEntries),
+                .entries = vertBglEntries,
+            };
+
+        m_ColorPipeline.VsBindGroupLayout = m_GpuDevice->Device.CreateBindGroupLayout(&vertBglDesc);
+        MLG_CHECK(m_ColorPipeline.VsBindGroupLayout, "Failed to create BindGroupLayout");
+
+        // Fragment shader bind group layout
+        wgpu::BindGroupLayoutEntry fragBglEntries[] =//
+        {
+            {
+                .binding = 0,
+                .visibility = wgpu::ShaderStage::Fragment,
+                .texture =
+                {
+                    .sampleType = wgpu::TextureSampleType::Float,
+                    .viewDimension = wgpu::TextureViewDimension::e2D,
+                    .multisampled = false,
+                },
+            },
+            {
+                .binding = 1,
+                .visibility = wgpu::ShaderStage::Fragment,
+                .sampler =
+                {
+                    .type = wgpu::SamplerBindingType::Filtering,
+                },
+            },
+            /*
+                MaterialConstants
+            */
+            {
+                .binding = 2,
+                .visibility = wgpu::ShaderStage::Fragment,
+                .buffer =
+                {
+                    .type = wgpu::BufferBindingType::Uniform,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = alignUniformBuffer<MaterialConstants>(m_GpuLimits),
+                },
+            }
+        };
+
+        wgpu::BindGroupLayoutDescriptor fragBglDesc = //
+            {
+                .label = "ColorTargetFragBGL",
+                .entryCount = std::size(fragBglEntries),
+                .entries = fragBglEntries,
+            };
+
+        m_ColorPipeline.FsBindGroupLayout = m_GpuDevice->Device.CreateBindGroupLayout(&fragBglDesc);
+        MLG_CHECK(m_ColorPipeline.FsBindGroupLayout, "Failed to create BindGroupLayout");
+
+        // Color target pipeline bind group layouts
+        wgpu::BindGroupLayout colorTargetBgl[] = //
+            {
+                m_ColorPipeline.VsBindGroupLayout,
+                nullptr, // Group 1 unused
+                m_ColorPipeline.FsBindGroupLayout,
+            };
+
+        wgpu::PipelineLayoutDescriptor colorTargetPipelineLayoutDesc //
+            {
+                .label = "ColorTargetPipelineLayout",
+                .bindGroupLayoutCount = std::size(colorTargetBgl),
+                .bindGroupLayouts = colorTargetBgl,
+            };
+
+        m_ColorPipeline.PipelineLayout = m_GpuDevice->Device.CreatePipelineLayout(&colorTargetPipelineLayoutDesc);
+        MLG_CHECK(m_ColorPipeline.PipelineLayout, "Failed to create color PipelineLayout");
+
+        // Copy color target bind group layout
+        wgpu::BindGroupLayoutEntry bltBglEntries[] =//
+        {
+            {
+                .binding = 0,
+                .visibility = wgpu::ShaderStage::Fragment,
+                .texture =
+                {
+                    .sampleType = wgpu::TextureSampleType::Float,
+                    .viewDimension = wgpu::TextureViewDimension::e2D,
+                    .multisampled = false,
+                },
+            },
+            {
+                .binding = 1,
+                .visibility = wgpu::ShaderStage::Fragment,
+                .sampler =
+                {
+                    .type = wgpu::SamplerBindingType::Filtering,
+                },
+            },
+        };
+
+        wgpu::BindGroupLayoutDescriptor bltBglDesc = //
+            {
+                .label = "CopyColorTargetBGL",
+                .entryCount = std::size(bltBglEntries),
+                .entries = bltBglEntries,
+            };
+
+        m_BltPipeline.FsBindGroupLayout = m_GpuDevice->Device.CreateBindGroupLayout(&bltBglDesc);
+        MLG_CHECK(m_BltPipeline.FsBindGroupLayout, "CreateBindGroupLayout failed for copy color target pipeline");
+
+        // Copy color target pipeline bind group layouts
+        wgpu::BindGroupLayout bltBgl[] = //
+            {
+                nullptr, // Group 0 unused
+                nullptr, // Group 1 unused
+                m_BltPipeline.FsBindGroupLayout, // Group 2 for texture and sampler
+            };
+
+        wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
+            {
+                .label = "CopyColorTargetPipelineLayout",
+                .bindGroupLayoutCount = std::size(bltBgl),
+                .bindGroupLayouts = bltBgl,
+            };
+
+        m_BltPipeline.PipelineLayout = m_GpuDevice->Device.CreatePipelineLayout(&pipelineLayoutDesc);
+        MLG_CHECK(m_BltPipeline.PipelineLayout, "Failed to create PipelineLayout");
+    }
+
+    return Result<>::Ok;
+}
+
+Result<wgpu::ShaderModule>
+DawnRenderer::CreateShader(const char* path)
+{
+    std::vector<uint8_t> shaderCode;
+    auto loadResult = LoadShaderCode(path, shaderCode);
+    MLG_CHECK(loadResult);
+
+    wgpu::StringView shaderCodeView{ reinterpret_cast<const char*>(shaderCode.data()),
+        shaderCode.size() };
+    wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCodeView } };
+    wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl };
+
+    wgpu::ShaderModule shaderModule = m_GpuDevice->Device.CreateShaderModule(&shaderModuleDescriptor);
+    MLG_CHECK(shaderModule, "Failed to create shader module");
+
+    return shaderModule;
+}
+
+Result<>
+DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
     const Mat44f& camera,
     const Mat44f& projection,
     const Model* models,
     const size_t /*modelCount*/)
 {
+    MLG_CHECK(CreateLayouts());
+
+    auto xformPipelineResult = GetTransformPipeline();
+    MLG_CHECK(xformPipelineResult);
+
     // Size of the buffer needed to hold the world and projection matrices for all meshes in the
     // current frame.
     const size_t sizeofTransformBuffer = sizeof(XFormBuffer) * m_CurrentState->m_Transforms.size();
     const size_t sizeofDrawIndirectBuffer =
         sizeof(DrawIndirectBufferParams) * m_CurrentState->m_MeshCount;
 
-    if(!m_TransformBuf || !m_DrawIndirectBuffer ||
-        m_SizeofTransformBuffer < sizeofTransformBuffer ||
+    if(m_TransformBuffers.NeedsRebuild(sizeofTransformBuffer) || !m_DrawIndirectBuffer ||
         m_SizeofDrawIndirectBuffer < sizeofDrawIndirectBuffer)
     {
         // Re-allocate buffers.
 
-        m_SizeofTransformBuffer = sizeofTransformBuffer;
+        m_TransformBuffers.SizeofTransformBuffer = sizeofTransformBuffer;
         m_SizeofDrawIndirectBuffer = sizeofDrawIndirectBuffer;
 
         auto result = CreateBuffer(m_GpuDevice->Device,
             wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
             sizeofTransformBuffer,
-            "TransformBuffer");
+            "InputTransformBuffer");
         MLG_CHECK(result);
-        m_TransformBuf = *result;
+        m_TransformBuffers.m_InputBuf = *result;
+
+        result = CreateBuffer(m_GpuDevice->Device,
+            wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
+            sizeofTransformBuffer,
+            "OutputTransformBuffer");
+        MLG_CHECK(result);
+        m_TransformBuffers.m_OutputBuf = *result;
+
+        result = CreateBuffer(m_GpuDevice->Device,
+            wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
+            sizeof(Mat44f),
+            "ViewProjTransformBuffer");
+        MLG_CHECK(result);
+        m_TransformBuffers.m_ViewProjBuf = *result;
 
         result = CreateBuffer(m_GpuDevice->Device,
             wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
@@ -1029,7 +1009,7 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder /*cmdEncoder*/,
             {
                 {
                     .binding = 0,
-                    .buffer = m_TransformBuf,
+                    .buffer = m_TransformBuffers.m_OutputBuf,
                     .offset = 0,
                     .size = sizeofTransformBuffer,
                 },
@@ -1044,13 +1024,21 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder /*cmdEncoder*/,
         wgpu::BindGroupDescriptor vsBgDesc //
             {
                 .label = "vsBindGroup",
-                .layout = m_VsBindGroupLayout,
+                .layout = m_ColorPipeline.VsBindGroupLayout,
                 .entryCount = std::size(vsBgEntries),
                 .entries = vsBgEntries,
             };
 
-        m_VertexShaderBindGroup = m_GpuDevice->Device.CreateBindGroup(&vsBgDesc);
-        MLG_CHECK(m_VertexShaderBindGroup, "Failed to create WGPUBindGroup");
+        m_ColorPipeline.VsBindGroup = m_GpuDevice->Device.CreateBindGroup(&vsBgDesc);
+        MLG_CHECK(m_ColorPipeline.VsBindGroup, "Failed to create VS bindgroup for color pipeline");
+
+        auto xformBgResult = CreateTransformBindGroup(m_GpuDevice->Device,
+            *xformPipelineResult,
+            m_TransformBuffers.m_InputBuf,
+            m_TransformBuffers.m_OutputBuf,
+            m_TransformBuffers.m_ViewProjBuf);
+        MLG_CHECK(xformBgResult, "Failed to create transform bind group");
+        m_TransformBuffers.m_BindGroup = *xformBgResult;
     }
 
     // Use inverse of camera transform as view matrix
@@ -1074,8 +1062,6 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder /*cmdEncoder*/,
             });
     }
 
-    unsigned meshCount = 0;
-
     for(size_t i = 0; i < m_CurrentState->m_Meshes.size(); ++i)
     {
         const Mesh* mesh = m_CurrentState->m_Meshes[i];
@@ -1086,13 +1072,11 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder /*cmdEncoder*/,
                 .InstanceCount = 1,
                 .FirstIndex = mesh->GetIndexOffset(),
                 .BaseVertex = mesh->GetVertexOffset(),
-                .FirstInstance = meshCount,
+                .FirstInstance = static_cast<uint32_t>(i),
             });
-
-        ++meshCount;
     }
 
-    m_GpuDevice->Device.GetQueue().WriteBuffer(m_TransformBuf,
+    m_GpuDevice->Device.GetQueue().WriteBuffer(m_TransformBuffers.m_InputBuf,
         0,
         transformBuffers.data(),
         sizeof(XFormBuffer) * transformBuffers.size());
@@ -1101,6 +1085,20 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder /*cmdEncoder*/,
         0,
         drawIndirectBuffers.data(),
         sizeof(DrawIndirectBufferParams) * drawIndirectBuffers.size());
+
+    Mat44f identity(1);
+
+    m_GpuDevice->Device.GetQueue().WriteBuffer(m_TransformBuffers.m_ViewProjBuf,
+        0,
+        identity.m,
+        sizeof(Mat44f));
+
+    wgpu::ComputePassEncoder pass = cmdEncoder.BeginComputePass();
+    pass.SetPipeline(*xformPipelineResult);
+    pass.SetBindGroup(0, m_TransformBuffers.m_BindGroup);
+    const uint32_t workgroupCountX = static_cast<uint32_t>((m_CurrentState->m_MeshCount + 63) / 64);
+    pass.DispatchWorkgroups(workgroupCountX);
+    pass.End();
 
     return Result<>::Ok;
 }
@@ -1119,4 +1117,62 @@ DawnRenderer::GetDefaultBaseTexture()
     }
 
     return m_DefaultBaseTexture;
+}
+
+static Result<wgpu::BindGroup>
+CreateTransformBindGroup(wgpu::Device device,
+    wgpu::ComputePipeline pipeline,
+    wgpu::Buffer inputBuffer,
+    wgpu::Buffer outputBuffer,
+    wgpu::Buffer viewProjBuffer)
+{
+
+    wgpu::BindGroupEntry bgEntries[] =//
+    {
+        {
+            .binding = 0,
+            .buffer = inputBuffer,
+            .offset = 0,
+            .size = inputBuffer.GetSize(),
+        },
+        {
+            .binding = 1,
+            .buffer = outputBuffer,
+            .offset = 0,
+            .size = outputBuffer.GetSize(),
+        },
+        {
+            .binding = 2,
+            .buffer = viewProjBuffer,
+            .offset = 0,
+            .size = viewProjBuffer.GetSize(),
+        },
+    };
+
+    wgpu::BindGroupDescriptor bgDesc//
+    {
+        .layout = pipeline.GetBindGroupLayout(0),
+        .entryCount = std::size(bgEntries),
+        .entries = bgEntries,
+    };
+
+    auto bindGroup = device.CreateBindGroup(&bgDesc);
+    MLG_CHECK(bindGroup, "Failed to create wgpu::BindGroup for transform");
+    return bindGroup;
+}
+
+static Result<wgpu::Buffer>
+CreateBuffer(wgpu::Device device, wgpu::BufferUsage usage, size_t size, const char* label)
+{
+    wgpu::BufferDescriptor desc //
+    {
+        .label = label,
+        .usage = usage,
+        .size = size,
+        .mappedAtCreation = false,
+    };
+
+    auto buffer = device.CreateBuffer(&desc);
+    MLG_CHECK(buffer, "Failed to create buffer");
+    return buffer;
 }

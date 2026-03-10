@@ -66,16 +66,15 @@ private:
     Result<> CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder,
         wgpu::TextureView target);
 
-    Result<wgpu::ShaderModule> GetColorVertexShader();
-    Result<wgpu::ShaderModule> GetColorFragmentShader();
     Result<wgpu::RenderPipeline> GetColorPipeline();
 
-    Result<wgpu::ShaderModule> GetCopyColorTargetVertexShader();
-    Result<wgpu::ShaderModule> GetCopyColorTargetFragmentShader();
     Result<wgpu::RenderPipeline> GetCopyColorTargetPipeline();
 
-    Result<wgpu::ShaderModule> CreateVertexShader(const char* path);
-    Result<wgpu::ShaderModule> CreateFragmentShader(const char* path);
+    Result<wgpu::ComputePipeline> GetTransformPipeline();
+
+    Result<> CreateLayouts();
+
+    Result<wgpu::ShaderModule> CreateShader(const char* path);
 
     Result<> UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
         const Mat44f& camera,
@@ -96,25 +95,43 @@ private:
     State* m_CurrentState = &m_State[0];
     GpuTexture* m_DefaultBaseTexture{nullptr};
 
-    /// These are used for rendering to the color target texture.
-    wgpu::ShaderModule m_ColorVertexShader;
-    wgpu::ShaderModule m_ColorFragmentShader;
-    wgpu::RenderPipeline m_ColorPipeline;
-    wgpu::BindGroupLayout m_VsBindGroupLayout;
-    wgpu::BindGroupLayout m_FsBindGroupLayout;
+    struct Pipeline
+    {
+        wgpu::ShaderModule VertexShader;
+        wgpu::ShaderModule FragmentShader;
+        wgpu::BindGroupLayout VsBindGroupLayout;
+        wgpu::BindGroupLayout FsBindGroupLayout;
+        wgpu::PipelineLayout PipelineLayout;
+        wgpu::BindGroup VsBindGroup;
+        wgpu::BindGroup FsBindGroup;
+        wgpu::RenderPipeline Pipeline;
+    };
 
-    /// These are used for copying the color target to the swapchain texture.
-    wgpu::ShaderModule m_CopyTextureVertexShader;
-    wgpu::ShaderModule m_CopyTextureFragmentShader;
-    wgpu::RenderPipeline m_CopyTexturePipeline;
-    wgpu::BindGroupLayout m_CopyTextureBindGroupLayout;
-    wgpu::BindGroup m_CopyTextureBindGroup;
+    // Pipeline for rendering to the color target texture.
+    Pipeline m_ColorPipeline;
 
-    size_t m_SizeofTransformBuffer{0};
-    wgpu::Buffer m_TransformBuf;
+    // Pipeline to BLT the color target to the swap chain.
+    Pipeline m_BltPipeline;
 
-    wgpu::BindGroup m_VertexShaderBindGroup;
+    struct TransformBuffers
+    {
+        bool NeedsRebuild(const size_t size) const
+        {
+            return size > SizeofTransformBuffer || !m_InputBuf || !m_OutputBuf || !m_ViewProjBuf;
+        }
+
+        size_t SizeofTransformBuffer{0};
+        wgpu::Buffer m_InputBuf;
+        wgpu::Buffer m_OutputBuf;
+        wgpu::Buffer m_ViewProjBuf;
+        wgpu::BindGroup m_BindGroup;
+    };
+
+    TransformBuffers m_TransformBuffers;
 
     size_t m_SizeofDrawIndirectBuffer{0};
     wgpu::Buffer m_DrawIndirectBuffer;
+
+    wgpu::ShaderModule m_TransformShader;
+    wgpu::ComputePipeline m_TransformPipeline;
 };

@@ -6,9 +6,10 @@ project(WGSLToSpirv LANGUAGES CXX)
 # ---------------------------------------------------------------------------
 set(WGSL_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/FragmentShader.fs.wgsl"
-  "${CMAKE_CURRENT_LIST_DIR}/VertexShader.vs.wgsl"
   "${CMAKE_CURRENT_LIST_DIR}/FullScreenTriangle.vs.wgsl"
   "${CMAKE_CURRENT_LIST_DIR}/FullScreenTriangle.fs.wgsl"
+  "${CMAKE_CURRENT_LIST_DIR}/TransformShader.cs.wgsl"
+  "${CMAKE_CURRENT_LIST_DIR}/VertexShader.vs.wgsl"
 )
 
 set(HLSL_SOURCES
