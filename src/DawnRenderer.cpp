@@ -787,9 +787,26 @@ DawnRenderer::CreateLayouts()
                     .minBindingSize = sizeof(XFormBuffer),
                 },
             },
+            {
+                /*
+                    struct XForm
+                    {
+                        modelXform: mat4x4<f32>,
+                        modelViewProjXform: mat4x4<f32>,
+                    };
+                */
+                .binding = 1,
+                .visibility = wgpu::ShaderStage::Vertex,
+                .buffer =
+                {
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = sizeof(XFormBuffer),
+                },
+            },
             //Mesh to transform index mapping
             {
-                .binding = 1,
+                .binding = 2,
                 .visibility = wgpu::ShaderStage::Vertex,
                 .buffer =
                 {
@@ -1009,12 +1026,18 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
             {
                 {
                     .binding = 0,
-                    .buffer = m_TransformBuffers.OutputBuf,
+                    .buffer = m_TransformBuffers.InputBuf,
                     .offset = 0,
                     .size = sizeofTransformBuffer,
                 },
                 {
                     .binding = 1,
+                    .buffer = m_TransformBuffers.OutputBuf,
+                    .offset = 0,
+                    .size = sizeofTransformBuffer,
+                },
+                {
+                    .binding = 2,
                     .buffer = meshToTransformMapping,
                     .offset = 0,
                     .size = meshToTransformMapping.GetSize(),

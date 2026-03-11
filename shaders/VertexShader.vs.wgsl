@@ -9,8 +9,9 @@ struct MeshToTransformMap
     transformIndex : u32,
 };
 
-@group(0) @binding(0) var<storage> xforms: array<XForm>;
-@group(0) @binding(1) var<storage> meshToTransformMap: array<MeshToTransformMap>;
+@group(0) @binding(0) var<storage> worldSpaceArray: array<XForm>;
+@group(0) @binding(1) var<storage> clipSpaceArray: array<XForm>;
+@group(0) @binding(2) var<storage> meshToTransformMap: array<MeshToTransformMap>;
 
 struct VSInput
 {
@@ -31,10 +32,11 @@ fn main(input: VSInput, @builtin(instance_index) instance_index: u32) -> VSOutpu
 {
     var output: VSOutput;
 
-    var xform = xforms[meshToTransformMap[instance_index].transformIndex];
+    var worldSpace = worldSpaceArray[meshToTransformMap[instance_index].transformIndex].modelXform;
+    var clipSpace = clipSpaceArray[meshToTransformMap[instance_index].transformIndex].modelViewProjXform;
 
-    output.position = xform.modelViewProjXform * vec4<f32>(input.inPosition, 1.0);
-    output.fragNormal = normalize((xform.modelXform * vec4<f32>(input.inNormal, 0.0)).xyz);
+    output.position = clipSpace * vec4<f32>(input.inPosition, 1.0);
+    output.fragNormal = normalize((worldSpace * vec4<f32>(input.inNormal, 0.0)).xyz);
     output.texCoord = input.inTexCoord;
 
     return output;
