@@ -1,7 +1,6 @@
-struct XForm
+struct WorldSpaceXform
 {
-    modelXform: mat4x4<f32>,
-    modelViewProjXform: mat4x4<f32>,
+    xform : mat4x4<f32>,
 };
 
 struct ClipSpaceXform
@@ -14,7 +13,7 @@ struct MeshToTransformMap
     transformIndex : u32,
 };
 
-@group(0) @binding(0) var<storage, read> worldSpaceArray: array<XForm>;
+@group(0) @binding(0) var<storage, read> worldSpaceArray: array<WorldSpaceXform>;
 @group(0) @binding(1) var<storage, read> clipSpaceArray: array<ClipSpaceXform>;
 @group(0) @binding(2) var<storage, read> meshToTransformMap: array<MeshToTransformMap>;
 
@@ -39,7 +38,7 @@ fn main(input: VSInput, @builtin(instance_index) instance_index: u32) -> VSOutpu
 
     let transformIdx = meshToTransformMap[instance_index].transformIndex;
     let clipXform = clipSpaceArray[transformIdx].xform;
-    let worldXform = worldSpaceArray[transformIdx].modelXform;
+    let worldXform = worldSpaceArray[transformIdx].xform;
 
     output.position = clipXform * vec4<f32>(input.inPosition, 1.0);
     output.fragNormal = normalize((worldXform * vec4<f32>(input.inNormal, 0.0)).xyz);

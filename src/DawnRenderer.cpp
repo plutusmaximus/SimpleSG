@@ -34,14 +34,6 @@ CreateBuffer(wgpu::Device device, wgpu::BufferUsage usage, size_t size, const ch
 
 namespace
 {
-    class XFormBuffer
-    {
-    public:
-
-        Mat44f ModelXform;
-        Mat44f ModelViewProjXform;
-    };
-
     class DrawIndirectBufferParams
     {
     public:
@@ -778,7 +770,7 @@ DawnRenderer::CreateLayouts()
                 {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
                     .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(XFormBuffer),
+                    .minBindingSize = sizeof(Mat44f),
                 },
             },
             // Clip space transform
@@ -966,7 +958,7 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
 
     // Size of the buffer needed to hold the world and projection matrices for all meshes in the
     // current frame.
-    const size_t sizeofTransformBuffer = sizeof(XFormBuffer) * m_CurrentState->m_Transforms.size();
+    const size_t sizeofTransformBuffer = sizeof(Mat44f) * m_CurrentState->m_Transforms.size();
     const size_t sizeofDrawIndirectBuffer =
         sizeof(DrawIndirectBufferParams) * m_CurrentState->m_MeshCount;
 
@@ -987,7 +979,7 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
 
         result = CreateBuffer(m_GpuDevice->Device,
             wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
-            sizeof(Mat44f) * m_CurrentState->m_Transforms.size(),
+            sizeofTransformBuffer,
             "OutputTransformBuffer");
         MLG_CHECK(result);
         m_TransformBuffers.OutputBuf = *result;
@@ -1022,7 +1014,7 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
                     .binding = 1,
                     .buffer = m_TransformBuffers.OutputBuf,
                     .offset = 0,
-                    .size = sizeof(Mat44f) * m_CurrentState->m_Transforms.size(),
+                    .size = sizeofTransformBuffer,
                 },
                 {
                     .binding = 2,
@@ -1058,20 +1050,9 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
     // Projection transform
     const Mat44f viewProj = projection.Mul(viewXform);
 
-    std::vector<XFormBuffer> transformBuffers;
     std::vector<DrawIndirectBufferParams> drawIndirectBuffers;
 
-    transformBuffers.reserve(m_CurrentState->m_MeshCount);
     drawIndirectBuffers.reserve(m_CurrentState->m_MeshCount);
-
-    for(const auto& xform : m_CurrentState->m_Transforms)
-    {
-        transformBuffers.emplace_back(XFormBuffer //
-            {
-                .ModelXform = xform,
-                //.ModelViewProjXform = viewProj.Mul(xform),
-            });
-    }
 
     for(size_t i = 0; i < m_CurrentState->m_Meshes.size(); ++i)
     {
@@ -1089,8 +1070,8 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
 
     m_GpuDevice->Device.GetQueue().WriteBuffer(m_TransformBuffers.InputBuf,
         0,
-        transformBuffers.data(),
-        sizeof(XFormBuffer) * transformBuffers.size());
+        m_CurrentState->m_Transforms.data(),
+        sizeof(Mat44f) * m_CurrentState->m_Transforms.size());
 
     m_GpuDevice->Device.GetQueue().WriteBuffer(m_DrawIndirectBuffer,
         0,
