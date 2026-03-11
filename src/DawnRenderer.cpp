@@ -978,21 +978,21 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
             sizeofTransformBuffer,
             "InputTransformBuffer");
         MLG_CHECK(result);
-        m_TransformBuffers.m_InputBuf = *result;
+        m_TransformBuffers.InputBuf = *result;
 
         result = CreateBuffer(m_GpuDevice->Device,
             wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
             sizeofTransformBuffer,
             "OutputTransformBuffer");
         MLG_CHECK(result);
-        m_TransformBuffers.m_OutputBuf = *result;
+        m_TransformBuffers.OutputBuf = *result;
 
         result = CreateBuffer(m_GpuDevice->Device,
             wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
             sizeof(Mat44f),
             "ViewProjTransformBuffer");
         MLG_CHECK(result);
-        m_TransformBuffers.m_ViewProjBuf = *result;
+        m_TransformBuffers.ViewProjBuf = *result;
 
         result = CreateBuffer(m_GpuDevice->Device,
             wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
@@ -1009,7 +1009,7 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
             {
                 {
                     .binding = 0,
-                    .buffer = m_TransformBuffers.m_OutputBuf,
+                    .buffer = m_TransformBuffers.OutputBuf,
                     .offset = 0,
                     .size = sizeofTransformBuffer,
                 },
@@ -1034,11 +1034,11 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
 
         auto xformBgResult = CreateTransformBindGroup(m_GpuDevice->Device,
             *xformPipelineResult,
-            m_TransformBuffers.m_InputBuf,
-            m_TransformBuffers.m_OutputBuf,
-            m_TransformBuffers.m_ViewProjBuf);
+            m_TransformBuffers.InputBuf,
+            m_TransformBuffers.OutputBuf,
+            m_TransformBuffers.ViewProjBuf);
         MLG_CHECK(xformBgResult, "Failed to create transform bind group");
-        m_TransformBuffers.m_BindGroup = *xformBgResult;
+        m_TransformBuffers.BindGroup0 = *xformBgResult;
     }
 
     // Use inverse of camera transform as view matrix
@@ -1076,7 +1076,7 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
             });
     }
 
-    m_GpuDevice->Device.GetQueue().WriteBuffer(m_TransformBuffers.m_InputBuf,
+    m_GpuDevice->Device.GetQueue().WriteBuffer(m_TransformBuffers.InputBuf,
         0,
         transformBuffers.data(),
         sizeof(XFormBuffer) * transformBuffers.size());
@@ -1088,14 +1088,14 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
 
     Mat44f identity(1);
 
-    m_GpuDevice->Device.GetQueue().WriteBuffer(m_TransformBuffers.m_ViewProjBuf,
+    m_GpuDevice->Device.GetQueue().WriteBuffer(m_TransformBuffers.ViewProjBuf,
         0,
         identity.m,
         sizeof(Mat44f));
 
     wgpu::ComputePassEncoder pass = cmdEncoder.BeginComputePass();
     pass.SetPipeline(*xformPipelineResult);
-    pass.SetBindGroup(0, m_TransformBuffers.m_BindGroup);
+    pass.SetBindGroup(0, m_TransformBuffers.BindGroup0);
     const uint32_t workgroupCountX = static_cast<uint32_t>((m_CurrentState->m_MeshCount + 63) / 64);
     pass.DispatchWorkgroups(workgroupCountX);
     pass.End();

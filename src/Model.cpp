@@ -86,5 +86,10 @@ Model::Create(
             transformNodes[i].ParentIndex);
     }
 
-    return Model(meshes, transformNodes, gpuDevice, meshToTransformMapping, vertexBuffer, indexBuffer);
+    return Model(meshes,
+        transformNodes,
+        gpuDevice,
+        meshToTransformMapping,
+        vertexBuffer,
+        indexBuffer);
 }

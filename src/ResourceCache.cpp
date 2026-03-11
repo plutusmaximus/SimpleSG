@@ -78,7 +78,6 @@ static void CollectMeshSpecs(const aiScene* scene,
 /// @brief Processes a scene node and its children.
 static void ProcessNodes(const aiNode* node,
     const TransformIndex parentNodeIndex,
-    const Mat44f* coalescingTransform,  // Used to coallesce parent transforms that have no meshes.
     const MeshSpecCollection& meshSpecCollection,
     imvector<TransformIndex>::builder& meshToTransformMapping,
     imvector<TransformNode>::builder& transformNodes,
@@ -553,11 +552,11 @@ ResourceCache::CreateModelOp::CreateModel()
     }
 
     const auto& mapping = m_ModelSpec.GetMeshToTransformMapping();
-    const size_t sizeofBuffer = mapping.size() * sizeof(TransformIndex);
-    auto meshToTransformMappingBuffer = m_ResourceCache->m_GpuDevice->CreateReadonlyBuffer(sizeofBuffer);
+    const size_t sizeofMappingBuffer = mapping.size() * sizeof(TransformIndex);
+    auto meshToTransformMappingBuffer = m_ResourceCache->m_GpuDevice->CreateReadonlyBuffer(sizeofMappingBuffer);
     MLG_CHECK(meshToTransformMappingBuffer);
-    const std::span<const uint8_t> span(reinterpret_cast<const uint8_t*>(mapping.data()), sizeofBuffer);
-    (*meshToTransformMappingBuffer)->WriteBuffer(span);
+    const std::span<const uint8_t> mappingSpan(reinterpret_cast<const uint8_t*>(mapping.data()), sizeofMappingBuffer);
+    (*meshToTransformMappingBuffer)->WriteBuffer(mappingSpan);
 
     auto modelResult = Model::Create(meshes.build(),
         m_ModelSpec.GetTransformNodes(),
@@ -1362,7 +1361,6 @@ ProcessScene(const aiScene* scene, const imstring& filePath)
 
     ProcessNodes(scene->mRootNode,
         kInvalidTransformIndex,
-        nullptr,
         meshSpecCollection,
         meshToTransformMapping,
         transformNodes,
@@ -1381,7 +1379,6 @@ ProcessScene(const aiScene* scene, const imstring& filePath)
 static void
 ProcessNodes(const aiNode* node,
     const TransformIndex parentNodeIndex,
-    const Mat44f* coalescingTransform,
     const MeshSpecCollection& meshSpecCollection,
     imvector<TransformIndex>::builder& meshToTransformMapping,
     imvector<TransformNode>::builder& transformNodes,
@@ -1418,57 +1415,37 @@ ProcessNodes(const aiNode* node,
         nodeTransform.d4,
     };
 
-    if(coalescingTransform)
-    {
-        transform = *coalescingTransform * transform;
-    }
+    int nodeIndex = static_cast<TransformIndex>(transformNodes.size());
 
-    int nodeIndex;
-    const Mat44f* curCoalescingTransform;
-
-    if(!node->mNumMeshes)
-    {
-        nodeIndex = parentNodeIndex;
-        // This node has no meshes.  Its transform can be coalesced into
-        // the child node transforms.
-        curCoalescingTransform = &transform;
-    }
-    else
-    {
-        nodeIndex = static_cast<TransformIndex>(transformNodes.size());
-        curCoalescingTransform = nullptr;
-
-        const TransformNode transformNode//
-            {
-                .ParentIndex = parentNodeIndex,
-                .Transform = transform,
-            };
-
-        transformNodes.emplace_back(transformNode);
-
-        for(unsigned i = 0; i < node->mNumMeshes; ++i)
+    const TransformNode transformNode//
         {
-            const SceneMeshId sceneMeshId = node->mMeshes[i];
-            if(!meshSpecCollection.MeshIdToSpecIndex.contains(sceneMeshId))
-            {
-                Log::Warn("  Mesh {} not found in mesh spec collection; skipping", sceneMeshId);
-                continue;
-            }
+            .ParentIndex = parentNodeIndex,
+            .Transform = transform,
+        };
 
-            const int meshSpecIndex = meshSpecCollection.MeshIdToSpecIndex.at(sceneMeshId);
+    transformNodes.emplace_back(transformNode);
 
-            const MeshSpec& meshSpec = meshSpecCollection.MeshSpecs[meshSpecIndex];
-
-            Log::Debug("  Adding mesh instance {}", meshSpec.Name);
-            meshToTransformMapping.emplace_back(nodeIndex);
+    for(unsigned i = 0; i < node->mNumMeshes; ++i)
+    {
+        const SceneMeshId sceneMeshId = node->mMeshes[i];
+        if(!meshSpecCollection.MeshIdToSpecIndex.contains(sceneMeshId))
+        {
+            Log::Warn("  Mesh {} not found in mesh spec collection; skipping", sceneMeshId);
+            continue;
         }
+
+        const int meshSpecIndex = meshSpecCollection.MeshIdToSpecIndex.at(sceneMeshId);
+
+        const MeshSpec& meshSpec = meshSpecCollection.MeshSpecs[meshSpecIndex];
+
+        Log::Debug("  Adding mesh instance {}", meshSpec.Name);
+        meshToTransformMapping.emplace_back(nodeIndex);
     }
 
     for(unsigned i = 0; i < node->mNumChildren; ++i)
     {
         ProcessNodes(node->mChildren[i],
             nodeIndex,
-            curCoalescingTransform,
             meshSpecCollection,
             meshToTransformMapping,
             transformNodes,

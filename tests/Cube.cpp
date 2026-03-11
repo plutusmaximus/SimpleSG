@@ -374,7 +374,12 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
         0,0,0,0,0,0
     };
 
-    const ModelSpec modelSpec{meshSpecs.build(), meshToTransformMapping.build(), transformNodes.build()};
+    const ModelSpec modelSpec //
+        {
+            meshSpecs.build(),
+            meshToTransformMapping.build(),
+            transformNodes.build(),
+        };
 
     const CacheKey cacheKey = CacheKey("CubeModel");
 
@@ -413,12 +418,14 @@ static Result<ModelResource> CreateShapeModel(ResourceCache* cache)
         { .ParentIndex = kInvalidTransformIndex },
     };
 
-    imvector<TransformIndex>::builder meshToTransformMapping
-    {
-        0
-    };
+    imvector<TransformIndex>::builder meshToTransformMapping{ 0 };
 
-    const ModelSpec modelSpec{meshSpecs.build(), meshToTransformMapping.build(), transformNodes.build()};
+    const ModelSpec modelSpec //
+        {
+            meshSpecs.build(),
+            meshToTransformMapping.build(),
+            transformNodes.build(),
+        };
 
     const CacheKey cacheKey = CacheKey("ShapeModel");
 

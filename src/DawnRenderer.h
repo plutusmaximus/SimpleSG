@@ -117,14 +117,15 @@ private:
     {
         bool NeedsRebuild(const size_t size) const
         {
-            return size > SizeofTransformBuffer || !m_InputBuf || !m_OutputBuf || !m_ViewProjBuf;
+            return size > SizeofTransformBuffer || !InputBuf || !OutputBuf || !ViewProjBuf ||
+                   !BindGroup0;
         }
 
         size_t SizeofTransformBuffer{0};
-        wgpu::Buffer m_InputBuf;
-        wgpu::Buffer m_OutputBuf;
-        wgpu::Buffer m_ViewProjBuf;
-        wgpu::BindGroup m_BindGroup;
+        wgpu::Buffer InputBuf;
+        wgpu::Buffer OutputBuf;
+        wgpu::Buffer ViewProjBuf;
+        wgpu::BindGroup BindGroup0;
     };
 
     TransformBuffers m_TransformBuffers;
