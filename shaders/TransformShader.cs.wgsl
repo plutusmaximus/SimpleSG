@@ -16,10 +16,10 @@ struct ViewProj
 @group(0) @binding(0)
 var<storage, read> inMats: array<WorldSpaceXform>;
 
-@group(0) @binding(1)
+@group(1) @binding(0)
 var<storage, read_write> outMats: array<ClipSpaceXform>;
 
-@group(0) @binding(2)
+@group(2) @binding(0)
 var<uniform> viewProj: ViewProj;
 
 @compute @workgroup_size(64)

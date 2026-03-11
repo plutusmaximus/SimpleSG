@@ -22,12 +22,13 @@ static constexpr const char* COLOR_PIPELINE_FS = "shaders/FragmentShader.fs.wgsl
 
 static constexpr const char* TRANSFORM_SHADER_CS = "shaders/TransformShader.cs.wgsl";
 
-static Result<wgpu::BindGroup>
-CreateTransformBindGroup(wgpu::Device device,
+static Result<>
+CreateTransformBindGroups(wgpu::Device device,
     wgpu::ComputePipeline pipeline,
     wgpu::Buffer worldSpaceBuffer,
     wgpu::Buffer clipSpaceBuffer,
-    wgpu::Buffer viewProjBuffer);
+    wgpu::Buffer viewProjBuffer,
+    wgpu::BindGroup* bindGroups);
 
 static Result<wgpu::Buffer>
 CreateBuffer(wgpu::Device device, wgpu::BufferUsage usage, size_t size, const char* label);
@@ -1065,13 +1066,13 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
         m_ColorPipeline.BindGroup1 = m_GpuDevice->Device.CreateBindGroup(&bg1Desc);
         MLG_CHECK(m_ColorPipeline.BindGroup1, "Failed to create bindgroup 1 for color pipeline");
 
-        auto xformBgResult = CreateTransformBindGroup(m_GpuDevice->Device,
+        auto xformBgResult = CreateTransformBindGroups(m_GpuDevice->Device,
             *xformPipelineResult,
             m_TransformBuffers.WorldSpaceBuf,
             m_TransformBuffers.ClipSpaceBuf,
-            m_TransformBuffers.ViewProjBuf);
+            m_TransformBuffers.ViewProjBuf,
+            m_TransformBuffers.BindGroups);
         MLG_CHECK(xformBgResult, "Failed to create transform bind group");
-        m_TransformBuffers.BindGroup0 = *xformBgResult;
     }
 
     // Use inverse of camera transform as view matrix
@@ -1092,7 +1093,9 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
 
     wgpu::ComputePassEncoder pass = cmdEncoder.BeginComputePass();
     pass.SetPipeline(*xformPipelineResult);
-    pass.SetBindGroup(0, m_TransformBuffers.BindGroup0);
+    pass.SetBindGroup(0, m_TransformBuffers.BindGroups[0]);
+    pass.SetBindGroup(1, m_TransformBuffers.BindGroups[1]);
+    pass.SetBindGroup(2, m_TransformBuffers.BindGroups[2]);
     const uint32_t workgroupCountX = static_cast<uint32_t>((m_CurrentState->m_MeshCount + 63) / 64);
     pass.DispatchWorkgroups(workgroupCountX);
     pass.End();
@@ -1116,46 +1119,65 @@ DawnRenderer::GetDefaultBaseTexture()
     return m_DefaultBaseTexture;
 }
 
-static Result<wgpu::BindGroup>
-CreateTransformBindGroup(wgpu::Device device,
+static Result<>
+CreateTransformBindGroups(wgpu::Device device,
     wgpu::ComputePipeline pipeline,
     wgpu::Buffer worldSpaceBuffer,
     wgpu::Buffer clipSpaceBuffer,
-    wgpu::Buffer viewProjBuffer)
+    wgpu::Buffer viewProjBuffer,
+    wgpu::BindGroup* bindGroups)
 {
-
-    wgpu::BindGroupEntry bgEntries[] =//
+    wgpu::BindGroupEntry bg0Entries //
     {
-        {
-            .binding = 0,
-            .buffer = worldSpaceBuffer,
-            .offset = 0,
-            .size = worldSpaceBuffer.GetSize(),
-        },
-        {
-            .binding = 1,
-            .buffer = clipSpaceBuffer,
-            .offset = 0,
-            .size = clipSpaceBuffer.GetSize(),
-        },
-        {
-            .binding = 2,
-            .buffer = viewProjBuffer,
-            .offset = 0,
-            .size = viewProjBuffer.GetSize(),
-        },
+        .binding = 0,
+        .buffer = worldSpaceBuffer,
+        .offset = 0,
+        .size = worldSpaceBuffer.GetSize(),
+    };
+    wgpu::BindGroupEntry bg1Entries //
+    {
+        .binding = 0,
+        .buffer = clipSpaceBuffer,
+        .offset = 0,
+        .size = clipSpaceBuffer.GetSize(),
+    };
+    wgpu::BindGroupEntry bg2Entries //
+    {
+        .binding = 0,
+        .buffer = viewProjBuffer,
+        .offset = 0,
+        .size = viewProjBuffer.GetSize(),
     };
 
-    wgpu::BindGroupDescriptor bgDesc//
+    wgpu::BindGroupDescriptor bg0Desc//
     {
         .layout = pipeline.GetBindGroupLayout(0),
-        .entryCount = std::size(bgEntries),
-        .entries = bgEntries,
+        .entryCount = 1,
+        .entries = &bg0Entries,
     };
 
-    auto bindGroup = device.CreateBindGroup(&bgDesc);
-    MLG_CHECK(bindGroup, "Failed to create wgpu::BindGroup for transform");
-    return bindGroup;
+    wgpu::BindGroupDescriptor bg1Desc//
+    {
+        .layout = pipeline.GetBindGroupLayout(1),
+        .entryCount = 1,
+        .entries = &bg1Entries,
+    };
+
+    wgpu::BindGroupDescriptor bg2Desc//
+    {
+        .layout = pipeline.GetBindGroupLayout(2),
+        .entryCount = 1,
+        .entries = &bg2Entries,
+    };
+
+    bindGroups[0] = device.CreateBindGroup(&bg0Desc);
+    MLG_CHECK(bindGroups[0], "Failed to create bind group 0 for transform");
+    bindGroups[1] = device.CreateBindGroup(&bg1Desc);
+    MLG_CHECK(bindGroups[1], "Failed to create bind group 1 for transform");
+    bindGroups[2] = device.CreateBindGroup(&bg2Desc);
+    MLG_CHECK(bindGroups[2], "Failed to create bind group 2 for transform");
+
+    return Result<>::Ok;
 }
 
 static Result<wgpu::Buffer>
