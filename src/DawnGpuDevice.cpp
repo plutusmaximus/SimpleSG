@@ -75,6 +75,14 @@ DawnGpuReadonlyBuffer::WriteBuffer(const std::span<const uint8_t>& data)
     return Result<>::Ok;
 }
 
+Result<>
+DawnGpuDrawIndirectBuffer::WriteBuffer(const std::span<const uint8_t>& data)
+{
+    m_GpuDevice->Device.GetQueue().WriteBuffer(m_Buffer, 0, data.data(), data.size());
+
+    return Result<>::Ok;
+}
+
 DawnGpuDevice::DawnGpuDevice(SDL_Window* window,
     wgpu::Instance instance,
     wgpu::Adapter adapter,
@@ -256,6 +264,41 @@ DawnGpuDevice::DestroyReadonlyBuffer(GpuReadonlyBuffer* readonlyBuffer)
         "ReadonlyBuffer does not belong to this device");
     dawnBuffer->~DawnGpuReadonlyBuffer();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(readonlyBuffer));
+    return Result<>::Ok;
+}
+
+Result<GpuDrawIndirectBuffer*>
+DawnGpuDevice::CreateDrawIndirectBuffer(const size_t size)
+{
+    // Size must be a multiple of 4
+    const size_t bufferSize = (size + 3) & ~0x03;
+
+    wgpu::BufferDescriptor bufferDesc //
+        {
+            .label = "DrawIndirectBuffer",
+            .usage = wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
+            .size = bufferSize,
+            .mappedAtCreation = false,
+        };
+
+    wgpu::Buffer buffer = Device.CreateBuffer(&bufferDesc);
+    MLG_CHECK(buffer, "Failed to create draw indirect buffer");
+
+    GpuResource* res = m_ResourceAllocator.New();
+
+    MLG_CHECKV(res, "Error allocating DawnGpuDrawIndirectBuffer");
+
+    return ::new(&res->DrawIndirectBuffer) DawnGpuDrawIndirectBuffer(this, buffer);
+}
+
+Result<>
+DawnGpuDevice::DestroyDrawIndirectBuffer(GpuDrawIndirectBuffer* drawIndirectBuffer)
+{
+    DawnGpuDrawIndirectBuffer* dawnBuffer = static_cast<DawnGpuDrawIndirectBuffer*>(drawIndirectBuffer);
+    MLG_ASSERT(this == dawnBuffer->m_GpuDevice,
+        "DrawIndirectBuffer does not belong to this device");
+    dawnBuffer->~DawnGpuDrawIndirectBuffer();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(drawIndirectBuffer));
     return Result<>::Ok;
 }
 

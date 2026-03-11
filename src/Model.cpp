@@ -60,6 +60,15 @@ Model::~Model()
                 Log::Debug("Failed to destroy mesh to transform mapping buffer");
             }
         }
+
+        if(m_DrawIndirectBuffer)
+        {
+            const auto res = m_GpuDevice->DestroyDrawIndirectBuffer(m_DrawIndirectBuffer);
+            if(!res)
+            {
+                Log::Debug("Failed to destroy draw indirect buffer");
+            }
+        }
     }
 }
 
@@ -69,6 +78,7 @@ Model::Create(
     const imvector<TransformNode>& transformNodes,
     GpuDevice* gpuDevice,
     GpuReadonlyBuffer* meshToTransformMapping,
+    GpuDrawIndirectBuffer* drawIndirectBuffer,
     GpuVertexBuffer* vertexBuffer,
     GpuIndexBuffer* indexBuffer)
 {
@@ -90,6 +100,7 @@ Model::Create(
         transformNodes,
         gpuDevice,
         meshToTransformMapping,
+        drawIndirectBuffer,
         vertexBuffer,
         indexBuffer);
 }

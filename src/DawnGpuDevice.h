@@ -104,6 +104,35 @@ private:
     wgpu::Buffer m_Buffer;
 };
 
+class DawnGpuDrawIndirectBuffer : public GpuDrawIndirectBuffer
+{
+public:
+    DawnGpuDrawIndirectBuffer() = delete;
+    DawnGpuDrawIndirectBuffer(const DawnGpuDrawIndirectBuffer&) = delete;
+    DawnGpuDrawIndirectBuffer& operator=(const DawnGpuDrawIndirectBuffer&) = delete;
+    DawnGpuDrawIndirectBuffer(DawnGpuDrawIndirectBuffer&&) = delete;
+    DawnGpuDrawIndirectBuffer& operator=(DawnGpuDrawIndirectBuffer&&) = delete;
+
+    // wgpu::Buffer is ref counted so nothing to do here.
+    ~DawnGpuDrawIndirectBuffer() override {};
+
+    Result<> WriteBuffer(const std::span<const uint8_t>& data) override;
+
+    wgpu::Buffer GetBuffer() const { return m_Buffer; }
+
+private:
+    friend class DawnGpuDevice;
+
+    explicit DawnGpuDrawIndirectBuffer(DawnGpuDevice* gpuDevice, wgpu::Buffer buffer)
+        : m_GpuDevice(gpuDevice),
+          m_Buffer(buffer)
+    {
+    }
+
+    DawnGpuDevice* m_GpuDevice;
+    wgpu::Buffer m_Buffer;
+};
+
 class DawnGpuTexture : public GpuTexture
 {
 public:
@@ -322,6 +351,10 @@ public:
 
     Result<> DestroyReadonlyBuffer(GpuReadonlyBuffer* readonlyBuffer) override;
 
+    Result<GpuDrawIndirectBuffer*> CreateDrawIndirectBuffer(const size_t size) override;
+
+    Result<> DestroyDrawIndirectBuffer(GpuDrawIndirectBuffer* drawIndirectBuffer) override;
+
     Result<GpuTexture*> CreateTexture(const unsigned width,
         const unsigned height,
         const uint8_t* pixels,
@@ -387,6 +420,7 @@ private:
         DawnGpuVertexBuffer VertexBuffer;
         DawnGpuIndexBuffer IndexBuffer;
         DawnGpuReadonlyBuffer ReadonlyBuffer;
+        DawnGpuDrawIndirectBuffer DrawIndirectBuffer;
         DawnGpuTexture Texture;
         DawnGpuMaterial Material;
         DawnGpuColorTarget ColorTarget;

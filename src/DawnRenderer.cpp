@@ -230,6 +230,10 @@ DawnRenderer::Render(const Mat44f& camera,
 
     const auto& meshes = models->GetMeshes();
 
+    auto drawIndirectBuf =
+        static_cast<const DawnGpuDrawIndirectBuffer*>(models->GetDrawIndirectBuffer())
+            ->GetBuffer();
+
     for(size_t i = 0; i < meshes.size(); ++i)
     {
         const Mesh& mesh = meshes[i];
@@ -252,7 +256,7 @@ DawnRenderer::Render(const Mat44f& camera,
                 mesh.GetVertexOffset(),
                 meshCount);*/
 
-            renderPass.DrawIndexedIndirect(m_DrawIndirectBuffer,
+            renderPass.DrawIndexedIndirect(drawIndirectBuf,
                 sizeof(DrawIndirectBufferParams) * meshCount);
         }
 
@@ -959,16 +963,12 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
     // Size of the buffer needed to hold the world and projection matrices for all meshes in the
     // current frame.
     const size_t sizeofTransformBuffer = sizeof(Mat44f) * m_CurrentState->m_Transforms.size();
-    const size_t sizeofDrawIndirectBuffer =
-        sizeof(DrawIndirectBufferParams) * m_CurrentState->m_MeshCount;
 
-    if(m_TransformBuffers.NeedsRebuild(sizeofTransformBuffer) || !m_DrawIndirectBuffer ||
-        m_SizeofDrawIndirectBuffer < sizeofDrawIndirectBuffer)
+    if(m_TransformBuffers.NeedsRebuild(sizeofTransformBuffer))
     {
         // Re-allocate buffers.
 
         m_TransformBuffers.SizeofTransformBuffer = sizeofTransformBuffer;
-        m_SizeofDrawIndirectBuffer = sizeofDrawIndirectBuffer;
 
         auto result = CreateBuffer(m_GpuDevice->Device,
             wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
@@ -990,13 +990,6 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
             "ViewProjTransformBuffer");
         MLG_CHECK(result);
         m_TransformBuffers.ViewProjBuf = *result;
-
-        result = CreateBuffer(m_GpuDevice->Device,
-            wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
-            sizeofDrawIndirectBuffer,
-            "DrawIndirectBuffer");
-        MLG_CHECK(result);
-        m_DrawIndirectBuffer = *result;
 
         const wgpu::Buffer meshToTransformMapping =
             static_cast<const DawnGpuReadonlyBuffer*>(models->GetMeshToTransformMapping())
@@ -1051,33 +1044,10 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
     // Projection transform
     const Mat44f viewProj = projection.Mul(viewXform);
 
-    std::vector<DrawIndirectBufferParams> drawIndirectBuffers;
-
-    drawIndirectBuffers.reserve(m_CurrentState->m_MeshCount);
-
-    for(size_t i = 0; i < m_CurrentState->m_Meshes.size(); ++i)
-    {
-        const Mesh* mesh = m_CurrentState->m_Meshes[i];
-
-        drawIndirectBuffers.emplace_back(DrawIndirectBufferParams //
-            {
-                .IndexCount = mesh->GetIndexCount(),
-                .InstanceCount = 1,
-                .FirstIndex = mesh->GetIndexOffset(),
-                .BaseVertex = mesh->GetVertexOffset(),
-                .FirstInstance = static_cast<uint32_t>(i),
-            });
-    }
-
     m_GpuDevice->Device.GetQueue().WriteBuffer(m_TransformBuffers.WorldSpaceBuf,
         0,
         m_CurrentState->m_Transforms.data(),
         sizeof(Mat44f) * m_CurrentState->m_Transforms.size());
-
-    m_GpuDevice->Device.GetQueue().WriteBuffer(m_DrawIndirectBuffer,
-        0,
-        drawIndirectBuffers.data(),
-        sizeof(DrawIndirectBufferParams) * drawIndirectBuffers.size());
 
     m_GpuDevice->Device.GetQueue().WriteBuffer(m_TransformBuffers.ViewProjBuf,
         0,

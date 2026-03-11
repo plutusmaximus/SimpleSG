@@ -558,10 +558,47 @@ ResourceCache::CreateModelOp::CreateModel()
     const std::span<const uint8_t> mappingSpan(reinterpret_cast<const uint8_t*>(mapping.data()), sizeofMappingBuffer);
     (*meshToTransformMappingBuffer)->WriteBuffer(mappingSpan);
 
+    class DrawIndirectBufferParams
+    {
+    public:
+        uint32_t IndexCount;
+        uint32_t InstanceCount;
+        uint32_t FirstIndex;
+        uint32_t BaseVertex;
+        uint32_t FirstInstance;
+    };
+
+    std::vector<DrawIndirectBufferParams> drawIndirectBuffers;
+
+    drawIndirectBuffers.reserve(meshes.size());
+
+    for(size_t i = 0; i < meshes.size(); ++i)
+    {
+        const Mesh* mesh = &meshes[i];
+
+        drawIndirectBuffers.emplace_back(DrawIndirectBufferParams //
+            {
+                .IndexCount = mesh->GetIndexCount(),
+                .InstanceCount = 1,
+                .FirstIndex = mesh->GetIndexOffset(),
+                .BaseVertex = mesh->GetVertexOffset(),
+                .FirstInstance = static_cast<uint32_t>(i),
+            });
+    }
+
+    auto drawIndirectBuffer = m_ResourceCache->m_GpuDevice->CreateDrawIndirectBuffer(
+        drawIndirectBuffers.size() * sizeof(DrawIndirectBufferParams));
+    MLG_CHECK(drawIndirectBuffer);
+    const std::span<const uint8_t> drawIndirectSpan(
+        reinterpret_cast<const uint8_t*>(drawIndirectBuffers.data()),
+        drawIndirectBuffers.size() * sizeof(DrawIndirectBufferParams));
+    (*drawIndirectBuffer)->WriteBuffer(drawIndirectSpan);
+
     auto modelResult = Model::Create(meshes.build(),
         m_ModelSpec.GetTransformNodes(),
         m_ResourceCache->m_GpuDevice,
         *meshToTransformMappingBuffer,
+        *drawIndirectBuffer,
         m_VertexBuffer,
         m_IndexBuffer);
 

@@ -130,9 +130,6 @@ private:
 
     TransformBuffers m_TransformBuffers;
 
-    size_t m_SizeofDrawIndirectBuffer{0};
-    wgpu::Buffer m_DrawIndirectBuffer;
-
     wgpu::ShaderModule m_TransformShader;
     wgpu::ComputePipeline m_TransformPipeline;
 };
