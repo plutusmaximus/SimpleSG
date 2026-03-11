@@ -193,7 +193,8 @@ DawnRenderer::Render(const Mat44f& camera,
     static PerfTimer setVsBindGroupTimer("Renderer.Render.Draw.SetVsBindGroup");
     {
         auto scopedTimer = setVsBindGroupTimer.StartScoped();
-        renderPass.SetBindGroup(0, m_ColorPipeline.VsBindGroup, 0, nullptr);
+        renderPass.SetBindGroup(0, m_ColorPipeline.BindGroup0, 0, nullptr);
+        renderPass.SetBindGroup(1, m_ColorPipeline.BindGroup1, 0, nullptr);
     }
 
     static PerfTimer setBuffersTimer("Renderer.Render.Draw.SetBuffers");
@@ -423,7 +424,7 @@ DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder, wgpu::
     MLG_CHECK(renderPass, "Failed to begin render pass for copying color target to swapchain");
 
     renderPass.SetPipeline(*pipelineResult);
-    renderPass.SetBindGroup(2, m_BltPipeline.FsBindGroup, 0, nullptr);
+    renderPass.SetBindGroup(2, m_BltPipeline.BindGroup2, 0, nullptr);
     renderPass.Draw(3, 1, 0, 0);
     renderPass.End();
 
@@ -713,13 +714,13 @@ DawnRenderer::GetCopyColorTargetPipeline()
     wgpu::BindGroupDescriptor bgDesc //
         {
             .label = "ColorTargetCopyBindGroup",
-            .layout = m_BltPipeline.FsBindGroupLayout,
+            .layout = m_BltPipeline.BindGroup2Layout,
             .entryCount = std::size(bgEntries),
             .entries = bgEntries,
         };
 
-    m_BltPipeline.FsBindGroup = m_GpuDevice->Device.CreateBindGroup(&bgDesc);
-    MLG_CHECK(m_BltPipeline.FsBindGroup, "Failed to create wgpu::BindGroup for BLT pipeline");
+    m_BltPipeline.BindGroup2 = m_GpuDevice->Device.CreateBindGroup(&bgDesc);
+    MLG_CHECK(m_BltPipeline.BindGroup2, "Failed to create bind group 2 for BLT pipeline");
 
     m_BltPipeline.Pipeline = m_GpuDevice->Device.CreateRenderPipeline(&descriptor);
     MLG_CHECK(m_BltPipeline.Pipeline, "Failed to create render pipeline for BLT pipeline");
@@ -759,12 +760,12 @@ DawnRenderer::GetTransformPipeline()
 Result<>
 DawnRenderer::CreateLayouts()
 {
-    if(!m_ColorPipeline.PipelineLayout || !m_ColorPipeline.VsBindGroupLayout ||
-        !m_ColorPipeline.FsBindGroupLayout || !m_BltPipeline.PipelineLayout ||
-        !m_BltPipeline.FsBindGroupLayout)
+    if(!m_ColorPipeline.PipelineLayout || !m_ColorPipeline.BindGroup0Layout ||
+        !m_ColorPipeline.BindGroup1Layout || !m_ColorPipeline.BindGroup2Layout ||
+        !m_BltPipeline.PipelineLayout || !m_BltPipeline.BindGroup2Layout)
     {
-        // Vertex shader bind group layout
-        wgpu::BindGroupLayoutEntry vertBglEntries[] =//
+        // Color pipeline bind group 0 layout
+        wgpu::BindGroupLayoutEntry cpBg0Entries[] =//
         {
             // World space transform.
             {
@@ -777,20 +778,9 @@ DawnRenderer::CreateLayouts()
                     .minBindingSize = sizeof(Mat44f),
                 },
             },
-            // Clip space transform
-            {
-                .binding = 1,
-                .visibility = wgpu::ShaderStage::Vertex,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(Mat44f),
-                },
-            },
             //Mesh to transform index mapping
             {
-                .binding = 2,
+                .binding = 1,
                 .visibility = wgpu::ShaderStage::Vertex,
                 .buffer =
                 {
@@ -800,19 +790,37 @@ DawnRenderer::CreateLayouts()
                 },
             },
         };
-
-        wgpu::BindGroupLayoutDescriptor vertBglDesc = //
+        wgpu::BindGroupLayoutDescriptor cpBg0Desc = //
             {
-                .label = "ColorTargetVertBGL",
-                .entryCount = std::size(vertBglEntries),
-                .entries = vertBglEntries,
+                .label = "ColorPipelineBg0Layout",
+                .entryCount = std::size(cpBg0Entries),
+                .entries = cpBg0Entries,
             };
 
-        m_ColorPipeline.VsBindGroupLayout = m_GpuDevice->Device.CreateBindGroupLayout(&vertBglDesc);
-        MLG_CHECK(m_ColorPipeline.VsBindGroupLayout, "Failed to create BindGroupLayout");
+        // Color pipeline bind group 1 layout
+        wgpu::BindGroupLayoutEntry cpBg1Entries[] =//
+        {
+            // Clip space transform
+            {
+                .binding = 0,
+                .visibility = wgpu::ShaderStage::Vertex,
+                .buffer =
+                {
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = sizeof(Mat44f),
+                },
+            },
+        };
+        wgpu::BindGroupLayoutDescriptor cpBg1Desc = //
+            {
+                .label = "ColorPipelineBg1Layout",
+                .entryCount = std::size(cpBg1Entries),
+                .entries = cpBg1Entries,
+            };
 
-        // Fragment shader bind group layout
-        wgpu::BindGroupLayoutEntry fragBglEntries[] =//
+        // Color pipeline bind group 2 layout
+        wgpu::BindGroupLayoutEntry cpBg2Entries[] =//
         {
             {
                 .binding = 0,
@@ -847,36 +855,47 @@ DawnRenderer::CreateLayouts()
             }
         };
 
-        wgpu::BindGroupLayoutDescriptor fragBglDesc = //
+        wgpu::BindGroupLayoutDescriptor cpBg2Desc = //
             {
-                .label = "ColorTargetFragBGL",
-                .entryCount = std::size(fragBglEntries),
-                .entries = fragBglEntries,
+                .label = "ColorPipelineBg2Layout",
+                .entryCount = std::size(cpBg2Entries),
+                .entries = cpBg2Entries,
             };
 
-        m_ColorPipeline.FsBindGroupLayout = m_GpuDevice->Device.CreateBindGroupLayout(&fragBglDesc);
-        MLG_CHECK(m_ColorPipeline.FsBindGroupLayout, "Failed to create BindGroupLayout");
+        m_ColorPipeline.BindGroup0Layout = m_GpuDevice->Device.CreateBindGroupLayout(&cpBg0Desc);
+        MLG_CHECK(m_ColorPipeline.BindGroup0Layout,
+            "Failed to create bind group 0 layout for color pipeline");
 
-        // Color target pipeline bind group layouts
+        m_ColorPipeline.BindGroup1Layout = m_GpuDevice->Device.CreateBindGroupLayout(&cpBg1Desc);
+        MLG_CHECK(m_ColorPipeline.BindGroup1Layout,
+            "Failed to create bind group 1 layout for color pipeline");
+
+        m_ColorPipeline.BindGroup2Layout = m_GpuDevice->Device.CreateBindGroupLayout(&cpBg2Desc);
+        MLG_CHECK(m_ColorPipeline.BindGroup2Layout,
+            "Failed to create bind group 2 layout for color pipeline");
+
+        // Color target pipeline layout
+
         wgpu::BindGroupLayout colorTargetBgl[] = //
             {
-                m_ColorPipeline.VsBindGroupLayout,
-                nullptr, // Group 1 unused
-                m_ColorPipeline.FsBindGroupLayout,
+                m_ColorPipeline.BindGroup0Layout,
+                m_ColorPipeline.BindGroup1Layout,
+                m_ColorPipeline.BindGroup2Layout,
             };
 
         wgpu::PipelineLayoutDescriptor colorTargetPipelineLayoutDesc //
             {
-                .label = "ColorTargetPipelineLayout",
+                .label = "ColorPipelineLayout",
                 .bindGroupLayoutCount = std::size(colorTargetBgl),
                 .bindGroupLayouts = colorTargetBgl,
             };
 
-        m_ColorPipeline.PipelineLayout = m_GpuDevice->Device.CreatePipelineLayout(&colorTargetPipelineLayoutDesc);
-        MLG_CHECK(m_ColorPipeline.PipelineLayout, "Failed to create color PipelineLayout");
+        m_ColorPipeline.PipelineLayout =
+            m_GpuDevice->Device.CreatePipelineLayout(&colorTargetPipelineLayoutDesc);
+        MLG_CHECK(m_ColorPipeline.PipelineLayout, "Failed to create color pipeline layout");
 
-        // Copy color target bind group layout
-        wgpu::BindGroupLayoutEntry bltBglEntries[] =//
+        // BLT pipeline bind group 2 layout
+        wgpu::BindGroupLayoutEntry bltBgl2Entries[] =//
         {
             {
                 .binding = 0,
@@ -898,33 +917,35 @@ DawnRenderer::CreateLayouts()
             },
         };
 
-        wgpu::BindGroupLayoutDescriptor bltBglDesc = //
+        wgpu::BindGroupLayoutDescriptor bltBgl2Desc = //
             {
-                .label = "CopyColorTargetBGL",
-                .entryCount = std::size(bltBglEntries),
-                .entries = bltBglEntries,
+                .label = "BltBg2Layout",
+                .entryCount = std::size(bltBgl2Entries),
+                .entries = bltBgl2Entries,
             };
 
-        m_BltPipeline.FsBindGroupLayout = m_GpuDevice->Device.CreateBindGroupLayout(&bltBglDesc);
-        MLG_CHECK(m_BltPipeline.FsBindGroupLayout, "CreateBindGroupLayout failed for copy color target pipeline");
+        m_BltPipeline.BindGroup2Layout = m_GpuDevice->Device.CreateBindGroupLayout(&bltBgl2Desc);
+        MLG_CHECK(m_BltPipeline.BindGroup2Layout,
+            "Failed to create bind group 2 layout for BLT pipeline");
 
-        // Copy color target pipeline bind group layouts
+        // BLT pipeline bind group layout
+
         wgpu::BindGroupLayout bltBgl[] = //
             {
-                nullptr, // Group 0 unused
-                nullptr, // Group 1 unused
-                m_BltPipeline.FsBindGroupLayout, // Group 2 for texture and sampler
+                nullptr,    //bind group 0
+                nullptr,    //bind group 1
+                m_BltPipeline.BindGroup2Layout,
             };
 
         wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
             {
-                .label = "CopyColorTargetPipelineLayout",
+                .label = "BltPipelineLayout",
                 .bindGroupLayoutCount = std::size(bltBgl),
                 .bindGroupLayouts = bltBgl,
             };
 
         m_BltPipeline.PipelineLayout = m_GpuDevice->Device.CreatePipelineLayout(&pipelineLayoutDesc);
-        MLG_CHECK(m_BltPipeline.PipelineLayout, "Failed to create PipelineLayout");
+        MLG_CHECK(m_BltPipeline.PipelineLayout, "Failed to create BLT pipeline layout");
     }
 
     return Result<>::Ok;
@@ -996,7 +1017,7 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
                 ->GetBuffer();
 
         // Recreate the vertex shader bind group with the new buffer.
-        wgpu::BindGroupEntry vsBgEntries[] = //
+        wgpu::BindGroupEntry bg0Entries[] = //
             {
                 {
                     .binding = 0,
@@ -1006,28 +1027,43 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
                 },
                 {
                     .binding = 1,
+                    .buffer = meshToTransformMapping,
+                    .offset = 0,
+                    .size = meshToTransformMapping.GetSize(),
+                },
+            };
+
+        wgpu::BindGroupDescriptor bg0Desc //
+            {
+                .label = "ColorPipelineBindGroup0",
+                .layout = m_ColorPipeline.BindGroup0Layout,
+                .entryCount = std::size(bg0Entries),
+                .entries = bg0Entries,
+            };
+
+        wgpu::BindGroupEntry bg1Entries[] = //
+            {
+                {
+                    .binding = 0,
                     .buffer = m_TransformBuffers.ClipSpaceBuf,
                     .offset = 0,
                     .size = sizeofTransformBuffer,
                 },
-                {
-                    .binding = 2,
-                    .buffer = meshToTransformMapping,
-                    .offset = 0,
-                    .size = meshToTransformMapping.GetSize(),
-                }
             };
 
-        wgpu::BindGroupDescriptor vsBgDesc //
+        wgpu::BindGroupDescriptor bg1Desc //
             {
-                .label = "vsBindGroup",
-                .layout = m_ColorPipeline.VsBindGroupLayout,
-                .entryCount = std::size(vsBgEntries),
-                .entries = vsBgEntries,
+                .label = "ColorPipelineBindGroup1",
+                .layout = m_ColorPipeline.BindGroup1Layout,
+                .entryCount = std::size(bg1Entries),
+                .entries = bg1Entries,
             };
 
-        m_ColorPipeline.VsBindGroup = m_GpuDevice->Device.CreateBindGroup(&vsBgDesc);
-        MLG_CHECK(m_ColorPipeline.VsBindGroup, "Failed to create VS bindgroup for color pipeline");
+        m_ColorPipeline.BindGroup0 = m_GpuDevice->Device.CreateBindGroup(&bg0Desc);
+        MLG_CHECK(m_ColorPipeline.BindGroup0, "Failed to create bindgroup 0 for color pipeline");
+
+        m_ColorPipeline.BindGroup1 = m_GpuDevice->Device.CreateBindGroup(&bg1Desc);
+        MLG_CHECK(m_ColorPipeline.BindGroup1, "Failed to create bindgroup 1 for color pipeline");
 
         auto xformBgResult = CreateTransformBindGroup(m_GpuDevice->Device,
             *xformPipelineResult,
