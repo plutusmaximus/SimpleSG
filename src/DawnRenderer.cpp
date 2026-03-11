@@ -770,14 +770,8 @@ DawnRenderer::CreateLayouts()
         // Vertex shader bind group layout
         wgpu::BindGroupLayoutEntry vertBglEntries[] =//
         {
+            // World space transform.
             {
-                /*
-                    struct XForm
-                    {
-                        modelXform: mat4x4<f32>,
-                        modelViewProjXform: mat4x4<f32>,
-                    };
-                */
                 .binding = 0,
                 .visibility = wgpu::ShaderStage::Vertex,
                 .buffer =
@@ -787,21 +781,15 @@ DawnRenderer::CreateLayouts()
                     .minBindingSize = sizeof(XFormBuffer),
                 },
             },
+            // Clip space transform
             {
-                /*
-                    struct XForm
-                    {
-                        modelXform: mat4x4<f32>,
-                        modelViewProjXform: mat4x4<f32>,
-                    };
-                */
                 .binding = 1,
                 .visibility = wgpu::ShaderStage::Vertex,
                 .buffer =
                 {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
                     .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(XFormBuffer),
+                    .minBindingSize = sizeof(Mat44f),
                 },
             },
             //Mesh to transform index mapping
@@ -999,7 +987,7 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
 
         result = CreateBuffer(m_GpuDevice->Device,
             wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
-            sizeofTransformBuffer,
+            sizeof(Mat44f) * m_CurrentState->m_Transforms.size(),
             "OutputTransformBuffer");
         MLG_CHECK(result);
         m_TransformBuffers.OutputBuf = *result;
@@ -1034,7 +1022,7 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
                     .binding = 1,
                     .buffer = m_TransformBuffers.OutputBuf,
                     .offset = 0,
-                    .size = sizeofTransformBuffer,
+                    .size = sizeof(Mat44f) * m_CurrentState->m_Transforms.size(),
                 },
                 {
                     .binding = 2,
@@ -1081,7 +1069,7 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
         transformBuffers.emplace_back(XFormBuffer //
             {
                 .ModelXform = xform,
-                .ModelViewProjXform = viewProj.Mul(xform),
+                //.ModelViewProjXform = viewProj.Mul(xform),
             });
     }
 
@@ -1109,11 +1097,9 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
         drawIndirectBuffers.data(),
         sizeof(DrawIndirectBufferParams) * drawIndirectBuffers.size());
 
-    Mat44f identity(1);
-
     m_GpuDevice->Device.GetQueue().WriteBuffer(m_TransformBuffers.ViewProjBuf,
         0,
-        identity.m,
+        viewProj.m,
         sizeof(Mat44f));
 
     wgpu::ComputePassEncoder pass = cmdEncoder.BeginComputePass();

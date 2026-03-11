@@ -4,6 +4,11 @@ struct XForm
     modelViewProjXform: mat4x4<f32>,
 };
 
+struct ClipSpaceXform
+{
+    xform : mat4x4<f32>,
+}
+
 struct ViewProj
 {
     rhs: mat4x4<f32>,
@@ -13,7 +18,7 @@ struct ViewProj
 var<storage, read> inMats: array<XForm>;
 
 @group(0) @binding(1)
-var<storage, read_write> outMats: array<XForm>;
+var<storage, read_write> outMats: array<ClipSpaceXform>;
 
 @group(0) @binding(2)
 var<uniform> viewProj: ViewProj;
@@ -29,8 +34,5 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>)
         return;
     }
 
-    outMats[i].modelXform = inMats[i].modelXform * viewProj.rhs;
-
-    outMats[i].modelXform = inMats[i].modelXform;
-    outMats[i].modelViewProjXform = inMats[i].modelViewProjXform;
+    outMats[i].xform = viewProj.rhs * inMats[i].modelXform;
 }
