@@ -54,7 +54,7 @@ Model::~Model()
 
         if(m_MeshToTransformMapping)
         {
-            const auto res = m_GpuDevice->DestroyReadonlyBuffer(m_MeshToTransformMapping);
+            const auto res = m_GpuDevice->DestroyStorageBuffer(m_MeshToTransformMapping);
             if(!res)
             {
                 Log::Debug("Failed to destroy mesh to transform mapping buffer");
@@ -77,7 +77,7 @@ Model::Create(
     const imvector<Mesh>& meshes,
     const imvector<TransformNode>& transformNodes,
     GpuDevice* gpuDevice,
-    GpuReadonlyBuffer* meshToTransformMapping,
+    GpuStorageBuffer* meshToTransformMapping,
     GpuDrawIndirectBuffer* drawIndirectBuffer,
     GpuVertexBuffer* vertexBuffer,
     GpuIndexBuffer* indexBuffer)

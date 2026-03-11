@@ -68,7 +68,7 @@ static inline size_t alignUniformBuffer(const wgpu::Limits& limits)
 }
 
 Result<>
-DawnGpuReadonlyBuffer::WriteBuffer(const std::span<const uint8_t>& data)
+DawnGpuStorageBuffer::WriteBuffer(const std::span<const uint8_t>& data)
 {
     m_GpuDevice->Device.GetQueue().WriteBuffer(m_Buffer, 0, data.data(), data.size());
 
@@ -232,8 +232,8 @@ DawnGpuDevice::DestroyIndexBuffer(GpuIndexBuffer* buffer)
     return Result<>::Ok;
 }
 
-Result<GpuReadonlyBuffer*>
-DawnGpuDevice::CreateReadonlyBuffer(const size_t size)
+Result<GpuStorageBuffer*>
+DawnGpuDevice::CreateStorageBuffer(const size_t size)
 {
     // Size must be a multiple of 4
     const size_t bufferSize = (size + 3) & ~0x03;
@@ -247,23 +247,23 @@ DawnGpuDevice::CreateReadonlyBuffer(const size_t size)
         };
 
     wgpu::Buffer buffer = Device.CreateBuffer(&bufferDesc);
-    MLG_CHECK(buffer, "Failed to create readonly buffer");
+    MLG_CHECK(buffer, "Failed to create storage buffer");
 
     GpuResource* res = m_ResourceAllocator.New();
 
-    MLG_CHECKV(res, "Error allocating DawnGpuReadonlyBuffer");
+    MLG_CHECKV(res, "Error allocating DawnGpuStorageBuffer");
 
-    return ::new(&res->ReadonlyBuffer) DawnGpuReadonlyBuffer(this, buffer);
+    return ::new(&res->StorageBuffer) DawnGpuStorageBuffer(this, buffer);
 }
 
 Result<>
-DawnGpuDevice::DestroyReadonlyBuffer(GpuReadonlyBuffer* readonlyBuffer)
+DawnGpuDevice::DestroyStorageBuffer(GpuStorageBuffer* storageBuffer)
 {
-    DawnGpuReadonlyBuffer* dawnBuffer = static_cast<DawnGpuReadonlyBuffer*>(readonlyBuffer);
+    DawnGpuStorageBuffer* dawnBuffer = static_cast<DawnGpuStorageBuffer*>(storageBuffer);
     MLG_ASSERT(this == dawnBuffer->m_GpuDevice,
-        "ReadonlyBuffer does not belong to this device");
-    dawnBuffer->~DawnGpuReadonlyBuffer();
-    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(readonlyBuffer));
+        "StorageBuffer does not belong to this device");
+    dawnBuffer->~DawnGpuStorageBuffer();
+    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(storageBuffer));
     return Result<>::Ok;
 }
 

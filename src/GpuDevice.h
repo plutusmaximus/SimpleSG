@@ -54,19 +54,19 @@ protected:
     virtual ~GpuTexture() = 0;
 };
 
-/// @brief GPU representation of a readonly storage buffer.
-class GpuReadonlyBuffer
+/// @brief GPU representation of a storage buffer.
+class GpuStorageBuffer
 {
 public:
 
     virtual Result<> WriteBuffer(const std::span<const uint8_t>& data) = 0;
 
 protected:
-    GpuReadonlyBuffer() = default;
-    virtual ~GpuReadonlyBuffer() = 0;
+    GpuStorageBuffer() = default;
+    virtual ~GpuStorageBuffer() = 0;
 };
 
-/// @brief GPU representation of a readonly storage buffer.
+/// @brief GPU representation of a draw indirect buffer.
 class GpuDrawIndirectBuffer
 {
 public:
@@ -158,10 +158,10 @@ public:
     virtual Result<> DestroyIndexBuffer(GpuIndexBuffer* indexBuffer) = 0;
 
     /// @brief Creates a readonly buffer.
-    virtual Result<GpuReadonlyBuffer*> CreateReadonlyBuffer(const size_t size) = 0;
+    virtual Result<GpuStorageBuffer*> CreateStorageBuffer(const size_t size) = 0;
 
     /// @brief Destroys a readonly buffer.
-    virtual Result<> DestroyReadonlyBuffer(GpuReadonlyBuffer* readonlyBuffer) = 0;
+    virtual Result<> DestroyStorageBuffer(GpuStorageBuffer* readonlyBuffer) = 0;
 
     /// @brief Creates a draw indirect buffer.
     virtual Result<GpuDrawIndirectBuffer*> CreateDrawIndirectBuffer(const size_t size) = 0;
@@ -216,7 +216,7 @@ protected:
 
 inline GpuVertexBuffer::~GpuVertexBuffer() = default;
 inline GpuIndexBuffer::~GpuIndexBuffer() = default;
-inline GpuReadonlyBuffer::~GpuReadonlyBuffer() = default;
+inline GpuStorageBuffer::~GpuStorageBuffer() = default;
 inline GpuDrawIndirectBuffer::~GpuDrawIndirectBuffer() = default;
 inline GpuTexture::~GpuTexture() = default;
 inline GpuMaterial::~GpuMaterial() = default;

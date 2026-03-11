@@ -75,17 +75,17 @@ private:
     const unsigned m_ItemCount;
 };
 
-class DawnGpuReadonlyBuffer : public GpuReadonlyBuffer
+class DawnGpuStorageBuffer : public GpuStorageBuffer
 {
 public:
-    DawnGpuReadonlyBuffer() = delete;
-    DawnGpuReadonlyBuffer(const DawnGpuReadonlyBuffer&) = delete;
-    DawnGpuReadonlyBuffer& operator=(const DawnGpuReadonlyBuffer&) = delete;
-    DawnGpuReadonlyBuffer(DawnGpuReadonlyBuffer&&) = delete;
-    DawnGpuReadonlyBuffer& operator=(DawnGpuReadonlyBuffer&&) = delete;
+    DawnGpuStorageBuffer() = delete;
+    DawnGpuStorageBuffer(const DawnGpuStorageBuffer&) = delete;
+    DawnGpuStorageBuffer& operator=(const DawnGpuStorageBuffer&) = delete;
+    DawnGpuStorageBuffer(DawnGpuStorageBuffer&&) = delete;
+    DawnGpuStorageBuffer& operator=(DawnGpuStorageBuffer&&) = delete;
 
     // wgpu::Buffer is ref counted so nothing to do here.
-    ~DawnGpuReadonlyBuffer() override {};
+    ~DawnGpuStorageBuffer() override {};
 
     Result<> WriteBuffer(const std::span<const uint8_t>& data) override;
 
@@ -94,7 +94,7 @@ public:
 private:
     friend class DawnGpuDevice;
 
-    explicit DawnGpuReadonlyBuffer(DawnGpuDevice* gpuDevice, wgpu::Buffer buffer)
+    explicit DawnGpuStorageBuffer(DawnGpuDevice* gpuDevice, wgpu::Buffer buffer)
         : m_GpuDevice(gpuDevice),
           m_Buffer(buffer)
     {
@@ -347,9 +347,9 @@ public:
 
     Result<> DestroyIndexBuffer(GpuIndexBuffer* buffer) override;
 
-    Result<GpuReadonlyBuffer*> CreateReadonlyBuffer(const size_t size) override;
+    Result<GpuStorageBuffer*> CreateStorageBuffer(const size_t size) override;
 
-    Result<> DestroyReadonlyBuffer(GpuReadonlyBuffer* readonlyBuffer) override;
+    Result<> DestroyStorageBuffer(GpuStorageBuffer* storageBuffer) override;
 
     Result<GpuDrawIndirectBuffer*> CreateDrawIndirectBuffer(const size_t size) override;
 
@@ -419,7 +419,7 @@ private:
 
         DawnGpuVertexBuffer VertexBuffer;
         DawnGpuIndexBuffer IndexBuffer;
-        DawnGpuReadonlyBuffer ReadonlyBuffer;
+        DawnGpuStorageBuffer StorageBuffer;
         DawnGpuDrawIndirectBuffer DrawIndirectBuffer;
         DawnGpuTexture Texture;
         DawnGpuMaterial Material;

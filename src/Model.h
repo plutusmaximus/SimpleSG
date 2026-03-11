@@ -78,14 +78,14 @@ public:
         const imvector<Mesh>& meshes,
         const imvector<TransformNode>& transformNodes,
         GpuDevice* gpuDevice,
-        GpuReadonlyBuffer* meshToTransformMapping,
+        GpuStorageBuffer* meshToTransformMapping,
         GpuDrawIndirectBuffer* drawIndirectBuffer,
         GpuVertexBuffer* vertexBuffer,
         GpuIndexBuffer* indexBuffer);
 
     const imvector<Mesh>& GetMeshes() const { return m_Meshes; }
     const imvector<TransformNode>& GetTransformNodes() const { return m_TransformNodes; }
-    const GpuReadonlyBuffer* GetMeshToTransformMapping() const { return m_MeshToTransformMapping; }
+    const GpuStorageBuffer* GetMeshToTransformMapping() const { return m_MeshToTransformMapping; }
     const GpuDrawIndirectBuffer* GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
     const GpuVertexBuffer* GetGpuVertexBuffer() const { return m_VertexBuffer; }
     const GpuIndexBuffer* GetGpuIndexBuffer() const { return m_IndexBuffer; }
@@ -94,7 +94,7 @@ private:
     Model(const imvector<Mesh>& meshes,
         const imvector<TransformNode>& transformNodes,
         GpuDevice* gpuDevice,
-        GpuReadonlyBuffer* meshToTransformMapping,
+        GpuStorageBuffer* meshToTransformMapping,
         GpuDrawIndirectBuffer* drawIndirectBuffer,
         GpuVertexBuffer* vertexBuffer,
         GpuIndexBuffer* indexBuffer)
@@ -112,7 +112,7 @@ private:
     imvector<TransformNode> m_TransformNodes;
 
     GpuDevice* m_GpuDevice{nullptr};
-    GpuReadonlyBuffer* m_MeshToTransformMapping{nullptr};
+    GpuStorageBuffer* m_MeshToTransformMapping{nullptr};
     GpuDrawIndirectBuffer* m_DrawIndirectBuffer{nullptr};
     GpuVertexBuffer* m_VertexBuffer{nullptr};
     GpuIndexBuffer* m_IndexBuffer{nullptr};

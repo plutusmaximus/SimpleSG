@@ -1079,7 +1079,7 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
         m_TransformBuffers.ViewProjBuf = *result;
 
         const wgpu::Buffer meshToTransformMapping =
-            static_cast<const DawnGpuReadonlyBuffer*>(models->GetMeshToTransformMapping())
+            static_cast<const DawnGpuStorageBuffer*>(models->GetMeshToTransformMapping())
                 ->GetBuffer();
 
         // Recreate the vertex shader bind group with the new buffer.

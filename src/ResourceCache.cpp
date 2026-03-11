@@ -553,7 +553,7 @@ ResourceCache::CreateModelOp::CreateModel()
 
     const auto& mapping = m_ModelSpec.GetMeshToTransformMapping();
     const size_t sizeofMappingBuffer = mapping.size() * sizeof(TransformIndex);
-    auto meshToTransformMappingBuffer = m_ResourceCache->m_GpuDevice->CreateReadonlyBuffer(sizeofMappingBuffer);
+    auto meshToTransformMappingBuffer = m_ResourceCache->m_GpuDevice->CreateStorageBuffer(sizeofMappingBuffer);
     MLG_CHECK(meshToTransformMappingBuffer);
     const std::span<const uint8_t> mappingSpan(reinterpret_cast<const uint8_t*>(mapping.data()), sizeofMappingBuffer);
     (*meshToTransformMappingBuffer)->WriteBuffer(mappingSpan);
