@@ -66,13 +66,13 @@ private:
     Result<> CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder,
         wgpu::TextureView target);
 
-    Result<wgpu::RenderPipeline> GetColorPipeline();
+    Result<> CreateColorAndDepthTargets();
 
-    Result<wgpu::RenderPipeline> GetCopyColorTargetPipeline();
+    Result<> CreateColorPipeline();
 
-    Result<wgpu::ComputePipeline> GetTransformPipeline();
+    Result<> CreateBltPipeline();
 
-    Result<> CreateLayouts();
+    Result<> CreateTransformPipeline();
 
     Result<wgpu::ShaderModule> CreateShader(const char* path);
 

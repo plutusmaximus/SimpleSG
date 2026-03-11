@@ -672,53 +672,55 @@ DawnGpuDevice::GetDefaultSampler()
 Result<wgpu::BindGroupLayout>
 DawnGpuDevice::GetFsBindGroupLayout()
 {
-    if(!m_FsBindGroupLayout)
+    if(m_FsBindGroupLayout)
     {
-        wgpu::Limits gpuLimits;
-        Device.GetLimits(&gpuLimits);
-
-        wgpu::BindGroupLayoutEntry entries[] = //
-            {
-                {
-                    .binding = 0,
-                    .visibility = wgpu::ShaderStage::Fragment,
-                    .texture = //
-                    {
-                        .sampleType = wgpu::TextureSampleType::Float,
-                        .viewDimension = wgpu::TextureViewDimension::e2D,
-                        .multisampled = false,
-                    },
-                },
-                {
-                    .binding = 1,
-                    .visibility = wgpu::ShaderStage::Fragment,
-                    .sampler = //
-                    {
-                        .type = wgpu::SamplerBindingType::Filtering,
-                    },
-                },
-                {
-                    .binding = 2,
-                    .visibility = wgpu::ShaderStage::Fragment,
-                    .buffer = //
-                    {
-                        .type = wgpu::BufferBindingType::Uniform,
-                        .hasDynamicOffset = false,
-                        .minBindingSize = alignUniformBuffer<MaterialConstants>(gpuLimits),
-                    },
-                },
-            };
-
-        wgpu::BindGroupLayoutDescriptor layoutDesc //
-            {
-                .label = "fsBindGroupLayout",
-                .entryCount = std::size(entries),
-                .entries = entries,
-            };
-
-        m_FsBindGroupLayout = Device.CreateBindGroupLayout(&layoutDesc);
-        MLG_CHECK(m_FsBindGroupLayout, "Failed to create bind group layout");
+        return m_FsBindGroupLayout;
     }
+
+    wgpu::Limits gpuLimits;
+    Device.GetLimits(&gpuLimits);
+
+    wgpu::BindGroupLayoutEntry entries[] = //
+        {
+            {
+                .binding = 0,
+                .visibility = wgpu::ShaderStage::Fragment,
+                .texture = //
+                {
+                    .sampleType = wgpu::TextureSampleType::Float,
+                    .viewDimension = wgpu::TextureViewDimension::e2D,
+                    .multisampled = false,
+                },
+            },
+            {
+                .binding = 1,
+                .visibility = wgpu::ShaderStage::Fragment,
+                .sampler = //
+                {
+                    .type = wgpu::SamplerBindingType::Filtering,
+                },
+            },
+            {
+                .binding = 2,
+                .visibility = wgpu::ShaderStage::Fragment,
+                .buffer = //
+                {
+                    .type = wgpu::BufferBindingType::Uniform,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = alignUniformBuffer<MaterialConstants>(gpuLimits),
+                },
+            },
+        };
+
+    wgpu::BindGroupLayoutDescriptor layoutDesc //
+        {
+            .label = "fsBindGroupLayout",
+            .entryCount = std::size(entries),
+            .entries = entries,
+        };
+
+    m_FsBindGroupLayout = Device.CreateBindGroupLayout(&layoutDesc);
+    MLG_CHECK(m_FsBindGroupLayout, "Failed to create bind group layout");
 
     return m_FsBindGroupLayout;
 }
