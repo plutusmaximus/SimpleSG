@@ -25,8 +25,8 @@ static constexpr const char* TRANSFORM_SHADER_CS = "shaders/TransformShader.cs.w
 static Result<wgpu::BindGroup>
 CreateTransformBindGroup(wgpu::Device device,
     wgpu::ComputePipeline pipeline,
-    wgpu::Buffer inputBuffer,
-    wgpu::Buffer outputBuffer,
+    wgpu::Buffer worldSpaceBuffer,
+    wgpu::Buffer clipSpaceBuffer,
     wgpu::Buffer viewProjBuffer);
 
 static Result<wgpu::Buffer>
@@ -973,16 +973,16 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
         auto result = CreateBuffer(m_GpuDevice->Device,
             wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
             sizeofTransformBuffer,
-            "InputTransformBuffer");
+            "WorldSpaceTransformBuffer");
         MLG_CHECK(result);
-        m_TransformBuffers.InputBuf = *result;
+        m_TransformBuffers.WorldSpaceBuf = *result;
 
         result = CreateBuffer(m_GpuDevice->Device,
             wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
             sizeofTransformBuffer,
-            "OutputTransformBuffer");
+            "ClipSpaceTransformBuffer");
         MLG_CHECK(result);
-        m_TransformBuffers.OutputBuf = *result;
+        m_TransformBuffers.ClipSpaceBuf = *result;
 
         result = CreateBuffer(m_GpuDevice->Device,
             wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
@@ -999,20 +999,21 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
         m_DrawIndirectBuffer = *result;
 
         const wgpu::Buffer meshToTransformMapping =
-        static_cast<const DawnGpuReadonlyBuffer*>(models->GetMeshToTransformMapping())->GetBuffer();
+            static_cast<const DawnGpuReadonlyBuffer*>(models->GetMeshToTransformMapping())
+                ->GetBuffer();
 
         // Recreate the vertex shader bind group with the new buffer.
         wgpu::BindGroupEntry vsBgEntries[] = //
             {
                 {
                     .binding = 0,
-                    .buffer = m_TransformBuffers.InputBuf,
+                    .buffer = m_TransformBuffers.WorldSpaceBuf,
                     .offset = 0,
                     .size = sizeofTransformBuffer,
                 },
                 {
                     .binding = 1,
-                    .buffer = m_TransformBuffers.OutputBuf,
+                    .buffer = m_TransformBuffers.ClipSpaceBuf,
                     .offset = 0,
                     .size = sizeofTransformBuffer,
                 },
@@ -1037,8 +1038,8 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
 
         auto xformBgResult = CreateTransformBindGroup(m_GpuDevice->Device,
             *xformPipelineResult,
-            m_TransformBuffers.InputBuf,
-            m_TransformBuffers.OutputBuf,
+            m_TransformBuffers.WorldSpaceBuf,
+            m_TransformBuffers.ClipSpaceBuf,
             m_TransformBuffers.ViewProjBuf);
         MLG_CHECK(xformBgResult, "Failed to create transform bind group");
         m_TransformBuffers.BindGroup0 = *xformBgResult;
@@ -1068,7 +1069,7 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
             });
     }
 
-    m_GpuDevice->Device.GetQueue().WriteBuffer(m_TransformBuffers.InputBuf,
+    m_GpuDevice->Device.GetQueue().WriteBuffer(m_TransformBuffers.WorldSpaceBuf,
         0,
         m_CurrentState->m_Transforms.data(),
         sizeof(Mat44f) * m_CurrentState->m_Transforms.size());
@@ -1112,8 +1113,8 @@ DawnRenderer::GetDefaultBaseTexture()
 static Result<wgpu::BindGroup>
 CreateTransformBindGroup(wgpu::Device device,
     wgpu::ComputePipeline pipeline,
-    wgpu::Buffer inputBuffer,
-    wgpu::Buffer outputBuffer,
+    wgpu::Buffer worldSpaceBuffer,
+    wgpu::Buffer clipSpaceBuffer,
     wgpu::Buffer viewProjBuffer)
 {
 
@@ -1121,15 +1122,15 @@ CreateTransformBindGroup(wgpu::Device device,
     {
         {
             .binding = 0,
-            .buffer = inputBuffer,
+            .buffer = worldSpaceBuffer,
             .offset = 0,
-            .size = inputBuffer.GetSize(),
+            .size = worldSpaceBuffer.GetSize(),
         },
         {
             .binding = 1,
-            .buffer = outputBuffer,
+            .buffer = clipSpaceBuffer,
             .offset = 0,
-            .size = outputBuffer.GetSize(),
+            .size = clipSpaceBuffer.GetSize(),
         },
         {
             .binding = 2,
