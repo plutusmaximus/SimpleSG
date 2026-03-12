@@ -297,7 +297,6 @@ private:
         {
             NotStarted,
             LoadFile,
-            LoadFile2,
             LoadingFile,
             CreateModel,
             CreatingModel,

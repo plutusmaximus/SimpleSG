@@ -728,22 +728,6 @@ ResourceCache::LoadModelOp::Update()
         }
         break;
 
-        case LoadFile2:
-        {
-            m_Stopwatch.Mark();
-
-            m_ModelSpecResult = CgltfModelLoader::LoadModel(std::string(m_Path));
-
-            if(!m_ModelSpecResult)
-            {
-                SetResult(Result<>::Fail);
-                return;
-            }
-
-            m_State = LoadingFile;
-        }
-        break;
-
         case LoadingFile:
         m_State = CreateModel;
         break;
