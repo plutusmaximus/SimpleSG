@@ -10,6 +10,9 @@ static std::shared_ptr<spdlog::sinks::dist_sink_mt> mux_sink;
 
 static std::atomic<bool> s_InitializeSinks = true;
 
+thread_local std::vector<std::string> Log::s_LogPrefixStack;
+thread_local std::string Log::s_LogPrefix;
+
 namespace
 {
 class SpdLogLogger : public Log::Logger

@@ -175,11 +175,13 @@ add_custom_target(copy_models
 set(SSG_SOURCES
   src/AssertHelper.cpp
   src/Camera.cpp
+  src/CgltfModelLoader.cpp
   src/CoopScheduler.cpp
   src/DawnGpuDevice.cpp
   src/DawnRenderCompositor.cpp
   src/DawnRenderer.cpp
   src/EcsChildTransformPool.cpp
+  src/FileFetcher.cpp
   src/FileIo.cpp
   src/ImGuiRenderer.cpp
   src/Log.cpp
@@ -197,12 +199,14 @@ set(SSG_SOURCES
 set(SSG_HEADERS
   src/AssertHelper.h
   src/Camera.h
+  src/CgltfModelLoader.h
   src/CoopScheduler.h
   src/DawnGpuDevice.h
   src/DawnRenderCompositor.h
   src/DawnRenderer.h
   src/ECS.h
   src/EcsChildTransformPool.h
+  src/FileFetcher.h
   src/FileIo.h
   src/ImGuiRenderer.h
   src/imstring.h
@@ -239,7 +243,7 @@ target_sources(ssg
 )
 
 target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 assimp::assimp webgpu_dawn imgui)
-target_include_directories(ssg PUBLIC src PRIVATE thirdparty/stb)
+target_include_directories(ssg PUBLIC src PRIVATE thirdparty/stb thirdparty/cgltf)
 
 add_dependencies(ssg tint_cmd_tint_cmd)
 

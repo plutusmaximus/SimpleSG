@@ -15,26 +15,28 @@
 #define __LOGGER_NAME__ "****"
 #endif
 
+/// @brief  consteval string label that can be used as a non-type template parameter
+/// to specialize loggers by label.
+template<std::size_t N>
+struct LoggerLabel
+{
+    char value[N];
+
+    explicit consteval LoggerLabel(const char (&str)[N])
+    {
+        for(std::size_t i = 0; i < N; ++i)
+        {
+            value[i] = str[i];
+        }
+    }
+
+    consteval std::string_view sv() const { return std::string_view(value, N - 1); }
+};
+
+static inline constexpr LoggerLabel<sizeof(__LOGGER_NAME__)> __logger_name__{__LOGGER_NAME__};
+
 class Log final
 {
-    /// @brief  consteval string label that can be used as a non-type template parameter
-    /// to specialize loggers by label.
-    template<std::size_t N>
-    struct LoggerLabel
-    {
-        char value[N];
-
-        consteval LoggerLabel(const char (&str)[N])
-        {
-            for(std::size_t i = 0; i < N; ++i)
-            {
-                value[i] = str[i];
-            }
-        }
-
-        consteval std::string_view sv() const { return std::string_view(value, N - 1); }
-    };
-
 public:
 
     enum class Level : uint8_t
@@ -58,73 +60,75 @@ public:
     template<typename... Args>
     static inline void Trace(std::format_string<Args...> fmt, Args&&... args)
     {
-        GetLogger<__LOGGER_NAME__>()->Log(Log::Level::Trace,
+        GetLogger<__logger_name__>()->Log(Log::Level::Trace,
             Prefix(fmt, std::forward<Args>(args)...));
     }
 
     static inline void Trace(const std::string& message)
     {
-        GetLogger<__LOGGER_NAME__>()->Log(Log::Level::Trace, Prefix(message));
+        GetLogger<__logger_name__>()->Log(Log::Level::Trace, Prefix(message));
     }
 
     template<typename... Args>
     static inline void Debug(std::format_string<Args...> fmt, Args&&... args)
     {
-        GetLogger<__LOGGER_NAME__>()->Log(Log::Level::Debug,
+        GetLogger<__logger_name__>()->Log(Log::Level::Debug,
             Prefix(fmt, std::forward<Args>(args)...));
     }
 
     static inline void Debug(const std::string& message)
     {
-        GetLogger<__LOGGER_NAME__>()->Log(Log::Level::Debug, Prefix(message));
+        GetLogger<__logger_name__>()->Log(Log::Level::Debug, Prefix(message));
     }
 
     template<typename... Args>
     static inline void Info(std::format_string<Args...> fmt, Args&&... args)
     {
-        GetLogger<__LOGGER_NAME__>()->Log(Log::Level::Info,
+        GetLogger<__logger_name__>()->Log(Log::Level::Info,
             Prefix(fmt, std::forward<Args>(args)...));
     }
 
     static inline void Info(const std::string& message)
     {
-        GetLogger<__LOGGER_NAME__>()->Log(Log::Level::Info, Prefix(message));
+        GetLogger<__logger_name__>()->Log(Log::Level::Info, Prefix(message));
     }
 
     template<typename... Args>
     static inline void Warn(std::format_string<Args...> fmt, Args&&... args)
     {
-        GetLogger<__LOGGER_NAME__>()->Log(Log::Level::Warn,
+        GetLogger<__logger_name__>()->Log(Log::Level::Warn,
             Prefix(fmt, std::forward<Args>(args)...));
     }
 
     static inline void Warn(const std::string& message)
     {
-        GetLogger<__LOGGER_NAME__>()->Log(Log::Level::Warn, Prefix(message));
+        GetLogger<__logger_name__>()->Log(Log::Level::Warn, Prefix(message));
     }
 
     template<typename... Args>
     static inline void Error(std::format_string<Args...> fmt, Args&&... args)
     {
-        GetLogger<__LOGGER_NAME__>()->Log(Log::Level::Error,
+        GetLogger<__logger_name__>()->Log(Log::Level::Error,
             Prefix(fmt, std::forward<Args>(args)...));
     }
 
     static inline void Error(const std::string& message)
     {
-        GetLogger<__LOGGER_NAME__>()->Log(Log::Level::Error, Prefix(message));
+        GetLogger<__logger_name__>()->Log(Log::Level::Error, Prefix(message));
     }
+
+    static inline constexpr LoggerLabel<sizeof("assert")> __assert_logger_name__{"assert"};
 
     /// Log an assertion failure
     template<typename... Args>
     static inline void Assert(std::format_string<Args...> fmt, Args&&... args)
     {
-        GetLogger<"assert">()->Log(Log::Level::Error, Prefix(fmt, std::forward<Args>(args)...));
+        GetLogger<__assert_logger_name__>()->Log(Log::Level::Error, Prefix(fmt, std::forward<Args>(args)...));
     }
 
     static inline void Assert(const std::string& message)
     {
-        GetLogger<"assert">()->Log(Log::Level::Error, Prefix(message));
+        GetLogger<__assert_logger_name__>()->Log(Log::Level::Error, Prefix(message));
     }
 
     /// @brief Sets the log level for a specific logger.
@@ -233,8 +237,6 @@ private:
 
     static void MakePrefix()
     {
-        std::lock_guard<std::mutex> lock(s_LogPrefixMutex);
-
         s_LogPrefix.clear();
         s_LogPrefix += "[";
 
@@ -256,20 +258,16 @@ private:
     template<typename... Args>
     static std::string Prefix(std::format_string<Args...> fmt, Args&&... args)
     {
-        std::lock_guard<std::mutex> lock(s_LogPrefixMutex);
-
         return s_LogPrefix + std::format(fmt, std::forward<Args>(args)...);
     }
 
     static std::string Prefix(const std::string& message)
     {
-        std::lock_guard<std::mutex> lock(s_LogPrefixMutex);
         return s_LogPrefix + message;
     }
 
-    static inline std::mutex s_LogPrefixMutex;
-    static inline std::vector<std::string> s_LogPrefixStack;
-    static inline std::string s_LogPrefix;
+    static thread_local std::vector<std::string> s_LogPrefixStack;
+    static thread_local std::string s_LogPrefix;
 };
 
 namespace mlg
