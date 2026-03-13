@@ -6,14 +6,19 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/dist_sink.h>
 
+#include <mutex>
 #include <vector>
 
 static std::shared_ptr<spdlog::sinks::dist_sink_mt> mux_sink;
 
 static std::atomic<bool> s_InitializeSinks = true;
 
+static std::mutex s_LoggerMutex;
+
 static void InitializeSinks()
 {
+    std::lock_guard<std::mutex> lock(s_LoggerMutex);
+
     if (s_InitializeSinks.exchange(false))
     {
         auto consoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
@@ -29,17 +34,25 @@ static void InitializeSinks()
     }
 }
 
-Log::Logger::Logger(const std::string_view name)
+Log::Logger::Logger(const std::string& name)
 {
     static_assert(sizeof(m_Buffer) >= sizeof(std::shared_ptr<spdlog::logger>));
 
-    [[maybe_unused]] const size_t size = sizeof(std::shared_ptr<spdlog::logger>);
-
     InitializeSinks();
 
-    auto logger = std::make_shared<spdlog::logger>(std::string(name), mux_sink);
+    std::lock_guard<std::mutex> lock(s_LoggerMutex);
 
-    ::new(m_Buffer) std::shared_ptr<spdlog::logger>(std::move(logger));
+    std::shared_ptr<spdlog::logger> logger = spdlog::get(name);
+
+    if(!logger)
+    {
+        logger = std::make_shared<spdlog::logger>(name, mux_sink);
+
+        spdlog::initialize_logger(logger);
+        spdlog::register_or_replace(logger);
+    }
+
+    ::new(m_Buffer) std::shared_ptr<spdlog::logger>(logger);
 }
 
 Log::Logger::~Logger()

@@ -28,7 +28,7 @@ public:
     {
     public:
 
-        explicit Logger(const std::string_view name);
+        explicit Logger(const std::string& name);
 
         ~Logger();
 
@@ -55,7 +55,7 @@ public:
 
         void LogImpl(const Level level, const std::string& message);
 
-        uint8_t m_Buffer[32];
+        uint8_t m_Buffer[16];
     };
 
     /// Log an assertion failure
