@@ -81,7 +81,7 @@ public:
     do{ \
         if(!static_cast<bool>(expr)) \
         { \
-            Log::Error("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__)); \
+            MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__)); \
             return Result<>::Fail; \
         } \
     } while(0)
@@ -91,7 +91,7 @@ public:
     do{ \
         if(!MLG_VERIFY(expr, ##__VA_ARGS__)) \
         { \
-            Log::Error("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__)); \
+            MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__)); \
             return Result<>::Fail; \
         } \
     } while(0)

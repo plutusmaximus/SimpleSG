@@ -19,6 +19,8 @@
 
 #include "scope_exit.h"
 
+#include "CgltfModelLoader.h"
+
 namespace
 {
 static Result<> RenderGui();
@@ -316,6 +318,8 @@ int main(int, char* /*argv[]*/)
     {
         return -1;
     }
+
+    CgltfModelLoader::LoadModel("C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf");
 
     driver.SetMouseCapture(true);
 

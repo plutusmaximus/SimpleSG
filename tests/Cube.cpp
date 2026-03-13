@@ -45,7 +45,7 @@ public:
             Shutdown();
         });
 
-        Log::Info("Initializing...");
+        MLG_INFO("Initializing...");
 
         MLG_CHECKV(State::None == m_State, "Application already initialized or running");
 
@@ -88,7 +88,7 @@ public:
 
     void Shutdown() override
     {
-        Log::Info("Shutting down...");
+        MLG_INFO("Shutting down...");
 
         if(State::Shutdown == m_State)
         {

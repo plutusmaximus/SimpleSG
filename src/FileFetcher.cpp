@@ -17,7 +17,7 @@ FileFetcher::Fetch(FileFetcher::Request& request)
 
     if(request.m_hFile == INVALID_HANDLE_VALUE)
     {
-        Log::Error("Failed to open file: {}", request.FilePath);
+        MLG_ERROR("Failed to open file: {}", request.FilePath);
         request.SetComplete(Failure);
         return Result<>::Fail;
     }
@@ -27,7 +27,7 @@ FileFetcher::Fetch(FileFetcher::Request& request)
         auto result = GetFileSize(request);
         if(!result)
         {
-            Log::Error("Failed to get file size: {}", request.FilePath);
+            MLG_ERROR("Failed to get file size: {}", request.FilePath);
             request.SetComplete(Failure);
             return Result<>::Fail;
         }
@@ -42,14 +42,14 @@ FileFetcher::Fetch(FileFetcher::Request& request)
     const ULONG_PTR completionKey = reinterpret_cast<ULONG_PTR>(&request);
     if(nullptr == ::CreateIoCompletionPort(request.m_hFile, s_IOCP, completionKey, 0))
     {
-        Log::Error("Failed to bind file to IOCP: {}, error: {}", request.FilePath, ::GetLastError());
+        MLG_ERROR("Failed to bind file to IOCP: {}, error: {}", request.FilePath, ::GetLastError());
         request.SetComplete(Failure);
         return Result<>::Fail;
     }
 
     if(!IssueRead(request))
     {
-        Log::Error("Failed to issue read for file: {}", request.FilePath);
+        MLG_ERROR("Failed to issue read for file: {}", request.FilePath);
         request.SetComplete(Failure);
         return Result<>::Fail;
     }
@@ -91,7 +91,7 @@ FileFetcher::ProcessCompletions()
         }
 
         // Some other error occurred - assume it's fatal.
-        Log::Error("GetQueuedCompletionStatusEx failed, error: {}", err);
+        MLG_ERROR("GetQueuedCompletionStatusEx failed, error: {}", err);
 
         return Result<>::Ok;
     }
@@ -170,7 +170,7 @@ FileFetcher::IssueRead(FileFetcher::Request& req)
             continue;
         }
 
-        Log::Error("Failed to issue read for file: {}, error: {}", req.FilePath, err);
+        MLG_ERROR("Failed to issue read for file: {}, error: {}", req.FilePath, err);
 
         req.SetComplete(Failure);
 

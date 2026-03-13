@@ -59,7 +59,7 @@ DawnRenderer::~DawnRenderer()
         auto result = m_GpuDevice->DestroyTexture(m_DefaultBaseTexture);
         if(!result)
         {
-            Log::Error("Failed to destroy default base texture");
+            MLG_ERROR("Failed to destroy default base texture");
         }
     }
 
@@ -68,7 +68,7 @@ DawnRenderer::~DawnRenderer()
         auto result = m_GpuDevice->DestroyColorTarget(m_ColorTarget);
         if(!result)
         {
-            Log::Error("Failed to destroy default color target");
+            MLG_ERROR("Failed to destroy default color target");
         }
     }
 
@@ -77,7 +77,7 @@ DawnRenderer::~DawnRenderer()
         auto result = m_GpuDevice->DestroyDepthTarget(m_DepthTarget);
         if(!result)
         {
-            Log::Error("Failed to destroy default depth target");
+            MLG_ERROR("Failed to destroy default depth target");
         }
     }
 }
@@ -411,14 +411,14 @@ DawnRenderer::CreateColorAndDepthTargets()
     if(!m_ColorTarget || m_ColorTarget->GetWidth() != targetWidth ||
         m_ColorTarget->GetHeight() != targetHeight)
     {
-        Log::Debug("Creating new color target for render pass with size {}x{}", targetWidth, targetHeight);
+        MLG_DEBUG("Creating new color target for render pass with size {}x{}", targetWidth, targetHeight);
 
         if(m_ColorTarget)
         {
             auto result = m_GpuDevice->DestroyColorTarget(m_ColorTarget);
             if(!result)
             {
-                Log::Error("Failed to destroy default color target");
+                MLG_ERROR("Failed to destroy default color target");
             }
             m_ColorTarget = nullptr;
         }
@@ -431,14 +431,14 @@ DawnRenderer::CreateColorAndDepthTargets()
     if(!m_DepthTarget || m_DepthTarget->GetWidth() != targetWidth ||
         m_DepthTarget->GetHeight() != targetHeight)
     {
-        Log::Debug("Creating new depth target for render pass with size {}x{}", targetWidth, targetHeight);
+        MLG_DEBUG("Creating new depth target for render pass with size {}x{}", targetWidth, targetHeight);
 
         if(m_DepthTarget)
         {
             auto result = m_GpuDevice->DestroyDepthTarget(m_DepthTarget);
             if(!result)
             {
-                Log::Error("Failed to destroy default depth target");
+                MLG_ERROR("Failed to destroy default depth target");
             }
             m_DepthTarget = nullptr;
         }

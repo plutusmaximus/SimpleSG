@@ -39,7 +39,7 @@ Model::~Model()
             const auto res = m_GpuDevice->DestroyVertexBuffer(m_VertexBuffer);
             if(!res)
             {
-                Log::Debug("Failed to destroy vertex buffer");
+                MLG_DEBUG("Failed to destroy vertex buffer");
             }
         }
 
@@ -48,7 +48,7 @@ Model::~Model()
             const auto res = m_GpuDevice->DestroyIndexBuffer(m_IndexBuffer);
             if(!res)
             {
-                Log::Debug("Failed to destroy index buffer");
+                MLG_DEBUG("Failed to destroy index buffer");
             }
         }
 
@@ -57,7 +57,7 @@ Model::~Model()
             const auto res = m_GpuDevice->DestroyStorageBuffer(m_MeshToTransformMapping);
             if(!res)
             {
-                Log::Debug("Failed to destroy mesh to transform mapping buffer");
+                MLG_DEBUG("Failed to destroy mesh to transform mapping buffer");
             }
         }
 
@@ -66,7 +66,7 @@ Model::~Model()
             const auto res = m_GpuDevice->DestroyDrawIndirectBuffer(m_DrawIndirectBuffer);
             if(!res)
             {
-                Log::Debug("Failed to destroy draw indirect buffer");
+                MLG_DEBUG("Failed to destroy draw indirect buffer");
             }
         }
     }
@@ -82,7 +82,7 @@ Model::Create(
     GpuVertexBuffer* vertexBuffer,
     GpuIndexBuffer* indexBuffer)
 {
-    Log::Debug(
+    MLG_DEBUG(
         "Creating model with {} meshes, {} transform nodes",
         meshes.size(),
         transformNodes.size());

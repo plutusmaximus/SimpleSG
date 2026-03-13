@@ -50,7 +50,7 @@ AppDriver::Init()
     Log::SetLevel(Log::Level::Trace);
 
     auto cwd = std::filesystem::current_path();
-    Log::Info("Current working directory: {}", cwd.string());
+    MLG_INFO("Current working directory: {}", cwd.string());
 
     MLG_CHECK(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
 

@@ -519,7 +519,7 @@ IssueReadRequest(FileIo::ReadRequest* req)
             continue;
         }
 
-        Log::Error("Failed to issue read for file: {}, error: {}",
+        MLG_ERROR("Failed to issue read for file: {}, error: {}",
             win32Req->Path,
             GetWindowsErrorString(err));
 
@@ -566,7 +566,7 @@ FileIo::PlatformShutdown()
             ::CancelIoEx(win32Req->File, &win32Req->Ov);
         }
 
-        Log::Error("Async read cancelled due to shutdown: {}", req->Path);
+        MLG_ERROR("Async read cancelled due to shutdown: {}", req->Path);
         CompleteRequestFailure(req, Result<>::Fail);
     }
 

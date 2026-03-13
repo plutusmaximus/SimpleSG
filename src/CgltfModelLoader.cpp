@@ -82,31 +82,31 @@ CollectPrimitiveAttributes(const cgltf_primitive& primitive)
 {
     if(primitive.type != cgltf_primitive_type_triangles)
     {
-        Log::Warn("Only triangle primitives are supported. Ignoring.");
+        MLG_WARN("Only triangle primitives are supported. Ignoring.");
         return Result<>::Fail;
     }
 
     if(!primitive.material)
     {
-        Log::Warn("Primitive does not have a material. Ignoring.");
+        MLG_WARN("Primitive does not have a material. Ignoring.");
         return Result<>::Fail;
     }
 
     if(primitive.attributes_count == 0)
     {
-        Log::Warn("Primitive does not have any attributes. Ignoring.");
+        MLG_WARN("Primitive does not have any attributes. Ignoring.");
         return Result<>::Fail;
     }
 
     if(primitive.targets_count != 0)
     {
-        Log::Warn("Morph targets are not supported. Ignoring.");
+        MLG_WARN("Morph targets are not supported. Ignoring.");
         return Result<>::Fail;
     }
 
     if(primitive.has_draco_mesh_compression)
     {
-        Log::Warn("Draco mesh compression is not supported. Ignoring.");
+        MLG_WARN("Draco mesh compression is not supported. Ignoring.");
         return Result<>::Fail;
     }
 
@@ -125,7 +125,7 @@ CollectPrimitiveAttributes(const cgltf_primitive& primitive)
 
         if(attribute.data->is_sparse)
         {
-            Log::Warn("Sparse attribute data is not supported. Primitive will be ignored");
+            MLG_WARN("Sparse attribute data is not supported. Primitive will be ignored");
             return Result<>::Fail;
         }
 
@@ -163,7 +163,7 @@ CollectPrimitiveAttributes(const cgltf_primitive& primitive)
 
     if(!attrs.Position || attrs.Position->count == 0)
     {
-        Log::Warn("Primitive does not have a POSITION attribute.  Ignoring.");
+        MLG_WARN("Primitive does not have a POSITION attribute.  Ignoring.");
         return Result<>::Fail;
     }
 
@@ -242,7 +242,7 @@ CollectNodes(cgltf_node** const childNodes,
                 type = "unknown";
             }
 
-            Log::Warn("{} node has no mesh and no children.  Ignoring.", type);
+            MLG_WARN("{} node has no mesh and no children.  Ignoring.", type);
             continue;
         }
 
@@ -262,7 +262,7 @@ CollectNodes(cgltf_node** const childNodes,
 
                 if(!prim->material)
                 {
-                    Log::Warn("Primitive has no material.  Ignoring");
+                    MLG_WARN("Primitive has no material.  Ignoring");
                     continue;
                 }
 
@@ -270,7 +270,7 @@ CollectNodes(cgltf_node** const childNodes,
 
                 if(!prim->material->has_pbr_metallic_roughness)
                 {
-                    Log::Warn("Primitive does not have PBR metallic-roughness material.  Ignoring.");
+                    MLG_WARN("Primitive does not have PBR metallic-roughness material.  Ignoring.");
                     continue;
                 }
 
@@ -325,19 +325,19 @@ CollectMaterials(std::filesystem::path basePath, SceneData& sceneData)
 
         if(!attrs.Material->pbr_metallic_roughness.base_color_texture.texture)
         {
-            Log::Warn("Primitive has no base color texture");
+            MLG_WARN("Primitive has no base color texture");
             continue;
         }
 
         if(!attrs.Material->pbr_metallic_roughness.base_color_texture.texture->image)
         {
-            Log::Warn("Primitive has no base color texture image");
+            MLG_WARN("Primitive has no base color texture image");
             continue;
         }
 
         if(!attrs.Material->pbr_metallic_roughness.base_color_texture.texture->image->uri)
         {
-            Log::Warn("Primitive has no base color texture image URI");
+            MLG_WARN("Primitive has no base color texture image URI");
             continue;
         }
 
@@ -357,7 +357,7 @@ CollectMaterials(std::filesystem::path basePath, SceneData& sceneData)
         MLG_LOG_SCOPE("baseTex {}", baseTexUri);
         MLG_LOG_SCOPE("mrTex {}", metallicRoughnessTexUri.empty() ? "none" : metallicRoughnessTexUri);
 
-        Log::Debug("Loading texture files...");
+        MLG_DEBUG("Loading texture files...");
 
         auto [btIt, btInserted] =
             fetchRequests.emplace(baseTexUri, (basePath / baseTexUri).string());
@@ -366,7 +366,7 @@ CollectMaterials(std::filesystem::path basePath, SceneData& sceneData)
         {
             if(!FileFetcher::Fetch(btIt->second))
             {
-                Log::Warn("Failed to fetch texture: {}", btIt->second.FilePath);
+                MLG_WARN("Failed to fetch texture: {}", btIt->second.FilePath);
             }
         }
 
@@ -379,7 +379,7 @@ CollectMaterials(std::filesystem::path basePath, SceneData& sceneData)
             {
                 if(!FileFetcher::Fetch(mrIt->second))
                 {
-                    Log::Warn("Failed to fetch texture: {}", mrIt->second.FilePath);
+                    MLG_WARN("Failed to fetch texture: {}", mrIt->second.FilePath);
                 }
             }
         }
@@ -403,7 +403,7 @@ CollectMaterials(std::filesystem::path basePath, SceneData& sceneData)
         }
     }while (pending);
 
-    Log::Debug("Loaded {} textures", fetchRequests.size());
+    MLG_DEBUG("Loaded {} textures", fetchRequests.size());
 
     std::vector<std::atomic<bool>> decodesComplete(fetchRequests.size());
 
@@ -415,13 +415,13 @@ CollectMaterials(std::filesystem::path basePath, SceneData& sceneData)
         {
             MLG_LOG_SCOPE("{}", name);
 
-            Log::Debug("Decoding...");
+            MLG_DEBUG("Decoding...");
 
             int width, height, numChannels;
             stbi_uc* data = stbi_load_from_memory(request.Data.data(), static_cast<int>(request.Data.size()), &width, &height, &numChannels, 0);
             if(!data)
             {
-                Log::Error("Error decoding - {}", stbi_failure_reason());
+                MLG_ERROR("Error decoding - {}", stbi_failure_reason());
             }
             else
             {
@@ -476,6 +476,9 @@ BuildVertexBuffer(SceneData& sceneData)
         {
             MLG_CHECK(cgltf_accessor_read_float(attrs.Position, i, &vtxDst->pos.x, 3),
                 "Failed to read POSITION attribute");
+
+            // Convert from right handed to left handed.
+            vtxDst->pos.z = -vtxDst->pos.z;
 
             if(attrs.Normal)
             {
@@ -561,6 +564,13 @@ BuildIndexBuffer(SceneData& sceneData)
         }
 
         idxDst += idxCount;
+    }
+
+    // Change winding from CCW to CW.
+
+    for(size_t i = 0; i < indexCount; i += 3)
+    {
+        std::swap(sceneData.Indices[i + 1], sceneData.Indices[i + 2]);
     }
 
     return Result<>::Ok;

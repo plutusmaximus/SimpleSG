@@ -103,7 +103,7 @@ DawnGpuDevice::DawnGpuDevice(SDL_Window* window,
 Result<GpuDevice*>
 DawnGpuDevice::Create(SDL_Window* window)
 {
-    Log::Info("Creating Dawn GPU Device...");
+    MLG_INFO("Creating Dawn GPU Device...");
 
     auto instanceResult = CreateInstance();
     MLG_CHECK(instanceResult);
@@ -159,7 +159,7 @@ DawnGpuDevice::GetScreenBounds() const
     int width = 0, height = 0;
     if(!SDL_GetWindowSizeInPixels(Window, &width, &height))
     {
-        Log::Error("Failed to get window size: {}", SDL_GetError());
+        MLG_ERROR("Failed to get window size: {}", SDL_GetError());
     }
     return Extent{static_cast<float>(width), static_cast<float>(height)};
 }
@@ -406,7 +406,7 @@ DawnGpuDevice::CreateTexture(const unsigned width,
         {
             if(status != wgpu::QueueWorkDoneStatus::Success)
             {
-                Log::Error("Queue submit failed: {}", std::string(message.data, message.length));
+                MLG_ERROR("Queue submit failed: {}", std::string(message.data, message.length));
                 result->queueSubmitResult = Result<>::Fail;
             }
             result->done.store(true);
@@ -754,7 +754,7 @@ CreateAdapter(wgpu::Instance instance)
     {
         if(status != wgpu::RequestAdapterStatus::Success)
         {
-            Log::Error("RequestAdapter failed: {}", std::string(message.data, message.length));
+            MLG_ERROR("RequestAdapter failed: {}", std::string(message.data, message.length));
             result = Result<>::Fail;
         }
         else
@@ -803,7 +803,7 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
                             wgpu::DeviceLostReason reason,
                             wgpu::StringView message)
     {
-        Log::Error("Device lost (reason:{}): {}",
+        MLG_ERROR("Device lost (reason:{}): {}",
             static_cast<int>(reason),
             std::string(message.data, message.length));
 
@@ -819,7 +819,7 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
                                  wgpu::ErrorType errorType,
                                  wgpu::StringView message)
     {
-        Log::Error("Uncaptured error (type:{}): {}",
+        MLG_ERROR("Uncaptured error (type:{}): {}",
             static_cast<int>(errorType),
             std::string(message.data, message.length));
     };
@@ -868,7 +868,7 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
     {
         if(status != wgpu::RequestDeviceStatus::Success)
         {
-            Log::Error("RequestDevice failed: {}", std::string(message.data, message.length));
+            MLG_ERROR("RequestDevice failed: {}", std::string(message.data, message.length));
             result = Result<>::Fail;
         }
         else
