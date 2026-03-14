@@ -7,6 +7,7 @@
 #include "DawnGpuDevice.h"
 #include "FileFetcher.h"
 #include "Log.h"
+#include "scope_exit.h"
 #include "ThreadPool.h"
 #include "Vertex.h"
 
@@ -40,6 +41,11 @@ struct PrimitiveAttributes
     const cgltf_accessor* SrcNormal{nullptr};
     const cgltf_accessor* SrcTexcoord0{nullptr};
     const cgltf_accessor* SrcTexcoord1{nullptr};
+
+    // First index in the GPU index buffer for this primitive
+    uint32_t IbFirstIndex{0};
+    // Base vertex in the GPU vertex buffer for this primitive
+    uint32_t VbBaseVertex{0};
 
     const char* GetMeshName() const { return SrcMesh->name ? SrcMesh->name : "<unnamed>"; }
 };
@@ -75,11 +81,12 @@ struct SceneData
     std::vector<PrimitiveInstance> Instances;
     std::map<const cgltf_primitive*, PrimitiveAttributes> Attrs;
 
-    std::vector<VertexIndex> Indices;
-    std::vector<Vertex> Vertices;
-    std::vector<Mat44f> Transforms;
-    std::vector<MeshDrawParams> MeshDrawParams;
-    std::vector<uint32_t> MeshToTransformMap;
+
+    wgpu::Buffer IndexBuffer;
+    wgpu::Buffer VertexBuffer;
+    wgpu::Buffer TransformBuffer;
+    wgpu::Buffer MeshDrawParamsBuffer;
+    wgpu::Buffer MeshToTransformMapBuffer;
 
     std::map<std::string, wgpu::Texture> Textures;
 };
@@ -392,11 +399,7 @@ StageTexture(wgpu::Device wgpuDevice,
     wgpu::Texture texture = wgpuDevice.CreateTexture(&desc);
 
     void* mappedMemory = stagingBuffer.GetMappedRange(0, stagingSize);
-    if(!mappedMemory)
-    {
-        MLG_ERROR("Failed to map staging buffer for texture upload");
-        return Result<>::Fail;
-    }
+    MLG_CHECK(mappedMemory, "Failed to map staging buffer for texture upload");
 
     auto [it, inserted] = textureBuilders.try_emplace(uri,
         uri,
@@ -488,11 +491,9 @@ CommitTexture(TextureBuilder& builder, wgpu::CommandEncoder encoder)
 }
 
 static Result<>
-FetchTextures(GpuDevice* gpuDevice, std::filesystem::path basePath, SceneData& sceneData)
+FetchTextures(wgpu::Device wgpuDevice, std::filesystem::path basePath, SceneData& sceneData)
 {
     std::map<std::string, FileFetcher::Request> fetchRequests;
-
-    wgpu::Device wgpuDevice = static_cast<DawnGpuDevice*>(gpuDevice)->Device;
 
     for(const auto&[prim, attrs] : sceneData.Attrs)
     {
@@ -657,26 +658,123 @@ FetchTextures(GpuDevice* gpuDevice, std::filesystem::path basePath, SceneData& s
     return Result<>::Ok;
 }
 
-static Result<>
-BuildVertexBuffer(SceneData& sceneData)
+static wgpu::Buffer
+CreateGpuBuffer(wgpu::Device device, wgpu::BufferUsage usage, const size_t size, const char* name)
 {
-    // Compute size of vertex buffer.
-    size_t vertexCount = 0;
+    wgpu::BufferDescriptor bufferDesc //
+        {
+            .label = name,
+            .usage = usage,
+            .size = size,
+            .mappedAtCreation = true,
+        };
+
+    return device.CreateBuffer(&bufferDesc);
+}
+
+static Result<>
+GenerateNormals(SceneData& sceneData, Vertex* vertices, const VertexIndex* indices)
+{
     for(const auto& [prim, attrs] : sceneData.Attrs)
     {
-        vertexCount += attrs.SrcPosition->count;
+        if(attrs.SrcNormal)
+        {
+            // Already has normals, skip generating them.
+            continue;
+        }
+
+        MLG_LOG_SCOPE("mesh {}", attrs.GetMeshName());
+        MLG_LOG_SCOPE("prim {}", attrs.IndexInMesh);
+
+        const size_t idxCount = attrs.SrcIndices ? attrs.SrcIndices->count : attrs.SrcPosition->count;
+
+        for(size_t i = 0; i < attrs.SrcPosition->count; ++i)
+        {
+            vertices[i].normal = {0.0f, 0.0f, 0.0f};
+        }
+
+        for(size_t i = 0; i < idxCount; i += 3)
+        {
+            MLG_LOG_SCOPE("tri {}", i / 3);
+
+            Vertex& v0 = vertices[indices[i + 0]];
+            Vertex& v1 = vertices[indices[i + 1]];
+            Vertex& v2 = vertices[indices[i + 2]];
+
+            const Vec3f normal0 = (v2.pos - v0.pos).Cross(v1.pos - v0.pos).Normalize();
+            const Vec3f normal1 = (v0.pos - v1.pos).Cross(v2.pos - v1.pos).Normalize();
+            const Vec3f normal2 = (v1.pos - v2.pos).Cross(v0.pos - v2.pos).Normalize();
+
+            v0.normal += normal0;
+            v1.normal += normal1;
+            v2.normal += normal2;
+        }
+
+        for(size_t i = 0; i < attrs.SrcPosition->count; ++i)
+        {
+            vertices[i].normal = vertices[i].normal.Normalize();
+        }
     }
 
-    sceneData.Vertices.resize(vertexCount);
+    return Result<>::Ok;
+}
 
-    Vertex* vtxDst = reinterpret_cast<Vertex*>(sceneData.Vertices.data());
+static Result<>
+BuildIndexVertexBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
+{
+    // Compute size of vertex buffer.
+    size_t vbBufferSize = 0;
+    size_t ibBufferSize = 0;
+
+    for(const auto& [prim, attrs] : sceneData.Attrs)
+    {
+        vbBufferSize += attrs.SrcPosition->count * sizeof(Vertex);
+
+        if(attrs.SrcIndices)
+        {
+            ibBufferSize += attrs.SrcIndices->count * sizeof(VertexIndex);
+        }
+        else
+        {
+            // Non-indexed primitive.
+            ibBufferSize += attrs.SrcPosition->count * sizeof(VertexIndex);
+        }
+    }
+
+    sceneData.VertexBuffer = CreateGpuBuffer(wgpuDevice,
+        wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst,
+        vbBufferSize,
+        "VertexBuffer");
+
+    sceneData.IndexBuffer = CreateGpuBuffer(wgpuDevice,
+        wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst,
+        ibBufferSize,
+        "IndexBuffer");
+
+    void* vbMapped = sceneData.VertexBuffer.GetMappedRange(0, vbBufferSize);
+    MLG_CHECK(vbMapped, "Failed to map VertexBuffer");
+
+    void* ibMapped = sceneData.IndexBuffer.GetMappedRange(0, ibBufferSize);
+    MLG_CHECK(ibMapped, "Failed to map IndexBuffer");
+
+    auto cleanupVb = scope_exit([&]() { sceneData.VertexBuffer.Unmap(); });
+    auto cleanupIb = scope_exit([&]() { sceneData.IndexBuffer.Unmap(); });
+
+    Vertex* vtxDst = reinterpret_cast<Vertex*>(vbMapped);
+    VertexIndex* idxDst = reinterpret_cast<VertexIndex*>(ibMapped);
+
+    uint32_t baseVertex = 0;
+    uint32_t baseIndex = 0;
 
     for(auto& [prim, attrs] : sceneData.Attrs)
     {
         MLG_LOG_SCOPE("mesh {}", attrs.GetMeshName());
         MLG_LOG_SCOPE("prim {}", attrs.IndexInMesh);
 
-        for(cgltf_size i = 0; i < attrs.SrcPosition->count; ++i, ++vtxDst)
+        attrs.VbBaseVertex = baseVertex;
+        attrs.IbFirstIndex = baseIndex;
+
+        for(cgltf_size i = 0; i < attrs.SrcPosition->count; ++i, ++vtxDst, ++baseVertex)
         {
             MLG_CHECK(cgltf_accessor_read_float(attrs.SrcPosition, i, &vtxDst->pos.x, 3),
                 "Failed to read POSITION attribute");
@@ -712,117 +810,49 @@ BuildVertexBuffer(SceneData& sceneData)
                 vtxDst->uvs[1].v = 0.0f;
             }
         }
-    }
 
-    return Result<>::Ok;
-}
-
-static Result<>
-BuildIndexBuffer(SceneData& sceneData)
-{
-    // Compute size of index buffer.
-    size_t indexCount = 0;
-    for(const auto& [prim, attrs] : sceneData.Attrs)
-    {
         if(attrs.SrcIndices)
         {
-            indexCount += attrs.SrcIndices->count;
+            const size_t count = cgltf_accessor_unpack_indices(attrs.SrcIndices,
+                idxDst,
+                sizeof(uint32_t),
+                attrs.SrcIndices->count);
+
+            MLG_CHECK(count == attrs.SrcIndices->count,
+                "Failed to unpack all indices for primitive");
+
+            baseIndex += static_cast<uint32_t>(attrs.SrcIndices->count);
+            idxDst += attrs.SrcIndices->count;
         }
         else
         {
             // Non-indexed primitive.
-            indexCount += attrs.SrcPosition->count;
-        }
-    }
 
-    sceneData.Indices.resize(indexCount);
-
-    uint32_t* idxDst = reinterpret_cast<uint32_t*>(sceneData.Indices.data());
-
-    for(auto& [prim, attrs] : sceneData.Attrs)
-    {
-        MLG_LOG_SCOPE("mesh {}", attrs.GetMeshName());
-        MLG_LOG_SCOPE("prim {}", attrs.IndexInMesh);
-
-        size_t idxCount = 0;
-
-        if(attrs.SrcIndices)
-        {
-            idxCount = attrs.SrcIndices->count;
-
-            const size_t count = cgltf_accessor_unpack_indices(attrs.SrcIndices,
-                idxDst,
-                sizeof(uint32_t),
-                idxCount);
-
-            MLG_CHECK(count == idxCount,
-                "Failed to unpack all indices for primitive");
-        }
-        else
-        {
-            idxCount = attrs.SrcPosition->count;
-            for(size_t i = 0; i < idxCount; ++i)
+            for(size_t i = 0; i < attrs.SrcPosition->count; ++i)
             {
-                idxDst[i] = static_cast<uint32_t>(i);
+                idxDst[i] = static_cast<VertexIndex>(i);
             }
-        }
 
-        idxDst += idxCount;
+            baseIndex += static_cast<uint32_t>(attrs.SrcPosition->count);
+            idxDst += attrs.SrcPosition->count;
+        }
     }
 
     // Change winding from CCW to CW.
 
+    idxDst = reinterpret_cast<VertexIndex*>(ibMapped);
+
+    const size_t indexCount = ibBufferSize / sizeof(VertexIndex);
+
     for(size_t i = 0; i < indexCount; i += 3)
     {
-        std::swap(sceneData.Indices[i + 1], sceneData.Indices[i + 2]);
+        std::swap(idxDst[i + 1], idxDst[i + 2]);
     }
 
-    return Result<>::Ok;
-}
-
-static Result<>
-GenerateNormals(SceneData& sceneData)
-{
-    Vertex* vtx = sceneData.Vertices.data();
-    const VertexIndex* idx = sceneData.Indices.data();
-
-    for(const auto& [prim, attrs] : sceneData.Attrs)
-    {
-        MLG_LOG_SCOPE("mesh {}", attrs.GetMeshName());
-        MLG_LOG_SCOPE("prim {}", attrs.IndexInMesh);
-
-        const size_t idxCount = attrs.SrcIndices ? attrs.SrcIndices->count : attrs.SrcPosition->count;
-
-        if(!attrs.SrcNormal)
-        {
-            for(size_t i = 0; i < attrs.SrcPosition->count; ++i)
-            {
-                vtx[i].normal = {0.0f, 0.0f, 0.0f};
-            }
-
-            for(size_t i = 0; i < idxCount; i += 3)
-            {
-                MLG_LOG_SCOPE("tri {}", i / 3);
-
-                Vertex& v0 = vtx[idx[i + 0]];
-                Vertex& v1 = vtx[idx[i + 1]];
-                Vertex& v2 = vtx[idx[i + 2]];
-
-                const Vec3f normal0 = (v2.pos - v0.pos).Cross(v1.pos - v0.pos).Normalize();
-                const Vec3f normal1 = (v0.pos - v1.pos).Cross(v2.pos - v1.pos).Normalize();
-                const Vec3f normal2 = (v1.pos - v2.pos).Cross(v0.pos - v2.pos).Normalize();
-
-                v0.normal += normal0;
-                v1.normal += normal1;
-                v2.normal += normal2;
-            }
-
-            for(size_t i = 0; i < attrs.SrcPosition->count; ++i)
-            {
-                vtx[i].normal = vtx[i].normal.Normalize();
-            }
-        }
-    }
+    // Generate normals for those primitives that don't have them.
+    GenerateNormals(sceneData,
+        reinterpret_cast<Vertex*>(vbMapped),
+        reinterpret_cast<VertexIndex*>(ibMapped));
 
     return Result<>::Ok;
 }
@@ -843,11 +873,21 @@ void ConvertRHtoLH(Mat44f& M)
 }
 
 static Result<>
-BuildTransformBuffer(SceneData& sceneData)
+BuildTransformBuffer(wgpu::Device wgpuDevice, SceneData& sceneData)
 {
-    sceneData.Transforms.resize(sceneData.Nodes.size());
+    const size_t sizeofBuffer = sceneData.Nodes.size() * sizeof(Mat44f);
 
-    Mat44f* dst = sceneData.Transforms.data();
+    sceneData.TransformBuffer = CreateGpuBuffer(wgpuDevice,
+        wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
+        sizeofBuffer,
+        "TransformBuffer");
+
+    void* mappedRange = sceneData.TransformBuffer.GetMappedRange(0,sizeofBuffer);
+    MLG_CHECK(mappedRange, "Failed to map TransformBuffer");
+
+    auto cleanup = scope_exit([&]() { sceneData.TransformBuffer.Unmap(); });
+
+    Mat44f* dst = reinterpret_cast<Mat44f*>(mappedRange);
 
     for(const Node& node : sceneData.Nodes)
     {
@@ -860,33 +900,51 @@ BuildTransformBuffer(SceneData& sceneData)
 }
 
 static Result<>
-BuildMeshBuffers(SceneData& sceneData)
+BuildMeshBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
 {
-    sceneData.MeshDrawParams.resize(sceneData.Instances.size());
-    sceneData.MeshToTransformMap.resize(sceneData.Instances.size());
+    const size_t sizeofMeshDrawParamsBuffer = sceneData.Instances.size() * sizeof(MeshDrawParams);
+    const size_t sizeofMeshToTransformMapBuffer = sceneData.Instances.size() * sizeof(uint32_t);
 
-    uint32_t firstIndex = 0;
-    uint32_t baseVertex = 0;
+    sceneData.MeshDrawParamsBuffer = CreateGpuBuffer(wgpuDevice,
+        wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
+        sizeofMeshDrawParamsBuffer,
+        "MeshDrawParamsBuffer");
+
+    sceneData.MeshToTransformMapBuffer = CreateGpuBuffer(wgpuDevice,
+        wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
+        sizeofMeshToTransformMapBuffer,
+        "MeshToTransformMapBuffer");
+
+    void* dpMapped = sceneData.MeshDrawParamsBuffer.GetMappedRange(0, sizeofMeshDrawParamsBuffer);
+    MLG_CHECK(dpMapped, "Failed to map MeshDrawParamsBuffer");
+
+    auto cleanupDrawParams = scope_exit([&]() { sceneData.MeshDrawParamsBuffer.Unmap(); });
+
+    void* mtMapped = sceneData.MeshToTransformMapBuffer.GetMappedRange(0, sizeofMeshToTransformMapBuffer);
+    MLG_CHECK(mtMapped, "Failed to map MeshToTransformMapBuffer");
+
+    auto cleanupMap = scope_exit([&]() { sceneData.MeshToTransformMapBuffer.Unmap(); });
+
+    MeshDrawParams* drawParams = reinterpret_cast<MeshDrawParams*>(dpMapped);
+    uint32_t* meshToTransformMap = reinterpret_cast<uint32_t*>(mtMapped);
+
 
     for(size_t i = 0; i < sceneData.Instances.size(); ++i)
     {
         const PrimitiveInstance& instance = sceneData.Instances[i];
         const PrimitiveAttributes& attrs = *instance.Attrs;
 
-        sceneData.MeshToTransformMap[i] = static_cast<uint32_t>(instance.NodeIndex);
+        meshToTransformMap[i] = static_cast<uint32_t>(instance.NodeIndex);
 
-        MeshDrawParams& params = sceneData.MeshDrawParams[i];
+        MeshDrawParams& params = drawParams[i];
 
         const size_t indexCount = attrs.SrcIndices ? attrs.SrcIndices->count : attrs.SrcPosition->count;
 
         params.IndexCount = static_cast<uint32_t>(indexCount);
         params.InstanceCount = 1;
-        params.FirstIndex = firstIndex;
-        params.BaseVertex = baseVertex;
+        params.FirstIndex = attrs.IbFirstIndex;
+        params.BaseVertex = attrs.VbBaseVertex;
         params.FirstInstance = static_cast<uint32_t>(i);
-
-        firstIndex += params.IndexCount;
-        baseVertex += static_cast<uint32_t>(attrs.SrcPosition->count);
     }
     return Result<>::Ok;
 }
@@ -921,12 +979,12 @@ CgltfModelLoader::LoadModel(GpuDevice* gpuDevice, const std::string& path)
     cgltf_result loadBuffersResult = cgltf_load_buffers(&options, data, filePath.string().c_str());
     MLG_CHECK(loadBuffersResult == cgltf_result_success, "Failed to load buffers");
 
-    MLG_CHECK(BuildVertexBuffer(sceneData));
-    MLG_CHECK(BuildIndexBuffer(sceneData));
-    MLG_CHECK(GenerateNormals(sceneData));
-    MLG_CHECK(BuildTransformBuffer(sceneData));
-    MLG_CHECK(BuildMeshBuffers(sceneData));
-    MLG_CHECK(FetchTextures(gpuDevice, filePath.parent_path(), sceneData));
+    wgpu::Device wgpuDevice = static_cast<DawnGpuDevice*>(gpuDevice)->Device;
+
+    MLG_CHECK(BuildIndexVertexBuffers(wgpuDevice, sceneData));
+    MLG_CHECK(BuildTransformBuffer(wgpuDevice, sceneData));
+    MLG_CHECK(BuildMeshBuffers(wgpuDevice, sceneData));
+    MLG_CHECK(FetchTextures(wgpuDevice, filePath.parent_path(), sceneData));
 
     cgltf_free(data);
 
