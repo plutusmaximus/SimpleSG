@@ -30,18 +30,18 @@ namespace
 struct PrimitiveAttributes
 {
     // Mesh that owns this primitive
-    const cgltf_mesh* Mesh{nullptr};
+    const cgltf_mesh* SrcMesh{nullptr};
     // Index of this primitive within the mesh
     uint32_t IndexInMesh{0};
 
-    const cgltf_material* Material{nullptr};
-    const cgltf_accessor* Indices{nullptr};
-    const cgltf_accessor* Position{nullptr};
-    const cgltf_accessor* Normal{nullptr};
-    const cgltf_accessor* Texcoord0{nullptr};
-    const cgltf_accessor* Texcoord1{nullptr};
+    const cgltf_material* SrcMaterial{nullptr};
+    const cgltf_accessor* SrcIndices{nullptr};
+    const cgltf_accessor* SrcPosition{nullptr};
+    const cgltf_accessor* SrcNormal{nullptr};
+    const cgltf_accessor* SrcTexcoord0{nullptr};
+    const cgltf_accessor* SrcTexcoord1{nullptr};
 
-    const char* GetMeshName() const { return Mesh->name ? Mesh->name : "<unnamed>"; }
+    const char* GetMeshName() const { return SrcMesh->name ? SrcMesh->name : "<unnamed>"; }
 };
 
 struct Node
@@ -120,8 +120,8 @@ CollectPrimitiveAttributes(const cgltf_primitive& primitive)
 
     PrimitiveAttributes attrs//
     {
-        .Material = primitive.material,
-        .Indices = primitive.indices,
+        .SrcMaterial = primitive.material,
+        .SrcIndices = primitive.indices,
     };
 
     for(cgltf_size i = 0; i < primitive.attributes_count; ++i)
@@ -139,19 +139,19 @@ CollectPrimitiveAttributes(const cgltf_primitive& primitive)
         switch(attribute.type)
         {
             case cgltf_attribute_type_position:
-                attrs.Position = attribute.data;
+                attrs.SrcPosition = attribute.data;
                 break;
             case cgltf_attribute_type_normal:
-                attrs.Normal = attribute.data;
+                attrs.SrcNormal = attribute.data;
                 break;
             case cgltf_attribute_type_texcoord:
                 if(0 == attribute.index)
                 {
-                    attrs.Texcoord0 = attribute.data;
+                    attrs.SrcTexcoord0 = attribute.data;
                 }
                 else if(1 == attribute.index)
                 {
-                    attrs.Texcoord1 = attribute.data;
+                    attrs.SrcTexcoord1 = attribute.data;
                 }
                 else
                 {
@@ -168,16 +168,16 @@ CollectPrimitiveAttributes(const cgltf_primitive& primitive)
         }
     }
 
-    if(!attrs.Position || attrs.Position->count == 0)
+    if(!attrs.SrcPosition || attrs.SrcPosition->count == 0)
     {
         MLG_WARN("Primitive does not have a POSITION attribute.  Ignoring.");
         return Result<>::Fail;
     }
 
-    const size_t posCount = attrs.Position ? attrs.Position->count : 0;
-    const size_t normalCount = attrs.Normal ? attrs.Normal->count : posCount;
-    const size_t texcoord0Count = attrs.Texcoord0 ? attrs.Texcoord0->count : posCount;
-    const size_t texcoord1Count = attrs.Texcoord1 ? attrs.Texcoord1->count : posCount;
+    const size_t posCount = attrs.SrcPosition ? attrs.SrcPosition->count : 0;
+    const size_t normalCount = attrs.SrcNormal ? attrs.SrcNormal->count : posCount;
+    const size_t texcoord0Count = attrs.SrcTexcoord0 ? attrs.SrcTexcoord0->count : posCount;
+    const size_t texcoord1Count = attrs.SrcTexcoord1 ? attrs.SrcTexcoord1->count : posCount;
 
     MLG_CHECK(normalCount == posCount,
         "Normal count {} does not match position count {}",
@@ -290,7 +290,7 @@ CollectNodes(cgltf_node** const childNodes,
                         continue;
                     }
 
-                    attrs->Mesh = srcNode->mesh;
+                    attrs->SrcMesh = srcNode->mesh;
                     attrs->IndexInMesh = static_cast<uint32_t>(j);
                     sceneData.Attrs[prim] = *attrs;
                 }
@@ -499,35 +499,35 @@ FetchTextures(GpuDevice* gpuDevice, std::filesystem::path basePath, SceneData& s
         MLG_LOG_SCOPE("mesh {}", attrs.GetMeshName());
         MLG_LOG_SCOPE("prim {}", attrs.IndexInMesh);
 
-        if(!attrs.Material->pbr_metallic_roughness.base_color_texture.texture)
+        if(!attrs.SrcMaterial->pbr_metallic_roughness.base_color_texture.texture)
         {
             MLG_WARN("Primitive has no base color texture");
             continue;
         }
 
-        if(!attrs.Material->pbr_metallic_roughness.base_color_texture.texture->image)
+        if(!attrs.SrcMaterial->pbr_metallic_roughness.base_color_texture.texture->image)
         {
             MLG_WARN("Primitive has no base color texture image");
             continue;
         }
 
-        if(!attrs.Material->pbr_metallic_roughness.base_color_texture.texture->image->uri)
+        if(!attrs.SrcMaterial->pbr_metallic_roughness.base_color_texture.texture->image->uri)
         {
             MLG_WARN("Primitive has no base color texture image URI");
             continue;
         }
 
         const std::string baseTexUri =
-            attrs.Material->pbr_metallic_roughness.base_color_texture.texture->image->uri;
+            attrs.SrcMaterial->pbr_metallic_roughness.base_color_texture.texture->image->uri;
 
         std::string metallicRoughnessTexUri;
 
-        if(attrs.Material->pbr_metallic_roughness.metallic_roughness_texture.texture
-            && attrs.Material->pbr_metallic_roughness.metallic_roughness_texture.texture->image
-            && attrs.Material->pbr_metallic_roughness.metallic_roughness_texture.texture->image->uri)
+        if(attrs.SrcMaterial->pbr_metallic_roughness.metallic_roughness_texture.texture
+            && attrs.SrcMaterial->pbr_metallic_roughness.metallic_roughness_texture.texture->image
+            && attrs.SrcMaterial->pbr_metallic_roughness.metallic_roughness_texture.texture->image->uri)
         {
             metallicRoughnessTexUri =
-                attrs.Material->pbr_metallic_roughness.metallic_roughness_texture.texture->image->uri;
+                attrs.SrcMaterial->pbr_metallic_roughness.metallic_roughness_texture.texture->image->uri;
         }
 
         if(!sceneData.Textures.contains(baseTexUri))
@@ -664,7 +664,7 @@ BuildVertexBuffer(SceneData& sceneData)
     size_t vertexCount = 0;
     for(const auto& [prim, attrs] : sceneData.Attrs)
     {
-        vertexCount += attrs.Position->count;
+        vertexCount += attrs.SrcPosition->count;
     }
 
     sceneData.Vertices.resize(vertexCount);
@@ -676,23 +676,23 @@ BuildVertexBuffer(SceneData& sceneData)
         MLG_LOG_SCOPE("mesh {}", attrs.GetMeshName());
         MLG_LOG_SCOPE("prim {}", attrs.IndexInMesh);
 
-        for(cgltf_size i = 0; i < attrs.Position->count; ++i, ++vtxDst)
+        for(cgltf_size i = 0; i < attrs.SrcPosition->count; ++i, ++vtxDst)
         {
-            MLG_CHECK(cgltf_accessor_read_float(attrs.Position, i, &vtxDst->pos.x, 3),
+            MLG_CHECK(cgltf_accessor_read_float(attrs.SrcPosition, i, &vtxDst->pos.x, 3),
                 "Failed to read POSITION attribute");
 
             // Convert from right handed to left handed.
             vtxDst->pos.z = -vtxDst->pos.z;
 
-            if(attrs.Normal)
+            if(attrs.SrcNormal)
             {
-                MLG_CHECK(cgltf_accessor_read_float(attrs.Normal, i, &vtxDst->normal.x, 3),
+                MLG_CHECK(cgltf_accessor_read_float(attrs.SrcNormal, i, &vtxDst->normal.x, 3),
                     "Failed to read NORMAL attribute");
             }
 
-            if(attrs.Texcoord0)
+            if(attrs.SrcTexcoord0)
             {
-                MLG_CHECK(cgltf_accessor_read_float(attrs.Texcoord0, i, &vtxDst->uvs[0].u, 2),
+                MLG_CHECK(cgltf_accessor_read_float(attrs.SrcTexcoord0, i, &vtxDst->uvs[0].u, 2),
                     "Failed to read TEXCOORD_0 attribute");
             }
             else
@@ -701,9 +701,9 @@ BuildVertexBuffer(SceneData& sceneData)
                 vtxDst->uvs[0].v = 0.0f;
             }
 
-            if(attrs.Texcoord1)
+            if(attrs.SrcTexcoord1)
             {
-                MLG_CHECK(cgltf_accessor_read_float(attrs.Texcoord1, i, &vtxDst->uvs[1].u, 2),
+                MLG_CHECK(cgltf_accessor_read_float(attrs.SrcTexcoord1, i, &vtxDst->uvs[1].u, 2),
                     "Failed to read TEXCOORD_1 attribute");
             }
             else
@@ -724,14 +724,14 @@ BuildIndexBuffer(SceneData& sceneData)
     size_t indexCount = 0;
     for(const auto& [prim, attrs] : sceneData.Attrs)
     {
-        if(attrs.Indices)
+        if(attrs.SrcIndices)
         {
-            indexCount += attrs.Indices->count;
+            indexCount += attrs.SrcIndices->count;
         }
         else
         {
             // Non-indexed primitive.
-            indexCount += attrs.Position->count;
+            indexCount += attrs.SrcPosition->count;
         }
     }
 
@@ -746,11 +746,11 @@ BuildIndexBuffer(SceneData& sceneData)
 
         size_t idxCount = 0;
 
-        if(attrs.Indices)
+        if(attrs.SrcIndices)
         {
-            idxCount = attrs.Indices->count;
+            idxCount = attrs.SrcIndices->count;
 
-            const size_t count = cgltf_accessor_unpack_indices(attrs.Indices,
+            const size_t count = cgltf_accessor_unpack_indices(attrs.SrcIndices,
                 idxDst,
                 sizeof(uint32_t),
                 idxCount);
@@ -760,7 +760,7 @@ BuildIndexBuffer(SceneData& sceneData)
         }
         else
         {
-            idxCount = attrs.Position->count;
+            idxCount = attrs.SrcPosition->count;
             for(size_t i = 0; i < idxCount; ++i)
             {
                 idxDst[i] = static_cast<uint32_t>(i);
@@ -791,11 +791,11 @@ GenerateNormals(SceneData& sceneData)
         MLG_LOG_SCOPE("mesh {}", attrs.GetMeshName());
         MLG_LOG_SCOPE("prim {}", attrs.IndexInMesh);
 
-        const size_t idxCount = attrs.Indices ? attrs.Indices->count : attrs.Position->count;
+        const size_t idxCount = attrs.SrcIndices ? attrs.SrcIndices->count : attrs.SrcPosition->count;
 
-        if(!attrs.Normal)
+        if(!attrs.SrcNormal)
         {
-            for(size_t i = 0; i < attrs.Position->count; ++i)
+            for(size_t i = 0; i < attrs.SrcPosition->count; ++i)
             {
                 vtx[i].normal = {0.0f, 0.0f, 0.0f};
             }
@@ -817,7 +817,7 @@ GenerateNormals(SceneData& sceneData)
                 v2.normal += normal2;
             }
 
-            for(size_t i = 0; i < attrs.Position->count; ++i)
+            for(size_t i = 0; i < attrs.SrcPosition->count; ++i)
             {
                 vtx[i].normal = vtx[i].normal.Normalize();
             }
@@ -877,7 +877,7 @@ BuildMeshBuffers(SceneData& sceneData)
 
         MeshDrawParams& params = sceneData.MeshDrawParams[i];
 
-        const size_t indexCount = attrs.Indices ? attrs.Indices->count : attrs.Position->count;
+        const size_t indexCount = attrs.SrcIndices ? attrs.SrcIndices->count : attrs.SrcPosition->count;
 
         params.IndexCount = static_cast<uint32_t>(indexCount);
         params.InstanceCount = 1;
@@ -886,7 +886,7 @@ BuildMeshBuffers(SceneData& sceneData)
         params.FirstInstance = static_cast<uint32_t>(i);
 
         firstIndex += params.IndexCount;
-        baseVertex += static_cast<uint32_t>(attrs.Position->count);
+        baseVertex += static_cast<uint32_t>(attrs.SrcPosition->count);
     }
     return Result<>::Ok;
 }
