@@ -12,16 +12,13 @@
 #include "Vertex.h"
 
 #define CGLTF_IMPLEMENTATION
-#include <cgltf.h>
-
-#include <webgpu/webgpu_cpp.h>
-
-#include <stb_image.h>
-
 #include <atomic>
+#include <cgltf.h>
 #include <filesystem>
 #include <map>
+#include <stb_image.h>
 #include <vector>
+#include <webgpu/webgpu_cpp.h>
 
 static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
 static constexpr int kNumTextureChannels = 4;
@@ -31,44 +28,58 @@ namespace
 struct PrimitiveAttributes
 {
     // Mesh that owns this primitive
-    const cgltf_mesh* SrcMesh{nullptr};
+    const cgltf_mesh* SrcMesh{ nullptr };
     // Index of this primitive within the mesh
-    uint32_t IndexInMesh{0};
+    uint32_t IndexInMesh{ 0 };
 
-    const cgltf_material* SrcMaterial{nullptr};
-    const cgltf_accessor* SrcIndices{nullptr};
-    const cgltf_accessor* SrcPosition{nullptr};
-    const cgltf_accessor* SrcNormal{nullptr};
-    const cgltf_accessor* SrcTexcoord0{nullptr};
-    const cgltf_accessor* SrcTexcoord1{nullptr};
+    const cgltf_material* SrcMaterial{ nullptr };
+    const cgltf_accessor* SrcIndices{ nullptr };
+    const cgltf_accessor* SrcPosition{ nullptr };
+    const cgltf_accessor* SrcNormal{ nullptr };
+    const cgltf_accessor* SrcTexcoord0{ nullptr };
+    const cgltf_accessor* SrcTexcoord1{ nullptr };
 
     // First index in the GPU index buffer for this primitive
-    uint32_t IbFirstIndex{0};
+    uint32_t IbFirstIndex{ 0 };
     // Base vertex in the GPU vertex buffer for this primitive
-    uint32_t VbBaseVertex{0};
+    uint32_t VbBaseVertex{ 0 };
 
     const char* GetMeshName() const { return SrcMesh->name ? SrcMesh->name : "<unnamed>"; }
 };
 
 struct Node
 {
-    size_t ParentIndex{0};
-    const cgltf_node* NodePtr{nullptr};
+    size_t ParentIndex{ 0 };
+    const cgltf_node* NodePtr{ nullptr };
 };
 
 struct PrimitiveInstance
 {
-    size_t NodeIndex{0};
-    const PrimitiveAttributes* Attrs{nullptr};
+    size_t NodeIndex{ 0 };
+    const PrimitiveAttributes* Attrs{ nullptr };
 };
 
 struct MeshDrawParams
 {
-    uint32_t IndexCount{0};
-    uint32_t InstanceCount{0};
-    uint32_t FirstIndex{0};
-    uint32_t BaseVertex{0};
-    uint32_t FirstInstance{0};
+    uint32_t IndexCount{ 0 };
+    uint32_t InstanceCount{ 0 };
+    uint32_t FirstIndex{ 0 };
+    uint32_t BaseVertex{ 0 };
+    uint32_t FirstInstance{ 0 };
+};
+
+struct TextureBuilder
+{
+    std::string Uri;
+    uint32_t Width;
+    uint32_t Height;
+    uint32_t NumChannels;
+    uint32_t AlignedRowPitch;
+    wgpu::Buffer StagingBuffer;
+    wgpu::Texture Texture;
+    void* MappedMemory{ nullptr };
+    const FileFetcher::Request* Request{ nullptr };
+    std::atomic<bool> DecodeComplete{ false };
 };
 
 struct Material
@@ -81,7 +92,6 @@ struct SceneData
     std::vector<PrimitiveInstance> Instances;
     std::map<const cgltf_primitive*, PrimitiveAttributes> Attrs;
 
-
     wgpu::Buffer IndexBuffer;
     wgpu::Buffer VertexBuffer;
     wgpu::Buffer TransformBuffer;
@@ -90,7 +100,7 @@ struct SceneData
 
     std::map<std::string, wgpu::Texture> Textures;
 };
-}
+} // namespace
 
 static Result<PrimitiveAttributes>
 CollectPrimitiveAttributes(const cgltf_primitive& primitive)
@@ -125,11 +135,11 @@ CollectPrimitiveAttributes(const cgltf_primitive& primitive)
         return Result<>::Fail;
     }
 
-    PrimitiveAttributes attrs//
-    {
-        .SrcMaterial = primitive.material,
-        .SrcIndices = primitive.indices,
-    };
+    PrimitiveAttributes attrs //
+        {
+            .SrcMaterial = primitive.material,
+            .SrcIndices = primitive.indices,
+        };
 
     for(cgltf_size i = 0; i < primitive.attributes_count; ++i)
     {
@@ -225,7 +235,8 @@ CollectNodes(cgltf_node** const childNodes,
             // This could be a procedurally generated mesh, e.g. the leaves of a tree.
             // In blender the following steps could be used to convert to a mesh:
             // 1. Select the node in the outliner.
-            // 2. In the "Layout" editor select the "Object" menu and choose "Apply -> Make Instances Real".
+            // 2. In the "Layout" editor select the "Object" menu and choose "Apply -> Make
+            // Instances Real".
             //      This will generate meshes and possibly mesh instances.
             // 3. In the outliner select all the resulting objects.
             // 4. In the "Layout" editor select the "Object" menu and choose "Convert -> Mesh".
@@ -312,347 +323,13 @@ CollectNodes(cgltf_node** const childNodes,
             }
         }
 
-        Node node//
-        {
-            .ParentIndex = parentIndex,
-            .NodePtr = srcNode,
-        };
+        Node node //
+            {
+                .ParentIndex = parentIndex,
+                .NodePtr = srcNode,
+            };
 
         sceneData.Nodes.emplace_back(node);
-    }
-
-    return Result<>::Ok;
-}
-
-namespace
-{
-struct TextureBuilder
-{
-    std::string Uri;
-    uint32_t Width;
-    uint32_t Height;
-    uint32_t NumChannels;
-    uint32_t AlignedRowPitch;
-    wgpu::Buffer StagingBuffer;
-    wgpu::Texture Texture;
-    void* MappedMemory{ nullptr };
-    const FileFetcher::Request* Request{ nullptr };
-    std::atomic<bool> DecodeComplete{ false };
-};
-} // namespace
-
-static Result<>
-StageTexture(wgpu::Device wgpuDevice,
-    const std::string& uri,
-    const FileFetcher::Request& request,
-    std::map<std::string, TextureBuilder>& textureBuilders)
-{
-    MLG_LOG_SCOPE(uri);
-
-    MLG_DEBUG("Staging texture...");
-
-    int width, height, numChannels;
-
-    if(!stbi_info_from_memory(request.Data.data(),
-        static_cast<int>(request.Data.size()),
-        &width,
-        &height,
-        &numChannels))
-    {
-        MLG_ERROR("Error getting image info - {}", uri, stbi_failure_reason());
-        return Result<>::Fail;
-    }
-
-    MLG_DEBUG("Image info - {} x {} x {}", width, height, numChannels);
-
-    const uint32_t rowPitch = width * kNumTextureChannels;
-    // Staging buffer rows must be a multiple of 256 bytes.
-    const uint32_t alignedRowPitch = (rowPitch + 255) & ~255;
-    const uint32_t stagingSize = alignedRowPitch * height;
-
-    wgpu::BufferDescriptor bufDesc = //
-        {
-            .label = uri.c_str(),
-            .usage = wgpu::BufferUsage::CopySrc | wgpu::BufferUsage::MapWrite,
-            .size = stagingSize,
-            .mappedAtCreation = true,
-        };
-
-    wgpu::Buffer stagingBuffer = wgpuDevice.CreateBuffer(&bufDesc);
-
-    wgpu::TextureDescriptor desc //
-        {
-            .label = uri.c_str(),
-            .usage = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
-            .dimension = wgpu::TextureDimension::e2D,
-            .size = //
-            {
-                .width = static_cast<uint32_t>(width),
-                .height = static_cast<uint32_t>(height),
-                .depthOrArrayLayers = 1,
-            },
-            .format = kTextureFormat,
-            .mipLevelCount = 1,
-            .sampleCount = 1,
-        };
-
-    wgpu::Texture texture = wgpuDevice.CreateTexture(&desc);
-
-    void* mappedMemory = stagingBuffer.GetMappedRange(0, stagingSize);
-    MLG_CHECK(mappedMemory, "Failed to map staging buffer for texture upload");
-
-    auto [it, inserted] = textureBuilders.try_emplace(uri,
-        uri,
-        static_cast<uint32_t>(width),
-        static_cast<uint32_t>(height),
-        static_cast<uint32_t>(numChannels),
-        alignedRowPitch,
-        stagingBuffer,
-        texture,
-        mappedMemory,
-        &request);
-
-    TextureBuilder& builder = it->second;
-
-    auto decode = [&builder]()
-    {
-        MLG_LOG_SCOPE(builder.Uri);
-
-        MLG_DEBUG("Decoding...");
-
-        int width, height, numChannels;
-        stbi_uc* data = stbi_load_from_memory(builder.Request->Data.data(),
-            static_cast<int>(builder.Request->Data.size()),
-            &width,
-            &height,
-            &numChannels,
-            kNumTextureChannels);
-
-        if(!data)
-        {
-            MLG_ERROR("Error decoding - {}", stbi_failure_reason());
-        }
-        else
-        {
-            uint8_t *dst = (uint8_t *)builder.MappedMemory;
-            const uint8_t *src = data;
-            const uint32_t rowStride = width * kNumTextureChannels;
-            for(uint32_t y = 0; y < builder.Height;
-                ++y, dst += builder.AlignedRowPitch, src += rowStride)
-            {
-                ::memcpy(dst, src, rowStride);
-            }
-            stbi_image_free(data);
-        }
-
-        builder.DecodeComplete = true;
-    };
-
-    ThreadPool::Enqueue(decode);
-
-    return Result<>::Ok;
-}
-
-static Result<>
-CommitTexture(TextureBuilder& builder, wgpu::CommandEncoder encoder)
-{
-    MLG_LOG_SCOPE(builder.Uri);
-
-    MLG_DEBUG("Committing texture...");
-
-    wgpu::TexelCopyBufferInfo copySrc = //
-        {
-            .layout = //
-            {
-                .offset = 0,
-                .bytesPerRow = builder.AlignedRowPitch,
-                .rowsPerImage = builder.Height,
-            },
-            .buffer = builder.StagingBuffer,
-        };
-
-    wgpu::TexelCopyTextureInfo copyDst = //
-        {
-            .texture = builder.Texture,
-            .mipLevel = 0,
-            .origin = { 0, 0, 0 },
-        };
-
-    wgpu::Extent3D copySize = //
-        {
-            .width = builder.Width,
-            .height = builder.Height,
-            .depthOrArrayLayers = 1,
-        };
-
-    encoder.CopyBufferToTexture(&copySrc, &copyDst, &copySize);
-
-    return Result<>::Ok;
-}
-
-static Result<>
-FetchTextures(wgpu::Device wgpuDevice, std::filesystem::path basePath, SceneData& sceneData)
-{
-    std::map<std::string, FileFetcher::Request> fetchRequests;
-
-    for(const auto&[prim, attrs] : sceneData.Attrs)
-    {
-        MLG_LOG_SCOPE("mesh {}", attrs.GetMeshName());
-        MLG_LOG_SCOPE("prim {}", attrs.IndexInMesh);
-
-        if(!attrs.SrcMaterial->pbr_metallic_roughness.base_color_texture.texture)
-        {
-            MLG_WARN("Primitive has no base color texture");
-            continue;
-        }
-
-        if(!attrs.SrcMaterial->pbr_metallic_roughness.base_color_texture.texture->image)
-        {
-            MLG_WARN("Primitive has no base color texture image");
-            continue;
-        }
-
-        if(!attrs.SrcMaterial->pbr_metallic_roughness.base_color_texture.texture->image->uri)
-        {
-            MLG_WARN("Primitive has no base color texture image URI");
-            continue;
-        }
-
-        const std::string baseTexUri =
-            attrs.SrcMaterial->pbr_metallic_roughness.base_color_texture.texture->image->uri;
-
-        std::string metallicRoughnessTexUri;
-
-        if(attrs.SrcMaterial->pbr_metallic_roughness.metallic_roughness_texture.texture
-            && attrs.SrcMaterial->pbr_metallic_roughness.metallic_roughness_texture.texture->image
-            && attrs.SrcMaterial->pbr_metallic_roughness.metallic_roughness_texture.texture->image->uri)
-        {
-            metallicRoughnessTexUri =
-                attrs.SrcMaterial->pbr_metallic_roughness.metallic_roughness_texture.texture->image->uri;
-        }
-
-        if(!sceneData.Textures.contains(baseTexUri))
-        {
-            auto [btIt, btInserted] =
-                fetchRequests.try_emplace(baseTexUri, (basePath / baseTexUri).string());
-
-            if(btInserted)
-            {
-                MLG_LOG_SCOPE(baseTexUri);
-
-                MLG_DEBUG("Fetching texture...");
-
-                if(!FileFetcher::Fetch(btIt->second))
-                {
-                    MLG_WARN("Failed to fetch texture: {}", btIt->second.FilePath);
-                }
-            }
-        }
-
-        if(!metallicRoughnessTexUri.empty() && !sceneData.Textures.contains(metallicRoughnessTexUri))
-        {
-            auto [mrIt, mrInserted] = fetchRequests.try_emplace(metallicRoughnessTexUri,
-                (basePath / metallicRoughnessTexUri).string());
-
-            if(mrInserted)
-            {
-                MLG_LOG_SCOPE(metallicRoughnessTexUri);
-
-                MLG_DEBUG("Fetching texture...");
-
-                if(!FileFetcher::Fetch(mrIt->second))
-                {
-                    MLG_WARN("Failed to fetch texture: {}", mrIt->second.FilePath);
-                }
-            }
-        }
-    }
-
-    std::map<std::string, TextureBuilder> textureBuilders;
-
-    bool pending;
-
-    do
-    {
-        pending = false;
-
-        FileFetcher::ProcessCompletions();
-
-        for(auto& [uri, request] : fetchRequests)
-        {
-            if(request.IsPending())
-            {
-                pending = true;
-            }
-            else if(!textureBuilders.contains(uri))
-            {
-                auto result = StageTexture(wgpuDevice, uri, request, textureBuilders);
-                if(!result)
-                {
-                    MLG_WARN("Failed to stage texture: {}", uri);
-                }
-            }
-        }
-    }while (pending);
-
-    MLG_DEBUG("Loaded {} textures", fetchRequests.size());
-
-    wgpu::CommandEncoderDescriptor encDesc = {};
-    wgpu::CommandEncoder encoder = wgpuDevice.CreateCommandEncoder(&encDesc);
-
-    do
-    {
-        pending = false;
-
-        for(auto& [uri, builder] : textureBuilders)
-        {
-            MLG_LOG_SCOPE(uri);
-
-            if(!builder.DecodeComplete)
-            {
-                pending = true;
-            }
-            else if(builder.StagingBuffer.GetMapState() == wgpu::BufferMapState::Mapped)
-            {
-                builder.StagingBuffer.Unmap();
-                CommitTexture(builder, encoder);
-            }
-        }
-    }while (pending);
-
-    wgpu::CommandBuffer commandBuffer = encoder.Finish();
-
-    struct QueueSubmitResult
-    {
-        std::atomic<bool> done = false;
-        Result<> queueSubmitResult = Result<>::Ok;
-    };
-
-    QueueSubmitResult result;
-
-    //TODO - change API to separate creating a resource from populating it
-    wgpuDevice.GetQueue().Submit(1, &commandBuffer);
-    wgpuDevice.GetQueue().OnSubmittedWorkDone(
-        wgpu::CallbackMode::AllowProcessEvents,
-        +[](wgpu::QueueWorkDoneStatus status, wgpu::StringView message, QueueSubmitResult* result)
-        {
-            if(status != wgpu::QueueWorkDoneStatus::Success)
-            {
-                MLG_ERROR("Queue submit failed: {}", std::string(message.data, message.length));
-                result->queueSubmitResult = Result<>::Fail;
-            }
-            result->done.store(true);
-        },
-        &result);
-
-    while(!result.done.load())
-    {
-        wgpuDevice.GetAdapter().GetInstance().ProcessEvents();
-    }
-
-    for(auto& [uri, builder] : textureBuilders)
-    {
-        sceneData.Textures[uri] = builder.Texture;
     }
 
     return Result<>::Ok;
@@ -686,11 +363,12 @@ GenerateNormals(SceneData& sceneData, Vertex* vertices, const VertexIndex* indic
         MLG_LOG_SCOPE("mesh {}", attrs.GetMeshName());
         MLG_LOG_SCOPE("prim {}", attrs.IndexInMesh);
 
-        const size_t idxCount = attrs.SrcIndices ? attrs.SrcIndices->count : attrs.SrcPosition->count;
+        const size_t idxCount =
+            attrs.SrcIndices ? attrs.SrcIndices->count : attrs.SrcPosition->count;
 
         for(size_t i = 0; i < attrs.SrcPosition->count; ++i)
         {
-            vertices[i].normal = {0.0f, 0.0f, 0.0f};
+            vertices[i].normal = { 0.0f, 0.0f, 0.0f };
         }
 
         for(size_t i = 0; i < idxCount; i += 3)
@@ -857,8 +535,8 @@ BuildIndexVertexBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
     return Result<>::Ok;
 }
 
-static
-void ConvertRHtoLH(Mat44f& M)
+static void
+ConvertRHtoLH(Mat44f& M)
 {
     // negate Z components of X and Y basis vectors
     M.m[0].z = -M.m[0].z;
@@ -882,7 +560,7 @@ BuildTransformBuffer(wgpu::Device wgpuDevice, SceneData& sceneData)
         sizeofBuffer,
         "TransformBuffer");
 
-    void* mappedRange = sceneData.TransformBuffer.GetMappedRange(0,sizeofBuffer);
+    void* mappedRange = sceneData.TransformBuffer.GetMappedRange(0, sizeofBuffer);
     MLG_CHECK(mappedRange, "Failed to map TransformBuffer");
 
     auto cleanup = scope_exit([&]() { sceneData.TransformBuffer.Unmap(); });
@@ -920,14 +598,14 @@ BuildMeshBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
 
     auto cleanupDrawParams = scope_exit([&]() { sceneData.MeshDrawParamsBuffer.Unmap(); });
 
-    void* mtMapped = sceneData.MeshToTransformMapBuffer.GetMappedRange(0, sizeofMeshToTransformMapBuffer);
+    void* mtMapped =
+        sceneData.MeshToTransformMapBuffer.GetMappedRange(0, sizeofMeshToTransformMapBuffer);
     MLG_CHECK(mtMapped, "Failed to map MeshToTransformMapBuffer");
 
     auto cleanupMap = scope_exit([&]() { sceneData.MeshToTransformMapBuffer.Unmap(); });
 
     MeshDrawParams* drawParams = reinterpret_cast<MeshDrawParams*>(dpMapped);
     uint32_t* meshToTransformMap = reinterpret_cast<uint32_t*>(mtMapped);
-
 
     for(size_t i = 0; i < sceneData.Instances.size(); ++i)
     {
@@ -938,7 +616,8 @@ BuildMeshBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
 
         MeshDrawParams& params = drawParams[i];
 
-        const size_t indexCount = attrs.SrcIndices ? attrs.SrcIndices->count : attrs.SrcPosition->count;
+        const size_t indexCount =
+            attrs.SrcIndices ? attrs.SrcIndices->count : attrs.SrcPosition->count;
 
         params.IndexCount = static_cast<uint32_t>(indexCount);
         params.InstanceCount = 1;
@@ -946,6 +625,325 @@ BuildMeshBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
         params.BaseVertex = attrs.VbBaseVertex;
         params.FirstInstance = static_cast<uint32_t>(i);
     }
+    return Result<>::Ok;
+}
+
+static Result<>
+StageTexture(wgpu::Device wgpuDevice,
+    const std::string& uri,
+    const FileFetcher::Request& request,
+    std::map<std::string, TextureBuilder>& textureBuilders)
+{
+    MLG_LOG_SCOPE(uri);
+
+    MLG_DEBUG("Staging texture...");
+
+    int width, height, numChannels;
+
+    if(!stbi_info_from_memory(request.Data.data(),
+           static_cast<int>(request.Data.size()),
+           &width,
+           &height,
+           &numChannels))
+    {
+        MLG_ERROR("Error getting image info - {}", uri, stbi_failure_reason());
+        return Result<>::Fail;
+    }
+
+    MLG_DEBUG("Image info - {} x {} x {}", width, height, numChannels);
+
+    const uint32_t rowPitch = width * kNumTextureChannels;
+    // Staging buffer rows must be a multiple of 256 bytes.
+    const uint32_t alignedRowPitch = (rowPitch + 255) & ~255;
+    const uint32_t stagingSize = alignedRowPitch * height;
+
+    wgpu::BufferDescriptor bufDesc = //
+        {
+            .label = uri.c_str(),
+            .usage = wgpu::BufferUsage::CopySrc | wgpu::BufferUsage::MapWrite,
+            .size = stagingSize,
+            .mappedAtCreation = true,
+        };
+
+    wgpu::Buffer stagingBuffer = wgpuDevice.CreateBuffer(&bufDesc);
+
+    wgpu::TextureDescriptor desc //
+        {
+            .label = uri.c_str(),
+            .usage = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
+            .dimension = wgpu::TextureDimension::e2D,
+            .size = //
+            {
+                .width = static_cast<uint32_t>(width),
+                .height = static_cast<uint32_t>(height),
+                .depthOrArrayLayers = 1,
+            },
+            .format = kTextureFormat,
+            .mipLevelCount = 1,
+            .sampleCount = 1,
+        };
+
+    wgpu::Texture texture = wgpuDevice.CreateTexture(&desc);
+
+    void* mappedMemory = stagingBuffer.GetMappedRange(0, stagingSize);
+    MLG_CHECK(mappedMemory, "Failed to map staging buffer for texture upload");
+
+    auto [it, inserted] = textureBuilders.try_emplace(uri,
+        uri,
+        static_cast<uint32_t>(width),
+        static_cast<uint32_t>(height),
+        static_cast<uint32_t>(numChannels),
+        alignedRowPitch,
+        stagingBuffer,
+        texture,
+        mappedMemory,
+        &request);
+
+    TextureBuilder& builder = it->second;
+
+    auto decode = [&builder]()
+    {
+        MLG_LOG_SCOPE(builder.Uri);
+
+        MLG_DEBUG("Decoding...");
+
+        int width, height, numChannels;
+        stbi_uc* data = stbi_load_from_memory(builder.Request->Data.data(),
+            static_cast<int>(builder.Request->Data.size()),
+            &width,
+            &height,
+            &numChannels,
+            kNumTextureChannels);
+
+        if(!data)
+        {
+            MLG_ERROR("Error decoding - {}", stbi_failure_reason());
+        }
+        else
+        {
+            uint8_t* dst = (uint8_t*)builder.MappedMemory;
+            const uint8_t* src = data;
+            const uint32_t rowStride = width * kNumTextureChannels;
+            for(uint32_t y = 0; y < builder.Height;
+                ++y, dst += builder.AlignedRowPitch, src += rowStride)
+            {
+                ::memcpy(dst, src, rowStride);
+            }
+            stbi_image_free(data);
+        }
+
+        builder.DecodeComplete = true;
+    };
+
+    ThreadPool::Enqueue(decode);
+
+    return Result<>::Ok;
+}
+
+static Result<>
+CommitTexture(TextureBuilder& builder, wgpu::CommandEncoder encoder)
+{
+    MLG_LOG_SCOPE(builder.Uri);
+
+    MLG_DEBUG("Committing texture...");
+
+    wgpu::TexelCopyBufferInfo copySrc = //
+        {
+            .layout = //
+            {
+                .offset = 0,
+                .bytesPerRow = builder.AlignedRowPitch,
+                .rowsPerImage = builder.Height,
+            },
+            .buffer = builder.StagingBuffer,
+        };
+
+    wgpu::TexelCopyTextureInfo copyDst = //
+        {
+            .texture = builder.Texture,
+            .mipLevel = 0,
+            .origin = { 0, 0, 0 },
+        };
+
+    wgpu::Extent3D copySize = //
+        {
+            .width = builder.Width,
+            .height = builder.Height,
+            .depthOrArrayLayers = 1,
+        };
+
+    encoder.CopyBufferToTexture(&copySrc, &copyDst, &copySize);
+
+    return Result<>::Ok;
+}
+
+static Result<>
+FetchTextures(wgpu::Device wgpuDevice, std::filesystem::path basePath, SceneData& sceneData)
+{
+    std::map<std::string, FileFetcher::Request> fetchRequests;
+
+    for(const auto& [prim, attrs] : sceneData.Attrs)
+    {
+        MLG_LOG_SCOPE("mesh {}", attrs.GetMeshName());
+        MLG_LOG_SCOPE("prim {}", attrs.IndexInMesh);
+
+        if(!attrs.SrcMaterial->pbr_metallic_roughness.base_color_texture.texture)
+        {
+            MLG_WARN("Primitive has no base color texture");
+            continue;
+        }
+
+        if(!attrs.SrcMaterial->pbr_metallic_roughness.base_color_texture.texture->image)
+        {
+            MLG_WARN("Primitive has no base color texture image");
+            continue;
+        }
+
+        if(!attrs.SrcMaterial->pbr_metallic_roughness.base_color_texture.texture->image->uri)
+        {
+            MLG_WARN("Primitive has no base color texture image URI");
+            continue;
+        }
+
+        const std::string baseTexUri =
+            attrs.SrcMaterial->pbr_metallic_roughness.base_color_texture.texture->image->uri;
+
+        std::string metallicRoughnessTexUri;
+
+        if(attrs.SrcMaterial->pbr_metallic_roughness.metallic_roughness_texture.texture &&
+            attrs.SrcMaterial->pbr_metallic_roughness.metallic_roughness_texture.texture->image &&
+            attrs.SrcMaterial->pbr_metallic_roughness.metallic_roughness_texture.texture->image
+                ->uri)
+        {
+            metallicRoughnessTexUri = attrs.SrcMaterial->pbr_metallic_roughness
+                                          .metallic_roughness_texture.texture->image->uri;
+        }
+
+        if(!sceneData.Textures.contains(baseTexUri))
+        {
+            auto [btIt, btInserted] =
+                fetchRequests.try_emplace(baseTexUri, (basePath / baseTexUri).string());
+
+            if(btInserted)
+            {
+                MLG_LOG_SCOPE(baseTexUri);
+
+                MLG_DEBUG("Fetching texture...");
+
+                if(!FileFetcher::Fetch(btIt->second))
+                {
+                    MLG_WARN("Failed to fetch texture: {}", btIt->second.FilePath);
+                }
+            }
+        }
+
+        if(!metallicRoughnessTexUri.empty() &&
+            !sceneData.Textures.contains(metallicRoughnessTexUri))
+        {
+            auto [mrIt, mrInserted] = fetchRequests.try_emplace(metallicRoughnessTexUri,
+                (basePath / metallicRoughnessTexUri).string());
+
+            if(mrInserted)
+            {
+                MLG_LOG_SCOPE(metallicRoughnessTexUri);
+
+                MLG_DEBUG("Fetching texture...");
+
+                if(!FileFetcher::Fetch(mrIt->second))
+                {
+                    MLG_WARN("Failed to fetch texture: {}", mrIt->second.FilePath);
+                }
+            }
+        }
+    }
+
+    std::map<std::string, TextureBuilder> textureBuilders;
+
+    bool pending;
+
+    do
+    {
+        pending = false;
+
+        FileFetcher::ProcessCompletions();
+
+        for(auto& [uri, request] : fetchRequests)
+        {
+            if(request.IsPending())
+            {
+                pending = true;
+            }
+            else if(!textureBuilders.contains(uri))
+            {
+                auto result = StageTexture(wgpuDevice, uri, request, textureBuilders);
+                if(!result)
+                {
+                    MLG_WARN("Failed to stage texture: {}", uri);
+                }
+            }
+        }
+    } while(pending);
+
+    MLG_DEBUG("Loaded {} textures", fetchRequests.size());
+
+    wgpu::CommandEncoderDescriptor encDesc = {};
+    wgpu::CommandEncoder encoder = wgpuDevice.CreateCommandEncoder(&encDesc);
+
+    do
+    {
+        pending = false;
+
+        for(auto& [uri, builder] : textureBuilders)
+        {
+            MLG_LOG_SCOPE(uri);
+
+            if(!builder.DecodeComplete)
+            {
+                pending = true;
+            }
+            else if(builder.StagingBuffer.GetMapState() == wgpu::BufferMapState::Mapped)
+            {
+                builder.StagingBuffer.Unmap();
+                CommitTexture(builder, encoder);
+            }
+        }
+    } while(pending);
+
+    wgpu::CommandBuffer commandBuffer = encoder.Finish();
+
+    struct QueueSubmitResult
+    {
+        std::atomic<bool> done = false;
+        Result<> queueSubmitResult = Result<>::Ok;
+    };
+
+    QueueSubmitResult result;
+
+    // TODO - change API to separate creating a resource from populating it
+    wgpuDevice.GetQueue().Submit(1, &commandBuffer);
+    wgpuDevice.GetQueue().OnSubmittedWorkDone(
+        wgpu::CallbackMode::AllowProcessEvents,
+        +[](wgpu::QueueWorkDoneStatus status, wgpu::StringView message, QueueSubmitResult* result)
+        {
+            if(status != wgpu::QueueWorkDoneStatus::Success)
+            {
+                MLG_ERROR("Queue submit failed: {}", std::string(message.data, message.length));
+                result->queueSubmitResult = Result<>::Fail;
+            }
+            result->done.store(true);
+        },
+        &result);
+
+    while(!result.done.load())
+    {
+        wgpuDevice.GetAdapter().GetInstance().ProcessEvents();
+    }
+
+    for(auto& [uri, builder] : textureBuilders)
+    {
+        sceneData.Textures[uri] = builder.Texture;
+    }
+
     return Result<>::Ok;
 }
 
@@ -962,8 +960,7 @@ CgltfModelLoader::LoadModel(GpuDevice* gpuDevice, const std::string& path)
     MLG_CHECK(result == cgltf_result_success, "Failed to load glTF file");
 
     MLG_CHECK(data->scenes_count > 0, "No scenes found");
-    MLG_CHECK(data->scenes_count == 1,
-        "Multiple scenes found, only one scene is supported");
+    MLG_CHECK(data->scenes_count == 1, "Multiple scenes found, only one scene is supported");
 
     for(cgltf_size i = 0; i < data->buffer_views_count; ++i)
     {
@@ -974,7 +971,8 @@ CgltfModelLoader::LoadModel(GpuDevice* gpuDevice, const std::string& path)
     }
 
     SceneData sceneData;
-    MLG_CHECK(CollectNodes(data->scenes[0].nodes, data->scenes[0].nodes_count, SIZE_MAX, sceneData));
+    MLG_CHECK(
+        CollectNodes(data->scenes[0].nodes, data->scenes[0].nodes_count, SIZE_MAX, sceneData));
 
     cgltf_result loadBuffersResult = cgltf_load_buffers(&options, data, filePath.string().c_str());
     MLG_CHECK(loadBuffersResult == cgltf_result_success, "Failed to load buffers");
