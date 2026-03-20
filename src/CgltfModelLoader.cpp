@@ -73,7 +73,7 @@ struct TextureBuilder
     std::atomic<bool> DecodeComplete{ false };
 };
 
-struct MaterialResources
+struct MaterialBinding
 {
     wgpu::Texture BaseColorTexture;
     wgpu::Sampler Sampler;
@@ -130,9 +130,9 @@ struct SceneData
     wgpu::Buffer MeshDrawParamsBuffer;
     wgpu::Buffer MeshToTransformMapBuffer;
 
-    std::vector<MaterialResources> MaterialRsrcs;
+    std::vector<MaterialBinding> MaterialBindings;
 
-    std::map<std::string, wgpu::Texture> Textures;
+    std::map<std::string, wgpu::Texture> TextureDict;
 
     wgpu::Sampler DefaultSampler;
 
@@ -140,7 +140,16 @@ struct SceneData
 
     wgpu::BindGroupLayout MaterialBindGroupLayout;
 };
+
 } // namespace
+
+template<typename T, typename U>
+static T narrow_cast(U u)
+{
+    const T t = static_cast<T>(u);
+    MLG_ASSERT(static_cast<T>(u) == t, "narrow_cast failed: {} -> {}", u, t);
+    return t;
+}
 
 static Result<>
 CollectPrimitiveAttributes(const cgltf_primitive& primitive, PrimitiveAttributes& attrs)
@@ -297,7 +306,7 @@ CollectIndices(const PrimitiveAttributes& attrs, std::vector<VertexIndex>& indic
         VertexIndex* idxDst = indices.data() + startIndex;
         for(size_t i = 0; i < attrs.SrcPosition->count; ++i)
         {
-            idxDst[i] = static_cast<VertexIndex>(i);
+            idxDst[i] = narrow_cast<VertexIndex>(i);
         }
 
         return attrs.SrcPosition->count;
@@ -352,7 +361,7 @@ GenerateNormals(
 }
 
 static Result<>
-CollectPrimitives(const cgltf_data* gltfData, SceneData& sceneData)
+CollectModels(const cgltf_data* gltfData, SceneData& sceneData)
 {
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
@@ -387,7 +396,7 @@ CollectPrimitives(const cgltf_data* gltfData, SceneData& sceneData)
             PrimitiveAttributes attrs //
             {
                 .SrcMesh = mesh,
-                .IndexInMesh = static_cast<uint32_t>(j),
+                .IndexInMesh = narrow_cast<uint32_t>(j),
                 .SrcMaterial = prim->material,
                 .SrcIndices = prim->indices,
             };
@@ -477,16 +486,16 @@ CollectPrimitives(const cgltf_data* gltfData, SceneData& sceneData)
 
             MeshData meshData //
             {
-                .FirstIndex = static_cast<uint32_t>(firstIndex),
-                .BaseVertex = static_cast<uint32_t>(baseVertex),
-                .IndexCount = static_cast<uint32_t>(*indexCount),
-                .MaterialIndex = static_cast<uint32_t>(materialIndex),
+                .FirstIndex = narrow_cast<uint32_t>(firstIndex),
+                .BaseVertex = narrow_cast<uint32_t>(baseVertex),
+                .IndexCount = narrow_cast<uint32_t>(*indexCount),
+                .MaterialIndex = narrow_cast<uint32_t>(materialIndex),
             };
 
             model.Meshes.push_back(meshData);
 
-            firstIndex += static_cast<uint32_t>(indexCount);
-            baseVertex += static_cast<uint32_t>(vertexCount);
+            firstIndex += narrow_cast<uint32_t>(*indexCount);
+            baseVertex += narrow_cast<uint32_t>(*vertexCount);
         }
 
         modelMap[mesh] = models.size();
@@ -532,7 +541,7 @@ CollectTransforms(cgltf_node** const childNodes,
 
         MLG_LOG_SCOPE("node {}", srcNode->name ? srcNode->name : "<unnamed>");
 
-        const uint32_t transformIndex = static_cast<uint32_t>(sceneData.Transforms.size());
+        const uint32_t transformIndex = narrow_cast<uint32_t>(sceneData.Transforms.size());
 
         TransformData transformData //
         {
@@ -613,8 +622,8 @@ CollectTransforms(cgltf_node** const childNodes,
         {
             ModelInstance instance //
             {
-                .ModelIndex = static_cast<uint32_t>(sceneData.ModelMap[srcNode->mesh]),
-                .TransformIndex = static_cast<uint32_t>(transformIndex),
+                .ModelIndex = narrow_cast<uint32_t>(sceneData.ModelMap[srcNode->mesh]),
+                .TransformIndex = narrow_cast<uint32_t>(transformIndex),
             };
 
             sceneData.Instances.push_back(instance);
@@ -683,7 +692,7 @@ StageTexture(wgpu::Device wgpuDevice,
     int width, height, numChannels;
 
     if(!stbi_info_from_memory(request.Data.data(),
-           static_cast<int>(request.Data.size()),
+           narrow_cast<int>(request.Data.size()),
            &width,
            &height,
            &numChannels))
@@ -695,8 +704,8 @@ StageTexture(wgpu::Device wgpuDevice,
     MLG_DEBUG("Image info - {} x {} x {}", width, height, numChannels);
 
     auto [stagingBuffer, texture] = CreateTexture(wgpuDevice,
-        static_cast<uint32_t>(width),
-        static_cast<uint32_t>(height),
+        narrow_cast<uint32_t>(width),
+        narrow_cast<uint32_t>(height),
         kTextureFormat,
         uri);
 
@@ -705,9 +714,9 @@ StageTexture(wgpu::Device wgpuDevice,
 
     auto [it, inserted] = textureBuilders.try_emplace(uri,
         uri,
-        static_cast<uint32_t>(width),
-        static_cast<uint32_t>(height),
-        static_cast<uint32_t>(numChannels),
+        narrow_cast<uint32_t>(width),
+        narrow_cast<uint32_t>(height),
+        narrow_cast<uint32_t>(numChannels),
         stagingBuffer,
         texture,
         mappedMemory,
@@ -723,7 +732,7 @@ StageTexture(wgpu::Device wgpuDevice,
 
         int width, height, numChannels;
         stbi_uc* data = stbi_load_from_memory(builder.Request->Data.data(),
-            static_cast<int>(builder.Request->Data.size()),
+            narrow_cast<int>(builder.Request->Data.size()),
             &width,
             &height,
             &numChannels,
@@ -910,14 +919,14 @@ FetchTextures(wgpu::Device wgpuDevice, std::filesystem::path basePath, SceneData
         wgpuDevice.GetAdapter().GetInstance().ProcessEvents();
     }
 
-    std::map<std::string, wgpu::Texture> textures;
+    std::map<std::string, wgpu::Texture> textureDict;
 
     for(auto& [uri, builder] : textureBuilders)
     {
-        textures[uri] = builder.Texture;
+        textureDict[uri] = builder.Texture;
     }
 
-    sceneData.Textures = std::move(textures);
+    sceneData.TextureDict = std::move(textureDict);
 
     return Result<>::Ok;
 }
@@ -1026,13 +1035,13 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
 {
     MLG_CHECK(CreateMaterialDefaults(wgpuDevice, sceneData));
 
-    std::vector<MaterialResources> materials;
+    std::vector<MaterialBinding> materialBindings;
 
     for(const auto& mtl : sceneData.Materials)
     {
         wgpu::Texture baseTexture = mtl.BaseTextureUri.empty()
                                         ? sceneData.DefaultTexture
-                                        : sceneData.Textures[mtl.BaseTextureUri];
+                                        : sceneData.TextureDict[mtl.BaseTextureUri];
 
         wgpu::Buffer materialConstantsBuffer = CreateGpuBuffer(wgpuDevice,
             wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
@@ -1081,13 +1090,13 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
 
         wgpu::BindGroup materialBindGroup = wgpuDevice.CreateBindGroup(&bindGroupDesc);
 
-        materials.emplace_back(baseTexture,
+        materialBindings.emplace_back(baseTexture,
             sceneData.DefaultSampler,
             materialConstantsBuffer,
             materialBindGroup);
     }
 
-    sceneData.MaterialRsrcs = std::move(materials);
+    sceneData.MaterialBindings = std::move(materialBindings);
 
     return Result<>::Ok;
 }
@@ -1247,7 +1256,7 @@ CgltfModelLoader::LoadModel(GpuDevice* gpuDevice, const std::string& path)
     SceneData sceneData;
     wgpu::Device wgpuDevice = static_cast<DawnGpuDevice*>(gpuDevice)->Device;
 
-    MLG_CHECK(CollectPrimitives(data, sceneData));
+    MLG_CHECK(CollectModels(data, sceneData));
     MLG_CHECK(CollectTransforms(data->scenes[0].nodes,
         data->scenes[0].nodes_count,
         std::numeric_limits<uint32_t>::max(),
