@@ -195,20 +195,18 @@ DawnRenderer::Render(const Mat44f& camera,
             ? wgpu::IndexFormat::Uint32
             : wgpu::IndexFormat::Uint16;
 
-        constexpr unsigned idxSize = (VERTEX_INDEX_BITS == 32) ? sizeof(uint32_t) : sizeof(uint16_t);
-
         auto vb = static_cast<const DawnGpuVertexBuffer*>(models->GetGpuVertexBuffer());
         auto ib = static_cast<const DawnGpuIndexBuffer*>(models->GetGpuIndexBuffer());
 
         renderPass.SetVertexBuffer(0,
             vb->GetBuffer(),
             0,
-            vb->GetVertexCount() * sizeof(Vertex));
+            vb->GetBuffer().GetSize());
 
         renderPass.SetIndexBuffer(ib->GetBuffer(),
             idxFmt,
             0,
-            ib->GetIndexCount() * idxSize);
+            ib->GetBuffer().GetSize());
     }
 
     static PerfTimer drawTimer("Renderer.Render.Draw");

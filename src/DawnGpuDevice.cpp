@@ -184,7 +184,7 @@ DawnGpuDevice::CreateVertexBuffer(const std::span<std::span<const Vertex>>& vert
     MLG_CHECKV(res, "Error allocating DawnGpuVertexBuffer");
 
     return ::new(&res->VertexBuffer)
-        DawnGpuVertexBuffer(this, nativeBuf, static_cast<uint32_t>(sizeofBuffer / sizeof(Vertex)));
+        DawnGpuVertexBuffer(this, nativeBuf);
 }
 
 Result<>
@@ -218,7 +218,7 @@ DawnGpuDevice::CreateIndexBuffer(const std::span<std::span<const VertexIndex>>& 
     MLG_CHECKV(res, "Error allocating DawnGpuIndexBuffer");
 
     return ::new(&res->IndexBuffer)
-        DawnGpuIndexBuffer(this, nativeBuf, static_cast<uint32_t>(sizeofBuffer / sizeof(VertexIndex)));
+        DawnGpuIndexBuffer(this, nativeBuf);
 }
 
 Result<>

@@ -22,8 +22,6 @@ class GpuVertexBuffer
 {
 public:
 
-    virtual unsigned GetVertexCount() const = 0;
-
 protected:
     GpuVertexBuffer() = default;
     virtual ~GpuVertexBuffer() = 0;
@@ -33,8 +31,6 @@ protected:
 class GpuIndexBuffer
 {
 public:
-
-    virtual unsigned GetIndexCount() const = 0;
 
 protected:
     GpuIndexBuffer() = default;

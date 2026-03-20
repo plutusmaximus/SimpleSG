@@ -25,22 +25,18 @@ public:
 
     wgpu::Buffer GetBuffer() const { return m_Buffer; }
 
-    unsigned GetVertexCount() const override { return m_ItemCount; }
-
 private:
     friend class DawnGpuDevice;
 
     explicit DawnGpuVertexBuffer(
-        DawnGpuDevice* gpuDevice, wgpu::Buffer buffer, const unsigned itemCount)
+        DawnGpuDevice* gpuDevice, wgpu::Buffer buffer)
         : m_GpuDevice(gpuDevice),
-          m_Buffer(buffer),
-          m_ItemCount(itemCount)
+          m_Buffer(buffer)
     {
     }
 
     DawnGpuDevice* m_GpuDevice;
     wgpu::Buffer m_Buffer;
-    const unsigned m_ItemCount;
 };
 
 class DawnGpuIndexBuffer : public GpuIndexBuffer
@@ -57,22 +53,18 @@ public:
 
     wgpu::Buffer GetBuffer() const { return m_Buffer; }
 
-    unsigned GetIndexCount() const override { return m_ItemCount; }
-
 private:
     friend class DawnGpuDevice;
 
     explicit DawnGpuIndexBuffer(
-        DawnGpuDevice* gpuDevice, wgpu::Buffer buffer, const unsigned itemCount)
+        DawnGpuDevice* gpuDevice, wgpu::Buffer buffer)
         : m_GpuDevice(gpuDevice),
-          m_Buffer(buffer),
-          m_ItemCount(itemCount)
+          m_Buffer(buffer)
     {
     }
 
     DawnGpuDevice* m_GpuDevice;
     wgpu::Buffer m_Buffer;
-    const unsigned m_ItemCount;
 };
 
 class DawnGpuStorageBuffer : public GpuStorageBuffer
