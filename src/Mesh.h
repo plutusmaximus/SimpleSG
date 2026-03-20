@@ -25,11 +25,9 @@ public:
         const unsigned indexCount,
         const unsigned vertexOffset,
         const unsigned indexOffset,
-        const Material& material,
         GpuMaterial* gpuMaterial)
         : m_Name(name)
         , m_IndexCount(indexCount)
-        , m_Material(material)
         , m_GpuMaterial(gpuMaterial)
         , m_IndexOffset(indexOffset)
         , m_VertexOffset(vertexOffset)
@@ -45,7 +43,6 @@ public:
     unsigned GetIndexOffset() const { return m_IndexOffset; }
     unsigned GetVertexOffset() const { return m_VertexOffset; }
     unsigned GetIndexCount() const { return m_IndexCount; }
-    const Material& GetMaterial() const { return m_Material; }
     GpuMaterial* GetGpuMaterial() const { return m_GpuMaterial; }
 
 private:
@@ -56,6 +53,5 @@ private:
     unsigned m_IndexOffset;
     unsigned m_VertexOffset;
     unsigned m_IndexCount;
-    Material m_Material;
     GpuMaterial* m_GpuMaterial{ nullptr };
 };

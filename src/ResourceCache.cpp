@@ -535,8 +535,6 @@ ResourceCache::CreateModelOp::CreateModel()
 
         GpuMaterial* gpuMtl = *mtlResult;
 
-        const Material mtl(meshSpec.MtlSpec.Constants, gpuMtl->GetBaseTexture());
-
         const unsigned idxCount = static_cast<unsigned>(meshSpec.Indices.size());
         const unsigned vtxCount = static_cast<unsigned>(meshSpec.Vertices.size());
 
@@ -544,7 +542,6 @@ ResourceCache::CreateModelOp::CreateModel()
             idxCount,
             vtxOffset,
             idxOffset,
-            mtl,
             gpuMtl);
 
         idxOffset += idxCount;

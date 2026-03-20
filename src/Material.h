@@ -246,48 +246,6 @@ private:
     char m_CacheKeyBuffer[256];
 };
 
-/// @brief Material used for rendering meshes.
-class Material
-{
-public:
-
-    Material(
-        const MaterialConstants& constants,
-        GpuTexture* baseTexture)
-        : m_Key(MaterialId::NextId(), constants.Color.a < 1.0f ? MaterialFlags::Translucent : MaterialFlags::None)
-        , m_Constants(constants)
-        , m_BaseTexture(baseTexture)
-    {
-    }
-
-    Material(const Material&) = default;
-    Material& operator=(const Material&) = default;
-    Material(Material&&) = default;
-    Material& operator=(Material&&) = default;
-
-    const MaterialId GetId() const { return m_Key.Id; }
-    const MaterialKey& GetKey() const { return m_Key; }
-    const MaterialConstants& GetConstants() const { return m_Constants;}
-    const RgbaColorf& GetColor() const { return m_Constants.Color; }
-    float GetMetalness() const { return m_Constants.Metalness; }
-    float GetRoughness() const { return m_Constants.Roughness; }
-    GpuTexture* GetBaseTexture() const { return m_BaseTexture; }
-
-private:
-
-    Material() = delete;
-
-    /// @brief Unique key identifying this material.
-    /// Used to group geometry sharing the same material attributes.
-    MaterialKey m_Key;
-
-    /// @brief Constants defining the material properties.
-    MaterialConstants m_Constants;
-
-    /// @brief Base (albedo) texture of the material.
-    GpuTexture* m_BaseTexture{ nullptr };
-};
-
 /// @brief Enable hashing of MaterialId for use in unordered containers.
 template<>
 struct std::hash<MaterialId>
