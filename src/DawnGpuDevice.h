@@ -14,6 +14,14 @@ struct SDL_Window;
 class DawnGpuVertexBuffer : public GpuVertexBuffer
 {
 public:
+
+    DawnGpuVertexBuffer(
+        DawnGpuDevice* gpuDevice, wgpu::Buffer buffer)
+        : m_GpuDevice(gpuDevice),
+          m_Buffer(buffer)
+    {
+    }
+
     DawnGpuVertexBuffer() = delete;
     DawnGpuVertexBuffer(const DawnGpuVertexBuffer&) = delete;
     DawnGpuVertexBuffer& operator=(const DawnGpuVertexBuffer&) = delete;
@@ -21,19 +29,15 @@ public:
     DawnGpuVertexBuffer& operator=(DawnGpuVertexBuffer&&) = delete;
 
     // wgpu::Buffer is ref counted so nothing to do here.
-    ~DawnGpuVertexBuffer() override {};
+    ~DawnGpuVertexBuffer() override
+    {
+        MLG_ASSERT(!m_GpuDevice, "DawnGpuVertexBuffer destroyed while still in use");
+    };
 
     wgpu::Buffer GetBuffer() const { return m_Buffer; }
 
 private:
     friend class DawnGpuDevice;
-
-    explicit DawnGpuVertexBuffer(
-        DawnGpuDevice* gpuDevice, wgpu::Buffer buffer)
-        : m_GpuDevice(gpuDevice),
-          m_Buffer(buffer)
-    {
-    }
 
     DawnGpuDevice* m_GpuDevice;
     wgpu::Buffer m_Buffer;
@@ -42,6 +46,13 @@ private:
 class DawnGpuIndexBuffer : public GpuIndexBuffer
 {
 public:
+    DawnGpuIndexBuffer(
+        DawnGpuDevice* gpuDevice, wgpu::Buffer buffer)
+        : m_GpuDevice(gpuDevice),
+          m_Buffer(buffer)
+    {
+    }
+
     DawnGpuIndexBuffer() = delete;
     DawnGpuIndexBuffer(const DawnGpuIndexBuffer&) = delete;
     DawnGpuIndexBuffer& operator=(const DawnGpuIndexBuffer&) = delete;
@@ -49,19 +60,15 @@ public:
     DawnGpuIndexBuffer& operator=(DawnGpuIndexBuffer&&) = delete;
 
     // wgpu::Buffer is ref counted so nothing to do here.
-    ~DawnGpuIndexBuffer() override {};
+    ~DawnGpuIndexBuffer() override
+    {
+        MLG_ASSERT(!m_GpuDevice, "DawnGpuIndexBuffer destroyed while still in use");
+    };
 
     wgpu::Buffer GetBuffer() const { return m_Buffer; }
 
 private:
     friend class DawnGpuDevice;
-
-    explicit DawnGpuIndexBuffer(
-        DawnGpuDevice* gpuDevice, wgpu::Buffer buffer)
-        : m_GpuDevice(gpuDevice),
-          m_Buffer(buffer)
-    {
-    }
 
     DawnGpuDevice* m_GpuDevice;
     wgpu::Buffer m_Buffer;
@@ -70,6 +77,12 @@ private:
 class DawnGpuStorageBuffer : public GpuStorageBuffer
 {
 public:
+    DawnGpuStorageBuffer(DawnGpuDevice* gpuDevice, wgpu::Buffer buffer)
+        : m_GpuDevice(gpuDevice),
+          m_Buffer(buffer)
+    {
+    }
+
     DawnGpuStorageBuffer() = delete;
     DawnGpuStorageBuffer(const DawnGpuStorageBuffer&) = delete;
     DawnGpuStorageBuffer& operator=(const DawnGpuStorageBuffer&) = delete;
@@ -77,7 +90,10 @@ public:
     DawnGpuStorageBuffer& operator=(DawnGpuStorageBuffer&&) = delete;
 
     // wgpu::Buffer is ref counted so nothing to do here.
-    ~DawnGpuStorageBuffer() override {};
+    ~DawnGpuStorageBuffer() override
+    {
+        MLG_ASSERT(!m_GpuDevice, "DawnGpuStorageBuffer destroyed while still in use");
+    };
 
     Result<> WriteBuffer(const std::span<const uint8_t>& data) override;
 
@@ -85,12 +101,6 @@ public:
 
 private:
     friend class DawnGpuDevice;
-
-    explicit DawnGpuStorageBuffer(DawnGpuDevice* gpuDevice, wgpu::Buffer buffer)
-        : m_GpuDevice(gpuDevice),
-          m_Buffer(buffer)
-    {
-    }
 
     DawnGpuDevice* m_GpuDevice;
     wgpu::Buffer m_Buffer;
@@ -99,6 +109,12 @@ private:
 class DawnGpuDrawIndirectBuffer : public GpuDrawIndirectBuffer
 {
 public:
+    DawnGpuDrawIndirectBuffer(DawnGpuDevice* gpuDevice, wgpu::Buffer buffer)
+        : m_GpuDevice(gpuDevice),
+          m_Buffer(buffer)
+    {
+    }
+
     DawnGpuDrawIndirectBuffer() = delete;
     DawnGpuDrawIndirectBuffer(const DawnGpuDrawIndirectBuffer&) = delete;
     DawnGpuDrawIndirectBuffer& operator=(const DawnGpuDrawIndirectBuffer&) = delete;
@@ -106,7 +122,10 @@ public:
     DawnGpuDrawIndirectBuffer& operator=(DawnGpuDrawIndirectBuffer&&) = delete;
 
     // wgpu::Buffer is ref counted so nothing to do here.
-    ~DawnGpuDrawIndirectBuffer() override {};
+    ~DawnGpuDrawIndirectBuffer() override
+    {
+        MLG_ASSERT(!m_GpuDevice, "DawnGpuDrawIndirectBuffer destroyed while still in use");
+    };
 
     Result<> WriteBuffer(const std::span<const uint8_t>& data) override;
 
@@ -115,12 +134,6 @@ public:
 private:
     friend class DawnGpuDevice;
 
-    explicit DawnGpuDrawIndirectBuffer(DawnGpuDevice* gpuDevice, wgpu::Buffer buffer)
-        : m_GpuDevice(gpuDevice),
-          m_Buffer(buffer)
-    {
-    }
-
     DawnGpuDevice* m_GpuDevice;
     wgpu::Buffer m_Buffer;
 };
@@ -128,25 +141,6 @@ private:
 class DawnGpuTexture : public GpuTexture
 {
 public:
-    DawnGpuTexture() = delete;
-    DawnGpuTexture(const DawnGpuTexture&) = delete;
-    DawnGpuTexture& operator=(const DawnGpuTexture&) = delete;
-    DawnGpuTexture(DawnGpuTexture&&) = delete;
-    DawnGpuTexture& operator=(DawnGpuTexture&&) = delete;
-
-    // wgpu::Texture is ref counted so nothing to do here.
-    ~DawnGpuTexture() override {};
-
-    unsigned GetWidth() const override { return m_Width; }
-    unsigned GetHeight() const override { return m_Height; }
-
-    wgpu::Texture GetTexture() const { return m_Texture; }
-    wgpu::TextureView GetTextureView() const { return m_TextureView; }
-    wgpu::Sampler GetSampler() const { return m_Sampler; }
-
-private:
-    friend class DawnGpuDevice;
-
     DawnGpuTexture(DawnGpuDevice* gpuDevice,
         wgpu::Texture texture,
         wgpu::TextureView textureView,
@@ -162,6 +156,28 @@ private:
     {
     }
 
+    DawnGpuTexture() = delete;
+    DawnGpuTexture(const DawnGpuTexture&) = delete;
+    DawnGpuTexture& operator=(const DawnGpuTexture&) = delete;
+    DawnGpuTexture(DawnGpuTexture&&) = delete;
+    DawnGpuTexture& operator=(DawnGpuTexture&&) = delete;
+
+    // wgpu::Texture is ref counted so nothing to do here.
+    ~DawnGpuTexture() override
+    {
+        MLG_ASSERT(!m_GpuDevice, "DawnGpuTexture destroyed while still in use");
+    };
+
+    unsigned GetWidth() const override { return m_Width; }
+    unsigned GetHeight() const override { return m_Height; }
+
+    wgpu::Texture GetTexture() const { return m_Texture; }
+    wgpu::TextureView GetTextureView() const { return m_TextureView; }
+    wgpu::Sampler GetSampler() const { return m_Sampler; }
+
+private:
+    friend class DawnGpuDevice;
+
     DawnGpuDevice* m_GpuDevice;
     wgpu::Texture m_Texture;
     wgpu::TextureView m_TextureView;
@@ -173,23 +189,6 @@ private:
 class DawnGpuMaterial : public GpuMaterial
 {
 public:
-
-    DawnGpuMaterial() = delete;
-    DawnGpuMaterial(const DawnGpuMaterial&) = delete;
-    DawnGpuMaterial& operator=(const DawnGpuMaterial&) = delete;
-    DawnGpuMaterial(DawnGpuMaterial&&) = delete;
-    DawnGpuMaterial& operator=(DawnGpuMaterial&&) = delete;
-
-    ~DawnGpuMaterial() override {};
-
-    GpuTexture* GetBaseTexture() const override { return m_BaseTexture; }
-
-    const MaterialConstants& GetConstants() const override { return m_Constants; }
-
-    wgpu::BindGroup GetBindGroup() const { return m_BindGroup; }
-
-private:
-    friend class DawnGpuDevice;
 
     DawnGpuMaterial(DawnGpuDevice* gpuDevice,
         GpuTexture* baseTexture,
@@ -205,7 +204,27 @@ private:
     {
     }
 
-    DawnGpuDevice* const m_GpuDevice;
+    DawnGpuMaterial() = delete;
+    DawnGpuMaterial(const DawnGpuMaterial&) = delete;
+    DawnGpuMaterial& operator=(const DawnGpuMaterial&) = delete;
+    DawnGpuMaterial(DawnGpuMaterial&&) = delete;
+    DawnGpuMaterial& operator=(DawnGpuMaterial&&) = delete;
+
+    ~DawnGpuMaterial() override
+    {
+        MLG_ASSERT(!m_GpuDevice, "DawnGpuMaterial destroyed while still in use");
+    }
+
+    GpuTexture* GetBaseTexture() const override { return m_BaseTexture; }
+
+    const MaterialConstants& GetConstants() const override { return m_Constants; }
+
+    wgpu::BindGroup GetBindGroup() const { return m_BindGroup; }
+
+private:
+    friend class DawnGpuDevice;
+
+    DawnGpuDevice* m_GpuDevice;
     GpuTexture* m_BaseTexture;
     wgpu::Buffer m_ConstantsBuffer;
     wgpu::BindGroup m_BindGroup;
@@ -215,26 +234,6 @@ private:
 class DawnGpuColorTarget : public GpuColorTarget
 {
 public:
-    DawnGpuColorTarget() = delete;
-    DawnGpuColorTarget(const DawnGpuColorTarget&) = delete;
-    DawnGpuColorTarget& operator=(const DawnGpuColorTarget&) = delete;
-    DawnGpuColorTarget(DawnGpuColorTarget&&) = delete;
-    DawnGpuColorTarget& operator=(DawnGpuColorTarget&&) = delete;
-
-    // wgpu::Texture is ref counted so nothing to do here.
-    ~DawnGpuColorTarget() override {};
-
-    unsigned GetWidth() const override { return m_Width; }
-    unsigned GetHeight() const override { return m_Height; }
-    wgpu::TextureFormat GetFormat() const { return m_Format; }
-
-    wgpu::Texture GetTexture() const { return m_Texture; }
-    wgpu::TextureView GetTextureView() const { return m_TextureView; }
-    wgpu::Sampler GetSampler() const { return m_Sampler; }
-
-private:
-    friend class DawnGpuDevice;
-
     DawnGpuColorTarget(DawnGpuDevice* gpuDevice,
         wgpu::Texture texture,
         wgpu::TextureView textureView,
@@ -252,6 +251,29 @@ private:
     {
     }
 
+    DawnGpuColorTarget() = delete;
+    DawnGpuColorTarget(const DawnGpuColorTarget&) = delete;
+    DawnGpuColorTarget& operator=(const DawnGpuColorTarget&) = delete;
+    DawnGpuColorTarget(DawnGpuColorTarget&&) = delete;
+    DawnGpuColorTarget& operator=(DawnGpuColorTarget&&) = delete;
+
+    // wgpu::Texture is ref counted so nothing to do here.
+    ~DawnGpuColorTarget() override
+    {
+        MLG_ASSERT(!m_GpuDevice, "DawnGpuColorTarget destroyed while still in use");
+    }
+
+    unsigned GetWidth() const override { return m_Width; }
+    unsigned GetHeight() const override { return m_Height; }
+    wgpu::TextureFormat GetFormat() const { return m_Format; }
+
+    wgpu::Texture GetTexture() const { return m_Texture; }
+    wgpu::TextureView GetTextureView() const { return m_TextureView; }
+    wgpu::Sampler GetSampler() const { return m_Sampler; }
+
+private:
+    friend class DawnGpuDevice;
+
     DawnGpuDevice* m_GpuDevice;
     wgpu::Texture m_Texture;
     wgpu::TextureView m_TextureView;
@@ -264,25 +286,6 @@ private:
 class DawnGpuDepthTarget : public GpuDepthTarget
 {
 public:
-    DawnGpuDepthTarget() = delete;
-    DawnGpuDepthTarget(const DawnGpuDepthTarget&) = delete;
-    DawnGpuDepthTarget& operator=(const DawnGpuDepthTarget&) = delete;
-    DawnGpuDepthTarget(DawnGpuDepthTarget&&) = delete;
-    DawnGpuDepthTarget& operator=(DawnGpuDepthTarget&&) = delete;
-
-    // wgpu::Texture is ref counted so nothing to do here.
-    ~DawnGpuDepthTarget() override {};
-
-    unsigned GetWidth() const override { return m_Width; }
-    unsigned GetHeight() const override { return m_Height; }
-    wgpu::TextureFormat GetFormat() const { return m_Format; }
-
-    wgpu::Texture GetTexture() const { return m_DepthTarget; }
-    wgpu::TextureView GetTextureView() const { return m_DepthTargetView; }
-
-private:
-    friend class DawnGpuDevice;
-
     DawnGpuDepthTarget(DawnGpuDevice* gpuDevice,
         wgpu::Texture depthTarget,
         wgpu::TextureView depthTargetView,
@@ -297,6 +300,28 @@ private:
           m_Format(format)
     {
     }
+
+    DawnGpuDepthTarget() = delete;
+    DawnGpuDepthTarget(const DawnGpuDepthTarget&) = delete;
+    DawnGpuDepthTarget& operator=(const DawnGpuDepthTarget&) = delete;
+    DawnGpuDepthTarget(DawnGpuDepthTarget&&) = delete;
+    DawnGpuDepthTarget& operator=(DawnGpuDepthTarget&&) = delete;
+
+    // wgpu::Texture is ref counted so nothing to do here.
+    ~DawnGpuDepthTarget() override
+    {
+        MLG_ASSERT(!m_GpuDevice, "DawnGpuDepthTarget destroyed while still in use");
+    }
+
+    unsigned GetWidth() const override { return m_Width; }
+    unsigned GetHeight() const override { return m_Height; }
+    wgpu::TextureFormat GetFormat() const { return m_Format; }
+
+    wgpu::Texture GetTexture() const { return m_DepthTarget; }
+    wgpu::TextureView GetTextureView() const { return m_DepthTargetView; }
+
+private:
+    friend class DawnGpuDevice;
 
     DawnGpuDevice* m_GpuDevice;
     wgpu::Texture m_DepthTarget;
