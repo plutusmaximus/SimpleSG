@@ -43,6 +43,15 @@ Model::~Model()
             }
         }
 
+        if(m_TransformBuffer)
+        {
+            const auto res = m_GpuDevice->DestroyStorageBuffer(m_TransformBuffer);
+            if(!res)
+            {
+                MLG_DEBUG("Failed to destroy transform buffer");
+            }
+        }
+
         if(m_IndexBuffer)
         {
             const auto res = m_GpuDevice->DestroyIndexBuffer(m_IndexBuffer);
@@ -75,30 +84,18 @@ Model::~Model()
 Result<Model>
 Model::Create(
     const imvector<Mesh>& meshes,
-    const imvector<TransformNode>& transformNodes,
     GpuDevice* gpuDevice,
+    GpuStorageBuffer* transformBuffer,
     GpuStorageBuffer* meshToTransformMapping,
     GpuDrawIndirectBuffer* drawIndirectBuffer,
     GpuVertexBuffer* vertexBuffer,
     GpuIndexBuffer* indexBuffer)
 {
-    MLG_DEBUG(
-        "Creating model with {} meshes, {} transform nodes",
-        meshes.size(),
-        transformNodes.size());
-
-    for(size_t i = 0; i < transformNodes.size(); ++i)
-    {
-        MLG_ASSERT(transformNodes[i].ParentIndex < static_cast<int>(i) ||
-                       transformNodes[i].ParentIndex == kInvalidTransformIndex,
-            "Transform node {} has invalid parent index {}, parent must be defined before child",
-            i,
-            transformNodes[i].ParentIndex);
-    }
+    MLG_DEBUG("Creating model with {} meshes", meshes.size());
 
     return Model(meshes,
-        transformNodes,
         gpuDevice,
+        transformBuffer,
         meshToTransformMapping,
         drawIndirectBuffer,
         vertexBuffer,

@@ -555,6 +555,27 @@ ResourceCache::CreateModelOp::CreateModel()
     const std::span<const uint8_t> mappingSpan(reinterpret_cast<const uint8_t*>(mapping.data()), sizeofMappingBuffer);
     (*meshToTransformMappingBuffer)->WriteBuffer(mappingSpan);
 
+    const auto& transformNodes = m_ModelSpec.GetTransformNodes();
+    std::vector<Mat44f> transforms;
+    transforms.reserve(transformNodes.size());
+    for(const auto& node : transformNodes)
+    {
+        if(node.ParentIndex != kInvalidTransformIndex)
+        {
+            transforms.emplace_back(
+                transforms[node.ParentIndex].Mul(node.Transform));
+        }
+        else
+        {
+            transforms.emplace_back(node.Transform);
+        }
+    }
+    const size_t sizeofTransformBuffer = transforms.size() * sizeof(Mat44f);
+    auto transformBuffer = m_ResourceCache->m_GpuDevice->CreateStorageBuffer(sizeofTransformBuffer);
+    MLG_CHECK(transformBuffer);
+    const std::span<const uint8_t> transformSpan(reinterpret_cast<const uint8_t*>(transforms.data()), sizeofTransformBuffer);
+    (*transformBuffer)->WriteBuffer(transformSpan);
+
     class DrawIndirectBufferParams
     {
     public:
@@ -592,8 +613,8 @@ ResourceCache::CreateModelOp::CreateModel()
     (*drawIndirectBuffer)->WriteBuffer(drawIndirectSpan);
 
     auto modelResult = Model::Create(meshes.build(),
-        m_ModelSpec.GetTransformNodes(),
         m_ResourceCache->m_GpuDevice,
+        *transformBuffer,
         *meshToTransformMappingBuffer,
         *drawIndirectBuffer,
         m_VertexBuffer,

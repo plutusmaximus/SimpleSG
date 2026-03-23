@@ -57,14 +57,15 @@ public:
     Model(Model&& other) noexcept
     {
         m_Meshes = std::move(other.m_Meshes);
-        m_TransformNodes = std::move(other.m_TransformNodes);
         m_GpuDevice = std::move(other.m_GpuDevice);
+        m_TransformBuffer = std::move(other.m_TransformBuffer);
         m_MeshToTransformMapping = std::move(other.m_MeshToTransformMapping);
         m_DrawIndirectBuffer = std::move(other.m_DrawIndirectBuffer);
         m_VertexBuffer = std::move(other.m_VertexBuffer);
         m_IndexBuffer = std::move(other.m_IndexBuffer);
 
         other.m_GpuDevice = nullptr;
+        other.m_TransformBuffer = nullptr;
         other.m_MeshToTransformMapping = nullptr;
         other.m_DrawIndirectBuffer = nullptr;
         other.m_VertexBuffer = nullptr;
@@ -76,15 +77,15 @@ public:
 
     static Result<Model> Create(
         const imvector<Mesh>& meshes,
-        const imvector<TransformNode>& transformNodes,
         GpuDevice* gpuDevice,
+        GpuStorageBuffer* transformBuffer,
         GpuStorageBuffer* meshToTransformMapping,
         GpuDrawIndirectBuffer* drawIndirectBuffer,
         GpuVertexBuffer* vertexBuffer,
         GpuIndexBuffer* indexBuffer);
 
     const imvector<Mesh>& GetMeshes() const { return m_Meshes; }
-    const imvector<TransformNode>& GetTransformNodes() const { return m_TransformNodes; }
+    const GpuStorageBuffer* GetTransformBuffer() const { return m_TransformBuffer; }
     const GpuStorageBuffer* GetMeshToTransformMapping() const { return m_MeshToTransformMapping; }
     const GpuDrawIndirectBuffer* GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
     const GpuVertexBuffer* GetGpuVertexBuffer() const { return m_VertexBuffer; }
@@ -92,15 +93,15 @@ public:
 
 private:
     Model(const imvector<Mesh>& meshes,
-        const imvector<TransformNode>& transformNodes,
         GpuDevice* gpuDevice,
+        GpuStorageBuffer* transformBuffer,
         GpuStorageBuffer* meshToTransformMapping,
         GpuDrawIndirectBuffer* drawIndirectBuffer,
         GpuVertexBuffer* vertexBuffer,
         GpuIndexBuffer* indexBuffer)
         : m_Meshes(meshes),
-          m_TransformNodes(transformNodes),
           m_GpuDevice(gpuDevice),
+          m_TransformBuffer(transformBuffer),
           m_MeshToTransformMapping(meshToTransformMapping),
           m_DrawIndirectBuffer(drawIndirectBuffer),
           m_VertexBuffer(vertexBuffer),
@@ -109,9 +110,9 @@ private:
     }
 
     imvector<Mesh> m_Meshes;
-    imvector<TransformNode> m_TransformNodes;
 
     GpuDevice* m_GpuDevice{nullptr};
+    GpuStorageBuffer* m_TransformBuffer{nullptr};
     GpuStorageBuffer* m_MeshToTransformMapping{nullptr};
     GpuDrawIndirectBuffer* m_DrawIndirectBuffer{nullptr};
     GpuVertexBuffer* m_VertexBuffer{nullptr};

@@ -21,12 +21,9 @@ public:
 
     ~DawnRenderer() override;
 
-    void AddModel(const Mat44f& worldTransform, const Model* model) override;
-
     Result<> Render(const Mat44f& camera,
         const Mat44f& projection,
-        const Model* models,
-        const size_t modelCount,
+        const Model* model,
         RenderCompositor* compositor) override;
 
 private:
@@ -36,31 +33,6 @@ private:
     explicit DawnRenderer(DawnGpuDevice* gpuDevice);
 
     Result<wgpu::RenderPassEncoder> BeginRenderPass(wgpu::CommandEncoder cmdEncoder);
-
-    struct State
-    {
-        void Clear()
-        {
-            m_Meshes.clear();
-            m_Transforms.clear();
-            m_Materials.clear();
-            m_MeshCount = 0;
-        }
-
-        std::vector<const Mesh*> m_Meshes;
-
-        std::vector<Mat44f> m_Transforms;
-
-        std::vector<TransformIndex> m_MeshToTransformMap;
-
-        std::vector<const GpuMaterial*> m_Materials;
-
-        size_t m_MeshCount = 0;
-    };
-
-    //void WaitForFence();
-
-    void SwapStates();
 
     /// @brief Copy the color target to the swapchain texture.
     Result<> CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder,
@@ -79,8 +51,7 @@ private:
     Result<> UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
         const Mat44f& camera,
         const Mat44f& projection,
-        const Model* models,
-        const size_t modelCount);
+        const Model* model);
 
     /// Get or create the default texture.
     /// The default texture is used when a material does not have a base texture.
@@ -91,8 +62,6 @@ private:
     GpuColorTarget* m_ColorTarget{ nullptr };
     GpuDepthTarget* m_DepthTarget{ nullptr };
 
-    State m_State[2];
-    State* m_CurrentState = &m_State[0];
     GpuTexture* m_DefaultBaseTexture{nullptr};
 
     struct Pipeline
@@ -119,12 +88,11 @@ private:
     {
         bool NeedsRebuild(const size_t size) const
         {
-            return size > SizeofTransformBuffer || !WorldSpaceBuf || !ClipSpaceBuf ||
+            return size > SizeofTransformBuffer || !ClipSpaceBuf ||
                    !ViewProjBuf || !BindGroups[0] || !BindGroups[1] || !BindGroups[2];
         }
 
         size_t SizeofTransformBuffer{0};
-        wgpu::Buffer WorldSpaceBuf;
         wgpu::Buffer ClipSpaceBuf;
         wgpu::Buffer ViewProjBuf;
         wgpu::BindGroup BindGroups[3];

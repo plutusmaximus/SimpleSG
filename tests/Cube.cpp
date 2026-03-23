@@ -169,9 +169,9 @@ public:
         for(const auto& tuple : m_Registry.GetView<WorldMatrix, ModelResource>())
         {
             const auto [eid, worldMat, model] = tuple;
-            m_Renderer->AddModel(worldMat, model.Get());
+            //m_Renderer->AddModel(worldMat, model.Get());
             const auto [camWorldMat, camera] = cameraTuple;
-            m_Renderer->Render(camWorldMat, camera.GetProjection(), model.Get(), 1, m_RenderCompositor);
+            m_Renderer->Render(camWorldMat, camera.GetProjection(), model.Get(), m_RenderCompositor);
         }
 
         m_ImGuiRenderer->Render(m_RenderCompositor);

@@ -198,7 +198,7 @@ static Result<> MainLoop()
         imGuiRenderer.NewFrame();
 
         // Transform to camera space and render
-        renderer->AddModel(transform.ToMatrix(), model.Get());
+        //renderer->AddModel(transform.ToMatrix(), model.Get());
 
         RenderGui();
 
@@ -207,7 +207,6 @@ static Result<> MainLoop()
         auto renderResult = renderer->Render(cameraXform.ToMatrix(),
             camera.GetProjection(),
             model.Get(),
-            1,
             renderCompositor);
 
         MLG_CHECK(renderResult);

@@ -66,6 +66,8 @@ public:
         [[maybe_unused]] constexpr const char* SPONZA_MODEL_PATH_2 = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Sponza/glTF/Sponza.gltf";
         [[maybe_unused]] constexpr const char* JUNGLE_RUINS = "C:/Users/kbaca/Downloads/JungleRuins/GLTF/JungleRuins_Main.gltf";
 
+        //CgltfModelLoader::LoadModel(context->GpuDevice, SPONZA_MODEL_PATH);
+
         const CacheKey cacheKey("Sponza");
         auto statusResult = m_ResourceCache->LoadModelFromFileAsync(cacheKey, SPONZA_MODEL_PATH);
         MLG_CHECK(statusResult);
@@ -169,10 +171,10 @@ public:
         for(const auto& tuple : m_Registry.GetView<WorldMatrix, ModelResource>())
         {
             const auto [eid, worldMat, model] = tuple;
-            m_Renderer->AddModel(worldMat, model.Get());
+            //m_Renderer->AddModel(worldMat, model.Get());
 
             const auto [camWorldMat, camera] = cameraTuple;
-            m_Renderer->Render(camWorldMat, camera.GetProjection(), model.Get(), 1, m_RenderCompositor);
+            m_Renderer->Render(camWorldMat, camera.GetProjection(), model.Get(), m_RenderCompositor);
         }
 
         RenderGui();
@@ -318,8 +320,6 @@ int main(int, char* /*argv[]*/)
     {
         return -1;
     }
-
-    CgltfModelLoader::LoadModel("C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf");
 
     driver.SetMouseCapture(true);
 

@@ -57,6 +57,8 @@ public:
 
     virtual Result<> WriteBuffer(const std::span<const uint8_t>& data) = 0;
 
+    virtual size_t GetSize() const = 0;
+
 protected:
     GpuStorageBuffer() = default;
     virtual ~GpuStorageBuffer() = 0;
@@ -68,6 +70,8 @@ class GpuDrawIndirectBuffer
 public:
 
     virtual Result<> WriteBuffer(const std::span<const uint8_t>& data) = 0;
+
+    virtual size_t GetSize() const = 0;
 
 protected:
     GpuDrawIndirectBuffer() = default;

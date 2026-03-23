@@ -82,47 +82,6 @@ DawnRenderer::~DawnRenderer()
     }
 }
 
-void
-DawnRenderer::AddModel(const Mat44f& worldTransform, const Model* model)
-{
-    if(!MLG_VERIFY(model, "Model pointer is null"))
-    {
-        return;
-    }
-
-    const auto& meshes = model->GetMeshes();
-    const auto& transformNodes = model->GetTransformNodes();
-
-    m_CurrentState->m_Transforms.reserve(
-        m_CurrentState->m_Transforms.size() + transformNodes.size());
-
-    m_CurrentState->m_Materials.reserve(
-        m_CurrentState->m_Materials.size() + meshes.size());
-
-    // Precompute world transforms for all nodes
-    for(const auto& node : transformNodes)
-    {
-        if(node.ParentIndex != kInvalidTransformIndex)
-        {
-            m_CurrentState->m_Transforms.emplace_back(
-                m_CurrentState->m_Transforms[node.ParentIndex].Mul(node.Transform));
-        }
-        else
-        {
-            m_CurrentState->m_Transforms.emplace_back(worldTransform.Mul(node.Transform));
-        }
-    }
-
-    for(size_t i = 0; i < meshes.size(); ++i)
-    {
-        const auto& mesh = meshes[i];
-
-        m_CurrentState->m_Meshes.emplace_back(&mesh);
-        m_CurrentState->m_Materials.emplace_back(mesh.GetGpuMaterial());
-        ++m_CurrentState->m_MeshCount;
-    }
-}
-
 template<typename T>
 static inline size_t alignUniformBuffer(const wgpu::Limits& limits)
 {
@@ -134,8 +93,7 @@ static inline size_t alignUniformBuffer(const wgpu::Limits& limits)
 Result<>
 DawnRenderer::Render(const Mat44f& camera,
     const Mat44f& projection,
-    const Model* models,
-    const size_t modelCount,
+    const Model* model,
     RenderCompositor* compositor)
 {
     MLG_CHECK(CreateColorAndDepthTargets());
@@ -156,7 +114,7 @@ DawnRenderer::Render(const Mat44f& camera,
     {
         auto scopedTimer = updateXformTimer.StartScoped();
 
-        auto updateXformBufResult = UpdateXformBuffer(cmdEncoder, camera, projection, models, modelCount);
+        auto updateXformBufResult = UpdateXformBuffer(cmdEncoder, camera, projection, model);
         MLG_CHECK(updateXformBufResult);
     }
 
@@ -195,8 +153,8 @@ DawnRenderer::Render(const Mat44f& camera,
             ? wgpu::IndexFormat::Uint32
             : wgpu::IndexFormat::Uint16;
 
-        auto vb = static_cast<const DawnGpuVertexBuffer*>(models->GetGpuVertexBuffer());
-        auto ib = static_cast<const DawnGpuIndexBuffer*>(models->GetGpuIndexBuffer());
+        auto vb = static_cast<const DawnGpuVertexBuffer*>(model->GetGpuVertexBuffer());
+        auto ib = static_cast<const DawnGpuIndexBuffer*>(model->GetGpuIndexBuffer());
 
         renderPass.SetVertexBuffer(0,
             vb->GetBuffer(),
@@ -214,10 +172,10 @@ DawnRenderer::Render(const Mat44f& camera,
 
     unsigned meshCount = 0;
 
-    const auto& meshes = models->GetMeshes();
+    const auto& meshes = model->GetMeshes();
 
     auto drawIndirectBuf =
-        static_cast<const DawnGpuDrawIndirectBuffer*>(models->GetDrawIndirectBuffer())
+        static_cast<const DawnGpuDrawIndirectBuffer*>(model->GetDrawIndirectBuffer())
             ->GetBuffer();
 
     for(size_t i = 0; i < meshes.size(); ++i)
@@ -262,8 +220,6 @@ DawnRenderer::Render(const Mat44f& camera,
         auto copyResult = CopyColorTargetToSwapchain(cmdEncoder, dawnCompositor->GetTarget());
         MLG_CHECK(copyResult);
     }
-
-    SwapStates();
 
     resolveTimer.Stop();
 
@@ -316,21 +272,6 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
     SDL_SetGPUViewport(renderPass, &viewport);*/
 
     return renderPass;
-}
-
-void
-DawnRenderer::SwapStates()
-{
-    if (m_CurrentState == &m_State[0])
-    {
-        m_CurrentState = &m_State[1];
-    }
-    else
-    {
-        m_CurrentState = &m_State[0];
-    }
-
-    m_CurrentState->Clear();
 }
 
 Result<>
@@ -955,6 +896,7 @@ DawnRenderer::CreateTransformPipeline()
     // Bind group 2 layout
     wgpu::BindGroupLayoutEntry bgl2Entries[] =//
     {
+        //View/Projection matrix
         {
             .binding = 0,
             .visibility = wgpu::ShaderStage::Compute,
@@ -1042,12 +984,11 @@ Result<>
 DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
     const Mat44f& camera,
     const Mat44f& projection,
-    const Model* models,
-    const size_t /*modelCount*/)
+    const Model* model)
 {
     // Size of the buffer needed to hold the world and projection matrices for all meshes in the
     // current frame.
-    const size_t sizeofTransformBuffer = sizeof(Mat44f) * m_CurrentState->m_Transforms.size();
+    const size_t sizeofTransformBuffer = model->GetTransformBuffer()->GetSize();
 
     if(m_TransformBuffers.NeedsRebuild(sizeofTransformBuffer))
     {
@@ -1056,13 +997,6 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
         m_TransformBuffers.SizeofTransformBuffer = sizeofTransformBuffer;
 
         auto result = CreateBuffer(m_GpuDevice->Device,
-            wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
-            sizeofTransformBuffer,
-            "WorldSpaceTransformBuffer");
-        MLG_CHECK(result);
-        m_TransformBuffers.WorldSpaceBuf = *result;
-
-        result = CreateBuffer(m_GpuDevice->Device,
             wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
             sizeofTransformBuffer,
             "ClipSpaceTransformBuffer");
@@ -1076,8 +1010,11 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
         MLG_CHECK(result);
         m_TransformBuffers.ViewProjBuf = *result;
 
+        const wgpu::Buffer transformBuffer =
+            static_cast<const DawnGpuStorageBuffer*>(model->GetTransformBuffer())->GetBuffer();
+
         const wgpu::Buffer meshToTransformMapping =
-            static_cast<const DawnGpuStorageBuffer*>(models->GetMeshToTransformMapping())
+            static_cast<const DawnGpuStorageBuffer*>(model->GetMeshToTransformMapping())
                 ->GetBuffer();
 
         // Recreate the vertex shader bind group with the new buffer.
@@ -1085,9 +1022,9 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
             {
                 {
                     .binding = 0,
-                    .buffer = m_TransformBuffers.WorldSpaceBuf,
+                    .buffer = transformBuffer,
                     .offset = 0,
-                    .size = sizeofTransformBuffer,
+                    .size = transformBuffer.GetSize(),
                 },
                 {
                     .binding = 1,
@@ -1131,7 +1068,7 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
 
         auto xformBgResult = CreateTransformBindGroups(m_GpuDevice->Device,
             m_TransformPipeline,
-            m_TransformBuffers.WorldSpaceBuf,
+            transformBuffer,
             m_TransformBuffers.ClipSpaceBuf,
             m_TransformBuffers.ViewProjBuf,
             m_TransformBuffers.BindGroups);
@@ -1144,11 +1081,6 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
     // Projection transform
     const Mat44f viewProj = projection.Mul(viewXform);
 
-    m_GpuDevice->Device.GetQueue().WriteBuffer(m_TransformBuffers.WorldSpaceBuf,
-        0,
-        m_CurrentState->m_Transforms.data(),
-        sizeof(Mat44f) * m_CurrentState->m_Transforms.size());
-
     m_GpuDevice->Device.GetQueue().WriteBuffer(m_TransformBuffers.ViewProjBuf,
         0,
         viewProj.m,
@@ -1159,7 +1091,7 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
     pass.SetBindGroup(0, m_TransformBuffers.BindGroups[0]);
     pass.SetBindGroup(1, m_TransformBuffers.BindGroups[1]);
     pass.SetBindGroup(2, m_TransformBuffers.BindGroups[2]);
-    const uint32_t workgroupCountX = static_cast<uint32_t>((m_CurrentState->m_MeshCount + 63) / 64);
+    const uint32_t workgroupCountX = static_cast<uint32_t>(model->GetMeshes().size());
     pass.DispatchWorkgroups(workgroupCountX);
     pass.End();
 

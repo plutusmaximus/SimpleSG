@@ -97,6 +97,8 @@ public:
 
     Result<> WriteBuffer(const std::span<const uint8_t>& data) override;
 
+    size_t GetSize() const override { return m_Buffer.GetSize(); }
+
     wgpu::Buffer GetBuffer() const { return m_Buffer; }
 
 private:
@@ -128,6 +130,8 @@ public:
     };
 
     Result<> WriteBuffer(const std::span<const uint8_t>& data) override;
+
+    size_t GetSize() const override { return m_Buffer.GetSize(); }
 
     wgpu::Buffer GetBuffer() const { return m_Buffer; }
 
