@@ -62,24 +62,6 @@ DawnRenderer::~DawnRenderer()
             MLG_ERROR("Failed to destroy default base texture");
         }
     }
-
-    if(m_ColorTarget)
-    {
-        auto result = m_GpuDevice->DestroyColorTarget(m_ColorTarget);
-        if(!result)
-        {
-            MLG_ERROR("Failed to destroy default color target");
-        }
-    }
-
-    if(m_DepthTarget)
-    {
-        auto result = m_GpuDevice->DestroyDepthTarget(m_DepthTarget);
-        if(!result)
-        {
-            MLG_ERROR("Failed to destroy default depth target");
-        }
-    }
 }
 
 template<typename T>
@@ -256,7 +238,7 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
 {
     wgpu::RenderPassColorAttachment attachment //
         {
-            .view = static_cast<DawnGpuColorTarget*>(m_ColorTarget)->GetTextureView(),
+            .view = m_ColorTargetView,
             .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
@@ -267,7 +249,7 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
 
     wgpu::RenderPassDepthStencilAttachment depthStencilAttachment //
         {
-            .view = static_cast<DawnGpuDepthTarget*>(m_DepthTarget)->GetTextureView(),
+            .view = m_DepthTargetView,
             .depthLoadOp = wgpu::LoadOp::Clear,
             .depthStoreOp = wgpu::StoreOp::Store,
             .depthClearValue = CLEAR_DEPTH,
@@ -365,49 +347,80 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
 Result<>
 DawnRenderer::CreateColorAndDepthTargets()
 {
+    static constexpr wgpu::TextureFormat kColorTargetFormat = wgpu::TextureFormat::RGBA8Unorm;
+    static constexpr wgpu::TextureFormat kDepthTargetFormat = wgpu::TextureFormat::Depth24Plus;
+
     const auto screenBounds = m_GpuDevice->GetScreenBounds();
 
     const unsigned targetWidth = static_cast<unsigned>(screenBounds.Width);
     const unsigned targetHeight = static_cast<unsigned>(screenBounds.Height);
 
-    if(!m_ColorTarget || m_ColorTarget->GetWidth() != targetWidth ||
-        m_ColorTarget->GetHeight() != targetHeight)
+    if(!m_ColorTarget || m_ColorTarget.GetWidth() != targetWidth ||
+        m_ColorTarget.GetHeight() != targetHeight)
     {
-        MLG_DEBUG("Creating new color target for render pass with size {}x{}", targetWidth, targetHeight);
+        MLG_DEBUG("Creating new color target with size {}x{}", targetWidth, targetHeight);
 
-        if(m_ColorTarget)
-        {
-            auto result = m_GpuDevice->DestroyColorTarget(m_ColorTarget);
-            if(!result)
+        wgpu::TextureDescriptor textureDesc //
             {
-                MLG_ERROR("Failed to destroy default color target");
-            }
-            m_ColorTarget = nullptr;
-        }
+                .label = "ColorTarget",
+                .usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc |
+                         wgpu::TextureUsage::TextureBinding,
+                .dimension = wgpu::TextureDimension::e2D,
+                .size = //
+                {
+                    .width = targetWidth,
+                    .height = targetHeight,
+                    .depthOrArrayLayers = 1,
+                },
+                .format = kColorTargetFormat,
+                .mipLevelCount = 1,
+                .sampleCount = 1,
+            };
 
-        auto result = m_GpuDevice->CreateColorTarget(targetWidth, targetHeight, "ColorTarget");
-        MLG_CHECK(result);
-        m_ColorTarget = *result;
+        m_ColorTarget = m_GpuDevice->Device.CreateTexture(&textureDesc);
+        m_ColorTargetView = m_ColorTarget.CreateView();
+
+        wgpu::SamplerDescriptor samplerDesc //
+            {
+                .label = "ColorTargetSampler",
+                .addressModeU = wgpu::AddressMode::Repeat,
+                .addressModeV = wgpu::AddressMode::Repeat,
+                .addressModeW = wgpu::AddressMode::Undefined,
+                .magFilter = wgpu::FilterMode::Linear,
+                .minFilter = wgpu::FilterMode::Linear,
+                .mipmapFilter = wgpu::MipmapFilterMode::Undefined,
+                .lodMinClamp = 0.0f,
+                .lodMaxClamp = 32.0f,
+                .compare = wgpu::CompareFunction::Undefined,
+                .maxAnisotropy = 1,
+            };
+
+        m_ColorTargetSampler = m_GpuDevice->Device.CreateSampler(&samplerDesc);
     }
 
-    if(!m_DepthTarget || m_DepthTarget->GetWidth() != targetWidth ||
-        m_DepthTarget->GetHeight() != targetHeight)
+    if(!m_DepthTarget || m_DepthTarget.GetWidth() != targetWidth ||
+        m_DepthTarget.GetHeight() != targetHeight)
     {
-        MLG_DEBUG("Creating new depth target for render pass with size {}x{}", targetWidth, targetHeight);
+        MLG_DEBUG("Creating new depth target with size {}x{}", targetWidth, targetHeight);
 
-        if(m_DepthTarget)
-        {
-            auto result = m_GpuDevice->DestroyDepthTarget(m_DepthTarget);
-            if(!result)
+        wgpu::TextureDescriptor textureDesc //
             {
-                MLG_ERROR("Failed to destroy default depth target");
-            }
-            m_DepthTarget = nullptr;
-        }
+                .label = "DepthTarget",
+                .usage = wgpu::TextureUsage::RenderAttachment,
+                .dimension = wgpu::TextureDimension::e2D,
+                .size = //
+                {
+                    .width = targetWidth,
+                    .height = targetHeight,
+                    .depthOrArrayLayers = 1,
+                },
+                .format = kDepthTargetFormat,
+                .mipLevelCount = 1,
+                .sampleCount = 1,
+            };
 
-        auto result = m_GpuDevice->CreateDepthTarget(targetWidth, targetHeight, "DepthTarget");
-        MLG_CHECK(result);
-        m_DepthTarget = *result;
+        m_DepthTarget = m_GpuDevice->Device.CreateTexture(&textureDesc);
+        m_DepthTargetView = m_DepthTarget.CreateView();
     }
 
     return Result<>::Ok;
@@ -581,14 +594,14 @@ DawnRenderer::CreateColorPipeline()
 
     wgpu::ColorTargetState colorTargetState //
         {
-            .format = static_cast<DawnGpuColorTarget*>(m_ColorTarget)->GetFormat(),
+            .format = m_ColorTarget.GetFormat(),
             .blend = &blendState,
             .writeMask = wgpu::ColorWriteMask::All,
         };
 
     wgpu::DepthStencilState depthStencilState //
         {
-            .format = static_cast<DawnGpuDepthTarget*>(m_DepthTarget)->GetFormat(),
+            .format = m_DepthTarget.GetFormat(),
             .depthWriteEnabled = true,
             .depthCompare = wgpu::CompareFunction::Less,
             /*.stencilFront =
@@ -824,21 +837,15 @@ DawnRenderer::CreateBltPipeline()
 
     // Create bind group for the color target texture and sampler
 
-    wgpu::TextureView texView = static_cast<DawnGpuColorTarget*>(m_ColorTarget)->GetTextureView();
-    MLG_CHECK(texView, "Failed to get wgpu::TextureView for color target");
-
-    wgpu::Sampler sampler = static_cast<DawnGpuColorTarget*>(m_ColorTarget)->GetSampler();
-    MLG_CHECK(sampler, "Failed to get wgpu::Sampler for color target");
-
     wgpu::BindGroupEntry bgEntries[] = //
         {
             {
                 .binding = 0,
-                .textureView = texView,
+                .textureView = m_ColorTargetView,
             },
             {
                 .binding = 1,
-                .sampler = sampler,
+                .sampler = m_ColorTargetSampler,
             },
         };
 

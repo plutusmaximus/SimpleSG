@@ -61,8 +61,11 @@ private:
 
     DawnGpuDevice* const m_GpuDevice;
     wgpu::Limits m_GpuLimits;
-    GpuColorTarget* m_ColorTarget{ nullptr };
-    GpuDepthTarget* m_DepthTarget{ nullptr };
+    wgpu::Texture m_ColorTarget;
+    wgpu::TextureView m_ColorTargetView;
+    wgpu::Sampler m_ColorTargetSampler;
+    wgpu::Texture m_DepthTarget;
+    wgpu::TextureView m_DepthTargetView;
 
     GpuTexture* m_DefaultBaseTexture{nullptr};
 

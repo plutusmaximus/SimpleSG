@@ -229,88 +229,6 @@ private:
     MaterialConstants m_Constants;
 };
 
-class DawnGpuColorTarget : public GpuColorTarget
-{
-public:
-    DawnGpuColorTarget(DawnGpuDevice* gpuDevice,
-        wgpu::Texture texture,
-        wgpu::TextureView textureView,
-        wgpu::Sampler sampler)
-        : m_GpuDevice(gpuDevice),
-          m_Texture(texture),
-          m_TextureView(textureView),
-          m_Sampler(sampler)
-    {
-    }
-
-    DawnGpuColorTarget() = delete;
-    DawnGpuColorTarget(const DawnGpuColorTarget&) = delete;
-    DawnGpuColorTarget& operator=(const DawnGpuColorTarget&) = delete;
-    DawnGpuColorTarget(DawnGpuColorTarget&&) = delete;
-    DawnGpuColorTarget& operator=(DawnGpuColorTarget&&) = delete;
-
-    // wgpu::Texture is ref counted so nothing to do here.
-    ~DawnGpuColorTarget() override
-    {
-        MLG_ASSERT(!m_GpuDevice, "DawnGpuColorTarget destroyed while still in use");
-    }
-
-    unsigned GetWidth() const override { return m_Texture.GetWidth(); }
-    unsigned GetHeight() const override { return m_Texture.GetHeight(); }
-    wgpu::TextureFormat GetFormat() const { return m_Texture.GetFormat(); }
-
-    wgpu::Texture GetTexture() const { return m_Texture; }
-    wgpu::TextureView GetTextureView() const { return m_TextureView; }
-    wgpu::Sampler GetSampler() const { return m_Sampler; }
-
-private:
-    friend class DawnGpuDevice;
-
-    DawnGpuDevice* m_GpuDevice;
-    wgpu::Texture m_Texture;
-    wgpu::TextureView m_TextureView;
-    wgpu::Sampler m_Sampler;
-};
-
-class DawnGpuDepthTarget : public GpuDepthTarget
-{
-public:
-    DawnGpuDepthTarget(DawnGpuDevice* gpuDevice,
-        wgpu::Texture depthTarget,
-        wgpu::TextureView depthTargetView)
-        : m_GpuDevice(gpuDevice),
-          m_DepthTarget(depthTarget),
-          m_DepthTargetView(depthTargetView)
-    {
-    }
-
-    DawnGpuDepthTarget() = delete;
-    DawnGpuDepthTarget(const DawnGpuDepthTarget&) = delete;
-    DawnGpuDepthTarget& operator=(const DawnGpuDepthTarget&) = delete;
-    DawnGpuDepthTarget(DawnGpuDepthTarget&&) = delete;
-    DawnGpuDepthTarget& operator=(DawnGpuDepthTarget&&) = delete;
-
-    // wgpu::Texture is ref counted so nothing to do here.
-    ~DawnGpuDepthTarget() override
-    {
-        MLG_ASSERT(!m_GpuDevice, "DawnGpuDepthTarget destroyed while still in use");
-    }
-
-    unsigned GetWidth() const override { return m_DepthTarget.GetWidth(); }
-    unsigned GetHeight() const override { return m_DepthTarget.GetHeight(); }
-    wgpu::TextureFormat GetFormat() const { return m_DepthTarget.GetFormat(); }
-
-    wgpu::Texture GetTexture() const { return m_DepthTarget; }
-    wgpu::TextureView GetTextureView() const { return m_DepthTargetView; }
-
-private:
-    friend class DawnGpuDevice;
-
-    DawnGpuDevice* m_GpuDevice;
-    wgpu::Texture m_DepthTarget;
-    wgpu::TextureView m_DepthTargetView;
-};
-
 /// @brief Dawn GPU Device implementation.
 class DawnGpuDevice : public GpuDevice
 {
@@ -362,17 +280,6 @@ public:
 
     Result<> DestroyTexture(GpuTexture* texture) override;
 
-    Result<GpuColorTarget*> CreateColorTarget(
-        const unsigned width, const unsigned height, const imstring& name) override;
-
-    Result<> DestroyColorTarget(GpuColorTarget* colorTarget) override;
-
-    Result<GpuDepthTarget*> CreateDepthTarget(const unsigned width,
-        const unsigned height,
-        const imstring& name) override;
-
-    Result<> DestroyDepthTarget(GpuDepthTarget* depthTarget) override;
-
     Result<GpuMaterial*> CreateMaterial(const MaterialConstants& constants,
         GpuTexture* baseTexture) override;
 
@@ -420,8 +327,6 @@ private:
         DawnGpuDrawIndirectBuffer DrawIndirectBuffer;
         DawnGpuTexture Texture;
         DawnGpuMaterial Material;
-        DawnGpuColorTarget ColorTarget;
-        DawnGpuDepthTarget DepthTarget;
     };
 
     PoolAllocator<GpuResource, 256> m_ResourceAllocator;

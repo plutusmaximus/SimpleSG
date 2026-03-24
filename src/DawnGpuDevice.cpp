@@ -3,7 +3,6 @@
 #include "Log.h"
 #include "Material.h"
 
-#include <iostream> //DO NOT SUBMIT
 #include <SDL3/SDL.h>
 #include <webgpu/webgpu_cpp.h>
 
@@ -13,8 +12,6 @@
 #endif
 
 static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
-static constexpr wgpu::TextureFormat kColorTargetFormat = wgpu::TextureFormat::RGBA8Unorm;
-static constexpr wgpu::TextureFormat kDepthTargetFormat = wgpu::TextureFormat::Depth24Plus;
 
 /// @brief Traits to map a CPU-side buffer type to its corresponding GPU buffer type and usage flags.
 template<typename T> struct GpuBufferTraits;
@@ -528,98 +525,6 @@ DawnGpuDevice::DestroyMaterial(GpuMaterial* material)
     dawnMaterial->m_GpuDevice = nullptr;
     dawnMaterial->~DawnGpuMaterial();
     m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(material));
-    return Result<>::Ok;
-}
-
-Result<GpuColorTarget*>
-DawnGpuDevice::CreateColorTarget(const unsigned width, const unsigned height, const imstring& name)
-{
-    wgpu::TextureDescriptor textureDesc //
-        {
-            .label = name.c_str(),
-            .usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc |
-                     wgpu::TextureUsage::TextureBinding,
-            .dimension = wgpu::TextureDimension::e2D,
-            .size = //
-            {
-                .width = width,
-                .height = height,
-                .depthOrArrayLayers = 1,
-            },
-            .format = kColorTargetFormat,
-            .mipLevelCount = 1,
-            .sampleCount = 1,
-        };
-
-    wgpu::Texture texture = Device.CreateTexture(&textureDesc);
-    MLG_CHECK(texture, "Failed to create color target texture");
-
-    wgpu::TextureView view = texture.CreateView();
-    MLG_CHECK(view, "Failed to create color target view");
-
-    auto samplerResult = GetDefaultSampler();
-    MLG_CHECK(samplerResult);
-
-    GpuResource* res = m_ResourceAllocator.New();
-
-    MLG_CHECKV(res, "Error allocating DawnGpuColorTarget");
-
-    return ::new(&res->ColorTarget) DawnGpuColorTarget(this, texture, view, *samplerResult);
-}
-
-Result<>
-DawnGpuDevice::DestroyColorTarget(GpuColorTarget* colorTarget)
-{
-    DawnGpuColorTarget* dawnColorTarget = static_cast<DawnGpuColorTarget*>(colorTarget);
-    MLG_ASSERT(this == dawnColorTarget->m_GpuDevice, "ColorTarget does not belong to this device");
-    dawnColorTarget->m_GpuDevice = nullptr;
-    dawnColorTarget->~DawnGpuColorTarget();
-    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(colorTarget));
-    return Result<>::Ok;
-}
-
-Result<GpuDepthTarget*>
-DawnGpuDevice::CreateDepthTarget(const unsigned width,
-    const unsigned height,
-    const imstring& name)
-{
-    wgpu::TextureDescriptor texDesc //
-        {
-            .label = name.c_str(),
-            .usage = wgpu::TextureUsage::RenderAttachment,
-            .dimension = wgpu::TextureDimension::e2D,
-            .size = //
-            {
-                .width = width,
-                .height = height,
-                .depthOrArrayLayers = 1,
-            },
-            .format = kDepthTargetFormat,
-            .mipLevelCount = 1,
-            .sampleCount = 1,
-        };
-
-    wgpu::Texture texture = Device.CreateTexture(&texDesc);
-    MLG_CHECK(texture, "Failed to create depth target texture");
-
-    wgpu::TextureView view = texture.CreateView();
-    MLG_CHECK(view, "Failed to create depth target view");
-
-    GpuResource* res = m_ResourceAllocator.New();
-
-    MLG_CHECKV(res, "Error allocating DawnGpuDepthTarget");
-
-    return ::new(&res->DepthTarget) DawnGpuDepthTarget(this, texture, view);
-}
-
-Result<>
-DawnGpuDevice::DestroyDepthTarget(GpuDepthTarget* depthTarget)
-{
-    DawnGpuDepthTarget* dawnDepthTarget = static_cast<DawnGpuDepthTarget*>(depthTarget);
-    MLG_ASSERT(this == dawnDepthTarget->m_GpuDevice, "DepthTarget does not belong to this device");
-    dawnDepthTarget->m_GpuDevice = nullptr;
-    dawnDepthTarget->~DawnGpuDepthTarget();
-    m_ResourceAllocator.Delete(reinterpret_cast<GpuResource*>(depthTarget));
     return Result<>::Ok;
 }
 

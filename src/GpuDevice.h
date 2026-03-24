@@ -91,40 +91,6 @@ protected:
     virtual ~GpuMaterial() = 0;
 };
 
-/// @brief GPU representation of a color render target.
-class GpuColorTarget
-{
-public:
-
-    virtual unsigned GetWidth() const = 0;
-    virtual unsigned GetHeight() const = 0;
-
-protected:
-    GpuColorTarget() = default;
-    virtual ~GpuColorTarget() = 0;
-};
-
-/// @brief GPU representation of a depth target.
-class GpuDepthTarget
-{
-public:
-
-    virtual unsigned GetWidth() const = 0;
-    virtual unsigned GetHeight() const = 0;
-
-protected:
-    GpuDepthTarget() = default;
-    virtual ~GpuDepthTarget() = 0;
-};
-
-/// @brief GPU representation of a render pass.
-class GpuRenderPass
-{
-protected:
-    GpuRenderPass() = default;
-    virtual ~GpuRenderPass() = 0;
-};
-
 /// @brief Abstract base class for GPU device implementation.
 class GpuDevice
 {
@@ -185,20 +151,6 @@ public:
     /// @brief Destroys a texture.
     virtual Result<> DestroyTexture(GpuTexture* texture) = 0;
 
-    /// @brief Creates a color render target with the given dimensions and name.
-    virtual Result<GpuColorTarget*> CreateColorTarget(
-        const unsigned width, const unsigned height, const imstring& name) = 0;
-
-    /// @brief Destroys a color render target.
-    virtual Result<> DestroyColorTarget(GpuColorTarget* colorTarget) = 0;
-
-    virtual Result<GpuDepthTarget*> CreateDepthTarget(const unsigned width,
-        const unsigned height,
-        const imstring& name) = 0;
-
-    /// @brief Destroys a depth target.
-    virtual Result<> DestroyDepthTarget(GpuDepthTarget* depthTarget) = 0;
-
     virtual Result<GpuMaterial*> CreateMaterial(const MaterialConstants& constants,
         GpuTexture* baseTexture) = 0;
 
@@ -220,7 +172,4 @@ inline GpuStorageBuffer::~GpuStorageBuffer() = default;
 inline GpuDrawIndirectBuffer::~GpuDrawIndirectBuffer() = default;
 inline GpuTexture::~GpuTexture() = default;
 inline GpuMaterial::~GpuMaterial() = default;
-inline GpuColorTarget::~GpuColorTarget() = default;
-inline GpuDepthTarget::~GpuDepthTarget() = default;
-inline GpuRenderPass::~GpuRenderPass() = default;
 inline GpuDevice::~GpuDevice() = default;
