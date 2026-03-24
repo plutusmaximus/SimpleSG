@@ -96,7 +96,8 @@ DawnGpuDevice::DawnGpuDevice(SDL_Window* window,
       Surface(surface),
       m_SwapChainFormat(surfaceFormat)
 {
-    m_Renderer = ::new(m_RendererBuffer)DawnRenderer(this);
+    auto rendererResult = DawnRenderer::Create(this);
+    m_Renderer = *rendererResult;
     m_RenderCompositor = ::new(m_RenderCompositorBuffer)DawnRenderCompositor(this);
 }
 
@@ -143,8 +144,9 @@ DawnGpuDevice::Destroy(GpuDevice* device)
 
 DawnGpuDevice::~DawnGpuDevice()
 {
-    m_Renderer->~DawnRenderer();
     m_RenderCompositor->~DawnRenderCompositor();
+
+    DawnRenderer::Destroy(m_Renderer);
 
     m_Renderer = nullptr;
     m_RenderCompositor = nullptr;
@@ -430,7 +432,7 @@ DawnGpuDevice::CreateTexture(const unsigned width,
     auto texView = texture.CreateView();
     MLG_CHECK(texView, "Failed to create texture view for texture");
 
-    return ::new(&res->Texture) DawnGpuTexture(this, texture, texView, *samplerResult, width, height);
+    return ::new(&res->Texture) DawnGpuTexture(this, texture, texView, *samplerResult);
 }
 
 Result<GpuTexture*>
@@ -562,8 +564,7 @@ DawnGpuDevice::CreateColorTarget(const unsigned width, const unsigned height, co
 
     MLG_CHECKV(res, "Error allocating DawnGpuColorTarget");
 
-    return ::new(&res->ColorTarget)
-        DawnGpuColorTarget(this, texture, view, *samplerResult, width, height, kColorTargetFormat);
+    return ::new(&res->ColorTarget) DawnGpuColorTarget(this, texture, view, *samplerResult);
 }
 
 Result<>
@@ -608,8 +609,7 @@ DawnGpuDevice::CreateDepthTarget(const unsigned width,
 
     MLG_CHECKV(res, "Error allocating DawnGpuDepthTarget");
 
-    return ::new(&res->DepthTarget)
-        DawnGpuDepthTarget(this, texture, view, width, height, kDepthTargetFormat);
+    return ::new(&res->DepthTarget) DawnGpuDepthTarget(this, texture, view);
 }
 
 Result<>

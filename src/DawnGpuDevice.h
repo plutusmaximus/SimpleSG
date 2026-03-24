@@ -148,15 +148,11 @@ public:
     DawnGpuTexture(DawnGpuDevice* gpuDevice,
         wgpu::Texture texture,
         wgpu::TextureView textureView,
-        wgpu::Sampler sampler,
-        const unsigned width,
-        const unsigned height)
+        wgpu::Sampler sampler)
         : m_GpuDevice(gpuDevice),
           m_Texture(texture),
           m_TextureView(textureView),
-          m_Sampler(sampler),
-          m_Width(width),
-          m_Height(height)
+          m_Sampler(sampler)
     {
     }
 
@@ -172,8 +168,8 @@ public:
         MLG_ASSERT(!m_GpuDevice, "DawnGpuTexture destroyed while still in use");
     };
 
-    unsigned GetWidth() const override { return m_Width; }
-    unsigned GetHeight() const override { return m_Height; }
+    unsigned GetWidth() const override { return m_Texture.GetWidth(); }
+    unsigned GetHeight() const override { return m_Texture.GetHeight(); }
 
     wgpu::Texture GetTexture() const { return m_Texture; }
     wgpu::TextureView GetTextureView() const { return m_TextureView; }
@@ -186,8 +182,6 @@ private:
     wgpu::Texture m_Texture;
     wgpu::TextureView m_TextureView;
     wgpu::Sampler m_Sampler;
-    unsigned m_Width;
-    unsigned m_Height;
 };
 
 class DawnGpuMaterial : public GpuMaterial
@@ -241,17 +235,11 @@ public:
     DawnGpuColorTarget(DawnGpuDevice* gpuDevice,
         wgpu::Texture texture,
         wgpu::TextureView textureView,
-        wgpu::Sampler sampler,
-        const unsigned width,
-        const unsigned height,
-        wgpu::TextureFormat format)
+        wgpu::Sampler sampler)
         : m_GpuDevice(gpuDevice),
           m_Texture(texture),
           m_TextureView(textureView),
-          m_Sampler(sampler),
-          m_Width(width),
-          m_Height(height),
-          m_Format(format)
+          m_Sampler(sampler)
     {
     }
 
@@ -267,9 +255,9 @@ public:
         MLG_ASSERT(!m_GpuDevice, "DawnGpuColorTarget destroyed while still in use");
     }
 
-    unsigned GetWidth() const override { return m_Width; }
-    unsigned GetHeight() const override { return m_Height; }
-    wgpu::TextureFormat GetFormat() const { return m_Format; }
+    unsigned GetWidth() const override { return m_Texture.GetWidth(); }
+    unsigned GetHeight() const override { return m_Texture.GetHeight(); }
+    wgpu::TextureFormat GetFormat() const { return m_Texture.GetFormat(); }
 
     wgpu::Texture GetTexture() const { return m_Texture; }
     wgpu::TextureView GetTextureView() const { return m_TextureView; }
@@ -282,9 +270,6 @@ private:
     wgpu::Texture m_Texture;
     wgpu::TextureView m_TextureView;
     wgpu::Sampler m_Sampler;
-    unsigned m_Width;
-    unsigned m_Height;
-    wgpu::TextureFormat m_Format;
 };
 
 class DawnGpuDepthTarget : public GpuDepthTarget
@@ -292,16 +277,10 @@ class DawnGpuDepthTarget : public GpuDepthTarget
 public:
     DawnGpuDepthTarget(DawnGpuDevice* gpuDevice,
         wgpu::Texture depthTarget,
-        wgpu::TextureView depthTargetView,
-        const unsigned width,
-        const unsigned height,
-        wgpu::TextureFormat format)
+        wgpu::TextureView depthTargetView)
         : m_GpuDevice(gpuDevice),
           m_DepthTarget(depthTarget),
-          m_DepthTargetView(depthTargetView),
-          m_Width(width),
-          m_Height(height),
-          m_Format(format)
+          m_DepthTargetView(depthTargetView)
     {
     }
 
@@ -317,9 +296,9 @@ public:
         MLG_ASSERT(!m_GpuDevice, "DawnGpuDepthTarget destroyed while still in use");
     }
 
-    unsigned GetWidth() const override { return m_Width; }
-    unsigned GetHeight() const override { return m_Height; }
-    wgpu::TextureFormat GetFormat() const { return m_Format; }
+    unsigned GetWidth() const override { return m_DepthTarget.GetWidth(); }
+    unsigned GetHeight() const override { return m_DepthTarget.GetHeight(); }
+    wgpu::TextureFormat GetFormat() const { return m_DepthTarget.GetFormat(); }
 
     wgpu::Texture GetTexture() const { return m_DepthTarget; }
     wgpu::TextureView GetTextureView() const { return m_DepthTargetView; }
@@ -330,9 +309,6 @@ private:
     DawnGpuDevice* m_GpuDevice;
     wgpu::Texture m_DepthTarget;
     wgpu::TextureView m_DepthTargetView;
-    unsigned m_Width;
-    unsigned m_Height;
-    wgpu::TextureFormat m_Format;
 };
 
 /// @brief Dawn GPU Device implementation.
@@ -453,7 +429,6 @@ private:
     // Renderer and RenderCompositor are initialized with ::new(), so
     // they can be destroyed explicitly before the GPU device is destroyed (as they hold GPU
     // resources and must be destroyed first).
-    uint8_t m_RendererBuffer[sizeof(DawnRenderer)];
     uint8_t m_RenderCompositorBuffer[sizeof(DawnRenderCompositor)];
 
     DawnRenderer* m_Renderer{nullptr};

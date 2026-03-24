@@ -90,17 +90,40 @@ static inline size_t alignUniformBuffer(const wgpu::Limits& limits)
     return (sizeof(T) + alignment - 1) & ~(alignment - 1);
 }
 
+Result<DawnRenderer*>
+DawnRenderer::Create(DawnGpuDevice* gpuDevice)
+{
+    DawnRenderer* renderer = new DawnRenderer(gpuDevice);
+    MLG_CHECK(renderer, "Failed to create DawnRenderer");
+
+    auto cleanup = scope_exit([renderer]()
+    {
+        DawnRenderer::Destroy(renderer);
+    });
+
+    MLG_CHECK(renderer->CreateColorAndDepthTargets());
+    MLG_CHECK(renderer->CreateColorPipeline());
+    MLG_CHECK(renderer->CreateBltPipeline());
+    MLG_CHECK(renderer->CreateTransformPipeline());
+
+    cleanup.release();
+
+    return renderer;
+}
+
+Result<>
+DawnRenderer::Destroy(DawnRenderer* renderer)
+{
+    delete renderer;
+    return Result<>::Ok;
+}
+
 Result<>
 DawnRenderer::Render(const Mat44f& camera,
     const Mat44f& projection,
     const Model* model,
     RenderCompositor* compositor)
 {
-    MLG_CHECK(CreateColorAndDepthTargets());
-    MLG_CHECK(CreateColorPipeline());
-    MLG_CHECK(CreateBltPipeline());
-    MLG_CHECK(CreateTransformPipeline());
-
     static PerfTimer renderTimer("Renderer.Render");
     auto scopedRenderTimer = renderTimer.StartScoped();
 
@@ -864,12 +887,6 @@ DawnRenderer::CreateTransformPipeline()
             },
         },
     };
-    wgpu::BindGroupLayoutDescriptor bgl0Desc = //
-        {
-            .label = "TransformPipelineBg0Layout",
-            .entryCount = std::size(bgl0Entries),
-            .entries = bgl0Entries,
-        };
 
     // Bind group 1 layout
     wgpu::BindGroupLayoutEntry bgl1Entries[] =//
@@ -886,12 +903,6 @@ DawnRenderer::CreateTransformPipeline()
             },
         },
     };
-    wgpu::BindGroupLayoutDescriptor bgl1Desc = //
-        {
-            .label = "TransformPipelineBg1Layout",
-            .entryCount = std::size(bgl1Entries),
-            .entries = bgl1Entries,
-        };
 
     // Bind group 2 layout
     wgpu::BindGroupLayoutEntry bgl2Entries[] =//
@@ -908,6 +919,19 @@ DawnRenderer::CreateTransformPipeline()
             },
         },
     };
+
+    wgpu::BindGroupLayoutDescriptor bgl0Desc = //
+        {
+            .label = "TransformPipelineBg0Layout",
+            .entryCount = std::size(bgl0Entries),
+            .entries = bgl0Entries,
+        };
+    wgpu::BindGroupLayoutDescriptor bgl1Desc = //
+        {
+            .label = "TransformPipelineBg1Layout",
+            .entryCount = std::size(bgl1Entries),
+            .entries = bgl1Entries,
+        };
 
     wgpu::BindGroupLayoutDescriptor bgl2Desc = //
         {
@@ -1020,17 +1044,30 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
         // Recreate the vertex shader bind group with the new buffer.
         wgpu::BindGroupEntry bg0Entries[] = //
             {
+                // World space transform buffer
                 {
                     .binding = 0,
                     .buffer = transformBuffer,
                     .offset = 0,
                     .size = transformBuffer.GetSize(),
                 },
+                // Mesh-to-transform mapping
                 {
                     .binding = 1,
                     .buffer = meshToTransformMapping,
                     .offset = 0,
                     .size = meshToTransformMapping.GetSize(),
+                },
+            };
+
+        wgpu::BindGroupEntry bg1Entries[] = //
+            {
+                // Clip space transform buffer
+                {
+                    .binding = 0,
+                    .buffer = m_TransformBuffers.ClipSpaceBuf,
+                    .offset = 0,
+                    .size = sizeofTransformBuffer,
                 },
             };
 
@@ -1040,16 +1077,6 @@ DawnRenderer::UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
                 .layout = m_ColorPipeline.Pipeline.GetBindGroupLayout(0),
                 .entryCount = std::size(bg0Entries),
                 .entries = bg0Entries,
-            };
-
-        wgpu::BindGroupEntry bg1Entries[] = //
-            {
-                {
-                    .binding = 0,
-                    .buffer = m_TransformBuffers.ClipSpaceBuf,
-                    .offset = 0,
-                    .size = sizeofTransformBuffer,
-                },
             };
 
         wgpu::BindGroupDescriptor bg1Desc //

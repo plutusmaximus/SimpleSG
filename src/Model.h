@@ -4,10 +4,6 @@
 
 #include <limits>
 
-class GpuDevice;
-class GpuVertexBuffer;
-class GpuIndexBuffer;
-
 using TransformIndex = uint32_t;
 
 static inline const TransformIndex kInvalidTransformIndex = std::numeric_limits<TransformIndex>::max();

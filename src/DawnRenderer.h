@@ -21,14 +21,16 @@ public:
 
     ~DawnRenderer() override;
 
+    static Result<DawnRenderer*> Create(DawnGpuDevice* gpuDevice);
+
+    static Result<> Destroy(DawnRenderer* renderer);
+
     Result<> Render(const Mat44f& camera,
         const Mat44f& projection,
         const Model* model,
         RenderCompositor* compositor) override;
 
 private:
-
-    friend class DawnGpuDevice;
 
     explicit DawnRenderer(DawnGpuDevice* gpuDevice);
 
