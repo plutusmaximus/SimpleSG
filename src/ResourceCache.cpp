@@ -570,6 +570,7 @@ ResourceCache::CreateModelOp::CreateModel()
             transforms.emplace_back(node.Transform);
         }
     }
+
     const size_t sizeofTransformBuffer = transforms.size() * sizeof(Mat44f);
     auto transformBuffer = m_ResourceCache->m_GpuDevice->CreateStorageBuffer(sizeofTransformBuffer);
     MLG_CHECK(transformBuffer);
@@ -1356,7 +1357,6 @@ CreateMeshSpecFromMesh(
         return UV2{ uv.x, uv.y };
     };
 
-    // Transform mesh by node transform
     for(unsigned vtxIdx = 0; vtxIdx < mesh->mNumVertices; ++vtxIdx)
     {
         const aiVector3D& srcVtx = mesh->mVertices[vtxIdx];

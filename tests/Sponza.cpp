@@ -66,7 +66,8 @@ public:
         [[maybe_unused]] constexpr const char* SPONZA_MODEL_PATH_2 = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Sponza/glTF/Sponza.gltf";
         [[maybe_unused]] constexpr const char* JUNGLE_RUINS = "C:/Users/kbaca/Downloads/JungleRuins/GLTF/JungleRuins_Main.gltf";
 
-        //CgltfModelLoader::LoadModel(context->GpuDevice, SPONZA_MODEL_PATH);
+        auto scenePack = CgltfModelLoader::LoadScenePack(context->GpuDevice, SPONZA_MODEL_PATH);
+        MLG_CHECK(scenePack);
 
         const CacheKey cacheKey("Sponza");
         auto statusResult = m_ResourceCache->LoadModelFromFileAsync(cacheKey, SPONZA_MODEL_PATH);
@@ -84,6 +85,7 @@ public:
 
         m_EidModel = m_Registry.Create();
         m_Registry.Add(m_EidModel, TrsTransformf{}, WorldMatrix{}, model);
+        m_Registry.Add(m_EidModel, *scenePack);
 
         m_EidCamera = m_Registry.Create();
 
@@ -168,13 +170,13 @@ public:
 
         // Transform to camera space and render
         auto cameraTuple = m_Registry.Get<WorldMatrix, Camera>(m_EidCamera);
-        for(const auto& tuple : m_Registry.GetView<WorldMatrix, ModelResource>())
+        for(const auto& tuple : m_Registry.GetView<WorldMatrix, ModelResource, ScenePack*>())
         {
-            const auto [eid, worldMat, model] = tuple;
-            //m_Renderer->AddModel(worldMat, model.Get());
+            const auto [eid, worldMat, model, scenePack] = tuple;
 
             const auto [camWorldMat, camera] = cameraTuple;
-            m_Renderer->Render(camWorldMat, camera.GetProjection(), model.Get(), m_RenderCompositor);
+            m_Renderer->Render(camWorldMat, camera.GetProjection(), *scenePack, m_RenderCompositor);
+            //m_Renderer->Render(camWorldMat, camera.GetProjection(), model.Get(), m_RenderCompositor);
         }
 
         RenderGui();

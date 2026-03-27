@@ -30,6 +30,11 @@ public:
         const Model* model,
         RenderCompositor* compositor) override;
 
+    Result<> Render(const Mat44f& camera,
+        const Mat44f& projection,
+        const ScenePack& scenePack,
+        RenderCompositor* compositor) override;
+
 private:
 
     explicit DawnRenderer(DawnGpuDevice* gpuDevice);
@@ -50,10 +55,10 @@ private:
 
     Result<wgpu::ShaderModule> CreateShader(const char* path);
 
-    Result<> UpdateXformBuffer(wgpu::CommandEncoder cmdEncoder,
+    Result<> TransformNodes(wgpu::CommandEncoder cmdEncoder,
         const Mat44f& camera,
         const Mat44f& projection,
-        const Model* model);
+        const ScenePack& scenePack);
 
     /// Get or create the default texture.
     /// The default texture is used when a material does not have a base texture.
@@ -91,16 +96,11 @@ private:
 
     struct TransformBuffers
     {
-        bool NeedsRebuild(const size_t size) const
-        {
-            return size > SizeofTransformBuffer || !ClipSpaceBuf ||
-                   !ViewProjBuf || !BindGroups[0] || !BindGroups[1] || !BindGroups[2];
-        }
-
-        size_t SizeofTransformBuffer{0};
+        size_t TransformCount{0};
         wgpu::Buffer ClipSpaceBuf;
         wgpu::Buffer ViewProjBuf;
-        wgpu::BindGroup BindGroups[3];
+        wgpu::BindGroup BindGroup1;
+        wgpu::BindGroup BindGroup2;
     };
 
     TransformBuffers m_TransformBuffers;

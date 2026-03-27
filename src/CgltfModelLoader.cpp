@@ -6,6 +6,7 @@
 #include "CgltfModelLoader.h"
 
 #include "DawnGpuDevice.h"
+#include "DawnScenePack.h"
 #include "FileFetcher.h"
 #include "Log.h"
 #include "scope_exit.h"
@@ -24,14 +25,23 @@
 static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
 static constexpr int kNumTextureChannels = 4;
 
+static constexpr uint32_t kInvalidParentIndex = std::numeric_limits<uint32_t>::max();
+
 namespace
 {
-struct PrimitiveAttributes
+// Attributes of a mesh within a model.
+// In GLTF lingo a mesh is called a "primitive"
+struct MeshAttributes
 {
-    // Mesh that owns this primitive
-    const cgltf_mesh* SrcMesh{ nullptr };
-    // Index of this primitive within the mesh
-    uint32_t IndexInMesh{ 0 };
+    // Name of the model that owns this primitive.
+    // In GLTF lingo this is the "mesh"
+    const std::string ModelName;
+
+    // The source primitive.
+    const cgltf_primitive* SrcPrim{ nullptr };
+
+    // Index of this primitive within the model
+    uint32_t IndexInModel{ 0 };
 
     const cgltf_material* SrcMaterial{ nullptr };
     const cgltf_accessor* SrcIndices{ nullptr };
@@ -39,25 +49,6 @@ struct PrimitiveAttributes
     const cgltf_accessor* SrcNormal{ nullptr };
     const cgltf_accessor* SrcTexcoord0{ nullptr };
     const cgltf_accessor* SrcTexcoord1{ nullptr };
-
-    const char* GetMeshName() const { return SrcMesh->name ? SrcMesh->name : "<unnamed>"; }
-
-    const cgltf_primitive* GetPrim() const { return &SrcMesh->primitives[IndexInMesh]; }
-};
-
-struct PrimitiveInstance
-{
-    size_t NodeIndex{ 0 };
-    size_t AttrsIndex{ 0 };
-};
-
-struct MeshDrawParams
-{
-    uint32_t IndexCount{ 0 };
-    uint32_t InstanceCount{ 0 };
-    uint32_t FirstIndex{ 0 };
-    uint32_t BaseVertex{ 0 };
-    uint32_t FirstInstance{ 0 };
 };
 
 struct TextureBuilder
@@ -71,14 +62,6 @@ struct TextureBuilder
     void* MappedMemory{ nullptr };
     const FileFetcher::Request* Request{ nullptr };
     std::atomic<bool> DecodeComplete{ false };
-};
-
-struct MaterialBinding
-{
-    wgpu::Texture BaseColorTexture;
-    wgpu::Sampler Sampler;
-    wgpu::Buffer ConstantsBuffer;
-    wgpu::BindGroup BindGroup;
 };
 
 struct MaterialData
@@ -111,7 +94,7 @@ struct ModelInstance
 struct TransformData
 {
     Mat44f Transform;
-    uint32_t ParentIndex;
+    uint32_t ParentIndex{ kInvalidParentIndex };
 };
 
 struct SceneData
@@ -124,6 +107,8 @@ struct SceneData
     std::vector<ModelInstance> Instances;
     std::vector<TransformData> Transforms;
 
+    std::vector<uint32_t> MeshToMaterialMap;
+
     wgpu::Buffer IndexBuffer;
     wgpu::Buffer VertexBuffer;
     wgpu::Buffer TransformBuffer;
@@ -132,12 +117,17 @@ struct SceneData
 
     std::vector<MaterialBinding> MaterialBindings;
 
+    wgpu::BindGroup ColorRenderBindGroup0;
+    wgpu::BindGroup TransformBindGroup0;
+
     std::map<std::string, wgpu::Texture> TextureDict;
 
     wgpu::Sampler DefaultSampler;
 
     wgpu::Texture DefaultTexture;
 
+    wgpu::BindGroupLayout ColorRenderBindGroup0Layout;
+    wgpu::BindGroupLayout TransformBindGroup0Layout;
     wgpu::BindGroupLayout MaterialBindGroupLayout;
 };
 
@@ -151,8 +141,16 @@ static T narrow_cast(U u)
     return t;
 }
 
+template<typename T>
+static inline size_t alignUniformBuffer(const wgpu::Limits& limits)
+{
+    const size_t alignment = limits.minUniformBufferOffsetAlignment;
+
+    return (sizeof(T) + alignment - 1) & ~(alignment - 1);
+}
+
 static Result<>
-CollectPrimitiveAttributes(const cgltf_primitive& primitive, PrimitiveAttributes& attrs)
+CollectMeshAttributes(const cgltf_primitive& primitive, MeshAttributes& attrs)
 {
     MLG_CHECK(primitive.type == cgltf_primitive_type_triangles,
         "Only triangle primitives are supported.");
@@ -232,8 +230,10 @@ CollectPrimitiveAttributes(const cgltf_primitive& primitive, PrimitiveAttributes
 }
 
 static Result<size_t>
-CollectVertices(const PrimitiveAttributes& attrs, std::vector<Vertex>& vertices)
+CollectVertices(const MeshAttributes& attrs, std::vector<Vertex>& vertices)
 {
+    // GLTF uses a rignt handed coordinate system.  +Y up, +Z forward, -X right.
+    // We use left handed.  +Y up, +Z forward, +X right.
     for(cgltf_size i = 0; i < attrs.SrcPosition->count; ++i)
     {
         Vertex vertex;
@@ -241,12 +241,15 @@ CollectVertices(const PrimitiveAttributes& attrs, std::vector<Vertex>& vertices)
             "Failed to read POSITION attribute");
 
         // Convert from right handed to left handed.
-        vertex.pos.z = -vertex.pos.z;
+        vertex.pos.x = -vertex.pos.x;
 
         if(attrs.SrcNormal)
         {
             MLG_CHECK(cgltf_accessor_read_float(attrs.SrcNormal, i, &vertex.normal.x, 3),
                 "Failed to read NORMAL attribute");
+
+            // Convert from right handed to left handed.
+            vertex.normal.x = -vertex.normal.x;
         }
 
         if(attrs.SrcTexcoord0)
@@ -278,7 +281,7 @@ CollectVertices(const PrimitiveAttributes& attrs, std::vector<Vertex>& vertices)
 }
 
 static Result<size_t>
-CollectIndices(const PrimitiveAttributes& attrs, std::vector<VertexIndex>& indices)
+CollectIndices(const MeshAttributes& attrs, std::vector<VertexIndex>& indices)
 {
     if(attrs.SrcIndices)
     {
@@ -314,23 +317,22 @@ CollectIndices(const PrimitiveAttributes& attrs, std::vector<VertexIndex>& indic
 }
 
 static Result<>
-GenerateNormals(
-    const PrimitiveAttributes& primAttrs, Vertex* vertices, const VertexIndex* indices)
+GenerateNormals(const MeshAttributes& meshAttrs, Vertex* vertices, const VertexIndex* indices)
 {
-    if(primAttrs.SrcNormal)
+    if(meshAttrs.SrcNormal)
     {
         // Already has normals, skip generating them.
 
         return Result<>::Ok;
     }
 
-    MLG_LOG_SCOPE("mesh {}", primAttrs.GetMeshName());
-    MLG_LOG_SCOPE("prim {}", primAttrs.IndexInMesh);
+    MLG_LOG_SCOPE("model {}", meshAttrs.ModelName);
+    MLG_LOG_SCOPE("prim {}", meshAttrs.IndexInModel);
 
     const size_t idxCount =
-        primAttrs.SrcIndices ? primAttrs.SrcIndices->count : primAttrs.SrcPosition->count;
+        meshAttrs.SrcIndices ? meshAttrs.SrcIndices->count : meshAttrs.SrcPosition->count;
 
-    for(size_t i = 0; i < primAttrs.SrcPosition->count; ++i)
+    for(size_t i = 0; i < meshAttrs.SrcPosition->count; ++i)
     {
         vertices[i].normal = { 0.0f, 0.0f, 0.0f };
     }
@@ -352,7 +354,7 @@ GenerateNormals(
         v2.normal += normal2;
     }
 
-    for(size_t i = 0; i < primAttrs.SrcPosition->count; ++i)
+    for(size_t i = 0; i < meshAttrs.SrcPosition->count; ++i)
     {
         vertices[i].normal = vertices[i].normal.Normalize();
     }
@@ -377,7 +379,7 @@ CollectModels(const cgltf_data* gltfData, SceneData& sceneData)
     {
         const cgltf_mesh* mesh = &gltfData->meshes[i];
 
-        MLG_LOG_SCOPE("mesh {}/{}", mesh->name ? mesh->name : "<unnamed>", i);
+        MLG_LOG_SCOPE("model {}/{}", mesh->name ? mesh->name : "<unnamed>", i);
 
         ModelData model;
 
@@ -393,15 +395,16 @@ CollectModels(const cgltf_data* gltfData, SceneData& sceneData)
                 continue;
             }
 
-            PrimitiveAttributes attrs //
+            MeshAttributes attrs //
             {
-                .SrcMesh = mesh,
-                .IndexInMesh = narrow_cast<uint32_t>(j),
+                .ModelName = mesh->name ? mesh->name : "<unnamed>",
+                .SrcPrim = prim,
+                .IndexInModel = narrow_cast<uint32_t>(j),
                 .SrcMaterial = prim->material,
                 .SrcIndices = prim->indices,
             };
 
-            if(!CollectPrimitiveAttributes(*prim, attrs))
+            if(!CollectMeshAttributes(*prim, attrs))
             {
                 continue;
             }
@@ -514,16 +517,16 @@ CollectModels(const cgltf_data* gltfData, SceneData& sceneData)
 static void
 ConvertRHtoLH(Mat44f& M)
 {
-    // negate Z components of X and Y basis vectors
-    M.m[0].z = -M.m[0].z;
-    M.m[1].z = -M.m[1].z;
-
-    // negate X,Y components of Z basis vector
+    // negate X components of Y and Z basis vectors
+    M.m[1].x = -M.m[1].x;
     M.m[2].x = -M.m[2].x;
-    M.m[2].y = -M.m[2].y;
 
-    // negate translation Z
-    M.m[3].z = -M.m[3].z;
+    // negate Y,Z components of X basis vector
+    M.m[0].y = -M.m[0].y;
+    M.m[0].z = -M.m[0].z;
+
+    // negate translation X
+    M.m[3].x = -M.m[3].x;
 }
 
 // Collect nodes.
@@ -548,8 +551,33 @@ CollectTransforms(cgltf_node** const childNodes,
             .ParentIndex = parentIndex
         };
 
-        cgltf_node_transform_world(srcNode, &transformData.Transform.m[0].x);
-        ConvertRHtoLH(transformData.Transform);
+        if(srcNode->has_matrix)
+        {
+            std::memcpy(&transformData.Transform.m[0].x, srcNode->matrix, sizeof(float) * 16);
+            ConvertRHtoLH(transformData.Transform);
+        }
+        else
+        {
+            TrsTransformf trs;
+
+            trs.T =
+                Vec3f(srcNode->translation[0], srcNode->translation[1], srcNode->translation[2]);
+
+            trs.R = Quatf(srcNode->rotation[0],
+                srcNode->rotation[1],
+                srcNode->rotation[2],
+                srcNode->rotation[3]);
+
+            trs.S = Vec3f(srcNode->scale[0], srcNode->scale[1], srcNode->scale[2]);
+
+            // Convert from right handed to left handed.
+            trs.T.x = -trs.T.x;
+            //trs.R.x = -trs.R.x;
+            trs.R.y = -trs.R.y;
+            trs.R.z = -trs.R.z;
+
+            transformData.Transform = trs.ToMatrix();
+        }
 
         sceneData.Transforms.emplace_back(transformData);
 
@@ -970,6 +998,9 @@ CreateMaterialDefaults(wgpu::Device wgpuDevice, SceneData& sceneData)
 
     wgpu::Sampler defaultSampler = wgpuDevice.CreateSampler(&samplerDesc);
 
+    wgpu::Limits gpuLimits;
+    wgpuDevice.GetLimits(&gpuLimits);
+
     wgpu::BindGroupLayoutEntry bglEntries[] //
         {
             {
@@ -996,6 +1027,8 @@ CreateMaterialDefaults(wgpu::Device wgpuDevice, SceneData& sceneData)
                 .buffer //
                 {
                     .type = wgpu::BufferBindingType::Uniform,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = alignUniformBuffer<MaterialConstants>(gpuLimits),
                 },
             },
         };
@@ -1012,6 +1045,144 @@ CreateMaterialDefaults(wgpu::Device wgpuDevice, SceneData& sceneData)
     sceneData.DefaultTexture = defaultTexture;
     sceneData.DefaultSampler = defaultSampler;
     sceneData.MaterialBindGroupLayout = materialBindGroupLayout;
+
+    return Result<>::Ok;
+}
+
+static Result<>
+CreateBindGroupLayouts(wgpu::Device wgpuDevice, SceneData& sceneData)
+{
+    // Color pipeline bind group 0 layout
+    {
+        wgpu::BindGroupLayoutEntry bgl0Entries[] =//
+        {
+            // World space transform.
+            {
+                .binding = 0,
+                .visibility = wgpu::ShaderStage::Vertex,
+                .buffer =
+                {
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = sizeof(Mat44f),
+                },
+            },
+            // Mesh to transform index mapping
+            {
+                .binding = 1,
+                .visibility = wgpu::ShaderStage::Vertex,
+                .buffer =
+                {
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = sizeof(TransformIndex),
+                },
+            },
+        };
+        wgpu::BindGroupLayoutDescriptor bgl0Desc = //
+            {
+                .label = "ColorPipelineBindGroup0Layout",
+                .entryCount = std::size(bgl0Entries),
+                .entries = bgl0Entries,
+            };
+
+        sceneData.ColorRenderBindGroup0Layout = wgpuDevice.CreateBindGroupLayout(&bgl0Desc);
+        MLG_CHECK(sceneData.ColorRenderBindGroup0Layout,
+            "Failed to create bind group 0 layout for color pipeline");
+    }
+
+    // Transform pipeline bind group 0 layout
+    {
+        wgpu::BindGroupLayoutEntry bgl0Entries[] =//
+        {
+            // World space transform.
+            {
+                .binding = 0,
+                .visibility = wgpu::ShaderStage::Compute | wgpu::ShaderStage::Vertex,
+                .buffer =
+                {
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = sizeof(Mat44f),
+                },
+            },
+        };
+
+        wgpu::BindGroupLayoutDescriptor bgl0Desc = //
+            {
+                .label = "TransformPipelineBindGroup0Layout",
+                .entryCount = std::size(bgl0Entries),
+                .entries = bgl0Entries,
+            };
+
+        sceneData.TransformBindGroup0Layout = wgpuDevice.CreateBindGroupLayout(&bgl0Desc);
+        MLG_CHECK(sceneData.TransformBindGroup0Layout,
+            "Failed to create bind group 0 layout for transform pipeline");
+    }
+
+    return Result<>::Ok;
+}
+
+static Result<>
+CreateBindGroups(wgpu::Device wgpuDevice, SceneData& sceneData)
+{
+    MLG_CHECK(CreateBindGroupLayouts(wgpuDevice, sceneData));
+
+    // Color pipeline bind group 0
+    {
+        wgpu::BindGroupEntry bgEntries[] =//
+        {
+            {
+                .binding = 0,
+                .buffer = sceneData.TransformBuffer,
+                .offset = 0,
+                .size = sceneData.TransformBuffer.GetSize(),
+            },
+            {
+                .binding = 1,
+                .buffer = sceneData.MeshToTransformMapBuffer,
+                .offset = 0,
+                .size = sceneData.MeshToTransformMapBuffer.GetSize(),
+            },
+        };
+
+        wgpu::BindGroupDescriptor bgDesc = //
+            {
+                .label = "ColorPipelineBindGroup0",
+                .layout = sceneData.ColorRenderBindGroup0Layout,
+                .entryCount = std::size(bgEntries),
+                .entries = bgEntries,
+            };
+
+        sceneData.ColorRenderBindGroup0 = wgpuDevice.CreateBindGroup(&bgDesc);
+        MLG_CHECK(sceneData.ColorRenderBindGroup0,
+            "Failed to create bind group 0 for color pipeline");
+    }
+
+    // Transform pipeline bind group 0
+    {
+        wgpu::BindGroupEntry bgEntries[] =//
+        {
+            {
+                .binding = 0,
+                .buffer = sceneData.TransformBuffer,
+                .offset = 0,
+                .size = sceneData.TransformBuffer.GetSize(),
+            },
+        };
+
+        wgpu::BindGroupDescriptor bgDesc = //
+            {
+                .label = "TransformPipelineBindGroup0",
+                .layout = sceneData.TransformBindGroup0Layout,
+                .entryCount = std::size(bgEntries),
+                .entries = bgEntries,
+            };
+
+        sceneData.TransformBindGroup0 = wgpuDevice.CreateBindGroup(&bgDesc);
+        MLG_CHECK(sceneData.TransformBindGroup0,
+            "Failed to create bind group 0 for transform pipeline");
+    }
 
     return Result<>::Ok;
 }
@@ -1037,6 +1208,11 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
 
     std::vector<MaterialBinding> materialBindings;
 
+    wgpu::Limits gpuLimits;
+    wgpuDevice.GetLimits(&gpuLimits);
+
+    const size_t sizeofMtlConstantsBuffer = alignUniformBuffer<MaterialConstants>(gpuLimits);
+
     for(const auto& mtl : sceneData.Materials)
     {
         wgpu::Texture baseTexture = mtl.BaseTextureUri.empty()
@@ -1045,7 +1221,7 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
 
         wgpu::Buffer materialConstantsBuffer = CreateGpuBuffer(wgpuDevice,
             wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
-            sizeof(MaterialConstants),
+            sizeofMtlConstantsBuffer,
             "MaterialConstants");
 
         materialConstantsBuffer.Unmap();
@@ -1076,7 +1252,7 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
                 .binding = 2,
                 .buffer = materialConstantsBuffer,
                 .offset = 0,
-                .size = sizeof(MaterialConstants),
+                .size = sizeofMtlConstantsBuffer,
             },
         };
 
@@ -1156,14 +1332,14 @@ BuildTransformBuffer(wgpu::Device wgpuDevice, SceneData& sceneData)
     void* mappedRange = transformBuffer.GetMappedRange();
     MLG_CHECK(mappedRange, "Failed to map TransformBuffer");
 
-    auto cleanup = scope_exit([&]() { transformBuffer.Unmap(); });
-
     Mat44f* dst = reinterpret_cast<Mat44f*>(mappedRange);
 
     for(const TransformData& transform : sceneData.Transforms)
     {
         *dst++ = transform.Transform;
     }
+
+    transformBuffer.Unmap();
 
     sceneData.TransformBuffer = transformBuffer;
 
@@ -1180,11 +1356,13 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
         meshCount += model.Meshes.size();
     }
 
-    const size_t sizeofMeshDrawParamsBuffer = meshCount * sizeof(MeshDrawParams);
+    sceneData.MeshToMaterialMap.reserve(meshCount);
+
+    const size_t sizeofMeshDrawParamsBuffer = meshCount * sizeof(DrawIndirectBufferParams);
     const size_t sizeofMeshToTransformMapBuffer = meshCount * sizeof(uint32_t);
 
     sceneData.MeshDrawParamsBuffer = CreateGpuBuffer(wgpuDevice,
-        wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
+        wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
         sizeofMeshDrawParamsBuffer,
         "MeshDrawParamsBuffer");
 
@@ -1198,14 +1376,15 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
 
     auto cleanupDrawParams = scope_exit([&]() { sceneData.MeshDrawParamsBuffer.Unmap(); });
 
-    void* mtMapped =
-        sceneData.MeshToTransformMapBuffer.GetMappedRange();
+    void* mtMapped = sceneData.MeshToTransformMapBuffer.GetMappedRange();
     MLG_CHECK(mtMapped, "Failed to map MeshToTransformMapBuffer");
 
     auto cleanupMap = scope_exit([&]() { sceneData.MeshToTransformMapBuffer.Unmap(); });
 
-    MeshDrawParams* drawParams = reinterpret_cast<MeshDrawParams*>(dpMapped);
+    DrawIndirectBufferParams* drawParams = reinterpret_cast<DrawIndirectBufferParams*>(dpMapped);
     uint32_t* meshToTransformMap = reinterpret_cast<uint32_t*>(mtMapped);
+
+    uint32_t firstInstance = 0;
 
     for(const auto& instance : sceneData.Instances)
     {
@@ -1217,18 +1396,20 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
                 .InstanceCount = 1,
                 .FirstIndex = mesh.FirstIndex,
                 .BaseVertex = mesh.BaseVertex,
-                .FirstInstance = 0
+                .FirstInstance = firstInstance,
             };
 
             *meshToTransformMap++ = instance.TransformIndex;
+            sceneData.MeshToMaterialMap.push_back(mesh.MaterialIndex);
+            ++firstInstance;
         }
     }
 
     return Result<>::Ok;
 }
 
-Result<>
-CgltfModelLoader::LoadModel(GpuDevice* gpuDevice, const std::string& path)
+Result<ScenePack*>
+CgltfModelLoader::LoadScenePack(GpuDevice* gpuDevice, const std::string& path)
 {
     std::filesystem::path filePath(path);
 
@@ -1259,8 +1440,18 @@ CgltfModelLoader::LoadModel(GpuDevice* gpuDevice, const std::string& path)
     MLG_CHECK(CollectModels(data, sceneData));
     MLG_CHECK(CollectTransforms(data->scenes[0].nodes,
         data->scenes[0].nodes_count,
-        std::numeric_limits<uint32_t>::max(),
+        kInvalidParentIndex,
         sceneData));
+
+    // Convert local transforms to world space.
+    for(auto& transform : sceneData.Transforms)
+    {
+        if(transform.ParentIndex != kInvalidParentIndex)
+        {
+            const Mat44f& parent = sceneData.Transforms[transform.ParentIndex].Transform;
+            transform.Transform = parent * transform.Transform;
+        }
+    }
 
     MLG_CHECK(FetchTextures(wgpuDevice, filePath.parent_path(), sceneData));
 
@@ -1272,7 +1463,20 @@ CgltfModelLoader::LoadModel(GpuDevice* gpuDevice, const std::string& path)
     MLG_CHECK(BuildTransformBuffer(wgpuDevice, sceneData));
     MLG_CHECK(BuildDrawBuffers(wgpuDevice, sceneData));
 
+    MLG_CHECK(CreateBindGroups(wgpuDevice, sceneData));
+
     cgltf_free(data);
 
-    return Result<>::Ok;
+    DawnScenePack* scenePack = new DawnScenePack(
+        sceneData.IndexBuffer,
+        sceneData.VertexBuffer,
+        sceneData.TransformBuffer,
+        sceneData.MeshDrawParamsBuffer,
+        sceneData.MeshToTransformMapBuffer,
+        sceneData.ColorRenderBindGroup0,
+        sceneData.TransformBindGroup0,
+        std::move(sceneData.MaterialBindings),
+        std::move(sceneData.MeshToMaterialMap));
+
+    return scenePack;
 }

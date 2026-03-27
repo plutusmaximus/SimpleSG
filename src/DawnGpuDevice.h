@@ -217,6 +217,8 @@ public:
 
     const MaterialConstants& GetConstants() const override { return m_Constants; }
 
+    wgpu::Buffer GetConstantsBuffer() const { return m_ConstantsBuffer; }
+
     wgpu::BindGroup GetBindGroup() const { return m_BindGroup; }
 
 private:
