@@ -957,7 +957,7 @@ DawnRenderer::CreateTransformPipeline()
         // World space transform.
         {
             .binding = 0,
-            .visibility = wgpu::ShaderStage::Compute,
+            .visibility = wgpu::ShaderStage::Compute | wgpu::ShaderStage::Vertex,
             .buffer =
             {
                 .type = wgpu::BufferBindingType::ReadOnlyStorage,

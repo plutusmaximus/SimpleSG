@@ -283,10 +283,13 @@ CollectVertices(const MeshAttributes& attrs, std::vector<Vertex>& vertices)
 static Result<size_t>
 CollectIndices(const MeshAttributes& attrs, std::vector<VertexIndex>& indices)
 {
+    const size_t startIndex = indices.size();
+
+    size_t indexCount = 0;
+
     if(attrs.SrcIndices)
     {
-        const size_t startIndex = indices.size();
-        indices.resize(indices.size() + attrs.SrcIndices->count);
+        indices.resize(startIndex + attrs.SrcIndices->count);
         VertexIndex* idxDst = indices.data() + startIndex;
 
         const size_t count = cgltf_accessor_unpack_indices(attrs.SrcIndices,
@@ -297,14 +300,12 @@ CollectIndices(const MeshAttributes& attrs, std::vector<VertexIndex>& indices)
         MLG_CHECK(count == attrs.SrcIndices->count,
             "Failed to unpack all indices for primitive");
 
-        return attrs.SrcIndices->count;
+        indexCount = attrs.SrcIndices->count;
     }
     else
     {
         // Non-indexed primitive.
-
-        const size_t startIndex = indices.size();
-        indices.resize(indices.size() + attrs.SrcPosition->count);
+        indices.resize(startIndex + attrs.SrcPosition->count);
 
         VertexIndex* idxDst = indices.data() + startIndex;
         for(size_t i = 0; i < attrs.SrcPosition->count; ++i)
@@ -312,8 +313,17 @@ CollectIndices(const MeshAttributes& attrs, std::vector<VertexIndex>& indices)
             idxDst[i] = narrow_cast<VertexIndex>(i);
         }
 
-        return attrs.SrcPosition->count;
+        indexCount = attrs.SrcPosition->count;
     }
+
+    // Change winding from CCW to CW.
+    const size_t endIndex = indices.size();
+    for(size_t idx = startIndex; idx < endIndex; idx += 3)
+    {
+        std::swap(indices[idx + 1], indices[idx + 2]);
+    }
+
+    return indexCount;
 }
 
 static Result<>
@@ -416,14 +426,6 @@ CollectModels(const cgltf_data* gltfData, SceneData& sceneData)
             MLG_CHECK(indexCount);
 
             GenerateNormals(attrs, vertices.data() + baseVertex, indices.data() + firstIndex);
-
-            // Change winding from CCW to CW.
-
-            const size_t endIndex = *indexCount + firstIndex;
-            for(size_t idx = firstIndex; idx < endIndex; idx += 3)
-            {
-                std::swap(indices[idx + 1], indices[idx + 2]);
-            }
 
             size_t materialIndex;
 
@@ -572,7 +574,6 @@ CollectTransforms(cgltf_node** const childNodes,
 
             // Convert from right handed to left handed.
             trs.T.x = -trs.T.x;
-            //trs.R.x = -trs.R.x;
             trs.R.y = -trs.R.y;
             trs.R.z = -trs.R.z;
 

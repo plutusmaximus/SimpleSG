@@ -252,7 +252,7 @@ private:
         ResourceCache* m_ResourceCache = nullptr;
         RenderCompositor* m_RenderCompositor = nullptr;
         Renderer* m_Renderer = nullptr;
-    ImGuiRenderer* m_ImGuiRenderer = nullptr;
+        ImGuiRenderer* m_ImGuiRenderer = nullptr;
         EcsRegistry m_Registry;
         WalkMouseNav m_WalkMouseNav{ TrsTransformf{}, 0.0001f, 5.0f };
         MouseNav* const m_MouseNav = &m_WalkMouseNav;

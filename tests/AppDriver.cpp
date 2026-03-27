@@ -89,114 +89,113 @@ AppDriver::Run()
 
     auto gpuDevice = *gdResult;
 
-    std::optional<ResourceCache> resourceCache;
-    resourceCache.emplace(gpuDevice);
-
-    AppContext context{ gpuDevice, &resourceCache.value() };
-    Application* app = m_AppLifecycle->Create();
-
-    auto initResult = app->Initialize(&context);
-    MLG_CHECK(initResult);
-
-    bool running = true;
-
-    Stopwatch stopwatch;
-
-    bool minimized = false;
-
-    while(running && app->IsRunning())
     {
-        PerfMetrics::BeginFrame();
+        ResourceCache resourceCache(gpuDevice);
 
-        app->Update(stopwatch.Mark());
+        AppContext context{ gpuDevice, &resourceCache };
+        Application* app = m_AppLifecycle->Create();
 
-        SDL_Event event;
+        auto initResult = app->Initialize(&context);
+        MLG_CHECK(initResult);
 
-        while(minimized && running && app->IsRunning() && SDL_PollEvent(&event))
+        bool running = true;
+
+        Stopwatch stopwatch;
+
+        bool minimized = false;
+
+        while(running && app->IsRunning())
         {
-            switch(event.type)
+            PerfMetrics::BeginFrame();
+
+            app->Update(stopwatch.Mark());
+
+            SDL_Event event;
+
+            while(minimized && running && app->IsRunning() && SDL_PollEvent(&event))
             {
-                case SDL_EVENT_WINDOW_RESTORED:
-                case SDL_EVENT_WINDOW_MAXIMIZED:
-                    minimized = false;
+                switch(event.type)
+                {
+                    case SDL_EVENT_WINDOW_RESTORED:
+                    case SDL_EVENT_WINDOW_MAXIMIZED:
+                        minimized = false;
+                        break;
+                }
+            }
+
+            if(minimized)
+            {
+                std::this_thread::yield();
+                continue;
+            }
+
+            while(!minimized && running && app->IsRunning() && SDL_PollEvent(&event))
+            {
+                switch (event.type)
+                {
+                case SDL_EVENT_QUIT:
+                    running = false;
                     break;
+
+                case SDL_EVENT_WINDOW_RESIZED:
+                case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+                    app->OnResize(event.window.data1, event.window.data2);
+                    break;
+
+                case SDL_EVENT_WINDOW_MINIMIZED:
+                    minimized = true;
+                    break;
+
+                //case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+                case SDL_EVENT_WINDOW_FOCUS_GAINED:
+                    app->OnFocusGained();
+                    break;
+
+                case SDL_EVENT_WINDOW_FOCUS_LOST:
+                    app->OnFocusLost();
+                    break;
+
+                case SDL_EVENT_MOUSE_MOTION:
+                    app->OnMouseMove(Vec2f(event.motion.xrel, event.motion.yrel));
+                    break;
+
+                case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                    app->OnMouseDown(Point(event.button.x, event.button.y), event.button.button - 1);
+                    break;
+
+                case SDL_EVENT_MOUSE_BUTTON_UP:
+                    app->OnMouseUp(event.button.button - 1);
+                    break;
+
+                case SDL_EVENT_MOUSE_WHEEL:
+                    app->OnScroll(Vec2f(event.wheel.x, event.wheel.y));
+                    break;
+
+                case SDL_EVENT_KEY_DOWN:
+                    app->OnKeyDown(event.key.scancode);
+                    break;
+
+                case SDL_EVENT_KEY_UP:
+                    app->OnKeyUp(event.key.scancode);
+                    break;
+                }
             }
+    #if DAWN_GPU
+    #if !defined(__EMSCRIPTEN__)
+            auto dawnGpuDevice = static_cast<DawnGpuDevice*>(gpuDevice);
+            MLG_CHECK(dawnGpuDevice->Surface.Present(), "Failed to present backbuffer");
+    #endif
+
+            dawnGpuDevice->Instance.ProcessEvents();
+    #endif  //DAWN_GPU
+
+            PerfMetrics::EndFrame();
         }
 
-        if(minimized)
-        {
-            std::this_thread::yield();
-            continue;
-        }
+        app->Shutdown();
 
-        while(!minimized && running && app->IsRunning() && SDL_PollEvent(&event))
-        {
-            switch (event.type)
-            {
-            case SDL_EVENT_QUIT:
-                running = false;
-                break;
-
-            case SDL_EVENT_WINDOW_RESIZED:
-            case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-                app->OnResize(event.window.data1, event.window.data2);
-                break;
-
-            case SDL_EVENT_WINDOW_MINIMIZED:
-                minimized = true;
-                break;
-
-            //case SDL_EVENT_WINDOW_MOUSE_LEAVE:
-            case SDL_EVENT_WINDOW_FOCUS_GAINED:
-                app->OnFocusGained();
-                break;
-
-            case SDL_EVENT_WINDOW_FOCUS_LOST:
-                app->OnFocusLost();
-                break;
-
-            case SDL_EVENT_MOUSE_MOTION:
-                app->OnMouseMove(Vec2f(event.motion.xrel, event.motion.yrel));
-                break;
-
-            case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                app->OnMouseDown(Point(event.button.x, event.button.y), event.button.button - 1);
-                break;
-
-            case SDL_EVENT_MOUSE_BUTTON_UP:
-                app->OnMouseUp(event.button.button - 1);
-                break;
-
-            case SDL_EVENT_MOUSE_WHEEL:
-                app->OnScroll(Vec2f(event.wheel.x, event.wheel.y));
-                break;
-
-            case SDL_EVENT_KEY_DOWN:
-                app->OnKeyDown(event.key.scancode);
-                break;
-
-            case SDL_EVENT_KEY_UP:
-                app->OnKeyUp(event.key.scancode);
-                break;
-            }
-        }
-#if DAWN_GPU
-#if !defined(__EMSCRIPTEN__)
-        auto dawnGpuDevice = static_cast<DawnGpuDevice*>(gpuDevice);
-        MLG_CHECK(dawnGpuDevice->Surface.Present(), "Failed to present backbuffer");
-#endif
-
-        dawnGpuDevice->Instance.ProcessEvents();
-#endif  //DAWN_GPU
-
-        PerfMetrics::EndFrame();
+        m_AppLifecycle->Destroy(app);
     }
-
-    app->Shutdown();
-
-    m_AppLifecycle->Destroy(app);
-
-    resourceCache.reset();
 
 #if DAWN_GPU
     DawnGpuDevice::Destroy(gpuDevice);
