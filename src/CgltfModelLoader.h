@@ -1,14 +1,17 @@
 #pragma once
 
-#include "Model.h"
+#include "Result.h"
 #include "ScenePack.h"
 
 #include <string>
 
-class GpuDevice;
+namespace wgpu
+{
+class Device;
+}
 
 class CgltfModelLoader final
 {
 public:
-    static Result<ScenePack*> LoadScenePack(GpuDevice* gpuDevice, const std::string& path);
+    static Result<ScenePack*> LoadScenePack(wgpu::Device& device, const std::string& path);
 };

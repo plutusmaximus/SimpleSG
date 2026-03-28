@@ -5,10 +5,11 @@
 
 #include "CgltfModelLoader.h"
 
-#include "DawnGpuDevice.h"
 #include "DawnScenePack.h"
 #include "FileFetcher.h"
 #include "Log.h"
+#include "Material.h"
+#include "Model.h"
 #include "scope_exit.h"
 #include "ThreadPool.h"
 #include "Vertex.h"
@@ -920,33 +921,8 @@ FetchTextures(wgpu::Device wgpuDevice, std::filesystem::path basePath, SceneData
 
     wgpu::CommandBuffer commandBuffer = encoder.Finish();
 
-    struct QueueSubmitResult
-    {
-        std::atomic<bool> done = false;
-        Result<> queueSubmitResult = Result<>::Ok;
-    };
-
-    QueueSubmitResult result;
-
     // TODO - change API to separate creating a resource from populating it
     wgpuDevice.GetQueue().Submit(1, &commandBuffer);
-    wgpuDevice.GetQueue().OnSubmittedWorkDone(
-        wgpu::CallbackMode::AllowProcessEvents,
-        +[](wgpu::QueueWorkDoneStatus status, wgpu::StringView message, QueueSubmitResult* result)
-        {
-            if(status != wgpu::QueueWorkDoneStatus::Success)
-            {
-                MLG_ERROR("Queue submit failed: {}", std::string(message.data, message.length));
-                result->queueSubmitResult = Result<>::Fail;
-            }
-            result->done.store(true);
-        },
-        &result);
-
-    while(!result.done.load())
-    {
-        wgpuDevice.GetAdapter().GetInstance().ProcessEvents();
-    }
 
     std::map<std::string, wgpu::Texture> textureDict;
 
@@ -1410,7 +1386,7 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
 }
 
 Result<ScenePack*>
-CgltfModelLoader::LoadScenePack(GpuDevice* gpuDevice, const std::string& path)
+CgltfModelLoader::LoadScenePack(wgpu::Device& wgpuDevice, const std::string& path)
 {
     std::filesystem::path filePath(path);
 
@@ -1436,7 +1412,6 @@ CgltfModelLoader::LoadScenePack(GpuDevice* gpuDevice, const std::string& path)
     MLG_CHECK(loadBuffersResult == cgltf_result_success, "Failed to load buffers");
 
     SceneData sceneData;
-    wgpu::Device wgpuDevice = static_cast<DawnGpuDevice*>(gpuDevice)->Device;
 
     MLG_CHECK(CollectModels(data, sceneData));
     MLG_CHECK(CollectTransforms(data->scenes[0].nodes,
