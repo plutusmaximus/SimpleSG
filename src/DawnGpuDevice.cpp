@@ -390,35 +390,8 @@ DawnGpuDevice::CreateTexture(const unsigned width,
 
     MLG_CHECK(commandBuffer, "Failed to finish command buffer for texture upload");
 
-    struct QueueSubmitResult
-    {
-        std::atomic<bool> done = false;
-        Result<> queueSubmitResult = Result<>::Ok;
-    };
-
-    QueueSubmitResult result;
-
     //TODO - change API to separate creating a resource from populating it
     Device.GetQueue().Submit(1, &commandBuffer);
-    Device.GetQueue().OnSubmittedWorkDone(
-        wgpu::CallbackMode::AllowProcessEvents,
-        +[](wgpu::QueueWorkDoneStatus status, wgpu::StringView message, QueueSubmitResult* result)
-        {
-            if(status != wgpu::QueueWorkDoneStatus::Success)
-            {
-                MLG_ERROR("Queue submit failed: {}", std::string(message.data, message.length));
-                result->queueSubmitResult = Result<>::Fail;
-            }
-            result->done.store(true);
-        },
-        &result);
-
-    while(!result.done.load())
-    {
-        Instance.ProcessEvents();
-    }
-
-    MLG_CHECK(result.queueSubmitResult);
 
     auto samplerResult = GetDefaultSampler();
     MLG_CHECK(samplerResult);
