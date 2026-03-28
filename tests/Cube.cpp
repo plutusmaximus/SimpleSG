@@ -59,25 +59,25 @@ public:
         m_ImGuiRenderer = new ImGuiRenderer(m_GpuDevice);
 
         m_ScreenBounds = m_GpuDevice->GetScreenBounds();
-        m_EidPlanet = m_Registry.Create();
-        m_EidMoonOrbit = m_Registry.Create();
-        m_EidMoon = m_Registry.Create();
-        m_EidCamera = m_Registry.Create();
+        m_Planet = m_Registry.CreateEntity();
+        m_MoonOrbit = m_Registry.CreateEntity();
+        m_Moon = m_Registry.CreateEntity();
+        m_Camera = m_Registry.CreateEntity();
 
         auto modelResult = CreateShapeModel(m_ResourceCache);
         MLG_CHECK(modelResult);
 
         constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
-        m_Registry.Add(m_EidPlanet, ChildTransform{}, WorldMatrix{}, *modelResult);
-        m_Registry.Add(m_EidMoonOrbit, ChildTransform{ .ParentId = m_EidPlanet }, WorldMatrix{});
-        m_Registry.Add(m_EidMoon, ChildTransform{ .ParentId = m_EidMoonOrbit }, WorldMatrix{}, *modelResult);
-        m_Registry.Add(m_EidCamera, TrsTransformf{}, WorldMatrix{}, Camera{});
+        m_Planet.Add(ChildTransform{}, WorldMatrix{}, *modelResult);
+        m_MoonOrbit.Add(ChildTransform{ .ParentId = m_Planet.GetId() }, WorldMatrix{});
+        m_Moon.Add(ChildTransform{ .ParentId = m_MoonOrbit.GetId() }, WorldMatrix{}, *modelResult);
+        m_Camera.Add(TrsTransformf{}, WorldMatrix{}, Camera{});
 
-        m_Registry.Get<TrsTransformf>(m_EidCamera).T = Vec3f{ 0,0,-4 };
-        m_Registry.Get<Camera>(m_EidCamera).SetPerspective(fov, m_ScreenBounds, 0.1f, 1000);
+        m_Camera.Get<TrsTransformf>().T = Vec3f{ 0,0,-4 };
+        m_Camera.Get<Camera>().SetPerspective(fov, m_ScreenBounds, 0.1f, 1000);
 
-        m_GimbleMouseNav.SetTransform(m_Registry.Get<TrsTransformf>(m_EidCamera));
+        m_GimbleMouseNav.SetTransform(m_Camera.Get<TrsTransformf>());
 
         m_State = State::Running;
 
@@ -114,10 +114,10 @@ public:
 
         m_ScreenBounds = m_GpuDevice->GetScreenBounds();
 
-        m_Registry.Get<Camera>(m_EidCamera).SetBounds(m_ScreenBounds);
+        m_Camera.Get<Camera>().SetBounds(m_ScreenBounds);
 
         m_MouseNav->Update(deltaSeconds);
-        m_Registry.Get<TrsTransformf>(m_EidCamera) = m_MouseNav->GetTransform();
+        m_Camera.Get<TrsTransformf>() = m_MouseNav->GetTransform();
 
         // Update model matrix
         m_PlanetSpinAngle += 0.001f;
@@ -126,12 +126,12 @@ public:
 
         const Quatf planetTilt{ Radiansf::FromDegrees(15), Vec3f::ZAXIS() };
 
-        auto& planetXform = m_Registry.Get<ChildTransform>(m_EidPlanet);
+        auto& planetXform = m_Planet.Get<ChildTransform>();
         planetXform.LocalTransform.R = planetTilt * Quatf{ m_PlanetSpinAngle, Vec3f::YAXIS() };
-        auto& moonOrbitXform = m_Registry.Get<ChildTransform>(m_EidMoonOrbit);
+        auto& moonOrbitXform = m_MoonOrbit.Get<ChildTransform>();
         moonOrbitXform.LocalTransform.R = Quatf{ m_MoonOrbitAngle, Vec3f::YAXIS() };
 
-        auto& moonXform = m_Registry.Get<ChildTransform>(m_EidMoon);
+        auto& moonXform = m_Moon.Get<ChildTransform>();
         moonXform.LocalTransform.T = Vec3f{ 0,0,-2 };
         moonXform.LocalTransform.R = Quatf{ m_MoonSpinAngle, Vec3f::YAXIS() };
         moonXform.LocalTransform.S = Vec3f{ 0.25f };
@@ -165,12 +165,12 @@ public:
         m_ImGuiRenderer->NewFrame();
 
         // Transform to camera space and render
-        auto cameraTuple = m_Registry.Get<WorldMatrix, Camera>(m_EidCamera);
+        auto camWorldMat = m_Camera.Get<WorldMatrix>();
+        auto camera = m_Camera.Get<Camera>();
+
         for(const auto& tuple : m_Registry.GetView<WorldMatrix, ModelResource>())
         {
             const auto [eid, worldMat, model] = tuple;
-            //m_Renderer->AddModel(worldMat, model.Get());
-            const auto [camWorldMat, camera] = cameraTuple;
             m_Renderer->Render(camWorldMat, camera.GetProjection(), model.Get(), m_RenderCompositor);
         }
 
@@ -249,10 +249,10 @@ private:
     EcsRegistry m_Registry;
     GimbleMouseNav m_GimbleMouseNav{ TrsTransformf{}};
     MouseNav* const m_MouseNav = &m_GimbleMouseNav;
-    EntityId m_EidCamera;
-    EntityId m_EidPlanet;
-    EntityId m_EidMoonOrbit;
-    EntityId m_EidMoon;
+    Entity m_Camera;
+    Entity m_Planet;
+    Entity m_MoonOrbit;
+    Entity m_Moon;
     Extent m_ScreenBounds{0,0};
     Radiansf m_PlanetSpinAngle{0}, m_MoonSpinAngle{0}, m_MoonOrbitAngle{0};
 };

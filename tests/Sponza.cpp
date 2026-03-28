@@ -6,9 +6,9 @@
 #include "AppDriver.h"
 #include "Application.h"
 #include "Camera.h"
+#include "DawnGpuDevice.h"
 #include "ECS.h"
 #include "EcsChildTransformPool.h"
-#include "GpuDevice.h"
 #include "ImGuiRenderer.h"
 #include "Log.h"
 #include "MouseNav.h"
@@ -66,7 +66,8 @@ public:
         [[maybe_unused]] constexpr const char* SPONZA_MODEL_PATH_2 = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Sponza/glTF/Sponza.gltf";
         [[maybe_unused]] constexpr const char* JUNGLE_RUINS = "C:/Users/kbaca/Downloads/JungleRuins/GLTF/JungleRuins_Main.gltf";
 
-        auto scenePack = CgltfModelLoader::LoadScenePack(context->GpuDevice, SPONZA_MODEL_PATH);
+        wgpu::Device wgpuDevice = static_cast<DawnGpuDevice*>(m_GpuDevice)->Device;
+        auto scenePack = CgltfModelLoader::LoadScenePack(wgpuDevice, SPONZA_MODEL_PATH);
         MLG_CHECK(scenePack);
 
         const CacheKey cacheKey("Sponza");
@@ -83,20 +84,19 @@ public:
 
         auto model = *modelResult;
 
-        m_EidModel = m_Registry.Create();
-        m_Registry.Add(m_EidModel, TrsTransformf{}, WorldMatrix{}, model);
-        m_Registry.Add(m_EidModel, *scenePack);
+        m_Model = m_Registry.CreateEntity();
+        m_Model.Add(TrsTransformf{}, WorldMatrix{}, model, *scenePack);
 
-        m_EidCamera = m_Registry.Create();
+        m_Camera = m_Registry.CreateEntity();
 
         m_ScreenBounds = m_GpuDevice->GetScreenBounds();
 
         constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
-        m_Registry.Add(m_EidCamera, TrsTransformf{}, WorldMatrix{}, Camera{});
-        m_Registry.Get<TrsTransformf>(m_EidCamera).T = Vec3f{ 0,0,-4 };
-        m_Registry.Get<Camera>(m_EidCamera).SetPerspective(fov, m_ScreenBounds, 0.1f, 1000);
-        m_WalkMouseNav.SetTransform(m_Registry.Get<TrsTransformf>(m_EidCamera));
+        m_Camera.Add(TrsTransformf{}, WorldMatrix{}, Camera{});
+        m_Camera.Get<TrsTransformf>().T = Vec3f{ 0,0,-4 };
+        m_Camera.Get<Camera>().SetPerspective(fov, m_ScreenBounds, 0.1f, 1000);
+        m_WalkMouseNav.SetTransform(m_Camera.Get<TrsTransformf>());
 
         m_State = State::Running;
 
@@ -134,11 +134,11 @@ public:
 
         m_ScreenBounds = m_GpuDevice->GetScreenBounds();
 
-        m_Registry.Get<Camera>(m_EidCamera).SetBounds(m_ScreenBounds);
+        m_Camera.Get<Camera>().SetBounds(m_ScreenBounds);
 
         m_MouseNav->Update(deltaSeconds);
 
-        m_Registry.Get<TrsTransformf>(m_EidCamera) = m_MouseNav->GetTransform();
+        m_Camera.Get<TrsTransformf>() = m_MouseNav->GetTransform();
 
         // Transform roots
         for(const auto& tuple : m_Registry.GetView<TrsTransformf, WorldMatrix>())
@@ -169,12 +169,12 @@ public:
         m_ImGuiRenderer->NewFrame();
 
         // Transform to camera space and render
-        auto cameraTuple = m_Registry.Get<WorldMatrix, Camera>(m_EidCamera);
+        auto camWorldMat = m_Camera.Get<WorldMatrix>();
+        auto camera = m_Camera.Get<Camera>();
         for(const auto& tuple : m_Registry.GetView<WorldMatrix, ModelResource, ScenePack*>())
         {
             const auto [eid, worldMat, model, scenePack] = tuple;
 
-            const auto [camWorldMat, camera] = cameraTuple;
             m_Renderer->Render(camWorldMat, camera.GetProjection(), *scenePack, m_RenderCompositor);
             //m_Renderer->Render(camWorldMat, camera.GetProjection(), model.Get(), m_RenderCompositor);
         }
@@ -256,8 +256,8 @@ private:
         EcsRegistry m_Registry;
         WalkMouseNav m_WalkMouseNav{ TrsTransformf{}, 0.0001f, 5.0f };
         MouseNav* const m_MouseNav = &m_WalkMouseNav;
-        EntityId m_EidCamera;
-        EntityId m_EidModel;
+        Entity m_Camera;
+        Entity m_Model;
         Extent m_ScreenBounds{0,0};
 };
 

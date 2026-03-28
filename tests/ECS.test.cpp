@@ -107,7 +107,7 @@ namespace
         std::vector<EntityId> eids(count);
         for (auto& eid : eids)
         {
-            eid = reg.Create();
+            eid = reg.CreateId();
         }
 
         return eids;
@@ -135,7 +135,7 @@ namespace
     {
         EcsRegistry reg;
 
-        const auto eid1 = reg.Create();
+        const auto eid1 = reg.CreateId();
 
         EXPECT_TRUE(eid1.IsValid());
         EXPECT_NE(eid1.Value(), EntityId::InvalidValue);
@@ -159,9 +159,9 @@ namespace
     {
         EcsRegistry reg;
 
-        const auto eid1 = reg.Create();
-        const auto eid2 = reg.Create();
-        const auto eid3 = reg.Create();
+        const auto eid1 = reg.CreateId();
+        const auto eid2 = reg.CreateId();
+        const auto eid3 = reg.CreateId();
 
         EXPECT_TRUE(eid1 < eid2);
         EXPECT_TRUE(eid1 < eid3);
@@ -183,9 +183,9 @@ namespace
     TEST(EntityId, EqualityOperator_SameValue_ReturnsTrue)
     {
         EcsRegistry reg;
-        const auto eid1 = reg.Create();
+        const auto eid1 = reg.CreateId();
         const auto eid2 = eid1;
-        const auto eid3 = reg.Create();
+        const auto eid3 = reg.CreateId();
 
         EXPECT_TRUE(eid1 == eid2);
         EXPECT_FALSE(eid1 == eid3);
@@ -196,7 +196,7 @@ namespace
     TEST(EntityId, Format_ProducesCorrectString)
     {
         EcsRegistry reg;
-        const auto eid = reg.Create();
+        const auto eid = reg.CreateId();
         std::string formatted = std::format("{}", eid);
         std::string expected = std::format("{}:{}", eid.Value(), eid.Generation());
         EXPECT_EQ(formatted, expected);
@@ -212,8 +212,8 @@ namespace
     {
         EcsRegistry reg;
 
-        const auto eid1 = reg.Create();
-        const auto eid2 = reg.Create();
+        const auto eid1 = reg.CreateId();
+        const auto eid2 = reg.CreateId();
         const EntityId eid3 = eid1;
 
         std::unordered_map<EntityId, int> map;
@@ -232,8 +232,8 @@ namespace
     {
         EcsRegistry reg;
 
-        const auto eid1 = reg.Create();
-        const auto eid2 = reg.Create();
+        const auto eid1 = reg.CreateId();
+        const auto eid2 = reg.CreateId();
         const EntityId eid3 = eid1;
 
         std::unordered_set<EntityId> set;
@@ -252,11 +252,120 @@ namespace
     {
         EcsRegistry reg;
         const EntityId invalid;
-        const EntityId valid = reg.Create();
+        const EntityId valid = reg.CreateId();
 
         // InvalidValue should be largest value
         EXPECT_TRUE(valid < invalid);
         EXPECT_FALSE(invalid < valid);
+    }
+
+    // ==================== Entity Tests ====================
+
+    /// @brief Confirm creating an Entity through the registry yields a live EntityId.
+    TEST(Entity, CreateEntity_ReturnsAliveId)
+    {
+        EcsRegistry reg;
+
+        const Entity entity = reg.CreateEntity();
+        const EntityId eid = entity.GetId();
+
+        EXPECT_TRUE(eid.IsValid());
+        EXPECT_TRUE(reg.IsAlive(eid));
+    }
+
+    /// @brief Confirm Entity copy/assignment keeps the same backing EntityId.
+    TEST(Entity, CopyAndAssign_PreservesEntityId)
+    {
+        EcsRegistry reg;
+
+        const Entity entity = reg.CreateEntity();
+
+        Entity copied = entity;
+        EXPECT_EQ(copied.GetId(), entity.GetId());
+
+        Entity assigned;
+        assigned = entity;
+        EXPECT_EQ(assigned.GetId(), entity.GetId());
+    }
+
+    /// @brief Confirm Entity::Add(single) forwards to registry and stores component.
+    TEST(Entity, AddSingleComponent_ComponentAdded)
+    {
+        EcsRegistry reg;
+        Entity entity = reg.CreateEntity();
+
+        const ComponentA compA = RandomValue<ComponentA>();
+        entity.Add(compA);
+
+        EXPECT_TRUE(reg.Has<ComponentA>(entity.GetId()));
+        EXPECT_EQ(reg.Get<ComponentA>(entity.GetId()), compA);
+    }
+
+    /// @brief Confirm Entity::Add(variadic) adds all provided components.
+    TEST(Entity, AddMultipleComponents_AllComponentsAdded)
+    {
+        EcsRegistry reg;
+        Entity entity = reg.CreateEntity();
+
+        const ComponentA compA = RandomValue<ComponentA>();
+        const ComponentB compB = RandomValue<ComponentB>();
+        const ComponentC compC = RandomValue<ComponentC>();
+
+        entity.Add(compA, compB, compC);
+
+        EXPECT_TRUE(reg.Has<ComponentA>(entity.GetId()));
+        EXPECT_TRUE(reg.Has<ComponentB>(entity.GetId()));
+        EXPECT_TRUE(reg.Has<ComponentC>(entity.GetId()));
+
+        EXPECT_EQ(reg.Get<ComponentA>(entity.GetId()), compA);
+        EXPECT_EQ(reg.Get<ComponentB>(entity.GetId()), compB);
+        EXPECT_EQ(reg.Get<ComponentC>(entity.GetId()), compC);
+    }
+
+    /// @brief Confirm Entity::Get returns mutable references to registry components.
+    TEST(Entity, GetMutableReference_MutatesRegistryComponent)
+    {
+        EcsRegistry reg;
+        Entity entity = reg.CreateEntity();
+
+        entity.Add(ComponentA{ 1 });
+
+        auto& comp = entity.Get<ComponentA>();
+        comp.a = 99;
+
+        EXPECT_EQ(reg.Get<ComponentA>(entity.GetId()).a, 99);
+    }
+
+    /// @brief Confirm const Entity::Get uses const overload and returns expected value.
+    TEST(Entity, GetConstReference_ReturnsComponent)
+    {
+        EcsRegistry reg;
+        Entity entity = reg.CreateEntity();
+        const ComponentA compA{ 123 };
+
+        entity.Add(compA);
+
+        const Entity constEntity = entity;
+        const auto& comp = constEntity.Get<ComponentA>();
+
+        EXPECT_EQ(comp, compA);
+    }
+
+    /// @brief Confirm Entity::Add on a dead entity triggers the same guard as registry add.
+    TEST(Entity, AddOnDestroyedEntity_TriggersAliveGuard)
+    {
+        EcsRegistry reg;
+        Entity entity = reg.CreateEntity();
+
+        reg.Destroy(entity.GetId());
+
+        MLG_ASSERT_CAPTURE(capture)
+        {
+            entity.Add(ComponentA{ 7 });
+            EXPECT_TRUE(capture.Message().contains("Entity is not alive"));
+        }
+
+        EXPECT_FALSE(reg.Has<ComponentA>(entity.GetId()));
     }
 
     // ==================== EcsComponentPool Tests ====================
@@ -267,7 +376,7 @@ namespace
         EcsRegistry reg;
         EcsComponentPool<ComponentA> pool;
 
-        const auto eid = reg.Create();
+        const auto eid = reg.CreateId();
         ComponentA compA{ 42 };
 
         const bool added = pool.Add(eid, compA);
@@ -283,7 +392,7 @@ namespace
         EcsRegistry reg;
         EcsComponentPool<ComponentA> pool;
 
-        const auto eid = reg.Create();
+        const auto eid = reg.CreateId();
         ComponentA compA{ 42 };
 
         pool.Add(eid, compA);
@@ -307,7 +416,7 @@ namespace
 
         for (int i = 0; i < COUNT; ++i)
         {
-            const auto eid = reg.Create();
+            const auto eid = reg.CreateId();
             eids.push_back(eid);
             pool.Add(eid, ComponentA{ i });
         }
@@ -327,7 +436,7 @@ namespace
         EcsRegistry reg;
         EcsComponentPool<ComponentA> pool;
 
-        const auto eid = reg.Create();
+        const auto eid = reg.CreateId();
         ComponentA compA{ 42 };
 
         pool.Add(eid, compA);
@@ -344,7 +453,7 @@ namespace
         EcsRegistry reg;
         EcsComponentPool<ComponentA> pool;
 
-        const auto eid = reg.Create();
+        const auto eid = reg.CreateId();
 
         EXPECT_FALSE(pool.Has(eid));
         pool.Remove(eid); // Should not crash
@@ -358,7 +467,7 @@ namespace
         EcsRegistry reg;
         EcsComponentPool<ComponentA> pool;
 
-        const auto eid = reg.Create();
+        const auto eid = reg.CreateId();
         ComponentA compA{ 42 };
         ComponentA compB{ 100 };
 
@@ -382,7 +491,7 @@ namespace
         std::vector<EntityId> eids;
         for (int i = 0; i < 5; ++i)
         {
-            const auto eid = reg.Create();
+            const auto eid = reg.CreateId();
             eids.push_back(eid);
             pool.Add(eid, ComponentA{ i * 10 });
         }
@@ -408,7 +517,7 @@ namespace
         EcsRegistry reg;
         EcsComponentPool<ComponentA> pool;
 
-        const auto eid = reg.Create();
+        const auto eid = reg.CreateId();
         ComponentA compA{ 42 };
 
         pool.Add(eid, compA);
@@ -423,7 +532,7 @@ namespace
         EcsRegistry reg;
         EcsComponentPool<ComponentA> pool;
 
-        const auto eid = reg.Create();
+        const auto eid = reg.CreateId();
         pool.Add(eid, ComponentA{ 42 });
 
         const EcsComponentPool<ComponentA>& constPool = pool;
@@ -438,7 +547,7 @@ namespace
         EcsRegistry reg;
         EcsComponentPool<ComponentA> pool;
 
-        const auto eid = reg.Create();
+        const auto eid = reg.CreateId();
         pool.Add(eid, ComponentA{ 42 });
 
         EXPECT_TRUE(pool.Has(eid));
@@ -450,7 +559,7 @@ namespace
         EcsRegistry reg;
         EcsComponentPool<ComponentA> pool;
 
-        const auto eid = reg.Create();
+        const auto eid = reg.CreateId();
 
         EXPECT_FALSE(pool.Has(eid));
     }
@@ -461,9 +570,9 @@ namespace
         EcsRegistry reg;
         EcsComponentPool<ComponentA> pool;
 
-        const auto eid1 = reg.Create();
-        const auto eid2 = reg.Create();
-        const auto eid3 = reg.Create();
+        const auto eid1 = reg.CreateId();
+        const auto eid2 = reg.CreateId();
+        const auto eid3 = reg.CreateId();
 
         pool.Add(eid1, ComponentA{ 1 });
         pool.Add(eid3, ComponentA{ 3 });
@@ -481,11 +590,11 @@ namespace
 
         EXPECT_EQ(pool.size(), 0);
 
-        const auto eid1 = reg.Create();
+        const auto eid1 = reg.CreateId();
         pool.Add(eid1, ComponentA{ 1 });
         EXPECT_EQ(pool.size(), 1);
 
-        const auto eid2 = reg.Create();
+        const auto eid2 = reg.CreateId();
         pool.Add(eid2, ComponentA{ 2 });
         EXPECT_EQ(pool.size(), 2);
 
@@ -507,7 +616,7 @@ namespace
 
         for (int i = 0; i < COUNT; ++i)
         {
-            const auto eid = reg.Create();
+            const auto eid = reg.CreateId();
             eids.push_back(eid);
             pool.Add(eid, ComponentC
             {
@@ -552,7 +661,7 @@ namespace
         std::vector<EntityId> eids(NUM_TO_CREATE);
         for (auto& eid : eids)
         {
-            eid = reg.Create();
+            eid = reg.CreateId();
             EXPECT_TRUE(eid.IsValid());
         }
 
@@ -640,7 +749,7 @@ namespace
 
         for (int i = 0; i < 10; ++i)
         {
-            alive.push_back(reg.Create());
+            alive.push_back(reg.CreateId());
         }
 
         reg.Destroy(alive[2]);
@@ -648,8 +757,8 @@ namespace
         alive.erase(alive.begin() + 5);
         alive.erase(alive.begin() + 2);
 
-        EntityId recycled1 = reg.Create();
-        EntityId recycled2 = reg.Create();
+        EntityId recycled1 = reg.CreateId();
+        EntityId recycled2 = reg.CreateId();
 
         EXPECT_TRUE(reg.IsAlive(recycled1));
         EXPECT_TRUE(reg.IsAlive(recycled2));
@@ -665,7 +774,7 @@ namespace
     {
         EcsRegistry reg;
 
-        auto eid = reg.Create();
+        auto eid = reg.CreateId();
         auto compA = RandomValue<ComponentA>();
 
         const bool added = reg.Add<ComponentA>(eid, compA);
@@ -680,7 +789,7 @@ namespace
     {
         EcsRegistry reg;
 
-        auto eid = reg.Create();
+        auto eid = reg.CreateId();
         reg.Destroy(eid);
 
         auto compA = RandomValue<ComponentA>();
@@ -756,7 +865,7 @@ namespace
     {
         EcsRegistry reg;
 
-        auto eid = reg.Create();
+        auto eid = reg.CreateId();
 
         auto compA = RandomValue<ComponentA>();
         auto compB = RandomValue<ComponentB>();
@@ -784,7 +893,7 @@ namespace
     {
         EcsRegistry reg;
 
-        auto eid = reg.Create();
+        auto eid = reg.CreateId();
 
         reg.Add<ComponentA>(eid, RandomValue<ComponentA>());
         reg.Add<ComponentB>(eid, RandomValue<ComponentB>());
@@ -809,7 +918,7 @@ namespace
     {
         EcsRegistry reg;
 
-        const auto eid = reg.Create();
+        const auto eid = reg.CreateId();
 
         reg.Add<ComponentA>(eid, RandomValue<ComponentA>());
         reg.Add<ComponentB>(eid, RandomValue<ComponentB>());
@@ -818,7 +927,7 @@ namespace
 
         reg.Destroy(eid);
 
-        const auto newEid = reg.Create();
+        const auto newEid = reg.CreateId();
 
         EXPECT_NE(eid, newEid);
         EXPECT_EQ(eid.Value(), newEid.Value());
@@ -835,7 +944,7 @@ namespace
     {
         EcsRegistry reg;
 
-        const auto eid = reg.Create();
+        const auto eid = reg.CreateId();
 
         reg.Add<ComponentA>(eid, RandomValue<ComponentA>());
         reg.Add<ComponentB>(eid, RandomValue<ComponentB>());
@@ -844,7 +953,7 @@ namespace
 
         reg.Destroy(eid);
 
-        const auto newEid = reg.Create();
+        const auto newEid = reg.CreateId();
 
         EXPECT_NE(eid, newEid);
         EXPECT_EQ(eid.Value(), newEid.Value());
@@ -1004,7 +1113,7 @@ namespace
     {
         EcsRegistry reg;
 
-        auto eid = reg.Create();
+        auto eid = reg.CreateId();
 
         auto compA = RandomValue<ComponentA>();
         auto compB = RandomValue<ComponentB>();
@@ -1033,7 +1142,7 @@ namespace
     {
         EcsRegistry reg;
 
-        auto eid = reg.Create();
+        auto eid = reg.CreateId();
         auto compA = RandomValue<ComponentA>();
 
         reg.Add<ComponentA>(eid, compA);
@@ -1052,7 +1161,7 @@ namespace
     {
         EcsRegistry reg;
 
-        auto eid = reg.Create();
+        auto eid = reg.CreateId();
         auto compA = RandomValue<ComponentA>();
 
         reg.Add<ComponentA>(eid, compA);
@@ -1070,7 +1179,7 @@ namespace
     {
         EcsRegistry reg;
 
-        auto eid = reg.Create();
+        auto eid = reg.CreateId();
 
         reg.Add<ComponentA>(eid, RandomValue<ComponentA>());
         reg.Add<ComponentB>(eid, RandomValue<ComponentB>());
@@ -1099,9 +1208,9 @@ namespace
     {
         EcsRegistry reg;
 
-        auto eid1 = reg.Create();
-        auto eid2 = reg.Create();
-        auto eid3 = reg.Create();
+        auto eid1 = reg.CreateId();
+        auto eid2 = reg.CreateId();
+        auto eid3 = reg.CreateId();
 
         auto compA1 = RandomValue<ComponentA>();
         auto compA2 = RandomValue<ComponentA>();
@@ -1126,7 +1235,7 @@ namespace
     {
         EcsRegistry reg;
 
-        auto eid = reg.Create();
+        auto eid = reg.CreateId();
         auto compA = RandomValue<ComponentA>();
 
         reg.Add<ComponentA>(eid, compA);
@@ -1149,7 +1258,7 @@ namespace
     {
         EcsRegistry reg;
 
-        auto eid = reg.Create();
+        auto eid = reg.CreateId();
 
         auto origValue = RandomValue<ComponentA>();
         reg.Add<ComponentA>(eid, origValue);
@@ -1170,8 +1279,8 @@ namespace
     {
         EcsRegistry reg;
 
-        auto eid1 = reg.Create();
-        auto eid2 = reg.Create();
+        auto eid1 = reg.CreateId();
+        auto eid2 = reg.CreateId();
 
         reg.Add<ComponentA>(eid1, RandomValue<ComponentA>());
         reg.Add<ComponentB>(eid1, RandomValue<ComponentB>());
@@ -1206,7 +1315,7 @@ namespace
 
         for (int i = 0; i < NUM_ENTITIES; ++i)
         {
-            auto eid = reg.Create();
+            auto eid = reg.CreateId();
             eids.push_back(eid);
 
             reg.Add<ComponentA>(eid, ComponentA{ i });
@@ -1267,7 +1376,7 @@ namespace
         // Create entities with ComponentA only
         for (int i = 0; i < 5; ++i)
         {
-            auto eid = reg.Create();
+            auto eid = reg.CreateId();
             reg.Add<ComponentA>(eid, RandomValue<ComponentA>());
         }
 
@@ -1292,7 +1401,7 @@ namespace
         std::vector<EntityId> eids;
         for (int i = 0; i < NUM_ENTITIES; ++i)
         {
-            auto eid = reg.Create();
+            auto eid = reg.CreateId();
             reg.Add<ComponentA>(eid, RandomValue<ComponentA>());
             eids.push_back(eid);
         }
@@ -1324,7 +1433,7 @@ namespace
         // Create entities with ComponentA only
         for (int i = 0; i < 5; ++i)
         {
-            auto eid = reg.Create();
+            auto eid = reg.CreateId();
             reg.Add<ComponentA>(eid, RandomValue<ComponentA>());
             withA.push_back(eid);
         }
@@ -1332,7 +1441,7 @@ namespace
         // Create entities with ComponentA and ComponentB
         for (int i = 0; i < 7; ++i)
         {
-            auto eid = reg.Create();
+            auto eid = reg.CreateId();
             reg.Add<ComponentA>(eid, RandomValue<ComponentA>());
             reg.Add<ComponentB>(eid, RandomValue<ComponentB>());
             withAB.push_back(eid);
@@ -1362,7 +1471,7 @@ namespace
         // Create mixed entities
         for (int i = 0; i < 10; ++i)
         {
-            auto eid = reg.Create();
+            auto eid = reg.CreateId();
             reg.Add<ComponentA>(eid, RandomValue<ComponentA>());
             if (i % 2 == 0)
             {
@@ -1402,7 +1511,7 @@ namespace
         // Create entities with ComponentA
         for (int i = 0; i < 5; ++i)
         {
-            auto eid = reg.Create();
+            auto eid = reg.CreateId();
             reg.Add<ComponentA>(eid, RandomValue<ComponentA>());
             withA.push_back(eid);
         }
@@ -1410,7 +1519,7 @@ namespace
         // Create entities without ComponentA
         for (int i = 0; i < 3; ++i)
         {
-            auto eid = reg.Create();
+            auto eid = reg.CreateId();
             reg.Add<ComponentB>(eid, RandomValue<ComponentB>());
             withoutA.push_back(eid);
         }
@@ -1439,7 +1548,7 @@ namespace
         // Create diverse entity set
         for (int i = 0; i < 20; ++i)
         {
-            auto eid = reg.Create();
+            auto eid = reg.CreateId();
             if (i % 3 == 0) reg.Add<ComponentA>(eid, RandomValue<ComponentA>());
             if (i % 2 == 0) reg.Add<ComponentB>(eid, RandomValue<ComponentB>());
             if (i % 5 == 0) reg.Add<ComponentC>(eid, RandomValue<ComponentC>());
@@ -1490,7 +1599,7 @@ namespace
         // Create and populate
         for (int i = 0; i < NUM_ENTITIES; ++i)
         {
-            auto eid = reg.Create();
+            auto eid = reg.CreateId();
             eids.push_back(eid);
 
             reg.Add<ComponentA>(eid, ComponentA{ i });
@@ -1523,7 +1632,7 @@ namespace
             // Create entities
             for (int i = 0; i < 100; ++i)
             {
-                auto eid = reg.Create();
+                auto eid = reg.CreateId();
                 eids.push_back(eid);
                 reg.Add<ComponentA>(eid, ComponentA{ i });
             }
@@ -1560,7 +1669,7 @@ namespace
         std::vector<EntityId> eids;
         for (int i = 0; i < NUM_ENTITIES; ++i)
         {
-            auto eid = reg.Create();
+            auto eid = reg.CreateId();
             eids.push_back(eid);
 
             reg.Add<ComponentA>(eid, ComponentA{ i });

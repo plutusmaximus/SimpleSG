@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ScenePack.h"
+#include "VecMath.h"
 
 #include <webgpu/webgpu_cpp.h>
 

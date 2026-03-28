@@ -15,7 +15,7 @@ namespace
     public:
         EntityId NextId()
         {
-            return m_Registry.Create();
+            return m_Registry.CreateId();
         }
 
         EcsRegistry& Registry()
@@ -724,11 +724,11 @@ namespace
         for (int i = 0; i < 1000; ++i)
         {
             // Satisfy [[nodiscard]] warning
-            auto tempId = registry.Create();
+            auto tempId = registry.CreateId();
         }
 
         // Now create entity with large ID value
-        const EntityId largeId = registry.Create();
+        const EntityId largeId = registry.CreateId();
         EXPECT_GT(largeId.Value(), 999);
 
         pool.Add(largeId, {});
@@ -801,15 +801,15 @@ namespace
         EcsRegistry registry;
 
         // Create sparse IDs by creating and destroying intermediate ones
-        const EntityId id1 = registry.Create();
+        const EntityId id1 = registry.CreateId();
 
         for (int i = 0; i < 50; ++i)
         {
             // Satisfy [[nodiscard]] warning
-            auto tempId = registry.Create();
+            auto tempId = registry.CreateId();
         }
 
-        const EntityId id2 = registry.Create();
+        const EntityId id2 = registry.CreateId();
 
         TrsTransformf localTransforms[] =
         {

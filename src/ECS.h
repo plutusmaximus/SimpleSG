@@ -386,6 +386,44 @@ private:
     const bool m_HaveAllPools;
 };
 
+class EcsRegistry;
+
+class Entity
+{
+public:
+
+    Entity() = default;
+    Entity(const Entity&) = default;
+    Entity& operator=(const Entity&) = default;
+
+    Entity(const EntityId id, EcsRegistry& registry)
+        : m_Id(id)
+        , m_Registry(&registry)
+    {
+    }
+
+    EntityId GetId() const
+    {
+        return m_Id;
+    }
+
+    template<typename C>
+    void Add(const C& component);
+
+    template<typename... Cs>
+    void Add(const Cs&... components);
+
+    template<typename C>
+    C& Get();
+
+    template<typename C>
+    const C& Get() const;
+
+private:
+    EntityId m_Id;
+    EcsRegistry* m_Registry;
+};
+
 /// @brief The ECS registry that manages entity IDs and their associated components.
 class EcsRegistry
 {
@@ -399,7 +437,7 @@ public:
     EcsRegistry& operator=(EcsRegistry&&) = delete;
 
     /// @brief  Create a new entity ID.
-    [[nodiscard]] EntityId Create()
+    [[nodiscard]] EntityId CreateId()
     {
         if (!m_FreeList.empty())
         {
@@ -414,6 +452,12 @@ public:
         EnsureIndexes(eid);
         m_IsAlive[eid.Value()] = true;
         return eid;
+    }
+
+    /// @brief  Create a new entity.
+    [[nodiscard]] Entity CreateEntity()
+    {
+        return Entity(CreateId(), *this);
     }
 
     /// @brief Destroy the given entity ID and remove all associated components.
@@ -619,3 +663,27 @@ private:
 
     EntityId::ValueType m_NextId{ 0 };
 };
+
+template<typename C>
+void Entity::Add(const C& component)
+{
+    m_Registry->Add(m_Id, component);
+}
+
+template<typename... Cs>
+void Entity::Add(const Cs&... components)
+{
+    m_Registry->Add(m_Id, components...);
+}
+
+template<typename C>
+C& Entity::Get()
+{
+    return m_Registry->Get<C>(m_Id);
+}
+
+template<typename C>
+const C& Entity::Get() const
+{
+    return m_Registry->Get<C>(m_Id);
+}

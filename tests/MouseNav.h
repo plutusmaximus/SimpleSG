@@ -115,6 +115,8 @@ public:
         const float rotPerDXY,
         const float movePerSec);
 
+    WalkMouseNav() : WalkMouseNav(TrsTransformf{}, 0.0001f, 5.0f) {}
+
     ~WalkMouseNav() override;
 
     void OnMouseDown(const Point& mouseLoc, const Extent& screenBounds, const int mouseButton) override;
