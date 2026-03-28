@@ -235,7 +235,7 @@ private:
 class DawnGpuDevice : public GpuDevice
 {
 public:
-    static Result<GpuDevice*> Create(SDL_Window* window);
+    static Result<GpuDevice*> Create();
 
     static void Destroy(GpuDevice* device);
 
@@ -295,25 +295,17 @@ public:
 
     SDL_Window* const Window;
     wgpu::Instance const Instance;
-    wgpu::Adapter const Adapter;
     wgpu::Device const Device;
     wgpu::Surface const Surface;
 
 private:
     DawnGpuDevice(SDL_Window* window,
         wgpu::Instance instance,
-        wgpu::Adapter adapter,
         wgpu::Device device,
-        wgpu::Surface surface,
-        const wgpu::TextureFormat surfaceFormat);
-
-    Result<wgpu::Sampler> GetDefaultSampler();
+        wgpu::Surface surface);
 
     /// @brief Gets the default bind group layout for fragment shaders.
     Result<wgpu::BindGroupLayout> GetFsBindGroupLayout();
-
-    /// @brief Default sampler used for all textures.
-    wgpu::Sampler m_Sampler;
 
     /// @brief Default bind group layout for fragment shaders.
     wgpu::BindGroupLayout m_FsBindGroupLayout;

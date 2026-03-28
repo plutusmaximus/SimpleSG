@@ -7,6 +7,7 @@
 #include "scope_exit.h"
 #include "SdlGpuDevice.h"
 #include "Stopwatch.h"
+#include "WebgpuHelper.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_mouse.h>
@@ -21,25 +22,13 @@ AppDriver::AppDriver(AppLifecycle* appLC)
 
 AppDriver::~AppDriver()
 {
-    if(m_Window)
-    {
-        SDL_DestroyWindow(m_Window);
-        m_Window = nullptr;
-    }
-
-    if(m_State != State::None)
-    {
-        SDL_Quit();
-    }
+    WebgpuHelper::Shutdown();
 }
 
 void
 AppDriver::SetMouseCapture(const bool capture)
 {
-    if(m_Window)
-    {
-        SDL_SetWindowRelativeMouseMode(m_Window, capture);
-    }
+    SDL_SetWindowRelativeMouseMode(WebgpuHelper::GetWindow(), capture);
 }
 
 Result<>
@@ -52,18 +41,7 @@ AppDriver::Init()
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
-    MLG_CHECK(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
-
-    SDL_Rect displayRect;
-    MLG_CHECK(SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &displayRect), SDL_GetError());
-    const int winW = displayRect.w * 3 / 4;//0.75
-    const int winH = displayRect.h * 3 / 4;//0.75
-
-    // Create window
-    auto window = SDL_CreateWindow(m_AppLifecycle->GetName().data(), winW, winH, SDL_WINDOW_RESIZABLE);
-    MLG_CHECK(window, SDL_GetError());
-
-    m_Window = window;
+    MLG_CHECK(WebgpuHelper::Startup(m_AppLifecycle->GetName().data()));
 
     m_State = State::Initialized;
 
@@ -80,7 +58,7 @@ AppDriver::Run()
     MLG_CHECK(FileIo::Startup(), "Failed to startup File I/O system");
 
     #if DAWN_GPU
-        auto gdResult = DawnGpuDevice::Create(m_Window);
+        auto gdResult = DawnGpuDevice::Create();
     #else
         auto gdResult = SdlGpuDevice::Create(m_Window);
     #endif

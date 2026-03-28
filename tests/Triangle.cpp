@@ -12,6 +12,7 @@
 #include "SdlGpuDevice.h"
 #include "scope_exit.h"
 #include "Stopwatch.h"
+#include "WebgpuHelper.h"
 
 #include <filesystem>
 #include <thread>
@@ -29,25 +30,11 @@ static Result<> MainLoop()
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
-    MLG_CHECK(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
+    MLG_CHECK(WebgpuHelper::Startup(kAppName));
 
-    auto sdlCleanup = scope_exit([]()
+    auto shutdown = scope_exit([]()
     {
-        SDL_Quit();
-    });
-
-    SDL_Rect displayRect;
-    MLG_CHECK(SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &displayRect), SDL_GetError());
-    const int winW = displayRect.w * 3 / 4;//0.75
-    const int winH = displayRect.h * 3 / 4;//0.75
-
-    // Create window
-    auto window = SDL_CreateWindow(kAppName, winW, winH, SDL_WINDOW_RESIZABLE);
-    MLG_CHECK(window, SDL_GetError());
-
-    auto windowCleanup = scope_exit([window]()
-    {
-        SDL_DestroyWindow(window);
+        WebgpuHelper::Shutdown();
     });
 
     MLG_CHECK(FileIo::Startup(), "Failed to startup File I/O system");
@@ -58,7 +45,7 @@ static Result<> MainLoop()
     });
 
 #if DAWN_GPU
-    auto gdResult = DawnGpuDevice::Create(window);
+    auto gdResult = DawnGpuDevice::Create();
 #else
     auto gdResult = SdlGpuDevice::Create(window);
 #endif

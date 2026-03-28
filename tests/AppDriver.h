@@ -57,6 +57,5 @@ private:
 
     State m_State{ State::None };
 
-    SDL_Window* m_Window{ nullptr };
     AppLifecycle* const m_AppLifecycle{ nullptr };
 };
