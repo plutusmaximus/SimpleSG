@@ -8,8 +8,7 @@
 #include <mutex>
 #include <unordered_map>
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+#include <SDL3/SDL.h>
 
 static std::mutex s_TimerMutex;
 
@@ -17,16 +16,14 @@ static bool s_IsFrameActive = false;
 
 inlist<PerfTimer, &PerfTimer::m_ListNode> PerfMetrics::m_Timers;
 
-static inline std::int64_t GetFrequency()
+static inline std::uint64_t GetPerfFrequency()
 {
-    static std::int64_t freq = 0;
-    if (freq == 0)
-    {
-        LARGE_INTEGER frequency;
-        QueryPerformanceFrequency(&frequency);
-        freq = frequency.QuadPart;
-    }
-    return freq;
+    return SDL_GetPerformanceFrequency();
+}
+
+static inline std::uint64_t GetPerfTime()
+{
+    return SDL_GetPerformanceCounter();
 }
 
 PerfTimer::PerfTimer(const imstring& name)
@@ -39,7 +36,7 @@ PerfTimer::PerfTimer(const imstring& name)
 float
 PerfTimer::PerfTimer::GetValue() const
 {
-    return m_ElapsedSum / NUM_SAMPLES / static_cast<float>(GetFrequency());
+    return m_ElapsedSum / NUM_SAMPLES / static_cast<float>(GetPerfFrequency());
 }
 
 unsigned
@@ -58,9 +55,7 @@ PerfTimer::PerfTimer::Start()
         return;
     }
 
-    LARGE_INTEGER curTime;
-    QueryPerformanceCounter(&curTime);
-    m_StartTime = curTime.QuadPart;
+    m_StartTime = GetPerfTime();
     ++m_Count;
     m_IsRunning = true;
 }
@@ -75,9 +70,8 @@ PerfTimer::PerfTimer::Stop()
         return;
     }
 
-    LARGE_INTEGER curTime;
-    QueryPerformanceCounter(&curTime);
-    const uint64_t elapsed = curTime.QuadPart - m_StartTime;
+    const uint64_t curTime = GetPerfTime();
+    const uint64_t elapsed = curTime - m_StartTime;
 
     m_Elapsed += elapsed;
     m_IsRunning = false;
