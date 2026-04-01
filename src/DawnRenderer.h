@@ -78,9 +78,6 @@ private:
     {
         wgpu::ShaderModule VertexShader;
         wgpu::ShaderModule FragmentShader;
-        wgpu::BindGroupLayout BindGroup0Layout;
-        wgpu::BindGroupLayout BindGroup1Layout;
-        wgpu::BindGroupLayout BindGroup2Layout;
         wgpu::PipelineLayout PipelineLayout;
         wgpu::BindGroup BindGroup0;
         wgpu::BindGroup BindGroup1;

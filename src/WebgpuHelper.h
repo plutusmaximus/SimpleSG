@@ -31,6 +31,28 @@ private:
     uint32_t m_RowStride;
 };
 
+class WebgpuColorPipelineLayouts
+{
+public:
+    wgpu::BindGroupLayout Bindgroup0Layout;
+    wgpu::BindGroupLayout Bindgroup1Layout;
+    wgpu::BindGroupLayout Bindgroup2Layout;
+};
+
+class WebgpuTransformPipelineLayouts
+{
+public:
+    wgpu::BindGroupLayout Bindgroup0Layout;
+    wgpu::BindGroupLayout Bindgroup1Layout;
+    wgpu::BindGroupLayout Bindgroup2Layout;
+};
+
+class WebgpuCompositorPipelineLayouts
+{
+public:
+    wgpu::BindGroupLayout Bindgroup2Layout;
+};
+
 class WebgpuHelper final
 {
 public:
@@ -72,4 +94,10 @@ public:
     static Result<wgpu::Buffer> CreateVertexBuffer(const size_t size, const imstring& name);
 
     static Result<wgpu::Buffer> CreateIndexBuffer(const size_t size, const imstring& name);
+
+    static Result<WebgpuColorPipelineLayouts> GetColorPipelineLayouts();
+
+    static Result<WebgpuTransformPipelineLayouts> GetTransformPipelineLayouts();
+
+    static Result<WebgpuCompositorPipelineLayouts> GetCompositorPipelineLayouts();
 };

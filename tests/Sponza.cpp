@@ -70,22 +70,8 @@ public:
         auto scenePack = CgltfModelLoader::LoadScenePack(wgpuDevice, SPONZA_MODEL_PATH);
         MLG_CHECK(scenePack);
 
-        const CacheKey cacheKey("Sponza");
-        auto statusResult = m_ResourceCache->LoadModelFromFileAsync(cacheKey, SPONZA_MODEL_PATH);
-        MLG_CHECK(statusResult);
-
-        while(statusResult->IsPending())
-        {
-            m_ResourceCache->ProcessPendingOperations();
-        }
-
-        auto modelResult = m_ResourceCache->GetModel(cacheKey);
-        MLG_CHECK(modelResult);
-
-        auto model = *modelResult;
-
         m_Model = m_Registry.CreateEntity();
-        m_Model.Add(TrsTransformf{}, WorldMatrix{}, model, *scenePack);
+        m_Model.Add(TrsTransformf{}, WorldMatrix{}, *scenePack);
 
         m_Camera = m_Registry.CreateEntity();
 
@@ -171,9 +157,9 @@ public:
         // Transform to camera space and render
         auto camWorldMat = m_Camera.Get<WorldMatrix>();
         auto camera = m_Camera.Get<Camera>();
-        for(const auto& tuple : m_Registry.GetView<WorldMatrix, ModelResource, ScenePack*>())
+        for(const auto& tuple : m_Registry.GetView<WorldMatrix, ScenePack*>())
         {
-            const auto [eid, worldMat, model, scenePack] = tuple;
+            const auto [eid, worldMat, scenePack] = tuple;
 
             m_Renderer->Render(camWorldMat, camera.GetProjection(), *scenePack, m_RenderCompositor);
             //m_Renderer->Render(camWorldMat, camera.GetProjection(), model.Get(), m_RenderCompositor);

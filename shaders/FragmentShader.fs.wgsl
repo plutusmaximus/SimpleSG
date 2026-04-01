@@ -10,13 +10,14 @@ struct Material
     color : vec4<f32>,
     metalness : f32,
     roughness : f32,
+    // Align to 16 bytes.
     pad0 : f32,
-    pad1 : f32
+    pad1 : f32,
 };
 
 @group(2) @binding(0) var texture0: texture_2d<f32>;
 @group(2) @binding(1) var textureSampler: sampler;
-@group(2) @binding(2) var<uniform> material : Material;
+@group(2) @binding(2) var<storage, read> material : Material;
 
 @fragment
 fn main(input: PSInput) -> @location(0) vec4<f32>

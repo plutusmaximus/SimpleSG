@@ -13,6 +13,7 @@
 #include "scope_exit.h"
 #include "ThreadPool.h"
 #include "Vertex.h"
+#include "WebgpuHelper.h"
 
 #define CGLTF_IMPLEMENTATION
 #include <atomic>
@@ -126,10 +127,6 @@ struct SceneData
     wgpu::Sampler DefaultSampler;
 
     wgpu::Texture DefaultTexture;
-
-    wgpu::BindGroupLayout ColorRenderBindGroup0Layout;
-    wgpu::BindGroupLayout TransformBindGroup0Layout;
-    wgpu::BindGroupLayout MaterialBindGroupLayout;
 };
 
 } // namespace
@@ -975,127 +972,8 @@ CreateMaterialDefaults(wgpu::Device wgpuDevice, SceneData& sceneData)
 
     wgpu::Sampler defaultSampler = wgpuDevice.CreateSampler(&samplerDesc);
 
-    wgpu::Limits gpuLimits;
-    wgpuDevice.GetLimits(&gpuLimits);
-
-    wgpu::BindGroupLayoutEntry bglEntries[] //
-        {
-            {
-                .binding = 0,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .texture //
-                {
-                    .sampleType = wgpu::TextureSampleType::Float,
-                    .viewDimension = wgpu::TextureViewDimension::e2D,
-                    .multisampled = false,
-                },
-            },
-            {
-                .binding = 1,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .sampler //
-                {
-                    .type = wgpu::SamplerBindingType::Filtering,
-                },
-            },
-            {
-                .binding = 2,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .buffer //
-                {
-                    .type = wgpu::BufferBindingType::Uniform,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = alignUniformBuffer<MaterialConstants>(gpuLimits),
-                },
-            },
-        };
-
-    wgpu::BindGroupLayoutDescriptor bglDesc//
-    {
-        .label = "MaterialBindGroupLayout",
-        .entryCount = std::size(bglEntries),
-        .entries = bglEntries,
-    };
-
-    wgpu::BindGroupLayout materialBindGroupLayout = wgpuDevice.CreateBindGroupLayout(&bglDesc);
-
     sceneData.DefaultTexture = defaultTexture;
     sceneData.DefaultSampler = defaultSampler;
-    sceneData.MaterialBindGroupLayout = materialBindGroupLayout;
-
-    return Result<>::Ok;
-}
-
-static Result<>
-CreateBindGroupLayouts(wgpu::Device wgpuDevice, SceneData& sceneData)
-{
-    // Color pipeline bind group 0 layout
-    {
-        wgpu::BindGroupLayoutEntry bgl0Entries[] =//
-        {
-            // World space transform.
-            {
-                .binding = 0,
-                .visibility = wgpu::ShaderStage::Vertex,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(Mat44f),
-                },
-            },
-            // Mesh to transform index mapping
-            {
-                .binding = 1,
-                .visibility = wgpu::ShaderStage::Vertex,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(TransformIndex),
-                },
-            },
-        };
-        wgpu::BindGroupLayoutDescriptor bgl0Desc = //
-            {
-                .label = "ColorPipelineBindGroup0Layout",
-                .entryCount = std::size(bgl0Entries),
-                .entries = bgl0Entries,
-            };
-
-        sceneData.ColorRenderBindGroup0Layout = wgpuDevice.CreateBindGroupLayout(&bgl0Desc);
-        MLG_CHECK(sceneData.ColorRenderBindGroup0Layout,
-            "Failed to create bind group 0 layout for color pipeline");
-    }
-
-    // Transform pipeline bind group 0 layout
-    {
-        wgpu::BindGroupLayoutEntry bgl0Entries[] =//
-        {
-            // World space transform.
-            {
-                .binding = 0,
-                .visibility = wgpu::ShaderStage::Compute | wgpu::ShaderStage::Vertex,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(Mat44f),
-                },
-            },
-        };
-
-        wgpu::BindGroupLayoutDescriptor bgl0Desc = //
-            {
-                .label = "TransformPipelineBindGroup0Layout",
-                .entryCount = std::size(bgl0Entries),
-                .entries = bgl0Entries,
-            };
-
-        sceneData.TransformBindGroup0Layout = wgpuDevice.CreateBindGroupLayout(&bgl0Desc);
-        MLG_CHECK(sceneData.TransformBindGroup0Layout,
-            "Failed to create bind group 0 layout for transform pipeline");
-    }
 
     return Result<>::Ok;
 }
@@ -1103,7 +981,10 @@ CreateBindGroupLayouts(wgpu::Device wgpuDevice, SceneData& sceneData)
 static Result<>
 CreateBindGroups(wgpu::Device wgpuDevice, SceneData& sceneData)
 {
-    MLG_CHECK(CreateBindGroupLayouts(wgpuDevice, sceneData));
+    auto colorPipelineLayouts = WebgpuHelper::GetColorPipelineLayouts();
+    MLG_CHECK(colorPipelineLayouts);
+    auto transformPipelineLayouts = WebgpuHelper::GetTransformPipelineLayouts();
+    MLG_CHECK(transformPipelineLayouts);
 
     // Color pipeline bind group 0
     {
@@ -1126,7 +1007,7 @@ CreateBindGroups(wgpu::Device wgpuDevice, SceneData& sceneData)
         wgpu::BindGroupDescriptor bgDesc = //
             {
                 .label = "ColorPipelineBindGroup0",
-                .layout = sceneData.ColorRenderBindGroup0Layout,
+                .layout = colorPipelineLayouts->Bindgroup0Layout,
                 .entryCount = std::size(bgEntries),
                 .entries = bgEntries,
             };
@@ -1151,7 +1032,7 @@ CreateBindGroups(wgpu::Device wgpuDevice, SceneData& sceneData)
         wgpu::BindGroupDescriptor bgDesc = //
             {
                 .label = "TransformPipelineBindGroup0",
-                .layout = sceneData.TransformBindGroup0Layout,
+                .layout = transformPipelineLayouts->Bindgroup0Layout,
                 .entryCount = std::size(bgEntries),
                 .entries = bgEntries,
             };
@@ -1190,6 +1071,9 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
 
     const size_t sizeofMtlConstantsBuffer = alignUniformBuffer<MaterialConstants>(gpuLimits);
 
+    auto layouts = WebgpuHelper::GetColorPipelineLayouts();
+    MLG_CHECK(layouts);
+
     for(const auto& mtl : sceneData.Materials)
     {
         wgpu::Texture baseTexture = mtl.BaseTextureUri.empty()
@@ -1197,7 +1081,7 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
                                         : sceneData.TextureDict[mtl.BaseTextureUri];
 
         wgpu::Buffer materialConstantsBuffer = CreateGpuBuffer(wgpuDevice,
-            wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
+            wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
             sizeofMtlConstantsBuffer,
             "MaterialConstants");
 
@@ -1236,7 +1120,7 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
         wgpu::BindGroupDescriptor bindGroupDesc //
         {
             .label = "MaterialBindGroup",
-            .layout = sceneData.MaterialBindGroupLayout,
+            .layout = layouts->Bindgroup2Layout,
             .entryCount = std::size(bgEntries),
             .entries = bgEntries,
         };

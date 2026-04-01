@@ -12,6 +12,7 @@
 #include "DawnGpuDevice.h"
 #include "DawnScenePack.h"
 #include "PerfMetrics.h"
+#include "WebgpuHelper.h"
 
 #include <cstdio>
 
@@ -520,121 +521,16 @@ DawnRenderer::CreateColorPipeline()
 
     m_ColorPipeline.FragmentShader = *fsResult;
 
-    // Color pipeline bind group 0 layout
-    wgpu::BindGroupLayoutEntry bgl0Entries[] =//
-    {
-        // World space transform.
-        {
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Vertex,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                .hasDynamicOffset = false,
-                .minBindingSize = sizeof(Mat44f),
-            },
-        },
-        //Mesh to transform index mapping
-        {
-            .binding = 1,
-            .visibility = wgpu::ShaderStage::Vertex,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                .hasDynamicOffset = false,
-                .minBindingSize = sizeof(TransformIndex),
-            },
-        },
-    };
-    wgpu::BindGroupLayoutDescriptor bgl0Desc = //
-        {
-            .label = "ColorPipelineBg0Layout",
-            .entryCount = std::size(bgl0Entries),
-            .entries = bgl0Entries,
-        };
-
-    m_ColorPipeline.BindGroup0Layout = m_GpuDevice->Device.CreateBindGroupLayout(&bgl0Desc);
-    MLG_CHECK(m_ColorPipeline.BindGroup0Layout,
-        "Failed to create bind group 0 layout for color pipeline");
-
-    // Color pipeline bind group 1 layout
-    wgpu::BindGroupLayoutEntry bgl1Entries[] =//
-    {
-        // Clip space transform
-        {
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Vertex,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                .hasDynamicOffset = false,
-                .minBindingSize = sizeof(Mat44f),
-            },
-        },
-    };
-    wgpu::BindGroupLayoutDescriptor bgl1Desc = //
-        {
-            .label = "ColorPipelineBg1Layout",
-            .entryCount = std::size(bgl1Entries),
-            .entries = bgl1Entries,
-        };
-
-    m_ColorPipeline.BindGroup1Layout = m_GpuDevice->Device.CreateBindGroupLayout(&bgl1Desc);
-    MLG_CHECK(m_ColorPipeline.BindGroup1Layout,
-        "Failed to create bind group 1 layout for color pipeline");
-
-    // Color pipeline bind group 2 layout
-    wgpu::BindGroupLayoutEntry bgl2Entries[] =//
-    {
-        {
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .texture =
-            {
-                .sampleType = wgpu::TextureSampleType::Float,
-                .viewDimension = wgpu::TextureViewDimension::e2D,
-                .multisampled = false,
-            },
-        },
-        {
-            .binding = 1,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .sampler =
-            {
-                .type = wgpu::SamplerBindingType::Filtering,
-            },
-        },
-        // MaterialConstants
-        {
-            .binding = 2,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::Uniform,
-                .hasDynamicOffset = false,
-                .minBindingSize = alignUniformBuffer<MaterialConstants>(m_GpuLimits),
-            },
-        }
-    };
-
-    wgpu::BindGroupLayoutDescriptor bgl2Desc = //
-        {
-            .label = "ColorPipelineBg2Layout",
-            .entryCount = std::size(bgl2Entries),
-            .entries = bgl2Entries,
-        };
-
-    m_ColorPipeline.BindGroup2Layout = m_GpuDevice->Device.CreateBindGroupLayout(&bgl2Desc);
-    MLG_CHECK(m_ColorPipeline.BindGroup2Layout,
-        "Failed to create bind group 2 layout for color pipeline");
-
     // Color target pipeline layout
+
+    auto layouts = WebgpuHelper::GetColorPipelineLayouts();
+    MLG_CHECK(layouts);
 
     wgpu::BindGroupLayout colorTargetBgl[] = //
         {
-            m_ColorPipeline.BindGroup0Layout,
-            m_ColorPipeline.BindGroup1Layout,
-            m_ColorPipeline.BindGroup2Layout,
+            layouts->Bindgroup0Layout,
+            layouts->Bindgroup1Layout,
+            layouts->Bindgroup2Layout,
         };
 
     wgpu::PipelineLayoutDescriptor colorTargetPipelineLayoutDesc //
@@ -794,47 +690,16 @@ DawnRenderer::CreateBltPipeline()
 
     m_BltPipeline.FragmentShader = *fsResult;
 
-    // BLT pipeline bind group 2 layout
-    wgpu::BindGroupLayoutEntry bgl2Entries[] =//
-    {
-        {
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .texture =
-            {
-                .sampleType = wgpu::TextureSampleType::Float,
-                .viewDimension = wgpu::TextureViewDimension::e2D,
-                .multisampled = false,
-            },
-        },
-        {
-            .binding = 1,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .sampler =
-            {
-                .type = wgpu::SamplerBindingType::Filtering,
-            },
-        },
-    };
-
-    wgpu::BindGroupLayoutDescriptor bgl2Desc = //
-        {
-            .label = "BltBg2Layout",
-            .entryCount = std::size(bgl2Entries),
-            .entries = bgl2Entries,
-        };
-
-    m_BltPipeline.BindGroup2Layout = m_GpuDevice->Device.CreateBindGroupLayout(&bgl2Desc);
-    MLG_CHECK(m_BltPipeline.BindGroup2Layout,
-        "Failed to create bind group 2 layout for BLT pipeline");
-
     // BLT pipeline bind group layout
+
+    auto layouts = WebgpuHelper::GetCompositorPipelineLayouts();
+    MLG_CHECK(layouts);
 
     wgpu::BindGroupLayout bltBgl[] = //
         {
             nullptr,    //bind group 0
             nullptr,    //bind group 1
-            m_BltPipeline.BindGroup2Layout,
+            layouts->Bindgroup2Layout,
         };
 
     wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
@@ -924,7 +789,7 @@ DawnRenderer::CreateBltPipeline()
     wgpu::BindGroupDescriptor bgDesc //
         {
             .label = "ColorTargetCopyBindGroup",
-            .layout = m_BltPipeline.BindGroup2Layout,
+            .layout = layouts->Bindgroup2Layout,
             .entryCount = std::size(bgEntries),
             .entries = bgEntries,
         };
@@ -951,92 +816,14 @@ DawnRenderer::CreateTransformPipeline()
 
     m_TransformShader = *csResult;
 
-    // Bind group 0 layout
-    wgpu::BindGroupLayoutEntry bgl0Entries[] =//
-    {
-        // World space transform.
-        {
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Compute | wgpu::ShaderStage::Vertex,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                .hasDynamicOffset = false,
-                .minBindingSize = sizeof(Mat44f),
-            },
-        },
-    };
-
-    wgpu::BindGroupLayoutDescriptor bgl0Desc = //
-        {
-            .label = "TransformPipelineBg0Layout",
-            .entryCount = std::size(bgl0Entries),
-            .entries = bgl0Entries,
-        };
-
-    auto bg0Layout = m_GpuDevice->Device.CreateBindGroupLayout(&bgl0Desc);
-    MLG_CHECK(bg0Layout,
-        "Failed to create bind group 0 layout for transform pipeline");
-
-    // Bind group 1 layout
-    wgpu::BindGroupLayoutEntry bgl1Entries[] =//
-    {
-        // Clip space transform
-        {
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Compute,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::Storage,
-                .hasDynamicOffset = false,
-                .minBindingSize = sizeof(Mat44f),
-            },
-        },
-    };
-
-    wgpu::BindGroupLayoutDescriptor bgl1Desc = //
-        {
-            .label = "TransformPipelineBg1Layout",
-            .entryCount = std::size(bgl1Entries),
-            .entries = bgl1Entries,
-        };
-
-    auto bg1Layout = m_GpuDevice->Device.CreateBindGroupLayout(&bgl1Desc);
-    MLG_CHECK(bg1Layout,
-        "Failed to create bind group 1 layout for transform pipeline");
-
-    // Bind group 2 layout
-    wgpu::BindGroupLayoutEntry bgl2Entries[] =//
-    {
-        //View/Projection matrix
-        {
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Compute,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::Uniform,
-                .hasDynamicOffset = false,
-                .minBindingSize = sizeof(Mat44f),
-            },
-        },
-    };
-
-    wgpu::BindGroupLayoutDescriptor bgl2Desc = //
-        {
-            .label = "TransformPipelineBg2Layout",
-            .entryCount = std::size(bgl2Entries),
-            .entries = bgl2Entries,
-        };
-
-    auto bg2Layout = m_GpuDevice->Device.CreateBindGroupLayout(&bgl2Desc);
-    MLG_CHECK(bg2Layout,
-        "Failed to create bind group 2 layout for transform pipeline");
+    auto layouts = WebgpuHelper::GetTransformPipelineLayouts();
+    MLG_CHECK(layouts);
 
     wgpu::BindGroupLayout bgl[] = //
         {
-            bg0Layout,
-            bg1Layout,
-            bg2Layout
+            layouts->Bindgroup0Layout,
+            layouts->Bindgroup1Layout,
+            layouts->Bindgroup2Layout
         };
 
     wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //

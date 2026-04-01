@@ -194,6 +194,7 @@ set(SSG_SOURCES
   src/Shapes.cpp
   src/Stopwatch.cpp
   src/ThreadPool.cpp
+  src/WebgpuHelper.cpp
 )
 
 set(SSG_HEADERS
@@ -224,6 +225,7 @@ set(SSG_HEADERS
   src/Renderer.h
   src/ResourceCache.h
   src/Result.h
+  src/scope_exit.h
   src/SdlGpuDevice.h
   src/SdlRenderCompositor.h
   src/SdlRenderer.h
@@ -232,7 +234,7 @@ set(SSG_HEADERS
   src/ThreadPool.h
   src/VecMath.h
   src/Vertex.h
-  src/scope_exit.h
+  src/WebgpuHelper.h
 )
 
 add_library(ssg)
@@ -289,6 +291,11 @@ add_sample_executable(Cube tests/cube.cpp)
 # Executable: Sponza
 # ============================================================
 add_sample_executable(Sponza tests/sponza.cpp)
+
+# ============================================================
+# Executable: Viewer
+# ============================================================
+add_sample_executable(Viewer tests/viewer.cpp)
 
 # ============================================================
 # Executable: GLTF

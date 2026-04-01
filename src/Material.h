@@ -212,6 +212,10 @@ public:
 
     /// @brief Roughness factor of the material.
     const float Roughness{ 0 };
+
+    // Align to 16 bytes for storage in a uniform/storage buffer.
+    const float pad0;
+    const float pad1;
 };
 
 /// @brief Specification for creating a material.

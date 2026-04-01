@@ -304,12 +304,6 @@ private:
         wgpu::Device device,
         wgpu::Surface surface);
 
-    /// @brief Gets the default bind group layout for fragment shaders.
-    Result<wgpu::BindGroupLayout> GetFsBindGroupLayout();
-
-    /// @brief Default bind group layout for fragment shaders.
-    wgpu::BindGroupLayout m_FsBindGroupLayout;
-
     union GpuResource
     {
         GpuResource() {}
