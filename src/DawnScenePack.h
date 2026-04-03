@@ -42,20 +42,20 @@ public:
         wgpu::Buffer vertexBuffer,
         wgpu::Buffer transformBuffer,
         wgpu::Buffer drawIndirectBuffer,
-        wgpu::Buffer meshToTransformMappingBuffer,
+        wgpu::Buffer transformIndexBuffer,
         wgpu::BindGroup colorRenderBindGroup0,
         wgpu::BindGroup transformBindGroup0,
         std::vector<MaterialBinding>&& materialBindings,
-        std::vector<uint32_t>&& meshToMaterialMap)
+        std::vector<uint32_t>&& materialIndices)
         : m_IndexBuffer(indexBuffer),
           m_VertexBuffer(vertexBuffer),
           m_TransformBuffer(transformBuffer),
-          m_MeshToTransformMappingBuffer(meshToTransformMappingBuffer),
+          m_TransformIndexBuffer(transformIndexBuffer),
           m_DrawIndirectBuffer(drawIndirectBuffer),
           m_ColorRenderBindGroup0(colorRenderBindGroup0),
           m_TransformBindGroup0(transformBindGroup0),
           m_MaterialBindings(std::move(materialBindings)),
-          m_MeshToMaterialMap(std::move(meshToMaterialMap))
+          m_MaterialIndices(std::move(materialIndices))
 
     {
     }
@@ -83,13 +83,12 @@ public:
         return m_MaterialBindings;
     }
 
-    const std::span<const uint32_t> GetMeshToMaterialMap() const
+    const std::span<const uint32_t> GetMaterialIndices() const
     {
-        return m_MeshToMaterialMap;
+        return m_MaterialIndices;
     }
 
     wgpu::Buffer GetTransformBuffer() const { return m_TransformBuffer; }
-    wgpu::Buffer GetMeshToTransformMappingBuffer() const { return m_MeshToTransformMappingBuffer; }
     wgpu::Buffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
     wgpu::Buffer GetVertexBuffer() const { return m_VertexBuffer; }
     wgpu::Buffer GetIndexBuffer() const { return m_IndexBuffer; }
@@ -103,11 +102,11 @@ private:
     wgpu::Buffer m_VertexBuffer{nullptr};
     wgpu::Buffer m_TransformBuffer{nullptr};
     wgpu::Buffer m_DrawIndirectBuffer{nullptr};
-    wgpu::Buffer m_MeshToTransformMappingBuffer{nullptr};
+    wgpu::Buffer m_TransformIndexBuffer{nullptr};
 
     wgpu::BindGroup m_ColorRenderBindGroup0{nullptr};
     wgpu::BindGroup m_TransformBindGroup0{nullptr};
 
     std::vector<MaterialBinding> m_MaterialBindings;
-    std::vector<uint32_t> m_MeshToMaterialMap;
+    std::vector<uint32_t> m_MaterialIndices;
 };

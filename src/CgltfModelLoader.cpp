@@ -27,8 +27,6 @@
 static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
 static constexpr int kNumTextureChannels = 4;
 
-static constexpr uint32_t kInvalidParentIndex = std::numeric_limits<uint32_t>::max();
-
 namespace
 {
 // Attributes of a mesh within a model.
@@ -66,39 +64,6 @@ struct TextureBuilder
     std::atomic<bool> DecodeComplete{ false };
 };
 
-struct MaterialData
-{
-    std::string BaseTextureUri;
-    RgbaColorf Color;
-    float Metalness;
-    float Roughness;
-};
-
-struct MeshData
-{
-    uint32_t FirstIndex;
-    uint32_t BaseVertex;
-    uint32_t IndexCount;
-    uint32_t MaterialIndex;
-};
-
-struct ModelData
-{
-    std::vector<MeshData> Meshes;
-};
-
-struct ModelInstance
-{
-    uint32_t ModelIndex;
-    uint32_t TransformIndex;
-};
-
-struct TransformData
-{
-    Mat44f Transform;
-    uint32_t ParentIndex{ kInvalidParentIndex };
-};
-
 struct SceneData
 {
     std::vector<Vertex> Vertices;
@@ -109,13 +74,13 @@ struct SceneData
     std::vector<ModelInstance> Instances;
     std::vector<TransformData> Transforms;
 
-    std::vector<uint32_t> MeshToMaterialMap;
+    std::vector<uint32_t> MaterialIndices;
 
     wgpu::Buffer IndexBuffer;
     wgpu::Buffer VertexBuffer;
     wgpu::Buffer TransformBuffer;
-    wgpu::Buffer MeshDrawParamsBuffer;
-    wgpu::Buffer MeshToTransformMapBuffer;
+    wgpu::Buffer DrawIndirectBuffer;
+    wgpu::Buffer TransformIndexBuffer;
 
     std::vector<MaterialBinding> MaterialBindings;
 
@@ -998,9 +963,9 @@ CreateBindGroups(wgpu::Device wgpuDevice, SceneData& sceneData)
             },
             {
                 .binding = 1,
-                .buffer = sceneData.MeshToTransformMapBuffer,
+                .buffer = sceneData.TransformIndexBuffer,
                 .offset = 0,
-                .size = sceneData.MeshToTransformMapBuffer.GetSize(),
+                .size = sceneData.TransformIndexBuffer.GetSize(),
             },
         };
 
@@ -1217,33 +1182,33 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
         meshCount += model.Meshes.size();
     }
 
-    sceneData.MeshToMaterialMap.reserve(meshCount);
+    sceneData.MaterialIndices.reserve(meshCount);
 
-    const size_t sizeofMeshDrawParamsBuffer = meshCount * sizeof(DrawIndirectBufferParams);
-    const size_t sizeofMeshToTransformMapBuffer = meshCount * sizeof(uint32_t);
+    const size_t sizeofDrawIndirectBuffer = meshCount * sizeof(DrawIndirectBufferParams);
+    const size_t sizeofTransformIndexBuffer = meshCount * sizeof(uint32_t);
 
-    sceneData.MeshDrawParamsBuffer = CreateGpuBuffer(wgpuDevice,
+    sceneData.DrawIndirectBuffer = CreateGpuBuffer(wgpuDevice,
         wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
-        sizeofMeshDrawParamsBuffer,
-        "MeshDrawParamsBuffer");
+        sizeofDrawIndirectBuffer,
+        "DrawIndirectBuffer");
 
-    sceneData.MeshToTransformMapBuffer = CreateGpuBuffer(wgpuDevice,
+    sceneData.TransformIndexBuffer = CreateGpuBuffer(wgpuDevice,
         wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
-        sizeofMeshToTransformMapBuffer,
-        "MeshToTransformMapBuffer");
+        sizeofTransformIndexBuffer,
+        "TransformIndexBuffer");
 
-    void* dpMapped = sceneData.MeshDrawParamsBuffer.GetMappedRange();
-    MLG_CHECK(dpMapped, "Failed to map MeshDrawParamsBuffer");
+    void* dpMapped = sceneData.DrawIndirectBuffer.GetMappedRange();
+    MLG_CHECK(dpMapped, "Failed to map DrawIndirectBuffer");
 
-    auto cleanupDrawParams = scope_exit([&]() { sceneData.MeshDrawParamsBuffer.Unmap(); });
+    auto cleanupDrawParams = scope_exit([&]() { sceneData.DrawIndirectBuffer.Unmap(); });
 
-    void* mtMapped = sceneData.MeshToTransformMapBuffer.GetMappedRange();
-    MLG_CHECK(mtMapped, "Failed to map MeshToTransformMapBuffer");
+    void* layoutMapped = sceneData.TransformIndexBuffer.GetMappedRange();
+    MLG_CHECK(layoutMapped, "Failed to map TransformIndexBuffer");
 
-    auto cleanupMap = scope_exit([&]() { sceneData.MeshToTransformMapBuffer.Unmap(); });
+    auto cleanupLayout = scope_exit([&]() { sceneData.TransformIndexBuffer.Unmap(); });
 
     DrawIndirectBufferParams* drawParams = reinterpret_cast<DrawIndirectBufferParams*>(dpMapped);
-    uint32_t* meshToTransformMap = reinterpret_cast<uint32_t*>(mtMapped);
+    uint32_t* transformIndex = reinterpret_cast<uint32_t*>(layoutMapped);
 
     uint32_t firstInstance = 0;
 
@@ -1260,8 +1225,8 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
                 .FirstInstance = firstInstance,
             };
 
-            *meshToTransformMap++ = instance.TransformIndex;
-            sceneData.MeshToMaterialMap.push_back(mesh.MaterialIndex);
+            *transformIndex++ = instance.TransformIndex;
+            sceneData.MaterialIndices.push_back(mesh.MaterialIndex);
             ++firstInstance;
         }
     }
@@ -1300,13 +1265,13 @@ CgltfModelLoader::LoadScenePack(wgpu::Device& wgpuDevice, const std::string& pat
     MLG_CHECK(CollectModels(data, sceneData));
     MLG_CHECK(CollectTransforms(data->scenes[0].nodes,
         data->scenes[0].nodes_count,
-        kInvalidParentIndex,
+        TransformData::kInvalidParentIndex,
         sceneData));
 
     // Convert local transforms to world space.
     for(auto& transform : sceneData.Transforms)
     {
-        if(transform.ParentIndex != kInvalidParentIndex)
+        if(transform.ParentIndex != TransformData::kInvalidParentIndex)
         {
             const Mat44f& parent = sceneData.Transforms[transform.ParentIndex].Transform;
             transform.Transform = parent * transform.Transform;
@@ -1331,12 +1296,12 @@ CgltfModelLoader::LoadScenePack(wgpu::Device& wgpuDevice, const std::string& pat
         sceneData.IndexBuffer,
         sceneData.VertexBuffer,
         sceneData.TransformBuffer,
-        sceneData.MeshDrawParamsBuffer,
-        sceneData.MeshToTransformMapBuffer,
+        sceneData.DrawIndirectBuffer,
+        sceneData.TransformIndexBuffer,
         sceneData.ColorRenderBindGroup0,
         sceneData.TransformBindGroup0,
         std::move(sceneData.MaterialBindings),
-        std::move(sceneData.MeshToMaterialMap));
+        std::move(sceneData.MaterialIndices));
 
     return scenePack;
 }

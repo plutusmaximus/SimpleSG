@@ -15,7 +15,6 @@
 #include "PerfMetrics.h"
 #include "RenderCompositor.h"
 #include "Renderer.h"
-#include "ResourceCache.h"
 
 #include "scope_exit.h"
 
@@ -54,7 +53,6 @@ public:
         m_State = State::Initialized;
 
         m_GpuDevice = context->GpuDevice;
-        m_ResourceCache = context->ResourceCache;
 
         m_Renderer = m_GpuDevice->GetRenderer();
         m_RenderCompositor = m_GpuDevice->GetRenderCompositor();
@@ -105,7 +103,6 @@ public:
 
         m_GpuDevice = nullptr;
         m_Renderer = nullptr;
-        m_ResourceCache = nullptr;
     }
 
     void Update(const float deltaSeconds) override
@@ -235,7 +232,6 @@ private:
         State m_State = State::None;
 
         GpuDevice* m_GpuDevice = nullptr;
-        ResourceCache* m_ResourceCache = nullptr;
         RenderCompositor* m_RenderCompositor = nullptr;
         Renderer* m_Renderer = nullptr;
         ImGuiRenderer* m_ImGuiRenderer = nullptr;

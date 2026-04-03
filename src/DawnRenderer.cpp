@@ -259,7 +259,7 @@ DawnRenderer::Render(const Mat44f& camera,
     uint64_t indirectOffset = 0;
 
     const auto& materialBindings = dawnScenePack.GetMaterialBindings();
-    const auto& meshToMaterialMap = dawnScenePack.GetMeshToMaterialMap();
+    const auto& materialIndices = dawnScenePack.GetMaterialIndices();
     const size_t meshCount = dawnScenePack.GetMeshCount();
     const auto& drawIndirectBuffer = dawnScenePack.GetDrawIndirectBuffer();
 
@@ -269,7 +269,7 @@ DawnRenderer::Render(const Mat44f& camera,
         {
             auto scopedTimer = fsBindingTimer.StartScoped();
 
-            const uint32_t materialIndex = meshToMaterialMap[i];
+            const uint32_t materialIndex = materialIndices[i];
 
             renderPass.SetBindGroup(2, materialBindings[materialIndex].BindGroup, 0, nullptr);
         }
