@@ -103,9 +103,6 @@ DawnRenderer::Render(const Mat44f& camera,
         const Mesh& mesh = model->GetMeshes()[i];
         DawnGpuMaterial* dawnMaterial = static_cast<DawnGpuMaterial*>(mesh.GetGpuMaterial());
         MaterialBinding materialBinding;
-        materialBinding.BaseTexture = static_cast<const DawnGpuTexture*>(dawnMaterial->GetBaseTexture())->GetTexture();
-        materialBinding.Sampler = static_cast<const DawnGpuTexture*>(dawnMaterial->GetBaseTexture())->GetSampler();
-        materialBinding.ConstantsBuffer = dawnMaterial->GetConstantsBuffer();
         materialBinding.BindGroup = dawnMaterial->GetBindGroup();
 
         materialBindings.emplace_back(std::move(materialBinding));
@@ -113,10 +110,11 @@ DawnRenderer::Render(const Mat44f& camera,
     }
 
     wgpu::BindGroup colorRenderBindGroup0;
+    wgpu::BindGroup colorRenderBindGroup3;
     wgpu::BindGroup transformBindGroup0;
 
     {
-        // Create the bind group for the color pipeline's vertex shader.
+        // Create bind group 0 for the color pipeline's vertex shader.
         wgpu::BindGroupEntry bg0Entries[] = //
             {
                 // World space transform buffer
@@ -148,6 +146,38 @@ DawnRenderer::Render(const Mat44f& camera,
     }
 
     {
+        // Create bind group 3 for the color pipeline's vertex shader.
+        wgpu::BindGroupEntry bg3Entries[] = //
+            {
+                // World space transform buffer
+                {
+                    .binding = 0,
+                    .buffer = transformBuffer,
+                    .offset = 0,
+                    .size = transformBuffer.GetSize(),
+                },
+                // Mesh-to-transform mapping
+                {
+                    .binding = 1,
+                    .buffer = meshToTransformMappingBuffer,
+                    .offset = 0,
+                    .size = meshToTransformMappingBuffer.GetSize(),
+                },
+            };
+
+        wgpu::BindGroupDescriptor bg3Desc //
+            {
+                .label = "ColorPipelineBindGroup3",
+                .layout = m_ColorPipeline.Pipeline.GetBindGroupLayout(3),
+                .entryCount = std::size(bg3Entries),
+                .entries = bg3Entries,
+            };
+
+        colorRenderBindGroup3 = m_GpuDevice->Device.CreateBindGroup(&bg3Desc);
+        MLG_CHECK(colorRenderBindGroup3, "Failed to create bindgroup 3 for color pipeline");
+    }
+
+    {
         // Create the bind group for the transform compute shader.
 
         wgpu::BindGroupEntry bg0Entries //
@@ -175,6 +205,7 @@ DawnRenderer::Render(const Mat44f& camera,
         drawIndirectBuffer,
         meshToTransformMappingBuffer,
         colorRenderBindGroup0,
+        colorRenderBindGroup3,
         transformBindGroup0,
         std::move(materialBindings),
         std::move(meshToMaterialMap));
@@ -229,6 +260,7 @@ DawnRenderer::Render(const Mat44f& camera,
         auto scopedTimer = setVsBindGroupTimer.StartScoped();
         renderPass.SetBindGroup(0, dawnScenePack.GetColorRenderBindGroup0(), 0, nullptr);
         renderPass.SetBindGroup(1, m_ColorPipeline.BindGroup1, 0, nullptr);
+        renderPass.SetBindGroup(3, dawnScenePack.GetColorRenderBindGroup3(), 0, nullptr);
     }
 
     static PerfTimer setBuffersTimer("Renderer.Render.Draw.SetBuffers");
@@ -531,6 +563,7 @@ DawnRenderer::CreateColorPipeline()
             layouts->Bindgroup0Layout,
             layouts->Bindgroup1Layout,
             layouts->Bindgroup2Layout,
+            layouts->Bindgroup3Layout,
         };
 
     wgpu::PipelineLayoutDescriptor colorTargetPipelineLayoutDesc //
@@ -863,7 +896,7 @@ DawnRenderer::CreateShader(const char* path)
     wgpu::StringView shaderCodeView{ reinterpret_cast<const char*>(shaderCode.data()),
         shaderCode.size() };
     wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCodeView } };
-    wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl };
+    wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl, .label = path };
 
     wgpu::ShaderModule shaderModule = m_GpuDevice->Device.CreateShaderModule(&shaderModuleDescriptor);
     MLG_CHECK(shaderModule, "Failed to create shader module");

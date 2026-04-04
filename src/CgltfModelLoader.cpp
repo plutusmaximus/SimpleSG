@@ -79,12 +79,15 @@ struct SceneData
     wgpu::Buffer IndexBuffer;
     wgpu::Buffer VertexBuffer;
     wgpu::Buffer TransformBuffer;
+    wgpu::Buffer MaterialConstantsBuffer;
     wgpu::Buffer DrawIndirectBuffer;
     wgpu::Buffer TransformIndexBuffer;
+    wgpu::Buffer MaterialIndexBuffer;
 
     std::vector<MaterialBinding> MaterialBindings;
 
     wgpu::BindGroup ColorRenderBindGroup0;
+    wgpu::BindGroup ColorRenderBindGroup3;
     wgpu::BindGroup TransformBindGroup0;
 
     std::map<std::string, wgpu::Texture> TextureDict;
@@ -982,6 +985,37 @@ CreateBindGroups(wgpu::Device wgpuDevice, SceneData& sceneData)
             "Failed to create bind group 0 for color pipeline");
     }
 
+    // Color pipeline bind group 3
+    {
+        wgpu::BindGroupEntry bgEntries[] =//
+        {
+            {
+                .binding = 0,
+                .buffer = sceneData.MaterialConstantsBuffer,
+                .offset = 0,
+                .size = sceneData.MaterialConstantsBuffer.GetSize(),
+            },
+            {
+                .binding = 1,
+                .buffer = sceneData.MaterialIndexBuffer,
+                .offset = 0,
+                .size = sceneData.MaterialIndexBuffer.GetSize(),
+            },
+        };
+
+        wgpu::BindGroupDescriptor bgDesc = //
+            {
+                .label = "ColorPipelineBindGroup3",
+                .layout = colorPipelineLayouts->Bindgroup3Layout,
+                .entryCount = std::size(bgEntries),
+                .entries = bgEntries,
+            };
+
+        sceneData.ColorRenderBindGroup3 = wgpuDevice.CreateBindGroup(&bgDesc);
+        MLG_CHECK(sceneData.ColorRenderBindGroup3,
+            "Failed to create bind group 3 for color pipeline");
+    }
+
     // Transform pipeline bind group 0
     {
         wgpu::BindGroupEntry bgEntries[] =//
@@ -1031,10 +1065,33 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
 
     std::vector<MaterialBinding> materialBindings;
 
-    wgpu::Limits gpuLimits;
-    wgpuDevice.GetLimits(&gpuLimits);
+    const size_t sizeofMaterialConstantsBuffer = sceneData.Materials.size() * sizeof(MaterialConstants);
 
-    const size_t sizeofMtlConstantsBuffer = alignUniformBuffer<MaterialConstants>(gpuLimits);
+    wgpu::Buffer materialConstantsBuffer = CreateGpuBuffer(wgpuDevice,
+        wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
+        sizeofMaterialConstantsBuffer,
+        "MaterialConstantsBuffer");
+
+    void* mappedRange = materialConstantsBuffer.GetMappedRange();
+    MLG_CHECK(mappedRange, "Failed to map MaterialConstantsBuffer");
+
+    MaterialConstants* dst = reinterpret_cast<MaterialConstants*>(mappedRange);
+
+    for(const auto& mtl : sceneData.Materials)
+    {
+        ::new (dst) MaterialConstants //
+            {
+                mtl.Color,
+                mtl.Metalness,
+                mtl.Roughness
+            };
+
+        ++dst;
+    }
+
+    materialConstantsBuffer.Unmap();
+
+    sceneData.MaterialConstantsBuffer = materialConstantsBuffer;
 
     auto layouts = WebgpuHelper::GetColorPipelineLayouts();
     MLG_CHECK(layouts);
@@ -1045,26 +1102,7 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
                                         ? sceneData.DefaultTexture
                                         : sceneData.TextureDict[mtl.BaseTextureUri];
 
-        wgpu::Buffer materialConstantsBuffer = CreateGpuBuffer(wgpuDevice,
-            wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
-            sizeofMtlConstantsBuffer,
-            "MaterialConstants");
-
-        materialConstantsBuffer.Unmap();
-
-        MaterialConstants materialConstants //
-            {
-                mtl.Color,
-                mtl.Metalness,
-                mtl.Roughness
-            };
-
-        wgpuDevice.GetQueue().WriteBuffer(materialConstantsBuffer,
-            0,
-            &materialConstants,
-            sizeof(MaterialConstants));
-
-        wgpu::BindGroupEntry bgEntries[3]//
+        wgpu::BindGroupEntry bgEntries[]//
         {
             {
                 .binding = 0,
@@ -1073,12 +1111,6 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
             {
                 .binding = 1,
                 .sampler = sceneData.DefaultSampler,
-            },
-            {
-                .binding = 2,
-                .buffer = materialConstantsBuffer,
-                .offset = 0,
-                .size = sizeofMtlConstantsBuffer,
             },
         };
 
@@ -1092,10 +1124,7 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
 
         wgpu::BindGroup materialBindGroup = wgpuDevice.CreateBindGroup(&bindGroupDesc);
 
-        materialBindings.emplace_back(baseTexture,
-            sceneData.DefaultSampler,
-            materialConstantsBuffer,
-            materialBindGroup);
+        materialBindings.emplace_back(materialBindGroup);
     }
 
     sceneData.MaterialBindings = std::move(materialBindings);
@@ -1186,6 +1215,7 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
 
     const size_t sizeofDrawIndirectBuffer = meshCount * sizeof(DrawIndirectBufferParams);
     const size_t sizeofTransformIndexBuffer = meshCount * sizeof(uint32_t);
+    const size_t sizeofMtlIndexBuffer = meshCount * sizeof(uint32_t);
 
     sceneData.DrawIndirectBuffer = CreateGpuBuffer(wgpuDevice,
         wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
@@ -1197,18 +1227,29 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
         sizeofTransformIndexBuffer,
         "TransformIndexBuffer");
 
-    void* dpMapped = sceneData.DrawIndirectBuffer.GetMappedRange();
-    MLG_CHECK(dpMapped, "Failed to map DrawIndirectBuffer");
+    sceneData.MaterialIndexBuffer = CreateGpuBuffer(wgpuDevice,
+        wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
+        sizeofMtlIndexBuffer,
+        "MaterialIndexBuffer");
+
+    void* diMapped = sceneData.DrawIndirectBuffer.GetMappedRange();
+    MLG_CHECK(diMapped, "Failed to map DrawIndirectBuffer");
 
     auto cleanupDrawParams = scope_exit([&]() { sceneData.DrawIndirectBuffer.Unmap(); });
 
-    void* layoutMapped = sceneData.TransformIndexBuffer.GetMappedRange();
-    MLG_CHECK(layoutMapped, "Failed to map TransformIndexBuffer");
+    void* transformIndexMapped = sceneData.TransformIndexBuffer.GetMappedRange();
+    MLG_CHECK(transformIndexMapped, "Failed to map TransformIndexBuffer");
 
-    auto cleanupLayout = scope_exit([&]() { sceneData.TransformIndexBuffer.Unmap(); });
+    auto cleanupTransformIndex = scope_exit([&]() { sceneData.TransformIndexBuffer.Unmap(); });
 
-    DrawIndirectBufferParams* drawParams = reinterpret_cast<DrawIndirectBufferParams*>(dpMapped);
-    uint32_t* transformIndex = reinterpret_cast<uint32_t*>(layoutMapped);
+    void* materialIndexMapped = sceneData.MaterialIndexBuffer.GetMappedRange();
+    MLG_CHECK(materialIndexMapped, "Failed to map MaterialIndexBuffer");
+
+    auto cleanupMaterialIndex = scope_exit([&]() { sceneData.MaterialIndexBuffer.Unmap(); });
+
+    DrawIndirectBufferParams* drawParams = reinterpret_cast<DrawIndirectBufferParams*>(diMapped);
+    uint32_t* transformIndex = reinterpret_cast<uint32_t*>(transformIndexMapped);
+    uint32_t* materialIndex = reinterpret_cast<uint32_t*>(materialIndexMapped);
 
     uint32_t firstInstance = 0;
 
@@ -1226,7 +1267,9 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
             };
 
             *transformIndex++ = instance.TransformIndex;
+            *materialIndex++ = mesh.MaterialIndex;
             sceneData.MaterialIndices.push_back(mesh.MaterialIndex);
+
             ++firstInstance;
         }
     }
@@ -1280,13 +1323,13 @@ CgltfModelLoader::LoadScenePack(wgpu::Device& wgpuDevice, const std::string& pat
 
     MLG_CHECK(FetchTextures(wgpuDevice, filePath.parent_path(), sceneData));
 
-    MLG_CHECK(BuildMaterials(wgpuDevice, sceneData));
-
     MLG_CHECK(BuildVertexBuffer(wgpuDevice, sceneData));
     MLG_CHECK(BuildIndexBuffer(wgpuDevice, sceneData));
 
     MLG_CHECK(BuildTransformBuffer(wgpuDevice, sceneData));
     MLG_CHECK(BuildDrawBuffers(wgpuDevice, sceneData));
+
+    MLG_CHECK(BuildMaterials(wgpuDevice, sceneData));
 
     MLG_CHECK(CreateBindGroups(wgpuDevice, sceneData));
 
@@ -1299,6 +1342,7 @@ CgltfModelLoader::LoadScenePack(wgpu::Device& wgpuDevice, const std::string& pat
         sceneData.DrawIndirectBuffer,
         sceneData.TransformIndexBuffer,
         sceneData.ColorRenderBindGroup0,
+        sceneData.ColorRenderBindGroup3,
         sceneData.TransformBindGroup0,
         std::move(sceneData.MaterialBindings),
         std::move(sceneData.MaterialIndices));

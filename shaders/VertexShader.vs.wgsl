@@ -8,13 +8,8 @@ struct ClipSpaceXform
     xform : mat4x4<f32>,
 }
 
-struct MeshToTransformMap
-{
-    transformIndex : u32,
-};
-
 @group(0) @binding(0) var<storage, read> worldSpaceArray: array<WorldSpaceXform>;
-@group(0) @binding(1) var<storage, read> meshToTransformMap: array<MeshToTransformMap>;
+@group(0) @binding(1) var<storage, read> transformIndices: array<u32>;
 
 @group(1) @binding(0) var<storage, read> clipSpaceArray: array<ClipSpaceXform>;
 
@@ -30,6 +25,7 @@ struct VSOutput
     @builtin(position) position: vec4<f32>,
     @location(0) fragNormal: vec3<f32>,
     @location(1) texCoord: vec2<f32>,
+    @location(2) @interpolate(flat) instanceIndex : u32,
 };
 
 @vertex
@@ -37,13 +33,14 @@ fn main(input: VSInput, @builtin(instance_index) instance_index: u32) -> VSOutpu
 {
     var output: VSOutput;
 
-    let transformIdx = meshToTransformMap[instance_index].transformIndex;
+    let transformIdx = transformIndices[instance_index];
     let clipXform = clipSpaceArray[transformIdx].xform;
     let worldXform = worldSpaceArray[transformIdx].xform;
 
     output.position = clipXform * vec4<f32>(input.inPosition, 1.0);
     output.fragNormal = normalize((worldXform * vec4<f32>(input.inNormal, 0.0)).xyz);
     output.texCoord = input.inTexCoord;
+    output.instanceIndex = instance_index;
 
     return output;
 }

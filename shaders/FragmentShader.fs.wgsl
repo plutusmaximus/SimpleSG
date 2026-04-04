@@ -3,6 +3,7 @@ struct PSInput
     @builtin(position) position: vec4<f32>,
     @location(0) fragNormal: vec3<f32>,
     @location(1) texCoord: vec2<f32>,
+    @location(2) @interpolate(flat) instanceIndex : u32,
 };
 
 struct Material
@@ -17,11 +18,13 @@ struct Material
 
 @group(2) @binding(0) var texture0: texture_2d<f32>;
 @group(2) @binding(1) var textureSampler: sampler;
-@group(2) @binding(2) var<storage, read> material : Material;
+@group(3) @binding(0) var<storage, read> materials : array<Material>;
+@group(3) @binding(1) var<storage, read> materialIndices : array<u32>;
 
 @fragment
 fn main(input: PSInput) -> @location(0) vec4<f32>
 {
+    let material = materials[materialIndices[input.instanceIndex]];
     let lightDir = normalize(vec3<f32>(1.0, -1.0, 1.0));
     let ambientFactor = 0.1;
     let diff = max(-dot(input.fragNormal, lightDir), 0.0);
