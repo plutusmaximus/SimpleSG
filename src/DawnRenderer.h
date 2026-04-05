@@ -32,7 +32,7 @@ public:
 
     Result<> Render(const Mat44f& camera,
         const Mat44f& projection,
-        const ScenePack& scenePack,
+        const SceneKit& sceneKit,
         RenderCompositor* compositor) override;
 
 private:
@@ -58,7 +58,7 @@ private:
     Result<> TransformNodes(wgpu::CommandEncoder cmdEncoder,
         const Mat44f& camera,
         const Mat44f& projection,
-        const ScenePack& scenePack);
+        const SceneKit& sceneKit);
 
     /// Get or create the default texture.
     /// The default texture is used when a material does not have a base texture.

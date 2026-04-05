@@ -8,7 +8,7 @@ class Mat44;
 using Mat44f = Mat44<float>;
 class RenderCompositor;
 
-class ScenePack;
+class SceneKit;
 
 class Renderer
 {
@@ -31,7 +31,7 @@ public:
 
     virtual Result<> Render(const Mat44f& camera,
         const Mat44f& projection,
-        const ScenePack& scenePack,
+        const SceneKit& sceneKit,
         RenderCompositor* compositor) = 0;
 
 protected:

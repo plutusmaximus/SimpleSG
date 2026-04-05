@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ScenePack.h"
+#include "SceneKit.h"
 #include "VecMath.h"
 
 #include <webgpu/webgpu_cpp.h>
@@ -23,19 +23,19 @@ public:
     uint32_t FirstInstance;
 };
 
-class DawnScenePack : public ScenePack
+class DawnSceneKit : public SceneKit
 {
 public:
 
-    DawnScenePack() = default;
-    DawnScenePack(const DawnScenePack&) = delete;
-    DawnScenePack& operator=(const DawnScenePack&) = delete;
-    DawnScenePack(DawnScenePack&&) = delete;
-    DawnScenePack& operator=(DawnScenePack&&) = delete;
+    DawnSceneKit() = default;
+    DawnSceneKit(const DawnSceneKit&) = delete;
+    DawnSceneKit& operator=(const DawnSceneKit&) = delete;
+    DawnSceneKit(DawnSceneKit&&) = delete;
+    DawnSceneKit& operator=(DawnSceneKit&&) = delete;
 
-    ~DawnScenePack() override = default;
+    ~DawnSceneKit() override = default;
 
-    DawnScenePack(wgpu::Buffer indexBuffer,
+    DawnSceneKit(wgpu::Buffer indexBuffer,
         wgpu::Buffer vertexBuffer,
         wgpu::Buffer transformBuffer,
         wgpu::Buffer drawIndirectBuffer,

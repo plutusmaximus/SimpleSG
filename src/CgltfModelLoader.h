@@ -2,7 +2,7 @@
 
 #include "Result.h"
 #include "Color.h"
-#include "ScenePack.h"
+#include "SceneKit.h"
 #include "VecMath.h"
 
 #include <limits>
@@ -53,5 +53,5 @@ class CgltfModelLoader final
 {
 public:
 
-    static Result<ScenePack*> LoadScenePack(wgpu::Device& device, const std::string& path);
+    static Result<SceneKit*> LoadSceneKit(wgpu::Device& device, const std::string& path);
 };

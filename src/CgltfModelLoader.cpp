@@ -5,7 +5,7 @@
 
 #include "CgltfModelLoader.h"
 
-#include "DawnScenePack.h"
+#include "DawnSceneKit.h"
 #include "FileFetcher.h"
 #include "Log.h"
 #include "Material.h"
@@ -1257,8 +1257,8 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
     return Result<>::Ok;
 }
 
-Result<ScenePack*>
-CgltfModelLoader::LoadScenePack(wgpu::Device& wgpuDevice, const std::string& path)
+Result<SceneKit*>
+CgltfModelLoader::LoadSceneKit(wgpu::Device& wgpuDevice, const std::string& path)
 {
     std::filesystem::path filePath(path);
 
@@ -1315,7 +1315,7 @@ CgltfModelLoader::LoadScenePack(wgpu::Device& wgpuDevice, const std::string& pat
 
     cgltf_free(data);
 
-    DawnScenePack* scenePack = new DawnScenePack(
+    DawnSceneKit* sceneKit = new DawnSceneKit(
         sceneData.IndexBuffer,
         sceneData.VertexBuffer,
         sceneData.TransformBuffer,
@@ -1326,5 +1326,5 @@ CgltfModelLoader::LoadScenePack(wgpu::Device& wgpuDevice, const std::string& pat
         std::move(sceneData.MaterialBindings),
         std::move(sceneData.MaterialIndices));
 
-    return scenePack;
+    return sceneKit;
 }

@@ -205,6 +205,7 @@ set(SSG_HEADERS
   src/DawnGpuDevice.h
   src/DawnRenderCompositor.h
   src/DawnRenderer.h
+  src/DawnSceneKit.h
   src/ECS.h
   src/EcsChildTransformPool.h
   src/FileFetcher.h
@@ -225,6 +226,7 @@ set(SSG_HEADERS
   src/Renderer.h
   src/ResourceCache.h
   src/Result.h
+  src/SceneKit.h
   src/scope_exit.h
   src/SdlGpuDevice.h
   src/SdlRenderCompositor.h

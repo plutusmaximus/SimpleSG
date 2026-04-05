@@ -65,11 +65,11 @@ public:
         [[maybe_unused]] constexpr const char* JUNGLE_RUINS = "C:/Users/kbaca/Downloads/JungleRuins/GLTF/JungleRuins_Main.gltf";
 
         wgpu::Device wgpuDevice = static_cast<DawnGpuDevice*>(m_GpuDevice)->Device;
-        auto scenePack = CgltfModelLoader::LoadScenePack(wgpuDevice, SPONZA_MODEL_PATH);
-        MLG_CHECK(scenePack);
+        auto sceneKit = CgltfModelLoader::LoadSceneKit(wgpuDevice, SPONZA_MODEL_PATH);
+        MLG_CHECK(sceneKit);
 
         m_Model = m_Registry.CreateEntity();
-        m_Model.Add(TrsTransformf{}, WorldMatrix{}, *scenePack);
+        m_Model.Add(TrsTransformf{}, WorldMatrix{}, *sceneKit);
 
         m_Camera = m_Registry.CreateEntity();
 
@@ -154,11 +154,11 @@ public:
         // Transform to camera space and render
         auto camWorldMat = m_Camera.Get<WorldMatrix>();
         auto camera = m_Camera.Get<Camera>();
-        for(const auto& tuple : m_Registry.GetView<WorldMatrix, ScenePack*>())
+        for(const auto& tuple : m_Registry.GetView<WorldMatrix, SceneKit*>())
         {
-            const auto [eid, worldMat, scenePack] = tuple;
+            const auto [eid, worldMat, sceneKit] = tuple;
 
-            m_Renderer->Render(camWorldMat, camera.GetProjection(), *scenePack, m_RenderCompositor);
+            m_Renderer->Render(camWorldMat, camera.GetProjection(), *sceneKit, m_RenderCompositor);
             //m_Renderer->Render(camWorldMat, camera.GetProjection(), model.Get(), m_RenderCompositor);
         }
 
