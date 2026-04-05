@@ -87,7 +87,6 @@ struct SceneData
     std::vector<MaterialBinding> MaterialBindings;
 
     wgpu::BindGroup ColorRenderBindGroup0;
-    wgpu::BindGroup ColorRenderBindGroup3;
     wgpu::BindGroup TransformBindGroup0;
 
     std::map<std::string, wgpu::Texture> TextureDict;
@@ -970,6 +969,18 @@ CreateBindGroups(wgpu::Device wgpuDevice, SceneData& sceneData)
                 .offset = 0,
                 .size = sceneData.TransformIndexBuffer.GetSize(),
             },
+            {
+                .binding = 2,
+                .buffer = sceneData.MaterialConstantsBuffer,
+                .offset = 0,
+                .size = sceneData.MaterialConstantsBuffer.GetSize(),
+            },
+            {
+                .binding = 3,
+                .buffer = sceneData.MaterialIndexBuffer,
+                .offset = 0,
+                .size = sceneData.MaterialIndexBuffer.GetSize(),
+            },
         };
 
         wgpu::BindGroupDescriptor bgDesc = //
@@ -983,37 +994,6 @@ CreateBindGroups(wgpu::Device wgpuDevice, SceneData& sceneData)
         sceneData.ColorRenderBindGroup0 = wgpuDevice.CreateBindGroup(&bgDesc);
         MLG_CHECK(sceneData.ColorRenderBindGroup0,
             "Failed to create bind group 0 for color pipeline");
-    }
-
-    // Color pipeline bind group 3
-    {
-        wgpu::BindGroupEntry bgEntries[] =//
-        {
-            {
-                .binding = 0,
-                .buffer = sceneData.MaterialConstantsBuffer,
-                .offset = 0,
-                .size = sceneData.MaterialConstantsBuffer.GetSize(),
-            },
-            {
-                .binding = 1,
-                .buffer = sceneData.MaterialIndexBuffer,
-                .offset = 0,
-                .size = sceneData.MaterialIndexBuffer.GetSize(),
-            },
-        };
-
-        wgpu::BindGroupDescriptor bgDesc = //
-            {
-                .label = "ColorPipelineBindGroup3",
-                .layout = colorPipelineLayouts->Bindgroup3Layout,
-                .entryCount = std::size(bgEntries),
-                .entries = bgEntries,
-            };
-
-        sceneData.ColorRenderBindGroup3 = wgpuDevice.CreateBindGroup(&bgDesc);
-        MLG_CHECK(sceneData.ColorRenderBindGroup3,
-            "Failed to create bind group 3 for color pipeline");
     }
 
     // Transform pipeline bind group 0
@@ -1342,7 +1322,6 @@ CgltfModelLoader::LoadScenePack(wgpu::Device& wgpuDevice, const std::string& pat
         sceneData.DrawIndirectBuffer,
         sceneData.TransformIndexBuffer,
         sceneData.ColorRenderBindGroup0,
-        sceneData.ColorRenderBindGroup3,
         sceneData.TransformBindGroup0,
         std::move(sceneData.MaterialBindings),
         std::move(sceneData.MaterialIndices));

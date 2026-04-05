@@ -37,7 +37,6 @@ public:
     wgpu::BindGroupLayout Bindgroup0Layout;
     wgpu::BindGroupLayout Bindgroup1Layout;
     wgpu::BindGroupLayout Bindgroup2Layout;
-    wgpu::BindGroupLayout Bindgroup3Layout;
 };
 
 class WebgpuTransformPipelineLayouts

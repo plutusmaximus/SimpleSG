@@ -41,7 +41,6 @@ public:
         wgpu::Buffer drawIndirectBuffer,
         wgpu::Buffer transformIndexBuffer,
         wgpu::BindGroup colorRenderBindGroup0,
-        wgpu::BindGroup colorRenderBindGroup3,
         wgpu::BindGroup transformBindGroup0,
         std::vector<MaterialBinding>&& materialBindings,
         std::vector<uint32_t>&& materialIndices)
@@ -51,7 +50,6 @@ public:
           m_TransformIndexBuffer(transformIndexBuffer),
           m_DrawIndirectBuffer(drawIndirectBuffer),
           m_ColorRenderBindGroup0(colorRenderBindGroup0),
-          m_ColorRenderBindGroup3(colorRenderBindGroup3),
           m_TransformBindGroup0(transformBindGroup0),
           m_MaterialBindings(std::move(materialBindings)),
           m_MaterialIndices(std::move(materialIndices))
@@ -93,7 +91,6 @@ public:
     wgpu::Buffer GetIndexBuffer() const { return m_IndexBuffer; }
 
     wgpu::BindGroup GetColorRenderBindGroup0() const { return m_ColorRenderBindGroup0; }
-    wgpu::BindGroup GetColorRenderBindGroup3() const { return m_ColorRenderBindGroup3; }
     wgpu::BindGroup GetTransformBindGroup0() const { return m_TransformBindGroup0; }
 
 private:
@@ -105,7 +102,6 @@ private:
     wgpu::Buffer m_TransformIndexBuffer{nullptr};
 
     wgpu::BindGroup m_ColorRenderBindGroup0{nullptr};
-    wgpu::BindGroup m_ColorRenderBindGroup3{nullptr};
     wgpu::BindGroup m_TransformBindGroup0{nullptr};
 
     std::vector<MaterialBinding> m_MaterialBindings;

@@ -110,7 +110,6 @@ DawnRenderer::Render(const Mat44f& camera,
     }
 
     wgpu::BindGroup colorRenderBindGroup0;
-    wgpu::BindGroup colorRenderBindGroup3;
     wgpu::BindGroup transformBindGroup0;
 
     {
@@ -131,6 +130,20 @@ DawnRenderer::Render(const Mat44f& camera,
                     .offset = 0,
                     .size = meshToTransformMappingBuffer.GetSize(),
                 },
+                // Fluff
+                {
+                    .binding = 2,
+                    .buffer = transformBuffer,
+                    .offset = 0,
+                    .size = transformBuffer.GetSize(),
+                },
+                // Fluff
+                {
+                    .binding = 3,
+                    .buffer = meshToTransformMappingBuffer,
+                    .offset = 0,
+                    .size = meshToTransformMappingBuffer.GetSize(),
+                },
             };
 
         wgpu::BindGroupDescriptor bg0Desc //
@@ -143,38 +156,6 @@ DawnRenderer::Render(const Mat44f& camera,
 
         colorRenderBindGroup0 = m_GpuDevice->Device.CreateBindGroup(&bg0Desc);
         MLG_CHECK(colorRenderBindGroup0, "Failed to create bindgroup 0 for color pipeline");
-    }
-
-    {
-        // Create bind group 3 for the color pipeline's vertex shader.
-        wgpu::BindGroupEntry bg3Entries[] = //
-            {
-                // World space transform buffer
-                {
-                    .binding = 0,
-                    .buffer = transformBuffer,
-                    .offset = 0,
-                    .size = transformBuffer.GetSize(),
-                },
-                // Mesh-to-transform mapping
-                {
-                    .binding = 1,
-                    .buffer = meshToTransformMappingBuffer,
-                    .offset = 0,
-                    .size = meshToTransformMappingBuffer.GetSize(),
-                },
-            };
-
-        wgpu::BindGroupDescriptor bg3Desc //
-            {
-                .label = "ColorPipelineBindGroup3",
-                .layout = m_ColorPipeline.Pipeline.GetBindGroupLayout(3),
-                .entryCount = std::size(bg3Entries),
-                .entries = bg3Entries,
-            };
-
-        colorRenderBindGroup3 = m_GpuDevice->Device.CreateBindGroup(&bg3Desc);
-        MLG_CHECK(colorRenderBindGroup3, "Failed to create bindgroup 3 for color pipeline");
     }
 
     {
@@ -205,7 +186,6 @@ DawnRenderer::Render(const Mat44f& camera,
         drawIndirectBuffer,
         meshToTransformMappingBuffer,
         colorRenderBindGroup0,
-        colorRenderBindGroup3,
         transformBindGroup0,
         std::move(materialBindings),
         std::move(meshToMaterialMap));
@@ -260,7 +240,6 @@ DawnRenderer::Render(const Mat44f& camera,
         auto scopedTimer = setVsBindGroupTimer.StartScoped();
         renderPass.SetBindGroup(0, dawnScenePack.GetColorRenderBindGroup0(), 0, nullptr);
         renderPass.SetBindGroup(1, m_ColorPipeline.BindGroup1, 0, nullptr);
-        renderPass.SetBindGroup(3, dawnScenePack.GetColorRenderBindGroup3(), 0, nullptr);
     }
 
     static PerfTimer setBuffersTimer("Renderer.Render.Draw.SetBuffers");
@@ -563,7 +542,6 @@ DawnRenderer::CreateColorPipeline()
             layouts->Bindgroup0Layout,
             layouts->Bindgroup1Layout,
             layouts->Bindgroup2Layout,
-            layouts->Bindgroup3Layout,
         };
 
     wgpu::PipelineLayoutDescriptor colorTargetPipelineLayoutDesc //

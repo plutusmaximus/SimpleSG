@@ -16,10 +16,10 @@ struct Material
     pad1 : f32,
 };
 
+@group(0) @binding(2) var<storage, read> materials : array<Material>;
+@group(0) @binding(3) var<storage, read> materialIndices : array<u32>;
 @group(2) @binding(0) var texture0: texture_2d<f32>;
 @group(2) @binding(1) var textureSampler: sampler;
-@group(3) @binding(0) var<storage, read> materials : array<Material>;
-@group(3) @binding(1) var<storage, read> materialIndices : array<u32>;
 
 @fragment
 fn main(input: PSInput) -> @location(0) vec4<f32>

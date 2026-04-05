@@ -667,6 +667,28 @@ WebgpuHelper::GetColorPipelineLayouts()
                     .minBindingSize = sizeof(TransformIndex),
                 },
             },
+            // MaterialConstants
+            {
+                .binding = 2,
+                .visibility = wgpu::ShaderStage::Fragment,
+                .buffer =
+                {
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = sizeof(MaterialConstants),
+                },
+            },
+            // Materialindices
+            {
+                .binding = 3,
+                .visibility = wgpu::ShaderStage::Fragment,
+                .buffer =
+                {
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = sizeof(uint32_t),
+                },
+            },
         };
         wgpu::BindGroupLayoutDescriptor desc = //
             {
@@ -747,48 +769,6 @@ WebgpuHelper::GetColorPipelineLayouts()
             GetDevice().CreateBindGroupLayout(&desc);
         MLG_CHECK(s_WgpuContext->ColorPipelineLayouts.Bindgroup2Layout,
             "Failed to create bind group 2 layout for color pipeline");
-    }
-
-    if(!s_WgpuContext->ColorPipelineLayouts.Bindgroup3Layout)
-    {
-        // Color pipeline bind group 3 layout
-        wgpu::BindGroupLayoutEntry entries[] =//
-        {
-            // MaterialConstants
-            {
-                .binding = 0,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(MaterialConstants),
-                },
-            },
-            // Materialindices
-            {
-                .binding = 1,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(uint32_t),
-                },
-            },
-        };
-
-        wgpu::BindGroupLayoutDescriptor desc = //
-            {
-                .label = "ColorPipelineBg3Layout",
-                .entryCount = std::size(entries),
-                .entries = entries,
-            };
-
-        s_WgpuContext->ColorPipelineLayouts.Bindgroup3Layout =
-            GetDevice().CreateBindGroupLayout(&desc);
-        MLG_CHECK(s_WgpuContext->ColorPipelineLayouts.Bindgroup3Layout,
-            "Failed to create bind group 3 layout for color pipeline");
     }
 
     return s_WgpuContext->ColorPipelineLayouts;
