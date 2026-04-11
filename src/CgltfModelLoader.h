@@ -2,12 +2,15 @@
 
 #include "Result.h"
 #include "Color.h"
-#include "SceneKit.h"
 #include "VecMath.h"
 
 #include <limits>
 #include <string>
 #include <vector>
+
+class SceneKit;
+
+using ModelIndex = uint32_t;
 
 namespace wgpu
 {
@@ -34,18 +37,18 @@ struct ModelData
     std::vector<MeshData> Meshes;
 };
 
-struct ModelInstance
+struct ModelInstanceData
 {
-    uint32_t ModelIndex;
-    uint32_t TransformIndex;
+    ModelIndex ModelIndex;
+    TransformIndex TransformIndex;
 };
 
 struct TransformData
 {
-    static constexpr uint32_t kInvalidParentIndex = std::numeric_limits<uint32_t>::max();
+    static constexpr TransformIndex kInvalidParentIndex = std::numeric_limits<TransformIndex>::max();
 
     Mat44f Transform;
-    uint32_t ParentIndex{ kInvalidParentIndex };
+    TransformIndex ParentIndex{ kInvalidParentIndex };
 };
 
 class CgltfModelLoader final

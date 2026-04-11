@@ -8,6 +8,8 @@
 #include <cstddef>
 #include <type_traits>
 
+using TransformIndex = uint32_t;
+
 template <typename T>
 class Radians
 {

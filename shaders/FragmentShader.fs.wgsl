@@ -16,13 +16,16 @@ struct Material
     pad1 : f32,
 };
 
+@group(0) @binding(2) var<storage, read> materials : array<Material>;
+@group(0) @binding(3) var<storage, read> materialIndices : array<u32>;
+
 @group(2) @binding(0) var texture0: texture_2d<f32>;
 @group(2) @binding(1) var textureSampler: sampler;
-@group(2) @binding(2) var<uniform> material: Material;
 
 @fragment
 fn main(input: PSInput) -> @location(0) vec4<f32>
 {
+    let material = materials[materialIndices[input.instanceIndex]];
     let lightDir = normalize(vec3<f32>(1.0, -1.0, 1.0));
     let ambientFactor = 0.1;
     let diff = max(-dot(input.fragNormal, lightDir), 0.0);

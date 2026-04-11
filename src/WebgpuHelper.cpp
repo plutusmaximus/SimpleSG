@@ -667,6 +667,28 @@ WebgpuHelper::GetColorPipelineLayouts()
                     .minBindingSize = sizeof(TransformIndex),
                 },
             },
+            // Material constants buffer.
+            {
+                .binding = 2,
+                .visibility = wgpu::ShaderStage::Fragment,
+                .buffer =
+                {
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = sizeof(MaterialConstants),
+                },
+            },
+            // Material indices.
+            {
+                .binding = 3,
+                .visibility = wgpu::ShaderStage::Fragment,
+                .buffer =
+                {
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = sizeof(MaterialIndex),
+                },
+            },
         };
         wgpu::BindGroupLayoutDescriptor desc = //
             {
@@ -732,16 +754,6 @@ WebgpuHelper::GetColorPipelineLayouts()
                 .sampler =
                 {
                     .type = wgpu::SamplerBindingType::Filtering,
-                },
-            },
-            {
-                .binding = 2,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::Uniform,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = WebgpuHelper::AlignUniformBuffer<MaterialConstants>(),
                 },
             },
         };

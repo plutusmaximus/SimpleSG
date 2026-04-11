@@ -6,6 +6,8 @@
 
 class GpuTexture;
 
+using MaterialIndex = uint32_t;
+
 /// @brief Specification for creating a texture.
 class TextureSpec
 {

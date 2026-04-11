@@ -4,8 +4,6 @@
 
 #include <limits>
 
-using TransformIndex = uint32_t;
-
 static inline const TransformIndex kInvalidTransformIndex = std::numeric_limits<TransformIndex>::max();
 
 /// @brief Node representing a transform in a model's hierarchy.
