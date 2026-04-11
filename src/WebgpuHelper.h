@@ -100,4 +100,14 @@ public:
     static Result<WebgpuTransformPipelineLayouts> GetTransformPipelineLayouts();
 
     static Result<WebgpuCompositorPipelineLayouts> GetCompositorPipelineLayouts();
+
+    template<typename T>
+    static size_t AlignUniformBuffer()
+    {
+        wgpu::Limits limits;
+        GetDevice().GetLimits(&limits);
+        const size_t alignment = limits.minUniformBufferOffsetAlignment;
+
+        return (sizeof(T) + alignment - 1) & ~(alignment - 1);
+    }
 };

@@ -45,14 +45,6 @@ DawnRenderer::~DawnRenderer()
     }
 }
 
-template<typename T>
-static inline size_t alignUniformBuffer(const wgpu::Limits& limits)
-{
-    const size_t alignment = limits.minUniformBufferOffsetAlignment;
-
-    return (sizeof(T) + alignment - 1) & ~(alignment - 1);
-}
-
 Result<DawnRenderer*>
 DawnRenderer::Create(DawnGpuDevice* gpuDevice)
 {

@@ -70,11 +70,11 @@ struct SceneData
     std::vector<VertexIndex> Indices;
     std::vector<MaterialData> Materials;
     std::vector<ModelData> Models;
-    std::map<const cgltf_mesh*, size_t> ModelMap;
     std::vector<ModelInstance> Instances;
     std::vector<TransformData> Transforms;
-
     std::vector<uint32_t> MaterialIndices;
+
+    std::map<const cgltf_mesh*, size_t> ModelMap;
 
     wgpu::Buffer IndexBuffer;
     wgpu::Buffer VertexBuffer;
@@ -82,7 +82,6 @@ struct SceneData
     wgpu::Buffer MaterialConstantsBuffer;
     wgpu::Buffer DrawIndirectBuffer;
     wgpu::Buffer TransformIndexBuffer;
-    wgpu::Buffer MaterialIndexBuffer;
 
     std::vector<MaterialBinding> MaterialBindings;
 
@@ -104,14 +103,6 @@ static T narrow_cast(U u)
     const T t = static_cast<T>(u);
     MLG_ASSERT(static_cast<T>(u) == t, "narrow_cast failed: {} -> {}", u, t);
     return t;
-}
-
-template<typename T>
-static inline size_t alignUniformBuffer(const wgpu::Limits& limits)
-{
-    const size_t alignment = limits.minUniformBufferOffsetAlignment;
-
-    return (sizeof(T) + alignment - 1) & ~(alignment - 1);
 }
 
 static Result<>
@@ -969,18 +960,6 @@ CreateBindGroups(wgpu::Device wgpuDevice, SceneData& sceneData)
                 .offset = 0,
                 .size = sceneData.TransformIndexBuffer.GetSize(),
             },
-            {
-                .binding = 2,
-                .buffer = sceneData.MaterialConstantsBuffer,
-                .offset = 0,
-                .size = sceneData.MaterialConstantsBuffer.GetSize(),
-            },
-            {
-                .binding = 3,
-                .buffer = sceneData.MaterialIndexBuffer,
-                .offset = 0,
-                .size = sceneData.MaterialIndexBuffer.GetSize(),
-            },
         };
 
         wgpu::BindGroupDescriptor bgDesc = //
@@ -1045,17 +1024,18 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
 
     std::vector<MaterialBinding> materialBindings;
 
-    const size_t sizeofMaterialConstantsBuffer = sceneData.Materials.size() * sizeof(MaterialConstants);
+    const size_t alignedSizeofMtlConstants = WebgpuHelper::AlignUniformBuffer<MaterialConstants>();
+    const size_t sizeofMtlConstantsBuffer = sceneData.Materials.size() * alignedSizeofMtlConstants;
 
     wgpu::Buffer materialConstantsBuffer = CreateGpuBuffer(wgpuDevice,
-        wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
-        sizeofMaterialConstantsBuffer,
+        wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
+        sizeofMtlConstantsBuffer,
         "MaterialConstantsBuffer");
 
     void* mappedRange = materialConstantsBuffer.GetMappedRange();
     MLG_CHECK(mappedRange, "Failed to map MaterialConstantsBuffer");
 
-    MaterialConstants* dst = reinterpret_cast<MaterialConstants*>(mappedRange);
+    uint8_t* dst = reinterpret_cast<uint8_t*>(mappedRange);
 
     for(const auto& mtl : sceneData.Materials)
     {
@@ -1066,7 +1046,7 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
                 mtl.Roughness
             };
 
-        ++dst;
+        dst += alignedSizeofMtlConstants;
     }
 
     materialConstantsBuffer.Unmap();
@@ -1075,6 +1055,8 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
 
     auto layouts = WebgpuHelper::GetColorPipelineLayouts();
     MLG_CHECK(layouts);
+
+    size_t mtlConstantsOffset = 0;
 
     for(const auto& mtl : sceneData.Materials)
     {
@@ -1092,6 +1074,12 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
                 .binding = 1,
                 .sampler = sceneData.DefaultSampler,
             },
+            {
+                .binding = 2,
+                .buffer = sceneData.MaterialConstantsBuffer,
+                .offset = mtlConstantsOffset,
+                .size = alignedSizeofMtlConstants,
+            },
         };
 
         wgpu::BindGroupDescriptor bindGroupDesc //
@@ -1105,6 +1093,8 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
         wgpu::BindGroup materialBindGroup = wgpuDevice.CreateBindGroup(&bindGroupDesc);
 
         materialBindings.emplace_back(materialBindGroup);
+
+        mtlConstantsOffset += alignedSizeofMtlConstants;
     }
 
     sceneData.MaterialBindings = std::move(materialBindings);
@@ -1195,7 +1185,6 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
 
     const size_t sizeofDrawIndirectBuffer = meshCount * sizeof(DrawIndirectBufferParams);
     const size_t sizeofTransformIndexBuffer = meshCount * sizeof(uint32_t);
-    const size_t sizeofMtlIndexBuffer = meshCount * sizeof(uint32_t);
 
     sceneData.DrawIndirectBuffer = CreateGpuBuffer(wgpuDevice,
         wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
@@ -1207,11 +1196,6 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
         sizeofTransformIndexBuffer,
         "TransformIndexBuffer");
 
-    sceneData.MaterialIndexBuffer = CreateGpuBuffer(wgpuDevice,
-        wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
-        sizeofMtlIndexBuffer,
-        "MaterialIndexBuffer");
-
     void* diMapped = sceneData.DrawIndirectBuffer.GetMappedRange();
     MLG_CHECK(diMapped, "Failed to map DrawIndirectBuffer");
 
@@ -1222,14 +1206,8 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
 
     auto cleanupTransformIndex = scope_exit([&]() { sceneData.TransformIndexBuffer.Unmap(); });
 
-    void* materialIndexMapped = sceneData.MaterialIndexBuffer.GetMappedRange();
-    MLG_CHECK(materialIndexMapped, "Failed to map MaterialIndexBuffer");
-
-    auto cleanupMaterialIndex = scope_exit([&]() { sceneData.MaterialIndexBuffer.Unmap(); });
-
     DrawIndirectBufferParams* drawParams = reinterpret_cast<DrawIndirectBufferParams*>(diMapped);
     uint32_t* transformIndex = reinterpret_cast<uint32_t*>(transformIndexMapped);
-    uint32_t* materialIndex = reinterpret_cast<uint32_t*>(materialIndexMapped);
 
     uint32_t firstInstance = 0;
 
@@ -1247,7 +1225,6 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
             };
 
             *transformIndex++ = instance.TransformIndex;
-            *materialIndex++ = mesh.MaterialIndex;
             sceneData.MaterialIndices.push_back(mesh.MaterialIndex);
 
             ++firstInstance;
