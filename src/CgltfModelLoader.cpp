@@ -29,26 +29,25 @@ static constexpr int kNumTextureChannels = 4;
 
 namespace
 {
-// Attributes of a mesh within a model.
-// In GLTF lingo a mesh is called a "primitive"
-struct MeshAttributes
+struct CgltfPrimitiveAttributes
 {
-    // Name of the model that owns this primitive.
-    // In GLTF lingo this is the "mesh"
-    const std::string ModelName;
-
-    // The source primitive.
-    const cgltf_primitive* SrcPrim{ nullptr };
-
-    // Index of this primitive within the model
-    uint32_t IndexInModel{ 0 };
-
-    const cgltf_material* SrcMaterial{ nullptr };
     const cgltf_accessor* SrcIndices{ nullptr };
     const cgltf_accessor* SrcPosition{ nullptr };
     const cgltf_accessor* SrcNormal{ nullptr };
     const cgltf_accessor* SrcTexcoord0{ nullptr };
     const cgltf_accessor* SrcTexcoord1{ nullptr };
+};
+
+struct CgltfPrimitiveData
+{
+    const cgltf_primitive* Primitive;
+    CgltfPrimitiveAttributes Attributes;
+};
+
+struct CgltfMeshData
+{
+    const cgltf_mesh* Mesh;
+    std::vector<CgltfPrimitiveData> Primitives;
 };
 
 struct TextureBuilder
@@ -64,22 +63,30 @@ struct TextureBuilder
     std::atomic<bool> DecodeComplete{ false };
 };
 
-struct SceneData
+struct SceneKitData
 {
     std::vector<Vertex> Vertices;
     std::vector<VertexIndex> Indices;
     std::vector<MaterialData> Materials;
     std::vector<ModelData> Models;
+    std::vector<uint32_t> MaterialIndices;
     std::vector<ModelInstance> Instances;
     std::vector<TransformData> Transforms;
-    std::vector<uint32_t> MaterialIndices;
+};
 
-    std::map<const cgltf_mesh*, size_t> ModelMap;
+struct TextureCache
+{
+    std::map<std::string, wgpu::Texture> Textures;
 
+    wgpu::Sampler DefaultSampler;
+    wgpu::Texture DefaultTexture;
+};
+
+struct SceneData
+{
     wgpu::Buffer IndexBuffer;
     wgpu::Buffer VertexBuffer;
     wgpu::Buffer TransformBuffer;
-    wgpu::Buffer MaterialConstantsBuffer;
     wgpu::Buffer DrawIndirectBuffer;
     wgpu::Buffer TransformIndexBuffer;
 
@@ -87,12 +94,6 @@ struct SceneData
 
     wgpu::BindGroup ColorRenderBindGroup0;
     wgpu::BindGroup TransformBindGroup0;
-
-    std::map<std::string, wgpu::Texture> TextureDict;
-
-    wgpu::Sampler DefaultSampler;
-
-    wgpu::Texture DefaultTexture;
 };
 
 } // namespace
@@ -105,8 +106,8 @@ static T narrow_cast(U u)
     return t;
 }
 
-static Result<>
-CollectMeshAttributes(const cgltf_primitive& primitive, MeshAttributes& attrs)
+static Result<CgltfPrimitiveAttributes>
+CollectAttributes(const cgltf_primitive& primitive)
 {
     MLG_CHECK(primitive.type == cgltf_primitive_type_triangles,
         "Only triangle primitives are supported.");
@@ -119,6 +120,11 @@ CollectMeshAttributes(const cgltf_primitive& primitive, MeshAttributes& attrs)
 
     MLG_CHECK(!primitive.has_draco_mesh_compression,
         "Draco mesh compression is not supported. Ignoring.");
+
+    CgltfPrimitiveAttributes attrs //
+    {
+        .SrcIndices = primitive.indices,
+    };
 
     for(cgltf_size i = 0; i < primitive.attributes_count; ++i)
     {
@@ -182,11 +188,162 @@ CollectMeshAttributes(const cgltf_primitive& primitive, MeshAttributes& attrs)
         texcoord1Count,
         posCount);
 
+    return attrs;
+}
+
+static Result<>
+CollectMeshes(const cgltf_data* gltfData, std::vector<CgltfMeshData>& meshes)
+{
+    meshes.clear();
+
+    for(cgltf_size i = 0; i < gltfData->meshes_count; ++i)
+    {
+        const cgltf_mesh* mesh = &gltfData->meshes[i];
+
+        MLG_LOG_SCOPE("mesh {}/{}", mesh->name ? mesh->name : "<unnamed>", i);
+
+        CgltfMeshData meshData//
+        {
+            .Mesh = mesh,
+        };
+
+        for(cgltf_size j = 0; j < mesh->primitives_count; ++j)
+        {
+            MLG_LOG_SCOPE("prim {}", j);
+
+            const cgltf_primitive& prim = mesh->primitives[j];
+
+            if(!prim.material)
+            {
+                MLG_WARN("Primitive has no material.  Ignoring");
+                continue;
+            }
+
+            auto attrs = CollectAttributes(prim);
+
+            if(!attrs)
+            {
+                continue;
+            }
+
+            CgltfPrimitiveData primData //
+            {
+                .Primitive = &prim,
+                .Attributes = *attrs,
+            };
+
+            meshData.Primitives.emplace_back(std::move(primData));
+        }
+
+        meshes.emplace_back(std::move(meshData));
+    }
+
+    return Result<>::Ok;
+}
+
+static Result<MaterialData>
+CreateMaterialData(const cgltf_material* material)
+{
+    std::string baseTextureUri;
+    RgbaColorf color{"#FF00FFFF"_rgba};
+    float metalness = 0;
+    float roughness = 0;
+
+    if(material->has_pbr_metallic_roughness)
+    {
+        const cgltf_pbr_metallic_roughness& pbr = material->pbr_metallic_roughness;
+        color = RgbaColorf //
+            {
+                pbr.base_color_factor[0],
+                pbr.base_color_factor[1],
+                pbr.base_color_factor[2],
+                pbr.base_color_factor[3],
+            };
+        metalness = pbr.metallic_factor;
+        roughness = pbr.roughness_factor;
+
+        if(!pbr.base_color_texture.texture)
+        {
+            MLG_WARN("Primitive has no base color texture");
+        }
+        else if(!pbr.base_color_texture.texture->image)
+        {
+            MLG_WARN("Primitive has no base color texture image");
+        }
+        else if(!pbr.base_color_texture.texture->image->uri)
+        {
+            MLG_WARN("Primitive has no base color texture image URI");
+        }
+        else
+        {
+            baseTextureUri = pbr.base_color_texture.texture->image->uri;
+        }
+    }
+    else
+    {
+        MLG_WARN("Primitive has no PBR metallic-roughness material");
+    }
+
+    MaterialData materialData //
+    {
+        .BaseTextureUri = baseTextureUri,
+        .Color = color,
+        .Metalness = metalness,
+        .Roughness = roughness,
+    };
+
+    return std::move(materialData);
+}
+
+static Result<>
+CollectMaterials(const std::vector<CgltfMeshData>& meshes,
+    std::vector<MaterialData>& materials,
+    std::vector<uint32_t>& materialIndices)
+{
+    materials.clear();
+    materialIndices.clear();
+    std::map<const cgltf_material*, size_t> materialMap;
+
+    for(size_t i = 0; i < meshes.size(); ++i)
+    {
+        const auto& mesh = meshes[i];
+
+        MLG_LOG_SCOPE("mesh {}/{}", mesh.Mesh->name ? mesh.Mesh->name : "<unnamed>", i);
+
+        for(size_t j = 0; j < mesh.Primitives.size(); ++j)
+        {
+            MLG_LOG_SCOPE("prim {}", j);
+
+            const auto& primData = mesh.Primitives[j];
+
+            const cgltf_primitive& prim = *primData.Primitive;
+
+            size_t materialIndex;
+
+            if(materialMap.contains(prim.material))
+            {
+                materialIndex = materialMap[prim.material];
+            }
+            else
+            {
+                auto mtlData = CreateMaterialData(prim.material);
+                MLG_CHECK(mtlData);
+
+                materialIndex = materials.size();
+                materials.emplace_back(std::move(*mtlData));
+            }
+
+            materialMap[prim.material] = materialIndex;
+
+            materialIndices.push_back(narrow_cast<uint32_t>(materialIndex));
+        }
+    }
+
     return Result<>::Ok;
 }
 
 static Result<size_t>
-CollectVertices(const MeshAttributes& attrs, std::vector<Vertex>& vertices)
+CollectVertices(const CgltfPrimitiveAttributes& attrs, std::vector<Vertex>& vertices)
 {
     // GLTF uses a rignt handed coordinate system.  +Y up, +Z forward, -X right.
     // We use left handed.  +Y up, +Z forward, +X right.
@@ -237,7 +394,7 @@ CollectVertices(const MeshAttributes& attrs, std::vector<Vertex>& vertices)
 }
 
 static Result<size_t>
-CollectIndices(const MeshAttributes& attrs, std::vector<VertexIndex>& indices)
+CollectIndices(const CgltfPrimitiveAttributes& attrs, std::vector<VertexIndex>& indices)
 {
     const size_t startIndex = indices.size();
 
@@ -283,27 +440,15 @@ CollectIndices(const MeshAttributes& attrs, std::vector<VertexIndex>& indices)
 }
 
 static Result<>
-GenerateNormals(const MeshAttributes& meshAttrs, Vertex* vertices, const VertexIndex* indices)
+GenerateNormals(
+    Vertex* vertices, const size_t vertexCount, const VertexIndex* indices, const size_t indexCount)
 {
-    if(meshAttrs.SrcNormal)
-    {
-        // Already has normals, skip generating them.
-
-        return Result<>::Ok;
-    }
-
-    MLG_LOG_SCOPE("model {}", meshAttrs.ModelName);
-    MLG_LOG_SCOPE("prim {}", meshAttrs.IndexInModel);
-
-    const size_t idxCount =
-        meshAttrs.SrcIndices ? meshAttrs.SrcIndices->count : meshAttrs.SrcPosition->count;
-
-    for(size_t i = 0; i < meshAttrs.SrcPosition->count; ++i)
+    for(size_t i = 0; i < vertexCount; ++i)
     {
         vertices[i].normal = { 0.0f, 0.0f, 0.0f };
     }
 
-    for(size_t i = 0; i < idxCount; i += 3)
+    for(size_t i = 0; i < indexCount; i += 3)
     {
         MLG_LOG_SCOPE("tri {}", i / 3);
 
@@ -320,7 +465,7 @@ GenerateNormals(const MeshAttributes& meshAttrs, Vertex* vertices, const VertexI
         v2.normal += normal2;
     }
 
-    for(size_t i = 0; i < meshAttrs.SrcPosition->count; ++i)
+    for(size_t i = 0; i < vertexCount; ++i)
     {
         vertices[i].normal = vertices[i].normal.Normalize();
     }
@@ -329,128 +474,59 @@ GenerateNormals(const MeshAttributes& meshAttrs, Vertex* vertices, const VertexI
 }
 
 static Result<>
-CollectModels(const cgltf_data* gltfData, SceneData& sceneData)
+CollectModels(const cgltf_data* gltfData,
+    SceneKitData& sceneKitData,
+    std::map<const cgltf_mesh*, size_t>& modelIndices)
 {
+    modelIndices.clear();
+
+    std::vector<CgltfMeshData> meshes;
+    MLG_CHECK(CollectMeshes(gltfData, meshes));
+
+    std::vector<MaterialData> materials;
+    std::vector<uint32_t> materialIndices;
+    MLG_CHECK(CollectMaterials(meshes, materials, materialIndices));
+
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
-    std::vector<MaterialData> materials;
-    std::map<const cgltf_material*, size_t> materialMap;
-    std::map<const cgltf_mesh*, size_t> modelMap;
     std::vector<ModelData> models;
+    std::map<const cgltf_material*, size_t> materialMap;
 
     uint32_t firstIndex = 0;
     uint32_t baseVertex = 0;
 
-    for(cgltf_size i = 0; i < gltfData->meshes_count; ++i)
+    for(size_t i = 0; i < meshes.size(); ++i)
     {
-        const cgltf_mesh* mesh = &gltfData->meshes[i];
+        const auto& mesh = meshes[i];
 
-        MLG_LOG_SCOPE("model {}/{}", mesh->name ? mesh->name : "<unnamed>", i);
+        MLG_LOG_SCOPE("mesh {}/{}", mesh.Mesh->name ? mesh.Mesh->name : "<unnamed>", i);
 
         ModelData model;
 
-        for(cgltf_size j = 0; j < mesh->primitives_count; ++j)
+        for(size_t j = 0; j < mesh.Primitives.size(); ++j)
         {
             MLG_LOG_SCOPE("prim {}", j);
+            const auto& primData = mesh.Primitives[j];
 
-            const cgltf_primitive* prim = &mesh->primitives[j];
-
-            if(!prim->material)
-            {
-                MLG_WARN("Primitive has no material.  Ignoring");
-                continue;
-            }
-
-            MeshAttributes attrs //
-            {
-                .ModelName = mesh->name ? mesh->name : "<unnamed>",
-                .SrcPrim = prim,
-                .IndexInModel = narrow_cast<uint32_t>(j),
-                .SrcMaterial = prim->material,
-                .SrcIndices = prim->indices,
-            };
-
-            if(!CollectMeshAttributes(*prim, attrs))
-            {
-                continue;
-            }
-
-            auto vertexCount = CollectVertices(attrs, vertices);
+            auto vertexCount = CollectVertices(primData.Attributes, vertices);
             MLG_CHECK(vertexCount);
 
-            auto indexCount = CollectIndices(attrs, indices);
+            auto indexCount = CollectIndices(primData.Attributes, indices);
             MLG_CHECK(indexCount);
 
-            GenerateNormals(attrs, vertices.data() + baseVertex, indices.data() + firstIndex);
-
-            size_t materialIndex;
-
-            if(materialMap.contains(prim->material))
+            if(!primData.Attributes.SrcNormal)
             {
-                materialIndex = materialMap[prim->material];
+                GenerateNormals(vertices.data() + baseVertex,
+                    *vertexCount,
+                    indices.data() + firstIndex,
+                    *indexCount);
             }
-            else
-            {
-                std::string baseTextureUri;
-                RgbaColorf color{"#FF00FFFF"_rgba};
-                float metalness = 0;
-                float roughness = 0;
-
-                if(prim->material->has_pbr_metallic_roughness)
-                {
-                    const cgltf_pbr_metallic_roughness& pbr =
-                        prim->material->pbr_metallic_roughness;
-                    color = RgbaColorf //
-                        {
-                            pbr.base_color_factor[0],
-                            pbr.base_color_factor[1],
-                            pbr.base_color_factor[2],
-                            pbr.base_color_factor[3],
-                        };
-                    metalness = pbr.metallic_factor;
-                    roughness = pbr.roughness_factor;
-
-                    if(!pbr.base_color_texture.texture)
-                    {
-                        MLG_WARN("Primitive has no base color texture");
-                    }
-                    else if(!pbr.base_color_texture.texture->image)
-                    {
-                        MLG_WARN("Primitive has no base color texture image");
-                    }
-                    else if(!pbr.base_color_texture.texture->image->uri)
-                    {
-                        MLG_WARN("Primitive has no base color texture image URI");
-                    }
-                    else
-                    {
-                        baseTextureUri = pbr.base_color_texture.texture->image->uri;
-                    }
-                }
-                else
-                {
-                    MLG_WARN("Primitive has no PBR metallic-roughness material");
-                }
-
-                MaterialData materialData //
-                    {
-                        .BaseTextureUri = baseTextureUri,
-                        .Color = color,
-                        .Metalness = metalness,
-                        .Roughness = roughness,
-                    };
-                materialIndex = materials.size();
-                materials.push_back(materialData);
-            }
-
-            materialMap[prim->material] = materialIndex;
 
             MeshData meshData //
             {
                 .FirstIndex = narrow_cast<uint32_t>(firstIndex),
                 .BaseVertex = narrow_cast<uint32_t>(baseVertex),
                 .IndexCount = narrow_cast<uint32_t>(*indexCount),
-                .MaterialIndex = narrow_cast<uint32_t>(materialIndex),
             };
 
             model.Meshes.push_back(meshData);
@@ -459,15 +535,15 @@ CollectModels(const cgltf_data* gltfData, SceneData& sceneData)
             baseVertex += narrow_cast<uint32_t>(*vertexCount);
         }
 
-        modelMap[mesh] = models.size();
+        modelIndices[mesh.Mesh] = models.size();
         models.push_back(std::move(model));
     }
 
-    sceneData.Vertices = std::move(vertices);
-    sceneData.Indices = std::move(indices);
-    sceneData.Materials = std::move(materials);
-    sceneData.Models = std::move(models);
-    sceneData.ModelMap = std::move(modelMap);
+    sceneKitData.Vertices = std::move(vertices);
+    sceneKitData.Indices = std::move(indices);
+    sceneKitData.Materials = std::move(materials);
+    sceneKitData.Models = std::move(models);
+    sceneKitData.MaterialIndices = std::move(materialIndices);
 
     return Result<>::Ok;
 }
@@ -487,14 +563,15 @@ ConvertRHtoLH(Mat44f& M)
     M.m[3].x = -M.m[3].x;
 }
 
-// Collect nodes.
 static Result<size_t>
 CollectTransforms(cgltf_node** const childNodes,
     const cgltf_size nodeCount,
     const uint32_t parentIndex,
-    SceneData& sceneData)
+    std::vector<TransformData>& transforms,
+    std::vector<ModelInstance>& instances,
+    const std::map<const cgltf_mesh*, size_t>& modelIndices)
 {
-    const size_t numTransforms = sceneData.Transforms.size();
+    const size_t numTransforms = transforms.size();
 
     for(cgltf_size i = 0; i < nodeCount; ++i)
     {
@@ -502,7 +579,7 @@ CollectTransforms(cgltf_node** const childNodes,
 
         MLG_LOG_SCOPE("node {}", srcNode->name ? srcNode->name : "<unnamed>");
 
-        const uint32_t transformIndex = narrow_cast<uint32_t>(sceneData.Transforms.size());
+        const uint32_t transformIndex = narrow_cast<uint32_t>(transforms.size());
 
         TransformData transformData //
         {
@@ -536,23 +613,25 @@ CollectTransforms(cgltf_node** const childNodes,
             transformData.Transform = trs.ToMatrix();
         }
 
-        sceneData.Transforms.emplace_back(transformData);
+        transforms.emplace_back(std::move(transformData));
 
         auto countResult = CollectTransforms(srcNode->children,
             srcNode->children_count,
             transformIndex,
-            sceneData);
+            transforms,
+            instances,
+            modelIndices);
 
         if(!countResult)
         {
             // Something went wrong. Erase the transform we added.
-            sceneData.Transforms.resize(transformIndex);
+            transforms.resize(transformIndex);
         }
         else if(*countResult == 0 && !srcNode->mesh)
         {
             // No child transforms were added and there's no mesh
             // at this node.  Erase the transform we added.
-            sceneData.Transforms.resize(transformIndex);
+            transforms.resize(transformIndex);
 
             // Node has no mesh and no descendents with meshes, skip it
             // This could be a procedurally generated mesh, e.g. the leaves of a tree.
@@ -597,7 +676,7 @@ CollectTransforms(cgltf_node** const childNodes,
             // No mesh so no instance to add.
             continue;
         }
-        else if(!sceneData.ModelMap.contains(srcNode->mesh))
+        else if(!modelIndices.contains(srcNode->mesh))
         {
             // This mesh was rejected during the model collection phase.
             // No instance to add.
@@ -607,15 +686,15 @@ CollectTransforms(cgltf_node** const childNodes,
         {
             ModelInstance instance //
             {
-                .ModelIndex = narrow_cast<uint32_t>(sceneData.ModelMap[srcNode->mesh]),
+                .ModelIndex = narrow_cast<uint32_t>(modelIndices.at(srcNode->mesh)),
                 .TransformIndex = narrow_cast<uint32_t>(transformIndex),
             };
 
-            sceneData.Instances.push_back(instance);
+            instances.push_back(instance);
         }
     }
 
-    const size_t numAdded = sceneData.Transforms.size() - numTransforms;
+    const size_t numAdded = transforms.size() - numTransforms;
 
     return numAdded;
 }
@@ -790,19 +869,30 @@ CommitTexture(TextureBuilder& builder, wgpu::CommandEncoder encoder)
 }
 
 static Result<>
-FetchTextures(wgpu::Device wgpuDevice, std::filesystem::path basePath, SceneData& sceneData)
+FetchTextures(wgpu::Device wgpuDevice,
+    std::filesystem::path basePath,
+    std::span<const MaterialData> materials,
+    TextureCache& textureCache)
 {
     std::map<std::string, FileFetcher::Request> fetchRequests;
 
-    for(const auto& mtl : sceneData.Materials)
+    for(const auto& mtl : materials)
     {
         if(mtl.BaseTextureUri.empty())
         {
+            // No base texture for this material, skip it.
             continue;
         }
 
         if(fetchRequests.contains(mtl.BaseTextureUri))
         {
+            // We've already issued a fetch for this texture, skip it.
+            continue;
+        }
+
+        if(textureCache.Textures.contains(mtl.BaseTextureUri))
+        {
+            // We've already loaded this texture, skip it.
             continue;
         }
 
@@ -879,20 +969,16 @@ FetchTextures(wgpu::Device wgpuDevice, std::filesystem::path basePath, SceneData
     // TODO - change API to separate creating a resource from populating it
     wgpuDevice.GetQueue().Submit(1, &commandBuffer);
 
-    std::map<std::string, wgpu::Texture> textureDict;
-
     for(auto& [uri, builder] : textureBuilders)
     {
-        textureDict[uri] = builder.Texture;
+        textureCache.Textures[uri] = builder.Texture;
     }
-
-    sceneData.TextureDict = std::move(textureDict);
 
     return Result<>::Ok;
 }
 
 static Result<>
-CreateMaterialDefaults(wgpu::Device wgpuDevice, SceneData& sceneData)
+CreateMaterialDefaults(wgpu::Device wgpuDevice, TextureCache& textureCache)
 {
     constexpr uint32_t kDefaultTextureWidth = 128;
     constexpr uint32_t kDefaultTextureHeight = 128;
@@ -930,8 +1016,8 @@ CreateMaterialDefaults(wgpu::Device wgpuDevice, SceneData& sceneData)
 
     wgpu::Sampler defaultSampler = wgpuDevice.CreateSampler(&samplerDesc);
 
-    sceneData.DefaultTexture = defaultTexture;
-    sceneData.DefaultSampler = defaultSampler;
+    textureCache.DefaultTexture = defaultTexture;
+    textureCache.DefaultSampler = defaultSampler;
 
     return Result<>::Ok;
 }
@@ -1018,14 +1104,15 @@ CreateGpuBuffer(wgpu::Device device, wgpu::BufferUsage usage, const size_t size,
 }
 
 static Result<>
-BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
+BuildMaterials(wgpu::Device wgpuDevice,
+    std::span<MaterialData> materials,
+    const TextureCache& textureCache,
+    SceneData& sceneData)
 {
-    MLG_CHECK(CreateMaterialDefaults(wgpuDevice, sceneData));
-
     std::vector<MaterialBinding> materialBindings;
 
     const size_t alignedSizeofMtlConstants = WebgpuHelper::AlignUniformBuffer<MaterialConstants>();
-    const size_t sizeofMtlConstantsBuffer = sceneData.Materials.size() * alignedSizeofMtlConstants;
+    const size_t sizeofMtlConstantsBuffer = materials.size() * alignedSizeofMtlConstants;
 
     wgpu::Buffer materialConstantsBuffer = CreateGpuBuffer(wgpuDevice,
         wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
@@ -1037,7 +1124,7 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
 
     uint8_t* dst = reinterpret_cast<uint8_t*>(mappedRange);
 
-    for(const auto& mtl : sceneData.Materials)
+    for(const auto& mtl : materials)
     {
         ::new (dst) MaterialConstants //
             {
@@ -1051,18 +1138,16 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
 
     materialConstantsBuffer.Unmap();
 
-    sceneData.MaterialConstantsBuffer = materialConstantsBuffer;
-
     auto layouts = WebgpuHelper::GetColorPipelineLayouts();
     MLG_CHECK(layouts);
 
     size_t mtlConstantsOffset = 0;
 
-    for(const auto& mtl : sceneData.Materials)
+    for(const auto& mtl : materials)
     {
         wgpu::Texture baseTexture = mtl.BaseTextureUri.empty()
-                                        ? sceneData.DefaultTexture
-                                        : sceneData.TextureDict[mtl.BaseTextureUri];
+                                        ? textureCache.DefaultTexture
+                                        : textureCache.Textures.at(mtl.BaseTextureUri);
 
         wgpu::BindGroupEntry bgEntries[]//
         {
@@ -1072,11 +1157,11 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
             },
             {
                 .binding = 1,
-                .sampler = sceneData.DefaultSampler,
+                .sampler = textureCache.DefaultSampler,
             },
             {
                 .binding = 2,
-                .buffer = sceneData.MaterialConstantsBuffer,
+                .buffer = materialConstantsBuffer,
                 .offset = mtlConstantsOffset,
                 .size = alignedSizeofMtlConstants,
             },
@@ -1092,7 +1177,7 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
 
         wgpu::BindGroup materialBindGroup = wgpuDevice.CreateBindGroup(&bindGroupDesc);
 
-        materialBindings.emplace_back(materialBindGroup);
+        materialBindings.emplace_back(std::move(materialBindGroup));
 
         mtlConstantsOffset += alignedSizeofMtlConstants;
     }
@@ -1103,9 +1188,9 @@ BuildMaterials(wgpu::Device wgpuDevice, SceneData& sceneData)
 }
 
 static Result<>
-BuildVertexBuffer(wgpu::Device wgpuDevice, SceneData& sceneData)
+BuildVertexBuffer(wgpu::Device wgpuDevice, std::span<Vertex> vertices, SceneData& sceneData)
 {
-    const size_t sizeofBuffer = sceneData.Vertices.size() * sizeof(Vertex);
+    const size_t sizeofBuffer = vertices.size() * sizeof(Vertex);
     wgpu::Buffer vertexBuffer = CreateGpuBuffer(wgpuDevice,
         wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst,
         sizeofBuffer,
@@ -1114,7 +1199,7 @@ BuildVertexBuffer(wgpu::Device wgpuDevice, SceneData& sceneData)
     void* vbMapped = vertexBuffer.GetMappedRange();
     MLG_CHECK(vbMapped, "Failed to map VertexBuffer");
 
-    ::memcpy(vbMapped, sceneData.Vertices.data(), sizeofBuffer);
+    ::memcpy(vbMapped, vertices.data(), sizeofBuffer);
 
     vertexBuffer.Unmap();
 
@@ -1124,9 +1209,9 @@ BuildVertexBuffer(wgpu::Device wgpuDevice, SceneData& sceneData)
 }
 
 static Result<>
-BuildIndexBuffer(wgpu::Device wgpuDevice, SceneData& sceneData)
+BuildIndexBuffer(wgpu::Device wgpuDevice, std::span<VertexIndex> indices, SceneData& sceneData)
 {
-    const size_t sizeofBuffer = sceneData.Indices.size() * sizeof(VertexIndex);
+    const size_t sizeofBuffer = indices.size() * sizeof(VertexIndex);
     wgpu::Buffer indexBuffer = CreateGpuBuffer(wgpuDevice,
         wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst,
         sizeofBuffer,
@@ -1135,7 +1220,7 @@ BuildIndexBuffer(wgpu::Device wgpuDevice, SceneData& sceneData)
     void* ibMapped = indexBuffer.GetMappedRange();
     MLG_CHECK(ibMapped, "Failed to map IndexBuffer");
 
-    ::memcpy(ibMapped, sceneData.Indices.data(), sizeofBuffer);
+    ::memcpy(ibMapped, indices.data(), sizeofBuffer);
 
     indexBuffer.Unmap();
 
@@ -1145,9 +1230,9 @@ BuildIndexBuffer(wgpu::Device wgpuDevice, SceneData& sceneData)
 }
 
 static Result<>
-BuildTransformBuffer(wgpu::Device wgpuDevice, SceneData& sceneData)
+BuildTransformBuffer(wgpu::Device wgpuDevice, std::span<TransformData> transforms, SceneData& sceneData)
 {
-    const size_t sizeofBuffer = sceneData.Transforms.size() * sizeof(Mat44f);
+    const size_t sizeofBuffer = transforms.size() * sizeof(Mat44f);
 
     wgpu::Buffer transformBuffer = CreateGpuBuffer(wgpuDevice,
         wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
@@ -1159,7 +1244,7 @@ BuildTransformBuffer(wgpu::Device wgpuDevice, SceneData& sceneData)
 
     Mat44f* dst = reinterpret_cast<Mat44f*>(mappedRange);
 
-    for(const TransformData& transform : sceneData.Transforms)
+    for(const TransformData& transform : transforms)
     {
         *dst++ = transform.Transform;
     }
@@ -1172,19 +1257,17 @@ BuildTransformBuffer(wgpu::Device wgpuDevice, SceneData& sceneData)
 }
 
 static Result<>
-BuildDrawBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
+BuildDrawBuffers(wgpu::Device wgpuDevice, const SceneKitData& sceneKitData, SceneData& sceneData)
 {
-    size_t meshCount = 0;
-    for(const auto& instance : sceneData.Instances)
+    size_t meshInstanceCount = 0;
+    for(const auto& instance : sceneKitData.Instances)
     {
-        const auto& model = sceneData.Models[instance.ModelIndex];
-        meshCount += model.Meshes.size();
+        const auto& model = sceneKitData.Models[instance.ModelIndex];
+        meshInstanceCount += model.Meshes.size();
     }
 
-    sceneData.MaterialIndices.reserve(meshCount);
-
-    const size_t sizeofDrawIndirectBuffer = meshCount * sizeof(DrawIndirectBufferParams);
-    const size_t sizeofTransformIndexBuffer = meshCount * sizeof(uint32_t);
+    const size_t sizeofDrawIndirectBuffer = meshInstanceCount * sizeof(DrawIndirectBufferParams);
+    const size_t sizeofTransformIndexBuffer = meshInstanceCount * sizeof(uint32_t);
 
     sceneData.DrawIndirectBuffer = CreateGpuBuffer(wgpuDevice,
         wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
@@ -1211,9 +1294,9 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
 
     uint32_t firstInstance = 0;
 
-    for(const auto& instance : sceneData.Instances)
+    for(const auto& instance : sceneKitData.Instances)
     {
-        for(const auto& mesh : sceneData.Models[instance.ModelIndex].Meshes)
+        for(const auto& mesh : sceneKitData.Models[instance.ModelIndex].Meshes)
         {
             *drawParams++ = //
             {
@@ -1225,8 +1308,6 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, SceneData& sceneData)
             };
 
             *transformIndex++ = instance.TransformIndex;
-            sceneData.MaterialIndices.push_back(mesh.MaterialIndex);
-
             ++firstInstance;
         }
     }
@@ -1260,33 +1341,41 @@ CgltfModelLoader::LoadSceneKit(wgpu::Device& wgpuDevice, const std::string& path
     cgltf_result loadBuffersResult = cgltf_load_buffers(&options, data, filePath.string().c_str());
     MLG_CHECK(loadBuffersResult == cgltf_result_success, "Failed to load buffers");
 
+    SceneKitData sceneKitData;
     SceneData sceneData;
+    TextureCache textureCache;
+    std::map<const cgltf_mesh*, size_t> modelIndices;
 
-    MLG_CHECK(CollectModels(data, sceneData));
+    MLG_CHECK(CollectModels(data, sceneKitData, modelIndices));
+
     MLG_CHECK(CollectTransforms(data->scenes[0].nodes,
         data->scenes[0].nodes_count,
         TransformData::kInvalidParentIndex,
-        sceneData));
+        sceneKitData.Transforms,
+        sceneKitData.Instances,
+        modelIndices));
 
     // Convert local transforms to world space.
-    for(auto& transform : sceneData.Transforms)
+    for(auto& transform : sceneKitData.Transforms)
     {
         if(transform.ParentIndex != TransformData::kInvalidParentIndex)
         {
-            const Mat44f& parent = sceneData.Transforms[transform.ParentIndex].Transform;
+            const Mat44f& parent = sceneKitData.Transforms[transform.ParentIndex].Transform;
             transform.Transform = parent * transform.Transform;
         }
     }
 
-    MLG_CHECK(FetchTextures(wgpuDevice, filePath.parent_path(), sceneData));
+    MLG_CHECK(FetchTextures(wgpuDevice, filePath.parent_path(), sceneKitData.Materials, textureCache));
 
-    MLG_CHECK(BuildVertexBuffer(wgpuDevice, sceneData));
-    MLG_CHECK(BuildIndexBuffer(wgpuDevice, sceneData));
+    MLG_CHECK(BuildVertexBuffer(wgpuDevice, sceneKitData.Vertices, sceneData));
+    MLG_CHECK(BuildIndexBuffer(wgpuDevice, sceneKitData.Indices, sceneData));
 
-    MLG_CHECK(BuildTransformBuffer(wgpuDevice, sceneData));
-    MLG_CHECK(BuildDrawBuffers(wgpuDevice, sceneData));
+    MLG_CHECK(BuildTransformBuffer(wgpuDevice, sceneKitData.Transforms, sceneData));
+    MLG_CHECK(BuildDrawBuffers(wgpuDevice, sceneKitData, sceneData));
 
-    MLG_CHECK(BuildMaterials(wgpuDevice, sceneData));
+    MLG_CHECK(CreateMaterialDefaults(wgpuDevice, textureCache));
+
+    MLG_CHECK(BuildMaterials(wgpuDevice, sceneKitData.Materials, textureCache, sceneData));
 
     MLG_CHECK(CreateBindGroups(wgpuDevice, sceneData));
 
@@ -1301,7 +1390,7 @@ CgltfModelLoader::LoadSceneKit(wgpu::Device& wgpuDevice, const std::string& path
         sceneData.ColorRenderBindGroup0,
         sceneData.TransformBindGroup0,
         std::move(sceneData.MaterialBindings),
-        std::move(sceneData.MaterialIndices));
+        std::move(sceneKitData.MaterialIndices));
 
     return sceneKit;
 }

@@ -27,7 +27,6 @@ struct MeshData
     uint32_t FirstIndex;
     uint32_t BaseVertex;
     uint32_t IndexCount;
-    uint32_t MaterialIndex;
 };
 
 struct ModelData
