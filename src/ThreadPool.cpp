@@ -12,10 +12,13 @@
 
 // Mutex to protect access to the job queue.
 static std::mutex s_Mutex;
+
 // Mutex to protect job allocation/freeing.
 static std::mutex s_AllocMutex;
+
 // Condition variable to notify worker threads of new jobs.
 static std::condition_variable s_Cv;
+
 // Head and tail of the job queue.  Implements a FIFO queue of jobs.
 ThreadPool::Job *ThreadPool::s_JobQueueHead{ nullptr };
 ThreadPool::Job *ThreadPool::s_JobQueueTail{ nullptr };
@@ -97,6 +100,28 @@ ThreadPool::Shutdown()
 
         DeleteJob(job);
     }
+}
+
+bool
+ThreadPool::Enqueue(void (*jobFunc)(void*), void* userData)
+{
+    Job *job = NewJob();
+
+    if(!MLG_VERIFY(job, "Failed to allocate job for ThreadPool.  Max jobs: {}", kMaxJobs))
+    {
+        return false;
+    }
+
+    job->m_JobFunc = jobFunc;
+    job->m_UserData = userData;
+
+    if(!Enqueue(job))
+    {
+        DeleteJob(job);
+        return false;
+    }
+
+    return true;
 }
 
 ThreadPool::Job *

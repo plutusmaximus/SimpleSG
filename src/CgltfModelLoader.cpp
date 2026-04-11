@@ -784,15 +784,16 @@ StageTexture(wgpu::Device wgpuDevice, TextureBuilder& builder)
     builder.StagingBuffer = *stagingBuffer;
     builder.MappedMemory = mappedMemory;
 
-    auto decode = [&builder]()
+    auto decode = [](void* userData)
     {
-        MLG_LOG_SCOPE(builder.Uri);
+        auto builder = reinterpret_cast<TextureBuilder*>(userData);
+        MLG_LOG_SCOPE(builder->Uri);
 
         MLG_DEBUG("Decoding...");
 
         int width, height, numChannels;
-        stbi_uc* data = stbi_load_from_memory(builder.Request->Data.data(),
-            narrow_cast<int>(builder.Request->Data.size()),
+        stbi_uc* data = stbi_load_from_memory(builder->Request->Data.data(),
+            narrow_cast<int>(builder->Request->Data.size()),
             &width,
             &height,
             &numChannels,
@@ -804,7 +805,7 @@ StageTexture(wgpu::Device wgpuDevice, TextureBuilder& builder)
         }
         else
         {
-            uint8_t* dst = (uint8_t*)builder.MappedMemory;
+            uint8_t* dst = (uint8_t*)builder->MappedMemory;
             const uint8_t* src = data;
             const uint32_t rowStride = width * kNumTextureChannels;
             const uint32_t alignedRowStride = (rowStride + 255) & ~255;
@@ -816,10 +817,10 @@ StageTexture(wgpu::Device wgpuDevice, TextureBuilder& builder)
             stbi_image_free(data);
         }
 
-        builder.DecodeComplete = true;
+        builder->DecodeComplete = true;
     };
 
-    ThreadPool::Enqueue(decode);
+    ThreadPool::Enqueue(decode, &builder);
 
     return Result<>::Ok;
 }

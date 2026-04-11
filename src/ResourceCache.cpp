@@ -930,14 +930,15 @@ ResourceCache::CreateTextureOp::Update()
 
             m_FetchData = std::move(*fetchResult);
 
-            auto job = [this]()
+            auto job = [](void* userData)
             {
-                m_DecodeImageResult = DecodeImage();
+                auto op = reinterpret_cast<ResourceCache::CreateTextureOp*>(userData);
+                op->m_DecodeImageResult = op->DecodeImage();
 
-                m_DecodeImageComplete.store(true, std::memory_order_release);
+                op->m_DecodeImageComplete.store(true, std::memory_order_release);
             };
 
-            ThreadPool::Enqueue(job);
+            ThreadPool::Enqueue(job, this);
 
             m_State = DecodingImage;
 
