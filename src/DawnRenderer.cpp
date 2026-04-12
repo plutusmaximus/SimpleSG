@@ -159,29 +159,30 @@ DawnRenderer::Render(const Mat44f& camera,
     uint64_t indirectOffset = 0;
 
     const auto& materialBindGroups = dawnSceneKit.GetMaterialBindGroups();
-    const auto& materialIndices = dawnSceneKit.GetMaterialIndices();
-    const size_t meshCount = dawnSceneKit.GetMeshCount();
+    const auto& meshes = dawnSceneKit.GetMeshInstances();
+    const size_t meshCount = meshes.size();
     const auto& drawIndirectBuffer = dawnSceneKit.GetDrawIndirectBuffer();
+
+    uint32_t lastMaterialIndex = UINT32_MAX;
 
     for(size_t i = 0; i < meshCount; ++i, indirectOffset += sizeof(DrawIndirectBufferParams))
     {
-        static PerfTimer fsBindingTimer("Renderer.Render.Draw.SetMaterialBindGroup");
+        const uint32_t materialIndex = meshes[i].MaterialIndex;
+
+        if(materialIndex != lastMaterialIndex)
         {
-            auto scopedTimer = fsBindingTimer.StartScoped();
+            static PerfTimer fsBindingTimer("Renderer.Render.Draw.SetMaterialBindGroup");
+            {
+                auto scopedTimer = fsBindingTimer.StartScoped();
 
-            const uint32_t materialIndex = materialIndices[i];
-
-            renderPass.SetBindGroup(2, materialBindGroups[materialIndex], 0, nullptr);
+                renderPass.SetBindGroup(2, materialBindGroups[materialIndex], 0, nullptr);
+                lastMaterialIndex = materialIndex;
+            }
         }
 
         static PerfTimer drawIndexedTimer("Renderer.Render.Draw.DrawIndexed");
         {
             auto scopedTimer = drawIndexedTimer.StartScoped();
-            /*renderPass.DrawIndexed(mesh.GetIndexCount(),
-                1,
-                mesh.GetIndexOffset(),
-                mesh.GetVertexOffset(),
-                meshCount);*/
 
             renderPass.DrawIndexedIndirect(drawIndirectBuffer, indirectOffset);
         }

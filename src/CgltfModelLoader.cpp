@@ -65,8 +65,8 @@ struct SceneKitData
     std::vector<Vertex> Vertices;
     std::vector<VertexIndex> Indices;
     std::vector<MaterialData> Materials;
+    std::vector<MeshData> Meshes;
     std::vector<ModelData> Models;
-    std::vector<MaterialIndex> MaterialIndices;
     std::vector<ModelInstanceData> ModelInstances;
     std::vector<TransformData> Transforms;
 };
@@ -193,9 +193,9 @@ CollectAttributes(const cgltf_primitive& primitive)
 }
 
 static Result<>
-CollectMeshes(const cgltf_data* gltfData, std::vector<CgltfMeshData>& meshes)
+CollectMeshes(const cgltf_data* gltfData, std::vector<CgltfMeshData>& gltfMeshes)
 {
-    meshes.clear();
+    gltfMeshes.clear();
 
     for(cgltf_size i = 0; i < gltfData->meshes_count; ++i)
     {
@@ -236,23 +236,23 @@ CollectMeshes(const cgltf_data* gltfData, std::vector<CgltfMeshData>& meshes)
             meshData.Primitives.emplace_back(std::move(primData));
         }
 
-        meshes.emplace_back(std::move(meshData));
+        gltfMeshes.emplace_back(std::move(meshData));
     }
 
     return Result<>::Ok;
 }
 
 static Result<MaterialData>
-CreateMaterialData(const cgltf_material* material)
+CreateMaterialData(const cgltf_material* gltfMaterial)
 {
     std::string baseTextureUri;
     RgbaColorf color{"#FF00FFFF"_rgba};
     float metalness = 0;
     float roughness = 0;
 
-    if(material->has_pbr_metallic_roughness)
+    if(gltfMaterial->has_pbr_metallic_roughness)
     {
-        const cgltf_pbr_metallic_roughness& pbr = material->pbr_metallic_roughness;
+        const cgltf_pbr_metallic_roughness& pbr = gltfMaterial->pbr_metallic_roughness;
         color = RgbaColorf //
             {
                 pbr.base_color_factor[0],
@@ -294,53 +294,6 @@ CreateMaterialData(const cgltf_material* material)
     };
 
     return std::move(materialData);
-}
-
-static Result<>
-CollectMaterials(const std::vector<CgltfMeshData>& meshes,
-    std::vector<MaterialData>& materials,
-    std::vector<MaterialIndex>& materialIndices)
-{
-    materials.clear();
-    materialIndices.clear();
-    std::map<const cgltf_material*, size_t> materialMap;
-
-    for(size_t i = 0; i < meshes.size(); ++i)
-    {
-        const auto& mesh = meshes[i];
-
-        MLG_LOG_SCOPE("mesh {}/{}", mesh.Mesh->name ? mesh.Mesh->name : "<unnamed>", i);
-
-        for(size_t j = 0; j < mesh.Primitives.size(); ++j)
-        {
-            MLG_LOG_SCOPE("prim {}", j);
-
-            const auto& primData = mesh.Primitives[j];
-
-            const cgltf_primitive& prim = *primData.Primitive;
-
-            size_t materialIndex;
-
-            if(materialMap.contains(prim.material))
-            {
-                materialIndex = materialMap[prim.material];
-            }
-            else
-            {
-                auto mtlData = CreateMaterialData(prim.material);
-                MLG_CHECK(mtlData);
-
-                materialIndex = materials.size();
-                materials.emplace_back(std::move(*mtlData));
-            }
-
-            materialMap[prim.material] = materialIndex;
-
-            materialIndices.push_back(narrow_cast<MaterialIndex>(materialIndex));
-        }
-    }
-
-    return Result<>::Ok;
 }
 
 static Result<size_t>
@@ -475,39 +428,51 @@ GenerateNormals(
 }
 
 static Result<>
-CollectModels(const cgltf_data* gltfData,
-    SceneKitData& sceneKitData,
+CollectModels(const std::vector<CgltfMeshData>& gltfMeshes,
+    std::vector<Vertex>& vertices,
+    std::vector<VertexIndex>& indices,
+    std::vector<MaterialData>& materials,
+    std::vector<MeshData>& meshes,
+    std::vector<ModelData>& models,
     std::map<const cgltf_mesh*, size_t>& modelIndices)
 {
+    vertices.clear();
+    indices.clear();
+    materials.clear();
+    meshes.clear();
+    models.clear();
     modelIndices.clear();
 
-    std::vector<CgltfMeshData> meshes;
-    MLG_CHECK(CollectMeshes(gltfData, meshes));
+    size_t meshCount = 0;
+    for(const auto & gltfMesh : gltfMeshes)
+    {
+        meshCount += gltfMesh.Primitives.size();
+    }
 
-    std::vector<MaterialData> materials;
-    std::vector<MaterialIndex> materialIndices;
-    MLG_CHECK(CollectMaterials(meshes, materials, materialIndices));
-
-    std::vector<Vertex> vertices;
-    std::vector<VertexIndex> indices;
-    std::vector<ModelData> models;
-    std::map<const cgltf_material*, size_t> materialMap;
+    meshes.reserve(meshCount);
 
     uint32_t firstIndex = 0;
     uint32_t baseVertex = 0;
 
-    for(size_t i = 0; i < meshes.size(); ++i)
+    std::map<const cgltf_material*, size_t> materialMap;
+
+    for(size_t i = 0; i < gltfMeshes.size(); ++i)
     {
-        const auto& mesh = meshes[i];
+        const auto& gltfMesh = gltfMeshes[i];
 
-        MLG_LOG_SCOPE("mesh {}/{}", mesh.Mesh->name ? mesh.Mesh->name : "<unnamed>", i);
+        MLG_LOG_SCOPE("mesh {}/{}", gltfMesh.Mesh->name ? gltfMesh.Mesh->name : "<unnamed>", i);
 
-        ModelData model;
+        ModelData model
+        {
+            .FirstMesh = meshes.size(),
+            .MeshCount = gltfMesh.Primitives.size(),
+        };
 
-        for(size_t j = 0; j < mesh.Primitives.size(); ++j)
+        for(size_t j = 0; j < gltfMesh.Primitives.size(); ++j)
         {
             MLG_LOG_SCOPE("prim {}", j);
-            const auto& primData = mesh.Primitives[j];
+
+            const auto& primData = gltfMesh.Primitives[j];
 
             auto vertexCount = CollectVertices(primData.Attributes, vertices);
             MLG_CHECK(vertexCount);
@@ -523,28 +488,39 @@ CollectModels(const cgltf_data* gltfData,
                     *indexCount);
             }
 
-            MeshData meshData //
+            const cgltf_primitive& prim = *primData.Primitive;
+
+            size_t materialIndex;
+
+            if(materialMap.contains(prim.material))
+            {
+                materialIndex = materialMap[prim.material];
+            }
+            else
+            {
+                auto mtlData = CreateMaterialData(prim.material);
+                MLG_CHECK(mtlData);
+
+                materialIndex = materials.size();
+                materials.emplace_back(std::move(*mtlData));
+                materialMap[prim.material] = materialIndex;
+            }
+
+            meshes.emplace_back(MeshData //
             {
                 .FirstIndex = narrow_cast<uint32_t>(firstIndex),
                 .BaseVertex = narrow_cast<uint32_t>(baseVertex),
                 .IndexCount = narrow_cast<uint32_t>(*indexCount),
-            };
-
-            model.Meshes.push_back(meshData);
+                .MaterialIndex = narrow_cast<MaterialIndex>(materialIndex),
+            });
 
             firstIndex += narrow_cast<uint32_t>(*indexCount);
             baseVertex += narrow_cast<uint32_t>(*vertexCount);
         }
 
-        modelIndices[mesh.Mesh] = models.size();
+        modelIndices[gltfMesh.Mesh] = models.size();
         models.push_back(std::move(model));
     }
-
-    sceneKitData.Vertices = std::move(vertices);
-    sceneKitData.Indices = std::move(indices);
-    sceneKitData.Materials = std::move(materials);
-    sceneKitData.Models = std::move(models);
-    sceneKitData.MaterialIndices = std::move(materialIndices);
 
     return Result<>::Ok;
 }
@@ -1316,8 +1292,8 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, const SceneKitData& sceneKitData, Scen
     size_t meshInstanceCount = 0;
     for(const auto& instance : sceneKitData.ModelInstances)
     {
-        const auto& model = sceneKitData.Models[instance.ModelIndex];
-        meshInstanceCount += model.Meshes.size();
+        const ModelData& model = sceneKitData.Models[instance.ModelIndex];
+        meshInstanceCount += model.MeshCount;
     }
 
     const size_t sizeofDrawIndirectBuffer = meshInstanceCount * sizeof(DrawIndirectBufferParams);
@@ -1350,7 +1326,14 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, const SceneKitData& sceneKitData, Scen
 
     for(const auto& instance : sceneKitData.ModelInstances)
     {
-        for(const auto& mesh : sceneKitData.Models[instance.ModelIndex].Meshes)
+        const ModelData& model = sceneKitData.Models[instance.ModelIndex];
+        std::span<const MeshData> meshes //
+            {
+                sceneKitData.Meshes.data() + model.FirstMesh,
+                model.MeshCount,
+            };
+
+        for(const auto& mesh : meshes)
         {
             drawParams[meshCount] = //
             {
@@ -1364,7 +1347,7 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, const SceneKitData& sceneKitData, Scen
             meshInstance[meshCount] = //
             {
                 .TransformIndex = instance.TransformIndex,
-                .MaterialIndex = sceneKitData.MaterialIndices[meshCount],
+                .MaterialIndex = mesh.MaterialIndex,
             };
             ++meshCount;
         }
@@ -1384,45 +1367,66 @@ CgltfModelLoader::LoadSceneKit(wgpu::Device& wgpuDevice, const std::string& path
     MLG_LOG_SCOPE(filePath.filename().string());
 
     cgltf_options options = {};
-    cgltf_data* data = nullptr;
-    cgltf_result result = cgltf_parse_file(&options, path.c_str(), &data);
+    cgltf_data* gltfData = nullptr;
+    cgltf_result result = cgltf_parse_file(&options, path.c_str(), &gltfData);
     MLG_CHECK(result == cgltf_result_success, "Failed to load glTF file");
 
-    MLG_CHECK(data->scenes_count > 0, "No scenes found");
-    MLG_CHECK(data->scenes_count == 1, "Multiple scenes found, only one scene is supported");
+    MLG_CHECK(gltfData->scenes_count > 0, "No scenes found");
+    MLG_CHECK(gltfData->scenes_count == 1, "Multiple scenes found, only one scene is supported");
 
-    for(cgltf_size i = 0; i < data->buffer_views_count; ++i)
+    for(cgltf_size i = 0; i < gltfData->buffer_views_count; ++i)
     {
-        const cgltf_buffer_view& buffer_view = data->buffer_views[i];
+        const cgltf_buffer_view& buffer_view = gltfData->buffer_views[i];
         MLG_CHECK(!buffer_view.has_meshopt_compression,
             "Unsupported meshopt compression in buffer view {}",
             i);
     }
 
-    cgltf_result loadBuffersResult = cgltf_load_buffers(&options, data, filePath.string().c_str());
+    cgltf_result loadBuffersResult = cgltf_load_buffers(&options, gltfData, filePath.string().c_str());
     MLG_CHECK(loadBuffersResult == cgltf_result_success, "Failed to load buffers");
 
     SceneKitData sceneKitData;
-    SceneData sceneData;
-    std::map<const cgltf_mesh*, size_t> modelIndices;
-
-    MLG_CHECK(CollectModels(data, sceneKitData, modelIndices));
-
-    MLG_CHECK(CollectTransforms(data->scenes[0].nodes,
-        data->scenes[0].nodes_count,
-        TransformData::kInvalidParentIndex,
-        sceneKitData.Transforms,
-        sceneKitData.ModelInstances,
-        modelIndices));
-
-    // Convert local transforms to world space.
-    for(auto& transform : sceneKitData.Transforms)
     {
-        if(transform.ParentIndex != TransformData::kInvalidParentIndex)
+        std::vector<CgltfMeshData> gltfMeshes;
+        MLG_CHECK(CollectMeshes(gltfData, gltfMeshes));
+
+        std::vector<Vertex> vertices;
+        std::vector<VertexIndex> indices;
+        std::vector<MaterialData> materials;
+        std::vector<MeshData> meshes;
+        std::vector<ModelData> models;
+        std::map<const cgltf_mesh*, size_t> modelIndices;
+        MLG_CHECK(
+            CollectModels(gltfMeshes, vertices, indices, materials, meshes, models, modelIndices));
+
+        std::vector<TransformData> transforms;
+        std::vector<ModelInstanceData> modelInstances;
+        MLG_CHECK(CollectTransforms(gltfData->scenes[0].nodes,
+            gltfData->scenes[0].nodes_count,
+            TransformData::kInvalidParentIndex,
+            transforms,
+            modelInstances,
+            modelIndices));
+
+        // Convert local transforms to world space.
+        for(auto& transform : transforms)
         {
-            const Mat44f& parent = sceneKitData.Transforms[transform.ParentIndex].Transform;
-            transform.Transform = parent * transform.Transform;
+            if(transform.ParentIndex != TransformData::kInvalidParentIndex)
+            {
+                const Mat44f& parent = transforms[transform.ParentIndex].Transform;
+                transform.Transform = parent * transform.Transform;
+            }
         }
+
+        sceneKitData.Materials = std::move(materials);
+
+        sceneKitData.Vertices = std::move(vertices);
+        sceneKitData.Indices = std::move(indices);
+        sceneKitData.Meshes = std::move(meshes);
+        sceneKitData.Models = std::move(models);
+
+        sceneKitData.Transforms = std::move(transforms);
+        sceneKitData.ModelInstances = std::move(modelInstances);
     }
 
     auto textureCache = CreateTextureCache(wgpuDevice);
@@ -1438,6 +1442,8 @@ CgltfModelLoader::LoadSceneKit(wgpu::Device& wgpuDevice, const std::string& path
     MLG_CHECK(transformBuffer);
     auto materialConstantsBuffer = BuildMaterialConstantsBuffer(wgpuDevice, sceneKitData.Materials);
     MLG_CHECK(materialConstantsBuffer);
+
+    SceneData sceneData;
 
     MLG_CHECK(BuildDrawBuffers(wgpuDevice, sceneKitData, sceneData));
 
@@ -1462,7 +1468,29 @@ CgltfModelLoader::LoadSceneKit(wgpu::Device& wgpuDevice, const std::string& path
     auto transformPipelineBindGroup0 = CreateTransformPipelineBindGroup0(wgpuDevice, transformPipelineResources);
     MLG_CHECK(transformPipelineBindGroup0);
 
-    cgltf_free(data);
+    cgltf_free(gltfData);
+
+    std::vector<MeshInstance> meshInstances;
+    meshInstances.reserve(sceneKitData.Meshes.size());
+    for(const auto& instance : sceneKitData.ModelInstances)
+    {
+        const ModelData& model = sceneKitData.Models[instance.ModelIndex];
+        std::span<const MeshData> meshes //
+            {
+                sceneKitData.Meshes.data() + model.FirstMesh,
+                model.MeshCount,
+            };
+
+        for(const auto& mesh : meshes)
+        {
+            const MeshInstance meshInstance //
+            {
+                .TransformIndex = instance.TransformIndex,
+                .MaterialIndex = mesh.MaterialIndex,
+            };
+            meshInstances.emplace_back(meshInstance);
+        }
+    }
 
     DawnSceneKit::Builder builder;
 
@@ -1475,9 +1503,9 @@ CgltfModelLoader::LoadSceneKit(wgpu::Device& wgpuDevice, const std::string& path
         .SetColorPipelineBindGroup0(*colorPipelineBindGroup0)
         .SetTransformPipelineBindGroup0(*transformPipelineBindGroup0)
         .SetMaterialBindGroups(std::move(materialBindGroups))
-        .SetMaterialIndices(std::move(sceneKitData.MaterialIndices));
+        .SetMeshes(std::move(meshInstances));
 
-    DawnSceneKit* sceneKit = new DawnSceneKit(builder.Build());
+    DawnSceneKit* sceneKit = builder.Build();
 
     return sceneKit;
 }

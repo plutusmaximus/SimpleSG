@@ -70,17 +70,17 @@ public:
             return *this;
         }
 
-        Builder& SetMaterialIndices(std::vector<MaterialIndex>&& materialIndices)
+        Builder& SetMeshes(std::vector<MeshInstance>&& meshInstances)
         {
-            m_MaterialIndices = std::move(materialIndices);
+            m_MeshInstances = std::move(meshInstances);
             return *this;
         }
 
-        DawnSceneKit Build()
+        DawnSceneKit* Build()
         {
             MLG_ASSERT(Validate(), "DawnSceneKit::Builder is not in a valid state to build a DawnSceneKit");
 
-            return DawnSceneKit(
+            return new DawnSceneKit(
                 m_IndexBuffer,
                 m_VertexBuffer,
                 m_TransformBuffer,
@@ -90,7 +90,7 @@ public:
                 m_ColorPipelineBindGroup0,
                 m_TransformPipelineBindGroup0,
                 std::move(m_MaterialBindGroups),
-                std::move(m_MaterialIndices));
+                std::move(m_MeshInstances));
         }
 
     private:
@@ -99,7 +99,7 @@ public:
         {
             return m_IndexBuffer && m_VertexBuffer && m_TransformBuffer &&
                    m_MaterialConstantsBuffer && m_DrawIndirectBuffer && m_MeshInstanceBuffer &&
-                   m_ColorPipelineBindGroup0 && m_TransformPipelineBindGroup0;
+                   m_ColorPipelineBindGroup0 && m_TransformPipelineBindGroup0 && m_MeshInstances.size() > 0;
         }
 
         wgpu::Buffer m_IndexBuffer{nullptr};
@@ -111,7 +111,7 @@ public:
         wgpu::BindGroup m_ColorPipelineBindGroup0{nullptr};
         wgpu::BindGroup m_TransformPipelineBindGroup0{nullptr};
         std::vector<wgpu::BindGroup> m_MaterialBindGroups;
-        std::vector<MaterialIndex> m_MaterialIndices;
+        std::vector<MeshInstance> m_MeshInstances;
     };
 
     DawnSceneKit() = default;
@@ -131,7 +131,7 @@ public:
         wgpu::BindGroup colorPipelineBindGroup0,
         wgpu::BindGroup transformPipelineBindGroup0,
         std::vector<wgpu::BindGroup>&& materialBindGroups,
-        std::vector<MaterialIndex>&& materialIndices)
+        std::vector<MeshInstance>&& meshInstances)
         : m_IndexBuffer(indexBuffer),
           m_VertexBuffer(vertexBuffer),
           m_TransformBuffer(transformBuffer),
@@ -141,8 +141,7 @@ public:
           m_ColorPipelineBindGroup0(colorPipelineBindGroup0),
           m_TransformPipelineBindGroup0(transformPipelineBindGroup0),
           m_MaterialBindGroups(std::move(materialBindGroups)),
-          m_MaterialIndices(std::move(materialIndices))
-
+          m_MeshInstances(std::move(meshInstances))
     {
     }
 
@@ -157,11 +156,7 @@ public:
 
     uint32_t GetMeshCount() const override
     {
-        if (m_DrawIndirectBuffer)
-        {
-            return static_cast<uint32_t>(m_DrawIndirectBuffer.GetSize() / sizeof(DrawIndirectBufferParams));
-        }
-        return 0;
+        return static_cast<uint32_t>(m_MeshInstances.size());
     }
 
     const std::span<const wgpu::BindGroup> GetMaterialBindGroups() const
@@ -169,9 +164,9 @@ public:
         return m_MaterialBindGroups;
     }
 
-    const std::span<const uint32_t> GetMaterialIndices() const
+    const std::span<const MeshInstance> GetMeshInstances() const
     {
-        return m_MaterialIndices;
+        return m_MeshInstances;
     }
 
     wgpu::Buffer GetTransformBuffer() const { return m_TransformBuffer; }
@@ -194,5 +189,5 @@ private:
     wgpu::BindGroup m_TransformPipelineBindGroup0{nullptr};
 
     std::vector<wgpu::BindGroup> m_MaterialBindGroups;
-    std::vector<MaterialIndex> m_MaterialIndices;
+    std::vector<MeshInstance> m_MeshInstances;
 };

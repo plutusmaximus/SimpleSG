@@ -31,11 +31,13 @@ struct MeshData
     uint32_t FirstIndex;
     uint32_t BaseVertex;
     uint32_t IndexCount;
+    MaterialIndex MaterialIndex;
 };
 
 struct ModelData
 {
-    std::vector<MeshData> Meshes;
+    size_t FirstMesh;
+    size_t MeshCount;
 };
 
 struct ModelInstanceData
