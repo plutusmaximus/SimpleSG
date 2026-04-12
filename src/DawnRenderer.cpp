@@ -74,112 +74,12 @@ DawnRenderer::Destroy(DawnRenderer* renderer)
 }
 
 Result<>
-DawnRenderer::Render(const Mat44f& camera,
-    const Mat44f& projection,
-    const Model* model,
-    RenderCompositor* compositor)
+DawnRenderer::Render(const Mat44f& /*camera*/,
+    const Mat44f& /*projection*/,
+    const Model* /*model*/,
+    RenderCompositor* /*compositor*/)
 {
-    auto transformBuffer = static_cast<const DawnGpuStorageBuffer*>(model->GetTransformBuffer())->GetBuffer();
-    auto meshToTransformMappingBuffer = static_cast<const DawnGpuStorageBuffer*>(model->GetMeshToTransformMapping())->GetBuffer();
-    auto drawIndirectBuffer = static_cast<const DawnGpuDrawIndirectBuffer*>(model->GetDrawIndirectBuffer())->GetBuffer();
-    auto vertexBuffer = static_cast<const DawnGpuVertexBuffer*>(model->GetGpuVertexBuffer())->GetBuffer();
-    auto indexBuffer = static_cast<const DawnGpuIndexBuffer*>(model->GetGpuIndexBuffer())->GetBuffer();
-
-    std::vector<wgpu::BindGroup> materialBindGroups;
-    std::vector<uint32_t> meshToMaterialMap;
-    materialBindGroups.reserve(model->GetMeshes().size());
-    meshToMaterialMap.reserve(model->GetMeshes().size());
-
-    for(size_t i = 0; i < model->GetMeshes().size(); ++i)
-    {
-        const Mesh& mesh = model->GetMeshes()[i];
-        DawnGpuMaterial* dawnMaterial = static_cast<DawnGpuMaterial*>(mesh.GetGpuMaterial());
-        materialBindGroups.emplace_back(dawnMaterial->GetBindGroup());
-        meshToMaterialMap.push_back(static_cast<uint32_t>(i));
-    }
-
-    wgpu::BindGroup colorRenderBindGroup0;
-    wgpu::BindGroup transformBindGroup0;
-
-    {
-        // Create bind group 0 for the color pipeline's vertex shader.
-        wgpu::BindGroupEntry bg0Entries[] = //
-            {
-                // World space transform buffer
-                {
-                    .binding = 0,
-                    .buffer = transformBuffer,
-                    .offset = 0,
-                    .size = transformBuffer.GetSize(),
-                },
-                // Mesh-to-transform mapping
-                {
-                    .binding = 1,
-                    .buffer = meshToTransformMappingBuffer,
-                    .offset = 0,
-                    .size = meshToTransformMappingBuffer.GetSize(),
-                },
-                // Fluff
-                {
-                    .binding = 2,
-                    .buffer = transformBuffer,
-                    .offset = 0,
-                    .size = transformBuffer.GetSize(),
-                },
-                // Fluff
-                {
-                    .binding = 3,
-                    .buffer = meshToTransformMappingBuffer,
-                    .offset = 0,
-                    .size = meshToTransformMappingBuffer.GetSize(),
-                },
-            };
-
-        wgpu::BindGroupDescriptor bg0Desc //
-            {
-                .label = "ColorPipelineBindGroup0",
-                .layout = m_ColorPipeline.Pipeline.GetBindGroupLayout(0),
-                .entryCount = std::size(bg0Entries),
-                .entries = bg0Entries,
-            };
-
-        colorRenderBindGroup0 = m_GpuDevice->Device.CreateBindGroup(&bg0Desc);
-        MLG_CHECK(colorRenderBindGroup0, "Failed to create bindgroup 0 for color pipeline");
-    }
-
-    {
-        // Create the bind group for the transform compute shader.
-
-        wgpu::BindGroupEntry bg0Entries //
-        {
-            .binding = 0,
-            .buffer = transformBuffer,
-            .offset = 0,
-            .size = transformBuffer.GetSize(),
-        };
-
-        wgpu::BindGroupDescriptor bg0Desc//
-        {
-            .layout = m_TransformPipeline.GetBindGroupLayout(0),
-            .entryCount = 1,
-            .entries = &bg0Entries,
-        };
-
-        transformBindGroup0 = m_GpuDevice->Device.CreateBindGroup(&bg0Desc);
-        MLG_CHECK(transformBindGroup0, "Failed to create bind group 0 for transform");
-    }
-
-    DawnSceneKit sceneKit(indexBuffer,
-        vertexBuffer,
-        transformBuffer,
-        drawIndirectBuffer,
-        meshToTransformMappingBuffer,
-        colorRenderBindGroup0,
-        transformBindGroup0,
-        std::move(materialBindGroups),
-        std::move(meshToMaterialMap));
-
-    return Render(camera, projection, sceneKit, compositor);
+    return Result<>::Fail;
 }
 
 Result<>
@@ -227,7 +127,7 @@ DawnRenderer::Render(const Mat44f& camera,
     static PerfTimer setVsBindGroupTimer("Renderer.Render.Draw.SetVsBindGroup");
     {
         auto scopedTimer = setVsBindGroupTimer.StartScoped();
-        renderPass.SetBindGroup(0, dawnSceneKit.GetColorRenderBindGroup0(), 0, nullptr);
+        renderPass.SetBindGroup(0, dawnSceneKit.GetColorPipelineBindGroup0(), 0, nullptr);
         renderPass.SetBindGroup(1, m_ColorPipeline.BindGroup1, 0, nullptr);
     }
 
@@ -981,7 +881,7 @@ DawnRenderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
 
     wgpu::ComputePassEncoder pass = cmdEncoder.BeginComputePass();
     pass.SetPipeline(m_TransformPipeline);
-    pass.SetBindGroup(0, dawnSceneKit.GetTransformBindGroup0());
+    pass.SetBindGroup(0, dawnSceneKit.GetTransformPipelineBindGroup0());
     pass.SetBindGroup(1, m_TransformBuffers.BindGroup1);
     pass.SetBindGroup(2, m_TransformBuffers.BindGroup2);
     const uint32_t workgroupCountX = dawnSceneKit.GetTransformCount();

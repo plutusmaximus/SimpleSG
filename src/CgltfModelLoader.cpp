@@ -82,16 +82,14 @@ struct TextureCache
 struct SceneData
 {
     wgpu::Buffer DrawIndirectBuffer;
-    wgpu::Buffer TransformIndexBuffer;
-    wgpu::Buffer MaterialIndexBuffer;
+    wgpu::Buffer MeshInstanceBuffer;
 };
 
 struct ColorPipelineResources
 {
     wgpu::Buffer TransformBuffer;
-    wgpu::Buffer TransformIndexBuffer;
     wgpu::Buffer MaterialConstantsBuffer;
-    wgpu::Buffer MaterialIndexBuffer;
+    wgpu::Buffer MeshInstanceBuffer;
 };
 
 struct TransformPipelineResources
@@ -1078,27 +1076,21 @@ CreateColorPipelineBindGroup0(wgpu::Device wgpuDevice,
     {
         {
             .binding = 0,
-            .buffer = colorPipelineResources.TransformBuffer,
+            .buffer = colorPipelineResources.MeshInstanceBuffer,
             .offset = 0,
-            .size = colorPipelineResources.TransformBuffer.GetSize(),
+            .size = colorPipelineResources.MeshInstanceBuffer.GetSize(),
         },
         {
             .binding = 1,
-            .buffer = colorPipelineResources.TransformIndexBuffer,
+            .buffer = colorPipelineResources.TransformBuffer,
             .offset = 0,
-            .size = colorPipelineResources.TransformIndexBuffer.GetSize(),
+            .size = colorPipelineResources.TransformBuffer.GetSize(),
         },
         {
             .binding = 2,
             .buffer = colorPipelineResources.MaterialConstantsBuffer,
             .offset = 0,
             .size = colorPipelineResources.MaterialConstantsBuffer.GetSize(),
-        },
-        {
-            .binding = 3,
-            .buffer = colorPipelineResources.MaterialIndexBuffer,
-            .offset = 0,
-            .size = colorPipelineResources.MaterialIndexBuffer.GetSize(),
         },
     };
 
@@ -1329,67 +1321,57 @@ BuildDrawBuffers(wgpu::Device wgpuDevice, const SceneKitData& sceneKitData, Scen
     }
 
     const size_t sizeofDrawIndirectBuffer = meshInstanceCount * sizeof(DrawIndirectBufferParams);
-    const size_t sizeofTransformIndexBuffer = meshInstanceCount * sizeof(TransformIndex);
-    const size_t sizeofMaterialIndexBuffer = meshInstanceCount * sizeof(MaterialIndex);
+    const size_t sizeofMeshInstanceBuffer = meshInstanceCount * sizeof(MeshInstance);
 
     auto drawIndirectBuffer = CreateGpuBuffer(wgpuDevice,
         wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
         sizeofDrawIndirectBuffer,
         "DrawIndirectBuffer");
 
-    auto transformIndexBuffer = CreateGpuBuffer(wgpuDevice,
+    auto meshInstanceBuffer = CreateGpuBuffer(wgpuDevice,
         wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
-        sizeofTransformIndexBuffer,
-        "TransformIndexBuffer");
-
-    auto materialIndexBuffer = CreateGpuBuffer(wgpuDevice,
-        wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
-        sizeofMaterialIndexBuffer,
-        "MaterialIndexBuffer");
+        sizeofMeshInstanceBuffer,
+        "MeshInstanceBuffer");
 
     void* diMapped = drawIndirectBuffer.GetMappedRange();
     MLG_CHECK(diMapped, "Failed to map DrawIndirectBuffer");
 
     auto cleanupDrawParams = scope_exit([&]() { drawIndirectBuffer.Unmap(); });
 
-    void* transformIndexMapped = transformIndexBuffer.GetMappedRange();
-    MLG_CHECK(transformIndexMapped, "Failed to map TransformIndexBuffer");
+    void* meshInstanceMapped = meshInstanceBuffer.GetMappedRange();
+    MLG_CHECK(meshInstanceMapped, "Failed to map MeshInstanceBuffer");
 
-    auto cleanupTransformIndex = scope_exit([&]() { transformIndexBuffer.Unmap(); });
-
-    void* mtlIndicesMapped = materialIndexBuffer.GetMappedRange();
-    MLG_CHECK(mtlIndicesMapped, "Failed to map MaterialIndexBuffer");
-
-    auto cleanupMaterialIndices = scope_exit([&]() { materialIndexBuffer.Unmap(); });
+    auto cleanupMeshInstance = scope_exit([&]() { meshInstanceBuffer.Unmap(); });
 
     DrawIndirectBufferParams* drawParams = reinterpret_cast<DrawIndirectBufferParams*>(diMapped);
-    TransformIndex* transformIndex = reinterpret_cast<TransformIndex*>(transformIndexMapped);
-    MaterialIndex* materialIndex = reinterpret_cast<MaterialIndex*>(mtlIndicesMapped);
+    MeshInstance* meshInstance = reinterpret_cast<MeshInstance*>(meshInstanceMapped);
 
-    uint32_t firstInstance = 0;
+    uint32_t meshCount = 0;
 
     for(const auto& instance : sceneKitData.ModelInstances)
     {
         for(const auto& mesh : sceneKitData.Models[instance.ModelIndex].Meshes)
         {
-            *drawParams++ = //
+            drawParams[meshCount] = //
             {
                 .IndexCount = mesh.IndexCount,
                 .InstanceCount = 1,
                 .FirstIndex = mesh.FirstIndex,
                 .BaseVertex = mesh.BaseVertex,
-                .FirstInstance = firstInstance,
+                .FirstInstance = meshCount,
             };
 
-            *transformIndex++ = instance.TransformIndex;
-            *materialIndex++ = sceneKitData.MaterialIndices[firstInstance];
-            ++firstInstance;
+            meshInstance[meshCount] = //
+            {
+                .TransformIndex = instance.TransformIndex,
+                .MaterialIndex = sceneKitData.MaterialIndices[meshCount],
+            };
+            ++meshCount;
         }
     }
 
     sceneData.DrawIndirectBuffer = drawIndirectBuffer;
-    sceneData.TransformIndexBuffer = transformIndexBuffer;
-    sceneData.MaterialIndexBuffer = materialIndexBuffer;
+    sceneData.MeshInstanceBuffer = meshInstanceBuffer;
 
     return Result<>::Ok;
 }
@@ -1465,9 +1447,8 @@ CgltfModelLoader::LoadSceneKit(wgpu::Device& wgpuDevice, const std::string& path
     ColorPipelineResources colorPipelineResources //
     {
         .TransformBuffer = *transformBuffer,
-        .TransformIndexBuffer = sceneData.TransformIndexBuffer,
         .MaterialConstantsBuffer = *materialConstantsBuffer,
-        .MaterialIndexBuffer = sceneData.MaterialIndexBuffer,
+        .MeshInstanceBuffer = sceneData.MeshInstanceBuffer,
     };
 
     auto colorPipelineBindGroup0 = CreateColorPipelineBindGroup0(wgpuDevice, colorPipelineResources);
@@ -1483,16 +1464,20 @@ CgltfModelLoader::LoadSceneKit(wgpu::Device& wgpuDevice, const std::string& path
 
     cgltf_free(data);
 
-    DawnSceneKit* sceneKit = new DawnSceneKit(
-        *indexBuffer,
-        *vertexBuffer,
-        *transformBuffer,
-        sceneData.DrawIndirectBuffer,
-        sceneData.TransformIndexBuffer,
-        *colorPipelineBindGroup0,
-        *transformPipelineBindGroup0,
-        std::move(materialBindGroups),
-        std::move(sceneKitData.MaterialIndices));
+    DawnSceneKit::Builder builder;
+
+    builder.SetIndexBuffer(*indexBuffer)
+        .SetVertexBuffer(*vertexBuffer)
+        .SetTransformBuffer(*transformBuffer)
+        .SetMaterialConstantsBuffer(*materialConstantsBuffer)
+        .SetDrawIndirectBuffer(sceneData.DrawIndirectBuffer)
+        .SetMeshInstanceBuffer(sceneData.MeshInstanceBuffer)
+        .SetColorPipelineBindGroup0(*colorPipelineBindGroup0)
+        .SetTransformPipelineBindGroup0(*transformPipelineBindGroup0)
+        .SetMaterialBindGroups(std::move(materialBindGroups))
+        .SetMaterialIndices(std::move(sceneKitData.MaterialIndices));
+
+    DawnSceneKit* sceneKit = new DawnSceneKit(builder.Build());
 
     return sceneKit;
 }

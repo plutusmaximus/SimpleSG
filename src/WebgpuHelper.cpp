@@ -1,7 +1,8 @@
 #include "WebgpuHelper.h"
 
 #include "Color.h"
-#include "Model.h"
+#include "SceneKit.h"
+#include "Material.h"
 #include "scope_exit.h"
 #include "VecMath.h"
 
@@ -645,18 +646,18 @@ WebgpuHelper::GetColorPipelineLayouts()
         // Color pipeline bind group 0 layout
         wgpu::BindGroupLayoutEntry entries[] =//
         {
-            // World space transform.
+            // Mesh instance data.
             {
                 .binding = 0,
-                .visibility = wgpu::ShaderStage::Vertex,
+                .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
                 .buffer =
                 {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
                     .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(Mat44f),
+                    .minBindingSize = sizeof(MeshInstance),
                 },
             },
-            //Transform index buffer.
+            // World space transform.
             {
                 .binding = 1,
                 .visibility = wgpu::ShaderStage::Vertex,
@@ -664,7 +665,7 @@ WebgpuHelper::GetColorPipelineLayouts()
                 {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
                     .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(TransformIndex),
+                    .minBindingSize = sizeof(Mat44f),
                 },
             },
             // Material constants buffer.
@@ -676,17 +677,6 @@ WebgpuHelper::GetColorPipelineLayouts()
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
                     .hasDynamicOffset = false,
                     .minBindingSize = sizeof(MaterialConstants),
-                },
-            },
-            // Material indices.
-            {
-                .binding = 3,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(MaterialIndex),
                 },
             },
         };

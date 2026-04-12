@@ -1,8 +1,9 @@
 #pragma once
 
-#include "Result.h"
 #include "Color.h"
+#include "Result.h"
 #include "VecMath.h"
+#include "SceneKit.h"
 
 #include <limits>
 #include <string>

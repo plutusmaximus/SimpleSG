@@ -8,19 +8,111 @@
 #include <span>
 #include <vector>
 
-class DrawIndirectBufferParams
-{
-public:
-    uint32_t IndexCount;
-    uint32_t InstanceCount;
-    uint32_t FirstIndex;
-    uint32_t BaseVertex;
-    uint32_t FirstInstance;
-};
-
 class DawnSceneKit : public SceneKit
 {
 public:
+
+    class Builder
+    {
+    public:
+
+        Builder& SetIndexBuffer(wgpu::Buffer indexBuffer)
+        {
+            m_IndexBuffer = indexBuffer;
+            return *this;
+        }
+
+        Builder& SetVertexBuffer(wgpu::Buffer vertexBuffer)
+        {
+            m_VertexBuffer = vertexBuffer;
+            return *this;
+        }
+
+        Builder& SetTransformBuffer(wgpu::Buffer transformBuffer)
+        {
+            m_TransformBuffer = transformBuffer;
+            return *this;
+        }
+
+        Builder& SetMaterialConstantsBuffer(wgpu::Buffer materialConstantsBuffer)
+        {
+            m_MaterialConstantsBuffer = materialConstantsBuffer;
+            return *this;
+        }
+
+        Builder& SetDrawIndirectBuffer(wgpu::Buffer drawIndirectBuffer)
+        {
+            m_DrawIndirectBuffer = drawIndirectBuffer;
+            return *this;
+        }
+
+        Builder& SetMeshInstanceBuffer(wgpu::Buffer meshInstanceBuffer)
+        {
+            m_MeshInstanceBuffer = meshInstanceBuffer;
+            return *this;
+        }
+
+        Builder& SetColorPipelineBindGroup0(wgpu::BindGroup colorPipelineBindGroup0)
+        {
+            m_ColorPipelineBindGroup0 = colorPipelineBindGroup0;
+            return *this;
+        }
+
+        Builder& SetTransformPipelineBindGroup0(wgpu::BindGroup transformPipelineBindGroup0)
+        {
+            m_TransformPipelineBindGroup0 = transformPipelineBindGroup0;
+            return *this;
+        }
+
+        Builder& SetMaterialBindGroups(std::vector<wgpu::BindGroup>&& materialBindGroups)
+        {
+            m_MaterialBindGroups = std::move(materialBindGroups);
+            return *this;
+        }
+
+        Builder& SetMaterialIndices(std::vector<MaterialIndex>&& materialIndices)
+        {
+            m_MaterialIndices = std::move(materialIndices);
+            return *this;
+        }
+
+        DawnSceneKit Build()
+        {
+            MLG_ASSERT(Validate(), "DawnSceneKit::Builder is not in a valid state to build a DawnSceneKit");
+
+            return DawnSceneKit(
+                m_IndexBuffer,
+                m_VertexBuffer,
+                m_TransformBuffer,
+                m_MaterialConstantsBuffer,
+                m_DrawIndirectBuffer,
+                m_MeshInstanceBuffer,
+                m_ColorPipelineBindGroup0,
+                m_TransformPipelineBindGroup0,
+                std::move(m_MaterialBindGroups),
+                std::move(m_MaterialIndices));
+        }
+
+    private:
+
+        bool Validate() const
+        {
+            return m_IndexBuffer && m_VertexBuffer && m_TransformBuffer &&
+                   m_MaterialConstantsBuffer && m_DrawIndirectBuffer && m_MeshInstanceBuffer &&
+                   m_ColorPipelineBindGroup0 && m_TransformPipelineBindGroup0;
+        }
+
+        wgpu::Buffer m_IndexBuffer{nullptr};
+        wgpu::Buffer m_VertexBuffer{nullptr};
+        wgpu::Buffer m_TransformBuffer{nullptr};
+        wgpu::Buffer m_DrawIndirectBuffer{nullptr};
+        wgpu::Buffer m_MeshInstanceBuffer{nullptr};
+        wgpu::Buffer m_MaterialConstantsBuffer{nullptr};
+        wgpu::BindGroup m_ColorPipelineBindGroup0{nullptr};
+        wgpu::BindGroup m_TransformPipelineBindGroup0{nullptr};
+        std::vector<wgpu::BindGroup> m_MaterialBindGroups;
+        std::vector<MaterialIndex> m_MaterialIndices;
+    };
 
     DawnSceneKit() = default;
     DawnSceneKit(const DawnSceneKit&) = delete;
@@ -33,19 +125,21 @@ public:
     DawnSceneKit(wgpu::Buffer indexBuffer,
         wgpu::Buffer vertexBuffer,
         wgpu::Buffer transformBuffer,
+        wgpu::Buffer materialConstantsBuffer,
         wgpu::Buffer drawIndirectBuffer,
-        wgpu::Buffer transformIndexBuffer,
-        wgpu::BindGroup colorRenderBindGroup0,
-        wgpu::BindGroup transformBindGroup0,
+        wgpu::Buffer meshInstanceBuffer,
+        wgpu::BindGroup colorPipelineBindGroup0,
+        wgpu::BindGroup transformPipelineBindGroup0,
         std::vector<wgpu::BindGroup>&& materialBindGroups,
-        std::vector<uint32_t>&& materialIndices)
+        std::vector<MaterialIndex>&& materialIndices)
         : m_IndexBuffer(indexBuffer),
           m_VertexBuffer(vertexBuffer),
           m_TransformBuffer(transformBuffer),
-          m_TransformIndexBuffer(transformIndexBuffer),
+          m_MaterialConstantsBuffer(materialConstantsBuffer),
           m_DrawIndirectBuffer(drawIndirectBuffer),
-          m_ColorRenderBindGroup0(colorRenderBindGroup0),
-          m_TransformBindGroup0(transformBindGroup0),
+          m_MeshInstanceBuffer(meshInstanceBuffer),
+          m_ColorPipelineBindGroup0(colorPipelineBindGroup0),
+          m_TransformPipelineBindGroup0(transformPipelineBindGroup0),
           m_MaterialBindGroups(std::move(materialBindGroups)),
           m_MaterialIndices(std::move(materialIndices))
 
@@ -85,8 +179,8 @@ public:
     wgpu::Buffer GetVertexBuffer() const { return m_VertexBuffer; }
     wgpu::Buffer GetIndexBuffer() const { return m_IndexBuffer; }
 
-    wgpu::BindGroup GetColorRenderBindGroup0() const { return m_ColorRenderBindGroup0; }
-    wgpu::BindGroup GetTransformBindGroup0() const { return m_TransformBindGroup0; }
+    wgpu::BindGroup GetColorPipelineBindGroup0() const { return m_ColorPipelineBindGroup0; }
+    wgpu::BindGroup GetTransformPipelineBindGroup0() const { return m_TransformPipelineBindGroup0; }
 
 private:
 
@@ -94,11 +188,11 @@ private:
     wgpu::Buffer m_VertexBuffer{nullptr};
     wgpu::Buffer m_TransformBuffer{nullptr};
     wgpu::Buffer m_DrawIndirectBuffer{nullptr};
-    wgpu::Buffer m_TransformIndexBuffer{nullptr};
-
-    wgpu::BindGroup m_ColorRenderBindGroup0{nullptr};
-    wgpu::BindGroup m_TransformBindGroup0{nullptr};
+    wgpu::Buffer m_MeshInstanceBuffer{nullptr};
+    wgpu::Buffer m_MaterialConstantsBuffer{nullptr};
+    wgpu::BindGroup m_ColorPipelineBindGroup0{nullptr};
+    wgpu::BindGroup m_TransformPipelineBindGroup0{nullptr};
 
     std::vector<wgpu::BindGroup> m_MaterialBindGroups;
-    std::vector<uint32_t> m_MaterialIndices;
+    std::vector<MaterialIndex> m_MaterialIndices;
 };

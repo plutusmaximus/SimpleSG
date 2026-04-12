@@ -2,6 +2,8 @@
 
 #include "Mesh.h"
 
+#include "SceneKit.h"
+
 #include <limits>
 
 static inline const TransformIndex kInvalidTransformIndex = std::numeric_limits<TransformIndex>::max();
