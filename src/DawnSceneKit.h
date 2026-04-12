@@ -8,11 +8,6 @@
 #include <span>
 #include <vector>
 
-struct MaterialBinding
-{
-    wgpu::BindGroup BindGroup;
-};
-
 class DrawIndirectBufferParams
 {
 public:
@@ -42,7 +37,7 @@ public:
         wgpu::Buffer transformIndexBuffer,
         wgpu::BindGroup colorRenderBindGroup0,
         wgpu::BindGroup transformBindGroup0,
-        std::vector<MaterialBinding>&& materialBindings,
+        std::vector<wgpu::BindGroup>&& materialBindGroups,
         std::vector<uint32_t>&& materialIndices)
         : m_IndexBuffer(indexBuffer),
           m_VertexBuffer(vertexBuffer),
@@ -51,7 +46,7 @@ public:
           m_DrawIndirectBuffer(drawIndirectBuffer),
           m_ColorRenderBindGroup0(colorRenderBindGroup0),
           m_TransformBindGroup0(transformBindGroup0),
-          m_MaterialBindings(std::move(materialBindings)),
+          m_MaterialBindGroups(std::move(materialBindGroups)),
           m_MaterialIndices(std::move(materialIndices))
 
     {
@@ -75,9 +70,9 @@ public:
         return 0;
     }
 
-    const std::span<const MaterialBinding> GetMaterialBindings() const
+    const std::span<const wgpu::BindGroup> GetMaterialBindGroups() const
     {
-        return m_MaterialBindings;
+        return m_MaterialBindGroups;
     }
 
     const std::span<const uint32_t> GetMaterialIndices() const
@@ -104,6 +99,6 @@ private:
     wgpu::BindGroup m_ColorRenderBindGroup0{nullptr};
     wgpu::BindGroup m_TransformBindGroup0{nullptr};
 
-    std::vector<MaterialBinding> m_MaterialBindings;
+    std::vector<wgpu::BindGroup> m_MaterialBindGroups;
     std::vector<uint32_t> m_MaterialIndices;
 };

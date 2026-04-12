@@ -81,18 +81,22 @@ struct TextureCache
 
 struct SceneData
 {
-    wgpu::Buffer IndexBuffer;
-    wgpu::Buffer VertexBuffer;
-    wgpu::Buffer TransformBuffer;
     wgpu::Buffer DrawIndirectBuffer;
+    wgpu::Buffer TransformIndexBuffer;
+    wgpu::Buffer MaterialIndexBuffer;
+};
+
+struct ColorPipelineResources
+{
+    wgpu::Buffer TransformBuffer;
     wgpu::Buffer TransformIndexBuffer;
     wgpu::Buffer MaterialConstantsBuffer;
     wgpu::Buffer MaterialIndexBuffer;
+};
 
-    std::vector<MaterialBinding> MaterialBindings;
-
-    wgpu::BindGroup ColorRenderBindGroup0;
-    wgpu::BindGroup TransformBindGroup0;
+struct TransformPipelineResources
+{
+    wgpu::Buffer TransformBuffer;
 };
 
 } // namespace
@@ -1000,8 +1004,8 @@ FetchTextures(wgpu::Device wgpuDevice,
     return Result<>::Ok;
 }
 
-static Result<>
-CreateMaterialDefaults(wgpu::Device wgpuDevice, TextureCache& textureCache)
+static Result<TextureCache>
+CreateTextureCache(wgpu::Device wgpuDevice)
 {
     constexpr uint32_t kDefaultTextureWidth = 128;
     constexpr uint32_t kDefaultTextureHeight = 128;
@@ -1055,89 +1059,94 @@ CreateMaterialDefaults(wgpu::Device wgpuDevice, TextureCache& textureCache)
         .mipmapFilter = wgpu::MipmapFilterMode::Linear,
     };
 
+    TextureCache textureCache;
+
     textureCache.DefaultTexture = *defaultTexture;
     textureCache.DefaultSampler = wgpuDevice.CreateSampler(&samplerDesc);
 
-    return Result<>::Ok;
+    return std::move(textureCache);
 }
 
-static Result<>
-CreateBindGroups(wgpu::Device wgpuDevice, SceneData& sceneData)
+static Result<wgpu::BindGroup>
+CreateColorPipelineBindGroup0(wgpu::Device wgpuDevice,
+    ColorPipelineResources& colorPipelineResources)
 {
     auto colorPipelineLayouts = WebgpuHelper::GetColorPipelineLayouts();
     MLG_CHECK(colorPipelineLayouts);
+
+    wgpu::BindGroupEntry bgEntries[] =//
+    {
+        {
+            .binding = 0,
+            .buffer = colorPipelineResources.TransformBuffer,
+            .offset = 0,
+            .size = colorPipelineResources.TransformBuffer.GetSize(),
+        },
+        {
+            .binding = 1,
+            .buffer = colorPipelineResources.TransformIndexBuffer,
+            .offset = 0,
+            .size = colorPipelineResources.TransformIndexBuffer.GetSize(),
+        },
+        {
+            .binding = 2,
+            .buffer = colorPipelineResources.MaterialConstantsBuffer,
+            .offset = 0,
+            .size = colorPipelineResources.MaterialConstantsBuffer.GetSize(),
+        },
+        {
+            .binding = 3,
+            .buffer = colorPipelineResources.MaterialIndexBuffer,
+            .offset = 0,
+            .size = colorPipelineResources.MaterialIndexBuffer.GetSize(),
+        },
+    };
+
+    wgpu::BindGroupDescriptor bgDesc = //
+        {
+            .label = "ColorPipelineBindGroup0",
+            .layout = colorPipelineLayouts->Bindgroup0Layout,
+            .entryCount = std::size(bgEntries),
+            .entries = bgEntries,
+        };
+
+    wgpu::BindGroup bindGroup = wgpuDevice.CreateBindGroup(&bgDesc);
+    MLG_CHECK(bindGroup,
+        "Failed to create bind group 0 for color pipeline");
+
+    return bindGroup;
+}
+
+static Result<wgpu::BindGroup>
+CreateTransformPipelineBindGroup0(wgpu::Device wgpuDevice,
+    TransformPipelineResources& transformPipelineResources)
+{
     auto transformPipelineLayouts = WebgpuHelper::GetTransformPipelineLayouts();
     MLG_CHECK(transformPipelineLayouts);
 
-    // Color pipeline bind group 0
+    wgpu::BindGroupEntry bgEntries[] =//
     {
-        wgpu::BindGroupEntry bgEntries[] =//
         {
-            {
-                .binding = 0,
-                .buffer = sceneData.TransformBuffer,
-                .offset = 0,
-                .size = sceneData.TransformBuffer.GetSize(),
-            },
-            {
-                .binding = 1,
-                .buffer = sceneData.TransformIndexBuffer,
-                .offset = 0,
-                .size = sceneData.TransformIndexBuffer.GetSize(),
-            },
-            {
-                .binding = 2,
-                .buffer = sceneData.MaterialConstantsBuffer,
-                .offset = 0,
-                .size = sceneData.MaterialConstantsBuffer.GetSize(),
-            },
-            {
-                .binding = 3,
-                .buffer = sceneData.MaterialIndexBuffer,
-                .offset = 0,
-                .size = sceneData.MaterialIndexBuffer.GetSize(),
-            },
+            .binding = 0,
+            .buffer = transformPipelineResources.TransformBuffer,
+            .offset = 0,
+            .size = transformPipelineResources.TransformBuffer.GetSize(),
+        },
+    };
+
+    wgpu::BindGroupDescriptor bgDesc = //
+        {
+            .label = "TransformPipelineBindGroup0",
+            .layout = transformPipelineLayouts->Bindgroup0Layout,
+            .entryCount = std::size(bgEntries),
+            .entries = bgEntries,
         };
 
-        wgpu::BindGroupDescriptor bgDesc = //
-            {
-                .label = "ColorPipelineBindGroup0",
-                .layout = colorPipelineLayouts->Bindgroup0Layout,
-                .entryCount = std::size(bgEntries),
-                .entries = bgEntries,
-            };
+    wgpu::BindGroup bindGroup = wgpuDevice.CreateBindGroup(&bgDesc);
+    MLG_CHECK(bindGroup,
+        "Failed to create bind group 0 for transform pipeline");
 
-        sceneData.ColorRenderBindGroup0 = wgpuDevice.CreateBindGroup(&bgDesc);
-        MLG_CHECK(sceneData.ColorRenderBindGroup0,
-            "Failed to create bind group 0 for color pipeline");
-    }
-
-    // Transform pipeline bind group 0
-    {
-        wgpu::BindGroupEntry bgEntries[] =//
-        {
-            {
-                .binding = 0,
-                .buffer = sceneData.TransformBuffer,
-                .offset = 0,
-                .size = sceneData.TransformBuffer.GetSize(),
-            },
-        };
-
-        wgpu::BindGroupDescriptor bgDesc = //
-            {
-                .label = "TransformPipelineBindGroup0",
-                .layout = transformPipelineLayouts->Bindgroup0Layout,
-                .entryCount = std::size(bgEntries),
-                .entries = bgEntries,
-            };
-
-        sceneData.TransformBindGroup0 = wgpuDevice.CreateBindGroup(&bgDesc);
-        MLG_CHECK(sceneData.TransformBindGroup0,
-            "Failed to create bind group 0 for transform pipeline");
-    }
-
-    return Result<>::Ok;
+    return bindGroup;
 }
 
 static wgpu::Buffer
@@ -1154,55 +1163,69 @@ CreateGpuBuffer(wgpu::Device device, wgpu::BufferUsage usage, const size_t size,
     return device.CreateBuffer(&bufferDesc);
 }
 
+static Result<wgpu::BindGroup>
+CreateMaterialBindGroup(wgpu::Device wgpuDevice,
+    const MaterialData& material,
+    const TextureCache& textureCache)
+{
+    auto layouts = WebgpuHelper::GetColorPipelineLayouts();
+    MLG_CHECK(layouts);
+
+    wgpu::Texture baseTexture = material.BaseTextureUri.empty()
+                                    ? textureCache.DefaultTexture
+                                    : textureCache.Textures.at(material.BaseTextureUri);
+
+    wgpu::BindGroupEntry bgEntries[]//
+    {
+        {
+            .binding = 0,
+            .textureView = baseTexture.CreateView(),
+        },
+        {
+            .binding = 1,
+            .sampler = textureCache.DefaultSampler,
+        },
+    };
+
+    wgpu::BindGroupDescriptor bindGroupDesc //
+    {
+        .label = "MaterialBindGroup",
+        .layout = layouts->Bindgroup2Layout,
+        .entryCount = std::size(bgEntries),
+        .entries = bgEntries,
+    };
+
+    wgpu::BindGroup bindGroup = wgpuDevice.CreateBindGroup(&bindGroupDesc);
+
+    return bindGroup;
+}
+
 static Result<>
-BuildMaterials(wgpu::Device wgpuDevice,
+CreateMaterialBindGroups(wgpu::Device wgpuDevice,
     std::span<MaterialData> materials,
     const TextureCache& textureCache,
-    SceneData& sceneData)
+    std::vector<wgpu::BindGroup>& materialBindGroups)
 {
-    std::vector<MaterialBinding> materialBindings;
+    materialBindGroups.clear();
+
+    materialBindGroups.reserve(materials.size());
 
     auto layouts = WebgpuHelper::GetColorPipelineLayouts();
     MLG_CHECK(layouts);
 
     for(const auto& mtl : materials)
     {
-        wgpu::Texture baseTexture = mtl.BaseTextureUri.empty()
-                                        ? textureCache.DefaultTexture
-                                        : textureCache.Textures.at(mtl.BaseTextureUri);
+        auto bindGroup = CreateMaterialBindGroup(wgpuDevice, mtl, textureCache);
+        MLG_CHECK(bindGroup);
 
-        wgpu::BindGroupEntry bgEntries[]//
-        {
-            {
-                .binding = 0,
-                .textureView = baseTexture.CreateView(),
-            },
-            {
-                .binding = 1,
-                .sampler = textureCache.DefaultSampler,
-            },
-        };
-
-        wgpu::BindGroupDescriptor bindGroupDesc //
-        {
-            .label = "MaterialBindGroup",
-            .layout = layouts->Bindgroup2Layout,
-            .entryCount = std::size(bgEntries),
-            .entries = bgEntries,
-        };
-
-        wgpu::BindGroup materialBindGroup = wgpuDevice.CreateBindGroup(&bindGroupDesc);
-
-        materialBindings.emplace_back(std::move(materialBindGroup));
+        materialBindGroups.emplace_back(std::move(*bindGroup));
     }
-
-    sceneData.MaterialBindings = std::move(materialBindings);
 
     return Result<>::Ok;
 }
 
-static Result<>
-BuildVertexBuffer(wgpu::Device wgpuDevice, std::span<Vertex> vertices, SceneData& sceneData)
+static Result<wgpu::Buffer>
+BuildVertexBuffer(wgpu::Device wgpuDevice, std::span<Vertex> vertices)
 {
     const size_t sizeofBuffer = vertices.size() * sizeof(Vertex);
     wgpu::Buffer vertexBuffer = CreateGpuBuffer(wgpuDevice,
@@ -1217,13 +1240,11 @@ BuildVertexBuffer(wgpu::Device wgpuDevice, std::span<Vertex> vertices, SceneData
 
     vertexBuffer.Unmap();
 
-    sceneData.VertexBuffer = vertexBuffer;
-
-    return Result<>::Ok;
+    return vertexBuffer;
 }
 
-static Result<>
-BuildIndexBuffer(wgpu::Device wgpuDevice, std::span<VertexIndex> indices, SceneData& sceneData)
+static Result<wgpu::Buffer>
+BuildIndexBuffer(wgpu::Device wgpuDevice, std::span<VertexIndex> indices)
 {
     const size_t sizeofBuffer = indices.size() * sizeof(VertexIndex);
     wgpu::Buffer indexBuffer = CreateGpuBuffer(wgpuDevice,
@@ -1238,13 +1259,11 @@ BuildIndexBuffer(wgpu::Device wgpuDevice, std::span<VertexIndex> indices, SceneD
 
     indexBuffer.Unmap();
 
-    sceneData.IndexBuffer = indexBuffer;
-
-    return Result<>::Ok;
+    return indexBuffer;
 }
 
-static Result<>
-BuildTransformBuffer(wgpu::Device wgpuDevice, std::span<TransformData> transforms, SceneData& sceneData)
+static Result<wgpu::Buffer>
+BuildTransformBuffer(wgpu::Device wgpuDevice, std::span<TransformData> transforms)
 {
     const size_t sizeofBuffer = transforms.size() * sizeof(Mat44f);
 
@@ -1265,23 +1284,21 @@ BuildTransformBuffer(wgpu::Device wgpuDevice, std::span<TransformData> transform
 
     transformBuffer.Unmap();
 
-    sceneData.TransformBuffer = transformBuffer;
-
-    return Result<>::Ok;
+    return transformBuffer;
 }
 
-static Result<>
+static Result<wgpu::Buffer>
 BuildMaterialConstantsBuffer(
-    wgpu::Device wgpuDevice, std::span<MaterialData> materials, SceneData& sceneData)
+    wgpu::Device wgpuDevice, std::span<MaterialData> materials)
 {
     const size_t sizeofMaterialConstantsBuffer = materials.size() * sizeof(MaterialConstants);
 
-    sceneData.MaterialConstantsBuffer = CreateGpuBuffer(wgpuDevice,
+    wgpu::Buffer materialConstantsBuffer = CreateGpuBuffer(wgpuDevice,
         wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
         sizeofMaterialConstantsBuffer,
         "MaterialConstantsBuffer");
 
-    void* mtlConstantsMapped = sceneData.MaterialConstantsBuffer.GetMappedRange();
+    void* mtlConstantsMapped = materialConstantsBuffer.GetMappedRange();
     MLG_CHECK(mtlConstantsMapped, "Failed to map MaterialConstantsBuffer");
 
     MaterialConstants* dst = reinterpret_cast<MaterialConstants*>(mtlConstantsMapped);
@@ -1296,9 +1313,9 @@ BuildMaterialConstantsBuffer(
         };
     }
 
-    sceneData.MaterialConstantsBuffer.Unmap();
+    materialConstantsBuffer.Unmap();
 
-    return Result<>::Ok;
+    return materialConstantsBuffer;
 }
 
 static Result<>
@@ -1405,7 +1422,6 @@ CgltfModelLoader::LoadSceneKit(wgpu::Device& wgpuDevice, const std::string& path
 
     SceneKitData sceneKitData;
     SceneData sceneData;
-    TextureCache textureCache;
     std::map<const cgltf_mesh*, size_t> modelIndices;
 
     MLG_CHECK(CollectModels(data, sceneKitData, modelIndices));
@@ -1427,31 +1443,55 @@ CgltfModelLoader::LoadSceneKit(wgpu::Device& wgpuDevice, const std::string& path
         }
     }
 
-    MLG_CHECK(CreateMaterialDefaults(wgpuDevice, textureCache));
+    auto textureCache = CreateTextureCache(wgpuDevice);
+    MLG_CHECK(textureCache);
 
-    MLG_CHECK(FetchTextures(wgpuDevice, filePath.parent_path(), sceneKitData.Materials, textureCache));
+    MLG_CHECK(FetchTextures(wgpuDevice, filePath.parent_path(), sceneKitData.Materials, *textureCache));
 
-    MLG_CHECK(BuildVertexBuffer(wgpuDevice, sceneKitData.Vertices, sceneData));
-    MLG_CHECK(BuildIndexBuffer(wgpuDevice, sceneKitData.Indices, sceneData));
-    MLG_CHECK(BuildTransformBuffer(wgpuDevice, sceneKitData.Transforms, sceneData));
-    MLG_CHECK(BuildMaterialConstantsBuffer(wgpuDevice, sceneKitData.Materials, sceneData));
+    auto vertexBuffer = BuildVertexBuffer(wgpuDevice, sceneKitData.Vertices);
+    MLG_CHECK(vertexBuffer);
+    auto indexBuffer = BuildIndexBuffer(wgpuDevice, sceneKitData.Indices);
+    MLG_CHECK(indexBuffer);
+    auto transformBuffer = BuildTransformBuffer(wgpuDevice, sceneKitData.Transforms);
+    MLG_CHECK(transformBuffer);
+    auto materialConstantsBuffer = BuildMaterialConstantsBuffer(wgpuDevice, sceneKitData.Materials);
+    MLG_CHECK(materialConstantsBuffer);
+
     MLG_CHECK(BuildDrawBuffers(wgpuDevice, sceneKitData, sceneData));
 
-    MLG_CHECK(BuildMaterials(wgpuDevice, sceneKitData.Materials, textureCache, sceneData));
+    std::vector<wgpu::BindGroup> materialBindGroups;
+    MLG_CHECK(CreateMaterialBindGroups(wgpuDevice, sceneKitData.Materials, *textureCache, materialBindGroups));
 
-    MLG_CHECK(CreateBindGroups(wgpuDevice, sceneData));
+    ColorPipelineResources colorPipelineResources //
+    {
+        .TransformBuffer = *transformBuffer,
+        .TransformIndexBuffer = sceneData.TransformIndexBuffer,
+        .MaterialConstantsBuffer = *materialConstantsBuffer,
+        .MaterialIndexBuffer = sceneData.MaterialIndexBuffer,
+    };
+
+    auto colorPipelineBindGroup0 = CreateColorPipelineBindGroup0(wgpuDevice, colorPipelineResources);
+    MLG_CHECK(colorPipelineBindGroup0);
+
+    TransformPipelineResources transformPipelineResources //
+    {
+        .TransformBuffer = *transformBuffer,
+    };
+
+    auto transformPipelineBindGroup0 = CreateTransformPipelineBindGroup0(wgpuDevice, transformPipelineResources);
+    MLG_CHECK(transformPipelineBindGroup0);
 
     cgltf_free(data);
 
     DawnSceneKit* sceneKit = new DawnSceneKit(
-        sceneData.IndexBuffer,
-        sceneData.VertexBuffer,
-        sceneData.TransformBuffer,
+        *indexBuffer,
+        *vertexBuffer,
+        *transformBuffer,
         sceneData.DrawIndirectBuffer,
         sceneData.TransformIndexBuffer,
-        sceneData.ColorRenderBindGroup0,
-        sceneData.TransformBindGroup0,
-        std::move(sceneData.MaterialBindings),
+        *colorPipelineBindGroup0,
+        *transformPipelineBindGroup0,
+        std::move(materialBindGroups),
         std::move(sceneKitData.MaterialIndices));
 
     return sceneKit;

@@ -85,19 +85,16 @@ DawnRenderer::Render(const Mat44f& camera,
     auto vertexBuffer = static_cast<const DawnGpuVertexBuffer*>(model->GetGpuVertexBuffer())->GetBuffer();
     auto indexBuffer = static_cast<const DawnGpuIndexBuffer*>(model->GetGpuIndexBuffer())->GetBuffer();
 
-    std::vector<MaterialBinding> materialBindings;
+    std::vector<wgpu::BindGroup> materialBindGroups;
     std::vector<uint32_t> meshToMaterialMap;
-    materialBindings.reserve(model->GetMeshes().size());
+    materialBindGroups.reserve(model->GetMeshes().size());
     meshToMaterialMap.reserve(model->GetMeshes().size());
 
     for(size_t i = 0; i < model->GetMeshes().size(); ++i)
     {
         const Mesh& mesh = model->GetMeshes()[i];
         DawnGpuMaterial* dawnMaterial = static_cast<DawnGpuMaterial*>(mesh.GetGpuMaterial());
-        MaterialBinding materialBinding;
-        materialBinding.BindGroup = dawnMaterial->GetBindGroup();
-
-        materialBindings.emplace_back(std::move(materialBinding));
+        materialBindGroups.emplace_back(dawnMaterial->GetBindGroup());
         meshToMaterialMap.push_back(static_cast<uint32_t>(i));
     }
 
@@ -179,7 +176,7 @@ DawnRenderer::Render(const Mat44f& camera,
         meshToTransformMappingBuffer,
         colorRenderBindGroup0,
         transformBindGroup0,
-        std::move(materialBindings),
+        std::move(materialBindGroups),
         std::move(meshToMaterialMap));
 
     return Render(camera, projection, sceneKit, compositor);
@@ -261,7 +258,7 @@ DawnRenderer::Render(const Mat44f& camera,
 
     uint64_t indirectOffset = 0;
 
-    const auto& materialBindings = dawnSceneKit.GetMaterialBindings();
+    const auto& materialBindGroups = dawnSceneKit.GetMaterialBindGroups();
     const auto& materialIndices = dawnSceneKit.GetMaterialIndices();
     const size_t meshCount = dawnSceneKit.GetMeshCount();
     const auto& drawIndirectBuffer = dawnSceneKit.GetDrawIndirectBuffer();
@@ -274,7 +271,7 @@ DawnRenderer::Render(const Mat44f& camera,
 
             const uint32_t materialIndex = materialIndices[i];
 
-            renderPass.SetBindGroup(2, materialBindings[materialIndex].BindGroup, 0, nullptr);
+            renderPass.SetBindGroup(2, materialBindGroups[materialIndex], 0, nullptr);
         }
 
         static PerfTimer drawIndexedTimer("Renderer.Render.Draw.DrawIndexed");
