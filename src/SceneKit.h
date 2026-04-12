@@ -12,10 +12,22 @@ struct DrawIndirectBufferParams
 using MaterialIndex = uint32_t;
 using TransformIndex = uint32_t;
 
-struct MeshInstance
+struct MeshProperties
+{
+    MaterialIndex MaterialIndex;
+};
+
+struct MeshDrawData
 {
     TransformIndex TransformIndex;
     MaterialIndex MaterialIndex;
+};
+
+struct ModelInstance
+{
+    uint32_t FirstMesh;
+    uint32_t MeshCount;
+    TransformIndex TransformIndex;
 };
 
 class SceneKit

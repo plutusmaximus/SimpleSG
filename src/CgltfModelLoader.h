@@ -29,21 +29,9 @@ struct MaterialData
 struct MeshData
 {
     uint32_t FirstIndex;
-    uint32_t BaseVertex;
     uint32_t IndexCount;
+    uint32_t BaseVertex;
     MaterialIndex MaterialIndex;
-};
-
-struct ModelData
-{
-    size_t FirstMesh;
-    size_t MeshCount;
-};
-
-struct ModelInstanceData
-{
-    ModelIndex ModelIndex;
-    TransformIndex TransformIndex;
 };
 
 struct TransformData

@@ -16,13 +16,13 @@ struct Material
     pad1 : f32,
 };
 
-struct InstanceData
+struct MeshDrawData
 {
     transformIndex : u32,
     materialIndex : u32,
 };
 
-@group(0) @binding(0) var<storage, read> instanceData : array<InstanceData>;
+@group(0) @binding(0) var<storage, read> meshDrawData : array<MeshDrawData>;
 @group(0) @binding(2) var<storage, read> materials : array<Material>;
 
 @group(2) @binding(0) var texture0: texture_2d<f32>;
@@ -31,7 +31,7 @@ struct InstanceData
 @fragment
 fn main(input: PSInput) -> @location(0) vec4<f32>
 {
-    let material = materials[instanceData[input.instanceIndex].materialIndex];
+    let material = materials[meshDrawData[input.instanceIndex].materialIndex];
     let lightDir = normalize(vec3<f32>(1.0, -1.0, 1.0));
     let ambientFactor = 0.1;
     let diff = max(-dot(input.fragNormal, lightDir), 0.0);

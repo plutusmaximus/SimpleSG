@@ -159,32 +159,39 @@ DawnRenderer::Render(const Mat44f& camera,
     uint64_t indirectOffset = 0;
 
     const auto& materialBindGroups = dawnSceneKit.GetMaterialBindGroups();
-    const auto& meshes = dawnSceneKit.GetMeshInstances();
-    const size_t meshCount = meshes.size();
+    const auto& meshes = dawnSceneKit.GetMeshes();
+    const auto& modelInstances = dawnSceneKit.GetModelInstances();
     const auto& drawIndirectBuffer = dawnSceneKit.GetDrawIndirectBuffer();
 
     uint32_t lastMaterialIndex = UINT32_MAX;
 
-    for(size_t i = 0; i < meshCount; ++i, indirectOffset += sizeof(DrawIndirectBufferParams))
+    for(const auto& modelInstance : modelInstances)
     {
-        const uint32_t materialIndex = meshes[i].MaterialIndex;
+        std::span<const MeshProperties> instanceMeshes(
+            meshes.data() + modelInstance.FirstMesh, modelInstance.MeshCount);
 
-        if(materialIndex != lastMaterialIndex)
+        for(const auto& mesh : instanceMeshes)
         {
-            static PerfTimer fsBindingTimer("Renderer.Render.Draw.SetMaterialBindGroup");
+            const uint32_t materialIndex = mesh.MaterialIndex;
+
+            if(materialIndex != lastMaterialIndex)
             {
-                auto scopedTimer = fsBindingTimer.StartScoped();
+                static PerfTimer fsBindingTimer("Renderer.Render.Draw.SetMaterialBindGroup");
+                {
+                    auto scopedTimer = fsBindingTimer.StartScoped();
 
-                renderPass.SetBindGroup(2, materialBindGroups[materialIndex], 0, nullptr);
-                lastMaterialIndex = materialIndex;
+                    renderPass.SetBindGroup(2, materialBindGroups[materialIndex], 0, nullptr);
+                    lastMaterialIndex = materialIndex;
+                }
             }
-        }
 
-        static PerfTimer drawIndexedTimer("Renderer.Render.Draw.DrawIndexed");
-        {
-            auto scopedTimer = drawIndexedTimer.StartScoped();
+            static PerfTimer drawIndexedTimer("Renderer.Render.Draw.DrawIndexed");
+            {
+                auto scopedTimer = drawIndexedTimer.StartScoped();
 
-            renderPass.DrawIndexedIndirect(drawIndirectBuffer, indirectOffset);
+                renderPass.DrawIndexedIndirect(drawIndirectBuffer, indirectOffset);
+                indirectOffset += sizeof(DrawIndirectBufferParams);
+            }
         }
     }
 

@@ -646,7 +646,7 @@ WebgpuHelper::GetColorPipelineLayouts()
         // Color pipeline bind group 0 layout
         wgpu::BindGroupLayoutEntry entries[] =//
         {
-            // Mesh instance data.
+            // Mesh draw data.
             {
                 .binding = 0,
                 .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
@@ -654,7 +654,7 @@ WebgpuHelper::GetColorPipelineLayouts()
                 {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
                     .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(MeshInstance),
+                    .minBindingSize = sizeof(MeshDrawData),
                 },
             },
             // World space transform.

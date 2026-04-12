@@ -46,9 +46,9 @@ public:
             return *this;
         }
 
-        Builder& SetMeshInstanceBuffer(wgpu::Buffer meshInstanceBuffer)
+        Builder& SetMeshDrawDataBuffer(wgpu::Buffer meshDrawDataBuffer)
         {
-            m_MeshInstanceBuffer = meshInstanceBuffer;
+            m_MeshDrawDataBuffer = meshDrawDataBuffer;
             return *this;
         }
 
@@ -70,9 +70,15 @@ public:
             return *this;
         }
 
-        Builder& SetMeshes(std::vector<MeshInstance>&& meshInstances)
+        Builder& SetMeshes(std::vector<MeshProperties>&& meshes)
         {
-            m_MeshInstances = std::move(meshInstances);
+            m_Meshes = std::move(meshes);
+            return *this;
+        }
+
+        Builder& SetModelInstances(std::vector<ModelInstance>&& modelInstances)
+        {
+            m_ModelInstances = std::move(modelInstances);
             return *this;
         }
 
@@ -86,11 +92,12 @@ public:
                 m_TransformBuffer,
                 m_MaterialConstantsBuffer,
                 m_DrawIndirectBuffer,
-                m_MeshInstanceBuffer,
+                m_MeshDrawDataBuffer,
                 m_ColorPipelineBindGroup0,
                 m_TransformPipelineBindGroup0,
                 std::move(m_MaterialBindGroups),
-                std::move(m_MeshInstances));
+                std::move(m_Meshes),
+                std::move(m_ModelInstances));
         }
 
     private:
@@ -98,20 +105,22 @@ public:
         bool Validate() const
         {
             return m_IndexBuffer && m_VertexBuffer && m_TransformBuffer &&
-                   m_MaterialConstantsBuffer && m_DrawIndirectBuffer && m_MeshInstanceBuffer &&
-                   m_ColorPipelineBindGroup0 && m_TransformPipelineBindGroup0 && m_MeshInstances.size() > 0;
+                   m_MaterialConstantsBuffer && m_DrawIndirectBuffer && m_MeshDrawDataBuffer &&
+                   m_ColorPipelineBindGroup0 && m_TransformPipelineBindGroup0 &&
+                   m_Meshes.size() > 0 && m_ModelInstances.size() > 0;
         }
 
         wgpu::Buffer m_IndexBuffer{nullptr};
         wgpu::Buffer m_VertexBuffer{nullptr};
         wgpu::Buffer m_TransformBuffer{nullptr};
         wgpu::Buffer m_DrawIndirectBuffer{nullptr};
-        wgpu::Buffer m_MeshInstanceBuffer{nullptr};
+        wgpu::Buffer m_MeshDrawDataBuffer{nullptr};
         wgpu::Buffer m_MaterialConstantsBuffer{nullptr};
         wgpu::BindGroup m_ColorPipelineBindGroup0{nullptr};
         wgpu::BindGroup m_TransformPipelineBindGroup0{nullptr};
         std::vector<wgpu::BindGroup> m_MaterialBindGroups;
-        std::vector<MeshInstance> m_MeshInstances;
+        std::vector<MeshProperties> m_Meshes;
+        std::vector<ModelInstance> m_ModelInstances;
     };
 
     DawnSceneKit() = default;
@@ -127,21 +136,23 @@ public:
         wgpu::Buffer transformBuffer,
         wgpu::Buffer materialConstantsBuffer,
         wgpu::Buffer drawIndirectBuffer,
-        wgpu::Buffer meshInstanceBuffer,
+        wgpu::Buffer meshDrawDataBuffer,
         wgpu::BindGroup colorPipelineBindGroup0,
         wgpu::BindGroup transformPipelineBindGroup0,
         std::vector<wgpu::BindGroup>&& materialBindGroups,
-        std::vector<MeshInstance>&& meshInstances)
+        std::vector<MeshProperties>&& meshes,
+        std::vector<ModelInstance>&& modelInstances)
         : m_IndexBuffer(indexBuffer),
           m_VertexBuffer(vertexBuffer),
           m_TransformBuffer(transformBuffer),
           m_MaterialConstantsBuffer(materialConstantsBuffer),
           m_DrawIndirectBuffer(drawIndirectBuffer),
-          m_MeshInstanceBuffer(meshInstanceBuffer),
+          m_MeshDrawDataBuffer(meshDrawDataBuffer),
           m_ColorPipelineBindGroup0(colorPipelineBindGroup0),
           m_TransformPipelineBindGroup0(transformPipelineBindGroup0),
           m_MaterialBindGroups(std::move(materialBindGroups)),
-          m_MeshInstances(std::move(meshInstances))
+          m_Meshes(std::move(meshes)),
+          m_ModelInstances(std::move(modelInstances))
     {
     }
 
@@ -156,7 +167,7 @@ public:
 
     uint32_t GetMeshCount() const override
     {
-        return static_cast<uint32_t>(m_MeshInstances.size());
+        return static_cast<uint32_t>(m_Meshes.size());
     }
 
     const std::span<const wgpu::BindGroup> GetMaterialBindGroups() const
@@ -164,9 +175,14 @@ public:
         return m_MaterialBindGroups;
     }
 
-    const std::span<const MeshInstance> GetMeshInstances() const
+    const std::span<const MeshProperties> GetMeshes() const
     {
-        return m_MeshInstances;
+        return m_Meshes;
+    }
+
+    const std::span<const ModelInstance> GetModelInstances() const
+    {
+        return m_ModelInstances;
     }
 
     wgpu::Buffer GetTransformBuffer() const { return m_TransformBuffer; }
@@ -183,11 +199,12 @@ private:
     wgpu::Buffer m_VertexBuffer{nullptr};
     wgpu::Buffer m_TransformBuffer{nullptr};
     wgpu::Buffer m_DrawIndirectBuffer{nullptr};
-    wgpu::Buffer m_MeshInstanceBuffer{nullptr};
+    wgpu::Buffer m_MeshDrawDataBuffer{nullptr};
     wgpu::Buffer m_MaterialConstantsBuffer{nullptr};
     wgpu::BindGroup m_ColorPipelineBindGroup0{nullptr};
     wgpu::BindGroup m_TransformPipelineBindGroup0{nullptr};
 
     std::vector<wgpu::BindGroup> m_MaterialBindGroups;
-    std::vector<MeshInstance> m_MeshInstances;
+    std::vector<MeshProperties> m_Meshes;
+    std::vector<ModelInstance> m_ModelInstances;
 };

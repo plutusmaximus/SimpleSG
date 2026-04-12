@@ -60,15 +60,20 @@ struct TextureBuilder
     std::atomic<bool> DecodeComplete{ false };
 };
 
+struct ModelData
+{
+    uint32_t FirstMesh;
+    uint32_t MeshCount;
+};
+
 struct SceneKitData
 {
     std::vector<Vertex> Vertices;
     std::vector<VertexIndex> Indices;
     std::vector<MaterialData> Materials;
-    std::vector<MeshData> Meshes;
-    std::vector<ModelData> Models;
-    std::vector<ModelInstanceData> ModelInstances;
     std::vector<TransformData> Transforms;
+    std::vector<MeshData> Meshes;
+    std::vector<ModelInstance> ModelInstances;
 };
 
 struct TextureCache
@@ -79,17 +84,11 @@ struct TextureCache
     wgpu::Texture DefaultTexture;
 };
 
-struct SceneData
-{
-    wgpu::Buffer DrawIndirectBuffer;
-    wgpu::Buffer MeshInstanceBuffer;
-};
-
 struct ColorPipelineResources
 {
     wgpu::Buffer TransformBuffer;
     wgpu::Buffer MaterialConstantsBuffer;
-    wgpu::Buffer MeshInstanceBuffer;
+    wgpu::Buffer MeshDrawDataBuffer;
 };
 
 struct TransformPipelineResources
@@ -102,8 +101,14 @@ struct TransformPipelineResources
 template<typename T, typename U>
 static T narrow_cast(U u)
 {
+    static_assert(std::is_integral_v<T> && std::is_integral_v<U>, "narrow_cast requires integral types");
+    static_assert((std::numeric_limits<T>::is_signed == std::numeric_limits<U>::is_signed) ||
+                      (std::numeric_limits<T>::is_signed && !std::numeric_limits<U>::is_signed),
+        "narrow_cast requires both types to have the same signedness, or the destination type to be signed and the source type to be unsigned");
+    static_assert(std::numeric_limits<T>::digits <= std::numeric_limits<U>::digits,
+        "narrow_cast requires the destination type to have fewer or the same digits than the source type");
     const T t = static_cast<T>(u);
-    MLG_ASSERT(static_cast<T>(u) == t, "narrow_cast failed: {} -> {}", u, t);
+    MLG_ASSERT(static_cast<U>(t) == u, "narrow_cast failed: {} -> {}", u, t);
     return t;
 }
 
@@ -434,7 +439,7 @@ CollectModels(const std::vector<CgltfMeshData>& gltfMeshes,
     std::vector<MaterialData>& materials,
     std::vector<MeshData>& meshes,
     std::vector<ModelData>& models,
-    std::map<const cgltf_mesh*, size_t>& modelIndices)
+    std::map<const cgltf_mesh*, ModelIndex>& modelIndices)
 {
     vertices.clear();
     indices.clear();
@@ -450,6 +455,7 @@ CollectModels(const std::vector<CgltfMeshData>& gltfMeshes,
     }
 
     meshes.reserve(meshCount);
+    models.reserve(gltfMeshes.size());
 
     uint32_t firstIndex = 0;
     uint32_t baseVertex = 0;
@@ -462,10 +468,10 @@ CollectModels(const std::vector<CgltfMeshData>& gltfMeshes,
 
         MLG_LOG_SCOPE("mesh {}/{}", gltfMesh.Mesh->name ? gltfMesh.Mesh->name : "<unnamed>", i);
 
-        ModelData model
+        const ModelData model
         {
-            .FirstMesh = meshes.size(),
-            .MeshCount = gltfMesh.Primitives.size(),
+            .FirstMesh = narrow_cast<uint32_t>(meshes.size()),
+            .MeshCount = narrow_cast<uint32_t>(gltfMesh.Primitives.size()),
         };
 
         for(size_t j = 0; j < gltfMesh.Primitives.size(); ++j)
@@ -506,20 +512,22 @@ CollectModels(const std::vector<CgltfMeshData>& gltfMeshes,
                 materialMap[prim.material] = materialIndex;
             }
 
-            meshes.emplace_back(MeshData //
+            const MeshData meshData//
             {
                 .FirstIndex = narrow_cast<uint32_t>(firstIndex),
-                .BaseVertex = narrow_cast<uint32_t>(baseVertex),
                 .IndexCount = narrow_cast<uint32_t>(*indexCount),
+                .BaseVertex = narrow_cast<uint32_t>(baseVertex),
                 .MaterialIndex = narrow_cast<MaterialIndex>(materialIndex),
-            });
+            };
+
+            meshes.emplace_back(std::move(meshData));
 
             firstIndex += narrow_cast<uint32_t>(*indexCount);
             baseVertex += narrow_cast<uint32_t>(*vertexCount);
         }
 
-        modelIndices[gltfMesh.Mesh] = models.size();
-        models.push_back(std::move(model));
+        modelIndices[gltfMesh.Mesh] = narrow_cast<ModelIndex>(models.size());
+        models.emplace_back(std::move(model));
     }
 
     return Result<>::Ok;
@@ -545,8 +553,9 @@ CollectTransforms(cgltf_node** const childNodes,
     const cgltf_size nodeCount,
     const uint32_t parentIndex,
     std::vector<TransformData>& transforms,
-    std::vector<ModelInstanceData>& modelInstances,
-    const std::map<const cgltf_mesh*, size_t>& modelIndices)
+    std::vector<ModelInstance>& modelInstances,
+    const std::vector<ModelData>& models,
+    const std::map<const cgltf_mesh*, ModelIndex>& modelIndices)
 {
     const size_t numTransforms = transforms.size();
 
@@ -597,6 +606,7 @@ CollectTransforms(cgltf_node** const childNodes,
             transformIndex,
             transforms,
             modelInstances,
+            models,
             modelIndices);
 
         if(!countResult)
@@ -661,9 +671,12 @@ CollectTransforms(cgltf_node** const childNodes,
         }
         else
         {
-            ModelInstanceData modelInstance //
+            const ModelIndex modelIndex = modelIndices.at(srcNode->mesh);
+
+            ModelInstance modelInstance //
             {
-                .ModelIndex = narrow_cast<ModelIndex>(modelIndices.at(srcNode->mesh)),
+                .FirstMesh = models[modelIndex].FirstMesh,
+                .MeshCount = models[modelIndex].MeshCount,
                 .TransformIndex = narrow_cast<TransformIndex>(transformIndex),
             };
 
@@ -745,8 +758,8 @@ StageTexture(wgpu::Device wgpuDevice, TextureBuilder& builder)
     MLG_DEBUG("Image info - {} x {} x {}", width, height, numChannels);
 
     auto texture = CreateTexture(wgpuDevice,
-        narrow_cast<uint32_t>(width),
-        narrow_cast<uint32_t>(height),
+        static_cast<uint32_t>(width),
+        static_cast<uint32_t>(height),
         kTextureFormat,
         builder.Uri);
 
@@ -1052,9 +1065,9 @@ CreateColorPipelineBindGroup0(wgpu::Device wgpuDevice,
     {
         {
             .binding = 0,
-            .buffer = colorPipelineResources.MeshInstanceBuffer,
+            .buffer = colorPipelineResources.MeshDrawDataBuffer,
             .offset = 0,
-            .size = colorPipelineResources.MeshInstanceBuffer.GetSize(),
+            .size = colorPipelineResources.MeshDrawDataBuffer.GetSize(),
         },
         {
             .binding = 1,
@@ -1286,77 +1299,107 @@ BuildMaterialConstantsBuffer(
     return materialConstantsBuffer;
 }
 
-static Result<>
-BuildDrawBuffers(wgpu::Device wgpuDevice, const SceneKitData& sceneKitData, SceneData& sceneData)
+static Result<wgpu::Buffer>
+BuildDrawIndirectBuffer(wgpu::Device wgpuDevice,
+    std::span<const MeshData> meshDatas,
+    std::span<const ModelInstance> modelInstances)
 {
     size_t meshInstanceCount = 0;
-    for(const auto& instance : sceneKitData.ModelInstances)
+    for(const auto& modelInstance : modelInstances)
     {
-        const ModelData& model = sceneKitData.Models[instance.ModelIndex];
-        meshInstanceCount += model.MeshCount;
+        meshInstanceCount += modelInstance.MeshCount;
     }
 
     const size_t sizeofDrawIndirectBuffer = meshInstanceCount * sizeof(DrawIndirectBufferParams);
-    const size_t sizeofMeshInstanceBuffer = meshInstanceCount * sizeof(MeshInstance);
 
     auto drawIndirectBuffer = CreateGpuBuffer(wgpuDevice,
         wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
         sizeofDrawIndirectBuffer,
         "DrawIndirectBuffer");
 
-    auto meshInstanceBuffer = CreateGpuBuffer(wgpuDevice,
-        wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
-        sizeofMeshInstanceBuffer,
-        "MeshInstanceBuffer");
-
     void* diMapped = drawIndirectBuffer.GetMappedRange();
     MLG_CHECK(diMapped, "Failed to map DrawIndirectBuffer");
 
-    auto cleanupDrawParams = scope_exit([&]() { drawIndirectBuffer.Unmap(); });
-
-    void* meshInstanceMapped = meshInstanceBuffer.GetMappedRange();
-    MLG_CHECK(meshInstanceMapped, "Failed to map MeshInstanceBuffer");
-
-    auto cleanupMeshInstance = scope_exit([&]() { meshInstanceBuffer.Unmap(); });
-
     DrawIndirectBufferParams* drawParams = reinterpret_cast<DrawIndirectBufferParams*>(diMapped);
-    MeshInstance* meshInstance = reinterpret_cast<MeshInstance*>(meshInstanceMapped);
 
     uint32_t meshCount = 0;
 
-    for(const auto& instance : sceneKitData.ModelInstances)
+    for(const auto& modelInstance : modelInstances)
     {
-        const ModelData& model = sceneKitData.Models[instance.ModelIndex];
         std::span<const MeshData> meshes //
             {
-                sceneKitData.Meshes.data() + model.FirstMesh,
-                model.MeshCount,
+                meshDatas.data() + modelInstance.FirstMesh,
+                modelInstance.MeshCount,
             };
 
-        for(const auto& mesh : meshes)
+        for(const auto& meshData : meshes)
         {
             drawParams[meshCount] = //
             {
-                .IndexCount = mesh.IndexCount,
+                .IndexCount = meshData.IndexCount,
                 .InstanceCount = 1,
-                .FirstIndex = mesh.FirstIndex,
-                .BaseVertex = mesh.BaseVertex,
+                .FirstIndex = meshData.FirstIndex,
+                .BaseVertex = meshData.BaseVertex,
                 .FirstInstance = meshCount,
             };
 
-            meshInstance[meshCount] = //
-            {
-                .TransformIndex = instance.TransformIndex,
-                .MaterialIndex = mesh.MaterialIndex,
-            };
             ++meshCount;
         }
     }
 
-    sceneData.DrawIndirectBuffer = drawIndirectBuffer;
-    sceneData.MeshInstanceBuffer = meshInstanceBuffer;
+    drawIndirectBuffer.Unmap();
 
-    return Result<>::Ok;
+    return drawIndirectBuffer;
+}
+
+static Result<wgpu::Buffer>
+BuildMeshDrawDataBuffer(wgpu::Device wgpuDevice,
+    std::span<const MeshData> meshDatas,
+    std::span<const ModelInstance> modelInstances)
+{
+    size_t meshInstanceCount = 0;
+    for(const auto& modelInstance : modelInstances)
+    {
+        meshInstanceCount += modelInstance.MeshCount;
+    }
+
+    const size_t sizeofMeshDrawDataBuffer = meshInstanceCount * sizeof(MeshDrawData);
+
+    auto meshDrawDataBuffer = CreateGpuBuffer(wgpuDevice,
+        wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
+        sizeofMeshDrawDataBuffer,
+        "MeshDrawDataBuffer");
+
+    void* meshDrawDataMapped = meshDrawDataBuffer.GetMappedRange();
+    MLG_CHECK(meshDrawDataMapped, "Failed to map MeshDrawDataBuffer");
+
+    MeshDrawData* meshDrawData = reinterpret_cast<MeshDrawData*>(meshDrawDataMapped);
+
+    uint32_t meshCount = 0;
+
+    for(const auto& modelInstance : modelInstances)
+    {
+        std::span<const MeshData> meshes //
+            {
+                meshDatas.data() + modelInstance.FirstMesh,
+                modelInstance.MeshCount,
+            };
+
+        for(const auto& meshData : meshes)
+        {
+            meshDrawData[meshCount] = //
+            {
+                .TransformIndex = modelInstance.TransformIndex,
+                .MaterialIndex = meshData.MaterialIndex,
+            };
+
+            ++meshCount;
+        }
+    }
+
+    meshDrawDataBuffer.Unmap();
+
+    return meshDrawDataBuffer;
 }
 
 Result<SceneKit*>
@@ -1395,17 +1438,18 @@ CgltfModelLoader::LoadSceneKit(wgpu::Device& wgpuDevice, const std::string& path
         std::vector<MaterialData> materials;
         std::vector<MeshData> meshes;
         std::vector<ModelData> models;
-        std::map<const cgltf_mesh*, size_t> modelIndices;
+        std::map<const cgltf_mesh*, ModelIndex> modelIndices;
         MLG_CHECK(
             CollectModels(gltfMeshes, vertices, indices, materials, meshes, models, modelIndices));
 
         std::vector<TransformData> transforms;
-        std::vector<ModelInstanceData> modelInstances;
+        std::vector<ModelInstance> modelInstances;
         MLG_CHECK(CollectTransforms(gltfData->scenes[0].nodes,
             gltfData->scenes[0].nodes_count,
             TransformData::kInvalidParentIndex,
             transforms,
             modelInstances,
+            models,
             modelIndices));
 
         // Convert local transforms to world space.
@@ -1413,18 +1457,15 @@ CgltfModelLoader::LoadSceneKit(wgpu::Device& wgpuDevice, const std::string& path
         {
             if(transform.ParentIndex != TransformData::kInvalidParentIndex)
             {
-                const Mat44f& parent = transforms[transform.ParentIndex].Transform;
-                transform.Transform = parent * transform.Transform;
+                const TransformData& parent = transforms[transform.ParentIndex];
+                transform.Transform = parent.Transform * transform.Transform;
             }
         }
 
         sceneKitData.Materials = std::move(materials);
-
         sceneKitData.Vertices = std::move(vertices);
         sceneKitData.Indices = std::move(indices);
         sceneKitData.Meshes = std::move(meshes);
-        sceneKitData.Models = std::move(models);
-
         sceneKitData.Transforms = std::move(transforms);
         sceneKitData.ModelInstances = std::move(modelInstances);
     }
@@ -1436,16 +1477,21 @@ CgltfModelLoader::LoadSceneKit(wgpu::Device& wgpuDevice, const std::string& path
 
     auto vertexBuffer = BuildVertexBuffer(wgpuDevice, sceneKitData.Vertices);
     MLG_CHECK(vertexBuffer);
+
     auto indexBuffer = BuildIndexBuffer(wgpuDevice, sceneKitData.Indices);
     MLG_CHECK(indexBuffer);
+
     auto transformBuffer = BuildTransformBuffer(wgpuDevice, sceneKitData.Transforms);
     MLG_CHECK(transformBuffer);
+
     auto materialConstantsBuffer = BuildMaterialConstantsBuffer(wgpuDevice, sceneKitData.Materials);
     MLG_CHECK(materialConstantsBuffer);
 
-    SceneData sceneData;
+    auto drawIndirectBuffer = BuildDrawIndirectBuffer(wgpuDevice, sceneKitData.Meshes, sceneKitData.ModelInstances);
+    MLG_CHECK(drawIndirectBuffer);
 
-    MLG_CHECK(BuildDrawBuffers(wgpuDevice, sceneKitData, sceneData));
+    auto meshDrawDataBuffer = BuildMeshDrawDataBuffer(wgpuDevice, sceneKitData.Meshes, sceneKitData.ModelInstances);
+    MLG_CHECK(meshDrawDataBuffer);
 
     std::vector<wgpu::BindGroup> materialBindGroups;
     MLG_CHECK(CreateMaterialBindGroups(wgpuDevice, sceneKitData.Materials, *textureCache, materialBindGroups));
@@ -1454,7 +1500,7 @@ CgltfModelLoader::LoadSceneKit(wgpu::Device& wgpuDevice, const std::string& path
     {
         .TransformBuffer = *transformBuffer,
         .MaterialConstantsBuffer = *materialConstantsBuffer,
-        .MeshInstanceBuffer = sceneData.MeshInstanceBuffer,
+        .MeshDrawDataBuffer = *meshDrawDataBuffer,
     };
 
     auto colorPipelineBindGroup0 = CreateColorPipelineBindGroup0(wgpuDevice, colorPipelineResources);
@@ -1470,26 +1516,16 @@ CgltfModelLoader::LoadSceneKit(wgpu::Device& wgpuDevice, const std::string& path
 
     cgltf_free(gltfData);
 
-    std::vector<MeshInstance> meshInstances;
-    meshInstances.reserve(sceneKitData.Meshes.size());
-    for(const auto& instance : sceneKitData.ModelInstances)
+    std::vector<MeshProperties> meshProperties;
+    meshProperties.reserve(sceneKitData.Meshes.size());
+    for(const auto& meshData : sceneKitData.Meshes)
     {
-        const ModelData& model = sceneKitData.Models[instance.ModelIndex];
-        std::span<const MeshData> meshes //
-            {
-                sceneKitData.Meshes.data() + model.FirstMesh,
-                model.MeshCount,
-            };
-
-        for(const auto& mesh : meshes)
+        const MeshProperties mesh //
         {
-            const MeshInstance meshInstance //
-            {
-                .TransformIndex = instance.TransformIndex,
-                .MaterialIndex = mesh.MaterialIndex,
-            };
-            meshInstances.emplace_back(meshInstance);
-        }
+            .MaterialIndex = meshData.MaterialIndex,
+        };
+
+        meshProperties.emplace_back(std::move(mesh));
     }
 
     DawnSceneKit::Builder builder;
@@ -1498,12 +1534,13 @@ CgltfModelLoader::LoadSceneKit(wgpu::Device& wgpuDevice, const std::string& path
         .SetVertexBuffer(*vertexBuffer)
         .SetTransformBuffer(*transformBuffer)
         .SetMaterialConstantsBuffer(*materialConstantsBuffer)
-        .SetDrawIndirectBuffer(sceneData.DrawIndirectBuffer)
-        .SetMeshInstanceBuffer(sceneData.MeshInstanceBuffer)
+        .SetDrawIndirectBuffer(*drawIndirectBuffer)
+        .SetMeshDrawDataBuffer(*meshDrawDataBuffer)
         .SetColorPipelineBindGroup0(*colorPipelineBindGroup0)
         .SetTransformPipelineBindGroup0(*transformPipelineBindGroup0)
         .SetMaterialBindGroups(std::move(materialBindGroups))
-        .SetMeshes(std::move(meshInstances));
+        .SetMeshes(std::move(meshProperties))
+        .SetModelInstances(std::move(sceneKitData.ModelInstances));
 
     DawnSceneKit* sceneKit = builder.Build();
 

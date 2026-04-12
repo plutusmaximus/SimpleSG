@@ -8,13 +8,13 @@ struct ClipSpaceXform
     xform : mat4x4<f32>,
 }
 
-struct InstanceData
+struct MeshDrawData
 {
     transformIndex : u32,
     materialIndex : u32,
 };
 
-@group(0) @binding(0) var<storage, read> instanceData : array<InstanceData>;
+@group(0) @binding(0) var<storage, read> meshDrawData : array<MeshDrawData>;
 @group(0) @binding(1) var<storage, read> worldSpaceArray: array<WorldSpaceXform>;
 
 @group(1) @binding(0) var<storage, read> clipSpaceArray: array<ClipSpaceXform>;
@@ -39,7 +39,7 @@ fn main(input: VSInput, @builtin(instance_index) instance_index: u32) -> VSOutpu
 {
     var output: VSOutput;
 
-    let transformIdx = instanceData[instance_index].transformIndex;
+    let transformIdx = meshDrawData[instance_index].transformIndex;
     let clipXform = clipSpaceArray[transformIdx].xform;
     let worldXform = worldSpaceArray[transformIdx].xform;
 
