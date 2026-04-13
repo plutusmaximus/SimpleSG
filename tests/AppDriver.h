@@ -1,21 +1,8 @@
 #pragma once
 
-#include "GpuDevice.h"
+#include "Result.h"
 
 class Application;
-struct SDL_Window;
-
-class AppContext
-{
-public:
-
-    explicit AppContext(GpuDevice* gpuDevice)
-        : GpuDevice(gpuDevice)
-    {
-    }
-
-    GpuDevice* const GpuDevice;
-};
 
 class AppLifecycle
 {

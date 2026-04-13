@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Result.h"
+#include "VecMath.h"
+
 #include <string>
 
 #include <webgpu/webgpu_cpp.h>
@@ -100,6 +102,10 @@ public:
     static Result<WebgpuTransformPipelineLayouts> GetTransformPipelineLayouts();
 
     static Result<WebgpuCompositorPipelineLayouts> GetCompositorPipelineLayouts();
+
+    static Extent GetScreenBounds();
+
+    static wgpu::TextureFormat GetSwapChainFormat();
 
     template<typename T>
     static size_t AlignUniformBuffer()

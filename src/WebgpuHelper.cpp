@@ -909,6 +909,26 @@ WebgpuHelper::GetCompositorPipelineLayouts()
     return s_WgpuContext->CompositorPipelineLayouts;
 }
 
+Extent
+WebgpuHelper::GetScreenBounds()
+{
+    int width = 0, height = 0;
+    if(!SDL_GetWindowSizeInPixels(GetWindow(), &width, &height))
+    {
+        MLG_ERROR("Failed to get window size: {}", SDL_GetError());
+    }
+    return Extent{static_cast<float>(width), static_cast<float>(height)};
+}
+
+wgpu::TextureFormat
+WebgpuHelper::GetSwapChainFormat()
+{
+    wgpu::SurfaceTexture surfaceTexture;
+    GetSurface().GetCurrentTexture(&surfaceTexture);
+    MLG_ASSERT(surfaceTexture.texture, "Failed to acquire current surface texture");
+    return surfaceTexture.texture.GetFormat();
+}
+
 #include <dawn/native/DawnNative.h> // provides dawn::native::GetTogglesUsed
 #include <iostream>
 

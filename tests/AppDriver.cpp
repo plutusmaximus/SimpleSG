@@ -1,6 +1,5 @@
 #include "AppDriver.h"
 #include "Application.h"
-#include "DawnGpuDevice.h"
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "scope_exit.h"
@@ -53,17 +52,10 @@ AppDriver::Run()
 
     m_State = State::Running;
 
-    auto gdResult = DawnGpuDevice::Create();
-
-    MLG_CHECK(gdResult);
-
-    auto gpuDevice = *gdResult;
-
     {
-        AppContext context{ gpuDevice };
         Application* app = m_AppLifecycle->Create();
 
-        auto initResult = app->Initialize(&context);
+        auto initResult = app->Initialize();
         MLG_CHECK(initResult);
 
         bool running = true;
@@ -149,11 +141,10 @@ AppDriver::Run()
                 }
             }
     #if !defined(__EMSCRIPTEN__)
-            auto dawnGpuDevice = static_cast<DawnGpuDevice*>(gpuDevice);
-            MLG_CHECK(dawnGpuDevice->Surface.Present(), "Failed to present backbuffer");
+            MLG_CHECK(WebgpuHelper::GetSurface().Present(), "Failed to present backbuffer");
     #endif
 
-            dawnGpuDevice->Instance.ProcessEvents();
+            WebgpuHelper::GetInstance().ProcessEvents();
 
             PerfMetrics::EndFrame();
         }
@@ -162,8 +153,6 @@ AppDriver::Run()
 
         m_AppLifecycle->Destroy(app);
     }
-
-    DawnGpuDevice::Destroy(gpuDevice);
 
     m_State = State::Stopped;
 

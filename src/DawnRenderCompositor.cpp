@@ -1,15 +1,21 @@
 #include "DawnRenderCompositor.h"
 
-#include "DawnGpuDevice.h"
 #include "PerfMetrics.h"
+#include "WebgpuHelper.h"
 
-DawnRenderCompositor::DawnRenderCompositor(DawnGpuDevice* gpuDevice)
-    : m_GpuDevice(gpuDevice)
+Result<DawnRenderCompositor*>
+DawnRenderCompositor::Create()
 {
+    DawnRenderCompositor* compositor = new DawnRenderCompositor();
+    MLG_CHECK(compositor, "Failed to create DawnRenderCompositor");
+
+    return compositor;
 }
 
-DawnRenderCompositor::~DawnRenderCompositor()
+void
+DawnRenderCompositor::Destroy(DawnRenderCompositor* compositor)
 {
+    delete compositor;
 }
 
 Result<>
@@ -21,12 +27,12 @@ DawnRenderCompositor::BeginFrame()
 
     wgpu::CommandEncoderDescriptor encoderDesc = { .label = "RenderCompositorEncoder" };
 
-    m_CommandEncoder = m_GpuDevice->Device.CreateCommandEncoder(&encoderDesc);
+    m_CommandEncoder = WebgpuHelper::GetDevice().CreateCommandEncoder(&encoderDesc);
     MLG_CHECK(m_CommandEncoder, "Failed to create command encoder");
 
 #if !OFFSCREEN_RENDERING
     wgpu::SurfaceTexture backbuffer;
-    m_GpuDevice->Surface.GetCurrentTexture(&backbuffer);
+    WebgpuHelper::GetSurface().GetCurrentTexture(&backbuffer);
     MLG_CHECK(backbuffer.texture, "Failed to get current surface texture for render pass");
 
     // TODO - handle SuccessSuboptimal, Timeout, Outdated, Lost, Error statuses
@@ -64,7 +70,7 @@ DawnRenderCompositor::EndFrame()
     static PerfTimer submitCmdBufferTimer("RenderCompositor.SubmitCommandBuffer");
     {
         auto scopedTimer = submitCmdBufferTimer.StartScoped();
-        wgpu::Queue queue = m_GpuDevice->Device.GetQueue();
+        wgpu::Queue queue = WebgpuHelper::GetDevice().GetQueue();
         MLG_CHECK(queue, "Failed to get wgpu::Queue");
 
         queue.Submit(1, &cmdBuf);

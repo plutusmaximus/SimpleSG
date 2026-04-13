@@ -1,16 +1,16 @@
 #include "AppDriver.h"
 #include "Application.h"
 #include "Camera.h"
+#include "DawnRenderCompositor.h"
+#include "DawnRenderer.h"
 #include "DawnSceneKit.h"
 #include "ECS.h"
 #include "EcsChildTransformPool.h"
-#include "DawnGpuDevice.h"
 #include "ImGuiRenderer.h"
 #include "Log.h"
 #include "MouseNav.h"
-#include "RenderCompositor.h"
-#include "Renderer.h"
 #include "Shapes.h"
+#include "WebgpuHelper.h"
 
 #include "scope_exit.h"
 
@@ -38,7 +38,7 @@ public:
     {
     }
 
-    Result<> Initialize(AppContext* context) override
+    Result<> Initialize() override
     {
         auto cleanup = scope_exit([this]()
         {
@@ -51,13 +51,22 @@ public:
 
         m_State = State::Initialized;
 
-        m_GpuDevice = context->GpuDevice;
+        auto rendererResult = DawnRenderer::Create(WebgpuHelper::GetWindow(),
+            WebgpuHelper::GetDevice(),
+            WebgpuHelper::GetSurface());
+        MLG_CHECK(rendererResult);
 
-        m_Renderer = m_GpuDevice->GetRenderer();
-        m_RenderCompositor = m_GpuDevice->GetRenderCompositor();
-        m_ImGuiRenderer = new ImGuiRenderer(m_GpuDevice);
+        auto renderCompositorResult = DawnRenderCompositor::Create();
+        MLG_CHECK(renderCompositorResult);
 
-        m_ScreenBounds = m_GpuDevice->GetScreenBounds();
+        auto imGuiRendererResult = ImGuiRenderer::Create();
+        MLG_CHECK(imGuiRendererResult);
+
+        m_Renderer = *rendererResult;
+        m_RenderCompositor = *renderCompositorResult;
+        m_ImGuiRenderer = *imGuiRendererResult;
+
+        m_ScreenBounds = WebgpuHelper::GetScreenBounds();
         m_Planet = m_Registry.CreateEntity();
         m_MoonOrbit = m_Registry.CreateEntity();
         m_Moon = m_Registry.CreateEntity();
@@ -66,7 +75,7 @@ public:
         auto sceneKitData = CreateShapeModel();
         MLG_CHECK(sceneKitData);
 
-        wgpu::Device wgpuDevice = static_cast<DawnGpuDevice*>(m_GpuDevice)->Device;
+        wgpu::Device wgpuDevice = WebgpuHelper::GetDevice();
         std::filesystem::path rootPath = ".";
         auto dawnSceneKit = DawnSceneKit::Create(wgpuDevice, rootPath, *sceneKitData);
         MLG_CHECK(dawnSceneKit);
@@ -104,10 +113,13 @@ public:
 
         m_Registry.Clear();
 
-        delete m_ImGuiRenderer;
+        ImGuiRenderer::Destroy(m_ImGuiRenderer);
+        DawnRenderCompositor::Destroy(m_RenderCompositor);
+        DawnRenderer::Destroy(m_Renderer);
 
-        m_GpuDevice = nullptr;
         m_Renderer = nullptr;
+        m_ImGuiRenderer = nullptr;
+        m_RenderCompositor = nullptr;
     }
 
     void Update(const float deltaSeconds) override
@@ -117,7 +129,7 @@ public:
             return;
         }
 
-        m_ScreenBounds = m_GpuDevice->GetScreenBounds();
+        m_ScreenBounds = WebgpuHelper::GetScreenBounds();
 
         m_Camera.Get<Camera>().SetBounds(m_ScreenBounds);
 
@@ -247,9 +259,8 @@ private:
 
     State m_State = State::None;
 
-    GpuDevice* m_GpuDevice = nullptr;
-    RenderCompositor* m_RenderCompositor = nullptr;
-    Renderer* m_Renderer = nullptr;
+    DawnRenderCompositor* m_RenderCompositor = nullptr;
+    DawnRenderer* m_Renderer = nullptr;
     ImGuiRenderer* m_ImGuiRenderer = nullptr;
     EcsRegistry m_Registry;
     GimbleMouseNav m_GimbleMouseNav{ TrsTransformf{}};

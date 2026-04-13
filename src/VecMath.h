@@ -1017,8 +1017,10 @@ public:
     }
 };
 
-struct Extent
+class Extent
 {
+public:
+
     float Width;
     float Height;
 
@@ -1032,8 +1034,10 @@ struct Extent
     }
 };
 
-struct Point
+class Point
 {
+public:
+
     float X;
     float Y;
 

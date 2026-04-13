@@ -1,14 +1,18 @@
 #pragma once
 
-#include "Renderer.h"
+#include "Result.h"
 
 #include <unordered_map>
 #include <webgpu/webgpu_cpp.h>
 
-class DawnGpuDevice;
-class GpuTexture;
+struct SDL_Window;
+template<typename T>
+class Mat44;
+using Mat44f = Mat44<float>;
+class DawnRenderCompositor;
+class SceneKit;
 
-class DawnRenderer : public Renderer
+class DawnRenderer
 {
 public:
 
@@ -18,20 +22,20 @@ public:
     DawnRenderer(DawnRenderer&&) = delete;
     DawnRenderer& operator=(DawnRenderer&&) = delete;
 
-    ~DawnRenderer() override;
-
-    static Result<DawnRenderer*> Create(DawnGpuDevice* gpuDevice);
+    static Result<DawnRenderer*> Create(SDL_Window* window, wgpu::Device device, wgpu::Surface surface);
 
     static Result<> Destroy(DawnRenderer* renderer);
 
     Result<> Render(const Mat44f& camera,
         const Mat44f& projection,
         const SceneKit& sceneKit,
-        RenderCompositor* compositor) override;
+        DawnRenderCompositor* compositor);
 
 private:
 
-    explicit DawnRenderer(DawnGpuDevice* gpuDevice);
+    DawnRenderer(SDL_Window* window, wgpu::Device device, wgpu::Surface surface);
+
+    ~DawnRenderer();
 
     Result<wgpu::RenderPassEncoder> BeginRenderPass(wgpu::CommandEncoder cmdEncoder);
 
@@ -54,19 +58,15 @@ private:
         const Mat44f& projection,
         const SceneKit& sceneKit);
 
-    /// Get or create the default texture.
-    /// The default texture is used when a material does not have a base texture.
-    Result<GpuTexture*> GetDefaultBaseTexture();
-
-    DawnGpuDevice* const m_GpuDevice;
+    SDL_Window* const m_Window;
+    wgpu::Device m_WgpuDevice;
+    wgpu::Surface m_Surface;
     wgpu::Limits m_GpuLimits;
     wgpu::Texture m_ColorTarget;
     wgpu::TextureView m_ColorTargetView;
     wgpu::Sampler m_ColorTargetSampler;
     wgpu::Texture m_DepthTarget;
     wgpu::TextureView m_DepthTargetView;
-
-    GpuTexture* m_DefaultBaseTexture{nullptr};
 
     struct Pipeline
     {

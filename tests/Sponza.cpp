@@ -7,7 +7,8 @@
 #include "AppDriver.h"
 #include "Application.h"
 #include "Camera.h"
-#include "DawnGpuDevice.h"
+#include "DawnRenderCompositor.h"
+#include "DawnRenderer.h"
 #include "DawnSceneKit.h"
 #include "ECS.h"
 #include "EcsChildTransformPool.h"
@@ -15,8 +16,7 @@
 #include "Log.h"
 #include "MouseNav.h"
 #include "PerfMetrics.h"
-#include "RenderCompositor.h"
-#include "Renderer.h"
+#include "WebgpuHelper.h"
 
 #include "scope_exit.h"
 
@@ -43,7 +43,7 @@ public:
     {
     }
 
-    Result<> Initialize(AppContext* context) override
+    Result<> Initialize() override
     {
         auto cleanup = scope_exit([this]()
         {
@@ -54,11 +54,20 @@ public:
 
         m_State = State::Initialized;
 
-        m_GpuDevice = context->GpuDevice;
+        auto rendererResult = DawnRenderer::Create(WebgpuHelper::GetWindow(),
+            WebgpuHelper::GetDevice(),
+            WebgpuHelper::GetSurface());
+        MLG_CHECK(rendererResult);
 
-        m_Renderer = m_GpuDevice->GetRenderer();
-        m_RenderCompositor = m_GpuDevice->GetRenderCompositor();
-        m_ImGuiRenderer = new ImGuiRenderer(m_GpuDevice);
+        auto renderCompositorResult = DawnRenderCompositor::Create();
+        MLG_CHECK(renderCompositorResult);
+
+        auto imGuiRendererResult = ImGuiRenderer::Create();
+        MLG_CHECK(imGuiRendererResult);
+
+        m_Renderer = *rendererResult;
+        m_RenderCompositor = *renderCompositorResult;
+        m_ImGuiRenderer = *imGuiRendererResult;
 
         [[maybe_unused]] constexpr const char* SPONZA_MODEL_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
         [[maybe_unused]] constexpr const char* AVOCADO_MODEL_PATH = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Avocado/glTF/Avocado.gltf";
@@ -71,7 +80,7 @@ public:
         auto sceneKitData = CgltfModelLoader::LoadSceneKit(SPONZA_MODEL_PATH);
         MLG_CHECK(sceneKitData);
 
-        wgpu::Device wgpuDevice = static_cast<DawnGpuDevice*>(m_GpuDevice)->Device;
+        wgpu::Device wgpuDevice = WebgpuHelper::GetDevice();
         auto dawnSceneKit = DawnSceneKit::Create(wgpuDevice, filePath.parent_path(), *sceneKitData);
         MLG_CHECK(dawnSceneKit);
 
@@ -87,7 +96,7 @@ public:
 
         m_Camera = m_Registry.CreateEntity();
 
-        m_ScreenBounds = m_GpuDevice->GetScreenBounds();
+        m_ScreenBounds = WebgpuHelper::GetScreenBounds();
 
         constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
@@ -113,10 +122,13 @@ public:
 
         m_Registry.Clear();
 
-        delete m_ImGuiRenderer;
+        ImGuiRenderer::Destroy(m_ImGuiRenderer);
+        DawnRenderCompositor::Destroy(m_RenderCompositor);
+        DawnRenderer::Destroy(m_Renderer);
 
-        m_GpuDevice = nullptr;
         m_Renderer = nullptr;
+        m_RenderCompositor = nullptr;
+        m_ImGuiRenderer = nullptr;
     }
 
     void Update(const float deltaSeconds) override
@@ -129,7 +141,7 @@ public:
         static PerfTimer frameTimer("Frame");
         auto scopedFrameTimer = frameTimer.StartScoped();
 
-        m_ScreenBounds = m_GpuDevice->GetScreenBounds();
+        m_ScreenBounds = WebgpuHelper::GetScreenBounds();
 
         m_Camera.Get<Camera>().SetBounds(m_ScreenBounds);
 
@@ -244,9 +256,8 @@ private:
 
         State m_State = State::None;
 
-        GpuDevice* m_GpuDevice = nullptr;
-        RenderCompositor* m_RenderCompositor = nullptr;
-        Renderer* m_Renderer = nullptr;
+        DawnRenderCompositor* m_RenderCompositor = nullptr;
+        DawnRenderer* m_Renderer = nullptr;
         ImGuiRenderer* m_ImGuiRenderer = nullptr;
         EcsRegistry m_Registry;
         WalkMouseNav m_WalkMouseNav{ TrsTransformf{}, 0.0001f, 5.0f };

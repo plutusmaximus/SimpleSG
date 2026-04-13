@@ -4,17 +4,16 @@
 
 #include "DawnRenderer.h"
 
+#include "DawnRenderCompositor.h"
+#include "DawnSceneKit.h"
 #include "Log.h"
-
+#include "WebgpuHelper.h"
 #include "Result.h"
 #include "scope_exit.h"
-
-#include "DawnGpuDevice.h"
-#include "DawnSceneKit.h"
 #include "PerfMetrics.h"
-#include "WebgpuHelper.h"
 
 #include <cstdio>
+#include <SDL3/SDL.h>
 
 static constexpr const char* COMPOSITE_COLOR_TARGET_VS = "shaders/FullScreenTriangle.vs.wgsl";
 static constexpr const char* COMPOSITE_COLOR_TARGET_FS = "shaders/FullScreenTriangle.fs.wgsl";
@@ -27,28 +26,22 @@ static constexpr const char* TRANSFORM_SHADER_CS = "shaders/TransformShader.cs.w
 static Result<wgpu::Buffer>
 CreateBuffer(wgpu::Device device, wgpu::BufferUsage usage, size_t size, const char* label);
 
-DawnRenderer::DawnRenderer(DawnGpuDevice* gpuDevice)
-    : m_GpuDevice(gpuDevice)
+DawnRenderer::DawnRenderer(SDL_Window* window, wgpu::Device device, wgpu::Surface surface)
+    : m_Window(window)
+    , m_WgpuDevice(device)
+    , m_Surface(surface)
 {
-    gpuDevice->Device.GetLimits(&m_GpuLimits);
+    m_WgpuDevice.GetLimits(&m_GpuLimits);
 }
 
 DawnRenderer::~DawnRenderer()
 {
-    if(m_DefaultBaseTexture)
-    {
-        auto result = m_GpuDevice->DestroyTexture(m_DefaultBaseTexture);
-        if(!result)
-        {
-            MLG_ERROR("Failed to destroy default base texture");
-        }
-    }
 }
 
 Result<DawnRenderer*>
-DawnRenderer::Create(DawnGpuDevice* gpuDevice)
+DawnRenderer::Create(SDL_Window* window, wgpu::Device device, wgpu::Surface surface)
 {
-    DawnRenderer* renderer = new DawnRenderer(gpuDevice);
+    DawnRenderer* renderer = new DawnRenderer(window, device, surface);
     MLG_CHECK(renderer, "Failed to create DawnRenderer");
 
     auto cleanup = scope_exit([renderer]()
@@ -77,18 +70,14 @@ Result<>
 DawnRenderer::Render(const Mat44f& camera,
     const Mat44f& projection,
     const SceneKit& sceneKit,
-    RenderCompositor* compositor)
+    DawnRenderCompositor* compositor)
 {
     static PerfTimer renderTimer("Renderer.Render");
     auto scopedRenderTimer = renderTimer.StartScoped();
 
-    auto gpuDevice = m_GpuDevice->Device;
-
     const DawnSceneKit& dawnSceneKit = static_cast<const DawnSceneKit&>(sceneKit);
 
-    DawnRenderCompositor* dawnCompositor = static_cast<DawnRenderCompositor*>(compositor);
-
-    wgpu::CommandEncoder cmdEncoder = dawnCompositor->GetCommandEncoder();
+    wgpu::CommandEncoder cmdEncoder = compositor->GetCommandEncoder();
 
     static PerfTimer transformNodesTimer("Renderer.Render.TransformNodes");
     {
@@ -196,7 +185,7 @@ DawnRenderer::Render(const Mat44f& camera,
     static PerfTimer copyTimer("Renderer.Render.Resolve.CopyColorTarget");
     {
         auto scopedTimer = copyTimer.StartScoped();
-        auto copyResult = CopyColorTargetToSwapchain(cmdEncoder, dawnCompositor->GetTarget());
+        auto copyResult = CopyColorTargetToSwapchain(cmdEncoder, compositor->GetTarget());
         MLG_CHECK(copyResult);
     }
 
@@ -324,7 +313,7 @@ DawnRenderer::CreateColorAndDepthTargets()
     static constexpr wgpu::TextureFormat kColorTargetFormat = wgpu::TextureFormat::RGBA8Unorm;
     static constexpr wgpu::TextureFormat kDepthTargetFormat = wgpu::TextureFormat::Depth24Plus;
 
-    const auto screenBounds = m_GpuDevice->GetScreenBounds();
+    const auto screenBounds = WebgpuHelper::GetScreenBounds();
 
     const unsigned targetWidth = static_cast<unsigned>(screenBounds.Width);
     const unsigned targetHeight = static_cast<unsigned>(screenBounds.Height);
@@ -351,7 +340,7 @@ DawnRenderer::CreateColorAndDepthTargets()
                 .sampleCount = 1,
             };
 
-        m_ColorTarget = m_GpuDevice->Device.CreateTexture(&textureDesc);
+        m_ColorTarget = m_WgpuDevice.CreateTexture(&textureDesc);
         m_ColorTargetView = m_ColorTarget.CreateView();
 
         wgpu::SamplerDescriptor samplerDesc //
@@ -369,7 +358,7 @@ DawnRenderer::CreateColorAndDepthTargets()
                 .maxAnisotropy = 1,
             };
 
-        m_ColorTargetSampler = m_GpuDevice->Device.CreateSampler(&samplerDesc);
+        m_ColorTargetSampler = m_WgpuDevice.CreateSampler(&samplerDesc);
     }
 
     if(!m_DepthTarget || m_DepthTarget.GetWidth() != targetWidth ||
@@ -393,7 +382,7 @@ DawnRenderer::CreateColorAndDepthTargets()
                 .sampleCount = 1,
             };
 
-        m_DepthTarget = m_GpuDevice->Device.CreateTexture(&textureDesc);
+        m_DepthTarget = m_WgpuDevice.CreateTexture(&textureDesc);
         m_DepthTargetView = m_DepthTarget.CreateView();
     }
 
@@ -440,7 +429,7 @@ DawnRenderer::CreateColorPipeline()
         };
 
     m_ColorPipeline.PipelineLayout =
-        m_GpuDevice->Device.CreatePipelineLayout(&colorTargetPipelineLayoutDesc);
+        m_WgpuDevice.CreatePipelineLayout(&colorTargetPipelineLayoutDesc);
     MLG_CHECK(m_ColorPipeline.PipelineLayout, "Failed to create color pipeline layout");
 
     wgpu::BlendState blendState //
@@ -555,7 +544,7 @@ DawnRenderer::CreateColorPipeline()
         .fragment = &fragmentState,
     };
 
-    m_ColorPipeline.Pipeline = m_GpuDevice->Device.CreateRenderPipeline(&descriptor);
+    m_ColorPipeline.Pipeline = m_WgpuDevice.CreateRenderPipeline(&descriptor);
     MLG_CHECK(m_ColorPipeline.Pipeline, "Failed to create render pipeline");
 
     return Result<>::Ok;
@@ -608,7 +597,7 @@ DawnRenderer::CreateBltPipeline()
             .bindGroupLayouts = bltBgl,
         };
 
-    m_BltPipeline.PipelineLayout = m_GpuDevice->Device.CreatePipelineLayout(&pipelineLayoutDesc);
+    m_BltPipeline.PipelineLayout = m_WgpuDevice.CreatePipelineLayout(&pipelineLayoutDesc);
     MLG_CHECK(m_BltPipeline.PipelineLayout, "Failed to create BLT pipeline layout");
 
     wgpu::BlendState blendState //
@@ -629,7 +618,7 @@ DawnRenderer::CreateBltPipeline()
 
     wgpu::ColorTargetState colorTargetState //
         {
-            .format = m_GpuDevice->GetSwapChainFormat(),
+            .format = WebgpuHelper::GetSwapChainFormat(),
             .blend = &blendState,
             .writeMask = wgpu::ColorWriteMask::All,
         };
@@ -693,10 +682,10 @@ DawnRenderer::CreateBltPipeline()
             .entries = bgEntries,
         };
 
-    m_BltPipeline.BindGroup2 = m_GpuDevice->Device.CreateBindGroup(&bgDesc);
+    m_BltPipeline.BindGroup2 = m_WgpuDevice.CreateBindGroup(&bgDesc);
     MLG_CHECK(m_BltPipeline.BindGroup2, "Failed to create bind group 2 for BLT pipeline");
 
-    m_BltPipeline.Pipeline = m_GpuDevice->Device.CreateRenderPipeline(&descriptor);
+    m_BltPipeline.Pipeline = m_WgpuDevice.CreateRenderPipeline(&descriptor);
     MLG_CHECK(m_BltPipeline.Pipeline, "Failed to create render pipeline for BLT pipeline");
 
     return Result<>::Ok;
@@ -732,8 +721,7 @@ DawnRenderer::CreateTransformPipeline()
             .bindGroupLayouts = bgl,
         };
 
-    auto pipelineLayout =
-        m_GpuDevice->Device.CreatePipelineLayout(&pipelineLayoutDesc);
+    auto pipelineLayout = m_WgpuDevice.CreatePipelineLayout(&pipelineLayoutDesc);
     MLG_CHECK(pipelineLayout, "Failed to create transform pipeline layout");
 
     wgpu::ComputePipelineDescriptor pipelineDesc//
@@ -746,7 +734,7 @@ DawnRenderer::CreateTransformPipeline()
         },
     };;
 
-    m_TransformPipeline = m_GpuDevice->Device.CreateComputePipeline(&pipelineDesc);
+    m_TransformPipeline = m_WgpuDevice.CreateComputePipeline(&pipelineDesc);
     MLG_CHECK(m_TransformPipeline, "Failed to create compute pipeline for transform");
 
     return Result<>::Ok;
@@ -764,7 +752,7 @@ DawnRenderer::CreateShader(const char* path)
     wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCodeView } };
     wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl, .label = path };
 
-    wgpu::ShaderModule shaderModule = m_GpuDevice->Device.CreateShaderModule(&shaderModuleDescriptor);
+    wgpu::ShaderModule shaderModule = m_WgpuDevice.CreateShaderModule(&shaderModuleDescriptor);
     MLG_CHECK(shaderModule, "Failed to create shader module");
 
     return shaderModule;
@@ -786,14 +774,14 @@ DawnRenderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
     {
         m_TransformBuffers.TransformCount = dawnSceneKit.GetTransformCount();
 
-        auto result = CreateBuffer(m_GpuDevice->Device,
+        auto result = CreateBuffer(m_WgpuDevice,
             wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
             dawnSceneKit.GetTransformBuffer().GetSize(),
             "ClipSpaceTransformBuffer");
         MLG_CHECK(result);
         m_TransformBuffers.ClipSpaceBuf = *result;
 
-        result = CreateBuffer(m_GpuDevice->Device,
+        result = CreateBuffer(m_WgpuDevice,
             wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
             sizeof(Mat44f),
             "ViewProjTransformBuffer");
@@ -822,7 +810,7 @@ DawnRenderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
                     .entries = bg1Entries,
                 };
 
-            m_ColorPipeline.BindGroup1 = m_GpuDevice->Device.CreateBindGroup(&bg1Desc);
+            m_ColorPipeline.BindGroup1 = m_WgpuDevice.CreateBindGroup(&bg1Desc);
             MLG_CHECK(m_ColorPipeline.BindGroup1,
                 "Failed to create bindgroup 1 for color pipeline");
         }
@@ -844,7 +832,7 @@ DawnRenderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
                 .entries = &bg1Entries,
             };
 
-            m_TransformBuffers.BindGroup1 = m_GpuDevice->Device.CreateBindGroup(&bg1Desc);
+            m_TransformBuffers.BindGroup1 = m_WgpuDevice.CreateBindGroup(&bg1Desc);
             MLG_CHECK(m_TransformBuffers.BindGroup1, "Failed to create bind group 1 for transform");
 
             wgpu::BindGroupEntry bg2Entries //
@@ -862,7 +850,7 @@ DawnRenderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
                 .entries = &bg2Entries,
             };
 
-            m_TransformBuffers.BindGroup2 = m_GpuDevice->Device.CreateBindGroup(&bg2Desc);
+            m_TransformBuffers.BindGroup2 = m_WgpuDevice.CreateBindGroup(&bg2Desc);
             MLG_CHECK(m_TransformBuffers.BindGroup2, "Failed to create bind group 2 for transform");
         }
     }
@@ -873,7 +861,7 @@ DawnRenderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
     // Projection transform
     const Mat44f viewProj = projection.Mul(viewXform);
 
-    m_GpuDevice->Device.GetQueue().WriteBuffer(m_TransformBuffers.ViewProjBuf,
+    m_WgpuDevice.GetQueue().WriteBuffer(m_TransformBuffers.ViewProjBuf,
         0,
         viewProj.m,
         sizeof(Mat44f));
@@ -888,22 +876,6 @@ DawnRenderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
     pass.End();
 
     return Result<>::Ok;
-}
-
-Result<GpuTexture*>
-DawnRenderer::GetDefaultBaseTexture()
-{
-    if(!m_DefaultBaseTexture)
-    {
-        static constexpr const char* MAGENTA_TEXTURE_KEY = "$magenta";
-
-        auto result = m_GpuDevice->CreateTexture("#FF00FFFF"_rgba, MAGENTA_TEXTURE_KEY);
-        MLG_CHECK(result);
-
-        m_DefaultBaseTexture = *result;
-    }
-
-    return m_DefaultBaseTexture;
 }
 
 static Result<wgpu::Buffer>

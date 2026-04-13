@@ -1,6 +1,7 @@
 #include "Camera.h"
+#include "DawnRenderCompositor.h"
+#include "DawnRenderer.h"
 #include "DawnSceneKit.h"
-#include "DawnGpuDevice.h"
 #include "ImGuiRenderer.h"
 #include "Log.h"
 #include "PerfMetrics.h"
@@ -34,18 +35,7 @@ static Result<> MainLoop()
         WebgpuHelper::Shutdown();
     });
 
-    auto gdResult = DawnGpuDevice::Create();
-
-    MLG_CHECK(gdResult);
-
-    auto gpuDevice = *gdResult;
-
-    auto gpuDeviceCleanup = scope_exit([gpuDevice]()
-    {
-        DawnGpuDevice::Destroy(gpuDevice);
-    });
-
-    auto screenBounds = gpuDevice->GetScreenBounds();
+    auto screenBounds = WebgpuHelper::GetScreenBounds();
 
     constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
@@ -57,16 +47,27 @@ static Result<> MainLoop()
     auto sceneKitData = CreateTriangleModel();
     MLG_CHECK(sceneKitData);
 
-    wgpu::Device wgpuDevice = static_cast<DawnGpuDevice*>(gpuDevice)->Device;
+    wgpu::Device wgpuDevice = WebgpuHelper::GetDevice();
     std::filesystem::path rootPath = ".";
     auto dawnSceneKit = DawnSceneKit::Create(wgpuDevice, rootPath, *sceneKitData);
     MLG_CHECK(dawnSceneKit);
 
     SceneKit* sceneKit = *dawnSceneKit;
 
-    Renderer* renderer = gpuDevice->GetRenderer();
-    RenderCompositor* renderCompositor = gpuDevice->GetRenderCompositor();
-    ImGuiRenderer imGuiRenderer(gpuDevice);
+    auto rendererResult = DawnRenderer::Create(WebgpuHelper::GetWindow(),
+        WebgpuHelper::GetDevice(),
+        WebgpuHelper::GetSurface());
+    MLG_CHECK(rendererResult);
+
+    auto renderCompositorResult = DawnRenderCompositor::Create();
+    MLG_CHECK(renderCompositorResult);
+
+    auto imGuiRendererResult = ImGuiRenderer::Create();
+    MLG_CHECK(imGuiRendererResult);
+
+    DawnRenderer* renderer = *rendererResult;
+    DawnRenderCompositor* renderCompositor = *renderCompositorResult;
+    ImGuiRenderer* imGuiRenderer = *imGuiRendererResult;
 
     Stopwatch stopwatch;
 
@@ -160,7 +161,7 @@ static Result<> MainLoop()
             continue;
         }
 
-        screenBounds = gpuDevice->GetScreenBounds();
+        screenBounds = WebgpuHelper::GetScreenBounds();
 
         camera.SetBounds(screenBounds);
 
@@ -168,7 +169,7 @@ static Result<> MainLoop()
 
         renderCompositor->BeginFrame();
 
-        imGuiRenderer.NewFrame();
+        imGuiRenderer->NewFrame();
 
         RenderGui();
 
@@ -181,28 +182,30 @@ static Result<> MainLoop()
 
         MLG_CHECK(renderResult);
 
-        auto imGuiRenderResult = imGuiRenderer.Render(renderCompositor);
+        auto imGuiRenderResult = imGuiRenderer->Render(renderCompositor);
         MLG_CHECK(imGuiRenderResult);
 
         auto endFrameResult = renderCompositor->EndFrame();
         MLG_CHECK(endFrameResult);
 
-        auto dawnGpuDevice = static_cast<DawnGpuDevice*>(gpuDevice);
-
 #if !defined(__EMSCRIPTEN__)
 
 #if !OFFSCREEN_RENDERING
-        MLG_CHECK(dawnGpuDevice->Surface.Present(), "Failed to present backbuffer");
+        MLG_CHECK(WebgpuHelper::GetSurface().Present(), "Failed to present backbuffer");
 #endif
 
 #endif
 
-        dawnGpuDevice->Instance.ProcessEvents();
+        WebgpuHelper::GetInstance().ProcessEvents();
 
         frameTimer.Stop();
 
         PerfMetrics::EndFrame();
     }
+
+    ImGuiRenderer::Destroy(imGuiRenderer);
+    DawnRenderCompositor::Destroy(renderCompositor);
+    DawnRenderer::Destroy(renderer);
 
     PerfMetrics::LogTimers();
 

@@ -1,8 +1,10 @@
 #pragma once
 
-#include "GpuDevice.h"
+#include "Result.h"
 
-class SdlGpuDevice;
+template<typename T> class Vec2;
+using Vec2f = Vec2<float>;
+class Point;
 
 class Application
 {
@@ -10,7 +12,7 @@ public:
 
     virtual ~Application() = default;
 
-    virtual Result<> Initialize(AppContext* context) = 0;
+    virtual Result<> Initialize() = 0;
 
     virtual void Shutdown() = 0;
 

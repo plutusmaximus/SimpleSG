@@ -1,20 +1,21 @@
 #pragma once
 
-#include "RenderCompositor.h"
+#include "Result.h"
 
 #include <webgpu/webgpu_cpp.h>
 
-class DawnGpuDevice;
-
-class DawnRenderCompositor : public RenderCompositor
+class DawnRenderCompositor
 {
 public:
 
-    ~DawnRenderCompositor() override;
+    static Result<DawnRenderCompositor*> Create();
+    static void Destroy(DawnRenderCompositor* compositor);
 
-    Result<> BeginFrame() override;
+    ~DawnRenderCompositor() = default;
 
-    Result<> EndFrame() override;
+    Result<> BeginFrame();
+
+    Result<> EndFrame();
 
     wgpu::TextureView GetTarget();
 
@@ -22,11 +23,8 @@ public:
 
 private:
 
-    friend class DawnGpuDevice;
+    DawnRenderCompositor() = default;
 
-    explicit DawnRenderCompositor(DawnGpuDevice* gpuDevice);
-
-    DawnGpuDevice* m_GpuDevice{ nullptr };
     wgpu::TextureView m_Target{ nullptr };
     wgpu::CommandEncoder m_CommandEncoder{ nullptr };
 

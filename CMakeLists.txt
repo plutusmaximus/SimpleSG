@@ -177,7 +177,6 @@ set(SSG_SOURCES
   src/Camera.cpp
   src/CgltfModelLoader.cpp
   src/CoopScheduler.cpp
-  src/DawnGpuDevice.cpp
   src/DawnRenderCompositor.cpp
   src/DawnRenderer.cpp
   src/DawnSceneKit.cpp
@@ -197,7 +196,6 @@ set(SSG_HEADERS
   src/Camera.h
   src/CgltfModelLoader.h
   src/CoopScheduler.h
-  src/DawnGpuDevice.h
   src/DawnRenderCompositor.h
   src/DawnRenderer.h
   src/DawnSceneKit.h
@@ -207,13 +205,10 @@ set(SSG_HEADERS
   src/ImGuiRenderer.h
   src/inlist.h
   src/instack.h
-  src/GpuDevice.h
   src/Log.h
   src/Material.h
   src/PerfMetrics.h
   src/PoolAllocator.h
-  src/RenderCompositor.h
-  src/Renderer.h
   src/Result.h
   src/SceneKit.h
   src/scope_exit.h
