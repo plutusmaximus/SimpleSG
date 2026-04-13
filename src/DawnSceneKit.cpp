@@ -12,6 +12,8 @@
 
 #include <atomic>
 #include <filesystem>
+
+#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
 static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;

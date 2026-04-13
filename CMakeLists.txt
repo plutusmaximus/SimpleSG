@@ -188,7 +188,6 @@ set(SSG_SOURCES
   src/Log.cpp
   src/Model.cpp
   src/PerfMetrics.cpp
-  src/ResourceCache.cpp
   src/SdlGpuDevice.cpp
   src/SdlRenderCompositor.cpp
   src/SdlRenderer.cpp
@@ -225,7 +224,6 @@ set(SSG_HEADERS
   src/PoolAllocator.h
   src/RenderCompositor.h
   src/Renderer.h
-  src/ResourceCache.h
   src/Result.h
   src/SceneKit.h
   src/scope_exit.h

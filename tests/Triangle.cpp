@@ -5,7 +5,6 @@
 #include "ImGuiRenderer.h"
 #include "Log.h"
 #include "PerfMetrics.h"
-#include "ResourceCache.h"
 #include "SdlGpuDevice.h"
 #include "scope_exit.h"
 #include "Stopwatch.h"
@@ -62,8 +61,6 @@ static Result<> MainLoop()
         SdlGpuDevice::Destroy(gpuDevice);
 #endif
     });
-
-    ResourceCache resourceCache(gpuDevice);
 
     auto screenBounds = gpuDevice->GetScreenBounds();
 

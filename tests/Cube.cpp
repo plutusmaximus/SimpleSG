@@ -10,7 +10,6 @@
 #include "MouseNav.h"
 #include "RenderCompositor.h"
 #include "Renderer.h"
-#include "ResourceCache.h"
 #include "Shapes.h"
 
 #include "scope_exit.h"
@@ -20,7 +19,6 @@
 
 namespace
 {
-[[maybe_unused]] static Result<ModelResource> CreateCubeModel(ResourceCache* cache);
 static Result<SceneKitSourceData> CreateShapeModel();
 
 class WorldMatrix : public Mat44f
@@ -54,7 +52,6 @@ public:
         m_State = State::Initialized;
 
         m_GpuDevice = context->GpuDevice;
-        m_ResourceCache = context->ResourceCache;
 
         m_Renderer = m_GpuDevice->GetRenderer();
         m_RenderCompositor = m_GpuDevice->GetRenderCompositor();
@@ -111,7 +108,6 @@ public:
 
         m_GpuDevice = nullptr;
         m_Renderer = nullptr;
-        m_ResourceCache = nullptr;
     }
 
     void Update(const float deltaSeconds) override
@@ -252,7 +248,6 @@ private:
     State m_State = State::None;
 
     GpuDevice* m_GpuDevice = nullptr;
-    ResourceCache* m_ResourceCache = nullptr;
     RenderCompositor* m_RenderCompositor = nullptr;
     Renderer* m_Renderer = nullptr;
     ImGuiRenderer* m_ImGuiRenderer = nullptr;
@@ -336,74 +331,6 @@ constexpr static const VertexIndex cubeIndices[] =
     // Bottom
     20, 22, 23,  20, 21, 22
 };
-
-static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
-{
-    imvector<MeshSpec>::builder meshSpecs =
-        {
-            {
-                .Vertices{std::span(cubeVertices + 0, 6)},
-                .Indices{std::span(cubeIndices + 0, 6)},
-                .MtlSpec{MaterialConstants{.Color{1, 0, 0}, .Metalness{0}, .Roughness{0}}, TextureSpec{"images/Ant.png"}},
-            },
-            {
-                .Vertices{std::span(cubeVertices + 6, 6)},
-                .Indices{std::span(cubeIndices + 6, 6)},
-                .MtlSpec{MaterialConstants{.Color{0, 1, 0}, .Metalness{0}, .Roughness{0}}, TextureSpec{"images/Bee.png"}},
-            },
-
-            {
-                .Vertices{std::span(cubeVertices + 12, 6)},
-                .Indices{std::span(cubeIndices + 12, 6)},
-                .MtlSpec{MaterialConstants{.Color{0, 0, 1}, .Metalness{0}, .Roughness{0}}, TextureSpec{"images/Butterfly.png"}},
-            },
-            {
-                .Vertices{std::span(cubeVertices + 18, 6)},
-                .Indices{std::span(cubeIndices + 18, 6)},
-                .MtlSpec{MaterialConstants{.Color{1, 1, 1}, .Metalness{0}, .Roughness{0}}, TextureSpec{"images/Frog.png"}},
-            },
-            {
-                .Vertices{std::span(cubeVertices + 24, 6)},
-                .Indices{std::span(cubeIndices + 24, 6)},
-                .MtlSpec{MaterialConstants{.Color{0, 1, 1}, .Metalness{0}, .Roughness{0}}, TextureSpec{"images/Lizard.png"}},
-            },
-            {
-                .Vertices{std::span(cubeVertices + 30, 6)},
-                .Indices{std::span(cubeIndices + 30, 6)},
-                .MtlSpec{MaterialConstants{.Color{1, 0, 1}, .Metalness{0}, .Roughness{0}}, TextureSpec{"images/Turtle.png"}},
-            },
-        };
-
-    imvector<TransformNode>::builder transformNodes
-    {
-        { .ParentIndex = kInvalidTransformIndex },
-    };
-
-    imvector<TransformIndex>::builder meshToTransformMapping
-    {
-        0,0,0,0,0,0
-    };
-
-    const ModelSpec modelSpec //
-        {
-            meshSpecs.build(),
-            meshToTransformMapping.build(),
-            transformNodes.build(),
-        };
-
-    const CacheKey cacheKey = CacheKey("CubeModel");
-
-    auto result = cache->CreateModelAsync(cacheKey, modelSpec);
-    MLG_CHECK(result);
-
-    // Wait for the model to be created.
-    while(result->IsPending())
-    {
-        cache->ProcessPendingOperations();
-    }
-
-    return cache->GetModel(cacheKey);
-}
 
 static Result<SceneKitSourceData> CreateShapeModel()
 {

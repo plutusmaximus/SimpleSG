@@ -1,7 +1,6 @@
 #pragma once
 
 #include "GpuDevice.h"
-#include "ResourceCache.h"
 
 class Application;
 struct SDL_Window;
@@ -10,13 +9,12 @@ class AppContext
 {
 public:
 
-    AppContext(GpuDevice* gpuDevice, ResourceCache* resourceCache)
-        : GpuDevice(gpuDevice), ResourceCache(resourceCache)
+    explicit AppContext(GpuDevice* gpuDevice)
+        : GpuDevice(gpuDevice)
     {
     }
 
     GpuDevice* const GpuDevice;
-    ResourceCache* const ResourceCache;
 };
 
 class AppLifecycle

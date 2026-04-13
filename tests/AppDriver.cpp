@@ -68,9 +68,7 @@ AppDriver::Run()
     auto gpuDevice = *gdResult;
 
     {
-        ResourceCache resourceCache(gpuDevice);
-
-        AppContext context{ gpuDevice, &resourceCache };
+        AppContext context{ gpuDevice };
         Application* app = m_AppLifecycle->Create();
 
         auto initResult = app->Initialize(&context);
