@@ -11,30 +11,18 @@
 ImGuiRenderer::ImGuiRenderer(GpuDevice* gpuDevice)
     : m_GpuDevice(gpuDevice)
 {
-#if DAWN_GPU
     DawnStartup();
-#else
-    SdlStartup();
-#endif
 }
 
 ImGuiRenderer::~ImGuiRenderer()
 {
-#if DAWN_GPU
     DawnShutdown();
-#else
-    SdlShutdown();
-#endif
 }
 
 Result<>
 ImGuiRenderer::NewFrame()
 {
-#if DAWN_GPU
     return DawnNewFrame();
-#else
-    return SdlNewFrame();
-#endif
 }
 
 Result<>
@@ -43,11 +31,7 @@ ImGuiRenderer::Render(RenderCompositor* renderCompositor)
     static PerfTimer renderGuiTimer("ImGuiRenderer.Render");
     auto scopedTimer = renderGuiTimer.StartScoped();
 
-#if DAWN_GPU
     return DawnRender(renderCompositor);
-#else
-    return SdlRender(renderCompositor);
-#endif
 }
 
 //private:

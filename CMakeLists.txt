@@ -183,7 +183,6 @@ set(SSG_SOURCES
   src/DawnSceneKit.cpp
   src/EcsChildTransformPool.cpp
   src/FileFetcher.cpp
-  src/FileIo.cpp
   src/ImGuiRenderer.cpp
   src/Log.cpp
   src/PerfMetrics.cpp
@@ -205,7 +204,6 @@ set(SSG_HEADERS
   src/ECS.h
   src/EcsChildTransformPool.h
   src/FileFetcher.h
-  src/FileIo.h
   src/ImGuiRenderer.h
   src/imstring.h
   src/imvector.h

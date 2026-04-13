@@ -5,9 +5,6 @@
 
 #include <span>
 
-#define DAWN_GPU 1
-//#define DAWN_GPU 0
-
 #define OFFSCREEN_RENDERING 0
 
 template<typename T>

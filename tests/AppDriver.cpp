@@ -1,7 +1,6 @@
 #include "AppDriver.h"
 #include "Application.h"
 #include "DawnGpuDevice.h"
-#include "FileIo.h"
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "scope_exit.h"
@@ -54,13 +53,7 @@ AppDriver::Run()
 
     m_State = State::Running;
 
-    MLG_CHECK(FileIo::Startup(), "Failed to startup File I/O system");
-
-    #if DAWN_GPU
-        auto gdResult = DawnGpuDevice::Create();
-    #else
-        auto gdResult = SdlGpuDevice::Create(m_Window);
-    #endif
+    auto gdResult = DawnGpuDevice::Create();
 
     MLG_CHECK(gdResult);
 
@@ -155,14 +148,12 @@ AppDriver::Run()
                     break;
                 }
             }
-    #if DAWN_GPU
     #if !defined(__EMSCRIPTEN__)
             auto dawnGpuDevice = static_cast<DawnGpuDevice*>(gpuDevice);
             MLG_CHECK(dawnGpuDevice->Surface.Present(), "Failed to present backbuffer");
     #endif
 
             dawnGpuDevice->Instance.ProcessEvents();
-    #endif  //DAWN_GPU
 
             PerfMetrics::EndFrame();
         }
@@ -172,13 +163,7 @@ AppDriver::Run()
         m_AppLifecycle->Destroy(app);
     }
 
-#if DAWN_GPU
     DawnGpuDevice::Destroy(gpuDevice);
-#else
-    SdlGpuDevice::Destroy(gpuDevice);
-#endif
-
-    FileIo::Shutdown();
 
     m_State = State::Stopped;
 

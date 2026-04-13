@@ -1,7 +1,6 @@
 #include "Camera.h"
 #include "DawnSceneKit.h"
 #include "DawnGpuDevice.h"
-#include "FileIo.h"
 #include "ImGuiRenderer.h"
 #include "Log.h"
 #include "PerfMetrics.h"
@@ -35,18 +34,7 @@ static Result<> MainLoop()
         WebgpuHelper::Shutdown();
     });
 
-    MLG_CHECK(FileIo::Startup(), "Failed to startup File I/O system");
-
-    auto fileIoCleanup = scope_exit([]()
-    {
-        FileIo::Shutdown();
-    });
-
-#if DAWN_GPU
     auto gdResult = DawnGpuDevice::Create();
-#else
-    auto gdResult = SdlGpuDevice::Create(window);
-#endif
 
     MLG_CHECK(gdResult);
 
@@ -54,11 +42,7 @@ static Result<> MainLoop()
 
     auto gpuDeviceCleanup = scope_exit([gpuDevice]()
     {
-#if DAWN_GPU
         DawnGpuDevice::Destroy(gpuDevice);
-#else
-        SdlGpuDevice::Destroy(gpuDevice);
-#endif
     });
 
     auto screenBounds = gpuDevice->GetScreenBounds();
@@ -203,7 +187,6 @@ static Result<> MainLoop()
         auto endFrameResult = renderCompositor->EndFrame();
         MLG_CHECK(endFrameResult);
 
-#if DAWN_GPU
         auto dawnGpuDevice = static_cast<DawnGpuDevice*>(gpuDevice);
 
 #if !defined(__EMSCRIPTEN__)
@@ -215,7 +198,6 @@ static Result<> MainLoop()
 #endif
 
         dawnGpuDevice->Instance.ProcessEvents();
-#endif  //DAWN_GPU
 
         frameTimer.Stop();
 

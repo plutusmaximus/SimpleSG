@@ -278,18 +278,13 @@ public:
 static Result<> RenderGui()
 {
     const char* buildType;
-    const char* backend;
 #if defined (NDEBUG)
     buildType = "Release";
 #else
     buildType = "Debug";
 #endif
 
-#if DAWN_GPU
-    backend = "Dawn";
-#else
-    backend = "SDL";
-#endif
+    constexpr const char* backend = "Dawn";
 
     auto title = std::format("Timers: {}/{}", buildType, backend);
 
