@@ -23,12 +23,6 @@ public:
     {
     }
 
-    /// @brief Renders the current frame using the provided camera and projection matrices.
-    virtual Result<> Render(const Mat44f& camera,
-        const Mat44f& projection,
-        const Model* model,
-        RenderCompositor* compositor) = 0;
-
     virtual Result<> Render(const Mat44f& camera,
         const Mat44f& projection,
         const SceneKit& sceneKit,

@@ -1,8 +1,5 @@
-#include <imgui.h>
-#include <imgui_impl_sdl3.h>
-#include <SDL3/SDL.h>
-
 #include "Camera.h"
+#include "DawnSceneKit.h"
 #include "DawnGpuDevice.h"
 #include "FileIo.h"
 #include "ImGuiRenderer.h"
@@ -15,9 +12,12 @@
 #include "WebgpuHelper.h"
 
 #include <filesystem>
+#include <imgui.h>
+#include <imgui_impl_sdl3.h>
+#include <SDL3/SDL.h>
 #include <thread>
 
-static Result<ModelResource> CreateTriangleModel(ResourceCache* cache);
+static Result<SceneKitSourceData> CreateTriangleModel();
 
 constexpr const char* kAppName = "Triangle";
 
@@ -74,9 +74,15 @@ static Result<> MainLoop()
     Camera camera;
     camera.SetPerspective(fov, screenBounds, 0.1f, 1000);
 
-    auto modelResult = CreateTriangleModel(&resourceCache);
-    MLG_CHECK(modelResult);
-    auto model = *modelResult;
+    auto sceneKitData = CreateTriangleModel();
+    MLG_CHECK(sceneKitData);
+
+    wgpu::Device wgpuDevice = static_cast<DawnGpuDevice*>(gpuDevice)->Device;
+    std::filesystem::path rootPath = ".";
+    auto dawnSceneKit = DawnSceneKit::Create(wgpuDevice, rootPath, *sceneKitData);
+    MLG_CHECK(dawnSceneKit);
+
+    SceneKit* sceneKit = *dawnSceneKit;
 
     Renderer* renderer = gpuDevice->GetRenderer();
     RenderCompositor* renderCompositor = gpuDevice->GetRenderCompositor();
@@ -184,16 +190,13 @@ static Result<> MainLoop()
 
         imGuiRenderer.NewFrame();
 
-        // Transform to camera space and render
-        //renderer->AddModel(transform.ToMatrix(), model.Get());
-
         RenderGui();
 
         nonGpuWorkTimer.Stop();
 
         auto renderResult = renderer->Render(cameraXform.ToMatrix(),
             camera.GetProjection(),
-            model.Get(),
+            *sceneKit,
             renderCompositor);
 
         MLG_CHECK(renderResult);
@@ -267,42 +270,45 @@ static const VertexIndex triangleIndices[] =
     0, 1, 2,
 };
 
-static Result<ModelResource> CreateTriangleModel(ResourceCache* cache)
+static Result<SceneKitSourceData> CreateTriangleModel()
 {
-    imvector<MeshSpec>::builder meshSpecs = //
-        {
-            {
-                //
-                .Vertices{triangleVertices},
-                .Indices{triangleIndices},
-                .MtlSpec{MaterialConstants{.Color{"#FFA500"_rgba}, .Metalness{0}, .Roughness{0}}, TextureSpec{"images/Ant.png"}},
-            },
-        };
+    SceneKitSourceData sceneKitData;
 
-    imvector<TransformNode>::builder transformNodes//
+    const MaterialData mtlData //
     {
-        { .ParentIndex = kInvalidTransformIndex },
+        .BaseTextureUri = "images/Ant.png",
+        .Color = {"#FFA500"_rgba},
+        .Metalness = 0,
+        .Roughness = 0
     };
 
-    imvector<TransformIndex>::builder meshToTransformMapping { 0 };
-
-    const ModelSpec modelSpec //
+    const TransformData transformData //
         {
-            meshSpecs.build(),
-            meshToTransformMapping.build(),
-            transformNodes.build(),
+            .Transform = Mat44f(1),
+            .ParentIndex = TransformData::kInvalidParentIndex,
         };
 
-    const CacheKey cacheKey = CacheKey("TriangleModel");
-
-    auto result = cache->CreateModelAsync(cacheKey, modelSpec);
-    MLG_CHECK(result);
-
-    // Wait for the model to be created.
-    while(result->IsPending())
+    const MeshData meshData //
     {
-        cache->ProcessPendingOperations();
-    }
+        .FirstIndex = 0,
+        .IndexCount = static_cast<uint32_t>(std::size(triangleIndices)),
+        .BaseVertex = 0,
+        .MaterialIndex = 0,
+    };
 
-    return cache->GetModel(cacheKey);
+    const ModelInstance modelInstance //
+    {
+        .FirstMesh = 0,
+        .MeshCount = 1,
+        .TransformIndex = 0,
+    };
+
+    sceneKitData.Vertices.assign(triangleVertices, triangleVertices + std::size(triangleVertices));
+    sceneKitData.Indices.assign(triangleIndices, triangleIndices + std::size(triangleIndices));
+    sceneKitData.Materials.emplace_back(mtlData);
+    sceneKitData.Transforms.emplace_back(transformData);
+    sceneKitData.Meshes.emplace_back(meshData);
+    sceneKitData.ModelInstances.emplace_back(modelInstance);
+
+    return std::move(sceneKitData);
 }

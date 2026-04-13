@@ -1,11 +1,10 @@
-#include <SDL3/SDL.h>
-
 #include "AppDriver.h"
 #include "Application.h"
 #include "Camera.h"
+#include "DawnSceneKit.h"
 #include "ECS.h"
 #include "EcsChildTransformPool.h"
-#include "GpuDevice.h"
+#include "DawnGpuDevice.h"
 #include "ImGuiRenderer.h"
 #include "Log.h"
 #include "MouseNav.h"
@@ -16,10 +15,13 @@
 
 #include "scope_exit.h"
 
+#include <filesystem>
+#include <SDL3/SDL.h>
+
 namespace
 {
 [[maybe_unused]] static Result<ModelResource> CreateCubeModel(ResourceCache* cache);
-static Result<ModelResource> CreateShapeModel(ResourceCache* cache);
+static Result<SceneKitSourceData> CreateShapeModel();
 
 class WorldMatrix : public Mat44f
 {
@@ -64,14 +66,21 @@ public:
         m_Moon = m_Registry.CreateEntity();
         m_Camera = m_Registry.CreateEntity();
 
-        auto modelResult = CreateShapeModel(m_ResourceCache);
-        MLG_CHECK(modelResult);
+        auto sceneKitData = CreateShapeModel();
+        MLG_CHECK(sceneKitData);
+
+        wgpu::Device wgpuDevice = static_cast<DawnGpuDevice*>(m_GpuDevice)->Device;
+        std::filesystem::path rootPath = ".";
+        auto dawnSceneKit = DawnSceneKit::Create(wgpuDevice, rootPath, *sceneKitData);
+        MLG_CHECK(dawnSceneKit);
+
+        SceneKit* sceneKit = *dawnSceneKit;
 
         constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
-        m_Planet.Add(ChildTransform{}, WorldMatrix{}, *modelResult);
+        m_Planet.Add(ChildTransform{}, WorldMatrix{}, sceneKit);
         m_MoonOrbit.Add(ChildTransform{ .ParentId = m_Planet.GetId() }, WorldMatrix{});
-        m_Moon.Add(ChildTransform{ .ParentId = m_MoonOrbit.GetId() }, WorldMatrix{}, *modelResult);
+        m_Moon.Add(ChildTransform{ .ParentId = m_MoonOrbit.GetId() }, WorldMatrix{}, sceneKit);
         m_Camera.Add(TrsTransformf{}, WorldMatrix{}, Camera{});
 
         m_Camera.Get<TrsTransformf>().T = Vec3f{ 0,0,-4 };
@@ -168,10 +177,11 @@ public:
         auto camWorldMat = m_Camera.Get<WorldMatrix>();
         auto camera = m_Camera.Get<Camera>();
 
-        for(const auto& tuple : m_Registry.GetView<WorldMatrix, ModelResource>())
+        for(const auto& tuple : m_Registry.GetView<WorldMatrix, SceneKit*>())
         {
-            const auto [eid, worldMat, model] = tuple;
-            m_Renderer->Render(camWorldMat, camera.GetProjection(), model.Get(), m_RenderCompositor);
+            const auto [eid, worldMat, sceneKit] = tuple;
+
+            m_Renderer->Render(camWorldMat, camera.GetProjection(), *sceneKit, m_RenderCompositor);
         }
 
         m_ImGuiRenderer->Render(m_RenderCompositor);
@@ -395,7 +405,7 @@ static Result<ModelResource> CreateCubeModel(ResourceCache* cache)
     return cache->GetModel(cacheKey);
 }
 
-static Result<ModelResource> CreateShapeModel(ResourceCache* cache)
+static Result<SceneKitSourceData> CreateShapeModel()
 {
     //auto geometry = Shapes::Box(1, 1, 1);
     //auto geometry = Shapes::Ball(1, 10);
@@ -404,41 +414,45 @@ static Result<ModelResource> CreateShapeModel(ResourceCache* cache)
     auto geometry = Shapes::Torus(1, 0.5, 5);
     const auto &[vertices, indices] = geometry;
 
-    imvector<MeshSpec>::builder meshSpecs =
-        {
-            {
-                .Vertices{vertices},
-                .Indices{indices},
-                .MtlSpec{MaterialConstants{.Color{1, 0, 0}, .Metalness{0}, .Roughness{0}}, TextureSpec{"images/Ant.png"}},
-            },
-        };
+    SceneKitSourceData sceneKitData;
 
-    imvector<TransformNode>::builder transformNodes
+    const MaterialData mtlData //
     {
-        { .ParentIndex = kInvalidTransformIndex },
+        .BaseTextureUri = "images/Ant.png",
+        .Color = {1, 0, 0},
+        .Metalness = 0,
+        .Roughness = 0
     };
 
-    imvector<TransformIndex>::builder meshToTransformMapping{ 0 };
-
-    const ModelSpec modelSpec //
+    const TransformData transformData //
         {
-            meshSpecs.build(),
-            meshToTransformMapping.build(),
-            transformNodes.build(),
+            .Transform = Mat44f(1),
+            .ParentIndex = TransformData::kInvalidParentIndex,
         };
 
-    const CacheKey cacheKey = CacheKey("ShapeModel");
-
-    auto result = cache->CreateModelAsync(cacheKey, modelSpec);
-    MLG_CHECK(result);
-
-    // Wait for the model to be created.
-    while(result->IsPending())
+    const MeshData meshData //
     {
-        cache->ProcessPendingOperations();
-    }
+        .FirstIndex = 0,
+        .IndexCount = static_cast<uint32_t>(indices.size()),
+        .BaseVertex = 0,
+        .MaterialIndex = 0,
+    };
 
-    return cache->GetModel(cacheKey);
+    const ModelInstance modelInstance //
+    {
+        .FirstMesh = 0,
+        .MeshCount = 1,
+        .TransformIndex = 0,
+    };
+
+    sceneKitData.Vertices.assign(vertices.begin(), vertices.end());
+    sceneKitData.Indices.assign(indices.begin(), indices.end());
+    sceneKitData.Materials.emplace_back(mtlData);
+    sceneKitData.Transforms.emplace_back(transformData);
+    sceneKitData.Meshes.emplace_back(meshData);
+    sceneKitData.ModelInstances.emplace_back(modelInstance);
+
+    return std::move(sceneKitData);
 }
 }
 

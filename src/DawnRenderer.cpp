@@ -74,15 +74,6 @@ DawnRenderer::Destroy(DawnRenderer* renderer)
 }
 
 Result<>
-DawnRenderer::Render(const Mat44f& /*camera*/,
-    const Mat44f& /*projection*/,
-    const Model* /*model*/,
-    RenderCompositor* /*compositor*/)
-{
-    return Result<>::Fail;
-}
-
-Result<>
 DawnRenderer::Render(const Mat44f& camera,
     const Mat44f& projection,
     const SceneKit& sceneKit,

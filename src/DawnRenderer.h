@@ -27,11 +27,6 @@ public:
 
     Result<> Render(const Mat44f& camera,
         const Mat44f& projection,
-        const Model* model,
-        RenderCompositor* compositor) override;
-
-    Result<> Render(const Mat44f& camera,
-        const Mat44f& projection,
         const SceneKit& sceneKit,
         RenderCompositor* compositor) override;
 
