@@ -6,6 +6,7 @@
 
 #include <webgpu/webgpu_cpp.h>
 
+#include <filesystem>
 #include <span>
 #include <vector>
 

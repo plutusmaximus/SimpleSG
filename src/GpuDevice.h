@@ -4,6 +4,7 @@
 #include "Vertex.h"
 
 #include <span>
+#include <string>
 
 #define OFFSCREEN_RENDERING 0
 
@@ -140,10 +141,10 @@ public:
         const unsigned height,
         const uint8_t* pixels,
         const unsigned rowStride,
-        const imstring& name) = 0;
+        const std::string& name) = 0;
 
     /// @brief Creates a 1x1 texture from a color.
-    virtual Result<GpuTexture*> CreateTexture(const RgbaColorf& color, const imstring& name) = 0;
+    virtual Result<GpuTexture*> CreateTexture(const RgbaColorf& color, const std::string& name) = 0;
 
     /// @brief Destroys a texture.
     virtual Result<> DestroyTexture(GpuTexture* texture) = 0;

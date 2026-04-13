@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Result.h"
+#include <string>
 
 #include <webgpu/webgpu_cpp.h>
 
@@ -9,7 +10,6 @@ struct SDL_Window;
 template<typename T> class RgbaColor;
 using RgbaColorf = RgbaColor<float>;
 using RgbaColoru8 = RgbaColor<uint8_t>;
-class imstring;
 
 class WebgpuTextureStagingBuffer final
 {
@@ -68,17 +68,17 @@ public:
 
     /// @brief Creates an empty texture with the given dimensions and name.
     static Result<wgpu::Texture> CreateTexture(
-        const unsigned width, const unsigned height, const imstring& name);
+        const unsigned width, const unsigned height, const std::string& name);
 
     /// @brief Creates a texture filled with the given color.
-    static Result<wgpu::Texture> CreateTexture(const RgbaColorf& color, const imstring& name);
+    static Result<wgpu::Texture> CreateTexture(const RgbaColorf& color, const std::string& name);
 
     /// @brief Creates a texture filled with the given pixel data. The pixel data should be in RGBA8 format.
     static Result<wgpu::Texture> CreateTexture(const unsigned width,
         const unsigned height,
         const uint8_t* pixels,
         const unsigned rowStride,
-        const imstring& name);
+        const std::string& name);
 
     /// @brief Creates a staging buffer for the given texture. The staging buffer can be used to
     /// upload texture data to the GPU.
@@ -91,9 +91,9 @@ public:
 
     static Result<wgpu::Sampler> GetDefaultSampler();
 
-    static Result<wgpu::Buffer> CreateVertexBuffer(const size_t size, const imstring& name);
+    static Result<wgpu::Buffer> CreateVertexBuffer(const size_t size, const std::string& name);
 
-    static Result<wgpu::Buffer> CreateIndexBuffer(const size_t size, const imstring& name);
+    static Result<wgpu::Buffer> CreateIndexBuffer(const size_t size, const std::string& name);
 
     static Result<WebgpuColorPipelineLayouts> GetColorPipelineLayouts();
 

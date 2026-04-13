@@ -279,7 +279,7 @@ DawnGpuDevice::CreateTexture(const unsigned width,
     const unsigned height,
     const uint8_t* pixels,
     const unsigned rowStride,
-    const imstring& name)
+    const std::string& name)
 {
     auto texture = WebgpuHelper::CreateTexture(width, height, pixels, rowStride, name);
     MLG_CHECK(texture);
@@ -297,7 +297,7 @@ DawnGpuDevice::CreateTexture(const unsigned width,
 }
 
 Result<GpuTexture*>
-DawnGpuDevice::CreateTexture(const RgbaColorf& color, const imstring& name)
+DawnGpuDevice::CreateTexture(const RgbaColorf& color, const std::string& name)
 {
     RgbaColoru8 colorU8{color};
     const uint8_t pixelData[4]{colorU8.r, colorU8.g, colorU8.b, colorU8.a};

@@ -434,7 +434,7 @@ WebgpuHelper::GetSurface()
 }
 
 Result<wgpu::Texture>
-WebgpuHelper::CreateTexture(const unsigned width, const unsigned height, const imstring& name)
+WebgpuHelper::CreateTexture(const unsigned width, const unsigned height, const std::string& name)
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateTexture called before Startup");
 
@@ -460,7 +460,7 @@ WebgpuHelper::CreateTexture(const unsigned width, const unsigned height, const i
 }
 
 Result<wgpu::Texture>
-WebgpuHelper::CreateTexture(const RgbaColorf& color, const imstring& name)
+WebgpuHelper::CreateTexture(const RgbaColorf& color, const std::string& name)
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateTexture called before Startup");
 
@@ -476,7 +476,7 @@ WebgpuHelper::CreateTexture(const unsigned width,
     const unsigned height,
     const uint8_t* pixels,
     const unsigned rowStride,
-    const imstring& name)
+    const std::string& name)
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateTexture called before Startup");
 
@@ -603,7 +603,7 @@ WebgpuHelper::GetDefaultSampler()
 }
 
 Result<wgpu::Buffer>
-WebgpuHelper::CreateVertexBuffer(const size_t size, const imstring& name)
+WebgpuHelper::CreateVertexBuffer(const size_t size, const std::string& name)
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateVertexBuffer called before Startup");
 
@@ -620,7 +620,7 @@ WebgpuHelper::CreateVertexBuffer(const size_t size, const imstring& name)
 }
 
 Result<wgpu::Buffer>
-WebgpuHelper::CreateIndexBuffer(const size_t size, const imstring& name)
+WebgpuHelper::CreateIndexBuffer(const size_t size, const std::string& name)
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateIndexBuffer called before Startup");
 

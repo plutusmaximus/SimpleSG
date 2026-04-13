@@ -26,7 +26,7 @@ static inline std::uint64_t GetPerfTime()
     return SDL_GetPerformanceCounter();
 }
 
-PerfTimer::PerfTimer(const imstring& name)
+PerfTimer::PerfTimer(const std::string& name)
     : m_Name(name)
 {
     std::lock_guard lock(s_TimerMutex);

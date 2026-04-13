@@ -897,7 +897,7 @@ DawnRenderer::GetDefaultBaseTexture()
     {
         static constexpr const char* MAGENTA_TEXTURE_KEY = "$magenta";
 
-        auto result = m_GpuDevice->CreateTexture("#FF00FFFF"_rgba, imstring(MAGENTA_TEXTURE_KEY));
+        auto result = m_GpuDevice->CreateTexture("#FF00FFFF"_rgba, MAGENTA_TEXTURE_KEY);
         MLG_CHECK(result);
 
         m_DefaultBaseTexture = *result;

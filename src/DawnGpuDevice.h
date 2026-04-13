@@ -277,9 +277,9 @@ public:
         const unsigned height,
         const uint8_t* pixels,
         const unsigned rowStride,
-        const imstring& name) override;
+        const std::string& name) override;
 
-    Result<GpuTexture*> CreateTexture(const RgbaColorf& color, const imstring& name) override;
+    Result<GpuTexture*> CreateTexture(const RgbaColorf& color, const std::string& name) override;
 
     Result<> DestroyTexture(GpuTexture* texture) override;
 

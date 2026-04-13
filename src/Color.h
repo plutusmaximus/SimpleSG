@@ -1,7 +1,6 @@
 #pragma once
 
 #include "AssertHelper.h"
-#include "imstring.h"
 #include <algorithm>
 
 /// @brief RGBA color representation.
@@ -29,7 +28,7 @@ public:
     constexpr RgbaColor(const RgbaColor<U>& other);
 
     /// @brief Converts the color to a hexadecimal string representation - #RRGGBBAA
-    imstring ToHexString() const;
+    std::string ToHexString() const;
 
     bool operator==(const RgbaColor& other) const
     {
@@ -85,14 +84,14 @@ inline RgbaColor<float>::RgbaColor(const RgbaColor<uint8_t>& other)
 {
 }
 
-inline imstring RgbaColor<uint8_t>::ToHexString() const
+inline std::string RgbaColor<uint8_t>::ToHexString() const
 {
     char buf[10];
     snprintf(buf, sizeof(buf), "#%02X%02X%02X%02X", r, g, b, a);
-    return imstring(buf);
+    return std::string(buf);
 }
 
-inline imstring RgbaColor<float>::ToHexString() const
+inline std::string RgbaColor<float>::ToHexString() const
 {
     return RgbaColor<uint8_t>(*this).ToHexString();
 }

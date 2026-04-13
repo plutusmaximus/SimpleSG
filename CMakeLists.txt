@@ -205,8 +205,6 @@ set(SSG_HEADERS
   src/EcsChildTransformPool.h
   src/FileFetcher.h
   src/ImGuiRenderer.h
-  src/imstring.h
-  src/imvector.h
   src/inlist.h
   src/instack.h
   src/GpuDevice.h
@@ -294,8 +292,6 @@ add_executable(Tests
   "tests/CoopScheduler.test.cpp"
   "tests/ECS.test.cpp"
   "tests/EcsChildTransformPool.test.cpp"
-  "tests/imstring.test.cpp"
-  "tests/imvector.test.cpp"
   "tests/inlist.test.cpp"
   "tests/instack.test.cpp"
   "tests/Mat44.test.cpp"

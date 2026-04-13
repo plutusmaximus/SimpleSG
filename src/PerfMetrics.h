@@ -1,7 +1,8 @@
 #pragma once
 
-#include "imstring.h"
 #include "inlist.h"
+
+#include <string>
 
 class PerfMetrics;
 
@@ -30,7 +31,7 @@ public:
         PerfTimer& m_Timer;
     };
 
-    explicit PerfTimer(const imstring& name);
+    explicit PerfTimer(const std::string& name);
 
     /// @brief  Starts the timer.
     void Start();
@@ -44,7 +45,7 @@ public:
     /// until Sample() is called.
     void Stop();
 
-    const imstring& GetName() const { return m_Name; }
+    const std::string& GetName() const { return m_Name; }
 
     /// @brief  Gets the average elapsed time in seconds across the last NUM_SAMPLES runs.
     float GetValue() const;
@@ -61,7 +62,7 @@ private:
 
     static constexpr unsigned NUM_SAMPLES = 16;
 
-    imstring m_Name;
+    std::string m_Name;
     uint64_t m_StartTime{ 0 };
     uint64_t m_ElapsedSamples[NUM_SAMPLES]{};
     unsigned m_CountSamples[NUM_SAMPLES]{};
@@ -84,19 +85,19 @@ public:
     public:
 
         TimerStat() = default;
-        explicit TimerStat(const imstring& name, const float value, const unsigned count)
+        TimerStat(const std::string& name, const float value, const unsigned count)
             : m_Name(name), m_Value(value), m_Count(count)
         {
         }
 
-        const imstring& GetName() const { return m_Name; }
+        const std::string& GetName() const { return m_Name; }
 
         float GetValue() const { return m_Value; }
 
         unsigned GetCount() const { return m_Count; }
 
     private:
-        imstring m_Name;
+        std::string m_Name;
         float m_Value{ 0 };
         unsigned m_Count{ 0 };
     };

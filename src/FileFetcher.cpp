@@ -2,6 +2,8 @@
 
 #include "Log.h"
 
+#include <array>
+
 static HANDLE s_IOCP = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 0);
 
 Result<>

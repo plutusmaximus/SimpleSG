@@ -3,7 +3,8 @@
 #include <cstdint>
 
 #include "Vertex.h"
-#include "imvector.h"
+
+#include <vector>
 
 class Shapes
 {
@@ -15,20 +16,21 @@ public:
 
     public:
 
-        const imvector<Vertex> GetVertices() const
+        const std::vector<Vertex>& GetVertices() const
         {
             return m_Vertices;
         }
 
-        const imvector<VertexIndex> GetIndices() const
+        const std::vector<VertexIndex>& GetIndices() const
         {
             return m_Indices;
         }
-        
+
         // Enable structured bindings
         template<std::size_t I>
-        decltype(auto) get() const
+        auto get() const noexcept -> std::conditional_t<I == 0, const std::vector<Vertex>&, const std::vector<VertexIndex>&>
         {
+            static_assert(I < 2);
             if constexpr (I == 0) return (m_Vertices);
             else if constexpr (I == 1) return (m_Indices);
         }
@@ -38,14 +40,14 @@ public:
         // Must use std::move() at the call site to avoid copies.
         // If std::move() is not used the compiler will throw an error similar to:
         // "no overloaded function could convert all the argument types"
-        Geometry(const imvector<Vertex>& vertices, const imvector<VertexIndex>& indices)
-            : m_Vertices(vertices)
-            , m_Indices(indices)
+        Geometry(std::vector<Vertex>&& vertices, std::vector<VertexIndex>&& indices)
+            : m_Vertices(std::move(vertices))
+            , m_Indices(std::move(indices))
         {
         }
 
-        imvector<Vertex> m_Vertices;
-        imvector<uint32_t> m_Indices;
+        std::vector<Vertex> m_Vertices;
+        std::vector<VertexIndex> m_Indices;
     };
 
     static Geometry Box(const float width, const float height, const float depth);
@@ -78,11 +80,11 @@ struct std::tuple_size<Shapes::Geometry> : std::integral_constant<std::size_t, 2
 template<>
 struct std::tuple_element<0, Shapes::Geometry>
 {
-    using type = imvector<Vertex>;
+    using type = std::vector<Vertex>;
 };
 
 template<>
 struct std::tuple_element<1, Shapes::Geometry>
 {
-    using type = imvector<uint32_t>;
+    using type = std::vector<VertexIndex>;
 };
