@@ -1,5 +1,16 @@
 #pragma once
 
+#include "Color.h"
+#include "VecMath.h"
+#include "Vertex.h"
+
+#include <string>
+#include <vector>
+
+using MaterialIndex = uint32_t;
+using TransformIndex = uint32_t;
+using ModelIndex = uint32_t;
+
 struct DrawIndirectBufferParams
 {
     uint32_t IndexCount;
@@ -8,9 +19,6 @@ struct DrawIndirectBufferParams
     uint32_t BaseVertex;
     uint32_t FirstInstance;
 };
-
-using MaterialIndex = uint32_t;
-using TransformIndex = uint32_t;
 
 struct MeshProperties
 {
@@ -28,6 +36,48 @@ struct ModelInstance
     uint32_t FirstMesh;
     uint32_t MeshCount;
     TransformIndex TransformIndex;
+};
+
+struct MaterialData
+{
+    std::string BaseTextureUri;
+    RgbaColorf Color;
+    float Metalness;
+    float Roughness;
+};
+
+struct TransformData
+{
+    static constexpr TransformIndex kInvalidParentIndex = std::numeric_limits<TransformIndex>::max();
+
+    Mat44f Transform;
+    TransformIndex ParentIndex{ kInvalidParentIndex };
+};
+
+struct MeshData
+{
+    uint32_t FirstIndex;
+    uint32_t IndexCount;
+    uint32_t BaseVertex;
+    MaterialIndex MaterialIndex;
+};
+
+class SceneKitSourceData
+{
+public:
+
+    SceneKitSourceData() = default;
+    SceneKitSourceData(const SceneKitSourceData&) = delete;
+    SceneKitSourceData& operator=(const SceneKitSourceData&) = delete;
+    SceneKitSourceData(SceneKitSourceData&&) = default;
+    SceneKitSourceData& operator=(SceneKitSourceData&&) = default;
+
+    std::vector<Vertex> Vertices;
+    std::vector<VertexIndex> Indices;
+    std::vector<MaterialData> Materials;
+    std::vector<TransformData> Transforms;
+    std::vector<MeshData> Meshes;
+    std::vector<ModelInstance> ModelInstances;
 };
 
 class SceneKit

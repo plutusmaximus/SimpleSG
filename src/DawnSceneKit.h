@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Result.h"
 #include "SceneKit.h"
 #include "VecMath.h"
 
@@ -11,6 +12,9 @@
 class DawnSceneKit : public SceneKit
 {
 public:
+    static Result<DawnSceneKit*> Create(wgpu::Device& wgpuDevice,
+        const std::filesystem::path& rootPath,
+        const SceneKitSourceData& sceneKitData);
 
     class Builder
     {

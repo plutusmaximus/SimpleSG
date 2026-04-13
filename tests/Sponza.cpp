@@ -1,4 +1,5 @@
 #define _CRT_SECURE_NO_WARNINGS
+#include <filesystem>
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
 #include <SDL3/SDL.h>
@@ -7,6 +8,7 @@
 #include "Application.h"
 #include "Camera.h"
 #include "DawnGpuDevice.h"
+#include "DawnSceneKit.h"
 #include "ECS.h"
 #include "EcsChildTransformPool.h"
 #include "ImGuiRenderer.h"
@@ -64,12 +66,24 @@ public:
         [[maybe_unused]] constexpr const char* SPONZA_MODEL_PATH_2 = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Sponza/glTF/Sponza.gltf";
         [[maybe_unused]] constexpr const char* JUNGLE_RUINS = "C:/Users/kbaca/Downloads/JungleRuins/GLTF/JungleRuins_Main.gltf";
 
+        std::filesystem::path filePath(SPONZA_MODEL_PATH);
+
+        auto sceneKitData = CgltfModelLoader::LoadSceneKit(SPONZA_MODEL_PATH);
+        MLG_CHECK(sceneKitData);
+
         wgpu::Device wgpuDevice = static_cast<DawnGpuDevice*>(m_GpuDevice)->Device;
-        auto sceneKit = CgltfModelLoader::LoadSceneKit(wgpuDevice, SPONZA_MODEL_PATH);
-        MLG_CHECK(sceneKit);
+        auto dawnSceneKit = DawnSceneKit::Create(wgpuDevice, filePath.parent_path(), *sceneKitData);
+        MLG_CHECK(dawnSceneKit);
+
+        SceneKit* sceneKit = *dawnSceneKit;
 
         m_Model = m_Registry.CreateEntity();
-        m_Model.Add(TrsTransformf{}, WorldMatrix{}, *sceneKit);
+        m_Model.Add(TrsTransformf{}, WorldMatrix{}, sceneKit);
+
+        for(const auto& tuple : m_Registry.GetView<WorldMatrix, SceneKit*>())
+        {
+            const auto [eid, worldMat, sk] = tuple;
+        }
 
         m_Camera = m_Registry.CreateEntity();
 
@@ -159,7 +173,6 @@ public:
             const auto [eid, worldMat, sceneKit] = tuple;
 
             m_Renderer->Render(camWorldMat, camera.GetProjection(), *sceneKit, m_RenderCompositor);
-            //m_Renderer->Render(camWorldMat, camera.GetProjection(), model.Get(), m_RenderCompositor);
         }
 
         RenderGui();
