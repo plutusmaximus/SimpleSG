@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Renderer.h"
-#include "Model.h"
 
 #include <unordered_map>
 #include <webgpu/webgpu_cpp.h>

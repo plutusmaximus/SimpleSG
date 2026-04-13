@@ -5,7 +5,6 @@
 #include "ImGuiRenderer.h"
 #include "Log.h"
 #include "PerfMetrics.h"
-#include "SdlGpuDevice.h"
 #include "scope_exit.h"
 #include "Stopwatch.h"
 #include "WebgpuHelper.h"

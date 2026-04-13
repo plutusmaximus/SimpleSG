@@ -297,7 +297,7 @@ struct std::formatter<imstring> : std::formatter<std::string_view>
     }
 };
 
-/// @brief Enable hashing of CacheKey for use in unordered containers.
+/// @brief Enable hashing of imstring for use in unordered containers.
 template<>
 struct std::hash<imstring>
 {

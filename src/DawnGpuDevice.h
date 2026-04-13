@@ -3,6 +3,7 @@
 #include "DawnRenderCompositor.h"
 #include "DawnRenderer.h"
 #include "GpuDevice.h"
+#include "Material.h"
 #include "PoolAllocator.h"
 #include "Vertex.h"
 

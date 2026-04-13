@@ -5,7 +5,6 @@
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "scope_exit.h"
-#include "SdlGpuDevice.h"
 #include "Stopwatch.h"
 #include "WebgpuHelper.h"
 

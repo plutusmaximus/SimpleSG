@@ -2,7 +2,6 @@
 
 #include "DawnGpuDevice.h"
 #include "PerfMetrics.h"
-#include "SdlGpuDevice.h"
 
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>

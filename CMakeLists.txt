@@ -186,11 +186,7 @@ set(SSG_SOURCES
   src/FileIo.cpp
   src/ImGuiRenderer.cpp
   src/Log.cpp
-  src/Model.cpp
   src/PerfMetrics.cpp
-  src/SdlGpuDevice.cpp
-  src/SdlRenderCompositor.cpp
-  src/SdlRenderer.cpp
   src/Shapes.cpp
   src/Stopwatch.cpp
   src/ThreadPool.cpp
@@ -218,8 +214,6 @@ set(SSG_HEADERS
   src/GpuDevice.h
   src/Log.h
   src/Material.h
-  src/Mesh.h
-  src/Model.h
   src/PerfMetrics.h
   src/PoolAllocator.h
   src/RenderCompositor.h
@@ -227,9 +221,6 @@ set(SSG_HEADERS
   src/Result.h
   src/SceneKit.h
   src/scope_exit.h
-  src/SdlGpuDevice.h
-  src/SdlRenderCompositor.h
-  src/SdlRenderer.h
   src/Shapes.h
   src/Stopwatch.h
   src/ThreadPool.h
