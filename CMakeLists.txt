@@ -117,21 +117,6 @@ set(SPDLOG_HEADER_ONLY OFF CACHE BOOL "Disable header-only mode" FORCE)
 
 add_subdirectory(thirdparty/spdlog)
 
-# --- assimp
-set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "Build assimp tests" FORCE)
-set(ASSIMP_INSTALL OFF CACHE BOOL "Install assimp" FORCE)
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
-set(ASSIMP_BUILD_ALL_EXPORTERS_BY_DEFAULT OFF CACHE BOOL "Build all exporters by default" FORCE)
-set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "Build all importers by default" FORCE)
-set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "Build assimp tests" FORCE)
-set(ASSIMP_BUILD_ASSIMP_VIEW OFF CACHE BOOL "Build assimp viewer" FORCE)
-set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "Build glTF importer" FORCE)
-set(ASSIMP_BUILD_STL_IMPORTER ON CACHE BOOL "Build STL importer" FORCE)
-#set(ASSIMP_IMPORTER_GLTF2 ON CACHE BOOL "Build glTF2 importer" FORCE)
-#set(ASSIMP_IMPORTER_GLTF ON CACHE BOOL "Build glTF importer" FORCE)
-
-add_subdirectory(thirdparty/assimp)
-
 # --- imgui
 add_library(imgui STATIC
     thirdparty/imgui/imgui.cpp
@@ -227,7 +212,7 @@ target_sources(ssg
   PUBLIC FILE_SET HEADERS BASE_DIRS src FILES ${SSG_HEADERS}
 )
 
-target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 assimp::assimp webgpu_dawn imgui)
+target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 webgpu_dawn imgui)
 target_include_directories(ssg PUBLIC src PRIVATE thirdparty/stb thirdparty/cgltf)
 
 add_dependencies(ssg tint_cmd_tint_cmd)
@@ -239,7 +224,7 @@ compiler_flags(ssg)
 # ============================================================
 function(add_sample_executable target_name source_file)
   add_executable(${target_name} ${source_file} tests/MouseNav.cpp tests/AppDriver.cpp)
-  target_link_libraries(${target_name} PRIVATE ssg::ssg spdlog::spdlog imgui assimp::assimp webgpu_dawn webgpu_glfw glfw)
+  target_link_libraries(${target_name} PRIVATE ssg::ssg spdlog::spdlog imgui webgpu_dawn webgpu_glfw glfw)
   add_dependencies(${target_name} shaders copy_images copy_models)
 
   compiler_flags(${target_name})
