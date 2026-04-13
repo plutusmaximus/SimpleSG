@@ -180,6 +180,7 @@ set(SSG_SOURCES
   src/DawnGpuDevice.cpp
   src/DawnRenderCompositor.cpp
   src/DawnRenderer.cpp
+  src/DawnSceneKit.cpp
   src/EcsChildTransformPool.cpp
   src/FileFetcher.cpp
   src/FileIo.cpp
