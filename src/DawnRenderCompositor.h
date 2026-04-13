@@ -17,7 +17,7 @@ public:
 
     Result<> EndFrame();
 
-    wgpu::TextureView GetTarget();
+    wgpu::Texture GetTarget();
 
     wgpu::CommandEncoder GetCommandEncoder();
 
@@ -25,7 +25,7 @@ private:
 
     DawnRenderCompositor() = default;
 
-    wgpu::TextureView m_Target{ nullptr };
+    wgpu::Texture m_Target{ nullptr };
     wgpu::CommandEncoder m_CommandEncoder{ nullptr };
 
     bool m_FrameStarted{ false };

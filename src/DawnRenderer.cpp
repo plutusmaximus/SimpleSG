@@ -185,7 +185,7 @@ DawnRenderer::Render(const Mat44f& camera,
     static PerfTimer copyTimer("Renderer.Render.Resolve.CopyColorTarget");
     {
         auto scopedTimer = copyTimer.StartScoped();
-        auto copyResult = CopyColorTargetToSwapchain(cmdEncoder, compositor->GetTarget());
+        auto copyResult = CopyColorTargetToSwapchain(compositor);
         MLG_CHECK(copyResult);
     }
 
@@ -243,8 +243,10 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
 }
 
 Result<>
-DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder, wgpu::TextureView target)
+DawnRenderer::CopyColorTargetToSwapchain(DawnRenderCompositor* compositor)
 {
+    wgpu::Texture target = compositor->GetTarget();
+
     if(!target)
     {
         // Off-screen rendering, skip rendering to swapchain
@@ -253,7 +255,7 @@ DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder, wgpu::
 
     wgpu::RenderPassColorAttachment attachment //
         {
-            .view = target,
+            .view = target.CreateView(),
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
             .clearValue = { 0.0f, 0.0f, 0.0f, 1.0f },
@@ -266,7 +268,7 @@ DawnRenderer::CopyColorTargetToSwapchain(wgpu::CommandEncoder cmdEncoder, wgpu::
             .colorAttachments = &attachment,
         };
 
-    wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
+    wgpu::RenderPassEncoder renderPass = compositor->GetCommandEncoder().BeginRenderPass(&renderPassDesc);
     MLG_CHECK(renderPass, "Failed to begin render pass for copying color target to swapchain");
 
     renderPass.SetPipeline(m_BltPipeline.Pipeline);
@@ -310,7 +312,6 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
 Result<>
 DawnRenderer::CreateColorAndDepthTargets()
 {
-    static constexpr wgpu::TextureFormat kColorTargetFormat = wgpu::TextureFormat::RGBA8Unorm;
     static constexpr wgpu::TextureFormat kDepthTargetFormat = wgpu::TextureFormat::Depth24Plus;
 
     const auto screenBounds = WebgpuHelper::GetScreenBounds();
@@ -335,7 +336,7 @@ DawnRenderer::CreateColorAndDepthTargets()
                     .height = targetHeight,
                     .depthOrArrayLayers = 1,
                 },
-                .format = kColorTargetFormat,
+                .format = WebgpuHelper::GetSwapChainFormat(),
                 .mipLevelCount = 1,
                 .sampleCount = 1,
             };

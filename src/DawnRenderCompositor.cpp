@@ -39,7 +39,7 @@ DawnRenderCompositor::BeginFrame()
     MLG_CHECK(backbuffer.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal,
         std::format("Backbuffer status: {}", (int)backbuffer.status));
 
-    m_Target = backbuffer.texture.CreateView();
+    m_Target = backbuffer.texture;
     MLG_CHECK(m_Target, "Failed to create texture view for swapchain texture");
 #endif
 
@@ -79,7 +79,7 @@ DawnRenderCompositor::EndFrame()
     return Result<>::Ok;
 }
 
-wgpu::TextureView
+wgpu::Texture
 DawnRenderCompositor::GetTarget()
 {
     MLG_ASSERT(m_FrameStarted, "GetTarget() called outside of a frame");

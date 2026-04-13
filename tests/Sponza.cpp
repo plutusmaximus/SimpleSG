@@ -86,23 +86,16 @@ public:
 
         SceneKit* sceneKit = *dawnSceneKit;
 
-        m_Model = m_Registry.CreateEntity();
-        m_Model.Add(TrsTransformf{}, WorldMatrix{}, sceneKit);
-
-        for(const auto& tuple : m_Registry.GetView<WorldMatrix, SceneKit*>())
-        {
-            const auto [eid, worldMat, sk] = tuple;
-        }
-
-        m_Camera = m_Registry.CreateEntity();
+        m_Model = m_Registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, sceneKit);
 
         m_ScreenBounds = WebgpuHelper::GetScreenBounds();
 
         constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
-        m_Camera.Add(TrsTransformf{}, WorldMatrix{}, Camera{});
+        m_Camera = m_Registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, Camera{});
         m_Camera.Get<TrsTransformf>().T = Vec3f{ 0,0,-4 };
         m_Camera.Get<Camera>().SetPerspective(fov, m_ScreenBounds, 0.1f, 1000);
+
         m_WalkMouseNav.SetTransform(m_Camera.Get<TrsTransformf>());
 
         m_State = State::Running;

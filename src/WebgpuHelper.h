@@ -68,6 +68,8 @@ public:
     static wgpu::Device GetDevice();
     static wgpu::Surface GetSurface();
 
+    static Result<> Resize(const uint32_t width, const uint32_t height);
+
     /// @brief Creates an empty texture with the given dimensions and name.
     static Result<wgpu::Texture> CreateTexture(
         const unsigned width, const unsigned height, const std::string& name);

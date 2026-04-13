@@ -67,10 +67,6 @@ public:
         m_ImGuiRenderer = *imGuiRendererResult;
 
         m_ScreenBounds = WebgpuHelper::GetScreenBounds();
-        m_Planet = m_Registry.CreateEntity();
-        m_MoonOrbit = m_Registry.CreateEntity();
-        m_Moon = m_Registry.CreateEntity();
-        m_Camera = m_Registry.CreateEntity();
 
         auto sceneKitData = CreateShapeModel();
         MLG_CHECK(sceneKitData);
@@ -84,10 +80,10 @@ public:
 
         constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
-        m_Planet.Add(ChildTransform{}, WorldMatrix{}, sceneKit);
-        m_MoonOrbit.Add(ChildTransform{ .ParentId = m_Planet.GetId() }, WorldMatrix{});
-        m_Moon.Add(ChildTransform{ .ParentId = m_MoonOrbit.GetId() }, WorldMatrix{}, sceneKit);
-        m_Camera.Add(TrsTransformf{}, WorldMatrix{}, Camera{});
+        m_Planet = m_Registry.CreateEntity(ChildTransform{}, WorldMatrix{}, sceneKit);
+        m_MoonOrbit = m_Registry.CreateEntity(ChildTransform{ .ParentId = m_Planet.GetId() }, WorldMatrix{});
+        m_Moon = m_Registry.CreateEntity(ChildTransform{ .ParentId = m_MoonOrbit.GetId() }, WorldMatrix{}, sceneKit);
+        m_Camera = m_Registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, Camera{});
 
         m_Camera.Get<TrsTransformf>().T = Vec3f{ 0,0,-4 };
         m_Camera.Get<Camera>().SetPerspective(fov, m_ScreenBounds, 0.1f, 1000);

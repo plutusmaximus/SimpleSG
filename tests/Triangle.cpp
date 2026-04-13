@@ -113,8 +113,9 @@ static Result<> MainLoop()
                 running = false;
                 break;
 
-            case SDL_EVENT_WINDOW_RESIZED:
+            //case SDL_EVENT_WINDOW_RESIZED:
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+                WebgpuHelper::Resize(event.window.data1, event.window.data2);
                 break;
 
             case SDL_EVENT_WINDOW_MINIMIZED:
@@ -219,10 +220,6 @@ int main(int, char* /*argv[]*/)
     return 0;
 }
 
-static bool show_demo_window = true;
-static bool show_another_window = false;
-static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-
 static Result<> RenderGui()
 {
     ImGui::Begin("Timers");
@@ -237,23 +234,19 @@ static Result<> RenderGui()
     return Result<>::Ok;
 }
 
-// Triangle vertices
-static const Vertex triangleVertices[] = //
-    {
-        {{0.0f, 0.5f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1, 1}},  // 0
-        {{0.5f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0, 1}},  // 1
-        {{-0.5f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0, 0}}, // 2
-};
-
-// Triangle indices
-static const VertexIndex triangleIndices[] =
-{
-    0, 1, 2,
-};
-
 static Result<SceneKitSourceData> CreateTriangleModel()
 {
-    SceneKitSourceData sceneKitData;
+    std::vector<Vertex> triangleVertices = //
+        {
+            { { 0.0f, 0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 1, 1 } },  // 0
+            { { 0.5f, 0.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 0, 1 } },  // 1
+            { { -0.5f, 0.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 0, 0 } }, // 2
+        };
+
+    std::vector<VertexIndex> triangleIndices = //
+    {
+        0, 1, 2,
+    };
 
     const MaterialData mtlData //
     {
@@ -272,7 +265,7 @@ static Result<SceneKitSourceData> CreateTriangleModel()
     const MeshData meshData //
     {
         .FirstIndex = 0,
-        .IndexCount = static_cast<uint32_t>(std::size(triangleIndices)),
+        .IndexCount = static_cast<uint32_t>(triangleIndices.size()),
         .BaseVertex = 0,
         .MaterialIndex = 0,
     };
@@ -284,12 +277,14 @@ static Result<SceneKitSourceData> CreateTriangleModel()
         .TransformIndex = 0,
     };
 
-    sceneKitData.Vertices.assign(triangleVertices, triangleVertices + std::size(triangleVertices));
-    sceneKitData.Indices.assign(triangleIndices, triangleIndices + std::size(triangleIndices));
-    sceneKitData.Materials.emplace_back(mtlData);
-    sceneKitData.Transforms.emplace_back(transformData);
-    sceneKitData.Meshes.emplace_back(meshData);
-    sceneKitData.ModelInstances.emplace_back(modelInstance);
+    SceneKitSourceData sceneKitData;
+
+    sceneKitData.Vertices = std::move(triangleVertices);
+    sceneKitData.Indices = std::move(triangleIndices);
+    sceneKitData.Materials.emplace_back(std::move(mtlData));
+    sceneKitData.Transforms.emplace_back(std::move(transformData));
+    sceneKitData.Meshes.emplace_back(std::move(meshData));
+    sceneKitData.ModelInstances.emplace_back(std::move(modelInstance));
 
     return std::move(sceneKitData);
 }

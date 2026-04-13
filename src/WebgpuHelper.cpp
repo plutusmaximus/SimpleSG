@@ -326,7 +326,7 @@ ConfigureSurface(wgpu::Adapter adapter,
         {
             .device = device,
             .format = format,
-            .usage = wgpu::TextureUsage::RenderAttachment,
+            .usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopyDst,
             .width = width,
             .height = height,
             .alphaMode = wgpu::CompositeAlphaMode::Opaque,
@@ -431,6 +431,30 @@ WebgpuHelper::GetSurface()
 {
     MLG_VERIFY(s_WgpuContext, "WebgpuHelper::GetSurface called before Startup");
     return s_WgpuContext->Surface;
+}
+
+Result<>
+WebgpuHelper::Resize(const uint32_t width, const uint32_t height)
+{
+    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::Resize called before Startup");
+
+    wgpu::SurfaceTexture currentTexture;
+    s_WgpuContext->Surface.GetCurrentTexture(&currentTexture);
+    if(width != currentTexture.texture.GetWidth() || height != currentTexture.texture.GetHeight())
+    {
+        s_WgpuContext->Surface.Unconfigure();
+
+        auto surfaceFormat = ConfigureSurface(s_WgpuContext->Adapter,
+            s_WgpuContext->Device,
+            s_WgpuContext->Surface,
+            width,
+            height);
+        MLG_CHECK(surfaceFormat);
+
+        s_WgpuContext->SurfaceFormat = *surfaceFormat;
+    }
+
+    return Result<>::Ok;
 }
 
 Result<wgpu::Texture>

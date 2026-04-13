@@ -151,7 +151,7 @@ ImGuiRenderer::DawnRender(DawnRenderCompositor* renderCompositor)
         return Result<>::Ok;
     }
 
-    wgpu::TextureView target = renderCompositor->GetTarget();
+    wgpu::Texture target = renderCompositor->GetTarget();
     wgpu::CommandEncoder cmdEncoder = renderCompositor->GetCommandEncoder();
 
     if(!target)
@@ -162,7 +162,7 @@ ImGuiRenderer::DawnRender(DawnRenderCompositor* renderCompositor)
 
     wgpu::RenderPassColorAttachment colorAttachment //
     {
-        .view = target,
+        .view = target.CreateView(),
         .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
         .loadOp = wgpu::LoadOp::Load,
         .storeOp = wgpu::StoreOp::Store,
