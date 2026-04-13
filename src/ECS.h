@@ -460,6 +460,15 @@ public:
         return Entity(CreateId(), *this);
     }
 
+    template<typename... Cs>
+    Entity CreateEntity(const Cs&... components)
+    {
+        Entity entity = CreateEntity();
+        entity.Add(components...);
+
+        return entity;
+    }
+
     /// @brief Destroy the given entity ID and remove all associated components.
     void Destroy(const EntityId eid)
     {
