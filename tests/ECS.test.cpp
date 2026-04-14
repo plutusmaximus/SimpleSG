@@ -362,7 +362,7 @@ namespace
         MLG_ASSERT_CAPTURE(capture)
         {
             entity.Add(ComponentA{ 7 });
-            EXPECT_TRUE(capture.Message().contains("Entity is not alive"));
+            EXPECT_TRUE(MLG_ASSERT_CAPTURE_CHECK(capture, "Entity is not alive"));
         }
 
         EXPECT_FALSE(reg.Has<ComponentA>(entity.GetId()));
@@ -400,7 +400,7 @@ namespace
         {
             const bool addedAgain = pool.Add(eid, ComponentA{ 100 });
             EXPECT_FALSE(addedAgain);
-            EXPECT_TRUE(capture.Message().contains("Component already exists for entity"));
+            EXPECT_TRUE(MLG_ASSERT_CAPTURE_CHECK(capture, "Component already exists for entity"));
         }
         EXPECT_EQ(pool[eid], compA); // Original value unchanged
     }
@@ -797,7 +797,7 @@ namespace
         {
             const bool added = reg.Add<ComponentA>(eid, compA);
             EXPECT_FALSE(added);
-            EXPECT_TRUE(capture.Message().contains("Entity is not alive"));
+            EXPECT_TRUE(MLG_ASSERT_CAPTURE_CHECK(capture, "Entity is not alive"));
         }
 
         EXPECT_FALSE(reg.Has<ComponentA>(eid));
@@ -855,7 +855,7 @@ namespace
             {
                 const auto result = reg.Add<ComponentC>(eid, c);
                 EXPECT_FALSE(result);
-                EXPECT_TRUE(capture.Message().contains("Component already exists for entity"));
+                EXPECT_TRUE(MLG_ASSERT_CAPTURE_CHECK(capture, "Component already exists for entity"));
             }
         }
     }
@@ -1247,7 +1247,7 @@ namespace
         MLG_ASSERT_CAPTURE(capture)
         {
             reg.Remove<ComponentA>(eid);
-            EXPECT_TRUE(capture.Message().contains("Entity is not alive"));
+            EXPECT_TRUE(MLG_ASSERT_CAPTURE_CHECK(capture, "Entity is not alive"));
         }
 
         EXPECT_FALSE(reg.IsAlive(eid));

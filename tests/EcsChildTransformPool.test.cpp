@@ -265,7 +265,7 @@ namespace
         {
             const bool added = pool.Add(invalidId, {});
             EXPECT_FALSE(added);
-            EXPECT_TRUE(capture.Message().contains("EntityId must be valid"));
+            EXPECT_TRUE(MLG_ASSERT_CAPTURE_CHECK(capture, "EntityId must be valid"));
         }
 
         EXPECT_EQ(pool.size(), 0);
@@ -288,7 +288,7 @@ namespace
         {
             const bool added = pool.Add(nodeId, {});
             EXPECT_FALSE(added);
-            EXPECT_TRUE(capture.Message().contains("Entity ID already in collection"));
+            EXPECT_TRUE(MLG_ASSERT_CAPTURE_CHECK(capture, "Entity ID already in collection"));
         }
 
         EXPECT_EQ(pool.size(), 1); // Size should not change
@@ -312,7 +312,7 @@ namespace
         {
             const bool added = pool.Add(sameId, ChildTransform{ sameId, RandomTrsTransform() });
             EXPECT_FALSE(added);
-            EXPECT_TRUE(capture.Message().contains("Entity cannot be its own parent"));
+            EXPECT_TRUE(MLG_ASSERT_CAPTURE_CHECK(capture, "Entity cannot be its own parent"));
         }
 
         EXPECT_EQ(pool.size(), initialSize); // Size should not change
@@ -333,7 +333,7 @@ namespace
         {
             const bool added = pool.Add(childId, ChildTransform{ nonExistentParent, RandomTrsTransform() });
             EXPECT_FALSE(added);
-            EXPECT_TRUE(capture.Message().contains("Parent ID not found in collection"));
+            EXPECT_TRUE(MLG_ASSERT_CAPTURE_CHECK(capture, "Parent ID not found in collection"));
         }
 
         EXPECT_EQ(pool.size(), 0);
@@ -616,7 +616,7 @@ namespace
         MLG_ASSERT_CAPTURE(capture)
         {
             pool.Remove(nonExistentId);
-            EXPECT_TRUE(capture.Message().contains("Entity ID not found"));
+            EXPECT_TRUE(MLG_ASSERT_CAPTURE_CHECK(capture, "Entity ID not found"));
         }
 
         EXPECT_EQ(pool.size(), 1);

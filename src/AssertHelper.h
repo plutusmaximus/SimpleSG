@@ -80,11 +80,15 @@ private:
         !capName.capName.IsCanceled(); \
         capName.capName.Cancel(), AssertHelper::SetDialogEnabled(capName.en))
 
+#define MLG_ASSERT_CAPTURE_CHECK(capName, msg) ((capName).Message().contains(msg))
+
 #else // NDEBUG
 
 #define MLG_VERIFY(expr, ...) (static_cast<bool>(expr))
 #define MLG_ASSERT(expr, ...)
 
 #define MLG_ASSERT_CAPTURE(capName)
+
+#define MLG_ASSERT_CAPTURE_CHECK(capName, msg) true
 
 #endif // NDEBUG
