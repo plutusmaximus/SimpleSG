@@ -859,3 +859,9 @@ DawnSceneKit::Create(wgpu::Device& wgpuDevice,
 
     return sceneKit;
 }
+
+void
+DawnSceneKit::Destroy(DawnSceneKit* sceneKit)
+{
+    delete sceneKit;
+}

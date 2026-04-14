@@ -17,6 +17,8 @@ public:
         const std::filesystem::path& rootPath,
         const SceneKitSourceData& sceneKitData);
 
+    static void Destroy(DawnSceneKit* sceneKit);
+
     class Builder
     {
     public:

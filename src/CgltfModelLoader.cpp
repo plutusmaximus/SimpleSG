@@ -45,6 +45,8 @@ struct ModelData
 
 } // namespace
 
+static const RgbaColorf DEFAULT_COLOR = RgbaColorf{"#FF00FFFF"_rgba};
+
 template<typename T, typename U>
 static T narrow_cast(U u)
 {
@@ -64,8 +66,6 @@ CollectAttributes(const cgltf_primitive& primitive)
 {
     MLG_CHECK(primitive.type == cgltf_primitive_type_triangles,
         "Only triangle primitives are supported.");
-
-    MLG_CHECK(primitive.material, "Primitive does not have a material. Ignoring.");
 
     MLG_CHECK(primitive.attributes_count > 0, "Primitive does not have any attributes. Ignoring.");
 
@@ -168,8 +168,7 @@ CollectMeshes(const cgltf_data* gltfData, std::vector<CgltfMeshData>& gltfMeshes
 
             if(!prim.material)
             {
-                MLG_WARN("Primitive has no material.  Ignoring");
-                continue;
+                MLG_WARN("Primitive has no material.");
             }
 
             auto attrs = CollectAttributes(prim);
@@ -198,11 +197,15 @@ static Result<MaterialData>
 CreateMaterialData(const cgltf_material* gltfMaterial)
 {
     std::string baseTextureUri;
-    RgbaColorf color{"#FF00FFFF"_rgba};
+    RgbaColorf color = DEFAULT_COLOR;
     float metalness = 0;
     float roughness = 0;
 
-    if(gltfMaterial->has_pbr_metallic_roughness)
+    if(!gltfMaterial)
+    {
+        MLG_WARN("Primitive has no material.");
+    }
+    else if(gltfMaterial->has_pbr_metallic_roughness)
     {
         const cgltf_pbr_metallic_roughness& pbr = gltfMaterial->pbr_metallic_roughness;
         color = RgbaColorf //

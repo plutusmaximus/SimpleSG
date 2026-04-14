@@ -60,8 +60,18 @@ Shutdown()
     WebgpuHelper::Shutdown();
 }
 
-static
-Result<> RenderGui();
+static Result<> RenderGui();
+
+static Result<DawnSceneKit*>
+LoadSceneKit(const std::filesystem::path& path)
+{
+    auto sceneKitData = CgltfModelLoader::LoadSceneKit(path.string());
+    MLG_CHECK(sceneKitData, "Failed to load scene kit: {}", path.string());
+
+    wgpu::Device wgpuDevice = WebgpuHelper::GetDevice();
+    auto dawnSceneKit = DawnSceneKit::Create(wgpuDevice, path.parent_path(), *sceneKitData);
+    return dawnSceneKit;
+}
 
 [[maybe_unused]] static constexpr const char* SPONZA_MODEL_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
 [[maybe_unused]] static constexpr const char* AVOCADO_MODEL_PATH = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Avocado/glTF/Avocado.gltf";
@@ -109,20 +119,14 @@ MainLoop()
 
     const std::filesystem::path path(SPONZA_MODEL_PATH);
 
-    auto sceneKitData = CgltfModelLoader::LoadSceneKit(path.string());
-    MLG_CHECK(sceneKitData, "Failed to load scene kit: {}", path.string());
-
-    wgpu::Device wgpuDevice = WebgpuHelper::GetDevice();
-    auto dawnSceneKit = DawnSceneKit::Create(wgpuDevice, path.parent_path(), *sceneKitData);
+    auto dawnSceneKit = LoadSceneKit(path);
     MLG_CHECK(dawnSceneKit);
-
-    SceneKit* sceneKitToView = *dawnSceneKit;
 
     EcsRegistry registry;
 
     WalkMouseNav mouseNav;
 
-    Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, sceneKitToView);
+    Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, *dawnSceneKit);
 
     Extent screenBounds = WebgpuHelper::GetScreenBounds();
 
@@ -166,6 +170,8 @@ MainLoop()
             std::this_thread::yield();
             continue;
         }
+
+        std::string droppedFile;
 
         while(!minimized && running && SDL_PollEvent(&event))
         {
@@ -235,6 +241,30 @@ MainLoop()
                     mouseNav.OnKeyUp(event.key.scancode);
                 }
                 break;
+
+            case SDL_EVENT_DROP_BEGIN:
+                break;
+
+            case SDL_EVENT_DROP_FILE:
+                droppedFile = event.drop.data;
+                break;
+
+            case SDL_EVENT_DROP_TEXT:
+                break;
+
+            case SDL_EVENT_DROP_COMPLETE:
+                break;
+            }
+        }
+
+        if(!droppedFile.empty())
+        {
+            auto newSceneKit = LoadSceneKit(droppedFile);
+            if(newSceneKit)
+            {
+                auto oldSceneKit = model.Get<DawnSceneKit*>();
+                DawnSceneKit::Destroy(oldSceneKit);
+                model.Get<DawnSceneKit*>() = *newSceneKit;
             }
         }
 
@@ -256,7 +286,7 @@ MainLoop()
 
         const auto& camWorldMat = camera.Get<WorldMatrix>();
         const auto& projection = camera.Get<Camera>().GetProjection();
-        for(const auto& tuple : registry.GetView<WorldMatrix, SceneKit*>())
+        for(const auto& tuple : registry.GetView<WorldMatrix, DawnSceneKit*>())
         {
             const auto [eid, worldMat, sceneKit] = tuple;
 
