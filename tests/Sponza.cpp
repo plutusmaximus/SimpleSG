@@ -77,7 +77,7 @@ public:
 
         std::filesystem::path filePath(SPONZA_MODEL_PATH);
 
-        auto sceneKitData = CgltfModelLoader::LoadSceneKit(SPONZA_MODEL_PATH);
+        auto sceneKitData = CgltfModelLoader::LoadSceneKit(filePath.string());
         MLG_CHECK(sceneKitData);
 
         wgpu::Device wgpuDevice = WebgpuHelper::GetDevice();
@@ -147,23 +147,6 @@ public:
         {
             auto [eid, xform, worldMat] = tuple;
             worldMat = xform.ToMatrix();
-        }
-
-        // Transform parent/child relationships
-        for(const auto& tuple : m_Registry.GetView<ChildTransform, WorldMatrix>())
-        {
-            auto [eid, xform, worldMat] = tuple;
-
-            const EntityId parentId = xform.ParentId;
-            if(!parentId.IsValid())
-            {
-                worldMat = xform.LocalTransform.ToMatrix();
-            }
-            else
-            {
-                const auto parentWorldMat = m_Registry.Get<WorldMatrix>(parentId);
-                worldMat = parentWorldMat * xform.LocalTransform.ToMatrix();
-            }
         }
 
         m_RenderCompositor->BeginFrame();
