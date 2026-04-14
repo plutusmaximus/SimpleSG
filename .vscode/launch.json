@@ -29,42 +29,6 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "Sponza (Debug)",
-            "type": "cppvsdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/Debug/Sponza.exe",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build/Debug",
-            "environment": [],
-            //"console": "externalTerminal"
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "GLTF (Debug)",
-            "type": "cppvsdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/Debug/GLTF.exe",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build/Debug",
-            "environment": [],
-            //"console": "externalTerminal"
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "gltfcook (Debug)",
-            "type": "cppvsdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/Debug/gltfcook.exe",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build/Debug",
-            "environment": [],
-            //"console": "externalTerminal"
-            "console": "integratedTerminal"
-        },
-        {
             "name": "Cube (Release)",
             "type": "cppvsdbg",
             "request": "launch",
@@ -89,10 +53,34 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "Sponza (Release)",
+            "name": "Tests (Debug, List Tests)",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/Release/Sponza.exe",
+            "program": "${workspaceFolder}/build/Debug/Tests.exe",
+            "args": ["--gtest_list_tests"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/Debug",
+            "environment": [],
+            //"console": "externalTerminal"
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Viewer (Debug)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/Viewer.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/Debug",
+            "environment": [],
+            //"console": "externalTerminal"
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Viewer (Release)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Release/Viewer.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build/Release",

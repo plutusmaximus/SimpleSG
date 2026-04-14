@@ -251,11 +251,6 @@ add_sample_executable(Triangle tests/triangle.cpp)
 add_sample_executable(Cube tests/cube.cpp)
 
 # ============================================================
-# Executable: Sponza
-# ============================================================
-add_sample_executable(Sponza tests/sponza.cpp)
-
-# ============================================================
 # Executable: Viewer
 # ============================================================
 add_sample_executable(Viewer tests/viewer.cpp)
