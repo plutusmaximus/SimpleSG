@@ -155,13 +155,13 @@ add_custom_target(copy_images
 set(SSG_SOURCES
   src/AssertHelper.cpp
   src/Camera.cpp
-  src/CgltfModelLoader.cpp
   src/CoopScheduler.cpp
   src/DawnRenderCompositor.cpp
   src/DawnRenderer.cpp
   src/DawnSceneKit.cpp
   src/EcsChildTransformPool.cpp
   src/FileFetcher.cpp
+  src/GltfLoader.cpp
   src/ImGuiRenderer.cpp
   src/Log.cpp
   src/PerfMetrics.cpp
@@ -174,7 +174,6 @@ set(SSG_SOURCES
 set(SSG_HEADERS
   src/AssertHelper.h
   src/Camera.h
-  src/CgltfModelLoader.h
   src/CoopScheduler.h
   src/DawnRenderCompositor.h
   src/DawnRenderer.h
@@ -182,6 +181,7 @@ set(SSG_HEADERS
   src/ECS.h
   src/EcsChildTransformPool.h
   src/FileFetcher.h
+  src/GltfLoader.h
   src/ImGuiRenderer.h
   src/inlist.h
   src/instack.h
