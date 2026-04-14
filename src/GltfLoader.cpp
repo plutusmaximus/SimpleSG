@@ -3,7 +3,7 @@
 
 #define __LOGGER_NAME__ "GLTF"
 
-#include "CgltfModelLoader.h"
+#include "GltfLoader.h"
 
 #include "Log.h"
 #include "Vertex.h"
@@ -640,7 +640,7 @@ CollectTransforms(cgltf_node** const childNodes,
 }
 
 Result<SceneKitSourceData>
-CgltfModelLoader::LoadSceneKit(const std::string& path)
+GltfLoader::LoadSceneKit(const std::string& path)
 {
     std::filesystem::path filePath(path);
 

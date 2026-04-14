@@ -1,9 +1,9 @@
-#include "CgltfModelLoader.h"
 #include "Camera.h"
 #include "DawnRenderCompositor.h"
 #include "DawnRenderer.h"
 #include "DawnSceneKit.h"
 #include "ECS.h"
+#include "GltfLoader.h"
 #include "ImGuiRenderer.h"
 #include "MouseNav.h"
 #include "PerfMetrics.h"
@@ -65,7 +65,7 @@ static Result<> RenderGui();
 static Result<DawnSceneKit*>
 LoadSceneKit(const std::filesystem::path& path)
 {
-    auto sceneKitData = CgltfModelLoader::LoadSceneKit(path.string());
+    auto sceneKitData = GltfLoader::LoadSceneKit(path.string());
     MLG_CHECK(sceneKitData, "Failed to load scene kit: {}", path.string());
 
     wgpu::Device wgpuDevice = WebgpuHelper::GetDevice();

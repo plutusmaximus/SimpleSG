@@ -5,7 +5,7 @@
 
 #include <string>
 
-class CgltfModelLoader final
+class GltfLoader final
 {
 public:
 

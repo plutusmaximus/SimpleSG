@@ -20,7 +20,7 @@
 
 #include "scope_exit.h"
 
-#include "CgltfModelLoader.h"
+#include "GltfLoader.h"
 
 namespace
 {
@@ -77,7 +77,7 @@ public:
 
         std::filesystem::path filePath(SPONZA_MODEL_PATH);
 
-        auto sceneKitData = CgltfModelLoader::LoadSceneKit(filePath.string());
+        auto sceneKitData = GltfLoader::LoadSceneKit(filePath.string());
         MLG_CHECK(sceneKitData);
 
         wgpu::Device wgpuDevice = WebgpuHelper::GetDevice();
