@@ -148,11 +148,6 @@ add_custom_target(copy_images
           ${CMAKE_SOURCE_DIR}/images ${CMAKE_BINARY_DIR}/images
   COMMENT "Copying image files"
 )
-add_custom_target(copy_models
-  COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
-          ${CMAKE_SOURCE_DIR}/models ${CMAKE_BINARY_DIR}/models
-  COMMENT "Copying model files"
-)
 
 # ============================================================
 # Library: ssg
@@ -225,7 +220,7 @@ compiler_flags(ssg)
 function(add_sample_executable target_name source_file)
   add_executable(${target_name} ${source_file} tests/MouseNav.cpp tests/AppDriver.cpp)
   target_link_libraries(${target_name} PRIVATE ssg::ssg spdlog::spdlog imgui webgpu_dawn webgpu_glfw glfw)
-  add_dependencies(${target_name} shaders copy_images copy_models)
+  add_dependencies(${target_name} shaders copy_images)
 
   compiler_flags(${target_name})
 
@@ -284,7 +279,7 @@ add_executable(Tests
   "tests/Vec4.test.cpp")
 
 target_link_libraries(Tests PRIVATE gtest_main ssg::ssg spdlog::spdlog)
-#add_dependencies(RunAllTests shaders copy_images copy_models)
+#add_dependencies(RunAllTests shaders copy_images)
 
 compiler_flags(Tests)
 
