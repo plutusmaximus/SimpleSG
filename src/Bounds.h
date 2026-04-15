@@ -2,6 +2,7 @@
 
 #include "Vertex.h"
 
+#include <algorithm>
 #include <span>
 
 class BoundingSphere
@@ -19,6 +20,16 @@ public:
     float GetRadius() const
     {
         return m_Radius;
+    }
+
+    bool Contains(const Vec3f& point) const
+    {
+        const Vec3f v(point - m_Center);
+        const double dist2 = v.Dot(v);
+        const double r2 = m_Radius * m_Radius;
+        // Use a tolerance that is always relative to the actual radius
+        const double tol = 1e-6 * r2 + 1e-12; // 1e-12 for exact zero case
+        return dist2 <= r2 + tol;
     }
 
     const Vec3f& GetCenter() const { return m_Center; }

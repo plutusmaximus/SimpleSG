@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <random>
 
 static std::vector<Vec3f>
@@ -21,11 +22,20 @@ Shuffle(std::span<const Vertex> input)
     return result;
 }
 
-inline static bool
-Contains(const BoundingSphere& s, const Vec3f& p)
+static inline bool
+ContainsAll4(const BoundingSphere& s, const Vec3f& A, const Vec3f& B, const Vec3f& C, const Vec3f& D)
 {
-    const Vec3f v(p - s.GetCenter());
-    return v.Dot(v) <= (s.GetRadius() * s.GetRadius()) + 1e-12;
+    return s.Contains(A) && s.Contains(B) && s.Contains(C) && s.Contains(D);
+}
+
+static inline void
+TryUpdateBest(BoundingSphere& best, bool& hasBest, const BoundingSphere& candidate)
+{
+    if(!hasBest || candidate.GetRadius() < best.GetRadius())
+    {
+        best = candidate;
+        hasBest = true;
+    }
 }
 
 static inline BoundingSphere
@@ -49,16 +59,22 @@ SphereFrom_3(const Vec3f& A, const Vec3f& B, const Vec3f& C)
     BoundingSphere s;
 
     s = SphereFrom_2(A, B);
-    if(Contains(s, C))
+    if(s.Contains(C))
+    {
         return s;
+    }
 
     s = SphereFrom_2(A, C);
-    if(Contains(s, B))
+    if(s.Contains(B))
+    {
         return s;
+    }
 
     s = SphereFrom_2(B, C);
-    if(Contains(s, A))
+    if(s.Contains(A))
+    {
         return s;
+    }
 
     // True circumcircle case
 
@@ -66,10 +82,17 @@ SphereFrom_3(const Vec3f& A, const Vec3f& B, const Vec3f& C)
     const Vec3 b = C - A;
 
     const Vec3 axb = a.Cross(b);
-    const double denom = 2.0 * axb.Dot(axb);
+    const double crossLen2 = axb.Dot(axb);
+    const double lenA2 = a.Dot(a);
+    const double lenB2 = b.Dot(b);
+    const double maxLen2 = std::max(lenA2, lenB2);
+    const double epsCollinear = 1e-12;
+    // Use a threshold relative to the actual scale
+    const double collinearThreshold = epsCollinear * maxLen2;
+    const double denom = 2.0 * crossLen2;
 
     // Degenerate (collinear fallback)
-    if(denom == 0.0)
+    if(crossLen2 <= collinearThreshold)
     {
         const Vec3f AB = A - B;
         const Vec3f AC = A - C;
@@ -81,9 +104,13 @@ SphereFrom_3(const Vec3f& A, const Vec3f& B, const Vec3f& C)
         const double dBC = BC.Dot(BC);
 
         if(dAB >= dAC && dAB >= dBC)
+        {
             return SphereFrom_2(A, B);
+        }
         if(dAC >= dAB && dAC >= dBC)
+        {
             return SphereFrom_2(A, C);
+        }
         return SphereFrom_2(B, C);
     }
 
@@ -105,20 +132,28 @@ SphereFrom_4(const Vec3f& A, const Vec3f& B, const Vec3f& C, const Vec3f& D)
 
     // Try all 3-point spheres
     s = SphereFrom_3(A, B, C);
-    if(Contains(s, D))
+    if(s.Contains(D))
+    {
         return s;
+    }
 
     s = SphereFrom_3(A, B, D);
-    if(Contains(s, C))
+    if(s.Contains(C))
+    {
         return s;
+    }
 
     s = SphereFrom_3(A, C, D);
-    if(Contains(s, B))
+    if(s.Contains(B))
+    {
         return s;
+    }
 
     s = SphereFrom_3(B, C, D);
-    if(Contains(s, A))
+    if(s.Contains(A))
+    {
         return s;
+    }
 
     // Solve linear system:
     // 2 c·(B-A) = |B|^2 - |A|^2
@@ -139,9 +174,12 @@ SphereFrom_4(const Vec3f& A, const Vec3f& B, const Vec3f& C, const Vec3f& D)
     const double rhs3 = len2D - len2A;
 
     // Matrix rows
-    const double M[3][3] = { { 2 * ba.x, 2 * ba.y, 2 * ba.z },
-        { 2 * ca.x, 2 * ca.y, 2 * ca.z },
-        { 2 * da.x, 2 * da.y, 2 * da.z } };
+    const double M[3][3] = //
+        {
+            { 2 * ba.x, 2 * ba.y, 2 * ba.z },
+            { 2 * ca.x, 2 * ca.y, 2 * ca.z },
+            { 2 * da.x, 2 * da.y, 2 * da.z },
+        };
 
     const double bvec[3] = { rhs1, rhs2, rhs3 };
 
@@ -159,9 +197,98 @@ SphereFrom_4(const Vec3f& A, const Vec3f& B, const Vec3f& C, const Vec3f& D)
     // Degenerate (coplanar fallback)
     if(std::abs(detM) < 1e-12)
     {
-        // Should not happen if subset checks are correct,
-        // but fallback anyway
-        return SphereFrom_3(A, B, C);
+        BoundingSphere best;
+        bool hasBest = false;
+
+        // Evaluate all 2-point boundary candidates.
+        BoundingSphere candidate = SphereFrom_2(A, B);
+        if(ContainsAll4(candidate, A, B, C, D))
+            TryUpdateBest(best, hasBest, candidate);
+
+        candidate = SphereFrom_2(A, C);
+        if(ContainsAll4(candidate, A, B, C, D))
+            TryUpdateBest(best, hasBest, candidate);
+
+        candidate = SphereFrom_2(A, D);
+        if(ContainsAll4(candidate, A, B, C, D))
+            TryUpdateBest(best, hasBest, candidate);
+
+        candidate = SphereFrom_2(B, C);
+        if(ContainsAll4(candidate, A, B, C, D))
+            TryUpdateBest(best, hasBest, candidate);
+
+        candidate = SphereFrom_2(B, D);
+        if(ContainsAll4(candidate, A, B, C, D))
+            TryUpdateBest(best, hasBest, candidate);
+
+        candidate = SphereFrom_2(C, D);
+        if(ContainsAll4(candidate, A, B, C, D))
+            TryUpdateBest(best, hasBest, candidate);
+
+        // Evaluate all 3-point boundary candidates.
+        candidate = SphereFrom_3(A, B, C);
+        if(ContainsAll4(candidate, A, B, C, D))
+            TryUpdateBest(best, hasBest, candidate);
+
+        candidate = SphereFrom_3(A, B, D);
+        if(ContainsAll4(candidate, A, B, C, D))
+            TryUpdateBest(best, hasBest, candidate);
+
+        candidate = SphereFrom_3(A, C, D);
+        if(ContainsAll4(candidate, A, B, C, D))
+            TryUpdateBest(best, hasBest, candidate);
+
+        candidate = SphereFrom_3(B, C, D);
+        if(ContainsAll4(candidate, A, B, C, D))
+            TryUpdateBest(best, hasBest, candidate);
+
+        if(hasBest)
+            return best;
+
+        // Last-resort fallback: enclosing sphere of the farthest pair.
+        const Vec3f AB = A - B;
+        const Vec3f AC = A - C;
+        const Vec3f AD = A - D;
+        const Vec3f BC = B - C;
+        const Vec3f BD = B - D;
+        const Vec3f CD = C - D;
+
+        const double dAB = AB.Dot(AB);
+        const double dAC = AC.Dot(AC);
+        const double dAD = AD.Dot(AD);
+        const double dBC = BC.Dot(BC);
+        const double dBD = BD.Dot(BD);
+        const double dCD = CD.Dot(CD);
+
+        double maxD = dAB;
+        BoundingSphere farthest = SphereFrom_2(A, B);
+
+        if(dAC > maxD)
+        {
+            maxD = dAC;
+            farthest = SphereFrom_2(A, C);
+        }
+        if(dAD > maxD)
+        {
+            maxD = dAD;
+            farthest = SphereFrom_2(A, D);
+        }
+        if(dBC > maxD)
+        {
+            maxD = dBC;
+            farthest = SphereFrom_2(B, C);
+        }
+        if(dBD > maxD)
+        {
+            maxD = dBD;
+            farthest = SphereFrom_2(B, D);
+        }
+        if(dCD > maxD)
+        {
+            farthest = SphereFrom_2(C, D);
+        }
+
+        return farthest;
     }
 
     double Mx[3][3], My[3][3], Mz[3][3];
@@ -220,7 +347,7 @@ Welzl_Recursive(std::vector<Vec3f>& P, const size_t n, std::array<Vec3f, 4>& R, 
     BoundingSphere s = Welzl_Recursive(P, n - 1, R, r);
 
     // If p is inside, sphere unchanged
-    if(Contains(s, p))
+    if(s.Contains(p))
     {
         return s;
     }
