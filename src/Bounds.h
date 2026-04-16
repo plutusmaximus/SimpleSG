@@ -5,6 +5,28 @@
 #include <algorithm>
 #include <span>
 
+class AABB
+{
+public:
+
+    AABB() = default;
+
+    AABB(const Vec3f& min, const Vec3f& max) noexcept
+        : m_Min(min)
+        , m_Max(max)
+    {
+    }
+
+    const Vec3f& GetMin() const { return m_Min; }
+    const Vec3f& GetMax() const { return m_Max; }
+
+    static AABB FromVertices(std::span<const Vertex> vertices);
+
+private:
+    Vec3f m_Min = {0.0f, 0.0f, 0.0f};
+    Vec3f m_Max = {0.0f, 0.0f, 0.0f};
+};
+
 class BoundingSphere
 {
 public:
@@ -14,6 +36,12 @@ public:
     BoundingSphere(const Vec3f& center, const float radius) noexcept
         : m_Center(center)
         , m_Radius(radius)
+    {
+    }
+
+    explicit BoundingSphere(const AABB& aabb) noexcept
+        : m_Center((aabb.GetMin() + aabb.GetMax()) * 0.5f)
+        , m_Radius((aabb.GetMax() - m_Center).Length())
     {
     }
 

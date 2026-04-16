@@ -154,6 +154,7 @@ add_custom_target(copy_images
 # ============================================================
 set(SSG_SOURCES
   src/AssertHelper.cpp
+  src/Bounds.cpp
   src/Camera.cpp
   src/CoopScheduler.cpp
   src/DawnRenderCompositor.cpp
@@ -173,6 +174,7 @@ set(SSG_SOURCES
 
 set(SSG_HEADERS
   src/AssertHelper.h
+  src/Bounds.h
   src/Camera.h
   src/CoopScheduler.h
   src/DawnRenderCompositor.h
@@ -259,6 +261,7 @@ add_sample_executable(Viewer tests/viewer.cpp)
 # Executable: Tests
 # ============================================================
 add_executable(Tests
+  "tests/BoundingSphere.test.cpp"
   "tests/CoopScheduler.test.cpp"
   "tests/ECS.test.cpp"
   "tests/EcsChildTransformPool.test.cpp"

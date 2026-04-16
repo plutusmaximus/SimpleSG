@@ -89,7 +89,7 @@ SphereFrom_3(const Vec3f& A, const Vec3f& B, const Vec3f& C)
     const double epsCollinear = 1e-12;
     // Use a threshold relative to the actual scale
     const double collinearThreshold = epsCollinear * maxLen2;
-    const double denom = 2.0 * crossLen2;
+    const double denom = 2 * crossLen2;
 
     // Degenerate (collinear fallback)
     if(crossLen2 <= collinearThreshold)
@@ -356,6 +356,36 @@ Welzl_Recursive(std::vector<Vec3f>& P, const size_t n, std::array<Vec3f, 4>& R, 
     R[r] = p;
 
     return Welzl_Recursive(P, n - 1, R, r + 1);
+}
+
+AABB
+AABB::FromVertices(std::span<const Vertex> vertices)
+{
+    AABB result;
+
+    if(vertices.empty())
+    {
+        return result;
+    }
+
+    Vec3f min = vertices[0].pos;
+    Vec3f max = vertices[0].pos;
+
+    for(const Vertex& v : vertices)
+    {
+        const Vec3f& p = v.pos;
+        min.x = std::min(min.x, p.x);
+        min.y = std::min(min.y, p.y);
+        min.z = std::min(min.z, p.z);
+
+        max.x = std::max(max.x, p.x);
+        max.y = std::max(max.y, p.y);
+        max.z = std::max(max.z, p.z);
+    }
+
+    result.m_Min = min;
+    result.m_Max = max;
+    return result;
 }
 
 BoundingSphere
