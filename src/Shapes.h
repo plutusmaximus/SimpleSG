@@ -16,31 +16,28 @@ public:
 
     public:
 
-        const std::vector<Vertex>& GetVertices() const
+        std::span<const Vertex> GetVertices() const
         {
             return m_Vertices;
         }
 
-        const std::vector<VertexIndex>& GetIndices() const
+        std::span<const VertexIndex> GetIndices() const
         {
             return m_Indices;
         }
 
         // Enable structured bindings
         template<std::size_t I>
-        auto get() const noexcept -> std::conditional_t<I == 0, const std::vector<Vertex>&, const std::vector<VertexIndex>&>
+        auto get() const noexcept -> std::conditional_t<I == 0, std::span<const Vertex>, std::span<const VertexIndex>>
         {
             static_assert(I < 2);
-            if constexpr (I == 0) return (m_Vertices);
-            else if constexpr (I == 1) return (m_Indices);
+            if constexpr (I == 0) return std::span<const Vertex>(m_Vertices);
+            else if constexpr (I == 1) return std::span<const VertexIndex>(m_Indices);
         }
 
     private:
 
-        // Must use std::move() at the call site to avoid copies.
-        // If std::move() is not used the compiler will throw an error similar to:
-        // "no overloaded function could convert all the argument types"
-        Geometry(std::vector<Vertex>&& vertices, std::vector<VertexIndex>&& indices)
+        Geometry(std::vector<Vertex>&& vertices, std::vector<VertexIndex>&& indices) noexcept
             : m_Vertices(std::move(vertices))
             , m_Indices(std::move(indices))
         {
@@ -80,11 +77,11 @@ struct std::tuple_size<Shapes::Geometry> : std::integral_constant<std::size_t, 2
 template<>
 struct std::tuple_element<0, Shapes::Geometry>
 {
-    using type = std::vector<Vertex>;
+    using type = std::span<const Vertex>;
 };
 
 template<>
 struct std::tuple_element<1, Shapes::Geometry>
 {
-    using type = std::vector<VertexIndex>;
+    using type = std::span<const VertexIndex>;
 };
