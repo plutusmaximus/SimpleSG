@@ -198,6 +198,11 @@ public:
         return Vec2(x * scalar, y * scalar);
     }
 
+    constexpr Vec2 operator/(const T scalar) const
+    {
+        return Vec2(x / scalar, y / scalar);
+    }
+
     constexpr Vec2 operator-() const
     {
         return Vec2(-x, -y);
@@ -250,6 +255,13 @@ public:
     {
         x *= scalar;
         y *= scalar;
+        return *this;
+    }
+
+    constexpr Vec2<T>& operator/=(const T scalar)
+    {
+        x /= scalar;
+        y /= scalar;
         return *this;
     }
 };
@@ -334,6 +346,11 @@ public:
         return Vec3(x * scalar, y * scalar, z * scalar);
     }
 
+    constexpr Vec3 operator/(const T scalar) const
+    {
+        return Vec3(x / scalar, y / scalar, z / scalar);
+    }
+
     constexpr Vec3 operator-() const
     {
         return Vec3(-x, -y, -z);
@@ -392,6 +409,14 @@ public:
         x *= scalar;
         y *= scalar;
         z *= scalar;
+        return *this;
+    }
+
+    constexpr Vec3& operator/=(const T scalar)
+    {
+        x /= scalar;
+        y /= scalar;
+        z /= scalar;
         return *this;
     }
 };
@@ -470,6 +495,11 @@ public:
         return Vec4(x * scalar, y * scalar, z * scalar, w * scalar);
     }
 
+    constexpr Vec4 operator/(const T scalar) const
+    {
+        return Vec4(x / scalar, y / scalar, z / scalar, w / scalar);
+    }
+
     constexpr Vec4 operator-() const
     {
         return Vec4(-x, -y, -z, -w);
@@ -534,6 +564,15 @@ public:
         y *= scalar;
         z *= scalar;
         w *= scalar;
+        return *this;
+    }
+
+    constexpr Vec4& operator/=(const T scalar)
+    {
+        x /= scalar;
+        y /= scalar;
+        z /= scalar;
+        w /= scalar;
         return *this;
     }
 };

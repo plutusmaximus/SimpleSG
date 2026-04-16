@@ -96,6 +96,14 @@ TEST(Vec2f, Multiply_ScalarRight)
     EXPECT_FLOAT_EQ(c.y, 7.5f);
 }
 
+TEST(Vec2f, Divide_Scalar)
+{
+    Vec2f a(6.0f, 9.0f);
+    Vec2f c = a / 3.0f;
+    EXPECT_FLOAT_EQ(c.x, 2.0f);
+    EXPECT_FLOAT_EQ(c.y, 3.0f);
+}
+
 TEST(Vec2f, Multiply_ScalarLeft)
 {
     Vec2f a(2.0f, 3.0f);
@@ -158,4 +166,12 @@ TEST(Vec2f, CompoundMultiplication_Scalar)
     a *= 2.5f;
     EXPECT_FLOAT_EQ(a.x, 5.0f);
     EXPECT_FLOAT_EQ(a.y, 7.5f);
+}
+
+TEST(Vec2f, CompoundDivision_Scalar)
+{
+    Vec2f a(6.0f, 9.0f);
+    a /= 3.0f;
+    EXPECT_FLOAT_EQ(a.x, 2.0f);
+    EXPECT_FLOAT_EQ(a.y, 3.0f);
 }

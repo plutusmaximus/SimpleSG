@@ -123,6 +123,15 @@ TEST(Vec3f, Multiply_ScalarRight)
     EXPECT_FLOAT_EQ(c.z, 10.0f);
 }
 
+TEST(Vec3f, Divide_Scalar)
+{
+    Vec3f a(6.0f, 9.0f, 12.0f);
+    Vec3f c = a / 3.0f;
+    EXPECT_FLOAT_EQ(c.x, 2.0f);
+    EXPECT_FLOAT_EQ(c.y, 3.0f);
+    EXPECT_FLOAT_EQ(c.z, 4.0f);
+}
+
 TEST(Vec3f, Multiply_ScalarLeft)
 {
     Vec3f a(2.0f, 3.0f, 4.0f);
@@ -194,4 +203,13 @@ TEST(Vec3f, CompoundMultiplication_Scalar)
     EXPECT_FLOAT_EQ(a.x, 5.0f);
     EXPECT_FLOAT_EQ(a.y, 7.5f);
     EXPECT_FLOAT_EQ(a.z, 10.0f);
+}
+
+TEST(Vec3f, CompoundDivision_Scalar)
+{
+    Vec3f a(6.0f, 9.0f, 12.0f);
+    a /= 3.0f;
+    EXPECT_FLOAT_EQ(a.x, 2.0f);
+    EXPECT_FLOAT_EQ(a.y, 3.0f);
+    EXPECT_FLOAT_EQ(a.z, 4.0f);
 }
