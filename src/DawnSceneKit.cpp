@@ -831,10 +831,18 @@ DawnSceneKit::Create(wgpu::Device& wgpuDevice,
     meshProperties.reserve(sceneKitData.Meshes.size());
     for(const auto& meshData : sceneKitData.Meshes)
     {
+        std::span<const Vertex> vertices = sceneKitData.Vertices;
+        std::span<const VertexIndex> indices //
+            {
+                sceneKitData.Indices.data() + meshData.FirstIndex,
+                meshData.IndexCount,
+            };
+        const AABoundingBox boundingBox = AABoundingBox::FromVertices(vertices, indices);
         const MeshProperties mesh //
-        {
-            .MaterialIndex = meshData.MaterialIndex,
-        };
+            {
+                .MaterialIndex = meshData.MaterialIndex,
+                .BoundingBox = boundingBox,
+            };
 
         meshProperties.emplace_back(std::move(mesh));
     }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Bounds.h"
 #include "Color.h"
 #include "VecMath.h"
 #include "Vertex.h"
@@ -23,6 +24,7 @@ struct DrawIndirectBufferParams
 struct MeshProperties
 {
     MaterialIndex MaterialIndex;
+    AABoundingBox BoundingBox;
 };
 
 struct MeshDrawData

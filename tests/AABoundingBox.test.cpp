@@ -41,8 +41,9 @@ TEST(AABoundingBox, Constructor_StoresProvidedMinAndMax)
 TEST(AABoundingBox, FromVertices_EmptyInput_ReturnsZeroBox)
 {
     const std::vector<Vertex> vertices;
+    const std::vector<VertexIndex> indices;
 
-    const AABoundingBox box = AABoundingBox::FromVertices(vertices);
+    const AABoundingBox box = AABoundingBox::FromVertices(vertices, indices);
 
     ExpectVec3Eq(box.GetMin(), { 0.0f, 0.0f, 0.0f });
     ExpectVec3Eq(box.GetMax(), { 0.0f, 0.0f, 0.0f });
@@ -52,7 +53,9 @@ TEST(AABoundingBox, FromVertices_SingleVertex_MinAndMaxMatchPoint)
 {
     const std::vector<Vertex> vertices = { MakeVertex({ 2.5f, -4.0f, 8.0f }) };
 
-    const AABoundingBox box = AABoundingBox::FromVertices(vertices);
+    const std::vector<VertexIndex> indices = { 0 };
+
+    const AABoundingBox box = AABoundingBox::FromVertices(vertices, indices);
 
     ExpectVec3Eq(box.GetMin(), { 2.5f, -4.0f, 8.0f });
     ExpectVec3Eq(box.GetMax(), { 2.5f, -4.0f, 8.0f });
@@ -67,7 +70,9 @@ TEST(AABoundingBox, FromVertices_MultipleVertices_ComputesPerAxisExtrema)
         MakeVertex({ -4.0f, 1.0f, 2.0f }),
     };
 
-    const AABoundingBox box = AABoundingBox::FromVertices(vertices);
+    const std::vector<VertexIndex> indices = { 0, 1, 2, 3 };
+
+    const AABoundingBox box = AABoundingBox::FromVertices(vertices, indices);
 
     ExpectVec3Eq(box.GetMin(), { -4.0f, -2.0f, -5.0f });
     ExpectVec3Eq(box.GetMax(), { 3.0f, 9.0f, 7.0f });
@@ -89,8 +94,10 @@ TEST(AABoundingBox, FromVertices_VertexOrderDoesNotAffectResult)
         forward[0],
     };
 
-    const AABoundingBox boxForward = AABoundingBox::FromVertices(forward);
-    const AABoundingBox boxReverse = AABoundingBox::FromVertices(reverse);
+    const std::vector<VertexIndex> indices = { 0, 1, 2, 3 };
+
+    const AABoundingBox boxForward = AABoundingBox::FromVertices(forward, indices);
+    const AABoundingBox boxReverse = AABoundingBox::FromVertices(reverse, indices);
 
     ExpectVec3Eq(boxForward.GetMin(), boxReverse.GetMin());
     ExpectVec3Eq(boxForward.GetMax(), boxReverse.GetMax());

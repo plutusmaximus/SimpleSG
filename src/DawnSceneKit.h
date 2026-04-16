@@ -80,6 +80,15 @@ public:
         Builder& SetMeshes(std::vector<MeshProperties>&& meshes)
         {
             m_Meshes = std::move(meshes);
+            for(const auto& mesh : m_Meshes)
+            {
+                const Vec3f& aabbMax = mesh.BoundingBox.GetMax();
+                const Vec3f& aabbMin = mesh.BoundingBox.GetMin();
+                MLG_ASSERT(aabbMin.x <= aabbMax.x &&
+                           aabbMin.y <= aabbMax.y &&
+                           aabbMin.z <= aabbMax.z,
+                    "Mesh has invalid bounding box");
+            }
             return *this;
         }
 

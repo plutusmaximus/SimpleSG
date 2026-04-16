@@ -21,7 +21,8 @@ public:
     const Vec3f& GetMin() const { return m_Min; }
     const Vec3f& GetMax() const { return m_Max; }
 
-    static AABoundingBox FromVertices(std::span<const Vertex> vertices);
+    static AABoundingBox FromVertices(std::span<const Vertex> vertices,
+        std::span<const VertexIndex> indices);
 
 private:
     Vec3f m_Min = {0.0f, 0.0f, 0.0f};
@@ -62,8 +63,6 @@ public:
     }
 
     const Vec3f& GetCenter() const { return m_Center; }
-
-    static BoundingSphere FromVertices(std::span<const Vertex> vertices);
 
 private:
     Vec3f m_Center = {0.0f, 0.0f, 0.0f};

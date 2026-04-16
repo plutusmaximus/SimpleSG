@@ -163,6 +163,11 @@ public:
         return std::sqrt(x * x + y * y);
     }
 
+    constexpr T Length2() const
+    {
+        return x * x + y * y;
+    }
+
     constexpr Vec2 Cross(const Vec2& that) const
     {
         return Vec2(x * that.y - y * that.x, y * that.x - x * that.y);
@@ -305,6 +310,11 @@ public:
     constexpr T Length() const
     {
         return std::sqrt(x * x + y * y + z * z);
+    }
+
+    constexpr T Length2() const
+    {
+        return x * x + y * y + z * z;
     }
 
     constexpr Vec3 Cross(const Vec3& that) const
@@ -460,10 +470,10 @@ public:
         return std::sqrt(x * x + y * y + z * z + w * w);
     }
 
-    /*constexpr Vec4 Cross(const Vec4& that) const
+    constexpr T Length2() const
     {
-        return glm::cross(*this, that);
-    }*/
+        return x * x + y * y + z * z + w * w;
+    }
 
     constexpr T Dot(const Vec4& that) const
     {
