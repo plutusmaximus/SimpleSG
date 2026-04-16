@@ -39,14 +39,14 @@ private:
 
     Result<wgpu::RenderPassEncoder> BeginRenderPass(wgpu::CommandEncoder cmdEncoder);
 
-    /// @brief Copy the color target to the swapchain texture.
-    Result<> CopyColorTargetToSwapchain(DawnRenderCompositor* compositor);
+    /// @brief Resolve the color target to the swapchain texture.
+    Result<> ResolveColorTargetToSwapchain(DawnRenderCompositor* compositor);
 
     Result<> CreateColorAndDepthTargets();
 
     Result<> CreateColorPipeline();
 
-    Result<> CreateBltPipeline();
+    Result<> CreateResolvePipeline();
 
     Result<> CreateTransformPipeline();
 
@@ -69,9 +69,8 @@ private:
 
     struct Pipeline
     {
-        wgpu::ShaderModule VertexShader;
-        wgpu::ShaderModule FragmentShader;
-        wgpu::PipelineLayout PipelineLayout;
+        wgpu::ShaderModule Shader;
+        wgpu::PipelineLayout Layout;
         wgpu::BindGroup BindGroup0;
         wgpu::BindGroup BindGroup1;
         wgpu::BindGroup BindGroup2;
@@ -81,8 +80,8 @@ private:
     // Pipeline for rendering to the color target texture.
     Pipeline m_ColorPipeline;
 
-    // Pipeline to BLT the color target to the swap chain.
-    Pipeline m_BltPipeline;
+    // Pipeline to resolve the color target to the swap chain.
+    Pipeline m_ResolvePipeline;
 
     struct TransformBuffers
     {

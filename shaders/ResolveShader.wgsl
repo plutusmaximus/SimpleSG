@@ -1,4 +1,4 @@
-// Fullscreen triangle (no VB).
+// Fullscreen triangle. Samples src texture with sampler.
 
 struct VSOut
 {
@@ -6,8 +6,11 @@ struct VSOut
     @location(0)       uv  : vec2<f32>,
 };
 
+@group(2) @binding(0) var srcTex : texture_2d<f32>;
+@group(2) @binding(1) var srcSmp : sampler;
+
 @vertex
-fn main(@builtin(vertex_index) vid : u32) -> VSOut
+fn vs_main(@builtin(vertex_index) vid : u32) -> VSOut
 {
     var o : VSOut;
 
@@ -35,4 +38,10 @@ fn main(@builtin(vertex_index) vid : u32) -> VSOut
 
     o.uv = uv;
     return o;
+}
+
+@fragment
+fn fs_main(i : VSOut) -> @location(0) vec4<f32>
+{
+    return textureSample(srcTex, srcSmp, i.uv);
 }

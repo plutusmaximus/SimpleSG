@@ -15,13 +15,11 @@
 #include <cstdio>
 #include <SDL3/SDL.h>
 
-static constexpr const char* COMPOSITE_COLOR_TARGET_VS = "shaders/FullScreenTriangle.vs.wgsl";
-static constexpr const char* COMPOSITE_COLOR_TARGET_FS = "shaders/FullScreenTriangle.fs.wgsl";
+static constexpr const char* COMPOSITOR_SHADER = "shaders/ResolveShader.wgsl";
 
-static constexpr const char* COLOR_PIPELINE_VS = "shaders/VertexShader.vs.wgsl";
-static constexpr const char* COLOR_PIPELINE_FS = "shaders/FragmentShader.fs.wgsl";
+static constexpr const char* COLOR_SHADER = "shaders/ColorShader.wgsl";
 
-static constexpr const char* TRANSFORM_SHADER_CS = "shaders/TransformShader.cs.wgsl";
+static constexpr const char* TRANSFORM_SHADER = "shaders/TransformShader.wgsl";
 
 static Result<wgpu::Buffer>
 CreateBuffer(wgpu::Device device, wgpu::BufferUsage usage, size_t size, const char* label);
@@ -51,7 +49,7 @@ DawnRenderer::Create(SDL_Window* window, wgpu::Device device, wgpu::Surface surf
 
     MLG_CHECK(renderer->CreateColorAndDepthTargets());
     MLG_CHECK(renderer->CreateColorPipeline());
-    MLG_CHECK(renderer->CreateBltPipeline());
+    MLG_CHECK(renderer->CreateResolvePipeline());
     MLG_CHECK(renderer->CreateTransformPipeline());
 
     cleanup.release();
@@ -182,11 +180,11 @@ DawnRenderer::Render(const Mat44f& camera,
     static PerfTimer resolveTimer("Renderer.Render.Resolve");
     resolveTimer.Start();
 
-    static PerfTimer copyTimer("Renderer.Render.Resolve.CopyColorTarget");
+    static PerfTimer resolveColorTargetTimer("Renderer.Render.Resolve.ResolveColorTarget");
     {
-        auto scopedTimer = copyTimer.StartScoped();
-        auto copyResult = CopyColorTargetToSwapchain(compositor);
-        MLG_CHECK(copyResult);
+        auto scopedTimer = resolveColorTargetTimer.StartScoped();
+        auto resolveResult = ResolveColorTargetToSwapchain(compositor);
+        MLG_CHECK(resolveResult);
     }
 
     resolveTimer.Stop();
@@ -243,7 +241,7 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
 }
 
 Result<>
-DawnRenderer::CopyColorTargetToSwapchain(DawnRenderCompositor* compositor)
+DawnRenderer::ResolveColorTargetToSwapchain(DawnRenderCompositor* compositor)
 {
     wgpu::Texture target = compositor->GetTarget();
 
@@ -271,8 +269,8 @@ DawnRenderer::CopyColorTargetToSwapchain(DawnRenderCompositor* compositor)
     wgpu::RenderPassEncoder renderPass = compositor->GetCommandEncoder().BeginRenderPass(&renderPassDesc);
     MLG_CHECK(renderPass, "Failed to begin render pass for copying color target to swapchain");
 
-    renderPass.SetPipeline(m_BltPipeline.Pipeline);
-    renderPass.SetBindGroup(2, m_BltPipeline.BindGroup2, 0, nullptr);
+    renderPass.SetPipeline(m_ResolvePipeline.Pipeline);
+    renderPass.SetBindGroup(2, m_ResolvePipeline.BindGroup2, 0, nullptr);
     renderPass.Draw(3, 1, 0, 0);
     renderPass.End();
 
@@ -400,15 +398,10 @@ DawnRenderer::CreateColorPipeline()
 
     MLG_CHECKV(m_ColorTarget, "Color target is null");
 
-    auto vsResult = CreateShader(COLOR_PIPELINE_VS);
-    MLG_CHECK(vsResult);
+    auto shader = CreateShader(COLOR_SHADER);
+    MLG_CHECK(shader);
 
-    m_ColorPipeline.VertexShader = *vsResult;
-
-    auto fsResult = CreateShader(COLOR_PIPELINE_FS);
-    MLG_CHECK(fsResult);
-
-    m_ColorPipeline.FragmentShader = *fsResult;
+    m_ColorPipeline.Shader = *shader;
 
     // Color target pipeline layout
 
@@ -429,9 +422,9 @@ DawnRenderer::CreateColorPipeline()
             .bindGroupLayouts = colorTargetBgl,
         };
 
-    m_ColorPipeline.PipelineLayout =
+    m_ColorPipeline.Layout =
         m_WgpuDevice.CreatePipelineLayout(&colorTargetPipelineLayoutDesc);
-    MLG_CHECK(m_ColorPipeline.PipelineLayout, "Failed to create color pipeline layout");
+    MLG_CHECK(m_ColorPipeline.Layout, "Failed to create color pipeline layout");
 
     wgpu::BlendState blendState //
         {
@@ -484,8 +477,8 @@ DawnRenderer::CreateColorPipeline()
 
     wgpu::FragmentState fragmentState //
         {
-            .module = m_ColorPipeline.FragmentShader,
-            .entryPoint = "main",
+            .module = m_ColorPipeline.Shader,
+            .entryPoint = "fs_main",
             .targetCount = 1,
             .targets = &colorTargetState,
         };
@@ -519,11 +512,11 @@ DawnRenderer::CreateColorPipeline()
     wgpu::RenderPipelineDescriptor descriptor//
     {
         .label = "ColorTargetPipeline",
-        .layout = m_ColorPipeline.PipelineLayout,
+        .layout = m_ColorPipeline.Layout,
         .vertex =
         {
-            .module = m_ColorPipeline.VertexShader,
-            .entryPoint = "main",
+            .module = m_ColorPipeline.Shader,
+            .entryPoint = "vs_main",
             .bufferCount = 1,
             .buffers = &vertexBufferLayout,
         },
@@ -562,29 +555,24 @@ DawnRenderer::CreateColorPipeline()
 }
 
 Result<>
-DawnRenderer::CreateBltPipeline()
+DawnRenderer::CreateResolvePipeline()
 {
-    if(m_BltPipeline.Pipeline)
+    if(m_ResolvePipeline.Pipeline)
     {
         return Result<>::Ok;
     }
 
-    auto vsResult = CreateShader(COMPOSITE_COLOR_TARGET_VS);
-    MLG_CHECK(vsResult);
+    auto shader = CreateShader(COMPOSITOR_SHADER);
+    MLG_CHECK(shader);
 
-    m_BltPipeline.VertexShader = *vsResult;
+    m_ResolvePipeline.Shader = *shader;
 
-    auto fsResult = CreateShader(COMPOSITE_COLOR_TARGET_FS);
-    MLG_CHECK(fsResult);
-
-    m_BltPipeline.FragmentShader = *fsResult;
-
-    // BLT pipeline bind group layout
+    // Resolve pipeline bind group layout
 
     auto layouts = WebgpuHelper::GetCompositorPipelineLayouts();
     MLG_CHECK(layouts);
 
-    wgpu::BindGroupLayout bltBgl[] = //
+    wgpu::BindGroupLayout resolveBgl[] = //
         {
             nullptr,    //bind group 0
             nullptr,    //bind group 1
@@ -593,13 +581,13 @@ DawnRenderer::CreateBltPipeline()
 
     wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
         {
-            .label = "BltPipelineLayout",
-            .bindGroupLayoutCount = std::size(bltBgl),
-            .bindGroupLayouts = bltBgl,
+            .label = "ResolvePipelineLayout",
+            .bindGroupLayoutCount = std::size(resolveBgl),
+            .bindGroupLayouts = resolveBgl,
         };
 
-    m_BltPipeline.PipelineLayout = m_WgpuDevice.CreatePipelineLayout(&pipelineLayoutDesc);
-    MLG_CHECK(m_BltPipeline.PipelineLayout, "Failed to create BLT pipeline layout");
+    m_ResolvePipeline.Layout = m_WgpuDevice.CreatePipelineLayout(&pipelineLayoutDesc);
+    MLG_CHECK(m_ResolvePipeline.Layout, "Failed to create resolve pipeline layout");
 
     wgpu::BlendState blendState //
         {
@@ -626,8 +614,8 @@ DawnRenderer::CreateBltPipeline()
 
     wgpu::FragmentState fragmentState //
         {
-            .module = m_BltPipeline.FragmentShader,
-            .entryPoint = "main",
+            .module = m_ResolvePipeline.Shader,
+            .entryPoint = "fs_main",
             .targetCount = 1,
             .targets = &colorTargetState,
         };
@@ -635,11 +623,11 @@ DawnRenderer::CreateBltPipeline()
     wgpu::RenderPipelineDescriptor descriptor//
     {
         .label = "CopyColorTargetPipeline",
-        .layout = m_BltPipeline.PipelineLayout,
+        .layout = m_ResolvePipeline.Layout,
         .vertex =
         {
-            .module = m_BltPipeline.VertexShader,
-            .entryPoint = "main",
+            .module = m_ResolvePipeline.Shader,
+            .entryPoint = "vs_main",
             .bufferCount = 0,
             .buffers = nullptr,
         },
@@ -683,11 +671,11 @@ DawnRenderer::CreateBltPipeline()
             .entries = bgEntries,
         };
 
-    m_BltPipeline.BindGroup2 = m_WgpuDevice.CreateBindGroup(&bgDesc);
-    MLG_CHECK(m_BltPipeline.BindGroup2, "Failed to create bind group 2 for BLT pipeline");
+    m_ResolvePipeline.BindGroup2 = m_WgpuDevice.CreateBindGroup(&bgDesc);
+    MLG_CHECK(m_ResolvePipeline.BindGroup2, "Failed to create bind group 2 for resolve pipeline");
 
-    m_BltPipeline.Pipeline = m_WgpuDevice.CreateRenderPipeline(&descriptor);
-    MLG_CHECK(m_BltPipeline.Pipeline, "Failed to create render pipeline for BLT pipeline");
+    m_ResolvePipeline.Pipeline = m_WgpuDevice.CreateRenderPipeline(&descriptor);
+    MLG_CHECK(m_ResolvePipeline.Pipeline, "Failed to create render pipeline for resolve pipeline");
 
     return Result<>::Ok;
 }
@@ -700,7 +688,7 @@ DawnRenderer::CreateTransformPipeline()
         return Result<>::Ok;
     }
 
-    auto csResult = CreateShader(TRANSFORM_SHADER_CS);
+    auto csResult = CreateShader(TRANSFORM_SHADER);
     MLG_CHECK(csResult);
 
     m_TransformShader = *csResult;
