@@ -130,7 +130,7 @@ TEST(BoundingSphere, Contains_NearBoundaryWithinTolerance_ReturnsTrue)
 
 TEST(BoundingSphere, CtorFromAABB_DegenerateBox_ProducesZeroRadiusAtPoint)
 {
-    const AABB box({ 2.0f, -3.0f, 4.0f }, { 2.0f, -3.0f, 4.0f });
+    const AABoundingBox box({ 2.0f, -3.0f, 4.0f }, { 2.0f, -3.0f, 4.0f });
 
     const BoundingSphere s(box);
 
@@ -142,7 +142,7 @@ TEST(BoundingSphere, CtorFromAABB_DegenerateBox_ProducesZeroRadiusAtPoint)
 
 TEST(BoundingSphere, CtorFromAABB_AsymmetricBox_ComputesMidpointAndHalfDiagonal)
 {
-    const AABB box({ -1.0f, -2.0f, -3.0f }, { 5.0f, 6.0f, 9.0f });
+    const AABoundingBox box({ -1.0f, -2.0f, -3.0f }, { 5.0f, 6.0f, 9.0f });
 
     const BoundingSphere s(box);
 
@@ -154,7 +154,7 @@ TEST(BoundingSphere, CtorFromAABB_AsymmetricBox_ComputesMidpointAndHalfDiagonal)
 
 TEST(BoundingSphere, CtorFromAABB_ContainsAllEightCorners)
 {
-    const AABB box({ -4.0f, -1.0f, -2.0f }, { 2.0f, 5.0f, 8.0f });
+    const AABoundingBox box({ -4.0f, -1.0f, -2.0f }, { 2.0f, 5.0f, 8.0f });
 
     const BoundingSphere s(box);
 

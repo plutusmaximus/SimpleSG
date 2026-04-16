@@ -358,10 +358,10 @@ Welzl_Recursive(std::vector<Vec3f>& P, const size_t n, std::array<Vec3f, 4>& R, 
     return Welzl_Recursive(P, n - 1, R, r + 1);
 }
 
-AABB
-AABB::FromVertices(std::span<const Vertex> vertices)
+AABoundingBox
+AABoundingBox::FromVertices(std::span<const Vertex> vertices)
 {
-    AABB result;
+    AABoundingBox result;
 
     if(vertices.empty())
     {

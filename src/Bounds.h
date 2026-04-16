@@ -5,13 +5,14 @@
 #include <algorithm>
 #include <span>
 
-class AABB
+// Axis-aligned bounding box.
+class AABoundingBox
 {
 public:
 
-    AABB() = default;
+    AABoundingBox() = default;
 
-    AABB(const Vec3f& min, const Vec3f& max) noexcept
+    AABoundingBox(const Vec3f& min, const Vec3f& max) noexcept
         : m_Min(min)
         , m_Max(max)
     {
@@ -20,7 +21,7 @@ public:
     const Vec3f& GetMin() const { return m_Min; }
     const Vec3f& GetMax() const { return m_Max; }
 
-    static AABB FromVertices(std::span<const Vertex> vertices);
+    static AABoundingBox FromVertices(std::span<const Vertex> vertices);
 
 private:
     Vec3f m_Min = {0.0f, 0.0f, 0.0f};
@@ -39,7 +40,7 @@ public:
     {
     }
 
-    explicit BoundingSphere(const AABB& aabb) noexcept
+    explicit BoundingSphere(const AABoundingBox& aabb) noexcept
         : m_Center((aabb.GetMin() + aabb.GetMax()) * 0.5f)
         , m_Radius((aabb.GetMax() - m_Center).Length())
     {
