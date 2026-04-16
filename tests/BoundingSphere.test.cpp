@@ -128,6 +128,53 @@ TEST(BoundingSphere, Contains_NearBoundaryWithinTolerance_ReturnsTrue)
     EXPECT_TRUE(Contains(s, { 1000.0000004f, 0.0f, 0.0f }));
 }
 
+TEST(BoundingSphere, CtorFromAABB_DegenerateBox_ProducesZeroRadiusAtPoint)
+{
+    const AABB box({ 2.0f, -3.0f, 4.0f }, { 2.0f, -3.0f, 4.0f });
+
+    const BoundingSphere s(box);
+
+    EXPECT_NEAR(s.GetCenter().x, 2.0f, 1e-6f);
+    EXPECT_NEAR(s.GetCenter().y, -3.0f, 1e-6f);
+    EXPECT_NEAR(s.GetCenter().z, 4.0f, 1e-6f);
+    EXPECT_NEAR(s.GetRadius(), 0.0f, 1e-6f);
+}
+
+TEST(BoundingSphere, CtorFromAABB_AsymmetricBox_ComputesMidpointAndHalfDiagonal)
+{
+    const AABB box({ -1.0f, -2.0f, -3.0f }, { 5.0f, 6.0f, 9.0f });
+
+    const BoundingSphere s(box);
+
+    EXPECT_NEAR(s.GetCenter().x, 2.0f, 1e-6f);
+    EXPECT_NEAR(s.GetCenter().y, 2.0f, 1e-6f);
+    EXPECT_NEAR(s.GetCenter().z, 3.0f, 1e-6f);
+    EXPECT_NEAR(s.GetRadius(), std::sqrt(61.0f), 1e-6f);
+}
+
+TEST(BoundingSphere, CtorFromAABB_ContainsAllEightCorners)
+{
+    const AABB box({ -4.0f, -1.0f, -2.0f }, { 2.0f, 5.0f, 8.0f });
+
+    const BoundingSphere s(box);
+
+    const std::array<Vec3f, 8> corners = {
+        Vec3f{ -4.0f, -1.0f, -2.0f },
+        Vec3f{ -4.0f, -1.0f, 8.0f },
+        Vec3f{ -4.0f, 5.0f, -2.0f },
+        Vec3f{ -4.0f, 5.0f, 8.0f },
+        Vec3f{ 2.0f, -1.0f, -2.0f },
+        Vec3f{ 2.0f, -1.0f, 8.0f },
+        Vec3f{ 2.0f, 5.0f, -2.0f },
+        Vec3f{ 2.0f, 5.0f, 8.0f },
+    };
+
+    for(const Vec3f& corner : corners)
+    {
+        EXPECT_TRUE(s.Contains(corner));
+    }
+}
+
 TEST(BoundingSphere, EmptyInput_ReturnsZeroSphere)
 {
     const std::vector<Vertex> vertices;
