@@ -261,8 +261,7 @@ add_sample_executable(Viewer tests/viewer.cpp)
 # Executable: Tests
 # ============================================================
 add_executable(Tests
-  "tests/AABB.test.cpp"
-  "tests/BoundingSphere.test.cpp"
+  "tests/AABoundingBox.test.cpp"
   "tests/CoopScheduler.test.cpp"
   "tests/ECS.test.cpp"
   "tests/EcsChildTransformPool.test.cpp"
