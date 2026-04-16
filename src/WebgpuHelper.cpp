@@ -16,6 +16,14 @@
 static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
 static constexpr int kNumTextureChannels = 4;
 
+// Texture staging buffer rows must be a multiple of 256 bytes.
+static uint32_t GetTextureAlignedRowStride(const uint32_t textureWidth)
+{
+    const uint32_t rowStride = textureWidth * kNumTextureChannels;
+    const uint32_t alignedRowStride = (rowStride + 255) & ~255;
+    return alignedRowStride;
+}
+
 namespace
 {
 struct WgpuContext
@@ -510,14 +518,14 @@ WebgpuHelper::CreateTexture(const unsigned width,
     auto stagingBuffer = CreateTextureStagingBuffer(*texture);
     MLG_CHECK(stagingBuffer);
 
-    wgpu::Buffer buffer = stagingBuffer->GetBuffer();
+    wgpu::Buffer buffer = *stagingBuffer;
 
     void *mapped = buffer.GetMappedRange();
     MLG_CHECK(mapped, "Failed to map staging buffer for texture upload");
 
     const uint8_t* srcRow = pixels;
     uint8_t* dstRow = static_cast<uint8_t*>(mapped);
-    const uint32_t dstRowStride = stagingBuffer->GetRowStride();
+    const uint32_t dstRowStride = GetTextureAlignedRowStride(width);
     for(uint32_t y = 0; y < height; ++y, srcRow += rowStride, dstRow += dstRowStride)
     {
         ::memcpy(dstRow, srcRow, width * kNumTextureChannels);
@@ -535,7 +543,7 @@ WebgpuHelper::CreateTexture(const unsigned width,
     return texture;
 }
 
-Result<WebgpuTextureStagingBuffer>
+Result<wgpu::Buffer>
 WebgpuHelper::CreateTextureStagingBuffer(wgpu::Texture texture)
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateTextureStagingBuffer called before Startup");
@@ -543,9 +551,8 @@ WebgpuHelper::CreateTextureStagingBuffer(wgpu::Texture texture)
     const uint32_t width = texture.GetWidth();
     const uint32_t height = texture.GetHeight();
 
-    const uint32_t rowStride = width * kNumTextureChannels;
     // Staging buffer rows must be a multiple of 256 bytes.
-    const uint32_t alignedRowStride = (rowStride + 255) & ~255;
+    const uint32_t alignedRowStride = GetTextureAlignedRowStride(width);
     const uint32_t stagingSize = alignedRowStride * height;
 
     wgpu::BufferDescriptor bufDesc = //
@@ -558,12 +565,12 @@ WebgpuHelper::CreateTextureStagingBuffer(wgpu::Texture texture)
 
     wgpu::Buffer stagingBuffer = GetDevice().CreateBuffer(&bufDesc);
 
-    return WebgpuTextureStagingBuffer(stagingBuffer, alignedRowStride);
+    return stagingBuffer;
 }
 
 Result<>
 WebgpuHelper::UploadTextureData(
-    wgpu::Texture texture, WebgpuTextureStagingBuffer stagingBuffer, wgpu::CommandEncoder encoder)
+    wgpu::Texture texture, wgpu::Buffer stagingBuffer, wgpu::CommandEncoder encoder)
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::UploadTextureData called before Startup");
 
@@ -572,10 +579,10 @@ WebgpuHelper::UploadTextureData(
             .layout = //
             {
                 .offset = 0,
-                .bytesPerRow = stagingBuffer.GetRowStride(),
+                .bytesPerRow = GetTextureAlignedRowStride(texture.GetWidth()),
                 .rowsPerImage = texture.GetHeight(),
             },
-            .buffer = stagingBuffer.GetBuffer(),
+            .buffer = stagingBuffer,
         };
 
     wgpu::TexelCopyTextureInfo copyDst = //

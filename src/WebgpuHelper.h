@@ -14,26 +14,6 @@ template<typename T> class RgbaColor;
 using RgbaColorf = RgbaColor<float>;
 using RgbaColoru8 = RgbaColor<uint8_t>;
 
-class WebgpuTextureStagingBuffer final
-{
-public:
-
-    WebgpuTextureStagingBuffer(wgpu::Buffer buffer, const uint32_t rowStride)
-        : m_Buffer(buffer), m_RowStride(rowStride)
-    {
-    };
-
-    WebgpuTextureStagingBuffer() = delete;
-
-    wgpu::Buffer GetBuffer() const { return m_Buffer; }
-
-    uint32_t GetRowStride() const { return m_RowStride; }
-
-private:
-    wgpu::Buffer m_Buffer;
-    uint32_t m_RowStride;
-};
-
 class WebgpuHelper final
 {
 public:
@@ -65,12 +45,11 @@ public:
 
     /// @brief Creates a staging buffer for the given texture. The staging buffer can be used to
     /// upload texture data to the GPU.
-    static Result<WebgpuTextureStagingBuffer> CreateTextureStagingBuffer(wgpu::Texture texture);
+    static Result<wgpu::Buffer> CreateTextureStagingBuffer(wgpu::Texture texture);
 
     /// @brief Uploads texture data from a staging buffer to a texture.
-    static Result<> UploadTextureData(wgpu::Texture texture,
-        WebgpuTextureStagingBuffer stagingBuffer,
-        wgpu::CommandEncoder encoder);
+    static Result<> UploadTextureData(
+        wgpu::Texture texture, wgpu::Buffer stagingBuffer, wgpu::CommandEncoder encoder);
 
     static Result<wgpu::Sampler> GetDefaultSampler();
 
