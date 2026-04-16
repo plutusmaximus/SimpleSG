@@ -405,14 +405,14 @@ DawnRenderer::CreateColorPipeline()
 
     // Color target pipeline layout
 
-    auto layouts = WebgpuHelper::GetColorPipelineLayouts();
-    MLG_CHECK(layouts);
+    auto bgLayouts = WebgpuHelper::GetColorPipelineLayouts();
+    MLG_CHECK(bgLayouts);
 
     wgpu::BindGroupLayout colorTargetBgl[] = //
         {
-            layouts->Bindgroup0Layout,
-            layouts->Bindgroup1Layout,
-            layouts->Bindgroup2Layout,
+            (*bgLayouts)[0],
+            (*bgLayouts)[1],
+            (*bgLayouts)[2],
         };
 
     wgpu::PipelineLayoutDescriptor colorTargetPipelineLayoutDesc //
@@ -569,14 +569,14 @@ DawnRenderer::CreateResolvePipeline()
 
     // Resolve pipeline bind group layout
 
-    auto layouts = WebgpuHelper::GetCompositorPipelineLayouts();
-    MLG_CHECK(layouts);
+    auto bgLayouts = WebgpuHelper::GetCompositorPipelineLayouts();
+    MLG_CHECK(bgLayouts);
 
     wgpu::BindGroupLayout resolveBgl[] = //
         {
             nullptr,    //bind group 0
             nullptr,    //bind group 1
-            layouts->Bindgroup2Layout,
+            (*bgLayouts)[2],
         };
 
     wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
@@ -666,7 +666,7 @@ DawnRenderer::CreateResolvePipeline()
     wgpu::BindGroupDescriptor bgDesc //
         {
             .label = "ColorTargetCopyBindGroup",
-            .layout = layouts->Bindgroup2Layout,
+            .layout = (*bgLayouts)[2],
             .entryCount = std::size(bgEntries),
             .entries = bgEntries,
         };
@@ -693,14 +693,14 @@ DawnRenderer::CreateTransformPipeline()
 
     m_TransformShader = *csResult;
 
-    auto layouts = WebgpuHelper::GetTransformPipelineLayouts();
-    MLG_CHECK(layouts);
+    auto bgLayouts = WebgpuHelper::GetTransformPipelineLayouts();
+    MLG_CHECK(bgLayouts);
 
     wgpu::BindGroupLayout bgl[] = //
         {
-            layouts->Bindgroup0Layout,
-            layouts->Bindgroup1Layout,
-            layouts->Bindgroup2Layout
+            (*bgLayouts)[0],
+            (*bgLayouts)[1],
+            (*bgLayouts)[2]
         };
 
     wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //

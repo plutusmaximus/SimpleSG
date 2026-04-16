@@ -67,7 +67,7 @@ private:
     wgpu::Texture m_DepthTarget;
     wgpu::TextureView m_DepthTargetView;
 
-    struct Pipeline
+    struct ColorPipeline
     {
         wgpu::ShaderModule Shader;
         wgpu::PipelineLayout Layout;
@@ -77,11 +77,19 @@ private:
         wgpu::RenderPipeline Pipeline;
     };
 
+    struct ResolvePipeline
+    {
+        wgpu::ShaderModule Shader;
+        wgpu::PipelineLayout Layout;
+        wgpu::BindGroup BindGroup2;
+        wgpu::RenderPipeline Pipeline;
+    };
+
     // Pipeline for rendering to the color target texture.
-    Pipeline m_ColorPipeline;
+    ColorPipeline m_ColorPipeline;
 
     // Pipeline to resolve the color target to the swap chain.
-    Pipeline m_ResolvePipeline;
+    ResolvePipeline m_ResolvePipeline;
 
     struct TransformBuffers
     {

@@ -28,9 +28,9 @@ struct WgpuContext
     wgpu::TextureFormat SurfaceFormat;
     wgpu::Sampler DefaultSampler;
 
-    WebgpuColorPipelineLayouts ColorPipelineLayouts;
-    WebgpuTransformPipelineLayouts TransformPipelineLayouts;
-    WebgpuCompositorPipelineLayouts CompositorPipelineLayouts;
+    std::array<wgpu::BindGroupLayout, 3> ColorPipelineLayouts;
+    std::array<wgpu::BindGroupLayout, 3> TransformPipelineLayouts;
+    std::array<wgpu::BindGroupLayout, 3> CompositorPipelineLayouts;
 };
 }
 
@@ -660,12 +660,12 @@ WebgpuHelper::CreateIndexBuffer(const size_t size, const std::string& name)
     return buffer;
 }
 
-Result<WebgpuColorPipelineLayouts>
+Result<const std::array<wgpu::BindGroupLayout, 3>>
 WebgpuHelper::GetColorPipelineLayouts()
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::GetColorPipelineLayouts called before Startup");
 
-    if(!s_WgpuContext->ColorPipelineLayouts.Bindgroup0Layout)
+    if(!s_WgpuContext->ColorPipelineLayouts[0])
     {
         // Color pipeline bind group 0 layout
         wgpu::BindGroupLayoutEntry entries[] =//
@@ -711,13 +711,13 @@ WebgpuHelper::GetColorPipelineLayouts()
                 .entries = entries,
             };
 
-        s_WgpuContext->ColorPipelineLayouts.Bindgroup0Layout =
+        s_WgpuContext->ColorPipelineLayouts[0] =
             GetDevice().CreateBindGroupLayout(&desc);
-        MLG_CHECK(s_WgpuContext->ColorPipelineLayouts.Bindgroup0Layout,
+        MLG_CHECK(s_WgpuContext->ColorPipelineLayouts[0],
             "Failed to create bind group 0 layout for color pipeline");
     }
 
-    if(!s_WgpuContext->ColorPipelineLayouts.Bindgroup1Layout)
+    if(!s_WgpuContext->ColorPipelineLayouts[1])
     {
         // Color pipeline bind group 1 layout
         wgpu::BindGroupLayoutEntry entries[] =//
@@ -741,13 +741,13 @@ WebgpuHelper::GetColorPipelineLayouts()
                 .entries = entries,
             };
 
-        s_WgpuContext->ColorPipelineLayouts.Bindgroup1Layout =
+        s_WgpuContext->ColorPipelineLayouts[1] =
             GetDevice().CreateBindGroupLayout(&desc);
-        MLG_CHECK(s_WgpuContext->ColorPipelineLayouts.Bindgroup1Layout,
+        MLG_CHECK(s_WgpuContext->ColorPipelineLayouts[1],
             "Failed to create bind group 1 layout for color pipeline");
     }
 
-    if(!s_WgpuContext->ColorPipelineLayouts.Bindgroup2Layout)
+    if(!s_WgpuContext->ColorPipelineLayouts[2])
     {
         // Color pipeline bind group 2 layout
         wgpu::BindGroupLayoutEntry entries[] =//
@@ -779,21 +779,21 @@ WebgpuHelper::GetColorPipelineLayouts()
                 .entries = entries,
             };
 
-        s_WgpuContext->ColorPipelineLayouts.Bindgroup2Layout =
+        s_WgpuContext->ColorPipelineLayouts[2] =
             GetDevice().CreateBindGroupLayout(&desc);
-        MLG_CHECK(s_WgpuContext->ColorPipelineLayouts.Bindgroup2Layout,
+        MLG_CHECK(s_WgpuContext->ColorPipelineLayouts[2],
             "Failed to create bind group 2 layout for color pipeline");
     }
 
     return s_WgpuContext->ColorPipelineLayouts;
 }
 
-Result<WebgpuTransformPipelineLayouts>
+Result<const std::array<wgpu::BindGroupLayout, 3>>
 WebgpuHelper::GetTransformPipelineLayouts()
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::GetTransformPipelineLayouts called before Startup");
 
-    if(!s_WgpuContext->TransformPipelineLayouts.Bindgroup0Layout)
+    if(!s_WgpuContext->TransformPipelineLayouts[0])
     {
         // Transform pipeline bind group 0 layout
         wgpu::BindGroupLayoutEntry entries[] =//
@@ -817,13 +817,13 @@ WebgpuHelper::GetTransformPipelineLayouts()
                 .entries = entries,
             };
 
-        s_WgpuContext->TransformPipelineLayouts.Bindgroup0Layout =
+        s_WgpuContext->TransformPipelineLayouts[0] =
             GetDevice().CreateBindGroupLayout(&desc);
-        MLG_CHECK(s_WgpuContext->TransformPipelineLayouts.Bindgroup0Layout,
+        MLG_CHECK(s_WgpuContext->TransformPipelineLayouts[0],
             "Failed to create bind group 0 layout for transform pipeline");
     }
 
-    if(!s_WgpuContext->TransformPipelineLayouts.Bindgroup1Layout)
+    if(!s_WgpuContext->TransformPipelineLayouts[1])
     {
         // Transform pipeline bind group 1 layout
         wgpu::BindGroupLayoutEntry entries[] =//
@@ -847,13 +847,13 @@ WebgpuHelper::GetTransformPipelineLayouts()
                 .entries = entries,
             };
 
-        s_WgpuContext->TransformPipelineLayouts.Bindgroup1Layout =
+        s_WgpuContext->TransformPipelineLayouts[1] =
             GetDevice().CreateBindGroupLayout(&desc);
-        MLG_CHECK(s_WgpuContext->TransformPipelineLayouts.Bindgroup1Layout,
+        MLG_CHECK(s_WgpuContext->TransformPipelineLayouts[1],
             "Failed to create bind group 1 layout for transform pipeline");
     }
 
-    if(!s_WgpuContext->TransformPipelineLayouts.Bindgroup2Layout)
+    if(!s_WgpuContext->TransformPipelineLayouts[2])
     {
         // Transform pipeline bind group 2 layout
         wgpu::BindGroupLayoutEntry entries[] =//
@@ -878,21 +878,21 @@ WebgpuHelper::GetTransformPipelineLayouts()
                 .entries = entries,
             };
 
-        s_WgpuContext->TransformPipelineLayouts.Bindgroup2Layout =
+        s_WgpuContext->TransformPipelineLayouts[2] =
             GetDevice().CreateBindGroupLayout(&desc);
-        MLG_CHECK(s_WgpuContext->TransformPipelineLayouts.Bindgroup2Layout,
+        MLG_CHECK(s_WgpuContext->TransformPipelineLayouts[2],
             "Failed to create bind group 2 layout for transform pipeline");
     }
 
     return s_WgpuContext->TransformPipelineLayouts;
 }
 
-Result<WebgpuCompositorPipelineLayouts>
+Result<const std::array<wgpu::BindGroupLayout, 3>>
 WebgpuHelper::GetCompositorPipelineLayouts()
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::GetCompositorPipelineLayouts called before Startup");
 
-    if(!s_WgpuContext->CompositorPipelineLayouts.Bindgroup2Layout)
+    if(!s_WgpuContext->CompositorPipelineLayouts[2])
     {
         // Compositor pipeline bind group 2 layout
         wgpu::BindGroupLayoutEntry entries[] =//
@@ -924,9 +924,9 @@ WebgpuHelper::GetCompositorPipelineLayouts()
                 .entries = entries,
             };
 
-        s_WgpuContext->CompositorPipelineLayouts.Bindgroup2Layout =
+        s_WgpuContext->CompositorPipelineLayouts[2] =
             GetDevice().CreateBindGroupLayout(&desc);
-        MLG_CHECK(s_WgpuContext->CompositorPipelineLayouts.Bindgroup2Layout,
+        MLG_CHECK(s_WgpuContext->CompositorPipelineLayouts[2],
             "Failed to create bind group 2 layout for compositor pipeline");
     }
 

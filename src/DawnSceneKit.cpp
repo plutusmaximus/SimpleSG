@@ -434,8 +434,8 @@ static Result<wgpu::BindGroup>
 CreateColorPipelineBindGroup0(wgpu::Device wgpuDevice,
     ColorPipelineResources& colorPipelineResources)
 {
-    auto colorPipelineLayouts = WebgpuHelper::GetColorPipelineLayouts();
-    MLG_CHECK(colorPipelineLayouts);
+    auto bgLayouts = WebgpuHelper::GetColorPipelineLayouts();
+    MLG_CHECK(bgLayouts);
 
     wgpu::BindGroupEntry bgEntries[] =//
     {
@@ -462,7 +462,7 @@ CreateColorPipelineBindGroup0(wgpu::Device wgpuDevice,
     wgpu::BindGroupDescriptor bgDesc = //
         {
             .label = "ColorPipelineBindGroup0",
-            .layout = colorPipelineLayouts->Bindgroup0Layout,
+            .layout = (*bgLayouts)[0],
             .entryCount = std::size(bgEntries),
             .entries = bgEntries,
         };
@@ -478,8 +478,8 @@ static Result<wgpu::BindGroup>
 CreateTransformPipelineBindGroup0(wgpu::Device wgpuDevice,
     TransformPipelineResources& transformPipelineResources)
 {
-    auto transformPipelineLayouts = WebgpuHelper::GetTransformPipelineLayouts();
-    MLG_CHECK(transformPipelineLayouts);
+    auto bgLayouts = WebgpuHelper::GetTransformPipelineLayouts();
+    MLG_CHECK(bgLayouts);
 
     wgpu::BindGroupEntry bgEntries[] =//
     {
@@ -494,7 +494,7 @@ CreateTransformPipelineBindGroup0(wgpu::Device wgpuDevice,
     wgpu::BindGroupDescriptor bgDesc = //
         {
             .label = "TransformPipelineBindGroup0",
-            .layout = transformPipelineLayouts->Bindgroup0Layout,
+            .layout = (*bgLayouts)[0],
             .entryCount = std::size(bgEntries),
             .entries = bgEntries,
         };
@@ -525,8 +525,8 @@ CreateMaterialBindGroup(wgpu::Device wgpuDevice,
     const MaterialData& material,
     const TextureCache& textureCache)
 {
-    auto layouts = WebgpuHelper::GetColorPipelineLayouts();
-    MLG_CHECK(layouts);
+    auto bgLayouts = WebgpuHelper::GetColorPipelineLayouts();
+    MLG_CHECK(bgLayouts);
 
     wgpu::Texture baseTexture = material.BaseTextureUri.empty()
                                     ? textureCache.DefaultTexture
@@ -547,7 +547,7 @@ CreateMaterialBindGroup(wgpu::Device wgpuDevice,
     wgpu::BindGroupDescriptor bindGroupDesc //
     {
         .label = "MaterialBindGroup",
-        .layout = layouts->Bindgroup2Layout,
+        .layout = (*bgLayouts)[2],
         .entryCount = std::size(bgEntries),
         .entries = bgEntries,
     };
@@ -566,9 +566,6 @@ CreateMaterialBindGroups(wgpu::Device wgpuDevice,
     materialBindGroups.clear();
 
     materialBindGroups.reserve(materials.size());
-
-    auto layouts = WebgpuHelper::GetColorPipelineLayouts();
-    MLG_CHECK(layouts);
 
     for(const auto& mtl : materials)
     {

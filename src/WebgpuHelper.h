@@ -3,6 +3,7 @@
 #include "Result.h"
 #include "VecMath.h"
 
+#include <array>
 #include <string>
 
 #include <webgpu/webgpu_cpp.h>
@@ -31,28 +32,6 @@ public:
 private:
     wgpu::Buffer m_Buffer;
     uint32_t m_RowStride;
-};
-
-class WebgpuColorPipelineLayouts
-{
-public:
-    wgpu::BindGroupLayout Bindgroup0Layout;
-    wgpu::BindGroupLayout Bindgroup1Layout;
-    wgpu::BindGroupLayout Bindgroup2Layout;
-};
-
-class WebgpuTransformPipelineLayouts
-{
-public:
-    wgpu::BindGroupLayout Bindgroup0Layout;
-    wgpu::BindGroupLayout Bindgroup1Layout;
-    wgpu::BindGroupLayout Bindgroup2Layout;
-};
-
-class WebgpuCompositorPipelineLayouts
-{
-public:
-    wgpu::BindGroupLayout Bindgroup2Layout;
 };
 
 class WebgpuHelper final
@@ -99,11 +78,11 @@ public:
 
     static Result<wgpu::Buffer> CreateIndexBuffer(const size_t size, const std::string& name);
 
-    static Result<WebgpuColorPipelineLayouts> GetColorPipelineLayouts();
+    static Result<const std::array<wgpu::BindGroupLayout, 3>> GetColorPipelineLayouts();
 
-    static Result<WebgpuTransformPipelineLayouts> GetTransformPipelineLayouts();
+    static Result<const std::array<wgpu::BindGroupLayout, 3>> GetTransformPipelineLayouts();
 
-    static Result<WebgpuCompositorPipelineLayouts> GetCompositorPipelineLayouts();
+    static Result<const std::array<wgpu::BindGroupLayout, 3>> GetCompositorPipelineLayouts();
 
     static Extent GetScreenBounds();
 
