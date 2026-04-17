@@ -121,11 +121,11 @@ DawnRenderer::Render(const Mat44f& camera,
             : wgpu::IndexFormat::Uint16;
 
         renderPass.SetVertexBuffer(0,
-            dawnSceneKit.GetVertexBuffer().GetBuffer(),
+            dawnSceneKit.GetVertexBuffer().GetGpuBuffer(),
             0,
             dawnSceneKit.GetVertexBuffer().GetSize());
 
-        renderPass.SetIndexBuffer(dawnSceneKit.GetIndexBuffer(),
+        renderPass.SetIndexBuffer(dawnSceneKit.GetIndexBuffer().GetGpuBuffer(),
             idxFmt,
             0,
             dawnSceneKit.GetIndexBuffer().GetSize());

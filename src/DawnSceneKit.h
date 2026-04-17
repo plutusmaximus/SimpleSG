@@ -22,7 +22,7 @@ public:
     {
     public:
 
-        Builder& SetIndexBuffer(wgpu::Buffer indexBuffer)
+        Builder& SetIndexBuffer(IndexBuffer indexBuffer)
         {
             m_IndexBuffer = indexBuffer;
             return *this;
@@ -125,7 +125,7 @@ public:
                    m_Meshes.size() > 0 && m_ModelInstances.size() > 0;
         }
 
-        wgpu::Buffer m_IndexBuffer{nullptr};
+        IndexBuffer m_IndexBuffer{nullptr};
         VertexBuffer m_VertexBuffer{nullptr};
         wgpu::Buffer m_TransformBuffer{nullptr};
         wgpu::Buffer m_DrawIndirectBuffer{nullptr};
@@ -146,7 +146,7 @@ public:
 
     ~DawnSceneKit() override = default;
 
-    DawnSceneKit(wgpu::Buffer indexBuffer,
+    DawnSceneKit(IndexBuffer indexBuffer,
         VertexBuffer vertexBuffer,
         wgpu::Buffer transformBuffer,
         wgpu::Buffer materialConstantsBuffer,
@@ -203,14 +203,14 @@ public:
     wgpu::Buffer GetTransformBuffer() const { return m_TransformBuffer; }
     wgpu::Buffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
     VertexBuffer GetVertexBuffer() const { return m_VertexBuffer; }
-    wgpu::Buffer GetIndexBuffer() const { return m_IndexBuffer; }
+    IndexBuffer GetIndexBuffer() const { return m_IndexBuffer; }
 
     wgpu::BindGroup GetColorPipelineBindGroup0() const { return m_ColorPipelineBindGroup0; }
     wgpu::BindGroup GetTransformPipelineBindGroup0() const { return m_TransformPipelineBindGroup0; }
 
 private:
 
-    wgpu::Buffer m_IndexBuffer{nullptr};
+    IndexBuffer m_IndexBuffer{nullptr};
     VertexBuffer m_VertexBuffer{nullptr};
     wgpu::Buffer m_TransformBuffer{nullptr};
     wgpu::Buffer m_DrawIndirectBuffer{nullptr};

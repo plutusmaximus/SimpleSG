@@ -14,7 +14,7 @@ template<typename T> class RgbaColor;
 using RgbaColorf = RgbaColor<float>;
 using RgbaColoru8 = RgbaColor<uint8_t>;
 
-class VertexBuffer : private wgpu::Buffer
+class BasicGpuBuffer : private wgpu::Buffer
 {
 public:
 
@@ -22,23 +22,46 @@ public:
     using wgpu::Buffer::GetSize;
     using wgpu::Buffer::operator bool;
 
-    wgpu::Buffer& GetBuffer() { return *this; }
-    const wgpu::Buffer& GetBuffer() const { return *this; }
+    wgpu::Buffer& GetGpuBuffer() { return *this; }
+    const wgpu::Buffer& GetGpuBuffer() const { return *this; }
 
     Result<void*> Map();
 
     Result<> Unmap();
 
-private:
-    friend class WebgpuHelper;
-
-    explicit VertexBuffer(wgpu::Buffer buffer)
+protected:
+    explicit BasicGpuBuffer(wgpu::Buffer buffer)
         : wgpu::Buffer(buffer)
     {
     }
 
+private:
+
     wgpu::Buffer m_StagingBuffer;
 };
+
+template<typename T>
+class TypedGpuBuffer : public BasicGpuBuffer
+{
+public:
+
+    using BasicGpuBuffer::BasicGpuBuffer;
+    using BasicGpuBuffer::operator bool;
+
+private:
+    friend class WebgpuHelper;
+
+    explicit TypedGpuBuffer(wgpu::Buffer buffer)
+        : BasicGpuBuffer(buffer)
+    {
+    }
+};
+
+struct VertexBufferTag{};
+struct IndexBufferTag{};
+
+using VertexBuffer = TypedGpuBuffer<VertexBufferTag>;
+using IndexBuffer = TypedGpuBuffer<IndexBufferTag>;
 
 class WebgpuHelper final
 {
@@ -59,16 +82,6 @@ public:
     static Result<wgpu::Texture> CreateTexture(
         const unsigned width, const unsigned height, const std::string& name);
 
-    /// @brief Creates a texture filled with the given color.
-    static Result<wgpu::Texture> CreateTexture(const RgbaColorf& color, const std::string& name);
-
-    /// @brief Creates a texture filled with the given pixel data. The pixel data should be in RGBA8 format.
-    static Result<wgpu::Texture> CreateTexture(const unsigned width,
-        const unsigned height,
-        const uint8_t* pixels,
-        const unsigned rowStride,
-        const std::string& name);
-
     /// @brief Creates a staging buffer for the given texture. The staging buffer can be used to
     /// upload texture data to the GPU.
     static Result<wgpu::Buffer> CreateTextureStagingBuffer(wgpu::Texture texture);
@@ -81,7 +94,7 @@ public:
 
     static Result<VertexBuffer> CreateVertexBuffer(const size_t size, const std::string& name);
 
-    static Result<wgpu::Buffer> CreateIndexBuffer(const size_t size, const std::string& name);
+    static Result<IndexBuffer> CreateIndexBuffer(const size_t size, const std::string& name);
 
     static Result<const std::array<wgpu::BindGroupLayout, 3>> GetColorPipelineLayouts();
 

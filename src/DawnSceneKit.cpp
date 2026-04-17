@@ -582,36 +582,34 @@ static Result<VertexBuffer>
 BuildVertexBuffer(std::span<const Vertex> vertices)
 {
     const size_t sizeofBuffer = vertices.size() * sizeof(Vertex);
-    auto vertexBuffer = WebgpuHelper::CreateVertexBuffer(sizeofBuffer, "VertexBuffer");
-    MLG_CHECK(vertexBuffer);
+    auto buffer = WebgpuHelper::CreateVertexBuffer(sizeofBuffer, "VertexBuffer");
+    MLG_CHECK(buffer);
 
-    auto vbMapped = vertexBuffer->Map();
-    MLG_CHECK(vbMapped);
+    auto mapped = buffer->Map();
+    MLG_CHECK(mapped);
 
-    ::memcpy(*vbMapped, vertices.data(), sizeofBuffer);
+    ::memcpy(*mapped, vertices.data(), sizeofBuffer);
 
-    MLG_CHECK(vertexBuffer->Unmap());
+    MLG_CHECK(buffer->Unmap());
 
-    return *vertexBuffer;
+    return *buffer;
 }
 
-static Result<wgpu::Buffer>
-BuildIndexBuffer(wgpu::Device wgpuDevice, std::span<const VertexIndex> indices)
+static Result<IndexBuffer>
+BuildIndexBuffer(std::span<const VertexIndex> indices)
 {
     const size_t sizeofBuffer = indices.size() * sizeof(VertexIndex);
-    wgpu::Buffer indexBuffer = CreateGpuBuffer(wgpuDevice,
-        wgpu::BufferUsage::Index,
-        sizeofBuffer,
-        "IndexBuffer");
+    auto buffer = WebgpuHelper::CreateIndexBuffer(sizeofBuffer, "IndexBuffer");
+    MLG_CHECK(buffer);
 
-    void* ibMapped = indexBuffer.GetMappedRange();
-    MLG_CHECK(ibMapped, "Failed to map IndexBuffer");
+    auto mapped = buffer->Map();
+    MLG_CHECK(mapped);
 
-    ::memcpy(ibMapped, indices.data(), sizeofBuffer);
+    ::memcpy(*mapped, indices.data(), sizeofBuffer);
 
-    indexBuffer.Unmap();
+    MLG_CHECK(buffer->Unmap());
 
-    return indexBuffer;
+    return *buffer;
 }
 
 static Result<wgpu::Buffer>
@@ -786,7 +784,7 @@ DawnSceneKit::Create(wgpu::Device& wgpuDevice,
     auto vertexBuffer = BuildVertexBuffer(sceneKitData.Vertices);
     MLG_CHECK(vertexBuffer);
 
-    auto indexBuffer = BuildIndexBuffer(wgpuDevice, sceneKitData.Indices);
+    auto indexBuffer = BuildIndexBuffer(sceneKitData.Indices);
     MLG_CHECK(indexBuffer);
 
     auto transformBuffer = BuildTransformBuffer(wgpuDevice, sceneKitData.Transforms);

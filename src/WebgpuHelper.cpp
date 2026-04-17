@@ -509,58 +509,6 @@ WebgpuHelper::CreateTexture(const unsigned width, const unsigned height, const s
     return texture;
 }
 
-Result<wgpu::Texture>
-WebgpuHelper::CreateTexture(const RgbaColorf& color, const std::string& name)
-{
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateTexture called before Startup");
-
-    RgbaColoru8 colorU8{color};
-
-    const uint8_t pixelData[4]{colorU8.r, colorU8.g, colorU8.b, colorU8.a};
-
-    return CreateTexture(1, 1, pixelData, sizeof(pixelData), name);
-}
-
-Result<wgpu::Texture>
-WebgpuHelper::CreateTexture(const unsigned width,
-    const unsigned height,
-    const uint8_t* pixels,
-    const unsigned rowStride,
-    const std::string& name)
-{
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateTexture called before Startup");
-
-    auto texture = CreateTexture(width, height, name);
-    MLG_CHECK(texture);
-
-    auto stagingBuffer = CreateTextureStagingBuffer(*texture);
-    MLG_CHECK(stagingBuffer);
-
-    wgpu::Buffer buffer = *stagingBuffer;
-
-    void *mapped = buffer.GetMappedRange();
-    MLG_CHECK(mapped, "Failed to map staging buffer for texture upload");
-
-    const uint8_t* srcRow = pixels;
-    uint8_t* dstRow = static_cast<uint8_t*>(mapped);
-    const uint32_t dstRowStride = GetTextureAlignedRowStride(width);
-    for(uint32_t y = 0; y < height; ++y, srcRow += rowStride, dstRow += dstRowStride)
-    {
-        ::memcpy(dstRow, srcRow, width * kNumTextureChannels);
-    }
-
-    buffer.Unmap();
-
-    wgpu::CommandEncoder encoder = GetDevice().CreateCommandEncoder();
-
-    MLG_CHECK(UploadTextureData(*texture, *stagingBuffer, encoder));
-
-    wgpu::CommandBuffer commandBuffer = encoder.Finish();
-    GetDevice().GetQueue().Submit(1, &commandBuffer);
-
-    return texture;
-}
-
 Result<wgpu::Buffer>
 WebgpuHelper::CreateTextureStagingBuffer(wgpu::Texture texture)
 {
@@ -662,21 +610,15 @@ WebgpuHelper::CreateVertexBuffer(const size_t size, const std::string& name)
         name.c_str()));
 }
 
-Result<wgpu::Buffer>
+Result<IndexBuffer>
 WebgpuHelper::CreateIndexBuffer(const size_t size, const std::string& name)
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateIndexBuffer called before Startup");
 
-    wgpu::BufferDescriptor bufferDesc //
-        {
-            .label = wgpu::StringView{std::string_view{name.c_str()}},
-            .usage = wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst,
-            .size = size,
-            .mappedAtCreation = false,
-        };
-
-    wgpu::Buffer buffer = GetDevice().CreateBuffer(&bufferDesc);
-    return buffer;
+    return IndexBuffer(CreateGpuBufferUnmapped(GetDevice(),
+        wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst,
+        size,
+        name.c_str()));
 }
 
 Result<const std::array<wgpu::BindGroupLayout, 3>>
@@ -989,16 +931,16 @@ static void DumpDawnToggles(const wgpu::Device& device)
 //////////////////////////////////////////////
 
 Result<void*>
-VertexBuffer::Map()
+BasicGpuBuffer::Map()
 {
-    MLG_CHECKV(m_StagingBuffer == nullptr, "VertexBuffer::Map called while already mapped");
+    MLG_CHECKV(m_StagingBuffer == nullptr, "BasicGpuBuffer::Map called while already mapped");
 
     const size_t sizeofBuffer = this->GetSize();
 
     wgpu::Buffer stagingBuffer = CreateGpuBufferUnmapped(WebgpuHelper::GetDevice(),
         wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc,
         sizeofBuffer,
-        "VertexStagingBuffer");
+        "BasicGpuBufferStagingBuffer");
 
     Result<> result;
 
@@ -1024,21 +966,21 @@ VertexBuffer::Map()
 
     wgpu::WaitStatus waitStatus = WebgpuHelper::GetInstance().WaitAny(fut, UINT64_MAX);
 
-    MLG_CHECK(waitStatus == wgpu::WaitStatus::Success, "Failed to map vertex buffer - WaitAny failed");
+    MLG_CHECK(waitStatus == wgpu::WaitStatus::Success, "Failed to map staging buffer - WaitAny failed");
 
-    void* vbMapped = stagingBuffer.GetMappedRange();
+    void* mapped = stagingBuffer.GetMappedRange();
 
-    MLG_CHECK(vbMapped, "Failed to map VertexStagingBuffer");
+    MLG_CHECK(mapped, "Failed to map staging buffer");
 
     m_StagingBuffer = std::move(stagingBuffer);
 
-    return vbMapped;
+    return mapped;
 }
 
 Result<>
-VertexBuffer::Unmap()
+BasicGpuBuffer::Unmap()
 {
-    MLG_CHECKV(m_StagingBuffer, "VertexBuffer::Unmap called while not mapped");
+    MLG_CHECKV(m_StagingBuffer, "BasicGpuBuffer::Unmap called while not mapped");
 
     m_StagingBuffer.Unmap();
 
