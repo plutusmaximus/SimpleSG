@@ -24,43 +24,48 @@ static constexpr const char* TRANSFORM_SHADER = "shaders/TransformShader.wgsl";
 static Result<wgpu::Buffer>
 CreateBuffer(wgpu::Device device, wgpu::BufferUsage usage, size_t size, const char* label);
 
-DawnRenderer::DawnRenderer(SDL_Window* window, wgpu::Device device, wgpu::Surface surface)
-    : m_Window(window)
-    , m_WgpuDevice(device)
-    , m_Surface(surface)
+Result<>
+DawnRenderer::Startup()
 {
+    MLG_CHECKV(!m_Initialized, "DawnRenderer is already initialized");
+
+    m_Window = WebgpuHelper::GetWindow();
+    m_WgpuDevice = WebgpuHelper::GetDevice();
+    m_Surface = WebgpuHelper::GetSurface();
     m_WgpuDevice.GetLimits(&m_GpuLimits);
-}
 
-DawnRenderer::~DawnRenderer()
-{
-}
+    MLG_CHECK(CreateColorAndDepthTargets());
+    MLG_CHECK(CreateColorPipeline());
+    MLG_CHECK(CreateResolvePipeline());
+    MLG_CHECK(CreateTransformPipeline());
 
-Result<DawnRenderer*>
-DawnRenderer::Create(SDL_Window* window, wgpu::Device device, wgpu::Surface surface)
-{
-    DawnRenderer* renderer = new DawnRenderer(window, device, surface);
-    MLG_CHECK(renderer, "Failed to create DawnRenderer");
+    m_Initialized = true;
 
-    auto cleanup = scope_exit([renderer]()
-    {
-        DawnRenderer::Destroy(renderer);
-    });
-
-    MLG_CHECK(renderer->CreateColorAndDepthTargets());
-    MLG_CHECK(renderer->CreateColorPipeline());
-    MLG_CHECK(renderer->CreateResolvePipeline());
-    MLG_CHECK(renderer->CreateTransformPipeline());
-
-    cleanup.release();
-
-    return renderer;
+    return Result<>::Ok;
 }
 
 Result<>
-DawnRenderer::Destroy(DawnRenderer* renderer)
+DawnRenderer::Shutdown()
 {
-    delete renderer;
+    MLG_CHECKV(m_Initialized, "DawnRenderer is not initialized");
+
+    m_ColorPipeline = {};
+    m_ResolvePipeline = {};
+    m_TransformPipeline = {};
+    m_TransformBuffers = {};
+
+    m_ColorTargetSampler = nullptr;
+    m_ColorTargetView = nullptr;
+    m_ColorTarget = nullptr;
+    m_DepthTargetView = nullptr;
+    m_DepthTarget = nullptr;
+
+    m_Surface = nullptr;
+    m_WgpuDevice = nullptr;
+    m_Window = nullptr;
+
+    m_Initialized = false;
+
     return Result<>::Ok;
 }
 
@@ -68,14 +73,14 @@ Result<>
 DawnRenderer::Render(const Mat44f& camera,
     const Mat44f& projection,
     const SceneKit& sceneKit,
-    DawnRenderCompositor* compositor)
+    DawnRenderCompositor& compositor)
 {
     static PerfTimer renderTimer("Renderer.Render");
     auto scopedRenderTimer = renderTimer.StartScoped();
 
     const DawnSceneKit& dawnSceneKit = static_cast<const DawnSceneKit&>(sceneKit);
 
-    wgpu::CommandEncoder cmdEncoder = compositor->GetCommandEncoder();
+    wgpu::CommandEncoder cmdEncoder = compositor.GetCommandEncoder();
 
     static PerfTimer transformNodesTimer("Renderer.Render.TransformNodes");
     {
@@ -241,9 +246,9 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
 }
 
 Result<>
-DawnRenderer::ResolveColorTargetToSwapchain(DawnRenderCompositor* compositor)
+DawnRenderer::ResolveColorTargetToSwapchain(DawnRenderCompositor& compositor)
 {
-    wgpu::Texture target = compositor->GetTarget();
+    wgpu::Texture target = compositor.GetTarget();
 
     if(!target)
     {
@@ -266,7 +271,7 @@ DawnRenderer::ResolveColorTargetToSwapchain(DawnRenderCompositor* compositor)
             .colorAttachments = &attachment,
         };
 
-    wgpu::RenderPassEncoder renderPass = compositor->GetCommandEncoder().BeginRenderPass(&renderPassDesc);
+    wgpu::RenderPassEncoder renderPass = compositor.GetCommandEncoder().BeginRenderPass(&renderPassDesc);
     MLG_CHECK(renderPass, "Failed to begin render pass for copying color target to swapchain");
 
     renderPass.SetPipeline(m_ResolvePipeline.Pipeline);

@@ -50,7 +50,7 @@ ImGuiRenderer::NewFrame()
 }
 
 Result<>
-ImGuiRenderer::Render(DawnRenderCompositor* renderCompositor)
+ImGuiRenderer::Render(DawnRenderCompositor& renderCompositor)
 {
     static PerfTimer renderGuiTimer("ImGuiRenderer.Render");
     auto scopedTimer = renderGuiTimer.StartScoped();
@@ -131,7 +131,7 @@ ImGuiRenderer::DawnNewFrame()
 }
 
 Result<>
-ImGuiRenderer::DawnRender(DawnRenderCompositor* renderCompositor)
+ImGuiRenderer::DawnRender(DawnRenderCompositor& renderCompositor)
 {
     ImGui::Render();
 
@@ -151,8 +151,8 @@ ImGuiRenderer::DawnRender(DawnRenderCompositor* renderCompositor)
         return Result<>::Ok;
     }
 
-    wgpu::Texture target = renderCompositor->GetTarget();
-    wgpu::CommandEncoder cmdEncoder = renderCompositor->GetCommandEncoder();
+    wgpu::Texture target = renderCompositor.GetTarget();
+    wgpu::CommandEncoder cmdEncoder = renderCompositor.GetCommandEncoder();
 
     if(!target)
     {

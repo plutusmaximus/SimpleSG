@@ -48,25 +48,21 @@ static Result<> MainLoop()
     MLG_CHECK(sceneKitData);
 
     TextureCache textureCache;
-    MLG_CHECK(textureCache.Initialize());
+    MLG_CHECK(textureCache.Startup());
 
     std::filesystem::path rootPath = ".";
     DawnSceneKit dawnSceneKit;
     MLG_CHECK(DawnSceneKit::Load(rootPath, textureCache, *sceneKitData, dawnSceneKit));
 
-    auto rendererResult = DawnRenderer::Create(WebgpuHelper::GetWindow(),
-        WebgpuHelper::GetDevice(),
-        WebgpuHelper::GetSurface());
-    MLG_CHECK(rendererResult);
+    DawnRenderer renderer;
+    MLG_CHECK(renderer.Startup());
 
-    auto renderCompositorResult = DawnRenderCompositor::Create();
-    MLG_CHECK(renderCompositorResult);
+    DawnRenderCompositor compositor;
+    MLG_CHECK(compositor.Startup());
 
     auto imGuiRendererResult = ImGuiRenderer::Create();
     MLG_CHECK(imGuiRendererResult);
 
-    DawnRenderer* renderer = *rendererResult;
-    DawnRenderCompositor* renderCompositor = *renderCompositorResult;
     ImGuiRenderer* imGuiRenderer = *imGuiRendererResult;
 
     Stopwatch stopwatch;
@@ -168,7 +164,7 @@ static Result<> MainLoop()
 
         TrsTransformf transform;
 
-        renderCompositor->BeginFrame();
+        compositor.BeginFrame();
 
         imGuiRenderer->NewFrame();
 
@@ -176,17 +172,17 @@ static Result<> MainLoop()
 
         nonGpuWorkTimer.Stop();
 
-        auto renderResult = renderer->Render(cameraXform.ToMatrix(),
+        auto renderResult = renderer.Render(cameraXform.ToMatrix(),
             camera.GetProjection(),
             dawnSceneKit,
-            renderCompositor);
+            compositor);
 
         MLG_CHECK(renderResult);
 
-        auto imGuiRenderResult = imGuiRenderer->Render(renderCompositor);
+        auto imGuiRenderResult = imGuiRenderer->Render(compositor);
         MLG_CHECK(imGuiRenderResult);
 
-        auto endFrameResult = renderCompositor->EndFrame();
+        auto endFrameResult = compositor.EndFrame();
         MLG_CHECK(endFrameResult);
 
 #if !defined(__EMSCRIPTEN__)
@@ -205,8 +201,9 @@ static Result<> MainLoop()
     }
 
     ImGuiRenderer::Destroy(imGuiRenderer);
-    DawnRenderCompositor::Destroy(renderCompositor);
-    DawnRenderer::Destroy(renderer);
+    compositor.Shutdown();
+    renderer.Shutdown();
+    textureCache.Shutdown();
 
     PerfMetrics::LogTimers();
 

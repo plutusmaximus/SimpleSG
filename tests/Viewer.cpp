@@ -89,22 +89,20 @@ MainLoop()
     bool running = true;
     bool minimized = false;
 
-    auto rendererResult = DawnRenderer::Create(WebgpuHelper::GetWindow(),
-        WebgpuHelper::GetDevice(),
-        WebgpuHelper::GetSurface());
-    MLG_CHECK(rendererResult);
+    DawnRenderer renderer;
+    MLG_CHECK(renderer.Startup());
 
-    auto rendererCleanup = scope_exit([renderer = *rendererResult]()
+    auto rendererCleanup = scope_exit([&renderer]()
     {
-        DawnRenderer::Destroy(renderer);
+        renderer.Shutdown();
     });
 
-    auto renderCompositorResult = DawnRenderCompositor::Create();
-    MLG_CHECK(renderCompositorResult);
+    DawnRenderCompositor renderCompositor;
+    MLG_CHECK(renderCompositor.Startup());
 
-    auto renderCompositorCleanup = scope_exit([renderCompositor = *renderCompositorResult]()
+     auto renderCompositorCleanup = scope_exit([&renderCompositor]()
     {
-        DawnRenderCompositor::Destroy(renderCompositor);
+        renderCompositor.Shutdown();
     });
 
     auto imGuiRendererResult = ImGuiRenderer::Create();
@@ -115,14 +113,17 @@ MainLoop()
         ImGuiRenderer::Destroy(imGuiRenderer);
     });
 
-    DawnRenderer* renderer = *rendererResult;
-    DawnRenderCompositor* renderCompositor = *renderCompositorResult;
     ImGuiRenderer* imGuiRenderer = *imGuiRendererResult;
 
     const std::filesystem::path path(SPONZA_MODEL_PATH);
 
     TextureCache textureCache;
-    MLG_CHECK(textureCache.Initialize());
+    MLG_CHECK(textureCache.Startup());
+
+    auto textureCacheCleanup = scope_exit([&textureCache]()
+    {
+        textureCache.Shutdown();
+    });
 
     DawnSceneKit dawnSceneKit;
     MLG_CHECK(LoadSceneKit(path, textureCache, dawnSceneKit));
@@ -283,7 +284,7 @@ MainLoop()
             worldMat = xform.ToMatrix();
         }
 
-        renderCompositor->BeginFrame();
+        renderCompositor.BeginFrame();
         imGuiRenderer->NewFrame();
 
         const auto& camWorldMat = camera.Get<WorldMatrix>();
@@ -292,14 +293,14 @@ MainLoop()
         {
             const auto [eid, worldMat, sceneKit] = tuple;
 
-            renderer->Render(camWorldMat, projection, *sceneKit, renderCompositor);
+            renderer.Render(camWorldMat, projection, *sceneKit, renderCompositor);
         }
 
         RenderGui();
 
         imGuiRenderer->Render(renderCompositor);
 
-        renderCompositor->EndFrame();
+        renderCompositor.EndFrame();
 
 #if !defined(__EMSCRIPTEN__)
         MLG_CHECK(WebgpuHelper::GetSurface().Present(), "Failed to present backbuffer");

@@ -3,19 +3,24 @@
 #include "PerfMetrics.h"
 #include "WebgpuHelper.h"
 
-Result<DawnRenderCompositor*>
-DawnRenderCompositor::Create()
+Result<>
+DawnRenderCompositor::Startup()
 {
-    DawnRenderCompositor* compositor = new DawnRenderCompositor();
-    MLG_CHECK(compositor, "Failed to create DawnRenderCompositor");
+    MLG_CHECKV(!m_Initialized, "DawnRenderCompositor is already initialized");
 
-    return compositor;
+    m_Initialized = true;
+
+    return Result<>::Ok;
 }
 
-void
-DawnRenderCompositor::Destroy(DawnRenderCompositor* compositor)
+Result<>
+DawnRenderCompositor::Shutdown()
 {
-    delete compositor;
+    MLG_CHECKV(m_Initialized, "DawnRenderCompositor is not initialized");
+
+    m_Initialized = false;
+
+    return Result<>::Ok;
 }
 
 Result<>

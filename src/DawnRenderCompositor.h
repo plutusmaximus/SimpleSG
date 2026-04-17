@@ -8,10 +8,15 @@ class DawnRenderCompositor
 {
 public:
 
-    static Result<DawnRenderCompositor*> Create();
-    static void Destroy(DawnRenderCompositor* compositor);
+    DawnRenderCompositor() = default;
+    DawnRenderCompositor(const DawnRenderCompositor&) = delete;
+    DawnRenderCompositor& operator=(const DawnRenderCompositor&) = delete;
+    DawnRenderCompositor(DawnRenderCompositor&&) = delete;
+    DawnRenderCompositor& operator=(DawnRenderCompositor&&) = delete;
 
-    ~DawnRenderCompositor() = default;
+    Result<> Startup();
+
+    Result<> Shutdown();
 
     Result<> BeginFrame();
 
@@ -23,12 +28,10 @@ public:
 
 private:
 
-    DawnRenderCompositor() = default;
-
     wgpu::Texture m_Target{ nullptr };
     wgpu::CommandEncoder m_CommandEncoder{ nullptr };
 
     bool m_FrameStarted{ false };
 
-
+    bool m_Initialized{ false };
 };

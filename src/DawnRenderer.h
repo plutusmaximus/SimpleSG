@@ -16,31 +16,27 @@ class DawnRenderer
 {
 public:
 
-    DawnRenderer() = delete;
+    DawnRenderer() = default;
     DawnRenderer(const DawnRenderer&) = delete;
     DawnRenderer& operator=(const DawnRenderer&) = delete;
     DawnRenderer(DawnRenderer&&) = delete;
     DawnRenderer& operator=(DawnRenderer&&) = delete;
 
-    static Result<DawnRenderer*> Create(SDL_Window* window, wgpu::Device device, wgpu::Surface surface);
+    Result<> Startup();
 
-    static Result<> Destroy(DawnRenderer* renderer);
+    Result<> Shutdown();
 
     Result<> Render(const Mat44f& camera,
         const Mat44f& projection,
         const SceneKit& sceneKit,
-        DawnRenderCompositor* compositor);
+        DawnRenderCompositor& compositor);
 
 private:
-
-    DawnRenderer(SDL_Window* window, wgpu::Device device, wgpu::Surface surface);
-
-    ~DawnRenderer();
 
     Result<wgpu::RenderPassEncoder> BeginRenderPass(wgpu::CommandEncoder cmdEncoder);
 
     /// @brief Resolve the color target to the swapchain texture.
-    Result<> ResolveColorTargetToSwapchain(DawnRenderCompositor* compositor);
+    Result<> ResolveColorTargetToSwapchain(DawnRenderCompositor& compositor);
 
     Result<> CreateColorAndDepthTargets();
 
@@ -57,7 +53,7 @@ private:
         const Mat44f& projection,
         const SceneKit& sceneKit);
 
-    SDL_Window* const m_Window;
+    SDL_Window* m_Window{ nullptr };
     wgpu::Device m_WgpuDevice;
     wgpu::Surface m_Surface;
     wgpu::Limits m_GpuLimits;
@@ -104,4 +100,6 @@ private:
 
     wgpu::ShaderModule m_TransformShader;
     wgpu::ComputePipeline m_TransformPipeline;
+
+    bool m_Initialized{false};
 };

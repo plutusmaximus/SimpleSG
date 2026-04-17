@@ -1,7 +1,7 @@
 #include "TextureCache.h"
 
 Result<>
-TextureCache::Initialize()
+TextureCache::Startup()
 {
     MLG_CHECKV(WebgpuHelper::GetDevice(), "TextureCache::Initialize called before WebgpuHelper::Startup");
     MLG_CHECKV(!m_Initialized, "TextureCache::Initialize called more than once");
@@ -48,5 +48,15 @@ TextureCache::Initialize()
     m_DefaultTexture = *defaultTexture;
     m_DefaultSampler = WebgpuHelper::GetDevice().CreateSampler(&samplerDesc);
 
+    return Result<>::Ok;
+}
+
+Result<>
+TextureCache::Shutdown()
+{
+    Clear();
+    m_DefaultTexture = nullptr;
+    m_DefaultSampler = nullptr;
+    m_Initialized = false;
     return Result<>::Ok;
 }

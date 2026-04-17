@@ -21,7 +21,7 @@ public:
 
     Result<> NewFrame();
 
-    Result<> Render(DawnRenderCompositor* renderCompositor);
+    Result<> Render(DawnRenderCompositor& renderCompositor);
 
 private:
 
@@ -30,7 +30,7 @@ private:
     Result<> DawnStartup();
     Result<> DawnShutdown();
     Result<> DawnNewFrame();
-    Result<> DawnRender(DawnRenderCompositor* renderCompositor);
+    Result<> DawnRender(DawnRenderCompositor& renderCompositor);
 
     ImGuiContext* m_Context{nullptr};
 };

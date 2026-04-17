@@ -51,19 +51,13 @@ public:
 
         m_State = State::Initialized;
 
-        auto rendererResult = DawnRenderer::Create(WebgpuHelper::GetWindow(),
-            WebgpuHelper::GetDevice(),
-            WebgpuHelper::GetSurface());
-        MLG_CHECK(rendererResult);
+        MLG_CHECK(m_Renderer.Startup());
 
-        auto renderCompositorResult = DawnRenderCompositor::Create();
-        MLG_CHECK(renderCompositorResult);
+        MLG_CHECK(m_Compositor.Startup());
 
         auto imGuiRendererResult = ImGuiRenderer::Create();
         MLG_CHECK(imGuiRendererResult);
 
-        m_Renderer = *rendererResult;
-        m_RenderCompositor = *renderCompositorResult;
         m_ImGuiRenderer = *imGuiRendererResult;
 
         m_ScreenBounds = WebgpuHelper::GetScreenBounds();
@@ -71,11 +65,10 @@ public:
         auto sceneKitData = CreateShapeModel();
         MLG_CHECK(sceneKitData);
 
-        TextureCache textureCache;
-        MLG_CHECK(textureCache.Initialize());
+        MLG_CHECK(m_TextureCache.Startup());
 
         std::filesystem::path rootPath = ".";
-        MLG_CHECK(DawnSceneKit::Load(rootPath, textureCache, *sceneKitData, m_SceneKit));
+        MLG_CHECK(DawnSceneKit::Load(rootPath, m_TextureCache, *sceneKitData, m_SceneKit));
 
         SceneKit* sceneKit = &m_SceneKit;
 
@@ -111,12 +104,11 @@ public:
         m_Registry.Clear();
 
         ImGuiRenderer::Destroy(m_ImGuiRenderer);
-        DawnRenderCompositor::Destroy(m_RenderCompositor);
-        DawnRenderer::Destroy(m_Renderer);
+        m_Compositor.Shutdown();
+        m_Renderer.Shutdown();
+        m_TextureCache.Shutdown();
 
-        m_Renderer = nullptr;
         m_ImGuiRenderer = nullptr;
-        m_RenderCompositor = nullptr;
     }
 
     void Update(const float deltaSeconds) override
@@ -174,7 +166,7 @@ public:
             }
         }
 
-        m_RenderCompositor->BeginFrame();
+        m_Compositor.BeginFrame();
 
         m_ImGuiRenderer->NewFrame();
 
@@ -186,12 +178,12 @@ public:
         {
             const auto [eid, worldMat, sceneKit] = tuple;
 
-            m_Renderer->Render(camWorldMat, camera.GetProjection(), *sceneKit, m_RenderCompositor);
+            m_Renderer.Render(camWorldMat, camera.GetProjection(), *sceneKit, m_Compositor);
         }
 
-        m_ImGuiRenderer->Render(m_RenderCompositor);
+        m_ImGuiRenderer->Render(m_Compositor);
 
-        m_RenderCompositor->EndFrame();
+        m_Compositor.EndFrame();
     }
 
     bool IsRunning() const override
@@ -256,9 +248,10 @@ private:
 
     State m_State = State::None;
 
-    DawnRenderCompositor* m_RenderCompositor = nullptr;
-    DawnRenderer* m_Renderer = nullptr;
+    DawnRenderCompositor m_Compositor;
+    DawnRenderer m_Renderer;
     ImGuiRenderer* m_ImGuiRenderer = nullptr;
+    TextureCache m_TextureCache;
     EcsRegistry m_Registry;
     GimbleMouseNav m_GimbleMouseNav{ TrsTransformf{}};
     MouseNav* const m_MouseNav = &m_GimbleMouseNav;

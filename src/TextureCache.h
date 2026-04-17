@@ -11,7 +11,10 @@ public:
     TextureCache(TextureCache&&) = delete;
     TextureCache& operator=(TextureCache&&) = delete;
 
-    Result<> Initialize();
+    Result<> Startup();
+
+    Result<> Shutdown();
+
 
     bool Contains(const std::string& uri) const
     {
