@@ -41,6 +41,18 @@ public:
     static bool Log(const char* expression,
         const char* fileName,
         const int lineNum,
+        bool& mute,
+        const std::string& userMsg)
+    {
+        std::string message = std::format("{}({}): {} - {}", fileName, lineNum, expression, userMsg);
+
+        return Log(message, mute);
+    }
+
+    /// @brief Log an assertion failure.
+    static bool Log(const char* expression,
+        const char* fileName,
+        const int lineNum,
         bool& mute)
     {
         std::string message = std::format("{}({}): {}", fileName, lineNum, expression);
