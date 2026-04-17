@@ -570,10 +570,11 @@ BuildMeshDrawDataBuffer(std::span<const MeshData> meshDatas,
     return buffer;
 }
 
-Result<DawnSceneKit*>
-DawnSceneKit::Create(const std::filesystem::path& rootPath,
+Result<>
+DawnSceneKit::Load(const std::filesystem::path& rootPath,
     TextureCache& textureCache,
-    const SceneKitSourceData& sceneKitData)
+    const SceneKitSourceData& sceneKitData,
+    DawnSceneKit& outSceneKit)
 {
     Stopwatch createTimer;
     createTimer.Mark();
@@ -661,15 +662,9 @@ DawnSceneKit::Create(const std::filesystem::path& rootPath,
         .SetMeshes(std::move(meshProperties))
         .SetModelInstances(std::move(modelInstances));
 
-    DawnSceneKit* sceneKit = builder.Build();
+    outSceneKit = std::move(builder.Build());
 
     MLG_INFO("DawnSceneKit created in {} ms", createTimer.ElapsedSeconds() * 1000);
 
-    return sceneKit;
-}
-
-void
-DawnSceneKit::Destroy(DawnSceneKit* sceneKit)
-{
-    delete sceneKit;
+    return Result<>::Ok;
 }

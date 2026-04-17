@@ -13,11 +13,10 @@
 class DawnSceneKit : public SceneKit
 {
 public:
-    static Result<DawnSceneKit*> Create(const std::filesystem::path& rootPath,
+    static Result<> Load(const std::filesystem::path& rootPath,
         TextureCache& textureCache,
-        const SceneKitSourceData& sceneKitData);
-
-    static void Destroy(DawnSceneKit* sceneKit);
+        const SceneKitSourceData& sceneKitData,
+        DawnSceneKit& outSceneKit);
 
     class Builder
     {
@@ -100,11 +99,11 @@ public:
             return *this;
         }
 
-        DawnSceneKit* Build()
+        DawnSceneKit Build()
         {
             MLG_ASSERT(Validate(), "DawnSceneKit::Builder is not in a valid state to build a DawnSceneKit");
 
-            return new DawnSceneKit(
+            DawnSceneKit sceneKit(
                 m_IndexBuffer,
                 m_VertexBuffer,
                 m_TransformBuffer,
@@ -116,6 +115,8 @@ public:
                 std::move(m_MaterialBindGroups),
                 std::move(m_Meshes),
                 std::move(m_ModelInstances));
+
+            return sceneKit;
         }
 
     private:
@@ -144,8 +145,8 @@ public:
     DawnSceneKit() = default;
     DawnSceneKit(const DawnSceneKit&) = delete;
     DawnSceneKit& operator=(const DawnSceneKit&) = delete;
-    DawnSceneKit(DawnSceneKit&&) = delete;
-    DawnSceneKit& operator=(DawnSceneKit&&) = delete;
+    DawnSceneKit(DawnSceneKit&& other) = default;
+    DawnSceneKit& operator=(DawnSceneKit&& other) = default;
 
     ~DawnSceneKit() override = default;
 

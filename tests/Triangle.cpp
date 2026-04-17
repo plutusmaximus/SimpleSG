@@ -51,10 +51,8 @@ static Result<> MainLoop()
     MLG_CHECK(textureCache.Initialize());
 
     std::filesystem::path rootPath = ".";
-    auto dawnSceneKit = DawnSceneKit::Create(rootPath, textureCache, *sceneKitData);
-    MLG_CHECK(dawnSceneKit);
-
-    SceneKit* sceneKit = *dawnSceneKit;
+    DawnSceneKit dawnSceneKit;
+    MLG_CHECK(DawnSceneKit::Load(rootPath, textureCache, *sceneKitData, dawnSceneKit));
 
     auto rendererResult = DawnRenderer::Create(WebgpuHelper::GetWindow(),
         WebgpuHelper::GetDevice(),
@@ -180,7 +178,7 @@ static Result<> MainLoop()
 
         auto renderResult = renderer->Render(cameraXform.ToMatrix(),
             camera.GetProjection(),
-            *sceneKit,
+            dawnSceneKit,
             renderCompositor);
 
         MLG_CHECK(renderResult);

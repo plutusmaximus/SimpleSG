@@ -75,10 +75,9 @@ public:
         MLG_CHECK(textureCache.Initialize());
 
         std::filesystem::path rootPath = ".";
-        auto dawnSceneKit = DawnSceneKit::Create(rootPath, textureCache, *sceneKitData);
-        MLG_CHECK(dawnSceneKit);
+        MLG_CHECK(DawnSceneKit::Load(rootPath, textureCache, *sceneKitData, m_SceneKit));
 
-        SceneKit* sceneKit = *dawnSceneKit;
+        SceneKit* sceneKit = &m_SceneKit;
 
         constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
@@ -269,6 +268,7 @@ private:
     Entity m_Moon;
     Extent m_ScreenBounds{0,0};
     Radiansf m_PlanetSpinAngle{0}, m_MoonSpinAngle{0}, m_MoonOrbitAngle{0};
+    DawnSceneKit m_SceneKit;
 };
 
 class CubeAppLifecycle : public AppLifecycle

@@ -639,8 +639,8 @@ CollectTransforms(cgltf_node** const childNodes,
     return numAdded;
 }
 
-Result<SceneKitSourceData>
-GltfLoader::LoadSceneKit(const std::string& path)
+Result<>
+GltfLoader::LoadSceneKit(const std::string& path, SceneKitSourceData& outSceneKit)
 {
     std::filesystem::path filePath(path);
 
@@ -708,5 +708,7 @@ GltfLoader::LoadSceneKit(const std::string& path)
     sceneKitData.Transforms = std::move(transforms);
     sceneKitData.ModelInstances = std::move(modelInstances);
 
-    return std::move(sceneKitData);
+    outSceneKit = std::move(sceneKitData);
+
+    return Result<>::Ok;
 }

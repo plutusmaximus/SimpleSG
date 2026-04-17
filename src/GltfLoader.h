@@ -9,5 +9,5 @@ class GltfLoader final
 {
 public:
 
-    static Result<SceneKitSourceData> LoadSceneKit(const std::string& path);
+    static Result<> LoadSceneKit(const std::string& path, SceneKitSourceData& outSceneKit);
 };

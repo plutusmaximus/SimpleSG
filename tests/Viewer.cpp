@@ -62,14 +62,19 @@ Shutdown()
 
 static Result<> RenderGui();
 
-static Result<DawnSceneKit*>
-LoadSceneKit(const std::filesystem::path& path, TextureCache& textureCache)
+static Result<>
+LoadSceneKit(const std::filesystem::path& path, TextureCache& textureCache, DawnSceneKit& outSceneKit)
 {
-    auto sceneKitData = GltfLoader::LoadSceneKit(path.string());
-    MLG_CHECK(sceneKitData, "Failed to load scene kit: {}", path.string());
+    SceneKitSourceData sceneKitData;
+    MLG_CHECK(GltfLoader::LoadSceneKit(path.string(), sceneKitData),
+        "Failed to load scene kit: {}",
+        path.string());
 
-    auto dawnSceneKit = DawnSceneKit::Create(path.parent_path(), textureCache, *sceneKitData);
-    return dawnSceneKit;
+    MLG_CHECK(DawnSceneKit::Load(path.parent_path(), textureCache, sceneKitData, outSceneKit),
+        "Failed to create DawnSceneKit for {}",
+        path.string());
+
+    return Result<>::Ok;
 }
 
 [[maybe_unused]] static constexpr const char* SPONZA_MODEL_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
@@ -119,14 +124,14 @@ MainLoop()
     TextureCache textureCache;
     MLG_CHECK(textureCache.Initialize());
 
-    auto dawnSceneKit = LoadSceneKit(path, textureCache);
-    MLG_CHECK(dawnSceneKit);
+    DawnSceneKit dawnSceneKit;
+    MLG_CHECK(LoadSceneKit(path, textureCache, dawnSceneKit));
 
     EcsRegistry registry;
 
     WalkMouseNav mouseNav;
 
-    Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, *dawnSceneKit);
+    Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, &dawnSceneKit);
 
     Extent screenBounds = WebgpuHelper::GetScreenBounds();
 
@@ -260,13 +265,9 @@ MainLoop()
         if(!droppedFile.empty())
         {
             textureCache.Clear();
-            auto newSceneKit = LoadSceneKit(droppedFile, textureCache);
-            if(newSceneKit)
-            {
-                auto oldSceneKit = model.Get<DawnSceneKit*>();
-                DawnSceneKit::Destroy(oldSceneKit);
-                model.Get<DawnSceneKit*>() = *newSceneKit;
-            }
+            DawnSceneKit newSceneKit;
+            MLG_CHECK(LoadSceneKit(droppedFile, textureCache, newSceneKit));
+            dawnSceneKit = std::move(newSceneKit);
         }
 
         mouseNav.Update(elapsedSeconds);
