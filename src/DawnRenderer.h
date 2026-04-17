@@ -22,6 +22,11 @@ public:
     DawnRenderer(DawnRenderer&&) = delete;
     DawnRenderer& operator=(DawnRenderer&&) = delete;
 
+    ~DawnRenderer()
+    {
+        Shutdown();
+    }
+
     Result<> Startup();
 
     Result<> Shutdown();

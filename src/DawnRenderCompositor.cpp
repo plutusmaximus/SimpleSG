@@ -16,7 +16,11 @@ DawnRenderCompositor::Startup()
 Result<>
 DawnRenderCompositor::Shutdown()
 {
-    MLG_CHECKV(m_Initialized, "DawnRenderCompositor is not initialized");
+    if(!m_Initialized)
+    {
+        // Not initialized, nothing to do
+        return Result<>::Ok;
+    }
 
     m_Initialized = false;
 
@@ -26,6 +30,7 @@ DawnRenderCompositor::Shutdown()
 Result<>
 DawnRenderCompositor::BeginFrame()
 {
+    MLG_CHECKV(m_Initialized, "DawnRenderCompositor is not initialized");
     MLG_CHECKV(!m_FrameStarted, "Frame already started");
 
     m_FrameStarted = true;
@@ -54,6 +59,7 @@ DawnRenderCompositor::BeginFrame()
 Result<>
 DawnRenderCompositor::EndFrame()
 {
+    MLG_CHECKV(m_Initialized, "DawnRenderCompositor is not initialized");
     MLG_CHECKV(m_FrameStarted, "Frame not started");
 
     m_FrameStarted = false;
@@ -87,6 +93,7 @@ DawnRenderCompositor::EndFrame()
 wgpu::Texture
 DawnRenderCompositor::GetTarget()
 {
+    MLG_ASSERT(m_Initialized, "DawnRenderCompositor is not initialized");
     MLG_ASSERT(m_FrameStarted, "GetTarget() called outside of a frame");
 
     return m_Target;
@@ -96,6 +103,7 @@ DawnRenderCompositor::GetTarget()
 wgpu::CommandEncoder
 DawnRenderCompositor::GetCommandEncoder()
 {
+    MLG_ASSERT(m_Initialized, "DawnRenderCompositor is not initialized");
     MLG_ASSERT(m_FrameStarted, "GetCommandBuffer() called outside of a frame");
 
     return m_CommandEncoder;

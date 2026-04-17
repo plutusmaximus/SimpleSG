@@ -60,10 +60,8 @@ static Result<> MainLoop()
     DawnRenderCompositor compositor;
     MLG_CHECK(compositor.Startup());
 
-    auto imGuiRendererResult = ImGuiRenderer::Create();
-    MLG_CHECK(imGuiRendererResult);
-
-    ImGuiRenderer* imGuiRenderer = *imGuiRendererResult;
+    ImGuiRenderer imGuiRenderer;
+    MLG_CHECK(imGuiRenderer.Startup());
 
     Stopwatch stopwatch;
 
@@ -166,7 +164,7 @@ static Result<> MainLoop()
 
         compositor.BeginFrame();
 
-        imGuiRenderer->NewFrame();
+        imGuiRenderer.NewFrame();
 
         RenderGui();
 
@@ -179,7 +177,7 @@ static Result<> MainLoop()
 
         MLG_CHECK(renderResult);
 
-        auto imGuiRenderResult = imGuiRenderer->Render(compositor);
+        auto imGuiRenderResult = imGuiRenderer.Render(compositor);
         MLG_CHECK(imGuiRenderResult);
 
         auto endFrameResult = compositor.EndFrame();
@@ -200,7 +198,7 @@ static Result<> MainLoop()
         PerfMetrics::EndFrame();
     }
 
-    ImGuiRenderer::Destroy(imGuiRenderer);
+    imGuiRenderer.Shutdown();
     compositor.Shutdown();
     renderer.Shutdown();
     textureCache.Shutdown();

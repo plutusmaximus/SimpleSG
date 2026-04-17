@@ -105,15 +105,13 @@ MainLoop()
         renderCompositor.Shutdown();
     });
 
-    auto imGuiRendererResult = ImGuiRenderer::Create();
-    MLG_CHECK(imGuiRendererResult);
+    ImGuiRenderer imGuiRenderer;
+    MLG_CHECK(imGuiRenderer.Startup());
 
-    auto imGuiRendererCleanup = scope_exit([imGuiRenderer = *imGuiRendererResult]()
+    auto imGuiRendererCleanup = scope_exit([&imGuiRenderer]()
     {
-        ImGuiRenderer::Destroy(imGuiRenderer);
+        imGuiRenderer.Shutdown();
     });
-
-    ImGuiRenderer* imGuiRenderer = *imGuiRendererResult;
 
     const std::filesystem::path path(SPONZA_MODEL_PATH);
 
@@ -285,7 +283,7 @@ MainLoop()
         }
 
         renderCompositor.BeginFrame();
-        imGuiRenderer->NewFrame();
+        imGuiRenderer.NewFrame();
 
         const auto& camWorldMat = camera.Get<WorldMatrix>();
         const auto& projection = camera.Get<Camera>().GetProjection();
@@ -298,7 +296,7 @@ MainLoop()
 
         RenderGui();
 
-        imGuiRenderer->Render(renderCompositor);
+        imGuiRenderer.Render(renderCompositor);
 
         renderCompositor.EndFrame();
 

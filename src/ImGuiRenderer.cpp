@@ -10,48 +10,47 @@
 #include <imgui_impl_sdlgpu3.h>
 #include <imgui_impl_wgpu.h>
 
-Result<ImGuiRenderer*>
-ImGuiRenderer::Create()
+Result<>
+ImGuiRenderer::Startup()
 {
-    ImGuiRenderer* renderer = new ImGuiRenderer();
-    MLG_CHECK(renderer, "Failed to create ImGuiRenderer");
+    MLG_CHECKV(!m_Initialized, "ImGuiRenderer is already initialized");
 
-    auto cleanup = scope_exit([renderer]()
+    MLG_CHECK(DawnStartup());
+
+    m_Initialized = true;
+
+    return Result<>::Ok;
+}
+
+Result<>
+ImGuiRenderer::Shutdown()
+{
+    if(!m_Initialized)
     {
-        ImGuiRenderer::Destroy(renderer);
-    });
+        // Not initialized, nothing to do
+        return Result<>::Ok;
+    }
 
-    MLG_CHECK(renderer->DawnStartup());
+    MLG_CHECK(DawnShutdown());
 
-    cleanup.release();
+    m_Initialized = false;
 
-    return renderer;
-}
-
-void
-ImGuiRenderer::Destroy(ImGuiRenderer* renderer)
-{
-    delete renderer;
-}
-
-ImGuiRenderer::ImGuiRenderer()
-{
-}
-
-ImGuiRenderer::~ImGuiRenderer()
-{
-    DawnShutdown();
+    return Result<>::Ok;
 }
 
 Result<>
 ImGuiRenderer::NewFrame()
 {
+    MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
+
     return DawnNewFrame();
 }
 
 Result<>
 ImGuiRenderer::Render(DawnRenderCompositor& renderCompositor)
 {
+    MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
+
     static PerfTimer renderGuiTimer("ImGuiRenderer.Render");
     auto scopedTimer = renderGuiTimer.StartScoped();
 

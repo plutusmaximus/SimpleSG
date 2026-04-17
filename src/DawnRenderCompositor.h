@@ -14,6 +14,11 @@ public:
     DawnRenderCompositor(DawnRenderCompositor&&) = delete;
     DawnRenderCompositor& operator=(DawnRenderCompositor&&) = delete;
 
+    ~DawnRenderCompositor()
+    {
+        Shutdown();
+    }
+
     Result<> Startup();
 
     Result<> Shutdown();

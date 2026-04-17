@@ -55,10 +55,7 @@ public:
 
         MLG_CHECK(m_Compositor.Startup());
 
-        auto imGuiRendererResult = ImGuiRenderer::Create();
-        MLG_CHECK(imGuiRendererResult);
-
-        m_ImGuiRenderer = *imGuiRendererResult;
+        MLG_CHECK(m_ImGuiRenderer.Startup());
 
         m_ScreenBounds = WebgpuHelper::GetScreenBounds();
 
@@ -103,12 +100,10 @@ public:
 
         m_Registry.Clear();
 
-        ImGuiRenderer::Destroy(m_ImGuiRenderer);
+        m_ImGuiRenderer.Shutdown();
         m_Compositor.Shutdown();
         m_Renderer.Shutdown();
         m_TextureCache.Shutdown();
-
-        m_ImGuiRenderer = nullptr;
     }
 
     void Update(const float deltaSeconds) override
@@ -168,7 +163,7 @@ public:
 
         m_Compositor.BeginFrame();
 
-        m_ImGuiRenderer->NewFrame();
+        m_ImGuiRenderer.NewFrame();
 
         // Transform to camera space and render
         auto camWorldMat = m_Camera.Get<WorldMatrix>();
@@ -181,7 +176,7 @@ public:
             m_Renderer.Render(camWorldMat, camera.GetProjection(), *sceneKit, m_Compositor);
         }
 
-        m_ImGuiRenderer->Render(m_Compositor);
+        m_ImGuiRenderer.Render(m_Compositor);
 
         m_Compositor.EndFrame();
     }
@@ -250,7 +245,7 @@ private:
 
     DawnRenderCompositor m_Compositor;
     DawnRenderer m_Renderer;
-    ImGuiRenderer* m_ImGuiRenderer = nullptr;
+    ImGuiRenderer m_ImGuiRenderer;
     TextureCache m_TextureCache;
     EcsRegistry m_Registry;
     GimbleMouseNav m_GimbleMouseNav{ TrsTransformf{}};

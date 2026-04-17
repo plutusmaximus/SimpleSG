@@ -9,15 +9,20 @@ class ImGuiRenderer
 {
 public:
 
-    static Result<ImGuiRenderer*> Create();
-    static void Destroy(ImGuiRenderer* renderer);
+    Result<> Startup();
 
+    Result<> Shutdown();
+
+    ImGuiRenderer() = default;
     ImGuiRenderer(const ImGuiRenderer&) = delete;
     ImGuiRenderer& operator=(const ImGuiRenderer&) = delete;
     ImGuiRenderer(ImGuiRenderer&&) = delete;
     ImGuiRenderer& operator=(ImGuiRenderer&&) = delete;
 
-    ~ImGuiRenderer();
+    ~ImGuiRenderer()
+    {
+        Shutdown();
+    }
 
     Result<> NewFrame();
 
@@ -25,12 +30,12 @@ public:
 
 private:
 
-    ImGuiRenderer();
-
     Result<> DawnStartup();
     Result<> DawnShutdown();
     Result<> DawnNewFrame();
     Result<> DawnRender(DawnRenderCompositor& renderCompositor);
 
     ImGuiContext* m_Context{nullptr};
+
+    bool m_Initialized{ false };
 };

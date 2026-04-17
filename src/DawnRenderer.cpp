@@ -47,7 +47,11 @@ DawnRenderer::Startup()
 Result<>
 DawnRenderer::Shutdown()
 {
-    MLG_CHECKV(m_Initialized, "DawnRenderer is not initialized");
+    if(!m_Initialized)
+    {
+        // Not initialized, nothing to do
+        return Result<>::Ok;
+    }
 
     m_ColorPipeline = {};
     m_ResolvePipeline = {};
@@ -75,6 +79,8 @@ DawnRenderer::Render(const Mat44f& camera,
     const SceneKit& sceneKit,
     DawnRenderCompositor& compositor)
 {
+    MLG_CHECKV(m_Initialized, "DawnRenderer is not initialized");
+
     static PerfTimer renderTimer("Renderer.Render");
     auto scopedRenderTimer = renderTimer.StartScoped();
 
