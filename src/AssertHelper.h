@@ -94,6 +94,10 @@ private:
 
 #define MLG_ASSERT_CAPTURE_CHECK(capName, msg) ((capName).Message().contains(msg))
 
+// MLG_ASSERT_ONLY is for expressions that are only used in asserts, but we want to avoid "unused
+// variable/expression" warnings in release builds.
+#define MLG_ASSERT_ONLY(expr) (void)(expr)
+
 #else // NDEBUG
 
 #define MLG_VERIFY(expr, ...) (static_cast<bool>(expr))
@@ -102,5 +106,7 @@ private:
 #define MLG_ASSERT_CAPTURE(capName)
 
 #define MLG_ASSERT_CAPTURE_CHECK(capName, msg) true
+
+#define MLG_ASSERT_ONLY(expr)
 
 #endif // NDEBUG
