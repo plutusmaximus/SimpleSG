@@ -14,6 +14,32 @@ template<typename T> class RgbaColor;
 using RgbaColorf = RgbaColor<float>;
 using RgbaColoru8 = RgbaColor<uint8_t>;
 
+class VertexBuffer : private wgpu::Buffer
+{
+public:
+
+    using wgpu::Buffer::Buffer;
+    using wgpu::Buffer::GetSize;
+    using wgpu::Buffer::operator bool;
+
+    wgpu::Buffer& GetBuffer() { return *this; }
+    const wgpu::Buffer& GetBuffer() const { return *this; }
+
+    Result<void*> Map();
+
+    Result<> Unmap();
+
+private:
+    friend class WebgpuHelper;
+
+    explicit VertexBuffer(wgpu::Buffer buffer)
+        : wgpu::Buffer(buffer)
+    {
+    }
+
+    wgpu::Buffer m_StagingBuffer;
+};
+
 class WebgpuHelper final
 {
 public:
@@ -53,7 +79,7 @@ public:
 
     static Result<wgpu::Sampler> GetDefaultSampler();
 
-    static Result<wgpu::Buffer> CreateVertexBuffer(const size_t size, const std::string& name);
+    static Result<VertexBuffer> CreateVertexBuffer(const size_t size, const std::string& name);
 
     static Result<wgpu::Buffer> CreateIndexBuffer(const size_t size, const std::string& name);
 

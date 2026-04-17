@@ -154,9 +154,13 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
                                  wgpu::ErrorType errorType,
                                  wgpu::StringView message)
     {
-        MLG_ERROR("Uncaptured error (type:{}): {}",
+        std::string errorStr = std::format("Uncaptured error (type:{}): {}",
             static_cast<int>(errorType),
             std::string(message.data, message.length));
+
+        MLG_ERROR(errorStr);
+
+        MLG_ASSERT(false, errorStr);
     };
 
     const char* enabledToggles[] =
@@ -344,6 +348,20 @@ ConfigureSurface(wgpu::Adapter adapter,
     surface.Configure(&config);
 
     return format;
+}
+
+static wgpu::Buffer
+CreateGpuBufferUnmapped(wgpu::Device device, wgpu::BufferUsage usage, const size_t size, const char* name)
+{
+    wgpu::BufferDescriptor bufferDesc //
+        {
+            .label = name,
+            .usage = usage,
+            .size = size,
+            .mappedAtCreation = false,
+        };
+
+    return device.CreateBuffer(&bufferDesc);
 }
 
 static WgpuContext* s_WgpuContext{nullptr};
@@ -633,21 +651,15 @@ WebgpuHelper::GetDefaultSampler()
     return s_WgpuContext->DefaultSampler;
 }
 
-Result<wgpu::Buffer>
+Result<VertexBuffer>
 WebgpuHelper::CreateVertexBuffer(const size_t size, const std::string& name)
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateVertexBuffer called before Startup");
 
-    wgpu::BufferDescriptor bufferDesc //
-        {
-            .label = wgpu::StringView{std::string_view{name.c_str()}},
-            .usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst,
-            .size = size,
-            .mappedAtCreation = false,
-        };
-
-    wgpu::Buffer buffer = GetDevice().CreateBuffer(&bufferDesc);
-    return buffer;
+    return VertexBuffer(CreateGpuBufferUnmapped(GetDevice(),
+        wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst,
+        size,
+        name.c_str()));
 }
 
 Result<wgpu::Buffer>
@@ -973,3 +985,71 @@ static void DumpDawnToggles(const wgpu::Device& device)
     }
 }
 
+
+//////////////////////////////////////////////
+
+Result<void*>
+VertexBuffer::Map()
+{
+    MLG_CHECKV(m_StagingBuffer == nullptr, "VertexBuffer::Map called while already mapped");
+
+    const size_t sizeofBuffer = this->GetSize();
+
+    wgpu::Buffer stagingBuffer = CreateGpuBufferUnmapped(WebgpuHelper::GetDevice(),
+        wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc,
+        sizeofBuffer,
+        "VertexStagingBuffer");
+
+    Result<> result;
+
+    auto cb = [](wgpu::MapAsyncStatus status, wgpu::StringView message, Result<>* result)
+    {
+        if(status != wgpu::MapAsyncStatus::Success)
+        {
+            MLG_ERROR("MapAsync failed: {}", std::string(message.data, message.length));
+            *result = Result<>::Fail;
+        }
+        else
+        {
+            *result = Result<>::Ok;
+        }
+    };
+
+    wgpu::Future fut = stagingBuffer.MapAsync(wgpu::MapMode::Write,
+        0,
+        sizeofBuffer,
+        wgpu::CallbackMode::WaitAnyOnly,
+        cb,
+        &result);
+
+    wgpu::WaitStatus waitStatus = WebgpuHelper::GetInstance().WaitAny(fut, UINT64_MAX);
+
+    MLG_CHECK(waitStatus == wgpu::WaitStatus::Success, "Failed to map vertex buffer - WaitAny failed");
+
+    void* vbMapped = stagingBuffer.GetMappedRange();
+
+    MLG_CHECK(vbMapped, "Failed to map VertexStagingBuffer");
+
+    m_StagingBuffer = std::move(stagingBuffer);
+
+    return vbMapped;
+}
+
+Result<>
+VertexBuffer::Unmap()
+{
+    MLG_CHECKV(m_StagingBuffer, "VertexBuffer::Unmap called while not mapped");
+
+    m_StagingBuffer.Unmap();
+
+    wgpu::CommandEncoder cmdEncoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
+    cmdEncoder.CopyBufferToBuffer(m_StagingBuffer, 0, *this, 0, this->GetSize());
+
+    wgpu::CommandBuffer commandBuffer = cmdEncoder.Finish();
+
+    WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
+
+    m_StagingBuffer = nullptr;
+
+    return Result<>::Ok;
+}

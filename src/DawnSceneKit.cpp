@@ -578,23 +578,21 @@ CreateMaterialBindGroups(wgpu::Device wgpuDevice,
     return Result<>::Ok;
 }
 
-static Result<wgpu::Buffer>
-BuildVertexBuffer(wgpu::Device wgpuDevice, std::span<const Vertex> vertices)
+static Result<VertexBuffer>
+BuildVertexBuffer(std::span<const Vertex> vertices)
 {
     const size_t sizeofBuffer = vertices.size() * sizeof(Vertex);
-    wgpu::Buffer vertexBuffer = CreateGpuBuffer(wgpuDevice,
-        wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst,
-        sizeofBuffer,
-        "VertexBuffer");
+    auto vertexBuffer = WebgpuHelper::CreateVertexBuffer(sizeofBuffer, "VertexBuffer");
+    MLG_CHECK(vertexBuffer);
 
-    void* vbMapped = vertexBuffer.GetMappedRange();
-    MLG_CHECK(vbMapped, "Failed to map VertexBuffer");
+    auto vbMapped = vertexBuffer->Map();
+    MLG_CHECK(vbMapped);
 
-    ::memcpy(vbMapped, vertices.data(), sizeofBuffer);
+    ::memcpy(*vbMapped, vertices.data(), sizeofBuffer);
 
-    vertexBuffer.Unmap();
+    MLG_CHECK(vertexBuffer->Unmap());
 
-    return vertexBuffer;
+    return *vertexBuffer;
 }
 
 static Result<wgpu::Buffer>
@@ -602,7 +600,7 @@ BuildIndexBuffer(wgpu::Device wgpuDevice, std::span<const VertexIndex> indices)
 {
     const size_t sizeofBuffer = indices.size() * sizeof(VertexIndex);
     wgpu::Buffer indexBuffer = CreateGpuBuffer(wgpuDevice,
-        wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst,
+        wgpu::BufferUsage::Index,
         sizeofBuffer,
         "IndexBuffer");
 
@@ -622,7 +620,7 @@ BuildTransformBuffer(wgpu::Device wgpuDevice, std::span<const TransformData> tra
     const size_t sizeofBuffer = transforms.size() * sizeof(Mat44f);
 
     wgpu::Buffer transformBuffer = CreateGpuBuffer(wgpuDevice,
-        wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
+        wgpu::BufferUsage::Storage,
         sizeofBuffer,
         "TransformBuffer");
 
@@ -648,7 +646,7 @@ BuildMaterialConstantsBuffer(
     const size_t sizeofMaterialConstantsBuffer = materials.size() * sizeof(MaterialConstants);
 
     wgpu::Buffer materialConstantsBuffer = CreateGpuBuffer(wgpuDevice,
-        wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
+        wgpu::BufferUsage::Storage,
         sizeofMaterialConstantsBuffer,
         "MaterialConstantsBuffer");
 
@@ -686,7 +684,7 @@ BuildDrawIndirectBuffer(wgpu::Device wgpuDevice,
     const size_t sizeofDrawIndirectBuffer = meshInstanceCount * sizeof(DrawIndirectBufferParams);
 
     auto drawIndirectBuffer = CreateGpuBuffer(wgpuDevice,
-        wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
+        wgpu::BufferUsage::Indirect,
         sizeofDrawIndirectBuffer,
         "DrawIndirectBuffer");
 
@@ -739,7 +737,7 @@ BuildMeshDrawDataBuffer(wgpu::Device wgpuDevice,
     const size_t sizeofMeshDrawDataBuffer = meshInstanceCount * sizeof(MeshDrawData);
 
     auto meshDrawDataBuffer = CreateGpuBuffer(wgpuDevice,
-        wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
+        wgpu::BufferUsage::Storage,
         sizeofMeshDrawDataBuffer,
         "MeshDrawDataBuffer");
 
@@ -785,7 +783,7 @@ DawnSceneKit::Create(wgpu::Device& wgpuDevice,
 
     MLG_CHECK(FetchTextures(wgpuDevice, rootPath, sceneKitData.Materials, *textureCache));
 
-    auto vertexBuffer = BuildVertexBuffer(wgpuDevice, sceneKitData.Vertices);
+    auto vertexBuffer = BuildVertexBuffer(sceneKitData.Vertices);
     MLG_CHECK(vertexBuffer);
 
     auto indexBuffer = BuildIndexBuffer(wgpuDevice, sceneKitData.Indices);

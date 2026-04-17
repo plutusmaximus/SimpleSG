@@ -3,8 +3,7 @@
 #include "Result.h"
 #include "SceneKit.h"
 #include "VecMath.h"
-
-#include <webgpu/webgpu_cpp.h>
+#include "WebgpuHelper.h"
 
 #include <filesystem>
 #include <span>
@@ -29,7 +28,7 @@ public:
             return *this;
         }
 
-        Builder& SetVertexBuffer(wgpu::Buffer vertexBuffer)
+        Builder& SetVertexBuffer(VertexBuffer vertexBuffer)
         {
             m_VertexBuffer = vertexBuffer;
             return *this;
@@ -127,7 +126,7 @@ public:
         }
 
         wgpu::Buffer m_IndexBuffer{nullptr};
-        wgpu::Buffer m_VertexBuffer{nullptr};
+        VertexBuffer m_VertexBuffer{nullptr};
         wgpu::Buffer m_TransformBuffer{nullptr};
         wgpu::Buffer m_DrawIndirectBuffer{nullptr};
         wgpu::Buffer m_MeshDrawDataBuffer{nullptr};
@@ -148,7 +147,7 @@ public:
     ~DawnSceneKit() override = default;
 
     DawnSceneKit(wgpu::Buffer indexBuffer,
-        wgpu::Buffer vertexBuffer,
+        VertexBuffer vertexBuffer,
         wgpu::Buffer transformBuffer,
         wgpu::Buffer materialConstantsBuffer,
         wgpu::Buffer drawIndirectBuffer,
@@ -203,7 +202,7 @@ public:
 
     wgpu::Buffer GetTransformBuffer() const { return m_TransformBuffer; }
     wgpu::Buffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
-    wgpu::Buffer GetVertexBuffer() const { return m_VertexBuffer; }
+    VertexBuffer GetVertexBuffer() const { return m_VertexBuffer; }
     wgpu::Buffer GetIndexBuffer() const { return m_IndexBuffer; }
 
     wgpu::BindGroup GetColorPipelineBindGroup0() const { return m_ColorPipelineBindGroup0; }
@@ -212,7 +211,7 @@ public:
 private:
 
     wgpu::Buffer m_IndexBuffer{nullptr};
-    wgpu::Buffer m_VertexBuffer{nullptr};
+    VertexBuffer m_VertexBuffer{nullptr};
     wgpu::Buffer m_TransformBuffer{nullptr};
     wgpu::Buffer m_DrawIndirectBuffer{nullptr};
     wgpu::Buffer m_MeshDrawDataBuffer{nullptr};
