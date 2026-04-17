@@ -30,14 +30,6 @@ struct TextureBuilder
     std::atomic<bool> DecodeComplete{ false };
 };
 
-struct TextureCache
-{
-    std::unordered_map<std::string, Texture> Textures;
-
-    wgpu::Sampler DefaultSampler;
-    Texture DefaultTexture;
-};
-
 struct ColorPipelineResources
 {
     StorageBuffer TransformBuffer;
@@ -136,55 +128,6 @@ StageTexture(TextureBuilder& builder)
 
     return Result<>::Ok;
 }
-static Result<TextureCache>
-CreateTextureCache(wgpu::Device wgpuDevice)
-{
-    constexpr uint32_t kDefaultTextureWidth = 128;
-    constexpr uint32_t kDefaultTextureHeight = 128;
-
-    auto defaultTexture = WebgpuHelper::CreateTexture(
-        kDefaultTextureWidth,
-        kDefaultTextureHeight,
-        "DefaultTexture");
-
-    MLG_CHECK(defaultTexture);
-
-    auto mapped = defaultTexture->Map();
-    MLG_CHECK(mapped);
-
-    uint8_t* data = static_cast<uint8_t*>(*mapped);
-
-    for(uint32_t y = 0; y < kDefaultTextureHeight; ++y)
-    {
-        for(uint32_t x = 0; x < kDefaultTextureWidth; ++x, data += 4)
-        {
-            //Magenta
-            data[0] = 0xFF;
-            data[1] = 0x00;
-            data[2] = 0xFF;
-            data[3] = 0xFF;
-        }
-    }
-
-    defaultTexture->Unmap();
-
-    wgpu::SamplerDescriptor samplerDesc//
-    {
-        .addressModeU = wgpu::AddressMode::Repeat,
-        .addressModeV = wgpu::AddressMode::Repeat,
-        .addressModeW = wgpu::AddressMode::Repeat,
-        .magFilter = wgpu::FilterMode::Linear,
-        .minFilter = wgpu::FilterMode::Linear,
-        .mipmapFilter = wgpu::MipmapFilterMode::Linear,
-    };
-
-    TextureCache textureCache;
-
-    textureCache.DefaultTexture = *defaultTexture;
-    textureCache.DefaultSampler = wgpuDevice.CreateSampler(&samplerDesc);
-
-    return std::move(textureCache);
-}
 
 static Result<>
 FetchTextures(std::filesystem::path basePath,
@@ -202,7 +145,7 @@ FetchTextures(std::filesystem::path basePath,
             continue;
         }
 
-        if(textureCache.Textures.contains(mtl.BaseTextureUri))
+        if(textureCache.Contains(mtl.BaseTextureUri))
         {
             // We've already loaded this texture, skip it.
             continue;
@@ -212,7 +155,7 @@ FetchTextures(std::filesystem::path basePath,
 
         // Set the default texture for this URI in the cache so that if the fetch or subsequent
         // staging fails we will have a valid texture to use.
-        textureCache.Textures[mtl.BaseTextureUri] = textureCache.DefaultTexture;
+        textureCache.AddOrReplace(mtl.BaseTextureUri, textureCache.GetDefaultTexture());
 
         auto [it, inserted] =
             fetchRequests.try_emplace(mtl.BaseTextureUri, (basePath / mtl.BaseTextureUri).string());
@@ -309,15 +252,14 @@ FetchTextures(std::filesystem::path basePath,
 
     for(auto& builder : textureBuilders)
     {
-        textureCache.Textures[builder.Uri] = builder.Texture;
+        textureCache.AddOrReplace(builder.Uri, builder.Texture);
     }
 
     return Result<>::Ok;
 }
 
 static Result<wgpu::BindGroup>
-CreateColorPipelineBindGroup0(wgpu::Device wgpuDevice,
-    ColorPipelineResources& colorPipelineResources)
+CreateColorPipelineBindGroup0(ColorPipelineResources& colorPipelineResources)
 {
     auto bgLayouts = WebgpuHelper::GetColorPipelineLayouts();
     MLG_CHECK(bgLayouts);
@@ -352,7 +294,7 @@ CreateColorPipelineBindGroup0(wgpu::Device wgpuDevice,
             .entries = bgEntries,
         };
 
-    wgpu::BindGroup bindGroup = wgpuDevice.CreateBindGroup(&bgDesc);
+    wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
     MLG_CHECK(bindGroup,
         "Failed to create bind group 0 for color pipeline");
 
@@ -360,8 +302,7 @@ CreateColorPipelineBindGroup0(wgpu::Device wgpuDevice,
 }
 
 static Result<wgpu::BindGroup>
-CreateTransformPipelineBindGroup0(wgpu::Device wgpuDevice,
-    TransformPipelineResources& transformPipelineResources)
+CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineResources)
 {
     auto bgLayouts = WebgpuHelper::GetTransformPipelineLayouts();
     MLG_CHECK(bgLayouts);
@@ -384,7 +325,7 @@ CreateTransformPipelineBindGroup0(wgpu::Device wgpuDevice,
             .entries = bgEntries,
         };
 
-    wgpu::BindGroup bindGroup = wgpuDevice.CreateBindGroup(&bgDesc);
+    wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
     MLG_CHECK(bindGroup,
         "Failed to create bind group 0 for transform pipeline");
 
@@ -392,17 +333,15 @@ CreateTransformPipelineBindGroup0(wgpu::Device wgpuDevice,
 }
 
 static Result<wgpu::BindGroup>
-CreateMaterialBindGroup(wgpu::Device wgpuDevice,
-    const MaterialData& material,
-    const TextureCache& textureCache)
+CreateMaterialBindGroup(const MaterialData& material, const TextureCache& textureCache)
 {
     auto bgLayouts = WebgpuHelper::GetColorPipelineLayouts();
     MLG_CHECK(bgLayouts);
 
     Texture baseTexture =
         material.BaseTextureUri.empty()
-            ? textureCache.DefaultTexture
-            : textureCache.Textures.at(material.BaseTextureUri);
+            ? textureCache.GetDefaultTexture()
+            : textureCache.Get(material.BaseTextureUri);
 
     wgpu::BindGroupEntry bgEntries[]//
     {
@@ -412,7 +351,7 @@ CreateMaterialBindGroup(wgpu::Device wgpuDevice,
         },
         {
             .binding = 1,
-            .sampler = textureCache.DefaultSampler,
+            .sampler = textureCache.GetDefaultSampler(),
         },
     };
 
@@ -424,14 +363,13 @@ CreateMaterialBindGroup(wgpu::Device wgpuDevice,
         .entries = bgEntries,
     };
 
-    wgpu::BindGroup bindGroup = wgpuDevice.CreateBindGroup(&bindGroupDesc);
+    wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bindGroupDesc);
 
     return bindGroup;
 }
 
 static Result<>
-CreateMaterialBindGroups(wgpu::Device wgpuDevice,
-    std::span<const MaterialData> materials,
+CreateMaterialBindGroups(std::span<const MaterialData> materials,
     const TextureCache& textureCache,
     std::vector<wgpu::BindGroup>& materialBindGroups)
 {
@@ -441,7 +379,7 @@ CreateMaterialBindGroups(wgpu::Device wgpuDevice,
 
     for(const auto& mtl : materials)
     {
-        auto bindGroup = CreateMaterialBindGroup(wgpuDevice, mtl, textureCache);
+        auto bindGroup = CreateMaterialBindGroup(mtl, textureCache);
         MLG_CHECK(bindGroup);
 
         materialBindGroups.emplace_back(std::move(*bindGroup));
@@ -633,19 +571,16 @@ BuildMeshDrawDataBuffer(std::span<const MeshData> meshDatas,
 }
 
 Result<DawnSceneKit*>
-DawnSceneKit::Create(wgpu::Device& wgpuDevice,
-    const std::filesystem::path& rootPath,
+DawnSceneKit::Create(const std::filesystem::path& rootPath,
+    TextureCache& textureCache,
     const SceneKitSourceData& sceneKitData)
 {
     Stopwatch createTimer;
     createTimer.Mark();
 
-    auto textureCache = CreateTextureCache(wgpuDevice);
-    MLG_CHECK(textureCache);
-
     wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
 
-    MLG_CHECK(FetchTextures(rootPath, sceneKitData.Materials, *textureCache, encoder));
+    MLG_CHECK(FetchTextures(rootPath, sceneKitData.Materials, textureCache, encoder));
 
     auto vertexBuffer = BuildVertexBuffer(sceneKitData.Vertices, encoder);
     MLG_CHECK(vertexBuffer);
@@ -666,7 +601,7 @@ DawnSceneKit::Create(wgpu::Device& wgpuDevice,
     MLG_CHECK(meshDrawDataBuffer);
 
     std::vector<wgpu::BindGroup> materialBindGroups;
-    MLG_CHECK(CreateMaterialBindGroups(wgpuDevice, sceneKitData.Materials, *textureCache, materialBindGroups));
+    MLG_CHECK(CreateMaterialBindGroups(sceneKitData.Materials, textureCache, materialBindGroups));
 
     ColorPipelineResources colorPipelineResources //
     {
@@ -675,7 +610,7 @@ DawnSceneKit::Create(wgpu::Device& wgpuDevice,
         .MeshDrawDataBuffer = *meshDrawDataBuffer,
     };
 
-    auto colorPipelineBindGroup0 = CreateColorPipelineBindGroup0(wgpuDevice, colorPipelineResources);
+    auto colorPipelineBindGroup0 = CreateColorPipelineBindGroup0(colorPipelineResources);
     MLG_CHECK(colorPipelineBindGroup0);
 
     TransformPipelineResources transformPipelineResources //
@@ -683,7 +618,7 @@ DawnSceneKit::Create(wgpu::Device& wgpuDevice,
         .TransformBuffer = *transformBuffer,
     };
 
-    auto transformPipelineBindGroup0 = CreateTransformPipelineBindGroup0(wgpuDevice, transformPipelineResources);
+    auto transformPipelineBindGroup0 = CreateTransformPipelineBindGroup0(transformPipelineResources);
     MLG_CHECK(transformPipelineBindGroup0);
 
     std::vector<MeshProperties> meshProperties;

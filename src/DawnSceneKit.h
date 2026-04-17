@@ -2,6 +2,7 @@
 
 #include "Result.h"
 #include "SceneKit.h"
+#include "TextureCache.h"
 #include "VecMath.h"
 #include "WebgpuHelper.h"
 
@@ -12,8 +13,8 @@
 class DawnSceneKit : public SceneKit
 {
 public:
-    static Result<DawnSceneKit*> Create(wgpu::Device& wgpuDevice,
-        const std::filesystem::path& rootPath,
+    static Result<DawnSceneKit*> Create(const std::filesystem::path& rootPath,
+        TextureCache& textureCache,
         const SceneKitSourceData& sceneKitData);
 
     static void Destroy(DawnSceneKit* sceneKit);

@@ -47,9 +47,11 @@ static Result<> MainLoop()
     auto sceneKitData = CreateTriangleModel();
     MLG_CHECK(sceneKitData);
 
-    wgpu::Device wgpuDevice = WebgpuHelper::GetDevice();
+    TextureCache textureCache;
+    MLG_CHECK(textureCache.Initialize());
+
     std::filesystem::path rootPath = ".";
-    auto dawnSceneKit = DawnSceneKit::Create(wgpuDevice, rootPath, *sceneKitData);
+    auto dawnSceneKit = DawnSceneKit::Create(rootPath, textureCache, *sceneKitData);
     MLG_CHECK(dawnSceneKit);
 
     SceneKit* sceneKit = *dawnSceneKit;

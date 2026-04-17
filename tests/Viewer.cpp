@@ -63,13 +63,12 @@ Shutdown()
 static Result<> RenderGui();
 
 static Result<DawnSceneKit*>
-LoadSceneKit(const std::filesystem::path& path)
+LoadSceneKit(const std::filesystem::path& path, TextureCache& textureCache)
 {
     auto sceneKitData = GltfLoader::LoadSceneKit(path.string());
     MLG_CHECK(sceneKitData, "Failed to load scene kit: {}", path.string());
 
-    wgpu::Device wgpuDevice = WebgpuHelper::GetDevice();
-    auto dawnSceneKit = DawnSceneKit::Create(wgpuDevice, path.parent_path(), *sceneKitData);
+    auto dawnSceneKit = DawnSceneKit::Create(path.parent_path(), textureCache, *sceneKitData);
     return dawnSceneKit;
 }
 
@@ -84,8 +83,6 @@ MainLoop()
 {
     bool running = true;
     bool minimized = false;
-
-    auto device = WebgpuHelper::GetDevice();
 
     auto rendererResult = DawnRenderer::Create(WebgpuHelper::GetWindow(),
         WebgpuHelper::GetDevice(),
@@ -119,7 +116,10 @@ MainLoop()
 
     const std::filesystem::path path(SPONZA_MODEL_PATH);
 
-    auto dawnSceneKit = LoadSceneKit(path);
+    TextureCache textureCache;
+    MLG_CHECK(textureCache.Initialize());
+
+    auto dawnSceneKit = LoadSceneKit(path, textureCache);
     MLG_CHECK(dawnSceneKit);
 
     EcsRegistry registry;
@@ -259,7 +259,8 @@ MainLoop()
 
         if(!droppedFile.empty())
         {
-            auto newSceneKit = LoadSceneKit(droppedFile);
+            textureCache.Clear();
+            auto newSceneKit = LoadSceneKit(droppedFile, textureCache);
             if(newSceneKit)
             {
                 auto oldSceneKit = model.Get<DawnSceneKit*>();
@@ -307,6 +308,8 @@ MainLoop()
 
         PerfMetrics::EndFrame();
     }
+
+    PerfMetrics::LogTimers();
 
     return Result<>::Ok;
 }
