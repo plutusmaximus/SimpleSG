@@ -33,7 +33,7 @@ Stopwatch::Mark()
 }
 
 float
-Stopwatch::Elapsed() const
+Stopwatch::ElapsedSeconds() const
 {
     LARGE_INTEGER curTime;
     QueryPerformanceCounter(&curTime);
