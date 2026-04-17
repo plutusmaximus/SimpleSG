@@ -95,9 +95,14 @@ private:
 
 struct VertexBufferTag{};
 struct IndexBufferTag{};
+struct IndirectBufferTag{};
+struct StorageBufferTag{};
 
 using VertexBuffer = TypedGpuBuffer<VertexBufferTag>;
 using IndexBuffer = TypedGpuBuffer<IndexBufferTag>;
+using IndirectBuffer = TypedGpuBuffer<IndirectBufferTag>;
+using StorageBuffer = TypedGpuBuffer<StorageBufferTag>;
+
 
 class WebgpuHelper final
 {
@@ -123,6 +128,10 @@ public:
     static Result<VertexBuffer> CreateVertexBuffer(const size_t size, const std::string& name);
 
     static Result<IndexBuffer> CreateIndexBuffer(const size_t size, const std::string& name);
+
+    static Result<IndirectBuffer> CreateIndirectBuffer(const size_t size, const std::string& name);
+
+    static Result<StorageBuffer> CreateStorageBuffer(const size_t size, const std::string& name);
 
     static Result<const std::array<wgpu::BindGroupLayout, 3>> GetColorPipelineLayouts();
 

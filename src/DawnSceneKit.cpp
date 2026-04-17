@@ -40,14 +40,14 @@ struct TextureCache
 
 struct ColorPipelineResources
 {
-    wgpu::Buffer TransformBuffer;
-    wgpu::Buffer MaterialConstantsBuffer;
-    wgpu::Buffer MeshDrawDataBuffer;
+    StorageBuffer TransformBuffer;
+    StorageBuffer MaterialConstantsBuffer;
+    StorageBuffer MeshDrawDataBuffer;
 };
 
 struct TransformPipelineResources
 {
-    wgpu::Buffer TransformBuffer;
+    StorageBuffer TransformBuffer;
 };
 
 template<typename T, typename U>
@@ -326,19 +326,19 @@ CreateColorPipelineBindGroup0(wgpu::Device wgpuDevice,
     {
         {
             .binding = 0,
-            .buffer = colorPipelineResources.MeshDrawDataBuffer,
+            .buffer = colorPipelineResources.MeshDrawDataBuffer.GetGpuBuffer(),
             .offset = 0,
             .size = colorPipelineResources.MeshDrawDataBuffer.GetSize(),
         },
         {
             .binding = 1,
-            .buffer = colorPipelineResources.TransformBuffer,
+            .buffer = colorPipelineResources.TransformBuffer.GetGpuBuffer(),
             .offset = 0,
             .size = colorPipelineResources.TransformBuffer.GetSize(),
         },
         {
             .binding = 2,
-            .buffer = colorPipelineResources.MaterialConstantsBuffer,
+            .buffer = colorPipelineResources.MaterialConstantsBuffer.GetGpuBuffer(),
             .offset = 0,
             .size = colorPipelineResources.MaterialConstantsBuffer.GetSize(),
         },
@@ -370,7 +370,7 @@ CreateTransformPipelineBindGroup0(wgpu::Device wgpuDevice,
     {
         {
             .binding = 0,
-            .buffer = transformPipelineResources.TransformBuffer,
+            .buffer = transformPipelineResources.TransformBuffer.GetGpuBuffer(),
             .offset = 0,
             .size = transformPipelineResources.TransformBuffer.GetSize(),
         },
@@ -389,20 +389,6 @@ CreateTransformPipelineBindGroup0(wgpu::Device wgpuDevice,
         "Failed to create bind group 0 for transform pipeline");
 
     return bindGroup;
-}
-
-static wgpu::Buffer
-CreateGpuBuffer(wgpu::Device device, wgpu::BufferUsage usage, const size_t size, const char* name)
-{
-    wgpu::BufferDescriptor bufferDesc //
-        {
-            .label = name,
-            .usage = usage,
-            .size = size,
-            .mappedAtCreation = true,
-        };
-
-    return device.CreateBuffer(&bufferDesc);
 }
 
 static Result<wgpu::BindGroup>
@@ -498,46 +484,41 @@ BuildIndexBuffer(std::span<const VertexIndex> indices, wgpu::CommandEncoder enco
     return *buffer;
 }
 
-static Result<wgpu::Buffer>
-BuildTransformBuffer(wgpu::Device wgpuDevice, std::span<const TransformData> transforms)
+static Result<StorageBuffer>
+BuildTransformBuffer(std::span<const TransformData> transforms)
 {
     const size_t sizeofBuffer = transforms.size() * sizeof(Mat44f);
 
-    wgpu::Buffer transformBuffer = CreateGpuBuffer(wgpuDevice,
-        wgpu::BufferUsage::Storage,
-        sizeofBuffer,
-        "TransformBuffer");
+    auto buffer = WebgpuHelper::CreateStorageBuffer(sizeofBuffer, "TransformBuffer");
+    MLG_CHECK(buffer);
 
-    void* mappedRange = transformBuffer.GetMappedRange();
-    MLG_CHECK(mappedRange, "Failed to map TransformBuffer");
+    auto mapped = buffer->Map();
+    MLG_CHECK(mapped);
 
-    Mat44f* dst = reinterpret_cast<Mat44f*>(mappedRange);
+    Mat44f* dst = reinterpret_cast<Mat44f*>(*mapped);
 
     for(const TransformData& transform : transforms)
     {
         *dst++ = transform.Transform;
     }
 
-    transformBuffer.Unmap();
+    buffer->Unmap();
 
-    return transformBuffer;
+    return buffer;
 }
 
-static Result<wgpu::Buffer>
-BuildMaterialConstantsBuffer(
-    wgpu::Device wgpuDevice, std::span<const MaterialData> materials)
+static Result<StorageBuffer>
+BuildMaterialConstantsBuffer(std::span<const MaterialData> materials)
 {
-    const size_t sizeofMaterialConstantsBuffer = materials.size() * sizeof(MaterialConstants);
+    const size_t sizeofBuffer = materials.size() * sizeof(MaterialConstants);
 
-    wgpu::Buffer materialConstantsBuffer = CreateGpuBuffer(wgpuDevice,
-        wgpu::BufferUsage::Storage,
-        sizeofMaterialConstantsBuffer,
-        "MaterialConstantsBuffer");
+    auto buffer = WebgpuHelper::CreateStorageBuffer(sizeofBuffer, "MaterialConstantsBuffer");
+    MLG_CHECK(buffer);
 
-    void* mtlConstantsMapped = materialConstantsBuffer.GetMappedRange();
-    MLG_CHECK(mtlConstantsMapped, "Failed to map MaterialConstantsBuffer");
+    auto mapped = buffer->Map();
+    MLG_CHECK(mapped);
 
-    MaterialConstants* dst = reinterpret_cast<MaterialConstants*>(mtlConstantsMapped);
+    MaterialConstants* dst = reinterpret_cast<MaterialConstants*>(*mapped);
 
     for(const auto& mtl : materials)
     {
@@ -549,14 +530,13 @@ BuildMaterialConstantsBuffer(
         };
     }
 
-    materialConstantsBuffer.Unmap();
+    buffer->Unmap();
 
-    return materialConstantsBuffer;
+    return buffer;
 }
 
-static Result<wgpu::Buffer>
-BuildDrawIndirectBuffer(wgpu::Device wgpuDevice,
-    std::span<const MeshData> meshDatas,
+static Result<IndirectBuffer>
+BuildDrawIndirectBuffer(std::span<const MeshData> meshDatas,
     std::span<const ModelInstance> modelInstances)
 {
     size_t meshInstanceCount = 0;
@@ -567,15 +547,13 @@ BuildDrawIndirectBuffer(wgpu::Device wgpuDevice,
 
     const size_t sizeofDrawIndirectBuffer = meshInstanceCount * sizeof(DrawIndirectBufferParams);
 
-    auto drawIndirectBuffer = CreateGpuBuffer(wgpuDevice,
-        wgpu::BufferUsage::Indirect,
-        sizeofDrawIndirectBuffer,
-        "DrawIndirectBuffer");
+    auto drawIndirectBuffer = WebgpuHelper::CreateIndirectBuffer(sizeofDrawIndirectBuffer, "DrawIndirectBuffer");
+    MLG_CHECK(drawIndirectBuffer);
 
-    void* diMapped = drawIndirectBuffer.GetMappedRange();
-    MLG_CHECK(diMapped, "Failed to map DrawIndirectBuffer");
+    auto mapped = drawIndirectBuffer->Map();
+    MLG_CHECK(mapped);
 
-    DrawIndirectBufferParams* drawParams = reinterpret_cast<DrawIndirectBufferParams*>(diMapped);
+    DrawIndirectBufferParams* drawParams = reinterpret_cast<DrawIndirectBufferParams*>(*mapped);
 
     uint32_t meshCount = 0;
 
@@ -602,14 +580,13 @@ BuildDrawIndirectBuffer(wgpu::Device wgpuDevice,
         }
     }
 
-    drawIndirectBuffer.Unmap();
+    drawIndirectBuffer->Unmap();
 
     return drawIndirectBuffer;
 }
 
-static Result<wgpu::Buffer>
-BuildMeshDrawDataBuffer(wgpu::Device wgpuDevice,
-    std::span<const MeshData> meshDatas,
+static Result<StorageBuffer>
+BuildMeshDrawDataBuffer(std::span<const MeshData> meshDatas,
     std::span<const ModelInstance> modelInstances)
 {
     size_t meshInstanceCount = 0;
@@ -618,17 +595,15 @@ BuildMeshDrawDataBuffer(wgpu::Device wgpuDevice,
         meshInstanceCount += modelInstance.MeshCount;
     }
 
-    const size_t sizeofMeshDrawDataBuffer = meshInstanceCount * sizeof(MeshDrawData);
+    const size_t sizeofBuffer = meshInstanceCount * sizeof(MeshDrawData);
 
-    auto meshDrawDataBuffer = CreateGpuBuffer(wgpuDevice,
-        wgpu::BufferUsage::Storage,
-        sizeofMeshDrawDataBuffer,
-        "MeshDrawDataBuffer");
+    auto buffer = WebgpuHelper::CreateStorageBuffer(sizeofBuffer, "MeshDrawDataBuffer");
+    MLG_CHECK(buffer);
 
-    void* meshDrawDataMapped = meshDrawDataBuffer.GetMappedRange();
-    MLG_CHECK(meshDrawDataMapped, "Failed to map MeshDrawDataBuffer");
+    auto mapped = buffer->Map();
+    MLG_CHECK(mapped);
 
-    MeshDrawData* meshDrawData = reinterpret_cast<MeshDrawData*>(meshDrawDataMapped);
+    MeshDrawData* meshDrawData = reinterpret_cast<MeshDrawData*>(*mapped);
 
     uint32_t meshCount = 0;
 
@@ -652,9 +627,9 @@ BuildMeshDrawDataBuffer(wgpu::Device wgpuDevice,
         }
     }
 
-    meshDrawDataBuffer.Unmap();
+    buffer->Unmap();
 
-    return meshDrawDataBuffer;
+    return buffer;
 }
 
 Result<DawnSceneKit*>
@@ -678,16 +653,16 @@ DawnSceneKit::Create(wgpu::Device& wgpuDevice,
     auto indexBuffer = BuildIndexBuffer(sceneKitData.Indices, encoder);
     MLG_CHECK(indexBuffer);
 
-    auto transformBuffer = BuildTransformBuffer(wgpuDevice, sceneKitData.Transforms);
+    auto transformBuffer = BuildTransformBuffer(sceneKitData.Transforms);
     MLG_CHECK(transformBuffer);
 
-    auto materialConstantsBuffer = BuildMaterialConstantsBuffer(wgpuDevice, sceneKitData.Materials);
+    auto materialConstantsBuffer = BuildMaterialConstantsBuffer(sceneKitData.Materials);
     MLG_CHECK(materialConstantsBuffer);
 
-    auto drawIndirectBuffer = BuildDrawIndirectBuffer(wgpuDevice, sceneKitData.Meshes, sceneKitData.ModelInstances);
+    auto drawIndirectBuffer = BuildDrawIndirectBuffer(sceneKitData.Meshes, sceneKitData.ModelInstances);
     MLG_CHECK(drawIndirectBuffer);
 
-    auto meshDrawDataBuffer = BuildMeshDrawDataBuffer(wgpuDevice, sceneKitData.Meshes, sceneKitData.ModelInstances);
+    auto meshDrawDataBuffer = BuildMeshDrawDataBuffer(sceneKitData.Meshes, sceneKitData.ModelInstances);
     MLG_CHECK(meshDrawDataBuffer);
 
     std::vector<wgpu::BindGroup> materialBindGroups;

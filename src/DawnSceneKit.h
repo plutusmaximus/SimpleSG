@@ -34,25 +34,25 @@ public:
             return *this;
         }
 
-        Builder& SetTransformBuffer(wgpu::Buffer transformBuffer)
+        Builder& SetTransformBuffer(StorageBuffer transformBuffer)
         {
             m_TransformBuffer = transformBuffer;
             return *this;
         }
 
-        Builder& SetMaterialConstantsBuffer(wgpu::Buffer materialConstantsBuffer)
+        Builder& SetMaterialConstantsBuffer(StorageBuffer materialConstantsBuffer)
         {
             m_MaterialConstantsBuffer = materialConstantsBuffer;
             return *this;
         }
 
-        Builder& SetDrawIndirectBuffer(wgpu::Buffer drawIndirectBuffer)
+        Builder& SetDrawIndirectBuffer(IndirectBuffer drawIndirectBuffer)
         {
             m_DrawIndirectBuffer = drawIndirectBuffer;
             return *this;
         }
 
-        Builder& SetMeshDrawDataBuffer(wgpu::Buffer meshDrawDataBuffer)
+        Builder& SetMeshDrawDataBuffer(StorageBuffer meshDrawDataBuffer)
         {
             m_MeshDrawDataBuffer = meshDrawDataBuffer;
             return *this;
@@ -129,10 +129,10 @@ public:
 
         IndexBuffer m_IndexBuffer{nullptr};
         VertexBuffer m_VertexBuffer{nullptr};
-        wgpu::Buffer m_TransformBuffer{nullptr};
-        wgpu::Buffer m_DrawIndirectBuffer{nullptr};
-        wgpu::Buffer m_MeshDrawDataBuffer{nullptr};
-        wgpu::Buffer m_MaterialConstantsBuffer{nullptr};
+        StorageBuffer m_TransformBuffer{nullptr};
+        IndirectBuffer m_DrawIndirectBuffer{nullptr};
+        StorageBuffer m_MeshDrawDataBuffer{nullptr};
+        StorageBuffer m_MaterialConstantsBuffer{nullptr};
         wgpu::BindGroup m_ColorPipelineBindGroup0{nullptr};
         wgpu::BindGroup m_TransformPipelineBindGroup0{nullptr};
         std::vector<wgpu::BindGroup> m_MaterialBindGroups;
@@ -150,10 +150,10 @@ public:
 
     DawnSceneKit(IndexBuffer indexBuffer,
         VertexBuffer vertexBuffer,
-        wgpu::Buffer transformBuffer,
-        wgpu::Buffer materialConstantsBuffer,
-        wgpu::Buffer drawIndirectBuffer,
-        wgpu::Buffer meshDrawDataBuffer,
+        StorageBuffer transformBuffer,
+        StorageBuffer materialConstantsBuffer,
+        IndirectBuffer drawIndirectBuffer,
+        StorageBuffer meshDrawDataBuffer,
         wgpu::BindGroup colorPipelineBindGroup0,
         wgpu::BindGroup transformPipelineBindGroup0,
         std::vector<wgpu::BindGroup>&& materialBindGroups,
@@ -202,8 +202,8 @@ public:
         return m_ModelInstances;
     }
 
-    wgpu::Buffer GetTransformBuffer() const { return m_TransformBuffer; }
-    wgpu::Buffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
+    StorageBuffer GetTransformBuffer() const { return m_TransformBuffer; }
+    IndirectBuffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
     VertexBuffer GetVertexBuffer() const { return m_VertexBuffer; }
     IndexBuffer GetIndexBuffer() const { return m_IndexBuffer; }
 
@@ -214,10 +214,10 @@ private:
 
     IndexBuffer m_IndexBuffer{nullptr};
     VertexBuffer m_VertexBuffer{nullptr};
-    wgpu::Buffer m_TransformBuffer{nullptr};
-    wgpu::Buffer m_DrawIndirectBuffer{nullptr};
-    wgpu::Buffer m_MeshDrawDataBuffer{nullptr};
-    wgpu::Buffer m_MaterialConstantsBuffer{nullptr};
+    StorageBuffer m_TransformBuffer{nullptr};
+    IndirectBuffer m_DrawIndirectBuffer{nullptr};
+    StorageBuffer m_MeshDrawDataBuffer{nullptr};
+    StorageBuffer m_MaterialConstantsBuffer{nullptr};
     wgpu::BindGroup m_ColorPipelineBindGroup0{nullptr};
     wgpu::BindGroup m_TransformPipelineBindGroup0{nullptr};
 

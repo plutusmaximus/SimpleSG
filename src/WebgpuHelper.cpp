@@ -560,6 +560,28 @@ WebgpuHelper::CreateIndexBuffer(const size_t size, const std::string& name)
         name.c_str()));
 }
 
+Result<IndirectBuffer>
+WebgpuHelper::CreateIndirectBuffer(const size_t size, const std::string& name)
+{
+    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateIndirectBuffer called before Startup");
+
+    return IndirectBuffer(CreateGpuBufferUnmapped(GetDevice(),
+        wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
+        size,
+        name.c_str()));
+}
+
+Result<StorageBuffer>
+WebgpuHelper::CreateStorageBuffer(const size_t size, const std::string& name)
+{
+    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateStorageBuffer called before Startup");
+
+    return StorageBuffer(CreateGpuBufferUnmapped(GetDevice(),
+        wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
+        size,
+        name.c_str()));
+}
+
 Result<const std::array<wgpu::BindGroupLayout, 3>>
 WebgpuHelper::GetColorPipelineLayouts()
 {
