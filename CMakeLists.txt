@@ -168,6 +168,7 @@ set(SSG_SOURCES
   src/PerfMetrics.cpp
   src/Shapes.cpp
   src/Stopwatch.cpp
+  src/TextureCache.cpp
   src/ThreadPool.cpp
   src/WebgpuHelper.cpp
 )
@@ -196,6 +197,7 @@ set(SSG_HEADERS
   src/scope_exit.h
   src/Shapes.h
   src/Stopwatch.h
+  src/TextureCache.h
   src/ThreadPool.h
   src/VecMath.h
   src/Vertex.h
