@@ -15,6 +15,10 @@ public:
 
     Result<> Shutdown();
 
+    ~TextureCache()
+    {
+        Shutdown();
+    }
 
     bool Contains(const std::string& uri) const
     {

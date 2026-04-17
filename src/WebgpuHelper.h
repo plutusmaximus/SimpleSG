@@ -97,12 +97,13 @@ struct VertexBufferTag{};
 struct IndexBufferTag{};
 struct IndirectBufferTag{};
 struct StorageBufferTag{};
+struct UniformBufferTag{};
 
 using VertexBuffer = TypedGpuBuffer<VertexBufferTag>;
 using IndexBuffer = TypedGpuBuffer<IndexBufferTag>;
 using IndirectBuffer = TypedGpuBuffer<IndirectBufferTag>;
 using StorageBuffer = TypedGpuBuffer<StorageBufferTag>;
-
+using UniformBuffer = TypedGpuBuffer<UniformBufferTag>;
 
 class WebgpuHelper final
 {
@@ -130,6 +131,8 @@ public:
     static Result<IndexBuffer> CreateIndexBuffer(const size_t size, const std::string& name);
 
     static Result<IndirectBuffer> CreateIndirectBuffer(const size_t size, const std::string& name);
+
+    static Result<UniformBuffer> CreateUniformBuffer(const size_t size, const std::string& name);
 
     static Result<StorageBuffer> CreateStorageBuffer(const size_t size, const std::string& name);
 

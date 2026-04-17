@@ -2,8 +2,9 @@
 
 #include "Result.h"
 
+#include "WebgpuHelper.h"
+
 #include <unordered_map>
-#include <webgpu/webgpu_cpp.h>
 
 struct SDL_Window;
 template<typename T>
@@ -58,9 +59,6 @@ private:
         const Mat44f& projection,
         const SceneKit& sceneKit);
 
-    SDL_Window* m_Window{ nullptr };
-    wgpu::Device m_WgpuDevice;
-    wgpu::Surface m_Surface;
     wgpu::Limits m_GpuLimits;
     wgpu::Texture m_ColorTarget;
     wgpu::TextureView m_ColorTargetView;
@@ -95,8 +93,8 @@ private:
     struct TransformBuffers
     {
         size_t TransformCount{0};
-        wgpu::Buffer ClipSpaceBuf;
-        wgpu::Buffer ViewProjBuf;
+        StorageBuffer ClipSpaceBuf;
+        UniformBuffer ViewProjBuf;
         wgpu::BindGroup BindGroup1;
         wgpu::BindGroup BindGroup2;
     };

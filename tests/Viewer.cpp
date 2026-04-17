@@ -89,46 +89,21 @@ MainLoop()
     bool running = true;
     bool minimized = false;
 
-    DawnRenderer renderer;
-    MLG_CHECK(renderer.Startup());
-
-    auto rendererCleanup = scope_exit([&renderer]()
-    {
-        renderer.Shutdown();
-    });
-
-    DawnRenderCompositor renderCompositor;
-    MLG_CHECK(renderCompositor.Startup());
-
-     auto renderCompositorCleanup = scope_exit([&renderCompositor]()
-    {
-        renderCompositor.Shutdown();
-    });
-
-    ImGuiRenderer imGuiRenderer;
-    MLG_CHECK(imGuiRenderer.Startup());
-
-    auto imGuiRendererCleanup = scope_exit([&imGuiRenderer]()
-    {
-        imGuiRenderer.Shutdown();
-    });
-
     const std::filesystem::path path(SPONZA_MODEL_PATH);
 
+    DawnRenderer renderer;
+    DawnRenderCompositor renderCompositor;
+    ImGuiRenderer imGuiRenderer;
     TextureCache textureCache;
-    MLG_CHECK(textureCache.Startup());
-
-    auto textureCacheCleanup = scope_exit([&textureCache]()
-    {
-        textureCache.Shutdown();
-    });
-
     DawnSceneKit dawnSceneKit;
-    MLG_CHECK(LoadSceneKit(path, textureCache, dawnSceneKit));
-
     EcsRegistry registry;
-
     WalkMouseNav mouseNav;
+
+    MLG_CHECK(renderer.Startup());
+    MLG_CHECK(renderCompositor.Startup());
+    MLG_CHECK(imGuiRenderer.Startup());
+    MLG_CHECK(textureCache.Startup());
+    MLG_CHECK(LoadSceneKit(path, textureCache, dawnSceneKit));
 
     Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, &dawnSceneKit);
 
@@ -308,6 +283,11 @@ MainLoop()
 
         PerfMetrics::EndFrame();
     }
+
+    MLG_CHECK(textureCache.Shutdown());
+    MLG_CHECK(imGuiRenderer.Shutdown());
+    MLG_CHECK(renderCompositor.Shutdown());
+    MLG_CHECK(renderer.Shutdown());
 
     PerfMetrics::LogTimers();
 
