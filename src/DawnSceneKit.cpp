@@ -7,6 +7,7 @@
 #include "FileFetcher.h"
 #include "Log.h"
 #include "Material.h"
+#include "Stopwatch.h"
 #include "ThreadPool.h"
 #include "WebgpuHelper.h"
 
@@ -24,18 +25,17 @@ struct TextureBuilder
 {
     std::string Uri;
     const FileFetcher::Request* Request{ nullptr };
-    wgpu::Buffer StagingBuffer;
-    wgpu::Texture Texture;
+    Texture Texture;
     void* MappedMemory{ nullptr };
     std::atomic<bool> DecodeComplete{ false };
 };
 
 struct TextureCache
 {
-    std::unordered_map<std::string, wgpu::Texture> Textures;
+    std::unordered_map<std::string, Texture> Textures;
 
     wgpu::Sampler DefaultSampler;
-    wgpu::Texture DefaultTexture;
+    Texture DefaultTexture;
 };
 
 struct ColorPipelineResources
@@ -65,57 +65,8 @@ static T narrow_cast(U u)
 }
 }
 
-static Result<wgpu::Texture>
-CreateTexture(wgpu::Device wgpuDevice,
-    const uint32_t width,
-    const uint32_t height,
-    const wgpu::TextureFormat format,
-    const std::string& name)
-{
-    wgpu::TextureDescriptor desc //
-        {
-            .label = name.c_str(),
-            .usage = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
-            .dimension = wgpu::TextureDimension::e2D,
-            .size = //
-            {
-                .width = width,
-                .height = height,
-                .depthOrArrayLayers = 1,
-            },
-            .format = format,
-            .mipLevelCount = 1,
-            .sampleCount = 1,
-        };
-
-    wgpu::Texture texture = wgpuDevice.CreateTexture(&desc);
-
-    return texture;
-}
-
-static Result<wgpu::Buffer>
-CreateTextureStagingBuffer(wgpu::Device wgpuDevice, wgpu::Texture texture, const std::string& name)
-{
-    const uint32_t rowStride = texture.GetWidth() * kNumTextureChannels;
-    // Staging buffer rows must be a multiple of 256 bytes.
-    const uint32_t alignedRowStride = (rowStride + 255) & ~255;
-    const uint32_t stagingSize = alignedRowStride * texture.GetHeight();
-
-    wgpu::BufferDescriptor bufDesc = //
-        {
-            .label = name.c_str(),
-            .usage = wgpu::BufferUsage::CopySrc | wgpu::BufferUsage::MapWrite,
-            .size = stagingSize,
-            .mappedAtCreation = true,
-        };
-
-    wgpu::Buffer stagingBuffer = wgpuDevice.CreateBuffer(&bufDesc);
-
-    return stagingBuffer;
-}
-
 static Result<>
-StageTexture(wgpu::Device wgpuDevice, TextureBuilder& builder)
+StageTexture(TextureBuilder& builder)
 {
     MLG_DEBUG("Staging texture...");
 
@@ -133,23 +84,17 @@ StageTexture(wgpu::Device wgpuDevice, TextureBuilder& builder)
 
     MLG_DEBUG("Image info - {} x {} x {}", width, height, numChannels);
 
-    auto texture = CreateTexture(wgpuDevice,
-        static_cast<uint32_t>(width),
+    auto texture = WebgpuHelper::CreateTexture(static_cast<uint32_t>(width),
         static_cast<uint32_t>(height),
-        kTextureFormat,
         builder.Uri);
 
     MLG_CHECK(texture);
 
-    auto stagingBuffer = CreateTextureStagingBuffer(wgpuDevice, *texture, builder.Uri);
-    MLG_CHECK(stagingBuffer);
-
-    void* mappedMemory = stagingBuffer->GetMappedRange();
-    MLG_CHECK(mappedMemory, "Failed to map staging buffer for texture upload");
+    auto mapped = texture->Map();
+    MLG_CHECK(mapped);
 
     builder.Texture = *texture;
-    builder.StagingBuffer = *stagingBuffer;
-    builder.MappedMemory = mappedMemory;
+    builder.MappedMemory = *mapped;
 
     auto decode = [](void* userData)
     {
@@ -191,65 +136,23 @@ StageTexture(wgpu::Device wgpuDevice, TextureBuilder& builder)
 
     return Result<>::Ok;
 }
-
-static Result<>
-CommitTexture(wgpu::Texture texture, wgpu::Buffer stagingBuffer, wgpu::CommandEncoder encoder)
-{
-    MLG_DEBUG("Committing texture...");
-
-    const uint32_t rowStride = texture.GetWidth() * kNumTextureChannels;
-    const uint32_t alignedRowStride = (rowStride + 255) & ~255;
-
-    wgpu::TexelCopyBufferInfo copySrc = //
-        {
-            .layout = //
-            {
-                .offset = 0,
-                .bytesPerRow = alignedRowStride,
-                .rowsPerImage = texture.GetHeight(),
-            },
-            .buffer = stagingBuffer,
-        };
-
-    wgpu::TexelCopyTextureInfo copyDst = //
-        {
-            .texture = texture,
-            .mipLevel = 0,
-            .origin = { 0, 0, 0 },
-        };
-
-    wgpu::Extent3D copySize = //
-        {
-            .width = texture.GetWidth(),
-            .height = texture.GetHeight(),
-            .depthOrArrayLayers = 1,
-        };
-
-    encoder.CopyBufferToTexture(&copySrc, &copyDst, &copySize);
-
-    return Result<>::Ok;
-}
-
 static Result<TextureCache>
 CreateTextureCache(wgpu::Device wgpuDevice)
 {
     constexpr uint32_t kDefaultTextureWidth = 128;
     constexpr uint32_t kDefaultTextureHeight = 128;
 
-    auto defaultTexture = CreateTexture(wgpuDevice,
+    auto defaultTexture = WebgpuHelper::CreateTexture(
         kDefaultTextureWidth,
         kDefaultTextureHeight,
-        kTextureFormat,
         "DefaultTexture");
 
     MLG_CHECK(defaultTexture);
 
-    auto stagingBuffer =
-        CreateTextureStagingBuffer(wgpuDevice, *defaultTexture, "DefaultTexture");
+    auto mapped = defaultTexture->Map();
+    MLG_CHECK(mapped);
 
-    MLG_CHECK(stagingBuffer);
-
-    uint8_t* data = static_cast<uint8_t*>(stagingBuffer->GetMappedRange());
+    uint8_t* data = static_cast<uint8_t*>(*mapped);
 
     for(uint32_t y = 0; y < kDefaultTextureHeight; ++y)
     {
@@ -263,17 +166,7 @@ CreateTextureCache(wgpu::Device wgpuDevice)
         }
     }
 
-    stagingBuffer->Unmap();
-
-    wgpu::CommandEncoderDescriptor encDesc = {};
-    wgpu::CommandEncoder encoder = wgpuDevice.CreateCommandEncoder(&encDesc);
-
-    MLG_CHECK(CommitTexture(*defaultTexture, *stagingBuffer, encoder));
-
-    wgpu::CommandBuffer commandBuffer = encoder.Finish();
-
-    // TODO - change API to separate creating a resource from populating it
-    wgpuDevice.GetQueue().Submit(1, &commandBuffer);
+    defaultTexture->Unmap();
 
     wgpu::SamplerDescriptor samplerDesc//
     {
@@ -294,10 +187,10 @@ CreateTextureCache(wgpu::Device wgpuDevice)
 }
 
 static Result<>
-FetchTextures(wgpu::Device wgpuDevice,
-    std::filesystem::path basePath,
+FetchTextures(std::filesystem::path basePath,
     std::span<const MaterialData> materials,
-    TextureCache& textureCache)
+    TextureCache& textureCache,
+    wgpu::CommandEncoder encoder)
 {
     std::unordered_map<std::string, FileFetcher::Request> fetchRequests;
 
@@ -385,7 +278,7 @@ FetchTextures(wgpu::Device wgpuDevice,
         builder.Uri = uri;
         builder.Request = &request;
 
-        auto result = StageTexture(wgpuDevice, builder);
+        auto result = StageTexture(builder);
         if(!result)
         {
             MLG_WARN("Failed to stage texture: {}", builder.Uri);
@@ -407,20 +300,12 @@ FetchTextures(wgpu::Device wgpuDevice,
         }
     } while(pending);
 
-    wgpu::CommandEncoderDescriptor encDesc = {};
-    wgpu::CommandEncoder encoder = wgpuDevice.CreateCommandEncoder(&encDesc);
-
     for(auto& builder : textureBuilders)
     {
         MLG_LOG_SCOPE(builder.Uri);
 
-        builder.StagingBuffer.Unmap();
-        CommitTexture(builder.Texture, builder.StagingBuffer, encoder);
+        builder.Texture.Unmap(encoder);
     }
-
-    wgpu::CommandBuffer commandBuffer = encoder.Finish();
-
-    wgpuDevice.GetQueue().Submit(1, &commandBuffer);
 
     for(auto& builder : textureBuilders)
     {
@@ -528,9 +413,10 @@ CreateMaterialBindGroup(wgpu::Device wgpuDevice,
     auto bgLayouts = WebgpuHelper::GetColorPipelineLayouts();
     MLG_CHECK(bgLayouts);
 
-    wgpu::Texture baseTexture = material.BaseTextureUri.empty()
-                                    ? textureCache.DefaultTexture
-                                    : textureCache.Textures.at(material.BaseTextureUri);
+    Texture baseTexture =
+        material.BaseTextureUri.empty()
+            ? textureCache.DefaultTexture
+            : textureCache.Textures.at(material.BaseTextureUri);
 
     wgpu::BindGroupEntry bgEntries[]//
     {
@@ -579,7 +465,7 @@ CreateMaterialBindGroups(wgpu::Device wgpuDevice,
 }
 
 static Result<VertexBuffer>
-BuildVertexBuffer(std::span<const Vertex> vertices)
+BuildVertexBuffer(std::span<const Vertex> vertices, wgpu::CommandEncoder encoder)
 {
     const size_t sizeofBuffer = vertices.size() * sizeof(Vertex);
     auto buffer = WebgpuHelper::CreateVertexBuffer(sizeofBuffer, "VertexBuffer");
@@ -590,13 +476,13 @@ BuildVertexBuffer(std::span<const Vertex> vertices)
 
     ::memcpy(*mapped, vertices.data(), sizeofBuffer);
 
-    MLG_CHECK(buffer->Unmap());
+    MLG_CHECK(buffer->Unmap(encoder));
 
     return *buffer;
 }
 
 static Result<IndexBuffer>
-BuildIndexBuffer(std::span<const VertexIndex> indices)
+BuildIndexBuffer(std::span<const VertexIndex> indices, wgpu::CommandEncoder encoder)
 {
     const size_t sizeofBuffer = indices.size() * sizeof(VertexIndex);
     auto buffer = WebgpuHelper::CreateIndexBuffer(sizeofBuffer, "IndexBuffer");
@@ -607,7 +493,7 @@ BuildIndexBuffer(std::span<const VertexIndex> indices)
 
     ::memcpy(*mapped, indices.data(), sizeofBuffer);
 
-    MLG_CHECK(buffer->Unmap());
+    MLG_CHECK(buffer->Unmap(encoder));
 
     return *buffer;
 }
@@ -776,15 +662,20 @@ DawnSceneKit::Create(wgpu::Device& wgpuDevice,
     const std::filesystem::path& rootPath,
     const SceneKitSourceData& sceneKitData)
 {
+    Stopwatch createTimer;
+    createTimer.Mark();
+
     auto textureCache = CreateTextureCache(wgpuDevice);
     MLG_CHECK(textureCache);
 
-    MLG_CHECK(FetchTextures(wgpuDevice, rootPath, sceneKitData.Materials, *textureCache));
+    wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
 
-    auto vertexBuffer = BuildVertexBuffer(sceneKitData.Vertices);
+    MLG_CHECK(FetchTextures(rootPath, sceneKitData.Materials, *textureCache, encoder));
+
+    auto vertexBuffer = BuildVertexBuffer(sceneKitData.Vertices, encoder);
     MLG_CHECK(vertexBuffer);
 
-    auto indexBuffer = BuildIndexBuffer(sceneKitData.Indices);
+    auto indexBuffer = BuildIndexBuffer(sceneKitData.Indices, encoder);
     MLG_CHECK(indexBuffer);
 
     auto transformBuffer = BuildTransformBuffer(wgpuDevice, sceneKitData.Transforms);
@@ -840,6 +731,10 @@ DawnSceneKit::Create(wgpu::Device& wgpuDevice,
         meshProperties.emplace_back(std::move(mesh));
     }
 
+    wgpu::CommandBuffer commandBuffer = encoder.Finish();
+
+    WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
+
     DawnSceneKit::Builder builder;
 
     std::vector<ModelInstance> modelInstances(sceneKitData.ModelInstances);
@@ -857,6 +752,8 @@ DawnSceneKit::Create(wgpu::Device& wgpuDevice,
         .SetModelInstances(std::move(modelInstances));
 
     DawnSceneKit* sceneKit = builder.Build();
+
+    MLG_INFO("DawnSceneKit created in {} ms", createTimer.ElapsedSeconds() * 1000);
 
     return sceneKit;
 }

@@ -79,6 +79,7 @@ public:
         Builder& SetMeshes(std::vector<MeshProperties>&& meshes)
         {
             m_Meshes = std::move(meshes);
+#ifndef NDEBUG
             for(const auto& mesh : m_Meshes)
             {
                 const Vec3f& aabbMax = mesh.BoundingBox.GetMax();
@@ -88,6 +89,7 @@ public:
                            aabbMin.z <= aabbMax.z,
                     "Mesh has invalid bounding box");
             }
+#endif // NDEBUG
             return *this;
         }
 

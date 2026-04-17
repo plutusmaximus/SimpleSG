@@ -483,7 +483,7 @@ WebgpuHelper::Resize(const uint32_t width, const uint32_t height)
     return Result<>::Ok;
 }
 
-Result<wgpu::Texture>
+Result<Texture>
 WebgpuHelper::CreateTexture(const unsigned width, const unsigned height, const std::string& name)
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateTexture called before Startup");
@@ -506,68 +506,7 @@ WebgpuHelper::CreateTexture(const unsigned width, const unsigned height, const s
 
     wgpu::Texture texture = GetDevice().CreateTexture(&desc);
 
-    return texture;
-}
-
-Result<wgpu::Buffer>
-WebgpuHelper::CreateTextureStagingBuffer(wgpu::Texture texture)
-{
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateTextureStagingBuffer called before Startup");
-
-    const uint32_t width = texture.GetWidth();
-    const uint32_t height = texture.GetHeight();
-
-    // Staging buffer rows must be a multiple of 256 bytes.
-    const uint32_t alignedRowStride = GetTextureAlignedRowStride(width);
-    const uint32_t stagingSize = alignedRowStride * height;
-
-    wgpu::BufferDescriptor bufDesc = //
-        {
-            //.label = name.c_str(),
-            .usage = wgpu::BufferUsage::CopySrc | wgpu::BufferUsage::MapWrite,
-            .size = stagingSize,
-            .mappedAtCreation = true,
-        };
-
-    wgpu::Buffer stagingBuffer = GetDevice().CreateBuffer(&bufDesc);
-
-    return stagingBuffer;
-}
-
-Result<>
-WebgpuHelper::UploadTextureData(
-    wgpu::Texture texture, wgpu::Buffer stagingBuffer, wgpu::CommandEncoder encoder)
-{
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::UploadTextureData called before Startup");
-
-    wgpu::TexelCopyBufferInfo copySrc = //
-        {
-            .layout = //
-            {
-                .offset = 0,
-                .bytesPerRow = GetTextureAlignedRowStride(texture.GetWidth()),
-                .rowsPerImage = texture.GetHeight(),
-            },
-            .buffer = stagingBuffer,
-        };
-
-    wgpu::TexelCopyTextureInfo copyDst = //
-        {
-            .texture = texture,
-            .mipLevel = 0,
-            .origin = { 0, 0, 0 },
-        };
-
-    wgpu::Extent3D copySize = //
-        {
-            .width = texture.GetWidth(),
-            .height = texture.GetHeight(),
-            .depthOrArrayLayers = 1,
-        };
-
-    encoder.CopyBufferToTexture(&copySrc, &copyDst, &copySize);
-
-    return Result<>::Ok;
+    return Texture(texture);
 }
 
 Result<wgpu::Sampler>
@@ -980,16 +919,127 @@ BasicGpuBuffer::Map()
 Result<>
 BasicGpuBuffer::Unmap()
 {
-    MLG_CHECKV(m_StagingBuffer, "BasicGpuBuffer::Unmap called while not mapped");
-
-    m_StagingBuffer.Unmap();
-
     wgpu::CommandEncoder cmdEncoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
-    cmdEncoder.CopyBufferToBuffer(m_StagingBuffer, 0, *this, 0, this->GetSize());
+
+    MLG_CHECK(Unmap(cmdEncoder));
 
     wgpu::CommandBuffer commandBuffer = cmdEncoder.Finish();
 
     WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
+
+    return Result<>::Ok;
+}
+
+Result<>
+BasicGpuBuffer::Unmap(wgpu::CommandEncoder cmdEncoder)
+{
+    MLG_CHECKV(m_StagingBuffer, "BasicGpuBuffer::Unmap called while not mapped");
+
+    m_StagingBuffer.Unmap();
+
+    cmdEncoder.CopyBufferToBuffer(m_StagingBuffer, 0, *this, 0, this->GetSize());
+
+    m_StagingBuffer = nullptr;
+
+    return Result<>::Ok;
+}
+
+Result<void*>
+Texture::Map()
+{
+    MLG_CHECKV(m_StagingBuffer == nullptr, "Texture::Map called while already mapped");
+
+    // Staging buffer rows must be a multiple of 256 bytes.
+    const uint32_t alignedRowStride = GetTextureAlignedRowStride(this->GetWidth());
+    const uint32_t sizeofBuffer = alignedRowStride * this->GetHeight();
+
+    wgpu::Buffer stagingBuffer = CreateGpuBufferUnmapped(WebgpuHelper::GetDevice(),
+        wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc,
+        sizeofBuffer,
+        "TextureStagingBuffer");
+
+    Result<> result;
+
+    auto cb = [](wgpu::MapAsyncStatus status, wgpu::StringView message, Result<>* result)
+    {
+        if(status != wgpu::MapAsyncStatus::Success)
+        {
+            MLG_ERROR("MapAsync failed: {}", std::string(message.data, message.length));
+            *result = Result<>::Fail;
+        }
+        else
+        {
+            *result = Result<>::Ok;
+        }
+    };
+
+    wgpu::Future fut = stagingBuffer.MapAsync(wgpu::MapMode::Write,
+        0,
+        sizeofBuffer,
+        wgpu::CallbackMode::WaitAnyOnly,
+        cb,
+        &result);
+
+    wgpu::WaitStatus waitStatus = WebgpuHelper::GetInstance().WaitAny(fut, UINT64_MAX);
+
+    MLG_CHECK(waitStatus == wgpu::WaitStatus::Success, "Failed to map staging buffer - WaitAny failed");
+
+    void* mapped = stagingBuffer.GetMappedRange();
+
+    MLG_CHECK(mapped, "Failed to map staging buffer");
+
+    m_StagingBuffer = std::move(stagingBuffer);
+
+    return mapped;
+}
+
+Result<>
+Texture::Unmap()
+{
+    wgpu::CommandEncoder cmdEncoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
+
+    MLG_CHECK(Unmap(cmdEncoder));
+
+    wgpu::CommandBuffer commandBuffer = cmdEncoder.Finish();
+
+    WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
+
+    return Result<>::Ok;
+}
+
+Result<>
+Texture::Unmap(wgpu::CommandEncoder cmdEncoder)
+{
+    MLG_CHECKV(m_StagingBuffer, "Texture::Unmap called while not mapped");
+
+    m_StagingBuffer.Unmap();
+
+    wgpu::TexelCopyBufferInfo copySrc = //
+        {
+            .layout = //
+            {
+                .offset = 0,
+                .bytesPerRow = GetTextureAlignedRowStride(this->GetWidth()),
+                .rowsPerImage = this->GetHeight(),
+            },
+            .buffer = m_StagingBuffer,
+        };
+
+    wgpu::TexelCopyTextureInfo copyDst = //
+        {
+            .texture = *this,
+            .mipLevel = 0,
+            .origin = { 0, 0, 0 },
+        };
+
+    const wgpu::Extent3D copySize = //
+        {
+            .width = this->GetWidth(),
+            .height = this->GetHeight(),
+            .depthOrArrayLayers = 1,
+        };
+
+    cmdEncoder.CopyBufferToTexture(&copySrc, &copyDst, &copySize);
 
     m_StagingBuffer = nullptr;
 

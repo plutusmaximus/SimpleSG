@@ -29,9 +29,45 @@ public:
 
     Result<> Unmap();
 
+    Result<> Unmap(wgpu::CommandEncoder cmdEncoder);
+
 protected:
     explicit BasicGpuBuffer(wgpu::Buffer buffer)
         : wgpu::Buffer(buffer)
+    {
+    }
+
+private:
+
+    wgpu::Buffer m_StagingBuffer;
+};
+
+class Texture : private wgpu::Texture
+{
+public:
+
+    using wgpu::Texture::Texture;
+    using wgpu::Texture::GetWidth;
+    using wgpu::Texture::GetHeight;
+    using wgpu::Texture::GetFormat;
+    using wgpu::Texture::GetUsage;
+    using wgpu::Texture::CreateView;
+    using wgpu::Texture::operator bool;
+
+    wgpu::Texture& GetGpuTexture() { return *this; }
+    const wgpu::Texture& GetGpuTexture() const { return *this; }
+
+    Result<void*> Map();
+
+    Result<> Unmap();
+
+    Result<> Unmap(wgpu::CommandEncoder cmdEncoder);
+
+protected:
+    friend class WebgpuHelper;
+
+    explicit Texture(wgpu::Texture texture)
+        : wgpu::Texture(texture)
     {
     }
 
@@ -79,16 +115,8 @@ public:
     static Result<> Resize(const uint32_t width, const uint32_t height);
 
     /// @brief Creates an empty texture with the given dimensions and name.
-    static Result<wgpu::Texture> CreateTexture(
+    static Result<Texture> CreateTexture(
         const unsigned width, const unsigned height, const std::string& name);
-
-    /// @brief Creates a staging buffer for the given texture. The staging buffer can be used to
-    /// upload texture data to the GPU.
-    static Result<wgpu::Buffer> CreateTextureStagingBuffer(wgpu::Texture texture);
-
-    /// @brief Uploads texture data from a staging buffer to a texture.
-    static Result<> UploadTextureData(
-        wgpu::Texture texture, wgpu::Buffer stagingBuffer, wgpu::CommandEncoder encoder);
 
     static Result<wgpu::Sampler> GetDefaultSampler();
 
