@@ -1,7 +1,9 @@
 #pragma once
 
 #include "Result.h"
+#include "shaders/ShaderTypes.h"
 #include "VecMath.h"
+#include "Vertex.h"
 
 #include <array>
 #include <string>
@@ -80,10 +82,19 @@ private:
 template<typename T>
 class TypedGpuBuffer : public BasicGpuBuffer
 {
+    static_assert(!std::is_reference_v<T>, "TypedGpuBuffer cannot be instantiated with reference types");
+    static_assert(!std::is_pointer_v<T>, "TypedGpuBuffer cannot be instantiated with pointer types");
 public:
 
     using BasicGpuBuffer::BasicGpuBuffer;
     using BasicGpuBuffer::operator bool;
+
+    Result<T*> Map()
+    {
+        auto mapping = BasicGpuBuffer::Map();
+        MLG_CHECK(mapping);
+        return static_cast<T*>(*mapping);
+    }
 
 private:
     friend class WebgpuHelper;
@@ -94,22 +105,16 @@ private:
     }
 };
 
+using VertexBuffer = TypedGpuBuffer<Vertex>;
+using IndexBuffer = TypedGpuBuffer<VertexIndex>;
+using IndirectBuffer = TypedGpuBuffer<ShaderTypes::DrawIndirectParams>;
+
 template <typename T>
 struct is_gpu_buffer_type : std::false_type {};
 template <typename Tag>
 struct is_gpu_buffer_type<TypedGpuBuffer<Tag>> : std::true_type {};
 template <typename T>
 inline constexpr bool is_gpu_buffer_type_v = is_gpu_buffer_type<T>::value;
-
-// Semantic tags for strongly-typed GPU storage buffers.
-struct VertexBufferTag{};
-struct IndexBufferTag{};
-struct IndirectBufferTag{};
-
-// Strongly-typed GPU buffer classes.
-using VertexBuffer = TypedGpuBuffer<VertexBufferTag>;
-using IndexBuffer = TypedGpuBuffer<IndexBufferTag>;
-using IndirectBuffer = TypedGpuBuffer<IndirectBufferTag>;
 
 class WebgpuHelper final
 {

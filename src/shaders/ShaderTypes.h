@@ -10,7 +10,7 @@ using ModelIndex = uint32_t;
 // These types mirror the corresponding types defined in shaders.
 namespace ShaderTypes
 {
-    class DrawIndirectBufferParams
+    class DrawIndirectParams
     {
     public:
         uint32_t IndexCount;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Result.h"
+#include "shaders/ShaderTypes.h"
 
 #include "WebgpuHelper.h"
 
@@ -90,10 +91,8 @@ private:
     // Pipeline to resolve the color target to the swap chain.
     ResolvePipeline m_ResolvePipeline;
 
-    struct ClipSpaceBufferTag;
-    struct CameraParamsBufferTag;
-    using ClipSpaceBuffer = TypedGpuBuffer<ClipSpaceBufferTag>;
-    using CameraParamsBuffer = TypedGpuBuffer<CameraParamsBufferTag>;
+    using ClipSpaceBuffer = TypedGpuBuffer<ShaderTypes::ClipSpaceTransform>;
+    using CameraParamsBuffer = TypedGpuBuffer<ShaderTypes::CameraParams>;
 
     struct TransformBuffers
     {

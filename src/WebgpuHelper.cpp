@@ -3,7 +3,6 @@
 #include "Color.h"
 #include "SceneKit.h"
 #include "scope_exit.h"
-#include "shaders/ShaderTypes.h"
 #include "VecMath.h"
 
 #include <SDL3/SDL.h>

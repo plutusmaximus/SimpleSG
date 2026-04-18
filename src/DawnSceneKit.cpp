@@ -482,7 +482,7 @@ BuildDrawIndirectBuffer(std::span<const MeshData> meshDatas,
         meshInstanceCount += modelInstance.MeshCount;
     }
 
-    const size_t sizeofDrawIndirectBuffer = meshInstanceCount * sizeof(ShaderTypes::DrawIndirectBufferParams);
+    const size_t sizeofDrawIndirectBuffer = meshInstanceCount * sizeof(ShaderTypes::DrawIndirectParams);
 
     auto drawIndirectBuffer = WebgpuHelper::CreateIndirectBuffer(sizeofDrawIndirectBuffer, "DrawIndirectBuffer");
     MLG_CHECK(drawIndirectBuffer);
@@ -490,8 +490,7 @@ BuildDrawIndirectBuffer(std::span<const MeshData> meshDatas,
     auto mapped = drawIndirectBuffer->Map();
     MLG_CHECK(mapped);
 
-    ShaderTypes::DrawIndirectBufferParams* drawParams =
-        reinterpret_cast<ShaderTypes::DrawIndirectBufferParams*>(*mapped);
+    ShaderTypes::DrawIndirectParams* drawParams = *mapped;
 
     uint32_t meshCount = 0;
 
