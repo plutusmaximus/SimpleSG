@@ -31,14 +31,14 @@ struct TextureBuilder
 
 struct ColorPipelineResources
 {
-    StorageBuffer TransformBuffer;
-    StorageBuffer MaterialConstantsBuffer;
-    StorageBuffer MeshDrawDataBuffer;
+    TransformBuffer TransformBuffer;
+    MaterialConstantsBuffer MaterialConstantsBuffer;
+    MeshDrawDataBuffer MeshDrawDataBuffer;
 };
 
 struct TransformPipelineResources
 {
-    StorageBuffer TransformBuffer;
+    TransformBuffer TransformBuffer;
 };
 
 template<typename T, typename U>
@@ -421,12 +421,12 @@ BuildIndexBuffer(std::span<const VertexIndex> indices, wgpu::CommandEncoder enco
     return *buffer;
 }
 
-static Result<StorageBuffer>
+static Result<TransformBuffer>
 BuildTransformBuffer(std::span<const TransformData> transforms)
 {
     const size_t sizeofBuffer = transforms.size() * sizeof(Mat44f);
 
-    auto buffer = WebgpuHelper::CreateStorageBuffer(sizeofBuffer, "TransformBuffer");
+    auto buffer = WebgpuHelper::CreateTypedStorageBuffer<TransformBuffer>(sizeofBuffer, "TransformBuffer");
     MLG_CHECK(buffer);
 
     auto mapped = buffer->Map();
@@ -444,12 +444,12 @@ BuildTransformBuffer(std::span<const TransformData> transforms)
     return buffer;
 }
 
-static Result<StorageBuffer>
+static Result<MaterialConstantsBuffer>
 BuildMaterialConstantsBuffer(std::span<const MaterialData> materials)
 {
     const size_t sizeofBuffer = materials.size() * sizeof(ShaderTypes::MaterialConstants);
 
-    auto buffer = WebgpuHelper::CreateStorageBuffer(sizeofBuffer, "MaterialConstantsBuffer");
+    auto buffer = WebgpuHelper::CreateTypedStorageBuffer<MaterialConstantsBuffer>(sizeofBuffer, "MaterialConstantsBuffer");
     MLG_CHECK(buffer);
 
     auto mapped = buffer->Map();
@@ -523,7 +523,7 @@ BuildDrawIndirectBuffer(std::span<const MeshData> meshDatas,
     return drawIndirectBuffer;
 }
 
-static Result<StorageBuffer>
+static Result<MeshDrawDataBuffer>
 BuildMeshDrawDataBuffer(std::span<const MeshData> meshDatas,
     std::span<const ModelInstance> modelInstances)
 {
@@ -535,7 +535,7 @@ BuildMeshDrawDataBuffer(std::span<const MeshData> meshDatas,
 
     const size_t sizeofBuffer = meshInstanceCount * sizeof(ShaderTypes::MeshDrawData);
 
-    auto buffer = WebgpuHelper::CreateStorageBuffer(sizeofBuffer, "MeshDrawDataBuffer");
+    auto buffer = WebgpuHelper::CreateTypedStorageBuffer<MeshDrawDataBuffer>(sizeofBuffer, "MeshDrawDataBuffer");
     MLG_CHECK(buffer);
 
     auto mapped = buffer->Map();
@@ -646,23 +646,22 @@ DawnSceneKit::Load(const std::filesystem::path& rootPath,
 
     WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
 
-    DawnSceneKit::Builder builder;
-
     std::vector<ModelInstance> modelInstances(sceneKitData.ModelInstances);
 
-    builder.SetIndexBuffer(*indexBuffer)
-        .SetVertexBuffer(*vertexBuffer)
-        .SetTransformBuffer(*transformBuffer)
-        .SetMaterialConstantsBuffer(*materialConstantsBuffer)
-        .SetDrawIndirectBuffer(*drawIndirectBuffer)
-        .SetMeshDrawDataBuffer(*meshDrawDataBuffer)
-        .SetColorPipelineBindGroup0(*colorPipelineBindGroup0)
-        .SetTransformPipelineBindGroup0(*transformPipelineBindGroup0)
-        .SetMaterialBindGroups(std::move(materialBindGroups))
-        .SetMeshes(std::move(meshProperties))
-        .SetModelInstances(std::move(modelInstances));
+    DawnSceneKit sceneKit(
+        *indexBuffer,
+        *vertexBuffer,
+        *transformBuffer,
+        *materialConstantsBuffer,
+        *drawIndirectBuffer,
+        *meshDrawDataBuffer,
+        *colorPipelineBindGroup0,
+        *transformPipelineBindGroup0,
+        std::move(materialBindGroups),
+        std::move(meshProperties),
+        std::move(modelInstances));
 
-    outSceneKit = std::move(builder.Build());
+    outSceneKit = std::move(sceneKit);
 
     MLG_INFO("DawnSceneKit created in {} ms", createTimer.ElapsedSeconds() * 1000);
 

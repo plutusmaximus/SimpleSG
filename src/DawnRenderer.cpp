@@ -771,13 +771,14 @@ DawnRenderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
         m_TransformBuffers.TransformCount = dawnSceneKit.GetTransformCount();
 
         auto clipSpaceBuffer =
-            WebgpuHelper::CreateStorageBuffer(dawnSceneKit.GetTransformBuffer().GetSize(),
+            WebgpuHelper::CreateTypedStorageBuffer<ClipSpaceBuffer>(dawnSceneKit.GetTransformBuffer().GetSize(),
                 "ClipSpaceTransformBuffer");
         MLG_CHECK(clipSpaceBuffer);
 
         m_TransformBuffers.ClipSpaceBuf = *clipSpaceBuffer;
 
-        auto cameraParamsBuf = WebgpuHelper::CreateUniformBuffer(sizeof(ShaderTypes::CameraParams),
+        auto cameraParamsBuf = WebgpuHelper::CreateTypedUniformBuffer<CameraParamsBuffer>(
+            sizeof(ShaderTypes::CameraParams),
             "CameraParamsBuffer");
         MLG_CHECK(cameraParamsBuf);
         m_TransformBuffers.CameraParamsBuf = *cameraParamsBuf;

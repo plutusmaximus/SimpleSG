@@ -10,137 +10,24 @@
 #include <span>
 #include <vector>
 
+// Semantic tags for strongly-typed GPU storage buffers.
+struct TransformBufferTag{};
+struct MeshDrawDataBufferTag{};
+struct MaterialConstantsBufferTag{};
+
+// Strongly-typed GPU storage buffer classes.
+using TransformBuffer = TypedGpuBuffer<TransformBufferTag>;
+using MeshDrawDataBuffer = TypedGpuBuffer<MeshDrawDataBufferTag>;
+using MaterialConstantsBuffer = TypedGpuBuffer<MaterialConstantsBufferTag>;
+
 class DawnSceneKit : public SceneKit
 {
 public:
+
     static Result<> Load(const std::filesystem::path& rootPath,
         TextureCache& textureCache,
         const SceneKitSourceData& sceneKitData,
         DawnSceneKit& outSceneKit);
-
-    class Builder
-    {
-    public:
-
-        Builder& SetIndexBuffer(IndexBuffer indexBuffer)
-        {
-            m_IndexBuffer = indexBuffer;
-            return *this;
-        }
-
-        Builder& SetVertexBuffer(VertexBuffer vertexBuffer)
-        {
-            m_VertexBuffer = vertexBuffer;
-            return *this;
-        }
-
-        Builder& SetTransformBuffer(StorageBuffer transformBuffer)
-        {
-            m_TransformBuffer = transformBuffer;
-            return *this;
-        }
-
-        Builder& SetMaterialConstantsBuffer(StorageBuffer materialConstantsBuffer)
-        {
-            m_MaterialConstantsBuffer = materialConstantsBuffer;
-            return *this;
-        }
-
-        Builder& SetDrawIndirectBuffer(IndirectBuffer drawIndirectBuffer)
-        {
-            m_DrawIndirectBuffer = drawIndirectBuffer;
-            return *this;
-        }
-
-        Builder& SetMeshDrawDataBuffer(StorageBuffer meshDrawDataBuffer)
-        {
-            m_MeshDrawDataBuffer = meshDrawDataBuffer;
-            return *this;
-        }
-
-        Builder& SetColorPipelineBindGroup0(wgpu::BindGroup colorPipelineBindGroup0)
-        {
-            m_ColorPipelineBindGroup0 = colorPipelineBindGroup0;
-            return *this;
-        }
-
-        Builder& SetTransformPipelineBindGroup0(wgpu::BindGroup transformPipelineBindGroup0)
-        {
-            m_TransformPipelineBindGroup0 = transformPipelineBindGroup0;
-            return *this;
-        }
-
-        Builder& SetMaterialBindGroups(std::vector<wgpu::BindGroup>&& materialBindGroups)
-        {
-            m_MaterialBindGroups = std::move(materialBindGroups);
-            return *this;
-        }
-
-        Builder& SetMeshes(std::vector<MeshProperties>&& meshes)
-        {
-            m_Meshes = std::move(meshes);
-#ifndef NDEBUG
-            for(const auto& mesh : m_Meshes)
-            {
-                const Vec3f& aabbMax = mesh.BoundingBox.GetMax();
-                const Vec3f& aabbMin = mesh.BoundingBox.GetMin();
-                MLG_ASSERT(aabbMin.x < aabbMax.x &&
-                           aabbMin.y < aabbMax.y &&
-                           aabbMin.z < aabbMax.z,
-                    "Mesh has invalid bounding box");
-            }
-#endif // NDEBUG
-            return *this;
-        }
-
-        Builder& SetModelInstances(std::vector<ModelInstance>&& modelInstances)
-        {
-            m_ModelInstances = std::move(modelInstances);
-            return *this;
-        }
-
-        DawnSceneKit Build()
-        {
-            MLG_ASSERT(Validate(), "DawnSceneKit::Builder is not in a valid state to build a DawnSceneKit");
-
-            DawnSceneKit sceneKit(
-                m_IndexBuffer,
-                m_VertexBuffer,
-                m_TransformBuffer,
-                m_MaterialConstantsBuffer,
-                m_DrawIndirectBuffer,
-                m_MeshDrawDataBuffer,
-                m_ColorPipelineBindGroup0,
-                m_TransformPipelineBindGroup0,
-                std::move(m_MaterialBindGroups),
-                std::move(m_Meshes),
-                std::move(m_ModelInstances));
-
-            return sceneKit;
-        }
-
-    private:
-
-        bool Validate() const
-        {
-            return m_IndexBuffer && m_VertexBuffer && m_TransformBuffer &&
-                   m_MaterialConstantsBuffer && m_DrawIndirectBuffer && m_MeshDrawDataBuffer &&
-                   m_ColorPipelineBindGroup0 && m_TransformPipelineBindGroup0 &&
-                   m_Meshes.size() > 0 && m_ModelInstances.size() > 0;
-        }
-
-        IndexBuffer m_IndexBuffer{nullptr};
-        VertexBuffer m_VertexBuffer{nullptr};
-        StorageBuffer m_TransformBuffer{nullptr};
-        IndirectBuffer m_DrawIndirectBuffer{nullptr};
-        StorageBuffer m_MeshDrawDataBuffer{nullptr};
-        StorageBuffer m_MaterialConstantsBuffer{nullptr};
-        wgpu::BindGroup m_ColorPipelineBindGroup0{nullptr};
-        wgpu::BindGroup m_TransformPipelineBindGroup0{nullptr};
-        std::vector<wgpu::BindGroup> m_MaterialBindGroups;
-        std::vector<MeshProperties> m_Meshes;
-        std::vector<ModelInstance> m_ModelInstances;
-    };
 
     DawnSceneKit() = default;
     DawnSceneKit(const DawnSceneKit&) = delete;
@@ -152,10 +39,10 @@ public:
 
     DawnSceneKit(IndexBuffer indexBuffer,
         VertexBuffer vertexBuffer,
-        StorageBuffer transformBuffer,
-        StorageBuffer materialConstantsBuffer,
+        TransformBuffer transformBuffer,
+        MaterialConstantsBuffer materialConstantsBuffer,
         IndirectBuffer drawIndirectBuffer,
-        StorageBuffer meshDrawDataBuffer,
+        MeshDrawDataBuffer meshDrawDataBuffer,
         wgpu::BindGroup colorPipelineBindGroup0,
         wgpu::BindGroup transformPipelineBindGroup0,
         std::vector<wgpu::BindGroup>&& materialBindGroups,
@@ -173,6 +60,18 @@ public:
           m_Meshes(std::move(meshes)),
           m_ModelInstances(std::move(modelInstances))
     {
+#ifndef NDEBUG
+        for(const auto& mesh : m_Meshes)
+        {
+            const Vec3f& aabbMax = mesh.BoundingBox.GetMax();
+            const Vec3f& aabbMin = mesh.BoundingBox.GetMin();
+            MLG_ASSERT(aabbMin != aabbMax, "Mesh has degenerate bounding box");
+            MLG_ASSERT(aabbMin.x <= aabbMax.x &&
+                        aabbMin.y <= aabbMax.y &&
+                        aabbMin.z <= aabbMax.z,
+                "Mesh has invalid bounding box");
+        }
+#endif // NDEBUG
     }
 
     uint32_t GetTransformCount() const override
@@ -204,7 +103,7 @@ public:
         return m_ModelInstances;
     }
 
-    StorageBuffer GetTransformBuffer() const { return m_TransformBuffer; }
+    TransformBuffer GetTransformBuffer() const { return m_TransformBuffer; }
     IndirectBuffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
     VertexBuffer GetVertexBuffer() const { return m_VertexBuffer; }
     IndexBuffer GetIndexBuffer() const { return m_IndexBuffer; }
@@ -216,10 +115,10 @@ private:
 
     IndexBuffer m_IndexBuffer{nullptr};
     VertexBuffer m_VertexBuffer{nullptr};
-    StorageBuffer m_TransformBuffer{nullptr};
+    TransformBuffer m_TransformBuffer{nullptr};
     IndirectBuffer m_DrawIndirectBuffer{nullptr};
-    StorageBuffer m_MeshDrawDataBuffer{nullptr};
-    StorageBuffer m_MaterialConstantsBuffer{nullptr};
+    MeshDrawDataBuffer m_MeshDrawDataBuffer{nullptr};
+    MaterialConstantsBuffer m_MaterialConstantsBuffer{nullptr};
     wgpu::BindGroup m_ColorPipelineBindGroup0{nullptr};
     wgpu::BindGroup m_TransformPipelineBindGroup0{nullptr};
 

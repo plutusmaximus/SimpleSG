@@ -5,6 +5,7 @@
 
 #include <array>
 #include <string>
+#include <type_traits>
 
 #include <webgpu/webgpu_cpp.h>
 
@@ -93,17 +94,22 @@ private:
     }
 };
 
+template <typename T>
+struct is_gpu_buffer_type : std::false_type {};
+template <typename Tag>
+struct is_gpu_buffer_type<TypedGpuBuffer<Tag>> : std::true_type {};
+template <typename T>
+inline constexpr bool is_gpu_buffer_type_v = is_gpu_buffer_type<T>::value;
+
+// Semantic tags for strongly-typed GPU storage buffers.
 struct VertexBufferTag{};
 struct IndexBufferTag{};
 struct IndirectBufferTag{};
-struct StorageBufferTag{};
-struct UniformBufferTag{};
 
+// Strongly-typed GPU buffer classes.
 using VertexBuffer = TypedGpuBuffer<VertexBufferTag>;
 using IndexBuffer = TypedGpuBuffer<IndexBufferTag>;
 using IndirectBuffer = TypedGpuBuffer<IndirectBufferTag>;
-using StorageBuffer = TypedGpuBuffer<StorageBufferTag>;
-using UniformBuffer = TypedGpuBuffer<UniformBufferTag>;
 
 class WebgpuHelper final
 {
@@ -132,9 +138,39 @@ public:
 
     static Result<IndirectBuffer> CreateIndirectBuffer(const size_t size, const std::string& name);
 
-    static Result<UniformBuffer> CreateUniformBuffer(const size_t size, const std::string& name);
+    /// @brief Creates a semantically-typed storage buffer.
+    template<typename T>
+    requires is_gpu_buffer_type_v<T>
+    static Result<T> CreateTypedStorageBuffer(const size_t size, const std::string& name)
+    {
+        // Don't try to create "special" buffers with this helper.
+        // Use the specific helper functions for vertex/index/uniform/indirect buffers.
+        static_assert(!std::is_same_v<T, VertexBuffer>);
+        static_assert(!std::is_same_v<T, IndexBuffer>);
+        static_assert(!std::is_same_v<T, IndirectBuffer>);
 
-    static Result<StorageBuffer> CreateStorageBuffer(const size_t size, const std::string& name);
+        auto bufferResult = CreateStorageBuffer(size, name);
+        MLG_CHECK(bufferResult);
+
+        return T(*bufferResult);
+    }
+
+    /// @brief Creates a semantically-typed uniform buffer.
+    template<typename T>
+    requires is_gpu_buffer_type_v<T>
+    static Result<T> CreateTypedUniformBuffer(const size_t size, const std::string& name)
+    {
+        // Don't try to create "special" buffers with this helper.
+        // Use the specific helper functions for vertex/index/uniform/indirect buffers.
+        static_assert(!std::is_same_v<T, VertexBuffer>);
+        static_assert(!std::is_same_v<T, IndexBuffer>);
+        static_assert(!std::is_same_v<T, IndirectBuffer>);
+
+        auto bufferResult = CreateUniformBuffer(size, name);
+        MLG_CHECK(bufferResult);
+
+        return T(*bufferResult);
+    }
 
     static Result<const std::array<wgpu::BindGroupLayout, 3>> GetColorPipelineLayouts();
 
@@ -155,4 +191,9 @@ public:
 
         return (sizeof(T) + alignment - 1) & ~(alignment - 1);
     }
+
+private:
+
+    static Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string& name);
+    static Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string& name);
 };

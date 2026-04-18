@@ -573,26 +573,24 @@ WebgpuHelper::CreateIndirectBuffer(const size_t size, const std::string& name)
             name.c_str()));
 }
 
-Result<UniformBuffer>
+Result<wgpu::Buffer>
 WebgpuHelper::CreateUniformBuffer(const size_t size, const std::string& name)
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateUniformBuffer called before Startup");
 
-    return UniformBuffer(
-        CreateGpuBufferUnmapped(wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
-            size,
-            name.c_str()));
+    return CreateGpuBufferUnmapped(wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
+        size,
+        name.c_str());
 }
 
-Result<StorageBuffer>
+Result<wgpu::Buffer>
 WebgpuHelper::CreateStorageBuffer(const size_t size, const std::string& name)
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateStorageBuffer called before Startup");
 
-    return StorageBuffer(
-        CreateGpuBufferUnmapped(wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
+    return CreateGpuBufferUnmapped(wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
             size,
-            name.c_str()));
+            name.c_str());
 }
 
 Result<const std::array<wgpu::BindGroupLayout, 3>>

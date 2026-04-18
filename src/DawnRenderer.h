@@ -90,11 +90,16 @@ private:
     // Pipeline to resolve the color target to the swap chain.
     ResolvePipeline m_ResolvePipeline;
 
+    struct ClipSpaceBufferTag;
+    struct CameraParamsBufferTag;
+    using ClipSpaceBuffer = TypedGpuBuffer<ClipSpaceBufferTag>;
+    using CameraParamsBuffer = TypedGpuBuffer<CameraParamsBufferTag>;
+
     struct TransformBuffers
     {
         size_t TransformCount{0};
-        StorageBuffer ClipSpaceBuf;
-        UniformBuffer CameraParamsBuf;
+        ClipSpaceBuffer ClipSpaceBuf;
+        CameraParamsBuffer CameraParamsBuf;
         wgpu::BindGroup BindGroup1;
         wgpu::BindGroup BindGroup2;
     };
