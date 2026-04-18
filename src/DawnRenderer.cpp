@@ -171,7 +171,7 @@ DawnRenderer::Render(const Mat44f& camera,
                 auto scopedTimer = drawIndexedTimer.StartScoped();
 
                 renderPass.DrawIndexedIndirect(drawIndirectBuffer.GetGpuBuffer(), indirectOffset);
-                indirectOffset += sizeof(DrawIndirectBufferParams);
+                indirectOffset += sizeof(ShaderTypes::DrawIndirectBufferParams);
             }
         }
     }

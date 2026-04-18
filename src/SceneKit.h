@@ -9,15 +9,6 @@
 #include <string>
 #include <vector>
 
-struct DrawIndirectBufferParams
-{
-    uint32_t IndexCount;
-    uint32_t InstanceCount;
-    uint32_t FirstIndex;
-    uint32_t BaseVertex;
-    uint32_t FirstInstance;
-};
-
 struct MeshProperties
 {
     MaterialIndex MaterialIndex;

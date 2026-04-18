@@ -84,9 +84,9 @@ public:
             {
                 const Vec3f& aabbMax = mesh.BoundingBox.GetMax();
                 const Vec3f& aabbMin = mesh.BoundingBox.GetMin();
-                MLG_ASSERT(aabbMin.x <= aabbMax.x &&
-                           aabbMin.y <= aabbMax.y &&
-                           aabbMin.z <= aabbMax.z,
+                MLG_ASSERT(aabbMin.x < aabbMax.x &&
+                           aabbMin.y < aabbMax.y &&
+                           aabbMin.z < aabbMax.z,
                     "Mesh has invalid bounding box");
             }
 #endif // NDEBUG
