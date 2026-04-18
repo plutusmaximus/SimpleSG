@@ -12,31 +12,19 @@ struct VSOut
 @vertex
 fn vs_main(@builtin(vertex_index) vid : u32) -> VSOut
 {
-    var o : VSOut;
-
     // NDC positions for fullscreen triangle.
-    var pos : vec2<f32>;
-    if (vid == 2u)
-    {
-        pos = vec2<f32>( 3.0, -1.0);
-    }
-    else if (vid == 1u)
-    {
-        pos = vec2<f32>(-1.0,  3.0);
-    }
-    else
-    {
-        pos = vec2<f32>(-1.0, -1.0);
-    }
+    const vsout = array<VSOut, 3>
+    (
+        VSOut(vec4<f32>(-1.0, -1.0, 0.0, 1.0), vec2<f32>(-1.0 * 0.5 + 0.5, -1.0 * 0.5 + .5)),
+        VSOut(vec4<f32>(-1.0, 3.0, 0.0, 1.0), vec2<f32>(-1.0 * 0.5 + 0.5,  3.0 * 0.5 + 0.5)),
+        VSOut(vec4<f32>(3.0, -1.0, 0.0, 1.0), vec2<f32>(3.0 * 0.5 + 0.5, -1.0 * 0.5 + 0.5))
+    );
 
-    o.pos = vec4<f32>(pos, 0.0, 1.0);
-
-    var uv = pos * 0.5 + vec2<f32>(0.5, 0.5);
+    var o = vsout[vid];
 
     // Optional: flip Y if needed.
-    uv.y = 1.0 - uv.y;
+    o.uv.y = 1.0 - o.uv.y;
 
-    o.uv = uv;
     return o;
 }
 
