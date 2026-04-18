@@ -43,6 +43,7 @@ struct WgpuContext
 } // namespace
 
 static void DumpDawnToggles(const wgpu::Device& device);
+static void DumpWebgpuLimits(const wgpu::Device& device);
 
 static Result<SDL_Window*>
 CreateSdlWindow(const char* appName)
@@ -226,6 +227,7 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
     MLG_CHECK(result);
 
     DumpDawnToggles(*result);
+    DumpWebgpuLimits(*result);
 
     return result;
 }
@@ -890,6 +892,26 @@ DumpDawnToggles(const wgpu::Device& device)
     {
         std::cout << "  " << t << "\n";
     }
+}
+
+static void
+DumpWebgpuLimits(const wgpu::Device& device)
+{
+    wgpu::Limits limits;
+    device.GetLimits(&limits);
+    std::cout << "Device limits:\n";
+    std::cout << "  maxTextureDimension1D: " << limits.maxTextureDimension1D << "\n";
+    std::cout << "  maxTextureDimension2D: " << limits.maxTextureDimension2D << "\n";
+    std::cout << "  maxTextureDimension3D: " << limits.maxTextureDimension3D << "\n";
+    std::cout << "  maxTextureArrayLayers: " << limits.maxTextureArrayLayers << "\n";
+    std::cout << "  maxBindGroups: " << limits.maxBindGroups << "\n";
+    std::cout << "  maxDynamicUniformBuffersPerPipelineLayout: " << limits.maxDynamicUniformBuffersPerPipelineLayout << "\n";
+    std::cout << "  maxDynamicStorageBuffersPerPipelineLayout: " << limits.maxDynamicStorageBuffersPerPipelineLayout << "\n";
+    std::cout << "  maxSampledTexturesPerShaderStage: " << limits.maxSampledTexturesPerShaderStage << "\n";
+    std::cout << "  maxSamplersPerShaderStage: " << limits.maxSamplersPerShaderStage << "\n";
+    std::cout << "  maxStorageBuffersPerShaderStage: " << limits.maxStorageBuffersPerShaderStage << "\n";
+    std::cout << "  maxStorageTexturesPerShaderStage: " << limits.maxStorageTexturesPerShaderStage << "\n";
+    std::cout << "  maxUniformBuffersPerShaderStage: " << limits.maxUniformBuffersPerShaderStage << "\n";
 }
 
 //////////////////////////////////////////////
