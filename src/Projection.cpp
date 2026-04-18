@@ -1,7 +1,7 @@
-#include "Camera.h"
+#include "Projection.h"
 
 void
-Camera::SetPerspective(const Radiansf fov, const Extent& screenBounds, const float nearClip, const float farClip)
+Projection::SetPerspective(const Radiansf fov, const Extent& screenBounds, const float nearClip, const float farClip)
 {
     m_Fov = fov;
     m_Near = nearClip;
@@ -10,7 +10,7 @@ Camera::SetPerspective(const Radiansf fov, const Extent& screenBounds, const flo
 }
 
 void
-Camera::SetBounds(const Extent& screenBounds)
+Projection::SetBounds(const Extent& screenBounds)
 {
     if (screenBounds != m_Bounds)
     {
@@ -20,7 +20,7 @@ Camera::SetBounds(const Extent& screenBounds)
 }
 
 const Mat44f&
-Camera::GetProjection() const
+Projection::GetMatrix() const
 {
     return m_Proj;
 }

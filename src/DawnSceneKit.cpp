@@ -6,7 +6,6 @@
 #include "DawnSceneKit.h"
 #include "FileFetcher.h"
 #include "Log.h"
-#include "Material.h"
 #include "Stopwatch.h"
 #include "ThreadPool.h"
 #include "WebgpuHelper.h"
@@ -448,7 +447,7 @@ BuildTransformBuffer(std::span<const TransformData> transforms)
 static Result<StorageBuffer>
 BuildMaterialConstantsBuffer(std::span<const MaterialData> materials)
 {
-    const size_t sizeofBuffer = materials.size() * sizeof(MaterialConstants);
+    const size_t sizeofBuffer = materials.size() * sizeof(ShaderTypes::MaterialConstants);
 
     auto buffer = WebgpuHelper::CreateStorageBuffer(sizeofBuffer, "MaterialConstantsBuffer");
     MLG_CHECK(buffer);
@@ -456,11 +455,11 @@ BuildMaterialConstantsBuffer(std::span<const MaterialData> materials)
     auto mapped = buffer->Map();
     MLG_CHECK(mapped);
 
-    MaterialConstants* dst = reinterpret_cast<MaterialConstants*>(*mapped);
+    ShaderTypes::MaterialConstants* dst = reinterpret_cast<ShaderTypes::MaterialConstants*>(*mapped);
 
     for(const auto& mtl : materials)
     {
-        ::new(dst++) MaterialConstants //
+        ::new(dst++) ShaderTypes::MaterialConstants //
         {
             .Color = mtl.Color,
             .Metalness = mtl.Metalness,
@@ -533,7 +532,7 @@ BuildMeshDrawDataBuffer(std::span<const MeshData> meshDatas,
         meshInstanceCount += modelInstance.MeshCount;
     }
 
-    const size_t sizeofBuffer = meshInstanceCount * sizeof(MeshDrawData);
+    const size_t sizeofBuffer = meshInstanceCount * sizeof(ShaderTypes::MeshDrawData);
 
     auto buffer = WebgpuHelper::CreateStorageBuffer(sizeofBuffer, "MeshDrawDataBuffer");
     MLG_CHECK(buffer);
@@ -541,7 +540,7 @@ BuildMeshDrawDataBuffer(std::span<const MeshData> meshDatas,
     auto mapped = buffer->Map();
     MLG_CHECK(mapped);
 
-    MeshDrawData* meshDrawData = reinterpret_cast<MeshDrawData*>(*mapped);
+    ShaderTypes::MeshDrawData* meshDrawData = reinterpret_cast<ShaderTypes::MeshDrawData*>(*mapped);
 
     uint32_t meshCount = 0;
 

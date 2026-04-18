@@ -1,9 +1,9 @@
 #include "WebgpuHelper.h"
 
 #include "Color.h"
-#include "Material.h"
 #include "SceneKit.h"
 #include "scope_exit.h"
+#include "shaders/ShaderTypes.h"
 #include "VecMath.h"
 
 #include <SDL3/SDL.h>
@@ -613,10 +613,10 @@ WebgpuHelper::GetColorPipelineLayouts()
                 {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
                     .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(MeshDrawData),
+                    .minBindingSize = sizeof(ShaderTypes::MeshDrawData),
                 },
             },
-            // World space transform.
+            // Mesh transform.
             {
                 .binding = 1,
                 .visibility = wgpu::ShaderStage::Vertex,
@@ -624,7 +624,7 @@ WebgpuHelper::GetColorPipelineLayouts()
                 {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
                     .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(Mat44f),
+                    .minBindingSize = sizeof(ShaderTypes::MeshTransform),
                 },
             },
             // Material constants buffer.
@@ -635,7 +635,7 @@ WebgpuHelper::GetColorPipelineLayouts()
                 {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
                     .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(MaterialConstants),
+                    .minBindingSize = sizeof(ShaderTypes::MaterialConstants),
                 },
             },
         };
@@ -785,7 +785,7 @@ WebgpuHelper::GetTransformPipelineLayouts()
 
     if(!s_WgpuContext->TransformPipelineLayouts[2])
     {
-        // Transform pipeline bind group 2 layout
+        // Camera parameters
         wgpu::BindGroupLayoutEntry entries[] =//
         {
             //View/Projection matrix
@@ -796,7 +796,7 @@ WebgpuHelper::GetTransformPipelineLayouts()
                 {
                     .type = wgpu::BufferBindingType::Uniform,
                     .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(Mat44f),
+                    .minBindingSize = sizeof(ShaderTypes::CameraParams),
                 },
             },
         };

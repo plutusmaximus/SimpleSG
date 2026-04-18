@@ -141,7 +141,7 @@ target_compile_definitions(imgui PRIVATE IMGUI_IMPL_WEBGPU_BACKEND_DAWN)
 # ============================================================
 # Shaders / Assets
 # ============================================================
-add_subdirectory(shaders)
+add_subdirectory(src/shaders)
 
 add_custom_target(copy_images
   COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
@@ -155,7 +155,6 @@ add_custom_target(copy_images
 set(SSG_SOURCES
   src/AssertHelper.cpp
   src/Bounds.cpp
-  src/Camera.cpp
   src/CoopScheduler.cpp
   src/DawnRenderCompositor.cpp
   src/DawnRenderer.cpp
@@ -166,6 +165,7 @@ set(SSG_SOURCES
   src/ImGuiRenderer.cpp
   src/Log.cpp
   src/PerfMetrics.cpp
+  src/Projection.cpp
   src/Shapes.cpp
   src/Stopwatch.cpp
   src/TextureCache.cpp
@@ -176,7 +176,6 @@ set(SSG_SOURCES
 set(SSG_HEADERS
   src/AssertHelper.h
   src/Bounds.h
-  src/Camera.h
   src/CoopScheduler.h
   src/DawnRenderCompositor.h
   src/DawnRenderer.h
@@ -189,12 +188,13 @@ set(SSG_HEADERS
   src/inlist.h
   src/instack.h
   src/Log.h
-  src/Material.h
   src/PerfMetrics.h
   src/PoolAllocator.h
+  src/Projection.h
   src/Result.h
   src/SceneKit.h
   src/scope_exit.h
+  src/shaders/ShaderTypes.h
   src/Shapes.h
   src/Stopwatch.h
   src/TextureCache.h
@@ -212,7 +212,7 @@ target_sources(ssg
 )
 
 target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 webgpu_dawn imgui)
-target_include_directories(ssg PUBLIC src PRIVATE thirdparty/stb thirdparty/cgltf)
+target_include_directories(ssg PUBLIC src src/shaders PRIVATE thirdparty/stb thirdparty/cgltf)
 
 add_dependencies(ssg tint_cmd_tint_cmd)
 

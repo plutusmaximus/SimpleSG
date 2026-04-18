@@ -2,17 +2,17 @@
 
 #include "VecMath.h"
 
-class Camera
+class Projection
 {
 public:
 
-    Camera() = default;
+    Projection() = default;
 
     void SetPerspective(const Radiansf fov, const Extent& screenBounds, const float nearClip, const float farClip);
 
     void SetBounds(const Extent& screenBounds);
 
-    const Mat44f& GetProjection() const;
+    const Mat44f& GetMatrix() const;
 
 private:
 

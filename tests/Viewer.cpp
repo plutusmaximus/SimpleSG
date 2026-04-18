@@ -1,4 +1,3 @@
-#include "Camera.h"
 #include "DawnRenderCompositor.h"
 #include "DawnRenderer.h"
 #include "DawnSceneKit.h"
@@ -7,6 +6,7 @@
 #include "ImGuiRenderer.h"
 #include "MouseNav.h"
 #include "PerfMetrics.h"
+#include "Projection.h"
 #include "scope_exit.h"
 #include "Stopwatch.h"
 #include "WebgpuHelper.h"
@@ -111,9 +111,9 @@ MainLoop()
 
     constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
-    Entity camera = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, Camera{});
+    Entity camera = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, Projection{});
     camera.Get<TrsTransformf>().T = Vec3f{ 0,0,-4 };
-    camera.Get<Camera>().SetPerspective(fov, screenBounds, 0.1f, 1000);
+    camera.Get<Projection>().SetPerspective(fov, screenBounds, 0.1f, 1000);
 
     mouseNav.SetTransform(camera.Get<TrsTransformf>());
 
@@ -247,7 +247,7 @@ MainLoop()
         mouseNav.Update(elapsedSeconds);
 
         screenBounds = WebgpuHelper::GetScreenBounds();
-        camera.Get<Camera>().SetBounds(screenBounds);
+        camera.Get<Projection>().SetBounds(screenBounds);
         camera.Get<TrsTransformf>() = mouseNav.GetTransform();
 
         // Transform roots
@@ -261,7 +261,7 @@ MainLoop()
         imGuiRenderer.NewFrame();
 
         const auto& camWorldMat = camera.Get<WorldMatrix>();
-        const auto& projection = camera.Get<Camera>().GetProjection();
+        const auto& projection = camera.Get<Projection>();
         for(const auto& tuple : registry.GetView<WorldMatrix, DawnSceneKit*>())
         {
             const auto [eid, worldMat, sceneKit] = tuple;

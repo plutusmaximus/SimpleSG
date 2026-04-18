@@ -7,10 +7,12 @@
 #include "DawnRenderCompositor.h"
 #include "DawnSceneKit.h"
 #include "Log.h"
-#include "WebgpuHelper.h"
+#include "PerfMetrics.h"
+#include "Projection.h"
 #include "Result.h"
 #include "scope_exit.h"
-#include "PerfMetrics.h"
+#include "ShaderTypes.h"
+#include "WebgpuHelper.h"
 
 #include <cstdio>
 #include <SDL3/SDL.h>
@@ -65,7 +67,7 @@ DawnRenderer::Shutdown()
 
 Result<>
 DawnRenderer::Render(const Mat44f& camera,
-    const Mat44f& projection,
+    const Projection& projection,
     const SceneKit& sceneKit,
     DawnRenderCompositor& compositor)
 {
@@ -753,14 +755,16 @@ DawnRenderer::CreateShader(const char* path)
 Result<>
 DawnRenderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
     const Mat44f& camera,
-    const Mat44f& projection,
+    const Projection& projection,
     const SceneKit& sceneKit)
 {
     const DawnSceneKit& dawnSceneKit = static_cast<const DawnSceneKit&>(sceneKit);
 
+    wgpu::Device device = WebgpuHelper::GetDevice();
+
     // Reallocate buffers if needed.
 
-    if(!m_TransformBuffers.ClipSpaceBuf || !m_TransformBuffers.ViewProjBuf ||
+    if(!m_TransformBuffers.ClipSpaceBuf || !m_TransformBuffers.CameraParamsBuf ||
         !m_TransformBuffers.BindGroup1 || !m_TransformBuffers.BindGroup2 ||
         dawnSceneKit.GetTransformCount() > m_TransformBuffers.TransformCount)
     {
@@ -773,9 +777,10 @@ DawnRenderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
 
         m_TransformBuffers.ClipSpaceBuf = *clipSpaceBuffer;
 
-        auto viewProjBuf = WebgpuHelper::CreateUniformBuffer(sizeof(Mat44f), "ViewProjTransformBuffer");
-        MLG_CHECK(viewProjBuf);
-        m_TransformBuffers.ViewProjBuf = *viewProjBuf;
+        auto cameraParamsBuf = WebgpuHelper::CreateUniformBuffer(sizeof(ShaderTypes::CameraParams),
+            "CameraParamsBuffer");
+        MLG_CHECK(cameraParamsBuf);
+        m_TransformBuffers.CameraParamsBuf = *cameraParamsBuf;
 
         // Color pipeline bind groups
         {
@@ -799,7 +804,7 @@ DawnRenderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
                     .entries = bg1Entries,
                 };
 
-            m_ColorPipeline.BindGroup1 = WebgpuHelper::GetDevice().CreateBindGroup(&bg1Desc);
+            m_ColorPipeline.BindGroup1 = device.CreateBindGroup(&bg1Desc);
             MLG_CHECK(m_ColorPipeline.BindGroup1,
                 "Failed to create bindgroup 1 for color pipeline");
         }
@@ -821,15 +826,15 @@ DawnRenderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
                 .entries = &bg1Entries,
             };
 
-            m_TransformBuffers.BindGroup1 = WebgpuHelper::GetDevice().CreateBindGroup(&bg1Desc);
+            m_TransformBuffers.BindGroup1 = device.CreateBindGroup(&bg1Desc);
             MLG_CHECK(m_TransformBuffers.BindGroup1, "Failed to create bind group 1 for transform");
 
             wgpu::BindGroupEntry bg2Entries //
             {
                 .binding = 0,
-                .buffer = m_TransformBuffers.ViewProjBuf.GetGpuBuffer(),
+                .buffer = m_TransformBuffers.CameraParamsBuf.GetGpuBuffer(),
                 .offset = 0,
-                .size = m_TransformBuffers.ViewProjBuf.GetSize(),
+                .size = m_TransformBuffers.CameraParamsBuf.GetSize(),
             };
 
             wgpu::BindGroupDescriptor bg2Desc//
@@ -839,21 +844,30 @@ DawnRenderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
                 .entries = &bg2Entries,
             };
 
-            m_TransformBuffers.BindGroup2 = WebgpuHelper::GetDevice().CreateBindGroup(&bg2Desc);
+            m_TransformBuffers.BindGroup2 = device.CreateBindGroup(&bg2Desc);
             MLG_CHECK(m_TransformBuffers.BindGroup2, "Failed to create bind group 2 for transform");
         }
     }
 
     // Use inverse of camera transform as view matrix
     const Mat44f viewXform = camera.Inverse();
+    const Mat44f& projMat = projection.GetMatrix();
 
     // Projection transform
-    const Mat44f viewProj = projection.Mul(viewXform);
+    const Mat44f viewProj = projMat.Mul(viewXform);
 
-    WebgpuHelper::GetDevice().GetQueue().WriteBuffer(m_TransformBuffers.ViewProjBuf.GetGpuBuffer(),
+    const ShaderTypes::CameraParams cameraParams //
+        {
+            .View = viewXform,
+            .Projection = projMat,
+            .ViewProj = viewProj,
+        };
+
+    device.GetQueue().WriteBuffer(
+        m_TransformBuffers.CameraParamsBuf.GetGpuBuffer(),
         0,
-        viewProj.m,
-        sizeof(Mat44f));
+        &cameraParams,
+        sizeof(ShaderTypes::CameraParams));
 
     wgpu::ComputePassEncoder pass = cmdEncoder.BeginComputePass();
     pass.SetPipeline(m_TransformPipeline);

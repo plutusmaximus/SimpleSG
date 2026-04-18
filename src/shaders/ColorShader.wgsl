@@ -1,9 +1,9 @@
-struct WorldSpaceXform
+struct MeshTransform
 {
     xform : mat4x4<f32>,
 };
 
-struct ClipSpaceXform
+struct ClipSpaceTransform
 {
     xform : mat4x4<f32>,
 }
@@ -25,10 +25,10 @@ struct Material
 };
 
 @group(0) @binding(0) var<storage, read> meshDrawData : array<MeshDrawData>;
-@group(0) @binding(1) var<storage, read> worldSpaceArray: array<WorldSpaceXform>;
+@group(0) @binding(1) var<storage, read> meshTransforms: array<MeshTransform>;
 @group(0) @binding(2) var<storage, read> materials : array<Material>;
 
-@group(1) @binding(0) var<storage, read> clipSpaceArray: array<ClipSpaceXform>;
+@group(1) @binding(0) var<storage, read> clipSpacTransforms: array<ClipSpaceTransform>;
 
 @group(2) @binding(0) var texture0: texture_2d<f32>;
 @group(2) @binding(1) var textureSampler: sampler;
@@ -54,11 +54,11 @@ fn vs_main(input: VSInput, @builtin(instance_index) instance_index: u32) -> FSIn
     var output: FSInput;
 
     let transformIdx = meshDrawData[instance_index].transformIndex;
-    let clipXform = clipSpaceArray[transformIdx].xform;
-    let worldXform = worldSpaceArray[transformIdx].xform;
+    let clipXform = clipSpacTransforms[transformIdx].xform;
+    let meshTransform = meshTransforms[transformIdx].xform;
 
     output.position = clipXform * vec4<f32>(input.inPosition, 1.0);
-    output.fragNormal = normalize((worldXform * vec4<f32>(input.inNormal, 0.0)).xyz);
+    output.fragNormal = normalize((meshTransform * vec4<f32>(input.inNormal, 0.0)).xyz);
     output.texCoord = input.inTexCoord;
     output.instanceIndex = instance_index;
 

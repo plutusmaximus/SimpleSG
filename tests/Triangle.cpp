@@ -1,10 +1,10 @@
-#include "Camera.h"
 #include "DawnRenderCompositor.h"
 #include "DawnRenderer.h"
 #include "DawnSceneKit.h"
 #include "ImGuiRenderer.h"
 #include "Log.h"
 #include "PerfMetrics.h"
+#include "Projection.h"
 #include "scope_exit.h"
 #include "Stopwatch.h"
 #include "WebgpuHelper.h"
@@ -41,8 +41,8 @@ static Result<> MainLoop()
 
     TrsTransformf cameraXform;
     cameraXform.T = Vec3f{ 0,0,-4 };
-    Camera camera;
-    camera.SetPerspective(fov, screenBounds, 0.1f, 1000);
+    Projection projection;
+    projection.SetPerspective(fov, screenBounds, 0.1f, 1000);
 
     auto sceneKitData = CreateTriangleModel();
     MLG_CHECK(sceneKitData);
@@ -158,7 +158,7 @@ static Result<> MainLoop()
 
         screenBounds = WebgpuHelper::GetScreenBounds();
 
-        camera.SetBounds(screenBounds);
+        projection.SetBounds(screenBounds);
 
         TrsTransformf transform;
 
@@ -171,7 +171,7 @@ static Result<> MainLoop()
         nonGpuWorkTimer.Stop();
 
         auto renderResult = renderer.Render(cameraXform.ToMatrix(),
-            camera.GetProjection(),
+            projection,
             dawnSceneKit,
             compositor);
 

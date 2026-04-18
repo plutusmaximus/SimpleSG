@@ -1,6 +1,5 @@
 #include "AppDriver.h"
 #include "Application.h"
-#include "Camera.h"
 #include "DawnRenderCompositor.h"
 #include "DawnRenderer.h"
 #include "DawnSceneKit.h"
@@ -9,6 +8,7 @@
 #include "ImGuiRenderer.h"
 #include "Log.h"
 #include "MouseNav.h"
+#include "Projection.h"
 #include "Shapes.h"
 #include "WebgpuHelper.h"
 
@@ -74,10 +74,10 @@ public:
         m_Planet = m_Registry.CreateEntity(ChildTransform{}, WorldMatrix{}, sceneKit);
         m_MoonOrbit = m_Registry.CreateEntity(ChildTransform{ .ParentId = m_Planet.GetId() }, WorldMatrix{});
         m_Moon = m_Registry.CreateEntity(ChildTransform{ .ParentId = m_MoonOrbit.GetId() }, WorldMatrix{}, sceneKit);
-        m_Camera = m_Registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, Camera{});
+        m_Camera = m_Registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, Projection{});
 
         m_Camera.Get<TrsTransformf>().T = Vec3f{ 0,0,-4 };
-        m_Camera.Get<Camera>().SetPerspective(fov, m_ScreenBounds, 0.1f, 1000);
+        m_Camera.Get<Projection>().SetPerspective(fov, m_ScreenBounds, 0.1f, 1000);
 
         m_GimbleMouseNav.SetTransform(m_Camera.Get<TrsTransformf>());
 
@@ -115,7 +115,7 @@ public:
 
         m_ScreenBounds = WebgpuHelper::GetScreenBounds();
 
-        m_Camera.Get<Camera>().SetBounds(m_ScreenBounds);
+        m_Camera.Get<Projection>().SetBounds(m_ScreenBounds);
 
         m_MouseNav->Update(deltaSeconds);
         m_Camera.Get<TrsTransformf>() = m_MouseNav->GetTransform();
@@ -167,13 +167,13 @@ public:
 
         // Transform to camera space and render
         auto camWorldMat = m_Camera.Get<WorldMatrix>();
-        auto camera = m_Camera.Get<Camera>();
+        auto projection = m_Camera.Get<Projection>();
 
         for(const auto& tuple : m_Registry.GetView<WorldMatrix, SceneKit*>())
         {
             const auto [eid, worldMat, sceneKit] = tuple;
 
-            m_Renderer.Render(camWorldMat, camera.GetProjection(), *sceneKit, m_Compositor);
+            m_Renderer.Render(camWorldMat, projection, *sceneKit, m_Compositor);
         }
 
         m_ImGuiRenderer.Render(m_Compositor);

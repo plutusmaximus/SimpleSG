@@ -2,15 +2,12 @@
 
 #include "Bounds.h"
 #include "Color.h"
+#include "shaders/ShaderTypes.h"
 #include "VecMath.h"
 #include "Vertex.h"
 
 #include <string>
 #include <vector>
-
-using MaterialIndex = uint32_t;
-using TransformIndex = uint32_t;
-using ModelIndex = uint32_t;
 
 struct DrawIndirectBufferParams
 {
@@ -25,12 +22,6 @@ struct MeshProperties
 {
     MaterialIndex MaterialIndex;
     AABoundingBox BoundingBox;
-};
-
-struct MeshDrawData
-{
-    TransformIndex TransformIndex;
-    MaterialIndex MaterialIndex;
 };
 
 struct ModelInstance

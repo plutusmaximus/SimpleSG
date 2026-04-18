@@ -6,11 +6,11 @@
 
 #include <unordered_map>
 
-struct SDL_Window;
+class DawnRenderCompositor;
 template<typename T>
 class Mat44;
 using Mat44f = Mat44<float>;
-class DawnRenderCompositor;
+class Projection;
 class SceneKit;
 
 class DawnRenderer
@@ -33,7 +33,7 @@ public:
     Result<> Shutdown();
 
     Result<> Render(const Mat44f& camera,
-        const Mat44f& projection,
+        const Projection& projection,
         const SceneKit& sceneKit,
         DawnRenderCompositor& compositor);
 
@@ -56,7 +56,7 @@ private:
 
     Result<> TransformNodes(wgpu::CommandEncoder cmdEncoder,
         const Mat44f& camera,
-        const Mat44f& projection,
+        const Projection& projection,
         const SceneKit& sceneKit);
 
     wgpu::Limits m_GpuLimits;
@@ -94,7 +94,7 @@ private:
     {
         size_t TransformCount{0};
         StorageBuffer ClipSpaceBuf;
-        UniformBuffer ViewProjBuf;
+        UniformBuffer CameraParamsBuf;
         wgpu::BindGroup BindGroup1;
         wgpu::BindGroup BindGroup2;
     };
