@@ -3,7 +3,7 @@
 
 #define __LOGGER_NAME__ "SCKT"
 
-#include "DawnSceneKit.h"
+#include "SceneKit.h"
 #include "FileFetcher.h"
 #include "Log.h"
 #include "Stopwatch.h"
@@ -575,10 +575,10 @@ BuildMeshDrawDataBuffer(std::span<const MeshData> meshDatas,
 }
 
 Result<>
-DawnSceneKit::Load(const std::filesystem::path& rootPath,
+SceneKit::Load(const std::filesystem::path& rootPath,
     TextureCache& textureCache,
     const SceneKitSourceData& sceneKitData,
-    DawnSceneKit& outSceneKit)
+    SceneKit& outSceneKit)
 {
     Stopwatch createTimer;
     createTimer.Mark();
@@ -638,7 +638,7 @@ DawnSceneKit::Load(const std::filesystem::path& rootPath,
 
     std::vector<ModelInstance> modelInstances(sceneKitData.ModelInstances);
 
-    DawnSceneKit sceneKit(
+    SceneKit sceneKit(
         *indexBuffer,
         *vertexBuffer,
         *transformBuffer,
@@ -653,7 +653,7 @@ DawnSceneKit::Load(const std::filesystem::path& rootPath,
 
     outSceneKit = std::move(sceneKit);
 
-    MLG_INFO("DawnSceneKit created in {} ms", createTimer.ElapsedSeconds() * 1000);
+    MLG_INFO("SceneKit created in {} ms", createTimer.ElapsedSeconds() * 1000);
 
     return Result<>::Ok;
 }

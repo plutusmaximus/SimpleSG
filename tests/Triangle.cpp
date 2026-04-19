@@ -1,6 +1,6 @@
 #include "DawnRenderCompositor.h"
 #include "DawnRenderer.h"
-#include "DawnSceneKit.h"
+#include "SceneKit.h"
 #include "ImGuiRenderer.h"
 #include "Log.h"
 #include "PerfMetrics.h"
@@ -51,8 +51,8 @@ static Result<> MainLoop()
     MLG_CHECK(textureCache.Startup());
 
     std::filesystem::path rootPath = ".";
-    DawnSceneKit dawnSceneKit;
-    MLG_CHECK(DawnSceneKit::Load(rootPath, textureCache, *sceneKitData, dawnSceneKit));
+    SceneKit sceneKit;
+    MLG_CHECK(SceneKit::Load(rootPath, textureCache, *sceneKitData, sceneKit));
 
     DawnRenderer renderer;
     MLG_CHECK(renderer.Startup());
@@ -172,7 +172,7 @@ static Result<> MainLoop()
 
         auto renderResult = renderer.Render(cameraXform.ToMatrix(),
             projection,
-            dawnSceneKit,
+            sceneKit,
             compositor);
 
         MLG_CHECK(renderResult);

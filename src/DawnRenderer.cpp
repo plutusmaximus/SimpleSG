@@ -5,7 +5,7 @@
 #include "DawnRenderer.h"
 
 #include "DawnRenderCompositor.h"
-#include "DawnSceneKit.h"
+#include "SceneKit.h"
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "Projection.h"
@@ -76,15 +76,13 @@ DawnRenderer::Render(const Mat44f& camera,
     static PerfTimer renderTimer("Renderer.Render");
     auto scopedRenderTimer = renderTimer.StartScoped();
 
-    const DawnSceneKit& dawnSceneKit = static_cast<const DawnSceneKit&>(sceneKit);
-
     wgpu::CommandEncoder cmdEncoder = compositor.GetCommandEncoder();
 
     static PerfTimer transformNodesTimer("Renderer.Render.TransformNodes");
     {
         auto scopedTimer = transformNodesTimer.StartScoped();
 
-        auto transformNodesResult = TransformNodes(cmdEncoder, camera, projection, dawnSceneKit);
+        auto transformNodesResult = TransformNodes(cmdEncoder, camera, projection, sceneKit);
         MLG_CHECK(transformNodesResult);
     }
 
@@ -108,7 +106,7 @@ DawnRenderer::Render(const Mat44f& camera,
     static PerfTimer setVsBindGroupTimer("Renderer.Render.Draw.SetVsBindGroup");
     {
         auto scopedTimer = setVsBindGroupTimer.StartScoped();
-        renderPass.SetBindGroup(0, dawnSceneKit.GetColorPipelineBindGroup0(), 0, nullptr);
+        renderPass.SetBindGroup(0, sceneKit.GetColorPipelineBindGroup0(), 0, nullptr);
         renderPass.SetBindGroup(1, m_ColorPipeline.BindGroup1, 0, nullptr);
     }
 
@@ -124,14 +122,14 @@ DawnRenderer::Render(const Mat44f& camera,
             : wgpu::IndexFormat::Uint16;
 
         renderPass.SetVertexBuffer(0,
-            dawnSceneKit.GetVertexBuffer().GetGpuBuffer(),
+            sceneKit.GetVertexBuffer().GetGpuBuffer(),
             0,
-            dawnSceneKit.GetVertexBuffer().GetSize());
+            sceneKit.GetVertexBuffer().GetSize());
 
-        renderPass.SetIndexBuffer(dawnSceneKit.GetIndexBuffer().GetGpuBuffer(),
+        renderPass.SetIndexBuffer(sceneKit.GetIndexBuffer().GetGpuBuffer(),
             idxFmt,
             0,
-            dawnSceneKit.GetIndexBuffer().GetSize());
+            sceneKit.GetIndexBuffer().GetSize());
     }
 
     static PerfTimer drawTimer("Renderer.Render.Draw");
@@ -139,10 +137,10 @@ DawnRenderer::Render(const Mat44f& camera,
 
     uint64_t indirectOffset = 0;
 
-    const auto& materialBindGroups = dawnSceneKit.GetMaterialBindGroups();
-    const auto& meshes = dawnSceneKit.GetMeshes();
-    const auto& modelInstances = dawnSceneKit.GetModelInstances();
-    const auto& drawIndirectBuffer = dawnSceneKit.GetDrawIndirectBuffer();
+    const auto& materialBindGroups = sceneKit.GetMaterialBindGroups();
+    const auto& meshes = sceneKit.GetMeshes();
+    const auto& modelInstances = sceneKit.GetModelInstances();
+    const auto& drawIndirectBuffer = sceneKit.GetDrawIndirectBuffer();
 
     uint32_t lastMaterialIndex = UINT32_MAX;
 
@@ -753,20 +751,18 @@ DawnRenderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
     const Projection& projection,
     const SceneKit& sceneKit)
 {
-    const DawnSceneKit& dawnSceneKit = static_cast<const DawnSceneKit&>(sceneKit);
-
     wgpu::Device device = WebgpuHelper::GetDevice();
 
     // Reallocate buffers if needed.
 
     if(!m_TransformBuffers.ClipSpaceBuf || !m_TransformBuffers.CameraParamsBuf ||
         !m_TransformBuffers.BindGroup1 || !m_TransformBuffers.BindGroup2 ||
-        dawnSceneKit.GetTransformCount() > m_TransformBuffers.TransformCount)
+        sceneKit.GetTransformCount() > m_TransformBuffers.TransformCount)
     {
-        m_TransformBuffers.TransformCount = dawnSceneKit.GetTransformCount();
+        m_TransformBuffers.TransformCount = sceneKit.GetTransformCount();
 
         auto clipSpaceBuffer =
-            WebgpuHelper::CreateTypedStorageBuffer<ClipSpaceBuffer>(dawnSceneKit.GetTransformBuffer().GetSize(),
+            WebgpuHelper::CreateTypedStorageBuffer<ClipSpaceBuffer>(sceneKit.GetTransformBuffer().GetSize(),
                 "ClipSpaceTransformBuffer");
         MLG_CHECK(clipSpaceBuffer);
 
@@ -867,10 +863,10 @@ DawnRenderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
 
     wgpu::ComputePassEncoder pass = cmdEncoder.BeginComputePass();
     pass.SetPipeline(m_TransformPipeline);
-    pass.SetBindGroup(0, dawnSceneKit.GetTransformPipelineBindGroup0());
+    pass.SetBindGroup(0, sceneKit.GetTransformPipelineBindGroup0());
     pass.SetBindGroup(1, m_TransformBuffers.BindGroup1);
     pass.SetBindGroup(2, m_TransformBuffers.BindGroup2);
-    const uint32_t workgroupCountX = dawnSceneKit.GetTransformCount();
+    const uint32_t workgroupCountX = sceneKit.GetTransformCount();
     pass.DispatchWorkgroups(workgroupCountX);
     pass.End();
 

@@ -2,7 +2,7 @@
 #include "Application.h"
 #include "DawnRenderCompositor.h"
 #include "DawnRenderer.h"
-#include "DawnSceneKit.h"
+#include "SceneKit.h"
 #include "ECS.h"
 #include "EcsChildTransformPool.h"
 #include "ImGuiRenderer.h"
@@ -30,6 +30,9 @@ public:
         return *this;
     }
 };
+
+// Used to tag entities that represent loaded models in the ECS registry.
+struct ModelTag{};
 
 class CubeApp : public Application
 {
@@ -65,15 +68,13 @@ public:
         MLG_CHECK(m_TextureCache.Startup());
 
         std::filesystem::path rootPath = ".";
-        MLG_CHECK(DawnSceneKit::Load(rootPath, m_TextureCache, *sceneKitData, m_SceneKit));
-
-        SceneKit* sceneKit = &m_SceneKit;
+        MLG_CHECK(SceneKit::Load(rootPath, m_TextureCache, *sceneKitData, m_SceneKit));
 
         constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
-        m_Planet = m_Registry.CreateEntity(ChildTransform{}, WorldMatrix{}, sceneKit);
+        m_Planet = m_Registry.CreateEntity(ChildTransform{}, WorldMatrix{}, ModelTag{});
         m_MoonOrbit = m_Registry.CreateEntity(ChildTransform{ .ParentId = m_Planet.GetId() }, WorldMatrix{});
-        m_Moon = m_Registry.CreateEntity(ChildTransform{ .ParentId = m_MoonOrbit.GetId() }, WorldMatrix{}, sceneKit);
+        m_Moon = m_Registry.CreateEntity(ChildTransform{ .ParentId = m_MoonOrbit.GetId() }, WorldMatrix{}, ModelTag{});
         m_Camera = m_Registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, Projection{});
 
         m_Camera.Get<TrsTransformf>().T = Vec3f{ 0,0,-4 };
@@ -169,11 +170,11 @@ public:
         auto camWorldMat = m_Camera.Get<WorldMatrix>();
         auto projection = m_Camera.Get<Projection>();
 
-        for(const auto& tuple : m_Registry.GetView<WorldMatrix, SceneKit*>())
+        for(const auto& tuple : m_Registry.GetView<WorldMatrix, ModelTag>())
         {
-            const auto [eid, worldMat, sceneKit] = tuple;
+            const auto [eid, worldMat, modelTag] = tuple;
 
-            m_Renderer.Render(camWorldMat, projection, *sceneKit, m_Compositor);
+            m_Renderer.Render(camWorldMat, projection, m_SceneKit, m_Compositor);
         }
 
         m_ImGuiRenderer.Render(m_Compositor);
@@ -256,7 +257,7 @@ private:
     Entity m_Moon;
     Extent m_ScreenBounds{0,0};
     Radiansf m_PlanetSpinAngle{0}, m_MoonSpinAngle{0}, m_MoonOrbitAngle{0};
-    DawnSceneKit m_SceneKit;
+    SceneKit m_SceneKit;
 };
 
 class CubeAppLifecycle : public AppLifecycle

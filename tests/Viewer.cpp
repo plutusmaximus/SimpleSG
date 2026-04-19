@@ -1,6 +1,6 @@
 #include "DawnRenderCompositor.h"
 #include "DawnRenderer.h"
-#include "DawnSceneKit.h"
+#include "SceneKit.h"
 #include "ECS.h"
 #include "GltfLoader.h"
 #include "ImGuiRenderer.h"
@@ -39,6 +39,9 @@ public:
     }
 };
 
+// Used to tag entities that represent loaded models in the ECS registry.
+struct ModelTag{};
+
 }
 
 static Result<>
@@ -63,15 +66,15 @@ Shutdown()
 static Result<> RenderGui();
 
 static Result<>
-LoadSceneKit(const std::filesystem::path& path, TextureCache& textureCache, DawnSceneKit& outSceneKit)
+LoadSceneKit(const std::filesystem::path& path, TextureCache& textureCache, SceneKit& outSceneKit)
 {
     SceneKitSourceData sceneKitData;
     MLG_CHECK(GltfLoader::LoadSceneKit(path.string(), sceneKitData),
         "Failed to load scene kit: {}",
         path.string());
 
-    MLG_CHECK(DawnSceneKit::Load(path.parent_path(), textureCache, sceneKitData, outSceneKit),
-        "Failed to create DawnSceneKit for {}",
+    MLG_CHECK(SceneKit::Load(path.parent_path(), textureCache, sceneKitData, outSceneKit),
+        "Failed to create SceneKit for {}",
         path.string());
 
     return Result<>::Ok;
@@ -95,7 +98,7 @@ MainLoop()
     DawnRenderCompositor renderCompositor;
     ImGuiRenderer imGuiRenderer;
     TextureCache textureCache;
-    DawnSceneKit dawnSceneKit;
+    SceneKit sceneKit;
     EcsRegistry registry;
     WalkMouseNav mouseNav;
 
@@ -103,9 +106,9 @@ MainLoop()
     MLG_CHECK(renderCompositor.Startup());
     MLG_CHECK(imGuiRenderer.Startup());
     MLG_CHECK(textureCache.Startup());
-    MLG_CHECK(LoadSceneKit(path, textureCache, dawnSceneKit));
+    MLG_CHECK(LoadSceneKit(path, textureCache, sceneKit));
 
-    Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, &dawnSceneKit);
+    Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, ModelTag{});
 
     Extent screenBounds = WebgpuHelper::GetScreenBounds();
 
@@ -239,9 +242,9 @@ MainLoop()
         if(!droppedFile.empty())
         {
             textureCache.Clear();
-            DawnSceneKit newSceneKit;
+            SceneKit newSceneKit;
             MLG_CHECK(LoadSceneKit(droppedFile, textureCache, newSceneKit));
-            dawnSceneKit = std::move(newSceneKit);
+            sceneKit = std::move(newSceneKit);
         }
 
         mouseNav.Update(elapsedSeconds);
@@ -262,11 +265,11 @@ MainLoop()
 
         const auto& camWorldMat = camera.Get<WorldMatrix>();
         const auto& projection = camera.Get<Projection>();
-        for(const auto& tuple : registry.GetView<WorldMatrix, DawnSceneKit*>())
+        for(const auto& tuple : registry.GetView<WorldMatrix, ModelTag>())
         {
-            const auto [eid, worldMat, sceneKit] = tuple;
+            const auto [eid, worldMat, modelTag] = tuple;
 
-            renderer.Render(camWorldMat, projection, *sceneKit, renderCompositor);
+            renderer.Render(camWorldMat, projection, sceneKit, renderCompositor);
         }
 
         RenderGui();
