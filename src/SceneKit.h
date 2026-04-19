@@ -1,9 +1,7 @@
 #pragma once
 
 #include "Bounds.h"
-#include "Color.h"
 #include "shaders/ShaderTypes.h"
-#include "VecMath.h"
 #include "Vertex.h"
 
 #include <string>

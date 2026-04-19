@@ -15,59 +15,6 @@ ImGuiRenderer::Startup()
 {
     MLG_CHECKV(!m_Initialized, "ImGuiRenderer is already initialized");
 
-    MLG_CHECK(DawnStartup());
-
-    m_Initialized = true;
-
-    return Result<>::Ok;
-}
-
-Result<>
-ImGuiRenderer::Shutdown()
-{
-    if(!m_Initialized)
-    {
-        // Not initialized, nothing to do
-        return Result<>::Ok;
-    }
-
-    MLG_CHECK(DawnShutdown());
-
-    m_Initialized = false;
-
-    return Result<>::Ok;
-}
-
-Result<>
-ImGuiRenderer::NewFrame()
-{
-    MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
-
-    return DawnNewFrame();
-}
-
-Result<>
-ImGuiRenderer::Render(DawnRenderCompositor& renderCompositor)
-{
-    MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
-
-    static PerfTimer renderGuiTimer("ImGuiRenderer.Render");
-    auto scopedTimer = renderGuiTimer.StartScoped();
-
-    return DawnRender(renderCompositor);
-}
-
-//private:
-
-Result<>
-ImGuiRenderer::DawnStartup()
-{
-    if(m_Context)
-    {
-        // Already initialized
-        return Result<>::Ok;
-    }
-
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     m_Context = ImGui::CreateContext();
@@ -99,14 +46,17 @@ ImGuiRenderer::DawnStartup()
     init_info.DepthStencilFormat = WGPUTextureFormat_Undefined;
     ImGui_ImplWGPU_Init(&init_info);
 
+    m_Initialized = true;
+
     return Result<>::Ok;
 }
 
 Result<>
-ImGuiRenderer::DawnShutdown()
+ImGuiRenderer::Shutdown()
 {
-    if(!m_Context)
+    if(!m_Initialized)
     {
+        // Not initialized, nothing to do
         return Result<>::Ok;
     }
 
@@ -116,12 +66,16 @@ ImGuiRenderer::DawnShutdown()
 
     m_Context = nullptr;
 
+    m_Initialized = false;
+
     return Result<>::Ok;
 }
 
 Result<>
-ImGuiRenderer::DawnNewFrame()
+ImGuiRenderer::NewFrame()
 {
+    MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
+
     ImGui_ImplWGPU_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
@@ -130,8 +84,12 @@ ImGuiRenderer::DawnNewFrame()
 }
 
 Result<>
-ImGuiRenderer::DawnRender(DawnRenderCompositor& renderCompositor)
+ImGuiRenderer::Render(DawnRenderCompositor& renderCompositor)
 {
+    MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
+
+    static PerfTimer renderGuiTimer("ImGuiRenderer.Render");
+    auto scopedTimer = renderGuiTimer.StartScoped();
     ImGui::Render();
 
     ImDrawData* drawData = ImGui::GetDrawData();

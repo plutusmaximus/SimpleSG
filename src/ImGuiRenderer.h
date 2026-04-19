@@ -30,11 +30,6 @@ public:
 
 private:
 
-    Result<> DawnStartup();
-    Result<> DawnShutdown();
-    Result<> DawnNewFrame();
-    Result<> DawnRender(DawnRenderCompositor& renderCompositor);
-
     ImGuiContext* m_Context{nullptr};
 
     bool m_Initialized{ false };
