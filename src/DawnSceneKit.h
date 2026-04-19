@@ -2,6 +2,7 @@
 
 #include "Result.h"
 #include "SceneKit.h"
+#include "shaders/ShaderTypes.h"
 #include "TextureCache.h"
 #include "VecMath.h"
 #include "WebgpuHelper.h"
@@ -10,15 +11,10 @@
 #include <span>
 #include <vector>
 
-// Semantic tags for strongly-typed GPU storage buffers.
-struct TransformBufferTag{};
-struct MeshDrawDataBufferTag{};
-struct MaterialConstantsBufferTag{};
-
 // Strongly-typed GPU storage buffer classes.
-using TransformBuffer = TypedGpuBuffer<TransformBufferTag>;
-using MeshDrawDataBuffer = TypedGpuBuffer<MeshDrawDataBufferTag>;
-using MaterialConstantsBuffer = TypedGpuBuffer<MaterialConstantsBufferTag>;
+using TransformBuffer = TypedGpuBuffer<ShaderTypes::MeshTransform>;
+using MeshDrawDataBuffer = TypedGpuBuffer<ShaderTypes::MeshDrawData>;
+using MaterialConstantsBuffer = TypedGpuBuffer<ShaderTypes::MaterialConstants>;
 
 class DawnSceneKit : public SceneKit
 {

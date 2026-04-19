@@ -15,6 +15,14 @@ struct MeshProperties
     AABoundingBox BoundingBox;
 };
 
+struct MeshData
+{
+    uint32_t FirstIndex;
+    uint32_t IndexCount;
+    uint32_t BaseVertex;
+    MeshProperties Properties;
+};
+
 struct ModelInstance
 {
     uint32_t FirstMesh;
@@ -36,14 +44,6 @@ struct TransformData
 
     Mat44f Transform;
     TransformIndex ParentIndex{ kInvalidParentIndex };
-};
-
-struct MeshData
-{
-    uint32_t FirstIndex;
-    uint32_t IndexCount;
-    uint32_t BaseVertex;
-    MaterialIndex MaterialIndex;
 };
 
 class SceneKitSourceData

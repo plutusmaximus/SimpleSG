@@ -424,7 +424,7 @@ BuildIndexBuffer(std::span<const VertexIndex> indices, wgpu::CommandEncoder enco
 static Result<TransformBuffer>
 BuildTransformBuffer(std::span<const TransformData> transforms)
 {
-    const size_t sizeofBuffer = transforms.size() * sizeof(Mat44f);
+    const size_t sizeofBuffer = transforms.size() * sizeof(ShaderTypes::MeshTransform);
 
     auto buffer = WebgpuHelper::CreateTypedStorageBuffer<TransformBuffer>(sizeofBuffer, "TransformBuffer");
     MLG_CHECK(buffer);
@@ -432,11 +432,12 @@ BuildTransformBuffer(std::span<const TransformData> transforms)
     auto mapped = buffer->Map();
     MLG_CHECK(mapped);
 
-    Mat44f* dst = reinterpret_cast<Mat44f*>(*mapped);
+    ShaderTypes::MeshTransform* dst = *mapped;
 
     for(const TransformData& transform : transforms)
     {
-        *dst++ = transform.Transform;
+        dst->Transform = transform.Transform;
+        ++dst;
     }
 
     buffer->Unmap();
@@ -455,7 +456,7 @@ BuildMaterialConstantsBuffer(std::span<const MaterialData> materials)
     auto mapped = buffer->Map();
     MLG_CHECK(mapped);
 
-    ShaderTypes::MaterialConstants* dst = reinterpret_cast<ShaderTypes::MaterialConstants*>(*mapped);
+    ShaderTypes::MaterialConstants* dst = *mapped;
 
     for(const auto& mtl : materials)
     {
@@ -540,7 +541,7 @@ BuildMeshDrawDataBuffer(std::span<const MeshData> meshDatas,
     auto mapped = buffer->Map();
     MLG_CHECK(mapped);
 
-    ShaderTypes::MeshDrawData* meshDrawData = reinterpret_cast<ShaderTypes::MeshDrawData*>(*mapped);
+    ShaderTypes::MeshDrawData* meshDrawData = *mapped;
 
     uint32_t meshCount = 0;
 
@@ -554,10 +555,14 @@ BuildMeshDrawDataBuffer(std::span<const MeshData> meshDatas,
 
         for(const auto& meshData : meshes)
         {
+            const AABoundingBox& boundingBox = meshData.Properties.BoundingBox;
+
             meshDrawData[meshCount] = //
             {
+                .Center = (boundingBox.GetMin() + boundingBox.GetMax()) * 0.5f,
+                .Radius = (boundingBox.GetMax() - meshDrawData[meshCount].Center).Length(),
                 .TransformIndex = modelInstance.TransformIndex,
-                .MaterialIndex = meshData.MaterialIndex,
+                .MaterialIndex = meshData.Properties.MaterialIndex,
             };
 
             ++meshCount;
@@ -587,6 +592,9 @@ DawnSceneKit::Load(const std::filesystem::path& rootPath,
 
     auto indexBuffer = BuildIndexBuffer(sceneKitData.Indices, encoder);
     MLG_CHECK(indexBuffer);
+
+    wgpu::CommandBuffer commandBuffer = encoder.Finish();
+    WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
 
     auto transformBuffer = BuildTransformBuffer(sceneKitData.Transforms);
     MLG_CHECK(transformBuffer);
@@ -625,25 +633,8 @@ DawnSceneKit::Load(const std::filesystem::path& rootPath,
     meshProperties.reserve(sceneKitData.Meshes.size());
     for(const auto& meshData : sceneKitData.Meshes)
     {
-        std::span<const Vertex> vertices = sceneKitData.Vertices;
-        std::span<const VertexIndex> indices //
-            {
-                sceneKitData.Indices.data() + meshData.FirstIndex,
-                meshData.IndexCount,
-            };
-        const AABoundingBox boundingBox = AABoundingBox::FromVertices(vertices, indices);
-        const MeshProperties mesh //
-            {
-                .MaterialIndex = meshData.MaterialIndex,
-                .BoundingBox = boundingBox,
-            };
-
-        meshProperties.emplace_back(std::move(mesh));
+        meshProperties.emplace_back(meshData.Properties);
     }
-
-    wgpu::CommandBuffer commandBuffer = encoder.Finish();
-
-    WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
 
     std::vector<ModelInstance> modelInstances(sceneKitData.ModelInstances);
 

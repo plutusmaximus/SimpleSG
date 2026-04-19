@@ -10,8 +10,12 @@ struct ClipSpaceTransform
 
 struct MeshDrawData
 {
+    center : vec3<f32>,
+    radius : f32,
     transformIndex : u32,
     materialIndex : u32,
+    pad0 : u32,
+    pad1 : u32,
 };
 
 struct Material

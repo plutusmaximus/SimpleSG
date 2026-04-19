@@ -40,20 +40,24 @@ namespace ShaderTypes
     class MeshTransform
     {
     public:
-        Mat44f WorldTransform;
+        Mat44f Transform;
     };
 
     class ClipSpaceTransform
     {
     public:
-        Mat44f ClipFromWorld;
+        Mat44f Transform;
     };
 
     class MeshDrawData
     {
     public:
+        Vec3f Center;
+        float Radius;
         TransformIndex TransformIndex;
         MaterialIndex MaterialIndex;
+        uint32_t pad0;
+        uint32_t pad1;
     };
 
     class CameraParams

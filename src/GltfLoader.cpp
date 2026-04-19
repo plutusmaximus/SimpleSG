@@ -462,13 +462,20 @@ CollectModels(const std::vector<CgltfMeshData>& gltfMeshes,
                 materialMap[prim.material] = materialIndex;
             }
 
-            const MeshData meshData//
-            {
-                .FirstIndex = narrow_cast<uint32_t>(firstIndex),
-                .IndexCount = narrow_cast<uint32_t>(*indexCount),
-                .BaseVertex = narrow_cast<uint32_t>(baseVertex),
-                .MaterialIndex = narrow_cast<MaterialIndex>(materialIndex),
-            };
+            const std::span<const Vertex> primVertices(vertices.data() + baseVertex, *vertexCount);
+            const std::span<const VertexIndex> primIndices(indices.data() + firstIndex, *indexCount);
+
+            const MeshData meshData //
+                {
+                    .FirstIndex = narrow_cast<uint32_t>(firstIndex),
+                    .IndexCount = narrow_cast<uint32_t>(*indexCount),
+                    .BaseVertex = narrow_cast<uint32_t>(baseVertex),
+                    .Properties = //
+                    {
+                        .MaterialIndex = narrow_cast<MaterialIndex>(materialIndex),
+                        .BoundingBox = AABoundingBox::FromVertices(primVertices, primIndices),
+                    },
+                };
 
             meshes.emplace_back(std::move(meshData));
 

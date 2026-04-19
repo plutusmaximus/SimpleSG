@@ -262,7 +262,11 @@ static Result<SceneKitSourceData> CreateTriangleModel()
         .FirstIndex = 0,
         .IndexCount = static_cast<uint32_t>(triangleIndices.size()),
         .BaseVertex = 0,
-        .MaterialIndex = 0,
+        .Properties =
+        {
+            .MaterialIndex = 0,
+            .BoundingBox = AABoundingBox::FromVertices(triangleVertices, triangleIndices),
+        },
     };
 
     const ModelInstance modelInstance //

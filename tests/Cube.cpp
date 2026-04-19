@@ -355,12 +355,16 @@ static Result<SceneKitSourceData> CreateShapeModel()
         };
 
     const MeshData meshData //
-    {
-        .FirstIndex = 0,
-        .IndexCount = static_cast<uint32_t>(indices.size()),
-        .BaseVertex = 0,
-        .MaterialIndex = 0,
-    };
+        {
+            .FirstIndex = 0,
+            .IndexCount = static_cast<uint32_t>(indices.size()),
+            .BaseVertex = 0,
+            .Properties = //
+            {
+                .MaterialIndex = 0,
+                .BoundingBox = AABoundingBox::FromVertices(cubeVertices, cubeIndices),
+            },
+        };
 
     const ModelInstance modelInstance //
     {
