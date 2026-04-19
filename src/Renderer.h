@@ -70,9 +70,7 @@ private:
     {
         wgpu::ShaderModule Shader;
         wgpu::PipelineLayout Layout;
-        wgpu::BindGroup BindGroup0;
         wgpu::BindGroup BindGroup1;
-        wgpu::BindGroup BindGroup2;
         wgpu::RenderPipeline Pipeline;
     };
 
@@ -99,7 +97,6 @@ private:
         ClipSpaceBuffer ClipSpaceBuf;
         CameraParamsBuffer CameraParamsBuf;
         wgpu::BindGroup BindGroup1;
-        wgpu::BindGroup BindGroup2;
     };
 
     TransformBuffers m_TransformBuffers;

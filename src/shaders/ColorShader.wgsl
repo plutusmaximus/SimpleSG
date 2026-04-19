@@ -28,11 +28,19 @@ struct Material
     pad1 : f32,
 };
 
+struct Camera
+{
+    view      : mat4x4<f32>,
+    proj      : mat4x4<f32>,
+    viewProj  : mat4x4<f32>,
+};
+
 @group(0) @binding(0) var<storage, read> meshDrawData : array<MeshDrawData>;
 @group(0) @binding(1) var<storage, read> meshTransforms: array<MeshTransform>;
 @group(0) @binding(2) var<storage, read> materials : array<Material>;
 
 @group(1) @binding(0) var<storage, read> clipSpacTransforms: array<ClipSpaceTransform>;
+@group(1) @binding(1) var<uniform> camera: Camera;
 
 @group(2) @binding(0) var texture0: texture_2d<f32>;
 @group(2) @binding(1) var textureSampler: sampler;
@@ -82,3 +90,30 @@ fn fs_main(input: FSInput) -> @location(0) vec4<f32>
     let litColor = vec4<f32>(color, material.color.a);
     return litColor * textureSample(texture0, textureSampler, input.texCoord);
 }
+
+/*struct VSSphereOut
+{
+    @builtin(position) pos : vec4<f32>,
+    @location(0) uv        : vec2<f32>,   // [-1,1]
+    @location(1) centerVS  : vec3<f32>,
+};
+
+@vertex
+fn vs_sphere_main(@builtin(vertex_index) vid : u32) -> VSSphereOut
+{
+    var out : VSSphereOut;
+
+    let centerVS = (camera.view * vec4<f32>(sphere.centerWorld, 1.0)).xyz;
+
+    let uv = quad(vid);
+
+    // billboard quad in view space
+    let posVS = centerVS + vec3<f32>(uv * sphere.radius, 0.0);
+
+    out.pos = camera.proj * vec4<f32>(posVS, 1.0);
+    out.uv = uv;
+    out.centerVS = centerVS;
+
+    return out;
+}
+*/

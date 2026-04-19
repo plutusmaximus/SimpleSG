@@ -179,7 +179,7 @@ public:
 
     static Result<const std::array<wgpu::BindGroupLayout, 3>> GetColorPipelineLayouts();
 
-    static Result<const std::array<wgpu::BindGroupLayout, 3>> GetTransformPipelineLayouts();
+    static Result<const std::array<wgpu::BindGroupLayout, 2>> GetTransformPipelineLayouts();
 
     static Result<const std::array<wgpu::BindGroupLayout, 3>> GetCompositorPipelineLayouts();
 
