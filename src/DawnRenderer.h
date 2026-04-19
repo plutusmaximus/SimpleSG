@@ -48,7 +48,7 @@ private:
 
     Result<> CreateColorPipeline();
 
-    Result<> CreateResolvePipeline();
+    Result<> CreatePresentPipeline();
 
     Result<> CreateTransformPipeline();
 
@@ -76,7 +76,7 @@ private:
         wgpu::RenderPipeline Pipeline;
     };
 
-    struct ResolvePipeline
+    struct PresentPipeline
     {
         wgpu::ShaderModule Shader;
         wgpu::PipelineLayout Layout;
@@ -87,8 +87,8 @@ private:
     // Pipeline for rendering to the color target texture.
     ColorPipeline m_ColorPipeline;
 
-    // Pipeline to resolve the color target to the swap chain.
-    ResolvePipeline m_ResolvePipeline;
+    // Pipeline to present the color target to the swap chain.
+    PresentPipeline m_PresentPipeline;
 
     using ClipSpaceBuffer = TypedGpuBuffer<ShaderTypes::ClipSpaceTransform>;
     using CameraParamsBuffer = TypedGpuBuffer<ShaderTypes::CameraParams>;

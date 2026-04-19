@@ -17,7 +17,7 @@
 #include <cstdio>
 #include <SDL3/SDL.h>
 
-static constexpr const char* COMPOSITOR_SHADER = "shaders/ResolveShader.wgsl";
+static constexpr const char* PRESENT_SHADER = "shaders/PresentShader.wgsl";
 
 static constexpr const char* COLOR_SHADER = "shaders/ColorShader.wgsl";
 
@@ -32,7 +32,7 @@ DawnRenderer::Startup()
 
     MLG_CHECK(CreateColorAndDepthTargets());
     MLG_CHECK(CreateColorPipeline());
-    MLG_CHECK(CreateResolvePipeline());
+    MLG_CHECK(CreatePresentPipeline());
     MLG_CHECK(CreateTransformPipeline());
 
     m_Initialized = true;
@@ -50,7 +50,7 @@ DawnRenderer::Shutdown()
     }
 
     m_ColorPipeline = {};
-    m_ResolvePipeline = {};
+    m_PresentPipeline = {};
     m_TransformPipeline = {};
     m_TransformBuffers = {};
 
@@ -267,8 +267,8 @@ DawnRenderer::Present(DawnRenderCompositor& compositor)
     wgpu::RenderPassEncoder renderPass = compositor.GetCommandEncoder().BeginRenderPass(&renderPassDesc);
     MLG_CHECK(renderPass, "Failed to begin render pass for copying color target to swapchain");
 
-    renderPass.SetPipeline(m_ResolvePipeline.Pipeline);
-    renderPass.SetBindGroup(2, m_ResolvePipeline.BindGroup2, 0, nullptr);
+    renderPass.SetPipeline(m_PresentPipeline.Pipeline);
+    renderPass.SetBindGroup(2, m_PresentPipeline.BindGroup2, 0, nullptr);
     renderPass.Draw(3, 1, 0, 0);
     renderPass.End();
 
@@ -553,24 +553,24 @@ DawnRenderer::CreateColorPipeline()
 }
 
 Result<>
-DawnRenderer::CreateResolvePipeline()
+DawnRenderer::CreatePresentPipeline()
 {
-    if(m_ResolvePipeline.Pipeline)
+    if(m_PresentPipeline.Pipeline)
     {
         return Result<>::Ok;
     }
 
-    auto shader = CreateShader(COMPOSITOR_SHADER);
+    auto shader = CreateShader(PRESENT_SHADER);
     MLG_CHECK(shader);
 
-    m_ResolvePipeline.Shader = *shader;
+    m_PresentPipeline.Shader = *shader;
 
-    // Resolve pipeline bind group layout
+    // Present pipeline bind group layout
 
     auto bgLayouts = WebgpuHelper::GetCompositorPipelineLayouts();
     MLG_CHECK(bgLayouts);
 
-    wgpu::BindGroupLayout resolveBgl[] = //
+    wgpu::BindGroupLayout presentBgl[] = //
         {
             nullptr,    //bind group 0
             nullptr,    //bind group 1
@@ -579,13 +579,13 @@ DawnRenderer::CreateResolvePipeline()
 
     wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
         {
-            .label = "ResolvePipelineLayout",
-            .bindGroupLayoutCount = std::size(resolveBgl),
-            .bindGroupLayouts = resolveBgl,
+            .label = "PresentPipelineLayout",
+            .bindGroupLayoutCount = std::size(presentBgl),
+            .bindGroupLayouts = presentBgl,
         };
 
-    m_ResolvePipeline.Layout = WebgpuHelper::GetDevice().CreatePipelineLayout(&pipelineLayoutDesc);
-    MLG_CHECK(m_ResolvePipeline.Layout, "Failed to create resolve pipeline layout");
+    m_PresentPipeline.Layout = WebgpuHelper::GetDevice().CreatePipelineLayout(&pipelineLayoutDesc);
+    MLG_CHECK(m_PresentPipeline.Layout, "Failed to create present pipeline layout");
 
     wgpu::BlendState blendState //
         {
@@ -612,7 +612,7 @@ DawnRenderer::CreateResolvePipeline()
 
     wgpu::FragmentState fragmentState //
         {
-            .module = m_ResolvePipeline.Shader,
+            .module = m_PresentPipeline.Shader,
             .entryPoint = "fs_main",
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -621,10 +621,10 @@ DawnRenderer::CreateResolvePipeline()
     wgpu::RenderPipelineDescriptor descriptor//
     {
         .label = "CopyColorTargetPipeline",
-        .layout = m_ResolvePipeline.Layout,
+        .layout = m_PresentPipeline.Layout,
         .vertex =
         {
-            .module = m_ResolvePipeline.Shader,
+            .module = m_PresentPipeline.Shader,
             .entryPoint = "vs_main",
             .bufferCount = 0,
             .buffers = nullptr,
@@ -669,11 +669,11 @@ DawnRenderer::CreateResolvePipeline()
             .entries = bgEntries,
         };
 
-    m_ResolvePipeline.BindGroup2 = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
-    MLG_CHECK(m_ResolvePipeline.BindGroup2, "Failed to create bind group 2 for resolve pipeline");
+    m_PresentPipeline.BindGroup2 = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
+    MLG_CHECK(m_PresentPipeline.BindGroup2, "Failed to create bind group 2 for present pipeline");
 
-    m_ResolvePipeline.Pipeline = WebgpuHelper::GetDevice().CreateRenderPipeline(&descriptor);
-    MLG_CHECK(m_ResolvePipeline.Pipeline, "Failed to create render pipeline for resolve pipeline");
+    m_PresentPipeline.Pipeline = WebgpuHelper::GetDevice().CreateRenderPipeline(&descriptor);
+    MLG_CHECK(m_PresentPipeline.Pipeline, "Failed to create render pipeline for present pipeline");
 
     return Result<>::Ok;
 }
