@@ -42,8 +42,7 @@ private:
 
     Result<wgpu::RenderPassEncoder> BeginRenderPass(wgpu::CommandEncoder cmdEncoder);
 
-    /// @brief Resolve the color target to the swapchain texture.
-    Result<> ResolveColorTargetToSwapchain(DawnRenderCompositor& compositor);
+    Result<> Present(DawnRenderCompositor& compositor);
 
     Result<> CreateColorAndDepthTargets();
 

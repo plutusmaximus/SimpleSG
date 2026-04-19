@@ -180,17 +180,12 @@ DawnRenderer::Render(const Mat44f& camera,
 
     renderPass.End();
 
-    static PerfTimer resolveTimer("Renderer.Render.Resolve");
-    resolveTimer.Start();
-
-    static PerfTimer resolveColorTargetTimer("Renderer.Render.Resolve.ResolveColorTarget");
+    static PerfTimer presentTimer("Renderer.Render.Present");
     {
-        auto scopedTimer = resolveColorTargetTimer.StartScoped();
-        auto resolveResult = ResolveColorTargetToSwapchain(compositor);
-        MLG_CHECK(resolveResult);
+        auto scopedTimer = presentTimer.StartScoped();
+        auto presentResult = Present(compositor);
+        MLG_CHECK(presentResult);
     }
-
-    resolveTimer.Stop();
 
     return Result<>::Ok;
 }
@@ -244,7 +239,7 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
 }
 
 Result<>
-DawnRenderer::ResolveColorTargetToSwapchain(DawnRenderCompositor& compositor)
+DawnRenderer::Present(DawnRenderCompositor& compositor)
 {
     wgpu::Texture target = compositor.GetTarget();
 
