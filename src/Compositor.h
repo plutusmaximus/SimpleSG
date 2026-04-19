@@ -4,17 +4,17 @@
 
 #include <webgpu/webgpu_cpp.h>
 
-class DawnRenderCompositor
+class Compositor
 {
 public:
 
-    DawnRenderCompositor() = default;
-    DawnRenderCompositor(const DawnRenderCompositor&) = delete;
-    DawnRenderCompositor& operator=(const DawnRenderCompositor&) = delete;
-    DawnRenderCompositor(DawnRenderCompositor&&) = delete;
-    DawnRenderCompositor& operator=(DawnRenderCompositor&&) = delete;
+    Compositor() = default;
+    Compositor(const Compositor&) = delete;
+    Compositor& operator=(const Compositor&) = delete;
+    Compositor(Compositor&&) = delete;
+    Compositor& operator=(Compositor&&) = delete;
 
-    ~DawnRenderCompositor()
+    ~Compositor()
     {
         Shutdown();
     }

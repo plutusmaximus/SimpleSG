@@ -155,10 +155,8 @@ add_custom_target(copy_images
 set(SSG_SOURCES
   src/AssertHelper.cpp
   src/Bounds.cpp
+  src/Compositor.cpp
   src/CoopScheduler.cpp
-  src/DawnRenderCompositor.cpp
-  src/DawnRenderer.cpp
-  src/DawnSceneKit.cpp
   src/EcsChildTransformPool.cpp
   src/FileFetcher.cpp
   src/GltfLoader.cpp
@@ -166,6 +164,8 @@ set(SSG_SOURCES
   src/Log.cpp
   src/PerfMetrics.cpp
   src/Projection.cpp
+  src/Renderer.cpp
+  src/SceneKit.cpp
   src/Shapes.cpp
   src/Stopwatch.cpp
   src/TextureCache.cpp
@@ -176,10 +176,8 @@ set(SSG_SOURCES
 set(SSG_HEADERS
   src/AssertHelper.h
   src/Bounds.h
+  src/Compositor.h
   src/CoopScheduler.h
-  src/DawnRenderCompositor.h
-  src/DawnRenderer.h
-  src/DawnSceneKit.h
   src/ECS.h
   src/EcsChildTransformPool.h
   src/FileFetcher.h
@@ -191,6 +189,7 @@ set(SSG_HEADERS
   src/PerfMetrics.h
   src/PoolAllocator.h
   src/Projection.h
+  src/Renderer.h
   src/Result.h
   src/SceneKit.h
   src/scope_exit.h

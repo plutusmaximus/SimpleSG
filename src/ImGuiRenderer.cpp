@@ -1,6 +1,6 @@
 #include "ImGuiRenderer.h"
 
-#include "DawnRenderCompositor.h"
+#include "Compositor.h"
 #include "PerfMetrics.h"
 #include "scope_exit.h"
 #include "WebgpuHelper.h"
@@ -84,7 +84,7 @@ ImGuiRenderer::NewFrame()
 }
 
 Result<>
-ImGuiRenderer::Render(DawnRenderCompositor& renderCompositor)
+ImGuiRenderer::Render(Compositor& renderCompositor)
 {
     MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
 

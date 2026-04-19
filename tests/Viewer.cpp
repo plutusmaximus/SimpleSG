@@ -1,5 +1,5 @@
-#include "DawnRenderCompositor.h"
-#include "DawnRenderer.h"
+#include "Compositor.h"
+#include "Renderer.h"
 #include "SceneKit.h"
 #include "ECS.h"
 #include "GltfLoader.h"
@@ -94,8 +94,8 @@ MainLoop()
 
     const std::filesystem::path path(SPONZA_MODEL_PATH);
 
-    DawnRenderer renderer;
-    DawnRenderCompositor renderCompositor;
+    Renderer renderer;
+    Compositor compositor;
     ImGuiRenderer imGuiRenderer;
     TextureCache textureCache;
     SceneKit sceneKit;
@@ -103,7 +103,7 @@ MainLoop()
     WalkMouseNav mouseNav;
 
     MLG_CHECK(renderer.Startup());
-    MLG_CHECK(renderCompositor.Startup());
+    MLG_CHECK(compositor.Startup());
     MLG_CHECK(imGuiRenderer.Startup());
     MLG_CHECK(textureCache.Startup());
     MLG_CHECK(LoadSceneKit(path, textureCache, sceneKit));
@@ -260,7 +260,7 @@ MainLoop()
             worldMat = xform.ToMatrix();
         }
 
-        renderCompositor.BeginFrame();
+        compositor.BeginFrame();
         imGuiRenderer.NewFrame();
 
         const auto& camWorldMat = camera.Get<WorldMatrix>();
@@ -269,14 +269,14 @@ MainLoop()
         {
             const auto [eid, worldMat, modelTag] = tuple;
 
-            renderer.Render(camWorldMat, projection, sceneKit, renderCompositor);
+            renderer.Render(camWorldMat, projection, sceneKit, compositor);
         }
 
         RenderGui();
 
-        imGuiRenderer.Render(renderCompositor);
+        imGuiRenderer.Render(compositor);
 
-        renderCompositor.EndFrame();
+        compositor.EndFrame();
 
 #if !defined(__EMSCRIPTEN__)
         MLG_CHECK(WebgpuHelper::GetSurface().Present(), "Failed to present backbuffer");
@@ -289,7 +289,7 @@ MainLoop()
 
     MLG_CHECK(textureCache.Shutdown());
     MLG_CHECK(imGuiRenderer.Shutdown());
-    MLG_CHECK(renderCompositor.Shutdown());
+    MLG_CHECK(compositor.Shutdown());
     MLG_CHECK(renderer.Shutdown());
 
     PerfMetrics::LogTimers();

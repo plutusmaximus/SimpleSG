@@ -1,5 +1,5 @@
-#include "DawnRenderCompositor.h"
-#include "DawnRenderer.h"
+#include "Compositor.h"
+#include "Renderer.h"
 #include "SceneKit.h"
 #include "ImGuiRenderer.h"
 #include "Log.h"
@@ -54,10 +54,10 @@ static Result<> MainLoop()
     SceneKit sceneKit;
     MLG_CHECK(SceneKit::Load(rootPath, textureCache, *sceneKitData, sceneKit));
 
-    DawnRenderer renderer;
+    Renderer renderer;
     MLG_CHECK(renderer.Startup());
 
-    DawnRenderCompositor compositor;
+    Compositor compositor;
     MLG_CHECK(compositor.Startup());
 
     ImGuiRenderer imGuiRenderer;

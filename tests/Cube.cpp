@@ -1,7 +1,7 @@
 #include "AppDriver.h"
 #include "Application.h"
-#include "DawnRenderCompositor.h"
-#include "DawnRenderer.h"
+#include "Compositor.h"
+#include "Renderer.h"
 #include "SceneKit.h"
 #include "ECS.h"
 #include "EcsChildTransformPool.h"
@@ -244,8 +244,8 @@ private:
 
     State m_State = State::None;
 
-    DawnRenderCompositor m_Compositor;
-    DawnRenderer m_Renderer;
+    Compositor m_Compositor;
+    Renderer m_Renderer;
     ImGuiRenderer m_ImGuiRenderer;
     TextureCache m_TextureCache;
     EcsRegistry m_Registry;

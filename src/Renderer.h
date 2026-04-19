@@ -7,24 +7,24 @@
 
 #include <unordered_map>
 
-class DawnRenderCompositor;
+class Compositor;
 template<typename T>
 class Mat44;
 using Mat44f = Mat44<float>;
 class Projection;
 class SceneKit;
 
-class DawnRenderer
+class Renderer
 {
 public:
 
-    DawnRenderer() = default;
-    DawnRenderer(const DawnRenderer&) = delete;
-    DawnRenderer& operator=(const DawnRenderer&) = delete;
-    DawnRenderer(DawnRenderer&&) = delete;
-    DawnRenderer& operator=(DawnRenderer&&) = delete;
+    Renderer() = default;
+    Renderer(const Renderer&) = delete;
+    Renderer& operator=(const Renderer&) = delete;
+    Renderer(Renderer&&) = delete;
+    Renderer& operator=(Renderer&&) = delete;
 
-    ~DawnRenderer()
+    ~Renderer()
     {
         Shutdown();
     }
@@ -36,13 +36,13 @@ public:
     Result<> Render(const Mat44f& camera,
         const Projection& projection,
         const SceneKit& sceneKit,
-        DawnRenderCompositor& compositor);
+        Compositor& compositor);
 
 private:
 
     Result<wgpu::RenderPassEncoder> BeginRenderPass(wgpu::CommandEncoder cmdEncoder);
 
-    Result<> Present(DawnRenderCompositor& compositor);
+    Result<> Present(Compositor& compositor);
 
     Result<> CreateColorAndDepthTargets();
 

@@ -2,9 +2,9 @@
 
 #define __LOGGER_NAME__ "DAWN"
 
-#include "DawnRenderer.h"
+#include "Renderer.h"
 
-#include "DawnRenderCompositor.h"
+#include "Compositor.h"
 #include "SceneKit.h"
 #include "Log.h"
 #include "PerfMetrics.h"
@@ -24,9 +24,9 @@ static constexpr const char* COLOR_SHADER = "shaders/ColorShader.wgsl";
 static constexpr const char* TRANSFORM_SHADER = "shaders/TransformShader.wgsl";
 
 Result<>
-DawnRenderer::Startup()
+Renderer::Startup()
 {
-    MLG_CHECKV(!m_Initialized, "DawnRenderer is already initialized");
+    MLG_CHECKV(!m_Initialized, "Renderer is already initialized");
 
     WebgpuHelper::GetDevice().GetLimits(&m_GpuLimits);
 
@@ -41,7 +41,7 @@ DawnRenderer::Startup()
 }
 
 Result<>
-DawnRenderer::Shutdown()
+Renderer::Shutdown()
 {
     if(!m_Initialized)
     {
@@ -66,12 +66,12 @@ DawnRenderer::Shutdown()
 }
 
 Result<>
-DawnRenderer::Render(const Mat44f& camera,
+Renderer::Render(const Mat44f& camera,
     const Projection& projection,
     const SceneKit& sceneKit,
-    DawnRenderCompositor& compositor)
+    Compositor& compositor)
 {
-    MLG_CHECKV(m_Initialized, "DawnRenderer is not initialized");
+    MLG_CHECKV(m_Initialized, "Renderer is not initialized");
 
     static PerfTimer renderTimer("Renderer.Render");
     auto scopedRenderTimer = renderTimer.StartScoped();
@@ -191,7 +191,7 @@ DawnRenderer::Render(const Mat44f& camera,
 //private:
 
 Result<wgpu::RenderPassEncoder>
-DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
+Renderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
 {
     wgpu::RenderPassColorAttachment attachment //
         {
@@ -237,7 +237,7 @@ DawnRenderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
 }
 
 Result<>
-DawnRenderer::Present(DawnRenderCompositor& compositor)
+Renderer::Present(Compositor& compositor)
 {
     wgpu::Texture target = compositor.GetTarget();
 
@@ -304,7 +304,7 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
 }
 
 Result<>
-DawnRenderer::CreateColorAndDepthTargets()
+Renderer::CreateColorAndDepthTargets()
 {
     static constexpr wgpu::TextureFormat kDepthTargetFormat = wgpu::TextureFormat::Depth24Plus;
 
@@ -385,7 +385,7 @@ DawnRenderer::CreateColorAndDepthTargets()
 }
 
 Result<>
-DawnRenderer::CreateColorPipeline()
+Renderer::CreateColorPipeline()
 {
     if(m_ColorPipeline.Pipeline)
     {
@@ -551,7 +551,7 @@ DawnRenderer::CreateColorPipeline()
 }
 
 Result<>
-DawnRenderer::CreatePresentPipeline()
+Renderer::CreatePresentPipeline()
 {
     if(m_PresentPipeline.Pipeline)
     {
@@ -677,7 +677,7 @@ DawnRenderer::CreatePresentPipeline()
 }
 
 Result<>
-DawnRenderer::CreateTransformPipeline()
+Renderer::CreateTransformPipeline()
 {
     if(m_TransformPipeline)
     {
@@ -727,7 +727,7 @@ DawnRenderer::CreateTransformPipeline()
 }
 
 Result<wgpu::ShaderModule>
-DawnRenderer::CreateShader(const char* path)
+Renderer::CreateShader(const char* path)
 {
     std::vector<uint8_t> shaderCode;
     auto loadResult = LoadShaderCode(path, shaderCode);
@@ -746,7 +746,7 @@ DawnRenderer::CreateShader(const char* path)
 }
 
 Result<>
-DawnRenderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
+Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
     const Mat44f& camera,
     const Projection& projection,
     const SceneKit& sceneKit)

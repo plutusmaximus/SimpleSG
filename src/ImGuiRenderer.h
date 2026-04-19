@@ -2,7 +2,7 @@
 
 #include "Result.h"
 
-class DawnRenderCompositor;
+class Compositor;
 struct ImGuiContext;
 
 class ImGuiRenderer
@@ -26,7 +26,7 @@ public:
 
     Result<> NewFrame();
 
-    Result<> Render(DawnRenderCompositor& renderCompositor);
+    Result<> Render(Compositor& renderCompositor);
 
 private:
 
