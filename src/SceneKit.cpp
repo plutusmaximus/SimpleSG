@@ -267,15 +267,15 @@ CreateColorPipelineBindGroup0(ColorPipelineResources& colorPipelineResources)
     {
         {
             .binding = 0,
-            .buffer = colorPipelineResources.MeshDrawDataBuffer.GetGpuBuffer(),
-            .offset = 0,
-            .size = colorPipelineResources.MeshDrawDataBuffer.GetSize(),
-        },
-        {
-            .binding = 1,
             .buffer = colorPipelineResources.TransformBuffer.GetGpuBuffer(),
             .offset = 0,
             .size = colorPipelineResources.TransformBuffer.GetSize(),
+        },
+        {
+            .binding = 1,
+            .buffer = colorPipelineResources.MeshDrawDataBuffer.GetGpuBuffer(),
+            .offset = 0,
+            .size = colorPipelineResources.MeshDrawDataBuffer.GetSize(),
         },
         {
             .binding = 2,
@@ -639,8 +639,8 @@ SceneKit::Load(const std::filesystem::path& rootPath,
     std::vector<ModelInstance> modelInstances(sceneKitData.ModelInstances);
 
     SceneKit sceneKit(
-        *indexBuffer,
         *vertexBuffer,
+        *indexBuffer,
         *transformBuffer,
         *materialConstantsBuffer,
         *drawIndirectBuffer,

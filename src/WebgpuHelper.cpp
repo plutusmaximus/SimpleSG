@@ -604,26 +604,26 @@ WebgpuHelper::GetColorPipelineLayouts()
         // Color pipeline bind group 0 layout
         wgpu::BindGroupLayoutEntry entries[] =//
         {
-            // Mesh draw data.
-            {
-                .binding = 0,
-                .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderTypes::MeshDrawData),
-                },
-            },
             // Mesh transform.
             {
-                .binding = 1,
+                .binding = 0,
                 .visibility = wgpu::ShaderStage::Vertex,
                 .buffer =
                 {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
                     .hasDynamicOffset = false,
                     .minBindingSize = sizeof(ShaderTypes::MeshTransform),
+                },
+            },
+            // Mesh draw data.
+            {
+                .binding = 1,
+                .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
+                .buffer =
+                {
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = sizeof(ShaderTypes::MeshDrawData),
                 },
             },
             // Material constants buffer.

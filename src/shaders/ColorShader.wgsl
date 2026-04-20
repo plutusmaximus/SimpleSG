@@ -35,8 +35,8 @@ struct Camera
     viewProj  : mat4x4<f32>,
 };
 
-@group(0) @binding(0) var<storage, read> meshDrawData : array<MeshDrawData>;
-@group(0) @binding(1) var<storage, read> meshTransforms: array<MeshTransform>;
+@group(0) @binding(0) var<storage, read> meshTransforms: array<MeshTransform>;
+@group(0) @binding(1) var<storage, read> meshDrawData : array<MeshDrawData>;
 @group(0) @binding(2) var<storage, read> materials : array<Material>;
 
 @group(1) @binding(0) var<storage, read> clipSpacTransforms: array<ClipSpaceTransform>;

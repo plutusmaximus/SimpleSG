@@ -86,8 +86,8 @@ public:
     SceneKit(SceneKit&& other) = default;
     SceneKit& operator=(SceneKit&& other) = default;
 
-    SceneKit(IndexBuffer indexBuffer,
-        VertexBuffer vertexBuffer,
+    SceneKit(VertexBuffer vertexBuffer,
+        IndexBuffer indexBuffer,
         TransformBuffer transformBuffer,
         MaterialConstantsBuffer materialConstantsBuffer,
         IndirectBuffer drawIndirectBuffer,
@@ -162,8 +162,8 @@ public:
 
 private:
 
-    IndexBuffer m_IndexBuffer{nullptr};
     VertexBuffer m_VertexBuffer{nullptr};
+    IndexBuffer m_IndexBuffer{nullptr};
     TransformBuffer m_TransformBuffer{nullptr};
     IndirectBuffer m_DrawIndirectBuffer{nullptr};
     MeshDrawDataBuffer m_MeshDrawDataBuffer{nullptr};
