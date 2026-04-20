@@ -5,7 +5,7 @@
 #include "Renderer.h"
 
 #include "Compositor.h"
-#include "SceneKit.h"
+#include "PropKit.h"
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "Projection.h"
@@ -68,7 +68,7 @@ Renderer::Shutdown()
 Result<>
 Renderer::Render(const Mat44f& camera,
     const Projection& projection,
-    const SceneKit& sceneKit,
+    const PropKit& propKit,
     Compositor& compositor)
 {
     MLG_CHECKV(m_Initialized, "Renderer is not initialized");
@@ -82,7 +82,7 @@ Renderer::Render(const Mat44f& camera,
     {
         auto scopedTimer = transformNodesTimer.StartScoped();
 
-        auto transformNodesResult = TransformNodes(cmdEncoder, camera, projection, sceneKit);
+        auto transformNodesResult = TransformNodes(cmdEncoder, camera, projection, propKit);
         MLG_CHECK(transformNodesResult);
     }
 
@@ -106,7 +106,7 @@ Renderer::Render(const Mat44f& camera,
     static PerfTimer setVsBindGroupTimer("Renderer.Render.Draw.SetVsBindGroup");
     {
         auto scopedTimer = setVsBindGroupTimer.StartScoped();
-        renderPass.SetBindGroup(0, sceneKit.GetColorPipelineBindGroup0(), 0, nullptr);
+        renderPass.SetBindGroup(0, propKit.GetColorPipelineBindGroup0(), 0, nullptr);
         renderPass.SetBindGroup(1, m_ColorPipeline.BindGroup1, 0, nullptr);
     }
 
@@ -122,14 +122,14 @@ Renderer::Render(const Mat44f& camera,
             : wgpu::IndexFormat::Uint16;
 
         renderPass.SetVertexBuffer(0,
-            sceneKit.GetVertexBuffer().GetGpuBuffer(),
+            propKit.GetVertexBuffer().GetGpuBuffer(),
             0,
-            sceneKit.GetVertexBuffer().GetSize());
+            propKit.GetVertexBuffer().GetSize());
 
-        renderPass.SetIndexBuffer(sceneKit.GetIndexBuffer().GetGpuBuffer(),
+        renderPass.SetIndexBuffer(propKit.GetIndexBuffer().GetGpuBuffer(),
             idxFmt,
             0,
-            sceneKit.GetIndexBuffer().GetSize());
+            propKit.GetIndexBuffer().GetSize());
     }
 
     static PerfTimer drawTimer("Renderer.Render.Draw");
@@ -137,10 +137,10 @@ Renderer::Render(const Mat44f& camera,
 
     uint64_t indirectOffset = 0;
 
-    const auto& materialBindGroups = sceneKit.GetMaterialBindGroups();
-    const auto& meshes = sceneKit.GetMeshes();
-    const auto& modelInstances = sceneKit.GetModelInstances();
-    const auto& drawIndirectBuffer = sceneKit.GetDrawIndirectBuffer();
+    const auto& materialBindGroups = propKit.GetMaterialBindGroups();
+    const auto& meshes = propKit.GetMeshes();
+    const auto& modelInstances = propKit.GetModelInstances();
+    const auto& drawIndirectBuffer = propKit.GetDrawIndirectBuffer();
 
     uint32_t lastMaterialIndex = UINT32_MAX;
 
@@ -730,7 +730,7 @@ Result<>
 Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
     const Mat44f& camera,
     const Projection& projection,
-    const SceneKit& sceneKit)
+    const PropKit& propKit)
 {
     wgpu::Device device = WebgpuHelper::GetDevice();
 
@@ -738,12 +738,12 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
 
     if(!m_TransformBuffers.ClipSpaceBuf || !m_TransformBuffers.CameraParamsBuf ||
         !m_TransformBuffers.BindGroup1 ||
-        sceneKit.GetTransformCount() > m_TransformBuffers.TransformCount)
+        propKit.GetTransformCount() > m_TransformBuffers.TransformCount)
     {
-        m_TransformBuffers.TransformCount = sceneKit.GetTransformCount();
+        m_TransformBuffers.TransformCount = propKit.GetTransformCount();
 
         auto clipSpaceBuffer =
-            WebgpuHelper::CreateTypedStorageBuffer<ClipSpaceBuffer>(sceneKit.GetTransformBuffer().GetSize(),
+            WebgpuHelper::CreateTypedStorageBuffer<ClipSpaceBuffer>(propKit.GetTransformBuffer().GetSize(),
                 "ClipSpaceTransformBuffer");
         MLG_CHECK(clipSpaceBuffer);
 
@@ -844,9 +844,9 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
 
     wgpu::ComputePassEncoder pass = cmdEncoder.BeginComputePass();
     pass.SetPipeline(m_TransformPipeline);
-    pass.SetBindGroup(0, sceneKit.GetTransformPipelineBindGroup0());
+    pass.SetBindGroup(0, propKit.GetTransformPipelineBindGroup0());
     pass.SetBindGroup(1, m_TransformBuffers.BindGroup1);
-    const uint32_t workgroupCountX = sceneKit.GetTransformCount();
+    const uint32_t workgroupCountX = propKit.GetTransformCount();
     pass.DispatchWorkgroups(workgroupCountX);
     pass.End();
 

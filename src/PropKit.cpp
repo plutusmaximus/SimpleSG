@@ -1,9 +1,9 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define NOMINMAX
 
-#define __LOGGER_NAME__ "SCKT"
+#define __LOGGER_NAME__ "PPKT"
 
-#include "SceneKit.h"
+#include "PropKit.h"
 #include "FileFetcher.h"
 #include "Log.h"
 #include "Stopwatch.h"
@@ -575,41 +575,41 @@ BuildMeshDrawDataBuffer(std::span<const MeshData> meshDatas,
 }
 
 Result<>
-SceneKit::Load(const std::filesystem::path& rootPath,
+PropKit::Load(const std::filesystem::path& rootPath,
     TextureCache& textureCache,
-    const SceneKitSourceData& sceneKitData,
-    SceneKit& outSceneKit)
+    const PropKitSourceData& propKitData,
+    PropKit& outPropKit)
 {
     Stopwatch createTimer;
     createTimer.Mark();
 
     wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
 
-    MLG_CHECK(FetchTextures(rootPath, sceneKitData.Materials, textureCache, encoder));
+    MLG_CHECK(FetchTextures(rootPath, propKitData.Materials, textureCache, encoder));
 
-    auto vertexBuffer = BuildVertexBuffer(sceneKitData.Vertices, encoder);
+    auto vertexBuffer = BuildVertexBuffer(propKitData.Vertices, encoder);
     MLG_CHECK(vertexBuffer);
 
-    auto indexBuffer = BuildIndexBuffer(sceneKitData.Indices, encoder);
+    auto indexBuffer = BuildIndexBuffer(propKitData.Indices, encoder);
     MLG_CHECK(indexBuffer);
 
     wgpu::CommandBuffer commandBuffer = encoder.Finish();
     WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
 
-    auto transformBuffer = BuildTransformBuffer(sceneKitData.Transforms);
+    auto transformBuffer = BuildTransformBuffer(propKitData.Transforms);
     MLG_CHECK(transformBuffer);
 
-    auto materialConstantsBuffer = BuildMaterialConstantsBuffer(sceneKitData.Materials);
+    auto materialConstantsBuffer = BuildMaterialConstantsBuffer(propKitData.Materials);
     MLG_CHECK(materialConstantsBuffer);
 
-    auto drawIndirectBuffer = BuildDrawIndirectBuffer(sceneKitData.Meshes, sceneKitData.ModelInstances);
+    auto drawIndirectBuffer = BuildDrawIndirectBuffer(propKitData.Meshes, propKitData.ModelInstances);
     MLG_CHECK(drawIndirectBuffer);
 
-    auto meshDrawDataBuffer = BuildMeshDrawDataBuffer(sceneKitData.Meshes, sceneKitData.ModelInstances);
+    auto meshDrawDataBuffer = BuildMeshDrawDataBuffer(propKitData.Meshes, propKitData.ModelInstances);
     MLG_CHECK(meshDrawDataBuffer);
 
     std::vector<wgpu::BindGroup> materialBindGroups;
-    MLG_CHECK(CreateMaterialBindGroups(sceneKitData.Materials, textureCache, materialBindGroups));
+    MLG_CHECK(CreateMaterialBindGroups(propKitData.Materials, textureCache, materialBindGroups));
 
     ColorPipelineResources colorPipelineResources //
     {
@@ -630,15 +630,15 @@ SceneKit::Load(const std::filesystem::path& rootPath,
     MLG_CHECK(transformPipelineBindGroup0);
 
     std::vector<MeshProperties> meshProperties;
-    meshProperties.reserve(sceneKitData.Meshes.size());
-    for(const auto& meshData : sceneKitData.Meshes)
+    meshProperties.reserve(propKitData.Meshes.size());
+    for(const auto& meshData : propKitData.Meshes)
     {
         meshProperties.emplace_back(meshData.Properties);
     }
 
-    std::vector<ModelInstance> modelInstances(sceneKitData.ModelInstances);
+    std::vector<ModelInstance> modelInstances(propKitData.ModelInstances);
 
-    SceneKit sceneKit(
+    PropKit propKit(
         *vertexBuffer,
         *indexBuffer,
         *transformBuffer,
@@ -651,9 +651,9 @@ SceneKit::Load(const std::filesystem::path& rootPath,
         std::move(meshProperties),
         std::move(modelInstances));
 
-    outSceneKit = std::move(sceneKit);
+    outPropKit = std::move(propKit);
 
-    MLG_INFO("SceneKit created in {} ms", createTimer.ElapsedSeconds() * 1000);
+    MLG_INFO("PropKit created in {} ms", createTimer.ElapsedSeconds() * 1000);
 
     return Result<>::Ok;
 }

@@ -1,6 +1,6 @@
 #include "Compositor.h"
 #include "Renderer.h"
-#include "SceneKit.h"
+#include "PropKit.h"
 #include "ECS.h"
 #include "GltfLoader.h"
 #include "ImGuiRenderer.h"
@@ -66,15 +66,15 @@ Shutdown()
 static Result<> RenderGui();
 
 static Result<>
-LoadSceneKit(const std::filesystem::path& path, TextureCache& textureCache, SceneKit& outSceneKit)
+LoadPropKit(const std::filesystem::path& path, TextureCache& textureCache, PropKit& outPropKit)
 {
-    SceneKitSourceData sceneKitData;
-    MLG_CHECK(GltfLoader::LoadSceneKit(path.string(), sceneKitData),
-        "Failed to load scene kit: {}",
+    PropKitSourceData propKitData;
+    MLG_CHECK(GltfLoader::LoadPropKit(path.string(), propKitData),
+        "Failed to load prop kit: {}",
         path.string());
 
-    MLG_CHECK(SceneKit::Load(path.parent_path(), textureCache, sceneKitData, outSceneKit),
-        "Failed to create SceneKit for {}",
+    MLG_CHECK(PropKit::Load(path.parent_path(), textureCache, propKitData, outPropKit),
+        "Failed to create PropKit for {}",
         path.string());
 
     return Result<>::Ok;
@@ -98,7 +98,7 @@ MainLoop()
     Compositor compositor;
     ImGuiRenderer imGuiRenderer;
     TextureCache textureCache;
-    SceneKit sceneKit;
+    PropKit propKit;
     EcsRegistry registry;
     WalkMouseNav mouseNav;
 
@@ -106,7 +106,7 @@ MainLoop()
     MLG_CHECK(compositor.Startup());
     MLG_CHECK(imGuiRenderer.Startup());
     MLG_CHECK(textureCache.Startup());
-    MLG_CHECK(LoadSceneKit(path, textureCache, sceneKit));
+    MLG_CHECK(LoadPropKit(path, textureCache, propKit));
 
     Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, ModelTag{});
 
@@ -242,9 +242,9 @@ MainLoop()
         if(!droppedFile.empty())
         {
             textureCache.Clear();
-            SceneKit newSceneKit;
-            MLG_CHECK(LoadSceneKit(droppedFile, textureCache, newSceneKit));
-            sceneKit = std::move(newSceneKit);
+            PropKit newPropKit;
+            MLG_CHECK(LoadPropKit(droppedFile, textureCache, newPropKit));
+            propKit = std::move(newPropKit);
         }
 
         mouseNav.Update(elapsedSeconds);
@@ -269,7 +269,7 @@ MainLoop()
         {
             const auto [eid, worldMat, modelTag] = tuple;
 
-            renderer.Render(camWorldMat, projection, sceneKit, compositor);
+            renderer.Render(camWorldMat, projection, propKit, compositor);
         }
 
         RenderGui();

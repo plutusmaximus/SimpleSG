@@ -647,7 +647,7 @@ CollectTransforms(cgltf_node** const childNodes,
 }
 
 Result<>
-GltfLoader::LoadSceneKit(const std::string& path, SceneKitSourceData& outSceneKit)
+GltfLoader::LoadPropKit(const std::string& path, PropKitSourceData& outPropKit)
 {
     std::filesystem::path filePath(path);
 
@@ -672,7 +672,7 @@ GltfLoader::LoadSceneKit(const std::string& path, SceneKitSourceData& outSceneKi
     cgltf_result loadBuffersResult = cgltf_load_buffers(&options, gltfData, filePath.string().c_str());
     MLG_CHECK(loadBuffersResult == cgltf_result_success, "Failed to load buffers");
 
-    SceneKitSourceData sceneKitData;
+    PropKitSourceData propKitData;
 
     std::vector<CgltfMeshData> gltfMeshes;
     MLG_CHECK(CollectMeshes(gltfData, gltfMeshes));
@@ -708,14 +708,14 @@ GltfLoader::LoadSceneKit(const std::string& path, SceneKitSourceData& outSceneKi
         }
     }
 
-    sceneKitData.Materials = std::move(materials);
-    sceneKitData.Vertices = std::move(vertices);
-    sceneKitData.Indices = std::move(indices);
-    sceneKitData.Meshes = std::move(meshes);
-    sceneKitData.Transforms = std::move(transforms);
-    sceneKitData.ModelInstances = std::move(modelInstances);
+    propKitData.Materials = std::move(materials);
+    propKitData.Vertices = std::move(vertices);
+    propKitData.Indices = std::move(indices);
+    propKitData.Meshes = std::move(meshes);
+    propKitData.Transforms = std::move(transforms);
+    propKitData.ModelInstances = std::move(modelInstances);
 
-    outSceneKit = std::move(sceneKitData);
+    outPropKit = std::move(propKitData);
 
     return Result<>::Ok;
 }

@@ -164,8 +164,8 @@ set(SSG_SOURCES
   src/Log.cpp
   src/PerfMetrics.cpp
   src/Projection.cpp
+  src/PropKit.cpp
   src/Renderer.cpp
-  src/SceneKit.cpp
   src/Shapes.cpp
   src/Stopwatch.cpp
   src/TextureCache.cpp
@@ -189,9 +189,9 @@ set(SSG_HEADERS
   src/PerfMetrics.h
   src/PoolAllocator.h
   src/Projection.h
+  src/PropKit.h
   src/Renderer.h
   src/Result.h
-  src/SceneKit.h
   src/scope_exit.h
   src/shaders/ShaderTypes.h
   src/Shapes.h

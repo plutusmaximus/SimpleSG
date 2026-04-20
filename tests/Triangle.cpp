@@ -1,6 +1,6 @@
 #include "Compositor.h"
 #include "Renderer.h"
-#include "SceneKit.h"
+#include "PropKit.h"
 #include "ImGuiRenderer.h"
 #include "Log.h"
 #include "PerfMetrics.h"
@@ -15,7 +15,7 @@
 #include <SDL3/SDL.h>
 #include <thread>
 
-static Result<SceneKitSourceData> CreateTriangleModel();
+static Result<PropKitSourceData> CreateTriangleModel();
 
 constexpr const char* kAppName = "Triangle";
 
@@ -44,15 +44,15 @@ static Result<> MainLoop()
     Projection projection;
     projection.SetPerspective(fov, screenBounds, 0.1f, 1000);
 
-    auto sceneKitData = CreateTriangleModel();
-    MLG_CHECK(sceneKitData);
+    auto propKitData = CreateTriangleModel();
+    MLG_CHECK(propKitData);
 
     TextureCache textureCache;
     MLG_CHECK(textureCache.Startup());
 
     std::filesystem::path rootPath = ".";
-    SceneKit sceneKit;
-    MLG_CHECK(SceneKit::Load(rootPath, textureCache, *sceneKitData, sceneKit));
+    PropKit propKit;
+    MLG_CHECK(PropKit::Load(rootPath, textureCache, *propKitData, propKit));
 
     Renderer renderer;
     MLG_CHECK(renderer.Startup());
@@ -172,7 +172,7 @@ static Result<> MainLoop()
 
         auto renderResult = renderer.Render(cameraXform.ToMatrix(),
             projection,
-            sceneKit,
+            propKit,
             compositor);
 
         MLG_CHECK(renderResult);
@@ -229,7 +229,7 @@ static Result<> RenderGui()
     return Result<>::Ok;
 }
 
-static Result<SceneKitSourceData> CreateTriangleModel()
+static Result<PropKitSourceData> CreateTriangleModel()
 {
     std::vector<Vertex> triangleVertices = //
         {
@@ -276,14 +276,14 @@ static Result<SceneKitSourceData> CreateTriangleModel()
         .TransformIndex = 0,
     };
 
-    SceneKitSourceData sceneKitData;
+    PropKitSourceData propKitData;
 
-    sceneKitData.Vertices = std::move(triangleVertices);
-    sceneKitData.Indices = std::move(triangleIndices);
-    sceneKitData.Materials.emplace_back(std::move(mtlData));
-    sceneKitData.Transforms.emplace_back(std::move(transformData));
-    sceneKitData.Meshes.emplace_back(std::move(meshData));
-    sceneKitData.ModelInstances.emplace_back(std::move(modelInstance));
+    propKitData.Vertices = std::move(triangleVertices);
+    propKitData.Indices = std::move(triangleIndices);
+    propKitData.Materials.emplace_back(std::move(mtlData));
+    propKitData.Transforms.emplace_back(std::move(transformData));
+    propKitData.Meshes.emplace_back(std::move(meshData));
+    propKitData.ModelInstances.emplace_back(std::move(modelInstance));
 
-    return std::move(sceneKitData);
+    return std::move(propKitData);
 }

@@ -2,7 +2,7 @@
 #include "Application.h"
 #include "Compositor.h"
 #include "Renderer.h"
-#include "SceneKit.h"
+#include "PropKit.h"
 #include "ECS.h"
 #include "EcsChildTransformPool.h"
 #include "ImGuiRenderer.h"
@@ -19,7 +19,7 @@
 
 namespace
 {
-static Result<SceneKitSourceData> CreateShapeModel();
+static Result<PropKitSourceData> CreateShapeModel();
 
 class WorldMatrix : public Mat44f
 {
@@ -62,13 +62,13 @@ public:
 
         m_ScreenBounds = WebgpuHelper::GetScreenBounds();
 
-        auto sceneKitData = CreateShapeModel();
-        MLG_CHECK(sceneKitData);
+        auto propKitData = CreateShapeModel();
+        MLG_CHECK(propKitData);
 
         MLG_CHECK(m_TextureCache.Startup());
 
         std::filesystem::path rootPath = ".";
-        MLG_CHECK(SceneKit::Load(rootPath, m_TextureCache, *sceneKitData, m_SceneKit));
+        MLG_CHECK(PropKit::Load(rootPath, m_TextureCache, *propKitData, m_PropKit));
 
         constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
@@ -174,7 +174,7 @@ public:
         {
             const auto [eid, worldMat, modelTag] = tuple;
 
-            m_Renderer.Render(camWorldMat, projection, m_SceneKit, m_Compositor);
+            m_Renderer.Render(camWorldMat, projection, m_PropKit, m_Compositor);
         }
 
         m_ImGuiRenderer.Render(m_Compositor);
@@ -257,7 +257,7 @@ private:
     Entity m_Moon;
     Extent m_ScreenBounds{0,0};
     Radiansf m_PlanetSpinAngle{0}, m_MoonSpinAngle{0}, m_MoonOrbitAngle{0};
-    SceneKit m_SceneKit;
+    PropKit m_PropKit;
 };
 
 class CubeAppLifecycle : public AppLifecycle
@@ -330,7 +330,7 @@ constexpr static const VertexIndex cubeIndices[] =
     20, 22, 23,  20, 21, 22
 };
 
-static Result<SceneKitSourceData> CreateShapeModel()
+static Result<PropKitSourceData> CreateShapeModel()
 {
     //auto geometry = Shapes::Box(1, 1, 1);
     //auto geometry = Shapes::Ball(1, 10);
@@ -339,7 +339,7 @@ static Result<SceneKitSourceData> CreateShapeModel()
     auto geometry = Shapes::Torus(1, 0.5, 5);
     const auto &[vertices, indices] = geometry;
 
-    SceneKitSourceData sceneKitData;
+    PropKitSourceData propKitData;
 
     const MaterialData mtlData //
     {
@@ -374,14 +374,14 @@ static Result<SceneKitSourceData> CreateShapeModel()
         .TransformIndex = 0,
     };
 
-    sceneKitData.Vertices.assign(vertices.begin(), vertices.end());
-    sceneKitData.Indices.assign(indices.begin(), indices.end());
-    sceneKitData.Materials.emplace_back(mtlData);
-    sceneKitData.Transforms.emplace_back(transformData);
-    sceneKitData.Meshes.emplace_back(meshData);
-    sceneKitData.ModelInstances.emplace_back(modelInstance);
+    propKitData.Vertices.assign(vertices.begin(), vertices.end());
+    propKitData.Indices.assign(indices.begin(), indices.end());
+    propKitData.Materials.emplace_back(mtlData);
+    propKitData.Transforms.emplace_back(transformData);
+    propKitData.Meshes.emplace_back(meshData);
+    propKitData.ModelInstances.emplace_back(modelInstance);
 
-    return std::move(sceneKitData);
+    return std::move(propKitData);
 }
 }
 

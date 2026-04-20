@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Result.h"
-#include "SceneKit.h"
+#include "PropKit.h"
 
 #include <string>
 
@@ -9,5 +9,5 @@ class GltfLoader final
 {
 public:
 
-    static Result<> LoadSceneKit(const std::string& path, SceneKitSourceData& outSceneKit);
+    static Result<> LoadPropKit(const std::string& path, PropKitSourceData& outPropKit);
 };

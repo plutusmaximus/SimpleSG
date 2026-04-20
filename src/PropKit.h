@@ -2,7 +2,6 @@
 
 #include "Bounds.h"
 #include "Result.h"
-#include "SceneKit.h"
 #include "shaders/ShaderTypes.h"
 #include "TextureCache.h"
 #include "VecMath.h"
@@ -48,15 +47,15 @@ struct TransformData
     TransformIndex ParentIndex{ kInvalidParentIndex };
 };
 
-class SceneKitSourceData
+class PropKitSourceData
 {
 public:
 
-    SceneKitSourceData() = default;
-    SceneKitSourceData(const SceneKitSourceData&) = delete;
-    SceneKitSourceData& operator=(const SceneKitSourceData&) = delete;
-    SceneKitSourceData(SceneKitSourceData&&) = default;
-    SceneKitSourceData& operator=(SceneKitSourceData&&) = default;
+    PropKitSourceData() = default;
+    PropKitSourceData(const PropKitSourceData&) = delete;
+    PropKitSourceData& operator=(const PropKitSourceData&) = delete;
+    PropKitSourceData(PropKitSourceData&&) = default;
+    PropKitSourceData& operator=(PropKitSourceData&&) = default;
 
     std::vector<Vertex> Vertices;
     std::vector<VertexIndex> Indices;
@@ -71,22 +70,22 @@ using TransformBuffer = TypedGpuBuffer<ShaderTypes::MeshTransform>;
 using MeshDrawDataBuffer = TypedGpuBuffer<ShaderTypes::MeshDrawData>;
 using MaterialConstantsBuffer = TypedGpuBuffer<ShaderTypes::MaterialConstants>;
 
-class SceneKit
+class PropKit
 {
 public:
 
     static Result<> Load(const std::filesystem::path& rootPath,
         TextureCache& textureCache,
-        const SceneKitSourceData& sceneKitData,
-        SceneKit& outSceneKit);
+        const PropKitSourceData& propKitData,
+        PropKit& outPropKit);
 
-    SceneKit() = default;
-    SceneKit(const SceneKit&) = delete;
-    SceneKit& operator=(const SceneKit&) = delete;
-    SceneKit(SceneKit&& other) = default;
-    SceneKit& operator=(SceneKit&& other) = default;
+    PropKit() = default;
+    PropKit(const PropKit&) = delete;
+    PropKit& operator=(const PropKit&) = delete;
+    PropKit(PropKit&& other) = default;
+    PropKit& operator=(PropKit&& other) = default;
 
-    SceneKit(VertexBuffer vertexBuffer,
+    PropKit(VertexBuffer vertexBuffer,
         IndexBuffer indexBuffer,
         TransformBuffer transformBuffer,
         MaterialConstantsBuffer materialConstantsBuffer,
