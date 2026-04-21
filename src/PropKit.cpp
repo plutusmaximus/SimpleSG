@@ -34,7 +34,7 @@ struct ColorPipelineResources
 {
     TransformBuffer TransformBuffer;
     MaterialConstantsBuffer MaterialConstantsBuffer;
-    MeshDrawDataBuffer MeshDrawDataBuffer;
+    MeshPropertiesBuffer MeshPropertiesBuffer;
 };
 
 struct TransformPipelineResources
@@ -131,13 +131,13 @@ StageTexture(TextureBuilder& builder)
 
 static Result<>
 FetchTextures(std::filesystem::path basePath,
-    std::span<const MaterialData> materials,
+    std::span<const MaterialDef> materialDefs,
     TextureCache& textureCache,
     wgpu::CommandEncoder encoder)
 {
     std::unordered_map<std::string, FileFetcher::Request> fetchRequests;
 
-    for(const auto& mtl : materials)
+    for(const auto& mtl : materialDefs)
     {
         if(mtl.BaseTextureUri.empty())
         {
@@ -274,9 +274,9 @@ CreateColorPipelineBindGroup0(ColorPipelineResources& colorPipelineResources)
         },
         {
             .binding = 1,
-            .buffer = colorPipelineResources.MeshDrawDataBuffer.GetGpuBuffer(),
+            .buffer = colorPipelineResources.MeshPropertiesBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = colorPipelineResources.MeshDrawDataBuffer.GetSize(),
+            .size = colorPipelineResources.MeshPropertiesBuffer.GetSize(),
         },
         {
             .binding = 2,
@@ -333,15 +333,15 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
 }
 
 static Result<wgpu::BindGroup>
-CreateMaterialBindGroup(const MaterialData& material, const TextureCache& textureCache)
+CreateMaterialBindGroup(const MaterialDef& materialDef, const TextureCache& textureCache)
 {
     auto bgLayouts = WebgpuHelper::GetColorPipelineLayouts();
     MLG_CHECK(bgLayouts);
 
     Texture baseTexture =
-        material.BaseTextureUri.empty()
+        materialDef.BaseTextureUri.empty()
             ? textureCache.GetDefaultTexture()
-            : textureCache.Get(material.BaseTextureUri);
+            : textureCache.Get(materialDef.BaseTextureUri);
 
     wgpu::BindGroupEntry bgEntries[]//
     {
@@ -369,15 +369,15 @@ CreateMaterialBindGroup(const MaterialData& material, const TextureCache& textur
 }
 
 static Result<>
-CreateMaterialBindGroups(std::span<const MaterialData> materials,
+CreateMaterialBindGroups(std::span<const MaterialDef> materialDefs,
     const TextureCache& textureCache,
     std::vector<wgpu::BindGroup>& materialBindGroups)
 {
     materialBindGroups.clear();
 
-    materialBindGroups.reserve(materials.size());
+    materialBindGroups.reserve(materialDefs.size());
 
-    for(const auto& mtl : materials)
+    for(const auto& mtl : materialDefs)
     {
         auto bindGroup = CreateMaterialBindGroup(mtl, textureCache);
         MLG_CHECK(bindGroup);
@@ -423,9 +423,9 @@ BuildIndexBuffer(std::span<const VertexIndex> indices, wgpu::CommandEncoder enco
 }
 
 static Result<TransformBuffer>
-BuildTransformBuffer(std::span<const TransformData> transforms)
+BuildTransformBuffer(std::span<const TransformDef> transformDefs)
 {
-    const size_t sizeofBuffer = transforms.size() * sizeof(ShaderTypes::MeshTransform);
+    const size_t sizeofBuffer = transformDefs.size() * sizeof(ShaderTypes::MeshTransform);
 
     auto buffer = WebgpuHelper::CreateTypedStorageBuffer<TransformBuffer>(sizeofBuffer, "TransformBuffer");
     MLG_CHECK(buffer);
@@ -435,9 +435,9 @@ BuildTransformBuffer(std::span<const TransformData> transforms)
 
     ShaderTypes::MeshTransform* dst = *mapped;
 
-    for(const TransformData& transform : transforms)
+    for(const TransformDef& transformDef : transformDefs)
     {
-        dst->Transform = transform.Transform;
+        dst->Transform = transformDef.Transform;
         ++dst;
     }
 
@@ -447,9 +447,9 @@ BuildTransformBuffer(std::span<const TransformData> transforms)
 }
 
 static Result<MaterialConstantsBuffer>
-BuildMaterialConstantsBuffer(std::span<const MaterialData> materials)
+BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs)
 {
-    const size_t sizeofBuffer = materials.size() * sizeof(ShaderTypes::MaterialConstants);
+    const size_t sizeofBuffer = materialDefs.size() * sizeof(ShaderTypes::MaterialConstants);
 
     auto buffer = WebgpuHelper::CreateTypedStorageBuffer<MaterialConstantsBuffer>(sizeofBuffer, "MaterialConstantsBuffer");
     MLG_CHECK(buffer);
@@ -459,7 +459,7 @@ BuildMaterialConstantsBuffer(std::span<const MaterialData> materials)
 
     ShaderTypes::MaterialConstants* dst = *mapped;
 
-    for(const auto& mtl : materials)
+    for(const auto& mtl : materialDefs)
     {
         ::new(dst++) ShaderTypes::MaterialConstants //
         {
@@ -475,21 +475,23 @@ BuildMaterialConstantsBuffer(std::span<const MaterialData> materials)
 }
 
 static Result<IndirectBuffer>
-BuildDrawIndirectBuffer(std::span<const MeshData> meshDatas,
+BuildDrawIndirectBuffer(std::span<const ShaderTypes::DrawIndirectParams> drawIndirectParams,
+    std::span<const Model> models,
     std::span<const ModelInstance> modelInstances)
 {
     size_t meshInstanceCount = 0;
     for(const auto& modelInstance : modelInstances)
     {
-        meshInstanceCount += modelInstance.MeshCount;
+        meshInstanceCount += models[modelInstance.ModelIndex].MeshCount;
     }
 
-    const size_t sizeofDrawIndirectBuffer = meshInstanceCount * sizeof(ShaderTypes::DrawIndirectParams);
+    const size_t sizeofDrawIndirectBuffer =
+        meshInstanceCount * sizeof(ShaderTypes::DrawIndirectParams);
 
-    auto drawIndirectBuffer = WebgpuHelper::CreateIndirectBuffer(sizeofDrawIndirectBuffer, "DrawIndirectBuffer");
-    MLG_CHECK(drawIndirectBuffer);
+    auto buffer = WebgpuHelper::CreateIndirectBuffer(sizeofDrawIndirectBuffer, "DrawIndirectBuffer");
+    MLG_CHECK(buffer);
 
-    auto mapped = drawIndirectBuffer->Map();
+    auto mapped = buffer->Map();
     MLG_CHECK(mapped);
 
     ShaderTypes::DrawIndirectParams* drawParams = *mapped;
@@ -498,72 +500,22 @@ BuildDrawIndirectBuffer(std::span<const MeshData> meshDatas,
 
     for(const auto& modelInstance : modelInstances)
     {
-        std::span<const MeshData> meshes //
+        const Model& model = models[modelInstance.ModelIndex];
+        std::span<const ShaderTypes::DrawIndirectParams> params //
             {
-                meshDatas.data() + modelInstance.FirstMesh,
-                modelInstance.MeshCount,
+                drawIndirectParams.data() + model.FirstMesh,
+                model.MeshCount,
             };
 
-        for(const auto& meshData : meshes)
+        for(const auto& param : params)
         {
             drawParams[meshCount] = //
             {
-                .IndexCount = meshData.IndexCount,
+                .IndexCount = param.IndexCount,
                 .InstanceCount = 1,
-                .FirstIndex = meshData.FirstIndex,
-                .BaseVertex = meshData.BaseVertex,
+                .FirstIndex = param.FirstIndex,
+                .BaseVertex = param.BaseVertex,
                 .FirstInstance = meshCount,
-            };
-
-            ++meshCount;
-        }
-    }
-
-    drawIndirectBuffer->Unmap();
-
-    return drawIndirectBuffer;
-}
-
-static Result<MeshDrawDataBuffer>
-BuildMeshDrawDataBuffer(std::span<const MeshData> meshDatas,
-    std::span<const ModelInstance> modelInstances)
-{
-    size_t meshInstanceCount = 0;
-    for(const auto& modelInstance : modelInstances)
-    {
-        meshInstanceCount += modelInstance.MeshCount;
-    }
-
-    const size_t sizeofBuffer = meshInstanceCount * sizeof(ShaderTypes::MeshDrawData);
-
-    auto buffer = WebgpuHelper::CreateTypedStorageBuffer<MeshDrawDataBuffer>(sizeofBuffer, "MeshDrawDataBuffer");
-    MLG_CHECK(buffer);
-
-    auto mapped = buffer->Map();
-    MLG_CHECK(mapped);
-
-    ShaderTypes::MeshDrawData* meshDrawData = *mapped;
-
-    uint32_t meshCount = 0;
-
-    for(const auto& modelInstance : modelInstances)
-    {
-        std::span<const MeshData> meshes //
-            {
-                meshDatas.data() + modelInstance.FirstMesh,
-                modelInstance.MeshCount,
-            };
-
-        for(const auto& meshData : meshes)
-        {
-            const AABoundingBox& boundingBox = meshData.Properties.BoundingBox;
-
-            meshDrawData[meshCount] = //
-            {
-                .Center = (boundingBox.GetMin() + boundingBox.GetMax()) * 0.5f,
-                .Radius = (boundingBox.GetMax() - meshDrawData[meshCount].Center).Length(),
-                .TransformIndex = modelInstance.TransformIndex,
-                .MaterialIndex = meshData.Properties.MaterialIndex,
             };
 
             ++meshCount;
@@ -575,106 +527,61 @@ BuildMeshDrawDataBuffer(std::span<const MeshData> meshDatas,
     return buffer;
 }
 
-Result<>
-PropKit::Load(const std::filesystem::path& rootPath,
-    TextureCache& textureCache,
-    const PropKitSourceData& propKitData,
-    PropKit& outPropKit)
+static Result<MeshPropertiesBuffer>
+BuildMeshPropertiesBuffer(std::span<const MeshProperties> meshProperties,
+    std::span<const Model> models,
+    std::span<const ModelInstance> modelInstances)
 {
-    Stopwatch createTimer;
-    createTimer.Mark();
-
-    wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
-
-    MLG_CHECK(FetchTextures(rootPath, propKitData.Materials, textureCache, encoder));
-
-    auto vertexBuffer = BuildVertexBuffer(propKitData.Vertices, encoder);
-    MLG_CHECK(vertexBuffer);
-
-    auto indexBuffer = BuildIndexBuffer(propKitData.Indices, encoder);
-    MLG_CHECK(indexBuffer);
-
-    wgpu::CommandBuffer commandBuffer = encoder.Finish();
-    WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
-
-    auto transformBuffer = BuildTransformBuffer(propKitData.Transforms);
-    MLG_CHECK(transformBuffer);
-
-    auto materialConstantsBuffer = BuildMaterialConstantsBuffer(propKitData.Materials);
-    MLG_CHECK(materialConstantsBuffer);
-
-    auto drawIndirectBuffer = BuildDrawIndirectBuffer(propKitData.Meshes, propKitData.ModelInstances);
-    MLG_CHECK(drawIndirectBuffer);
-
-    auto meshDrawDataBuffer = BuildMeshDrawDataBuffer(propKitData.Meshes, propKitData.ModelInstances);
-    MLG_CHECK(meshDrawDataBuffer);
-
-    std::vector<wgpu::BindGroup> materialBindGroups;
-    MLG_CHECK(CreateMaterialBindGroups(propKitData.Materials, textureCache, materialBindGroups));
-
-    ColorPipelineResources colorPipelineResources //
+    size_t meshInstanceCount = 0;
+    for(const auto& modelInstance : modelInstances)
     {
-        .TransformBuffer = *transformBuffer,
-        .MaterialConstantsBuffer = *materialConstantsBuffer,
-        .MeshDrawDataBuffer = *meshDrawDataBuffer,
-    };
-
-    auto colorPipelineBindGroup0 = CreateColorPipelineBindGroup0(colorPipelineResources);
-    MLG_CHECK(colorPipelineBindGroup0);
-
-    TransformPipelineResources transformPipelineResources //
-    {
-        .TransformBuffer = *transformBuffer,
-    };
-
-    auto transformPipelineBindGroup0 = CreateTransformPipelineBindGroup0(transformPipelineResources);
-    MLG_CHECK(transformPipelineBindGroup0);
-
-    std::vector<MeshProperties> meshProperties;
-    meshProperties.reserve(propKitData.Meshes.size());
-    for(const auto& meshData : propKitData.Meshes)
-    {
-        meshProperties.emplace_back(meshData.Properties);
+        meshInstanceCount += models[modelInstance.ModelIndex].MeshCount;
     }
 
-    std::vector<ModelInstance> modelInstances(propKitData.ModelInstances);
+    const size_t sizeofBuffer = meshInstanceCount * sizeof(ShaderTypes::MeshProperties);
 
-    PropKit propKit(
-        *vertexBuffer,
-        *indexBuffer,
-        *transformBuffer,
-        *materialConstantsBuffer,
-        *drawIndirectBuffer,
-        *meshDrawDataBuffer,
-        *colorPipelineBindGroup0,
-        *transformPipelineBindGroup0,
-        std::move(materialBindGroups),
-        std::move(meshProperties),
-        std::move(modelInstances));
+    auto buffer = WebgpuHelper::CreateTypedStorageBuffer<MeshPropertiesBuffer>(sizeofBuffer, "MeshPropertiesBuffer");
+    MLG_CHECK(buffer);
 
-    outPropKit = std::move(propKit);
+    auto mapped = buffer->Map();
+    MLG_CHECK(mapped);
 
-    MLG_INFO("PropKit created in {} ms", createTimer.ElapsedSeconds() * 1000);
+    ShaderTypes::MeshProperties* meshPropertiesDst = *mapped;
 
-    return Result<>::Ok;
+    uint32_t meshCount = 0;
+
+    for(const auto& modelInstance : modelInstances)
+    {
+        const Model& model = models[modelInstance.ModelIndex];
+
+        for(uint32_t i = 0; i < model.MeshCount; ++i)
+        {
+            const AABoundingBox& boundingBox = meshProperties[meshCount].BoundingBox;
+
+            const Vec3f center = (boundingBox.GetMin() + boundingBox.GetMax()) * 0.5f;
+            const float radius = (boundingBox.GetMax() - center).Length();
+
+            meshPropertiesDst[meshCount] = //
+            {
+                .Center = center,
+                .Radius = radius,
+                .TransformIndex = modelInstance.TransformIndex,
+                .MaterialIndex = meshProperties[meshCount].MaterialIndex,
+            };
+
+            ++meshCount;
+        }
+    }
+
+    buffer->Unmap();
+
+    return buffer;
 }
 
-template <>
-struct std::equal_to<MaterialData>
-{
-    bool operator()(const MaterialData& lhs, const MaterialData& rhs) const
-    {
-        return lhs.BaseTextureUri == rhs.BaseTextureUri &&
-               lhs.Color == rhs.Color &&
-               lhs.Metalness == rhs.Metalness &&
-               lhs.Roughness == rhs.Roughness;
-    }
-};
-
 template<>
-struct std::less<MaterialData>
+struct std::less<MaterialDef>
 {
-    bool operator()(const MaterialData& lhs, const MaterialData& rhs) const
+    bool operator()(const MaterialDef& lhs, const MaterialDef& rhs) const
     {
         if(lhs.BaseTextureUri != rhs.BaseTextureUri)
         {
@@ -711,15 +618,15 @@ PropKit::Load(const std::filesystem::path& rootPath,
     size_t vertexCount = 0, indexCount = 0, meshCount = 0;
     uint32_t materialIndex = 0;
 
-    std::map<MaterialData, uint32_t, std::less<MaterialData>> uniqueMaterialMap;
-    for(const auto& model : propKitDef.Models)
+    std::map<MaterialDef, uint32_t, std::less<MaterialDef>> uniqueMaterialMap;
+    for(const auto& modelDef : propKitDef.ModelDefs)
     {
-        for(const auto& mesh : model.Meshes)
+        for(const auto& mesh : modelDef.MeshDefs)
         {
-            const MaterialData& material = mesh.Material;
-            if(!uniqueMaterialMap.contains(material))
+            const MaterialDef& materialDef = mesh.MaterialDef;
+            if(!uniqueMaterialMap.contains(materialDef))
             {
-                uniqueMaterialMap[material] = materialIndex++;
+                uniqueMaterialMap[materialDef] = materialIndex++;
             }
 
             vertexCount += mesh.Vertices.size();
@@ -728,38 +635,53 @@ PropKit::Load(const std::filesystem::path& rootPath,
         }
     }
 
-    std::vector<MaterialData> uniqueMaterials;
+    std::vector<MaterialDef> uniqueMaterials;
     uniqueMaterials.resize(uniqueMaterialMap.size());
-    for(const auto& [material, index] : uniqueMaterialMap)
+    for(const auto& [materialDef, index] : uniqueMaterialMap)
     {
-        uniqueMaterials[index] = material;
+        uniqueMaterials[index] = materialDef;
     }
 
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
-    std::vector<MeshData> meshDatas;
+    std::vector<ShaderTypes::DrawIndirectParams> drawIndirectParams;
+    std::vector<Model> models;
+    std::vector<MeshProperties> meshProperties;
     vertices.reserve(vertexCount);
     indices.reserve(indexCount);
-    meshDatas.reserve(meshCount);
-    for(const auto& model : propKitDef.Models)
+    drawIndirectParams.reserve(meshCount);
+    meshProperties.reserve(meshCount);
+    models.reserve(propKitDef.ModelDefs.size());
+    for(const auto& modelDef : propKitDef.ModelDefs)
     {
-        for(const auto& mesh : model.Meshes)
+        Model model//
         {
-            MeshData meshData//
+            .FirstMesh = static_cast<uint32_t>(meshProperties.size()),
+            .MeshCount = static_cast<uint32_t>(modelDef.MeshDefs.size()),
+        };
+        models.emplace_back(model);
+
+        for(const auto& mesh : modelDef.MeshDefs)
+        {
+            const ShaderTypes::DrawIndirectParams drawParams//
             {
-                .FirstIndex = static_cast<uint32_t>(indices.size()),
-                .IndexCount = static_cast<uint32_t>(mesh.Indices.size()),
-                .BaseVertex = static_cast<uint32_t>(vertices.size()),
-                .Properties =
-                {
-                    .MaterialIndex = uniqueMaterialMap[mesh.Material],
-                    .BoundingBox = AABoundingBox::FromVertices(mesh.Vertices, mesh.Indices),
-                },
+                .IndexCount = narrow_cast<uint32_t>(mesh.Indices.size()),
+                .InstanceCount = 1,
+                .FirstIndex = narrow_cast<uint32_t>(indices.size()),
+                .BaseVertex = narrow_cast<uint32_t>(vertices.size()),
+                .FirstInstance = narrow_cast<uint32_t>(drawIndirectParams.size()),
             };
+
+            const MeshProperties meshProps //
+                {
+                    .MaterialIndex = uniqueMaterialMap[mesh.MaterialDef],
+                    .BoundingBox = AABoundingBox::FromVertices(mesh.Vertices, mesh.Indices),
+                };
 
             vertices.insert(vertices.end(), mesh.Vertices.begin(), mesh.Vertices.end());
             indices.insert(indices.end(), mesh.Indices.begin(), mesh.Indices.end());
-            meshDatas.emplace_back(meshData);
+            drawIndirectParams.emplace_back(drawParams);
+            meshProperties.emplace_back(meshProps);
         }
     }
 
@@ -774,17 +696,17 @@ PropKit::Load(const std::filesystem::path& rootPath,
     wgpu::CommandBuffer commandBuffer = encoder.Finish();
     WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
 
-    auto transformBuffer = BuildTransformBuffer(propKitDef.Transforms);
+    auto transformBuffer = BuildTransformBuffer(propKitDef.TransformDefs);
     MLG_CHECK(transformBuffer);
 
     auto materialConstantsBuffer = BuildMaterialConstantsBuffer(uniqueMaterials);
     MLG_CHECK(materialConstantsBuffer);
 
-    auto drawIndirectBuffer = BuildDrawIndirectBuffer(meshDatas, propKitDef.ModelInstances);
+    auto drawIndirectBuffer = BuildDrawIndirectBuffer(drawIndirectParams, models, propKitDef.ModelInstances);
     MLG_CHECK(drawIndirectBuffer);
 
-    auto meshDrawDataBuffer = BuildMeshDrawDataBuffer(meshDatas, propKitDef.ModelInstances);
-    MLG_CHECK(meshDrawDataBuffer);
+    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(meshProperties, models, propKitDef.ModelInstances);
+    MLG_CHECK(meshPropertiesBuffer);
 
     std::vector<wgpu::BindGroup> materialBindGroups;
     MLG_CHECK(CreateMaterialBindGroups(uniqueMaterials, textureCache, materialBindGroups));
@@ -793,7 +715,7 @@ PropKit::Load(const std::filesystem::path& rootPath,
     {
         .TransformBuffer = *transformBuffer,
         .MaterialConstantsBuffer = *materialConstantsBuffer,
-        .MeshDrawDataBuffer = *meshDrawDataBuffer,
+        .MeshPropertiesBuffer = *meshPropertiesBuffer,
     };
 
     auto colorPipelineBindGroup0 = CreateColorPipelineBindGroup0(colorPipelineResources);
@@ -807,13 +729,6 @@ PropKit::Load(const std::filesystem::path& rootPath,
     auto transformPipelineBindGroup0 = CreateTransformPipelineBindGroup0(transformPipelineResources);
     MLG_CHECK(transformPipelineBindGroup0);
 
-    std::vector<MeshProperties> meshProperties;
-    meshProperties.reserve(meshDatas.size());
-    for(const auto& meshData : meshDatas)
-    {
-        meshProperties.emplace_back(meshData.Properties);
-    }
-
     std::vector<ModelInstance> modelInstances(propKitDef.ModelInstances);
 
     PropKit propKit(
@@ -822,11 +737,12 @@ PropKit::Load(const std::filesystem::path& rootPath,
         *transformBuffer,
         *materialConstantsBuffer,
         *drawIndirectBuffer,
-        *meshDrawDataBuffer,
+        *meshPropertiesBuffer,
         *colorPipelineBindGroup0,
         *transformPipelineBindGroup0,
         std::move(materialBindGroups),
         std::move(meshProperties),
+        std::move(models),
         std::move(modelInstances));
 
     outPropKit = std::move(propKit);

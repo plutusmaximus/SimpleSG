@@ -243,7 +243,7 @@ static Result<PropKitDef> CreateTriangleModel()
         0, 1, 2,
     };
 
-    const MaterialData mtlData //
+    const MaterialDef mtlDef //
     {
         .BaseTextureUri = "images/Ant.png",
         .Color = {"#FFA500"_rgba},
@@ -251,57 +251,35 @@ static Result<PropKitDef> CreateTriangleModel()
         .Roughness = 0
     };
 
-    const TransformData transformData //
-        {
-            .Transform = Mat44f(1),
-            .ParentIndex = TransformData::kInvalidParentIndex,
-        };
-
-    const MeshData meshData //
-    {
-        .FirstIndex = 0,
-        .IndexCount = static_cast<uint32_t>(triangleIndices.size()),
-        .BaseVertex = 0,
-        .Properties =
-        {
-            .MaterialIndex = 0,
-            .BoundingBox = AABoundingBox::FromVertices(triangleVertices, triangleIndices),
-        },
-    };
-
-    const ModelInstance modelInstance //
-    {
-        .FirstMesh = 0,
-        .MeshCount = 1,
-        .TransformIndex = 0,
-    };
-
-    PropKitSourceData propKitData;
-
-    propKitData.Vertices = std::move(triangleVertices);
-    propKitData.Indices = std::move(triangleIndices);
-    propKitData.Materials.emplace_back(std::move(mtlData));
-    propKitData.Transforms.emplace_back(std::move(transformData));
-    propKitData.Meshes.emplace_back(std::move(meshData));
-    propKitData.ModelInstances.emplace_back(std::move(modelInstance));
-
     MeshDef meshDef//
     {
-        .Vertices = propKitData.Vertices,
-        .Indices = propKitData.Indices,
-        .Material = propKitData.Materials[0],
+        .Vertices = std::move(triangleVertices),
+        .Indices = std::move(triangleIndices),
+        .MaterialDef = std::move(mtlDef),
     };
 
     ModelDef modelDef//
     {
-        .Meshes = { std::move(meshDef) },
+        .MeshDefs = { std::move(meshDef) },
+    };
+
+    const TransformDef transformDef //
+        {
+            .Transform = Mat44f(1),
+            .ParentIndex = TransformDef::kInvalidParentIndex,
+        };
+
+    const ModelInstance modelInstance //
+    {
+        .ModelIndex = 0,
+        .TransformIndex = 0,
     };
 
     PropKitDef propKitDef//
     {
-        .Models = { std::move(modelDef) },
-        .Transforms = std::move(propKitData.Transforms),
-        .ModelInstances = std::move(propKitData.ModelInstances),
+        .ModelDefs = { std::move(modelDef) },
+        .TransformDefs = { std::move(transformDef) },
+        .ModelInstances = { std::move(modelInstance) },
     };
 
     return std::move(propKitDef);

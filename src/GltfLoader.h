@@ -9,5 +9,5 @@ class GltfLoader final
 {
 public:
 
-    static Result<> LoadPropKit(const std::string& path, PropKitSourceData& outPropKit);
+    static Result<> LoadPropKit(const std::string& path, PropKitDef& outPropKit);
 };

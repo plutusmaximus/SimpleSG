@@ -37,12 +37,6 @@ struct CgltfMeshData
     std::vector<CgltfPrimitiveData> Primitives;
 };
 
-struct ModelData
-{
-    uint32_t FirstMesh;
-    uint32_t MeshCount;
-};
-
 } // namespace
 
 static const RgbaColorf DEFAULT_COLOR = RgbaColorf{"#FF00FFFF"_rgba};
@@ -193,8 +187,8 @@ CollectMeshes(const cgltf_data* gltfData, std::vector<CgltfMeshData>& gltfMeshes
     return Result<>::Ok;
 }
 
-static Result<MaterialData>
-CreateMaterialData(const cgltf_material* gltfMaterial)
+static Result<MaterialDef>
+CreateMaterialDef(const cgltf_material* gltfMaterial)
 {
     std::string baseTextureUri;
     RgbaColorf color = DEFAULT_COLOR;
@@ -240,7 +234,7 @@ CreateMaterialData(const cgltf_material* gltfMaterial)
         MLG_WARN("Primitive has no PBR metallic-roughness material");
     }
 
-    MaterialData materialData //
+    MaterialDef materialDef //
     {
         .BaseTextureUri = baseTextureUri,
         .Color = color,
@@ -248,12 +242,15 @@ CreateMaterialData(const cgltf_material* gltfMaterial)
         .Roughness = roughness,
     };
 
-    return std::move(materialData);
+    return std::move(materialDef);
 }
 
-static Result<size_t>
+static Result<>
 CollectVertices(const CgltfPrimitiveAttributes& attrs, std::vector<Vertex>& vertices)
 {
+    vertices.clear();
+    vertices.reserve(attrs.SrcPosition->count);
+
     // GLTF uses a rignt handed coordinate system.  +Y up, +Z forward, -X right.
     // We use left handed.  +Y up, +Z forward, +X right.
     for(cgltf_size i = 0; i < attrs.SrcPosition->count; ++i)
@@ -299,20 +296,17 @@ CollectVertices(const CgltfPrimitiveAttributes& attrs, std::vector<Vertex>& vert
         vertices.push_back(vertex);
     }
 
-    return attrs.SrcPosition->count;
+    return Result<>::Ok;
 }
 
-static Result<size_t>
+static Result<>
 CollectIndices(const CgltfPrimitiveAttributes& attrs, std::vector<VertexIndex>& indices)
 {
-    const size_t startIndex = indices.size();
-
-    size_t indexCount = 0;
-
+    indices.clear();
     if(attrs.SrcIndices)
     {
-        indices.resize(startIndex + attrs.SrcIndices->count);
-        VertexIndex* idxDst = indices.data() + startIndex;
+        indices.resize(attrs.SrcIndices->count);
+        VertexIndex* idxDst = indices.data();
 
         const size_t count = cgltf_accessor_unpack_indices(attrs.SrcIndices,
             idxDst,
@@ -321,43 +315,38 @@ CollectIndices(const CgltfPrimitiveAttributes& attrs, std::vector<VertexIndex>& 
 
         MLG_CHECK(count == attrs.SrcIndices->count,
             "Failed to unpack all indices for primitive");
-
-        indexCount = attrs.SrcIndices->count;
     }
     else
     {
         // Non-indexed primitive.
-        indices.resize(startIndex + attrs.SrcPosition->count);
+        indices.resize(attrs.SrcPosition->count);
 
-        VertexIndex* idxDst = indices.data() + startIndex;
+        VertexIndex* idxDst = indices.data();
         for(size_t i = 0; i < attrs.SrcPosition->count; ++i)
         {
             idxDst[i] = narrow_cast<VertexIndex>(i);
         }
-
-        indexCount = attrs.SrcPosition->count;
     }
 
     // Change winding from CCW to CW.
     const size_t endIndex = indices.size();
-    for(size_t idx = startIndex; idx < endIndex; idx += 3)
+    for(size_t idx = 0; idx < endIndex; idx += 3)
     {
         std::swap(indices[idx + 1], indices[idx + 2]);
     }
 
-    return indexCount;
+    return Result<>::Ok;
 }
 
 static Result<>
-GenerateNormals(
-    Vertex* vertices, const size_t vertexCount, const VertexIndex* indices, const size_t indexCount)
+GenerateNormals(std::span<Vertex> vertices, std::span<const VertexIndex> indices)
 {
-    for(size_t i = 0; i < vertexCount; ++i)
+    for(auto& v : vertices)
     {
-        vertices[i].normal = { 0.0f, 0.0f, 0.0f };
+        v.normal = { 0.0f, 0.0f, 0.0f };
     }
 
-    for(size_t i = 0; i < indexCount; i += 3)
+    for(size_t i = 0; i < indices.size(); i += 3)
     {
         MLG_LOG_SCOPE("tri {}", i / 3);
 
@@ -374,41 +363,23 @@ GenerateNormals(
         v2.normal += normal2;
     }
 
-    for(size_t i = 0; i < vertexCount; ++i)
+    for(auto& v : vertices)
     {
-        vertices[i].normal = vertices[i].normal.Normalize();
+        v.normal = v.normal.Normalize();
     }
 
     return Result<>::Ok;
 }
 
 static Result<>
-CollectModels(const std::vector<CgltfMeshData>& gltfMeshes,
-    std::vector<Vertex>& vertices,
-    std::vector<VertexIndex>& indices,
-    std::vector<MaterialData>& materials,
-    std::vector<MeshData>& meshes,
-    std::vector<ModelData>& models,
+CollectModels(const std::span<CgltfMeshData> gltfMeshes,
+    std::vector<ModelDef>& models,
     std::map<const cgltf_mesh*, ModelIndex>& modelIndices)
 {
-    vertices.clear();
-    indices.clear();
-    materials.clear();
-    meshes.clear();
     models.clear();
     modelIndices.clear();
 
-    size_t meshCount = 0;
-    for(const auto & gltfMesh : gltfMeshes)
-    {
-        meshCount += gltfMesh.Primitives.size();
-    }
-
-    meshes.reserve(meshCount);
     models.reserve(gltfMeshes.size());
-
-    uint32_t firstIndex = 0;
-    uint32_t baseVertex = 0;
 
     std::map<const cgltf_material*, size_t> materialMap;
 
@@ -418,17 +389,17 @@ CollectModels(const std::vector<CgltfMeshData>& gltfMeshes,
 
         MLG_LOG_SCOPE("mesh {}/{}", gltfMesh.Mesh->name ? gltfMesh.Mesh->name : "<unnamed>", i);
 
-        const ModelData model
-        {
-            .FirstMesh = narrow_cast<uint32_t>(meshes.size()),
-            .MeshCount = narrow_cast<uint32_t>(gltfMesh.Primitives.size()),
-        };
+        std::vector<MeshDef> meshDefs;
+        meshDefs.reserve(gltfMesh.Primitives.size());
 
         for(size_t j = 0; j < gltfMesh.Primitives.size(); ++j)
         {
             MLG_LOG_SCOPE("prim {}", j);
 
             const auto& primData = gltfMesh.Primitives[j];
+
+            std::vector<Vertex> vertices;
+            std::vector<VertexIndex> indices;
 
             auto vertexCount = CollectVertices(primData.Attributes, vertices);
             MLG_CHECK(vertexCount);
@@ -438,50 +409,28 @@ CollectModels(const std::vector<CgltfMeshData>& gltfMeshes,
 
             if(!primData.Attributes.SrcNormal)
             {
-                GenerateNormals(vertices.data() + baseVertex,
-                    *vertexCount,
-                    indices.data() + firstIndex,
-                    *indexCount);
+                GenerateNormals(vertices, indices);
             }
 
             const cgltf_primitive& prim = *primData.Primitive;
 
-            size_t materialIndex;
+            auto mtlDef = CreateMaterialDef(prim.material);
+            MLG_CHECK(mtlDef);
 
-            if(materialMap.contains(prim.material))
-            {
-                materialIndex = materialMap[prim.material];
-            }
-            else
-            {
-                auto mtlData = CreateMaterialData(prim.material);
-                MLG_CHECK(mtlData);
-
-                materialIndex = materials.size();
-                materials.emplace_back(std::move(*mtlData));
-                materialMap[prim.material] = materialIndex;
-            }
-
-            const std::span<const Vertex> primVertices(vertices.data() + baseVertex, *vertexCount);
-            const std::span<const VertexIndex> primIndices(indices.data() + firstIndex, *indexCount);
-
-            const MeshData meshData //
+            const MeshDef meshDef //
                 {
-                    .FirstIndex = narrow_cast<uint32_t>(firstIndex),
-                    .IndexCount = narrow_cast<uint32_t>(*indexCount),
-                    .BaseVertex = narrow_cast<uint32_t>(baseVertex),
-                    .Properties = //
-                    {
-                        .MaterialIndex = narrow_cast<MaterialIndex>(materialIndex),
-                        .BoundingBox = AABoundingBox::FromVertices(primVertices, primIndices),
-                    },
+                    .Vertices = std::move(vertices),
+                    .Indices = std::move(indices),
+                    .MaterialDef = std::move(*mtlDef),
                 };
 
-            meshes.emplace_back(std::move(meshData));
-
-            firstIndex += narrow_cast<uint32_t>(*indexCount);
-            baseVertex += narrow_cast<uint32_t>(*vertexCount);
+            meshDefs.emplace_back(std::move(meshDef));
         }
+
+        ModelDef model //
+        {
+            .MeshDefs = std::move(meshDefs),
+        };
 
         modelIndices[gltfMesh.Mesh] = narrow_cast<ModelIndex>(models.size());
         models.emplace_back(std::move(model));
@@ -508,13 +457,13 @@ ConvertRHtoLH(Mat44f& M)
 static Result<size_t>
 CollectTransforms(cgltf_node** const childNodes,
     const cgltf_size nodeCount,
+    const std::span<ModelDef>& models,
+    const std::map<const cgltf_mesh*, ModelIndex>& modelIndices,
     const uint32_t parentIndex,
-    std::vector<TransformData>& transforms,
-    std::vector<ModelInstance>& modelInstances,
-    const std::vector<ModelData>& models,
-    const std::map<const cgltf_mesh*, ModelIndex>& modelIndices)
+    std::vector<TransformDef>& transformDefs,
+    std::vector<ModelInstance>& modelInstances)
 {
-    const size_t numTransforms = transforms.size();
+    const size_t numTransforms = transformDefs.size();
 
     for(cgltf_size i = 0; i < nodeCount; ++i)
     {
@@ -522,17 +471,17 @@ CollectTransforms(cgltf_node** const childNodes,
 
         MLG_LOG_SCOPE("node {}", srcNode->name ? srcNode->name : "<unnamed>");
 
-        const uint32_t transformIndex = narrow_cast<uint32_t>(transforms.size());
+        const uint32_t transformIndex = narrow_cast<uint32_t>(transformDefs.size());
 
-        TransformData transformData //
+        TransformDef transformDef //
         {
             .ParentIndex = parentIndex
         };
 
         if(srcNode->has_matrix)
         {
-            std::memcpy(&transformData.Transform.m[0].x, srcNode->matrix, sizeof(float) * 16);
-            ConvertRHtoLH(transformData.Transform);
+            std::memcpy(&transformDef.Transform.m[0].x, srcNode->matrix, sizeof(float) * 16);
+            ConvertRHtoLH(transformDef.Transform);
         }
         else
         {
@@ -553,29 +502,29 @@ CollectTransforms(cgltf_node** const childNodes,
             trs.R.y = -trs.R.y;
             trs.R.z = -trs.R.z;
 
-            transformData.Transform = trs.ToMatrix();
+            transformDef.Transform = trs.ToMatrix();
         }
 
-        transforms.emplace_back(std::move(transformData));
+        transformDefs.emplace_back(std::move(transformDef));
 
         auto countResult = CollectTransforms(srcNode->children,
             srcNode->children_count,
-            transformIndex,
-            transforms,
-            modelInstances,
             models,
-            modelIndices);
+            modelIndices,
+            transformIndex,
+            transformDefs,
+            modelInstances);
 
         if(!countResult)
         {
             // Something went wrong. Erase the transform we added.
-            transforms.resize(transformIndex);
+            transformDefs.resize(transformIndex);
         }
         else if(*countResult == 0 && !srcNode->mesh)
         {
             // No child transforms were added and there's no mesh
             // at this node.  Erase the transform we added.
-            transforms.resize(transformIndex);
+            transformDefs.resize(transformIndex);
 
             // Node has no mesh and no descendents with meshes, skip it
             // This could be a procedurally generated mesh, e.g. the leaves of a tree.
@@ -630,24 +579,23 @@ CollectTransforms(cgltf_node** const childNodes,
         {
             const ModelIndex modelIndex = modelIndices.at(srcNode->mesh);
 
-            ModelInstance modelInstance //
-            {
-                .FirstMesh = models[modelIndex].FirstMesh,
-                .MeshCount = models[modelIndex].MeshCount,
-                .TransformIndex = narrow_cast<TransformIndex>(transformIndex),
-            };
+            const ModelInstance modelInstance //
+                {
+                    .ModelIndex = modelIndex,
+                    .TransformIndex = narrow_cast<TransformIndex>(transformIndex),
+                };
 
             modelInstances.push_back(modelInstance);
         }
     }
 
-    const size_t numAdded = transforms.size() - numTransforms;
+    const size_t numAdded = transformDefs.size() - numTransforms;
 
     return numAdded;
 }
 
 Result<>
-GltfLoader::LoadPropKit(const std::string& path, PropKitSourceData& outPropKit)
+GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit)
 {
     std::filesystem::path filePath(path);
 
@@ -672,50 +620,43 @@ GltfLoader::LoadPropKit(const std::string& path, PropKitSourceData& outPropKit)
     cgltf_result loadBuffersResult = cgltf_load_buffers(&options, gltfData, filePath.string().c_str());
     MLG_CHECK(loadBuffersResult == cgltf_result_success, "Failed to load buffers");
 
-    PropKitSourceData propKitData;
-
     std::vector<CgltfMeshData> gltfMeshes;
     MLG_CHECK(CollectMeshes(gltfData, gltfMeshes));
 
-    std::vector<Vertex> vertices;
-    std::vector<VertexIndex> indices;
-    std::vector<MaterialData> materials;
-    std::vector<MeshData> meshes;
-    std::vector<ModelData> models;
+    std::vector<ModelDef> modelDefs;
     std::map<const cgltf_mesh*, ModelIndex> modelIndices;
-    MLG_CHECK(
-        CollectModels(gltfMeshes, vertices, indices, materials, meshes, models, modelIndices));
+    MLG_CHECK(CollectModels(gltfMeshes, modelDefs, modelIndices));
 
-    std::vector<TransformData> transforms;
+    std::vector<TransformDef> transformDefs;
     std::vector<ModelInstance> modelInstances;
     MLG_CHECK(CollectTransforms(gltfData->scenes[0].nodes,
         gltfData->scenes[0].nodes_count,
-        TransformData::kInvalidParentIndex,
-        transforms,
-        modelInstances,
-        models,
-        modelIndices));
+        modelDefs,
+        modelIndices,
+        TransformDef::kInvalidParentIndex,
+        transformDefs,
+        modelInstances));
 
     cgltf_free(gltfData);
 
     // Convert local transforms to world space.
-    for(auto& transform : transforms)
+    for(auto& transformDef : transformDefs)
     {
-        if(transform.ParentIndex != TransformData::kInvalidParentIndex)
+        if(transformDef.ParentIndex != TransformDef::kInvalidParentIndex)
         {
-            const TransformData& parent = transforms[transform.ParentIndex];
-            transform.Transform = parent.Transform * transform.Transform;
+            const TransformDef& parent = transformDefs[transformDef.ParentIndex];
+            transformDef.Transform = parent.Transform * transformDef.Transform;
         }
     }
 
-    propKitData.Materials = std::move(materials);
-    propKitData.Vertices = std::move(vertices);
-    propKitData.Indices = std::move(indices);
-    propKitData.Meshes = std::move(meshes);
-    propKitData.Transforms = std::move(transforms);
-    propKitData.ModelInstances = std::move(modelInstances);
+    PropKitDef propKit //
+    {
+        .ModelDefs = std::move(modelDefs),
+        .TransformDefs = std::move(transformDefs),
+        .ModelInstances = std::move(modelInstances),
+    };
 
-    outPropKit = std::move(propKitData);
+    outPropKit = std::move(propKit);
 
     return Result<>::Ok;
 }

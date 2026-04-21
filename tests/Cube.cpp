@@ -19,7 +19,7 @@
 
 namespace
 {
-static Result<PropKitSourceData> CreateShapeModel();
+static Result<PropKitDef> CreateShapeModel();
 
 class WorldMatrix : public Mat44f
 {
@@ -62,13 +62,13 @@ public:
 
         m_ScreenBounds = WebgpuHelper::GetScreenBounds();
 
-        auto propKitData = CreateShapeModel();
-        MLG_CHECK(propKitData);
+        auto propKitDef = CreateShapeModel();
+        MLG_CHECK(propKitDef);
 
         MLG_CHECK(m_TextureCache.Startup());
 
         std::filesystem::path rootPath = ".";
-        MLG_CHECK(PropKit::Load(rootPath, m_TextureCache, *propKitData, m_PropKit));
+        MLG_CHECK(PropKit::Load(rootPath, m_TextureCache, *propKitDef, m_PropKit));
 
         constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
@@ -330,7 +330,7 @@ constexpr static const VertexIndex cubeIndices[] =
     20, 22, 23,  20, 21, 22
 };
 
-static Result<PropKitSourceData> CreateShapeModel()
+static Result<PropKitDef> CreateShapeModel()
 {
     //auto geometry = Shapes::Box(1, 1, 1);
     //auto geometry = Shapes::Ball(1, 10);
@@ -339,9 +339,7 @@ static Result<PropKitSourceData> CreateShapeModel()
     auto geometry = Shapes::Torus(1, 0.5, 5);
     const auto &[vertices, indices] = geometry;
 
-    PropKitSourceData propKitData;
-
-    const MaterialData mtlData //
+    const MaterialDef mtlDef //
     {
         .BaseTextureUri = "images/Ant.png",
         .Color = {1, 0, 0},
@@ -349,39 +347,32 @@ static Result<PropKitSourceData> CreateShapeModel()
         .Roughness = 0
     };
 
-    const TransformData transformData //
-        {
-            .Transform = Mat44f(1),
-            .ParentIndex = TransformData::kInvalidParentIndex,
-        };
-
-    const MeshData meshData //
-        {
-            .FirstIndex = 0,
-            .IndexCount = static_cast<uint32_t>(indices.size()),
-            .BaseVertex = 0,
-            .Properties = //
-            {
-                .MaterialIndex = 0,
-                .BoundingBox = AABoundingBox::FromVertices(cubeVertices, cubeIndices),
-            },
-        };
-
-    const ModelInstance modelInstance //
+    const MeshDef meshDef//
     {
-        .FirstMesh = 0,
-        .MeshCount = 1,
-        .TransformIndex = 0,
+        .Vertices = {vertices.begin(), vertices.end()},
+        .Indices = {indices.begin(), indices.end()},
+        .MaterialDef = mtlDef
     };
 
-    propKitData.Vertices.assign(vertices.begin(), vertices.end());
-    propKitData.Indices.assign(indices.begin(), indices.end());
-    propKitData.Materials.emplace_back(mtlData);
-    propKitData.Transforms.emplace_back(transformData);
-    propKitData.Meshes.emplace_back(meshData);
-    propKitData.ModelInstances.emplace_back(modelInstance);
+    const ModelDef modelDef //
+    {
+        .MeshDefs = {std::move(meshDef)},
+    };
 
-    return std::move(propKitData);
+    const TransformDef transformDef //
+        {
+            .Transform = Mat44f(1),
+            .ParentIndex = TransformDef::kInvalidParentIndex,
+        };
+
+    const PropKitDef propKitDef //
+        {
+            .ModelDefs = {std::move(modelDef)},
+            .TransformDefs = {transformDef},
+            .ModelInstances = {{0, 0}},
+        };
+
+    return std::move(propKitDef);
 }
 }
 

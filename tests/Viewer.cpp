@@ -68,12 +68,12 @@ static Result<> RenderGui();
 static Result<>
 LoadPropKit(const std::filesystem::path& path, TextureCache& textureCache, PropKit& outPropKit)
 {
-    PropKitSourceData propKitData;
-    MLG_CHECK(GltfLoader::LoadPropKit(path.string(), propKitData),
+    PropKitDef propKitDef;
+    MLG_CHECK(GltfLoader::LoadPropKit(path.string(), propKitDef),
         "Failed to load prop kit: {}",
         path.string());
 
-    MLG_CHECK(PropKit::Load(path.parent_path(), textureCache, propKitData, outPropKit),
+    MLG_CHECK(PropKit::Load(path.parent_path(), textureCache, propKitDef, outPropKit),
         "Failed to create PropKit for {}",
         path.string());
 
@@ -106,6 +106,7 @@ MainLoop()
     MLG_CHECK(compositor.Startup());
     MLG_CHECK(imGuiRenderer.Startup());
     MLG_CHECK(textureCache.Startup());
+
     MLG_CHECK(LoadPropKit(path, textureCache, propKit));
 
     Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, ModelTag{});
