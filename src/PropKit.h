@@ -56,11 +56,37 @@ struct ModelDef
     std::vector<MeshDef> MeshDefs;
 };
 
-struct PropKitDef
+class PropKitDef
 {
-    std::vector<ModelDef> ModelDefs;
-    std::vector<TransformDef> TransformDefs;
-    std::vector<ModelInstance> ModelInstances;
+public:
+    PropKitDef() = default;
+    PropKitDef(const PropKitDef&) = delete;
+    PropKitDef& operator=(const PropKitDef&) = delete;
+    PropKitDef(PropKitDef&&) = default;
+    PropKitDef& operator=(PropKitDef&&) = default;
+
+    PropKitDef(std::vector<ModelDef>&& modelDefs,
+        std::vector<TransformDef>&& transformDefs,
+        std::vector<ModelInstance>&& modelInstances,
+        std::unordered_map<std::string, uint32_t>&& modelMap)
+        : m_ModelDefs(std::move(modelDefs)),
+          m_TransformDefs(std::move(transformDefs)),
+          m_ModelInstances(std::move(modelInstances)),
+          m_ModelMap(std::move(modelMap))
+    {
+    }
+
+    std::span<const ModelDef> GetModelDefs() const { return m_ModelDefs; }
+    std::span<const TransformDef> GetTransformDefs() const { return m_TransformDefs; }
+    std::span<const ModelInstance> GetModelInstances() const { return m_ModelInstances; }
+    const std::unordered_map<std::string, uint32_t>& GetModelMap() const { return m_ModelMap; }
+
+private:
+
+    std::vector<ModelDef> m_ModelDefs;
+    std::vector<TransformDef> m_TransformDefs;
+    std::vector<ModelInstance> m_ModelInstances;
+    std::unordered_map<std::string, uint32_t> m_ModelMap;
 };
 
 // Strongly-typed GPU storage buffer classes.

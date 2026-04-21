@@ -6,6 +6,7 @@
 #include "GltfLoader.h"
 
 #include "Log.h"
+#include "scope_exit.h"
 #include "Vertex.h"
 
 #define CGLTF_IMPLEMENTATION
@@ -606,6 +607,14 @@ GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit)
     cgltf_result result = cgltf_parse_file(&options, path.c_str(), &gltfData);
     MLG_CHECK(result == cgltf_result_success, "Failed to load glTF file");
 
+    auto cleanup = scope_exit([&]()
+    {
+        if(gltfData)
+        {
+            cgltf_free(gltfData);
+        }
+    });
+
     MLG_CHECK(gltfData->scenes_count > 0, "No scenes found");
     MLG_CHECK(gltfData->scenes_count == 1, "Multiple scenes found, only one scene is supported");
 
@@ -637,8 +646,6 @@ GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit)
         transformDefs,
         modelInstances));
 
-    cgltf_free(gltfData);
-
     // Convert local transforms to world space.
     for(auto& transformDef : transformDefs)
     {
@@ -649,12 +656,18 @@ GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit)
         }
     }
 
-    PropKitDef propKit //
+    std::unordered_map<std::string, uint32_t> modelMap;
+    for(size_t i = 0; i < modelDefs.size(); ++i)
     {
-        .ModelDefs = std::move(modelDefs),
-        .TransformDefs = std::move(transformDefs),
-        .ModelInstances = std::move(modelInstances),
-    };
+        const cgltf_mesh* gltfMesh = gltfMeshes[i].Mesh;
+        const std::string name = gltfMesh->name ? gltfMesh->name : std::to_string(i);
+        modelMap[name] = narrow_cast<uint32_t>(i);
+    }
+
+    PropKitDef propKit(std::move(modelDefs),
+        std::move(transformDefs),
+        std::move(modelInstances),
+        std::move(modelMap));
 
     outPropKit = std::move(propKit);
 

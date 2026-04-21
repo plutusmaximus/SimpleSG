@@ -365,12 +365,10 @@ static Result<PropKitDef> CreateShapeModel()
             .ParentIndex = TransformDef::kInvalidParentIndex,
         };
 
-    const PropKitDef propKitDef //
-        {
-            .ModelDefs = {std::move(modelDef)},
-            .TransformDefs = {transformDef},
-            .ModelInstances = {{0, 0}},
-        };
+    PropKitDef propKitDef({ std::move(modelDef) },
+        { std::move(transformDef) },
+        { { 0, 0 } },
+        { { "shape", 0 } });
 
     return std::move(propKitDef);
 }

@@ -275,12 +275,10 @@ static Result<PropKitDef> CreateTriangleModel()
         .TransformIndex = 0,
     };
 
-    PropKitDef propKitDef//
-    {
-        .ModelDefs = { std::move(modelDef) },
-        .TransformDefs = { std::move(transformDef) },
-        .ModelInstances = { std::move(modelInstance) },
-    };
+    PropKitDef propKitDef({ std::move(modelDef) },
+        { std::move(transformDef) },
+        { { 0, 0 } },
+        { { "triangle", 0 } });
 
     return std::move(propKitDef);
 }

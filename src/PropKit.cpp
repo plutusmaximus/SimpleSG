@@ -423,7 +423,7 @@ BuildIndexBuffer(std::span<const VertexIndex> indices, wgpu::CommandEncoder enco
 }
 
 static Result<TransformBuffer>
-BuildTransformBuffer(std::span<const TransformDef> transformDefs)
+BuildTransformBuffer(std::span<const TransformDef> transformDefs, wgpu::CommandEncoder encoder)
 {
     const size_t sizeofBuffer = transformDefs.size() * sizeof(ShaderTypes::MeshTransform);
 
@@ -441,13 +441,13 @@ BuildTransformBuffer(std::span<const TransformDef> transformDefs)
         ++dst;
     }
 
-    buffer->Unmap();
+    buffer->Unmap(encoder);
 
     return buffer;
 }
 
 static Result<MaterialConstantsBuffer>
-BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs)
+BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs, wgpu::CommandEncoder encoder)
 {
     const size_t sizeofBuffer = materialDefs.size() * sizeof(ShaderTypes::MaterialConstants);
 
@@ -469,7 +469,7 @@ BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs)
         };
     }
 
-    buffer->Unmap();
+    buffer->Unmap(encoder);
 
     return buffer;
 }
@@ -477,7 +477,8 @@ BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs)
 static Result<IndirectBuffer>
 BuildDrawIndirectBuffer(std::span<const ShaderTypes::DrawIndirectParams> drawIndirectParams,
     std::span<const Model> models,
-    std::span<const ModelInstance> modelInstances)
+    std::span<const ModelInstance> modelInstances,
+    wgpu::CommandEncoder encoder)
 {
     size_t meshInstanceCount = 0;
     for(const auto& modelInstance : modelInstances)
@@ -522,7 +523,7 @@ BuildDrawIndirectBuffer(std::span<const ShaderTypes::DrawIndirectParams> drawInd
         }
     }
 
-    buffer->Unmap();
+    buffer->Unmap(encoder);
 
     return buffer;
 }
@@ -530,7 +531,8 @@ BuildDrawIndirectBuffer(std::span<const ShaderTypes::DrawIndirectParams> drawInd
 static Result<MeshPropertiesBuffer>
 BuildMeshPropertiesBuffer(std::span<const MeshProperties> meshProperties,
     std::span<const Model> models,
-    std::span<const ModelInstance> modelInstances)
+    std::span<const ModelInstance> modelInstances,
+    wgpu::CommandEncoder encoder)
 {
     size_t meshInstanceCount = 0;
     for(const auto& modelInstance : modelInstances)
@@ -573,7 +575,7 @@ BuildMeshPropertiesBuffer(std::span<const MeshProperties> meshProperties,
         }
     }
 
-    buffer->Unmap();
+    buffer->Unmap(encoder);
 
     return buffer;
 }
@@ -613,13 +615,11 @@ PropKit::Load(const std::filesystem::path& rootPath,
     Stopwatch createTimer;
     createTimer.Mark();
 
-    wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
-
     size_t vertexCount = 0, indexCount = 0, meshCount = 0;
     uint32_t materialIndex = 0;
 
     std::map<MaterialDef, uint32_t, std::less<MaterialDef>> uniqueMaterialMap;
-    for(const auto& modelDef : propKitDef.ModelDefs)
+    for(const auto& modelDef : propKitDef.GetModelDefs())
     {
         for(const auto& mesh : modelDef.MeshDefs)
         {
@@ -651,8 +651,8 @@ PropKit::Load(const std::filesystem::path& rootPath,
     indices.reserve(indexCount);
     drawIndirectParams.reserve(meshCount);
     meshProperties.reserve(meshCount);
-    models.reserve(propKitDef.ModelDefs.size());
-    for(const auto& modelDef : propKitDef.ModelDefs)
+    models.reserve(propKitDef.GetModelDefs().size());
+    for(const auto& modelDef : propKitDef.GetModelDefs())
     {
         Model model//
         {
@@ -685,6 +685,8 @@ PropKit::Load(const std::filesystem::path& rootPath,
         }
     }
 
+    wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
+
     MLG_CHECK(FetchTextures(rootPath, uniqueMaterials, textureCache, encoder));
 
     auto vertexBuffer = BuildVertexBuffer(vertices, encoder);
@@ -693,19 +695,16 @@ PropKit::Load(const std::filesystem::path& rootPath,
     auto indexBuffer = BuildIndexBuffer(indices, encoder);
     MLG_CHECK(indexBuffer);
 
-    wgpu::CommandBuffer commandBuffer = encoder.Finish();
-    WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
-
-    auto transformBuffer = BuildTransformBuffer(propKitDef.TransformDefs);
+    auto transformBuffer = BuildTransformBuffer(propKitDef.GetTransformDefs(), encoder);
     MLG_CHECK(transformBuffer);
 
-    auto materialConstantsBuffer = BuildMaterialConstantsBuffer(uniqueMaterials);
+    auto materialConstantsBuffer = BuildMaterialConstantsBuffer(uniqueMaterials, encoder);
     MLG_CHECK(materialConstantsBuffer);
 
-    auto drawIndirectBuffer = BuildDrawIndirectBuffer(drawIndirectParams, models, propKitDef.ModelInstances);
+    auto drawIndirectBuffer = BuildDrawIndirectBuffer(drawIndirectParams, models, propKitDef.GetModelInstances(), encoder);
     MLG_CHECK(drawIndirectBuffer);
 
-    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(meshProperties, models, propKitDef.ModelInstances);
+    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(meshProperties, models, propKitDef.GetModelInstances(), encoder);
     MLG_CHECK(meshPropertiesBuffer);
 
     std::vector<wgpu::BindGroup> materialBindGroups;
@@ -729,7 +728,11 @@ PropKit::Load(const std::filesystem::path& rootPath,
     auto transformPipelineBindGroup0 = CreateTransformPipelineBindGroup0(transformPipelineResources);
     MLG_CHECK(transformPipelineBindGroup0);
 
-    std::vector<ModelInstance> modelInstances(propKitDef.ModelInstances);
+    wgpu::CommandBuffer commandBuffer = encoder.Finish();
+    WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
+
+    std::vector<ModelInstance> modelInstances(propKitDef.GetModelInstances().begin(),
+        propKitDef.GetModelInstances().end());
 
     PropKit propKit(
         *vertexBuffer,
