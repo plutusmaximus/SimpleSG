@@ -11,6 +11,7 @@
 #include "WebgpuHelper.h"
 
 #include <atomic>
+#include <map>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -637,6 +638,183 @@ PropKit::Load(const std::filesystem::path& rootPath,
     }
 
     std::vector<ModelInstance> modelInstances(propKitData.ModelInstances);
+
+    PropKit propKit(
+        *vertexBuffer,
+        *indexBuffer,
+        *transformBuffer,
+        *materialConstantsBuffer,
+        *drawIndirectBuffer,
+        *meshDrawDataBuffer,
+        *colorPipelineBindGroup0,
+        *transformPipelineBindGroup0,
+        std::move(materialBindGroups),
+        std::move(meshProperties),
+        std::move(modelInstances));
+
+    outPropKit = std::move(propKit);
+
+    MLG_INFO("PropKit created in {} ms", createTimer.ElapsedSeconds() * 1000);
+
+    return Result<>::Ok;
+}
+
+template <>
+struct std::equal_to<MaterialData>
+{
+    bool operator()(const MaterialData& lhs, const MaterialData& rhs) const
+    {
+        return lhs.BaseTextureUri == rhs.BaseTextureUri &&
+               lhs.Color == rhs.Color &&
+               lhs.Metalness == rhs.Metalness &&
+               lhs.Roughness == rhs.Roughness;
+    }
+};
+
+template<>
+struct std::less<MaterialData>
+{
+    bool operator()(const MaterialData& lhs, const MaterialData& rhs) const
+    {
+        if(lhs.BaseTextureUri != rhs.BaseTextureUri)
+        {
+            return lhs.BaseTextureUri < rhs.BaseTextureUri;
+        }
+        if(lhs.Color != rhs.Color)
+        {
+            return std::tie(lhs.Color.r, lhs.Color.g, lhs.Color.b, lhs.Color.a) <
+                   std::tie(rhs.Color.r, rhs.Color.g, rhs.Color.b, rhs.Color.a);
+        }
+        if(lhs.Metalness != rhs.Metalness)
+        {
+            return lhs.Metalness < rhs.Metalness;
+        }
+        if(lhs.Roughness != rhs.Roughness)
+        {
+            return lhs.Roughness < rhs.Roughness;
+        }
+        return false;
+    }
+};
+
+Result<>
+PropKit::Load(const std::filesystem::path& rootPath,
+    TextureCache& textureCache,
+    const PropKitDef& propKitDef,
+    PropKit& outPropKit)
+{
+    Stopwatch createTimer;
+    createTimer.Mark();
+
+    wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
+
+    size_t vertexCount = 0, indexCount = 0, meshCount = 0;
+    uint32_t materialIndex = 0;
+
+    std::map<MaterialData, uint32_t, std::less<MaterialData>> uniqueMaterialMap;
+    for(const auto& model : propKitDef.Models)
+    {
+        for(const auto& mesh : model.Meshes)
+        {
+            const MaterialData& material = mesh.Material;
+            if(!uniqueMaterialMap.contains(material))
+            {
+                uniqueMaterialMap[material] = materialIndex++;
+            }
+
+            vertexCount += mesh.Vertices.size();
+            indexCount += mesh.Indices.size();
+            meshCount += 1;
+        }
+    }
+
+    std::vector<MaterialData> uniqueMaterials;
+    uniqueMaterials.resize(uniqueMaterialMap.size());
+    for(const auto& [material, index] : uniqueMaterialMap)
+    {
+        uniqueMaterials[index] = material;
+    }
+
+    std::vector<Vertex> vertices;
+    std::vector<VertexIndex> indices;
+    std::vector<MeshData> meshDatas;
+    vertices.reserve(vertexCount);
+    indices.reserve(indexCount);
+    meshDatas.reserve(meshCount);
+    for(const auto& model : propKitDef.Models)
+    {
+        for(const auto& mesh : model.Meshes)
+        {
+            MeshData meshData//
+            {
+                .FirstIndex = static_cast<uint32_t>(indices.size()),
+                .IndexCount = static_cast<uint32_t>(mesh.Indices.size()),
+                .BaseVertex = static_cast<uint32_t>(vertices.size()),
+                .Properties =
+                {
+                    .MaterialIndex = uniqueMaterialMap[mesh.Material],
+                    .BoundingBox = AABoundingBox::FromVertices(mesh.Vertices, mesh.Indices),
+                },
+            };
+
+            vertices.insert(vertices.end(), mesh.Vertices.begin(), mesh.Vertices.end());
+            indices.insert(indices.end(), mesh.Indices.begin(), mesh.Indices.end());
+            meshDatas.emplace_back(meshData);
+        }
+    }
+
+    MLG_CHECK(FetchTextures(rootPath, uniqueMaterials, textureCache, encoder));
+
+    auto vertexBuffer = BuildVertexBuffer(vertices, encoder);
+    MLG_CHECK(vertexBuffer);
+
+    auto indexBuffer = BuildIndexBuffer(indices, encoder);
+    MLG_CHECK(indexBuffer);
+
+    wgpu::CommandBuffer commandBuffer = encoder.Finish();
+    WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
+
+    auto transformBuffer = BuildTransformBuffer(propKitDef.Transforms);
+    MLG_CHECK(transformBuffer);
+
+    auto materialConstantsBuffer = BuildMaterialConstantsBuffer(uniqueMaterials);
+    MLG_CHECK(materialConstantsBuffer);
+
+    auto drawIndirectBuffer = BuildDrawIndirectBuffer(meshDatas, propKitDef.ModelInstances);
+    MLG_CHECK(drawIndirectBuffer);
+
+    auto meshDrawDataBuffer = BuildMeshDrawDataBuffer(meshDatas, propKitDef.ModelInstances);
+    MLG_CHECK(meshDrawDataBuffer);
+
+    std::vector<wgpu::BindGroup> materialBindGroups;
+    MLG_CHECK(CreateMaterialBindGroups(uniqueMaterials, textureCache, materialBindGroups));
+
+    ColorPipelineResources colorPipelineResources //
+    {
+        .TransformBuffer = *transformBuffer,
+        .MaterialConstantsBuffer = *materialConstantsBuffer,
+        .MeshDrawDataBuffer = *meshDrawDataBuffer,
+    };
+
+    auto colorPipelineBindGroup0 = CreateColorPipelineBindGroup0(colorPipelineResources);
+    MLG_CHECK(colorPipelineBindGroup0);
+
+    TransformPipelineResources transformPipelineResources //
+    {
+        .TransformBuffer = *transformBuffer,
+    };
+
+    auto transformPipelineBindGroup0 = CreateTransformPipelineBindGroup0(transformPipelineResources);
+    MLG_CHECK(transformPipelineBindGroup0);
+
+    std::vector<MeshProperties> meshProperties;
+    meshProperties.reserve(meshDatas.size());
+    for(const auto& meshData : meshDatas)
+    {
+        meshProperties.emplace_back(meshData.Properties);
+    }
+
+    std::vector<ModelInstance> modelInstances(propKitDef.ModelInstances);
 
     PropKit propKit(
         *vertexBuffer,

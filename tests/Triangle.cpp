@@ -15,7 +15,7 @@
 #include <SDL3/SDL.h>
 #include <thread>
 
-static Result<PropKitSourceData> CreateTriangleModel();
+static Result<PropKitDef> CreateTriangleModel();
 
 constexpr const char* kAppName = "Triangle";
 
@@ -44,15 +44,15 @@ static Result<> MainLoop()
     Projection projection;
     projection.SetPerspective(fov, screenBounds, 0.1f, 1000);
 
-    auto propKitData = CreateTriangleModel();
-    MLG_CHECK(propKitData);
+    auto propKitDef = CreateTriangleModel();
+    MLG_CHECK(propKitDef);
 
     TextureCache textureCache;
     MLG_CHECK(textureCache.Startup());
 
     std::filesystem::path rootPath = ".";
     PropKit propKit;
-    MLG_CHECK(PropKit::Load(rootPath, textureCache, *propKitData, propKit));
+    MLG_CHECK(PropKit::Load(rootPath, textureCache, *propKitDef, propKit));
 
     Renderer renderer;
     MLG_CHECK(renderer.Startup());
@@ -229,7 +229,7 @@ static Result<> RenderGui()
     return Result<>::Ok;
 }
 
-static Result<PropKitSourceData> CreateTriangleModel()
+static Result<PropKitDef> CreateTriangleModel()
 {
     std::vector<Vertex> triangleVertices = //
         {
@@ -285,5 +285,24 @@ static Result<PropKitSourceData> CreateTriangleModel()
     propKitData.Meshes.emplace_back(std::move(meshData));
     propKitData.ModelInstances.emplace_back(std::move(modelInstance));
 
-    return std::move(propKitData);
+    MeshDef meshDef//
+    {
+        .Vertices = propKitData.Vertices,
+        .Indices = propKitData.Indices,
+        .Material = propKitData.Materials[0],
+    };
+
+    ModelDef modelDef//
+    {
+        .Meshes = { std::move(meshDef) },
+    };
+
+    PropKitDef propKitDef//
+    {
+        .Models = { std::move(modelDef) },
+        .Transforms = std::move(propKitData.Transforms),
+        .ModelInstances = std::move(propKitData.ModelInstances),
+    };
+
+    return std::move(propKitDef);
 }

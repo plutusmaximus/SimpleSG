@@ -47,6 +47,25 @@ struct TransformData
     TransformIndex ParentIndex{ kInvalidParentIndex };
 };
 
+struct MeshDef
+{
+    std::vector<Vertex> Vertices;
+    std::vector<VertexIndex> Indices;
+    MaterialData Material;
+};
+
+struct ModelDef
+{
+    std::vector<MeshDef> Meshes;
+};
+
+struct PropKitDef
+{
+    std::vector<ModelDef> Models;
+    std::vector<TransformData> Transforms;
+    std::vector<ModelInstance> ModelInstances;
+};
+
 class PropKitSourceData
 {
 public:
@@ -77,6 +96,11 @@ public:
     static Result<> Load(const std::filesystem::path& rootPath,
         TextureCache& textureCache,
         const PropKitSourceData& propKitData,
+        PropKit& outPropKit);
+
+    static Result<> Load(const std::filesystem::path& rootPath,
+        TextureCache& textureCache,
+        const PropKitDef& propKitDef,
         PropKit& outPropKit);
 
     PropKit() = default;
