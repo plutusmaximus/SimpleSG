@@ -49,7 +49,7 @@ namespace ShaderTypes
         Mat44f Transform;
     };
 
-    class MeshDrawData
+    class MeshProperties
     {
     public:
         Vec3f Center;

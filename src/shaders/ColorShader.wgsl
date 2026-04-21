@@ -8,7 +8,7 @@ struct ClipSpaceTransform
     xform : mat4x4<f32>,
 }
 
-struct MeshDrawData
+struct MeshProperties
 {
     center : vec3<f32>,
     radius : f32,
@@ -36,7 +36,7 @@ struct Camera
 };
 
 @group(0) @binding(0) var<storage, read> meshTransforms: array<MeshTransform>;
-@group(0) @binding(1) var<storage, read> meshDrawData : array<MeshDrawData>;
+@group(0) @binding(1) var<storage, read> meshProperties : array<MeshProperties>;
 @group(0) @binding(2) var<storage, read> materials : array<Material>;
 
 @group(1) @binding(0) var<storage, read> clipSpacTransforms: array<ClipSpaceTransform>;
@@ -65,7 +65,7 @@ fn vs_main(input: VSInput, @builtin(instance_index) instance_index: u32) -> FSIn
 {
     var output: FSInput;
 
-    let transformIdx = meshDrawData[instance_index].transformIndex;
+    let transformIdx = meshProperties[instance_index].transformIndex;
     let clipXform = clipSpacTransforms[transformIdx].xform;
     let meshTransform = meshTransforms[transformIdx].xform;
 
@@ -80,7 +80,7 @@ fn vs_main(input: VSInput, @builtin(instance_index) instance_index: u32) -> FSIn
 @fragment
 fn fs_main(input: FSInput) -> @location(0) vec4<f32>
 {
-    let material = materials[meshDrawData[input.instanceIndex].materialIndex];
+    let material = materials[meshProperties[input.instanceIndex].materialIndex];
     let lightDir = normalize(vec3<f32>(1.0, -1.0, 1.0));
     let ambientFactor = 0.1;
     let diff = max(-dot(input.fragNormal, lightDir), 0.0);

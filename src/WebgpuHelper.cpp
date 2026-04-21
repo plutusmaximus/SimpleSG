@@ -615,7 +615,7 @@ WebgpuHelper::GetColorPipelineLayouts()
                     .minBindingSize = sizeof(ShaderTypes::MeshTransform),
                 },
             },
-            // Mesh draw data.
+            // Mesh properties.
             {
                 .binding = 1,
                 .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
@@ -623,7 +623,7 @@ WebgpuHelper::GetColorPipelineLayouts()
                 {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
                     .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderTypes::MeshDrawData),
+                    .minBindingSize = sizeof(ShaderTypes::MeshProperties),
                 },
             },
             // Material constants buffer.
