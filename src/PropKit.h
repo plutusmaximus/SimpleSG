@@ -73,19 +73,13 @@ private:
 using MeshPropertiesBuffer = TypedGpuBuffer<ShaderTypes::MeshProperties>;
 using MaterialConstantsBuffer = TypedGpuBuffer<ShaderTypes::MaterialConstants>;
 
-struct SceneDef;
-class Scene;
-
 class PropKit
 {
 public:
-
-    static Result<> Load(const std::filesystem::path& rootPath,
+    static Result<> Create(const std::filesystem::path& rootPath,
         TextureCache& textureCache,
         const PropKitDef& propKitDef,
-        const SceneDef& sceneDef,
-        PropKit& outPropKit,
-        Scene& outScene);
+        PropKit& outPropKit);
 
     PropKit() = default;
     PropKit(const PropKit&) = delete;
@@ -95,22 +89,16 @@ public:
 
     PropKit(VertexBuffer vertexBuffer,
         IndexBuffer indexBuffer,
-        MaterialConstantsBuffer materialConstantsBuffer,
-        IndirectBuffer drawIndirectBuffer,
-        MeshPropertiesBuffer meshPropertiesBuffer,
-        wgpu::BindGroup colorPipelineBindGroup0,
-        std::vector<wgpu::BindGroup>&& materialBindGroups,
         std::vector<Mesh>&& meshes,
-        std::vector<Model>&& models)
+        std::vector<Model>&& models,
+        MaterialConstantsBuffer materialConstantsBuffer,
+        std::vector<wgpu::BindGroup>&& materialBindGroups)
         : m_IndexBuffer(indexBuffer),
           m_VertexBuffer(vertexBuffer),
-          m_MaterialConstantsBuffer(materialConstantsBuffer),
-          m_DrawIndirectBuffer(drawIndirectBuffer),
-          m_MeshPropertiesBuffer(meshPropertiesBuffer),
-          m_ColorPipelineBindGroup0(colorPipelineBindGroup0),
-          m_MaterialBindGroups(std::move(materialBindGroups)),
           m_Meshes(std::move(meshes)),
-          m_Models(std::move(models))
+          m_Models(std::move(models)),
+          m_MaterialConstantsBuffer(materialConstantsBuffer),
+          m_MaterialBindGroups(std::move(materialBindGroups))
     {
 #ifndef NDEBUG
         for(const auto& mesh : m_Meshes)
@@ -126,42 +114,29 @@ public:
 #endif // NDEBUG
     }
 
-    uint32_t GetMeshCount() const
-    {
-        return static_cast<uint32_t>(m_Meshes.size());
-    }
+    uint32_t GetMeshCount() const { return static_cast<uint32_t>(m_Meshes.size()); }
 
     const std::span<const wgpu::BindGroup> GetMaterialBindGroups() const
     {
         return m_MaterialBindGroups;
     }
 
-    const std::span<const Mesh> GetMeshes() const
-    {
-        return m_Meshes;
-    }
+    MaterialConstantsBuffer GetMaterialConstantsBuffer() const { return m_MaterialConstantsBuffer; }
 
-    const std::span<const Model> GetModels() const
-    {
-        return m_Models;
-    }
+    const std::span<const Mesh> GetMeshes() const { return m_Meshes; }
 
-    IndirectBuffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
+    const std::span<const Model> GetModels() const { return m_Models; }
+
     VertexBuffer GetVertexBuffer() const { return m_VertexBuffer; }
-    IndexBuffer GetIndexBuffer() const { return m_IndexBuffer; }
 
-    wgpu::BindGroup GetColorPipelineBindGroup0() const { return m_ColorPipelineBindGroup0; }
+    IndexBuffer GetIndexBuffer() const { return m_IndexBuffer; }
 
 private:
 
-    VertexBuffer m_VertexBuffer{nullptr};
-    IndexBuffer m_IndexBuffer{nullptr};
-    IndirectBuffer m_DrawIndirectBuffer{nullptr};
-    MeshPropertiesBuffer m_MeshPropertiesBuffer{nullptr};
-    MaterialConstantsBuffer m_MaterialConstantsBuffer{nullptr};
-    wgpu::BindGroup m_ColorPipelineBindGroup0{nullptr};
-
-    std::vector<wgpu::BindGroup> m_MaterialBindGroups;
+    VertexBuffer m_VertexBuffer;
+    IndexBuffer m_IndexBuffer;
     std::vector<Mesh> m_Meshes;
     std::vector<Model> m_Models;
+    MaterialConstantsBuffer m_MaterialConstantsBuffer;
+    std::vector<wgpu::BindGroup> m_MaterialBindGroups;
 };

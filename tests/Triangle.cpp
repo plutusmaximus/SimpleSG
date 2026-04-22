@@ -55,7 +55,8 @@ static Result<> MainLoop()
     std::filesystem::path rootPath = ".";
     PropKit propKit;
     Scene scene;
-    MLG_CHECK(PropKit::Load(rootPath, textureCache, propKitDef, sceneDef, propKit, scene));
+    MLG_CHECK(PropKit::Create(rootPath, textureCache, propKitDef, propKit));
+    MLG_CHECK(Scene::Create(sceneDef, propKit, scene));
 
     Renderer renderer;
     MLG_CHECK(renderer.Startup());

@@ -67,7 +67,10 @@ Shutdown()
 static Result<> RenderGui();
 
 static Result<>
-LoadPropKit(const std::filesystem::path& path, TextureCache& textureCache, PropKit& outPropKit, Scene& outScene)
+Load(const std::filesystem::path& path,
+    TextureCache& textureCache,
+    PropKit& outPropKit,
+    Scene& outScene)
 {
     PropKitDef propKitDef;
     SceneDef sceneDef;
@@ -75,8 +78,12 @@ LoadPropKit(const std::filesystem::path& path, TextureCache& textureCache, PropK
         "Failed to load prop kit: {}",
         path.string());
 
-    MLG_CHECK(PropKit::Load(path.parent_path(), textureCache, propKitDef, sceneDef, outPropKit, outScene),
+    MLG_CHECK(PropKit::Create(path.parent_path(), textureCache, propKitDef, outPropKit),
         "Failed to create PropKit for {}",
+        path.string());
+
+    MLG_CHECK(Scene::Create(sceneDef, outPropKit, outScene),
+        "Failed to create Scene for {}",
         path.string());
 
     return Result<>::Ok;
@@ -110,7 +117,7 @@ MainLoop()
     MLG_CHECK(imGuiRenderer.Startup());
     MLG_CHECK(textureCache.Startup());
 
-    MLG_CHECK(LoadPropKit(path, textureCache, propKit, scene));
+    MLG_CHECK(Load(path, textureCache, propKit, scene));
 
     Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, ModelTag{});
 
@@ -248,7 +255,7 @@ MainLoop()
             textureCache.Clear();
             PropKit newPropKit;
             Scene newScene;
-            MLG_CHECK(LoadPropKit(droppedFile, textureCache, newPropKit, newScene));
+            MLG_CHECK(Load(droppedFile, textureCache, newPropKit, newScene));
             propKit = std::move(newPropKit);
             scene = std::move(newScene);
         }

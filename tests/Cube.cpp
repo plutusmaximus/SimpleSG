@@ -70,7 +70,8 @@ public:
         MLG_CHECK(m_TextureCache.Startup());
 
         std::filesystem::path rootPath = ".";
-        MLG_CHECK(PropKit::Load(rootPath, m_TextureCache, propKitDef, sceneDef, m_PropKit, m_Scene));
+        MLG_CHECK(PropKit::Create(rootPath, m_TextureCache, propKitDef, m_PropKit));
+        MLG_CHECK(Scene::Create(sceneDef, m_PropKit, m_Scene));
 
         constexpr Radiansf fov = Radiansf::FromDegrees(45);
 

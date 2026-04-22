@@ -108,7 +108,7 @@ Renderer::Render(const Mat44f& camera,
     static PerfTimer setVsBindGroupTimer("Renderer.Render.Draw.SetVsBindGroup");
     {
         auto scopedTimer = setVsBindGroupTimer.StartScoped();
-        renderPass.SetBindGroup(0, propKit.GetColorPipelineBindGroup0(), 0, nullptr);
+        renderPass.SetBindGroup(0, scene.GetColorPipelineBindGroup0(), 0, nullptr);
         renderPass.SetBindGroup(1, m_ColorPipeline.BindGroup1, 0, nullptr);
     }
 
@@ -143,7 +143,7 @@ Renderer::Render(const Mat44f& camera,
     const auto& meshes = propKit.GetMeshes();
     const auto& models = propKit.GetModels();
     const auto& modelInstances = scene.GetModelInstances();
-    const auto& drawIndirectBuffer = propKit.GetDrawIndirectBuffer();
+    const auto& drawIndirectBuffer = scene.GetDrawIndirectBuffer();
 
     uint32_t lastMaterialIndex = UINT32_MAX;
 

@@ -43,7 +43,7 @@ struct CgltfMeshData
 static const RgbaColorf DEFAULT_COLOR = RgbaColorf{"#FF00FFFF"_rgba};
 
 template<typename T, typename U>
-static T narrow_cast(U u)
+inline static T narrow_cast(U u) noexcept
 {
     static_assert(std::is_integral_v<T> && std::is_integral_v<U>, "narrow_cast requires integral types");
     static_assert((std::numeric_limits<T>::is_signed == std::numeric_limits<U>::is_signed) ||
