@@ -47,10 +47,9 @@ public:
     {
     }
 
-    float GetRadius() const
-    {
-        return m_Radius;
-    }
+    const Vec3f& GetCenter() const { return m_Center; }
+
+    float GetRadius() const { return m_Radius; }
 
     bool Contains(const Vec3f& point) const
     {
@@ -61,8 +60,6 @@ public:
         const double tol = 1e-6 * r2 + 1e-12; // 1e-12 for exact zero case
         return dist2 <= r2 + tol;
     }
-
-    const Vec3f& GetCenter() const { return m_Center; }
 
 private:
     Vec3f m_Center = {0.0f, 0.0f, 0.0f};

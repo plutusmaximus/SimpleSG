@@ -140,7 +140,7 @@ Renderer::Render(const Mat44f& camera,
     uint64_t indirectOffset = 0;
 
     const auto& materialBindGroups = propKit.GetMaterialBindGroups();
-    const auto& meshProps = propKit.GetMeshProperties();
+    const auto& meshes = propKit.GetMeshes();
     const auto& models = propKit.GetModels();
     const auto& modelInstances = scene.GetModelInstances();
     const auto& drawIndirectBuffer = propKit.GetDrawIndirectBuffer();
@@ -153,9 +153,9 @@ Renderer::Render(const Mat44f& camera,
 
         for(uint32_t i = 0; i < model.MeshCount; ++i)
         {
-            const MeshProperties& meshProp = meshProps[model.FirstMesh + i];
+            const Mesh& mesh = meshes[model.FirstMesh + i];
 
-            const uint32_t materialIndex = meshProp.MaterialIndex;
+            const uint32_t materialIndex = mesh.MaterialIndex;
 
             if(materialIndex != lastMaterialIndex)
             {

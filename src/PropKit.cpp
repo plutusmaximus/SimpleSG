@@ -476,7 +476,7 @@ BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs, wgpu::Co
 }
 
 static Result<IndirectBuffer>
-BuildDrawIndirectBuffer(std::span<const MeshProperties> meshProperties,
+BuildDrawIndirectBuffer(std::span<const Mesh> meshes,
     std::span<const Model> models,
     std::span<const ModelInstance> modelInstances,
     wgpu::CommandEncoder encoder)
@@ -503,17 +503,16 @@ BuildDrawIndirectBuffer(std::span<const MeshProperties> meshProperties,
     for(const auto& modelInstance : modelInstances)
     {
         const Model& model = models[modelInstance.ModelIndex];
+        const Mesh* mesh = &meshes[model.FirstMesh];
 
-        for(uint32_t i = 0; i < model.MeshCount; ++i)
+        for(uint32_t i = 0; i < model.MeshCount; ++i, ++mesh)
         {
-            const MeshProperties& meshProp = meshProperties[model.FirstMesh + i];
-
             drawParams[meshCount] = //
             {
-                .IndexCount = meshProp.IndexCount,
+                .IndexCount = mesh->IndexCount,
                 .InstanceCount = 1,
-                .FirstIndex = meshProp.FirstIndex,
-                .BaseVertex = meshProp.BaseVertex,
+                .FirstIndex = mesh->FirstIndex,
+                .BaseVertex = mesh->BaseVertex,
                 .FirstInstance = meshCount,
             };
 
@@ -527,7 +526,7 @@ BuildDrawIndirectBuffer(std::span<const MeshProperties> meshProperties,
 }
 
 static Result<MeshPropertiesBuffer>
-BuildMeshPropertiesBuffer(std::span<const MeshProperties> meshProperties,
+BuildMeshPropertiesBuffer(std::span<const Mesh> meshes,
     std::span<const Model> models,
     std::span<const ModelInstance> modelInstances,
     wgpu::CommandEncoder encoder)
@@ -553,20 +552,18 @@ BuildMeshPropertiesBuffer(std::span<const MeshProperties> meshProperties,
     for(const auto& modelInstance : modelInstances)
     {
         const Model& model = models[modelInstance.ModelIndex];
+        const Mesh* mesh = &meshes[model.FirstMesh];
 
-        for(uint32_t i = 0; i < model.MeshCount; ++i)
+        for(uint32_t i = 0; i < model.MeshCount; ++i, ++mesh)
         {
-            const AABoundingBox& boundingBox = meshProperties[meshCount].BoundingBox;
-
-            const Vec3f center = (boundingBox.GetMin() + boundingBox.GetMax()) * 0.5f;
-            const float radius = (boundingBox.GetMax() - center).Length();
+            const BoundingSphere boundingSphere(mesh->BoundingBox);
 
             meshPropertiesDst[meshCount] = //
                 {
-                    .Center = center,
-                    .Radius = radius,
+                    .Center = boundingSphere.GetCenter(),
+                    .Radius = boundingSphere.GetRadius(),
                     .TransformIndex = modelInstance.TransformIndex,
-                    .MaterialIndex = meshProperties[meshCount].MaterialIndex,
+                    .MaterialIndex = mesh->MaterialIndex,
                 };
 
             ++meshCount;
@@ -645,34 +642,35 @@ PropKit::Load(const std::filesystem::path& rootPath,
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
     std::vector<Model> models;
-    std::vector<MeshProperties> meshProperties;
+    std::vector<Mesh> meshes;
     vertices.reserve(vertexCount);
     indices.reserve(indexCount);
-    meshProperties.reserve(meshCount);
+    meshes.reserve(meshCount);
     models.reserve(propKitDef.GetModelDefs().size());
     for(const auto& modelDef : propKitDef.GetModelDefs())
     {
         Model model//
         {
-            .FirstMesh = static_cast<uint32_t>(meshProperties.size()),
+            .FirstMesh = static_cast<uint32_t>(meshes.size()),
             .MeshCount = static_cast<uint32_t>(modelDef.MeshDefs.size()),
         };
         models.emplace_back(model);
 
-        for(const auto& mesh : modelDef.MeshDefs)
+        for(const auto& meshDef : modelDef.MeshDefs)
         {
-            const MeshProperties meshProps //
+            const Mesh mesh //
                 {
-                    .IndexCount = narrow_cast<uint32_t>(mesh.Indices.size()),
+                    .IndexCount = narrow_cast<uint32_t>(meshDef.Indices.size()),
                     .FirstIndex = narrow_cast<uint32_t>(indices.size()),
                     .BaseVertex = narrow_cast<uint32_t>(vertices.size()),
-                    .MaterialIndex = uniqueMaterialMap[mesh.MaterialDef],
-                    .BoundingBox = AABoundingBox::FromVertices(mesh.Vertices, mesh.Indices),
+                    .MaterialIndex = uniqueMaterialMap[meshDef.MaterialDef],
+                    .BoundingBox = AABoundingBox::FromVertices(meshDef.Vertices, meshDef.Indices),
                 };
 
-            vertices.insert(vertices.end(), mesh.Vertices.begin(), mesh.Vertices.end());
-            indices.insert(indices.end(), mesh.Indices.begin(), mesh.Indices.end());
-            meshProperties.emplace_back(meshProps);
+            vertices.insert(vertices.end(), meshDef.Vertices.begin(), meshDef.Vertices.end());
+            indices.insert(indices.end(), meshDef.Indices.begin(), meshDef.Indices.end());
+            meshes.emplace_back(mesh);
+
         }
     }
 
@@ -692,10 +690,10 @@ PropKit::Load(const std::filesystem::path& rootPath,
     auto materialConstantsBuffer = BuildMaterialConstantsBuffer(uniqueMaterials, encoder);
     MLG_CHECK(materialConstantsBuffer);
 
-    auto drawIndirectBuffer = BuildDrawIndirectBuffer(meshProperties, models, sceneDef.ModelInstances, encoder);
+    auto drawIndirectBuffer = BuildDrawIndirectBuffer(meshes, models, sceneDef.ModelInstances, encoder);
     MLG_CHECK(drawIndirectBuffer);
 
-    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(meshProperties, models, sceneDef.ModelInstances, encoder);
+    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(meshes, models, sceneDef.ModelInstances, encoder);
     MLG_CHECK(meshPropertiesBuffer);
 
     std::vector<wgpu::BindGroup> materialBindGroups;
@@ -733,7 +731,7 @@ PropKit::Load(const std::filesystem::path& rootPath,
         *meshPropertiesBuffer,
         *colorPipelineBindGroup0,
         std::move(materialBindGroups),
-        std::move(meshProperties),
+        std::move(meshes),
         std::move(models));
 
     Scene scene(*transformBuffer, std::move(modelInstances), *transformPipelineBindGroup0);

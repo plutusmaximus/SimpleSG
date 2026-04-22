@@ -9,7 +9,7 @@
 #include <span>
 #include <vector>
 
-struct MeshProperties
+struct Mesh
 {
     uint32_t IndexCount;
     uint32_t FirstIndex;
@@ -100,7 +100,7 @@ public:
         MeshPropertiesBuffer meshPropertiesBuffer,
         wgpu::BindGroup colorPipelineBindGroup0,
         std::vector<wgpu::BindGroup>&& materialBindGroups,
-        std::vector<MeshProperties>&& meshProperties,
+        std::vector<Mesh>&& meshes,
         std::vector<Model>&& models)
         : m_IndexBuffer(indexBuffer),
           m_VertexBuffer(vertexBuffer),
@@ -109,14 +109,14 @@ public:
           m_MeshPropertiesBuffer(meshPropertiesBuffer),
           m_ColorPipelineBindGroup0(colorPipelineBindGroup0),
           m_MaterialBindGroups(std::move(materialBindGroups)),
-          m_MeshProperties(std::move(meshProperties)),
+          m_Meshes(std::move(meshes)),
           m_Models(std::move(models))
     {
 #ifndef NDEBUG
-        for(const auto& meshProps : m_MeshProperties)
+        for(const auto& mesh : m_Meshes)
         {
-            const Vec3f& aabbMax = meshProps.BoundingBox.GetMax();
-            const Vec3f& aabbMin = meshProps.BoundingBox.GetMin();
+            const Vec3f& aabbMax = mesh.BoundingBox.GetMax();
+            const Vec3f& aabbMin = mesh.BoundingBox.GetMin();
             MLG_ASSERT(aabbMin != aabbMax, "Mesh has degenerate bounding box");
             MLG_ASSERT(aabbMin.x <= aabbMax.x &&
                         aabbMin.y <= aabbMax.y &&
@@ -128,7 +128,7 @@ public:
 
     uint32_t GetMeshCount() const
     {
-        return static_cast<uint32_t>(m_MeshProperties.size());
+        return static_cast<uint32_t>(m_Meshes.size());
     }
 
     const std::span<const wgpu::BindGroup> GetMaterialBindGroups() const
@@ -136,9 +136,9 @@ public:
         return m_MaterialBindGroups;
     }
 
-    const std::span<const MeshProperties> GetMeshProperties() const
+    const std::span<const Mesh> GetMeshes() const
     {
-        return m_MeshProperties;
+        return m_Meshes;
     }
 
     const std::span<const Model> GetModels() const
@@ -162,6 +162,6 @@ private:
     wgpu::BindGroup m_ColorPipelineBindGroup0{nullptr};
 
     std::vector<wgpu::BindGroup> m_MaterialBindGroups;
-    std::vector<MeshProperties> m_MeshProperties;
+    std::vector<Mesh> m_Meshes;
     std::vector<Model> m_Models;
 };
