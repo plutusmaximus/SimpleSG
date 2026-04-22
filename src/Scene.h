@@ -44,21 +44,6 @@ public:
     Scene(Scene&& other) = default;
     Scene& operator=(Scene&& other) = default;
 
-    Scene(TransformBuffer transformBuffer,
-        IndirectBuffer drawIndirectBuffer,
-        MeshPropertiesBuffer meshPropertiesBuffer,
-        wgpu::BindGroup colorPipelineBindGroup0,
-        wgpu::BindGroup transformPipelineBindGroup0,
-        std::vector<ModelInstance>&& modelInstances)
-        : m_TransformBuffer(transformBuffer),
-          m_DrawIndirectBuffer(drawIndirectBuffer),
-          m_MeshPropertiesBuffer(meshPropertiesBuffer),
-          m_ColorPipelineBindGroup0(colorPipelineBindGroup0),
-          m_TransformPipelineBindGroup0(transformPipelineBindGroup0),
-          m_ModelInstances(std::move(modelInstances))
-    {
-    }
-
     const std::span<const ModelInstance> GetModelInstances() const
     {
         return m_ModelInstances;
@@ -82,6 +67,22 @@ public:
     wgpu::BindGroup GetTransformPipelineBindGroup0() const { return m_TransformPipelineBindGroup0; }
 
 private:
+
+    Scene(TransformBuffer transformBuffer,
+        IndirectBuffer drawIndirectBuffer,
+        MeshPropertiesBuffer meshPropertiesBuffer,
+        wgpu::BindGroup colorPipelineBindGroup0,
+        wgpu::BindGroup transformPipelineBindGroup0,
+        std::vector<ModelInstance>&& modelInstances)
+        : m_TransformBuffer(transformBuffer),
+          m_DrawIndirectBuffer(drawIndirectBuffer),
+          m_MeshPropertiesBuffer(meshPropertiesBuffer),
+          m_ColorPipelineBindGroup0(colorPipelineBindGroup0),
+          m_TransformPipelineBindGroup0(transformPipelineBindGroup0),
+          m_ModelInstances(std::move(modelInstances))
+    {
+    }
+
     TransformBuffer m_TransformBuffer;
     IndirectBuffer m_DrawIndirectBuffer;
     MeshPropertiesBuffer m_MeshPropertiesBuffer;

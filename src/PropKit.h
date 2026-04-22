@@ -87,33 +87,6 @@ public:
     PropKit(PropKit&& other) = default;
     PropKit& operator=(PropKit&& other) = default;
 
-    PropKit(VertexBuffer vertexBuffer,
-        IndexBuffer indexBuffer,
-        std::vector<Mesh>&& meshes,
-        std::vector<Model>&& models,
-        MaterialConstantsBuffer materialConstantsBuffer,
-        std::vector<wgpu::BindGroup>&& materialBindGroups)
-        : m_IndexBuffer(indexBuffer),
-          m_VertexBuffer(vertexBuffer),
-          m_Meshes(std::move(meshes)),
-          m_Models(std::move(models)),
-          m_MaterialConstantsBuffer(materialConstantsBuffer),
-          m_MaterialBindGroups(std::move(materialBindGroups))
-    {
-#ifndef NDEBUG
-        for(const auto& mesh : m_Meshes)
-        {
-            const Vec3f& aabbMax = mesh.BoundingBox.GetMax();
-            const Vec3f& aabbMin = mesh.BoundingBox.GetMin();
-            MLG_ASSERT(aabbMin != aabbMax, "Mesh has degenerate bounding box");
-            MLG_ASSERT(aabbMin.x <= aabbMax.x &&
-                        aabbMin.y <= aabbMax.y &&
-                        aabbMin.z <= aabbMax.z,
-                "Mesh has invalid bounding box");
-        }
-#endif // NDEBUG
-    }
-
     uint32_t GetMeshCount() const { return static_cast<uint32_t>(m_Meshes.size()); }
 
     const std::span<const wgpu::BindGroup> GetMaterialBindGroups() const
@@ -132,6 +105,12 @@ public:
     IndexBuffer GetIndexBuffer() const { return m_IndexBuffer; }
 
 private:
+    PropKit(VertexBuffer vertexBuffer,
+        IndexBuffer indexBuffer,
+        std::vector<Mesh>&& meshes,
+        std::vector<Model>&& models,
+        MaterialConstantsBuffer materialConstantsBuffer,
+        std::vector<wgpu::BindGroup>&& materialBindGroups);
 
     VertexBuffer m_VertexBuffer;
     IndexBuffer m_IndexBuffer;
