@@ -22,26 +22,12 @@ struct Model
     uint32_t MeshCount;
 };
 
-struct ModelInstance
-{
-    ModelIndex ModelIndex;
-    TransformIndex TransformIndex;
-};
-
 struct MaterialDef
 {
     std::string BaseTextureUri;
     RgbaColorf Color;
     float Metalness;
     float Roughness;
-};
-
-struct TransformDef
-{
-    static constexpr TransformIndex kInvalidParentIndex = std::numeric_limits<TransformIndex>::max();
-
-    Mat44f Transform;
-    TransformIndex ParentIndex{ kInvalidParentIndex };
 };
 
 struct MeshDef
@@ -66,33 +52,27 @@ public:
     PropKitDef& operator=(PropKitDef&&) = default;
 
     PropKitDef(std::vector<ModelDef>&& modelDefs,
-        std::vector<TransformDef>&& transformDefs,
-        std::vector<ModelInstance>&& modelInstances,
         std::unordered_map<std::string, uint32_t>&& modelMap)
         : m_ModelDefs(std::move(modelDefs)),
-          m_TransformDefs(std::move(transformDefs)),
-          m_ModelInstances(std::move(modelInstances)),
           m_ModelMap(std::move(modelMap))
     {
     }
 
     std::span<const ModelDef> GetModelDefs() const { return m_ModelDefs; }
-    std::span<const TransformDef> GetTransformDefs() const { return m_TransformDefs; }
-    std::span<const ModelInstance> GetModelInstances() const { return m_ModelInstances; }
     const std::unordered_map<std::string, uint32_t>& GetModelMap() const { return m_ModelMap; }
 
 private:
 
     std::vector<ModelDef> m_ModelDefs;
-    std::vector<TransformDef> m_TransformDefs;
-    std::vector<ModelInstance> m_ModelInstances;
     std::unordered_map<std::string, uint32_t> m_ModelMap;
 };
 
 // Strongly-typed GPU storage buffer classes.
-using TransformBuffer = TypedGpuBuffer<ShaderTypes::MeshTransform>;
 using MeshPropertiesBuffer = TypedGpuBuffer<ShaderTypes::MeshProperties>;
 using MaterialConstantsBuffer = TypedGpuBuffer<ShaderTypes::MaterialConstants>;
+
+struct SceneDef;
+class Scene;
 
 class PropKit
 {
@@ -101,7 +81,9 @@ public:
     static Result<> Load(const std::filesystem::path& rootPath,
         TextureCache& textureCache,
         const PropKitDef& propKitDef,
-        PropKit& outPropKit);
+        const SceneDef& sceneDef,
+        PropKit& outPropKit,
+        Scene& outScene);
 
     PropKit() = default;
     PropKit(const PropKit&) = delete;
@@ -111,28 +93,22 @@ public:
 
     PropKit(VertexBuffer vertexBuffer,
         IndexBuffer indexBuffer,
-        TransformBuffer transformBuffer,
         MaterialConstantsBuffer materialConstantsBuffer,
         IndirectBuffer drawIndirectBuffer,
         MeshPropertiesBuffer meshPropertiesBuffer,
         wgpu::BindGroup colorPipelineBindGroup0,
-        wgpu::BindGroup transformPipelineBindGroup0,
         std::vector<wgpu::BindGroup>&& materialBindGroups,
         std::vector<MeshProperties>&& meshProperties,
-        std::vector<Model>&& models,
-        std::vector<ModelInstance>&& modelInstances)
+        std::vector<Model>&& models)
         : m_IndexBuffer(indexBuffer),
           m_VertexBuffer(vertexBuffer),
-          m_TransformBuffer(transformBuffer),
           m_MaterialConstantsBuffer(materialConstantsBuffer),
           m_DrawIndirectBuffer(drawIndirectBuffer),
           m_MeshPropertiesBuffer(meshPropertiesBuffer),
           m_ColorPipelineBindGroup0(colorPipelineBindGroup0),
-          m_TransformPipelineBindGroup0(transformPipelineBindGroup0),
           m_MaterialBindGroups(std::move(materialBindGroups)),
           m_MeshProperties(std::move(meshProperties)),
-          m_Models(std::move(models)),
-          m_ModelInstances(std::move(modelInstances))
+          m_Models(std::move(models))
     {
 #ifndef NDEBUG
         for(const auto& meshProps : m_MeshProperties)
@@ -146,15 +122,6 @@ public:
                 "Mesh has invalid bounding box");
         }
 #endif // NDEBUG
-    }
-
-    uint32_t GetTransformCount() const
-    {
-        if (m_TransformBuffer)
-        {
-            return static_cast<uint32_t>(m_TransformBuffer.GetSize() / sizeof(Mat44f));
-        }
-        return 0;
     }
 
     uint32_t GetMeshCount() const
@@ -177,32 +144,22 @@ public:
         return m_Models;
     }
 
-    const std::span<const ModelInstance> GetModelInstances() const
-    {
-        return m_ModelInstances;
-    }
-
-    TransformBuffer GetTransformBuffer() const { return m_TransformBuffer; }
     IndirectBuffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
     VertexBuffer GetVertexBuffer() const { return m_VertexBuffer; }
     IndexBuffer GetIndexBuffer() const { return m_IndexBuffer; }
 
     wgpu::BindGroup GetColorPipelineBindGroup0() const { return m_ColorPipelineBindGroup0; }
-    wgpu::BindGroup GetTransformPipelineBindGroup0() const { return m_TransformPipelineBindGroup0; }
 
 private:
 
     VertexBuffer m_VertexBuffer{nullptr};
     IndexBuffer m_IndexBuffer{nullptr};
-    TransformBuffer m_TransformBuffer{nullptr};
     IndirectBuffer m_DrawIndirectBuffer{nullptr};
     MeshPropertiesBuffer m_MeshPropertiesBuffer{nullptr};
     MaterialConstantsBuffer m_MaterialConstantsBuffer{nullptr};
     wgpu::BindGroup m_ColorPipelineBindGroup0{nullptr};
-    wgpu::BindGroup m_TransformPipelineBindGroup0{nullptr};
 
     std::vector<wgpu::BindGroup> m_MaterialBindGroups;
     std::vector<MeshProperties> m_MeshProperties;
     std::vector<Model> m_Models;
-    std::vector<ModelInstance> m_ModelInstances;
 };

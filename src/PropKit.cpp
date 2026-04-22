@@ -6,6 +6,7 @@
 #include "PropKit.h"
 #include "FileFetcher.h"
 #include "Log.h"
+#include "Scene.h"
 #include "Stopwatch.h"
 #include "ThreadPool.h"
 #include "WebgpuHelper.h"
@@ -610,7 +611,9 @@ Result<>
 PropKit::Load(const std::filesystem::path& rootPath,
     TextureCache& textureCache,
     const PropKitDef& propKitDef,
-    PropKit& outPropKit)
+    const SceneDef& sceneDef,
+    PropKit& outPropKit,
+    Scene& outScene)
 {
     Stopwatch createTimer;
     createTimer.Mark();
@@ -695,16 +698,16 @@ PropKit::Load(const std::filesystem::path& rootPath,
     auto indexBuffer = BuildIndexBuffer(indices, encoder);
     MLG_CHECK(indexBuffer);
 
-    auto transformBuffer = BuildTransformBuffer(propKitDef.GetTransformDefs(), encoder);
+    auto transformBuffer = BuildTransformBuffer(sceneDef.TransformDefs, encoder);
     MLG_CHECK(transformBuffer);
 
     auto materialConstantsBuffer = BuildMaterialConstantsBuffer(uniqueMaterials, encoder);
     MLG_CHECK(materialConstantsBuffer);
 
-    auto drawIndirectBuffer = BuildDrawIndirectBuffer(drawIndirectParams, models, propKitDef.GetModelInstances(), encoder);
+    auto drawIndirectBuffer = BuildDrawIndirectBuffer(drawIndirectParams, models, sceneDef.ModelInstances, encoder);
     MLG_CHECK(drawIndirectBuffer);
 
-    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(meshProperties, models, propKitDef.GetModelInstances(), encoder);
+    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(meshProperties, models, sceneDef.ModelInstances, encoder);
     MLG_CHECK(meshPropertiesBuffer);
 
     std::vector<wgpu::BindGroup> materialBindGroups;
@@ -731,24 +734,24 @@ PropKit::Load(const std::filesystem::path& rootPath,
     wgpu::CommandBuffer commandBuffer = encoder.Finish();
     WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
 
-    std::vector<ModelInstance> modelInstances(propKitDef.GetModelInstances().begin(),
-        propKitDef.GetModelInstances().end());
+    std::vector<ModelInstance> modelInstances(sceneDef.ModelInstances.begin(),
+        sceneDef.ModelInstances.end());
 
     PropKit propKit(
         *vertexBuffer,
         *indexBuffer,
-        *transformBuffer,
         *materialConstantsBuffer,
         *drawIndirectBuffer,
         *meshPropertiesBuffer,
         *colorPipelineBindGroup0,
-        *transformPipelineBindGroup0,
         std::move(materialBindGroups),
         std::move(meshProperties),
-        std::move(models),
-        std::move(modelInstances));
+        std::move(models));
+
+    Scene scene(*transformBuffer, std::move(modelInstances), *transformPipelineBindGroup0);
 
     outPropKit = std::move(propKit);
+    outScene = std::move(scene);
 
     MLG_INFO("PropKit created in {} ms", createTimer.ElapsedSeconds() * 1000);
 

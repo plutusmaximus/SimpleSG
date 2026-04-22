@@ -1,14 +1,15 @@
 #include "AppDriver.h"
 #include "Application.h"
 #include "Compositor.h"
-#include "Renderer.h"
-#include "PropKit.h"
 #include "ECS.h"
 #include "EcsChildTransformPool.h"
 #include "ImGuiRenderer.h"
 #include "Log.h"
 #include "MouseNav.h"
 #include "Projection.h"
+#include "PropKit.h"
+#include "Renderer.h"
+#include "Scene.h"
 #include "Shapes.h"
 #include "WebgpuHelper.h"
 
@@ -19,7 +20,7 @@
 
 namespace
 {
-static Result<PropKitDef> CreateShapeModel();
+static Result<> CreateShapeModel(PropKitDef& outPropKitDef, SceneDef& outSceneDef);
 
 class WorldMatrix : public Mat44f
 {
@@ -62,13 +63,14 @@ public:
 
         m_ScreenBounds = WebgpuHelper::GetScreenBounds();
 
-        auto propKitDef = CreateShapeModel();
-        MLG_CHECK(propKitDef);
+        PropKitDef propKitDef;
+        SceneDef sceneDef;
+        MLG_CHECK(CreateShapeModel(propKitDef, sceneDef));
 
         MLG_CHECK(m_TextureCache.Startup());
 
         std::filesystem::path rootPath = ".";
-        MLG_CHECK(PropKit::Load(rootPath, m_TextureCache, *propKitDef, m_PropKit));
+        MLG_CHECK(PropKit::Load(rootPath, m_TextureCache, propKitDef, sceneDef, m_PropKit, m_Scene));
 
         constexpr Radiansf fov = Radiansf::FromDegrees(45);
 
@@ -174,7 +176,7 @@ public:
         {
             const auto [eid, worldMat, modelTag] = tuple;
 
-            m_Renderer.Render(camWorldMat, projection, m_PropKit, m_Compositor);
+            m_Renderer.Render(camWorldMat, projection, m_Scene, m_PropKit, m_Compositor);
         }
 
         m_ImGuiRenderer.Render(m_Compositor);
@@ -258,6 +260,7 @@ private:
     Extent m_ScreenBounds{0,0};
     Radiansf m_PlanetSpinAngle{0}, m_MoonSpinAngle{0}, m_MoonOrbitAngle{0};
     PropKit m_PropKit;
+    Scene m_Scene;
 };
 
 class CubeAppLifecycle : public AppLifecycle
@@ -330,7 +333,7 @@ constexpr static const VertexIndex cubeIndices[] =
     20, 22, 23,  20, 21, 22
 };
 
-static Result<PropKitDef> CreateShapeModel()
+static Result<> CreateShapeModel(PropKitDef& outPropKitDef, SceneDef& outSceneDef)
 {
     //auto geometry = Shapes::Box(1, 1, 1);
     //auto geometry = Shapes::Ball(1, 10);
@@ -365,12 +368,18 @@ static Result<PropKitDef> CreateShapeModel()
             .ParentIndex = TransformDef::kInvalidParentIndex,
         };
 
-    PropKitDef propKitDef({ std::move(modelDef) },
-        { std::move(transformDef) },
-        { { 0, 0 } },
-        { { "shape", 0 } });
+    PropKitDef propKitDef({ std::move(modelDef) }, { { "shape", 0 } });
 
-    return std::move(propKitDef);
+    SceneDef sceneDef //
+    {
+        .TransformDefs = { std::move(transformDef) },
+        .ModelInstances = { { 0, 0 } },
+    };
+
+    outPropKitDef = std::move(propKitDef);
+    outSceneDef = std::move(sceneDef);
+
+    return Result<>::Ok;
 }
 }
 

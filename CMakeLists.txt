@@ -166,6 +166,7 @@ set(SSG_SOURCES
   src/Projection.cpp
   src/PropKit.cpp
   src/Renderer.cpp
+  src/Scene.cpp
   src/Shapes.cpp
   src/Stopwatch.cpp
   src/TextureCache.cpp
@@ -192,6 +193,7 @@ set(SSG_HEADERS
   src/PropKit.h
   src/Renderer.h
   src/Result.h
+  src/Scene.h
   src/scope_exit.h
   src/shaders/ShaderTypes.h
   src/Shapes.h

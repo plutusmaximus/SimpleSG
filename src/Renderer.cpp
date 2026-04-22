@@ -10,6 +10,7 @@
 #include "PerfMetrics.h"
 #include "Projection.h"
 #include "Result.h"
+#include "Scene.h"
 #include "scope_exit.h"
 #include "ShaderTypes.h"
 #include "WebgpuHelper.h"
@@ -68,6 +69,7 @@ Renderer::Shutdown()
 Result<>
 Renderer::Render(const Mat44f& camera,
     const Projection& projection,
+    const Scene& scene,
     const PropKit& propKit,
     Compositor& compositor)
 {
@@ -82,7 +84,7 @@ Renderer::Render(const Mat44f& camera,
     {
         auto scopedTimer = transformNodesTimer.StartScoped();
 
-        auto transformNodesResult = TransformNodes(cmdEncoder, camera, projection, propKit);
+        auto transformNodesResult = TransformNodes(cmdEncoder, camera, projection, scene);
         MLG_CHECK(transformNodesResult);
     }
 
@@ -140,7 +142,7 @@ Renderer::Render(const Mat44f& camera,
     const auto& materialBindGroups = propKit.GetMaterialBindGroups();
     const auto& meshProps = propKit.GetMeshProperties();
     const auto& models = propKit.GetModels();
-    const auto& modelInstances = propKit.GetModelInstances();
+    const auto& modelInstances = scene.GetModelInstances();
     const auto& drawIndirectBuffer = propKit.GetDrawIndirectBuffer();
 
     uint32_t lastMaterialIndex = UINT32_MAX;
@@ -733,7 +735,7 @@ Result<>
 Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
     const Mat44f& camera,
     const Projection& projection,
-    const PropKit& propKit)
+    const Scene& scene)
 {
     wgpu::Device device = WebgpuHelper::GetDevice();
 
@@ -741,12 +743,12 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
 
     if(!m_TransformBuffers.ClipSpaceBuf || !m_TransformBuffers.CameraParamsBuf ||
         !m_TransformBuffers.BindGroup1 ||
-        propKit.GetTransformCount() > m_TransformBuffers.TransformCount)
+        scene.GetTransformCount() > m_TransformBuffers.TransformCount)
     {
-        m_TransformBuffers.TransformCount = propKit.GetTransformCount();
+        m_TransformBuffers.TransformCount = scene.GetTransformCount();
 
         auto clipSpaceBuffer =
-            WebgpuHelper::CreateTypedStorageBuffer<ClipSpaceBuffer>(propKit.GetTransformBuffer().GetSize(),
+            WebgpuHelper::CreateTypedStorageBuffer<ClipSpaceBuffer>(scene.GetTransformBuffer().GetSize(),
                 "ClipSpaceTransformBuffer");
         MLG_CHECK(clipSpaceBuffer);
 
@@ -847,9 +849,9 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
 
     wgpu::ComputePassEncoder pass = cmdEncoder.BeginComputePass();
     pass.SetPipeline(m_TransformPipeline);
-    pass.SetBindGroup(0, propKit.GetTransformPipelineBindGroup0());
+    pass.SetBindGroup(0, scene.GetTransformPipelineBindGroup0());
     pass.SetBindGroup(1, m_TransformBuffers.BindGroup1);
-    const uint32_t workgroupCountX = propKit.GetTransformCount();
+    const uint32_t workgroupCountX = scene.GetTransformCount();
     pass.DispatchWorkgroups(workgroupCountX);
     pass.End();
 

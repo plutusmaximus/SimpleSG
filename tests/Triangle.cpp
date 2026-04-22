@@ -1,10 +1,11 @@
 #include "Compositor.h"
-#include "Renderer.h"
-#include "PropKit.h"
 #include "ImGuiRenderer.h"
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "Projection.h"
+#include "PropKit.h"
+#include "Renderer.h"
+#include "Scene.h"
 #include "scope_exit.h"
 #include "Stopwatch.h"
 #include "WebgpuHelper.h"
@@ -15,7 +16,7 @@
 #include <SDL3/SDL.h>
 #include <thread>
 
-static Result<PropKitDef> CreateTriangleModel();
+static Result<> CreateTriangleModel(PropKitDef& outPropKit, SceneDef& outSceneDef);
 
 constexpr const char* kAppName = "Triangle";
 
@@ -44,15 +45,17 @@ static Result<> MainLoop()
     Projection projection;
     projection.SetPerspective(fov, screenBounds, 0.1f, 1000);
 
-    auto propKitDef = CreateTriangleModel();
-    MLG_CHECK(propKitDef);
+    PropKitDef propKitDef;
+    SceneDef sceneDef;
+    MLG_CHECK(CreateTriangleModel(propKitDef, sceneDef));
 
     TextureCache textureCache;
     MLG_CHECK(textureCache.Startup());
 
     std::filesystem::path rootPath = ".";
     PropKit propKit;
-    MLG_CHECK(PropKit::Load(rootPath, textureCache, *propKitDef, propKit));
+    Scene scene;
+    MLG_CHECK(PropKit::Load(rootPath, textureCache, propKitDef, sceneDef, propKit, scene));
 
     Renderer renderer;
     MLG_CHECK(renderer.Startup());
@@ -172,6 +175,7 @@ static Result<> MainLoop()
 
         auto renderResult = renderer.Render(cameraXform.ToMatrix(),
             projection,
+            scene,
             propKit,
             compositor);
 
@@ -229,7 +233,7 @@ static Result<> RenderGui()
     return Result<>::Ok;
 }
 
-static Result<PropKitDef> CreateTriangleModel()
+static Result<> CreateTriangleModel(PropKitDef& outPropKit, SceneDef& outSceneDef)
 {
     std::vector<Vertex> triangleVertices = //
         {
@@ -275,10 +279,16 @@ static Result<PropKitDef> CreateTriangleModel()
         .TransformIndex = 0,
     };
 
-    PropKitDef propKitDef({ std::move(modelDef) },
-        { std::move(transformDef) },
-        { { 0, 0 } },
-        { { "triangle", 0 } });
+    PropKitDef propKitDef({ std::move(modelDef) }, { { "triangle", 0 } });
 
-    return std::move(propKitDef);
+    SceneDef sceneDef //
+        {
+            .TransformDefs = { std::move(transformDef) },
+            .ModelInstances = { { 0, 0 } },
+        };
+
+    outPropKit = std::move(propKitDef);
+    outSceneDef = std::move(sceneDef);
+
+    return Result<>::Ok;
 }

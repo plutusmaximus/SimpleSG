@@ -596,7 +596,7 @@ CollectTransforms(cgltf_node** const childNodes,
 }
 
 Result<>
-GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit)
+GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit, SceneDef& outSceneDef)
 {
     std::filesystem::path filePath(path);
 
@@ -664,12 +664,16 @@ GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit)
         modelMap[name] = narrow_cast<uint32_t>(i);
     }
 
-    PropKitDef propKit(std::move(modelDefs),
-        std::move(transformDefs),
-        std::move(modelInstances),
-        std::move(modelMap));
+    PropKitDef propKit(std::move(modelDefs), std::move(modelMap));
+
+    SceneDef sceneDef //
+    {
+        .TransformDefs = std::move(transformDefs),
+        .ModelInstances = std::move(modelInstances),
+    };
 
     outPropKit = std::move(propKit);
+    outSceneDef = std::move(sceneDef);
 
     return Result<>::Ok;
 }

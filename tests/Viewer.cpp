@@ -7,6 +7,7 @@
 #include "MouseNav.h"
 #include "PerfMetrics.h"
 #include "Projection.h"
+#include "Scene.h"
 #include "scope_exit.h"
 #include "Stopwatch.h"
 #include "WebgpuHelper.h"
@@ -66,14 +67,15 @@ Shutdown()
 static Result<> RenderGui();
 
 static Result<>
-LoadPropKit(const std::filesystem::path& path, TextureCache& textureCache, PropKit& outPropKit)
+LoadPropKit(const std::filesystem::path& path, TextureCache& textureCache, PropKit& outPropKit, Scene& outScene)
 {
     PropKitDef propKitDef;
-    MLG_CHECK(GltfLoader::LoadPropKit(path.string(), propKitDef),
+    SceneDef sceneDef;
+    MLG_CHECK(GltfLoader::LoadPropKit(path.string(), propKitDef, sceneDef),
         "Failed to load prop kit: {}",
         path.string());
 
-    MLG_CHECK(PropKit::Load(path.parent_path(), textureCache, propKitDef, outPropKit),
+    MLG_CHECK(PropKit::Load(path.parent_path(), textureCache, propKitDef, sceneDef, outPropKit, outScene),
         "Failed to create PropKit for {}",
         path.string());
 
@@ -99,6 +101,7 @@ MainLoop()
     ImGuiRenderer imGuiRenderer;
     TextureCache textureCache;
     PropKit propKit;
+    Scene scene;
     EcsRegistry registry;
     WalkMouseNav mouseNav;
 
@@ -107,7 +110,7 @@ MainLoop()
     MLG_CHECK(imGuiRenderer.Startup());
     MLG_CHECK(textureCache.Startup());
 
-    MLG_CHECK(LoadPropKit(path, textureCache, propKit));
+    MLG_CHECK(LoadPropKit(path, textureCache, propKit, scene));
 
     Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, ModelTag{});
 
@@ -244,8 +247,10 @@ MainLoop()
         {
             textureCache.Clear();
             PropKit newPropKit;
-            MLG_CHECK(LoadPropKit(droppedFile, textureCache, newPropKit));
+            Scene newScene;
+            MLG_CHECK(LoadPropKit(droppedFile, textureCache, newPropKit, newScene));
             propKit = std::move(newPropKit);
+            scene = std::move(newScene);
         }
 
         mouseNav.Update(elapsedSeconds);
@@ -270,7 +275,7 @@ MainLoop()
         {
             const auto [eid, worldMat, modelTag] = tuple;
 
-            renderer.Render(camWorldMat, projection, propKit, compositor);
+            renderer.Render(camWorldMat, projection, scene, propKit, compositor);
         }
 
         RenderGui();

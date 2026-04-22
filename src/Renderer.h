@@ -13,6 +13,7 @@ class Mat44;
 using Mat44f = Mat44<float>;
 class Projection;
 class PropKit;
+class Scene;
 
 class Renderer
 {
@@ -35,6 +36,7 @@ public:
 
     Result<> Render(const Mat44f& camera,
         const Projection& projection,
+        const Scene& scene,
         const PropKit& propKit,
         Compositor& compositor);
 
@@ -57,7 +59,7 @@ private:
     Result<> TransformNodes(wgpu::CommandEncoder cmdEncoder,
         const Mat44f& camera,
         const Projection& projection,
-        const PropKit& propKit);
+        const Scene& scene);
 
     wgpu::Limits m_GpuLimits;
     wgpu::Texture m_ColorTarget;
