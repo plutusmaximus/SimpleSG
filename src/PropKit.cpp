@@ -476,7 +476,7 @@ BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs, wgpu::Co
 }
 
 static Result<IndirectBuffer>
-BuildDrawIndirectBuffer(std::span<const ShaderTypes::DrawIndirectParams> drawIndirectParams,
+BuildDrawIndirectBuffer(std::span<const MeshProperties> meshProperties,
     std::span<const Model> models,
     std::span<const ModelInstance> modelInstances,
     wgpu::CommandEncoder encoder)
@@ -503,20 +503,17 @@ BuildDrawIndirectBuffer(std::span<const ShaderTypes::DrawIndirectParams> drawInd
     for(const auto& modelInstance : modelInstances)
     {
         const Model& model = models[modelInstance.ModelIndex];
-        std::span<const ShaderTypes::DrawIndirectParams> params //
-            {
-                drawIndirectParams.data() + model.FirstMesh,
-                model.MeshCount,
-            };
 
-        for(const auto& param : params)
+        for(uint32_t i = 0; i < model.MeshCount; ++i)
         {
+            const MeshProperties& meshProp = meshProperties[model.FirstMesh + i];
+
             drawParams[meshCount] = //
             {
-                .IndexCount = param.IndexCount,
+                .IndexCount = meshProp.IndexCount,
                 .InstanceCount = 1,
-                .FirstIndex = param.FirstIndex,
-                .BaseVertex = param.BaseVertex,
+                .FirstIndex = meshProp.FirstIndex,
+                .BaseVertex = meshProp.BaseVertex,
                 .FirstInstance = meshCount,
             };
 
@@ -565,12 +562,12 @@ BuildMeshPropertiesBuffer(std::span<const MeshProperties> meshProperties,
             const float radius = (boundingBox.GetMax() - center).Length();
 
             meshPropertiesDst[meshCount] = //
-            {
-                .Center = center,
-                .Radius = radius,
-                .TransformIndex = modelInstance.TransformIndex,
-                .MaterialIndex = meshProperties[meshCount].MaterialIndex,
-            };
+                {
+                    .Center = center,
+                    .Radius = radius,
+                    .TransformIndex = modelInstance.TransformIndex,
+                    .MaterialIndex = meshProperties[meshCount].MaterialIndex,
+                };
 
             ++meshCount;
         }
@@ -647,12 +644,10 @@ PropKit::Load(const std::filesystem::path& rootPath,
 
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
-    std::vector<ShaderTypes::DrawIndirectParams> drawIndirectParams;
     std::vector<Model> models;
     std::vector<MeshProperties> meshProperties;
     vertices.reserve(vertexCount);
     indices.reserve(indexCount);
-    drawIndirectParams.reserve(meshCount);
     meshProperties.reserve(meshCount);
     models.reserve(propKitDef.GetModelDefs().size());
     for(const auto& modelDef : propKitDef.GetModelDefs())
@@ -666,24 +661,17 @@ PropKit::Load(const std::filesystem::path& rootPath,
 
         for(const auto& mesh : modelDef.MeshDefs)
         {
-            const ShaderTypes::DrawIndirectParams drawParams//
-            {
-                .IndexCount = narrow_cast<uint32_t>(mesh.Indices.size()),
-                .InstanceCount = 1,
-                .FirstIndex = narrow_cast<uint32_t>(indices.size()),
-                .BaseVertex = narrow_cast<uint32_t>(vertices.size()),
-                .FirstInstance = narrow_cast<uint32_t>(drawIndirectParams.size()),
-            };
-
             const MeshProperties meshProps //
                 {
+                    .IndexCount = narrow_cast<uint32_t>(mesh.Indices.size()),
+                    .FirstIndex = narrow_cast<uint32_t>(indices.size()),
+                    .BaseVertex = narrow_cast<uint32_t>(vertices.size()),
                     .MaterialIndex = uniqueMaterialMap[mesh.MaterialDef],
                     .BoundingBox = AABoundingBox::FromVertices(mesh.Vertices, mesh.Indices),
                 };
 
             vertices.insert(vertices.end(), mesh.Vertices.begin(), mesh.Vertices.end());
             indices.insert(indices.end(), mesh.Indices.begin(), mesh.Indices.end());
-            drawIndirectParams.emplace_back(drawParams);
             meshProperties.emplace_back(meshProps);
         }
     }
@@ -704,7 +692,7 @@ PropKit::Load(const std::filesystem::path& rootPath,
     auto materialConstantsBuffer = BuildMaterialConstantsBuffer(uniqueMaterials, encoder);
     MLG_CHECK(materialConstantsBuffer);
 
-    auto drawIndirectBuffer = BuildDrawIndirectBuffer(drawIndirectParams, models, sceneDef.ModelInstances, encoder);
+    auto drawIndirectBuffer = BuildDrawIndirectBuffer(meshProperties, models, sceneDef.ModelInstances, encoder);
     MLG_CHECK(drawIndirectBuffer);
 
     auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(meshProperties, models, sceneDef.ModelInstances, encoder);

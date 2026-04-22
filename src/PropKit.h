@@ -2,7 +2,6 @@
 
 #include "Bounds.h"
 #include "Result.h"
-#include "shaders/ShaderTypes.h"
 #include "TextureCache.h"
 #include "VecMath.h"
 
@@ -12,6 +11,9 @@
 
 struct MeshProperties
 {
+    uint32_t IndexCount;
+    uint32_t FirstIndex;
+    uint32_t BaseVertex;
     MaterialIndex MaterialIndex;
     AABoundingBox BoundingBox;
 };

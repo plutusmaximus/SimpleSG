@@ -151,12 +151,11 @@ Renderer::Render(const Mat44f& camera,
     {
         const Model& model = models[modelInstance.ModelIndex];
 
-        std::span<const MeshProperties> instanceMeshes(meshProps.data() + model.FirstMesh,
-            model.MeshCount);
-
-        for(const auto& mesh : instanceMeshes)
+        for(uint32_t i = 0; i < model.MeshCount; ++i)
         {
-            const uint32_t materialIndex = mesh.MaterialIndex;
+            const MeshProperties& meshProp = meshProps[model.FirstMesh + i];
+
+            const uint32_t materialIndex = meshProp.MaterialIndex;
 
             if(materialIndex != lastMaterialIndex)
             {
