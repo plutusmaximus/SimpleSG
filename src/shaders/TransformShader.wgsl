@@ -15,10 +15,10 @@ struct Camera
     viewProj  : mat4x4<f32>,
 };
 
-@group(0) @binding(0) var<storage, read> inMats: array<MeshTransform>;
+@group(0) @binding(0) var<storage, read> inMats : array<MeshTransform>;
 
-@group(1) @binding(0) var<storage, read_write> outMats: array<ClipSpaceTransform>;
-@group(1) @binding(1) var<uniform> camera: Camera;
+@group(1) @binding(0) var<storage, read_write> outMats : array<ClipSpaceTransform>;
+@group(1) @binding(1) var<uniform> camera : Camera;
 
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) gid: vec3<u32>)

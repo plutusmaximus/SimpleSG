@@ -35,15 +35,15 @@ struct Camera
     viewProj  : mat4x4<f32>,
 };
 
-@group(0) @binding(0) var<storage, read> meshTransforms: array<MeshTransform>;
+@group(0) @binding(0) var<storage, read> meshTransforms : array<MeshTransform>;
 @group(0) @binding(1) var<storage, read> meshProperties : array<MeshProperties>;
 @group(0) @binding(2) var<storage, read> materials : array<Material>;
 
-@group(1) @binding(0) var<storage, read> clipSpacTransforms: array<ClipSpaceTransform>;
-@group(1) @binding(1) var<uniform> camera: Camera;
+@group(1) @binding(0) var<storage, read> clipSpaceTransforms : array<ClipSpaceTransform>;
+@group(1) @binding(1) var<uniform> camera : Camera;
 
-@group(2) @binding(0) var texture0: texture_2d<f32>;
-@group(2) @binding(1) var textureSampler: sampler;
+@group(2) @binding(0) var texture0 : texture_2d<f32>;
+@group(2) @binding(1) var textureSampler : sampler;
 
 struct VSInput
 {
@@ -66,7 +66,7 @@ fn vs_main(input: VSInput, @builtin(instance_index) instance_index: u32) -> FSIn
     var output: FSInput;
 
     let transformIdx = meshProperties[instance_index].transformIndex;
-    let clipXform = clipSpacTransforms[transformIdx].xform;
+    let clipXform = clipSpaceTransforms[transformIdx].xform;
     let meshTransform = meshTransforms[transformIdx].xform;
 
     output.position = clipXform * vec4<f32>(input.inPosition, 1.0);
