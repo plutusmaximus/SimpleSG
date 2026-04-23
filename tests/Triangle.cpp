@@ -248,7 +248,7 @@ static Result<> CreateTriangleModel(PropKitDef& outPropKit, SceneDef& outSceneDe
         0, 1, 2,
     };
 
-    const MaterialDef mtlDef //
+    MaterialDef mtlDef //
     {
         .BaseTextureUri = "images/Ant.png",
         .Color = {"#FFA500"_rgba},
@@ -263,29 +263,33 @@ static Result<> CreateTriangleModel(PropKitDef& outPropKit, SceneDef& outSceneDe
         .MaterialDef = std::move(mtlDef),
     };
 
-    ModelDef modelDef//
-    {
-        .MeshDefs = { std::move(meshDef) },
-    };
+    ModelDef modelDef //
+        {
+            .Name = "Triangle",
+            .MeshDefs = { std::move(meshDef) },
+        };
 
-    const TransformDef transformDef //
+    PropKitDef propKitDef //
+        {
+            .ModelDefs = { std::move(modelDef) },
+        };
+
+    TransformDef transformDef //
         {
             .Transform = Mat44f(1),
             .ParentIndex = TransformDef::kInvalidParentIndex,
         };
 
-    const ModelInstance modelInstance //
+    ModelInstance modelInstance //
     {
         .ModelIndex = 0,
         .TransformIndex = 0,
     };
 
-    PropKitDef propKitDef({ std::move(modelDef) }, { { "triangle", 0 } });
-
     SceneDef sceneDef //
         {
             .TransformDefs = { std::move(transformDef) },
-            .ModelInstances = { { 0, 0 } },
+            .ModelInstances = { std::move(modelInstance) },
         };
 
     outPropKit = std::move(propKitDef);

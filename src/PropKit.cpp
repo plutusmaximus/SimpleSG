@@ -11,6 +11,7 @@
 #include "WebgpuHelper.h"
 
 #include <atomic>
+#include <filesystem>
 #include <map>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -97,6 +98,14 @@ StageTexture(TextureBuilder& builder)
         }
         else
         {
+            MLG_ASSERT(builder->Texture.GetWidth() == static_cast<uint32_t>(width) &&
+                builder->Texture.GetHeight() == static_cast<uint32_t>(height),
+                "Decoded image dimensions do not match texture dimensions - {}",
+                builder->Uri);
+            MLG_ASSERT(builder->Texture.GetFormat() == kTextureFormat,
+                "Texture format does not match expected format - {}",
+                builder->Uri);
+
             uint8_t* dst = (uint8_t*)builder->MappedMemory;
             const uint8_t* src = data;
             const uint32_t rowStride = width * kNumTextureChannels;
@@ -177,6 +186,7 @@ FetchTextures(std::filesystem::path basePath,
             if(request.IsPending())
             {
                 pending = true;
+                break;
             }
         }
     } while(pending);
@@ -192,6 +202,7 @@ FetchTextures(std::filesystem::path basePath,
         }
     }
 
+    // Must preallocate the vectore because TextureBuilder contains atomics which are not copyable or movable.
     std::vector<TextureBuilder> textureBuilders(builderCount);
     size_t builderIndex = 0;
 
@@ -227,6 +238,7 @@ FetchTextures(std::filesystem::path basePath,
             if(!builder.DecodeComplete)
             {
                 pending = true;
+                break;
             }
         }
     } while(pending);
@@ -312,7 +324,7 @@ BuildVertexBuffer(std::span<const Vertex> vertices, wgpu::CommandEncoder encoder
     auto mapped = buffer->Map();
     MLG_CHECK(mapped);
 
-    ::memcpy(*mapped, vertices.data(), sizeofBuffer);
+    std::memcpy(*mapped, vertices.data(), sizeofBuffer);
 
     MLG_CHECK(buffer->Unmap(encoder));
 
@@ -329,7 +341,7 @@ BuildIndexBuffer(std::span<const VertexIndex> indices, wgpu::CommandEncoder enco
     auto mapped = buffer->Map();
     MLG_CHECK(mapped);
 
-    ::memcpy(*mapped, indices.data(), sizeofBuffer);
+    std::memcpy(*mapped, indices.data(), sizeofBuffer);
 
     MLG_CHECK(buffer->Unmap(encoder));
 
@@ -341,7 +353,8 @@ BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs, wgpu::Co
 {
     const size_t sizeofBuffer = materialDefs.size() * sizeof(ShaderTypes::MaterialConstants);
 
-    auto buffer = WebgpuHelper::CreateTypedStorageBuffer<MaterialConstantsBuffer>(sizeofBuffer, "MaterialConstantsBuffer");
+    auto buffer = WebgpuHelper::CreateTypedStorageBuffer<MaterialConstantsBuffer>(sizeofBuffer,
+        "MaterialConstantsBuffer");
     MLG_CHECK(buffer);
 
     auto mapped = buffer->Map();
@@ -403,7 +416,7 @@ PropKit::Create(const std::filesystem::path& rootPath,
     uint32_t materialIndex = 0;
 
     std::map<MaterialDef, uint32_t, std::less<MaterialDef>> uniqueMaterialMap;
-    for(const auto& modelDef : propKitDef.GetModelDefs())
+    for(const auto& modelDef : propKitDef.ModelDefs)
     {
         for(const auto& mesh : modelDef.MeshDefs)
         {
@@ -428,24 +441,25 @@ PropKit::Create(const std::filesystem::path& rootPath,
 
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
-    std::vector<Model> models;
     std::vector<Mesh> meshes;
+    std::vector<Model> models;
     vertices.reserve(vertexCount);
     indices.reserve(indexCount);
     meshes.reserve(meshCount);
-    models.reserve(propKitDef.GetModelDefs().size());
-    for(const auto& modelDef : propKitDef.GetModelDefs())
+    models.reserve(propKitDef.ModelDefs.size());
+    for(const auto& modelDef : propKitDef.ModelDefs)
     {
         Model model //
             {
+                .Name = modelDef.Name,
                 .FirstMesh = narrow_cast<uint32_t>(meshes.size()),
                 .MeshCount = narrow_cast<uint32_t>(modelDef.MeshDefs.size()),
             };
-        models.emplace_back(model);
+        models.emplace_back(std::move(model));
 
         for(const auto& meshDef : modelDef.MeshDefs)
         {
-            const Mesh mesh //
+            Mesh mesh //
                 {
                     .IndexCount = narrow_cast<uint32_t>(meshDef.Indices.size()),
                     .FirstIndex = narrow_cast<uint32_t>(indices.size()),
@@ -456,7 +470,7 @@ PropKit::Create(const std::filesystem::path& rootPath,
 
             vertices.insert(vertices.end(), meshDef.Vertices.begin(), meshDef.Vertices.end());
             indices.insert(indices.end(), meshDef.Indices.begin(), meshDef.Indices.end());
-            meshes.emplace_back(mesh);
+            meshes.emplace_back(std::move(mesh));
 
         }
     }
@@ -481,11 +495,11 @@ PropKit::Create(const std::filesystem::path& rootPath,
     WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
 
     PropKit propKit(
-        *vertexBuffer,
-        *indexBuffer,
+        std::move(*vertexBuffer),
+        std::move(*indexBuffer),
         std::move(meshes),
         std::move(models),
-        *materialConstantsBuffer,
+        std::move(*materialConstantsBuffer),
         std::move(materialBindGroups));
 
     outPropKit = std::move(propKit);
@@ -518,4 +532,12 @@ PropKit::PropKit(VertexBuffer vertexBuffer,
             "Mesh has invalid bounding box");
     }
 #endif // NDEBUG
+
+    m_ModelNameToIndex.reserve(m_Models.size());
+    for(uint32_t i = 0; i < static_cast<uint32_t>(m_Models.size()); ++i)
+    {
+        const Model& model = m_Models[i];
+        MLG_ASSERT(!m_ModelNameToIndex.contains(model.Name), "Duplicate model name: {}", model.Name);
+        m_ModelNameToIndex[model.Name] = i;
+    }
 }

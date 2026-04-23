@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <span>
 #include <vector>
+#include <unordered_map>
 
 struct Mesh
 {
@@ -20,6 +21,7 @@ struct Mesh
 
 struct Model
 {
+    std::string Name;
     uint32_t FirstMesh;
     uint32_t MeshCount;
 };
@@ -41,32 +43,13 @@ struct MeshDef
 
 struct ModelDef
 {
+    std::string Name;
     std::vector<MeshDef> MeshDefs;
 };
 
-class PropKitDef
+struct PropKitDef
 {
-public:
-    PropKitDef() = default;
-    PropKitDef(const PropKitDef&) = delete;
-    PropKitDef& operator=(const PropKitDef&) = delete;
-    PropKitDef(PropKitDef&&) = default;
-    PropKitDef& operator=(PropKitDef&&) = default;
-
-    PropKitDef(std::vector<ModelDef>&& modelDefs,
-        std::unordered_map<std::string, uint32_t>&& modelMap)
-        : m_ModelDefs(std::move(modelDefs)),
-          m_ModelMap(std::move(modelMap))
-    {
-    }
-
-    std::span<const ModelDef> GetModelDefs() const { return m_ModelDefs; }
-    const std::unordered_map<std::string, uint32_t>& GetModelMap() const { return m_ModelMap; }
-
-private:
-
-    std::vector<ModelDef> m_ModelDefs;
-    std::unordered_map<std::string, uint32_t> m_ModelMap;
+    std::vector<ModelDef> ModelDefs;
 };
 
 // Strongly-typed GPU storage buffer classes.
@@ -118,4 +101,5 @@ private:
     std::vector<Model> m_Models;
     MaterialConstantsBuffer m_MaterialConstantsBuffer;
     std::vector<wgpu::BindGroup> m_MaterialBindGroups;
+    std::unordered_map<std::string, uint32_t> m_ModelNameToIndex;
 };

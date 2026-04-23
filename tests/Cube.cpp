@@ -343,7 +343,7 @@ static Result<> CreateShapeModel(PropKitDef& outPropKitDef, SceneDef& outSceneDe
     auto geometry = Shapes::Torus(1, 0.5, 5);
     const auto &[vertices, indices] = geometry;
 
-    const MaterialDef mtlDef //
+    MaterialDef mtlDef //
     {
         .BaseTextureUri = "images/Ant.png",
         .Color = {1, 0, 0},
@@ -351,30 +351,40 @@ static Result<> CreateShapeModel(PropKitDef& outPropKitDef, SceneDef& outSceneDe
         .Roughness = 0
     };
 
-    const MeshDef meshDef//
+    MeshDef meshDef//
     {
         .Vertices = {vertices.begin(), vertices.end()},
         .Indices = {indices.begin(), indices.end()},
         .MaterialDef = mtlDef
     };
 
-    const ModelDef modelDef //
+    ModelDef modelDef //
     {
+        .Name = "Shape",
         .MeshDefs = {std::move(meshDef)},
     };
 
-    const TransformDef transformDef //
+    TransformDef transformDef //
         {
             .Transform = Mat44f(1),
             .ParentIndex = TransformDef::kInvalidParentIndex,
         };
 
-    PropKitDef propKitDef({ std::move(modelDef) }, { { "shape", 0 } });
+    ModelInstance modelInstance //
+    {
+        .ModelIndex = 0,
+        .TransformIndex = 0,
+    };
+
+    PropKitDef propKitDef //
+        {
+            .ModelDefs = { std::move(modelDef) },
+        };
 
     SceneDef sceneDef //
     {
         .TransformDefs = { std::move(transformDef) },
-        .ModelInstances = { { 0, 0 } },
+        .ModelInstances = { std::move(modelInstance) },
     };
 
     outPropKitDef = std::move(propKitDef);

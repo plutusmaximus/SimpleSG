@@ -430,6 +430,7 @@ CollectModels(const std::span<CgltfMeshData> gltfMeshes,
 
         ModelDef model //
         {
+            .Name = gltfMesh.Mesh->name ? gltfMesh.Mesh->name : "Model_" + std::to_string(i),
             .MeshDefs = std::move(meshDefs),
         };
 
@@ -656,15 +657,10 @@ GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit, SceneDe
         }
     }
 
-    std::unordered_map<std::string, uint32_t> modelMap;
-    for(size_t i = 0; i < modelDefs.size(); ++i)
-    {
-        const cgltf_mesh* gltfMesh = gltfMeshes[i].Mesh;
-        const std::string name = gltfMesh->name ? gltfMesh->name : std::to_string(i);
-        modelMap[name] = narrow_cast<uint32_t>(i);
-    }
-
-    PropKitDef propKit(std::move(modelDefs), std::move(modelMap));
+    PropKitDef propKit //
+        {
+            .ModelDefs = std::move(modelDefs),
+        };
 
     SceneDef sceneDef //
     {

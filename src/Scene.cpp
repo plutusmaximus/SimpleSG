@@ -44,18 +44,27 @@ BuildTransformBuffer(std::span<const TransformDef> transformDefs, wgpu::CommandE
     return buffer;
 }
 
+static inline size_t CountMeshes(std::span<const Model> models, std::span<const ModelInstance> modelInstances)
+{
+    size_t meshCount = 0;
+    for(const auto& modelInstance : modelInstances)
+    {
+        MLG_ASSERT(modelInstance.ModelIndex < models.size(),
+            "Model instance has invalid model index: {} (model count: {})",
+            modelInstance.ModelIndex, models.size());
+
+        meshCount += models[modelInstance.ModelIndex].MeshCount;
+    }
+    return meshCount;
+}
+
 static Result<IndirectBuffer>
 BuildDrawIndirectBuffer(std::span<const Mesh> meshes,
     std::span<const Model> models,
     std::span<const ModelInstance> modelInstances,
     wgpu::CommandEncoder encoder)
 {
-    size_t meshInstanceCount = 0;
-    for(const auto& modelInstance : modelInstances)
-    {
-        meshInstanceCount += models[modelInstance.ModelIndex].MeshCount;
-    }
-
+    const size_t meshInstanceCount = CountMeshes(models, modelInstances);
     const size_t sizeofDrawIndirectBuffer =
         meshInstanceCount * sizeof(ShaderTypes::DrawIndirectParams);
 
@@ -71,21 +80,31 @@ BuildDrawIndirectBuffer(std::span<const Mesh> meshes,
 
     for(const auto& modelInstance : modelInstances)
     {
-        const Model& model = models[modelInstance.ModelIndex];
-        const Mesh* mesh = &meshes[model.FirstMesh];
+        MLG_ASSERT(modelInstance.ModelIndex < models.size(),
+            "Model instance has invalid model index: {} (model count: {})",
+            modelInstance.ModelIndex, models.size());
 
-        for(uint32_t i = 0; i < model.MeshCount; ++i, ++mesh)
+        const Model& model = models[modelInstance.ModelIndex];
+
+        MLG_ASSERT(model.FirstMesh + model.MeshCount <= meshes.size(),
+            "Model has invalid mesh range: first mesh {}, mesh count {} (total meshes: {})",
+            model.FirstMesh, model.MeshCount, meshes.size());
+
+        const Mesh* meshSrc = &meshes[model.FirstMesh];
+
+        for(uint32_t i = 0; i < model.MeshCount; ++i)
         {
             drawParams[meshCount] = //
             {
-                .IndexCount = mesh->IndexCount,
+                .IndexCount = meshSrc->IndexCount,
                 .InstanceCount = 1,
-                .FirstIndex = mesh->FirstIndex,
-                .BaseVertex = mesh->BaseVertex,
+                .FirstIndex = meshSrc->FirstIndex,
+                .BaseVertex = meshSrc->BaseVertex,
                 .FirstInstance = meshCount,
             };
 
             ++meshCount;
+            ++meshSrc;
         }
     }
 
@@ -100,12 +119,7 @@ BuildMeshPropertiesBuffer(std::span<const Mesh> meshes,
     std::span<const ModelInstance> modelInstances,
     wgpu::CommandEncoder encoder)
 {
-    size_t meshInstanceCount = 0;
-    for(const auto& modelInstance : modelInstances)
-    {
-        meshInstanceCount += models[modelInstance.ModelIndex].MeshCount;
-    }
-
+    const size_t meshInstanceCount = CountMeshes(models, modelInstances);
     const size_t sizeofBuffer = meshInstanceCount * sizeof(ShaderTypes::MeshProperties);
 
     auto buffer = WebgpuHelper::CreateTypedStorageBuffer<MeshPropertiesBuffer>(sizeofBuffer, "MeshPropertiesBuffer");
@@ -120,22 +134,32 @@ BuildMeshPropertiesBuffer(std::span<const Mesh> meshes,
 
     for(const auto& modelInstance : modelInstances)
     {
-        const Model& model = models[modelInstance.ModelIndex];
-        const Mesh* mesh = &meshes[model.FirstMesh];
+        MLG_ASSERT(modelInstance.ModelIndex < models.size(),
+            "Model instance has invalid model index: {} (model count: {})",
+            modelInstance.ModelIndex, models.size());
 
-        for(uint32_t i = 0; i < model.MeshCount; ++i, ++mesh)
+        const Model& model = models[modelInstance.ModelIndex];
+
+        MLG_ASSERT(model.FirstMesh + model.MeshCount <= meshes.size(),
+            "Model has invalid mesh range: first mesh {}, mesh count {} (total meshes: {})",
+            model.FirstMesh, model.MeshCount, meshes.size());
+
+        const Mesh* meshSrc = &meshes[model.FirstMesh];
+
+        for(uint32_t i = 0; i < model.MeshCount; ++i)
         {
-            const BoundingSphere boundingSphere(mesh->BoundingBox);
+            const BoundingSphere boundingSphere(meshSrc->BoundingBox);
 
             meshPropertiesDst[meshCount] = //
                 {
                     .Center = boundingSphere.GetCenter(),
                     .Radius = boundingSphere.GetRadius(),
                     .TransformIndex = modelInstance.TransformIndex,
-                    .MaterialIndex = mesh->MaterialIndex,
+                    .MaterialIndex = meshSrc->MaterialIndex,
                 };
 
             ++meshCount;
+            ++meshSrc;
         }
     }
 
@@ -262,7 +286,8 @@ Scene::Create(const SceneDef& sceneDef, const PropKit& propKit, Scene& outScene)
     std::vector<ModelInstance> modelInstances(sceneDef.ModelInstances.begin(),
         sceneDef.ModelInstances.end());
 
-    Scene scene(*transformBuffer,
+    Scene scene(&propKit,
+        *transformBuffer,
         *drawIndirectBuffer,
         *meshPropertiesBuffer,
         *colorPipelineBindGroup0,

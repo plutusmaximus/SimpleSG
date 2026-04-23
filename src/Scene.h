@@ -44,16 +44,13 @@ public:
     Scene(Scene&& other) = default;
     Scene& operator=(Scene&& other) = default;
 
-    const std::span<const ModelInstance> GetModelInstances() const
-    {
-        return m_ModelInstances;
-    }
+    const std::span<const ModelInstance> GetModelInstances() const { return m_ModelInstances; }
 
     TransformBuffer GetTransformBuffer() const { return m_TransformBuffer; }
 
     uint32_t GetTransformCount() const
     {
-        if (m_TransformBuffer)
+        if(m_TransformBuffer)
         {
             return static_cast<uint32_t>(m_TransformBuffer.GetSize() / sizeof(Mat44f));
         }
@@ -68,13 +65,15 @@ public:
 
 private:
 
-    Scene(TransformBuffer transformBuffer,
+    Scene(const PropKit* propKit,
+        TransformBuffer transformBuffer,
         IndirectBuffer drawIndirectBuffer,
         MeshPropertiesBuffer meshPropertiesBuffer,
         wgpu::BindGroup colorPipelineBindGroup0,
         wgpu::BindGroup transformPipelineBindGroup0,
         std::vector<ModelInstance>&& modelInstances)
-        : m_TransformBuffer(transformBuffer),
+        : m_PropKit(propKit),
+          m_TransformBuffer(transformBuffer),
           m_DrawIndirectBuffer(drawIndirectBuffer),
           m_MeshPropertiesBuffer(meshPropertiesBuffer),
           m_ColorPipelineBindGroup0(colorPipelineBindGroup0),
@@ -83,6 +82,7 @@ private:
     {
     }
 
+    const PropKit* m_PropKit;
     TransformBuffer m_TransformBuffer;
     IndirectBuffer m_DrawIndirectBuffer;
     MeshPropertiesBuffer m_MeshPropertiesBuffer;
