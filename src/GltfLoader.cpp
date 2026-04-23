@@ -56,6 +56,11 @@ inline static T narrow_cast(U u) noexcept
     return t;
 }
 
+static std::string MakeName(const char* name, const char* baseName, const size_t index)
+{
+    return name ? std::string(name) : std::format("{}_{}", baseName, index);
+}
+
 static Result<CgltfPrimitiveAttributes>
 CollectAttributes(const cgltf_primitive& primitive)
 {
@@ -430,7 +435,7 @@ CollectModels(const std::span<CgltfMeshData> gltfMeshes,
 
         ModelDef model //
         {
-            .Name = gltfMesh.Mesh->name ? gltfMesh.Mesh->name : "Model_" + std::to_string(i),
+            .Name = MakeName(gltfMesh.Mesh->name, "Model", i),
             .MeshDefs = std::move(meshDefs),
         };
 
@@ -457,15 +462,15 @@ ConvertRHtoLH(Mat44f& M)
 }
 
 static Result<size_t>
-CollectTransforms(cgltf_node** const childNodes,
+CollectNodes(cgltf_node** const childNodes,
     const cgltf_size nodeCount,
     const std::span<ModelDef>& models,
     const std::map<const cgltf_mesh*, ModelIndex>& modelIndices,
     const uint32_t parentIndex,
-    std::vector<TransformDef>& transformDefs,
+    std::vector<NodeDef>& nodeDefs,
     std::vector<ModelInstance>& modelInstances)
 {
-    const size_t numTransforms = transformDefs.size();
+    const size_t numNodes = nodeDefs.size();
 
     for(cgltf_size i = 0; i < nodeCount; ++i)
     {
@@ -473,17 +478,18 @@ CollectTransforms(cgltf_node** const childNodes,
 
         MLG_LOG_SCOPE("node {}", srcNode->name ? srcNode->name : "<unnamed>");
 
-        const uint32_t transformIndex = narrow_cast<uint32_t>(transformDefs.size());
+        const uint32_t nodeIndex = narrow_cast<uint32_t>(nodeDefs.size());
 
-        TransformDef transformDef //
+        NodeDef nodeDef //
         {
+            .Name = MakeName(srcNode->name, "Node", nodeIndex),
             .ParentIndex = parentIndex
         };
 
         if(srcNode->has_matrix)
         {
-            std::memcpy(&transformDef.Transform.m[0].x, srcNode->matrix, sizeof(float) * 16);
-            ConvertRHtoLH(transformDef.Transform);
+            std::memcpy(&nodeDef.Transform.m[0].x, srcNode->matrix, sizeof(float) * 16);
+            ConvertRHtoLH(nodeDef.Transform);
         }
         else
         {
@@ -504,29 +510,30 @@ CollectTransforms(cgltf_node** const childNodes,
             trs.R.y = -trs.R.y;
             trs.R.z = -trs.R.z;
 
-            transformDef.Transform = trs.ToMatrix();
+            nodeDef.Transform = trs.ToMatrix();
         }
 
-        transformDefs.emplace_back(std::move(transformDef));
+        nodeDefs.emplace_back(std::move(nodeDef));
 
-        auto countResult = CollectTransforms(srcNode->children,
+        auto countResult = CollectNodes(srcNode->children,
             srcNode->children_count,
             models,
             modelIndices,
-            transformIndex,
-            transformDefs,
+            nodeIndex,
+            nodeDefs,
             modelInstances);
 
         if(!countResult)
         {
-            // Something went wrong. Erase the transform we added.
-            transformDefs.resize(transformIndex);
+            // Something went wrong. Erase the node we added.
+            nodeDefs.resize(nodeIndex);
+            continue;
         }
         else if(*countResult == 0 && !srcNode->mesh)
         {
-            // No child transforms were added and there's no mesh
-            // at this node.  Erase the transform we added.
-            transformDefs.resize(transformIndex);
+            // No child nodes were added and there's no mesh
+            // at this node.  Erase the node we added.
+            nodeDefs.resize(nodeIndex);
 
             // Node has no mesh and no descendents with meshes, skip it
             // This could be a procedurally generated mesh, e.g. the leaves of a tree.
@@ -565,33 +572,42 @@ CollectTransforms(cgltf_node** const childNodes,
             }
 
             MLG_WARN("{} node has no mesh and no children.  Ignoring.", type);
-        }
-        else if(!srcNode->mesh)
-        {
-            // No mesh so no instance to add.
-            continue;
-        }
-        else if(!modelIndices.contains(srcNode->mesh))
-        {
-            // This mesh was rejected during the model collection phase.
-            // No instance to add.
             continue;
         }
         else
         {
-            const ModelIndex modelIndex = modelIndices.at(srcNode->mesh);
+            if(kInvalidNodeIndex != parentIndex)
+            {
+                ++nodeDefs[parentIndex].ChildCount;
+            }
 
-            const ModelInstance modelInstance //
-                {
-                    .ModelIndex = modelIndex,
-                    .TransformIndex = narrow_cast<TransformIndex>(transformIndex),
-                };
+            if(!srcNode->mesh)
+            {
+                // No mesh so no instance to add.
+                continue;
+            }
+            else if(!modelIndices.contains(srcNode->mesh))
+            {
+                // This mesh was rejected during the model collection phase.
+                // No instance to add.
+                continue;
+            }
+            else
+            {
+                const ModelIndex modelIndex = modelIndices.at(srcNode->mesh);
 
-            modelInstances.push_back(modelInstance);
+                const ModelInstance modelInstance //
+                    {
+                        .ModelIndex = modelIndex,
+                        .NodeIndex = narrow_cast<NodeIndex>(nodeIndex),
+                    };
+
+                modelInstances.push_back(modelInstance);
+            }
         }
     }
 
-    const size_t numAdded = transformDefs.size() - numTransforms;
+    const size_t numAdded = nodeDefs.size() - numNodes;
 
     return numAdded;
 }
@@ -637,23 +653,23 @@ GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit, SceneDe
     std::map<const cgltf_mesh*, ModelIndex> modelIndices;
     MLG_CHECK(CollectModels(gltfMeshes, modelDefs, modelIndices));
 
-    std::vector<TransformDef> transformDefs;
+    std::vector<NodeDef> nodeDefs;
     std::vector<ModelInstance> modelInstances;
-    MLG_CHECK(CollectTransforms(gltfData->scenes[0].nodes,
+    MLG_CHECK(CollectNodes(gltfData->scenes[0].nodes,
         gltfData->scenes[0].nodes_count,
         modelDefs,
         modelIndices,
-        TransformDef::kInvalidParentIndex,
-        transformDefs,
+        kInvalidNodeIndex,
+        nodeDefs,
         modelInstances));
 
     // Convert local transforms to world space.
-    for(auto& transformDef : transformDefs)
+    for(auto& nodeDef : nodeDefs)
     {
-        if(transformDef.ParentIndex != TransformDef::kInvalidParentIndex)
+        if(nodeDef.ParentIndex != kInvalidNodeIndex)
         {
-            const TransformDef& parent = transformDefs[transformDef.ParentIndex];
-            transformDef.Transform = parent.Transform * transformDef.Transform;
+            const NodeDef& parent = nodeDefs[nodeDef.ParentIndex];
+            nodeDef.Transform = parent.Transform * nodeDef.Transform;
         }
     }
 
@@ -664,7 +680,7 @@ GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit, SceneDe
 
     SceneDef sceneDef //
     {
-        .TransformDefs = std::move(transformDefs),
+        .NodeDefs = std::move(nodeDefs),
         .ModelInstances = std::move(modelInstances),
     };
 

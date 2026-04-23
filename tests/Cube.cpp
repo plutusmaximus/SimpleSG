@@ -341,40 +341,37 @@ static Result<> CreateShapeModel(PropKitDef& outPropKitDef, SceneDef& outSceneDe
     //auto geometry = Shapes::Cylinder(1, 1, 10);
     //auto geometry = Shapes::Cone(1, 0.5f, 10);
     auto geometry = Shapes::Torus(1, 0.5, 5);
-    const auto &[vertices, indices] = geometry;
+    const auto& [vertices, indices] = geometry;
 
     MaterialDef mtlDef //
-    {
-        .BaseTextureUri = "images/Ant.png",
-        .Color = {1, 0, 0},
-        .Metalness = 0,
-        .Roughness = 0
-    };
+        { .BaseTextureUri = "images/Ant.png",
+            .Color = { 1, 0, 0 },
+            .Metalness = 0,
+            .Roughness = 0 };
 
-    MeshDef meshDef//
-    {
-        .Vertices = {vertices.begin(), vertices.end()},
-        .Indices = {indices.begin(), indices.end()},
-        .MaterialDef = mtlDef
-    };
+    MeshDef meshDef //
+        { .Vertices = { vertices.begin(), vertices.end() },
+            .Indices = { indices.begin(), indices.end() },
+            .MaterialDef = mtlDef };
 
     ModelDef modelDef //
-    {
-        .Name = "Shape",
-        .MeshDefs = {std::move(meshDef)},
-    };
-
-    TransformDef transformDef //
         {
+            .Name = "Shape",
+            .MeshDefs = { std::move(meshDef) },
+        };
+
+    NodeDef nodeDef //
+        {
+            .Name = "ShapeNode",
             .Transform = Mat44f(1),
-            .ParentIndex = TransformDef::kInvalidParentIndex,
+            .ParentIndex = kInvalidNodeIndex,
         };
 
     ModelInstance modelInstance //
-    {
-        .ModelIndex = 0,
-        .TransformIndex = 0,
-    };
+        {
+            .ModelIndex = 0,
+            .NodeIndex = 0,
+        };
 
     PropKitDef propKitDef //
         {
@@ -382,10 +379,10 @@ static Result<> CreateShapeModel(PropKitDef& outPropKitDef, SceneDef& outSceneDe
         };
 
     SceneDef sceneDef //
-    {
-        .TransformDefs = { std::move(transformDef) },
-        .ModelInstances = { std::move(modelInstance) },
-    };
+        {
+            .NodeDefs = { std::move(nodeDef) },
+            .ModelInstances = { std::move(modelInstance) },
+        };
 
     outPropKitDef = std::move(propKitDef);
     outSceneDef = std::move(sceneDef);

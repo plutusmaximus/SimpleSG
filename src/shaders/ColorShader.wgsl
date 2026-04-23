@@ -12,7 +12,7 @@ struct MeshProperties
 {
     center : vec3<f32>,
     radius : f32,
-    transformIndex : u32,
+    nodeIndex : u32,
     materialIndex : u32,
     pad0 : u32,
     pad1 : u32,
@@ -65,9 +65,9 @@ fn vs_main(input: VSInput, @builtin(instance_index) instance_index: u32) -> FSIn
 {
     var output: FSInput;
 
-    let transformIdx = meshProperties[instance_index].transformIndex;
-    let clipXform = clipSpaceTransforms[transformIdx].xform;
-    let meshTransform = meshTransforms[transformIdx].xform;
+    let nodeIndex = meshProperties[instance_index].nodeIndex;
+    let clipXform = clipSpaceTransforms[nodeIndex].xform;
+    let meshTransform = meshTransforms[nodeIndex].xform;
 
     output.position = clipXform * vec4<f32>(input.inPosition, 1.0);
     output.fragNormal = normalize((meshTransform * vec4<f32>(input.inNormal, 0.0)).xyz);

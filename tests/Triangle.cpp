@@ -243,25 +243,20 @@ static Result<> CreateTriangleModel(PropKitDef& outPropKit, SceneDef& outSceneDe
             { { -0.5f, 0.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 0, 0 } }, // 2
         };
 
-    std::vector<VertexIndex> triangleIndices = //
-    {
-        0, 1, 2,
-    };
+    std::vector<VertexIndex> triangleIndices = { 0, 1, 2 };
 
     MaterialDef mtlDef //
-    {
-        .BaseTextureUri = "images/Ant.png",
-        .Color = {"#FFA500"_rgba},
-        .Metalness = 0,
-        .Roughness = 0
-    };
+        { .BaseTextureUri = "images/Ant.png",
+            .Color = { "#FFA500"_rgba },
+            .Metalness = 0,
+            .Roughness = 0 };
 
-    MeshDef meshDef//
-    {
-        .Vertices = std::move(triangleVertices),
-        .Indices = std::move(triangleIndices),
-        .MaterialDef = std::move(mtlDef),
-    };
+    MeshDef meshDef //
+        {
+            .Vertices = std::move(triangleVertices),
+            .Indices = std::move(triangleIndices),
+            .MaterialDef = std::move(mtlDef),
+        };
 
     ModelDef modelDef //
         {
@@ -274,21 +269,22 @@ static Result<> CreateTriangleModel(PropKitDef& outPropKit, SceneDef& outSceneDe
             .ModelDefs = { std::move(modelDef) },
         };
 
-    TransformDef transformDef //
+    NodeDef nodeDef //
         {
+            .Name = "TriangleNode",
             .Transform = Mat44f(1),
-            .ParentIndex = TransformDef::kInvalidParentIndex,
+            .ParentIndex = kInvalidNodeIndex,
         };
 
     ModelInstance modelInstance //
-    {
-        .ModelIndex = 0,
-        .TransformIndex = 0,
-    };
+        {
+            .ModelIndex = 0,
+            .NodeIndex = 0,
+        };
 
     SceneDef sceneDef //
         {
-            .TransformDefs = { std::move(transformDef) },
+            .NodeDefs = { std::move(nodeDef) },
             .ModelInstances = { std::move(modelInstance) },
         };
 

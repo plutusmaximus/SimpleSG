@@ -20,10 +20,69 @@ struct TransformPipelineResources
 };
 }
 
-static Result<TransformBuffer>
-BuildTransformBuffer(std::span<const TransformDef> transformDefs, wgpu::CommandEncoder encoder)
+// Validates that child nodes are contiguously grouped after their parent node, and that parent
+// indices are correct.
+static Result<>
+ValidateHierarchy(std::span<const NodeDef> nodeDefs, size_t& index)
 {
-    const size_t sizeofBuffer = transformDefs.size() * sizeof(ShaderTypes::MeshTransform);
+    const size_t curIndex = index;
+    const NodeDef& curNode = nodeDefs[curIndex];
+    const uint32_t childCount = curNode.ChildCount;
+
+    MLG_CHECKV(!curNode.Name.empty(), "Node {} has an empty name", curIndex);
+
+    const size_t endIndex = index + 1 + childCount;
+    MLG_ASSERT(endIndex <= nodeDefs.size());
+
+    for(++index; index < endIndex; ++index)
+    {
+        const NodeDef& nextNode = nodeDefs[index];
+
+        if(nextNode.ParentIndex == curIndex)
+        {
+            // Encountered a new child node.  Validate the child.
+            MLG_CHECK(ValidateHierarchy(nodeDefs, index));
+        }
+        else
+        {
+            // Expect this node to be a sibling of the current node, i.e. have the same parent index.
+            MLG_CHECKV(nextNode.ParentIndex == curNode.ParentIndex,
+                "Node {} has invalid parent index {}, expected {}",
+                nextNode.Name, nextNode.ParentIndex, curNode.ParentIndex);
+        }
+    }
+
+    return Result<>::Ok;
+}
+
+static Result<> Validate(const SceneDef& sceneDef, const PropKit& propKit)
+{
+    size_t index = 0;
+    while(index < sceneDef.NodeDefs.size())
+    {
+        MLG_CHECK(ValidateHierarchy(sceneDef.NodeDefs, index));
+    }
+
+    const std::span<const Model> models = propKit.GetModels();
+
+    for(const auto& modelInstance : sceneDef.ModelInstances)
+    {
+        MLG_CHECKV(modelInstance.NodeIndex < sceneDef.NodeDefs.size(),
+            "Model instance has invalid node index {}, node count {}",
+            modelInstance.NodeIndex, sceneDef.NodeDefs.size());
+
+        MLG_CHECKV(modelInstance.ModelIndex < models.size(),
+            "Model instance has invalid model index {}, model count {}",
+            modelInstance.ModelIndex, models.size());
+    }
+
+    return Result<>::Ok;
+}
+
+static Result<TransformBuffer>
+BuildTransformBuffer(std::span<const NodeDef> nodeDefs, wgpu::CommandEncoder encoder)
+{
+    const size_t sizeofBuffer = nodeDefs.size() * sizeof(ShaderTypes::MeshTransform);
 
     auto buffer = WebgpuHelper::CreateTypedStorageBuffer<TransformBuffer>(sizeofBuffer, "TransformBuffer");
     MLG_CHECK(buffer);
@@ -33,9 +92,9 @@ BuildTransformBuffer(std::span<const TransformDef> transformDefs, wgpu::CommandE
 
     ShaderTypes::MeshTransform* dst = *mapped;
 
-    for(const TransformDef& transformDef : transformDefs)
+    for(const NodeDef& nodeDef : nodeDefs)
     {
-        dst->Transform = transformDef.Transform;
+        dst->Transform = nodeDef.Transform;
         ++dst;
     }
 
@@ -154,7 +213,7 @@ BuildMeshPropertiesBuffer(std::span<const Mesh> meshes,
                 {
                     .Center = boundingSphere.GetCenter(),
                     .Radius = boundingSphere.GetRadius(),
-                    .TransformIndex = modelInstance.TransformIndex,
+                    .NodeIndex = modelInstance.NodeIndex,
                     .MaterialIndex = meshSrc->MaterialIndex,
                 };
 
@@ -248,12 +307,14 @@ Scene::Create(const SceneDef& sceneDef, const PropKit& propKit, Scene& outScene)
     Stopwatch createTimer;
     createTimer.Mark();
 
+    MLG_CHECK(Validate(sceneDef, propKit));
+
     wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
 
     const std::span<const Mesh> meshes = propKit.GetMeshes();
     const std::span<const Model> models = propKit.GetModels();
 
-    auto transformBuffer = BuildTransformBuffer(sceneDef.TransformDefs, encoder);
+    auto transformBuffer = BuildTransformBuffer(sceneDef.NodeDefs, encoder);
     MLG_CHECK(transformBuffer);
 
     auto drawIndirectBuffer = BuildDrawIndirectBuffer(meshes, models, sceneDef.ModelInstances, encoder);

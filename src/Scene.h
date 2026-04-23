@@ -3,7 +3,6 @@
 #include "shaders/ShaderTypes.h"
 #include "WebgpuHelper.h"
 
-#include <limits>
 #include <span>
 #include <vector>
 
@@ -11,23 +10,38 @@
 using TransformBuffer = TypedGpuBuffer<ShaderTypes::MeshTransform>;
 using MeshPropertiesBuffer = TypedGpuBuffer<ShaderTypes::MeshProperties>;
 
-struct TransformDef
+struct SceneNode
 {
-    static constexpr TransformIndex kInvalidParentIndex = std::numeric_limits<TransformIndex>::max();
-
     Mat44f Transform;
-    TransformIndex ParentIndex{ kInvalidParentIndex };
+    NodeIndex ParentIndex{ kInvalidNodeIndex };
+    uint32_t ChildCount{ 0 };
+};
+
+struct NodeDef
+{
+    std::string Name;
+    Mat44f Transform;
+    NodeIndex ParentIndex{ kInvalidNodeIndex };
+    uint32_t ChildCount{ 0 };
+};
+
+struct NodeDef2
+{
+    std::string Name;
+    Mat44f Transform;
+    ModelIndex ModelIndex{ kInvalidModelIndex };
+    std::vector<NodeDef2> Children;
 };
 
 struct ModelInstance
 {
-    ModelIndex ModelIndex;
-    TransformIndex TransformIndex;
+    ModelIndex ModelIndex{ kInvalidModelIndex };
+    NodeIndex NodeIndex{ kInvalidNodeIndex };
 };
 
 struct SceneDef
 {
-    std::vector<TransformDef> TransformDefs;
+    std::vector<NodeDef> NodeDefs;
     std::vector<ModelInstance> ModelInstances;
 };
 
