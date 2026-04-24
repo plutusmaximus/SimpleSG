@@ -22,20 +22,12 @@ struct SceneNode
     uint32_t ChildCount{ 0 };
 };
 
-struct NodeDef
-{
-    std::string Name;
-    Mat44f Transform;
-    NodeIndex ParentIndex{ NodeIndex::INVALID };
-    uint32_t ChildCount{ 0 };
-};
-
-struct NodeDef2
+struct SceneNodeDef
 {
     std::string Name;
     Mat44f Transform;
     ModelIndex ModelIndex{ ModelIndex::INVALID };
-    std::vector<NodeDef2> Children;
+    std::vector<SceneNodeDef> Children;
 };
 
 struct ModelInstance
@@ -46,8 +38,7 @@ struct ModelInstance
 
 struct SceneDef
 {
-    std::vector<NodeDef> NodeDefs;
-    std::vector<ModelInstance> ModelInstances;
+    std::vector<SceneNodeDef> NodeDefs;
 };
 
 class PropKit;

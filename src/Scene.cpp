@@ -20,36 +20,20 @@ struct TransformPipelineResources
 };
 }
 
-// Validates that child nodes are contiguously grouped after their parent node, and that parent
-// indices are correct.
-static Result<>
-ValidateHierarchy(std::span<const NodeDef> nodeDefs, size_t& index)
+static Result<> ValidateNode(const SceneNodeDef& nodeDef, const PropKit& propKit)
 {
-    const NodeIndex curIndex{index};
-    const NodeDef& curNode = nodeDefs[index];
-    const uint32_t childCount = curNode.ChildCount;
-
-    MLG_CHECKV(!curNode.Name.empty(), "Node {} has an empty name", curIndex.Value());
-
-    const size_t endIndex = index + 1 + childCount;
-    MLG_ASSERT(endIndex <= nodeDefs.size());
-
-    for(++index; index < endIndex; ++index)
+    if(nodeDef.ModelIndex.IsValid())
     {
-        const NodeDef& nextNode = nodeDefs[index];
+        const std::span<const Model> models = propKit.GetModels();
 
-        if(nextNode.ParentIndex == curIndex)
-        {
-            // Encountered a new child node.  Validate the child.
-            MLG_CHECK(ValidateHierarchy(nodeDefs, index));
-        }
-        else
-        {
-            // Expect this node to be a sibling of the current node, i.e. have the same parent index.
-            MLG_CHECKV(nextNode.ParentIndex == curNode.ParentIndex,
-                "Node {} has invalid parent index {}, expected {}",
-                nextNode.Name, nextNode.ParentIndex.Value(), curNode.ParentIndex.Value());
-        }
+        MLG_CHECKV(nodeDef.ModelIndex.Value() < models.size(),
+            "Node definition '{}' has invalid model index {}, model count {}",
+            nodeDef.Name, nodeDef.ModelIndex.Value(), models.size());
+    }
+
+    for(const auto& childNodeDef : nodeDef.Children)
+    {
+        MLG_CHECK(ValidateNode(childNodeDef, propKit));
     }
 
     return Result<>::Ok;
@@ -57,46 +41,44 @@ ValidateHierarchy(std::span<const NodeDef> nodeDefs, size_t& index)
 
 static Result<> Validate(const SceneDef& sceneDef, const PropKit& propKit)
 {
-    size_t index = 0;
-    while(index < sceneDef.NodeDefs.size())
+    for(const auto& nodeDef : sceneDef.NodeDefs)
     {
-        MLG_CHECK(ValidateHierarchy(sceneDef.NodeDefs, index));
-    }
-
-    const std::span<const Model> models = propKit.GetModels();
-
-    for(const auto& modelInstance : sceneDef.ModelInstances)
-    {
-        MLG_CHECKV(modelInstance.NodeIndex.Value() < sceneDef.NodeDefs.size(),
-            "Model instance has invalid node index {}, node count {}",
-            modelInstance.NodeIndex.Value(), sceneDef.NodeDefs.size());
-
-        MLG_CHECKV(modelInstance.ModelIndex.Value() < models.size(),
-            "Model instance has invalid model index {}, model count {}",
-            modelInstance.ModelIndex.Value(), models.size());
+        MLG_CHECK(ValidateNode(nodeDef, propKit));
     }
 
     return Result<>::Ok;
 }
 
-static Result<TransformBuffer>
-BuildTransformBuffer(std::span<const NodeDef> nodeDefs, wgpu::CommandEncoder encoder)
+static Result<>
+CollectTransforms(const SceneNodeDef& nodeDef, std::vector<Mat44f>& transforms)
 {
-    const size_t sizeofBuffer = nodeDefs.size() * sizeof(ShaderTypes::MeshTransform);
+    transforms.push_back(nodeDef.Transform);
+    for(const auto& childNodeDef : nodeDef.Children)
+    {
+        MLG_CHECK(CollectTransforms(childNodeDef, transforms));
+    }
+    return Result<>::Ok;
+};
 
-    auto buffer = WebgpuHelper::CreateTypedStorageBuffer<TransformBuffer>(sizeofBuffer, "TransformBuffer");
+static Result<TransformBuffer>
+BuildTransformBuffer(std::span<const SceneNodeDef> nodeDefs, wgpu::CommandEncoder encoder)
+{
+    std::vector<Mat44f> transforms;
+    for(const auto& nodeDef : nodeDefs)
+    {
+        MLG_CHECK(CollectTransforms(nodeDef, transforms));
+    }
+
+    const size_t sizeofBuffer = transforms.size() * sizeof(ShaderTypes::MeshTransform);
+
+    auto buffer =
+        WebgpuHelper::CreateSemanticStorageBuffer<TransformBuffer>(sizeofBuffer, "TransformBuffer");
     MLG_CHECK(buffer);
 
     auto mapped = buffer->Map();
     MLG_CHECK(mapped);
 
-    ShaderTypes::MeshTransform* dst = *mapped;
-
-    for(const NodeDef& nodeDef : nodeDefs)
-    {
-        dst->Transform = nodeDef.Transform;
-        ++dst;
-    }
+    std::memcpy(*mapped, transforms.data(), sizeofBuffer);
 
     buffer->Unmap(encoder);
 
@@ -181,7 +163,7 @@ BuildMeshPropertiesBuffer(std::span<const Mesh> meshes,
     const size_t meshInstanceCount = CountMeshes(models, modelInstances);
     const size_t sizeofBuffer = meshInstanceCount * sizeof(ShaderTypes::MeshProperties);
 
-    auto buffer = WebgpuHelper::CreateTypedStorageBuffer<MeshPropertiesBuffer>(sizeofBuffer, "MeshPropertiesBuffer");
+    auto buffer = WebgpuHelper::CreateSemanticStorageBuffer<MeshPropertiesBuffer>(sizeofBuffer, "MeshPropertiesBuffer");
     MLG_CHECK(buffer);
 
     auto mapped = buffer->Map();
@@ -301,6 +283,27 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
     return bindGroup;
 }
 
+static Result<>
+CollectModelInstances(const SceneNodeDef& nodeDef,
+    NodeIndex& nodeIndex,
+    std::vector<ModelInstance>& outModelInstances)
+{
+    if(nodeDef.ModelIndex.IsValid())
+    {
+        const ModelInstance modelInstance{ nodeDef.ModelIndex, nodeIndex };
+        outModelInstances.push_back(modelInstance);
+    }
+
+    nodeIndex = NodeIndex(nodeIndex.Value() + 1);
+
+    for(const auto& childNodeDef : nodeDef.Children)
+    {
+        MLG_CHECK(CollectModelInstances(childNodeDef, nodeIndex, outModelInstances));
+    }
+
+    return Result<>::Ok;
+}
+
 Result<>
 Scene::Create(const SceneDef& sceneDef, const PropKit& propKit, Scene& outScene)
 {
@@ -317,10 +320,17 @@ Scene::Create(const SceneDef& sceneDef, const PropKit& propKit, Scene& outScene)
     auto transformBuffer = BuildTransformBuffer(sceneDef.NodeDefs, encoder);
     MLG_CHECK(transformBuffer);
 
-    auto drawIndirectBuffer = BuildDrawIndirectBuffer(meshes, models, sceneDef.ModelInstances, encoder);
+    std::vector<ModelInstance> modelInstances;
+    NodeIndex nodeIndex{ 0 };
+    for(const auto& nodeDef : sceneDef.NodeDefs)
+    {
+        MLG_CHECK(CollectModelInstances(nodeDef, nodeIndex, modelInstances));
+    }
+
+    auto drawIndirectBuffer = BuildDrawIndirectBuffer(meshes, models, modelInstances, encoder);
     MLG_CHECK(drawIndirectBuffer);
 
-    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(meshes, models, sceneDef.ModelInstances, encoder);
+    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(meshes, models, modelInstances, encoder);
     MLG_CHECK(meshPropertiesBuffer);
 
     ColorPipelineResources colorPipelineResources //
@@ -343,9 +353,6 @@ Scene::Create(const SceneDef& sceneDef, const PropKit& propKit, Scene& outScene)
 
     wgpu::CommandBuffer commandBuffer = encoder.Finish();
     WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
-
-    std::vector<ModelInstance> modelInstances(sceneDef.ModelInstances.begin(),
-        sceneDef.ModelInstances.end());
 
     Scene scene(&propKit,
         *transformBuffer,

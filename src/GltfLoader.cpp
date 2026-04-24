@@ -461,36 +461,31 @@ ConvertRHtoLH(Mat44f& M)
     M.m[3].x = -M.m[3].x;
 }
 
-static Result<size_t>
-CollectNodes(cgltf_node** const childNodes,
-    const cgltf_size nodeCount,
+static Result<>
+CollectNodes(cgltf_node** const srcNodes,
+    const size_t srcNodeCount,
     const std::span<ModelDef>& models,
     const std::map<const cgltf_mesh*, ModelIndex>& modelIndices,
-    const NodeIndex parentIndex,
-    std::vector<NodeDef>& nodeDefs,
-    std::vector<ModelInstance>& modelInstances)
+    const Mat44f& parentTransform,
+    std::vector<SceneNodeDef>& nodeDefs)
 {
-    const size_t numNodes = nodeDefs.size();
+    nodeDefs.clear();
+    nodeDefs.reserve(srcNodeCount);
 
-    for(cgltf_size i = 0; i < nodeCount; ++i)
+    for(size_t i = 0; i < srcNodeCount; ++i)
     {
-        const cgltf_node* srcNode = childNodes[i];
+        const cgltf_node* srcNode = srcNodes[i];
 
-        MLG_LOG_SCOPE("node {}", srcNode->name ? srcNode->name : "<unnamed>");
+        std::string nodeName = srcNode->name ? srcNode->name : "<unnamed>";
 
-        const size_t origNodeCount = nodeDefs.size();
-        const NodeIndex nodeIndex = NodeIndex(origNodeCount);
+        MLG_LOG_SCOPE("node {}", nodeName);
 
-        NodeDef nodeDef //
-        {
-            .Name = MakeName(srcNode->name, "Node", nodeIndex.Value()),
-            .ParentIndex = parentIndex
-        };
+        Mat44f nodeTransform;
 
         if(srcNode->has_matrix)
         {
-            std::memcpy(&nodeDef.Transform.m[0].x, srcNode->matrix, sizeof(float) * 16);
-            ConvertRHtoLH(nodeDef.Transform);
+            std::memcpy(&nodeTransform.m[0].x, srcNode->matrix, sizeof(float) * 16);
+            ConvertRHtoLH(nodeTransform);
         }
         else
         {
@@ -511,31 +506,32 @@ CollectNodes(cgltf_node** const childNodes,
             trs.R.y = -trs.R.y;
             trs.R.z = -trs.R.z;
 
-            nodeDef.Transform = trs.ToMatrix();
+            nodeTransform = trs.ToMatrix();
         }
 
-        nodeDefs.emplace_back(std::move(nodeDef));
+        // Transform to world space.
+        nodeTransform = parentTransform * nodeTransform;
 
-        auto countResult = CollectNodes(srcNode->children,
+        ModelIndex modelIndex{ ModelIndex::INVALID };
+
+        if(srcNode->mesh && modelIndices.contains(srcNode->mesh))
+        {
+            // Node has a mesh and the mesh was accepted during model collection phase.
+
+            modelIndex = modelIndices.at(srcNode->mesh);
+        }
+
+        std::vector<SceneNodeDef> childNodes;
+
+        MLG_CHECK(CollectNodes(srcNode->children,
             srcNode->children_count,
             models,
             modelIndices,
-            nodeIndex,
-            nodeDefs,
-            modelInstances);
+            nodeTransform,
+            childNodes));
 
-        if(!countResult)
+        if(childNodes.empty() && !srcNode->mesh)
         {
-            // Something went wrong. Erase the node we added.
-            nodeDefs.resize(origNodeCount);
-            continue;
-        }
-        else if(*countResult == 0 && !srcNode->mesh)
-        {
-            // No child nodes were added and there's no mesh
-            // at this node.  Erase the node we added.
-            nodeDefs.resize(origNodeCount);
-
             // Node has no mesh and no descendents with meshes, skip it
             // This could be a procedurally generated mesh, e.g. the leaves of a tree.
             // In blender the following steps could be used to convert to a mesh:
@@ -573,44 +569,22 @@ CollectNodes(cgltf_node** const childNodes,
             }
 
             MLG_WARN("{} node has no mesh and no children.  Ignoring.", type);
+
             continue;
         }
-        else
+
+        SceneNodeDef newNodeDef //
         {
-            if(NodeIndex::INVALID != parentIndex)
-            {
-                ++nodeDefs[parentIndex.Value()].ChildCount;
-            }
+            .Name = nodeName,
+            .Transform = nodeTransform,
+            .ModelIndex = modelIndex,
+            .Children = std::move(childNodes),
+        };
 
-            if(!srcNode->mesh)
-            {
-                // No mesh so no instance to add.
-                continue;
-            }
-            else if(!modelIndices.contains(srcNode->mesh))
-            {
-                // This mesh was rejected during the model collection phase.
-                // No instance to add.
-                continue;
-            }
-            else
-            {
-                const ModelIndex modelIndex = modelIndices.at(srcNode->mesh);
-
-                const ModelInstance modelInstance //
-                    {
-                        .ModelIndex = modelIndex,
-                        .NodeIndex = nodeIndex,
-                    };
-
-                modelInstances.push_back(modelInstance);
-            }
-        }
+        nodeDefs.emplace_back(std::move(newNodeDef));
     }
 
-    const size_t numAdded = nodeDefs.size() - numNodes;
-
-    return numAdded;
+    return Result<>::Ok;
 }
 
 Result<>
@@ -654,25 +628,14 @@ GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit, SceneDe
     std::map<const cgltf_mesh*, ModelIndex> modelIndices;
     MLG_CHECK(CollectModels(gltfMeshes, modelDefs, modelIndices));
 
-    std::vector<NodeDef> nodeDefs;
-    std::vector<ModelInstance> modelInstances;
+    std::vector<SceneNodeDef> nodeDefs;
+
     MLG_CHECK(CollectNodes(gltfData->scenes[0].nodes,
         gltfData->scenes[0].nodes_count,
         modelDefs,
         modelIndices,
-        NodeIndex::INVALID,
-        nodeDefs,
-        modelInstances));
-
-    // Convert local transforms to world space.
-    for(auto& nodeDef : nodeDefs)
-    {
-        if(nodeDef.ParentIndex != NodeIndex::INVALID)
-        {
-            const NodeDef& parent = nodeDefs[nodeDef.ParentIndex.Value()];
-            nodeDef.Transform = parent.Transform * nodeDef.Transform;
-        }
-    }
+        Mat44f::Identity(),
+        nodeDefs));
 
     PropKitDef propKit //
         {
@@ -680,10 +643,9 @@ GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit, SceneDe
         };
 
     SceneDef sceneDef //
-    {
-        .NodeDefs = std::move(nodeDefs),
-        .ModelInstances = std::move(modelInstances),
-    };
+        {
+            .NodeDefs = std::move(nodeDefs),
+        };
 
     outPropKit = std::move(propKit);
     outSceneDef = std::move(sceneDef);

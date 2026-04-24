@@ -353,7 +353,7 @@ BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs, wgpu::Co
 {
     const size_t sizeofBuffer = materialDefs.size() * sizeof(ShaderTypes::MaterialConstants);
 
-    auto buffer = WebgpuHelper::CreateTypedStorageBuffer<MaterialConstantsBuffer>(sizeofBuffer,
+    auto buffer = WebgpuHelper::CreateSemanticStorageBuffer<MaterialConstantsBuffer>(sizeofBuffer,
         "MaterialConstantsBuffer");
     MLG_CHECK(buffer);
 

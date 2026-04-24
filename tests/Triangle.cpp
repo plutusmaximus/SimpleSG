@@ -271,23 +271,16 @@ static Result<> CreateTriangleModel(PropKitDef& outPropKit, SceneDef& outSceneDe
             .ModelDefs{ std::move(modelDef) },
         };
 
-    NodeDef nodeDef //
-        {
-            .Name{ "TriangleNode" },
-            .Transform{ 1 },
-            .ParentIndex{ NodeIndex::INVALID },
-        };
-
-    ModelInstance modelInstance //
-        {
-            .ModelIndex{ 0 },
-            .NodeIndex{ 0 },
-        };
-
     SceneDef sceneDef //
         {
-            .NodeDefs{ std::move(nodeDef) },
-            .ModelInstances{ std::move(modelInstance) },
+            .NodeDefs //
+            {
+                {
+                    .Name{ "TriangleNode" },
+                    .Transform{ 1 },
+                    .ModelIndex{ 0 },
+                },
+            },
         };
 
     outPropKit = std::move(propKitDef);

@@ -747,13 +747,13 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
         m_TransformBuffers.TransformCount = scene.GetTransformCount();
 
         auto clipSpaceBuffer =
-            WebgpuHelper::CreateTypedStorageBuffer<ClipSpaceBuffer>(scene.GetTransformBuffer().GetSize(),
+            WebgpuHelper::CreateSemanticStorageBuffer<ClipSpaceBuffer>(scene.GetTransformBuffer().GetSize(),
                 "ClipSpaceTransformBuffer");
         MLG_CHECK(clipSpaceBuffer);
 
         m_TransformBuffers.ClipSpaceBuf = *clipSpaceBuffer;
 
-        auto cameraParamsBuf = WebgpuHelper::CreateTypedUniformBuffer<CameraParamsBuffer>(
+        auto cameraParamsBuf = WebgpuHelper::CreateSemanticUniformBuffer<CameraParamsBuffer>(
             sizeof(ShaderTypes::CameraParams),
             "CameraParamsBuffer");
         MLG_CHECK(cameraParamsBuf);

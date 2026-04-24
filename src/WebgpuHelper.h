@@ -146,7 +146,7 @@ public:
     /// @brief Creates a semantically-typed storage buffer.
     template<typename T>
     requires is_gpu_buffer_type_v<T>
-    static Result<T> CreateTypedStorageBuffer(const size_t size, const std::string& name)
+    static Result<T> CreateSemanticStorageBuffer(const size_t size, const std::string& name)
     {
         // Don't try to create "special" buffers with this helper.
         // Use the specific helper functions for vertex/index/uniform/indirect buffers.
@@ -163,7 +163,7 @@ public:
     /// @brief Creates a semantically-typed uniform buffer.
     template<typename T>
     requires is_gpu_buffer_type_v<T>
-    static Result<T> CreateTypedUniformBuffer(const size_t size, const std::string& name)
+    static Result<T> CreateSemanticUniformBuffer(const size_t size, const std::string& name)
     {
         // Don't try to create "special" buffers with this helper.
         // Use the specific helper functions for vertex/index/uniform/indirect buffers.
