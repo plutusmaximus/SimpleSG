@@ -145,17 +145,17 @@ Renderer::Render(const Mat44f& camera,
     const auto& modelInstances = scene.GetModelInstances();
     const auto& drawIndirectBuffer = scene.GetDrawIndirectBuffer();
 
-    uint32_t lastMaterialIndex = UINT32_MAX;
+    MaterialIndex lastMaterialIndex = MaterialIndex::INVALID;
 
     for(const auto& modelInstance : modelInstances)
     {
-        const Model& model = models[modelInstance.ModelIndex];
+        const Model& model = models[modelInstance.ModelIndex.Value()];
 
         for(uint32_t i = 0; i < model.MeshCount; ++i)
         {
             const Mesh& mesh = meshes[model.FirstMesh + i];
 
-            const uint32_t materialIndex = mesh.MaterialIndex;
+            const MaterialIndex materialIndex = mesh.MaterialIndex;
 
             if(materialIndex != lastMaterialIndex)
             {
@@ -163,7 +163,7 @@ Renderer::Render(const Mat44f& camera,
                 {
                     auto scopedTimer = fsBindingTimer.StartScoped();
 
-                    renderPass.SetBindGroup(2, materialBindGroups[materialIndex], 0, nullptr);
+                    renderPass.SetBindGroup(2, materialBindGroups[materialIndex.Value()], 0, nullptr);
                     lastMaterialIndex = materialIndex;
                 }
             }

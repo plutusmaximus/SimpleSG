@@ -7,13 +7,18 @@
 #include <vector>
 
 // Strongly-typed GPU storage buffer classes.
-using TransformBuffer = TypedGpuBuffer<ShaderTypes::MeshTransform>;
-using MeshPropertiesBuffer = TypedGpuBuffer<ShaderTypes::MeshProperties>;
+using TransformBuffer = SemanticGpuBuffer<ShaderTypes::MeshTransform>;
+using MeshPropertiesBuffer = SemanticGpuBuffer<ShaderTypes::MeshProperties>;
+
+struct ModelIndexTag {};
+struct NodeIndexTag {};
+using ModelIndex = SemanticInteger<ModelIndexTag>;
+using NodeIndex = SemanticInteger<NodeIndexTag>;
 
 struct SceneNode
 {
     Mat44f Transform;
-    NodeIndex ParentIndex{ kInvalidNodeIndex };
+    NodeIndex ParentIndex{ NodeIndex::INVALID };
     uint32_t ChildCount{ 0 };
 };
 
@@ -21,7 +26,7 @@ struct NodeDef
 {
     std::string Name;
     Mat44f Transform;
-    NodeIndex ParentIndex{ kInvalidNodeIndex };
+    NodeIndex ParentIndex{ NodeIndex::INVALID };
     uint32_t ChildCount{ 0 };
 };
 
@@ -29,14 +34,14 @@ struct NodeDef2
 {
     std::string Name;
     Mat44f Transform;
-    ModelIndex ModelIndex{ kInvalidModelIndex };
+    ModelIndex ModelIndex{ ModelIndex::INVALID };
     std::vector<NodeDef2> Children;
 };
 
 struct ModelInstance
 {
-    ModelIndex ModelIndex{ kInvalidModelIndex };
-    NodeIndex NodeIndex{ kInvalidNodeIndex };
+    ModelIndex ModelIndex{ ModelIndex::INVALID };
+    NodeIndex NodeIndex{ NodeIndex::INVALID };
 };
 
 struct SceneDef

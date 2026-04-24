@@ -10,6 +10,9 @@
 #include <vector>
 #include <unordered_map>
 
+struct MaterialIndexTag {};
+using MaterialIndex = SemanticInteger<MaterialIndexTag>;
+
 struct Mesh
 {
     uint32_t IndexCount;
@@ -53,8 +56,8 @@ struct PropKitDef
 };
 
 // Strongly-typed GPU storage buffer classes.
-using MeshPropertiesBuffer = TypedGpuBuffer<ShaderTypes::MeshProperties>;
-using MaterialConstantsBuffer = TypedGpuBuffer<ShaderTypes::MaterialConstants>;
+using MeshPropertiesBuffer = SemanticGpuBuffer<ShaderTypes::MeshProperties>;
+using MaterialConstantsBuffer = SemanticGpuBuffer<ShaderTypes::MaterialConstants>;
 
 class PropKit
 {

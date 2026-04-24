@@ -80,10 +80,10 @@ private:
 };
 
 template<typename T>
-class TypedGpuBuffer : public BasicGpuBuffer
+class SemanticGpuBuffer : public BasicGpuBuffer
 {
-    static_assert(!std::is_reference_v<T>, "TypedGpuBuffer cannot be instantiated with reference types");
-    static_assert(!std::is_pointer_v<T>, "TypedGpuBuffer cannot be instantiated with pointer types");
+    static_assert(!std::is_reference_v<T>, "SemanticGpuBuffer cannot be instantiated with reference types");
+    static_assert(!std::is_pointer_v<T>, "SemanticGpuBuffer cannot be instantiated with pointer types");
 public:
 
     using BasicGpuBuffer::BasicGpuBuffer;
@@ -99,20 +99,20 @@ public:
 private:
     friend class WebgpuHelper;
 
-    explicit TypedGpuBuffer(wgpu::Buffer buffer)
+    explicit SemanticGpuBuffer(wgpu::Buffer buffer)
         : BasicGpuBuffer(buffer)
     {
     }
 };
 
-using VertexBuffer = TypedGpuBuffer<Vertex>;
-using IndexBuffer = TypedGpuBuffer<VertexIndex>;
-using IndirectBuffer = TypedGpuBuffer<ShaderTypes::DrawIndirectParams>;
+using VertexBuffer = SemanticGpuBuffer<Vertex>;
+using IndexBuffer = SemanticGpuBuffer<VertexIndex>;
+using IndirectBuffer = SemanticGpuBuffer<ShaderTypes::DrawIndirectParams>;
 
 template <typename T>
 struct is_gpu_buffer_type : std::false_type {};
 template <typename Tag>
-struct is_gpu_buffer_type<TypedGpuBuffer<Tag>> : std::true_type {};
+struct is_gpu_buffer_type<SemanticGpuBuffer<Tag>> : std::true_type {};
 template <typename T>
 inline constexpr bool is_gpu_buffer_type_v = is_gpu_buffer_type<T>::value;
 

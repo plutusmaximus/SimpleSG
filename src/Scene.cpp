@@ -25,11 +25,11 @@ struct TransformPipelineResources
 static Result<>
 ValidateHierarchy(std::span<const NodeDef> nodeDefs, size_t& index)
 {
-    const size_t curIndex = index;
-    const NodeDef& curNode = nodeDefs[curIndex];
+    const NodeIndex curIndex{index};
+    const NodeDef& curNode = nodeDefs[index];
     const uint32_t childCount = curNode.ChildCount;
 
-    MLG_CHECKV(!curNode.Name.empty(), "Node {} has an empty name", curIndex);
+    MLG_CHECKV(!curNode.Name.empty(), "Node {} has an empty name", curIndex.Value());
 
     const size_t endIndex = index + 1 + childCount;
     MLG_ASSERT(endIndex <= nodeDefs.size());
@@ -48,7 +48,7 @@ ValidateHierarchy(std::span<const NodeDef> nodeDefs, size_t& index)
             // Expect this node to be a sibling of the current node, i.e. have the same parent index.
             MLG_CHECKV(nextNode.ParentIndex == curNode.ParentIndex,
                 "Node {} has invalid parent index {}, expected {}",
-                nextNode.Name, nextNode.ParentIndex, curNode.ParentIndex);
+                nextNode.Name, nextNode.ParentIndex.Value(), curNode.ParentIndex.Value());
         }
     }
 
@@ -67,13 +67,13 @@ static Result<> Validate(const SceneDef& sceneDef, const PropKit& propKit)
 
     for(const auto& modelInstance : sceneDef.ModelInstances)
     {
-        MLG_CHECKV(modelInstance.NodeIndex < sceneDef.NodeDefs.size(),
+        MLG_CHECKV(modelInstance.NodeIndex.Value() < sceneDef.NodeDefs.size(),
             "Model instance has invalid node index {}, node count {}",
-            modelInstance.NodeIndex, sceneDef.NodeDefs.size());
+            modelInstance.NodeIndex.Value(), sceneDef.NodeDefs.size());
 
-        MLG_CHECKV(modelInstance.ModelIndex < models.size(),
+        MLG_CHECKV(modelInstance.ModelIndex.Value() < models.size(),
             "Model instance has invalid model index {}, model count {}",
-            modelInstance.ModelIndex, models.size());
+            modelInstance.ModelIndex.Value(), models.size());
     }
 
     return Result<>::Ok;
@@ -108,11 +108,11 @@ static inline size_t CountMeshes(std::span<const Model> models, std::span<const 
     size_t meshCount = 0;
     for(const auto& modelInstance : modelInstances)
     {
-        MLG_ASSERT(modelInstance.ModelIndex < models.size(),
+        MLG_ASSERT(modelInstance.ModelIndex.Value() < models.size(),
             "Model instance has invalid model index: {} (model count: {})",
-            modelInstance.ModelIndex, models.size());
+            modelInstance.ModelIndex.Value(), models.size());
 
-        meshCount += models[modelInstance.ModelIndex].MeshCount;
+        meshCount += models[modelInstance.ModelIndex.Value()].MeshCount;
     }
     return meshCount;
 }
@@ -139,11 +139,11 @@ BuildDrawIndirectBuffer(std::span<const Mesh> meshes,
 
     for(const auto& modelInstance : modelInstances)
     {
-        MLG_ASSERT(modelInstance.ModelIndex < models.size(),
+        MLG_ASSERT(modelInstance.ModelIndex.Value() < models.size(),
             "Model instance has invalid model index: {} (model count: {})",
-            modelInstance.ModelIndex, models.size());
+            modelInstance.ModelIndex.Value(), models.size());
 
-        const Model& model = models[modelInstance.ModelIndex];
+        const Model& model = models[modelInstance.ModelIndex.Value()];
 
         MLG_ASSERT(model.FirstMesh + model.MeshCount <= meshes.size(),
             "Model has invalid mesh range: first mesh {}, mesh count {} (total meshes: {})",
@@ -193,11 +193,11 @@ BuildMeshPropertiesBuffer(std::span<const Mesh> meshes,
 
     for(const auto& modelInstance : modelInstances)
     {
-        MLG_ASSERT(modelInstance.ModelIndex < models.size(),
+        MLG_ASSERT(modelInstance.ModelIndex.Value() < models.size(),
             "Model instance has invalid model index: {} (model count: {})",
-            modelInstance.ModelIndex, models.size());
+            modelInstance.ModelIndex.Value(), models.size());
 
-        const Model& model = models[modelInstance.ModelIndex];
+        const Model& model = models[modelInstance.ModelIndex.Value()];
 
         MLG_ASSERT(model.FirstMesh + model.MeshCount <= meshes.size(),
             "Model has invalid mesh range: first mesh {}, mesh count {} (total meshes: {})",
@@ -213,8 +213,8 @@ BuildMeshPropertiesBuffer(std::span<const Mesh> meshes,
                 {
                     .Center = boundingSphere.GetCenter(),
                     .Radius = boundingSphere.GetRadius(),
-                    .NodeIndex = modelInstance.NodeIndex,
-                    .MaterialIndex = meshSrc->MaterialIndex,
+                    .NodeIndex = modelInstance.NodeIndex.Value(),
+                    .MaterialIndex = meshSrc->MaterialIndex.Value(),
                 };
 
             ++meshCount;

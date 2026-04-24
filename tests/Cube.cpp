@@ -344,44 +344,48 @@ static Result<> CreateShapeModel(PropKitDef& outPropKitDef, SceneDef& outSceneDe
     const auto& [vertices, indices] = geometry;
 
     MaterialDef mtlDef //
-        { .BaseTextureUri = "images/Ant.png",
-            .Color = { 1, 0, 0 },
-            .Metalness = 0,
-            .Roughness = 0 };
+        {
+            .BaseTextureUri{ "images/Ant.png" },
+            .Color{ 1, 0, 0 },
+            .Metalness{ 0 },
+            .Roughness{ 0 },
+        };
 
     MeshDef meshDef //
-        { .Vertices = { vertices.begin(), vertices.end() },
-            .Indices = { indices.begin(), indices.end() },
-            .MaterialDef = mtlDef };
+        {
+            .Vertices{ vertices.begin(), vertices.end() },
+            .Indices{ indices.begin(), indices.end() },
+            .MaterialDef{ mtlDef },
+        };
 
     ModelDef modelDef //
         {
-            .Name = "Shape",
-            .MeshDefs = { std::move(meshDef) },
+            .Name{ "Shape" },
+            .MeshDefs{ std::move(meshDef) },
         };
 
     NodeDef nodeDef //
         {
-            .Name = "ShapeNode",
-            .Transform = Mat44f(1),
-            .ParentIndex = kInvalidNodeIndex,
+            .Name{ "ShapeNode" },
+            .Transform{ 1 },
+            .ParentIndex{ NodeIndex::INVALID },
         };
 
     ModelInstance modelInstance //
         {
-            .ModelIndex = 0,
-            .NodeIndex = 0,
+            .ModelIndex{ 0 },
+            .NodeIndex{ 0 },
         };
 
     PropKitDef propKitDef //
         {
-            .ModelDefs = { std::move(modelDef) },
+            .ModelDefs{ std::move(modelDef) },
         };
 
     SceneDef sceneDef //
         {
-            .NodeDefs = { std::move(nodeDef) },
-            .ModelInstances = { std::move(modelInstance) },
+            .NodeDefs{ std::move(nodeDef) },
+            .ModelInstances{ std::move(modelInstance) },
         };
 
     outPropKitDef = std::move(propKitDef);

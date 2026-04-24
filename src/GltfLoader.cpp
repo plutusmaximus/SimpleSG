@@ -439,7 +439,7 @@ CollectModels(const std::span<CgltfMeshData> gltfMeshes,
             .MeshDefs = std::move(meshDefs),
         };
 
-        modelIndices[gltfMesh.Mesh] = narrow_cast<ModelIndex>(models.size());
+        modelIndices[gltfMesh.Mesh] = ModelIndex(models.size());
         models.emplace_back(std::move(model));
     }
 
@@ -466,7 +466,7 @@ CollectNodes(cgltf_node** const childNodes,
     const cgltf_size nodeCount,
     const std::span<ModelDef>& models,
     const std::map<const cgltf_mesh*, ModelIndex>& modelIndices,
-    const uint32_t parentIndex,
+    const NodeIndex parentIndex,
     std::vector<NodeDef>& nodeDefs,
     std::vector<ModelInstance>& modelInstances)
 {
@@ -478,11 +478,12 @@ CollectNodes(cgltf_node** const childNodes,
 
         MLG_LOG_SCOPE("node {}", srcNode->name ? srcNode->name : "<unnamed>");
 
-        const uint32_t nodeIndex = narrow_cast<uint32_t>(nodeDefs.size());
+        const size_t origNodeCount = nodeDefs.size();
+        const NodeIndex nodeIndex = NodeIndex(origNodeCount);
 
         NodeDef nodeDef //
         {
-            .Name = MakeName(srcNode->name, "Node", nodeIndex),
+            .Name = MakeName(srcNode->name, "Node", nodeIndex.Value()),
             .ParentIndex = parentIndex
         };
 
@@ -526,14 +527,14 @@ CollectNodes(cgltf_node** const childNodes,
         if(!countResult)
         {
             // Something went wrong. Erase the node we added.
-            nodeDefs.resize(nodeIndex);
+            nodeDefs.resize(origNodeCount);
             continue;
         }
         else if(*countResult == 0 && !srcNode->mesh)
         {
             // No child nodes were added and there's no mesh
             // at this node.  Erase the node we added.
-            nodeDefs.resize(nodeIndex);
+            nodeDefs.resize(origNodeCount);
 
             // Node has no mesh and no descendents with meshes, skip it
             // This could be a procedurally generated mesh, e.g. the leaves of a tree.
@@ -576,9 +577,9 @@ CollectNodes(cgltf_node** const childNodes,
         }
         else
         {
-            if(kInvalidNodeIndex != parentIndex)
+            if(NodeIndex::INVALID != parentIndex)
             {
-                ++nodeDefs[parentIndex].ChildCount;
+                ++nodeDefs[parentIndex.Value()].ChildCount;
             }
 
             if(!srcNode->mesh)
@@ -599,7 +600,7 @@ CollectNodes(cgltf_node** const childNodes,
                 const ModelInstance modelInstance //
                     {
                         .ModelIndex = modelIndex,
-                        .NodeIndex = narrow_cast<NodeIndex>(nodeIndex),
+                        .NodeIndex = nodeIndex,
                     };
 
                 modelInstances.push_back(modelInstance);
@@ -659,16 +660,16 @@ GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit, SceneDe
         gltfData->scenes[0].nodes_count,
         modelDefs,
         modelIndices,
-        kInvalidNodeIndex,
+        NodeIndex::INVALID,
         nodeDefs,
         modelInstances));
 
     // Convert local transforms to world space.
     for(auto& nodeDef : nodeDefs)
     {
-        if(nodeDef.ParentIndex != kInvalidNodeIndex)
+        if(nodeDef.ParentIndex != NodeIndex::INVALID)
         {
-            const NodeDef& parent = nodeDefs[nodeDef.ParentIndex];
+            const NodeDef& parent = nodeDefs[nodeDef.ParentIndex.Value()];
             nodeDef.Transform = parent.Transform * nodeDef.Transform;
         }
     }

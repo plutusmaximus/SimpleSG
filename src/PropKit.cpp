@@ -415,7 +415,7 @@ PropKit::Create(const std::filesystem::path& rootPath,
     size_t vertexCount = 0, indexCount = 0, meshCount = 0;
     uint32_t materialIndex = 0;
 
-    std::map<MaterialDef, uint32_t, std::less<MaterialDef>> uniqueMaterialMap;
+    std::map<MaterialDef, MaterialIndex, std::less<MaterialDef>> uniqueMaterialMap;
     for(const auto& modelDef : propKitDef.ModelDefs)
     {
         for(const auto& mesh : modelDef.MeshDefs)
@@ -423,7 +423,7 @@ PropKit::Create(const std::filesystem::path& rootPath,
             const MaterialDef& materialDef = mesh.MaterialDef;
             if(!uniqueMaterialMap.contains(materialDef))
             {
-                uniqueMaterialMap[materialDef] = materialIndex++;
+                uniqueMaterialMap[materialDef] = MaterialIndex(materialIndex++);
             }
 
             vertexCount += mesh.Vertices.size();
@@ -436,7 +436,7 @@ PropKit::Create(const std::filesystem::path& rootPath,
     uniqueMaterials.resize(uniqueMaterialMap.size());
     for(const auto& [materialDef, index] : uniqueMaterialMap)
     {
-        uniqueMaterials[index] = materialDef;
+        uniqueMaterials[index.Value()] = materialDef;
     }
 
     std::vector<Vertex> vertices;
