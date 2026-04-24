@@ -1,14 +1,14 @@
 #pragma once
 
-#include "shaders/ShaderTypes.h"
+#include "shaders/ShaderInterop.h"
 #include "WebgpuHelper.h"
 
 #include <span>
 #include <vector>
 
 // Strongly-typed GPU storage buffer classes.
-using TransformBuffer = SemanticGpuBuffer<ShaderTypes::MeshTransform>;
-using MeshPropertiesBuffer = SemanticGpuBuffer<ShaderTypes::MeshProperties>;
+using TransformBuffer = SemanticGpuBuffer<ShaderInterop::MeshTransform>;
+using MeshPropertiesBuffer = SemanticGpuBuffer<ShaderInterop::MeshProperties>;
 
 struct ModelIndexTag {};
 struct NodeIndexTag {};
@@ -67,7 +67,7 @@ public:
         return 0;
     }
 
-    IndirectBuffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
+    DrawIndirectBuffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
 
     wgpu::BindGroup GetColorPipelineBindGroup0() const { return m_ColorPipelineBindGroup0; }
 
@@ -77,7 +77,7 @@ private:
 
     Scene(const PropKit* propKit,
         TransformBuffer transformBuffer,
-        IndirectBuffer drawIndirectBuffer,
+        DrawIndirectBuffer drawIndirectBuffer,
         MeshPropertiesBuffer meshPropertiesBuffer,
         wgpu::BindGroup colorPipelineBindGroup0,
         wgpu::BindGroup transformPipelineBindGroup0,
@@ -94,7 +94,7 @@ private:
 
     const PropKit* m_PropKit;
     TransformBuffer m_TransformBuffer;
-    IndirectBuffer m_DrawIndirectBuffer;
+    DrawIndirectBuffer m_DrawIndirectBuffer;
     MeshPropertiesBuffer m_MeshPropertiesBuffer;
     wgpu::BindGroup m_ColorPipelineBindGroup0;
     wgpu::BindGroup m_TransformPipelineBindGroup0;

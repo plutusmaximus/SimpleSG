@@ -351,7 +351,7 @@ BuildIndexBuffer(std::span<const VertexIndex> indices, wgpu::CommandEncoder enco
 static Result<MaterialConstantsBuffer>
 BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs, wgpu::CommandEncoder encoder)
 {
-    const size_t sizeofBuffer = materialDefs.size() * sizeof(ShaderTypes::MaterialConstants);
+    const size_t sizeofBuffer = materialDefs.size() * sizeof(ShaderInterop::MaterialConstants);
 
     auto buffer = WebgpuHelper::CreateSemanticStorageBuffer<MaterialConstantsBuffer>(sizeofBuffer,
         "MaterialConstantsBuffer");
@@ -360,11 +360,11 @@ BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs, wgpu::Co
     auto mapped = buffer->Map();
     MLG_CHECK(mapped);
 
-    ShaderTypes::MaterialConstants* dst = *mapped;
+    ShaderInterop::MaterialConstants* dst = *mapped;
 
     for(const auto& mtl : materialDefs)
     {
-        ::new(dst++) ShaderTypes::MaterialConstants //
+        ::new(dst++) ShaderInterop::MaterialConstants //
         {
             .Color = mtl.Color,
             .Metalness = mtl.Metalness,

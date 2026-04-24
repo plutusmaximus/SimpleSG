@@ -69,7 +69,7 @@ BuildTransformBuffer(std::span<const SceneNodeDef> nodeDefs, wgpu::CommandEncode
         MLG_CHECK(CollectTransforms(nodeDef, transforms));
     }
 
-    const size_t sizeofBuffer = transforms.size() * sizeof(ShaderTypes::MeshTransform);
+    const size_t sizeofBuffer = transforms.size() * sizeof(ShaderInterop::MeshTransform);
 
     auto buffer =
         WebgpuHelper::CreateSemanticStorageBuffer<TransformBuffer>(sizeofBuffer, "TransformBuffer");
@@ -99,7 +99,7 @@ static inline size_t CountMeshes(std::span<const Model> models, std::span<const 
     return meshCount;
 }
 
-static Result<IndirectBuffer>
+static Result<DrawIndirectBuffer>
 BuildDrawIndirectBuffer(std::span<const Mesh> meshes,
     std::span<const Model> models,
     std::span<const ModelInstance> modelInstances,
@@ -107,15 +107,17 @@ BuildDrawIndirectBuffer(std::span<const Mesh> meshes,
 {
     const size_t meshInstanceCount = CountMeshes(models, modelInstances);
     const size_t sizeofDrawIndirectBuffer =
-        meshInstanceCount * sizeof(ShaderTypes::DrawIndirectParams);
+        meshInstanceCount * sizeof(ShaderInterop::DrawIndirectParams);
 
-    auto buffer = WebgpuHelper::CreateIndirectBuffer(sizeofDrawIndirectBuffer, "DrawIndirectBuffer");
+    auto buffer = WebgpuHelper::CreateSemanticIndirectBuffer<DrawIndirectBuffer>(
+        sizeofDrawIndirectBuffer,
+        "DrawIndirectBuffer");
     MLG_CHECK(buffer);
 
     auto mapped = buffer->Map();
     MLG_CHECK(mapped);
 
-    ShaderTypes::DrawIndirectParams* drawParams = *mapped;
+    ShaderInterop::DrawIndirectParams* drawParams = *mapped;
 
     uint32_t meshCount = 0;
 
@@ -161,7 +163,7 @@ BuildMeshPropertiesBuffer(std::span<const Mesh> meshes,
     wgpu::CommandEncoder encoder)
 {
     const size_t meshInstanceCount = CountMeshes(models, modelInstances);
-    const size_t sizeofBuffer = meshInstanceCount * sizeof(ShaderTypes::MeshProperties);
+    const size_t sizeofBuffer = meshInstanceCount * sizeof(ShaderInterop::MeshProperties);
 
     auto buffer = WebgpuHelper::CreateSemanticStorageBuffer<MeshPropertiesBuffer>(sizeofBuffer, "MeshPropertiesBuffer");
     MLG_CHECK(buffer);
@@ -169,7 +171,7 @@ BuildMeshPropertiesBuffer(std::span<const Mesh> meshes,
     auto mapped = buffer->Map();
     MLG_CHECK(mapped);
 
-    ShaderTypes::MeshProperties* meshPropertiesDst = *mapped;
+    ShaderInterop::MeshProperties* meshPropertiesDst = *mapped;
 
     uint32_t meshCount = 0;
 

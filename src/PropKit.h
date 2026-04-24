@@ -4,6 +4,7 @@
 #include "Result.h"
 #include "TextureCache.h"
 #include "VecMath.h"
+#include "ShaderInterop.h"
 
 #include <filesystem>
 #include <span>
@@ -56,8 +57,8 @@ struct PropKitDef
 };
 
 // Strongly-typed GPU storage buffer classes.
-using MeshPropertiesBuffer = SemanticGpuBuffer<ShaderTypes::MeshProperties>;
-using MaterialConstantsBuffer = SemanticGpuBuffer<ShaderTypes::MaterialConstants>;
+using MeshPropertiesBuffer = SemanticGpuBuffer<ShaderInterop::MeshProperties>;
+using MaterialConstantsBuffer = SemanticGpuBuffer<ShaderInterop::MaterialConstants>;
 
 class PropKit
 {

@@ -195,7 +195,7 @@ set(SSG_HEADERS
   src/Result.h
   src/Scene.h
   src/scope_exit.h
-  src/shaders/ShaderTypes.h
+  src/shaders/ShaderInterop.h
   src/Shapes.h
   src/Stopwatch.h
   src/TextureCache.h

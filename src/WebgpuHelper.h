@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Result.h"
-#include "shaders/ShaderTypes.h"
+#include "shaders/ShaderInterop.h"
 #include "VecMath.h"
 #include "Vertex.h"
 
@@ -107,7 +107,7 @@ private:
 
 using VertexBuffer = SemanticGpuBuffer<Vertex>;
 using IndexBuffer = SemanticGpuBuffer<VertexIndex>;
-using IndirectBuffer = SemanticGpuBuffer<ShaderTypes::DrawIndirectParams>;
+using DrawIndirectBuffer = SemanticGpuBuffer<ShaderInterop::DrawIndirectParams>;
 
 template <typename T>
 struct is_gpu_buffer_type : std::false_type {};
@@ -141,8 +141,6 @@ public:
 
     static Result<IndexBuffer> CreateIndexBuffer(const size_t size, const std::string& name);
 
-    static Result<IndirectBuffer> CreateIndirectBuffer(const size_t size, const std::string& name);
-
     /// @brief Creates a semantically-typed storage buffer.
     template<typename T>
     requires is_gpu_buffer_type_v<T>
@@ -152,7 +150,6 @@ public:
         // Use the specific helper functions for vertex/index/uniform/indirect buffers.
         static_assert(!std::is_same_v<T, VertexBuffer>);
         static_assert(!std::is_same_v<T, IndexBuffer>);
-        static_assert(!std::is_same_v<T, IndirectBuffer>);
 
         auto bufferResult = CreateStorageBuffer(size, name);
         MLG_CHECK(bufferResult);
@@ -169,9 +166,24 @@ public:
         // Use the specific helper functions for vertex/index/uniform/indirect buffers.
         static_assert(!std::is_same_v<T, VertexBuffer>);
         static_assert(!std::is_same_v<T, IndexBuffer>);
-        static_assert(!std::is_same_v<T, IndirectBuffer>);
 
         auto bufferResult = CreateUniformBuffer(size, name);
+        MLG_CHECK(bufferResult);
+
+        return T(*bufferResult);
+    }
+
+    /// @brief Creates a semantically-typed indirect buffer.
+    template<typename T>
+    requires is_gpu_buffer_type_v<T>
+    static Result<T> CreateSemanticIndirectBuffer(const size_t size, const std::string& name)
+    {
+        // Don't try to create "special" buffers with this helper.
+        // Use the specific helper functions for vertex/index/uniform/indirect buffers.
+        static_assert(!std::is_same_v<T, VertexBuffer>);
+        static_assert(!std::is_same_v<T, IndexBuffer>);
+
+        auto bufferResult = CreateIndirectBuffer(size, name);
         MLG_CHECK(bufferResult);
 
         return T(*bufferResult);
@@ -199,6 +211,7 @@ public:
 
 private:
 
+    static Result<wgpu::Buffer> CreateIndirectBuffer(const size_t size, const std::string& name);
     static Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string& name);
     static Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string& name);
 };

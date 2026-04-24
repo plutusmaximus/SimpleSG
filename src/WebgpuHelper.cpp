@@ -563,37 +563,6 @@ WebgpuHelper::CreateIndexBuffer(const size_t size, const std::string& name)
             name.c_str()));
 }
 
-Result<IndirectBuffer>
-WebgpuHelper::CreateIndirectBuffer(const size_t size, const std::string& name)
-{
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateIndirectBuffer called before Startup");
-
-    return IndirectBuffer(
-        CreateGpuBufferUnmapped(wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
-            size,
-            name.c_str()));
-}
-
-Result<wgpu::Buffer>
-WebgpuHelper::CreateUniformBuffer(const size_t size, const std::string& name)
-{
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateUniformBuffer called before Startup");
-
-    return CreateGpuBufferUnmapped(wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
-        size,
-        name.c_str());
-}
-
-Result<wgpu::Buffer>
-WebgpuHelper::CreateStorageBuffer(const size_t size, const std::string& name)
-{
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateStorageBuffer called before Startup");
-
-    return CreateGpuBufferUnmapped(wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
-            size,
-            name.c_str());
-}
-
 Result<const std::array<wgpu::BindGroupLayout, 3>>
 WebgpuHelper::GetColorPipelineLayouts()
 {
@@ -612,7 +581,7 @@ WebgpuHelper::GetColorPipelineLayouts()
                 {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
                     .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderTypes::MeshTransform),
+                    .minBindingSize = sizeof(ShaderInterop::MeshTransform),
                 },
             },
             // Mesh properties.
@@ -623,7 +592,7 @@ WebgpuHelper::GetColorPipelineLayouts()
                 {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
                     .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderTypes::MeshProperties),
+                    .minBindingSize = sizeof(ShaderInterop::MeshProperties),
                 },
             },
             // Material constants buffer.
@@ -634,7 +603,7 @@ WebgpuHelper::GetColorPipelineLayouts()
                 {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
                     .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderTypes::MaterialConstants),
+                    .minBindingSize = sizeof(ShaderInterop::MaterialConstants),
                 },
             },
         };
@@ -674,7 +643,7 @@ WebgpuHelper::GetColorPipelineLayouts()
                 {
                     .type = wgpu::BufferBindingType::Uniform,
                     .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderTypes::CameraParams),
+                    .minBindingSize = sizeof(ShaderInterop::CameraParams),
                 },
             },
         };
@@ -790,7 +759,7 @@ WebgpuHelper::GetTransformPipelineLayouts()
                 {
                     .type = wgpu::BufferBindingType::Uniform,
                     .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderTypes::CameraParams),
+                    .minBindingSize = sizeof(ShaderInterop::CameraParams),
                 },
             },
         };
@@ -872,6 +841,38 @@ WebgpuHelper::GetSwapChainFormat()
     GetSurface().GetCurrentTexture(&surfaceTexture);
     MLG_ASSERT(surfaceTexture.texture, "Failed to acquire current surface texture");
     return surfaceTexture.texture.GetFormat();
+}
+
+// private:
+
+Result<wgpu::Buffer>
+WebgpuHelper::CreateIndirectBuffer(const size_t size, const std::string& name)
+{
+    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateIndirectBuffer called before Startup");
+
+    return CreateGpuBufferUnmapped(wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
+            size,
+            name.c_str());
+}
+
+Result<wgpu::Buffer>
+WebgpuHelper::CreateStorageBuffer(const size_t size, const std::string& name)
+{
+    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateStorageBuffer called before Startup");
+
+    return CreateGpuBufferUnmapped(wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
+            size,
+            name.c_str());
+}
+
+Result<wgpu::Buffer>
+WebgpuHelper::CreateUniformBuffer(const size_t size, const std::string& name)
+{
+    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateUniformBuffer called before Startup");
+
+    return CreateGpuBufferUnmapped(wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
+        size,
+        name.c_str());
 }
 
 #include <dawn/native/DawnNative.h> // provides dawn::native::GetTogglesUsed

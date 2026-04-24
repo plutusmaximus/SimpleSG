@@ -12,7 +12,7 @@
 #include "Result.h"
 #include "Scene.h"
 #include "scope_exit.h"
-#include "ShaderTypes.h"
+#include "ShaderInterop.h"
 #include "WebgpuHelper.h"
 
 #include <cstdio>
@@ -173,7 +173,7 @@ Renderer::Render(const Mat44f& camera,
                 auto scopedTimer = drawIndexedTimer.StartScoped();
 
                 renderPass.DrawIndexedIndirect(drawIndirectBuffer.GetGpuBuffer(), indirectOffset);
-                indirectOffset += sizeof(ShaderTypes::DrawIndirectParams);
+                indirectOffset += sizeof(ShaderInterop::DrawIndirectParams);
             }
         }
     }
@@ -754,7 +754,7 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
         m_TransformBuffers.ClipSpaceBuf = *clipSpaceBuffer;
 
         auto cameraParamsBuf = WebgpuHelper::CreateSemanticUniformBuffer<CameraParamsBuffer>(
-            sizeof(ShaderTypes::CameraParams),
+            sizeof(ShaderInterop::CameraParams),
             "CameraParamsBuffer");
         MLG_CHECK(cameraParamsBuf);
         m_TransformBuffers.CameraParamsBuf = *cameraParamsBuf;
@@ -833,7 +833,7 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
     // Projection transform
     const Mat44f viewProj = projMat.Mul(viewXform);
 
-    const ShaderTypes::CameraParams cameraParams //
+    const ShaderInterop::CameraParams cameraParams //
         {
             .View = viewXform,
             .Projection = projMat,
@@ -844,7 +844,7 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
         m_TransformBuffers.CameraParamsBuf.GetGpuBuffer(),
         0,
         &cameraParams,
-        sizeof(ShaderTypes::CameraParams));
+        sizeof(ShaderInterop::CameraParams));
 
     wgpu::ComputePassEncoder pass = cmdEncoder.BeginComputePass();
     pass.SetPipeline(m_TransformPipeline);

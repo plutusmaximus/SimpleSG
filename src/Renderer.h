@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Result.h"
-#include "shaders/ShaderTypes.h"
+#include "shaders/ShaderInterop.h"
 
 #include "WebgpuHelper.h"
 
@@ -90,8 +90,8 @@ private:
     // Pipeline to present the color target to the swap chain.
     PresentPipeline m_PresentPipeline;
 
-    using ClipSpaceBuffer = SemanticGpuBuffer<ShaderTypes::ClipSpaceTransform>;
-    using CameraParamsBuffer = SemanticGpuBuffer<ShaderTypes::CameraParams>;
+    using ClipSpaceBuffer = SemanticGpuBuffer<ShaderInterop::ClipSpaceTransform>;
+    using CameraParamsBuffer = SemanticGpuBuffer<ShaderInterop::CameraParams>;
 
     struct TransformBuffers
     {

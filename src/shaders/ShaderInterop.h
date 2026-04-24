@@ -5,10 +5,10 @@
 #include "VecMath.h"
 
 
-// These types mirror the corresponding types defined in shaders.
-namespace ShaderTypes
+namespace ShaderInterop
 {
 
+// These types mirror the corresponding types defined in shaders.
 class DrawIndirectParams
 {
 public:
@@ -66,4 +66,4 @@ public:
     Mat44f Projection;
     Mat44f ViewProj;
 };
-} // namespace ShaderTypes
+} // namespace ShaderInterop
