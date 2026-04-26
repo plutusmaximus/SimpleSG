@@ -1,5 +1,6 @@
 #pragma once
 
+#include "PropKit.h"
 #include "shaders/ShaderInterop.h"
 #include "WebgpuHelper.h"
 
@@ -10,26 +11,6 @@
 using TransformBuffer = SemanticGpuBuffer<ShaderInterop::MeshTransform>;
 using MeshPropertiesBuffer = SemanticGpuBuffer<ShaderInterop::MeshProperties>;
 
-struct ModelIndexTag {};
-struct NodeIndexTag {};
-using ModelIndex = SemanticInteger<ModelIndexTag>;
-using NodeIndex = SemanticInteger<NodeIndexTag>;
-
-struct SceneNode
-{
-    Mat44f Transform;
-    NodeIndex ParentIndex{ NodeIndex::INVALID };
-    uint32_t ChildCount{ 0 };
-};
-
-struct SceneNodeDef
-{
-    std::string Name;
-    Mat44f Transform;
-    ModelIndex ModelIndex{ ModelIndex::INVALID };
-    std::vector<SceneNodeDef> Children;
-};
-
 struct ModelInstance
 {
     ModelIndex ModelIndex{ ModelIndex::INVALID };
@@ -38,7 +19,7 @@ struct ModelInstance
 
 struct SceneDef
 {
-    std::vector<SceneNodeDef> NodeDefs;
+    std::vector<AssemblyNodeDef> NodeDefs;
 };
 
 class PropKit;

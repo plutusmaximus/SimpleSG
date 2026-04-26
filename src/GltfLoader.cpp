@@ -467,7 +467,7 @@ CollectNodes(cgltf_node** const srcNodes,
     const std::span<ModelDef>& models,
     const std::map<const cgltf_mesh*, ModelIndex>& modelIndices,
     const Mat44f& parentTransform,
-    std::vector<SceneNodeDef>& nodeDefs)
+    std::vector<AssemblyNodeDef>& nodeDefs)
 {
     nodeDefs.clear();
     nodeDefs.reserve(srcNodeCount);
@@ -521,7 +521,7 @@ CollectNodes(cgltf_node** const srcNodes,
             modelIndex = modelIndices.at(srcNode->mesh);
         }
 
-        std::vector<SceneNodeDef> childNodes;
+        std::vector<AssemblyNodeDef> childNodes;
 
         MLG_CHECK(CollectNodes(srcNode->children,
             srcNode->children_count,
@@ -573,7 +573,7 @@ CollectNodes(cgltf_node** const srcNodes,
             continue;
         }
 
-        SceneNodeDef newNodeDef //
+        AssemblyNodeDef newNodeDef //
         {
             .Name = nodeName,
             .Transform = nodeTransform,
@@ -628,7 +628,7 @@ GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit, SceneDe
     std::map<const cgltf_mesh*, ModelIndex> modelIndices;
     MLG_CHECK(CollectModels(gltfMeshes, modelDefs, modelIndices));
 
-    std::vector<SceneNodeDef> nodeDefs;
+    std::vector<AssemblyNodeDef> nodeDefs;
 
     MLG_CHECK(CollectNodes(gltfData->scenes[0].nodes,
         gltfData->scenes[0].nodes_count,

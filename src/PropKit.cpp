@@ -452,7 +452,7 @@ PropKit::Create(const std::filesystem::path& rootPath,
         Model model //
             {
                 .Name = modelDef.Name,
-                .FirstMesh = narrow_cast<uint32_t>(meshes.size()),
+                .FirstMesh = MeshIndex(meshes.size()),
                 .MeshCount = narrow_cast<uint32_t>(modelDef.MeshDefs.size()),
             };
         models.emplace_back(std::move(model));

@@ -153,7 +153,7 @@ Renderer::Render(const Mat44f& camera,
 
         for(uint32_t i = 0; i < model.MeshCount; ++i)
         {
-            const Mesh& mesh = meshes[model.FirstMesh + i];
+            const Mesh& mesh = meshes[model.FirstMesh.Value() + i];
 
             const MaterialIndex materialIndex = mesh.MaterialIndex;
 

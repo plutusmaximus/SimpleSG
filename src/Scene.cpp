@@ -2,7 +2,6 @@
 
 #include "Scene.h"
 
-#include "PropKit.h"
 #include "Stopwatch.h"
 
 namespace
@@ -20,7 +19,7 @@ struct TransformPipelineResources
 };
 }
 
-static Result<> ValidateNode(const SceneNodeDef& nodeDef, const PropKit& propKit)
+static Result<> ValidateNode(const AssemblyNodeDef& nodeDef, const PropKit& propKit)
 {
     if(nodeDef.ModelIndex.IsValid())
     {
@@ -50,7 +49,7 @@ static Result<> Validate(const SceneDef& sceneDef, const PropKit& propKit)
 }
 
 static Result<>
-CollectTransforms(const SceneNodeDef& nodeDef, std::vector<Mat44f>& transforms)
+CollectTransforms(const AssemblyNodeDef& nodeDef, std::vector<Mat44f>& transforms)
 {
     transforms.push_back(nodeDef.Transform);
     for(const auto& childNodeDef : nodeDef.Children)
@@ -61,7 +60,7 @@ CollectTransforms(const SceneNodeDef& nodeDef, std::vector<Mat44f>& transforms)
 };
 
 static Result<TransformBuffer>
-BuildTransformBuffer(std::span<const SceneNodeDef> nodeDefs, wgpu::CommandEncoder encoder)
+BuildTransformBuffer(std::span<const AssemblyNodeDef> nodeDefs, wgpu::CommandEncoder encoder)
 {
     std::vector<Mat44f> transforms;
     for(const auto& nodeDef : nodeDefs)
@@ -129,11 +128,11 @@ BuildDrawIndirectBuffer(std::span<const Mesh> meshes,
 
         const Model& model = models[modelInstance.ModelIndex.Value()];
 
-        MLG_ASSERT(model.FirstMesh + model.MeshCount <= meshes.size(),
+        MLG_ASSERT(model.FirstMesh.Value() + model.MeshCount <= meshes.size(),
             "Model has invalid mesh range: first mesh {}, mesh count {} (total meshes: {})",
-            model.FirstMesh, model.MeshCount, meshes.size());
+            model.FirstMesh.Value(), model.MeshCount, meshes.size());
 
-        const Mesh* meshSrc = &meshes[model.FirstMesh];
+        const Mesh* meshSrc = &meshes[model.FirstMesh.Value()];
 
         for(uint32_t i = 0; i < model.MeshCount; ++i)
         {
@@ -183,11 +182,11 @@ BuildMeshPropertiesBuffer(std::span<const Mesh> meshes,
 
         const Model& model = models[modelInstance.ModelIndex.Value()];
 
-        MLG_ASSERT(model.FirstMesh + model.MeshCount <= meshes.size(),
+        MLG_ASSERT(model.FirstMesh.Value() + model.MeshCount <= meshes.size(),
             "Model has invalid mesh range: first mesh {}, mesh count {} (total meshes: {})",
-            model.FirstMesh, model.MeshCount, meshes.size());
+            model.FirstMesh.Value(), model.MeshCount, meshes.size());
 
-        const Mesh* meshSrc = &meshes[model.FirstMesh];
+        const Mesh* meshSrc = &meshes[model.FirstMesh.Value()];
 
         for(uint32_t i = 0; i < model.MeshCount; ++i)
         {
@@ -286,7 +285,7 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
 }
 
 static Result<>
-CollectModelInstances(const SceneNodeDef& nodeDef,
+CollectModelInstances(const AssemblyNodeDef& nodeDef,
     NodeIndex& nodeIndex,
     std::vector<ModelInstance>& outModelInstances)
 {

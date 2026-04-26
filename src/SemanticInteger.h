@@ -44,7 +44,6 @@ struct SemanticInteger
     constexpr bool IsValid() const { return m_Value != InvalidValue; }
     constexpr T Value() const { return m_Value; }
 
-    // comparisons
     friend constexpr bool operator==(SemanticInteger a, SemanticInteger b) = default;
     friend constexpr auto operator<=>(SemanticInteger a, SemanticInteger b) = default;
 

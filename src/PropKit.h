@@ -12,7 +12,13 @@
 #include <unordered_map>
 
 struct MaterialIndexTag {};
+struct MeshIndexTag {};
+struct ModelIndexTag {};
+struct NodeIndexTag {};
 using MaterialIndex = SemanticInteger<MaterialIndexTag>;
+using MeshIndex = SemanticInteger<MeshIndexTag>;
+using ModelIndex = SemanticInteger<ModelIndexTag>;
+using NodeIndex = SemanticInteger<NodeIndexTag>;
 
 struct Mesh
 {
@@ -26,8 +32,22 @@ struct Mesh
 struct Model
 {
     std::string Name;
-    uint32_t FirstMesh;
-    uint32_t MeshCount;
+    MeshIndex FirstMesh{ MeshIndex::INVALID };
+    uint32_t MeshCount{ 0 };
+};
+
+struct AssemblyNode
+{
+    Mat44f Transform;
+    ModelIndex ModelIndex{ ModelIndex::INVALID };
+    NodeIndex FirstChild{ NodeIndex::INVALID };
+    uint32_t ChildCount{ 0 };
+};
+
+struct Assembly
+{
+    std::string Name;
+    NodeIndex RootNode{ NodeIndex::INVALID };
 };
 
 struct MaterialDef
@@ -51,9 +71,23 @@ struct ModelDef
     std::vector<MeshDef> MeshDefs;
 };
 
+struct AssemblyNodeDef
+{
+    std::string Name;
+    Mat44f Transform;
+    ModelIndex ModelIndex{ ModelIndex::INVALID };
+    std::vector<AssemblyNodeDef> Children;
+};
+
+struct AssemblyDef
+{
+    AssemblyNodeDef RootNode;
+};
+
 struct PropKitDef
 {
     std::vector<ModelDef> ModelDefs;
+    std::vector<AssemblyDef> AssemblyDefs;
 };
 
 // Strongly-typed GPU storage buffer classes.
