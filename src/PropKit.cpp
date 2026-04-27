@@ -44,6 +44,50 @@ inline static T narrow_cast(U u) noexcept
     MLG_ASSERT(static_cast<U>(t) == u, "narrow_cast failed: {} -> {}", u, t);
     return t;
 }
+} // namespace
+
+static size_t CountNodes(const AssemblyNodeDef& nodeDef)
+{
+    size_t count = 1; // Count the current node.
+
+    for(const auto& childDef : nodeDef.Children)
+    {
+        count += CountNodes(childDef);
+    }
+
+    return count;
+}
+
+static Result<>
+CollectAssemblyNodes(const AssemblyNodeDef& nodeDef,
+    const NodeIndex parentIndex,
+    std::vector<AssemblyNode>& assemblyNodes,
+    const std::span<Model> models)
+{
+    MLG_CHECKV(nodeDef.ModelIndex == ModelIndex::INVALID ||
+                   (nodeDef.ModelIndex.Value() >= 0 && nodeDef.ModelIndex.Value() < models.size()),
+        "Invalid model index in assembly node definition: {}/model:{}",
+        nodeDef.Name,
+        nodeDef.ModelIndex.Value());
+
+    AssemblyNode curNode
+    {
+        .Transform = nodeDef.Transform,
+        .ModelIndex = nodeDef.ModelIndex,
+        .ParentIndex = parentIndex,
+        .ChildCount = narrow_cast<uint32_t>(nodeDef.Children.size()),
+    };
+
+    const NodeIndex curNodeIndex(assemblyNodes.size());
+
+    assemblyNodes.emplace_back(std::move(curNode));
+
+    for(const auto& childDef : nodeDef.Children)
+    {
+        MLG_CHECK(CollectAssemblyNodes(childDef, curNodeIndex, assemblyNodes, models));
+    }
+
+    return Result<>::Ok;
 }
 
 static Result<>
@@ -475,6 +519,30 @@ PropKit::Create(const std::filesystem::path& rootPath,
         }
     }
 
+    size_t nodeCount = 0;
+
+    for(const auto& assemblyNodeDef : propKitDef.AssemblyDefs)
+    {
+        nodeCount += CountNodes(assemblyNodeDef);
+    }
+
+    std::vector<AssemblyNode> assemblyNodes;
+    std::unordered_map<std::string, NodeIndex> assemblyNameToIndex;
+    assemblyNodes.reserve(nodeCount);
+    assemblyNameToIndex.reserve(propKitDef.AssemblyDefs.size());
+
+    for(const auto& assemblyNodeDef : propKitDef.AssemblyDefs)
+    {
+        MLG_CHECKV(!assemblyNameToIndex.contains(assemblyNodeDef.Name),
+            "Duplicate assembly name: {}",
+            assemblyNodeDef.Name);
+
+        const NodeIndex assemblyIndex(assemblyNodes.size());
+        MLG_CHECK(CollectAssemblyNodes(assemblyNodeDef, NodeIndex::INVALID, assemblyNodes, models));
+
+        assemblyNameToIndex[assemblyNodeDef.Name] = assemblyIndex;
+    }
+
     wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
 
     MLG_CHECK(FetchTextures(rootPath, uniqueMaterials, textureCache, encoder));
@@ -499,6 +567,8 @@ PropKit::Create(const std::filesystem::path& rootPath,
         std::move(*indexBuffer),
         std::move(meshes),
         std::move(models),
+        std::move(assemblyNodes),
+        std::move(assemblyNameToIndex),
         std::move(*materialConstantsBuffer),
         std::move(materialBindGroups));
 
@@ -513,12 +583,16 @@ PropKit::PropKit(VertexBuffer vertexBuffer,
     IndexBuffer indexBuffer,
     std::vector<Mesh>&& meshes,
     std::vector<Model>&& models,
+    std::vector<AssemblyNode>&& assemblyNodes,
+    std::unordered_map<std::string, NodeIndex>&& assemblyNameToIndex,
     MaterialConstantsBuffer materialConstantsBuffer,
     std::vector<wgpu::BindGroup>&& materialBindGroups)
     : m_IndexBuffer(indexBuffer),
       m_VertexBuffer(vertexBuffer),
       m_Meshes(std::move(meshes)),
       m_Models(std::move(models)),
+      m_AssemblyNodes(std::move(assemblyNodes)),
+      m_AssemblyNameToIndex(std::move(assemblyNameToIndex)),
       m_MaterialConstantsBuffer(materialConstantsBuffer),
       m_MaterialBindGroups(std::move(materialBindGroups))
 {
@@ -538,6 +612,6 @@ PropKit::PropKit(VertexBuffer vertexBuffer,
     {
         const Model& model = m_Models[i];
         MLG_ASSERT(!m_ModelNameToIndex.contains(model.Name), "Duplicate model name: {}", model.Name);
-        m_ModelNameToIndex[model.Name] = i;
+        m_ModelNameToIndex[model.Name] = ModelIndex(i);
     }
 }

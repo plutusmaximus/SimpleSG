@@ -73,14 +73,18 @@ Load(const std::filesystem::path& path,
     Scene& outScene)
 {
     PropKitDef propKitDef;
-    SceneDef sceneDef;
-    MLG_CHECK(GltfLoader::LoadPropKit(path.string(), propKitDef, sceneDef),
+    MLG_CHECK(GltfLoader::LoadPropKit(path.string(), propKitDef),
         "Failed to load prop kit: {}",
         path.string());
 
     MLG_CHECK(PropKit::Create(path.parent_path(), textureCache, propKitDef, outPropKit),
         "Failed to create PropKit for {}",
         path.string());
+
+    SceneDef sceneDef //
+        {
+            .NodeDefs{ propKitDef.AssemblyDefs },
+        };
 
     MLG_CHECK(Scene::Create(sceneDef, outPropKit, outScene),
         "Failed to create Scene for {}",

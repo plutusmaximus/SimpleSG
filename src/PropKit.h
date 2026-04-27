@@ -40,14 +40,8 @@ struct AssemblyNode
 {
     Mat44f Transform;
     ModelIndex ModelIndex{ ModelIndex::INVALID };
-    NodeIndex FirstChild{ NodeIndex::INVALID };
+    NodeIndex ParentIndex{ NodeIndex::INVALID };
     uint32_t ChildCount{ 0 };
-};
-
-struct Assembly
-{
-    std::string Name;
-    NodeIndex RootNode{ NodeIndex::INVALID };
 };
 
 struct MaterialDef
@@ -79,15 +73,10 @@ struct AssemblyNodeDef
     std::vector<AssemblyNodeDef> Children;
 };
 
-struct AssemblyDef
-{
-    AssemblyNodeDef RootNode;
-};
-
 struct PropKitDef
 {
     std::vector<ModelDef> ModelDefs;
-    std::vector<AssemblyDef> AssemblyDefs;
+    std::vector<AssemblyNodeDef> AssemblyDefs;
 };
 
 // Strongly-typed GPU storage buffer classes.
@@ -121,15 +110,27 @@ public:
 
     const std::span<const Model> GetModels() const { return m_Models; }
 
+    const std::span<const AssemblyNode> GetAssemblies() const { return m_AssemblyNodes; }
+
     VertexBuffer GetVertexBuffer() const { return m_VertexBuffer; }
 
     IndexBuffer GetIndexBuffer() const { return m_IndexBuffer; }
+
+    Result<const AssemblyNode*> GetAssembly(const std::string& name) const
+    {
+        auto it = m_AssemblyNameToIndex.find(name);
+        MLG_CHECK(it != m_AssemblyNameToIndex.end(), "Assembly not found: {}", name);
+
+        return &m_AssemblyNodes[it->second.Value()];
+    }
 
 private:
     PropKit(VertexBuffer vertexBuffer,
         IndexBuffer indexBuffer,
         std::vector<Mesh>&& meshes,
         std::vector<Model>&& models,
+        std::vector<AssemblyNode>&& assemblyNodes,
+        std::unordered_map<std::string, NodeIndex>&& assemblyNameToIndex,
         MaterialConstantsBuffer materialConstantsBuffer,
         std::vector<wgpu::BindGroup>&& materialBindGroups);
 
@@ -137,7 +138,9 @@ private:
     IndexBuffer m_IndexBuffer;
     std::vector<Mesh> m_Meshes;
     std::vector<Model> m_Models;
+    std::vector<AssemblyNode> m_AssemblyNodes;
     MaterialConstantsBuffer m_MaterialConstantsBuffer;
     std::vector<wgpu::BindGroup> m_MaterialBindGroups;
-    std::unordered_map<std::string, uint32_t> m_ModelNameToIndex;
+    std::unordered_map<std::string, ModelIndex> m_ModelNameToIndex;
+    std::unordered_map<std::string, NodeIndex> m_AssemblyNameToIndex;
 };

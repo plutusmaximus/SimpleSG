@@ -48,6 +48,30 @@ static Result<> Validate(const SceneDef& sceneDef, const PropKit& propKit)
     return Result<>::Ok;
 }
 
+static size_t CountNodes(const AssemblyNodeDef& nodeDef)
+{
+    size_t count = 1; // Count the current node.
+
+    for(const auto& childDef : nodeDef.Children)
+    {
+        count += CountNodes(childDef);
+    }
+
+    return count;
+}
+
+static size_t CountModels(const AssemblyNodeDef& nodeDef)
+{
+    size_t count = nodeDef.ModelIndex.IsValid() ? 1 : 0; // Count the current node if it has a valid model.
+
+    for(const auto& childDef : nodeDef.Children)
+    {
+        count += CountModels(childDef);
+    }
+
+    return count;
+}
+
 static Result<>
 CollectTransforms(const AssemblyNodeDef& nodeDef, std::vector<Mat44f>& transforms)
 {
@@ -57,12 +81,19 @@ CollectTransforms(const AssemblyNodeDef& nodeDef, std::vector<Mat44f>& transform
         MLG_CHECK(CollectTransforms(childNodeDef, transforms));
     }
     return Result<>::Ok;
-};
+}
 
 static Result<TransformBuffer>
 BuildTransformBuffer(std::span<const AssemblyNodeDef> nodeDefs, wgpu::CommandEncoder encoder)
 {
+    size_t nodeCount = 0;
+    for(const auto& nodeDef : nodeDefs)
+    {
+        nodeCount += CountNodes(nodeDef);
+    }
+
     std::vector<Mat44f> transforms;
+    transforms.reserve(nodeCount);
     for(const auto& nodeDef : nodeDefs)
     {
         MLG_CHECK(CollectTransforms(nodeDef, transforms));
@@ -321,7 +352,13 @@ Scene::Create(const SceneDef& sceneDef, const PropKit& propKit, Scene& outScene)
     auto transformBuffer = BuildTransformBuffer(sceneDef.NodeDefs, encoder);
     MLG_CHECK(transformBuffer);
 
+    size_t modelInstanceCount = 0;
+    for(const auto& nodeDef : sceneDef.NodeDefs)
+    {
+        modelInstanceCount += CountModels(nodeDef);
+    }
     std::vector<ModelInstance> modelInstances;
+    modelInstances.reserve(modelInstanceCount);
     NodeIndex nodeIndex{ 0 };
     for(const auto& nodeDef : sceneDef.NodeDefs)
     {

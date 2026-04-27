@@ -588,7 +588,7 @@ CollectNodes(cgltf_node** const srcNodes,
 }
 
 Result<>
-GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit, SceneDef& outSceneDef)
+GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit)
 {
     std::filesystem::path filePath(path);
 
@@ -640,15 +640,10 @@ GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit, SceneDe
     PropKitDef propKit //
         {
             .ModelDefs = std::move(modelDefs),
-        };
-
-    SceneDef sceneDef //
-        {
-            .NodeDefs = std::move(nodeDefs),
+            .AssemblyDefs = std::move(nodeDefs),
         };
 
     outPropKit = std::move(propKit);
-    outSceneDef = std::move(sceneDef);
 
     return Result<>::Ok;
 }
