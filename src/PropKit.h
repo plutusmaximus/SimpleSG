@@ -22,10 +22,10 @@ using NodeIndex = SemanticInteger<NodeIndexTag>;
 
 struct Mesh
 {
-    uint32_t IndexCount;
-    uint32_t FirstIndex;
-    uint32_t BaseVertex;
-    MaterialIndex MaterialIndex;
+    uint32_t IndexCount{ 0 };
+    uint32_t FirstIndex{ 0 };
+    uint32_t BaseVertex{ 0 };
+    MaterialIndex MaterialIndex{ MaterialIndex::INVALID };
     AABoundingBox BoundingBox;
 };
 
@@ -38,7 +38,7 @@ struct Model
 
 struct AssemblyNode
 {
-    Mat44f Transform;
+    Mat44f Transform{ 1 };
     ModelIndex ModelIndex{ ModelIndex::INVALID };
     NodeIndex ParentIndex{ NodeIndex::INVALID };
     uint32_t ChildCount{ 0 };
@@ -47,9 +47,9 @@ struct AssemblyNode
 struct MaterialDef
 {
     std::string BaseTextureUri;
-    RgbaColorf Color;
-    float Metalness;
-    float Roughness;
+    RgbaColorf Color{ 1, 1, 1, 1 };
+    float Metalness{ 0.0f };
+    float Roughness{ 0.0f };
 };
 
 struct MeshDef

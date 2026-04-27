@@ -88,5 +88,29 @@
             //"console": "externalTerminal"
             "console": "integratedTerminal"
         },
+        {
+            "name": "Orbit (Debug)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/Orbit.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/Debug",
+            "environment": [],
+            //"console": "externalTerminal"
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Orbit (Release)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Release/Orbit.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/Release",
+            "environment": [],
+            //"console": "externalTerminal"
+            "console": "integratedTerminal"
+        },
     ]
 }

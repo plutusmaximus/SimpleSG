@@ -248,17 +248,22 @@ endfunction()
 # ============================================================
 # Executable: Triangle
 # ============================================================
-add_sample_executable(Triangle tests/triangle.cpp)
+add_sample_executable(Triangle tests/Triangle.cpp)
 
 # ============================================================
 # Executable: Cube
 # ============================================================
-add_sample_executable(Cube tests/cube.cpp)
+add_sample_executable(Cube tests/Cube.cpp)
 
 # ============================================================
 # Executable: Viewer
 # ============================================================
-add_sample_executable(Viewer tests/viewer.cpp)
+add_sample_executable(Viewer tests/Viewer.cpp)
+
+# ============================================================
+# Executable: Orbit
+# ============================================================
+add_sample_executable(Orbit tests/Orbit.cpp)
 
 # ============================================================
 # Executable: Tests
