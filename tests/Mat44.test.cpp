@@ -370,8 +370,9 @@ TEST(Mat44f, PerspectiveRH)
     const float height = 720.0f;
     const float nearClip = 0.1f;
     const float farClip = 100.0f;
+    const float aspectRatio = width / height;
 
-    Mat44f P = Mat44f::PerspectiveRH(Radiansf(fov), width, height, nearClip, farClip);
+    Mat44f P = Mat44f::PerspectiveRH(Radiansf(fov), aspectRatio, nearClip, farClip);
 
     const float h = std::cos(0.5f * fov) / std::sin(0.5f * fov);
     const float w = h * height / width;
@@ -390,8 +391,9 @@ TEST(Mat44f, PerspectiveLH)
     const float height = 720.0f;
     const float nearClip = 0.1f;
     const float farClip = 100.0f;
+    const float aspectRatio = width / height;
 
-    Mat44f P = Mat44f::PerspectiveLH(Radiansf(fov), width, height, nearClip, farClip);
+    Mat44f P = Mat44f::PerspectiveLH(Radiansf(fov), aspectRatio, nearClip, farClip);
 
     const float h = std::cos(0.5f * fov) / std::sin(0.5f * fov);
     const float w = h * height / width;

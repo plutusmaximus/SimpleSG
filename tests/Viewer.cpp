@@ -105,8 +105,6 @@ MainLoop()
     bool running = true;
     bool minimized = false;
 
-    const std::filesystem::path path(SPONZA_MODEL_PATH);
-
     Renderer renderer;
     Compositor compositor;
     ImGuiRenderer imGuiRenderer;
@@ -121,17 +119,11 @@ MainLoop()
     MLG_CHECK(imGuiRenderer.Startup());
     MLG_CHECK(textureCache.Startup());
 
-    MLG_CHECK(Load(path, textureCache, propKit, scene));
+    MLG_CHECK(Load(SPONZA_MODEL_PATH, textureCache, propKit, scene));
 
     Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, ModelTag{});
 
-    Extent screenBounds = WebgpuHelper::GetScreenBounds();
-
-    constexpr Radiansf fov = Radiansf::FromDegrees(45);
-
-    Entity camera = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, Projection{});
-    camera.Get<TrsTransformf>().T = Vec3f{ 0,0,-4 };
-    camera.Get<Projection>().SetPerspective(fov, screenBounds, 0.1f, 1000);
+    Entity camera = registry.CreateEntity(TrsTransformf{.T{0,0,-4}}, WorldMatrix{}, Projection{});
 
     mouseNav.SetTransform(camera.Get<TrsTransformf>());
 
@@ -266,8 +258,9 @@ MainLoop()
 
         mouseNav.Update(elapsedSeconds);
 
-        screenBounds = WebgpuHelper::GetScreenBounds();
-        camera.Get<Projection>().SetBounds(screenBounds);
+        auto screenBounds = WebgpuHelper::GetScreenBounds();
+        const float aspectRatio = screenBounds.Width / screenBounds.Height;
+        camera.Get<Projection>().SetAspectRatio(aspectRatio);
         camera.Get<TrsTransformf>() = mouseNav.GetTransform();
 
         // Transform roots

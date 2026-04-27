@@ -73,15 +73,12 @@ public:
         MLG_CHECK(PropKit::Create(rootPath, m_TextureCache, propKitDef, m_PropKit));
         MLG_CHECK(Scene::Create(sceneDef, m_PropKit, m_Scene));
 
-        constexpr Radiansf fov = Radiansf::FromDegrees(45);
-
         m_Planet = m_Registry.CreateEntity(ChildTransform{}, WorldMatrix{}, ModelTag{});
         m_MoonOrbit = m_Registry.CreateEntity(ChildTransform{ .ParentId = m_Planet.GetId() }, WorldMatrix{});
         m_Moon = m_Registry.CreateEntity(ChildTransform{ .ParentId = m_MoonOrbit.GetId() }, WorldMatrix{}, ModelTag{});
         m_Camera = m_Registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, Projection{});
 
         m_Camera.Get<TrsTransformf>().T = Vec3f{ 0,0,-4 };
-        m_Camera.Get<Projection>().SetPerspective(fov, m_ScreenBounds, 0.1f, 1000);
 
         m_GimbleMouseNav.SetTransform(m_Camera.Get<TrsTransformf>());
 
@@ -119,7 +116,8 @@ public:
 
         m_ScreenBounds = WebgpuHelper::GetScreenBounds();
 
-        m_Camera.Get<Projection>().SetBounds(m_ScreenBounds);
+        const float aspectRatio = m_ScreenBounds.Width / m_ScreenBounds.Height;
+        m_Camera.Get<Projection>().SetAspectRatio(aspectRatio);
 
         m_MouseNav->Update(deltaSeconds);
         m_Camera.Get<TrsTransformf>() = m_MouseNav->GetTransform();

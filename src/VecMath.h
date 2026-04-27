@@ -986,32 +986,30 @@ public:
         return IDENT;
     }
 
-    static Mat44 PerspectiveRH(const Radians<T> fov, const T width, const T height, const T nearClip, const T farClip)
+    static Mat44 PerspectiveRH(const Radians<T> fov, const T aspectRatio, const T nearClip, const T farClip)
     {
         const T rad = fov.Value();
-        const T h = std::cos(static_cast<T>(0.5) * rad) / std::sin(static_cast<T>(0.5) * rad);
-        const T w = h * height / width;
+        const T t = std::tan(rad/2);
 
-        Mat44 result(static_cast<T>(0));
-        result[0][0] = w;
-        result[1][1] = h;
-        result[2][2] = farClip / (nearClip - farClip);
-        result[2][3] = -static_cast<T>(1);
-        result[3][2] = -(farClip * nearClip) / (farClip - nearClip);
+        Mat44 result(0);
+        result[0][0] = static_cast<T>(1.0 / (t * aspectRatio));
+        result[1][1] = static_cast<T>(1.0 / t);
+        result[2][2] = -(farClip + nearClip) / (farClip - nearClip);
+        result[2][3] = -1;
+        result[3][2] = -(2 * farClip * nearClip) / (farClip - nearClip);
         return result;
     }
 
-    static Mat44 PerspectiveLH(const Radians<T> fov, const T width, const T height, const T nearClip, const T farClip)
+    static Mat44 PerspectiveLH(const Radians<T> fov, const T aspectRatio, const T nearClip, const T farClip)
     {
         const T rad = fov.Value();
-        const T h = std::cos(static_cast<T>(0.5) * rad) / std::sin(static_cast<T>(0.5) * rad);
-        const T w = h * height / width;
+        const T t = std::tan(rad/2);
 
-        Mat44 result(static_cast<T>(0));
-        result[0][0] = w;
-        result[1][1] = h;
+        Mat44 result(0);
+        result[0][0] = static_cast<T>(1.0 / (t * aspectRatio));
+        result[1][1] = static_cast<T>(1.0 / t);
         result[2][2] = farClip / (farClip - nearClip);
-        result[2][3] = static_cast<T>(1);
+        result[2][3] = 1;
         result[3][2] = -(farClip * nearClip) / (farClip - nearClip);
         return result;
     }

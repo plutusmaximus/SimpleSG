@@ -36,14 +36,9 @@ static Result<> MainLoop()
         WebgpuHelper::Shutdown();
     });
 
-    auto screenBounds = WebgpuHelper::GetScreenBounds();
-
-    constexpr Radiansf fov = Radiansf::FromDegrees(45);
-
     TrsTransformf cameraXform;
     cameraXform.T = Vec3f{ 0,0,-4 };
     Projection projection;
-    projection.SetPerspective(fov, screenBounds, 0.1f, 1000);
 
     PropKitDef propKitDef;
     SceneDef sceneDef;
@@ -160,9 +155,9 @@ static Result<> MainLoop()
             continue;
         }
 
-        screenBounds = WebgpuHelper::GetScreenBounds();
-
-        projection.SetBounds(screenBounds);
+        auto screenBounds = WebgpuHelper::GetScreenBounds();
+        const float aspectRatio = screenBounds.Width / screenBounds.Height;
+        projection.SetAspectRatio(aspectRatio);
 
         TrsTransformf transform;
 
