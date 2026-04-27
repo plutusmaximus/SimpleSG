@@ -73,12 +73,13 @@ static size_t CountModels(const AssemblyNodeDef& nodeDef)
 }
 
 static Result<>
-CollectTransforms(const AssemblyNodeDef& nodeDef, std::vector<Mat44f>& transforms)
+CollectTransforms(const AssemblyNodeDef& nodeDef, const Mat44f& parentTransform, std::vector<Mat44f>& transforms)
 {
-    transforms.push_back(nodeDef.Transform);
+    const Mat44f curTransform = parentTransform * nodeDef.Transform;
+    transforms.push_back(curTransform);
     for(const auto& childNodeDef : nodeDef.Children)
     {
-        MLG_CHECK(CollectTransforms(childNodeDef, transforms));
+        MLG_CHECK(CollectTransforms(childNodeDef, curTransform, transforms));
     }
     return Result<>::Ok;
 }
@@ -96,7 +97,7 @@ BuildTransformBuffer(std::span<const AssemblyNodeDef> nodeDefs, wgpu::CommandEnc
     transforms.reserve(nodeCount);
     for(const auto& nodeDef : nodeDefs)
     {
-        MLG_CHECK(CollectTransforms(nodeDef, transforms));
+        MLG_CHECK(CollectTransforms(nodeDef, Mat44f::Identity(), transforms));
     }
 
     const size_t sizeofBuffer = transforms.size() * sizeof(ShaderInterop::MeshTransform);

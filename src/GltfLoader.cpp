@@ -466,7 +466,6 @@ CollectNodes(cgltf_node** const srcNodes,
     const size_t srcNodeCount,
     const std::span<ModelDef>& models,
     const std::map<const cgltf_mesh*, ModelIndex>& modelIndices,
-    const Mat44f& parentTransform,
     std::vector<AssemblyNodeDef>& nodeDefs)
 {
     nodeDefs.clear();
@@ -509,9 +508,6 @@ CollectNodes(cgltf_node** const srcNodes,
             nodeTransform = trs.ToMatrix();
         }
 
-        // Transform to world space.
-        nodeTransform = parentTransform * nodeTransform;
-
         ModelIndex modelIndex{ ModelIndex::INVALID };
 
         if(srcNode->mesh && modelIndices.contains(srcNode->mesh))
@@ -527,7 +523,6 @@ CollectNodes(cgltf_node** const srcNodes,
             srcNode->children_count,
             models,
             modelIndices,
-            nodeTransform,
             childNodes));
 
         if(childNodes.empty() && !srcNode->mesh)
@@ -634,7 +629,6 @@ GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit)
         gltfData->scenes[0].nodes_count,
         modelDefs,
         modelIndices,
-        Mat44f::Identity(),
         nodeDefs));
 
     PropKitDef propKit //
