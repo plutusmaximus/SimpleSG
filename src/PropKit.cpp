@@ -72,7 +72,7 @@ CollectAssemblyNodes(const AssemblyNodeDef& nodeDef,
 
     AssemblyNode curNode
     {
-        .Transform = nodeDef.Transform,
+        .Transform = nodeDef.Transform.ToMatrix(),
         .ModelIndex = nodeDef.ModelIndex,
         .ParentIndex = parentIndex,
         .ChildCount = narrow_cast<uint32_t>(nodeDef.Children.size()),

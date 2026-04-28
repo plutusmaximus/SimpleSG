@@ -75,34 +75,40 @@ Load(const std::filesystem::path& path,
 {
     auto shape = Shapes::Ball(1.0f, 10);
 
-    MeshDef meshDef
-    {
-        .Vertices{ shape.GetVertices().begin(), shape.GetVertices().end() },
-        .Indices{ shape.GetIndices().begin(), shape.GetIndices().end() },
-    };
-
-    ModelDef modelDef
-    {
-        .Name{"Shape"},
-        .MeshDefs{ meshDef },
-    };
-
-    AssemblyNodeDef assemblyDef
-    {
-        .Name{"ShapeNode"},
-        .Transform{ 1 },
-        .ModelIndex{0},
-        .Children
+    MeshDef meshDef //
         {
-            {
-                .Name{"ChildNode"},
-                .Transform{ 1 },
-                .ModelIndex{0},
-            }
-        },
-    };
+            .Vertices{ shape.GetVertices().begin(), shape.GetVertices().end() },
+            .Indices{ shape.GetIndices().begin(), shape.GetIndices().end() },
+        };
 
-    PropKitDef propKitDef
+    ModelDef modelDef //
+        {
+            .Name{ "Shape" },
+            .MeshDefs{ meshDef },
+        };
+
+    AssemblyNodeDef assemblyDef //
+        {
+            .Name{ "Planet" },
+            .Transform{ .T{ 0, 0, 0 } },
+            .ModelIndex{ 0 },
+            .Children //
+            {
+                {
+                    .Name{ "MoonOrbit" },
+                    .Children //
+                    {
+                        {
+                            .Name{ "Moon" },
+                            .Transform{ .T{ 2, 0, 0 }, .S{ 0.5f, 0.5f, 0.5f } },
+                            .ModelIndex{ 0 },
+                        },
+                    },
+                },
+            },
+        };
+
+    PropKitDef propKitDef //
     {
         .ModelDefs{ modelDef },
         .AssemblyDefs{ assemblyDef },

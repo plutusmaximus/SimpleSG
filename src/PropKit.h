@@ -68,7 +68,7 @@ struct ModelDef
 struct AssemblyNodeDef
 {
     std::string Name;
-    Mat44f Transform;
+    TrsTransformf Transform;
     ModelIndex ModelIndex{ ModelIndex::INVALID };
     std::vector<AssemblyNodeDef> Children;
 };

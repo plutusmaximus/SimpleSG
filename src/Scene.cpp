@@ -75,7 +75,7 @@ static size_t CountModels(const AssemblyNodeDef& nodeDef)
 static Result<>
 CollectTransforms(const AssemblyNodeDef& nodeDef, const Mat44f& parentTransform, std::vector<Mat44f>& transforms)
 {
-    const Mat44f curTransform = parentTransform * nodeDef.Transform;
+    const Mat44f curTransform = parentTransform * nodeDef.Transform.ToMatrix();
     transforms.push_back(curTransform);
     for(const auto& childNodeDef : nodeDef.Children)
     {

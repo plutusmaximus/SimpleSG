@@ -479,33 +479,31 @@ CollectNodes(cgltf_node** const srcNodes,
 
         MLG_LOG_SCOPE("node {}", nodeName);
 
-        Mat44f nodeTransform;
+        TrsTransformf nodeTransform;
 
         if(srcNode->has_matrix)
         {
-            std::memcpy(&nodeTransform.m[0].x, srcNode->matrix, sizeof(float) * 16);
-            ConvertRHtoLH(nodeTransform);
+            Mat44f m;
+            std::memcpy(&m.m[0].x, srcNode->matrix, sizeof(float) * 16);
+            ConvertRHtoLH(m);
+            nodeTransform = TrsTransformf::FromMatrix(m);
         }
         else
         {
-            TrsTransformf trs;
-
-            trs.T =
+            nodeTransform.T =
                 Vec3f(srcNode->translation[0], srcNode->translation[1], srcNode->translation[2]);
 
-            trs.R = Quatf(srcNode->rotation[0],
+            nodeTransform.R = Quatf(srcNode->rotation[0],
                 srcNode->rotation[1],
                 srcNode->rotation[2],
                 srcNode->rotation[3]);
 
-            trs.S = Vec3f(srcNode->scale[0], srcNode->scale[1], srcNode->scale[2]);
+            nodeTransform.S = Vec3f(srcNode->scale[0], srcNode->scale[1], srcNode->scale[2]);
 
             // Convert from right handed to left handed.
-            trs.T.x = -trs.T.x;
-            trs.R.y = -trs.R.y;
-            trs.R.z = -trs.R.z;
-
-            nodeTransform = trs.ToMatrix();
+            nodeTransform.T.x = -nodeTransform.T.x;
+            nodeTransform.R.y = -nodeTransform.R.y;
+            nodeTransform.R.z = -nodeTransform.R.z;
         }
 
         ModelIndex modelIndex{ ModelIndex::INVALID };
