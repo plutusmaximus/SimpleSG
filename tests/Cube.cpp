@@ -362,21 +362,34 @@ static Result<> CreateShapeModel(PropKitDef& outPropKitDef, SceneDef& outSceneDe
             .MeshDefs{ std::move(meshDef) },
         };
 
+    AssemblyNodeDef assemblyNodeDef //
+        {
+            .Name{ "ShapeNode" },
+            .Transform{},
+            .ModelIndex{ 0 },
+        };
+
+    AssemblyDef assemblyDef //
+        {
+            .Name{ "Shape" },
+            .RootNode{ std::move(assemblyNodeDef) },
+        };
+
     PropKitDef propKitDef //
         {
             .ModelDefs{ std::move(modelDef) },
+            .AssemblyDefs{ std::move(assemblyDef) },
+        };
+
+    SceneNodeDef sceneNodeDef //
+        {
+            .AssemblyName{ "Shape" },
+            .Transform{},
         };
 
     SceneDef sceneDef //
         {
-            .NodeDefs //
-            {
-                {
-                    .Name{ "ShapeNode" },
-                    .Transform{ 1 },
-                    .ModelIndex{ 0 },
-                },
-            },
+            .NodeDefs{ std::move(sceneNodeDef) },
         };
 
     outPropKitDef = std::move(propKitDef);

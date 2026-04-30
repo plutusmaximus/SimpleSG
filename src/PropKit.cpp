@@ -59,32 +59,102 @@ static size_t CountNodes(const AssemblyNodeDef& nodeDef)
 }
 
 static Result<>
-CollectAssemblyNodes(const AssemblyNodeDef& nodeDef,
-    const NodeIndex parentIndex,
+CollectAssemblyNodes(std::span<const AssemblyNodeDef> nodeDefs,
     std::vector<AssemblyNode>& assemblyNodes,
     const std::span<Model> models)
 {
-    MLG_CHECKV(nodeDef.ModelIndex == ModelIndex::INVALID ||
-                   (nodeDef.ModelIndex.Value() >= 0 && nodeDef.ModelIndex.Value() < models.size()),
+    // Pointer to beginning of nodes at this level.
+    AssemblyNode* nodes = assemblyNodes.data() + assemblyNodes.size();
+
+    // Add nodes at this level (breadth-first).
+    for(const auto& nodeDef : nodeDefs)
+    {
+        MLG_CHECKV(nodeDef.ModelIndex == ModelIndex::INVALID ||
+                   (nodeDef.ModelIndex.Value() >= 0 &&
+                       nodeDef.ModelIndex.Value() < models.size()),
         "Invalid model index in assembly node definition: {}/model:{}",
         nodeDef.Name,
         nodeDef.ModelIndex.Value());
 
-    AssemblyNode curNode
+        AssemblyNode childNode //
+            {
+                .Transform = nodeDef.Transform,
+                .ModelIndex = nodeDef.ModelIndex,
+            };
+
+        assemblyNodes.emplace_back(std::move(childNode));
+    }
+
+    // For each node at this level, recursively add its children and set its Children span.
+    for(uint32_t i = 0; i < nodeDefs.size(); ++i)
     {
-        .Transform = nodeDef.Transform.ToMatrix(),
-        .ModelIndex = nodeDef.ModelIndex,
-        .ParentIndex = parentIndex,
-        .ChildCount = narrow_cast<uint32_t>(nodeDef.Children.size()),
-    };
+        const AssemblyNodeDef& nodeDef = nodeDefs[i];
+        if(nodeDef.Children.empty())
+        {
+            continue;
+        }
 
-    const NodeIndex curNodeIndex(assemblyNodes.size());
+        // Pointer to beginning of child nodes for this node.
+        const AssemblyNode* childNode = assemblyNodes.data() + assemblyNodes.size();
 
-    assemblyNodes.emplace_back(std::move(curNode));
+        MLG_CHECK(CollectAssemblyNodes(nodeDef.Children, assemblyNodes, models));
 
-    for(const auto& childDef : nodeDef.Children)
+        nodes[i].Children = std::span<const AssemblyNode>{ childNode, nodeDef.Children.size() };
+    }
+
+    return Result<>::Ok;
+}
+
+static Result<>
+CollectAssemblies(std::span<const AssemblyDef> assemblyDefs,
+    std::vector<Assembly>& assemblies,
+    std::vector<AssemblyNode>& assemblyNodes,
+    std::unordered_map<std::string, AssemblyIndex>& assemblyNameToIndex,
+    const std::span<Model> models)
+{
+    for(const auto& assemblyDef : assemblyDefs)
     {
-        MLG_CHECK(CollectAssemblyNodes(childDef, curNodeIndex, assemblyNodes, models));
+        const AssemblyNodeDef& nodeDef = assemblyDef.RootNode;
+        MLG_CHECKV(
+            nodeDef.ModelIndex == ModelIndex::INVALID ||
+                (nodeDef.ModelIndex.Value() >= 0 && nodeDef.ModelIndex.Value() < models.size()),
+            "Invalid model index in assembly node definition: {}/model:{}",
+            nodeDef.Name,
+            nodeDef.ModelIndex.Value());
+
+        MLG_CHECKV(!assemblyNameToIndex.contains(assemblyDef.Name),
+            "Duplicate assembly name: {}",
+            assemblyDef.Name);
+
+        assemblyNameToIndex[assemblyDef.Name] = AssemblyIndex(assemblies.size());
+
+        Assembly assembly //
+            {
+                .Name{ assemblyDef.Name },
+                .RootNodeIndex{ assemblyNodes.size() },
+            };
+
+        assemblies.emplace_back(std::move(assembly));
+
+        AssemblyNode rootNodeToAdd //
+            {
+                .Transform = nodeDef.Transform,
+                .ModelIndex = nodeDef.ModelIndex,
+            };
+
+        AssemblyNode& rootNodeAdded = assemblyNodes.emplace_back(std::move(rootNodeToAdd));
+
+        if(nodeDef.Children.empty())
+        {
+            continue;
+        }
+
+        // Pointer to beginning of child nodes for this node.
+        const AssemblyNode* childNode = assemblyNodes.data() + assemblyNodes.size();
+
+        MLG_CHECK(CollectAssemblyNodes(nodeDef.Children, assemblyNodes, models));
+
+        rootNodeAdded.Children = std::span<const AssemblyNode>{ childNode, nodeDef.Children.size() };
     }
 
     return Result<>::Ok;
@@ -515,33 +585,28 @@ PropKit::Create(const std::filesystem::path& rootPath,
             vertices.insert(vertices.end(), meshDef.Vertices.begin(), meshDef.Vertices.end());
             indices.insert(indices.end(), meshDef.Indices.begin(), meshDef.Indices.end());
             meshes.emplace_back(std::move(mesh));
-
         }
     }
 
     size_t nodeCount = 0;
 
-    for(const auto& assemblyNodeDef : propKitDef.AssemblyDefs)
+    for(const auto& assemblyDef : propKitDef.AssemblyDefs)
     {
-        nodeCount += CountNodes(assemblyNodeDef);
+        nodeCount += CountNodes(assemblyDef.RootNode);
     }
 
+    std::vector<Assembly> assemblies;
     std::vector<AssemblyNode> assemblyNodes;
-    std::unordered_map<std::string, NodeIndex> assemblyNameToIndex;
+    std::unordered_map<std::string, AssemblyIndex> assemblyNameToIndex;
+    assemblies.reserve(propKitDef.AssemblyDefs.size());
     assemblyNodes.reserve(nodeCount);
     assemblyNameToIndex.reserve(propKitDef.AssemblyDefs.size());
 
-    for(const auto& assemblyNodeDef : propKitDef.AssemblyDefs)
-    {
-        MLG_CHECKV(!assemblyNameToIndex.contains(assemblyNodeDef.Name),
-            "Duplicate assembly name: {}",
-            assemblyNodeDef.Name);
-
-        const NodeIndex assemblyIndex(assemblyNodes.size());
-        MLG_CHECK(CollectAssemblyNodes(assemblyNodeDef, NodeIndex::INVALID, assemblyNodes, models));
-
-        assemblyNameToIndex[assemblyNodeDef.Name] = assemblyIndex;
-    }
+    MLG_CHECK(CollectAssemblies(propKitDef.AssemblyDefs,
+        assemblies,
+        assemblyNodes,
+        assemblyNameToIndex,
+        models));
 
     wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
 
@@ -567,6 +632,7 @@ PropKit::Create(const std::filesystem::path& rootPath,
         std::move(*indexBuffer),
         std::move(meshes),
         std::move(models),
+        std::move(assemblies),
         std::move(assemblyNodes),
         std::move(assemblyNameToIndex),
         std::move(*materialConstantsBuffer),
@@ -583,14 +649,16 @@ PropKit::PropKit(VertexBuffer vertexBuffer,
     IndexBuffer indexBuffer,
     std::vector<Mesh>&& meshes,
     std::vector<Model>&& models,
+    std::vector<Assembly>&& assemblies,
     std::vector<AssemblyNode>&& assemblyNodes,
-    std::unordered_map<std::string, NodeIndex>&& assemblyNameToIndex,
+    std::unordered_map<std::string, AssemblyIndex>&& assemblyNameToIndex,
     MaterialConstantsBuffer materialConstantsBuffer,
     std::vector<wgpu::BindGroup>&& materialBindGroups)
     : m_IndexBuffer(indexBuffer),
       m_VertexBuffer(vertexBuffer),
       m_Meshes(std::move(meshes)),
       m_Models(std::move(models)),
+      m_Assemblies(std::move(assemblies)),
       m_AssemblyNodes(std::move(assemblyNodes)),
       m_AssemblyNameToIndex(std::move(assemblyNameToIndex)),
       m_MaterialConstantsBuffer(materialConstantsBuffer),
@@ -614,4 +682,26 @@ PropKit::PropKit(VertexBuffer vertexBuffer,
         MLG_ASSERT(!m_ModelNameToIndex.contains(model.Name), "Duplicate model name: {}", model.Name);
         m_ModelNameToIndex[model.Name] = ModelIndex(i);
     }
+}
+
+Result<const Assembly*>
+PropKit::GetAssembly(const AssemblyIndex& index) const
+{
+    MLG_CHECK(index.IsValid(), "Invalid assembly index: {}", index.Value());
+    MLG_CHECK(index.Value() < m_Assemblies.size(),
+        "Assembly index out of range: {} (assembly count: {})",
+        index.Value(), m_Assemblies.size());
+
+    return &m_Assemblies[index.Value()];
+}
+
+Result<const AssemblyNode*>
+PropKit::GetAssemblyNode(const NodeIndex& index) const
+{
+    MLG_CHECK(index.IsValid(), "Invalid assembly node index: {}", index.Value());
+    MLG_CHECK(index.Value() < m_AssemblyNodes.size(),
+        "Assembly node index out of range: {} (assembly count: {})",
+        index.Value(), m_AssemblyNodes.size());
+
+    return &m_AssemblyNodes[index.Value()];
 }

@@ -14,12 +14,17 @@ using MeshPropertiesBuffer = SemanticGpuBuffer<ShaderInterop::MeshProperties>;
 struct ModelInstance
 {
     ModelIndex ModelIndex{ ModelIndex::INVALID };
-    NodeIndex NodeIndex{ NodeIndex::INVALID };
+};
+
+struct SceneNodeDef
+{
+    std::string AssemblyName;
+    TrsTransformf Transform;
 };
 
 struct SceneDef
 {
-    std::vector<AssemblyNodeDef> NodeDefs;
+    std::vector<SceneNodeDef> NodeDefs;
 };
 
 class PropKit;

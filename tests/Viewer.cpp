@@ -83,7 +83,21 @@ Load(const std::filesystem::path& path,
 
     SceneDef sceneDef //
         {
-            .NodeDefs{ propKitDef.AssemblyDefs },
+            .NodeDefs //
+            {
+                {
+                    .AssemblyName{ "1st_floor" },
+                    .Transform{},
+                },
+                {
+                    .AssemblyName{ "2nd_floor" },
+                    .Transform{},
+                },
+                {
+                    .AssemblyName{ "3rd_floor" },
+                    .Transform{},
+                },
+            },
         };
 
     MLG_CHECK(Scene::Create(sceneDef, outPropKit, outScene),

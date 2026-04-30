@@ -17,87 +17,83 @@ struct TransformPipelineResources
 {
     TransformBuffer TransformBuffer;
 };
-}
+} // namespace
 
-static Result<> ValidateNode(const AssemblyNodeDef& nodeDef, const PropKit& propKit)
-{
-    if(nodeDef.ModelIndex.IsValid())
-    {
-        const std::span<const Model> models = propKit.GetModels();
-
-        MLG_CHECKV(nodeDef.ModelIndex.Value() < models.size(),
-            "Node definition '{}' has invalid model index {}, model count {}",
-            nodeDef.Name, nodeDef.ModelIndex.Value(), models.size());
-    }
-
-    for(const auto& childNodeDef : nodeDef.Children)
-    {
-        MLG_CHECK(ValidateNode(childNodeDef, propKit));
-    }
-
-    return Result<>::Ok;
-}
-
-static Result<> Validate(const SceneDef& sceneDef, const PropKit& propKit)
+static Result<>
+Validate(const SceneDef& sceneDef, const PropKit& propKit)
 {
     for(const auto& nodeDef : sceneDef.NodeDefs)
     {
-        MLG_CHECK(ValidateNode(nodeDef, propKit));
+        auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
+        MLG_CHECKV(assembly);
     }
 
     return Result<>::Ok;
 }
 
-static size_t CountNodes(const AssemblyNodeDef& nodeDef)
+static size_t
+CountModelInstances(const AssemblyNode& assemblyNode)
 {
-    size_t count = 1; // Count the current node.
+    size_t count = assemblyNode.ModelIndex.IsValid()
+                       ? 1
+                       : 0; // Count the current node if it has a valid model.
 
-    for(const auto& childDef : nodeDef.Children)
+    for(const auto& childNode : assemblyNode.Children)
     {
-        count += CountNodes(childDef);
+        count += CountModelInstances(childNode);
     }
 
     return count;
 }
 
-static size_t CountModels(const AssemblyNodeDef& nodeDef)
+static Result<size_t>
+CountModelInstances(const SceneDef& sceneDef, const PropKit& propKit)
 {
-    size_t count = nodeDef.ModelIndex.IsValid() ? 1 : 0; // Count the current node if it has a valid model.
+    size_t count = 0;
 
-    for(const auto& childDef : nodeDef.Children)
+    for(const auto& nodeDef : sceneDef.NodeDefs)
     {
-        count += CountModels(childDef);
+        auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
+        MLG_CHECKV(assembly);
+        auto rootNode = propKit.GetAssemblyNode(assembly->RootNodeIndex);
+        MLG_CHECKV(rootNode);
+        count += CountModelInstances(**rootNode);
     }
 
     return count;
 }
 
 static Result<>
-CollectTransforms(const AssemblyNodeDef& nodeDef, const Mat44f& parentTransform, std::vector<Mat44f>& transforms)
+CollectTransforms(const AssemblyNode& node, const Mat44f& parentTransform, std::vector<Mat44f>& transforms)
 {
-    const Mat44f curTransform = parentTransform * nodeDef.Transform.ToMatrix();
-    transforms.push_back(curTransform);
-    for(const auto& childNodeDef : nodeDef.Children)
+    const Mat44f curTransform = parentTransform * node.Transform.ToMatrix();
+    if(node.ModelIndex.IsValid())
     {
-        MLG_CHECK(CollectTransforms(childNodeDef, curTransform, transforms));
+        transforms.push_back(curTransform);
+    }
+
+    for(const auto& childNode : node.Children)
+    {
+        MLG_CHECK(CollectTransforms(childNode, curTransform, transforms));
     }
     return Result<>::Ok;
 }
 
 static Result<TransformBuffer>
-BuildTransformBuffer(std::span<const AssemblyNodeDef> nodeDefs, wgpu::CommandEncoder encoder)
+BuildTransformBuffer(const SceneDef& sceneDef, const PropKit& propKit, wgpu::CommandEncoder encoder)
 {
-    size_t nodeCount = 0;
-    for(const auto& nodeDef : nodeDefs)
-    {
-        nodeCount += CountNodes(nodeDef);
-    }
+    auto modelCount = CountModelInstances(sceneDef, propKit);
+    MLG_CHECK(modelCount);
 
-    std::vector<Mat44f> transforms;
-    transforms.reserve(nodeCount);
-    for(const auto& nodeDef : nodeDefs)
+    std::vector<Mat44f> transforms; //DO NOT SUBMIT - materialize transforms in-place into the buffer to avoid the extra copy.
+    transforms.reserve(*modelCount);
+    for(const auto& nodeDef : sceneDef.NodeDefs)
     {
-        MLG_CHECK(CollectTransforms(nodeDef, Mat44f::Identity(), transforms));
+        auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
+        MLG_CHECK(assembly);
+        auto rootNode = propKit.GetAssemblyNode(assembly->RootNodeIndex);
+        MLG_CHECK(rootNode);
+        MLG_CHECK(CollectTransforms(**rootNode, nodeDef.Transform.ToMatrix(), transforms));
     }
 
     const size_t sizeofBuffer = transforms.size() * sizeof(ShaderInterop::MeshTransform);
@@ -116,14 +112,55 @@ BuildTransformBuffer(std::span<const AssemblyNodeDef> nodeDefs, wgpu::CommandEnc
     return buffer;
 }
 
-static inline size_t CountMeshes(std::span<const Model> models, std::span<const ModelInstance> modelInstances)
+static Result<>
+CollectModelInstances(const AssemblyNode& node, std::vector<ModelInstance>& outModelInstances)
+{
+    if(node.ModelIndex.IsValid())
+    {
+        const ModelInstance modelInstance{ .ModelIndex{ node.ModelIndex } };
+        outModelInstances.push_back(modelInstance);
+    }
+
+    for(const auto& childNode : node.Children)
+    {
+        MLG_CHECK(CollectModelInstances(childNode, outModelInstances));
+    }
+
+    return Result<>::Ok;
+}
+
+static Result<>
+CollectModelInstances(
+    const SceneDef& sceneDef, std::vector<ModelInstance>& outModelInstances, const PropKit& propKit)
+{
+    auto modelInstanceCount = CountModelInstances(sceneDef, propKit);
+    MLG_CHECK(modelInstanceCount);
+
+    outModelInstances.clear();
+    outModelInstances.reserve(*modelInstanceCount);
+
+    for(const auto& nodeDef : sceneDef.NodeDefs)
+    {
+        auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
+        MLG_CHECKV(assembly);
+        auto rootNode = propKit.GetAssemblyNode(assembly->RootNodeIndex);
+        MLG_CHECKV(rootNode);
+        MLG_CHECK(CollectModelInstances(**rootNode, outModelInstances));
+    }
+
+    return Result<>::Ok;
+}
+
+static inline size_t
+CountMeshes(std::span<const Model> models, std::span<const ModelInstance> modelInstances)
 {
     size_t meshCount = 0;
     for(const auto& modelInstance : modelInstances)
     {
         MLG_ASSERT(modelInstance.ModelIndex.Value() < models.size(),
             "Model instance has invalid model index: {} (model count: {})",
-            modelInstance.ModelIndex.Value(), models.size());
+            modelInstance.ModelIndex.Value(),
+            models.size());
 
         meshCount += models[modelInstance.ModelIndex.Value()].MeshCount;
     }
@@ -131,11 +168,13 @@ static inline size_t CountMeshes(std::span<const Model> models, std::span<const 
 }
 
 static Result<DrawIndirectBuffer>
-BuildDrawIndirectBuffer(std::span<const Mesh> meshes,
-    std::span<const Model> models,
-    std::span<const ModelInstance> modelInstances,
+BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances,
+    const PropKit& propKit,
     wgpu::CommandEncoder encoder)
 {
+    const std::span<const Mesh> meshes = propKit.GetMeshes();
+    const std::span<const Model> models = propKit.GetModels();
+
     const size_t meshInstanceCount = CountMeshes(models, modelInstances);
     const size_t sizeofDrawIndirectBuffer =
         meshInstanceCount * sizeof(ShaderInterop::DrawIndirectParams);
@@ -188,11 +227,13 @@ BuildDrawIndirectBuffer(std::span<const Mesh> meshes,
 }
 
 static Result<MeshPropertiesBuffer>
-BuildMeshPropertiesBuffer(std::span<const Mesh> meshes,
-    std::span<const Model> models,
-    std::span<const ModelInstance> modelInstances,
+BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances,
+    const PropKit& propKit,
     wgpu::CommandEncoder encoder)
 {
+    const std::span<const Mesh> meshes = propKit.GetMeshes();
+    const std::span<const Model> models = propKit.GetModels();
+
     const size_t meshInstanceCount = CountMeshes(models, modelInstances);
     const size_t sizeofBuffer = meshInstanceCount * sizeof(ShaderInterop::MeshProperties);
 
@@ -205,6 +246,7 @@ BuildMeshPropertiesBuffer(std::span<const Mesh> meshes,
     ShaderInterop::MeshProperties* meshPropertiesDst = *mapped;
 
     uint32_t meshCount = 0;
+    uint32_t transformIndex = 0;
 
     for(const auto& modelInstance : modelInstances)
     {
@@ -228,13 +270,15 @@ BuildMeshPropertiesBuffer(std::span<const Mesh> meshes,
                 {
                     .Center = boundingSphere.GetCenter(),
                     .Radius = boundingSphere.GetRadius(),
-                    .NodeIndex = modelInstance.NodeIndex.Value(),
-                    .MaterialIndex = meshSrc->MaterialIndex.Value(),
+                    .TransformIndex{ transformIndex },
+                    .MaterialIndex{ meshSrc->MaterialIndex.Value() },
                 };
 
             ++meshCount;
             ++meshSrc;
         }
+
+        ++transformIndex;
     }
 
     buffer->Unmap(encoder);
@@ -316,27 +360,6 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
     return bindGroup;
 }
 
-static Result<>
-CollectModelInstances(const AssemblyNodeDef& nodeDef,
-    NodeIndex& nodeIndex,
-    std::vector<ModelInstance>& outModelInstances)
-{
-    if(nodeDef.ModelIndex.IsValid())
-    {
-        const ModelInstance modelInstance{ nodeDef.ModelIndex, nodeIndex };
-        outModelInstances.push_back(modelInstance);
-    }
-
-    nodeIndex = NodeIndex(nodeIndex.Value() + 1);
-
-    for(const auto& childNodeDef : nodeDef.Children)
-    {
-        MLG_CHECK(CollectModelInstances(childNodeDef, nodeIndex, outModelInstances));
-    }
-
-    return Result<>::Ok;
-}
-
 Result<>
 Scene::Create(const SceneDef& sceneDef, const PropKit& propKit, Scene& outScene)
 {
@@ -347,29 +370,16 @@ Scene::Create(const SceneDef& sceneDef, const PropKit& propKit, Scene& outScene)
 
     wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
 
-    const std::span<const Mesh> meshes = propKit.GetMeshes();
-    const std::span<const Model> models = propKit.GetModels();
-
-    auto transformBuffer = BuildTransformBuffer(sceneDef.NodeDefs, encoder);
+    auto transformBuffer = BuildTransformBuffer(sceneDef, propKit, encoder);
     MLG_CHECK(transformBuffer);
 
-    size_t modelInstanceCount = 0;
-    for(const auto& nodeDef : sceneDef.NodeDefs)
-    {
-        modelInstanceCount += CountModels(nodeDef);
-    }
     std::vector<ModelInstance> modelInstances;
-    modelInstances.reserve(modelInstanceCount);
-    NodeIndex nodeIndex{ 0 };
-    for(const auto& nodeDef : sceneDef.NodeDefs)
-    {
-        MLG_CHECK(CollectModelInstances(nodeDef, nodeIndex, modelInstances));
-    }
+    MLG_CHECK(CollectModelInstances(sceneDef, modelInstances, propKit));
 
-    auto drawIndirectBuffer = BuildDrawIndirectBuffer(meshes, models, modelInstances, encoder);
+    auto drawIndirectBuffer = BuildDrawIndirectBuffer(modelInstances, propKit, encoder);
     MLG_CHECK(drawIndirectBuffer);
 
-    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(meshes, models, modelInstances, encoder);
+    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(modelInstances, propKit, encoder);
     MLG_CHECK(meshPropertiesBuffer);
 
     ColorPipelineResources colorPipelineResources //

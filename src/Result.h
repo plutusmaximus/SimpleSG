@@ -38,13 +38,47 @@ public:
     Result& operator=(const Result& other) = default;
     Result& operator=(Result&& other) = default;
 
-    constexpr SuccessType& operator*() & { return std::get<SuccessType>(*this); }
-    constexpr const SuccessType& operator*() const& { return std::get<SuccessType>(*this); }
-    constexpr SuccessType&& operator*() && { return std::move(std::get<SuccessType>(*this)); }
-    constexpr const SuccessType&& operator*() const&& { return std::move(std::get<SuccessType>(*this)); }
+    constexpr SuccessType& Value() &
+    {
+        MLG_ASSERT(*this, "Attempted to access value of a failed Result");
+        return std::get<SuccessType>(*this);
+    }
 
-    constexpr SuccessType* operator->() { return &std::get<SuccessType>(*this); }
-    constexpr const SuccessType* operator->() const { return &std::get<SuccessType>(*this); }
+    constexpr const SuccessType& Value() const&
+    {
+        MLG_ASSERT(*this, "Attempted to access value of a failed Result");
+        return std::get<SuccessType>(*this);
+    }
+
+    constexpr SuccessType&& Value() &&
+    {
+        MLG_ASSERT(*this, "Attempted to access value of a failed Result");
+        return std::move(std::get<SuccessType>(*this));
+    }
+
+    constexpr const SuccessType&& Value() const&&
+    {
+        MLG_ASSERT(*this, "Attempted to access value of a failed Result");
+        return std::move(std::get<SuccessType>(*this));
+    }
+
+    constexpr SuccessType& operator*() & { return Value(); }
+    constexpr const SuccessType& operator*() const& { return Value(); }
+    constexpr SuccessType&& operator*() && { return std::move(Value()); }
+    constexpr const SuccessType&& operator*() const&& { return std::move(Value()); }
+    constexpr SuccessType* operator->() { return &Value(); }
+    constexpr const SuccessType* operator->() const { return &Value(); }
+
+    constexpr SuccessType operator->()
+        requires std::is_pointer_v<SuccessType>
+    {
+        return Value();
+    }
+    constexpr const SuccessType operator->() const
+        requires std::is_pointer_v<SuccessType>
+    {
+        return Value();
+    }
 
     operator bool() const { return std::holds_alternative<SuccessType>(*this); }
 

@@ -15,10 +15,12 @@ struct MaterialIndexTag {};
 struct MeshIndexTag {};
 struct ModelIndexTag {};
 struct NodeIndexTag {};
+struct AssemblyIndexTag {};
 using MaterialIndex = SemanticInteger<MaterialIndexTag>;
 using MeshIndex = SemanticInteger<MeshIndexTag>;
 using ModelIndex = SemanticInteger<ModelIndexTag>;
 using NodeIndex = SemanticInteger<NodeIndexTag>;
+using AssemblyIndex = SemanticInteger<AssemblyIndexTag>;
 
 struct Mesh
 {
@@ -38,10 +40,15 @@ struct Model
 
 struct AssemblyNode
 {
-    Mat44f Transform{ 1 };
+    TrsTransformf Transform;
     ModelIndex ModelIndex{ ModelIndex::INVALID };
-    NodeIndex ParentIndex{ NodeIndex::INVALID };
-    uint32_t ChildCount{ 0 };
+    std::span<const AssemblyNode> Children;
+};
+
+struct Assembly
+{
+    std::string Name;
+    NodeIndex RootNodeIndex{ NodeIndex::INVALID };
 };
 
 struct MaterialDef
@@ -73,10 +80,16 @@ struct AssemblyNodeDef
     std::vector<AssemblyNodeDef> Children;
 };
 
+struct AssemblyDef
+{
+    std::string Name;
+    AssemblyNodeDef RootNode;
+};
+
 struct PropKitDef
 {
     std::vector<ModelDef> ModelDefs;
-    std::vector<AssemblyNodeDef> AssemblyDefs;
+    std::vector<AssemblyDef> AssemblyDefs;
 };
 
 // Strongly-typed GPU storage buffer classes.
@@ -116,21 +129,34 @@ public:
 
     IndexBuffer GetIndexBuffer() const { return m_IndexBuffer; }
 
-    Result<const AssemblyNode*> GetAssembly(const std::string& name) const
+    Result<AssemblyIndex> GetAssemblyIndex(const std::string& name) const
     {
         auto it = m_AssemblyNameToIndex.find(name);
         MLG_CHECK(it != m_AssemblyNameToIndex.end(), "Assembly not found: {}", name);
 
-        return &m_AssemblyNodes[it->second.Value()];
+        return it->second;
     }
+
+    Result<const Assembly*> GetAssembly(const std::string& name) const
+    {
+        auto assemblyIndex = GetAssemblyIndex(name);
+        MLG_CHECK(assemblyIndex);
+
+        return GetAssembly(*assemblyIndex);
+    }
+
+    Result<const Assembly*> GetAssembly(const AssemblyIndex& index) const;
+
+    Result<const AssemblyNode*> GetAssemblyNode(const NodeIndex& index) const;
 
 private:
     PropKit(VertexBuffer vertexBuffer,
         IndexBuffer indexBuffer,
         std::vector<Mesh>&& meshes,
         std::vector<Model>&& models,
+        std::vector<Assembly>&& assemblies,
         std::vector<AssemblyNode>&& assemblyNodes,
-        std::unordered_map<std::string, NodeIndex>&& assemblyNameToIndex,
+        std::unordered_map<std::string, AssemblyIndex>&& assemblyNameToIndex,
         MaterialConstantsBuffer materialConstantsBuffer,
         std::vector<wgpu::BindGroup>&& materialBindGroups);
 
@@ -138,9 +164,10 @@ private:
     IndexBuffer m_IndexBuffer;
     std::vector<Mesh> m_Meshes;
     std::vector<Model> m_Models;
+    std::vector<Assembly> m_Assemblies;
     std::vector<AssemblyNode> m_AssemblyNodes;
     MaterialConstantsBuffer m_MaterialConstantsBuffer;
     std::vector<wgpu::BindGroup> m_MaterialBindGroups;
     std::unordered_map<std::string, ModelIndex> m_ModelNameToIndex;
-    std::unordered_map<std::string, NodeIndex> m_AssemblyNameToIndex;
+    std::unordered_map<std::string, AssemblyIndex> m_AssemblyNameToIndex;
 };

@@ -462,119 +462,159 @@ ConvertRHtoLH(Mat44f& M)
 }
 
 static Result<>
-CollectNodes(cgltf_node** const srcNodes,
-    const size_t srcNodeCount,
-    const std::span<ModelDef>& models,
+CollectNode(const cgltf_node& srcNode,
     const std::map<const cgltf_mesh*, ModelIndex>& modelIndices,
     std::vector<AssemblyNodeDef>& nodeDefs)
 {
-    nodeDefs.clear();
-    nodeDefs.reserve(srcNodeCount);
+    std::string nodeName = srcNode.name ? srcNode.name : "<unnamed>";
 
-    for(size_t i = 0; i < srcNodeCount; ++i)
+    MLG_LOG_SCOPE("node {}", nodeName);
+
+    TrsTransformf nodeTransform;
+
+    if(srcNode.has_matrix)
     {
-        const cgltf_node* srcNode = srcNodes[i];
+        Mat44f m;
+        std::memcpy(&m.m[0].x, srcNode.matrix, sizeof(float) * 16);
+        ConvertRHtoLH(m);
+        nodeTransform = TrsTransformf::FromMatrix(m);
+    }
+    else
+    {
+        nodeTransform.T =
+            Vec3f(srcNode.translation[0], srcNode.translation[1], srcNode.translation[2]);
 
-        std::string nodeName = srcNode->name ? srcNode->name : "<unnamed>";
+        nodeTransform.R = Quatf(srcNode.rotation[0],
+            srcNode.rotation[1],
+            srcNode.rotation[2],
+            srcNode.rotation[3]);
 
-        MLG_LOG_SCOPE("node {}", nodeName);
+        nodeTransform.S = Vec3f(srcNode.scale[0], srcNode.scale[1], srcNode.scale[2]);
 
-        TrsTransformf nodeTransform;
+        // Convert from right handed to left handed.
+        nodeTransform.T.x = -nodeTransform.T.x;
+        nodeTransform.R.y = -nodeTransform.R.y;
+        nodeTransform.R.z = -nodeTransform.R.z;
+    }
 
-        if(srcNode->has_matrix)
+    ModelIndex modelIndex{ ModelIndex::INVALID };
+
+    if(srcNode.mesh && modelIndices.contains(srcNode.mesh))
+    {
+        // Node has a mesh and the mesh was accepted during model collection phase.
+
+        modelIndex = modelIndices.at(srcNode.mesh);
+    }
+
+    std::vector<AssemblyNodeDef> childNodes;
+    childNodes.reserve(srcNode.children_count);
+
+    for(cgltf_size i = 0; i < srcNode.children_count; ++i)
+    {
+        MLG_CHECK(CollectNode(*srcNode.children[i], modelIndices, childNodes));
+    }
+
+    if(childNodes.empty() && !srcNode.mesh)
+    {
+        // Node has no mesh and no descendents with meshes, skip it
+        // This could be a procedurally generated mesh, e.g. the leaves of a tree.
+        // In blender the following steps could be used to convert to a mesh:
+        // 1. Select the node in the outliner.
+        // 2. In the "Layout" editor select the "Object" menu and choose "Apply -> Make
+        // Instances Real".
+        //      This will generate meshes and possibly mesh instances.
+        // 3. In the outliner select all the resulting objects.
+        // 4. In the "Layout" editor select the "Object" menu and choose "Convert -> Mesh".
+        //      This will materialize instances into stand alone meshes.
+        // 5. In the outliner select all the resulting objects (meshes).
+        // 6. In the "Layout" editor select the "Object" menu and choose "Join".
+        //      This will join all the selected meshes into a single mesh.
+
+        const char* type;
+        if(srcNode.camera)
         {
-            Mat44f m;
-            std::memcpy(&m.m[0].x, srcNode->matrix, sizeof(float) * 16);
-            ConvertRHtoLH(m);
-            nodeTransform = TrsTransformf::FromMatrix(m);
+            type = "camera";
+        }
+        else if(srcNode.light)
+        {
+            type = "light";
+        }
+        else if(srcNode.skin)
+        {
+            type = "skin";
+        }
+        else if(srcNode.weights)
+        {
+            type = "weights";
         }
         else
         {
-            nodeTransform.T =
-                Vec3f(srcNode->translation[0], srcNode->translation[1], srcNode->translation[2]);
-
-            nodeTransform.R = Quatf(srcNode->rotation[0],
-                srcNode->rotation[1],
-                srcNode->rotation[2],
-                srcNode->rotation[3]);
-
-            nodeTransform.S = Vec3f(srcNode->scale[0], srcNode->scale[1], srcNode->scale[2]);
-
-            // Convert from right handed to left handed.
-            nodeTransform.T.x = -nodeTransform.T.x;
-            nodeTransform.R.y = -nodeTransform.R.y;
-            nodeTransform.R.z = -nodeTransform.R.z;
+            type = "unknown";
         }
 
-        ModelIndex modelIndex{ ModelIndex::INVALID };
+        MLG_WARN("{} node has no mesh and no children.  Ignoring.", type);
+    }
+    else
+    {
+        AssemblyNodeDef newNodeDef //
+            {
+                .Name{ nodeName },
+                .Transform{ nodeTransform },
+                .ModelIndex{ modelIndex },
+                .Children{ std::move(childNodes) },
+            };
 
-        if(srcNode->mesh && modelIndices.contains(srcNode->mesh))
+        nodeDefs.emplace_back(std::move(newNodeDef));
+    }
+
+    return Result<>::Ok;
+}
+
+static Result<>
+CollectAssemblies(const cgltf_data* gltfData,
+    std::vector<AssemblyDef>& assemblies,
+    const std::map<const cgltf_mesh*, ModelIndex>& modelIndices)
+{
+    MLG_CHECK(gltfData->scenes_count > 0, "No scenes found");
+    MLG_CHECK(gltfData->scenes_count == 1, "Multiple scenes found, only one scene is supported");
+
+    const cgltf_scene& scene = gltfData->scenes[0];
+
+    assemblies.clear();
+    assemblies.reserve(scene.nodes_count);
+
+    std::vector<AssemblyNodeDef> rootNodes;
+    rootNodes.reserve(scene.nodes_count);
+
+    for(size_t i = 0; i < scene.nodes_count; ++i)
+    {
+        const cgltf_node* cgltfRootNode = scene.nodes[i];
+
+        std::string assemblyName = cgltfRootNode->name ? cgltfRootNode->name : "<unnamed>";
+
+        MLG_LOG_SCOPE("assembly {}", assemblyName);
+
+        std::vector<AssemblyNodeDef> nodeDefs;
+
+        const size_t rootNodeIndex = rootNodes.size();
+
+        MLG_CHECK(CollectNode(*cgltfRootNode, modelIndices, rootNodes));
+
+        if(rootNodes.size() == rootNodeIndex)
         {
-            // Node has a mesh and the mesh was accepted during model collection phase.
-
-            modelIndex = modelIndices.at(srcNode->mesh);
-        }
-
-        std::vector<AssemblyNodeDef> childNodes;
-
-        MLG_CHECK(CollectNodes(srcNode->children,
-            srcNode->children_count,
-            models,
-            modelIndices,
-            childNodes));
-
-        if(childNodes.empty() && !srcNode->mesh)
-        {
-            // Node has no mesh and no descendents with meshes, skip it
-            // This could be a procedurally generated mesh, e.g. the leaves of a tree.
-            // In blender the following steps could be used to convert to a mesh:
-            // 1. Select the node in the outliner.
-            // 2. In the "Layout" editor select the "Object" menu and choose "Apply -> Make
-            // Instances Real".
-            //      This will generate meshes and possibly mesh instances.
-            // 3. In the outliner select all the resulting objects.
-            // 4. In the "Layout" editor select the "Object" menu and choose "Convert -> Mesh".
-            //      This will materialize instances into stand alone meshes.
-            // 5. In the outliner select all the resulting objects (meshes).
-            // 6. In the "Layout" editor select the "Object" menu and choose "Join".
-            //      This will join all the selected meshes into a single mesh.
-
-            const char* type;
-            if(srcNode->camera)
-            {
-                type = "camera";
-            }
-            else if(srcNode->light)
-            {
-                type = "light";
-            }
-            else if(srcNode->skin)
-            {
-                type = "skin";
-            }
-            else if(srcNode->weights)
-            {
-                type = "weights";
-            }
-            else
-            {
-                type = "unknown";
-            }
-
-            MLG_WARN("{} node has no mesh and no children.  Ignoring.", type);
-
+            // Root node and all its descendents were skipped during collection phase, skip it.
             continue;
         }
 
-        AssemblyNodeDef newNodeDef //
+        AssemblyNodeDef& rootNode = rootNodes[rootNodeIndex];
+
+        AssemblyDef assemblyDef //
         {
-            .Name = nodeName,
-            .Transform = nodeTransform,
-            .ModelIndex = modelIndex,
-            .Children = std::move(childNodes),
+            .Name{ rootNode.Name },
+            .RootNode{ std::move(rootNode) },
         };
 
-        nodeDefs.emplace_back(std::move(newNodeDef));
+        assemblies.emplace_back(std::move(assemblyDef));
     }
 
     return Result<>::Ok;
@@ -621,18 +661,13 @@ GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit)
     std::map<const cgltf_mesh*, ModelIndex> modelIndices;
     MLG_CHECK(CollectModels(gltfMeshes, modelDefs, modelIndices));
 
-    std::vector<AssemblyNodeDef> nodeDefs;
-
-    MLG_CHECK(CollectNodes(gltfData->scenes[0].nodes,
-        gltfData->scenes[0].nodes_count,
-        modelDefs,
-        modelIndices,
-        nodeDefs));
+    std::vector<AssemblyDef> assemblyDefs;
+    MLG_CHECK(CollectAssemblies(gltfData, assemblyDefs, modelIndices));
 
     PropKitDef propKit //
         {
             .ModelDefs = std::move(modelDefs),
-            .AssemblyDefs = std::move(nodeDefs),
+            .AssemblyDefs = std::move(assemblyDefs),
         };
 
     outPropKit = std::move(propKit);

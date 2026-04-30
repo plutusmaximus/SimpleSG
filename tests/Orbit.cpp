@@ -87,15 +87,16 @@ Load(const std::filesystem::path& path,
             .MeshDefs{ meshDef },
         };
 
-    AssemblyNodeDef assemblyDef //
+    AssemblyNodeDef assemblyNodeDef //
         {
             .Name{ "Planet" },
-            .Transform{ .T{ 0, 0, 0 } },
+            .Transform{},
             .ModelIndex{ 0 },
             .Children //
             {
                 {
                     .Name{ "MoonOrbit" },
+                    .Transform{},
                     .Children //
                     {
                         {
@@ -108,19 +109,31 @@ Load(const std::filesystem::path& path,
             },
         };
 
+    AssemblyDef assemblyDef //
+        {
+            .Name{ "Orbit" },
+            .RootNode{ std::move(assemblyNodeDef) },
+        };
+
     PropKitDef propKitDef //
-    {
-        .ModelDefs{ modelDef },
-        .AssemblyDefs{ assemblyDef },
-    };
+        {
+            .ModelDefs{ std::move(modelDef) },
+            .AssemblyDefs{ std::move(assemblyDef) },
+        };
 
     MLG_CHECK(PropKit::Create(path.parent_path(), textureCache, propKitDef, outPropKit),
         "Failed to create PropKit for {}",
         path.string());
 
+    SceneNodeDef sceneNodeDef //
+        {
+            .AssemblyName{ "Orbit" },
+            .Transform{},
+        };
+
     SceneDef sceneDef //
         {
-            .NodeDefs{ propKitDef.AssemblyDefs },
+            .NodeDefs{ std::move(sceneNodeDef) },
         };
 
     MLG_CHECK(Scene::Create(sceneDef, outPropKit, outScene),
