@@ -63,20 +63,29 @@ CountModelInstances(const SceneDef& sceneDef, const PropKit& propKit)
     return count;
 }
 
-static Result<>
-CollectTransforms(const AssemblyNode& node, const Mat44f& parentTransform, std::vector<Mat44f>& transforms)
+static Result<size_t>
+CollectTransforms(const AssemblyNode& node,
+    const Mat44f& parentTransform,
+    MappedGpuBuffer<ShaderInterop::MeshTransform>& transforms,
+    const size_t index)
 {
-    const Mat44f curTransform = parentTransform * node.Transform.ToMatrix();
+    size_t currentIndex = index;
+    ShaderInterop::MeshTransform curTransform{ .Transform = parentTransform * node.Transform.ToMatrix() };
+
     if(node.ModelIndex.IsValid())
     {
-        transforms.push_back(curTransform);
+        transforms.Store(currentIndex, curTransform);
+
+        ++currentIndex;
     }
 
     for(const auto& childNode : node.Children)
     {
-        MLG_CHECK(CollectTransforms(childNode, curTransform, transforms));
+        auto result = CollectTransforms(childNode, curTransform.Transform, transforms, currentIndex);
+        MLG_CHECK(result);
+        currentIndex += *result;
     }
-    return Result<>::Ok;
+    return (currentIndex - index);
 }
 
 static Result<TransformBuffer>
@@ -85,18 +94,7 @@ BuildTransformBuffer(const SceneDef& sceneDef, const PropKit& propKit, wgpu::Com
     auto modelCount = CountModelInstances(sceneDef, propKit);
     MLG_CHECK(modelCount);
 
-    std::vector<Mat44f> transforms; //DO NOT SUBMIT - materialize transforms in-place into the buffer to avoid the extra copy.
-    transforms.reserve(*modelCount);
-    for(const auto& nodeDef : sceneDef.NodeDefs)
-    {
-        auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
-        MLG_CHECK(assembly);
-        auto rootNode = propKit.GetAssemblyNode(assembly->RootNodeIndex);
-        MLG_CHECK(rootNode);
-        MLG_CHECK(CollectTransforms(**rootNode, nodeDef.Transform.ToMatrix(), transforms));
-    }
-
-    const size_t sizeofBuffer = transforms.size() * sizeof(ShaderInterop::MeshTransform);
+    const size_t sizeofBuffer = *modelCount * sizeof(ShaderInterop::MeshTransform);
 
     auto buffer =
         WebgpuHelper::CreateSemanticStorageBuffer<TransformBuffer>(sizeofBuffer, "TransformBuffer");
@@ -105,7 +103,19 @@ BuildTransformBuffer(const SceneDef& sceneDef, const PropKit& propKit, wgpu::Com
     auto mapped = buffer->Map();
     MLG_CHECK(mapped);
 
-    std::memcpy(*mapped, transforms.data(), sizeofBuffer);
+    size_t count = 0;
+    for(const auto& nodeDef : sceneDef.NodeDefs)
+    {
+        auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
+        MLG_CHECK(assembly);
+
+        auto rootNode = propKit.GetAssemblyNode(assembly->RootNodeIndex);
+        MLG_CHECK(rootNode);
+
+        auto result = CollectTransforms(**rootNode, nodeDef.Transform.ToMatrix(), *mapped, count);
+        MLG_CHECK(result);
+        count += *result;
+    }
 
     buffer->Unmap(encoder);
 
@@ -187,8 +197,6 @@ BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances,
     auto mapped = buffer->Map();
     MLG_CHECK(mapped);
 
-    ShaderInterop::DrawIndirectParams* drawParams = *mapped;
-
     uint32_t meshCount = 0;
 
     for(const auto& modelInstance : modelInstances)
@@ -207,14 +215,16 @@ BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances,
 
         for(uint32_t i = 0; i < model.MeshCount; ++i)
         {
-            drawParams[meshCount] = //
-            {
-                .IndexCount = meshSrc->IndexCount,
-                .InstanceCount = 1,
-                .FirstIndex = meshSrc->FirstIndex,
-                .BaseVertex = meshSrc->BaseVertex,
-                .FirstInstance = meshCount,
-            };
+            ShaderInterop::DrawIndirectParams drawParams //
+                {
+                    .IndexCount = meshSrc->IndexCount,
+                    .InstanceCount = 1,
+                    .FirstIndex = meshSrc->FirstIndex,
+                    .BaseVertex = meshSrc->BaseVertex,
+                    .FirstInstance = meshCount,
+                };
+
+            mapped->Store(meshCount, drawParams);
 
             ++meshCount;
             ++meshSrc;
@@ -243,8 +253,6 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances,
     auto mapped = buffer->Map();
     MLG_CHECK(mapped);
 
-    ShaderInterop::MeshProperties* meshPropertiesDst = *mapped;
-
     uint32_t meshCount = 0;
     uint32_t transformIndex = 0;
 
@@ -266,13 +274,15 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances,
         {
             const BoundingSphere boundingSphere(meshSrc->BoundingBox);
 
-            meshPropertiesDst[meshCount] = //
-                {
-                    .Center = boundingSphere.GetCenter(),
-                    .Radius = boundingSphere.GetRadius(),
-                    .TransformIndex{ transformIndex },
-                    .MaterialIndex{ meshSrc->MaterialIndex.Value() },
-                };
+            ShaderInterop::MeshProperties meshProps//
+            {
+                .Center = boundingSphere.GetCenter(),
+                .Radius = boundingSphere.GetRadius(),
+                .TransformIndex{ transformIndex },
+                .MaterialIndex{ meshSrc->MaterialIndex.Value() },
+            };
+
+            mapped->Store(meshCount, meshProps);
 
             ++meshCount;
             ++meshSrc;

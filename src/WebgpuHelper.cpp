@@ -911,86 +911,10 @@ DumpWebgpuLimits(const wgpu::Device& device)
 
 //////////////////////////////////////////////
 
-Result<void*>
-BasicGpuBuffer::Map()
+Result<std::span<std::byte>>
+Texture::MapBytes()
 {
-    MLG_CHECKV(m_StagingBuffer == nullptr, "BasicGpuBuffer::Map called while already mapped");
-
-    const size_t sizeofBuffer = this->GetSize();
-
-    wgpu::Buffer stagingBuffer =
-        CreateGpuBufferUnmapped(wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc,
-            sizeofBuffer,
-            "BasicGpuBufferStagingBuffer");
-
-    Result<> result;
-
-    auto cb = [](wgpu::MapAsyncStatus status, wgpu::StringView message, Result<>* result)
-    {
-        if(status != wgpu::MapAsyncStatus::Success)
-        {
-            MLG_ERROR("MapAsync failed: {}", std::string(message.data, message.length));
-            *result = Result<>::Fail;
-        }
-        else
-        {
-            *result = Result<>::Ok;
-        }
-    };
-
-    wgpu::Future fut = stagingBuffer.MapAsync(wgpu::MapMode::Write,
-        0,
-        sizeofBuffer,
-        wgpu::CallbackMode::WaitAnyOnly,
-        cb,
-        &result);
-
-    wgpu::WaitStatus waitStatus = WebgpuHelper::GetInstance().WaitAny(fut, UINT64_MAX);
-
-    MLG_CHECK(waitStatus == wgpu::WaitStatus::Success,
-        "Failed to map staging buffer - WaitAny failed");
-
-    void* mapped = stagingBuffer.GetMappedRange();
-
-    MLG_CHECK(mapped, "Failed to map staging buffer");
-
-    m_StagingBuffer = std::move(stagingBuffer);
-
-    return mapped;
-}
-
-Result<>
-BasicGpuBuffer::Unmap()
-{
-    wgpu::CommandEncoder cmdEncoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
-
-    MLG_CHECK(Unmap(cmdEncoder));
-
-    wgpu::CommandBuffer commandBuffer = cmdEncoder.Finish();
-
-    WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
-
-    return Result<>::Ok;
-}
-
-Result<>
-BasicGpuBuffer::Unmap(wgpu::CommandEncoder cmdEncoder)
-{
-    MLG_CHECKV(m_StagingBuffer, "BasicGpuBuffer::Unmap called while not mapped");
-
-    m_StagingBuffer.Unmap();
-
-    cmdEncoder.CopyBufferToBuffer(m_StagingBuffer, 0, *this, 0, this->GetSize());
-
-    m_StagingBuffer = nullptr;
-
-    return Result<>::Ok;
-}
-
-Result<void*>
-Texture::Map()
-{
-    MLG_CHECKV(m_StagingBuffer == nullptr, "Texture::Map called while already mapped");
+    MLG_CHECKV(m_StagingBuffer == nullptr, "Texture::MapBytes called while already mapped");
 
     // Staging buffer rows must be a multiple of 256 bytes.
     const uint32_t alignedRowStride = GetTextureAlignedRowStride(this->GetWidth());
@@ -1034,7 +958,7 @@ Texture::Map()
 
     m_StagingBuffer = std::move(stagingBuffer);
 
-    return mapped;
+    return std::span<std::byte>(static_cast<std::byte*>(mapped), sizeofBuffer);
 }
 
 Result<>
@@ -1084,6 +1008,82 @@ Texture::Unmap(wgpu::CommandEncoder cmdEncoder)
         };
 
     cmdEncoder.CopyBufferToTexture(&copySrc, &copyDst, &copySize);
+
+    m_StagingBuffer = nullptr;
+
+    return Result<>::Ok;
+}
+
+Result<std::span<std::byte>>
+BasicGpuBuffer::MapBytes()
+{
+    MLG_CHECKV(m_StagingBuffer == nullptr, "BasicGpuBuffer::MapBytes called while already mapped");
+
+    const size_t sizeofBuffer = this->GetSize();
+
+    wgpu::Buffer stagingBuffer =
+        CreateGpuBufferUnmapped(wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc,
+            sizeofBuffer,
+            "BasicGpuBufferStagingBuffer");
+
+    Result<> result;
+
+    auto cb = [](wgpu::MapAsyncStatus status, wgpu::StringView message, Result<>* result)
+    {
+        if(status != wgpu::MapAsyncStatus::Success)
+        {
+            MLG_ERROR("MapAsync failed: {}", std::string(message.data, message.length));
+            *result = Result<>::Fail;
+        }
+        else
+        {
+            *result = Result<>::Ok;
+        }
+    };
+
+    wgpu::Future fut = stagingBuffer.MapAsync(wgpu::MapMode::Write,
+        0,
+        sizeofBuffer,
+        wgpu::CallbackMode::WaitAnyOnly,
+        cb,
+        &result);
+
+    wgpu::WaitStatus waitStatus = WebgpuHelper::GetInstance().WaitAny(fut, UINT64_MAX);
+
+    MLG_CHECK(waitStatus == wgpu::WaitStatus::Success,
+        "Failed to map staging buffer - WaitAny failed");
+
+    void* mapped = stagingBuffer.GetMappedRange();
+
+    MLG_CHECK(mapped, "Failed to map staging buffer");
+
+    m_StagingBuffer = std::move(stagingBuffer);
+
+    return std::span<std::byte>(static_cast<std::byte*>(mapped), sizeofBuffer);
+}
+
+Result<>
+BasicGpuBuffer::Unmap()
+{
+    wgpu::CommandEncoder cmdEncoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
+
+    MLG_CHECK(Unmap(cmdEncoder));
+
+    wgpu::CommandBuffer commandBuffer = cmdEncoder.Finish();
+
+    WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
+
+    return Result<>::Ok;
+}
+
+Result<>
+BasicGpuBuffer::Unmap(wgpu::CommandEncoder cmdEncoder)
+{
+    MLG_CHECKV(m_StagingBuffer, "BasicGpuBuffer::Unmap called while not mapped");
+
+    m_StagingBuffer.Unmap();
+
+    cmdEncoder.CopyBufferToBuffer(m_StagingBuffer, 0, *this, 0, this->GetSize());
 
     m_StagingBuffer = nullptr;
 

@@ -6,6 +6,7 @@
 #include "Vertex.h"
 
 #include <array>
+#include <span>
 #include <string>
 #include <type_traits>
 
@@ -16,34 +17,6 @@ struct SDL_Window;
 template<typename T> class RgbaColor;
 using RgbaColorf = RgbaColor<float>;
 using RgbaColoru8 = RgbaColor<uint8_t>;
-
-class BasicGpuBuffer : private wgpu::Buffer
-{
-public:
-
-    using wgpu::Buffer::Buffer;
-    using wgpu::Buffer::GetSize;
-    using wgpu::Buffer::operator bool;
-
-    wgpu::Buffer& GetGpuBuffer() { return *this; }
-    const wgpu::Buffer& GetGpuBuffer() const { return *this; }
-
-    Result<void*> Map();
-
-    Result<> Unmap();
-
-    Result<> Unmap(wgpu::CommandEncoder cmdEncoder);
-
-protected:
-    explicit BasicGpuBuffer(wgpu::Buffer buffer)
-        : wgpu::Buffer(buffer)
-    {
-    }
-
-private:
-
-    wgpu::Buffer m_StagingBuffer;
-};
 
 class Texture : private wgpu::Texture
 {
@@ -60,7 +33,7 @@ public:
     wgpu::Texture& GetGpuTexture() { return *this; }
     const wgpu::Texture& GetGpuTexture() const { return *this; }
 
-    Result<void*> Map();
+    Result<std::span<std::byte>> MapBytes();
 
     Result<> Unmap();
 
@@ -79,21 +52,90 @@ private:
     wgpu::Buffer m_StagingBuffer;
 };
 
+class BasicGpuBuffer : private wgpu::Buffer
+{
+public:
+    using wgpu::Buffer::Buffer;
+    using wgpu::Buffer::GetSize;
+    using wgpu::Buffer::operator bool;
+
+    wgpu::Buffer& GetGpuBuffer() { return *this; }
+    const wgpu::Buffer& GetGpuBuffer() const { return *this; }
+
+    Result<std::span<std::byte>> MapBytes();
+
+    Result<> Unmap();
+
+    Result<> Unmap(wgpu::CommandEncoder cmdEncoder);
+
+protected:
+    explicit BasicGpuBuffer(wgpu::Buffer buffer)
+        : wgpu::Buffer(buffer)
+    {
+    }
+
+private:
+    wgpu::Buffer m_StagingBuffer;
+};
+
+template<typename T>
+class MappedGpuBuffer
+{
+    static_assert(std::is_trivially_copyable_v<T>);
+    static_assert(!std::is_pointer_v<T>);
+    static_assert(!std::is_reference_v<T>);
+
+public:
+    explicit MappedGpuBuffer(std::span<std::byte> bytes)
+        : m_Bytes(bytes)
+    {
+        MLG_ASSERT(bytes.size_bytes() % sizeof(T) == 0);
+    }
+
+    std::size_t size() const { return m_Bytes.size_bytes() / sizeof(T); }
+
+    T Load(std::size_t index) const
+    {
+        MLG_ASSERT(index < size());
+
+        T value;
+        std::memcpy(&value, m_Bytes.data() + index * sizeof(T), sizeof(T));
+
+        return value;
+    }
+
+    void Store(std::size_t index, const T& value)
+    {
+        MLG_ASSERT(index < size());
+
+        std::memcpy(m_Bytes.data() + index * sizeof(T), &value, sizeof(T));
+    }
+
+    std::span<std::byte> Bytes() { return m_Bytes; }
+
+    std::span<const std::byte> Bytes() const { return m_Bytes; }
+
+private:
+    std::span<std::byte> m_Bytes;
+};
+
 template<typename T>
 class SemanticGpuBuffer : public BasicGpuBuffer
 {
-    static_assert(!std::is_reference_v<T>, "SemanticGpuBuffer cannot be instantiated with reference types");
-    static_assert(!std::is_pointer_v<T>, "SemanticGpuBuffer cannot be instantiated with pointer types");
-public:
+    static_assert(std::is_trivially_copyable_v<T>);
+    static_assert(!std::is_pointer_v<T>);
+    static_assert(!std::is_reference_v<T>);
 
+public:
     using BasicGpuBuffer::BasicGpuBuffer;
     using BasicGpuBuffer::operator bool;
 
-    Result<T*> Map()
+    Result<MappedGpuBuffer<T>> Map()
     {
-        auto mapping = BasicGpuBuffer::Map();
-        MLG_CHECK(mapping);
-        return static_cast<T*>(*mapping);
+        auto bytes = BasicGpuBuffer::MapBytes();
+        MLG_CHECK(bytes);
+
+        return MappedGpuBuffer<T>{ *bytes };
     }
 
 private:

@@ -27,7 +27,7 @@ struct TextureBuilder
     std::string Uri;
     const FileFetcher::Request* Request{ nullptr };
     Texture Texture;
-    void* MappedMemory{ nullptr };
+    std::byte* MappedMemory{ nullptr };
     std::atomic<bool> DecodeComplete{ false };
 };
 
@@ -185,15 +185,15 @@ StageTexture(TextureBuilder& builder)
 
     MLG_CHECK(texture);
 
-    auto mapped = texture->Map();
+    auto mapped = texture->MapBytes();
     MLG_CHECK(mapped);
 
     builder.Texture = *texture;
-    builder.MappedMemory = *mapped;
+    builder.MappedMemory = mapped->data();
 
     auto decode = [](void* userData)
     {
-        auto builder = reinterpret_cast<TextureBuilder*>(userData);
+        auto builder = static_cast<TextureBuilder*>(userData);
         MLG_LOG_SCOPE(builder->Uri);
 
         MLG_DEBUG("Decoding...");
@@ -220,8 +220,8 @@ StageTexture(TextureBuilder& builder)
                 "Texture format does not match expected format - {}",
                 builder->Uri);
 
-            uint8_t* dst = (uint8_t*)builder->MappedMemory;
-            const uint8_t* src = data;
+            std::byte* dst = static_cast<std::byte*>(builder->MappedMemory);
+            const std::byte* src = reinterpret_cast<const std::byte*>(data);
             const uint32_t rowStride = width * kNumTextureChannels;
             const uint32_t alignedRowStride = (rowStride + 255) & ~255;
             for(uint32_t y = 0; y < static_cast<uint32_t>(height);
@@ -435,10 +435,10 @@ BuildVertexBuffer(std::span<const Vertex> vertices, wgpu::CommandEncoder encoder
     auto buffer = WebgpuHelper::CreateVertexBuffer(sizeofBuffer, "VertexBuffer");
     MLG_CHECK(buffer);
 
-    auto mapped = buffer->Map();
+    auto mapped = buffer->MapBytes();
     MLG_CHECK(mapped);
 
-    std::memcpy(*mapped, vertices.data(), sizeofBuffer);
+    std::memcpy(mapped->data(), vertices.data(), sizeofBuffer);
 
     MLG_CHECK(buffer->Unmap(encoder));
 
@@ -452,10 +452,10 @@ BuildIndexBuffer(std::span<const VertexIndex> indices, wgpu::CommandEncoder enco
     auto buffer = WebgpuHelper::CreateIndexBuffer(sizeofBuffer, "IndexBuffer");
     MLG_CHECK(buffer);
 
-    auto mapped = buffer->Map();
+    auto mapped = buffer->MapBytes();
     MLG_CHECK(mapped);
 
-    std::memcpy(*mapped, indices.data(), sizeofBuffer);
+    std::memcpy(mapped->data(), indices.data(), sizeofBuffer);
 
     MLG_CHECK(buffer->Unmap(encoder));
 
@@ -474,16 +474,18 @@ BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs, wgpu::Co
     auto mapped = buffer->Map();
     MLG_CHECK(mapped);
 
-    ShaderInterop::MaterialConstants* dst = *mapped;
+    size_t index = 0;
 
     for(const auto& mtl : materialDefs)
     {
-        ::new(dst++) ShaderInterop::MaterialConstants //
-        {
-            .Color = mtl.Color,
-            .Metalness = mtl.Metalness,
-            .Roughness = mtl.Roughness,
-        };
+        ShaderInterop::MaterialConstants mc //
+            {
+                .Color = mtl.Color,
+                .Metalness = mtl.Metalness,
+                .Roughness = mtl.Roughness,
+            };
+        mapped->Store(index, mc);
+        ++index;
     }
 
     buffer->Unmap(encoder);

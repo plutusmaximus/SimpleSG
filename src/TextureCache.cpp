@@ -16,20 +16,20 @@ TextureCache::Startup()
 
     MLG_CHECK(defaultTexture);
 
-    auto mapped = defaultTexture->Map();
+    auto mapped = defaultTexture->MapBytes();
     MLG_CHECK(mapped);
 
-    uint8_t* data = static_cast<uint8_t*>(*mapped);
+    std::byte* data = mapped->data();
 
     for(uint32_t y = 0; y < kDefaultTextureHeight; ++y)
     {
         for(uint32_t x = 0; x < kDefaultTextureWidth; ++x, data += 4)
         {
             //Magenta
-            data[0] = 0xFF;
-            data[1] = 0x00;
-            data[2] = 0xFF;
-            data[3] = 0xFF;
+            data[0] = std::byte{0xFF};
+            data[1] = std::byte{0x00};
+            data[2] = std::byte{0xFF};
+            data[3] = std::byte{0xFF};
         }
     }
 
