@@ -6,8 +6,8 @@ struct VSOut
     @location(0)       uv  : vec2<f32>,
 };
 
-@group(2) @binding(0) var srcTex : texture_2d<f32>;
-@group(2) @binding(1) var srcSmp : sampler;
+@group(0) @binding(0) var srcTex : texture_2d<f32>;
+@group(0) @binding(1) var srcSmp : sampler;
 
 @vertex
 fn vs_main(@builtin(vertex_index) vid : u32) -> VSOut

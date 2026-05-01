@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Result.h"
-#include "shaders/ShaderInterop.h"
 
 #include "WebgpuHelper.h"
 
@@ -72,7 +71,6 @@ private:
     {
         wgpu::ShaderModule Shader;
         wgpu::PipelineLayout Layout;
-        wgpu::BindGroup BindGroup1;
         wgpu::RenderPipeline Pipeline;
     };
 
@@ -80,7 +78,6 @@ private:
     {
         wgpu::ShaderModule Shader;
         wgpu::PipelineLayout Layout;
-        wgpu::BindGroup BindGroup1;
         wgpu::ComputePipeline Pipeline;
     };
 
@@ -88,7 +85,7 @@ private:
     {
         wgpu::ShaderModule Shader;
         wgpu::PipelineLayout Layout;
-        wgpu::BindGroup BindGroup2;
+        wgpu::BindGroup BindGroup0;
         wgpu::RenderPipeline Pipeline;
     };
 
@@ -100,10 +97,6 @@ private:
 
     // Pipeline to present the color target to the swap chain.
     PresentPipeline m_PresentPipeline;
-
-    using CameraParamsBuffer = SemanticGpuBuffer<ShaderInterop::CameraParams>;
-
-    CameraParamsBuffer m_CameraParamsBuf;
 
     bool m_Initialized{false};
 };

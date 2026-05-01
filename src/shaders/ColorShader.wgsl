@@ -39,11 +39,10 @@ struct Camera
 @group(0) @binding(1) var<storage, read> clipSpaceTransforms : array<ClipSpaceTransform>;
 @group(0) @binding(2) var<storage, read> meshProperties : array<MeshProperties>;
 @group(0) @binding(3) var<storage, read> materials : array<Material>;
+@group(0) @binding(4) var<uniform> camera : Camera;
 
-@group(1) @binding(0) var<uniform> camera : Camera;
-
-@group(2) @binding(0) var texture0 : texture_2d<f32>;
-@group(2) @binding(1) var textureSampler : sampler;
+@group(1) @binding(0) var texture0 : texture_2d<f32>;
+@group(1) @binding(1) var textureSampler : sampler;
 
 struct VSInput
 {

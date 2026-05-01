@@ -17,8 +17,7 @@ struct Camera
 
 @group(0) @binding(0) var<storage, read> inMats : array<WorldTransform>;
 @group(0) @binding(1) var<storage, read_write> outMats : array<ClipSpaceTransform>;
-
-@group(1) @binding(0) var<uniform> camera : Camera;
+@group(0) @binding(2) var<uniform> camera : Camera;
 
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) gid: vec3<u32>)

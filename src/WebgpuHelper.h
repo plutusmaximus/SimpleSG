@@ -188,10 +188,9 @@ public:
     requires is_gpu_buffer_type_v<T>
     static Result<T> CreateSemanticStorageBuffer(const size_t size, const std::string& name)
     {
-        // Don't try to create "special" buffers with this helper.
-        // Use the specific helper functions for vertex/index/uniform/indirect buffers.
-        static_assert(!std::is_same_v<T, VertexBuffer>);
-        static_assert(!std::is_same_v<T, IndexBuffer>);
+        static_assert(!std::is_same_v<T, VertexBuffer>, "Use CreateVertexBuffer to create vertex buffers");
+        static_assert(!std::is_same_v<T, IndexBuffer>, "Use CreateIndexBuffer to create index buffers");
+        static_assert(!std::is_same_v<T, DrawIndirectBuffer>, "Use CreateIndirectBuffer to create indirect buffers");
 
         auto bufferResult = CreateStorageBuffer(size, name);
         MLG_CHECK(bufferResult);
@@ -204,10 +203,9 @@ public:
     requires is_gpu_buffer_type_v<T>
     static Result<T> CreateSemanticUniformBuffer(const size_t size, const std::string& name)
     {
-        // Don't try to create "special" buffers with this helper.
-        // Use the specific helper functions for vertex/index/uniform/indirect buffers.
-        static_assert(!std::is_same_v<T, VertexBuffer>);
-        static_assert(!std::is_same_v<T, IndexBuffer>);
+        static_assert(!std::is_same_v<T, VertexBuffer>, "Use CreateVertexBuffer to create vertex buffers");
+        static_assert(!std::is_same_v<T, IndexBuffer>, "Use CreateIndexBuffer to create index buffers");
+        static_assert(!std::is_same_v<T, DrawIndirectBuffer>, "Use CreateIndirectBuffer to create indirect buffers");
 
         auto bufferResult = CreateUniformBuffer(size, name);
         MLG_CHECK(bufferResult);
@@ -220,10 +218,8 @@ public:
     requires is_gpu_buffer_type_v<T>
     static Result<T> CreateSemanticIndirectBuffer(const size_t size, const std::string& name)
     {
-        // Don't try to create "special" buffers with this helper.
-        // Use the specific helper functions for vertex/index/uniform/indirect buffers.
-        static_assert(!std::is_same_v<T, VertexBuffer>);
-        static_assert(!std::is_same_v<T, IndexBuffer>);
+        static_assert(!std::is_same_v<T, VertexBuffer>, "Use CreateVertexBuffer to create vertex buffers");
+        static_assert(!std::is_same_v<T, IndexBuffer>, "Use CreateIndexBuffer to create index buffers");
 
         auto bufferResult = CreateIndirectBuffer(size, name);
         MLG_CHECK(bufferResult);
@@ -231,11 +227,11 @@ public:
         return T(*bufferResult);
     }
 
-    static Result<const std::array<wgpu::BindGroupLayout, 3>> GetColorPipelineLayouts();
+    static Result<const std::array<wgpu::BindGroupLayout, 2>> GetColorPipelineLayouts();
 
-    static Result<const std::array<wgpu::BindGroupLayout, 2>> GetTransformPipelineLayouts();
+    static Result<const std::array<wgpu::BindGroupLayout, 1>> GetTransformPipelineLayouts();
 
-    static Result<const std::array<wgpu::BindGroupLayout, 3>> GetCompositorPipelineLayouts();
+    static Result<const std::array<wgpu::BindGroupLayout, 1>> GetCompositorPipelineLayouts();
 
     static Extent GetScreenBounds();
 

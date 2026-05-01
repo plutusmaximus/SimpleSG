@@ -104,11 +104,10 @@ Renderer::Render(const Mat44f& camera,
         renderPass.SetPipeline(m_ColorPipeline.Pipeline);
     }
 
-    static PerfTimer setVsBindGroupTimer("Renderer.Render.Draw.SetVsBindGroup");
+    static PerfTimer setPerFrameBindGroupTimer("Renderer.Render.Draw.SetPerFrameBindGroup");
     {
-        auto scopedTimer = setVsBindGroupTimer.StartScoped();
+        auto scopedTimer = setPerFrameBindGroupTimer.StartScoped();
         renderPass.SetBindGroup(0, scene.GetColorPipelineBindGroup0(), 0, nullptr);
-        renderPass.SetBindGroup(1, m_ColorPipeline.BindGroup1, 0, nullptr);
     }
 
     static PerfTimer setBuffersTimer("Renderer.Render.Draw.SetBuffers");
@@ -162,7 +161,7 @@ Renderer::Render(const Mat44f& camera,
                 {
                     auto scopedTimer = fsBindingTimer.StartScoped();
 
-                    renderPass.SetBindGroup(2, materialBindGroups[materialIndex.Value()], 0, nullptr);
+                    renderPass.SetBindGroup(1, materialBindGroups[materialIndex.Value()], 0, nullptr);
                     lastMaterialIndex = materialIndex;
                 }
             }
@@ -269,7 +268,7 @@ Renderer::Present(Compositor& compositor)
     MLG_CHECK(renderPass, "Failed to begin render pass for copying color target to swapchain");
 
     renderPass.SetPipeline(m_PresentPipeline.Pipeline);
-    renderPass.SetBindGroup(2, m_PresentPipeline.BindGroup2, 0, nullptr);
+    renderPass.SetBindGroup(0, m_PresentPipeline.BindGroup0, 0, nullptr);
     renderPass.Draw(3, 1, 0, 0);
     renderPass.End();
 
@@ -653,13 +652,13 @@ Renderer::CreatePresentPipeline()
     wgpu::BindGroupDescriptor bgDesc //
         {
             .label = "ColorTargetCopyBindGroup",
-            .layout = (*bgLayouts)[2],
+            .layout = (*bgLayouts)[0],
             .entryCount = std::size(bgEntries),
             .entries = bgEntries,
         };
 
-    m_PresentPipeline.BindGroup2 = device.CreateBindGroup(&bgDesc);
-    MLG_CHECK(m_PresentPipeline.BindGroup2, "Failed to create bind group 2 for present pipeline");
+    m_PresentPipeline.BindGroup0 = device.CreateBindGroup(&bgDesc);
+    MLG_CHECK(m_PresentPipeline.BindGroup0, "Failed to create bind group 0 for present pipeline");
 
     m_PresentPipeline.Pipeline = device.CreateRenderPipeline(&descriptor);
     MLG_CHECK(m_PresentPipeline.Pipeline, "Failed to create render pipeline for present pipeline");
@@ -737,69 +736,6 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
 {
     wgpu::Device device = WebgpuHelper::GetDevice();
 
-    // Reallocate buffers if needed.
-
-    if(!m_CameraParamsBuf || !m_TransformPipeline.BindGroup1)
-    {
-        auto cameraParamsBuf = WebgpuHelper::CreateSemanticUniformBuffer<CameraParamsBuffer>(
-            sizeof(ShaderInterop::CameraParams),
-            "CameraParamsBuffer");
-        MLG_CHECK(cameraParamsBuf);
-        m_CameraParamsBuf = *cameraParamsBuf;
-
-        // Color pipeline bind groups
-        {
-            // Bind group 1
-            wgpu::BindGroupEntry bg1Entries[] = //
-                {
-                    // Camera params buffer
-                    {
-                        .binding = 0,
-                        .buffer = m_CameraParamsBuf.GetGpuBuffer(),
-                        .offset = 0,
-                        .size = m_CameraParamsBuf.GetSize(),
-                    },
-                };
-
-            wgpu::BindGroupDescriptor bg1Desc //
-                {
-                    .label = "ColorPipelineBindGroup1",
-                    .layout = m_ColorPipeline.Pipeline.GetBindGroupLayout(1),
-                    .entryCount = std::size(bg1Entries),
-                    .entries = bg1Entries,
-                };
-
-            m_ColorPipeline.BindGroup1 = device.CreateBindGroup(&bg1Desc);
-            MLG_CHECK(m_ColorPipeline.BindGroup1,
-                "Failed to create bindgroup 1 for color pipeline");
-        }
-
-        // Transform pipeline bind groups
-        {
-            // Bind group 1
-            wgpu::BindGroupEntry bg1Entries[] = //
-                {
-                    // Camera params buffer
-                    {
-                        .binding = 0,
-                        .buffer = m_CameraParamsBuf.GetGpuBuffer(),
-                        .offset = 0,
-                        .size = m_CameraParamsBuf.GetSize(),
-                    },
-                };
-
-            wgpu::BindGroupDescriptor bg1Desc//
-            {
-                .layout = m_TransformPipeline.Pipeline.GetBindGroupLayout(1),
-                .entryCount = std::size(bg1Entries),
-                .entries = bg1Entries,
-            };
-
-            m_TransformPipeline.BindGroup1 = device.CreateBindGroup(&bg1Desc);
-            MLG_CHECK(m_TransformPipeline.BindGroup1, "Failed to create bind group 1 for transform");
-        }
-    }
-
     // Use inverse of camera transform as view matrix
     const Mat44f viewXform = camera.Inverse();
     const Mat44f& projMat = projection.GetMatrix();
@@ -814,8 +750,10 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
             .ViewProj = viewProj,
         };
 
+    auto cameraParamsBuf = scene.GetCameraParamsBuffer();
+
     device.GetQueue().WriteBuffer(
-        m_CameraParamsBuf.GetGpuBuffer(),
+        cameraParamsBuf.GetGpuBuffer(),
         0,
         &cameraParams,
         sizeof(ShaderInterop::CameraParams));
@@ -823,7 +761,6 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
     wgpu::ComputePassEncoder pass = cmdEncoder.BeginComputePass();
     pass.SetPipeline(m_TransformPipeline.Pipeline);
     pass.SetBindGroup(0, scene.GetTransformPipelineBindGroup0());
-    pass.SetBindGroup(1, m_TransformPipeline.BindGroup1);
     const uint32_t workgroupCountX = narrow_cast<uint32_t>(scene.GetModelInstances().size());
     pass.DispatchWorkgroups(workgroupCountX);
     pass.End();

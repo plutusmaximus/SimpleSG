@@ -38,9 +38,9 @@ struct WgpuContext
     wgpu::TextureFormat SurfaceFormat;
     wgpu::Sampler DefaultSampler;
 
-    std::array<wgpu::BindGroupLayout, 3> ColorPipelineLayouts;
-    std::array<wgpu::BindGroupLayout, 2> TransformPipelineLayouts;
-    std::array<wgpu::BindGroupLayout, 3> CompositorPipelineLayouts;
+    std::array<wgpu::BindGroupLayout, 2> ColorPipelineLayouts;
+    std::array<wgpu::BindGroupLayout, 1> TransformPipelineLayouts;
+    std::array<wgpu::BindGroupLayout, 1> CompositorPipelineLayouts;
 };
 } // namespace
 
@@ -565,7 +565,7 @@ WebgpuHelper::CreateIndexBuffer(const size_t size, const std::string& name)
             name.c_str()));
 }
 
-Result<const std::array<wgpu::BindGroupLayout, 3>>
+Result<const std::array<wgpu::BindGroupLayout, 2>>
 WebgpuHelper::GetColorPipelineLayouts()
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::GetColorPipelineLayouts called before Startup");
@@ -619,6 +619,17 @@ WebgpuHelper::GetColorPipelineLayouts()
                     .minBindingSize = sizeof(ShaderInterop::MaterialConstants),
                 },
             },
+            // Camera parameters
+            {
+                .binding = 4,
+                .visibility = wgpu::ShaderStage::Vertex,
+                .buffer =
+                {
+                    .type = wgpu::BufferBindingType::Uniform,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = sizeof(ShaderInterop::CameraParams),
+                },
+            },
         };
         wgpu::BindGroupLayoutDescriptor desc = //
             {
@@ -635,35 +646,6 @@ WebgpuHelper::GetColorPipelineLayouts()
     if(!s_WgpuContext->ColorPipelineLayouts[1])
     {
         // Color pipeline bind group 1 layout
-        wgpu::BindGroupLayoutEntry entries[] =//
-        {
-            // Camera parameters
-            {
-                .binding = 0,
-                .visibility = wgpu::ShaderStage::Vertex,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::Uniform,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::CameraParams),
-                },
-            },
-        };
-        wgpu::BindGroupLayoutDescriptor desc = //
-            {
-                .label = "ColorPipelineBg1Layout",
-                .entryCount = std::size(entries),
-                .entries = entries,
-            };
-
-        s_WgpuContext->ColorPipelineLayouts[1] = GetDevice().CreateBindGroupLayout(&desc);
-        MLG_CHECK(s_WgpuContext->ColorPipelineLayouts[1],
-            "Failed to create bind group 1 layout for color pipeline");
-    }
-
-    if(!s_WgpuContext->ColorPipelineLayouts[2])
-    {
-        // Color pipeline bind group 2 layout
         wgpu::BindGroupLayoutEntry entries[] =//
         {
             // Texture
@@ -690,20 +672,20 @@ WebgpuHelper::GetColorPipelineLayouts()
 
         wgpu::BindGroupLayoutDescriptor desc = //
             {
-                .label = "ColorPipelineBg2Layout",
+                .label = "ColorPipelineBg1Layout",
                 .entryCount = std::size(entries),
                 .entries = entries,
             };
 
-        s_WgpuContext->ColorPipelineLayouts[2] = GetDevice().CreateBindGroupLayout(&desc);
-        MLG_CHECK(s_WgpuContext->ColorPipelineLayouts[2],
-            "Failed to create bind group 2 layout for color pipeline");
+        s_WgpuContext->ColorPipelineLayouts[1] = GetDevice().CreateBindGroupLayout(&desc);
+        MLG_CHECK(s_WgpuContext->ColorPipelineLayouts[1],
+            "Failed to create bind group 1 layout for color pipeline");
     }
 
     return s_WgpuContext->ColorPipelineLayouts;
 }
 
-Result<const std::array<wgpu::BindGroupLayout, 2>>
+Result<const std::array<wgpu::BindGroupLayout, 1>>
 WebgpuHelper::GetTransformPipelineLayouts()
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::GetTransformPipelineLayouts called before Startup");
@@ -735,6 +717,17 @@ WebgpuHelper::GetTransformPipelineLayouts()
                     .minBindingSize = sizeof(ShaderInterop::ClipSpaceTransform),
                 },
             },
+            // Camera parameters
+            {
+                .binding = 2,
+                .visibility = wgpu::ShaderStage::Compute,
+                .buffer =
+                {
+                    .type = wgpu::BufferBindingType::Uniform,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = sizeof(ShaderInterop::CameraParams),
+                },
+            },
         };
         wgpu::BindGroupLayoutDescriptor desc = //
             {
@@ -748,46 +741,17 @@ WebgpuHelper::GetTransformPipelineLayouts()
             "Failed to create bind group 0 layout for transform pipeline");
     }
 
-    if(!s_WgpuContext->TransformPipelineLayouts[1])
-    {
-        // Transform pipeline bind group 1 layout
-        wgpu::BindGroupLayoutEntry entries[] =//
-        {
-            // Camera parameters
-            {
-                .binding = 0,
-                .visibility = wgpu::ShaderStage::Compute,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::Uniform,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::CameraParams),
-                },
-            },
-        };
-        wgpu::BindGroupLayoutDescriptor desc = //
-            {
-                .label = "TransformPipelineBg1Layout",
-                .entryCount = std::size(entries),
-                .entries = entries,
-            };
-
-        s_WgpuContext->TransformPipelineLayouts[1] = GetDevice().CreateBindGroupLayout(&desc);
-        MLG_CHECK(s_WgpuContext->TransformPipelineLayouts[1],
-            "Failed to create bind group 1 layout for transform pipeline");
-    }
-
     return s_WgpuContext->TransformPipelineLayouts;
 }
 
-Result<const std::array<wgpu::BindGroupLayout, 3>>
+Result<const std::array<wgpu::BindGroupLayout, 1>>
 WebgpuHelper::GetCompositorPipelineLayouts()
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::GetCompositorPipelineLayouts called before Startup");
 
-    if(!s_WgpuContext->CompositorPipelineLayouts[2])
+    if(!s_WgpuContext->CompositorPipelineLayouts[0])
     {
-        // Compositor pipeline bind group 2 layout
+        // Compositor pipeline bind group 0 layout
         wgpu::BindGroupLayoutEntry entries[] =//
         {
             {
@@ -812,14 +776,14 @@ WebgpuHelper::GetCompositorPipelineLayouts()
 
         wgpu::BindGroupLayoutDescriptor desc = //
             {
-                .label = "CompositorPipelineBg2Layout",
+                .label = "CompositorPipelineBg0Layout",
                 .entryCount = std::size(entries),
                 .entries = entries,
             };
 
-        s_WgpuContext->CompositorPipelineLayouts[2] = GetDevice().CreateBindGroupLayout(&desc);
-        MLG_CHECK(s_WgpuContext->CompositorPipelineLayouts[2],
-            "Failed to create bind group 2 layout for compositor pipeline");
+        s_WgpuContext->CompositorPipelineLayouts[0] = GetDevice().CreateBindGroupLayout(&desc);
+        MLG_CHECK(s_WgpuContext->CompositorPipelineLayouts[0],
+            "Failed to create bind group 0 layout for compositor pipeline");
     }
 
     return s_WgpuContext->CompositorPipelineLayouts;

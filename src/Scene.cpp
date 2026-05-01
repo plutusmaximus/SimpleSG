@@ -12,12 +12,14 @@ struct ColorPipelineResources
     ClipSpaceBuffer ClipSpaceBuffer;
     MaterialConstantsBuffer MaterialConstantsBuffer;
     MeshPropertiesBuffer MeshPropertiesBuffer;
+    CameraParamsBuffer CameraParamsBuffer;
 };
 
 struct TransformPipelineResources
 {
     WorldTransformBuffer WorldTransformBuffer;
     ClipSpaceBuffer ClipSpaceBuffer;
+    CameraParamsBuffer CameraParamsBuffer;
 };
 } // namespace
 
@@ -330,6 +332,12 @@ CreateColorPipelineBindGroup0(ColorPipelineResources& colorPipelineResources)
             .offset = 0,
             .size = colorPipelineResources.MaterialConstantsBuffer.GetSize(),
         },
+        {
+            .binding = 4,
+            .buffer = colorPipelineResources.CameraParamsBuffer.GetGpuBuffer(),
+            .offset = 0,
+            .size = colorPipelineResources.CameraParamsBuffer.GetSize(),
+        },
     };
 
     wgpu::BindGroupDescriptor bgDesc = //
@@ -366,6 +374,12 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
             .buffer = transformPipelineResources.ClipSpaceBuffer.GetGpuBuffer(),
             .offset = 0,
             .size = transformPipelineResources.ClipSpaceBuffer.GetSize(),
+        },
+        {
+            .binding = 2,
+            .buffer = transformPipelineResources.CameraParamsBuffer.GetGpuBuffer(),
+            .offset = 0,
+            .size = transformPipelineResources.CameraParamsBuffer.GetSize(),
         },
     };
 
@@ -411,12 +425,18 @@ Scene::Create(const SceneDef& sceneDef, const PropKit& propKit, Scene& outScene)
     auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(modelInstances, propKit, encoder);
     MLG_CHECK(meshPropertiesBuffer);
 
+    auto cameraParamsBuf = WebgpuHelper::CreateSemanticUniformBuffer<CameraParamsBuffer>(
+        sizeof(ShaderInterop::CameraParams),
+        "CameraParamsBuffer");
+    MLG_CHECK(cameraParamsBuf);
+
     ColorPipelineResources colorPipelineResources //
     {
         .WorldTransformBuffer = *transformBuffer,
         .ClipSpaceBuffer = *clipSpaceBuffer,
         .MaterialConstantsBuffer = propKit.GetMaterialConstantsBuffer(),
         .MeshPropertiesBuffer = *meshPropertiesBuffer,
+        .CameraParamsBuffer = *cameraParamsBuf,
     };
 
     auto colorPipelineBindGroup0 = CreateColorPipelineBindGroup0(colorPipelineResources);
@@ -426,6 +446,7 @@ Scene::Create(const SceneDef& sceneDef, const PropKit& propKit, Scene& outScene)
     {
         .WorldTransformBuffer = *transformBuffer,
         .ClipSpaceBuffer = *clipSpaceBuffer,
+        .CameraParamsBuffer = *cameraParamsBuf,
     };
 
     auto transformPipelineBindGroup0 = CreateTransformPipelineBindGroup0(transformPipelineResources);
@@ -438,6 +459,7 @@ Scene::Create(const SceneDef& sceneDef, const PropKit& propKit, Scene& outScene)
         *transformBuffer,
         *drawIndirectBuffer,
         *meshPropertiesBuffer,
+        *cameraParamsBuf,
         *colorPipelineBindGroup0,
         *transformPipelineBindGroup0,
         std::move(modelInstances));

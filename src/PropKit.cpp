@@ -388,7 +388,7 @@ CreateMaterialBindGroup(const MaterialDef& materialDef, const TextureCache& text
     wgpu::BindGroupDescriptor bindGroupDesc //
     {
         .label = "MaterialBindGroup",
-        .layout = (*bgLayouts)[2],
+        .layout = (*bgLayouts)[1],
         .entryCount = std::size(bgEntries),
         .entries = bgEntries,
     };
