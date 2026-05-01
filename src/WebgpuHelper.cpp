@@ -7,9 +7,11 @@
 
 #include <SDL3/SDL.h>
 
+#if !defined(EMSCRIPTEN)
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#endif
 #endif
 
 static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
