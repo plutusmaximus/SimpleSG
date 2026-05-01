@@ -740,19 +740,8 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
 
     // Reallocate buffers if needed.
 
-    if(!m_TransformBuffers.ClipSpaceBuf || !m_TransformBuffers.CameraParamsBuf ||
-        !m_TransformBuffers.BindGroup1 ||
-        scene.GetTransformCount() > m_TransformBuffers.TransformCount)
+    if(!m_TransformBuffers.CameraParamsBuf || !m_TransformBuffers.BindGroup1)
     {
-        m_TransformBuffers.TransformCount = scene.GetTransformCount();
-
-        auto clipSpaceBuffer =
-            WebgpuHelper::CreateSemanticStorageBuffer<ClipSpaceBuffer>(scene.GetTransformBuffer().GetSize(),
-                "ClipSpaceTransformBuffer");
-        MLG_CHECK(clipSpaceBuffer);
-
-        m_TransformBuffers.ClipSpaceBuf = *clipSpaceBuffer;
-
         auto cameraParamsBuf = WebgpuHelper::CreateSemanticUniformBuffer<CameraParamsBuffer>(
             sizeof(ShaderInterop::CameraParams),
             "CameraParamsBuffer");
@@ -764,16 +753,9 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
             // Bind group 1
             wgpu::BindGroupEntry bg1Entries[] = //
                 {
-                        // Clip space transform buffer
-                    {
-                        .binding = 0,
-                        .buffer = m_TransformBuffers.ClipSpaceBuf.GetGpuBuffer(),
-                        .offset = 0,
-                        .size = m_TransformBuffers.ClipSpaceBuf.GetSize(),
-                    },
                     // Camera params buffer
                     {
-                        .binding = 1,
+                        .binding = 0,
                         .buffer = m_TransformBuffers.CameraParamsBuf.GetGpuBuffer(),
                         .offset = 0,
                         .size = m_TransformBuffers.CameraParamsBuf.GetSize(),
@@ -798,16 +780,9 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
             // Bind group 1
             wgpu::BindGroupEntry bg1Entries[] = //
                 {
-                    // Clip space transform buffer
-                    {
-                        .binding = 0,
-                        .buffer = m_TransformBuffers.ClipSpaceBuf.GetGpuBuffer(),
-                        .offset = 0,
-                        .size = m_TransformBuffers.ClipSpaceBuf.GetSize(),
-                    },
                     // Camera params buffer
                     {
-                        .binding = 1,
+                        .binding = 0,
                         .buffer = m_TransformBuffers.CameraParamsBuf.GetGpuBuffer(),
                         .offset = 0,
                         .size = m_TransformBuffers.CameraParamsBuf.GetSize(),

@@ -8,14 +8,16 @@ namespace
 {
 struct ColorPipelineResources
 {
-    WorldTransformBuffer TransformBuffer;
+    WorldTransformBuffer WorldTransformBuffer;
+    ClipSpaceBuffer ClipSpaceBuffer;
     MaterialConstantsBuffer MaterialConstantsBuffer;
     MeshPropertiesBuffer MeshPropertiesBuffer;
 };
 
 struct TransformPipelineResources
 {
-    WorldTransformBuffer TransformBuffer;
+    WorldTransformBuffer WorldTransformBuffer;
+    ClipSpaceBuffer ClipSpaceBuffer;
 };
 } // namespace
 
@@ -306,18 +308,24 @@ CreateColorPipelineBindGroup0(ColorPipelineResources& colorPipelineResources)
     {
         {
             .binding = 0,
-            .buffer = colorPipelineResources.TransformBuffer.GetGpuBuffer(),
+            .buffer = colorPipelineResources.WorldTransformBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = colorPipelineResources.TransformBuffer.GetSize(),
+            .size = colorPipelineResources.WorldTransformBuffer.GetSize(),
         },
         {
             .binding = 1,
+            .buffer = colorPipelineResources.ClipSpaceBuffer.GetGpuBuffer(),
+            .offset = 0,
+            .size = colorPipelineResources.ClipSpaceBuffer.GetSize(),
+        },
+        {
+            .binding = 2,
             .buffer = colorPipelineResources.MeshPropertiesBuffer.GetGpuBuffer(),
             .offset = 0,
             .size = colorPipelineResources.MeshPropertiesBuffer.GetSize(),
         },
         {
-            .binding = 2,
+            .binding = 3,
             .buffer = colorPipelineResources.MaterialConstantsBuffer.GetGpuBuffer(),
             .offset = 0,
             .size = colorPipelineResources.MaterialConstantsBuffer.GetSize(),
@@ -349,9 +357,15 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
     {
         {
             .binding = 0,
-            .buffer = transformPipelineResources.TransformBuffer.GetGpuBuffer(),
+            .buffer = transformPipelineResources.WorldTransformBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = transformPipelineResources.TransformBuffer.GetSize(),
+            .size = transformPipelineResources.WorldTransformBuffer.GetSize(),
+        },
+        {
+            .binding = 1,
+            .buffer = transformPipelineResources.ClipSpaceBuffer.GetGpuBuffer(),
+            .offset = 0,
+            .size = transformPipelineResources.ClipSpaceBuffer.GetSize(),
         },
     };
 
@@ -383,6 +397,11 @@ Scene::Create(const SceneDef& sceneDef, const PropKit& propKit, Scene& outScene)
     auto transformBuffer = BuildTransformBuffer(sceneDef, propKit, encoder);
     MLG_CHECK(transformBuffer);
 
+    auto clipSpaceBuffer =
+        WebgpuHelper::CreateSemanticStorageBuffer<ClipSpaceBuffer>(transformBuffer->GetSize(),
+            "ClipSpaceBuffer");
+    MLG_CHECK(clipSpaceBuffer);
+
     std::vector<ModelInstance> modelInstances;
     MLG_CHECK(CollectModelInstances(sceneDef, modelInstances, propKit));
 
@@ -394,7 +413,8 @@ Scene::Create(const SceneDef& sceneDef, const PropKit& propKit, Scene& outScene)
 
     ColorPipelineResources colorPipelineResources //
     {
-        .TransformBuffer = *transformBuffer,
+        .WorldTransformBuffer = *transformBuffer,
+        .ClipSpaceBuffer = *clipSpaceBuffer,
         .MaterialConstantsBuffer = propKit.GetMaterialConstantsBuffer(),
         .MeshPropertiesBuffer = *meshPropertiesBuffer,
     };
@@ -404,7 +424,8 @@ Scene::Create(const SceneDef& sceneDef, const PropKit& propKit, Scene& outScene)
 
     TransformPipelineResources transformPipelineResources //
     {
-        .TransformBuffer = *transformBuffer,
+        .WorldTransformBuffer = *transformBuffer,
+        .ClipSpaceBuffer = *clipSpaceBuffer,
     };
 
     auto transformPipelineBindGroup0 = CreateTransformPipelineBindGroup0(transformPipelineResources);

@@ -66,6 +66,9 @@ CollectAssemblyNodes(std::span<const AssemblyNodeDef> nodeDefs,
     // Pointer to beginning of nodes at this level.
     AssemblyNode* nodes = assemblyNodes.data() + assemblyNodes.size();
 
+    MLG_ASSERT(assemblyNodes.capacity() - assemblyNodes.size() >= nodeDefs.size(),
+        "Not enough capacity in assemblyNodes vector to add nodes for this level");
+
     // Add nodes at this level (breadth-first).
     for(const auto& nodeDef : nodeDefs)
     {

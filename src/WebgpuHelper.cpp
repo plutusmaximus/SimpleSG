@@ -573,7 +573,7 @@ WebgpuHelper::GetColorPipelineLayouts()
         // Color pipeline bind group 0 layout
         wgpu::BindGroupLayoutEntry entries[] =//
         {
-            // Mesh transform.
+            // World transform.
             {
                 .binding = 0,
                 .visibility = wgpu::ShaderStage::Vertex,
@@ -584,9 +584,20 @@ WebgpuHelper::GetColorPipelineLayouts()
                     .minBindingSize = sizeof(ShaderInterop::WorldTransform),
                 },
             },
-            // Mesh properties.
+            // Clip transform.
             {
                 .binding = 1,
+                .visibility = wgpu::ShaderStage::Vertex,
+                .buffer =
+                {
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = sizeof(ShaderInterop::ClipSpaceTransform),
+                },
+            },
+            // Mesh properties.
+            {
+                .binding = 2,
                 .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
                 .buffer =
                 {
@@ -597,7 +608,7 @@ WebgpuHelper::GetColorPipelineLayouts()
             },
             // Material constants buffer.
             {
-                .binding = 2,
+                .binding = 3,
                 .visibility = wgpu::ShaderStage::Fragment,
                 .buffer =
                 {
@@ -624,20 +635,9 @@ WebgpuHelper::GetColorPipelineLayouts()
         // Color pipeline bind group 1 layout
         wgpu::BindGroupLayoutEntry entries[] =//
         {
-            // Clip space transform
-            {
-                .binding = 0,
-                .visibility = wgpu::ShaderStage::Vertex,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(Mat44f),
-                },
-            },
             // Camera parameters
             {
-                .binding = 1,
+                .binding = 0,
                 .visibility = wgpu::ShaderStage::Vertex,
                 .buffer =
                 {
@@ -711,7 +711,7 @@ WebgpuHelper::GetTransformPipelineLayouts()
         // Transform pipeline bind group 0 layout
         wgpu::BindGroupLayoutEntry entries[] =//
         {
-            // World space transform.
+            // World transform.
             {
                 .binding = 0,
                 .visibility = wgpu::ShaderStage::Compute,
@@ -719,7 +719,18 @@ WebgpuHelper::GetTransformPipelineLayouts()
                 {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
                     .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(Mat44f),
+                    .minBindingSize = sizeof(ShaderInterop::WorldTransform),
+                },
+            },
+            // Clip transform.
+            {
+                .binding = 1,
+                .visibility = wgpu::ShaderStage::Compute,
+                .buffer =
+                {
+                    .type = wgpu::BufferBindingType::Storage,
+                    .hasDynamicOffset = false,
+                    .minBindingSize = sizeof(ShaderInterop::ClipSpaceTransform),
                 },
             },
         };
@@ -740,20 +751,9 @@ WebgpuHelper::GetTransformPipelineLayouts()
         // Transform pipeline bind group 1 layout
         wgpu::BindGroupLayoutEntry entries[] =//
         {
-            // Clip space transform
-            {
-                .binding = 0,
-                .visibility = wgpu::ShaderStage::Compute,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::Storage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(Mat44f),
-                },
-            },
             // Camera parameters
             {
-                .binding = 1,
+                .binding = 0,
                 .visibility = wgpu::ShaderStage::Compute,
                 .buffer =
                 {

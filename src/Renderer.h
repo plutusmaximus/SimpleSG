@@ -90,13 +90,10 @@ private:
     // Pipeline to present the color target to the swap chain.
     PresentPipeline m_PresentPipeline;
 
-    using ClipSpaceBuffer = SemanticGpuBuffer<ShaderInterop::ClipSpaceTransform>;
     using CameraParamsBuffer = SemanticGpuBuffer<ShaderInterop::CameraParams>;
 
     struct TransformBuffers
     {
-        size_t TransformCount{0};
-        ClipSpaceBuffer ClipSpaceBuf;
         CameraParamsBuffer CameraParamsBuf;
         wgpu::BindGroup BindGroup1;
     };
