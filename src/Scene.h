@@ -43,17 +43,6 @@ public:
 
     const std::span<const ModelInstance> GetModelInstances() const { return m_ModelInstances; }
 
-    WorldTransformBuffer GetTransformBuffer() const { return m_TransformBuffer; }
-
-    uint32_t GetTransformCount() const
-    {
-        if(m_TransformBuffer)
-        {
-            return static_cast<uint32_t>(m_TransformBuffer.GetSize() / sizeof(ShaderInterop::WorldTransform));
-        }
-        return 0;
-    }
-
     DrawIndirectBuffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
 
     wgpu::BindGroup GetColorPipelineBindGroup0() const { return m_ColorPipelineBindGroup0; }

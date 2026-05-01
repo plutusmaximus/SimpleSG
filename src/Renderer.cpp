@@ -7,6 +7,7 @@
 #include "Compositor.h"
 #include "PropKit.h"
 #include "Log.h"
+#include "narrow_cast.h"
 #include "PerfMetrics.h"
 #include "Projection.h"
 #include "Result.h"
@@ -15,7 +16,6 @@
 #include "ShaderInterop.h"
 #include "WebgpuHelper.h"
 
-#include <cstdio>
 #include <SDL3/SDL.h>
 
 static constexpr const char* PRESENT_SHADER = "shaders/PresentShader.wgsl";
@@ -825,7 +825,7 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
     pass.SetPipeline(m_TransformPipeline);
     pass.SetBindGroup(0, scene.GetTransformPipelineBindGroup0());
     pass.SetBindGroup(1, m_TransformBuffers.BindGroup1);
-    const uint32_t workgroupCountX = scene.GetTransformCount();
+    const uint32_t workgroupCountX = narrow_cast<uint32_t>(scene.GetModelInstances().size());
     pass.DispatchWorkgroups(workgroupCountX);
     pass.End();
 
