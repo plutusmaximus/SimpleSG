@@ -1,42 +1,35 @@
 #include "Stopwatch.h"
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+#include <SDL3/SDL.h>
 
-static inline std::int64_t GetFrequency()
+static inline uint64_t GetFrequency()
 {
-    static std::int64_t freq = 0;
+    static uint64_t freq = 0;
     if (freq == 0)
     {
-        LARGE_INTEGER frequency;
-        QueryPerformanceFrequency(&frequency);
-        freq = frequency.QuadPart;
+        freq = SDL_GetPerformanceFrequency();
     }
     return freq;
 }
 
 Stopwatch::Stopwatch()
 {
-    LARGE_INTEGER curTime;
-    QueryPerformanceCounter(&curTime);
-    m_LastTime = curTime.QuadPart;
+    m_LastTime = SDL_GetPerformanceCounter();
 }
 
 float
 Stopwatch::Mark()
 {
-    LARGE_INTEGER curTime;
-    QueryPerformanceCounter(&curTime);
-    const auto ticks = curTime.QuadPart - m_LastTime;
-    m_LastTime = curTime.QuadPart;
+    const auto curTime = SDL_GetPerformanceCounter();
+    const auto ticks = curTime - m_LastTime;
+    m_LastTime = curTime;
     return ticks / static_cast<float>(GetFrequency());
 }
 
 float
 Stopwatch::ElapsedSeconds() const
 {
-    LARGE_INTEGER curTime;
-    QueryPerformanceCounter(&curTime);
-    const auto ticks = curTime.QuadPart - m_LastTime;
+    const auto curTime = SDL_GetPerformanceCounter();
+    const auto ticks = curTime - m_LastTime;
     return ticks / static_cast<float>(GetFrequency());
 }
