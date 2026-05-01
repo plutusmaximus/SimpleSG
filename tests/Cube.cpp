@@ -4,6 +4,7 @@
 #include "ECS.h"
 #include "EcsChildTransformPool.h"
 #include "ImGuiRenderer.h"
+#include "Level.h"
 #include "Log.h"
 #include "MouseNav.h"
 #include "Projection.h"
@@ -20,7 +21,7 @@
 
 namespace
 {
-static Result<> CreateShapeModel(PropKitDef& outPropKitDef, SceneDef& outSceneDef);
+static Result<> CreateShapeModel(PropKitDef& outPropKitDef, LevelDef& outLevelDef);
 
 class WorldMatrix : public Mat44f
 {
@@ -64,14 +65,14 @@ public:
         m_ScreenBounds = WebgpuHelper::GetScreenBounds();
 
         PropKitDef propKitDef;
-        SceneDef sceneDef;
-        MLG_CHECK(CreateShapeModel(propKitDef, sceneDef));
+        LevelDef levelDef;
+        MLG_CHECK(CreateShapeModel(propKitDef, levelDef));
 
         MLG_CHECK(m_TextureCache.Startup());
 
         std::filesystem::path rootPath = ".";
         MLG_CHECK(PropKit::Create(rootPath, m_TextureCache, propKitDef, m_PropKit));
-        MLG_CHECK(Scene::Create(sceneDef, m_PropKit, m_Scene));
+        MLG_CHECK(Scene::Create(levelDef, m_PropKit, m_Scene));
 
         m_Planet = m_Registry.CreateEntity(ChildTransform{}, WorldMatrix{}, ModelTag{});
         m_MoonOrbit = m_Registry.CreateEntity(ChildTransform{ .ParentId = m_Planet.GetId() }, WorldMatrix{});
@@ -332,7 +333,7 @@ constexpr static const VertexIndex cubeIndices[] =
     20, 22, 23,  20, 21, 22
 };
 
-static Result<> CreateShapeModel(PropKitDef& outPropKitDef, SceneDef& outSceneDef)
+static Result<> CreateShapeModel(PropKitDef& outPropKitDef, LevelDef& outLevelDef)
 {
     //auto geometry = Shapes::Box(1, 1, 1);
     //auto geometry = Shapes::Ball(1, 10);
@@ -381,19 +382,19 @@ static Result<> CreateShapeModel(PropKitDef& outPropKitDef, SceneDef& outSceneDe
             .AssemblyDefs{ std::move(assemblyDef) },
         };
 
-    SceneNodeDef sceneNodeDef //
+    LevelDef levelDef //
         {
-            .AssemblyName{ "Shape" },
-            .Transform{},
-        };
-
-    SceneDef sceneDef //
-        {
-            .NodeDefs{ std::move(sceneNodeDef) },
+            .NodeDefs //
+            {
+                {
+                    .AssemblyName{ "Shape" },
+                    .Transform{},
+                },
+            },
         };
 
     outPropKitDef = std::move(propKitDef);
-    outSceneDef = std::move(sceneDef);
+    outLevelDef = std::move(levelDef);
 
     return Result<>::Ok;
 }

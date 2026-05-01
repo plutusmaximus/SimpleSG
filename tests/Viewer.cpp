@@ -1,12 +1,13 @@
 #include "Compositor.h"
-#include "Renderer.h"
-#include "PropKit.h"
 #include "ECS.h"
 #include "GltfLoader.h"
 #include "ImGuiRenderer.h"
+#include "Level.h"
 #include "MouseNav.h"
 #include "PerfMetrics.h"
 #include "Projection.h"
+#include "PropKit.h"
+#include "Renderer.h"
 #include "Scene.h"
 #include "scope_exit.h"
 #include "Stopwatch.h"
@@ -81,7 +82,7 @@ Load(const std::filesystem::path& path,
         "Failed to create PropKit for {}",
         path.string());
 
-    SceneDef sceneDef //
+    LevelDef levelDef //
         {
             .NodeDefs //
             {
@@ -100,7 +101,7 @@ Load(const std::filesystem::path& path,
             },
         };
 
-    MLG_CHECK(Scene::Create(sceneDef, outPropKit, outScene),
+    MLG_CHECK(Scene::Create(levelDef, outPropKit, outScene),
         "Failed to create Scene for {}",
         path.string());
 

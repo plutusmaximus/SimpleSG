@@ -1,7 +1,6 @@
 #pragma once
 
 #include "PropKit.h"
-#include "shaders/ShaderInterop.h"
 #include "WebgpuHelper.h"
 
 #include <span>
@@ -18,23 +17,12 @@ struct ModelInstance
     ModelIndex ModelIndex{ ModelIndex::INVALID };
 };
 
-struct SceneNodeDef
-{
-    std::string AssemblyName;
-    TrsTransformf Transform;
-};
-
-struct SceneDef
-{
-    std::vector<SceneNodeDef> NodeDefs;
-};
-
-class PropKit;
+struct LevelDef;
 
 class Scene
 {
 public:
-    static Result<> Create(const SceneDef& sceneDef, const PropKit& propKit, Scene& outScene);
+    static Result<> Create(const LevelDef& levelDef, const PropKit& propKit, Scene& outScene);
 
     Scene() = default;
     Scene(const Scene&) = delete;

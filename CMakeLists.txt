@@ -161,6 +161,7 @@ set(SSG_SOURCES
   src/FileFetcher.cpp
   src/GltfLoader.cpp
   src/ImGuiRenderer.cpp
+  src/Level.cpp
   src/Log.cpp
   src/PerfMetrics.cpp
   src/Projection.cpp
@@ -186,6 +187,7 @@ set(SSG_HEADERS
   src/ImGuiRenderer.h
   src/inlist.h
   src/instack.h
+  src/Level.h
   src/Log.h
   src/PerfMetrics.h
   src/PoolAllocator.h

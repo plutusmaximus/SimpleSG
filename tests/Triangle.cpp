@@ -1,5 +1,6 @@
 #include "Compositor.h"
 #include "ImGuiRenderer.h"
+#include "Level.h"
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "Projection.h"
@@ -16,7 +17,7 @@
 #include <SDL3/SDL.h>
 #include <thread>
 
-static Result<> CreateTriangleModel(PropKitDef& outPropKit, SceneDef& outSceneDef);
+static Result<> CreateTriangleModel(PropKitDef& outPropKit, LevelDef& outLevelDef);
 
 constexpr const char* kAppName = "Triangle";
 
@@ -41,8 +42,8 @@ static Result<> MainLoop()
     Projection projection;
 
     PropKitDef propKitDef;
-    SceneDef sceneDef;
-    MLG_CHECK(CreateTriangleModel(propKitDef, sceneDef));
+    LevelDef levelDef;
+    MLG_CHECK(CreateTriangleModel(propKitDef, levelDef));
 
     TextureCache textureCache;
     MLG_CHECK(textureCache.Startup());
@@ -51,7 +52,7 @@ static Result<> MainLoop()
     PropKit propKit;
     Scene scene;
     MLG_CHECK(PropKit::Create(rootPath, textureCache, propKitDef, propKit));
-    MLG_CHECK(Scene::Create(sceneDef, propKit, scene));
+    MLG_CHECK(Scene::Create(levelDef, propKit, scene));
 
     Renderer renderer;
     MLG_CHECK(renderer.Startup());
@@ -229,7 +230,7 @@ static Result<> RenderGui()
     return Result<>::Ok;
 }
 
-static Result<> CreateTriangleModel(PropKitDef& outPropKit, SceneDef& outSceneDef)
+static Result<> CreateTriangleModel(PropKitDef& outPropKit, LevelDef& outLevelDef)
 {
     std::vector<Vertex> triangleVertices = //
         {
@@ -280,19 +281,19 @@ static Result<> CreateTriangleModel(PropKitDef& outPropKit, SceneDef& outSceneDe
             .AssemblyDefs{ std::move(assemblyDef) },
         };
 
-    SceneNodeDef sceneNodeDef //
+    LevelDef levelDef //
         {
-            .AssemblyName{ "Triangle" },
-            .Transform{},
-        };
-
-    SceneDef sceneDef //
-        {
-            .NodeDefs{ std::move(sceneNodeDef) },
+            .NodeDefs //
+            {
+                {
+                    .AssemblyName{ "Triangle" },
+                    .Transform{},
+                },
+            },
         };
 
     outPropKit = std::move(propKitDef);
-    outSceneDef = std::move(sceneDef);
+    outLevelDef = std::move(levelDef);
 
     return Result<>::Ok;
 }

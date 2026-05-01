@@ -2,6 +2,8 @@
 
 #include "Scene.h"
 
+#include "Level.h"
+
 #include "Stopwatch.h"
 
 namespace
@@ -24,9 +26,9 @@ struct TransformPipelineResources
 } // namespace
 
 static Result<>
-Validate(const SceneDef& sceneDef, const PropKit& propKit)
+Validate(const LevelDef& levelDef, const PropKit& propKit)
 {
-    for(const auto& nodeDef : sceneDef.NodeDefs)
+    for(const auto& nodeDef : levelDef.NodeDefs)
     {
         auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
         MLG_CHECKV(assembly);
@@ -51,11 +53,11 @@ CountModelInstances(const AssemblyNode& assemblyNode)
 }
 
 static Result<size_t>
-CountModelInstances(const SceneDef& sceneDef, const PropKit& propKit)
+CountModelInstances(const LevelDef& levelDef, const PropKit& propKit)
 {
     size_t count = 0;
 
-    for(const auto& nodeDef : sceneDef.NodeDefs)
+    for(const auto& nodeDef : levelDef.NodeDefs)
     {
         auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
         MLG_CHECKV(assembly);
@@ -93,9 +95,9 @@ CollectTransforms(const AssemblyNode& node,
 }
 
 static Result<WorldTransformBuffer>
-BuildTransformBuffer(const SceneDef& sceneDef, const PropKit& propKit, wgpu::CommandEncoder encoder)
+BuildTransformBuffer(const LevelDef& levelDef, const PropKit& propKit, wgpu::CommandEncoder encoder)
 {
-    auto modelCount = CountModelInstances(sceneDef, propKit);
+    auto modelCount = CountModelInstances(levelDef, propKit);
     MLG_CHECK(modelCount);
 
     const size_t sizeofBuffer = *modelCount * sizeof(ShaderInterop::WorldTransform);
@@ -108,7 +110,7 @@ BuildTransformBuffer(const SceneDef& sceneDef, const PropKit& propKit, wgpu::Com
     MLG_CHECK(mapped);
 
     size_t count = 0;
-    for(const auto& nodeDef : sceneDef.NodeDefs)
+    for(const auto& nodeDef : levelDef.NodeDefs)
     {
         auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
         MLG_CHECK(assembly);
@@ -145,15 +147,15 @@ CollectModelInstances(const AssemblyNode& node, std::vector<ModelInstance>& outM
 
 static Result<>
 CollectModelInstances(
-    const SceneDef& sceneDef, std::vector<ModelInstance>& outModelInstances, const PropKit& propKit)
+    const LevelDef& levelDef, std::vector<ModelInstance>& outModelInstances, const PropKit& propKit)
 {
-    auto modelInstanceCount = CountModelInstances(sceneDef, propKit);
+    auto modelInstanceCount = CountModelInstances(levelDef, propKit);
     MLG_CHECK(modelInstanceCount);
 
     outModelInstances.clear();
     outModelInstances.reserve(*modelInstanceCount);
 
-    for(const auto& nodeDef : sceneDef.NodeDefs)
+    for(const auto& nodeDef : levelDef.NodeDefs)
     {
         auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
         MLG_CHECKV(assembly);
@@ -399,16 +401,16 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
 }
 
 Result<>
-Scene::Create(const SceneDef& sceneDef, const PropKit& propKit, Scene& outScene)
+Scene::Create(const LevelDef& levelDef, const PropKit& propKit, Scene& outScene)
 {
     Stopwatch createTimer;
     createTimer.Mark();
 
-    MLG_CHECK(Validate(sceneDef, propKit));
+    MLG_CHECK(Validate(levelDef, propKit));
 
     wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
 
-    auto transformBuffer = BuildTransformBuffer(sceneDef, propKit, encoder);
+    auto transformBuffer = BuildTransformBuffer(levelDef, propKit, encoder);
     MLG_CHECK(transformBuffer);
 
     auto clipSpaceBuffer =
@@ -417,7 +419,7 @@ Scene::Create(const SceneDef& sceneDef, const PropKit& propKit, Scene& outScene)
     MLG_CHECK(clipSpaceBuffer);
 
     std::vector<ModelInstance> modelInstances;
-    MLG_CHECK(CollectModelInstances(sceneDef, modelInstances, propKit));
+    MLG_CHECK(CollectModelInstances(levelDef, modelInstances, propKit));
 
     auto drawIndirectBuffer = BuildDrawIndirectBuffer(modelInstances, propKit, encoder);
     MLG_CHECK(drawIndirectBuffer);
