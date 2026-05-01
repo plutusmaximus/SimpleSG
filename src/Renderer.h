@@ -76,6 +76,14 @@ private:
         wgpu::RenderPipeline Pipeline;
     };
 
+    struct TransformPipeline
+    {
+        wgpu::ShaderModule Shader;
+        wgpu::PipelineLayout Layout;
+        wgpu::BindGroup BindGroup1;
+        wgpu::ComputePipeline Pipeline;
+    };
+
     struct PresentPipeline
     {
         wgpu::ShaderModule Shader;
@@ -87,21 +95,15 @@ private:
     // Pipeline for rendering to the color target texture.
     ColorPipeline m_ColorPipeline;
 
+    // Pipeline for computing world transforms on the GPU.
+    TransformPipeline m_TransformPipeline;
+
     // Pipeline to present the color target to the swap chain.
     PresentPipeline m_PresentPipeline;
 
     using CameraParamsBuffer = SemanticGpuBuffer<ShaderInterop::CameraParams>;
 
-    struct TransformBuffers
-    {
-        CameraParamsBuffer CameraParamsBuf;
-        wgpu::BindGroup BindGroup1;
-    };
-
-    TransformBuffers m_TransformBuffers;
-
-    wgpu::ShaderModule m_TransformShader;
-    wgpu::ComputePipeline m_TransformPipeline;
+    CameraParamsBuffer m_CameraParamsBuf;
 
     bool m_Initialized{false};
 };

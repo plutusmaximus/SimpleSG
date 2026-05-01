@@ -51,9 +51,8 @@ Renderer::Shutdown()
     }
 
     m_ColorPipeline = {};
-    m_PresentPipeline = {};
     m_TransformPipeline = {};
-    m_TransformBuffers = {};
+    m_PresentPipeline = {};
 
     m_ColorTargetSampler = nullptr;
     m_ColorTargetView = nullptr;
@@ -671,7 +670,7 @@ Renderer::CreatePresentPipeline()
 Result<>
 Renderer::CreateTransformPipeline()
 {
-    if(m_TransformPipeline)
+    if(m_TransformPipeline.Pipeline)
     {
         return Result<>::Ok;
     }
@@ -679,7 +678,7 @@ Renderer::CreateTransformPipeline()
     auto csResult = CreateShader(TRANSFORM_SHADER);
     MLG_CHECK(csResult);
 
-    m_TransformShader = *csResult;
+    m_TransformPipeline.Shader = *csResult;
 
     auto bgLayouts = WebgpuHelper::GetTransformPipelineLayouts();
     MLG_CHECK(bgLayouts);
@@ -691,22 +690,22 @@ Renderer::CreateTransformPipeline()
             .bindGroupLayouts = bgLayouts->data(),
         };
 
-    wgpu::PipelineLayout pipelineLayout =
+    m_TransformPipeline.Layout =
         WebgpuHelper::GetDevice().CreatePipelineLayout(&pipelineLayoutDesc);
-    MLG_CHECK(pipelineLayout, "Failed to create transform pipeline layout");
+    MLG_CHECK(m_TransformPipeline.Layout, "Failed to create transform pipeline layout");
 
     wgpu::ComputePipelineDescriptor pipelineDesc//
     {
-        .layout = pipelineLayout,
+        .layout = m_TransformPipeline.Layout,
         .compute//
         {
-            .module = m_TransformShader,
+            .module = m_TransformPipeline.Shader,
             .entryPoint = "main",
         },
     };;
 
-    m_TransformPipeline = WebgpuHelper::GetDevice().CreateComputePipeline(&pipelineDesc);
-    MLG_CHECK(m_TransformPipeline, "Failed to create compute pipeline for transform");
+    m_TransformPipeline.Pipeline = WebgpuHelper::GetDevice().CreateComputePipeline(&pipelineDesc);
+    MLG_CHECK(m_TransformPipeline.Pipeline, "Failed to create compute pipeline for transform");
 
     return Result<>::Ok;
 }
@@ -740,13 +739,13 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
 
     // Reallocate buffers if needed.
 
-    if(!m_TransformBuffers.CameraParamsBuf || !m_TransformBuffers.BindGroup1)
+    if(!m_CameraParamsBuf || !m_TransformPipeline.BindGroup1)
     {
         auto cameraParamsBuf = WebgpuHelper::CreateSemanticUniformBuffer<CameraParamsBuffer>(
             sizeof(ShaderInterop::CameraParams),
             "CameraParamsBuffer");
         MLG_CHECK(cameraParamsBuf);
-        m_TransformBuffers.CameraParamsBuf = *cameraParamsBuf;
+        m_CameraParamsBuf = *cameraParamsBuf;
 
         // Color pipeline bind groups
         {
@@ -756,9 +755,9 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
                     // Camera params buffer
                     {
                         .binding = 0,
-                        .buffer = m_TransformBuffers.CameraParamsBuf.GetGpuBuffer(),
+                        .buffer = m_CameraParamsBuf.GetGpuBuffer(),
                         .offset = 0,
-                        .size = m_TransformBuffers.CameraParamsBuf.GetSize(),
+                        .size = m_CameraParamsBuf.GetSize(),
                     },
                 };
 
@@ -783,21 +782,21 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
                     // Camera params buffer
                     {
                         .binding = 0,
-                        .buffer = m_TransformBuffers.CameraParamsBuf.GetGpuBuffer(),
+                        .buffer = m_CameraParamsBuf.GetGpuBuffer(),
                         .offset = 0,
-                        .size = m_TransformBuffers.CameraParamsBuf.GetSize(),
+                        .size = m_CameraParamsBuf.GetSize(),
                     },
                 };
 
             wgpu::BindGroupDescriptor bg1Desc//
             {
-                .layout = m_TransformPipeline.GetBindGroupLayout(1),
+                .layout = m_TransformPipeline.Pipeline.GetBindGroupLayout(1),
                 .entryCount = std::size(bg1Entries),
                 .entries = bg1Entries,
             };
 
-            m_TransformBuffers.BindGroup1 = device.CreateBindGroup(&bg1Desc);
-            MLG_CHECK(m_TransformBuffers.BindGroup1, "Failed to create bind group 1 for transform");
+            m_TransformPipeline.BindGroup1 = device.CreateBindGroup(&bg1Desc);
+            MLG_CHECK(m_TransformPipeline.BindGroup1, "Failed to create bind group 1 for transform");
         }
     }
 
@@ -816,15 +815,15 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
         };
 
     device.GetQueue().WriteBuffer(
-        m_TransformBuffers.CameraParamsBuf.GetGpuBuffer(),
+        m_CameraParamsBuf.GetGpuBuffer(),
         0,
         &cameraParams,
         sizeof(ShaderInterop::CameraParams));
 
     wgpu::ComputePassEncoder pass = cmdEncoder.BeginComputePass();
-    pass.SetPipeline(m_TransformPipeline);
+    pass.SetPipeline(m_TransformPipeline.Pipeline);
     pass.SetBindGroup(0, scene.GetTransformPipelineBindGroup0());
-    pass.SetBindGroup(1, m_TransformBuffers.BindGroup1);
+    pass.SetBindGroup(1, m_TransformPipeline.BindGroup1);
     const uint32_t workgroupCountX = narrow_cast<uint32_t>(scene.GetModelInstances().size());
     pass.DispatchWorkgroups(workgroupCountX);
     pass.End();
