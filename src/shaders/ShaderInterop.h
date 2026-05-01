@@ -36,7 +36,7 @@ public:
     const float pad1;
 };
 
-class MeshTransform
+class WorldTransform
 {
 public:
     Mat44f Transform;

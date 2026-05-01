@@ -581,7 +581,7 @@ WebgpuHelper::GetColorPipelineLayouts()
                 {
                     .type = wgpu::BufferBindingType::ReadOnlyStorage,
                     .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::MeshTransform),
+                    .minBindingSize = sizeof(ShaderInterop::WorldTransform),
                 },
             },
             // Mesh properties.

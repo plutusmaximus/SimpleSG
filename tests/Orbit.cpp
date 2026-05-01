@@ -87,32 +87,30 @@ Load(const std::filesystem::path& path,
             .MeshDefs{ meshDef },
         };
 
-    AssemblyNodeDef assemblyNodeDef //
+    AssemblyDef assemblyDef //
         {
-            .Name{ "Planet" },
-            .Transform{},
-            .ModelIndex{ 0 },
-            .Children //
+            .Name{ "Orbit" },
+            .RootNode //
             {
+                .Name{ "Planet" },
+                .Transform{},
+                .ModelIndex{ 0 },
+                .Children //
                 {
-                    .Name{ "MoonOrbit" },
-                    .Transform{},
-                    .Children //
                     {
+                        .Name{ "MoonOrbit" },
+                        .Transform{},
+                        .Children //
                         {
-                            .Name{ "Moon" },
-                            .Transform{ .T{ 2, 0, 0 }, .S{ 0.5f, 0.5f, 0.5f } },
-                            .ModelIndex{ 0 },
+                            {
+                                .Name{ "Moon" },
+                                .Transform{ .T{ 2, 0, 0 }, .S{ 0.1f, 0.1f, 0.1f } },
+                                .ModelIndex{ 0 },
+                            },
                         },
                     },
                 },
             },
-        };
-
-    AssemblyDef assemblyDef //
-        {
-            .Name{ "Orbit" },
-            .RootNode{ std::move(assemblyNodeDef) },
         };
 
     PropKitDef propKitDef //
@@ -125,15 +123,15 @@ Load(const std::filesystem::path& path,
         "Failed to create PropKit for {}",
         path.string());
 
-    SceneNodeDef sceneNodeDef //
-        {
-            .AssemblyName{ "Orbit" },
-            .Transform{},
-        };
-
     SceneDef sceneDef //
         {
-            .NodeDefs{ std::move(sceneNodeDef) },
+            .NodeDefs //
+            {
+                {
+                    .AssemblyName{ "Orbit" },
+                    .Transform{},
+                },
+            },
         };
 
     MLG_CHECK(Scene::Create(sceneDef, outPropKit, outScene),

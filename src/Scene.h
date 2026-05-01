@@ -8,7 +8,7 @@
 #include <vector>
 
 // Strongly-typed GPU storage buffer classes.
-using TransformBuffer = SemanticGpuBuffer<ShaderInterop::MeshTransform>;
+using WorldTransformBuffer = SemanticGpuBuffer<ShaderInterop::WorldTransform>;
 using MeshPropertiesBuffer = SemanticGpuBuffer<ShaderInterop::MeshProperties>;
 
 struct ModelInstance
@@ -42,13 +42,13 @@ public:
 
     const std::span<const ModelInstance> GetModelInstances() const { return m_ModelInstances; }
 
-    TransformBuffer GetTransformBuffer() const { return m_TransformBuffer; }
+    WorldTransformBuffer GetTransformBuffer() const { return m_TransformBuffer; }
 
     uint32_t GetTransformCount() const
     {
         if(m_TransformBuffer)
         {
-            return static_cast<uint32_t>(m_TransformBuffer.GetSize() / sizeof(Mat44f));
+            return static_cast<uint32_t>(m_TransformBuffer.GetSize() / sizeof(ShaderInterop::WorldTransform));
         }
         return 0;
     }
@@ -62,7 +62,7 @@ public:
 private:
 
     Scene(const PropKit* propKit,
-        TransformBuffer transformBuffer,
+        WorldTransformBuffer transformBuffer,
         DrawIndirectBuffer drawIndirectBuffer,
         MeshPropertiesBuffer meshPropertiesBuffer,
         wgpu::BindGroup colorPipelineBindGroup0,
@@ -79,7 +79,7 @@ private:
     }
 
     const PropKit* m_PropKit;
-    TransformBuffer m_TransformBuffer;
+    WorldTransformBuffer m_TransformBuffer;
     DrawIndirectBuffer m_DrawIndirectBuffer;
     MeshPropertiesBuffer m_MeshPropertiesBuffer;
     wgpu::BindGroup m_ColorPipelineBindGroup0;

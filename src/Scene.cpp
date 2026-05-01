@@ -8,14 +8,14 @@ namespace
 {
 struct ColorPipelineResources
 {
-    TransformBuffer TransformBuffer;
+    WorldTransformBuffer TransformBuffer;
     MaterialConstantsBuffer MaterialConstantsBuffer;
     MeshPropertiesBuffer MeshPropertiesBuffer;
 };
 
 struct TransformPipelineResources
 {
-    TransformBuffer TransformBuffer;
+    WorldTransformBuffer TransformBuffer;
 };
 } // namespace
 
@@ -66,11 +66,11 @@ CountModelInstances(const SceneDef& sceneDef, const PropKit& propKit)
 static Result<size_t>
 CollectTransforms(const AssemblyNode& node,
     const Mat44f& parentTransform,
-    MappedGpuBuffer<ShaderInterop::MeshTransform>& transforms,
+    MappedGpuBuffer<ShaderInterop::WorldTransform>& transforms,
     const size_t index)
 {
     size_t currentIndex = index;
-    ShaderInterop::MeshTransform curTransform{ .Transform = parentTransform * node.Transform.ToMatrix() };
+    ShaderInterop::WorldTransform curTransform{ .Transform = parentTransform * node.Transform.ToMatrix() };
 
     if(node.ModelIndex.IsValid())
     {
@@ -88,16 +88,16 @@ CollectTransforms(const AssemblyNode& node,
     return (currentIndex - index);
 }
 
-static Result<TransformBuffer>
+static Result<WorldTransformBuffer>
 BuildTransformBuffer(const SceneDef& sceneDef, const PropKit& propKit, wgpu::CommandEncoder encoder)
 {
     auto modelCount = CountModelInstances(sceneDef, propKit);
     MLG_CHECK(modelCount);
 
-    const size_t sizeofBuffer = *modelCount * sizeof(ShaderInterop::MeshTransform);
+    const size_t sizeofBuffer = *modelCount * sizeof(ShaderInterop::WorldTransform);
 
     auto buffer =
-        WebgpuHelper::CreateSemanticStorageBuffer<TransformBuffer>(sizeofBuffer, "TransformBuffer");
+        WebgpuHelper::CreateSemanticStorageBuffer<WorldTransformBuffer>(sizeofBuffer, "TransformBuffer");
     MLG_CHECK(buffer);
 
     auto mapped = buffer->Map();
