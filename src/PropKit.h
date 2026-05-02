@@ -14,12 +14,12 @@
 struct MaterialIndexTag {};
 struct MeshIndexTag {};
 struct ModelIndexTag {};
-struct NodeIndexTag {};
+struct AssemblyNodeIndexTag {};
 struct AssemblyIndexTag {};
 using MaterialIndex = SemanticInteger<MaterialIndexTag>;
 using MeshIndex = SemanticInteger<MeshIndexTag>;
 using ModelIndex = SemanticInteger<ModelIndexTag>;
-using NodeIndex = SemanticInteger<NodeIndexTag>;
+using AssemblyNodeIndex = SemanticInteger<AssemblyNodeIndexTag>;
 using AssemblyIndex = SemanticInteger<AssemblyIndexTag>;
 
 struct Mesh
@@ -40,15 +40,31 @@ struct Model
 
 struct AssemblyNode
 {
+    std::string Name;
     TrsTransformf Transform;
     ModelIndex ModelIndex{ ModelIndex::INVALID };
-    std::span<const AssemblyNode> Children;
+    AssemblyNodeIndex FirstChildIndex{ AssemblyNodeIndex::INVALID };
+    uint32_t ChildCount{ 0 };
 };
 
 struct Assembly
 {
     std::string Name;
-    NodeIndex RootNodeIndex{ NodeIndex::INVALID };
+    std::span<const AssemblyNode> Nodes;
+
+    Result<std::span<const AssemblyNode>> GetChildren(const AssemblyNode& node) const
+    {
+        if(!node.FirstChildIndex.IsValid())
+        {
+            return std::span<const AssemblyNode>{};
+        }
+
+        MLG_CHECKV(node.FirstChildIndex.Value() < Nodes.size(), "Invalid FirstChildIndex in node");
+        MLG_CHECKV(node.FirstChildIndex.Value() + node.ChildCount <= Nodes.size(),
+            "Invalid ChildCount in node");
+
+        return Nodes.subspan(node.FirstChildIndex.Value(), node.ChildCount);
+    }
 };
 
 struct MaterialDef
@@ -147,7 +163,7 @@ public:
 
     Result<const Assembly*> GetAssembly(const AssemblyIndex& index) const;
 
-    Result<const AssemblyNode*> GetAssemblyNode(const NodeIndex& index) const;
+    Result<const AssemblyNode*> GetAssemblyNode(const AssemblyNodeIndex& index) const;
 
 private:
     PropKit(VertexBuffer vertexBuffer,

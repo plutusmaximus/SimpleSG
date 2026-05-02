@@ -2,28 +2,6 @@
 
 #include "PropKit.h"
 
-static size_t
-CountNodes(const AssemblyNode& node)
-{
-    size_t count = 1; // Count the current node.
-
-    for(const auto& childNode : node.Children)
-    {
-        count += CountNodes(childNode);
-    }
-
-    return count;
-}
-
-static Result<size_t>
-CountNodes(const Assembly& assembly, const PropKit& propKit)
-{
-    auto rootNode = propKit.GetAssemblyNode(assembly.RootNodeIndex);
-    MLG_CHECK(rootNode);
-
-    return CountNodes(**rootNode);
-}
-
 static Result<size_t>
 CountNodes(const LevelDef& levelDef, const PropKit& propKit)
 {
@@ -33,44 +11,53 @@ CountNodes(const LevelDef& levelDef, const PropKit& propKit)
         auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
         MLG_CHECK(assembly);
 
-        auto nodeCount = CountNodes(**assembly, propKit);
-        MLG_CHECK(nodeCount);
-
-        count += *nodeCount;
+        count += (*assembly)->Nodes.size();
     }
 
     return count;
 }
 
+// Collect nodes in breadth-first order.
+// Parents come before children, siblings are contiguous.
 static Result<>
-CollectNodes(const AssemblyNode& node, const PropKit& propKit, std::vector<LevelNode>& nodes)
+CollectNodes(const Assembly& assembly,
+    const std::span<const AssemblyNode>& assemblyNodes,
+    const PropKit& propKit,
+    std::vector<LevelNode>& nodes)
 {
-    LevelNode levelNode //
-        {
-            .Transform = node.Transform,
-        };
-
-    const size_t currentIndex = nodes.size();
-    nodes.emplace_back(std::move(levelNode));
-
-    for(const auto& childNode : node.Children)
+    // Add all sibling nodes contiguously.
+    for(const auto& node : assemblyNodes)
     {
-        MLG_CHECK(CollectNodes(childNode, propKit, nodes));
+        LevelNode levelNode //
+            {
+                .Transform = node.Transform,
+            };
+
+        nodes.emplace_back(std::move(levelNode));
     }
 
-    nodes[currentIndex].Children =
-        std::span<LevelNode>{ nodes.data() + currentIndex + 1, node.Children.size() };
+    size_t nodeIndex = nodes.size() - assemblyNodes.size();
+
+    // For each sibling node recursively add its children.
+    for(size_t i = 0; i < assemblyNodes.size(); ++i, ++nodeIndex)
+    {
+        const AssemblyNode& asmNode = assemblyNodes[i];
+
+        if(asmNode.ChildCount == 0)
+        {
+            nodes[nodeIndex].FirstChildIndex = LevelNodeIndex::INVALID;
+            continue;
+        }
+
+        nodes[nodeIndex].FirstChildIndex = LevelNodeIndex(nodes.size());
+
+        auto children = assembly.GetChildren(asmNode);
+        MLG_CHECK(children);
+
+        MLG_CHECK(CollectNodes(assembly, *children, propKit, nodes));
+    }
 
     return Result<>::Ok;
-}
-
-static Result<>
-CollectNodes(const Assembly& assembly, const PropKit& propKit, std::vector<LevelNode>& nodes)
-{
-    auto rootNode = propKit.GetAssemblyNode(assembly.RootNodeIndex);
-    MLG_CHECK(rootNode);
-
-    return CollectNodes(**rootNode, propKit, nodes);
 }
 
 static Result<>
@@ -88,9 +75,11 @@ CollectNodes(const LevelDef& levelDef,
         auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
         MLG_CHECK(assembly);
 
+        std::array<AssemblyNode, 1> rootNodes{(*assembly)->Nodes[0]};
+
         const size_t currentIndex = nodes.size();
 
-        MLG_CHECK(CollectNodes(**assembly, propKit, nodes));
+        MLG_CHECK(CollectNodes(**assembly, rootNodes, propKit, nodes));
 
         nodeNameToIndex[nodeDef.Name] = currentIndex;
     }

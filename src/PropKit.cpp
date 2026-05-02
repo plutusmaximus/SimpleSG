@@ -45,106 +45,100 @@ static size_t CountNodes(const AssemblyNodeDef& nodeDef)
     return count;
 }
 
-static Result<>
+// Collect assembly nodes in breadth-first order.
+// Parents come before children, siblings are contiguous.
+static Result<size_t>
 CollectAssemblyNodes(std::span<const AssemblyNodeDef> nodeDefs,
-    std::vector<AssemblyNode>& assemblyNodes,
-    const std::span<Model> models)
+    const std::span<Model> models,
+    const size_t baseNodeIndex,
+    std::vector<AssemblyNode>& assemblyNodes)
 {
-    // Pointer to beginning of nodes at this level.
-    AssemblyNode* nodes = assemblyNodes.data() + assemblyNodes.size();
+    size_t count = 0;
 
-    MLG_ASSERT(assemblyNodes.capacity() - assemblyNodes.size() >= nodeDefs.size(),
-        "Not enough capacity in assemblyNodes vector to add nodes for this level");
-
-    // Add nodes at this level (breadth-first).
+    // Add all sibling nodes contiguously.
     for(const auto& nodeDef : nodeDefs)
     {
         MLG_CHECKV(nodeDef.ModelIndex == ModelIndex::INVALID ||
-                   (nodeDef.ModelIndex.Value() >= 0 &&
-                       nodeDef.ModelIndex.Value() < models.size()),
+                    (nodeDef.ModelIndex.Value() >= 0 &&
+                        nodeDef.ModelIndex.Value() < models.size()),
         "Invalid model index in assembly node definition: {}/model:{}",
         nodeDef.Name,
         nodeDef.ModelIndex.Value());
 
-        AssemblyNode childNode //
+        AssemblyNode node //
             {
+                .Name = nodeDef.Name,
                 .Transform = nodeDef.Transform,
                 .ModelIndex = nodeDef.ModelIndex,
+                .ChildCount = narrow_cast<uint32_t>(nodeDef.Children.size()),
             };
 
-        assemblyNodes.emplace_back(std::move(childNode));
+        assemblyNodes.emplace_back(std::move(node));
+
+        ++count;
     }
 
-    // For each node at this level, recursively add its children and set its Children span.
-    for(uint32_t i = 0; i < nodeDefs.size(); ++i)
+    size_t nodeIndex = assemblyNodes.size() - count;
+
+    // For each sibling node recursively add its children.
+    for(size_t i = 0; i < nodeDefs.size(); ++i, ++nodeIndex)
     {
         const AssemblyNodeDef& nodeDef = nodeDefs[i];
+
         if(nodeDef.Children.empty())
         {
+            assemblyNodes[nodeIndex].FirstChildIndex = AssemblyNodeIndex::INVALID;
             continue;
         }
 
-        // Pointer to beginning of child nodes for this node.
-        const AssemblyNode* childNode = assemblyNodes.data() + assemblyNodes.size();
+        const size_t firstChildIndex = baseNodeIndex + count;
+        assemblyNodes[nodeIndex].FirstChildIndex = AssemblyNodeIndex(firstChildIndex);
 
-        MLG_CHECK(CollectAssemblyNodes(nodeDef.Children, assemblyNodes, models));
-
-        nodes[i].Children = std::span<const AssemblyNode>{ childNode, nodeDef.Children.size() };
+        auto numAdded = CollectAssemblyNodes(nodeDef.Children, models, firstChildIndex, assemblyNodes);
+        MLG_CHECK(numAdded);
+        count += *numAdded;
     }
 
-    return Result<>::Ok;
+    return count;
 }
 
 static Result<>
 CollectAssemblies(std::span<const AssemblyDef> assemblyDefs,
+    const std::span<Model> models,
     std::vector<Assembly>& assemblies,
     std::vector<AssemblyNode>& assemblyNodes,
-    std::unordered_map<std::string, AssemblyIndex>& assemblyNameToIndex,
-    const std::span<Model> models)
+    std::unordered_map<std::string, AssemblyIndex>& assemblyNameToIndex)
 {
+    // Build a flat list of assembly nodes.
     for(const auto& assemblyDef : assemblyDefs)
     {
-        const AssemblyNodeDef& nodeDef = assemblyDef.RootNode;
-        MLG_CHECKV(
-            nodeDef.ModelIndex == ModelIndex::INVALID ||
-                (nodeDef.ModelIndex.Value() >= 0 && nodeDef.ModelIndex.Value() < models.size()),
-            "Invalid model index in assembly node definition: {}/model:{}",
-            nodeDef.Name,
-            nodeDef.ModelIndex.Value());
+        std::array<AssemblyNodeDef, 1> rootNodes{assemblyDef.RootNode};
 
+        MLG_CHECK(CollectAssemblyNodes(rootNodes, models, 0, assemblyNodes));
+    }
+
+    size_t nodeIndex = 0;
+
+    // Build assemblies with spans into the node list.
+    for(const auto& assemblyDef : assemblyDefs)
+    {
         MLG_CHECKV(!assemblyNameToIndex.contains(assemblyDef.Name),
             "Duplicate assembly name: {}",
             assemblyDef.Name);
 
         assemblyNameToIndex[assemblyDef.Name] = AssemblyIndex(assemblies.size());
 
+        auto nodeCount = CountNodes(assemblyDef.RootNode);
+
         Assembly assembly //
             {
                 .Name{ assemblyDef.Name },
-                .RootNodeIndex{ assemblyNodes.size() },
+                .Nodes = std::span<const AssemblyNode>(assemblyNodes).subspan(nodeIndex, nodeCount),
             };
 
         assemblies.emplace_back(std::move(assembly));
 
-        AssemblyNode rootNodeToAdd //
-            {
-                .Transform = nodeDef.Transform,
-                .ModelIndex = nodeDef.ModelIndex,
-            };
-
-        AssemblyNode& rootNodeAdded = assemblyNodes.emplace_back(std::move(rootNodeToAdd));
-
-        if(nodeDef.Children.empty())
-        {
-            continue;
-        }
-
-        // Pointer to beginning of child nodes for this node.
-        const AssemblyNode* childNode = assemblyNodes.data() + assemblyNodes.size();
-
-        MLG_CHECK(CollectAssemblyNodes(nodeDef.Children, assemblyNodes, models));
-
-        rootNodeAdded.Children = std::span<const AssemblyNode>{ childNode, nodeDef.Children.size() };
+        nodeIndex += nodeCount;
     }
 
     return Result<>::Ok;
@@ -362,42 +356,6 @@ FetchTextures(std::filesystem::path basePath,
     return Result<>::Ok;
 }
 
-static Result<wgpu::BindGroup>
-CreateMaterialBindGroup(const MaterialDef& materialDef, const TextureCache& textureCache)
-{
-    auto bgLayouts = WebgpuHelper::GetColorPipelineLayouts();
-    MLG_CHECK(bgLayouts);
-
-    Texture baseTexture =
-        materialDef.BaseTextureUri.empty()
-            ? textureCache.GetDefaultTexture()
-            : textureCache.Get(materialDef.BaseTextureUri);
-
-    wgpu::BindGroupEntry bgEntries[]//
-    {
-        {
-            .binding = 0,
-            .textureView = baseTexture.CreateView(),
-        },
-        {
-            .binding = 1,
-            .sampler = textureCache.GetDefaultSampler(),
-        },
-    };
-
-    wgpu::BindGroupDescriptor bindGroupDesc //
-    {
-        .label = "MaterialBindGroup",
-        .layout = (*bgLayouts)[1],
-        .entryCount = std::size(bgEntries),
-        .entries = bgEntries,
-    };
-
-    wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bindGroupDesc);
-
-    return bindGroup;
-}
-
 static Result<>
 CreateMaterialBindGroups(std::span<const MaterialDef> materialDefs,
     const TextureCache& textureCache,
@@ -407,12 +365,39 @@ CreateMaterialBindGroups(std::span<const MaterialDef> materialDefs,
 
     materialBindGroups.reserve(materialDefs.size());
 
-    for(const auto& mtl : materialDefs)
-    {
-        auto bindGroup = CreateMaterialBindGroup(mtl, textureCache);
-        MLG_CHECK(bindGroup);
+    auto bgLayouts = WebgpuHelper::GetColorPipelineLayouts();
+    MLG_CHECK(bgLayouts);
 
-        materialBindGroups.emplace_back(std::move(*bindGroup));
+    for(const auto& mtlDef : materialDefs)
+    {
+        Texture baseTexture =
+            mtlDef.BaseTextureUri.empty()
+                ? textureCache.GetDefaultTexture()
+                : textureCache.Get(mtlDef.BaseTextureUri);
+
+        wgpu::BindGroupEntry bgEntries[]//
+        {
+            {
+                .binding = 0,
+                .textureView = baseTexture.CreateView(),
+            },
+            {
+                .binding = 1,
+                .sampler = textureCache.GetDefaultSampler(),
+            },
+        };
+
+        wgpu::BindGroupDescriptor bindGroupDesc //
+        {
+            .label = "MaterialBindGroup",
+            .layout = (*bgLayouts)[1],
+            .entryCount = std::size(bgEntries),
+            .entries = bgEntries,
+        };
+
+        wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bindGroupDesc);
+
+        materialBindGroups.emplace_back(std::move(bindGroup));
     }
 
     return Result<>::Ok;
@@ -466,13 +451,13 @@ BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs, wgpu::Co
 
     size_t index = 0;
 
-    for(const auto& mtl : materialDefs)
+    for(const auto& mtlDef : materialDefs)
     {
         ShaderInterop::MaterialConstants mc //
             {
-                .Color = mtl.Color,
-                .Metalness = mtl.Metalness,
-                .Roughness = mtl.Roughness,
+                .Color = mtlDef.Color,
+                .Metalness = mtlDef.Metalness,
+                .Roughness = mtlDef.Roughness,
             };
         mapped->Store(index, mc);
         ++index;
@@ -483,6 +468,7 @@ BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs, wgpu::Co
     return buffer;
 }
 
+// Used in std::map to deduplicate materials based on their properties.
 template<>
 struct std::less<MaterialDef>
 {
@@ -522,6 +508,9 @@ PropKit::Create(const std::filesystem::path& rootPath,
     uint32_t materialIndex = 0;
 
     std::map<MaterialDef, MaterialIndex, std::less<MaterialDef>> uniqueMaterialMap;
+
+    // Count total vertices, indices, and meshes while also building a map of unique materials to
+    // assign indices to them.
     for(const auto& modelDef : propKitDef.ModelDefs)
     {
         for(const auto& mesh : modelDef.MeshDefs)
@@ -595,10 +584,10 @@ PropKit::Create(const std::filesystem::path& rootPath,
     assemblyNameToIndex.reserve(propKitDef.AssemblyDefs.size());
 
     MLG_CHECK(CollectAssemblies(propKitDef.AssemblyDefs,
+        models,
         assemblies,
         assemblyNodes,
-        assemblyNameToIndex,
-        models));
+        assemblyNameToIndex));
 
     wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
 
@@ -688,7 +677,7 @@ PropKit::GetAssembly(const AssemblyIndex& index) const
 }
 
 Result<const AssemblyNode*>
-PropKit::GetAssemblyNode(const NodeIndex& index) const
+PropKit::GetAssemblyNode(const AssemblyNodeIndex& index) const
 {
     MLG_CHECK(index.IsValid(), "Invalid assembly node index: {}", index.Value());
     MLG_CHECK(index.Value() < m_AssemblyNodes.size(),

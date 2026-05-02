@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Result.h"
+#include "SemanticInteger.h"
 #include "VecMath.h"
 
 #include <string>
@@ -8,12 +9,16 @@
 #include <unordered_map>
 #include <vector>
 
+struct LevelNodeIndexTag {};
+using LevelNodeIndex = SemanticInteger<LevelNodeIndexTag>;
+
 class PropKit;
 
 struct LevelNode
 {
     TrsTransformf Transform;
-    std::span<LevelNode> Children;
+    LevelNodeIndex FirstChildIndex{ LevelNodeIndex::INVALID };
+    uint32_t ChildCount{ 0 };
 };
 
 struct LevelNodeDef

@@ -37,21 +37,6 @@ Validate(const LevelDef& levelDef, const PropKit& propKit)
     return Result<>::Ok;
 }
 
-static size_t
-CountModelInstances(const AssemblyNode& assemblyNode)
-{
-    size_t count = assemblyNode.ModelIndex.IsValid()
-                       ? 1
-                       : 0; // Count the current node if it has a valid model.
-
-    for(const auto& childNode : assemblyNode.Children)
-    {
-        count += CountModelInstances(childNode);
-    }
-
-    return count;
-}
-
 static Result<size_t>
 CountModelInstances(const LevelDef& levelDef, const PropKit& propKit)
 {
@@ -61,42 +46,60 @@ CountModelInstances(const LevelDef& levelDef, const PropKit& propKit)
     {
         auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
         MLG_CHECKV(assembly);
-        auto rootNode = propKit.GetAssemblyNode(assembly->RootNodeIndex);
-        MLG_CHECKV(rootNode);
-        count += CountModelInstances(**rootNode);
+
+        for(const auto& node : (*assembly)->Nodes)
+        {
+            if(node.ModelIndex.IsValid())
+            {
+                ++count;
+            }
+        }
     }
 
     return count;
 }
 
 static Result<size_t>
-CollectTransforms(const AssemblyNode& node,
+CollectTransforms(const Assembly& assembly,
+    const AssemblyNode& node,
     const Mat44f& parentTransform,
     MappedGpuBuffer<ShaderInterop::WorldTransform>& transforms,
-    const size_t index)
+    const size_t transformIndex)
 {
-    size_t currentIndex = index;
-    ShaderInterop::WorldTransform curTransform{ .Transform = parentTransform * node.Transform.ToMatrix() };
+    size_t currentTransformIndex = transformIndex;
+
+    const ShaderInterop::WorldTransform curTransform //
+        { .Transform = parentTransform * node.Transform.ToMatrix() };
 
     if(node.ModelIndex.IsValid())
     {
-        transforms.Store(currentIndex, curTransform);
+        transforms.Store(currentTransformIndex, curTransform);
 
-        ++currentIndex;
+        ++currentTransformIndex;
     }
 
-    for(const auto& childNode : node.Children)
+    auto children = assembly.GetChildren(node);
+    MLG_CHECK(children);
+
+    for(const auto& childNode : *children)
     {
-        auto result = CollectTransforms(childNode, curTransform.Transform, transforms, currentIndex);
+        auto result = CollectTransforms(assembly,
+            childNode,
+            curTransform.Transform,
+            transforms,
+            currentTransformIndex);
         MLG_CHECK(result);
-        currentIndex += *result;
+
+        currentTransformIndex = *result;
     }
-    return (currentIndex - index);
+
+    return currentTransformIndex;
 }
 
 static Result<WorldTransformBuffer>
 BuildTransformBuffer(const LevelDef& levelDef, const PropKit& propKit, wgpu::CommandEncoder encoder)
 {
+    // One world space transform per model instance.
     auto modelCount = CountModelInstances(levelDef, propKit);
     MLG_CHECK(modelCount);
 
@@ -109,40 +112,27 @@ BuildTransformBuffer(const LevelDef& levelDef, const PropKit& propKit, wgpu::Com
     auto mapped = buffer->Map();
     MLG_CHECK(mapped);
 
-    size_t count = 0;
+    size_t transformIndex = 0;
     for(const auto& nodeDef : levelDef.NodeDefs)
     {
         auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
         MLG_CHECK(assembly);
 
-        auto rootNode = propKit.GetAssemblyNode(assembly->RootNodeIndex);
-        MLG_CHECK(rootNode);
-
-        auto result = CollectTransforms(**rootNode, nodeDef.Transform.ToMatrix(), *mapped, count);
+        // Initialize the transform buffer with the world space transform
+        // of each node that contains a model instance.
+        auto result = CollectTransforms(**assembly,
+            (*assembly)->Nodes[0],
+            nodeDef.Transform.ToMatrix(),
+            *mapped,
+            transformIndex);
         MLG_CHECK(result);
-        count += *result;
+
+        transformIndex = *result;
     }
 
     buffer->Unmap(encoder);
 
     return buffer;
-}
-
-static Result<>
-CollectModelInstances(const AssemblyNode& node, std::vector<ModelInstance>& outModelInstances)
-{
-    if(node.ModelIndex.IsValid())
-    {
-        const ModelInstance modelInstance{ .ModelIndex{ node.ModelIndex } };
-        outModelInstances.push_back(modelInstance);
-    }
-
-    for(const auto& childNode : node.Children)
-    {
-        MLG_CHECK(CollectModelInstances(childNode, outModelInstances));
-    }
-
-    return Result<>::Ok;
 }
 
 static Result<>
@@ -159,9 +149,15 @@ CollectModelInstances(
     {
         auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
         MLG_CHECKV(assembly);
-        auto rootNode = propKit.GetAssemblyNode(assembly->RootNodeIndex);
-        MLG_CHECKV(rootNode);
-        MLG_CHECK(CollectModelInstances(**rootNode, outModelInstances));
+
+        for(const auto& node : (*assembly)->Nodes)
+        {
+            if(node.ModelIndex.IsValid())
+            {
+                const ModelInstance modelInstance{ .ModelIndex{ node.ModelIndex } };
+                outModelInstances.push_back(modelInstance);
+            }
+        }
     }
 
     return Result<>::Ok;
