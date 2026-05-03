@@ -1,13 +1,15 @@
 #pragma once
 
 #include "Result.h"
-#include "PropKit.h"
 
 #include <string>
+
+struct PropKitDef;
+struct LevelDef;
 
 class GltfLoader final
 {
 public:
 
-    static Result<> LoadPropKit(const std::string& path, PropKitDef& outPropKit);
+    static Result<> Load(const std::string& path, PropKitDef& outPropKit, LevelDef& outLevelDef);
 };

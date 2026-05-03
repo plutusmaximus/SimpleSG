@@ -14,13 +14,9 @@
 struct MaterialIndexTag {};
 struct MeshIndexTag {};
 struct ModelIndexTag {};
-struct AssemblyNodeIndexTag {};
-struct AssemblyIndexTag {};
 using MaterialIndex = SemanticInteger<MaterialIndexTag>;
 using MeshIndex = SemanticInteger<MeshIndexTag>;
 using ModelIndex = SemanticInteger<ModelIndexTag>;
-using AssemblyNodeIndex = SemanticInteger<AssemblyNodeIndexTag>;
-using AssemblyIndex = SemanticInteger<AssemblyIndexTag>;
 
 struct Mesh
 {
@@ -36,35 +32,6 @@ struct Model
     std::string Name;
     MeshIndex FirstMesh{ MeshIndex::INVALID };
     uint32_t MeshCount{ 0 };
-};
-
-struct AssemblyNode
-{
-    std::string Name;
-    TrsTransformf Transform;
-    ModelIndex ModelIndex{ ModelIndex::INVALID };
-    AssemblyNodeIndex FirstChildIndex{ AssemblyNodeIndex::INVALID };
-    uint32_t ChildCount{ 0 };
-};
-
-struct Assembly
-{
-    std::string Name;
-    std::span<const AssemblyNode> Nodes;
-
-    Result<std::span<const AssemblyNode>> GetChildren(const AssemblyNode& node) const
-    {
-        if(!node.FirstChildIndex.IsValid())
-        {
-            return std::span<const AssemblyNode>{};
-        }
-
-        MLG_CHECKV(node.FirstChildIndex.Value() < Nodes.size(), "Invalid FirstChildIndex in node");
-        MLG_CHECKV(node.FirstChildIndex.Value() + node.ChildCount <= Nodes.size(),
-            "Invalid ChildCount in node");
-
-        return Nodes.subspan(node.FirstChildIndex.Value(), node.ChildCount);
-    }
 };
 
 struct MaterialDef
@@ -88,24 +55,9 @@ struct ModelDef
     std::vector<MeshDef> MeshDefs;
 };
 
-struct AssemblyNodeDef
-{
-    std::string Name;
-    TrsTransformf Transform;
-    ModelIndex ModelIndex{ ModelIndex::INVALID };
-    std::vector<AssemblyNodeDef> Children;
-};
-
-struct AssemblyDef
-{
-    std::string Name;
-    AssemblyNodeDef RootNode;
-};
-
 struct PropKitDef
 {
     std::vector<ModelDef> ModelDefs;
-    std::vector<AssemblyDef> AssemblyDefs;
 };
 
 // Strongly-typed GPU storage buffer classes.
@@ -135,44 +87,27 @@ public:
 
     MaterialConstantsBuffer GetMaterialConstantsBuffer() const { return m_MaterialConstantsBuffer; }
 
-    const std::span<const Mesh> GetMeshes() const { return m_Meshes; }
-
-    const std::span<const Model> GetModels() const { return m_Models; }
-
-    const std::span<const AssemblyNode> GetAssemblies() const { return m_AssemblyNodes; }
-
-    VertexBuffer GetVertexBuffer() const { return m_VertexBuffer; }
-
-    IndexBuffer GetIndexBuffer() const { return m_IndexBuffer; }
-
-    Result<AssemblyIndex> GetAssemblyIndex(const std::string& name) const
+    Result<ModelIndex> GetModelIndex(const std::string& name) const
     {
-        auto it = m_AssemblyNameToIndex.find(name);
-        MLG_CHECK(it != m_AssemblyNameToIndex.end(), "Assembly not found: {}", name);
+        auto it = m_ModelNameToIndex.find(name);
+        MLG_CHECKV(it != m_ModelNameToIndex.end(), "Model not found: {}", name);
 
         return it->second;
     }
 
-    Result<const Assembly*> GetAssembly(const std::string& name) const
-    {
-        auto assemblyIndex = GetAssemblyIndex(name);
-        MLG_CHECK(assemblyIndex);
+    const std::span<const Mesh> GetMeshes() const { return m_Meshes; }
 
-        return GetAssembly(*assemblyIndex);
-    }
+    const std::span<const Model> GetModels() const { return m_Models; }
 
-    Result<const Assembly*> GetAssembly(const AssemblyIndex& index) const;
+    VertexBuffer GetVertexBuffer() const { return m_VertexBuffer; }
 
-    Result<const AssemblyNode*> GetAssemblyNode(const AssemblyNodeIndex& index) const;
+    IndexBuffer GetIndexBuffer() const { return m_IndexBuffer; }
 
 private:
     PropKit(VertexBuffer vertexBuffer,
         IndexBuffer indexBuffer,
         std::vector<Mesh>&& meshes,
         std::vector<Model>&& models,
-        std::vector<Assembly>&& assemblies,
-        std::vector<AssemblyNode>&& assemblyNodes,
-        std::unordered_map<std::string, AssemblyIndex>&& assemblyNameToIndex,
         MaterialConstantsBuffer materialConstantsBuffer,
         std::vector<wgpu::BindGroup>&& materialBindGroups);
 
@@ -180,10 +115,7 @@ private:
     IndexBuffer m_IndexBuffer;
     std::vector<Mesh> m_Meshes;
     std::vector<Model> m_Models;
-    std::vector<Assembly> m_Assemblies;
-    std::vector<AssemblyNode> m_AssemblyNodes;
     MaterialConstantsBuffer m_MaterialConstantsBuffer;
     std::vector<wgpu::BindGroup> m_MaterialBindGroups;
     std::unordered_map<std::string, ModelIndex> m_ModelNameToIndex;
-    std::unordered_map<std::string, AssemblyIndex> m_AssemblyNameToIndex;
 };

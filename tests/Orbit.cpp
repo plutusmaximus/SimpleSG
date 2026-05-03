@@ -72,6 +72,7 @@ static Result<>
 Load(const std::filesystem::path& path,
     TextureCache& textureCache,
     PropKit& outPropKit,
+    Level& outLevel,
     Scene& outScene)
 {
     auto shape = Shapes::Ball(1.0f, 10);
@@ -88,36 +89,9 @@ Load(const std::filesystem::path& path,
             .MeshDefs{ meshDef },
         };
 
-    AssemblyDef assemblyDef //
-        {
-            .Name{ "Orbit" },
-            .RootNode //
-            {
-                .Name{ "Planet" },
-                .Transform{},
-                .ModelIndex{ 0 },
-                .Children //
-                {
-                    {
-                        .Name{ "MoonOrbit" },
-                        .Transform{},
-                        .Children //
-                        {
-                            {
-                                .Name{ "Moon" },
-                                .Transform{ .T{ 2, 0, 0 }, .S{ 0.1f, 0.1f, 0.1f } },
-                                .ModelIndex{ 0 },
-                            },
-                        },
-                    },
-                },
-            },
-        };
-
     PropKitDef propKitDef //
         {
             .ModelDefs{ std::move(modelDef) },
-            .AssemblyDefs{ std::move(assemblyDef) },
         };
 
     MLG_CHECK(PropKit::Create(path.parent_path(), textureCache, propKitDef, outPropKit),
@@ -125,25 +99,38 @@ Load(const std::filesystem::path& path,
         path.string());
 
     LevelDef levelDef //
-    {
-        .NodeDefs //
         {
+            .NodeDefs //
             {
-                .Name{ "Orbit" },
-                .AssemblyName{ "Orbit" },
-                .Transform{},
+                {
+                    .Name{ "Orbit" },
+                    .Transform{},
+                    .ModelName{ "Shape" },
+                    .Children //
+                    {
+                        {
+                            .Name{ "MoonOrbit" },
+                            .Transform{},
+                            .Children //
+                            {
+                                {
+                                    .Name{ "Moon" },
+                                    .Transform{ .T{ 2, 0, 0 }, .S{ 0.1f, 0.1f, 0.1f } },
+                                    .ModelName{ "Shape" },
+                                },
+                            },
+                        },
+                    },
+                },
             },
-        },
-    };
-
-    MLG_CHECK(Scene::Create(levelDef, outPropKit, outScene),
-        "Failed to create Scene for {}",
-        path.string());
-
-    Level outLevel;
+        };
 
     MLG_CHECK(Level::Create(levelDef, outPropKit, outLevel),
         "Failed to create Level for {}",
+        path.string());
+
+    MLG_CHECK(Scene::Create(outLevel, outPropKit, outScene),
+        "Failed to create Scene for {}",
         path.string());
 
     return Result<>::Ok;
@@ -160,6 +147,7 @@ MainLoop()
     ImGuiRenderer imGuiRenderer;
     TextureCache textureCache;
     PropKit propKit;
+    Level level;
     Scene scene;
     EcsRegistry registry;
     WalkMouseNav mouseNav;
@@ -169,7 +157,7 @@ MainLoop()
     MLG_CHECK(imGuiRenderer.Startup());
     MLG_CHECK(textureCache.Startup());
 
-    MLG_CHECK(Load("", textureCache, propKit, scene));
+    MLG_CHECK(Load("", textureCache, propKit, level, scene));
 
     Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, ModelTag{});
 
@@ -300,8 +288,9 @@ MainLoop()
         {
             textureCache.Clear();
             PropKit newPropKit;
+            Level newLevel;
             Scene newScene;
-            MLG_CHECK(Load(droppedFile, textureCache, newPropKit, newScene));
+            MLG_CHECK(Load(droppedFile, textureCache, newPropKit, newLevel, newScene));
             propKit = std::move(newPropKit);
             scene = std::move(newScene);
         }

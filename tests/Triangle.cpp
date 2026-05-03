@@ -50,9 +50,11 @@ static Result<> MainLoop()
 
     std::filesystem::path rootPath = ".";
     PropKit propKit;
+    Level level;
     Scene scene;
     MLG_CHECK(PropKit::Create(rootPath, textureCache, propKitDef, propKit));
-    MLG_CHECK(Scene::Create(levelDef, propKit, scene));
+    MLG_CHECK(Level::Create(levelDef, propKit, level));
+    MLG_CHECK(Scene::Create(level, propKit, scene));
 
     Renderer renderer;
     MLG_CHECK(renderer.Startup());
@@ -262,23 +264,9 @@ static Result<> CreateTriangleModel(PropKitDef& outPropKit, LevelDef& outLevelDe
             .MeshDefs{ std::move(meshDef) },
         };
 
-    AssemblyNodeDef assemblyNodeDef //
-        {
-            .Name{ "TriangleNode" },
-            .Transform{},
-            .ModelIndex{ 0 },
-        };
-
-    AssemblyDef assemblyDef //
-        {
-            .Name{ "Triangle" },
-            .RootNode{ std::move(assemblyNodeDef) },
-        };
-
     PropKitDef propKitDef //
         {
             .ModelDefs{ std::move(modelDef) },
-            .AssemblyDefs{ std::move(assemblyDef) },
         };
 
     LevelDef levelDef //
@@ -286,8 +274,9 @@ static Result<> CreateTriangleModel(PropKitDef& outPropKit, LevelDef& outLevelDe
             .NodeDefs //
             {
                 {
-                    .AssemblyName{ "Triangle" },
+                    .Name{ "TriangleNode" },
                     .Transform{},
+                    .ModelName{ "Triangle" },
                 },
             },
         };

@@ -25,85 +25,73 @@ struct TransformPipelineResources
 };
 } // namespace
 
-static Result<>
-Validate(const LevelDef& levelDef, const PropKit& propKit)
-{
-    for(const auto& nodeDef : levelDef.NodeDefs)
-    {
-        auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
-        MLG_CHECKV(assembly);
-    }
-
-    return Result<>::Ok;
-}
-
-static Result<size_t>
-CountModelInstances(const LevelDef& levelDef, const PropKit& propKit)
+static size_t
+CountModelInstances(const Level& level)
 {
     size_t count = 0;
-
-    for(const auto& nodeDef : levelDef.NodeDefs)
+    for(const auto & node : level.GetAllNodes())
     {
-        auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
-        MLG_CHECKV(assembly);
-
-        for(const auto& node : (*assembly)->Nodes)
+        if(node.ModelIndex.IsValid())
         {
-            if(node.ModelIndex.IsValid())
-            {
-                ++count;
-            }
+            ++count;
         }
     }
 
     return count;
 }
 
+// Depth-first traversal to enable calculating the world transform of each node as we go.
 static Result<size_t>
-CollectTransforms(const Assembly& assembly,
-    const AssemblyNode& node,
+CollectTransforms(const Level& level,
+    std::span<const LevelNode> nodes,
     const Mat44f& parentTransform,
     MappedGpuBuffer<ShaderInterop::WorldTransform>& transforms,
     const size_t transformIndex)
 {
     size_t currentTransformIndex = transformIndex;
 
-    const ShaderInterop::WorldTransform curTransform //
-        { .Transform = parentTransform * node.Transform.ToMatrix() };
-
-    if(node.ModelIndex.IsValid())
+    for(const auto& node : nodes)
     {
-        transforms.Store(currentTransformIndex, curTransform);
+        const ShaderInterop::WorldTransform curTransform //
+            { .Transform = parentTransform * node.Transform.ToMatrix() };
 
-        ++currentTransformIndex;
+        if(node.ModelIndex.IsValid())
+        {
+            transforms.Store(currentTransformIndex, curTransform);
+
+            ++currentTransformIndex;
+        }
     }
 
-    auto children = assembly.GetChildren(node);
-    MLG_CHECK(children);
-
-    for(const auto& childNode : *children)
+    for(const auto & node : nodes)
     {
-        auto result = CollectTransforms(assembly,
-            childNode,
-            curTransform.Transform,
+        auto childNodes = level.GetChildNodes(node);
+        MLG_CHECK(childNodes);
+
+        if(childNodes->empty())
+        {
+            continue;
+        }
+
+        auto nextTransformIndex = CollectTransforms(level,
+            *childNodes,
+            parentTransform * node.Transform.ToMatrix(),
             transforms,
             currentTransformIndex);
-        MLG_CHECK(result);
 
-        currentTransformIndex = *result;
+        currentTransformIndex = *nextTransformIndex;
     }
 
     return currentTransformIndex;
 }
 
 static Result<WorldTransformBuffer>
-BuildTransformBuffer(const LevelDef& levelDef, const PropKit& propKit, wgpu::CommandEncoder encoder)
+BuildTransformBuffer(const Level& level, wgpu::CommandEncoder encoder)
 {
     // One world space transform per model instance.
-    auto modelCount = CountModelInstances(levelDef, propKit);
-    MLG_CHECK(modelCount);
+    const size_t modelCount = CountModelInstances(level);
 
-    const size_t sizeofBuffer = *modelCount * sizeof(ShaderInterop::WorldTransform);
+    const size_t sizeofBuffer = modelCount * sizeof(ShaderInterop::WorldTransform);
 
     auto buffer =
         WebgpuHelper::CreateSemanticStorageBuffer<WorldTransformBuffer>(sizeofBuffer, "TransformBuffer");
@@ -112,23 +100,9 @@ BuildTransformBuffer(const LevelDef& levelDef, const PropKit& propKit, wgpu::Com
     auto mapped = buffer->Map();
     MLG_CHECK(mapped);
 
-    size_t transformIndex = 0;
-    for(const auto& nodeDef : levelDef.NodeDefs)
-    {
-        auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
-        MLG_CHECK(assembly);
-
-        // Initialize the transform buffer with the world space transform
-        // of each node that contains a model instance.
-        auto result = CollectTransforms(**assembly,
-            (*assembly)->Nodes[0],
-            nodeDef.Transform.ToMatrix(),
-            *mapped,
-            transformIndex);
-        MLG_CHECK(result);
-
-        transformIndex = *result;
-    }
+    // Initialize the transform buffer with the world space transform
+    // of each node that contains a model instance.
+    MLG_CHECK(CollectTransforms(level, level.GetRootNodes(), Mat44f(1), *mapped, 0));
 
     buffer->Unmap(encoder);
 
@@ -136,27 +110,19 @@ BuildTransformBuffer(const LevelDef& levelDef, const PropKit& propKit, wgpu::Com
 }
 
 static Result<>
-CollectModelInstances(
-    const LevelDef& levelDef, std::vector<ModelInstance>& outModelInstances, const PropKit& propKit)
+CollectModelInstances(const Level& level, std::vector<ModelInstance>& outModelInstances)
 {
-    auto modelInstanceCount = CountModelInstances(levelDef, propKit);
-    MLG_CHECK(modelInstanceCount);
+    const size_t modelCount = CountModelInstances(level);
 
     outModelInstances.clear();
-    outModelInstances.reserve(*modelInstanceCount);
+    outModelInstances.reserve(modelCount);
 
-    for(const auto& nodeDef : levelDef.NodeDefs)
+    for(const auto& node : level.GetAllNodes())
     {
-        auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
-        MLG_CHECKV(assembly);
-
-        for(const auto& node : (*assembly)->Nodes)
+        if(node.ModelIndex.IsValid())
         {
-            if(node.ModelIndex.IsValid())
-            {
-                const ModelInstance modelInstance{ .ModelIndex{ node.ModelIndex } };
-                outModelInstances.push_back(modelInstance);
-            }
+            const ModelInstance modelInstance{ .ModelIndex{ node.ModelIndex } };
+            outModelInstances.push_back(modelInstance);
         }
     }
 
@@ -397,16 +363,14 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
 }
 
 Result<>
-Scene::Create(const LevelDef& levelDef, const PropKit& propKit, Scene& outScene)
+Scene::Create(const Level& level, const PropKit& propKit, Scene& outScene)
 {
     Stopwatch createTimer;
     createTimer.Mark();
 
-    MLG_CHECK(Validate(levelDef, propKit));
-
     wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
 
-    auto transformBuffer = BuildTransformBuffer(levelDef, propKit, encoder);
+    auto transformBuffer = BuildTransformBuffer(level, encoder);
     MLG_CHECK(transformBuffer);
 
     auto clipSpaceBuffer =
@@ -415,7 +379,7 @@ Scene::Create(const LevelDef& levelDef, const PropKit& propKit, Scene& outScene)
     MLG_CHECK(clipSpaceBuffer);
 
     std::vector<ModelInstance> modelInstances;
-    MLG_CHECK(CollectModelInstances(levelDef, modelInstances, propKit));
+    MLG_CHECK(CollectModelInstances(level, modelInstances));
 
     auto drawIndirectBuffer = BuildDrawIndirectBuffer(modelInstances, propKit, encoder);
     MLG_CHECK(drawIndirectBuffer);

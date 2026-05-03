@@ -1,17 +1,14 @@
 #include "Level.h"
 
-#include "PropKit.h"
+#include "narrow_cast.h"
 
-static Result<size_t>
-CountNodes(const LevelDef& levelDef, const PropKit& propKit)
+static size_t
+CountNodes(std::span<const LevelNodeDef> nodeDefs)
 {
-    size_t count = 0;
-    for(const auto& nodeDef : levelDef.NodeDefs)
+    size_t count = nodeDefs.size();
+    for(const auto& nodeDef : nodeDefs)
     {
-        auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
-        MLG_CHECK(assembly);
-
-        count += (*assembly)->Nodes.size();
+        count += CountNodes(nodeDef.Children);
     }
 
     return count;
@@ -20,68 +17,56 @@ CountNodes(const LevelDef& levelDef, const PropKit& propKit)
 // Collect nodes in breadth-first order.
 // Parents come before children, siblings are contiguous.
 static Result<>
-CollectNodes(const Assembly& assembly,
-    const std::span<const AssemblyNode>& assemblyNodes,
+CollectNodes(std::span<const LevelNodeDef> nodeDefs,
     const PropKit& propKit,
+    const LevelNodeIndex parentIndex,
     std::vector<LevelNode>& nodes)
 {
-    // Add all sibling nodes contiguously.
-    for(const auto& node : assemblyNodes)
+    const size_t firstNodeIndex = nodes.size();
+
+    // First add nodes from the current level.
+    for(const auto& nodeDef : nodeDefs)
     {
+        ModelIndex modelIndex = ModelIndex::INVALID;
+        if(!nodeDef.ModelName.empty())
+        {
+            auto result = propKit.GetModelIndex(nodeDef.ModelName);
+            MLG_CHECK(result);
+
+            modelIndex = *result;
+        }
+
         LevelNode levelNode //
             {
-                .Transform = node.Transform,
+                .Transform{ nodeDef.Transform },
+                .ModelIndex{ modelIndex },
+                .ParentIndex{ parentIndex },
+                .FirstChildIndex{ LevelNodeIndex::INVALID },
+                .ChildCount{ 0 },
             };
 
         nodes.emplace_back(std::move(levelNode));
     }
 
-    size_t nodeIndex = nodes.size() - assemblyNodes.size();
-
-    // For each sibling node recursively add its children.
-    for(size_t i = 0; i < assemblyNodes.size(); ++i, ++nodeIndex)
+    // Now add child nodes.
+    for(size_t i = 0; i < nodeDefs.size(); ++i)
     {
-        const AssemblyNode& asmNode = assemblyNodes[i];
+        const LevelNodeDef& nodeDef = nodeDefs[i];
 
-        if(asmNode.ChildCount == 0)
+        if(nodeDef.Children.empty())
         {
-            nodes[nodeIndex].FirstChildIndex = LevelNodeIndex::INVALID;
             continue;
         }
 
-        nodes[nodeIndex].FirstChildIndex = LevelNodeIndex(nodes.size());
+        const size_t firstChildIndex = nodes.size();
 
-        auto children = assembly.GetChildren(asmNode);
-        MLG_CHECK(children);
+        const size_t thisNodeIndex = firstNodeIndex + i;
+        const LevelNodeIndex thisNodeLevelIndex = LevelNodeIndex(thisNodeIndex);
 
-        MLG_CHECK(CollectNodes(assembly, *children, propKit, nodes));
-    }
+        MLG_CHECK(CollectNodes(nodeDef.Children, propKit, thisNodeLevelIndex, nodes));
 
-    return Result<>::Ok;
-}
-
-static Result<>
-CollectNodes(const LevelDef& levelDef,
-    const PropKit& propKit,
-    std::vector<LevelNode>& nodes,
-    std::unordered_map<std::string, size_t>& nodeNameToIndex)
-{
-    for(const auto& nodeDef : levelDef.NodeDefs)
-    {
-        MLG_CHECKV(!nodeNameToIndex.contains(nodeDef.Name),
-            "Duplicate node name in level definition: {}",
-            nodeDef.Name);
-
-        auto assembly = propKit.GetAssembly(nodeDef.AssemblyName);
-        MLG_CHECK(assembly);
-
-        std::array<AssemblyNode, 1> rootNodes{(*assembly)->Nodes[0]};
-
-        const size_t currentIndex = nodes.size();
-
-        MLG_CHECK(CollectNodes(**assembly, rootNodes, propKit, nodes));
-
-        nodeNameToIndex[nodeDef.Name] = currentIndex;
+        nodes[thisNodeIndex].FirstChildIndex = LevelNodeIndex(firstChildIndex);
+        nodes[thisNodeIndex].ChildCount = narrow_cast<uint32_t>(nodeDef.Children.size());
     }
 
     return Result<>::Ok;
@@ -90,15 +75,14 @@ CollectNodes(const LevelDef& levelDef,
 Result<>
 Level::Create(const LevelDef& levelDef, const PropKit& propKit, Level& outLevel)
 {
-    auto nodeCount = CountNodes(levelDef, propKit);
-    MLG_CHECK(nodeCount);
+    const size_t nodeCount = CountNodes(levelDef.NodeDefs);
 
     std::vector<LevelNode> nodes;
     std::unordered_map<std::string, size_t> nodeNameToIndex;
-    nodes.reserve(*nodeCount);
+    nodes.reserve(nodeCount);
     nodeNameToIndex.reserve(levelDef.NodeDefs.size());
 
-    MLG_CHECK(CollectNodes(levelDef, propKit, nodes, nodeNameToIndex));
+    MLG_CHECK(CollectNodes(levelDef.NodeDefs, propKit, LevelNodeIndex::INVALID, nodes));
 
     Level level(&propKit, std::move(nodes), std::move(nodeNameToIndex));
 

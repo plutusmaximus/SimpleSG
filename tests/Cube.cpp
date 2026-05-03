@@ -72,7 +72,8 @@ public:
 
         std::filesystem::path rootPath = ".";
         MLG_CHECK(PropKit::Create(rootPath, m_TextureCache, propKitDef, m_PropKit));
-        MLG_CHECK(Scene::Create(levelDef, m_PropKit, m_Scene));
+        MLG_CHECK(Level::Create(levelDef, m_PropKit, m_Level));
+        MLG_CHECK(Scene::Create(m_Level, m_PropKit, m_Scene));
 
         m_Planet = m_Registry.CreateEntity(ChildTransform{}, WorldMatrix{}, ModelTag{});
         m_MoonOrbit = m_Registry.CreateEntity(ChildTransform{ .ParentId = m_Planet.GetId() }, WorldMatrix{});
@@ -260,6 +261,7 @@ private:
     Extent m_ScreenBounds{0,0};
     Radiansf m_PlanetSpinAngle{0}, m_MoonSpinAngle{0}, m_MoonOrbitAngle{0};
     PropKit m_PropKit;
+    Level m_Level;
     Scene m_Scene;
 };
 
@@ -363,23 +365,9 @@ static Result<> CreateShapeModel(PropKitDef& outPropKitDef, LevelDef& outLevelDe
             .MeshDefs{ std::move(meshDef) },
         };
 
-    AssemblyNodeDef assemblyNodeDef //
-        {
-            .Name{ "ShapeNode" },
-            .Transform{},
-            .ModelIndex{ 0 },
-        };
-
-    AssemblyDef assemblyDef //
-        {
-            .Name{ "Shape" },
-            .RootNode{ std::move(assemblyNodeDef) },
-        };
-
     PropKitDef propKitDef //
         {
             .ModelDefs{ std::move(modelDef) },
-            .AssemblyDefs{ std::move(assemblyDef) },
         };
 
     LevelDef levelDef //
@@ -387,8 +375,9 @@ static Result<> CreateShapeModel(PropKitDef& outPropKitDef, LevelDef& outLevelDe
             .NodeDefs //
             {
                 {
-                    .AssemblyName{ "Shape" },
+                    .Name{ "ShapeNode" },
                     .Transform{},
+                    .ModelName{ "Shape" },
                 },
             },
         };

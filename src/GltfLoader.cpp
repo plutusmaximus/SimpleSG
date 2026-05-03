@@ -7,6 +7,8 @@
 
 #include "Log.h"
 #include "narrow_cast.h"
+#include "Level.h"
+#include "PropKit.h"
 #include "scope_exit.h"
 #include "Vertex.h"
 
@@ -451,7 +453,7 @@ ConvertRHtoLH(Mat44f& M)
 static Result<>
 CollectNode(const cgltf_node& srcNode,
     const std::map<const cgltf_mesh*, ModelIndex>& modelIndices,
-    std::vector<AssemblyNodeDef>& nodeDefs)
+    std::vector<LevelNodeDef>& nodeDefs)
 {
     std::string nodeName = srcNode.name ? srcNode.name : "<unnamed>";
 
@@ -484,16 +486,16 @@ CollectNode(const cgltf_node& srcNode,
         nodeTransform.R.z = -nodeTransform.R.z;
     }
 
-    ModelIndex modelIndex{ ModelIndex::INVALID };
+    std::string modelName;
 
     if(srcNode.mesh && modelIndices.contains(srcNode.mesh))
     {
         // Node has a mesh and the mesh was accepted during model collection phase.
 
-        modelIndex = modelIndices.at(srcNode.mesh);
+        modelName = srcNode.mesh->name ? srcNode.mesh->name : "<unnamed>";
     }
 
-    std::vector<AssemblyNodeDef> childNodes;
+    std::vector<LevelNodeDef> childNodes;
     childNodes.reserve(srcNode.children_count);
 
     for(cgltf_size i = 0; i < srcNode.children_count; ++i)
@@ -543,11 +545,11 @@ CollectNode(const cgltf_node& srcNode,
     }
     else
     {
-        AssemblyNodeDef newNodeDef //
+        LevelNodeDef newNodeDef //
             {
                 .Name{ nodeName },
                 .Transform{ nodeTransform },
-                .ModelIndex{ modelIndex },
+                .ModelName{ modelName },
                 .Children{ std::move(childNodes) },
             };
 
@@ -558,8 +560,8 @@ CollectNode(const cgltf_node& srcNode,
 }
 
 static Result<>
-CollectAssemblies(const cgltf_data* gltfData,
-    std::vector<AssemblyDef>& assemblies,
+CollectNodes(const cgltf_data* gltfData,
+    std::vector<LevelNodeDef>& levelNodeDefs,
     const std::map<const cgltf_mesh*, ModelIndex>& modelIndices)
 {
     MLG_CHECK(gltfData->scenes_count > 0, "No scenes found");
@@ -567,48 +569,19 @@ CollectAssemblies(const cgltf_data* gltfData,
 
     const cgltf_scene& scene = gltfData->scenes[0];
 
-    assemblies.clear();
-    assemblies.reserve(scene.nodes_count);
-
-    std::vector<AssemblyNodeDef> rootNodes;
-    rootNodes.reserve(scene.nodes_count);
+    levelNodeDefs.clear();
+    levelNodeDefs.reserve(scene.nodes_count);
 
     for(size_t i = 0; i < scene.nodes_count; ++i)
     {
-        const cgltf_node* cgltfRootNode = scene.nodes[i];
-
-        std::string assemblyName = cgltfRootNode->name ? cgltfRootNode->name : "<unnamed>";
-
-        MLG_LOG_SCOPE("assembly {}", assemblyName);
-
-        std::vector<AssemblyNodeDef> nodeDefs;
-
-        const size_t rootNodeIndex = rootNodes.size();
-
-        MLG_CHECK(CollectNode(*cgltfRootNode, modelIndices, rootNodes));
-
-        if(rootNodes.size() == rootNodeIndex)
-        {
-            // Root node and all its descendents were skipped during collection phase, skip it.
-            continue;
-        }
-
-        AssemblyNodeDef& rootNode = rootNodes[rootNodeIndex];
-
-        AssemblyDef assemblyDef //
-        {
-            .Name{ rootNode.Name },
-            .RootNode{ std::move(rootNode) },
-        };
-
-        assemblies.emplace_back(std::move(assemblyDef));
+        MLG_CHECK(CollectNode(*scene.nodes[i], modelIndices, levelNodeDefs));
     }
 
     return Result<>::Ok;
 }
 
 Result<>
-GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit)
+GltfLoader::Load(const std::string& path, PropKitDef& outPropKit, LevelDef& outLevelDef)
 {
     std::filesystem::path filePath(path);
 
@@ -648,16 +621,21 @@ GltfLoader::LoadPropKit(const std::string& path, PropKitDef& outPropKit)
     std::map<const cgltf_mesh*, ModelIndex> modelIndices;
     MLG_CHECK(CollectModels(gltfMeshes, modelDefs, modelIndices));
 
-    std::vector<AssemblyDef> assemblyDefs;
-    MLG_CHECK(CollectAssemblies(gltfData, assemblyDefs, modelIndices));
+    std::vector<LevelNodeDef> levelNodeDefs;
+    MLG_CHECK(CollectNodes(gltfData, levelNodeDefs, modelIndices));
 
     PropKitDef propKit //
         {
             .ModelDefs = std::move(modelDefs),
-            .AssemblyDefs = std::move(assemblyDefs),
+        };
+
+    LevelDef levelDef //
+        {
+            .NodeDefs = std::move(levelNodeDefs),
         };
 
     outPropKit = std::move(propKit);
+    outLevelDef = std::move(levelDef);
 
     return Result<>::Ok;
 }

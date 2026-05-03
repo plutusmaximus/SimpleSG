@@ -17,12 +17,12 @@ struct ModelInstance
     ModelIndex ModelIndex{ ModelIndex::INVALID };
 };
 
-struct LevelDef;
+class Level;
 
 class Scene
 {
 public:
-    static Result<> Create(const LevelDef& levelDef, const PropKit& propKit, Scene& outScene);
+    static Result<> Create(const Level& level, const PropKit& propKit, Scene& outScene);
 
     Scene() = default;
     Scene(const Scene&) = delete;

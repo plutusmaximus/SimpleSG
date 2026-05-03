@@ -71,37 +71,24 @@ static Result<>
 Load(const std::filesystem::path& path,
     TextureCache& textureCache,
     PropKit& outPropKit,
+    Level& outLevel,
     Scene& outScene)
 {
     PropKitDef propKitDef;
-    MLG_CHECK(GltfLoader::LoadPropKit(path.string(), propKitDef),
-        "Failed to load prop kit: {}",
+    LevelDef levelDef;
+    MLG_CHECK(GltfLoader::Load(path.string(), propKitDef, levelDef),
+        "Failed to load glTF file: {}",
         path.string());
 
     MLG_CHECK(PropKit::Create(path.parent_path(), textureCache, propKitDef, outPropKit),
         "Failed to create PropKit for {}",
         path.string());
 
-    LevelDef levelDef //
-        {
-            .NodeDefs //
-            {
-                {
-                    .AssemblyName{ "1st_floor" },
-                    .Transform{},
-                },
-                {
-                    .AssemblyName{ "2nd_floor" },
-                    .Transform{},
-                },
-                {
-                    .AssemblyName{ "3rd_floor" },
-                    .Transform{},
-                },
-            },
-        };
+    MLG_CHECK(Level::Create(levelDef, outPropKit, outLevel),
+        "Failed to create Level for {}",
+        path.string());
 
-    MLG_CHECK(Scene::Create(levelDef, outPropKit, outScene),
+    MLG_CHECK(Scene::Create(outLevel, outPropKit, outScene),
         "Failed to create Scene for {}",
         path.string());
 
@@ -125,6 +112,7 @@ MainLoop()
     ImGuiRenderer imGuiRenderer;
     TextureCache textureCache;
     PropKit propKit;
+    Level level;
     Scene scene;
     EcsRegistry registry;
     WalkMouseNav mouseNav;
@@ -134,7 +122,7 @@ MainLoop()
     MLG_CHECK(imGuiRenderer.Startup());
     MLG_CHECK(textureCache.Startup());
 
-    MLG_CHECK(Load(SPONZA_MODEL_PATH, textureCache, propKit, scene));
+    MLG_CHECK(Load(SPONZA_MODEL_PATH, textureCache, propKit, level, scene));
 
     Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, ModelTag{});
 
@@ -265,9 +253,11 @@ MainLoop()
         {
             textureCache.Clear();
             PropKit newPropKit;
+            Level newLevel;
             Scene newScene;
-            MLG_CHECK(Load(droppedFile, textureCache, newPropKit, newScene));
+            MLG_CHECK(Load(droppedFile, textureCache, newPropKit, newLevel, newScene));
             propKit = std::move(newPropKit);
+            level = std::move(newLevel);
             scene = std::move(newScene);
         }
 
