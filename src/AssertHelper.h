@@ -80,10 +80,10 @@ private:
 
 #define MLG_VERIFY(expr, ...) \
     (static_cast<bool>(expr) || \
-        (AssertHelper::Log(#expr, __FILE__, __LINE__, AssertHelper::Muter<__COUNTER__>(), ##__VA_ARGS__) \
+        (AssertHelper::Log(#expr, __FILE__, __LINE__, AssertHelper::Muter<__COUNTER__>() __VA_OPT__(, ) __VA_ARGS__) \
             ? (__debugbreak(), false) : false))
 
-#define MLG_ASSERT(expr, ...) void(MLG_VERIFY(expr, ##__VA_ARGS__))
+#define MLG_ASSERT(expr, ...) void(MLG_VERIFY(expr __VA_OPT__(,) __VA_ARGS__))
 
 #define MLG_ASSERT_CAPTURE(capName) \
     for(struct{bool en = AssertHelper::SetDialogEnabled(false); \

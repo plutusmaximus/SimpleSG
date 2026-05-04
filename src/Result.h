@@ -114,7 +114,7 @@ public:
     do{ \
         if(!static_cast<bool>(expr)) \
         { \
-            MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__)); \
+            __VA_OPT__(MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__))); \
             return Result<>::Fail; \
         } \
     } while(0)
@@ -122,9 +122,9 @@ public:
 // Like MLG_CHECK but also calls verify and pops an assert if false.
 #define MLG_CHECKV(expr, ...) \
     do{ \
-        if(!MLG_VERIFY(expr, ##__VA_ARGS__)) \
+        if(!MLG_VERIFY(expr __VA_OPT__(,) __VA_ARGS__)) \
         { \
-            MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__)); \
+            __VA_OPT__(MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__))); \
             return Result<>::Fail; \
         } \
     } while(0)
