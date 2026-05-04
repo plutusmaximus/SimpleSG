@@ -5,8 +5,8 @@
 #include "SemanticInteger.h"
 #include "VecMath.h"
 
-#include <string>
 #include <span>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -28,7 +28,7 @@ struct LevelDef
 
 struct LevelNode
 {
-    std::string Name;
+    std::string_view Name;
     TrsTransformf Transform;
     ModelIndex ModelIndex{ ModelIndex::INVALID };
     LevelNodeIndex ParentIndex{ LevelNodeIndex::INVALID };
@@ -50,7 +50,10 @@ public:
     // Retuns a span of all nodes in the level, in breadth-first order.
     std::span<const LevelNode> GetAllNodes() const { return m_Nodes; }
 
-    std::span<const LevelNode> GetRootNodes() const { return m_RootNodes; }
+    std::span<const LevelNode> GetRootNodes() const
+    {
+        return std::span<const LevelNode>(m_Nodes).subspan(0, m_RootNodeCount);
+    }
 
     Result<std::span<const LevelNode>> GetChildNodes(const LevelNode& node) const;
 
@@ -72,7 +75,7 @@ public:
         const auto pathLen = std::ranges::size(path);
         size_t pathIndex = 0;
 
-        std::span<const LevelNode> nodesToSearch = m_RootNodes;
+        std::span<const LevelNode> nodesToSearch = GetRootNodes();
         for (auto&& x : path)
         {
             std::string_view part = x;
@@ -118,9 +121,13 @@ public:
     }
 
 private:
-    Level(const PropKit* propKit, std::vector<LevelNode>&& nodes);
+    Level(
+        const PropKit* propKit, std::vector<LevelNode>&& nodes, std::vector<char>&& stringStorage);
 
-    const PropKit* m_PropKit = nullptr;
+    const PropKit* m_PropKit{ nullptr };
     std::vector<LevelNode> m_Nodes;
-    std::span<const LevelNode> m_RootNodes;
+    size_t m_RootNodeCount{ 0 };
+    // Storage for node names to ensure they remain valid for string_views
+    // and to reduce memory fragmentation by storing all names contiguously.
+    std::vector<char> m_StringStorage;
 };

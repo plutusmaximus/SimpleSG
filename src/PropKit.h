@@ -18,22 +18,6 @@ using MaterialIndex = SemanticInteger<MaterialIndexTag>;
 using MeshIndex = SemanticInteger<MeshIndexTag>;
 using ModelIndex = SemanticInteger<ModelIndexTag>;
 
-struct Mesh
-{
-    uint32_t IndexCount{ 0 };
-    uint32_t FirstIndex{ 0 };
-    uint32_t BaseVertex{ 0 };
-    MaterialIndex MaterialIndex{ MaterialIndex::INVALID };
-    AABoundingBox BoundingBox;
-};
-
-struct Model
-{
-    std::string Name;
-    MeshIndex FirstMesh{ MeshIndex::INVALID };
-    uint32_t MeshCount{ 0 };
-};
-
 struct MaterialDef
 {
     std::string BaseTextureUri;
@@ -58,6 +42,22 @@ struct ModelDef
 struct PropKitDef
 {
     std::vector<ModelDef> ModelDefs;
+};
+
+struct Mesh
+{
+    uint32_t IndexCount{ 0 };
+    uint32_t FirstIndex{ 0 };
+    uint32_t BaseVertex{ 0 };
+    MaterialIndex MaterialIndex{ MaterialIndex::INVALID };
+    AABoundingBox BoundingBox;
+};
+
+struct Model
+{
+    std::string_view Name;
+    MeshIndex FirstMesh{ MeshIndex::INVALID };
+    uint32_t MeshCount{ 0 };
 };
 
 // Strongly-typed GPU storage buffer classes.
@@ -87,7 +87,7 @@ public:
 
     MaterialConstantsBuffer GetMaterialConstantsBuffer() const { return m_MaterialConstantsBuffer; }
 
-    Result<ModelIndex> GetModelIndex(const std::string& name) const
+    Result<ModelIndex> GetModelIndex(const std::string_view& name) const
     {
         auto it = m_ModelNameToIndex.find(name);
         MLG_CHECKV(it != m_ModelNameToIndex.end(), "Model not found: {}", name);
@@ -109,13 +109,17 @@ private:
         std::vector<Mesh>&& meshes,
         std::vector<Model>&& models,
         MaterialConstantsBuffer materialConstantsBuffer,
-        std::vector<wgpu::BindGroup>&& materialBindGroups);
+        std::vector<wgpu::BindGroup>&& materialBindGroups,
+        std::vector<char>&& stringStorage);
 
     VertexBuffer m_VertexBuffer;
     IndexBuffer m_IndexBuffer;
     std::vector<Mesh> m_Meshes;
     std::vector<Model> m_Models;
     MaterialConstantsBuffer m_MaterialConstantsBuffer;
+    std::unordered_map<std::string_view, ModelIndex> m_ModelNameToIndex;
     std::vector<wgpu::BindGroup> m_MaterialBindGroups;
-    std::unordered_map<std::string, ModelIndex> m_ModelNameToIndex;
+    // Storage for model names to ensure they remain valid for string_views
+    // and to reduce memory fragmentation by storing all names contiguously.
+    std::vector<char> m_StringStorage;
 };

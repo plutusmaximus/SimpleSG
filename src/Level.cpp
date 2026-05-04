@@ -14,11 +14,26 @@ CountNodes(std::span<const LevelNodeDef> nodeDefs)
     return count;
 }
 
+static size_t
+CalculateTotalStringSize(std::span<const LevelNodeDef> nodeDefs)
+{
+    size_t totalSize = 0;
+    for(const auto& nodeDef : nodeDefs)
+    {
+        totalSize += nodeDef.Name.size() + 1; // +1 for null terminator
+        totalSize += CalculateTotalStringSize(nodeDef.Children);
+    }
+
+    return totalSize;
+}
+
 // Collect nodes in breadth-first order.
 // Parents come before children, siblings are contiguous.
 static Result<>
-CollectNodes(
-    std::span<const LevelNodeDef> nodeDefs, const PropKit& propKit, std::vector<LevelNode>& nodes)
+CollectNodes(std::span<const LevelNodeDef> nodeDefs,
+    const PropKit& propKit,
+    std::vector<LevelNode>& nodes,
+    std::vector<char>& stringStorage)
 {
     // First add nodes from the current level.
     for(const auto& nodeDef : nodeDefs)
@@ -32,9 +47,11 @@ CollectNodes(
             modelIndex = *result;
         }
 
+        stringStorage.insert(stringStorage.end(), nodeDef.Name.begin(), nodeDef.Name.end());
+        stringStorage.push_back('\0'); // Null terminator for the string_view
+
         LevelNode levelNode //
             {
-                .Name{ nodeDef.Name },
                 .Transform{ nodeDef.Transform },
                 .ModelIndex{ modelIndex },
                 .ChildCount{ narrow_cast<uint32_t>(nodeDef.Children.size()) },
@@ -53,7 +70,7 @@ CollectNodes(
             continue;
         }
 
-        MLG_CHECK(CollectNodes(nodeDef.Children, propKit, nodes));
+        MLG_CHECK(CollectNodes(nodeDef.Children, propKit, nodes, stringStorage));
     }
 
     return Result<>::Ok;
@@ -63,19 +80,26 @@ Result<>
 Level::Create(const LevelDef& levelDef, const PropKit& propKit, Level& outLevel)
 {
     const size_t nodeCount = CountNodes(levelDef.NodeDefs);
+    const size_t totalStringSize = CalculateTotalStringSize(levelDef.NodeDefs);
 
     std::vector<LevelNode> nodes;
+    std::vector<char> stringStorage;
     nodes.reserve(nodeCount);
+    stringStorage.reserve(totalStringSize);
 
     // Flatten nodes into breadth-first order.
-    MLG_CHECK(CollectNodes(levelDef.NodeDefs, propKit, nodes));
+    MLG_CHECK(CollectNodes(levelDef.NodeDefs, propKit, nodes, stringStorage));
 
-    // Fill in the ParentIndex and FirstChildIndex fields.
+    // Fill in the Name, ParentIndex, FirstChildIndex fields.
     // The child of the first node comes directly after all the nodes in the first level.
     size_t firstChildIndex = levelDef.NodeDefs.size();
+    size_t stringOffset = 0;
     for(size_t i = 0; i < nodes.size(); ++i)
     {
         LevelNode& node = nodes[i];
+        node.Name = std::string_view(&stringStorage[stringOffset]);
+        stringOffset += node.Name.size() + 1; // +1 for null terminator
+
         if(node.ChildCount == 0)
         {
             continue;
@@ -97,18 +121,19 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit, Level& outLevel)
         firstChildIndex += node.ChildCount;
     }
 
-    Level level(&propKit, std::move(nodes));
+    Level level(&propKit, std::move(nodes), std::move(stringStorage));
 
     outLevel = std::move(level);
 
     return Result<>::Ok;
 }
 
-Level::Level(const PropKit* propKit, std::vector<LevelNode>&& nodes)
+Level::Level(const PropKit* propKit, std::vector<LevelNode>&& nodes, std::vector<char>&& stringStorage)
     : m_PropKit(propKit),
-      m_Nodes(std::move(nodes))
+      m_Nodes(std::move(nodes)),
+      m_StringStorage(std::move(stringStorage))
 {
-    size_t rootNodeCount = 0;
+    m_RootNodeCount = 0;
     for(const auto& node : m_Nodes)
     {
         // Nodes are stored in breadth-first order, so all root nodes will be at the beginning
@@ -118,10 +143,8 @@ Level::Level(const PropKit* propKit, std::vector<LevelNode>&& nodes)
             break;
         }
 
-        ++rootNodeCount;
+        ++m_RootNodeCount;
     }
-
-    m_RootNodes = std::span<const LevelNode>(m_Nodes).subspan(0, rootNodeCount);
 }
 
 Result<std::span<const LevelNode>>

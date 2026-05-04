@@ -393,7 +393,7 @@ PropKit::Create(const std::filesystem::path& rootPath,
     Stopwatch createTimer;
     createTimer.Mark();
 
-    size_t vertexCount = 0, indexCount = 0, meshCount = 0;
+    size_t vertexCount = 0, indexCount = 0, meshCount = 0, totalStringSize = 0;
     uint32_t materialIndex = 0;
 
     std::map<MaterialDef, MaterialIndex, std::less<MaterialDef>> uniqueMaterialMap;
@@ -402,6 +402,8 @@ PropKit::Create(const std::filesystem::path& rootPath,
     // assign indices to them.
     for(const auto& modelDef : propKitDef.ModelDefs)
     {
+        totalStringSize += modelDef.Name.size() + 1;
+
         for(const auto& mesh : modelDef.MeshDefs)
         {
             const MaterialDef& materialDef = mesh.MaterialDef;
@@ -427,15 +429,22 @@ PropKit::Create(const std::filesystem::path& rootPath,
     std::vector<VertexIndex> indices;
     std::vector<Mesh> meshes;
     std::vector<Model> models;
+    std::vector<char> stringStorage;
     vertices.reserve(vertexCount);
     indices.reserve(indexCount);
     meshes.reserve(meshCount);
     models.reserve(propKitDef.ModelDefs.size());
+    stringStorage.reserve(totalStringSize);
     for(const auto& modelDef : propKitDef.ModelDefs)
     {
+        const size_t nameOffset = stringStorage.size();
+
+        stringStorage.insert(stringStorage.end(), modelDef.Name.begin(), modelDef.Name.end());
+        stringStorage.push_back('\0');
+
         Model model //
             {
-                .Name = modelDef.Name,
+                .Name = std::string_view(&stringStorage[nameOffset], modelDef.Name.size()),
                 .FirstMesh = MeshIndex(meshes.size()),
                 .MeshCount = narrow_cast<uint32_t>(modelDef.MeshDefs.size()),
             };
@@ -483,7 +492,8 @@ PropKit::Create(const std::filesystem::path& rootPath,
         std::move(meshes),
         std::move(models),
         std::move(*materialConstantsBuffer),
-        std::move(materialBindGroups));
+        std::move(materialBindGroups),
+        std::move(stringStorage));
 
     outPropKit = std::move(propKit);
 
@@ -497,12 +507,14 @@ PropKit::PropKit(VertexBuffer vertexBuffer,
     std::vector<Mesh>&& meshes,
     std::vector<Model>&& models,
     MaterialConstantsBuffer materialConstantsBuffer,
-    std::vector<wgpu::BindGroup>&& materialBindGroups)
+    std::vector<wgpu::BindGroup>&& materialBindGroups,
+    std::vector<char>&& stringStorage)
     : m_IndexBuffer(indexBuffer),
       m_VertexBuffer(vertexBuffer),
       m_Meshes(std::move(meshes)),
       m_Models(std::move(models)),
       m_MaterialConstantsBuffer(materialConstantsBuffer),
+      m_StringStorage(std::move(stringStorage)),
       m_MaterialBindGroups(std::move(materialBindGroups))
 {
 #ifndef NDEBUG
