@@ -328,9 +328,7 @@ public:
             while (m_Idx < m_Size)
             {
                 // Component from first pool
-                auto current = std::get<0>(m_Pools)->operator[](m_Idx);
-                // EntityId of current component
-                const auto eid = std::get<0>(current);
+                auto [eid, component] = std::get<0>(m_Pools)->operator[](m_Idx);
                 // Try to get components from other pools
                 auto tryComp = TryGet<Cs...>(eid);
 
@@ -341,7 +339,7 @@ public:
                 {
                     // All components found, build current tuple
                     m_Current = std::tuple_cat(
-                        std::tuple{ eid, &std::get<1>(current) },
+                        std::tuple{ eid, &component },
                         tryComp);
                     break;
                 }
