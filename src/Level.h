@@ -13,15 +13,6 @@
 struct LevelNodeIndexTag {};
 using LevelNodeIndex = SemanticInteger<LevelNodeIndexTag>;
 
-struct LevelNode
-{
-    TrsTransformf Transform;
-    ModelIndex ModelIndex{ ModelIndex::INVALID };
-    LevelNodeIndex ParentIndex{ LevelNodeIndex::INVALID };
-    LevelNodeIndex FirstChildIndex{ LevelNodeIndex::INVALID };
-    uint32_t ChildCount{ 0 };
-};
-
 struct LevelNodeDef
 {
     std::string Name;
@@ -33,6 +24,16 @@ struct LevelNodeDef
 struct LevelDef
 {
     std::vector<LevelNodeDef> NodeDefs;
+};
+
+struct LevelNode
+{
+    std::string Name;
+    TrsTransformf Transform;
+    ModelIndex ModelIndex{ ModelIndex::INVALID };
+    LevelNodeIndex ParentIndex{ LevelNodeIndex::INVALID };
+    LevelNodeIndex FirstChildIndex{ LevelNodeIndex::INVALID };
+    uint32_t ChildCount{ 0 };
 };
 
 class Level
@@ -51,47 +52,75 @@ public:
 
     std::span<const LevelNode> GetRootNodes() const { return m_RootNodes; }
 
-    Result<std::span<const LevelNode>> GetChildNodes(const LevelNode& node) const
+    Result<std::span<const LevelNode>> GetChildNodes(const LevelNode& node) const;
+
+    // Fetches a node by its path from the root, e.g. {"RootNode", "ChildNode", "GrandchildNode"}.
+    // the path argument can take the following forms:
+    // - const char* nodePath[] {"RootNode", "ChildNode", "GrandchildNode"}; GetNode(nodePath);
+    // - std::array<const char*, 2> nodePath{"RootNode", "ChildNode", "GrandchildNode"}; GetNode(nodePath);
+    // - const std::string nodePath[] { "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
+    // - std::array<std::string, 2> nodePath{ "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
+    // - std::vector<std::string> nodePath{ "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
+    // - std::vector<const char*> nodePath{ "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
+    // - and any other contiguous range of strings or string views that can be converted to std::string_view
+    template <std::ranges::sized_range R>
+    requires std::convertible_to<std::ranges::range_reference_t<R>, std::string_view>
+    Result<const LevelNode*> GetNode(R&& path) const
     {
-        if(!node.FirstChildIndex.IsValid())
+        const LevelNode* foundNode = nullptr;
+
+        const auto pathLen = std::ranges::size(path);
+        size_t pathIndex = 0;
+
+        std::span<const LevelNode> nodesToSearch = m_RootNodes;
+        for (auto&& x : path)
         {
-            return std::span<const LevelNode>{};
-        }
+            std::string_view part = x;
 
-        MLG_CHECKV(node.FirstChildIndex.Value() < m_Nodes.size(), "Invalid FirstChildIndex in node");
-        MLG_CHECKV(node.FirstChildIndex.Value() + node.ChildCount <= m_Nodes.size(),
-            "Invalid ChildCount in node");
+            const LevelNode* node = nullptr;
 
-        return std::span<const LevelNode>(m_Nodes).subspan(node.FirstChildIndex.Value(),
-            node.ChildCount);
-    }
-
-private:
-    Level(const PropKit* propKit,
-        std::vector<LevelNode>&& nodes,
-        std::unordered_map<std::string, size_t>&& nodeNameToIndex)
-        : m_PropKit(propKit),
-          m_Nodes(std::move(nodes)),
-          m_NodeNameToIndex(std::move(nodeNameToIndex))
-    {
-        size_t rootNodeCount = 0;
-        for(const auto& node : m_Nodes)
-        {
-            // Nodes are stored in breadth-first order, so all root nodes will be at the beginning
-            // of the vector.
-            if(node.ParentIndex.IsValid())
+            for(const auto & tmpNode : nodesToSearch)
             {
+                if(tmpNode.Name == part)
+                {
+                    node = &tmpNode;
+                    break;
+                }
+            }
+
+            MLG_CHECKV(node != nullptr, "Node not found: {}", part);
+
+            if(pathIndex == pathLen - 1)
+            {
+                foundNode = node;
                 break;
             }
 
-            ++rootNodeCount;
+            ++pathIndex;
+
+            auto result = GetChildNodes(*node);
+            MLG_CHECK(result);
+            nodesToSearch = *result;
         }
 
-        m_RootNodes = std::span<const LevelNode>(m_Nodes).subspan(0, rootNodeCount);
+        MLG_CHECKV(foundNode != nullptr, "Node not found: {}", path);
+
+        return foundNode;
     }
+
+    // Fetches a node by its path from the root, e.g. {"RootNode", "ChildNode", "GrandchildNode"}.
+    // This overload is provided for convenience to allow passing an initializer list directly
+    // without having to wrap it in a std::span or other container.
+    // - GetNode({"RootNode", "ChildNode", "GrandchildNode"});
+    Result<const LevelNode*> GetNode(std::initializer_list<std::string_view> path) const
+    {
+        return GetNode(std::span<const std::string_view>{path});
+    }
+
+private:
+    Level(const PropKit* propKit, std::vector<LevelNode>&& nodes);
 
     const PropKit* m_PropKit = nullptr;
     std::vector<LevelNode> m_Nodes;
     std::span<const LevelNode> m_RootNodes;
-    std::unordered_map<std::string, size_t> m_NodeNameToIndex;
 };
