@@ -204,10 +204,57 @@ Level::GetNode(const NodeHandle& handle) const
     return handle.m_Node;
 }
 
+Result<>
+Level::UpdateLocalTransform(const NodeHandle& handle, const TrsTransformf& localTransform)
+{
+    MLG_CHECKV(handle, "Invalid node handle");
+    MLG_CHECKV(IsInLevel(handle), "Node handle points outside of node array");
+
+    Node* node = const_cast<Node*>(handle.m_Node);
+    node->LocalTransform = localTransform;
+    if(node->ParentIndex.IsValid())
+    {
+        const Mat44f& parentWorldXform = m_Nodes[node->ParentIndex.Value()].WorldTransform;
+        node->WorldTransform = parentWorldXform * localTransform.ToMatrix();
+    }
+    else
+    {
+        node->WorldTransform = localTransform.ToMatrix();
+    }
+
+    if(node->ChildCount > 0)
+    {
+        std::span<Node> children =
+            std::span<Node>(m_Nodes).subspan(node->FirstChildIndex.Value(), node->ChildCount);
+        UpdateWorldTransforms(children);
+    }
+
+    return Result<>::Ok;
+}
+
 // private:
 
 bool
 Level::IsInLevel(const NodeHandle& handle) const
 {
     return handle.m_Node >= m_Nodes.data() && handle.m_Node < m_Nodes.data() + m_Nodes.size();
+}
+
+void
+Level::UpdateWorldTransforms(std::span<Node> nodes)
+{
+    for (auto& node : nodes)
+    {
+        MLG_ASSERT(node.ParentIndex.IsValid());
+
+        const Mat44f& parentWorldXform = m_Nodes[node.ParentIndex.Value()].WorldTransform;
+        node.WorldTransform = parentWorldXform * node.LocalTransform.ToMatrix();
+
+        if(node.ChildCount > 0)
+        {
+            std::span<Node> children =
+                std::span<Node>(m_Nodes).subspan(node.FirstChildIndex.Value(), node.ChildCount);
+            UpdateWorldTransforms(children);
+        }
+    }
 }

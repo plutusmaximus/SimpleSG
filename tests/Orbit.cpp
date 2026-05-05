@@ -159,6 +159,12 @@ MainLoop()
 
     MLG_CHECK(Load("", textureCache, propKit, level, scene));
 
+    auto moonOrbit = level.GetNodeHandle({"Orbit", "MoonOrbit"});
+    MLG_CHECK(moonOrbit);
+
+    auto moon = level.GetNodeHandle({"Orbit", "MoonOrbit", "Moon"});
+    MLG_CHECK(moon);
+
     Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, ModelTag{});
 
     Entity camera = registry.CreateEntity(TrsTransformf{.T{0,0,-4}}, WorldMatrix{}, Projection{});
@@ -169,6 +175,8 @@ MainLoop()
 
     bool mouseCaptured = true;
     SDL_SetWindowRelativeMouseMode(WebgpuHelper::GetWindow(), mouseCaptured);
+
+    Radiansf orbitAngle{0};
 
     while(running)
     {
@@ -293,6 +301,17 @@ MainLoop()
             MLG_CHECK(Load(droppedFile, textureCache, newPropKit, newLevel, newScene));
             propKit = std::move(newPropKit);
             scene = std::move(newScene);
+        }
+
+        {
+            TrsTransform trs = level.GetNode(*moonOrbit)->LocalTransform;
+            orbitAngle += Radiansf(0.01f);
+            trs.R = Quatf(orbitAngle, Vec3f::YAXIS());
+            MLG_CHECK(level.UpdateLocalTransform(*moonOrbit, trs));
+
+            MLG_CHECK(scene.BeginFrame());
+            MLG_CHECK(scene.UpdateWorldTransform(*moon, level.GetNode(*moon)->WorldTransform));
+            MLG_CHECK(scene.EndFrame());
         }
 
         mouseNav.Update(elapsedSeconds);

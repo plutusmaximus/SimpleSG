@@ -58,6 +58,8 @@ StageTexture(TextureBuilder& builder)
 
     MLG_CHECK(texture);
 
+    // It appears that mapping/unmapping must be done on the same thread
+    // as other wgpu::Device operations.
     auto mapped = texture->MapBytes();
     MLG_CHECK(mapped);
 
@@ -95,14 +97,13 @@ StageTexture(TextureBuilder& builder)
 
             std::byte* dst = static_cast<std::byte*>(builder->MappedMemory);
             const std::byte* src = reinterpret_cast<const std::byte*>(data);
-            const uint32_t rowStride = width * kNumTextureChannels;
-            const uint32_t alignedRowStride = (rowStride + 255) & ~255;
+            const uint32_t srcRowStride = width * kNumTextureChannels;
+            const uint32_t dstRowStride = (srcRowStride + 255) & ~255;
             for(uint32_t y = 0; y < static_cast<uint32_t>(height);
-                ++y, dst += alignedRowStride, src += rowStride)
+                ++y, dst += dstRowStride, src += srcRowStride)
             {
-                ::memcpy(dst, src, rowStride);
+                ::memcpy(dst, src, srcRowStride);
             }
-            stbi_image_free(data);
         }
 
         builder->DecodeComplete = true;
@@ -230,6 +231,9 @@ FetchTextures(std::filesystem::path basePath,
         }
     } while(pending);
 
+    // Unmap textures to flush the data to the GPU before adding them to the cache.
+    // It appears that mapping/unmapping must be done on the same thread
+    // as other wgpu::Device operations.
     for(auto& builder : textureBuilders)
     {
         MLG_LOG_SCOPE(builder.Uri);
@@ -292,46 +296,11 @@ CreateMaterialBindGroups(std::span<const MaterialDef> materialDefs,
     return Result<>::Ok;
 }
 
-static Result<VertexBuffer>
-BuildVertexBuffer(std::span<const Vertex> vertices, wgpu::CommandEncoder encoder)
-{
-    auto buffer = WebgpuHelper::CreateVertexBuffer(vertices.size(), "VertexBuffer");
-    MLG_CHECK(buffer);
-
-    MLG_CHECK(buffer->Map());
-
-    buffer->Store(0, vertices);
-
-    MLG_CHECK(buffer->Unmap(encoder));
-
-    return *buffer;
-}
-
-static Result<IndexBuffer>
-BuildIndexBuffer(std::span<const VertexIndex> indices, wgpu::CommandEncoder encoder)
-{
-    auto buffer = WebgpuHelper::CreateIndexBuffer(indices.size(), "IndexBuffer");
-    MLG_CHECK(buffer);
-
-    MLG_CHECK(buffer->Map());
-
-    buffer->Store(0, indices);
-
-    MLG_CHECK(buffer->Unmap(encoder));
-
-    return *buffer;
-}
-
 static Result<MaterialConstantsBuffer>
-BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs, wgpu::CommandEncoder encoder)
+BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs)
 {
-    auto buffer = WebgpuHelper::CreateSemanticStorageBuffer<MaterialConstantsBuffer>(materialDefs.size(),
-        "MaterialConstantsBuffer");
-    MLG_CHECK(buffer);
-
-    MLG_CHECK(buffer->Map());
-
-    size_t index = 0;
+    std::vector<ShaderInterop::MaterialConstants> materialConstants;
+    materialConstants.reserve(materialDefs.size());
 
     for(const auto& mtlDef : materialDefs)
     {
@@ -341,13 +310,12 @@ BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs, wgpu::Co
                 .Metalness = mtlDef.Metalness,
                 .Roughness = mtlDef.Roughness,
             };
-        buffer->Store(index, mc);
-        ++index;
+
+        materialConstants.emplace_back(mc);
     }
 
-    MLG_CHECK(buffer->Unmap(encoder));
-
-    return buffer;
+    return WebgpuHelper::CreateStorageBuffer<MaterialConstantsBuffer>(materialConstants,
+        "MaterialConstantsBuffer");
 }
 
 // Used in std::map to deduplicate materials based on their properties.
@@ -464,13 +432,13 @@ PropKit::Create(const std::filesystem::path& rootPath,
 
     MLG_CHECK(FetchTextures(rootPath, uniqueMaterials, textureCache, encoder));
 
-    auto vertexBuffer = BuildVertexBuffer(vertices, encoder);
+    auto vertexBuffer = WebgpuHelper::CreateVertexBuffer(vertices, "VertexBuffer");
     MLG_CHECK(vertexBuffer);
 
-    auto indexBuffer = BuildIndexBuffer(indices, encoder);
+    auto indexBuffer = WebgpuHelper::CreateIndexBuffer(indices, "IndexBuffer");
     MLG_CHECK(indexBuffer);
 
-    auto materialConstantsBuffer = BuildMaterialConstantsBuffer(uniqueMaterials, encoder);
+    auto materialConstantsBuffer = BuildMaterialConstantsBuffer(uniqueMaterials);
     MLG_CHECK(materialConstantsBuffer);
 
     std::vector<wgpu::BindGroup> materialBindGroups;

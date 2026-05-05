@@ -50,9 +50,7 @@ CountWorldTransforms(const Level& level)
 }
 
 static Result<WorldTransformBuffer>
-BuildTransformBuffer(const Level& level,
-    std::vector<Level::NodeHandle>& nodeHandles,
-    wgpu::CommandEncoder encoder)
+BuildTransformBuffer(const Level& level, std::vector<Level::NodeHandle>& nodeHandles)
 {
     // One world space transform per model instance.
     const size_t transformCount = CountWorldTransforms(level);
@@ -60,16 +58,11 @@ BuildTransformBuffer(const Level& level,
     nodeHandles.clear();
     nodeHandles.reserve(transformCount);
 
-    auto buffer = WebgpuHelper::CreateSemanticStorageBuffer<WorldTransformBuffer>(transformCount,
-        "TransformBuffer");
-    MLG_CHECK(buffer);
-
-    MLG_CHECK(buffer->Map());
-
     // Initialize the transform buffer with the world space transform
     // of each node that contains a model instance.
 
-    size_t transformIndex = 0;
+    std::vector<ShaderInterop::WorldTransform> transforms;
+    transforms.reserve(transformCount);
 
     for(auto& handle : level.GetAllHandles())
     {
@@ -84,14 +77,10 @@ BuildTransformBuffer(const Level& level,
         nodeHandles.push_back(handle);
 
         const ShaderInterop::WorldTransform transform{ .Transform = node->WorldTransform };
-
-        buffer->Store(transformIndex, transform);
-        ++transformIndex;
+        transforms.emplace_back(transform);
     }
 
-    MLG_CHECK(buffer->Unmap(encoder));
-
-    return buffer;
+    return WebgpuHelper::CreateStorageBuffer<WorldTransformBuffer>(transforms, "TransformBuffer");
 }
 
 static Result<>
@@ -134,20 +123,15 @@ CountMeshes(std::span<const Model> models, std::span<const ModelInstance> modelI
 }
 
 static Result<DrawIndirectBuffer>
-BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances,
-    const PropKit& propKit,
-    wgpu::CommandEncoder encoder)
+BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const PropKit& propKit)
 {
     const std::span<const Mesh> meshes = propKit.GetMeshes();
     const std::span<const Model> models = propKit.GetModels();
 
     const size_t meshInstanceCount = CountMeshes(models, modelInstances);
 
-    auto buffer = WebgpuHelper::CreateSemanticIndirectBuffer<DrawIndirectBuffer>(meshInstanceCount,
-        "DrawIndirectBuffer");
-    MLG_CHECK(buffer);
-
-    MLG_CHECK(buffer->Map());
+    std::vector<ShaderInterop::DrawIndirectParams> drawIndirectParams;
+    drawIndirectParams.reserve(meshInstanceCount);
 
     uint32_t meshCount = 0;
 
@@ -163,49 +147,42 @@ BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances,
             "Model has invalid mesh range: first mesh {}, mesh count {} (total meshes: {})",
             model.FirstMesh.Value(), model.MeshCount, meshes.size());
 
-        const Mesh* meshSrc = &meshes[model.FirstMesh.Value()];
+        std::span<const Mesh> modelMeshes =
+            meshes.subspan(model.FirstMesh.Value(), model.MeshCount);
 
-        for(uint32_t i = 0; i < model.MeshCount; ++i)
+        for(const auto& meshSrc : modelMeshes)
         {
             ShaderInterop::DrawIndirectParams drawParams //
                 {
-                    .IndexCount = meshSrc->IndexCount,
+                    .IndexCount = meshSrc.IndexCount,
                     .InstanceCount = 1,
-                    .FirstIndex = meshSrc->FirstIndex,
-                    .BaseVertex = meshSrc->BaseVertex,
+                    .FirstIndex = meshSrc.FirstIndex,
+                    .BaseVertex = meshSrc.BaseVertex,
                     .FirstInstance = meshCount,
                 };
 
-            buffer->Store(meshCount, drawParams);
+            drawIndirectParams.emplace_back(drawParams);
 
             ++meshCount;
-            ++meshSrc;
         }
     }
 
-    MLG_CHECK(buffer->Unmap(encoder));
-
-    return buffer;
+    return WebgpuHelper::CreateIndirectBuffer<DrawIndirectBuffer>(drawIndirectParams,
+        "DrawIndirectBuffer");
 }
 
 static Result<MeshPropertiesBuffer>
-BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances,
-    const PropKit& propKit,
-    wgpu::CommandEncoder encoder)
+BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const PropKit& propKit)
 {
     const std::span<const Mesh> meshes = propKit.GetMeshes();
     const std::span<const Model> models = propKit.GetModels();
 
     const size_t meshInstanceCount = CountMeshes(models, modelInstances);
 
-    auto buffer = WebgpuHelper::CreateSemanticStorageBuffer<MeshPropertiesBuffer>(meshInstanceCount,
-        "MeshPropertiesBuffer");
-    MLG_CHECK(buffer);
-
-    MLG_CHECK(buffer->Map());
-
-    uint32_t meshCount = 0;
     uint32_t transformIndex = 0;
+
+    std::vector<ShaderInterop::MeshProperties> meshProperties;
+    meshProperties.reserve(meshInstanceCount);
 
     for(const auto& modelInstance : modelInstances)
     {
@@ -219,32 +196,29 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances,
             "Model has invalid mesh range: first mesh {}, mesh count {} (total meshes: {})",
             model.FirstMesh.Value(), model.MeshCount, meshes.size());
 
-        const Mesh* meshSrc = &meshes[model.FirstMesh.Value()];
+        std::span<const Mesh> modelMeshes =
+            meshes.subspan(model.FirstMesh.Value(), model.MeshCount);
 
-        for(uint32_t i = 0; i < model.MeshCount; ++i)
+        for(const auto& meshSrc : modelMeshes)
         {
-            const BoundingSphere boundingSphere(meshSrc->BoundingBox);
+            const BoundingSphere boundingSphere(meshSrc.BoundingBox);
 
             ShaderInterop::MeshProperties meshProps//
             {
                 .Center = boundingSphere.GetCenter(),
                 .Radius = boundingSphere.GetRadius(),
                 .TransformIndex{ transformIndex },
-                .MaterialIndex{ meshSrc->MaterialIndex.Value() },
+                .MaterialIndex{ meshSrc.MaterialIndex.Value() },
             };
 
-            buffer->Store(meshCount, meshProps);
-
-            ++meshCount;
-            ++meshSrc;
+            meshProperties.emplace_back(meshProps);
         }
 
         ++transformIndex;
     }
 
-    MLG_CHECK(buffer->Unmap(encoder));
-
-    return buffer;
+    return WebgpuHelper::CreateStorageBuffer<MeshPropertiesBuffer>(meshProperties,
+        "MeshPropertiesBuffer");
 }
 
 static Result<wgpu::BindGroup>
@@ -351,29 +325,27 @@ Scene::Create(const Level& level, const PropKit& propKit, Scene& outScene)
     Stopwatch createTimer;
     createTimer.Mark();
 
-    wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
-
     std::vector<Level::NodeHandle> levelNodeHandles;
 
-    auto transformBuffer = BuildTransformBuffer(level, levelNodeHandles, encoder);
+    auto transformBuffer = BuildTransformBuffer(level, levelNodeHandles);
     MLG_CHECK(transformBuffer);
 
     auto clipSpaceBuffer =
-        WebgpuHelper::CreateSemanticStorageBuffer<ClipSpaceBuffer>(transformBuffer->Count(),
+        WebgpuHelper::CreateStorageBuffer<ClipSpaceBuffer>(transformBuffer->Count(),
             "ClipSpaceBuffer");
     MLG_CHECK(clipSpaceBuffer);
 
     std::vector<ModelInstance> modelInstances;
     MLG_CHECK(CollectModelInstances(level, modelInstances));
 
-    auto drawIndirectBuffer = BuildDrawIndirectBuffer(modelInstances, propKit, encoder);
+    auto drawIndirectBuffer = BuildDrawIndirectBuffer(modelInstances, propKit);
     MLG_CHECK(drawIndirectBuffer);
 
-    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(modelInstances, propKit, encoder);
+    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(modelInstances, propKit);
     MLG_CHECK(meshPropertiesBuffer);
 
     auto cameraParamsBuf =
-        WebgpuHelper::CreateSemanticUniformBuffer<CameraParamsBuffer>(1, "CameraParamsBuffer");
+        WebgpuHelper::CreateUniformBuffer<CameraParamsBuffer>(1, "CameraParamsBuffer");
     MLG_CHECK(cameraParamsBuf);
 
     ColorPipelineResources colorPipelineResources //
@@ -397,9 +369,6 @@ Scene::Create(const Level& level, const PropKit& propKit, Scene& outScene)
 
     auto transformPipelineBindGroup0 = CreateTransformPipelineBindGroup0(transformPipelineResources);
     MLG_CHECK(transformPipelineBindGroup0);
-
-    wgpu::CommandBuffer commandBuffer = encoder.Finish();
-    WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
 
     std::vector<Scene::TransformBufferOffset> transformBufferOffsets;
     transformBufferOffsets.reserve(levelNodeHandles.size());
@@ -450,6 +419,12 @@ Scene::Scene(const PropKit* propKit,
       m_ModelInstances(std::move(modelInstances)),
       m_TransformBufferOffsets(std::move(transformBufferOffsets))
 {
+    // Sort the transform buffer offsets by node handle to allow binary search by node handle.
+    std::sort(m_TransformBufferOffsets.begin(), m_TransformBufferOffsets.end(),
+        [](const TransformBufferOffset& a, const TransformBufferOffset& b)
+        {
+            return a.NodeHandle < b.NodeHandle;
+        });
 }
 
 Result<>
@@ -467,13 +442,15 @@ Scene::BeginFrame(wgpu::CommandEncoder cmdEncoder)
 
     m_FrameCommandEncoder = cmdEncoder;
 
-    return m_WorldTransformBuffer.Map();
+    return Result<>::Ok;
+
+    //return m_WorldTransformBuffer.Map();
 }
 
 Result<>
-Scene::UpdateWorldTransforms(const Level::NodeHandle nodeHandle, const Mat44f& worldTransform)
+Scene::UpdateWorldTransform(const Level::NodeHandle nodeHandle, const Mat44f& worldTransform)
 {
-    MLG_CHECKV(m_FrameCommandEncoder, "UpdateWorldTransforms called without a matching BeginFrame");
+    MLG_CHECKV(m_FrameCommandEncoder, "UpdateWorldTransform called without a matching BeginFrame");
     MLG_CHECKV(nodeHandle, "Invalid node handle");
 
     auto offset = GetTransformBufferOffset(nodeHandle);
@@ -481,7 +458,12 @@ Scene::UpdateWorldTransforms(const Level::NodeHandle nodeHandle, const Mat44f& w
 
     const ShaderInterop::WorldTransform transform{ .Transform = worldTransform };
 
-    m_WorldTransformBuffer.Store(*offset / sizeof(transform), transform);
+    const uint8_t* transformData = reinterpret_cast<const uint8_t*>(&transform);
+
+    m_FrameCommandEncoder.WriteBuffer(m_WorldTransformBuffer.GetGpuBuffer(),
+        *offset,
+        transformData,
+        sizeof(transform));
 
     return Result<>::Ok;
 }
@@ -491,7 +473,7 @@ Scene::EndFrame()
 {
     MLG_CHECKV(m_FrameCommandEncoder, "EndFrame called without a matching BeginFrame");
 
-    m_WorldTransformBuffer.Unmap(m_FrameCommandEncoder);
+    //m_WorldTransformBuffer.Unmap(m_FrameCommandEncoder);
 
     wgpu::CommandBuffer commandBuffer = m_FrameCommandEncoder.Finish();
     WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
@@ -506,18 +488,17 @@ Scene::EndFrame()
 Result<size_t>
 Scene::GetTransformBufferOffset(const Level::NodeHandle& nodeHandle) const
 {
-    size_t offset = m_TransformBufferOffsets.size(); // Initialize to an invalid offset
+    // Binary search the buffer sorted by node handle.
 
-    for (const auto& bufferOffset : m_TransformBufferOffsets)
-    {
-        if (bufferOffset.NodeHandle == nodeHandle)
+    auto it = std::lower_bound(m_TransformBufferOffsets.begin(),
+        m_TransformBufferOffsets.end(),
+        nodeHandle,
+        [](const TransformBufferOffset& offset, const Level::NodeHandle& handle)
         {
-            offset = bufferOffset.Offset;
-            break;
-        }
-    }
+            return offset.NodeHandle < handle;
+        });
 
-    MLG_CHECKV(offset != m_TransformBufferOffsets.size(),
+    MLG_CHECKV(it != m_TransformBufferOffsets.end() && it->NodeHandle == nodeHandle,
         "Transform buffer offset not found for node handle");
-    return offset;
+    return it->Offset;
 }

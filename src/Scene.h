@@ -41,7 +41,7 @@ public:
 
     Result<> BeginFrame();
     Result<> BeginFrame(wgpu::CommandEncoder cmdEncoder);
-    Result<> UpdateWorldTransforms(const Level::NodeHandle nodeHandle,
+    Result<> UpdateWorldTransform(const Level::NodeHandle nodeHandle,
         const Mat44f& worldTransform);
     Result<> EndFrame();
 

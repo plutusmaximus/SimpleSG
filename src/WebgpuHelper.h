@@ -18,6 +18,13 @@ template<typename T> class RgbaColor;
 using RgbaColorf = RgbaColor<float>;
 using RgbaColoru8 = RgbaColor<uint8_t>;
 
+// A note on using staging buffers to upload data to the GPU:
+// When copying data to textures we use a staging buffer.
+// When copying data to other buffers we could also use a staging buffer, but it's simpler to use
+// Queue::WriteBuffer which doesn't require a staging buffer. The equivalent of WriteBuffer for
+// textures is Queue::WriteTexture howerver Queue::WriteTexture contains a bunch of validation and
+// is slow compared to using a staging buffer and CopyBufferToTexture.
+
 class Texture : private wgpu::Texture
 {
 public:
@@ -63,20 +70,10 @@ public:
 
     size_t BufferSize() const { return GetSize(); }
 
-protected:
-    Result<std::span<std::byte>> MapBytes();
-
-    Result<> Unmap();
-
-    Result<> Unmap(wgpu::CommandEncoder cmdEncoder);
-
     explicit BasicGpuBuffer(wgpu::Buffer buffer)
         : wgpu::Buffer(buffer)
     {
     }
-
-private:
-    wgpu::Buffer m_StagingBuffer;
 };
 
 template<typename T>
@@ -93,63 +90,30 @@ public:
 
     size_t Count() const { return BufferSize() / sizeof(T); }
 
-    Result<> Map()
-    {
-        auto bytes = BasicGpuBuffer::MapBytes();
-        MLG_CHECK(bytes);
-
-        m_Bytes = *bytes;
-        return Result<>::Ok;
-    }
-
-    bool IsMapped() const
-    {
-        return m_Bytes.data() != nullptr;
-    }
-
-    T Load(std::size_t index) const
-    {
-        MLG_ASSERT(IsMapped(), "SemanticGpuBuffer::Load called without a matching Map");
-        MLG_ASSERT((index * sizeof(T)) < m_Bytes.size(), "Index out of bounds");
-
-        T value;
-        std::memcpy(&value, m_Bytes.data() + index * sizeof(T), sizeof(T));
-
-        return value;
-    }
-
+    // Stores a single value at the given index.
     void Store(std::size_t index, const T& value)
     {
-        MLG_ASSERT(IsMapped(), "SemanticGpuBuffer::Store called without a matching Map");
-        MLG_ASSERT((index * sizeof(T)) < m_Bytes.size(), "Index out of bounds");
+        const size_t offset = index * sizeof(T);
 
-        std::memcpy(m_Bytes.data() + index * sizeof(T), &value, sizeof(T));
+        MLG_ASSERT(offset < BufferSize(), "Index out of bounds");
+
+        WebgpuHelper::GetDevice().GetQueue().WriteBuffer(GetGpuBuffer(),
+            offset,
+            reinterpret_cast<const std::byte*>(&value),
+            sizeof(T));
     }
 
+    // Stores an array of values starting at the given index.
     void Store(std::size_t index, std::span<const T> values)
     {
-        MLG_ASSERT(IsMapped(), "SemanticGpuBuffer::Store called without a matching Map");
-        MLG_ASSERT((index * sizeof(T) + values.size() * sizeof(T)) <= m_Bytes.size(), "Index out of bounds");
+        const size_t offset = index * sizeof(T);
 
-        std::memcpy(m_Bytes.data() + index * sizeof(T), values.data(), values.size() * sizeof(T));
-    }
+        MLG_ASSERT((offset + values.size() * sizeof(T)) <= BufferSize(), "Index out of bounds");
 
-    Result<> Unmap()
-    {
-        MLG_CHECK(IsMapped(), "SemanticGpuBuffer::Unmap called without a matching Map");
-
-        m_Bytes = std::span<std::byte>();
-
-        return BasicGpuBuffer::Unmap();
-    }
-
-    Result<> Unmap(wgpu::CommandEncoder cmdEncoder)
-    {
-        MLG_CHECK(IsMapped(), "SemanticGpuBuffer::Unmap called without a matching Map");
-
-        m_Bytes = std::span<std::byte>();
-
-        return BasicGpuBuffer::Unmap(cmdEncoder);
+        WebgpuHelper::GetDevice().GetQueue().WriteBuffer(GetGpuBuffer(),
+            offset,
+            reinterpret_cast<const std::byte*>(values.data()),
+            values.size() * sizeof(T));
     }
 
 private:
@@ -159,8 +123,6 @@ private:
         : BasicGpuBuffer(buffer)
     {
     }
-
-    std::span<std::byte> m_Bytes;
 };
 
 using VertexBuffer = SemanticGpuBuffer<Vertex>;
@@ -195,14 +157,21 @@ public:
 
     static Result<wgpu::Sampler> GetDefaultSampler();
 
-    static Result<VertexBuffer> CreateVertexBuffer(const size_t count, const std::string_view& name);
+    static Result<VertexBuffer> CreateVertexBuffer(const size_t count,
+        const std::string_view& name);
+
+    static Result<VertexBuffer> CreateVertexBuffer(std::span<const Vertex> vertices,
+        const std::string_view& name);
 
     static Result<IndexBuffer> CreateIndexBuffer(const size_t count, const std::string_view& name);
+
+    static Result<IndexBuffer> CreateIndexBuffer(std::span<const VertexIndex> indices,
+        const std::string_view& name);
 
     /// @brief Creates a semantically-typed storage buffer.
     template<typename T>
     requires is_gpu_buffer_type_v<T>
-    static Result<T> CreateSemanticStorageBuffer(const size_t count, const std::string_view& name)
+    static Result<T> CreateStorageBuffer(const size_t count, const std::string_view& name)
     {
         static_assert(!std::is_same_v<T, VertexBuffer>, "Use CreateVertexBuffer to create vertex buffers");
         static_assert(!std::is_same_v<T, IndexBuffer>, "Use CreateIndexBuffer to create index buffers");
@@ -215,10 +184,22 @@ public:
         return T(*bufferResult);
     }
 
+    template<typename T>
+        requires is_gpu_buffer_type_v<T>
+    static Result<T> CreateStorageBuffer(std::span<const typename T::value_type> values,
+        const std::string_view& name)
+    {
+        auto buffer = CreateStorageBuffer<T>(values.size() * sizeof(typename T::value_type), name);
+        MLG_CHECK(buffer);
+
+        buffer->Store(0, values);
+        return *buffer;
+    }
+
     /// @brief Creates a semantically-typed uniform buffer.
     template<typename T>
     requires is_gpu_buffer_type_v<T>
-    static Result<T> CreateSemanticUniformBuffer(const size_t count, const std::string_view& name)
+    static Result<T> CreateUniformBuffer(const size_t count, const std::string_view& name)
     {
         static_assert(!std::is_same_v<T, VertexBuffer>, "Use CreateVertexBuffer to create vertex buffers");
         static_assert(!std::is_same_v<T, IndexBuffer>, "Use CreateIndexBuffer to create index buffers");
@@ -231,10 +212,22 @@ public:
         return T(*bufferResult);
     }
 
+    template<typename T>
+        requires is_gpu_buffer_type_v<T>
+    static Result<T> CreateUniformBuffer(std::span<const typename T::value_type> values,
+        const std::string_view& name)
+    {
+        auto buffer = CreateUniformBuffer<T>(values.size() * sizeof(typename T::value_type), name);
+        MLG_CHECK(buffer);
+
+        buffer->Store(0, values);
+        return *buffer;
+    }
+
     /// @brief Creates a semantically-typed indirect buffer.
     template<typename T>
     requires is_gpu_buffer_type_v<T>
-    static Result<T> CreateSemanticIndirectBuffer(const size_t count, const std::string_view& name)
+    static Result<T> CreateIndirectBuffer(const size_t count, const std::string_view& name)
     {
         static_assert(!std::is_same_v<T, VertexBuffer>, "Use CreateVertexBuffer to create vertex buffers");
         static_assert(!std::is_same_v<T, IndexBuffer>, "Use CreateIndexBuffer to create index buffers");
@@ -244,6 +237,18 @@ public:
         MLG_CHECK(bufferResult);
 
         return T(*bufferResult);
+    }
+
+    template<typename T>
+        requires is_gpu_buffer_type_v<T>
+    static Result<T> CreateIndirectBuffer(std::span<const typename T::value_type> values,
+        const std::string_view& name)
+    {
+        auto buffer = CreateIndirectBuffer<T>(values.size() * sizeof(typename T::value_type), name);
+        MLG_CHECK(buffer);
+
+        buffer->Store(0, values);
+        return *buffer;
     }
 
     static Result<const std::array<wgpu::BindGroupLayout, 2>> GetColorPipelineLayouts();

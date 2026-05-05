@@ -61,6 +61,12 @@ public:
             return m_Node != that.m_Node;
         }
 
+        // Used for sorting and binary search.
+        bool operator<(const NodeHandle& that) const
+        {
+            return m_Node < that.m_Node;
+        }
+
         operator bool() const
         {
             return m_Node != nullptr;
@@ -154,12 +160,16 @@ public:
 
     Result<const Node*> GetNode(const NodeHandle& handle) const;
 
+    Result<> UpdateLocalTransform(const NodeHandle& handle, const TrsTransformf& localTransform);
+
 private:
     Level(
         const PropKit* propKit, std::vector<Node>&& nodes, std::vector<char>&& stringStorage);
 
     // Returns true if the node handle refers to a node within the level.
     bool IsInLevel(const NodeHandle& handle) const;
+
+    void UpdateWorldTransforms(std::span<Node> nodes);
 
     const PropKit* m_PropKit{ nullptr };
     std::vector<Node> m_Nodes;
