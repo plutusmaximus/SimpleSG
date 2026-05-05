@@ -48,10 +48,13 @@ PerfTimer::PerfTimer::GetCount() const
 void
 PerfTimer::PerfTimer::Start()
 {
-    if(!MLG_VERIFY(!m_IsRunning,
-        "Failed to start timer '{}': Timer is already running", m_Name))
+    if(!MLG_VERIFY(!m_IsRunning, "Failed to start timer '{}': Timer is already running", m_Name))
     {
-        MLG_ERROR("Failed to start timer '{}': Timer is already running", m_Name);
+        return;
+    }
+
+    if(!MLG_VERIFY(s_IsFrameActive, "Failed to start timer '{}': No active frame. Ensure BeginFrame() is called before starting timers.", m_Name))
+    {
         return;
     }
 
@@ -63,10 +66,13 @@ PerfTimer::PerfTimer::Start()
 void
 PerfTimer::PerfTimer::Stop()
 {
-    if(!MLG_VERIFY(m_IsRunning,
-        "Failed to stop timer '{}': Timer is not running", m_Name))
+    if(!MLG_VERIFY(m_IsRunning, "Failed to stop timer '{}': Timer is not running", m_Name))
     {
-        MLG_ERROR("Failed to stop timer '{}': Timer is not running", m_Name);
+        return;
+    }
+
+    if(!MLG_VERIFY(s_IsFrameActive, "Failed to stop timer '{}': No active frame. Ensure BeginFrame() is called before stopping timers.", m_Name))
+    {
         return;
     }
 
