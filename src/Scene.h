@@ -39,17 +39,18 @@ public:
 
     wgpu::BindGroup GetTransformPipelineBindGroup0() const { return m_TransformPipelineBindGroup0; }
 
-    Result<> BeginFrame();
-    Result<> BeginFrame(wgpu::CommandEncoder cmdEncoder);
     Result<> UpdateWorldTransform(const Level::NodeHandle nodeHandle,
         const Mat44f& worldTransform);
-    Result<> EndFrame();
+
+    // Sync updates from CPU -< GPU.
+    Result<> SyncToGpu();
 
 private:
-    struct TransformBufferOffset
+    // Maps a node handle to the index of its world transform in the world transform buffer.
+    struct TransformBufferIndex
     {
         Level::NodeHandle NodeHandle;
-        size_t Offset;
+        size_t Index;
     };
 
     Scene(const PropKit* propKit,
@@ -60,9 +61,10 @@ private:
         wgpu::BindGroup colorPipelineBindGroup0,
         wgpu::BindGroup transformPipelineBindGroup0,
         std::vector<ModelInstance>&& modelInstances,
-        std::vector<TransformBufferOffset>&& transformBufferOffsets);
+        std::vector<ShaderInterop::WorldTransform>&& worldTransforms,
+        std::vector<TransformBufferIndex>&& transformBufferIndices);
 
-    Result<size_t> GetTransformBufferOffset(const Level::NodeHandle& nodeHandle) const;
+    Result<size_t> GetTransformBufferIndex(const Level::NodeHandle& nodeHandle) const;
 
     const PropKit* m_PropKit;
     WorldTransformBuffer m_WorldTransformBuffer;
@@ -72,7 +74,10 @@ private:
     wgpu::BindGroup m_ColorPipelineBindGroup0;
     wgpu::BindGroup m_TransformPipelineBindGroup0;
     std::vector<ModelInstance> m_ModelInstances;
-    std::vector<TransformBufferOffset> m_TransformBufferOffsets;
 
-    wgpu::CommandEncoder m_FrameCommandEncoder;
+    // Staging buffer for world transforms.
+    std::vector<ShaderInterop::WorldTransform> m_WorldTransforms;
+
+    // Sorted by node handle to allow binary search by node handle.
+    std::vector<TransformBufferIndex> m_TransformBufferIndices;
 };

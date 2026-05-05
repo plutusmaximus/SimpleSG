@@ -182,6 +182,9 @@ MainLoop()
     {
         PerfMetrics::BeginFrame();
 
+        static PerfTimer frameTimer("Frame");
+        frameTimer.Start();
+
         const uint64_t curTicksNs = SDL_GetTicksNS();
         const uint64_t elapsedTicksNs = curTicksNs - frameBeginTicks;
         const float elapsedSeconds = SDL_NS_TO_SECONDS(static_cast<float>(elapsedTicksNs));
@@ -205,8 +208,6 @@ MainLoop()
             std::this_thread::yield();
             continue;
         }
-
-        std::string droppedFile;
 
         while(!minimized && running && SDL_PollEvent(&event))
         {
@@ -276,31 +277,7 @@ MainLoop()
                     mouseNav.OnKeyUp(event.key.scancode);
                 }
                 break;
-
-            case SDL_EVENT_DROP_BEGIN:
-                break;
-
-            case SDL_EVENT_DROP_FILE:
-                droppedFile = event.drop.data;
-                break;
-
-            case SDL_EVENT_DROP_TEXT:
-                break;
-
-            case SDL_EVENT_DROP_COMPLETE:
-                break;
             }
-        }
-
-        if(!droppedFile.empty())
-        {
-            textureCache.Clear();
-            PropKit newPropKit;
-            Level newLevel;
-            Scene newScene;
-            MLG_CHECK(Load(droppedFile, textureCache, newPropKit, newLevel, newScene));
-            propKit = std::move(newPropKit);
-            scene = std::move(newScene);
         }
 
         {
@@ -309,9 +286,7 @@ MainLoop()
             trs.R = Quatf(orbitAngle, Vec3f::YAXIS());
             MLG_CHECK(level.UpdateLocalTransform(*moonOrbit, trs));
 
-            MLG_CHECK(scene.BeginFrame());
             MLG_CHECK(scene.UpdateWorldTransform(*moon, level.GetNode(*moon)->WorldTransform));
-            MLG_CHECK(scene.EndFrame());
         }
 
         mouseNav.Update(elapsedSeconds);
@@ -330,6 +305,8 @@ MainLoop()
 
         compositor.BeginFrame();
         imGuiRenderer.NewFrame();
+
+        scene.SyncToGpu();
 
         const auto& camWorldMat = camera.Get<WorldMatrix>();
         const auto& projection = camera.Get<Projection>();
@@ -351,6 +328,8 @@ MainLoop()
 #endif
 
         WebgpuHelper::GetInstance().ProcessEvents();
+
+        frameTimer.Stop();
 
         PerfMetrics::EndFrame();
     }

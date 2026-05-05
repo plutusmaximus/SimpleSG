@@ -139,6 +139,9 @@ MainLoop()
     {
         PerfMetrics::BeginFrame();
 
+        static PerfTimer frameTimer("Frame");
+        frameTimer.Start();
+
         const uint64_t curTicksNs = SDL_GetTicksNS();
         const uint64_t elapsedTicksNs = curTicksNs - frameBeginTicks;
         const float elapsedSeconds = SDL_NS_TO_SECONDS(static_cast<float>(elapsedTicksNs));
@@ -298,6 +301,8 @@ MainLoop()
 #endif
 
         WebgpuHelper::GetInstance().ProcessEvents();
+
+        frameTimer.Stop();
 
         PerfMetrics::EndFrame();
     }
