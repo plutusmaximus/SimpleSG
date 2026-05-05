@@ -26,19 +26,56 @@ struct LevelDef
     std::vector<LevelNodeDef> NodeDefs;
 };
 
-struct LevelNode
-{
-    std::string_view Name;
-    TrsTransformf Transform;
-    ModelIndex ModelIndex{ ModelIndex::INVALID };
-    LevelNodeIndex ParentIndex{ LevelNodeIndex::INVALID };
-    LevelNodeIndex FirstChildIndex{ LevelNodeIndex::INVALID };
-    uint32_t ChildCount{ 0 };
-};
-
 class Level
 {
 public:
+
+    struct Node
+    {
+        std::string_view Name;
+        TrsTransformf Transform;
+        ModelIndex ModelIndex{ ModelIndex::INVALID };
+        LevelNodeIndex ParentIndex{ LevelNodeIndex::INVALID };
+        LevelNodeIndex FirstChildIndex{ LevelNodeIndex::INVALID };
+        uint32_t ChildCount{ 0 };
+    };
+
+    class NodeHandle
+    {
+    public:
+
+        NodeHandle() = default;
+        NodeHandle(const NodeHandle&) = default;
+        NodeHandle& operator=(const NodeHandle&) = default;
+        NodeHandle(NodeHandle&&) = default;
+        NodeHandle& operator=(NodeHandle&&) = default;
+
+        bool operator==(const NodeHandle& that) const
+        {
+            return m_Node == that.m_Node;
+        }
+
+        bool operator!=(const NodeHandle& that) const
+        {
+            return m_Node != that.m_Node;
+        }
+
+        operator bool() const
+        {
+            return m_Node != nullptr;
+        }
+
+    private:
+        friend class Level;
+
+        explicit NodeHandle(const Node* node)
+            : m_Node(node)
+        {
+        }
+
+        const Node* m_Node{nullptr};
+    };
+
     static Result<> Create(const LevelDef& levelDef, const PropKit& propKit, Level& outLevel);
 
     Level() = default;
@@ -48,14 +85,14 @@ public:
     Level& operator=(Level&& other) = default;
 
     // Retuns a span of all nodes in the level, in breadth-first order.
-    std::span<const LevelNode> GetAllNodes() const { return m_Nodes; }
+    std::span<const NodeHandle> GetAllHandles() const { return m_NodeHandles; }
 
-    std::span<const LevelNode> GetRootNodes() const
+    std::span<const NodeHandle> GetRoots() const
     {
-        return std::span<const LevelNode>(m_Nodes).subspan(0, m_RootNodeCount);
+        return std::span<const NodeHandle>(m_NodeHandles).subspan(0, m_RootNodeCount);
     }
 
-    Result<std::span<const LevelNode>> GetChildNodes(const LevelNode& node) const;
+    Result<std::span<const NodeHandle>> GetChildren(const NodeHandle& handle) const;
 
     // Fetches a node by its path from the root, e.g. {"RootNode", "ChildNode", "GrandchildNode"}.
     // the path argument can take the following forms:
@@ -68,64 +105,76 @@ public:
     // - and any other contiguous range of strings or string views that can be converted to std::string_view
     template <std::ranges::sized_range R>
     requires std::convertible_to<std::ranges::range_reference_t<R>, std::string_view>
-    Result<const LevelNode*> GetNode(R&& path) const
+    Result<NodeHandle> GetNodeHandle(R&& path) const
     {
-        const LevelNode* foundNode = nullptr;
+        NodeHandle foundHandle;
 
         const auto pathLen = std::ranges::size(path);
         size_t pathIndex = 0;
 
-        std::span<const LevelNode> nodesToSearch = GetRootNodes();
+        std::span<const NodeHandle> nodesToSearch = GetRoots();
         for (auto&& x : path)
         {
             std::string_view part = x;
 
-            const LevelNode* node = nullptr;
+            NodeHandle handle;
 
-            for(const auto & tmpNode : nodesToSearch)
+            for(const auto & tmpHandle : nodesToSearch)
             {
-                if(tmpNode.Name == part)
+                if(tmpHandle.m_Node->Name == part)
                 {
-                    node = &tmpNode;
+                    handle = tmpHandle;
                     break;
                 }
             }
 
-            MLG_CHECKV(node != nullptr, "Node not found: {}", part);
+            MLG_CHECKV(handle, "Node not found: {}", part);
 
             if(pathIndex == pathLen - 1)
             {
-                foundNode = node;
+                foundHandle = handle;
                 break;
             }
 
             ++pathIndex;
 
-            auto result = GetChildNodes(*node);
+            auto result = GetChildren(handle);
             MLG_CHECK(result);
             nodesToSearch = *result;
         }
 
-        MLG_CHECKV(foundNode != nullptr, "Node not found: {}", path);
+        MLG_CHECKV(foundHandle, "Node not found: {}", path);
 
-        return foundNode;
+        return foundHandle;
     }
 
     // Fetches a node by its path from the root, e.g. {"RootNode", "ChildNode", "GrandchildNode"}.
     // This overload is provided for convenience to allow passing an initializer list directly
     // without having to wrap it in a std::span or other container.
     // - GetNode({"RootNode", "ChildNode", "GrandchildNode"});
-    Result<const LevelNode*> GetNode(std::initializer_list<std::string_view> path) const
+    Result<NodeHandle> GetNodeHandle(std::initializer_list<std::string_view> path) const
     {
-        return GetNode(std::span<const std::string_view>{path});
+        return GetNodeHandle(std::span<const std::string_view>{path});
+    }
+
+    Result<const Node*> GetNode(const NodeHandle& handle) const
+    {
+        MLG_CHECKV(OwnHandle(handle), "Node handle points outside of node array");
+        return handle.m_Node;
     }
 
 private:
     Level(
-        const PropKit* propKit, std::vector<LevelNode>&& nodes, std::vector<char>&& stringStorage);
+        const PropKit* propKit, std::vector<Node>&& nodes, std::vector<char>&& stringStorage);
+
+    bool OwnHandle(const NodeHandle& handle) const
+    {
+        return handle.m_Node >= m_Nodes.data() && handle.m_Node < m_Nodes.data() + m_Nodes.size();
+    }
 
     const PropKit* m_PropKit{ nullptr };
-    std::vector<LevelNode> m_Nodes;
+    std::vector<Node> m_Nodes;
+    std::vector<NodeHandle> m_NodeHandles;
     size_t m_RootNodeCount{ 0 };
     // Storage for node names to ensure they remain valid for string_views
     // and to reduce memory fragmentation by storing all names contiguously.

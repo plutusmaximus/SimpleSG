@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Level.h"
 #include "PropKit.h"
 #include "WebgpuHelper.h"
 
@@ -16,8 +17,6 @@ struct ModelInstance
 {
     ModelIndex ModelIndex{ ModelIndex::INVALID };
 };
-
-class Level;
 
 class Scene
 {
@@ -40,32 +39,34 @@ public:
 
     wgpu::BindGroup GetTransformPipelineBindGroup0() const { return m_TransformPipelineBindGroup0; }
 
+    Result<> BeginFrame();
+    Result<> UpdateWorldTransforms(const Level::NodeHandle nodeHandle, const Mat44f& worldTransform);
+    Result<> EndFrame();
+
 private:
+    struct TransformBufferOffset
+    {
+        Level::NodeHandle NodeHandle;
+        size_t BufferOffset;
+    };
+
     Scene(const PropKit* propKit,
-        WorldTransformBuffer transformBuffer,
+        WorldTransformBuffer worldTransformBuffer,
         DrawIndirectBuffer drawIndirectBuffer,
         MeshPropertiesBuffer meshPropertiesBuffer,
         CameraParamsBuffer cameraParamsBuffer,
         wgpu::BindGroup colorPipelineBindGroup0,
         wgpu::BindGroup transformPipelineBindGroup0,
-        std::vector<ModelInstance>&& modelInstances)
-        : m_PropKit(propKit),
-          m_TransformBuffer(transformBuffer),
-          m_DrawIndirectBuffer(drawIndirectBuffer),
-          m_MeshPropertiesBuffer(meshPropertiesBuffer),
-          m_CameraParamsBuffer(cameraParamsBuffer),
-          m_ColorPipelineBindGroup0(colorPipelineBindGroup0),
-          m_TransformPipelineBindGroup0(transformPipelineBindGroup0),
-          m_ModelInstances(std::move(modelInstances))
-    {
-    }
+        std::vector<ModelInstance>&& modelInstances,
+        std::vector<TransformBufferOffset>&& transformBufferOffsets);
 
     const PropKit* m_PropKit;
-    WorldTransformBuffer m_TransformBuffer;
+    WorldTransformBuffer m_WorldTransformBuffer;
     DrawIndirectBuffer m_DrawIndirectBuffer;
     MeshPropertiesBuffer m_MeshPropertiesBuffer;
     CameraParamsBuffer m_CameraParamsBuffer;
     wgpu::BindGroup m_ColorPipelineBindGroup0;
     wgpu::BindGroup m_TransformPipelineBindGroup0;
     std::vector<ModelInstance> m_ModelInstances;
+    std::vector<TransformBufferOffset> m_TransformBufferOffsets;
 };

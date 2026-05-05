@@ -32,7 +32,7 @@ CalculateTotalStringSize(std::span<const LevelNodeDef> nodeDefs)
 static Result<>
 CollectNodes(std::span<const LevelNodeDef> nodeDefs,
     const PropKit& propKit,
-    std::vector<LevelNode>& nodes,
+    std::vector<Level::Node>& nodes,
     std::vector<char>& stringStorage)
 {
     // First add nodes from the current level.
@@ -50,7 +50,7 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
         stringStorage.insert(stringStorage.end(), nodeDef.Name.begin(), nodeDef.Name.end());
         stringStorage.push_back('\0'); // Null terminator for the string_view
 
-        LevelNode levelNode //
+        Level::Node levelNode //
             {
                 .Transform{ nodeDef.Transform },
                 .ModelIndex{ modelIndex },
@@ -82,7 +82,7 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit, Level& outLevel)
     const size_t nodeCount = CountNodes(levelDef.NodeDefs);
     const size_t totalStringSize = CalculateTotalStringSize(levelDef.NodeDefs);
 
-    std::vector<LevelNode> nodes;
+    std::vector<Node> nodes;
     std::vector<char> stringStorage;
     nodes.reserve(nodeCount);
     stringStorage.reserve(totalStringSize);
@@ -96,7 +96,7 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit, Level& outLevel)
     size_t stringOffset = 0;
     for(size_t i = 0; i < nodes.size(); ++i)
     {
-        LevelNode& node = nodes[i];
+        Node& node = nodes[i];
         node.Name = std::string_view(&stringStorage[stringOffset]);
         stringOffset += node.Name.size() + 1; // +1 for null terminator
 
@@ -112,7 +112,7 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit, Level& outLevel)
             const size_t childIndex = firstChildIndex + j;
             MLG_ASSERT(childIndex < nodes.size(), "Invalid child index calculated for node {}", node.Name);
 
-            LevelNode& childNode = nodes[childIndex];
+            Node& childNode = nodes[childIndex];
             childNode.ParentIndex = LevelNodeIndex(i);
         }
 
@@ -128,7 +128,7 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit, Level& outLevel)
     return Result<>::Ok;
 }
 
-Level::Level(const PropKit* propKit, std::vector<LevelNode>&& nodes, std::vector<char>&& stringStorage)
+Level::Level(const PropKit* propKit, std::vector<Node>&& nodes, std::vector<char>&& stringStorage)
     : m_PropKit(propKit),
       m_Nodes(std::move(nodes)),
       m_StringStorage(std::move(stringStorage))
@@ -145,20 +145,30 @@ Level::Level(const PropKit* propKit, std::vector<LevelNode>&& nodes, std::vector
 
         ++m_RootNodeCount;
     }
+
+    m_NodeHandles.reserve(m_Nodes.size());
+    for(auto& node : m_Nodes)
+    {
+        const NodeHandle handle(&node);
+        m_NodeHandles.emplace_back(handle);
+    }
 }
 
-Result<std::span<const LevelNode>>
-Level::GetChildNodes(const LevelNode& node) const
+Result<std::span<const Level::NodeHandle>>
+Level::GetChildren(const NodeHandle& handle) const
 {
-    if(!node.FirstChildIndex.IsValid())
+    MLG_CHECKV(handle, "Invalid node handle");
+    MLG_CHECKV(OwnHandle(handle), "Node handle points outside of node array");
+
+    if(!handle.m_Node->FirstChildIndex.IsValid())
     {
-        return std::span<const LevelNode>{};
+        return std::span<const NodeHandle>{};
     }
 
-    MLG_CHECKV(node.FirstChildIndex.Value() < m_Nodes.size(), "Invalid FirstChildIndex in node");
-    MLG_CHECKV(node.FirstChildIndex.Value() + node.ChildCount <= m_Nodes.size(),
+    MLG_CHECKV(handle.m_Node->FirstChildIndex.Value() < m_Nodes.size(), "Invalid FirstChildIndex in node");
+    MLG_CHECKV(handle.m_Node->FirstChildIndex.Value() + handle.m_Node->ChildCount <= m_Nodes.size(),
         "Invalid ChildCount in node");
 
-    return std::span<const LevelNode>(m_Nodes).subspan(node.FirstChildIndex.Value(),
-        node.ChildCount);
+    return std::span<const NodeHandle>(m_NodeHandles).subspan(handle.m_Node->FirstChildIndex.Value(),
+        handle.m_Node->ChildCount);
 }

@@ -86,6 +86,9 @@ class MappedGpuBuffer
     static_assert(!std::is_reference_v<T>);
 
 public:
+
+    using value_type = T;
+
     explicit MappedGpuBuffer(std::span<std::byte> bytes)
         : m_Bytes(bytes)
     {
@@ -127,6 +130,7 @@ class SemanticGpuBuffer : public BasicGpuBuffer
     static_assert(!std::is_reference_v<T>);
 
 public:
+    using value_type = T;
     using BasicGpuBuffer::BasicGpuBuffer;
     using BasicGpuBuffer::operator bool;
 
