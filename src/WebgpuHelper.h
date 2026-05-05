@@ -56,11 +56,12 @@ class BasicGpuBuffer : private wgpu::Buffer
 {
 public:
     using wgpu::Buffer::Buffer;
-    using wgpu::Buffer::GetSize;
     using wgpu::Buffer::operator bool;
 
     wgpu::Buffer& GetGpuBuffer() { return *this; }
     const wgpu::Buffer& GetGpuBuffer() const { return *this; }
+
+    size_t BufferSize() const { return GetSize(); }
 
 protected:
     Result<std::span<std::byte>> MapBytes();
@@ -89,6 +90,8 @@ public:
     using value_type = T;
     using BasicGpuBuffer::BasicGpuBuffer;
     using BasicGpuBuffer::operator bool;
+
+    size_t Count() const { return BufferSize() / sizeof(T); }
 
     Result<> Map()
     {
@@ -192,20 +195,21 @@ public:
 
     static Result<wgpu::Sampler> GetDefaultSampler();
 
-    static Result<VertexBuffer> CreateVertexBuffer(const size_t size, const std::string& name);
+    static Result<VertexBuffer> CreateVertexBuffer(const size_t count, const std::string_view& name);
 
-    static Result<IndexBuffer> CreateIndexBuffer(const size_t size, const std::string& name);
+    static Result<IndexBuffer> CreateIndexBuffer(const size_t count, const std::string_view& name);
 
     /// @brief Creates a semantically-typed storage buffer.
     template<typename T>
     requires is_gpu_buffer_type_v<T>
-    static Result<T> CreateSemanticStorageBuffer(const size_t size, const std::string& name)
+    static Result<T> CreateSemanticStorageBuffer(const size_t count, const std::string_view& name)
     {
         static_assert(!std::is_same_v<T, VertexBuffer>, "Use CreateVertexBuffer to create vertex buffers");
         static_assert(!std::is_same_v<T, IndexBuffer>, "Use CreateIndexBuffer to create index buffers");
         static_assert(!std::is_same_v<T, DrawIndirectBuffer>, "Use CreateIndirectBuffer to create indirect buffers");
 
-        auto bufferResult = CreateStorageBuffer(size, name);
+        const size_t bufferSize = count * sizeof(typename T::value_type);
+        auto bufferResult = CreateStorageBuffer(bufferSize, name);
         MLG_CHECK(bufferResult);
 
         return T(*bufferResult);
@@ -214,13 +218,14 @@ public:
     /// @brief Creates a semantically-typed uniform buffer.
     template<typename T>
     requires is_gpu_buffer_type_v<T>
-    static Result<T> CreateSemanticUniformBuffer(const size_t size, const std::string& name)
+    static Result<T> CreateSemanticUniformBuffer(const size_t count, const std::string_view& name)
     {
         static_assert(!std::is_same_v<T, VertexBuffer>, "Use CreateVertexBuffer to create vertex buffers");
         static_assert(!std::is_same_v<T, IndexBuffer>, "Use CreateIndexBuffer to create index buffers");
         static_assert(!std::is_same_v<T, DrawIndirectBuffer>, "Use CreateIndirectBuffer to create indirect buffers");
 
-        auto bufferResult = CreateUniformBuffer(size, name);
+        const size_t bufferSize = count * sizeof(typename T::value_type);
+        auto bufferResult = CreateUniformBuffer(bufferSize, name);
         MLG_CHECK(bufferResult);
 
         return T(*bufferResult);
@@ -229,12 +234,13 @@ public:
     /// @brief Creates a semantically-typed indirect buffer.
     template<typename T>
     requires is_gpu_buffer_type_v<T>
-    static Result<T> CreateSemanticIndirectBuffer(const size_t size, const std::string& name)
+    static Result<T> CreateSemanticIndirectBuffer(const size_t count, const std::string_view& name)
     {
         static_assert(!std::is_same_v<T, VertexBuffer>, "Use CreateVertexBuffer to create vertex buffers");
         static_assert(!std::is_same_v<T, IndexBuffer>, "Use CreateIndexBuffer to create index buffers");
 
-        auto bufferResult = CreateIndirectBuffer(size, name);
+        const size_t bufferSize = count * sizeof(typename T::value_type);
+        auto bufferResult = CreateIndirectBuffer(bufferSize, name);
         MLG_CHECK(bufferResult);
 
         return T(*bufferResult);
@@ -262,7 +268,7 @@ public:
 
 private:
 
-    static Result<wgpu::Buffer> CreateIndirectBuffer(const size_t size, const std::string& name);
-    static Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string& name);
-    static Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string& name);
+    static Result<wgpu::Buffer> CreateIndirectBuffer(const size_t size, const std::string_view& name);
+    static Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string_view& name);
+    static Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string_view& name);
 };

@@ -544,25 +544,25 @@ WebgpuHelper::GetDefaultSampler()
 }
 
 Result<VertexBuffer>
-WebgpuHelper::CreateVertexBuffer(const size_t size, const std::string& name)
+WebgpuHelper::CreateVertexBuffer(const size_t count, const std::string_view& name)
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateVertexBuffer called before Startup");
 
     return VertexBuffer(
         CreateGpuBufferUnmapped(wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst,
-            size,
-            name.c_str()));
+            count * sizeof(Vertex),
+            name.data()));
 }
 
 Result<IndexBuffer>
-WebgpuHelper::CreateIndexBuffer(const size_t size, const std::string& name)
+WebgpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name)
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateIndexBuffer called before Startup");
 
     return IndexBuffer(
         CreateGpuBufferUnmapped(wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst,
-            size,
-            name.c_str()));
+            count * sizeof(VertexIndex),
+            name.data()));
 }
 
 Result<const std::array<wgpu::BindGroupLayout, 2>>
@@ -812,33 +812,33 @@ WebgpuHelper::GetSwapChainFormat()
 // private:
 
 Result<wgpu::Buffer>
-WebgpuHelper::CreateIndirectBuffer(const size_t size, const std::string& name)
+WebgpuHelper::CreateIndirectBuffer(const size_t size, const std::string_view& name)
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateIndirectBuffer called before Startup");
 
     return CreateGpuBufferUnmapped(wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
             size,
-            name.c_str());
+            name.data());
 }
 
 Result<wgpu::Buffer>
-WebgpuHelper::CreateStorageBuffer(const size_t size, const std::string& name)
+WebgpuHelper::CreateStorageBuffer(const size_t size, const std::string_view& name)
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateStorageBuffer called before Startup");
 
     return CreateGpuBufferUnmapped(wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
             size,
-            name.c_str());
+            name.data());
 }
 
 Result<wgpu::Buffer>
-WebgpuHelper::CreateUniformBuffer(const size_t size, const std::string& name)
+WebgpuHelper::CreateUniformBuffer(const size_t size, const std::string_view& name)
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateUniformBuffer called before Startup");
 
     return CreateGpuBufferUnmapped(wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
         size,
-        name.c_str());
+        name.data());
 }
 
 #include <dawn/native/DawnNative.h> // provides dawn::native::GetTogglesUsed

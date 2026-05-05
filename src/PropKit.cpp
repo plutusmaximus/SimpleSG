@@ -295,8 +295,7 @@ CreateMaterialBindGroups(std::span<const MaterialDef> materialDefs,
 static Result<VertexBuffer>
 BuildVertexBuffer(std::span<const Vertex> vertices, wgpu::CommandEncoder encoder)
 {
-    const size_t sizeofBuffer = vertices.size() * sizeof(Vertex);
-    auto buffer = WebgpuHelper::CreateVertexBuffer(sizeofBuffer, "VertexBuffer");
+    auto buffer = WebgpuHelper::CreateVertexBuffer(vertices.size(), "VertexBuffer");
     MLG_CHECK(buffer);
 
     MLG_CHECK(buffer->Map());
@@ -311,8 +310,7 @@ BuildVertexBuffer(std::span<const Vertex> vertices, wgpu::CommandEncoder encoder
 static Result<IndexBuffer>
 BuildIndexBuffer(std::span<const VertexIndex> indices, wgpu::CommandEncoder encoder)
 {
-    const size_t sizeofBuffer = indices.size() * sizeof(VertexIndex);
-    auto buffer = WebgpuHelper::CreateIndexBuffer(sizeofBuffer, "IndexBuffer");
+    auto buffer = WebgpuHelper::CreateIndexBuffer(indices.size(), "IndexBuffer");
     MLG_CHECK(buffer);
 
     MLG_CHECK(buffer->Map());
@@ -327,9 +325,7 @@ BuildIndexBuffer(std::span<const VertexIndex> indices, wgpu::CommandEncoder enco
 static Result<MaterialConstantsBuffer>
 BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs, wgpu::CommandEncoder encoder)
 {
-    const size_t sizeofBuffer = materialDefs.size() * sizeof(ShaderInterop::MaterialConstants);
-
-    auto buffer = WebgpuHelper::CreateSemanticStorageBuffer<MaterialConstantsBuffer>(sizeofBuffer,
+    auto buffer = WebgpuHelper::CreateSemanticStorageBuffer<MaterialConstantsBuffer>(materialDefs.size(),
         "MaterialConstantsBuffer");
     MLG_CHECK(buffer);
 

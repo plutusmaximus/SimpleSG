@@ -124,12 +124,12 @@ Renderer::Render(const Mat44f& camera,
         renderPass.SetVertexBuffer(0,
             propKit.GetVertexBuffer().GetGpuBuffer(),
             0,
-            propKit.GetVertexBuffer().GetSize());
+            propKit.GetVertexBuffer().BufferSize());
 
         renderPass.SetIndexBuffer(propKit.GetIndexBuffer().GetGpuBuffer(),
             idxFmt,
             0,
-            propKit.GetIndexBuffer().GetSize());
+            propKit.GetIndexBuffer().BufferSize());
     }
 
     static PerfTimer drawTimer("Renderer.Render.Draw");

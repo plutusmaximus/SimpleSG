@@ -60,10 +60,8 @@ BuildTransformBuffer(const Level& level,
     nodeHandles.clear();
     nodeHandles.reserve(transformCount);
 
-    const size_t sizeofBuffer = transformCount * sizeof(ShaderInterop::WorldTransform);
-
-    auto buffer =
-        WebgpuHelper::CreateSemanticStorageBuffer<WorldTransformBuffer>(sizeofBuffer, "TransformBuffer");
+    auto buffer = WebgpuHelper::CreateSemanticStorageBuffer<WorldTransformBuffer>(transformCount,
+        "TransformBuffer");
     MLG_CHECK(buffer);
 
     MLG_CHECK(buffer->Map());
@@ -144,11 +142,8 @@ BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances,
     const std::span<const Model> models = propKit.GetModels();
 
     const size_t meshInstanceCount = CountMeshes(models, modelInstances);
-    const size_t sizeofDrawIndirectBuffer =
-        meshInstanceCount * sizeof(ShaderInterop::DrawIndirectParams);
 
-    auto buffer = WebgpuHelper::CreateSemanticIndirectBuffer<DrawIndirectBuffer>(
-        sizeofDrawIndirectBuffer,
+    auto buffer = WebgpuHelper::CreateSemanticIndirectBuffer<DrawIndirectBuffer>(meshInstanceCount,
         "DrawIndirectBuffer");
     MLG_CHECK(buffer);
 
@@ -202,9 +197,9 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances,
     const std::span<const Model> models = propKit.GetModels();
 
     const size_t meshInstanceCount = CountMeshes(models, modelInstances);
-    const size_t sizeofBuffer = meshInstanceCount * sizeof(ShaderInterop::MeshProperties);
 
-    auto buffer = WebgpuHelper::CreateSemanticStorageBuffer<MeshPropertiesBuffer>(sizeofBuffer, "MeshPropertiesBuffer");
+    auto buffer = WebgpuHelper::CreateSemanticStorageBuffer<MeshPropertiesBuffer>(meshInstanceCount,
+        "MeshPropertiesBuffer");
     MLG_CHECK(buffer);
 
     MLG_CHECK(buffer->Map());
@@ -264,31 +259,31 @@ CreateColorPipelineBindGroup0(ColorPipelineResources& colorPipelineResources)
             .binding = 0,
             .buffer = colorPipelineResources.WorldTransformBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = colorPipelineResources.WorldTransformBuffer.GetSize(),
+            .size = colorPipelineResources.WorldTransformBuffer.BufferSize(),
         },
         {
             .binding = 1,
             .buffer = colorPipelineResources.ClipSpaceBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = colorPipelineResources.ClipSpaceBuffer.GetSize(),
+            .size = colorPipelineResources.ClipSpaceBuffer.BufferSize(),
         },
         {
             .binding = 2,
             .buffer = colorPipelineResources.MeshPropertiesBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = colorPipelineResources.MeshPropertiesBuffer.GetSize(),
+            .size = colorPipelineResources.MeshPropertiesBuffer.BufferSize(),
         },
         {
             .binding = 3,
             .buffer = colorPipelineResources.MaterialConstantsBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = colorPipelineResources.MaterialConstantsBuffer.GetSize(),
+            .size = colorPipelineResources.MaterialConstantsBuffer.BufferSize(),
         },
         {
             .binding = 4,
             .buffer = colorPipelineResources.CameraParamsBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = colorPipelineResources.CameraParamsBuffer.GetSize(),
+            .size = colorPipelineResources.CameraParamsBuffer.BufferSize(),
         },
     };
 
@@ -319,19 +314,19 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
             .binding = 0,
             .buffer = transformPipelineResources.WorldTransformBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = transformPipelineResources.WorldTransformBuffer.GetSize(),
+            .size = transformPipelineResources.WorldTransformBuffer.BufferSize(),
         },
         {
             .binding = 1,
             .buffer = transformPipelineResources.ClipSpaceBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = transformPipelineResources.ClipSpaceBuffer.GetSize(),
+            .size = transformPipelineResources.ClipSpaceBuffer.BufferSize(),
         },
         {
             .binding = 2,
             .buffer = transformPipelineResources.CameraParamsBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = transformPipelineResources.CameraParamsBuffer.GetSize(),
+            .size = transformPipelineResources.CameraParamsBuffer.BufferSize(),
         },
     };
 
@@ -364,7 +359,7 @@ Scene::Create(const Level& level, const PropKit& propKit, Scene& outScene)
     MLG_CHECK(transformBuffer);
 
     auto clipSpaceBuffer =
-        WebgpuHelper::CreateSemanticStorageBuffer<ClipSpaceBuffer>(transformBuffer->GetSize(),
+        WebgpuHelper::CreateSemanticStorageBuffer<ClipSpaceBuffer>(transformBuffer->Count(),
             "ClipSpaceBuffer");
     MLG_CHECK(clipSpaceBuffer);
 
@@ -377,9 +372,8 @@ Scene::Create(const Level& level, const PropKit& propKit, Scene& outScene)
     auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(modelInstances, propKit, encoder);
     MLG_CHECK(meshPropertiesBuffer);
 
-    auto cameraParamsBuf = WebgpuHelper::CreateSemanticUniformBuffer<CameraParamsBuffer>(
-        sizeof(ShaderInterop::CameraParams),
-        "CameraParamsBuffer");
+    auto cameraParamsBuf =
+        WebgpuHelper::CreateSemanticUniformBuffer<CameraParamsBuffer>(1, "CameraParamsBuffer");
     MLG_CHECK(cameraParamsBuf);
 
     ColorPipelineResources colorPipelineResources //
