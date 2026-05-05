@@ -33,7 +33,8 @@ public:
     struct Node
     {
         std::string_view Name;
-        TrsTransformf Transform;
+        TrsTransformf LocalTransform;
+        Mat44f WorldTransform{ 1 };
         ModelIndex ModelIndex{ ModelIndex::INVALID };
         LevelNodeIndex ParentIndex{ LevelNodeIndex::INVALID };
         LevelNodeIndex FirstChildIndex{ LevelNodeIndex::INVALID };
@@ -87,10 +88,7 @@ public:
     // Retuns a span of all nodes in the level, in breadth-first order.
     std::span<const NodeHandle> GetAllHandles() const { return m_NodeHandles; }
 
-    std::span<const NodeHandle> GetRoots() const
-    {
-        return std::span<const NodeHandle>(m_NodeHandles).subspan(0, m_RootNodeCount);
-    }
+    std::span<const NodeHandle> GetRoots() const;
 
     Result<std::span<const NodeHandle>> GetChildren(const NodeHandle& handle) const;
 
@@ -152,25 +150,16 @@ public:
     // This overload is provided for convenience to allow passing an initializer list directly
     // without having to wrap it in a std::span or other container.
     // - GetNode({"RootNode", "ChildNode", "GrandchildNode"});
-    Result<NodeHandle> GetNodeHandle(std::initializer_list<std::string_view> path) const
-    {
-        return GetNodeHandle(std::span<const std::string_view>{path});
-    }
+    Result<NodeHandle> GetNodeHandle(std::initializer_list<std::string_view> path) const;
 
-    Result<const Node*> GetNode(const NodeHandle& handle) const
-    {
-        MLG_CHECKV(OwnHandle(handle), "Node handle points outside of node array");
-        return handle.m_Node;
-    }
+    Result<const Node*> GetNode(const NodeHandle& handle) const;
 
 private:
     Level(
         const PropKit* propKit, std::vector<Node>&& nodes, std::vector<char>&& stringStorage);
 
-    bool OwnHandle(const NodeHandle& handle) const
-    {
-        return handle.m_Node >= m_Nodes.data() && handle.m_Node < m_Nodes.data() + m_Nodes.size();
-    }
+    // Returns true if the node handle refers to a node within the level.
+    bool IsInLevel(const NodeHandle& handle) const;
 
     const PropKit* m_PropKit{ nullptr };
     std::vector<Node> m_Nodes;

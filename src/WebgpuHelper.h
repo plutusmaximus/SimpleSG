@@ -62,13 +62,13 @@ public:
     wgpu::Buffer& GetGpuBuffer() { return *this; }
     const wgpu::Buffer& GetGpuBuffer() const { return *this; }
 
+protected:
     Result<std::span<std::byte>> MapBytes();
 
     Result<> Unmap();
 
     Result<> Unmap(wgpu::CommandEncoder cmdEncoder);
 
-protected:
     explicit BasicGpuBuffer(wgpu::Buffer buffer)
         : wgpu::Buffer(buffer)
     {
@@ -76,50 +76,6 @@ protected:
 
 private:
     wgpu::Buffer m_StagingBuffer;
-};
-
-template<typename T>
-class MappedGpuBuffer
-{
-    static_assert(std::is_trivially_copyable_v<T>);
-    static_assert(!std::is_pointer_v<T>);
-    static_assert(!std::is_reference_v<T>);
-
-public:
-
-    using value_type = T;
-
-    explicit MappedGpuBuffer(std::span<std::byte> bytes)
-        : m_Bytes(bytes)
-    {
-        MLG_ASSERT(bytes.size_bytes() % sizeof(T) == 0);
-    }
-
-    std::size_t size() const { return m_Bytes.size_bytes() / sizeof(T); }
-
-    T Load(std::size_t index) const
-    {
-        MLG_ASSERT(index < size());
-
-        T value;
-        std::memcpy(&value, m_Bytes.data() + index * sizeof(T), sizeof(T));
-
-        return value;
-    }
-
-    void Store(std::size_t index, const T& value)
-    {
-        MLG_ASSERT(index < size());
-
-        std::memcpy(m_Bytes.data() + index * sizeof(T), &value, sizeof(T));
-    }
-
-    std::span<std::byte> Bytes() { return m_Bytes; }
-
-    std::span<const std::byte> Bytes() const { return m_Bytes; }
-
-private:
-    std::span<std::byte> m_Bytes;
 };
 
 template<typename T>
@@ -134,12 +90,63 @@ public:
     using BasicGpuBuffer::BasicGpuBuffer;
     using BasicGpuBuffer::operator bool;
 
-    Result<MappedGpuBuffer<T>> Map()
+    Result<> Map()
     {
         auto bytes = BasicGpuBuffer::MapBytes();
         MLG_CHECK(bytes);
 
-        return MappedGpuBuffer<T>{ *bytes };
+        m_Bytes = *bytes;
+        return Result<>::Ok;
+    }
+
+    bool IsMapped() const
+    {
+        return m_Bytes.data() != nullptr;
+    }
+
+    T Load(std::size_t index) const
+    {
+        MLG_ASSERT(IsMapped(), "SemanticGpuBuffer::Load called without a matching Map");
+        MLG_ASSERT((index * sizeof(T)) < m_Bytes.size(), "Index out of bounds");
+
+        T value;
+        std::memcpy(&value, m_Bytes.data() + index * sizeof(T), sizeof(T));
+
+        return value;
+    }
+
+    void Store(std::size_t index, const T& value)
+    {
+        MLG_ASSERT(IsMapped(), "SemanticGpuBuffer::Store called without a matching Map");
+        MLG_ASSERT((index * sizeof(T)) < m_Bytes.size(), "Index out of bounds");
+
+        std::memcpy(m_Bytes.data() + index * sizeof(T), &value, sizeof(T));
+    }
+
+    void Store(std::size_t index, std::span<const T> values)
+    {
+        MLG_ASSERT(IsMapped(), "SemanticGpuBuffer::Store called without a matching Map");
+        MLG_ASSERT((index * sizeof(T) + values.size() * sizeof(T)) <= m_Bytes.size(), "Index out of bounds");
+
+        std::memcpy(m_Bytes.data() + index * sizeof(T), values.data(), values.size() * sizeof(T));
+    }
+
+    Result<> Unmap()
+    {
+        MLG_CHECK(IsMapped(), "SemanticGpuBuffer::Unmap called without a matching Map");
+
+        m_Bytes = std::span<std::byte>();
+
+        return BasicGpuBuffer::Unmap();
+    }
+
+    Result<> Unmap(wgpu::CommandEncoder cmdEncoder)
+    {
+        MLG_CHECK(IsMapped(), "SemanticGpuBuffer::Unmap called without a matching Map");
+
+        m_Bytes = std::span<std::byte>();
+
+        return BasicGpuBuffer::Unmap(cmdEncoder);
     }
 
 private:
@@ -149,6 +156,8 @@ private:
         : BasicGpuBuffer(buffer)
     {
     }
+
+    std::span<std::byte> m_Bytes;
 };
 
 using VertexBuffer = SemanticGpuBuffer<Vertex>;

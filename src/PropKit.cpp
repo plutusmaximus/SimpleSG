@@ -299,10 +299,9 @@ BuildVertexBuffer(std::span<const Vertex> vertices, wgpu::CommandEncoder encoder
     auto buffer = WebgpuHelper::CreateVertexBuffer(sizeofBuffer, "VertexBuffer");
     MLG_CHECK(buffer);
 
-    auto mapped = buffer->MapBytes();
-    MLG_CHECK(mapped);
+    MLG_CHECK(buffer->Map());
 
-    std::memcpy(mapped->data(), vertices.data(), sizeofBuffer);
+    buffer->Store(0, vertices);
 
     MLG_CHECK(buffer->Unmap(encoder));
 
@@ -316,10 +315,9 @@ BuildIndexBuffer(std::span<const VertexIndex> indices, wgpu::CommandEncoder enco
     auto buffer = WebgpuHelper::CreateIndexBuffer(sizeofBuffer, "IndexBuffer");
     MLG_CHECK(buffer);
 
-    auto mapped = buffer->MapBytes();
-    MLG_CHECK(mapped);
+    MLG_CHECK(buffer->Map());
 
-    std::memcpy(mapped->data(), indices.data(), sizeofBuffer);
+    buffer->Store(0, indices);
 
     MLG_CHECK(buffer->Unmap(encoder));
 
@@ -335,8 +333,7 @@ BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs, wgpu::Co
         "MaterialConstantsBuffer");
     MLG_CHECK(buffer);
 
-    auto mapped = buffer->Map();
-    MLG_CHECK(mapped);
+    MLG_CHECK(buffer->Map());
 
     size_t index = 0;
 
@@ -348,11 +345,11 @@ BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs, wgpu::Co
                 .Metalness = mtlDef.Metalness,
                 .Roughness = mtlDef.Roughness,
             };
-        mapped->Store(index, mc);
+        buffer->Store(index, mc);
         ++index;
     }
 
-    buffer->Unmap(encoder);
+    MLG_CHECK(buffer->Unmap(encoder));
 
     return buffer;
 }

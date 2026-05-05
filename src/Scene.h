@@ -40,14 +40,16 @@ public:
     wgpu::BindGroup GetTransformPipelineBindGroup0() const { return m_TransformPipelineBindGroup0; }
 
     Result<> BeginFrame();
-    Result<> UpdateWorldTransforms(const Level::NodeHandle nodeHandle, const Mat44f& worldTransform);
+    Result<> BeginFrame(wgpu::CommandEncoder cmdEncoder);
+    Result<> UpdateWorldTransforms(const Level::NodeHandle nodeHandle,
+        const Mat44f& worldTransform);
     Result<> EndFrame();
 
 private:
     struct TransformBufferOffset
     {
         Level::NodeHandle NodeHandle;
-        size_t BufferOffset;
+        size_t Offset;
     };
 
     Scene(const PropKit* propKit,
@@ -60,6 +62,8 @@ private:
         std::vector<ModelInstance>&& modelInstances,
         std::vector<TransformBufferOffset>&& transformBufferOffsets);
 
+    Result<size_t> GetTransformBufferOffset(const Level::NodeHandle& nodeHandle) const;
+
     const PropKit* m_PropKit;
     WorldTransformBuffer m_WorldTransformBuffer;
     DrawIndirectBuffer m_DrawIndirectBuffer;
@@ -69,4 +73,6 @@ private:
     wgpu::BindGroup m_TransformPipelineBindGroup0;
     std::vector<ModelInstance> m_ModelInstances;
     std::vector<TransformBufferOffset> m_TransformBufferOffsets;
+
+    wgpu::CommandEncoder m_FrameCommandEncoder;
 };

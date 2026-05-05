@@ -739,8 +739,6 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
     // Use inverse of camera transform as view matrix
     const Mat44f viewXform = camera.Inverse();
     const Mat44f& projMat = projection.GetMatrix();
-
-    // Projection transform
     const Mat44f viewProj = projMat.Mul(viewXform);
 
     const ShaderInterop::CameraParams cameraParams //

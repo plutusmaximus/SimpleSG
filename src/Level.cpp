@@ -50,14 +50,14 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
         stringStorage.insert(stringStorage.end(), nodeDef.Name.begin(), nodeDef.Name.end());
         stringStorage.push_back('\0'); // Null terminator for the string_view
 
-        Level::Node levelNode //
+        Level::Node node //
             {
-                .Transform{ nodeDef.Transform },
+                .LocalTransform{ nodeDef.Transform },
                 .ModelIndex{ modelIndex },
                 .ChildCount{ narrow_cast<uint32_t>(nodeDef.Children.size()) },
             };
 
-        nodes.emplace_back(std::move(levelNode));
+        nodes.emplace_back(std::move(node));
     }
 
     // Now add child nodes.
@@ -146,19 +146,37 @@ Level::Level(const PropKit* propKit, std::vector<Node>&& nodes, std::vector<char
         ++m_RootNodeCount;
     }
 
+    // Populate the node handles array and calculate world transforms.
+
     m_NodeHandles.reserve(m_Nodes.size());
+
     for(auto& node : m_Nodes)
     {
-        const NodeHandle handle(&node);
-        m_NodeHandles.emplace_back(handle);
+        m_NodeHandles.emplace_back(NodeHandle(&node));
+
+        if(node.ParentIndex.IsValid())
+        {
+            const Mat44f& parentWorldXform = m_Nodes[node.ParentIndex.Value()].WorldTransform;
+            node.WorldTransform = parentWorldXform * node.LocalTransform.ToMatrix();
+        }
+        else
+        {
+            node.WorldTransform = node.LocalTransform.ToMatrix();
+        }
     }
+}
+
+std::span<const Level::NodeHandle>
+Level::GetRoots() const
+{
+    return std::span<const NodeHandle>(m_NodeHandles).subspan(0, m_RootNodeCount);
 }
 
 Result<std::span<const Level::NodeHandle>>
 Level::GetChildren(const NodeHandle& handle) const
 {
     MLG_CHECKV(handle, "Invalid node handle");
-    MLG_CHECKV(OwnHandle(handle), "Node handle points outside of node array");
+    MLG_CHECKV(IsInLevel(handle), "Node handle points outside of node array");
 
     if(!handle.m_Node->FirstChildIndex.IsValid())
     {
@@ -171,4 +189,25 @@ Level::GetChildren(const NodeHandle& handle) const
 
     return std::span<const NodeHandle>(m_NodeHandles).subspan(handle.m_Node->FirstChildIndex.Value(),
         handle.m_Node->ChildCount);
+}
+
+Result<Level::NodeHandle>
+Level::GetNodeHandle(std::initializer_list<std::string_view> path) const
+{
+    return GetNodeHandle(std::span<const std::string_view>{ path });
+}
+
+Result<const Level::Node*>
+Level::GetNode(const NodeHandle& handle) const
+{
+    MLG_CHECKV(IsInLevel(handle), "Node handle points outside of node array");
+    return handle.m_Node;
+}
+
+// private:
+
+bool
+Level::IsInLevel(const NodeHandle& handle) const
+{
+    return handle.m_Node >= m_Nodes.data() && handle.m_Node < m_Nodes.data() + m_Nodes.size();
 }
