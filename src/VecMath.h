@@ -8,6 +8,8 @@
 #include <cstddef>
 #include <type_traits>
 
+template<typename T> class Mat44;
+
 template <typename T>
 class Radians
 {
@@ -620,6 +622,8 @@ public:
         w = std::cos(ao2);
     }
 
+    Mat44<T> ToMat44() const;
+
     constexpr Quat Normalize() const
     {
         const T length = std::sqrt(x * x + y * y + z * z + w * w);
@@ -1097,6 +1101,12 @@ public:
         return !(*this == that);
     }
 };
+
+template<typename T>
+inline Mat44<T> Quat<T>::ToMat44() const
+{
+    return Mat44<T>(*this);
+}
 
 using Radiansf = Radians<float>;
 using Vec2f = Vec2<float>;
