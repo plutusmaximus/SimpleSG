@@ -187,9 +187,8 @@ WalkMouseNav::WalkMouseNav(
         const TrsTransformf& initialTransform,
         const float rotPerDXY,
         const float movePerSec)
-    : m_Transform(initialTransform)
-    , m_TargetRot(initialTransform.R.GetRotation(Vec3f::XAXIS()), initialTransform.R.GetRotation(Vec3f::YAXIS()))
-    , m_TargetTrans(initialTransform.T)
+    : m_CurrentTransform(initialTransform)
+    , m_TargetTransform(initialTransform)
     , m_MovePerSec(movePerSec)
     , m_MouseMoveRotScale(rotPerDXY * 2 * std::numbers::pi_v<float>)
 {
@@ -228,7 +227,7 @@ WalkMouseNav::OnKeyUp(const int keyCode)
 void
 WalkMouseNav::OnScroll(const Vec2f& scroll)
 {
-    m_TargetTrans.y += scroll.y * m_MovePerSec * 0.1f;
+    m_TargetTransform.T.y += scroll.y * m_MovePerSec * 0.1f;
 }
 
 void
@@ -259,7 +258,10 @@ WalkMouseNav::Update(const float deltaSeconds)
         rotX = std::min(rotX, PI / 2 - 0.01f);
         rotY = std::max(rotY, -(PI / 2 - 0.01f));
         rotY = std::min(rotY, PI / 2 - 0.01f);
-        m_TargetRot += Vec2f{rotX, rotY};
+        Quatf pitch = Quatf(Radiansf(rotX), Vec3f::XAXIS());
+        Quatf yaw = Quatf(Radiansf(rotY), Vec3f::YAXIS());
+
+        m_TargetTransform.R = yaw * m_TargetTransform.R * pitch;
         m_MouseDelta = Vec2f{ 0,0 };
     }
 
@@ -267,29 +269,30 @@ WalkMouseNav::Update(const float deltaSeconds)
     Vec3f moveDelta{ 0 };
     if (m_AKey)
     {
-        moveDelta += -m_Transform.LocalXAxis() * m_MovePerSec * deltaSeconds;
+        moveDelta += -m_CurrentTransform.LocalXAxis() * m_MovePerSec * deltaSeconds;
     }
     if (m_DKey)
     {
-        moveDelta += m_Transform.LocalXAxis() * m_MovePerSec * deltaSeconds;
+        moveDelta += m_CurrentTransform.LocalXAxis() * m_MovePerSec * deltaSeconds;
     }
     if (m_WKey)
     {
-        moveDelta += m_Transform.LocalZAxis() * m_MovePerSec * deltaSeconds;
+        moveDelta += m_CurrentTransform.LocalZAxis() * m_MovePerSec * deltaSeconds;
     }
     if (m_SKey)
     {
-        moveDelta += -m_Transform.LocalZAxis() * m_MovePerSec * deltaSeconds;
+        moveDelta += -m_CurrentTransform.LocalZAxis() * m_MovePerSec * deltaSeconds;
     }
 
     if (moveDelta.x != 0 || moveDelta.y != 0 || moveDelta.z != 0)
     {
-        m_TargetTrans += moveDelta;
+        m_TargetTransform.T += moveDelta;
     }
 
-    Quatf targetQuat = Quatf(Radiansf(m_TargetRot.y), Vec3f::YAXIS()) *
-                       Quatf(Radiansf(m_TargetRot.x), Vec3f::XAXIS());
-    constexpr float TIME_TO_TARGET = 0.1f;
-    m_Transform.R = targetQuat - ((targetQuat - m_Transform.R) * (deltaSeconds / TIME_TO_TARGET));
-    m_Transform.T += (m_TargetTrans - m_Transform.T) * (deltaSeconds / TIME_TO_TARGET);
+    constexpr float TRANSFORM_TIME_TO_TARGET = 0.1f;
+    constexpr float ROTATION_TIME_TO_TARGET = 0.01f;
+
+    m_CurrentTransform.T += (m_TargetTransform.T - m_CurrentTransform.T) * (deltaSeconds / TRANSFORM_TIME_TO_TARGET);
+    m_CurrentTransform.R += (m_TargetTransform.R - m_CurrentTransform.R) * (deltaSeconds / ROTATION_TIME_TO_TARGET);
+    m_CurrentTransform.R = m_CurrentTransform.R.Normalize();
 }

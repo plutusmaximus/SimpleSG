@@ -36,6 +36,8 @@ class GimbleMouseNav : public MouseNav
 public:
     explicit GimbleMouseNav(const TrsTransformf& initialTransform);
 
+    GimbleMouseNav() : GimbleMouseNav(TrsTransformf{}) {}
+
     ~GimbleMouseNav() override;
 
     void OnMouseDown(const Point& mouseLoc, const Extent& screenBounds, const int mouseButton) override;
@@ -102,7 +104,7 @@ private:
 
 /// @brief Mouse navigation implementation using walk-style controls.
 ///       Similar to first-person shooter controls.
-///       W/A/S/D to move, mouse to look around.
+///       W/A/S/D to move, mouse to look around, mouse wheel to pan up/down.
 class WalkMouseNav : public MouseNav
 {
 public:
@@ -137,23 +139,21 @@ public:
 
     void SetTransform(const TrsTransformf& transform)
     {
-        m_Transform = transform;
-        m_TargetRot = { transform.R.GetRotation(Vec3f::XAXIS()), transform.R.GetRotation(Vec3f::YAXIS()) };
-        m_TargetTrans = transform.T;
+        m_CurrentTransform = transform;
+        m_TargetTransform = transform;
     }
 
     const TrsTransformf& GetTransform() const override
     {
-        return m_Transform;
+        return m_CurrentTransform;
     }
 
 private:
 
     bool m_AKey{ false }, m_SKey{ false }, m_DKey{ false }, m_WKey{ false };
     Vec2f m_MouseDelta{ 0,0 };
-    TrsTransformf m_Transform;
-    Vec2f m_TargetRot;
-    Vec3f m_TargetTrans;
+    TrsTransformf m_CurrentTransform;
+    TrsTransformf m_TargetTransform;
     const float m_MovePerSec;
     const float m_MouseMoveRotScale;
 };
