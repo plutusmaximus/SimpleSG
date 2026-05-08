@@ -549,7 +549,10 @@ CollectNode(const cgltf_node& srcNode,
             {
                 .Name{ nodeName },
                 .Transform{ nodeTransform },
-                .ModelName{ modelName },
+                .Components//
+                {
+                    .Model = ModelRef{.Name = modelName},
+                },
                 .Children{ std::move(childNodes) },
             };
 

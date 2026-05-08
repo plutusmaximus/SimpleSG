@@ -77,21 +77,21 @@ Load(const std::filesystem::path& path,
 {
     auto shape = Shapes::Ball(1.0f, 10);
 
-    MeshDef meshDef //
-        {
-            .Vertices{ shape.GetVertices().begin(), shape.GetVertices().end() },
-            .Indices{ shape.GetIndices().begin(), shape.GetIndices().end() },
-        };
-
-    ModelDef modelDef //
-        {
-            .Name{ "Shape" },
-            .MeshDefs{ meshDef },
-        };
-
     PropKitDef propKitDef //
         {
-            .ModelDefs{ std::move(modelDef) },
+            .ModelDefs//
+            {
+                {
+                    .Name{ "Shape" },
+                    .MeshDefs //
+                    {
+                        {
+                            .Vertices{ shape.GetVertices().begin(), shape.GetVertices().end() },
+                            .Indices{ shape.GetIndices().begin(), shape.GetIndices().end() },
+                        },
+                    },
+                }
+            }
         };
 
     MLG_CHECK(PropKit::Create(path.parent_path(), textureCache, propKitDef, outPropKit),
@@ -103,23 +103,33 @@ Load(const std::filesystem::path& path,
             .NodeDefs //
             {
                 {
-                    .Name{ "Orbit" },
+                    .Name{ "Planet" },
                     .Transform{},
-                    .ModelName{ "Shape" },
-                    .Children //
+                    .Components //
                     {
-                        {
-                            .Name{ "MoonOrbit" },
-                            .Transform{},
-                            .Children //
-                            {
-                                {
-                                    .Name{ "Moon" },
-                                    .Transform{ .T{ 2, 0, 0 }, .S{ 0.1f, 0.1f, 0.1f } },
-                                    .ModelName{ "Shape" },
-                                },
-                            },
-                        },
+                        .Model = ModelRef{ .Name = "Shape" },
+                        .Body = RigidBodyDef{ .Velocity{ 0 }, .Mass = 2 },
+                        .Collider = ColliderDef{ SphereDef{ .Radius = 1 } },
+                    },
+                },
+                {
+                    .Name{ "Moon1" },
+                    .Transform{ .T{ -2, 0, 0 }, .S{ 0.5f } },
+                    .Components //
+                    {
+                        .Model = ModelRef{ .Name = "Shape" },
+                        .Body = RigidBodyDef{ .Velocity{ 0 }, .Mass = 1 },
+                        .Collider = ColliderDef{ SphereDef{ .Radius = 0.5f } },
+                    },
+                },
+                {
+                    .Name{ "Moon2" },
+                    .Transform{ .T{ 0, 2, 0 }, .S{ 0.5f } },
+                    .Components //
+                    {
+                        .Model = ModelRef{ .Name = "Shape" },
+                        .Body = RigidBodyDef{ .Velocity{ 0 }, .Mass = 1 },
+                        .Collider = ColliderDef{ SphereDef{ .Radius = 0.5f } },
                     },
                 },
             },
@@ -134,6 +144,64 @@ Load(const std::filesystem::path& path,
         path.string());
 
     return Result<>::Ok;
+}
+
+struct RigidBody
+{
+    Vec3f Position;
+    Vec3f Velocity;
+    float Mass;
+};
+
+static constexpr float G = 0.01f;//6.674e-11f;        // Gravitational constant (m^3 kg^-1 s^-2)
+[[maybe_unused]]static void VerletOrbit(RigidBody& body, const RigidBody& centerBody, float deltaTime)
+{
+    //static constexpr float CENTRAL_MASS = 10;//1.989e30f; // Mass of central body (kg, ~solar mass)
+
+    const Vec3f toCenter = centerBody.Position - body.Position;
+    const float distance = toCenter.Length();
+    const Vec3f direction = toCenter / distance;
+
+    // Gravitational force magnitude: F = G * (M * m) / r^2
+    const float forceMagnitude = G * centerBody.Mass * body.Mass / (distance * distance);
+
+    // Acceleration: a = F / m
+    const Vec3f acceleration = direction * (forceMagnitude / body.Mass);
+
+    // Verlet integration
+    body.Position += body.Velocity * deltaTime + acceleration * (deltaTime * deltaTime * 0.5f);
+    body.Velocity += acceleration * deltaTime;
+}
+
+static void VerletOrbit(std::span<RigidBody*> bodies, float deltaTime)
+{
+    std::vector<Vec3f> accelerations(bodies.size(), Vec3f{ 0 });
+    const float softeningSquared = 0.01f; // Softening factor to prevent singularities and extreme forces at very close distances.
+
+    for(size_t i = 0; i < bodies.size(); ++i)
+    {
+        for(size_t j = i + 1; j < bodies.size(); ++j)
+        {
+            Vec3f delta = bodies[j]->Position - bodies[i]->Position;
+
+            float r2 = delta.Dot(delta) + softeningSquared;
+            float invR = static_cast<float>(1.0 / std::sqrt(r2));
+            float invR3 = invR * invR * invR;
+
+            Vec3f accelI = G * bodies[j]->Mass * delta * invR3;
+            Vec3f accelJ = -G * bodies[i]->Mass * delta * invR3;
+
+            accelerations[i] += accelI;
+            accelerations[j] += accelJ;
+        }
+    }
+
+    for (size_t i = 0; i < bodies.size(); ++i)
+    {
+        RigidBody& b = *bodies[i];
+        b.Position += b.Velocity * deltaTime + 0.5f * accelerations[i] * deltaTime * deltaTime;
+        b.Velocity += accelerations[i] * deltaTime;
+    }
 }
 
 static Result<>
@@ -159,11 +227,14 @@ MainLoop()
 
     MLG_CHECK(Load("", textureCache, propKit, level, scene));
 
-    auto moonOrbit = level.GetNodeHandle({"Orbit", "MoonOrbit"});
-    MLG_CHECK(moonOrbit);
+    auto planet = level.GetNodeHandle({"Planet"});
+    MLG_CHECK(planet);
 
-    auto moon = level.GetNodeHandle({"Orbit", "MoonOrbit", "Moon"});
-    MLG_CHECK(moon);
+    auto moon1 = level.GetNodeHandle({"Moon1"});
+    MLG_CHECK(moon1);
+
+    auto moon2 = level.GetNodeHandle({"Moon2"});
+    MLG_CHECK(moon2);
 
     Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, ModelTag{});
 
@@ -176,7 +247,33 @@ MainLoop()
     bool mouseCaptured = true;
     SDL_SetWindowRelativeMouseMode(WebgpuHelper::GetWindow(), mouseCaptured);
 
-    Radiansf orbitAngle{0};
+    RigidBody moon1Body //
+        {
+            .Position{ -2, 0, 0 },
+            .Mass{ 1 },
+        };
+
+    RigidBody moon2Body //
+        {
+            .Position{ 0, 2, 0 },
+            .Mass{ 1 },
+        };
+
+    RigidBody planetBody //
+        {
+            .Position{ 0, 0, 0 },
+            .Mass{ 2 },
+        };
+
+    const float orbitalRadius1 = (moon1Body.Position - planetBody.Position).Length();
+    const float orbitalRadius2 = (moon2Body.Position - planetBody.Position).Length();
+    const float initialSpeed1 = std::sqrt(G * (planetBody.Mass + moon1Body.Mass) / orbitalRadius1);
+    const float initialSpeed2 = std::sqrt(G * (planetBody.Mass + moon2Body.Mass) / orbitalRadius2);
+    const float moonInitialSpeed1 = initialSpeed1 * planetBody.Mass / (planetBody.Mass + moon1Body.Mass);
+    const float moonInitialSpeed2 = initialSpeed2 * planetBody.Mass / (planetBody.Mass + moon2Body.Mass);
+
+    moon1Body.Velocity = Vec3f{ 0, moonInitialSpeed1, 0 };
+    moon2Body.Velocity = Vec3f{ moonInitialSpeed2, 0, 0 };
 
     while(running)
     {
@@ -280,13 +377,23 @@ MainLoop()
             }
         }
 
-        {
-            TrsTransform trs = level.GetNode(*moonOrbit)->LocalTransform;
-            orbitAngle += Radiansf(0.01f);
-            trs.R = Quatf(orbitAngle, Vec3f::YAXIS());
-            MLG_CHECK(level.UpdateLocalTransform(*moonOrbit, trs));
+        RigidBody* bodies[] = { &moon1Body, &moon2Body, &planetBody };
+        VerletOrbit(bodies, 0.01f);
 
-            MLG_CHECK(scene.UpdateWorldTransform(*moon, level.GetNode(*moon)->WorldTransform));
+        {
+            TrsTransform trs = level.GetNode(*planet)->LocalTransform;
+            trs.T = planetBody.Position;
+            MLG_CHECK(level.UpdateLocalTransform(*planet, trs));
+            trs = level.GetNode(*moon1)->LocalTransform;
+            trs.T = moon1Body.Position;
+            MLG_CHECK(level.UpdateLocalTransform(*moon1, trs));
+            trs = level.GetNode(*moon2)->LocalTransform;
+            trs.T = moon2Body.Position;
+            MLG_CHECK(level.UpdateLocalTransform(*moon2, trs));
+
+            MLG_CHECK(scene.UpdateWorldTransform(*planet, level.GetNode(*planet)->WorldTransform));
+            MLG_CHECK(scene.UpdateWorldTransform(*moon1, level.GetNode(*moon1)->WorldTransform));
+            MLG_CHECK(scene.UpdateWorldTransform(*moon2, level.GetNode(*moon2)->WorldTransform));
         }
 
         mouseNav.Update(elapsedSeconds);

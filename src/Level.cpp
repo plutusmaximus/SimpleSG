@@ -39,13 +39,19 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
     for(const auto& nodeDef : nodeDefs)
     {
         ModelIndex modelIndex = ModelIndex::INVALID;
-        if(!nodeDef.ModelName.empty())
+        if(!nodeDef.Components.Model.has_value())
         {
-            auto result = propKit.GetModelIndex(nodeDef.ModelName);
-            MLG_CHECK(result);
-
-            modelIndex = *result;
+            continue;
         }
+
+        const ModelRef& modelRef = *nodeDef.Components.Model;
+
+        MLG_CHECKV(!modelRef.Name.empty(), "ModelRef in node {} is empty", nodeDef.Name);
+
+        auto result = propKit.GetModelIndex(modelRef.Name);
+        MLG_CHECK(result);
+
+        modelIndex = *result;
 
         stringStorage.insert(stringStorage.end(), nodeDef.Name.begin(), nodeDef.Name.end());
         stringStorage.push_back('\0'); // Null terminator for the string_view

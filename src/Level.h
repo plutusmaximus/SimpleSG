@@ -13,11 +13,50 @@
 struct LevelNodeIndexTag {};
 using LevelNodeIndex = SemanticInteger<LevelNodeIndexTag>;
 
+struct ModelRef final
+{
+    std::string Name;
+};
+
+struct RigidBodyDef final
+{
+    Vec3f Velocity{ 0 };
+    float Mass{ 0 };
+};
+
+struct SphereDef final
+{
+    float Radius{ 0 };
+};
+
+struct BoxDef final
+{
+    Vec3f HalfExtents{ 0 };
+};
+
+struct CapsuleDef final
+{
+    float Radius{ 0 };
+    float HalfHeight{ 0 };
+};
+
+using ColliderDef = std::variant<std::monostate,
+    SphereDef,
+    BoxDef,
+    CapsuleDef>;
+
+struct ComponentsDef final
+{
+    std::optional<ModelRef> Model;
+    std::optional<RigidBodyDef> Body;
+    std::optional<ColliderDef> Collider;
+};
+
 struct LevelNodeDef
 {
     std::string Name;
     TrsTransformf Transform;
-    std::string ModelName;
+    ComponentsDef Components;
     std::vector<LevelNodeDef> Children;
 };
 

@@ -377,7 +377,10 @@ static Result<> CreateShapeModel(PropKitDef& outPropKitDef, LevelDef& outLevelDe
                 {
                     .Name{ "ShapeNode" },
                     .Transform{},
-                    .ModelName{ "Shape" },
+                    .Components//
+                    {
+                        .Model = ModelRef{.Name = "Shape"},
+                    },
                 },
             },
         };

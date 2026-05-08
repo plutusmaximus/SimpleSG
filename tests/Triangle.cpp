@@ -276,7 +276,10 @@ static Result<> CreateTriangleModel(PropKitDef& outPropKit, LevelDef& outLevelDe
                 {
                     .Name{ "TriangleNode" },
                     .Transform{},
-                    .ModelName{ "Triangle" },
+                    .Components//
+                    {
+                        .Model = ModelRef{.Name = "Triangle"},
+                    },
                 },
             },
         };
