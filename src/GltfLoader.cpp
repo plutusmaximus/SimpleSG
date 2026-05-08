@@ -545,14 +545,18 @@ CollectNode(const cgltf_node& srcNode,
     }
     else
     {
+        ComponentsDef componentsDef;
+
+        if(!modelName.empty())
+        {
+            componentsDef.Model = ModelRef{ .Name = modelName };
+        }
+
         LevelNodeDef newNodeDef //
             {
                 .Name{ nodeName },
                 .Transform{ nodeTransform },
-                .Components//
-                {
-                    .Model = ModelRef{.Name = modelName},
-                },
+                .Components{ std::move(componentsDef) },
                 .Children{ std::move(childNodes) },
             };
 
