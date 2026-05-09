@@ -226,7 +226,7 @@ compiler_flags(ssg)
 # Helper function for sample executables
 # ============================================================
 function(add_sample_executable target_name source_file)
-  add_executable(${target_name} ${source_file} tests/MouseNav.cpp)
+  add_executable(${target_name} ${source_file} samples/MouseNav.cpp)
   target_link_libraries(${target_name} PRIVATE ssg::ssg spdlog::spdlog imgui webgpu_dawn webgpu_glfw glfw)
   add_dependencies(${target_name} shaders copy_images)
 
@@ -251,17 +251,17 @@ endfunction()
 # ============================================================
 # Executable: Triangle
 # ============================================================
-add_sample_executable(Triangle tests/Triangle.cpp)
+add_sample_executable(Triangle samples/Triangle.cpp)
 
 # ============================================================
 # Executable: Viewer
 # ============================================================
-add_sample_executable(Viewer tests/Viewer.cpp)
+add_sample_executable(Viewer samples/Viewer.cpp)
 
 # ============================================================
 # Executable: Orbit
 # ============================================================
-add_sample_executable(Orbit tests/Orbit.cpp)
+add_sample_executable(Orbit samples/Orbit.cpp)
 
 # ============================================================
 # Executable: Tests
