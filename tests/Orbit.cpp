@@ -18,6 +18,7 @@
 #include <filesystem>
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
+#include <random>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_mouse.h>
 #include <thread>
@@ -79,7 +80,7 @@ Load(const std::filesystem::path& path,
 
     PropKitDef propKitDef //
         {
-            .ModelDefs//
+            .ModelDefs //
             {
                 {
                     .Name{ "Shape" },
@@ -90,15 +91,43 @@ Load(const std::filesystem::path& path,
                             .Indices{ shape.GetIndices().begin(), shape.GetIndices().end() },
                         },
                     },
-                }
-            }
+                },
+            },
         };
 
     MLG_CHECK(PropKit::Create(path.parent_path(), textureCache, propKitDef, outPropKit),
         "Failed to create PropKit for {}",
         path.string());
 
+    std::mt19937 gen(12345); // Fixed seed for reproducibility
+    std::uniform_real_distribution<float> dis(-1, 1);
+
+    std::vector<LevelNodeDef> nodeDefs;
+    nodeDefs.reserve(1000);
+    for(size_t i = 0; i < nodeDefs.capacity(); ++i)
+    {
+        const float radius = 0.5f + std::abs(dis(gen));
+
+        LevelNodeDef nodeDef//
+        {
+            .Name{ std::format("Body{}", i) },
+            .Transform{ .T{ dis(gen) * 20, dis(gen) * 20, dis(gen) * 20 }, .S{ radius } },
+            .Components //
+            {
+                .Model = ModelRef{ .Name = "Shape" },
+                .Body = RigidBodyDef{ .Velocity = Vec3f{ dis(gen), dis(gen), dis(gen) } * 0.5f, .Mass{ radius } },
+                .Collider = ColliderDef{ SphereDef{ .Radius = radius } },
+            },
+        };
+        nodeDefs.emplace_back(std::move(nodeDef));
+    }
+
     LevelDef levelDef //
+    {
+        .NodeDefs = std::move(nodeDefs),
+    };
+
+    /*LevelDef levelDef //
         {
             .NodeDefs //
             {
@@ -108,7 +137,7 @@ Load(const std::filesystem::path& path,
                     .Components //
                     {
                         .Model = ModelRef{ .Name = "Shape" },
-                        .Body = RigidBodyDef{ .Velocity{ 0 }, .Mass = 2 },
+                        .Body = RigidBodyDef{ .Velocity{ 0 }, .Mass{2} },
                         .Collider = ColliderDef{ SphereDef{ .Radius = 1 } },
                     },
                 },
@@ -118,7 +147,7 @@ Load(const std::filesystem::path& path,
                     .Components //
                     {
                         .Model = ModelRef{ .Name = "Shape" },
-                        .Body = RigidBodyDef{ .Velocity{ 0 }, .Mass = 1 },
+                        .Body = RigidBodyDef{ .Velocity{ 0 }, .Mass{1} },
                         .Collider = ColliderDef{ SphereDef{ .Radius = 0.5f } },
                     },
                 },
@@ -128,12 +157,12 @@ Load(const std::filesystem::path& path,
                     .Components //
                     {
                         .Model = ModelRef{ .Name = "Shape" },
-                        .Body = RigidBodyDef{ .Velocity{ 0 }, .Mass = 1 },
+                        .Body = RigidBodyDef{ .Velocity{ 0 }, .Mass{1} },
                         .Collider = ColliderDef{ SphereDef{ .Radius = 0.5f } },
                     },
                 },
             },
-        };
+        };*/
 
     MLG_CHECK(Level::Create(levelDef, outPropKit, outLevel),
         "Failed to create Level for {}",
@@ -146,15 +175,14 @@ Load(const std::filesystem::path& path,
     return Result<>::Ok;
 }
 
-struct RigidBody
+struct Simulation
 {
-    Vec3f Position;
-    Vec3f Velocity;
-    float Mass;
+    std::vector<TrsTransformf> Transforms;
+    std::vector<RigidBody> Bodies;
 };
 
 static constexpr float G = 0.01f;//6.674e-11f;        // Gravitational constant (m^3 kg^-1 s^-2)
-[[maybe_unused]]static void VerletOrbit(RigidBody& body, const RigidBody& centerBody, float deltaTime)
+/*[[maybe_unused]]static void VerletOrbit(RigidBody& body, const RigidBody& centerBody, float deltaTime)
 {
     //static constexpr float CENTRAL_MASS = 10;//1.989e30f; // Mass of central body (kg, ~solar mass)
 
@@ -171,35 +199,38 @@ static constexpr float G = 0.01f;//6.674e-11f;        // Gravitational constant 
     // Verlet integration
     body.Position += body.Velocity * deltaTime + acceleration * (deltaTime * deltaTime * 0.5f);
     body.Velocity += acceleration * deltaTime;
-}
+}*/
 
-static void VerletOrbit(std::span<RigidBody*> bodies, float deltaTime)
+static void VerletOrbit(Simulation& sim, float deltaTime)
 {
-    std::vector<Vec3f> accelerations(bodies.size(), Vec3f{ 0 });
-    const float softeningSquared = 0.01f; // Softening factor to prevent singularities and extreme forces at very close distances.
+    std::vector<Vec3f> accelerations(sim.Bodies.size(), Vec3f{ 0 });
+    constexpr float softeningSquared = 0.01f; // Softening factor to prevent singularities and extreme forces at very close distances.
 
-    for(size_t i = 0; i < bodies.size(); ++i)
+    for(size_t i = 0; i < sim.Bodies.size(); ++i)
     {
-        for(size_t j = i + 1; j < bodies.size(); ++j)
+        for(size_t j = i + 1; j < sim.Bodies.size(); ++j)
         {
-            Vec3f delta = bodies[j]->Position - bodies[i]->Position;
+            Vec3f delta = sim.Transforms[j].T - sim.Transforms[i].T;
 
+            // Gravitational force magnitude: F = G * (M * m) / r^2
+            // Acceleration: a = F / m
             float r2 = delta.Dot(delta) + softeningSquared;
             float invR = static_cast<float>(1.0 / std::sqrt(r2));
             float invR3 = invR * invR * invR;
 
-            Vec3f accelI = G * bodies[j]->Mass * delta * invR3;
-            Vec3f accelJ = -G * bodies[i]->Mass * delta * invR3;
+            Vec3f accelI = (G * sim.Bodies[j].Mass * invR3).Value() * delta;
+            Vec3f accelJ = (-G * sim.Bodies[i].Mass * invR3).Value() * delta;
 
             accelerations[i] += accelI;
             accelerations[j] += accelJ;
         }
     }
 
-    for (size_t i = 0; i < bodies.size(); ++i)
+    for (size_t i = 0; i < sim.Bodies.size(); ++i)
     {
-        RigidBody& b = *bodies[i];
-        b.Position += b.Velocity * deltaTime + 0.5f * accelerations[i] * deltaTime * deltaTime;
+        RigidBody& b = sim.Bodies[i];
+        TrsTransformf& trs = sim.Transforms[i];
+        trs.T += b.Velocity * deltaTime + 0.5f * accelerations[i] * deltaTime * deltaTime;
         b.Velocity += accelerations[i] * deltaTime;
     }
 }
@@ -227,18 +258,33 @@ MainLoop()
 
     MLG_CHECK(Load("", textureCache, propKit, level, scene));
 
-    auto planet = level.GetNodeHandle({"Planet"});
-    MLG_CHECK(planet);
+    auto allHandles = level.GetAllHandles();
+    std::vector<TrsTransformf> transforms;
+    std::vector<RigidBody> bodies;
+    std::unordered_map<std::string_view, size_t> bodyNameToIndex;
+    transforms.reserve(allHandles.size());
+    bodies.reserve(allHandles.size());
+    bodyNameToIndex.reserve(allHandles.size());
+    for(const auto& handle : allHandles)
+    {
+        const auto& node = level.GetNode(handle);
+        if(node->Components.Body)
+        {
+            bodyNameToIndex[node->Name] = transforms.size();
+            transforms.emplace_back(node->LocalTransform);
+            bodies.emplace_back(*node->Components.Body);
+        }
+    }
 
-    auto moon1 = level.GetNodeHandle({"Moon1"});
-    MLG_CHECK(moon1);
-
-    auto moon2 = level.GetNodeHandle({"Moon2"});
-    MLG_CHECK(moon2);
+    Simulation simulation//
+    {
+        .Transforms{std::move(transforms)},
+        .Bodies{std::move(bodies)},
+    };
 
     Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, ModelTag{});
 
-    Entity camera = registry.CreateEntity(TrsTransformf{.T{0,0,-4}}, WorldMatrix{}, Projection{});
+    Entity camera = registry.CreateEntity(TrsTransformf{.T{0,0,-40}}, WorldMatrix{}, Projection{});
 
     mouseNav.SetTransform(camera.Get<TrsTransformf>());
 
@@ -246,34 +292,6 @@ MainLoop()
 
     bool mouseCaptured = true;
     SDL_SetWindowRelativeMouseMode(WebgpuHelper::GetWindow(), mouseCaptured);
-
-    RigidBody moon1Body //
-        {
-            .Position{ -2, 0, 0 },
-            .Mass{ 1 },
-        };
-
-    RigidBody moon2Body //
-        {
-            .Position{ 0, 2, 0 },
-            .Mass{ 1 },
-        };
-
-    RigidBody planetBody //
-        {
-            .Position{ 0, 0, 0 },
-            .Mass{ 2 },
-        };
-
-    const float orbitalRadius1 = (moon1Body.Position - planetBody.Position).Length();
-    const float orbitalRadius2 = (moon2Body.Position - planetBody.Position).Length();
-    const float initialSpeed1 = std::sqrt(G * (planetBody.Mass + moon1Body.Mass) / orbitalRadius1);
-    const float initialSpeed2 = std::sqrt(G * (planetBody.Mass + moon2Body.Mass) / orbitalRadius2);
-    const float moonInitialSpeed1 = initialSpeed1 * planetBody.Mass / (planetBody.Mass + moon1Body.Mass);
-    const float moonInitialSpeed2 = initialSpeed2 * planetBody.Mass / (planetBody.Mass + moon2Body.Mass);
-
-    moon1Body.Velocity = Vec3f{ 0, moonInitialSpeed1, 0 };
-    moon2Body.Velocity = Vec3f{ moonInitialSpeed2, 0, 0 };
 
     while(running)
     {
@@ -377,23 +395,17 @@ MainLoop()
             }
         }
 
-        RigidBody* bodies[] = { &moon1Body, &moon2Body, &planetBody };
-        VerletOrbit(bodies, 0.01f);
+        VerletOrbit(simulation, elapsedSeconds);
 
+        for(const auto& foo : bodyNameToIndex)
         {
-            TrsTransform trs = level.GetNode(*planet)->LocalTransform;
-            trs.T = planetBody.Position;
-            MLG_CHECK(level.UpdateLocalTransform(*planet, trs));
-            trs = level.GetNode(*moon1)->LocalTransform;
-            trs.T = moon1Body.Position;
-            MLG_CHECK(level.UpdateLocalTransform(*moon1, trs));
-            trs = level.GetNode(*moon2)->LocalTransform;
-            trs.T = moon2Body.Position;
-            MLG_CHECK(level.UpdateLocalTransform(*moon2, trs));
-
-            MLG_CHECK(scene.UpdateWorldTransform(*planet, level.GetNode(*planet)->WorldTransform));
-            MLG_CHECK(scene.UpdateWorldTransform(*moon1, level.GetNode(*moon1)->WorldTransform));
-            MLG_CHECK(scene.UpdateWorldTransform(*moon2, level.GetNode(*moon2)->WorldTransform));
+            const std::string_view name = foo.first;
+            const size_t index = foo.second;
+            const TrsTransformf& xform = simulation.Transforms[index];
+            auto nodeHandle = level.GetNodeHandle({ name });
+            MLG_CHECK(nodeHandle, "Failed to find node with name {}", name);
+            MLG_CHECK(level.UpdateLocalTransform(*nodeHandle, xform));
+            MLG_CHECK(scene.UpdateWorldTransform(*nodeHandle, level.GetNode(*nodeHandle)->WorldTransform));
         }
 
         mouseNav.Update(elapsedSeconds);

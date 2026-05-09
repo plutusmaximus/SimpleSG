@@ -38,20 +38,33 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
     // First add nodes from the current level.
     for(const auto& nodeDef : nodeDefs)
     {
-        ModelIndex modelIndex = ModelIndex::INVALID;
-        if(!nodeDef.Components.Model.has_value())
+        Level::Components components;
+
+        if(nodeDef.Components.Model.has_value())
         {
-            continue;
+            const ModelRef& modelRef = *nodeDef.Components.Model;
+
+            MLG_CHECKV(!modelRef.Name.empty(), "ModelRef in node {} is empty", nodeDef.Name);
+
+            auto result = propKit.GetModelIndex(modelRef.Name);
+            MLG_CHECK(result);
+
+            components.Model = *result;
         }
 
-        const ModelRef& modelRef = *nodeDef.Components.Model;
+        if(nodeDef.Components.Body.has_value())
+        {
+            const RigidBodyDef& bodyDef = *nodeDef.Components.Body;
 
-        MLG_CHECKV(!modelRef.Name.empty(), "ModelRef in node {} is empty", nodeDef.Name);
+            MLG_CHECKV(bodyDef.Mass > 0, "RigidBodyDef in node {} has non-positive mass", nodeDef.Name);
 
-        auto result = propKit.GetModelIndex(modelRef.Name);
-        MLG_CHECK(result);
-
-        modelIndex = *result;
+            RigidBody body//
+            {
+                .Velocity = bodyDef.Velocity,
+                .Mass = bodyDef.Mass,
+            };
+            components.Body = std::move(body);
+        }
 
         stringStorage.insert(stringStorage.end(), nodeDef.Name.begin(), nodeDef.Name.end());
         stringStorage.push_back('\0'); // Null terminator for the string_view
@@ -59,7 +72,7 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
         Level::Node node //
             {
                 .LocalTransform{ nodeDef.Transform },
-                .ModelIndex{ modelIndex },
+                .Components{ std::move(components) },
                 .ChildCount{ narrow_cast<uint32_t>(nodeDef.Children.size()) },
             };
 
@@ -218,22 +231,12 @@ Level::UpdateLocalTransform(const NodeHandle& handle, const TrsTransformf& local
 
     Node* node = const_cast<Node*>(handle.m_Node);
     node->LocalTransform = localTransform;
-    if(node->ParentIndex.IsValid())
-    {
-        const Mat44f& parentWorldXform = m_Nodes[node->ParentIndex.Value()].WorldTransform;
-        node->WorldTransform = parentWorldXform * localTransform.ToMatrix();
-    }
-    else
+    if(!node->ParentIndex.IsValid())
     {
         node->WorldTransform = localTransform.ToMatrix();
     }
 
-    if(node->ChildCount > 0)
-    {
-        std::span<Node> children =
-            std::span<Node>(m_Nodes).subspan(node->FirstChildIndex.Value(), node->ChildCount);
-        UpdateWorldTransforms(children);
-    }
+    UpdateWorldTransforms({ node, 1 });
 
     return Result<>::Ok;
 }
@@ -251,10 +254,11 @@ Level::UpdateWorldTransforms(std::span<Node> nodes)
 {
     for (auto& node : nodes)
     {
-        MLG_ASSERT(node.ParentIndex.IsValid());
-
-        const Mat44f& parentWorldXform = m_Nodes[node.ParentIndex.Value()].WorldTransform;
-        node.WorldTransform = parentWorldXform * node.LocalTransform.ToMatrix();
+        if(node.ParentIndex.IsValid())
+        {
+            const Mat44f& parentWorldXform = m_Nodes[node.ParentIndex.Value()].WorldTransform;
+            node.WorldTransform = parentWorldXform * node.LocalTransform.ToMatrix();
+        }
 
         if(node.ChildCount > 0)
         {

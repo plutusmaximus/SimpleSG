@@ -34,7 +34,7 @@ CountModelInstances(const Level& level)
         auto node = level.GetNode(handle);
         MLG_ASSERT(node);
 
-        if(node->ModelIndex.IsValid())
+        if(node->Components.Model.has_value())
         {
             ++count;
         }
@@ -71,7 +71,7 @@ BuildTransformBuffer(const Level& level,
         auto node = level.GetNode(handle);
         MLG_ASSERT(node);
 
-        if(!node->ModelIndex.IsValid())
+        if(!node->Components.Model.has_value())
         {
             continue;
         }
@@ -98,9 +98,11 @@ CollectModelInstances(const Level& level, std::vector<ModelInstance>& outModelIn
         auto node = level.GetNode(handle);
         MLG_ASSERT(node);
 
-        if(node->ModelIndex.IsValid())
+        if(node->Components.Model.has_value())
         {
-            const ModelInstance modelInstance{ .ModelIndex{ node->ModelIndex } };
+            const ModelIndex modelIndex = *node->Components.Model;
+            MLG_ASSERT(modelIndex.IsValid(), "Node has invalid model index");
+            const ModelInstance modelInstance{ .ModelIndex{ modelIndex } };
             outModelInstances.push_back(modelInstance);
         }
     }

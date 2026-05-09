@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Mechanics.h"
 #include "PropKit.h"
 #include "Result.h"
 #include "SemanticInteger.h"
@@ -21,7 +22,7 @@ struct ModelRef final
 struct RigidBodyDef final
 {
     Vec3f Velocity{ 0 };
-    float Mass{ 0 };
+    Mass Mass{ 0 };
 };
 
 struct SphereDef final
@@ -65,16 +66,28 @@ struct LevelDef
     std::vector<LevelNodeDef> NodeDefs;
 };
 
+struct RigidBody
+{
+    Vec3f Velocity;
+    Mass Mass;
+};
+
 class Level
 {
 public:
+
+    struct Components
+    {
+        std::optional<ModelIndex> Model;
+        std::optional<RigidBody> Body;
+    };
 
     struct Node
     {
         std::string_view Name;
         TrsTransformf LocalTransform;
         Mat44f WorldTransform{ 1 };
-        ModelIndex ModelIndex{ ModelIndex::INVALID };
+        Components Components;
         LevelNodeIndex ParentIndex{ LevelNodeIndex::INVALID };
         LevelNodeIndex FirstChildIndex{ LevelNodeIndex::INVALID };
         uint32_t ChildCount{ 0 };

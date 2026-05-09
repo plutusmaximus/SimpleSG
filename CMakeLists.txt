@@ -189,6 +189,7 @@ set(SSG_HEADERS
   src/instack.h
   src/Level.h
   src/Log.h
+  src/Mechanics.h
   src/PerfMetrics.h
   src/PoolAllocator.h
   src/Projection.h
