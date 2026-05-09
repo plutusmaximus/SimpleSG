@@ -218,8 +218,8 @@ static void VerletOrbit(Simulation& sim, float deltaTime)
             float invR = static_cast<float>(1.0 / std::sqrt(r2));
             float invR3 = invR * invR * invR;
 
-            Vec3f accelI = (G * sim.Bodies[j].Mass * invR3).Value() * delta;
-            Vec3f accelJ = (-G * sim.Bodies[i].Mass * invR3).Value() * delta;
+            Vec3f accelI = G * (sim.Bodies[j].Mass * invR3).Value() * delta;
+            Vec3f accelJ = -accelI;
 
             accelerations[i] += accelI;
             accelerations[j] += accelJ;
