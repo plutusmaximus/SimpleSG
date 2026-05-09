@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Color.h"
-#include "SemanticInteger.h"
 #include "VecMath.h"
 
 

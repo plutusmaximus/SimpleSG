@@ -22,13 +22,14 @@ struct SemanticInteger
     {
     }
 
-    // wider-type constructor (only participates if U is integral and wider than T)
+    // Wider type constructor (only participates if U is integral and wider than T)
     template<typename U>
         requires(std::is_integral_v<U> && sizeof(U) > sizeof(T))
     constexpr explicit SemanticInteger(U v)
         : m_Value(static_cast<T>(v))
     {
-        MLG_ASSERT(v <= std::numeric_limits<T>::max());
+        MLG_ASSERT(v < std::numeric_limits<T>::max());
+        MLG_ASSERT(v >= std::numeric_limits<T>::lowest());
     }
 
     // unsigned -> signed (potentially narrowing)
@@ -39,6 +40,7 @@ struct SemanticInteger
         : m_Value(static_cast<T>(v))
     {
         MLG_ASSERT(v <= static_cast<U>(std::numeric_limits<T>::max()));
+        MLG_ASSERT(v >= static_cast<U>(std::numeric_limits<T>::lowest()));
     }
 
     constexpr bool IsValid() const { return m_Value != InvalidValue; }

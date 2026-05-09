@@ -2,9 +2,10 @@
 
 #include "Bounds.h"
 #include "Result.h"
+#include "SemanticInteger.h"
+#include "ShaderInterop.h"
 #include "TextureCache.h"
 #include "VecMath.h"
-#include "ShaderInterop.h"
 
 #include <filesystem>
 #include <span>
