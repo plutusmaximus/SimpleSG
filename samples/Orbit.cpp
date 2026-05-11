@@ -102,23 +102,33 @@ Load(const std::filesystem::path& path,
     std::mt19937 gen(12345); // Fixed seed for reproducibility
     std::uniform_real_distribution<float> dis(-1, 1);
 
+    constexpr int GRID_SIZE = 20;
+    constexpr float MAX_RADIUS = 0.5f;//1.0f;
+    constexpr float MIN_RADIUS = 0.5f;//0.1f;
+    constexpr float MAX_SPEED = 0.5f;
+    constexpr float MIN_SPEED = 0.1f;
+
     std::vector<LevelNodeDef> nodeDefs;
     nodeDefs.reserve(1000);
     for(size_t i = 0; i < nodeDefs.capacity(); ++i)
     {
-        const float radius = 0.5f + std::abs(dis(gen));
+        const float radius = MIN_RADIUS + std::abs(dis(gen)) * (MAX_RADIUS - MIN_RADIUS);
+        const Vec3f position{ dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE };
+        const Vec3f velocity = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize() *
+                               (MIN_SPEED + std::abs(dis(gen)) * (MAX_SPEED - MIN_SPEED));
 
         LevelNodeDef nodeDef//
         {
             .Name{ std::format("Body{}", i) },
-            .Transform{ .T{ dis(gen) * 20, dis(gen) * 20, dis(gen) * 20 }, .S{ radius } },
+            .Transform{ .T{position}, .S{ radius } },
             .Components //
             {
                 .Model = ModelRef{ .Name = "Shape" },
-                .Body = RigidBodyDef{ .Velocity = Vec3f{ dis(gen), dis(gen), dis(gen) } * 0.5f, .Mass{ radius } },
+                .Body = RigidBodyDef{ .Velocity{ velocity }, .Mass{ radius } },
                 .Collider = ColliderDef{ SphereDef{ .Radius = radius } },
             },
         };
+
         nodeDefs.emplace_back(std::move(nodeDef));
     }
 
@@ -126,43 +136,6 @@ Load(const std::filesystem::path& path,
     {
         .NodeDefs = std::move(nodeDefs),
     };
-
-    /*LevelDef levelDef //
-        {
-            .NodeDefs //
-            {
-                {
-                    .Name{ "Planet" },
-                    .Transform{},
-                    .Components //
-                    {
-                        .Model = ModelRef{ .Name = "Shape" },
-                        .Body = RigidBodyDef{ .Velocity{ 0 }, .Mass{2} },
-                        .Collider = ColliderDef{ SphereDef{ .Radius = 1 } },
-                    },
-                },
-                {
-                    .Name{ "Moon1" },
-                    .Transform{ .T{ -2, 0, 0 }, .S{ 0.5f } },
-                    .Components //
-                    {
-                        .Model = ModelRef{ .Name = "Shape" },
-                        .Body = RigidBodyDef{ .Velocity{ 0 }, .Mass{1} },
-                        .Collider = ColliderDef{ SphereDef{ .Radius = 0.5f } },
-                    },
-                },
-                {
-                    .Name{ "Moon2" },
-                    .Transform{ .T{ 0, 2, 0 }, .S{ 0.5f } },
-                    .Components //
-                    {
-                        .Model = ModelRef{ .Name = "Shape" },
-                        .Body = RigidBodyDef{ .Velocity{ 0 }, .Mass{1} },
-                        .Collider = ColliderDef{ SphereDef{ .Radius = 0.5f } },
-                    },
-                },
-            },
-        };*/
 
     MLG_CHECK(Level::Create(levelDef, outPropKit, outLevel),
         "Failed to create Level for {}",
@@ -181,57 +154,245 @@ struct Simulation
     std::vector<RigidBody> Bodies;
 };
 
-static constexpr float G = 0.01f;//6.674e-11f;        // Gravitational constant (m^3 kg^-1 s^-2)
-/*[[maybe_unused]]static void VerletOrbit(RigidBody& body, const RigidBody& centerBody, float deltaTime)
+struct HitResult
 {
-    //static constexpr float CENTRAL_MASS = 10;//1.989e30f; // Mass of central body (kg, ~solar mass)
+    float TimeOfImpact;
+    Vec3f ContactPoint;
+    Vec3f ContactNormal;
+};
 
-    const Vec3f toCenter = centerBody.Position - body.Position;
-    const float distance = toCenter.Length();
-    const Vec3f direction = toCenter / distance;
+static bool
+SphereSphereSweep(const TrsTransformf& tA,
+    const RigidBody& bodyA,
+    const TrsTransformf& tB,
+    const RigidBody& bodyB,
+    const float deltaTime,
+    HitResult& outHitResult)
+{
+    constexpr float EPSILON = 1e-6f;
+    constexpr float EPSILON_SQ = EPSILON * EPSILON;
 
-    // Gravitational force magnitude: F = G * (M * m) / r^2
-    const float forceMagnitude = G * centerBody.Mass * body.Mass / (distance * distance);
+    // Swept sphere test: check if the spheres will collide during this time step, and if so, fill
+    // outHitResult with the time of impact (0 to 1), contact point, and contact normal.
 
-    // Acceleration: a = F / m
-    const Vec3f acceleration = direction * (forceMagnitude / body.Mass);
+    // Expand sphere B by the radius of sphere A, and treat sphere A as a point moving along its
+    // velocity vector. This simplifies the problem to a ray-sphere intersection test.
 
-    // Verlet integration
-    body.Position += body.Velocity * deltaTime + acceleration * (deltaTime * deltaTime * 0.5f);
-    body.Velocity += acceleration * deltaTime;
-}*/
+    // We need to solve the quadratic equation for the time of impact t:
+    // ||(p + v * t) - c||^2 = r^2
+    // Or:
+    // (p + v * t).Dot(p + v * t) = r * r
+    // which expands to:
+    // (v.Dot(v)) * t^2 + (2 * p.Dot(v)) * t + (p.Dot(p) - r^2) = 0
+    // Or:
+    // a * t^2 + b * t + c = 0
+    // Where:
+    // a = v.Dot(v)
+    // b = 2 * p.Dot(v)
+    // c = p.Dot(p) - r^2
+
+    const float radiusA = 0.5f;
+    const float radiusB = 0.5f;
+
+    const Vec3 v = bodyA.Velocity - bodyB.Velocity;
+
+    // a * t^2
+    // First term of the quadratic equation, without the t^2.
+    // Squared relative velocity.
+    const float a = v.Dot(v);
+
+    // (p.Dot(p) - r^2)
+    // Third term of the quadratic equation.
+    // Squared distance between the centers minus the squared sum of the radii.
+    const float r = radiusA + radiusB;
+    const Vec3 p = tA.T - tB.T;
+    const float lenSq = p.Dot(p);
+    const float c = lenSq - r * r;
+    if(c <= 0)
+    {
+        // Overlapping.
+        outHitResult.TimeOfImpact = 0.0f;
+
+        // Contact normal is the normalized vector between centers at the start of the time step.
+        // Unless the centers are extremely close, in which case we can try using the relative
+        // velocity to determine the contact normal.
+
+        if(lenSq < EPSILON_SQ)
+        {
+            // Centers are extremely close.  Try setting contact normal based on relative velocity.
+            if (a > EPSILON_SQ)
+            {
+                outHitResult.ContactNormal = v / std::sqrtf(a);
+            }
+            else
+            {
+                // Relative velocity is also extremely small.  Just pick an arbitrary contact normal.
+                outHitResult.ContactNormal = Vec3f{ 1, 0, 0 };
+            }
+        }
+        else
+        {
+            outHitResult.ContactNormal = p / std::sqrtf(lenSq);
+        }
+
+        outHitResult.ContactPoint = tB.T + outHitResult.ContactNormal * radiusB;
+
+        return true;
+    }
+
+    // No relative motion.
+    if (a < EPSILON_SQ)
+    {
+        return false;
+    }
+
+    const float b = 2.0f * p.Dot(v);
+
+    // Moving apart.
+    if (b >= 0.0f)
+    {
+        return false;
+    }
+
+    // Solve quadratic equation for time of impact.
+    // t = (-b (+/-) sqrt(b^2 - 4ac)) / (2a)
+
+    const float discriminant = b * b - 4.0f * a * c;
+
+    if (discriminant < EPSILON)
+    {
+        return false;
+    }
+
+    const float sqrtD = std::sqrtf(discriminant);
+
+    // We only care about the minus sqrt.  It's the entry point.
+    // The plus sqrt would be the exit point.
+    const float t = (-b - sqrtD) / (2.0f * a);
+
+    if (t < 0.0f || t > deltaTime)
+    {
+        return false;
+    }
+
+    // Centers at time of impact
+    const Vec3f centerA = tA.T + bodyA.Velocity * t;
+    const Vec3f centerB = tB.T + bodyB.Velocity * t;
+
+    const Vec3f n = centerA - centerB;
+    const float nLenSq = n.Dot(n);
+
+    outHitResult.TimeOfImpact = t;
+    outHitResult.ContactNormal =
+        nLenSq > EPSILON_SQ ? n / std::sqrtf(nLenSq) : Vec3f{ 1.0f, 0.0f, 0.0f };
+    const Vec3f hitA = centerA - outHitResult.ContactNormal * radiusA;
+    const Vec3f hitB = centerB + outHitResult.ContactNormal * radiusB;
+
+    outHitResult.ContactPoint = (hitA + hitB) * 0.5f;
+
+    return true;
+}
+
+static void DoCollisions(Simulation& sim, const float deltaTime)
+{
+    std::vector<HitResult> hitResults(sim.Transforms.size() * sim.Transforms.size());
+
+    for(size_t i = 0; i < sim.Transforms.size(); ++i)
+    {
+        for(size_t j = i + 1; j < sim.Transforms.size(); ++j)
+        {
+            HitResult hitResult;
+            if(!SphereSphereSweep(sim.Transforms[i],
+                   sim.Bodies[i],
+                   sim.Transforms[j],
+                   sim.Bodies[j],
+                   deltaTime,
+                   hitResult))
+            {
+                continue;
+            }
+
+            // Simple collision response: reflect velocities along the contact normal.
+            // This is not physically accurate, but it demonstrates the concept.
+
+            const Vec3f n = hitResult.ContactNormal;
+
+            Vec3f vA = sim.Bodies[i].Velocity;
+            Vec3f vB = sim.Bodies[j].Velocity;
+
+            // Compute relative velocity along the normal
+            const float vRel = (vA - vB).Dot(n);
+
+            // Only resolve if bodies are moving towards each other
+            if (vRel < 0)
+            {
+                const float mA = sim.Bodies[i].Mass.Value();
+                const float mB = sim.Bodies[j].Mass.Value();
+
+                // Compute impulse scalar
+                const float e = 0.2f; // Coefficient of restitution (1.0 for perfectly elastic)
+                const float impulse = -(1 + e) * vRel / (1 / mA + 1 / mB);
+
+                // Apply impulse to each body's velocity
+                sim.Bodies[i].Velocity += (impulse * n) / mA;
+                sim.Bodies[j].Velocity -= (impulse * n) / mB;
+            }
+        }
+    }
+}
+
+static constexpr float G = 0.01f;//6.674e-11f;        // Gravitational constant (m^3 kg^-1 s^-2)
 
 static void VerletOrbit(Simulation& sim, float deltaTime)
 {
-    std::vector<Vec3f> accelerations(sim.Bodies.size(), Vec3f{ 0 });
-    constexpr float softeningSquared = 0.01f; // Softening factor to prevent singularities and extreme forces at very close distances.
+    std::vector<Vec3f> oldForce;
+    oldForce.reserve(sim.Bodies.size());
 
-    for(size_t i = 0; i < sim.Bodies.size(); ++i)
-    {
-        for(size_t j = i + 1; j < sim.Bodies.size(); ++j)
-        {
-            Vec3f delta = sim.Transforms[j].T - sim.Transforms[i].T;
-
-            // Gravitational force magnitude: F = G * (M * m) / r^2
-            // Acceleration: a = F / m
-            float r2 = delta.Dot(delta) + softeningSquared;
-            float invR = static_cast<float>(1.0 / std::sqrt(r2));
-            float invR3 = invR * invR * invR;
-
-            Vec3f accelI = G * (sim.Bodies[j].Mass * invR3).Value() * delta;
-            Vec3f accelJ = -accelI;
-
-            accelerations[i] += accelI;
-            accelerations[j] += accelJ;
-        }
-    }
-
+    // Update positions based on current velocities and forces.
     for (size_t i = 0; i < sim.Bodies.size(); ++i)
     {
         RigidBody& b = sim.Bodies[i];
         TrsTransformf& trs = sim.Transforms[i];
-        trs.T += b.Velocity * deltaTime + 0.5f * accelerations[i] * deltaTime * deltaTime;
-        b.Velocity += accelerations[i] * deltaTime;
+        const Vec3f acceleration = b.Force / b.Mass.Value();
+        trs.T += b.Velocity * deltaTime + 0.5f * acceleration * deltaTime * deltaTime;
+        oldForce.emplace_back(b.Force);
+        b.Force = Vec3f{ 0 };
+    }
+
+    // Softening factor to prevent singularities and extreme forces at very close distances.
+    constexpr float softeningSquared = 0.01f;
+
+    // Calculate gravitational forces between all pairs of bodies.
+    for(size_t i = 0; i < sim.Bodies.size(); ++i)
+    {
+        for(size_t j = i + 1; j < sim.Bodies.size(); ++j)
+        {
+            // Vector from body i to body j
+            const Vec3f delta = sim.Transforms[j].T - sim.Transforms[i].T;
+
+            // Gravitational force magnitude: F = G * (M * m) / r^2
+            // Direction toward source: delta / r
+            // Combined vector form: F = G * M * m * delta / r^3
+
+            //Distance squared with softening to prevent singularity
+            const float r2 = delta.Dot(delta) + softeningSquared;
+            const float invR = 1.0f / std::sqrtf(r2);
+            const float invR3 = (1.0f / r2) * invR;
+            const float massProduct = sim.Bodies[i].Mass.Value() * sim.Bodies[j].Mass.Value();
+            const Vec3f force = G * massProduct * invR3 * delta;
+
+            sim.Bodies[i].Force += force;
+            sim.Bodies[j].Force -= force;
+        }
+    }
+
+    // Update velocities based on new forces.
+    for (size_t i = 0; i < sim.Bodies.size(); ++i)
+    {
+        RigidBody& b = sim.Bodies[i];
+        const Vec3f oldAcceleration = oldForce[i] / b.Mass.Value();
+        const Vec3f acceleration = b.Force / b.Mass.Value();
+        b.Velocity += 0.5f * (acceleration + oldAcceleration) * deltaTime;
     }
 }
 
@@ -395,7 +556,11 @@ MainLoop()
             }
         }
 
-        VerletOrbit(simulation, elapsedSeconds);
+        constexpr float physicsTimeStep = 1.0f/30;//1.0f / PHYSICS_FPS;
+
+        VerletOrbit(simulation, physicsTimeStep);
+
+        DoCollisions(simulation, physicsTimeStep);
 
         for(const auto& foo : bodyNameToIndex)
         {
