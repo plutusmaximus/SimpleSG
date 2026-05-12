@@ -72,15 +72,13 @@ Shapes::Box(const float width, const float height, const float depth)
 }
 
 Shapes::Geometry
-Shapes::Ball(const float diameter, const float smoothness)
+Shapes::Ball(const float radius, const float smoothness)
 {
-    MLG_ASSERT(diameter > 0);
+    MLG_ASSERT(radius > 0);
     MLG_ASSERT(smoothness > 0);
 
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
-
-    const float radius = diameter * 0.5f;
 
     // Clamp smoothness to determine subdivision level
     const float s = std::max(1.0f, std::min(10.0f, smoothness));
@@ -209,15 +207,14 @@ Shapes::Ball(const float diameter, const float smoothness)
 }
 
 Shapes::Geometry
-Shapes::Cylinder(const float height, const float diameter, const float smoothness)
+Shapes::Cylinder(const float height, const float radius, const float smoothness)
 {
     MLG_ASSERT(height > 0);
-    MLG_ASSERT(diameter > 0);
+    MLG_ASSERT(radius > 0);
     MLG_ASSERT(smoothness > 0);
 
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
-    const float radius = diameter * 0.5f;
     const float halfHeight = height * 0.5f;
 
     // Clamp smoothness and calculate segments
@@ -317,18 +314,16 @@ Shapes::Cylinder(const float height, const float diameter, const float smoothnes
 }
 
 Shapes::Geometry
-Shapes::Cone(const float diameter1, const float diameter2, const float smoothness)
+Shapes::Cone(const float radius1, const float radius2, const float smoothness)
 {
-    MLG_ASSERT(diameter1 >= 0);
-    MLG_ASSERT(diameter2 >= 0);
-    MLG_ASSERT(diameter1 > 0 || diameter2 > 0);
+    MLG_ASSERT(radius1 >= 0);
+    MLG_ASSERT(radius2 >= 0);
+    MLG_ASSERT(radius1 > 0 || radius2 > 0);
     MLG_ASSERT(smoothness > 0);
 
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
 
-    const float radius1 = diameter1 * 0.5f; // Bottom radius
-    const float radius2 = diameter2 * 0.5f; // Top radius
     const float height = 1.0f;
     const float halfHeight = height * 0.5f;
 
@@ -472,24 +467,21 @@ Shapes::Cone(const float diameter1, const float diameter2, const float smoothnes
 
 Shapes::Geometry
 Shapes::Torus(
-    const float ringDiameter,
-    const float tubeDiameter,
+    const float ringRadius,
+    const float tubeRadius,
     const float smoothness)
 {
-    MLG_ASSERT(ringDiameter >= 0);
-    MLG_ASSERT(tubeDiameter > 0);
+    MLG_ASSERT(ringRadius >= 0);
+    MLG_ASSERT(tubeRadius > 0);
     MLG_ASSERT(smoothness > 0);
 
-    if (0 == ringDiameter)
+    if (0 == ringRadius)
     {
-        return Ball(tubeDiameter, smoothness);
+        return Ball(tubeRadius, smoothness);
     }
 
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
-
-    const float ringRadius = ringDiameter * 0.5f;
-    const float tubeRadius = tubeDiameter * 0.5f;
 
     // Minimum smoothness of 3 to avoid degenerate geometry
     const uint32_t numSegmentsMajor = std::max(3u, static_cast<uint32_t>(smoothness * 4));

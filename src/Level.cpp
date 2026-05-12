@@ -27,6 +27,9 @@ CalculateTotalStringSize(std::span<const LevelNodeDef> nodeDefs)
     return totalSize;
 }
 
+template<class... Ts>
+struct overloads : Ts... { using Ts::operator()...; };
+
 // Collect nodes in breadth-first order.
 // Parents come before children, siblings are contiguous.
 static Result<>
@@ -64,6 +67,24 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
                 .Mass = bodyDef.Mass,
             };
             components.Body = std::move(body);
+        }
+
+        if(nodeDef.Components.Collider.has_value())
+        {
+            const ColliderDef& colliderDef = *nodeDef.Components.Collider;
+            const auto visitor = overloads{ [](const SphereDef& def)
+                { return Collider{ .Shape = SphereCollider{ .Radius = def.Radius } }; },
+                [](const BoxDef& def)
+                { return Collider{ .Shape = BoxCollider{ .HalfExtents = def.HalfExtents } }; },
+                [](const CapsuleDef& def)
+                {
+                    return Collider{ .Shape = CapsuleCollider{ .Radius = def.Radius,
+                                         .HalfHeight = def.HalfHeight } };
+                } };
+
+            Collider collider = std::visit(visitor, colliderDef);
+
+            components.Collider = std::move(collider);
         }
 
         stringStorage.insert(stringStorage.end(), nodeDef.Name.begin(), nodeDef.Name.end());

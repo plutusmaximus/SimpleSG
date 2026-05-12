@@ -41,10 +41,7 @@ struct CapsuleDef final
     float HalfHeight{ 0 };
 };
 
-using ColliderDef = std::variant<std::monostate,
-    SphereDef,
-    BoxDef,
-    CapsuleDef>;
+using ColliderDef = std::variant<SphereDef, BoxDef, CapsuleDef>;
 
 struct ComponentsDef final
 {
@@ -66,10 +63,35 @@ struct LevelDef
     std::vector<LevelNodeDef> NodeDefs;
 };
 
+struct SphereCollider final
+{
+    float Radius{ 0 };
+};
+
+struct BoxCollider final
+{
+    Vec3f HalfExtents{ 0 };
+};
+
+struct CapsuleCollider final
+{
+    float Radius{ 0 };
+    float HalfHeight{ 0 };
+};
+
 struct RigidBody
 {
-    Vec3f Velocity;
-    Mass Mass;
+    Vec3f Velocity{ 0 };
+    // Force accumulator for the current physics step.
+    Vec3f Force0{ 0 };
+    // Force accumulator for the next physics step.
+    Vec3f Force1{ 0 };
+    Mass Mass{ 0 };
+};
+
+struct Collider
+{
+    std::variant<SphereCollider, BoxCollider, CapsuleCollider> Shape;
 };
 
 class Level
@@ -80,6 +102,7 @@ public:
     {
         std::optional<ModelIndex> Model;
         std::optional<RigidBody> Body;
+        std::optional<Collider> Collider;
     };
 
     struct Node

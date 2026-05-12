@@ -52,19 +52,22 @@ CountWorldTransforms(const Level& level)
 static Result<WorldTransformBuffer>
 BuildTransformBuffer(const Level& level,
     std::vector<Level::NodeHandle>& outNodeHandles,
-    std::vector<ShaderInterop::WorldTransform>& outWorldTransforms)
+    std::vector<ShaderInterop::WorldTransform>& outWorldTransforms,
+    std::vector<ModelInstance>& outModelInstances)
 {
     // One world space transform per model instance.
     const size_t transformCount = CountWorldTransforms(level);
 
     outNodeHandles.clear();
+    outWorldTransforms.clear();
+    outModelInstances.clear();
+
     outNodeHandles.reserve(transformCount);
+    outWorldTransforms.reserve(transformCount);
+    outModelInstances.reserve(transformCount);
 
     // Initialize the transform buffer with the world space transform
     // of each node that contains a model instance.
-
-    outWorldTransforms.clear();
-    outWorldTransforms.reserve(transformCount);
 
     for(auto& handle : level.GetAllHandles())
     {
@@ -76,6 +79,11 @@ BuildTransformBuffer(const Level& level,
             continue;
         }
 
+        const ModelIndex modelIndex = *node->Components.Model;
+        MLG_ASSERT(modelIndex.IsValid(), "Node has invalid model index");
+        const ModelInstance modelInstance{ .ModelIndex{ modelIndex } };
+        outModelInstances.push_back(modelInstance);
+
         outNodeHandles.push_back(handle);
 
         const ShaderInterop::WorldTransform transform{ .Transform = node->WorldTransform };
@@ -83,31 +91,6 @@ BuildTransformBuffer(const Level& level,
     }
 
     return WebgpuHelper::CreateStorageBuffer<WorldTransformBuffer>(outWorldTransforms, "TransformBuffer");
-}
-
-static Result<>
-CollectModelInstances(const Level& level, std::vector<ModelInstance>& outModelInstances)
-{
-    const size_t modelCount = CountModelInstances(level);
-
-    outModelInstances.clear();
-    outModelInstances.reserve(modelCount);
-
-    for(const auto& handle : level.GetAllHandles())
-    {
-        auto node = level.GetNode(handle);
-        MLG_ASSERT(node);
-
-        if(node->Components.Model.has_value())
-        {
-            const ModelIndex modelIndex = *node->Components.Model;
-            MLG_ASSERT(modelIndex.IsValid(), "Node has invalid model index");
-            const ModelInstance modelInstance{ .ModelIndex{ modelIndex } };
-            outModelInstances.push_back(modelInstance);
-        }
-    }
-
-    return Result<>::Ok;
 }
 
 static inline size_t
@@ -329,19 +312,17 @@ Scene::Create(const Level& level, const PropKit& propKit, Scene& outScene)
     Stopwatch createTimer;
     createTimer.Mark();
 
-    std::vector<Level::NodeHandle> levelNodeHandles;
+    std::vector<Level::NodeHandle> nodeHandles;
     std::vector<ShaderInterop::WorldTransform> worldTransforms;
+    std::vector<ModelInstance> modelInstances;
 
-    auto transformBuffer = BuildTransformBuffer(level, levelNodeHandles, worldTransforms);
+    auto transformBuffer = BuildTransformBuffer(level, nodeHandles, worldTransforms, modelInstances);
     MLG_CHECK(transformBuffer);
 
     auto clipSpaceBuffer =
         WebgpuHelper::CreateStorageBuffer<ClipSpaceBuffer>(transformBuffer->Count(),
             "ClipSpaceBuffer");
     MLG_CHECK(clipSpaceBuffer);
-
-    std::vector<ModelInstance> modelInstances;
-    MLG_CHECK(CollectModelInstances(level, modelInstances));
 
     auto drawIndirectBuffer = BuildDrawIndirectBuffer(modelInstances, propKit);
     MLG_CHECK(drawIndirectBuffer);
@@ -375,19 +356,6 @@ Scene::Create(const Level& level, const PropKit& propKit, Scene& outScene)
     auto transformPipelineBindGroup0 = CreateTransformPipelineBindGroup0(transformPipelineResources);
     MLG_CHECK(transformPipelineBindGroup0);
 
-    std::vector<Scene::TransformBufferIndex> transformBufferIndices;
-    transformBufferIndices.reserve(levelNodeHandles.size());
-    for(size_t i = 0; i < levelNodeHandles.size(); ++i)
-    {
-        const Scene::TransformBufferIndex index //
-            {
-                .NodeHandle = levelNodeHandles[i],
-                .Index = i,
-            };
-
-        transformBufferIndices.push_back(index);
-    }
-
     Scene scene(&propKit,
         *transformBuffer,
         *drawIndirectBuffer,
@@ -397,7 +365,7 @@ Scene::Create(const Level& level, const PropKit& propKit, Scene& outScene)
         *transformPipelineBindGroup0,
         std::move(modelInstances),
         std::move(worldTransforms),
-        std::move(transformBufferIndices));
+        std::move(nodeHandles));
 
     outScene = std::move(scene);
 
@@ -415,7 +383,7 @@ Scene::Scene(const PropKit* propKit,
     wgpu::BindGroup transformPipelineBindGroup0,
     std::vector<ModelInstance>&& modelInstances,
     std::vector<ShaderInterop::WorldTransform>&& worldTransforms,
-    std::vector<TransformBufferIndex>&& transformBufferIndices)
+    std::vector<Level::NodeHandle>&& nodeHandles)
     : m_PropKit(propKit),
       m_WorldTransformBuffer(worldTransformBuffer),
       m_DrawIndirectBuffer(drawIndirectBuffer),
@@ -425,33 +393,27 @@ Scene::Scene(const PropKit* propKit,
       m_TransformPipelineBindGroup0(transformPipelineBindGroup0),
       m_ModelInstances(std::move(modelInstances)),
       m_WorldTransforms(std::move(worldTransforms)),
-      m_TransformBufferIndices(std::move(transformBufferIndices))
+      m_NodeHandles(std::move(nodeHandles))
 {
-    // Sort the transform buffer indices by node handle to allow binary search.
-    std::sort(m_TransformBufferIndices.begin(), m_TransformBufferIndices.end(),
-        [](const TransformBufferIndex& a, const TransformBufferIndex& b)
-        {
-            return a.NodeHandle < b.NodeHandle;
-        });
 }
 
-Result<>
-Scene::UpdateWorldTransform(const Level::NodeHandle nodeHandle, const Mat44f& worldTransform)
+Result<> Scene::SyncFromLevel(const Level& level)
 {
-    MLG_CHECKV(nodeHandle, "Invalid node handle");
+    for(size_t i = 0; i < m_NodeHandles.size(); ++i)
+    {
+        const Level::NodeHandle& nodeHandle = m_NodeHandles[i];
+        const auto node = level.GetNode(nodeHandle);
+        MLG_ASSERT(node, "Node not found in level");
 
-    auto index = GetTransformBufferIndex(nodeHandle);
-    MLG_CHECK(index);
-
-    m_WorldTransforms[*index] = ShaderInterop::WorldTransform //
-        {
-            .Transform = worldTransform,
-        };
+        const ShaderInterop::WorldTransform transform{ .Transform = node->WorldTransform };
+        m_WorldTransforms[i] = transform;
+    }
 
     return Result<>::Ok;
 }
 
-Result<> Scene::SyncToGpu()
+Result<>
+Scene::SyncToGpu()
 {
     // Brute force copy everything for now.
     WebgpuHelper::GetDevice().GetQueue().WriteBuffer(m_WorldTransformBuffer.GetGpuBuffer(),
@@ -460,25 +422,4 @@ Result<> Scene::SyncToGpu()
         m_WorldTransforms.size() * sizeof(m_WorldTransforms[0]));
 
     return Result<>::Ok;
-}
-
-// private:
-
-Result<size_t>
-Scene::GetTransformBufferIndex(const Level::NodeHandle& nodeHandle) const
-{
-    // Binary search the buffer sorted by node handle.
-
-    auto it = std::lower_bound(m_TransformBufferIndices.begin(),
-        m_TransformBufferIndices.end(),
-        nodeHandle,
-        [](const TransformBufferIndex& index, const Level::NodeHandle& handle)
-        {
-            return index.NodeHandle < handle;
-        });
-
-    MLG_CHECKV(it != m_TransformBufferIndices.end() && it->NodeHandle == nodeHandle,
-        "Transform buffer index not found for node handle");
-
-    return it->Index;
 }

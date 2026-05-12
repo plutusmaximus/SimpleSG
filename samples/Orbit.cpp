@@ -15,6 +15,7 @@
 #include "WebgpuHelper.h"
 #include "VecMath.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
@@ -73,8 +74,7 @@ static Result<>
 Load(const std::filesystem::path& path,
     TextureCache& textureCache,
     PropKit& outPropKit,
-    Level& outLevel,
-    Scene& outScene)
+    Level& outLevel)
 {
     auto shape = Shapes::Ball(1.0f, 10);
 
@@ -103,8 +103,8 @@ Load(const std::filesystem::path& path,
     std::uniform_real_distribution<float> dis(-1, 1);
 
     constexpr int GRID_SIZE = 20;
-    constexpr float MAX_RADIUS = 0.5f;//1.0f;
-    constexpr float MIN_RADIUS = 0.5f;//0.1f;
+    constexpr float MAX_RADIUS = 1.0f;
+    constexpr float MIN_RADIUS = 0.1f;
     constexpr float MAX_SPEED = 0.5f;
     constexpr float MIN_SPEED = 0.1f;
 
@@ -113,6 +113,7 @@ Load(const std::filesystem::path& path,
     for(size_t i = 0; i < nodeDefs.capacity(); ++i)
     {
         const float radius = MIN_RADIUS + std::abs(dis(gen)) * (MAX_RADIUS - MIN_RADIUS);
+        const float mass = radius;
         const Vec3f position{ dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE };
         const Vec3f velocity = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize() *
                                (MIN_SPEED + std::abs(dis(gen)) * (MAX_SPEED - MIN_SPEED));
@@ -124,7 +125,7 @@ Load(const std::filesystem::path& path,
             .Components //
             {
                 .Model = ModelRef{ .Name = "Shape" },
-                .Body = RigidBodyDef{ .Velocity{ velocity }, .Mass{ radius } },
+                .Body = RigidBodyDef{ .Velocity{ velocity }, .Mass{ mass } },
                 .Collider = ColliderDef{ SphereDef{ .Radius = radius } },
             },
         };
@@ -141,17 +142,44 @@ Load(const std::filesystem::path& path,
         "Failed to create Level for {}",
         path.string());
 
-    MLG_CHECK(Scene::Create(outLevel, outPropKit, outScene),
-        "Failed to create Scene for {}",
-        path.string());
-
     return Result<>::Ok;
 }
 
 struct Simulation
 {
-    std::vector<TrsTransformf> Transforms;
-    std::vector<RigidBody> Bodies;
+    static Result<> Create(const Level& level, Simulation& outSim);
+
+    Simulation() = default;
+    Simulation(const Simulation&) = delete;
+    Simulation& operator=(const Simulation&) = delete;
+    Simulation(Simulation&& other) = default;
+    Simulation& operator=(Simulation&& other) = default;
+
+    void DoCollisions(const float dt);
+
+    void Integrate(const float dt);
+
+    Result<> SyncToLevel(Level& level);
+
+private:
+
+    Simulation(std::vector<Level::NodeHandle>&& nodeHandles,
+        std::vector<TrsTransformf>&& transforms,
+        std::vector<RigidBody>&& bodies,
+        std::vector<Collider>&& colliders)
+        : m_NodeHandles(std::move(nodeHandles)),
+          m_Transforms(std::move(transforms)),
+          m_Bodies(std::move(bodies)),
+          m_Colliders(std::move(colliders))
+    {
+    }
+
+public:
+
+    std::vector<Level::NodeHandle> m_NodeHandles;
+    std::vector<TrsTransformf> m_Transforms;
+    std::vector<RigidBody> m_Bodies;
+    std::vector<Collider> m_Colliders;
 };
 
 struct HitResult
@@ -161,12 +189,104 @@ struct HitResult
     Vec3f ContactNormal;
 };
 
+Result<>
+Simulation::Create(const Level& level, Simulation& outSim)
+{
+    std::span<const Level::NodeHandle> allHandles = level.GetAllHandles();
+
+    size_t count = 0;
+    for(const auto& handle : allHandles)
+    {
+        const auto& node = level.GetNode(handle);
+        if(node->Components.Body)
+        {
+            ++count;
+        }
+    }
+
+    std::vector<Level::NodeHandle> nodeHandles;
+    std::vector<TrsTransformf> transforms;
+    std::vector<RigidBody> bodies;
+    std::vector<Collider> colliders;
+    nodeHandles.reserve(count);
+    transforms.reserve(count);
+    bodies.reserve(count);
+    colliders.reserve(count);
+
+    for(const auto& handle : allHandles)
+    {
+        const auto& node = level.GetNode(handle);
+        MLG_ASSERT((node->Components.Body && node->Components.Collider)
+            || (!node->Components.Body && !node->Components.Collider),
+            "Node {} has Body component but no Collider, or vice versa",
+            node->Name);
+
+        if(!node->Components.Body)
+        {
+            continue;
+        }
+
+        nodeHandles.emplace_back(handle);
+        transforms.emplace_back(node->LocalTransform);
+        bodies.emplace_back(*node->Components.Body);
+        colliders.emplace_back(*node->Components.Collider);
+    }
+
+    Simulation sim(std::move(nodeHandles),
+        std::move(transforms),
+        std::move(bodies),
+        std::move(colliders));
+
+    outSim = std::move(sim);
+
+    return Result<>::Ok;
+}
+
+void
+Simulation::Integrate(const float dt)
+{
+    for (size_t i = 0; i < m_Bodies.size(); ++i)
+    {
+        // Update position using velocity and acceleration from
+        // previous time step.
+        RigidBody& b = m_Bodies[i];
+        TrsTransformf& trs = m_Transforms[i];
+        const Vec3f a0 = b.Force0 / b.Mass.Value();
+        // p = ∫ v dt
+        // v = v0 + a * t
+        // p1 = ∫ (v0 + a * t) dt = v0 * dt + (a * dt^2) / 2 + p0
+        trs.T += ((a0 * dt * dt) / 2) + b.Velocity * dt;
+
+        // Update velocity using average of acceleration from previous and current time step.
+        const Vec3f a1 = b.Force1 / b.Mass.Value();
+        b.Velocity += (a1 + a0) * dt / 2;
+
+        b.Force0 = b.Force1;
+        b.Force1 = Vec3f{ 0 };
+    }
+}
+
+Result<>
+Simulation::SyncToLevel(Level& level)
+{
+    for(size_t i = 0; i < m_NodeHandles.size(); ++i)
+    {
+        const auto& handle = m_NodeHandles[i];
+        const TrsTransformf& xform = m_Transforms[i];
+        MLG_CHECK(level.UpdateLocalTransform(handle, xform));
+    }
+
+    return Result<>::Ok;
+}
+
 static bool
 SphereSphereSweep(const TrsTransformf& tA,
     const RigidBody& bodyA,
+    const Collider& colliderA,
     const TrsTransformf& tB,
     const RigidBody& bodyB,
-    const float deltaTime,
+    const Collider& colliderB,
+    const float dt,
     HitResult& outHitResult)
 {
     constexpr float EPSILON = 1e-6f;
@@ -191,8 +311,8 @@ SphereSphereSweep(const TrsTransformf& tA,
     // b = 2 * p.Dot(v)
     // c = p.Dot(p) - r^2
 
-    const float radiusA = 0.5f;
-    const float radiusB = 0.5f;
+    const float radiusA = std::get<SphereCollider>(colliderA.Shape).Radius;
+    const float radiusB = std::get<SphereCollider>(colliderB.Shape).Radius;
 
     const Vec3 v = bodyA.Velocity - bodyB.Velocity;
 
@@ -270,7 +390,7 @@ SphereSphereSweep(const TrsTransformf& tA,
     // The plus sqrt would be the exit point.
     const float t = (-b - sqrtD) / (2.0f * a);
 
-    if (t < 0.0f || t > deltaTime)
+    if (t < 0.0f || t > dt)
     {
         return false;
     }
@@ -293,49 +413,78 @@ SphereSphereSweep(const TrsTransformf& tA,
     return true;
 }
 
-static void DoCollisions(Simulation& sim, const float deltaTime)
+void Simulation::DoCollisions(const float dt)
 {
-    std::vector<HitResult> hitResults(sim.Transforms.size() * sim.Transforms.size());
+    std::vector<HitResult> hitResults(m_Transforms.size() * m_Transforms.size());
 
-    for(size_t i = 0; i < sim.Transforms.size(); ++i)
+    for(size_t i = 0; i < m_Transforms.size(); ++i)
     {
-        for(size_t j = i + 1; j < sim.Transforms.size(); ++j)
+        for(size_t j = i + 1; j < m_Transforms.size(); ++j)
         {
             HitResult hitResult;
-            if(!SphereSphereSweep(sim.Transforms[i],
-                   sim.Bodies[i],
-                   sim.Transforms[j],
-                   sim.Bodies[j],
-                   deltaTime,
+            if(!SphereSphereSweep(m_Transforms[i],
+                   m_Bodies[i],
+                   m_Colliders[i],
+                   m_Transforms[j],
+                   m_Bodies[j],
+                   m_Colliders[j],
+                   dt,
                    hitResult))
             {
                 continue;
             }
 
-            // Simple collision response: reflect velocities along the contact normal.
-            // This is not physically accurate, but it demonstrates the concept.
-
-            const Vec3f n = hitResult.ContactNormal;
-
-            Vec3f vA = sim.Bodies[i].Velocity;
-            Vec3f vB = sim.Bodies[j].Velocity;
-
             // Compute relative velocity along the normal
-            const float vRel = (vA - vB).Dot(n);
+            const float vRel =
+                (m_Bodies[i].Velocity - m_Bodies[j].Velocity).Dot(hitResult.ContactNormal);
 
             // Only resolve if bodies are moving towards each other
             if (vRel < 0)
             {
-                const float mA = sim.Bodies[i].Mass.Value();
-                const float mB = sim.Bodies[j].Mass.Value();
+                const float mA = m_Bodies[i].Mass.Value();
+                const float mB = m_Bodies[j].Mass.Value();
 
-                // Compute impulse scalar
-                const float e = 0.2f; // Coefficient of restitution (1.0 for perfectly elastic)
-                const float impulse = -(1 + e) * vRel / (1 / mA + 1 / mB);
+                // Impulse
+                constexpr float e = 0.2f; // Coefficient of restitution
+                [[maybe_unused]] const float impulse = -(1 + e) * vRel / (1 / mA + 1 / mB);
+                [[maybe_unused]] const float impulse2 = ((mA*mB)/(mA + mB)) * -(1 + e) * vRel;
+                const float impulse3 = -(1 + e) * vRel * (mA * mB) / (mA + mB);
 
-                // Apply impulse to each body's velocity
-                sim.Bodies[i].Velocity += (impulse * n) / mA;
-                sim.Bodies[j].Velocity -= (impulse * n) / mB;
+                // Reflect velocities along the contact normal.
+                m_Bodies[i].Velocity += (impulse3 * hitResult.ContactNormal) / mA;
+                m_Bodies[j].Velocity -= (impulse3 * hitResult.ContactNormal) / mB;
+            }
+
+            // If overlapping, apply positional correction.
+            const float radiusA = std::get<SphereCollider>(m_Colliders[i].Shape).Radius;
+            const float radiusB = std::get<SphereCollider>(m_Colliders[j].Shape).Radius;
+            constexpr float EPSILON_SQ = 1e-6f;
+            constexpr float positionalCorrectionPercent = 0.8f;
+            constexpr float correctionSlop = 1e-3f;
+
+            const float minSeparation = radiusA + radiusB;
+            const float minSeparationSq = minSeparation * minSeparation;
+
+            const Vec3f deltaPos = m_Transforms[i].T - m_Transforms[j].T;
+            const float distSq = deltaPos.Dot(deltaPos);
+            if(distSq < minSeparationSq)
+            {
+                const float mA = m_Bodies[i].Mass.Value();
+                const float mB = m_Bodies[j].Mass.Value();
+                const float invMA = 1.0f / mA;
+                const float invMB = 1.0f / mB;
+                const float invMassSum = invMA + invMB;
+
+                const Vec3f correctionNormal =
+                    distSq > EPSILON_SQ ? deltaPos / std::sqrtf(distSq) : hitResult.ContactNormal;
+                const float dist = distSq > EPSILON_SQ ? std::sqrtf(distSq) : 0.0f;
+                const float penetration = minSeparation - dist;
+                const float correctionMagnitude =
+                    std::max(0.0f, penetration - correctionSlop) * positionalCorrectionPercent;
+                const Vec3f correction = correctionMagnitude * correctionNormal / invMassSum;
+
+                m_Transforms[i].T += correction * invMA;
+                m_Transforms[j].T -= correction * invMB;
             }
         }
     }
@@ -343,56 +492,33 @@ static void DoCollisions(Simulation& sim, const float deltaTime)
 
 static constexpr float G = 0.01f;//6.674e-11f;        // Gravitational constant (m^3 kg^-1 s^-2)
 
-static void VerletOrbit(Simulation& sim, float deltaTime)
+static void ApplyGravity(Simulation& sim)
 {
-    std::vector<Vec3f> oldForce;
-    oldForce.reserve(sim.Bodies.size());
-
-    // Update positions based on current velocities and forces.
-    for (size_t i = 0; i < sim.Bodies.size(); ++i)
+    // Compute gravitational forces between all pairs of bodies.
+    for(size_t i = 0; i < sim.m_Bodies.size(); ++i)
     {
-        RigidBody& b = sim.Bodies[i];
-        TrsTransformf& trs = sim.Transforms[i];
-        const Vec3f acceleration = b.Force / b.Mass.Value();
-        trs.T += b.Velocity * deltaTime + 0.5f * acceleration * deltaTime * deltaTime;
-        oldForce.emplace_back(b.Force);
-        b.Force = Vec3f{ 0 };
-    }
-
-    // Softening factor to prevent singularities and extreme forces at very close distances.
-    constexpr float softeningSquared = 0.01f;
-
-    // Calculate gravitational forces between all pairs of bodies.
-    for(size_t i = 0; i < sim.Bodies.size(); ++i)
-    {
-        for(size_t j = i + 1; j < sim.Bodies.size(); ++j)
+        for(size_t j = i + 1; j < sim.m_Bodies.size(); ++j)
         {
+            const float radiusA = std::get<SphereCollider>(sim.m_Colliders[i].Shape).Radius;
+            const float radiusB = std::get<SphereCollider>(sim.m_Colliders[j].Shape).Radius;
+            const float minSeparation = radiusA + radiusB;
+            const float minSeparationSq = minSeparation * minSeparation;
+
             // Vector from body i to body j
-            const Vec3f delta = sim.Transforms[j].T - sim.Transforms[i].T;
+            const Vec3f delta = sim.m_Transforms[j].T - sim.m_Transforms[i].T;
 
             // Gravitational force magnitude: F = G * (M * m) / r^2
             // Direction toward source: delta / r
             // Combined vector form: F = G * M * m * delta / r^3
 
-            //Distance squared with softening to prevent singularity
-            const float r2 = delta.Dot(delta) + softeningSquared;
-            const float invR = 1.0f / std::sqrtf(r2);
-            const float invR3 = (1.0f / r2) * invR;
-            const float massProduct = sim.Bodies[i].Mass.Value() * sim.Bodies[j].Mass.Value();
-            const Vec3f force = G * massProduct * invR3 * delta;
+            // If bodies overlap clamp to minimum separation.
+            const float r2 = std::max(delta.Dot(delta), minSeparationSq);
+            const float massProduct = sim.m_Bodies[i].Mass.Value() * sim.m_Bodies[j].Mass.Value();
+            const Vec3f F = G * massProduct * delta / (r2 * std::sqrtf(r2));
 
-            sim.Bodies[i].Force += force;
-            sim.Bodies[j].Force -= force;
+            sim.m_Bodies[i].Force1 += F;
+            sim.m_Bodies[j].Force1 -= F;
         }
-    }
-
-    // Update velocities based on new forces.
-    for (size_t i = 0; i < sim.Bodies.size(); ++i)
-    {
-        RigidBody& b = sim.Bodies[i];
-        const Vec3f oldAcceleration = oldForce[i] / b.Mass.Value();
-        const Vec3f acceleration = b.Force / b.Mass.Value();
-        b.Velocity += 0.5f * (acceleration + oldAcceleration) * deltaTime;
     }
 }
 
@@ -409,6 +535,7 @@ MainLoop()
     PropKit propKit;
     Level level;
     Scene scene;
+    Simulation simulation;
     EcsRegistry registry;
     WalkMouseNav mouseNav;
 
@@ -417,31 +544,11 @@ MainLoop()
     MLG_CHECK(imGuiRenderer.Startup());
     MLG_CHECK(textureCache.Startup());
 
-    MLG_CHECK(Load("", textureCache, propKit, level, scene));
+    MLG_CHECK(Load("", textureCache, propKit, level));
 
-    auto allHandles = level.GetAllHandles();
-    std::vector<TrsTransformf> transforms;
-    std::vector<RigidBody> bodies;
-    std::unordered_map<std::string_view, size_t> bodyNameToIndex;
-    transforms.reserve(allHandles.size());
-    bodies.reserve(allHandles.size());
-    bodyNameToIndex.reserve(allHandles.size());
-    for(const auto& handle : allHandles)
-    {
-        const auto& node = level.GetNode(handle);
-        if(node->Components.Body)
-        {
-            bodyNameToIndex[node->Name] = transforms.size();
-            transforms.emplace_back(node->LocalTransform);
-            bodies.emplace_back(*node->Components.Body);
-        }
-    }
+    MLG_CHECK(Scene::Create(level, propKit, scene));
 
-    Simulation simulation//
-    {
-        .Transforms{std::move(transforms)},
-        .Bodies{std::move(bodies)},
-    };
+    MLG_CHECK(Simulation::Create(level, simulation));
 
     Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, ModelTag{});
 
@@ -556,22 +663,17 @@ MainLoop()
             }
         }
 
-        constexpr float physicsTimeStep = 1.0f/30;//1.0f / PHYSICS_FPS;
+        constexpr float physicsTimeStep = 1.0f/60;//1.0f / PHYSICS_FPS;
 
-        VerletOrbit(simulation, physicsTimeStep);
+        ApplyGravity(simulation);
 
-        DoCollisions(simulation, physicsTimeStep);
+        simulation.Integrate(physicsTimeStep);
 
-        for(const auto& foo : bodyNameToIndex)
-        {
-            const std::string_view name = foo.first;
-            const size_t index = foo.second;
-            const TrsTransformf& xform = simulation.Transforms[index];
-            auto nodeHandle = level.GetNodeHandle({ name });
-            MLG_CHECK(nodeHandle, "Failed to find node with name {}", name);
-            MLG_CHECK(level.UpdateLocalTransform(*nodeHandle, xform));
-            MLG_CHECK(scene.UpdateWorldTransform(*nodeHandle, level.GetNode(*nodeHandle)->WorldTransform));
-        }
+        simulation.DoCollisions(physicsTimeStep);
+
+        simulation.SyncToLevel(level);
+
+        scene.SyncFromLevel(level);
 
         mouseNav.Update(elapsedSeconds);
 
