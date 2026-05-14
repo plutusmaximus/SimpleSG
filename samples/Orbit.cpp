@@ -26,8 +26,15 @@
 
 static constexpr const char* APP_NAME = "Orbit";
 
-static constexpr float PHYSICS_FPS = 100.0f;
+static constexpr float PHYSICS_FPS = 60.0f;
+static constexpr float PHYSICS_TIME_STEP = 1.0f/PHYSICS_FPS;
 static constexpr float RENDER_FPS = 60.0f;
+
+
+// FIXME(KB) - parameterize this
+static constexpr float RESTING_VELOCITY_THRESHOLD = 0.01f;
+static constexpr float COEFF_OF_RESTITUTION = 0.8f;//0.5f;
+static constexpr float GRAVITATIONAL_CONSTANT = 0.1f;//6.674e-11f;//(m^3 kg^-1 s^-2)
 
 namespace
 {
@@ -68,7 +75,7 @@ Shutdown()
     WebgpuHelper::Shutdown();
 }
 
-static Result<> RenderGui();
+static Result<> RenderGui(const float kineticEnergy, const float potentialEnergy);
 
 static Result<>
 Load(const std::filesystem::path& path,
@@ -121,8 +128,9 @@ Load(const std::filesystem::path& path,
         const float radius = MIN_RADIUS + std::abs(dis(gen)) * (MAX_RADIUS - MIN_RADIUS);
         const float mass = radius;
         const Vec3f position{ dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE };
-        const Vec3f velocity = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize() *
+        const Vec3f velocity1 = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize() *
                                (MIN_SPEED + std::abs(dis(gen)) * (MAX_SPEED - MIN_SPEED));
+        const Vec3f velocity{0};
 
         LevelNodeDef nodeDef//
         {
@@ -210,17 +218,21 @@ struct ImpactResult
     Vec3f PosAtImpactB;
 };
 
-template<size_t CELL_SIZE>
+template<unsigned CELL_SIZE>
 struct CellEntry
 {
-    static constexpr size_t CELL_SIZE = CELL_SIZE;
-
     size_t BodyIndex;
-    std::array<int, 3> Cell;// Cell coordinates (x, y, z)
+    std::array<int64_t, 3> Cell;// Cell coordinates (x, y, z)
 
-    static int Quantize(float value)
+    static int64_t Quantize(float value)
     {
-        return static_cast<int>(std::floor(value / static_cast<float>(CELL_SIZE)));
+        static constexpr float INV_CELL_SIZE = 1.0f / static_cast<float>(CELL_SIZE);
+        static constexpr float MAX_QUANTIZED_VALUE =
+            static_cast<float>(std::numeric_limits<int64_t>::max());
+
+        const float f = value * INV_CELL_SIZE;
+        MLG_ASSERT(std::fabs(f) < MAX_QUANTIZED_VALUE, "Value out of range for quantization");
+        return static_cast<int64_t>(std::floor(f));
     }
 
     bool operator==(const CellEntry& that) const
@@ -334,18 +346,18 @@ public:
         const Vec3f minExtent{p0.x - radius, p0.y - radius, p0.z - radius};
         const Vec3f maxExtent{p1.x + radius, p1.y + radius, p1.z + radius};
 
-        const int minX = CellEntry::Quantize(minExtent.x);
-        const int minY = CellEntry::Quantize(minExtent.y);
-        const int minZ = CellEntry::Quantize(minExtent.z);
-        const int maxX = CellEntry::Quantize(maxExtent.x);
-        const int maxY = CellEntry::Quantize(maxExtent.y);
-        const int maxZ = CellEntry::Quantize(maxExtent.z);
+        const int64_t minX = CellEntry::Quantize(minExtent.x);
+        const int64_t minY = CellEntry::Quantize(minExtent.y);
+        const int64_t minZ = CellEntry::Quantize(minExtent.z);
+        const int64_t maxX = CellEntry::Quantize(maxExtent.x);
+        const int64_t maxY = CellEntry::Quantize(maxExtent.y);
+        const int64_t maxZ = CellEntry::Quantize(maxExtent.z);
 
-        for(int x = minX; x <= maxX; ++x)
+        for(int64_t x = minX; x <= maxX; ++x)
         {
-            for(int y = minY; y <= maxY; ++y)
+            for(int64_t y = minY; y <= maxY; ++y)
             {
-                for(int z = minZ; z <= maxZ; ++z)
+                for(int64_t z = minZ; z <= maxZ; ++z)
                 {
                     m_CellEntries.emplace_back(CellEntry{bodyIndex, x, y, z});
                 }
@@ -423,18 +435,17 @@ public:
     Simulation(Simulation&& other) = default;
     Simulation& operator=(Simulation&& other) = default;
 
-    void DoCollisions(const float dt);
+    void AddForce(size_t bodyIndex, const Vec3f& force);
 
-    void UpdatePositions(const float dt);
-
-    void ApplyForces(void (*ApplyForceFunc)(const Simulation& sim, std::span<Vec3f> forces))
-    {
-        ApplyForceFunc(*this, m_A1);
-    }
-
-    void UpdateVelocities(const float dt);
+    void Update(const float dt);
 
     Result<> SyncToLevel(Level& level);
+
+    float ComputeKineticEnergy() const;
+
+    std::span<const RigidBody> GetBodies() const { return m_Bodies; }
+    std::span<const TrsTransformf> GetTransforms() const { return m_Trs0; }
+    std::span<const Collider> GetColliders() const { return m_Colliders; }
 
 private:
 
@@ -448,25 +459,29 @@ private:
     {
         m_TransformPool[0] = std::move(transforms);
         m_TransformPool[1] = m_TransformPool[0];
-        m_APool[0].resize(m_Bodies.size(), Vec3f{ 0 });
-        m_APool[1].resize(m_Bodies.size(), Vec3f{ 0 });
-        m_T0 = m_TransformPool[0];
-        m_T1 = m_TransformPool[1];
-        m_A0 = m_APool[0];
-        m_A1 = m_APool[1];
+        m_AccelerationPool[0].resize(m_Bodies.size(), Vec3f{ 0 });
+        m_AccelerationPool[1].resize(m_Bodies.size(), Vec3f{ 0 });
+        m_Trs0 = m_TransformPool[0];
+        m_Trs1 = m_TransformPool[1];
+        m_A0 = m_AccelerationPool[0];
+        m_A1 = m_AccelerationPool[1];
     }
+
+    void UpdatePositions(const float dt);
+
+    void DoCollisions(const float dt);
+
+    void UpdateVelocities(const float dt);
 
     bool SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResult) const;
 
-public:
-
     std::vector<Level::NodeHandle> m_NodeHandles;
     std::vector<TrsTransformf> m_TransformPool[2];
-    std::vector<Vec3f> m_APool[2];
+    std::vector<Vec3f> m_AccelerationPool[2];
     std::vector<RigidBody> m_Bodies;
     std::vector<Collider> m_Colliders;
-    std::span<TrsTransformf> m_T0;
-    std::span<TrsTransformf> m_T1;
+    std::span<TrsTransformf> m_Trs0;
+    std::span<TrsTransformf> m_Trs1;
     std::span<Vec3f> m_A0;
     std::span<Vec3f> m_A1;
 
@@ -527,30 +542,141 @@ Simulation::Create(const Level& level, Simulation& outSim)
 }
 
 void
+Simulation::AddForce(size_t bodyIndex, const Vec3f& force)
+{
+    MLG_ASSERT(bodyIndex < m_Bodies.size(), "Body index out of range");
+
+    m_A1[bodyIndex] += force * m_Bodies[bodyIndex].Mass.InvValue();
+}
+
+void
+Simulation::Update(const float dt)
+{
+    UpdatePositions(dt);
+    DoCollisions(dt);
+    UpdateVelocities(dt);
+}
+
+void
 Simulation::UpdatePositions(const float dt)
 {
+    std::swap(m_Trs0, m_Trs1);
+
     for (size_t i = 0; i < m_Bodies.size(); ++i)
     {
         // Update position using velocity and acceleration from previous time step.
         // p = ∫ v dt
         // v = v0 + a * t
         // p1 = ∫ (v0 + a * t) dt = v0 * dt + (a * dt^2) / 2 + p0
-        m_T1[i].T = m_T0[i].T + (m_Bodies[i].Velocity * dt) + ((m_A0[i] * dt * dt) / 2);
+        m_Trs1[i].T = (m_Bodies[i].Velocity * dt) + ((m_A0[i] * dt * dt) / 2) + m_Trs0[i].T;
     }
 }
 
 void
 Simulation::UpdateVelocities(const float dt)
 {
+    // FIXME(KB) - caller should account for dt not being the entire timestep,
+    // but a substep due to collision events.
     for (size_t i = 0; i < m_Bodies.size(); ++i)
     {
-        // Update velocity using average of acceleration from previous and current time step.
-        // dt * ((a0 + a1) / m) / 2
-        m_Bodies[i].Velocity += (m_A0[i] + m_A1[i]) * 0.5f * dt;
+        // Acceleration can change over the timestep due to, e.g., gravity.
+        // So it's incorrect to use a single acceleration over the timestep.
+        // Instead we approximate the integral of the acceleration function
+        // using the trapezoidal rule:
+        // integral from t0 to t1 of a(t) dt ~= (t1 - t0) * (a(t0) + a(t1)) / 2
+        m_Bodies[i].Velocity += (m_A0[i] + m_A1[i]) * dt * 0.5f;
     }
 
     std::swap(m_A0, m_A1);
     std::fill(m_A1.begin(), m_A1.end(), Vec3f{ 0 });
+}
+
+void
+Simulation::DoCollisions([[maybe_unused]] const float dt)
+{
+    m_GridHash.Clear();
+
+    for(size_t i = 0; i < m_Bodies.size(); ++i)
+    {
+        m_GridHash.Add(m_Trs0[i].T, m_Trs1[i].T, m_Colliders[i], i);
+    }
+
+    for(const BodyPair& bodyPair : m_GridHash)
+    {
+        ImpactResult impactResult;
+
+        if(!SphereSphereSweep(bodyPair, impactResult))
+        {
+            continue;
+        }
+
+        const size_t indexA = bodyPair.IndexA();
+        const size_t indexB = bodyPair.IndexB();
+
+        RigidBody& bodyA = m_Bodies[indexA];
+        RigidBody& bodyB = m_Bodies[indexB];
+
+        // Compute relative velocity along the normal
+        const float vRel = (bodyA.Velocity - bodyB.Velocity).Dot(impactResult.ContactNormal);
+
+        // Only resolve if bodies are moving towards each other
+        if (vRel < -RESTING_VELOCITY_THRESHOLD)
+        {
+            // Move bodies to point of impact.
+            m_Trs1[indexA].T = impactResult.PosAtImpactA;
+            m_Trs1[indexB].T = impactResult.PosAtImpactB;
+
+            // Impulse
+
+            // n = contact normal
+            // vrel ​= (vA​−vB​)⋅n
+            // j = -(1 + e) * vrel / (1/mA + 1/mB)
+            // vA' += n * (j / mA)
+            // vA' += n * -(1 + e) * vRel * (1/mA) * (1 / (1/mA + 1/mB))
+            // vA' += n * -(1 + e) * vRel * (1/(mA * (mA + mB)/(mA * mB)))
+            // vA' += n * -(1 + e) * vRel * ((mA * mB)/(mA * (mA + mB))
+            // vA' += n * -(1 + e) * vRel * mB/(mA + mB))
+
+            const float k = -(1 + COEFF_OF_RESTITUTION) * vRel / (bodyA.Mass.Value() + bodyB.Mass.Value());
+            const Vec3f u = k * impactResult.ContactNormal;
+
+            bodyA.Velocity += u * bodyB.Mass.Value();
+            bodyB.Velocity -= u * bodyA.Mass.Value();
+        }
+        else if(vRel < 0)
+        {
+            // Bodies are moving towards each other but below the resting velocity threshold, so we
+            // treat this as a resting contact.
+
+            const float k = -vRel / (bodyA.Mass.Value() + bodyB.Mass.Value());
+            const Vec3f u = k * impactResult.ContactNormal;
+
+            bodyA.Velocity += u * bodyB.Mass.Value();
+            bodyB.Velocity -= u * bodyA.Mass.Value();
+        }
+
+        // FIXME(KB) - parameterize this.
+        constexpr float correctionSlop = 1e-3f;
+
+        if(impactResult.PenetrationDepth > correctionSlop)
+        {
+            // FIXME(KB) - parameterize this.
+            constexpr float positionalCorrectionPercent = 0.1f;
+
+            const float invMA = bodyA.Mass.InvValue();
+            const float invMB = bodyB.Mass.InvValue();
+            const float invMassSum = invMA + invMB;
+
+            const float correctionMagnitude =
+                std::max(0.0f, impactResult.PenetrationDepth - correctionSlop) *
+                positionalCorrectionPercent;
+
+            const Vec3f correction = correctionMagnitude * impactResult.ContactNormal / invMassSum;
+
+            m_Trs1[indexA].T += correction * invMA;
+            m_Trs1[indexB].T -= correction * invMB;
+        }
+    }
 }
 
 Result<>
@@ -558,12 +684,25 @@ Simulation::SyncToLevel(Level& level)
 {
     for(size_t i = 0; i < m_NodeHandles.size(); ++i)
     {
-        const auto& handle = m_NodeHandles[i];
-        const TrsTransformf& xform = m_T0[i];
-        MLG_CHECK(level.UpdateLocalTransform(handle, xform));
+        MLG_CHECK(level.UpdateLocalTransform( m_NodeHandles[i], m_Trs0[i]));
     }
 
     return Result<>::Ok;
+}
+
+float
+Simulation::ComputeKineticEnergy() const
+{
+    float totalEnergy = 0.0f;
+
+    for(size_t i = 0; i < m_Bodies.size(); ++i)
+    {
+        const float mass = m_Bodies[i].Mass.Value();
+        const float speedSq = m_Bodies[i].Velocity.Dot(m_Bodies[i].Velocity);
+        totalEnergy += 0.5f * mass * speedSq;
+    }
+
+    return totalEnergy;
 }
 
 bool
@@ -595,10 +734,10 @@ Simulation::SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResult) 
     const float radiusA = colliderA.GetSphereCollider().Radius();
     const float radiusB = colliderB.GetSphereCollider().Radius();
 
-    const TrsTransformf& transformA0 = m_T0[pair.IndexA()];
-    const TrsTransformf& transformA1 = m_T1[pair.IndexA()];
-    const TrsTransformf& transformB0 = m_T0[pair.IndexB()];
-    const TrsTransformf& transformB1 = m_T1[pair.IndexB()];
+    const TrsTransformf& transformA0 = m_Trs0[pair.IndexA()];
+    const TrsTransformf& transformA1 = m_Trs1[pair.IndexA()];
+    const TrsTransformf& transformB0 = m_Trs0[pair.IndexB()];
+    const TrsTransformf& transformB1 = m_Trs1[pair.IndexB()];
 
     const Vec3 p0 = transformA0.T - transformB0.T;
     const Vec3 p1 = transformA1.T - transformB1.T;
@@ -694,159 +833,39 @@ Simulation::SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResult) 
 
     // Vector between centers.
     const Vec3f n = centerA - centerB;
-    const float nLenSq = n.Dot(n);
-    const float nLen = std::sqrtf(nLenSq);
-    impactResult.ContactNormal = nLen > EPSILON ? n / nLen : Vec3f{ 1.0f, 0.0f, 0.0f };
+    impactResult.ContactNormal = n / r; // Normalize by sum of radii, since at impact distance
+                                        // between centers is equal to sum of radii.
     impactResult.ContactPoint = centerB + impactResult.ContactNormal * radiusB;
-    impactResult.PenetrationDepth = r - nLen;
+    impactResult.PenetrationDepth = 0;
     impactResult.PosAtImpactA = centerA;
     impactResult.PosAtImpactB = centerB;
 
     return true;
 }
 
-void
-Simulation::DoCollisions([[maybe_unused]] const float dt)
+static void ApplyGravity(Simulation& sim)
 {
-    m_GridHash.Clear();
-
-    for(size_t i = 0; i < m_Bodies.size(); ++i)
-    {
-        m_GridHash.Add(m_T0[i].T, m_T1[i].T, m_Colliders[i], i);
-    }
-
-    /*for(size_t i = 0; i < m_Bodies.size(); ++i)
-    {
-        ColliderPair pair //
-            {
-                m_Bodies[i],
-                m_Colliders[i],
-                m_T0[i],
-                m_T1[i],
-            };
-
-        for(size_t j = i + 1; j < m_Bodies.size(); ++j)
-        {
-            pair.BodyB = m_Bodies[j];
-            pair.ColliderB = m_Colliders[j];
-            pair.TransformB0 = m_T0[j];
-            pair.TransformB1 = m_T1[j];
-
-            ImpactResult impactResult;
-
-            if(!SphereSphereSweep(pair, impactResult))
-            {
-                continue;
-            }
-
-            const BodyPair bodyPair{ i, j };
-            auto it = std::find(potentialCollisions.begin(), potentialCollisions.end(), bodyPair);
-
-            if(!MLG_VERIFY(it != potentialCollisions.end(),
-                "Body pair {},{} is colliding but not in potential collisions list",
-                bodyPair.IndexA, bodyPair.IndexB))
-            {
-                CellCoord minCoordA, maxCoordA;
-                CellCoord minCoordB, maxCoordB;
-                getCellCoords(i, minCoordA, maxCoordA);
-                getCellCoords(j, minCoordB, maxCoordB);
-                continue;
-            }
-        }
-    }*/
-
-    for(const BodyPair& bodyPair : m_GridHash)
-    {
-        ImpactResult impactResult;
-
-        if(!SphereSphereSweep(bodyPair, impactResult))
-        {
-            continue;
-        }
-
-        const size_t indexA = bodyPair.IndexA();
-        const size_t indexB = bodyPair.IndexB();
-
-        RigidBody& bodyA = m_Bodies[indexA];
-        RigidBody& bodyB = m_Bodies[indexB];
-
-        // Compute relative velocity along the normal
-        const float vRel = (bodyA.Velocity - bodyB.Velocity).Dot(impactResult.ContactNormal);
-
-        // Only resolve if bodies are moving towards each other
-        if (vRel < 0)
-        {
-            const float mA = bodyA.Mass.Value();
-            const float mB = bodyB.Mass.Value();
-
-            // Impulse
-            constexpr float e = 0.8f;//0.5f; // Coefficient of restitution
-            const float impulse = -(1 + e) * vRel * (mA * mB) / (mA + mB);
-
-            // Move bodies to point of impact.
-            m_T1[indexA].T = impactResult.PosAtImpactA;
-            m_T1[indexB].T = impactResult.PosAtImpactB;
-
-            // Reflect velocities along the contact normal.
-            bodyA.Velocity += (impulse * impactResult.ContactNormal) * bodyA.Mass.InvValue();
-            bodyB.Velocity -= (impulse * impactResult.ContactNormal) * bodyB.Mass.InvValue();
-        }
-
-        constexpr float correctionSlop = 1e-3f;
-
-        if(impactResult.PenetrationDepth > correctionSlop)
-        {
-            constexpr float positionalCorrectionPercent = 0.1f;
-
-            const float correctionMagnitude =
-                std::max(0.0f, impactResult.PenetrationDepth - correctionSlop) *
-                positionalCorrectionPercent;
-
-            //const float mA = bodyA.Mass.Value();
-            //const float mB = bodyB.Mass.Value();
-            const float invMA = bodyA.Mass.InvValue();
-            const float invMB = bodyB.Mass.InvValue();
-            const float invMassSum = invMA + invMB;
-
-            // Inverse mass sum = (1/mA + 1/mB) = (mA + mB) / (mA * mB)
-            //const float recipInvMassSum = (mA + mB) * (invMA * invMB);
-
-            //const Vec3f correction = correctionMagnitude * impactResult.ContactNormal * recipInvMassSum;
-            const Vec3f correction = correctionMagnitude * impactResult.ContactNormal / invMassSum;
-
-            m_T1[indexA].T += correction * invMA;
-            m_T1[indexB].T -= correction * invMB;
-        }
-    }
-
-    std::swap(m_T0, m_T1);
-}
-
-static constexpr float G = 0.01f;//6.674e-11f;        // Gravitational constant (m^3 kg^-1 s^-2)
-
-[[maybe_unused]] static void ApplyGravity(const Simulation& sim, std::span<Vec3f> accel)
-{
-    MLG_ASSERT(accel.size() >= sim.m_Bodies.size());
+    const std::span<const RigidBody> bodies = sim.GetBodies();
+    const std::span<const TrsTransformf> transforms = sim.GetTransforms();
+    const std::span<const Collider> colliders = sim.GetColliders();
 
     // Compute gravitational forces between all pairs of bodies.
-    for(size_t i = 0; i < sim.m_Bodies.size(); ++i)
+    for(size_t i = 0; i < bodies.size(); ++i)
     {
-        const float radiusA = sim.m_Colliders[i].GetSphereCollider().Radius();
-        const Vec3f posA = sim.m_T0[i].T;
-        const float massA = sim.m_Bodies[i].Mass.Value();
-        const float invMassA = sim.m_Bodies[i].Mass.InvValue();
+        const float radiusA = colliders[i].GetSphereCollider().Radius();
+        const Vec3f posA = transforms[i].T; // For cache friendliness this is not a reference.
+        const float massA = bodies[i].Mass.Value();
 
-        for(size_t j = i + 1; j < sim.m_Bodies.size(); ++j)
+        for(size_t j = i + 1; j < bodies.size(); ++j)
         {
-            const float radiusB = sim.m_Colliders[j].GetSphereCollider().Radius();
-            const Vec3f& posB = sim.m_T0[j].T;
-            const float massB = sim.m_Bodies[j].Mass.Value();
-            const float invMassB = sim.m_Bodies[j].Mass.InvValue();
-
+            const float radiusB = colliders[j].GetSphereCollider().Radius();
             const float minSeparation = radiusA + radiusB;
             const float minSeparationSq = minSeparation * minSeparation;
 
+            const float massB = bodies[j].Mass.Value();
+
             // Vector from body A to body B
+            const Vec3f& posB = transforms[j].T;
             const Vec3f delta = posB - posA;
 
             // Gravitational force magnitude: F = G * (M * m) / r^2
@@ -856,12 +875,76 @@ static constexpr float G = 0.01f;//6.674e-11f;        // Gravitational constant 
             // If bodies overlap clamp to minimum separation.
             const float r2 = std::max(delta.Dot(delta), minSeparationSq);
             const float massProduct = massA * massB;
-            const Vec3f F = G * massProduct * delta / (r2 * std::sqrtf(r2));
+            const Vec3f F = GRAVITATIONAL_CONSTANT * massProduct * delta / (r2 * std::sqrtf(r2));
 
-            accel[i] += F * invMassA;
-            accel[j] -= F * invMassB;
+            sim.AddForce(i, F);
+            sim.AddForce(j, -F);
         }
     }
+}
+
+static void ApplyExplosionImpulse(Simulation& sim, const float power)
+{
+    const std::span<const RigidBody> bodies = sim.GetBodies();
+    std::mt19937 gen;
+    std::uniform_real_distribution<float> dis(0.5, 1);
+    std::bernoulli_distribution sign;
+
+    for(size_t i = 0; i < bodies.size(); ++i)
+    {
+        Vec3f normal //
+            {
+                dis(gen) * (sign(gen) ? 1.0f : -1.0f),
+                dis(gen) * (sign(gen) ? 1.0f : -1.0f),
+                dis(gen) * (sign(gen) ? 1.0f : -1.0f),
+            };
+
+        normal.Normalize();
+        const Vec3f impulse = -normal * bodies[i].Mass.Value() / PHYSICS_TIME_STEP;
+        sim.AddForce(i, impulse * power);
+    }
+}
+
+static void ApplyStoppingImpulse(Simulation& sim)
+{
+    const std::span<const RigidBody> bodies = sim.GetBodies();
+
+    for(size_t i = 0; i < bodies.size(); ++i)
+    {
+        const Vec3f impulse = -bodies[i].Velocity * bodies[i].Mass.Value() / PHYSICS_TIME_STEP;
+        sim.AddForce(i, impulse);
+    }
+}
+
+static float ComputePotentialEnergy(const Simulation& sim)
+{
+    float totalEnergy = 0.0f;
+
+    const std::span<const RigidBody> bodies = sim.GetBodies();
+    const std::span<const TrsTransformf> transforms = sim.GetTransforms();
+    const std::span<const Collider> colliders = sim.GetColliders();
+
+    for(size_t i = 0; i < bodies.size(); ++i)
+    {
+        const float massA = bodies[i].Mass.Value();
+        const Vec3f posA = transforms[i].T;
+        const float radiusA = colliders[i].GetSphereCollider().Radius();
+
+        for(size_t j = i + 1; j < bodies.size(); ++j)
+        {
+            const float massB = bodies[j].Mass.Value();
+            const Vec3f posB = transforms[j].T;
+            const float radiusB = colliders[j].GetSphereCollider().Radius();
+            const float minSeparation = radiusA + radiusB;
+            const float minSeparationSq = minSeparation * minSeparation;
+            const float r2 = (posB - posA).Dot(posB - posA);
+            const float r = r2 < minSeparationSq ? minSeparation : std::sqrtf(r2);
+
+            totalEnergy += -GRAVITATIONAL_CONSTANT * massA * massB / r;
+        }
+    }
+
+    return totalEnergy;
 }
 
 static Result<>
@@ -995,6 +1078,14 @@ MainLoop()
                     mouseCaptured = !mouseCaptured;
                     SDL_SetWindowRelativeMouseMode(WebgpuHelper::GetWindow(), mouseCaptured);
                 }
+                else if(SDL_SCANCODE_RETURN == event.key.scancode)
+                {
+                    ApplyExplosionImpulse(simulation, 5.0f);
+                }
+                else if(SDL_SCANCODE_BACKSPACE == event.key.scancode)
+                {
+                    ApplyStoppingImpulse(simulation);
+                }
                 break;
             case SDL_EVENT_KEY_UP:
                 if(mouseCaptured)
@@ -1005,15 +1096,9 @@ MainLoop()
             }
         }
 
-        constexpr float physicsTimeStep = 1.0f/60;//1.0f / PHYSICS_FPS;
+        ApplyGravity(simulation);
 
-        simulation.UpdatePositions(physicsTimeStep);
-
-        simulation.DoCollisions(physicsTimeStep);
-
-        simulation.ApplyForces(ApplyGravity);
-
-        simulation.UpdateVelocities(physicsTimeStep);
+        simulation.Update(PHYSICS_TIME_STEP);
 
         simulation.SyncToLevel(level);
 
@@ -1047,7 +1132,9 @@ MainLoop()
             renderer.Render(camWorldMat, projection, scene, propKit, compositor);
         }
 
-        RenderGui();
+        const float kineticEnergy = simulation.ComputeKineticEnergy();
+        const float potentialEnergy = ComputePotentialEnergy(simulation);
+        RenderGui(kineticEnergy, potentialEnergy);
 
         imGuiRenderer.Render(compositor);
 
@@ -1074,7 +1161,7 @@ MainLoop()
     return Result<>::Ok;
 }
 
-static Result<> RenderGui()
+static Result<> RenderGui(const float kineticEnergy, const float potentialEnergy)
 {
     const char* buildType;
 #if defined (NDEBUG)
@@ -1095,7 +1182,13 @@ static Result<> RenderGui()
     {
         ImGui::Text("%s: %.3f ms", timers[i].GetName().c_str(), timers[i].GetValue() * 1000.0f);
     }
+    ImGui::Separator();
+    ImGui::Text("Kinetic Energy: %.3f", kineticEnergy);
+    ImGui::Text("Potential Energy: %.3f", potentialEnergy);
+    ImGui::Text("Total Energy: %.3f", kineticEnergy + potentialEnergy);
     ImGui::End();
+
+
 
     return Result<>::Ok;
 }

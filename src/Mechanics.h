@@ -7,7 +7,7 @@
 class Mass
 {
 public:
-    Mass() = default;
+    Mass() = delete;
     constexpr explicit Mass(float value)
         : m_Value(value)
     {
@@ -90,6 +90,6 @@ public:
     }
 
 private:
-    float m_Value{ 0.0f };
-    float m_InvValue{ 0.0f };
+    float m_Value;
+    float m_InvValue;   // Inverse value
 };

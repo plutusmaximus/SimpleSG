@@ -50,7 +50,7 @@ struct ComponentsDef final
     std::optional<ColliderDef> Collider;
 };
 
-struct LevelNodeDef
+struct LevelNodeDef final
 {
     std::string Name;
     TrsTransformf Transform;
@@ -58,7 +58,7 @@ struct LevelNodeDef
     std::vector<LevelNodeDef> Children;
 };
 
-struct LevelDef
+struct LevelDef final
 {
     std::vector<LevelNodeDef> NodeDefs;
 };
@@ -133,17 +133,17 @@ class Collider
 public:
 
     explicit Collider(const SphereCollider& sphere)
-        : m_Shape(std::variant<SphereCollider, BoxCollider, CapsuleCollider>{sphere})
+        : m_Shape(sphere)
     {
     }
 
     explicit Collider(const BoxCollider& box)
-        : m_Shape(std::variant<SphereCollider, BoxCollider, CapsuleCollider>{box})
+        : m_Shape(box)
     {
     }
 
     explicit Collider(const CapsuleCollider& capsule)
-        : m_Shape(std::variant<SphereCollider, BoxCollider, CapsuleCollider>{capsule})
+        : m_Shape(capsule)
     {
     }
 
