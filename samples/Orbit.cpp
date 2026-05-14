@@ -157,6 +157,8 @@ public:
 
     BodyPair(size_t indexA, size_t indexB)
     {
+        // Ensure the pair is always stored in a consistent order.
+        // This enables identifying and skipping duplicate pairs.
         if(indexA < indexB)
         {
             m_IndexA = indexA;
@@ -208,8 +210,211 @@ struct ImpactResult
     Vec3f PosAtImpactB;
 };
 
-struct Simulation
+template<size_t CELL_SIZE>
+struct CellEntry
 {
+    static constexpr size_t CELL_SIZE = CELL_SIZE;
+
+    size_t BodyIndex;
+    std::array<int, 3> Cell;// Cell coordinates (x, y, z)
+
+    static int Quantize(float value)
+    {
+        return static_cast<int>(std::floor(value / static_cast<float>(CELL_SIZE)));
+    }
+
+    bool operator==(const CellEntry& that) const
+    {
+        return Cell == that.Cell && BodyIndex == that.BodyIndex;
+    }
+
+    bool operator!=(const CellEntry& that) const
+    {
+        return !(*this == that);
+    }
+
+    auto operator<=>(const CellEntry& that) const
+    {
+        if(Cell != that.Cell)
+        {
+            return Cell <=> that.Cell;
+        }
+
+        return BodyIndex <=> that.BodyIndex;
+    }
+};
+
+/// @brief  An iterator that wraps another iterator and skips consecutive duplicate elements.
+/// Requires that the underlying range is sorted, so that duplicates are adjacent.
+/// @tparam T
+template<typename T>
+class UniqueIterator
+{
+public:
+    UniqueIterator() = default;
+    UniqueIterator(const UniqueIterator&) = default;
+    UniqueIterator& operator=(const UniqueIterator&) = default;
+    UniqueIterator(UniqueIterator&&) = default;
+    UniqueIterator& operator=(UniqueIterator&&) = default;
+
+    using iterator = std::vector<T>::const_iterator;
+
+    explicit UniqueIterator(iterator iter, iterator end)
+        : m_Iter(iter), m_End(end)
+    {
+    }
+
+    UniqueIterator& operator++()
+    {
+        const T& current = *m_Iter;
+
+        while(++m_Iter != m_End && *m_Iter == current)
+        {
+            // Skip duplicates.
+        }
+
+        return *this;
+    }
+
+    UniqueIterator operator++(int)
+    {
+        UniqueIterator copy = *this;
+        ++*this;
+        return copy;
+    }
+
+    const T& operator*() const
+    {
+        return *m_Iter;
+    }
+
+    const T* operator->() const
+    {
+        return &(*m_Iter);
+    }
+
+    bool operator==(const UniqueIterator& that) const
+    {
+        return m_Iter == that.m_Iter && m_End == that.m_End;
+    }
+
+    bool operator!=(const UniqueIterator& that) const
+    {
+        return !(*this == that);
+    }
+
+private:
+    iterator m_Iter;
+    iterator m_End;
+};
+
+template<size_t CELL_SIZE>
+class GridHash
+{
+public:
+    GridHash() = default;
+    GridHash(const GridHash&) = delete;
+    GridHash& operator=(const GridHash&) = delete;
+    GridHash(GridHash&&) = default;
+    GridHash& operator=(GridHash&&) = default;
+
+    using iterator = UniqueIterator<BodyPair>;
+    using CellEntry = CellEntry<CELL_SIZE>;
+
+    void Clear()
+    {
+        m_CellEntries.clear();
+        m_PotentialCollisions.clear();
+        m_NeedsSort = false;
+    }
+
+    void Add(const Vec3f& p0, const Vec3f& p1, const Collider& collider, size_t bodyIndex)
+    {
+        const float radius = collider.GetSphereCollider().Radius();
+        const Vec3f minExtent{p0.x - radius, p0.y - radius, p0.z - radius};
+        const Vec3f maxExtent{p1.x + radius, p1.y + radius, p1.z + radius};
+
+        const int minX = CellEntry::Quantize(minExtent.x);
+        const int minY = CellEntry::Quantize(minExtent.y);
+        const int minZ = CellEntry::Quantize(minExtent.z);
+        const int maxX = CellEntry::Quantize(maxExtent.x);
+        const int maxY = CellEntry::Quantize(maxExtent.y);
+        const int maxZ = CellEntry::Quantize(maxExtent.z);
+
+        for(int x = minX; x <= maxX; ++x)
+        {
+            for(int y = minY; y <= maxY; ++y)
+            {
+                for(int z = minZ; z <= maxZ; ++z)
+                {
+                    m_CellEntries.emplace_back(CellEntry{bodyIndex, x, y, z});
+                }
+            }
+        }
+
+        m_NeedsSort = true;
+    }
+
+    iterator begin()
+    {
+        Sort();
+        return iterator(m_PotentialCollisions.begin(), m_PotentialCollisions.end());
+    }
+
+    iterator end()
+    {
+        Sort();
+        return iterator(m_PotentialCollisions.end(), m_PotentialCollisions.end());
+    }
+
+private:
+
+    void Sort()
+    {
+        if(!m_NeedsSort)
+        {
+            return;
+        }
+
+        std::sort(m_CellEntries.begin(), m_CellEntries.end());
+
+        m_PotentialCollisions.clear();
+
+        for(size_t i = 0; i < m_CellEntries.size(); ++i)
+        {
+            const size_t indexA = m_CellEntries[i].BodyIndex;
+
+            for(size_t j = i + 1; j < m_CellEntries.size() && m_CellEntries[j].Cell == m_CellEntries[i].Cell; ++j)
+            {
+                // Bodies that share a cell are potentially colliding.
+
+                const size_t indexB = m_CellEntries[j].BodyIndex;
+                if(MLG_VERIFY(indexA != indexB, "Duplicate body in same cell? Body index: {}", indexA))
+                {
+                    m_PotentialCollisions.push_back({ indexA, indexB });
+                }
+            }
+        }
+
+        // Sort potential collisions to group duplicates together, so they can be skipped by
+        // UniqueIterator.
+        std::sort(m_PotentialCollisions.begin(), m_PotentialCollisions.end());
+
+        m_NeedsSort = false;
+    }
+
+    std::vector<CellEntry> m_CellEntries;
+    std::vector<BodyPair> m_PotentialCollisions;
+
+    bool m_NeedsSort{false};
+};
+
+class Simulation
+{
+public:
+
+    constexpr static size_t GRID_CELL_SIZE = 5;
+
     static Result<> Create(const Level& level, Simulation& outSim);
 
     Simulation() = default;
@@ -264,6 +469,8 @@ public:
     std::span<TrsTransformf> m_T1;
     std::span<Vec3f> m_A0;
     std::span<Vec3f> m_A1;
+
+    GridHash<GRID_CELL_SIZE> m_GridHash;
 };
 
 Result<>
@@ -385,8 +592,8 @@ Simulation::SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResult) 
     const Collider& colliderA = m_Colliders[pair.IndexA()];
     const Collider& colliderB = m_Colliders[pair.IndexB()];
 
-    const float radiusA = std::get<SphereCollider>(colliderA.Shape).Radius;
-    const float radiusB = std::get<SphereCollider>(colliderB.Shape).Radius;
+    const float radiusA = colliderA.GetSphereCollider().Radius();
+    const float radiusB = colliderB.GetSphereCollider().Radius();
 
     const TrsTransformf& transformA0 = m_T0[pair.IndexA()];
     const TrsTransformf& transformA1 = m_T1[pair.IndexA()];
@@ -498,141 +705,15 @@ Simulation::SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResult) 
     return true;
 }
 
-template<size_t CELL_SIZE>
-struct CellCoord_T
-{
-    static constexpr size_t CELL_SIZE = CELL_SIZE;
-
-    int x;
-    int y;
-    int z;
-
-    static int Quantize(float value)
-    {
-        return static_cast<int>(std::floor(value / static_cast<float>(CELL_SIZE)));
-    }
-
-    bool operator==(const CellCoord_T& that) const
-    {
-        return x == that.x && y == that.y && z == that.z;
-    }
-
-    bool operator!=(const CellCoord_T& that) const
-    {
-        return !(*this == that);
-    }
-
-    auto operator<=>(const CellCoord_T& that) const
-    {
-        if(x != that.x)
-        {
-            return x <=> that.x;
-        }
-
-        if (y != that.y)
-        {
-            return y <=> that.y;
-        }
-
-        return z <=> that.z;
-    }
-};
-
-using CellCoord = CellCoord_T<5>;
-
-struct CellEntry
-{
-    size_t BodyIndex;
-    CellCoord Cell;
-
-    auto operator<=>(const CellEntry& that) const
-    {
-        if(Cell <=> that.Cell != 0)
-        {
-            return Cell <=> that.Cell;
-        }
-
-        return BodyIndex <=> that.BodyIndex;
-    }
-};
-
-static std::vector<CellEntry> cellEntries;
-static std::vector<BodyPair> potentialCollisions;
-
 void
 Simulation::DoCollisions([[maybe_unused]] const float dt)
 {
-    cellEntries.clear();
-    potentialCollisions.clear();
-
-    auto getCellCoords = [this](const size_t index, CellCoord& minCoord, CellCoord& maxCoord) -> void
-    {
-        const Vec3f p0 = m_T0[index].T;
-        const Vec3f p1 = m_T1[index].T;
-        const float radius = std::get<SphereCollider>(m_Colliders[index].Shape).Radius;
-
-        const Vec3f maxExtent //
-            {
-                std::max(p0.x, p1.x) + radius,
-                std::max(p0.y, p1.y) + radius,
-                std::max(p0.z, p1.z) + radius,
-            };
-        const Vec3f minExtent //
-            {
-                std::min(p0.x, p1.x) - radius,
-                std::min(p0.y, p1.y) - radius,
-                std::min(p0.z, p1.z) - radius,
-            };
-
-        const int minX = CellCoord::Quantize(minExtent.x);
-        const int minY = CellCoord::Quantize(minExtent.y);
-        const int minZ = CellCoord::Quantize(minExtent.z);
-        const int maxX = CellCoord::Quantize(maxExtent.x);
-        const int maxY = CellCoord::Quantize(maxExtent.y);
-        const int maxZ = CellCoord::Quantize(maxExtent.z);
-
-        minCoord = CellCoord{ minX, minY, minZ };
-        maxCoord = CellCoord{ maxX, maxY, maxZ };
-    };
+    m_GridHash.Clear();
 
     for(size_t i = 0; i < m_Bodies.size(); ++i)
     {
-        CellCoord minCoord, maxCoord;
-        getCellCoords(i, minCoord, maxCoord);
-
-        for(int x = minCoord.x; x <= maxCoord.x; ++x)
-        {
-            for(int y = minCoord.y; y <= maxCoord.y; ++y)
-            {
-                for(int z = minCoord.z; z <= maxCoord.z; ++z)
-                {
-                    cellEntries.push_back({ i, CellCoord{ x, y, z } });
-                }
-            }
-        }
+        m_GridHash.Add(m_T0[i].T, m_T1[i].T, m_Colliders[i], i);
     }
-
-    std::sort(cellEntries.begin(), cellEntries.end());
-
-    for(size_t i = 0; i < cellEntries.size(); ++i)
-    {
-        const size_t indexA = cellEntries[i].BodyIndex;
-
-        for(size_t j = i + 1; j < cellEntries.size() && cellEntries[j].Cell == cellEntries[i].Cell; ++j)
-        {
-            // Bodies that share a cell are potentially colliding.
-            // We can add them to a list of pairs to check for collision.
-            // We may have duplicates, but we'll sort and deduplicate the pairs later.
-
-            const size_t indexB = cellEntries[j].BodyIndex;
-            if(MLG_VERIFY(indexA != indexB, "Duplicate body in same cell? Body index: {}", indexA))
-            {
-                potentialCollisions.push_back({ indexA, indexB });
-            }
-        }
-    }
-
-    std::sort(potentialCollisions.begin(), potentialCollisions.end());
 
     /*for(size_t i = 0; i < m_Bodies.size(); ++i)
     {
@@ -674,19 +755,8 @@ Simulation::DoCollisions([[maybe_unused]] const float dt)
         }
     }*/
 
-    BodyPair lastBodyPair{ std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max() };
-
-    for(size_t i = 0; i < potentialCollisions.size(); ++i)
+    for(const BodyPair& bodyPair : m_GridHash)
     {
-        const BodyPair& bodyPair = potentialCollisions[i];
-        if(bodyPair == lastBodyPair)
-        {
-            // We've already checked this pair for collision.
-            continue;
-        }
-
-        lastBodyPair = bodyPair;
-
         ImpactResult impactResult;
 
         if(!SphereSphereSweep(bodyPair, impactResult))
@@ -761,15 +831,23 @@ static constexpr float G = 0.01f;//6.674e-11f;        // Gravitational constant 
     // Compute gravitational forces between all pairs of bodies.
     for(size_t i = 0; i < sim.m_Bodies.size(); ++i)
     {
+        const float radiusA = sim.m_Colliders[i].GetSphereCollider().Radius();
+        const Vec3f posA = sim.m_T0[i].T;
+        const float massA = sim.m_Bodies[i].Mass.Value();
+        const float invMassA = sim.m_Bodies[i].Mass.InvValue();
+
         for(size_t j = i + 1; j < sim.m_Bodies.size(); ++j)
         {
-            const float radiusA = std::get<SphereCollider>(sim.m_Colliders[i].Shape).Radius;
-            const float radiusB = std::get<SphereCollider>(sim.m_Colliders[j].Shape).Radius;
+            const float radiusB = sim.m_Colliders[j].GetSphereCollider().Radius();
+            const Vec3f& posB = sim.m_T0[j].T;
+            const float massB = sim.m_Bodies[j].Mass.Value();
+            const float invMassB = sim.m_Bodies[j].Mass.InvValue();
+
             const float minSeparation = radiusA + radiusB;
             const float minSeparationSq = minSeparation * minSeparation;
 
-            // Vector from body i to body j
-            const Vec3f delta = sim.m_T0[j].T - sim.m_T0[i].T;
+            // Vector from body A to body B
+            const Vec3f delta = posB - posA;
 
             // Gravitational force magnitude: F = G * (M * m) / r^2
             // Direction toward source: delta / r
@@ -777,11 +855,11 @@ static constexpr float G = 0.01f;//6.674e-11f;        // Gravitational constant 
 
             // If bodies overlap clamp to minimum separation.
             const float r2 = std::max(delta.Dot(delta), minSeparationSq);
-            const float massProduct = sim.m_Bodies[i].Mass.Value() * sim.m_Bodies[j].Mass.Value();
+            const float massProduct = massA * massB;
             const Vec3f F = G * massProduct * delta / (r2 * std::sqrtf(r2));
 
-            accel[i] += F * sim.m_Bodies[i].Mass.InvValue();
-            accel[j] -= F * sim.m_Bodies[j].Mass.InvValue();
+            accel[i] += F * invMassA;
+            accel[j] -= F * invMassB;
         }
     }
 }

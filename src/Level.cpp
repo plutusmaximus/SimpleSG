@@ -59,32 +59,31 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
         {
             const RigidBodyDef& bodyDef = *nodeDef.Components.Body;
 
-            MLG_CHECKV(bodyDef.Mass > 0, "RigidBodyDef in node {} has non-positive mass", nodeDef.Name);
+            MLG_CHECKV(bodyDef.Mass > 0,
+                "RigidBodyDef in node {} has non-positive mass",
+                nodeDef.Name);
 
-            RigidBody body//
-            {
-                .Velocity = bodyDef.Velocity,
-                .Mass = bodyDef.Mass,
-            };
-            components.Body = std::move(body);
+            components.Body = RigidBody //
+                {
+                    .Velocity = bodyDef.Velocity,
+                    .Mass = bodyDef.Mass,
+                };
         }
 
         if(nodeDef.Components.Collider.has_value())
         {
             const ColliderDef& colliderDef = *nodeDef.Components.Collider;
-            const auto visitor = overloads{ [](const SphereDef& def)
-                { return Collider{ .Shape = SphereCollider{ .Radius = def.Radius } }; },
-                [](const BoxDef& def)
-                { return Collider{ .Shape = BoxCollider{ .HalfExtents = def.HalfExtents } }; },
-                [](const CapsuleDef& def)
+            const auto visitor = overloads //
                 {
-                    return Collider{ .Shape = CapsuleCollider{ .Radius = def.Radius,
-                                         .HalfHeight = def.HalfHeight } };
-                } };
+                    [](const SphereDef& def) -> Collider
+                    { return Collider{ SphereCollider{ def.Radius } }; },
+                    [](const BoxDef& def) -> Collider
+                    { return Collider{ BoxCollider{ def.HalfExtents } }; },
+                    [](const CapsuleDef& def) -> Collider
+                    { return Collider{ CapsuleCollider{ def.Radius, def.HalfHeight } }; },
+                };
 
-            Collider collider = std::visit(visitor, colliderDef);
-
-            components.Collider = std::move(collider);
+            components.Collider = std::visit(visitor, colliderDef);
         }
 
         stringStorage.insert(stringStorage.end(), nodeDef.Name.begin(), nodeDef.Name.end());

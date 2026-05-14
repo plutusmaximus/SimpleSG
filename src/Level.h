@@ -22,7 +22,7 @@ struct ModelRef final
 struct RigidBodyDef final
 {
     Vec3f Velocity{ 0 };
-    Mass Mass{ 0 };
+    Mass Mass;
 };
 
 struct SphereDef final
@@ -63,31 +63,98 @@ struct LevelDef
     std::vector<LevelNodeDef> NodeDefs;
 };
 
-struct SphereCollider final
+class SphereCollider final
 {
-    float Radius{ 0 };
+public:
+    explicit SphereCollider(float radius)
+        : m_Radius(radius)
+    {
+        MLG_ASSERT(radius > 0.0f, "Sphere radius must be positive");
+    }
+
+    float Radius() const { return m_Radius; }
+
+    SphereCollider GetSphereCollider() const { return *this; }
+
+private:
+
+    float m_Radius;
 };
 
-struct BoxCollider final
+class BoxCollider final
 {
-    Vec3f HalfExtents{ 0 };
+public:
+    explicit BoxCollider(const Vec3f& halfExtents)
+        : m_HalfExtents(halfExtents)
+        , m_SphereRadius(halfExtents.Length())
+    {
+        MLG_ASSERT(halfExtents.x > 0.0f && halfExtents.y > 0.0f && halfExtents.z > 0.0f, "Box half extents must be positive");
+    }
+
+    Vec3f HalfExtents() const { return m_HalfExtents; }
+
+    // The sphere that encloses the box.
+    SphereCollider GetSphereCollider() const { return SphereCollider(m_SphereRadius); }
+
+private:
+    Vec3f m_HalfExtents;
+    float m_SphereRadius;
 };
 
-struct CapsuleCollider final
+class CapsuleCollider final
 {
-    float Radius{ 0 };
-    float HalfHeight{ 0 };
+public:
+    CapsuleCollider(float radius, float halfHeight)
+        : m_Radius(radius), m_HalfHeight(halfHeight)
+    {
+        MLG_ASSERT(radius > 0.0f, "Capsule radius must be positive");
+        MLG_ASSERT(halfHeight > 0.0f, "Capsule half height must be positive");
+    }
+
+    float Radius() const { return m_Radius; }
+    float HalfHeight() const { return m_HalfHeight; }
+
+    // The sphere that encloses the capsule.
+    SphereCollider GetSphereCollider() const { return SphereCollider(m_Radius + m_HalfHeight); }
+
+private:
+    float m_Radius;
+    float m_HalfHeight;
 };
 
 struct RigidBody
 {
     Vec3f Velocity{ 0 };
-    Mass Mass{ 0 };
+    Mass Mass;
 };
 
-struct Collider
+class Collider
 {
-    std::variant<SphereCollider, BoxCollider, CapsuleCollider> Shape;
+public:
+
+    explicit Collider(const SphereCollider& sphere)
+        : m_Shape(std::variant<SphereCollider, BoxCollider, CapsuleCollider>{sphere})
+    {
+    }
+
+    explicit Collider(const BoxCollider& box)
+        : m_Shape(std::variant<SphereCollider, BoxCollider, CapsuleCollider>{box})
+    {
+    }
+
+    explicit Collider(const CapsuleCollider& capsule)
+        : m_Shape(std::variant<SphereCollider, BoxCollider, CapsuleCollider>{capsule})
+    {
+    }
+
+    SphereCollider GetSphereCollider() const
+    {
+        return std::visit([](const auto& shape) { return shape.GetSphereCollider(); }, m_Shape);
+    }
+
+private:
+
+    std::variant<SphereCollider, BoxCollider, CapsuleCollider> m_Shape;
 };
 
 class Level
