@@ -151,6 +151,63 @@ Load(const std::filesystem::path& path,
     return Result<>::Ok;
 }
 
+class BodyPair
+{
+public:
+
+    BodyPair(size_t indexA, size_t indexB)
+    {
+        if(indexA < indexB)
+        {
+            m_IndexA = indexA;
+            m_IndexB = indexB;
+        }
+        else
+        {
+            m_IndexA = indexB;
+            m_IndexB = indexA;
+        }
+    }
+
+    size_t IndexA() const { return m_IndexA; }
+    size_t IndexB() const { return m_IndexB; }
+
+    bool operator==(const BodyPair& that) const
+    {
+        return (m_IndexA == that.m_IndexA && m_IndexB == that.m_IndexB);
+    }
+
+    bool operator!=(const BodyPair& that) const
+    {
+        return !(*this == that);
+    }
+
+    auto operator<=>(const BodyPair& that) const
+    {
+        if(m_IndexA != that.m_IndexA)
+        {
+            return m_IndexA <=> that.m_IndexA;
+        }
+
+        return m_IndexB <=> that.m_IndexB;
+    }
+
+private:
+
+    size_t m_IndexA;
+    size_t m_IndexB;
+};
+
+struct ImpactResult
+{
+    float Alpha; // Distance along path at impact, from 0 to 1.
+    float PenetrationDepth;
+    Vec3f ContactPoint;
+    Vec3f ContactNormal;
+    Vec3f PosAtImpactA;
+    Vec3f PosAtImpactB;
+};
+
 struct Simulation
 {
     static Result<> Create(const Level& level, Simulation& outSim);
@@ -194,6 +251,8 @@ private:
         m_A1 = m_APool[1];
     }
 
+    bool SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResult) const;
+
 public:
 
     std::vector<Level::NodeHandle> m_NodeHandles;
@@ -205,16 +264,6 @@ public:
     std::span<TrsTransformf> m_T1;
     std::span<Vec3f> m_A0;
     std::span<Vec3f> m_A1;
-};
-
-struct ImpactResult
-{
-    float Alpha; // Distance along path at impact, from 0 to 1.
-    float PenetrationDepth;
-    Vec3f ContactPoint;
-    Vec3f ContactNormal;
-    Vec3f PosAtImpactA;
-    Vec3f PosAtImpactB;
 };
 
 Result<>
@@ -310,20 +359,8 @@ Simulation::SyncToLevel(Level& level)
     return Result<>::Ok;
 }
 
-struct ColliderPair
-{
-    RigidBody BodyA;
-    Collider ColliderA;
-    TrsTransformf TransformA0;
-    TrsTransformf TransformA1;
-    RigidBody BodyB;
-    Collider ColliderB;
-    TrsTransformf TransformB0;
-    TrsTransformf TransformB1;
-};
-
-[[maybe_unused]] static bool
-SphereSphereSweep(const ColliderPair& pair, ImpactResult& impactResult)
+bool
+Simulation::SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResult) const
 {
     constexpr float EPSILON = 1e-6f;
     constexpr float EPSILON_SQ = EPSILON * EPSILON;
@@ -345,11 +382,19 @@ SphereSphereSweep(const ColliderPair& pair, ImpactResult& impactResult)
     //
     // Solve the quadratic equation for t.
 
-    const float radiusA = std::get<SphereCollider>(pair.ColliderA.Shape).Radius;
-    const float radiusB = std::get<SphereCollider>(pair.ColliderB.Shape).Radius;
+    const Collider& colliderA = m_Colliders[pair.IndexA()];
+    const Collider& colliderB = m_Colliders[pair.IndexB()];
 
-    const Vec3 p0 = pair.TransformA0.T - pair.TransformB0.T;
-    const Vec3 p1 = pair.TransformA1.T - pair.TransformB1.T;
+    const float radiusA = std::get<SphereCollider>(colliderA.Shape).Radius;
+    const float radiusB = std::get<SphereCollider>(colliderB.Shape).Radius;
+
+    const TrsTransformf& transformA0 = m_T0[pair.IndexA()];
+    const TrsTransformf& transformA1 = m_T1[pair.IndexA()];
+    const TrsTransformf& transformB0 = m_T0[pair.IndexB()];
+    const TrsTransformf& transformB1 = m_T1[pair.IndexB()];
+
+    const Vec3 p0 = transformA0.T - transformB0.T;
+    const Vec3 p1 = transformA1.T - transformB1.T;
     const Vec3 relMo = p1 - p0;
     const float r = radiusA + radiusB;
     const float r2 = r * r;
@@ -384,11 +429,11 @@ SphereSphereSweep(const ColliderPair& pair, ImpactResult& impactResult)
             impactResult.ContactNormal = p0 / dist0;
         }
 
-        impactResult.ContactPoint = pair.TransformB0.T + impactResult.ContactNormal * radiusB;
+        impactResult.ContactPoint = transformB0.T + impactResult.ContactNormal * radiusB;
 
         impactResult.PenetrationDepth = r - dist0;
-        impactResult.PosAtImpactA = pair.TransformA0.T;
-        impactResult.PosAtImpactB = pair.TransformB0.T;
+        impactResult.PosAtImpactA = transformA0.T;
+        impactResult.PosAtImpactB = transformB0.T;
 
         return true;
     }
@@ -437,8 +482,8 @@ SphereSphereSweep(const ColliderPair& pair, ImpactResult& impactResult)
     impactResult.Alpha = t;
 
     // Centers at time of impact.
-    const Vec3f centerA = pair.TransformA0.T + (pair.TransformA1.T - pair.TransformA0.T) * t;
-    const Vec3f centerB = pair.TransformB0.T + (pair.TransformB1.T - pair.TransformB0.T) * t;
+    const Vec3f centerA = transformA0.T + (transformA1.T - transformA0.T) * t;
+    const Vec3f centerB = transformB0.T + (transformB1.T - transformB0.T) * t;
 
     // Vector between centers.
     const Vec3f n = centerA - centerB;
@@ -490,46 +535,6 @@ struct CellCoord_T
         }
 
         return z <=> that.z;
-    }
-};
-
-struct BodyPair
-{
-    size_t IndexA;
-    size_t IndexB;
-
-    BodyPair(size_t indexA, size_t indexB)
-    {
-        if(indexA < indexB)
-        {
-            IndexA = indexA;
-            IndexB = indexB;
-        }
-        else
-        {
-            IndexA = indexB;
-            IndexB = indexA;
-        }
-    }
-
-    bool operator==(const BodyPair& that) const
-    {
-        return (IndexA == that.IndexA && IndexB == that.IndexB);
-    }
-
-    bool operator!=(const BodyPair& that) const
-    {
-        return !(*this == that);
-    }
-
-    auto operator<=>(const BodyPair& that) const
-    {
-        if(IndexA != that.IndexA)
-        {
-            return IndexA <=> that.IndexA;
-        }
-
-        return IndexB <=> that.IndexB;
     }
 };
 
@@ -611,13 +616,14 @@ Simulation::DoCollisions([[maybe_unused]] const float dt)
 
     for(size_t i = 0; i < cellEntries.size(); ++i)
     {
+        const size_t indexA = cellEntries[i].BodyIndex;
+
         for(size_t j = i + 1; j < cellEntries.size() && cellEntries[j].Cell == cellEntries[i].Cell; ++j)
         {
             // Bodies that share a cell are potentially colliding.
             // We can add them to a list of pairs to check for collision.
             // We may have duplicates, but we'll sort and deduplicate the pairs later.
 
-            const size_t indexA = cellEntries[i].BodyIndex;
             const size_t indexB = cellEntries[j].BodyIndex;
             if(MLG_VERIFY(indexA != indexB, "Duplicate body in same cell? Body index: {}", indexA))
             {
@@ -679,31 +685,20 @@ Simulation::DoCollisions([[maybe_unused]] const float dt)
             continue;
         }
 
-        const size_t indexA = bodyPair.IndexA;
-        const size_t indexB = bodyPair.IndexB;
         lastBodyPair = bodyPair;
-
-        RigidBody& bodyA = m_Bodies[indexA];
-        RigidBody& bodyB = m_Bodies[indexB];
-
-        const ColliderPair pair //
-            {
-                bodyA,
-                m_Colliders[indexA],
-                m_T0[indexA],
-                m_T1[indexA],
-                bodyB,
-                m_Colliders[indexB],
-                m_T0[indexB],
-                m_T1[indexB],
-            };
 
         ImpactResult impactResult;
 
-        if(!SphereSphereSweep(pair, impactResult))
+        if(!SphereSphereSweep(bodyPair, impactResult))
         {
             continue;
         }
+
+        const size_t indexA = bodyPair.IndexA();
+        const size_t indexB = bodyPair.IndexB();
+
+        RigidBody& bodyA = m_Bodies[indexA];
+        RigidBody& bodyB = m_Bodies[indexB];
 
         // Compute relative velocity along the normal
         const float vRel = (bodyA.Velocity - bodyB.Velocity).Dot(impactResult.ContactNormal);
