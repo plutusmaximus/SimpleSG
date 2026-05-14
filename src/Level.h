@@ -21,7 +21,7 @@ struct ModelRef final
 
 struct RigidBodyDef final
 {
-    Vec3f Velocity{ 0 };
+    Vec3f LinearVelocity{ 0 };
     Mass Mass;
 };
 
@@ -124,7 +124,7 @@ private:
 
 struct RigidBody
 {
-    Vec3f Velocity{ 0 };
+    Vec3f LinearVelocity{ 0 };
     Mass Mass;
 };
 

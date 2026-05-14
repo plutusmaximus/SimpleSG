@@ -65,7 +65,7 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
 
             components.Body = RigidBody //
                 {
-                    .Velocity = bodyDef.Velocity,
+                    .LinearVelocity = bodyDef.LinearVelocity,
                     .Mass = bodyDef.Mass,
                 };
         }
