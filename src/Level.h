@@ -82,10 +82,6 @@ struct CapsuleCollider final
 struct RigidBody
 {
     Vec3f Velocity{ 0 };
-    // Force accumulator for the current physics step.
-    Vec3f Force0{ 0 };
-    // Force accumulator for the next physics step.
-    Vec3f Force1{ 0 };
     Mass Mass{ 0 };
 };
 
