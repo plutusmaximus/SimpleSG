@@ -171,22 +171,22 @@ public:
         // This enables identifying and skipping duplicate pairs.
         if(indexA < indexB)
         {
-            m_IndexA = indexA;
-            m_IndexB = indexB;
+            m_Indices[0] = indexA;
+            m_Indices[1] = indexB;
         }
         else
         {
-            m_IndexA = indexB;
-            m_IndexB = indexA;
+            m_Indices[0] = indexB;
+            m_Indices[1] = indexA;
         }
     }
 
-    size_t IndexA() const { return m_IndexA; }
-    size_t IndexB() const { return m_IndexB; }
+    size_t IndexA() const { return m_Indices[0]; }
+    size_t IndexB() const { return m_Indices[1]; }
 
     bool operator==(const BodyPair& that) const
     {
-        return (m_IndexA == that.m_IndexA && m_IndexB == that.m_IndexB);
+        return m_Indices == that.m_Indices;
     }
 
     bool operator!=(const BodyPair& that) const
@@ -196,18 +196,12 @@ public:
 
     auto operator<=>(const BodyPair& that) const
     {
-        if(m_IndexA != that.m_IndexA)
-        {
-            return m_IndexA <=> that.m_IndexA;
-        }
-
-        return m_IndexB <=> that.m_IndexB;
+        return m_Indices <=> that.m_Indices;
     }
 
 private:
 
-    size_t m_IndexA;
-    size_t m_IndexB;
+    std::array<size_t, 2> m_Indices;
 };
 
 struct ImpactResult
@@ -215,7 +209,7 @@ struct ImpactResult
     float Alpha; // Distance along path at impact, from 0 to 1.
     float PenetrationDepth;
     Vec3f ContactPoint;
-    Vec3f ContactNormal;
+    Vec3f ContactNormalBtoA; // Contact normal points from body B to body A.
     Vec3f PosAtImpactA;
     Vec3f PosAtImpactB;
 };
@@ -623,7 +617,7 @@ PhysicsSolver::DoCollisions([[maybe_unused]] const float dt)
         RigidBody& bodyB = m_Bodies[indexB];
 
         // Compute relative velocity along the normal
-        const float vRel = (bodyA.LinearVelocity - bodyB.LinearVelocity).Dot(impactResult.ContactNormal);
+        const float vRel = (bodyA.LinearVelocity - bodyB.LinearVelocity).Dot(impactResult.ContactNormalBtoA);
 
         // Only resolve if bodies are moving towards each other
         if (vRel < -RESTING_VELOCITY_THRESHOLD)
@@ -644,7 +638,7 @@ PhysicsSolver::DoCollisions([[maybe_unused]] const float dt)
             // vA' += n * -(1 + e) * vRel * mB/(mA + mB))
 
             const float k = -(1 + COEFF_OF_RESTITUTION) * vRel / (bodyA.Mass.Value() + bodyB.Mass.Value());
-            const Vec3f u = k * impactResult.ContactNormal;
+            const Vec3f u = k * impactResult.ContactNormalBtoA;
 
             bodyA.LinearVelocity += u * bodyB.Mass.Value();
             bodyB.LinearVelocity -= u * bodyA.Mass.Value();
@@ -655,7 +649,7 @@ PhysicsSolver::DoCollisions([[maybe_unused]] const float dt)
             // treat this as a resting contact.
 
             const float k = -vRel / (bodyA.Mass.Value() + bodyB.Mass.Value());
-            const Vec3f u = k * impactResult.ContactNormal;
+            const Vec3f u = k * impactResult.ContactNormalBtoA;
 
             bodyA.LinearVelocity += u * bodyB.Mass.Value();
             bodyB.LinearVelocity -= u * bodyA.Mass.Value();
@@ -677,7 +671,7 @@ PhysicsSolver::DoCollisions([[maybe_unused]] const float dt)
                 std::max(0.0f, impactResult.PenetrationDepth - correctionSlop) *
                 positionalCorrectionPercent;
 
-            const Vec3f correction = correctionMagnitude * impactResult.ContactNormal / invMassSum;
+            const Vec3f correction = correctionMagnitude * impactResult.ContactNormalBtoA / invMassSum;
 
             m_Trs1[indexA].T += correction * invMA;
             m_Trs1[indexB].T -= correction * invMB;
@@ -745,44 +739,48 @@ PhysicsSolver::SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResul
     const TrsTransformf& transformB0 = m_Trs0[pair.IndexB()];
     const TrsTransformf& transformB1 = m_Trs1[pair.IndexB()];
 
-    const Vec3 p0 = transformA0.T - transformB0.T;
-    const Vec3 p1 = transformA1.T - transformB1.T;
-    const Vec3 relMo = p1 - p0;
+    const Vec3 relP0 = transformA0.T - transformB0.T;
+    const Vec3 relP1 = transformA1.T - transformB1.T;
+    const Vec3 relMo = relP1 - relP0;
     const float r = radiusA + radiusB;
     const float r2 = r * r;
-    const float dist0Sqr = p0.Dot(p0);
+    const float dist0Sqr = relP0.Dot(relP0);
 
     // "c" term of the quadratic equation.
     // Square distance between centers at start of time step minus square of sum of radii.
-    const float c = dist0Sqr - r2; // If <= 0, already overlapping at start of time step.
+    const float c = dist0Sqr - r2;
 
     if(c <= 0)
     {
+        // Already overlapping at time t0.
+
         const float dist0 = std::sqrtf(dist0Sqr);
 
-        //Overlapping during the time step.  We can treat this as an immediate collision at t=0.
+        //Treat this as an immediate collision at t0.
         impactResult.Alpha = 0.0f;
+
         if(dist0 < EPSILON)
         {
             // Centers are extremely close.  Try setting contact normal based on relative motion.
             const float relMoLenSq = relMo.Dot(relMo);
-            if (relMoLenSq > EPSILON_SQ)
+            if (relMoLenSq >= EPSILON_SQ)
             {
-                // Relative motion is also extremely small.  Just pick an arbitrary contact normal.
-                impactResult.ContactNormal = Vec3f{ 1, 0, 0 };
+                impactResult.ContactNormalBtoA = relMo / std::sqrtf(relMoLenSq);
             }
             else
             {
-                impactResult.ContactNormal = relMo / std::sqrtf(relMoLenSq);
+                // Relative motion is also extremely small.  Just pick an arbitrary contact normal.
+                impactResult.ContactNormalBtoA = Vec3f{ 1, 0, 0 };
             }
         }
         else
         {
-            impactResult.ContactNormal = p0 / dist0;
+            // Spheres overlapping so contact normal is direction from one center to the other
+            // at time t0.
+            impactResult.ContactNormalBtoA = relP0 / dist0;
         }
 
-        impactResult.ContactPoint = transformB0.T + impactResult.ContactNormal * radiusB;
-
+        impactResult.ContactPoint = transformB0.T + impactResult.ContactNormalBtoA * radiusB;
         impactResult.PenetrationDepth = r - dist0;
         impactResult.PosAtImpactA = transformA0.T;
         impactResult.PosAtImpactB = transformB0.T;
@@ -801,7 +799,7 @@ PhysicsSolver::SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResul
     // "b" term of the quadratic equation.
     // Projection of the vector from B0 to A0, which is the initial relative position, onto
     // the relative motion vector from (A0-B0) to (A1-B1).
-    const float b = 2.0f * relMo.Dot(p0);
+    const float b = 2.0f * relMo.Dot(relP0);
     if(b > 0)
     {
         // Moving apart.  Can't collide.
@@ -834,17 +832,17 @@ PhysicsSolver::SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResul
     impactResult.Alpha = t;
 
     // Centers at time of impact.
-    const Vec3f centerA = transformA0.T + (transformA1.T - transformA0.T) * t;
-    const Vec3f centerB = transformB0.T + (transformB1.T - transformB0.T) * t;
+    impactResult.PosAtImpactA = transformA0.T + (transformA1.T - transformA0.T) * t;
+    impactResult.PosAtImpactB = transformB0.T + (transformB1.T - transformB0.T) * t;
 
     // Vector between centers.
-    const Vec3f n = centerA - centerB;
-    impactResult.ContactNormal = n / r; // Normalize by sum of radii, since at impact distance
-                                        // between centers is equal to sum of radii.
-    impactResult.ContactPoint = centerB + impactResult.ContactNormal * radiusB;
+    impactResult.ContactNormalBtoA = impactResult.PosAtImpactA - impactResult.PosAtImpactB;
+    // Normalize by sum of radii, since at impact distance between centers is equal to sum of radii.
+    // Saves a sqrt operation.
+    impactResult.ContactNormalBtoA /= r;
+    impactResult.ContactPoint =
+        impactResult.PosAtImpactB + (impactResult.ContactNormalBtoA * radiusB);
     impactResult.PenetrationDepth = 0;
-    impactResult.PosAtImpactA = centerA;
-    impactResult.PosAtImpactB = centerB;
 
     return true;
 }
