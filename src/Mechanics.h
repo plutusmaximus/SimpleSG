@@ -11,10 +11,12 @@ public:
     constexpr explicit Mass(float value)
         : m_Value(value)
     {
-        MLG_ASSERT(value >= 0.0f, "Mass must not be negative");
+        MLG_ASSERT(value > 0.0f, "Mass must be positive");
+        m_InvValue = 1.0f / value;
     }
 
     constexpr float Value() const { return m_Value; }
+    constexpr float InvValue() const { return m_InvValue; }
 
     friend constexpr bool operator==(Mass a, Mass b) = default;
     friend constexpr auto operator<=>(Mass a, Mass b) = default;
@@ -89,4 +91,5 @@ public:
 
 private:
     float m_Value{ 0.0f };
+    float m_InvValue{ 0.0f };
 };
