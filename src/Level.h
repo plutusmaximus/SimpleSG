@@ -74,7 +74,7 @@ public:
 
     float Radius() const { return m_Radius; }
 
-    SphereCollider GetSphereCollider() const { return *this; }
+    float GetSphereRadius() const { return m_Radius; }
 
 private:
 
@@ -93,8 +93,8 @@ public:
 
     Vec3f HalfExtents() const { return m_HalfExtents; }
 
-    // The sphere that encloses the box.
-    SphereCollider GetSphereCollider() const { return SphereCollider(m_SphereRadius); }
+    // Radius of the sphere that encloses the box.
+    float GetSphereRadius() const { return m_SphereRadius; }
 
 private:
     Vec3f m_HalfExtents;
@@ -114,8 +114,8 @@ public:
     float Radius() const { return m_Radius; }
     float HalfHeight() const { return m_HalfHeight; }
 
-    // The sphere that encloses the capsule.
-    SphereCollider GetSphereCollider() const { return SphereCollider(m_Radius + m_HalfHeight); }
+    // Radius of the sphere that encloses the capsule.
+    float GetSphereRadius() const { return m_Radius + m_HalfHeight; }
 
 private:
     float m_Radius;
@@ -147,9 +147,9 @@ public:
     {
     }
 
-    SphereCollider GetSphereCollider() const
+    float GetSphereRadius() const
     {
-        return std::visit([](const auto& shape) { return shape.GetSphereCollider(); }, m_Shape);
+        return std::visit([](const auto& shape) { return shape.GetSphereRadius(); }, m_Shape);
     }
 
 private:

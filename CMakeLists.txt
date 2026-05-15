@@ -164,6 +164,7 @@ set(SSG_SOURCES
   src/Level.cpp
   src/Log.cpp
   src/PerfMetrics.cpp
+  src/PhysicsSolver.cpp
   src/Projection.cpp
   src/PropKit.cpp
   src/Renderer.cpp
@@ -191,6 +192,7 @@ set(SSG_HEADERS
   src/Log.h
   src/Mechanics.h
   src/PerfMetrics.h
+  src/PhysicsSolver.h
   src/PoolAllocator.h
   src/Projection.h
   src/PropKit.h
@@ -262,6 +264,11 @@ add_sample_executable(Viewer samples/Viewer.cpp)
 # Executable: Orbit
 # ============================================================
 add_sample_executable(Orbit samples/Orbit.cpp)
+
+# ============================================================
+# Executable: Collision
+# ============================================================
+add_sample_executable(Collision samples/Collision.cpp)
 
 # ============================================================
 # Executable: Tests
