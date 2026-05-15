@@ -5,34 +5,33 @@
 #include "VecMath.h"
 
 #include <algorithm>
-#include <array>
 
 class BodyPair
 {
 public:
 
-    BodyPair(const size_t indexA, const size_t indexB)
+    BodyPair(size_t indexA, size_t indexB)
     {
         // Ensure the pair is always stored in a consistent order.
         // This enables identifying and skipping duplicate pairs.
         if(indexA < indexB)
         {
-            m_Indices[0] = indexA;
-            m_Indices[1] = indexB;
+            m_IndexA = indexA;
+            m_IndexB = indexB;
         }
         else
         {
-            m_Indices[0] = indexB;
-            m_Indices[1] = indexA;
+            m_IndexA = indexB;
+            m_IndexB = indexA;
         }
     }
 
-    size_t IndexA() const { return m_Indices[0]; }
-    size_t IndexB() const { return m_Indices[1]; }
+    size_t IndexA() const { return m_IndexA; }
+    size_t IndexB() const { return m_IndexB; }
 
     bool operator==(const BodyPair& that) const
     {
-        return m_Indices == that.m_Indices;
+        return (m_IndexA == that.m_IndexA && m_IndexB == that.m_IndexB);
     }
 
     bool operator!=(const BodyPair& that) const
@@ -42,12 +41,18 @@ public:
 
     auto operator<=>(const BodyPair& that) const
     {
-        return m_Indices <=> that.m_Indices;
+        if(m_IndexA != that.m_IndexA)
+        {
+            return m_IndexA <=> that.m_IndexA;
+        }
+
+        return m_IndexB <=> that.m_IndexB;
     }
 
 private:
 
-    std::array<size_t, 2> m_Indices;
+    size_t m_IndexA;
+    size_t m_IndexB;
 };
 
 struct ImpactResult
@@ -350,15 +355,17 @@ private:
 
     void PredictPositions(const float dt);
 
+    void FindImpacts();
+
+    void ResolveImpact(const ImpactRecord& impact);
+
     void ResolveAllImpacts();
 
-    void FindImpacts();
+    void FindAndResolveAllImpacts();
 
     void UpdateVelocities(const float dt);
 
     bool SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResult) const;
-
-    void ResolveImpact(const ImpactRecord& impact);
 
     std::vector<Level::NodeHandle> m_NodeHandles;
     std::vector<TrsTransformf> m_TransformPool[2];

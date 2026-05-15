@@ -28,7 +28,7 @@ static constexpr const char* APP_NAME = "Orbit";
 static constexpr float PHYSICS_FPS = 60.0f;
 static constexpr float PHYSICS_TIME_STEP = 1.0f/PHYSICS_FPS;
 static constexpr float RENDER_FPS = 60.0f;
-static constexpr float GRAVITATIONAL_CONSTANT = 0.01f;//6.674e-11f;//(m^3 kg^-1 s^-2)
+static constexpr float GRAVITATIONAL_CONSTANT = 0.1f;//6.674e-11f;//(m^3 kg^-1 s^-2)
 
 namespace
 {
@@ -122,8 +122,9 @@ Load(const std::filesystem::path& path,
         const float radius = MIN_RADIUS + std::abs(dis(gen)) * (MAX_RADIUS - MIN_RADIUS);
         const float mass = radius;
         const Vec3f position{ dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE };
-        const Vec3f velocity = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize() *
+        const Vec3f velocity1 = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize() *
                                (MIN_SPEED + std::abs(dis(gen)) * (MAX_SPEED - MIN_SPEED));
+        const Vec3f velocity{0};
 
         LevelNodeDef nodeDef//
         {
@@ -510,9 +511,8 @@ static Result<> RenderGui(const PhysicsSolver& solver)
     ImGui::Text("Kinetic Energy: %.3f", kineticEnergy);
     ImGui::Text("Potential Energy: %.3f", potentialEnergy);
     ImGui::Text("Total Energy: %.3f", kineticEnergy + potentialEnergy);
+
     ImGui::End();
-
-
 
     return Result<>::Ok;
 }
