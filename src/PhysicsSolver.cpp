@@ -63,7 +63,8 @@ PhysicsSolver::AddForce(size_t bodyIndex, const Vec3f& force)
 {
     MLG_ASSERT(bodyIndex < m_Bodies.size(), "Body index out of range");
 
-    m_A1[bodyIndex] += force * m_Bodies[bodyIndex].Mass.InvValue();
+    // Accumulate accelerations for the current frame.
+    m_A0[bodyIndex] += force * m_Bodies[bodyIndex].Mass.InvValue();
 }
 
 static constexpr int MAX_SUBSTEPS = 0;
@@ -77,9 +78,12 @@ PhysicsSolver::Update(const float timeStep)
     if constexpr (MAX_SUBSTEPS == 0)
     {
         std::swap(m_Trs0, m_Trs1);
+        // Update velocities based on accelerations accumulated this frame.
+        UpdateVelocities(timeStep);
         PredictPositions(timeStep);
         FindAndResolveAllImpacts();
-        UpdateVelocities(timeStep);
+        std::swap(m_Am1, m_A0);
+        std::fill(m_A0.begin(), m_A0.end(), Vec3f{ 0 });
         return;
     }
 
@@ -163,6 +167,27 @@ PhysicsSolver::ComputeKineticEnergy() const
 // private:
 
 void
+PhysicsSolver::UpdateVelocities(const float dt)
+{
+    static PerfTimer perfTimer("Physics.UpdateVelocities");
+    auto scopedTimer = perfTimer.StartScoped();
+
+    // FIXME(KB) - caller should account for dt not being the entire timestep,
+    // but a substep due to collision events.
+    for (size_t i = 0; i < m_Bodies.size(); ++i)
+    {
+        // Acceleration can change over the timestep due to, e.g., gravity.
+        // So it's incorrect to use a single acceleration over the timestep.
+        // Instead we approximate the integral of the acceleration function
+        // using the trapezoidal rule:
+        // integral from t0 to t1 of a(t) dt ~= (t1 - t0) * (a(t0) + a(t1)) / 2
+
+        // m_Am1 is from the previous frame, and m_A0 is from the current frame.
+        m_Bodies[i].LinearVelocity += (m_Am1[i] + m_A0[i]) * dt * 0.5f;
+    }
+}
+
+void
 PhysicsSolver::PredictPositions(const float dt)
 {
     static PerfTimer perfTimer("Physics.PredictPositions");
@@ -174,6 +199,10 @@ PhysicsSolver::PredictPositions(const float dt)
         // p = ∫ v dt
         // v = v0 + a * t
         // p1 = ∫ (v0 + a * t) dt = v0 * dt + (a * dt^2) / 2 + p0
+
+        // Use velocity/acceleration from current frame.
+        // Note that this frame's velocity was computed from
+        // the previous and current frame's acceleration.
         m_Trs1[i].T = (m_Bodies[i].LinearVelocity * dt) + ((m_A0[i] * dt * dt) / 2) + m_Trs0[i].T;
     }
 }
@@ -318,28 +347,6 @@ PhysicsSolver::FindAndResolveAllImpacts()
 
         ResolveImpact(ImpactRecord(bodyPair, impactResult));
     }
-}
-
-void
-PhysicsSolver::UpdateVelocities(const float dt)
-{
-    static PerfTimer perfTimer("Physics.UpdateVelocities");
-    auto scopedTimer = perfTimer.StartScoped();
-
-    // FIXME(KB) - caller should account for dt not being the entire timestep,
-    // but a substep due to collision events.
-    for (size_t i = 0; i < m_Bodies.size(); ++i)
-    {
-        // Acceleration can change over the timestep due to, e.g., gravity.
-        // So it's incorrect to use a single acceleration over the timestep.
-        // Instead we approximate the integral of the acceleration function
-        // using the trapezoidal rule:
-        // integral from t0 to t1 of a(t) dt ~= (t1 - t0) * (a(t0) + a(t1)) / 2
-        m_Bodies[i].LinearVelocity += (m_A0[i] + m_A1[i]) * dt * 0.5f;
-    }
-
-    std::swap(m_A0, m_A1);
-    std::fill(m_A1.begin(), m_A1.end(), Vec3f{ 0 });
 }
 
 bool

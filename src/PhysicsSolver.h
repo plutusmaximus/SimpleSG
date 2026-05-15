@@ -349,9 +349,11 @@ private:
         m_AccelerationPool[1].resize(m_Bodies.size(), Vec3f{ 0 });
         m_Trs0 = m_TransformPool[0];
         m_Trs1 = m_TransformPool[1];
-        m_A0 = m_AccelerationPool[0];
-        m_A1 = m_AccelerationPool[1];
+        m_Am1 = m_AccelerationPool[0];
+        m_A0 = m_AccelerationPool[1];
     }
+
+    void UpdateVelocities(const float dt);
 
     void PredictPositions(const float dt);
 
@@ -362,8 +364,6 @@ private:
     void ResolveAllImpacts();
 
     void FindAndResolveAllImpacts();
-
-    void UpdateVelocities(const float dt);
 
     bool SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResult) const;
 
@@ -376,10 +376,10 @@ private:
     std::span<TrsTransformf> m_Trs0;
     //Predicted transforms for the next frame.
     std::span<TrsTransformf> m_Trs1;
-    //Accelerations for the current frame.
+    //Accelerations for the last frame.
+    std::span<Vec3f> m_Am1;
+    //Predicted accelerations for the current frame.
     std::span<Vec3f> m_A0;
-    //Predicted accelerations for the next frame.
-    std::span<Vec3f> m_A1;
 
     GridHash<GRID_CELL_SIZE> m_GridHash;
 

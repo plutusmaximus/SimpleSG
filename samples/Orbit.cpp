@@ -153,6 +153,8 @@ Load(const std::filesystem::path& path,
     return Result<>::Ok;
 }
 
+static float s_TotalPotentialEnergy = 0.0f;
+
 static void ApplyGravity(PhysicsSolver& solver)
 {
     static PerfTimer perfTimer("Physics.ApplyGravity");
@@ -161,6 +163,8 @@ static void ApplyGravity(PhysicsSolver& solver)
     const std::span<const RigidBody> bodies = solver.GetBodies();
     const std::span<const TrsTransformf> transforms = solver.GetTransforms();
     const std::span<const Collider> colliders = solver.GetColliders();
+
+    s_TotalPotentialEnergy = 0;
 
     // Compute gravitational forces between all pairs of bodies.
     for(size_t i = 0; i < bodies.size(); ++i)
@@ -188,7 +192,12 @@ static void ApplyGravity(PhysicsSolver& solver)
             // If bodies overlap clamp to minimum separation.
             const float r2 = std::max(delta.Dot(delta), minSeparationSq);
             const float massProduct = massA * massB;
-            const Vec3f F = GRAVITATIONAL_CONSTANT * massProduct * delta / (r2 * std::sqrtf(r2));
+
+            const float pe = -GRAVITATIONAL_CONSTANT * massProduct / std::sqrtf(r2);
+            const Vec3f F = -pe * delta / r2;
+            //const Vec3f F = GRAVITATIONAL_CONSTANT * massProduct * delta / (r2 * std::sqrtf(r2));
+
+            s_TotalPotentialEnergy += pe;
 
             solver.AddForce(i, F);
             solver.AddForce(j, -F);
@@ -238,37 +247,6 @@ static void ApplyStoppingImpulse(PhysicsSolver& solver)
         const Vec3f impulse = -bodies[i].LinearVelocity * bodies[i].Mass.Value() / PHYSICS_TIME_STEP;
         solver.AddForce(i, impulse);
     }
-}
-
-static float ComputePotentialEnergy(const PhysicsSolver& solver)
-{
-    float totalEnergy = 0.0f;
-
-    const std::span<const RigidBody> bodies = solver.GetBodies();
-    const std::span<const TrsTransformf> transforms = solver.GetTransforms();
-    const std::span<const Collider> colliders = solver.GetColliders();
-
-    for(size_t i = 0; i < bodies.size(); ++i)
-    {
-        const float massA = bodies[i].Mass.Value();
-        const Vec3f posA = transforms[i].T;
-        const float radiusA = colliders[i].GetSphereRadius();
-
-        for(size_t j = i + 1; j < bodies.size(); ++j)
-        {
-            const float massB = bodies[j].Mass.Value();
-            const Vec3f posB = transforms[j].T;
-            const float radiusB = colliders[j].GetSphereRadius();
-            const float minSeparation = radiusA + radiusB;
-            const float minSeparationSq = minSeparation * minSeparation;
-            const float r2 = (posB - posA).Dot(posB - posA);
-            const float r = r2 < minSeparationSq ? minSeparation : std::sqrtf(r2);
-
-            totalEnergy += -GRAVITATIONAL_CONSTANT * massA * massB / r;
-        }
-    }
-
-    return totalEnergy;
 }
 
 static Result<>
@@ -506,11 +484,10 @@ static Result<> RenderGui(const PhysicsSolver& solver)
     }
 
     const float kineticEnergy = solver.ComputeKineticEnergy();
-    const float potentialEnergy = ComputePotentialEnergy(solver);
     ImGui::Separator();
     ImGui::Text("Kinetic Energy: %.3f", kineticEnergy);
-    ImGui::Text("Potential Energy: %.3f", potentialEnergy);
-    ImGui::Text("Total Energy: %.3f", kineticEnergy + potentialEnergy);
+    ImGui::Text("Potential Energy: %.3f", s_TotalPotentialEnergy);
+    ImGui::Text("Total Energy: %.3f", kineticEnergy + s_TotalPotentialEnergy);
 
     ImGui::End();
 
