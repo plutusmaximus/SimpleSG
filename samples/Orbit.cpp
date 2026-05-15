@@ -122,9 +122,8 @@ Load(const std::filesystem::path& path,
         const float radius = MIN_RADIUS + std::abs(dis(gen)) * (MAX_RADIUS - MIN_RADIUS);
         const float mass = radius;
         const Vec3f position{ dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE };
-        const Vec3f velocity1 = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize() *
+        const Vec3f velocity = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize() *
                                (MIN_SPEED + std::abs(dis(gen)) * (MAX_SPEED - MIN_SPEED));
-        const Vec3f velocity{0};
 
         LevelNodeDef nodeDef//
         {
@@ -155,6 +154,9 @@ Load(const std::filesystem::path& path,
 
 static void ApplyGravity(PhysicsSolver& solver)
 {
+    static PerfTimer perfTimer("Physics.ApplyGravity");
+    auto scopedTimer = perfTimer.StartScoped();
+
     const std::span<const RigidBody> bodies = solver.GetBodies();
     const std::span<const TrsTransformf> transforms = solver.GetTransforms();
     const std::span<const Collider> colliders = solver.GetColliders();
@@ -169,10 +171,10 @@ static void ApplyGravity(PhysicsSolver& solver)
         for(size_t j = i + 1; j < bodies.size(); ++j)
         {
             const float radiusB = colliders[j].GetSphereRadius();
+            const float massB = bodies[j].Mass.Value();
+
             const float minSeparation = radiusA + radiusB;
             const float minSeparationSq = minSeparation * minSeparation;
-
-            const float massB = bodies[j].Mass.Value();
 
             // Vector from body A to body B
             const Vec3f& posB = transforms[j].T;
@@ -193,7 +195,7 @@ static void ApplyGravity(PhysicsSolver& solver)
     }
 }
 
-static void ApplyExplosionImpulse(PhysicsSolver& solver, const float power)
+static void ApplyExplosionImpulse(PhysicsSolver& solver, const float magnitude)
 {
     const std::span<const RigidBody> bodies = solver.GetBodies();
     std::mt19937 gen;
@@ -202,6 +204,13 @@ static void ApplyExplosionImpulse(PhysicsSolver& solver, const float power)
 
     for(size_t i = 0; i < bodies.size(); ++i)
     {
+        // Impulse is force integrated over time.
+        // J = integral from t0 to t1 ​​F(t)dt
+        // J = F * dt (if we assume the force is constant over the time step)
+        // F = J / dt
+        // F = mv / dt (to achieve a change in velocity of v over the time step)
+
+        // Randomize the direction of the impulse.
         Vec3f normal //
             {
                 dis(gen) * (sign(gen) ? 1.0f : -1.0f),
@@ -210,8 +219,11 @@ static void ApplyExplosionImpulse(PhysicsSolver& solver, const float power)
             };
 
         normal.Normalize();
-        const Vec3f impulse = -normal * bodies[i].Mass.Value() / PHYSICS_TIME_STEP;
-        solver.AddForce(i, impulse * power);
+        const Vec3f v = normal * magnitude;
+        const float m = bodies[i].Mass.Value();
+
+        const Vec3f force = m * v / PHYSICS_TIME_STEP;
+        solver.AddForce(i, force);
     }
 }
 
@@ -221,6 +233,7 @@ static void ApplyStoppingImpulse(PhysicsSolver& solver)
 
     for(size_t i = 0; i < bodies.size(); ++i)
     {
+        // Apply the impulse opposite to current velocity.
         const Vec3f impulse = -bodies[i].LinearVelocity * bodies[i].Mass.Value() / PHYSICS_TIME_STEP;
         solver.AddForce(i, impulse);
     }

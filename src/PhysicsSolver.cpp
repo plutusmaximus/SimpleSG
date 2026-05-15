@@ -1,5 +1,10 @@
 #include "PhysicsSolver.h"
 
+#include "PerfMetrics.h"
+
+static constexpr float RESTING_VELOCITY_THRESHOLD = 0.01f;
+static constexpr float COEFF_OF_RESTITUTION = 0.8f;
+
 Result<>
 PhysicsSolver::Create(const Level& level, PhysicsSolver& outSolver)
 {
@@ -65,13 +70,16 @@ void
 PhysicsSolver::Update(const float dt)
 {
     UpdatePositions(dt);
-    DoCollisions(dt);
+    DoCollisions();
     UpdateVelocities(dt);
 }
 
 void
 PhysicsSolver::UpdatePositions(const float dt)
 {
+    static PerfTimer perfTimer("Physics.UpdatePositions");
+    auto scopedTimer = perfTimer.StartScoped();
+
     std::swap(m_Trs0, m_Trs1);
 
     for (size_t i = 0; i < m_Bodies.size(); ++i)
@@ -87,6 +95,9 @@ PhysicsSolver::UpdatePositions(const float dt)
 void
 PhysicsSolver::UpdateVelocities(const float dt)
 {
+    static PerfTimer perfTimer("Physics.UpdateVelocities");
+    auto scopedTimer = perfTimer.StartScoped();
+
     // FIXME(KB) - caller should account for dt not being the entire timestep,
     // but a substep due to collision events.
     for (size_t i = 0; i < m_Bodies.size(); ++i)
@@ -104,14 +115,19 @@ PhysicsSolver::UpdateVelocities(const float dt)
 }
 
 void
-PhysicsSolver::DoCollisions([[maybe_unused]] const float dt)
+PhysicsSolver::DoCollisions()
 {
+    static PerfTimer perfTimer("Physics.DoCollisions");
+    auto scopedTimer = perfTimer.StartScoped();
+
     m_GridHash.Clear();
 
     for(size_t i = 0; i < m_Bodies.size(); ++i)
     {
         m_GridHash.Add(m_Trs0[i].T, m_Trs1[i].T, m_Colliders[i], i);
     }
+
+    ImpactRecord firstImpact(BodyPair(0, 0), ImpactResult{.Alpha = 2});
 
     for(const BodyPair& bodyPair : m_GridHash)
     {
@@ -120,6 +136,11 @@ PhysicsSolver::DoCollisions([[maybe_unused]] const float dt)
         if(!SphereSphereSweep(bodyPair, impactResult))
         {
             continue;
+        }
+
+        if(impactResult.Alpha < firstImpact.GetResult().Alpha)
+        {
+            firstImpact = ImpactRecord(bodyPair, impactResult);
         }
 
         const size_t indexA = bodyPair.IndexA();
@@ -220,6 +241,9 @@ PhysicsSolver::ComputeKineticEnergy() const
 bool
 PhysicsSolver::SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResult) const
 {
+    static PerfTimer perfTimer("Physics.DoCollisions.SphereSphereSweep");
+    auto scopedTimer = perfTimer.StartScoped();
+
     constexpr float EPSILON = 1e-6f;
     constexpr float EPSILON_SQ = EPSILON * EPSILON;
 

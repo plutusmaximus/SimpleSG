@@ -11,7 +11,7 @@ class BodyPair
 {
 public:
 
-    BodyPair(size_t indexA, size_t indexB)
+    BodyPair(const size_t indexA, const size_t indexB)
     {
         // Ensure the pair is always stored in a consistent order.
         // This enables identifying and skipping duplicate pairs.
@@ -64,7 +64,7 @@ class ImpactRecord
 {
 public:
 
-    ImpactRecord() = default;
+    ImpactRecord() = delete;
     ImpactRecord(const ImpactRecord&) = default;
     ImpactRecord& operator=(const ImpactRecord&) = default;
     ImpactRecord(ImpactRecord&&) = default;
@@ -91,6 +91,9 @@ public:
 
         return m_Result.Alpha <=> that.m_Result.Alpha;
     }
+
+    const BodyPair& GetBodies() const { return m_Bodies; }
+    const ImpactResult& GetResult() const { return m_Result; }
 
 private:
 
@@ -327,9 +330,6 @@ public:
 
 private:
 
-    static constexpr float RESTING_VELOCITY_THRESHOLD = 0.01f;
-    static constexpr float COEFF_OF_RESTITUTION = 0.8f;//0.5f;
-
     PhysicsSolver(std::vector<Level::NodeHandle>&& nodeHandles,
         std::vector<TrsTransformf>&& transforms,
         std::vector<RigidBody>&& bodies,
@@ -350,7 +350,7 @@ private:
 
     void UpdatePositions(const float dt);
 
-    void DoCollisions(const float dt);
+    void DoCollisions();
 
     void UpdateVelocities(const float dt);
 
