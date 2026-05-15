@@ -67,20 +67,97 @@ PhysicsSolver::AddForce(size_t bodyIndex, const Vec3f& force)
 }
 
 void
-PhysicsSolver::Update(const float dt)
+PhysicsSolver::Update(const float timeStep)
 {
-    UpdatePositions(dt);
-    DoCollisions();
-    UpdateVelocities(dt);
-}
-
-void
-PhysicsSolver::UpdatePositions(const float dt)
-{
-    static PerfTimer perfTimer("Physics.UpdatePositions");
+    static PerfTimer perfTimer("Physics.Update");
     auto scopedTimer = perfTimer.StartScoped();
 
+    static constexpr int MAX_SUBSTEPS = 4;
+
+    float t0 = 0.0f;
+    float dt = timeStep;
+
     std::swap(m_Trs0, m_Trs1);
+    PredictPositions(dt);
+    FindImpacts();
+
+    int count = 0;
+
+    while(count++ < MAX_SUBSTEPS && !m_ImpactRecords.empty())
+    {
+        size_t numResting;
+
+        for(numResting = 0; numResting < m_ImpactRecords.size() &&
+                       m_ImpactRecords[numResting].GetResult().Alpha <= RESTING_VELOCITY_THRESHOLD;
+            ++numResting)
+        {
+        }
+
+        if(numResting < m_ImpactRecords.size())
+        {
+            ++numResting; // Include the first non-resting impact as well.
+        }
+
+        const float t1 = t0 + m_ImpactRecords[numResting - 1].GetResult().Alpha * dt;
+
+        // Back up to time of impact.
+        PredictPositions(t1);
+
+        // Resolve impacts.
+        for(size_t index = 0; index < numResting; ++index)
+        {
+            ResolveImpact(m_ImpactRecords[index]);
+        }
+
+        t0 = t1;
+        dt = timeStep - t0;
+
+        std::swap(m_Trs0, m_Trs1);
+        PredictPositions(dt);
+        FindImpacts();
+    }
+
+    if(!m_ImpactRecords.empty())
+    {
+        ResolveAllImpacts();
+    }
+
+    UpdateVelocities(timeStep);
+}
+
+Result<>
+PhysicsSolver::SyncToLevel(Level& level)
+{
+    for(size_t i = 0; i < m_NodeHandles.size(); ++i)
+    {
+        MLG_CHECK(level.UpdateLocalTransform( m_NodeHandles[i], m_Trs0[i]));
+    }
+
+    return Result<>::Ok;
+}
+
+float
+PhysicsSolver::ComputeKineticEnergy() const
+{
+    float totalEnergy = 0.0f;
+
+    for(size_t i = 0; i < m_Bodies.size(); ++i)
+    {
+        const float mass = m_Bodies[i].Mass.Value();
+        const float speedSq = m_Bodies[i].LinearVelocity.Dot(m_Bodies[i].LinearVelocity);
+        totalEnergy += 0.5f * mass * speedSq;
+    }
+
+    return totalEnergy;
+}
+
+// private:
+
+void
+PhysicsSolver::PredictPositions(const float dt)
+{
+    static PerfTimer perfTimer("Physics.PredictPositions");
+    auto scopedTimer = perfTimer.StartScoped();
 
     for (size_t i = 0; i < m_Bodies.size(); ++i)
     {
@@ -115,19 +192,30 @@ PhysicsSolver::UpdateVelocities(const float dt)
 }
 
 void
-PhysicsSolver::DoCollisions()
+PhysicsSolver::ResolveAllImpacts()
 {
     static PerfTimer perfTimer("Physics.DoCollisions");
     auto scopedTimer = perfTimer.StartScoped();
 
+    for(const ImpactRecord& impact : m_ImpactRecords)
+    {
+        ResolveImpact(impact);
+    }
+}
+
+void
+PhysicsSolver::FindImpacts()
+{
+    static PerfTimer perfTimer("Physics.FindImpacts");
+    auto scopedTimer = perfTimer.StartScoped();
+
     m_GridHash.Clear();
+    m_ImpactRecords.clear();
 
     for(size_t i = 0; i < m_Bodies.size(); ++i)
     {
         m_GridHash.Add(m_Trs0[i].T, m_Trs1[i].T, m_Colliders[i], i);
     }
-
-    ImpactRecord firstImpact(BodyPair(0, 0), ImpactResult{.Alpha = 2});
 
     for(const BodyPair& bodyPair : m_GridHash)
     {
@@ -138,110 +226,16 @@ PhysicsSolver::DoCollisions()
             continue;
         }
 
-        if(impactResult.Alpha < firstImpact.GetResult().Alpha)
-        {
-            firstImpact = ImpactRecord(bodyPair, impactResult);
-        }
-
-        const size_t indexA = bodyPair.IndexA();
-        const size_t indexB = bodyPair.IndexB();
-
-        RigidBody& bodyA = m_Bodies[indexA];
-        RigidBody& bodyB = m_Bodies[indexB];
-
-        // Compute relative velocity along the normal
-        const float vRel = (bodyA.LinearVelocity - bodyB.LinearVelocity).Dot(impactResult.ContactNormalBtoA);
-
-        // Only resolve if bodies are moving towards each other
-        if (vRel < -RESTING_VELOCITY_THRESHOLD)
-        {
-            // Move bodies to point of impact.
-            m_Trs1[indexA].T = impactResult.PosAtImpactA;
-            m_Trs1[indexB].T = impactResult.PosAtImpactB;
-
-            // Impulse
-
-            // n = contact normal
-            // vrel ​= (vA​−vB​)⋅n
-            // j = -(1 + e) * vrel / (1/mA + 1/mB)
-            // vA' += n * (j / mA)
-            // vA' += n * -(1 + e) * vRel * (1/mA) * (1 / (1/mA + 1/mB))
-            // vA' += n * -(1 + e) * vRel * (1/(mA * (mA + mB)/(mA * mB)))
-            // vA' += n * -(1 + e) * vRel * ((mA * mB)/(mA * (mA + mB))
-            // vA' += n * -(1 + e) * vRel * mB/(mA + mB))
-
-            const float k = -(1 + COEFF_OF_RESTITUTION) * vRel / (bodyA.Mass.Value() + bodyB.Mass.Value());
-            const Vec3f u = k * impactResult.ContactNormalBtoA;
-
-            bodyA.LinearVelocity += u * bodyB.Mass.Value();
-            bodyB.LinearVelocity -= u * bodyA.Mass.Value();
-        }
-        else if(vRel < 0)
-        {
-            // Bodies are moving towards each other but below the resting velocity threshold, so we
-            // treat this as a resting contact.
-
-            const float k = -vRel / (bodyA.Mass.Value() + bodyB.Mass.Value());
-            const Vec3f u = k * impactResult.ContactNormalBtoA;
-
-            bodyA.LinearVelocity += u * bodyB.Mass.Value();
-            bodyB.LinearVelocity -= u * bodyA.Mass.Value();
-        }
-
-        // FIXME(KB) - parameterize this.
-        constexpr float correctionSlop = 1e-3f;
-
-        if(impactResult.PenetrationDepth > correctionSlop)
-        {
-            // FIXME(KB) - parameterize this.
-            constexpr float positionalCorrectionPercent = 0.1f;
-
-            const float invMA = bodyA.Mass.InvValue();
-            const float invMB = bodyB.Mass.InvValue();
-            const float invMassSum = invMA + invMB;
-
-            const float correctionMagnitude =
-                std::max(0.0f, impactResult.PenetrationDepth - correctionSlop) *
-                positionalCorrectionPercent;
-
-            const Vec3f correction = correctionMagnitude * impactResult.ContactNormalBtoA / invMassSum;
-
-            m_Trs1[indexA].T += correction * invMA;
-            m_Trs1[indexB].T -= correction * invMB;
-        }
-    }
-}
-
-Result<>
-PhysicsSolver::SyncToLevel(Level& level)
-{
-    for(size_t i = 0; i < m_NodeHandles.size(); ++i)
-    {
-        MLG_CHECK(level.UpdateLocalTransform( m_NodeHandles[i], m_Trs0[i]));
+        m_ImpactRecords.emplace_back(bodyPair, impactResult);
     }
 
-    return Result<>::Ok;
-}
-
-float
-PhysicsSolver::ComputeKineticEnergy() const
-{
-    float totalEnergy = 0.0f;
-
-    for(size_t i = 0; i < m_Bodies.size(); ++i)
-    {
-        const float mass = m_Bodies[i].Mass.Value();
-        const float speedSq = m_Bodies[i].LinearVelocity.Dot(m_Bodies[i].LinearVelocity);
-        totalEnergy += 0.5f * mass * speedSq;
-    }
-
-    return totalEnergy;
+    std::sort(m_ImpactRecords.begin(), m_ImpactRecords.end());
 }
 
 bool
 PhysicsSolver::SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResult) const
 {
-    static PerfTimer perfTimer("Physics.DoCollisions.SphereSphereSweep");
+    static PerfTimer perfTimer("Physics.SphereSphereSweep");
     auto scopedTimer = perfTimer.StartScoped();
 
     constexpr float EPSILON = 1e-6f;
@@ -381,4 +375,78 @@ PhysicsSolver::SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResul
     impactResult.PenetrationDepth = 0;
 
     return true;
+}
+
+void
+PhysicsSolver::ResolveImpact(const ImpactRecord& impact)
+{
+    const BodyPair& bodyPair = impact.GetBodies();
+    const ImpactResult& impactResult = impact.GetResult();
+
+    const size_t indexA = bodyPair.IndexA();
+    const size_t indexB = bodyPair.IndexB();
+
+    RigidBody& bodyA = m_Bodies[indexA];
+    RigidBody& bodyB = m_Bodies[indexB];
+
+    // Compute relative velocity along the normal
+    const float vRel = (bodyA.LinearVelocity - bodyB.LinearVelocity).Dot(impactResult.ContactNormalBtoA);
+
+    // Only resolve if bodies are moving towards each other
+    if (vRel < -RESTING_VELOCITY_THRESHOLD)
+    {
+        // Move bodies to point of impact.
+        m_Trs1[indexA].T = impactResult.PosAtImpactA;
+        m_Trs1[indexB].T = impactResult.PosAtImpactB;
+
+        // Impulse
+
+        // n = contact normal
+        // vrel ​= (vA​−vB​)⋅n
+        // j = -(1 + e) * vrel / (1/mA + 1/mB)
+        // vA' += n * (j / mA)
+        // vA' += n * -(1 + e) * vRel * (1/mA) * (1 / (1/mA + 1/mB))
+        // vA' += n * -(1 + e) * vRel * (1/(mA * (mA + mB)/(mA * mB)))
+        // vA' += n * -(1 + e) * vRel * ((mA * mB)/(mA * (mA + mB))
+        // vA' += n * -(1 + e) * vRel * mB/(mA + mB))
+
+        const float k = -(1 + COEFF_OF_RESTITUTION) * vRel / (bodyA.Mass.Value() + bodyB.Mass.Value());
+        const Vec3f u = k * impactResult.ContactNormalBtoA;
+
+        bodyA.LinearVelocity += u * bodyB.Mass.Value();
+        bodyB.LinearVelocity -= u * bodyA.Mass.Value();
+    }
+    else if(vRel < 0)
+    {
+        // Bodies are moving towards each other but below the resting velocity threshold, so we
+        // treat this as a resting contact.
+
+        const float k = -vRel / (bodyA.Mass.Value() + bodyB.Mass.Value());
+        const Vec3f u = k * impactResult.ContactNormalBtoA;
+
+        bodyA.LinearVelocity += u * bodyB.Mass.Value();
+        bodyB.LinearVelocity -= u * bodyA.Mass.Value();
+    }
+
+    // FIXME(KB) - parameterize this.
+    constexpr float correctionSlop = 1e-3f;
+
+    if(impactResult.PenetrationDepth > correctionSlop)
+    {
+        // FIXME(KB) - parameterize this.
+        constexpr float positionalCorrectionPercent = 0.1f;
+
+        const float invMA = bodyA.Mass.InvValue();
+        const float invMB = bodyB.Mass.InvValue();
+        const float invMassSum = invMA + invMB;
+
+        const float correctionMagnitude =
+            std::max(0.0f, impactResult.PenetrationDepth - correctionSlop) *
+            positionalCorrectionPercent;
+
+        const Vec3f correction = correctionMagnitude * impactResult.ContactNormalBtoA / invMassSum;
+
+        m_Trs1[indexA].T += correction * invMA;
+        m_Trs1[indexB].T -= correction * invMB;
+    }
 }

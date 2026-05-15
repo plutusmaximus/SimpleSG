@@ -318,7 +318,7 @@ public:
 
     void AddForce(size_t bodyIndex, const Vec3f& force);
 
-    void Update(const float dt);
+    void Update(const float timeStep);
 
     Result<> SyncToLevel(Level& level);
 
@@ -348,13 +348,17 @@ private:
         m_A1 = m_AccelerationPool[1];
     }
 
-    void UpdatePositions(const float dt);
+    void PredictPositions(const float dt);
 
-    void DoCollisions();
+    void ResolveAllImpacts();
+
+    void FindImpacts();
 
     void UpdateVelocities(const float dt);
 
     bool SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResult) const;
+
+    void ResolveImpact(const ImpactRecord& impact);
 
     std::vector<Level::NodeHandle> m_NodeHandles;
     std::vector<TrsTransformf> m_TransformPool[2];
@@ -371,4 +375,6 @@ private:
     std::span<Vec3f> m_A1;
 
     GridHash<GRID_CELL_SIZE> m_GridHash;
+
+    std::vector<ImpactRecord> m_ImpactRecords;
 };
