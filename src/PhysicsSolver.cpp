@@ -84,58 +84,59 @@ PhysicsSolver::Update(const float timeStep)
         FindAndResolveAllImpacts();
         std::swap(m_Am1, m_A0);
         std::fill(m_A0.begin(), m_A0.end(), Vec3f{ 0 });
-        return;
     }
-
-    float t0 = 0.0f;
-    float dt = timeStep;
-
-    std::swap(m_Trs0, m_Trs1);
-    PredictPositions(dt);
-    FindImpacts();
-
-    int count = 0;
-
-    while(count++ < MAX_SUBSTEPS && !m_ImpactRecords.empty())
+    else
     {
-        size_t numResting;
-
-        for(numResting = 0; numResting < m_ImpactRecords.size() &&
-                       m_ImpactRecords[numResting].GetResult().Alpha <= RESTING_VELOCITY_THRESHOLD;
-            ++numResting)
-        {
-        }
-
-        if(numResting < m_ImpactRecords.size())
-        {
-            ++numResting; // Include the first non-resting impact as well.
-        }
-
-        const float t1 = t0 + m_ImpactRecords[numResting - 1].GetResult().Alpha * dt;
-
-        // Back up to time of impact.
-        PredictPositions(t1);
-
-        // Resolve impacts.
-        for(size_t index = 0; index < numResting; ++index)
-        {
-            ResolveImpact(m_ImpactRecords[index]);
-        }
-
-        t0 = t1;
-        dt = timeStep - t0;
+        float t0 = 0.0f;
+        float dt = timeStep;
 
         std::swap(m_Trs0, m_Trs1);
         PredictPositions(dt);
         FindImpacts();
-    }
 
-    if(!m_ImpactRecords.empty())
-    {
-        ResolveAllImpacts();
-    }
+        int count = 0;
 
-    UpdateVelocities(timeStep);
+        while(count++ < MAX_SUBSTEPS && !m_ImpactRecords.empty())
+        {
+            size_t numResting;
+
+            for(numResting = 0; numResting < m_ImpactRecords.size() &&
+                        m_ImpactRecords[numResting].GetResult().Alpha <= RESTING_VELOCITY_THRESHOLD;
+                ++numResting)
+            {
+            }
+
+            if(numResting < m_ImpactRecords.size())
+            {
+                ++numResting; // Include the first non-resting impact as well.
+            }
+
+            const float t1 = t0 + m_ImpactRecords[numResting - 1].GetResult().Alpha * dt;
+
+            // Back up to time of impact.
+            PredictPositions(t1);
+
+            // Resolve impacts.
+            for(size_t index = 0; index < numResting; ++index)
+            {
+                ResolveImpact(m_ImpactRecords[index]);
+            }
+
+            t0 = t1;
+            dt = timeStep - t0;
+
+            std::swap(m_Trs0, m_Trs1);
+            PredictPositions(dt);
+            FindImpacts();
+        }
+
+        if(!m_ImpactRecords.empty())
+        {
+            ResolveAllImpacts();
+        }
+
+        UpdateVelocities(timeStep);
+    }
 }
 
 Result<>

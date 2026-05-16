@@ -13,6 +13,7 @@
 #include "scope_exit.h"
 #include "Shapes.h"
 #include "Stopwatch.h"
+#include "ThreadPool.h"
 #include "WebgpuHelper.h"
 
 #include <filesystem>
@@ -122,9 +123,8 @@ Load(const std::filesystem::path& path,
         const float radius = MIN_RADIUS + std::abs(dis(gen)) * (MAX_RADIUS - MIN_RADIUS);
         const float mass = radius;
         const Vec3f position{ dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE };
-        const Vec3f velocity1 = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize() *
+        const Vec3f velocity = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize() *
                                (MIN_SPEED + std::abs(dis(gen)) * (MAX_SPEED - MIN_SPEED));
-        const Vec3f velocity{0};
 
         LevelNodeDef nodeDef//
         {
@@ -155,34 +155,52 @@ Load(const std::filesystem::path& path,
 
 static float s_TotalPotentialEnergy = 0.0f;
 
-static void ApplyGravity(PhysicsSolver& solver)
+struct ApplyGravityBatchParams
 {
-    static PerfTimer perfTimer("Physics.ApplyGravity");
-    auto scopedTimer = perfTimer.StartScoped();
+    const size_t StartIndexA{0};
+    const size_t StartIndexB{0};
+    const size_t BatchSize{0};
 
-    const std::span<const RigidBody> bodies = solver.GetBodies();
-    const std::span<const TrsTransformf> transforms = solver.GetTransforms();
-    const std::span<const Collider> colliders = solver.GetColliders();
+    const std::span<const RigidBody> Bodies;
+    const std::span<const TrsTransformf> Transforms;
+    const std::span<const Collider> Colliders;
 
-    s_TotalPotentialEnergy = 0;
+    std::vector<Vec3f> Forces;
+    float PotentialEnergy{0};
 
-    // Compute gravitational forces between all pairs of bodies.
-    for(size_t i = 0; i < bodies.size(); ++i)
+    std::atomic<size_t>* FinishCounter{nullptr};
+};
+
+static void ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
+{
+    batchParams->Forces.clear();
+    batchParams->Forces.resize(batchParams->Bodies.size(), Vec3f{ 0 });
+    batchParams->PotentialEnergy = 0;
+
+    size_t count = 0;
+
+    size_t j = batchParams->StartIndexB;
+
+    for(size_t i = batchParams->StartIndexA;
+        i < batchParams->Bodies.size() && count < batchParams->BatchSize;
+        ++i, j = i + 1)
     {
-        const float radiusA = colliders[i].GetSphereRadius();
-        const Vec3f posA = transforms[i].T; // For cache friendliness this is not a reference.
-        const float massA = bodies[i].Mass.Value();
+        const float radiusA = batchParams->Colliders[i].GetSphereRadius();
+        const Vec3f posA = batchParams->Transforms[i].T; // For cache friendliness this is not a reference.
+        const float massA = batchParams->Bodies[i].Mass.Value();
 
-        for(size_t j = i + 1; j < bodies.size(); ++j)
+        MLG_ASSERT(j < batchParams->Bodies.size(), "StartIndexB must be greater than StartIndexA");
+
+        for(; j < batchParams->Bodies.size() && count < batchParams->BatchSize; ++j, ++count)
         {
-            const float radiusB = colliders[j].GetSphereRadius();
-            const float massB = bodies[j].Mass.Value();
+            const float radiusB = batchParams->Colliders[j].GetSphereRadius();
+            const float massB = batchParams->Bodies[j].Mass.Value();
 
             const float minSeparation = radiusA + radiusB;
             const float minSeparationSq = minSeparation * minSeparation;
 
             // Vector from body A to body B
-            const Vec3f& posB = transforms[j].T;
+            const Vec3f& posB = batchParams->Transforms[j].T;
             const Vec3f delta = posB - posA;
 
             // Gravitational force magnitude: F = G * (M * m) / r^2
@@ -197,11 +215,114 @@ static void ApplyGravity(PhysicsSolver& solver)
             const Vec3f F = -pe * delta / r2;
             //const Vec3f F = GRAVITATIONAL_CONSTANT * massProduct * delta / (r2 * std::sqrtf(r2));
 
-            s_TotalPotentialEnergy += pe;
+            batchParams->PotentialEnergy += pe;
 
-            solver.AddForce(i, F);
-            solver.AddForce(j, -F);
+            batchParams->Forces[i] += F;
+            batchParams->Forces[j] -= F;
         }
+    }
+
+    batchParams->FinishCounter->fetch_add(1, std::memory_order_relaxed);
+}
+
+#define APPLY_GRAVITY_MULTITHREADED 1
+
+static void ApplyGravity(PhysicsSolver& solver)
+{
+    static PerfTimer perfTimer("Physics.ApplyGravity");
+    auto scopedTimer = perfTimer.StartScoped();
+
+    const std::span<const RigidBody> bodies = solver.GetBodies();
+    const std::span<const TrsTransformf> transforms = solver.GetTransforms();
+    const std::span<const Collider> colliders = solver.GetColliders();
+
+    const size_t numPairs = bodies.size() * (bodies.size() - 1) / 2;
+    const size_t workerCount = ThreadPool::GetWorkerCount();
+    const size_t batchSize = (numPairs + workerCount - 1) / workerCount;
+    const size_t numBatches = (numPairs + batchSize - 1) / batchSize;
+
+    size_t pairCount = 0;
+
+    std::atomic<size_t> finishCounter;
+    std::vector<ApplyGravityBatchParams> batches;
+    batches.reserve(numBatches);
+
+    size_t startIndexA = 0, startIndexB = 1;
+
+    for(size_t i = 0; i < bodies.size(); ++i)
+    {
+        for(size_t j = i + 1; j < bodies.size(); ++j, ++pairCount)
+        {
+            if(pairCount >= batchSize)
+            {
+                ApplyGravityBatchParams batchParams //
+                    {
+                        .StartIndexA = startIndexA,
+                        .StartIndexB = startIndexB,
+                        .BatchSize = pairCount,
+                        .Bodies = bodies,
+                        .Transforms = transforms,
+                        .Colliders = colliders,
+                        .FinishCounter = &finishCounter,
+                    };
+
+                ApplyGravityBatchParams& params = batches.emplace_back(batchParams);
+
+#if APPLY_GRAVITY_MULTITHREADED
+                ThreadPool::Enqueue<ApplyGravityBatch>(&params);
+#else
+                ApplyGravityBatch(&params);
+#endif // APPLY_GRAVITY_MULTITHREADED
+
+                pairCount = 0;
+                startIndexA = i;
+                startIndexB = j;
+            }
+        }
+    }
+
+    if(pairCount > 0)
+    {
+        // Process the last batch.
+        ApplyGravityBatchParams batchParams //
+            {
+                .StartIndexA = startIndexA,
+                .StartIndexB = startIndexB,
+                .BatchSize = pairCount,
+                .Bodies = bodies,
+                .Transforms = transforms,
+                .Colliders = colliders,
+                .FinishCounter = &finishCounter,
+            };
+
+        ApplyGravityBatchParams& params = batches.emplace_back(batchParams);
+
+#if APPLY_GRAVITY_MULTITHREADED
+        ThreadPool::Enqueue<ApplyGravityBatch>(&params);
+#else
+        ApplyGravityBatch(&params);
+#endif // APPLY_GRAVITY_MULTITHREADED
+    }
+
+#if APPLY_GRAVITY_MULTITHREADED
+    while(finishCounter.load(std::memory_order_relaxed) < batches.size())
+    {
+        std::this_thread::yield();
+    }
+#endif // APPLY_GRAVITY_MULTITHREADED
+
+    MLG_ASSERT(batches.size() == numBatches);
+
+    s_TotalPotentialEnergy = 0;
+
+    for(const auto& params : batches)
+    {
+        for(size_t i = 0; i < params.Forces.size(); ++i)
+        {
+            solver.AddForce(i, params.Forces[i]);
+        }
+
+        s_TotalPotentialEnergy += params.PotentialEnergy;
     }
 }
 
