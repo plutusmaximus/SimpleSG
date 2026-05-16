@@ -134,3 +134,7 @@ private:
 
     static inlist<PerfTimer, &PerfTimer::m_ListNode> m_Timers;
 };
+
+#define PERF_TIMER_CONCAT2(a, b) a##b
+#define PERF_TIMER_CONCAT(a, b) PERF_TIMER_CONCAT2(a, b)
+#define SCOPED_TIMER(name) static PerfTimer PERF_TIMER_CONCAT(timer, __LINE__)(name); auto PERF_TIMER_CONCAT(scopedTimer, __LINE__) = PERF_TIMER_CONCAT(timer, __LINE__).StartScoped();
