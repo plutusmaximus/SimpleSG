@@ -86,7 +86,13 @@ struct ImpactRecord
     {
         // We want to sort impact records by time of impact.
 
-        return Result.Alpha <=> that.Result.Alpha;
+        if(ImpactFound != that.ImpactFound)
+        {
+            // Records with impacts should come before records without impacts.
+            return ImpactFound ? std::strong_ordering::less : std::strong_ordering::greater;
+        }
+
+        return std::strong_order(Result.Alpha, that.Result.Alpha);
     }
 };
 
@@ -359,9 +365,6 @@ private:
     std::span<TrsTransformf> m_Trs0;
     //Predicted transforms for the next frame.
     std::span<TrsTransformf> m_Trs1;
-    // Delta velocities for the current frame.
-    // Computed during impact resolution, applied at the end of the frame.
-    std::vector<Vec3f> m_dV;
     //Accelerations for the last frame.
     std::span<Vec3f> m_Am1;
     //Predicted accelerations for the current frame.

@@ -11,7 +11,7 @@ static constexpr float COEFF_OF_RESTITUTION = 0.8f;
 Result<>
 PhysicsSolver::Create(const Level& level, PhysicsSolver& outSolver)
 {
-    std::span<const Level::NodeHandle> allHandles = level.GetAllHandles();
+    std::span allHandles = level.GetAllHandles();
 
     size_t count = 0;
     for(const auto& handle : allHandles)
@@ -151,7 +151,7 @@ PhysicsSolver::PredictPositions(const float dt)
     }
 }
 
-#define FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED 0
+#define FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED 1
 
 void
 PhysicsSolver::ResolveImpact(const ImpactRecord& impact)
@@ -237,8 +237,6 @@ PhysicsSolver::FindAndResolveAllImpacts()
 
     m_GridHash.Clear();
     m_ImpactRecords.clear();
-    m_dV.clear();
-    m_dV.resize(m_Bodies.size(), Vec3f{ 0 });
 
     for(size_t i = 0; i < m_Bodies.size(); ++i)
     {
@@ -260,12 +258,21 @@ PhysicsSolver::FindAndResolveAllImpacts()
 
     m_ImpactRecords.reserve(uniquePairCount);
 
-    struct Batch
+    struct SphereSweepBatch
     {
         std::span<ImpactRecord> Records;
         std::atomic<size_t>* FinishCounter{nullptr};
 
-        static void Process(Batch* batch)
+        void Enqueue()
+        {
+#if FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED
+            ThreadPool::Enqueue<SphereSweepBatch::Process>(this);
+#else
+            SphereSweepBatch::Process(this);
+#endif
+        }
+
+        static void Process(SphereSweepBatch* batch)
         {
             for(ImpactRecord& impactRecord : batch->Records)
             {
@@ -280,7 +287,7 @@ PhysicsSolver::FindAndResolveAllImpacts()
     const size_t batchSize = (uniquePairCount + workerCount - 1) / workerCount;
     const size_t batchCount = (uniquePairCount + batchSize - 1) / batchSize;
 
-    std::vector<Batch> batches;
+    std::vector<SphereSweepBatch> batches;
     batches.reserve(batchCount);
 
     size_t pairCount = 0;
@@ -288,80 +295,54 @@ PhysicsSolver::FindAndResolveAllImpacts()
 
     std::atomic<size_t> finishCounter;
 
-#define FOO 3
-
     for(const BodyPair& bodyPair : m_GridHash)
     {
-#if FOO == 1 || FOO == 2 || FOO == 3
         m_ImpactRecords.emplace_back(this, bodyPair);
-#endif // FOO == 1 || FOO == 2 || FOO == 3
-#if FOO == 2
         ++pairCount;
 
         if(pairCount >= batchSize)
         {
             MLG_ASSERT(batches.size() < batchCount, "Batch count exceeded expected count");
 
-            std::span<ImpactRecord> batchSpan(m_ImpactRecords);
-            Batch& batch =
-                batches.emplace_back(batchSpan.subspan(subspanStart, pairCount), &finishCounter);
+            std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
+            SphereSweepBatch& batch = batches.emplace_back(batchSpan, &finishCounter);
 
-#if FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED
-            ThreadPool::Enqueue<Batch::Process>(&batch);
-#else
-            Batch::Process(&batch);
-#endif
+            batch.Enqueue();
+
             subspanStart += pairCount;
             pairCount = 0;
         }
-#endif // FOO == 2
-
-#if FOO == 1
-        std::span<ImpactRecord> batchSpan(m_ImpactRecords);
-        Batch& batch =
-            batches.emplace_back(batchSpan.subspan(subspanStart, 1), &finishCounter);
-        Batch::Process(&batch);
-        ++subspanStart;
-#endif // FOO == 1
-
-#if FOO == 0
-        ImpactRecord impactRecord{ this, bodyPair };
-        if(SphereSphereSweep(impactRecord))
-        {
-            ResolveImpact(impactRecord);
-        }
-#endif // FOO == 0
-#if FOO == 3
-        m_ImpactRecords.back().ImpactFound = SphereSphereSweep(m_ImpactRecords.back());
-#endif // FOO == 3
     }
 
     if(pairCount > 0)
     {
-        std::span<ImpactRecord> batchSpan(m_ImpactRecords);
-        Batch& batch =
-            batches.emplace_back(batchSpan.subspan(subspanStart, pairCount), &finishCounter);
+        std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
+        SphereSweepBatch& batch = batches.emplace_back(batchSpan, &finishCounter);
 
-#if FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED
-            ThreadPool::Enqueue<Batch::Process>(&batch);
-#else
-            Batch::Process(&batch);
-#endif
+        batch.Enqueue();
     }
 
     MLG_ASSERT(batches.size() == batchCount);
 
+    // Wait for all batches to finish.
     while(finishCounter.load(std::memory_order_acquire) < batches.size())
     {
         std::this_thread::yield();
     }
 
+    // Sort impact records by time of impact, and resolve in that order.
+    // This isn't actually correct, but better than resolving out of order.
+    // Substepping will make this better.
+    std::sort(m_ImpactRecords.begin(), m_ImpactRecords.end());
+
     for(auto& ImpactRecord : m_ImpactRecords)
     {
-        if(ImpactRecord.ImpactFound)
+        if(!ImpactRecord.ImpactFound)
         {
-            ResolveImpact(ImpactRecord);
+            break;
         }
+
+        ResolveImpact(ImpactRecord);
     }
 }
 
