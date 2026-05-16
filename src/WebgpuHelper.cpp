@@ -952,7 +952,7 @@ Texture::MapBytes()
 
     m_StagingBuffer = std::move(stagingBuffer);
 
-    return std::span<std::byte>(static_cast<std::byte*>(mapped), sizeofBuffer);
+    return std::span(static_cast<std::byte*>(mapped), sizeofBuffer);
 }
 
 Result<>

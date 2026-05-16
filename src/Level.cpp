@@ -208,7 +208,7 @@ Level::Level(const PropKit* propKit, std::vector<Node>&& nodes, std::vector<char
 std::span<const Level::NodeHandle>
 Level::GetRoots() const
 {
-    return std::span<const NodeHandle>(m_NodeHandles).subspan(0, m_RootNodeCount);
+    return std::span(m_NodeHandles).subspan(0, m_RootNodeCount);
 }
 
 Result<std::span<const Level::NodeHandle>>
@@ -226,14 +226,14 @@ Level::GetChildren(const NodeHandle& handle) const
     MLG_CHECKV(handle.m_Node->FirstChildIndex.Value() + handle.m_Node->ChildCount <= m_Nodes.size(),
         "Invalid ChildCount in node");
 
-    return std::span<const NodeHandle>(m_NodeHandles).subspan(handle.m_Node->FirstChildIndex.Value(),
+    return std::span(m_NodeHandles).subspan(handle.m_Node->FirstChildIndex.Value(),
         handle.m_Node->ChildCount);
 }
 
 Result<Level::NodeHandle>
 Level::GetNodeHandle(std::initializer_list<std::string_view> path) const
 {
-    return GetNodeHandle(std::span<const std::string_view>{ path });
+    return GetNodeHandle(std::span{ path });
 }
 
 Result<const Level::Node*>
@@ -282,8 +282,8 @@ Level::UpdateWorldTransforms(std::span<Node> nodes)
 
         if(node.ChildCount > 0)
         {
-            std::span<Node> children =
-                std::span<Node>(m_Nodes).subspan(node.FirstChildIndex.Value(), node.ChildCount);
+            std::span children =
+                std::span(m_Nodes).subspan(node.FirstChildIndex.Value(), node.ChildCount);
             UpdateWorldTransforms(children);
         }
     }

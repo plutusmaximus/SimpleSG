@@ -31,8 +31,8 @@ public:
         auto get() const noexcept -> std::conditional_t<I == 0, std::span<const Vertex>, std::span<const VertexIndex>>
         {
             static_assert(I < 2);
-            if constexpr (I == 0) return std::span<const Vertex>(m_Vertices);
-            else if constexpr (I == 1) return std::span<const VertexIndex>(m_Indices);
+            if constexpr (I == 0) return std::span(m_Vertices);
+            else if constexpr (I == 1) return std::span(m_Indices);
         }
 
     private:

@@ -112,8 +112,8 @@ CountMeshes(std::span<const Model> models, std::span<const ModelInstance> modelI
 static Result<DrawIndirectBuffer>
 BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const PropKit& propKit)
 {
-    const std::span<const Mesh> meshes = propKit.GetMeshes();
-    const std::span<const Model> models = propKit.GetModels();
+    const std::span meshes = propKit.GetMeshes();
+    const std::span models = propKit.GetModels();
 
     const size_t meshInstanceCount = CountMeshes(models, modelInstances);
 
@@ -132,10 +132,11 @@ BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const Pro
 
         MLG_ASSERT(model.FirstMesh.Value() + model.MeshCount <= meshes.size(),
             "Model has invalid mesh range: first mesh {}, mesh count {} (total meshes: {})",
-            model.FirstMesh.Value(), model.MeshCount, meshes.size());
+            model.FirstMesh.Value(),
+            model.MeshCount,
+            meshes.size());
 
-        std::span<const Mesh> modelMeshes =
-            meshes.subspan(model.FirstMesh.Value(), model.MeshCount);
+        std::span modelMeshes = meshes.subspan(model.FirstMesh.Value(), model.MeshCount);
 
         for(const auto& meshSrc : modelMeshes)
         {
@@ -161,8 +162,8 @@ BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const Pro
 static Result<MeshPropertiesBuffer>
 BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const PropKit& propKit)
 {
-    const std::span<const Mesh> meshes = propKit.GetMeshes();
-    const std::span<const Model> models = propKit.GetModels();
+    const std::span meshes = propKit.GetMeshes();
+    const std::span models = propKit.GetModels();
 
     const size_t meshInstanceCount = CountMeshes(models, modelInstances);
 
@@ -181,10 +182,11 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const P
 
         MLG_ASSERT(model.FirstMesh.Value() + model.MeshCount <= meshes.size(),
             "Model has invalid mesh range: first mesh {}, mesh count {} (total meshes: {})",
-            model.FirstMesh.Value(), model.MeshCount, meshes.size());
+            model.FirstMesh.Value(),
+            model.MeshCount,
+            meshes.size());
 
-        std::span<const Mesh> modelMeshes =
-            meshes.subspan(model.FirstMesh.Value(), model.MeshCount);
+        std::span modelMeshes = meshes.subspan(model.FirstMesh.Value(), model.MeshCount);
 
         for(const auto& meshSrc : modelMeshes)
         {
