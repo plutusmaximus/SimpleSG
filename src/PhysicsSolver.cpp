@@ -1,6 +1,9 @@
 #include "PhysicsSolver.h"
 
 #include "PerfMetrics.h"
+#include "ThreadPool.h"
+
+#include <thread>
 
 static constexpr float RESTING_VELOCITY_THRESHOLD = 0.01f;
 static constexpr float COEFF_OF_RESTITUTION = 0.8f;
@@ -67,76 +70,18 @@ PhysicsSolver::AddForce(size_t bodyIndex, const Vec3f& force)
     m_A0[bodyIndex] += force * m_Bodies[bodyIndex].Mass.InvValue();
 }
 
-static constexpr int MAX_SUBSTEPS = 0;
-
 void
 PhysicsSolver::Update(const float timeStep)
 {
-    static PerfTimer perfTimer("Physics.Update");
-    auto scopedTimer = perfTimer.StartScoped();
+    MLG_SCOPED_TIMER("Physics.Update");
 
-    if constexpr (MAX_SUBSTEPS == 0)
-    {
-        std::swap(m_Trs0, m_Trs1);
-        // Update velocities based on accelerations accumulated this frame.
-        UpdateVelocities(timeStep);
-        PredictPositions(timeStep);
-        FindAndResolveAllImpacts();
-        std::swap(m_Am1, m_A0);
-        std::fill(m_A0.begin(), m_A0.end(), Vec3f{ 0 });
-    }
-    else
-    {
-        float t0 = 0.0f;
-        float dt = timeStep;
-
-        std::swap(m_Trs0, m_Trs1);
-        PredictPositions(dt);
-        FindImpacts();
-
-        int count = 0;
-
-        while(count++ < MAX_SUBSTEPS && !m_ImpactRecords.empty())
-        {
-            size_t numResting;
-
-            for(numResting = 0; numResting < m_ImpactRecords.size() &&
-                        m_ImpactRecords[numResting].GetResult().Alpha <= RESTING_VELOCITY_THRESHOLD;
-                ++numResting)
-            {
-            }
-
-            if(numResting < m_ImpactRecords.size())
-            {
-                ++numResting; // Include the first non-resting impact as well.
-            }
-
-            const float t1 = t0 + m_ImpactRecords[numResting - 1].GetResult().Alpha * dt;
-
-            // Back up to time of impact.
-            PredictPositions(t1);
-
-            // Resolve impacts.
-            for(size_t index = 0; index < numResting; ++index)
-            {
-                ResolveImpact(m_ImpactRecords[index]);
-            }
-
-            t0 = t1;
-            dt = timeStep - t0;
-
-            std::swap(m_Trs0, m_Trs1);
-            PredictPositions(dt);
-            FindImpacts();
-        }
-
-        if(!m_ImpactRecords.empty())
-        {
-            ResolveAllImpacts();
-        }
-
-        UpdateVelocities(timeStep);
-    }
+    std::swap(m_Trs0, m_Trs1);
+    // Update velocities based on accelerations accumulated this frame.
+    UpdateVelocities(timeStep);
+    PredictPositions(timeStep);
+    FindAndResolveAllImpacts();
+    std::swap(m_Am1, m_A0);
+    std::fill(m_A0.begin(), m_A0.end(), Vec3f{ 0 });
 }
 
 Result<>
@@ -170,8 +115,7 @@ PhysicsSolver::ComputeKineticEnergy() const
 void
 PhysicsSolver::UpdateVelocities(const float dt)
 {
-    static PerfTimer perfTimer("Physics.UpdateVelocities");
-    auto scopedTimer = perfTimer.StartScoped();
+    MLG_SCOPED_TIMER("Physics.UpdateVelocities");
 
     // FIXME(KB) - caller should account for dt not being the entire timestep,
     // but a substep due to collision events.
@@ -191,8 +135,7 @@ PhysicsSolver::UpdateVelocities(const float dt)
 void
 PhysicsSolver::PredictPositions(const float dt)
 {
-    static PerfTimer perfTimer("Physics.PredictPositions");
-    auto scopedTimer = perfTimer.StartScoped();
+    MLG_SCOPED_TIMER("Physics.PredictPositions");
 
     for (size_t i = 0; i < m_Bodies.size(); ++i)
     {
@@ -208,40 +151,16 @@ PhysicsSolver::PredictPositions(const float dt)
     }
 }
 
-void
-PhysicsSolver::FindImpacts()
-{
-    static PerfTimer perfTimer("Physics.FindImpacts");
-    auto scopedTimer = perfTimer.StartScoped();
-
-    m_GridHash.Clear();
-    m_ImpactRecords.clear();
-
-    for(size_t i = 0; i < m_Bodies.size(); ++i)
-    {
-        m_GridHash.Add(m_Trs0[i].T, m_Trs1[i].T, m_Colliders[i], i);
-    }
-
-    for(const BodyPair& bodyPair : m_GridHash)
-    {
-        ImpactResult impactResult;
-
-        if(!SphereSphereSweep(bodyPair, impactResult))
-        {
-            continue;
-        }
-
-        m_ImpactRecords.emplace_back(bodyPair, impactResult);
-    }
-
-    std::sort(m_ImpactRecords.begin(), m_ImpactRecords.end());
-}
+#define FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED 0
 
 void
 PhysicsSolver::ResolveImpact(const ImpactRecord& impact)
 {
-    const BodyPair& bodyPair = impact.GetBodies();
-    const ImpactResult& impactResult = impact.GetResult();
+    //FIXME(KB) - make perf timers MT safe.
+    MLG_SCOPED_TIMER("Physics.ResolveImpact");
+
+    const BodyPair& bodyPair = impact.Bodies;
+    const ImpactResult& impactResult = impact.Result;
 
     const size_t indexA = bodyPair.IndexA();
     const size_t indexB = bodyPair.IndexB();
@@ -312,49 +231,147 @@ PhysicsSolver::ResolveImpact(const ImpactRecord& impact)
 }
 
 void
-PhysicsSolver::ResolveAllImpacts()
-{
-    static PerfTimer perfTimer("Physics.DoCollisions");
-    auto scopedTimer = perfTimer.StartScoped();
-
-    for(const ImpactRecord& impact : m_ImpactRecords)
-    {
-        ResolveImpact(impact);
-    }
-}
-
-void
 PhysicsSolver::FindAndResolveAllImpacts()
 {
-    static PerfTimer perfTimer("Physics.FindAndResolveAllImpacts");
-    auto scopedTimer = perfTimer.StartScoped();
+    MLG_SCOPED_TIMER("Physics.FindAndResolveAllImpacts");
 
     m_GridHash.Clear();
     m_ImpactRecords.clear();
+    m_dV.clear();
+    m_dV.resize(m_Bodies.size(), Vec3f{ 0 });
 
     for(size_t i = 0; i < m_Bodies.size(); ++i)
     {
         m_GridHash.Add(m_Trs0[i].T, m_Trs1[i].T, m_Colliders[i], i);
     }
 
+    // Count number of unique body pairs.
+
+    size_t uniquePairCount = 0;
+    for([[maybe_unused]] const BodyPair& bodyPair : m_GridHash)
+    {
+        ++uniquePairCount;
+    }
+
+    if(uniquePairCount == 0)
+    {
+        return;
+    }
+
+    m_ImpactRecords.reserve(uniquePairCount);
+
+    struct Batch
+    {
+        std::span<ImpactRecord> Records;
+        std::atomic<size_t>* FinishCounter{nullptr};
+
+        static void Process(Batch* batch)
+        {
+            for(ImpactRecord& impactRecord : batch->Records)
+            {
+                impactRecord.ImpactFound = impactRecord.Solver->SphereSphereSweep(impactRecord);
+            }
+
+            batch->FinishCounter->fetch_add(1, std::memory_order_release);
+        }
+    };
+
+    const size_t workerCount = ThreadPool::GetWorkerCount();
+    const size_t batchSize = (uniquePairCount + workerCount - 1) / workerCount;
+    const size_t batchCount = (uniquePairCount + batchSize - 1) / batchSize;
+
+    std::vector<Batch> batches;
+    batches.reserve(batchCount);
+
+    size_t pairCount = 0;
+    size_t subspanStart = 0;
+
+    std::atomic<size_t> finishCounter;
+
+#define FOO 3
+
     for(const BodyPair& bodyPair : m_GridHash)
     {
-        ImpactResult impactResult;
+#if FOO == 1 || FOO == 2 || FOO == 3
+        m_ImpactRecords.emplace_back(this, bodyPair);
+#endif // FOO == 1 || FOO == 2 || FOO == 3
+#if FOO == 2
+        ++pairCount;
 
-        if(!SphereSphereSweep(bodyPair, impactResult))
+        if(pairCount >= batchSize)
         {
-            continue;
-        }
+            MLG_ASSERT(batches.size() < batchCount, "Batch count exceeded expected count");
 
-        ResolveImpact(ImpactRecord(bodyPair, impactResult));
+            std::span<ImpactRecord> batchSpan(m_ImpactRecords);
+            Batch& batch =
+                batches.emplace_back(batchSpan.subspan(subspanStart, pairCount), &finishCounter);
+
+#if FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED
+            ThreadPool::Enqueue<Batch::Process>(&batch);
+#else
+            Batch::Process(&batch);
+#endif
+            subspanStart += pairCount;
+            pairCount = 0;
+        }
+#endif // FOO == 2
+
+#if FOO == 1
+        std::span<ImpactRecord> batchSpan(m_ImpactRecords);
+        Batch& batch =
+            batches.emplace_back(batchSpan.subspan(subspanStart, 1), &finishCounter);
+        Batch::Process(&batch);
+        ++subspanStart;
+#endif // FOO == 1
+
+#if FOO == 0
+        ImpactRecord impactRecord{ this, bodyPair };
+        if(SphereSphereSweep(impactRecord))
+        {
+            ResolveImpact(impactRecord);
+        }
+#endif // FOO == 0
+#if FOO == 3
+        m_ImpactRecords.back().ImpactFound = SphereSphereSweep(m_ImpactRecords.back());
+#endif // FOO == 3
+    }
+
+    if(pairCount > 0)
+    {
+        std::span<ImpactRecord> batchSpan(m_ImpactRecords);
+        Batch& batch =
+            batches.emplace_back(batchSpan.subspan(subspanStart, pairCount), &finishCounter);
+
+#if FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED
+            ThreadPool::Enqueue<Batch::Process>(&batch);
+#else
+            Batch::Process(&batch);
+#endif
+    }
+
+    MLG_ASSERT(batches.size() == batchCount);
+
+    while(finishCounter.load(std::memory_order_acquire) < batches.size())
+    {
+        std::this_thread::yield();
+    }
+
+    for(auto& ImpactRecord : m_ImpactRecords)
+    {
+        if(ImpactRecord.ImpactFound)
+        {
+            ResolveImpact(ImpactRecord);
+        }
     }
 }
 
 bool
-PhysicsSolver::SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResult) const
+PhysicsSolver::SphereSphereSweep(ImpactRecord& impactRecord) const
 {
-    static PerfTimer perfTimer("Physics.SphereSphereSweep");
-    auto scopedTimer = perfTimer.StartScoped();
+#if !FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED
+    //FIXME(KB) - make perf timers MT safe.
+    MLG_SCOPED_TIMER("Physics.SphereSphereSweep");
+#endif
 
     constexpr float EPSILON = 1e-6f;
     constexpr float EPSILON_SQ = EPSILON * EPSILON;
@@ -375,6 +392,9 @@ PhysicsSolver::SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResul
     // c = p0.Dot(p0) - r^2
     //
     // Solve the quadratic equation for t.
+
+    const BodyPair& pair = impactRecord.Bodies;
+    ImpactResult& impactResult = impactRecord.Result;
 
     const Collider& colliderA = m_Colliders[pair.IndexA()];
     const Collider& colliderB = m_Colliders[pair.IndexB()];

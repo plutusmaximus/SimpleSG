@@ -65,24 +65,16 @@ struct ImpactResult
     Vec3f PosAtImpactB;
 };
 
-class ImpactRecord
+struct ImpactRecord
 {
-public:
-
-    ImpactRecord() = delete;
-    ImpactRecord(const ImpactRecord&) = default;
-    ImpactRecord& operator=(const ImpactRecord&) = default;
-    ImpactRecord(ImpactRecord&&) = default;
-    ImpactRecord& operator=(ImpactRecord&&) = default;
-
-    ImpactRecord(const BodyPair& pair, const ImpactResult& result)
-        : m_Bodies(pair), m_Result(result)
-    {
-    }
+    class PhysicsSolver* Solver{nullptr}; //DO NOT SUBMIT
+    BodyPair Bodies;
+    ImpactResult Result;
+    bool ImpactFound{false};
 
     bool operator==(const ImpactRecord& that) const
     {
-        return m_Bodies == that.m_Bodies && m_Result.Alpha == that.m_Result.Alpha;
+        return Bodies == that.Bodies && Result.Alpha == that.Result.Alpha;
     }
 
     bool operator!=(const ImpactRecord& that) const
@@ -94,16 +86,8 @@ public:
     {
         // We want to sort impact records by time of impact.
 
-        return m_Result.Alpha <=> that.m_Result.Alpha;
+        return Result.Alpha <=> that.Result.Alpha;
     }
-
-    const BodyPair& GetBodies() const { return m_Bodies; }
-    const ImpactResult& GetResult() const { return m_Result; }
-
-private:
-
-    BodyPair m_Bodies;
-    ImpactResult m_Result;
 };
 
 /// @brief  An iterator that wraps another iterator and skips consecutive duplicate elements.
@@ -180,6 +164,7 @@ public:
     GridHash(GridHash&&) = default;
     GridHash& operator=(GridHash&&) = default;
 
+    // Use UniqueIterator to skip duplicate body pairs that share multiple cells.
     using iterator = UniqueIterator<BodyPair>;
 
     void Clear()
@@ -216,12 +201,14 @@ public:
         m_NeedsSort = true;
     }
 
+    /// @brief Returns an iterator to the beginning of the range of unique body pairs that share a cell.
     iterator begin()
     {
         Sort();
         return iterator(m_PotentialCollisions.begin(), m_PotentialCollisions.end());
     }
 
+    /// @brief Returns an iterator to the end of the range of unique body pairs that share a cell.
     iterator end()
     {
         Sort();
@@ -267,7 +254,7 @@ private:
         return static_cast<int64_t>(std::floor(f));
     }
 
-    void Sort()
+    void Sort() const
     {
         if(!m_NeedsSort)
         {
@@ -301,10 +288,10 @@ private:
         m_NeedsSort = false;
     }
 
-    std::vector<Cell> m_Cells;
-    std::vector<BodyPair> m_PotentialCollisions;
+    mutable std::vector<Cell> m_Cells;
+    mutable std::vector<BodyPair> m_PotentialCollisions;
 
-    bool m_NeedsSort{false};
+    mutable bool m_NeedsSort{false};
 };
 
 class PhysicsSolver
@@ -357,15 +344,11 @@ private:
 
     void PredictPositions(const float dt);
 
-    void FindImpacts();
-
     void ResolveImpact(const ImpactRecord& impact);
-
-    void ResolveAllImpacts();
 
     void FindAndResolveAllImpacts();
 
-    bool SphereSphereSweep(const BodyPair& pair, ImpactResult& impactResult) const;
+    bool SphereSphereSweep(ImpactRecord& impactRecord) const;
 
     std::vector<Level::NodeHandle> m_NodeHandles;
     std::vector<TrsTransformf> m_TransformPool[2];
@@ -376,6 +359,9 @@ private:
     std::span<TrsTransformf> m_Trs0;
     //Predicted transforms for the next frame.
     std::span<TrsTransformf> m_Trs1;
+    // Delta velocities for the current frame.
+    // Computed during impact resolution, applied at the end of the frame.
+    std::vector<Vec3f> m_dV;
     //Accelerations for the last frame.
     std::span<Vec3f> m_Am1;
     //Predicted accelerations for the current frame.
