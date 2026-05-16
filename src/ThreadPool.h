@@ -13,6 +13,19 @@ public:
 
     static bool Enqueue(void (*jobFunc)(void*), void* userData);
 
+    template<auto JobFunc, typename T>
+    static bool Enqueue(T* userData)
+    {
+        auto wrapperFunc = [](void* data)
+        {
+            JobFunc(static_cast<T*>(data));
+        };
+
+        return Enqueue(wrapperFunc, userData);
+    }
+
+    static size_t GetWorkerCount();
+
 private:
     struct Job
     {

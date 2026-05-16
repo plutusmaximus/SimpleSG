@@ -124,6 +124,12 @@ ThreadPool::Enqueue(void (*jobFunc)(void*), void* userData)
     return true;
 }
 
+size_t
+ThreadPool::GetWorkerCount()
+{
+    return kDefaultThreadCount;
+}
+
 ThreadPool::Job *
 ThreadPool::NewJob()
 {
