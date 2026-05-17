@@ -240,25 +240,26 @@ PhysicsSolver::FindAndResolveAllImpacts()
 
     for(size_t i = 0; i < m_Bodies.size(); ++i)
     {
-        m_GridHash.Add(m_Trs0[i].T, m_Trs1[i].T, m_Colliders[i], i);
+        const Vec3f bbMin //
+            {
+                std::min(m_Trs0[i].T.x, m_Trs1[i].T.x),
+                std::min(m_Trs0[i].T.y, m_Trs1[i].T.y),
+                std::min(m_Trs0[i].T.z, m_Trs1[i].T.z),
+            };
+        const Vec3f bbMax //
+            {
+                std::max(m_Trs0[i].T.x, m_Trs1[i].T.x),
+                std::max(m_Trs0[i].T.y, m_Trs1[i].T.y),
+                std::max(m_Trs0[i].T.z, m_Trs1[i].T.z),
+            };
+        m_GridHash.Add(bbMin, bbMax, m_Colliders[i], i);
     }
 
-    // Count number of unique body pairs.
+    const size_t potentialCollisionCount = m_GridHash.PotentialCollisionCount();
 
-    size_t uniquePairCount = 0;
-    for([[maybe_unused]] const BodyPair& bodyPair : m_GridHash)
-    {
-        ++uniquePairCount;
-    }
+    m_ImpactRecords.reserve(potentialCollisionCount);
 
-    if(uniquePairCount == 0)
-    {
-        return;
-    }
-
-    m_ImpactRecords.reserve(uniquePairCount);
-
-    struct SphereSweepBatch
+    struct SweepTestBatch
     {
         std::span<ImpactRecord> Records;
         std::atomic<size_t>* FinishCounter{nullptr};
@@ -266,35 +267,43 @@ PhysicsSolver::FindAndResolveAllImpacts()
         void Enqueue()
         {
 #if FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED
-            ThreadPool::Enqueue<SphereSweepBatch::Process>(this);
+            ThreadPool::Enqueue<SweepTestBatch::Process>(this);
 #else
-            SphereSweepBatch::Process(this);
+            Process(this);
 #endif
         }
 
-        static void Process(SphereSweepBatch* batch)
+        static void Process(SweepTestBatch* batch)
         {
             for(ImpactRecord& impactRecord : batch->Records)
             {
-                impactRecord.ImpactFound = impactRecord.Solver->SphereSphereSweep(impactRecord);
+                impactRecord.ImpactFound =
+                    impactRecord.Solver->SphereSphereSweep(impactRecord.Bodies,
+                        impactRecord.Result);
             }
 
             batch->FinishCounter->fetch_add(1, std::memory_order_release);
         }
     };
 
-    const size_t workerCount = ThreadPool::GetWorkerCount();
-    const size_t batchSize = (uniquePairCount + workerCount - 1) / workerCount;
-    const size_t batchCount = (uniquePairCount + batchSize - 1) / batchSize;
+    // Prepare process potential collisions in parallel.
+    // Batches of BodyPairs will be offloaded to worker threads.
 
-    std::vector<SphereSweepBatch> batches;
+    // Calculate maximum batch size to max out worker threads.
+    const size_t workerCount = ThreadPool::GetWorkerCount();
+    const size_t batchSize = (potentialCollisionCount + workerCount - 1) / workerCount;
+    const size_t batchCount = (potentialCollisionCount + batchSize - 1) / batchSize;
+
+    std::vector<SweepTestBatch> batches;
     batches.reserve(batchCount);
 
     size_t pairCount = 0;
     size_t subspanStart = 0;
 
+    // Counter used to determine when all batches have finished processing.
     std::atomic<size_t> finishCounter;
 
+    // Collect impact records into batches and enqueue for processing.
     for(const BodyPair& bodyPair : m_GridHash)
     {
         m_ImpactRecords.emplace_back(this, bodyPair);
@@ -305,8 +314,9 @@ PhysicsSolver::FindAndResolveAllImpacts()
             MLG_ASSERT(batches.size() < batchCount, "Batch count exceeded expected count");
 
             std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
-            SphereSweepBatch& batch = batches.emplace_back(batchSpan, &finishCounter);
+            SweepTestBatch& batch = batches.emplace_back(batchSpan, &finishCounter);
 
+            // Enqueue the batch for processing.
             batch.Enqueue();
 
             subspanStart += pairCount;
@@ -314,10 +324,11 @@ PhysicsSolver::FindAndResolveAllImpacts()
         }
     }
 
+    // Enqueue any remaining pairs that didn't fill an entire batch.
     if(pairCount > 0)
     {
         std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
-        SphereSweepBatch& batch = batches.emplace_back(batchSpan, &finishCounter);
+        SweepTestBatch& batch = batches.emplace_back(batchSpan, &finishCounter);
 
         batch.Enqueue();
     }
@@ -330,24 +341,35 @@ PhysicsSolver::FindAndResolveAllImpacts()
         std::this_thread::yield();
     }
 
+    // Cull non-impacts, and resolve impacts in order.
+    size_t dst = 0;
+    for(size_t src = 0; src < m_ImpactRecords.size(); ++src)
+    {
+        if(m_ImpactRecords[src].ImpactFound)
+        {
+            if(dst != src)
+            {
+                m_ImpactRecords[dst] = m_ImpactRecords[src];
+            }
+            ++dst;
+        }
+    }
+
+    m_ImpactRecords.erase(m_ImpactRecords.begin() + dst, m_ImpactRecords.end());
+
     // Sort impact records by time of impact, and resolve in that order.
     // This isn't actually correct, but better than resolving out of order.
     // Substepping will make this better.
     std::sort(m_ImpactRecords.begin(), m_ImpactRecords.end());
 
-    for(auto& ImpactRecord : m_ImpactRecords)
+    for(auto& impactRecord : m_ImpactRecords)
     {
-        if(!ImpactRecord.ImpactFound)
-        {
-            break;
-        }
-
-        ResolveImpact(ImpactRecord);
+        ResolveImpact(impactRecord);
     }
 }
 
 bool
-PhysicsSolver::SphereSphereSweep(ImpactRecord& impactRecord) const
+PhysicsSolver::SphereSphereSweep(const BodyPair& bodyPair, ImpactResult& impactResult) const
 {
 #if !FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED
     //FIXME(KB) - make perf timers MT safe.
@@ -374,19 +396,16 @@ PhysicsSolver::SphereSphereSweep(ImpactRecord& impactRecord) const
     //
     // Solve the quadratic equation for t.
 
-    const BodyPair& pair = impactRecord.Bodies;
-    ImpactResult& impactResult = impactRecord.Result;
-
-    const Collider& colliderA = m_Colliders[pair.IndexA()];
-    const Collider& colliderB = m_Colliders[pair.IndexB()];
+    const Collider& colliderA = m_Colliders[bodyPair.IndexA()];
+    const Collider& colliderB = m_Colliders[bodyPair.IndexB()];
 
     const float radiusA = colliderA.GetSphereRadius();
     const float radiusB = colliderB.GetSphereRadius();
 
-    const TrsTransformf& transformA0 = m_Trs0[pair.IndexA()];
-    const TrsTransformf& transformA1 = m_Trs1[pair.IndexA()];
-    const TrsTransformf& transformB0 = m_Trs0[pair.IndexB()];
-    const TrsTransformf& transformB1 = m_Trs1[pair.IndexB()];
+    const TrsTransformf& transformA0 = m_Trs0[bodyPair.IndexA()];
+    const TrsTransformf& transformA1 = m_Trs1[bodyPair.IndexA()];
+    const TrsTransformf& transformB0 = m_Trs0[bodyPair.IndexB()];
+    const TrsTransformf& transformB1 = m_Trs1[bodyPair.IndexB()];
 
     const Vec3 relP0 = transformA0.T - transformB0.T;
     const Vec3 relP1 = transformA1.T - transformB1.T;

@@ -96,83 +96,29 @@ struct ImpactRecord
     }
 };
 
-/// @brief  An iterator that wraps another iterator and skips consecutive duplicate elements.
-/// Requires that the underlying range is sorted, so that duplicates are adjacent.
-/// @tparam T
-template<typename T>
-class UniqueIterator
-{
-public:
-    UniqueIterator() = default;
-    UniqueIterator(const UniqueIterator&) = default;
-    UniqueIterator& operator=(const UniqueIterator&) = default;
-    UniqueIterator(UniqueIterator&&) = default;
-    UniqueIterator& operator=(UniqueIterator&&) = default;
-
-    using iterator = std::vector<T>::const_iterator;
-
-    explicit UniqueIterator(iterator iter, iterator end)
-        : m_Iter(iter), m_End(end)
-    {
-    }
-
-    UniqueIterator& operator++()
-    {
-        const T& current = *m_Iter;
-
-        while(++m_Iter != m_End && *m_Iter == current)
-        {
-            // Skip duplicates.
-        }
-
-        return *this;
-    }
-
-    UniqueIterator operator++(int)
-    {
-        UniqueIterator copy = *this;
-        ++*this;
-        return copy;
-    }
-
-    const T& operator*() const
-    {
-        return *m_Iter;
-    }
-
-    const T* operator->() const
-    {
-        return &(*m_Iter);
-    }
-
-    bool operator==(const UniqueIterator& that) const
-    {
-        return m_Iter == that.m_Iter && m_End == that.m_End;
-    }
-
-    bool operator!=(const UniqueIterator& that) const
-    {
-        return !(*this == that);
-    }
-
-private:
-    iterator m_Iter;
-    iterator m_End;
-};
-
-template<size_t CELL_SIZE>
+/// @brief  Spatial hash for broad-phase collision detection. Divides space into a grid of cells,
+/// and hashes bodies into the cells they occupy.
+/// @tparam CELL_SIZE
+template<size_t TP_CELL_SIZE>
+requires (TP_CELL_SIZE > 0)
 class GridHash
 {
 public:
+    static constexpr size_t kCellSize = TP_CELL_SIZE;
+    static constexpr float kInvCellSize = 1.0f / static_cast<float>(kCellSize);
+
+    static constexpr int32_t kMaxExtent = std::numeric_limits<int32_t>::max() / 2;
+    static constexpr int32_t kMinExtent = std::numeric_limits<int32_t>::min() / 2;
+    // Arbitrary limit to prevent excessive cell counts for large bodies.
+    static constexpr size_t kMaxCellsPerBody = 1000;
+
     GridHash() = default;
     GridHash(const GridHash&) = delete;
     GridHash& operator=(const GridHash&) = delete;
     GridHash(GridHash&&) = default;
     GridHash& operator=(GridHash&&) = default;
 
-    // Use UniqueIterator to skip duplicate body pairs that share multiple cells.
-    using iterator = UniqueIterator<BodyPair>;
-
+    /// @brief  Clears the grid hash, removing all bodies and potential collisions.
     void Clear()
     {
         m_Cells.clear();
@@ -180,11 +126,31 @@ public:
         m_NeedsSort = false;
     }
 
-    void Add(const Vec3f& p0, const Vec3f& p1, const Collider& collider, size_t bodyIndex)
+    /// @brief  Adds a body to into the cells it occupies.
+    /// @param bbMin The minimum corner of the body's bounding box.
+    /// @param bbMax The maximum corner of the body's bounding box.
+    /// @param collider The collider associated with the body.
+    /// @param bodyIndex The index of the body.
+    template<typename ColliderType>
+    Result<> Add(
+        const Vec3f& bbMin, const Vec3f& bbMax, const ColliderType& collider, const size_t bodyIndex)
     {
+        MLG_CHECKV(bbMin.x <= bbMax.x && bbMin.y <= bbMax.y && bbMin.z <= bbMax.z,
+            "Invalid bounding box: Min: {}, Max: {}",
+            bbMin,
+            bbMax);
+
         const float radius = collider.GetSphereRadius();
-        const Vec3f minExtent{p0.x - radius, p0.y - radius, p0.z - radius};
-        const Vec3f maxExtent{p1.x + radius, p1.y + radius, p1.z + radius};
+        MLG_CHECKV(radius >= 0, "Invalid collider radius: {}", radius);
+
+        const Vec3f minExtent{bbMin.x - radius, bbMin.y - radius, bbMin.z - radius };
+        const Vec3f maxExtent{bbMax.x + radius, bbMax.y + radius, bbMax.z + radius};
+
+        MLG_CHECKV(minExtent.x >= kMinExtent && minExtent.y >= kMinExtent && minExtent.z >= kMinExtent &&
+                   maxExtent.x <= kMaxExtent && maxExtent.y <= kMaxExtent && maxExtent.z <= kMaxExtent,
+            "Bounding box exceeds maximum extents: Min: {}, Max: {}",
+            minExtent,
+            maxExtent);
 
         const int64_t minX = Quantize(minExtent.x);
         const int64_t minY = Quantize(minExtent.y);
@@ -192,6 +158,12 @@ public:
         const int64_t maxX = Quantize(maxExtent.x);
         const int64_t maxY = Quantize(maxExtent.y);
         const int64_t maxZ = Quantize(maxExtent.z);
+
+        const int64_t dx64 = maxX - minX + 1;
+        const int64_t dy64 = maxY - minY + 1;
+        const int64_t dz64 = maxZ - minZ + 1;
+
+        MLG_CHECK(AllocateCells(dx64, dy64, dz64));
 
         for(int64_t x = minX; x <= maxX; ++x)
         {
@@ -205,27 +177,38 @@ public:
         }
 
         m_NeedsSort = true;
+
+        return Result<>::Ok;
+    }
+
+    using iterator = std::vector<BodyPair>::iterator;
+    using const_iterator = std::vector<BodyPair>::const_iterator;
+
+    size_t PotentialCollisionCount() const
+    {
+        Sort();
+        return m_PotentialCollisions.size();
     }
 
     /// @brief Returns an iterator to the beginning of the range of unique body pairs that share a cell.
     iterator begin()
     {
         Sort();
-        return iterator(m_PotentialCollisions.begin(), m_PotentialCollisions.end());
+        return m_PotentialCollisions.begin();
     }
 
     /// @brief Returns an iterator to the end of the range of unique body pairs that share a cell.
     iterator end()
     {
         Sort();
-        return iterator(m_PotentialCollisions.end(), m_PotentialCollisions.end());
+        return m_PotentialCollisions.end();
     }
 
 private:
 
     struct Cell
     {
-        size_t BodyIndex;
+        size_t BodyIndex; // Index of the body occupying the cell.
         std::array<int64_t, 3> Coords;// Cell coordinates (x, y, z)
 
         bool operator==(const Cell& that) const
@@ -249,17 +232,60 @@ private:
         }
     };
 
+    /// @brief Allocates the necessary number of cells for a body that spans the given number of
+    /// cells in each dimension.
+    /// @param dx The number of cells the body spans in the x dimension.
+    /// @param dy The number of cells the body spans in the y dimension.
+    /// @param dz The number of cells the body spans in the z dimension.
+    /// @return
+    Result<> AllocateCells(const int64_t dx64, const int64_t dy64, const int64_t dz64)
+    {
+        MLG_CHECKV(dx64 > 0 && dy64 > 0 && dz64 > 0,
+            "Invalid cell span. dx: {}, dy: {}, dz: {}",
+            dx64,
+            dy64,
+            dz64);
+
+        const size_t dx = static_cast<size_t>(dx64);
+        const size_t dy = static_cast<size_t>(dy64);
+        const size_t dz = static_cast<size_t>(dz64);
+
+        MLG_CHECKV(dx <= std::numeric_limits<size_t>::max() / dy,
+            "Cell span overflow before multiply.");
+        const size_t dxy = dx * dy;
+
+        MLG_CHECKV(dxy <= std::numeric_limits<size_t>::max() / dz,
+            "Cell span overflow before multiply.");
+        const size_t cellCount = dxy * dz;
+
+        MLG_CHECKV(cellCount <= kMaxCellsPerBody, "Too many cells occupied. count={}", cellCount);
+
+        MLG_CHECKV(cellCount <= std::numeric_limits<size_t>::max() - m_Cells.size(),
+            "Cell reserve overflow. current={}, add={}",
+            m_Cells.size(),
+            cellCount);
+
+        m_Cells.reserve(m_Cells.size() + cellCount);
+
+        return Result<>::Ok;
+    }
+
     static int64_t Quantize(float value)
     {
-        static constexpr float INV_CELL_SIZE = 1.0f / static_cast<float>(CELL_SIZE);
-        static constexpr float MAX_QUANTIZED_VALUE =
-            static_cast<float>(std::numeric_limits<int64_t>::max());
+        if(!MLG_VERIFY(value >= kMinExtent && value <= kMaxExtent,
+            "Value out of range for quantization: {}. Valid range: [{}, {}]",
+            value,
+            kMinExtent,
+            kMaxExtent))
+        {
+            return 0;
+        }
 
-        const float f = value * INV_CELL_SIZE;
-        MLG_ASSERT(std::fabs(f) < MAX_QUANTIZED_VALUE, "Value out of range for quantization");
+        const float f = value * kInvCellSize;
         return static_cast<int64_t>(std::floor(f));
     }
 
+    /// @brief Sorts the cells and generates the list of unique body pairs potentially colliding.
     void Sort() const
     {
         if(!m_NeedsSort)
@@ -271,6 +297,8 @@ private:
 
         m_PotentialCollisions.clear();
 
+        // For each cell generate body pairs for all bodies that share the cell.
+
         for(size_t i = 0; i < m_Cells.size(); ++i)
         {
             const size_t indexA = m_Cells[i].BodyIndex;
@@ -280,16 +308,41 @@ private:
                 // Bodies that share a cell are potentially colliding.
 
                 const size_t indexB = m_Cells[j].BodyIndex;
-                if(MLG_VERIFY(indexA != indexB, "Duplicate body in same cell? Body index: {}", indexA))
+                if(MLG_VERIFY(indexA != indexB, "Duplicate body in same cell"))
                 {
                     m_PotentialCollisions.push_back({ indexA, indexB });
                 }
             }
         }
 
-        // Sort potential collisions to group duplicates together, so they can be skipped by
-        // UniqueIterator.
-        std::sort(m_PotentialCollisions.begin(), m_PotentialCollisions.end());
+        if(!m_PotentialCollisions.empty())
+        {
+            // Sort to group duplicates together.
+            std::sort(m_PotentialCollisions.begin(), m_PotentialCollisions.end());
+
+            size_t dst = 0;
+
+            // Remove duplicate pairs.
+            // Duplicates will be adjacent due to the sort above.
+            for(size_t src = 1; src < m_PotentialCollisions.size(); ++src)
+            {
+                if(m_PotentialCollisions[dst] == m_PotentialCollisions[src])
+                {
+                    //Skip duplicate pair.
+                    continue;
+                }
+
+                if(src > dst + 1)
+                {
+                    m_PotentialCollisions[dst + 1] = m_PotentialCollisions[src];
+                }
+
+                ++dst;
+            }
+
+            m_PotentialCollisions.erase(m_PotentialCollisions.begin() + dst + 1,
+                m_PotentialCollisions.end());
+        }
 
         m_NeedsSort = false;
     }
@@ -304,7 +357,7 @@ class PhysicsSolver
 {
 public:
 
-    constexpr static size_t GRID_CELL_SIZE = 5;
+    constexpr static size_t GRID_CELL_SIZE = 2;
 
     static Result<> Create(const Level& level, PhysicsSolver& outSolver);
 
@@ -354,7 +407,7 @@ private:
 
     void FindAndResolveAllImpacts();
 
-    bool SphereSphereSweep(ImpactRecord& impactRecord) const;
+    bool SphereSphereSweep(const BodyPair& bodyPair, ImpactResult& impactResult) const;
 
     std::vector<Level::NodeHandle> m_NodeHandles;
     std::vector<TrsTransformf> m_TransformPool[2];

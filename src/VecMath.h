@@ -1115,3 +1115,81 @@ using Vec4f = Vec4<float>;
 using Quatf = Quat<float>;
 using Mat44f = Mat44<float>;
 using TrsTransformf = TrsTransform<float>;
+
+/// @brief Enable formatting of Vec2 via std::format.
+template<typename T>
+struct std::formatter<Vec2<T>>
+{
+    constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(const Vec2<T>& vec, FormatContext& ctx) const
+    {
+        return std::format_to(ctx.out(), "({}, {})", vec.x, vec.y);
+    }
+};
+
+/// @brief Enable formatting of Vec3 via std::format.
+template<typename T>
+struct std::formatter<Vec3<T>>
+{
+    constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(const Vec3<T>& vec, FormatContext& ctx) const
+    {
+        return std::format_to(ctx.out(), "({}, {}, {})", vec.x, vec.y, vec.z);
+    }
+};
+
+/// @brief Enable formatting of Vec4 via std::format.
+template<typename T>
+struct std::formatter<Vec4<T>>
+{
+    constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(const Vec4<T>& vec, FormatContext& ctx) const
+    {
+        return std::format_to(ctx.out(), "({}, {}, {}, {})", vec.x, vec.y, vec.z, vec.w);
+    }
+};
+
+/// @brief Enable formatting of Quat via std::format.
+template<typename T>
+struct std::formatter<Quat<T>>
+{
+    constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(const Quat<T>& quat, FormatContext& ctx) const
+    {
+        return std::format_to(ctx.out(), "({}, {}, {}, {})", quat.x, quat.y, quat.z, quat.w);
+    }
+};
+
+/// @brief Enable formatting of Extent via std::format.
+template<>
+struct std::formatter<Extent>
+{
+    constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(const Extent& extent, FormatContext& ctx) const
+    {
+        return std::format_to(ctx.out(), "({}, {})", extent.Width, extent.Height);
+    }
+};
+
+/// @brief Enable formatting of Point via std::format.
+template<>
+struct std::formatter<Point>
+{
+    constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(const Point& point, FormatContext& ctx) const
+    {
+        return std::format_to(ctx.out(), "({}, {})", point.X, point.Y);
+    }
+};
