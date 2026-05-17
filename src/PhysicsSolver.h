@@ -160,11 +160,13 @@ private:
     iterator m_End;
 };
 
-template<size_t CELL_SIZE>
 class GridHash
 {
 public:
-    GridHash() = default;
+    explicit GridHash(const size_t cellSize)
+        : m_CellSize(cellSize), m_InvCellSize(1.0f / static_cast<float>(cellSize))
+    {
+    };
     GridHash(const GridHash&) = delete;
     GridHash& operator=(const GridHash&) = delete;
     GridHash(GridHash&&) = default;
@@ -249,13 +251,12 @@ private:
         }
     };
 
-    static int64_t Quantize(float value)
+    int64_t Quantize(float value) const
     {
-        static constexpr float INV_CELL_SIZE = 1.0f / static_cast<float>(CELL_SIZE);
         static constexpr float MAX_QUANTIZED_VALUE =
             static_cast<float>(std::numeric_limits<int64_t>::max());
 
-        const float f = value * INV_CELL_SIZE;
+        const float f = value * m_InvCellSize;
         MLG_ASSERT(std::fabs(f) < MAX_QUANTIZED_VALUE, "Value out of range for quantization");
         return static_cast<int64_t>(std::floor(f));
     }
@@ -293,6 +294,9 @@ private:
 
         m_NeedsSort = false;
     }
+
+    size_t m_CellSize;
+    float m_InvCellSize;
 
     mutable std::vector<Cell> m_Cells;
     mutable std::vector<BodyPair> m_PotentialCollisions;
@@ -370,7 +374,7 @@ private:
     //Predicted accelerations for the current frame.
     std::span<Vec3f> m_A0;
 
-    GridHash<GRID_CELL_SIZE> m_GridHash;
+    GridHash m_GridHash{GRID_CELL_SIZE};
 
     std::vector<ImpactRecord> m_ImpactRecords;
 };
