@@ -5,7 +5,7 @@
 
 #include <thread>
 
-static constexpr float RESTING_VELOCITY_THRESHOLD = 0.01f;
+static constexpr float RESTING_VELOCITY_THRESHOLD = 1.0f/128;
 static constexpr float COEFF_OF_RESTITUTION = 0.8f;
 
 Result<>
@@ -172,12 +172,8 @@ PhysicsSolver::ResolveImpact(const ImpactRecord& impact)
     const float vRel = (bodyA.LinearVelocity - bodyB.LinearVelocity).Dot(impactResult.ContactNormalBtoA);
 
     // Only resolve if bodies are moving towards each other
-    if (vRel < -RESTING_VELOCITY_THRESHOLD)
+    if(vRel < 0)
     {
-        // Move bodies to point of impact.
-        m_Trs1[indexA].T = impactResult.PosAtImpactA;
-        m_Trs1[indexB].T = impactResult.PosAtImpactB;
-
         // Impulse
 
         // n = contact normal
@@ -187,20 +183,24 @@ PhysicsSolver::ResolveImpact(const ImpactRecord& impact)
         // vA' += n * -(1 + e) * vRel * (1/mA) * (1 / (1/mA + 1/mB))
         // vA' += n * -(1 + e) * vRel * (1/(mA * (mA + mB)/(mA * mB)))
         // vA' += n * -(1 + e) * vRel * ((mA * mB)/(mA * (mA + mB))
-        // vA' += n * -(1 + e) * vRel * mB/(mA + mB))
+        // vA' += n * -(1 + e) * vRel * mB/(mA + mB)
 
-        const float k = -(1 + COEFF_OF_RESTITUTION) * vRel / (bodyA.Mass.Value() + bodyB.Mass.Value());
-        const Vec3f u = k * impactResult.ContactNormalBtoA;
+        float e;
 
-        bodyA.LinearVelocity += u * bodyB.Mass.Value();
-        bodyB.LinearVelocity -= u * bodyA.Mass.Value();
-    }
-    else if(vRel < 0)
-    {
-        // Bodies are moving towards each other but below the resting velocity threshold, so we
-        // treat this as a resting contact.
+        if(vRel < -RESTING_VELOCITY_THRESHOLD)
+        {
+            // When closing velocity is above the resting velocity threshold
+            // treat as a dynamic collision with restitution.
+            e = COEFF_OF_RESTITUTION;
+        }
+        else
+        {
+            // When closing velocity is below the resting velocity threshold
+            // treat as a resting contact.
+            e = 0.0f;
+        }
 
-        const float k = -vRel / (bodyA.Mass.Value() + bodyB.Mass.Value());
+        const float k = -(1 + e) * vRel / (bodyA.Mass.Value() + bodyB.Mass.Value());
         const Vec3f u = k * impactResult.ContactNormalBtoA;
 
         bodyA.LinearVelocity += u * bodyB.Mass.Value();
@@ -210,7 +210,15 @@ PhysicsSolver::ResolveImpact(const ImpactRecord& impact)
     // FIXME(KB) - parameterize this.
     constexpr float correctionSlop = 1e-3f;
 
-    if(impactResult.PenetrationDepth > correctionSlop)
+    MLG_ASSERT(impactResult.PenetrationDepth >= 0, "Penetration depth should be non-negative");
+
+    if(0 == impactResult.PenetrationDepth)
+    {
+        // Move bodies to point of impact.
+        m_Trs1[indexA].T = impactResult.PosAtImpactA;
+        m_Trs1[indexB].T = impactResult.PosAtImpactB;
+    }
+    else if(impactResult.PenetrationDepth > correctionSlop)
     {
         // FIXME(KB) - parameterize this.
         constexpr float positionalCorrectionPercent = 0.1f;
@@ -238,6 +246,8 @@ PhysicsSolver::FindAndResolveAllImpacts()
     m_GridHash.Clear();
     m_ImpactRecords.clear();
 
+    // Bodies will be added to all cells of the grid overlapped by the bounding box
+    // defined by the current and predicted position.
     for(size_t i = 0; i < m_Bodies.size(); ++i)
     {
         const Vec3f bbMin //
@@ -252,16 +262,25 @@ PhysicsSolver::FindAndResolveAllImpacts()
                 std::max(m_Trs0[i].T.y, m_Trs1[i].T.y),
                 std::max(m_Trs0[i].T.z, m_Trs1[i].T.z),
             };
+
         m_GridHash.Add(bbMin, bbMax, m_Colliders[i], i);
     }
 
     const size_t potentialCollisionCount = m_GridHash.PotentialCollisionCount();
 
+    if(potentialCollisionCount == 0)
+    {
+        return;
+    }
+
     m_ImpactRecords.reserve(potentialCollisionCount);
 
+    // Represents a batch of sweep tests to be processed by a worker thread.
+    // Many batches can be processed in parallel.
     struct SweepTestBatch
     {
-        std::span<ImpactRecord> Records;
+        // Collection pairs of bodies that potentially collide during the time step.
+        std::span<ImpactRecord> PotentialImpacts;
         std::atomic<size_t>* FinishCounter{nullptr};
 
         void Enqueue()
@@ -275,7 +294,7 @@ PhysicsSolver::FindAndResolveAllImpacts()
 
         static void Process(SweepTestBatch* batch)
         {
-            for(ImpactRecord& impactRecord : batch->Records)
+            for(ImpactRecord& impactRecord : batch->PotentialImpacts)
             {
                 impactRecord.ImpactFound =
                     impactRecord.Solver->SphereSphereSweep(impactRecord.Bodies,
@@ -286,10 +305,10 @@ PhysicsSolver::FindAndResolveAllImpacts()
         }
     };
 
-    // Prepare process potential collisions in parallel.
+    // Prepare to process potential collisions in parallel.
     // Batches of BodyPairs will be offloaded to worker threads.
 
-    // Calculate maximum batch size to max out worker threads.
+    // Calculate optimal batch size to max out worker threads.
     const size_t workerCount = ThreadPool::GetWorkerCount();
     const size_t batchSize = (potentialCollisionCount + workerCount - 1) / workerCount;
     const size_t batchCount = (potentialCollisionCount + batchSize - 1) / batchSize;
@@ -418,7 +437,7 @@ PhysicsSolver::SphereSphereSweep(const BodyPair& bodyPair, ImpactResult& impactR
     // Square distance between centers at start of time step minus square of sum of radii.
     const float c = dist0Sqr - r2;
 
-    if(c <= 0)
+    if(c < 0)
     {
         // Already overlapping at time t0.
 
@@ -477,13 +496,15 @@ PhysicsSolver::SphereSphereSweep(const BodyPair& bodyPair, ImpactResult& impactR
     // Quadratic formula:
     // t = -b (+/-) sqrt(b^2 - 4ac) / (2a)
 
-    const float discriminant = b*b - 4*a*c;
+    float discriminant = b*b - 4*a*c;
 
-    if (discriminant < EPSILON)
+    if (discriminant < -EPSILON)
     {
         // No real roots, so no collision.
         return false;
     }
+
+    discriminant = std::max(0.0f, discriminant);// clamp tiny negative roundoff to tangent
 
     // -b - sqrt(b^2 - 4ac) / 2a is the entry point.
     // -b + sqrt(b^2 - 4ac) / 2a is the exit point.
