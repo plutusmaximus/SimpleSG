@@ -293,6 +293,8 @@ private:
             return;
         }
 
+        m_NeedsSort = false;
+
         std::sort(m_Cells.begin(), m_Cells.end());
 
         m_PotentialCollisions.clear();
@@ -315,36 +317,36 @@ private:
             }
         }
 
-        if(!m_PotentialCollisions.empty())
+        if(m_PotentialCollisions.empty())
         {
-            // Sort to group duplicates together.
-            std::sort(m_PotentialCollisions.begin(), m_PotentialCollisions.end());
-
-            size_t dst = 0;
-
-            // Remove duplicate pairs.
-            // Duplicates will be adjacent due to the sort above.
-            for(size_t src = 1; src < m_PotentialCollisions.size(); ++src)
-            {
-                if(m_PotentialCollisions[dst] == m_PotentialCollisions[src])
-                {
-                    //Skip duplicate pair.
-                    continue;
-                }
-
-                if(src > dst + 1)
-                {
-                    m_PotentialCollisions[dst + 1] = m_PotentialCollisions[src];
-                }
-
-                ++dst;
-            }
-
-            m_PotentialCollisions.erase(m_PotentialCollisions.begin() + dst + 1,
-                m_PotentialCollisions.end());
+            return;
         }
 
-        m_NeedsSort = false;
+        // Sort to group duplicates together.
+        std::sort(m_PotentialCollisions.begin(), m_PotentialCollisions.end());
+
+        size_t dst = 0;
+
+        // Remove duplicate pairs.
+        // Duplicates will be adjacent due to the sort above.
+        for(size_t src = 1; src < m_PotentialCollisions.size(); ++src)
+        {
+            if(m_PotentialCollisions[dst] == m_PotentialCollisions[src])
+            {
+                //Skip duplicate pair.
+                continue;
+            }
+
+            ++dst;
+
+            if(src > dst)
+            {
+                m_PotentialCollisions[dst] = m_PotentialCollisions[src];
+            }
+        }
+
+        m_PotentialCollisions.erase(m_PotentialCollisions.begin() + dst + 1,
+            m_PotentialCollisions.end());
     }
 
     mutable std::vector<Cell> m_Cells;
