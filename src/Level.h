@@ -161,6 +161,30 @@ class Level
 {
 public:
 
+    enum class NodeFlags : uint8_t
+    {
+        Active = 1 << 0,
+        Visible = 1 << 1,
+    };
+
+    inline friend NodeFlags operator|(NodeFlags a, NodeFlags b)
+    {
+        using Underlying = std::underlying_type_t<Level::NodeFlags>;
+        return static_cast<NodeFlags>(static_cast<Underlying>(a) | static_cast<Underlying>(b));
+    }
+
+    inline friend NodeFlags operator&(NodeFlags a, NodeFlags b)
+    {
+        using Underlying = std::underlying_type_t<Level::NodeFlags>;
+        return static_cast<NodeFlags>(static_cast<Underlying>(a) & static_cast<Underlying>(b));
+    }
+
+    inline friend NodeFlags operator~(NodeFlags a)
+    {
+        using Underlying = std::underlying_type_t<Level::NodeFlags>;
+        return static_cast<NodeFlags>(~static_cast<Underlying>(a));
+    }
+
     struct Components
     {
         std::optional<ModelIndex> Model;
@@ -177,6 +201,7 @@ public:
         LevelNodeIndex ParentIndex{ LevelNodeIndex::INVALID };
         LevelNodeIndex FirstChildIndex{ LevelNodeIndex::INVALID };
         uint32_t ChildCount{ 0 };
+        NodeFlags Flags{ NodeFlags::Active | NodeFlags::Visible };
     };
 
     class NodeHandle
@@ -188,6 +213,8 @@ public:
         NodeHandle& operator=(const NodeHandle&) = default;
         NodeHandle(NodeHandle&&) = default;
         NodeHandle& operator=(NodeHandle&&) = default;
+
+        bool IsValid() const { return m_Node != nullptr; }
 
         bool operator==(const NodeHandle& that) const
         {
@@ -299,6 +326,14 @@ public:
     Result<const Node*> GetNode(const NodeHandle& handle) const;
 
     Result<> UpdateLocalTransform(const NodeHandle& handle, const TrsTransformf& localTransform);
+
+    Result<NodeFlags> GetNodeFlags(const NodeHandle& handle) const;
+
+    void SetActive(const NodeHandle& handle, bool active);
+    bool IsActive(const NodeHandle& handle) const;
+
+    void SetVisible(const NodeHandle& handle, bool visible);
+    bool IsVisible(const NodeHandle& handle) const;
 
 private:
     Level(

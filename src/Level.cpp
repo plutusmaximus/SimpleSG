@@ -214,8 +214,7 @@ Level::GetRoots() const
 Result<std::span<const Level::NodeHandle>>
 Level::GetChildren(const NodeHandle& handle) const
 {
-    MLG_CHECKV(handle, "Invalid node handle");
-    MLG_CHECKV(IsInLevel(handle), "Node handle points outside of node array");
+    MLG_CHECKV(IsInLevel(handle), "Node is not in level");
 
     if(!handle.m_Node->FirstChildIndex.IsValid())
     {
@@ -239,15 +238,14 @@ Level::GetNodeHandle(std::initializer_list<std::string_view> path) const
 Result<const Level::Node*>
 Level::GetNode(const NodeHandle& handle) const
 {
-    MLG_CHECKV(IsInLevel(handle), "Node handle points outside of node array");
+    MLG_CHECKV(IsInLevel(handle), "Node is not in level");
     return handle.m_Node;
 }
 
 Result<>
 Level::UpdateLocalTransform(const NodeHandle& handle, const TrsTransformf& localTransform)
 {
-    MLG_CHECKV(handle, "Invalid node handle");
-    MLG_CHECKV(IsInLevel(handle), "Node handle points outside of node array");
+    MLG_CHECKV(IsInLevel(handle), "Node is not in level");
 
     Node* node = const_cast<Node*>(handle.m_Node);
     node->LocalTransform = localTransform;
@@ -261,12 +259,89 @@ Level::UpdateLocalTransform(const NodeHandle& handle, const TrsTransformf& local
     return Result<>::Ok;
 }
 
+Result<Level::NodeFlags>
+Level::GetNodeFlags(const NodeHandle& handle) const
+{
+    MLG_CHECKV(IsInLevel(handle), "Node is not in level");
+
+    return handle.m_Node->Flags;
+}
+
+void
+Level::SetActive(const NodeHandle& handle, bool active)
+{
+    if(!MLG_VERIFY(IsInLevel(handle), "Node is not in level"))
+    {
+        return;
+    }
+
+    Node* node = const_cast<Node*>(handle.m_Node);
+    node->Flags = active ? (node->Flags | NodeFlags::Active) : (node->Flags & ~NodeFlags::Active);
+
+    auto children = GetChildren(handle);
+    if(!children)
+    {
+        return;
+    }
+
+    for(const auto& childHandle : *children)
+    {
+        SetActive(childHandle, active);
+    }
+}
+
+bool
+Level::IsActive(const NodeHandle& handle) const
+{
+    if(!MLG_VERIFY(IsInLevel(handle), "Node is not in level"))
+    {
+        return false;
+    }
+
+    return (handle.m_Node->Flags & NodeFlags::Active) == NodeFlags::Active;
+}
+
+void
+Level::SetVisible(const NodeHandle& handle, bool visible)
+{
+    if(!MLG_VERIFY(IsInLevel(handle), "Node is not in level"))
+    {
+        return;
+    }
+
+    Node* node = const_cast<Node*>(handle.m_Node);
+    node->Flags = visible ? (node->Flags | NodeFlags::Visible) : (node->Flags & ~NodeFlags::Visible);
+
+    auto children = GetChildren(handle);
+    if(!children)
+    {
+        return;
+    }
+
+    for(const auto& childHandle : *children)
+    {
+        SetVisible(childHandle, visible);
+    }
+}
+
+bool
+Level::IsVisible(const NodeHandle& handle) const
+{
+    if(!MLG_VERIFY(IsInLevel(handle), "Node is not in level"))
+    {
+        return false;
+    }
+
+    return (handle.m_Node->Flags & NodeFlags::Visible) == NodeFlags::Visible;
+}
+
 // private:
 
 bool
 Level::IsInLevel(const NodeHandle& handle) const
 {
-    return handle.m_Node >= m_Nodes.data() && handle.m_Node < m_Nodes.data() + m_Nodes.size();
+    return handle.IsValid() && handle.m_Node >= m_Nodes.data() &&
+           handle.m_Node < m_Nodes.data() + m_Nodes.size();
 }
 
 void
