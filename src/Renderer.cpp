@@ -147,7 +147,13 @@ Renderer::Render(const Mat44f& camera,
 
     for(const auto& modelInstance : modelInstances)
     {
-        const Model& model = models[modelInstance.ModelIndex.Value()];
+        const Model& model = models[modelInstance.GetModelIndex().Value()];
+
+        if(!modelInstance.IsVisible())
+        {
+            indirectOffset += model.MeshCount * sizeof(ShaderInterop::DrawIndirectParams);
+            continue;
+        }
 
         for(uint32_t i = 0; i < model.MeshCount; ++i)
         {
