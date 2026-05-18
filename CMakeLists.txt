@@ -278,6 +278,7 @@ add_executable(Tests
   "tests/CoopScheduler.test.cpp"
   "tests/ECS.test.cpp"
   "tests/EcsChildTransformPool.test.cpp"
+  "tests/GridHash.test.cpp"
   "tests/inlist.test.cpp"
   "tests/instack.test.cpp"
   "tests/Mat44.test.cpp"
