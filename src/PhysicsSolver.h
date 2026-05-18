@@ -29,25 +29,7 @@ public:
     size_t IndexA() const { return m_IndexA; }
     size_t IndexB() const { return m_IndexB; }
 
-    bool operator==(const BodyPair& that) const
-    {
-        return (m_IndexA == that.m_IndexA && m_IndexB == that.m_IndexB);
-    }
-
-    bool operator!=(const BodyPair& that) const
-    {
-        return !(*this == that);
-    }
-
-    auto operator<=>(const BodyPair& that) const
-    {
-        if(m_IndexA != that.m_IndexA)
-        {
-            return m_IndexA <=> that.m_IndexA;
-        }
-
-        return m_IndexB <=> that.m_IndexB;
-    }
+    std::strong_ordering operator<=>(const BodyPair& that) const = default;
 
 private:
 
@@ -106,25 +88,10 @@ class GridHash
     static_assert(CELL_SIZE_POW2 < 8, "CELL_SIZE_POW2 is >= 8 - was that intentional?");
 public:
     static constexpr size_t kCellSize = 1 << CELL_SIZE_POW2;
+    static constexpr float kInvCellSize = 1.0f / static_cast<float>(kCellSize);
 
-    // 64 total bits in hash.
-    // X/Z can consume 28 bits each.
-    // Y can consume 8 bits.
-    static constexpr int64_t kBitsX = 28;
-    static constexpr int64_t kBitsY = 8;
-    static constexpr int64_t kBitsZ = 28;
-    static constexpr int64_t kMaxX = 1 << (kBitsX - 1);
-    static constexpr int64_t kMinX = -kMaxX;
-    static constexpr int64_t kMaxY = 1 << (kBitsY - 1);
-    static constexpr int64_t kMinY = -kMaxY;
-    static constexpr int64_t kMaxZ = 1 << (kBitsZ - 1);
-    static constexpr int64_t kMinZ = -kMaxZ;
-    static constexpr int64_t kBiasX = 1 << (kBitsX - 1);
-    static constexpr int64_t kBiasY = 1 << (kBitsY - 1);
-    static constexpr int64_t kBiasZ = 1 << (kBitsZ - 1);
-    static constexpr int64_t kShiftZ = 0;
-    static constexpr int64_t kShiftY = kShiftZ + kBitsZ;
-    static constexpr int64_t kShiftX = kShiftY + kBitsY;
+    static constexpr float kMinExtent = static_cast<float>(std::numeric_limits<int32_t>::min()) * kCellSize;
+    static constexpr float kMaxExtent = static_cast<float>(std::numeric_limits<int32_t>::max()) * kCellSize;
 
     // Arbitrary limit to prevent excessive cell counts for large bodies.
     static constexpr size_t kMaxCellsPerBody = 1000;
@@ -163,35 +130,34 @@ public:
         const Vec3f minExtent{bbMin.x - radius, bbMin.y - radius, bbMin.z - radius };
         const Vec3f maxExtent{bbMax.x + radius, bbMax.y + radius, bbMax.z + radius};
 
-        MLG_CHECKV(minExtent.x >= kMinX && minExtent.y >= kMinY && minExtent.z >= kMinZ &&
-                   maxExtent.x <= kMaxX && maxExtent.y <= kMaxY && maxExtent.z <= kMaxZ,
+        MLG_CHECKV(minExtent.x >= kMinExtent && minExtent.y >= kMinExtent && minExtent.z >= kMinExtent &&
+                   maxExtent.x <= kMaxExtent && maxExtent.y <= kMaxExtent && maxExtent.z <= kMaxExtent,
             "Bounding box exceeds maximum extents: Min: {}/{}, Max: {}/{}",
             minExtent,
-            Vec3f{ kMinX, kMinY, kMinZ },
+            Vec3f{ kMinExtent, kMinExtent, kMinExtent },
             maxExtent,
-            Vec3f{ kMaxX, kMaxY, kMaxZ });
+            Vec3f{ kMaxExtent, kMaxExtent, kMaxExtent });
 
-        const uint64_t minX = QuantizeX(minExtent.x);
-        const uint64_t minY = QuantizeY(minExtent.y);
-        const uint64_t minZ = QuantizeZ(minExtent.z);
-        const uint64_t maxX = QuantizeX(maxExtent.x);
-        const uint64_t maxY = QuantizeY(maxExtent.y);
-        const uint64_t maxZ = QuantizeZ(maxExtent.z);
+        const int32_t minX = Quantize(minExtent.x);
+        const int32_t minY = Quantize(minExtent.y);
+        const int32_t minZ = Quantize(minExtent.z);
+        const int32_t maxX = Quantize(maxExtent.x);
+        const int32_t maxY = Quantize(maxExtent.y);
+        const int32_t maxZ = Quantize(maxExtent.z);
 
-        const uint64_t dx = maxX - minX + 1;
-        const uint64_t dy = maxY - minY + 1;
-        const uint64_t dz = maxZ - minZ + 1;
+        const uint32_t dx = maxX - minX + 1;
+        const uint32_t dy = maxY - minY + 1;
+        const uint32_t dz = maxZ - minZ + 1;
 
         MLG_CHECK(AllocateCells(dx, dy, dz));
 
-        for(uint64_t x = minX; x <= maxX; ++x)
+        for(int32_t x = minX; x <= maxX; ++x)
         {
-            for(uint64_t y = minY; y <= maxY; ++y)
+            for(int32_t y = minY; y <= maxY; ++y)
             {
-                for(uint64_t z = minZ; z <= maxZ; ++z)
+                for(int32_t z = minZ; z <= maxZ; ++z)
                 {
-                    const uint64_t hash = (x << kShiftX) | (y << kShiftY) | (z << kShiftZ);
-                    m_Cells.emplace_back(Cell{bodyIndex, hash});
+                    m_Cells.emplace_back(Cell{bodyIndex, x, y, z});
                 }
             }
         }
@@ -226,30 +192,62 @@ public:
 
 private:
 
-    struct Cell
+    class Cell
     {
+    public:
+        Cell(const size_t bodyIndex, const int32_t cellX, const int32_t cellY, const int32_t cellZ)
+            : Hash(HashCell(cellX, cellY, cellZ)),
+              CellX(cellX),
+              CellY(cellY),
+              CellZ(cellZ),
+
+              BodyIndex(bodyIndex)
+        {
+        }
+
+        Cell() = delete;
+        Cell(const Cell&) = default;
+        Cell& operator=(const Cell&) = default;
+        Cell(Cell&&) = default;
+        Cell& operator=(Cell&&) = default;
+
+        constexpr static uint32_t Mix32(const uint32_t u)
+        {
+            // From https://github.com/skeeto/hash-prospector
+            constexpr uint32_t kHashParam1 = 0x7feb352dU;
+            constexpr uint32_t kHashParam2 = 0x846ca68bU;
+
+            uint32_t v = u;
+            v ^= v >> 16;
+            v *= kHashParam1;
+            v ^= v >> 15;
+            v *= kHashParam2;
+            v ^= v >> 16;
+            return v;
+        }
+
+        constexpr static uint32_t HashCell(const int32_t x, const int32_t y, const int32_t z)
+        {
+            const uint32_t ux = uint32_t(x);
+            const uint32_t uy = uint32_t(y);
+            const uint32_t uz = uint32_t(z);
+
+            constexpr uint32_t kSaltX = Mix32(0);
+            constexpr uint32_t kSaltY = Mix32(1);
+            constexpr uint32_t kSaltZ = Mix32(2);
+
+            return Mix32(ux ^ kSaltX) ^ Mix32(uy ^ kSaltY) ^ Mix32(uz ^ kSaltZ);
+        }
+
+        // DO NOT change the order of the members below, as it affects the sort order and thus the
+        // generation of body pairs.
+        // Sorting by these fields (in this order) ensures bodies that share a cell are adjacent.
+        // Within a cell bodies are sorted by index.
+        uint32_t Hash;
+        int32_t CellX, CellY, CellZ; // Quantized cell coordinates.
         size_t BodyIndex; // Index of the body occupying the cell.
-        uint64_t Hash;
 
-        bool operator==(const Cell& that) const
-        {
-            return Hash == that.Hash && BodyIndex == that.BodyIndex;
-        }
-
-        bool operator!=(const Cell& that) const
-        {
-            return !(*this == that);
-        }
-
-        auto operator<=>(const Cell& that) const
-        {
-            if(Hash != that.Hash)
-            {
-                return Hash <=> that.Hash;
-            }
-
-            return BodyIndex <=> that.BodyIndex;
-        }
+        std::strong_ordering operator<=>(const Cell& that) const = default;
     };
 
     /// @brief Allocates the necessary number of cells for a body that spans the given number of
@@ -258,14 +256,8 @@ private:
     /// @param dy The number of cells the body spans in the y dimension.
     /// @param dz The number of cells the body spans in the z dimension.
     /// @return
-    Result<> AllocateCells(const uint64_t dx, const uint64_t dy, const uint64_t dz)
+    Result<> AllocateCells(const uint32_t dx, const uint32_t dy, const uint32_t dz)
     {
-        MLG_CHECKV(dx > 0 && dy > 0 && dz > 0,
-            "Invalid cell span. dx: {}, dy: {}, dz: {}",
-            dx,
-            dy,
-            dz);
-
         const size_t dxs = static_cast<size_t>(dx);
         const size_t dys = static_cast<size_t>(dy);
         const size_t dzs = static_cast<size_t>(dz);
@@ -292,52 +284,10 @@ private:
         return Result<>::Ok;
     }
 
-    static uint64_t QuantizeX(float value)
+    static int32_t Quantize(const float value)
     {
-        if(!MLG_VERIFY(value >= kMinX && value <= kMaxX,
-            "X Value out of range for quantization: {}. Valid range: [{}, {}]",
-            value,
-            kMinX,
-            kMaxX))
-        {
-            return 0;
-        }
-
-        const int64_t i = static_cast<int64_t>(std::floor(value));
-
-        return static_cast<uint64_t>((i + kBiasX) >> CELL_SIZE_POW2);
-    }
-
-    static uint64_t QuantizeZ(float value)
-    {
-        if(!MLG_VERIFY(value >= kMinZ && value <= kMaxZ,
-            "Z Value out of range for quantization: {}. Valid range: [{}, {}]",
-            value,
-            kMinZ,
-            kMaxZ))
-        {
-            return 0;
-        }
-
-        const int64_t i = static_cast<int64_t>(std::floor(value));
-
-        return static_cast<uint64_t>((i + kBiasZ) >> CELL_SIZE_POW2);
-    }
-
-    static uint64_t QuantizeY(float value)
-    {
-        if(!MLG_VERIFY(value >= kMinY && value <= kMaxY,
-            "Y Value out of range for quantization: {}. Valid range: [{}, {}]",
-            value,
-            kMinY,
-            kMaxY))
-        {
-            return 0;
-        }
-
-        const int64_t i = static_cast<int64_t>(std::floor(value));
-
-        return static_cast<uint64_t>((i + kBiasY) >> CELL_SIZE_POW2);
+        // Assume the value has been verified to be within the valid range in Add().
+        return static_cast<int32_t>(std::floor(value * kInvCellSize));
     }
 
     /// @brief Sorts the cells and generates the list of unique body pairs potentially colliding.
