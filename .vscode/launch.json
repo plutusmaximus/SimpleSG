@@ -87,6 +87,30 @@
             "environment": [],
             //"console": "externalTerminal"
             "console": "integratedTerminal"
+        }},
+        {
+            "name": "Collision (Debug)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/Collision.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/Debug",
+            "environment": [],
+            //"console": "externalTerminal"
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Collision (Release)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Release/Collision.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/Release",
+            "environment": [],
+            //"console": "externalTerminal"
+            "console": "integratedTerminal"
         },
     ]
 }
