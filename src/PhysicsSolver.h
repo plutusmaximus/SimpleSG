@@ -375,6 +375,7 @@ public:
 
     float ComputeKineticEnergy() const;
 
+    std::span<const Level::NodeHandle> GetNodeHandles() const { return m_NodeHandles; }
     std::span<const RigidBody> GetBodies() const { return m_Bodies; }
     std::span<const TrsTransformf> GetTransforms() const { return m_Trs0; }
     std::span<const Collider> GetColliders() const { return m_Colliders; }
@@ -393,6 +394,7 @@ private:
         m_TransformPool[1] = m_TransformPool[0];
         m_AccelerationPool[0].resize(m_Bodies.size(), Vec3f{ 0 });
         m_AccelerationPool[1].resize(m_Bodies.size(), Vec3f{ 0 });
+        m_ActiveBodies.resize(m_Bodies.size(), true);
         m_Trs0 = m_TransformPool[0];
         m_Trs1 = m_TransformPool[1];
         m_Am1 = m_AccelerationPool[0];
@@ -414,6 +416,8 @@ private:
     std::vector<Vec3f> m_AccelerationPool[2];
     std::vector<RigidBody> m_Bodies;
     std::vector<Collider> m_Colliders;
+    // Tracks which bodies are active in the current frame.
+    std::vector<bool> m_ActiveBodies;
     //Transforms for the current frame.
     std::span<TrsTransformf> m_Trs0;
     //Predicted transforms for the next frame.

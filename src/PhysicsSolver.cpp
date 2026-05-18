@@ -89,6 +89,8 @@ PhysicsSolver::SyncToLevel(Level& level)
 {
     for(size_t i = 0; i < m_NodeHandles.size(); ++i)
     {
+        m_ActiveBodies[i] = level.IsActive(m_NodeHandles[i]);
+
         MLG_CHECK(level.UpdateLocalTransform( m_NodeHandles[i], m_Trs0[i]));
     }
 
@@ -121,6 +123,11 @@ PhysicsSolver::UpdateVelocities(const float dt)
     // but a substep due to collision events.
     for (size_t i = 0; i < m_Bodies.size(); ++i)
     {
+        if(!m_ActiveBodies[i])
+        {
+            continue;
+        }
+
         // Acceleration can change over the timestep due to, e.g., gravity.
         // So it's incorrect to use a single acceleration over the timestep.
         // Instead we approximate the integral of the acceleration function
@@ -139,6 +146,11 @@ PhysicsSolver::PredictPositions(const float dt)
 
     for (size_t i = 0; i < m_Bodies.size(); ++i)
     {
+        if(!m_ActiveBodies[i])
+        {
+            continue;
+        }
+
         // Update position using velocity and acceleration from previous time step.
         // p = ∫ v dt
         // v = v0 + a * t
@@ -208,7 +220,7 @@ PhysicsSolver::ResolveImpact(const ImpactRecord& impact)
     }
 
     // FIXME(KB) - parameterize this.
-    constexpr float correctionSlop = 1e-3f;
+    constexpr float kCorrectionSlop = 1e-3f;
 
     MLG_ASSERT(impactResult.PenetrationDepth >= 0, "Penetration depth should be non-negative");
 
@@ -218,20 +230,40 @@ PhysicsSolver::ResolveImpact(const ImpactRecord& impact)
         m_Trs1[indexA].T = impactResult.PosAtImpactA;
         m_Trs1[indexB].T = impactResult.PosAtImpactB;
     }
-    else if(impactResult.PenetrationDepth > correctionSlop)
+    else if(impactResult.PenetrationDepth > kCorrectionSlop)
     {
+        // mA = mass of A
+        // mB = mass of B
+        // n  = unit normal from B to A
+        // d  = penetration depth
+        // s  = slop
+        // p  = correction percent
+        // Magnitude of correction:
+        // C = max(d - s, 0) * p
+        // moveA + moveB = C
+        // Weight the movement by the inverse of the mass (i.e., more massive bodies move less):
+        // moveA = C * mB / (mA + mB)
+        // moveB = C * mA / (mA + mB)
+        // posA' = posA + n * C * mB / (mA + mB)
+        // posB' = posB - n * C * mA / (mA + mB)
+        // Equivalent to:
+        // posA' = posA + n * C * (invMA) / ((invMA) + (invMB))
+        // posB' = posB - n * C * (invMB) / ((invMA) + (invMB))
+        // Where invMA = 1/mA and invMB = 1/mB are the inverse masses of A and B, respectively.
+        // Inverse masses are used because bodies with infinite mass (i.e., immovable bodies) will
+        // have an inverse mass of zero, which correctly results in them not moving.
+
         // FIXME(KB) - parameterize this.
-        constexpr float positionalCorrectionPercent = 0.1f;
+        constexpr float kCorrectionPercent = 0.1f;
 
         const float invMA = bodyA.Mass.InvValue();
         const float invMB = bodyB.Mass.InvValue();
         const float invMassSum = invMA + invMB;
 
-        const float correctionMagnitude =
-            std::max(0.0f, impactResult.PenetrationDepth - correctionSlop) *
-            positionalCorrectionPercent;
+        const float C =
+            std::max(0.0f, impactResult.PenetrationDepth - kCorrectionSlop) * kCorrectionPercent;
 
-        const Vec3f correction = correctionMagnitude * impactResult.ContactNormalBtoA / invMassSum;
+        const Vec3f correction = C * impactResult.ContactNormalBtoA / invMassSum;
 
         m_Trs1[indexA].T += correction * invMA;
         m_Trs1[indexB].T -= correction * invMB;
@@ -250,6 +282,11 @@ PhysicsSolver::FindAndResolveAllImpacts()
     // defined by the current and predicted position.
     for(size_t i = 0; i < m_Bodies.size(); ++i)
     {
+        if(!m_ActiveBodies[i])
+        {
+            continue;
+        }
+
         const Vec3f bbMin //
             {
                 std::min(m_Trs0[i].T.x, m_Trs1[i].T.x),
@@ -441,12 +478,10 @@ PhysicsSolver::SphereSphereSweep(const BodyPair& bodyPair, ImpactResult& impactR
     {
         // Already overlapping at time t0.
 
-        const float dist0 = std::sqrtf(dist0Sqr);
-
         //Treat this as an immediate collision at t0.
         impactResult.Alpha = 0.0f;
 
-        if(dist0 < EPSILON)
+        if(dist0Sqr < EPSILON_SQ)
         {
             // Centers are extremely close.  Try setting contact normal based on relative motion.
             const float relMoLenSq = relMo.Dot(relMo);
@@ -464,13 +499,22 @@ PhysicsSolver::SphereSphereSweep(const BodyPair& bodyPair, ImpactResult& impactR
         {
             // Spheres overlapping so contact normal is direction from one center to the other
             // at time t0.
-            impactResult.ContactNormalBtoA = relP0 / dist0;
+            impactResult.ContactNormalBtoA = relP0 / std::sqrtf(dist0Sqr);
         }
 
         impactResult.ContactPoint = transformB0.T + impactResult.ContactNormalBtoA * radiusB;
-        impactResult.PenetrationDepth = r - dist0;
         impactResult.PosAtImpactA = transformA0.T;
         impactResult.PosAtImpactB = transformB0.T;
+
+        // Penetration depth = r - d.
+        // Where:
+        // r = sum of radii, d = distance between centers.
+        // (r^2 - d^2) = (r - d)(r + d)
+        // So: (r - d) = (r^2 - d^2) / (r + d)
+        // Using this formula avoids catastrophic cancellation when r and d are close, which can
+        // happen with shallow penetrations.
+        // https://en.wikipedia.org/wiki/Catastrophic_cancellation
+        impactResult.PenetrationDepth = (r * r - dist0Sqr) / (r + std::sqrtf(dist0Sqr));
 
         return true;
     }
