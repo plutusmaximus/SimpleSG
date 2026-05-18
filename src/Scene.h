@@ -13,9 +13,30 @@ using ClipSpaceBuffer = SemanticGpuBuffer<ShaderInterop::ClipSpaceTransform>;
 using MeshPropertiesBuffer = SemanticGpuBuffer<ShaderInterop::MeshProperties>;
 using CameraParamsBuffer = SemanticGpuBuffer<ShaderInterop::CameraParams>;
 
-struct ModelInstance
+class ModelInstance
 {
-    ModelIndex ModelIndex{ ModelIndex::INVALID };
+public:
+
+    explicit ModelInstance(ModelIndex modelIndex)
+        : m_ModelIndex(modelIndex)
+    {
+    }
+
+    ModelInstance() = default;
+    ModelInstance(const ModelInstance&) = default;
+    ModelInstance& operator=(const ModelInstance&) = default;
+    ModelInstance(ModelInstance&&) = default;
+    ModelInstance& operator=(ModelInstance&&) = default;
+
+    ModelIndex GetModelIndex() const { return m_ModelIndex; }
+
+    void SetVisible(const bool visible) { m_IsVisible = visible; }
+    bool IsVisible() const { return m_IsVisible; }
+
+private:
+    ModelIndex m_ModelIndex{ ModelIndex::INVALID };
+
+    bool m_IsVisible{ true };
 };
 
 class Scene

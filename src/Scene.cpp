@@ -81,10 +81,10 @@ BuildTransformBuffer(const Level& level,
 
         const ModelIndex modelIndex = *node->Components.Model;
         MLG_ASSERT(modelIndex.IsValid(), "Node has invalid model index");
-        const ModelInstance modelInstance{ .ModelIndex{ modelIndex } };
-        outModelInstances.push_back(modelInstance);
+        const ModelInstance modelInstance{modelIndex };
+        outModelInstances.emplace_back(modelInstance);
 
-        outNodeHandles.push_back(handle);
+        outNodeHandles.emplace_back(handle);
 
         const ShaderInterop::WorldTransform transform{ .Transform = node->WorldTransform };
         outWorldTransforms.emplace_back(transform);
@@ -99,12 +99,12 @@ CountMeshes(std::span<const Model> models, std::span<const ModelInstance> modelI
     size_t meshCount = 0;
     for(const auto& modelInstance : modelInstances)
     {
-        MLG_ASSERT(modelInstance.ModelIndex.Value() < models.size(),
+        MLG_ASSERT(modelInstance.GetModelIndex().Value() < models.size(),
             "Model instance has invalid model index: {} (model count: {})",
-            modelInstance.ModelIndex.Value(),
+            modelInstance.GetModelIndex().Value(),
             models.size());
 
-        meshCount += models[modelInstance.ModelIndex.Value()].MeshCount;
+        meshCount += models[modelInstance.GetModelIndex().Value()].MeshCount;
     }
     return meshCount;
 }
@@ -124,11 +124,11 @@ BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const Pro
 
     for(const auto& modelInstance : modelInstances)
     {
-        MLG_ASSERT(modelInstance.ModelIndex.Value() < models.size(),
+        MLG_ASSERT(modelInstance.GetModelIndex().Value() < models.size(),
             "Model instance has invalid model index: {} (model count: {})",
-            modelInstance.ModelIndex.Value(), models.size());
+            modelInstance.GetModelIndex().Value(), models.size());
 
-        const Model& model = models[modelInstance.ModelIndex.Value()];
+        const Model& model = models[modelInstance.GetModelIndex().Value()];
 
         MLG_ASSERT(model.FirstMesh.Value() + model.MeshCount <= meshes.size(),
             "Model has invalid mesh range: first mesh {}, mesh count {} (total meshes: {})",
@@ -174,11 +174,11 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const P
 
     for(const auto& modelInstance : modelInstances)
     {
-        MLG_ASSERT(modelInstance.ModelIndex.Value() < models.size(),
+        MLG_ASSERT(modelInstance.GetModelIndex().Value() < models.size(),
             "Model instance has invalid model index: {} (model count: {})",
-            modelInstance.ModelIndex.Value(), models.size());
+            modelInstance.GetModelIndex().Value(), models.size());
 
-        const Model& model = models[modelInstance.ModelIndex.Value()];
+        const Model& model = models[modelInstance.GetModelIndex().Value()];
 
         MLG_ASSERT(model.FirstMesh.Value() + model.MeshCount <= meshes.size(),
             "Model has invalid mesh range: first mesh {}, mesh count {} (total meshes: {})",
@@ -409,6 +409,8 @@ Result<> Scene::SyncFromLevel(const Level& level)
 
         const ShaderInterop::WorldTransform transform{ .Transform = node->WorldTransform };
         m_WorldTransforms[i] = transform;
+
+        m_ModelInstances[i].SetVisible(level.IsVisible(nodeHandle));
     }
 
     return Result<>::Ok;
