@@ -9,8 +9,8 @@
 
 namespace
 {
-	using TestGridHash5 = GridHash<5>;
-    using TestGridHash4 = GridHash<4>;
+	using TestGridHash3 = GridHash<3>;
+    using TestGridHash2 = GridHash<2>;
 
 	Collider MakeSphereCollider(float radius)
 	{
@@ -25,7 +25,7 @@ namespace
 
 TEST(GridHash, EmptyGridHasNoPotentialCollisions)
 {
-	TestGridHash5 hash;
+	TestGridHash3 hash;
 
     std::span pairs(hash);
 
@@ -34,7 +34,7 @@ TEST(GridHash, EmptyGridHasNoPotentialCollisions)
 
 TEST(GridHash, SingleBodyProducesNoPairs)
 {
-	TestGridHash5 hash;
+	TestGridHash3 hash;
 
 	const Result<> result = hash.Add(
 		Vec3f{ 0.2f, 0.2f, 0.2f },
@@ -50,7 +50,7 @@ TEST(GridHash, SingleBodyProducesNoPairs)
 
 TEST(GridHash, TwoBodiesInSameCellProduceOneOrderedPair)
 {
-	TestGridHash5 hash;
+	TestGridHash3 hash;
 
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
@@ -72,7 +72,7 @@ TEST(GridHash, TwoBodiesInSameCellProduceOneOrderedPair)
 
 TEST(GridHash, SharedAcrossManyCellsStillProducesUniquePair)
 {
-	TestGridHash5 hash;
+	TestGridHash3 hash;
 
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
@@ -94,7 +94,7 @@ TEST(GridHash, SharedAcrossManyCellsStillProducesUniquePair)
 
 TEST(GridHash, ThreeBodiesInOneCellGenerateAllUniquePairs)
 {
-	TestGridHash5 hash;
+	TestGridHash3 hash;
 
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
@@ -122,7 +122,7 @@ TEST(GridHash, ThreeBodiesInOneCellGenerateAllUniquePairs)
 
 TEST(GridHash, ClearRemovesExistingCellsAndPairs)
 {
-	TestGridHash5 hash;
+	TestGridHash3 hash;
 
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
@@ -160,8 +160,8 @@ TEST(GridHash, ClearRemovesExistingCellsAndPairs)
 
 TEST(GridHash, GridHash4AndGridHash5ContainSameBodyPairSet)
 {
-	TestGridHash4 hash4;
-	TestGridHash5 hash5;
+	TestGridHash2 hash2;
+	TestGridHash3 hash3;
 
 	struct BodyInput
 	{
@@ -181,22 +181,22 @@ TEST(GridHash, GridHash4AndGridHash5ContainSameBodyPairSet)
 
 	for(const BodyInput& body : bodies)
 	{
-		ASSERT_TRUE(hash4.Add(body.Min, body.Max, MakeSphereCollider(body.Radius), body.BodyIndex));
-		ASSERT_TRUE(hash5.Add(body.Min, body.Max, MakeSphereCollider(body.Radius), body.BodyIndex));
+		ASSERT_TRUE(hash2.Add(body.Min, body.Max, MakeSphereCollider(body.Radius), body.BodyIndex));
+		ASSERT_TRUE(hash3.Add(body.Min, body.Max, MakeSphereCollider(body.Radius), body.BodyIndex));
 	}
 
-	std::vector<BodyPair> pairs4(hash4.begin(), hash4.end());
-	std::vector<BodyPair> pairs5(hash5.begin(), hash5.end());
+	std::vector<BodyPair> pairs2(hash2.begin(), hash2.end());
+	std::vector<BodyPair> pairs3(hash3.begin(), hash3.end());
 
-	std::sort(pairs4.begin(), pairs4.end());
-	std::sort(pairs5.begin(), pairs5.end());
+	std::sort(pairs2.begin(), pairs2.end());
+	std::sort(pairs3.begin(), pairs3.end());
 
-	EXPECT_EQ(pairs4, pairs5);
+	EXPECT_EQ(pairs2, pairs3);
 }
 
 TEST(GridHash, ChaosRandomizedBodies_AllExpectedPairsExist)
 {
-	TestGridHash5 hash;
+	TestGridHash3 hash;
 
 	struct RandomBody
 	{
@@ -207,8 +207,8 @@ TEST(GridHash, ChaosRandomizedBodies_AllExpectedPairsExist)
 		std::array<int64_t, 3> MaxQ;
 	};
 
-	constexpr size_t kBodyCount = 1000;
-	constexpr float kCellSize = static_cast<float>(TestGridHash5::kCellSize);
+	constexpr size_t kBodyCount = 5000;
+	constexpr float kCellSize = static_cast<float>(TestGridHash3::kCellSize);
 
 	const auto quantize = [](float value)
 	{
@@ -216,20 +216,21 @@ TEST(GridHash, ChaosRandomizedBodies_AllExpectedPairsExist)
 	};
 
 	std::mt19937 rng(0xC0FFEEu);
-	std::uniform_real_distribution<float> centerDist(-400.0f, 400.0f);
+	std::uniform_real_distribution<float> centerDistXZ(-400.0f, 400.0f);
+	std::uniform_real_distribution<float> centerDistY(-64.0f, 64.0f);
 	std::uniform_real_distribution<float> halfExtentDist(0.05f, 3.0f);
 	std::uniform_real_distribution<float> radiusDist(0.01f, 1.25f);
 
-	std::vector<RandomBody> bodies;
+    std::vector<RandomBody> bodies;
 	bodies.reserve(kBodyCount);
 
 	for(size_t i = 0; i < kBodyCount; ++i)
     {
         const Vec3f center //
             {
-                centerDist(rng),
-                centerDist(rng),
-                centerDist(rng),
+                centerDistXZ(rng),
+                centerDistY(rng),
+                centerDistXZ(rng),
             };
 
         const Vec3f halfExtent //

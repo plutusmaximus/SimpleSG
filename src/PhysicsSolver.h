@@ -98,17 +98,34 @@ struct ImpactRecord
 
 /// @brief  Spatial hash for broad-phase collision detection. Divides space into a grid of cells,
 /// and hashes bodies into the cells they occupy.
-/// @tparam CELL_SIZE
-template<size_t TP_CELL_SIZE>
-requires (TP_CELL_SIZE > 0)
+/// @tparam CELL_SIZE_POW2
+template<size_t CELL_SIZE_POW2>
 class GridHash
 {
+    static_assert(CELL_SIZE_POW2 > 0, "CELL_SIZE_POW2 must be greater than 0");
+    static_assert(CELL_SIZE_POW2 < 8, "CELL_SIZE_POW2 is >= 8 - was that intentional?");
 public:
-    static constexpr size_t kCellSize = TP_CELL_SIZE;
-    static constexpr float kInvCellSize = 1.0f / static_cast<float>(kCellSize);
+    static constexpr size_t kCellSize = 1 << CELL_SIZE_POW2;
 
-    static constexpr int32_t kMaxExtent = std::numeric_limits<int32_t>::max() / 2;
-    static constexpr int32_t kMinExtent = std::numeric_limits<int32_t>::min() / 2;
+    // 64 total bits in hash.
+    // X/Z can consume 28 bits each.
+    // Y can consume 8 bits.
+    static constexpr int64_t kBitsX = 28;
+    static constexpr int64_t kBitsY = 8;
+    static constexpr int64_t kBitsZ = 28;
+    static constexpr int64_t kMaxX = 1 << (kBitsX - 1);
+    static constexpr int64_t kMinX = -kMaxX;
+    static constexpr int64_t kMaxY = 1 << (kBitsY - 1);
+    static constexpr int64_t kMinY = -kMaxY;
+    static constexpr int64_t kMaxZ = 1 << (kBitsZ - 1);
+    static constexpr int64_t kMinZ = -kMaxZ;
+    static constexpr int64_t kBiasX = 1 << (kBitsX - 1);
+    static constexpr int64_t kBiasY = 1 << (kBitsY - 1);
+    static constexpr int64_t kBiasZ = 1 << (kBitsZ - 1);
+    static constexpr int64_t kShiftZ = 0;
+    static constexpr int64_t kShiftY = kShiftZ + kBitsZ;
+    static constexpr int64_t kShiftX = kShiftY + kBitsY;
+
     // Arbitrary limit to prevent excessive cell counts for large bodies.
     static constexpr size_t kMaxCellsPerBody = 1000;
 
@@ -146,32 +163,35 @@ public:
         const Vec3f minExtent{bbMin.x - radius, bbMin.y - radius, bbMin.z - radius };
         const Vec3f maxExtent{bbMax.x + radius, bbMax.y + radius, bbMax.z + radius};
 
-        MLG_CHECKV(minExtent.x >= kMinExtent && minExtent.y >= kMinExtent && minExtent.z >= kMinExtent &&
-                   maxExtent.x <= kMaxExtent && maxExtent.y <= kMaxExtent && maxExtent.z <= kMaxExtent,
-            "Bounding box exceeds maximum extents: Min: {}, Max: {}",
+        MLG_CHECKV(minExtent.x >= kMinX && minExtent.y >= kMinY && minExtent.z >= kMinZ &&
+                   maxExtent.x <= kMaxX && maxExtent.y <= kMaxY && maxExtent.z <= kMaxZ,
+            "Bounding box exceeds maximum extents: Min: {}/{}, Max: {}/{}",
             minExtent,
-            maxExtent);
+            Vec3f{ kMinX, kMinY, kMinZ },
+            maxExtent,
+            Vec3f{ kMaxX, kMaxY, kMaxZ });
 
-        const int64_t minX = Quantize(minExtent.x);
-        const int64_t minY = Quantize(minExtent.y);
-        const int64_t minZ = Quantize(minExtent.z);
-        const int64_t maxX = Quantize(maxExtent.x);
-        const int64_t maxY = Quantize(maxExtent.y);
-        const int64_t maxZ = Quantize(maxExtent.z);
+        const uint64_t minX = QuantizeX(minExtent.x);
+        const uint64_t minY = QuantizeY(minExtent.y);
+        const uint64_t minZ = QuantizeZ(minExtent.z);
+        const uint64_t maxX = QuantizeX(maxExtent.x);
+        const uint64_t maxY = QuantizeY(maxExtent.y);
+        const uint64_t maxZ = QuantizeZ(maxExtent.z);
 
-        const int64_t dx64 = maxX - minX + 1;
-        const int64_t dy64 = maxY - minY + 1;
-        const int64_t dz64 = maxZ - minZ + 1;
+        const uint64_t dx = maxX - minX + 1;
+        const uint64_t dy = maxY - minY + 1;
+        const uint64_t dz = maxZ - minZ + 1;
 
-        MLG_CHECK(AllocateCells(dx64, dy64, dz64));
+        MLG_CHECK(AllocateCells(dx, dy, dz));
 
-        for(int64_t x = minX; x <= maxX; ++x)
+        for(uint64_t x = minX; x <= maxX; ++x)
         {
-            for(int64_t y = minY; y <= maxY; ++y)
+            for(uint64_t y = minY; y <= maxY; ++y)
             {
-                for(int64_t z = minZ; z <= maxZ; ++z)
+                for(uint64_t z = minZ; z <= maxZ; ++z)
                 {
-                    m_Cells.emplace_back(Cell{bodyIndex, x, y, z});
+                    const uint64_t hash = (x << kShiftX) | (y << kShiftY) | (z << kShiftZ);
+                    m_Cells.emplace_back(Cell{bodyIndex, hash});
                 }
             }
         }
@@ -209,11 +229,11 @@ private:
     struct Cell
     {
         size_t BodyIndex; // Index of the body occupying the cell.
-        std::array<int64_t, 3> Coords;// Cell coordinates (x, y, z)
+        uint64_t Hash;
 
         bool operator==(const Cell& that) const
         {
-            return Coords == that.Coords && BodyIndex == that.BodyIndex;
+            return Hash == that.Hash && BodyIndex == that.BodyIndex;
         }
 
         bool operator!=(const Cell& that) const
@@ -223,9 +243,9 @@ private:
 
         auto operator<=>(const Cell& that) const
         {
-            if(Coords != that.Coords)
+            if(Hash != that.Hash)
             {
-                return Coords <=> that.Coords;
+                return Hash <=> that.Hash;
             }
 
             return BodyIndex <=> that.BodyIndex;
@@ -238,25 +258,27 @@ private:
     /// @param dy The number of cells the body spans in the y dimension.
     /// @param dz The number of cells the body spans in the z dimension.
     /// @return
-    Result<> AllocateCells(const int64_t dx64, const int64_t dy64, const int64_t dz64)
+    Result<> AllocateCells(const uint64_t dx, const uint64_t dy, const uint64_t dz)
     {
-        MLG_CHECKV(dx64 > 0 && dy64 > 0 && dz64 > 0,
+        MLG_CHECKV(dx > 0 && dy > 0 && dz > 0,
             "Invalid cell span. dx: {}, dy: {}, dz: {}",
-            dx64,
-            dy64,
-            dz64);
+            dx,
+            dy,
+            dz);
 
-        const size_t dx = static_cast<size_t>(dx64);
-        const size_t dy = static_cast<size_t>(dy64);
-        const size_t dz = static_cast<size_t>(dz64);
+        const size_t dxs = static_cast<size_t>(dx);
+        const size_t dys = static_cast<size_t>(dy);
+        const size_t dzs = static_cast<size_t>(dz);
 
-        MLG_CHECKV(dx <= std::numeric_limits<size_t>::max() / dy,
+        MLG_CHECKV(dxs <= std::numeric_limits<size_t>::max() / dys,
             "Cell span overflow before multiply.");
-        const size_t dxy = dx * dy;
 
-        MLG_CHECKV(dxy <= std::numeric_limits<size_t>::max() / dz,
+        const size_t dxy = dxs * dys;
+
+        MLG_CHECKV(dxy <= std::numeric_limits<size_t>::max() / dzs,
             "Cell span overflow before multiply.");
-        const size_t cellCount = dxy * dz;
+
+        const size_t cellCount = dxy * dzs;
 
         MLG_CHECKV(cellCount <= kMaxCellsPerBody, "Too many cells occupied. count={}", cellCount);
 
@@ -270,19 +292,52 @@ private:
         return Result<>::Ok;
     }
 
-    static int64_t Quantize(float value)
+    static uint64_t QuantizeX(float value)
     {
-        if(!MLG_VERIFY(value >= kMinExtent && value <= kMaxExtent,
-            "Value out of range for quantization: {}. Valid range: [{}, {}]",
+        if(!MLG_VERIFY(value >= kMinX && value <= kMaxX,
+            "X Value out of range for quantization: {}. Valid range: [{}, {}]",
             value,
-            kMinExtent,
-            kMaxExtent))
+            kMinX,
+            kMaxX))
         {
             return 0;
         }
 
-        const float f = value * kInvCellSize;
-        return static_cast<int64_t>(std::floor(f));
+        const int64_t i = static_cast<int64_t>(std::floor(value));
+
+        return static_cast<uint64_t>((i + kBiasX) >> CELL_SIZE_POW2);
+    }
+
+    static uint64_t QuantizeZ(float value)
+    {
+        if(!MLG_VERIFY(value >= kMinZ && value <= kMaxZ,
+            "Z Value out of range for quantization: {}. Valid range: [{}, {}]",
+            value,
+            kMinZ,
+            kMaxZ))
+        {
+            return 0;
+        }
+
+        const int64_t i = static_cast<int64_t>(std::floor(value));
+
+        return static_cast<uint64_t>((i + kBiasZ) >> CELL_SIZE_POW2);
+    }
+
+    static uint64_t QuantizeY(float value)
+    {
+        if(!MLG_VERIFY(value >= kMinY && value <= kMaxY,
+            "Y Value out of range for quantization: {}. Valid range: [{}, {}]",
+            value,
+            kMinY,
+            kMaxY))
+        {
+            return 0;
+        }
+
+        const int64_t i = static_cast<int64_t>(std::floor(value));
+
+        return static_cast<uint64_t>((i + kBiasY) >> CELL_SIZE_POW2);
     }
 
     /// @brief Sorts the cells and generates the list of unique body pairs potentially colliding.
@@ -305,7 +360,7 @@ private:
         {
             const size_t indexA = m_Cells[i].BodyIndex;
 
-            for(size_t j = i + 1; j < m_Cells.size() && m_Cells[j].Coords == m_Cells[i].Coords; ++j)
+            for(size_t j = i + 1; j < m_Cells.size() && m_Cells[j].Hash == m_Cells[i].Hash; ++j)
             {
                 // Bodies that share a cell are potentially colliding.
 
