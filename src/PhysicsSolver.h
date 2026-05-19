@@ -47,11 +47,25 @@ struct ImpactResult
     Vec3f PosAtImpactB;
 };
 
+struct ColliderSweepParams
+{
+    Vec3f StartPosA;
+    Vec3f EndPosA;
+    Collider ColliderA;
+
+    Vec3f StartPosB;
+    Vec3f EndPosB;
+    Collider ColliderB;
+};
+
 struct ImpactRecord
 {
-    //class PhysicsSolver* Solver{nullptr}; //DO NOT SUBMIT
     BodyPair Bodies;
+
+    ColliderSweepParams SweepParams;
+
     ImpactResult Result;
+
     bool ImpactFound{false};
 
     bool operator==(const ImpactRecord& that) const
@@ -66,14 +80,15 @@ struct ImpactRecord
 
     auto operator<=>(const ImpactRecord& that) const
     {
-        // We want to sort impact records by time of impact.
-
         if(ImpactFound != that.ImpactFound)
         {
-            // Records with impacts should come before records without impacts.
+            // Default ordering of bool would put records without impacts before records with
+            // impacts.
+            // We want records with impacts to come before records without impacts.
             return ImpactFound ? std::strong_ordering::less : std::strong_ordering::greater;
         }
 
+        // For records with impacts, sort by time of impact (Alpha).
         return std::strong_order(Result.Alpha, that.Result.Alpha);
     }
 };
@@ -416,7 +431,7 @@ private:
 
     void FindAndResolveAllImpacts();
 
-    bool SphereSphereSweep(const BodyPair& bodyPair, ImpactResult& impactResult) const;
+    static bool SphereSphereSweep(const ColliderSweepParams& params, ImpactResult& impactResult);
 
     std::vector<Level::NodeHandle> m_NodeHandles;
     std::vector<TrsTransformf> m_TransformPool[2];

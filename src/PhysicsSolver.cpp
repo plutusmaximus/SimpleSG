@@ -333,8 +333,7 @@ PhysicsSolver::FindAndResolveAllImpacts()
             for(ImpactRecord& impactRecord : batch->PotentialImpacts)
             {
                 impactRecord.ImpactFound =
-                    impactRecord.Solver->SphereSphereSweep(impactRecord.Bodies,
-                        impactRecord.Result);
+                    SphereSphereSweep(impactRecord.SweepParams, impactRecord.Result);
             }
 
             batch->FinishCounter->fetch_add(1, std::memory_order_release);
@@ -361,7 +360,21 @@ PhysicsSolver::FindAndResolveAllImpacts()
     // Collect impact records into batches and enqueue for processing.
     for(const BodyPair& bodyPair : m_GridHash)
     {
-        m_ImpactRecords.emplace_back(this, bodyPair);
+        ImpactRecord impactRecord //
+            {
+                .Bodies = bodyPair,
+                .SweepParams //
+                {
+                    .StartPosA = m_Trs0[bodyPair.IndexA()].T,
+                    .EndPosA = m_Trs1[bodyPair.IndexA()].T,
+                    .ColliderA = m_Colliders[bodyPair.IndexA()],
+                    .StartPosB = m_Trs0[bodyPair.IndexB()].T,
+                    .EndPosB = m_Trs1[bodyPair.IndexB()].T,
+                    .ColliderB = m_Colliders[bodyPair.IndexB()],
+                },
+            };
+
+        m_ImpactRecords.emplace_back(impactRecord);
         ++pairCount;
 
         if(pairCount >= batchSize)
@@ -424,7 +437,7 @@ PhysicsSolver::FindAndResolveAllImpacts()
 }
 
 bool
-PhysicsSolver::SphereSphereSweep(const BodyPair& bodyPair, ImpactResult& impactResult) const
+PhysicsSolver::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult& impactResult)
 {
     MLG_SCOPED_TIMER("Physics.SphereSphereSweep");
 
@@ -448,19 +461,16 @@ PhysicsSolver::SphereSphereSweep(const BodyPair& bodyPair, ImpactResult& impactR
     //
     // Solve the quadratic equation for t.
 
-    const Collider& colliderA = m_Colliders[bodyPair.IndexA()];
-    const Collider& colliderB = m_Colliders[bodyPair.IndexB()];
+    const float radiusA = params.ColliderA.GetSphereRadius();
+    const float radiusB = params.ColliderB.GetSphereRadius();
 
-    const float radiusA = colliderA.GetSphereRadius();
-    const float radiusB = colliderB.GetSphereRadius();
+    const Vec3f& pA0 = params.StartPosA;
+    const Vec3f& pA1 = params.EndPosA;
+    const Vec3f& pB0 = params.StartPosB;
+    const Vec3f& pB1 = params.EndPosB;
 
-    const TrsTransformf& transformA0 = m_Trs0[bodyPair.IndexA()];
-    const TrsTransformf& transformA1 = m_Trs1[bodyPair.IndexA()];
-    const TrsTransformf& transformB0 = m_Trs0[bodyPair.IndexB()];
-    const TrsTransformf& transformB1 = m_Trs1[bodyPair.IndexB()];
-
-    const Vec3 relP0 = transformA0.T - transformB0.T;
-    const Vec3 relP1 = transformA1.T - transformB1.T;
+    const Vec3 relP0 = pA0 - pB0;
+    const Vec3 relP1 = pA1 - pB1;
     const Vec3 relMo = relP1 - relP0;
     const float r = radiusA + radiusB;
     const float r2 = r * r;
@@ -498,9 +508,9 @@ PhysicsSolver::SphereSphereSweep(const BodyPair& bodyPair, ImpactResult& impactR
             impactResult.ContactNormalBtoA = relP0 / std::sqrtf(dist0Sqr);
         }
 
-        impactResult.ContactPoint = transformB0.T + impactResult.ContactNormalBtoA * radiusB;
-        impactResult.PosAtImpactA = transformA0.T;
-        impactResult.PosAtImpactB = transformB0.T;
+        impactResult.ContactPoint = pB0 + impactResult.ContactNormalBtoA * radiusB;
+        impactResult.PosAtImpactA = pA0;
+        impactResult.PosAtImpactB = pB0;
 
         // Penetration depth = r - d.
         // Where:
@@ -561,8 +571,8 @@ PhysicsSolver::SphereSphereSweep(const BodyPair& bodyPair, ImpactResult& impactR
     impactResult.Alpha = t;
 
     // Centers at time of impact.
-    impactResult.PosAtImpactA = transformA0.T + (transformA1.T - transformA0.T) * t;
-    impactResult.PosAtImpactB = transformB0.T + (transformB1.T - transformB0.T) * t;
+    impactResult.PosAtImpactA = pA0 + (pA1 - pA0) * t;
+    impactResult.PosAtImpactB = pB0 + (pB1 - pB0) * t;
 
     // Vector between centers.
     impactResult.ContactNormalBtoA = impactResult.PosAtImpactA - impactResult.PosAtImpactB;
