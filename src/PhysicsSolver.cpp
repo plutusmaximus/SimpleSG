@@ -168,7 +168,6 @@ PhysicsSolver::PredictPositions(const float dt)
 void
 PhysicsSolver::ResolveImpact(const ImpactRecord& impact)
 {
-    //FIXME(KB) - make perf timers MT safe.
     MLG_SCOPED_TIMER("Physics.ResolveImpact");
 
     const BodyPair& bodyPair = impact.Bodies;
@@ -427,10 +426,7 @@ PhysicsSolver::FindAndResolveAllImpacts()
 bool
 PhysicsSolver::SphereSphereSweep(const BodyPair& bodyPair, ImpactResult& impactResult) const
 {
-#if !FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED
-    //FIXME(KB) - make perf timers MT safe.
     MLG_SCOPED_TIMER("Physics.SphereSphereSweep");
-#endif
 
     constexpr float EPSILON = 1e-6f;
     constexpr float EPSILON_SQ = EPSILON * EPSILON;

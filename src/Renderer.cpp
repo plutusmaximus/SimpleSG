@@ -74,45 +74,39 @@ Renderer::Render(const Mat44f& camera,
 {
     MLG_CHECKV(m_Initialized, "Renderer is not initialized");
 
-    static PerfTimer renderTimer("Renderer.Render");
-    auto scopedRenderTimer = renderTimer.StartScoped();
+    MLG_SCOPED_TIMER("Renderer.Render");
 
     wgpu::CommandEncoder cmdEncoder = compositor.GetCommandEncoder();
 
-    static PerfTimer transformNodesTimer("Renderer.Render.TransformNodes");
     {
-        auto scopedTimer = transformNodesTimer.StartScoped();
+        MLG_SCOPED_TIMER("Renderer.Render.TransformNodes");
 
         auto transformNodesResult = TransformNodes(cmdEncoder, camera, projection, scene);
         MLG_CHECK(transformNodesResult);
     }
 
     wgpu::RenderPassEncoder renderPass;
-    static PerfTimer beginRenderPassTimer("Renderer.Render.BeginRenderPass");
     {
-        auto scopedTimer = beginRenderPassTimer.StartScoped();
+        MLG_SCOPED_TIMER("Renderer.Render.BeginRenderPass");
         auto renderPassResult = BeginRenderPass(cmdEncoder);
         MLG_CHECK(renderPassResult);
 
         renderPass = *renderPassResult;
     }
 
-    static PerfTimer setPipelineTimer("Renderer.Render.SetPipeline");
     {
-        auto scopedTimer = setPipelineTimer.StartScoped();
+        MLG_SCOPED_TIMER("Renderer.Render.SetPipeline");
 
         renderPass.SetPipeline(m_ColorPipeline.Pipeline);
     }
 
-    static PerfTimer setPerFrameBindGroupTimer("Renderer.Render.Draw.SetPerFrameBindGroup");
     {
-        auto scopedTimer = setPerFrameBindGroupTimer.StartScoped();
+        MLG_SCOPED_TIMER("Renderer.Render.Draw.SetPerFrameBindGroup");
         renderPass.SetBindGroup(0, scene.GetColorPipelineBindGroup0(), 0, nullptr);
     }
 
-    static PerfTimer setBuffersTimer("Renderer.Render.Draw.SetBuffers");
     {
-        auto scopedTimer = setBuffersTimer.StartScoped();
+        MLG_SCOPED_TIMER("Renderer.Render.Draw.SetBuffers");
 
         static_assert(VERTEX_INDEX_BITS == 32 || VERTEX_INDEX_BITS == 16);
 
@@ -163,18 +157,14 @@ Renderer::Render(const Mat44f& camera,
 
             if(materialIndex != lastMaterialIndex)
             {
-                static PerfTimer fsBindingTimer("Renderer.Render.Draw.SetMaterialBindGroup");
-                {
-                    auto scopedTimer = fsBindingTimer.StartScoped();
+                MLG_SCOPED_TIMER("Renderer.Render.Draw.SetMaterialBindGroup");
 
-                    renderPass.SetBindGroup(1, materialBindGroups[materialIndex.Value()], 0, nullptr);
-                    lastMaterialIndex = materialIndex;
-                }
+                renderPass.SetBindGroup(1, materialBindGroups[materialIndex.Value()], 0, nullptr);
+                lastMaterialIndex = materialIndex;
             }
 
-            static PerfTimer drawIndexedTimer("Renderer.Render.Draw.DrawIndexed");
             {
-                auto scopedTimer = drawIndexedTimer.StartScoped();
+                MLG_SCOPED_TIMER("Renderer.Render.Draw.DrawIndexed");
 
                 renderPass.DrawIndexedIndirect(drawIndirectBuffer.GetGpuBuffer(), indirectOffset);
                 indirectOffset += sizeof(ShaderInterop::DrawIndirectParams);
@@ -186,9 +176,8 @@ Renderer::Render(const Mat44f& camera,
 
     renderPass.End();
 
-    static PerfTimer presentTimer("Renderer.Render.Present");
     {
-        auto scopedTimer = presentTimer.StartScoped();
+        MLG_SCOPED_TIMER("Renderer.Render.Present");
         auto presentResult = Present(compositor);
         MLG_CHECK(presentResult);
     }

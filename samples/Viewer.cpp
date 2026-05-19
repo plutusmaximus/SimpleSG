@@ -137,8 +137,6 @@ MainLoop()
 
     while(running)
     {
-        PerfMetrics::BeginFrame();
-
         static PerfTimer frameTimer("Frame");
         frameTimer.Start();
 
@@ -303,8 +301,6 @@ MainLoop()
         WebgpuHelper::GetInstance().ProcessEvents();
 
         frameTimer.Stop();
-
-        PerfMetrics::EndFrame();
     }
 
     MLG_CHECK(textureCache.Shutdown());
@@ -332,12 +328,16 @@ static Result<> RenderGui()
 
     ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
     ImGui::Begin(title.c_str());
-    PerfMetrics::TimerStat timers[256];
-    unsigned timerCount = PerfMetrics::GetTimers(timers, std::size(timers));
+
+    PerfTimerStats timerStats[256];
+    unsigned timerCount = PerfMetrics::SampleTimers(timerStats, std::size(timerStats));
     for(unsigned i = 0; i < timerCount; ++i)
     {
-        ImGui::Text("%s: %.3f ms", timers[i].GetName().c_str(), timers[i].GetValue() * 1000.0f);
+        const std::string text =
+            std::format("{}: {:.3f} ms", timerStats[i].GetName(), timerStats[i].GetEMA() * 1000.0f);
+        ImGui::Text("%s", text.c_str());
     }
+
     ImGui::End();
 
     return Result<>::Ok;
