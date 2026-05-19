@@ -76,11 +76,11 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
             const auto visitor = overloads //
                 {
                     [](const SphereDef& def) -> Collider
-                    { return Collider{ SphereCollider{ def.Radius } }; },
+                    { return Collider{ Sphere{ def.Radius } }; },
                     [](const BoxDef& def) -> Collider
-                    { return Collider{ BoxCollider{ def.HalfExtents } }; },
+                    { return Collider{ Box{ def.HalfExtents } }; },
                     [](const CapsuleDef& def) -> Collider
-                    { return Collider{ CapsuleCollider{ def.Radius, def.HalfHeight } }; },
+                    { return Collider{ Capsule{ def.Radius, def.HalfHeight } }; },
                 };
 
             components.Collider = std::visit(visitor, colliderDef);

@@ -51,7 +51,7 @@ struct Mesh
     uint32_t FirstIndex{ 0 };
     uint32_t BaseVertex{ 0 };
     MaterialIndex MaterialIndex{ MaterialIndex::INVALID };
-    AABoundingBox BoundingBox;
+    Box BoundingBox;
 };
 
 struct Model

@@ -274,7 +274,7 @@ add_sample_executable(Collision samples/Collision.cpp)
 # Executable: Tests
 # ============================================================
 add_executable(Tests
-  "tests/AABoundingBox.test.cpp"
+  "tests/BoundingBox.test.cpp"
   "tests/CoopScheduler.test.cpp"
   "tests/ECS.test.cpp"
   "tests/EcsChildTransformPool.test.cpp"

@@ -14,12 +14,12 @@ namespace
 
 	Collider MakeSphereCollider(float radius)
 	{
-		return Collider{ SphereCollider{ radius } };
+		return Collider{ Sphere{ radius } };
 	}
 
 	Collider MakeSphereCollider()
 	{
-		return Collider{ SphereCollider{ 0.1f } };
+		return Collider{ Sphere{ 0.1f } };
 	}
 }
 

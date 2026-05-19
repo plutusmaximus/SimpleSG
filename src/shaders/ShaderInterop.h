@@ -50,7 +50,6 @@ public:
 class MeshProperties
 {
 public:
-    Vec3f Center;
     float Radius;
     uint32_t TransformIndex;
     uint32_t MaterialIndex;

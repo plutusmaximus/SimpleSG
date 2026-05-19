@@ -10,7 +10,6 @@ struct ClipSpaceTransform
 
 struct MeshProperties
 {
-    center : vec3<f32>,
     radius : f32,
     transformIndex : u32,
     materialIndex : u32,

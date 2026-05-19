@@ -190,11 +190,10 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const P
 
         for(const auto& meshSrc : modelMeshes)
         {
-            const BoundingSphere boundingSphere(meshSrc.BoundingBox);
+            const Sphere boundingSphere(meshSrc.BoundingBox);
 
             ShaderInterop::MeshProperties meshProps//
             {
-                .Center = boundingSphere.GetCenter(),
                 .Radius = boundingSphere.GetRadius(),
                 .TransformIndex{ transformIndex },
                 .MaterialIndex{ meshSrc.MaterialIndex.Value() },

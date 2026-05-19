@@ -2,66 +2,93 @@
 
 #include "Vertex.h"
 
-#include <algorithm>
 #include <span>
 
-// Axis-aligned bounding box.
-class AABoundingBox
+class Box
 {
 public:
 
-    AABoundingBox() = default;
+    Box() = default;
 
-    AABoundingBox(const Vec3f& min, const Vec3f& max) noexcept
-        : m_Min(min)
-        , m_Max(max)
+    explicit Box(const Vec3f& halfExtents) noexcept
+        : m_HalfExtents(halfExtents)
+    {
+        MLG_ASSERT(halfExtents.x > 0.0f && halfExtents.y > 0.0f && halfExtents.z > 0.0f,
+            "Box half extents must be positive");
+    }
+
+    /// @brief Construct a box that encompasses the two provided points.
+    Box(const Vec3f& p0, const Vec3f& p1) noexcept
+        : Box((GetMax(p0, p1) - GetMin(p0, p1)) * 0.5f)
     {
     }
 
-    const Vec3f& GetMin() const { return m_Min; }
-    const Vec3f& GetMax() const { return m_Max; }
+    const Vec3f& GetHalfExtents() const { return m_HalfExtents; }
 
-    static AABoundingBox FromVertices(std::span<const Vertex> vertices,
-        std::span<const VertexIndex> indices);
+    static Box FromVertices(std::span<const Vertex> vertices, std::span<const VertexIndex> indices);
 
 private:
-    Vec3f m_Min = {0.0f, 0.0f, 0.0f};
-    Vec3f m_Max = {0.0f, 0.0f, 0.0f};
+
+    static Vec3f GetMin(const Vec3f& p0, const Vec3f& p1)
+    {
+        return Vec3f(
+            std::min(p0.x, p1.x),
+            std::min(p0.y, p1.y),
+            std::min(p0.z, p1.z));
+    }
+
+    static Vec3f GetMax(const Vec3f& p0, const Vec3f& p1)
+    {
+        return Vec3f(
+            std::max(p0.x, p1.x),
+            std::max(p0.y, p1.y),
+            std::max(p0.z, p1.z));
+    }
+
+    Vec3f m_HalfExtents{ 0 };
 };
 
-class BoundingSphere
+class Sphere
 {
 public:
 
-    BoundingSphere() = default;
+    Sphere() = default;
 
-    BoundingSphere(const Vec3f& center, const float radius) noexcept
-        : m_Center(center)
-        , m_Radius(radius)
+    explicit Sphere(const float radius) noexcept
+        : m_Radius(radius)
     {
+        MLG_ASSERT(radius > 0.0f, "Sphere radius must be positive");
     }
 
-    explicit BoundingSphere(const AABoundingBox& aabb) noexcept
-        : m_Center((aabb.GetMin() + aabb.GetMax()) * 0.5f)
-        , m_Radius((aabb.GetMax() - m_Center).Length())
+    explicit Sphere(const Box& box) noexcept
+        : m_Radius(box.GetHalfExtents().Length())
     {
+        MLG_ASSERT(m_Radius > 0.0f, "Sphere radius must be positive");
     }
-
-    const Vec3f& GetCenter() const { return m_Center; }
 
     float GetRadius() const { return m_Radius; }
 
-    bool Contains(const Vec3f& point) const
+private:
+    float m_Radius{ 0 };
+};
+
+class Capsule
+{
+public:
+
+    Capsule() = default;
+
+    Capsule(const float radius, const float halfHeight)
+        : m_Radius(radius), m_HalfHeight(halfHeight)
     {
-        const Vec3f v(point - m_Center);
-        const double dist2 = v.Dot(v);
-        const double r2 = m_Radius * m_Radius;
-        // Use a tolerance that is always relative to the actual radius
-        const double tol = 1e-6 * r2 + 1e-12; // 1e-12 for exact zero case
-        return dist2 <= r2 + tol;
+        MLG_ASSERT(radius > 0.0f, "Capsule radius must be positive");
+        MLG_ASSERT(halfHeight > 0.0f, "Capsule half height must be positive");
     }
 
+    float GetRadius() const { return m_Radius; }
+    float GetHalfHeight() const { return m_HalfHeight; }
+
 private:
-    Vec3f m_Center = {0.0f, 0.0f, 0.0f};
-    float m_Radius = 0.0f;
+    float m_Radius{ 0 };
+    float m_HalfHeight{ 0 };
 };

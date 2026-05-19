@@ -419,7 +419,7 @@ PropKit::Create(const std::filesystem::path& rootPath,
                     .FirstIndex = narrow_cast<uint32_t>(indices.size()),
                     .BaseVertex = narrow_cast<uint32_t>(vertices.size()),
                     .MaterialIndex = uniqueMaterialMap[meshDef.MaterialDef],
-                    .BoundingBox = AABoundingBox::FromVertices(meshDef.Vertices, meshDef.Indices),
+                    .BoundingBox = Box::FromVertices(meshDef.Vertices, meshDef.Indices),
                 };
 
             vertices.insert(vertices.end(), meshDef.Vertices.begin(), meshDef.Vertices.end());
@@ -481,10 +481,9 @@ PropKit::PropKit(VertexBuffer vertexBuffer,
 #ifndef NDEBUG
     for(const auto& mesh : m_Meshes)
     {
-        const Vec3f& aabbMax = mesh.BoundingBox.GetMax();
-        const Vec3f& aabbMin = mesh.BoundingBox.GetMin();
-        MLG_ASSERT(aabbMin != aabbMax, "Mesh has degenerate bounding box");
-        MLG_ASSERT(aabbMin.x <= aabbMax.x && aabbMin.y <= aabbMax.y && aabbMin.z <= aabbMax.z,
+        const Vec3f& halfExtents = mesh.BoundingBox.GetHalfExtents();
+        MLG_ASSERT(halfExtents != Vec3f{0}, "Mesh has degenerate bounding box");
+        MLG_ASSERT(halfExtents.x >= 0 && halfExtents.y >= 0 && halfExtents.z >= 0,
             "Mesh has invalid bounding box");
     }
 #endif // NDEBUG
