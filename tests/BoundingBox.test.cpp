@@ -26,7 +26,7 @@ TEST(Box, DefaultConstructor_InitializesToZero)
 {
     const Box box;
 
-    ExpectVec3Eq(box.GetHalfExtents(), { 0 });
+    ExpectVec3Eq(box.GetHalfExtents(), Vec3f{ 0 });
 }
 
 TEST(Box, Constructor_StoresProvidedMinAndMax)
@@ -45,7 +45,7 @@ TEST(Box, FromVertices_EmptyInput_ReturnsZeroBox)
 
     const Box box = Box::FromVertices(vertices, indices);
 
-    ExpectVec3Eq(box.GetHalfExtents(), { 0 });
+    ExpectVec3Eq(box.GetHalfExtents(), Vec3f{ 0 });
 }
 
 TEST(Box, FromVertices_SingleVertex_MinAndMaxMatchPoint)
@@ -56,7 +56,7 @@ TEST(Box, FromVertices_SingleVertex_MinAndMaxMatchPoint)
 
     const Box box = Box::FromVertices(vertices, indices);
 
-    ExpectVec3Eq(box.GetHalfExtents(), { 0 });
+    ExpectVec3Eq(box.GetHalfExtents(), Vec3f{ 0 });
 }
 
 TEST(Box, FromVertices_MultipleVertices_ComputesPerAxisExtrema)
@@ -72,7 +72,7 @@ TEST(Box, FromVertices_MultipleVertices_ComputesPerAxisExtrema)
 
     const Box box = Box::FromVertices(vertices, indices);
 
-    ExpectVec3Eq(box.GetHalfExtents(), { 3.5f, 5.5f, 6.0f });
+    ExpectVec3Eq(box.GetHalfExtents(), Vec3f{ 3.5f, 5.5f, 6.0f });
 }
 
 TEST(Box, FromVertices_VertexOrderDoesNotAffectResult)

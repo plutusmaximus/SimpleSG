@@ -165,6 +165,10 @@ TEST(Mat44f, Multiply_Vector4)
     EXPECT_FLOAT_EQ(r.y, 4.0f);
     EXPECT_FLOAT_EQ(r.z, 9.0f);
     EXPECT_FLOAT_EQ(r.w, 1.0f);
+
+    Vec4f r2 = M.m[0] * v.x + M.m[1] * v.y + M.m[2] * v.z + M.m[3] * v.w;
+
+    EXPECT_EQ(r, r2);
 }
 
 TEST(Mat44f, Mul_Vector4_Function)
@@ -361,27 +365,6 @@ TEST(Mat44f, Inverse_SingularMatrixReturnsZero)
     EXPECT_FLOAT_EQ(inv[1][1], 0.0f);
     EXPECT_FLOAT_EQ(inv[2][2], 0.0f);
     EXPECT_FLOAT_EQ(inv[3][3], 0.0f);
-}
-
-TEST(Mat44f, PerspectiveRH)
-{
-    const float fov = std::numbers::pi_v<float> / 2.0f;
-    const float width = 1280.0f;
-    const float height = 720.0f;
-    const float nearClip = 0.1f;
-    const float farClip = 100.0f;
-    const float aspectRatio = width / height;
-
-    Mat44f P = Mat44f::PerspectiveRH(Radiansf(fov), aspectRatio, nearClip, farClip);
-
-    const float h = std::cos(0.5f * fov) / std::sin(0.5f * fov);
-    const float w = h * height / width;
-
-    EXPECT_NEAR(P[0][0], w, EPS);
-    EXPECT_NEAR(P[1][1], h, EPS);
-    EXPECT_NEAR(P[2][2], farClip / (nearClip - farClip), EPS);
-    EXPECT_NEAR(P[2][3], -1.0f, EPS);
-    EXPECT_NEAR(P[3][2], -(farClip * nearClip) / (farClip - nearClip), EPS);
 }
 
 TEST(Mat44f, PerspectiveLH)

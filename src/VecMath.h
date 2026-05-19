@@ -8,16 +8,38 @@
 #include <cstddef>
 #include <type_traits>
 
+template<typename T> class Vec2;
+template<typename T> class Vec3;
+template<typename T> class Vec4;
 template<typename T> class Mat44;
 
 template <typename T>
 class Radians
 {
+    static_assert(std::is_floating_point_v<T>, "Radians requires a floating-point type");
+
     static constexpr T MAX = 2 * std::numbers::pi_v<T>;
 
     constexpr static T Wrap(const T value)
     {
-        return value - (static_cast<int>(value / MAX) * MAX);
+        if constexpr (std::is_integral_v<T>)
+        {
+            T result = value % MAX;
+            if (result < T{0})
+            {
+                result += MAX;
+            }
+            return result;
+        }
+        else
+        {
+            T result = std::fmod(value, MAX);
+            if (result < T{0})
+            {
+                result += MAX;
+            }
+            return result;
+        }
     }
 
 public:
@@ -31,7 +53,7 @@ public:
 
     constexpr Radians<T>& operator=(const T other)
     {
-        m_Value = other;
+        m_Value = Wrap(other);
         return *this;
     }
 
@@ -138,14 +160,14 @@ inline constexpr Radians<T> operator*(const T a, const Radians<T> b)
 template<typename T>
 class Vec2
 {
+    static_assert(std::is_floating_point_v<T>, "Vec2 requires a floating-point type");
 public:
 
-    T x;
-    T y;
+    T x, y;
 
     constexpr Vec2() = default;
 
-    constexpr Vec2(T value)
+    constexpr explicit Vec2(T value)
         : x(value), y(value)
     {
     }
@@ -153,6 +175,10 @@ public:
         : x(x), y(y)
     {
     }
+
+    constexpr explicit Vec2(const Vec3<T>& v);
+
+    constexpr explicit Vec2(const Vec4<T>& v);
 
     constexpr Vec2<T> Normalize() const
     {
@@ -282,15 +308,15 @@ inline constexpr Vec2<T> operator*(const T a, const Vec2<T> b)
 template<typename T>
 class Vec3
 {
+    static_assert(std::is_floating_point_v<T>, "Vec3 requires a floating-point type");
+
 public:
 
-    T x;
-    T y;
-    T z;
+    T x, y, z;
 
     constexpr Vec3() = default;
 
-    constexpr Vec3(T value)
+    constexpr explicit Vec3(T value)
         : x(value), y(value), z(value)
     {
     }
@@ -298,6 +324,13 @@ public:
         : x(x), y(y), z(z)
     {
     }
+
+    constexpr Vec3(const Vec2<T>& v, T z)
+        : x(v.x), y(v.y), z(z)
+    {
+    }
+
+    constexpr explicit Vec3(const Vec4<T>& v);
 
     static inline consteval Vec3 XAXIS() { return Vec3{ 1, 0, 0 }; }
     static inline consteval Vec3 YAXIS() { return Vec3{ 0, 1, 0 }; }
@@ -442,22 +475,31 @@ inline constexpr Vec3<T> operator*(const T a, const Vec3<T> b)
 template<typename T>
 class Vec4
 {
+    static_assert(std::is_floating_point_v<T>, "Vec4 requires a floating-point type");
+
 public:
 
-    T x;
-    T y;
-    T z;
-    T w;
+    T x, y, z, w;
 
     constexpr Vec4() = default;
 
-    constexpr Vec4(T value)
+    constexpr explicit Vec4(T value)
         : x(value), y(value), z(value), w(value)
     {
     }
 
     constexpr Vec4(T x, T y, T z, T w)
         : x(x), y(y), z(z), w(w)
+    {
+    }
+
+    constexpr Vec4(const Vec2<T>& v, T z, T w)
+        : x(v.x), y(v.y), z(z), w(w)
+    {
+    }
+
+    constexpr Vec4(const Vec3<T>& v, T w)
+        : x(v.x), y(v.y), z(v.z), w(w)
     {
     }
 
@@ -594,16 +636,32 @@ inline constexpr Vec4<T> operator*(const T a, const Vec4<T> b)
 {
     return b * a;
 }
+template<typename T>
+inline constexpr Vec2<T>::Vec2(const Vec3<T>& v)
+    : x(v.x), y(v.y)
+{
+}
+
+template<typename T>
+inline constexpr Vec2<T>::Vec2(const Vec4<T>& v)
+    : x(v.x), y(v.y)
+{
+}
+
+template<typename T>
+inline constexpr Vec3<T>::Vec3(const Vec4<T>& v)
+    : x(v.x), y(v.y), z(v.z)
+{
+}
 
 template<typename T>
 class Quat
 {
+    static_assert(std::is_floating_point_v<T>, "Quat requires a floating-point type");
+
 public:
 
-    T x;
-    T y;
-    T z;
-    T w;
+    T x, y, z, w;
 
     constexpr Quat() = default;
 
@@ -630,7 +688,7 @@ public:
         return Quat(x / length, y / length, z / length, w / length);
     }
 
-    float GetRotation(const Vec3<T>& axis) const
+    constexpr T GetRotation(const Vec3<T>& axis) const
     {
         const auto normalizedThis = this->Normalize();
         const auto rotatedVec = normalizedThis * axis;
@@ -650,7 +708,7 @@ public:
 
     constexpr Vec3<T> operator*(const Vec3<T>& v) const
     {
-        const auto qv = Quat<T>(v.x, v.y, v.z, static_cast<T>(0));
+        const auto qv = Quat<T>(v.x, v.y, v.z, 0);
         const auto result = (*this * qv * this->Conjugate()).Normalize();
         return Vec3<T>(result.x, result.y, result.z);
     }
@@ -710,31 +768,40 @@ public:
 template<typename T>
 class Mat44
 {
+    static_assert(std::is_floating_point_v<T>, "Mat44 requires a floating-point type");
+
 public:
 
     Vec4<T> m[4];
 
     constexpr Mat44() = default;
 
-    constexpr explicit Mat44(T value)
+    constexpr Mat44(
+        const Vec4<T>& col0, const Vec4<T>& col1, const Vec4<T>& col2, const Vec4<T>& col3)
     {
-        m[0][1] = m[0][2] = m[0][3] = static_cast<T>(0);
-        m[1][0] = m[1][2] = m[1][3] = static_cast<T>(0);
-        m[2][0] = m[2][1] = m[2][3] = static_cast<T>(0);
-        m[3][0] = m[3][1] = m[3][2] = static_cast<T>(0);
+        m[0] = col0;
+        m[1] = col1;
+        m[2] = col2;
+        m[3] = col3;
+    }
 
-        m[0][0] = m[1][1] = m[2][2] = m[3][3] = value;
+    constexpr explicit Mat44(T value)
+        : Mat44(Vec4<T>(value, 0, 0, 0),
+                Vec4<T>(0, value, 0, 0),
+                Vec4<T>(0, 0, value, 0),
+                Vec4<T>(0, 0, 0, value))
+    {
     }
 
     constexpr Mat44(T m00, T m01, T m02, T m03,
           T m10, T m11, T m12, T m13,
           T m20, T m21, T m22, T m23,
           T m30, T m31, T m32, T m33)
+          : Mat44(Vec4<T>(m00, m01, m02, m03),
+                 Vec4<T>(m10, m11, m12, m13),
+                 Vec4<T>(m20, m21, m22, m23),
+                 Vec4<T>(m30, m31, m32, m33))
     {
-        m[0][0] = m00; m[0][1] = m01; m[0][2] = m02; m[0][3] = m03;
-        m[1][0] = m10; m[1][1] = m11; m[1][2] = m12; m[1][3] = m13;
-        m[2][0] = m20; m[2][1] = m21; m[2][2] = m22; m[2][3] = m23;
-        m[3][0] = m30; m[3][1] = m31; m[3][2] = m32; m[3][3] = m33;
     }
 
     constexpr explicit Mat44(const Quat<T>& q)
@@ -755,25 +822,10 @@ public:
         const T wz = w * z;
 
         // Column-major 4x4 rotation matrix
-        m[0][0] = static_cast<T>(1) - static_cast<T>(2) * (yy + zz);
-        m[0][1] = static_cast<T>(2) * (xy + wz);
-        m[0][2] = static_cast<T>(2) * (xz - wy);
-        m[0][3] = static_cast<T>(0);
-
-        m[1][0] = static_cast<T>(2) * (xy - wz);
-        m[1][1] = static_cast<T>(1) - static_cast<T>(2) * (xx + zz);
-        m[1][2] = static_cast<T>(2) * (yz + wx);
-        m[1][3] = static_cast<T>(0);
-
-        m[2][0] = static_cast<T>(2) * (xz + wy);
-        m[2][1] = static_cast<T>(2) * (yz - wx);
-        m[2][2] = static_cast<T>(1) - static_cast<T>(2) * (xx + yy);
-        m[2][3] = static_cast<T>(0);
-
-        m[3][0] = static_cast<T>(0);
-        m[3][1] = static_cast<T>(0);
-        m[3][2] = static_cast<T>(0);
-        m[3][3] = static_cast<T>(1);
+        m[0] = Vec4<T>(1 - 2 * (yy + zz), 2 * (xy + wz), 2 * (xz - wy), 0);
+        m[1] = Vec4<T>(2 * (xy - wz), 1 - 2 * (xx + zz), 2 * (yz + wx), 0);
+        m[2] = Vec4<T>(2 * (xz + wy), 2 * (yz - wx), 1 - 2 * (xx + yy), 0);
+        m[3] = Vec4<T>(0, 0, 0, 1);
     }
 
     constexpr Mat44 Mul(const Mat44& other) const
@@ -832,13 +884,13 @@ public:
         inv[15] =  m00 * (m11 * m22 - m12 * m21) - m10 * (m01 * m22 - m02 * m21) + m20 * (m01 * m12 - m02 * m11);
 
         const T det = m00 * inv[0] + m01 * inv[4] + m02 * inv[8] + m03 * inv[12];
-        if (det == static_cast<T>(0))
+        if (det == 0)
         {
-            return Mat44(static_cast<T>(0));
+            return Mat44(0);
         }
 
-        const T invDet = static_cast<T>(1) / det;
-        Mat44 result(static_cast<T>(0));
+        const T invDet = 1 / det;
+        Mat44 result(0);
         for (int c = 0; c < 4; ++c)
         {
             for (int r = 0; r < 4; ++r)
@@ -851,16 +903,13 @@ public:
 
     constexpr Mat44 Transpose() const
     {
-        const auto& mm = *this;
-        Mat44 result(static_cast<T>(0));
-        for (int c = 0; c < 4; ++c)
-        {
-            for (int r = 0; r < 4; ++r)
+        return Mat44 //
             {
-                result[r][c] = mm[c][r];
-            }
-        }
-        return result;
+                Vec4<T>(m[0].x, m[1].x, m[2].x, m[3].x),
+                Vec4<T>(m[0].y, m[1].y, m[2].y, m[3].y),
+                Vec4<T>(m[0].z, m[1].z, m[2].z, m[3].z),
+                Vec4<T>(m[0].w, m[1].w, m[2].w, m[3].w),
+            };
     }
 
     constexpr void Decompose(Vec3<T>& translation, Quat<T>& rotation, Vec3<T>& scale) const
@@ -876,9 +925,9 @@ public:
         scale.z = std::sqrt(mm[2][0] * mm[2][0] + mm[2][1] * mm[2][1] + mm[2][2] * mm[2][2]);
 
         // Build rotation matrix (row-major) from normalized columns
-        const T invX = scale.x != static_cast<T>(0) ? static_cast<T>(1) / scale.x : static_cast<T>(0);
-        const T invY = scale.y != static_cast<T>(0) ? static_cast<T>(1) / scale.y : static_cast<T>(0);
-        const T invZ = scale.z != static_cast<T>(0) ? static_cast<T>(1) / scale.z : static_cast<T>(0);
+        const T invX = scale.x != 0 ? 1 / scale.x : 0;
+        const T invY = scale.y != 0 ? 1 / scale.y : 0;
+        const T invZ = scale.z != 0 ? 1 / scale.z : 0;
 
         const T r00 = mm[0][0] * invX;
         const T r01 = mm[1][0] * invY;
@@ -893,37 +942,37 @@ public:
         // Convert rotation matrix to quaternion
         const T trace = r00 + r11 + r22;
         T qw, qx, qy, qz;
-        if (trace > static_cast<T>(0))
+        if (trace > 0)
         {
-            const T s = std::sqrt(trace + static_cast<T>(1)) * static_cast<T>(2);
-            qw = static_cast<T>(0.25) * s;
+            const T s = std::sqrt(trace + 1) * 2;
+            qw = T{0.25} * s;
             qx = (r21 - r12) / s;
             qy = (r02 - r20) / s;
             qz = (r10 - r01) / s;
         }
         else if (r00 > r11 && r00 > r22)
         {
-            const T s = std::sqrt(static_cast<T>(1) + r00 - r11 - r22) * static_cast<T>(2);
+            const T s = std::sqrt(1 + r00 - r11 - r22) * 2;
             qw = (r21 - r12) / s;
-            qx = static_cast<T>(0.25) * s;
+            qx = T{0.25} * s;
             qy = (r01 + r10) / s;
             qz = (r02 + r20) / s;
         }
         else if (r11 > r22)
         {
-            const T s = std::sqrt(static_cast<T>(1) + r11 - r00 - r22) * static_cast<T>(2);
+            const T s = std::sqrt(1 + r11 - r00 - r22) * 2;
             qw = (r02 - r20) / s;
             qx = (r01 + r10) / s;
-            qy = static_cast<T>(0.25) * s;
+            qy = T{0.25} * s;
             qz = (r12 + r21) / s;
         }
         else
         {
-            const T s = std::sqrt(static_cast<T>(1) + r22 - r00 - r11) * static_cast<T>(2);
+            const T s = std::sqrt(1 + r22 - r00 - r11) * 2;
             qw = (r10 - r01) / s;
             qx = (r02 + r20) / s;
             qy = (r12 + r21) / s;
-            qz = static_cast<T>(0.25) * s;
+            qz = T{0.25} * s;
         }
 
         rotation.x = qx;
@@ -944,43 +993,18 @@ public:
 
     constexpr Mat44 operator*(const Mat44& that) const
     {
-        const auto& a = *this;
-        const auto& b = that;
-
-        Mat44 result(0);
-        for (int c = 0; c < 4; ++c)
-        {
-            for (int r = 0; r < 4; ++r)
-            {
-                result[c][r] = a[0][r] * b[c][0]
-                            + a[1][r] * b[c][1]
-                            + a[2][r] * b[c][2]
-                            + a[3][r] * b[c][3];
-            }
-        }
-        return result;
+        return Mat44 //
+            { *this * that[0], *this * that[1], *this * that[2], *this * that[3] };
     }
 
     constexpr Vec4<T> operator*(const Vec4<T>& vector) const
     {
-        const auto& mm = *this;
-        return Vec4<T>(
-            mm[0][0] * vector.x + mm[1][0] * vector.y + mm[2][0] * vector.z + mm[3][0] * vector.w,
-            mm[0][1] * vector.x + mm[1][1] * vector.y + mm[2][1] * vector.z + mm[3][1] * vector.w,
-            mm[0][2] * vector.x + mm[1][2] * vector.y + mm[2][2] * vector.z + mm[3][2] * vector.w,
-            mm[0][3] * vector.x + mm[1][3] * vector.y + mm[2][3] * vector.z + mm[3][3] * vector.w
-        );
+        return m[0] * vector.x + m[1] * vector.y + m[2] * vector.z + m[3] * vector.w;
     }
 
     constexpr Vec4<T> operator*(const Vec3<T>& vector) const
     {
-        const auto& mm = *this;
-        return Vec4<T>(
-            mm[0][0] * vector.x + mm[1][0] * vector.y + mm[2][0] * vector.z + mm[3][0],
-            mm[0][1] * vector.x + mm[1][1] * vector.y + mm[2][1] * vector.z + mm[3][1],
-            mm[0][2] * vector.x + mm[1][2] * vector.y + mm[2][2] * vector.z + mm[3][2],
-            mm[0][3] * vector.x + mm[1][3] * vector.y + mm[2][3] * vector.z + mm[3][3]
-        );
+        return Vec4<T>(m[0] * vector.x + m[1] * vector.y + m[2] * vector.z + m[3]);
     }
 
     static constexpr const Mat44& Identity()
@@ -988,20 +1012,6 @@ public:
         static constexpr Mat44 IDENT(1);
 
         return IDENT;
-    }
-
-    static Mat44 PerspectiveRH(const Radians<T> fov, const T aspectRatio, const T nearClip, const T farClip)
-    {
-        const T rad = fov.Value();
-        const T t = std::tan(rad/2);
-
-        Mat44 result(0);
-        result[0][0] = static_cast<T>(1.0 / (t * aspectRatio));
-        result[1][1] = static_cast<T>(1.0 / t);
-        result[2][2] = -(farClip + nearClip) / (farClip - nearClip);
-        result[2][3] = -1;
-        result[3][2] = -(2 * farClip * nearClip) / (farClip - nearClip);
-        return result;
     }
 
     static Mat44 PerspectiveLH(const Radians<T> fov, const T aspectRatio, const T nearClip, const T farClip)
@@ -1019,13 +1029,21 @@ public:
     }
 };
 
+template<typename T>
+inline Mat44<T> Quat<T>::ToMat44() const
+{
+    return Mat44<T>(*this);
+}
+
 template<typename NumType>
 class TrsTransform
 {
+    static_assert(std::is_floating_point_v<NumType>, "TrsTransform requires a floating-point type");
+
 public:
 
     Vec3<NumType> T{ 0 };
-    Quat<NumType> R{ Radians<NumType>(0), Vec3<NumType>{0,1,0} };
+    Quat<NumType> R{ Radians<NumType>{0}, Vec3<NumType>{0,1,0} };
     Vec3<NumType> S{ 1 };
 
     constexpr Mat44<NumType> ToMatrix() const
@@ -1101,12 +1119,6 @@ public:
         return !(*this == that);
     }
 };
-
-template<typename T>
-inline Mat44<T> Quat<T>::ToMat44() const
-{
-    return Mat44<T>(*this);
-}
 
 using Radiansf = Radians<float>;
 using Vec2f = Vec2<float>;
