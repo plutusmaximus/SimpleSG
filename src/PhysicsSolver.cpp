@@ -311,35 +311,6 @@ PhysicsSolver::FindAndResolveAllImpacts()
 
     m_ImpactRecords.reserve(potentialCollisionCount);
 
-    // Represents a batch of sweep tests to be processed by a worker thread.
-    // Many batches can be processed in parallel.
-    struct SweepTestBatch
-    {
-        // Collection pairs of bodies that potentially collide during the time step.
-        std::span<ImpactRecord> PotentialImpacts;
-        std::atomic<size_t>* FinishCounter{nullptr};
-
-        void Enqueue()
-        {
-#if FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED
-            ThreadPool::Enqueue<SweepTestBatch::Process>(this);
-#else
-            Process(this);
-#endif
-        }
-
-        static void Process(SweepTestBatch* batch)
-        {
-            for(ImpactRecord& impactRecord : batch->PotentialImpacts)
-            {
-                impactRecord.ImpactFound =
-                    SphereSphereSweep(impactRecord.SweepParams, impactRecord.Result);
-            }
-
-            batch->FinishCounter->fetch_add(1, std::memory_order_release);
-        }
-    };
-
     // Prepare to process potential collisions in parallel.
     // Batches of BodyPairs will be offloaded to worker threads.
 
@@ -348,8 +319,8 @@ PhysicsSolver::FindAndResolveAllImpacts()
     const size_t batchSize = (potentialCollisionCount + workerCount - 1) / workerCount;
     const size_t batchCount = (potentialCollisionCount + batchSize - 1) / batchSize;
 
-    std::vector<SweepTestBatch> batches;
-    batches.reserve(batchCount);
+    m_SweepTestBatches.clear();
+    m_SweepTestBatches.reserve(batchCount);
 
     size_t pairCount = 0;
     size_t subspanStart = 0;
@@ -379,10 +350,10 @@ PhysicsSolver::FindAndResolveAllImpacts()
 
         if(pairCount >= batchSize)
         {
-            MLG_ASSERT(batches.size() < batchCount, "Batch count exceeded expected count");
+            MLG_ASSERT(m_SweepTestBatches.size() < batchCount, "Batch count exceeded expected count");
 
             std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
-            SweepTestBatch& batch = batches.emplace_back(batchSpan, &finishCounter);
+            SweepTestBatch& batch = m_SweepTestBatches.emplace_back(batchSpan, &finishCounter);
 
             // Enqueue the batch for processing.
             batch.Enqueue();
@@ -396,15 +367,15 @@ PhysicsSolver::FindAndResolveAllImpacts()
     if(pairCount > 0)
     {
         std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
-        SweepTestBatch& batch = batches.emplace_back(batchSpan, &finishCounter);
+        SweepTestBatch& batch = m_SweepTestBatches.emplace_back(batchSpan, &finishCounter);
 
         batch.Enqueue();
     }
 
-    MLG_ASSERT(batches.size() == batchCount);
+    MLG_ASSERT(m_SweepTestBatches.size() == batchCount);
 
     // Wait for all batches to finish.
-    while(finishCounter.load(std::memory_order_acquire) < batches.size())
+    while(finishCounter.load(std::memory_order_acquire) < m_SweepTestBatches.size())
     {
         std::this_thread::yield();
     }
@@ -584,4 +555,26 @@ PhysicsSolver::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult
     impactResult.PenetrationDepth = 0;
 
     return true;
+}
+
+void
+PhysicsSolver::SweepTestBatch::Enqueue()
+{
+#if FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED
+    ThreadPool::Enqueue<SweepTestBatch::Process>(this);
+#else
+    Process(this);
+#endif
+}
+
+void
+PhysicsSolver::SweepTestBatch::Process(SweepTestBatch* batch)
+{
+    for(ImpactRecord& impactRecord : batch->PotentialImpacts)
+    {
+        impactRecord.ImpactFound =
+            SphereSphereSweep(impactRecord.SweepParams, impactRecord.Result);
+    }
+
+    batch->FinishCounter->fetch_add(1, std::memory_order_release);
 }
