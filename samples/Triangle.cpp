@@ -60,7 +60,6 @@ static Result<> MainLoop()
     MLG_CHECK(renderer.Startup());
 
     Compositor compositor;
-    MLG_CHECK(compositor.Startup());
 
     ImGuiRenderer imGuiRenderer;
     MLG_CHECK(imGuiRenderer.Startup());
@@ -198,7 +197,6 @@ static Result<> MainLoop()
     }
 
     imGuiRenderer.Shutdown();
-    compositor.Shutdown();
     renderer.Shutdown();
     textureCache.Shutdown();
 

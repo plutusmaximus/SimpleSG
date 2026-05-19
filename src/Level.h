@@ -162,21 +162,7 @@ public:
 
         bool IsValid() const { return m_Node != nullptr; }
 
-        bool operator==(const NodeHandle& that) const
-        {
-            return m_Node == that.m_Node;
-        }
-
-        bool operator!=(const NodeHandle& that) const
-        {
-            return m_Node != that.m_Node;
-        }
-
-        // Used for sorting and binary search.
-        bool operator<(const NodeHandle& that) const
-        {
-            return m_Node < that.m_Node;
-        }
+        auto operator<=>(const NodeHandle& that) const = default;
 
         operator bool() const
         {
@@ -184,7 +170,7 @@ public:
         }
 
     private:
-        friend class Level;
+        friend Level;
 
         explicit NodeHandle(const Node* node)
             : m_Node(node)

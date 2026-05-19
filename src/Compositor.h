@@ -14,15 +14,6 @@ public:
     Compositor(Compositor&&) = delete;
     Compositor& operator=(Compositor&&) = delete;
 
-    ~Compositor()
-    {
-        Shutdown();
-    }
-
-    Result<> Startup();
-
-    Result<> Shutdown();
-
     Result<> BeginFrame();
 
     Result<> EndFrame();
@@ -37,6 +28,4 @@ private:
     wgpu::CommandEncoder m_CommandEncoder{ nullptr };
 
     bool m_FrameStarted{ false };
-
-    bool m_Initialized{ false };
 };

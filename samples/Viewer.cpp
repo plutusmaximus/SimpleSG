@@ -118,7 +118,6 @@ MainLoop()
     WalkMouseNav mouseNav;
 
     MLG_CHECK(renderer.Startup());
-    MLG_CHECK(compositor.Startup());
     MLG_CHECK(imGuiRenderer.Startup());
     MLG_CHECK(textureCache.Startup());
 
@@ -305,7 +304,6 @@ MainLoop()
 
     MLG_CHECK(textureCache.Shutdown());
     MLG_CHECK(imGuiRenderer.Shutdown());
-    MLG_CHECK(compositor.Shutdown());
     MLG_CHECK(renderer.Shutdown());
 
     PerfMetrics::LogTimers();

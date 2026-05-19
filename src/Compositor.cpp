@@ -4,33 +4,8 @@
 #include "WebgpuHelper.h"
 
 Result<>
-Compositor::Startup()
-{
-    MLG_CHECKV(!m_Initialized, "Compositor is already initialized");
-
-    m_Initialized = true;
-
-    return Result<>::Ok;
-}
-
-Result<>
-Compositor::Shutdown()
-{
-    if(!m_Initialized)
-    {
-        // Not initialized, nothing to do
-        return Result<>::Ok;
-    }
-
-    m_Initialized = false;
-
-    return Result<>::Ok;
-}
-
-Result<>
 Compositor::BeginFrame()
 {
-    MLG_CHECKV(m_Initialized, "Compositor is not initialized");
     MLG_CHECKV(!m_FrameStarted, "Frame already started");
 
     m_FrameStarted = true;
@@ -59,7 +34,6 @@ Compositor::BeginFrame()
 Result<>
 Compositor::EndFrame()
 {
-    MLG_CHECKV(m_Initialized, "Compositor is not initialized");
     MLG_CHECKV(m_FrameStarted, "Frame not started");
 
     m_FrameStarted = false;
@@ -91,7 +65,6 @@ Compositor::EndFrame()
 wgpu::Texture
 Compositor::GetTarget()
 {
-    MLG_ASSERT(m_Initialized, "Compositor is not initialized");
     MLG_ASSERT(m_FrameStarted, "GetTarget() called outside of a frame");
 
     return m_Target;
@@ -101,7 +74,6 @@ Compositor::GetTarget()
 wgpu::CommandEncoder
 Compositor::GetCommandEncoder()
 {
-    MLG_ASSERT(m_Initialized, "Compositor is not initialized");
     MLG_ASSERT(m_FrameStarted, "GetCommandBuffer() called outside of a frame");
 
     return m_CommandEncoder;

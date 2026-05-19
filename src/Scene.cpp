@@ -404,7 +404,11 @@ Result<> Scene::SyncFromLevel(const Level& level)
     {
         const Level::NodeHandle& nodeHandle = m_NodeHandles[i];
         const auto node = level.GetNode(nodeHandle);
-        MLG_ASSERT(node, "Node not found in level");
+
+        if(!MLG_VERIFY(node, "Node not found in level"))
+        {
+            continue;
+        }
 
         const ShaderInterop::WorldTransform transform{ .Transform = node->WorldTransform };
         m_WorldTransforms[i] = transform;
