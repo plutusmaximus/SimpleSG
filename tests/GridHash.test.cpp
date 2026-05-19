@@ -9,9 +9,6 @@
 
 namespace
 {
-	using TestGridHash3 = GridHash<3>;
-    using TestGridHash2 = GridHash<2>;
-
 	Collider MakeSphereCollider(float radius)
 	{
 		return Collider{ Sphere{ radius } };
@@ -25,7 +22,7 @@ namespace
 
 TEST(GridHash, EmptyGridHasNoPotentialCollisions)
 {
-	TestGridHash3 hash;
+	GridHash hash{3};
 
     std::span pairs(hash);
 
@@ -34,7 +31,7 @@ TEST(GridHash, EmptyGridHasNoPotentialCollisions)
 
 TEST(GridHash, SingleBodyProducesNoPairs)
 {
-	TestGridHash3 hash;
+	GridHash hash{3};
 
 	const Result<> result = hash.Add(
 		Vec3f{ 0.2f, 0.2f, 0.2f },
@@ -50,7 +47,7 @@ TEST(GridHash, SingleBodyProducesNoPairs)
 
 TEST(GridHash, TwoBodiesInSameCellProduceOneOrderedPair)
 {
-	TestGridHash3 hash;
+	GridHash hash{3};
 
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
@@ -72,7 +69,7 @@ TEST(GridHash, TwoBodiesInSameCellProduceOneOrderedPair)
 
 TEST(GridHash, SharedAcrossManyCellsStillProducesUniquePair)
 {
-	TestGridHash3 hash;
+	GridHash hash{3};
 
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
@@ -94,7 +91,7 @@ TEST(GridHash, SharedAcrossManyCellsStillProducesUniquePair)
 
 TEST(GridHash, ThreeBodiesInOneCellGenerateAllUniquePairs)
 {
-	TestGridHash3 hash;
+	GridHash hash{3};
 
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
@@ -122,7 +119,7 @@ TEST(GridHash, ThreeBodiesInOneCellGenerateAllUniquePairs)
 
 TEST(GridHash, ClearRemovesExistingCellsAndPairs)
 {
-	TestGridHash3 hash;
+	GridHash hash{3};
 
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
@@ -160,8 +157,8 @@ TEST(GridHash, ClearRemovesExistingCellsAndPairs)
 
 TEST(GridHash, GridHash4AndGridHash5ContainSameBodyPairSet)
 {
-	TestGridHash2 hash2;
-	TestGridHash3 hash3;
+	GridHash hash2{2};
+	GridHash hash3{3};
 
 	struct BodyInput
 	{
@@ -196,8 +193,6 @@ TEST(GridHash, GridHash4AndGridHash5ContainSameBodyPairSet)
 
 TEST(GridHash, ChaosRandomizedBodies_AllExpectedPairsExist)
 {
-	TestGridHash3 hash;
-
 	struct RandomBody
 	{
 		Vec3f Min;
@@ -207,97 +202,104 @@ TEST(GridHash, ChaosRandomizedBodies_AllExpectedPairsExist)
 		std::array<int64_t, 3> MaxQ;
 	};
 
-	constexpr size_t kBodyCount = 5000;
-	constexpr float kCellSize = static_cast<float>(TestGridHash3::kCellSize);
+	constexpr size_t kBodyCount = 1000;
 
-	const auto quantize = [](float value)
-	{
-		return static_cast<int64_t>(std::floor(value / kCellSize));
-	};
+    std::mt19937 rng(0xC0FFEEu);
 
-	std::mt19937 rng(0xC0FFEEu);
-	std::uniform_real_distribution<float> centerDistXZ(-400.0f, 400.0f);
-	std::uniform_real_distribution<float> centerDistY(-64.0f, 64.0f);
-	std::uniform_real_distribution<float> halfExtentDist(0.05f, 3.0f);
-	std::uniform_real_distribution<float> radiusDist(0.01f, 1.25f);
-
-    std::vector<RandomBody> bodies;
-	bodies.reserve(kBodyCount);
-
-	for(size_t i = 0; i < kBodyCount; ++i)
+    for(size_t cellSize = 1; cellSize <= 10; ++cellSize)
     {
-        const Vec3f center //
-            {
-                centerDistXZ(rng),
-                centerDistY(rng),
-                centerDistXZ(rng),
-            };
+        GridHash hash{cellSize};
 
-        const Vec3f halfExtent //
-            {
-                halfExtentDist(rng),
-                halfExtentDist(rng),
-                halfExtentDist(rng),
-            };
+        const float cellSizeF = static_cast<float>(hash.GetCellSize());
 
-        const Vec3f bbMin = center - halfExtent;
-		const Vec3f bbMax = center + halfExtent;
-        const float radius = radiusDist(rng);
+        const auto quantize = [cellSizeF](const float value)
+        {
+            return static_cast<int64_t>(std::floor(value / cellSizeF));
+        };
 
-        RandomBody body //
-            {
-                .Min = bbMin,
-                .Max = bbMax,
-                .Radius = radius,
-                .MinQ //
+        std::uniform_real_distribution<float> centerDistXZ(-400.0f, 400.0f);
+        std::uniform_real_distribution<float> centerDistY(-64.0f, 64.0f);
+        std::uniform_real_distribution<float> halfExtentDist(0.05f, 3.0f);
+        std::uniform_real_distribution<float> radiusDist(0.01f, 1.25f);
+
+        std::vector<RandomBody> bodies;
+        bodies.reserve(kBodyCount);
+
+        for(size_t i = 0; i < kBodyCount; ++i)
+        {
+            const Vec3f center //
                 {
-                    quantize(bbMin.x - radius),
-                    quantize(bbMin.y - radius),
-                    quantize(bbMin.z - radius),
-                },
-                .MaxQ //
+                    centerDistXZ(rng),
+                    centerDistY(rng),
+                    centerDistXZ(rng),
+                };
+
+            const Vec3f halfExtent //
                 {
-                    quantize(bbMax.x + radius),
-                    quantize(bbMax.y + radius),
-                    quantize(bbMax.z + radius),
-                },
-            };
+                    halfExtentDist(rng),
+                    halfExtentDist(rng),
+                    halfExtentDist(rng),
+                };
 
-        ASSERT_TRUE(hash.Add(body.Min, body.Max, MakeSphereCollider(body.Radius), i));
-		bodies.push_back(body);
-    }
+            const Vec3f bbMin = center - halfExtent;
+            const Vec3f bbMax = center + halfExtent;
+            const float radius = radiusDist(rng);
 
-    std::vector<BodyPair> expectedPairs;
+            RandomBody body //
+                {
+                    .Min = bbMin,
+                    .Max = bbMax,
+                    .Radius = radius,
+                    .MinQ //
+                    {
+                        quantize(bbMin.x - radius),
+                        quantize(bbMin.y - radius),
+                        quantize(bbMin.z - radius),
+                    },
+                    .MaxQ //
+                    {
+                        quantize(bbMax.x + radius),
+                        quantize(bbMax.y + radius),
+                        quantize(bbMax.z + radius),
+                    },
+                };
 
-	for(size_t i = 0; i < bodies.size(); ++i)
-	{
-		for(size_t j = i + 1; j < bodies.size(); ++j)
-		{
-			const bool xOverlap = bodies[i].MinQ[0] <= bodies[j].MaxQ[0]
-				&& bodies[j].MinQ[0] <= bodies[i].MaxQ[0];
-			const bool yOverlap = bodies[i].MinQ[1] <= bodies[j].MaxQ[1]
-				&& bodies[j].MinQ[1] <= bodies[i].MaxQ[1];
-			const bool zOverlap = bodies[i].MinQ[2] <= bodies[j].MaxQ[2]
-				&& bodies[j].MinQ[2] <= bodies[i].MaxQ[2];
+            ASSERT_TRUE(hash.Add(body.Min, body.Max, MakeSphereCollider(body.Radius), i));
+            bodies.push_back(body);
+        }
 
-			if(xOverlap && yOverlap && zOverlap)
-			{
-				expectedPairs.emplace_back(i, j);
-			}
-		}
-	}
+        std::vector<BodyPair> expectedPairs;
 
-	ASSERT_FALSE(expectedPairs.empty());
+        for(size_t i = 0; i < bodies.size(); ++i)
+        {
+            for(size_t j = i + 1; j < bodies.size(); ++j)
+            {
+                const bool xOverlap = bodies[i].MinQ[0] <= bodies[j].MaxQ[0]
+                    && bodies[j].MinQ[0] <= bodies[i].MaxQ[0];
+                const bool yOverlap = bodies[i].MinQ[1] <= bodies[j].MaxQ[1]
+                    && bodies[j].MinQ[1] <= bodies[i].MaxQ[1];
+                const bool zOverlap = bodies[i].MinQ[2] <= bodies[j].MaxQ[2]
+                    && bodies[j].MinQ[2] <= bodies[i].MaxQ[2];
 
-	std::vector<BodyPair> actualPairs(hash.begin(), hash.end());
+                if(xOverlap && yOverlap && zOverlap)
+                {
+                    expectedPairs.emplace_back(i, j);
+                }
+            }
+        }
 
-    ASSERT_EQ(expectedPairs.size(), actualPairs.size());
+        ASSERT_FALSE(expectedPairs.empty());
 
-    std::sort(expectedPairs.begin(), expectedPairs.end());
-	std::sort(actualPairs.begin(), actualPairs.end());
+        std::vector<BodyPair> actualPairs(hash.begin(), hash.end());
 
-    for(size_t i = 0; i < expectedPairs.size(); ++i)
-    {
-        EXPECT_EQ(expectedPairs[i], actualPairs[i]);
+        ASSERT_EQ(expectedPairs.size(), actualPairs.size());
+
+        std::sort(expectedPairs.begin(), expectedPairs.end());
+        std::sort(actualPairs.begin(), actualPairs.end());
+
+        for(size_t i = 0; i < expectedPairs.size(); ++i)
+        {
+            EXPECT_EQ(expectedPairs[i], actualPairs[i]);
+        }
     }
 }

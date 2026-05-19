@@ -95,23 +95,24 @@ struct ImpactRecord
 
 /// @brief  Spatial hash for broad-phase collision detection. Divides space into a grid of cells,
 /// and hashes bodies into the cells they occupy.
-/// @tparam CELL_SIZE_POW2
-template<size_t CELL_SIZE_POW2>
 class GridHash
 {
-    static_assert(CELL_SIZE_POW2 > 0, "CELL_SIZE_POW2 must be greater than 0");
-    static_assert(CELL_SIZE_POW2 < 8, "CELL_SIZE_POW2 is >= 8 - was that intentional?");
 public:
-    static constexpr size_t kCellSize = 1 << CELL_SIZE_POW2;
-    static constexpr float kInvCellSize = 1.0f / static_cast<float>(kCellSize);
-
-    static constexpr float kMinExtent = static_cast<float>(std::numeric_limits<int32_t>::min()) * kCellSize;
-    static constexpr float kMaxExtent = static_cast<float>(std::numeric_limits<int32_t>::max()) * kCellSize;
-
     // Arbitrary limit to prevent excessive cell counts for large bodies.
     static constexpr size_t kMaxCellsPerBody = 1000;
 
-    GridHash() = default;
+    explicit GridHash(const size_t cellSize)
+    : m_CellSize(cellSize)
+    , m_MinExtent(static_cast<float>(std::numeric_limits<int32_t>::min()) * cellSize)
+    , m_MaxExtent(static_cast<float>(std::numeric_limits<int32_t>::max()) * cellSize)
+    {
+        MLG_ASSERT(cellSize > 0, "Cell size must be greater than 0");
+        MLG_ASSERT(cellSize < 256, "Cell size is >= 256 - was that intentional?");
+
+        m_InvCellSize = 1.0f / static_cast<float>(cellSize);
+    }
+
+    GridHash() = delete;
     GridHash(const GridHash&) = delete;
     GridHash& operator=(const GridHash&) = delete;
     GridHash(GridHash&&) = default;
@@ -125,14 +126,18 @@ public:
         m_NeedsSort = false;
     }
 
+    size_t GetCellSize() const { return m_CellSize; }
+
     /// @brief  Adds a body to into the cells it occupies.
     /// @param bbMin The minimum corner of the body's bounding box.
     /// @param bbMax The maximum corner of the body's bounding box.
     /// @param collider The collider associated with the body.
     /// @param bodyIndex The index of the body.
     template<typename ColliderType>
-    Result<> Add(
-        const Vec3f& bbMin, const Vec3f& bbMax, const ColliderType& collider, const size_t bodyIndex)
+    Result<> Add(const Vec3f& bbMin,
+        const Vec3f& bbMax,
+        const ColliderType& collider,
+        const size_t bodyIndex)
     {
         MLG_CHECKV(bbMin.x <= bbMax.x && bbMin.y <= bbMax.y && bbMin.z <= bbMax.z,
             "Invalid bounding box: Min: {}, Max: {}",
@@ -145,13 +150,13 @@ public:
         const Vec3f minExtent{bbMin.x - radius, bbMin.y - radius, bbMin.z - radius };
         const Vec3f maxExtent{bbMax.x + radius, bbMax.y + radius, bbMax.z + radius};
 
-        MLG_CHECKV(minExtent.x >= kMinExtent && minExtent.y >= kMinExtent && minExtent.z >= kMinExtent &&
-                   maxExtent.x <= kMaxExtent && maxExtent.y <= kMaxExtent && maxExtent.z <= kMaxExtent,
+        MLG_CHECKV(minExtent.x >= m_MinExtent && minExtent.y >= m_MinExtent && minExtent.z >= m_MinExtent &&
+                   maxExtent.x <= m_MaxExtent && maxExtent.y <= m_MaxExtent && maxExtent.z <= m_MaxExtent,
             "Bounding box exceeds maximum extents: Min: {}/{}, Max: {}/{}",
             minExtent,
-            Vec3f{ kMinExtent, kMinExtent, kMinExtent },
+            Vec3f{ m_MinExtent, m_MinExtent, m_MinExtent },
             maxExtent,
-            Vec3f{ kMaxExtent, kMaxExtent, kMaxExtent });
+            Vec3f{ m_MaxExtent, m_MaxExtent, m_MaxExtent });
 
         const int32_t minX = Quantize(minExtent.x);
         const int32_t minY = Quantize(minExtent.y);
@@ -211,11 +216,7 @@ private:
     {
     public:
         Cell(const size_t bodyIndex, const int32_t cellX, const int32_t cellY, const int32_t cellZ)
-            : Hash(HashCell(cellX, cellY, cellZ)),
-              CellX(cellX),
-              CellY(cellY),
-              CellZ(cellZ),
-
+            : Coords{cellX, cellY, cellZ},
               BodyIndex(bodyIndex)
         {
         }
@@ -254,15 +255,62 @@ private:
             return Mix32(ux ^ kSaltX) ^ Mix32(uy ^ kSaltY) ^ Mix32(uz ^ kSaltZ);
         }
 
-        // DO NOT change the order of the members below, as it affects the sort order and thus the
-        // generation of body pairs.
-        // Sorting by these fields (in this order) ensures bodies that share a cell are adjacent.
-        // Within a cell bodies are sorted by index.
-        uint32_t Hash;
-        int32_t CellX, CellY, CellZ; // Quantized cell coordinates.
+        struct CellCoords
+        {
+            CellCoords(const int32_t cellX, const int32_t cellY, const int32_t cellZ)
+                : Hash(HashCell(cellX, cellY, cellZ)),
+                  CellX(cellX),
+                  CellY(cellY),
+                  CellZ(cellZ)
+            {
+            }
+
+            uint32_t Hash;
+            int32_t CellX, CellY, CellZ; // Quantized cell coordinates.
+
+            bool operator==(const CellCoords& that) const
+            {
+                return Hash == that.Hash && CellX == that.CellX && CellY == that.CellY &&
+                       CellZ == that.CellZ;
+            }
+
+            std::strong_ordering operator<=>(const CellCoords& that) const
+            {
+                std::strong_ordering order = Hash <=> that.Hash;
+                if(order != std::strong_ordering::equal)
+                {
+                    return order;
+                }
+
+                order = CellX <=> that.CellX;
+                if(order != std::strong_ordering::equal)
+                {
+                    return order;
+                }
+
+                order = CellY <=> that.CellY;
+                if(order != std::strong_ordering::equal)
+                {
+                    return order;
+                }
+
+                return CellZ <=> that.CellZ;
+            }
+        };
+
+        CellCoords Coords;
         size_t BodyIndex; // Index of the body occupying the cell.
 
-        std::strong_ordering operator<=>(const Cell& that) const = default;
+        std::strong_ordering operator<=>(const Cell& that) const
+        {
+            std::strong_ordering order = Coords <=> that.Coords;
+            if(order != std::strong_ordering::equal)
+            {
+                return order;
+            }
+
+            return BodyIndex <=> that.BodyIndex;
+        }
     };
 
     /// @brief Allocates the necessary number of cells for a body that spans the given number of
@@ -299,10 +347,10 @@ private:
         return Result<>::Ok;
     }
 
-    static int32_t Quantize(const float value)
+    int32_t Quantize(const float value) const
     {
         // Assume the value has been verified to be within the valid range in Add().
-        return static_cast<int32_t>(std::floor(value * kInvCellSize));
+        return static_cast<int32_t>(std::floor(value * m_InvCellSize));
     }
 
     /// @brief Sorts the cells and generates the list of unique body pairs potentially colliding.
@@ -325,7 +373,7 @@ private:
         {
             const size_t indexA = m_Cells[i].BodyIndex;
 
-            for(size_t j = i + 1; j < m_Cells.size() && m_Cells[j].Hash == m_Cells[i].Hash; ++j)
+            for(size_t j = i + 1; j < m_Cells.size() && m_Cells[j].Coords == m_Cells[i].Coords; ++j)
             {
                 // Bodies that share a cell are potentially colliding.
 
@@ -369,6 +417,11 @@ private:
             m_PotentialCollisions.end());
     }
 
+    size_t m_CellSize;
+    float m_InvCellSize;
+    float m_MinExtent;
+    float m_MaxExtent;
+
     mutable std::vector<Cell> m_Cells;
     mutable std::vector<BodyPair> m_PotentialCollisions;
 
@@ -403,6 +456,19 @@ public:
     std::span<const Collider> GetColliders() const { return m_Colliders; }
 
 private:
+
+    // Represents a batch of sweep tests to be processed by a worker thread.
+    // Many batches can be processed in parallel.
+    struct SweepTestBatch
+    {
+        // Collection of pairs of bodies that potentially collide during the time step.
+        std::span<ImpactRecord> PotentialImpacts;
+        std::atomic<size_t>* FinishCounter{nullptr};
+
+        void Enqueue();
+
+        static void Process(SweepTestBatch* batch);
+    };
 
     PhysicsSolver(std::vector<Level::NodeHandle>&& nodeHandles,
         std::vector<TrsTransformf>&& transforms,
@@ -440,16 +506,19 @@ private:
     std::vector<Collider> m_Colliders;
     // Tracks which bodies are active in the current frame.
     std::vector<bool> m_ActiveBodies;
+
+    std::vector<SweepTestBatch> m_SweepTestBatches;
+
     //Transforms for the current frame.
     std::span<TrsTransformf> m_Trs0;
     //Predicted transforms for the next frame.
     std::span<TrsTransformf> m_Trs1;
     //Accelerations for the last frame.
     std::span<Vec3f> m_Am1;
-    //Predicted accelerations for the current frame.
+    //Accelerations for the current frame.
     std::span<Vec3f> m_A0;
 
-    GridHash<GRID_CELL_SIZE> m_GridHash;
+    GridHash m_GridHash{GRID_CELL_SIZE};
 
     std::vector<ImpactRecord> m_ImpactRecords;
 };
