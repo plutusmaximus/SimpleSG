@@ -88,8 +88,8 @@ ImGuiRenderer::Render(Compositor& renderCompositor)
 {
     MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
 
-    static PerfTimer renderGuiTimer("ImGuiRenderer.Render");
-    auto scopedTimer = renderGuiTimer.StartScoped();
+    MLG_SCOPED_TIMER("ImGuiRenderer.Render");
+
     ImGui::Render();
 
     ImDrawData* drawData = ImGui::GetDrawData();

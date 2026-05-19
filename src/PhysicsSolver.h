@@ -49,7 +49,7 @@ struct ImpactResult
 
 struct ImpactRecord
 {
-    class PhysicsSolver* Solver{nullptr}; //DO NOT SUBMIT
+    //class PhysicsSolver* Solver{nullptr}; //DO NOT SUBMIT
     BodyPair Bodies;
     ImpactResult Result;
     bool ImpactFound{false};

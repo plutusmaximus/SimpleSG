@@ -70,17 +70,15 @@ Compositor::EndFrame()
     m_CommandEncoder = nullptr;
 
     wgpu::CommandBuffer cmdBuf;
-    static PerfTimer finishCmdBufferTimer("RenderCompositor.FinishCommandBuffer");
     {
-        auto scopedTimer = finishCmdBufferTimer.StartScoped();
+        MLG_SCOPED_TIMER("RenderCompositor.FinishCommandBuffer");
         cmdBuf = cmdEncoder.Finish(nullptr);
 
         MLG_CHECK(cmdBuf, "Failed to finish command buffer");
     }
 
-    static PerfTimer submitCmdBufferTimer("RenderCompositor.SubmitCommandBuffer");
     {
-        auto scopedTimer = submitCmdBufferTimer.StartScoped();
+        MLG_SCOPED_TIMER("RenderCompositor.SubmitCommandBuffer");
         wgpu::Queue queue = WebgpuHelper::GetDevice().GetQueue();
         MLG_CHECK(queue, "Failed to get wgpu::Queue");
 

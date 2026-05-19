@@ -229,8 +229,7 @@ static void ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
 
 static void ApplyGravity(PhysicsSolver& solver)
 {
-    static PerfTimer perfTimer("Physics.ApplyGravity");
-    auto scopedTimer = perfTimer.StartScoped();
+    MLG_SCOPED_TIMER("Physics.ApplyGravity");
 
     const std::span<const RigidBody> bodies = solver.GetBodies();
     const std::span<const TrsTransformf> transforms = solver.GetTransforms();
@@ -370,6 +369,60 @@ static void ApplyStoppingImpulse(PhysicsSolver& solver)
     }
 }
 
+[[maybe_unused]] static void
+DeactivateNonOverlappingBodies(const PhysicsSolver& solver, Level& level)
+{
+    const std::span<const Level::NodeHandle> nodeHandles = solver.GetNodeHandles();
+    const std::span<const RigidBody> bodies = solver.GetBodies();
+    const std::span<const TrsTransformf> transforms = solver.GetTransforms();
+    const std::span<const Collider> colliders = solver.GetColliders();
+
+    // First deactivate all bodies.
+    // Then activate only bodies that are overlapping with another body.
+    for(size_t i = 0; i < nodeHandles.size(); ++i)
+    {
+        level.SetActive(nodeHandles[i], false);
+        level.SetVisible(nodeHandles[i], false);
+    }
+
+    for(size_t i = 0; i < bodies.size(); ++i)
+    {
+        const float radiusA = colliders[i].GetSphereRadius();
+        const Vec3f& posA = transforms[i].T;
+
+        for(size_t j = i + 1; j < bodies.size(); ++j)
+        {
+            const float radiusB = colliders[j].GetSphereRadius();
+            const Vec3f& posB = transforms[j].T;
+
+            const float minSeparation = radiusA + radiusB;
+            const float minSeparationSq = minSeparation * minSeparation;
+            const Vec3f dPos = posB - posA;
+            const float dPosSq = dPos.Dot(dPos);
+
+            if(dPosSq < minSeparationSq)
+            {
+                level.SetActive(nodeHandles[i], true);
+                level.SetVisible(nodeHandles[i], true);
+
+                level.SetActive(nodeHandles[j], true);
+                level.SetVisible(nodeHandles[j], true);
+            }
+        }
+    }
+}
+
+[[maybe_unused]]static void ActivateAllBodies(PhysicsSolver& solver, Level& level)
+{
+    const std::span<const Level::NodeHandle> nodeHandles = solver.GetNodeHandles();
+
+    for(size_t i = 0; i < nodeHandles.size(); ++i)
+    {
+        level.SetActive(nodeHandles[i], true);
+        level.SetVisible(nodeHandles[i], true);
+    }
+}
+
 static Result<>
 MainLoop()
 {
@@ -409,10 +462,12 @@ MainLoop()
     bool mouseCaptured = true;
     SDL_SetWindowRelativeMouseMode(WebgpuHelper::GetWindow(), mouseCaptured);
 
+    bool pauseSim = false;
+    bool showOverlappingBodies = true;
+    bool continuouslyDeactivateNonOverlappingBodies = false;
+
     while(running)
     {
-        PerfMetrics::BeginFrame();
-
         static PerfTimer frameTimer("Frame");
         frameTimer.Start();
 
@@ -509,6 +564,28 @@ MainLoop()
                 {
                     ApplyStoppingImpulse(solver);
                 }
+                else if(SDL_SCANCODE_F1 == event.key.scancode)
+                {
+                    pauseSim = !pauseSim;
+                }
+                else if(SDL_SCANCODE_F2 == event.key.scancode)
+                {
+                    showOverlappingBodies = !showOverlappingBodies;
+                    continuouslyDeactivateNonOverlappingBodies = false;
+
+                    if(showOverlappingBodies)
+                    {
+                        ActivateAllBodies(solver, level);
+                    }
+                    else
+                    {
+                        DeactivateNonOverlappingBodies(solver, level);
+                    }
+                }
+                else if(SDL_SCANCODE_F3 == event.key.scancode)
+                {
+                    continuouslyDeactivateNonOverlappingBodies = true;
+                }
                 break;
             case SDL_EVENT_KEY_UP:
                 if(mouseCaptured)
@@ -519,9 +596,17 @@ MainLoop()
             }
         }
 
-        ApplyGravity(solver);
+        if(continuouslyDeactivateNonOverlappingBodies)
+        {
+            DeactivateNonOverlappingBodies(solver, level);
+        }
 
-        solver.Update(PHYSICS_TIME_STEP);
+        if(!pauseSim)
+        {
+            ApplyGravity(solver);
+
+            solver.Update(PHYSICS_TIME_STEP);
+        }
 
         solver.SyncToLevel(level);
 
@@ -568,8 +653,6 @@ MainLoop()
         WebgpuHelper::GetInstance().ProcessEvents();
 
         frameTimer.Stop();
-
-        PerfMetrics::EndFrame();
     }
 
     MLG_CHECK(textureCache.Shutdown());
@@ -597,11 +680,14 @@ static Result<> RenderGui(const PhysicsSolver& solver)
 
     ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
     ImGui::Begin(title.c_str());
-    PerfMetrics::TimerStat timers[256];
-    unsigned timerCount = PerfMetrics::GetTimers(timers, std::size(timers));
+
+    PerfTimerStats timerStats[256];
+    unsigned timerCount = PerfMetrics::SampleTimers(timerStats, std::size(timerStats));
     for(unsigned i = 0; i < timerCount; ++i)
     {
-        ImGui::Text("%s: %.3f ms", timers[i].GetName().c_str(), timers[i].GetValue() * 1000.0f);
+        const std::string text =
+            std::format("{}: {:.3f} ms", timerStats[i].GetName(), timerStats[i].GetEMA() * 1000.0f);
+        ImGui::Text("%s", text.c_str());
     }
 
     const float kineticEnergy = solver.ComputeKineticEnergy();
