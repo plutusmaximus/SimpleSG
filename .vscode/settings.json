@@ -137,6 +137,7 @@
         "*.rh": "cpp"
     },
     "cmake.configureOnOpen": false,
-    "cmake.buildDirectory": "${workspaceFolder}/build/${buildType}",
-    "cmake.deleteBuildDirOnCleanConfigure": false
+    "cmake.buildDirectory": "${workspaceFolder}/build",
+    "cmake.deleteBuildDirOnCleanConfigure": false,
+    "cmake.generator": "Ninja Multi-Config"
 }

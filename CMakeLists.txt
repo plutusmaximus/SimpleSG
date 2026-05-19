@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.23)
 cmake_policy(SET CMP0091 NEW) # Use the new MSVC runtime library flag behavior
+set(CMAKE_CROSS_CONFIGS "all")
 project(SimpleSG LANGUAGES C CXX)
 
 # ============================================================
@@ -145,7 +146,7 @@ add_subdirectory(src/shaders)
 
 add_custom_target(copy_images
   COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
-          ${CMAKE_SOURCE_DIR}/images ${CMAKE_BINARY_DIR}/images
+          ${CMAKE_SOURCE_DIR}/images ${CMAKE_BINARY_DIR}/$<CONFIG>/images
   COMMENT "Copying image files"
 )
 

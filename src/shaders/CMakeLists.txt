@@ -10,8 +10,8 @@ set(WGSL_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/TransformShader.wgsl"
 )
 
-set(TINT_EXE "${CMAKE_BINARY_DIR}/thirdparty/dawn/tint.exe" CACHE FILEPATH "Tint compiler executable")
-set(_out_dir "${CMAKE_BINARY_DIR}/shaders")
+set(TINT_EXE "${CMAKE_BINARY_DIR}/thirdparty/dawn/$<CONFIG>/tint.exe" CACHE FILEPATH "Tint compiler executable")
+set(_out_dir "${CMAKE_BINARY_DIR}/$<CONFIG>/shaders")
 
 # ---------------------------------------------------------------------------
 # Build rules
