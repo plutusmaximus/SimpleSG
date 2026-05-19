@@ -274,7 +274,7 @@ static Result<>
 LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
 {
     FILE* fp = std::fopen(filePath, "rb");
-    MLG_CHECK(fp, "Failed to open shader file: {} ({})", filePath, std::strerror(errno));
+    MLG_CHECKV(fp, "Failed to open shader file: {} ({})", filePath, std::strerror(errno));
 
     auto cleanupFile = scope_exit([&]() { std::fclose(fp); });
 
