@@ -678,9 +678,8 @@ public:
     constexpr Quat() = default;
 
     constexpr Quat(T x, T y, T z, T w)
-        : m_Vec(x, y, z, w)
+        : Quat(Vec4<T>(x, y, z, w))
     {
-        m_Vec = m_Vec.Normalize();
     }
 
     constexpr Quat(const Vec4<T>& v)
@@ -708,7 +707,13 @@ public:
 
     constexpr Quat Conjugate() const
     {
-        return Quat(-m_Vec);
+        return Quat(-m_Vec.x, -m_Vec.y, -m_Vec.z, m_Vec.w);
+    }
+
+    constexpr Quat Inverse() const
+    {
+        // Assumes a unit quaternion.
+        return Conjugate();
     }
 
     constexpr Quat Lerp(const Quat& that, T t) const
@@ -734,11 +739,6 @@ public:
         return vec + m_Vec.w * t + u.Cross(t);
     }
 
-    constexpr Quat operator*(const T scalar) const
-    {
-        return Quat(m_Vec * scalar);
-    }
-
     constexpr Quat operator*(const Quat& that) const
     {
         return Quat(
@@ -757,11 +757,6 @@ public:
     constexpr Quat operator-() const
     {
         return Quat(-m_Vec);
-    }
-
-    constexpr Quat& operator*=(const T scalar)
-    {
-        return (*this = *this * scalar);
     }
 
     constexpr Quat& operator*=(const Quat& that)
@@ -844,52 +839,173 @@ public:
         return *this = *this * that;
     }
 
-    constexpr Mat44 Inverse() const
+    constexpr Mat44<T> Inverse() const
     {
-        const auto& mm = *this;
+        constexpr T epsilon = T{1e-8};
 
-        const T m00 = mm[0][0], m01 = mm[0][1], m02 = mm[0][2], m03 = mm[0][3];
-        const T m10 = mm[1][0], m11 = mm[1][1], m12 = mm[1][2], m13 = mm[1][3];
-        const T m20 = mm[2][0], m21 = mm[2][1], m22 = mm[2][2], m23 = mm[2][3];
-        const T m30 = mm[3][0], m31 = mm[3][1], m32 = mm[3][2], m33 = mm[3][3];
+        // Math-style names:
+        //
+        //     aRC = row R, column C
+        //
+        // Storage:
+        //
+        //     m[column][row]
 
-        T inv[16];
-        inv[0]  =  m11 * (m22 * m33 - m23 * m32) - m21 * (m12 * m33 - m13 * m32) + m31 * (m12 * m23 - m13 * m22);
-        inv[4]  = -m10 * (m22 * m33 - m23 * m32) + m20 * (m12 * m33 - m13 * m32) - m30 * (m12 * m23 - m13 * m22);
-        inv[8]  =  m10 * (m21 * m33 - m23 * m31) - m20 * (m11 * m33 - m13 * m31) + m30 * (m11 * m23 - m13 * m21);
-        inv[12] = -m10 * (m21 * m32 - m22 * m31) + m20 * (m11 * m32 - m12 * m31) - m30 * (m11 * m22 - m12 * m21);
+        const T a00 = m[0][0];
+        const T a01 = m[1][0];
+        const T a02 = m[2][0];
+        const T a03 = m[3][0];
 
-        inv[1]  = -m01 * (m22 * m33 - m23 * m32) + m21 * (m02 * m33 - m03 * m32) - m31 * (m02 * m23 - m03 * m22);
-        inv[5]  =  m00 * (m22 * m33 - m23 * m32) - m20 * (m02 * m33 - m03 * m32) + m30 * (m02 * m23 - m03 * m22);
-        inv[9]  = -m00 * (m21 * m33 - m23 * m31) + m20 * (m01 * m33 - m03 * m31) - m30 * (m01 * m23 - m03 * m21);
-        inv[13] =  m00 * (m21 * m32 - m22 * m31) - m20 * (m01 * m32 - m02 * m31) + m30 * (m01 * m22 - m02 * m21);
+        const T a10 = m[0][1];
+        const T a11 = m[1][1];
+        const T a12 = m[2][1];
+        const T a13 = m[3][1];
 
-        inv[2]  =  m01 * (m12 * m33 - m13 * m32) - m11 * (m02 * m33 - m03 * m32) + m31 * (m02 * m13 - m03 * m12);
-        inv[6]  = -m00 * (m12 * m33 - m13 * m32) + m10 * (m02 * m33 - m03 * m32) - m30 * (m02 * m13 - m03 * m12);
-        inv[10] =  m00 * (m11 * m33 - m13 * m31) - m10 * (m01 * m33 - m03 * m31) + m30 * (m01 * m13 - m03 * m11);
-        inv[14] = -m00 * (m11 * m32 - m12 * m31) + m10 * (m01 * m32 - m02 * m31) - m30 * (m01 * m12 - m02 * m11);
+        const T a20 = m[0][2];
+        const T a21 = m[1][2];
+        const T a22 = m[2][2];
+        const T a23 = m[3][2];
 
-        inv[3]  = -m01 * (m12 * m23 - m13 * m22) + m11 * (m02 * m23 - m03 * m22) - m21 * (m02 * m13 - m03 * m12);
-        inv[7]  =  m00 * (m12 * m23 - m13 * m22) - m10 * (m02 * m23 - m03 * m22) + m20 * (m02 * m13 - m03 * m12);
-        inv[11] = -m00 * (m11 * m23 - m13 * m21) + m10 * (m01 * m23 - m03 * m21) - m20 * (m01 * m13 - m03 * m11);
-        inv[15] =  m00 * (m11 * m22 - m12 * m21) - m10 * (m01 * m22 - m02 * m21) + m20 * (m01 * m12 - m02 * m11);
+        const T a30 = m[0][3];
+        const T a31 = m[1][3];
+        const T a32 = m[2][3];
+        const T a33 = m[3][3];
 
-        const T det = m00 * inv[0] + m01 * inv[4] + m02 * inv[8] + m03 * inv[12];
-        if (det == 0)
+        // 2x2 determinants reused by the 4x4 cofactors.
+        const T s0 = a00 * a11 - a10 * a01;
+        const T s1 = a00 * a12 - a10 * a02;
+        const T s2 = a00 * a13 - a10 * a03;
+        const T s3 = a01 * a12 - a11 * a02;
+        const T s4 = a01 * a13 - a11 * a03;
+        const T s5 = a02 * a13 - a12 * a03;
+
+        const T c0 = a20 * a31 - a30 * a21;
+        const T c1 = a20 * a32 - a30 * a22;
+        const T c2 = a20 * a33 - a30 * a23;
+        const T c3 = a21 * a32 - a31 * a22;
+        const T c4 = a21 * a33 - a31 * a23;
+        const T c5 = a22 * a33 - a32 * a23;
+
+        const T det =
+            s0 * c5 -
+            s1 * c4 +
+            s2 * c3 +
+            s3 * c2 -
+            s4 * c1 +
+            s5 * c0;
+
+        if (std::abs(det) <= epsilon)
+        {
+            return Mat44<T>{0};
+        }
+
+        const T invDet = 1 / det;
+
+        // Math matrix inverse entries, named row/column.
+        const T b00 = ( a11 * c5 - a12 * c4 + a13 * c3) * invDet;
+        const T b01 = (-a01 * c5 + a02 * c4 - a03 * c3) * invDet;
+        const T b02 = ( a31 * s5 - a32 * s4 + a33 * s3) * invDet;
+        const T b03 = (-a21 * s5 + a22 * s4 - a23 * s3) * invDet;
+
+        const T b10 = (-a10 * c5 + a12 * c2 - a13 * c1) * invDet;
+        const T b11 = ( a00 * c5 - a02 * c2 + a03 * c1) * invDet;
+        const T b12 = (-a30 * s5 + a32 * s2 - a33 * s1) * invDet;
+        const T b13 = ( a20 * s5 - a22 * s2 + a23 * s1) * invDet;
+
+        const T b20 = ( a10 * c4 - a11 * c2 + a13 * c0) * invDet;
+        const T b21 = (-a00 * c4 + a01 * c2 - a03 * c0) * invDet;
+        const T b22 = ( a30 * s4 - a31 * s2 + a33 * s0) * invDet;
+        const T b23 = (-a20 * s4 + a21 * s2 - a23 * s0) * invDet;
+
+        const T b30 = (-a10 * c3 + a11 * c1 - a12 * c0) * invDet;
+        const T b31 = ( a00 * c3 - a01 * c1 + a02 * c0) * invDet;
+        const T b32 = (-a30 * s3 + a31 * s1 - a32 * s0) * invDet;
+        const T b33 = ( a20 * s3 - a21 * s1 + a22 * s0) * invDet;
+
+        return Mat44<T>
+        {
+            Vec4<T>(b00, b10, b20, b30),
+            Vec4<T>(b01, b11, b21, b31),
+            Vec4<T>(b02, b12, b22, b32),
+            Vec4<T>(b03, b13, b23, b33),
+        };
+    }
+
+    constexpr Mat44 InverseAffine() const
+    {
+        constexpr T epsilon = T{1e-8};
+
+        // Assumes column-vector convention and storage as:
+        //
+        //     m[column][row]
+        //
+        // Affine matrix layout:
+        //
+        //     [ a00 a01 a02 tx ]
+        //     [ a10 a11 a12 ty ]
+        //     [ a20 a21 a22 tz ]
+        //     [  0   0   0  1 ]
+
+        const T a00 = m[0][0];
+        const T a01 = m[1][0];
+        const T a02 = m[2][0];
+
+        const T a10 = m[0][1];
+        const T a11 = m[1][1];
+        const T a12 = m[2][1];
+
+        const T a20 = m[0][2];
+        const T a21 = m[1][2];
+        const T a22 = m[2][2];
+
+        const T tx = m[3][0];
+        const T ty = m[3][1];
+        const T tz = m[3][2];
+
+        const T c00 = a11 * a22 - a12 * a21;
+        const T c01 = a02 * a21 - a01 * a22;
+        const T c02 = a01 * a12 - a02 * a11;
+
+        const T c10 = a12 * a20 - a10 * a22;
+        const T c11 = a00 * a22 - a02 * a20;
+        const T c12 = a02 * a10 - a00 * a12;
+
+        const T c20 = a10 * a21 - a11 * a20;
+        const T c21 = a01 * a20 - a00 * a21;
+        const T c22 = a00 * a11 - a01 * a10;
+
+        const T det = a00 * c00 + a01 * c10 + a02 * c20;
+
+        if (std::abs(det) <= epsilon)
         {
             return Mat44(0);
         }
 
         const T invDet = 1 / det;
-        Mat44 result(0);
-        for (int c = 0; c < 4; ++c)
+
+        const T b00 = c00 * invDet;
+        const T b01 = c01 * invDet;
+        const T b02 = c02 * invDet;
+
+        const T b10 = c10 * invDet;
+        const T b11 = c11 * invDet;
+        const T b12 = c12 * invDet;
+
+        const T b20 = c20 * invDet;
+        const T b21 = c21 * invDet;
+        const T b22 = c22 * invDet;
+
+        const T itx = -(b00 * tx + b01 * ty + b02 * tz);
+        const T ity = -(b10 * tx + b11 * ty + b12 * tz);
+        const T itz = -(b20 * tx + b21 * ty + b22 * tz);
+
+        return Mat44
         {
-            for (int r = 0; r < 4; ++r)
-            {
-                result[c][r] = inv[c * 4 + r] * invDet;
-            }
-        }
-        return result;
+            Vec4<T>(b00, b10, b20, 0),
+            Vec4<T>(b01, b11, b21, 0),
+            Vec4<T>(b02, b12, b22, 0),
+            Vec4<T>(itx, ity, itz, 1),
+        };
     }
 
     constexpr Mat44 Transpose() const
@@ -1034,9 +1150,12 @@ inline constexpr Mat44<T> Quat<T>::ToMatrix() const
     return Mat44<T> //
         {
             Vec4<T>(1 - 2 * (yy + zz), 2 * (xy + wz), 2 * (xz - wy), 0),
+
             Vec4<T>(2 * (xy - wz), 1 - 2 * (xx + zz), 2 * (yz + wx), 0),
+
             Vec4<T>(2 * (xz + wy), 2 * (yz - wx), 1 - 2 * (xx + yy), 0),
-            Vec4<T>(0, 0, 0, 1),
+
+            Vec4<T>(0,0,0,1),
         };
 }
 
@@ -1068,7 +1187,7 @@ public:
     constexpr Mat44<NumType> Inverse() const
     {
         TrsTransform result;
-        result.R = R.Normalize().Conjugate();
+        result.R = R.Inverse();
         result.S = NumType{1} / S;
         result.T = -(result.R * (T * result.S));
         return result.ToMatrix();

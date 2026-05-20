@@ -367,6 +367,84 @@ TEST(Mat44f, Inverse_SingularMatrixReturnsZero)
     EXPECT_FLOAT_EQ(inv[3][3], 0.0f);
 }
 
+TEST(Mat44f, Inverse_NonAffine)
+{
+    // A perspective projection matrix is non-affine and should be invertible
+    const Mat44f M = Mat44f::PerspectiveLH(Radiansf(std::numbers::pi_v<float> / 3.0f),
+        16.0f / 9.0f,
+        0.1f,
+        100.0f);
+
+    Mat44f inv = M.Inverse();
+    Mat44f I = M * inv;
+    // The product should be close to identity
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j)
+            EXPECT_NEAR(I[i][j], (i == j) ? 1.0f : 0.0f, 1e-3f);
+}
+
+TEST(Mat44f, Inverse_Random)
+{
+    // A random invertible matrix
+    Mat44f M(
+        4.0f, 7.0f, 2.0f, 3.0f,
+        0.0f, 5.0f, 9.0f, 1.0f,
+        6.0f, 8.0f, 2.0f, 5.0f,
+        1.0f, 0.0f, 3.0f, 2.0f
+    );
+    Mat44f inv = M.Inverse();
+    Mat44f I = M * inv;
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j)
+            EXPECT_NEAR(I[i][j], (i == j) ? 1.0f : 0.0f, 1e-3f);
+}
+
+TEST(Mat44f, InverseAffine_Basic)
+{
+    // Affine matrix: scale, rotate, translate
+    Mat44f M(
+        2.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 3.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 4.0f, 0.0f,
+        5.0f, 6.0f, 7.0f, 1.0f
+    );
+    Mat44f inv = M.InverseAffine();
+    Mat44f I = M * inv;
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j)
+            EXPECT_NEAR(I[i][j], (i == j) ? 1.0f : 0.0f, 1e-4f);
+}
+
+TEST(Mat44f, InverseAffine_NonInvertible)
+{
+    // Affine matrix with zero scale (non-invertible)
+    Mat44f M(
+        0.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
+    );
+    Mat44f inv = M.InverseAffine();
+    // Should return zero matrix
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j)
+            EXPECT_FLOAT_EQ(inv[i][j], 0.0f);
+}
+
+TEST(Mat44f, InverseAffine_TranslationOnly)
+{
+    // Affine matrix with only translation
+    Mat44f M = Mat44f::Identity();
+    M[3][0] = 10.0f;
+    M[3][1] = -5.0f;
+    M[3][2] = 2.5f;
+    Mat44f inv = M.InverseAffine();
+    Mat44f I = M * inv;
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j)
+            EXPECT_NEAR(I[i][j], (i == j) ? 1.0f : 0.0f, 1e-5f);
+}
+
 TEST(Mat44f, PerspectiveLH)
 {
     const float fov = std::numbers::pi_v<float> / 2.0f;

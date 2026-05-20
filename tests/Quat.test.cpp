@@ -19,10 +19,11 @@ namespace
 TEST(Quatf, Construction_FromComponents)
 {
     Quatf q(1.0f, 2.0f, 3.0f, 4.0f);
-    EXPECT_FLOAT_EQ(q.ToVector().x, 1.0f);
-    EXPECT_FLOAT_EQ(q.ToVector().y, 2.0f);
-    EXPECT_FLOAT_EQ(q.ToVector().z, 3.0f);
-    EXPECT_FLOAT_EQ(q.ToVector().w, 4.0f);
+    const float len = std::sqrt(30.0f);
+    EXPECT_NEAR(q.ToVector().x, 1.0f / len, EPS);
+    EXPECT_NEAR(q.ToVector().y, 2.0f / len, EPS);
+    EXPECT_NEAR(q.ToVector().z, 3.0f / len, EPS);
+    EXPECT_NEAR(q.ToVector().w, 4.0f / len, EPS);
 }
 
 TEST(Quatf, Construction_FromAngleAxis)
@@ -44,7 +45,7 @@ TEST(Quatf, Normalize)
 {
     Quatf q(1.0f, 2.0f, 3.0f, 4.0f);
     Quatf n = q.Normalize();
-    const float len = std::sqrt(n.ToVector().x * n.ToVector().x + n.ToVector().y * n.ToVector().y + n.ToVector().z * n.ToVector().z + n.ToVector().w * n.ToVector().w);
+    const float len = n.ToVector().Length();
     EXPECT_NEAR(len, 1.0f, EPS);
 }
 
@@ -52,10 +53,11 @@ TEST(Quatf, Conjugate)
 {
     Quatf q(1.0f, -2.0f, 3.0f, -4.0f);
     Quatf c = q.Conjugate();
-    EXPECT_FLOAT_EQ(c.ToVector().x, -1.0f);
-    EXPECT_FLOAT_EQ(c.ToVector().y, 2.0f);
-    EXPECT_FLOAT_EQ(c.ToVector().z, -3.0f);
-    EXPECT_FLOAT_EQ(c.ToVector().w, -4.0f);
+    const float len = std::sqrt(30.0f);
+    EXPECT_NEAR(c.ToVector().x, -1.0f / len, EPS);
+    EXPECT_NEAR(c.ToVector().y,  2.0f / len, EPS);
+    EXPECT_NEAR(c.ToVector().z, -3.0f / len, EPS);
+    EXPECT_NEAR(c.ToVector().w, -4.0f / len, EPS);
 }
 
 TEST(Quatf, Multiply_Quat)
@@ -100,33 +102,24 @@ TEST(Quatf, Equality)
 
 TEST(Quatf, Add_Quat)
 {
-    Quatf a(1.0f, 2.0f, 3.0f, 4.0f);
-    Quatf b(5.0f, 6.0f, 7.0f, 8.0f);
+    Quatf a(0.0f, 0.0f, 0.0f, 1.0f);
+    Quatf b(0.0f, 0.0f, 1.0f, 0.0f);
     Quatf c = a + b;
-    EXPECT_FLOAT_EQ(c.ToVector().x, 6.0f);
-    EXPECT_FLOAT_EQ(c.ToVector().y, 8.0f);
-    EXPECT_FLOAT_EQ(c.ToVector().z, 10.0f);
-    EXPECT_FLOAT_EQ(c.ToVector().w, 12.0f);
-}
-
-TEST(Quatf, Multiply_Scalar)
-{
-    Quatf a(1.0f, -2.0f, 3.0f, -4.0f);
-    Quatf c = a * 2.5f;
-    EXPECT_FLOAT_EQ(c.ToVector().x, 2.5f);
-    EXPECT_FLOAT_EQ(c.ToVector().y, -5.0f);
-    EXPECT_FLOAT_EQ(c.ToVector().z, 7.5f);
-    EXPECT_FLOAT_EQ(c.ToVector().w, -10.0f);
+    const float invSqrt2 = 1.0f / std::sqrt(2.0f);
+    EXPECT_NEAR(c.ToVector().x, 0.0f,      EPS);
+    EXPECT_NEAR(c.ToVector().y, 0.0f,      EPS);
+    EXPECT_NEAR(c.ToVector().z, invSqrt2,  EPS);
+    EXPECT_NEAR(c.ToVector().w, invSqrt2,  EPS);
 }
 
 TEST(Quatf, UnaryNegation)
 {
     Quatf a(1.0f, -2.0f, 3.0f, -4.0f);
     Quatf c = -a;
-    EXPECT_FLOAT_EQ(c.ToVector().x, -1.0f);
-    EXPECT_FLOAT_EQ(c.ToVector().y, 2.0f);
-    EXPECT_FLOAT_EQ(c.ToVector().z, -3.0f);
-    EXPECT_FLOAT_EQ(c.ToVector().w, 4.0f);
+    EXPECT_NEAR(c.ToVector().x, -a.ToVector().x, EPS);
+    EXPECT_NEAR(c.ToVector().y, -a.ToVector().y, EPS);
+    EXPECT_NEAR(c.ToVector().z, -a.ToVector().z, EPS);
+    EXPECT_NEAR(c.ToVector().w, -a.ToVector().w, EPS);
 }
 
 TEST(Quatf, CompoundMultiplication)
@@ -143,23 +136,75 @@ TEST(Quatf, CompoundMultiplication)
     EXPECT_NEAR(q.ToVector().w, std::cos(angle / 2.0f), EPS);
 }
 
-TEST(Quatf, CompoundMultiplication_Scalar)
-{
-    Quatf a(1.0f, -2.0f, 3.0f, -4.0f);
-    a *= 2.0f;
-    EXPECT_FLOAT_EQ(a.ToVector().x, 2.0f);
-    EXPECT_FLOAT_EQ(a.ToVector().y, -4.0f);
-    EXPECT_FLOAT_EQ(a.ToVector().z, 6.0f);
-    EXPECT_FLOAT_EQ(a.ToVector().w, -8.0f);
-}
-
 TEST(Quatf, CompoundAddition)
 {
-    Quatf a(1.0f, 2.0f, 3.0f, 4.0f);
-    Quatf b(5.0f, 6.0f, 7.0f, 8.0f);
+    Quatf a(0.0f, 0.0f, 0.0f, 1.0f);
+    Quatf b(0.0f, 0.0f, 1.0f, 0.0f);
     a += b;
-    EXPECT_FLOAT_EQ(a.ToVector().x, 6.0f);
-    EXPECT_FLOAT_EQ(a.ToVector().y, 8.0f);
-    EXPECT_FLOAT_EQ(a.ToVector().z, 10.0f);
-    EXPECT_FLOAT_EQ(a.ToVector().w, 12.0f);
+    const float invSqrt2 = 1.0f / std::sqrt(2.0f);
+    EXPECT_NEAR(a.ToVector().x, 0.0f,      EPS);
+    EXPECT_NEAR(a.ToVector().y, 0.0f,      EPS);
+    EXPECT_NEAR(a.ToVector().z, invSqrt2,  EPS);
+    EXPECT_NEAR(a.ToVector().w, invSqrt2,  EPS);
+}
+
+TEST(Quatf, Lerp)
+{
+    const float angleA = std::numbers::pi_v<float> / 2.0f;
+    const float angleB = std::numbers::pi_v<float> / 4.0f;
+    const Vec3f axisA(0.0f, 0.0f, 1.0f);
+    const Vec3f axisB(0.0f, 1.0f, 0.0f);
+    Quatf qA(Radiansf(angleA), axisA);
+    Quatf qB(Radiansf(angleB), axisB);
+
+    // At t=0, result must equal qA
+    const Quatf r0 = qA.Lerp(qB, 0.0f);
+    EXPECT_NEAR(r0.ToVector().x, qA.ToVector().x, EPS);
+    EXPECT_NEAR(r0.ToVector().y, qA.ToVector().y, EPS);
+    EXPECT_NEAR(r0.ToVector().z, qA.ToVector().z, EPS);
+    EXPECT_NEAR(r0.ToVector().w, qA.ToVector().w, EPS);
+
+    // At t=1, result must equal qB
+    const Quatf r1 = qA.Lerp(qB, 1.0f);
+    EXPECT_NEAR(r1.ToVector().x, qB.ToVector().x, EPS);
+    EXPECT_NEAR(r1.ToVector().y, qB.ToVector().y, EPS);
+    EXPECT_NEAR(r1.ToVector().z, qB.ToVector().z, EPS);
+    EXPECT_NEAR(r1.ToVector().w, qB.ToVector().w, EPS);
+
+    // At t=0.5, result must be the normalized midpoint of the two component vectors
+    const Quatf r05 = qA.Lerp(qB, 0.5f);
+    const Vec4f expected = ((qA.ToVector() + qB.ToVector()) * 0.5f).Normalize();
+    EXPECT_NEAR(r05.ToVector().x, expected.x, EPS);
+    EXPECT_NEAR(r05.ToVector().y, expected.y, EPS);
+    EXPECT_NEAR(r05.ToVector().z, expected.z, EPS);
+    EXPECT_NEAR(r05.ToVector().w, expected.w, EPS);
+}
+
+TEST(Quatf, InverseRotateVector)
+{
+    const float angle = std::numbers::pi_v<float> / 2.0f;
+    const Vec3f axis(0.0f, 0.0f, 1.0f);
+    Quatf q(Radiansf(angle), axis);
+
+    const Vec3f v(1.0f, 0.0f, 0.0f);
+
+    const Mat44f invMat1 = q.Inverse().ToMatrix();
+    const Mat44f invMat2 = q.ToMatrix().InverseAffine();
+
+    const Vec4f r1 = invMat1 * v;
+    const Vec4f r2 = invMat2 * v;
+
+    EXPECT_NEAR(r1.x, 0.0f, EPS);
+    EXPECT_NEAR(r1.y, -1.0f, EPS);
+    EXPECT_NEAR(r1.z, 0.0f, EPS);
+
+    EXPECT_NEAR(r2.x, 0.0f, EPS);
+    EXPECT_NEAR(r2.y, -1.0f, EPS);
+    EXPECT_NEAR(r2.z, 0.0f, EPS);
+
+    const Vec4f diff = r1 - r2;
+    EXPECT_NEAR(diff.x, 0.0f, EPS);
+    EXPECT_NEAR(diff.y, 0.0f, EPS);
+    EXPECT_NEAR(diff.z, 0.0f, EPS);
+    EXPECT_NEAR(diff.w, 0.0f, EPS);
 }
