@@ -317,10 +317,10 @@ TEST(Mat44f, Decompose_Trs)
     EXPECT_NEAR(outS.y, scale.y, EPS);
     EXPECT_NEAR(outS.z, scale.z, EPS);
 
-    EXPECT_NEAR(outR.x, 0.0f, EPS);
-    EXPECT_NEAR(outR.y, 0.0f, EPS);
-    EXPECT_NEAR(outR.z, 0.0f, EPS);
-    EXPECT_NEAR(outR.w, 1.0f, EPS);
+    EXPECT_NEAR(outR.ToVector().x, 0.0f, EPS);
+    EXPECT_NEAR(outR.ToVector().y, 0.0f, EPS);
+    EXPECT_NEAR(outR.ToVector().z, 0.0f, EPS);
+    EXPECT_NEAR(outR.ToVector().w, 1.0f, EPS);
 }
 
 TEST(Mat44f, Inverse_Identity)

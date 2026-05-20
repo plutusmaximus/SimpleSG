@@ -219,6 +219,11 @@ public:
         return x * that.x + y * that.y;
     }
 
+    constexpr Vec2 Lerp(const Vec2& that, T t) const
+    {
+        return Vec2(*this * (1 - t) + that * t);
+    }
+
     constexpr bool operator==(const Vec2& that) const
     {
         return x == that.x && y == that.y;
@@ -373,6 +378,11 @@ public:
     constexpr T Dot(const Vec3& that) const
     {
         return x * that.x + y * that.y + z * that.z;
+    }
+
+    constexpr Vec3 Lerp(const Vec3& that, T t) const
+    {
+        return Vec3(*this * (1 - t) + that * t);
     }
 
     /// Rotates this vector around the given axis by the specified angle.
@@ -535,6 +545,11 @@ public:
         return x * that.x + y * that.y + z * that.z + w * that.w;
     }
 
+    constexpr Vec4 Lerp(const Vec4& that, T t) const
+    {
+        return Vec4(*this * (1 - t) + that * t);
+    }
+
     constexpr bool operator==(const Vec4& that) const
     {
         return x == that.x && y == that.y && z == that.z && w == that.w;
@@ -655,85 +670,93 @@ inline constexpr Vec3<T>::Vec3(const Vec4<T>& v)
 }
 
 template<typename T>
-class Quat
+class Quat : private Vec4<T>
 {
     static_assert(std::is_floating_point_v<T>, "Quat requires a floating-point type");
 
 public:
-
     constexpr Quat() = default;
 
     constexpr Quat(T x, T y, T z, T w)
-        : x(x), y(y), z(z), w(w)
+        : m_Vec(x, y, z, w)
     {
+        m_Vec = m_Vec.Normalize();
+    }
+
+    constexpr Quat(const Vec4<T>& v)
+        : m_Vec(v)
+    {
+        m_Vec = m_Vec.Normalize();
     }
 
     constexpr Quat(const Radians<T> angle, const Vec3<T>& axis)
     {
         const T ao2 = angle.GetValue() * T{0.5};
         const auto s = std::sin(ao2);
-        x = axis.x * s;
-        y = axis.y * s;
-        z = axis.z * s;
-        w = std::cos(ao2);
+        m_Vec.x = axis.x * s;
+        m_Vec.y = axis.y * s;
+        m_Vec.z = axis.z * s;
+        m_Vec.w = std::cos(ao2);
     }
 
     constexpr Mat44<T> ToMatrix() const;
 
     constexpr Quat Normalize() const
     {
-        const T len = x * x + y * y + z * z + w * w;
-        MLG_ASSERT(len != T{ 0 }, "Cannot normalize a zero-length quaternion");
-        const T invLen = T{1} / std::sqrt(len);
-        return Quat(x * invLen, y * invLen, z * invLen, w * invLen);
+        return Quat(m_Vec.Normalize());
     }
 
     constexpr Quat Conjugate() const
     {
-        return Quat(-x, -y, -z, w);
+        return Quat(-m_Vec);
+    }
+
+    constexpr Quat Lerp(const Quat& that, T t) const
+    {
+        return Quat(m_Vec.Lerp(that.m_Vec, t));
+    }
+
+    constexpr Vec4<T> ToVector() const
+    {
+        return m_Vec;
     }
 
     constexpr bool operator==(const Quat& that) const
     {
-        return x == that.x && y == that.y && z == that.z && w == that.w;
+        return m_Vec == that.m_Vec;
     }
 
-    constexpr Vec3<T> operator*(const Vec3<T>& v) const
+    constexpr Vec3<T> operator*(const Vec3<T>& vec) const
     {
         // Assumes a unit quaternion.
-        const Vec3<T> u{ x, y, z };
-        const Vec3<T> t = u.Cross(v) * T{2};
-        return v + w * t + u.Cross(t);
+        const Vec3<T> u{ m_Vec };
+        const Vec3<T> t = u.Cross(vec) * T{2};
+        return vec + m_Vec.w * t + u.Cross(t);
     }
 
     constexpr Quat operator*(const T scalar) const
     {
-        return Quat(x * scalar, y * scalar, z * scalar, w * scalar);
+        return Quat(m_Vec * scalar);
     }
 
     constexpr Quat operator*(const Quat& that) const
     {
         return Quat(
-            w * that.x + x * that.w + y * that.z - z * that.y,
-            w * that.y - x * that.z + y * that.w + z * that.x,
-            w * that.z + x * that.y - y * that.x + z * that.w,
-            w * that.w - x * that.x - y * that.y - z * that.z
+            m_Vec.w * that.m_Vec.x + m_Vec.x * that.m_Vec.w + m_Vec.y * that.m_Vec.z - m_Vec.z * that.m_Vec.y,
+            m_Vec.w * that.m_Vec.y - m_Vec.x * that.m_Vec.z + m_Vec.y * that.m_Vec.w + m_Vec.z * that.m_Vec.x,
+            m_Vec.w * that.m_Vec.z + m_Vec.x * that.m_Vec.y - m_Vec.y * that.m_Vec.x + m_Vec.z * that.m_Vec.w,
+            m_Vec.w * that.m_Vec.w - m_Vec.x * that.m_Vec.x - m_Vec.y * that.m_Vec.y - m_Vec.z * that.m_Vec.z
         ).Normalize();
     }
 
     constexpr Quat operator+(const Quat& that) const
     {
-        return Quat(x + that.x, y + that.y, z + that.z, w + that.w);
-    }
-
-    constexpr Quat operator-(const Quat& that) const
-    {
-        return Quat(x - that.x, y - that.y, z - that.z, w - that.w);
+        return Quat(m_Vec + that.m_Vec);
     }
 
     constexpr Quat operator-() const
     {
-        return Quat(-x, -y, -z, -w);
+        return Quat(-m_Vec);
     }
 
     constexpr Quat& operator*=(const T scalar)
@@ -751,14 +774,9 @@ public:
         return (*this = *this + that);
     }
 
-    constexpr Quat& operator-=(const Quat& that)
-    {
-        return (*this = *this - that);
-    }
+private:
 
-//private:
-
-    T x{0}, y{0}, z{0}, w{1};
+    Vec4<T> m_Vec;
 };
 
 // 4x4 column-major matrix
@@ -1002,15 +1020,15 @@ public:
 template<typename T>
 inline constexpr Mat44<T> Quat<T>::ToMatrix() const
 {
-    const T xx = x * x;
-    const T yy = y * y;
-    const T zz = z * z;
-    const T xy = x * y;
-    const T xz = x * z;
-    const T yz = y * z;
-    const T wx = w * x;
-    const T wy = w * y;
-    const T wz = w * z;
+    const T xx = m_Vec.x * m_Vec.x;
+    const T yy = m_Vec.y * m_Vec.y;
+    const T zz = m_Vec.z * m_Vec.z;
+    const T xy = m_Vec.x * m_Vec.y;
+    const T xz = m_Vec.x * m_Vec.z;
+    const T yz = m_Vec.y * m_Vec.z;
+    const T wx = m_Vec.w * m_Vec.x;
+    const T wy = m_Vec.w * m_Vec.y;
+    const T wz = m_Vec.w * m_Vec.z;
 
     // Column-major 4x4 rotation matrix
     return Mat44<T> //
