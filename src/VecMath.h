@@ -670,25 +670,25 @@ inline constexpr Vec3<T>::Vec3(const Vec4<T>& v)
 }
 
 template<typename T>
-class Quat : private Vec4<T>
+class UnitQuat
 {
     static_assert(std::is_floating_point_v<T>, "Quat requires a floating-point type");
 
 public:
-    constexpr Quat() = default;
+    constexpr UnitQuat() = default;
 
-    constexpr Quat(T x, T y, T z, T w)
-        : Quat(Vec4<T>(x, y, z, w))
+    constexpr UnitQuat(T x, T y, T z, T w)
+        : UnitQuat(Vec4<T>(x, y, z, w))
     {
     }
 
-    constexpr Quat(const Vec4<T>& v)
+    constexpr UnitQuat(const Vec4<T>& v)
         : m_Vec(v)
     {
         m_Vec = m_Vec.Normalize();
     }
 
-    constexpr Quat(const Radians<T> angle, const Vec3<T>& axis)
+    constexpr UnitQuat(const Radians<T> angle, const Vec3<T>& axis)
     {
         const T ao2 = angle.GetValue() * T{0.5};
         const auto s = std::sin(ao2);
@@ -700,25 +700,25 @@ public:
 
     constexpr Mat44<T> ToMatrix() const;
 
-    constexpr Quat Normalize() const
+    constexpr UnitQuat Normalize() const
     {
-        return Quat(m_Vec.Normalize());
+        return UnitQuat(m_Vec.Normalize());
     }
 
-    constexpr Quat Conjugate() const
+    constexpr UnitQuat Conjugate() const
     {
-        return Quat(-m_Vec.x, -m_Vec.y, -m_Vec.z, m_Vec.w);
+        return UnitQuat(-m_Vec.x, -m_Vec.y, -m_Vec.z, m_Vec.w);
     }
 
-    constexpr Quat Inverse() const
+    constexpr UnitQuat Inverse() const
     {
         // Assumes a unit quaternion.
         return Conjugate();
     }
 
-    constexpr Quat Lerp(const Quat& that, T t) const
+    constexpr UnitQuat Lerp(const UnitQuat& that, T t) const
     {
-        return Quat(m_Vec.Lerp(that.m_Vec, t));
+        return UnitQuat(m_Vec.Lerp(that.m_Vec, t));
     }
 
     constexpr Vec4<T> ToVector() const
@@ -726,7 +726,7 @@ public:
         return m_Vec;
     }
 
-    constexpr bool operator==(const Quat& that) const
+    constexpr bool operator==(const UnitQuat& that) const
     {
         return m_Vec == that.m_Vec;
     }
@@ -739,9 +739,9 @@ public:
         return vec + m_Vec.w * t + u.Cross(t);
     }
 
-    constexpr Quat operator*(const Quat& that) const
+    constexpr UnitQuat operator*(const UnitQuat& that) const
     {
-        return Quat(
+        return UnitQuat(
             m_Vec.w * that.m_Vec.x + m_Vec.x * that.m_Vec.w + m_Vec.y * that.m_Vec.z - m_Vec.z * that.m_Vec.y,
             m_Vec.w * that.m_Vec.y - m_Vec.x * that.m_Vec.z + m_Vec.y * that.m_Vec.w + m_Vec.z * that.m_Vec.x,
             m_Vec.w * that.m_Vec.z + m_Vec.x * that.m_Vec.y - m_Vec.y * that.m_Vec.x + m_Vec.z * that.m_Vec.w,
@@ -749,22 +749,22 @@ public:
         ).Normalize();
     }
 
-    constexpr Quat operator+(const Quat& that) const
+    constexpr UnitQuat operator+(const UnitQuat& that) const
     {
-        return Quat(m_Vec + that.m_Vec);
+        return UnitQuat(m_Vec + that.m_Vec);
     }
 
-    constexpr Quat operator-() const
+    constexpr UnitQuat operator-() const
     {
-        return Quat(-m_Vec);
+        return UnitQuat(-m_Vec);
     }
 
-    constexpr Quat& operator*=(const Quat& that)
+    constexpr UnitQuat& operator*=(const UnitQuat& that)
     {
         return (*this = *this * that);
     }
 
-    constexpr Quat& operator+=(const Quat& that)
+    constexpr UnitQuat& operator+=(const UnitQuat& that)
     {
         return (*this = *this + that);
     }
@@ -1019,7 +1019,7 @@ public:
             };
     }
 
-    constexpr void Decompose(Vec3<T>& translation, Quat<T>& rotation, Vec3<T>& scale) const
+    constexpr void Decompose(Vec3<T>& translation, UnitQuat<T>& rotation, Vec3<T>& scale) const
     {
         const auto& mm = *this;
 
@@ -1082,7 +1082,7 @@ public:
             qz = T{0.25} * s;
         }
 
-        rotation = Quat<T>(qx, qy, qz, qw);
+        rotation = UnitQuat<T>(qx, qy, qz, qw);
     }
 
     constexpr Vec4<T>& operator[](std::size_t index)
@@ -1134,7 +1134,7 @@ public:
 };
 
 template<typename T>
-inline constexpr Mat44<T> Quat<T>::ToMatrix() const
+inline constexpr Mat44<T> UnitQuat<T>::ToMatrix() const
 {
     const T xx = m_Vec.x * m_Vec.x;
     const T yy = m_Vec.y * m_Vec.y;
@@ -1167,7 +1167,7 @@ class TrsTransform
 public:
 
     Vec3<NumType> T{ 0 };
-    Quat<NumType> R{ Radians<NumType>{0}, Vec3<NumType>{0,1,0} };
+    UnitQuat<NumType> R{ Radians<NumType>{0}, Vec3<NumType>{0,1,0} };
     Vec3<NumType> S{ 1 };
 
     constexpr Mat44<NumType> ToMatrix() const
@@ -1264,7 +1264,7 @@ using Radiansf = Radians<float>;
 using Vec2f = Vec2<float>;
 using Vec3f = Vec3<float>;
 using Vec4f = Vec4<float>;
-using Quatf = Quat<float>;
+using Quatf = UnitQuat<float>;
 using Mat44f = Mat44<float>;
 using TrsTransformf = TrsTransform<float>;
 
@@ -1309,12 +1309,12 @@ struct std::formatter<Vec4<T>>
 
 /// @brief Enable formatting of Quat via std::format.
 template<typename T>
-struct std::formatter<Quat<T>>
+struct std::formatter<UnitQuat<T>>
 {
     constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
 
     template<typename FormatContext>
-    auto format(const Quat<T>& quat, FormatContext& ctx) const
+    auto format(const UnitQuat<T>& quat, FormatContext& ctx) const
     {
         return std::format_to(ctx.out(), "({}, {}, {}, {})", quat.x, quat.y, quat.z, quat.w);
     }

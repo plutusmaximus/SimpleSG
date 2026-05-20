@@ -8,7 +8,7 @@
 // Type aliases for convenience
 using Vec3f = Vec3<float>;
 using Vec4f = Vec4<float>;
-using Quatf = Quat<float>;
+using Quatf = UnitQuat<float>;
 using Radiansf = Radians<float>;
 
 namespace
