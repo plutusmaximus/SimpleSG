@@ -292,7 +292,11 @@ WalkMouseNav::Update(const float deltaSeconds)
     constexpr float TRANSFORM_TIME_TO_TARGET = 0.1f;
     constexpr float ROTATION_TIME_TO_TARGET = 0.01f;
 
-    m_CurrentTransform.T += (m_TargetTransform.T - m_CurrentTransform.T) * (deltaSeconds / TRANSFORM_TIME_TO_TARGET);
-    m_CurrentTransform.R += (m_TargetTransform.R - m_CurrentTransform.R) * (deltaSeconds / ROTATION_TIME_TO_TARGET);
-    m_CurrentTransform.R = m_CurrentTransform.R.Normalize();
+    const float dtT = deltaSeconds / TRANSFORM_TIME_TO_TARGET;
+    const float dtR = deltaSeconds / ROTATION_TIME_TO_TARGET;
+
+    m_CurrentTransform.T = m_CurrentTransform.T.Lerp(m_TargetTransform.T, dtT);
+    m_CurrentTransform.R = m_CurrentTransform.R.Lerp(m_TargetTransform.R, dtR);
+    // m_CurrentTransform.R = m_TargetTransform.R;
+    //m_CurrentTransform.R = m_CurrentTransform.R.Normalize();
 }
