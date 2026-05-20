@@ -18,27 +18,41 @@ class Radians
 {
     static_assert(std::is_floating_point_v<T>, "Radians requires a floating-point type");
 
-    static constexpr T MAX = 2 * std::numbers::pi_v<T>;
+    static constexpr T TWO_PI = 2 * std::numbers::pi_v<T>;
+    static constexpr T PI = std::numbers::pi_v<T>;
+    static constexpr T eps = T(8) * std::numeric_limits<T>::epsilon() * TWO_PI;
 
+    // Wraps the input value to the range [-π, π)
     constexpr static T Wrap(const T value)
     {
-        if constexpr (std::is_integral_v<T>)
+        // Wrap to [-π, π)
+        const T r = value - std::floor((value + PI) / TWO_PI) * TWO_PI;
+
+        if (r <= -PI + eps)
         {
-            T result = value % MAX;
-            if (result < T{0})
-            {
-                result += MAX;
-            }
-            return result;
+            return PI;
+        }
+        else if (std::abs(r) < eps)
+        {
+            return T{0};
+        }
+
+        return r;
+    }
+
+    constexpr static T Limit(const T value)
+    {
+        if(value > 1000 * TWO_PI)
+        {
+            return value - (1000 * TWO_PI);
+        }
+        else if(value < -1000 * TWO_PI)
+        {
+            return value + (1000 * TWO_PI);
         }
         else
         {
-            T result = std::fmod(value, MAX);
-            if (result < T{0})
-            {
-                result += MAX;
-            }
-            return result;
+            return value;
         }
     }
 
@@ -47,13 +61,13 @@ public:
     constexpr Radians() = default;
 
     explicit constexpr Radians(const T value)
-     : m_Value(Wrap(value))
+     : m_Value(Limit(value))
     {
     }
 
     constexpr Radians<T>& operator=(const T other)
     {
-        m_Value = Wrap(other);
+        m_Value = Limit(other);
         return *this;
     }
 
@@ -141,9 +155,9 @@ public:
         return !(*this == other);
     }
 
-    constexpr T Value() const
+    constexpr T GetValue() const
     {
-        return m_Value;
+        return Wrap(m_Value);
     }
 
 private:
@@ -182,8 +196,7 @@ public:
 
     constexpr Vec2<T> Normalize() const
     {
-        const T length = std::sqrt(x * x + y * y);
-        return Vec2<T>(x / length, y / length);
+        return *this / Length();
     }
 
     constexpr T Length() const
@@ -233,7 +246,20 @@ public:
 
     constexpr Vec2 operator/(const T scalar) const
     {
-        return Vec2(x / scalar, y / scalar);
+        MLG_ASSERT(scalar != T{ 0 }, "Division by zero in Vec2 operator/");
+        const T invScalar = T{1} / scalar;
+        return Vec2(x * invScalar, y * invScalar);
+    }
+
+    friend constexpr Vec2 operator*(const T scalar, const Vec2& v)
+    {
+        return v * scalar;
+    }
+
+    friend constexpr Vec2 operator/(const T scalar, const Vec2& v)
+    {
+        MLG_ASSERT(v.x != T{ 0 } && v.y != T{ 0 }, "Division by zero in Vec2 operator/");
+        return Vec2(scalar / v.x, scalar / v.y);
     }
 
     constexpr Vec2 operator-() const
@@ -265,45 +291,29 @@ public:
 
     constexpr Vec2& operator+=(const Vec2& that)
     {
-        x += that.x;
-        y += that.y;
-        return *this;
+        return *this = *this + that;
     }
 
     constexpr Vec2& operator-=(const Vec2& that)
     {
-        x -= that.x;
-        y -= that.y;
-        return *this;
+        return *this = *this - that;
     }
 
     constexpr Vec2& operator*=(const Vec2& that)
     {
-        x *= that.x;
-        y *= that.y;
-        return *this;
+        return *this = *this * that;
     }
 
     constexpr Vec2<T>& operator*=(const T scalar)
     {
-        x *= scalar;
-        y *= scalar;
-        return *this;
+        return *this = *this * scalar;
     }
 
     constexpr Vec2<T>& operator/=(const T scalar)
     {
-        x /= scalar;
-        y /= scalar;
-        return *this;
+        return *this = *this / scalar;
     }
 };
-
-template<typename T>
-inline constexpr Vec2<T> operator*(const T a, const Vec2<T> b)
-{
-    return b * a;
-}
 
 template<typename T>
 class Vec3
@@ -338,8 +348,7 @@ public:
 
     constexpr Vec3 Normalize() const
     {
-        const T length = std::sqrt(x * x + y * y + z * z);
-        return Vec3(x / length, y / length, z / length);
+        return *this / Length();
     }
 
     constexpr T Length() const
@@ -364,6 +373,16 @@ public:
     constexpr T Dot(const Vec3& that) const
     {
         return x * that.x + y * that.y + z * that.z;
+    }
+
+    /// Rotates this vector around the given axis by the specified angle.
+    constexpr Vec3 RotateBy(const Vec3& axis, const Radians<T> angle) const
+    {
+        // https://en.wikipedia.org/wiki/Rodrigues'_rotation_formula
+        const T radVal = angle.GetValue();
+        const Vec3 vr = *this * std::cos(radVal) + axis.Cross(*this) * std::sin(radVal) +
+                         axis * (axis.Dot(*this)) * (1 - std::cos(radVal));
+        return vr;
     }
 
     constexpr bool operator==(const Vec3& that) const
@@ -393,7 +412,21 @@ public:
 
     constexpr Vec3 operator/(const T scalar) const
     {
-        return Vec3(x / scalar, y / scalar, z / scalar);
+        MLG_ASSERT(scalar != T{ 0 }, "Division by zero in Vec3 operator/");
+        const T invScalar = T{1} / scalar;
+        return Vec3(x * invScalar, y * invScalar, z * invScalar);
+    }
+
+    friend constexpr Vec3 operator*(const T scalar, const Vec3& v)
+    {
+        return v * scalar;
+    }
+
+    friend constexpr Vec3 operator/(const T scalar, const Vec3& v)
+    {
+        MLG_ASSERT(v.x != T{ 0 } && v.y != T{ 0 } && v.z != T{ 0 },
+            "Division by zero in Vec3 operator/");
+        return Vec3(scalar / v.x, scalar / v.y, scalar / v.z);
     }
 
     constexpr Vec3 operator-() const
@@ -427,50 +460,29 @@ public:
 
     constexpr Vec3& operator+=(const Vec3& that)
     {
-        x += that.x;
-        y += that.y;
-        z += that.z;
-        return *this;
+        return *this = *this + that;
     }
 
     constexpr Vec3& operator-=(const Vec3& that)
     {
-        x -= that.x;
-        y -= that.y;
-        z -= that.z;
-        return *this;
+        return *this = *this - that;
     }
 
     constexpr Vec3& operator*=(const Vec3& that)
     {
-        x *= that.x;
-        y *= that.y;
-        z *= that.z;
-        return *this;
+        return *this = *this * that;
     }
 
     constexpr Vec3& operator*=(const T scalar)
     {
-        x *= scalar;
-        y *= scalar;
-        z *= scalar;
-        return *this;
+        return *this = *this * scalar;
     }
 
     constexpr Vec3& operator/=(const T scalar)
     {
-        x /= scalar;
-        y /= scalar;
-        z /= scalar;
-        return *this;
+        return *this = *this / scalar;
     }
 };
-
-template<typename T>
-inline constexpr Vec3<T> operator*(const T a, const Vec3<T> b)
-{
-    return b * a;
-}
 
 template<typename T>
 class Vec4
@@ -505,8 +517,7 @@ public:
 
     constexpr Vec4 Normalize() const
     {
-        const T length = std::sqrt(x * x + y * y + z * z + w * w);
-        return Vec4(x / length, y / length, z / length, w / length);
+        return *this / Length();
     }
 
     constexpr T Length() const
@@ -551,7 +562,21 @@ public:
 
     constexpr Vec4 operator/(const T scalar) const
     {
-        return Vec4(x / scalar, y / scalar, z / scalar, w / scalar);
+        MLG_ASSERT(scalar != T{ 0 }, "Division by zero in Vec4 operator/");
+        const T invScalar = T{1} / scalar;
+        return Vec4(x * invScalar, y * invScalar, z * invScalar, w * invScalar);
+    }
+
+    friend constexpr Vec4 operator*(const T scalar, const Vec4& v)
+    {
+        return v * scalar;
+    }
+
+    friend constexpr Vec4 operator/(const T scalar, const Vec4& v)
+    {
+        MLG_ASSERT(v.x != T{ 0 } && v.y != T{ 0 } && v.z != T{ 0 } && v.w != T{ 0 },
+            "Division by zero in Vec4 operator/");
+        return Vec4(scalar / v.x, scalar / v.y, scalar / v.z, scalar / v.w);
     }
 
     constexpr Vec4 operator-() const
@@ -587,55 +612,30 @@ public:
 
     constexpr Vec4& operator+=(const Vec4& that)
     {
-        x += that.x;
-        y += that.y;
-        z += that.z;
-        w += that.w;
-        return *this;
+        return *this = *this + that;
     }
 
     constexpr Vec4& operator-=(const Vec4& that)
     {
-        x -= that.x;
-        y -= that.y;
-        z -= that.z;
-        w -= that.w;
-        return *this;
+        return *this = *this - that;
     }
 
     constexpr Vec4& operator*=(const Vec4& that)
     {
-        x *= that.x;
-        y *= that.y;
-        z *= that.z;
-        w *= that.w;
-        return *this;
+        return *this = *this * that;
     }
 
     constexpr Vec4& operator*=(const T scalar)
     {
-        x *= scalar;
-        y *= scalar;
-        z *= scalar;
-        w *= scalar;
-        return *this;
+        return *this = *this * scalar;
     }
 
     constexpr Vec4& operator/=(const T scalar)
     {
-        x /= scalar;
-        y /= scalar;
-        z /= scalar;
-        w /= scalar;
-        return *this;
+        return *this = *this / scalar;
     }
 };
 
-template<typename T>
-inline constexpr Vec4<T> operator*(const T a, const Vec4<T> b)
-{
-    return b * a;
-}
 template<typename T>
 inline constexpr Vec2<T>::Vec2(const Vec3<T>& v)
     : x(v.x), y(v.y)
@@ -661,8 +661,6 @@ class Quat
 
 public:
 
-    T x, y, z, w;
-
     constexpr Quat() = default;
 
     constexpr Quat(T x, T y, T z, T w)
@@ -672,7 +670,7 @@ public:
 
     constexpr Quat(const Radians<T> angle, const Vec3<T>& axis)
     {
-        const T ao2 = angle.Value() / 2;
+        const T ao2 = angle.GetValue() * T{0.5};
         const auto s = std::sin(ao2);
         x = axis.x * s;
         y = axis.y * s;
@@ -680,20 +678,14 @@ public:
         w = std::cos(ao2);
     }
 
-    Mat44<T> ToMat44() const;
+    constexpr Mat44<T> ToMatrix() const;
 
     constexpr Quat Normalize() const
     {
-        const T length = std::sqrt(x * x + y * y + z * z + w * w);
-        return Quat(x / length, y / length, z / length, w / length);
-    }
-
-    constexpr T GetRotation(const Vec3<T>& axis) const
-    {
-        const auto normalizedThis = this->Normalize();
-        const auto rotatedVec = normalizedThis * axis;
-        const T dotProduct = axis.Dot(rotatedVec);
-        return std::acos(dotProduct) * 2;
+        const T len = x * x + y * y + z * z + w * w;
+        MLG_ASSERT(len != T{ 0 }, "Cannot normalize a zero-length quaternion");
+        const T invLen = T{1} / std::sqrt(len);
+        return Quat(x * invLen, y * invLen, z * invLen, w * invLen);
     }
 
     constexpr Quat Conjugate() const
@@ -708,9 +700,10 @@ public:
 
     constexpr Vec3<T> operator*(const Vec3<T>& v) const
     {
-        const auto qv = Quat<T>(v.x, v.y, v.z, 0);
-        const auto result = (*this * qv * this->Conjugate()).Normalize();
-        return Vec3<T>(result.x, result.y, result.z);
+        // Assumes a unit quaternion.
+        const Vec3<T> u{ x, y, z };
+        const Vec3<T> t = u.Cross(v) * T{2};
+        return v + w * t + u.Cross(t);
     }
 
     constexpr Quat operator*(const T scalar) const
@@ -762,6 +755,10 @@ public:
     {
         return (*this = *this - that);
     }
+
+//private:
+
+    T x{0}, y{0}, z{0}, w{1};
 };
 
 // 4x4 column-major matrix
@@ -802,30 +799,6 @@ public:
                  Vec4<T>(m20, m21, m22, m23),
                  Vec4<T>(m30, m31, m32, m33))
     {
-    }
-
-    constexpr explicit Mat44(const Quat<T>& q)
-    {
-        const T x = q.x;
-        const T y = q.y;
-        const T z = q.z;
-        const T w = q.w;
-
-        const T xx = x * x;
-        const T yy = y * y;
-        const T zz = z * z;
-        const T xy = x * y;
-        const T xz = x * z;
-        const T yz = y * z;
-        const T wx = w * x;
-        const T wy = w * y;
-        const T wz = w * z;
-
-        // Column-major 4x4 rotation matrix
-        m[0] = Vec4<T>(1 - 2 * (yy + zz), 2 * (xy + wz), 2 * (xz - wy), 0);
-        m[1] = Vec4<T>(2 * (xy - wz), 1 - 2 * (xx + zz), 2 * (yz + wx), 0);
-        m[2] = Vec4<T>(2 * (xz + wy), 2 * (yz - wx), 1 - 2 * (xx + yy), 0);
-        m[3] = Vec4<T>(0, 0, 0, 1);
     }
 
     constexpr Mat44 Mul(const Mat44& other) const
@@ -975,10 +948,7 @@ public:
             qz = T{0.25} * s;
         }
 
-        rotation.x = qx;
-        rotation.y = qy;
-        rotation.z = qz;
-        rotation.w = qw;
+        rotation = Quat<T>(qx, qy, qz, qw);
     }
 
     constexpr Vec4<T>& operator[](std::size_t index)
@@ -1016,7 +986,7 @@ public:
 
     static Mat44 PerspectiveLH(const Radians<T> fov, const T aspectRatio, const T nearClip, const T farClip)
     {
-        const T rad = fov.Value();
+        const T rad = fov.GetValue();
         const T t = std::tan(rad/2);
 
         Mat44 result(0);
@@ -1030,9 +1000,26 @@ public:
 };
 
 template<typename T>
-inline Mat44<T> Quat<T>::ToMat44() const
+inline constexpr Mat44<T> Quat<T>::ToMatrix() const
 {
-    return Mat44<T>(*this);
+    const T xx = x * x;
+    const T yy = y * y;
+    const T zz = z * z;
+    const T xy = x * y;
+    const T xz = x * z;
+    const T yz = y * z;
+    const T wx = w * x;
+    const T wy = w * y;
+    const T wz = w * z;
+
+    // Column-major 4x4 rotation matrix
+    return Mat44<T> //
+        {
+            Vec4<T>(1 - 2 * (yy + zz), 2 * (xy + wz), 2 * (xz - wy), 0),
+            Vec4<T>(2 * (xy - wz), 1 - 2 * (xx + zz), 2 * (yz + wx), 0),
+            Vec4<T>(2 * (xz + wy), 2 * (yz - wx), 1 - 2 * (xx + yy), 0),
+            Vec4<T>(0, 0, 0, 1),
+        };
 }
 
 template<typename NumType>
@@ -1048,14 +1035,25 @@ public:
 
     constexpr Mat44<NumType> ToMatrix() const
     {
-        Mat44<NumType> M(R);
+        Mat44<NumType> M = R.ToMatrix();
         M[0] *= S.x;
         M[1] *= S.y;
         M[2] *= S.z;
-        M[3][0] = T.x;
-        M[3][1] = T.y;
-        M[3][2] = T.z;
+        M[3] = Vec4<NumType>(T, 1);
         return M;
+    }
+
+    // The inverse of a TRS transform cannot in general be represented as a TRS transform,
+    // unless the scale is uniform.
+    // So the inverse returns a Mat44, which can represent any affine transform,
+    // instead of a new TrsTransform.
+    constexpr Mat44<NumType> Inverse() const
+    {
+        TrsTransform result;
+        result.R = R.Normalize().Conjugate();
+        result.S = NumType{1} / S;
+        result.T = -(result.R * (T * result.S));
+        return result.ToMatrix();
     }
 
     static TrsTransform FromMatrix(const Mat44<NumType>& mat)
@@ -1078,6 +1076,11 @@ public:
     constexpr Vec3<NumType> LocalZAxis() const
     {
         return (R * Vec3<NumType>::ZAXIS()).Normalize();
+    }
+
+    constexpr Vec3<NumType> operator*(const Vec3<NumType>& point) const
+    {
+        return R * (point * S) + T;
     }
 
     constexpr bool operator==(const TrsTransform<NumType>& that) const

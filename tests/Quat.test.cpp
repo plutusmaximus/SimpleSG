@@ -60,8 +60,8 @@ TEST(Quatf, Conjugate)
 
 TEST(Quatf, Multiply_Quat)
 {
-    const float angle = std::numbers::pi_v<float> / 2.0f;
-    const Vec3f axis(0.0f, 0.0f, 1.0f);
+    const float angle = std::numbers::pi_v<float> / 1.234f;
+    const Vec3f axis = Vec3f(1, 2, 3).Normalize();
     Quatf q(Radiansf(angle), axis);
     Quatf identity(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -74,28 +74,19 @@ TEST(Quatf, Multiply_Quat)
 
 TEST(Quatf, Multiply_VectorRotation)
 {
-    const float angle = std::numbers::pi_v<float> / 2.0f;
-    const Vec3f axis(0.0f, 0.0f, 1.0f);
+    const float angle = std::numbers::pi_v<float> / 1.234f;
+    const Vec3f axis = Vec3f(1, 2, 3).Normalize();
     Quatf q(Radiansf(angle), axis);
 
-    Vec3f v(1.0f, 0.0f, 0.0f);
-    Vec3f r = q * v;
+    const Vec3f v(1.0f, 0.0f, 0.0f);
+    const Vec3f r = q * v;
 
-    EXPECT_NEAR(r.x, 0.0f, EPS);
-    EXPECT_NEAR(r.y, 1.0f, EPS);
-    EXPECT_NEAR(r.z, 0.0f, EPS);
-}
+    // Rodrigues' rotation formula for rotating v around axis by angle gives:
+    const Vec3f rr = v.RotateBy(axis, Radiansf(angle));
 
-TEST(Quatf, GetRotation)
-{
-    const float angle = std::numbers::pi_v<float> / 2.0f;
-    const Vec3f axis(0.0f, 0.0f, 1.0f);
-    Quatf q(Radiansf(angle), axis);
-
-    const Vec3f xAxis(1.0f, 0.0f, 0.0f);
-    float rotation = q.GetRotation(xAxis);
-
-    EXPECT_NEAR(rotation, std::numbers::pi_v<float>, 1e-4f);
+    EXPECT_NEAR(r.x, rr.x, EPS);
+    EXPECT_NEAR(r.y, rr.y, EPS);
+    EXPECT_NEAR(r.z, rr.z, EPS);
 }
 
 TEST(Quatf, Equality)

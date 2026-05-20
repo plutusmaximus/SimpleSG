@@ -13,7 +13,8 @@ public:
 
     void SetFov(const Radiansf fov)
     {
-        MLG_ASSERT(fov.Value() > 0 && fov.Value() < std::numbers::pi_v<float>, "FOV must be between 0 and 180 degrees");
+        MLG_ASSERT(fov.GetValue() > 0 && fov.GetValue() < std::numbers::pi_v<float>,
+            "FOV must be between 0 and 180 degrees");
 
         m_Fov = fov;
         m_Proj = Mat44f::PerspectiveLH(m_Fov, m_AspectRatio, m_Near, m_Far);

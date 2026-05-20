@@ -630,14 +630,9 @@ MainLoop()
 
         scene.SyncToGpu();
 
-        const auto& camWorldMat = camera.Get<WorldMatrix>();
+        const auto& camTrs = camera.Get<TrsTransformf>();
         const auto& projection = camera.Get<Projection>();
-        for(const auto& tuple : registry.GetView<WorldMatrix, ModelTag>())
-        {
-            const auto [eid, worldMat, modelTag] = tuple;
-
-            renderer.Render(camWorldMat, projection, scene, propKit, compositor);
-        }
+        renderer.Render(camTrs, projection, scene, propKit, compositor);
 
         RenderGui(solver);
 

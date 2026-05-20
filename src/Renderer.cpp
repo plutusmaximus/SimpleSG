@@ -66,7 +66,7 @@ Renderer::Shutdown()
 }
 
 Result<>
-Renderer::Render(const Mat44f& camera,
+Renderer::Render(const TrsTransformf& camera,
     const Projection& projection,
     const Scene& scene,
     const PropKit& propKit,
@@ -725,7 +725,7 @@ Renderer::CreateShader(const char* path)
 
 Result<>
 Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
-    const Mat44f& camera,
+    const TrsTransformf& camera,
     const Projection& projection,
     const Scene& scene)
 {

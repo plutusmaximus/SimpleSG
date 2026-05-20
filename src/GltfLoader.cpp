@@ -480,10 +480,10 @@ CollectNode(const cgltf_node& srcNode,
 
         nodeTransform.S = Vec3f(srcNode.scale[0], srcNode.scale[1], srcNode.scale[2]);
 
-        // Convert from right handed to left handed.
+        // X axis flip - convert from right handed to left handed.
         nodeTransform.T.x = -nodeTransform.T.x;
-        nodeTransform.R.y = -nodeTransform.R.y;
-        nodeTransform.R.z = -nodeTransform.R.z;
+        const Quatf flipX{1, 0, 0, 0}; // xyzw, 180° around X
+        nodeTransform.R = flipX * nodeTransform.R * flipX.Conjugate();
     }
 
     std::string modelName;

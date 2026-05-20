@@ -33,7 +33,7 @@ public:
 
     Result<> Shutdown();
 
-    Result<> Render(const Mat44f& camera,
+    Result<> Render(const TrsTransformf& camera,
         const Projection& projection,
         const Scene& scene,
         const PropKit& propKit,
@@ -56,7 +56,7 @@ private:
     Result<wgpu::ShaderModule> CreateShader(const char* path);
 
     Result<> TransformNodes(wgpu::CommandEncoder cmdEncoder,
-        const Mat44f& camera,
+        const TrsTransformf& camera,
         const Projection& projection,
         const Scene& scene);
 

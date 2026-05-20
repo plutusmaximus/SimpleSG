@@ -80,7 +80,7 @@ TEST(Mat44f, Construction_FromQuat)
 {
     const float angle = std::numbers::pi_v<float> / 2.0f;
     Quatf q(Radiansf(angle), Vec3f(0.0f, 0.0f, 1.0f));
-    Mat44f M(q);
+    Mat44f M = q.ToMatrix();
 
     Vec4f v(1.0f, 0.0f, 0.0f, 1.0f);
     Vec4f r = M * v;

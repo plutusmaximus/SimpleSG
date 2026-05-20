@@ -169,7 +169,7 @@ static Result<> MainLoop()
 
         nonGpuWorkTimer.Stop();
 
-        auto renderResult = renderer.Render(cameraXform.ToMatrix(),
+        auto renderResult = renderer.Render(cameraXform,
             projection,
             scene,
             propKit,
