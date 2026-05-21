@@ -23,7 +23,7 @@ class Radians
     static constexpr T eps = T(8) * std::numeric_limits<T>::epsilon() * TWO_PI;
 
     // Wraps the input value to the range [-π, π)
-    constexpr static T Wrap(const T value)
+    constexpr static T Wrap(const T value) noexcept
     {
         // Wrap to [-π, π)
         const T r = value - std::floor((value + PI) / TWO_PI) * TWO_PI;
@@ -40,7 +40,7 @@ class Radians
         return r;
     }
 
-    constexpr static T Limit(const T value)
+    constexpr static T Limit(const T value) noexcept
     {
         if(value > 1000 * TWO_PI)
         {
@@ -61,101 +61,128 @@ public:
     constexpr Radians() = default;
 
     explicit constexpr Radians(const T value)
+    noexcept(noexcept(Limit(value)))
      : m_Value(Limit(value))
     {
     }
 
-    constexpr Radians<T>& operator=(const T other)
+    constexpr Radians<T>& operator=(const T value)
+    noexcept(noexcept(Limit(value)))
     {
-        m_Value = Limit(other);
+        m_Value = Limit(value);
         return *this;
     }
 
-    static constexpr Radians<T> FromDegrees(const T degrees)
+    static constexpr Radians<T> FromDegrees(const T degrees) noexcept
     {
         return Radians<T>(degrees * std::numbers::pi_v<T> / 180);
     }
 
-    constexpr Radians<T> operator+(const Radians<T> other) const
+    T Sin() const noexcept
     {
-        return Radians<T>(m_Value + other.m_Value);
+        return std::sin(Wrap(m_Value));
     }
 
-    constexpr Radians<T> operator+(const T other) const
+    T Cos() const noexcept
     {
-        return Radians<T>(m_Value + other);
+        return std::cos(Wrap(m_Value));
     }
 
-    constexpr Radians<T> operator-(const Radians<T> other) const
+    T Tan() const noexcept
     {
-        return Radians<T>(m_Value - other.m_Value);
+        return std::tan(Wrap(m_Value));
     }
 
-    constexpr Radians<T> operator-(const T other) const
+    constexpr friend Radians<T> operator+(const Radians<T> a, const Radians<T> b) noexcept
     {
-        return Radians<T>(m_Value - other);
+        return Radians<T>(a.m_Value + b.m_Value);
     }
 
-    constexpr Radians<T> operator*(const T other) const
+    constexpr friend Radians<T> operator+(const Radians<T> a, const T b) noexcept
     {
-        return Radians<T>(m_Value * other);
+        return Radians<T>(a.m_Value + b);
     }
 
-    constexpr Radians<T> operator-() const
+    constexpr friend Radians<T> operator+(const T a, const Radians<T> b) noexcept
     {
-        return Radians<T>(-m_Value);
+        return Radians<T>(a + b.m_Value);
     }
 
-    constexpr Radians<T>& operator+=(const Radians<T> other)
+    constexpr friend Radians<T> operator-(const Radians<T> a, const Radians<T> b) noexcept
+    {
+        return Radians<T>(a.m_Value - b.m_Value);
+    }
+
+    constexpr friend Radians<T> operator-(const Radians<T> a, const T b) noexcept
+    {
+        return Radians<T>(a.m_Value - b);
+    }
+
+    constexpr friend Radians<T> operator-(const T a, const Radians<T> b) noexcept
+    {
+        return Radians<T>(a - b.m_Value);
+    }
+
+    constexpr friend Radians<T> operator*(const Radians<T> a, const T b) noexcept
+    {
+        return Radians<T>(a.m_Value * b);
+    }
+
+    constexpr friend Radians<T> operator*(const T a, const Radians<T> b) noexcept
+    {
+        return Radians<T>(a * b.m_Value);
+    }
+
+    constexpr friend Radians<T> operator-(const Radians<T> a) noexcept
+    {
+        return Radians<T>(-a.m_Value);
+    }
+
+    constexpr Radians<T>& operator+=(const Radians<T> other) noexcept
     {
         return *this = *this + other;
     }
 
-    constexpr Radians<T>& operator+=(const T other)
+    constexpr Radians<T>& operator+=(const T other) noexcept
     {
         return *this = *this + other;
     }
 
-    constexpr Radians<T>& operator-=(const Radians<T> other)
+    constexpr Radians<T>& operator-=(const Radians<T> other) noexcept
     {
         return *this = *this - other;
     }
 
-    constexpr Radians<T>& operator-=(const T other)
+    constexpr Radians<T>& operator-=(const T other) noexcept
     {
         return *this = *this - other;
     }
 
-    constexpr Radians<T>& operator*=(const T other)
+    constexpr Radians<T>& operator*=(const T other) noexcept
     {
         return *this = *this * other;
     }
 
-    constexpr bool operator==(const Radians<T> other) const
+    constexpr friend bool operator==(const Radians<T> a, const Radians<T> b) noexcept
     {
         // Using a small epsilon for floating-point comparison
         constexpr T EPSILON = static_cast<T>(1e-10);
-        return std::abs(m_Value - other.m_Value) < EPSILON;
+        return std::abs(a.m_Value - b.m_Value) < EPSILON;
     }
 
-    constexpr bool operator==(const T other) const
+    constexpr friend bool operator==(const Radians<T> a, const T b) noexcept
     {
         // Using a small epsilon for floating-point comparison
         constexpr T EPSILON = static_cast<T>(1e-10);
-        return std::abs(m_Value - other) < EPSILON;
+        return std::abs(a.m_Value - b) < EPSILON;
     }
 
-    constexpr bool operator!=(const Radians<T> other) const
+    constexpr friend bool operator==(const T a, const Radians<T> b) noexcept
     {
-        return !(*this == other);
+        return b == a;
     }
 
-    constexpr bool operator!=(const T other) const
-    {
-        return !(*this == other);
-    }
-
-    constexpr T GetValue() const
+    constexpr T GetValue() const noexcept
     {
         return Wrap(m_Value);
     }
@@ -164,12 +191,6 @@ private:
 
     T m_Value{0};
 };
-
-template<typename T>
-inline constexpr Radians<T> operator*(const T a, const Radians<T> b)
-{
-    return b * a;
-}
 
 template<typename T>
 class Vec2
@@ -181,98 +202,99 @@ public:
 
     constexpr Vec2() = default;
 
-    constexpr explicit Vec2(T value)
+    constexpr explicit Vec2(T value) noexcept
         : x(value), y(value)
     {
     }
-    constexpr Vec2(T x, T y)
+    constexpr Vec2(T x, T y) noexcept
         : x(x), y(y)
     {
     }
 
-    constexpr explicit Vec2(const Vec3<T>& v);
+    constexpr explicit Vec2(const Vec3<T>& v) noexcept;
 
-    constexpr explicit Vec2(const Vec4<T>& v);
+    constexpr explicit Vec2(const Vec4<T>& v) noexcept;
 
-    constexpr Vec2<T> Normalize() const
+    constexpr Vec2<T> Normalize() const noexcept
     {
         return *this / Length();
     }
 
-    constexpr T Length() const
+    constexpr T Length() const noexcept
     {
         return std::sqrt(x * x + y * y);
     }
 
-    constexpr T Length2() const
+    constexpr T Length2() const noexcept
+
     {
         return x * x + y * y;
     }
 
-    constexpr Vec2 Cross(const Vec2& that) const
+    constexpr Vec2 Cross(const Vec2& that) const noexcept
     {
         return Vec2(x * that.y - y * that.x, y * that.x - x * that.y);
     }
 
-    constexpr T Dot(const Vec2& that) const
+    constexpr T Dot(const Vec2& that) const noexcept
     {
         return x * that.x + y * that.y;
     }
 
-    constexpr Vec2 Lerp(const Vec2& that, T t) const
+    constexpr Vec2 Lerp(const Vec2& that, T t) const noexcept
     {
         return Vec2(*this * (1 - t) + that * t);
     }
 
-    constexpr bool operator==(const Vec2& that) const
+    constexpr friend bool operator==(const Vec2& a, const Vec2& b) noexcept
     {
-        return x == that.x && y == that.y;
+        return a.x == b.x && a.y == b.y;
     }
 
-    constexpr Vec2 operator+(const Vec2& that) const
+    constexpr friend Vec2 operator+(const Vec2& a, const Vec2& b) noexcept
     {
-        return Vec2(x + that.x, y + that.y);
+        return Vec2(a.x + b.x, a.y + b.y);
     }
 
-    constexpr Vec2 operator-(const Vec2& that) const
+    constexpr friend Vec2 operator-(const Vec2& a, const Vec2& b) noexcept
     {
-        return Vec2(x - that.x, y - that.y);
+        return Vec2(a.x - b.x, a.y - b.y);
     }
 
-    constexpr Vec2 operator*(const Vec2& that) const
+    constexpr friend Vec2 operator*(const Vec2& a, const Vec2& b) noexcept
     {
-        return Vec2(x * that.x, y * that.y);
+        return Vec2(a.x * b.x, a.y * b.y);
     }
 
-    constexpr Vec2 operator*(const T scalar) const
+    constexpr friend Vec2 operator*(const Vec2& v, const T scalar) noexcept
     {
-        return Vec2(x * scalar, y * scalar);
+        return Vec2(v.x * scalar, v.y * scalar);
     }
 
-    constexpr Vec2 operator/(const T scalar) const
-    {
-        MLG_ASSERT(scalar != T{ 0 }, "Division by zero in Vec2 operator/");
-        const T invScalar = T{1} / scalar;
-        return Vec2(x * invScalar, y * invScalar);
-    }
-
-    friend constexpr Vec2 operator*(const T scalar, const Vec2& v)
+    constexpr friend Vec2 operator*(const T scalar, const Vec2& v) noexcept
     {
         return v * scalar;
     }
 
-    friend constexpr Vec2 operator/(const T scalar, const Vec2& v)
+    constexpr friend Vec2 operator/(const Vec2& v, const T scalar) noexcept
+    {
+        MLG_ASSERT(scalar != T{ 0 }, "Division by zero in Vec2 operator/");
+        const T invScalar = T{1} / scalar;
+        return Vec2(v.x * invScalar, v.y * invScalar);
+    }
+
+    constexpr friend Vec2 operator/(const T scalar, const Vec2& v) noexcept
     {
         MLG_ASSERT(v.x != T{ 0 } && v.y != T{ 0 }, "Division by zero in Vec2 operator/");
         return Vec2(scalar / v.x, scalar / v.y);
     }
 
-    constexpr Vec2 operator-() const
+    constexpr Vec2 operator-() const noexcept
     {
         return Vec2(-x, -y);
     }
 
-    constexpr T& operator[](size_t index)
+    constexpr T& operator[](size_t index) noexcept
     {
         switch (index)
         {
@@ -283,7 +305,7 @@ public:
         }
     }
 
-    constexpr const T& operator[](size_t index) const
+    constexpr const T& operator[](size_t index) const noexcept
     {
         switch (index)
         {
@@ -294,27 +316,27 @@ public:
         }
     }
 
-    constexpr Vec2& operator+=(const Vec2& that)
+    constexpr Vec2& operator+=(const Vec2& that) noexcept
     {
         return *this = *this + that;
     }
 
-    constexpr Vec2& operator-=(const Vec2& that)
+    constexpr Vec2& operator-=(const Vec2& that) noexcept
     {
         return *this = *this - that;
     }
 
-    constexpr Vec2& operator*=(const Vec2& that)
+    constexpr Vec2& operator*=(const Vec2& that) noexcept
     {
         return *this = *this * that;
     }
 
-    constexpr Vec2<T>& operator*=(const T scalar)
+    constexpr Vec2<T>& operator*=(const T scalar) noexcept
     {
         return *this = *this * scalar;
     }
 
-    constexpr Vec2<T>& operator/=(const T scalar)
+    constexpr Vec2<T>& operator/=(const T scalar) noexcept
     {
         return *this = *this / scalar;
     }
@@ -345,7 +367,7 @@ public:
     {
     }
 
-    constexpr explicit Vec3(const Vec4<T>& v);
+    constexpr explicit Vec3(const Vec4<T>& v) noexcept;
 
     static inline consteval Vec3 XAXIS() { return Vec3{ 1, 0, 0 }; }
     static inline consteval Vec3 YAXIS() { return Vec3{ 0, 1, 0 }; }
@@ -389,9 +411,10 @@ public:
     constexpr Vec3 RotateBy(const Vec3& axis, const Radians<T> angle) const
     {
         // https://en.wikipedia.org/wiki/Rodrigues'_rotation_formula
-        const T radVal = angle.GetValue();
-        const Vec3 vr = *this * std::cos(radVal) + axis.Cross(*this) * std::sin(radVal) +
-                         axis * (axis.Dot(*this)) * (1 - std::cos(radVal));
+        const T cos = angle.Cos();
+        const T sin = angle.Sin();
+        const Vec3 vr = *this * cos + axis.Cross(*this) * sin +
+                         axis * (axis.Dot(*this)) * (1 - cos);
         return vr;
     }
 
@@ -427,12 +450,12 @@ public:
         return Vec3(x * invScalar, y * invScalar, z * invScalar);
     }
 
-    friend constexpr Vec3 operator*(const T scalar, const Vec3& v)
+    constexpr friend Vec3 operator*(const T scalar, const Vec3& v)
     {
         return v * scalar;
     }
 
-    friend constexpr Vec3 operator/(const T scalar, const Vec3& v)
+    constexpr friend Vec3 operator/(const T scalar, const Vec3& v)
     {
         MLG_ASSERT(v.x != T{ 0 } && v.y != T{ 0 } && v.z != T{ 0 },
             "Division by zero in Vec3 operator/");
@@ -582,12 +605,12 @@ public:
         return Vec4(x * invScalar, y * invScalar, z * invScalar, w * invScalar);
     }
 
-    friend constexpr Vec4 operator*(const T scalar, const Vec4& v)
+    constexpr friend Vec4 operator*(const T scalar, const Vec4& v)
     {
         return v * scalar;
     }
 
-    friend constexpr Vec4 operator/(const T scalar, const Vec4& v)
+    constexpr friend Vec4 operator/(const T scalar, const Vec4& v)
     {
         MLG_ASSERT(v.x != T{ 0 } && v.y != T{ 0 } && v.z != T{ 0 } && v.w != T{ 0 },
             "Division by zero in Vec4 operator/");
@@ -652,19 +675,19 @@ public:
 };
 
 template<typename T>
-inline constexpr Vec2<T>::Vec2(const Vec3<T>& v)
+inline constexpr Vec2<T>::Vec2(const Vec3<T>& v) noexcept
     : x(v.x), y(v.y)
 {
 }
 
 template<typename T>
-inline constexpr Vec2<T>::Vec2(const Vec4<T>& v)
+inline constexpr Vec2<T>::Vec2(const Vec4<T>& v) noexcept
     : x(v.x), y(v.y)
 {
 }
 
 template<typename T>
-inline constexpr Vec3<T>::Vec3(const Vec4<T>& v)
+inline constexpr Vec3<T>::Vec3(const Vec4<T>& v) noexcept
     : x(v.x), y(v.y), z(v.z)
 {
 }
@@ -689,12 +712,12 @@ public:
 
     constexpr UnitQuat(const Radians<T> angle, const Vec3<T>& axis)
     {
-        const T ao2 = angle.GetValue() * T{0.5};
-        const auto s = std::sin(ao2);
+        const Radians<T> ao2 = angle * T{0.5};
+        const T s = ao2.Sin();
         m_Vec.x = axis.x * s;
         m_Vec.y = axis.y * s;
         m_Vec.z = axis.z * s;
-        m_Vec.w = std::cos(ao2);
+        m_Vec.w = ao2.Cos();
     }
 
     constexpr Mat44<T> ToMatrix() const;
@@ -1113,8 +1136,7 @@ public:
 
     static Mat44 PerspectiveLH(const Radians<T> fov, const T aspectRatio, const T nearClip, const T farClip)
     {
-        const T rad = fov.GetValue();
-        const T t = std::tan(rad/2);
+        const T t = (fov * T{0.5}).Tan();
 
         Mat44 result(0);
         result[0][0] = static_cast<T>(1.0 / (t * aspectRatio));
