@@ -11,63 +11,88 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(SSG_ENABLE_ASAN "Enable AddressSanitizer (MSVC x64 only)" OFF)
-
-if(MSVC AND SSG_ENABLE_ASAN)
-  # Apply ASan to all targets (including third-party libs) to avoid runtime mismatches.
-  # /bigobj is required because ASan inflates object files and MSVC can hit the section limit.
-  add_compile_options(/fsanitize=address /Zi /bigobj)
-endif()
-
 if(MSVC)
-  if(SSG_ENABLE_ASAN)
-    # ASan on MSVC requires the DLL runtime (/MD or /MDd).
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" CACHE STRING "" FORCE)
-  else()
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
-  endif()
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
 
     # Enable MSVC STL hardening
     add_compile_definitions($<$<CONFIG:Debug>:_MSVC_STL_HARDENING=2> $<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=2>)
     #add_compile_definitions($<$<CONFIG:Debug>:_MSVC_STL_HARDENING=0> $<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=0>)
 endif()
 
+add_library(project_warnings INTERFACE)
+
+target_compile_options(project_warnings INTERFACE
+    $<$<CXX_COMPILER_ID:GNU>:
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wconversion
+        -Wsign-conversion
+        -Wshadow
+        -Wformat=2
+        -Wundef
+        -Wcast-align
+        -Wcast-qual
+        -Wold-style-cast
+        -Woverloaded-virtual
+        -Wnon-virtual-dtor
+        -Wnull-dereference
+    >
+
+    $<$<CXX_COMPILER_ID:Clang,AppleClang>:
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wconversion
+        -Wsign-conversion
+        -Wshadow-all
+        -Wformat=2
+        -Wundef
+        -Wcast-align
+        -Wcast-qual
+        -Wold-style-cast
+        -Woverloaded-virtual
+        -Wnon-virtual-dtor
+        -Wnull-dereference
+        -Wextra-semi
+        -Wimplicit-fallthrough
+        -Wunreachable-code
+    >
+
+    $<$<CXX_COMPILER_ID:MSVC>:
+        /W4
+        /permissive-
+    >
+)
+
+add_library(project_options INTERFACE)
+
+target_compile_options(project_options INTERFACE
+    # Disable RTTI and exceptions.
+    $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:
+        -fno-rtti
+        -fno-exceptions
+    >
+
+    # Disable RTTI and exceptions.
+    $<$<CXX_COMPILER_ID:MSVC>:
+        /GR-
+        /EHs-c-
+        /Zc:preprocessor
+    >
+)
+
+add_library(project_definitions INTERFACE)
+
+target_compile_definitions(project_definitions INTERFACE
+    # Disable exceptions in the standard library to avoid pulling in unwanted code and dependencies.
+    $<$<CXX_COMPILER_ID:MSVC>:_HAS_EXCEPTIONS=0>
+)
+
 # Helper function to set compiler flags for a target
 function(compiler_flags target_name)
-  if(MSVC)
-    target_compile_definitions(${target_name} PRIVATE _HAS_EXCEPTIONS=0)
-    target_compile_options(${target_name} PRIVATE /GR- /W4 /WX /Zc:preprocessor)
-    if(SSG_ENABLE_ASAN)
-      target_link_options(${target_name} PRIVATE /INCREMENTAL:NO)
-    endif()
-  else()
-    target_compile_options(${target_name} PRIVATE -fno-exceptions -Wall -Wextra -Wpedantic -Werror)
-  endif()
-
+  target_link_libraries(${target_name} PRIVATE project_warnings project_options project_definitions)
   set_property(TARGET ${target_name} PROPERTY COMPILE_WARNING_AS_ERROR ON)
-endfunction()
-
-# On Windows with MSVC ASan enabled, instrumented executables require
-# clang_rt.asan_dynamic-x86_64.dll at runtime. This helper adds a POST_BUILD
-# copy step so the DLL is placed beside the target executable, preventing
-# startup failures (including GoogleTest discovery like --gtest_list_tests).
-function(add_asan_runtime_copy target_name)
-  if(WIN32 AND MSVC AND SSG_ENABLE_ASAN)
-    get_filename_component(MSVC_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
-    set(ASAN_RUNTIME_DLL "${MSVC_BIN_DIR}/clang_rt.asan_dynamic-x86_64.dll")
-    if(EXISTS "${ASAN_RUNTIME_DLL}")
-      message(STATUS "ASan enabled: ${target_name} will copy runtime DLL from ${ASAN_RUNTIME_DLL}")
-      add_custom_command(
-        TARGET ${target_name} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E echo Copying ASan runtime DLL to $<TARGET_FILE_DIR:${target_name}>
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-          "${ASAN_RUNTIME_DLL}" "$<TARGET_FILE_DIR:${target_name}>"
-        COMMENT "Copying ASan runtime to the ${target_name} output directory"
-      )
-    else()
-      message(WARNING "ASan runtime DLL not found for ${target_name}: ${ASAN_RUNTIME_DLL}")
-    endif()
-  endif()
 endfunction()
 
 # ============================================================
@@ -90,20 +115,17 @@ add_subdirectory(thirdparty/SDL)
 # --- Dawn
 set(DAWN_FETCH_DEPENDENCIES ON)
 set(DAWN_BUILD_SAMPLES OFF CACHE BOOL "Disable samples" FORCE)
+set(DAWN_USE_GLFW OFF CACHE BOOL "Disable GLFW" FORCE)
 set(DAWN_BUILD_TESTS OFF CACHE BOOL "Disable tests" FORCE)
 set(DAWN_ENABLE_INSTALL OFF CACHE BOOL "Disable Dawn install" FORCE)
 set(DAWN_BUILD_MONOLITHIC_LIBRARY STATIC CACHE STRING "Build Dawn monolithic library as static" FORCE)
-if(SSG_ENABLE_ASAN)
-  set(USE_MSVC_RUNTIME_LIBRARY_DLL ON CACHE BOOL "Use DLL MSVC runtime in GLFW" FORCE)
-  set(protobuf_MSVC_STATIC_RUNTIME OFF CACHE BOOL "Use DLL MSVC runtime in protobuf" FORCE)
-  set(ABSL_MSVC_STATIC_RUNTIME OFF CACHE BOOL "Use DLL MSVC runtime in abseil" FORCE)
-else()
-  set(USE_MSVC_RUNTIME_LIBRARY_DLL OFF CACHE BOOL "Use static MSVC runtime in GLFW" FORCE)
-  set(protobuf_MSVC_STATIC_RUNTIME ON CACHE BOOL "Use static MSVC runtime in protobuf" FORCE)
-  set(ABSL_MSVC_STATIC_RUNTIME ON CACHE BOOL "Use static MSVC runtime in abseil" FORCE)
-endif()
+set(USE_MSVC_RUNTIME_LIBRARY_DLL OFF CACHE BOOL "Use static MSVC runtime in GLFW" FORCE)
+set(protobuf_MSVC_STATIC_RUNTIME ON CACHE BOOL "Use static MSVC runtime in protobuf" FORCE)
+set(ABSL_MSVC_STATIC_RUNTIME ON CACHE BOOL "Use static MSVC runtime in abseil" FORCE)
 set(TINT_ENABLE_INSTALL OFF CACHE BOOL "Disable Tint install" FORCE)
 set(TINT_BUILD_TESTS OFF CACHE BOOL "Disable Tint tests" FORCE)
+set(DAWN_USE_WAYLAND ON CACHE BOOL "Enable Wayland support" FORCE)
+set(DAWN_USE_X11 ON CACHE BOOL "Enable X11 support" FORCE)
 
 add_subdirectory(thirdparty/dawn EXCLUDE_FROM_ALL)
 
@@ -247,8 +269,6 @@ function(add_sample_executable target_name source_file)
       COMMENT "Copying d3dcompiler_47.dll and vulkan-1.dll to the ${target_name} output directory"
     )
   endif()
-
-  add_asan_runtime_copy(${target_name})
 endfunction()
 
 # ============================================================
@@ -297,8 +317,6 @@ target_link_libraries(Tests PRIVATE gtest_main ssg::ssg spdlog::spdlog)
 #add_dependencies(RunAllTests shaders copy_images)
 
 compiler_flags(Tests)
-
-add_asan_runtime_copy(Tests)
 
 # Enable testing and register tests
 # In Visual Studio tests should show up in Test Explorer.
