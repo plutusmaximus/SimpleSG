@@ -9,7 +9,7 @@
 using Vec3f = Vec3<float>;
 using Vec4f = Vec4<float>;
 using Mat44f = Mat44<float>;
-using Quatf = UnitQuat<float>;
+using UnitQuatf = UnitQuat<float>;
 using Radiansf = Radians<float>;
 
 namespace
@@ -79,7 +79,7 @@ TEST(Mat44f, Construction_Elements)
 TEST(Mat44f, Construction_FromQuat)
 {
     const float angle = std::numbers::pi_v<float> / 2.0f;
-    Quatf q(Radiansf(angle), Vec3f(0.0f, 0.0f, 1.0f));
+    UnitQuatf q(Radiansf(angle), Vec3f(0.0f, 0.0f, 1.0f));
     Mat44f M = q.ToMatrix();
 
     Vec4f v(1.0f, 0.0f, 0.0f, 1.0f);
@@ -305,7 +305,7 @@ TEST(Mat44f, Decompose_Trs)
 
     Vec3f outT(0.0f, 0.0f, 0.0f);
     Vec3f outS(0.0f, 0.0f, 0.0f);
-    Quatf outR(0.0f, 0.0f, 0.0f, 1.0f);
+    UnitQuatf outR(0.0f, 0.0f, 0.0f, 1.0f);
 
     M.Decompose(outT, outR, outS);
 

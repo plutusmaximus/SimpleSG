@@ -177,7 +177,7 @@ void GimbleMouseNav::UpdateRotation(const Vec2f& mouseDelta)
     m_CurLoc.Y += mouseDelta.y;
     const Vec2f d = (Vec2f{m_CurLoc.X, m_CurLoc.Y} - Vec2f{m_StartLoc.X, m_StartLoc.Y}) * m_Scale * 0.001f;
 
-    const Quatf drot = Quatf(Radiansf(d.x), Vec3f::YAXIS()) * Quatf(Radiansf(d.y), Vec3f::XAXIS());
+    const UnitQuatf drot = UnitQuatf(Radiansf(d.x), Vec3f::YAXIS()) * UnitQuatf(Radiansf(d.y), Vec3f::XAXIS());
     m_Transform.R = m_StartRot * drot;
 }
 
@@ -258,8 +258,8 @@ WalkMouseNav::Update(const float deltaSeconds)
         rotX = std::min(rotX, PI / 2 - 0.01f);
         rotY = std::max(rotY, -(PI / 2 - 0.01f));
         rotY = std::min(rotY, PI / 2 - 0.01f);
-        Quatf pitch = Quatf(Radiansf(rotX), Vec3f::XAXIS());
-        Quatf yaw = Quatf(Radiansf(rotY), Vec3f::YAXIS());
+        UnitQuatf pitch = UnitQuatf(Radiansf(rotX), Vec3f::XAXIS());
+        UnitQuatf yaw = UnitQuatf(Radiansf(rotY), Vec3f::YAXIS());
 
         m_TargetTransform.R = yaw * m_TargetTransform.R * pitch;
         m_MouseDelta = Vec2f{ 0,0 };

@@ -47,7 +47,7 @@ namespace
         axis = axis.Normalize();
 
         Radiansf angle(angleDist(rng));
-        Quatf rotation(angle, axis);
+        UnitQuatf rotation(angle, axis);
 
         return TrsTransformf{
             .T{ tDist(rng), tDist(rng), tDist(rng) },

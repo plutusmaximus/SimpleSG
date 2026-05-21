@@ -473,7 +473,7 @@ CollectNode(const cgltf_node& srcNode,
         nodeTransform.T =
             Vec3f(srcNode.translation[0], srcNode.translation[1], srcNode.translation[2]);
 
-        nodeTransform.R = Quatf(srcNode.rotation[0],
+        nodeTransform.R = UnitQuatf(srcNode.rotation[0],
             srcNode.rotation[1],
             srcNode.rotation[2],
             srcNode.rotation[3]);
@@ -482,7 +482,7 @@ CollectNode(const cgltf_node& srcNode,
 
         // X axis flip - convert from right handed to left handed.
         nodeTransform.T.x = -nodeTransform.T.x;
-        const Quatf flipX{1, 0, 0, 0}; // xyzw, 180° around X
+        const UnitQuatf flipX{1, 0, 0, 0}; // xyzw, 180° around X
         nodeTransform.R = flipX * nodeTransform.R * flipX.Conjugate();
     }
 

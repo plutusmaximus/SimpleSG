@@ -42,14 +42,14 @@ TEST(TrsTransformf, DefaultConstruction)
 
     EXPECT_EQ(trs.T, Vec3f(0.0f));
     EXPECT_EQ(trs.S, Vec3f(1.0f));
-    EXPECT_EQ(trs.R, Quatf(0.0f, 0.0f, 0.0f, 1.0f));
+    EXPECT_EQ(trs.R, UnitQuatf(0.0f, 0.0f, 0.0f, 1.0f));
 }
 
 TEST(TrsTransformf, ToMatrix_AppliesScaleRotationTranslation)
 {
     TrsTransformf trs;
     trs.T = Vec3f(10.0f, -2.0f, 5.0f);
-    trs.R = Quatf(Radiansf(std::numbers::pi_v<float> / 2.0f), Vec3f::ZAXIS());
+    trs.R = UnitQuatf(Radiansf(std::numbers::pi_v<float> / 2.0f), Vec3f::ZAXIS());
     trs.S = Vec3f(2.0f, 3.0f, 4.0f);
 
     const Mat44f m = trs.ToMatrix();
@@ -63,7 +63,7 @@ TEST(TrsTransformf, MultiplyOperator_Vec3_MatchesMatrixTransform)
 {
     TrsTransformf trs;
     trs.T = Vec3f(4.0f, -1.0f, 2.0f);
-    trs.R = Quatf(Radiansf(std::numbers::pi_v<float> / 2.0f), Vec3f::ZAXIS());
+    trs.R = UnitQuatf(Radiansf(std::numbers::pi_v<float> / 2.0f), Vec3f::ZAXIS());
     trs.S = Vec3f(2.0f, 3.0f, 4.0f);
 
     const Vec3f point(1.0f, 2.0f, -1.0f);
@@ -77,7 +77,7 @@ TEST(TrsTransformf, Inverse_ComposesToIdentity)
 {
     TrsTransformf trs;
     trs.T = Vec3f(3.0f, -4.0f, 2.0f);
-    trs.R = Quatf(Radiansf(std::numbers::pi_v<float> / 3.0f), Vec3f(1.0f, 2.0f, 3.0f).Normalize());
+    trs.R = UnitQuatf(Radiansf(std::numbers::pi_v<float> / 3.0f), Vec3f(1.0f, 2.0f, 3.0f).Normalize());
     trs.S = Vec3f(1);//Vec3f(2.0f, 0.5f, 4.0f); DO NOT SUBMIT
 
     const Mat44f backward = trs.Inverse();
@@ -94,7 +94,7 @@ TEST(TrsTransformf, FromMatrix_RoundTrip)
 {
     TrsTransformf source;
     source.T = Vec3f(-7.0f, 8.0f, 1.5f);
-    source.R = Quatf(Radiansf(std::numbers::pi_v<float> / 5.0f), Vec3f::YAXIS());
+    source.R = UnitQuatf(Radiansf(std::numbers::pi_v<float> / 5.0f), Vec3f::YAXIS());
     source.S = Vec3f(1.25f, 2.5f, 0.75f);
 
     const Mat44f matrix = source.ToMatrix();
@@ -108,7 +108,7 @@ TEST(TrsTransformf, FromMatrix_RoundTrip)
 TEST(TrsTransformf, LocalAxes_FollowRotation)
 {
     TrsTransformf trs;
-    trs.R = Quatf(Radiansf(std::numbers::pi_v<float> / 2.0f), Vec3f::ZAXIS());
+    trs.R = UnitQuatf(Radiansf(std::numbers::pi_v<float> / 2.0f), Vec3f::ZAXIS());
 
     const Vec3f xAxis = trs.LocalXAxis();
     const Vec3f yAxis = trs.LocalYAxis();
@@ -127,7 +127,7 @@ TEST(TrsTransformf, Equality)
 {
     TrsTransformf a;
     a.T = Vec3f(1.0f, 2.0f, 3.0f);
-    a.R = Quatf(Radiansf(std::numbers::pi_v<float> / 4.0f), Vec3f::XAXIS());
+    a.R = UnitQuatf(Radiansf(std::numbers::pi_v<float> / 4.0f), Vec3f::XAXIS());
     a.S = Vec3f(2.0f, 2.0f, 2.0f);
 
     TrsTransformf b = a;

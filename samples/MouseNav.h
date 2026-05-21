@@ -92,7 +92,7 @@ private:
     Point m_StartLoc{ 0,0 };
     Point m_CurLoc{ 0,0 };
     Extent m_ScreenBounds{ 0,0 };
-    Quatf m_StartRot;
+    UnitQuatf m_StartRot;
     Vec3f m_StartTrans;
     TrsTransformf m_Transform;
     float m_Scale{ 1 };
