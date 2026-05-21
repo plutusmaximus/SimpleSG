@@ -7,7 +7,7 @@
 #include "Level.h"
 #include "MouseNav.h"
 #include "PerfMetrics.h"
-#include "PhysicsSolver.h"
+#include "PhysicsLevel.h"
 #include "Projection.h"
 #include "Scene.h"
 #include "scope_exit.h"
@@ -70,7 +70,7 @@ Shutdown()
     WebgpuHelper::Shutdown();
 }
 
-static Result<> RenderGui(const PhysicsSolver& solver);
+static Result<> RenderGui(const PhysicsLevel& physLevel);
 
 static Result<>
 Load(const std::filesystem::path& path,
@@ -227,13 +227,13 @@ static void ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
 
 #define APPLY_GRAVITY_MULTITHREADED 1
 
-static void ApplyGravity(PhysicsSolver& solver)
+static void ApplyGravity(PhysicsLevel& physLevel)
 {
     MLG_SCOPED_TIMER("Physics.ApplyGravity");
 
-    const std::span<const RigidBody> bodies = solver.GetBodies();
-    const std::span<const TrsTransformf> transforms = solver.GetTransforms();
-    const std::span<const Collider> colliders = solver.GetColliders();
+    const std::span<const RigidBody> bodies = physLevel.GetBodies();
+    const std::span<const TrsTransformf> transforms = physLevel.GetTransforms();
+    const std::span<const Collider> colliders = physLevel.GetColliders();
 
     const size_t numPairs = bodies.size() * (bodies.size() - 1) / 2;
     const size_t workerCount = ThreadPool::GetWorkerCount();
@@ -318,16 +318,16 @@ static void ApplyGravity(PhysicsSolver& solver)
     {
         for(size_t i = 0; i < params.Forces.size(); ++i)
         {
-            solver.AddForce(i, params.Forces[i]);
+            physLevel.AddForce(i, params.Forces[i]);
         }
 
         s_TotalPotentialEnergy += params.PotentialEnergy;
     }
 }
 
-static void ApplyExplosionImpulse(PhysicsSolver& solver, const float magnitude)
+static void ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
 {
-    const std::span<const RigidBody> bodies = solver.GetBodies();
+    const std::span<const RigidBody> bodies = physLevel.GetBodies();
     std::mt19937 gen;
     std::uniform_real_distribution<float> dis(0.5, 1);
     std::bernoulli_distribution sign;
@@ -353,29 +353,29 @@ static void ApplyExplosionImpulse(PhysicsSolver& solver, const float magnitude)
         const float m = bodies[i].Mass.Value();
 
         const Vec3f force = m * v / PHYSICS_TIME_STEP;
-        solver.AddForce(i, force);
+        physLevel.AddForce(i, force);
     }
 }
 
-static void ApplyStoppingImpulse(PhysicsSolver& solver)
+static void ApplyStoppingImpulse(PhysicsLevel& physLevel)
 {
-    const std::span<const RigidBody> bodies = solver.GetBodies();
+    const std::span<const RigidBody> bodies = physLevel.GetBodies();
 
     for(size_t i = 0; i < bodies.size(); ++i)
     {
         // Apply the impulse opposite to current velocity.
         const Vec3f impulse = -bodies[i].LinearVelocity * bodies[i].Mass.Value() / PHYSICS_TIME_STEP;
-        solver.AddForce(i, impulse);
+        physLevel.AddForce(i, impulse);
     }
 }
 
 [[maybe_unused]] static void
-DeactivateNonOverlappingBodies(const PhysicsSolver& solver, Level& level)
+DeactivateNonOverlappingBodies(const PhysicsLevel& physLevel, Level& level)
 {
-    const std::span<const Level::NodeHandle> nodeHandles = solver.GetNodeHandles();
-    const std::span<const RigidBody> bodies = solver.GetBodies();
-    const std::span<const TrsTransformf> transforms = solver.GetTransforms();
-    const std::span<const Collider> colliders = solver.GetColliders();
+    const std::span<const Level::NodeHandle> nodeHandles = physLevel.GetNodeHandles();
+    const std::span<const RigidBody> bodies = physLevel.GetBodies();
+    const std::span<const TrsTransformf> transforms = physLevel.GetTransforms();
+    const std::span<const Collider> colliders = physLevel.GetColliders();
 
     // First deactivate all bodies.
     // Then activate only bodies that are overlapping with another body.
@@ -412,9 +412,9 @@ DeactivateNonOverlappingBodies(const PhysicsSolver& solver, Level& level)
     }
 }
 
-[[maybe_unused]]static void ActivateAllBodies(PhysicsSolver& solver, Level& level)
+[[maybe_unused]]static void ActivateAllBodies(PhysicsLevel& physLevel, Level& level)
 {
-    const std::span<const Level::NodeHandle> nodeHandles = solver.GetNodeHandles();
+    const std::span<const Level::NodeHandle> nodeHandles = physLevel.GetNodeHandles();
 
     for(size_t i = 0; i < nodeHandles.size(); ++i)
     {
@@ -436,7 +436,7 @@ MainLoop()
     PropKit propKit;
     Level level;
     Scene scene;
-    PhysicsSolver solver;
+    PhysicsLevel physLevel;
     EcsRegistry registry;
     WalkMouseNav mouseNav;
 
@@ -448,7 +448,7 @@ MainLoop()
 
     MLG_CHECK(Scene::Create(level, propKit, scene));
 
-    MLG_CHECK(PhysicsSolver::Create(level, solver));
+    MLG_CHECK(PhysicsLevel::Create(level, physLevel));
 
     Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, ModelTag{});
 
@@ -557,11 +557,11 @@ MainLoop()
                 }
                 else if(SDL_SCANCODE_RETURN == event.key.scancode)
                 {
-                    ApplyExplosionImpulse(solver, 5.0f);
+                    ApplyExplosionImpulse(physLevel, 5.0f);
                 }
                 else if(SDL_SCANCODE_BACKSPACE == event.key.scancode)
                 {
-                    ApplyStoppingImpulse(solver);
+                    ApplyStoppingImpulse(physLevel);
                 }
                 else if(SDL_SCANCODE_F1 == event.key.scancode)
                 {
@@ -574,11 +574,11 @@ MainLoop()
 
                     if(showOverlappingBodies)
                     {
-                        ActivateAllBodies(solver, level);
+                        ActivateAllBodies(physLevel, level);
                     }
                     else
                     {
-                        DeactivateNonOverlappingBodies(solver, level);
+                        DeactivateNonOverlappingBodies(physLevel, level);
                     }
                 }
                 else if(SDL_SCANCODE_F3 == event.key.scancode)
@@ -597,17 +597,17 @@ MainLoop()
 
         if(continuouslyDeactivateNonOverlappingBodies)
         {
-            DeactivateNonOverlappingBodies(solver, level);
+            DeactivateNonOverlappingBodies(physLevel, level);
         }
 
         if(!pauseSim)
         {
-            ApplyGravity(solver);
+            ApplyGravity(physLevel);
 
-            solver.Update(PHYSICS_TIME_STEP);
+            physLevel.Update(PHYSICS_TIME_STEP);
         }
 
-        solver.SyncToLevel(level);
+        physLevel.SyncToLevel(level);
 
         scene.SyncFromLevel(level);
 
@@ -634,7 +634,7 @@ MainLoop()
         const auto& projection = camera.Get<Projection>();
         renderer.Render(camTrs, projection, scene, propKit, compositor);
 
-        RenderGui(solver);
+        RenderGui(physLevel);
 
         imGuiRenderer.Render(compositor);
 
@@ -658,7 +658,7 @@ MainLoop()
     return Result<>::Ok;
 }
 
-static Result<> RenderGui(const PhysicsSolver& solver)
+static Result<> RenderGui(const PhysicsLevel& physLevel)
 {
     const char* buildType;
 #if defined (NDEBUG)
@@ -683,7 +683,7 @@ static Result<> RenderGui(const PhysicsSolver& solver)
         ImGui::Text("%s", text.c_str());
     }
 
-    const float kineticEnergy = solver.ComputeKineticEnergy();
+    const float kineticEnergy = physLevel.ComputeKineticEnergy();
     ImGui::Separator();
     ImGui::Text("Kinetic Energy: %.3f", kineticEnergy);
     ImGui::Text("Potential Energy: %.3f", s_TotalPotentialEnergy);

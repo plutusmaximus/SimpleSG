@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "PhysicsSolver.h"
+#include "PhysicsLevel.h"
 
 #include <algorithm>
 #include <cmath>

@@ -7,7 +7,7 @@
 #include "Level.h"
 #include "MouseNav.h"
 #include "PerfMetrics.h"
-#include "PhysicsSolver.h"
+#include "PhysicsLevel.h"
 #include "Projection.h"
 #include "Scene.h"
 #include "scope_exit.h"
@@ -70,7 +70,7 @@ Shutdown()
     WebgpuHelper::Shutdown();
 }
 
-static Result<> RenderGui(const PhysicsSolver& solver);
+static Result<> RenderGui(const PhysicsLevel& physLevel);
 
 static Result<>
 Load(const std::filesystem::path& path,
@@ -245,13 +245,13 @@ static void ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
 
 #define APPLY_GRAVITY_MULTITHREADED 1
 
-static void ApplyGravity(PhysicsSolver& solver)
+static void ApplyGravity(PhysicsLevel& physLevel)
 {
     MLG_SCOPED_TIMER("Physics.ApplyGravity");
 
-    const std::span<const RigidBody> bodies = solver.GetBodies();
-    const std::span<const TrsTransformf> transforms = solver.GetTransforms();
-    const std::span<const Collider> colliders = solver.GetColliders();
+    const std::span<const RigidBody> bodies = physLevel.GetBodies();
+    const std::span<const TrsTransformf> transforms = physLevel.GetTransforms();
+    const std::span<const Collider> colliders = physLevel.GetColliders();
 
     const size_t numPairs = bodies.size() * (bodies.size() - 1) / 2;
     const size_t workerCount = ThreadPool::GetWorkerCount();
@@ -336,7 +336,7 @@ static void ApplyGravity(PhysicsSolver& solver)
     {
         for(size_t i = 0; i < params.Forces.size(); ++i)
         {
-            solver.AddForce(i, params.Forces[i]);
+            physLevel.AddForce(i, params.Forces[i]);
         }
 
         s_TotalPotentialEnergy += params.PotentialEnergy;
@@ -356,7 +356,7 @@ MainLoop()
     PropKit propKit;
     Level level;
     Scene scene;
-    PhysicsSolver solver;
+    PhysicsLevel physLevel;
     EcsRegistry registry;
     WalkMouseNav mouseNav;
 
@@ -368,7 +368,7 @@ MainLoop()
 
     MLG_CHECK(Scene::Create(level, propKit, scene));
 
-    MLG_CHECK(PhysicsSolver::Create(level, solver));
+    MLG_CHECK(PhysicsLevel::Create(level, physLevel));
 
     Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, ModelTag{});
 
@@ -489,12 +489,12 @@ MainLoop()
 
         if(!pauseSim)
         {
-            ApplyGravity(solver);
+            ApplyGravity(physLevel);
 
-            solver.Update(PHYSICS_TIME_STEP);
+            physLevel.Update(PHYSICS_TIME_STEP);
         }
 
-        solver.SyncToLevel(level);
+        physLevel.SyncToLevel(level);
 
         scene.SyncFromLevel(level);
 
@@ -521,7 +521,7 @@ MainLoop()
         const auto& projection = camera.Get<Projection>();
         renderer.Render(camTrs, projection, scene, propKit, compositor);
 
-        RenderGui(solver);
+        RenderGui(physLevel);
 
         imGuiRenderer.Render(compositor);
 
@@ -545,7 +545,7 @@ MainLoop()
     return Result<>::Ok;
 }
 
-static Result<> RenderGui(const PhysicsSolver& solver)
+static Result<> RenderGui(const PhysicsLevel& physLevel)
 {
     const char* buildType;
 #if defined (NDEBUG)
@@ -570,7 +570,7 @@ static Result<> RenderGui(const PhysicsSolver& solver)
         ImGui::Text("%s", text.c_str());
     }
 
-    const float kineticEnergy = solver.ComputeKineticEnergy();
+    const float kineticEnergy = physLevel.ComputeKineticEnergy();
     ImGui::Separator();
     ImGui::Text("Kinetic Energy: %.3f", kineticEnergy);
     ImGui::Text("Potential Energy: %.3f", s_TotalPotentialEnergy);

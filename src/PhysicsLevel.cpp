@@ -1,4 +1,4 @@
-#include "PhysicsSolver.h"
+#include "PhysicsLevel.h"
 
 #include "PerfMetrics.h"
 #include "ThreadPool.h"
@@ -9,7 +9,7 @@ static constexpr float RESTING_VELOCITY_THRESHOLD = 1.0f/128;
 static constexpr float COEFF_OF_RESTITUTION = 0.8f;
 
 Result<>
-PhysicsSolver::Create(const Level& level, PhysicsSolver& outSolver)
+PhysicsLevel::Create(const Level& level, PhysicsLevel& outPhysLevel)
 {
     std::span allHandles = level.GetAllHandles();
 
@@ -51,18 +51,18 @@ PhysicsSolver::Create(const Level& level, PhysicsSolver& outSolver)
         colliders.emplace_back(*node->Components.Collider);
     }
 
-    PhysicsSolver solver(std::move(nodeHandles),
+    PhysicsLevel physLevel(std::move(nodeHandles),
         std::move(transforms),
         std::move(bodies),
         std::move(colliders));
 
-    outSolver = std::move(solver);
+    outPhysLevel = std::move(physLevel);
 
     return Result<>::Ok;
 }
 
 void
-PhysicsSolver::AddForce(size_t bodyIndex, const Vec3f& force)
+PhysicsLevel::AddForce(size_t bodyIndex, const Vec3f& force)
 {
     MLG_ASSERT(bodyIndex < m_Bodies.size(), "Body index out of range");
 
@@ -71,7 +71,7 @@ PhysicsSolver::AddForce(size_t bodyIndex, const Vec3f& force)
 }
 
 void
-PhysicsSolver::Update(const float timeStep)
+PhysicsLevel::Update(const float timeStep)
 {
     MLG_SCOPED_TIMER("Physics.Update");
 
@@ -85,7 +85,7 @@ PhysicsSolver::Update(const float timeStep)
 }
 
 Result<>
-PhysicsSolver::SyncToLevel(Level& level)
+PhysicsLevel::SyncToLevel(Level& level)
 {
     for(size_t i = 0; i < m_NodeHandles.size(); ++i)
     {
@@ -98,7 +98,7 @@ PhysicsSolver::SyncToLevel(Level& level)
 }
 
 float
-PhysicsSolver::ComputeKineticEnergy() const
+PhysicsLevel::ComputeKineticEnergy() const
 {
     float totalEnergy = 0.0f;
 
@@ -115,7 +115,7 @@ PhysicsSolver::ComputeKineticEnergy() const
 // private:
 
 void
-PhysicsSolver::UpdateVelocities(const float dt)
+PhysicsLevel::UpdateVelocities(const float dt)
 {
     MLG_SCOPED_TIMER("Physics.UpdateVelocities");
 
@@ -140,7 +140,7 @@ PhysicsSolver::UpdateVelocities(const float dt)
 }
 
 void
-PhysicsSolver::PredictPositions(const float dt)
+PhysicsLevel::PredictPositions(const float dt)
 {
     MLG_SCOPED_TIMER("Physics.PredictPositions");
 
@@ -166,7 +166,7 @@ PhysicsSolver::PredictPositions(const float dt)
 #define FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED 1
 
 void
-PhysicsSolver::ResolveImpact(const ImpactRecord& impact)
+PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
 {
     MLG_SCOPED_TIMER("Physics.ResolveImpact");
 
@@ -270,7 +270,7 @@ PhysicsSolver::ResolveImpact(const ImpactRecord& impact)
 }
 
 void
-PhysicsSolver::FindAndResolveAllImpacts()
+PhysicsLevel::FindAndResolveAllImpacts()
 {
     MLG_SCOPED_TIMER("Physics.FindAndResolveAllImpacts");
 
@@ -408,7 +408,7 @@ PhysicsSolver::FindAndResolveAllImpacts()
 }
 
 bool
-PhysicsSolver::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult& impactResult)
+PhysicsLevel::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult& impactResult)
 {
     MLG_SCOPED_TIMER("Physics.SphereSphereSweep");
 
@@ -558,7 +558,7 @@ PhysicsSolver::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult
 }
 
 void
-PhysicsSolver::SweepTestBatch::Enqueue()
+PhysicsLevel::SweepTestBatch::Enqueue()
 {
 #if FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED
     ThreadPool::Enqueue<SweepTestBatch::Process>(this);
@@ -568,7 +568,7 @@ PhysicsSolver::SweepTestBatch::Enqueue()
 }
 
 void
-PhysicsSolver::SweepTestBatch::Process(SweepTestBatch* batch)
+PhysicsLevel::SweepTestBatch::Process(SweepTestBatch* batch)
 {
     for(ImpactRecord& impactRecord : batch->PotentialImpacts)
     {

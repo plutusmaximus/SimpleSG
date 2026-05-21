@@ -428,19 +428,19 @@ private:
     mutable bool m_NeedsSort{false};
 };
 
-class PhysicsSolver
+class PhysicsLevel
 {
 public:
 
     constexpr static size_t GRID_CELL_SIZE = 2;
 
-    static Result<> Create(const Level& level, PhysicsSolver& outSolver);
+    static Result<> Create(const Level& level, PhysicsLevel& outPhysLevel);
 
-    PhysicsSolver() = default;
-    PhysicsSolver(const PhysicsSolver&) = delete;
-    PhysicsSolver& operator=(const PhysicsSolver&) = delete;
-    PhysicsSolver(PhysicsSolver&& other) = default;
-    PhysicsSolver& operator=(PhysicsSolver&& other) = default;
+    PhysicsLevel() = default;
+    PhysicsLevel(const PhysicsLevel&) = delete;
+    PhysicsLevel& operator=(const PhysicsLevel&) = delete;
+    PhysicsLevel(PhysicsLevel&& other) = default;
+    PhysicsLevel& operator=(PhysicsLevel&& other) = default;
 
     void AddForce(size_t bodyIndex, const Vec3f& force);
 
@@ -470,7 +470,7 @@ private:
         static void Process(SweepTestBatch* batch);
     };
 
-    PhysicsSolver(std::vector<Level::NodeHandle>&& nodeHandles,
+    PhysicsLevel(std::vector<Level::NodeHandle>&& nodeHandles,
         std::vector<TrsTransformf>&& transforms,
         std::vector<RigidBody>&& bodies,
         std::vector<Collider>&& colliders)
