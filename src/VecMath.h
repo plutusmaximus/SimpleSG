@@ -2,16 +2,27 @@
 
 #include "AssertHelper.h"
 
-#include <numbers>
 #include <cmath>
-#include <cstring>
+#include <format>
+#include <limits>
+#include <numbers>
 #include <cstddef>
+#include <cstring>
 #include <type_traits>
 
 template<typename T> class Vec2;
 template<typename T> class Vec3;
 template<typename T> class Vec4;
 template<typename T> class Mat44;
+
+// For binary operators we prefer friend functions to allow for implicit conversions on both sides
+// of the operator. For example:
+//     Vec3f v(1.0f, 2.0f, 3.0f);
+//     Vec3f result = 2.0f * v; // Implicitly converts 2.0f to Vec3f(2.0f, 2.0f, 2.0f) and calls
+//     operator*(Vec3f, Vec3f)
+
+// That's just an example.  In general it's an anti pattern to allow implicit conversions.
+// But in cases where we do have implicit conversions we want binary operators to work.
 
 template <typename T>
 class Radians
@@ -289,9 +300,9 @@ public:
         return Vec2(scalar / v.x, scalar / v.y);
     }
 
-    constexpr Vec2 operator-() const noexcept
+    constexpr friend Vec2 operator-(const Vec2& v) noexcept
     {
-        return Vec2(-x, -y);
+        return Vec2(-v.x, -v.y);
     }
 
     constexpr T& operator[](size_t index) noexcept
@@ -353,16 +364,16 @@ public:
 
     constexpr Vec3() = default;
 
-    constexpr explicit Vec3(T value)
+    constexpr explicit Vec3(T value) noexcept
         : x(value), y(value), z(value)
     {
     }
-    constexpr Vec3(T x, T y, T z)
+    constexpr Vec3(T x, T y, T z) noexcept
         : x(x), y(y), z(z)
     {
     }
 
-    constexpr Vec3(const Vec2<T>& v, T z)
+    constexpr Vec3(const Vec2<T>& v, T z) noexcept
         : x(v.x), y(v.y), z(z)
     {
     }
@@ -373,22 +384,22 @@ public:
     static inline consteval Vec3 YAXIS() { return Vec3{ 0, 1, 0 }; }
     static inline consteval Vec3 ZAXIS() { return Vec3{ 0, 0, 1 }; }
 
-    constexpr Vec3 Normalize() const
+    constexpr Vec3 Normalize() const noexcept
     {
         return *this / Length();
     }
 
-    constexpr T Length() const
+    constexpr T Length() const noexcept
     {
         return std::sqrt(x * x + y * y + z * z);
     }
 
-    constexpr T Length2() const
+    constexpr T Length2() const noexcept
     {
         return x * x + y * y + z * z;
     }
 
-    constexpr Vec3 Cross(const Vec3& that) const
+    constexpr Vec3 Cross(const Vec3& that) const noexcept
     {
         return Vec3(
             y * that.z - z * that.y,
@@ -397,18 +408,18 @@ public:
         );
     }
 
-    constexpr T Dot(const Vec3& that) const
+    constexpr T Dot(const Vec3& that) const noexcept
     {
         return x * that.x + y * that.y + z * that.z;
     }
 
-    constexpr Vec3 Lerp(const Vec3& that, T t) const
+    constexpr Vec3 Lerp(const Vec3& that, T t) const noexcept
     {
         return Vec3(*this * (1 - t) + that * t);
     }
 
     /// Rotates this vector around the given axis by the specified angle.
-    constexpr Vec3 RotateBy(const Vec3& axis, const Radians<T> angle) const
+    constexpr Vec3 RotateBy(const Vec3& axis, const Radians<T> angle) const noexcept
     {
         // https://en.wikipedia.org/wiki/Rodrigues'_rotation_formula
         const T cos = angle.Cos();
@@ -418,68 +429,56 @@ public:
         return vr;
     }
 
-    constexpr bool operator==(const Vec3& that) const
+    constexpr friend bool operator==(const Vec3& a, const Vec3& b) noexcept
     {
-        return x == that.x && y == that.y && z == that.z;
+        return a.x == b.x && a.y == b.y && a.z == b.z;
     }
 
-    constexpr Vec3 operator+(const Vec3& that) const
+    constexpr friend Vec3 operator+(const Vec3& a, const Vec3& b) noexcept
     {
-        return Vec3(x + that.x, y + that.y, z + that.z);
+        return Vec3(a.x + b.x, a.y + b.y, a.z + b.z);
     }
 
-    constexpr Vec3 operator-(const Vec3& that) const
+    constexpr friend Vec3 operator-(const Vec3& a, const Vec3& b) noexcept
     {
-        return Vec3(x - that.x, y - that.y, z - that.z);
+        return Vec3(a.x - b.x, a.y - b.y, a.z - b.z);
     }
 
-    constexpr Vec3 operator*(const Vec3& that) const
+    constexpr friend Vec3 operator*(const Vec3& a, const Vec3& b) noexcept
     {
-        return Vec3(x * that.x, y * that.y, z * that.z);
+        return Vec3(a.x * b.x, a.y * b.y, a.z * b.z);
     }
 
-    constexpr Vec3 operator*(const T scalar) const
+    constexpr friend Vec3 operator*(const Vec3& v, const T scalar) noexcept
     {
-        return Vec3(x * scalar, y * scalar, z * scalar);
+        return Vec3(v.x * scalar, v.y * scalar, v.z * scalar);
     }
 
-    constexpr Vec3 operator/(const T scalar) const
+    constexpr friend Vec3 operator*(const T scalar, const Vec3& v) noexcept
+    {
+        return Vec3(v.x * scalar, v.y * scalar, v.z * scalar);
+    }
+
+    constexpr friend Vec3 operator/(const Vec3& v, const T scalar) noexcept
     {
         MLG_ASSERT(scalar != T{ 0 }, "Division by zero in Vec3 operator/");
         const T invScalar = T{1} / scalar;
-        return Vec3(x * invScalar, y * invScalar, z * invScalar);
+        return Vec3(v.x * invScalar, v.y * invScalar, v.z * invScalar);
     }
 
-    constexpr friend Vec3 operator*(const T scalar, const Vec3& v)
-    {
-        return v * scalar;
-    }
-
-    constexpr friend Vec3 operator/(const T scalar, const Vec3& v)
+    constexpr friend Vec3 operator/(const T scalar, const Vec3& v) noexcept
     {
         MLG_ASSERT(v.x != T{ 0 } && v.y != T{ 0 } && v.z != T{ 0 },
             "Division by zero in Vec3 operator/");
         return Vec3(scalar / v.x, scalar / v.y, scalar / v.z);
     }
 
-    constexpr Vec3 operator-() const
+    constexpr friend Vec3 operator-(const Vec3& v) noexcept
     {
-        return Vec3(-x, -y, -z);
+        return Vec3(-v.x, -v.y, -v.z);
     }
 
-    constexpr T& operator[](size_t index)
-    {
-        switch (index)
-        {
-        case 0: return x;
-        case 1: return y;
-        case 2: return z;
-        default: MLG_ASSERT(false, "Index out of range");
-        return x; // This line will never be reached, but it silences compiler warnings.
-        }
-    }
-
-    constexpr const T& operator[](size_t index) const
+    constexpr T& operator[](size_t index) noexcept
     {
         switch (index)
         {
@@ -491,27 +490,39 @@ public:
         }
     }
 
-    constexpr Vec3& operator+=(const Vec3& that)
+    constexpr const T& operator[](size_t index) const noexcept
+    {
+        switch (index)
+        {
+        case 0: return x;
+        case 1: return y;
+        case 2: return z;
+        default: MLG_ASSERT(false, "Index out of range");
+        return x; // This line will never be reached, but it silences compiler warnings.
+        }
+    }
+
+    constexpr Vec3& operator+=(const Vec3& that) noexcept
     {
         return *this = *this + that;
     }
 
-    constexpr Vec3& operator-=(const Vec3& that)
+    constexpr Vec3& operator-=(const Vec3& that) noexcept
     {
         return *this = *this - that;
     }
 
-    constexpr Vec3& operator*=(const Vec3& that)
+    constexpr Vec3& operator*=(const Vec3& that) noexcept
     {
         return *this = *this * that;
     }
 
-    constexpr Vec3& operator*=(const T scalar)
+    constexpr Vec3& operator*=(const T scalar) noexcept
     {
         return *this = *this * scalar;
     }
 
-    constexpr Vec3& operator/=(const T scalar)
+    constexpr Vec3& operator/=(const T scalar) noexcept
     {
         return *this = *this / scalar;
     }
@@ -528,114 +539,101 @@ public:
 
     constexpr Vec4() = default;
 
-    constexpr explicit Vec4(T value)
+    constexpr explicit Vec4(T value) noexcept
         : x(value), y(value), z(value), w(value)
     {
     }
 
-    constexpr Vec4(T x, T y, T z, T w)
+    constexpr Vec4(T x, T y, T z, T w) noexcept
         : x(x), y(y), z(z), w(w)
     {
     }
 
-    constexpr Vec4(const Vec2<T>& v, T z, T w)
+    constexpr Vec4(const Vec2<T>& v, T z, T w) noexcept
         : x(v.x), y(v.y), z(z), w(w)
     {
     }
 
-    constexpr Vec4(const Vec3<T>& v, T w)
+    constexpr Vec4(const Vec3<T>& v, T w) noexcept
         : x(v.x), y(v.y), z(v.z), w(w)
     {
     }
 
-    constexpr Vec4 Normalize() const
+    constexpr Vec4 Normalize() const noexcept
     {
         return *this / Length();
     }
 
-    constexpr T Length() const
+    constexpr T Length() const noexcept
     {
         return std::sqrt(x * x + y * y + z * z + w * w);
     }
 
-    constexpr T Length2() const
+    constexpr T Length2() const noexcept
     {
         return x * x + y * y + z * z + w * w;
     }
 
-    constexpr T Dot(const Vec4& that) const
+    constexpr T Dot(const Vec4& that) const noexcept
     {
         return x * that.x + y * that.y + z * that.z + w * that.w;
     }
 
-    constexpr Vec4 Lerp(const Vec4& that, T t) const
+    constexpr Vec4 Lerp(const Vec4& that, T t) const noexcept
     {
         return Vec4(*this * (1 - t) + that * t);
     }
 
-    constexpr bool operator==(const Vec4& that) const
+    constexpr friend bool operator==(const Vec4& a, const Vec4& b) noexcept
     {
-        return x == that.x && y == that.y && z == that.z && w == that.w;
+        return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
     }
 
-    constexpr Vec4 operator+(const Vec4& that) const
+    constexpr friend Vec4 operator+(const Vec4& a, const Vec4& b) noexcept
     {
-        return Vec4(x + that.x, y + that.y, z + that.z, w + that.w);
+        return Vec4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w);
     }
 
-    constexpr Vec4 operator-(const Vec4& that) const
+    constexpr friend Vec4 operator-(const Vec4& a, const Vec4& b) noexcept
     {
-        return Vec4(x - that.x, y - that.y, z - that.z, w - that.w);
+        return Vec4(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w);
     }
 
-    constexpr Vec4 operator*(const Vec4& that) const
+    constexpr friend Vec4 operator*(const Vec4& a, const Vec4& b) noexcept
     {
-        return Vec4(x * that.x, y * that.y, z * that.z, w * that.w);
+        return Vec4(a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w);
     }
 
-    constexpr Vec4 operator*(const T scalar) const
+    constexpr friend Vec4 operator*(const Vec4& v, const T scalar) noexcept
     {
-        return Vec4(x * scalar, y * scalar, z * scalar, w * scalar);
+        return Vec4(v.x * scalar, v.y * scalar, v.z * scalar, v.w * scalar);
     }
 
-    constexpr Vec4 operator/(const T scalar) const
+    constexpr friend Vec4 operator*(const T scalar, const Vec4& v) noexcept
+    {
+        return Vec4(v.x * scalar, v.y * scalar, v.z * scalar, v.w * scalar);
+    }
+
+    constexpr friend Vec4 operator/(const Vec4& v, const T scalar) noexcept
     {
         MLG_ASSERT(scalar != T{ 0 }, "Division by zero in Vec4 operator/");
         const T invScalar = T{1} / scalar;
-        return Vec4(x * invScalar, y * invScalar, z * invScalar, w * invScalar);
+        return Vec4(v.x * invScalar, v.y * invScalar, v.z * invScalar, v.w * invScalar);
     }
 
-    constexpr friend Vec4 operator*(const T scalar, const Vec4& v)
-    {
-        return v * scalar;
-    }
-
-    constexpr friend Vec4 operator/(const T scalar, const Vec4& v)
+    constexpr friend Vec4 operator/(const T scalar, const Vec4& v) noexcept
     {
         MLG_ASSERT(v.x != T{ 0 } && v.y != T{ 0 } && v.z != T{ 0 } && v.w != T{ 0 },
             "Division by zero in Vec4 operator/");
         return Vec4(scalar / v.x, scalar / v.y, scalar / v.z, scalar / v.w);
     }
 
-    constexpr Vec4 operator-() const
+    constexpr friend Vec4 operator-(const Vec4& v) noexcept
     {
-        return Vec4(-x, -y, -z, -w);
+        return Vec4(-v.x, -v.y, -v.z, -v.w);
     }
 
-    constexpr T& operator[](size_t index)
-    {
-        switch (index)
-        {
-        case 0: return x;
-        case 1: return y;
-        case 2: return z;
-        case 3: return w;
-        default: MLG_ASSERT(false, "Index out of range");
-        return x; // This line will never be reached, but it silences compiler warnings.
-        }
-    }
-
-    constexpr const T& operator[](size_t index) const
+    constexpr T& operator[](size_t index) noexcept
     {
         switch (index)
         {
@@ -648,27 +646,40 @@ public:
         }
     }
 
-    constexpr Vec4& operator+=(const Vec4& that)
+    constexpr const T& operator[](size_t index) const noexcept
+    {
+        switch (index)
+        {
+        case 0: return x;
+        case 1: return y;
+        case 2: return z;
+        case 3: return w;
+        default: MLG_ASSERT(false, "Index out of range");
+        return x; // This line will never be reached, but it silences compiler warnings.
+        }
+    }
+
+    constexpr Vec4& operator+=(const Vec4& that) noexcept
     {
         return *this = *this + that;
     }
 
-    constexpr Vec4& operator-=(const Vec4& that)
+    constexpr Vec4& operator-=(const Vec4& that) noexcept
     {
         return *this = *this - that;
     }
 
-    constexpr Vec4& operator*=(const Vec4& that)
+    constexpr Vec4& operator*=(const Vec4& that) noexcept
     {
         return *this = *this * that;
     }
 
-    constexpr Vec4& operator*=(const T scalar)
+    constexpr Vec4& operator*=(const T scalar) noexcept
     {
         return *this = *this * scalar;
     }
 
-    constexpr Vec4& operator/=(const T scalar)
+    constexpr Vec4& operator/=(const T scalar) noexcept
     {
         return *this = *this / scalar;
     }
@@ -700,17 +711,17 @@ class UnitQuat
 public:
     constexpr UnitQuat() = default;
 
-    constexpr UnitQuat(T x, T y, T z, T w)
+    constexpr UnitQuat(T x, T y, T z, T w) noexcept
         : UnitQuat(Vec4<T>(x, y, z, w))
     {
     }
 
-    constexpr UnitQuat(const Vec4<T>& v)
+    constexpr explicit UnitQuat(const Vec4<T>& v) noexcept
         : m_Vec(v.Normalize())
     {
     }
 
-    constexpr UnitQuat(const Radians<T> angle, const Vec3<T>& axis)
+    constexpr UnitQuat(const Radians<T> angle, const Vec3<T>& axis) noexcept
     {
         const Radians<T> ao2 = angle * T{0.5};
         const T s = ao2.Sin();
@@ -720,67 +731,67 @@ public:
         m_Vec.w = ao2.Cos();
     }
 
-    constexpr Mat44<T> ToMatrix() const;
+    constexpr Mat44<T> ToMatrix() const noexcept;
 
-    constexpr UnitQuat Conjugate() const
+    constexpr UnitQuat Conjugate() const noexcept
     {
         return UnitQuat(-m_Vec.x, -m_Vec.y, -m_Vec.z, m_Vec.w);
     }
 
-    constexpr UnitQuat Inverse() const
+    constexpr UnitQuat Inverse() const noexcept
     {
         return Conjugate();
     }
 
-    constexpr UnitQuat Lerp(const UnitQuat& that, T t) const
+    constexpr UnitQuat Lerp(const UnitQuat& that, T t) const noexcept
     {
         return UnitQuat(m_Vec.Lerp(that.m_Vec, t));
     }
 
-    constexpr Vec4<T> ToVector() const
+    constexpr Vec4<T> ToVector() const noexcept
     {
         return m_Vec;
     }
 
-    constexpr bool operator==(const UnitQuat& that) const
+    constexpr friend bool operator==(const UnitQuat& a, const UnitQuat& b) noexcept
     {
-        return m_Vec == that.m_Vec;
+        return a.m_Vec == b.m_Vec;
     }
 
-    constexpr Vec3<T> operator*(const Vec3<T>& vec) const
+    constexpr friend Vec3<T> operator*(const UnitQuat& q, const Vec3<T>& vec) noexcept
     {
         // Assumes a unit quaternion.
-        const Vec3<T> u{ m_Vec };
+        const Vec3<T> u{ q.m_Vec };
         const Vec3<T> t = u.Cross(vec) * T{2};
-        return vec + m_Vec.w * t + u.Cross(t);
+        return vec + q.m_Vec.w * t + u.Cross(t);
     }
 
-    constexpr UnitQuat operator*(const UnitQuat& that) const
+    constexpr friend UnitQuat operator*(const UnitQuat& a, const UnitQuat& b) noexcept
     {
         return UnitQuat(
-            m_Vec.w * that.m_Vec.x + m_Vec.x * that.m_Vec.w + m_Vec.y * that.m_Vec.z - m_Vec.z * that.m_Vec.y,
-            m_Vec.w * that.m_Vec.y - m_Vec.x * that.m_Vec.z + m_Vec.y * that.m_Vec.w + m_Vec.z * that.m_Vec.x,
-            m_Vec.w * that.m_Vec.z + m_Vec.x * that.m_Vec.y - m_Vec.y * that.m_Vec.x + m_Vec.z * that.m_Vec.w,
-            m_Vec.w * that.m_Vec.w - m_Vec.x * that.m_Vec.x - m_Vec.y * that.m_Vec.y - m_Vec.z * that.m_Vec.z
+            a.m_Vec.w * b.m_Vec.x + a.m_Vec.x * b.m_Vec.w + a.m_Vec.y * b.m_Vec.z - a.m_Vec.z * b.m_Vec.y,
+            a.m_Vec.w * b.m_Vec.y - a.m_Vec.x * b.m_Vec.z + a.m_Vec.y * b.m_Vec.w + a.m_Vec.z * b.m_Vec.x,
+            a.m_Vec.w * b.m_Vec.z + a.m_Vec.x * b.m_Vec.y - a.m_Vec.y * b.m_Vec.x + a.m_Vec.z * b.m_Vec.w,
+            a.m_Vec.w * b.m_Vec.w - a.m_Vec.x * b.m_Vec.x - a.m_Vec.y * b.m_Vec.y - a.m_Vec.z * b.m_Vec.z
         );
     }
 
-    constexpr UnitQuat operator+(const UnitQuat& that) const
+    constexpr friend UnitQuat operator+(const UnitQuat& a, const UnitQuat& b) noexcept
     {
-        return UnitQuat(m_Vec + that.m_Vec);
+        return UnitQuat(a.m_Vec + b.m_Vec);
     }
 
-    constexpr UnitQuat operator-() const
+    constexpr friend UnitQuat operator-(const UnitQuat& a) noexcept
     {
-        return UnitQuat(-m_Vec);
+        return UnitQuat(-a.m_Vec);
     }
 
-    constexpr UnitQuat& operator*=(const UnitQuat& that)
+    constexpr UnitQuat& operator*=(const UnitQuat& that) noexcept
     {
         return (*this = *this * that);
     }
 
-    constexpr UnitQuat& operator+=(const UnitQuat& that)
+    constexpr UnitQuat& operator+=(const UnitQuat& that) noexcept
     {
         return (*this = *this + that);
     }
@@ -803,7 +814,7 @@ public:
     constexpr Mat44() = default;
 
     constexpr Mat44(
-        const Vec4<T>& col0, const Vec4<T>& col1, const Vec4<T>& col2, const Vec4<T>& col3)
+        const Vec4<T>& col0, const Vec4<T>& col1, const Vec4<T>& col2, const Vec4<T>& col3) noexcept
     {
         m[0] = col0;
         m[1] = col1;
@@ -811,7 +822,7 @@ public:
         m[3] = col3;
     }
 
-    constexpr explicit Mat44(T value)
+    constexpr explicit Mat44(T value) noexcept
         : Mat44(Vec4<T>(value, 0, 0, 0),
                 Vec4<T>(0, value, 0, 0),
                 Vec4<T>(0, 0, value, 0),
@@ -822,7 +833,7 @@ public:
     constexpr Mat44(T m00, T m01, T m02, T m03,
           T m10, T m11, T m12, T m13,
           T m20, T m21, T m22, T m23,
-          T m30, T m31, T m32, T m33)
+          T m30, T m31, T m32, T m33) noexcept
           : Mat44(Vec4<T>(m00, m01, m02, m03),
                  Vec4<T>(m10, m11, m12, m13),
                  Vec4<T>(m20, m21, m22, m23),
@@ -830,32 +841,32 @@ public:
     {
     }
 
-    constexpr Mat44 Mul(const Mat44& other) const
+    constexpr Mat44 Mul(const Mat44& other) const noexcept
     {
         return *this * other;
     }
 
-    constexpr Vec4<T> Mul(const Vec4<T>& vector) const
+    constexpr Vec4<T> Mul(const Vec4<T>& vector) const noexcept
     {
         return *this * vector;
     }
 
-    constexpr Vec4<T> Mul(const Vec3<T>& vector) const
+    constexpr Vec4<T> Mul(const Vec3<T>& vector) const noexcept
     {
         return *this * vector;
     }
 
-    constexpr bool operator==(const Mat44& that) const
+    constexpr friend bool operator==(const Mat44& a, const Mat44& b) noexcept
     {
-        return 0 == std::memcmp(this, &that, sizeof(*this));
+        return 0 == std::memcmp(&a, &b, sizeof(Mat44<T>));
     }
 
-    constexpr Mat44& operator*=(const Mat44& that)
+    constexpr Mat44& operator*=(const Mat44& that) noexcept
     {
         return *this = *this * that;
     }
 
-    constexpr Mat44<T> Inverse() const
+    constexpr Mat44<T> Inverse() const noexcept
     {
         constexpr T epsilon = T{1e-8};
 
@@ -947,7 +958,7 @@ public:
         };
     }
 
-    constexpr Mat44 InverseAffine() const
+    constexpr Mat44 InverseAffine() const noexcept
     {
         constexpr T epsilon = T{1e-8};
 
@@ -1024,7 +1035,7 @@ public:
         };
     }
 
-    constexpr Mat44 Transpose() const
+    constexpr Mat44 Transpose() const noexcept
     {
         return Mat44 //
             {
@@ -1035,7 +1046,7 @@ public:
             };
     }
 
-    constexpr void Decompose(Vec3<T>& translation, UnitQuat<T>& rotation, Vec3<T>& scale) const
+    constexpr void Decompose(Vec3<T>& translation, UnitQuat<T>& rotation, Vec3<T>& scale) const noexcept
     {
         const auto& mm = *this;
 
@@ -1101,40 +1112,41 @@ public:
         rotation = UnitQuat<T>(qx, qy, qz, qw);
     }
 
-    constexpr Vec4<T>& operator[](std::size_t index)
+    constexpr Vec4<T>& operator[](std::size_t index) noexcept
     {
         return m[index];
     }
 
-    constexpr const Vec4<T>& operator[](std::size_t index) const
+    constexpr const Vec4<T>& operator[](std::size_t index) const noexcept
     {
         return m[index];
     }
 
-    constexpr Mat44 operator*(const Mat44& that) const
+    constexpr friend Mat44 operator*(const Mat44& a, const Mat44& b) noexcept
     {
         return Mat44 //
-            { *this * that[0], *this * that[1], *this * that[2], *this * that[3] };
+            { a * b[0], a * b[1], a * b[2], a * b[3] };
     }
 
-    constexpr Vec4<T> operator*(const Vec4<T>& vector) const
+    constexpr friend Vec4<T> operator*(const Mat44& mat, const Vec4<T>& vector) noexcept
     {
-        return m[0] * vector.x + m[1] * vector.y + m[2] * vector.z + m[3] * vector.w;
+        return mat.m[0] * vector.x + mat.m[1] * vector.y + mat.m[2] * vector.z + mat.m[3] * vector.w;
     }
 
-    constexpr Vec4<T> operator*(const Vec3<T>& vector) const
+    constexpr friend Vec4<T> operator*(const Mat44& mat, const Vec3<T>& vector) noexcept
     {
-        return Vec4<T>(m[0] * vector.x + m[1] * vector.y + m[2] * vector.z + m[3]);
+        return Vec4<T>(mat.m[0] * vector.x + mat.m[1] * vector.y + mat.m[2] * vector.z + mat.m[3]);
     }
 
-    static constexpr const Mat44& Identity()
+    static constexpr const Mat44& Identity() noexcept
     {
         static constexpr Mat44 IDENT(1);
 
         return IDENT;
     }
 
-    static Mat44 PerspectiveLH(const Radians<T> fov, const T aspectRatio, const T nearClip, const T farClip)
+    static Mat44 PerspectiveLH(
+        const Radians<T> fov, const T aspectRatio, const T nearClip, const T farClip) noexcept
     {
         const T t = (fov * T{0.5}).Tan();
 
@@ -1149,7 +1161,7 @@ public:
 };
 
 template<typename T>
-inline constexpr Mat44<T> UnitQuat<T>::ToMatrix() const
+inline constexpr Mat44<T> UnitQuat<T>::ToMatrix() const noexcept
 {
     const T xx = m_Vec.x * m_Vec.x;
     const T yy = m_Vec.y * m_Vec.y;
@@ -1185,7 +1197,7 @@ public:
     UnitQuat<NumType> R{ Radians<NumType>{0}, Vec3<NumType>{0,1,0} };
     Vec3<NumType> S{ 1 };
 
-    constexpr Mat44<NumType> ToMatrix() const
+    constexpr Mat44<NumType> ToMatrix() const noexcept
     {
         Mat44<NumType> M = R.ToMatrix();
         M[0] *= S.x;
@@ -1199,7 +1211,7 @@ public:
     // unless the scale is uniform.
     // So the inverse returns a Mat44, which can represent any affine transform,
     // instead of a new TrsTransform.
-    constexpr Mat44<NumType> Inverse() const
+    constexpr Mat44<NumType> Inverse() const noexcept
     {
         TrsTransform result;
         result.R = R.Inverse();
@@ -1208,36 +1220,38 @@ public:
         return result.ToMatrix();
     }
 
-    static TrsTransform FromMatrix(const Mat44<NumType>& mat)
+    static TrsTransform FromMatrix(const Mat44<NumType>& mat) noexcept
     {
         TrsTransform result;
         mat.Decompose(result.T, result.R, result.S);
         return result;
     }
 
-    constexpr Vec3<NumType> LocalXAxis() const
+    constexpr Vec3<NumType> LocalXAxis() const noexcept
     {
         return (R * Vec3<NumType>::XAXIS()).Normalize();
     }
 
-    constexpr Vec3<NumType> LocalYAxis() const
+    constexpr Vec3<NumType> LocalYAxis() const noexcept
     {
         return (R * Vec3<NumType>::YAXIS()).Normalize();
     }
 
-    constexpr Vec3<NumType> LocalZAxis() const
+    constexpr Vec3<NumType> LocalZAxis() const noexcept
     {
         return (R * Vec3<NumType>::ZAXIS()).Normalize();
     }
 
-    constexpr Vec3<NumType> operator*(const Vec3<NumType>& point) const
+    constexpr friend Vec3<NumType> operator*(const TrsTransform<NumType>& transform,
+        const Vec3<NumType>& point) noexcept
     {
-        return R * (point * S) + T;
+        return transform.R * (point * transform.S) + transform.T;
     }
 
-    constexpr bool operator==(const TrsTransform<NumType>& that) const
+    constexpr friend bool operator==(const TrsTransform<NumType>& a,
+        const TrsTransform<NumType>& b) noexcept
     {
-        return T == that.T && R == that.R && S == that.S;
+        return a.T == b.T && a.R == b.R && a.S == b.S;
     }
 };
 
@@ -1248,13 +1262,9 @@ public:
     float Width;
     float Height;
 
-    constexpr bool operator==(const Extent& that) const
+    constexpr friend bool operator==(const Extent& a, const Extent& b) noexcept
     {
-        return Width == that.Width && Height == that.Height;
-    }
-    constexpr bool operator!=(const Extent& that) const
-    {
-        return !(*this == that);
+        return a.Width == b.Width && a.Height == b.Height;
     }
 };
 
@@ -1265,13 +1275,9 @@ public:
     float X;
     float Y;
 
-    constexpr bool operator==(const Point& that) const
+    constexpr friend bool operator==(const Point& a, const Point& b) noexcept
     {
-        return X == that.X && Y == that.Y;
-    }
-    constexpr bool operator!=(const Point& that) const
-    {
-        return !(*this == that);
+        return a.X == b.X && a.Y == b.Y;
     }
 };
 
