@@ -69,6 +69,8 @@ class Radians
 
 public:
 
+    using ValueType = T;
+
     constexpr Radians() = default;
 
     explicit constexpr Radians(const T value)
@@ -208,6 +210,8 @@ class Vec2
 {
     static_assert(std::is_floating_point_v<T>, "Vec2 requires a floating-point type");
 public:
+
+    using ValueType = T;
 
     T x, y;
 
@@ -359,6 +363,8 @@ class Vec3
     static_assert(std::is_floating_point_v<T>, "Vec3 requires a floating-point type");
 
 public:
+
+    using ValueType = T;
 
     T x, y, z;
 
@@ -535,6 +541,8 @@ class Vec4
 
 public:
 
+    using ValueType = T;
+
     T x, y, z, w;
 
     constexpr Vec4() = default;
@@ -709,6 +717,9 @@ class UnitQuat
     static_assert(std::is_floating_point_v<T>, "Quat requires a floating-point type");
 
 public:
+
+    using ValueType = T;
+
     constexpr UnitQuat() = default;
 
     constexpr UnitQuat(T x, T y, T z, T w) noexcept
@@ -808,6 +819,8 @@ class Mat44
     static_assert(std::is_floating_point_v<T>, "Mat44 requires a floating-point type");
 
 public:
+
+    using ValueType = T;
 
     Vec4<T> m[4];
 
@@ -1192,6 +1205,8 @@ class TrsTransform
     static_assert(std::is_floating_point_v<NumType>, "TrsTransform requires a floating-point type");
 
 public:
+
+    using ValueType = NumType;
 
     Vec3<NumType> T{ 0 };
     UnitQuat<NumType> R{ Radians<NumType>{0}, Vec3<NumType>{0,1,0} };

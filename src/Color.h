@@ -8,46 +8,41 @@ template<typename T>
 class RgbaColor
 {
 public:
-    constexpr RgbaColor()
-        : RgbaColor(0, 0, 0, 0)
-    {
-    }
 
-    constexpr RgbaColor(const T inR, const T inG, const T inB)
+    using ValueType = T;
+
+    constexpr RgbaColor() = default;
+
+    constexpr RgbaColor(const T inR, const T inG, const T inB) noexcept
         : RgbaColor(inR, inG, inB, 1)
     {
     }
 
-    constexpr RgbaColor(const T inR, const T inG, const T inB, const T inA)
+    constexpr RgbaColor(const T inR, const T inG, const T inB, const T inA) noexcept
         : r(inR), g(inG), b(inB), a(inA)
     {
     }
 
     /// @brief  Conversion constructor.
     template<typename U>
-    constexpr RgbaColor(const RgbaColor<U>& other);
+    constexpr RgbaColor(const RgbaColor<U>& other) noexcept;
 
     /// @brief Converts the color to a hexadecimal string representation - #RRGGBBAA
-    std::string ToHexString() const;
+    std::string ToHexString() const noexcept;
 
-    bool operator==(const RgbaColor& other) const
+    constexpr friend bool operator==(const RgbaColor& a, const RgbaColor& b) noexcept
     {
-        return r == other.r && g == other.g && b == other.b && a == other.a;
+        return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
     }
 
-    bool operator!=(const RgbaColor& other) const
-    {
-        return !(*this == other);
-    }
-
-    T r, g, b, a;
+    T r{0}, g{0}, b{0}, a{0};
 };
 
 using RgbaColorf = RgbaColor<float>;
 using RgbaColoru8 = RgbaColor<uint8_t>;
 
 /// @brief Specialization for uint8_t with default alpha of 255.
-inline constexpr RgbaColor<uint8_t>::RgbaColor(const uint8_t inR, const uint8_t inG, const uint8_t inB)
+inline constexpr RgbaColor<uint8_t>::RgbaColor(const uint8_t inR, const uint8_t inG, const uint8_t inB) noexcept
     : RgbaColor<uint8_t>(inR, inG, inB, 255)
 {
 }
@@ -55,7 +50,7 @@ inline constexpr RgbaColor<uint8_t>::RgbaColor(const uint8_t inR, const uint8_t 
 /// @brief Specialization for converting from float to uint8_t.
 template<>
 template<>
-inline RgbaColor<uint8_t>::RgbaColor(const RgbaColor<float>& other)
+inline RgbaColor<uint8_t>::RgbaColor(const RgbaColor<float>& other) noexcept
     : r(static_cast<uint8_t>(std::clamp(other.r * 255.0f, 0.0f, 255.0f)))
     , g(static_cast<uint8_t>(std::clamp(other.g * 255.0f, 0.0f, 255.0f)))
     , b(static_cast<uint8_t>(std::clamp(other.b * 255.0f, 0.0f, 255.0f)))
@@ -64,7 +59,7 @@ inline RgbaColor<uint8_t>::RgbaColor(const RgbaColor<float>& other)
 }
 
 /// @brief Specialization for float with clamping between 0.0 and 1.0.
-inline constexpr RgbaColor<float>::RgbaColor(const float inR, const float inG, const float inB, const float inA)
+inline constexpr RgbaColor<float>::RgbaColor(const float inR, const float inG, const float inB, const float inA) noexcept
     : r(std::clamp(inR, 0.0f, 1.0f)), g(std::clamp(inG, 0.0f, 1.0f)), b(std::clamp(inB, 0.0f, 1.0f)), a(std::clamp(inA, 0.0f, 1.0f))
 {
     MLG_ASSERT(inR >= 0 && inR <= 1);
@@ -76,7 +71,7 @@ inline constexpr RgbaColor<float>::RgbaColor(const float inR, const float inG, c
 /// @brief Specialization for converting from uint8_t to float.
 template<>
 template<>
-inline RgbaColor<float>::RgbaColor(const RgbaColor<uint8_t>& other)
+inline RgbaColor<float>::RgbaColor(const RgbaColor<uint8_t>& other) noexcept
     : r(static_cast<float>(other.r) / 255.0f)
     , g(static_cast<float>(other.g) / 255.0f)
     , b(static_cast<float>(other.b) / 255.0f)
@@ -84,14 +79,14 @@ inline RgbaColor<float>::RgbaColor(const RgbaColor<uint8_t>& other)
 {
 }
 
-inline std::string RgbaColor<uint8_t>::ToHexString() const
+inline std::string RgbaColor<uint8_t>::ToHexString() const noexcept
 {
     char buf[10];
     snprintf(buf, sizeof(buf), "#%02X%02X%02X%02X", r, g, b, a);
     return std::string(buf);
 }
 
-inline std::string RgbaColor<float>::ToHexString() const
+inline std::string RgbaColor<float>::ToHexString() const noexcept
 {
     return RgbaColor<uint8_t>(*this).ToHexString();
 }

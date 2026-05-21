@@ -7,6 +7,26 @@
 namespace ShaderInterop
 {
 
+static_assert(std::is_floating_point_v<RgbaColorf::ValueType>,
+    "RgbaColorf must use a floating-point type");
+static_assert(sizeof(RgbaColorf) == 16,
+    "RgbaColorf must be 16 bytes to ensure proper alignment in uniform/storage buffers");
+
+static_assert(std::is_floating_point_v<Vec4f::ValueType>,
+    "Vec4f must use a floating-point type");
+static_assert(sizeof(Vec4f) == 16,
+    "Vec4f must be 16 bytes to ensure proper alignment in uniform/storage buffers");
+
+static_assert(std::is_floating_point_v<Vec3f::ValueType>,
+    "Vec3f must use a floating-point type");
+static_assert(sizeof(Vec3f) == 12,
+    "Vec3f must be 12 bytes to ensure proper alignment in uniform/storage buffers");
+
+static_assert(std::is_floating_point_v<Vec2f::ValueType>,
+    "Vec2f must use a floating-point type");
+static_assert(sizeof(Vec2f) == 8,
+    "Vec2f must be 8 bytes to ensure proper alignment in uniform/storage buffers");
+
 // These types mirror the corresponding types defined in shaders.
 class DrawIndirectParams
 {
