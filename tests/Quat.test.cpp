@@ -41,14 +41,6 @@ TEST(Quatf, Construction_FromAngleAxis)
     EXPECT_NEAR(q.ToVector().w, c, EPS);
 }
 
-TEST(Quatf, Normalize)
-{
-    Quatf q(1.0f, 2.0f, 3.0f, 4.0f);
-    Quatf n = q.Normalize();
-    const float len = n.ToVector().Length();
-    EXPECT_NEAR(len, 1.0f, EPS);
-}
-
 TEST(Quatf, Conjugate)
 {
     Quatf q(1.0f, -2.0f, 3.0f, -4.0f);

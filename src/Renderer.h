@@ -4,8 +4,6 @@
 
 #include "WebgpuHelper.h"
 
-#include <unordered_map>
-
 class Compositor;
 template<typename T>
 class Mat44;

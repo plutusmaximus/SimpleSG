@@ -683,9 +683,8 @@ public:
     }
 
     constexpr UnitQuat(const Vec4<T>& v)
-        : m_Vec(v)
+        : m_Vec(v.Normalize())
     {
-        m_Vec = m_Vec.Normalize();
     }
 
     constexpr UnitQuat(const Radians<T> angle, const Vec3<T>& axis)
@@ -700,11 +699,6 @@ public:
 
     constexpr Mat44<T> ToMatrix() const;
 
-    constexpr UnitQuat Normalize() const
-    {
-        return UnitQuat(m_Vec.Normalize());
-    }
-
     constexpr UnitQuat Conjugate() const
     {
         return UnitQuat(-m_Vec.x, -m_Vec.y, -m_Vec.z, m_Vec.w);
@@ -712,7 +706,6 @@ public:
 
     constexpr UnitQuat Inverse() const
     {
-        // Assumes a unit quaternion.
         return Conjugate();
     }
 
@@ -746,7 +739,7 @@ public:
             m_Vec.w * that.m_Vec.y - m_Vec.x * that.m_Vec.z + m_Vec.y * that.m_Vec.w + m_Vec.z * that.m_Vec.x,
             m_Vec.w * that.m_Vec.z + m_Vec.x * that.m_Vec.y - m_Vec.y * that.m_Vec.x + m_Vec.z * that.m_Vec.w,
             m_Vec.w * that.m_Vec.w - m_Vec.x * that.m_Vec.x - m_Vec.y * that.m_Vec.y - m_Vec.z * that.m_Vec.z
-        ).Normalize();
+        );
     }
 
     constexpr UnitQuat operator+(const UnitQuat& that) const

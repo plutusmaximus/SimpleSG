@@ -53,8 +53,6 @@ public:
     float Radius;
     uint32_t TransformIndex;
     uint32_t MaterialIndex;
-    uint32_t pad0;
-    uint32_t pad1;
 };
 
 class CameraParams
