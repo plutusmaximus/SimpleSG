@@ -64,7 +64,7 @@ struct ImpactRecord
 
     ColliderSweepParams SweepParams;
 
-    ImpactResult Result;
+    ImpactResult Result{};
 
     bool ImpactFound{false};
 
@@ -103,8 +103,6 @@ public:
 
     explicit GridHash(const size_t cellSize)
     : m_CellSize(cellSize)
-    , m_MinExtent(static_cast<float>(std::numeric_limits<int32_t>::min()) * cellSize)
-    , m_MaxExtent(static_cast<float>(std::numeric_limits<int32_t>::max()) * cellSize)
     {
         MLG_ASSERT(cellSize > 0, "Cell size must be greater than 0");
         MLG_ASSERT(cellSize < 256, "Cell size is >= 256 - was that intentional?");
@@ -150,14 +148,6 @@ public:
         const Vec3f minExtent{bbMin.x - radius, bbMin.y - radius, bbMin.z - radius };
         const Vec3f maxExtent{bbMax.x + radius, bbMax.y + radius, bbMax.z + radius};
 
-        MLG_CHECKV(minExtent.x >= m_MinExtent && minExtent.y >= m_MinExtent && minExtent.z >= m_MinExtent &&
-                   maxExtent.x <= m_MaxExtent && maxExtent.y <= m_MaxExtent && maxExtent.z <= m_MaxExtent,
-            "Bounding box exceeds maximum extents: Min: {}/{}, Max: {}/{}",
-            minExtent,
-            Vec3f{ m_MinExtent, m_MinExtent, m_MinExtent },
-            maxExtent,
-            Vec3f{ m_MaxExtent, m_MaxExtent, m_MaxExtent });
-
         const int32_t minX = Quantize(minExtent.x);
         const int32_t minY = Quantize(minExtent.y);
         const int32_t minZ = Quantize(minExtent.z);
@@ -165,9 +155,9 @@ public:
         const int32_t maxY = Quantize(maxExtent.y);
         const int32_t maxZ = Quantize(maxExtent.z);
 
-        const uint32_t dx = maxX - minX + 1;
-        const uint32_t dy = maxY - minY + 1;
-        const uint32_t dz = maxZ - minZ + 1;
+        const uint32_t dx = static_cast<uint32_t>(maxX - minX + 1);
+        const uint32_t dy = static_cast<uint32_t>(maxY - minY + 1);
+        const uint32_t dz = static_cast<uint32_t>(maxZ - minZ + 1);
 
         MLG_CHECK(AllocateCells(dx, dy, dz));
 
@@ -413,14 +403,13 @@ private:
             }
         }
 
-        m_PotentialCollisions.erase(m_PotentialCollisions.begin() + dst + 1,
-            m_PotentialCollisions.end());
+        std::vector<BodyPair>::iterator newEnd =
+            m_PotentialCollisions.begin() + std::vector<BodyPair>::difference_type(dst + 1);
+        m_PotentialCollisions.erase(newEnd, m_PotentialCollisions.end());
     }
 
     size_t m_CellSize;
     float m_InvCellSize;
-    float m_MinExtent;
-    float m_MaxExtent;
 
     mutable std::vector<Cell> m_Cells;
     mutable std::vector<BodyPair> m_PotentialCollisions;

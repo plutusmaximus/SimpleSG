@@ -10,6 +10,9 @@ set(BUILD_SHARED_LIBS OFF)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_C_STANDARD 23)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
 
 if(MSVC)
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
@@ -57,6 +60,7 @@ target_compile_options(project_warnings INTERFACE
         -Wextra-semi
         -Wimplicit-fallthrough
         -Wunreachable-code
+        -Wno-c2y-extensions
     >
 
     $<$<CXX_COMPILER_ID:MSVC>:
@@ -110,7 +114,7 @@ set(SDL_TEST OFF CACHE BOOL "Build SDL test programs" FORCE)
 set(SDL_TESTS OFF CACHE BOOL "Build SDL tests" FORCE)
 set(SDL_TEST_LIBRARY OFF CACHE BOOL "Build SDL test library" FORCE)
 
-add_subdirectory(thirdparty/SDL)
+add_subdirectory(thirdparty/SDL EXCLUDE_FROM_ALL SYSTEM)
 
 # --- Dawn
 set(DAWN_FETCH_DEPENDENCIES ON)
@@ -127,7 +131,7 @@ set(TINT_BUILD_TESTS OFF CACHE BOOL "Disable Tint tests" FORCE)
 set(DAWN_USE_WAYLAND ON CACHE BOOL "Enable Wayland support" FORCE)
 set(DAWN_USE_X11 ON CACHE BOOL "Enable X11 support" FORCE)
 
-add_subdirectory(thirdparty/dawn EXCLUDE_FROM_ALL)
+add_subdirectory(thirdparty/dawn EXCLUDE_FROM_ALL SYSTEM)
 
 # --- spdlog
 set(SPDLOG_BUILD_SHARED OFF CACHE BOOL "Build as shared library" FORCE)
@@ -138,7 +142,7 @@ set(SPDLOG_BUILD_EXAMPLES OFF CACHE BOOL "Disable examples" FORCE)
 set(SPDLOG_INSTALL OFF CACHE BOOL "Disable install target" FORCE)
 set(SPDLOG_HEADER_ONLY OFF CACHE BOOL "Disable header-only mode" FORCE)
 
-add_subdirectory(thirdparty/spdlog)
+add_subdirectory(thirdparty/spdlog EXCLUDE_FROM_ALL SYSTEM)
 
 # --- imgui
 add_library(imgui STATIC

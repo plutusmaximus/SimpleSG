@@ -27,7 +27,7 @@ PerfAggregator::PerfAggregator(const PerfCounter* counter)
     : m_Counter(counter)
 {
     m_Stats.m_Name = counter->GetName();
-};
+}
 
 void
 PerfAggregator::Sample()
@@ -52,10 +52,10 @@ PerfAggregator::Sample()
 PerfTimerStats::PerfTimerStats(const PerfStats& stats)
 {
     m_Name = stats.GetName();
-    m_LastValue = stats.GetLastValue() / static_cast<double>(GetPerfFrequency());
-    m_MinValue = stats.GetMinValue() / static_cast<double>(GetPerfFrequency());
-    m_MaxValue = stats.GetMaxValue() / static_cast<double>(GetPerfFrequency());
-    m_EMA = stats.GetEMA() / static_cast<double>(GetPerfFrequency());
+    m_LastValue = static_cast<double>(stats.GetLastValue()) / static_cast<double>(GetPerfFrequency());
+    m_MinValue = static_cast<double>(stats.GetMinValue()) / static_cast<double>(GetPerfFrequency());
+    m_MaxValue = static_cast<double>(stats.GetMaxValue()) / static_cast<double>(GetPerfFrequency());
+    m_EMA = static_cast<double>(stats.GetEMA()) / static_cast<double>(GetPerfFrequency());
 }
 
 PerfCounter::PerfCounter(const std::string& name)

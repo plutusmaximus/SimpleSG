@@ -23,7 +23,7 @@ Stopwatch::Mark()
     const auto curTime = SDL_GetPerformanceCounter();
     const auto ticks = curTime - m_LastTime;
     m_LastTime = curTime;
-    return ticks / static_cast<float>(GetFrequency());
+    return static_cast<float>(ticks) / static_cast<float>(GetFrequency());
 }
 
 float
@@ -31,5 +31,5 @@ Stopwatch::ElapsedSeconds() const
 {
     const auto curTime = SDL_GetPerformanceCounter();
     const auto ticks = curTime - m_LastTime;
-    return ticks / static_cast<float>(GetFrequency());
+    return static_cast<float>(ticks) / static_cast<float>(GetFrequency());
 }

@@ -15,14 +15,14 @@ Compositor::BeginFrame()
     m_CommandEncoder = WebgpuHelper::GetDevice().CreateCommandEncoder(&encoderDesc);
     MLG_CHECK(m_CommandEncoder, "Failed to create command encoder");
 
-#if !OFFSCREEN_RENDERING
+#if !defined(OFFSCREEN_RENDERING) || !OFFSCREEN_RENDERING
     wgpu::SurfaceTexture backbuffer;
     WebgpuHelper::GetSurface().GetCurrentTexture(&backbuffer);
     MLG_CHECK(backbuffer.texture, "Failed to get current surface texture for render pass");
 
     // TODO - handle SuccessSuboptimal, Timeout, Outdated, Lost, Error statuses
     MLG_CHECK(backbuffer.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal,
-        std::format("Backbuffer status: {}", (int)backbuffer.status));
+        std::format("Backbuffer status: {}", backbuffer.status));
 
     m_Target = backbuffer.texture;
     MLG_CHECK(m_Target, "Failed to create texture view for swapchain texture");

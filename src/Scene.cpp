@@ -195,8 +195,8 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const P
             ShaderInterop::MeshProperties meshProps//
             {
                 .Radius = boundingSphere.GetRadius(),
-                .TransformIndex{ transformIndex },
-                .MaterialIndex{ meshSrc.MaterialIndex.Value() },
+                .TransformIndex = transformIndex,
+                .MaterialIndex = meshSrc.MaterialIndex.Value(),
             };
 
             meshProperties.emplace_back(meshProps);
@@ -357,8 +357,7 @@ Scene::Create(const Level& level, const PropKit& propKit, Scene& outScene)
     auto transformPipelineBindGroup0 = CreateTransformPipelineBindGroup0(transformPipelineResources);
     MLG_CHECK(transformPipelineBindGroup0);
 
-    Scene scene(&propKit,
-        *transformBuffer,
+    Scene scene(*transformBuffer,
         *drawIndirectBuffer,
         *meshPropertiesBuffer,
         *cameraParamsBuf,
@@ -375,8 +374,7 @@ Scene::Create(const Level& level, const PropKit& propKit, Scene& outScene)
     return Result<>::Ok;
 }
 
-Scene::Scene(const PropKit* propKit,
-    WorldTransformBuffer worldTransformBuffer,
+Scene::Scene(WorldTransformBuffer worldTransformBuffer,
     DrawIndirectBuffer drawIndirectBuffer,
     MeshPropertiesBuffer meshPropertiesBuffer,
     CameraParamsBuffer cameraParamsBuffer,
@@ -385,8 +383,7 @@ Scene::Scene(const PropKit* propKit,
     std::vector<ModelInstance>&& modelInstances,
     std::vector<ShaderInterop::WorldTransform>&& worldTransforms,
     std::vector<Level::NodeHandle>&& nodeHandles)
-    : m_PropKit(propKit),
-      m_WorldTransformBuffer(worldTransformBuffer),
+    : m_WorldTransformBuffer(worldTransformBuffer),
       m_DrawIndirectBuffer(drawIndirectBuffer),
       m_MeshPropertiesBuffer(meshPropertiesBuffer),
       m_CameraParamsBuffer(cameraParamsBuffer),

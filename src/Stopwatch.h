@@ -16,5 +16,5 @@ public:
 
 private:
 
-    std::int64_t m_LastTime;
+    std::uint64_t m_LastTime;
 };

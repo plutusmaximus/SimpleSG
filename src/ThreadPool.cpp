@@ -207,14 +207,7 @@ ThreadPool::WorkerLoop()
 
         lock.unlock();
 
-        try
-        {
-            job->Invoke();
-        }
-        catch(...)
-        {
-            // Swallow exceptions to keep worker thread alive.
-        }
+        job->Invoke();
 
         DeleteJob(job);
     }

@@ -268,15 +268,13 @@ public:
     bool IsVisible(const NodeHandle& handle) const;
 
 private:
-    Level(
-        const PropKit* propKit, std::vector<Node>&& nodes, std::vector<char>&& stringStorage);
+    Level(std::vector<Node>&& nodes, std::vector<char>&& stringStorage);
 
     // Returns true if the node handle refers to a node within the level.
     bool IsInLevel(const NodeHandle& handle) const;
 
     void UpdateWorldTransforms(std::span<Node> nodes);
 
-    const PropKit* m_PropKit{ nullptr };
     std::vector<Node> m_Nodes;
     std::vector<NodeHandle> m_NodeHandles;
     size_t m_RootNodeCount{ 0 };

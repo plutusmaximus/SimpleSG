@@ -67,8 +67,7 @@ public:
 
 private:
 
-    Scene(const PropKit* propKit,
-        WorldTransformBuffer worldTransformBuffer,
+    Scene(WorldTransformBuffer worldTransformBuffer,
         DrawIndirectBuffer drawIndirectBuffer,
         MeshPropertiesBuffer meshPropertiesBuffer,
         CameraParamsBuffer cameraParamsBuffer,
@@ -78,7 +77,6 @@ private:
         std::vector<ShaderInterop::WorldTransform>&& worldTransforms,
         std::vector<Level::NodeHandle>&& nodeHandles);
 
-    const PropKit* m_PropKit;
     WorldTransformBuffer m_WorldTransformBuffer;
     DrawIndirectBuffer m_DrawIndirectBuffer;
     MeshPropertiesBuffer m_MeshPropertiesBuffer;

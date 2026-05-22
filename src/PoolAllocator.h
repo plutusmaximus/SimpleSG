@@ -3,7 +3,7 @@
 #include "AssertHelper.h"
 
 #include <cstddef>
-#include <memory>
+#include <cstring>
 #include <new>
 #include <type_traits>
 #include <utility>
@@ -79,7 +79,7 @@ public:
         --m_AllocatedCount;
 
 #if !defined(NDEBUG)
-        ::memset(chunk->Storage, 0xFE, sizeof(chunk->Storage));
+        std::memset(chunk->Storage, 0xFE, sizeof(chunk->Storage));
 #endif
         chunk->Next = m_FreeList;
         m_FreeList = chunk;

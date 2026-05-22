@@ -1,5 +1,6 @@
 #include "EcsChildTransformPool.h"
 
+template<>
 bool
 EcsComponentPool<ChildTransform>::Add(const EntityId eid, const ChildTransform& child)
 {
@@ -60,6 +61,7 @@ EcsComponentPool<ChildTransform>::Add(const EntityId eid, const ChildTransform& 
     return true;
 }
 
+template<>
 void
 EcsComponentPool<ChildTransform>::Remove(const EntityId eid)
 {
@@ -73,7 +75,7 @@ EcsComponentPool<ChildTransform>::Remove(const EntityId eid)
     auto subAssemblyBounds = [this](this auto self, const EntityId parentId) -> IndexType
     {
         const IndexType parentIdx = IndexOf(parentId);
-        MLG_ASSERT(parentIdx != -1, "Parent ID not found");
+        MLG_ASSERT(parentIdx != InvalidIndex, "Parent ID not found");
 
         const size_t endIdx = this->size();
         IndexType childIdx = parentIdx + 1;

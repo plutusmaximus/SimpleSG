@@ -185,7 +185,7 @@ static Result<> MainLoop()
 
 #if !defined(__EMSCRIPTEN__)
 
-#if !OFFSCREEN_RENDERING
+#if !defined(OFFSCREEN_RENDERING) || !OFFSCREEN_RENDERING
         MLG_CHECK(WebgpuHelper::GetSurface().Present(), "Failed to present backbuffer");
 #endif
 

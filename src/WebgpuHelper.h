@@ -91,30 +91,10 @@ public:
     size_t Count() const { return BufferSize() / sizeof(T); }
 
     // Stores a single value at the given index.
-    void Store(std::size_t index, const T& value)
-    {
-        const size_t offset = index * sizeof(T);
-
-        MLG_ASSERT(offset < BufferSize(), "Index out of bounds");
-
-        WebgpuHelper::GetDevice().GetQueue().WriteBuffer(GetGpuBuffer(),
-            offset,
-            reinterpret_cast<const std::byte*>(&value),
-            sizeof(T));
-    }
+    void Store(std::size_t index, const T& value);
 
     // Stores an array of values starting at the given index.
-    void Store(std::size_t index, std::span<const T> values)
-    {
-        const size_t offset = index * sizeof(T);
-
-        MLG_ASSERT((offset + values.size() * sizeof(T)) <= BufferSize(), "Index out of bounds");
-
-        WebgpuHelper::GetDevice().GetQueue().WriteBuffer(GetGpuBuffer(),
-            offset,
-            reinterpret_cast<const std::byte*>(values.data()),
-            values.size() * sizeof(T));
-    }
+    void Store(std::size_t index, std::span<const T> values);
 
 private:
     friend class WebgpuHelper;
@@ -277,3 +257,31 @@ private:
     static Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string_view& name);
     static Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string_view& name);
 };
+
+template<typename T>
+inline void
+SemanticGpuBuffer<T>::Store(std::size_t index, const T& value)
+{
+    const size_t offset = index * sizeof(T);
+
+    MLG_ASSERT(offset < BufferSize(), "Index out of bounds");
+
+    WebgpuHelper::GetDevice().GetQueue().WriteBuffer(GetGpuBuffer(),
+        offset,
+        reinterpret_cast<const std::byte*>(&value),
+        sizeof(T));
+}
+
+template<typename T>
+inline void
+SemanticGpuBuffer<T>::Store(std::size_t index, std::span<const T> values)
+{
+    const size_t offset = index * sizeof(T);
+
+    MLG_ASSERT((offset + values.size() * sizeof(T)) <= BufferSize(), "Index out of bounds");
+
+    WebgpuHelper::GetDevice().GetQueue().WriteBuffer(GetGpuBuffer(),
+        offset,
+        reinterpret_cast<const std::byte*>(values.data()),
+        values.size() * sizeof(T));
+}

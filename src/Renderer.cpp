@@ -713,7 +713,7 @@ Renderer::CreateShader(const char* path)
 
     wgpu::StringView shaderCodeView{ reinterpret_cast<const char*>(shaderCode.data()),
         shaderCode.size() };
-    wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCodeView } };
+    wgpu::ShaderSourceWGSL wgsl{ { .nextInChain = nullptr, .code = shaderCodeView } };
     wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl, .label = path };
 
     wgpu::ShaderModule shaderModule =

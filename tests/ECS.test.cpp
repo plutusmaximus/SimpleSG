@@ -14,18 +14,18 @@ namespace
     std::uniform_real_distribution<float> RandomFloat(0, 10000);
     const std::string CharSet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
     std::uniform_int_distribution<> CharDist(0, static_cast<int>(CharSet.size()) - 1);
-    std::uniform_int_distribution<> StringLenDist(5, 20);
+    std::uniform_int_distribution<size_t> StringLenDist(5, 20);
 
     /// @brief Generates a random string.
     template<typename Generator>
     std::string RandomString(Generator& rng)
     {
-        const int length = StringLenDist(rng);
+        const size_t length = StringLenDist(rng);
         std::string result;
         result.reserve(length);
         for (size_t i = 0; i < length; ++i)
         {
-            result += CharSet[CharDist(rng)];
+            result += CharSet[static_cast<size_t>(CharDist(rng))];
         }
         return result;
     }
@@ -412,21 +412,21 @@ namespace
         EcsComponentPool<ComponentA> pool;
 
         std::vector<EntityId> eids;
-        constexpr int COUNT = 10000;
+        constexpr size_t COUNT = 10000;
 
-        for (int i = 0; i < COUNT; ++i)
+        for (size_t i = 0; i < COUNT; ++i)
         {
             const auto eid = reg.CreateId();
             eids.push_back(eid);
-            pool.Add(eid, ComponentA{ i });
+            pool.Add(eid, ComponentA{ static_cast<int>(i) });
         }
 
         EXPECT_EQ(pool.size(), COUNT);
 
-        for (int i = 0; i < COUNT; ++i)
+        for (size_t i = 0; i < COUNT; ++i)
         {
             auto& comp = pool[eids[i]];
-            EXPECT_EQ(comp.a, i);
+            EXPECT_EQ(comp.a, static_cast<int>(i));
         }
     }
 
@@ -489,11 +489,11 @@ namespace
         EcsComponentPool<ComponentA> pool;
 
         std::vector<EntityId> eids;
-        for (int i = 0; i < 5; ++i)
+        for (size_t i = 0; i < 5; ++i)
         {
             const auto eid = reg.CreateId();
             eids.push_back(eid);
-            pool.Add(eid, ComponentA{ i * 10 });
+            pool.Add(eid, ComponentA{ static_cast<int>(i * 10) });
         }
 
         pool.Remove(eids[2]);
@@ -501,7 +501,7 @@ namespace
         EXPECT_FALSE(pool.Has(eids[2]));
         EXPECT_EQ(pool.size(), 4);
 
-        for (int i = 0; i < 5; ++i)
+        for (size_t i = 0; i < 5; ++i)
         {
             if (i != 2)
             {
@@ -612,9 +612,9 @@ namespace
         EcsComponentPool<ComponentC> pool;
 
         std::vector<EntityId> eids;
-        constexpr int COUNT = 1000;
+        constexpr size_t COUNT = 1000;
 
-        for (int i = 0; i < COUNT; ++i)
+        for (size_t i = 0; i < COUNT; ++i)
         {
             const auto eid = reg.CreateId();
             eids.push_back(eid);
@@ -623,12 +623,12 @@ namespace
                 static_cast<float>(i),
                 static_cast<float>(i),
                 static_cast<float>(i),
-                std::to_string(i), i
+                std::to_string(i), static_cast<int>(i)
             });
         }
 
         // Remove every other one
-        for (int i = 0; i < COUNT; i += 2)
+        for (size_t i = 0; i < COUNT; i += 2)
         {
             pool.Remove(eids[i]);
         }
@@ -636,14 +636,14 @@ namespace
         EXPECT_EQ(pool.size(), COUNT / 2);
 
         // Verify remaining entities
-        for (int i = 1; i < COUNT; i += 2)
+        for (size_t i = 1; i < COUNT; i += 2)
         {
             auto& comp = pool[eids[i]];
-            EXPECT_EQ(comp.n, i);
+            EXPECT_EQ(comp.n, static_cast<int>(i));
         }
 
         // Verify removed entities
-        for (int i = 0; i < COUNT; i += 2)
+        for (size_t i = 0; i < COUNT; i += 2)
         {
             EXPECT_FALSE(pool.Has(eids[i]));
         }
@@ -712,8 +712,8 @@ namespace
         std::set<EntityId> unique1(eids1.begin(), eids1.end());
         std::set<EntityId> unique2(eids2.begin(), eids2.end());
 
-        auto eid1Values = std::set<int>();
-        auto eid2Values = std::set<int>();
+        auto eid1Values = std::set<EntityId::ValueType>();
+        auto eid2Values = std::set<EntityId::ValueType>();
         for (const auto& eid : unique1)
         {
             eid1Values.insert(eid.Value());
@@ -1289,7 +1289,7 @@ namespace
         reg.Add<ComponentB>(eid2, RandomValue<ComponentB>());
 
         int countBefore = 0;
-        for (auto row : reg.GetView<ComponentA, ComponentB>())
+        for ([[maybe_unused]] auto row : reg.GetView<ComponentA, ComponentB>())
         {
             countBefore++;
         }
@@ -1298,7 +1298,7 @@ namespace
         reg.Remove<ComponentB>(eid1);
 
         int countAfter = 0;
-        for (auto row : reg.GetView<ComponentA, ComponentB>())
+        for ([[maybe_unused]] auto row : reg.GetView<ComponentA, ComponentB>())
         {
             countAfter++;
         }
@@ -1310,15 +1310,15 @@ namespace
     {
         EcsRegistry reg;
 
-        constexpr int NUM_ENTITIES = 1000;
+        constexpr size_t NUM_ENTITIES = 1000;
         std::vector<EntityId> eids;
 
-        for (int i = 0; i < NUM_ENTITIES; ++i)
+        for (size_t i = 0; i < NUM_ENTITIES; ++i)
         {
             auto eid = reg.CreateId();
             eids.push_back(eid);
 
-            reg.Add<ComponentA>(eid, ComponentA{ i });
+            reg.Add<ComponentA>(eid, ComponentA{ static_cast<int>(i) });
             reg.Add<ComponentB>(eid, RandomValue<ComponentB>());
             if (i % 2 == 0)
             {
@@ -1347,12 +1347,12 @@ namespace
         }
         EXPECT_EQ(countWithC, NUM_ENTITIES / 2);
 
-        for (int i = 0; i < NUM_ENTITIES; i += 2)
+        for (size_t i = 0; i < NUM_ENTITIES; i += 2)
         {
             reg.Remove<ComponentB>(eids[i]);
         }
 
-        for (int i = 0; i < NUM_ENTITIES; ++i)
+        for (size_t i = 0; i < NUM_ENTITIES; ++i)
         {
             EXPECT_FALSE(reg.Has<ComponentA>(eids[i]));
             if (i % 2 == 0)
@@ -1382,7 +1382,7 @@ namespace
 
         // View for ComponentB should return nothing
         int count = 0;
-        for (auto row : reg.GetView<ComponentB>())
+        for ([[maybe_unused]] auto row : reg.GetView<ComponentB>())
         {
             count++;
         }
@@ -1611,9 +1611,9 @@ namespace
         // View and verify
         int countA = 0, countAB = 0, countABC = 0;
 
-        for (auto row : reg.GetView<ComponentA>()) { countA++; }
-        for (auto row : reg.GetView<ComponentA, ComponentB>()) { countAB++; }
-        for (auto row : reg.GetView<ComponentA, ComponentB, ComponentC>()) { countABC++; }
+        for ([[maybe_unused]] auto row : reg.GetView<ComponentA>()) { countA++; }
+        for ([[maybe_unused]] auto row : reg.GetView<ComponentA, ComponentB>()) { countAB++; }
+        for ([[maybe_unused]] auto row : reg.GetView<ComponentA, ComponentB, ComponentC>()) { countABC++; }
 
         EXPECT_EQ(countA, NUM_ENTITIES);
         EXPECT_EQ(countAB, NUM_ENTITIES / 2);
@@ -1630,28 +1630,28 @@ namespace
             std::vector<EntityId> eids;
 
             // Create entities
-            for (int i = 0; i < 100; ++i)
+            for (size_t i = 0; i < 100; ++i)
             {
                 auto eid = reg.CreateId();
                 eids.push_back(eid);
-                reg.Add<ComponentA>(eid, ComponentA{ i });
+                reg.Add<ComponentA>(eid, ComponentA{ static_cast<int>(i) });
             }
 
             // Destroy half
-            for (int i = 0; i < 50; ++i)
+            for (size_t i = 0; i < 50; ++i)
             {
                 reg.Destroy(eids[i]);
             }
 
             // Verify remaining
-            for (int i = 50; i < 100; ++i)
+            for (size_t i = 50; i < 100; ++i)
             {
                 EXPECT_TRUE(reg.IsAlive(eids[i]));
                 EXPECT_TRUE(reg.Has<ComponentA>(eids[i]));
             }
 
             // Verify destroyed
-            for (int i = 0; i < 50; ++i)
+            for (size_t i = 0; i < 50; ++i)
             {
                 EXPECT_FALSE(reg.IsAlive(eids[i]));
             }
@@ -1663,26 +1663,26 @@ namespace
     {
         EcsRegistry reg;
 
-        constexpr int NUM_ENTITIES = 1000;
+        constexpr size_t NUM_ENTITIES = 1000;
 
         // Create entities with all component types
         std::vector<EntityId> eids;
-        for (int i = 0; i < NUM_ENTITIES; ++i)
+        for (size_t i = 0; i < NUM_ENTITIES; ++i)
         {
             auto eid = reg.CreateId();
             eids.push_back(eid);
 
-            reg.Add<ComponentA>(eid, ComponentA{ i });
+            reg.Add<ComponentA>(eid, ComponentA{ static_cast<int>(i) });
             reg.Add<ComponentB>(eid, ComponentB{ static_cast<float>(i), static_cast<float>(i), static_cast<float>(i) });
             reg.Add<ComponentC>(eid, RandomValue<ComponentC>());
             reg.Add<ComponentD>(eid, RandomValue<ComponentD>());
         }
 
         // Verify pools don't interfere
-        for (int i = 0; i < NUM_ENTITIES; ++i)
+        for (size_t i = 0; i < NUM_ENTITIES; ++i)
         {
             auto& compA = reg.Get<ComponentA>(eids[i]);
-            EXPECT_EQ(compA.a, i);
+            EXPECT_EQ(compA.a, static_cast<int>(i));
 
             auto& compB = reg.Get<ComponentB>(eids[i]);
             EXPECT_EQ(compB.x, static_cast<float>(i));

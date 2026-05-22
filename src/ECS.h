@@ -8,6 +8,7 @@
 #include <format>
 #include <tuple>
 #include <typeindex>
+#include <memory>
 #include <unordered_map>
 
 /// @brief An entity identifier.
@@ -316,9 +317,9 @@ public:
         template<Cs...>
         std::tuple<EntityId, Cs&...> MakeRefTuple(std::tuple<EntityId, Cs*...> ptrs)
         {
-            return std::apply([](EntityId eid, Cs*... ptrs)
+            return std::apply([](EntityId eid, Cs*... ptrArgs)
             {
-                return std::tuple<EntityId, Cs&...>{ eid, *ptrs... };
+                return std::tuple<EntityId, Cs&...>{ eid, *ptrArgs... };
             }, ptrs);
         }
 
@@ -586,6 +587,22 @@ public:
 
 private:
 
+
+    using TypeId = const void*;
+
+    template<class T>
+    struct TypeTag
+    {
+        inline static const char id {};
+    };
+
+    template<class T>
+    static TypeId GetTypeId() noexcept
+    {
+        using U = std::remove_cvref_t<T>;
+        return &TypeTag<U>::id;
+    }
+
     // Helper to populate pools tuple and verify presence of all component types (non-const version).
     template<typename... Cs>
     bool EnsureEntityHasComponents(const EntityId eid, std::tuple<EcsComponentPool<Cs>*...>& pools)
@@ -606,7 +623,7 @@ private:
     template<typename C>
     EcsComponentPool<C>* TryGetPool()
     {
-        auto tid = std::type_index(typeid(C));
+        auto tid = GetTypeId<C>();
         auto it = m_Pools.find(tid);
         return (it != m_Pools.end()) ? static_cast<EcsComponentPool<C>*>(it->second.get()) : nullptr;
     }
@@ -615,7 +632,7 @@ private:
     template<typename C>
     const EcsComponentPool<C>* TryGetPool() const
     {
-        auto tid = std::type_index(typeid(C));
+        auto tid = GetTypeId<C>();
         auto it = m_Pools.find(tid);
         return (it != m_Pools.end()) ? static_cast<const EcsComponentPool<C>*>(it->second.get()) : nullptr;
     }
@@ -640,7 +657,7 @@ private:
     template<typename C>
     EcsComponentPool<C>& Pool()
     {
-        auto tid = std::type_index(typeid(C));
+        auto tid = GetTypeId<C>();
         auto it = m_Pools.find(tid);
         if (it == m_Pools.end())
         {
@@ -666,7 +683,7 @@ private:
     // Using uint8_t vector instead of bool vector to avoid potential issues with bool specialization.
     std::vector<uint8_t> m_IsAlive;
 
-    std::unordered_map<std::type_index, std::unique_ptr<IEcsPool>> m_Pools;
+    std::unordered_map<TypeId, std::unique_ptr<IEcsPool>> m_Pools;
 
     EntityId::ValueType m_NextId{ 0 };
 };

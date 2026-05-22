@@ -26,9 +26,9 @@ namespace
 
     void ExpectMat44Near(const Mat44f& actual, const Mat44f& expected, float eps = EPS)
     {
-        for(int row = 0; row < 4; ++row)
+        for(size_t row = 0; row < 4; ++row)
         {
-            for(int col = 0; col < 4; ++col)
+            for(size_t col = 0; col < 4; ++col)
             {
                 EXPECT_NEAR(actual[row][col], expected[row][col], eps);
             }

@@ -66,7 +66,7 @@ namespace
 
         const EntityId nodeId = idGen.NextId();
         auto xform = RandomTrsTransform();
-        pool.Add(nodeId, ChildTransform{ .LocalTransform = xform });
+        pool.Add(nodeId, ChildTransform{ .ParentId{}, .LocalTransform = xform });
 
         auto& node = pool[nodeId];
         // Validate LocalTransform default scale instead of removed Id member
@@ -96,7 +96,7 @@ namespace
 
         const EntityId nodeId = idGen.NextId();
         auto xform = RandomTrsTransform();
-        pool.Add(nodeId, ChildTransform{ .LocalTransform = xform });
+        pool.Add(nodeId, ChildTransform{ .ParentId{}, .LocalTransform = xform });
 
         const EcsComponentPool<ChildTransform>& constpool = pool;
         const ChildTransform& node = constpool[nodeId];
@@ -141,9 +141,9 @@ namespace
             RandomTrsTransform()
         };
 
-        pool.Add(id1, ChildTransform{ .LocalTransform = localTransforms[0] });
-        pool.Add(id2, ChildTransform{ .LocalTransform = localTransforms[1] });
-        pool.Add(id3, ChildTransform{ .LocalTransform = localTransforms[2] });
+        pool.Add(id1, ChildTransform{ .ParentId{}, .LocalTransform = localTransforms[0] });
+        pool.Add(id2, ChildTransform{ .ParentId{}, .LocalTransform = localTransforms[1] });
+        pool.Add(id3, ChildTransform{ .ParentId{}, .LocalTransform = localTransforms[2] });
         EXPECT_EQ(pool.size(), 3);
         EXPECT_TRUE(pool.Has(id1));
         EXPECT_TRUE(pool.Has(id2));
@@ -176,8 +176,8 @@ namespace
             RandomTrsTransform()
         };
 
-        pool.Add(parentId, ChildTransform{ .LocalTransform = localTransforms[0] });
-        pool.Add(childId, ChildTransform{ parentId, localTransforms[1] });
+        pool.Add(parentId, ChildTransform{ .ParentId{}, .LocalTransform = localTransforms[0] });
+        pool.Add(childId, ChildTransform{ .ParentId = parentId, .LocalTransform = localTransforms[1] });
 
         EXPECT_EQ(pool.size(), 2);
         EXPECT_TRUE(pool.Has(parentId));
@@ -216,10 +216,10 @@ namespace
             RandomTrsTransform()
         };
 
-        pool.Add(parentId, ChildTransform{ .LocalTransform = localTransforms[0] });
-        pool.Add(child1, ChildTransform{ parentId, localTransforms[1] });
-        pool.Add(child2, ChildTransform{ parentId, localTransforms[2] });
-        pool.Add(child3, ChildTransform{ parentId, localTransforms[3] });
+        pool.Add(parentId, ChildTransform{ .ParentId{}, .LocalTransform = localTransforms[0] });
+        pool.Add(child1, ChildTransform{ .ParentId = parentId, .LocalTransform = localTransforms[1] });
+        pool.Add(child2, ChildTransform{ .ParentId = parentId, .LocalTransform = localTransforms[2] });
+        pool.Add(child3, ChildTransform{ .ParentId = parentId, .LocalTransform = localTransforms[3] });
 
         EXPECT_EQ(pool.size(), 4);
 
@@ -239,9 +239,9 @@ namespace
 
         ChildTransform* ptrs[std::size(ids)];
 
-        for(int i = 0; i < std::size(ptrs); ++i)
+        for(size_t i = 0; i < std::size(ptrs); ++i)
         {
-            auto [eid, node] = pool[i];
+            auto [eid, node] = pool[static_cast<IndexType>(i)];
             EXPECT_EQ(eid, ids[i]);
             ptrs[i] = &node;
         }

@@ -22,7 +22,7 @@ static uint32_t
 GetTextureAlignedRowStride(const uint32_t textureWidth)
 {
     const uint32_t rowStride = textureWidth * kNumTextureChannels;
-    const uint32_t alignedRowStride = (rowStride + 255) & ~255;
+    const uint32_t alignedRowStride = (rowStride + 255u) & ~255u;
     return alignedRowStride;
 }
 
@@ -30,7 +30,7 @@ namespace
 {
 struct WgpuContext
 {
-    SDL_Window* Window;
+    SDL_Window* Window{nullptr};
     wgpu::Instance Instance;
     wgpu::Adapter Adapter;
     wgpu::Device Device;
@@ -38,9 +38,9 @@ struct WgpuContext
     wgpu::TextureFormat SurfaceFormat;
     wgpu::Sampler DefaultSampler;
 
-    std::array<wgpu::BindGroupLayout, 2> ColorPipelineLayouts;
-    std::array<wgpu::BindGroupLayout, 1> TransformPipelineLayouts;
-    std::array<wgpu::BindGroupLayout, 1> CompositorPipelineLayouts;
+    std::array<wgpu::BindGroupLayout, 2> ColorPipelineLayouts{};
+    std::array<wgpu::BindGroupLayout, 1> TransformPipelineLayouts{};
+    std::array<wgpu::BindGroupLayout, 1> CompositorPipelineLayouts{};
 };
 } // namespace
 
@@ -83,8 +83,6 @@ CreateInstance()
 static Result<wgpu::Adapter>
 CreateAdapter(wgpu::Instance instance)
 {
-    static const auto kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
-
     Result<wgpu::Adapter> result;
 
     auto rqstAdapterCb = [&result](wgpu::RequestAdapterStatus status,
@@ -193,6 +191,7 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
         {
             {
                 //.nextInChain = &toggles,
+                .nextInChain = nullptr,
                 .label = "MainDevice",
                 .requiredFeatureCount = std::size(requiredFeatures),
                 .requiredFeatures = requiredFeatures,
@@ -299,10 +298,12 @@ static Result<wgpu::Surface>
 CreateSurface(wgpu::Instance instance, SDL_Window* window)
 {
     SDL_PropertiesID props = SDL_GetWindowProperties(window);
-    void* hwnd = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
-
     WGPUSurfaceDescriptor surface_descriptor = {};
     WGPUSurface rawSurface = {};
+    wgpu::Surface surface;
+
+#if defined(_WIN32)
+    void* hwnd = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
 
     WGPUSurfaceSourceWindowsHWND surface_src_hwnd = {};
     surface_src_hwnd.chain.sType = WGPUSType_SurfaceSourceWindowsHWND;
@@ -310,10 +311,43 @@ CreateSurface(wgpu::Instance instance, SDL_Window* window)
     surface_src_hwnd.hwnd = hwnd;
     surface_descriptor.nextInChain = &surface_src_hwnd.chain;
     rawSurface = wgpuInstanceCreateSurface(instance.Get(), &surface_descriptor);
+    surface = wgpu::Surface::Acquire(rawSurface);
 
-    wgpu::Surface surface = wgpu::Surface::Acquire(rawSurface);
+#elif defined(__linux__)
+    const char* sdl_driver = SDL_GetCurrentVideoDriver();
+    if (sdl_driver && strcmp(sdl_driver, "wayland") == 0)
+    {
+        WGPUSurfaceSourceWaylandSurface surface_src_wayland = {};
+        surface_src_wayland.chain.sType = WGPUSType_SurfaceSourceWaylandSurface;
+        surface_src_wayland.display =
+            SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, NULL);
+        surface_src_wayland.surface =
+            SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, NULL);
+        surface_descriptor.nextInChain = &surface_src_wayland.chain;
+        rawSurface = wgpuInstanceCreateSurface(instance.Get(), &surface_descriptor);
+        surface = wgpu::Surface::Acquire(rawSurface);
+    }
+    else if (sdl_driver && strcmp(sdl_driver, "x11") == 0)
+    {
+        WGPUSurfaceSourceXlibWindow surface_src_xlib = {};
+        surface_src_xlib.chain.sType = WGPUSType_SurfaceSourceXlibWindow;
+        surface_src_xlib.display = 
+            SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, NULL);
+        Sint64 windowNumber = SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, NULL);
+        surface_src_xlib.window = static_cast<uint64_t>(windowNumber);
+        surface_descriptor.nextInChain = &surface_src_xlib.chain;
+        rawSurface = wgpuInstanceCreateSurface(instance.Get(), &surface_descriptor);
+        surface = wgpu::Surface::Acquire(rawSurface);
+    }
+    else
+    {
+        MLG_ERROR("Unsupported SDL video driver: {}", sdl_driver ? sdl_driver : "unknown");
+    }
+#else
+    MLG_ERROR("Unsupported platform for surface creation");
+#endif
 
-    MLG_CHECK(surface, "Failed to create WGPUSurface from SDL window");
+    MLG_CHECK(rawSurface, "Failed to create WGPUSurface from SDL window");
 
     return surface;
 }
@@ -415,12 +449,13 @@ WebgpuHelper::Startup(const char* appName)
             .Device = std::move(*device),
             .Surface = std::move(*surfaceResult),
             .SurfaceFormat = *surfaceFormat,
+            .DefaultSampler{},
         };
 
     cleanup.release();
 
     return Result<>::Ok;
-};
+}
 
 void
 WebgpuHelper::Shutdown()
@@ -921,16 +956,16 @@ Texture::MapBytes()
 
     Result<> result;
 
-    auto cb = [](wgpu::MapAsyncStatus status, wgpu::StringView message, Result<>* result)
+    auto cb = [](wgpu::MapAsyncStatus status, wgpu::StringView message, Result<>* outResult)
     {
         if(status != wgpu::MapAsyncStatus::Success)
         {
             MLG_ERROR("MapAsync failed: {}", std::string(message.data, message.length));
-            *result = Result<>::Fail;
+            *outResult = Result<>::Fail;
         }
         else
         {
-            *result = Result<>::Ok;
+            *outResult = Result<>::Ok;
         }
     };
 

@@ -23,8 +23,10 @@ public:
 /// The new node is inserted immediately after its parent and any existing children.
 /// This maintains a depth-first ordering of the hierarchy.
 /// Child nodes appear in the collection in reverse order of addition.
+template<>
 bool EcsComponentPool<ChildTransform>::Add(const EntityId eid, const ChildTransform& child);
 
 /// @brief Specialized Remove method for ChildTransform to remove entire sub-assemblies.
 /// Removes the sub-assembly node with the given entity ID, along with all its children.
+template<>
 void EcsComponentPool<ChildTransform>::Remove(const EntityId eid);

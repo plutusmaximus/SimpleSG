@@ -221,8 +221,8 @@ public:
         : x(value), y(value)
     {
     }
-    constexpr Vec2(T x, T y) noexcept
-        : x(x), y(y)
+    constexpr Vec2(const T inX, const T inY) noexcept
+        : x(inX), y(inY)
     {
     }
 
@@ -374,13 +374,13 @@ public:
         : x(value), y(value), z(value)
     {
     }
-    constexpr Vec3(T x, T y, T z) noexcept
-        : x(x), y(y), z(z)
+    constexpr Vec3(const T inX, const T inY, const T inZ) noexcept
+        : x(inX), y(inY), z(inZ)
     {
     }
 
-    constexpr Vec3(const Vec2<T>& v, T z) noexcept
-        : x(v.x), y(v.y), z(z)
+    constexpr Vec3(const Vec2<T>& v, const T inZ) noexcept
+        : x(v.x), y(v.y), z(inZ)
     {
     }
 
@@ -552,18 +552,18 @@ public:
     {
     }
 
-    constexpr Vec4(T x, T y, T z, T w) noexcept
-        : x(x), y(y), z(z), w(w)
+    constexpr Vec4(const T inX, const T inY, const T inZ, const T inW) noexcept
+        : x(inX), y(inY), z(inZ), w(inW)
     {
     }
 
-    constexpr Vec4(const Vec2<T>& v, T z, T w) noexcept
-        : x(v.x), y(v.y), z(z), w(w)
+    constexpr Vec4(const Vec2<T>& v, const T inZ, const T inW) noexcept
+        : x(v.x), y(v.y), z(inZ), w(inW)
     {
     }
 
-    constexpr Vec4(const Vec3<T>& v, T w) noexcept
-        : x(v.x), y(v.y), z(v.z), w(w)
+    constexpr Vec4(const Vec3<T>& v, const T inW) noexcept
+        : x(v.x), y(v.y), z(v.z), w(inW)
     {
     }
 

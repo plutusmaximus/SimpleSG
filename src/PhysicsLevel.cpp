@@ -394,7 +394,9 @@ PhysicsLevel::FindAndResolveAllImpacts()
         }
     }
 
-    m_ImpactRecords.erase(m_ImpactRecords.begin() + dst, m_ImpactRecords.end());
+    std::vector<ImpactRecord>::iterator newEnd =
+        m_ImpactRecords.begin() + std::vector<ImpactRecord>::difference_type(dst);
+    m_ImpactRecords.erase(newEnd, m_ImpactRecords.end());
 
     // Sort impact records by time of impact, and resolve in that order.
     // This isn't actually correct, but better than resolving out of order.

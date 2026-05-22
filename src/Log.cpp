@@ -21,15 +21,19 @@ static void InitializeSinks()
 
     if (s_InitializeSinks.exchange(false))
     {
-        auto consoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-        auto msvcSink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
         mux_sink = std::make_shared<spdlog::sinks::dist_sink_mt>();
 
+        auto consoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
         mux_sink->add_sink(consoleSink);
-        mux_sink->add_sink(msvcSink);
-
         consoleSink->set_level(spdlog::level::debug);
+        
+#if defined(_MSC_VER)
+        // Logs to the Visual Studio output window when running under the debugger.
+        auto msvcSink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
+        mux_sink->add_sink(msvcSink);
         msvcSink->set_level(spdlog::level::debug);
+#endif
+
         mux_sink->set_level(spdlog::level::debug);
     }
 }

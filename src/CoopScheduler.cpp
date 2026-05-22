@@ -51,7 +51,7 @@ CoopScheduler::PushGroup(CoopTaskGroup* group)
 }
 
 void
-CoopScheduler::PopGroup(CoopTaskGroup* [[maybe_unused]] group)
+CoopScheduler::PopGroup([[maybe_unused]] CoopTaskGroup* group)
 {
     MLG_ASSERT(m_TaskGroups.top() == group, "Invalid state: group not at top of stack");
 

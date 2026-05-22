@@ -58,23 +58,28 @@ public:
 
         void SetComplete(RequestStatus status)
         {
+            MLG_ASSERT(false, "FileFetcher is not implemented on this platform");
             if(!IsPending())
             {
                 return;
             }
 
+#if defined(_WIN32)
             if(m_hFile)
             {
                 ::CancelIoEx(m_hFile, &m_Ov);
                 ::CloseHandle(m_hFile);
                 m_hFile = nullptr;
             }
+#endif
 
             m_Status = status;
         }
 
+#if defined(_WIN32)
         HANDLE m_hFile{nullptr};
         OVERLAPPED m_Ov{0};
+#endif
         RequestStatus m_Status{None};
     };
 

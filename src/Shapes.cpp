@@ -6,7 +6,10 @@
 #include <numbers>
 #include <unordered_map>
 
-static constexpr float M_PI = std::numbers::pi_v<float>;
+namespace
+{
+static constexpr float kPi = std::numbers::pi_v<float>;
+}
 
 Shapes::Geometry
 Shapes::Box(const float width, const float height, const float depth)
@@ -35,14 +38,14 @@ Shapes::Box(const float width, const float height, const float depth)
     // 4: (-x, -y, +z)  5: (+x, -y, +z)
     // 6: (+x, +y, +z)  7: (-x, +y, +z)
 
-    vertices.push_back({ { -hw, -hh, -hd }, { -invSqrt3, -invSqrt3, -invSqrt3 } });
-    vertices.push_back({ {  hw, -hh, -hd }, {  invSqrt3, -invSqrt3, -invSqrt3 } });
-    vertices.push_back({ {  hw,  hh, -hd }, {  invSqrt3,  invSqrt3, -invSqrt3 } });
-    vertices.push_back({ { -hw,  hh, -hd }, { -invSqrt3,  invSqrt3, -invSqrt3 } });
-    vertices.push_back({ { -hw, -hh,  hd }, { -invSqrt3, -invSqrt3,  invSqrt3 } });
-    vertices.push_back({ {  hw, -hh,  hd }, {  invSqrt3, -invSqrt3,  invSqrt3 } });
-    vertices.push_back({ {  hw,  hh,  hd }, {  invSqrt3,  invSqrt3,  invSqrt3 } });
-    vertices.push_back({ { -hw,  hh,  hd }, { -invSqrt3,  invSqrt3,  invSqrt3 } });
+    vertices.push_back({ { -hw, -hh, -hd }, { -invSqrt3, -invSqrt3, -invSqrt3 }, {} });
+    vertices.push_back({ {  hw, -hh, -hd }, {  invSqrt3, -invSqrt3, -invSqrt3 }, {} });
+    vertices.push_back({ {  hw,  hh, -hd }, {  invSqrt3,  invSqrt3, -invSqrt3 }, {} });
+    vertices.push_back({ { -hw,  hh, -hd }, { -invSqrt3,  invSqrt3, -invSqrt3 }, {} });
+    vertices.push_back({ { -hw, -hh,  hd }, { -invSqrt3, -invSqrt3,  invSqrt3 }, {} });
+    vertices.push_back({ {  hw, -hh,  hd }, {  invSqrt3, -invSqrt3,  invSqrt3 }, {} });
+    vertices.push_back({ {  hw,  hh,  hd }, {  invSqrt3,  invSqrt3,  invSqrt3 }, {} });
+    vertices.push_back({ { -hw,  hh,  hd }, { -invSqrt3,  invSqrt3,  invSqrt3 }, {} });
 
     // Front face (+Z) - clockwise from front
     indices.push_back(4); indices.push_back(5); indices.push_back(6);
@@ -82,14 +85,14 @@ Shapes::Ball(const float radius, const float smoothness)
 
     // Clamp smoothness to determine subdivision level
     const float s = std::max(1.0f, std::min(10.0f, smoothness));
-    const int subdivisions = static_cast<int>(s * 0.3f); // 0 to 3 subdivisions
+    const size_t subdivisions = static_cast<size_t>(s * 0.3f); // 0 to 3 subdivisions
 
     // Calculate exact final sizes with deduplication
     // With deduplication, vertices are shared between triangles
     // Formula: V = 10 * 4^n + 2 (for n subdivisions)
-    const int finalTriangles = 20 * (1 << (2 * subdivisions)); // 20 * 4^subdivisions
-    const int finalIndices = finalTriangles * 3;
-    const int totalVertices = subdivisions > 0 ? 10 * (1 << (2 * subdivisions)) + 2 : 12;
+    const size_t finalTriangles = 20 * (1 << (2 * subdivisions)); // 20 * 4^subdivisions
+    const size_t finalIndices = finalTriangles * 3;
+    const size_t totalVertices = subdivisions > 0 ? 10 * (1 << (2 * subdivisions)) + 2 : 12;
 
     vertices.reserve(totalVertices);
     indices.reserve(finalIndices);
@@ -101,18 +104,18 @@ Shapes::Ball(const float radius, const float smoothness)
     const float b = t / len;
 
     // 12 vertices of icosahedron
-    vertices.push_back({ { -a,  b,  0 }, { -a,  b,  0 } });
-    vertices.push_back({ {  a,  b,  0 }, {  a,  b,  0 } });
-    vertices.push_back({ { -a, -b,  0 }, { -a, -b,  0 } });
-    vertices.push_back({ {  a, -b,  0 }, {  a, -b,  0 } });
-    vertices.push_back({ {  0, -a,  b }, {  0, -a,  b } });
-    vertices.push_back({ {  0,  a,  b }, {  0,  a,  b } });
-    vertices.push_back({ {  0, -a, -b }, {  0, -a, -b } });
-    vertices.push_back({ {  0,  a, -b }, {  0,  a, -b } });
-    vertices.push_back({ {  b,  0, -a }, {  b,  0, -a } });
-    vertices.push_back({ {  b,  0,  a }, {  b,  0,  a } });
-    vertices.push_back({ { -b,  0, -a }, { -b,  0, -a } });
-    vertices.push_back({ { -b,  0,  a }, { -b,  0,  a } });
+    vertices.push_back({ { -a,  b,  0 }, { -a,  b,  0 }, {} });
+    vertices.push_back({ {  a,  b,  0 }, {  a,  b,  0 }, {} });
+    vertices.push_back({ { -a, -b,  0 }, { -a, -b,  0 }, {} });
+    vertices.push_back({ {  a, -b,  0 }, {  a, -b,  0 }, {} });
+    vertices.push_back({ {  0, -a,  b }, {  0, -a,  b }, {} });
+    vertices.push_back({ {  0,  a,  b }, {  0,  a,  b }, {} });
+    vertices.push_back({ {  0, -a, -b }, {  0, -a, -b }, {} });
+    vertices.push_back({ {  0,  a, -b }, {  0,  a, -b }, {} });
+    vertices.push_back({ {  b,  0, -a }, {  b,  0, -a }, {} });
+    vertices.push_back({ {  b,  0,  a }, {  b,  0,  a }, {} });
+    vertices.push_back({ { -b,  0, -a }, { -b,  0, -a }, {} });
+    vertices.push_back({ { -b,  0,  a }, { -b,  0,  a }, {} });
 
     // 20 faces of icosahedron (clockwise winding)
     const VertexIndex faces[][3] =
@@ -123,7 +126,7 @@ Shapes::Ball(const float radius, const float smoothness)
         {4, 9, 5}, {2, 4, 11}, {6, 2, 10}, {8, 6, 7}, {9, 8, 1}
     };
 
-    for (int i = 0; i < 20; ++i)
+    for (size_t i = 0; i < 20; ++i)
     {
         indices.push_back(faces[i][0]);
         indices.push_back(faces[i][1]);
@@ -152,17 +155,17 @@ Shapes::Ball(const float radius, const float smoothness)
         };
 
         // Normalize to sphere
-        const float len = std::sqrt(mid.x * mid.x + mid.y * mid.y + mid.z * mid.z);
-        mid.x /= len; mid.y /= len; mid.z /= len;
+        const float mpLen = std::sqrt(mid.x * mid.x + mid.y * mid.y + mid.z * mid.z);
+        mid.x /= mpLen; mid.y /= mpLen; mid.z /= mpLen;
 
         VertexIndex newIdx = static_cast<VertexIndex>(vertices.size());
-        vertices.push_back({ mid, {mid.x, mid.y, mid.z} });
+        vertices.push_back({ mid, {mid.x, mid.y, mid.z}, {} });
         midpointCache[key] = newIdx;
         return newIdx;
     };
 
     // Subdivide triangles with vertex deduplication
-    for (int subdiv = 0; subdiv < subdivisions; ++subdiv)
+    for (size_t subdiv = 0; subdiv < subdivisions; ++subdiv)
     {
         midpointCache.clear(); // Clear cache for each subdivision level
 
@@ -173,7 +176,7 @@ Shapes::Ball(const float radius, const float smoothness)
         indices.resize(newIndexCount);
 
         // Process triangles from back to front to avoid overwriting data we still need
-        for (int i = static_cast<int>(currentTriangleCount) - 1; i >= 0; --i)
+        for (size_t i = currentTriangleCount - 1; i >= 0; --i)
         {
             const size_t oldOffset = i * 3;
             const size_t newOffset = i * 12;
@@ -230,15 +233,15 @@ Shapes::Cylinder(const float height, const float radius, const float smoothness)
     // Side vertices (top and bottom rings with radial normals)
     for (uint32_t seg = 0; seg < segments; ++seg)
     {
-        const float theta = 2.0f * M_PI * static_cast<float>(seg) / static_cast<float>(segments);
+        const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
         const float x = radius * std::cos(theta);
         const float z = radius * std::sin(theta);
         const VertexNormal normal = VertexNormal(x / radius, 0.0f, z / radius).Normalize();
 
         // Bottom vertex
-        vertices.push_back({ { x, -halfHeight, z }, normal });
+        vertices.push_back({ { x, -halfHeight, z }, normal, {} });
         // Top vertex
-        vertices.push_back({ { x, halfHeight, z }, normal });
+        vertices.push_back({ { x, halfHeight, z }, normal, {} });
     }
 
     // Generate side indices
@@ -263,27 +266,27 @@ Shapes::Cylinder(const float height, const float radius, const float smoothness)
     const uint32_t topCapStart = bottomCapStart + segments + 1;
 
     // Bottom cap center
-    vertices.push_back({ { 0.0f, -halfHeight, 0.0f }, { 0.0f, -1.0f, 0.0f } });
+    vertices.push_back({ { 0.0f, -halfHeight, 0.0f }, { 0.0f, -1.0f, 0.0f }, {} });
 
     // Bottom cap ring
     for (uint32_t seg = 0; seg < segments; ++seg)
     {
-        const float theta = 2.0f * M_PI * static_cast<float>(seg) / static_cast<float>(segments);
+        const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
         const float x = radius * std::cos(theta);
         const float z = radius * std::sin(theta);
-        vertices.push_back({ { x, -halfHeight, z }, { 0.0f, -1.0f, 0.0f } });
+        vertices.push_back({ { x, -halfHeight, z }, { 0.0f, -1.0f, 0.0f }, {} });
     }
 
     // Top cap center
-    vertices.push_back({ { 0.0f, halfHeight, 0.0f }, { 0.0f, 1.0f, 0.0f } });
+    vertices.push_back({ { 0.0f, halfHeight, 0.0f }, { 0.0f, 1.0f, 0.0f }, {} });
 
     // Top cap ring
     for (uint32_t seg = 0; seg < segments; ++seg)
     {
-        const float theta = 2.0f * M_PI * static_cast<float>(seg) / static_cast<float>(segments);
+        const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
         const float x = radius * std::cos(theta);
         const float z = radius * std::sin(theta);
-        vertices.push_back({ { x, halfHeight, z }, { 0.0f, 1.0f, 0.0f } });
+        vertices.push_back({ { x, halfHeight, z }, { 0.0f, 1.0f, 0.0f }, {} });
     }
 
     // Bottom cap indices (clockwise from below)
@@ -357,7 +360,7 @@ Shapes::Cone(const float radius1, const float radius2, const float smoothness)
     // Side vertices with slant normals
     for (uint32_t seg = 0; seg < segments; ++seg)
     {
-        const float theta = 2.0f * M_PI * static_cast<float>(seg) / static_cast<float>(segments);
+        const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
         const float cosTheta = std::cos(theta);
         const float sinTheta = std::sin(theta);
 
@@ -373,9 +376,9 @@ Shapes::Cone(const float radius1, const float radius2, const float smoothness)
         }.Normalize();
 
         // Bottom vertex
-        vertices.push_back({ { x1, -halfHeight, z1 }, normal });
+        vertices.push_back({ { x1, -halfHeight, z1 }, normal, {} });
         // Top vertex
-        vertices.push_back({ { x2, halfHeight, z2 }, normal });
+        vertices.push_back({ { x2, halfHeight, z2 }, normal, {} });
     }
 
     // Generate side indices
@@ -407,15 +410,15 @@ Shapes::Cone(const float radius1, const float radius2, const float smoothness)
         const uint32_t bottomRingStart = currentVertexOffset + 1;
 
         // Bottom cap center
-        vertices.push_back({ { 0.0f, -halfHeight, 0.0f }, { 0.0f, -1.0f, 0.0f } });
+        vertices.push_back({ { 0.0f, -halfHeight, 0.0f }, { 0.0f, -1.0f, 0.0f }, {} });
 
         // Bottom cap ring with vertical normals
         for (uint32_t seg = 0; seg < segments; ++seg)
         {
-            const float theta = 2.0f * M_PI * static_cast<float>(seg) / static_cast<float>(segments);
+            const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
             const float x = radius1 * std::cos(theta);
             const float z = radius1 * std::sin(theta);
-            vertices.push_back({ { x, -halfHeight, z }, { 0.0f, -1.0f, 0.0f } });
+            vertices.push_back({ { x, -halfHeight, z }, { 0.0f, -1.0f, 0.0f }, {} });
         }
 
         // Bottom cap indices
@@ -439,15 +442,15 @@ Shapes::Cone(const float radius1, const float radius2, const float smoothness)
         const uint32_t topRingStart = currentVertexOffset + 1;
 
         // Top cap center
-        vertices.push_back({ { 0.0f, halfHeight, 0.0f }, { 0.0f, 1.0f, 0.0f } });
+        vertices.push_back({ { 0.0f, halfHeight, 0.0f }, { 0.0f, 1.0f, 0.0f }, {} });
 
         // Top cap ring with vertical normals
         for (uint32_t seg = 0; seg < segments; ++seg)
         {
-            const float theta = 2.0f * M_PI * static_cast<float>(seg) / static_cast<float>(segments);
+            const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
             const float x = radius2 * std::cos(theta);
             const float z = radius2 * std::sin(theta);
-            vertices.push_back({ { x, halfHeight, z }, { 0.0f, 1.0f, 0.0f } });
+            vertices.push_back({ { x, halfHeight, z }, { 0.0f, 1.0f, 0.0f }, {} });
         }
 
         // Top cap indices
@@ -484,24 +487,24 @@ Shapes::Torus(
     std::vector<VertexIndex> indices;
 
     // Minimum smoothness of 3 to avoid degenerate geometry
-    const uint32_t numSegmentsMajor = std::max(3u, static_cast<uint32_t>(smoothness * 4));
-    const uint32_t numSegmentsMinor = std::max(3u, static_cast<uint32_t>(smoothness * 4));
+    const size_t numSegmentsMajor = std::max(3uz, static_cast<size_t>(smoothness * 4));
+    const size_t numSegmentsMinor = std::max(3uz, static_cast<size_t>(smoothness * 4));
 
-    const float dTheta = 2.0f * M_PI / static_cast<float>(numSegmentsMajor);
-    const float dPhi = 2.0f * M_PI / static_cast<float>(numSegmentsMinor);
+    const float dTheta = 2.0f * kPi / static_cast<float>(numSegmentsMajor);
+    const float dPhi = 2.0f * kPi / static_cast<float>(numSegmentsMinor);
 
     // Reserve exact memory
-    const uint32_t totalVertices = numSegmentsMajor * numSegmentsMinor;
-    const uint32_t totalIndices = numSegmentsMajor * numSegmentsMinor * 6;
+    const size_t totalVertices = numSegmentsMajor * numSegmentsMinor;
+    const size_t totalIndices = numSegmentsMajor * numSegmentsMinor * 6;
     vertices.reserve(totalVertices);
     indices.reserve(totalIndices);
 
     // Precompute trig values for major circle
     std::vector<float> cosThetaCache(numSegmentsMajor);
     std::vector<float> sinThetaCache(numSegmentsMajor);
-    for (uint32_t i = 0; i < numSegmentsMajor; ++i)
+    for (size_t i = 0; i < numSegmentsMajor; ++i)
     {
-        const float theta = i * dTheta;
+        const float theta = static_cast<float>(i) * dTheta;
         cosThetaCache[i] = std::cos(theta);
         sinThetaCache[i] = std::sin(theta);
     }
@@ -509,20 +512,20 @@ Shapes::Torus(
     // Precompute trig values for minor circle
     std::vector<float> cosPhiCache(numSegmentsMinor);
     std::vector<float> sinPhiCache(numSegmentsMinor);
-    for (uint32_t j = 0; j < numSegmentsMinor; ++j)
+    for (size_t j = 0; j < numSegmentsMinor; ++j)
     {
-        const float phi = j * dPhi;
+        const float phi = static_cast<float>(j) * dPhi;
         cosPhiCache[j] = std::cos(phi);
         sinPhiCache[j] = std::sin(phi);
     }
 
     // Generate vertices
-    for (uint32_t i = 0; i < numSegmentsMajor; ++i)
+    for (size_t i = 0; i < numSegmentsMajor; ++i)
     {
         const float cosTheta = cosThetaCache[i];
         const float sinTheta = sinThetaCache[i];
 
-        for (uint32_t j = 0; j < numSegmentsMinor; ++j)
+        for (size_t j = 0; j < numSegmentsMinor; ++j)
         {
             const float cosPhi = cosPhiCache[j];
             const float sinPhi = sinPhiCache[j];
@@ -540,36 +543,37 @@ Shapes::Torus(
 
             vertices.push_back(Vertex{
                 { x, y, z },
-                { nx, ny, nz }
+                { nx, ny, nz },
+                {}
                 });
         }
     }
 
     // Generate triangle indices (clockwise for left-handed system)
-    for (uint32_t i = 0; i < numSegmentsMajor; ++i)
+    for (size_t i = 0; i < numSegmentsMajor; ++i)
     {
-        const uint32_t nextI = (i + 1) % numSegmentsMajor;
-        const uint32_t rowOffset = i * numSegmentsMinor;
-        const uint32_t nextRowOffset = nextI * numSegmentsMinor;
+        const size_t nextI = (i + 1) % numSegmentsMajor;
+        const size_t rowOffset = i * numSegmentsMinor;
+        const size_t nextRowOffset = nextI * numSegmentsMinor;
 
-        for (uint32_t j = 0; j < numSegmentsMinor; ++j)
+        for (size_t j = 0; j < numSegmentsMinor; ++j)
         {
-            const uint32_t nextJ = (j + 1) % numSegmentsMinor;
+            const size_t nextJ = (j + 1) % numSegmentsMinor;
 
-            const uint32_t i0 = rowOffset + j;
-            const uint32_t i1 = nextRowOffset + j;
-            const uint32_t i2 = nextRowOffset + nextJ;
-            const uint32_t i3 = rowOffset + nextJ;
+            const size_t i0 = rowOffset + j;
+            const size_t i1 = nextRowOffset + j;
+            const size_t i2 = nextRowOffset + nextJ;
+            const size_t i3 = rowOffset + nextJ;
 
             // First triangle
-            indices.push_back(i0);
-            indices.push_back(i1);
-            indices.push_back(i2);
+            indices.push_back(static_cast<VertexIndex>(i0));
+            indices.push_back(static_cast<VertexIndex>(i1));
+            indices.push_back(static_cast<VertexIndex>(i2));
 
             // Second triangle
-            indices.push_back(i0);
-            indices.push_back(i2);
-            indices.push_back(i3);
+            indices.push_back(static_cast<VertexIndex>(i0));
+            indices.push_back(static_cast<VertexIndex>(i2));
+            indices.push_back(static_cast<VertexIndex>(i3));
         }
     }
 

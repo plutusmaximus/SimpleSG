@@ -4,6 +4,8 @@
 
 #include <array>
 
+#if defined(_WIN32)
+
 static HANDLE s_IOCP = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 0);
 
 Result<>
@@ -186,3 +188,35 @@ FileFetcher::IssueRead(FileFetcher::Request& req)
 
     return Result<>::Ok;
 }
+
+#elif defined(__linux__)
+
+Result<>
+FileFetcher::Fetch([[maybe_unused]] FileFetcher::Request& request)
+{
+    MLG_ASSERT(false, "FileFetcher is not implemented on this platform");
+    return Result<>::Fail;
+}
+
+Result<>
+FileFetcher::ProcessCompletions()
+{
+    MLG_ASSERT(false, "FileFetcher is not implemented on this platform");
+    return Result<>::Fail;
+}
+
+Result<size_t>
+FileFetcher::GetFileSize([[maybe_unused]] const FileFetcher::Request& request)
+{
+    MLG_ASSERT(false, "FileFetcher is not implemented on this platform");
+    return Result<>::Fail;
+}
+
+Result<>
+FileFetcher::IssueRead([[maybe_unused]] FileFetcher::Request& req)
+{
+    MLG_ASSERT(false, "FileFetcher is not implemented on this platform");
+
+    return Result<>::Fail;
+}
+#endif  // _WIN32

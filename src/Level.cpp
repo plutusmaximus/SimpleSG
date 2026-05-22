@@ -91,9 +91,10 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
 
         Level::Node node //
             {
+                .Name{}, // Will be filled in later from stringStorage
                 .LocalTransform{ nodeDef.Transform },
                 .Components{ std::move(components) },
-                .ChildCount{ narrow_cast<uint32_t>(nodeDef.Children.size()) },
+                .ChildCount = narrow_cast<uint32_t>(nodeDef.Children.size()),
             };
 
         nodes.emplace_back(std::move(node));
@@ -160,16 +161,15 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit, Level& outLevel)
         firstChildIndex += node.ChildCount;
     }
 
-    Level level(&propKit, std::move(nodes), std::move(stringStorage));
+    Level level(std::move(nodes), std::move(stringStorage));
 
     outLevel = std::move(level);
 
     return Result<>::Ok;
 }
 
-Level::Level(const PropKit* propKit, std::vector<Node>&& nodes, std::vector<char>&& stringStorage)
-    : m_PropKit(propKit),
-      m_Nodes(std::move(nodes)),
+Level::Level(std::vector<Node>&& nodes, std::vector<char>&& stringStorage)
+    : m_Nodes(std::move(nodes)),
       m_StringStorage(std::move(stringStorage))
 {
     m_RootNodeCount = 0;

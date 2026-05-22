@@ -378,8 +378,8 @@ TEST(Mat44f, Inverse_NonAffine)
     Mat44f inv = M.Inverse();
     Mat44f I = M * inv;
     // The product should be close to identity
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    for (size_t i = 0; i < 4; ++i)
+        for (size_t j = 0; j < 4; ++j)
             EXPECT_NEAR(I[i][j], (i == j) ? 1.0f : 0.0f, 1e-3f);
 }
 
@@ -394,8 +394,8 @@ TEST(Mat44f, Inverse_Random)
     );
     Mat44f inv = M.Inverse();
     Mat44f I = M * inv;
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    for (size_t i = 0; i < 4; ++i)
+        for (size_t j = 0; j < 4; ++j)
             EXPECT_NEAR(I[i][j], (i == j) ? 1.0f : 0.0f, 1e-3f);
 }
 
@@ -410,8 +410,8 @@ TEST(Mat44f, InverseAffine_Basic)
     );
     Mat44f inv = M.InverseAffine();
     Mat44f I = M * inv;
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    for (size_t i = 0; i < 4; ++i)
+        for (size_t j = 0; j < 4; ++j)
             EXPECT_NEAR(I[i][j], (i == j) ? 1.0f : 0.0f, 1e-4f);
 }
 
@@ -426,8 +426,8 @@ TEST(Mat44f, InverseAffine_NonInvertible)
     );
     Mat44f inv = M.InverseAffine();
     // Should return zero matrix
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    for (size_t i = 0; i < 4; ++i)
+        for (size_t j = 0; j < 4; ++j)
             EXPECT_FLOAT_EQ(inv[i][j], 0.0f);
 }
 
@@ -440,8 +440,8 @@ TEST(Mat44f, InverseAffine_TranslationOnly)
     M[3][2] = 2.5f;
     Mat44f inv = M.InverseAffine();
     Mat44f I = M * inv;
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    for (size_t i = 0; i < 4; ++i)
+        for (size_t j = 0; j < 4; ++j)
             EXPECT_NEAR(I[i][j], (i == j) ? 1.0f : 0.0f, 1e-5f);
 }
 

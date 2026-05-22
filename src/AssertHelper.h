@@ -78,10 +78,22 @@ private:
 //
 // return MLG_VERIFY(x > y) ? x : -1;
 
+#if defined(_MSC_VER)
+    #define MLG_DEBUG_BREAK() __debugbreak()
+#elif defined(__clang__) && __has_builtin(__builtin_debugtrap)
+    #define MLG_DEBUG_BREAK() __builtin_debugtrap()
+#elif defined(__GNUC__)
+    #include <signal.h>
+    #define MLG_DEBUG_BREAK() raise(SIGTRAP)
+#else
+    #include <cstdlib>
+    #define MLG_DEBUG_BREAK() std::abort()
+#endif
+
 #define MLG_VERIFY(expr, ...) \
     (static_cast<bool>(expr) || \
         (AssertHelper::Log(#expr, __FILE__, __LINE__, AssertHelper::Muter<__COUNTER__>() __VA_OPT__(, ) __VA_ARGS__) \
-            ? (__debugbreak(), false) : false))
+            ? (MLG_DEBUG_BREAK(), false) : false))
 
 #define MLG_ASSERT(expr, ...) void(MLG_VERIFY(expr __VA_OPT__(,) __VA_ARGS__))
 

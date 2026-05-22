@@ -2,6 +2,8 @@
 
 #include "VecMath.h"
 
+#include <climits>
+
 struct UV2
 {
     float u, v;
