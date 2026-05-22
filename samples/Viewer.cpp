@@ -1,5 +1,4 @@
 #include "Compositor.h"
-#include "ECS.h"
 #include "GltfLoader.h"
 #include "ImGuiRenderer.h"
 #include "Level.h"
@@ -25,26 +24,6 @@ static constexpr const char* APP_NAME = "Viewer";
 
 static constexpr float PHYSICS_FPS = 100.0f;
 static constexpr float RENDER_FPS = 60.0f;
-
-namespace
-{
-
-class WorldMatrix : public Mat44f
-{
-public:
-    using Mat44f::Mat44f;
-
-    WorldMatrix& operator=(const Mat44& that)
-    {
-        this->Mat44f::operator=(that);
-        return *this;
-    }
-};
-
-// Used to tag entities that represent loaded models in the ECS registry.
-struct ModelTag{};
-
-}
 
 static Result<>
 Startup()
@@ -114,7 +93,6 @@ MainLoop()
     PropKit propKit;
     Level level;
     Scene scene;
-    EcsRegistry registry;
     WalkMouseNav mouseNav;
 
     MLG_CHECK(renderer.Startup());
@@ -123,11 +101,10 @@ MainLoop()
 
     MLG_CHECK(Load(SPONZA_MODEL_PATH, textureCache, propKit, level, scene));
 
-    Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, ModelTag{});
+    TrsTransformf trsCamera{ .T{0, 0, -4} };
+    Projection projection;
 
-    Entity camera = registry.CreateEntity(TrsTransformf{.T{0,0,-4}}, WorldMatrix{}, Projection{});
-
-    mouseNav.SetTransform(camera.Get<TrsTransformf>());
+    mouseNav.SetTransform(trsCamera);
 
     uint64_t frameBeginTicks = SDL_GetTicksNS();
 
@@ -136,8 +113,7 @@ MainLoop()
 
     while(running)
     {
-        static PerfTimer frameTimer("Frame");
-        frameTimer.Start();
+        MLG_SCOPED_TIMER("Frame");
 
         const uint64_t curTicksNs = SDL_GetTicksNS();
         const uint64_t elapsedTicksNs = curTicksNs - frameBeginTicks;
@@ -265,22 +241,13 @@ MainLoop()
 
         auto screenBounds = WebgpuHelper::GetScreenBounds();
         const float aspectRatio = screenBounds.Width / screenBounds.Height;
-        camera.Get<Projection>().SetAspectRatio(aspectRatio);
-        camera.Get<TrsTransformf>() = mouseNav.GetTransform();
-
-        // Transform roots
-        for(const auto& tuple : registry.GetView<TrsTransformf, WorldMatrix>())
-        {
-            auto [eid, xform, worldMat] = tuple;
-            worldMat = xform.ToMatrix();
-        }
+        projection.SetAspectRatio(aspectRatio);
+        trsCamera = mouseNav.GetTransform();
 
         compositor.BeginFrame();
         imGuiRenderer.NewFrame();
 
-        const auto& camTrs = camera.Get<TrsTransformf>();
-        const auto& projection = camera.Get<Projection>();
-        renderer.Render(camTrs, projection, scene, propKit, compositor);
+        renderer.Render(trsCamera, projection, scene, propKit, compositor);
 
         RenderGui();
 
@@ -293,8 +260,6 @@ MainLoop()
 #endif
 
         WebgpuHelper::GetInstance().ProcessEvents();
-
-        frameTimer.Stop();
     }
 
     MLG_CHECK(textureCache.Shutdown());

@@ -176,10 +176,10 @@ Shapes::Ball(const float radius, const float smoothness)
         indices.resize(newIndexCount);
 
         // Process triangles from back to front to avoid overwriting data we still need
-        for (size_t i = currentTriangleCount - 1; i >= 0; --i)
+        for (int i = static_cast<int>(currentTriangleCount) - 1; i >= 0; --i)
         {
-            const size_t oldOffset = i * 3;
-            const size_t newOffset = i * 12;
+            const size_t oldOffset = static_cast<size_t>(i) * 3;
+            const size_t newOffset = static_cast<size_t>(i) * 12;
 
             const VertexIndex v0 = indices[oldOffset];
             const VertexIndex v1 = indices[oldOffset + 1];

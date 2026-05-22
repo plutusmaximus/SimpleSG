@@ -14,9 +14,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 if(MSVC)
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
 
-    # Enable MSVC STL hardening
-    add_compile_definitions($<$<CONFIG:Debug>:_MSVC_STL_HARDENING=2> $<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=2>)
-    #add_compile_definitions($<$<CONFIG:Debug>:_MSVC_STL_HARDENING=0> $<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=0>)
+  # Disable exceptions in the MSVC STL
+  add_compile_definitions(_HAS_EXCEPTIONS=0)
+
+  # Enable MSVC STL hardening
+  add_compile_definitions($<$<CONFIG:Debug>:_MSVC_STL_HARDENING=2> $<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=2>)
+  #add_compile_definitions($<$<CONFIG:Debug>:_MSVC_STL_HARDENING=0> $<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=0>)
 endif()
 
 add_library(project_warnings INTERFACE)
@@ -83,16 +86,9 @@ target_compile_options(project_options INTERFACE
     >
 )
 
-add_library(project_definitions INTERFACE)
-
-target_compile_definitions(project_definitions INTERFACE
-    # Disable exceptions in the standard library to avoid pulling in unwanted code and dependencies.
-    $<$<CXX_COMPILER_ID:MSVC>:_HAS_EXCEPTIONS=0>
-)
-
 # Helper function to set compiler flags for a target
 function(compiler_flags target_name)
-  target_link_libraries(${target_name} PRIVATE project_warnings project_options project_definitions)
+  target_link_libraries(${target_name} PRIVATE project_warnings project_options)
   set_property(TARGET ${target_name} PROPERTY COMPILE_WARNING_AS_ERROR ON)
 endfunction()
 
@@ -125,8 +121,28 @@ set(protobuf_MSVC_STATIC_RUNTIME ON CACHE BOOL "Use static MSVC runtime in proto
 set(ABSL_MSVC_STATIC_RUNTIME ON CACHE BOOL "Use static MSVC runtime in abseil" FORCE)
 set(TINT_ENABLE_INSTALL OFF CACHE BOOL "Disable Tint install" FORCE)
 set(TINT_BUILD_TESTS OFF CACHE BOOL "Disable Tint tests" FORCE)
-set(DAWN_USE_WAYLAND ON CACHE BOOL "Enable Wayland support" FORCE)
-set(DAWN_USE_X11 ON CACHE BOOL "Enable X11 support" FORCE)
+if(WIN32)
+  set(DAWN_USE_WAYLAND OFF CACHE BOOL "Enable Wayland support" FORCE)
+  set(DAWN_USE_X11 OFF CACHE BOOL "Enable X11 support" FORCE)
+  set(DAWN_USE_WINDOWS_UI ON CACHE BOOL "Enable Windows UI support" FORCE)
+  set(DAWN_ENABLE_METAL OFF CACHE BOOL "Enable Metal backend" FORCE)
+elseif(APPLE)
+  set(DAWN_USE_WAYLAND OFF CACHE BOOL "Enable Wayland support" FORCE)
+  set(DAWN_USE_X11 OFF CACHE BOOL "Enable X11 support" FORCE)
+  set(DAWN_USE_WINDOWS_UI OFF CACHE BOOL "Enable Windows UI support" FORCE)
+  set(DAWN_ENABLE_METAL ON CACHE BOOL "Enable Metal backend" FORCE)
+elseif(EMSCRIPTEN)
+  set(DAWN_USE_WAYLAND OFF CACHE BOOL "Enable Wayland support" FORCE)
+  set(DAWN_USE_X11 OFF CACHE BOOL "Enable X11 support" FORCE)
+  set(DAWN_USE_WINDOWS_UI OFF CACHE BOOL "Enable Windows UI support" FORCE)
+  set(DAWN_ENABLE_METAL OFF CACHE BOOL "Enable Metal backend" FORCE)
+  set(DAWN_ENABLE_WEBGPU_ON_WEBGPU ON CACHE BOOL "Enable WebGPU backend" FORCE)
+elseif(UNIX)
+  set(DAWN_USE_WAYLAND ON CACHE BOOL "Enable Wayland support" FORCE)
+  set(DAWN_USE_X11 ON CACHE BOOL "Enable X11 support" FORCE)
+  set(DAWN_USE_WINDOWS_UI OFF CACHE BOOL "Enable Windows UI support" FORCE)
+  set(DAWN_ENABLE_METAL OFF CACHE BOOL "Enable Metal backend" FORCE)
+endif()
 
 add_subdirectory(thirdparty/dawn EXCLUDE_FROM_ALL SYSTEM)
 
@@ -180,8 +196,6 @@ set(SSG_SOURCES
   src/AssertHelper.cpp
   src/Bounds.cpp
   src/Compositor.cpp
-  src/CoopScheduler.cpp
-  src/EcsChildTransformPool.cpp
   src/FileFetcher.cpp
   src/GltfLoader.cpp
   src/ImGuiRenderer.cpp
@@ -204,14 +218,10 @@ set(SSG_HEADERS
   src/AssertHelper.h
   src/Bounds.h
   src/Compositor.h
-  src/CoopScheduler.h
-  src/ECS.h
-  src/EcsChildTransformPool.h
   src/FileFetcher.h
   src/GltfLoader.h
   src/ImGuiRenderer.h
   src/inlist.h
-  src/instack.h
   src/Level.h
   src/Log.h
   src/Mechanics.h
@@ -253,7 +263,7 @@ compiler_flags(ssg)
 # ============================================================
 function(add_sample_executable target_name source_file)
   add_executable(${target_name} ${source_file} samples/MouseNav.cpp)
-  target_link_libraries(${target_name} PRIVATE ssg::ssg spdlog::spdlog imgui webgpu_dawn webgpu_glfw glfw)
+  target_link_libraries(${target_name} PRIVATE ssg::ssg spdlog::spdlog imgui webgpu_dawn)
   add_dependencies(${target_name} shaders copy_images)
 
   compiler_flags(${target_name})
@@ -297,12 +307,8 @@ add_sample_executable(Collision samples/Collision.cpp)
 # ============================================================
 add_executable(Tests
   "tests/BoundingBox.test.cpp"
-  "tests/CoopScheduler.test.cpp"
-  "tests/ECS.test.cpp"
-  "tests/EcsChildTransformPool.test.cpp"
   "tests/GridHash.test.cpp"
   "tests/inlist.test.cpp"
-  "tests/instack.test.cpp"
   "tests/Mat44.test.cpp"
   "tests/PoolAllocator.test.cpp"
   "tests/Quat.test.cpp"

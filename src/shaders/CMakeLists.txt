@@ -25,7 +25,7 @@ foreach(_wgsl IN LISTS WGSL_SOURCES)
   add_custom_command(
     OUTPUT "${_wgsl_copy_out}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${_out_dir}"
-    COMMAND "${TINT_EXE}" --parse-only true "${_wgsl}"
+    COMMAND "${TINT_EXE}" --validate true "${_wgsl}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_wgsl}" "${_wgsl_copy_out}"
     DEPENDS "${_wgsl}"
     VERBATIM

@@ -22,7 +22,7 @@ Compositor::BeginFrame()
 
     // TODO - handle SuccessSuboptimal, Timeout, Outdated, Lost, Error statuses
     MLG_CHECK(backbuffer.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal,
-        std::format("Backbuffer status: {}", backbuffer.status));
+        std::format("Backbuffer status: {}", static_cast<int>(backbuffer.status)));
 
     m_Target = backbuffer.texture;
     MLG_CHECK(m_Target, "Failed to create texture view for swapchain texture");

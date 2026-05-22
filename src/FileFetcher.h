@@ -58,7 +58,9 @@ public:
 
         void SetComplete(RequestStatus status)
         {
+#if !defined(_WIN32)
             MLG_ASSERT(false, "FileFetcher is not implemented on this platform");
+#endif
             if(!IsPending())
             {
                 return;
