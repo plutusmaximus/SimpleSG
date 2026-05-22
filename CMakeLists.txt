@@ -227,7 +227,6 @@ set(SSG_HEADERS
   src/Mechanics.h
   src/PerfMetrics.h
   src/PhysicsLevel.h
-  src/PoolAllocator.h
   src/Projection.h
   src/PropKit.h
   src/Renderer.h
@@ -310,7 +309,6 @@ add_executable(Tests
   "tests/GridHash.test.cpp"
   "tests/inlist.test.cpp"
   "tests/Mat44.test.cpp"
-  "tests/PoolAllocator.test.cpp"
   "tests/Quat.test.cpp"
   "tests/Radians.test.cpp"
   "tests/scope_exit.test.cpp"

@@ -1,7 +1,8 @@
 #pragma once
 
-#include "PoolAllocator.h"
 #include "Result.h"
+
+#include <array>
 
 /// @brief A simple thread pool for executing jobs asynchronously.
 class ThreadPool final
@@ -29,12 +30,6 @@ public:
 private:
     struct Job
     {
-        Job() = default;
-        Job(const Job&) = delete;
-        Job& operator=(const Job&) = delete;
-        Job(Job&&) = delete;
-        Job& operator=(Job&&) = delete;
-
         ~Job()
         {
             MLG_ASSERT(m_Next == nullptr);
@@ -61,8 +56,8 @@ private:
     static void WorkerLoop();
 
     static constexpr const size_t kMaxJobs = 1024;
-    using PoolAllocatorType = PoolAllocator<Job, kMaxJobs>;
-    static PoolAllocatorType s_JobAllocator;
+    static std::array<Job, kMaxJobs> s_JobPool;
+    static Job* s_JobPoolFreeList;
 
     static Job *s_JobQueueHead;
     static Job *s_JobQueueTail;

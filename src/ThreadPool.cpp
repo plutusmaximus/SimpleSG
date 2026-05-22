@@ -1,7 +1,5 @@
 #include "ThreadPool.h"
 
-#include "PoolAllocator.h"
-
 #include <atomic>
 #include <cassert>
 #include <condition_variable>
@@ -11,7 +9,7 @@
 #include <utility>
 
 // Mutex to protect access to the job queue.
-static std::mutex s_Mutex;
+static std::mutex s_JobQueueMutex;
 
 // Mutex to protect job allocation/freeing.
 static std::mutex s_AllocMutex;
@@ -19,11 +17,12 @@ static std::mutex s_AllocMutex;
 // Condition variable to notify worker threads of new jobs.
 static std::condition_variable s_Cv;
 
-// Head and tail of the job queue.  Implements a FIFO queue of jobs.
+std::array<ThreadPool::Job, ThreadPool::kMaxJobs> ThreadPool::s_JobPool;
+ThreadPool::Job* ThreadPool::s_JobPoolFreeList{ nullptr };
+
+// Head and tail of the FIFO job queue.
 ThreadPool::Job *ThreadPool::s_JobQueueHead{ nullptr };
 ThreadPool::Job *ThreadPool::s_JobQueueTail{ nullptr };
-
-ThreadPool::PoolAllocatorType ThreadPool::s_JobAllocator;
 
 static std::atomic<bool> s_Running{ false };
 
@@ -47,7 +46,7 @@ static struct ThreadPoolStartStop
 void
 ThreadPool::Startup()
 {
-    std::lock_guard<std::mutex> lock(s_Mutex);
+    std::lock_guard<std::mutex> lock(s_JobQueueMutex);
 
     bool expected = false;
     if(!s_Running.compare_exchange_strong(expected, true))
@@ -59,13 +58,19 @@ ThreadPool::Startup()
     {
         s_WorkerThreads[i] = std::thread(WorkerLoop);
     }
+
+    for(auto& job : s_JobPool)
+    {
+        job.m_Next = s_JobPoolFreeList;
+        s_JobPoolFreeList = &job;
+    }
 }
 
 void
 ThreadPool::Shutdown()
 {
     {
-        std::lock_guard<std::mutex> lock(s_Mutex);
+        std::lock_guard<std::mutex> lock(s_JobQueueMutex);
 
         bool expected = true;
         if(!s_Running.compare_exchange_strong(expected, false))
@@ -87,7 +92,7 @@ ThreadPool::Shutdown()
 
     ThreadPool::Job *pendingJobs = nullptr;
     {
-        std::lock_guard<std::mutex> lock(s_Mutex);
+        std::lock_guard<std::mutex> lock(s_JobQueueMutex);
         std::swap(pendingJobs, s_JobQueueHead);
         s_JobQueueTail = nullptr;
     }
@@ -99,6 +104,13 @@ ThreadPool::Shutdown()
         job->m_Next = nullptr;
 
         DeleteJob(job);
+    }
+
+    while(s_JobPoolFreeList)
+    {
+        ThreadPool::Job *job = s_JobPoolFreeList;
+        s_JobPoolFreeList = job->m_Next;
+        job->m_Next = nullptr;
     }
 }
 
@@ -140,7 +152,14 @@ ThreadPool::NewJob()
         return nullptr;
     }
 
-    return s_JobAllocator.New();
+    Job* job = s_JobPoolFreeList;
+    if(job)
+    {
+        s_JobPoolFreeList = job->m_Next;
+        job->m_Next = nullptr;
+    }
+
+    return job;
 }
 
 void
@@ -148,16 +167,18 @@ ThreadPool::DeleteJob(ThreadPool::Job *job)
 {
     std::lock_guard<std::mutex> lock(s_AllocMutex);
 
-    s_JobAllocator.Delete(job);
+    *job = Job{}; // Reset job to default state.
+    job->m_Next = s_JobPoolFreeList;
+    s_JobPoolFreeList = job;
 }
 
 // Enqueue a new job. Returns false if the pool is stopping or not accepting work.
 bool
 ThreadPool::Enqueue(Job *job)
 {
-    std::lock_guard<std::mutex> lock(s_Mutex);
+    std::lock_guard<std::mutex> lock(s_JobQueueMutex);
 
-    assert(job->m_Next == nullptr);
+    MLG_ASSERT(job->m_Next == nullptr);
 
     if(!s_Running.load())
     {
@@ -187,7 +208,7 @@ ThreadPool::WorkerLoop()
     {
         ThreadPool::Job *job;
 
-        std::unique_lock<std::mutex> lock(s_Mutex);
+        std::unique_lock<std::mutex> lock(s_JobQueueMutex);
         s_Cv.wait(lock, [] { return !s_Running.load() || s_JobQueueHead != nullptr; });
 
         job = s_JobQueueHead;
