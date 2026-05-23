@@ -27,21 +27,21 @@ template<typename T> class Mat44;
 template <typename T>
 class Radians
 {
+private:
     static_assert(std::is_floating_point_v<T>, "Radians requires a floating-point type");
 
     static constexpr T TWO_PI = 2 * std::numbers::pi_v<T>;
     static constexpr T PI = std::numbers::pi_v<T>;
     static constexpr T eps = T(8) * std::numeric_limits<T>::epsilon() * TWO_PI;
 
-    // Wraps the input value to the range [-π, π)
+    // Wraps the input value to the range [0, 2π)
     constexpr static T Wrap(const T value) noexcept
     {
-        // Wrap to [-π, π)
-        const T r = value - std::floor((value + PI) / TWO_PI) * TWO_PI;
+        const T r = value - std::floor(value / TWO_PI) * TWO_PI;
 
-        if (r <= -PI + eps)
+        if (r >= TWO_PI - eps)
         {
-            return PI;
+            return T{0};
         }
         else if (std::abs(r) < eps)
         {
@@ -53,18 +53,28 @@ class Radians
 
     constexpr static T Limit(const T value) noexcept
     {
-        if(value > 1000 * TWO_PI)
+        T newValue = value;
+
+        while(newValue > 1000 * TWO_PI)
         {
-            return value - (1000 * TWO_PI);
+            newValue -= 1000 * TWO_PI;
         }
-        else if(value < -1000 * TWO_PI)
+
+        while(newValue < -1000 * TWO_PI)
         {
-            return value + (1000 * TWO_PI);
+            newValue += 1000 * TWO_PI;
         }
-        else
-        {
-            return value;
-        }
+
+        return newValue;
+    }
+
+    struct PrivateCtorTag { };
+
+    static constexpr PrivateCtorTag kPrivateCtorTag{};
+
+    constexpr Radians(const uint32_t value, PrivateCtorTag) noexcept
+     : m_Value(value)
+    {
     }
 
 public:
@@ -73,17 +83,14 @@ public:
 
     constexpr Radians() = default;
 
-    explicit constexpr Radians(const T value)
-    noexcept(noexcept(Limit(value)))
-     : m_Value(Limit(value))
+    explicit constexpr Radians(const T value) noexcept
+     : Radians(ToRep(value), kPrivateCtorTag)
     {
     }
 
-    constexpr Radians<T>& operator=(const T value)
-    noexcept(noexcept(Limit(value)))
+    constexpr Radians<T>& operator=(const T value) noexcept
     {
-        m_Value = Limit(value);
-        return *this;
+        return *this = Radians(value);
     }
 
     static constexpr Radians<T> FromDegrees(const T degrees) noexcept
@@ -93,62 +100,62 @@ public:
 
     T Sin() const noexcept
     {
-        return std::sin(Wrap(m_Value));
+        return std::sin(FromRep(m_Value));
     }
 
     T Cos() const noexcept
     {
-        return std::cos(Wrap(m_Value));
+        return std::cos(FromRep(m_Value));
     }
 
     T Tan() const noexcept
     {
-        return std::tan(Wrap(m_Value));
+        return std::tan(FromRep(m_Value));
     }
 
     constexpr friend Radians<T> operator+(const Radians<T> a, const Radians<T> b) noexcept
     {
-        return Radians<T>(a.m_Value + b.m_Value);
+        return Radians<T>(a.m_Value + b.m_Value, kPrivateCtorTag);
     }
 
     constexpr friend Radians<T> operator+(const Radians<T> a, const T b) noexcept
     {
-        return Radians<T>(a.m_Value + b);
+        return Radians<T>(a.m_Value + ToRep(b), kPrivateCtorTag);
     }
 
     constexpr friend Radians<T> operator+(const T a, const Radians<T> b) noexcept
     {
-        return Radians<T>(a + b.m_Value);
+        return b + a;
     }
 
     constexpr friend Radians<T> operator-(const Radians<T> a, const Radians<T> b) noexcept
     {
-        return Radians<T>(a.m_Value - b.m_Value);
+        return Radians<T>(a.m_Value - b.m_Value, kPrivateCtorTag);
     }
 
     constexpr friend Radians<T> operator-(const Radians<T> a, const T b) noexcept
     {
-        return Radians<T>(a.m_Value - b);
+        return Radians<T>(a.m_Value - ToRep(b), kPrivateCtorTag);
     }
 
     constexpr friend Radians<T> operator-(const T a, const Radians<T> b) noexcept
     {
-        return Radians<T>(a - b.m_Value);
+        return -(b - a);
     }
 
     constexpr friend Radians<T> operator*(const Radians<T> a, const T b) noexcept
     {
-        return Radians<T>(a.m_Value * b);
+        return Radians<T>(static_cast<RepType>(std::llround(static_cast<T>(a.m_Value) * b)), kPrivateCtorTag);
     }
 
     constexpr friend Radians<T> operator*(const T a, const Radians<T> b) noexcept
     {
-        return Radians<T>(a * b.m_Value);
+        return b * a;
     }
 
     constexpr friend Radians<T> operator-(const Radians<T> a) noexcept
     {
-        return Radians<T>(-a.m_Value);
+        return Radians<T>(0u - a.m_Value, kPrivateCtorTag);
     }
 
     constexpr Radians<T>& operator+=(const Radians<T> other) noexcept
@@ -178,16 +185,12 @@ public:
 
     constexpr friend bool operator==(const Radians<T> a, const Radians<T> b) noexcept
     {
-        // Using a small epsilon for floating-point comparison
-        constexpr T EPSILON = static_cast<T>(1e-10);
-        return std::abs(a.m_Value - b.m_Value) < EPSILON;
+        return a.m_Value == b.m_Value;
     }
 
     constexpr friend bool operator==(const Radians<T> a, const T b) noexcept
     {
-        // Using a small epsilon for floating-point comparison
-        constexpr T EPSILON = static_cast<T>(1e-10);
-        return std::abs(a.m_Value - b) < EPSILON;
+        return a.m_Value == ToRep(b);
     }
 
     constexpr friend bool operator==(const T a, const Radians<T> b) noexcept
@@ -197,12 +200,28 @@ public:
 
     constexpr T GetValue() const noexcept
     {
-        return Wrap(m_Value);
+        return FromRep(m_Value);
     }
 
 private:
 
-    T m_Value{0};
+    using RepType = uint32_t;
+
+    static constexpr T kFullTurn = 2 * std::numbers::pi_v<T>;
+    static constexpr T kScale = 4294967296 / kFullTurn; // 2^32 / 2π
+    static constexpr T kInvScale = kFullTurn / 4294967296; // 2π / 2^32
+
+    constexpr static RepType ToRep(const T value) noexcept
+    {
+        return static_cast<RepType>(Wrap(Limit(value)) * kScale);
+    }
+
+    constexpr static T FromRep(const RepType value) noexcept
+    {
+        return static_cast<T>(value) * kInvScale;
+    }
+
+    RepType m_Value{0};
 };
 
 template<typename T>
