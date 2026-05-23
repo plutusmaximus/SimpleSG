@@ -9,7 +9,7 @@ class MouseNav
 {
 public:
 
-    virtual ~MouseNav() = 0 {}
+    virtual ~MouseNav() = 0;
 
     virtual void OnMouseDown(const Point& mouseLoc, const Extent& screenBounds, const int mouseButton) = 0;
 
@@ -29,6 +29,8 @@ public:
 
     virtual void Update(const float deltaSeconds) = 0;
 };
+
+inline MouseNav::~MouseNav() = default;
 
 /// @brief Mouse navigation implementation using gimble-style controls.
 class GimbleMouseNav : public MouseNav

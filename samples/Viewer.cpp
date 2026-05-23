@@ -22,9 +22,6 @@
 
 static constexpr const char* APP_NAME = "Viewer";
 
-static constexpr float PHYSICS_FPS = 100.0f;
-static constexpr float RENDER_FPS = 60.0f;
-
 static Result<>
 Startup()
 {

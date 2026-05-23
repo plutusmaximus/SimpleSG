@@ -61,6 +61,7 @@ target_compile_options(project_warnings INTERFACE
         -Wimplicit-fallthrough
         -Wunreachable-code
         -Wno-c2y-extensions
+        -Wno-missing-designated-field-initializers
     >
 
     $<$<CXX_COMPILER_ID:MSVC>:
@@ -251,9 +252,8 @@ target_sources(ssg
 )
 
 target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 webgpu_dawn imgui)
-target_include_directories(ssg PUBLIC src src/shaders PRIVATE thirdparty/stb thirdparty/cgltf)
-
-add_dependencies(ssg tint_cmd_tint_cmd)
+target_include_directories(ssg PUBLIC src src/shaders)
+target_include_directories(ssg SYSTEM PRIVATE thirdparty/stb thirdparty/cgltf)
 
 compiler_flags(ssg)
 

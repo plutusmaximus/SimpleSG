@@ -114,7 +114,8 @@ public:
     do{ \
         if(!static_cast<bool>(expr)) \
         { \
-            __VA_OPT__(MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__))); \
+            const std::string errorMessage = Result<>::Format(__VA_ARGS__); \
+            __VA_OPT__(MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, errorMessage)); \
             return Result<>::Fail; \
         } \
     } while(0)
@@ -124,7 +125,8 @@ public:
     do{ \
         if(!MLG_VERIFY(expr __VA_OPT__(,) __VA_ARGS__)) \
         { \
-            __VA_OPT__(MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__))); \
+            const std::string errorMessage = Result<>::Format(__VA_ARGS__); \
+            __VA_OPT__(MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, errorMessage)); \
             return Result<>::Fail; \
         } \
     } while(0)

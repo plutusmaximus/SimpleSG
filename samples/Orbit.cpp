@@ -27,7 +27,6 @@ static constexpr const char* APP_NAME = "Orbit";
 
 static constexpr float PHYSICS_FPS = 60.0f;
 static constexpr float PHYSICS_TIME_STEP = 1.0f/PHYSICS_FPS;
-static constexpr float RENDER_FPS = 60.0f;
 static constexpr float GRAVITATIONAL_CONSTANT = 0.1f;//6.674e-11f;//(m^3 kg^-1 s^-2)
 
 static Result<>

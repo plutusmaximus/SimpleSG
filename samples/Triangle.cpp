@@ -108,7 +108,11 @@ static Result<> MainLoop()
 
             //case SDL_EVENT_WINDOW_RESIZED:
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-                WebgpuHelper::Resize(event.window.data1, event.window.data2);
+                {
+                    const uint32_t newWidth = static_cast<uint32_t>(event.window.data1);
+                    const uint32_t newHeight = static_cast<uint32_t>(event.window.data2);
+                    WebgpuHelper::Resize(newWidth, newHeight);
+                }
                 break;
 
             case SDL_EVENT_WINDOW_MINIMIZED:
@@ -205,7 +209,7 @@ static Result<> MainLoop()
     return Result<>::Ok;
 }
 
-int main(int, char* /*argv[]*/)
+int main(int /*argc*/, char** /*argv*/)
 {
     MainLoop();
 
@@ -235,9 +239,9 @@ static Result<> CreateTriangleModel(PropKitDef& outPropKit, LevelDef& outLevelDe
 {
     std::vector<Vertex> triangleVertices = //
         {
-            { { 0.0f, 0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 1, 1 } },  // 0
-            { { 0.5f, 0.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 0, 1 } },  // 1
-            { { -0.5f, 0.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }, { 0, 0 } }, // 2
+            { { 0.0f, 0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f }, {{ 1, 1 }} },  // 0
+            { { 0.5f, 0.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }, {{ 0, 1 }} },  // 1
+            { { -0.5f, 0.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }, {{ 0, 0 }} }, // 2
         };
 
     std::vector<VertexIndex> triangleIndices = { 0, 1, 2 };
@@ -246,8 +250,8 @@ static Result<> CreateTriangleModel(PropKitDef& outPropKit, LevelDef& outLevelDe
         {
             .BaseTextureUri{ "images/Ant.png" },
             .Color{ "#FFA500"_rgba },
-            .Metalness{ 0 },
-            .Roughness{ 0 },
+            .Metalness = 0,
+            .Roughness = 0,
         };
 
     MeshDef meshDef //

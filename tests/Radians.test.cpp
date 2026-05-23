@@ -12,7 +12,7 @@ namespace
 {
     constexpr float PI = std::numbers::pi_v<float>;
     constexpr float TWO_PI = 2.0f * PI;
-    constexpr float ABS(float value) { return value < 0 ? -value : value; }
+    //constexpr float ABS(float value) { return value < 0 ? -value : value; }
     constexpr float EPSILON([[maybe_unused]] float value) {return 1e-6f;}//{ return ABS(value) * std::numeric_limits<float>::epsilon(); }
 
     // Helper function to normalize a radian value to [0, 2π)

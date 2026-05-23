@@ -19,7 +19,7 @@
 #include <stb_image.h>
 
 static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
-static constexpr int kNumTextureChannels = 4;
+static constexpr uint32_t kNumTextureChannels = 4;
 
 namespace
 {
@@ -68,17 +68,17 @@ StageTexture(TextureBuilder& builder)
 
     auto decode = [](void* userData)
     {
-        auto builder = static_cast<TextureBuilder*>(userData);
-        MLG_LOG_SCOPE(builder->Uri);
+        auto texBuilder = static_cast<TextureBuilder*>(userData);
+        MLG_LOG_SCOPE(texBuilder->Uri);
 
         MLG_DEBUG("Decoding...");
 
-        int width, height, numChannels;
-        stbi_uc* data = stbi_load_from_memory(builder->Request->Data.data(),
-            narrow_cast<int>(builder->Request->Data.size()),
-            &width,
-            &height,
-            &numChannels,
+        int imgWidth, imgHeight, imgNumChannels;
+        stbi_uc* data = stbi_load_from_memory(texBuilder->Request->Data.data(),
+            narrow_cast<int>(texBuilder->Request->Data.size()),
+            &imgWidth,
+            &imgHeight,
+            &imgNumChannels,
             kNumTextureChannels);
 
         if(!data)
@@ -87,26 +87,26 @@ StageTexture(TextureBuilder& builder)
         }
         else
         {
-            MLG_ASSERT(builder->Texture.GetWidth() == static_cast<uint32_t>(width) &&
-                builder->Texture.GetHeight() == static_cast<uint32_t>(height),
+            MLG_ASSERT(texBuilder->Texture.GetWidth() == static_cast<uint32_t>(imgWidth) &&
+                texBuilder->Texture.GetHeight() == static_cast<uint32_t>(imgHeight),
                 "Decoded image dimensions do not match texture dimensions - {}",
-                builder->Uri);
-            MLG_ASSERT(builder->Texture.GetFormat() == kTextureFormat,
+                texBuilder->Uri);
+            MLG_ASSERT(texBuilder->Texture.GetFormat() == kTextureFormat,
                 "Texture format does not match expected format - {}",
-                builder->Uri);
+                texBuilder->Uri);
 
-            std::byte* dst = static_cast<std::byte*>(builder->MappedMemory);
+            std::byte* dst = static_cast<std::byte*>(texBuilder->MappedMemory);
             const std::byte* src = reinterpret_cast<const std::byte*>(data);
-            const uint32_t srcRowStride = width * kNumTextureChannels;
-            const uint32_t dstRowStride = (srcRowStride + 255) & ~255;
-            for(uint32_t y = 0; y < static_cast<uint32_t>(height);
+            const uint32_t srcRowStride = static_cast<uint32_t>(imgWidth) * kNumTextureChannels;
+            const uint32_t dstRowStride = (srcRowStride + 255) & ~255u;
+            for(uint32_t y = 0; y < static_cast<uint32_t>(imgHeight);
                 ++y, dst += dstRowStride, src += srcRowStride)
             {
                 ::memcpy(dst, src, srcRowStride);
             }
         }
 
-        builder->DecodeComplete = true;
+        texBuilder->DecodeComplete = true;
     };
 
     ThreadPool::Enqueue(decode, &builder);
@@ -470,13 +470,13 @@ PropKit::PropKit(VertexBuffer vertexBuffer,
     MaterialConstantsBuffer materialConstantsBuffer,
     std::vector<wgpu::BindGroup>&& materialBindGroups,
     std::vector<char>&& stringStorage)
-    : m_IndexBuffer(indexBuffer),
-      m_VertexBuffer(vertexBuffer),
+    : m_VertexBuffer(vertexBuffer),
+      m_IndexBuffer(indexBuffer),
       m_Meshes(std::move(meshes)),
       m_Models(std::move(models)),
       m_MaterialConstantsBuffer(materialConstantsBuffer),
-      m_StringStorage(std::move(stringStorage)),
-      m_MaterialBindGroups(std::move(materialBindGroups))
+      m_MaterialBindGroups(std::move(materialBindGroups)),
+      m_StringStorage(std::move(stringStorage))
 {
 #ifndef NDEBUG
     for(const auto& mesh : m_Meshes)

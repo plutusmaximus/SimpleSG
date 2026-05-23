@@ -244,7 +244,21 @@ public:
             nodesToSearch = *result;
         }
 
-        MLG_CHECKV(foundHandle, "Node not found: {}", path);
+        auto formatPath = [](const auto& inPath) -> std::string
+        {
+            std::string result;
+            for (auto&& x : inPath)
+            {
+                if (!result.empty())
+                {
+                    result += ".";
+                }
+                result += x;
+            }
+            return result;
+        };
+
+         MLG_CHECKV(foundHandle, "Node not found: {}", formatPath(path));
 
         return foundHandle;
     }
