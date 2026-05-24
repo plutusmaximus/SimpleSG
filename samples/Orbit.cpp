@@ -189,9 +189,9 @@ static void ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
             const float r2 = std::max(delta.Dot(delta), minSeparationSq);
             const float massProduct = massA * massB;
 
-            const float pe = -GRAVITATIONAL_CONSTANT * massProduct / std::sqrtf(r2);
+            const float pe = -GRAVITATIONAL_CONSTANT * massProduct / std::sqrt(r2);
             const Vec3f F = -pe * delta / r2;
-            //const Vec3f F = GRAVITATIONAL_CONSTANT * massProduct * delta / (r2 * std::sqrtf(r2));
+            //const Vec3f F = GRAVITATIONAL_CONSTANT * massProduct * delta / (r2 * std::sqrt(r2));
 
             batchParams->PotentialEnergy += pe;
 

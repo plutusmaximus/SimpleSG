@@ -6,7 +6,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #else	//_MSC_VER
-#error "Platform not supported"
+//#error "Platform not supported"
 #endif	//_MSC_VER
 
 #include <atomic>
@@ -20,18 +20,23 @@ AssertHelper::SetDialogEnabled(const bool enabled)
     return s_EnableAssertDialog.exchange(enabled);
 }
 
-#if defined(_MSC_VER)
-
 bool
 AssertHelper::Log(const std::string& message, bool& mute)
 {
+#ifdef __clang__
+    // No stack trace support in clang, so just log the message.
+    std::string logMsg = std::format("{}", message);
+#else
     auto trace = std::stacktrace::current(1);
     std::string logMsg = std::format("{}\n\n{}", message, std::to_string(trace));
+#endif
 
     Log::Assert(logMsg);
 
     bool ignore = !s_EnableAssertDialog.load() || mute;
     if (ignore) return false;
+
+#if defined(_MSC_VER)
 
     const int msgboxValue = MessageBoxA(
         NULL,
@@ -50,8 +55,7 @@ AssertHelper::Log(const std::string& message, bool& mute)
     }
 
     return IDRETRY == msgboxValue;
-}
-
 #else	//_MSC_VER
-#error "Platform not supported"
+    return false;
 #endif	//_MSC_VER
+}

@@ -278,7 +278,11 @@ function(add_sample_executable target_name source_file)
               ${WIN_SYSTEM_DIR}/vulkan-1.dll $<TARGET_FILE_DIR:${target_name}>/
       COMMENT "Copying d3dcompiler_47.dll and vulkan-1.dll to the ${target_name} output directory"
     )
-  endif()
+  elseif(UNIX AND NOT APPLE)
+    find_package(Vulkan REQUIRED)
+
+    target_link_libraries(${target_name} PRIVATE Vulkan::Vulkan)
+endif()
 endfunction()
 
 # ============================================================

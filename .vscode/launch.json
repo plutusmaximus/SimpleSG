@@ -77,6 +77,30 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Orbit (Debug) (GDB)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/Orbit",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/Debug",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
             "name": "Orbit (Release)",
             "type": "cppvsdbg",
             "request": "launch",
@@ -87,7 +111,7 @@
             "environment": [],
             //"console": "externalTerminal"
             "console": "integratedTerminal"
-        }},
+        },
         {
             "name": "Collision (Debug)",
             "type": "cppvsdbg",

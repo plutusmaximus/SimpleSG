@@ -466,7 +466,7 @@ PhysicsLevel::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult&
             const float relMoLenSq = relMo.Dot(relMo);
             if (relMoLenSq >= EPSILON_SQ)
             {
-                impactResult.ContactNormalBtoA = relMo / std::sqrtf(relMoLenSq);
+                impactResult.ContactNormalBtoA = relMo / std::sqrt(relMoLenSq);
             }
             else
             {
@@ -478,7 +478,7 @@ PhysicsLevel::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult&
         {
             // Spheres overlapping so contact normal is direction from one center to the other
             // at time t0.
-            impactResult.ContactNormalBtoA = relP0 / std::sqrtf(dist0Sqr);
+            impactResult.ContactNormalBtoA = relP0 / std::sqrt(dist0Sqr);
         }
 
         impactResult.ContactPoint = pB0 + impactResult.ContactNormalBtoA * radiusB;
@@ -493,7 +493,7 @@ PhysicsLevel::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult&
         // Using this formula avoids catastrophic cancellation when r and d are close, which can
         // happen with shallow penetrations.
         // https://en.wikipedia.org/wiki/Catastrophic_cancellation
-        impactResult.PenetrationDepth = (r * r - dist0Sqr) / (r + std::sqrtf(dist0Sqr));
+        impactResult.PenetrationDepth = (r * r - dist0Sqr) / (r + std::sqrt(dist0Sqr));
 
         return true;
     }
@@ -532,7 +532,7 @@ PhysicsLevel::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult&
     // -b - sqrt(b^2 - 4ac) / 2a is the entry point.
     // -b + sqrt(b^2 - 4ac) / 2a is the exit point.
     // We want the entry point.
-    const float t = (-b - std::sqrtf(discriminant)) / (2 * a);
+    const float t = (-b - std::sqrt(discriminant)) / (2 * a);
 
     if(t < 0 || t > 1)
     {

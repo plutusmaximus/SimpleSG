@@ -44,6 +44,7 @@ struct WgpuContext
 };
 } // namespace
 
+static Result<> DumpDawnAdapterInfo(const wgpu::Adapter& adapter);
 static void DumpDawnToggles(const wgpu::Device& device);
 static void DumpWebgpuLimits(const wgpu::Device& device);
 
@@ -60,6 +61,9 @@ CreateSdlWindow(const char* appName)
     // Create window
     auto window = SDL_CreateWindow(appName, winW, winH, SDL_WINDOW_RESIZABLE);
     MLG_CHECK(window, SDL_GetError());
+
+    SDL_ShowWindow(window);
+    SDL_SyncWindow(window);
 
     return window;
 }
@@ -81,7 +85,7 @@ CreateInstance()
 }
 
 static Result<wgpu::Adapter>
-CreateAdapter(wgpu::Instance instance)
+CreateAdapter(wgpu::Instance instance, wgpu::Surface surface)
 {
     Result<wgpu::Adapter> result;
 
@@ -103,7 +107,7 @@ CreateAdapter(wgpu::Instance instance)
     wgpu::RequestAdapterOptions options //
         {
             .nextInChain = nullptr,
-            .powerPreference = wgpu::PowerPreference::HighPerformance,
+            .powerPreference = wgpu::PowerPreference::Undefined,//wgpu::PowerPreference::HighPerformance,
             .forceFallbackAdapter = false,
 #if defined(_WIN32)
             .backendType = wgpu::BackendType::Vulkan,
@@ -113,7 +117,7 @@ CreateAdapter(wgpu::Instance instance)
 #else
             .backendType = wgpu::BackendType::Vulkan,
 #endif
-            .compatibleSurface = nullptr,
+            .compatibleSurface = surface,
         };
 
     wgpu::Future fut =
@@ -124,9 +128,13 @@ CreateAdapter(wgpu::Instance instance)
     MLG_CHECK(waitStatus == wgpu::WaitStatus::Success,
         "Failed to create WGPUAdapter - WaitAny failed");
 
+    MLG_CHECK(result, "Failed to create WGPUAdapter");
+
     const bool supported = result->HasFeature(wgpu::FeatureName::IndirectFirstInstance);
 
     MLG_CHECK(supported, "IndirectFirstInstance feature is not supported");
+
+    MLG_CHECK(DumpDawnAdapterInfo(*result));
 
     return result;
 }
@@ -167,7 +175,9 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
     const char* enabledToggles[] = {
         //"skip_validation",
         //"disable_robustness",
-        "allow_unsafe_apis", // Required for MultiDrawIndirect
+        //"allow_unsafe_apis", // Required for MultiDrawIndirect
+        //"backend_validation",
+        ""
     };
 
     // const char* disabledToggles[] =
@@ -303,6 +313,8 @@ CreateSurface(wgpu::Instance instance, SDL_Window* window)
     wgpu::Surface surface;
 
 #if defined(_WIN32)
+    MLG_DEBUG("Creating surface for Win32 HWND");
+
     void* hwnd = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
 
     WGPUSurfaceSourceWindowsHWND surface_src_hwnd = {};
@@ -314,8 +326,10 @@ CreateSurface(wgpu::Instance instance, SDL_Window* window)
     surface = wgpu::Surface::Acquire(rawSurface);
 
 #elif defined(__linux__)
-    const char* sdl_driver = SDL_GetCurrentVideoDriver();
-    if (sdl_driver && strcmp(sdl_driver, "wayland") == 0)
+    const char* sdlDriver = SDL_GetCurrentVideoDriver();
+    MLG_DEBUG("Creating surface for Linux - SDL video driver: {}", sdlDriver ? sdlDriver : "unknown");
+
+    if (sdlDriver && strcmp(sdlDriver, "wayland") == 0)
     {
         WGPUSurfaceSourceWaylandSurface surface_src_wayland = {};
         surface_src_wayland.chain.sType = WGPUSType_SurfaceSourceWaylandSurface;
@@ -327,7 +341,7 @@ CreateSurface(wgpu::Instance instance, SDL_Window* window)
         rawSurface = wgpuInstanceCreateSurface(instance.Get(), &surface_descriptor);
         surface = wgpu::Surface::Acquire(rawSurface);
     }
-    else if (sdl_driver && strcmp(sdl_driver, "x11") == 0)
+    else if (sdlDriver && strcmp(sdlDriver, "x11") == 0)
     {
         WGPUSurfaceSourceXlibWindow surface_src_xlib = {};
         surface_src_xlib.chain.sType = WGPUSType_SurfaceSourceXlibWindow;
@@ -341,7 +355,7 @@ CreateSurface(wgpu::Instance instance, SDL_Window* window)
     }
     else
     {
-        MLG_ERROR("Unsupported SDL video driver: {}", sdl_driver ? sdl_driver : "unknown");
+        MLG_ERROR("Unsupported SDL video driver: {}", sdlDriver ? sdlDriver : "unknown");
     }
 #else
     MLG_ERROR("Unsupported platform for surface creation");
@@ -422,23 +436,38 @@ WebgpuHelper::Startup(const char* appName)
     auto instance = CreateInstance();
     MLG_CHECK(instance);
 
-    auto adapter = CreateAdapter(*instance);
+    auto surface = CreateSurface(*instance, *window);
+    MLG_CHECK(surface);
+
+    auto adapter = CreateAdapter(*instance, *surface);
     MLG_CHECK(adapter);
 
     auto device = CreateDevice(*instance, *adapter);
     MLG_CHECK(device);
 
-    auto surfaceResult = CreateSurface(*instance, *window);
-    MLG_CHECK(surfaceResult);
-
     int width, height;
     SDL_GetWindowSize(*window, &width, &height);
 
+    //device->PushErrorScope(wgpu::ErrorFilter::Validation);
     auto surfaceFormat = ConfigureSurface(*adapter,
         *device,
-        *surfaceResult,
+        *surface,
         static_cast<uint32_t>(width),
         static_cast<uint32_t>(height));
+
+    /*device->PopErrorScope(wgpu::CallbackMode::AllowProcessEvents,
+        []([[maybe_unused]] wgpu::PopErrorScopeStatus status,
+            wgpu::ErrorType errorType,
+            wgpu::StringView message)
+        {
+            if(errorType != wgpu::ErrorType::NoError)
+            {
+                MLG_ERROR("Device error during surface creation (type:{}): {}",
+                    static_cast<int>(errorType),
+                    std::string(message.data, message.length));
+            }
+        });*/
+
     MLG_CHECK(surfaceFormat);
 
     s_WgpuContext = ::new(s_WgpuContextStorage) WgpuContext //
@@ -447,7 +476,7 @@ WebgpuHelper::Startup(const char* appName)
             .Instance = std::move(*instance),
             .Adapter = std::move(*adapter),
             .Device = std::move(*device),
-            .Surface = std::move(*surfaceResult),
+            .Surface = std::move(*surface),
             .SurfaceFormat = *surfaceFormat,
             .DefaultSampler{},
         };
@@ -906,6 +935,63 @@ WebgpuHelper::CreateUniformBuffer(const size_t size, const std::string_view& nam
 
 #include <dawn/native/DawnNative.h> // provides dawn::native::GetTogglesUsed
 #include <iostream>
+
+static Result<>
+DumpDawnAdapterInfo(const wgpu::Adapter& adapter)
+{
+    wgpu::AdapterInfo adapterInfo;
+    MLG_CHECK(adapter.GetInfo(&adapterInfo), "Failed to get adapter info");
+
+    const char *backendTypeStr = "Unknown";
+    switch(adapterInfo.backendType)
+    {
+        case wgpu::BackendType::D3D11:
+            backendTypeStr = "D3D11";
+            break;
+        case wgpu::BackendType::D3D12:
+            backendTypeStr = "D3D12";
+            break;
+        case wgpu::BackendType::Metal:
+            backendTypeStr = "Metal";
+            break;
+        case wgpu::BackendType::Vulkan:
+            backendTypeStr = "Vulkan";
+            break;
+        case wgpu::BackendType::WebGPU:
+            backendTypeStr = "WebGPU";
+            break;
+        default:
+            break;
+    }
+
+    const char* adapterTypeStr = "Unknown";
+    switch(adapterInfo.adapterType)
+    {
+        case wgpu::AdapterType::DiscreteGPU:
+            adapterTypeStr = "Discrete GPU";
+            break;
+        case wgpu::AdapterType::IntegratedGPU:
+            adapterTypeStr = "Integrated GPU";
+            break;
+        case wgpu::AdapterType::CPU:
+            adapterTypeStr = "CPU";
+            break;
+        default:
+            break;
+    }
+
+    MLG_DEBUG("Adapter info:");
+    MLG_DEBUG("  Vendor: {}", std::string_view(adapterInfo.vendor.data, adapterInfo.vendor.length));
+    MLG_DEBUG("  Architecture: {}", std::string_view(adapterInfo.architecture.data, adapterInfo.architecture.length));
+    MLG_DEBUG("  Device: {}", std::string_view(adapterInfo.device.data, adapterInfo.device.length));
+    MLG_DEBUG("  Description: {}", std::string_view(adapterInfo.description.data, adapterInfo.description.length));
+    MLG_DEBUG("  Backend Type: {}", backendTypeStr);
+    MLG_DEBUG("  Adapter Type: {}", adapterTypeStr);
+    MLG_DEBUG("  Vendor ID: {}", adapterInfo.vendorID);
+    MLG_DEBUG("  Device ID: {}", adapterInfo.deviceID);
+
+    return Result<>::Ok;
+}
 
 static void
 DumpDawnToggles(const wgpu::Device& device)
