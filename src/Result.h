@@ -37,6 +37,7 @@ public:
     Result(Result&& other) = default;
     Result& operator=(const Result& other) = default;
     Result& operator=(Result&& other) = default;
+    ~Result() = default;
 
     constexpr SuccessType& Value() &
     {
@@ -96,7 +97,7 @@ public:
 
     static inline const std::string& Format(const std::string& str)
     {
-        return str;
+        return str; // NOLINT(bugprone-return-const-ref-from-parameter)
     }
 
     static inline std::string_view Format(const std::string_view str)
@@ -114,7 +115,7 @@ public:
     do{ \
         if(!static_cast<bool>(expr)) \
         { \
-            const std::string errorMessage = Result<>::Format(__VA_ARGS__); \
+            __VA_OPT__(const std::string errorMessage = Result<>::Format(__VA_ARGS__);) \
             __VA_OPT__(MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, errorMessage)); \
             return Result<>::Fail; \
         } \
@@ -125,7 +126,7 @@ public:
     do{ \
         if(!MLG_VERIFY(expr __VA_OPT__(,) __VA_ARGS__)) \
         { \
-            const std::string errorMessage = Result<>::Format(__VA_ARGS__); \
+            __VA_OPT__(const std::string errorMessage = Result<>::Format(__VA_ARGS__);) \
             __VA_OPT__(MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, errorMessage)); \
             return Result<>::Fail; \
         } \

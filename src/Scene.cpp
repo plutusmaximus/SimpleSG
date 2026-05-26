@@ -1,4 +1,4 @@
-#define __LOGGER_NAME__ "SCEN"
+#define MLG_LOGGER_NAME "SCEN"
 
 #include "Scene.h"
 

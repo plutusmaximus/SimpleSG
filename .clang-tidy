@@ -1,0 +1,55 @@
+# Minimal clang-tidy profile for incremental adoption.
+#
+# Usage example:
+#   clang-tidy -config-file=.clang-tidy2 <file>
+#
+# Keep this baseline small so signal stays high.
+---
+Checks: >
+  -*,
+  clang-analyzer-*,
+  -clang-analyzer-alpha.*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  # misc-const-correctness,
+  # misc-definitions-in-headers,
+  # misc-include-cleaner,
+  # modernize-*,
+  # -modernize-use-trailing-return-type,
+  # -modernize-avoid-c-arrays,
+  # -modernize-use-nodiscard,
+
+  # Stage 3: C++ Core Guidelines (broader policy checks)
+  # cppcoreguidelines-*,
+  # -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
+  # -cppcoreguidelines-avoid-c-arrays,
+  # -cppcoreguidelines-macro-usage,
+
+  # Stage 4: Performance-focused checks
+  # performance-*,
+
+  # Stage 5: Readability checks (highest noise; add slowly)
+  # readability-*,
+  # -readability-use-concise-preprocessor-directives
+
+WarningsAsErrors: ''
+
+# Analyze project code; avoid vendor trees unless you explicitly want them.
+HeaderFilterRegex: '^(src|samples|tests)/.*'
+
+# Do not auto-apply formatting style changes from clang-tidy diagnostics.
+FormatStyle: none
+
+CheckOptions:
+  # Reasonable default for "magic number" diagnostics if you enable them later.
+  - key: readability-magic-numbers.IgnoredIntegerValues
+    value: '0;1;2'
+
+  # If Stage 3 enables cppcoreguidelines-macro-usage, uncomment this allowlist.
+  # - key: cppcoreguidelines-macro-usage.AllowedRegexp
+  #   value: '^(MLG_ASSERT|MLG_ASSERT_.*)$'
+
+# 5) Optional stricter mode for CI gating later
+# WarningsAsErrors: >
+#   clang-analyzer-*,
+#   bugprone-*,-bugprone-easily-swappable-parameters

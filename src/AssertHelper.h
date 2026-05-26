@@ -16,7 +16,7 @@ public:
     /// Used by the everify macro.
     /// UNIQUE_ID is a unique integer per call site.
     template<int UNIQUE_ID>
-    static inline bool& Muter()
+    static bool& Muter()
     {
         static bool muted = false;
         return muted;
@@ -79,15 +79,15 @@ private:
 // return MLG_VERIFY(x > y) ? x : -1;
 
 #if defined(_MSC_VER)
-    #define MLG_DEBUG_BREAK() __debugbreak()
+    constexpr void MLG_DEBUG_BREAK() { __debugbreak(); }
 #elif defined(__clang__) && __has_builtin(__builtin_debugtrap)
-    #define MLG_DEBUG_BREAK() __builtin_debugtrap()
+    constexpr void MLG_DEBUG_BREAK() { __builtin_debugtrap(); }
 #elif defined(__GNUC__)
     #include <signal.h>
-    #define MLG_DEBUG_BREAK() raise(SIGTRAP)
+    constexpr void MLG_DEBUG_BREAK() { raise(SIGTRAP); }
 #else
     #include <cstdlib>
-    #define MLG_DEBUG_BREAK() std::abort()
+    constexpr void MLG_DEBUG_BREAK() { std::abort(); }
 #endif
 
 #define MLG_VERIFY(expr, ...) \
@@ -99,10 +99,10 @@ private:
 
 #define MLG_ASSERT_CAPTURE(capName) \
     for(struct{bool en = AssertHelper::SetDialogEnabled(false); \
-        Log::Capture capName; \
-        std::string Message(){return capName.Message();}} capName; \
-        !capName.capName.IsCanceled(); \
-        capName.capName.Cancel(), AssertHelper::SetDialogEnabled(capName.en))
+        Log::Capture logCap; \
+        std::string Message(){return logCap.Message();}} capture; \
+        !capture.logCap.IsCanceled(); \
+        capture.logCap.Cancel(), AssertHelper::SetDialogEnabled(capture.en))
 
 #define MLG_ASSERT_CAPTURE_CHECK(capName, msg) ((capName).Message().contains(msg))
 

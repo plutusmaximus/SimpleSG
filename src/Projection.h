@@ -19,6 +19,7 @@ public:
         m_Fov = fov;
         m_Proj = Mat44f::PerspectiveLH(m_Fov, m_AspectRatio, m_Near, m_Far);
     }
+
     Radiansf GetFov() const { return m_Fov; }
 
     void SetNearClip(const float nearClip)

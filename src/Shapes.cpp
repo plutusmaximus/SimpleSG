@@ -90,7 +90,7 @@ Shapes::Ball(const float radius, const float smoothness)
     // Calculate exact final sizes with deduplication
     // With deduplication, vertices are shared between triangles
     // Formula: V = 10 * 4^n + 2 (for n subdivisions)
-    const size_t finalTriangles = 20 * (1 << (2 * subdivisions)); // 20 * 4^subdivisions
+    const size_t finalTriangles = 20uz * (1 << (2 * subdivisions)); // 20 * 4^subdivisions
     const size_t finalIndices = finalTriangles * 3;
     const size_t totalVertices = subdivisions > 0 ? 10 * (1 << (2 * subdivisions)) + 2 : 12;
 

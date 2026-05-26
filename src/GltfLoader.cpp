@@ -1,7 +1,7 @@
-#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS // NOLINT(bugprone-reserved-identifier)
 #define NOMINMAX
 
-#define __LOGGER_NAME__ "GLTF"
+#define MLG_LOGGER_NAME "GLTF"
 
 #include "GltfLoader.h"
 
@@ -12,7 +12,6 @@
 #include "scope_exit.h"
 #include "Vertex.h"
 
-#define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
 #include <filesystem>
 #include <map>
@@ -250,43 +249,42 @@ CollectVertices(const CgltfPrimitiveAttributes& attrs, std::vector<Vertex>& vert
     // We use left handed.  +Y up, +Z forward, +X right.
     for(cgltf_size i = 0; i < attrs.SrcPosition->count; ++i)
     {
+        float xyz[3]{};
         Vertex vertex;
-        MLG_CHECK(cgltf_accessor_read_float(attrs.SrcPosition, i, &vertex.pos.x, 3),
+
+        MLG_CHECK(cgltf_accessor_read_float(attrs.SrcPosition, i, xyz, std::size(xyz)),
             "Failed to read POSITION attribute");
 
         // Convert from right handed to left handed.
-        vertex.pos.x = -vertex.pos.x;
+        vertex.pos.x = -xyz[0];
+        vertex.pos.y = xyz[1];
+        vertex.pos.z = xyz[2];
 
         if(attrs.SrcNormal)
         {
-            MLG_CHECK(cgltf_accessor_read_float(attrs.SrcNormal, i, &vertex.normal.x, 3),
+            float normal[3]{};
+            MLG_CHECK(cgltf_accessor_read_float(attrs.SrcNormal, i, normal, std::size(normal)),
                 "Failed to read NORMAL attribute");
 
             // Convert from right handed to left handed.
-            vertex.normal.x = -vertex.normal.x;
+            vertex.normal.x = -normal[0];
+            vertex.normal.y = normal[1];
+            vertex.normal.z = normal[2];
         }
 
         if(attrs.SrcTexcoord0)
         {
-            MLG_CHECK(cgltf_accessor_read_float(attrs.SrcTexcoord0, i, &vertex.uvs[0].u, 2),
+            float texcoord0[2]{};
+            MLG_CHECK(cgltf_accessor_read_float(attrs.SrcTexcoord0, i, texcoord0, std::size(texcoord0)),
                 "Failed to read TEXCOORD_0 attribute");
+            vertex.uvs[0].u = texcoord0[0];
+            vertex.uvs[0].v = texcoord0[1];
         }
         else
         {
             vertex.uvs[0].u = 0.0f;
             vertex.uvs[0].v = 0.0f;
         }
-
-        /*if(attrs.SrcTexcoord1)
-        {
-            MLG_CHECK(cgltf_accessor_read_float(attrs.SrcTexcoord1, i, &vertex.uvs[1].u, 2),
-                "Failed to read TEXCOORD_1 attribute");
-        }
-        else
-        {
-            vertex.uvs[1].u = 0.0f;
-            vertex.uvs[1].v = 0.0f;
-        }*/
 
         vertices.push_back(vertex);
     }

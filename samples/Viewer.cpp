@@ -127,6 +127,9 @@ MainLoop()
                 case SDL_EVENT_WINDOW_MAXIMIZED:
                     minimized = false;
                     break;
+
+                default:
+                    break;
             }
         }
 
@@ -157,9 +160,6 @@ MainLoop()
 
             //case SDL_EVENT_WINDOW_MOUSE_LEAVE:
             case SDL_EVENT_WINDOW_FOCUS_GAINED:
-                mouseNav.ClearButtons();
-                break;
-
             case SDL_EVENT_WINDOW_FOCUS_LOST:
                 mouseNav.ClearButtons();
                 break;
@@ -172,8 +172,6 @@ MainLoop()
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                break;
-
             case SDL_EVENT_MOUSE_BUTTON_UP:
                 break;
 
@@ -208,16 +206,15 @@ MainLoop()
                 break;
 
             case SDL_EVENT_DROP_BEGIN:
+            case SDL_EVENT_DROP_TEXT:
+            case SDL_EVENT_DROP_COMPLETE:
                 break;
 
             case SDL_EVENT_DROP_FILE:
                 droppedFile = event.drop.data;
                 break;
 
-            case SDL_EVENT_DROP_TEXT:
-                break;
-
-            case SDL_EVENT_DROP_COMPLETE:
+            default:
                 break;
             }
         }

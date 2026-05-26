@@ -378,6 +378,9 @@ MainLoop()
                 case SDL_EVENT_WINDOW_MAXIMIZED:
                     minimized = false;
                     break;
+
+                default:
+                    break;
             }
         }
 
@@ -406,9 +409,6 @@ MainLoop()
 
             //case SDL_EVENT_WINDOW_MOUSE_LEAVE:
             case SDL_EVENT_WINDOW_FOCUS_GAINED:
-                mouseNav.ClearButtons();
-                break;
-
             case SDL_EVENT_WINDOW_FOCUS_LOST:
                 mouseNav.ClearButtons();
                 break;
@@ -421,8 +421,6 @@ MainLoop()
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                break;
-
             case SDL_EVENT_MOUSE_BUTTON_UP:
                 break;
 
@@ -458,6 +456,9 @@ MainLoop()
                 {
                     mouseNav.OnKeyUp(event.key.scancode);
                 }
+                break;
+
+            default:
                 break;
             }
         }

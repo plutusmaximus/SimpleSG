@@ -1,7 +1,7 @@
-#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS // NOLINT(bugprone-reserved-identifier)
 #define NOMINMAX
 
-#define __LOGGER_NAME__ "PPKT"
+#define MLG_LOGGER_NAME "PPKT"
 
 #include "PropKit.h"
 #include "FileFetcher.h"
@@ -15,10 +15,8 @@
 #include <filesystem>
 #include <map>
 
-#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
 static constexpr uint32_t kNumTextureChannels = 4;
 
 namespace
@@ -40,8 +38,8 @@ StageTexture(TextureBuilder& builder)
 
     int width, height, numChannels;
 
-    if(!stbi_info_from_memory(builder.Request->Data.data(),
-           narrow_cast<int>(builder.Request->Data.size()),
+    if(!stbi_info_from_memory(builder.Request->GetData().data(),
+           narrow_cast<int>(builder.Request->GetData().size()),
            &width,
            &height,
            &numChannels))
@@ -74,8 +72,8 @@ StageTexture(TextureBuilder& builder)
         MLG_DEBUG("Decoding...");
 
         int imgWidth, imgHeight, imgNumChannels;
-        stbi_uc* data = stbi_load_from_memory(texBuilder->Request->Data.data(),
-            narrow_cast<int>(texBuilder->Request->Data.size()),
+        stbi_uc* data = stbi_load_from_memory(texBuilder->Request->GetData().data(),
+            narrow_cast<int>(texBuilder->Request->GetData().size()),
             &imgWidth,
             &imgHeight,
             &imgNumChannels,
@@ -91,7 +89,7 @@ StageTexture(TextureBuilder& builder)
                 texBuilder->Texture.GetHeight() == static_cast<uint32_t>(imgHeight),
                 "Decoded image dimensions do not match texture dimensions - {}",
                 texBuilder->Uri);
-            MLG_ASSERT(texBuilder->Texture.GetFormat() == kTextureFormat,
+            MLG_ASSERT(texBuilder->Texture.GetFormat() == wgpu::TextureFormat::RGBA8Unorm,
                 "Texture format does not match expected format - {}",
                 texBuilder->Uri);
 
@@ -157,7 +155,7 @@ FetchTextures(std::filesystem::path basePath,
 
         if(!FileFetcher::Fetch(request))
         {
-            MLG_WARN("Failed to fetch texture: {}", request.FilePath);
+            MLG_WARN("Failed to fetch texture: {}", request.GetFilePath());
         }
     }
 

@@ -87,6 +87,9 @@ static Result<> MainLoop()
                 case SDL_EVENT_WINDOW_MAXIMIZED:
                     minimized = false;
                     break;
+
+                default:
+                    break;
             }
         }
 
@@ -119,37 +122,18 @@ static Result<> MainLoop()
                 minimized = true;
                 break;
 
-            //case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+            /*case SDL_EVENT_WINDOW_MOUSE_LEAVE:
             case SDL_EVENT_WINDOW_FOCUS_GAINED:
-                //app->OnFocusGained();
-                break;
-
             case SDL_EVENT_WINDOW_FOCUS_LOST:
-                //app->OnFocusLost();
-                break;
-
             case SDL_EVENT_MOUSE_MOTION:
-                //app->OnMouseMove(Vec2f(event.motion.xrel, event.motion.yrel));
-                break;
-
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                //app->OnMouseDown(Point(event.button.x, event.button.y), event.button.button - 1);
-                break;
-
             case SDL_EVENT_MOUSE_BUTTON_UP:
-                //app->OnMouseUp(event.button.button - 1);
-                break;
-
             case SDL_EVENT_MOUSE_WHEEL:
-                //app->OnScroll(Vec2f(event.wheel.x, event.wheel.y));
-                break;
-
             case SDL_EVENT_KEY_DOWN:
-                //app->OnKeyDown(event.key.scancode);
-                break;
-
             case SDL_EVENT_KEY_UP:
-                //app->OnKeyUp(event.key.scancode);
+                break;*/
+
+            default:
                 break;
             }
         }

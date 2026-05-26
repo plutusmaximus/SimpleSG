@@ -11,6 +11,9 @@ public:
 
     using ValueType = T;
 
+    static constexpr T kMaxValue = std::is_integral_v<T> ? static_cast<T>(255) : static_cast<T>(1);
+    static constexpr T kMinValue = 0;
+
     constexpr RgbaColor() = default;
 
     constexpr RgbaColor(const T inR, const T inG, const T inB) noexcept
@@ -23,12 +26,19 @@ public:
     {
     }
 
+    template<typename U>
+    constexpr static T Clamp(const U value) noexcept
+    {
+        const U clampedValue = std::clamp(value, static_cast<U>(kMinValue), static_cast<U>(kMaxValue));
+        return static_cast<T>(clampedValue);
+    }
+
     /// @brief  Conversion constructor.
     template<typename U>
     constexpr RgbaColor(const RgbaColor<U>& other) noexcept;
 
     /// @brief Converts the color to a hexadecimal string representation - #RRGGBBAA
-    std::string ToHexString() const noexcept;
+    [[nodiscard]] std::string ToHexString() const noexcept;
 
     constexpr friend bool operator==(const RgbaColor& colorA, const RgbaColor& colorB) noexcept
     {
@@ -45,7 +55,7 @@ using RgbaColoru8 = RgbaColor<uint8_t>;
 /// @brief Specialization for uint8_t with default alpha of 255.
 template<>
 inline constexpr RgbaColor<uint8_t>::RgbaColor(const uint8_t inR, const uint8_t inG, const uint8_t inB) noexcept
-    : RgbaColor<uint8_t>(inR, inG, inB, 255)
+    : RgbaColor<uint8_t>(inR, inG, inB, kMaxValue)
 {
 }
 
@@ -53,32 +63,32 @@ inline constexpr RgbaColor<uint8_t>::RgbaColor(const uint8_t inR, const uint8_t 
 template<>
 template<>
 inline RgbaColor<uint8_t>::RgbaColor(const RgbaColor<float>& other) noexcept
-    : r(static_cast<uint8_t>(std::clamp(other.r * 255.0f, 0.0f, 255.0f)))
-    , g(static_cast<uint8_t>(std::clamp(other.g * 255.0f, 0.0f, 255.0f)))
-    , b(static_cast<uint8_t>(std::clamp(other.b * 255.0f, 0.0f, 255.0f)))
-    , a(static_cast<uint8_t>(std::clamp(other.a * 255.0f, 0.0f, 255.0f)))
+    : r(Clamp(other.r * kMaxValue))
+    , g(Clamp(other.g * kMaxValue))
+    , b(Clamp(other.b * kMaxValue))
+    , a(Clamp(other.a * kMaxValue))
 {
 }
 
 /// @brief Specialization for float with clamping between 0.0 and 1.0.
 template<>
 inline constexpr RgbaColor<float>::RgbaColor(const float inR, const float inG, const float inB, const float inA) noexcept
-    : r(std::clamp(inR, 0.0f, 1.0f)), g(std::clamp(inG, 0.0f, 1.0f)), b(std::clamp(inB, 0.0f, 1.0f)), a(std::clamp(inA, 0.0f, 1.0f))
+    : r(Clamp(inR)), g(Clamp(inG)), b(Clamp(inB)), a(Clamp(inA))
 {
-    MLG_ASSERT(inR >= 0 && inR <= 1);
-    MLG_ASSERT(inG >= 0 && inG <= 1);
-    MLG_ASSERT(inB >= 0 && inB <= 1);
-    MLG_ASSERT(inA >= 0 && inA <= 1);
+    MLG_ASSERT(inR >= kMinValue && inR <= kMaxValue);
+    MLG_ASSERT(inG >= kMinValue && inG <= kMaxValue);
+    MLG_ASSERT(inB >= kMinValue && inB <= kMaxValue);
+    MLG_ASSERT(inA >= kMinValue && inA <= kMaxValue);
 }
 
 /// @brief Specialization for converting from uint8_t to float.
 template<>
 template<>
 inline RgbaColor<float>::RgbaColor(const RgbaColor<uint8_t>& other) noexcept
-    : r(static_cast<float>(other.r) / 255.0f)
-    , g(static_cast<float>(other.g) / 255.0f)
-    , b(static_cast<float>(other.b) / 255.0f)
-    , a(static_cast<float>(other.a) / 255.0f)
+    : r(Clamp(static_cast<float>(other.r) / RgbaColor<uint8_t>::kMaxValue))
+    , g(Clamp(static_cast<float>(other.g) / RgbaColor<uint8_t>::kMaxValue))
+    , b(Clamp(static_cast<float>(other.b) / RgbaColor<uint8_t>::kMaxValue))
+    , a(Clamp(static_cast<float>(other.a) / RgbaColor<uint8_t>::kMaxValue))
 {
 }
 

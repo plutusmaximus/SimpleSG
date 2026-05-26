@@ -177,7 +177,26 @@ target_include_directories(imgui PUBLIC
 )
 
 target_link_libraries(imgui PUBLIC SDL3::SDL3)
+add_dependencies(imgui webgpu_dawn)
 target_compile_definitions(imgui PRIVATE IMGUI_IMPL_WEBGPU_BACKEND_DAWN)
+
+# ============================================================
+# Enable clang-tidy only after all thirdparty targets exist
+# ============================================================
+
+option(ENABLE_CLANG_TIDY "Enable clang-tidy analysis" OFF)
+
+if(ENABLE_CLANG_TIDY)
+  find_program(CLANG_TIDY_EXE NAMES clang-tidy-22 clang-tidy)
+  if(CLANG_TIDY_EXE)
+    set(CMAKE_CXX_CLANG_TIDY
+        ${CLANG_TIDY_EXE}
+        --use-color
+        "--header-filter=.*[/\\\\](src|tests|samples)[/\\\\].*")
+  else()
+    message(WARNING "ENABLE_CLANG_TIDY is ON but clang-tidy was not found")
+  endif()
+endif()
 
 # ============================================================
 # Shaders / Assets
@@ -196,6 +215,7 @@ add_custom_target(copy_images
 set(SSG_SOURCES
   src/AssertHelper.cpp
   src/Bounds.cpp
+  src/cgltf.cpp
   src/Compositor.cpp
   src/FileFetcher.cpp
   src/GltfLoader.cpp
@@ -209,6 +229,7 @@ set(SSG_SOURCES
   src/Renderer.cpp
   src/Scene.cpp
   src/Shapes.cpp
+  src/stb_image.cpp
   src/Stopwatch.cpp
   src/TextureCache.cpp
   src/ThreadPool.cpp
@@ -250,6 +271,10 @@ target_sources(ssg
   PRIVATE ${SSG_SOURCES}
   PUBLIC FILE_SET HEADERS BASE_DIRS src FILES ${SSG_HEADERS}
 )
+
+# Keep third-party amalgamated implementation out of clang-tidy noise.
+set_source_files_properties(src/cgltf.cpp PROPERTIES CXX_CLANG_TIDY "")
+set_source_files_properties(src/stb_image.cpp PROPERTIES CXX_CLANG_TIDY "")
 
 target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 webgpu_dawn imgui)
 target_include_directories(ssg PUBLIC src src/shaders)

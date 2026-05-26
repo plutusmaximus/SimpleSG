@@ -14,7 +14,7 @@ class FileFetcher
 {
 public:
 
-    enum RequestStatus
+    enum class RequestStatus : uint8_t
     {
         None,
         Failure,
@@ -26,8 +26,8 @@ public:
     {
     public:
 
-        explicit Request(const std::string& filePath)
-            : FilePath(filePath)
+        explicit Request(std::string filePath)
+            : m_FilePath(std::move(filePath))
         {
         }
 
@@ -40,17 +40,16 @@ public:
         {
             if(IsPending())
             {
-                SetComplete(Failure);
+                SetComplete(RequestStatus::Failure);
             }
         }
 
-        bool IsPending() const { return m_Status == Pending; }
-        bool Succeeded() const { return m_Status == Success; }
+        bool IsPending() const { return m_Status == RequestStatus::Pending; }
+        bool Succeeded() const { return m_Status == RequestStatus::Success; }
 
-        std::string FilePath;
-        std::vector<uint8_t> Data;
-        size_t BytesRequested{0};
-        size_t BytesRead{0};
+        std::span<const uint8_t> GetData() const { return m_Data; }
+
+        const std::string& GetFilePath() const { return m_FilePath; }
 
     private:
 
@@ -81,8 +80,13 @@ public:
 #if defined(_WIN32)
         HANDLE m_hFile{nullptr};
         OVERLAPPED m_Ov{0};
+        size_t m_BytesRequested{0};
+        size_t m_BytesRead{0};
 #endif
-        RequestStatus m_Status{None};
+        std::string m_FilePath;
+        std::vector<uint8_t> m_Data;
+
+        RequestStatus m_Status{RequestStatus::None};
     };
 
     static Result<> Fetch(Request& request);

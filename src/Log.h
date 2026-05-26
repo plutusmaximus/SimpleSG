@@ -4,12 +4,12 @@
 #include <format>
 #include <string>
 
-/// Define __LOGGER_NAME__ before including this header to create a logger with a specific name.
+/// Define MLG_LOGGER_NAME before including this header to create a logger with a specific name.
 /// Otherwise the default logger is used.
 /// Example:
-/// #define __LOGGER_NAME__ "my_logger"
-#ifndef __LOGGER_NAME__
-#define __LOGGER_NAME__ "****"
+/// #define MLG_LOGGER_NAME "my_logger"
+#ifndef MLG_LOGGER_NAME
+#define MLG_LOGGER_NAME "****"
 #endif
 
 class Log final
@@ -56,7 +56,9 @@ public:
 
         void LogImpl(const Level level, const std::string& message);
 
-        uint8_t m_Buffer[16];
+        static constexpr size_t kBufferSize = 16;
+
+        uint8_t m_Buffer[kBufferSize];
     };
 
     /// Log an assertion failure
@@ -104,9 +106,13 @@ public:
     class Capture
     {
     public:
-        ~Capture();
-
         Capture();
+        Capture(const Capture&) = delete;
+        Capture& operator=(const Capture&) = delete;
+        Capture(Capture&&) = delete;
+        Capture& operator=(Capture&&) = delete;
+
+        ~Capture();
 
         void Cancel();
 
@@ -120,7 +126,8 @@ public:
 
         // Allocate the sink into this buffer so we don't
         // end up with lots of tiny heap allocations.
-        uint8_t m_SinkBuffer[16];
+        static constexpr size_t kSinkBufferSize = 16;
+        uint8_t m_SinkBuffer[kSinkBufferSize];
     };
 
 private:
@@ -151,6 +158,12 @@ struct LogScope
     {
         Log::PopPrefix();
     }
+
+    LogScope() = delete;
+    LogScope(const LogScope&) = delete;
+    LogScope& operator=(const LogScope&) = delete;
+    LogScope(LogScope&&) = delete;
+    LogScope& operator=(LogScope&&) = delete;
 };
 }
 
@@ -183,10 +196,10 @@ struct LogScope
 #define MLG_LOG_SCOPE_CONCAT(a, b) MLG_LOG_SCOPE_CONCAT_HELPER(a, b)
 #define MLG_LOG_SCOPE(...) mlg::LogScope MLG_LOG_SCOPE_CONCAT(logScope_, __LINE__)(__VA_ARGS__);
 
-static inline Log::Logger __logger__(__LOGGER_NAME__);
+static inline Log::Logger mlg_logger_no_conflict(MLG_LOGGER_NAME);
 
-#define MLG_TRACE(...) __logger__.Log( Log::Level::Trace, __VA_ARGS__)
-#define MLG_DEBUG(...) __logger__.Log( Log::Level::Debug, __VA_ARGS__)
-#define MLG_INFO(...) __logger__.Log( Log::Level::Info, __VA_ARGS__)
-#define MLG_WARN(...) __logger__.Log( Log::Level::Warn, __VA_ARGS__)
-#define MLG_ERROR(...) __logger__.Log( Log::Level::Error, __VA_ARGS__)
+#define MLG_TRACE(...) mlg_logger_no_conflict.Log( Log::Level::Trace, __VA_ARGS__)
+#define MLG_DEBUG(...) mlg_logger_no_conflict.Log( Log::Level::Debug, __VA_ARGS__)
+#define MLG_INFO(...) mlg_logger_no_conflict.Log( Log::Level::Info, __VA_ARGS__)
+#define MLG_WARN(...) mlg_logger_no_conflict.Log( Log::Level::Warn, __VA_ARGS__)
+#define MLG_ERROR(...) mlg_logger_no_conflict.Log( Log::Level::Error, __VA_ARGS__)

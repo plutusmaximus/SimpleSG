@@ -1,4 +1,4 @@
-#define __LOGGER_NAME__ "PERF"
+#define MLG_LOGGER_NAME "PERF"
 
 #include "PerfMetrics.h"
 

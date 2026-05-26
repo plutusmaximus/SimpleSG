@@ -39,11 +39,7 @@ private:
     {
         const T r = value - std::floor(value / TWO_PI) * TWO_PI;
 
-        if (r >= TWO_PI - eps)
-        {
-            return T{0};
-        }
-        else if (std::abs(r) < eps)
+        if((r >= TWO_PI - eps) || (std::abs(r) < eps))
         {
             return T{0};
         }
@@ -53,16 +49,18 @@ private:
 
     constexpr static T Limit(const T value) noexcept
     {
+        constexpr T kLimit = 1000 * TWO_PI;
+
         T newValue = value;
 
-        while(newValue > 1000 * TWO_PI)
+        while(newValue > kLimit)
         {
-            newValue -= 1000 * TWO_PI;
+            newValue -= kLimit;
         }
 
-        while(newValue < -1000 * TWO_PI)
+        while(newValue < -kLimit)
         {
-            newValue += 1000 * TWO_PI;
+            newValue += kLimit;
         }
 
         return newValue;
@@ -890,7 +888,7 @@ public:
 
     constexpr friend bool operator==(const Mat44& a, const Mat44& b) noexcept
     {
-        return 0 == std::memcmp(&a, &b, sizeof(Mat44<T>));
+        return a.m[0] == b.m[0] && a.m[1] == b.m[1] && a.m[2] == b.m[2] && a.m[3] == b.m[3];
     }
 
     constexpr Mat44& operator*=(const Mat44& that) noexcept
@@ -1323,6 +1321,7 @@ using UnitQuatf = UnitQuat<float>;
 using Mat44f = Mat44<float>;
 using TrsTransformf = TrsTransform<float>;
 
+// NOLINTBEGIN(bugprone-std-namespace-modification): std::formatter is a standard customization point for user-defined types.
 /// @brief Enable formatting of Vec2 via std::format.
 template<typename T>
 struct std::formatter<Vec2<T>>
@@ -1400,3 +1399,4 @@ struct std::formatter<Point>
         return std::format_to(ctx.out(), "({}, {})", point.X, point.Y);
     }
 };
+// NOLINTEND(bugprone-std-namespace-modification)

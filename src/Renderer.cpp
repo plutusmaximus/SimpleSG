@@ -1,6 +1,6 @@
-#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS // NOLINT(bugprone-reserved-identifier)
 
-#define __LOGGER_NAME__ "DAWN"
+#define MLG_LOGGER_NAME "DAWN"
 
 #include "Renderer.h"
 
@@ -284,12 +284,17 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
         filePath,
         std::strerror(errno));
 
-    long fileSize = std::ftell(fp);
+    const long fileSize = std::ftell(fp);
     MLG_CHECK(fileSize >= 0,
         "Failed to get size of shader file: {} ({})",
         filePath,
         std::strerror(errno));
-    std::rewind(fp);
+
+    // Rewind
+    MLG_CHECK(std::fseek(fp, 0, SEEK_SET) == 0,
+        "Failed to seek in shader file: {} ({})",
+        filePath,
+        std::strerror(errno));
 
     outBuffer.resize(static_cast<size_t>(fileSize));
 

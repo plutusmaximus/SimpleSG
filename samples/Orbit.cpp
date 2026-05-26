@@ -79,7 +79,8 @@ Load(const std::filesystem::path& path,
         "Failed to create PropKit for {}",
         path.string());
 
-    std::mt19937 gen(12345); // Fixed seed for reproducibility
+    // Fixed seed for reproducibility
+    std::mt19937 gen(12345);    // NOLINT(bugprone-random-generator-seed)
     std::uniform_real_distribution<float> dis(-1, 1);
 
     constexpr int GRID_SIZE = 20;
@@ -306,7 +307,7 @@ static void ApplyGravity(PhysicsLevel& physLevel)
 static void ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
 {
     const std::span<const RigidBody> bodies = physLevel.GetBodies();
-    std::mt19937 gen;
+    std::mt19937 gen(12345);    // NOLINT(bugprone-random-generator-seed)
     std::uniform_real_distribution<float> dis(0.5, 1);
     std::bernoulli_distribution sign;
 
@@ -460,6 +461,9 @@ MainLoop()
                 case SDL_EVENT_WINDOW_MAXIMIZED:
                     minimized = false;
                     break;
+
+                default:
+                    break;
             }
         }
 
@@ -488,9 +492,6 @@ MainLoop()
 
             //case SDL_EVENT_WINDOW_MOUSE_LEAVE:
             case SDL_EVENT_WINDOW_FOCUS_GAINED:
-                mouseNav.ClearButtons();
-                break;
-
             case SDL_EVENT_WINDOW_FOCUS_LOST:
                 mouseNav.ClearButtons();
                 break;
@@ -503,8 +504,6 @@ MainLoop()
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                break;
-
             case SDL_EVENT_MOUSE_BUTTON_UP:
                 break;
 
@@ -566,6 +565,9 @@ MainLoop()
                 {
                     mouseNav.OnKeyUp(event.key.scancode);
                 }
+                break;
+
+            default:
                 break;
             }
         }
