@@ -81,11 +81,11 @@ void Log::Logger::LogImpl(const Level level, const std::string& message)
 
 void Log::Logger::SetLevel(const Level level)
 {
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Trace) == spdlog::level::trace);
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Debug) == spdlog::level::debug);
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Info) == spdlog::level::info);
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Warn) == spdlog::level::warn);
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Error) == spdlog::level::err);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Trace) == spdlog::level::trace);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Debug) == spdlog::level::debug);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Info) == spdlog::level::info);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Warn) == spdlog::level::warn);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Error) == spdlog::level::err);
 
     auto logger = reinterpret_cast<std::shared_ptr<spdlog::logger>*>(m_Buffer);
 
@@ -95,11 +95,11 @@ void Log::Logger::SetLevel(const Level level)
 void
 Log::SetLevel(const Level level)
 {
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Trace) == spdlog::level::trace);
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Debug) == spdlog::level::debug);
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Info) == spdlog::level::info);
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Warn) == spdlog::level::warn);
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Error) == spdlog::level::err);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Trace) == spdlog::level::trace);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Debug) == spdlog::level::debug);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Info) == spdlog::level::info);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Warn) == spdlog::level::warn);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Error) == spdlog::level::err);
 
     spdlog::set_level(static_cast<spdlog::level::level_enum>(level));
 }

@@ -123,7 +123,7 @@ ImGuiRenderer::Render(Compositor& renderCompositor)
         .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
         .loadOp = wgpu::LoadOp::Load,
         .storeOp = wgpu::StoreOp::Store,
-        .clearValue = { 0.0f, 0.0f, 0.0f, 1.0f },
+        .clearValue = {.r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 1.0f},
     };
 
     const wgpu::RenderPassDescriptor renderPassDesc //

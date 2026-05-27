@@ -15,11 +15,13 @@ Checks: >
     -bugprone-easily-swappable-parameters,
   misc-const-correctness,
   misc-definitions-in-headers,
-  # misc-include-cleaner,
-  # modernize-*,
-  # -modernize-use-trailing-return-type,
-  # -modernize-avoid-c-arrays,
-  # -modernize-use-nodiscard,
+  modernize-*,
+    -modernize-use-trailing-return-type,
+    -modernize-avoid-c-arrays,
+    -modernize-use-nodiscard,
+    -modernize-return-braced-init-list,
+    -modernize-use-scoped-lock,
+    -modernize-use-auto,
 
   # Stage 3: C++ Core Guidelines (broader policy checks)
   # cppcoreguidelines-*,

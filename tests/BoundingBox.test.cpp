@@ -10,7 +10,7 @@ MakeVertex(const Vec3f& p)
     Vertex v{};
     v.pos = p;
     v.normal = { 0.0f, 0.0f, 1.0f };
-    v.uvs[0] = { 0.0f, 0.0f };
+    v.uvs[0] = { .u = 0.0f, .v = 0.0f };
     return v;
 }
 

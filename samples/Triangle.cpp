@@ -141,8 +141,7 @@ static Result<> MainLoop()
         }
 
         auto screenBounds = WebgpuHelper::GetScreenBounds();
-        const float aspectRatio = screenBounds.Width / screenBounds.Height;
-        projection.SetAspectRatio(aspectRatio);
+        projection.SetAspectRatio(screenBounds.GetAspectRatio());
 
         compositor.BeginFrame();
 
@@ -218,9 +217,9 @@ static Result<> CreateTriangleModel(PropKitDef& outPropKit, LevelDef& outLevelDe
 {
     std::vector<Vertex> triangleVertices = //
         {
-            { { 0.0f, 0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f }, {{ 1, 1 }} },  // 0
-            { { 0.5f, 0.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }, {{ 0, 1 }} },  // 1
-            { { -0.5f, 0.0f, 0.0f }, { 0.0f, 0.0f, -1.0f }, {{ 0, 0 }} }, // 2
+            { .pos{ 0.0f, 0.5f, 0.0f }, .normal{ 0.0f, 0.0f, -1.0f }, .uvs{{ .u = 1, .v = 1 }} },  // 0
+            { .pos{ 0.5f, 0.0f, 0.0f }, .normal{ 0.0f, 0.0f, -1.0f }, .uvs{{ .u = 0, .v = 1 }} },  // 1
+            { .pos{ -0.5f, 0.0f, 0.0f }, .normal{ 0.0f, 0.0f, -1.0f }, .uvs{{ .u = 0, .v = 0 }} }, // 2
         };
 
     std::vector<VertexIndex> triangleIndices = { 0, 1, 2 };

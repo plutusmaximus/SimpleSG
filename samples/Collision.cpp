@@ -476,8 +476,7 @@ MainLoop()
         mouseNav.Update(elapsedSeconds);
 
         auto screenBounds = WebgpuHelper::GetScreenBounds();
-        const float aspectRatio = screenBounds.Width / screenBounds.Height;
-        projection.SetAspectRatio(aspectRatio);
+        projection.SetAspectRatio(screenBounds.GetAspectRatio());
         trsCamera = mouseNav.GetTransform();
 
         compositor.BeginFrame();

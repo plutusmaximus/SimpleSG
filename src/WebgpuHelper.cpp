@@ -331,16 +331,16 @@ CreateSurface(wgpu::Instance instance, SDL_Window* window)
     if (sdlDriver && strcmp(sdlDriver, "wayland") == 0)
     {
         wgpu::SurfaceSourceWaylandSurface surfaceSrc{};
-        surfaceSrc.display = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, NULL);
-        surfaceSrc.surface = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, NULL);
+        surfaceSrc.display = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr);
+        surfaceSrc.surface = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr);
         surfaceDesc.nextInChain = &surfaceSrc;
         surface = instance.CreateSurface(&surfaceDesc);
     }
     else if (sdlDriver && strcmp(sdlDriver, "x11") == 0)
     {
         wgpu::SurfaceSourceXlibWindow surfaceSrc{};
-        surfaceSrc.display = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, NULL);
-        const Sint64 windowNumber = SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, NULL);
+        surfaceSrc.display = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr);
+        const Sint64 windowNumber = SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, -1);
         surfaceSrc.window = static_cast<uint64_t>(windowNumber);
         surfaceDesc.nextInChain = &surfaceSrc;
         surface = instance.CreateSurface(&surfaceDesc);
@@ -877,7 +877,7 @@ WebgpuHelper::GetScreenBounds()
     {
         MLG_ERROR("Failed to get window size: {}", SDL_GetError());
     }
-    return Extent{ static_cast<float>(width), static_cast<float>(height) };
+    return Extent{ .width = static_cast<float>(width), .height = static_cast<float>(height) };
 }
 
 wgpu::TextureFormat
@@ -1099,7 +1099,7 @@ Texture::Unmap(wgpu::CommandEncoder cmdEncoder)
         {
             .texture = *this,
             .mipLevel = 0,
-            .origin = { 0, 0, 0 },
+            .origin{},
         };
 
     const wgpu::Extent3D copySize = //

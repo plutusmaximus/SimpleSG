@@ -97,7 +97,7 @@ TEST(UnitQuatf, Add_Quat)
     const UnitQuatf a(0.0f, 0.0f, 0.0f, 1.0f);
     const UnitQuatf b(0.0f, 0.0f, 1.0f, 0.0f);
     const UnitQuatf c = a + b;
-    const float invSqrt2 = 1.0f / std::sqrt(2.0f);
+    const float invSqrt2 = 1.0f / std::numbers::sqrt2_v<float>;
     EXPECT_NEAR(c.ToVector().x, 0.0f,      EPS);
     EXPECT_NEAR(c.ToVector().y, 0.0f,      EPS);
     EXPECT_NEAR(c.ToVector().z, invSqrt2,  EPS);
@@ -133,7 +133,7 @@ TEST(UnitQuatf, CompoundAddition)
     UnitQuatf a(0.0f, 0.0f, 0.0f, 1.0f);
     const UnitQuatf b(0.0f, 0.0f, 1.0f, 0.0f);
     a += b;
-    const float invSqrt2 = 1.0f / std::sqrt(2.0f);
+    const float invSqrt2 = 1.0f / std::numbers::sqrt2_v<float>;
     EXPECT_NEAR(a.ToVector().x, 0.0f,      EPS);
     EXPECT_NEAR(a.ToVector().y, 0.0f,      EPS);
     EXPECT_NEAR(a.ToVector().z, invSqrt2,  EPS);

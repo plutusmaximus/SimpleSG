@@ -97,8 +97,7 @@ StageTexture(TextureBuilder& builder)
             const std::byte* src = reinterpret_cast<const std::byte*>(data);
             const uint32_t srcRowStride = static_cast<uint32_t>(imgWidth) * kNumTextureChannels;
             const uint32_t dstRowStride = (srcRowStride + 255) & ~255u;
-            for(uint32_t y = 0; y < static_cast<uint32_t>(imgHeight);
-                ++y, dst += dstRowStride, src += srcRowStride)
+            for(int y = 0; y < imgHeight; ++y, dst += dstRowStride, src += srcRowStride)
             {
                 ::memcpy(dst, src, srcRowStride);
             }
@@ -316,33 +315,6 @@ BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs)
         "MaterialConstantsBuffer");
 }
 
-// Used in std::map to deduplicate materials based on their properties.
-template<>
-struct std::less<MaterialDef>
-{
-    bool operator()(const MaterialDef& lhs, const MaterialDef& rhs) const
-    {
-        if(lhs.BaseTextureUri != rhs.BaseTextureUri)
-        {
-            return lhs.BaseTextureUri < rhs.BaseTextureUri;
-        }
-        if(lhs.Color != rhs.Color)
-        {
-            return std::tie(lhs.Color.r, lhs.Color.g, lhs.Color.b, lhs.Color.a) <
-                   std::tie(rhs.Color.r, rhs.Color.g, rhs.Color.b, rhs.Color.a);
-        }
-        if(lhs.Metalness != rhs.Metalness)
-        {
-            return lhs.Metalness < rhs.Metalness;
-        }
-        if(lhs.Roughness != rhs.Roughness)
-        {
-            return lhs.Roughness < rhs.Roughness;
-        }
-        return false;
-    }
-};
-
 Result<>
 PropKit::Create(const std::filesystem::path& rootPath,
     TextureCache& textureCache,
@@ -355,7 +327,7 @@ PropKit::Create(const std::filesystem::path& rootPath,
     size_t vertexCount = 0, indexCount = 0, meshCount = 0, totalStringSize = 0;
     uint32_t materialIndex = 0;
 
-    std::map<MaterialDef, MaterialIndex, std::less<MaterialDef>> uniqueMaterialMap;
+    std::map<MaterialDef, MaterialIndex> uniqueMaterialMap;
 
     // Count total vertices, indices, and meshes while also building a map of unique materials to
     // assign indices to them.
@@ -463,16 +435,16 @@ PropKit::Create(const std::filesystem::path& rootPath,
 
 PropKit::PropKit(VertexBuffer vertexBuffer,
     IndexBuffer indexBuffer,
-    std::vector<Mesh>&& meshes,
-    std::vector<Model>&& models,
+    std::vector<Mesh> meshes,
+    std::vector<Model> models,
     MaterialConstantsBuffer materialConstantsBuffer,
-    std::vector<wgpu::BindGroup>&& materialBindGroups,
-    std::vector<char>&& stringStorage)
-    : m_VertexBuffer(vertexBuffer),
-      m_IndexBuffer(indexBuffer),
+    std::vector<wgpu::BindGroup> materialBindGroups,
+    std::vector<char> stringStorage)
+    : m_VertexBuffer(std::move(vertexBuffer)),
+      m_IndexBuffer(std::move(indexBuffer)),
       m_Meshes(std::move(meshes)),
       m_Models(std::move(models)),
-      m_MaterialConstantsBuffer(materialConstantsBuffer),
+      m_MaterialConstantsBuffer(std::move(materialConstantsBuffer)),
       m_MaterialBindGroups(std::move(materialBindGroups)),
       m_StringStorage(std::move(stringStorage))
 {

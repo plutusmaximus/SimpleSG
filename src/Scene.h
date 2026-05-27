@@ -73,9 +73,9 @@ private:
         CameraParamsBuffer cameraParamsBuffer,
         wgpu::BindGroup colorPipelineBindGroup0,
         wgpu::BindGroup transformPipelineBindGroup0,
-        std::vector<ModelInstance>&& modelInstances,
-        std::vector<ShaderInterop::WorldTransform>&& worldTransforms,
-        std::vector<Level::NodeHandle>&& nodeHandles);
+        std::vector<ModelInstance> modelInstances,
+        std::vector<ShaderInterop::WorldTransform> worldTransforms,
+        std::vector<Level::NodeHandle> nodeHandles);
 
     WorldTransformBuffer m_WorldTransformBuffer;
     DrawIndirectBuffer m_DrawIndirectBuffer;

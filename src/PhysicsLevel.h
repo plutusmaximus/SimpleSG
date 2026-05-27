@@ -167,7 +167,8 @@ public:
             {
                 for(int32_t z = minZ; z <= maxZ; ++z)
                 {
-                    m_Cells.emplace_back(Cell{bodyIndex, x, y, z});
+                    const Cell cell(bodyIndex, x, y, z);
+                    m_Cells.emplace_back(cell);
                 }
             }
         }
@@ -234,9 +235,9 @@ private:
 
         constexpr static uint32_t HashCell(const int32_t x, const int32_t y, const int32_t z)
         {
-            const uint32_t ux = uint32_t(x);
-            const uint32_t uy = uint32_t(y);
-            const uint32_t uz = uint32_t(z);
+            const uint32_t ux = static_cast<uint32_t>(x);
+            const uint32_t uy = static_cast<uint32_t>(y);
+            const uint32_t uz = static_cast<uint32_t>(z);
 
             constexpr uint32_t kSaltX = Mix32(0);
             constexpr uint32_t kSaltY = Mix32(1);
@@ -258,48 +259,52 @@ private:
             uint32_t Hash;
             int32_t CellX, CellY, CellZ; // Quantized cell coordinates.
 
-            bool operator==(const CellCoords& that) const
+            friend bool operator==(const CellCoords& a, const CellCoords& b)
             {
-                return Hash == that.Hash && CellX == that.CellX && CellY == that.CellY &&
-                       CellZ == that.CellZ;
+                return a.Hash == b.Hash && a.CellX == b.CellX && a.CellY == b.CellY && a.CellZ == b.CellZ;
             }
 
-            std::strong_ordering operator<=>(const CellCoords& that) const
+            friend auto operator<=>(const CellCoords& a, const CellCoords& b)
             {
-                std::strong_ordering order = Hash <=> that.Hash;
-                if(order != std::strong_ordering::equal)
+                auto order = a.Hash <=> b.Hash;
+                if(order != 0)
                 {
                     return order;
                 }
 
-                order = CellX <=> that.CellX;
-                if(order != std::strong_ordering::equal)
+                order = a.CellX <=> b.CellX;
+                if(order != 0)
                 {
                     return order;
                 }
 
-                order = CellY <=> that.CellY;
-                if(order != std::strong_ordering::equal)
+                order = a.CellY <=> b.CellY;
+                if(order != 0)
                 {
                     return order;
                 }
 
-                return CellZ <=> that.CellZ;
+                return a.CellZ <=> b.CellZ;
             }
         };
 
         CellCoords Coords;
         size_t BodyIndex; // Index of the body occupying the cell.
 
-        std::strong_ordering operator<=>(const Cell& that) const
+        friend bool operator==(const Cell& a, const Cell& b)
         {
-            std::strong_ordering order = Coords <=> that.Coords;
-            if(order != std::strong_ordering::equal)
+            return a.Coords == b.Coords && a.BodyIndex == b.BodyIndex;
+        }
+
+        friend auto operator<=>(const Cell& a, const Cell& b)
+        {
+            auto order = a.Coords <=> b.Coords;
+            if(order != 0)
             {
                 return order;
             }
 
-            return BodyIndex <=> that.BodyIndex;
+            return a.BodyIndex <=> b.BodyIndex;
         }
     };
 
@@ -353,7 +358,7 @@ private:
 
         m_NeedsSort = false;
 
-        std::sort(m_Cells.begin(), m_Cells.end());
+        std::ranges::sort(m_Cells);
 
         m_PotentialCollisions.clear();
 
@@ -370,7 +375,8 @@ private:
                 const size_t indexB = m_Cells[j].BodyIndex;
                 if(MLG_VERIFY(indexA != indexB, "Duplicate body in same cell"))
                 {
-                    m_PotentialCollisions.push_back({ indexA, indexB });
+                    const BodyPair pair(indexA, indexB);
+                    m_PotentialCollisions.emplace_back(pair);
                 }
             }
         }
@@ -381,7 +387,7 @@ private:
         }
 
         // Sort to group duplicates together.
-        std::sort(m_PotentialCollisions.begin(), m_PotentialCollisions.end());
+        std::ranges::sort(m_PotentialCollisions);
 
         size_t dst = 0;
 
@@ -403,8 +409,7 @@ private:
             }
         }
 
-        const std::vector<BodyPair>::iterator newEnd =
-            m_PotentialCollisions.begin() + std::vector<BodyPair>::difference_type(dst + 1);
+        const auto newEnd = m_PotentialCollisions.begin() + static_cast<std::ptrdiff_t>(dst + 1);
         m_PotentialCollisions.erase(newEnd, m_PotentialCollisions.end());
     }
 

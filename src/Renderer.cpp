@@ -196,7 +196,7 @@ Renderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
             .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
-            .clearValue = { 0.0f, 0.0f, 0.0f, 0.0f },
+            .clearValue = { .r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 0.0f },
         };
 
     static constexpr float CLEAR_DEPTH = 1.0f;
@@ -249,7 +249,7 @@ Renderer::Present(Compositor& compositor)
             .view = target.CreateView(),
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
-            .clearValue = { 0.0f, 0.0f, 0.0f, 1.0f },
+            .clearValue = { .r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 1.0f },
         };
 
     const wgpu::RenderPassDescriptor renderPassDesc //
@@ -312,8 +312,8 @@ Renderer::CreateColorAndDepthTargets()
 
     const auto screenBounds = WebgpuHelper::GetScreenBounds();
 
-    const unsigned targetWidth = static_cast<unsigned>(screenBounds.Width);
-    const unsigned targetHeight = static_cast<unsigned>(screenBounds.Height);
+    const unsigned targetWidth = static_cast<unsigned>(screenBounds.width);
+    const unsigned targetHeight = static_cast<unsigned>(screenBounds.height);
 
     if(!m_ColorTarget || m_ColorTarget.GetWidth() != targetWidth ||
         m_ColorTarget.GetHeight() != targetHeight)

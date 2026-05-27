@@ -101,10 +101,8 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
     }
 
     // Now add child nodes.
-    for(size_t i = 0; i < nodeDefs.size(); ++i)
+    for(const LevelNodeDef& nodeDef : nodeDefs)
     {
-        const LevelNodeDef& nodeDef = nodeDefs[i];
-
         if(nodeDef.Children.empty())
         {
             continue;

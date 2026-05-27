@@ -58,16 +58,16 @@ PerfTimerStats::PerfTimerStats(const PerfStats& stats)
     m_EMA = static_cast<double>(stats.GetEMA()) / static_cast<double>(GetPerfFrequency());
 }
 
-PerfCounter::PerfCounter(const std::string& name)
-    : m_Name(name),
+PerfCounter::PerfCounter(std::string name)
+    : m_Name(std::move(name)),
       m_Aggregator(this)
 {
     const std::lock_guard lock(s_Mutex);
     PerfMetrics::m_Counters.push_back(this);
 }
 
-PerfTimer::PerfTimer(const std::string& name)
-    : PerfCounter(name)
+PerfTimer::PerfTimer(std::string name)
+    : PerfCounter(std::move(name))
 {
     const std::lock_guard lock(s_Mutex);
     PerfMetrics::m_Timers.push_back(this);

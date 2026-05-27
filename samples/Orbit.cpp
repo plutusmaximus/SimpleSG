@@ -357,10 +357,10 @@ DeactivateNonOverlappingBodies(const PhysicsLevel& physLevel, Level& level)
 
     // First deactivate all bodies.
     // Then activate only bodies that are overlapping with another body.
-    for(size_t i = 0; i < nodeHandles.size(); ++i)
+    for(const auto& nodeHandle : nodeHandles)
     {
-        level.SetActive(nodeHandles[i], false);
-        level.SetVisible(nodeHandles[i], false);
+        level.SetActive(nodeHandle, false);
+        level.SetVisible(nodeHandle, false);
     }
 
     for(size_t i = 0; i < bodies.size(); ++i)
@@ -394,10 +394,10 @@ DeactivateNonOverlappingBodies(const PhysicsLevel& physLevel, Level& level)
 {
     const std::span<const Level::NodeHandle> nodeHandles = physLevel.GetNodeHandles();
 
-    for(size_t i = 0; i < nodeHandles.size(); ++i)
+    for(const auto& nodeHandle : nodeHandles)
     {
-        level.SetActive(nodeHandles[i], true);
-        level.SetVisible(nodeHandles[i], true);
+        level.SetActive(nodeHandle, true);
+        level.SetVisible(nodeHandle, true);
     }
 }
 
@@ -590,8 +590,7 @@ MainLoop()
         mouseNav.Update(elapsedSeconds);
 
         auto screenBounds = WebgpuHelper::GetScreenBounds();
-        const float aspectRatio = screenBounds.Width / screenBounds.Height;
-        projection.SetAspectRatio(aspectRatio);
+        projection.SetAspectRatio(screenBounds.GetAspectRatio());
         trsCamera = mouseNav.GetTransform();
 
         compositor.BeginFrame();

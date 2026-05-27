@@ -83,7 +83,7 @@ PhysicsLevel::Update(const float timeStep)
     PredictPositions(timeStep);
     FindAndResolveAllImpacts();
     std::swap(m_Am1, m_A0);
-    std::fill(m_A0.begin(), m_A0.end(), Vec3f{ 0 });
+    std::ranges::fill(m_A0, Vec3f{ 0 });
 }
 
 Result<>
@@ -104,10 +104,10 @@ PhysicsLevel::ComputeKineticEnergy() const
 {
     float totalEnergy = 0.0f;
 
-    for(size_t i = 0; i < m_Bodies.size(); ++i)
+    for(const auto& body : m_Bodies)
     {
-        const float mass = m_Bodies[i].Mass.Value();
-        const float speedSq = m_Bodies[i].LinearVelocity.Dot(m_Bodies[i].LinearVelocity);
+        const float mass = body.Mass.Value();
+        const float speedSq = body.LinearVelocity.Dot(body.LinearVelocity);
         totalEnergy += 0.5f * mass * speedSq;
     }
 
@@ -396,14 +396,13 @@ PhysicsLevel::FindAndResolveAllImpacts()
         }
     }
 
-    const std::vector<ImpactRecord>::iterator newEnd =
-        m_ImpactRecords.begin() + std::vector<ImpactRecord>::difference_type(dst);
+    const auto newEnd = m_ImpactRecords.begin() + static_cast<std::ptrdiff_t>(dst);
     m_ImpactRecords.erase(newEnd, m_ImpactRecords.end());
 
     // Sort impact records by time of impact, and resolve in that order.
     // This isn't actually correct, but better than resolving out of order.
     // Substepping will make this better.
-    std::sort(m_ImpactRecords.begin(), m_ImpactRecords.end());
+    std::ranges::sort(m_ImpactRecords);
 
     for(auto& impactRecord : m_ImpactRecords)
     {

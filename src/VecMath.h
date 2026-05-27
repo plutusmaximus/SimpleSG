@@ -1291,25 +1291,18 @@ class Extent
 {
 public:
 
-    float Width;
-    float Height;
+    float width;
+    float height;
+
+    constexpr float GetAspectRatio() const noexcept
+    {
+        MLG_ASSERT(height != 0, "Height must be non-zero to compute aspect ratio");
+        return width / height;
+    }
 
     constexpr friend bool operator==(const Extent& a, const Extent& b) noexcept
     {
-        return a.Width == b.Width && a.Height == b.Height;
-    }
-};
-
-class Point
-{
-public:
-
-    float X;
-    float Y;
-
-    constexpr friend bool operator==(const Point& a, const Point& b) noexcept
-    {
-        return a.X == b.X && a.Y == b.Y;
+        return a.width == b.width && a.height == b.height;
     }
 };
 
@@ -1383,20 +1376,8 @@ struct std::formatter<Extent>
     template<typename FormatContext>
     auto format(const Extent& extent, FormatContext& ctx) const
     {
-        return std::format_to(ctx.out(), "({}, {})", extent.Width, extent.Height);
+        return std::format_to(ctx.out(), "({}, {})", extent.width, extent.height);
     }
 };
 
-/// @brief Enable formatting of Point via std::format.
-template<>
-struct std::formatter<Point>
-{
-    constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
-
-    template<typename FormatContext>
-    auto format(const Point& point, FormatContext& ctx) const
-    {
-        return std::format_to(ctx.out(), "({}, {})", point.X, point.Y);
-    }
-};
 // NOLINTEND(bugprone-std-namespace-modification)

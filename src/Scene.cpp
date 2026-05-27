@@ -359,12 +359,12 @@ Scene::Create(const Level& level, const PropKit& propKit, Scene& outScene)
     auto transformPipelineBindGroup0 = CreateTransformPipelineBindGroup0(transformPipelineResources);
     MLG_CHECK(transformPipelineBindGroup0);
 
-    Scene scene(*transformBuffer,
-        *drawIndirectBuffer,
-        *meshPropertiesBuffer,
-        *cameraParamsBuf,
-        *colorPipelineBindGroup0,
-        *transformPipelineBindGroup0,
+    Scene scene(std::move(*transformBuffer),
+        std::move(*drawIndirectBuffer),
+        std::move(*meshPropertiesBuffer),
+        std::move(*cameraParamsBuf),
+        std::move(*colorPipelineBindGroup0),
+        std::move(*transformPipelineBindGroup0),
         std::move(modelInstances),
         std::move(worldTransforms),
         std::move(nodeHandles));
@@ -382,15 +382,15 @@ Scene::Scene(WorldTransformBuffer worldTransformBuffer,
     CameraParamsBuffer cameraParamsBuffer,
     wgpu::BindGroup colorPipelineBindGroup0,
     wgpu::BindGroup transformPipelineBindGroup0,
-    std::vector<ModelInstance>&& modelInstances,
-    std::vector<ShaderInterop::WorldTransform>&& worldTransforms,
-    std::vector<Level::NodeHandle>&& nodeHandles)
-    : m_WorldTransformBuffer(worldTransformBuffer),
-      m_DrawIndirectBuffer(drawIndirectBuffer),
-      m_MeshPropertiesBuffer(meshPropertiesBuffer),
-      m_CameraParamsBuffer(cameraParamsBuffer),
-      m_ColorPipelineBindGroup0(colorPipelineBindGroup0),
-      m_TransformPipelineBindGroup0(transformPipelineBindGroup0),
+    std::vector<ModelInstance> modelInstances,
+    std::vector<ShaderInterop::WorldTransform> worldTransforms,
+    std::vector<Level::NodeHandle> nodeHandles)
+    : m_WorldTransformBuffer(std::move(worldTransformBuffer)),
+      m_DrawIndirectBuffer(std::move(drawIndirectBuffer)),
+      m_MeshPropertiesBuffer(std::move(meshPropertiesBuffer)),
+      m_CameraParamsBuffer(std::move(cameraParamsBuffer)),
+      m_ColorPipelineBindGroup0(std::move(colorPipelineBindGroup0)),
+      m_TransformPipelineBindGroup0(std::move(transformPipelineBindGroup0)),
       m_ModelInstances(std::move(modelInstances)),
       m_WorldTransforms(std::move(worldTransforms)),
       m_NodeHandles(std::move(nodeHandles))

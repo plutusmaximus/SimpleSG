@@ -10,7 +10,11 @@
 #endif	//_MSC_VER
 
 #include <atomic>
+
+#ifndef __clang__
+// No stack trace support in clang, so we won't include the header.
 #include <stacktrace>
+#endif  //__clang__
 
 static std::atomic<bool> s_EnableAssertDialog = true;
 

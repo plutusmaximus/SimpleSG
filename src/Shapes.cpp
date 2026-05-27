@@ -30,7 +30,7 @@ Shapes::Box(const float width, const float height, const float depth)
     indices.reserve(36);
 
     // Calculate normalized normals for each corner (average of 3 adjacent faces)
-    const float invSqrt3 = 1.0f / std::sqrt(3.0f);
+    const float invSqrt3 = std::numbers::inv_sqrt3_v<float>;
 
     // Vertex order:
     // 0: (-x, -y, -z)  1: (+x, -y, -z)
@@ -38,14 +38,14 @@ Shapes::Box(const float width, const float height, const float depth)
     // 4: (-x, -y, +z)  5: (+x, -y, +z)
     // 6: (+x, +y, +z)  7: (-x, +y, +z)
 
-    vertices.push_back({ { -hw, -hh, -hd }, { -invSqrt3, -invSqrt3, -invSqrt3 }, {} });
-    vertices.push_back({ {  hw, -hh, -hd }, {  invSqrt3, -invSqrt3, -invSqrt3 }, {} });
-    vertices.push_back({ {  hw,  hh, -hd }, {  invSqrt3,  invSqrt3, -invSqrt3 }, {} });
-    vertices.push_back({ { -hw,  hh, -hd }, { -invSqrt3,  invSqrt3, -invSqrt3 }, {} });
-    vertices.push_back({ { -hw, -hh,  hd }, { -invSqrt3, -invSqrt3,  invSqrt3 }, {} });
-    vertices.push_back({ {  hw, -hh,  hd }, {  invSqrt3, -invSqrt3,  invSqrt3 }, {} });
-    vertices.push_back({ {  hw,  hh,  hd }, {  invSqrt3,  invSqrt3,  invSqrt3 }, {} });
-    vertices.push_back({ { -hw,  hh,  hd }, { -invSqrt3,  invSqrt3,  invSqrt3 }, {} });
+    vertices.emplace_back(Vertex{ .pos{ -hw, -hh, -hd }, .normal{ -invSqrt3, -invSqrt3, -invSqrt3 }, .uvs{} });
+    vertices.emplace_back(Vertex{ .pos{  hw, -hh, -hd }, .normal{  invSqrt3, -invSqrt3, -invSqrt3 }, .uvs{} });
+    vertices.emplace_back(Vertex{ .pos{  hw,  hh, -hd }, .normal{  invSqrt3,  invSqrt3, -invSqrt3 }, .uvs{} });
+    vertices.emplace_back(Vertex{ .pos{ -hw,  hh, -hd }, .normal{ -invSqrt3,  invSqrt3, -invSqrt3 }, .uvs{} });
+    vertices.emplace_back(Vertex{ .pos{ -hw, -hh,  hd }, .normal{ -invSqrt3, -invSqrt3,  invSqrt3 }, .uvs{} });
+    vertices.emplace_back(Vertex{ .pos{  hw, -hh,  hd }, .normal{  invSqrt3, -invSqrt3,  invSqrt3 }, .uvs{} });
+    vertices.emplace_back(Vertex{ .pos{  hw,  hh,  hd }, .normal{  invSqrt3,  invSqrt3,  invSqrt3 }, .uvs{} });
+    vertices.emplace_back(Vertex{ .pos{ -hw,  hh,  hd }, .normal{ -invSqrt3,  invSqrt3,  invSqrt3 }, .uvs{} });
 
     // Front face (+Z) - clockwise from front
     indices.push_back(4); indices.push_back(5); indices.push_back(6);
@@ -98,24 +98,24 @@ Shapes::Ball(const float radius, const float smoothness)
     indices.reserve(finalIndices);
 
     // Create icosahedron base vertices
-    const float t = (1.0f + std::sqrt(5.0f)) / 2.0f;
+    const float t = std::numbers::phi_v<float>; // Golden ratio
     const float len = std::sqrt(1.0f + t * t);
     const float a = 1.0f / len;
     const float b = t / len;
 
     // 12 vertices of icosahedron
-    vertices.push_back({ { -a,  b,  0 }, { -a,  b,  0 }, {} });
-    vertices.push_back({ {  a,  b,  0 }, {  a,  b,  0 }, {} });
-    vertices.push_back({ { -a, -b,  0 }, { -a, -b,  0 }, {} });
-    vertices.push_back({ {  a, -b,  0 }, {  a, -b,  0 }, {} });
-    vertices.push_back({ {  0, -a,  b }, {  0, -a,  b }, {} });
-    vertices.push_back({ {  0,  a,  b }, {  0,  a,  b }, {} });
-    vertices.push_back({ {  0, -a, -b }, {  0, -a, -b }, {} });
-    vertices.push_back({ {  0,  a, -b }, {  0,  a, -b }, {} });
-    vertices.push_back({ {  b,  0, -a }, {  b,  0, -a }, {} });
-    vertices.push_back({ {  b,  0,  a }, {  b,  0,  a }, {} });
-    vertices.push_back({ { -b,  0, -a }, { -b,  0, -a }, {} });
-    vertices.push_back({ { -b,  0,  a }, { -b,  0,  a }, {} });
+    vertices.emplace_back(Vertex{ .pos{ -a,  b,  0 }, .normal{ -a,  b,  0 }, .uvs{} });
+    vertices.emplace_back(Vertex{ .pos{  a,  b,  0 }, .normal{  a,  b,  0 }, .uvs{} });
+    vertices.emplace_back(Vertex{ .pos{ -a, -b,  0 }, .normal{ -a, -b,  0 }, .uvs{} });
+    vertices.emplace_back(Vertex{ .pos{  a, -b,  0 }, .normal{  a, -b,  0 }, .uvs{} });
+    vertices.emplace_back(Vertex{ .pos{  0, -a,  b }, .normal{  0, -a,  b }, .uvs{} });
+    vertices.emplace_back(Vertex{ .pos{  0,  a,  b }, .normal{  0,  a,  b }, .uvs{} });
+    vertices.emplace_back(Vertex{ .pos{  0, -a, -b }, .normal{  0, -a, -b }, .uvs{} });
+    vertices.emplace_back(Vertex{ .pos{  0,  a, -b }, .normal{  0,  a, -b }, .uvs{} });
+    vertices.emplace_back(Vertex{ .pos{  b,  0, -a }, .normal{  b,  0, -a }, .uvs{} });
+    vertices.emplace_back(Vertex{ .pos{  b,  0,  a }, .normal{  b,  0,  a }, .uvs{} });
+    vertices.emplace_back(Vertex{ .pos{ -b,  0, -a }, .normal{ -b,  0, -a }, .uvs{} });
+    vertices.emplace_back(Vertex{ .pos{ -b,  0,  a }, .normal{ -b,  0,  a }, .uvs{} });
 
     // 20 faces of icosahedron (clockwise winding)
     const VertexIndex faces[][3] =
@@ -126,11 +126,11 @@ Shapes::Ball(const float radius, const float smoothness)
         {4, 9, 5}, {2, 4, 11}, {6, 2, 10}, {8, 6, 7}, {9, 8, 1}
     };
 
-    for (size_t i = 0; i < 20; ++i)
+    for (const auto& face : faces)
     {
-        indices.push_back(faces[i][0]);
-        indices.push_back(faces[i][1]);
-        indices.push_back(faces[i][2]);
+        indices.push_back(face[0]);
+        indices.push_back(face[1]);
+        indices.push_back(face[2]);
     }
 
     // Hoist midpoint cache outside the loop
@@ -159,7 +159,7 @@ Shapes::Ball(const float radius, const float smoothness)
         mid.x /= mpLen; mid.y /= mpLen; mid.z /= mpLen;
 
         const VertexIndex newIdx = static_cast<VertexIndex>(vertices.size());
-        vertices.push_back({ mid, {mid.x, mid.y, mid.z}, {} });
+        vertices.emplace_back(Vertex{ .pos = mid, .normal{mid.x, mid.y, mid.z}, .uvs{} });
         midpointCache[key] = newIdx;
         return newIdx;
     };
@@ -199,11 +199,11 @@ Shapes::Ball(const float radius, const float smoothness)
     }
 
     // Scale to desired radius
-    for (size_t i = 0; i < vertices.size(); ++i)
+    for (auto& vertex : vertices)
     {
-        vertices[i].pos.x *= radius;
-        vertices[i].pos.y *= radius;
-        vertices[i].pos.z *= radius;
+        vertex.pos.x *= radius;
+        vertex.pos.y *= radius;
+        vertex.pos.z *= radius;
     }
 
     return Geometry{ std::move(vertices), std::move(indices) };
@@ -239,9 +239,9 @@ Shapes::Cylinder(const float height, const float radius, const float smoothness)
         const VertexNormal normal = VertexNormal(x / radius, 0.0f, z / radius).Normalize();
 
         // Bottom vertex
-        vertices.push_back({ { x, -halfHeight, z }, normal, {} });
+        vertices.emplace_back(Vertex{ .pos{ x, -halfHeight, z }, .normal = normal, .uvs{} });
         // Top vertex
-        vertices.push_back({ { x, halfHeight, z }, normal, {} });
+        vertices.emplace_back(Vertex{ .pos{ x, halfHeight, z }, .normal = normal, .uvs{} });
     }
 
     // Generate side indices
@@ -266,7 +266,7 @@ Shapes::Cylinder(const float height, const float radius, const float smoothness)
     const uint32_t topCapStart = bottomCapStart + segments + 1;
 
     // Bottom cap center
-    vertices.push_back({ { 0.0f, -halfHeight, 0.0f }, { 0.0f, -1.0f, 0.0f }, {} });
+    vertices.emplace_back(Vertex{ .pos{ 0.0f, -halfHeight, 0.0f }, .normal{ 0.0f, -1.0f, 0.0f }, .uvs{} });
 
     // Bottom cap ring
     for (uint32_t seg = 0; seg < segments; ++seg)
@@ -274,11 +274,11 @@ Shapes::Cylinder(const float height, const float radius, const float smoothness)
         const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
         const float x = radius * std::cos(theta);
         const float z = radius * std::sin(theta);
-        vertices.push_back({ { x, -halfHeight, z }, { 0.0f, -1.0f, 0.0f }, {} });
+        vertices.emplace_back(Vertex{ .pos{ x, -halfHeight, z }, .normal{ 0.0f, -1.0f, 0.0f }, .uvs{} });
     }
 
     // Top cap center
-    vertices.push_back({ { 0.0f, halfHeight, 0.0f }, { 0.0f, 1.0f, 0.0f }, {} });
+    vertices.emplace_back(Vertex{ .pos{ 0.0f, halfHeight, 0.0f }, .normal{ 0.0f, 1.0f, 0.0f }, .uvs{} });
 
     // Top cap ring
     for (uint32_t seg = 0; seg < segments; ++seg)
@@ -286,7 +286,7 @@ Shapes::Cylinder(const float height, const float radius, const float smoothness)
         const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
         const float x = radius * std::cos(theta);
         const float z = radius * std::sin(theta);
-        vertices.push_back({ { x, halfHeight, z }, { 0.0f, 1.0f, 0.0f }, {} });
+        vertices.emplace_back(Vertex{ .pos{ x, halfHeight, z }, .normal{ 0.0f, 1.0f, 0.0f }, .uvs{} });
     }
 
     // Bottom cap indices (clockwise from below)
@@ -376,9 +376,9 @@ Shapes::Cone(const float radius1, const float radius2, const float smoothness)
         }.Normalize();
 
         // Bottom vertex
-        vertices.push_back({ { x1, -halfHeight, z1 }, normal, {} });
+        vertices.emplace_back(Vertex{ .pos{ x1, -halfHeight, z1 }, .normal = normal, .uvs{} });
         // Top vertex
-        vertices.push_back({ { x2, halfHeight, z2 }, normal, {} });
+        vertices.emplace_back(Vertex{ .pos{ x2, halfHeight, z2 }, .normal = normal, .uvs{} });
     }
 
     // Generate side indices
@@ -410,7 +410,7 @@ Shapes::Cone(const float radius1, const float radius2, const float smoothness)
         const uint32_t bottomRingStart = currentVertexOffset + 1;
 
         // Bottom cap center
-        vertices.push_back({ { 0.0f, -halfHeight, 0.0f }, { 0.0f, -1.0f, 0.0f }, {} });
+        vertices.emplace_back(Vertex{ .pos{ 0.0f, -halfHeight, 0.0f }, .normal{ 0.0f, -1.0f, 0.0f }, .uvs{} });
 
         // Bottom cap ring with vertical normals
         for (uint32_t seg = 0; seg < segments; ++seg)
@@ -418,7 +418,7 @@ Shapes::Cone(const float radius1, const float radius2, const float smoothness)
             const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
             const float x = radius1 * std::cos(theta);
             const float z = radius1 * std::sin(theta);
-            vertices.push_back({ { x, -halfHeight, z }, { 0.0f, -1.0f, 0.0f }, {} });
+            vertices.emplace_back(Vertex{ .pos{ x, -halfHeight, z }, .normal{ 0.0f, -1.0f, 0.0f }, .uvs{} });
         }
 
         // Bottom cap indices
@@ -442,7 +442,7 @@ Shapes::Cone(const float radius1, const float radius2, const float smoothness)
         const uint32_t topRingStart = currentVertexOffset + 1;
 
         // Top cap center
-        vertices.push_back({ { 0.0f, halfHeight, 0.0f }, { 0.0f, 1.0f, 0.0f }, {} });
+        vertices.emplace_back(Vertex{ .pos{ 0.0f, halfHeight, 0.0f }, .normal{ 0.0f, 1.0f, 0.0f }, .uvs{} });
 
         // Top cap ring with vertical normals
         for (uint32_t seg = 0; seg < segments; ++seg)
@@ -450,7 +450,7 @@ Shapes::Cone(const float radius1, const float radius2, const float smoothness)
             const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
             const float x = radius2 * std::cos(theta);
             const float z = radius2 * std::sin(theta);
-            vertices.push_back({ { x, halfHeight, z }, { 0.0f, 1.0f, 0.0f }, {} });
+            vertices.emplace_back(Vertex{ .pos{ x, halfHeight, z }, .normal{ 0.0f, 1.0f, 0.0f }, .uvs{} });
         }
 
         // Top cap indices
@@ -541,11 +541,7 @@ Shapes::Torus(
             const float ny = sinTheta * cosPhi;
             const float nz = sinPhi;
 
-            vertices.push_back(Vertex{
-                { x, y, z },
-                { nx, ny, nz },
-                {}
-                });
+            vertices.emplace_back(Vertex{ .pos{ x, y, z }, .normal{ nx, ny, nz }, .uvs{} });
         }
     }
 

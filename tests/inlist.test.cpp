@@ -89,9 +89,9 @@ TEST(inlist, IterationOrder)
     list.push_back(&items[2]);
 
     int index = 0;
-    for(auto it = list.begin(); it != list.end(); ++it)
+    for(const auto& item : list)
     {
-        EXPECT_EQ(&(*it), &items[index]);
+        EXPECT_EQ(&item, &items[index]);
         ++index;
     }
     EXPECT_EQ(index, 3);
