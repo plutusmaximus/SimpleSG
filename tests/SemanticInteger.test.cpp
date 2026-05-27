@@ -14,13 +14,13 @@ using SignedId = SemanticInteger<TagA, int32_t>;
 
 TEST(SemanticInteger, DefaultConstruction_IsInvalid)
 {
-    IdA id;
+    const IdA id;
     EXPECT_FALSE(id.IsValid());
 }
 
 TEST(SemanticInteger, ExplicitConstruction_IsValid)
 {
-    IdA id(42u);
+    const IdA id(42u);
     EXPECT_TRUE(id.IsValid());
     EXPECT_EQ(id.Value(), 42u);
 }
@@ -34,11 +34,11 @@ TEST(SemanticInteger, INVALID_Sentinel_IsInvalid)
 TEST(SemanticInteger, CustomInvalidValue)
 {
     using ZeroInvalid = SemanticInteger<TagA, uint32_t, 0>;
-    ZeroInvalid id;
+    const ZeroInvalid id;
     EXPECT_FALSE(id.IsValid());
     EXPECT_EQ(id.Value(), 0u);
 
-    ZeroInvalid valid(1u);
+    const ZeroInvalid valid(1u);
     EXPECT_TRUE(valid.IsValid());
 }
 
@@ -46,7 +46,7 @@ TEST(SemanticInteger, CustomInvalidValue)
 
 TEST(SemanticInteger, Value_ReturnsStoredValue)
 {
-    IdA id(7u);
+    const IdA id(7u);
     EXPECT_EQ(id.Value(), 7u);
 }
 
@@ -54,26 +54,26 @@ TEST(SemanticInteger, Value_ReturnsStoredValue)
 
 TEST(SemanticInteger, Equality_SameValue)
 {
-    IdA a(10u), b(10u);
+    const IdA a(10u), b(10u);
     EXPECT_EQ(a, b);
 }
 
 TEST(SemanticInteger, Equality_DifferentValues)
 {
-    IdA a(10u), b(20u);
+    const IdA a(10u), b(20u);
     EXPECT_NE(a, b);
 }
 
 TEST(SemanticInteger, Equality_InvalidEqualsInvalid)
 {
-    IdA a, b;
+    const IdA a, b;
     EXPECT_EQ(a, b);
 }
 
 TEST(SemanticInteger, Equality_InvalidNotEqualValid)
 {
-    IdA invalid;
-    IdA valid(0u);
+    const IdA invalid;
+    const IdA valid(0u);
     EXPECT_NE(invalid, valid);
 }
 
@@ -81,20 +81,20 @@ TEST(SemanticInteger, Equality_InvalidNotEqualValid)
 
 TEST(SemanticInteger, LessThan)
 {
-    IdA a(1u), b(2u);
+    const IdA a(1u), b(2u);
     EXPECT_LT(a, b);
     EXPECT_FALSE(b < a);
 }
 
 TEST(SemanticInteger, GreaterThan)
 {
-    IdA a(5u), b(3u);
+    const IdA a(5u), b(3u);
     EXPECT_GT(a, b);
 }
 
 TEST(SemanticInteger, LessEqualGreaterEqual)
 {
-    IdA a(4u), b(4u), c(5u);
+    const IdA a(4u), b(4u), c(5u);
     EXPECT_LE(a, b);
     EXPECT_LE(a, c);
     EXPECT_GE(b, a);
@@ -106,8 +106,8 @@ TEST(SemanticInteger, LessEqualGreaterEqual)
 // The following ensures both instantiate independently.
 TEST(SemanticInteger, DifferentTags_IndependentInstances)
 {
-    IdA a(1u);
-    IdB b(1u);
+    const IdA a(1u);
+    const IdB b(1u);
     EXPECT_EQ(a.Value(), b.Value()); // same numeric value, different types
 }
 
@@ -115,8 +115,8 @@ TEST(SemanticInteger, DifferentTags_IndependentInstances)
 
 TEST(SemanticInteger, WiderTypeConstructor_uint64_to_uint32)
 {
-    uint64_t wide = 99;
-    IdA id(wide);
+    const uint64_t wide = 99;
+    const IdA id(wide);
     EXPECT_TRUE(id.IsValid());
     EXPECT_EQ(id.Value(), 99u);
 }
@@ -125,14 +125,14 @@ TEST(SemanticInteger, WiderTypeConstructor_uint64_to_uint32)
 
 TEST(SemanticInteger, SmallType_DefaultInvalid)
 {
-    SmallId id;
+    const SmallId id;
     EXPECT_FALSE(id.IsValid());
     EXPECT_EQ(id.Value(), std::numeric_limits<uint8_t>::max());
 }
 
 TEST(SemanticInteger, SmallType_ValidValue)
 {
-    SmallId id(static_cast<uint8_t>(0));
+    const SmallId id(static_cast<uint8_t>(0));
     EXPECT_TRUE(id.IsValid());
     EXPECT_EQ(id.Value(), 0u);
 }
@@ -141,13 +141,13 @@ TEST(SemanticInteger, SmallType_ValidValue)
 
 TEST(SemanticInteger, SignedType_DefaultInvalid)
 {
-    SignedId id;
+    const SignedId id;
     EXPECT_FALSE(id.IsValid());
 }
 
 TEST(SemanticInteger, SignedType_NegativeValue)
 {
-    SignedId id(-1);
+    const SignedId id(-1);
     EXPECT_TRUE(id.IsValid());
     EXPECT_EQ(id.Value(), -1);
 }

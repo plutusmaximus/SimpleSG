@@ -11,7 +11,6 @@
 #include "Scene.h"
 #include "scope_exit.h"
 #include "Shapes.h"
-#include "Stopwatch.h"
 #include "ThreadPool.h"
 #include "WebgpuHelper.h"
 
@@ -58,7 +57,7 @@ Load(const std::filesystem::path& path,
 {
     auto shape = Shapes::Ball(1.0f, 10);
 
-    PropKitDef propKitDef //
+    const PropKitDef propKitDef //
         {
             .ModelDefs //
             {
@@ -137,7 +136,7 @@ Load(const std::filesystem::path& path,
         }
     };
 
-    LevelDef levelDef //
+    const LevelDef levelDef //
     {
         .NodeDefs = std::move(nodeDefs),
     };
@@ -250,7 +249,7 @@ static void ApplyGravity(PhysicsLevel& physLevel)
         {
             if(pairCount >= batchSize)
             {
-                ApplyGravityBatchParams batchParams //
+                const ApplyGravityBatchParams batchParams //
                     {
                         .StartIndexA = startIndexA,
                         .StartIndexB = startIndexB,
@@ -279,7 +278,7 @@ static void ApplyGravity(PhysicsLevel& physLevel)
     if(pairCount > 0)
     {
         // Process the last batch.
-        ApplyGravityBatchParams batchParams //
+        const ApplyGravityBatchParams batchParams //
             {
                 .StartIndexA = startIndexA,
                 .StartIndexB = startIndexB,
@@ -527,7 +526,7 @@ static Result<> RenderGui(const PhysicsLevel& physLevel)
     ImGui::Begin(title.c_str());
 
     PerfTimerStats timerStats[256];
-    unsigned timerCount = PerfMetrics::SampleTimers(timerStats, std::size(timerStats));
+    const unsigned timerCount = PerfMetrics::SampleTimers(timerStats, std::size(timerStats));
     for(unsigned i = 0; i < timerCount; ++i)
     {
         const std::string text =

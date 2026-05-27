@@ -2,8 +2,6 @@
 
 #include "Log.h"
 
-#include <array>
-
 #if defined(_WIN32)
 
 static HANDLE s_IOCP = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 0);
@@ -67,12 +65,12 @@ Result<>
 FileFetcher::ProcessCompletions()
 {
     BOOL ok;
-    std::array<OVERLAPPED_ENTRY, 8> entries = {};
+    OVERLAPPED_ENTRY entries[8] = {};
     ULONG numEntriesRemoved = 0;
     {
         ok = ::GetQueuedCompletionStatusEx(s_IOCP,
-            entries.data(),
-            static_cast<ULONG>(entries.size()),
+            entries,
+            static_cast<ULONG>(std::size(entries)),
             &numEntriesRemoved,
             0,
             FALSE);

@@ -162,7 +162,7 @@ void GimbleMouseNav::UpdatePan(const Vec2f& mouseDelta)
 {
     m_CurLoc.X += mouseDelta.x;
     m_CurLoc.Y -= mouseDelta.y;
-    Vec2f d = (Vec2f{m_CurLoc.X, m_CurLoc.Y} - Vec2f{m_StartLoc.X, m_StartLoc.Y}) * m_Scale;
+    const Vec2f d = (Vec2f{m_CurLoc.X, m_CurLoc.Y} - Vec2f{m_StartLoc.X, m_StartLoc.Y}) * m_Scale;
     m_Transform.T = m_StartTrans + (d.x * m_Transform.LocalXAxis()) + (d.y * m_Transform.LocalYAxis());
 }
 
@@ -258,8 +258,8 @@ WalkMouseNav::Update(const float deltaSeconds)
         rotX = std::min(rotX, PI / 2 - 0.01f);
         rotY = std::max(rotY, -(PI / 2 - 0.01f));
         rotY = std::min(rotY, PI / 2 - 0.01f);
-        UnitQuatf pitch = UnitQuatf(Radiansf(rotX), Vec3f::XAXIS());
-        UnitQuatf yaw = UnitQuatf(Radiansf(rotY), Vec3f::YAXIS());
+        const UnitQuatf pitch = UnitQuatf(Radiansf(rotX), Vec3f::XAXIS());
+        const UnitQuatf yaw = UnitQuatf(Radiansf(rotY), Vec3f::YAXIS());
 
         m_TargetTransform.R = yaw * m_TargetTransform.R * pitch;
         m_MouseDelta = Vec2f{ 0,0 };

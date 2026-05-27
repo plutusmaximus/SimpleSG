@@ -11,7 +11,6 @@
 #include "Scene.h"
 #include "scope_exit.h"
 #include "Shapes.h"
-#include "Stopwatch.h"
 #include "ThreadPool.h"
 #include "WebgpuHelper.h"
 
@@ -58,7 +57,7 @@ Load(const std::filesystem::path& path,
 {
     auto shape = Shapes::Ball(1.0f, 10);
 
-    PropKitDef propKitDef //
+    const PropKitDef propKitDef //
         {
             .ModelDefs //
             {
@@ -80,7 +79,7 @@ Load(const std::filesystem::path& path,
         path.string());
 
     // Fixed seed for reproducibility
-    std::mt19937 gen(12345);    // NOLINT(bugprone-random-generator-seed)
+    std::mt19937 gen(12345);
     std::uniform_real_distribution<float> dis(-1, 1);
 
     constexpr int GRID_SIZE = 20;
@@ -120,7 +119,7 @@ Load(const std::filesystem::path& path,
         nodeDefs.emplace_back(std::move(nodeDef));
     }
 
-    LevelDef levelDef //
+    const LevelDef levelDef //
     {
         .NodeDefs = std::move(nodeDefs),
     };
@@ -233,7 +232,7 @@ static void ApplyGravity(PhysicsLevel& physLevel)
         {
             if(pairCount >= batchSize)
             {
-                ApplyGravityBatchParams batchParams //
+                const ApplyGravityBatchParams batchParams //
                     {
                         .StartIndexA = startIndexA,
                         .StartIndexB = startIndexB,
@@ -262,7 +261,7 @@ static void ApplyGravity(PhysicsLevel& physLevel)
     if(pairCount > 0)
     {
         // Process the last batch.
-        ApplyGravityBatchParams batchParams //
+        const ApplyGravityBatchParams batchParams //
             {
                 .StartIndexA = startIndexA,
                 .StartIndexB = startIndexB,
@@ -307,7 +306,7 @@ static void ApplyGravity(PhysicsLevel& physLevel)
 static void ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
 {
     const std::span<const RigidBody> bodies = physLevel.GetBodies();
-    std::mt19937 gen(12345);    // NOLINT(bugprone-random-generator-seed)
+    std::mt19937 gen(12345);
     std::uniform_real_distribution<float> dis(0.5, 1);
     std::bernoulli_distribution sign;
 
@@ -327,7 +326,7 @@ static void ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude
                 dis(gen) * (sign(gen) ? 1.0f : -1.0f),
             };
 
-        normal.Normalize();
+        normal = normal.Normalize();
         const Vec3f v = normal * magnitude;
         const float m = bodies[i].Mass.Value();
 
@@ -641,7 +640,7 @@ static Result<> RenderGui(const PhysicsLevel& physLevel)
     ImGui::Begin(title.c_str());
 
     PerfTimerStats timerStats[256];
-    unsigned timerCount = PerfMetrics::SampleTimers(timerStats, std::size(timerStats));
+    const unsigned timerCount = PerfMetrics::SampleTimers(timerStats, std::size(timerStats));
     for(unsigned i = 0; i < timerCount; ++i)
     {
         const std::string text =

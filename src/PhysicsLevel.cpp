@@ -11,7 +11,7 @@ static constexpr float COEFF_OF_RESTITUTION = 0.8f;
 Result<>
 PhysicsLevel::Create(const Level& level, PhysicsLevel& outPhysLevel)
 {
-    std::span allHandles = level.GetAllHandles();
+    const std::span allHandles = level.GetAllHandles();
 
     size_t count = 0;
     for(const auto& handle : allHandles)
@@ -35,20 +35,22 @@ PhysicsLevel::Create(const Level& level, PhysicsLevel& outPhysLevel)
     for(const auto& handle : allHandles)
     {
         const auto& node = level.GetNode(handle);
-        MLG_ASSERT((node->Components.Body && node->Components.Collider)
-            || (!node->Components.Body && !node->Components.Collider),
-            "Node {} has Body component but no Collider, or vice versa",
-            node->Name);
+        const std::optional<RigidBody>& optBody = node->Components.Body;
+        const std::optional<Collider>& optCollider = node->Components.Collider;
 
-        if(!node->Components.Body)
+        if(optBody && optCollider)
         {
-            continue;
+            nodeHandles.emplace_back(handle);
+            transforms.emplace_back(node->LocalTransform);
+            bodies.emplace_back(*optBody);
+            colliders.emplace_back(*optCollider);
         }
-
-        nodeHandles.emplace_back(handle);
-        transforms.emplace_back(node->LocalTransform);
-        bodies.emplace_back(*node->Components.Body);
-        colliders.emplace_back(*node->Components.Collider);
+        else
+        {
+            MLG_ASSERT(!optBody && !optCollider,
+                "Node {} has Body component but no Collider, or vice versa",
+                node->Name);
+        }
     }
 
     PhysicsLevel physLevel(std::move(nodeHandles),
@@ -331,7 +333,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
     // Collect impact records into batches and enqueue for processing.
     for(const BodyPair& bodyPair : m_GridHash)
     {
-        ImpactRecord impactRecord //
+        const ImpactRecord impactRecord //
             {
                 .Bodies = bodyPair,
                 .SweepParams //
@@ -352,7 +354,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
         {
             MLG_ASSERT(m_SweepTestBatches.size() < batchCount, "Batch count exceeded expected count");
 
-            std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
+            const std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
             SweepTestBatch& batch = m_SweepTestBatches.emplace_back(batchSpan, &finishCounter);
 
             // Enqueue the batch for processing.
@@ -366,7 +368,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
     // Enqueue any remaining pairs that didn't fill an entire batch.
     if(pairCount > 0)
     {
-        std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
+        const std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
         SweepTestBatch& batch = m_SweepTestBatches.emplace_back(batchSpan, &finishCounter);
 
         batch.Enqueue();
@@ -394,7 +396,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
         }
     }
 
-    std::vector<ImpactRecord>::iterator newEnd =
+    const std::vector<ImpactRecord>::iterator newEnd =
         m_ImpactRecords.begin() + std::vector<ImpactRecord>::difference_type(dst);
     m_ImpactRecords.erase(newEnd, m_ImpactRecords.end());
 

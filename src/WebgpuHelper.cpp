@@ -72,7 +72,7 @@ static Result<wgpu::Instance>
 CreateInstance()
 {
     static const auto kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
-    wgpu::InstanceDescriptor instanceDesc //
+    const wgpu::InstanceDescriptor instanceDesc //
         {
             .requiredFeatureCount = 1,
             .requiredFeatures = &kTimedWaitAny,
@@ -104,7 +104,7 @@ CreateAdapter(wgpu::Instance instance, wgpu::Surface surface)
         }
     };
 
-    wgpu::RequestAdapterOptions options //
+    const wgpu::RequestAdapterOptions options //
         {
             .nextInChain = nullptr,
             .powerPreference = wgpu::PowerPreference::Undefined,//wgpu::PowerPreference::HighPerformance,
@@ -120,10 +120,10 @@ CreateAdapter(wgpu::Instance instance, wgpu::Surface surface)
             .compatibleSurface = surface,
         };
 
-    wgpu::Future fut =
+    const wgpu::Future fut =
         instance.RequestAdapter(&options, wgpu::CallbackMode::WaitAnyOnly, rqstAdapterCb);
 
-    wgpu::WaitStatus waitStatus = instance.WaitAny(fut, UINT64_MAX);
+    const wgpu::WaitStatus waitStatus = instance.WaitAny(fut, UINT64_MAX);
 
     MLG_CHECK(waitStatus == wgpu::WaitStatus::Success,
         "Failed to create WGPUAdapter - WaitAny failed");
@@ -163,7 +163,7 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
                                  wgpu::ErrorType errorType,
                                  wgpu::StringView message)
     {
-        std::string errorStr = std::format("Uncaptured error (type:{}): {}",
+        const std::string errorStr = std::format("Uncaptured error (type:{}): {}",
             static_cast<int>(errorType),
             std::string(message.data, message.length));
 
@@ -172,7 +172,7 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
         MLG_ASSERT(false, errorStr);
     };
 
-    const char* enabledToggles[] = {
+    const char* const enabledToggles[] = {
         //"skip_validation",
         //"disable_robustness",
         //"allow_unsafe_apis", // Required for MultiDrawIndirect
@@ -227,10 +227,10 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
         }
     };
 
-    wgpu::Future fut =
+    const wgpu::Future fut =
         adapter.RequestDevice(&deviceDesc, wgpu::CallbackMode::WaitAnyOnly, rqstDeviceCb);
 
-    wgpu::WaitStatus waitStatus = instance.WaitAny(fut, UINT64_MAX);
+    const wgpu::WaitStatus waitStatus = instance.WaitAny(fut, UINT64_MAX);
 
     MLG_CHECK(waitStatus == wgpu::WaitStatus::Success,
         "Failed to create WGPUDevice - WaitAny failed");
@@ -307,23 +307,22 @@ CreateSurface(wgpu::Instance instance, SDL_Window* window)
 static Result<wgpu::Surface>
 CreateSurface(wgpu::Instance instance, SDL_Window* window)
 {
-    SDL_PropertiesID props = SDL_GetWindowProperties(window);
-    WGPUSurfaceDescriptor surface_descriptor = {};
-    WGPUSurface rawSurface = {};
+    const SDL_PropertiesID props = SDL_GetWindowProperties(window);
+    wgpu::SurfaceDescriptor surfaceDesc{};
     wgpu::Surface surface;
 
 #if defined(_WIN32)
     MLG_DEBUG("Creating surface for Win32 HWND");
 
+    wgpu::SurfaceSourceWaylandSurface surfaceSrc{};
+
     void* hwnd = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
 
-    WGPUSurfaceSourceWindowsHWND surface_src_hwnd = {};
-    surface_src_hwnd.chain.sType = WGPUSType_SurfaceSourceWindowsHWND;
-    surface_src_hwnd.hinstance = ::GetModuleHandle(NULL);
-    surface_src_hwnd.hwnd = hwnd;
-    surface_descriptor.nextInChain = &surface_src_hwnd.chain;
-    rawSurface = wgpuInstanceCreateSurface(instance.Get(), &surface_descriptor);
-    surface = wgpu::Surface::Acquire(rawSurface);
+    wgpu::SurfaceSourceWindowsHWND surfaceSrc{};
+    surfaceSrc.hinstance = ::GetModuleHandle(NULL);
+    surfaceSrc.hwnd = hwnd;
+    surfaceDesc.nextInChain = &surfaceSrc;
+    surface = instance.CreateSurface(&surfaceDesc);
 
 #elif defined(__linux__)
     const char* sdlDriver = SDL_GetCurrentVideoDriver();
@@ -331,27 +330,20 @@ CreateSurface(wgpu::Instance instance, SDL_Window* window)
 
     if (sdlDriver && strcmp(sdlDriver, "wayland") == 0)
     {
-        WGPUSurfaceSourceWaylandSurface surface_src_wayland = {};
-        surface_src_wayland.chain.sType = WGPUSType_SurfaceSourceWaylandSurface;
-        surface_src_wayland.display =
-            SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, NULL);
-        surface_src_wayland.surface =
-            SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, NULL);
-        surface_descriptor.nextInChain = &surface_src_wayland.chain;
-        rawSurface = wgpuInstanceCreateSurface(instance.Get(), &surface_descriptor);
-        surface = wgpu::Surface::Acquire(rawSurface);
+        wgpu::SurfaceSourceWaylandSurface surfaceSrc{};
+        surfaceSrc.display = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, NULL);
+        surfaceSrc.surface = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, NULL);
+        surfaceDesc.nextInChain = &surfaceSrc;
+        surface = instance.CreateSurface(&surfaceDesc);
     }
     else if (sdlDriver && strcmp(sdlDriver, "x11") == 0)
     {
-        WGPUSurfaceSourceXlibWindow surface_src_xlib = {};
-        surface_src_xlib.chain.sType = WGPUSType_SurfaceSourceXlibWindow;
-        surface_src_xlib.display = 
-            SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, NULL);
-        Sint64 windowNumber = SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, NULL);
-        surface_src_xlib.window = static_cast<uint64_t>(windowNumber);
-        surface_descriptor.nextInChain = &surface_src_xlib.chain;
-        rawSurface = wgpuInstanceCreateSurface(instance.Get(), &surface_descriptor);
-        surface = wgpu::Surface::Acquire(rawSurface);
+        wgpu::SurfaceSourceXlibWindow surfaceSrc{};
+        surfaceSrc.display = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, NULL);
+        const Sint64 windowNumber = SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, NULL);
+        surfaceSrc.window = static_cast<uint64_t>(windowNumber);
+        surfaceDesc.nextInChain = &surfaceSrc;
+        surface = instance.CreateSurface(&surfaceDesc);
     }
     else
     {
@@ -361,7 +353,7 @@ CreateSurface(wgpu::Instance instance, SDL_Window* window)
     MLG_ERROR("Unsupported platform for surface creation");
 #endif
 
-    MLG_CHECK(rawSurface, "Failed to create WGPUSurface from SDL window");
+    MLG_CHECK(surface, "Failed to create WGPUSurface from SDL window");
 
     return surface;
 }
@@ -378,15 +370,15 @@ ConfigureSurface(wgpu::Adapter adapter,
     wgpu::SurfaceCapabilities capabilities;
     MLG_CHECK(surface.GetCapabilities(adapter, &capabilities), "surface.GetCapabilities failed");
 
-    wgpu::PresentMode presentMode =
+    const wgpu::PresentMode presentMode =
         ChoosePresentMode(capabilities.presentModes, capabilities.presentModeCount);
     MLG_CHECK(presentMode != wgpu::PresentMode::Undefined, "No supported present mode found");
 
-    wgpu::TextureFormat format =
+    const wgpu::TextureFormat format =
         ChooseBackbufferFormat(capabilities.formats, capabilities.formatCount);
     MLG_CHECK(format != wgpu::TextureFormat::Undefined, "No supported backbuffer format found");
 
-    wgpu::SurfaceConfiguration config //
+    const wgpu::SurfaceConfiguration config //
         {
             .device = device,
             .format = format,
@@ -403,9 +395,9 @@ ConfigureSurface(wgpu::Adapter adapter,
 }
 
 static wgpu::Buffer
-CreateGpuBufferUnmapped(const wgpu::BufferUsage usage, const size_t size, const char* name)
+CreateGpuBufferUnmapped(const wgpu::BufferUsage usage, const size_t size, const std::string_view name)
 {
-    wgpu::BufferDescriptor bufferDesc //
+    const wgpu::BufferDescriptor bufferDesc //
         {
             .label = name,
             .usage = usage,
@@ -557,7 +549,7 @@ WebgpuHelper::CreateTexture(const unsigned width, const unsigned height, const s
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateTexture called before Startup");
 
-    wgpu::TextureDescriptor desc //
+    const wgpu::TextureDescriptor desc //
         {
             .label = name.c_str(),
             .usage = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
@@ -573,7 +565,7 @@ WebgpuHelper::CreateTexture(const unsigned width, const unsigned height, const s
             .sampleCount = 1,
         };
 
-    wgpu::Texture texture = GetDevice().CreateTexture(&desc);
+    const wgpu::Texture texture = GetDevice().CreateTexture(&desc);
 
     return Texture(texture);
 }
@@ -586,7 +578,7 @@ WebgpuHelper::GetDefaultSampler()
     if(!s_WgpuContext->DefaultSampler)
     {
         // Create sampler
-        wgpu::SamplerDescriptor samplerDesc //
+        const wgpu::SamplerDescriptor samplerDesc //
             {
                 .label = "DefaultSampler",
                 .addressModeU = wgpu::AddressMode::Repeat,
@@ -612,10 +604,9 @@ WebgpuHelper::CreateVertexBuffer(const size_t count, const std::string_view& nam
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateVertexBuffer called before Startup");
 
-    return VertexBuffer(
-        CreateGpuBufferUnmapped(wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst,
-            count * sizeof(Vertex),
-            name.data()));
+    const wgpu::BufferUsage usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
+
+    return VertexBuffer(CreateGpuBufferUnmapped(usage, count * sizeof(Vertex), name));
 }
 
 Result<VertexBuffer>
@@ -623,10 +614,9 @@ WebgpuHelper::CreateVertexBuffer(std::span<const Vertex> vertices, const std::st
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateVertexBuffer called before Startup");
 
-    VertexBuffer buffer(
-         CreateGpuBufferUnmapped(wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst,
-            vertices.size() * sizeof(Vertex),
-            name.data()));
+    const wgpu::BufferUsage usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
+
+    VertexBuffer buffer(CreateGpuBufferUnmapped(usage, vertices.size() * sizeof(Vertex), name));
 
     buffer.Store(0, vertices);
     return buffer;
@@ -637,10 +627,9 @@ WebgpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateIndexBuffer called before Startup");
 
-    return IndexBuffer(
-        CreateGpuBufferUnmapped(wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst,
-            count * sizeof(VertexIndex),
-            name.data()));
+    const wgpu::BufferUsage usage = wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst;
+
+    return IndexBuffer(CreateGpuBufferUnmapped(usage, count * sizeof(VertexIndex), name));
 }
 
 Result<IndexBuffer>
@@ -648,10 +637,9 @@ WebgpuHelper::CreateIndexBuffer(std::span<const VertexIndex> indices, const std:
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateIndexBuffer called before Startup");
 
-    IndexBuffer buffer(
-        CreateGpuBufferUnmapped(wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst,
-            indices.size() * sizeof(VertexIndex),
-            name.data()));
+    const wgpu::BufferUsage usage = wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst;
+
+    IndexBuffer buffer(CreateGpuBufferUnmapped(usage, indices.size() * sizeof(VertexIndex), name));
 
     buffer.Store(0, indices);
     return buffer;
@@ -723,7 +711,7 @@ WebgpuHelper::GetColorPipelineLayouts()
                 },
             },
         };
-        wgpu::BindGroupLayoutDescriptor desc = //
+        const wgpu::BindGroupLayoutDescriptor desc = //
             {
                 .label = "ColorPipelineBg0Layout",
                 .entryCount = std::size(entries),
@@ -738,7 +726,7 @@ WebgpuHelper::GetColorPipelineLayouts()
     if(!s_WgpuContext->ColorPipelineLayouts[1])
     {
         // Color pipeline bind group 1 layout
-        wgpu::BindGroupLayoutEntry entries[] =//
+        const wgpu::BindGroupLayoutEntry entries[] =//
         {
             // Texture
             {
@@ -762,7 +750,7 @@ WebgpuHelper::GetColorPipelineLayouts()
             },
         };
 
-        wgpu::BindGroupLayoutDescriptor desc = //
+        const wgpu::BindGroupLayoutDescriptor desc = //
             {
                 .label = "ColorPipelineBg1Layout",
                 .entryCount = std::size(entries),
@@ -821,7 +809,7 @@ WebgpuHelper::GetTransformPipelineLayouts()
                 },
             },
         };
-        wgpu::BindGroupLayoutDescriptor desc = //
+        const wgpu::BindGroupLayoutDescriptor desc = //
             {
                 .label = "TransformPipelineBg0Layout",
                 .entryCount = std::size(entries),
@@ -844,7 +832,7 @@ WebgpuHelper::GetCompositorPipelineLayouts()
     if(!s_WgpuContext->CompositorPipelineLayouts[0])
     {
         // Compositor pipeline bind group 0 layout
-        wgpu::BindGroupLayoutEntry entries[] =//
+        const wgpu::BindGroupLayoutEntry entries[] =//
         {
             {
                 .binding = 0,
@@ -866,7 +854,7 @@ WebgpuHelper::GetCompositorPipelineLayouts()
             },
         };
 
-        wgpu::BindGroupLayoutDescriptor desc = //
+        const wgpu::BindGroupLayoutDescriptor desc = //
             {
                 .label = "CompositorPipelineBg0Layout",
                 .entryCount = std::size(entries),
@@ -908,29 +896,29 @@ WebgpuHelper::CreateIndirectBuffer(const size_t size, const std::string_view& na
 {
     MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateIndirectBuffer called before Startup");
 
-    return CreateGpuBufferUnmapped(wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst,
-            size,
-            name.data());
+    const wgpu::BufferUsage usage = wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst;
+
+    return CreateGpuBufferUnmapped(usage, size, name);
 }
 
 Result<wgpu::Buffer>
 WebgpuHelper::CreateStorageBuffer(const size_t size, const std::string_view& name)
 {
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateStorageBuffer called before Startup");
+    MLG_CHECKV(nullptr != s_WgpuContext, "WebgpuHelper::CreateStorageBuffer called before Startup");
 
-    return CreateGpuBufferUnmapped(wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst,
-            size,
-            name.data());
+    const wgpu::BufferUsage usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst;
+
+    return CreateGpuBufferUnmapped(usage, size, name);
 }
 
 Result<wgpu::Buffer>
 WebgpuHelper::CreateUniformBuffer(const size_t size, const std::string_view& name)
 {
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateUniformBuffer called before Startup");
+    MLG_CHECKV(nullptr != s_WgpuContext, "WebgpuHelper::CreateUniformBuffer called before Startup");
 
-    return CreateGpuBufferUnmapped(wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
-        size,
-        name.data());
+    const wgpu::BufferUsage usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
+
+    return CreateGpuBufferUnmapped(usage, size, name);
 }
 
 #include <dawn/native/DawnNative.h> // provides dawn::native::GetTogglesUsed
@@ -997,10 +985,10 @@ static void
 DumpDawnToggles(const wgpu::Device& device)
 {
     auto toggles = dawn::native::GetTogglesUsed(device.Get());
-    std::cout << "Device enabled toggles (" << toggles.size() << "):\n";
+    MLG_DEBUG("Device enabled toggles ({}):", toggles.size());
     for(const char* t : toggles)
     {
-        std::cout << "  " << t << "\n";
+        MLG_DEBUG("  {}", t);
     }
 }
 
@@ -1009,19 +997,19 @@ DumpWebgpuLimits(const wgpu::Device& device)
 {
     wgpu::Limits limits;
     device.GetLimits(&limits);
-    std::cout << "Device limits:\n";
-    std::cout << "  maxTextureDimension1D: " << limits.maxTextureDimension1D << "\n";
-    std::cout << "  maxTextureDimension2D: " << limits.maxTextureDimension2D << "\n";
-    std::cout << "  maxTextureDimension3D: " << limits.maxTextureDimension3D << "\n";
-    std::cout << "  maxTextureArrayLayers: " << limits.maxTextureArrayLayers << "\n";
-    std::cout << "  maxBindGroups: " << limits.maxBindGroups << "\n";
-    std::cout << "  maxDynamicUniformBuffersPerPipelineLayout: " << limits.maxDynamicUniformBuffersPerPipelineLayout << "\n";
-    std::cout << "  maxDynamicStorageBuffersPerPipelineLayout: " << limits.maxDynamicStorageBuffersPerPipelineLayout << "\n";
-    std::cout << "  maxSampledTexturesPerShaderStage: " << limits.maxSampledTexturesPerShaderStage << "\n";
-    std::cout << "  maxSamplersPerShaderStage: " << limits.maxSamplersPerShaderStage << "\n";
-    std::cout << "  maxStorageBuffersPerShaderStage: " << limits.maxStorageBuffersPerShaderStage << "\n";
-    std::cout << "  maxStorageTexturesPerShaderStage: " << limits.maxStorageTexturesPerShaderStage << "\n";
-    std::cout << "  maxUniformBuffersPerShaderStage: " << limits.maxUniformBuffersPerShaderStage << "\n";
+    MLG_DEBUG("Device limits:");
+    MLG_DEBUG("  maxTextureDimension1D: {}", limits.maxTextureDimension1D);
+    MLG_DEBUG("  maxTextureDimension2D: {}", limits.maxTextureDimension2D);
+    MLG_DEBUG("  maxTextureDimension3D: {}", limits.maxTextureDimension3D);
+    MLG_DEBUG("  maxTextureArrayLayers: {}", limits.maxTextureArrayLayers);
+    MLG_DEBUG("  maxBindGroups: {}", limits.maxBindGroups);
+    MLG_DEBUG("  maxDynamicUniformBuffersPerPipelineLayout: {}", limits.maxDynamicUniformBuffersPerPipelineLayout);
+    MLG_DEBUG("  maxDynamicStorageBuffersPerPipelineLayout: {}", limits.maxDynamicStorageBuffersPerPipelineLayout);
+    MLG_DEBUG("  maxSampledTexturesPerShaderStage: {}", limits.maxSampledTexturesPerShaderStage);
+    MLG_DEBUG("  maxSamplersPerShaderStage: {}", limits.maxSamplersPerShaderStage);
+    MLG_DEBUG("  maxStorageBuffersPerShaderStage: {}", limits.maxStorageBuffersPerShaderStage);
+    MLG_DEBUG("  maxStorageTexturesPerShaderStage: {}", limits.maxStorageTexturesPerShaderStage);
+    MLG_DEBUG("  maxUniformBuffersPerShaderStage: {}", limits.maxUniformBuffersPerShaderStage);
 }
 
 //////////////////////////////////////////////
@@ -1034,11 +1022,10 @@ Texture::MapBytes()
     // Staging buffer rows must be a multiple of 256 bytes.
     const uint32_t alignedRowStride = GetTextureAlignedRowStride(this->GetWidth());
     const uint32_t sizeofBuffer = alignedRowStride * this->GetHeight();
+    const wgpu::BufferUsage usage = wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc;
 
     wgpu::Buffer stagingBuffer =
-        CreateGpuBufferUnmapped(wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc,
-            sizeofBuffer,
-            "TextureStagingBuffer");
+        CreateGpuBufferUnmapped(usage, sizeofBuffer, "TextureStagingBuffer");
 
     Result<> result;
 
@@ -1055,14 +1042,14 @@ Texture::MapBytes()
         }
     };
 
-    wgpu::Future fut = stagingBuffer.MapAsync(wgpu::MapMode::Write,
+    const wgpu::Future fut = stagingBuffer.MapAsync(wgpu::MapMode::Write,
         0,
         sizeofBuffer,
         wgpu::CallbackMode::WaitAnyOnly,
         cb,
         &result);
 
-    wgpu::WaitStatus waitStatus = WebgpuHelper::GetInstance().WaitAny(fut, UINT64_MAX);
+    const wgpu::WaitStatus waitStatus = WebgpuHelper::GetInstance().WaitAny(fut, UINT64_MAX);
 
     MLG_CHECK(waitStatus == wgpu::WaitStatus::Success,
         "Failed to map staging buffer - WaitAny failed");
@@ -1079,11 +1066,11 @@ Texture::MapBytes()
 Result<>
 Texture::Unmap()
 {
-    wgpu::CommandEncoder cmdEncoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
+    const wgpu::CommandEncoder cmdEncoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
 
     MLG_CHECK(Unmap(cmdEncoder));
 
-    wgpu::CommandBuffer commandBuffer = cmdEncoder.Finish();
+    const wgpu::CommandBuffer commandBuffer = cmdEncoder.Finish();
 
     WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
 
@@ -1097,7 +1084,7 @@ Texture::Unmap(wgpu::CommandEncoder cmdEncoder)
 
     m_StagingBuffer.Unmap();
 
-    wgpu::TexelCopyBufferInfo copySrc = //
+    const wgpu::TexelCopyBufferInfo copySrc = //
         {
             .layout = //
             {
@@ -1108,7 +1095,7 @@ Texture::Unmap(wgpu::CommandEncoder cmdEncoder)
             .buffer = m_StagingBuffer,
         };
 
-    wgpu::TexelCopyTextureInfo copyDst = //
+    const wgpu::TexelCopyTextureInfo copyDst = //
         {
             .texture = *this,
             .mipLevel = 0,

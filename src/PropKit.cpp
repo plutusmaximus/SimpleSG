@@ -72,7 +72,7 @@ StageTexture(TextureBuilder& builder)
         MLG_DEBUG("Decoding...");
 
         int imgWidth, imgHeight, imgNumChannels;
-        stbi_uc* data = stbi_load_from_memory(texBuilder->Request->GetData().data(),
+        const stbi_uc* data = stbi_load_from_memory(texBuilder->Request->GetData().data(),
             narrow_cast<int>(texBuilder->Request->GetData().size()),
             &imgWidth,
             &imgHeight,
@@ -261,7 +261,7 @@ CreateMaterialBindGroups(std::span<const MaterialDef> materialDefs,
 
     for(const auto& mtlDef : materialDefs)
     {
-        Texture baseTexture =
+        const Texture baseTexture =
             mtlDef.BaseTextureUri.empty()
                 ? textureCache.GetDefaultTexture()
                 : textureCache.Get(mtlDef.BaseTextureUri);
@@ -278,7 +278,7 @@ CreateMaterialBindGroups(std::span<const MaterialDef> materialDefs,
             },
         };
 
-        wgpu::BindGroupDescriptor bindGroupDesc //
+        const wgpu::BindGroupDescriptor bindGroupDesc //
         {
             .label = "MaterialBindGroup",
             .layout = (*bgLayouts)[1],
@@ -302,7 +302,7 @@ BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs)
 
     for(const auto& mtlDef : materialDefs)
     {
-        ShaderInterop::MaterialConstants mc //
+        const ShaderInterop::MaterialConstants mc //
             {
                 .Color = mtlDef.Color,
                 .Metalness = mtlDef.Metalness,
@@ -426,7 +426,7 @@ PropKit::Create(const std::filesystem::path& rootPath,
         }
     }
 
-    wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
+    const wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
 
     MLG_CHECK(FetchTextures(rootPath, uniqueMaterials, textureCache, encoder));
 
@@ -442,7 +442,7 @@ PropKit::Create(const std::filesystem::path& rootPath,
     std::vector<wgpu::BindGroup> materialBindGroups;
     MLG_CHECK(CreateMaterialBindGroups(uniqueMaterials, textureCache, materialBindGroups));
 
-    wgpu::CommandBuffer commandBuffer = encoder.Finish();
+    const wgpu::CommandBuffer commandBuffer = encoder.Finish();
     WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
 
     PropKit propKit(

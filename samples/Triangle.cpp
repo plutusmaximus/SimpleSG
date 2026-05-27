@@ -8,7 +8,6 @@
 #include "Renderer.h"
 #include "Scene.h"
 #include "scope_exit.h"
-#include "Stopwatch.h"
 #include "WebgpuHelper.h"
 
 #include <filesystem>
@@ -48,7 +47,7 @@ static Result<> MainLoop()
     TextureCache textureCache;
     MLG_CHECK(textureCache.Startup());
 
-    std::filesystem::path rootPath = ".";
+    const std::filesystem::path rootPath = ".";
     PropKit propKit;
     Level level;
     Scene scene;
@@ -63,8 +62,6 @@ static Result<> MainLoop()
 
     ImGuiRenderer imGuiRenderer;
     MLG_CHECK(imGuiRenderer.Startup());
-
-    Stopwatch stopwatch;
 
     bool running = true;
     bool minimized = false;
@@ -147,8 +144,6 @@ static Result<> MainLoop()
         const float aspectRatio = screenBounds.Width / screenBounds.Height;
         projection.SetAspectRatio(aspectRatio);
 
-        TrsTransformf transform;
-
         compositor.BeginFrame();
 
         imGuiRenderer.NewFrame();
@@ -206,7 +201,7 @@ static Result<> RenderGui()
     ImGui::Begin("Timers");
 
     PerfTimerStats timerStats[256];
-    unsigned timerCount = PerfMetrics::SampleTimers(timerStats, std::size(timerStats));
+    const unsigned timerCount = PerfMetrics::SampleTimers(timerStats, std::size(timerStats));
     for(unsigned i = 0; i < timerCount; ++i)
     {
         const std::string text =

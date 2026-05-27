@@ -17,7 +17,7 @@ static std::mutex s_LoggerMutex;
 
 static void InitializeSinks()
 {
-    std::lock_guard<std::mutex> lock(s_LoggerMutex);
+    const std::lock_guard<std::mutex> lock(s_LoggerMutex);
 
     if (s_InitializeSinks.exchange(false))
     {
@@ -44,7 +44,7 @@ Log::Logger::Logger(const std::string& name)
 
     InitializeSinks();
 
-    std::lock_guard<std::mutex> lock(s_LoggerMutex);
+    const std::lock_guard<std::mutex> lock(s_LoggerMutex);
 
     std::shared_ptr<spdlog::logger> logger = spdlog::get(name);
 

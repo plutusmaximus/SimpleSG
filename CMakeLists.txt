@@ -189,10 +189,7 @@ option(ENABLE_CLANG_TIDY "Enable clang-tidy analysis" OFF)
 if(ENABLE_CLANG_TIDY)
   find_program(CLANG_TIDY_EXE NAMES clang-tidy-22 clang-tidy)
   if(CLANG_TIDY_EXE)
-    set(CMAKE_CXX_CLANG_TIDY
-        ${CLANG_TIDY_EXE}
-        --use-color
-        "--header-filter=.*[/\\\\](src|tests|samples)[/\\\\].*")
+    set(CMAKE_CXX_CLANG_TIDY ${CLANG_TIDY_EXE} --use-color "--exclude-header-filter=(thirdparty|build)[/\\]*")
   else()
     message(WARNING "ENABLE_CLANG_TIDY is ON but clang-tidy was not found")
   endif()
@@ -272,7 +269,7 @@ target_sources(ssg
   PUBLIC FILE_SET HEADERS BASE_DIRS src FILES ${SSG_HEADERS}
 )
 
-# Keep third-party amalgamated implementation out of clang-tidy noise.
+# Keep third-party implementations out of clang-tidy noise.
 set_source_files_properties(src/cgltf.cpp PROPERTIES CXX_CLANG_TIDY "")
 set_source_files_properties(src/stb_image.cpp PROPERTIES CXX_CLANG_TIDY "")
 

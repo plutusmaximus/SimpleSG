@@ -403,7 +403,7 @@ private:
             }
         }
 
-        std::vector<BodyPair>::iterator newEnd =
+        const std::vector<BodyPair>::iterator newEnd =
             m_PotentialCollisions.begin() + std::vector<BodyPair>::difference_type(dst + 1);
         m_PotentialCollisions.erase(newEnd, m_PotentialCollisions.end());
     }

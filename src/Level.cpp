@@ -357,7 +357,7 @@ Level::UpdateWorldTransforms(std::span<Node> nodes)
 
         if(node.ChildCount > 0)
         {
-            std::span children =
+            const std::span children =
                 std::span(m_Nodes).subspan(node.FirstChildIndex.Value(), node.ChildCount);
             UpdateWorldTransforms(children);
         }

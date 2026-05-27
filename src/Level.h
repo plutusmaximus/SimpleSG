@@ -109,26 +109,30 @@ public:
 
     enum class NodeFlags : uint8_t
     {
+        None = 0,
         Active = 1 << 0,
         Visible = 1 << 1,
+        All = Active | Visible
     };
 
-    inline friend NodeFlags operator|(NodeFlags a, NodeFlags b)
+    inline friend NodeFlags operator|(const NodeFlags a, const NodeFlags b)
     {
-        using Underlying = std::underlying_type_t<Level::NodeFlags>;
-        return static_cast<NodeFlags>(static_cast<Underlying>(a) | static_cast<Underlying>(b));
+        using U = std::underlying_type_t<Level::NodeFlags>;
+        return static_cast<NodeFlags>(static_cast<U>(a) | static_cast<U>(b));
     }
 
-    inline friend NodeFlags operator&(NodeFlags a, NodeFlags b)
+    inline friend NodeFlags operator&(const NodeFlags a, const NodeFlags b)
     {
-        using Underlying = std::underlying_type_t<Level::NodeFlags>;
-        return static_cast<NodeFlags>(static_cast<Underlying>(a) & static_cast<Underlying>(b));
+        using U = std::underlying_type_t<Level::NodeFlags>;
+        return static_cast<NodeFlags>(static_cast<U>(a) & static_cast<U>(b));
     }
 
-    inline friend NodeFlags operator~(NodeFlags a)
+    inline friend NodeFlags operator~(const NodeFlags a)
     {
-        using Underlying = std::underlying_type_t<Level::NodeFlags>;
-        return static_cast<NodeFlags>(~static_cast<Underlying>(a));
+        using U = std::underlying_type_t<Level::NodeFlags>;
+
+        return static_cast<NodeFlags>(
+            static_cast<U>(~static_cast<U>(a)) & static_cast<U>(NodeFlags::All));
     }
 
     struct Components

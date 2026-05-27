@@ -140,7 +140,7 @@ Shapes::Ball(const float radius, const float smoothness)
     auto getMidpoint = [&](VertexIndex v0, VertexIndex v1) -> VertexIndex {
         // Ensure consistent ordering for the key
         if (v0 > v1) std::swap(v0, v1);
-        uint64_t key = (static_cast<uint64_t>(v0) << 32) | v1;
+        const uint64_t key = (static_cast<uint64_t>(v0) << 32) | v1;
 
         auto it = midpointCache.find(key);
         if (it != midpointCache.end()) {
@@ -158,7 +158,7 @@ Shapes::Ball(const float radius, const float smoothness)
         const float mpLen = std::sqrt(mid.x * mid.x + mid.y * mid.y + mid.z * mid.z);
         mid.x /= mpLen; mid.y /= mpLen; mid.z /= mpLen;
 
-        VertexIndex newIdx = static_cast<VertexIndex>(vertices.size());
+        const VertexIndex newIdx = static_cast<VertexIndex>(vertices.size());
         vertices.push_back({ mid, {mid.x, mid.y, mid.z}, {} });
         midpointCache[key] = newIdx;
         return newIdx;

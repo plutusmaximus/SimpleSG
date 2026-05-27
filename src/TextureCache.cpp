@@ -35,7 +35,7 @@ TextureCache::Startup()
 
     defaultTexture->Unmap();
 
-    wgpu::SamplerDescriptor samplerDesc//
+    const wgpu::SamplerDescriptor samplerDesc//
     {
         .addressModeU = wgpu::AddressMode::Repeat,
         .addressModeV = wgpu::AddressMode::Repeat,

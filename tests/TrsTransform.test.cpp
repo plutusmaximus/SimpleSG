@@ -38,7 +38,7 @@ namespace
 
 TEST(TrsTransformf, DefaultConstruction)
 {
-    TrsTransformf trs{};
+    const TrsTransformf trs{};
 
     EXPECT_EQ(trs.T, Vec3f(0.0f));
     EXPECT_EQ(trs.S, Vec3f(1.0f));
@@ -130,7 +130,7 @@ TEST(TrsTransformf, Equality)
     a.R = UnitQuatf(Radiansf(std::numbers::pi_v<float> / 4.0f), Vec3f::XAXIS());
     a.S = Vec3f(2.0f, 2.0f, 2.0f);
 
-    TrsTransformf b = a;
+    const TrsTransformf b = a;
     TrsTransformf c = a;
     c.T.z += 1.0f;
 

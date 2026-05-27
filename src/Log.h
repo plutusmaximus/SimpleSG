@@ -194,7 +194,7 @@ struct LogScope
 
 #define MLG_LOG_SCOPE_CONCAT_HELPER(a, b) a##b
 #define MLG_LOG_SCOPE_CONCAT(a, b) MLG_LOG_SCOPE_CONCAT_HELPER(a, b)
-#define MLG_LOG_SCOPE(...) mlg::LogScope MLG_LOG_SCOPE_CONCAT(logScope_, __LINE__)(__VA_ARGS__);
+#define MLG_LOG_SCOPE(...) const mlg::LogScope MLG_LOG_SCOPE_CONCAT(logScope_, __LINE__)(__VA_ARGS__);
 
 static inline Log::Logger mlg_logger_no_conflict(MLG_LOGGER_NAME);
 

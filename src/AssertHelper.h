@@ -31,8 +31,8 @@ public:
         std::format_string<Args...> fmt,
         Args&&... args)
     {
-        std::string userMsg = std::format(fmt, std::forward<Args>(args)...);
-        std::string message = std::format("{}({}): {} - {}", fileName, lineNum, expression, userMsg);
+        const std::string userMsg = std::format(fmt, std::forward<Args>(args)...);
+        const std::string message = std::format("{}({}): {} - {}", fileName, lineNum, expression, userMsg);
 
         return Log(message, mute);
     }
@@ -44,7 +44,7 @@ public:
         bool& mute,
         const std::string& userMsg)
     {
-        std::string message = std::format("{}({}): {} - {}", fileName, lineNum, expression, userMsg);
+        const std::string message = std::format("{}({}): {} - {}", fileName, lineNum, expression, userMsg);
 
         return Log(message, mute);
     }
@@ -55,7 +55,7 @@ public:
         const int lineNum,
         bool& mute)
     {
-        std::string message = std::format("{}({}): {}", fileName, lineNum, expression);
+        const std::string message = std::format("{}({}): {}", fileName, lineNum, expression);
 
         return Log(message, mute);
     }

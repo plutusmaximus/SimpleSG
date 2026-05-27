@@ -24,7 +24,7 @@ TEST(GridHash, EmptyGridHasNoPotentialCollisions)
 {
 	GridHash hash{3};
 
-    std::span pairs(hash);
+    const std::span pairs(hash);
 
 	EXPECT_TRUE(pairs.empty());
 }
@@ -41,7 +41,7 @@ TEST(GridHash, SingleBodyProducesNoPairs)
 
 	ASSERT_TRUE(result);
 
-    std::span pairs(hash);
+    const std::span pairs(hash);
 	EXPECT_TRUE(pairs.empty());
 }
 
@@ -61,7 +61,7 @@ TEST(GridHash, TwoBodiesInSameCellProduceOneOrderedPair)
 		MakeSphereCollider(),
 		3));
 
-    std::span pairs(hash);
+    const std::span pairs(hash);
 
 	ASSERT_EQ(pairs.size(), 1u);
 	EXPECT_EQ(pairs[0], BodyPair(3, 7));
@@ -83,7 +83,7 @@ TEST(GridHash, SharedAcrossManyCellsStillProducesUniquePair)
 		MakeSphereCollider(),
 		1));
 
-    std::span pairs(hash);
+    const std::span pairs(hash);
 
 	ASSERT_EQ(pairs.size(), 1u);
 	EXPECT_EQ(pairs[0], BodyPair(0, 1));
@@ -109,7 +109,7 @@ TEST(GridHash, ThreeBodiesInOneCellGenerateAllUniquePairs)
 		MakeSphereCollider(),
 		2));
 
-    std::span pairs(hash);
+    const std::span pairs(hash);
 
 	ASSERT_EQ(pairs.size(), 3u);
 	EXPECT_EQ(pairs[0], BodyPair(0, 1));
@@ -132,7 +132,7 @@ TEST(GridHash, ClearRemovesExistingCellsAndPairs)
 		MakeSphereCollider(),
 		1));
 
-    std::span beforeClear(hash);
+    const std::span beforeClear(hash);
 	ASSERT_EQ(beforeClear.size(), 1u);
 
 	hash.Clear();
@@ -205,7 +205,7 @@ TEST(GridHash, ChaosRandomizedBodies_AllExpectedPairsExist)
 	constexpr size_t kBodyCount = 1000;
 
     std::mt19937 rng(0xC0FFEEu);
-
+	
     for(size_t cellSize = 1; cellSize <= 10; ++cellSize)
     {
         GridHash hash{cellSize};
@@ -245,7 +245,7 @@ TEST(GridHash, ChaosRandomizedBodies_AllExpectedPairsExist)
             const Vec3f bbMax = center + halfExtent;
             const float radius = radiusDist(rng);
 
-            RandomBody body //
+            const RandomBody body //
                 {
                     .Min = bbMin,
                     .Max = bbMax,

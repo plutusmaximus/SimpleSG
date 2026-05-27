@@ -62,14 +62,14 @@ PerfCounter::PerfCounter(const std::string& name)
     : m_Name(name),
       m_Aggregator(this)
 {
-    std::lock_guard lock(s_Mutex);
+    const std::lock_guard lock(s_Mutex);
     PerfMetrics::m_Counters.push_back(this);
 }
 
 PerfTimer::PerfTimer(const std::string& name)
     : PerfCounter(name)
 {
-    std::lock_guard lock(s_Mutex);
+    const std::lock_guard lock(s_Mutex);
     PerfMetrics::m_Timers.push_back(this);
 }
 
@@ -90,7 +90,7 @@ PerfTimer::Stop()
 unsigned
 PerfMetrics::GetTimerCount()
 {
-    std::scoped_lock lock(s_Mutex);
+    const std::scoped_lock lock(s_Mutex);
 
     return static_cast<unsigned>(m_Timers.size());
 }
@@ -98,7 +98,7 @@ PerfMetrics::GetTimerCount()
 unsigned
 PerfMetrics::SampleTimers(PerfTimerStats* outStats, const unsigned timerCount)
 {
-    std::scoped_lock lock(s_Mutex);
+    const std::scoped_lock lock(s_Mutex);
 
     unsigned count = 0;
 
@@ -120,6 +120,8 @@ PerfMetrics::SampleTimers(PerfTimerStats* outStats, const unsigned timerCount)
 void
 PerfMetrics::LogTimers()
 {
+    const std::scoped_lock lock(s_Mutex);
+
     for(auto& timer : m_Timers)
     {
         const PerfTimerStats stats(timer.m_Aggregator.GetStats());

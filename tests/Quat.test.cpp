@@ -18,7 +18,7 @@ namespace
 
 TEST(UnitQuatf, Construction_FromComponents)
 {
-    UnitQuatf q(1.0f, 2.0f, 3.0f, 4.0f);
+    const UnitQuatf q(1.0f, 2.0f, 3.0f, 4.0f);
     const float len = std::sqrt(30.0f);
     EXPECT_NEAR(q.ToVector().x, 1.0f / len, EPS);
     EXPECT_NEAR(q.ToVector().y, 2.0f / len, EPS);
@@ -30,7 +30,7 @@ TEST(UnitQuatf, Construction_FromAngleAxis)
 {
     const float angle = std::numbers::pi_v<float> / 2.0f;
     const Vec3f axis(0.0f, 0.0f, 1.0f);
-    UnitQuatf q(Radiansf(angle), axis);
+    const UnitQuatf q(Radiansf(angle), axis);
 
     const float s = std::sin(angle / 2.0f);
     const float c = std::cos(angle / 2.0f);
@@ -43,8 +43,8 @@ TEST(UnitQuatf, Construction_FromAngleAxis)
 
 TEST(UnitQuatf, Conjugate)
 {
-    UnitQuatf q(1.0f, -2.0f, 3.0f, -4.0f);
-    UnitQuatf c = q.Conjugate();
+    const UnitQuatf q(1.0f, -2.0f, 3.0f, -4.0f);
+    const UnitQuatf c = q.Conjugate();
     const float len = std::sqrt(30.0f);
     EXPECT_NEAR(c.ToVector().x, -1.0f / len, EPS);
     EXPECT_NEAR(c.ToVector().y,  2.0f / len, EPS);
@@ -56,10 +56,10 @@ TEST(UnitQuatf, Multiply_Quat)
 {
     const float angle = std::numbers::pi_v<float> / 1.234f;
     const Vec3f axis = Vec3f(1, 2, 3).Normalize();
-    UnitQuatf q(Radiansf(angle), axis);
-    UnitQuatf identity(0.0f, 0.0f, 0.0f, 1.0f);
+    const UnitQuatf q(Radiansf(angle), axis);
+    const UnitQuatf identity(0.0f, 0.0f, 0.0f, 1.0f);
 
-    UnitQuatf result = q * identity;
+    const UnitQuatf result = q * identity;
     EXPECT_NEAR(result.ToVector().x, q.ToVector().x, EPS);
     EXPECT_NEAR(result.ToVector().y, q.ToVector().y, EPS);
     EXPECT_NEAR(result.ToVector().z, q.ToVector().z, EPS);
@@ -70,7 +70,7 @@ TEST(UnitQuatf, Multiply_VectorRotation)
 {
     const float angle = std::numbers::pi_v<float> / 1.234f;
     const Vec3f axis = Vec3f(1, 2, 3).Normalize();
-    UnitQuatf q(Radiansf(angle), axis);
+    const UnitQuatf q(Radiansf(angle), axis);
 
     const Vec3f v(1.0f, 0.0f, 0.0f);
     const Vec3f r = q * v;
@@ -85,18 +85,18 @@ TEST(UnitQuatf, Multiply_VectorRotation)
 
 TEST(UnitQuatf, Equality)
 {
-    UnitQuatf a(1.0f, 2.0f, 3.0f, 4.0f);
-    UnitQuatf b(1.0f, 2.0f, 3.0f, 4.0f);
-    UnitQuatf c(4.0f, 3.0f, 2.0f, 1.0f);
+    const UnitQuatf a(1.0f, 2.0f, 3.0f, 4.0f);
+    const UnitQuatf b(1.0f, 2.0f, 3.0f, 4.0f);
+    const UnitQuatf c(4.0f, 3.0f, 2.0f, 1.0f);
     EXPECT_TRUE(a == b);
     EXPECT_FALSE(a == c);
 }
 
 TEST(UnitQuatf, Add_Quat)
 {
-    UnitQuatf a(0.0f, 0.0f, 0.0f, 1.0f);
-    UnitQuatf b(0.0f, 0.0f, 1.0f, 0.0f);
-    UnitQuatf c = a + b;
+    const UnitQuatf a(0.0f, 0.0f, 0.0f, 1.0f);
+    const UnitQuatf b(0.0f, 0.0f, 1.0f, 0.0f);
+    const UnitQuatf c = a + b;
     const float invSqrt2 = 1.0f / std::sqrt(2.0f);
     EXPECT_NEAR(c.ToVector().x, 0.0f,      EPS);
     EXPECT_NEAR(c.ToVector().y, 0.0f,      EPS);
@@ -106,8 +106,8 @@ TEST(UnitQuatf, Add_Quat)
 
 TEST(UnitQuatf, UnaryNegation)
 {
-    UnitQuatf a(1.0f, -2.0f, 3.0f, -4.0f);
-    UnitQuatf c = -a;
+    const UnitQuatf a(1.0f, -2.0f, 3.0f, -4.0f);
+    const UnitQuatf c = -a;
     EXPECT_NEAR(c.ToVector().x, -a.ToVector().x, EPS);
     EXPECT_NEAR(c.ToVector().y, -a.ToVector().y, EPS);
     EXPECT_NEAR(c.ToVector().z, -a.ToVector().z, EPS);
@@ -119,7 +119,7 @@ TEST(UnitQuatf, CompoundMultiplication)
     const float angle = std::numbers::pi_v<float> / 2.0f;
     const Vec3f axis(0.0f, 0.0f, 1.0f);
     UnitQuatf q(Radiansf(angle), axis);
-    UnitQuatf identity(0.0f, 0.0f, 0.0f, 1.0f);
+    const UnitQuatf identity(0.0f, 0.0f, 0.0f, 1.0f);
 
     q *= identity;
     EXPECT_NEAR(q.ToVector().x, 0.0f, EPS);
@@ -131,7 +131,7 @@ TEST(UnitQuatf, CompoundMultiplication)
 TEST(UnitQuatf, CompoundAddition)
 {
     UnitQuatf a(0.0f, 0.0f, 0.0f, 1.0f);
-    UnitQuatf b(0.0f, 0.0f, 1.0f, 0.0f);
+    const UnitQuatf b(0.0f, 0.0f, 1.0f, 0.0f);
     a += b;
     const float invSqrt2 = 1.0f / std::sqrt(2.0f);
     EXPECT_NEAR(a.ToVector().x, 0.0f,      EPS);
@@ -146,8 +146,8 @@ TEST(UnitQuatf, Lerp)
     const float angleB = std::numbers::pi_v<float> / 4.0f;
     const Vec3f axisA(0.0f, 0.0f, 1.0f);
     const Vec3f axisB(0.0f, 1.0f, 0.0f);
-    UnitQuatf qA(Radiansf(angleA), axisA);
-    UnitQuatf qB(Radiansf(angleB), axisB);
+    const UnitQuatf qA(Radiansf(angleA), axisA);
+    const UnitQuatf qB(Radiansf(angleB), axisB);
 
     // At t=0, result must equal qA
     const UnitQuatf r0 = qA.Lerp(qB, 0.0f);
@@ -176,7 +176,7 @@ TEST(UnitQuatf, InverseRotateVector)
 {
     const float angle = std::numbers::pi_v<float> / 2.0f;
     const Vec3f axis(0.0f, 0.0f, 1.0f);
-    UnitQuatf q(Radiansf(angle), axis);
+    const UnitQuatf q(Radiansf(angle), axis);
 
     const Vec3f v(1.0f, 0.0f, 0.0f);
 

@@ -46,7 +46,7 @@ static struct ThreadPoolStartStop
 void
 ThreadPool::Startup()
 {
-    std::lock_guard<std::mutex> lock(s_JobQueueMutex);
+    const std::lock_guard<std::mutex> lock(s_JobQueueMutex);
 
     bool expected = false;
     if(!s_Running.compare_exchange_strong(expected, true))
@@ -70,7 +70,7 @@ void
 ThreadPool::Shutdown()
 {
     {
-        std::lock_guard<std::mutex> lock(s_JobQueueMutex);
+        const std::lock_guard<std::mutex> lock(s_JobQueueMutex);
 
         bool expected = true;
         if(!s_Running.compare_exchange_strong(expected, false))
@@ -92,7 +92,7 @@ ThreadPool::Shutdown()
 
     ThreadPool::Job *pendingJobs = nullptr;
     {
-        std::lock_guard<std::mutex> lock(s_JobQueueMutex);
+        const std::lock_guard<std::mutex> lock(s_JobQueueMutex);
         std::swap(pendingJobs, s_JobQueueHead);
         s_JobQueueTail = nullptr;
     }
@@ -145,7 +145,7 @@ ThreadPool::GetWorkerCount()
 ThreadPool::Job *
 ThreadPool::NewJob()
 {
-    std::lock_guard<std::mutex> lock(s_AllocMutex);
+    const std::lock_guard<std::mutex> lock(s_AllocMutex);
 
     if(!s_Running.load())
     {
@@ -165,7 +165,7 @@ ThreadPool::NewJob()
 void
 ThreadPool::DeleteJob(ThreadPool::Job *job)
 {
-    std::lock_guard<std::mutex> lock(s_AllocMutex);
+    const std::lock_guard<std::mutex> lock(s_AllocMutex);
 
     *job = Job{}; // Reset job to default state.
     job->m_Next = s_JobPoolFreeList;
@@ -176,7 +176,7 @@ ThreadPool::DeleteJob(ThreadPool::Job *job)
 bool
 ThreadPool::Enqueue(Job *job)
 {
-    std::lock_guard<std::mutex> lock(s_JobQueueMutex);
+    const std::lock_guard<std::mutex> lock(s_JobQueueMutex);
 
     MLG_ASSERT(job->m_Next == nullptr);
 

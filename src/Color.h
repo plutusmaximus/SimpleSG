@@ -117,8 +117,8 @@ constexpr RgbaColor<uint8_t> operator""_rgba(const char* str, const size_t len)
         return 0;
     };
 
-    size_t offset = (len > 0 && str[0] == '#') ? 1 : 0;
-    size_t digits = len - offset;
+    const size_t offset = (len > 0 && str[0] == '#') ? 1 : 0;
+    const size_t digits = len - offset;
 
     if (digits == 3)
     {

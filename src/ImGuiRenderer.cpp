@@ -29,7 +29,7 @@ ImGuiRenderer::Startup()
     ImGui::StyleColorsDark();
     //ImGui::StyleColorsLight();
 
-    float main_scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
+    const float main_scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
 
     // Setup scaling
     ImGuiStyle& style = ImGui::GetStyle();
@@ -108,8 +108,8 @@ ImGuiRenderer::Render(Compositor& renderCompositor)
         return Result<>::Ok;
     }
 
-    wgpu::Texture target = renderCompositor.GetTarget();
-    wgpu::CommandEncoder cmdEncoder = renderCompositor.GetCommandEncoder();
+    const wgpu::Texture target = renderCompositor.GetTarget();
+    const wgpu::CommandEncoder cmdEncoder = renderCompositor.GetCommandEncoder();
 
     if(!target)
     {
@@ -117,7 +117,7 @@ ImGuiRenderer::Render(Compositor& renderCompositor)
         return Result<>::Ok;
     }
 
-    wgpu::RenderPassColorAttachment colorAttachment //
+    const wgpu::RenderPassColorAttachment colorAttachment //
     {
         .view = target.CreateView(),
         .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
@@ -126,7 +126,7 @@ ImGuiRenderer::Render(Compositor& renderCompositor)
         .clearValue = { 0.0f, 0.0f, 0.0f, 1.0f },
     };
 
-    wgpu::RenderPassDescriptor renderPassDesc //
+    const wgpu::RenderPassDescriptor renderPassDesc //
     {
         .label = "ImGuiRenderPass",
         .colorAttachmentCount = 1,
@@ -134,7 +134,7 @@ ImGuiRenderer::Render(Compositor& renderCompositor)
         .depthStencilAttachment = nullptr,
     };
 
-    wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
+    const wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
 
     ImGui_ImplWGPU_RenderDrawData(drawData, renderPass.Get());
 

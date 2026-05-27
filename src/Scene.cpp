@@ -74,12 +74,14 @@ BuildTransformBuffer(const Level& level,
         auto node = level.GetNode(handle);
         MLG_ASSERT(node);
 
-        if(!node->Components.Model.has_value())
+        const std::optional<ModelIndex>& optModelIdx = node->Components.Model;
+
+        if(!optModelIdx)
         {
             continue;
         }
 
-        const ModelIndex modelIndex = *node->Components.Model;
+        const ModelIndex modelIndex = *optModelIdx;
         MLG_ASSERT(modelIndex.IsValid(), "Node has invalid model index");
         const ModelInstance modelInstance{modelIndex };
         outModelInstances.emplace_back(modelInstance);
@@ -136,11 +138,11 @@ BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const Pro
             model.MeshCount,
             meshes.size());
 
-        std::span modelMeshes = meshes.subspan(model.FirstMesh.Value(), model.MeshCount);
+        const std::span modelMeshes = meshes.subspan(model.FirstMesh.Value(), model.MeshCount);
 
         for(const auto& meshSrc : modelMeshes)
         {
-            ShaderInterop::DrawIndirectParams drawParams //
+            const ShaderInterop::DrawIndirectParams drawParams //
                 {
                     .IndexCount = meshSrc.IndexCount,
                     .InstanceCount = 1,
@@ -186,13 +188,13 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const P
             model.MeshCount,
             meshes.size());
 
-        std::span modelMeshes = meshes.subspan(model.FirstMesh.Value(), model.MeshCount);
+        const std::span modelMeshes = meshes.subspan(model.FirstMesh.Value(), model.MeshCount);
 
         for(const auto& meshSrc : modelMeshes)
         {
             const Sphere boundingSphere(meshSrc.BoundingBox);
 
-            ShaderInterop::MeshProperties meshProps//
+            const ShaderInterop::MeshProperties meshProps//
             {
                 .Radius = boundingSphere.GetRadius(),
                 .TransformIndex = transformIndex,
@@ -249,7 +251,7 @@ CreateColorPipelineBindGroup0(ColorPipelineResources& colorPipelineResources)
         },
     };
 
-    wgpu::BindGroupDescriptor bgDesc = //
+    const wgpu::BindGroupDescriptor bgDesc = //
         {
             .label = "ColorPipelineBindGroup0",
             .layout = (*bgLayouts)[0],
@@ -257,7 +259,7 @@ CreateColorPipelineBindGroup0(ColorPipelineResources& colorPipelineResources)
             .entries = bgEntries,
         };
 
-    wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
+    const wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
     MLG_CHECK(bindGroup,
         "Failed to create bind group 0 for color pipeline");
 
@@ -270,7 +272,7 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
     auto bgLayouts = WebgpuHelper::GetTransformPipelineLayouts();
     MLG_CHECK(bgLayouts);
 
-    wgpu::BindGroupEntry bgEntries[] =//
+    const wgpu::BindGroupEntry bgEntries[] =//
     {
         {
             .binding = 0,
@@ -292,7 +294,7 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
         },
     };
 
-    wgpu::BindGroupDescriptor bgDesc = //
+    const wgpu::BindGroupDescriptor bgDesc = //
         {
             .label = "TransformPipelineBindGroup0",
             .layout = (*bgLayouts)[0],
@@ -300,7 +302,7 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
             .entries = bgEntries,
         };
 
-    wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
+    const wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
     MLG_CHECK(bindGroup,
         "Failed to create bind group 0 for transform pipeline");
 

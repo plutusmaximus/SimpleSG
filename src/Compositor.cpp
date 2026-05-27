@@ -10,7 +10,7 @@ Compositor::BeginFrame()
 
     m_FrameStarted = true;
 
-    wgpu::CommandEncoderDescriptor encoderDesc = { .label = "RenderCompositorEncoder" };
+    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "RenderCompositorEncoder" };
 
     m_CommandEncoder = WebgpuHelper::GetDevice().CreateCommandEncoder(&encoderDesc);
     MLG_CHECK(m_CommandEncoder, "Failed to create command encoder");
@@ -40,7 +40,7 @@ Compositor::EndFrame()
 
     m_Target = nullptr;
 
-    wgpu::CommandEncoder cmdEncoder = m_CommandEncoder;
+    const wgpu::CommandEncoder cmdEncoder = m_CommandEncoder;
     m_CommandEncoder = nullptr;
 
     wgpu::CommandBuffer cmdBuf;
@@ -53,7 +53,7 @@ Compositor::EndFrame()
 
     {
         MLG_SCOPED_TIMER("RenderCompositor.SubmitCommandBuffer");
-        wgpu::Queue queue = WebgpuHelper::GetDevice().GetQueue();
+        const wgpu::Queue queue = WebgpuHelper::GetDevice().GetQueue();
         MLG_CHECK(queue, "Failed to get wgpu::Queue");
 
         queue.Submit(1, &cmdBuf);

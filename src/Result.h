@@ -91,7 +91,7 @@ public:
 
     static inline std::string Format()
     {
-        static std::string empty = "";
+        constexpr static const std::string empty = "";
         return empty;
     }
 

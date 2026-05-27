@@ -9,7 +9,6 @@
 #include "Renderer.h"
 #include "Scene.h"
 #include "scope_exit.h"
-#include "Stopwatch.h"
 #include "WebgpuHelper.h"
 #include "VecMath.h"
 
@@ -282,7 +281,7 @@ static Result<> RenderGui()
     ImGui::Begin(title.c_str());
 
     PerfTimerStats timerStats[256];
-    unsigned timerCount = PerfMetrics::SampleTimers(timerStats, std::size(timerStats));
+    const unsigned timerCount = PerfMetrics::SampleTimers(timerStats, std::size(timerStats));
     for(unsigned i = 0; i < timerCount; ++i)
     {
         const std::string text =

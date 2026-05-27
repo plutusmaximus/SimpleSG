@@ -247,7 +247,7 @@ public:
 
     constexpr explicit Vec2(const Vec4<T>& v) noexcept;
 
-    constexpr Vec2<T> Normalize() const noexcept
+    [[nodiscard]] constexpr Vec2<T> Normalize() const noexcept
     {
         return *this / Length();
     }
@@ -263,7 +263,7 @@ public:
         return x * x + y * y;
     }
 
-    constexpr Vec2 Cross(const Vec2& that) const noexcept
+    [[nodiscard]] constexpr Vec2 Cross(const Vec2& that) const noexcept
     {
         return Vec2(x * that.y - y * that.x, y * that.x - x * that.y);
     }
@@ -273,7 +273,7 @@ public:
         return x * that.x + y * that.y;
     }
 
-    constexpr Vec2 Lerp(const Vec2& that, T t) const noexcept
+    [[nodiscard]] constexpr Vec2 Lerp(const Vec2& that, T t) const noexcept
     {
         return Vec2(*this * (1 - t) + that * t);
     }
@@ -407,7 +407,7 @@ public:
     static inline consteval Vec3 YAXIS() { return Vec3{ 0, 1, 0 }; }
     static inline consteval Vec3 ZAXIS() { return Vec3{ 0, 0, 1 }; }
 
-    constexpr Vec3 Normalize() const noexcept
+    [[nodiscard]] constexpr Vec3 Normalize() const noexcept
     {
         return *this / Length();
     }
@@ -422,7 +422,7 @@ public:
         return x * x + y * y + z * z;
     }
 
-    constexpr Vec3 Cross(const Vec3& that) const noexcept
+    [[nodiscard]] constexpr Vec3 Cross(const Vec3& that) const noexcept
     {
         return Vec3(
             y * that.z - z * that.y,
@@ -436,13 +436,13 @@ public:
         return x * that.x + y * that.y + z * that.z;
     }
 
-    constexpr Vec3 Lerp(const Vec3& that, T t) const noexcept
+    [[nodiscard]] constexpr Vec3 Lerp(const Vec3& that, T t) const noexcept
     {
         return Vec3(*this * (1 - t) + that * t);
     }
 
     /// Rotates this vector around the given axis by the specified angle.
-    constexpr Vec3 RotateBy(const Vec3& axis, const Radians<T> angle) const noexcept
+    [[nodiscard]] constexpr Vec3 RotateBy(const Vec3& axis, const Radians<T> angle) const noexcept
     {
         // https://en.wikipedia.org/wiki/Rodrigues'_rotation_formula
         const T cos = angle.Cos();
@@ -584,7 +584,7 @@ public:
     {
     }
 
-    constexpr Vec4 Normalize() const noexcept
+    [[nodiscard]] constexpr Vec4 Normalize() const noexcept
     {
         return *this / Length();
     }
@@ -604,7 +604,7 @@ public:
         return x * that.x + y * that.y + z * that.z + w * that.w;
     }
 
-    constexpr Vec4 Lerp(const Vec4& that, T t) const noexcept
+    [[nodiscard]] constexpr Vec4 Lerp(const Vec4& that, T t) const noexcept
     {
         return Vec4(*this * (1 - t) + that * t);
     }
@@ -871,17 +871,17 @@ public:
     {
     }
 
-    constexpr Mat44 Mul(const Mat44& other) const noexcept
+    [[nodiscard]] constexpr Mat44 Mul(const Mat44& other) const noexcept
     {
         return *this * other;
     }
 
-    constexpr Vec4<T> Mul(const Vec4<T>& vector) const noexcept
+    [[nodiscard]] constexpr Vec4<T> Mul(const Vec4<T>& vector) const noexcept
     {
         return *this * vector;
     }
 
-    constexpr Vec4<T> Mul(const Vec3<T>& vector) const noexcept
+    [[nodiscard]] constexpr Vec4<T> Mul(const Vec3<T>& vector) const noexcept
     {
         return *this * vector;
     }
@@ -896,7 +896,7 @@ public:
         return *this = *this * that;
     }
 
-    constexpr Mat44<T> Inverse() const noexcept
+    [[nodiscard]] constexpr Mat44<T> Inverse() const noexcept
     {
         constexpr T epsilon = T{1e-8};
 
@@ -988,7 +988,7 @@ public:
         };
     }
 
-    constexpr Mat44 InverseAffine() const noexcept
+    [[nodiscard]] constexpr Mat44 InverseAffine() const noexcept
     {
         constexpr T epsilon = T{1e-8};
 
@@ -1065,7 +1065,7 @@ public:
         };
     }
 
-    constexpr Mat44 Transpose() const noexcept
+    [[nodiscard]] constexpr Mat44 Transpose() const noexcept
     {
         return Mat44 //
             {
@@ -1243,7 +1243,7 @@ public:
     // unless the scale is uniform.
     // So the inverse returns a Mat44, which can represent any affine transform,
     // instead of a new TrsTransform.
-    constexpr Mat44<NumType> Inverse() const noexcept
+    [[nodiscard]] constexpr Mat44<NumType> Inverse() const noexcept
     {
         TrsTransform result;
         result.R = R.Inverse();

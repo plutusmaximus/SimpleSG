@@ -69,7 +69,7 @@ CollectAttributes(const cgltf_primitive& primitive)
 
     for(cgltf_size i = 0; i < primitive.attributes_count; ++i)
     {
-        cgltf_attribute& attribute = primitive.attributes[i];
+        const cgltf_attribute& attribute = primitive.attributes[i];
 
         MLG_LOG_SCOPE("attr {}/{}", attribute.name ? attribute.name : "<unnamed>", i);
 
@@ -374,8 +374,6 @@ CollectModels(const std::span<CgltfMeshData> gltfMeshes,
 
     models.reserve(gltfMeshes.size());
 
-    std::map<const cgltf_material*, size_t> materialMap;
-
     for(size_t i = 0; i < gltfMeshes.size(); ++i)
     {
         const auto& gltfMesh = gltfMeshes[i];
@@ -588,13 +586,13 @@ CollectNodes(const cgltf_data* gltfData,
 Result<>
 GltfLoader::Load(const std::string& path, PropKitDef& outPropKit, LevelDef& outLevelDef)
 {
-    std::filesystem::path filePath(path);
+    const std::filesystem::path filePath(path);
 
     MLG_LOG_SCOPE(filePath.filename().string());
 
-    cgltf_options options = {};
+    const cgltf_options options = {};
     cgltf_data* gltfData = nullptr;
-    cgltf_result result = cgltf_parse_file(&options, path.c_str(), &gltfData);
+    const cgltf_result result = cgltf_parse_file(&options, path.c_str(), &gltfData);
     MLG_CHECK(result == cgltf_result_success, "Failed to load glTF file");
 
     auto cleanup = scope_exit([&]()
@@ -616,7 +614,7 @@ GltfLoader::Load(const std::string& path, PropKitDef& outPropKit, LevelDef& outL
             i);
     }
 
-    cgltf_result loadBuffersResult = cgltf_load_buffers(&options, gltfData, filePath.string().c_str());
+    const cgltf_result loadBuffersResult = cgltf_load_buffers(&options, gltfData, filePath.string().c_str());
     MLG_CHECK(loadBuffersResult == cgltf_result_success, "Failed to load buffers");
 
     std::vector<CgltfMeshData> gltfMeshes;
