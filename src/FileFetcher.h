@@ -2,6 +2,7 @@
 
 #include "Result.h"
 
+#include <span>
 #include <string>
 #include <vector>
 

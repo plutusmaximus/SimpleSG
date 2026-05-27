@@ -79,7 +79,7 @@ private:
 // return MLG_VERIFY(x > y) ? x : -1;
 
 #if defined(_MSC_VER)
-    constexpr void MLG_DEBUG_BREAK() { __debugbreak(); }
+    #define MLG_DEBUG_BREAK() __debugbreak()
 #elif defined(__clang__) && __has_builtin(__builtin_debugtrap)
     constexpr void MLG_DEBUG_BREAK() { __builtin_debugtrap(); }
 #elif defined(__GNUC__)

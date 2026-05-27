@@ -9,7 +9,7 @@ static HANDLE s_IOCP = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0
 Result<>
 FileFetcher::Fetch(FileFetcher::Request& request)
 {
-    request.m_hFile = ::CreateFileA(request.FilePath.c_str(),
+    request.m_hFile = ::CreateFileA(request.m_FilePath.c_str(),
         GENERIC_READ,
         FILE_SHARE_READ,
         nullptr,
@@ -19,44 +19,44 @@ FileFetcher::Fetch(FileFetcher::Request& request)
 
     if(request.m_hFile == INVALID_HANDLE_VALUE)
     {
-        MLG_ERROR("Failed to open file: {}", request.FilePath);
-        request.SetComplete(Failure);
+        MLG_ERROR("Failed to open file: {}", request.m_FilePath);
+        request.SetComplete(RequestStatus::Failure);
         return Result<>::Fail;
     }
 
-    if(request.BytesRequested == 0)
+    if(request.m_BytesRequested == 0)
     {
         auto result = GetFileSize(request);
         if(!result)
         {
-            MLG_ERROR("Failed to get file size: {}", request.FilePath);
-            request.SetComplete(Failure);
+            MLG_ERROR("Failed to get file size: {}", request.m_FilePath);
+            request.SetComplete(RequestStatus::Failure);
             return Result<>::Fail;
         }
-        request.BytesRequested = *result;
+        request.m_BytesRequested = *result;
     }
 
-    if(request.Data.size() < request.BytesRequested)
+    if(request.m_Data.size() < request.m_BytesRequested)
     {
-        request.Data.resize(request.BytesRequested);
+        request.m_Data.resize(request.m_BytesRequested);
     }
 
     const ULONG_PTR completionKey = reinterpret_cast<ULONG_PTR>(&request);
     if(nullptr == ::CreateIoCompletionPort(request.m_hFile, s_IOCP, completionKey, 0))
     {
-        MLG_ERROR("Failed to bind file to IOCP: {}, error: {}", request.FilePath, ::GetLastError());
-        request.SetComplete(Failure);
+        MLG_ERROR("Failed to bind file to IOCP: {}, error: {}", request.m_FilePath, ::GetLastError());
+        request.SetComplete(RequestStatus::Failure);
         return Result<>::Fail;
     }
 
     if(!IssueRead(request))
     {
-        MLG_ERROR("Failed to issue read for file: {}", request.FilePath);
-        request.SetComplete(Failure);
+        MLG_ERROR("Failed to issue read for file: {}", request.m_FilePath);
+        request.SetComplete(RequestStatus::Failure);
         return Result<>::Fail;
     }
 
-    request.m_Status = Pending;
+    request.m_Status = RequestStatus::Pending;
 
     return Result<>::Ok;
 }
@@ -110,7 +110,7 @@ FileFetcher::ProcessCompletions()
             continue;
         }
 
-        req->BytesRead += entry.dwNumberOfBytesTransferred;
+        req->m_BytesRead += entry.dwNumberOfBytesTransferred;
 
         // Attempt to read more bytes.  This could complete immediately.
         IssueRead(*req);
@@ -126,7 +126,7 @@ FileFetcher::GetFileSize(const FileFetcher::Request& request)
     LARGE_INTEGER size;
     MLG_CHECK(GetFileSizeEx(request.m_hFile, &size),
         "Failed to open file: {}, error: {}",
-        request.m_hFile,
+        request.m_FilePath,
         ::GetLastError());
 
     return static_cast<size_t>(size.QuadPart);
@@ -136,22 +136,22 @@ Result<>
 FileFetcher::IssueRead(FileFetcher::Request& req)
 {
     bool done = false;
-    while(req.BytesRead < req.BytesRequested && !done)
+    while(req.m_BytesRead < req.m_BytesRequested && !done)
     {
         LARGE_INTEGER li;
-        li.QuadPart = req.BytesRead;
+        li.QuadPart = req.m_BytesRead;
 
         // Set up the offset into the file from which to read.
         req.m_Ov.Offset = li.LowPart;
         req.m_Ov.OffsetHigh = li.HighPart;
 
-        const size_t bytesRemaining = req.BytesRequested - req.BytesRead;
+        const size_t bytesRemaining = req.m_BytesRequested - req.m_BytesRead;
 
         DWORD bytesRead = 0;
 
         // Re-issue read for remaining bytes
         const BOOL ok = ::ReadFile(req.m_hFile,
-            req.Data.data() + req.BytesRead,
+            req.m_Data.data() + req.m_BytesRead,
             static_cast<DWORD>(bytesRemaining),
             &bytesRead,
             &req.m_Ov);
@@ -159,7 +159,7 @@ FileFetcher::IssueRead(FileFetcher::Request& req)
         if(ok)
         {
             // Request completed synchronously - loop again if necessary
-            req.BytesRead += bytesRead;
+            req.m_BytesRead += bytesRead;
             continue;
         }
 
@@ -172,16 +172,16 @@ FileFetcher::IssueRead(FileFetcher::Request& req)
             continue;
         }
 
-        MLG_ERROR("Failed to issue read for file: {}, error: {}", req.FilePath, err);
+        MLG_ERROR("Failed to issue read for file: {}, error: {}", req.m_FilePath, err);
 
-        req.SetComplete(Failure);
+        req.SetComplete(RequestStatus::Failure);
 
-        return {};
+        return Result<>::Fail;
     }
 
-    if(req.IsPending() && req.BytesRead >= req.BytesRequested)
+    if(req.IsPending() && req.m_BytesRead >= req.m_BytesRequested)
     {
-        req.SetComplete(Success);
+        req.SetComplete(RequestStatus::Success);
     }
 
     return Result<>::Ok;

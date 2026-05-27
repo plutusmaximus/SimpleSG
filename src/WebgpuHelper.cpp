@@ -314,8 +314,6 @@ CreateSurface(wgpu::Instance instance, SDL_Window* window)
 #if defined(_WIN32)
     MLG_DEBUG("Creating surface for Win32 HWND");
 
-    wgpu::SurfaceSourceWaylandSurface surfaceSrc{};
-
     void* hwnd = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
 
     wgpu::SurfaceSourceWindowsHWND surfaceSrc{};
