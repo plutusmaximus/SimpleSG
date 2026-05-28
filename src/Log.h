@@ -86,50 +86,6 @@ public:
 
     static void PopPrefix();
 
-    /// @brief RAII class to capture messages.
-    /// Assert dialogs are disabled while this object is alive.
-    /// Usage:
-    /// {
-    ///     Asserts::Capture capture;
-    ///     // code that may trigger asserts
-    /// }
-    /// If you want to cancel the capture before destruction, call Cancel().
-    /// Otherwise, the capture will be canceled automatically in the destructor.
-    /// Typically the MLG_ASSERT_CAPTURE macro is used to simplify usage.
-    /// Example:
-    ///     assert_capture(capture)
-    ///     {
-    ///         // code that may trigger asserts
-    ///         // use capture.Message() to get the last assert message
-    ///         EXPECT_TRUE(capture.Message().contains("expected text"));
-    ///     }
-    class Capture
-    {
-    public:
-        Capture();
-        Capture(const Capture&) = delete;
-        Capture& operator=(const Capture&) = delete;
-        Capture(Capture&&) = delete;
-        Capture& operator=(Capture&&) = delete;
-
-        ~Capture();
-
-        void Cancel();
-
-        bool IsCanceled() const;
-
-        std::string Message() const;
-
-    private:
-
-        bool m_Canceled = false;
-
-        // Allocate the sink into this buffer so we don't
-        // end up with lots of tiny heap allocations.
-        static constexpr size_t kSinkBufferSize = 16;
-        uint8_t m_SinkBuffer[kSinkBufferSize];
-    };
-
 private:
 
     static inline Logger s_AssertLogger{"ASSERT"};

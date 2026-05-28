@@ -26,7 +26,7 @@ static void InitializeSinks()
         auto consoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
         mux_sink->add_sink(consoleSink);
         consoleSink->set_level(spdlog::level::debug);
-        
+
 #if defined(_MSC_VER)
         // Logs to the Visual Studio output window when running under the debugger.
         auto msvcSink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
@@ -149,55 +149,4 @@ std::string
 Log::Prefix(const std::string& message)
 {
     return s_LogPrefix + message;
-}
-
-Log::Capture::~Capture()
-{
-    if (!m_Canceled)
-    {
-        Cancel();
-    }
-
-    auto sinkPtr = reinterpret_cast<spdlog::sink_ptr*>(m_SinkBuffer);
-    sinkPtr->~shared_ptr<spdlog::sinks::sink>();
-}
-
-Log::Capture::Capture()
-{
-    static const size_t s_SinkSize = sizeof(spdlog::sink_ptr);
-    static_assert(s_SinkSize <= sizeof(m_SinkBuffer));
-
-    InitializeSinks();
-
-    auto sink = std::make_shared<spdlog::sinks::ringbuffer_sink_mt>(1);
-    auto sp = ::new (m_SinkBuffer) spdlog::sink_ptr(std::move(sink));
-
-    //Add a ring buffer sink to capture the assert messages
-    mux_sink->add_sink(*sp);
-}
-
-void
-Log::Capture::Cancel()
-{
-    mux_sink->remove_sink(*reinterpret_cast<spdlog::sink_ptr*>(m_SinkBuffer));
-    m_Canceled = true;
-}
-
-bool
-Log::Capture::IsCanceled() const
-{
-    return m_Canceled;
-}
-
-std::string
-Log::Capture::Message() const
-{
-    auto sinkPtr = reinterpret_cast<const spdlog::sink_ptr*>(m_SinkBuffer);
-    auto sink = static_cast<spdlog::sinks::ringbuffer_sink_mt*>(sinkPtr->get());
-    const auto message =
-        sink->last_formatted().empty()
-        ? std::string()
-        : sink->last_formatted().back();
-
-    return message;
 }
