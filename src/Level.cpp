@@ -1,6 +1,7 @@
 #include "Level.h"
 
 #include "narrow_cast.h"
+#include "PropKit.h"
 
 static size_t
 CountNodes(std::span<const LevelNodeDef> nodeDefs)

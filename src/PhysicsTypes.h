@@ -1,8 +1,10 @@
 #pragma once
 
-// This file contains classes and functions related to physics, dynamics, kinematics, and statics.
-
 #include "AssertHelper.h"
+#include "Bounds.h"
+#include "VecMath.h"
+
+#include <variant>
 
 class Mass
 {
@@ -89,4 +91,45 @@ public:
 private:
     float m_Value;
     float m_InvValue;   // Inverse value
+};
+
+struct RigidBody
+{
+    Vec3f LinearVelocity{ 0 };
+    Mass Mass;
+};
+
+class Collider
+{
+public:
+
+    explicit Collider(const Sphere& sphere)
+        : m_Shape(sphere)
+        , m_SphereRadius(sphere.GetRadius())
+    {
+    }
+
+    explicit Collider(const Box& box)
+        : m_Shape(box)
+        , m_SphereRadius(box.GetHalfExtents().Length())
+    {
+    }
+
+    explicit Collider(const Capsule& capsule)
+        : m_Shape(capsule)
+        , m_SphereRadius(capsule.GetRadius() + capsule.GetHalfHeight())
+    {
+    }
+
+    const std::variant<Sphere, Box, Capsule>& GetShape() const { return m_Shape; }
+
+    float GetSphereRadius() const
+    {
+        return m_SphereRadius;
+    }
+
+private:
+
+    std::variant<Sphere, Box, Capsule> m_Shape;
+    float m_SphereRadius{ 0 };
 };

@@ -242,8 +242,9 @@ set(SSG_HEADERS
   src/ImGuiRenderer.h
   src/inlist.h
   src/Level.h
+  src/LevelDefs.h
   src/Log.h
-  src/Mechanics.h
+  src/PhysicsTypes.h
   src/PerfMetrics.h
   src/PhysicsLevel.h
   src/Projection.h

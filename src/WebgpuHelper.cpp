@@ -1,7 +1,6 @@
 #include "WebgpuHelper.h"
 
 #include "Color.h"
-#include "PropKit.h"
 #include "scope_exit.h"
 #include "VecMath.h"
 

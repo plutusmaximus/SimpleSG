@@ -541,7 +541,7 @@ CollectNode(const cgltf_node& srcNode,
     }
     else
     {
-        ComponentsDef componentsDef;
+        LevelNodeDef::ComponentsDef componentsDef;
 
         if(!modelName.empty())
         {

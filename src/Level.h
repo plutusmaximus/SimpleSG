@@ -1,108 +1,18 @@
 #pragma once
 
-#include "Bounds.h"
-#include "Mechanics.h"
-#include "PropKit.h"
+#include "LevelDefs.h"
 #include "Result.h"
 #include "SemanticInteger.h"
-#include "VecMath.h"
 
 #include <optional>
 #include <span>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 struct LevelNodeIndexTag {};
 using LevelNodeIndex = SemanticInteger<LevelNodeIndexTag>;
 
-struct ModelRef final
-{
-    std::string Name;
-};
-
-struct RigidBodyDef final
-{
-    Vec3f LinearVelocity{ 0 };
-    Mass Mass;
-};
-
-struct SphereDef final
-{
-    float Radius{ 0 };
-};
-
-struct BoxDef final
-{
-    Vec3f HalfExtents{ 0 };
-};
-
-struct CapsuleDef final
-{
-    float Radius{ 0 };
-    float HalfHeight{ 0 };
-};
-
-using ColliderDef = std::variant<SphereDef, BoxDef, CapsuleDef>;
-
-struct ComponentsDef final
-{
-    std::optional<ModelRef> Model;
-    std::optional<RigidBodyDef> Body;
-    std::optional<ColliderDef> Collider;
-};
-
-struct LevelNodeDef final
-{
-    std::string Name;
-    TrsTransformf Transform;
-    ComponentsDef Components;
-    std::vector<LevelNodeDef> Children;
-};
-
-struct LevelDef final
-{
-    std::vector<LevelNodeDef> NodeDefs;
-};
-
-struct RigidBody
-{
-    Vec3f LinearVelocity{ 0 };
-    Mass Mass;
-};
-
-class Collider
-{
-public:
-
-    explicit Collider(const Sphere& sphere)
-        : m_Shape(sphere)
-        , m_SphereRadius(sphere.GetRadius())
-    {
-    }
-
-    explicit Collider(const Box& box)
-        : m_Shape(box)
-        , m_SphereRadius(box.GetHalfExtents().Length())
-    {
-    }
-
-    explicit Collider(const Capsule& capsule)
-        : m_Shape(capsule)
-        , m_SphereRadius(capsule.GetRadius() + capsule.GetHalfHeight())
-    {
-    }
-
-    float GetSphereRadius() const
-    {
-        return m_SphereRadius;
-    }
-
-private:
-
-    std::variant<Sphere, Box, Capsule> m_Shape;
-    float m_SphereRadius{ 0 };
-};
+class PropKit;
 
 class Level
 {
