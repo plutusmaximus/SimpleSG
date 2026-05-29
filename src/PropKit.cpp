@@ -21,13 +21,31 @@ static constexpr uint32_t kNumTextureChannels = 4;
 
 namespace
 {
-struct TextureBuilder
+class TextureBuilder
 {
+public:
+    TextureBuilder(std::string uri,
+        const FileFetcher::Request* request,
+        std::atomic<unsigned>* stageCounter)
+        : Uri(std::move(uri)),
+          Request(request),
+          StageCounter(stageCounter)
+    {
+    }
+
+    TextureBuilder() = delete;
+    TextureBuilder(const TextureBuilder&) = delete;
+    TextureBuilder& operator=(const TextureBuilder&) = delete;
+    TextureBuilder(TextureBuilder&&) = default;
+    TextureBuilder& operator=(TextureBuilder&&) = default;
+
     std::string Uri;
     const FileFetcher::Request* Request{ nullptr };
     Texture Texture;
     std::byte* MappedMemory{ nullptr };
-    std::atomic<bool> DecodeComplete{ false };
+
+    // Counter to track how many staging operations have completed.
+    std::atomic<unsigned>* StageCounter{ nullptr };
 };
 } // namespace
 
@@ -57,7 +75,8 @@ StageTexture(TextureBuilder& builder)
     MLG_CHECK(texture);
 
     // It appears that mapping/unmapping must be done on the same thread
-    // as other wgpu::Device operations.
+    // as other wgpu::Device operations.  Learned that the hard way by trying to map
+    // in the worker thread below.
     auto mapped = texture->MapBytes();
     MLG_CHECK(mapped);
 
@@ -103,7 +122,12 @@ StageTexture(TextureBuilder& builder)
             }
         }
 
-        texBuilder->DecodeComplete = true;
+        const unsigned oldValue = texBuilder->StageCounter->fetch_sub(1, std::memory_order_acq_rel);
+        if(oldValue == 1)
+        {
+            // Last staging finished, signal completion.
+            texBuilder->StageCounter->notify_all();
+        }
     };
 
     ThreadPool::Enqueue(decode, &builder);
@@ -117,7 +141,31 @@ FetchTextures(std::filesystem::path basePath,
     TextureCache& textureCache,
     wgpu::CommandEncoder encoder)
 {
-    std::unordered_map<std::string, FileFetcher::Request> fetchRequests;
+    class RequestRecord
+    {
+    public:
+        RequestRecord(std::string baseUri, std::string fullUri)
+            : BaseUri(std::move(baseUri)),
+              Request(std::move(fullUri))
+        {
+        }
+
+        RequestRecord(const RequestRecord&) = delete;
+        RequestRecord& operator=(const RequestRecord&) = delete;
+        RequestRecord(RequestRecord&& other) = delete;
+        RequestRecord& operator=(RequestRecord&& other) = delete;
+
+        std::string BaseUri;
+        FileFetcher::Request Request;
+    };
+
+    std::vector<std::unique_ptr<RequestRecord>> pendingRequests;
+    std::vector<std::unique_ptr<RequestRecord>> completedRequests;
+    std::vector<TextureBuilder> textureBuilders;
+
+    pendingRequests.reserve(materialDefs.size());
+    completedRequests.reserve(materialDefs.size());
+    textureBuilders.reserve(materialDefs.size());
 
     for(const auto& mtl : materialDefs)
     {
@@ -139,94 +187,67 @@ FetchTextures(std::filesystem::path basePath,
         // staging fails we will have a valid texture to use.
         textureCache.AddOrReplace(mtl.BaseTextureUri, textureCache.GetDefaultTexture());
 
-        auto [it, inserted] =
-            fetchRequests.try_emplace(mtl.BaseTextureUri, (basePath / mtl.BaseTextureUri).string());
-
-        if(!inserted)
-        {
-            // We've already issued a fetch for this texture, skip it.
-             continue;
-        }
+        auto requestRecPtr = std::make_unique<RequestRecord>(mtl.BaseTextureUri,
+            (basePath / mtl.BaseTextureUri).string());
+        RequestRecord& requestRec = *requestRecPtr;
+        pendingRequests.emplace_back(std::move(requestRecPtr));
 
         MLG_DEBUG("Fetching texture...");
 
-        FileFetcher::Request& request = it->second;
-
-        if(!FileFetcher::Fetch(request))
+        if(!FileFetcher::Fetch(requestRec.Request))
         {
-            MLG_WARN("Failed to fetch texture: {}", request.GetFilePath());
+            MLG_WARN("Failed to fetch texture: {}", requestRec.BaseUri);
         }
     }
 
-    bool pending;
+    // Counter to track how many staging operations have completed.
+    std::atomic<unsigned> stageCounter{0};
 
-    do
+    while(!pendingRequests.empty())
     {
-        pending = false;
-
         FileFetcher::ProcessCompletions();
 
-        for(auto& [uri, request] : fetchRequests)
+        for(size_t i = 0; i < pendingRequests.size();)
         {
-            if(request.IsPending())
+            auto& pendingRqst = pendingRequests[i];
+
+            if(pendingRqst->Request.IsPending())
             {
-                pending = true;
-                break;
+                ++i;
+                continue;
             }
-        }
-    } while(pending);
 
-    MLG_DEBUG("Loaded {} textures", fetchRequests.size());
+            if(pendingRqst->Request.Succeeded())
+            {
+                stageCounter.fetch_add(1, std::memory_order_relaxed);
+                TextureBuilder& builder = textureBuilders.emplace_back(pendingRqst->BaseUri,
+                    &pendingRqst->Request,
+                    &stageCounter);
 
-    size_t builderCount = 0;
-    for(auto& [uri, request] : fetchRequests)
-    {
-        if(request.Succeeded())
-        {
-            ++builderCount;
+                auto result = StageTexture(builder);
+                if(!result)
+                {
+                    MLG_WARN("Failed to stage texture: {}", builder.Uri);
+                    stageCounter.fetch_sub(1, std::memory_order_relaxed);
+                }
+            }
+            else
+            {
+                MLG_WARN("Failed to fetch texture: {}", pendingRqst->BaseUri);
+            }
+
+            completedRequests.push_back(std::move(pendingRqst));
+            pendingRequests[i] = std::move(pendingRequests.back());
+            pendingRequests.pop_back();
         }
     }
 
-    // Must preallocate the vectore because TextureBuilder contains atomics which are not copyable or movable.
-    std::vector<TextureBuilder> textureBuilders(builderCount);
-    size_t builderIndex = 0;
-
-    for(auto& [uri, request] : fetchRequests)
+    // Wait until the stage counter reaches zero.
+    for(unsigned value = stageCounter.load(std::memory_order_acquire); value != 0;
+        value = stageCounter.load(std::memory_order_acquire))
     {
-        if(!request.Succeeded())
-        {
-            continue;
-        }
-
-        MLG_LOG_SCOPE(uri);
-
-        TextureBuilder& builder = textureBuilders[builderIndex++];
-
-        builder.Uri = uri;
-        builder.Request = &request;
-
-        auto result = StageTexture(builder);
-        if(!result)
-        {
-            MLG_WARN("Failed to stage texture: {}", builder.Uri);
-        }
+        stageCounter.wait(value, std::memory_order_acquire);
     }
-
-    do
-    {
-        pending = false;
-
-        for(auto& builder : textureBuilders)
-        {
-            MLG_LOG_SCOPE(builder.Uri);
-
-            if(!builder.DecodeComplete)
-            {
-                pending = true;
-                break;
-            }
-        }
-    } while(pending);
 
     // Unmap textures to flush the data to the GPU before adding them to the cache.
     // It appears that mapping/unmapping must be done on the same thread
