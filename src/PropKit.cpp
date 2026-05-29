@@ -8,6 +8,7 @@
 #include "Log.h"
 #include "narrow_cast.h"
 #include "Stopwatch.h"
+#include "TextureCache.h"
 #include "ThreadPool.h"
 #include "WebgpuHelper.h"
 

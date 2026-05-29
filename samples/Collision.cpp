@@ -1,7 +1,6 @@
 #include "Compositor.h"
 #include "Renderer.h"
 #include "PropKit.h"
-#include "GltfLoader.h"
 #include "ImGuiRenderer.h"
 #include "Level.h"
 #include "MouseNav.h"
@@ -11,6 +10,7 @@
 #include "Scene.h"
 #include "scope_exit.h"
 #include "Shapes.h"
+#include "TextureCache.h"
 #include "ThreadPool.h"
 #include "WebgpuHelper.h"
 

@@ -4,8 +4,8 @@
 #include "Result.h"
 #include "SemanticInteger.h"
 #include "ShaderInterop.h"
-#include "TextureCache.h"
 #include "VecMath.h"
+#include "WebgpuHelper.h"
 
 #include <filesystem>
 #include <span>
@@ -107,7 +107,7 @@ class PropKit
 {
 public:
     static Result<> Create(const std::filesystem::path& rootPath,
-        TextureCache& textureCache,
+        class TextureCache& textureCache,
         const PropKitDef& propKitDef,
         PropKit& outPropKit);
 

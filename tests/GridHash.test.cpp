@@ -3,6 +3,7 @@
 #include "PhysicsLevel.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <random>
 #include <vector>
@@ -206,7 +207,7 @@ TEST(GridHash, ChaosRandomizedBodies_AllExpectedPairsExist)
 	constexpr size_t kBodyCount = 1000;
 
     std::mt19937 rng(0xC0FFEEu);
-	
+
     for(size_t cellSize = 1; cellSize <= 10; ++cellSize)
     {
         GridHash hash{cellSize};

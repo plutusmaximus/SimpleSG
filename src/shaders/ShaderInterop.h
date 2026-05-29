@@ -3,7 +3,6 @@
 #include "Color.h"
 #include "VecMath.h"
 
-
 namespace ShaderInterop
 {
 

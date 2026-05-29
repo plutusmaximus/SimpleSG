@@ -9,6 +9,7 @@
 #include "Renderer.h"
 #include "Scene.h"
 #include "scope_exit.h"
+#include "TextureCache.h"
 #include "WebgpuHelper.h"
 #include "VecMath.h"
 

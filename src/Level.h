@@ -7,6 +7,7 @@
 #include "SemanticInteger.h"
 #include "VecMath.h"
 
+#include <optional>
 #include <span>
 #include <string>
 #include <unordered_map>

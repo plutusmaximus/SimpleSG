@@ -26,7 +26,7 @@ public:
     }
     friend constexpr auto operator<=>(float a, Mass b)
     {
-        return a <=> b.Value();
+        return b <=> a;
     }
 
     friend constexpr Mass operator+(Mass a, Mass b)
@@ -46,7 +46,7 @@ public:
 
     friend constexpr Mass operator*(float scalar, Mass a)
     {
-        return Mass(a.Value() * scalar);
+        return a * scalar;
     }
 
     friend constexpr Mass operator/(Mass a, float scalar)
@@ -73,20 +73,17 @@ public:
 
     constexpr Mass& operator-=(Mass other)
     {
-        *this = *this - other;
-        return *this;
+        return *this = *this - other;
     }
 
     constexpr Mass& operator*=(float scalar)
     {
-        *this = *this * scalar;
-        return *this;
+        return *this = *this * scalar;
     }
 
     constexpr Mass& operator/=(float scalar)
     {
-        *this = *this / scalar;
-        return *this;
+        return *this = *this / scalar;
     }
 
 private:
