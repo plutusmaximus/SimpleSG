@@ -1,22 +1,20 @@
-#define _CRT_SECURE_NO_WARNINGS // NOLINT(bugprone-reserved-identifier)
-
 #define MLG_LOGGER_NAME "DAWN"
 
 #include "Renderer.h"
 
 #include "Compositor.h"
+#include "FileFetcher.h"
 #include "PropKit.h"
-#include "Log.h"
 #include "narrow_cast.h"
 #include "PerfMetrics.h"
 #include "Projection.h"
-#include "Result.h"
 #include "Scene.h"
 #include "scope_exit.h"
 #include "ShaderInterop.h"
 #include "WebgpuHelper.h"
 
 #include <SDL3/SDL.h>
+#include <thread>
 
 static constexpr const char* PRESENT_SHADER = "shaders/PresentShader.wgsl";
 
@@ -273,34 +271,18 @@ Renderer::Present(Compositor& compositor)
 static Result<>
 LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
 {
-    FILE* fp = std::fopen(filePath, "rb");
-    MLG_CHECKV(fp, "Failed to open shader file: {} ({})", filePath, std::strerror(errno));
+    FileFetcher::Request request(filePath);
+    MLG_CHECK(FileFetcher::Fetch(request));
 
-    auto cleanupFile = scope_exit([&]() { std::fclose(fp); });
+    while(request.IsPending())
+    {
+        MLG_CHECK(FileFetcher::ProcessCompletions());
+        std::this_thread::yield();
+    }
 
-    //Get file size
-    MLG_CHECK(std::fseek(fp, 0, SEEK_END) == 0,
-        "Failed to seek in shader file: {} ({})",
-        filePath,
-        std::strerror(errno));
+    MLG_CHECK(request.Succeeded(), "Failed to load shader file: {}", filePath);
 
-    const long fileSize = std::ftell(fp);
-    MLG_CHECK(fileSize >= 0,
-        "Failed to get size of shader file: {} ({})",
-        filePath,
-        std::strerror(errno));
-
-    // Rewind
-    MLG_CHECK(std::fseek(fp, 0, SEEK_SET) == 0,
-        "Failed to seek in shader file: {} ({})",
-        filePath,
-        std::strerror(errno));
-
-    outBuffer.resize(static_cast<size_t>(fileSize));
-
-    MLG_CHECK(std::fread(outBuffer.data(), 1, static_cast<size_t>(fileSize), fp) ==
-                static_cast<size_t>(fileSize),
-            "Failed to read shader file: {} ({})", filePath, std::strerror(errno));
+    request.MoveDataTo(outBuffer);
 
     return Result<>::Ok;
 }

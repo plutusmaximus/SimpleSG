@@ -8,6 +8,7 @@
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <windows.h>
 #endif
 
@@ -48,7 +49,17 @@ public:
         bool IsPending() const { return m_Status == RequestStatus::Pending; }
         bool Succeeded() const { return m_Status == RequestStatus::Success; }
 
-        std::span<const uint8_t> GetData() const { return m_Data; }
+        std::span<const uint8_t> GetData() const
+        {
+            MLG_ASSERT(Succeeded(), "Attempted to access data of a request that did not succeed or is still pending");
+             return m_Data;
+        }
+
+        void MoveDataTo(std::vector<uint8_t>& outBuffer)
+        {
+            MLG_ASSERT(Succeeded(), "Attempted to move data from a request that did not succeed or is still pending");
+            outBuffer = std::move(m_Data);
+        }
 
         const std::string& GetFilePath() const { return m_FilePath; }
 
