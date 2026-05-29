@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Level.h"
-#include "PropKit.h"
 #include "WebgpuHelper.h"
 
 #include <span>

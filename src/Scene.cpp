@@ -3,7 +3,7 @@
 #include "Scene.h"
 
 #include "Level.h"
-
+#include "PropKit.h"
 #include "Stopwatch.h"
 
 namespace
