@@ -132,6 +132,7 @@ CreateAdapter(wgpu::Instance instance, wgpu::Surface surface)
     const wgpu::RequestAdapterOptions options //
         {
             .nextInChain = nullptr,
+            .featureLevel = wgpu::FeatureLevel::Undefined,
             .powerPreference = wgpu::PowerPreference::Undefined,//wgpu::PowerPreference::HighPerformance,
             .forceFallbackAdapter = false,
 #if defined(_WIN32)
@@ -141,7 +142,7 @@ CreateAdapter(wgpu::Instance instance, wgpu::Surface surface)
             .backendType = wgpu::BackendType::WebGPU,
 #else
             //.backendType = wgpu::BackendType::Vulkan,
-            .backendType = wgpu::BackendType::OpenGL,
+            .backendType = wgpu::BackendType::OpenGLES,
 #endif
             .compatibleSurface = surface,
         };
@@ -443,7 +444,7 @@ WebgpuHelper::Startup(const char* appName)
     auto window = CreateSdlWindow(appName);
     MLG_CHECK(window);
 
-    auto cleanup = scope_exit{ [&window]()
+    auto cleanupWindow = scope_exit{ [&window]()
         {
             SDL_DestroyWindow(*window);
             SDL_Quit();
@@ -497,7 +498,7 @@ WebgpuHelper::Startup(const char* appName)
             .DefaultSampler{},
         };
 
-    cleanup.release();
+    cleanupWindow.release();
 
     return Result<>::Ok;
 }
