@@ -68,10 +68,25 @@ static bool Log(AssertHelper::AssertData& assertData,
 //
 // return MLG_VERIFY(x > y) ? x : -1;
 
+// Disable the warning about __COUNTER__ being a C2y extension.
+#if defined(__clang__)
+#  define MLG_CLANG_DIAG_PUSH _Pragma("clang diagnostic push")
+#  define MLG_CLANG_DIAG_POP  _Pragma("clang diagnostic pop")
+#  define MLG_CLANG_DIAG_IGNORE_C2Y_EXTENSIONS \
+      _Pragma("clang diagnostic ignored \"-Wc2y-extensions\"")
+#else
+#  define MLG_CLANG_DIAG_PUSH
+#  define MLG_CLANG_DIAG_POP
+#  define MLG_CLANG_DIAG_IGNORE_C2Y_EXTENSIONS
+#endif
+
 #define MLG_VERIFY(expr, ...) \
+    MLG_CLANG_DIAG_PUSH \
+    MLG_CLANG_DIAG_IGNORE_C2Y_EXTENSIONS \
     (static_cast<bool>(expr) || \
         (AssertHelper::Log(AssertHelper::GetAssertData<__COUNTER__>(),#expr, SDL_FUNCTION, SDL_ASSERT_FILE, SDL_LINE __VA_OPT__(, ) __VA_ARGS__) \
-            ? (SDL_AssertBreakpoint(), false) : false))
+            ? (SDL_AssertBreakpoint(), false) : false)) \
+    MLG_CLANG_DIAG_POP
 
 #define MLG_ASSERT(expr, ...) void(MLG_VERIFY(expr __VA_OPT__(,) __VA_ARGS__))
 
