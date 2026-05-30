@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.23)
+cmake_minimum_required(VERSION 3.25)
 cmake_policy(SET CMP0091 NEW) # Use the new MSVC runtime library flag behavior
 set(CMAKE_CROSS_CONFIGS "all")
 project(SimpleSG LANGUAGES C CXX)
@@ -111,7 +111,7 @@ set(SDL_TEST_LIBRARY OFF CACHE BOOL "Build SDL test library" FORCE)
 add_subdirectory(thirdparty/SDL EXCLUDE_FROM_ALL SYSTEM)
 
 # --- Dawn
-set(DAWN_FETCH_DEPENDENCIES ON)
+set(DAWN_FETCH_DEPENDENCIES ON CACHE BOOL "Fetch Dawn dependencies" FORCE)
 set(DAWN_BUILD_SAMPLES OFF CACHE BOOL "Disable samples" FORCE)
 set(DAWN_USE_GLFW OFF CACHE BOOL "Disable GLFW" FORCE)
 set(DAWN_BUILD_TESTS OFF CACHE BOOL "Disable tests" FORCE)
@@ -172,12 +172,9 @@ add_library(imgui STATIC
 target_include_directories(imgui PUBLIC
     thirdparty/imgui
     thirdparty/imgui/backends
-    thirdparty/dawn/include
-    ${CMAKE_BINARY_DIR}/thirdparty/dawn/gen/include
 )
 
-target_link_libraries(imgui PUBLIC SDL3::SDL3)
-add_dependencies(imgui webgpu_dawn)
+target_link_libraries(imgui PUBLIC SDL3::SDL3 dawn_headers)
 target_compile_definitions(imgui PRIVATE IMGUI_IMPL_WEBGPU_BACKEND_DAWN)
 
 # ============================================================
@@ -285,7 +282,7 @@ compiler_flags(ssg)
 # ============================================================
 function(add_sample_executable target_name source_file)
   add_executable(${target_name} ${source_file} samples/MouseNav.cpp)
-  target_link_libraries(${target_name} PRIVATE ssg::ssg spdlog::spdlog imgui webgpu_dawn)
+  target_link_libraries(${target_name} PRIVATE ssg::ssg)
   add_dependencies(${target_name} shaders copy_images)
 
   compiler_flags(${target_name})
@@ -345,7 +342,7 @@ add_executable(Tests
   "tests/Vec3.test.cpp"
   "tests/Vec4.test.cpp")
 
-target_link_libraries(Tests PRIVATE gtest_main ssg::ssg spdlog::spdlog)
+target_link_libraries(Tests PRIVATE gtest_main ssg::ssg)
 #add_dependencies(RunAllTests shaders copy_images)
 
 compiler_flags(Tests)

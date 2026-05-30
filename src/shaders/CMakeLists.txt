@@ -10,7 +10,15 @@ set(WGSL_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/TransformShader.wgsl"
 )
 
-set(TINT_EXE "$<TARGET_FILE:tint>")
+if(TARGET tint_cmd_tint_cmd)
+  set(TINT_TARGET tint_cmd_tint_cmd)
+elseif(TARGET tint)
+  set(TINT_TARGET tint)
+else()
+  message(FATAL_ERROR "Expected Dawn Tint target 'tint_cmd_tint_cmd' or 'tint' to exist")
+endif()
+
+set(TINT_EXE "$<TARGET_FILE:${TINT_TARGET}>")
 
 set(_out_dir "${CMAKE_BINARY_DIR}/$<CONFIG>/shaders")
 
@@ -30,7 +38,7 @@ foreach(_wgsl IN LISTS WGSL_SOURCES)
     # Validate shaders.
     COMMAND "${TINT_EXE}" --validate true --format wgsl --output-name "${_wgsl_validate_out}" "${_wgsl}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_wgsl}" "${_wgsl_copy_out}"
-    DEPENDS tint "${_wgsl}"
+    DEPENDS ${TINT_TARGET} "${_wgsl}"
     VERBATIM
   )
 
@@ -38,5 +46,5 @@ foreach(_wgsl IN LISTS WGSL_SOURCES)
 endforeach()
 
 add_custom_target(shaders ALL DEPENDS ${_shader_outputs})
-add_dependencies(shaders tint)
+add_dependencies(shaders ${TINT_TARGET})
 set_target_properties(shaders PROPERTIES FOLDER "Shaders")
