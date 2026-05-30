@@ -606,9 +606,12 @@ MainLoop()
 
         compositor.EndFrame();
 
+        {
 #if !defined(__EMSCRIPTEN__)
-        MLG_CHECK(WebgpuHelper::GetSurface().Present(), "Failed to present backbuffer");
+            MLG_SCOPED_TIMER("Present");
+            MLG_CHECK(WebgpuHelper::GetSurface().Present(), "Failed to present backbuffer");
 #endif
+        }
 
         WebgpuHelper::GetInstance().ProcessEvents();
     }
