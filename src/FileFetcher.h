@@ -69,13 +69,10 @@ public:
 
         void SetComplete(RequestStatus status)
         {
-#if !defined(_WIN32)
-            MLG_ASSERT(false, "FileFetcher is not implemented on this platform");
-#endif
-            if(!IsPending())
-            {
-                return;
-            }
+            MLG_ASSERT(RequestStatus::Pending == m_Status,
+                "Attempted to complete a request that is not pending");
+            MLG_ASSERT(status == RequestStatus::Success || status == RequestStatus::Failure,
+                "Invalid status for completion");
 
 #if defined(_WIN32)
             if(m_hFile)
@@ -92,10 +89,12 @@ public:
 #if defined(_WIN32)
         HANDLE m_hFile{nullptr};
         OVERLAPPED m_Ov{0};
-        size_t m_BytesRequested{0};
-        size_t m_BytesRead{0};
+#else
+        int m_Fd{-1};
 #endif
         std::string m_FilePath;
+        size_t m_BytesRequested{0};
+        size_t m_BytesRead{0};
         std::vector<uint8_t> m_Data;
 
         RequestStatus m_Status{RequestStatus::None};

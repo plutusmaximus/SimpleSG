@@ -9,6 +9,10 @@ static HANDLE s_IOCP = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0
 Result<>
 FileFetcher::Fetch(FileFetcher::Request& request)
 {
+    MLG_CHECKV(RequestStatus::None == request.m_Status, "Request is already in progress or completed");
+
+    request.m_Status = RequestStatus::Pending;
+
     request.m_hFile = ::CreateFileA(request.m_FilePath.c_str(),
         GENERIC_READ,
         FILE_SHARE_READ,
@@ -55,8 +59,6 @@ FileFetcher::Fetch(FileFetcher::Request& request)
         request.SetComplete(RequestStatus::Failure);
         return Result<>::Fail;
     }
-
-    request.m_Status = RequestStatus::Pending;
 
     return Result<>::Ok;
 }
@@ -189,32 +191,148 @@ FileFetcher::IssueRead(FileFetcher::Request& req)
 
 #elif defined(__linux__)
 
+#include  "scope_exit.h"
+
+#include <cerrno>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 Result<>
-FileFetcher::Fetch([[maybe_unused]] FileFetcher::Request& request)
+FileFetcher::Fetch(FileFetcher::Request& request)
 {
-    MLG_ASSERT(false, "FileFetcher is not implemented on this platform");
-    return Result<>::Fail;
+    MLG_CHECKV(RequestStatus::None == request.m_Status, "Request is already in progress or completed");
+
+    request.m_Status = RequestStatus::Pending;
+
+    request.m_Fd = ::open(request.m_FilePath.c_str(), O_RDONLY | O_CLOEXEC);
+
+    if(request.m_Fd < 0)
+    {
+        MLG_ERROR("Failed to open file: {}, error: {}", request.m_FilePath, errno);
+        request.SetComplete(RequestStatus::Failure);
+        return Result<>::Fail;
+    }
+
+    auto closeFdOnFailure = scope_exit([&request]()
+    {
+        if(request.m_Fd >= 0)
+        {
+            ::close(request.m_Fd);
+            request.m_Fd = -1;
+        }
+    });
+
+    if(request.m_BytesRequested == 0)
+    {
+        auto result = GetFileSize(request);
+        if(!result)
+        {
+            MLG_ERROR("Failed to get file size: {}", request.m_FilePath);
+            request.SetComplete(RequestStatus::Failure);
+            return Result<>::Fail;
+        }
+        request.m_BytesRequested = *result;
+    }
+
+    if(request.m_Data.size() < request.m_BytesRequested)
+    {
+        request.m_Data.resize(request.m_BytesRequested);
+    }
+
+    if(!IssueRead(request))
+    {
+        MLG_ERROR("Failed to issue read for file: {}", request.m_FilePath);
+        request.SetComplete(RequestStatus::Failure);
+        return Result<>::Fail;
+    }
+
+    closeFdOnFailure.release();
+
+    return Result<>::Ok;
 }
 
 Result<>
 FileFetcher::ProcessCompletions()
 {
-    MLG_ASSERT(false, "FileFetcher is not implemented on this platform");
-    return Result<>::Fail;
+    return Result<>::Ok;
+}
+
+static std::string GetErrnoString(const int err)
+{
+    char errBuf[1024];
+    errBuf[0] = '\0';
+
+    const auto result = strerror_r(err, errBuf, sizeof(errBuf));
+
+#if (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE
+
+    // XSI compliant version returns 0 on success, and an error number on failure.
+    if(0 != result)
+    {
+        return std::format("Unknown error {}", err);
+    }
+    else
+    {
+        errBuf[sizeof(errBuf) - 1] = '\0';
+        return std::string(errBuf);
+    }
+
+#else
+
+    // GNU-specific version returns a pointer to the error string, which may be either the provided
+    // buffer or an internal static string.
+    if(result == nullptr)
+    {
+        return std::format("Unknown error {}", err);
+    }
+    else
+    {
+        errBuf[sizeof(errBuf) - 1] = '\0';
+        return std::string(result);
+    }
+
+#endif
 }
 
 Result<size_t>
-FileFetcher::GetFileSize([[maybe_unused]] const FileFetcher::Request& request)
+FileFetcher::GetFileSize(const FileFetcher::Request& request)
 {
-    MLG_ASSERT(false, "FileFetcher is not implemented on this platform");
-    return Result<>::Fail;
+    struct stat st;
+
+    MLG_CHECK(0 == fstat(request.m_Fd, &st),
+        "Failed to get file size for file: {}, error: {}",
+        request.m_FilePath,
+        GetErrnoString(errno));
+
+    return static_cast<size_t>(st.st_size);
 }
 
 Result<>
-FileFetcher::IssueRead([[maybe_unused]] FileFetcher::Request& req)
+FileFetcher::IssueRead(FileFetcher::Request& req)
 {
-    MLG_ASSERT(false, "FileFetcher is not implemented on this platform");
+    const ssize_t bytesRead = ::read(req.m_Fd,
+        req.m_Data.data() + req.m_BytesRead,
+        req.m_BytesRequested - req.m_BytesRead);
 
-    return Result<>::Fail;
+    if(bytesRead < 0)
+    {
+        const int myErrno = errno;
+        MLG_ERROR("Failed to issue read for file: {}, error: {}", req.m_FilePath, GetErrnoString(myErrno));
+
+        req.SetComplete(RequestStatus::Failure);
+
+        return Result<>::Fail;
+    }
+
+    req.m_BytesRead += static_cast<size_t>(bytesRead);
+
+    if(req.IsPending() && req.m_BytesRead >= req.m_BytesRequested)
+    {
+        req.SetComplete(RequestStatus::Success);
+    }
+
+    return Result<>::Ok;
 }
 #endif  // _WIN32
