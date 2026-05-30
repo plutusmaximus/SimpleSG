@@ -5,6 +5,7 @@
 #include "VecMath.h"
 
 #include <algorithm>
+#include <atomic>
 
 class BodyPair
 {
