@@ -52,6 +52,32 @@ CreateSdlWindow(const char* appName)
 {
     MLG_CHECK(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
 
+    const char* videoDriver = SDL_GetCurrentVideoDriver();
+    MLG_INFO("SDL Video Driver: {}", videoDriver ? videoDriver : "<none>");
+
+    int displayCount = 0;
+    SDL_DisplayID* displays = SDL_GetDisplays(&displayCount);
+
+    MLG_INFO("SDL Display Count: {}", displayCount);
+
+    for(int i = 0; i < displayCount; ++i)
+    {
+        SDL_Rect bounds{};
+
+        if(SDL_GetDisplayBounds(displays[i], &bounds))
+        {
+            MLG_INFO("  SDL Display {}: id={}, bounds={}x{}+{}+{}",
+                i,
+                displays[i],
+                bounds.w,
+                bounds.h,
+                bounds.x,
+                bounds.y);
+        }
+    }
+
+    SDL_free(displays);
+
     SDL_Rect displayRect;
     MLG_CHECK(SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &displayRect), SDL_GetError());
     const int winW = displayRect.w * 3 / 4; // 0.75
@@ -114,7 +140,8 @@ CreateAdapter(wgpu::Instance instance, wgpu::Surface surface)
 #elif defined(__EMSCRIPTEN__)
             .backendType = wgpu::BackendType::WebGPU,
 #else
-            .backendType = wgpu::BackendType::Vulkan,
+            //.backendType = wgpu::BackendType::Vulkan,
+            .backendType = wgpu::BackendType::OpenGL,
 #endif
             .compatibleSurface = surface,
         };
