@@ -18,15 +18,30 @@ struct AssertData
 // If not static then different TUs could have access
 // to the same assert data.
 template<int UNIQUE_ID>
-static inline AssertData& GetAssertData()
+static inline AssertHelper::AssertData& GetAssertData()
 {
-    static AssertData assertData{};
+    static AssertHelper::AssertData assertData{};
     return assertData;
 }
 
 /// @brief Log an assertion failure.
+bool Log(AssertHelper::AssertData& assertData,
+    const char* expression,
+    const char* function,
+    const char* fileName,
+    const int lineNum,
+    const std::string& userMsg);
+
+/// @brief Log an assertion failure.
+bool Log(AssertHelper::AssertData& assertData,
+    const char* expression,
+    const char* function,
+    const char* fileName,
+    const int lineNum);
+
+/// @brief Log an assertion failure.
 template<typename... Args>
-static bool Log(AssertData& assertData,
+static bool Log(AssertHelper::AssertData& assertData,
     const char* expression,
     const char* function,
     const char* fileName,
@@ -36,23 +51,9 @@ static bool Log(AssertData& assertData,
 {
     const std::string userMsg = std::format(fmt, std::forward<Args>(args)...);
 
-    return Log(assertData, expression, function, fileName, lineNum, userMsg);
+    return AssertHelper::Log(assertData, expression, function, fileName, lineNum, userMsg);
 }
 
-/// @brief Log an assertion failure.
-bool Log(AssertData& assertData,
-    const char* expression,
-    const char* function,
-    const char* fileName,
-    const int lineNum,
-    const std::string& userMsg);
-
-/// @brief Log an assertion failure.
-bool Log(AssertData& assertData,
-    const char* expression,
-    const char* function,
-    const char* fileName,
-    const int lineNum);
 }   // namespace AssertHelper
 
 #ifndef NDEBUG

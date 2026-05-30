@@ -12,7 +12,7 @@ namespace AssertHelper
 static void Log(const std::string& message);
 
 bool
-Log(AssertData& assertData,
+Log(AssertHelper::AssertData& assertData,
     const char* expression,
     const char* function,
     const char* fileName,
@@ -24,8 +24,15 @@ Log(AssertData& assertData,
 
     Log(message);
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunreachable-code"
+#endif
     assertData.sdlAssertState =
         SDL_ReportAssertion(&assertData.sdlAssertData, function, fileName, lineNum);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
     switch (assertData.sdlAssertState)
     {
@@ -45,7 +52,7 @@ Log(AssertData& assertData,
 }
 
 bool
-Log(AssertData& assertData,
+Log(AssertHelper::AssertData& assertData,
     const char* expression,
     const char* function,
     const char* fileName,
@@ -55,8 +62,15 @@ Log(AssertData& assertData,
 
     Log(message);
 
-        assertData.sdlAssertState =
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunreachable-code"
+#endif
+    assertData.sdlAssertState =
         SDL_ReportAssertion(&assertData.sdlAssertData, function, fileName, lineNum);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
     switch (assertData.sdlAssertState)
     {
