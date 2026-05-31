@@ -6,6 +6,40 @@ project(SimpleSG LANGUAGES C CXX)
 # ============================================================
 # Global settings
 # ============================================================
+
+set(CMAKE_CONFIGURATION_TYPES
+    Debug
+    Release
+    ASan
+    CACHE STRING "Available build configurations" FORCE
+)
+
+add_compile_options(
+    # Clang/GCC
+    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-O1>
+    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-O1>
+    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-g>
+    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-g>
+    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-fno-omit-frame-pointer>
+    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-fno-omit-frame-pointer>
+    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-fsanitize=address>
+    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-fsanitize=address>
+
+    # MSVC
+    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:C,MSVC>>:/fsanitize=address>
+    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:CXX,MSVC>>:/fsanitize=address>
+)
+
+add_link_options(
+    # Clang/GCC
+    $<$<AND:$<CONFIG:ASan>,$<C_COMPILER_ID:Clang,GNU>>:-fsanitize=address>
+    $<$<AND:$<CONFIG:ASan>,$<CXX_COMPILER_ID:Clang,GNU>>:-fsanitize=address>
+
+    # MSVC
+    $<$<AND:$<CONFIG:ASan>,$<C_COMPILER_ID:MSVC>>:/fsanitize=address>
+    $<$<AND:$<CONFIG:ASan>,$<CXX_COMPILER_ID:MSVC>>:/fsanitize=address>
+)
+
 set(BUILD_SHARED_LIBS OFF)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
