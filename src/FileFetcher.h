@@ -10,6 +10,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#define WIN32_USE_IOCP 0
 #endif
 
 class FileFetcher
@@ -74,7 +75,7 @@ public:
             MLG_ASSERT(status == RequestStatus::Success || status == RequestStatus::Failure,
                 "Invalid status for completion");
 
-#if defined(_WIN32)
+#if defined(_WIN32) && WIN32_USE_IOCP
             if(m_hFile)
             {
                 ::CancelIoEx(m_hFile, &m_Ov);
@@ -86,11 +87,11 @@ public:
             m_Status = status;
         }
 
-#if defined(_WIN32)
+#if defined(_WIN32) && WIN32_USE_IOCP
         HANDLE m_hFile{nullptr};
         OVERLAPPED m_Ov{0};
 #else
-        int m_Fd{-1};
+        struct SDL_AsyncIO* m_AsyncIO{nullptr};
 #endif
         std::string m_FilePath;
         size_t m_BytesRequested{0};

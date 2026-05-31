@@ -2,7 +2,7 @@
 
 #include "Log.h"
 
-#if defined(_WIN32)
+#if defined(_WIN32) && WIN32_USE_IOCP
 
 static HANDLE s_IOCP = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 0);
 
@@ -189,51 +189,84 @@ FileFetcher::IssueRead(FileFetcher::Request& req)
     return Result<>::Ok;
 }
 
-#elif defined(__linux__)
+#else  // !_WIN32
 
 #include  "scope_exit.h"
 
-#include <cerrno>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
+#include <mutex>
+#include <SDL3/SDL_error.h>
+#include <SDL3/SDL_asyncio.h>
+
+static SDL_AsyncIOQueue* s_AsyncIOQueue = nullptr;
+static std::mutex s_AsyncIOMutex;
+
+struct ShutdownAsyncIOQueue
+{
+    ~ShutdownAsyncIOQueue()
+    {
+        FileFetcher::ProcessCompletions();
+        std::scoped_lock lock(s_AsyncIOMutex);
+        if(s_AsyncIOQueue)
+        {
+            SDL_SignalAsyncIOQueue(s_AsyncIOQueue);
+            SDL_DestroyAsyncIOQueue(s_AsyncIOQueue);
+            s_AsyncIOQueue = nullptr;
+        }
+    }
+} s_ShutdownAsyncIOQueue;
 
 Result<>
 FileFetcher::Fetch(FileFetcher::Request& request)
 {
     MLG_CHECKV(RequestStatus::None == request.m_Status, "Request is already in progress or completed");
 
-    request.m_Status = RequestStatus::Pending;
-
-    request.m_Fd = ::open(request.m_FilePath.c_str(), O_RDONLY | O_CLOEXEC);
-
-    if(request.m_Fd < 0)
     {
-        MLG_ERROR("Failed to open file: {}, error: {}", request.m_FilePath, errno);
-        request.SetComplete(RequestStatus::Failure);
-        return Result<>::Fail;
+        std::scoped_lock lock(s_AsyncIOMutex);
+        if(!s_AsyncIOQueue)
+        {
+            s_AsyncIOQueue = SDL_CreateAsyncIOQueue();
+            MLG_CHECK(s_AsyncIOQueue, "Failed to create SDL Async IO Queue: {}", SDL_GetError());
+
+            //DO NOT SUBMIT - SDL_DestroyAsyncIOQueue
+        }
     }
 
-    auto closeFdOnFailure = scope_exit([&request]()
+    request.m_Status = RequestStatus::Pending;
+
+    auto setFailedOnExit = scope_exit([&request]()
     {
-        if(request.m_Fd >= 0)
+        if(request.IsPending())
         {
-            ::close(request.m_Fd);
-            request.m_Fd = -1;
+            request.SetComplete(RequestStatus::Failure);
         }
     });
 
+    request.m_AsyncIO = SDL_AsyncIOFromFile(request.m_FilePath.c_str(), "r");
+    MLG_CHECK(request.m_AsyncIO,
+        "Failed to create SDL Async IO for file: {}, error: {}",
+        request.m_FilePath,
+        SDL_GetError());
+
+    auto closeOnFailure = scope_exit([&request]()
+    {
+        SDL_CloseAsyncIO(request.m_AsyncIO, false, s_AsyncIOQueue, &request);
+        request.m_AsyncIO = nullptr;
+    });
+
+    const auto fileSize = GetFileSize(request);
+    MLG_CHECK(fileSize);
+
     if(request.m_BytesRequested == 0)
     {
-        auto result = GetFileSize(request);
-        if(!result)
-        {
-            MLG_ERROR("Failed to get file size: {}", request.m_FilePath);
-            request.SetComplete(RequestStatus::Failure);
-            return Result<>::Fail;
-        }
-        request.m_BytesRequested = *result;
+        request.m_BytesRequested = *fileSize;
+    }
+    else
+    {
+        MLG_CHECK(request.m_BytesRequested <= *fileSize,
+            "Requested byte count {} exceeds file size {} for file: {}",
+            request.m_BytesRequested,
+            *fileSize,
+            request.m_FilePath);
     }
 
     if(request.m_Data.size() < request.m_BytesRequested)
@@ -241,14 +274,10 @@ FileFetcher::Fetch(FileFetcher::Request& request)
         request.m_Data.resize(request.m_BytesRequested);
     }
 
-    if(!IssueRead(request))
-    {
-        MLG_ERROR("Failed to issue read for file: {}", request.m_FilePath);
-        request.SetComplete(RequestStatus::Failure);
-        return Result<>::Fail;
-    }
+    MLG_CHECK(IssueRead(request));
 
-    closeFdOnFailure.release();
+    closeOnFailure.release();
+    setFailedOnExit.release();
 
     return Result<>::Ok;
 }
@@ -256,82 +285,89 @@ FileFetcher::Fetch(FileFetcher::Request& request)
 Result<>
 FileFetcher::ProcessCompletions()
 {
+    MLG_CHECKV(s_AsyncIOQueue, "Attempted to process completions with no Async IO Queue");
+
+    SDL_AsyncIOOutcome outcome;
+    while(SDL_GetAsyncIOResult(s_AsyncIOQueue, &outcome))
+    {
+        if(outcome.type == SDL_ASYNCIO_TASK_CLOSE)
+        {
+            continue;
+        }
+        else if(outcome.type == SDL_ASYNCIO_TASK_READ)
+        {
+            Request* request = reinterpret_cast<Request*>(outcome.userdata);
+            MLG_CHECK(request, "Received SDL Async IO completion with null userdata");
+
+            switch(outcome.result)
+            {
+                case SDL_ASYNCIO_COMPLETE:
+                    request->m_BytesRead += static_cast<size_t>(outcome.bytes_transferred);
+                    if(request->m_BytesRead >= request->m_BytesRequested)
+                    {
+                        SDL_CloseAsyncIO(request->m_AsyncIO, false, s_AsyncIOQueue, request);
+                        request->m_AsyncIO = nullptr;
+                        request->SetComplete(RequestStatus::Success);
+                    }
+                    else if(!IssueRead(*request))
+                    {
+                        SDL_CloseAsyncIO(request->m_AsyncIO, false, s_AsyncIOQueue, request);
+                        request->m_AsyncIO = nullptr;
+                        request->SetComplete(RequestStatus::Failure);
+                    }
+                    break;
+                case SDL_ASYNCIO_FAILURE:
+                    MLG_ERROR("Async IO read failed for file: {}, error: {}",
+                        request->m_FilePath,
+                        SDL_GetError());
+                    SDL_CloseAsyncIO(request->m_AsyncIO, false, s_AsyncIOQueue, request);
+                    break;
+                case SDL_ASYNCIO_CANCELED:
+                    MLG_ERROR("Async IO read failed for file: {}, error: {}",
+                        request->m_FilePath,
+                        SDL_GetError());
+                    if(s_AsyncIOQueue)
+                    {
+                        SDL_CloseAsyncIO(request->m_AsyncIO, false, s_AsyncIOQueue, request);
+                    }
+                    break;
+            }
+        }
+        else
+        {
+            MLG_ERROR("Received unexpected SDL Async IO completion of type: {}",
+                static_cast<int>(outcome.type));
+            continue;
+        }
+    }
+
     return Result<>::Ok;
-}
-
-static std::string GetErrnoString(const int err)
-{
-    char errBuf[1024];
-    errBuf[0] = '\0';
-
-    const auto result = strerror_r(err, errBuf, sizeof(errBuf));
-
-#if (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE
-
-    // XSI compliant version returns 0 on success, and an error number on failure.
-    if(0 != result)
-    {
-        return std::format("Unknown error {}", err);
-    }
-    else
-    {
-        errBuf[sizeof(errBuf) - 1] = '\0';
-        return std::string(errBuf);
-    }
-
-#else
-
-    // GNU-specific version returns a pointer to the error string, which may be either the provided
-    // buffer or an internal static string.
-    if(result == nullptr)
-    {
-        return std::format("Unknown error {}", err);
-    }
-    else
-    {
-        errBuf[sizeof(errBuf) - 1] = '\0';
-        return std::string(result);
-    }
-
-#endif
 }
 
 Result<size_t>
 FileFetcher::GetFileSize(const FileFetcher::Request& request)
 {
-    struct stat st;
-
-    MLG_CHECK(0 == fstat(request.m_Fd, &st),
+    const Sint64 fileSize = SDL_GetAsyncIOSize(request.m_AsyncIO);
+    MLG_CHECK(fileSize >= 0,
         "Failed to get file size for file: {}, error: {}",
         request.m_FilePath,
-        GetErrnoString(errno));
+        SDL_GetError());
 
-    return static_cast<size_t>(st.st_size);
+    return static_cast<size_t>(fileSize);
 }
 
 Result<>
-FileFetcher::IssueRead(FileFetcher::Request& req)
+FileFetcher::IssueRead(FileFetcher::Request& request)
 {
-    const ssize_t bytesRead = ::read(req.m_Fd,
-        req.m_Data.data() + req.m_BytesRead,
-        req.m_BytesRequested - req.m_BytesRead);
-
-    if(bytesRead < 0)
-    {
-        const int myErrno = errno;
-        MLG_ERROR("Failed to issue read for file: {}, error: {}", req.m_FilePath, GetErrnoString(myErrno));
-
-        req.SetComplete(RequestStatus::Failure);
-
-        return Result<>::Fail;
-    }
-
-    req.m_BytesRead += static_cast<size_t>(bytesRead);
-
-    if(req.IsPending() && req.m_BytesRead >= req.m_BytesRequested)
-    {
-        req.SetComplete(RequestStatus::Success);
-    }
+    MLG_CHECK(SDL_ReadAsyncIO(request.m_AsyncIO,
+                  request.m_Data.data(),
+                  0,
+                  request.m_BytesRequested,
+                  s_AsyncIOQueue,
+                  &request),
+        "Failed to issue async load for file: {}, error: {}",
+        request.m_FilePath,
+        SDL_GetError());
 
     return Result<>::Ok;
 }
