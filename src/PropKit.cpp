@@ -92,7 +92,7 @@ StageTexture(TextureBuilder& builder)
         MLG_DEBUG("Decoding...");
 
         int imgWidth, imgHeight, imgNumChannels;
-        const stbi_uc* data = stbi_load_from_memory(texBuilder->Request->GetData().data(),
+        stbi_uc* data = stbi_load_from_memory(texBuilder->Request->GetData().data(),
             narrow_cast<int>(texBuilder->Request->GetData().size()),
             &imgWidth,
             &imgHeight,
@@ -121,6 +121,8 @@ StageTexture(TextureBuilder& builder)
             {
                 ::memcpy(dst, src, srcRowStride);
             }
+
+            stbi_image_free(data);
         }
 
         const unsigned oldValue = texBuilder->StageCounter->fetch_sub(1, std::memory_order_acq_rel);
