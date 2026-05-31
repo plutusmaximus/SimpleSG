@@ -10,34 +10,36 @@ project(SimpleSG LANGUAGES C CXX)
 set(CMAKE_CONFIGURATION_TYPES
     Debug
     Release
-    ASan
+    Sanitize
     CACHE STRING "Available build configurations" FORCE
 )
 
 add_compile_options(
     # Clang/GCC
-    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-O1>
-    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-O1>
-    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-g>
-    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-g>
-    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-fno-omit-frame-pointer>
-    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-fno-omit-frame-pointer>
-    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-fsanitize=address>
-    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-fsanitize=address>
+    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-O1>
+    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-O1>
+    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-g>
+    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-g>
+    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-fno-omit-frame-pointer>
+    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-fno-sanitize-merge>
+    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-fno-omit-frame-pointer>
+    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-fno-sanitize-merge>
+    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-fsanitize=address,undefined>
+    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-fsanitize=address,undefined>
 
     # MSVC
-    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:C,MSVC>>:/fsanitize=address>
-    $<$<AND:$<CONFIG:ASan>,$<COMPILE_LANG_AND_ID:CXX,MSVC>>:/fsanitize=address>
+    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,MSVC>>:/fsanitize=address>
+    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,MSVC>>:/fsanitize=address>
 )
 
 add_link_options(
     # Clang/GCC
-    $<$<AND:$<CONFIG:ASan>,$<C_COMPILER_ID:Clang,GNU>>:-fsanitize=address>
-    $<$<AND:$<CONFIG:ASan>,$<CXX_COMPILER_ID:Clang,GNU>>:-fsanitize=address>
+    $<$<AND:$<CONFIG:Sanitize>,$<C_COMPILER_ID:Clang,GNU>>:-fsanitize=address,undefined>
+    $<$<AND:$<CONFIG:Sanitize>,$<CXX_COMPILER_ID:Clang,GNU>>:-fsanitize=address,undefined>
 
     # MSVC
-    $<$<AND:$<CONFIG:ASan>,$<C_COMPILER_ID:MSVC>>:/fsanitize=address>
-    $<$<AND:$<CONFIG:ASan>,$<CXX_COMPILER_ID:MSVC>>:/fsanitize=address>
+    $<$<AND:$<CONFIG:Sanitize>,$<C_COMPILER_ID:MSVC>>:/fsanitize=address>
+    $<$<AND:$<CONFIG:Sanitize>,$<CXX_COMPILER_ID:MSVC>>:/fsanitize=address>
 )
 
 set(BUILD_SHARED_LIBS OFF)

@@ -18,9 +18,9 @@
             },
             "asan":
             {
-                "short": "ASan",
-                "long": "AddressSanitizer build",
-                "buildType": "ASan"
+                "short": "Sanitize",
+                "long": "Sanitizer build",
+                "buildType": "Sanitize"
             }
         }
     }
