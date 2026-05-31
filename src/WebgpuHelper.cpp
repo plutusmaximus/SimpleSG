@@ -1,3 +1,5 @@
+#define MLG_LOGGER_NAME "WGPU"
+
 #include "WebgpuHelper.h"
 
 #include "Color.h"
@@ -132,8 +134,8 @@ CreateAdapter(wgpu::Instance instance, wgpu::Surface surface)
     const wgpu::RequestAdapterOptions options //
         {
             .nextInChain = nullptr,
-            .featureLevel = wgpu::FeatureLevel::Undefined,
-            .powerPreference = wgpu::PowerPreference::Undefined,//wgpu::PowerPreference::HighPerformance,
+            .featureLevel = wgpu::FeatureLevel::Core,
+            .powerPreference = wgpu::PowerPreference::HighPerformance,
             .forceFallbackAdapter = false,
 #if defined(_WIN32)
             .backendType = wgpu::BackendType::Vulkan,
@@ -141,8 +143,7 @@ CreateAdapter(wgpu::Instance instance, wgpu::Surface surface)
 #elif defined(__EMSCRIPTEN__)
             .backendType = wgpu::BackendType::WebGPU,
 #else
-            //.backendType = wgpu::BackendType::Vulkan,
-            .backendType = wgpu::BackendType::OpenGLES,
+            .backendType = wgpu::BackendType::Vulkan,
 #endif
             .compatibleSurface = surface,
         };
