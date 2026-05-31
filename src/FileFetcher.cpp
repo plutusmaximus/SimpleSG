@@ -204,10 +204,10 @@ struct ShutdownAsyncIOQueue
 {
     ~ShutdownAsyncIOQueue()
     {
-        FileFetcher::ProcessCompletions();
         std::scoped_lock lock(s_AsyncIOMutex);
         if(s_AsyncIOQueue)
         {
+            FileFetcher::ProcessCompletions();
             SDL_SignalAsyncIOQueue(s_AsyncIOQueue);
             SDL_DestroyAsyncIOQueue(s_AsyncIOQueue);
             s_AsyncIOQueue = nullptr;
