@@ -65,6 +65,30 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Viewer (ASan) (GDB)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/ASan/Viewer",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/ASan",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
             "name": "Viewer (Debug) (GDB)",
             "type": "cppdbg",
             "request": "launch",
@@ -135,6 +159,30 @@
             "environment": [],
             //"console": "externalTerminal"
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Orbit (ASan) (GDB)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/ASan/Orbit",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/ASan",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ]
         },
         {
             "name": "Orbit (Debug) (GDB)",
