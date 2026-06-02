@@ -294,7 +294,7 @@ Level::SetActive(const NodeHandle& handle, bool active)
     auto children = GetChildren(handle);
     if(children)
     {
-        for(const auto& childHandle : *children)
+        for(const NodeHandle& childHandle : *children)
         {
             SetActive(childHandle, active);
         }
@@ -324,7 +324,7 @@ Level::SetVisible(const NodeHandle& handle, bool visible)
     auto children = GetChildren(handle);
     if(children)
     {
-        for(const auto& childHandle : *children)
+        for(const NodeHandle& childHandle : *children)
         {
             SetVisible(childHandle, visible);
         }
@@ -362,7 +362,7 @@ Level::GetNode(const NodeHandle& handle)
 void
 Level::UpdateWorldTransforms(std::span<Node> nodes)
 {
-    for (auto& node : nodes)
+    for (Node& node : nodes)
     {
         if(node.ParentIndex.IsValid())
         {
