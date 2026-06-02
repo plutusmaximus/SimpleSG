@@ -75,7 +75,7 @@ public:
     {
         return Value();
     }
-    constexpr const SuccessType operator->() const
+    constexpr SuccessType operator->() const
         requires std::is_pointer_v<SuccessType>
     {
         return Value();
@@ -84,28 +84,28 @@ public:
     operator bool() const { return std::holds_alternative<SuccessType>(*this); }
 
     template<typename... Args>
-    static inline std::string Format(std::format_string<Args...> fmt, Args&&... args)
+    static std::string Format(std::format_string<Args...> fmt, Args&&... args)
     {
         return std::format(fmt, std::forward<Args>(args)...);
     }
 
-    static inline std::string Format()
+    static std::string Format()
     {
-        constexpr static const std::string empty = "";
+        constexpr static const std::string empty;
         return empty;
     }
 
-    static inline const std::string& Format(const std::string& str)
+    static const std::string& Format(const std::string& str)
     {
         return str; // NOLINT(bugprone-return-const-ref-from-parameter)
     }
 
-    static inline std::string_view Format(const std::string_view str)
+    static std::string_view Format(const std::string_view str)
     {
         return str;
     }
 
-    static inline const char* Format(const char* str)
+    static const char* Format(const char* str)
     {
         return str;
     }

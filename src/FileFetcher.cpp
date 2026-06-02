@@ -212,42 +212,51 @@ struct FFGlobals
     static inline std::mutex Mutex;
     static inline SDL_AsyncIOQueue* AsyncIOQueue{nullptr};
 
-    static Result<> Startup()
+    static Result<> VerifyStarted()
     {
-        const std::lock_guard lock(Mutex);
-        if(!AsyncIOQueue)
-        {
-            AsyncIOQueue = SDL_CreateAsyncIOQueue();
-            MLG_CHECK(AsyncIOQueue, "Failed to create SDL Async IO Queue: {}", SDL_GetError());
-        }
+        MLG_CHECKV(AsyncIOQueue, "FileFetcher not initialized - call Startup()");
+
         return Result<>::Ok;
     }
 
-    static inline void Shutdown()
-    {
-        const std::lock_guard lock(Mutex);
-        if(AsyncIOQueue)
+    static inline auto OnShutdown = scope_exit(
+        []()
         {
-            FileFetcher::ProcessCompletions();
-            SDL_SignalAsyncIOQueue(AsyncIOQueue);
-            SDL_DestroyAsyncIOQueue(AsyncIOQueue);
-            AsyncIOQueue = nullptr;
-        }
-    }
-
-    static inline auto DoShutdown = scope_exit([]() { Shutdown(); });
+            MLG_ASSERT(nullptr == FFGlobals::AsyncIOQueue, "Async IO Queue not properly shut down");
+        });
 };
 }  // namespace
+
+Result<>
+FileFetcher::Startup()
+{
+        const std::lock_guard lock(FFGlobals::Mutex);
+        if(!FFGlobals::AsyncIOQueue)
+        {
+            FFGlobals::AsyncIOQueue = SDL_CreateAsyncIOQueue();
+            MLG_CHECK(FFGlobals::AsyncIOQueue, "Failed to create SDL Async IO Queue: {}", SDL_GetError());
+        }
+        return Result<>::Ok;
+}
+
+void
+FileFetcher::Shutdown()
+{
+    const std::lock_guard lock(FFGlobals::Mutex);
+    if(FFGlobals::AsyncIOQueue)
+    {
+        FileFetcher::ProcessCompletions();
+        SDL_SignalAsyncIOQueue(FFGlobals::AsyncIOQueue);
+        SDL_DestroyAsyncIOQueue(FFGlobals::AsyncIOQueue);
+        FFGlobals::AsyncIOQueue = nullptr;
+    }
+}
 
 Result<>
 FileFetcher::Fetch(FileFetcher::Request& request)
 {
     MLG_CHECKV(RequestStatus::None == request.m_Status, "Request is already in progress or completed");
-
-    if(!FFGlobals::AsyncIOQueue)
-    {
-        MLG_CHECK(FFGlobals::Startup());
-    }
+    MLG_CHECK(FFGlobals::VerifyStarted());
 
     request.m_Status = RequestStatus::Pending;
 
@@ -303,7 +312,7 @@ FileFetcher::Fetch(FileFetcher::Request& request)
 Result<>
 FileFetcher::ProcessCompletions()
 {
-    MLG_CHECKV(FFGlobals::AsyncIOQueue, "Attempted to process completions with no Async IO Queue");
+    MLG_CHECK(FFGlobals::VerifyStarted());
 
     SDL_AsyncIOOutcome outcome;
     while(SDL_GetAsyncIOResult(FFGlobals::AsyncIOQueue, &outcome))
@@ -312,7 +321,8 @@ FileFetcher::ProcessCompletions()
         {
             continue;
         }
-        else if(outcome.type == SDL_ASYNCIO_TASK_READ)
+
+        if(outcome.type == SDL_ASYNCIO_TASK_READ)
         {
             Request* request = static_cast<Request*>(outcome.userdata);
             MLG_CHECK(request, "Received SDL Async IO completion with null userdata");

@@ -6,6 +6,7 @@ Checks: >
   bugprone-*,
     -bugprone-random-generator-seed,
     -bugprone-easily-swappable-parameters,
+  # misc-*,
   misc-const-correctness,
   misc-definitions-in-headers,
   modernize-*,
@@ -25,9 +26,16 @@ Checks: >
 
   performance-*,
 
-  # Stage 5: Readability checks (highest noise; add slowly)
-  # readability-*,
-  # -readability-use-concise-preprocessor-directives
+  readability-*,
+    -readability-uppercase-literal-suffix,
+    -readability-avoid-const-params-in-decls,
+    -readability-use-concise-preprocessor-directives,
+    -readability-magic-numbers,
+    -readability-identifier-length,
+    -readability-implicit-bool-conversion,
+    -readability-named-parameter,
+    -readability-isolate-declaration,
+    -readability-function-cognitive-complexity,
 
 WarningsAsErrors: '*'
 

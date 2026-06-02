@@ -1,4 +1,5 @@
 #include "Compositor.h"
+#include "FileFetcher.h"
 #include "ImGuiRenderer.h"
 #include "Level.h"
 #include "Log.h"
@@ -31,14 +32,19 @@ static Result<> MainLoop()
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
-    ThreadPool::Startup();
+    MLG_CHECK(ThreadPool::Startup());
     defer
     {
         ThreadPool::Shutdown();
     };
 
-    MLG_CHECK(WebgpuHelper::Startup(kAppName));
+    MLG_CHECK(FileFetcher::Startup());
+    defer
+    {
+        FileFetcher::Shutdown();
+    };
 
+    MLG_CHECK(WebgpuHelper::Startup(kAppName));
     defer
     {
         WebgpuHelper::Shutdown();

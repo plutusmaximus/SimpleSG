@@ -101,7 +101,7 @@ CreateSdlWindow(const char* appName)
     const int winH = displayRect.h * 3 / 4; // 0.75
 
     // Create window
-    auto window = SDL_CreateWindow(appName, winW, winH, SDL_WINDOW_RESIZABLE);
+    SDL_Window* window = SDL_CreateWindow(appName, winW, winH, SDL_WINDOW_RESIZABLE);
     MLG_CHECK(window, SDL_GetError());
 
     SDL_ShowWindow(window);

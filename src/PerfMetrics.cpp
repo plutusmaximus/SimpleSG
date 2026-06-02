@@ -63,7 +63,7 @@ PerfTimerStats::PerfTimerStats(const PerfStats& stats)
           static_cast<double>(stats.GetMinValue()) / static_cast<double>(GetPerfFrequency())),
       m_MaxValue(
           static_cast<double>(stats.GetMaxValue()) / static_cast<double>(GetPerfFrequency())),
-      m_EMA(static_cast<double>(stats.GetEMA()) / static_cast<double>(GetPerfFrequency()))
+      m_EMA(stats.GetEMA() / static_cast<double>(GetPerfFrequency()))
 {
 }
 

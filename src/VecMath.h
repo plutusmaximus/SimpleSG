@@ -37,7 +37,7 @@ private:
     // Wraps the input value to the range [0, 2π)
     constexpr static T Wrap(const T value) noexcept
     {
-        const T r = value - std::floor(value / TWO_PI) * TWO_PI;
+        const T r = value - (std::floor(value / TWO_PI) * TWO_PI);
 
         if((r >= TWO_PI - eps) || (std::abs(r) < eps))
         {
@@ -260,28 +260,28 @@ public:
 
     constexpr T Length() const noexcept
     {
-        return std::sqrt(x * x + y * y);
+        return std::sqrt((x * x) + (y * y));
     }
 
     constexpr T Length2() const noexcept
 
     {
-        return x * x + y * y;
+        return (x * x) + (y * y);
     }
 
     [[nodiscard]] constexpr Vec2 Cross(const Vec2& that) const noexcept
     {
-        return Vec2(x * that.y - y * that.x, y * that.x - x * that.y);
+        return Vec2((x * that.y) - (y * that.x), (y * that.x) - (x * that.y));
     }
 
     constexpr T Dot(const Vec2& that) const noexcept
     {
-        return x * that.x + y * that.y;
+        return (x * that.x) + (y * that.y);
     }
 
     [[nodiscard]] constexpr Vec2 Lerp(const Vec2& that, T t) const noexcept
     {
-        return Vec2(*this * (1 - t) + that * t);
+        return Vec2((*this * (1 - t)) + (that * t));
     }
 
     constexpr friend bool operator==(const Vec2& a, const Vec2& b) noexcept
@@ -415,9 +415,9 @@ public:
 
     constexpr explicit Vec3(const Vec4<T>& v) noexcept;
 
-    static inline consteval Vec3 XAXIS() { return Vec3{ 1, 0, 0 }; }
-    static inline consteval Vec3 YAXIS() { return Vec3{ 0, 1, 0 }; }
-    static inline consteval Vec3 ZAXIS() { return Vec3{ 0, 0, 1 }; }
+    static consteval Vec3 XAXIS() { return Vec3{ 1, 0, 0 }; }
+    static consteval Vec3 YAXIS() { return Vec3{ 0, 1, 0 }; }
+    static consteval Vec3 ZAXIS() { return Vec3{ 0, 0, 1 }; }
 
     [[nodiscard]] constexpr Vec3 Normalize() const noexcept
     {
@@ -426,31 +426,31 @@ public:
 
     constexpr T Length() const noexcept
     {
-        return std::sqrt(x * x + y * y + z * z);
+        return std::sqrt((x * x) + (y * y) + (z * z));
     }
 
     constexpr T Length2() const noexcept
     {
-        return x * x + y * y + z * z;
+        return (x * x) + (y * y) + (z * z);
     }
 
     [[nodiscard]] constexpr Vec3 Cross(const Vec3& that) const noexcept
     {
         return Vec3(
-            y * that.z - z * that.y,
-            z * that.x - x * that.z,
-            x * that.y - y * that.x
+            (y * that.z) - (z * that.y),
+            (z * that.x) - (x * that.z),
+            (x * that.y) - (y * that.x)
         );
     }
 
     constexpr T Dot(const Vec3& that) const noexcept
     {
-        return x * that.x + y * that.y + z * that.z;
+        return (x * that.x) + (y * that.y) + (z * that.z);
     }
 
     [[nodiscard]] constexpr Vec3 Lerp(const Vec3& that, T t) const noexcept
     {
-        return Vec3(*this * (1 - t) + that * t);
+        return Vec3((*this * (1 - t)) + (that * t));
     }
 
     /// Rotates this vector around the given axis by the specified angle.
@@ -459,8 +459,8 @@ public:
         // https://en.wikipedia.org/wiki/Rodrigues'_rotation_formula
         const T cos = angle.Cos();
         const T sin = angle.Sin();
-        const Vec3 vr = *this * cos + axis.Cross(*this) * sin +
-                         axis * (axis.Dot(*this)) * (1 - cos);
+        const Vec3 vr = (*this * cos) + (axis.Cross(*this) * sin) +
+                         (axis * (axis.Dot(*this)) * (1 - cos));
         return vr;
     }
 
@@ -608,22 +608,22 @@ public:
 
     constexpr T Length() const noexcept
     {
-        return std::sqrt(x * x + y * y + z * z + w * w);
+        return std::sqrt((x * x) + (y * y) + (z * z) + (w * w));
     }
 
     constexpr T Length2() const noexcept
     {
-        return x * x + y * y + z * z + w * w;
+        return (x * x) + (y * y) + (z * z) + (w * w);
     }
 
     constexpr T Dot(const Vec4& that) const noexcept
     {
-        return x * that.x + y * that.y + z * that.z + w * that.w;
+        return (x * that.x) + (y * that.y) + (z * that.z) + (w * that.w);
     }
 
     [[nodiscard]] constexpr Vec4 Lerp(const Vec4& that, T t) const noexcept
     {
-        return Vec4(*this * (1 - t) + that * t);
+        return Vec4((*this * (1 - t)) + (that * t));
     }
 
     constexpr friend bool operator==(const Vec4& a, const Vec4& b) noexcept
@@ -728,19 +728,19 @@ public:
 };
 
 template<typename T>
-inline constexpr Vec2<T>::Vec2(const Vec3<T>& v) noexcept
+constexpr Vec2<T>::Vec2(const Vec3<T>& v) noexcept
     : x(v.x), y(v.y)
 {
 }
 
 template<typename T>
-inline constexpr Vec2<T>::Vec2(const Vec4<T>& v) noexcept
+constexpr Vec2<T>::Vec2(const Vec4<T>& v) noexcept
     : x(v.x), y(v.y)
 {
 }
 
 template<typename T>
-inline constexpr Vec3<T>::Vec3(const Vec4<T>& v) noexcept
+constexpr Vec3<T>::Vec3(const Vec4<T>& v) noexcept
     : x(v.x), y(v.y), z(v.z)
 {
 }
@@ -813,16 +813,16 @@ public:
         // Assumes a unit quaternion.
         const Vec3<T> u{ q.m_Vec };
         const Vec3<T> t = u.Cross(vec) * T{2};
-        return vec + q.m_Vec.w * t + u.Cross(t);
+        return vec + (q.m_Vec.w * t) + u.Cross(t);
     }
 
     constexpr friend UnitQuat operator*(const UnitQuat& a, const UnitQuat& b) noexcept
     {
         return UnitQuat(
-            a.m_Vec.w * b.m_Vec.x + a.m_Vec.x * b.m_Vec.w + a.m_Vec.y * b.m_Vec.z - a.m_Vec.z * b.m_Vec.y,
-            a.m_Vec.w * b.m_Vec.y - a.m_Vec.x * b.m_Vec.z + a.m_Vec.y * b.m_Vec.w + a.m_Vec.z * b.m_Vec.x,
-            a.m_Vec.w * b.m_Vec.z + a.m_Vec.x * b.m_Vec.y - a.m_Vec.y * b.m_Vec.x + a.m_Vec.z * b.m_Vec.w,
-            a.m_Vec.w * b.m_Vec.w - a.m_Vec.x * b.m_Vec.x - a.m_Vec.y * b.m_Vec.y - a.m_Vec.z * b.m_Vec.z
+            (a.m_Vec.w * b.m_Vec.x) + (a.m_Vec.x * b.m_Vec.w) + (a.m_Vec.y * b.m_Vec.z) - (a.m_Vec.z * b.m_Vec.y),
+            (a.m_Vec.w * b.m_Vec.y) - (a.m_Vec.x * b.m_Vec.z) + (a.m_Vec.y * b.m_Vec.w) + (a.m_Vec.z * b.m_Vec.x),
+            (a.m_Vec.w * b.m_Vec.z) + (a.m_Vec.x * b.m_Vec.y) - (a.m_Vec.y * b.m_Vec.x) + (a.m_Vec.z * b.m_Vec.w),
+            (a.m_Vec.w * b.m_Vec.w) - (a.m_Vec.x * b.m_Vec.x) - (a.m_Vec.y * b.m_Vec.y) - (a.m_Vec.z * b.m_Vec.z)
         );
     }
 
@@ -959,27 +959,21 @@ public:
         const T a33 = m[3][3];
 
         // 2x2 determinants reused by the 4x4 cofactors.
-        const T s0 = a00 * a11 - a10 * a01;
-        const T s1 = a00 * a12 - a10 * a02;
-        const T s2 = a00 * a13 - a10 * a03;
-        const T s3 = a01 * a12 - a11 * a02;
-        const T s4 = a01 * a13 - a11 * a03;
-        const T s5 = a02 * a13 - a12 * a03;
+        const T s0 = (a00 * a11) - (a10 * a01);
+        const T s1 = (a00 * a12) - (a10 * a02);
+        const T s2 = (a00 * a13) - (a10 * a03);
+        const T s3 = (a01 * a12) - (a11 * a02);
+        const T s4 = (a01 * a13) - (a11 * a03);
+        const T s5 = (a02 * a13) - (a12 * a03);
 
-        const T c0 = a20 * a31 - a30 * a21;
-        const T c1 = a20 * a32 - a30 * a22;
-        const T c2 = a20 * a33 - a30 * a23;
-        const T c3 = a21 * a32 - a31 * a22;
-        const T c4 = a21 * a33 - a31 * a23;
-        const T c5 = a22 * a33 - a32 * a23;
+        const T c0 = (a20 * a31) - (a30 * a21);
+        const T c1 = (a20 * a32) - (a30 * a22);
+        const T c2 = (a20 * a33) - (a30 * a23);
+        const T c3 = (a21 * a32) - (a31 * a22);
+        const T c4 = (a21 * a33) - (a31 * a23);
+        const T c5 = (a22 * a33) - (a32 * a23);
 
-        const T det =
-            s0 * c5 -
-            s1 * c4 +
-            s2 * c3 +
-            s3 * c2 -
-            s4 * c1 +
-            s5 * c0;
+        const T det = (s0 * c5) - (s1 * c4) + (s2 * c3) + (s3 * c2) - (s4 * c1) + (s5 * c0);
 
         if (std::abs(det) <= epsilon)
         {
@@ -989,25 +983,25 @@ public:
         const T invDet = 1 / det;
 
         // Math matrix inverse entries, named row/column.
-        const T b00 = ( a11 * c5 - a12 * c4 + a13 * c3) * invDet;
-        const T b01 = (-a01 * c5 + a02 * c4 - a03 * c3) * invDet;
-        const T b02 = ( a31 * s5 - a32 * s4 + a33 * s3) * invDet;
-        const T b03 = (-a21 * s5 + a22 * s4 - a23 * s3) * invDet;
+        const T b00 = ( (a11 * c5) - (a12 * c4) + (a13 * c3) ) * invDet;
+        const T b01 = (-(a01 * c5) + (a02 * c4) - (a03 * c3) ) * invDet;
+        const T b02 = ( (a31 * s5) - (a32 * s4) + (a33 * s3) ) * invDet;
+        const T b03 = (-(a21 * s5) + (a22 * s4) - (a23 * s3) ) * invDet;
 
-        const T b10 = (-a10 * c5 + a12 * c2 - a13 * c1) * invDet;
-        const T b11 = ( a00 * c5 - a02 * c2 + a03 * c1) * invDet;
-        const T b12 = (-a30 * s5 + a32 * s2 - a33 * s1) * invDet;
-        const T b13 = ( a20 * s5 - a22 * s2 + a23 * s1) * invDet;
+        const T b10 = (-(a10 * c5) + (a12 * c2) - (a13 * c1) ) * invDet;
+        const T b11 = ( (a00 * c5) - (a02 * c2) + (a03 * c1) ) * invDet;
+        const T b12 = (-(a30 * s5) + (a32 * s2) - (a33 * s1) ) * invDet;
+        const T b13 = ( (a20 * s5) - (a22 * s2) + (a23 * s1) ) * invDet;
 
-        const T b20 = ( a10 * c4 - a11 * c2 + a13 * c0) * invDet;
-        const T b21 = (-a00 * c4 + a01 * c2 - a03 * c0) * invDet;
-        const T b22 = ( a30 * s4 - a31 * s2 + a33 * s0) * invDet;
-        const T b23 = (-a20 * s4 + a21 * s2 - a23 * s0) * invDet;
+        const T b20 = ( (a10 * c4) - (a11 * c2) + (a13 * c0) ) * invDet;
+        const T b21 = (-(a00 * c4) + (a01 * c2) - (a03 * c0) ) * invDet;
+        const T b22 = ( (a30 * s4) - (a31 * s2) + (a33 * s0) ) * invDet;
+        const T b23 = (-(a20 * s4) + (a21 * s2) - (a23 * s0) ) * invDet;
 
-        const T b30 = (-a10 * c3 + a11 * c1 - a12 * c0) * invDet;
-        const T b31 = ( a00 * c3 - a01 * c1 + a02 * c0) * invDet;
-        const T b32 = (-a30 * s3 + a31 * s1 - a32 * s0) * invDet;
-        const T b33 = ( a20 * s3 - a21 * s1 + a22 * s0) * invDet;
+        const T b30 = (-(a10 * c3) + (a11 * c1) - (a12 * c0) ) * invDet;
+        const T b31 = ( (a00 * c3) - (a01 * c1) + (a02 * c0) ) * invDet;
+        const T b32 = (-(a30 * s3) + (a31 * s1) - (a32 * s0) ) * invDet;
+        const T b33 = ( (a20 * s3) - (a21 * s1) + (a22 * s0) ) * invDet;
 
         return Mat44<T>
         {
@@ -1049,19 +1043,19 @@ public:
         const T ty = m[3][1];
         const T tz = m[3][2];
 
-        const T c00 = a11 * a22 - a12 * a21;
-        const T c01 = a02 * a21 - a01 * a22;
-        const T c02 = a01 * a12 - a02 * a11;
+        const T c00 = (a11 * a22) - (a12 * a21);
+        const T c01 = (a02 * a21) - (a01 * a22);
+        const T c02 = (a01 * a12) - (a02 * a11);
 
-        const T c10 = a12 * a20 - a10 * a22;
-        const T c11 = a00 * a22 - a02 * a20;
-        const T c12 = a02 * a10 - a00 * a12;
+        const T c10 = (a12 * a20) - (a10 * a22);
+        const T c11 = (a00 * a22) - (a02 * a20);
+        const T c12 = (a02 * a10) - (a00 * a12);
 
-        const T c20 = a10 * a21 - a11 * a20;
-        const T c21 = a01 * a20 - a00 * a21;
-        const T c22 = a00 * a11 - a01 * a10;
+        const T c20 = (a10 * a21) - (a11 * a20);
+        const T c21 = (a01 * a20) - (a00 * a21);
+        const T c22 = (a00 * a11) - (a01 * a10);
 
-        const T det = a00 * c00 + a01 * c10 + a02 * c20;
+        const T det = (a00 * c00) + (a01 * c10) + (a02 * c20);
 
         if (std::abs(det) <= epsilon)
         {
@@ -1082,9 +1076,9 @@ public:
         const T b21 = c21 * invDet;
         const T b22 = c22 * invDet;
 
-        const T itx = -(b00 * tx + b01 * ty + b02 * tz);
-        const T ity = -(b10 * tx + b11 * ty + b12 * tz);
-        const T itz = -(b20 * tx + b21 * ty + b22 * tz);
+        const T itx = (-(b00 * tx) - (b01 * ty) - (b02 * tz));
+        const T ity = (-(b10 * tx) - (b11 * ty) - (b12 * tz));
+        const T itz = (-(b20 * tx) - (b21 * ty) - (b22 * tz));
 
         return Mat44
         {
@@ -1114,9 +1108,9 @@ public:
         translation = Vec3<T>(mm[3][0], mm[3][1], mm[3][2]);
 
         // Extract scale (length of basis columns)
-        scale.x = std::sqrt(mm[0][0] * mm[0][0] + mm[0][1] * mm[0][1] + mm[0][2] * mm[0][2]);
-        scale.y = std::sqrt(mm[1][0] * mm[1][0] + mm[1][1] * mm[1][1] + mm[1][2] * mm[1][2]);
-        scale.z = std::sqrt(mm[2][0] * mm[2][0] + mm[2][1] * mm[2][1] + mm[2][2] * mm[2][2]);
+        scale.x = std::sqrt((mm[0][0] * mm[0][0]) + (mm[0][1] * mm[0][1]) + (mm[0][2] * mm[0][2]));
+        scale.y = std::sqrt((mm[1][0] * mm[1][0]) + (mm[1][1] * mm[1][1]) + (mm[1][2] * mm[1][2]));
+        scale.z = std::sqrt((mm[2][0] * mm[2][0]) + (mm[2][1] * mm[2][1]) + (mm[2][2] * mm[2][2]));
 
         // Build rotation matrix (row-major) from normalized columns
         const T invX = scale.x != 0 ? 1 / scale.x : 0;
@@ -1190,12 +1184,12 @@ public:
 
     constexpr friend Vec4<T> operator*(const Mat44& mat, const Vec4<T>& vector) noexcept
     {
-        return mat.m[0] * vector.x + mat.m[1] * vector.y + mat.m[2] * vector.z + mat.m[3] * vector.w;
+        return (mat.m[0] * vector.x) + (mat.m[1] * vector.y) + (mat.m[2] * vector.z) + (mat.m[3] * vector.w);
     }
 
     constexpr friend Vec4<T> operator*(const Mat44& mat, const Vec3<T>& vector) noexcept
     {
-        return Vec4<T>(mat.m[0] * vector.x + mat.m[1] * vector.y + mat.m[2] * vector.z + mat.m[3]);
+        return Vec4<T>((mat.m[0] * vector.x) + (mat.m[1] * vector.y) + (mat.m[2] * vector.z) + (mat.m[3]));
     }
 
     static constexpr const Mat44& Identity() noexcept
@@ -1221,7 +1215,7 @@ public:
 };
 
 template<typename T>
-inline constexpr Mat44<T> UnitQuat<T>::ToMatrix() const noexcept
+constexpr Mat44<T> UnitQuat<T>::ToMatrix() const noexcept
 {
     const T xx = m_Vec.x * m_Vec.x;
     const T yy = m_Vec.y * m_Vec.y;
@@ -1236,11 +1230,11 @@ inline constexpr Mat44<T> UnitQuat<T>::ToMatrix() const noexcept
     // Column-major 4x4 rotation matrix
     return Mat44<T> //
         {
-            Vec4<T>(1 - 2 * (yy + zz), 2 * (xy + wz), 2 * (xz - wy), 0),
+            Vec4<T>(1 - (2 * (yy + zz)), 2 * (xy + wz), 2 * (xz - wy), 0),
 
-            Vec4<T>(2 * (xy - wz), 1 - 2 * (xx + zz), 2 * (yz + wx), 0),
+            Vec4<T>(2 * (xy - wz), 1 - (2 * (xx + zz)), 2 * (yz + wx), 0),
 
-            Vec4<T>(2 * (xz + wy), 2 * (yz - wx), 1 - 2 * (xx + yy), 0),
+            Vec4<T>(2 * (xz + wy), 2 * (yz - wx), 1 - (2 * (xx + yy)), 0),
 
             Vec4<T>(0,0,0,1),
         };
@@ -1307,7 +1301,7 @@ public:
     constexpr friend Vec3<NumType> operator*(const TrsTransform<NumType>& transform,
         const Vec3<NumType>& point) noexcept
     {
-        return transform.R * (point * transform.S) + transform.T;
+        return (transform.R * (point * transform.S)) + transform.T;
     }
 
     constexpr friend bool operator==(const TrsTransform<NumType>& a,
@@ -1401,7 +1395,7 @@ struct std::formatter<UnitQuat<T>>
 template<>
 struct std::formatter<Extent>
 {
-    constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
+    static constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
 
     template<typename FormatContext>
     auto format(const Extent& extent, FormatContext& ctx) const

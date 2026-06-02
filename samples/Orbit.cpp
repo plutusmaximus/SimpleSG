@@ -1,12 +1,13 @@
 #include "Compositor.h"
-#include "Renderer.h"
-#include "PropKit.h"
+#include "FileFetcher.h"
 #include "ImGuiRenderer.h"
 #include "Level.h"
 #include "MouseNav.h"
 #include "PerfMetrics.h"
 #include "PhysicsLevel.h"
 #include "Projection.h"
+#include "PropKit.h"
+#include "Renderer.h"
 #include "Scene.h"
 #include "scope_exit.h"
 #include "Shapes.h"
@@ -36,15 +37,22 @@ Startup()
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
-    ThreadPool::Startup();
+    MLG_CHECK(ThreadPool::Startup());
     defer_as(failure)
     {
         ThreadPool::Shutdown();
     };
 
+    MLG_CHECK(FileFetcher::Startup());
+    defer_as(fileFetcherShutdown)
+    {
+        FileFetcher::Shutdown();
+    };
+
     MLG_CHECK(WebgpuHelper::Startup(APP_NAME));
 
-    failure.release(); // Success, prevent shutdown in defer.
+    failure.release();
+    fileFetcherShutdown.release();
 
     return Result<>::Ok;
 }
@@ -53,6 +61,7 @@ static void
 Shutdown()
 {
     WebgpuHelper::Shutdown();
+    FileFetcher::Shutdown();
     ThreadPool::Shutdown();
 }
 
@@ -107,11 +116,11 @@ Load(const std::filesystem::path& path,
     nodeDefs.reserve(NUM_BODIES);
     for(size_t i = 0; i < nodeDefs.capacity(); ++i)
     {
-        const float radius = MIN_RADIUS + std::abs(dis(gen)) * (MAX_RADIUS - MIN_RADIUS);
+        const float radius = MIN_RADIUS + (std::abs(dis(gen)) * (MAX_RADIUS - MIN_RADIUS));
         const float mass = radius;
         const Vec3f position{ dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE };
         const Vec3f velocity = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize() *
-                               (MIN_SPEED + std::abs(dis(gen)) * (MAX_SPEED - MIN_SPEED));
+                               (MIN_SPEED + (std::abs(dis(gen)) * (MAX_SPEED - MIN_SPEED)));
 
         LevelNodeDef nodeDef//
         {

@@ -51,7 +51,7 @@ public:
     Scene(Scene&& other) = default;
     Scene& operator=(Scene&& other) = default;
 
-    const std::span<const ModelInstance> GetModelInstances() const { return m_ModelInstances; }
+    std::span<const ModelInstance> GetModelInstances() const { return m_ModelInstances; }
 
     DrawIndirectBuffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
 

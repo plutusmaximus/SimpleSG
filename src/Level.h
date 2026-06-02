@@ -26,19 +26,19 @@ public:
         All = Active | Visible
     };
 
-    inline friend NodeFlags operator|(const NodeFlags a, const NodeFlags b)
+    friend NodeFlags operator|(const NodeFlags a, const NodeFlags b)
     {
         using U = std::underlying_type_t<Level::NodeFlags>;
         return static_cast<NodeFlags>(static_cast<U>(a) | static_cast<U>(b));
     }
 
-    inline friend NodeFlags operator&(const NodeFlags a, const NodeFlags b)
+    friend NodeFlags operator&(const NodeFlags a, const NodeFlags b)
     {
         using U = std::underlying_type_t<Level::NodeFlags>;
         return static_cast<NodeFlags>(static_cast<U>(a) & static_cast<U>(b));
     }
 
-    inline friend NodeFlags operator~(const NodeFlags a)
+    friend NodeFlags operator~(const NodeFlags a)
     {
         using U = std::underlying_type_t<Level::NodeFlags>;
 

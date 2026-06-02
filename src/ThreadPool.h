@@ -8,7 +8,7 @@
 class ThreadPool final
 {
 public:
-    static void Startup();
+    static Result<> Startup();
 
     static void Shutdown();
 
@@ -40,7 +40,7 @@ private:
         Job(Job&&) = delete;
         Job& operator=(Job&&) = delete;
 
-        void Invoke()
+        void Invoke() const
         {
             MLG_ASSERT(m_JobFunc != nullptr);
             m_JobFunc(m_UserData);

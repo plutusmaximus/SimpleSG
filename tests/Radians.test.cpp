@@ -18,7 +18,7 @@ namespace
     // Helper function to normalize a radian value to [0, 2π)
     float NormalizeRadians(const float value)
     {
-        const float r = value - std::floor(value / TWO_PI) * TWO_PI;
+        const float r = value - (std::floor(value / TWO_PI) * TWO_PI);
 
         if((r >= TWO_PI - EPSILON(TWO_PI)) || (std::abs(r) < EPSILON(TWO_PI)))
         {
@@ -84,14 +84,14 @@ TEST(Radiansf, Addition_AddTwoRadians)
     const Radiansf r1(PI / 4);
     const Radiansf r2(PI / 6);
     const Radiansf result = r1 + r2;
-    EXPECT_FLOAT_EQ(result.GetValue(), PI / 4 + PI / 6);
+    EXPECT_FLOAT_EQ(result.GetValue(), (PI / 4) + (PI / 6));
 }
 
 TEST(Radiansf, Addition_AddRadiansAndFloat)
 {
     const Radiansf r(PI / 4);
     const Radiansf result = r + (PI / 6);
-    EXPECT_FLOAT_EQ(result.GetValue(), PI / 4 + PI / 6);
+    EXPECT_FLOAT_EQ(result.GetValue(), (PI / 4) + (PI / 6));
 }
 
 TEST(Radiansf, Addition_AdditionWithWrapping)
@@ -117,14 +117,14 @@ TEST(Radiansf, Addition_CompoundAdditionRadians)
     Radiansf r1(PI / 4);
     const Radiansf r2(PI / 6);
     r1 += r2;
-    EXPECT_FLOAT_EQ(r1.GetValue(), PI / 4 + PI / 6);
+    EXPECT_FLOAT_EQ(r1.GetValue(), (PI / 4) + (PI / 6));
 }
 
 TEST(Radiansf, Addition_CompoundAdditionFloat)
 {
     Radiansf r(PI / 4);
     r += PI / 6;
-    EXPECT_FLOAT_EQ(r.GetValue(), PI / 4 + PI / 6);
+    EXPECT_FLOAT_EQ(r.GetValue(), (PI / 4) + (PI / 6));
 }
 
 TEST(Radiansf, Addition_CompoundAdditionWithWrapping)
@@ -141,14 +141,14 @@ TEST(Radiansf, Subtraction_SubtractTwoRadians)
     const Radiansf r1(PI / 4);
     const Radiansf r2(PI / 6);
     const Radiansf result = r1 - r2;
-    EXPECT_FLOAT_EQ(result.GetValue(), PI / 4 - PI / 6);
+    EXPECT_FLOAT_EQ(result.GetValue(), (PI / 4) - (PI / 6));
 }
 
 TEST(Radiansf, Subtraction_SubtractRadiansAndFloat)
 {
     const Radiansf r(PI / 4);
     const Radiansf result = r - (PI / 6);
-    EXPECT_FLOAT_EQ(result.GetValue(), PI / 4 - PI / 6);
+    EXPECT_FLOAT_EQ(result.GetValue(), (PI / 4) - (PI / 6));
 }
 
 TEST(Radiansf, Subtraction_SubtractionWithNegativeWrapping)
@@ -156,7 +156,7 @@ TEST(Radiansf, Subtraction_SubtractionWithNegativeWrapping)
     const Radiansf r1(PI / 6);
     const Radiansf r2(PI / 4);
     const Radiansf result = r1 - r2;
-    const float expected = NormalizeRadians(PI / 6 - PI / 4);
+    const float expected = NormalizeRadians((PI / 6) - (PI / 4));
     EXPECT_FLOAT_EQ(result.GetValue(), expected);
 }
 
@@ -173,21 +173,21 @@ TEST(Radiansf, Subtraction_CompoundSubtractionRadians)
     Radiansf r1(PI / 4);
     const Radiansf r2(PI / 6);
     r1 -= r2;
-    EXPECT_FLOAT_EQ(r1.GetValue(), PI / 4 - PI / 6);
+    EXPECT_FLOAT_EQ(r1.GetValue(), (PI / 4) - (PI / 6));
 }
 
 TEST(Radiansf, Subtraction_CompoundSubtractionFloat)
 {
     Radiansf r(PI / 4);
     r -= PI / 6;
-    EXPECT_FLOAT_EQ(r.GetValue(), PI / 4 - PI / 6);
+    EXPECT_FLOAT_EQ(r.GetValue(), (PI / 4) - (PI / 6));
 }
 
 TEST(Radiansf, Subtraction_CompoundSubtractionWithNegativeWrapping)
 {
     Radiansf r(PI / 6);
     r -= PI / 4;
-    const float expected = NormalizeRadians(PI / 6 - PI / 4);
+    const float expected = NormalizeRadians((PI / 6) - (PI / 4));
     EXPECT_FLOAT_EQ(r.GetValue(), expected);
 }
 
@@ -269,7 +269,7 @@ TEST(Radiansf, Wrapping_WrappingAt2Pi)
 
 TEST(Radiansf, Wrapping_WrappingJustUnderMinus2Pi)
 {
-    const float value = -2 * PI + 0.01f;
+    const float value = (-2 * PI) + 0.01f;
     const Radiansf r(value);
     const float expected = value + TWO_PI;
     EXPECT_FLOAT_EQ(r.GetValue(), expected);
@@ -277,7 +277,7 @@ TEST(Radiansf, Wrapping_WrappingJustUnderMinus2Pi)
 
 TEST(Radiansf, Wrapping_WrappingJustOver2Pi)
 {
-    const float value = 2 * PI + 0.01f;
+    const float value = (2 * PI) + 0.01f;
     const Radiansf r(value);
     const float expected = NormalizeRadians(value);
     EXPECT_NEAR(r.GetValue(), expected, EPSILON(expected));
@@ -356,7 +356,7 @@ TEST(Radiansf, Comparison_EqualityOperatorWithEpsilon)
 {
     const Radiansf r1(PI / 4);
     // Should be equal within epsilon
-    EXPECT_TRUE(r1 == (PI / 4 + 1e-11f));
+    EXPECT_TRUE(r1 == ((PI / 4) + 1e-11f));
 }
 
 TEST(Radiansf, Comparison_InequalityOperator)

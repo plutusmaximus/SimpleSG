@@ -31,7 +31,7 @@ public:
 
     uint32_t GetMeshCount() const { return static_cast<uint32_t>(m_Meshes.size()); }
 
-    const std::span<const wgpu::BindGroup> GetMaterialBindGroups() const
+    std::span<const wgpu::BindGroup> GetMaterialBindGroups() const
     {
         return m_MaterialBindGroups;
     }
@@ -46,9 +46,9 @@ public:
         return it->second;
     }
 
-    const std::span<const Mesh> GetMeshes() const { return m_Meshes; }
+    std::span<const Mesh> GetMeshes() const { return m_Meshes; }
 
-    const std::span<const Model> GetModels() const { return m_Models; }
+    std::span<const Model> GetModels() const { return m_Models; }
 
     VertexBuffer GetVertexBuffer() const { return m_VertexBuffer; }
 

@@ -101,6 +101,10 @@ public:
         RequestStatus m_Status{RequestStatus::None};
     };
 
+    static Result<> Startup();
+
+    static void Shutdown();
+
     static Result<> Fetch(Request& request);
 
     static Result<> ProcessCompletions();

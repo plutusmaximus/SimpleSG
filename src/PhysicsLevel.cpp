@@ -488,7 +488,7 @@ PhysicsLevel::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult&
         // Using this formula avoids catastrophic cancellation when r and d are close, which can
         // happen with shallow penetrations.
         // https://en.wikipedia.org/wiki/Catastrophic_cancellation
-        impactResult.PenetrationDepth = (r * r - dist0Sqr) / (r + std::sqrt(dist0Sqr));
+        impactResult.PenetrationDepth = ((r * r) - dist0Sqr) / (r + std::sqrt(dist0Sqr));
 
         return true;
     }
@@ -514,7 +514,7 @@ PhysicsLevel::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult&
     // Quadratic formula:
     // t = -b (+/-) sqrt(b^2 - 4ac) / (2a)
 
-    float discriminant = b*b - 4*a*c;
+    float discriminant = (b * b) - (4 * a * c);
 
     if (discriminant < -EPSILON)
     {

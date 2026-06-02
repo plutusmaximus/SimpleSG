@@ -16,11 +16,52 @@
 #include <SDL3/SDL.h>
 #include <thread>
 
-static constexpr const char* PRESENT_SHADER = "shaders/PresentShader.wgsl";
+static constexpr const char* kPresentShader = "shaders/PresentShader.wgsl";
 
-static constexpr const char* COLOR_SHADER = "shaders/ColorShader.wgsl";
+static constexpr const char* kColorShader = "shaders/ColorShader.wgsl";
 
-static constexpr const char* TRANSFORM_SHADER = "shaders/TransformShader.wgsl";
+static constexpr const char* kTransformShader = "shaders/TransformShader.wgsl";
+
+namespace
+{
+Result<>
+LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
+{
+    FileFetcher::Request request(filePath);
+    MLG_CHECK(FileFetcher::Fetch(request));
+
+    while(request.IsPending())
+    {
+        MLG_CHECK(FileFetcher::ProcessCompletions());
+        std::this_thread::yield();
+    }
+
+    MLG_CHECK(request.Succeeded(), "Failed to load shader file: {}", filePath);
+
+    request.MoveDataTo(outBuffer);
+
+    return Result<>::Ok;
+}    
+
+Result<wgpu::ShaderModule>
+CreateShader(const char* path)
+{
+    std::vector<uint8_t> shaderCode;
+    auto loadResult = LoadShaderCode(path, shaderCode);
+    MLG_CHECK(loadResult);
+
+    const void* data = shaderCode.data();
+    const wgpu::StringView shaderCodeView{ static_cast<const char*>(data), shaderCode.size() };
+    const wgpu::ShaderSourceWGSL wgsl{ { .nextInChain = nullptr, .code = shaderCodeView } };
+    const wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl, .label = path };
+
+    wgpu::ShaderModule shaderModule =
+        WebgpuHelper::GetDevice().CreateShaderModule(&shaderModuleDescriptor);
+    MLG_CHECK(shaderModule, "Failed to create shader module");
+
+    return shaderModule;
+}
+}
 
 Result<>
 Renderer::Startup()
@@ -232,7 +273,7 @@ Renderer::BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder)
 }
 
 Result<>
-Renderer::Present(Compositor& compositor)
+Renderer::Present(Compositor& compositor) const
 {
     const wgpu::Texture target = compositor.GetTarget();
 
@@ -264,25 +305,6 @@ Renderer::Present(Compositor& compositor)
     renderPass.SetBindGroup(0, m_PresentPipeline.BindGroup0, 0, nullptr);
     renderPass.Draw(3, 1, 0, 0);
     renderPass.End();
-
-    return Result<>::Ok;
-}
-
-static Result<>
-LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
-{
-    FileFetcher::Request request(filePath);
-    MLG_CHECK(FileFetcher::Fetch(request));
-
-    while(request.IsPending())
-    {
-        MLG_CHECK(FileFetcher::ProcessCompletions());
-        std::this_thread::yield();
-    }
-
-    MLG_CHECK(request.Succeeded(), "Failed to load shader file: {}", filePath);
-
-    request.MoveDataTo(outBuffer);
 
     return Result<>::Ok;
 }
@@ -378,7 +400,7 @@ Renderer::CreateColorPipeline()
 
     MLG_CHECKV(m_ColorTarget, "Color target is null");
 
-    auto shader = CreateShader(COLOR_SHADER);
+    auto shader = CreateShader(kColorShader);
     MLG_CHECK(shader);
 
     m_ColorPipeline.Shader = *shader;
@@ -537,7 +559,7 @@ Renderer::CreatePresentPipeline()
 
     const wgpu::Device device = WebgpuHelper::GetDevice();
 
-    auto shader = CreateShader(PRESENT_SHADER);
+    auto shader = CreateShader(kPresentShader);
     MLG_CHECK(shader);
 
     m_PresentPipeline.Shader = *shader;
@@ -656,7 +678,7 @@ Renderer::CreateTransformPipeline()
         return Result<>::Ok;
     }
 
-    auto csResult = CreateShader(TRANSFORM_SHADER);
+    auto csResult = CreateShader(kTransformShader);
     MLG_CHECK(csResult);
 
     m_TransformPipeline.Shader = *csResult;
@@ -691,30 +713,11 @@ Renderer::CreateTransformPipeline()
     return Result<>::Ok;
 }
 
-Result<wgpu::ShaderModule>
-Renderer::CreateShader(const char* path)
-{
-    std::vector<uint8_t> shaderCode;
-    auto loadResult = LoadShaderCode(path, shaderCode);
-    MLG_CHECK(loadResult);
-
-    const void* data = shaderCode.data();
-    const wgpu::StringView shaderCodeView{ static_cast<const char*>(data), shaderCode.size() };
-    const wgpu::ShaderSourceWGSL wgsl{ { .nextInChain = nullptr, .code = shaderCodeView } };
-    const wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl, .label = path };
-
-    wgpu::ShaderModule shaderModule =
-        WebgpuHelper::GetDevice().CreateShaderModule(&shaderModuleDescriptor);
-    MLG_CHECK(shaderModule, "Failed to create shader module");
-
-    return shaderModule;
-}
-
 Result<>
 Renderer::TransformNodes(const wgpu::CommandEncoder& cmdEncoder,
     const TrsTransformf& camera,
     const Projection& projection,
-    const Scene& scene)
+    const Scene& scene) const
 {
     const wgpu::Device device = WebgpuHelper::GetDevice();
 

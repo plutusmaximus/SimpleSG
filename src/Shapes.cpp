@@ -8,7 +8,7 @@
 
 namespace
 {
-static constexpr float kPi = std::numbers::pi_v<float>;
+constexpr float kPi = std::numbers::pi_v<float>;
 }
 
 Shapes::Geometry
@@ -92,14 +92,14 @@ Shapes::Ball(const float radius, const float smoothness)
     // Formula: V = 10 * 4^n + 2 (for n subdivisions)
     const size_t finalTriangles = 20 * (1uz << (2 * subdivisions)); // 20 * 4^subdivisions
     const size_t finalIndices = finalTriangles * 3;
-    const size_t totalVertices = subdivisions > 0 ? 10 * (1uz << (2 * subdivisions)) + 2 : 12;
+    const size_t totalVertices = subdivisions > 0 ? (10 * (1uz << (2 * subdivisions))) + 2 : 12;
 
     vertices.reserve(totalVertices);
     indices.reserve(finalIndices);
 
     // Create icosahedron base vertices
     const float t = std::numbers::phi_v<float>; // Golden ratio
-    const float len = std::sqrt(1.0f + t * t);
+    const float len = std::sqrt(1.0f + (t * t));
     const float a = 1.0f / len;
     const float b = t / len;
 
@@ -139,7 +139,7 @@ Shapes::Ball(const float radius, const float smoothness)
     // Lambda to get or create midpoint vertex
     auto getMidpoint = [&](VertexIndex v0, VertexIndex v1) -> VertexIndex {
         // Ensure consistent ordering for the key
-        if (v0 > v1) std::swap(v0, v1);
+        if (v0 > v1) {std::swap(v0, v1);}
         const uint64_t key = (static_cast<uint64_t>(v0) << 32) | v1;
 
         auto it = midpointCache.find(key);
@@ -155,8 +155,7 @@ Shapes::Ball(const float radius, const float smoothness)
         };
 
         // Normalize to sphere
-        const float mpLen = std::sqrt(mid.x * mid.x + mid.y * mid.y + mid.z * mid.z);
-        mid.x /= mpLen; mid.y /= mpLen; mid.z /= mpLen;
+        mid = mid.Normalize();
 
         const VertexIndex newIdx = static_cast<VertexIndex>(vertices.size());
         vertices.emplace_back(Vertex{ .pos = mid, .normal{mid.x, mid.y, mid.z}, .uvs{} });
@@ -222,10 +221,10 @@ Shapes::Cylinder(const float height, const float radius, const float smoothness)
 
     // Clamp smoothness and calculate segments
     const float s = std::max(1.0f, std::min(10.0f, smoothness));
-    const uint32_t segments = static_cast<uint32_t>(8 + s * 4); // 12 to 48 segments
+    const uint32_t segments = static_cast<uint32_t>(8 + (s * 4)); // 12 to 48 segments
 
     // Reserve exact sizes
-    const uint32_t totalVertices = segments * 4 + 2; // sides + cap rings + centers
+    const uint32_t totalVertices = (segments * 4) + 2; // sides + cap rings + centers
     const uint32_t totalIndices = segments * 12; // 4 quads (2 tri each) for sides + 2 caps
     vertices.reserve(totalVertices);
     indices.reserve(totalIndices);
@@ -332,7 +331,7 @@ Shapes::Cone(const float radius1, const float radius2, const float smoothness)
 
     // Clamp smoothness and calculate segments
     const float s = std::max(1.0f, std::min(10.0f, smoothness));
-    const uint32_t segments = static_cast<uint32_t>(8 + s * 4); // 12 to 48 segments
+    const uint32_t segments = static_cast<uint32_t>(8 + (s * 4)); // 12 to 48 segments
 
     // Calculate exact sizes
     const bool hasBottomCap = radius1 > 0.0f;
@@ -340,20 +339,20 @@ Shapes::Cone(const float radius1, const float radius2, const float smoothness)
     const bool hasSideQuads = radius1 > 0.0f && radius2 > 0.0f;
 
     uint32_t totalVertices = segments * 2; // Side vertices
-    if (hasBottomCap) totalVertices += segments + 1; // Bottom cap ring + center
-    if (hasTopCap) totalVertices += segments + 1;    // Top cap ring + center
+    if (hasBottomCap) {totalVertices += segments + 1; } // Bottom cap ring + center
+    if (hasTopCap) {totalVertices += segments + 1; }    // Top cap ring + center
 
     uint32_t totalIndices = segments * 3; // At least triangular side
-    if (hasSideQuads) totalIndices += segments * 3; // Additional triangles for quads
-    if (hasBottomCap) totalIndices += segments * 3;
-    if (hasTopCap) totalIndices += segments * 3;
+    if (hasSideQuads) {totalIndices += segments * 3; } // Additional triangles for quads
+    if (hasBottomCap) {totalIndices += segments * 3; }
+    if (hasTopCap) {totalIndices += segments * 3; }
 
     vertices.reserve(totalVertices);
     indices.reserve(totalIndices);
 
     // Calculate slant normal for the cone's side
     const float dr = radius2 - radius1;
-    const float slantLength = std::sqrt(dr * dr + height * height);
+    const float slantLength = std::sqrt((dr * dr) + (height * height));
     const float normalY = dr / slantLength;
     const float normalXZ = height / slantLength;
 
@@ -469,10 +468,7 @@ Shapes::Cone(const float radius1, const float radius2, const float smoothness)
 }
 
 Shapes::Geometry
-Shapes::Torus(
-    const float ringRadius,
-    const float tubeRadius,
-    const float smoothness)
+Shapes::Torus(const float ringRadius, const float tubeRadius, const float smoothness)
 {
     MLG_ASSERT(ringRadius >= 0);
     MLG_ASSERT(tubeRadius > 0);
@@ -531,7 +527,7 @@ Shapes::Torus(
             const float sinPhi = sinPhiCache[j];
 
             // Vertex position (left-handed)
-            const float distanceFromCenter = ringRadius + tubeRadius * cosPhi;
+            const float distanceFromCenter = ringRadius + (tubeRadius * cosPhi);
             const float x = distanceFromCenter * cosTheta;
             const float y = distanceFromCenter * sinTheta;
             const float z = tubeRadius * sinPhi;

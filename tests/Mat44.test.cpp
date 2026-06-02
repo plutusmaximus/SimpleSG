@@ -379,8 +379,12 @@ TEST(Mat44f, Inverse_NonAffine)
     const Mat44f I = M * inv;
     // The product should be close to identity
     for (size_t i = 0; i < 4; ++i)
+    {
         for (size_t j = 0; j < 4; ++j)
+        {
             EXPECT_NEAR(I[i][j], (i == j) ? 1.0f : 0.0f, 1e-3f);
+        }
+    }
 }
 
 TEST(Mat44f, Inverse_Random)
@@ -395,8 +399,12 @@ TEST(Mat44f, Inverse_Random)
     const Mat44f inv = M.Inverse();
     const Mat44f I = M * inv;
     for (size_t i = 0; i < 4; ++i)
+    {
         for (size_t j = 0; j < 4; ++j)
+        {
             EXPECT_NEAR(I[i][j], (i == j) ? 1.0f : 0.0f, 1e-3f);
+        }
+    }
 }
 
 TEST(Mat44f, InverseAffine_Basic)
@@ -411,8 +419,12 @@ TEST(Mat44f, InverseAffine_Basic)
     const Mat44f inv = M.InverseAffine();
     const Mat44f I = M * inv;
     for (size_t i = 0; i < 4; ++i)
+    {
         for (size_t j = 0; j < 4; ++j)
+        {
             EXPECT_NEAR(I[i][j], (i == j) ? 1.0f : 0.0f, 1e-4f);
+        }
+    }
 }
 
 TEST(Mat44f, InverseAffine_NonInvertible)
@@ -427,8 +439,12 @@ TEST(Mat44f, InverseAffine_NonInvertible)
     const Mat44f inv = M.InverseAffine();
     // Should return zero matrix
     for (size_t i = 0; i < 4; ++i)
+    {
         for (size_t j = 0; j < 4; ++j)
+        {
             EXPECT_FLOAT_EQ(inv[i][j], 0.0f);
+        }
+    }
 }
 
 TEST(Mat44f, InverseAffine_TranslationOnly)
@@ -441,8 +457,12 @@ TEST(Mat44f, InverseAffine_TranslationOnly)
     const Mat44f inv = M.InverseAffine();
     const Mat44f I = M * inv;
     for (size_t i = 0; i < 4; ++i)
+    {
         for (size_t j = 0; j < 4; ++j)
+        {
             EXPECT_NEAR(I[i][j], (i == j) ? 1.0f : 0.0f, 1e-5f);
+        }
+    }
 }
 
 TEST(Mat44f, PerspectiveLH)

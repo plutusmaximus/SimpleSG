@@ -280,7 +280,7 @@ SemanticGpuBuffer<T>::Store(std::size_t index, std::span<const T> values)
 {
     const size_t offset = index * sizeof(T);
 
-    MLG_ASSERT((offset + values.size() * sizeof(T)) <= BufferSize(), "Index out of bounds");
+    MLG_ASSERT((offset + (values.size() * sizeof(T))) <= BufferSize(), "Index out of bounds");
 
     WebgpuHelper::GetDevice().GetQueue().WriteBuffer(GetGpuBuffer(),
         offset,

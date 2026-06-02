@@ -1,4 +1,5 @@
 #include "Compositor.h"
+#include "FileFetcher.h"
 #include "GltfLoader.h"
 #include "ImGuiRenderer.h"
 #include "Level.h"
@@ -31,15 +32,22 @@ Startup()
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
-    ThreadPool::Startup();
+    MLG_CHECK(ThreadPool::Startup());
     defer_as(failure)
     {
         ThreadPool::Shutdown();
     };
 
+    MLG_CHECK(FileFetcher::Startup());
+    defer_as(fileFetcherShutdown)
+    {
+        FileFetcher::Shutdown();
+    };
+
     MLG_CHECK(WebgpuHelper::Startup(APP_NAME));
 
     failure.release(); // Success, prevent shutdown in defer.
+    fileFetcherShutdown.release();
 
     return Result<>::Ok;
 }
@@ -48,6 +56,7 @@ static void
 Shutdown()
 {
     WebgpuHelper::Shutdown();
+    FileFetcher::Shutdown();
     ThreadPool::Shutdown();
 }
 

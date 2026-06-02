@@ -10,7 +10,7 @@
 
 namespace
 {
-static constexpr std::size_t kMaxWorkerThreads = 32;
+constexpr size_t kMaxWorkerThreads = 32;
 
 struct TPGlobals
 {
@@ -19,16 +19,23 @@ struct TPGlobals
     static inline std::condition_variable ThreadPoolCv;
     static inline std::atomic<bool> Running{false};
     static inline std::array<std::thread, kMaxWorkerThreads> WorkerThreadPool;
-    static inline const std::size_t ThreadCount = []{
-        const std::size_t hardwareThreadCount = std::thread::hardware_concurrency();
+    static inline const size_t ThreadCount = []{
+        const size_t hardwareThreadCount = std::thread::hardware_concurrency();
         if(hardwareThreadCount == 0)
         {
-            return std::size_t{4};
+            return size_t{4};
         }
 
         return hardwareThreadCount > kMaxWorkerThreads ? kMaxWorkerThreads : hardwareThreadCount;
     }();
     static inline std::span<std::thread> WorkerThreads{WorkerThreadPool.data(), ThreadCount};
+
+    static Result<> VerifyStarted()
+    {
+        MLG_CHECKV(Running.load(), "ThreadPool not initialized - call Startup()");
+
+        return Result<>::Ok;
+    }
 };
 } // namespace
 
@@ -39,7 +46,7 @@ ThreadPool::Job* ThreadPool::s_JobPoolFreeList{ nullptr };
 ThreadPool::Job *ThreadPool::s_JobQueueHead{ nullptr };
 ThreadPool::Job *ThreadPool::s_JobQueueTail{ nullptr };
 
-void
+Result<>
 ThreadPool::Startup()
 {
     const std::lock_guard<std::mutex> lock(TPGlobals::JobQueueMutex);
@@ -47,7 +54,7 @@ ThreadPool::Startup()
     bool expected = false;
     if(!TPGlobals::Running.compare_exchange_strong(expected, true))
     {
-        return; // already running
+        return Result<>::Ok; // already running
     }
 
     for(std::thread& worker : TPGlobals::WorkerThreads)
@@ -60,6 +67,8 @@ ThreadPool::Startup()
         job.m_Next = s_JobPoolFreeList;
         s_JobPoolFreeList = &job;
     }
+
+    return Result<>::Ok;
 }
 
 void
@@ -113,6 +122,11 @@ ThreadPool::Shutdown()
 bool
 ThreadPool::Enqueue(void (*jobFunc)(void*), void* userData)
 {
+    if(!TPGlobals::VerifyStarted())
+    {
+        return false;
+    }
+
     Job *job = NewJob();
 
     if(!MLG_VERIFY(job, "Failed to allocate job for ThreadPool.  Max jobs: {}", kMaxJobs))
@@ -143,7 +157,7 @@ ThreadPool::NewJob()
 {
     const std::lock_guard<std::mutex> lock(TPGlobals::AllocMutex);
 
-    if(!MLG_VERIFY(TPGlobals::Running.load(), "ThreadPool is not running"))
+    if(!TPGlobals::VerifyStarted())
     {
         return nullptr;
     }

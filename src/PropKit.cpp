@@ -86,7 +86,7 @@ StageTexture(TextureBuilder& builder)
 
     auto decode = [](void* userData)
     {
-        auto texBuilder = static_cast<TextureBuilder*>(userData);
+        TextureBuilder* texBuilder = static_cast<TextureBuilder*>(userData);
         MLG_LOG_SCOPE(texBuilder->Uri);
 
         MLG_DEBUG("Decoding...");

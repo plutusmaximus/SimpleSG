@@ -557,7 +557,7 @@ CollectNodes(const cgltf_data* gltfData,
 {
     const std::span<const cgltf_scene> scenesSpan(gltfData->scenes, gltfData->scenes_count);
 
-    MLG_CHECK(scenesSpan.size() > 0, "No scenes found");
+    MLG_CHECK(!scenesSpan.empty(), "No scenes found");
     MLG_CHECK(scenesSpan.size() == 1, "Multiple scenes found, only one scene is supported");
 
     const cgltf_scene& scene = scenesSpan[0];

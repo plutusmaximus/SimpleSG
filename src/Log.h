@@ -46,7 +46,7 @@ public:
         Logger& operator=(Logger&&) = delete;
 
         template<typename... Args>
-        inline void Log(const Level level, std::format_string<Args...> fmt, Args&&... args)
+        void Log(const Level level, std::format_string<Args...> fmt, Args&&... args)
         {
             LogImpl(level, Prefix(std::format(fmt, std::forward<Args>(args)...)));
         }
@@ -67,12 +67,12 @@ public:
 
     /// Log an assertion failure
     template<typename... Args>
-    static inline void Assert(std::format_string<Args...> fmt, Args&&... args)
+    static void Assert(std::format_string<Args...> fmt, Args&&... args)
     {
         s_AssertLogger.Log(Log::Level::Error, std::format(fmt, std::forward<Args>(args)...));
     }
 
-    static inline void Assert(const std::string& message)
+    static void Assert(const std::string& message)
     {
         s_AssertLogger.Log(Log::Level::Error, message);
     }

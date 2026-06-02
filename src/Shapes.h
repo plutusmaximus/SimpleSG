@@ -31,8 +31,8 @@ public:
         auto get() const noexcept -> std::conditional_t<I == 0, std::span<const Vertex>, std::span<const VertexIndex>>
         {
             static_assert(I < 2);
-            if constexpr (I == 0) return std::span(m_Vertices);
-            else if constexpr (I == 1) return std::span(m_Indices);
+            if constexpr (I == 0) {return std::span(m_Vertices);}
+            else if constexpr (I == 1) {return std::span(m_Indices);}
         }
 
     private:
@@ -50,24 +50,24 @@ public:
     static Geometry Box(const float width, const float height, const float depth);
 
     // Smoothness controls tessellation (1-10, higher = smoother)
-    static Geometry Ball(const float diameter, const float smoothness);
+    static Geometry Ball(const float radius, const float smoothness);
 
     // Height along Y axis, centered at origin
     // Smoothness controls tessellation (1-10, higher = smoother)
-    static Geometry Cylinder(const float height, const float diameter, const float smoothness);
+    static Geometry Cylinder(const float height, const float radius, const float smoothness);
 
-    // Generate a truncated cone with two diameters.
-    // diameter1 = bottom diameter, diameter2 = top diameter.
+    // Generate a truncated cone with two radii.
+    // radius1 = bottom radius, radius2 = top radius.
     // Height = 1.0, along Y axis, centered at origin.
-    // Pass zero for one of the diameters to produce a pure cone.
-    static Geometry Cone(const float diameter1, const float diameter2, const float smoothness);
+    // Pass zero for one of the radii to produce a pure cone.
+    static Geometry Cone(const float radius1, const float radius2, const float smoothness);
 
     // smoothness controls tessellation (1-10)
-    // ringDiameter > tubeDiameter - Classic donut shape.
-    // ringDiameter == tubeDiameter - Horn torus.
-    // ringDiameter < tubeDiameter - Spindle torus (some geometry is overlapping).
-    // ringDiameter == 0 - Sphere of radius == tubeRadius.
-    static Geometry Torus(const float ringDiameter, const float tubeDiameter, const float smoothness);
+    // ringRadius > tubeRadius - Classic donut shape.
+    // ringRadius == tubeRadius - Horn torus.
+    // ringRadius < tubeRadius - Spindle torus (some geometry is overlapping).
+    // ringRadius == 0 - Sphere of radius == tubeRadius.
+    static Geometry Torus(const float ringRadius, const float tubeRadius, const float smoothness);
 };
 
 // Specializations to enable structured binding for Shapes::Geometry.

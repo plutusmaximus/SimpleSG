@@ -78,12 +78,12 @@ WalkMouseNav::Update(const float deltaSeconds)
         float rotX = m_MouseDelta.y * m_MouseMoveRotScale;
         float rotY = m_MouseDelta.x * m_MouseMoveRotScale;
 
-        constexpr float PI = std::numbers::pi_v<float>;
+        constexpr float kHalfPi = std::numbers::pi_v<float> * 0.5f;
 
-        rotX = std::max(rotX, -(PI / 2 - 0.01f));
-        rotX = std::min(rotX, PI / 2 - 0.01f);
-        rotY = std::max(rotY, -(PI / 2 - 0.01f));
-        rotY = std::min(rotY, PI / 2 - 0.01f);
+        rotX = std::max(rotX, -(kHalfPi - 0.01f));
+        rotX = std::min(rotX, kHalfPi - 0.01f);
+        rotY = std::max(rotY, -(kHalfPi - 0.01f));
+        rotY = std::min(rotY, kHalfPi - 0.01f);
         const UnitQuatf pitch = UnitQuatf(Radiansf(rotX), Vec3f::XAXIS());
         const UnitQuatf yaw = UnitQuatf(Radiansf(rotY), Vec3f::YAXIS());
 
@@ -115,11 +115,11 @@ WalkMouseNav::Update(const float deltaSeconds)
         m_TargetTransform.T += moveDelta;
     }
 
-    constexpr float TRANSFORM_TIME_TO_TARGET = 0.1f;
-    //constexpr float ROTATION_TIME_TO_TARGET = 0.01f;
+    constexpr float kTransformTimeToTarget = 0.1f;
+    //constexpr float kRotationTimeToTarget = 0.01f;
 
-    const float dtT = deltaSeconds / TRANSFORM_TIME_TO_TARGET;
-    //const float dtR = deltaSeconds / ROTATION_TIME_TO_TARGET;
+    const float dtT = deltaSeconds / kTransformTimeToTarget;
+    //const float dtR = deltaSeconds / kRotationTimeToTarget;
 
     m_CurrentTransform.T = m_CurrentTransform.T.Lerp(m_TargetTransform.T, dtT);
     //m_CurrentTransform.R = m_CurrentTransform.R.Lerp(m_TargetTransform.R, dtR);

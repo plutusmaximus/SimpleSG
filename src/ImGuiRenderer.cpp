@@ -72,7 +72,7 @@ ImGuiRenderer::Shutdown()
 }
 
 Result<>
-ImGuiRenderer::NewFrame()
+ImGuiRenderer::NewFrame() const
 {
     MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
 
@@ -84,7 +84,7 @@ ImGuiRenderer::NewFrame()
 }
 
 Result<>
-ImGuiRenderer::Render(Compositor& renderCompositor)
+ImGuiRenderer::Render(Compositor& renderCompositor) const
 {
     MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
 

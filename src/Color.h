@@ -54,7 +54,7 @@ using RgbaColoru8 = RgbaColor<uint8_t>;
 
 /// @brief Specialization for uint8_t with default alpha of 255.
 template<>
-inline constexpr RgbaColor<uint8_t>::RgbaColor(const uint8_t inR, const uint8_t inG, const uint8_t inB) noexcept
+constexpr RgbaColor<uint8_t>::RgbaColor(const uint8_t inR, const uint8_t inG, const uint8_t inB) noexcept
     : RgbaColor<uint8_t>(inR, inG, inB, kMaxValue)
 {
 }
@@ -62,7 +62,7 @@ inline constexpr RgbaColor<uint8_t>::RgbaColor(const uint8_t inR, const uint8_t 
 /// @brief Specialization for converting from float to uint8_t.
 template<>
 template<>
-inline RgbaColor<uint8_t>::RgbaColor(const RgbaColor<float>& other) noexcept
+constexpr RgbaColor<uint8_t>::RgbaColor(const RgbaColor<float>& other) noexcept
     : r(Clamp(other.r * kMaxValue))
     , g(Clamp(other.g * kMaxValue))
     , b(Clamp(other.b * kMaxValue))
@@ -72,7 +72,7 @@ inline RgbaColor<uint8_t>::RgbaColor(const RgbaColor<float>& other) noexcept
 
 /// @brief Specialization for float with clamping between 0.0 and 1.0.
 template<>
-inline constexpr RgbaColor<float>::RgbaColor(const float inR, const float inG, const float inB, const float inA) noexcept
+constexpr RgbaColor<float>::RgbaColor(const float inR, const float inG, const float inB, const float inA) noexcept
     : r(Clamp(inR)), g(Clamp(inG)), b(Clamp(inB)), a(Clamp(inA))
 {
     MLG_ASSERT(inR >= kMinValue && inR <= kMaxValue);
@@ -84,7 +84,7 @@ inline constexpr RgbaColor<float>::RgbaColor(const float inR, const float inG, c
 /// @brief Specialization for converting from uint8_t to float.
 template<>
 template<>
-inline RgbaColor<float>::RgbaColor(const RgbaColor<uint8_t>& other) noexcept
+constexpr RgbaColor<float>::RgbaColor(const RgbaColor<uint8_t>& other) noexcept
     : r(Clamp(static_cast<float>(other.r) / RgbaColor<uint8_t>::kMaxValue))
     , g(Clamp(static_cast<float>(other.g) / RgbaColor<uint8_t>::kMaxValue))
     , b(Clamp(static_cast<float>(other.b) / RgbaColor<uint8_t>::kMaxValue))
@@ -120,9 +120,18 @@ constexpr RgbaColor<uint8_t> operator""_rgba(const char* str, const size_t len)
 {
     auto from_hex = [](char c) -> uint8_t
     {
-        if (c >= '0' && c <= '9') return static_cast<uint8_t>(c - '0');
-        if (c >= 'a' && c <= 'f') return static_cast<uint8_t>(c - 'a' + 10);
-        if (c >= 'A' && c <= 'F') return static_cast<uint8_t>(c - 'A' + 10);
+        if(c >= '0' && c <= '9')
+        {
+            return static_cast<uint8_t>(c - '0');
+        }
+        if(c >= 'a' && c <= 'f')
+        {
+            return static_cast<uint8_t>(c - 'a' + 10);
+        }
+        if(c >= 'A' && c <= 'F')
+        {
+            return static_cast<uint8_t>(c - 'A' + 10);
+        }
         return 0;
     };
 
