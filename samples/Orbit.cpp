@@ -105,6 +105,8 @@ Result<> RenderGui(const PhysicsLevel& physLevel, const float totalPotentialEner
 
     ImGui::End();
 
+    //ImGui::ShowDemoWindow();
+
     return Result<>::Ok;
 }
 
@@ -529,6 +531,8 @@ MainLoop()
 
         while(minimized && running && SDL_PollEvent(&event))
         {
+            ImGui_ImplSDL3_ProcessEvent(&event);
+            
             switch(event.type)
             {
                 case SDL_EVENT_WINDOW_RESTORED:
@@ -549,6 +553,8 @@ MainLoop()
 
         while(!minimized && running && SDL_PollEvent(&event))
         {
+            ImGui_ImplSDL3_ProcessEvent(&event);
+
             switch (event.type)
             {
             case SDL_EVENT_QUIT:
