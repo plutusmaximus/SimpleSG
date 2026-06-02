@@ -10,11 +10,10 @@ class Mass
 {
 public:
     Mass() = delete;
-    constexpr explicit Mass(float value)
-        : m_Value(value)
+    constexpr explicit Mass(const float value)
+        : m_Value(MLG_VERIFY(value > 0.0f, "Mass must be positive") ? value : 0.0f),
+          m_InvValue(value > 0.0f ? 1.0f / m_Value : 0.0f)
     {
-        MLG_ASSERT(value > 0.0f, "Mass must be positive");
-        m_InvValue = 1.0f / value;
     }
 
     constexpr float Value() const { return m_Value; }

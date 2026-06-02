@@ -100,17 +100,21 @@ struct ImpactRecord
 /// and hashes bodies into the cells they occupy.
 class GridHash
 {
+    static size_t ValidateCellSize(const size_t cellSize)
+    {
+        MLG_ASSERT(cellSize > 0, "Cell size must be greater than 0");
+        MLG_ASSERT(cellSize < 256, "Cell size must be less than 256");
+        return cellSize;
+    }
+
 public:
     // Arbitrary limit to prevent excessive cell counts for large bodies.
     static constexpr size_t kMaxCellsPerBody = 1000;
 
     explicit GridHash(const size_t cellSize)
-    : m_CellSize(cellSize)
+        : m_CellSize(ValidateCellSize(cellSize)),
+          m_InvCellSize(cellSize > 0 ? 1.0f / static_cast<float>(cellSize) : 0.0f)
     {
-        MLG_ASSERT(cellSize > 0, "Cell size must be greater than 0");
-        MLG_ASSERT(cellSize < 256, "Cell size is >= 256 - was that intentional?");
-
-        m_InvCellSize = 1.0f / static_cast<float>(cellSize);
     }
 
     GridHash() = delete;

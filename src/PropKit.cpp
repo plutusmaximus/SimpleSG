@@ -7,6 +7,7 @@
 #include "FileFetcher.h"
 #include "Log.h"
 #include "narrow_cast.h"
+#include "scope_exit.h"
 #include "Stopwatch.h"
 #include "TextureCache.h"
 #include "ThreadPool.h"
@@ -41,10 +42,77 @@ public:
     TextureBuilder(TextureBuilder&&) = default;
     TextureBuilder& operator=(TextureBuilder&&) = default;
 
+    void Decode()
+    {
+        DecodeResult = Decode(*this);
+    }
+
+    static Result<> Decode(const TextureBuilder& builder)
+    {
+        defer
+        {
+            const unsigned oldValue = builder.StageCounter->fetch_sub(1, std::memory_order_acq_rel);
+            if(oldValue == 1)
+            {
+                // Last staging finished, signal completion.
+                builder.StageCounter->notify_all();
+            }
+        };
+
+        MLG_LOG_SCOPE(builder.Uri);
+
+        MLG_DEBUG("Decoding...");
+
+        int imgWidth = 0, imgHeight = 0, imgNumChannels = 0;
+        stbi_uc* data = stbi_load_from_memory(builder.Request->GetData().data(),
+            narrow_cast<int>(builder.Request->GetData().size()),
+            &imgWidth,
+            &imgHeight,
+            &imgNumChannels,
+            kNumTextureChannels);
+
+        MLG_CHECKV(data, "Failed to decode image {} - {}", builder.Uri, stbi_failure_reason());
+
+        defer{ stbi_image_free(data); };
+
+        MLG_CHECKV(builder.Texture.GetWidth() == static_cast<uint32_t>(imgWidth) &&
+                       builder.Texture.GetHeight() == static_cast<uint32_t>(imgHeight),
+            "Decoded image dimensions do not match texture dimensions - {}",
+            builder.Uri);
+
+        MLG_CHECKV(builder.Texture.GetFormat() == wgpu::TextureFormat::RGBA8Unorm,
+            "Texture format does not match expected format - {}",
+            builder.Uri);
+
+        const size_t sizeofData = static_cast<size_t>(imgWidth) * static_cast<size_t>(imgHeight) *
+                                  static_cast<size_t>(kNumTextureChannels);
+
+        const size_t expectedSize = static_cast<size_t>(builder.Texture.GetWidth()) *
+                                                    static_cast<size_t>(builder.Texture.GetHeight()) *
+                                                    static_cast<size_t>(kNumTextureChannels);
+
+        MLG_CHECKV(sizeofData == expectedSize,
+            "Decoded image size does not match texture size - {}",
+            builder.Uri);
+
+        const std::span<const stbi_uc> srcSpan(data, sizeofData);
+        const std::span<std::byte> dstSpan(builder.MappedMemory, sizeofData);
+        size_t dstOffset = 0, srcOffset = 0;
+        const size_t srcRowStride = static_cast<size_t>(imgWidth) * kNumTextureChannels;
+        const size_t dstRowStride = (srcRowStride + 255) & ~255uz;
+        for(int y = 0; y < imgHeight; ++y, dstOffset += dstRowStride, srcOffset += srcRowStride)
+        {
+            ::memcpy(&dstSpan[dstOffset], &srcSpan[srcOffset], srcRowStride);
+        }
+
+        return Result<>::Ok;
+    }
+
     std::string Uri;
     const FileFetcher::Request* Request{ nullptr };
     Texture Texture;
     std::byte* MappedMemory{ nullptr };
+    Result<> DecodeResult;
 
     // Counter to track how many staging operations have completed.
     std::atomic<unsigned>* StageCounter{ nullptr };
@@ -87,64 +155,7 @@ StageTexture(TextureBuilder& builder)
     auto decode = [](void* userData)
     {
         TextureBuilder* texBuilder = static_cast<TextureBuilder*>(userData);
-        MLG_LOG_SCOPE(texBuilder->Uri);
-
-        MLG_DEBUG("Decoding...");
-
-        int imgWidth = 0, imgHeight = 0, imgNumChannels = 0;
-        stbi_uc* data = stbi_load_from_memory(texBuilder->Request->GetData().data(),
-            narrow_cast<int>(texBuilder->Request->GetData().size()),
-            &imgWidth,
-            &imgHeight,
-            &imgNumChannels,
-            kNumTextureChannels);
-
-        if(!data)
-        {
-            MLG_ERROR("Error decoding - {}", stbi_failure_reason());
-        }
-        else
-        {
-            MLG_ASSERT(texBuilder->Texture.GetWidth() == static_cast<uint32_t>(imgWidth) &&
-                texBuilder->Texture.GetHeight() == static_cast<uint32_t>(imgHeight),
-                "Decoded image dimensions do not match texture dimensions - {}",
-                texBuilder->Uri);
-
-            MLG_ASSERT(texBuilder->Texture.GetFormat() == wgpu::TextureFormat::RGBA8Unorm,
-                "Texture format does not match expected format - {}",
-                texBuilder->Uri);
-
-            const size_t sizeofData = static_cast<size_t>(imgWidth) *
-                                      static_cast<size_t>(imgHeight) *
-                                      static_cast<size_t>(kNumTextureChannels);
-
-            const size_t expectedSize = static_cast<size_t>(texBuilder->Texture.GetWidth()) *
-                                       static_cast<size_t>(texBuilder->Texture.GetHeight()) *
-                                       static_cast<size_t>(kNumTextureChannels);
-
-            MLG_ASSERT(sizeofData == expectedSize,
-                "Decoded image size does not match texture size - {}",
-                texBuilder->Uri);
-
-            const std::span<const stbi_uc> srcSpan(data, sizeofData);
-            const std::span<std::byte> dstSpan(texBuilder->MappedMemory, sizeofData);
-            size_t dstOffset = 0, srcOffset = 0;
-            const size_t srcRowStride = static_cast<size_t>(imgWidth) * kNumTextureChannels;
-            const size_t dstRowStride = (srcRowStride + 255) & ~255uz;
-            for(int y = 0; y < imgHeight; ++y, dstOffset += dstRowStride, srcOffset += srcRowStride)
-            {
-                ::memcpy(&dstSpan[dstOffset], &srcSpan[srcOffset], srcRowStride);
-            }
-
-            stbi_image_free(data);
-        }
-
-        const unsigned oldValue = texBuilder->StageCounter->fetch_sub(1, std::memory_order_acq_rel);
-        if(oldValue == 1)
-        {
-            // Last staging finished, signal completion.
-            texBuilder->StageCounter->notify_all();
-        }
+        texBuilder->Decode();
     };
 
     ThreadPool::Enqueue(decode, &builder);
@@ -274,11 +285,13 @@ FetchTextures(const std::filesystem::path& basePath,
     {
         MLG_LOG_SCOPE(builder.Uri);
 
-        builder.Texture.Unmap(encoder);
-    }
+        if(!builder.DecodeResult)
+        {
+            MLG_ERROR("Failed to decode texture: {}", builder.Uri);
+            continue;
+        }
 
-    for(auto& builder : textureBuilders)
-    {
+        builder.Texture.Unmap(encoder);
         textureCache.AddOrReplace(builder.Uri, builder.Texture);
     }
 
