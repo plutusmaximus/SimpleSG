@@ -22,9 +22,11 @@
 #include <SDL3/SDL_mouse.h>
 #include <thread>
 
-static constexpr const char* APP_NAME = "Viewer";
+namespace
+{
+constexpr const char* APP_NAME = "Viewer";
 
-static Result<>
+Result<>
 Startup()
 {
     Log::SetLevel(Log::Level::Trace);
@@ -52,7 +54,7 @@ Startup()
     return Result<>::Ok;
 }
 
-static void
+void
 Shutdown()
 {
     WebgpuHelper::Shutdown();
@@ -60,9 +62,37 @@ Shutdown()
     ThreadPool::Shutdown();
 }
 
-static Result<> RenderGui();
+Result<> RenderGui()
+{
+#if defined (NDEBUG)
+    constexpr const char* buildType = "Release";
+#else
+    constexpr const char* buildType = "Debug";
+#endif
 
-static Result<>
+    constexpr const char* backend = "Dawn";
+
+    auto title = std::format("Timers: {}/{}", buildType, backend);
+
+    ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
+    ImGui::Begin(title.c_str());
+
+    PerfTimerStats timerStats[256];
+    std::span<PerfTimerStats> timerStatsSpan(timerStats);
+    const size_t timerCount = PerfMetrics::SampleTimers(timerStatsSpan);
+    for(const auto& timerStat : timerStatsSpan.first(timerCount))
+    {
+        const std::string text =
+            std::format("{}: {:.3f} ms", timerStat.GetName(), timerStat.GetEMA() * 1000.0f);
+        ImGui::TextUnformatted(text.c_str());
+    }
+
+    ImGui::End();
+
+    return Result<>::Ok;
+}
+
+Result<>
 Load(const std::filesystem::path& path,
     TextureCache& textureCache,
     PropKit& outPropKit,
@@ -91,12 +121,12 @@ Load(const std::filesystem::path& path,
 }
 
 #ifdef _WIN32
-[[maybe_unused]] static constexpr const char* SPONZA_MODEL_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
+constexpr const char* SPONZA_MODEL_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
 #else
-[[maybe_unused]] static constexpr const char* SPONZA_MODEL_PATH = "../../assets/main_sponza/NewSponza_Main_glTF_003.gltf";
+constexpr const char* SPONZA_MODEL_PATH = "../../assets/main_sponza/NewSponza_Main_glTF_003.gltf";
 #endif
 
-static Result<>
+Result<>
 MainLoop()
 {
     bool running = true;
@@ -282,36 +312,7 @@ MainLoop()
 
     return Result<>::Ok;
 }
-
-static Result<> RenderGui()
-{
-#if defined (NDEBUG)
-    constexpr const char* buildType = "Release";
-#else
-    constexpr const char* buildType = "Debug";
-#endif
-
-    constexpr const char* backend = "Dawn";
-
-    auto title = std::format("Timers: {}/{}", buildType, backend);
-
-    ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
-    ImGui::Begin(title.c_str());
-
-    PerfTimerStats timerStats[256];
-    std::span<PerfTimerStats> timerStatsSpan(timerStats);
-    const size_t timerCount = PerfMetrics::SampleTimers(timerStatsSpan);
-    for(const auto& timerStat : timerStatsSpan.first(timerCount))
-    {
-        const std::string text =
-            std::format("{}: {:.3f} ms", timerStat.GetName(), timerStat.GetEMA() * 1000.0f);
-        ImGui::TextUnformatted(text.c_str());
-    }
-
-    ImGui::End();
-
-    return Result<>::Ok;
-}
+} // namespace
 
 int main(int /*argc*/, char** /*argv*/)
 {

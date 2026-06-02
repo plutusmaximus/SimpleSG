@@ -2,7 +2,6 @@ Checks: >
   -*,
   clang-analyzer-*,
     -clang-analyzer-optin.core.EnumCastOutOfRange,
-    -clang-analyzer-alpha.*,
   bugprone-*,
     -bugprone-random-generator-seed,
     -bugprone-easily-swappable-parameters,

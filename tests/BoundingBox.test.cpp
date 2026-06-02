@@ -4,7 +4,9 @@
 
 #include <vector>
 
-static Vertex
+namespace
+{
+Vertex
 MakeVertex(const Vec3f& p)
 {
     Vertex v{};
@@ -14,13 +16,14 @@ MakeVertex(const Vec3f& p)
     return v;
 }
 
-static void
+void
 ExpectVec3Eq(const Vec3f& actual, const Vec3f& expected)
 {
     EXPECT_FLOAT_EQ(actual.x, expected.x);
     EXPECT_FLOAT_EQ(actual.y, expected.y);
     EXPECT_FLOAT_EQ(actual.z, expected.z);
 }
+} // namespace
 
 TEST(Box, DefaultConstructor_InitializesToZero)
 {

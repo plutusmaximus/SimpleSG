@@ -2,6 +2,8 @@
 
 #include "SemanticInteger.h"
 
+namespace
+{
 struct TagA {};
 struct TagB {};
 
@@ -9,6 +11,7 @@ using IdA = SemanticInteger<TagA>;
 using IdB = SemanticInteger<TagB>;
 using SmallId = SemanticInteger<TagA, uint8_t>;
 using SignedId = SemanticInteger<TagA, int32_t>;
+} // namespace
 
 // --- Construction ---
 

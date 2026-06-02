@@ -19,13 +19,89 @@
 #include <SDL3/SDL.h>
 #include <thread>
 
-static Result<> CreateTriangleModel(PropKitDef& outPropKit, LevelDef& outLevelDef);
-
+namespace
+{
 constexpr const char* kAppName = "Triangle";
 
-static Result<> RenderGui();
+Result<> RenderGui()
+{
+    ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
+    ImGui::Begin("Timers");
 
-static Result<> MainLoop()
+    PerfTimerStats timerStats[256];
+    std::span<PerfTimerStats> timerStatsSpan(timerStats);
+    const size_t timerCount = PerfMetrics::SampleTimers(timerStatsSpan);
+    for(const auto& timerStat : timerStatsSpan.first(timerCount))
+    {
+        const std::string text =
+            std::format("{}: {:.3f} ms", timerStat.GetName(), timerStat.GetEMA() * 1000.0f);
+        ImGui::Text("%s", text.c_str()); // NOLINT(cppcoreguidelines-pro-type-vararg)
+    }
+
+    ImGui::End();
+
+    return Result<>::Ok;
+}
+
+Result<> CreateTriangleModel(PropKitDef& outPropKit, LevelDef& outLevelDef)
+{
+    std::vector<Vertex> triangleVertices = //
+        {
+            { .pos{ 0.0f, 0.5f, 0.0f }, .normal{ 0.0f, 0.0f, -1.0f }, .uvs{{ .u = 1, .v = 1 }} },  // 0
+            { .pos{ 0.5f, 0.0f, 0.0f }, .normal{ 0.0f, 0.0f, -1.0f }, .uvs{{ .u = 0, .v = 1 }} },  // 1
+            { .pos{ -0.5f, 0.0f, 0.0f }, .normal{ 0.0f, 0.0f, -1.0f }, .uvs{{ .u = 0, .v = 0 }} }, // 2
+        };
+
+    std::vector<VertexIndex> triangleIndices = { 0, 1, 2 };
+
+    MaterialDef mtlDef //
+        {
+            .BaseTextureUri{ "images/Ant.png" },
+            .Color{ "#FFA500"_rgba },
+            .Metalness = 0,
+            .Roughness = 0,
+        };
+
+    MeshDef meshDef //
+        {
+            .Vertices{ std::move(triangleVertices) },
+            .Indices{ std::move(triangleIndices) },
+            .MaterialDef{ std::move(mtlDef) },
+        };
+
+    ModelDef modelDef //
+        {
+            .Name{ "Triangle" },
+            .MeshDefs{ std::move(meshDef) },
+        };
+
+    PropKitDef propKitDef //
+        {
+            .ModelDefs{ std::move(modelDef) },
+        };
+
+    LevelDef levelDef //
+        {
+            .NodeDefs //
+            {
+                {
+                    .Name{ "TriangleNode" },
+                    .Transform{},
+                    .Components//
+                    {
+                        .Model = ModelRef{.Name = "Triangle"},
+                    },
+                },
+            },
+        };
+
+    outPropKit = std::move(propKitDef);
+    outLevelDef = std::move(levelDef);
+
+    return Result<>::Ok;
+}
+
+Result<> MainLoop()
 {
     Log::SetLevel(Log::Level::Trace);
 
@@ -200,88 +276,11 @@ static Result<> MainLoop()
 
     return Result<>::Ok;
 }
+} // namespace
 
 int main(int /*argc*/, char** /*argv*/)
 {
     MainLoop();
 
     return 0;
-}
-
-static Result<> RenderGui()
-{
-    ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
-    ImGui::Begin("Timers");
-
-    PerfTimerStats timerStats[256];
-    std::span<PerfTimerStats> timerStatsSpan(timerStats);
-    const size_t timerCount = PerfMetrics::SampleTimers(timerStatsSpan);
-    for(const auto& timerStat : timerStatsSpan.first(timerCount))
-    {
-        const std::string text =
-            std::format("{}: {:.3f} ms", timerStat.GetName(), timerStat.GetEMA() * 1000.0f);
-        ImGui::Text("%s", text.c_str()); // NOLINT(cppcoreguidelines-pro-type-vararg)
-    }
-
-    ImGui::End();
-
-    return Result<>::Ok;
-}
-
-static Result<> CreateTriangleModel(PropKitDef& outPropKit, LevelDef& outLevelDef)
-{
-    std::vector<Vertex> triangleVertices = //
-        {
-            { .pos{ 0.0f, 0.5f, 0.0f }, .normal{ 0.0f, 0.0f, -1.0f }, .uvs{{ .u = 1, .v = 1 }} },  // 0
-            { .pos{ 0.5f, 0.0f, 0.0f }, .normal{ 0.0f, 0.0f, -1.0f }, .uvs{{ .u = 0, .v = 1 }} },  // 1
-            { .pos{ -0.5f, 0.0f, 0.0f }, .normal{ 0.0f, 0.0f, -1.0f }, .uvs{{ .u = 0, .v = 0 }} }, // 2
-        };
-
-    std::vector<VertexIndex> triangleIndices = { 0, 1, 2 };
-
-    MaterialDef mtlDef //
-        {
-            .BaseTextureUri{ "images/Ant.png" },
-            .Color{ "#FFA500"_rgba },
-            .Metalness = 0,
-            .Roughness = 0,
-        };
-
-    MeshDef meshDef //
-        {
-            .Vertices{ std::move(triangleVertices) },
-            .Indices{ std::move(triangleIndices) },
-            .MaterialDef{ std::move(mtlDef) },
-        };
-
-    ModelDef modelDef //
-        {
-            .Name{ "Triangle" },
-            .MeshDefs{ std::move(meshDef) },
-        };
-
-    PropKitDef propKitDef //
-        {
-            .ModelDefs{ std::move(modelDef) },
-        };
-
-    LevelDef levelDef //
-        {
-            .NodeDefs //
-            {
-                {
-                    .Name{ "TriangleNode" },
-                    .Transform{},
-                    .Components//
-                    {
-                        .Model = ModelRef{.Name = "Triangle"},
-                    },
-                },
-            },
-        };
-
-    outPropKit = std::move(propKitDef);
-    outLevelDef = std::move(levelDef);
-
-    return Result<>::Ok;
 }
