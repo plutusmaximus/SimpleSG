@@ -217,7 +217,7 @@ CreateColorPipelineBindGroup0(ColorPipelineResources& colorPipelineResources)
     auto bgLayouts = WebgpuHelper::GetColorPipelineLayouts();
     MLG_CHECK(bgLayouts);
 
-    wgpu::BindGroupEntry bgEntries[] =//
+    const wgpu::BindGroupEntry bgEntries[] =//
     {
         {
             .binding = 0,
@@ -256,10 +256,10 @@ CreateColorPipelineBindGroup0(ColorPipelineResources& colorPipelineResources)
             .label = "ColorPipelineBindGroup0",
             .layout = (*bgLayouts)[0],
             .entryCount = std::size(bgEntries),
-            .entries = bgEntries,
+            .entries = &bgEntries[0],
         };
 
-    const wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
+    wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
     MLG_CHECK(bindGroup,
         "Failed to create bind group 0 for color pipeline");
 
@@ -299,10 +299,10 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
             .label = "TransformPipelineBindGroup0",
             .layout = (*bgLayouts)[0],
             .entryCount = std::size(bgEntries),
-            .entries = bgEntries,
+            .entries = &bgEntries[0],
         };
 
-    const wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
+    wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
     MLG_CHECK(bindGroup,
         "Failed to create bind group 0 for transform pipeline");
 
@@ -424,7 +424,7 @@ Scene::SyncToGpu()
     // Brute force copy everything for now.
     WebgpuHelper::GetDevice().GetQueue().WriteBuffer(m_WorldTransformBuffer.GetGpuBuffer(),
         0,
-        reinterpret_cast<const uint8_t*>(m_WorldTransforms.data()),
+        m_WorldTransforms.data(),
         m_WorldTransforms.size() * sizeof(m_WorldTransforms[0]));
 
     return Result<>::Ok;

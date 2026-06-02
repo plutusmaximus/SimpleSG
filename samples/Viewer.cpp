@@ -10,6 +10,7 @@
 #include "Scene.h"
 #include "scope_exit.h"
 #include "TextureCache.h"
+#include "ThreadPool.h"
 #include "WebgpuHelper.h"
 #include "VecMath.h"
 
@@ -30,7 +31,15 @@ Startup()
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
+    ThreadPool::Startup();
+    defer_as(failure)
+    {
+        ThreadPool::Shutdown();
+    };
+
     MLG_CHECK(WebgpuHelper::Startup(APP_NAME));
+
+    failure.release(); // Success, prevent shutdown in defer.
 
     return Result<>::Ok;
 }
@@ -39,6 +48,7 @@ static void
 Shutdown()
 {
     WebgpuHelper::Shutdown();
+    ThreadPool::Shutdown();
 }
 
 static Result<> RenderGui();
@@ -266,11 +276,10 @@ MainLoop()
 
 static Result<> RenderGui()
 {
-    const char* buildType;
 #if defined (NDEBUG)
-    buildType = "Release";
+    constexpr const char* buildType = "Release";
 #else
-    buildType = "Debug";
+    constexpr const char* buildType = "Debug";
 #endif
 
     constexpr const char* backend = "Dawn";
@@ -281,12 +290,13 @@ static Result<> RenderGui()
     ImGui::Begin(title.c_str());
 
     PerfTimerStats timerStats[256];
-    const unsigned timerCount = PerfMetrics::SampleTimers(timerStats, std::size(timerStats));
-    for(unsigned i = 0; i < timerCount; ++i)
+    std::span<PerfTimerStats> timerStatsSpan(timerStats);
+    const size_t timerCount = PerfMetrics::SampleTimers(timerStatsSpan);
+    for(const auto& timerStat : timerStatsSpan.first(timerCount))
     {
         const std::string text =
-            std::format("{}: {:.3f} ms", timerStats[i].GetName(), timerStats[i].GetEMA() * 1000.0f);
-        ImGui::Text("%s", text.c_str());
+            std::format("{}: {:.3f} ms", timerStat.GetName(), timerStat.GetEMA() * 1000.0f);
+        ImGui::TextUnformatted(text.c_str());
     }
 
     ImGui::End();
@@ -301,10 +311,10 @@ int main(int /*argc*/, char** /*argv*/)
         return -1;
     }
 
-    auto shutdown = scope_exit([]()
+    defer
     {
         Shutdown();
-    });
+    };
 
     if(!MainLoop())
     {

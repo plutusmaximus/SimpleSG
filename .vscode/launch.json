@@ -96,8 +96,7 @@
             "options": [
                 "Triangle",
                 "Viewer",
-                "Orbit",
-                "Collision"
+                "Orbit"
             ],
             "default": "Viewer"
         }

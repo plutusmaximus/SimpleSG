@@ -9,7 +9,12 @@ class MouseNav
 {
 public:
 
+    MouseNav() = default;
     virtual ~MouseNav() = 0;
+    MouseNav(const MouseNav&) = delete;
+    MouseNav& operator=(const MouseNav&) = delete;
+    MouseNav(MouseNav&&) = delete;
+    MouseNav& operator=(MouseNav&&) = delete;
 
     virtual void OnMouseDown(const Vec2f& mouseLoc, const Extent& screenBounds, const int mouseButton) = 0;
 
@@ -50,6 +55,10 @@ public:
     WalkMouseNav() : WalkMouseNav(TrsTransformf{}, 0.0001f, 5.0f) {}
 
     ~WalkMouseNav() override;
+    WalkMouseNav(const WalkMouseNav&) = delete;
+    WalkMouseNav& operator=(const WalkMouseNav&) = delete;
+    WalkMouseNav(WalkMouseNav&&) = delete;
+    WalkMouseNav& operator=(WalkMouseNav&&) = delete;
 
     void OnMouseDown(const Vec2f& mouseLoc, const Extent& screenBounds, const int mouseButton) override;
 

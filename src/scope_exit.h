@@ -70,3 +70,25 @@ template<CleanupFunc F>
 scope_exit(F) -> scope_exit<F>;
 
 #endif
+
+#define MLG_SCOPE_EXIT_CAT_1(a, b) a##b
+#define MLG_SCOPE_EXIT_CAT(a, b) MLG_SCOPE_EXIT_CAT_1(a, b)
+
+struct defer_tag
+{
+};
+
+// Tricky operator+ allows us to write "defer + [&](){ ... }".
+// It basically enables the syntax of "defer { ... }".
+template<class F>
+auto
+operator+(defer_tag, F&& f)
+{
+    return scope_exit(std::forward<F>(f));
+}
+
+#define defer \
+    const auto MLG_SCOPE_EXIT_CAT(_defer_, __LINE__) = defer_tag{} + [&]()
+
+// NOLINTNEXTLINE(bugprone-macro-parentheses)
+#define defer_as(name) auto name = defer_tag{} + [&]()

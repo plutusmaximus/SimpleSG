@@ -22,6 +22,7 @@ public:
     }
 
     ModelInstance() = default;
+    ~ModelInstance() = default;
     ModelInstance(const ModelInstance&) = default;
     ModelInstance& operator=(const ModelInstance&) = default;
     ModelInstance(ModelInstance&&) = default;
@@ -44,6 +45,7 @@ public:
     static Result<> Create(const Level& level, const PropKit& propKit, Scene& outScene);
 
     Scene() = default;
+    ~Scene() = default;
     Scene(const Scene&) = delete;
     Scene& operator=(const Scene&) = delete;
     Scene(Scene&& other) = default;

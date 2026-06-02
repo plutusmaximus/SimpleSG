@@ -6,7 +6,9 @@
 #include "scope_exit.h"
 #include "VecMath.h"
 
+#include <array>
 #include <SDL3/SDL.h>
+#include <string>
 
 #if !defined(EMSCRIPTEN)
 #if defined(_WIN32)
@@ -29,27 +31,39 @@ GetTextureAlignedRowStride(const uint32_t textureWidth)
 
 namespace
 {
-struct WgpuContext
+class WgpuContext
 {
+public:
+
     SDL_Window* Window{nullptr};
-    wgpu::Instance Instance;
-    wgpu::Adapter Adapter;
-    wgpu::Device Device;
-    wgpu::Surface Surface;
-    wgpu::TextureFormat SurfaceFormat;
-    wgpu::Sampler DefaultSampler;
+    wgpu::Instance Instance{nullptr};
+    wgpu::Adapter Adapter{nullptr};
+    wgpu::Device Device{nullptr};
+    wgpu::Surface Surface{nullptr};
+    wgpu::TextureFormat SurfaceFormat{wgpu::TextureFormat::Undefined};
+    wgpu::Sampler DefaultSampler{nullptr};
 
     std::array<wgpu::BindGroupLayout, 2> ColorPipelineLayouts{};
     std::array<wgpu::BindGroupLayout, 1> TransformPipelineLayouts{};
     std::array<wgpu::BindGroupLayout, 1> CompositorPipelineLayouts{};
+
+    static WgpuContext* Ctx;
 };
-} // namespace
 
-static Result<> DumpDawnAdapterInfo(const wgpu::Adapter& adapter);
-static void DumpDawnToggles(const wgpu::Device& device);
-static void DumpWebgpuLimits(const wgpu::Device& device);
+WgpuContext* WgpuContext::Ctx = nullptr;
 
-static Result<SDL_Window*>
+void* GetContextMem()
+{
+    alignas(WgpuContext) static uint8_t s_WgpuContextStorage[sizeof(WgpuContext)];
+
+    return static_cast<void*>(s_WgpuContextStorage);
+}
+
+Result<> DumpDawnAdapterInfo(const wgpu::Adapter& adapter);
+void DumpDawnToggles(const wgpu::Device& device);
+void DumpWebgpuLimits(const wgpu::Device& device);
+
+Result<SDL_Window*>
 CreateSdlWindow(const char* appName)
 {
     MLG_CHECK(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
@@ -62,15 +76,16 @@ CreateSdlWindow(const char* appName)
 
     MLG_INFO("SDL Display Count: {}", displayCount);
 
-    for(int i = 0; i < displayCount; ++i)
+    const std::span<const SDL_DisplayID> displayIdSpan(displays, static_cast<size_t>(displayCount));
+
+    for(const SDL_DisplayID displayId : displayIdSpan)
     {
         SDL_Rect bounds{};
 
-        if(SDL_GetDisplayBounds(displays[i], &bounds))
+        if(SDL_GetDisplayBounds(displayId, &bounds))
         {
-            MLG_INFO("  SDL Display {}: id={}, bounds={}x{}+{}+{}",
-                i,
-                displays[i],
+            MLG_INFO("  SDL Display id={}, bounds={}x{}+{}+{}",
+                displayId,
                 bounds.w,
                 bounds.h,
                 bounds.x,
@@ -95,10 +110,11 @@ CreateSdlWindow(const char* appName)
     return window;
 }
 
-static Result<wgpu::Instance>
+Result<wgpu::Instance>
 CreateInstance()
 {
-    static const auto kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
+    constexpr wgpu::InstanceFeatureName kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
+
     const wgpu::InstanceDescriptor instanceDesc //
         {
             .requiredFeatureCount = 1,
@@ -111,8 +127,8 @@ CreateInstance()
     return instance;
 }
 
-static Result<wgpu::Adapter>
-CreateAdapter(wgpu::Instance instance, wgpu::Surface surface)
+Result<wgpu::Adapter>
+CreateAdapter(const wgpu::Instance& instance, const wgpu::Surface& surface)
 {
     Result<wgpu::Adapter> result;
 
@@ -167,8 +183,8 @@ CreateAdapter(wgpu::Instance instance, wgpu::Surface surface)
     return result;
 }
 
-static Result<wgpu::Device>
-CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
+Result<wgpu::Device>
+CreateDevice(const wgpu::Instance& instance, const wgpu::Adapter& adapter)
 {
     // TODO(KB) - handle device lost.
     auto deviceLostCb = [](const wgpu::Device& device [[maybe_unused]],
@@ -215,11 +231,11 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
 
     wgpu::DawnTogglesDescriptor toggles;
     toggles.enabledToggleCount = std::size(enabledToggles);
-    toggles.enabledToggles = enabledToggles;
+    toggles.enabledToggles = &enabledToggles[0];
     // toggles.disabledToggleCount = std::size(disabledToggles);
     // toggles.disabledToggles = disabledToggles;
 
-    wgpu::FeatureName requiredFeatures[] = //
+    const wgpu::FeatureName requiredFeatures[] = //
         {
             wgpu::FeatureName::IndirectFirstInstance,
             // wgpu::FeatureName::MultiDrawIndirect
@@ -232,7 +248,7 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
                 .nextInChain = nullptr,
                 .label = "MainDevice",
                 .requiredFeatureCount = std::size(requiredFeatures),
-                .requiredFeatures = requiredFeatures,
+                .requiredFeatures = &requiredFeatures[0],
             },
         };
     deviceDesc.SetDeviceLostCallback(wgpu::CallbackMode::AllowProcessEvents, deviceLostCb);
@@ -271,16 +287,16 @@ CreateDevice(wgpu::Instance instance, wgpu::Adapter adapter)
     return result;
 }
 
-static wgpu::PresentMode
-ChoosePresentMode(const wgpu::PresentMode* availableModes, size_t modeCount)
+wgpu::PresentMode
+ChoosePresentMode(const std::span<const wgpu::PresentMode> availableModes)
 {
     wgpu::PresentMode presentMode = wgpu::PresentMode::Undefined;
-    for(size_t i = 0; i < modeCount; ++i)
+    for(const wgpu::PresentMode mode : availableModes)
     {
         // Prefer mailbox if available
         if(presentMode == wgpu::PresentMode::Undefined || presentMode == wgpu::PresentMode::Fifo)
         {
-            switch(availableModes[i])
+            switch(mode)
             {
                 case wgpu::PresentMode::Fifo:
                     presentMode = wgpu::PresentMode::Fifo;
@@ -297,16 +313,16 @@ ChoosePresentMode(const wgpu::PresentMode* availableModes, size_t modeCount)
     return presentMode;
 }
 
-static wgpu::TextureFormat
-ChooseBackbufferFormat(const wgpu::TextureFormat* availableFormats, size_t formatCount)
+wgpu::TextureFormat
+ChooseBackbufferFormat(const std::span<const wgpu::TextureFormat> availableFormats)
 {
     // Prefer BGRA8Unorm if available
-    for(size_t i = 0; i < formatCount; ++i)
+    for(const wgpu::TextureFormat format : availableFormats)
     {
-        if(availableFormats[i] == wgpu::TextureFormat::BGRA8Unorm ||
-            availableFormats[i] == wgpu::TextureFormat::RGBA8Unorm)
+        if(format == wgpu::TextureFormat::BGRA8Unorm ||
+            format == wgpu::TextureFormat::RGBA8Unorm)
         {
-            return availableFormats[i];
+            return format;
         }
     }
     // Fallback to first available format
@@ -332,8 +348,8 @@ CreateSurface(wgpu::Instance instance, SDL_Window* window)
 
 #else
 
-static Result<wgpu::Surface>
-CreateSurface(wgpu::Instance instance, SDL_Window* window)
+Result<wgpu::Surface>
+CreateSurface(const wgpu::Instance& instance, SDL_Window* window)
 {
     const SDL_PropertiesID props = SDL_GetWindowProperties(window);
     wgpu::SurfaceDescriptor surfaceDesc{};
@@ -386,22 +402,24 @@ CreateSurface(wgpu::Instance instance, SDL_Window* window)
 
 #endif // defined(__EMSCRIPTEN__)
 
-static Result<wgpu::TextureFormat>
-ConfigureSurface(wgpu::Adapter adapter,
-    wgpu::Device device,
-    wgpu::Surface surface,
+Result<wgpu::TextureFormat>
+ConfigureSurface(const wgpu::Adapter& adapter,
+    const wgpu::Device& device,
+    const wgpu::Surface& surface,
     const uint32_t width,
     const uint32_t height)
 {
     wgpu::SurfaceCapabilities capabilities;
     MLG_CHECK(surface.GetCapabilities(adapter, &capabilities), "surface.GetCapabilities failed");
 
-    const wgpu::PresentMode presentMode =
-        ChoosePresentMode(capabilities.presentModes, capabilities.presentModeCount);
+    const std::span<const wgpu::PresentMode> presentModes(capabilities.presentModes,
+        capabilities.presentModeCount);
+    const std::span<const wgpu::TextureFormat> formats(capabilities.formats, capabilities.formatCount);
+
+    const wgpu::PresentMode presentMode = ChoosePresentMode(presentModes);
     MLG_CHECK(presentMode != wgpu::PresentMode::Undefined, "No supported present mode found");
 
-    const wgpu::TextureFormat format =
-        ChooseBackbufferFormat(capabilities.formats, capabilities.formatCount);
+    const wgpu::TextureFormat format = ChooseBackbufferFormat(formats);
     MLG_CHECK(format != wgpu::TextureFormat::Undefined, "No supported backbuffer format found");
 
     const wgpu::SurfaceConfiguration config //
@@ -420,7 +438,7 @@ ConfigureSurface(wgpu::Adapter adapter,
     return format;
 }
 
-static wgpu::Buffer
+wgpu::Buffer
 CreateGpuBufferUnmapped(const wgpu::BufferUsage usage, const size_t size, const std::string_view name)
 {
     const wgpu::BufferDescriptor bufferDesc //
@@ -434,13 +452,12 @@ CreateGpuBufferUnmapped(const wgpu::BufferUsage usage, const size_t size, const 
     return WebgpuHelper::GetDevice().CreateBuffer(&bufferDesc);
 }
 
-static WgpuContext* s_WgpuContext{ nullptr };
-static uint8_t s_WgpuContextStorage[sizeof(WgpuContext)];
+} // namespace
 
 Result<>
 WebgpuHelper::Startup(const char* appName)
 {
-    MLG_CHECKV(!s_WgpuContext, "WebgpuHelper::Startup called more than once");
+    MLG_CHECKV(!WgpuContext::Ctx, "WebgpuHelper::Startup called more than once");
 
     auto window = CreateSdlWindow(appName);
     MLG_CHECK(window);
@@ -463,7 +480,7 @@ WebgpuHelper::Startup(const char* appName)
     auto device = CreateDevice(*instance, *adapter);
     MLG_CHECK(device);
 
-    int width, height;
+    int width{0}, height{0};
     SDL_GetWindowSize(*window, &width, &height);
 
     //device->PushErrorScope(wgpu::ErrorFilter::Validation);
@@ -488,7 +505,7 @@ WebgpuHelper::Startup(const char* appName)
 
     MLG_CHECK(surfaceFormat);
 
-    s_WgpuContext = ::new(s_WgpuContextStorage) WgpuContext //
+    WgpuContext context //
         {
             .Window = *window,
             .Instance = std::move(*instance),
@@ -499,6 +516,8 @@ WebgpuHelper::Startup(const char* appName)
             .DefaultSampler{},
         };
 
+    auto* contextMem = static_cast<WgpuContext*>(GetContextMem());
+    WgpuContext::Ctx = std::construct_at(contextMem, std::move(context));
     cleanupWindow.release();
 
     return Result<>::Ok;
@@ -507,12 +526,12 @@ WebgpuHelper::Startup(const char* appName)
 void
 WebgpuHelper::Shutdown()
 {
-    MLG_VERIFY(s_WgpuContext, "WebgpuHelper::Shutdown called before Startup");
+    MLG_VERIFY(WgpuContext::Ctx, "WebgpuHelper::Shutdown called before Startup");
 
-    SDL_Window* window = s_WgpuContext->Window;
+    SDL_Window* window = WgpuContext::Ctx->Window;
 
-    s_WgpuContext->~WgpuContext();
-    s_WgpuContext = nullptr;
+    std::destroy_at(WgpuContext::Ctx);
+    WgpuContext::Ctx = nullptr;
 
     SDL_DestroyWindow(window);
     SDL_Quit();
@@ -521,50 +540,50 @@ WebgpuHelper::Shutdown()
 SDL_Window*
 WebgpuHelper::GetWindow()
 {
-    MLG_VERIFY(s_WgpuContext, "WebgpuHelper::GetWindow called before Startup");
-    return s_WgpuContext->Window;
+    MLG_VERIFY(WgpuContext::Ctx, "WebgpuHelper::GetWindow called before Startup");
+    return WgpuContext::Ctx->Window;
 }
 
 wgpu::Instance
 WebgpuHelper::GetInstance()
 {
-    MLG_VERIFY(s_WgpuContext, "WebgpuHelper::GetInstance called before Startup");
-    return s_WgpuContext->Instance;
+    MLG_VERIFY(WgpuContext::Ctx, "WebgpuHelper::GetInstance called before Startup");
+    return WgpuContext::Ctx->Instance;
 }
 
 wgpu::Device
 WebgpuHelper::GetDevice()
 {
-    MLG_VERIFY(s_WgpuContext, "WebgpuHelper::GetDevice called before Startup");
-    return s_WgpuContext->Device;
+    MLG_VERIFY(WgpuContext::Ctx, "WebgpuHelper::GetDevice called before Startup");
+    return WgpuContext::Ctx->Device;
 }
 
 wgpu::Surface
 WebgpuHelper::GetSurface()
 {
-    MLG_VERIFY(s_WgpuContext, "WebgpuHelper::GetSurface called before Startup");
-    return s_WgpuContext->Surface;
+    MLG_VERIFY(WgpuContext::Ctx, "WebgpuHelper::GetSurface called before Startup");
+    return WgpuContext::Ctx->Surface;
 }
 
 Result<>
 WebgpuHelper::Resize(const uint32_t width, const uint32_t height)
 {
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::Resize called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::Resize called before Startup");
 
     wgpu::SurfaceTexture currentTexture;
-    s_WgpuContext->Surface.GetCurrentTexture(&currentTexture);
+    WgpuContext::Ctx->Surface.GetCurrentTexture(&currentTexture);
     if(width != currentTexture.texture.GetWidth() || height != currentTexture.texture.GetHeight())
     {
-        s_WgpuContext->Surface.Unconfigure();
+        WgpuContext::Ctx->Surface.Unconfigure();
 
-        auto surfaceFormat = ConfigureSurface(s_WgpuContext->Adapter,
-            s_WgpuContext->Device,
-            s_WgpuContext->Surface,
+        auto surfaceFormat = ConfigureSurface(WgpuContext::Ctx->Adapter,
+            WgpuContext::Ctx->Device,
+            WgpuContext::Ctx->Surface,
             width,
             height);
         MLG_CHECK(surfaceFormat);
 
-        s_WgpuContext->SurfaceFormat = *surfaceFormat;
+        WgpuContext::Ctx->SurfaceFormat = *surfaceFormat;
     }
 
     return Result<>::Ok;
@@ -573,7 +592,7 @@ WebgpuHelper::Resize(const uint32_t width, const uint32_t height)
 Result<Texture>
 WebgpuHelper::CreateTexture(const unsigned width, const unsigned height, const std::string& name)
 {
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateTexture called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::CreateTexture called before Startup");
 
     const wgpu::TextureDescriptor desc //
         {
@@ -599,9 +618,9 @@ WebgpuHelper::CreateTexture(const unsigned width, const unsigned height, const s
 Result<wgpu::Sampler>
 WebgpuHelper::GetDefaultSampler()
 {
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::GetDefaultSampler called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::GetDefaultSampler called before Startup");
 
-    if(!s_WgpuContext->DefaultSampler)
+    if(!WgpuContext::Ctx->DefaultSampler)
     {
         // Create sampler
         const wgpu::SamplerDescriptor samplerDesc //
@@ -619,16 +638,16 @@ WebgpuHelper::GetDefaultSampler()
                 .maxAnisotropy = 1,
             };
 
-        s_WgpuContext->DefaultSampler = GetDevice().CreateSampler(&samplerDesc);
-        MLG_CHECK(s_WgpuContext->DefaultSampler, "Failed to create sampler");
+        WgpuContext::Ctx->DefaultSampler = GetDevice().CreateSampler(&samplerDesc);
+        MLG_CHECK(WgpuContext::Ctx->DefaultSampler, "Failed to create sampler");
     }
-    return s_WgpuContext->DefaultSampler;
+    return WgpuContext::Ctx->DefaultSampler;
 }
 
 Result<VertexBuffer>
 WebgpuHelper::CreateVertexBuffer(const size_t count, const std::string_view& name)
 {
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateVertexBuffer called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::CreateVertexBuffer called before Startup");
 
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
 
@@ -638,7 +657,7 @@ WebgpuHelper::CreateVertexBuffer(const size_t count, const std::string_view& nam
 Result<VertexBuffer>
 WebgpuHelper::CreateVertexBuffer(std::span<const Vertex> vertices, const std::string_view& name)
 {
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateVertexBuffer called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::CreateVertexBuffer called before Startup");
 
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
 
@@ -651,7 +670,7 @@ WebgpuHelper::CreateVertexBuffer(std::span<const Vertex> vertices, const std::st
 Result<IndexBuffer>
 WebgpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name)
 {
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateIndexBuffer called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::CreateIndexBuffer called before Startup");
 
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst;
 
@@ -661,7 +680,7 @@ WebgpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name
 Result<IndexBuffer>
 WebgpuHelper::CreateIndexBuffer(std::span<const VertexIndex> indices, const std::string_view& name)
 {
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateIndexBuffer called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::CreateIndexBuffer called before Startup");
 
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst;
 
@@ -674,12 +693,12 @@ WebgpuHelper::CreateIndexBuffer(std::span<const VertexIndex> indices, const std:
 Result<const std::array<wgpu::BindGroupLayout, 2>>
 WebgpuHelper::GetColorPipelineLayouts()
 {
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::GetColorPipelineLayouts called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::GetColorPipelineLayouts called before Startup");
 
-    if(!s_WgpuContext->ColorPipelineLayouts[0])
+    if(!WgpuContext::Ctx->ColorPipelineLayouts[0])
     {
         // Color pipeline bind group 0 layout
-        wgpu::BindGroupLayoutEntry entries[] =//
+        const wgpu::BindGroupLayoutEntry entries[] =//
         {
             // World transform.
             {
@@ -741,15 +760,15 @@ WebgpuHelper::GetColorPipelineLayouts()
             {
                 .label = "ColorPipelineBg0Layout",
                 .entryCount = std::size(entries),
-                .entries = entries,
+                .entries = &entries[0],
             };
 
-        s_WgpuContext->ColorPipelineLayouts[0] = GetDevice().CreateBindGroupLayout(&desc);
-        MLG_CHECK(s_WgpuContext->ColorPipelineLayouts[0],
+        WgpuContext::Ctx->ColorPipelineLayouts[0] = GetDevice().CreateBindGroupLayout(&desc);
+        MLG_CHECK(WgpuContext::Ctx->ColorPipelineLayouts[0],
             "Failed to create bind group 0 layout for color pipeline");
     }
 
-    if(!s_WgpuContext->ColorPipelineLayouts[1])
+    if(!WgpuContext::Ctx->ColorPipelineLayouts[1])
     {
         // Color pipeline bind group 1 layout
         const wgpu::BindGroupLayoutEntry entries[] =//
@@ -780,26 +799,26 @@ WebgpuHelper::GetColorPipelineLayouts()
             {
                 .label = "ColorPipelineBg1Layout",
                 .entryCount = std::size(entries),
-                .entries = entries,
+                .entries = &entries[0],
             };
 
-        s_WgpuContext->ColorPipelineLayouts[1] = GetDevice().CreateBindGroupLayout(&desc);
-        MLG_CHECK(s_WgpuContext->ColorPipelineLayouts[1],
+        WgpuContext::Ctx->ColorPipelineLayouts[1] = GetDevice().CreateBindGroupLayout(&desc);
+        MLG_CHECK(WgpuContext::Ctx->ColorPipelineLayouts[1],
             "Failed to create bind group 1 layout for color pipeline");
     }
 
-    return s_WgpuContext->ColorPipelineLayouts;
+    return WgpuContext::Ctx->ColorPipelineLayouts;
 }
 
 Result<const std::array<wgpu::BindGroupLayout, 1>>
 WebgpuHelper::GetTransformPipelineLayouts()
 {
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::GetTransformPipelineLayouts called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::GetTransformPipelineLayouts called before Startup");
 
-    if(!s_WgpuContext->TransformPipelineLayouts[0])
+    if(!WgpuContext::Ctx->TransformPipelineLayouts[0])
     {
         // Transform pipeline bind group 0 layout
-        wgpu::BindGroupLayoutEntry entries[] =//
+        const wgpu::BindGroupLayoutEntry entries[] =//
         {
             // World transform.
             {
@@ -839,23 +858,23 @@ WebgpuHelper::GetTransformPipelineLayouts()
             {
                 .label = "TransformPipelineBg0Layout",
                 .entryCount = std::size(entries),
-                .entries = entries,
+                .entries = &entries[0],
             };
 
-        s_WgpuContext->TransformPipelineLayouts[0] = GetDevice().CreateBindGroupLayout(&desc);
-        MLG_CHECK(s_WgpuContext->TransformPipelineLayouts[0],
+        WgpuContext::Ctx->TransformPipelineLayouts[0] = GetDevice().CreateBindGroupLayout(&desc);
+        MLG_CHECK(WgpuContext::Ctx->TransformPipelineLayouts[0],
             "Failed to create bind group 0 layout for transform pipeline");
     }
 
-    return s_WgpuContext->TransformPipelineLayouts;
+    return WgpuContext::Ctx->TransformPipelineLayouts;
 }
 
 Result<const std::array<wgpu::BindGroupLayout, 1>>
 WebgpuHelper::GetCompositorPipelineLayouts()
 {
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::GetCompositorPipelineLayouts called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::GetCompositorPipelineLayouts called before Startup");
 
-    if(!s_WgpuContext->CompositorPipelineLayouts[0])
+    if(!WgpuContext::Ctx->CompositorPipelineLayouts[0])
     {
         // Compositor pipeline bind group 0 layout
         const wgpu::BindGroupLayoutEntry entries[] =//
@@ -884,15 +903,15 @@ WebgpuHelper::GetCompositorPipelineLayouts()
             {
                 .label = "CompositorPipelineBg0Layout",
                 .entryCount = std::size(entries),
-                .entries = entries,
+                .entries = &entries[0],
             };
 
-        s_WgpuContext->CompositorPipelineLayouts[0] = GetDevice().CreateBindGroupLayout(&desc);
-        MLG_CHECK(s_WgpuContext->CompositorPipelineLayouts[0],
+        WgpuContext::Ctx->CompositorPipelineLayouts[0] = GetDevice().CreateBindGroupLayout(&desc);
+        MLG_CHECK(WgpuContext::Ctx->CompositorPipelineLayouts[0],
             "Failed to create bind group 0 layout for compositor pipeline");
     }
 
-    return s_WgpuContext->CompositorPipelineLayouts;
+    return WgpuContext::Ctx->CompositorPipelineLayouts;
 }
 
 Extent
@@ -920,8 +939,8 @@ WebgpuHelper::GetSwapChainFormat()
 Result<wgpu::Buffer>
 WebgpuHelper::CreateIndirectBuffer(const size_t size, const std::string_view& name)
 {
-    MLG_CHECKV(s_WgpuContext, "WebgpuHelper::CreateIndirectBuffer called before Startup");
-
+    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::CreateIndirectBuffer called before Startup");
+    
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst;
 
     return CreateGpuBufferUnmapped(usage, size, name);
@@ -930,7 +949,7 @@ WebgpuHelper::CreateIndirectBuffer(const size_t size, const std::string_view& na
 Result<wgpu::Buffer>
 WebgpuHelper::CreateStorageBuffer(const size_t size, const std::string_view& name)
 {
-    MLG_CHECKV(nullptr != s_WgpuContext, "WebgpuHelper::CreateStorageBuffer called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::CreateStorageBuffer called before Startup");
 
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst;
 
@@ -940,7 +959,7 @@ WebgpuHelper::CreateStorageBuffer(const size_t size, const std::string_view& nam
 Result<wgpu::Buffer>
 WebgpuHelper::CreateUniformBuffer(const size_t size, const std::string_view& name)
 {
-    MLG_CHECKV(nullptr != s_WgpuContext, "WebgpuHelper::CreateUniformBuffer called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::CreateUniformBuffer called before Startup");
 
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
 
@@ -950,7 +969,9 @@ WebgpuHelper::CreateUniformBuffer(const size_t size, const std::string_view& nam
 #include <dawn/native/DawnNative.h> // provides dawn::native::GetTogglesUsed
 #include <iostream>
 
-static Result<>
+namespace
+{
+Result<>
 DumpDawnAdapterInfo(const wgpu::Adapter& adapter)
 {
     wgpu::AdapterInfo adapterInfo;
@@ -1007,7 +1028,7 @@ DumpDawnAdapterInfo(const wgpu::Adapter& adapter)
     return Result<>::Ok;
 }
 
-static void
+void
 DumpDawnToggles(const wgpu::Device& device)
 {
     auto toggles = dawn::native::GetTogglesUsed(device.Get());
@@ -1018,7 +1039,7 @@ DumpDawnToggles(const wgpu::Device& device)
     }
 }
 
-static void
+void
 DumpWebgpuLimits(const wgpu::Device& device)
 {
     wgpu::Limits limits;
@@ -1037,8 +1058,15 @@ DumpWebgpuLimits(const wgpu::Device& device)
     MLG_DEBUG("  maxStorageTexturesPerShaderStage: {}", limits.maxStorageTexturesPerShaderStage);
     MLG_DEBUG("  maxUniformBuffersPerShaderStage: {}", limits.maxUniformBuffersPerShaderStage);
 }
+} // namespace
 
 //////////////////////////////////////////////
+
+size_t
+Texture::GetRowStride() const
+{
+    return GetTextureAlignedRowStride(this->GetWidth());
+}
 
 Result<std::span<std::byte>>
 Texture::MapBytes()
@@ -1104,7 +1132,7 @@ Texture::Unmap()
 }
 
 Result<>
-Texture::Unmap(wgpu::CommandEncoder cmdEncoder)
+Texture::Unmap(const wgpu::CommandEncoder& cmdEncoder)
 {
     MLG_CHECKV(m_StagingBuffer, "Texture::Unmap called while not mapped");
 
@@ -1123,7 +1151,7 @@ Texture::Unmap(wgpu::CommandEncoder cmdEncoder)
 
     const wgpu::TexelCopyTextureInfo copyDst = //
         {
-            .texture = *this,
+            .texture = GetGpuTexture(),
             .mipLevel = 0,
             .origin{},
         };

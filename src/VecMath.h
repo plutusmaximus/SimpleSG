@@ -238,8 +238,14 @@ public:
         : x(value), y(value)
     {
     }
+
     constexpr Vec2(const T inX, const T inY) noexcept
         : x(inX), y(inY)
+    {
+    }
+
+    constexpr Vec2(const T(&arr)[2]) noexcept
+        : x(arr[0]), y(arr[1])
     {
     }
 
@@ -391,8 +397,14 @@ public:
         : x(value), y(value), z(value)
     {
     }
+
     constexpr Vec3(const T inX, const T inY, const T inZ) noexcept
         : x(inX), y(inY), z(inZ)
+    {
+    }
+
+    constexpr Vec3(const T(&arr)[3]) noexcept
+        : x(arr[0]), y(arr[1]), z(arr[2])
     {
     }
 
@@ -574,6 +586,11 @@ public:
     {
     }
 
+    constexpr Vec4(const T(&arr)[4]) noexcept
+        : x(arr[0]), y(arr[1]), z(arr[2]), w(arr[3])
+    {
+    }
+
     constexpr Vec4(const Vec2<T>& v, const T inZ, const T inW) noexcept
         : x(v.x), y(v.y), z(inZ), w(inW)
     {
@@ -744,6 +761,11 @@ public:
     {
     }
 
+    constexpr UnitQuat(const T(&arr)[4]) noexcept
+        : UnitQuat(Vec4<T>(arr[0], arr[1], arr[2], arr[3]))
+    {
+    }
+
     constexpr explicit UnitQuat(const Vec4<T>& v) noexcept
         : m_Vec(v.Normalize())
     {
@@ -850,6 +872,14 @@ public:
         m[1] = col1;
         m[2] = col2;
         m[3] = col3;
+    }
+
+    constexpr Mat44(const T(&arr)[16]) noexcept
+        : Mat44(Vec4<T>(arr[0], arr[1], arr[2], arr[3]),
+                Vec4<T>(arr[4], arr[5], arr[6], arr[7]),
+                Vec4<T>(arr[8], arr[9], arr[10], arr[11]),
+                Vec4<T>(arr[12], arr[13], arr[14], arr[15]))
+    {
     }
 
     constexpr explicit Mat44(T value) noexcept

@@ -36,7 +36,15 @@ Startup()
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
+    ThreadPool::Startup();
+    defer_as(failure)
+    {
+        ThreadPool::Shutdown();
+    };
+
     MLG_CHECK(WebgpuHelper::Startup(APP_NAME));
+
+    failure.release(); // Success, prevent shutdown in defer.
 
     return Result<>::Ok;
 }
@@ -45,9 +53,10 @@ static void
 Shutdown()
 {
     WebgpuHelper::Shutdown();
+    ThreadPool::Shutdown();
 }
 
-static Result<> RenderGui(const PhysicsLevel& physLevel);
+static Result<> RenderGui(const PhysicsLevel& physLevel, const float totalPotentialEnergy);
 
 static Result<>
 Load(const std::filesystem::path& path,
@@ -131,17 +140,15 @@ Load(const std::filesystem::path& path,
     return Result<>::Ok;
 }
 
-static float s_TotalPotentialEnergy = 0.0f;
-
 struct ApplyGravityBatchParams
 {
-    const size_t StartIndexA{0};
-    const size_t StartIndexB{0};
-    const size_t BatchSize{0};
+    size_t StartIndexA{0};
+    size_t StartIndexB{0};
+    size_t BatchSize{0};
 
-    const std::span<const RigidBody> Bodies;
-    const std::span<const TrsTransformf> Transforms;
-    const std::span<const Collider> Colliders;
+    std::span<const RigidBody> Bodies;
+    std::span<const TrsTransformf> Transforms;
+    std::span<const Collider> Colliders;
 
     std::vector<Vec3f> Forces;
     float PotentialEnergy{0};
@@ -205,7 +212,8 @@ static void ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
 
 #define APPLY_GRAVITY_MULTITHREADED 1
 
-static void ApplyGravity(PhysicsLevel& physLevel)
+// Returns the total potential energy of the system after applying gravity.
+static float ApplyGravity(PhysicsLevel& physLevel)
 {
     MLG_SCOPED_TIMER("Physics.ApplyGravity");
 
@@ -290,7 +298,7 @@ static void ApplyGravity(PhysicsLevel& physLevel)
 
     MLG_ASSERT(batches.size() == numBatches);
 
-    s_TotalPotentialEnergy = 0;
+    float totalPotentialEnergy = 0;
 
     for(const auto& params : batches)
     {
@@ -299,8 +307,10 @@ static void ApplyGravity(PhysicsLevel& physLevel)
             physLevel.AddForce(i, params.Forces[i]);
         }
 
-        s_TotalPotentialEnergy += params.PotentialEnergy;
+        totalPotentialEnergy += params.PotentialEnergy;
     }
+
+    return totalPotentialEnergy;
 }
 
 static void ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
@@ -441,6 +451,8 @@ MainLoop()
     bool showOverlappingBodies = true;
     bool continuouslyDeactivateNonOverlappingBodies = false;
 
+    float totalPotentialEnergy = 0;
+
     while(running)
     {
         MLG_SCOPED_TIMER("Frame");
@@ -578,7 +590,7 @@ MainLoop()
 
         if(!pauseSim)
         {
-            ApplyGravity(physLevel);
+            totalPotentialEnergy = ApplyGravity(physLevel);
 
             physLevel.Update(PHYSICS_TIME_STEP);
         }
@@ -600,7 +612,7 @@ MainLoop()
 
         renderer.Render(trsCamera, projection, scene, propKit, compositor);
 
-        RenderGui(physLevel);
+        RenderGui(physLevel, totalPotentialEnergy);
 
         imGuiRenderer.Render(compositor);
 
@@ -625,13 +637,12 @@ MainLoop()
     return Result<>::Ok;
 }
 
-static Result<> RenderGui(const PhysicsLevel& physLevel)
+static Result<> RenderGui(const PhysicsLevel& physLevel, const float totalPotentialEnergy)
 {
-    const char* buildType;
 #if defined (NDEBUG)
-    buildType = "Release";
+    constexpr const char* buildType = "Release";
 #else
-    buildType = "Debug";
+    constexpr const char* buildType = "Debug";
 #endif
 
     constexpr const char* backend = "Dawn";
@@ -642,19 +653,23 @@ static Result<> RenderGui(const PhysicsLevel& physLevel)
     ImGui::Begin(title.c_str());
 
     PerfTimerStats timerStats[256];
-    const unsigned timerCount = PerfMetrics::SampleTimers(timerStats, std::size(timerStats));
-    for(unsigned i = 0; i < timerCount; ++i)
+    std::span<PerfTimerStats> timerStatsSpan(timerStats);
+    const size_t timerCount = PerfMetrics::SampleTimers(timerStatsSpan);
+    for(const auto& timerStat : timerStatsSpan.first(timerCount))
     {
         const std::string text =
-            std::format("{}: {:.3f} ms", timerStats[i].GetName(), timerStats[i].GetEMA() * 1000.0f);
-        ImGui::Text("%s", text.c_str());
+            std::format("{}: {:.3f} ms", timerStat.GetName(), timerStat.GetEMA() * 1000.0f);
+        ImGui::TextUnformatted(text.c_str());
     }
 
     const float kineticEnergy = physLevel.ComputeKineticEnergy();
     ImGui::Separator();
-    ImGui::Text("Kinetic Energy: %.3f", kineticEnergy);
-    ImGui::Text("Potential Energy: %.3f", s_TotalPotentialEnergy);
-    ImGui::Text("Total Energy: %.3f", kineticEnergy + s_TotalPotentialEnergy);
+    const std::string keText = std::format("Kinetic Energy: {:.3f}", kineticEnergy);
+    const std::string peText = std::format("Potential Energy: {:.3f}", totalPotentialEnergy);
+    const std::string teText = std::format("Total Energy: {:.3f}", kineticEnergy + totalPotentialEnergy);
+    ImGui::TextUnformatted(keText.c_str());
+    ImGui::TextUnformatted(peText.c_str());
+    ImGui::TextUnformatted(teText.c_str());
 
     ImGui::End();
 
@@ -668,10 +683,10 @@ int main(int /*argc*/, char** /*argv*/)
         return -1;
     }
 
-    auto shutdown = scope_exit([]()
+    defer
     {
         Shutdown();
-    });
+    };
 
     if(!MainLoop())
     {

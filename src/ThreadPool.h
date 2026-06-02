@@ -30,15 +30,27 @@ public:
 private:
     struct Job
     {
+        Job() = default;
         ~Job()
         {
             MLG_ASSERT(m_Next == nullptr);
         }
+        Job(const Job&) = delete;
+        Job& operator=(const Job&) = delete;
+        Job(Job&&) = delete;
+        Job& operator=(Job&&) = delete;
 
         void Invoke()
         {
             MLG_ASSERT(m_JobFunc != nullptr);
             m_JobFunc(m_UserData);
+        }
+
+        void Clear()
+        {
+            MLG_ASSERT(nullptr == m_Next, "Cannot clear a job that is still in a list!");
+            m_JobFunc = nullptr;
+            m_UserData = nullptr;
         }
 
         Job *m_Next{ nullptr };

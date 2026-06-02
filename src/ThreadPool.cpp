@@ -8,14 +8,29 @@
 #include <thread>
 #include <utility>
 
-// Mutex to protect access to the job queue.
-static std::mutex s_JobQueueMutex;
+namespace
+{
+static constexpr std::size_t kMaxWorkerThreads = 32;
 
-// Mutex to protect job allocation/freeing.
-static std::mutex s_AllocMutex;
+struct TPGlobals
+{
+    static inline std::mutex JobQueueMutex;
+    static inline std::mutex AllocMutex;
+    static inline std::condition_variable ThreadPoolCv;
+    static inline std::atomic<bool> Running{false};
+    static inline std::array<std::thread, kMaxWorkerThreads> WorkerThreadPool;
+    static inline const std::size_t ThreadCount = []{
+        const std::size_t hardwareThreadCount = std::thread::hardware_concurrency();
+        if(hardwareThreadCount == 0)
+        {
+            return std::size_t{4};
+        }
 
-// Condition variable to notify worker threads of new jobs.
-static std::condition_variable s_Cv;
+        return hardwareThreadCount > kMaxWorkerThreads ? kMaxWorkerThreads : hardwareThreadCount;
+    }();
+    static inline std::span<std::thread> WorkerThreads{WorkerThreadPool.data(), ThreadCount};
+};
+} // namespace
 
 std::array<ThreadPool::Job, ThreadPool::kMaxJobs> ThreadPool::s_JobPool;
 ThreadPool::Job* ThreadPool::s_JobPoolFreeList{ nullptr };
@@ -24,39 +39,20 @@ ThreadPool::Job* ThreadPool::s_JobPoolFreeList{ nullptr };
 ThreadPool::Job *ThreadPool::s_JobQueueHead{ nullptr };
 ThreadPool::Job *ThreadPool::s_JobQueueTail{ nullptr };
 
-static std::atomic<bool> s_Running{ false };
-
-static constexpr std::size_t MAX_WORKER_THREADS = 32;
-static std::thread s_WorkerThreads[MAX_WORKER_THREADS];
-
-static const std::size_t kDefaultThreadCount = std::thread::hardware_concurrency() > 0
-                                                   ? (std::thread::hardware_concurrency() >
-                                                                 MAX_WORKER_THREADS
-                                                             ? MAX_WORKER_THREADS
-                                                             : std::thread::hardware_concurrency())
-                                                   : 4;
-
-// Ensure ThreadPool is start/stopped automatically.
-static struct ThreadPoolStartStop
-{
-    ThreadPoolStartStop() { ThreadPool::Startup(); }
-    ~ThreadPoolStartStop() { ThreadPool::Shutdown(); }
-} s_ThreadPoolStopper;
-
 void
 ThreadPool::Startup()
 {
-    const std::lock_guard<std::mutex> lock(s_JobQueueMutex);
+    const std::lock_guard<std::mutex> lock(TPGlobals::JobQueueMutex);
 
     bool expected = false;
-    if(!s_Running.compare_exchange_strong(expected, true))
+    if(!TPGlobals::Running.compare_exchange_strong(expected, true))
     {
         return; // already running
     }
 
-    for(std::size_t i = 0; i < kDefaultThreadCount; ++i)
+    for(std::thread& worker : TPGlobals::WorkerThreads)
     {
-        s_WorkerThreads[i] = std::thread(WorkerLoop);
+        worker = std::thread(WorkerLoop);
     }
 
     for(auto& job : s_JobPool)
@@ -70,29 +66,29 @@ void
 ThreadPool::Shutdown()
 {
     {
-        const std::lock_guard<std::mutex> lock(s_JobQueueMutex);
+        const std::lock_guard<std::mutex> lock(TPGlobals::JobQueueMutex);
 
         bool expected = true;
-        if(!s_Running.compare_exchange_strong(expected, false))
+        if(!TPGlobals::Running.compare_exchange_strong(expected, false))
         {
             return; // already stopped
         }
 
         // Release all workers.
-        s_Cv.notify_all();
+        TPGlobals::ThreadPoolCv.notify_all();
     }
 
-    for(std::size_t i = 0; i < kDefaultThreadCount; ++i)
+    for(std::thread& worker : TPGlobals::WorkerThreads)
     {
-        if(s_WorkerThreads[i].joinable())
+        if(worker.joinable())
         {
-            s_WorkerThreads[i].join();
+            worker.join();
         }
     }
 
     ThreadPool::Job *pendingJobs = nullptr;
     {
-        const std::lock_guard<std::mutex> lock(s_JobQueueMutex);
+        const std::lock_guard<std::mutex> lock(TPGlobals::JobQueueMutex);
         std::swap(pendingJobs, s_JobQueueHead);
         s_JobQueueTail = nullptr;
     }
@@ -139,21 +135,21 @@ ThreadPool::Enqueue(void (*jobFunc)(void*), void* userData)
 size_t
 ThreadPool::GetWorkerCount()
 {
-    return kDefaultThreadCount;
+    return TPGlobals::ThreadCount;
 }
 
 ThreadPool::Job *
 ThreadPool::NewJob()
 {
-    const std::lock_guard<std::mutex> lock(s_AllocMutex);
+    const std::lock_guard<std::mutex> lock(TPGlobals::AllocMutex);
 
-    if(!s_Running.load())
+    if(!MLG_VERIFY(TPGlobals::Running.load(), "ThreadPool is not running"))
     {
         return nullptr;
     }
 
     Job* job = s_JobPoolFreeList;
-    if(job)
+    if(MLG_VERIFY(job, "Failed to allocate job for ThreadPool.  Max jobs: {}", kMaxJobs))
     {
         s_JobPoolFreeList = job->m_Next;
         job->m_Next = nullptr;
@@ -165,9 +161,10 @@ ThreadPool::NewJob()
 void
 ThreadPool::DeleteJob(ThreadPool::Job *job)
 {
-    const std::lock_guard<std::mutex> lock(s_AllocMutex);
+    const std::lock_guard<std::mutex> lock(TPGlobals::AllocMutex);
 
-    *job = Job{}; // Reset job to default state.
+    job->Clear();
+
     job->m_Next = s_JobPoolFreeList;
     s_JobPoolFreeList = job;
 }
@@ -176,11 +173,11 @@ ThreadPool::DeleteJob(ThreadPool::Job *job)
 bool
 ThreadPool::Enqueue(Job *job)
 {
-    const std::lock_guard<std::mutex> lock(s_JobQueueMutex);
+    const std::lock_guard<std::mutex> lock(TPGlobals::JobQueueMutex);
 
     MLG_ASSERT(job->m_Next == nullptr);
 
-    if(!s_Running.load())
+    if(!MLG_VERIFY(TPGlobals::Running.load(), "ThreadPool is not running"))
     {
         return false;
     }
@@ -196,7 +193,7 @@ ThreadPool::Enqueue(Job *job)
         s_JobQueueTail = job;
     }
 
-    s_Cv.notify_one();
+    TPGlobals::ThreadPoolCv.notify_one();
 
     return true;
 }
@@ -204,12 +201,12 @@ ThreadPool::Enqueue(Job *job)
 void
 ThreadPool::WorkerLoop()
 {
-    while(s_Running.load())
+    while(TPGlobals::Running.load())
     {
-        ThreadPool::Job *job;
+        ThreadPool::Job *job = nullptr;
 
-        std::unique_lock<std::mutex> lock(s_JobQueueMutex);
-        s_Cv.wait(lock, [] { return !s_Running.load() || s_JobQueueHead != nullptr; });
+        std::unique_lock<std::mutex> lock(TPGlobals::JobQueueMutex);
+        TPGlobals::ThreadPoolCv.wait(lock, [] { return !TPGlobals::Running.load() || s_JobQueueHead != nullptr; });
 
         job = s_JobQueueHead;
         if(!job)

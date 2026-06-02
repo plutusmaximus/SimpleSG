@@ -54,8 +54,7 @@ if(MSVC)
   add_compile_definitions(_HAS_EXCEPTIONS=0)
 
   # Enable MSVC STL hardening
-  add_compile_definitions($<$<CONFIG:Debug>:_MSVC_STL_HARDENING=2> $<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=2>)
-  #add_compile_definitions($<$<CONFIG:Debug>:_MSVC_STL_HARDENING=0> $<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=0>)
+  add_compile_definitions($<$<OR:$<CONFIG:Debug>,$<CONFIG:Sanitize>>:_MSVC_STL_HARDENING=2> $<$<OR:$<CONFIG:Debug>,$<CONFIG:Sanitize>>:_ITERATOR_DEBUG_LEVEL=2>)
 endif()
 
 add_library(project_warnings INTERFACE)
@@ -224,7 +223,7 @@ if(ENABLE_CLANG_TIDY)
   if(CLANG_TIDY_EXE)
     set(CMAKE_CXX_CLANG_TIDY ${CLANG_TIDY_EXE} --use-color "--exclude-header-filter=(thirdparty|build)[/\\]*")
   else()
-    message(WARNING "ENABLE_CLANG_TIDY is ON but clang-tidy was not found")
+    message(FATAL_ERROR "ENABLE_CLANG_TIDY is ON but clang-tidy was not found")
   endif()
 endif()
 
@@ -355,11 +354,6 @@ add_sample_executable(Viewer samples/Viewer.cpp)
 # Executable: Orbit
 # ============================================================
 add_sample_executable(Orbit samples/Orbit.cpp)
-
-# ============================================================
-# Executable: Collision
-# ============================================================
-add_sample_executable(Collision samples/Collision.cpp)
 
 # ============================================================
 # Executable: Tests

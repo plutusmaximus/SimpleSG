@@ -67,11 +67,12 @@ CollectAttributes(const cgltf_primitive& primitive)
         .SrcIndices = primitive.indices,
     };
 
-    for(cgltf_size i = 0; i < primitive.attributes_count; ++i)
-    {
-        const cgltf_attribute& attribute = primitive.attributes[i];
+    const std::span<const cgltf_attribute> attrsSpan(primitive.attributes,
+        primitive.attributes_count);
 
-        MLG_LOG_SCOPE("attr {}/{}", attribute.name ? attribute.name : "<unnamed>", i);
+    for(const cgltf_attribute& attribute : attrsSpan)
+    {
+        MLG_LOG_SCOPE("attr {}", attribute.name ? attribute.name : "<unnamed>");
 
         MLG_CHECK(!attribute.data->is_sparse,
             "Sparse attribute data is not supported. Primitive will be ignored");
@@ -137,22 +138,20 @@ CollectMeshes(const cgltf_data* gltfData, std::vector<CgltfMeshData>& gltfMeshes
 {
     gltfMeshes.clear();
 
-    for(cgltf_size i = 0; i < gltfData->meshes_count; ++i)
+    const std::span<const cgltf_mesh> meshesSpan(gltfData->meshes, gltfData->meshes_count);
+    for(const cgltf_mesh& mesh : meshesSpan)
     {
-        const cgltf_mesh* mesh = &gltfData->meshes[i];
-
-        MLG_LOG_SCOPE("mesh {}/{}", mesh->name ? mesh->name : "<unnamed>", i);
+        MLG_LOG_SCOPE("mesh {}", mesh.name ? mesh.name : "<unnamed>");
 
         CgltfMeshData meshData//
         {
-            .Mesh = mesh,
+            .Mesh = &mesh,
         };
 
-        for(cgltf_size j = 0; j < mesh->primitives_count; ++j)
+        const std::span<const cgltf_primitive> primsSpan(mesh.primitives, mesh.primitives_count);
+        for(const cgltf_primitive& prim : primsSpan)
         {
-            MLG_LOG_SCOPE("prim {}", j);
-
-            const cgltf_primitive& prim = mesh->primitives[j];
+            MLG_LOG_SCOPE("prim {}", &prim - primsSpan.data());
 
             if(!prim.material)
             {
@@ -166,13 +165,13 @@ CollectMeshes(const cgltf_data* gltfData, std::vector<CgltfMeshData>& gltfMeshes
                 continue;
             }
 
-            CgltfPrimitiveData primData //
+            const CgltfPrimitiveData primData //
             {
                 .Primitive = &prim,
                 .Attributes = *attrs,
             };
 
-            meshData.Primitives.emplace_back(std::move(primData));
+            meshData.Primitives.emplace_back(primData);
         }
 
         gltfMeshes.emplace_back(std::move(meshData));
@@ -249,10 +248,10 @@ CollectVertices(const CgltfPrimitiveAttributes& attrs, std::vector<Vertex>& vert
     // We use left handed.  +Y up, +Z forward, +X right.
     for(cgltf_size i = 0; i < attrs.SrcPosition->count; ++i)
     {
-        float xyz[3]{};
+        std::array<float, 3> xyz{};
         Vertex vertex;
 
-        MLG_CHECK(cgltf_accessor_read_float(attrs.SrcPosition, i, xyz, std::size(xyz)),
+        MLG_CHECK(cgltf_accessor_read_float(attrs.SrcPosition, i, xyz.data(), xyz.size()),
             "Failed to read POSITION attribute");
 
         // Convert from right handed to left handed.
@@ -262,8 +261,8 @@ CollectVertices(const CgltfPrimitiveAttributes& attrs, std::vector<Vertex>& vert
 
         if(attrs.SrcNormal)
         {
-            float normal[3]{};
-            MLG_CHECK(cgltf_accessor_read_float(attrs.SrcNormal, i, normal, std::size(normal)),
+            std::array<float, 3> normal{};
+            MLG_CHECK(cgltf_accessor_read_float(attrs.SrcNormal, i, normal.data(), normal.size()),
                 "Failed to read NORMAL attribute");
 
             // Convert from right handed to left handed.
@@ -274,8 +273,8 @@ CollectVertices(const CgltfPrimitiveAttributes& attrs, std::vector<Vertex>& vert
 
         if(attrs.SrcTexcoord0)
         {
-            float texcoord0[2]{};
-            MLG_CHECK(cgltf_accessor_read_float(attrs.SrcTexcoord0, i, texcoord0, std::size(texcoord0)),
+            std::array<float, 2> texcoord0{};
+            MLG_CHECK(cgltf_accessor_read_float(attrs.SrcTexcoord0, i, texcoord0.data(), texcoord0.size()),
                 "Failed to read TEXCOORD_0 attribute");
             vertex.uvs[0].u = texcoord0[0];
             vertex.uvs[0].v = texcoord0[1];
@@ -299,11 +298,10 @@ CollectIndices(const CgltfPrimitiveAttributes& attrs, std::vector<VertexIndex>& 
     if(attrs.SrcIndices)
     {
         indices.resize(attrs.SrcIndices->count);
-        VertexIndex* idxDst = indices.data();
 
         const size_t count = cgltf_accessor_unpack_indices(attrs.SrcIndices,
-            idxDst,
-            sizeof(uint32_t),
+            indices.data(),
+            sizeof(indices[0]),
             attrs.SrcIndices->count);
 
         MLG_CHECK(count == attrs.SrcIndices->count,
@@ -314,10 +312,9 @@ CollectIndices(const CgltfPrimitiveAttributes& attrs, std::vector<VertexIndex>& 
         // Non-indexed primitive.
         indices.resize(attrs.SrcPosition->count);
 
-        VertexIndex* idxDst = indices.data();
         for(size_t i = 0; i < attrs.SrcPosition->count; ++i)
         {
-            idxDst[i] = narrow_cast<VertexIndex>(i);
+            indices[i] = narrow_cast<VertexIndex>(i);
         }
     }
 
@@ -415,7 +412,7 @@ CollectModels(const std::span<CgltfMeshData> gltfMeshes,
                     .MaterialDef = std::move(*mtlDef),
                 };
 
-            meshDefs.emplace_back(std::move(meshDef));
+            meshDefs.emplace_back(meshDef);
         }
 
         ModelDef model //
@@ -459,22 +456,15 @@ CollectNode(const cgltf_node& srcNode,
 
     if(srcNode.has_matrix)
     {
-        Mat44f m;
-        std::memcpy(&m.m[0].x, srcNode.matrix, sizeof(float) * 16);
+        Mat44f m(srcNode.matrix);
         ConvertRHtoLH(m);
         nodeTransform = TrsTransformf::FromMatrix(m);
     }
     else
     {
-        nodeTransform.T =
-            Vec3f(srcNode.translation[0], srcNode.translation[1], srcNode.translation[2]);
-
-        nodeTransform.R = UnitQuatf(srcNode.rotation[0],
-            srcNode.rotation[1],
-            srcNode.rotation[2],
-            srcNode.rotation[3]);
-
-        nodeTransform.S = Vec3f(srcNode.scale[0], srcNode.scale[1], srcNode.scale[2]);
+        nodeTransform.T = Vec3f(srcNode.translation);
+        nodeTransform.R = UnitQuatf(srcNode.rotation);
+        nodeTransform.S = Vec3f(srcNode.scale);
 
         // X axis flip - convert from right handed to left handed.
         nodeTransform.T.x = -nodeTransform.T.x;
@@ -494,9 +484,11 @@ CollectNode(const cgltf_node& srcNode,
     std::vector<LevelNodeDef> childNodes;
     childNodes.reserve(srcNode.children_count);
 
-    for(cgltf_size i = 0; i < srcNode.children_count; ++i)
+    const std::span<const cgltf_node* const> childrenSpan(srcNode.children, srcNode.children_count);
+    
+    for(const cgltf_node* child : childrenSpan)
     {
-        MLG_CHECK(CollectNode(*srcNode.children[i], modelIndices, childNodes));
+        MLG_CHECK(CollectNode(*child, modelIndices, childNodes));
     }
 
     if(childNodes.empty() && !srcNode.mesh)
@@ -515,7 +507,7 @@ CollectNode(const cgltf_node& srcNode,
         // 6. In the "Layout" editor select the "Object" menu and choose "Join".
         //      This will join all the selected meshes into a single mesh.
 
-        const char* type;
+        const char* type = "unknown";
         if(srcNode.camera)
         {
             type = "camera";
@@ -531,10 +523,6 @@ CollectNode(const cgltf_node& srcNode,
         else if(srcNode.weights)
         {
             type = "weights";
-        }
-        else
-        {
-            type = "unknown";
         }
 
         MLG_WARN("{} node has no mesh and no children.  Ignoring.", type);
@@ -567,17 +555,21 @@ CollectNodes(const cgltf_data* gltfData,
     std::vector<LevelNodeDef>& levelNodeDefs,
     const std::map<const cgltf_mesh*, ModelIndex>& modelIndices)
 {
-    MLG_CHECK(gltfData->scenes_count > 0, "No scenes found");
-    MLG_CHECK(gltfData->scenes_count == 1, "Multiple scenes found, only one scene is supported");
+    const std::span<const cgltf_scene> scenesSpan(gltfData->scenes, gltfData->scenes_count);
 
-    const cgltf_scene& scene = gltfData->scenes[0];
+    MLG_CHECK(scenesSpan.size() > 0, "No scenes found");
+    MLG_CHECK(scenesSpan.size() == 1, "Multiple scenes found, only one scene is supported");
+
+    const cgltf_scene& scene = scenesSpan[0];
 
     levelNodeDefs.clear();
     levelNodeDefs.reserve(scene.nodes_count);
 
-    for(size_t i = 0; i < scene.nodes_count; ++i)
+    const std::span<const cgltf_node* const> nodesSpan(scene.nodes, scene.nodes_count);
+
+    for(const cgltf_node* node : nodesSpan)
     {
-        MLG_CHECK(CollectNode(*scene.nodes[i], modelIndices, levelNodeDefs));
+        MLG_CHECK(CollectNode(*node, modelIndices, levelNodeDefs));
     }
 
     return Result<>::Ok;
@@ -606,12 +598,13 @@ GltfLoader::Load(const std::string& path, PropKitDef& outPropKit, LevelDef& outL
     MLG_CHECK(gltfData->scenes_count > 0, "No scenes found");
     MLG_CHECK(gltfData->scenes_count == 1, "Multiple scenes found, only one scene is supported");
 
-    for(cgltf_size i = 0; i < gltfData->buffer_views_count; ++i)
+    const std::span<const cgltf_buffer_view> bufferViewsSpan(gltfData->buffer_views,
+        gltfData->buffer_views_count);
+    for(const cgltf_buffer_view& bufferView : bufferViewsSpan)
     {
-        const cgltf_buffer_view& buffer_view = gltfData->buffer_views[i];
-        MLG_CHECK(!buffer_view.has_meshopt_compression,
+        MLG_CHECK(!bufferView.has_meshopt_compression,
             "Unsupported meshopt compression in buffer view {}",
-            i);
+            bufferView.name ? bufferView.name : "<unnamed>");
     }
 
     const cgltf_result loadBuffersResult = cgltf_load_buffers(&options, gltfData, filePath.string().c_str());

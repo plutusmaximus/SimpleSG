@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <format>
+#include <memory>
 #include <string>
 
 /// Define MLG_LOGGER_NAME before including this header to create a logger with a specific name.
@@ -11,6 +12,11 @@
 #ifndef MLG_LOGGER_NAME
 #define MLG_LOGGER_NAME "****"
 #endif
+
+namespace spdlog
+{
+class logger;
+}
 
 class Log final
 {
@@ -31,7 +37,7 @@ public:
 
         explicit Logger(const std::string& name);
 
-        ~Logger();
+        ~Logger() = default;
 
         Logger() = delete;
         Logger(const Logger&) = delete;
@@ -56,9 +62,7 @@ public:
 
         void LogImpl(const Level level, const std::string& message);
 
-        static constexpr size_t kBufferSize = 16;
-
-        uint8_t m_Buffer[kBufferSize];
+        std::shared_ptr<spdlog::logger> m_Logger;
     };
 
     /// Log an assertion failure
@@ -152,10 +156,14 @@ struct LogScope
 #define MLG_LOG_SCOPE_CONCAT(a, b) MLG_LOG_SCOPE_CONCAT_HELPER(a, b)
 #define MLG_LOG_SCOPE(...) const mlg::LogScope MLG_LOG_SCOPE_CONCAT(logScope_, __LINE__)(__VA_ARGS__);
 
-static inline Log::Logger mlg_logger_no_conflict(MLG_LOGGER_NAME);
+static inline Log::Logger& MLG_LocalLogger()
+{
+    static Log::Logger logger(MLG_LOGGER_NAME);
+    return logger;
+}
 
-#define MLG_TRACE(...) mlg_logger_no_conflict.Log( Log::Level::Trace, __VA_ARGS__)
-#define MLG_DEBUG(...) mlg_logger_no_conflict.Log( Log::Level::Debug, __VA_ARGS__)
-#define MLG_INFO(...) mlg_logger_no_conflict.Log( Log::Level::Info, __VA_ARGS__)
-#define MLG_WARN(...) mlg_logger_no_conflict.Log( Log::Level::Warn, __VA_ARGS__)
-#define MLG_ERROR(...) mlg_logger_no_conflict.Log( Log::Level::Error, __VA_ARGS__)
+#define MLG_TRACE(...) MLG_LocalLogger().Log( Log::Level::Trace, __VA_ARGS__)
+#define MLG_DEBUG(...) MLG_LocalLogger().Log( Log::Level::Debug, __VA_ARGS__)
+#define MLG_INFO(...) MLG_LocalLogger().Log( Log::Level::Info, __VA_ARGS__)
+#define MLG_WARN(...) MLG_LocalLogger().Log( Log::Level::Warn, __VA_ARGS__)
+#define MLG_ERROR(...) MLG_LocalLogger().Log( Log::Level::Error, __VA_ARGS__)

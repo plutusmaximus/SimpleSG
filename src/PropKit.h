@@ -23,6 +23,7 @@ public:
         PropKit& outPropKit);
 
     PropKit() = default;
+    ~PropKit() = default;
     PropKit(const PropKit&) = delete;
     PropKit& operator=(const PropKit&) = delete;
     PropKit(PropKit&& other) = default;

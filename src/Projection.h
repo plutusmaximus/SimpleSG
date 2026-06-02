@@ -58,9 +58,14 @@ public:
 
 private:
 
-    Radiansf m_Fov{Radiansf::FromDegrees(45)};
-    float m_AspectRatio{1};
-    float m_Near{ 0.1f };
-    float m_Far{ 1000.0f };
+    constexpr static float kDefaultFovDegrees = 45.0f;
+    constexpr static float kDefaultAspectRatio = 16.0f / 9.0f;
+    constexpr static float kDefaultNearClip = 0.1f;
+    constexpr static float kDefaultFarClip = 1000.0f;
+
+    Radiansf m_Fov{Radiansf::FromDegrees(kDefaultFovDegrees)};
+    float m_AspectRatio{kDefaultAspectRatio};
+    float m_Near{ kDefaultNearClip };
+    float m_Far{ kDefaultFarClip };
     Mat44f m_Proj = Mat44f::PerspectiveLH(m_Fov, m_AspectRatio, m_Near, m_Far);
 };

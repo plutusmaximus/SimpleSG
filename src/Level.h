@@ -70,6 +70,7 @@ public:
     public:
 
         NodeHandle() = default;
+        ~NodeHandle() = default;
         NodeHandle(const NodeHandle&) = default;
         NodeHandle& operator=(const NodeHandle&) = default;
         NodeHandle(NodeHandle&&) = default;
@@ -98,6 +99,7 @@ public:
     static Result<> Create(const LevelDef& levelDef, const PropKit& propKit, Level& outLevel);
 
     Level() = default;
+    ~Level() = default;
     Level(const Level&) = delete;
     Level& operator=(const Level&) = delete;
     Level(Level&& other) = default;
@@ -121,7 +123,7 @@ public:
     // - and any other contiguous range of strings or string views that can be converted to std::string_view
     template <std::ranges::sized_range R>
     requires std::convertible_to<std::ranges::range_reference_t<R>, std::string_view>
-    Result<NodeHandle> GetNodeHandle(R&& path) const
+    Result<NodeHandle> GetNodeHandle(const R& path) const
     {
         NodeHandle foundHandle;
 
@@ -184,7 +186,7 @@ public:
     // - GetNode({"RootNode", "ChildNode", "GrandchildNode"});
     Result<NodeHandle> GetNodeHandle(std::initializer_list<std::string_view> path) const;
 
-    Result<const Node*> GetNode(const NodeHandle& handle) const;
+    const Node* GetNode(const NodeHandle& handle) const;
 
     Result<> UpdateLocalTransform(const NodeHandle& handle, const TrsTransformf& localTransform);
 
@@ -201,6 +203,8 @@ private:
 
     // Returns true if the node handle refers to a node within the level.
     bool IsInLevel(const NodeHandle& handle) const;
+
+    Node* GetNode(const NodeHandle& handle);
 
     void UpdateWorldTransforms(std::span<Node> nodes);
 

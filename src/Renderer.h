@@ -39,7 +39,7 @@ public:
 
 private:
 
-    Result<wgpu::RenderPassEncoder> BeginRenderPass(wgpu::CommandEncoder cmdEncoder);
+    Result<wgpu::RenderPassEncoder> BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder);
 
     Result<> Present(Compositor& compositor);
 
@@ -53,7 +53,7 @@ private:
 
     Result<wgpu::ShaderModule> CreateShader(const char* path);
 
-    Result<> TransformNodes(wgpu::CommandEncoder cmdEncoder,
+    Result<> TransformNodes(const wgpu::CommandEncoder& cmdEncoder,
         const TrsTransformf& camera,
         const Projection& projection,
         const Scene& scene);

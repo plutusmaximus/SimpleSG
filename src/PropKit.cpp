@@ -18,7 +18,7 @@
 
 #include <stb_image.h>
 
-static constexpr uint32_t kNumTextureChannels = 4;
+static constexpr size_t kNumTextureChannels = 4;
 
 namespace
 {
@@ -35,6 +35,7 @@ public:
     }
 
     TextureBuilder() = delete;
+    ~TextureBuilder() = default;
     TextureBuilder(const TextureBuilder&) = delete;
     TextureBuilder& operator=(const TextureBuilder&) = delete;
     TextureBuilder(TextureBuilder&&) = default;
@@ -48,14 +49,13 @@ public:
     // Counter to track how many staging operations have completed.
     std::atomic<unsigned>* StageCounter{ nullptr };
 };
-} // namespace
 
-static Result<>
+Result<>
 StageTexture(TextureBuilder& builder)
 {
     MLG_DEBUG("Staging texture...");
 
-    int width, height, numChannels;
+    int width = 0, height = 0, numChannels = 0;
 
     if(!stbi_info_from_memory(builder.Request->GetData().data(),
            narrow_cast<int>(builder.Request->GetData().size()),
@@ -91,7 +91,7 @@ StageTexture(TextureBuilder& builder)
 
         MLG_DEBUG("Decoding...");
 
-        int imgWidth, imgHeight, imgNumChannels;
+        int imgWidth = 0, imgHeight = 0, imgNumChannels = 0;
         stbi_uc* data = stbi_load_from_memory(texBuilder->Request->GetData().data(),
             narrow_cast<int>(texBuilder->Request->GetData().size()),
             &imgWidth,
@@ -109,17 +109,31 @@ StageTexture(TextureBuilder& builder)
                 texBuilder->Texture.GetHeight() == static_cast<uint32_t>(imgHeight),
                 "Decoded image dimensions do not match texture dimensions - {}",
                 texBuilder->Uri);
+
             MLG_ASSERT(texBuilder->Texture.GetFormat() == wgpu::TextureFormat::RGBA8Unorm,
                 "Texture format does not match expected format - {}",
                 texBuilder->Uri);
 
-            std::byte* dst = static_cast<std::byte*>(texBuilder->MappedMemory);
-            const std::byte* src = reinterpret_cast<const std::byte*>(data);
-            const uint32_t srcRowStride = static_cast<uint32_t>(imgWidth) * kNumTextureChannels;
-            const uint32_t dstRowStride = (srcRowStride + 255) & ~255u;
-            for(int y = 0; y < imgHeight; ++y, dst += dstRowStride, src += srcRowStride)
+            const size_t sizeofData = static_cast<size_t>(imgWidth) *
+                                      static_cast<size_t>(imgHeight) *
+                                      static_cast<size_t>(kNumTextureChannels);
+
+            const size_t expectedSize = static_cast<size_t>(texBuilder->Texture.GetWidth()) *
+                                       static_cast<size_t>(texBuilder->Texture.GetHeight()) *
+                                       static_cast<size_t>(kNumTextureChannels);
+
+            MLG_ASSERT(sizeofData == expectedSize,
+                "Decoded image size does not match texture size - {}",
+                texBuilder->Uri);
+
+            const std::span<const stbi_uc> srcSpan(data, sizeofData);
+            const std::span<std::byte> dstSpan(texBuilder->MappedMemory, sizeofData);
+            size_t dstOffset = 0, srcOffset = 0;
+            const size_t srcRowStride = static_cast<size_t>(imgWidth) * kNumTextureChannels;
+            const size_t dstRowStride = (srcRowStride + 255) & ~255uz;
+            for(int y = 0; y < imgHeight; ++y, dstOffset += dstRowStride, srcOffset += srcRowStride)
             {
-                ::memcpy(dst, src, srcRowStride);
+                ::memcpy(&dstSpan[dstOffset], &srcSpan[srcOffset], srcRowStride);
             }
 
             stbi_image_free(data);
@@ -138,11 +152,11 @@ StageTexture(TextureBuilder& builder)
     return Result<>::Ok;
 }
 
-static Result<>
-FetchTextures(std::filesystem::path basePath,
-    std::span<const MaterialDef> materialDefs,
+Result<>
+FetchTextures(const std::filesystem::path& basePath,
+    const std::span<const MaterialDef> materialDefs,
     TextureCache& textureCache,
-    wgpu::CommandEncoder encoder)
+    const wgpu::CommandEncoder& encoder)
 {
     class RequestRecord
     {
@@ -153,6 +167,7 @@ FetchTextures(std::filesystem::path basePath,
         {
         }
 
+        ~RequestRecord() = default;
         RequestRecord(const RequestRecord&) = delete;
         RequestRecord& operator=(const RequestRecord&) = delete;
         RequestRecord(RequestRecord&& other) = delete;
@@ -270,8 +285,8 @@ FetchTextures(std::filesystem::path basePath,
     return Result<>::Ok;
 }
 
-static Result<>
-CreateMaterialBindGroups(std::span<const MaterialDef> materialDefs,
+Result<>
+CreateMaterialBindGroups(const std::span<const MaterialDef> materialDefs,
     const TextureCache& textureCache,
     std::vector<wgpu::BindGroup>& materialBindGroups)
 {
@@ -289,7 +304,7 @@ CreateMaterialBindGroups(std::span<const MaterialDef> materialDefs,
                 ? textureCache.GetDefaultTexture()
                 : textureCache.Get(mtlDef.BaseTextureUri);
 
-        wgpu::BindGroupEntry bgEntries[]//
+        const wgpu::BindGroupEntry bgEntries[]//
         {
             {
                 .binding = 0,
@@ -306,7 +321,7 @@ CreateMaterialBindGroups(std::span<const MaterialDef> materialDefs,
             .label = "MaterialBindGroup",
             .layout = (*bgLayouts)[1],
             .entryCount = std::size(bgEntries),
-            .entries = bgEntries,
+            .entries = &bgEntries[0],
         };
 
         wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bindGroupDesc);
@@ -317,8 +332,8 @@ CreateMaterialBindGroups(std::span<const MaterialDef> materialDefs,
     return Result<>::Ok;
 }
 
-static Result<MaterialConstantsBuffer>
-BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs)
+Result<MaterialConstantsBuffer>
+BuildMaterialConstantsBuffer(const std::span<const MaterialDef> materialDefs)
 {
     std::vector<ShaderInterop::MaterialConstants> materialConstants;
     materialConstants.reserve(materialDefs.size());
@@ -338,6 +353,7 @@ BuildMaterialConstantsBuffer(std::span<const MaterialDef> materialDefs)
     return WebgpuHelper::CreateStorageBuffer<MaterialConstantsBuffer>(materialConstants,
         "MaterialConstantsBuffer");
 }
+} // namespace
 
 Result<>
 PropKit::Create(const std::filesystem::path& rootPath,
@@ -397,17 +413,17 @@ PropKit::Create(const std::filesystem::path& rootPath,
         stringStorage.insert(stringStorage.end(), modelDef.Name.begin(), modelDef.Name.end());
         stringStorage.push_back('\0');
 
-        Model model //
+        const Model model //
             {
                 .Name = std::string_view(&stringStorage[nameOffset], modelDef.Name.size()),
                 .FirstMesh = MeshIndex(meshes.size()),
                 .MeshCount = narrow_cast<uint32_t>(modelDef.MeshDefs.size()),
             };
-        models.emplace_back(std::move(model));
+        models.emplace_back(model);
 
         for(const auto& meshDef : modelDef.MeshDefs)
         {
-            Mesh mesh //
+            const Mesh mesh //
                 {
                     .IndexCount = narrow_cast<uint32_t>(meshDef.Indices.size()),
                     .FirstIndex = narrow_cast<uint32_t>(indices.size()),
@@ -418,7 +434,7 @@ PropKit::Create(const std::filesystem::path& rootPath,
 
             vertices.insert(vertices.end(), meshDef.Vertices.begin(), meshDef.Vertices.end());
             indices.insert(indices.end(), meshDef.Indices.begin(), meshDef.Indices.end());
-            meshes.emplace_back(std::move(mesh));
+            meshes.emplace_back(mesh);
         }
     }
 

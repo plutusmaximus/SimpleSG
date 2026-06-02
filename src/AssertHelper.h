@@ -90,8 +90,6 @@ static bool Log(AssertHelper::AssertData& assertData,
 
 #define MLG_ASSERT(expr, ...) void(MLG_VERIFY(expr __VA_OPT__(,) __VA_ARGS__))
 
-#define MLG_ASSERT2(expr, ...) void(MLG_VERIFY2(expr __VA_OPT__(,) __VA_ARGS__))
-
 // MLG_ASSERT_ONLY is for expressions that are only used in asserts, but we want to avoid "unused
 // variable/expression" warnings in release builds.
 #define MLG_ASSERT_ONLY(expr) (void)(expr)

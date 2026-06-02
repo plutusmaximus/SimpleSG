@@ -93,11 +93,20 @@ inline RgbaColor<float>::RgbaColor(const RgbaColor<uint8_t>& other) noexcept
 }
 
 template<>
-inline std::string RgbaColor<uint8_t>::ToHexString() const noexcept
+inline std::string
+RgbaColor<uint8_t>::ToHexString() const noexcept
 {
-    char buf[10];
-    snprintf(buf, sizeof(buf), "#%02X%02X%02X%02X", r, g, b, a);
-    return std::string(buf);
+    constexpr char kHexDigits[] = "0123456789ABCDEF";
+    std::string hexString(9, '#');
+    hexString[1] = kHexDigits[(r >> 4) & 0x0F];
+    hexString[2] = kHexDigits[r & 0x0F];
+    hexString[3] = kHexDigits[(g >> 4) & 0x0F];
+    hexString[4] = kHexDigits[g & 0x0F];
+    hexString[5] = kHexDigits[(b >> 4) & 0x0F];
+    hexString[6] = kHexDigits[b & 0x0F];
+    hexString[7] = kHexDigits[(a >> 4) & 0x0F];
+    hexString[8] = kHexDigits[a & 0x0F];
+    return hexString;
 }
 
 template<>
@@ -117,35 +126,36 @@ constexpr RgbaColor<uint8_t> operator""_rgba(const char* str, const size_t len)
         return 0;
     };
 
-    const size_t offset = (len > 0 && str[0] == '#') ? 1 : 0;
+    const std::span strSpan(str, len);
+    const size_t offset = (len > 0 && strSpan[0] == '#') ? 1 : 0;
     const size_t digits = len - offset;
 
     if (digits == 3)
     {
         // Shorthand RGB (e.g., #F0A), expand to full form which is #FF00AA
         return RgbaColor<uint8_t>(
-            static_cast<uint8_t>((from_hex(str[offset]) << 4) | from_hex(str[offset])),
-            static_cast<uint8_t>((from_hex(str[offset+1]) << 4) | from_hex(str[offset+1])),
-            static_cast<uint8_t>((from_hex(str[offset+2]) << 4) | from_hex(str[offset+2]))
+            static_cast<uint8_t>((from_hex(strSpan[offset]) << 4) | from_hex(strSpan[offset])),
+            static_cast<uint8_t>((from_hex(strSpan[offset+1]) << 4) | from_hex(strSpan[offset+1])),
+            static_cast<uint8_t>((from_hex(strSpan[offset+2]) << 4) | from_hex(strSpan[offset+2]))
         );
     }
     if (digits == 6)
     {
         // Full RGB (e.g., #FF00AA)
         return RgbaColor<uint8_t>(
-            static_cast<uint8_t>((from_hex(str[offset]) << 4) | from_hex(str[offset+1])),
-            static_cast<uint8_t>((from_hex(str[offset+2]) << 4) | from_hex(str[offset+3])),
-            static_cast<uint8_t>((from_hex(str[offset+4]) << 4) | from_hex(str[offset+5]))
+            static_cast<uint8_t>((from_hex(strSpan[offset]) << 4) | from_hex(strSpan[offset+1])),
+            static_cast<uint8_t>((from_hex(strSpan[offset+2]) << 4) | from_hex(strSpan[offset+3])),
+            static_cast<uint8_t>((from_hex(strSpan[offset+4]) << 4) | from_hex(strSpan[offset+5]))
         );
     }
     if (digits == 8)
     {
         // Full RGBA (e.g., #FF00AAFF)
         return RgbaColor<uint8_t>(
-            static_cast<uint8_t>((from_hex(str[offset]) << 4) | from_hex(str[offset+1])),
-            static_cast<uint8_t>((from_hex(str[offset+2]) << 4) | from_hex(str[offset+3])),
-            static_cast<uint8_t>((from_hex(str[offset+4]) << 4) | from_hex(str[offset+5])),
-            static_cast<uint8_t>((from_hex(str[offset+6]) << 4) | from_hex(str[offset+7]))
+            static_cast<uint8_t>((from_hex(strSpan[offset]) << 4) | from_hex(strSpan[offset+1])),
+            static_cast<uint8_t>((from_hex(strSpan[offset+2]) << 4) | from_hex(strSpan[offset+3])),
+            static_cast<uint8_t>((from_hex(strSpan[offset+4]) << 4) | from_hex(strSpan[offset+5])),
+            static_cast<uint8_t>((from_hex(strSpan[offset+6]) << 4) | from_hex(strSpan[offset+7]))
         );
     }
     return RgbaColor<uint8_t>(); // default

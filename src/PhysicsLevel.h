@@ -11,8 +11,10 @@ class BodyPair
 {
 public:
 
-    BodyPair(size_t indexA, size_t indexB)
+    BodyPair(const size_t indexA, const size_t indexB)
     {
+        MLG_ASSERT(indexA != indexB, "BodyPair cannot contain the same body twice");
+
         // Ensure the pair is always stored in a consistent order.
         // This enables identifying and skipping duplicate pairs.
         if(indexA < indexB)
@@ -50,18 +52,18 @@ struct ImpactResult
 
 struct ColliderSweepParams
 {
-    Vec3f StartPosA;
-    Vec3f EndPosA;
+    Vec3f StartPosA{};
+    Vec3f EndPosA{};
     Collider ColliderA;
 
-    Vec3f StartPosB;
-    Vec3f EndPosB;
+    Vec3f StartPosB{};
+    Vec3f EndPosB{};
     Collider ColliderB;
 };
 
 struct ImpactRecord
 {
-    BodyPair Bodies;
+    BodyPair Bodies{0,0}; // Initialized to an invalid pair to catch uninitialized usage.
 
     ColliderSweepParams SweepParams;
 
@@ -112,6 +114,7 @@ public:
     }
 
     GridHash() = delete;
+    ~GridHash() = default;
     GridHash(const GridHash&) = delete;
     GridHash& operator=(const GridHash&) = delete;
     GridHash(GridHash&&) = default;
@@ -214,6 +217,7 @@ private:
         }
 
         Cell() = delete;
+        ~Cell() = default;
         Cell(const Cell&) = default;
         Cell& operator=(const Cell&) = default;
         Cell(Cell&&) = default;
@@ -432,6 +436,7 @@ public:
     static Result<> Create(const Level& level, PhysicsLevel& outPhysLevel);
 
     PhysicsLevel() = default;
+    ~PhysicsLevel() = default;
     PhysicsLevel(const PhysicsLevel&) = delete;
     PhysicsLevel& operator=(const PhysicsLevel&) = delete;
     PhysicsLevel(PhysicsLevel&& other) = default;

@@ -13,8 +13,8 @@ static inline uint64_t GetFrequency()
 }
 
 Stopwatch::Stopwatch()
+    : m_LastTime(SDL_GetPerformanceCounter())
 {
-    m_LastTime = SDL_GetPerformanceCounter();
 }
 
 float

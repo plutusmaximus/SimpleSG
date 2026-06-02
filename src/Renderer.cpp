@@ -106,10 +106,10 @@ Renderer::Render(const TrsTransformf& camera,
     {
         MLG_SCOPED_TIMER("Renderer.Render.Draw.SetBuffers");
 
-        static_assert(VERTEX_INDEX_BITS == 32 || VERTEX_INDEX_BITS == 16);
+        static_assert(VERTEX_INDEX_BITS == UINT32_WIDTH || VERTEX_INDEX_BITS == UINT16_WIDTH);
 
         constexpr wgpu::IndexFormat idxFmt =
-            (VERTEX_INDEX_BITS == 32)
+            (VERTEX_INDEX_BITS == UINT32_WIDTH)
             ? wgpu::IndexFormat::Uint32
             : wgpu::IndexFormat::Uint16;
 
@@ -186,7 +186,7 @@ Renderer::Render(const TrsTransformf& camera,
 //private:
 
 Result<wgpu::RenderPassEncoder>
-Renderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
+Renderer::BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder)
 {
     const wgpu::RenderPassColorAttachment attachment //
         {
@@ -218,7 +218,7 @@ Renderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
             .depthStencilAttachment = &depthStencilAttachment,
         };
 
-    const wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
+    wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
     MLG_CHECK(renderPass, "Failed to begin render pass");
 
     //DO NOT SUBMIT
@@ -479,7 +479,7 @@ Renderer::CreateColorPipeline()
             .stepMode = wgpu::VertexStepMode::Vertex,
             .arrayStride = sizeof(Vertex),
             .attributeCount = std::size(vertexAttributes),
-            .attributes = vertexAttributes,
+            .attributes = &vertexAttributes[0],
         };
 
     const wgpu::RenderPipelineDescriptor descriptor//
@@ -636,7 +636,7 @@ Renderer::CreatePresentPipeline()
             .label = "ColorTargetCopyBindGroup",
             .layout = (*bgLayouts)[0],
             .entryCount = std::size(bgEntries),
-            .entries = bgEntries,
+            .entries = &bgEntries[0],
         };
 
     m_PresentPipeline.BindGroup0 = device.CreateBindGroup(&bgDesc);
@@ -698,12 +698,12 @@ Renderer::CreateShader(const char* path)
     auto loadResult = LoadShaderCode(path, shaderCode);
     MLG_CHECK(loadResult);
 
-    const wgpu::StringView shaderCodeView{ reinterpret_cast<const char*>(shaderCode.data()),
-        shaderCode.size() };
+    const void* data = shaderCode.data();
+    const wgpu::StringView shaderCodeView{ static_cast<const char*>(data), shaderCode.size() };
     const wgpu::ShaderSourceWGSL wgsl{ { .nextInChain = nullptr, .code = shaderCodeView } };
     const wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl, .label = path };
 
-    const wgpu::ShaderModule shaderModule =
+    wgpu::ShaderModule shaderModule =
         WebgpuHelper::GetDevice().CreateShaderModule(&shaderModuleDescriptor);
     MLG_CHECK(shaderModule, "Failed to create shader module");
 
@@ -711,7 +711,7 @@ Renderer::CreateShader(const char* path)
 }
 
 Result<>
-Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
+Renderer::TransformNodes(const wgpu::CommandEncoder& cmdEncoder,
     const TrsTransformf& camera,
     const Projection& projection,
     const Scene& scene)

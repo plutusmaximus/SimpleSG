@@ -96,7 +96,7 @@ private:
 struct RigidBody
 {
     Vec3f LinearVelocity{ 0 };
-    Mass Mass;
+    Mass Mass{-1};  // Initialize with invalid mass to catch uninitialized usage.
 };
 
 class Collider

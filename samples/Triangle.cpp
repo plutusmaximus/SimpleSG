@@ -9,6 +9,7 @@
 #include "Scene.h"
 #include "scope_exit.h"
 #include "TextureCache.h"
+#include "ThreadPool.h"
 #include "WebgpuHelper.h"
 
 #include <filesystem>
@@ -30,12 +31,18 @@ static Result<> MainLoop()
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
+    ThreadPool::Startup();
+    defer
+    {
+        ThreadPool::Shutdown();
+    };
+
     MLG_CHECK(WebgpuHelper::Startup(kAppName));
 
-    auto shutdown = scope_exit([]()
+    defer
     {
         WebgpuHelper::Shutdown();
-    });
+    };
 
     TrsTransformf cameraXform;
     cameraXform.T = Vec3f{ 0,0,-4 };
@@ -201,12 +208,13 @@ static Result<> RenderGui()
     ImGui::Begin("Timers");
 
     PerfTimerStats timerStats[256];
-    const unsigned timerCount = PerfMetrics::SampleTimers(timerStats, std::size(timerStats));
-    for(unsigned i = 0; i < timerCount; ++i)
+    std::span<PerfTimerStats> timerStatsSpan(timerStats);
+    const size_t timerCount = PerfMetrics::SampleTimers(timerStatsSpan);
+    for(const auto& timerStat : timerStatsSpan.first(timerCount))
     {
         const std::string text =
-            std::format("{}: {:.3f} ms", timerStats[i].GetName(), timerStats[i].GetEMA() * 1000.0f);
-        ImGui::Text("%s", text.c_str());
+            std::format("{}: {:.3f} ms", timerStat.GetName(), timerStat.GetEMA() * 1000.0f);
+        ImGui::Text("%s", text.c_str()); // NOLINT(cppcoreguidelines-pro-type-vararg)
     }
 
     ImGui::End();

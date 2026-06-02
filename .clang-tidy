@@ -1,10 +1,3 @@
-# Minimal clang-tidy profile for incremental adoption.
-#
-# Usage example:
-#   clang-tidy -config-file=.clang-tidy2 <file>
-#
-# Keep this baseline small so signal stays high.
----
 Checks: >
   -*,
   clang-analyzer-*,
@@ -23,14 +16,14 @@ Checks: >
     -modernize-use-scoped-lock,
     -modernize-use-auto,
 
-  # Stage 3: C++ Core Guidelines (broader policy checks)
-  # cppcoreguidelines-*,
-  # -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
-  # -cppcoreguidelines-avoid-c-arrays,
-  # -cppcoreguidelines-macro-usage,
+  cppcoreguidelines-*,
+    -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
+    -cppcoreguidelines-pro-bounds-constant-array-index,
+    -cppcoreguidelines-avoid-c-arrays,
+    -cppcoreguidelines-macro-usage,
+    -cppcoreguidelines-avoid-magic-numbers,
 
-  # Stage 4: Performance-focused checks
-  # performance-*,
+  performance-*,
 
   # Stage 5: Readability checks (highest noise; add slowly)
   # readability-*,

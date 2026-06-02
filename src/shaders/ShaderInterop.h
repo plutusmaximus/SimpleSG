@@ -50,8 +50,8 @@ public:
     float Roughness{ 0 };
 
     // Align to 16 bytes for storage in a uniform/storage buffer.
-    float pad0;
-    float pad1;
+    float pad0{ 0 };
+    float pad1{ 0 };
 };
 
 class WorldTransform

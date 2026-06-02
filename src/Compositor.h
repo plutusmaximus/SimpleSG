@@ -9,6 +9,7 @@ class Compositor
 public:
 
     Compositor() = default;
+    ~Compositor() = default;
     Compositor(const Compositor&) = delete;
     Compositor& operator=(const Compositor&) = delete;
     Compositor(Compositor&&) = delete;

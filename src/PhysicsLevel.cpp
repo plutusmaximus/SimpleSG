@@ -198,20 +198,14 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
         // vA' += n * -(1 + e) * vRel * ((mA * mB)/(mA * (mA + mB))
         // vA' += n * -(1 + e) * vRel * mB/(mA + mB)
 
-        float e;
-
-        if(vRel < -RESTING_VELOCITY_THRESHOLD)
-        {
+        const float e =
+            (vRel < -RESTING_VELOCITY_THRESHOLD)
             // When closing velocity is above the resting velocity threshold
             // treat as a dynamic collision with restitution.
-            e = COEFF_OF_RESTITUTION;
-        }
-        else
-        {
+            ? COEFF_OF_RESTITUTION
             // When closing velocity is below the resting velocity threshold
             // treat as a resting contact.
-            e = 0.0f;
-        }
+            : 0.0f;
 
         const float k = -(1 + e) * vRel / (bodyA.Mass.Value() + bodyB.Mass.Value());
         const Vec3f u = k * impactResult.ContactNormalBtoA;

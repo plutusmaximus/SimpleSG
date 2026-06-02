@@ -112,22 +112,24 @@ public:
 };
 
 #define MLG_CHECK(expr, ...) \
-    do{ \
+    for(;;){ \
         if(!static_cast<bool>(expr)) \
         { \
             __VA_OPT__(const std::string errorMessage = Result<>::Format(__VA_ARGS__);) \
             __VA_OPT__(MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, errorMessage)); \
             return Result<>::Fail; \
         } \
-    } while(0)
+        break; \
+    }
 
 // Like MLG_CHECK but also calls verify and pops an assert if false.
 #define MLG_CHECKV(expr, ...) \
-    do{ \
+    for(;;){ \
         if(!MLG_VERIFY(expr __VA_OPT__(,) __VA_ARGS__)) \
         { \
             __VA_OPT__(const std::string errorMessage = Result<>::Format(__VA_ARGS__);) \
             __VA_OPT__(MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, errorMessage)); \
             return Result<>::Fail; \
         } \
-    } while(0)
+        break; \
+    }

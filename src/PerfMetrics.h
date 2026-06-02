@@ -126,17 +126,18 @@ class PerfMetrics final
 public:
 
     PerfMetrics() = delete;
+    ~PerfMetrics() = delete;
     PerfMetrics(const PerfMetrics&) = delete;
     PerfMetrics& operator=(const PerfMetrics&) = delete;
     PerfMetrics(PerfMetrics&&) = delete;
     PerfMetrics& operator=(PerfMetrics&&) = delete;
 
     /// @brief Gets the number of recorded timers.
-    static unsigned GetTimerCount();
+    static size_t GetTimerCount();
 
     /// @brief Gets the recorded timers. The caller should provide a buffer of sufficient size based
     /// on GetTimerCount().
-    static unsigned SampleTimers(PerfTimerStats* outStats, const unsigned timerCount);
+    static size_t SampleTimers(std::span<PerfTimerStats>& outStats);
 
     /// @brief Logs all timers to log output.
     static void LogTimers();
