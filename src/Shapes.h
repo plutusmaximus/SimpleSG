@@ -47,27 +47,45 @@ public:
         std::vector<VertexIndex> m_Indices;
     };
 
+    static constexpr float kMaxSmoothness = 10.0f;
+
     static Geometry Box(const float width, const float height, const float depth);
 
     // Smoothness controls tessellation (1-10, higher = smoother)
-    static Geometry Ball(const float radius, const float smoothness);
+    static Geometry Ball(const float radius, const float requestedSmoothness);
+    static Geometry Ball(const float radius)
+    {
+        return Ball(radius, kMaxSmoothness);
+    }
 
     // Height along Y axis, centered at origin
     // Smoothness controls tessellation (1-10, higher = smoother)
-    static Geometry Cylinder(const float height, const float radius, const float smoothness);
+    static Geometry Cylinder(const float height, const float radius, const float requestedSmoothness);
+    static Geometry Cylinder(const float height, const float radius)
+    {
+        return Cylinder(height, radius, kMaxSmoothness);
+    }
 
     // Generate a truncated cone with two radii.
     // radius1 = bottom radius, radius2 = top radius.
     // Height = 1.0, along Y axis, centered at origin.
     // Pass zero for one of the radii to produce a pure cone.
-    static Geometry Cone(const float radius1, const float radius2, const float smoothness);
+    static Geometry Cone(const float radius1, const float radius2, const float requestedSmoothness);
+    static Geometry Cone(const float radius1, const float radius2)
+    {
+        return Cone(radius1, radius2, kMaxSmoothness);
+    }
 
     // smoothness controls tessellation (1-10)
     // ringRadius > tubeRadius - Classic donut shape.
     // ringRadius == tubeRadius - Horn torus.
     // ringRadius < tubeRadius - Spindle torus (some geometry is overlapping).
     // ringRadius == 0 - Sphere of radius == tubeRadius.
-    static Geometry Torus(const float ringRadius, const float tubeRadius, const float smoothness);
+    static Geometry Torus(const float ringRadius, const float tubeRadius, const float requestedSmoothness);
+    static Geometry Torus(const float ringRadius, const float tubeRadius)
+    {
+        return Torus(ringRadius, tubeRadius, kMaxSmoothness);
+    }
 };
 
 // Specializations to enable structured binding for Shapes::Geometry.

@@ -8,6 +8,8 @@
 #include <random>
 #include <vector>
 
+// NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
+
 namespace
 {
 	Collider MakeSphereCollider(float radius)
@@ -305,3 +307,5 @@ TEST(GridHash, ChaosRandomizedBodies_AllExpectedPairsExist)
         }
     }
 }
+
+// NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)

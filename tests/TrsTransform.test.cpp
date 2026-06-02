@@ -5,36 +5,41 @@
 
 #include "VecMath.h"
 
+// NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
+
 namespace
 {
-    constexpr float EPS = 1e-5f;
+constexpr float EPS = 1e-5f;
 
-    void ExpectVec3Near(const Vec3f& actual, const Vec3f& expected, float eps = EPS)
-    {
-        EXPECT_NEAR(actual.x, expected.x, eps);
-        EXPECT_NEAR(actual.y, expected.y, eps);
-        EXPECT_NEAR(actual.z, expected.z, eps);
-    }
+void
+ExpectVec3Near(const Vec3f& actual, const Vec3f& expected, float eps = EPS)
+{
+    EXPECT_NEAR(actual.x, expected.x, eps);
+    EXPECT_NEAR(actual.y, expected.y, eps);
+    EXPECT_NEAR(actual.z, expected.z, eps);
+}
 
-    void ExpectVec4Near(const Vec4f& actual, const Vec4f& expected, float eps = EPS)
-    {
-        EXPECT_NEAR(actual.x, expected.x, eps);
-        EXPECT_NEAR(actual.y, expected.y, eps);
-        EXPECT_NEAR(actual.z, expected.z, eps);
-        EXPECT_NEAR(actual.w, expected.w, eps);
-    }
+void
+ExpectVec4Near(const Vec4f& actual, const Vec4f& expected, float eps = EPS)
+{
+    EXPECT_NEAR(actual.x, expected.x, eps);
+    EXPECT_NEAR(actual.y, expected.y, eps);
+    EXPECT_NEAR(actual.z, expected.z, eps);
+    EXPECT_NEAR(actual.w, expected.w, eps);
+}
 
-    void ExpectMat44Near(const Mat44f& actual, const Mat44f& expected, float eps = EPS)
+void
+ExpectMat44Near(const Mat44f& actual, const Mat44f& expected, float eps = EPS)
+{
+    for(size_t row = 0; row < 4; ++row)
     {
-        for(size_t row = 0; row < 4; ++row)
+        for(size_t col = 0; col < 4; ++col)
         {
-            for(size_t col = 0; col < 4; ++col)
-            {
-                EXPECT_NEAR(actual[row][col], expected[row][col], eps);
-            }
+            EXPECT_NEAR(actual[row][col], expected[row][col], eps);
         }
     }
 }
+} // namespace
 
 TEST(TrsTransformf, DefaultConstruction)
 {
@@ -137,3 +142,5 @@ TEST(TrsTransformf, Equality)
     EXPECT_TRUE(a == b);
     EXPECT_FALSE(a == c);
 }
+
+// NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)

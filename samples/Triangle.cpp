@@ -28,7 +28,9 @@ Result<> RenderGui()
     ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
     ImGui::Begin("Timers");
 
-    PerfTimerStats timerStats[256];
+    constexpr size_t kMaxTimers = 256;
+
+    PerfTimerStats timerStats[kMaxTimers];
     std::span<PerfTimerStats> timerStatsSpan(timerStats);
     const size_t timerCount = PerfMetrics::SampleTimers(timerStatsSpan);
     for(const auto& timerStat : timerStatsSpan.first(timerCount))

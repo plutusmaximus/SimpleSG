@@ -82,7 +82,9 @@ Result<> RenderGui(const PhysicsLevel& physLevel, const float totalPotentialEner
     ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
     ImGui::Begin(title.c_str());
 
-    PerfTimerStats timerStats[256];
+    constexpr size_t kMaxTimers = 256;
+
+    PerfTimerStats timerStats[kMaxTimers];
     std::span<PerfTimerStats> timerStatsSpan(timerStats);
     const size_t timerCount = PerfMetrics::SampleTimers(timerStatsSpan);
     for(const auto& timerStat : timerStatsSpan.first(timerCount))
@@ -112,7 +114,9 @@ Load(const std::filesystem::path& path,
     PropKit& outPropKit,
     Level& outLevel)
 {
-    auto shape = Shapes::Ball(1.0f, 10);
+    constexpr float ballRadius = 1.0f;
+
+    auto shape = Shapes::Ball(ballRadius);
 
     const PropKitDef propKitDef //
         {
@@ -136,7 +140,8 @@ Load(const std::filesystem::path& path,
         path.string());
 
     // Fixed seed for reproducibility
-    std::mt19937 gen(12345);
+    constexpr unsigned kRngSeed = 12345;
+    std::mt19937 gen(kRngSeed);
     std::uniform_real_distribution<float> dis(-1, 1);
 
     constexpr int GRID_SIZE = 20;
@@ -371,7 +376,8 @@ float ApplyGravity(PhysicsLevel& physLevel)
 void ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
 {
     const std::span<const RigidBody> bodies = physLevel.GetBodies();
-    std::mt19937 gen(12345);
+    constexpr unsigned kRngSeed = 12345;
+    std::mt19937 gen(kRngSeed);
     std::uniform_real_distribution<float> dis(0.5, 1);
     std::bernoulli_distribution sign;
 
@@ -492,7 +498,9 @@ MainLoop()
 
     MLG_CHECK(PhysicsLevel::Create(level, physLevel));
 
-    TrsTransformf trsCamera{ .T{0, 0, -40} };
+    constexpr float kInitialCameraDistance = 40.0f;
+
+    TrsTransformf trsCamera{ .T{0, 0, -kInitialCameraDistance} };
     Projection projection;
 
     mouseNav.SetTransform(trsCamera);
@@ -597,7 +605,8 @@ MainLoop()
                 }
                 else if(SDL_SCANCODE_RETURN == event.key.scancode)
                 {
-                    ApplyExplosionImpulse(physLevel, 5.0f);
+                    constexpr float kImpulseMagnitude = 5.0f;
+                    ApplyExplosionImpulse(physLevel, kImpulseMagnitude);
                 }
                 else if(SDL_SCANCODE_BACKSPACE == event.key.scancode)
                 {

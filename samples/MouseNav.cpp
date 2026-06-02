@@ -53,7 +53,9 @@ WalkMouseNav::OnKeyUp(const int keyCode)
 void
 WalkMouseNav::OnScroll(const Vec2f& scroll)
 {
-    m_TargetTransform.T.y += scroll.y * m_MovePerSec * 0.1f;
+    constexpr float kScrollMoveScale = 0.1f;
+
+    m_TargetTransform.T.y += scroll.y * m_MovePerSec * kScrollMoveScale;
 }
 
 void
@@ -80,10 +82,10 @@ WalkMouseNav::Update(const float deltaSeconds)
 
         constexpr float kHalfPi = std::numbers::pi_v<float> * 0.5f;
 
-        rotX = std::max(rotX, -(kHalfPi - 0.01f));
-        rotX = std::min(rotX, kHalfPi - 0.01f);
-        rotY = std::max(rotY, -(kHalfPi - 0.01f));
-        rotY = std::min(rotY, kHalfPi - 0.01f);
+        rotX = std::max(rotX, -kHalfPi);
+        rotX = std::min(rotX, kHalfPi);
+        rotY = std::max(rotY, -kHalfPi);
+        rotY = std::min(rotY, kHalfPi);
         const UnitQuatf pitch = UnitQuatf(Radiansf(rotX), Vec3f::XAXIS());
         const UnitQuatf yaw = UnitQuatf(Radiansf(rotY), Vec3f::YAXIS());
 

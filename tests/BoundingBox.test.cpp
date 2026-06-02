@@ -4,6 +4,8 @@
 
 #include <vector>
 
+// NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
+
 namespace
 {
 Vertex
@@ -101,3 +103,5 @@ TEST(Box, FromVertices_VertexOrderDoesNotAffectResult)
 
     ExpectVec3Eq(boxForward.GetHalfExtents(), boxReverse.GetHalfExtents());
 }
+
+// NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)

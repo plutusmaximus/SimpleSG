@@ -11,6 +11,8 @@ namespace
 constexpr float kPi = std::numbers::pi_v<float>;
 }
 
+// NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
+
 Shapes::Geometry
 Shapes::Box(const float width, const float height, const float depth)
 {
@@ -75,17 +77,17 @@ Shapes::Box(const float width, const float height, const float depth)
 }
 
 Shapes::Geometry
-Shapes::Ball(const float radius, const float smoothness)
+Shapes::Ball(const float radius, const float requestedSmoothness)
 {
     MLG_ASSERT(radius > 0);
-    MLG_ASSERT(smoothness > 0);
+    MLG_ASSERT(requestedSmoothness > 0);
 
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
 
     // Clamp smoothness to determine subdivision level
-    const float s = std::max(1.0f, std::min(10.0f, smoothness));
-    const size_t subdivisions = static_cast<size_t>(s * 0.3f); // 0 to 3 subdivisions
+    const float smoothness = std::max(1.0f, std::min(kMaxSmoothness, requestedSmoothness));
+    const size_t subdivisions = static_cast<size_t>(smoothness * 0.3f); // 0 to 3 subdivisions
 
     // Calculate exact final sizes with deduplication
     // With deduplication, vertices are shared between triangles
@@ -209,19 +211,19 @@ Shapes::Ball(const float radius, const float smoothness)
 }
 
 Shapes::Geometry
-Shapes::Cylinder(const float height, const float radius, const float smoothness)
+Shapes::Cylinder(const float height, const float radius, const float requestedSmoothness)
 {
     MLG_ASSERT(height > 0);
     MLG_ASSERT(radius > 0);
-    MLG_ASSERT(smoothness > 0);
+    MLG_ASSERT(requestedSmoothness > 0);
 
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
     const float halfHeight = height * 0.5f;
 
     // Clamp smoothness and calculate segments
-    const float s = std::max(1.0f, std::min(10.0f, smoothness));
-    const uint32_t segments = static_cast<uint32_t>(8 + (s * 4)); // 12 to 48 segments
+    const float smoothness = std::max(1.0f, std::min(kMaxSmoothness, requestedSmoothness));
+    const uint32_t segments = static_cast<uint32_t>(8 + (smoothness * 4)); // 12 to 48 segments
 
     // Reserve exact sizes
     const uint32_t totalVertices = (segments * 4) + 2; // sides + cap rings + centers
@@ -316,12 +318,12 @@ Shapes::Cylinder(const float height, const float radius, const float smoothness)
 }
 
 Shapes::Geometry
-Shapes::Cone(const float radius1, const float radius2, const float smoothness)
+Shapes::Cone(const float radius1, const float radius2, const float requestedSmoothness)
 {
     MLG_ASSERT(radius1 >= 0);
     MLG_ASSERT(radius2 >= 0);
     MLG_ASSERT(radius1 > 0 || radius2 > 0);
-    MLG_ASSERT(smoothness > 0);
+    MLG_ASSERT(requestedSmoothness > 0);
 
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
@@ -330,8 +332,8 @@ Shapes::Cone(const float radius1, const float radius2, const float smoothness)
     const float halfHeight = height * 0.5f;
 
     // Clamp smoothness and calculate segments
-    const float s = std::max(1.0f, std::min(10.0f, smoothness));
-    const uint32_t segments = static_cast<uint32_t>(8 + (s * 4)); // 12 to 48 segments
+    const float smoothness = std::max(1.0f, std::min(kMaxSmoothness, requestedSmoothness));
+    const uint32_t segments = static_cast<uint32_t>(8 + (smoothness * 4)); // 12 to 48 segments
 
     // Calculate exact sizes
     const bool hasBottomCap = radius1 > 0.0f;
@@ -468,11 +470,13 @@ Shapes::Cone(const float radius1, const float radius2, const float smoothness)
 }
 
 Shapes::Geometry
-Shapes::Torus(const float ringRadius, const float tubeRadius, const float smoothness)
+Shapes::Torus(const float ringRadius, const float tubeRadius, const float requestedSmoothness)
 {
     MLG_ASSERT(ringRadius >= 0);
     MLG_ASSERT(tubeRadius > 0);
-    MLG_ASSERT(smoothness > 0);
+    MLG_ASSERT(requestedSmoothness > 0);
+    
+    const float smoothness = std::max(1.0f, std::min(kMaxSmoothness, requestedSmoothness));
 
     if (0 == ringRadius)
     {
@@ -571,3 +575,5 @@ Shapes::Torus(const float ringRadius, const float tubeRadius, const float smooth
 
     return Geometry{ std::move(vertices), std::move(indices) };
 }
+
+// NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)

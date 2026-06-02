@@ -5,6 +5,8 @@
 
 #include "VecMath.h"
 
+// NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
+
 // Type aliases for convenience
 using Vec3f = Vec3<float>;
 using Vec4f = Vec4<float>;
@@ -485,3 +487,5 @@ TEST(Mat44f, PerspectiveLH)
     EXPECT_NEAR(P[2][3], 1.0f, EPS);
     EXPECT_NEAR(P[3][2], -(farClip * nearClip) / (farClip - nearClip), EPS);
 }
+
+// NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)

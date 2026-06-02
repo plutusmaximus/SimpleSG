@@ -5,28 +5,35 @@
 
 #include "VecMath.h"
 
-// Type alias for convenience
-using Radiansf = Radians<float>;
+// NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
 
 namespace
 {
-    constexpr float PI = std::numbers::pi_v<float>;
-    constexpr float TWO_PI = 2.0f * PI;
-    //constexpr float ABS(float value) { return value < 0 ? -value : value; }
-    constexpr float EPSILON([[maybe_unused]] float value) {return 1e-6f;}//{ return ABS(value) * std::numeric_limits<float>::epsilon(); }
+// Type alias for convenience
+using Radiansf = Radians<float>;
 
-    // Helper function to normalize a radian value to [0, 2π)
-    float NormalizeRadians(const float value)
+constexpr float PI = std::numbers::pi_v<float>;
+constexpr float TWO_PI = 2.0f * PI;
+// constexpr float ABS(float value) { return value < 0 ? -value : value; }
+constexpr float
+EPSILON([[maybe_unused]] float value)
+{
+    return 1e-6f;
+} //{ return ABS(value) * std::numeric_limits<float>::epsilon(); }
+
+// Helper function to normalize a radian value to [0, 2π)
+float
+NormalizeRadians(const float value)
+{
+    const float r = value - (std::floor(value / TWO_PI) * TWO_PI);
+
+    if((r >= TWO_PI - EPSILON(TWO_PI)) || (std::abs(r) < EPSILON(TWO_PI)))
     {
-        const float r = value - (std::floor(value / TWO_PI) * TWO_PI);
-
-        if((r >= TWO_PI - EPSILON(TWO_PI)) || (std::abs(r) < EPSILON(TWO_PI)))
-        {
-            return 0.0f;
-        }
-
-        return r;
+        return 0.0f;
     }
+
+    return r;
+}
 }
 
 // Test construction and initialization
@@ -468,3 +475,5 @@ TEST(Radiansf, EdgeCases_DefaultValueIsZero)
     const Radiansf r;
     EXPECT_FLOAT_EQ(r.GetValue(), 0.0f);
 }
+
+// NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)

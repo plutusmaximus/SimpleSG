@@ -43,6 +43,9 @@ inline MouseNav::~MouseNav() = default;
 class WalkMouseNav : public MouseNav
 {
 public:
+    static constexpr float kDefualtRotPerDXY = 0.0001f;
+    static constexpr float kDefaultMovePerSec = 5.0f;
+
     /// @brief Construct a WalkMouseNav object.
     /// @param initialTransform The initial transform of the camera.
     /// @param rotPerDXY Rotation amount (in fractions of a full rotation) per unit of mouse movement in X and Y directions.
@@ -52,7 +55,7 @@ public:
         const float rotPerDXY,
         const float movePerSec);
 
-    WalkMouseNav() : WalkMouseNav(TrsTransformf{}, 0.0001f, 5.0f) {}
+    WalkMouseNav() : WalkMouseNav(TrsTransformf{}, kDefualtRotPerDXY, kDefaultMovePerSec) {}
 
     ~WalkMouseNav() override;
     WalkMouseNav(const WalkMouseNav&) = delete;

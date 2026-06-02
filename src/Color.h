@@ -97,15 +97,18 @@ inline std::string
 RgbaColor<uint8_t>::ToHexString() const noexcept
 {
     constexpr char kHexDigits[] = "0123456789ABCDEF";
-    std::string hexString(9, '#');
-    hexString[1] = kHexDigits[(r >> 4) & 0x0F];
-    hexString[2] = kHexDigits[r & 0x0F];
-    hexString[3] = kHexDigits[(g >> 4) & 0x0F];
-    hexString[4] = kHexDigits[g & 0x0F];
-    hexString[5] = kHexDigits[(b >> 4) & 0x0F];
-    hexString[6] = kHexDigits[b & 0x0F];
-    hexString[7] = kHexDigits[(a >> 4) & 0x0F];
-    hexString[8] = kHexDigits[a & 0x0F];
+    constexpr size_t kMask = 0x0F;
+    constexpr const char* kInitialString = "#00000000";
+    std::string hexString(kInitialString);
+    size_t offset = 1;
+    hexString[offset++] = kHexDigits[(r >> 4) & kMask];
+    hexString[offset++] = kHexDigits[r & kMask];
+    hexString[offset++] = kHexDigits[(g >> 4) & kMask];
+    hexString[offset++] = kHexDigits[g & kMask];
+    hexString[offset++] = kHexDigits[(b >> 4) & kMask];
+    hexString[offset++] = kHexDigits[b & kMask];
+    hexString[offset++] = kHexDigits[(a >> 4) & kMask];
+    hexString[offset++] = kHexDigits[a & kMask];
     return hexString;
 }
 
@@ -120,17 +123,20 @@ constexpr RgbaColor<uint8_t> operator""_rgba(const char* str, const size_t len)
 {
     auto from_hex = [](char c) -> uint8_t
     {
+        constexpr char kLowerHexOffset = 'a' - 10;
+        constexpr char kUpperHexOffset = 'A' - 10;
+        
         if(c >= '0' && c <= '9')
         {
             return static_cast<uint8_t>(c - '0');
         }
         if(c >= 'a' && c <= 'f')
         {
-            return static_cast<uint8_t>(c - 'a' + 10);
+            return static_cast<uint8_t>(c - kLowerHexOffset);
         }
         if(c >= 'A' && c <= 'F')
         {
-            return static_cast<uint8_t>(c - 'A' + 10);
+            return static_cast<uint8_t>(c - kUpperHexOffset);
         }
         return 0;
     };
@@ -139,6 +145,7 @@ constexpr RgbaColor<uint8_t> operator""_rgba(const char* str, const size_t len)
     const size_t offset = (len > 0 && strSpan[0] == '#') ? 1 : 0;
     const size_t digits = len - offset;
 
+    // NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
     if (digits == 3)
     {
         // Shorthand RGB (e.g., #F0A), expand to full form which is #FF00AA
@@ -167,5 +174,7 @@ constexpr RgbaColor<uint8_t> operator""_rgba(const char* str, const size_t len)
             static_cast<uint8_t>((from_hex(strSpan[offset+6]) << 4) | from_hex(strSpan[offset+7]))
         );
     }
+    // NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
+    
     return RgbaColor<uint8_t>(); // default
 }

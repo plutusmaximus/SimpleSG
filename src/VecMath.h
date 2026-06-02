@@ -874,11 +874,13 @@ public:
         m[3] = col3;
     }
 
+    // NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
     constexpr Mat44(const T(&arr)[16]) noexcept
         : Mat44(Vec4<T>(arr[0], arr[1], arr[2], arr[3]),
                 Vec4<T>(arr[4], arr[5], arr[6], arr[7]),
                 Vec4<T>(arr[8], arr[9], arr[10], arr[11]),
                 Vec4<T>(arr[12], arr[13], arr[14], arr[15]))
+    // NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers))
     {
     }
 
@@ -1338,7 +1340,7 @@ using UnitQuatf = UnitQuat<float>;
 using Mat44f = Mat44<float>;
 using TrsTransformf = TrsTransform<float>;
 
-// NOLINTBEGIN(bugprone-std-namespace-modification): std::formatter is a standard customization point for user-defined types.
+// NOLINTBEGIN(bugprone-std-namespace-modification)
 /// @brief Enable formatting of Vec2 via std::format.
 template<typename T>
 struct std::formatter<Vec2<T>>

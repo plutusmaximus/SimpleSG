@@ -232,13 +232,15 @@ private:
             // From https://github.com/skeeto/hash-prospector
             constexpr uint32_t kHashParam1 = 0x7feb352dU;
             constexpr uint32_t kHashParam2 = 0x846ca68bU;
+            constexpr size_t kShift16 = 16;
+            constexpr size_t kShift15 = 15;
 
             uint32_t v = u;
-            v ^= v >> 16;
+            v ^= v >> kShift16;
             v *= kHashParam1;
-            v ^= v >> 15;
+            v ^= v >> kShift15;
             v *= kHashParam2;
-            v ^= v >> 16;
+            v ^= v >> kShift16;
             return v;
         }
 

@@ -4,6 +4,8 @@
 
 #include "VecMath.h"
 
+// NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
+
 // Type alias for convenience
 using Vec3f = Vec3<float>;
 
@@ -213,3 +215,5 @@ TEST(Vec3f, CompoundDivision_Scalar)
     EXPECT_FLOAT_EQ(a.y, 3.0f);
     EXPECT_FLOAT_EQ(a.z, 4.0f);
 }
+
+// NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
