@@ -30,7 +30,6 @@ Checks: >
     -readability-uppercase-literal-suffix,
     -readability-avoid-const-params-in-decls,
     -readability-use-concise-preprocessor-directives,
-    #-readability-magic-numbers,
     -readability-identifier-length,
     -readability-implicit-bool-conversion,
     -readability-named-parameter,
