@@ -79,7 +79,7 @@ private:
 class PerfCounter
 {
 public:
-    explicit PerfCounter(const std::string& name);
+    explicit PerfCounter(std::string name);
 
     void Increment(const uint64_t count) { m_Value.fetch_add(count, std::memory_order_relaxed); }
 
@@ -102,7 +102,7 @@ class PerfTimer : public PerfCounter
 {
 public:
 
-    explicit PerfTimer(const std::string& name);
+    explicit PerfTimer(std::string name);
 
     /// @brief  Starts the timer.
     void Start();
@@ -125,23 +125,24 @@ class PerfMetrics final
 {
 public:
 
+    PerfMetrics() = delete;
+    ~PerfMetrics() = delete;
+    PerfMetrics(const PerfMetrics&) = delete;
+    PerfMetrics& operator=(const PerfMetrics&) = delete;
+    PerfMetrics(PerfMetrics&&) = delete;
+    PerfMetrics& operator=(PerfMetrics&&) = delete;
+
     /// @brief Gets the number of recorded timers.
-    static unsigned GetTimerCount();
+    static size_t GetTimerCount();
 
     /// @brief Gets the recorded timers. The caller should provide a buffer of sufficient size based
     /// on GetTimerCount().
-    static unsigned SampleTimers(PerfTimerStats* outStats, const unsigned timerCount);
+    static size_t SampleTimers(std::span<PerfTimerStats>& outStats);
 
     /// @brief Logs all timers to log output.
     static void LogTimers();
 
 private:
-
-    PerfMetrics() = delete;
-    PerfMetrics(const PerfMetrics&) = delete;
-    PerfMetrics& operator=(const PerfMetrics&) = delete;
-    PerfMetrics(PerfMetrics&&) = delete;
-    PerfMetrics& operator=(PerfMetrics&&) = delete;
 
     friend PerfCounter;
     friend PerfTimer;

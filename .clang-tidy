@@ -1,0 +1,49 @@
+Checks: >
+  clang-analyzer-*,
+    -clang-analyzer-optin.core.EnumCastOutOfRange,
+  bugprone-*,
+    -bugprone-random-generator-seed,
+    -bugprone-easily-swappable-parameters,
+  misc-*,
+    -misc-include-cleaner,
+    -misc-non-private-member-variables-in-classes,
+    -misc-no-recursion,
+  modernize-*,
+    -modernize-use-trailing-return-type,
+    -modernize-avoid-c-arrays,
+    -modernize-use-nodiscard,
+    -modernize-return-braced-init-list,
+    -modernize-use-scoped-lock,
+    -modernize-use-auto,
+  cppcoreguidelines-*,
+    -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
+    -cppcoreguidelines-pro-bounds-constant-array-index,
+    -cppcoreguidelines-avoid-c-arrays,
+    -cppcoreguidelines-macro-usage,
+    -cppcoreguidelines-avoid-magic-numbers, # Note we check for magic numbers in readability-magic-numbers
+  performance-*,
+  readability-*,
+    -readability-uppercase-literal-suffix,
+    -readability-avoid-const-params-in-decls,
+    -readability-use-concise-preprocessor-directives,
+    -readability-identifier-length,
+    -readability-implicit-bool-conversion,
+    -readability-named-parameter,
+    -readability-isolate-declaration,
+    -readability-function-cognitive-complexity,
+
+WarningsAsErrors: '*'
+
+# Do not auto-apply formatting style changes from clang-tidy diagnostics.
+FormatStyle: none
+
+CheckOptions:
+  - key: readability-magic-numbers.IgnoredIntegerValues
+    value: '0;1;2;3;4;180;360'
+  - key: readability-magic-numbers.IgnoredFloatingPointValues
+    value: '0;0.25;0.5;0.75;1.0'
+
+  # If Stage 3 enables cppcoreguidelines-macro-usage, uncomment this allowlist.
+  # - key: cppcoreguidelines-macro-usage.AllowedRegexp
+  #   value: '^(MLG_ASSERT|MLG_ASSERT_.*)$'
+  

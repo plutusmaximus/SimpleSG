@@ -11,6 +11,9 @@ public:
 
     using ValueType = T;
 
+    static constexpr T kMaxValue = std::is_integral_v<T> ? static_cast<T>(255) : static_cast<T>(1);
+    static constexpr T kMinValue = 0;
+
     constexpr RgbaColor() = default;
 
     constexpr RgbaColor(const T inR, const T inG, const T inB) noexcept
@@ -23,16 +26,24 @@ public:
     {
     }
 
+    template<typename U>
+    constexpr static T Clamp(const U value) noexcept
+    {
+        const U clampedValue = std::clamp(value, static_cast<U>(kMinValue), static_cast<U>(kMaxValue));
+        return static_cast<T>(clampedValue);
+    }
+
     /// @brief  Conversion constructor.
     template<typename U>
     constexpr RgbaColor(const RgbaColor<U>& other) noexcept;
 
     /// @brief Converts the color to a hexadecimal string representation - #RRGGBBAA
-    std::string ToHexString() const noexcept;
+    [[nodiscard]] std::string ToHexString() const noexcept;
 
-    constexpr friend bool operator==(const RgbaColor& a, const RgbaColor& b) noexcept
+    constexpr friend bool operator==(const RgbaColor& colorA, const RgbaColor& colorB) noexcept
     {
-        return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
+        return colorA.r == colorB.r && colorA.g == colorB.g && colorA.b == colorB.b &&
+               colorA.a == colorB.a;
     }
 
     T r{0}, g{0}, b{0}, a{0};
@@ -42,96 +53,128 @@ using RgbaColorf = RgbaColor<float>;
 using RgbaColoru8 = RgbaColor<uint8_t>;
 
 /// @brief Specialization for uint8_t with default alpha of 255.
-inline constexpr RgbaColor<uint8_t>::RgbaColor(const uint8_t inR, const uint8_t inG, const uint8_t inB) noexcept
-    : RgbaColor<uint8_t>(inR, inG, inB, 255)
+template<>
+constexpr RgbaColor<uint8_t>::RgbaColor(const uint8_t inR, const uint8_t inG, const uint8_t inB) noexcept
+    : RgbaColor<uint8_t>(inR, inG, inB, kMaxValue)
 {
 }
 
 /// @brief Specialization for converting from float to uint8_t.
 template<>
 template<>
-inline RgbaColor<uint8_t>::RgbaColor(const RgbaColor<float>& other) noexcept
-    : r(static_cast<uint8_t>(std::clamp(other.r * 255.0f, 0.0f, 255.0f)))
-    , g(static_cast<uint8_t>(std::clamp(other.g * 255.0f, 0.0f, 255.0f)))
-    , b(static_cast<uint8_t>(std::clamp(other.b * 255.0f, 0.0f, 255.0f)))
-    , a(static_cast<uint8_t>(std::clamp(other.a * 255.0f, 0.0f, 255.0f)))
+constexpr RgbaColor<uint8_t>::RgbaColor(const RgbaColor<float>& other) noexcept
+    : r(Clamp(other.r * kMaxValue))
+    , g(Clamp(other.g * kMaxValue))
+    , b(Clamp(other.b * kMaxValue))
+    , a(Clamp(other.a * kMaxValue))
 {
 }
 
 /// @brief Specialization for float with clamping between 0.0 and 1.0.
-inline constexpr RgbaColor<float>::RgbaColor(const float inR, const float inG, const float inB, const float inA) noexcept
-    : r(std::clamp(inR, 0.0f, 1.0f)), g(std::clamp(inG, 0.0f, 1.0f)), b(std::clamp(inB, 0.0f, 1.0f)), a(std::clamp(inA, 0.0f, 1.0f))
+template<>
+constexpr RgbaColor<float>::RgbaColor(const float inR, const float inG, const float inB, const float inA) noexcept
+    : r(Clamp(inR)), g(Clamp(inG)), b(Clamp(inB)), a(Clamp(inA))
 {
-    MLG_ASSERT(inR >= 0 && inR <= 1);
-    MLG_ASSERT(inG >= 0 && inG <= 1);
-    MLG_ASSERT(inB >= 0 && inB <= 1);
-    MLG_ASSERT(inA >= 0 && inA <= 1);
+    MLG_ASSERT(inR >= kMinValue && inR <= kMaxValue);
+    MLG_ASSERT(inG >= kMinValue && inG <= kMaxValue);
+    MLG_ASSERT(inB >= kMinValue && inB <= kMaxValue);
+    MLG_ASSERT(inA >= kMinValue && inA <= kMaxValue);
 }
 
 /// @brief Specialization for converting from uint8_t to float.
 template<>
 template<>
-inline RgbaColor<float>::RgbaColor(const RgbaColor<uint8_t>& other) noexcept
-    : r(static_cast<float>(other.r) / 255.0f)
-    , g(static_cast<float>(other.g) / 255.0f)
-    , b(static_cast<float>(other.b) / 255.0f)
-    , a(static_cast<float>(other.a) / 255.0f)
+constexpr RgbaColor<float>::RgbaColor(const RgbaColor<uint8_t>& other) noexcept
+    : r(Clamp(static_cast<float>(other.r) / RgbaColor<uint8_t>::kMaxValue))
+    , g(Clamp(static_cast<float>(other.g) / RgbaColor<uint8_t>::kMaxValue))
+    , b(Clamp(static_cast<float>(other.b) / RgbaColor<uint8_t>::kMaxValue))
+    , a(Clamp(static_cast<float>(other.a) / RgbaColor<uint8_t>::kMaxValue))
 {
 }
 
-inline std::string RgbaColor<uint8_t>::ToHexString() const noexcept
+template<>
+inline std::string
+RgbaColor<uint8_t>::ToHexString() const noexcept
 {
-    char buf[10];
-    snprintf(buf, sizeof(buf), "#%02X%02X%02X%02X", r, g, b, a);
-    return std::string(buf);
+    constexpr char kHexDigits[] = "0123456789ABCDEF";
+    constexpr size_t kMask = 0x0F;
+    constexpr const char* kInitialString = "#00000000";
+    std::string hexString(kInitialString);
+    size_t offset = 1;
+    hexString[offset++] = kHexDigits[(r >> 4) & kMask];
+    hexString[offset++] = kHexDigits[r & kMask];
+    hexString[offset++] = kHexDigits[(g >> 4) & kMask];
+    hexString[offset++] = kHexDigits[g & kMask];
+    hexString[offset++] = kHexDigits[(b >> 4) & kMask];
+    hexString[offset++] = kHexDigits[b & kMask];
+    hexString[offset++] = kHexDigits[(a >> 4) & kMask];
+    hexString[offset++] = kHexDigits[a & kMask];
+    return hexString;
 }
 
+template<>
 inline std::string RgbaColor<float>::ToHexString() const noexcept
 {
     return RgbaColor<uint8_t>(*this).ToHexString();
 }
 
 /// @brief User-defined literal to convert a hex color code to an RGBA color.
-constexpr RgbaColor<uint8_t> operator"" _rgba(const char* str, size_t len)
+constexpr RgbaColor<uint8_t> operator""_rgba(const char* str, const size_t len)
 {
     auto from_hex = [](char c) -> uint8_t
     {
-        if (c >= '0' && c <= '9') return c - '0';
-        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        constexpr char kLowerHexOffset = 'a' - 10;
+        constexpr char kUpperHexOffset = 'A' - 10;
+        
+        if(c >= '0' && c <= '9')
+        {
+            return static_cast<uint8_t>(c - '0');
+        }
+        if(c >= 'a' && c <= 'f')
+        {
+            return static_cast<uint8_t>(c - kLowerHexOffset);
+        }
+        if(c >= 'A' && c <= 'F')
+        {
+            return static_cast<uint8_t>(c - kUpperHexOffset);
+        }
         return 0;
     };
 
-    size_t offset = (len > 0 && str[0] == '#') ? 1 : 0;
-    size_t digits = len - offset;
+    const std::span strSpan(str, len);
+    const size_t offset = (len > 0 && strSpan[0] == '#') ? 1 : 0;
+    const size_t digits = len - offset;
 
+    // NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
     if (digits == 3)
     {
         // Shorthand RGB (e.g., #F0A), expand to full form which is #FF00AA
         return RgbaColor<uint8_t>(
-            (from_hex(str[offset]) << 4) | from_hex(str[offset]),
-            (from_hex(str[offset+1]) << 4) | from_hex(str[offset+1]),
-            (from_hex(str[offset+2]) << 4) | from_hex(str[offset+2])
+            static_cast<uint8_t>((from_hex(strSpan[offset]) << 4) | from_hex(strSpan[offset])),
+            static_cast<uint8_t>((from_hex(strSpan[offset+1]) << 4) | from_hex(strSpan[offset+1])),
+            static_cast<uint8_t>((from_hex(strSpan[offset+2]) << 4) | from_hex(strSpan[offset+2]))
         );
     }
     if (digits == 6)
     {
         // Full RGB (e.g., #FF00AA)
         return RgbaColor<uint8_t>(
-            (from_hex(str[offset]) << 4) | from_hex(str[offset+1]),
-            (from_hex(str[offset+2]) << 4) | from_hex(str[offset+3]),
-            (from_hex(str[offset+4]) << 4) | from_hex(str[offset+5])
+            static_cast<uint8_t>((from_hex(strSpan[offset]) << 4) | from_hex(strSpan[offset+1])),
+            static_cast<uint8_t>((from_hex(strSpan[offset+2]) << 4) | from_hex(strSpan[offset+3])),
+            static_cast<uint8_t>((from_hex(strSpan[offset+4]) << 4) | from_hex(strSpan[offset+5]))
         );
     }
     if (digits == 8)
     {
         // Full RGBA (e.g., #FF00AAFF)
         return RgbaColor<uint8_t>(
-            (from_hex(str[offset]) << 4) | from_hex(str[offset+1]),
-            (from_hex(str[offset+2]) << 4) | from_hex(str[offset+3]),
-            (from_hex(str[offset+4]) << 4) | from_hex(str[offset+5]),
-            (from_hex(str[offset+6]) << 4) | from_hex(str[offset+7])
+            static_cast<uint8_t>((from_hex(strSpan[offset]) << 4) | from_hex(strSpan[offset+1])),
+            static_cast<uint8_t>((from_hex(strSpan[offset+2]) << 4) | from_hex(strSpan[offset+3])),
+            static_cast<uint8_t>((from_hex(strSpan[offset+4]) << 4) | from_hex(strSpan[offset+5])),
+            static_cast<uint8_t>((from_hex(strSpan[offset+6]) << 4) | from_hex(strSpan[offset+7]))
         );
     }
+    // NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
+    
     return RgbaColor<uint8_t>(); // default
 }

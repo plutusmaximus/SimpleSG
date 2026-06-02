@@ -1,9 +1,9 @@
-#define __LOGGER_NAME__ "SCEN"
+#define MLG_LOGGER_NAME "SCEN"
 
 #include "Scene.h"
 
 #include "Level.h"
-
+#include "PropKit.h"
 #include "Stopwatch.h"
 
 namespace
@@ -23,15 +23,14 @@ struct TransformPipelineResources
     ClipSpaceBuffer ClipSpaceBuffer;
     CameraParamsBuffer CameraParamsBuffer;
 };
-} // namespace
 
-static size_t
+size_t
 CountModelInstances(const Level& level)
 {
     size_t count = 0;
-    for(const auto & handle : level.GetAllHandles())
+    for(const Level::NodeHandle& handle : level.GetAllHandles())
     {
-        auto node = level.GetNode(handle);
+        const Level::Node* node = level.GetNode(handle);
         MLG_ASSERT(node);
 
         if(node->Components.Model.has_value())
@@ -43,13 +42,13 @@ CountModelInstances(const Level& level)
     return count;
 }
 
-static size_t
+size_t
 CountWorldTransforms(const Level& level)
 {
     return CountModelInstances(level);
 }
 
-static Result<WorldTransformBuffer>
+Result<WorldTransformBuffer>
 BuildTransformBuffer(const Level& level,
     std::vector<Level::NodeHandle>& outNodeHandles,
     std::vector<ShaderInterop::WorldTransform>& outWorldTransforms,
@@ -69,17 +68,19 @@ BuildTransformBuffer(const Level& level,
     // Initialize the transform buffer with the world space transform
     // of each node that contains a model instance.
 
-    for(auto& handle : level.GetAllHandles())
+    for(const Level::NodeHandle& handle : level.GetAllHandles())
     {
-        auto node = level.GetNode(handle);
+        const Level::Node* node = level.GetNode(handle);
         MLG_ASSERT(node);
 
-        if(!node->Components.Model.has_value())
+        const std::optional<ModelIndex>& optModelIdx = node->Components.Model;
+
+        if(!optModelIdx)
         {
             continue;
         }
 
-        const ModelIndex modelIndex = *node->Components.Model;
+        const ModelIndex modelIndex = *optModelIdx;
         MLG_ASSERT(modelIndex.IsValid(), "Node has invalid model index");
         const ModelInstance modelInstance{modelIndex };
         outModelInstances.emplace_back(modelInstance);
@@ -93,11 +94,11 @@ BuildTransformBuffer(const Level& level,
     return WebgpuHelper::CreateStorageBuffer<WorldTransformBuffer>(outWorldTransforms, "TransformBuffer");
 }
 
-static inline size_t
+inline size_t
 CountMeshes(std::span<const Model> models, std::span<const ModelInstance> modelInstances)
 {
     size_t meshCount = 0;
-    for(const auto& modelInstance : modelInstances)
+    for(const ModelInstance& modelInstance : modelInstances)
     {
         MLG_ASSERT(modelInstance.GetModelIndex().Value() < models.size(),
             "Model instance has invalid model index: {} (model count: {})",
@@ -109,7 +110,7 @@ CountMeshes(std::span<const Model> models, std::span<const ModelInstance> modelI
     return meshCount;
 }
 
-static Result<DrawIndirectBuffer>
+Result<DrawIndirectBuffer>
 BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const PropKit& propKit)
 {
     const std::span meshes = propKit.GetMeshes();
@@ -122,7 +123,7 @@ BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const Pro
 
     uint32_t meshCount = 0;
 
-    for(const auto& modelInstance : modelInstances)
+    for(const ModelInstance& modelInstance : modelInstances)
     {
         MLG_ASSERT(modelInstance.GetModelIndex().Value() < models.size(),
             "Model instance has invalid model index: {} (model count: {})",
@@ -136,11 +137,11 @@ BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const Pro
             model.MeshCount,
             meshes.size());
 
-        std::span modelMeshes = meshes.subspan(model.FirstMesh.Value(), model.MeshCount);
+        const std::span modelMeshes = meshes.subspan(model.FirstMesh.Value(), model.MeshCount);
 
-        for(const auto& meshSrc : modelMeshes)
+        for(const Mesh& meshSrc : modelMeshes)
         {
-            ShaderInterop::DrawIndirectParams drawParams //
+            const ShaderInterop::DrawIndirectParams drawParams //
                 {
                     .IndexCount = meshSrc.IndexCount,
                     .InstanceCount = 1,
@@ -159,7 +160,7 @@ BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const Pro
         "DrawIndirectBuffer");
 }
 
-static Result<MeshPropertiesBuffer>
+Result<MeshPropertiesBuffer>
 BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const PropKit& propKit)
 {
     const std::span meshes = propKit.GetMeshes();
@@ -186,17 +187,17 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const P
             model.MeshCount,
             meshes.size());
 
-        std::span modelMeshes = meshes.subspan(model.FirstMesh.Value(), model.MeshCount);
+        const std::span modelMeshes = meshes.subspan(model.FirstMesh.Value(), model.MeshCount);
 
         for(const auto& meshSrc : modelMeshes)
         {
             const Sphere boundingSphere(meshSrc.BoundingBox);
 
-            ShaderInterop::MeshProperties meshProps//
+            const ShaderInterop::MeshProperties meshProps//
             {
                 .Radius = boundingSphere.GetRadius(),
-                .TransformIndex{ transformIndex },
-                .MaterialIndex{ meshSrc.MaterialIndex.Value() },
+                .TransformIndex = transformIndex,
+                .MaterialIndex = meshSrc.MaterialIndex.Value(),
             };
 
             meshProperties.emplace_back(meshProps);
@@ -209,13 +210,13 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const P
         "MeshPropertiesBuffer");
 }
 
-static Result<wgpu::BindGroup>
+Result<wgpu::BindGroup>
 CreateColorPipelineBindGroup0(ColorPipelineResources& colorPipelineResources)
 {
     auto bgLayouts = WebgpuHelper::GetColorPipelineLayouts();
     MLG_CHECK(bgLayouts);
 
-    wgpu::BindGroupEntry bgEntries[] =//
+    const wgpu::BindGroupEntry bgEntries[] =//
     {
         {
             .binding = 0,
@@ -249,12 +250,12 @@ CreateColorPipelineBindGroup0(ColorPipelineResources& colorPipelineResources)
         },
     };
 
-    wgpu::BindGroupDescriptor bgDesc = //
+    const wgpu::BindGroupDescriptor bgDesc = //
         {
             .label = "ColorPipelineBindGroup0",
             .layout = (*bgLayouts)[0],
             .entryCount = std::size(bgEntries),
-            .entries = bgEntries,
+            .entries = &bgEntries[0],
         };
 
     wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
@@ -264,13 +265,13 @@ CreateColorPipelineBindGroup0(ColorPipelineResources& colorPipelineResources)
     return bindGroup;
 }
 
-static Result<wgpu::BindGroup>
+Result<wgpu::BindGroup>
 CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineResources)
 {
     auto bgLayouts = WebgpuHelper::GetTransformPipelineLayouts();
     MLG_CHECK(bgLayouts);
 
-    wgpu::BindGroupEntry bgEntries[] =//
+    const wgpu::BindGroupEntry bgEntries[] =//
     {
         {
             .binding = 0,
@@ -292,12 +293,12 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
         },
     };
 
-    wgpu::BindGroupDescriptor bgDesc = //
+    const wgpu::BindGroupDescriptor bgDesc = //
         {
             .label = "TransformPipelineBindGroup0",
             .layout = (*bgLayouts)[0],
             .entryCount = std::size(bgEntries),
-            .entries = bgEntries,
+            .entries = &bgEntries[0],
         };
 
     wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
@@ -306,6 +307,7 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
 
     return bindGroup;
 }
+} // namespace
 
 Result<>
 Scene::Create(const Level& level, const PropKit& propKit, Scene& outScene)
@@ -357,13 +359,12 @@ Scene::Create(const Level& level, const PropKit& propKit, Scene& outScene)
     auto transformPipelineBindGroup0 = CreateTransformPipelineBindGroup0(transformPipelineResources);
     MLG_CHECK(transformPipelineBindGroup0);
 
-    Scene scene(&propKit,
-        *transformBuffer,
-        *drawIndirectBuffer,
-        *meshPropertiesBuffer,
-        *cameraParamsBuf,
-        *colorPipelineBindGroup0,
-        *transformPipelineBindGroup0,
+    Scene scene(std::move(*transformBuffer),
+        std::move(*drawIndirectBuffer),
+        std::move(*meshPropertiesBuffer),
+        std::move(*cameraParamsBuf),
+        std::move(*colorPipelineBindGroup0),
+        std::move(*transformPipelineBindGroup0),
         std::move(modelInstances),
         std::move(worldTransforms),
         std::move(nodeHandles));
@@ -375,35 +376,34 @@ Scene::Create(const Level& level, const PropKit& propKit, Scene& outScene)
     return Result<>::Ok;
 }
 
-Scene::Scene(const PropKit* propKit,
-    WorldTransformBuffer worldTransformBuffer,
+Scene::Scene(WorldTransformBuffer worldTransformBuffer,
     DrawIndirectBuffer drawIndirectBuffer,
     MeshPropertiesBuffer meshPropertiesBuffer,
     CameraParamsBuffer cameraParamsBuffer,
     wgpu::BindGroup colorPipelineBindGroup0,
     wgpu::BindGroup transformPipelineBindGroup0,
-    std::vector<ModelInstance>&& modelInstances,
-    std::vector<ShaderInterop::WorldTransform>&& worldTransforms,
-    std::vector<Level::NodeHandle>&& nodeHandles)
-    : m_PropKit(propKit),
-      m_WorldTransformBuffer(worldTransformBuffer),
-      m_DrawIndirectBuffer(drawIndirectBuffer),
-      m_MeshPropertiesBuffer(meshPropertiesBuffer),
-      m_CameraParamsBuffer(cameraParamsBuffer),
-      m_ColorPipelineBindGroup0(colorPipelineBindGroup0),
-      m_TransformPipelineBindGroup0(transformPipelineBindGroup0),
+    std::vector<ModelInstance> modelInstances,
+    std::vector<ShaderInterop::WorldTransform> worldTransforms,
+    std::vector<Level::NodeHandle> nodeHandles)
+    : m_WorldTransformBuffer(std::move(worldTransformBuffer)),
+      m_DrawIndirectBuffer(std::move(drawIndirectBuffer)),
+      m_MeshPropertiesBuffer(std::move(meshPropertiesBuffer)),
+      m_CameraParamsBuffer(std::move(cameraParamsBuffer)),
+      m_ColorPipelineBindGroup0(std::move(colorPipelineBindGroup0)),
+      m_TransformPipelineBindGroup0(std::move(transformPipelineBindGroup0)),
       m_ModelInstances(std::move(modelInstances)),
       m_WorldTransforms(std::move(worldTransforms)),
       m_NodeHandles(std::move(nodeHandles))
 {
 }
 
-Result<> Scene::SyncFromLevel(const Level& level)
+Result<>
+Scene::SyncFromLevel(const Level& level)
 {
     for(size_t i = 0; i < m_NodeHandles.size(); ++i)
     {
         const Level::NodeHandle& nodeHandle = m_NodeHandles[i];
-        const auto node = level.GetNode(nodeHandle);
+        const Level::Node* node = level.GetNode(nodeHandle);
 
         if(!MLG_VERIFY(node, "Node not found in level"))
         {
@@ -425,7 +425,7 @@ Scene::SyncToGpu()
     // Brute force copy everything for now.
     WebgpuHelper::GetDevice().GetQueue().WriteBuffer(m_WorldTransformBuffer.GetGpuBuffer(),
         0,
-        reinterpret_cast<const uint8_t*>(m_WorldTransforms.data()),
+        m_WorldTransforms.data(),
         m_WorldTransforms.size() * sizeof(m_WorldTransforms[0]));
 
     return Result<>::Ok;

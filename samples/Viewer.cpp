@@ -1,5 +1,5 @@
 #include "Compositor.h"
-#include "ECS.h"
+#include "FileFetcher.h"
 #include "GltfLoader.h"
 #include "ImGuiRenderer.h"
 #include "Level.h"
@@ -10,7 +10,8 @@
 #include "Renderer.h"
 #include "Scene.h"
 #include "scope_exit.h"
-#include "Stopwatch.h"
+#include "TextureCache.h"
+#include "ThreadPool.h"
 #include "WebgpuHelper.h"
 #include "VecMath.h"
 
@@ -21,32 +22,11 @@
 #include <SDL3/SDL_mouse.h>
 #include <thread>
 
-static constexpr const char* APP_NAME = "Viewer";
-
-static constexpr float PHYSICS_FPS = 100.0f;
-static constexpr float RENDER_FPS = 60.0f;
-
 namespace
 {
+constexpr const char* APP_NAME = "Viewer";
 
-class WorldMatrix : public Mat44f
-{
-public:
-    using Mat44f::Mat44f;
-
-    WorldMatrix& operator=(const Mat44& that)
-    {
-        this->Mat44f::operator=(that);
-        return *this;
-    }
-};
-
-// Used to tag entities that represent loaded models in the ECS registry.
-struct ModelTag{};
-
-}
-
-static Result<>
+Result<>
 Startup()
 {
     Log::SetLevel(Log::Level::Trace);
@@ -54,20 +34,67 @@ Startup()
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
+    MLG_CHECK(ThreadPool::Startup());
+    defer_as(failure)
+    {
+        ThreadPool::Shutdown();
+    };
+
+    MLG_CHECK(FileFetcher::Startup());
+    defer_as(fileFetcherShutdown)
+    {
+        FileFetcher::Shutdown();
+    };
+
     MLG_CHECK(WebgpuHelper::Startup(APP_NAME));
+
+    failure.release(); // Success, prevent shutdown in defer.
+    fileFetcherShutdown.release();
 
     return Result<>::Ok;
 }
 
-static void
+void
 Shutdown()
 {
     WebgpuHelper::Shutdown();
+    FileFetcher::Shutdown();
+    ThreadPool::Shutdown();
 }
 
-static Result<> RenderGui();
+Result<> RenderGui()
+{
+#if defined (NDEBUG)
+    constexpr const char* buildType = "Release";
+#else
+    constexpr const char* buildType = "Debug";
+#endif
 
-static Result<>
+    constexpr const char* backend = "Dawn";
+
+    auto title = std::format("Timers: {}/{}", buildType, backend);
+
+    ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
+    ImGui::Begin(title.c_str());
+
+    constexpr size_t kMaxTimers = 256;
+
+    PerfTimerStats timerStats[kMaxTimers];
+    std::span<PerfTimerStats> timerStatsSpan(timerStats);
+    const size_t timerCount = PerfMetrics::SampleTimers(timerStatsSpan);
+    for(const auto& timerStat : timerStatsSpan.first(timerCount))
+    {
+        const std::string text =
+            std::format("{}: {:.3f} ms", timerStat.GetName(), timerStat.GetEMA() * 1000.0f);
+        ImGui::TextUnformatted(text.c_str());
+    }
+
+    ImGui::End();
+
+    return Result<>::Ok;
+}
+
+Result<>
 Load(const std::filesystem::path& path,
     TextureCache& textureCache,
     PropKit& outPropKit,
@@ -95,13 +122,13 @@ Load(const std::filesystem::path& path,
     return Result<>::Ok;
 }
 
-[[maybe_unused]] static constexpr const char* SPONZA_MODEL_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
-[[maybe_unused]] static constexpr const char* AVOCADO_MODEL_PATH = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Avocado/glTF/Avocado.gltf";
-[[maybe_unused]] static constexpr const char* INSTANCE_MODEL_PATH = "C:/Dev/SimpleSG/assets/glTF-Asset-Generator/Output/Positive/Instancing/Instancing_06.gltf";
-[[maybe_unused]] static constexpr const char* SPONZA_MODEL_PATH_2 = "C:/Dev/SimpleSG/assets/glTF-Sample-Assets/Models/Sponza/glTF/Sponza.gltf";
-[[maybe_unused]] static constexpr const char* JUNGLE_RUINS = "C:/Users/kbaca/Downloads/JungleRuins/GLTF/JungleRuins_Main.gltf";
+#ifdef _WIN32
+constexpr const char* SPONZA_MODEL_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
+#else
+constexpr const char* SPONZA_MODEL_PATH = "../../assets/main_sponza/NewSponza_Main_glTF_003.gltf";
+#endif
 
-static Result<>
+Result<>
 MainLoop()
 {
     bool running = true;
@@ -114,7 +141,6 @@ MainLoop()
     PropKit propKit;
     Level level;
     Scene scene;
-    EcsRegistry registry;
     WalkMouseNav mouseNav;
 
     MLG_CHECK(renderer.Startup());
@@ -123,11 +149,10 @@ MainLoop()
 
     MLG_CHECK(Load(SPONZA_MODEL_PATH, textureCache, propKit, level, scene));
 
-    Entity model = registry.CreateEntity(TrsTransformf{}, WorldMatrix{}, ModelTag{});
+    TrsTransformf trsCamera{ .T{0, 0, -4} };
+    Projection projection;
 
-    Entity camera = registry.CreateEntity(TrsTransformf{.T{0,0,-4}}, WorldMatrix{}, Projection{});
-
-    mouseNav.SetTransform(camera.Get<TrsTransformf>());
+    mouseNav.SetTransform(trsCamera);
 
     uint64_t frameBeginTicks = SDL_GetTicksNS();
 
@@ -136,8 +161,7 @@ MainLoop()
 
     while(running)
     {
-        static PerfTimer frameTimer("Frame");
-        frameTimer.Start();
+        MLG_SCOPED_TIMER("Frame");
 
         const uint64_t curTicksNs = SDL_GetTicksNS();
         const uint64_t elapsedTicksNs = curTicksNs - frameBeginTicks;
@@ -153,6 +177,9 @@ MainLoop()
                 case SDL_EVENT_WINDOW_RESTORED:
                 case SDL_EVENT_WINDOW_MAXIMIZED:
                     minimized = false;
+                    break;
+
+                default:
                     break;
             }
         }
@@ -184,9 +211,6 @@ MainLoop()
 
             //case SDL_EVENT_WINDOW_MOUSE_LEAVE:
             case SDL_EVENT_WINDOW_FOCUS_GAINED:
-                mouseNav.ClearButtons();
-                break;
-
             case SDL_EVENT_WINDOW_FOCUS_LOST:
                 mouseNav.ClearButtons();
                 break;
@@ -199,8 +223,6 @@ MainLoop()
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                break;
-
             case SDL_EVENT_MOUSE_BUTTON_UP:
                 break;
 
@@ -235,16 +257,15 @@ MainLoop()
                 break;
 
             case SDL_EVENT_DROP_BEGIN:
+            case SDL_EVENT_DROP_TEXT:
+            case SDL_EVENT_DROP_COMPLETE:
                 break;
 
             case SDL_EVENT_DROP_FILE:
                 droppedFile = event.drop.data;
                 break;
 
-            case SDL_EVENT_DROP_TEXT:
-                break;
-
-            case SDL_EVENT_DROP_COMPLETE:
+            default:
                 break;
             }
         }
@@ -264,23 +285,13 @@ MainLoop()
         mouseNav.Update(elapsedSeconds);
 
         auto screenBounds = WebgpuHelper::GetScreenBounds();
-        const float aspectRatio = screenBounds.Width / screenBounds.Height;
-        camera.Get<Projection>().SetAspectRatio(aspectRatio);
-        camera.Get<TrsTransformf>() = mouseNav.GetTransform();
-
-        // Transform roots
-        for(const auto& tuple : registry.GetView<TrsTransformf, WorldMatrix>())
-        {
-            auto [eid, xform, worldMat] = tuple;
-            worldMat = xform.ToMatrix();
-        }
+        projection.SetAspectRatio(screenBounds.GetAspectRatio());
+        trsCamera = mouseNav.GetTransform();
 
         compositor.BeginFrame();
         imGuiRenderer.NewFrame();
 
-        const auto& camTrs = camera.Get<TrsTransformf>();
-        const auto& projection = camera.Get<Projection>();
-        renderer.Render(camTrs, projection, scene, propKit, compositor);
+        renderer.Render(trsCamera, projection, scene, propKit, compositor);
 
         RenderGui();
 
@@ -293,8 +304,6 @@ MainLoop()
 #endif
 
         WebgpuHelper::GetInstance().ProcessEvents();
-
-        frameTimer.Stop();
     }
 
     MLG_CHECK(textureCache.Shutdown());
@@ -305,36 +314,7 @@ MainLoop()
 
     return Result<>::Ok;
 }
-
-static Result<> RenderGui()
-{
-    const char* buildType;
-#if defined (NDEBUG)
-    buildType = "Release";
-#else
-    buildType = "Debug";
-#endif
-
-    constexpr const char* backend = "Dawn";
-
-    auto title = std::format("Timers: {}/{}", buildType, backend);
-
-    ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
-    ImGui::Begin(title.c_str());
-
-    PerfTimerStats timerStats[256];
-    unsigned timerCount = PerfMetrics::SampleTimers(timerStats, std::size(timerStats));
-    for(unsigned i = 0; i < timerCount; ++i)
-    {
-        const std::string text =
-            std::format("{}: {:.3f} ms", timerStats[i].GetName(), timerStats[i].GetEMA() * 1000.0f);
-        ImGui::Text("%s", text.c_str());
-    }
-
-    ImGui::End();
-
-    return Result<>::Ok;
-}
+} // namespace
 
 int main(int /*argc*/, char** /*argv*/)
 {
@@ -343,10 +323,10 @@ int main(int /*argc*/, char** /*argv*/)
         return -1;
     }
 
-    auto shutdown = scope_exit([]()
+    defer
     {
         Shutdown();
-    });
+    };
 
     if(!MainLoop())
     {

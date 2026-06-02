@@ -1,15 +1,22 @@
 #pragma once
 
+#include <cstdint>
 #include <format>
+#include <memory>
 #include <string>
 
-/// Define __LOGGER_NAME__ before including this header to create a logger with a specific name.
+/// Define MLG_LOGGER_NAME before including this header to create a logger with a specific name.
 /// Otherwise the default logger is used.
 /// Example:
-/// #define __LOGGER_NAME__ "my_logger"
-#ifndef __LOGGER_NAME__
-#define __LOGGER_NAME__ "****"
+/// #define MLG_LOGGER_NAME "my_logger"
+#ifndef MLG_LOGGER_NAME
+#define MLG_LOGGER_NAME "****"
 #endif
+
+namespace spdlog
+{
+class logger;
+}
 
 class Log final
 {
@@ -30,7 +37,7 @@ public:
 
         explicit Logger(const std::string& name);
 
-        ~Logger();
+        ~Logger() = default;
 
         Logger() = delete;
         Logger(const Logger&) = delete;
@@ -39,7 +46,7 @@ public:
         Logger& operator=(Logger&&) = delete;
 
         template<typename... Args>
-        inline void Log(const Level level, std::format_string<Args...> fmt, Args&&... args)
+        void Log(const Level level, std::format_string<Args...> fmt, Args&&... args)
         {
             LogImpl(level, Prefix(std::format(fmt, std::forward<Args>(args)...)));
         }
@@ -55,17 +62,17 @@ public:
 
         void LogImpl(const Level level, const std::string& message);
 
-        uint8_t m_Buffer[16];
+        std::shared_ptr<spdlog::logger> m_Logger;
     };
 
     /// Log an assertion failure
     template<typename... Args>
-    static inline void Assert(std::format_string<Args...> fmt, Args&&... args)
+    static void Assert(std::format_string<Args...> fmt, Args&&... args)
     {
         s_AssertLogger.Log(Log::Level::Error, std::format(fmt, std::forward<Args>(args)...));
     }
 
-    static inline void Assert(const std::string& message)
+    static void Assert(const std::string& message)
     {
         s_AssertLogger.Log(Log::Level::Error, message);
     }
@@ -82,45 +89,6 @@ public:
     static void PushPrefix(const std::string& message);
 
     static void PopPrefix();
-
-    /// @brief RAII class to capture messages.
-    /// Assert dialogs are disabled while this object is alive.
-    /// Usage:
-    /// {
-    ///     Asserts::Capture capture;
-    ///     // code that may trigger asserts
-    /// }
-    /// If you want to cancel the capture before destruction, call Cancel().
-    /// Otherwise, the capture will be canceled automatically in the destructor.
-    /// Typically the MLG_ASSERT_CAPTURE macro is used to simplify usage.
-    /// Example:
-    ///     assert_capture(capture)
-    ///     {
-    ///         // code that may trigger asserts
-    ///         // use capture.Message() to get the last assert message
-    ///         EXPECT_TRUE(capture.Message().contains("expected text"));
-    ///     }
-    class Capture
-    {
-    public:
-        ~Capture();
-
-        Capture();
-
-        void Cancel();
-
-        bool IsCanceled() const;
-
-        std::string Message() const;
-
-    private:
-
-        bool m_Canceled = false;
-
-        // Allocate the sink into this buffer so we don't
-        // end up with lots of tiny heap allocations.
-        uint8_t m_SinkBuffer[16];
-    };
 
 private:
 
@@ -150,6 +118,12 @@ struct LogScope
     {
         Log::PopPrefix();
     }
+
+    LogScope() = delete;
+    LogScope(const LogScope&) = delete;
+    LogScope& operator=(const LogScope&) = delete;
+    LogScope(LogScope&&) = delete;
+    LogScope& operator=(LogScope&&) = delete;
 };
 }
 
@@ -180,12 +154,16 @@ struct LogScope
 
 #define MLG_LOG_SCOPE_CONCAT_HELPER(a, b) a##b
 #define MLG_LOG_SCOPE_CONCAT(a, b) MLG_LOG_SCOPE_CONCAT_HELPER(a, b)
-#define MLG_LOG_SCOPE(...) mlg::LogScope MLG_LOG_SCOPE_CONCAT(logScope_, __LINE__)(__VA_ARGS__);
+#define MLG_LOG_SCOPE(...) const mlg::LogScope MLG_LOG_SCOPE_CONCAT(logScope_, __LINE__)(__VA_ARGS__);
 
-static inline Log::Logger __logger__(__LOGGER_NAME__);
+static inline Log::Logger& MLG_LocalLogger()
+{
+    static Log::Logger logger(MLG_LOGGER_NAME);
+    return logger;
+}
 
-#define MLG_TRACE(...) __logger__.Log( Log::Level::Trace, __VA_ARGS__)
-#define MLG_DEBUG(...) __logger__.Log( Log::Level::Debug, __VA_ARGS__)
-#define MLG_INFO(...) __logger__.Log( Log::Level::Info, __VA_ARGS__)
-#define MLG_WARN(...) __logger__.Log( Log::Level::Warn, __VA_ARGS__)
-#define MLG_ERROR(...) __logger__.Log( Log::Level::Error, __VA_ARGS__)
+#define MLG_TRACE(...) MLG_LocalLogger().Log( Log::Level::Trace, __VA_ARGS__)
+#define MLG_DEBUG(...) MLG_LocalLogger().Log( Log::Level::Debug, __VA_ARGS__)
+#define MLG_INFO(...) MLG_LocalLogger().Log( Log::Level::Info, __VA_ARGS__)
+#define MLG_WARN(...) MLG_LocalLogger().Log( Log::Level::Warn, __VA_ARGS__)
+#define MLG_ERROR(...) MLG_LocalLogger().Log( Log::Level::Error, __VA_ARGS__)

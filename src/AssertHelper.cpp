@@ -2,56 +2,107 @@
 
 #include "Log.h"
 
-#if defined(_MSC_VER)
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-#else	//_MSC_VER
-#error "Platform not supported"
-#endif	//_MSC_VER
-
-#include <atomic>
+#ifndef __clang__
+// No stack trace support in clang, so we won't include the header.
 #include <stacktrace>
+#endif  //__clang__
 
-static std::atomic<bool> s_EnableAssertDialog = true;
-
-bool
-AssertHelper::SetDialogEnabled(const bool enabled)
+namespace AssertHelper
 {
-    return s_EnableAssertDialog.exchange(enabled);
-}
 
-#if defined(_MSC_VER)
-
-bool
-AssertHelper::Log(const std::string& message, bool& mute)
+namespace
 {
+void
+Log(const std::string& message)
+{
+#ifdef __clang__
+    // No stack trace support in clang, so just log the message.
+    const std::string logMsg = std::format("{}", message);
+#else
     auto trace = std::stacktrace::current(1);
-    std::string logMsg = std::format("{}\n\n{}", message, std::to_string(trace));
+    const std::string logMsg = std::format("{}\n\n{}", message, std::to_string(trace));
+#endif
 
     Log::Assert(logMsg);
+}
+} // namespace
 
-    bool ignore = !s_EnableAssertDialog.load() || mute;
-    if (ignore) return false;
+bool
+Log(AssertHelper::AssertData& assertData,
+    const char* expression,
+    const char* function,
+    const char* fileName,
+    const int lineNum,
+    const std::string& userMsg)
+{
+    const std::string message =
+        std::format("{}({}): {} - {}", fileName, lineNum, expression, userMsg);
 
-    const int msgboxValue = MessageBoxA(
-        NULL,
-        logMsg.c_str(),
-        "Assertion Failed",
-        MB_ICONEXCLAMATION | MB_ABORTRETRYIGNORE | MB_DEFBUTTON2);
+    Log(message);
 
-    if (IDABORT == msgboxValue)
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunreachable-code"
+#endif
+    assertData.sdlAssertState =
+        SDL_ReportAssertion(&assertData.sdlAssertData, function, fileName, lineNum);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+
+    switch (assertData.sdlAssertState)
     {
-        std::exit(1);
+        case SDL_ASSERTION_RETRY:
+        case SDL_ASSERTION_BREAK:
+            return true;
+
+        case SDL_ASSERTION_ABORT:
+            std::exit(1);
+
+        case SDL_ASSERTION_IGNORE:
+        case SDL_ASSERTION_ALWAYS_IGNORE:
+            return false;
     }
 
-    if(IDIGNORE == msgboxValue)
-    {
-        mute = true;
-    }
-
-    return IDRETRY == msgboxValue;
+    return false;
 }
 
-#else	//_MSC_VER
-#error "Platform not supported"
-#endif	//_MSC_VER
+bool
+Log(AssertHelper::AssertData& assertData,
+    const char* expression,
+    const char* function,
+    const char* fileName,
+    const int lineNum)
+{
+    const std::string message = std::format("{}({}): {}", fileName, lineNum, expression);
+
+    Log(message);
+
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunreachable-code"
+#endif
+    assertData.sdlAssertState =
+        SDL_ReportAssertion(&assertData.sdlAssertData, function, fileName, lineNum);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+
+    switch (assertData.sdlAssertState)
+    {
+        case SDL_ASSERTION_RETRY:
+        case SDL_ASSERTION_BREAK:
+            return true;
+
+        case SDL_ASSERTION_ABORT:
+            std::exit(1);
+
+        case SDL_ASSERTION_IGNORE:
+        case SDL_ASSERTION_ALWAYS_IGNORE:
+            return false;
+    }
+
+    return false;
+}
+
+}   // namespace AssertHelper

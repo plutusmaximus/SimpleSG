@@ -27,23 +27,19 @@ template<typename T> class Mat44;
 template <typename T>
 class Radians
 {
+private:
     static_assert(std::is_floating_point_v<T>, "Radians requires a floating-point type");
 
     static constexpr T TWO_PI = 2 * std::numbers::pi_v<T>;
     static constexpr T PI = std::numbers::pi_v<T>;
     static constexpr T eps = T(8) * std::numeric_limits<T>::epsilon() * TWO_PI;
 
-    // Wraps the input value to the range [-π, π)
+    // Wraps the input value to the range [0, 2π)
     constexpr static T Wrap(const T value) noexcept
     {
-        // Wrap to [-π, π)
-        const T r = value - std::floor((value + PI) / TWO_PI) * TWO_PI;
+        const T r = value - (std::floor(value / TWO_PI) * TWO_PI);
 
-        if (r <= -PI + eps)
-        {
-            return PI;
-        }
-        else if (std::abs(r) < eps)
+        if((r >= TWO_PI - eps) || (std::abs(r) < eps))
         {
             return T{0};
         }
@@ -53,18 +49,30 @@ class Radians
 
     constexpr static T Limit(const T value) noexcept
     {
-        if(value > 1000 * TWO_PI)
+        constexpr T kLimit = 1000 * TWO_PI;
+
+        T newValue = value;
+
+        while(newValue > kLimit)
         {
-            return value - (1000 * TWO_PI);
+            newValue -= kLimit;
         }
-        else if(value < -1000 * TWO_PI)
+
+        while(newValue < -kLimit)
         {
-            return value + (1000 * TWO_PI);
+            newValue += kLimit;
         }
-        else
-        {
-            return value;
-        }
+
+        return newValue;
+    }
+
+    struct PrivateCtorTag { };
+
+    static constexpr PrivateCtorTag kPrivateCtorTag{};
+
+    constexpr Radians(const uint32_t value, PrivateCtorTag) noexcept
+     : m_Value(value)
+    {
     }
 
 public:
@@ -73,17 +81,14 @@ public:
 
     constexpr Radians() = default;
 
-    explicit constexpr Radians(const T value)
-    noexcept(noexcept(Limit(value)))
-     : m_Value(Limit(value))
+    explicit constexpr Radians(const T value) noexcept
+     : Radians(ToRep(value), kPrivateCtorTag)
     {
     }
 
-    constexpr Radians<T>& operator=(const T value)
-    noexcept(noexcept(Limit(value)))
+    constexpr Radians<T>& operator=(const T value) noexcept
     {
-        m_Value = Limit(value);
-        return *this;
+        return *this = Radians(value);
     }
 
     static constexpr Radians<T> FromDegrees(const T degrees) noexcept
@@ -93,62 +98,62 @@ public:
 
     T Sin() const noexcept
     {
-        return std::sin(Wrap(m_Value));
+        return std::sin(FromRep(m_Value));
     }
 
     T Cos() const noexcept
     {
-        return std::cos(Wrap(m_Value));
+        return std::cos(FromRep(m_Value));
     }
 
     T Tan() const noexcept
     {
-        return std::tan(Wrap(m_Value));
+        return std::tan(FromRep(m_Value));
     }
 
     constexpr friend Radians<T> operator+(const Radians<T> a, const Radians<T> b) noexcept
     {
-        return Radians<T>(a.m_Value + b.m_Value);
+        return Radians<T>(a.m_Value + b.m_Value, kPrivateCtorTag);
     }
 
     constexpr friend Radians<T> operator+(const Radians<T> a, const T b) noexcept
     {
-        return Radians<T>(a.m_Value + b);
+        return Radians<T>(a.m_Value + ToRep(b), kPrivateCtorTag);
     }
 
     constexpr friend Radians<T> operator+(const T a, const Radians<T> b) noexcept
     {
-        return Radians<T>(a + b.m_Value);
+        return b + a;
     }
 
     constexpr friend Radians<T> operator-(const Radians<T> a, const Radians<T> b) noexcept
     {
-        return Radians<T>(a.m_Value - b.m_Value);
+        return Radians<T>(a.m_Value - b.m_Value, kPrivateCtorTag);
     }
 
     constexpr friend Radians<T> operator-(const Radians<T> a, const T b) noexcept
     {
-        return Radians<T>(a.m_Value - b);
+        return Radians<T>(a.m_Value - ToRep(b), kPrivateCtorTag);
     }
 
     constexpr friend Radians<T> operator-(const T a, const Radians<T> b) noexcept
     {
-        return Radians<T>(a - b.m_Value);
+        return -(b - a);
     }
 
     constexpr friend Radians<T> operator*(const Radians<T> a, const T b) noexcept
     {
-        return Radians<T>(a.m_Value * b);
+        return Radians<T>(static_cast<RepType>(std::llround(static_cast<T>(a.m_Value) * b)), kPrivateCtorTag);
     }
 
     constexpr friend Radians<T> operator*(const T a, const Radians<T> b) noexcept
     {
-        return Radians<T>(a * b.m_Value);
+        return b * a;
     }
 
     constexpr friend Radians<T> operator-(const Radians<T> a) noexcept
     {
-        return Radians<T>(-a.m_Value);
+        return Radians<T>(0u - a.m_Value, kPrivateCtorTag);
     }
 
     constexpr Radians<T>& operator+=(const Radians<T> other) noexcept
@@ -178,16 +183,12 @@ public:
 
     constexpr friend bool operator==(const Radians<T> a, const Radians<T> b) noexcept
     {
-        // Using a small epsilon for floating-point comparison
-        constexpr T EPSILON = static_cast<T>(1e-10);
-        return std::abs(a.m_Value - b.m_Value) < EPSILON;
+        return a.m_Value == b.m_Value;
     }
 
     constexpr friend bool operator==(const Radians<T> a, const T b) noexcept
     {
-        // Using a small epsilon for floating-point comparison
-        constexpr T EPSILON = static_cast<T>(1e-10);
-        return std::abs(a.m_Value - b) < EPSILON;
+        return a.m_Value == ToRep(b);
     }
 
     constexpr friend bool operator==(const T a, const Radians<T> b) noexcept
@@ -197,12 +198,28 @@ public:
 
     constexpr T GetValue() const noexcept
     {
-        return Wrap(m_Value);
+        return FromRep(m_Value);
     }
 
 private:
 
-    T m_Value{0};
+    using RepType = uint32_t;
+
+    static constexpr T kFullTurn = 2 * std::numbers::pi_v<T>;
+    static constexpr T kScale = 4294967296 / kFullTurn; // 2^32 / 2π
+    static constexpr T kInvScale = kFullTurn / 4294967296; // 2π / 2^32
+
+    constexpr static RepType ToRep(const T value) noexcept
+    {
+        return static_cast<RepType>(Wrap(Limit(value)) * kScale);
+    }
+
+    constexpr static T FromRep(const RepType value) noexcept
+    {
+        return static_cast<T>(value) * kInvScale;
+    }
+
+    RepType m_Value{0};
 };
 
 template<typename T>
@@ -221,8 +238,14 @@ public:
         : x(value), y(value)
     {
     }
-    constexpr Vec2(T x, T y) noexcept
-        : x(x), y(y)
+
+    constexpr Vec2(const T inX, const T inY) noexcept
+        : x(inX), y(inY)
+    {
+    }
+
+    constexpr Vec2(const T(&arr)[2]) noexcept
+        : x(arr[0]), y(arr[1])
     {
     }
 
@@ -230,35 +253,35 @@ public:
 
     constexpr explicit Vec2(const Vec4<T>& v) noexcept;
 
-    constexpr Vec2<T> Normalize() const noexcept
+    [[nodiscard]] constexpr Vec2<T> Normalize() const noexcept
     {
         return *this / Length();
     }
 
     constexpr T Length() const noexcept
     {
-        return std::sqrt(x * x + y * y);
+        return std::sqrt((x * x) + (y * y));
     }
 
     constexpr T Length2() const noexcept
 
     {
-        return x * x + y * y;
+        return (x * x) + (y * y);
     }
 
-    constexpr Vec2 Cross(const Vec2& that) const noexcept
+    [[nodiscard]] constexpr Vec2 Cross(const Vec2& that) const noexcept
     {
-        return Vec2(x * that.y - y * that.x, y * that.x - x * that.y);
+        return Vec2((x * that.y) - (y * that.x), (y * that.x) - (x * that.y));
     }
 
     constexpr T Dot(const Vec2& that) const noexcept
     {
-        return x * that.x + y * that.y;
+        return (x * that.x) + (y * that.y);
     }
 
-    constexpr Vec2 Lerp(const Vec2& that, T t) const noexcept
+    [[nodiscard]] constexpr Vec2 Lerp(const Vec2& that, T t) const noexcept
     {
-        return Vec2(*this * (1 - t) + that * t);
+        return Vec2((*this * (1 - t)) + (that * t));
     }
 
     constexpr friend bool operator==(const Vec2& a, const Vec2& b) noexcept
@@ -374,64 +397,70 @@ public:
         : x(value), y(value), z(value)
     {
     }
-    constexpr Vec3(T x, T y, T z) noexcept
-        : x(x), y(y), z(z)
+
+    constexpr Vec3(const T inX, const T inY, const T inZ) noexcept
+        : x(inX), y(inY), z(inZ)
     {
     }
 
-    constexpr Vec3(const Vec2<T>& v, T z) noexcept
-        : x(v.x), y(v.y), z(z)
+    constexpr Vec3(const T(&arr)[3]) noexcept
+        : x(arr[0]), y(arr[1]), z(arr[2])
+    {
+    }
+
+    constexpr Vec3(const Vec2<T>& v, const T inZ) noexcept
+        : x(v.x), y(v.y), z(inZ)
     {
     }
 
     constexpr explicit Vec3(const Vec4<T>& v) noexcept;
 
-    static inline consteval Vec3 XAXIS() { return Vec3{ 1, 0, 0 }; }
-    static inline consteval Vec3 YAXIS() { return Vec3{ 0, 1, 0 }; }
-    static inline consteval Vec3 ZAXIS() { return Vec3{ 0, 0, 1 }; }
+    static consteval Vec3 XAXIS() { return Vec3{ 1, 0, 0 }; }
+    static consteval Vec3 YAXIS() { return Vec3{ 0, 1, 0 }; }
+    static consteval Vec3 ZAXIS() { return Vec3{ 0, 0, 1 }; }
 
-    constexpr Vec3 Normalize() const noexcept
+    [[nodiscard]] constexpr Vec3 Normalize() const noexcept
     {
         return *this / Length();
     }
 
     constexpr T Length() const noexcept
     {
-        return std::sqrt(x * x + y * y + z * z);
+        return std::sqrt((x * x) + (y * y) + (z * z));
     }
 
     constexpr T Length2() const noexcept
     {
-        return x * x + y * y + z * z;
+        return (x * x) + (y * y) + (z * z);
     }
 
-    constexpr Vec3 Cross(const Vec3& that) const noexcept
+    [[nodiscard]] constexpr Vec3 Cross(const Vec3& that) const noexcept
     {
         return Vec3(
-            y * that.z - z * that.y,
-            z * that.x - x * that.z,
-            x * that.y - y * that.x
+            (y * that.z) - (z * that.y),
+            (z * that.x) - (x * that.z),
+            (x * that.y) - (y * that.x)
         );
     }
 
     constexpr T Dot(const Vec3& that) const noexcept
     {
-        return x * that.x + y * that.y + z * that.z;
+        return (x * that.x) + (y * that.y) + (z * that.z);
     }
 
-    constexpr Vec3 Lerp(const Vec3& that, T t) const noexcept
+    [[nodiscard]] constexpr Vec3 Lerp(const Vec3& that, T t) const noexcept
     {
-        return Vec3(*this * (1 - t) + that * t);
+        return Vec3((*this * (1 - t)) + (that * t));
     }
 
     /// Rotates this vector around the given axis by the specified angle.
-    constexpr Vec3 RotateBy(const Vec3& axis, const Radians<T> angle) const noexcept
+    [[nodiscard]] constexpr Vec3 RotateBy(const Vec3& axis, const Radians<T> angle) const noexcept
     {
         // https://en.wikipedia.org/wiki/Rodrigues'_rotation_formula
         const T cos = angle.Cos();
         const T sin = angle.Sin();
-        const Vec3 vr = *this * cos + axis.Cross(*this) * sin +
-                         axis * (axis.Dot(*this)) * (1 - cos);
+        const Vec3 vr = (*this * cos) + (axis.Cross(*this) * sin) +
+                         (axis * (axis.Dot(*this)) * (1 - cos));
         return vr;
     }
 
@@ -552,44 +581,49 @@ public:
     {
     }
 
-    constexpr Vec4(T x, T y, T z, T w) noexcept
-        : x(x), y(y), z(z), w(w)
+    constexpr Vec4(const T inX, const T inY, const T inZ, const T inW) noexcept
+        : x(inX), y(inY), z(inZ), w(inW)
     {
     }
 
-    constexpr Vec4(const Vec2<T>& v, T z, T w) noexcept
-        : x(v.x), y(v.y), z(z), w(w)
+    constexpr Vec4(const T(&arr)[4]) noexcept
+        : x(arr[0]), y(arr[1]), z(arr[2]), w(arr[3])
     {
     }
 
-    constexpr Vec4(const Vec3<T>& v, T w) noexcept
-        : x(v.x), y(v.y), z(v.z), w(w)
+    constexpr Vec4(const Vec2<T>& v, const T inZ, const T inW) noexcept
+        : x(v.x), y(v.y), z(inZ), w(inW)
     {
     }
 
-    constexpr Vec4 Normalize() const noexcept
+    constexpr Vec4(const Vec3<T>& v, const T inW) noexcept
+        : x(v.x), y(v.y), z(v.z), w(inW)
+    {
+    }
+
+    [[nodiscard]] constexpr Vec4 Normalize() const noexcept
     {
         return *this / Length();
     }
 
     constexpr T Length() const noexcept
     {
-        return std::sqrt(x * x + y * y + z * z + w * w);
+        return std::sqrt((x * x) + (y * y) + (z * z) + (w * w));
     }
 
     constexpr T Length2() const noexcept
     {
-        return x * x + y * y + z * z + w * w;
+        return (x * x) + (y * y) + (z * z) + (w * w);
     }
 
     constexpr T Dot(const Vec4& that) const noexcept
     {
-        return x * that.x + y * that.y + z * that.z + w * that.w;
+        return (x * that.x) + (y * that.y) + (z * that.z) + (w * that.w);
     }
 
-    constexpr Vec4 Lerp(const Vec4& that, T t) const noexcept
+    [[nodiscard]] constexpr Vec4 Lerp(const Vec4& that, T t) const noexcept
     {
-        return Vec4(*this * (1 - t) + that * t);
+        return Vec4((*this * (1 - t)) + (that * t));
     }
 
     constexpr friend bool operator==(const Vec4& a, const Vec4& b) noexcept
@@ -694,19 +728,19 @@ public:
 };
 
 template<typename T>
-inline constexpr Vec2<T>::Vec2(const Vec3<T>& v) noexcept
+constexpr Vec2<T>::Vec2(const Vec3<T>& v) noexcept
     : x(v.x), y(v.y)
 {
 }
 
 template<typename T>
-inline constexpr Vec2<T>::Vec2(const Vec4<T>& v) noexcept
+constexpr Vec2<T>::Vec2(const Vec4<T>& v) noexcept
     : x(v.x), y(v.y)
 {
 }
 
 template<typename T>
-inline constexpr Vec3<T>::Vec3(const Vec4<T>& v) noexcept
+constexpr Vec3<T>::Vec3(const Vec4<T>& v) noexcept
     : x(v.x), y(v.y), z(v.z)
 {
 }
@@ -724,6 +758,11 @@ public:
 
     constexpr UnitQuat(T x, T y, T z, T w) noexcept
         : UnitQuat(Vec4<T>(x, y, z, w))
+    {
+    }
+
+    constexpr UnitQuat(const T(&arr)[4]) noexcept
+        : UnitQuat(Vec4<T>(arr[0], arr[1], arr[2], arr[3]))
     {
     }
 
@@ -774,16 +813,16 @@ public:
         // Assumes a unit quaternion.
         const Vec3<T> u{ q.m_Vec };
         const Vec3<T> t = u.Cross(vec) * T{2};
-        return vec + q.m_Vec.w * t + u.Cross(t);
+        return vec + (q.m_Vec.w * t) + u.Cross(t);
     }
 
     constexpr friend UnitQuat operator*(const UnitQuat& a, const UnitQuat& b) noexcept
     {
         return UnitQuat(
-            a.m_Vec.w * b.m_Vec.x + a.m_Vec.x * b.m_Vec.w + a.m_Vec.y * b.m_Vec.z - a.m_Vec.z * b.m_Vec.y,
-            a.m_Vec.w * b.m_Vec.y - a.m_Vec.x * b.m_Vec.z + a.m_Vec.y * b.m_Vec.w + a.m_Vec.z * b.m_Vec.x,
-            a.m_Vec.w * b.m_Vec.z + a.m_Vec.x * b.m_Vec.y - a.m_Vec.y * b.m_Vec.x + a.m_Vec.z * b.m_Vec.w,
-            a.m_Vec.w * b.m_Vec.w - a.m_Vec.x * b.m_Vec.x - a.m_Vec.y * b.m_Vec.y - a.m_Vec.z * b.m_Vec.z
+            (a.m_Vec.w * b.m_Vec.x) + (a.m_Vec.x * b.m_Vec.w) + (a.m_Vec.y * b.m_Vec.z) - (a.m_Vec.z * b.m_Vec.y),
+            (a.m_Vec.w * b.m_Vec.y) - (a.m_Vec.x * b.m_Vec.z) + (a.m_Vec.y * b.m_Vec.w) + (a.m_Vec.z * b.m_Vec.x),
+            (a.m_Vec.w * b.m_Vec.z) + (a.m_Vec.x * b.m_Vec.y) - (a.m_Vec.y * b.m_Vec.x) + (a.m_Vec.z * b.m_Vec.w),
+            (a.m_Vec.w * b.m_Vec.w) - (a.m_Vec.x * b.m_Vec.x) - (a.m_Vec.y * b.m_Vec.y) - (a.m_Vec.z * b.m_Vec.z)
         );
     }
 
@@ -835,6 +874,16 @@ public:
         m[3] = col3;
     }
 
+    // NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
+    constexpr Mat44(const T(&arr)[16]) noexcept
+        : Mat44(Vec4<T>(arr[0], arr[1], arr[2], arr[3]),
+                Vec4<T>(arr[4], arr[5], arr[6], arr[7]),
+                Vec4<T>(arr[8], arr[9], arr[10], arr[11]),
+                Vec4<T>(arr[12], arr[13], arr[14], arr[15]))
+    // NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers))
+    {
+    }
+
     constexpr explicit Mat44(T value) noexcept
         : Mat44(Vec4<T>(value, 0, 0, 0),
                 Vec4<T>(0, value, 0, 0),
@@ -854,24 +903,24 @@ public:
     {
     }
 
-    constexpr Mat44 Mul(const Mat44& other) const noexcept
+    [[nodiscard]] constexpr Mat44 Mul(const Mat44& other) const noexcept
     {
         return *this * other;
     }
 
-    constexpr Vec4<T> Mul(const Vec4<T>& vector) const noexcept
+    [[nodiscard]] constexpr Vec4<T> Mul(const Vec4<T>& vector) const noexcept
     {
         return *this * vector;
     }
 
-    constexpr Vec4<T> Mul(const Vec3<T>& vector) const noexcept
+    [[nodiscard]] constexpr Vec4<T> Mul(const Vec3<T>& vector) const noexcept
     {
         return *this * vector;
     }
 
     constexpr friend bool operator==(const Mat44& a, const Mat44& b) noexcept
     {
-        return 0 == std::memcmp(&a, &b, sizeof(Mat44<T>));
+        return a.m[0] == b.m[0] && a.m[1] == b.m[1] && a.m[2] == b.m[2] && a.m[3] == b.m[3];
     }
 
     constexpr Mat44& operator*=(const Mat44& that) noexcept
@@ -879,7 +928,7 @@ public:
         return *this = *this * that;
     }
 
-    constexpr Mat44<T> Inverse() const noexcept
+    [[nodiscard]] constexpr Mat44<T> Inverse() const noexcept
     {
         constexpr T epsilon = T{1e-8};
 
@@ -912,27 +961,21 @@ public:
         const T a33 = m[3][3];
 
         // 2x2 determinants reused by the 4x4 cofactors.
-        const T s0 = a00 * a11 - a10 * a01;
-        const T s1 = a00 * a12 - a10 * a02;
-        const T s2 = a00 * a13 - a10 * a03;
-        const T s3 = a01 * a12 - a11 * a02;
-        const T s4 = a01 * a13 - a11 * a03;
-        const T s5 = a02 * a13 - a12 * a03;
+        const T s0 = (a00 * a11) - (a10 * a01);
+        const T s1 = (a00 * a12) - (a10 * a02);
+        const T s2 = (a00 * a13) - (a10 * a03);
+        const T s3 = (a01 * a12) - (a11 * a02);
+        const T s4 = (a01 * a13) - (a11 * a03);
+        const T s5 = (a02 * a13) - (a12 * a03);
 
-        const T c0 = a20 * a31 - a30 * a21;
-        const T c1 = a20 * a32 - a30 * a22;
-        const T c2 = a20 * a33 - a30 * a23;
-        const T c3 = a21 * a32 - a31 * a22;
-        const T c4 = a21 * a33 - a31 * a23;
-        const T c5 = a22 * a33 - a32 * a23;
+        const T c0 = (a20 * a31) - (a30 * a21);
+        const T c1 = (a20 * a32) - (a30 * a22);
+        const T c2 = (a20 * a33) - (a30 * a23);
+        const T c3 = (a21 * a32) - (a31 * a22);
+        const T c4 = (a21 * a33) - (a31 * a23);
+        const T c5 = (a22 * a33) - (a32 * a23);
 
-        const T det =
-            s0 * c5 -
-            s1 * c4 +
-            s2 * c3 +
-            s3 * c2 -
-            s4 * c1 +
-            s5 * c0;
+        const T det = (s0 * c5) - (s1 * c4) + (s2 * c3) + (s3 * c2) - (s4 * c1) + (s5 * c0);
 
         if (std::abs(det) <= epsilon)
         {
@@ -942,25 +985,25 @@ public:
         const T invDet = 1 / det;
 
         // Math matrix inverse entries, named row/column.
-        const T b00 = ( a11 * c5 - a12 * c4 + a13 * c3) * invDet;
-        const T b01 = (-a01 * c5 + a02 * c4 - a03 * c3) * invDet;
-        const T b02 = ( a31 * s5 - a32 * s4 + a33 * s3) * invDet;
-        const T b03 = (-a21 * s5 + a22 * s4 - a23 * s3) * invDet;
+        const T b00 = ( (a11 * c5) - (a12 * c4) + (a13 * c3) ) * invDet;
+        const T b01 = (-(a01 * c5) + (a02 * c4) - (a03 * c3) ) * invDet;
+        const T b02 = ( (a31 * s5) - (a32 * s4) + (a33 * s3) ) * invDet;
+        const T b03 = (-(a21 * s5) + (a22 * s4) - (a23 * s3) ) * invDet;
 
-        const T b10 = (-a10 * c5 + a12 * c2 - a13 * c1) * invDet;
-        const T b11 = ( a00 * c5 - a02 * c2 + a03 * c1) * invDet;
-        const T b12 = (-a30 * s5 + a32 * s2 - a33 * s1) * invDet;
-        const T b13 = ( a20 * s5 - a22 * s2 + a23 * s1) * invDet;
+        const T b10 = (-(a10 * c5) + (a12 * c2) - (a13 * c1) ) * invDet;
+        const T b11 = ( (a00 * c5) - (a02 * c2) + (a03 * c1) ) * invDet;
+        const T b12 = (-(a30 * s5) + (a32 * s2) - (a33 * s1) ) * invDet;
+        const T b13 = ( (a20 * s5) - (a22 * s2) + (a23 * s1) ) * invDet;
 
-        const T b20 = ( a10 * c4 - a11 * c2 + a13 * c0) * invDet;
-        const T b21 = (-a00 * c4 + a01 * c2 - a03 * c0) * invDet;
-        const T b22 = ( a30 * s4 - a31 * s2 + a33 * s0) * invDet;
-        const T b23 = (-a20 * s4 + a21 * s2 - a23 * s0) * invDet;
+        const T b20 = ( (a10 * c4) - (a11 * c2) + (a13 * c0) ) * invDet;
+        const T b21 = (-(a00 * c4) + (a01 * c2) - (a03 * c0) ) * invDet;
+        const T b22 = ( (a30 * s4) - (a31 * s2) + (a33 * s0) ) * invDet;
+        const T b23 = (-(a20 * s4) + (a21 * s2) - (a23 * s0) ) * invDet;
 
-        const T b30 = (-a10 * c3 + a11 * c1 - a12 * c0) * invDet;
-        const T b31 = ( a00 * c3 - a01 * c1 + a02 * c0) * invDet;
-        const T b32 = (-a30 * s3 + a31 * s1 - a32 * s0) * invDet;
-        const T b33 = ( a20 * s3 - a21 * s1 + a22 * s0) * invDet;
+        const T b30 = (-(a10 * c3) + (a11 * c1) - (a12 * c0) ) * invDet;
+        const T b31 = ( (a00 * c3) - (a01 * c1) + (a02 * c0) ) * invDet;
+        const T b32 = (-(a30 * s3) + (a31 * s1) - (a32 * s0) ) * invDet;
+        const T b33 = ( (a20 * s3) - (a21 * s1) + (a22 * s0) ) * invDet;
 
         return Mat44<T>
         {
@@ -971,7 +1014,7 @@ public:
         };
     }
 
-    constexpr Mat44 InverseAffine() const noexcept
+    [[nodiscard]] constexpr Mat44 InverseAffine() const noexcept
     {
         constexpr T epsilon = T{1e-8};
 
@@ -1002,19 +1045,19 @@ public:
         const T ty = m[3][1];
         const T tz = m[3][2];
 
-        const T c00 = a11 * a22 - a12 * a21;
-        const T c01 = a02 * a21 - a01 * a22;
-        const T c02 = a01 * a12 - a02 * a11;
+        const T c00 = (a11 * a22) - (a12 * a21);
+        const T c01 = (a02 * a21) - (a01 * a22);
+        const T c02 = (a01 * a12) - (a02 * a11);
 
-        const T c10 = a12 * a20 - a10 * a22;
-        const T c11 = a00 * a22 - a02 * a20;
-        const T c12 = a02 * a10 - a00 * a12;
+        const T c10 = (a12 * a20) - (a10 * a22);
+        const T c11 = (a00 * a22) - (a02 * a20);
+        const T c12 = (a02 * a10) - (a00 * a12);
 
-        const T c20 = a10 * a21 - a11 * a20;
-        const T c21 = a01 * a20 - a00 * a21;
-        const T c22 = a00 * a11 - a01 * a10;
+        const T c20 = (a10 * a21) - (a11 * a20);
+        const T c21 = (a01 * a20) - (a00 * a21);
+        const T c22 = (a00 * a11) - (a01 * a10);
 
-        const T det = a00 * c00 + a01 * c10 + a02 * c20;
+        const T det = (a00 * c00) + (a01 * c10) + (a02 * c20);
 
         if (std::abs(det) <= epsilon)
         {
@@ -1035,9 +1078,9 @@ public:
         const T b21 = c21 * invDet;
         const T b22 = c22 * invDet;
 
-        const T itx = -(b00 * tx + b01 * ty + b02 * tz);
-        const T ity = -(b10 * tx + b11 * ty + b12 * tz);
-        const T itz = -(b20 * tx + b21 * ty + b22 * tz);
+        const T itx = (-(b00 * tx) - (b01 * ty) - (b02 * tz));
+        const T ity = (-(b10 * tx) - (b11 * ty) - (b12 * tz));
+        const T itz = (-(b20 * tx) - (b21 * ty) - (b22 * tz));
 
         return Mat44
         {
@@ -1048,7 +1091,7 @@ public:
         };
     }
 
-    constexpr Mat44 Transpose() const noexcept
+    [[nodiscard]] constexpr Mat44 Transpose() const noexcept
     {
         return Mat44 //
             {
@@ -1067,9 +1110,9 @@ public:
         translation = Vec3<T>(mm[3][0], mm[3][1], mm[3][2]);
 
         // Extract scale (length of basis columns)
-        scale.x = std::sqrt(mm[0][0] * mm[0][0] + mm[0][1] * mm[0][1] + mm[0][2] * mm[0][2]);
-        scale.y = std::sqrt(mm[1][0] * mm[1][0] + mm[1][1] * mm[1][1] + mm[1][2] * mm[1][2]);
-        scale.z = std::sqrt(mm[2][0] * mm[2][0] + mm[2][1] * mm[2][1] + mm[2][2] * mm[2][2]);
+        scale.x = std::sqrt((mm[0][0] * mm[0][0]) + (mm[0][1] * mm[0][1]) + (mm[0][2] * mm[0][2]));
+        scale.y = std::sqrt((mm[1][0] * mm[1][0]) + (mm[1][1] * mm[1][1]) + (mm[1][2] * mm[1][2]));
+        scale.z = std::sqrt((mm[2][0] * mm[2][0]) + (mm[2][1] * mm[2][1]) + (mm[2][2] * mm[2][2]));
 
         // Build rotation matrix (row-major) from normalized columns
         const T invX = scale.x != 0 ? 1 / scale.x : 0;
@@ -1143,12 +1186,12 @@ public:
 
     constexpr friend Vec4<T> operator*(const Mat44& mat, const Vec4<T>& vector) noexcept
     {
-        return mat.m[0] * vector.x + mat.m[1] * vector.y + mat.m[2] * vector.z + mat.m[3] * vector.w;
+        return (mat.m[0] * vector.x) + (mat.m[1] * vector.y) + (mat.m[2] * vector.z) + (mat.m[3] * vector.w);
     }
 
     constexpr friend Vec4<T> operator*(const Mat44& mat, const Vec3<T>& vector) noexcept
     {
-        return Vec4<T>(mat.m[0] * vector.x + mat.m[1] * vector.y + mat.m[2] * vector.z + mat.m[3]);
+        return Vec4<T>((mat.m[0] * vector.x) + (mat.m[1] * vector.y) + (mat.m[2] * vector.z) + (mat.m[3]));
     }
 
     static constexpr const Mat44& Identity() noexcept
@@ -1174,7 +1217,7 @@ public:
 };
 
 template<typename T>
-inline constexpr Mat44<T> UnitQuat<T>::ToMatrix() const noexcept
+constexpr Mat44<T> UnitQuat<T>::ToMatrix() const noexcept
 {
     const T xx = m_Vec.x * m_Vec.x;
     const T yy = m_Vec.y * m_Vec.y;
@@ -1189,11 +1232,11 @@ inline constexpr Mat44<T> UnitQuat<T>::ToMatrix() const noexcept
     // Column-major 4x4 rotation matrix
     return Mat44<T> //
         {
-            Vec4<T>(1 - 2 * (yy + zz), 2 * (xy + wz), 2 * (xz - wy), 0),
+            Vec4<T>(1 - (2 * (yy + zz)), 2 * (xy + wz), 2 * (xz - wy), 0),
 
-            Vec4<T>(2 * (xy - wz), 1 - 2 * (xx + zz), 2 * (yz + wx), 0),
+            Vec4<T>(2 * (xy - wz), 1 - (2 * (xx + zz)), 2 * (yz + wx), 0),
 
-            Vec4<T>(2 * (xz + wy), 2 * (yz - wx), 1 - 2 * (xx + yy), 0),
+            Vec4<T>(2 * (xz + wy), 2 * (yz - wx), 1 - (2 * (xx + yy)), 0),
 
             Vec4<T>(0,0,0,1),
         };
@@ -1226,7 +1269,7 @@ public:
     // unless the scale is uniform.
     // So the inverse returns a Mat44, which can represent any affine transform,
     // instead of a new TrsTransform.
-    constexpr Mat44<NumType> Inverse() const noexcept
+    [[nodiscard]] constexpr Mat44<NumType> Inverse() const noexcept
     {
         TrsTransform result;
         result.R = R.Inverse();
@@ -1260,7 +1303,7 @@ public:
     constexpr friend Vec3<NumType> operator*(const TrsTransform<NumType>& transform,
         const Vec3<NumType>& point) noexcept
     {
-        return transform.R * (point * transform.S) + transform.T;
+        return (transform.R * (point * transform.S)) + transform.T;
     }
 
     constexpr friend bool operator==(const TrsTransform<NumType>& a,
@@ -1274,25 +1317,18 @@ class Extent
 {
 public:
 
-    float Width;
-    float Height;
+    float width;
+    float height;
+
+    constexpr float GetAspectRatio() const noexcept
+    {
+        MLG_ASSERT(height != 0, "Height must be non-zero to compute aspect ratio");
+        return width / height;
+    }
 
     constexpr friend bool operator==(const Extent& a, const Extent& b) noexcept
     {
-        return a.Width == b.Width && a.Height == b.Height;
-    }
-};
-
-class Point
-{
-public:
-
-    float X;
-    float Y;
-
-    constexpr friend bool operator==(const Point& a, const Point& b) noexcept
-    {
-        return a.X == b.X && a.Y == b.Y;
+        return a.width == b.width && a.height == b.height;
     }
 };
 
@@ -1304,6 +1340,7 @@ using UnitQuatf = UnitQuat<float>;
 using Mat44f = Mat44<float>;
 using TrsTransformf = TrsTransform<float>;
 
+// NOLINTBEGIN(bugprone-std-namespace-modification)
 /// @brief Enable formatting of Vec2 via std::format.
 template<typename T>
 struct std::formatter<Vec2<T>>
@@ -1360,24 +1397,13 @@ struct std::formatter<UnitQuat<T>>
 template<>
 struct std::formatter<Extent>
 {
-    constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
+    static constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
 
     template<typename FormatContext>
     auto format(const Extent& extent, FormatContext& ctx) const
     {
-        return std::format_to(ctx.out(), "({}, {})", extent.Width, extent.Height);
+        return std::format_to(ctx.out(), "({}, {})", extent.width, extent.height);
     }
 };
 
-/// @brief Enable formatting of Point via std::format.
-template<>
-struct std::formatter<Point>
-{
-    constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
-
-    template<typename FormatContext>
-    auto format(const Point& point, FormatContext& ctx) const
-    {
-        return std::format_to(ctx.out(), "({}, {})", point.X, point.Y);
-    }
-};
+// NOLINTEND(bugprone-std-namespace-modification)

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Level.h"
-#include "PropKit.h"
 #include "WebgpuHelper.h"
 
 #include <span>
@@ -23,6 +22,7 @@ public:
     }
 
     ModelInstance() = default;
+    ~ModelInstance() = default;
     ModelInstance(const ModelInstance&) = default;
     ModelInstance& operator=(const ModelInstance&) = default;
     ModelInstance(ModelInstance&&) = default;
@@ -45,12 +45,13 @@ public:
     static Result<> Create(const Level& level, const PropKit& propKit, Scene& outScene);
 
     Scene() = default;
+    ~Scene() = default;
     Scene(const Scene&) = delete;
     Scene& operator=(const Scene&) = delete;
     Scene(Scene&& other) = default;
     Scene& operator=(Scene&& other) = default;
 
-    const std::span<const ModelInstance> GetModelInstances() const { return m_ModelInstances; }
+    std::span<const ModelInstance> GetModelInstances() const { return m_ModelInstances; }
 
     DrawIndirectBuffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
 
@@ -67,18 +68,16 @@ public:
 
 private:
 
-    Scene(const PropKit* propKit,
-        WorldTransformBuffer worldTransformBuffer,
+    Scene(WorldTransformBuffer worldTransformBuffer,
         DrawIndirectBuffer drawIndirectBuffer,
         MeshPropertiesBuffer meshPropertiesBuffer,
         CameraParamsBuffer cameraParamsBuffer,
         wgpu::BindGroup colorPipelineBindGroup0,
         wgpu::BindGroup transformPipelineBindGroup0,
-        std::vector<ModelInstance>&& modelInstances,
-        std::vector<ShaderInterop::WorldTransform>&& worldTransforms,
-        std::vector<Level::NodeHandle>&& nodeHandles);
+        std::vector<ModelInstance> modelInstances,
+        std::vector<ShaderInterop::WorldTransform> worldTransforms,
+        std::vector<Level::NodeHandle> nodeHandles);
 
-    const PropKit* m_PropKit;
     WorldTransformBuffer m_WorldTransformBuffer;
     DrawIndirectBuffer m_DrawIndirectBuffer;
     MeshPropertiesBuffer m_MeshPropertiesBuffer;

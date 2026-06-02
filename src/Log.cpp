@@ -9,113 +9,114 @@
 #include <mutex>
 #include <vector>
 
-static std::shared_ptr<spdlog::sinks::dist_sink_mt> mux_sink;
-
-static std::atomic<bool> s_InitializeSinks = true;
-
-static std::mutex s_LoggerMutex;
-
-static void InitializeSinks()
+namespace
 {
-    std::lock_guard<std::mutex> lock(s_LoggerMutex);
 
-    if (s_InitializeSinks.exchange(false))
+struct LogGlobals
+{
+    static inline std::atomic<bool> InitializeSinks = true;
+    static inline std::shared_ptr<spdlog::sinks::dist_sink_mt> MuxSink;
+    static inline std::mutex LoggerMutex;
+    static inline thread_local std::vector<std::string> LogPrefixStack;
+    static inline thread_local std::string LogPrefix;
+};
+
+void InitializeSinks()
+{
+    const std::lock_guard<std::mutex> lock(LogGlobals::LoggerMutex);
+
+    if (LogGlobals::InitializeSinks.exchange(false))
     {
+        LogGlobals::MuxSink = std::make_shared<spdlog::sinks::dist_sink_mt>();
+
         auto consoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-        auto msvcSink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
-        mux_sink = std::make_shared<spdlog::sinks::dist_sink_mt>();
-
-        mux_sink->add_sink(consoleSink);
-        mux_sink->add_sink(msvcSink);
-
+        LogGlobals::MuxSink->add_sink(consoleSink);
         consoleSink->set_level(spdlog::level::debug);
+
+#if defined(_MSC_VER)
+        // Logs to the Visual Studio output window when running under the debugger.
+        auto msvcSink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
+        LogGlobals::MuxSink->add_sink(msvcSink);
         msvcSink->set_level(spdlog::level::debug);
-        mux_sink->set_level(spdlog::level::debug);
+#endif
+
+        LogGlobals::MuxSink->set_level(spdlog::level::debug);
     }
 }
 
-Log::Logger::Logger(const std::string& name)
+std::shared_ptr<spdlog::logger> GetLogger(const std::string& name)
 {
-    static_assert(sizeof(m_Buffer) >= sizeof(std::shared_ptr<spdlog::logger>));
-
     InitializeSinks();
 
-    std::lock_guard<std::mutex> lock(s_LoggerMutex);
+    const std::lock_guard<std::mutex> lock(LogGlobals::LoggerMutex);
 
     std::shared_ptr<spdlog::logger> logger = spdlog::get(name);
 
     if(!logger)
     {
-        logger = std::make_shared<spdlog::logger>(name, mux_sink);
+        logger = std::make_shared<spdlog::logger>(name, LogGlobals::MuxSink);
 
         spdlog::initialize_logger(logger);
         spdlog::register_or_replace(logger);
     }
 
-    ::new(m_Buffer) std::shared_ptr<spdlog::logger>(logger);
+    return logger;
 }
+} // namespace
 
-Log::Logger::~Logger()
+Log::Logger::Logger(const std::string& name)
+    : m_Logger(GetLogger(name))
 {
-    auto logger = reinterpret_cast<std::shared_ptr<spdlog::logger>*>(m_Buffer);
-    logger->~shared_ptr();
 }
 
 void Log::Logger::LogImpl(const Level level, const std::string& message)
 {
-    auto logger = reinterpret_cast<std::shared_ptr<spdlog::logger>*>(m_Buffer);
-
     switch(level)
     {
-        case Log::Level::Trace: (*logger)->trace(message); break;
-        case Log::Level::Debug: (*logger)->debug(message); break;
-        case Log::Level::Info: (*logger)->info(message); break;
-        case Log::Level::Warn: (*logger)->warn(message); break;
-        case Log::Level::Error: (*logger)->error(message); break;
+        case Log::Level::Trace: m_Logger->trace(message); break;
+        case Log::Level::Debug: m_Logger->debug(message); break;
+        case Log::Level::Info: m_Logger->info(message); break;
+        case Log::Level::Warn: m_Logger->warn(message); break;
+        case Log::Level::Error: m_Logger->error(message); break;
     }
 }
 
 void Log::Logger::SetLevel(const Level level)
 {
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Trace) == spdlog::level::trace);
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Debug) == spdlog::level::debug);
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Info) == spdlog::level::info);
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Warn) == spdlog::level::warn);
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Error) == spdlog::level::err);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Trace) == spdlog::level::trace);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Debug) == spdlog::level::debug);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Info) == spdlog::level::info);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Warn) == spdlog::level::warn);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Error) == spdlog::level::err);
 
-    auto logger = reinterpret_cast<std::shared_ptr<spdlog::logger>*>(m_Buffer);
-
-    (*logger)->set_level(static_cast<spdlog::level::level_enum>(level));
+    m_Logger->set_level(static_cast<spdlog::level::level_enum>(level));
 }
 
 void
 Log::SetLevel(const Level level)
 {
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Trace) == spdlog::level::trace);
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Debug) == spdlog::level::debug);
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Info) == spdlog::level::info);
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Warn) == spdlog::level::warn);
-    static_assert(std::underlying_type_t<Log::Level>(Log::Level::Error) == spdlog::level::err);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Trace) == spdlog::level::trace);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Debug) == spdlog::level::debug);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Info) == spdlog::level::info);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Warn) == spdlog::level::warn);
+    static_assert(static_cast<std::underlying_type_t<Log::Level>>(Log::Level::Error) == spdlog::level::err);
 
     spdlog::set_level(static_cast<spdlog::level::level_enum>(level));
 }
 
-static thread_local std::vector<std::string> s_LogPrefixStack;
-static thread_local std::string s_LogPrefix;
-
 void
 Log::PushPrefix(const std::string& message)
 {
-    s_LogPrefixStack.push_back(message);
+    LogGlobals::LogPrefixStack.push_back(message);
     MakePrefix();
 }
 
 void
 Log::PopPrefix()
 {
-    if(!s_LogPrefixStack.empty())
+    if(!LogGlobals::LogPrefixStack.empty())
     {
-        s_LogPrefixStack.pop_back();
+        LogGlobals::LogPrefixStack.pop_back();
         MakePrefix();
     }
 }
@@ -123,77 +124,27 @@ Log::PopPrefix()
 void
 Log::MakePrefix()
 {
-    s_LogPrefix.clear();
-    s_LogPrefix += "[";
+    std::string& prefix = LogGlobals::LogPrefix;
+    prefix.clear();
+    prefix += "[";
 
     int count = 0;
 
-    for(const auto& prefix : s_LogPrefixStack)
+    for(const auto& component : LogGlobals::LogPrefixStack)
     {
         if(count > 0)
         {
-            s_LogPrefix += " : ";
+            prefix += " : ";
         }
-        s_LogPrefix += prefix;
+        prefix += component;
         ++count;
     }
 
-    s_LogPrefix += "] ";
+    prefix += "] ";
 }
 
 std::string
 Log::Prefix(const std::string& message)
 {
-    return s_LogPrefix + message;
-}
-
-Log::Capture::~Capture()
-{
-    if (!m_Canceled)
-    {
-        Cancel();
-    }
-
-    auto sinkPtr = reinterpret_cast<spdlog::sink_ptr*>(m_SinkBuffer);
-    sinkPtr->~shared_ptr<spdlog::sinks::sink>();
-}
-
-Log::Capture::Capture()
-{
-    static const size_t s_SinkSize = sizeof(spdlog::sink_ptr);
-    static_assert(s_SinkSize <= sizeof(m_SinkBuffer));
-
-    InitializeSinks();
-
-    auto sink = std::make_shared<spdlog::sinks::ringbuffer_sink_mt>(1);
-    auto sp = ::new (m_SinkBuffer) spdlog::sink_ptr(std::move(sink));
-
-    //Add a ring buffer sink to capture the assert messages
-    mux_sink->add_sink(*sp);
-}
-
-void
-Log::Capture::Cancel()
-{
-    mux_sink->remove_sink(*reinterpret_cast<spdlog::sink_ptr*>(m_SinkBuffer));
-    m_Canceled = true;
-}
-
-bool
-Log::Capture::IsCanceled() const
-{
-    return m_Canceled;
-}
-
-std::string
-Log::Capture::Message() const
-{
-    auto sinkPtr = reinterpret_cast<const spdlog::sink_ptr*>(m_SinkBuffer);
-    auto sink = static_cast<spdlog::sinks::ringbuffer_sink_mt*>(sinkPtr->get());
-    const auto message =
-        sink->last_formatted().empty()
-        ? std::string()
-        : sink->last_formatted().back();
-
-    return message;
+    return LogGlobals::LogPrefix + message;
 }

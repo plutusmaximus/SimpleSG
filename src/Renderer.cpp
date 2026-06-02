@@ -1,28 +1,67 @@
-#define _CRT_SECURE_NO_WARNINGS
-
-#define __LOGGER_NAME__ "DAWN"
+#define MLG_LOGGER_NAME "DAWN"
 
 #include "Renderer.h"
 
 #include "Compositor.h"
+#include "FileFetcher.h"
 #include "PropKit.h"
-#include "Log.h"
 #include "narrow_cast.h"
 #include "PerfMetrics.h"
 #include "Projection.h"
-#include "Result.h"
 #include "Scene.h"
 #include "scope_exit.h"
 #include "ShaderInterop.h"
 #include "WebgpuHelper.h"
 
 #include <SDL3/SDL.h>
+#include <thread>
 
-static constexpr const char* PRESENT_SHADER = "shaders/PresentShader.wgsl";
+static constexpr const char* kPresentShader = "shaders/PresentShader.wgsl";
 
-static constexpr const char* COLOR_SHADER = "shaders/ColorShader.wgsl";
+static constexpr const char* kColorShader = "shaders/ColorShader.wgsl";
 
-static constexpr const char* TRANSFORM_SHADER = "shaders/TransformShader.wgsl";
+static constexpr const char* kTransformShader = "shaders/TransformShader.wgsl";
+
+namespace
+{
+Result<>
+LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
+{
+    FileFetcher::Request request(filePath);
+    MLG_CHECK(FileFetcher::Fetch(request));
+
+    while(request.IsPending())
+    {
+        MLG_CHECK(FileFetcher::ProcessCompletions());
+        std::this_thread::yield();
+    }
+
+    MLG_CHECK(request.Succeeded(), "Failed to load shader file: {}", filePath);
+
+    request.MoveDataTo(outBuffer);
+
+    return Result<>::Ok;
+}    
+
+Result<wgpu::ShaderModule>
+CreateShader(const char* path)
+{
+    std::vector<uint8_t> shaderCode;
+    auto loadResult = LoadShaderCode(path, shaderCode);
+    MLG_CHECK(loadResult);
+
+    const void* data = shaderCode.data();
+    const wgpu::StringView shaderCodeView{ static_cast<const char*>(data), shaderCode.size() };
+    const wgpu::ShaderSourceWGSL wgsl{ { .nextInChain = nullptr, .code = shaderCodeView } };
+    const wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl, .label = path };
+
+    wgpu::ShaderModule shaderModule =
+        WebgpuHelper::GetDevice().CreateShaderModule(&shaderModuleDescriptor);
+    MLG_CHECK(shaderModule, "Failed to create shader module");
+
+    return shaderModule;
+}
+}
 
 Result<>
 Renderer::Startup()
@@ -76,7 +115,7 @@ Renderer::Render(const TrsTransformf& camera,
 
     MLG_SCOPED_TIMER("Renderer.Render");
 
-    wgpu::CommandEncoder cmdEncoder = compositor.GetCommandEncoder();
+    const wgpu::CommandEncoder cmdEncoder = compositor.GetCommandEncoder();
 
     {
         MLG_SCOPED_TIMER("Renderer.Render.TransformNodes");
@@ -108,10 +147,10 @@ Renderer::Render(const TrsTransformf& camera,
     {
         MLG_SCOPED_TIMER("Renderer.Render.Draw.SetBuffers");
 
-        static_assert(VERTEX_INDEX_BITS == 32 || VERTEX_INDEX_BITS == 16);
+        static_assert(VERTEX_INDEX_BITS == UINT32_WIDTH || VERTEX_INDEX_BITS == UINT16_WIDTH);
 
         constexpr wgpu::IndexFormat idxFmt =
-            (VERTEX_INDEX_BITS == 32)
+            (VERTEX_INDEX_BITS == UINT32_WIDTH)
             ? wgpu::IndexFormat::Uint32
             : wgpu::IndexFormat::Uint16;
 
@@ -188,20 +227,20 @@ Renderer::Render(const TrsTransformf& camera,
 //private:
 
 Result<wgpu::RenderPassEncoder>
-Renderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
+Renderer::BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder)
 {
-    wgpu::RenderPassColorAttachment attachment //
+    const wgpu::RenderPassColorAttachment attachment //
         {
             .view = m_ColorTargetView,
             .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
-            .clearValue = { 0.0f, 0.0f, 0.0f, 0.0f },
+            .clearValue = { .r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 0.0f },
         };
 
     static constexpr float CLEAR_DEPTH = 1.0f;
 
-    wgpu::RenderPassDepthStencilAttachment depthStencilAttachment //
+    const wgpu::RenderPassDepthStencilAttachment depthStencilAttachment //
         {
             .view = m_DepthTargetView,
             .depthLoadOp = wgpu::LoadOp::Clear,
@@ -212,7 +251,7 @@ Renderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
             .stencilClearValue = 0,
         };
 
-    wgpu::RenderPassDescriptor renderPassDesc //
+    const wgpu::RenderPassDescriptor renderPassDesc //
         {
             .label = "MainRenderPass",
             .colorAttachmentCount = 1,
@@ -234,9 +273,9 @@ Renderer::BeginRenderPass(wgpu::CommandEncoder cmdEncoder)
 }
 
 Result<>
-Renderer::Present(Compositor& compositor)
+Renderer::Present(Compositor& compositor) const
 {
-    wgpu::Texture target = compositor.GetTarget();
+    const wgpu::Texture target = compositor.GetTarget();
 
     if(!target)
     {
@@ -244,58 +283,28 @@ Renderer::Present(Compositor& compositor)
         return Result<>::Ok;
     }
 
-    wgpu::RenderPassColorAttachment attachment //
+    const wgpu::RenderPassColorAttachment attachment //
         {
             .view = target.CreateView(),
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
-            .clearValue = { 0.0f, 0.0f, 0.0f, 1.0f },
+            .clearValue = { .r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 1.0f },
         };
 
-    wgpu::RenderPassDescriptor renderPassDesc //
+    const wgpu::RenderPassDescriptor renderPassDesc //
         {
             .label = "CopyRenderPass",
             .colorAttachmentCount = 1,
             .colorAttachments = &attachment,
         };
 
-    wgpu::RenderPassEncoder renderPass = compositor.GetCommandEncoder().BeginRenderPass(&renderPassDesc);
+    const wgpu::RenderPassEncoder renderPass = compositor.GetCommandEncoder().BeginRenderPass(&renderPassDesc);
     MLG_CHECK(renderPass, "Failed to begin render pass for copying color target to swapchain");
 
     renderPass.SetPipeline(m_PresentPipeline.Pipeline);
     renderPass.SetBindGroup(0, m_PresentPipeline.BindGroup0, 0, nullptr);
     renderPass.Draw(3, 1, 0, 0);
     renderPass.End();
-
-    return Result<>::Ok;
-}
-
-static Result<>
-LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
-{
-    FILE* fp = std::fopen(filePath, "rb");
-    MLG_CHECKV(fp, "Failed to open shader file: {} ({})", filePath, std::strerror(errno));
-
-    auto cleanupFile = scope_exit([&]() { std::fclose(fp); });
-
-    //Get file size
-    MLG_CHECK(std::fseek(fp, 0, SEEK_END) == 0,
-        "Failed to seek in shader file: {} ({})",
-        filePath,
-        std::strerror(errno));
-
-    long fileSize = std::ftell(fp);
-    MLG_CHECK(fileSize >= 0,
-        "Failed to get size of shader file: {} ({})",
-        filePath,
-        std::strerror(errno));
-    std::rewind(fp);
-
-    outBuffer.resize(static_cast<size_t>(fileSize));
-
-    MLG_CHECK(std::fread(outBuffer.data(), 1, static_cast<size_t>(fileSize), fp) ==
-                static_cast<size_t>(fileSize),
-            "Failed to read shader file: {} ({})", filePath, std::strerror(errno));
 
     return Result<>::Ok;
 }
@@ -307,15 +316,15 @@ Renderer::CreateColorAndDepthTargets()
 
     const auto screenBounds = WebgpuHelper::GetScreenBounds();
 
-    const unsigned targetWidth = static_cast<unsigned>(screenBounds.Width);
-    const unsigned targetHeight = static_cast<unsigned>(screenBounds.Height);
+    const unsigned targetWidth = static_cast<unsigned>(screenBounds.width);
+    const unsigned targetHeight = static_cast<unsigned>(screenBounds.height);
 
     if(!m_ColorTarget || m_ColorTarget.GetWidth() != targetWidth ||
         m_ColorTarget.GetHeight() != targetHeight)
     {
         MLG_DEBUG("Creating new color target with size {}x{}", targetWidth, targetHeight);
 
-        wgpu::TextureDescriptor textureDesc //
+        const wgpu::TextureDescriptor textureDesc //
             {
                 .label = "ColorTarget",
                 .usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc |
@@ -335,7 +344,7 @@ Renderer::CreateColorAndDepthTargets()
         m_ColorTarget = WebgpuHelper::GetDevice().CreateTexture(&textureDesc);
         m_ColorTargetView = m_ColorTarget.CreateView();
 
-        wgpu::SamplerDescriptor samplerDesc //
+        const wgpu::SamplerDescriptor samplerDesc //
             {
                 .label = "ColorTargetSampler",
                 .addressModeU = wgpu::AddressMode::Repeat,
@@ -358,7 +367,7 @@ Renderer::CreateColorAndDepthTargets()
     {
         MLG_DEBUG("Creating new depth target with size {}x{}", targetWidth, targetHeight);
 
-        wgpu::TextureDescriptor textureDesc //
+        const wgpu::TextureDescriptor textureDesc //
             {
                 .label = "DepthTarget",
                 .usage = wgpu::TextureUsage::RenderAttachment,
@@ -391,7 +400,7 @@ Renderer::CreateColorPipeline()
 
     MLG_CHECKV(m_ColorTarget, "Color target is null");
 
-    auto shader = CreateShader(COLOR_SHADER);
+    auto shader = CreateShader(kColorShader);
     MLG_CHECK(shader);
 
     m_ColorPipeline.Shader = *shader;
@@ -401,7 +410,7 @@ Renderer::CreateColorPipeline()
     auto bgLayouts = WebgpuHelper::GetColorPipelineLayouts();
     MLG_CHECK(bgLayouts);
 
-    wgpu::PipelineLayoutDescriptor colorTargetPipelineLayoutDesc //
+    const wgpu::PipelineLayoutDescriptor colorTargetPipelineLayoutDesc //
         {
             .label = "ColorPipelineLayout",
             .bindGroupLayoutCount = std::size(*bgLayouts),
@@ -412,7 +421,7 @@ Renderer::CreateColorPipeline()
         WebgpuHelper::GetDevice().CreatePipelineLayout(&colorTargetPipelineLayoutDesc);
     MLG_CHECK(m_ColorPipeline.Layout, "Failed to create color pipeline layout");
 
-    wgpu::BlendState blendState //
+    const wgpu::BlendState blendState //
         {
             .color =
             {
@@ -428,14 +437,14 @@ Renderer::CreateColorPipeline()
             },
         };
 
-    wgpu::ColorTargetState colorTargetState //
+    const wgpu::ColorTargetState colorTargetState //
         {
             .format = m_ColorTarget.GetFormat(),
             .blend = &blendState,
             .writeMask = wgpu::ColorWriteMask::All,
         };
 
-    wgpu::DepthStencilState depthStencilState //
+    const wgpu::DepthStencilState depthStencilState //
         {
             .format = m_DepthTarget.GetFormat(),
             .depthWriteEnabled = true,
@@ -461,7 +470,7 @@ Renderer::CreateColorPipeline()
             .depthBiasClamp = 0.0f,
         };
 
-    wgpu::FragmentState fragmentState //
+    const wgpu::FragmentState fragmentState //
         {
             .module = m_ColorPipeline.Shader,
             .entryPoint = "fs_main",
@@ -469,7 +478,7 @@ Renderer::CreateColorPipeline()
             .targets = &colorTargetState,
         };
 
-    wgpu::VertexAttribute vertexAttributes[] //
+    const wgpu::VertexAttribute vertexAttributes[] //
         {
             {
                 .format = wgpu::VertexFormat::Float32x3,
@@ -487,15 +496,15 @@ Renderer::CreateColorPipeline()
                 .shaderLocation = 2,
             },
         };
-    wgpu::VertexBufferLayout vertexBufferLayout //
+    const wgpu::VertexBufferLayout vertexBufferLayout //
         {
             .stepMode = wgpu::VertexStepMode::Vertex,
             .arrayStride = sizeof(Vertex),
             .attributeCount = std::size(vertexAttributes),
-            .attributes = vertexAttributes,
+            .attributes = &vertexAttributes[0],
         };
 
-    wgpu::RenderPipelineDescriptor descriptor//
+    const wgpu::RenderPipelineDescriptor descriptor//
     {
         .label = "ColorTargetPipeline",
         .layout = m_ColorPipeline.Layout,
@@ -548,9 +557,9 @@ Renderer::CreatePresentPipeline()
         return Result<>::Ok;
     }
 
-    wgpu::Device device = WebgpuHelper::GetDevice();
+    const wgpu::Device device = WebgpuHelper::GetDevice();
 
-    auto shader = CreateShader(PRESENT_SHADER);
+    auto shader = CreateShader(kPresentShader);
     MLG_CHECK(shader);
 
     m_PresentPipeline.Shader = *shader;
@@ -560,7 +569,7 @@ Renderer::CreatePresentPipeline()
     auto bgLayouts = WebgpuHelper::GetCompositorPipelineLayouts();
     MLG_CHECK(bgLayouts);
 
-    wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
+    const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
         {
             .label = "PresentPipelineLayout",
             .bindGroupLayoutCount = std::size(*bgLayouts),
@@ -570,7 +579,7 @@ Renderer::CreatePresentPipeline()
     m_PresentPipeline.Layout = device.CreatePipelineLayout(&pipelineLayoutDesc);
     MLG_CHECK(m_PresentPipeline.Layout, "Failed to create present pipeline layout");
 
-    wgpu::BlendState blendState //
+    const wgpu::BlendState blendState //
         {
             .color =
             {
@@ -586,14 +595,14 @@ Renderer::CreatePresentPipeline()
             },
         };
 
-    wgpu::ColorTargetState colorTargetState //
+    const wgpu::ColorTargetState colorTargetState //
         {
             .format = WebgpuHelper::GetSwapChainFormat(),
             .blend = &blendState,
             .writeMask = wgpu::ColorWriteMask::All,
         };
 
-    wgpu::FragmentState fragmentState //
+    const wgpu::FragmentState fragmentState //
         {
             .module = m_PresentPipeline.Shader,
             .entryPoint = "fs_main",
@@ -601,7 +610,7 @@ Renderer::CreatePresentPipeline()
             .targets = &colorTargetState,
         };
 
-    wgpu::RenderPipelineDescriptor descriptor//
+    const wgpu::RenderPipelineDescriptor descriptor//
     {
         .label = "CopyColorTargetPipeline",
         .layout = m_PresentPipeline.Layout,
@@ -632,7 +641,7 @@ Renderer::CreatePresentPipeline()
 
     // Create bind group for the color target texture and sampler
 
-    wgpu::BindGroupEntry bgEntries[] = //
+    const wgpu::BindGroupEntry bgEntries[] = //
         {
             {
                 .binding = 0,
@@ -644,12 +653,12 @@ Renderer::CreatePresentPipeline()
             },
         };
 
-    wgpu::BindGroupDescriptor bgDesc //
+    const wgpu::BindGroupDescriptor bgDesc //
         {
             .label = "ColorTargetCopyBindGroup",
             .layout = (*bgLayouts)[0],
             .entryCount = std::size(bgEntries),
-            .entries = bgEntries,
+            .entries = &bgEntries[0],
         };
 
     m_PresentPipeline.BindGroup0 = device.CreateBindGroup(&bgDesc);
@@ -669,7 +678,7 @@ Renderer::CreateTransformPipeline()
         return Result<>::Ok;
     }
 
-    auto csResult = CreateShader(TRANSFORM_SHADER);
+    auto csResult = CreateShader(kTransformShader);
     MLG_CHECK(csResult);
 
     m_TransformPipeline.Shader = *csResult;
@@ -677,7 +686,7 @@ Renderer::CreateTransformPipeline()
     auto bgLayouts = WebgpuHelper::GetTransformPipelineLayouts();
     MLG_CHECK(bgLayouts);
 
-    wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
+    const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
         {
             .label = "TransformPipelineLayout",
             .bindGroupLayoutCount = std::size(*bgLayouts),
@@ -688,7 +697,7 @@ Renderer::CreateTransformPipeline()
         WebgpuHelper::GetDevice().CreatePipelineLayout(&pipelineLayoutDesc);
     MLG_CHECK(m_TransformPipeline.Layout, "Failed to create transform pipeline layout");
 
-    wgpu::ComputePipelineDescriptor pipelineDesc//
+    const wgpu::ComputePipelineDescriptor pipelineDesc//
     {
         .layout = m_TransformPipeline.Layout,
         .compute//
@@ -704,32 +713,13 @@ Renderer::CreateTransformPipeline()
     return Result<>::Ok;
 }
 
-Result<wgpu::ShaderModule>
-Renderer::CreateShader(const char* path)
-{
-    std::vector<uint8_t> shaderCode;
-    auto loadResult = LoadShaderCode(path, shaderCode);
-    MLG_CHECK(loadResult);
-
-    wgpu::StringView shaderCodeView{ reinterpret_cast<const char*>(shaderCode.data()),
-        shaderCode.size() };
-    wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCodeView } };
-    wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl, .label = path };
-
-    wgpu::ShaderModule shaderModule =
-        WebgpuHelper::GetDevice().CreateShaderModule(&shaderModuleDescriptor);
-    MLG_CHECK(shaderModule, "Failed to create shader module");
-
-    return shaderModule;
-}
-
 Result<>
-Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
+Renderer::TransformNodes(const wgpu::CommandEncoder& cmdEncoder,
     const TrsTransformf& camera,
     const Projection& projection,
-    const Scene& scene)
+    const Scene& scene) const
 {
-    wgpu::Device device = WebgpuHelper::GetDevice();
+    const wgpu::Device device = WebgpuHelper::GetDevice();
 
     // Use inverse of camera transform as view matrix
     const Mat44f viewXform = camera.Inverse();
@@ -751,7 +741,7 @@ Renderer::TransformNodes(wgpu::CommandEncoder cmdEncoder,
         &cameraParams,
         sizeof(ShaderInterop::CameraParams));
 
-    wgpu::ComputePassEncoder pass = cmdEncoder.BeginComputePass();
+    const wgpu::ComputePassEncoder pass = cmdEncoder.BeginComputePass();
     pass.SetPipeline(m_TransformPipeline.Pipeline);
     pass.SetBindGroup(0, scene.GetTransformPipelineBindGroup0());
     const uint32_t workgroupCountX = narrow_cast<uint32_t>(scene.GetModelInstances().size());

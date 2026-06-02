@@ -1,18 +1,19 @@
 #pragma once
 
-// This file contains classes and functions related to physics, dynamics, kinematics, and statics.
-
 #include "AssertHelper.h"
+#include "Bounds.h"
+#include "VecMath.h"
+
+#include <variant>
 
 class Mass
 {
 public:
     Mass() = delete;
-    constexpr explicit Mass(float value)
-        : m_Value(value)
+    constexpr explicit Mass(const float value)
+        : m_Value(MLG_VERIFY(value > 0.0f, "Mass must be positive") ? value : 0.0f),
+          m_InvValue(value > 0.0f ? 1.0f / m_Value : 0.0f)
     {
-        MLG_ASSERT(value > 0.0f, "Mass must be positive");
-        m_InvValue = 1.0f / value;
     }
 
     constexpr float Value() const { return m_Value; }
@@ -26,7 +27,7 @@ public:
     }
     friend constexpr auto operator<=>(float a, Mass b)
     {
-        return a <=> b.Value();
+        return b <=> a;
     }
 
     friend constexpr Mass operator+(Mass a, Mass b)
@@ -46,7 +47,7 @@ public:
 
     friend constexpr Mass operator*(float scalar, Mass a)
     {
-        return Mass(a.Value() * scalar);
+        return a * scalar;
     }
 
     friend constexpr Mass operator/(Mass a, float scalar)
@@ -73,23 +74,61 @@ public:
 
     constexpr Mass& operator-=(Mass other)
     {
-        *this = *this - other;
-        return *this;
+        return *this = *this - other;
     }
 
     constexpr Mass& operator*=(float scalar)
     {
-        *this = *this * scalar;
-        return *this;
+        return *this = *this * scalar;
     }
 
     constexpr Mass& operator/=(float scalar)
     {
-        *this = *this / scalar;
-        return *this;
+        return *this = *this / scalar;
     }
 
 private:
     float m_Value;
     float m_InvValue;   // Inverse value
+};
+
+struct RigidBody
+{
+    Vec3f LinearVelocity{ 0 };
+    Mass Mass{-1};  // Initialize with invalid mass to catch uninitialized usage.
+};
+
+class Collider
+{
+public:
+
+    explicit Collider(const Sphere& sphere)
+        : m_Shape(sphere)
+        , m_SphereRadius(sphere.GetRadius())
+    {
+    }
+
+    explicit Collider(const Box& box)
+        : m_Shape(box)
+        , m_SphereRadius(box.GetHalfExtents().Length())
+    {
+    }
+
+    explicit Collider(const Capsule& capsule)
+        : m_Shape(capsule)
+        , m_SphereRadius(capsule.GetRadius() + capsule.GetHalfHeight())
+    {
+    }
+
+    const std::variant<Sphere, Box, Capsule>& GetShape() const { return m_Shape; }
+
+    float GetSphereRadius() const
+    {
+        return m_SphereRadius;
+    }
+
+private:
+
+    std::variant<Sphere, Box, Capsule> m_Shape;
+    float m_SphereRadius{ 0 };
 };

@@ -1,8 +1,11 @@
 #include "Level.h"
 
 #include "narrow_cast.h"
+#include "PropKit.h"
 
-static size_t
+namespace
+{
+size_t
 CountNodes(std::span<const LevelNodeDef> nodeDefs)
 {
     size_t count = nodeDefs.size();
@@ -14,7 +17,7 @@ CountNodes(std::span<const LevelNodeDef> nodeDefs)
     return count;
 }
 
-static size_t
+size_t
 CalculateTotalStringSize(std::span<const LevelNodeDef> nodeDefs)
 {
     size_t totalSize = 0;
@@ -27,12 +30,9 @@ CalculateTotalStringSize(std::span<const LevelNodeDef> nodeDefs)
     return totalSize;
 }
 
-template<class... Ts>
-struct overloads : Ts... { using Ts::operator()...; };
-
 // Collect nodes in breadth-first order.
 // Parents come before children, siblings are contiguous.
-static Result<>
+Result<>
 CollectNodes(std::span<const LevelNodeDef> nodeDefs,
     const PropKit& propKit,
     std::vector<Level::Node>& nodes,
@@ -73,37 +73,44 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
         if(nodeDef.Components.Collider.has_value())
         {
             const ColliderDef& colliderDef = *nodeDef.Components.Collider;
-            const auto visitor = overloads //
+            struct Visitor
+            {
+                Collider operator()(const SphereDef& def) const
                 {
-                    [](const SphereDef& def) -> Collider
-                    { return Collider{ Sphere{ def.Radius } }; },
-                    [](const BoxDef& def) -> Collider
-                    { return Collider{ Box{ def.HalfExtents } }; },
-                    [](const CapsuleDef& def) -> Collider
-                    { return Collider{ Capsule{ def.Radius, def.HalfHeight } }; },
-                };
+                    return Collider{ Sphere{ def.Radius } };
+                }
 
-            components.Collider = std::visit(visitor, colliderDef);
+                Collider operator()(const BoxDef& def) const
+                {
+                    return Collider{ Box{ def.HalfExtents } };
+                }
+
+                Collider operator()(const CapsuleDef& def) const
+                {
+                    return Collider{ Capsule{ def.Radius, def.HalfHeight } };
+                }
+            };
+
+            components.Collider = std::visit(Visitor{}, colliderDef);
         }
 
         stringStorage.insert(stringStorage.end(), nodeDef.Name.begin(), nodeDef.Name.end());
         stringStorage.push_back('\0'); // Null terminator for the string_view
 
-        Level::Node node //
+        const Level::Node node //
             {
+                .Name{}, // Will be filled in later from stringStorage
                 .LocalTransform{ nodeDef.Transform },
-                .Components{ std::move(components) },
-                .ChildCount{ narrow_cast<uint32_t>(nodeDef.Children.size()) },
+                .Components{ components },
+                .ChildCount = narrow_cast<uint32_t>(nodeDef.Children.size()),
             };
 
-        nodes.emplace_back(std::move(node));
+        nodes.emplace_back(node);
     }
 
     // Now add child nodes.
-    for(size_t i = 0; i < nodeDefs.size(); ++i)
+    for(const LevelNodeDef& nodeDef : nodeDefs)
     {
-        const LevelNodeDef& nodeDef = nodeDefs[i];
-
         if(nodeDef.Children.empty())
         {
             continue;
@@ -114,6 +121,7 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
 
     return Result<>::Ok;
 }
+} // namespace
 
 Result<>
 Level::Create(const LevelDef& levelDef, const PropKit& propKit, Level& outLevel)
@@ -160,19 +168,17 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit, Level& outLevel)
         firstChildIndex += node.ChildCount;
     }
 
-    Level level(&propKit, std::move(nodes), std::move(stringStorage));
+    Level level(std::move(nodes), std::move(stringStorage));
 
     outLevel = std::move(level);
 
     return Result<>::Ok;
 }
 
-Level::Level(const PropKit* propKit, std::vector<Node>&& nodes, std::vector<char>&& stringStorage)
-    : m_PropKit(propKit),
-      m_Nodes(std::move(nodes)),
+Level::Level(std::vector<Node>&& nodes, std::vector<char>&& stringStorage)
+    : m_Nodes(std::move(nodes)),
       m_StringStorage(std::move(stringStorage))
 {
-    m_RootNodeCount = 0;
     for(const auto& node : m_Nodes)
     {
         // Nodes are stored in breadth-first order, so all root nodes will be at the beginning
@@ -214,19 +220,20 @@ Level::GetRoots() const
 Result<std::span<const Level::NodeHandle>>
 Level::GetChildren(const NodeHandle& handle) const
 {
-    MLG_CHECKV(IsInLevel(handle), "Node is not in level");
+    const Node* node = GetNode(handle);
+    MLG_CHECK(node);
 
-    if(!handle.m_Node->FirstChildIndex.IsValid())
+    if(!node->FirstChildIndex.IsValid())
     {
         return std::span<const NodeHandle>{};
     }
 
-    MLG_CHECKV(handle.m_Node->FirstChildIndex.Value() < m_Nodes.size(), "Invalid FirstChildIndex in node");
-    MLG_CHECKV(handle.m_Node->FirstChildIndex.Value() + handle.m_Node->ChildCount <= m_Nodes.size(),
+    MLG_CHECKV(node->FirstChildIndex.Value() < m_Nodes.size(), "Invalid FirstChildIndex in node");
+    MLG_CHECKV(node->FirstChildIndex.Value() + node->ChildCount <= m_Nodes.size(),
         "Invalid ChildCount in node");
 
-    return std::span(m_NodeHandles).subspan(handle.m_Node->FirstChildIndex.Value(),
-        handle.m_Node->ChildCount);
+    return std::span(m_NodeHandles).subspan(node->FirstChildIndex.Value(),
+        node->ChildCount);
 }
 
 Result<Level::NodeHandle>
@@ -235,19 +242,23 @@ Level::GetNodeHandle(std::initializer_list<std::string_view> path) const
     return GetNodeHandle(std::span{ path });
 }
 
-Result<const Level::Node*>
+const Level::Node*
 Level::GetNode(const NodeHandle& handle) const
 {
-    MLG_CHECKV(IsInLevel(handle), "Node is not in level");
+    if(!MLG_VERIFY(IsInLevel(handle), "Node is not in level"))
+    {
+        return nullptr;
+    }
+
     return handle.m_Node;
 }
 
 Result<>
 Level::UpdateLocalTransform(const NodeHandle& handle, const TrsTransformf& localTransform)
 {
-    MLG_CHECKV(IsInLevel(handle), "Node is not in level");
-
-    Node* node = const_cast<Node*>(handle.m_Node);
+    Node* node = GetNode(handle);
+    MLG_CHECK(node);
+    
     node->LocalTransform = localTransform;
     if(!node->ParentIndex.IsValid())
     {
@@ -262,77 +273,70 @@ Level::UpdateLocalTransform(const NodeHandle& handle, const TrsTransformf& local
 Result<Level::NodeFlags>
 Level::GetNodeFlags(const NodeHandle& handle) const
 {
-    MLG_CHECKV(IsInLevel(handle), "Node is not in level");
+    const Node* node = GetNode(handle);
+    MLG_CHECK(node);
 
-    return handle.m_Node->Flags;
+    return node->Flags;
 }
 
 void
 Level::SetActive(const NodeHandle& handle, bool active)
 {
-    if(!MLG_VERIFY(IsInLevel(handle), "Node is not in level"))
+    Node* node = GetNode(handle);
+
+    if(!MLG_VERIFY(node))
     {
         return;
     }
 
-    Node* node = const_cast<Node*>(handle.m_Node);
     node->Flags = active ? (node->Flags | NodeFlags::Active) : (node->Flags & ~NodeFlags::Active);
 
     auto children = GetChildren(handle);
-    if(!children)
+    if(children)
     {
-        return;
-    }
-
-    for(const auto& childHandle : *children)
-    {
-        SetActive(childHandle, active);
+        for(const NodeHandle& childHandle : *children)
+        {
+            SetActive(childHandle, active);
+        }
     }
 }
 
 bool
 Level::IsActive(const NodeHandle& handle) const
 {
-    if(!MLG_VERIFY(IsInLevel(handle), "Node is not in level"))
-    {
-        return false;
-    }
+    const Node* node = GetNode(handle);
 
-    return (handle.m_Node->Flags & NodeFlags::Active) == NodeFlags::Active;
+    return MLG_VERIFY(node) && (node->Flags & NodeFlags::Active) == NodeFlags::Active;
 }
 
 void
 Level::SetVisible(const NodeHandle& handle, bool visible)
 {
-    if(!MLG_VERIFY(IsInLevel(handle), "Node is not in level"))
+    Node* node = GetNode(handle);
+
+    if(!MLG_VERIFY(node))
     {
         return;
     }
 
-    Node* node = const_cast<Node*>(handle.m_Node);
     node->Flags = visible ? (node->Flags | NodeFlags::Visible) : (node->Flags & ~NodeFlags::Visible);
 
     auto children = GetChildren(handle);
-    if(!children)
+    if(children)
     {
-        return;
-    }
-
-    for(const auto& childHandle : *children)
-    {
-        SetVisible(childHandle, visible);
+        for(const NodeHandle& childHandle : *children)
+        {
+            SetVisible(childHandle, visible);
+        }
     }
 }
 
 bool
 Level::IsVisible(const NodeHandle& handle) const
 {
-    if(!MLG_VERIFY(IsInLevel(handle), "Node is not in level"))
-    {
-        return false;
-    }
+    const Node* node = GetNode(handle);
 
-    return (handle.m_Node->Flags & NodeFlags::Visible) == NodeFlags::Visible;
+    return MLG_VERIFY(node) && (node->Flags & NodeFlags::Visible) == NodeFlags::Visible;
 }
 
 // private:
@@ -340,14 +344,25 @@ Level::IsVisible(const NodeHandle& handle) const
 bool
 Level::IsInLevel(const NodeHandle& handle) const
 {
-    return handle.IsValid() && handle.m_Node >= m_Nodes.data() &&
-           handle.m_Node < m_Nodes.data() + m_Nodes.size();
+    return handle.IsValid() && !m_Nodes.empty() && handle.m_Node >= &m_Nodes.front() &&
+           handle.m_Node <= &m_Nodes.back();
+}
+
+Level::Node*
+Level::GetNode(const NodeHandle& handle)
+{
+    if(!MLG_VERIFY(IsInLevel(handle), "Node is not in level"))
+    {
+        return nullptr;
+    }
+
+    return const_cast<Node*>(handle.m_Node); // NOLINT(cppcoreguidelines-pro-type-const-cast)
 }
 
 void
 Level::UpdateWorldTransforms(std::span<Node> nodes)
 {
-    for (auto& node : nodes)
+    for (Node& node : nodes)
     {
         if(node.ParentIndex.IsValid())
         {
@@ -357,7 +372,7 @@ Level::UpdateWorldTransforms(std::span<Node> nodes)
 
         if(node.ChildCount > 0)
         {
-            std::span children =
+            const std::span children =
                 std::span(m_Nodes).subspan(node.FirstChildIndex.Value(), node.ChildCount);
             UpdateWorldTransforms(children);
         }

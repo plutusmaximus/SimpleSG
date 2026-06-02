@@ -2,34 +2,37 @@
 
 #include <SDL3/SDL.h>
 
-static inline uint64_t GetFrequency()
+namespace
 {
-    static uint64_t freq = 0;
-    if (freq == 0)
-    {
-        freq = SDL_GetPerformanceFrequency();
-    }
-    return freq;
+inline uint64_t GetPerfFrequency()
+{
+    return SDL_GetPerformanceFrequency();
 }
 
-Stopwatch::Stopwatch()
+inline std::uint64_t GetPerfTime()
 {
-    m_LastTime = SDL_GetPerformanceCounter();
+    return SDL_GetPerformanceCounter();
+}
+} // namespace
+
+Stopwatch::Stopwatch()
+    : m_LastTime(GetPerfTime())
+{
 }
 
 float
 Stopwatch::Mark()
 {
-    const auto curTime = SDL_GetPerformanceCounter();
+    const auto curTime = GetPerfTime();
     const auto ticks = curTime - m_LastTime;
     m_LastTime = curTime;
-    return ticks / static_cast<float>(GetFrequency());
+    return static_cast<float>(ticks) / static_cast<float>(GetPerfFrequency());
 }
 
 float
 Stopwatch::ElapsedSeconds() const
 {
-    const auto curTime = SDL_GetPerformanceCounter();
+    const auto curTime = GetPerfTime();
     const auto ticks = curTime - m_LastTime;
-    return ticks / static_cast<float>(GetFrequency());
+    return static_cast<float>(ticks) / static_cast<float>(GetPerfFrequency());
 }

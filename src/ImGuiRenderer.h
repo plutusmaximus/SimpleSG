@@ -24,9 +24,9 @@ public:
         Shutdown();
     }
 
-    Result<> NewFrame();
+    Result<> NewFrame() const;
 
-    Result<> Render(Compositor& renderCompositor);
+    Result<> Render(Compositor& renderCompositor) const;
 
 private:
 

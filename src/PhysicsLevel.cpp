@@ -11,7 +11,7 @@ static constexpr float COEFF_OF_RESTITUTION = 0.8f;
 Result<>
 PhysicsLevel::Create(const Level& level, PhysicsLevel& outPhysLevel)
 {
-    std::span allHandles = level.GetAllHandles();
+    const std::span allHandles = level.GetAllHandles();
 
     size_t count = 0;
     for(const auto& handle : allHandles)
@@ -35,20 +35,22 @@ PhysicsLevel::Create(const Level& level, PhysicsLevel& outPhysLevel)
     for(const auto& handle : allHandles)
     {
         const auto& node = level.GetNode(handle);
-        MLG_ASSERT((node->Components.Body && node->Components.Collider)
-            || (!node->Components.Body && !node->Components.Collider),
-            "Node {} has Body component but no Collider, or vice versa",
-            node->Name);
+        const std::optional<RigidBody>& optBody = node->Components.Body;
+        const std::optional<Collider>& optCollider = node->Components.Collider;
 
-        if(!node->Components.Body)
+        if(optBody && optCollider)
         {
-            continue;
+            nodeHandles.emplace_back(handle);
+            transforms.emplace_back(node->LocalTransform);
+            bodies.emplace_back(*optBody);
+            colliders.emplace_back(*optCollider);
         }
-
-        nodeHandles.emplace_back(handle);
-        transforms.emplace_back(node->LocalTransform);
-        bodies.emplace_back(*node->Components.Body);
-        colliders.emplace_back(*node->Components.Collider);
+        else
+        {
+            MLG_ASSERT(!optBody && !optCollider,
+                "Node {} has Body component but no Collider, or vice versa",
+                node->Name);
+        }
     }
 
     PhysicsLevel physLevel(std::move(nodeHandles),
@@ -81,7 +83,7 @@ PhysicsLevel::Update(const float timeStep)
     PredictPositions(timeStep);
     FindAndResolveAllImpacts();
     std::swap(m_Am1, m_A0);
-    std::fill(m_A0.begin(), m_A0.end(), Vec3f{ 0 });
+    std::ranges::fill(m_A0, Vec3f{ 0 });
 }
 
 Result<>
@@ -102,10 +104,10 @@ PhysicsLevel::ComputeKineticEnergy() const
 {
     float totalEnergy = 0.0f;
 
-    for(size_t i = 0; i < m_Bodies.size(); ++i)
+    for(const auto& body : m_Bodies)
     {
-        const float mass = m_Bodies[i].Mass.Value();
-        const float speedSq = m_Bodies[i].LinearVelocity.Dot(m_Bodies[i].LinearVelocity);
+        const float mass = body.Mass.Value();
+        const float speedSq = body.LinearVelocity.Dot(body.LinearVelocity);
         totalEnergy += 0.5f * mass * speedSq;
     }
 
@@ -196,20 +198,14 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
         // vA' += n * -(1 + e) * vRel * ((mA * mB)/(mA * (mA + mB))
         // vA' += n * -(1 + e) * vRel * mB/(mA + mB)
 
-        float e;
-
-        if(vRel < -RESTING_VELOCITY_THRESHOLD)
-        {
+        const float e =
+            (vRel < -RESTING_VELOCITY_THRESHOLD)
             // When closing velocity is above the resting velocity threshold
             // treat as a dynamic collision with restitution.
-            e = COEFF_OF_RESTITUTION;
-        }
-        else
-        {
+            ? COEFF_OF_RESTITUTION
             // When closing velocity is below the resting velocity threshold
             // treat as a resting contact.
-            e = 0.0f;
-        }
+            : 0.0f;
 
         const float k = -(1 + e) * vRel / (bodyA.Mass.Value() + bodyB.Mass.Value());
         const Vec3f u = k * impactResult.ContactNormalBtoA;
@@ -331,7 +327,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
     // Collect impact records into batches and enqueue for processing.
     for(const BodyPair& bodyPair : m_GridHash)
     {
-        ImpactRecord impactRecord //
+        const ImpactRecord impactRecord //
             {
                 .Bodies = bodyPair,
                 .SweepParams //
@@ -352,7 +348,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
         {
             MLG_ASSERT(m_SweepTestBatches.size() < batchCount, "Batch count exceeded expected count");
 
-            std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
+            const std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
             SweepTestBatch& batch = m_SweepTestBatches.emplace_back(batchSpan, &finishCounter);
 
             // Enqueue the batch for processing.
@@ -366,7 +362,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
     // Enqueue any remaining pairs that didn't fill an entire batch.
     if(pairCount > 0)
     {
-        std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
+        const std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
         SweepTestBatch& batch = m_SweepTestBatches.emplace_back(batchSpan, &finishCounter);
 
         batch.Enqueue();
@@ -394,12 +390,13 @@ PhysicsLevel::FindAndResolveAllImpacts()
         }
     }
 
-    m_ImpactRecords.erase(m_ImpactRecords.begin() + dst, m_ImpactRecords.end());
+    const auto newEnd = m_ImpactRecords.begin() + static_cast<std::ptrdiff_t>(dst);
+    m_ImpactRecords.erase(newEnd, m_ImpactRecords.end());
 
     // Sort impact records by time of impact, and resolve in that order.
     // This isn't actually correct, but better than resolving out of order.
     // Substepping will make this better.
-    std::sort(m_ImpactRecords.begin(), m_ImpactRecords.end());
+    std::ranges::sort(m_ImpactRecords);
 
     for(auto& impactRecord : m_ImpactRecords)
     {
@@ -464,7 +461,7 @@ PhysicsLevel::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult&
             const float relMoLenSq = relMo.Dot(relMo);
             if (relMoLenSq >= EPSILON_SQ)
             {
-                impactResult.ContactNormalBtoA = relMo / std::sqrtf(relMoLenSq);
+                impactResult.ContactNormalBtoA = relMo / std::sqrt(relMoLenSq);
             }
             else
             {
@@ -476,7 +473,7 @@ PhysicsLevel::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult&
         {
             // Spheres overlapping so contact normal is direction from one center to the other
             // at time t0.
-            impactResult.ContactNormalBtoA = relP0 / std::sqrtf(dist0Sqr);
+            impactResult.ContactNormalBtoA = relP0 / std::sqrt(dist0Sqr);
         }
 
         impactResult.ContactPoint = pB0 + impactResult.ContactNormalBtoA * radiusB;
@@ -491,7 +488,7 @@ PhysicsLevel::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult&
         // Using this formula avoids catastrophic cancellation when r and d are close, which can
         // happen with shallow penetrations.
         // https://en.wikipedia.org/wiki/Catastrophic_cancellation
-        impactResult.PenetrationDepth = (r * r - dist0Sqr) / (r + std::sqrtf(dist0Sqr));
+        impactResult.PenetrationDepth = ((r * r) - dist0Sqr) / (r + std::sqrt(dist0Sqr));
 
         return true;
     }
@@ -517,7 +514,7 @@ PhysicsLevel::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult&
     // Quadratic formula:
     // t = -b (+/-) sqrt(b^2 - 4ac) / (2a)
 
-    float discriminant = b*b - 4*a*c;
+    float discriminant = (b * b) - (4 * a * c);
 
     if (discriminant < -EPSILON)
     {
@@ -530,7 +527,7 @@ PhysicsLevel::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult&
     // -b - sqrt(b^2 - 4ac) / 2a is the entry point.
     // -b + sqrt(b^2 - 4ac) / 2a is the exit point.
     // We want the entry point.
-    const float t = (-b - std::sqrtf(discriminant)) / (2 * a);
+    const float t = (-b - std::sqrt(discriminant)) / (2 * a);
 
     if(t < 0 || t > 1)
     {

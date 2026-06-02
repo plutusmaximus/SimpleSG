@@ -40,17 +40,22 @@ public:
     wgpu::Texture& GetGpuTexture() { return *this; }
     const wgpu::Texture& GetGpuTexture() const { return *this; }
 
+    // Row stride is the number of bytes between the start of one row of pixels and the start of the
+    // next row. For optimal performance, rows must be aligned to 256 bytes, so we round up to the
+    // nearest multiple of 256.
+    size_t GetRowStride() const;
+
     Result<std::span<std::byte>> MapBytes();
 
     Result<> Unmap();
 
-    Result<> Unmap(wgpu::CommandEncoder cmdEncoder);
+    Result<> Unmap(const wgpu::CommandEncoder& cmdEncoder);
 
 protected:
     friend class WebgpuHelper;
 
     explicit Texture(wgpu::Texture texture)
-        : wgpu::Texture(texture)
+        : wgpu::Texture(std::move(texture))
     {
     }
 
@@ -71,7 +76,7 @@ public:
     size_t BufferSize() const { return GetSize(); }
 
     explicit BasicGpuBuffer(wgpu::Buffer buffer)
-        : wgpu::Buffer(buffer)
+        : wgpu::Buffer(std::move(buffer))
     {
     }
 };
@@ -91,36 +96,16 @@ public:
     size_t Count() const { return BufferSize() / sizeof(T); }
 
     // Stores a single value at the given index.
-    void Store(std::size_t index, const T& value)
-    {
-        const size_t offset = index * sizeof(T);
-
-        MLG_ASSERT(offset < BufferSize(), "Index out of bounds");
-
-        WebgpuHelper::GetDevice().GetQueue().WriteBuffer(GetGpuBuffer(),
-            offset,
-            reinterpret_cast<const std::byte*>(&value),
-            sizeof(T));
-    }
+    void Store(std::size_t index, const T& value);
 
     // Stores an array of values starting at the given index.
-    void Store(std::size_t index, std::span<const T> values)
-    {
-        const size_t offset = index * sizeof(T);
-
-        MLG_ASSERT((offset + values.size() * sizeof(T)) <= BufferSize(), "Index out of bounds");
-
-        WebgpuHelper::GetDevice().GetQueue().WriteBuffer(GetGpuBuffer(),
-            offset,
-            reinterpret_cast<const std::byte*>(values.data()),
-            values.size() * sizeof(T));
-    }
+    void Store(std::size_t index, std::span<const T> values);
 
 private:
     friend class WebgpuHelper;
 
     explicit SemanticGpuBuffer(wgpu::Buffer buffer)
-        : BasicGpuBuffer(buffer)
+        : BasicGpuBuffer(std::move(buffer))
     {
     }
 };
@@ -277,3 +262,28 @@ private:
     static Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string_view& name);
     static Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string_view& name);
 };
+
+template<typename T>
+inline void
+SemanticGpuBuffer<T>::Store(std::size_t index, const T& value)
+{
+    const size_t offset = index * sizeof(T);
+
+    MLG_ASSERT(offset < BufferSize(), "Index out of bounds");
+
+    WebgpuHelper::GetDevice().GetQueue().WriteBuffer(GetGpuBuffer(), offset, &value, sizeof(T));
+}
+
+template<typename T>
+inline void
+SemanticGpuBuffer<T>::Store(std::size_t index, std::span<const T> values)
+{
+    const size_t offset = index * sizeof(T);
+
+    MLG_ASSERT((offset + (values.size() * sizeof(T))) <= BufferSize(), "Index out of bounds");
+
+    WebgpuHelper::GetDevice().GetQueue().WriteBuffer(GetGpuBuffer(),
+        offset,
+        values.data(),
+        values.size() * sizeof(T));
+}

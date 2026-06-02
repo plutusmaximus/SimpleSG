@@ -1,20 +1,23 @@
 #pragma once
 
-#include <Result.h>
+#include "Result.h"
 
+#include <span>
 #include <string>
 #include <vector>
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <windows.h>
+#define WIN32_USE_IOCP 0
 #endif
 
 class FileFetcher
 {
 public:
 
-    enum RequestStatus
+    enum class RequestStatus : uint8_t
     {
         None,
         Failure,
@@ -26,8 +29,8 @@ public:
     {
     public:
 
-        explicit Request(const std::string& filePath)
-            : FilePath(filePath)
+        explicit Request(std::string filePath)
+            : m_FilePath(std::move(filePath))
         {
         }
 
@@ -40,17 +43,26 @@ public:
         {
             if(IsPending())
             {
-                SetComplete(Failure);
+                SetComplete(RequestStatus::Failure);
             }
         }
 
-        bool IsPending() const { return m_Status == Pending; }
-        bool Succeeded() const { return m_Status == Success; }
+        bool IsPending() const { return m_Status == RequestStatus::Pending; }
+        bool Succeeded() const { return m_Status == RequestStatus::Success; }
 
-        std::string FilePath;
-        std::vector<uint8_t> Data;
-        size_t BytesRequested{0};
-        size_t BytesRead{0};
+        std::span<const uint8_t> GetData() const
+        {
+            MLG_ASSERT(Succeeded(), "Attempted to access data of a request that did not succeed or is still pending");
+             return m_Data;
+        }
+
+        void MoveDataTo(std::vector<uint8_t>& outBuffer)
+        {
+            MLG_ASSERT(Succeeded(), "Attempted to move data from a request that did not succeed or is still pending");
+            outBuffer = std::move(m_Data);
+        }
+
+        const std::string& GetFilePath() const { return m_FilePath; }
 
     private:
 
@@ -58,25 +70,40 @@ public:
 
         void SetComplete(RequestStatus status)
         {
-            if(!IsPending())
-            {
-                return;
-            }
+            MLG_ASSERT(RequestStatus::Pending == m_Status,
+                "Attempted to complete a request that is not pending");
+            MLG_ASSERT(status == RequestStatus::Success || status == RequestStatus::Failure,
+                "Invalid status for completion");
 
+#if defined(_WIN32) && WIN32_USE_IOCP
             if(m_hFile)
             {
                 ::CancelIoEx(m_hFile, &m_Ov);
                 ::CloseHandle(m_hFile);
                 m_hFile = nullptr;
             }
+#endif
 
             m_Status = status;
         }
 
+#if defined(_WIN32) && WIN32_USE_IOCP
         HANDLE m_hFile{nullptr};
         OVERLAPPED m_Ov{0};
-        RequestStatus m_Status{None};
+#else
+        struct SDL_AsyncIO* m_AsyncIO{nullptr};
+#endif
+        std::string m_FilePath;
+        size_t m_BytesRequested{0};
+        size_t m_BytesRead{0};
+        std::vector<uint8_t> m_Data;
+
+        RequestStatus m_Status{RequestStatus::None};
     };
+
+    static Result<> Startup();
+
+    static void Shutdown();
 
     static Result<> Fetch(Request& request);
 

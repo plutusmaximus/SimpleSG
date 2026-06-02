@@ -1,107 +1,18 @@
 #pragma once
 
-#include "Bounds.h"
-#include "Mechanics.h"
-#include "PropKit.h"
+#include "LevelDefs.h"
 #include "Result.h"
 #include "SemanticInteger.h"
-#include "VecMath.h"
 
+#include <optional>
 #include <span>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 struct LevelNodeIndexTag {};
 using LevelNodeIndex = SemanticInteger<LevelNodeIndexTag>;
 
-struct ModelRef final
-{
-    std::string Name;
-};
-
-struct RigidBodyDef final
-{
-    Vec3f LinearVelocity{ 0 };
-    Mass Mass;
-};
-
-struct SphereDef final
-{
-    float Radius{ 0 };
-};
-
-struct BoxDef final
-{
-    Vec3f HalfExtents{ 0 };
-};
-
-struct CapsuleDef final
-{
-    float Radius{ 0 };
-    float HalfHeight{ 0 };
-};
-
-using ColliderDef = std::variant<SphereDef, BoxDef, CapsuleDef>;
-
-struct ComponentsDef final
-{
-    std::optional<ModelRef> Model;
-    std::optional<RigidBodyDef> Body;
-    std::optional<ColliderDef> Collider;
-};
-
-struct LevelNodeDef final
-{
-    std::string Name;
-    TrsTransformf Transform;
-    ComponentsDef Components;
-    std::vector<LevelNodeDef> Children;
-};
-
-struct LevelDef final
-{
-    std::vector<LevelNodeDef> NodeDefs;
-};
-
-struct RigidBody
-{
-    Vec3f LinearVelocity{ 0 };
-    Mass Mass;
-};
-
-class Collider
-{
-public:
-
-    explicit Collider(const Sphere& sphere)
-        : m_Shape(sphere)
-        , m_SphereRadius(sphere.GetRadius())
-    {
-    }
-
-    explicit Collider(const Box& box)
-        : m_Shape(box)
-        , m_SphereRadius(box.GetHalfExtents().Length())
-    {
-    }
-
-    explicit Collider(const Capsule& capsule)
-        : m_Shape(capsule)
-        , m_SphereRadius(capsule.GetRadius() + capsule.GetHalfHeight())
-    {
-    }
-
-    float GetSphereRadius() const
-    {
-        return m_SphereRadius;
-    }
-
-private:
-
-    std::variant<Sphere, Box, Capsule> m_Shape;
-    float m_SphereRadius{ 0 };
-};
+class PropKit;
 
 class Level
 {
@@ -109,26 +20,30 @@ public:
 
     enum class NodeFlags : uint8_t
     {
+        None = 0,
         Active = 1 << 0,
         Visible = 1 << 1,
+        All = Active | Visible
     };
 
-    inline friend NodeFlags operator|(NodeFlags a, NodeFlags b)
+    friend NodeFlags operator|(const NodeFlags a, const NodeFlags b)
     {
-        using Underlying = std::underlying_type_t<Level::NodeFlags>;
-        return static_cast<NodeFlags>(static_cast<Underlying>(a) | static_cast<Underlying>(b));
+        using U = std::underlying_type_t<Level::NodeFlags>;
+        return static_cast<NodeFlags>(static_cast<U>(a) | static_cast<U>(b));
     }
 
-    inline friend NodeFlags operator&(NodeFlags a, NodeFlags b)
+    friend NodeFlags operator&(const NodeFlags a, const NodeFlags b)
     {
-        using Underlying = std::underlying_type_t<Level::NodeFlags>;
-        return static_cast<NodeFlags>(static_cast<Underlying>(a) & static_cast<Underlying>(b));
+        using U = std::underlying_type_t<Level::NodeFlags>;
+        return static_cast<NodeFlags>(static_cast<U>(a) & static_cast<U>(b));
     }
 
-    inline friend NodeFlags operator~(NodeFlags a)
+    friend NodeFlags operator~(const NodeFlags a)
     {
-        using Underlying = std::underlying_type_t<Level::NodeFlags>;
-        return static_cast<NodeFlags>(~static_cast<Underlying>(a));
+        using U = std::underlying_type_t<Level::NodeFlags>;
+
+        return static_cast<NodeFlags>(
+            static_cast<U>(~static_cast<U>(a)) & static_cast<U>(NodeFlags::All));
     }
 
     struct Components
@@ -155,6 +70,7 @@ public:
     public:
 
         NodeHandle() = default;
+        ~NodeHandle() = default;
         NodeHandle(const NodeHandle&) = default;
         NodeHandle& operator=(const NodeHandle&) = default;
         NodeHandle(NodeHandle&&) = default;
@@ -183,6 +99,7 @@ public:
     static Result<> Create(const LevelDef& levelDef, const PropKit& propKit, Level& outLevel);
 
     Level() = default;
+    ~Level() = default;
     Level(const Level&) = delete;
     Level& operator=(const Level&) = delete;
     Level(Level&& other) = default;
@@ -206,7 +123,7 @@ public:
     // - and any other contiguous range of strings or string views that can be converted to std::string_view
     template <std::ranges::sized_range R>
     requires std::convertible_to<std::ranges::range_reference_t<R>, std::string_view>
-    Result<NodeHandle> GetNodeHandle(R&& path) const
+    Result<NodeHandle> GetNodeHandle(const R& path) const
     {
         NodeHandle foundHandle;
 
@@ -244,7 +161,21 @@ public:
             nodesToSearch = *result;
         }
 
-        MLG_CHECKV(foundHandle, "Node not found: {}", path);
+        auto formatPath = [](const auto& inPath) -> std::string
+        {
+            std::string result;
+            for (auto&& x : inPath)
+            {
+                if (!result.empty())
+                {
+                    result += ".";
+                }
+                result += x;
+            }
+            return result;
+        };
+
+         MLG_CHECKV(foundHandle, "Node not found: {}", formatPath(path));
 
         return foundHandle;
     }
@@ -255,7 +186,7 @@ public:
     // - GetNode({"RootNode", "ChildNode", "GrandchildNode"});
     Result<NodeHandle> GetNodeHandle(std::initializer_list<std::string_view> path) const;
 
-    Result<const Node*> GetNode(const NodeHandle& handle) const;
+    const Node* GetNode(const NodeHandle& handle) const;
 
     Result<> UpdateLocalTransform(const NodeHandle& handle, const TrsTransformf& localTransform);
 
@@ -268,15 +199,15 @@ public:
     bool IsVisible(const NodeHandle& handle) const;
 
 private:
-    Level(
-        const PropKit* propKit, std::vector<Node>&& nodes, std::vector<char>&& stringStorage);
+    Level(std::vector<Node>&& nodes, std::vector<char>&& stringStorage);
 
     // Returns true if the node handle refers to a node within the level.
     bool IsInLevel(const NodeHandle& handle) const;
 
+    Node* GetNode(const NodeHandle& handle);
+
     void UpdateWorldTransforms(std::span<Node> nodes);
 
-    const PropKit* m_PropKit{ nullptr };
     std::vector<Node> m_Nodes;
     std::vector<NodeHandle> m_NodeHandles;
     size_t m_RootNodeCount{ 0 };

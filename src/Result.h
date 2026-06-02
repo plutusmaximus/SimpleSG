@@ -37,6 +37,7 @@ public:
     Result(Result&& other) = default;
     Result& operator=(const Result& other) = default;
     Result& operator=(Result&& other) = default;
+    ~Result() = default;
 
     constexpr SuccessType& Value() &
     {
@@ -74,7 +75,7 @@ public:
     {
         return Value();
     }
-    constexpr const SuccessType operator->() const
+    constexpr SuccessType operator->() const
         requires std::is_pointer_v<SuccessType>
     {
         return Value();
@@ -83,48 +84,52 @@ public:
     operator bool() const { return std::holds_alternative<SuccessType>(*this); }
 
     template<typename... Args>
-    static inline std::string Format(std::format_string<Args...> fmt, Args&&... args)
+    static std::string Format(std::format_string<Args...> fmt, Args&&... args)
     {
         return std::format(fmt, std::forward<Args>(args)...);
     }
 
-    static inline std::string Format()
+    static std::string Format()
     {
-        static std::string empty = "";
+        constexpr static const std::string empty;
         return empty;
     }
 
-    static inline const std::string& Format(const std::string& str)
+    static const std::string& Format(const std::string& str)
+    {
+        return str; // NOLINT(bugprone-return-const-ref-from-parameter)
+    }
+
+    static std::string_view Format(const std::string_view str)
     {
         return str;
     }
 
-    static inline std::string_view Format(const std::string_view str)
-    {
-        return str;
-    }
-
-    static inline const char* Format(const char* str)
+    static const char* Format(const char* str)
     {
         return str;
     }
 };
 
 #define MLG_CHECK(expr, ...) \
-    do{ \
+    for(;;){ \
         if(!static_cast<bool>(expr)) \
         { \
-            __VA_OPT__(MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__))); \
+            __VA_OPT__(const std::string errorMessage = Result<>::Format(__VA_ARGS__);) \
+            __VA_OPT__(MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, errorMessage)); \
             return Result<>::Fail; \
         } \
-    } while(0)
+        break; \
+    }
 
 // Like MLG_CHECK but also calls verify and pops an assert if false.
 #define MLG_CHECKV(expr, ...) \
-    do{ \
+    for(;;){ \
         if(!MLG_VERIFY(expr __VA_OPT__(,) __VA_ARGS__)) \
         { \
-            __VA_OPT__(MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, Result<>::Format(__VA_ARGS__))); \
+            __VA_OPT__(const std::string errorMessage = Result<>::Format(__VA_ARGS__);) \
+            __VA_OPT__(MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, errorMessage)); \
             return Result<>::Fail; \
         } \
-    } while(0)
+        break; \
+    }

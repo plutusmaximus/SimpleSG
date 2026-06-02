@@ -22,7 +22,6 @@ AllowShortBlocksOnASingleLine: Never
 SpaceBeforeParens: Never
 SpaceAfterTemplateKeyword: false
 SpaceInTemplateSpecializations: false
-SpaceBeforeTemplateClosingAngleBracket: false
 IndentCaseLabels: true
 NamespaceIndentation: None
 

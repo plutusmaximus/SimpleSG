@@ -1,13 +1,14 @@
 #pragma once
 
-#include "PoolAllocator.h"
 #include "Result.h"
+
+#include <array>
 
 /// @brief A simple thread pool for executing jobs asynchronously.
 class ThreadPool final
 {
 public:
-    static void Startup();
+    static Result<> Startup();
 
     static void Shutdown();
 
@@ -30,20 +31,26 @@ private:
     struct Job
     {
         Job() = default;
+        ~Job()
+        {
+            MLG_ASSERT(m_Next == nullptr);
+        }
         Job(const Job&) = delete;
         Job& operator=(const Job&) = delete;
         Job(Job&&) = delete;
         Job& operator=(Job&&) = delete;
 
-        ~Job()
-        {
-            MLG_ASSERT(m_Next == nullptr);
-        }
-
-        void Invoke()
+        void Invoke() const
         {
             MLG_ASSERT(m_JobFunc != nullptr);
             m_JobFunc(m_UserData);
+        }
+
+        void Clear()
+        {
+            MLG_ASSERT(nullptr == m_Next, "Cannot clear a job that is still in a list!");
+            m_JobFunc = nullptr;
+            m_UserData = nullptr;
         }
 
         Job *m_Next{ nullptr };
@@ -61,8 +68,8 @@ private:
     static void WorkerLoop();
 
     static constexpr const size_t kMaxJobs = 1024;
-    using PoolAllocatorType = PoolAllocator<Job, kMaxJobs>;
-    static PoolAllocatorType s_JobAllocator;
+    static std::array<Job, kMaxJobs> s_JobPool;
+    static Job* s_JobPoolFreeList;
 
     static Job *s_JobQueueHead;
     static Job *s_JobQueueTail;

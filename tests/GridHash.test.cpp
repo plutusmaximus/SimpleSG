@@ -3,9 +3,12 @@
 #include "PhysicsLevel.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <random>
 #include <vector>
+
+// NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
 
 namespace
 {
@@ -24,7 +27,7 @@ TEST(GridHash, EmptyGridHasNoPotentialCollisions)
 {
 	GridHash hash{3};
 
-    std::span pairs(hash);
+    const std::span pairs(hash);
 
 	EXPECT_TRUE(pairs.empty());
 }
@@ -41,7 +44,7 @@ TEST(GridHash, SingleBodyProducesNoPairs)
 
 	ASSERT_TRUE(result);
 
-    std::span pairs(hash);
+    const std::span pairs(hash);
 	EXPECT_TRUE(pairs.empty());
 }
 
@@ -61,7 +64,7 @@ TEST(GridHash, TwoBodiesInSameCellProduceOneOrderedPair)
 		MakeSphereCollider(),
 		3));
 
-    std::span pairs(hash);
+    const std::span pairs(hash);
 
 	ASSERT_EQ(pairs.size(), 1u);
 	EXPECT_EQ(pairs[0], BodyPair(3, 7));
@@ -83,7 +86,7 @@ TEST(GridHash, SharedAcrossManyCellsStillProducesUniquePair)
 		MakeSphereCollider(),
 		1));
 
-    std::span pairs(hash);
+    const std::span pairs(hash);
 
 	ASSERT_EQ(pairs.size(), 1u);
 	EXPECT_EQ(pairs[0], BodyPair(0, 1));
@@ -109,7 +112,7 @@ TEST(GridHash, ThreeBodiesInOneCellGenerateAllUniquePairs)
 		MakeSphereCollider(),
 		2));
 
-    std::span pairs(hash);
+    const std::span pairs(hash);
 
 	ASSERT_EQ(pairs.size(), 3u);
 	EXPECT_EQ(pairs[0], BodyPair(0, 1));
@@ -132,7 +135,7 @@ TEST(GridHash, ClearRemovesExistingCellsAndPairs)
 		MakeSphereCollider(),
 		1));
 
-    std::span beforeClear(hash);
+    const std::span beforeClear(hash);
 	ASSERT_EQ(beforeClear.size(), 1u);
 
 	hash.Clear();
@@ -168,12 +171,13 @@ TEST(GridHash, GridHash4AndGridHash5ContainSameBodyPairSet)
 		size_t BodyIndex;
 	};
 
-	const std::vector<BodyInput> bodies = {
-		{ Vec3f{ 0.0f, 0.0f, 0.0f }, Vec3f{ 2.0f, 2.0f, 2.0f }, 0.25f, 0 },
-		{ Vec3f{ 1.0f, 1.0f, 1.0f }, Vec3f{ 3.0f, 3.0f, 3.0f }, 0.25f, 1 },
-		{ Vec3f{ 10.0f, 0.0f, 0.0f }, Vec3f{ 12.0f, 2.0f, 2.0f }, 0.25f, 2 },
-		{ Vec3f{ 11.0f, 1.0f, 1.0f }, Vec3f{ 13.0f, 3.0f, 3.0f }, 0.25f, 3 },
-		{ Vec3f{ 50.0f, 50.0f, 50.0f }, Vec3f{ 52.0f, 52.0f, 52.0f }, 0.25f, 4 },
+	const std::vector<BodyInput> bodies//
+	{
+		{ .Min{ 0.0f, 0.0f, 0.0f }, .Max{ 2.0f, 2.0f, 2.0f }, .Radius = 0.25f, .BodyIndex = 0 },
+		{ .Min{ 1.0f, 1.0f, 1.0f }, .Max{ 3.0f, 3.0f, 3.0f }, .Radius = 0.25f, .BodyIndex = 1 },
+		{ .Min{ 10.0f, 0.0f, 0.0f }, .Max{ 12.0f, 2.0f, 2.0f }, .Radius = 0.25f, .BodyIndex = 2 },
+		{ .Min{ 11.0f, 1.0f, 1.0f }, .Max{ 13.0f, 3.0f, 3.0f }, .Radius = 0.25f, .BodyIndex = 3 },
+		{ .Min{ 50.0f, 50.0f, 50.0f }, .Max{ 52.0f, 52.0f, 52.0f }, .Radius = 0.25f, .BodyIndex = 4 },
 	};
 
 	for(const BodyInput& body : bodies)
@@ -185,8 +189,8 @@ TEST(GridHash, GridHash4AndGridHash5ContainSameBodyPairSet)
 	std::vector<BodyPair> pairs2(hash2.begin(), hash2.end());
 	std::vector<BodyPair> pairs3(hash3.begin(), hash3.end());
 
-	std::sort(pairs2.begin(), pairs2.end());
-	std::sort(pairs3.begin(), pairs3.end());
+	std::ranges::sort(pairs2);
+	std::ranges::sort(pairs3);
 
 	EXPECT_EQ(pairs2, pairs3);
 }
@@ -245,7 +249,7 @@ TEST(GridHash, ChaosRandomizedBodies_AllExpectedPairsExist)
             const Vec3f bbMax = center + halfExtent;
             const float radius = radiusDist(rng);
 
-            RandomBody body //
+            const RandomBody body //
                 {
                     .Min = bbMin,
                     .Max = bbMax,
@@ -294,8 +298,8 @@ TEST(GridHash, ChaosRandomizedBodies_AllExpectedPairsExist)
 
         ASSERT_EQ(expectedPairs.size(), actualPairs.size());
 
-        std::sort(expectedPairs.begin(), expectedPairs.end());
-        std::sort(actualPairs.begin(), actualPairs.end());
+        std::ranges::sort(expectedPairs);
+        std::ranges::sort(actualPairs);
 
         for(size_t i = 0; i < expectedPairs.size(); ++i)
         {
@@ -303,3 +307,5 @@ TEST(GridHash, ChaosRandomizedBodies_AllExpectedPairsExist)
         }
     }
 }
+
+// NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)

@@ -1,4 +1,4 @@
-#define __LOGGER_NAME__ "PERF"
+#define MLG_LOGGER_NAME "PERF"
 
 #include "PerfMetrics.h"
 
@@ -8,26 +8,32 @@
 
 #include <SDL3/SDL.h>
 
-static std::mutex s_Mutex;
+namespace
+{
+struct PMGlobals
+{
+    static inline std::mutex Mutex;
+};
 
-inlist<PerfCounter, &PerfCounter::m_ListNode> PerfMetrics::m_Counters;
-inlist<PerfTimer, &PerfTimer::m_ListNode> PerfMetrics::m_Timers;
-
-static inline std::uint64_t GetPerfFrequency()
+inline std::uint64_t GetPerfFrequency()
 {
     return SDL_GetPerformanceFrequency();
 }
 
-static inline std::uint64_t GetPerfTime()
+inline std::uint64_t GetPerfTime()
 {
     return SDL_GetPerformanceCounter();
 }
+} // namespace
+
+inlist<PerfCounter, &PerfCounter::m_ListNode> PerfMetrics::m_Counters;
+inlist<PerfTimer, &PerfTimer::m_ListNode> PerfMetrics::m_Timers;
 
 PerfAggregator::PerfAggregator(const PerfCounter* counter)
     : m_Counter(counter)
 {
     m_Stats.m_Name = counter->GetName();
-};
+}
 
 void
 PerfAggregator::Sample()
@@ -50,26 +56,29 @@ PerfAggregator::Sample()
 }
 
 PerfTimerStats::PerfTimerStats(const PerfStats& stats)
+    : m_Name(stats.GetName()),
+      m_LastValue(
+          static_cast<double>(stats.GetLastValue()) / static_cast<double>(GetPerfFrequency())),
+      m_MinValue(
+          static_cast<double>(stats.GetMinValue()) / static_cast<double>(GetPerfFrequency())),
+      m_MaxValue(
+          static_cast<double>(stats.GetMaxValue()) / static_cast<double>(GetPerfFrequency())),
+      m_EMA(stats.GetEMA() / static_cast<double>(GetPerfFrequency()))
 {
-    m_Name = stats.GetName();
-    m_LastValue = stats.GetLastValue() / static_cast<double>(GetPerfFrequency());
-    m_MinValue = stats.GetMinValue() / static_cast<double>(GetPerfFrequency());
-    m_MaxValue = stats.GetMaxValue() / static_cast<double>(GetPerfFrequency());
-    m_EMA = stats.GetEMA() / static_cast<double>(GetPerfFrequency());
 }
 
-PerfCounter::PerfCounter(const std::string& name)
-    : m_Name(name),
+PerfCounter::PerfCounter(std::string name)
+    : m_Name(std::move(name)),
       m_Aggregator(this)
 {
-    std::lock_guard lock(s_Mutex);
+    const std::lock_guard lock(PMGlobals::Mutex);
     PerfMetrics::m_Counters.push_back(this);
 }
 
-PerfTimer::PerfTimer(const std::string& name)
-    : PerfCounter(name)
+PerfTimer::PerfTimer(std::string name)
+    : PerfCounter(std::move(name))
 {
-    std::lock_guard lock(s_Mutex);
+    const std::lock_guard lock(PMGlobals::Mutex);
     PerfMetrics::m_Timers.push_back(this);
 }
 
@@ -87,26 +96,26 @@ PerfTimer::Stop()
     Increment(elapsed);
 }
 
-unsigned
+size_t
 PerfMetrics::GetTimerCount()
 {
-    std::scoped_lock lock(s_Mutex);
+    const std::lock_guard lock(PMGlobals::Mutex);
 
-    return static_cast<unsigned>(m_Timers.size());
+    return m_Timers.size();
 }
 
-unsigned
-PerfMetrics::SampleTimers(PerfTimerStats* outStats, const unsigned timerCount)
+size_t
+PerfMetrics::SampleTimers(std::span<PerfTimerStats>& outStats)
 {
-    std::scoped_lock lock(s_Mutex);
+    const std::lock_guard lock(PMGlobals::Mutex);
 
-    unsigned count = 0;
+    size_t count = 0;
 
     for(auto& timer : m_Timers)
     {
-        if(count >= timerCount)
+        if(count >= outStats.size())
         {
-            return timerCount;
+            return outStats.size();
         }
 
         timer.m_Aggregator.Sample();
@@ -120,9 +129,12 @@ PerfMetrics::SampleTimers(PerfTimerStats* outStats, const unsigned timerCount)
 void
 PerfMetrics::LogTimers()
 {
+    const std::lock_guard lock(PMGlobals::Mutex);
+
     for(auto& timer : m_Timers)
     {
+        constexpr float kMsPerSecond = 1000.0f;
         const PerfTimerStats stats(timer.m_Aggregator.GetStats());
-        MLG_INFO("{}: {} ms", stats.GetName(), stats.GetLastValue() * 1000.0);
+        MLG_INFO("{}: {} ms", stats.GetName(), stats.GetLastValue() * kMsPerSecond);
     }
 }

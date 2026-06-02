@@ -5,13 +5,16 @@
 #include "VecMath.h"
 
 #include <algorithm>
+#include <atomic>
 
 class BodyPair
 {
 public:
 
-    BodyPair(size_t indexA, size_t indexB)
+    BodyPair(const size_t indexA, const size_t indexB)
     {
+        MLG_ASSERT(indexA != indexB, "BodyPair cannot contain the same body twice");
+
         // Ensure the pair is always stored in a consistent order.
         // This enables identifying and skipping duplicate pairs.
         if(indexA < indexB)
@@ -49,22 +52,22 @@ struct ImpactResult
 
 struct ColliderSweepParams
 {
-    Vec3f StartPosA;
-    Vec3f EndPosA;
+    Vec3f StartPosA{};
+    Vec3f EndPosA{};
     Collider ColliderA;
 
-    Vec3f StartPosB;
-    Vec3f EndPosB;
+    Vec3f StartPosB{};
+    Vec3f EndPosB{};
     Collider ColliderB;
 };
 
 struct ImpactRecord
 {
-    BodyPair Bodies;
+    BodyPair Bodies{0,0}; // Initialized to an invalid pair to catch uninitialized usage.
 
     ColliderSweepParams SweepParams;
 
-    ImpactResult Result;
+    ImpactResult Result{};
 
     bool ImpactFound{false};
 
@@ -97,22 +100,25 @@ struct ImpactRecord
 /// and hashes bodies into the cells they occupy.
 class GridHash
 {
+    static size_t ValidateCellSize(const size_t cellSize)
+    {
+        MLG_ASSERT(cellSize > 0, "Cell size must be greater than 0");
+        MLG_ASSERT(cellSize < 256, "Cell size must be less than 256");
+        return cellSize;
+    }
+
 public:
     // Arbitrary limit to prevent excessive cell counts for large bodies.
     static constexpr size_t kMaxCellsPerBody = 1000;
 
     explicit GridHash(const size_t cellSize)
-    : m_CellSize(cellSize)
-    , m_MinExtent(static_cast<float>(std::numeric_limits<int32_t>::min()) * cellSize)
-    , m_MaxExtent(static_cast<float>(std::numeric_limits<int32_t>::max()) * cellSize)
+        : m_CellSize(ValidateCellSize(cellSize)),
+          m_InvCellSize(cellSize > 0 ? 1.0f / static_cast<float>(cellSize) : 0.0f)
     {
-        MLG_ASSERT(cellSize > 0, "Cell size must be greater than 0");
-        MLG_ASSERT(cellSize < 256, "Cell size is >= 256 - was that intentional?");
-
-        m_InvCellSize = 1.0f / static_cast<float>(cellSize);
     }
 
     GridHash() = delete;
+    ~GridHash() = default;
     GridHash(const GridHash&) = delete;
     GridHash& operator=(const GridHash&) = delete;
     GridHash(GridHash&&) = default;
@@ -150,14 +156,6 @@ public:
         const Vec3f minExtent{bbMin.x - radius, bbMin.y - radius, bbMin.z - radius };
         const Vec3f maxExtent{bbMax.x + radius, bbMax.y + radius, bbMax.z + radius};
 
-        MLG_CHECKV(minExtent.x >= m_MinExtent && minExtent.y >= m_MinExtent && minExtent.z >= m_MinExtent &&
-                   maxExtent.x <= m_MaxExtent && maxExtent.y <= m_MaxExtent && maxExtent.z <= m_MaxExtent,
-            "Bounding box exceeds maximum extents: Min: {}/{}, Max: {}/{}",
-            minExtent,
-            Vec3f{ m_MinExtent, m_MinExtent, m_MinExtent },
-            maxExtent,
-            Vec3f{ m_MaxExtent, m_MaxExtent, m_MaxExtent });
-
         const int32_t minX = Quantize(minExtent.x);
         const int32_t minY = Quantize(minExtent.y);
         const int32_t minZ = Quantize(minExtent.z);
@@ -165,9 +163,9 @@ public:
         const int32_t maxY = Quantize(maxExtent.y);
         const int32_t maxZ = Quantize(maxExtent.z);
 
-        const uint32_t dx = maxX - minX + 1;
-        const uint32_t dy = maxY - minY + 1;
-        const uint32_t dz = maxZ - minZ + 1;
+        const uint32_t dx = static_cast<uint32_t>(maxX - minX + 1);
+        const uint32_t dy = static_cast<uint32_t>(maxY - minY + 1);
+        const uint32_t dz = static_cast<uint32_t>(maxZ - minZ + 1);
 
         MLG_CHECK(AllocateCells(dx, dy, dz));
 
@@ -177,7 +175,8 @@ public:
             {
                 for(int32_t z = minZ; z <= maxZ; ++z)
                 {
-                    m_Cells.emplace_back(Cell{bodyIndex, x, y, z});
+                    const Cell cell(bodyIndex, x, y, z);
+                    m_Cells.emplace_back(cell);
                 }
             }
         }
@@ -222,6 +221,7 @@ private:
         }
 
         Cell() = delete;
+        ~Cell() = default;
         Cell(const Cell&) = default;
         Cell& operator=(const Cell&) = default;
         Cell(Cell&&) = default;
@@ -232,21 +232,23 @@ private:
             // From https://github.com/skeeto/hash-prospector
             constexpr uint32_t kHashParam1 = 0x7feb352dU;
             constexpr uint32_t kHashParam2 = 0x846ca68bU;
+            constexpr size_t kShift16 = 16;
+            constexpr size_t kShift15 = 15;
 
             uint32_t v = u;
-            v ^= v >> 16;
+            v ^= v >> kShift16;
             v *= kHashParam1;
-            v ^= v >> 15;
+            v ^= v >> kShift15;
             v *= kHashParam2;
-            v ^= v >> 16;
+            v ^= v >> kShift16;
             return v;
         }
 
         constexpr static uint32_t HashCell(const int32_t x, const int32_t y, const int32_t z)
         {
-            const uint32_t ux = uint32_t(x);
-            const uint32_t uy = uint32_t(y);
-            const uint32_t uz = uint32_t(z);
+            const uint32_t ux = static_cast<uint32_t>(x);
+            const uint32_t uy = static_cast<uint32_t>(y);
+            const uint32_t uz = static_cast<uint32_t>(z);
 
             constexpr uint32_t kSaltX = Mix32(0);
             constexpr uint32_t kSaltY = Mix32(1);
@@ -268,48 +270,52 @@ private:
             uint32_t Hash;
             int32_t CellX, CellY, CellZ; // Quantized cell coordinates.
 
-            bool operator==(const CellCoords& that) const
+            friend bool operator==(const CellCoords& a, const CellCoords& b)
             {
-                return Hash == that.Hash && CellX == that.CellX && CellY == that.CellY &&
-                       CellZ == that.CellZ;
+                return a.Hash == b.Hash && a.CellX == b.CellX && a.CellY == b.CellY && a.CellZ == b.CellZ;
             }
 
-            std::strong_ordering operator<=>(const CellCoords& that) const
+            friend auto operator<=>(const CellCoords& a, const CellCoords& b)
             {
-                std::strong_ordering order = Hash <=> that.Hash;
-                if(order != std::strong_ordering::equal)
+                auto order = a.Hash <=> b.Hash;
+                if(order != 0)
                 {
                     return order;
                 }
 
-                order = CellX <=> that.CellX;
-                if(order != std::strong_ordering::equal)
+                order = a.CellX <=> b.CellX;
+                if(order != 0)
                 {
                     return order;
                 }
 
-                order = CellY <=> that.CellY;
-                if(order != std::strong_ordering::equal)
+                order = a.CellY <=> b.CellY;
+                if(order != 0)
                 {
                     return order;
                 }
 
-                return CellZ <=> that.CellZ;
+                return a.CellZ <=> b.CellZ;
             }
         };
 
         CellCoords Coords;
         size_t BodyIndex; // Index of the body occupying the cell.
 
-        std::strong_ordering operator<=>(const Cell& that) const
+        friend bool operator==(const Cell& a, const Cell& b)
         {
-            std::strong_ordering order = Coords <=> that.Coords;
-            if(order != std::strong_ordering::equal)
+            return a.Coords == b.Coords && a.BodyIndex == b.BodyIndex;
+        }
+
+        friend auto operator<=>(const Cell& a, const Cell& b)
+        {
+            auto order = a.Coords <=> b.Coords;
+            if(order != 0)
             {
                 return order;
             }
 
-            return BodyIndex <=> that.BodyIndex;
+            return a.BodyIndex <=> b.BodyIndex;
         }
     };
 
@@ -363,7 +369,7 @@ private:
 
         m_NeedsSort = false;
 
-        std::sort(m_Cells.begin(), m_Cells.end());
+        std::ranges::sort(m_Cells);
 
         m_PotentialCollisions.clear();
 
@@ -380,7 +386,8 @@ private:
                 const size_t indexB = m_Cells[j].BodyIndex;
                 if(MLG_VERIFY(indexA != indexB, "Duplicate body in same cell"))
                 {
-                    m_PotentialCollisions.push_back({ indexA, indexB });
+                    const BodyPair pair(indexA, indexB);
+                    m_PotentialCollisions.emplace_back(pair);
                 }
             }
         }
@@ -391,7 +398,7 @@ private:
         }
 
         // Sort to group duplicates together.
-        std::sort(m_PotentialCollisions.begin(), m_PotentialCollisions.end());
+        std::ranges::sort(m_PotentialCollisions);
 
         size_t dst = 0;
 
@@ -413,14 +420,12 @@ private:
             }
         }
 
-        m_PotentialCollisions.erase(m_PotentialCollisions.begin() + dst + 1,
-            m_PotentialCollisions.end());
+        const auto newEnd = m_PotentialCollisions.begin() + static_cast<std::ptrdiff_t>(dst + 1);
+        m_PotentialCollisions.erase(newEnd, m_PotentialCollisions.end());
     }
 
     size_t m_CellSize;
     float m_InvCellSize;
-    float m_MinExtent;
-    float m_MaxExtent;
 
     mutable std::vector<Cell> m_Cells;
     mutable std::vector<BodyPair> m_PotentialCollisions;
@@ -437,6 +442,7 @@ public:
     static Result<> Create(const Level& level, PhysicsLevel& outPhysLevel);
 
     PhysicsLevel() = default;
+    ~PhysicsLevel() = default;
     PhysicsLevel(const PhysicsLevel&) = delete;
     PhysicsLevel& operator=(const PhysicsLevel&) = delete;
     PhysicsLevel(PhysicsLevel&& other) = default;

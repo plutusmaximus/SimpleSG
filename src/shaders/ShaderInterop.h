@@ -3,28 +3,30 @@
 #include "Color.h"
 #include "VecMath.h"
 
-
 namespace ShaderInterop
 {
+constexpr size_t kSizeofVec2 = 8;
+constexpr size_t kSizeofVec3 = 12;
+constexpr size_t kSizeofVec4 = 16;
 
 static_assert(std::is_floating_point_v<RgbaColorf::ValueType>,
     "RgbaColorf must use a floating-point type");
-static_assert(sizeof(RgbaColorf) == 16,
+static_assert(sizeof(RgbaColorf) == kSizeofVec4,
     "RgbaColorf must be 16 bytes to ensure proper alignment in uniform/storage buffers");
 
 static_assert(std::is_floating_point_v<Vec4f::ValueType>,
     "Vec4f must use a floating-point type");
-static_assert(sizeof(Vec4f) == 16,
+static_assert(sizeof(Vec4f) == kSizeofVec4,
     "Vec4f must be 16 bytes to ensure proper alignment in uniform/storage buffers");
 
 static_assert(std::is_floating_point_v<Vec3f::ValueType>,
     "Vec3f must use a floating-point type");
-static_assert(sizeof(Vec3f) == 12,
+static_assert(sizeof(Vec3f) == kSizeofVec3,
     "Vec3f must be 12 bytes to ensure proper alignment in uniform/storage buffers");
 
 static_assert(std::is_floating_point_v<Vec2f::ValueType>,
     "Vec2f must use a floating-point type");
-static_assert(sizeof(Vec2f) == 8,
+static_assert(sizeof(Vec2f) == kSizeofVec2,
     "Vec2f must be 8 bytes to ensure proper alignment in uniform/storage buffers");
 
 // These types mirror the corresponding types defined in shaders.
@@ -42,17 +44,17 @@ class MaterialConstants
 {
 public:
     /// @brief Base color of the material.
-    const RgbaColorf Color;
+    RgbaColorf Color;
 
     /// @brief Metalness factor of the material.
-    const float Metalness{ 0 };
+    float Metalness{ 0 };
 
     /// @brief Roughness factor of the material.
-    const float Roughness{ 0 };
+    float Roughness{ 0 };
 
     // Align to 16 bytes for storage in a uniform/storage buffer.
-    const float pad0;
-    const float pad1;
+    float pad0{ 0 };
+    float pad1{ 0 };
 };
 
 class WorldTransform

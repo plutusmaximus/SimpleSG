@@ -1,0 +1,27 @@
+{
+    "buildType":
+    {
+        "default": "debug",
+        "choices":
+        {
+            "debug":
+            {
+                "short": "Debug",
+                "long": "Debug build",
+                "buildType": "Debug"
+            },
+            "release":
+            {
+                "short": "Release",
+                "long": "Release build",
+                "buildType": "Release"
+            },
+            "asan":
+            {
+                "short": "Sanitize",
+                "long": "Sanitizer build",
+                "buildType": "Sanitize"
+            }
+        }
+    }
+}

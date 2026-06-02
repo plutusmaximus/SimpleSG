@@ -4,23 +4,28 @@
 
 #include <vector>
 
-static Vertex
+// NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
+
+namespace
+{
+Vertex
 MakeVertex(const Vec3f& p)
 {
     Vertex v{};
     v.pos = p;
     v.normal = { 0.0f, 0.0f, 1.0f };
-    v.uvs[0] = { 0.0f, 0.0f };
+    v.uvs[0] = { .u = 0.0f, .v = 0.0f };
     return v;
 }
 
-static void
+void
 ExpectVec3Eq(const Vec3f& actual, const Vec3f& expected)
 {
     EXPECT_FLOAT_EQ(actual.x, expected.x);
     EXPECT_FLOAT_EQ(actual.y, expected.y);
     EXPECT_FLOAT_EQ(actual.z, expected.z);
 }
+} // namespace
 
 TEST(Box, DefaultConstructor_InitializesToZero)
 {
@@ -98,3 +103,5 @@ TEST(Box, FromVertices_VertexOrderDoesNotAffectResult)
 
     ExpectVec3Eq(boxForward.GetHalfExtents(), boxReverse.GetHalfExtents());
 }
+
+// NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)

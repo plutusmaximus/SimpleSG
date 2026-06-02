@@ -5,6 +5,8 @@
 
 #include "VecMath.h"
 
+// NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
+
 // Type aliases for convenience
 using Vec3f = Vec3<float>;
 using Vec4f = Vec4<float>;
@@ -79,11 +81,11 @@ TEST(Mat44f, Construction_Elements)
 TEST(Mat44f, Construction_FromQuat)
 {
     const float angle = std::numbers::pi_v<float> / 2.0f;
-    UnitQuatf q(Radiansf(angle), Vec3f(0.0f, 0.0f, 1.0f));
-    Mat44f M = q.ToMatrix();
+    const UnitQuatf q(Radiansf(angle), Vec3f(0.0f, 0.0f, 1.0f));
+    const Mat44f M = q.ToMatrix();
 
-    Vec4f v(1.0f, 0.0f, 0.0f, 1.0f);
-    Vec4f r = M * v;
+    const Vec4f v(1.0f, 0.0f, 0.0f, 1.0f);
+    const Vec4f r = M * v;
 
     EXPECT_NEAR(r.x, 0.0f, EPS);
     EXPECT_NEAR(r.y, 1.0f, EPS);
@@ -93,7 +95,7 @@ TEST(Mat44f, Construction_FromQuat)
 
 TEST(Mat44f, Multiply_Matrix)
 {
-    Mat44f A(
+    const Mat44f A(
         1.0f, 2.0f, 3.0f, 4.0f,
         5.0f, 6.0f, 7.0f, 8.0f,
         9.0f, 10.0f, 11.0f, 12.0f,
@@ -101,29 +103,29 @@ TEST(Mat44f, Multiply_Matrix)
     );
 
     const Mat44f& I = Mat44f::Identity();
-    Mat44f C = A * I;
+    const Mat44f C = A * I;
 
     EXPECT_TRUE(C == A);
 }
 
 TEST(Mat44f, Mul_Matrix_Function)
 {
-    Mat44f A(
+    const Mat44f A(
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 2.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 3.0f, 0.0f,
         0.0f, 0.0f, 0.0f, 1.0f
     );
 
-    Mat44f B(
+    const Mat44f B(
         1.0f, 2.0f, 3.0f, 4.0f,
         5.0f, 6.0f, 7.0f, 8.0f,
         9.0f, 10.0f, 11.0f, 12.0f,
         13.0f, 14.0f, 15.0f, 16.0f
     );
 
-    Mat44f C = A.Mul(B);
-    Mat44f expected = A * B;
+    const Mat44f C = A.Mul(B);
+    const Mat44f expected = A * B;
 
     EXPECT_TRUE(C == expected);
 }
@@ -137,51 +139,51 @@ TEST(Mat44f, Multiply_Assign)
         13.0f, 14.0f, 15.0f, 16.0f
     );
 
-    Mat44f B(
+    const Mat44f B(
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 2.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 3.0f, 0.0f,
         0.0f, 0.0f, 0.0f, 1.0f
     );
 
-    Mat44f expected = A * B;
+    const Mat44f expected = A * B;
     A *= B;
     EXPECT_TRUE(A == expected);
 }
 
 TEST(Mat44f, Multiply_Vector4)
 {
-    Mat44f M(
+    const Mat44f M(
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 2.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 3.0f, 0.0f,
         0.0f, 0.0f, 0.0f, 1.0f
     );
 
-    Vec4f v(1.0f, 2.0f, 3.0f, 1.0f);
-    Vec4f r = M * v;
+    const Vec4f v(1.0f, 2.0f, 3.0f, 1.0f);
+    const Vec4f r = M * v;
 
     EXPECT_FLOAT_EQ(r.x, 1.0f);
     EXPECT_FLOAT_EQ(r.y, 4.0f);
     EXPECT_FLOAT_EQ(r.z, 9.0f);
     EXPECT_FLOAT_EQ(r.w, 1.0f);
 
-    Vec4f r2 = M.m[0] * v.x + M.m[1] * v.y + M.m[2] * v.z + M.m[3] * v.w;
+    const Vec4f r2 = M.m[0] * v.x + M.m[1] * v.y + M.m[2] * v.z + M.m[3] * v.w;
 
     EXPECT_EQ(r, r2);
 }
 
 TEST(Mat44f, Mul_Vector4_Function)
 {
-    Mat44f M(
+    const Mat44f M(
         2.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 3.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 4.0f, 0.0f,
         0.0f, 0.0f, 0.0f, 1.0f
     );
 
-    Vec4f v(1.0f, 2.0f, 3.0f, 1.0f);
-    Vec4f r = M.Mul(v);
+    const Vec4f v(1.0f, 2.0f, 3.0f, 1.0f);
+    const Vec4f r = M.Mul(v);
 
     EXPECT_FLOAT_EQ(r.x, 2.0f);
     EXPECT_FLOAT_EQ(r.y, 6.0f);
@@ -191,15 +193,15 @@ TEST(Mat44f, Mul_Vector4_Function)
 
 TEST(Mat44f, Multiply_Vector3_WithTranslation)
 {
-    Mat44f M(
+    const Mat44f M(
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 1.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
         10.0f, 20.0f, 30.0f, 1.0f
     );
 
-    Vec3f v(1.0f, 2.0f, 3.0f);
-    Vec4f r = M * v;
+    const Vec3f v(1.0f, 2.0f, 3.0f);
+    const Vec4f r = M * v;
 
     EXPECT_FLOAT_EQ(r.x, 11.0f);
     EXPECT_FLOAT_EQ(r.y, 22.0f);
@@ -209,15 +211,15 @@ TEST(Mat44f, Multiply_Vector3_WithTranslation)
 
 TEST(Mat44f, Multiply_Vector3_NoTranslation)
 {
-    Mat44f M(
+    const Mat44f M(
         2.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 3.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 4.0f, 0.0f,
         0.0f, 0.0f, 0.0f, 1.0f
     );
 
-    Vec3f v(1.0f, 2.0f, 3.0f);
-    Vec4f r = M * v;
+    const Vec3f v(1.0f, 2.0f, 3.0f);
+    const Vec4f r = M * v;
 
     EXPECT_FLOAT_EQ(r.x, 2.0f);
     EXPECT_FLOAT_EQ(r.y, 6.0f);
@@ -227,15 +229,15 @@ TEST(Mat44f, Multiply_Vector3_NoTranslation)
 
 TEST(Mat44f, Mul_Vector3_Function)
 {
-    Mat44f M(
+    const Mat44f M(
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 2.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 3.0f, 0.0f,
         5.0f, 6.0f, 7.0f, 1.0f
     );
 
-    Vec3f v(1.0f, 1.0f, 1.0f);
-    Vec4f r = M.Mul(v);
+    const Vec3f v(1.0f, 1.0f, 1.0f);
+    const Vec4f r = M.Mul(v);
 
     EXPECT_FLOAT_EQ(r.x, 6.0f);
     EXPECT_FLOAT_EQ(r.y, 8.0f);
@@ -245,14 +247,14 @@ TEST(Mat44f, Mul_Vector3_Function)
 
 TEST(Mat44f, Transpose)
 {
-    Mat44f M(
+    const Mat44f M(
         1.0f, 2.0f, 3.0f, 4.0f,
         5.0f, 6.0f, 7.0f, 8.0f,
         9.0f, 10.0f, 11.0f, 12.0f,
         13.0f, 14.0f, 15.0f, 16.0f
     );
 
-    Mat44f T = M.Transpose();
+    const Mat44f T = M.Transpose();
 
     EXPECT_FLOAT_EQ(T[0][1], 5.0f);
     EXPECT_FLOAT_EQ(T[1][0], 2.0f);
@@ -283,9 +285,9 @@ TEST(Mat44f, OperatorIndex_ReadWrite)
 
 TEST(Mat44f, Equality)
 {
-    Mat44f A(1.0f);
-    Mat44f B(1.0f);
-    Mat44f C(2.0f);
+    const Mat44f A(1.0f);
+    const Mat44f B(1.0f);
+    const Mat44f C(2.0f);
 
     EXPECT_TRUE(A == B);
     EXPECT_FALSE(A == C);
@@ -296,7 +298,7 @@ TEST(Mat44f, Decompose_Trs)
     const Vec3f translation(3.0f, 4.0f, 5.0f);
     const Vec3f scale(2.0f, 3.0f, 4.0f);
 
-    Mat44f M(
+    const Mat44f M(
         2.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 3.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 4.0f, 0.0f,
@@ -326,21 +328,21 @@ TEST(Mat44f, Decompose_Trs)
 TEST(Mat44f, Inverse_Identity)
 {
     const Mat44f& I = Mat44f::Identity();
-    Mat44f inv = I.Inverse();
+    const Mat44f inv = I.Inverse();
     EXPECT_TRUE(inv == I);
 }
 
 TEST(Mat44f, Inverse_ScaleTranslation)
 {
-    Mat44f M(
+    const Mat44f M(
         2.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 3.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 4.0f, 0.0f,
         10.0f, 20.0f, 30.0f, 1.0f
     );
 
-    Mat44f inv = M.Inverse();
-    Mat44f I = M * inv;
+    const Mat44f inv = M.Inverse();
+    const Mat44f I = M * inv;
 
     EXPECT_NEAR(I[0][0], 1.0f, EPS);
     EXPECT_NEAR(I[1][1], 1.0f, EPS);
@@ -352,14 +354,14 @@ TEST(Mat44f, Inverse_ScaleTranslation)
 
 TEST(Mat44f, Inverse_SingularMatrixReturnsZero)
 {
-    Mat44f M(
+    const Mat44f M(
         1.0f, 2.0f, 3.0f, 4.0f,
         1.0f, 2.0f, 3.0f, 4.0f,
         5.0f, 6.0f, 7.0f, 8.0f,
         9.0f, 10.0f, 11.0f, 12.0f
     );
 
-    Mat44f inv = M.Inverse();
+    const Mat44f inv = M.Inverse();
 
     EXPECT_FLOAT_EQ(inv[0][0], 0.0f);
     EXPECT_FLOAT_EQ(inv[1][1], 0.0f);
@@ -375,60 +377,76 @@ TEST(Mat44f, Inverse_NonAffine)
         0.1f,
         100.0f);
 
-    Mat44f inv = M.Inverse();
-    Mat44f I = M * inv;
+    const Mat44f inv = M.Inverse();
+    const Mat44f I = M * inv;
     // The product should be close to identity
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    for (size_t i = 0; i < 4; ++i)
+    {
+        for (size_t j = 0; j < 4; ++j)
+        {
             EXPECT_NEAR(I[i][j], (i == j) ? 1.0f : 0.0f, 1e-3f);
+        }
+    }
 }
 
 TEST(Mat44f, Inverse_Random)
 {
     // A random invertible matrix
-    Mat44f M(
+    const Mat44f M(
         4.0f, 7.0f, 2.0f, 3.0f,
         0.0f, 5.0f, 9.0f, 1.0f,
         6.0f, 8.0f, 2.0f, 5.0f,
         1.0f, 0.0f, 3.0f, 2.0f
     );
-    Mat44f inv = M.Inverse();
-    Mat44f I = M * inv;
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    const Mat44f inv = M.Inverse();
+    const Mat44f I = M * inv;
+    for (size_t i = 0; i < 4; ++i)
+    {
+        for (size_t j = 0; j < 4; ++j)
+        {
             EXPECT_NEAR(I[i][j], (i == j) ? 1.0f : 0.0f, 1e-3f);
+        }
+    }
 }
 
 TEST(Mat44f, InverseAffine_Basic)
 {
     // Affine matrix: scale, rotate, translate
-    Mat44f M(
+    const Mat44f M(
         2.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 3.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 4.0f, 0.0f,
         5.0f, 6.0f, 7.0f, 1.0f
     );
-    Mat44f inv = M.InverseAffine();
-    Mat44f I = M * inv;
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    const Mat44f inv = M.InverseAffine();
+    const Mat44f I = M * inv;
+    for (size_t i = 0; i < 4; ++i)
+    {
+        for (size_t j = 0; j < 4; ++j)
+        {
             EXPECT_NEAR(I[i][j], (i == j) ? 1.0f : 0.0f, 1e-4f);
+        }
+    }
 }
 
 TEST(Mat44f, InverseAffine_NonInvertible)
 {
     // Affine matrix with zero scale (non-invertible)
-    Mat44f M(
+    const Mat44f M(
         0.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 0.0f, 1.0f
     );
-    Mat44f inv = M.InverseAffine();
+    const Mat44f inv = M.InverseAffine();
     // Should return zero matrix
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    for (size_t i = 0; i < 4; ++i)
+    {
+        for (size_t j = 0; j < 4; ++j)
+        {
             EXPECT_FLOAT_EQ(inv[i][j], 0.0f);
+        }
+    }
 }
 
 TEST(Mat44f, InverseAffine_TranslationOnly)
@@ -438,11 +456,15 @@ TEST(Mat44f, InverseAffine_TranslationOnly)
     M[3][0] = 10.0f;
     M[3][1] = -5.0f;
     M[3][2] = 2.5f;
-    Mat44f inv = M.InverseAffine();
-    Mat44f I = M * inv;
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    const Mat44f inv = M.InverseAffine();
+    const Mat44f I = M * inv;
+    for (size_t i = 0; i < 4; ++i)
+    {
+        for (size_t j = 0; j < 4; ++j)
+        {
             EXPECT_NEAR(I[i][j], (i == j) ? 1.0f : 0.0f, 1e-5f);
+        }
+    }
 }
 
 TEST(Mat44f, PerspectiveLH)
@@ -465,3 +487,5 @@ TEST(Mat44f, PerspectiveLH)
     EXPECT_NEAR(P[2][3], 1.0f, EPS);
     EXPECT_NEAR(P[3][2], -(farClip * nearClip) / (farClip - nearClip), EPS);
 }
+
+// NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)

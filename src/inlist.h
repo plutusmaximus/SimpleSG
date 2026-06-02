@@ -45,18 +45,19 @@ class inlist
 {
 public:
     inlist() = default;
+    ~inlist() = default;
     inlist(const inlist&) = delete;
     inlist& operator=(const inlist&) = delete;
     inlist(inlist&& other) noexcept
+        : m_Head(other.m_Head),
+          m_Tail(other.m_Tail),
+          m_Size(other.m_Size)
     {
-        m_Head = other.m_Head;
-        m_Tail = other.m_Tail;
-        m_Size = other.m_Size;
-
         other.m_Head = nullptr;
         other.m_Tail = nullptr;
         other.m_Size = 0;
     }
+
     inlist& operator=(inlist&& other) noexcept
     {
         if(this != &other)
@@ -123,7 +124,6 @@ public:
 
     private:
         friend class inlist;
-        T* node() const { return m_Node; }
         T* m_Node{ nullptr };
     };
 
@@ -152,7 +152,7 @@ public:
         const_iterator& operator++()
         {
             MLG_ASSERT(m_Node != nullptr && "Cannot increment end iterator");
-            m_Node = m_Node ? (const_cast<T*>(m_Node)->*NodeMember).Next : nullptr;
+            m_Node = m_Node ? (m_Node->*NodeMember).Next : nullptr;
             return *this;
         }
 
@@ -166,7 +166,7 @@ public:
         const_iterator& operator--()
         {
             MLG_ASSERT(m_Node != nullptr && "Cannot decrement end iterator");
-            m_Node = m_Node ? (const_cast<T*>(m_Node)->*NodeMember).Prev : nullptr;
+            m_Node = m_Node ? (m_Node->*NodeMember).Prev : nullptr;
             return *this;
         }
 
@@ -182,7 +182,6 @@ public:
 
     private:
         friend class inlist;
-        const T* node() const { return m_Node; }
         const T* m_Node{ nullptr };
     };
 
@@ -266,7 +265,7 @@ public:
 
     iterator erase(iterator pos)
     {
-        T* node = pos.node();
+        T* node = pos.m_Node;
         MLG_ASSERT(node != nullptr && "Cannot erase end iterator");
 
         auto& listNode = node->*NodeMember;
@@ -300,7 +299,7 @@ public:
 
     iterator erase(T* node) { return erase(iterator(node)); }
 
-    iterator erase(const_iterator pos) { return erase(iterator(const_cast<T*>(pos.node()))); }
+    iterator erase(const_iterator pos) { return erase(iterator(const_cast<T*>(pos.m_Node))); }
 
     std::size_t size() const { return m_Size; }
 

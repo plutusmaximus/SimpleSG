@@ -5,181 +5,7 @@
 #include <SDL3/SDL_scancode.h>
 
 #include <algorithm>
-
-//---- GimbleMouseNav Implementation ----//
-
-GimbleMouseNav::GimbleMouseNav(const TrsTransformf& initialTransform)
-    : m_StartRot(initialTransform.R)
-    , m_StartTrans(initialTransform.T)
-    , m_Transform(initialTransform)
-{
-}
-
-GimbleMouseNav::~GimbleMouseNav() {}
-
-void GimbleMouseNav::OnMouseDown(const Point& mouseLoc, const Extent& screenBounds, const int mouseButton)
-{
-    if (1 == mouseButton)
-    {
-        m_MouseButtons[1] = true;
-
-        if (m_LeftShift || m_RightShift)
-        {
-            BeginPan(mouseLoc, 0.01f);
-            m_Panning = true;
-        }
-        else
-        {
-            BeginRotation(mouseLoc, screenBounds, 1);
-        }
-    }
-}
-
-void GimbleMouseNav::OnMouseUp(const int mouseButton)
-{
-    if (1 == mouseButton)
-    {
-        m_MouseButtons[1] = false;
-
-        if (m_Panning)
-        {
-            EndPan();
-            m_Panning = false;
-        }
-        else
-        {
-            EndRotation();
-        }
-    }
-}
-
-void GimbleMouseNav::OnKeyDown(const int keyCode)
-{
-    if (SDL_SCANCODE_LSHIFT == keyCode)
-    {
-        m_LeftShift = true;
-    }
-    else if (SDL_SCANCODE_RSHIFT == keyCode)
-    {
-        m_RightShift = true;
-    }
-}
-
-void GimbleMouseNav::OnKeyUp(const int keyCode)
-{
-    if (SDL_SCANCODE_LSHIFT == keyCode)
-    {
-        m_LeftShift = false;
-    }
-    else if (SDL_SCANCODE_RSHIFT == keyCode)
-    {
-        m_RightShift = false;
-    }
-}
-
-void GimbleMouseNav::OnScroll(const Vec2f& scroll)
-{
-    //Make sure no mouse buttons are pressed
-    if (!std::ranges::contains(m_MouseButtons, true))
-    {
-        BeginDolly(1);
-        UpdateDolly(scroll);
-        EndDolly();
-    }
-}
-
-void GimbleMouseNav::OnMouseMove(const Vec2f& mouseDelta)
-{
-    (this->*m_UpdateFunc)(mouseDelta);
-}
-
-void GimbleMouseNav::ClearButtons()
-{
-    m_MouseButtons.fill(false);
-}
-
-void GimbleMouseNav::Update(const float /*deltaSeconds*/)
-{
-    //No per-frame update needed for gimble nav
-}
-
-void GimbleMouseNav::BeginPan(const Point& mouseLoc, const float scale)
-{
-    MLG_ASSERT(&GimbleMouseNav::UpdateNothing == m_UpdateFunc);
-
-    m_StartLoc = m_CurLoc = mouseLoc;
-    m_Scale = scale;
-    m_StartTrans = m_Transform.T;
-    m_UpdateFunc = &GimbleMouseNav::UpdatePan;
-}
-
-void GimbleMouseNav::BeginDolly(const float scale)
-{
-    MLG_ASSERT(&GimbleMouseNav::UpdateNothing == m_UpdateFunc);
-
-    m_Scale = scale;
-    m_StartTrans = m_Transform.T;
-    m_UpdateFunc = &GimbleMouseNav::UpdateDolly;
-}
-
-void GimbleMouseNav::BeginRotation(const Point& mouseLoc, const Extent& screenBounds, const float scale)
-{
-    MLG_ASSERT(&GimbleMouseNav::UpdateNothing == m_UpdateFunc);
-
-    m_StartLoc = m_CurLoc = mouseLoc;
-    m_ScreenBounds = screenBounds;
-    m_Scale = scale;
-    m_StartRot = m_Transform.R;
-    m_UpdateFunc = &GimbleMouseNav::UpdateRotation;
-}
-
-void GimbleMouseNav::EndPan()
-{
-    MLG_ASSERT(&GimbleMouseNav::UpdatePan == m_UpdateFunc);
-
-    m_UpdateFunc = &GimbleMouseNav::UpdateNothing;
-}
-
-void GimbleMouseNav::EndDolly()
-{
-    MLG_ASSERT(&GimbleMouseNav::UpdateDolly == m_UpdateFunc);
-
-    m_UpdateFunc = &GimbleMouseNav::UpdateNothing;
-}
-
-void GimbleMouseNav::EndRotation()
-{
-    MLG_ASSERT(&GimbleMouseNav::UpdateRotation == m_UpdateFunc);
-
-    m_UpdateFunc = &GimbleMouseNav::UpdateNothing;
-}
-
-void GimbleMouseNav::UpdateNothing(const Vec2f&)
-{
-}
-
-void GimbleMouseNav::UpdatePan(const Vec2f& mouseDelta)
-{
-    m_CurLoc.X += mouseDelta.x;
-    m_CurLoc.Y -= mouseDelta.y;
-    Vec2f d = (Vec2f{m_CurLoc.X, m_CurLoc.Y} - Vec2f{m_StartLoc.X, m_StartLoc.Y}) * m_Scale;
-    m_Transform.T = m_StartTrans + (d.x * m_Transform.LocalXAxis()) + (d.y * m_Transform.LocalYAxis());
-}
-
-void GimbleMouseNav::UpdateDolly(const Vec2f& mouseDelta)
-{
-    m_Transform.T = m_StartTrans + (mouseDelta.y * m_Scale * m_Transform.LocalZAxis());
-}
-
-void GimbleMouseNav::UpdateRotation(const Vec2f& mouseDelta)
-{
-    m_CurLoc.X += mouseDelta.x;
-    m_CurLoc.Y += mouseDelta.y;
-    const Vec2f d = (Vec2f{m_CurLoc.X, m_CurLoc.Y} - Vec2f{m_StartLoc.X, m_StartLoc.Y}) * m_Scale * 0.001f;
-
-    const UnitQuatf drot = UnitQuatf(Radiansf(d.x), Vec3f::YAXIS()) * UnitQuatf(Radiansf(d.y), Vec3f::XAXIS());
-    m_Transform.R = m_StartRot * drot;
-}
+#include <numbers>
 
 //---- WalkMouseNav Implementation ----//
 
@@ -194,10 +20,10 @@ WalkMouseNav::WalkMouseNav(
 {
 }
 
-WalkMouseNav::~WalkMouseNav() {}
+WalkMouseNav::~WalkMouseNav() = default;
 
 void
-WalkMouseNav::OnMouseDown(const Point& /*mouseLoc*/, const Extent& /*screenBounds*/, const int /*mouseButton*/)
+WalkMouseNav::OnMouseDown(const Vec2f& /*mouseLoc*/, const Extent& /*screenBounds*/, const int /*mouseButton*/)
 {
 }
 
@@ -227,7 +53,9 @@ WalkMouseNav::OnKeyUp(const int keyCode)
 void
 WalkMouseNav::OnScroll(const Vec2f& scroll)
 {
-    m_TargetTransform.T.y += scroll.y * m_MovePerSec * 0.1f;
+    constexpr float kScrollMoveScale = 0.1f;
+
+    m_TargetTransform.T.y += scroll.y * m_MovePerSec * kScrollMoveScale;
 }
 
 void
@@ -252,14 +80,14 @@ WalkMouseNav::Update(const float deltaSeconds)
         float rotX = m_MouseDelta.y * m_MouseMoveRotScale;
         float rotY = m_MouseDelta.x * m_MouseMoveRotScale;
 
-        constexpr float PI = std::numbers::pi_v<float>;
+        constexpr float kHalfPi = std::numbers::pi_v<float> * 0.5f;
 
-        rotX = std::max(rotX, -(PI / 2 - 0.01f));
-        rotX = std::min(rotX, PI / 2 - 0.01f);
-        rotY = std::max(rotY, -(PI / 2 - 0.01f));
-        rotY = std::min(rotY, PI / 2 - 0.01f);
-        UnitQuatf pitch = UnitQuatf(Radiansf(rotX), Vec3f::XAXIS());
-        UnitQuatf yaw = UnitQuatf(Radiansf(rotY), Vec3f::YAXIS());
+        rotX = std::max(rotX, -kHalfPi);
+        rotX = std::min(rotX, kHalfPi);
+        rotY = std::max(rotY, -kHalfPi);
+        rotY = std::min(rotY, kHalfPi);
+        const UnitQuatf pitch = UnitQuatf(Radiansf(rotX), Vec3f::XAXIS());
+        const UnitQuatf yaw = UnitQuatf(Radiansf(rotY), Vec3f::YAXIS());
 
         m_TargetTransform.R = yaw * m_TargetTransform.R * pitch;
         m_MouseDelta = Vec2f{ 0,0 };
@@ -289,11 +117,11 @@ WalkMouseNav::Update(const float deltaSeconds)
         m_TargetTransform.T += moveDelta;
     }
 
-    constexpr float TRANSFORM_TIME_TO_TARGET = 0.1f;
-    //constexpr float ROTATION_TIME_TO_TARGET = 0.01f;
+    constexpr float kTransformTimeToTarget = 0.1f;
+    //constexpr float kRotationTimeToTarget = 0.01f;
 
-    const float dtT = deltaSeconds / TRANSFORM_TIME_TO_TARGET;
-    //const float dtR = deltaSeconds / ROTATION_TIME_TO_TARGET;
+    const float dtT = deltaSeconds / kTransformTimeToTarget;
+    //const float dtR = deltaSeconds / kRotationTimeToTarget;
 
     m_CurrentTransform.T = m_CurrentTransform.T.Lerp(m_TargetTransform.T, dtT);
     //m_CurrentTransform.R = m_CurrentTransform.R.Lerp(m_TargetTransform.R, dtR);

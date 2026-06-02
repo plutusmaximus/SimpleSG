@@ -2,69 +2,59 @@
 
 #include "Log.h"
 
-#include <format>
-#include <string>
+#include <SDL3/SDL_assert.h>
 
-class AssertHelper
+namespace AssertHelper
 {
-public:
-    /// @brief Enable or disable the assert dialog.
-    static bool SetDialogEnabled(const bool enabled);
-
-    /// @brief Returns a reference to a boolean that can be used to mute future
-    /// assert dialogs at this call site.
-    /// Used by the everify macro.
-    /// UNIQUE_ID is a unique integer per call site.
-    template<int UNIQUE_ID>
-    static inline bool& Muter()
-    {
-        static bool muted = false;
-        return muted;
-    }
-
-    /// @brief Log an assertion failure.
-    template<typename... Args>
-    static bool Log(const char* expression,
-        const char* fileName,
-        const int lineNum,
-        bool& mute,
-        std::format_string<Args...> fmt,
-        Args&&... args)
-    {
-        std::string userMsg = std::format(fmt, std::forward<Args>(args)...);
-        std::string message = std::format("{}({}): {} - {}", fileName, lineNum, expression, userMsg);
-
-        return Log(message, mute);
-    }
-
-    /// @brief Log an assertion failure.
-    static bool Log(const char* expression,
-        const char* fileName,
-        const int lineNum,
-        bool& mute,
-        const std::string& userMsg)
-    {
-        std::string message = std::format("{}({}): {} - {}", fileName, lineNum, expression, userMsg);
-
-        return Log(message, mute);
-    }
-
-    /// @brief Log an assertion failure.
-    static bool Log(const char* expression,
-        const char* fileName,
-        const int lineNum,
-        bool& mute)
-    {
-        std::string message = std::format("{}({}): {}", fileName, lineNum, expression);
-
-        return Log(message, mute);
-    }
-
-private:
-
-    /// @brief Log an assertion failure.
-    static bool Log(const std::string& message, bool& mute);
+struct AssertData
+{
+    SDL_AssertData sdlAssertData{};
+    SDL_AssertState sdlAssertState{SDL_ASSERTION_BREAK};
 };
+
+// This function must have internal linkage to avoid
+// conflicts between different translation units.
+// IOW it must be declared static at file scope.
+// If not static then different TUs could have access
+// to the same assert data.
+template<int UNIQUE_ID>
+static inline AssertHelper::AssertData& GetAssertData()
+{
+    static AssertHelper::AssertData assertData{};
+    return assertData;
+}
+
+/// @brief Log an assertion failure.
+bool Log(AssertHelper::AssertData& assertData,
+    const char* expression,
+    const char* function,
+    const char* fileName,
+    const int lineNum,
+    const std::string& userMsg);
+
+/// @brief Log an assertion failure.
+bool Log(AssertHelper::AssertData& assertData,
+    const char* expression,
+    const char* function,
+    const char* fileName,
+    const int lineNum);
+
+/// @brief Log an assertion failure.
+template<typename... Args>
+static bool Log(AssertHelper::AssertData& assertData,
+    const char* expression,
+    const char* function,
+    const char* fileName,
+    const int lineNum,
+    std::format_string<Args...> fmt,
+    Args&&... args)
+{
+    const std::string userMsg = std::format(fmt, std::forward<Args>(args)...);
+
+    return AssertHelper::Log(assertData, expression, function, fileName, lineNum, userMsg);
+}
+
+}   // namespace AssertHelper
 
 #ifndef NDEBUG
 
@@ -78,21 +68,27 @@ private:
 //
 // return MLG_VERIFY(x > y) ? x : -1;
 
+// Disable the warning about __COUNTER__ being a C2y extension.
+#if defined(__clang__)
+#  define MLG_CLANG_DIAG_PUSH _Pragma("clang diagnostic push")
+#  define MLG_CLANG_DIAG_POP  _Pragma("clang diagnostic pop")
+#  define MLG_CLANG_DIAG_IGNORE_C2Y_EXTENSIONS \
+      _Pragma("clang diagnostic ignored \"-Wc2y-extensions\"")
+#else
+#  define MLG_CLANG_DIAG_PUSH
+#  define MLG_CLANG_DIAG_POP
+#  define MLG_CLANG_DIAG_IGNORE_C2Y_EXTENSIONS
+#endif
+
 #define MLG_VERIFY(expr, ...) \
+    MLG_CLANG_DIAG_PUSH \
+    MLG_CLANG_DIAG_IGNORE_C2Y_EXTENSIONS \
     (static_cast<bool>(expr) || \
-        (AssertHelper::Log(#expr, __FILE__, __LINE__, AssertHelper::Muter<__COUNTER__>() __VA_OPT__(, ) __VA_ARGS__) \
-            ? (__debugbreak(), false) : false))
+        (AssertHelper::Log(AssertHelper::GetAssertData<__COUNTER__>(),#expr, SDL_FUNCTION, SDL_ASSERT_FILE, SDL_LINE __VA_OPT__(, ) __VA_ARGS__) \
+            ? (SDL_AssertBreakpoint(), false) : false)) \
+    MLG_CLANG_DIAG_POP
 
 #define MLG_ASSERT(expr, ...) void(MLG_VERIFY(expr __VA_OPT__(,) __VA_ARGS__))
-
-#define MLG_ASSERT_CAPTURE(capName) \
-    for(struct{bool en = AssertHelper::SetDialogEnabled(false); \
-        Log::Capture capName; \
-        std::string Message(){return capName.Message();}} capName; \
-        !capName.capName.IsCanceled(); \
-        capName.capName.Cancel(), AssertHelper::SetDialogEnabled(capName.en))
-
-#define MLG_ASSERT_CAPTURE_CHECK(capName, msg) ((capName).Message().contains(msg))
 
 // MLG_ASSERT_ONLY is for expressions that are only used in asserts, but we want to avoid "unused
 // variable/expression" warnings in release builds.
@@ -102,10 +98,6 @@ private:
 
 #define MLG_VERIFY(expr, ...) (static_cast<bool>(expr))
 #define MLG_ASSERT(expr, ...)
-
-#define MLG_ASSERT_CAPTURE(capName)
-
-#define MLG_ASSERT_CAPTURE_CHECK(capName, msg) true
 
 #define MLG_ASSERT_ONLY(expr)
 

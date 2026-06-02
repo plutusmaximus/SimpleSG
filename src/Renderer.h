@@ -39,9 +39,9 @@ public:
 
 private:
 
-    Result<wgpu::RenderPassEncoder> BeginRenderPass(wgpu::CommandEncoder cmdEncoder);
+    Result<wgpu::RenderPassEncoder> BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder);
 
-    Result<> Present(Compositor& compositor);
+    Result<> Present(Compositor& compositor) const;
 
     Result<> CreateColorAndDepthTargets();
 
@@ -51,12 +51,10 @@ private:
 
     Result<> CreateTransformPipeline();
 
-    Result<wgpu::ShaderModule> CreateShader(const char* path);
-
-    Result<> TransformNodes(wgpu::CommandEncoder cmdEncoder,
+    Result<> TransformNodes(const wgpu::CommandEncoder& cmdEncoder,
         const TrsTransformf& camera,
         const Projection& projection,
-        const Scene& scene);
+        const Scene& scene) const;
 
     wgpu::Limits m_GpuLimits;
     wgpu::Texture m_ColorTarget;
