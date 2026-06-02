@@ -40,16 +40,14 @@ struct CgltfMeshData
     std::vector<CgltfPrimitiveData> Primitives;
 };
 
-} // namespace
+constexpr RgbaColorf kDefaultColor{"#FF00FFFF"_rgba};
 
-static const RgbaColorf DEFAULT_COLOR = RgbaColorf{"#FF00FFFF"_rgba};
-
-static std::string MakeName(const char* name, const char* baseName, const size_t index)
+std::string MakeName(const char* name, const char* baseName, const size_t index)
 {
     return name ? std::string(name) : std::format("{}_{}", baseName, index);
 }
 
-static Result<CgltfPrimitiveAttributes>
+Result<CgltfPrimitiveAttributes>
 CollectAttributes(const cgltf_primitive& primitive)
 {
     MLG_CHECK(primitive.type == cgltf_primitive_type_triangles,
@@ -133,7 +131,7 @@ CollectAttributes(const cgltf_primitive& primitive)
     return attrs;
 }
 
-static Result<>
+Result<>
 CollectMeshes(const cgltf_data* gltfData, std::vector<CgltfMeshData>& gltfMeshes)
 {
     gltfMeshes.clear();
@@ -180,11 +178,11 @@ CollectMeshes(const cgltf_data* gltfData, std::vector<CgltfMeshData>& gltfMeshes
     return Result<>::Ok;
 }
 
-static Result<MaterialDef>
+Result<MaterialDef>
 CreateMaterialDef(const cgltf_material* gltfMaterial)
 {
     std::string baseTextureUri;
-    RgbaColorf color = DEFAULT_COLOR;
+    RgbaColorf color = kDefaultColor;
     float metalness = 0;
     float roughness = 0;
 
@@ -238,7 +236,7 @@ CreateMaterialDef(const cgltf_material* gltfMaterial)
     return std::move(materialDef);
 }
 
-static Result<>
+Result<>
 CollectVertices(const CgltfPrimitiveAttributes& attrs, std::vector<Vertex>& vertices)
 {
     vertices.clear();
@@ -291,7 +289,7 @@ CollectVertices(const CgltfPrimitiveAttributes& attrs, std::vector<Vertex>& vert
     return Result<>::Ok;
 }
 
-static Result<>
+Result<>
 CollectIndices(const CgltfPrimitiveAttributes& attrs, std::vector<VertexIndex>& indices)
 {
     indices.clear();
@@ -328,7 +326,7 @@ CollectIndices(const CgltfPrimitiveAttributes& attrs, std::vector<VertexIndex>& 
     return Result<>::Ok;
 }
 
-static Result<>
+Result<>
 GenerateNormals(std::span<Vertex> vertices, std::span<const VertexIndex> indices)
 {
     for(auto& v : vertices)
@@ -361,7 +359,7 @@ GenerateNormals(std::span<Vertex> vertices, std::span<const VertexIndex> indices
     return Result<>::Ok;
 }
 
-static Result<>
+Result<>
 CollectModels(const std::span<CgltfMeshData> gltfMeshes,
     std::vector<ModelDef>& models,
     std::map<const cgltf_mesh*, ModelIndex>& modelIndices)
@@ -428,7 +426,7 @@ CollectModels(const std::span<CgltfMeshData> gltfMeshes,
     return Result<>::Ok;
 }
 
-static void
+void
 ConvertRHtoLH(Mat44f& M)
 {
     // negate X components of Y and Z basis vectors
@@ -443,7 +441,7 @@ ConvertRHtoLH(Mat44f& M)
     M.m[3].x = -M.m[3].x;
 }
 
-static Result<>
+Result<>
 CollectNode(const cgltf_node& srcNode,
     const std::map<const cgltf_mesh*, ModelIndex>& modelIndices,
     std::vector<LevelNodeDef>& nodeDefs)
@@ -550,7 +548,7 @@ CollectNode(const cgltf_node& srcNode,
     return Result<>::Ok;
 }
 
-static Result<>
+Result<>
 CollectNodes(const cgltf_data* gltfData,
     std::vector<LevelNodeDef>& levelNodeDefs,
     const std::map<const cgltf_mesh*, ModelIndex>& modelIndices)
@@ -574,6 +572,8 @@ CollectNodes(const cgltf_data* gltfData,
 
     return Result<>::Ok;
 }
+
+} // namespace
 
 Result<>
 GltfLoader::Load(const std::string& path, PropKitDef& outPropKit, LevelDef& outLevelDef)

@@ -9,7 +9,23 @@
 
 namespace AssertHelper
 {
-static void Log(const std::string& message);
+
+namespace
+{
+void
+Log(const std::string& message)
+{
+#ifdef __clang__
+    // No stack trace support in clang, so just log the message.
+    const std::string logMsg = std::format("{}", message);
+#else
+    auto trace = std::stacktrace::current(1);
+    const std::string logMsg = std::format("{}\n\n{}", message, std::to_string(trace));
+#endif
+
+    Log::Assert(logMsg);
+}
+} // namespace
 
 bool
 Log(AssertHelper::AssertData& assertData,
@@ -87,20 +103,6 @@ Log(AssertHelper::AssertData& assertData,
     }
 
     return false;
-}
-
-static void
-Log(const std::string& message)
-{
-#ifdef __clang__
-    // No stack trace support in clang, so just log the message.
-    const std::string logMsg = std::format("{}", message);
-#else
-    auto trace = std::stacktrace::current(1);
-    const std::string logMsg = std::format("{}\n\n{}", message, std::to_string(trace));
-#endif
-
-    Log::Assert(logMsg);
 }
 
 }   // namespace AssertHelper

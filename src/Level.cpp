@@ -3,7 +3,9 @@
 #include "narrow_cast.h"
 #include "PropKit.h"
 
-static size_t
+namespace
+{
+size_t
 CountNodes(std::span<const LevelNodeDef> nodeDefs)
 {
     size_t count = nodeDefs.size();
@@ -15,7 +17,7 @@ CountNodes(std::span<const LevelNodeDef> nodeDefs)
     return count;
 }
 
-static size_t
+size_t
 CalculateTotalStringSize(std::span<const LevelNodeDef> nodeDefs)
 {
     size_t totalSize = 0;
@@ -28,12 +30,9 @@ CalculateTotalStringSize(std::span<const LevelNodeDef> nodeDefs)
     return totalSize;
 }
 
-template<class... Ts>
-struct overloads : Ts... { using Ts::operator()...; };
-
 // Collect nodes in breadth-first order.
 // Parents come before children, siblings are contiguous.
-static Result<>
+Result<>
 CollectNodes(std::span<const LevelNodeDef> nodeDefs,
     const PropKit& propKit,
     std::vector<Level::Node>& nodes,
@@ -74,17 +73,25 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
         if(nodeDef.Components.Collider.has_value())
         {
             const ColliderDef& colliderDef = *nodeDef.Components.Collider;
-            const auto visitor = overloads //
+            struct Visitor
+            {
+                Collider operator()(const SphereDef& def) const
                 {
-                    [](const SphereDef& def) -> Collider
-                    { return Collider{ Sphere{ def.Radius } }; },
-                    [](const BoxDef& def) -> Collider
-                    { return Collider{ Box{ def.HalfExtents } }; },
-                    [](const CapsuleDef& def) -> Collider
-                    { return Collider{ Capsule{ def.Radius, def.HalfHeight } }; },
-                };
+                    return Collider{ Sphere{ def.Radius } };
+                }
 
-            components.Collider = std::visit(visitor, colliderDef);
+                Collider operator()(const BoxDef& def) const
+                {
+                    return Collider{ Box{ def.HalfExtents } };
+                }
+
+                Collider operator()(const CapsuleDef& def) const
+                {
+                    return Collider{ Capsule{ def.Radius, def.HalfHeight } };
+                }
+            };
+
+            components.Collider = std::visit(Visitor{}, colliderDef);
         }
 
         stringStorage.insert(stringStorage.end(), nodeDef.Name.begin(), nodeDef.Name.end());
@@ -114,6 +121,7 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
 
     return Result<>::Ok;
 }
+} // namespace
 
 Result<>
 Level::Create(const LevelDef& levelDef, const PropKit& propKit, Level& outLevel)

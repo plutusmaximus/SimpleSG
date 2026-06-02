@@ -17,20 +17,11 @@
 #endif
 #endif
 
-static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
-static constexpr int kNumTextureChannels = 4;
-
-// Texture staging buffer rows must be a multiple of 256 bytes.
-static uint32_t
-GetTextureAlignedRowStride(const uint32_t textureWidth)
-{
-    const uint32_t rowStride = textureWidth * kNumTextureChannels;
-    const uint32_t alignedRowStride = (rowStride + 255u) & ~255u;
-    return alignedRowStride;
-}
-
 namespace
 {
+constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
+constexpr int kNumTextureChannels = 4;
+
 class WgpuContext
 {
 public:
@@ -57,6 +48,15 @@ void* GetContextMem()
     alignas(WgpuContext) static uint8_t s_WgpuContextStorage[sizeof(WgpuContext)];
 
     return static_cast<void*>(s_WgpuContextStorage);
+}
+
+// Texture staging buffer rows must be a multiple of 256 bytes.
+uint32_t
+GetTextureAlignedRowStride(const uint32_t textureWidth)
+{
+    const uint32_t rowStride = textureWidth * kNumTextureChannels;
+    const uint32_t alignedRowStride = (rowStride + 255u) & ~255u;
+    return alignedRowStride;
 }
 
 Result<> DumpDawnAdapterInfo(const wgpu::Adapter& adapter);
