@@ -41,7 +41,7 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
     request.MoveDataTo(outBuffer);
 
     return Result<>::Ok;
-}    
+}
 
 Result<wgpu::ShaderModule>
 CreateShader(const char* path)
@@ -147,10 +147,14 @@ Renderer::Render(const TrsTransformf& camera,
     {
         MLG_SCOPED_TIMER("Renderer.Render.Draw.SetBuffers");
 
-        static_assert(VERTEX_INDEX_BITS == UINT32_WIDTH || VERTEX_INDEX_BITS == UINT16_WIDTH);
+        constexpr size_t kU16BitWidth = 16;
+        constexpr size_t kU32BitWidth = 32;
+
+        static_assert(VERTEX_INDEX_BITS == kU32BitWidth || VERTEX_INDEX_BITS == kU16BitWidth,
+            "Unsupported index buffer format: only 16-bit and 32-bit indices are supported");
 
         constexpr wgpu::IndexFormat idxFmt =
-            (VERTEX_INDEX_BITS == UINT32_WIDTH)
+            (VERTEX_INDEX_BITS == kU32BitWidth)
             ? wgpu::IndexFormat::Uint32
             : wgpu::IndexFormat::Uint16;
 
