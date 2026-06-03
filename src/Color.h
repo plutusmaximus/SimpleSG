@@ -2,6 +2,8 @@
 
 #include "AssertHelper.h"
 #include <algorithm>
+#include <span>
+#include <string>
 
 /// @brief RGBA color representation.
 template<typename T>
@@ -125,7 +127,7 @@ constexpr RgbaColor<uint8_t> operator""_rgba(const char* str, const size_t len)
     {
         constexpr char kLowerHexOffset = 'a' - 10;
         constexpr char kUpperHexOffset = 'A' - 10;
-        
+
         if(c >= '0' && c <= '9')
         {
             return static_cast<uint8_t>(c - '0');
@@ -175,6 +177,6 @@ constexpr RgbaColor<uint8_t> operator""_rgba(const char* str, const size_t len)
         );
     }
     // NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
-    
+
     return RgbaColor<uint8_t>(); // default
 }

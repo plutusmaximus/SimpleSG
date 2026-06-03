@@ -4,6 +4,7 @@
 #include "scope_exit.h"
 
 #include <atomic>
+#include <span>
 #include <string>
 #include <string_view>
 

@@ -5,6 +5,7 @@
 #include <condition_variable>
 #include <cstddef>
 #include <mutex>
+#include <span>
 #include <thread>
 #include <utility>
 
