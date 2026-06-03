@@ -17,11 +17,24 @@ struct LogGlobals
     static inline std::atomic<bool> InitializeSinks = true;
     static inline std::shared_ptr<spdlog::sinks::dist_sink_mt> MuxSink;
     static inline std::mutex LoggerMutex;
-    static inline thread_local std::vector<std::string> LogPrefixStack;
-    static inline thread_local std::string LogPrefix;
 };
 
-void InitializeSinks()
+// Keep these thread_local values behind function scope so each thread still gets
+// its own prefix state without exposing namespace-scope thread_local objects.
+// Otherwise MSVC can emit C5046 (__tlregdtor) for internal-linkage thread_local state.
+std::vector<std::string>& LogPrefixStack()
+{
+    static thread_local std::vector<std::string> logPrefixStack;
+    return logPrefixStack;
+}
+
+std::string& LogPrefix()
+{
+    static thread_local std::string logPrefix;
+    return logPrefix;
+}
+
+void EnsureSinksInitialized()
 {
     const std::lock_guard<std::mutex> lock(LogGlobals::LoggerMutex);
 
@@ -46,7 +59,7 @@ void InitializeSinks()
 
 std::shared_ptr<spdlog::logger> GetLogger(const std::string& name)
 {
-    InitializeSinks();
+    EnsureSinksInitialized();
 
     const std::lock_guard<std::mutex> lock(LogGlobals::LoggerMutex);
 
@@ -107,16 +120,16 @@ Log::SetLevel(const Level level)
 void
 Log::PushPrefix(const std::string& message)
 {
-    LogGlobals::LogPrefixStack.push_back(message);
+    LogPrefixStack().push_back(message);
     MakePrefix();
 }
 
 void
 Log::PopPrefix()
 {
-    if(!LogGlobals::LogPrefixStack.empty())
+    if(!LogPrefixStack().empty())
     {
-        LogGlobals::LogPrefixStack.pop_back();
+        LogPrefixStack().pop_back();
         MakePrefix();
     }
 }
@@ -124,13 +137,13 @@ Log::PopPrefix()
 void
 Log::MakePrefix()
 {
-    std::string& prefix = LogGlobals::LogPrefix;
+    std::string& prefix = LogPrefix();
     prefix.clear();
     prefix += "[";
 
     int count = 0;
 
-    for(const auto& component : LogGlobals::LogPrefixStack)
+    for(const auto& component : LogPrefixStack())
     {
         if(count > 0)
         {
@@ -146,5 +159,5 @@ Log::MakePrefix()
 std::string
 Log::Prefix(const std::string& message)
 {
-    return LogGlobals::LogPrefix + message;
+    return LogPrefix() + message;
 }
