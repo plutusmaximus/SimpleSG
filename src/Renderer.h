@@ -43,7 +43,7 @@ private:
 
     Result<> Present(Compositor& compositor) const;
 
-    Result<> CreateColorAndDepthTargets();
+    Result<> RefreshColorTargetResources(const uint32_t width, const uint32_t height);
 
     Result<> CreateColorPipeline();
 
@@ -57,42 +57,48 @@ private:
         const Scene& scene) const;
 
     wgpu::Limits m_GpuLimits;
-    wgpu::Texture m_ColorTarget;
-    wgpu::TextureView m_ColorTargetView;
-    wgpu::Sampler m_ColorTargetSampler;
-    wgpu::Texture m_DepthTarget;
-    wgpu::TextureView m_DepthTargetView;
 
-    struct ColorPipeline
+    struct ColorTargetResources
+    {
+        wgpu::Texture Target;
+        wgpu::TextureView TargetView;
+        wgpu::Texture DepthTarget;
+        wgpu::TextureView DepthTargetView;
+        wgpu::BindGroup BindGroup;
+        wgpu::Sampler Sampler;
+    };
+
+    struct ColorPipelineResources
     {
         wgpu::ShaderModule Shader;
         wgpu::PipelineLayout Layout;
-        wgpu::RenderPipeline Pipeline;
     };
 
-    struct TransformPipeline
+    struct TransformPipelineResources
     {
         wgpu::ShaderModule Shader;
         wgpu::PipelineLayout Layout;
-        wgpu::ComputePipeline Pipeline;
     };
 
-    struct PresentPipeline
+    struct PresentPipelineResources
     {
         wgpu::ShaderModule Shader;
         wgpu::PipelineLayout Layout;
-        wgpu::BindGroup BindGroup0;
-        wgpu::RenderPipeline Pipeline;
     };
+
+    ColorTargetResources m_ColorTargetResources;
 
     // Pipeline for rendering to the color target texture.
-    ColorPipeline m_ColorPipeline;
+    ColorPipelineResources m_ColorPipelineResources;
+    wgpu::RenderPipeline m_ColorPipeline;
 
     // Pipeline for computing world transforms on the GPU.
-    TransformPipeline m_TransformPipeline;
+    TransformPipelineResources m_TransformPipelineResources;
+    wgpu::ComputePipeline m_TransformPipeline;
 
     // Pipeline to present the color target to the swap chain.
-    PresentPipeline m_PresentPipeline;
+    PresentPipelineResources m_PresentPipelineResources;
+    wgpu::RenderPipeline m_PresentPipeline;
 
     bool m_Initialized{false};
 };

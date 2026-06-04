@@ -232,8 +232,15 @@ Result<> MainLoop()
             continue;
         }
 
-        auto screenBounds = WebgpuHelper::GetScreenBounds();
-        projection.SetAspectRatio(screenBounds.GetAspectRatio());
+        const Extent screenBounds = WebgpuHelper::GetScreenBounds();
+        Viewport viewport(0,
+            0,
+            static_cast<uint32_t>(screenBounds.Width),
+            static_cast<uint32_t>(screenBounds.Height),
+            0,
+            1);
+        projection.SetViewport(viewport);
+        projection.SetAspectRatio(viewport.GetAspectRatio());
 
         compositor.BeginFrame();
 

@@ -35,13 +35,13 @@ Startup()
     MLG_INFO("Current working directory: {}", cwd.string());
 
     MLG_CHECK(ThreadPool::Startup());
-    defer_as(failure)
+    MLG_DEFER_AS(failure)
     {
         ThreadPool::Shutdown();
     };
 
     MLG_CHECK(FileFetcher::Startup());
-    defer_as(fileFetcherShutdown)
+    MLG_DEFER_AS(fileFetcherShutdown)
     {
         FileFetcher::Shutdown();
     };
@@ -200,9 +200,13 @@ MainLoop()
                 running = false;
                 break;
 
-            case SDL_EVENT_WINDOW_RESIZED:
+            //case SDL_EVENT_WINDOW_RESIZED:
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-                //app->OnResize(event.window.data1, event.window.data2);
+                {
+                    const uint32_t newWidth = static_cast<uint32_t>(event.window.data1);
+                    const uint32_t newHeight = static_cast<uint32_t>(event.window.data2);
+                    WebgpuHelper::Resize(newWidth, newHeight);
+                }
                 break;
 
             case SDL_EVENT_WINDOW_MINIMIZED:
@@ -284,8 +288,15 @@ MainLoop()
 
         mouseNav.Update(elapsedSeconds);
 
-        auto screenBounds = WebgpuHelper::GetScreenBounds();
-        projection.SetAspectRatio(screenBounds.GetAspectRatio());
+        const Extent screenBounds = WebgpuHelper::GetScreenBounds();
+        Viewport viewport(0,
+            0,
+            static_cast<uint32_t>(screenBounds.Width),
+            static_cast<uint32_t>(screenBounds.Height),
+            0,
+            1);
+        projection.SetViewport(viewport);
+        projection.SetAspectRatio(viewport.GetAspectRatio());
         trsCamera = mouseNav.GetTransform();
 
         compositor.BeginFrame();
@@ -323,7 +334,7 @@ int main(int /*argc*/, char** /*argv*/)
         return -1;
     }
 
-    defer
+    MLG_DEFER
     {
         Shutdown();
     };

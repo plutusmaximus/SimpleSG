@@ -922,7 +922,7 @@ WebgpuHelper::GetScreenBounds()
     {
         MLG_ERROR("Failed to get window size: {}", SDL_GetError());
     }
-    return Extent{ .width = static_cast<float>(width), .height = static_cast<float>(height) };
+    return Extent{ .Width = static_cast<float>(width), .Height = static_cast<float>(height) };
 }
 
 wgpu::TextureFormat
@@ -940,7 +940,7 @@ Result<wgpu::Buffer>
 WebgpuHelper::CreateIndirectBuffer(const size_t size, const std::string_view& name)
 {
     MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::CreateIndirectBuffer called before Startup");
-    
+
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst;
 
     return CreateGpuBufferUnmapped(usage, size, name);

@@ -1317,18 +1317,18 @@ class Extent
 {
 public:
 
-    float width;
-    float height;
+    float Width;
+    float Height;
 
     constexpr float GetAspectRatio() const noexcept
     {
-        MLG_ASSERT(height != 0, "Height must be non-zero to compute aspect ratio");
-        return width / height;
+        MLG_ASSERT(Height != 0, "Height must be non-zero to compute aspect ratio");
+        return Width / Height;
     }
 
     constexpr friend bool operator==(const Extent& a, const Extent& b) noexcept
     {
-        return a.width == b.width && a.height == b.height;
+        return a.Width == b.Width && a.Height == b.Height;
     }
 };
 
@@ -1402,7 +1402,7 @@ struct std::formatter<Extent>
     template<typename FormatContext>
     auto format(const Extent& extent, FormatContext& ctx) const
     {
-        return std::format_to(ctx.out(), "({}, {})", extent.width, extent.height);
+        return std::format_to(ctx.out(), "({}, {})", extent.Width, extent.Height);
     }
 };
 
