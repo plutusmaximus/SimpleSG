@@ -49,7 +49,7 @@ public:
 
     static Result<> Decode(const TextureBuilder& builder)
     {
-        defer
+        MLG_DEFER
         {
             const unsigned oldValue = builder.StageCounter->fetch_sub(1, std::memory_order_acq_rel);
             if(oldValue == 1)
@@ -73,7 +73,7 @@ public:
 
         MLG_CHECKV(data, "Failed to decode image {} - {}", builder.Uri, stbi_failure_reason());
 
-        defer{ stbi_image_free(data); };
+        MLG_DEFER{ stbi_image_free(data); };
 
         MLG_CHECKV(builder.Texture.GetWidth() == static_cast<uint32_t>(imgWidth) &&
                        builder.Texture.GetHeight() == static_cast<uint32_t>(imgHeight),

@@ -260,7 +260,7 @@ FileFetcher::Fetch(FileFetcher::Request& request)
 
     request.m_Status = RequestStatus::Pending;
 
-    defer_as(setFailedOnExit)
+    MLG_DEFER_AS(setFailedOnExit)
     {
         if(request.IsPending())
         {
@@ -274,7 +274,7 @@ FileFetcher::Fetch(FileFetcher::Request& request)
         request.m_FilePath,
         SDL_GetError());
 
-    defer_as(closeOnFailure)
+    MLG_DEFER_AS(closeOnFailure)
     {
         SDL_CloseAsyncIO(request.m_AsyncIO, false, FFGlobals::AsyncIOQueue, &request);
         request.m_AsyncIO = nullptr;

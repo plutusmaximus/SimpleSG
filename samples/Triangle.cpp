@@ -111,19 +111,19 @@ Result<> MainLoop()
     MLG_INFO("Current working directory: {}", cwd.string());
 
     MLG_CHECK(ThreadPool::Startup());
-    defer
+    MLG_DEFER
     {
         ThreadPool::Shutdown();
     };
 
     MLG_CHECK(FileFetcher::Startup());
-    defer
+    MLG_DEFER
     {
         FileFetcher::Shutdown();
     };
 
     MLG_CHECK(WebgpuHelper::Startup(kAppName));
-    defer
+    MLG_DEFER
     {
         WebgpuHelper::Shutdown();
     };
