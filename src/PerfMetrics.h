@@ -15,7 +15,6 @@ class PerfAggregator;
 class PerfStats
 {
 public:
-    static constexpr uint64_t SAMPLE_WINDOW = 16;
 
     std::string_view GetName() const { return m_Name; }
 
@@ -65,6 +64,9 @@ class PerfAggregator
 {
 public:
 
+    static constexpr uint64_t kSampleWindow = 16;
+    static constexpr double invSampleWWindow = 1.0 / static_cast<double>(kSampleWindow);
+
     explicit PerfAggregator(const PerfCounter* counter);
 
     const PerfStats& GetStats() const { return m_Stats; }
@@ -83,6 +85,10 @@ public:
     explicit PerfCounter(std::string name);
 
     void Increment(const uint64_t count) { m_Value.fetch_add(count, std::memory_order_relaxed); }
+
+    void Decrement(const uint64_t count) { m_Value.fetch_sub(count, std::memory_order_relaxed); }
+
+    void Set(const uint64_t value) { m_Value.store(value, std::memory_order_relaxed); }
 
     const std::string& GetName() const { return m_Name; }
 

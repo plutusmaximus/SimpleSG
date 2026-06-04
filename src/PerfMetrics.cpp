@@ -13,12 +13,9 @@ namespace
 struct PMGlobals
 {
     static inline std::mutex Mutex;
+    static inline const uint64_t PerfFrequency = SDL_GetPerformanceFrequency();
+    static inline const double InvPerfFrequency = 1.0 / static_cast<double>(PerfFrequency);
 };
-
-inline std::uint64_t GetPerfFrequency()
-{
-    return SDL_GetPerformanceFrequency();
-}
 
 inline std::uint64_t GetPerfTime()
 {
@@ -38,8 +35,6 @@ PerfAggregator::PerfAggregator(const PerfCounter* counter)
 void
 PerfAggregator::Sample()
 {
-    constexpr uint64_t SAMPLE_WINDOW = PerfStats::SAMPLE_WINDOW;
-
     const uint64_t curValue = m_Counter->GetValue();
 
     m_Stats.m_MinValue = std::min(m_Stats.m_MinValue, curValue);
@@ -47,23 +42,22 @@ PerfAggregator::Sample()
 
     const uint64_t delta = curValue - m_Stats.m_LastValue;
 
-    const double deltaDouble = static_cast<double>(delta);
-
     m_Stats.m_LastValue = curValue;
 
-    m_Stats.m_EMA =
-        (m_Stats.m_EMA * (SAMPLE_WINDOW - 1) / SAMPLE_WINDOW) + (deltaDouble / SAMPLE_WINDOW);
+    const double deltaDouble = static_cast<double>(delta);
+
+    m_Stats.m_EMA = ((m_Stats.m_EMA * (kSampleWindow - 1)) + deltaDouble) * invSampleWWindow;
 }
 
 PerfTimerStats::PerfTimerStats(const PerfStats& stats)
     : m_Name(stats.GetName()),
       m_LastValue(
-          static_cast<double>(stats.GetLastValue()) / static_cast<double>(GetPerfFrequency())),
+          static_cast<double>(stats.GetLastValue()) * PMGlobals::InvPerfFrequency),
       m_MinValue(
-          static_cast<double>(stats.GetMinValue()) / static_cast<double>(GetPerfFrequency())),
+          static_cast<double>(stats.GetMinValue()) * PMGlobals::InvPerfFrequency),
       m_MaxValue(
-          static_cast<double>(stats.GetMaxValue()) / static_cast<double>(GetPerfFrequency())),
-      m_EMA(stats.GetEMA() / static_cast<double>(GetPerfFrequency()))
+          static_cast<double>(stats.GetMaxValue()) * PMGlobals::InvPerfFrequency),
+      m_EMA(stats.GetEMA() * PMGlobals::InvPerfFrequency)
 {
 }
 
