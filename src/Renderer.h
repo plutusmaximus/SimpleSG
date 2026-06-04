@@ -8,7 +8,7 @@ class Compositor;
 template<typename T>
 class Mat44;
 using Mat44f = Mat44<float>;
-class Projection;
+class Camera;
 class PropKit;
 class Scene;
 
@@ -31,8 +31,8 @@ public:
 
     Result<> Shutdown();
 
-    Result<> Render(const TrsTransformf& camera,
-        const Projection& projection,
+    Result<> Render(const TrsTransformf& cameraXForm,
+        const Camera& camera,
         const Scene& scene,
         const PropKit& propKit,
         Compositor& compositor);
@@ -52,8 +52,8 @@ private:
     Result<> CreateTransformPipeline();
 
     Result<> TransformNodes(const wgpu::CommandEncoder& cmdEncoder,
-        const TrsTransformf& camera,
-        const Projection& projection,
+        const TrsTransformf& cameraXForm,
+        const Camera& camera,
         const Scene& scene) const;
 
     wgpu::Limits m_GpuLimits;

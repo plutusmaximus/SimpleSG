@@ -46,10 +46,10 @@ private:
     float m_MaxDepth{1.0f};
 };
 
-class Projection
+class Camera
 {
 public:
-    Projection() = default;
+    Camera() = default;
 
     void SetPerspective(const Radiansf fov,
         const float aspectRatio,
@@ -63,11 +63,11 @@ public:
 
     void SetNearClip(const float nearClip);
 
-    float GetNearClip() const { return m_Near; }
+    float GetNearClip() const { return m_NearClip; }
 
     void SetFarClip(const float farClip);
 
-    float GetFarClip() const { return m_Far; }
+    float GetFarClip() const { return m_FarClip; }
 
     void SetAspectRatio(const float aspectRatio);
 
@@ -88,8 +88,8 @@ private:
 
     Radiansf m_Fov{Radiansf::FromDegrees(kDefaultFovDegrees)};
     float m_AspectRatio{kDefaultAspectRatio};
-    float m_Near{ kDefaultNearClip };
-    float m_Far{ kDefaultFarClip };
-    Mat44f m_Proj = Mat44f::PerspectiveLH(m_Fov, m_AspectRatio, m_Near, m_Far);
+    float m_NearClip{ kDefaultNearClip };
+    float m_FarClip{ kDefaultFarClip };
+    Mat44f m_Proj = Mat44f::PerspectiveLH(m_Fov, m_AspectRatio, m_NearClip, m_FarClip);
     Viewport m_Viewport;
 };

@@ -4,7 +4,7 @@
 #include "Level.h"
 #include "Log.h"
 #include "PerfMetrics.h"
-#include "Projection.h"
+#include "Camera.h"
 #include "PropKit.h"
 #include "Renderer.h"
 #include "Scene.h"
@@ -130,7 +130,7 @@ Result<> MainLoop()
 
     TrsTransformf cameraXform;
     cameraXform.T = Vec3f{ 0,0,-4 };
-    Projection projection;
+    Camera camera;
 
     PropKitDef propKitDef;
     LevelDef levelDef;
@@ -239,8 +239,8 @@ Result<> MainLoop()
             static_cast<uint32_t>(screenBounds.Height),
             0,
             1);
-        projection.SetViewport(viewport);
-        projection.SetAspectRatio(viewport.GetAspectRatio());
+        camera.SetViewport(viewport);
+        camera.SetAspectRatio(viewport.GetAspectRatio());
 
         compositor.BeginFrame();
 
@@ -251,7 +251,7 @@ Result<> MainLoop()
         nonGpuWorkTimer.Stop();
 
         auto renderResult = renderer.Render(cameraXform,
-            projection,
+            camera,
             scene,
             propKit,
             compositor);

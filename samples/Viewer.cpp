@@ -5,7 +5,7 @@
 #include "Level.h"
 #include "MouseNav.h"
 #include "PerfMetrics.h"
-#include "Projection.h"
+#include "Camera.h"
 #include "PropKit.h"
 #include "Renderer.h"
 #include "Scene.h"
@@ -150,7 +150,7 @@ MainLoop()
     MLG_CHECK(Load(SPONZA_MODEL_PATH, textureCache, propKit, level, scene));
 
     TrsTransformf trsCamera{ .T{0, 0, -4} };
-    Projection projection;
+    Camera camera;
 
     mouseNav.SetTransform(trsCamera);
 
@@ -295,14 +295,14 @@ MainLoop()
             static_cast<uint32_t>(screenBounds.Height),
             0,
             1);
-        projection.SetViewport(viewport);
-        projection.SetAspectRatio(viewport.GetAspectRatio());
+        camera.SetViewport(viewport);
+        camera.SetAspectRatio(viewport.GetAspectRatio());
         trsCamera = mouseNav.GetTransform();
 
         compositor.BeginFrame();
         imGuiRenderer.NewFrame();
 
-        renderer.Render(trsCamera, projection, scene, propKit, compositor);
+        renderer.Render(trsCamera, camera, scene, propKit, compositor);
 
         RenderGui();
 

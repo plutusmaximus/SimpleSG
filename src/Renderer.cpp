@@ -7,7 +7,7 @@
 #include "PropKit.h"
 #include "narrow_cast.h"
 #include "PerfMetrics.h"
-#include "Projection.h"
+#include "Camera.h"
 #include "Scene.h"
 #include "scope_exit.h"
 #include "ShaderInterop.h"
@@ -106,16 +106,16 @@ Renderer::Shutdown()
 }
 
 Result<>
-Renderer::Render(const TrsTransformf& camera,
-    const Projection& projection,
+Renderer::Render(const TrsTransformf& cameraXForm,
+    const Camera& camera,
     const Scene& scene,
     const PropKit& propKit,
     Compositor& compositor)
 {
     MLG_CHECKV(m_Initialized, "Renderer is not initialized");
 
-    const Viewport& viewport = projection.GetViewport();
-    MLG_CHECKV(viewport.IsValid(), "Projection's viewport is not valid");
+    const Viewport& viewport = camera.GetViewport();
+    MLG_CHECKV(viewport.IsValid(), "Camera's viewport is not valid");
 
     MLG_SCOPED_TIMER("Renderer.Render");
 
@@ -126,7 +126,7 @@ Renderer::Render(const TrsTransformf& camera,
     {
         MLG_SCOPED_TIMER("Renderer.Render.TransformNodes");
 
-        auto transformNodesResult = TransformNodes(cmdEncoder, camera, projection, scene);
+        auto transformNodesResult = TransformNodes(cmdEncoder, cameraXForm, camera, scene);
         MLG_CHECK(transformNodesResult);
     }
 
@@ -736,15 +736,15 @@ Renderer::CreateTransformPipeline()
 
 Result<>
 Renderer::TransformNodes(const wgpu::CommandEncoder& cmdEncoder,
-    const TrsTransformf& camera,
-    const Projection& projection,
+    const TrsTransformf& cameraXForm,
+    const Camera& camera,
     const Scene& scene) const
 {
     const wgpu::Device device = WebgpuHelper::GetDevice();
 
     // Use inverse of camera transform as view matrix
-    const Mat44f viewXform = camera.Inverse();
-    const Mat44f& projMat = projection.GetMatrix();
+    const Mat44f viewXform = cameraXForm.Inverse();
+    const Mat44f& projMat = camera.GetMatrix();
     const Mat44f viewProj = projMat.Mul(viewXform);
 
     const ShaderInterop::CameraParams cameraParams //

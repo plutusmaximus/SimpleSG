@@ -1,4 +1,4 @@
-#include "Projection.h"
+#include "Camera.h"
 
 Viewport::Viewport(const uint32_t x,
     const uint32_t y,
@@ -20,7 +20,7 @@ Viewport::Viewport(const uint32_t x,
 }
 
 void
-Projection::SetPerspective(const Radiansf fov,
+Camera::SetPerspective(const Radiansf fov,
     const float aspectRatio,
     const float nearClip,
     const float farClip,
@@ -36,53 +36,53 @@ Projection::SetPerspective(const Radiansf fov,
 
     m_Fov = fov;
     m_AspectRatio = aspectRatio;
-    m_Near = nearClip;
-    m_Far = farClip;
+    m_NearClip = nearClip;
+    m_FarClip = farClip;
     m_Viewport = viewport;
-    m_Proj = Mat44f::PerspectiveLH(m_Fov, m_AspectRatio, m_Near, m_Far);
+    m_Proj = Mat44f::PerspectiveLH(m_Fov, m_AspectRatio, m_NearClip, m_FarClip);
 }
 
 void
-Projection::SetFov(const Radiansf fov)
+Camera::SetFov(const Radiansf fov)
 {
     MLG_ASSERT(fov.GetValue() > 0 && fov.GetValue() < std::numbers::pi_v<float>,
         "FOV must be between 0 and 180 degrees");
 
     m_Fov = fov;
-    m_Proj = Mat44f::PerspectiveLH(m_Fov, m_AspectRatio, m_Near, m_Far);
+    m_Proj = Mat44f::PerspectiveLH(m_Fov, m_AspectRatio, m_NearClip, m_FarClip);
 }
 
 void
-Projection::SetNearClip(const float nearClip)
+Camera::SetNearClip(const float nearClip)
 {
     MLG_ASSERT(nearClip > 0, "Near clip must be greater than 0");
-    MLG_ASSERT(nearClip < m_Far, "Near clip must be less than far clip");
+    MLG_ASSERT(nearClip < m_FarClip, "Near clip must be less than far clip");
 
-    m_Near = nearClip;
-    m_Proj = Mat44f::PerspectiveLH(m_Fov, m_AspectRatio, m_Near, m_Far);
+    m_NearClip = nearClip;
+    m_Proj = Mat44f::PerspectiveLH(m_Fov, m_AspectRatio, m_NearClip, m_FarClip);
 }
 
 void
-Projection::SetFarClip(const float farClip)
+Camera::SetFarClip(const float farClip)
 {
     MLG_ASSERT(farClip > 0, "Far clip must be greater than 0");
-    MLG_ASSERT(farClip > m_Near, "Far clip must be greater than near clip");
+    MLG_ASSERT(farClip > m_NearClip, "Far clip must be greater than near clip");
 
-    m_Far = farClip;
-    m_Proj = Mat44f::PerspectiveLH(m_Fov, m_AspectRatio, m_Near, m_Far);
+    m_FarClip = farClip;
+    m_Proj = Mat44f::PerspectiveLH(m_Fov, m_AspectRatio, m_NearClip, m_FarClip);
 }
 
 void
-Projection::SetAspectRatio(const float aspectRatio)
+Camera::SetAspectRatio(const float aspectRatio)
 {
     MLG_ASSERT(aspectRatio > 0, "Aspect ratio must be greater than 0");
 
     m_AspectRatio = aspectRatio;
-    m_Proj = Mat44f::PerspectiveLH(m_Fov, m_AspectRatio, m_Near, m_Far);
+    m_Proj = Mat44f::PerspectiveLH(m_Fov, m_AspectRatio, m_NearClip, m_FarClip);
 }
 
 void
-Projection::SetViewport(const Viewport& viewport)
+Camera::SetViewport(const Viewport& viewport)
 {
     MLG_ASSERT(viewport.IsValid(), "Viewport must be valid");
 
@@ -90,7 +90,7 @@ Projection::SetViewport(const Viewport& viewport)
 }
 
 const Mat44f&
-Projection::GetMatrix() const
+Camera::GetMatrix() const
 {
     return m_Proj;
 }
