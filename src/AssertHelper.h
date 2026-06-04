@@ -17,10 +17,16 @@ struct AssertData
 // IOW it must be declared static at file scope.
 // If not static then different TUs could have access
 // to the same assert data.
-template<int UNIQUE_ID>
-static inline AssertHelper::AssertData& GetAssertData()
+//
+// DO NOT REMOVE THE static decl!!!
+template<int UNIQUE_ID, size_t N>
+static AssertHelper::AssertData& GetAssertData(const char(&expression)[N])
 {
-    static AssertHelper::AssertData assertData{};
+    // Store a copy of the expression in a static buffer
+    // to guarantee it's lifetime.
+    static char expr[N];
+    static const bool copied = std::copy_n(expression, N, expr) == (expr + N);
+    static AssertHelper::AssertData assertData{ false, 0, expr, NULL, 0, NULL, NULL };
     return assertData;
 }
 
@@ -84,7 +90,7 @@ static bool Log(AssertHelper::AssertData& assertData,
     MLG_CLANG_DIAG_PUSH \
     MLG_CLANG_DIAG_IGNORE_C2Y_EXTENSIONS \
     (static_cast<bool>(expr) || \
-        (AssertHelper::Log(AssertHelper::GetAssertData<__COUNTER__>(),#expr, SDL_FUNCTION, SDL_ASSERT_FILE, SDL_LINE __VA_OPT__(, ) __VA_ARGS__) \
+        (AssertHelper::Log(AssertHelper::GetAssertData<__COUNTER__>(#expr),#expr, SDL_FUNCTION, SDL_ASSERT_FILE, SDL_LINE __VA_OPT__(, ) __VA_ARGS__) \
             ? (SDL_AssertBreakpoint(), false) : false)) \
     MLG_CLANG_DIAG_POP
 
