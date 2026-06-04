@@ -13,6 +13,8 @@ using scope_exit = std::scope_exit<F>;
 #include <type_traits>
 #include <utility>
 
+namespace
+{
 template<typename F>
 concept IsCallableWithNoArgs = std::invocable<F>;
 
@@ -21,6 +23,7 @@ concept ReturnsVoid = std::same_as<std::invoke_result_t<F>, void>;
 
 template<typename F>
 concept CleanupFunc = IsCallableWithNoArgs<F> && ReturnsVoid<F>;
+} // namespace
 
 /// @brief A scope guard that executes a provided callable when it goes out of scope.
 /// This is a replacement for std::scope_exit in case it's not available.
@@ -74,7 +77,9 @@ scope_exit(F) -> scope_exit<F>;
 #define MLG_SCOPE_EXIT_CAT_1(a, b) a##b
 #define MLG_SCOPE_EXIT_CAT(a, b) MLG_SCOPE_EXIT_CAT_1(a, b)
 
-struct defer_tag
+namespace
+{
+struct DeferTag
 {
 };
 
@@ -82,13 +87,14 @@ struct defer_tag
 // It basically enables the syntax of "defer { ... }".
 template<class F>
 auto
-operator+(defer_tag, F&& f)
+operator+(DeferTag, F&& f)
 {
     return scope_exit(std::forward<F>(f));
 }
+} // namespace
 
-#define defer \
-    const auto MLG_SCOPE_EXIT_CAT(_defer_, __LINE__) = defer_tag{} + [&]()
+#define MLG_DEFER \
+    const auto MLG_SCOPE_EXIT_CAT(_defer_, __LINE__) = DeferTag{} + [&]()
 
 // NOLINTNEXTLINE(bugprone-macro-parentheses)
-#define defer_as(name) auto name = defer_tag{} + [&]()
+#define MLG_DEFER_AS(name) auto name = DeferTag{} + [&]()
