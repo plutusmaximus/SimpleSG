@@ -258,7 +258,7 @@ set(SSG_SOURCES
   src/Log.cpp
   src/PerfMetrics.cpp
   src/PhysicsLevel.cpp
-  src/Projection.cpp
+  src/Camera.cpp
   src/PropKit.cpp
   src/Renderer.cpp
   src/Scene.cpp
@@ -284,7 +284,7 @@ set(SSG_HEADERS
   src/PhysicsTypes.h
   src/PerfMetrics.h
   src/PhysicsLevel.h
-  src/Projection.h
+  src/Camera.h
   src/PropKit.h
   src/Renderer.h
   src/Result.h
