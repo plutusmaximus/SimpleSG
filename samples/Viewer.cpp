@@ -79,8 +79,8 @@ Result<> RenderGui()
 
     constexpr size_t kMaxTimers = 256;
 
-    PerfTimerStats timerStats[kMaxTimers];
-    std::span<PerfTimerStats> timerStatsSpan(timerStats);
+    PerfStats timerStats[kMaxTimers];
+    std::span<PerfStats> timerStatsSpan(timerStats);
     const size_t timerCount = PerfMetrics::SampleTimers(timerStatsSpan);
     for(const auto& timerStat : timerStatsSpan.first(timerCount))
     {

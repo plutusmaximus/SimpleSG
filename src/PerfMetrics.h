@@ -18,32 +18,6 @@ public:
 
     std::string_view GetName() const { return m_Name; }
 
-    uint64_t GetLastValue() const { return m_LastValue; }
-    uint64_t GetMinValue() const { return m_MinValue; }
-    uint64_t GetMaxValue() const { return m_MaxValue; }
-    double GetEMA() const { return m_EMA; }
-
-private:
-
-    friend PerfAggregator;
-
-    std::string_view m_Name;
-    uint64_t m_LastValue{ 0 };
-    uint64_t m_MinValue{ std::numeric_limits<uint64_t>::max() };
-    uint64_t m_MaxValue{ 0 };
-    double m_EMA{ 0 }; // Exponential moving average of counter value, updated on each Sample().
-};
-
-class PerfTimerStats
-{
-public:
-
-    PerfTimerStats() = default;
-
-    explicit PerfTimerStats(const PerfStats& stats);
-
-    std::string_view GetName() const { return m_Name; }
-
     double GetLastValue() const { return m_LastValue; }
     double GetMinValue() const { return m_MinValue; }
     double GetMaxValue() const { return m_MaxValue; }
@@ -55,17 +29,17 @@ private:
 
     std::string_view m_Name;
     double m_LastValue{ 0 };
-    double m_MinValue{ 0 };
+    double m_MinValue{ std::numeric_limits<double>::max() };
     double m_MaxValue{ 0 };
-    double m_EMA{ 0 };
+    double m_EMA{ 0 }; // Exponential moving average of counter value, updated on each Sample().
 };
 
 class PerfAggregator
 {
 public:
 
-    static constexpr uint64_t kSampleWindow = 16;
-    static constexpr double invSampleWWindow = 1.0 / static_cast<double>(kSampleWindow);
+    static constexpr uint64_t kSampleWindowSize = 16;
+    static constexpr double invSampleWindowSize = 1.0 / static_cast<double>(kSampleWindowSize);
 
     explicit PerfAggregator(const PerfCounter* counter);
 
@@ -84,15 +58,15 @@ class PerfCounter
 public:
     explicit PerfCounter(std::string name);
 
-    void Increment(const uint64_t count) { m_Value.fetch_add(count, std::memory_order_relaxed); }
+    void Increment(const double count) { m_Value.fetch_add(count, std::memory_order_relaxed); }
 
-    void Decrement(const uint64_t count) { m_Value.fetch_sub(count, std::memory_order_relaxed); }
+    void Decrement(const double count) { m_Value.fetch_sub(count, std::memory_order_relaxed); }
 
-    void Set(const uint64_t value) { m_Value.store(value, std::memory_order_relaxed); }
+    void Set(const double value) { m_Value.store(value, std::memory_order_relaxed); }
 
     const std::string& GetName() const { return m_Name; }
 
-    uint64_t GetValue() const { return m_Value.load(std::memory_order_relaxed); }
+    double GetValue() const { return m_Value.load(std::memory_order_relaxed); }
 
 private:
 
@@ -101,7 +75,7 @@ private:
     inlist_node<PerfCounter> m_ListNode;
 
     std::string m_Name;
-    std::atomic<uint64_t> m_Value{ 0 };
+    std::atomic<double> m_Value{ 0 };
     PerfAggregator m_Aggregator;
 };
 
@@ -144,7 +118,7 @@ public:
 
     /// @brief Gets the recorded timers. The caller should provide a buffer of sufficient size based
     /// on GetTimerCount().
-    static size_t SampleTimers(std::span<PerfTimerStats>& outStats);
+    static size_t SampleTimers(std::span<PerfStats>& outStats);
 
     /// @brief Logs all timers to log output.
     static void LogTimers();
