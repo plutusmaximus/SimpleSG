@@ -13,7 +13,6 @@
 #include "ShaderInterop.h"
 #include "WebgpuHelper.h"
 
-#include <SDL3/SDL.h>
 #include <thread>
 
 static constexpr const char* kPresentShader = "shaders/PresentShader.wgsl";
@@ -292,13 +291,6 @@ Renderer::BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder)
 
     wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
     MLG_CHECK(renderPass, "Failed to begin render pass");
-
-    //DO NOT SUBMIT
-    /*const SDL_GPUViewport viewport
-    {
-        0, 0, static_cast<float>(targetWidth), static_cast<float>(targetHeight), 0, CLEAR_DEPTH
-    };
-    SDL_SetGPUViewport(renderPass, &viewport);*/
 
     return renderPass;
 }

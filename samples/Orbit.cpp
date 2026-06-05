@@ -20,7 +20,7 @@
 #include <imgui_internal.h>
 #include <imgui_impl_sdl3.h>
 #include <random>
-#include <SDL3/SDL.h>
+#include <SDL3/SDL_events.h>
 #include <SDL3/SDL_mouse.h>
 #include <thread>
 
