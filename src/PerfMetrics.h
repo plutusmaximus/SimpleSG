@@ -2,6 +2,7 @@
 
 #include "inlist.h"
 #include "scope_exit.h"
+#include "Timer.h"
 
 #include <atomic>
 #include <span>
@@ -170,7 +171,7 @@ public:
 private:
 
     PerfCounter& m_Counter;
-    uint64_t m_StartTime{ 0 };
+    Timer m_Timer;
 };
 
 class PerfMetrics final

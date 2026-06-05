@@ -6,21 +6,12 @@
 
 #include <mutex>
 
-#include <SDL3/SDL.h>
-
 namespace
 {
 struct PMGlobals
 {
     static inline std::mutex Mutex;
-    static inline const uint64_t PerfFrequency = SDL_GetPerformanceFrequency();
-    static inline const double InvPerfFrequency = 1.0 / static_cast<double>(PerfFrequency);
 };
-
-inline std::uint64_t GetPerfTime()
-{
-    return SDL_GetPerformanceCounter();
-}
 } // namespace
 
 inlist<PerfCounter, &PerfCounter::m_ListNode> PerfMetrics::m_Counters;
@@ -87,7 +78,7 @@ PerfCounter::ApplySamplePolicy()
 void
 PerfTimer::Start()
 {
-    m_StartTime = GetPerfTime();
+    m_Timer.Start();
 }
 
 void
@@ -95,9 +86,11 @@ PerfTimer::Stop()
 {
     constexpr float kMsPerSecond = 1000.0f;
 
-    const uint64_t elapsed = GetPerfTime() - m_StartTime;
+    m_Timer.Stop();
 
-    m_Counter.Increment(static_cast<double>(elapsed) * PMGlobals::InvPerfFrequency * kMsPerSecond);
+    const double elapsed = m_Timer.GetElapsedSeconds();
+
+    m_Counter.Increment(elapsed * kMsPerSecond);
 }
 
 size_t

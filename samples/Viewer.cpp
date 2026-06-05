@@ -154,19 +154,16 @@ MainLoop()
 
     mouseNav.SetTransform(trsCamera);
 
-    uint64_t frameBeginTicks = SDL_GetTicksNS();
-
     bool mouseCaptured = true;
     SDL_SetWindowRelativeMouseMode(WebgpuHelper::GetWindow(), mouseCaptured);
+
+    Timer frameTimer;
 
     while(running)
     {
         MLG_SCOPED_TIMER("Frame");
 
-        const uint64_t curTicksNs = SDL_GetTicksNS();
-        const uint64_t elapsedTicksNs = curTicksNs - frameBeginTicks;
-        const float elapsedSeconds = SDL_NS_TO_SECONDS(static_cast<float>(elapsedTicksNs));
-        frameBeginTicks = curTicksNs;
+        frameTimer.Restart();
 
         SDL_Event event;
 
@@ -286,7 +283,7 @@ MainLoop()
             scene = std::move(newScene);
         }
 
-        mouseNav.Update(elapsedSeconds);
+        mouseNav.Update(frameTimer.GetElapsedSeconds());
 
         const Extent screenBounds = WebgpuHelper::GetScreenBounds();
         Viewport viewport(0,

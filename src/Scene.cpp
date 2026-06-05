@@ -4,7 +4,7 @@
 
 #include "Level.h"
 #include "PropKit.h"
-#include "Stopwatch.h"
+#include "Timer.h"
 
 namespace
 {
@@ -312,8 +312,8 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
 Result<>
 Scene::Create(const Level& level, const PropKit& propKit, Scene& outScene)
 {
-    Stopwatch createTimer;
-    createTimer.Mark();
+    Timer createTimer;
+    createTimer.Start();
 
     std::vector<Level::NodeHandle> nodeHandles;
     std::vector<ShaderInterop::WorldTransform> worldTransforms;
@@ -371,7 +371,7 @@ Scene::Create(const Level& level, const PropKit& propKit, Scene& outScene)
 
     outScene = std::move(scene);
 
-    MLG_INFO("Scene created in {} ms", createTimer.ElapsedSeconds() * 1000);
+    MLG_INFO("Scene created in {} ms", createTimer.GetElapsedSeconds() * 1000);
 
     return Result<>::Ok;
 }

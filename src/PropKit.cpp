@@ -8,7 +8,7 @@
 #include "Log.h"
 #include "narrow_cast.h"
 #include "scope_exit.h"
-#include "Stopwatch.h"
+#include "Timer.h"
 #include "TextureCache.h"
 #include "ThreadPool.h"
 #include "WebgpuHelper.h"
@@ -374,8 +374,8 @@ PropKit::Create(const std::filesystem::path& rootPath,
     const PropKitDef& propKitDef,
     PropKit& outPropKit)
 {
-    Stopwatch createTimer;
-    createTimer.Mark();
+    Timer createTimer;
+    createTimer.Start();
 
     size_t vertexCount = 0, indexCount = 0, meshCount = 0, totalStringSize = 0;
     uint32_t materialIndex = 0;
@@ -481,7 +481,7 @@ PropKit::Create(const std::filesystem::path& rootPath,
 
     outPropKit = std::move(propKit);
 
-    MLG_INFO("PropKit created in {} ms", createTimer.ElapsedSeconds() * 1000);
+    MLG_INFO("PropKit created in {} ms", createTimer.GetElapsedSeconds() * 1000);
 
     return Result<>::Ok;
 }
