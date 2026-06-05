@@ -51,7 +51,7 @@ TextureCache::Startup()
         .mipmapFilter = wgpu::MipmapFilterMode::Linear,
     };
 
-    m_DefaultTexture = *defaultTexture;
+    m_DefaultTexture = std::move(*defaultTexture);
     m_DefaultSampler = WebgpuHelper::GetDevice().CreateSampler(&samplerDesc);
 
     return Result<>::Ok;
@@ -61,8 +61,8 @@ Result<>
 TextureCache::Shutdown()
 {
     Clear();
-    m_DefaultTexture = nullptr;
-    m_DefaultSampler = nullptr;
+    m_DefaultTexture = {};
+    m_DefaultSampler = {};
     m_Initialized = false;
     return Result<>::Ok;
 }

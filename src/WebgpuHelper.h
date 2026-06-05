@@ -25,20 +25,22 @@ using RgbaColoru8 = RgbaColor<uint8_t>;
 // textures is Queue::WriteTexture howerver Queue::WriteTexture contains a bunch of validation and
 // is slow compared to using a staging buffer and CopyBufferToTexture.
 
-class Texture : private wgpu::Texture
+class Texture
 {
 public:
 
-    using wgpu::Texture::Texture;
-    using wgpu::Texture::GetWidth;
-    using wgpu::Texture::GetHeight;
-    using wgpu::Texture::GetFormat;
-    using wgpu::Texture::GetUsage;
-    using wgpu::Texture::CreateView;
-    using wgpu::Texture::operator bool;
+    Texture() = delete;
+    Texture(const Texture&) = default;
+    Texture& operator=(const Texture&) = delete;
+    Texture(Texture&&) = default;
+    Texture& operator=(Texture&&) = default;
 
-    wgpu::Texture& GetGpuTexture() { return *this; }
-    const wgpu::Texture& GetGpuTexture() const { return *this; }
+    uint32_t GetWidth() const { return GetGpuTexture().GetWidth(); }
+    uint32_t GetHeight() const { return GetGpuTexture().GetHeight(); }
+    wgpu::TextureFormat GetFormat() const { return GetGpuTexture().GetFormat(); }
+    explicit operator bool() const { return static_cast<bool>(m_GpuTexture); }
+
+    const wgpu::Texture& GetGpuTexture() const { return m_GpuTexture; }
 
     // Row stride is the number of bytes between the start of one row of pixels and the start of the
     // next row. For optimal performance, rows must be aligned to 256 bytes, so we round up to the
@@ -51,16 +53,13 @@ public:
 
     Result<> Unmap(const wgpu::CommandEncoder& cmdEncoder);
 
-protected:
-    friend class WebgpuHelper;
-
-    explicit Texture(wgpu::Texture texture)
-        : wgpu::Texture(std::move(texture))
-    {
-    }
-
 private:
 
+    friend class WebgpuHelper;
+
+    explicit Texture(wgpu::Texture texture);
+
+    wgpu::Texture m_GpuTexture;
     wgpu::Buffer m_StagingBuffer;
 };
 

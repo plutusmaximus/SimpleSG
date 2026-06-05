@@ -611,9 +611,9 @@ WebgpuHelper::CreateTexture(const unsigned width, const unsigned height, const s
             .sampleCount = 1,
         };
 
-    const wgpu::Texture texture = GetDevice().CreateTexture(&desc);
+    wgpu::Texture texture = GetDevice().CreateTexture(&desc);
 
-    return Texture(texture);
+    return Texture(std::move(texture));
 }
 
 Result<wgpu::Sampler>
@@ -1063,6 +1063,11 @@ DumpWebgpuLimits(const wgpu::Device& device)
 
 //////////////////////////////////////////////
 
+Texture::Texture(wgpu::Texture texture)
+    : m_GpuTexture(std::move(texture))
+{
+}
+
 size_t
 Texture::GetRowStride() const
 {
@@ -1072,7 +1077,7 @@ Texture::GetRowStride() const
 Result<std::span<std::byte>>
 Texture::MapBytes()
 {
-    MLG_CHECKV(m_StagingBuffer == nullptr, "Texture::MapBytes called while already mapped");
+    MLG_CHECKV(!m_StagingBuffer, "Texture::MapBytes called while already mapped");
 
     // Staging buffer rows must be a multiple of 256 bytes.
     const uint32_t alignedRowStride = GetTextureAlignedRowStride(this->GetWidth());
@@ -1166,7 +1171,7 @@ Texture::Unmap(const wgpu::CommandEncoder& cmdEncoder)
 
     cmdEncoder.CopyBufferToTexture(&copySrc, &copyDst, &copySize);
 
-    m_StagingBuffer = nullptr;
+    m_StagingBuffer = {};
 
     return Result<>::Ok;
 }

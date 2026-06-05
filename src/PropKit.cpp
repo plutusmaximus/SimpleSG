@@ -75,20 +75,20 @@ public:
 
         MLG_DEFER{ stbi_image_free(data); };
 
-        MLG_CHECKV(builder.Texture.GetWidth() == static_cast<uint32_t>(imgWidth) &&
-                       builder.Texture.GetHeight() == static_cast<uint32_t>(imgHeight),
+        MLG_CHECKV(builder.Texture->GetWidth() == static_cast<uint32_t>(imgWidth) &&
+                       builder.Texture->GetHeight() == static_cast<uint32_t>(imgHeight),
             "Decoded image dimensions do not match texture dimensions - {}",
             builder.Uri);
 
-        MLG_CHECKV(builder.Texture.GetFormat() == wgpu::TextureFormat::RGBA8Unorm,
+        MLG_CHECKV(builder.Texture->GetFormat() == wgpu::TextureFormat::RGBA8Unorm,
             "Texture format does not match expected format - {}",
             builder.Uri);
 
         const size_t sizeofData = static_cast<size_t>(imgWidth) * static_cast<size_t>(imgHeight) *
                                   static_cast<size_t>(kNumTextureChannels);
 
-        const size_t expectedSize = static_cast<size_t>(builder.Texture.GetWidth()) *
-                                                    static_cast<size_t>(builder.Texture.GetHeight()) *
+        const size_t expectedSize = static_cast<size_t>(builder.Texture->GetWidth()) *
+                                                    static_cast<size_t>(builder.Texture->GetHeight()) *
                                                     static_cast<size_t>(kNumTextureChannels);
 
         MLG_CHECKV(sizeofData == expectedSize,
@@ -110,7 +110,7 @@ public:
 
     std::string Uri;
     const FileFetcher::Request* Request{ nullptr };
-    Texture Texture;
+    Result<Texture> Texture;
     std::byte* MappedMemory{ nullptr };
     Result<> DecodeResult;
 
@@ -149,7 +149,7 @@ StageTexture(TextureBuilder& builder)
     auto mapped = texture->MapBytes();
     MLG_CHECK(mapped);
 
-    builder.Texture = *texture;
+    builder.Texture = std::move(*texture);
     builder.MappedMemory = mapped->data();
 
     auto decode = [](void* userData)
@@ -211,10 +211,6 @@ FetchTextures(const std::filesystem::path& basePath,
         }
 
         MLG_LOG_SCOPE(mtl.BaseTextureUri);
-
-        // Set the default texture for this URI in the cache so that if the fetch or subsequent
-        // staging fails we will have a valid texture to use.
-        textureCache.AddOrReplace(mtl.BaseTextureUri, textureCache.GetDefaultTexture());
 
         auto requestRecPtr = std::make_unique<RequestRecord>(mtl.BaseTextureUri,
             (basePath / mtl.BaseTextureUri).string());
@@ -291,8 +287,8 @@ FetchTextures(const std::filesystem::path& basePath,
             continue;
         }
 
-        builder.Texture.Unmap(encoder);
-        textureCache.AddOrReplace(builder.Uri, builder.Texture);
+        builder.Texture->Unmap(encoder);
+        textureCache.AddOrReplace(builder.Uri, std::move(*builder.Texture));
     }
 
     return Result<>::Ok;
@@ -312,7 +308,7 @@ CreateMaterialBindGroups(const std::span<const MaterialDef> materialDefs,
 
     for(const auto& mtlDef : materialDefs)
     {
-        const Texture baseTexture =
+        const Texture& baseTexture =
             mtlDef.BaseTextureUri.empty()
                 ? textureCache.GetDefaultTexture()
                 : textureCache.Get(mtlDef.BaseTextureUri);
@@ -321,7 +317,7 @@ CreateMaterialBindGroups(const std::span<const MaterialDef> materialDefs,
         {
             {
                 .binding = 0,
-                .textureView = baseTexture.CreateView(),
+                .textureView = baseTexture.GetGpuTexture().CreateView(),
             },
             {
                 .binding = 1,

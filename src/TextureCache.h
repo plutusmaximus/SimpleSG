@@ -27,22 +27,18 @@ public:
 
     void AddOrReplace(const std::string& uri, Texture&& texture)
     {
-        m_Textures[uri] = std::move(texture);
-    }
-
-    void AddOrReplace(const std::string& uri, const Texture& texture)
-    {
-        m_Textures[uri] = texture;
-    }
-
-    Texture& Get(const std::string& uri)
-    {
-        return m_Textures[uri];
+        m_Textures.emplace(uri, std::move(texture));
     }
 
     const Texture& Get(const std::string& uri) const
     {
-        return m_Textures.at(uri);
+        auto it = m_Textures.find(uri);
+        if(m_Textures.end() == it)
+        {
+            MLG_ERROR("TextureCache does not contain a texture with URI: {}", uri);
+            return GetDefaultTexture();
+        }
+        return it->second;
     }
 
     void Clear()
@@ -50,9 +46,7 @@ public:
         m_Textures.clear();
     }
 
-    Texture& GetDefaultTexture() { return m_DefaultTexture; }
-    const Texture& GetDefaultTexture() const { return m_DefaultTexture; }
-    wgpu::Sampler& GetDefaultSampler() { return m_DefaultSampler; }
+    const Texture& GetDefaultTexture() const { return *m_DefaultTexture; }
     const wgpu::Sampler& GetDefaultSampler() const { return m_DefaultSampler; }
 
 private:
@@ -60,7 +54,7 @@ private:
     std::unordered_map<std::string, Texture> m_Textures;
 
     wgpu::Sampler m_DefaultSampler;
-    Texture m_DefaultTexture;
+    Result<Texture> m_DefaultTexture;
 
     bool m_Initialized{ false };
 };

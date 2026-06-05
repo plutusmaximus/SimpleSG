@@ -235,11 +235,11 @@ Renderer::Render(const TrsTransformf& cameraXForm,
 
     renderPass.End();
 
-    /*{
+    {
         MLG_SCOPED_TIMER("Renderer.Render.Present");
         auto presentResult = Present(compositor);
         MLG_CHECK(presentResult);
-    }*/
+    }
 
     return Result<>::Ok;
 }
