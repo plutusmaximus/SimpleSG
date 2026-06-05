@@ -187,53 +187,52 @@ Renderer::Render(const TrsTransformf& cameraXForm,
             propKit.GetIndexBuffer().BufferSize());
     }
 
-    static PerfTimer drawTimer("Renderer.Render.Draw");
-    drawTimer.Start();
-
-    uint64_t indirectOffset = 0;
-
-    const auto& materialBindGroups = propKit.GetMaterialBindGroups();
-    const auto& meshes = propKit.GetMeshes();
-    const auto& models = propKit.GetModels();
-    const auto& modelInstances = scene.GetModelInstances();
-    const auto& drawIndirectBuffer = scene.GetDrawIndirectBuffer();
-
-    MaterialIndex lastMaterialIndex = MaterialIndex::INVALID;
-
-    for(const auto& modelInstance : modelInstances)
     {
-        const Model& model = models[modelInstance.GetModelIndex().Value()];
+        MLG_SCOPED_TIMER("Renderer.Render.Draw")
 
-        if(!modelInstance.IsVisible())
+        uint64_t indirectOffset = 0;
+
+        const auto& materialBindGroups = propKit.GetMaterialBindGroups();
+        const auto& meshes = propKit.GetMeshes();
+        const auto& models = propKit.GetModels();
+        const auto& modelInstances = scene.GetModelInstances();
+        const auto& drawIndirectBuffer = scene.GetDrawIndirectBuffer();
+
+        MaterialIndex lastMaterialIndex = MaterialIndex::INVALID;
+
+        for(const auto& modelInstance : modelInstances)
         {
-            indirectOffset += model.MeshCount * sizeof(ShaderInterop::DrawIndirectParams);
-            continue;
-        }
+            const Model& model = models[modelInstance.GetModelIndex().Value()];
 
-        for(uint32_t i = 0; i < model.MeshCount; ++i)
-        {
-            const Mesh& mesh = meshes[model.FirstMesh.Value() + i];
-
-            const MaterialIndex materialIndex = mesh.MaterialIndex;
-
-            if(materialIndex != lastMaterialIndex)
+            if(!modelInstance.IsVisible())
             {
-                MLG_SCOPED_TIMER("Renderer.Render.Draw.SetMaterialBindGroup");
-
-                renderPass.SetBindGroup(1, materialBindGroups[materialIndex.Value()], 0, nullptr);
-                lastMaterialIndex = materialIndex;
+                indirectOffset += model.MeshCount * sizeof(ShaderInterop::DrawIndirectParams);
+                continue;
             }
 
+            for(uint32_t i = 0; i < model.MeshCount; ++i)
             {
-                MLG_SCOPED_TIMER("Renderer.Render.Draw.DrawIndexed");
+                const Mesh& mesh = meshes[model.FirstMesh.Value() + i];
 
-                renderPass.DrawIndexedIndirect(drawIndirectBuffer.GetGpuBuffer(), indirectOffset);
-                indirectOffset += sizeof(ShaderInterop::DrawIndirectParams);
+                const MaterialIndex materialIndex = mesh.MaterialIndex;
+
+                if(materialIndex != lastMaterialIndex)
+                {
+                    MLG_SCOPED_TIMER("Renderer.Render.Draw.SetMaterialBindGroup");
+
+                    renderPass.SetBindGroup(1, materialBindGroups[materialIndex.Value()], 0, nullptr);
+                    lastMaterialIndex = materialIndex;
+                }
+
+                {
+                    MLG_SCOPED_TIMER("Renderer.Render.Draw.DrawIndexed");
+
+                    renderPass.DrawIndexedIndirect(drawIndirectBuffer.GetGpuBuffer(), indirectOffset);
+                    indirectOffset += sizeof(ShaderInterop::DrawIndirectParams);
+                }
             }
         }
     }
-
-    drawTimer.Stop();
 
     renderPass.End();
 

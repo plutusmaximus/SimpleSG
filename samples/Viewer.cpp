@@ -72,20 +72,20 @@ Result<> RenderGui()
 
     constexpr const char* backend = "Dawn";
 
-    auto title = std::format("Timers: {}/{}", buildType, backend);
+    auto title = std::format("Counters: {}/{}", buildType, backend);
 
     ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
     ImGui::Begin(title.c_str());
 
-    constexpr size_t kMaxTimers = 256;
+    constexpr size_t kMaxPerfStats = 256;
 
-    PerfStats timerStats[kMaxTimers];
-    std::span<PerfStats> timerStatsSpan(timerStats);
-    const size_t timerCount = PerfMetrics::SampleTimers(timerStatsSpan);
-    for(const auto& timerStat : timerStatsSpan.first(timerCount))
+    PerfStats perfStats[kMaxPerfStats];
+    std::span<PerfStats> perfStatsSpan(perfStats);
+    const size_t counterCount = PerfMetrics::SampleCounters(perfStatsSpan);
+    for(const auto& counterStat : perfStatsSpan.first(counterCount))
     {
         const std::string text =
-            std::format("{}: {:.3f} ms", timerStat.GetName(), timerStat.GetEMA() * 1000.0f);
+            std::format("{}: {:.3f} ms", counterStat.GetName(), counterStat.GetEMA());
         ImGui::TextUnformatted(text.c_str());
     }
 
@@ -321,7 +321,7 @@ MainLoop()
     MLG_CHECK(imGuiRenderer.Shutdown());
     MLG_CHECK(renderer.Shutdown());
 
-    PerfMetrics::LogTimers();
+    PerfMetrics::LogCounters();
 
     return Result<>::Ok;
 }

@@ -26,17 +26,17 @@ constexpr const char* kAppName = "Triangle";
 Result<> RenderGui()
 {
     ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
-    ImGui::Begin("Timers");
+    ImGui::Begin("Counters");
 
-    constexpr size_t kMaxTimers = 256;
+    constexpr size_t kMaxPerfStats = 256;
 
-    PerfStats timerStats[kMaxTimers];
-    std::span<PerfStats> timerStatsSpan(timerStats);
-    const size_t timerCount = PerfMetrics::SampleTimers(timerStatsSpan);
-    for(const auto& timerStat : timerStatsSpan.first(timerCount))
+    PerfStats perfStats[kMaxPerfStats];
+    std::span<PerfStats> perfStatsSpan(perfStats);
+    const size_t counterCount = PerfMetrics::SampleCounters(perfStatsSpan);
+    for(const auto& counterStat : perfStatsSpan.first(counterCount))
     {
         const std::string text =
-            std::format("{}: {:.3f} ms", timerStat.GetName(), timerStat.GetEMA() * 1000.0f);
+            std::format("{}: {:.3f} ms", counterStat.GetName(), counterStat.GetEMA());
         ImGui::Text("%s", text.c_str()); // NOLINT(cppcoreguidelines-pro-type-vararg)
     }
 
@@ -160,95 +160,93 @@ Result<> MainLoop()
 
     while(running)
     {
-        static PerfTimer frameTimer("Frame");
-        frameTimer.Start();
+        MLG_SCOPED_TIMER("Frame");
 
-        static PerfTimer nonGpuWorkTimer("Non-GPU Work");
-        nonGpuWorkTimer.Start();
-
-        SDL_Event event;
-
-        while(minimized && running && SDL_PollEvent(&event))
         {
-            switch(event.type)
+            MLG_SCOPED_TIMER("Non-GPU Work");
+
+            SDL_Event event;
+
+            while(minimized && running && SDL_PollEvent(&event))
             {
-                case SDL_EVENT_WINDOW_RESTORED:
-                case SDL_EVENT_WINDOW_MAXIMIZED:
-                    minimized = false;
+                switch(event.type)
+                {
+                    case SDL_EVENT_WINDOW_RESTORED:
+                    case SDL_EVENT_WINDOW_MAXIMIZED:
+                        minimized = false;
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+
+            if(minimized)
+            {
+                std::this_thread::yield();
+                continue;
+            }
+
+            while(!minimized && running && SDL_PollEvent(&event))
+            {
+                ImGui_ImplSDL3_ProcessEvent(&event);
+
+                switch (event.type)
+                {
+                case SDL_EVENT_QUIT:
+                    running = false;
                     break;
+
+                //case SDL_EVENT_WINDOW_RESIZED:
+                case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+                    {
+                        const uint32_t newWidth = static_cast<uint32_t>(event.window.data1);
+                        const uint32_t newHeight = static_cast<uint32_t>(event.window.data2);
+                        WebgpuHelper::Resize(newWidth, newHeight);
+                    }
+                    break;
+
+                case SDL_EVENT_WINDOW_MINIMIZED:
+                    minimized = true;
+                    break;
+
+                /*case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+                case SDL_EVENT_WINDOW_FOCUS_GAINED:
+                case SDL_EVENT_WINDOW_FOCUS_LOST:
+                case SDL_EVENT_MOUSE_MOTION:
+                case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                case SDL_EVENT_MOUSE_BUTTON_UP:
+                case SDL_EVENT_MOUSE_WHEEL:
+                case SDL_EVENT_KEY_DOWN:
+                case SDL_EVENT_KEY_UP:
+                    break;*/
 
                 default:
                     break;
-            }
-        }
-
-        if(minimized)
-        {
-            std::this_thread::yield();
-            continue;
-        }
-
-        while(!minimized && running && SDL_PollEvent(&event))
-        {
-            ImGui_ImplSDL3_ProcessEvent(&event);
-
-            switch (event.type)
-            {
-            case SDL_EVENT_QUIT:
-                running = false;
-                break;
-
-            //case SDL_EVENT_WINDOW_RESIZED:
-            case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-                {
-                    const uint32_t newWidth = static_cast<uint32_t>(event.window.data1);
-                    const uint32_t newHeight = static_cast<uint32_t>(event.window.data2);
-                    WebgpuHelper::Resize(newWidth, newHeight);
                 }
-                break;
-
-            case SDL_EVENT_WINDOW_MINIMIZED:
-                minimized = true;
-                break;
-
-            /*case SDL_EVENT_WINDOW_MOUSE_LEAVE:
-            case SDL_EVENT_WINDOW_FOCUS_GAINED:
-            case SDL_EVENT_WINDOW_FOCUS_LOST:
-            case SDL_EVENT_MOUSE_MOTION:
-            case SDL_EVENT_MOUSE_BUTTON_DOWN:
-            case SDL_EVENT_MOUSE_BUTTON_UP:
-            case SDL_EVENT_MOUSE_WHEEL:
-            case SDL_EVENT_KEY_DOWN:
-            case SDL_EVENT_KEY_UP:
-                break;*/
-
-            default:
-                break;
             }
+
+            if(minimized || !running)
+            {
+                continue;
+            }
+
+            const Extent screenBounds = WebgpuHelper::GetScreenBounds();
+            Viewport viewport(0,
+                0,
+                static_cast<uint32_t>(screenBounds.Width),
+                static_cast<uint32_t>(screenBounds.Height),
+                0,
+                1);
+            camera.SetViewport(viewport);
+            camera.SetAspectRatio(viewport.GetAspectRatio());
+
+            compositor.BeginFrame();
+
+            imGuiRenderer.NewFrame();
+
+            RenderGui();
         }
-
-        if(minimized || !running)
-        {
-            continue;
-        }
-
-        const Extent screenBounds = WebgpuHelper::GetScreenBounds();
-        Viewport viewport(0,
-            0,
-            static_cast<uint32_t>(screenBounds.Width),
-            static_cast<uint32_t>(screenBounds.Height),
-            0,
-            1);
-        camera.SetViewport(viewport);
-        camera.SetAspectRatio(viewport.GetAspectRatio());
-
-        compositor.BeginFrame();
-
-        imGuiRenderer.NewFrame();
-
-        RenderGui();
-
-        nonGpuWorkTimer.Stop();
 
         auto renderResult = renderer.Render(cameraXform,
             camera,
@@ -273,15 +271,13 @@ Result<> MainLoop()
 #endif
 
         WebgpuHelper::GetInstance().ProcessEvents();
-
-        frameTimer.Stop();
     }
 
     imGuiRenderer.Shutdown();
     renderer.Shutdown();
     textureCache.Shutdown();
 
-    PerfMetrics::LogTimers();
+    PerfMetrics::LogCounters();
 
     return Result<>::Ok;
 }

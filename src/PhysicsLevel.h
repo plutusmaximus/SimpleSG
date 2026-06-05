@@ -454,8 +454,6 @@ public:
 
     Result<> SyncToLevel(Level& level);
 
-    float ComputeKineticEnergy() const;
-
     std::span<const Level::NodeHandle> GetNodeHandles() const { return m_NodeHandles; }
     std::span<const RigidBody> GetBodies() const { return m_Bodies; }
     std::span<const TrsTransformf> GetTransforms() const { return m_Trs0; }

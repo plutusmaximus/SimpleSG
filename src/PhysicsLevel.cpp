@@ -99,21 +99,6 @@ PhysicsLevel::SyncToLevel(Level& level)
     return Result<>::Ok;
 }
 
-float
-PhysicsLevel::ComputeKineticEnergy() const
-{
-    float totalEnergy = 0.0f;
-
-    for(const auto& body : m_Bodies)
-    {
-        const float mass = body.Mass.Value();
-        const float speedSq = body.LinearVelocity.Dot(body.LinearVelocity);
-        totalEnergy += 0.5f * mass * speedSq;
-    }
-
-    return totalEnergy;
-}
-
 // private:
 
 void

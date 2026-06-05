@@ -28,11 +28,15 @@ namespace
 {
 constexpr const char* APP_NAME = "Orbit";
 
-constexpr float PHYSICS_FPS = 60.0f;
-constexpr float PHYSICS_TIME_STEP = 1.0f/PHYSICS_FPS;
-constexpr float GRAVITATIONAL_CONSTANT = 0.1f;//6.674e-11f;//(m^3 kg^-1 s^-2)
+constexpr float kPhysicsFps = 60.0f;
+constexpr float kPhysicsTimeStep = 1.0f/kPhysicsFps;
+constexpr float kGravitationalConstant = 0.1f;//6.674e-11f;//(m^3 kg^-1 s^-2)
 
-PerfCounter TotalPECounter("Physics.TotalPotentialEnergy");
+constexpr bool kApplyGravityMultithreaded = true;
+
+PerfCounter TotalPECounter("Energy.PE");    // Potential Energy
+PerfCounter TotalKECounter("Energy.KE");    // Kinetic Energy
+PerfCounter TotalEnergyCounter("Energy.Total");
 
 class DevUi
 {
@@ -124,42 +128,52 @@ DevUi::DrawPerfPanel(const char* panelName)
 
     constexpr const char* backend = "Dawn";
 
-    auto title = std::format("Timers: {}/{}", buildType, backend);
+    auto title = std::format("Counters: {}/{}", buildType, backend);
 
     ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
     ImGui::Begin(panelName);
     MLG_DEFER { ImGui::End(); };
 
-    constexpr size_t kMaxTimers = 256;
+    constexpr size_t kMaxPerfStats = 256;
 
-    PerfStats timerStats[kMaxTimers];
-    std::span<PerfStats> timerStatsSpan(timerStats);
-    const size_t timerCount = PerfMetrics::SampleTimers(timerStatsSpan);
+    PerfStats perfStats[kMaxPerfStats];
+    std::span<PerfStats> perfStatsSpan(perfStats);
 
-    timerStatsSpan = timerStatsSpan.first(timerCount);
+    // Timers
+    size_t counterCount = PerfMetrics::SampleCounters<PerfTimerCategory>(perfStatsSpan);
 
-    std::ranges::sort(timerStatsSpan,
+    std::span<PerfStats> sortedCounters = perfStatsSpan.first(counterCount);
+
+    std::ranges::sort(sortedCounters,
         [](const PerfStats& a, const PerfStats& b)
         {
             return a.GetName() < b.GetName();
         });
 
-    for(const auto& timerStat : timerStatsSpan)
+    for(const auto& counterStat : sortedCounters)
     {
         const std::string text =
-            std::format("{}: {:.3f} ms", timerStat.GetName(), timerStat.GetEMA() * 1000.0f);
+            std::format("{}: {:.3f} ms", counterStat.GetName(), counterStat.GetEMA());
         ImGui::TextUnformatted(text.c_str());
     }
 
-    const float kineticEnergy = m_PhysLevel.ComputeKineticEnergy();
-    ImGui::Separator();
-    const std::string keText = std::format("Kinetic Energy: {:.3f}", kineticEnergy);
-    const std::string peText = std::format("Potential Energy: {:.3f}", TotalPECounter.GetValue());
-    const std::string teText =
-        std::format("Total Energy: {:.3f}", kineticEnergy + TotalPECounter.GetValue());
-    ImGui::TextUnformatted(keText.c_str());
-    ImGui::TextUnformatted(peText.c_str());
-    ImGui::TextUnformatted(teText.c_str());
+    // Other counters
+    counterCount = PerfMetrics::SampleCounters<>(perfStatsSpan);
+
+    sortedCounters = perfStatsSpan.first(counterCount);
+
+    std::ranges::sort(sortedCounters,
+        [](const PerfStats& a, const PerfStats& b)
+        {
+            return a.GetName() < b.GetName();
+        });
+
+    for(const auto& counterStat : sortedCounters)
+    {
+        const std::string text =
+            std::format("{}: {:.3f}", counterStat.GetName(), counterStat.GetEMA());
+        ImGui::TextUnformatted(text.c_str());
+    }
 }
 
 void
@@ -295,7 +309,7 @@ DevUi::DrawDockedEditorLayout()
 void DevUi::DrawStatusBarOverlay()
 {
     ImGuiViewport* viewport = ImGui::GetMainViewport();
-    ImDrawList* draw_list = ImGui::GetForegroundDrawList();
+    ImDrawList* drawList = ImGui::GetForegroundDrawList();
 
     const ImGuiStyle& style = ImGui::GetStyle();
 
@@ -310,13 +324,17 @@ void DevUi::DrawStatusBarOverlay()
         viewport->WorkPos.x + viewport->WorkSize.x,
         viewport->WorkPos.y + viewport->WorkSize.y);
 
-    draw_list->AddRectFilled(min, max, ImGui::GetColorU32(ImGuiCol_WindowBg));
-    draw_list->AddLine(min, ImVec2(max.x, min.y), ImGui::GetColorU32(ImGuiCol_Border));
+    drawList->AddRectFilled(min, max, ImGui::GetColorU32(ImGuiCol_WindowBg));
+    drawList->AddLine(min, ImVec2(max.x, min.y), ImGui::GetColorU32(ImGuiCol_Border));
 
-    draw_list->AddText(
+    const std::string statusText = std::format("SPF: {:.3f} ms | FPS: {:.1f}",
+        ImGui::GetIO().DeltaTime * 1000.0f,
+        1.0f / ImGui::GetIO().DeltaTime);
+
+    drawList->AddText(
         ImVec2(min.x + style.WindowPadding.x, min.y + style.WindowPadding.y),
         ImGui::GetColorU32(ImGuiCol_Text),
-        "Ready");
+        statusText.c_str());
 }
 
 Result<>
@@ -474,9 +492,9 @@ void ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
             const float r2 = std::max(delta.Dot(delta), minSeparationSq);
             const float massProduct = massA * massB;
 
-            const float pe = -GRAVITATIONAL_CONSTANT * massProduct / std::sqrt(r2);
+            const float pe = -kGravitationalConstant * massProduct / std::sqrt(r2);
             const Vec3f F = -pe * delta / r2;
-            //const Vec3f F = GRAVITATIONAL_CONSTANT * massProduct * delta / (r2 * std::sqrt(r2));
+            //const Vec3f F = kGravitationalConstant * massProduct * delta / (r2 * std::sqrt(r2));
 
             batchParams->PotentialEnergy += pe;
 
@@ -487,8 +505,6 @@ void ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
 
     batchParams->FinishCounter->fetch_add(1, std::memory_order_relaxed);
 }
-
-constexpr bool kApplyGravityMultithreaded = true;
 
 // Returns the total potential energy of the system after applying gravity.
 void ApplyGravity(PhysicsLevel& physLevel)
@@ -626,7 +642,7 @@ void ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
         const Vec3f v = normal * magnitude;
         const float m = bodies[i].Mass.Value();
 
-        const Vec3f force = m * v / PHYSICS_TIME_STEP;
+        const Vec3f force = m * v / kPhysicsTimeStep;
         physLevel.AddForce(i, force);
     }
 }
@@ -638,7 +654,7 @@ void ApplyStoppingImpulse(PhysicsLevel& physLevel)
     for(size_t i = 0; i < bodies.size(); ++i)
     {
         // Apply the impulse opposite to current velocity.
-        const Vec3f impulse = -bodies[i].LinearVelocity * bodies[i].Mass.Value() / PHYSICS_TIME_STEP;
+        const Vec3f impulse = -bodies[i].LinearVelocity * bodies[i].Mass.Value() / kPhysicsTimeStep;
         physLevel.AddForce(i, impulse);
     }
 }
@@ -697,6 +713,23 @@ DeactivateNonOverlappingBodies(const PhysicsLevel& physLevel, Level& level)
     }
 }
 
+void ComputeKineticEnergy(const PhysicsLevel& physLevel)
+{
+    float totalEnergy = 0.0f;
+
+    for(const auto& body : physLevel.GetBodies())
+    {
+        const float mass = body.Mass.Value();
+        const float speedSq = body.LinearVelocity.Dot(body.LinearVelocity);
+        // KE = mv^2 / 2
+        totalEnergy += 0.5f * mass * speedSq;
+    }
+
+    TotalKECounter.Set(totalEnergy);
+
+    TotalEnergyCounter.Set(totalEnergy + TotalPECounter.GetValue());
+}
+
 Result<>
 MainLoop()
 {
@@ -742,7 +775,7 @@ MainLoop()
 
     while(running)
     {
-        MLG_SCOPED_TIMER("Frame");
+        MLG_SCOPED_TIMER(" Frame");
 
         const uint64_t curTicksNs = SDL_GetTicksNS();
         const uint64_t elapsedTicksNs = curTicksNs - frameBeginTicks;
@@ -888,7 +921,9 @@ MainLoop()
         {
             ApplyGravity(physLevel);
 
-            physLevel.Update(PHYSICS_TIME_STEP);
+            physLevel.Update(kPhysicsTimeStep);
+
+            ComputeKineticEnergy(physLevel);
         }
 
         physLevel.SyncToLevel(level);
@@ -940,7 +975,7 @@ MainLoop()
     MLG_CHECK(imGuiRenderer.Shutdown());
     MLG_CHECK(renderer.Shutdown());
 
-    PerfMetrics::LogTimers();
+    PerfMetrics::LogCounters();
 
     return Result<>::Ok;
 }
