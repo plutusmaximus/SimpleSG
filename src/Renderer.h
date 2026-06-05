@@ -37,6 +37,8 @@ public:
         const PropKit& propKit,
         Compositor& compositor);
 
+    Result<> GetTarget(wgpu::Texture& outTexture, wgpu::TextureView& outTextureView) const;
+
 private:
 
     Result<wgpu::RenderPassEncoder> BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder);

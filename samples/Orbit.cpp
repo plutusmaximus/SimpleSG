@@ -5,7 +5,7 @@
 #include "MouseNav.h"
 #include "PerfMetrics.h"
 #include "PhysicsLevel.h"
-#include "Projection.h"
+#include "Camera.h"
 #include "PropKit.h"
 #include "Renderer.h"
 #include "Scene.h"
@@ -17,6 +17,7 @@
 
 #include <filesystem>
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <imgui_impl_sdl3.h>
 #include <random>
 #include <SDL3/SDL.h>
@@ -31,6 +32,43 @@ constexpr float PHYSICS_FPS = 60.0f;
 constexpr float PHYSICS_TIME_STEP = 1.0f/PHYSICS_FPS;
 constexpr float GRAVITATIONAL_CONSTANT = 0.1f;//6.674e-11f;//(m^3 kg^-1 s^-2)
 
+PerfCounter TotalPECounter("Physics.TotalPotentialEnergy");
+
+class DevUi
+{
+public:
+
+    DevUi(const Renderer& renderer, const PhysicsLevel& physLevel)
+    : m_Renderer(renderer), m_PhysLevel(physLevel)
+    {
+    }
+
+    constexpr static const char* kScenePanelName = "Scene";
+    constexpr static const char* kPerfPanelName = "Performance";
+    constexpr static const char* kInspectorPanelName = "Inspector";
+    constexpr static const char* kConsolePanelName = "Console";
+
+    Result<> Render();
+
+    void DrawPerfPanel(const char* panelName);
+
+    void DrawScenePanel(const char* panelName);
+
+    void DrawConsolePanel(const char* panelName);
+
+    void DrawDockedEditorLayout();
+
+    void DrawStatusBarOverlay();
+
+    const Extent& GetScenePanelDimension() const { return m_ScenePanelDimension; }
+
+private:
+
+    Extent m_ScenePanelDimension{0, 0};
+    const Renderer& m_Renderer;
+    const PhysicsLevel& m_PhysLevel;
+};
+
 Result<>
 Startup()
 {
@@ -40,13 +78,13 @@ Startup()
     MLG_INFO("Current working directory: {}", cwd.string());
 
     MLG_CHECK(ThreadPool::Startup());
-    defer_as(failure)
+    MLG_DEFER_AS(failure)
     {
         ThreadPool::Shutdown();
     };
 
     MLG_CHECK(FileFetcher::Startup());
-    defer_as(fileFetcherShutdown)
+    MLG_DEFER_AS(fileFetcherShutdown)
     {
         FileFetcher::Shutdown();
     };
@@ -67,9 +105,18 @@ Shutdown()
     ThreadPool::Shutdown();
 }
 
-Result<> RenderGui(const PhysicsLevel& physLevel, const float totalPotentialEnergy)
+float
+GetStatusBarHeight()
 {
-#if defined (NDEBUG)
+    const ImGuiStyle& style = ImGui::GetStyle();
+
+    return ImGui::GetFrameHeight() + style.WindowPadding.y * 2.0f;
+}
+
+void
+DevUi::DrawPerfPanel(const char* panelName)
+{
+#if defined(NDEBUG)
     constexpr const char* buildType = "Release";
 #else
     constexpr const char* buildType = "Debug";
@@ -80,32 +127,208 @@ Result<> RenderGui(const PhysicsLevel& physLevel, const float totalPotentialEner
     auto title = std::format("Timers: {}/{}", buildType, backend);
 
     ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
-    ImGui::Begin(title.c_str());
+    ImGui::Begin(panelName);
+    MLG_DEFER { ImGui::End(); };
 
     constexpr size_t kMaxTimers = 256;
 
-    PerfTimerStats timerStats[kMaxTimers];
-    std::span<PerfTimerStats> timerStatsSpan(timerStats);
+    PerfStats timerStats[kMaxTimers];
+    std::span<PerfStats> timerStatsSpan(timerStats);
     const size_t timerCount = PerfMetrics::SampleTimers(timerStatsSpan);
-    for(const auto& timerStat : timerStatsSpan.first(timerCount))
+
+    timerStatsSpan = timerStatsSpan.first(timerCount);
+
+    std::ranges::sort(timerStatsSpan,
+        [](const PerfStats& a, const PerfStats& b)
+        {
+            return a.GetName() < b.GetName();
+        });
+
+    for(const auto& timerStat : timerStatsSpan)
     {
         const std::string text =
             std::format("{}: {:.3f} ms", timerStat.GetName(), timerStat.GetEMA() * 1000.0f);
         ImGui::TextUnformatted(text.c_str());
     }
 
-    const float kineticEnergy = physLevel.ComputeKineticEnergy();
+    const float kineticEnergy = m_PhysLevel.ComputeKineticEnergy();
     ImGui::Separator();
     const std::string keText = std::format("Kinetic Energy: {:.3f}", kineticEnergy);
-    const std::string peText = std::format("Potential Energy: {:.3f}", totalPotentialEnergy);
-    const std::string teText = std::format("Total Energy: {:.3f}", kineticEnergy + totalPotentialEnergy);
+    const std::string peText = std::format("Potential Energy: {:.3f}", TotalPECounter.GetValue());
+    const std::string teText =
+        std::format("Total Energy: {:.3f}", kineticEnergy + TotalPECounter.GetValue());
     ImGui::TextUnformatted(keText.c_str());
     ImGui::TextUnformatted(peText.c_str());
     ImGui::TextUnformatted(teText.c_str());
+}
+
+void
+DevUi::DrawScenePanel(const char* panelName)
+{
+    //ImGui::SetNextWindowBgAlpha(0.0f);
+    ImGui::Begin(panelName, nullptr, ImGuiWindowFlags_NoBackground);
+
+    wgpu::Texture my_texture;
+    wgpu::TextureView my_texture_view;
+    m_Renderer.GetTarget(my_texture, my_texture_view);
+    ImVec2 avail = ImGui::GetContentRegionAvail();
+
+    m_ScenePanelDimension = Extent{ avail.x, avail.y };
+
+    ImGui::Image((ImTextureID)(intptr_t)my_texture_view.Get(), avail);
+
+    /*ImGui::Begin("Scene", nullptr,
+    ImGuiWindowFlags_NoBackground |
+    ImGuiWindowFlags_NoTitleBar |
+    ImGuiWindowFlags_NoScrollbar |
+    ImGuiWindowFlags_NoScrollWithMouse |
+    ImGuiWindowFlags_NoCollapse);*/
+    //ImGui::TextUnformatted("Scene view");
+    ImGui::End();
+}
+
+void DevUi::DrawConsolePanel(const char* panelName)
+{
+    ImGui::Begin(panelName);
+    MLG_DEFER { ImGui::End(); };
+
+    ImGui::TextUnformatted("Console output will go here");
+}
+
+void
+DevUi::DrawDockedEditorLayout()
+{
+    ImGuiID dockspaceId = ImGui::GetID("MainDockspace");
+
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+
+    ImGui::SetNextWindowPos(viewport->WorkPos);
+    ImGui::SetNextWindowSize(viewport->WorkSize);
+    ImGui::SetNextWindowViewport(viewport->ID);
+
+    ImGuiWindowFlags hostFlags =
+        ImGuiWindowFlags_NoTitleBar |
+        ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoDocking |
+        ImGuiWindowFlags_NoBringToFrontOnFocus |
+        ImGuiWindowFlags_NoNavFocus |
+        ImGuiWindowFlags_NoBackground;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+
+    ImGui::Begin("Dockspace Host", nullptr, hostFlags);
+    ImGui::PopStyleVar(3);
+
+    ImGuiDockNodeFlags dockspaceFlags =
+        ImGuiDockNodeFlags_None;
+        //ImGuiDockNodeFlags_PassthruCentralNode;
+
+    ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), dockspaceFlags);
+
+    static bool dockspaceBuilt = false;
+
+    if (!dockspaceBuilt)
+    {
+        dockspaceBuilt = true;
+
+        ImGui::DockBuilderRemoveNode(dockspaceId);
+
+        ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace);
+
+        ImGui::DockBuilderSetNodeSize(dockspaceId, viewport->WorkSize);
+
+        ImGuiID dockMainId = dockspaceId;
+
+        ImGuiID dockLeftId =
+            ImGui::DockBuilderSplitNode(dockMainId, ImGuiDir_Left, 0.20f, nullptr, &dockMainId);
+
+        ImGuiID dockRightId = ImGui::DockBuilderSplitNode(dockMainId,
+            ImGuiDir_Right,
+            0.25f,
+            nullptr,
+            &dockMainId);
+
+        ImGuiID dockBottomId =
+            ImGui::DockBuilderSplitNode(dockMainId, ImGuiDir_Down, 0.25f, nullptr, &dockMainId);
+
+        ImGui::DockBuilderDockWindow(kScenePanelName, dockMainId);
+        ImGui::DockBuilderDockWindow(kPerfPanelName, dockLeftId);
+        ImGui::DockBuilderDockWindow(kInspectorPanelName, dockRightId);
+        ImGui::DockBuilderDockWindow(kConsolePanelName, dockBottomId);
+
+        ImGui::DockBuilderFinish(dockspaceId);
+    }
 
     ImGui::End();
 
-    //ImGui::ShowDemoWindow();
+    DrawPerfPanel(kPerfPanelName);
+    DrawScenePanel(kScenePanelName);
+    DrawConsolePanel(kConsolePanelName);
+    ImGui::Begin(kInspectorPanelName);
+    if(ImGui::TreeNode("a"))
+    {
+        if(ImGui::TreeNode("b"))
+        {
+            if(ImGui::TreeNode("c"))
+            {
+                ImGui::TreeNodeEx("d",
+                    ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen);
+
+                ImGui::SameLine();
+                ImGui::TextUnformatted("value");
+
+                ImGui::TreePop();
+            }
+
+            ImGui::TreePop();
+        }
+
+        ImGui::TreePop();
+    }
+    ImGui::End();
+}
+
+void DevUi::DrawStatusBarOverlay()
+{
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImDrawList* draw_list = ImGui::GetForegroundDrawList();
+
+    const ImGuiStyle& style = ImGui::GetStyle();
+
+    const float height =
+        ImGui::GetFrameHeight() + style.WindowPadding.y * 2.0f;
+
+    const ImVec2 min(
+        viewport->WorkPos.x,
+        viewport->WorkPos.y + viewport->WorkSize.y - height);
+
+    const ImVec2 max(
+        viewport->WorkPos.x + viewport->WorkSize.x,
+        viewport->WorkPos.y + viewport->WorkSize.y);
+
+    draw_list->AddRectFilled(min, max, ImGui::GetColorU32(ImGuiCol_WindowBg));
+    draw_list->AddLine(min, ImVec2(max.x, min.y), ImGui::GetColorU32(ImGuiCol_Border));
+
+    draw_list->AddText(
+        ImVec2(min.x + style.WindowPadding.x, min.y + style.WindowPadding.y),
+        ImGui::GetColorU32(ImGuiCol_Text),
+        "Ready");
+}
+
+Result<>
+DevUi::Render()
+{
+    // ImGuiID dockspaceId = DrawDockSpace();
+
+    DrawDockedEditorLayout();
+
+    // ImGui::ShowDemoWindow();
+
+    DrawStatusBarOverlay();
 
     return Result<>::Ok;
 }
@@ -268,7 +491,7 @@ void ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
 constexpr bool kApplyGravityMultithreaded = true;
 
 // Returns the total potential energy of the system after applying gravity.
-float ApplyGravity(PhysicsLevel& physLevel)
+void ApplyGravity(PhysicsLevel& physLevel)
 {
     MLG_SCOPED_TIMER("Physics.ApplyGravity");
 
@@ -372,7 +595,7 @@ float ApplyGravity(PhysicsLevel& physLevel)
         totalPotentialEnergy += params.PotentialEnergy;
     }
 
-    return totalPotentialEnergy;
+    TotalPECounter.Set(totalPotentialEnergy);
 }
 
 void ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
@@ -489,6 +712,7 @@ MainLoop()
     Scene scene;
     PhysicsLevel physLevel;
     WalkMouseNav mouseNav;
+    DevUi devUi(renderer, physLevel);
 
     MLG_CHECK(renderer.Startup());
     MLG_CHECK(imGuiRenderer.Startup());
@@ -503,7 +727,7 @@ MainLoop()
     constexpr float kInitialCameraDistance = 40.0f;
 
     TrsTransformf trsCamera{ .T{0, 0, -kInitialCameraDistance} };
-    Projection projection;
+    Camera camera;
 
     mouseNav.SetTransform(trsCamera);
 
@@ -515,8 +739,6 @@ MainLoop()
     bool pauseSim = false;
     bool showOverlappingBodies = true;
     bool continuouslyDeactivateNonOverlappingBodies = false;
-
-    float totalPotentialEnergy = 0;
 
     while(running)
     {
@@ -532,7 +754,7 @@ MainLoop()
         while(minimized && running && SDL_PollEvent(&event))
         {
             ImGui_ImplSDL3_ProcessEvent(&event);
-            
+
             switch(event.type)
             {
                 case SDL_EVENT_WINDOW_RESTORED:
@@ -561,9 +783,13 @@ MainLoop()
                 running = false;
                 break;
 
-            case SDL_EVENT_WINDOW_RESIZED:
+            //case SDL_EVENT_WINDOW_RESIZED:
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-                //app->OnResize(event.window.data1, event.window.data2);
+                {
+                    const uint32_t newWidth = static_cast<uint32_t>(event.window.data1);
+                    const uint32_t newHeight = static_cast<uint32_t>(event.window.data2);
+                    WebgpuHelper::Resize(newWidth, newHeight);
+                }
                 break;
 
             case SDL_EVENT_WINDOW_MINIMIZED:
@@ -660,7 +886,7 @@ MainLoop()
 
         if(!pauseSim)
         {
-            totalPotentialEnergy = ApplyGravity(physLevel);
+            ApplyGravity(physLevel);
 
             physLevel.Update(PHYSICS_TIME_STEP);
         }
@@ -671,8 +897,20 @@ MainLoop()
 
         mouseNav.Update(elapsedSeconds);
 
-        auto screenBounds = WebgpuHelper::GetScreenBounds();
-        projection.SetAspectRatio(screenBounds.GetAspectRatio());
+        const Extent screenBounds = WebgpuHelper::GetScreenBounds();
+        Viewport viewport(0,
+            0,
+            static_cast<uint32_t>(screenBounds.Width),
+            static_cast<uint32_t>(screenBounds.Height),
+            0,
+            1);
+        camera.SetViewport(viewport);
+        const Extent& scenePanelDim = devUi.GetScenePanelDimension();
+        if(scenePanelDim.Width > 0 && scenePanelDim.Height > 0)
+        {
+            const float scenePanelAspectRatio = scenePanelDim.Width / scenePanelDim.Height;
+            camera.SetAspectRatio(scenePanelAspectRatio);
+        }
         trsCamera = mouseNav.GetTransform();
 
         compositor.BeginFrame();
@@ -680,9 +918,9 @@ MainLoop()
 
         scene.SyncToGpu();
 
-        renderer.Render(trsCamera, projection, scene, propKit, compositor);
+        renderer.Render(trsCamera, camera, scene, propKit, compositor);
 
-        RenderGui(physLevel, totalPotentialEnergy);
+        devUi.Render();
 
         imGuiRenderer.Render(compositor);
 
@@ -715,7 +953,7 @@ int main(int /*argc*/, char** /*argv*/)
         return -1;
     }
 
-    defer
+    MLG_DEFER
     {
         Shutdown();
     };

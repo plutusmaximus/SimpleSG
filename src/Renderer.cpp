@@ -237,12 +237,22 @@ Renderer::Render(const TrsTransformf& cameraXForm,
 
     renderPass.End();
 
-    {
+    /*{
         MLG_SCOPED_TIMER("Renderer.Render.Present");
         auto presentResult = Present(compositor);
         MLG_CHECK(presentResult);
-    }
+    }*/
 
+    return Result<>::Ok;
+}
+
+Result<>
+Renderer::GetTarget(wgpu::Texture& outTexture, wgpu::TextureView& outTextureView) const
+{
+    MLG_CHECKV(m_Initialized, "Renderer is not initialized");
+
+    outTexture = m_ColorTargetResources.Target;
+    outTextureView = m_ColorTargetResources.TargetView;
     return Result<>::Ok;
 }
 
@@ -257,7 +267,7 @@ Renderer::BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder)
             .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
-            .clearValue = { .r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 0.0f },
+            .clearValue = { .r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 1.0f },
         };
 
     static constexpr float CLEAR_DEPTH = 1.0f;
