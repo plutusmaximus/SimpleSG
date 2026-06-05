@@ -764,8 +764,7 @@ MainLoop()
 
     mouseNav.SetTransform(trsCamera);
 
-    bool mouseCaptured = true;
-    SDL_SetWindowRelativeMouseMode(WebgpuHelper::GetWindow(), mouseCaptured);
+    bool mouseCaptured = false;
 
     Timer frameTimer;
 
@@ -776,6 +775,8 @@ MainLoop()
     while(running)
     {
         MLG_SCOPED_TIMER(" Frame");
+
+        const float elapsedSeconds = frameTimer.GetElapsedSeconds();
 
         frameTimer.Restart();
 
@@ -840,7 +841,20 @@ MainLoop()
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                if(event.button.button == SDL_BUTTON_LEFT)
+                {
+                    mouseCaptured = true;
+                    SDL_SetWindowRelativeMouseMode(WebgpuHelper::GetWindow(), mouseCaptured);
+                }
+                break;
+
             case SDL_EVENT_MOUSE_BUTTON_UP:
+                if(event.button.button == SDL_BUTTON_LEFT)
+                {
+                    mouseCaptured = false;
+                    SDL_SetWindowRelativeMouseMode(WebgpuHelper::GetWindow(), mouseCaptured);
+                    mouseNav.ClearButtons();
+                }
                 break;
 
             case SDL_EVENT_MOUSE_WHEEL:
@@ -859,11 +873,6 @@ MainLoop()
                 if(SDL_SCANCODE_ESCAPE == event.key.scancode)
                 {
                     running = false;
-                }
-                else if(SDL_SCANCODE_SPACE == event.key.scancode)
-                {
-                    mouseCaptured = !mouseCaptured;
-                    SDL_SetWindowRelativeMouseMode(WebgpuHelper::GetWindow(), mouseCaptured);
                 }
                 else if(SDL_SCANCODE_RETURN == event.key.scancode)
                 {
@@ -927,7 +936,7 @@ MainLoop()
 
         scene.SyncFromLevel(level);
 
-        mouseNav.Update(frameTimer.GetElapsedSeconds());
+        mouseNav.Update(elapsedSeconds);
 
         const Extent screenBounds = WebgpuHelper::GetScreenBounds();
         Viewport viewport(0,
