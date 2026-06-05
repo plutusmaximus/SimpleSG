@@ -264,9 +264,9 @@ set(SSG_SOURCES
   src/Scene.cpp
   src/Shapes.cpp
   src/stb_image.cpp
-  src/Stopwatch.cpp
   src/TextureCache.cpp
   src/ThreadPool.cpp
+  src/Timer.cpp
   src/WebgpuHelper.cpp
 )
 
@@ -292,9 +292,9 @@ set(SSG_HEADERS
   src/scope_exit.h
   src/shaders/ShaderInterop.h
   src/Shapes.h
-  src/Stopwatch.h
   src/TextureCache.h
   src/ThreadPool.h
+  src/Timer.h
   src/VecMath.h
   src/Vertex.h
   src/WebgpuHelper.h

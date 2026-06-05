@@ -141,12 +141,17 @@ Result<> MainLoop()
     MLG_CHECK(textureCache.Startup());
 
     const std::filesystem::path rootPath = ".";
-    PropKit propKit;
-    Level level;
-    Scene scene;
-    MLG_CHECK(PropKit::Create(rootPath, textureCache, propKitDef, propKit));
-    MLG_CHECK(Level::Create(levelDef, propKit, level));
-    MLG_CHECK(Scene::Create(level, propKit, scene));
+    auto propKitResult = PropKit::Create(rootPath, textureCache, propKitDef);
+    MLG_CHECK(propKitResult, "Failed to create PropKit");
+    PropKit propKit = std::move(*propKitResult);
+
+    auto levelResult = Level::Create(levelDef, propKit);
+    MLG_CHECK(levelResult, "Failed to create Level");
+    Level level = std::move(*levelResult);
+
+    auto sceneResult = Scene::Create(level, propKit);
+    MLG_CHECK(sceneResult, "Failed to create Scene");
+    Scene scene = std::move(*sceneResult);
 
     Renderer renderer;
     MLG_CHECK(renderer.Startup());

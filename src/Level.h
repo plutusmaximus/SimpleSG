@@ -96,9 +96,9 @@ public:
         const Node* m_Node{nullptr};
     };
 
-    static Result<> Create(const LevelDef& levelDef, const PropKit& propKit, Level& outLevel);
+    static Result<Level> Create(const LevelDef& levelDef, const PropKit& propKit);
 
-    Level() = default;
+    Level() = delete;
     ~Level() = default;
     Level(const Level&) = delete;
     Level& operator=(const Level&) = delete;

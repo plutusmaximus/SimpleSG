@@ -123,8 +123,8 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
 }
 } // namespace
 
-Result<>
-Level::Create(const LevelDef& levelDef, const PropKit& propKit, Level& outLevel)
+Result<Level>
+Level::Create(const LevelDef& levelDef, const PropKit& propKit)
 {
     const size_t nodeCount = CountNodes(levelDef.NodeDefs);
     const size_t totalStringSize = CalculateTotalStringSize(levelDef.NodeDefs);
@@ -170,9 +170,7 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit, Level& outLevel)
 
     Level level(std::move(nodes), std::move(stringStorage));
 
-    outLevel = std::move(level);
-
-    return Result<>::Ok;
+    return std::move(level);
 }
 
 Level::Level(std::vector<Node>&& nodes, std::vector<char>&& stringStorage)
@@ -258,7 +256,7 @@ Level::UpdateLocalTransform(const NodeHandle& handle, const TrsTransformf& local
 {
     Node* node = GetNode(handle);
     MLG_CHECK(node);
-    
+
     node->LocalTransform = localTransform;
     if(!node->ParentIndex.IsValid())
     {

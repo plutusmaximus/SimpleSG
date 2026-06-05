@@ -364,11 +364,9 @@ BuildMaterialConstantsBuffer(const std::span<const MaterialDef> materialDefs)
 }
 } // namespace
 
-Result<>
-PropKit::Create(const std::filesystem::path& rootPath,
-    TextureCache& textureCache,
-    const PropKitDef& propKitDef,
-    PropKit& outPropKit)
+Result<PropKit>
+PropKit::Create(
+    const std::filesystem::path& rootPath, TextureCache& textureCache, const PropKitDef& propKitDef)
 {
     Timer createTimer;
     createTimer.Start();
@@ -475,11 +473,9 @@ PropKit::Create(const std::filesystem::path& rootPath,
         std::move(materialBindGroups),
         std::move(stringStorage));
 
-    outPropKit = std::move(propKit);
-
     MLG_INFO("PropKit created in {} ms", createTimer.GetElapsedSeconds() * 1000);
 
-    return Result<>::Ok;
+    return std::move(propKit);
 }
 
 PropKit::PropKit(VertexBuffer vertexBuffer,

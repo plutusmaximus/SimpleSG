@@ -1063,6 +1063,8 @@ DumpWebgpuLimits(const wgpu::Device& device)
 
 //////////////////////////////////////////////
 
+/// Texture
+
 Texture::Texture(wgpu::Texture texture)
     : m_GpuTexture(std::move(texture))
 {
@@ -1174,4 +1176,11 @@ Texture::Unmap(const wgpu::CommandEncoder& cmdEncoder)
     m_StagingBuffer = {};
 
     return Result<>::Ok;
+}
+
+/// BasicGpuBuffer
+
+BasicGpuBuffer::BasicGpuBuffer(wgpu::Buffer buffer)
+    : m_GpuBuffer(std::move(buffer))
+{
 }

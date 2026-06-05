@@ -42,9 +42,9 @@ private:
 class Scene
 {
 public:
-    static Result<> Create(const Level& level, const PropKit& propKit, Scene& outScene);
+    static Result<Scene> Create(const Level& level, const PropKit& propKit);
 
-    Scene() = default;
+    Scene() = delete;
     ~Scene() = default;
     Scene(const Scene&) = delete;
     Scene& operator=(const Scene&) = delete;

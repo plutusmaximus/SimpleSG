@@ -31,7 +31,7 @@ public:
 
     Texture() = delete;
     Texture(const Texture&) = default;
-    Texture& operator=(const Texture&) = delete;
+    Texture& operator=(const Texture&) = default;
     Texture(Texture&&) = default;
     Texture& operator=(Texture&&) = default;
 
@@ -63,21 +63,29 @@ private:
     wgpu::Buffer m_StagingBuffer;
 };
 
-class BasicGpuBuffer : private wgpu::Buffer
+class BasicGpuBuffer
 {
 public:
-    using wgpu::Buffer::Buffer;
-    using wgpu::Buffer::operator bool;
 
-    wgpu::Buffer& GetGpuBuffer() { return *this; }
-    const wgpu::Buffer& GetGpuBuffer() const { return *this; }
+    BasicGpuBuffer() = delete;
+    BasicGpuBuffer(const BasicGpuBuffer&) = default;
+    BasicGpuBuffer& operator=(const BasicGpuBuffer&) = default;
+    BasicGpuBuffer(BasicGpuBuffer&&) = default;
+    BasicGpuBuffer& operator=(BasicGpuBuffer&&) = default;
 
-    size_t BufferSize() const { return GetSize(); }
+    explicit operator bool() const { return static_cast<bool>(m_GpuBuffer); }
 
-    explicit BasicGpuBuffer(wgpu::Buffer buffer)
-        : wgpu::Buffer(std::move(buffer))
-    {
-    }
+    const wgpu::Buffer& GetGpuBuffer() const { return m_GpuBuffer; }
+
+    size_t BufferSize() const { return m_GpuBuffer.GetSize(); }
+
+protected:
+
+    explicit BasicGpuBuffer(wgpu::Buffer buffer);
+
+private:
+
+    wgpu::Buffer m_GpuBuffer;
 };
 
 template<typename T>
@@ -89,8 +97,13 @@ class SemanticGpuBuffer : public BasicGpuBuffer
 
 public:
     using value_type = T;
-    using BasicGpuBuffer::BasicGpuBuffer;
     using BasicGpuBuffer::operator bool;
+
+    SemanticGpuBuffer() = delete;
+    SemanticGpuBuffer(const SemanticGpuBuffer&) = default;
+    SemanticGpuBuffer& operator=(const SemanticGpuBuffer&) = default;
+    SemanticGpuBuffer(SemanticGpuBuffer&&) = default;
+    SemanticGpuBuffer& operator=(SemanticGpuBuffer&&) = default;
 
     size_t Count() const { return BufferSize() / sizeof(T); }
 

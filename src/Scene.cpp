@@ -309,8 +309,8 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
 }
 } // namespace
 
-Result<>
-Scene::Create(const Level& level, const PropKit& propKit, Scene& outScene)
+Result<Scene>
+Scene::Create(const Level& level, const PropKit& propKit)
 {
     Timer createTimer;
     createTimer.Start();
@@ -369,11 +369,9 @@ Scene::Create(const Level& level, const PropKit& propKit, Scene& outScene)
         std::move(worldTransforms),
         std::move(nodeHandles));
 
-    outScene = std::move(scene);
-
     MLG_INFO("Scene created in {} ms", createTimer.GetElapsedSeconds() * 1000);
 
-    return Result<>::Ok;
+    return std::move(scene);
 }
 
 Scene::Scene(WorldTransformBuffer worldTransformBuffer,

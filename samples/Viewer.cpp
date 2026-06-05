@@ -123,12 +123,8 @@ Result<> RenderGui()
     return Result<>::Ok;
 }
 
-Result<>
-Load(const std::filesystem::path& path,
-    TextureCache& textureCache,
-    PropKit& outPropKit,
-    Level& outLevel,
-    Scene& outScene)
+Result<std::tuple<PropKit, Level, Scene>>
+Load(const std::filesystem::path& path, TextureCache& textureCache)
 {
     PropKitDef propKitDef;
     LevelDef levelDef;
@@ -136,19 +132,16 @@ Load(const std::filesystem::path& path,
         "Failed to load glTF file: {}",
         path.string());
 
-    MLG_CHECK(PropKit::Create(path.parent_path(), textureCache, propKitDef, outPropKit),
-        "Failed to create PropKit for {}",
-        path.string());
+    auto propKit = PropKit::Create(path.parent_path(), textureCache, propKitDef);
+    MLG_CHECK(propKit, "Failed to create PropKit for {}", path.string());
 
-    MLG_CHECK(Level::Create(levelDef, outPropKit, outLevel),
-        "Failed to create Level for {}",
-        path.string());
+    auto level = Level::Create(levelDef, *propKit);
+    MLG_CHECK(level, "Failed to create Level for {}", path.string());
 
-    MLG_CHECK(Scene::Create(outLevel, outPropKit, outScene),
-        "Failed to create Scene for {}",
-        path.string());
+    auto scene = Scene::Create(*level, *propKit);
+    MLG_CHECK(scene, "Failed to create Scene for {}", path.string());
 
-    return Result<>::Ok;
+    return std::make_tuple(std::move(*propKit), std::move(*level), std::move(*scene));
 }
 
 #ifdef _WIN32
@@ -167,16 +160,16 @@ MainLoop()
     Compositor compositor;
     ImGuiRenderer imGuiRenderer;
     TextureCache textureCache;
-    PropKit propKit;
-    Level level;
-    Scene scene;
     WalkMouseNav mouseNav;
 
     MLG_CHECK(renderer.Startup());
     MLG_CHECK(imGuiRenderer.Startup());
     MLG_CHECK(textureCache.Startup());
 
-    MLG_CHECK(Load(SPONZA_MODEL_PATH, textureCache, propKit, level, scene));
+    auto loadResult = Load(SPONZA_MODEL_PATH, textureCache);
+    MLG_CHECK(loadResult, "Failed to load resources");
+
+    auto&& [propKit, level, scene] = std::move(*loadResult);
 
     TrsTransformf trsCamera{ .T{0, 0, -4} };
     Camera camera;
@@ -313,10 +306,11 @@ MainLoop()
         if(!droppedFile.empty())
         {
             textureCache.Clear();
-            PropKit newPropKit;
-            Level newLevel;
-            Scene newScene;
-            MLG_CHECK(Load(droppedFile, textureCache, newPropKit, newLevel, newScene));
+            auto newLoadResult = Load(SPONZA_MODEL_PATH, textureCache);
+            MLG_CHECK(newLoadResult, "Failed to load resources");
+
+            auto&& [newPropKit, newLevel, newScene] = std::move(*newLoadResult);
+
             propKit = std::move(newPropKit);
             level = std::move(newLevel);
             scene = std::move(newScene);

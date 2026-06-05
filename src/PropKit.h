@@ -17,12 +17,11 @@ using MaterialConstantsBuffer = SemanticGpuBuffer<ShaderInterop::MaterialConstan
 class PropKit
 {
 public:
-    static Result<> Create(const std::filesystem::path& rootPath,
+    static Result<PropKit> Create(const std::filesystem::path& rootPath,
         class TextureCache& textureCache,
-        const PropKitDef& propKitDef,
-        PropKit& outPropKit);
+        const PropKitDef& propKitDef);
 
-    PropKit() = default;
+    PropKit() = delete;
     ~PropKit() = default;
     PropKit(const PropKit&) = delete;
     PropKit& operator=(const PropKit&) = delete;

@@ -351,11 +351,8 @@ DevUi::Render()
     return Result<>::Ok;
 }
 
-Result<>
-Load(const std::filesystem::path& path,
-    TextureCache& textureCache,
-    PropKit& outPropKit,
-    Level& outLevel)
+Result<std::tuple<PropKit, Level>>
+Load(TextureCache& textureCache)
 {
     constexpr float ballRadius = 1.0f;
 
@@ -378,9 +375,8 @@ Load(const std::filesystem::path& path,
             },
         };
 
-    MLG_CHECK(PropKit::Create(path.parent_path(), textureCache, propKitDef, outPropKit),
-        "Failed to create PropKit for {}",
-        path.string());
+    auto propKit = PropKit::Create(std::filesystem::path{}, textureCache, propKitDef);
+    MLG_CHECK(propKit, "Failed to create PropKit");
 
     // Fixed seed for reproducibility
     constexpr unsigned kRngSeed = 12345;
@@ -429,11 +425,10 @@ Load(const std::filesystem::path& path,
         .NodeDefs = std::move(nodeDefs),
     };
 
-    MLG_CHECK(Level::Create(levelDef, outPropKit, outLevel),
-        "Failed to create Level for {}",
-        path.string());
+    auto level = Level::Create(levelDef, *propKit);
+    MLG_CHECK(level, "Failed to create Level");
 
-    return Result<>::Ok;
+    return std::make_tuple(std::move(*propKit), std::move(*level));
 }
 
 struct ApplyGravityBatchParams
@@ -740,9 +735,6 @@ MainLoop()
     Compositor compositor;
     ImGuiRenderer imGuiRenderer;
     TextureCache textureCache;
-    PropKit propKit;
-    Level level;
-    Scene scene;
     PhysicsLevel physLevel;
     WalkMouseNav mouseNav;
     DevUi devUi(renderer, physLevel);
@@ -751,9 +743,15 @@ MainLoop()
     MLG_CHECK(imGuiRenderer.Startup());
     MLG_CHECK(textureCache.Startup());
 
-    MLG_CHECK(Load("", textureCache, propKit, level));
+    auto loadResult = Load(textureCache);
+    MLG_CHECK(loadResult);
 
-    MLG_CHECK(Scene::Create(level, propKit, scene));
+    auto&& [propKit, level] = std::move(*loadResult);
+
+    auto sceneResult = Scene::Create(level, propKit);
+    MLG_CHECK(sceneResult);
+
+    Scene scene = std::move(*sceneResult);
 
     MLG_CHECK(PhysicsLevel::Create(level, physLevel));
 
