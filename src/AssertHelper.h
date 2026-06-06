@@ -25,8 +25,8 @@ static AssertHelper::AssertData& GetAssertData(const char(&expression)[N])
     // Store a copy of the expression in a static buffer
     // to guarantee it's lifetime.
     static char expr[N];
-    static const bool copied = std::copy_n(expression, N, expr) == (expr + N);
-    static AssertHelper::AssertData assertData{ false, 0, expr, NULL, 0, NULL, NULL };
+    [[maybe_unused]] static const bool copied = std::copy_n(&expression[0], N, &expr[0]) == (&expr[N]);
+    static AssertHelper::AssertData assertData{ {false, 0, &expr[0], nullptr, 0, nullptr, nullptr}, SDL_ASSERTION_BREAK };
     return assertData;
 }
 

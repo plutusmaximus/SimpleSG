@@ -35,12 +35,12 @@ PerfAggregator::Sample()
 }
 
 PerfCounter::PerfCounter(std::string name)
-    : PerfCounter(std::move(name), PerfCounter::Accumulate, PerfCounterDefaultCategory::Id)
+    : PerfCounter(std::move(name), PerfCounter::SamplePolicy::Accumulate, PerfCounterDefaultCategory::Id)
 {
 }
 
 PerfCounter::PerfCounter(std::string name, const PerfCounterCategoryId categoryId)
-    : PerfCounter(std::move(name), PerfCounter::Accumulate, categoryId)
+    : PerfCounter(std::move(name), PerfCounter::SamplePolicy::Accumulate, categoryId)
 {
 }
 
@@ -52,8 +52,8 @@ PerfCounter::PerfCounter(std::string name, const SamplePolicy samplePolicy)
 PerfCounter::PerfCounter(
     std::string name, const SamplePolicy samplePolicy, const PerfCounterCategoryId categoryId)
     : m_Name(std::move(name)),
-      m_SamplePolicy(samplePolicy),
       m_Aggregator(this),
+      m_SamplePolicy(samplePolicy),
       m_CategoryId(categoryId)
 {
     const std::lock_guard lock(PMGlobals::Mutex);
@@ -69,7 +69,7 @@ PerfCounter::~PerfCounter()
 void
 PerfCounter::ApplySamplePolicy()
 {
-    if(m_SamplePolicy == ResetOnSample)
+    if(m_SamplePolicy == SamplePolicy::ResetOnSample)
     {
         m_Value.store(0, std::memory_order_relaxed);
     }
@@ -90,7 +90,7 @@ PerfTimer::Stop()
 
     const double elapsed = m_Timer.GetElapsedSeconds();
 
-    m_Counter.Increment(elapsed * kMsPerSecond);
+    m_Counter->Increment(elapsed * kMsPerSecond);
 }
 
 size_t

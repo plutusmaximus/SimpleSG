@@ -30,6 +30,7 @@ class Texture
 public:
 
     Texture() = delete;
+    ~Texture() = default;
     Texture(const Texture&) = default;
     Texture& operator=(const Texture&) = default;
     Texture(Texture&&) = default;
@@ -68,6 +69,7 @@ class BasicGpuBuffer
 public:
 
     BasicGpuBuffer() = delete;
+    ~BasicGpuBuffer() = default;
     BasicGpuBuffer(const BasicGpuBuffer&) = default;
     BasicGpuBuffer& operator=(const BasicGpuBuffer&) = default;
     BasicGpuBuffer(BasicGpuBuffer&&) = default;
@@ -100,6 +102,7 @@ public:
     using BasicGpuBuffer::operator bool;
 
     SemanticGpuBuffer() = delete;
+    ~SemanticGpuBuffer() = default;
     SemanticGpuBuffer(const SemanticGpuBuffer&) = default;
     SemanticGpuBuffer& operator=(const SemanticGpuBuffer&) = default;
     SemanticGpuBuffer(SemanticGpuBuffer&&) = default;

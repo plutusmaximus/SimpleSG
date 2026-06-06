@@ -101,7 +101,7 @@ private:
 class PerfCounter
 {
 public:
-    enum SamplePolicy
+    enum class SamplePolicy
     {
         Accumulate,    // Counter value will continue to be accumulated.
         ResetOnSample, // Counter value will be reset to 0 on each Sample() call.
@@ -146,7 +146,7 @@ private:
     std::string m_Name;
     std::atomic<double> m_Value{ 0 };
     PerfAggregator m_Aggregator;
-    SamplePolicy m_SamplePolicy{ Accumulate };
+    SamplePolicy m_SamplePolicy{ SamplePolicy::Accumulate };
     PerfCounterCategoryId m_CategoryId{ PerfCounterDefaultCategory::Id };
 };
 
@@ -156,9 +156,9 @@ class PerfTimer
 public:
 
     explicit PerfTimer(PerfCounter& counter)
-        : m_Counter(counter)
+        : m_Counter(&counter)
     {
-    };
+    }
 
     /// @brief  Starts the timer.
     void Start();
@@ -170,7 +170,7 @@ public:
 
 private:
 
-    PerfCounter& m_Counter;
+    PerfCounter* m_Counter;
     Timer m_Timer;
 };
 
@@ -229,7 +229,7 @@ using PerfTimerCategory = PerfCounterCategory<PerfTimerCategoryTag>;
 ///     // Code to be timed goes here.
 /// }
 #define MLG_SCOPED_TIMER(name)\
-    static PerfCounter MLG_PERF_TIMER_CONCAT(counter, __LINE__)(name, PerfCounter::ResetOnSample, PerfTimerCategory::Id);\
+    static PerfCounter MLG_PERF_TIMER_CONCAT(counter, __LINE__)(name, PerfCounter::SamplePolicy::ResetOnSample, PerfTimerCategory::Id);\
     PerfTimer MLG_PERF_TIMER_CONCAT(timer, __LINE__)(MLG_PERF_TIMER_CONCAT(counter, __LINE__));\
     MLG_PERF_TIMER_CONCAT(timer, __LINE__).Start();\
     auto MLG_PERF_TIMER_CONCAT(scope_timer, __LINE__) = scope_exit([&](){MLG_PERF_TIMER_CONCAT(timer, __LINE__).Stop();});

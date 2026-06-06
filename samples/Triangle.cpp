@@ -143,15 +143,15 @@ Result<> MainLoop()
     const std::filesystem::path rootPath = ".";
     auto propKitResult = PropKit::Create(rootPath, textureCache, propKitDef);
     MLG_CHECK(propKitResult, "Failed to create PropKit");
-    PropKit propKit = std::move(*propKitResult);
+    const PropKit propKit = std::move(*propKitResult);
 
     auto levelResult = Level::Create(levelDef, propKit);
     MLG_CHECK(levelResult, "Failed to create Level");
-    Level level = std::move(*levelResult);
+    const Level level = std::move(*levelResult);
 
     auto sceneResult = Scene::Create(level, propKit);
     MLG_CHECK(sceneResult, "Failed to create Scene");
-    Scene scene = std::move(*sceneResult);
+    const Scene scene = std::move(*sceneResult);
 
     Renderer renderer;
     MLG_CHECK(renderer.Startup());
@@ -238,7 +238,7 @@ Result<> MainLoop()
             }
 
             const Extent screenBounds = WebgpuHelper::GetScreenBounds();
-            Viewport viewport(0,
+            const Viewport viewport(0,
                 0,
                 static_cast<uint32_t>(screenBounds.Width),
                 static_cast<uint32_t>(screenBounds.Height),

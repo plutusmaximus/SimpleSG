@@ -7,6 +7,7 @@ class Timer
 {
 public:
     Timer() = default;
+    ~Timer() = default;
     Timer(const Timer&) = default;
     Timer& operator=(const Timer&) = default;
     Timer(Timer&&) = default;

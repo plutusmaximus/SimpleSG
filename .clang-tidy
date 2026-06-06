@@ -41,9 +41,8 @@ CheckOptions:
   - key: readability-magic-numbers.IgnoredIntegerValues
     value: '0;1;2;3;4;180;360'
   - key: readability-magic-numbers.IgnoredFloatingPointValues
-    value: '0;0.25;0.5;0.75;1.0'
+    value: '0;0.25;0.5;0.75;1.0;2.0'
 
   # If Stage 3 enables cppcoreguidelines-macro-usage, uncomment this allowlist.
   # - key: cppcoreguidelines-macro-usage.AllowedRegexp
   #   value: '^(MLG_ASSERT|MLG_ASSERT_.*)$'
-  

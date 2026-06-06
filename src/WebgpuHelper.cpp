@@ -60,6 +60,7 @@ GetTextureAlignedRowStride(const uint32_t textureWidth)
     return alignedRowStride;
 }
 
+void EnumerateAdapters();
 Result<> DumpDawnAdapterInfo(const wgpu::Adapter& adapter);
 void DumpDawnToggles(const wgpu::Device& device);
 void DumpWebgpuLimits(const wgpu::Device& device);
@@ -131,6 +132,8 @@ CreateInstance()
 Result<wgpu::Adapter>
 CreateAdapter(const wgpu::Instance& instance, const wgpu::Surface& surface)
 {
+    EnumerateAdapters();
+
     Result<wgpu::Adapter> result;
 
     auto rqstAdapterCb = [&result](wgpu::RequestAdapterStatus status,
@@ -242,6 +245,9 @@ CreateDevice(const wgpu::Instance& instance, const wgpu::Adapter& adapter)
             // wgpu::FeatureName::MultiDrawIndirect
         };
 
+    wgpu::Limits requiredLimits{};
+    requiredLimits.maxStorageBuffersPerShaderStage = 3;
+
     wgpu::DeviceDescriptor deviceDesc //
         {
             {
@@ -250,6 +256,7 @@ CreateDevice(const wgpu::Instance& instance, const wgpu::Adapter& adapter)
                 .label = "MainDevice",
                 .requiredFeatureCount = std::size(requiredFeatures),
                 .requiredFeatures = &requiredFeatures[0],
+                .requiredLimits = &requiredLimits,
             },
         };
     deviceDesc.SetDeviceLostCallback(wgpu::CallbackMode::AllowProcessEvents, deviceLostCb);
@@ -968,10 +975,36 @@ WebgpuHelper::CreateUniformBuffer(const size_t size, const std::string_view& nam
 }
 
 #include <dawn/native/DawnNative.h> // provides dawn::native::GetTogglesUsed
-#include <iostream>
 
 namespace
 {
+void EnumerateAdapters()
+{
+    const dawn::native::Instance instance;
+
+    WGPURequestAdapterOptions options{};
+    options.backendType = WGPUBackendType_OpenGL;
+    options.featureLevel = WGPUFeatureLevel_Core;
+
+    const std::vector<dawn::native::Adapter> adapters = instance.EnumerateAdapters();
+
+    for (const dawn::native::Adapter& a : adapters)
+    {
+        WGPUAdapter adapter = a.Get();
+
+        WGPUAdapterInfo info{.adapterType = WGPUAdapterType_Unknown};
+        wgpuAdapterGetInfo(adapter, &info);
+
+        //std::printf("vendor:      %.*s\n", (int)info.vendor.length, info.vendor.data);
+        //std::printf("architecture:%.*s\n", (int)info.architecture.length, info.architecture.data);
+        //std::printf("device:      %.*s\n", (int)info.device.length, info.device.data);
+        //std::printf("description: %.*s\n", (int)info.description.length, info.description.data);
+        //std::printf("backend:     %d\n\n", (int)info.backendType);
+
+        wgpuAdapterInfoFreeMembers(info);
+    }
+}
+
 Result<>
 DumpDawnAdapterInfo(const wgpu::Adapter& adapter)
 {

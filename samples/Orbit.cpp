@@ -33,17 +33,18 @@ constexpr float kPhysicsTimeStep = 1.0f/kPhysicsFps;
 constexpr float kGravitationalConstant = 0.1f;//6.674e-11f;//(m^3 kg^-1 s^-2)
 
 constexpr bool kApplyGravityMultithreaded = true;
-
-PerfCounter TotalPECounter("Energy.PE");    // Potential Energy
-PerfCounter TotalKECounter("Energy.KE");    // Kinetic Energy
-PerfCounter TotalEnergyCounter("Energy.Total");
+struct PerfCounterGlobals
+{
+    static inline PerfCounter TotalPE{"Energy.PE"};    // Potential Energy
+    static inline PerfCounter TotalKE{"Energy.KE"};    // Kinetic Energy
+    static inline PerfCounter TotalEnergy{"Energy.Total"};
+};
 
 class DevUi
 {
 public:
-
-    DevUi(const Renderer& renderer, const PhysicsLevel& physLevel)
-    : m_Renderer(renderer), m_PhysLevel(physLevel)
+    explicit DevUi(const Renderer& renderer)
+        : m_Renderer(&renderer)
     {
     }
 
@@ -68,9 +69,8 @@ public:
 
 private:
 
-    Extent m_ScenePanelDimension{0, 0};
-    const Renderer& m_Renderer;
-    const PhysicsLevel& m_PhysLevel;
+    Extent m_ScenePanelDimension{.Width = 0, .Height = 0};
+    const Renderer* m_Renderer;
 };
 
 Result<>
@@ -109,27 +109,9 @@ Shutdown()
     ThreadPool::Shutdown();
 }
 
-float
-GetStatusBarHeight()
-{
-    const ImGuiStyle& style = ImGui::GetStyle();
-
-    return ImGui::GetFrameHeight() + style.WindowPadding.y * 2.0f;
-}
-
 void
-DevUi::DrawPerfPanel(const char* panelName)
+DevUi::DrawPerfPanel(const char* panelName) // NOLINT(readability-convert-member-functions-to-static)
 {
-#if defined(NDEBUG)
-    constexpr const char* buildType = "Release";
-#else
-    constexpr const char* buildType = "Debug";
-#endif
-
-    constexpr const char* backend = "Dawn";
-
-    auto title = std::format("Counters: {}/{}", buildType, backend);
-
     ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
     ImGui::Begin(panelName);
     MLG_DEFER { ImGui::End(); };
@@ -182,14 +164,14 @@ DevUi::DrawScenePanel(const char* panelName)
     //ImGui::SetNextWindowBgAlpha(0.0f);
     ImGui::Begin(panelName, nullptr, ImGuiWindowFlags_NoBackground);
 
-    wgpu::Texture my_texture;
-    wgpu::TextureView my_texture_view;
-    m_Renderer.GetTarget(my_texture, my_texture_view);
-    ImVec2 avail = ImGui::GetContentRegionAvail();
+    wgpu::Texture texture;
+    wgpu::TextureView textureView;
+    m_Renderer->GetTarget(texture, textureView);
+    const ImVec2 avail = ImGui::GetContentRegionAvail();
 
-    m_ScenePanelDimension = Extent{ avail.x, avail.y };
+    m_ScenePanelDimension = Extent{ .Width = avail.x, .Height = avail.y };
 
-    ImGui::Image((ImTextureID)(intptr_t)my_texture_view.Get(), avail);
+    ImGui::Image(ImTextureRef(textureView.Get()), avail);
 
     /*ImGui::Begin("Scene", nullptr,
     ImGuiWindowFlags_NoBackground |
@@ -201,7 +183,7 @@ DevUi::DrawScenePanel(const char* panelName)
     ImGui::End();
 }
 
-void DevUi::DrawConsolePanel(const char* panelName)
+void DevUi::DrawConsolePanel(const char* panelName) // NOLINT(readability-convert-member-functions-to-static)
 {
     ImGui::Begin(panelName);
     MLG_DEFER { ImGui::End(); };
@@ -212,15 +194,15 @@ void DevUi::DrawConsolePanel(const char* panelName)
 void
 DevUi::DrawDockedEditorLayout()
 {
-    ImGuiID dockspaceId = ImGui::GetID("MainDockspace");
+    const ImGuiID dockspaceId = ImGui::GetID("MainDockspace");
 
-    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
 
     ImGui::SetNextWindowPos(viewport->WorkPos);
     ImGui::SetNextWindowSize(viewport->WorkSize);
     ImGui::SetNextWindowViewport(viewport->ID);
 
-    ImGuiWindowFlags hostFlags =
+    const ImGuiWindowFlags hostFlags =
         ImGuiWindowFlags_NoTitleBar |
         ImGuiWindowFlags_NoCollapse |
         ImGuiWindowFlags_NoResize |
@@ -237,7 +219,7 @@ DevUi::DrawDockedEditorLayout()
     ImGui::Begin("Dockspace Host", nullptr, hostFlags);
     ImGui::PopStyleVar(3);
 
-    ImGuiDockNodeFlags dockspaceFlags =
+    const ImGuiDockNodeFlags dockspaceFlags =
         ImGuiDockNodeFlags_None;
         //ImGuiDockNodeFlags_PassthruCentralNode;
 
@@ -257,16 +239,16 @@ DevUi::DrawDockedEditorLayout()
 
         ImGuiID dockMainId = dockspaceId;
 
-        ImGuiID dockLeftId =
+        const ImGuiID dockLeftId =
             ImGui::DockBuilderSplitNode(dockMainId, ImGuiDir_Left, 0.20f, nullptr, &dockMainId);
 
-        ImGuiID dockRightId = ImGui::DockBuilderSplitNode(dockMainId,
+        const ImGuiID dockRightId = ImGui::DockBuilderSplitNode(dockMainId,
             ImGuiDir_Right,
             0.25f,
             nullptr,
             &dockMainId);
 
-        ImGuiID dockBottomId =
+        const ImGuiID dockBottomId =
             ImGui::DockBuilderSplitNode(dockMainId, ImGuiDir_Down, 0.25f, nullptr, &dockMainId);
 
         ImGui::DockBuilderDockWindow(kScenePanelName, dockMainId);
@@ -306,15 +288,15 @@ DevUi::DrawDockedEditorLayout()
     ImGui::End();
 }
 
-void DevUi::DrawStatusBarOverlay()
+void DevUi::DrawStatusBarOverlay() // NOLINT(readability-convert-member-functions-to-static)
 {
-    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImDrawList* drawList = ImGui::GetForegroundDrawList();
 
     const ImGuiStyle& style = ImGui::GetStyle();
 
     const float height =
-        ImGui::GetFrameHeight() + style.WindowPadding.y * 2.0f;
+        ImGui::GetFrameHeight() + (style.WindowPadding.y * 2.0f);
 
     const ImVec2 min(
         viewport->WorkPos.x,
@@ -606,7 +588,7 @@ void ApplyGravity(PhysicsLevel& physLevel)
         totalPotentialEnergy += params.PotentialEnergy;
     }
 
-    TotalPECounter.Set(totalPotentialEnergy);
+    PerfCounterGlobals::TotalPE.Set(totalPotentialEnergy);
 }
 
 void ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
@@ -710,19 +692,19 @@ DeactivateNonOverlappingBodies(const PhysicsLevel& physLevel, Level& level)
 
 void ComputeKineticEnergy(const PhysicsLevel& physLevel)
 {
-    float totalEnergy = 0.0f;
+    float kineticEnergy = 0.0f;
 
     for(const auto& body : physLevel.GetBodies())
     {
         const float mass = body.GetMass().Value();
         const float speedSq = body.GetLinearVelocity().Dot(body.GetLinearVelocity());
         // KE = mv^2 / 2
-        totalEnergy += 0.5f * mass * speedSq;
+        kineticEnergy += 0.5f * mass * speedSq;
     }
 
-    TotalKECounter.Set(totalEnergy);
+    PerfCounterGlobals::TotalKE.Set(kineticEnergy);
 
-    TotalEnergyCounter.Set(totalEnergy + TotalPECounter.GetValue());
+    PerfCounterGlobals::TotalEnergy.Set(kineticEnergy + PerfCounterGlobals::TotalPE.GetValue());
 }
 
 Result<>
@@ -737,7 +719,7 @@ MainLoop()
     TextureCache textureCache;
     PhysicsLevel physLevel;
     WalkMouseNav mouseNav;
-    DevUi devUi(renderer, physLevel);
+    DevUi devUi(renderer);
 
     MLG_CHECK(renderer.Startup());
     MLG_CHECK(imGuiRenderer.Startup());
@@ -937,7 +919,7 @@ MainLoop()
         mouseNav.Update(elapsedSeconds);
 
         const Extent screenBounds = WebgpuHelper::GetScreenBounds();
-        Viewport viewport(0,
+        const Viewport viewport(0,
             0,
             static_cast<uint32_t>(screenBounds.Width),
             static_cast<uint32_t>(screenBounds.Height),

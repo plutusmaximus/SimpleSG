@@ -319,7 +319,7 @@ MainLoop()
         mouseNav.Update(elapsedSeconds);
 
         const Extent screenBounds = WebgpuHelper::GetScreenBounds();
-        Viewport viewport(0,
+        const Viewport viewport(0,
             0,
             static_cast<uint32_t>(screenBounds.Width),
             static_cast<uint32_t>(screenBounds.Height),

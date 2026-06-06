@@ -13,22 +13,11 @@ using scope_exit = std::scope_exit<F>;
 #include <type_traits>
 #include <utility>
 
-namespace
-{
-template<typename F>
-concept IsCallableWithNoArgs = std::invocable<F>;
-
-template<typename F>
-concept ReturnsVoid = std::same_as<std::invoke_result_t<F>, void>;
-
-template<typename F>
-concept CleanupFunc = IsCallableWithNoArgs<F> && ReturnsVoid<F>;
-} // namespace
-
 /// @brief A scope guard that executes a provided callable when it goes out of scope.
 /// This is a replacement for std::scope_exit in case it's not available.
 /// As of MSVC 2022, std::scope_exit is not available.
-template<CleanupFunc F>
+template<typename F>
+requires std::invocable<F> && std::same_as<std::invoke_result_t<F>, void>
 class scope_exit
 {
 private:
@@ -69,7 +58,8 @@ private:
     bool m_Active{ true };
 };
 
-template<CleanupFunc F>
+template<typename F>
+requires std::invocable<F> && std::same_as<std::invoke_result_t<F>, void>
 scope_exit(F) -> scope_exit<F>;
 
 #endif
@@ -77,24 +67,20 @@ scope_exit(F) -> scope_exit<F>;
 #define MLG_SCOPE_EXIT_CAT_1(a, b) a##b
 #define MLG_SCOPE_EXIT_CAT(a, b) MLG_SCOPE_EXIT_CAT_1(a, b)
 
-namespace
+class MLG_DeferHelper
 {
-struct DeferTag
-{
+public:
+    // Tricky operator+ allows us to write "defer + [&](){ ... }".
+    // It basically enables the syntax of "defer { ... }".
+    template<class F>
+    friend auto operator+(MLG_DeferHelper, F&& f)
+    {
+        return scope_exit(std::forward<F>(f));
+    }
 };
 
-// Tricky operator+ allows us to write "defer + [&](){ ... }".
-// It basically enables the syntax of "defer { ... }".
-template<class F>
-auto
-operator+(DeferTag, F&& f)
-{
-    return scope_exit(std::forward<F>(f));
-}
-} // namespace
-
 #define MLG_DEFER \
-    const auto MLG_SCOPE_EXIT_CAT(_defer_, __LINE__) = DeferTag{} + [&]()
+    const auto MLG_SCOPE_EXIT_CAT(_defer_, __LINE__) = MLG_DeferHelper{} + [&]()
 
 // NOLINTNEXTLINE(bugprone-macro-parentheses)
-#define MLG_DEFER_AS(name) auto name = DeferTag{} + [&]()
+#define MLG_DEFER_AS(name) auto name = MLG_DeferHelper{} + [&]()
