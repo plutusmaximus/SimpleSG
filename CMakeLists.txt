@@ -205,7 +205,7 @@ add_library(imgui STATIC
     thirdparty/imgui/imgui_demo.cpp
 )
 
-target_include_directories(imgui PUBLIC
+target_include_directories(imgui SYSTEM PUBLIC
     thirdparty/imgui
     thirdparty/imgui/backends
 )
