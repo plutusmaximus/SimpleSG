@@ -92,15 +92,34 @@ private:
     float m_InvValue;   // Inverse value
 };
 
-struct RigidBody
+class RigidBody
 {
-    Vec3f LinearVelocity{ 0 };
-    Mass Mass{-1};  // Initialize with invalid mass to catch uninitialized usage.
+public:
+
+    RigidBody() = delete;
+
+    explicit RigidBody(const Mass mass)
+        : m_Mass(mass)
+    {
+    }
+
+    const Vec3f& GetLinearVelocity() const { return m_LinearVelocity; }
+    void SetLinearVelocity(const Vec3f& velocity) { m_LinearVelocity = velocity; }
+
+    Mass GetMass() const { return m_Mass; }
+    float GetInvMass() const { return m_Mass.InvValue(); }
+
+private:
+
+    Vec3f m_LinearVelocity{ 0 };
+    Mass m_Mass;
 };
 
 class Collider
 {
 public:
+
+    Collider() = delete;
 
     explicit Collider(const Sphere& sphere)
         : m_Shape(sphere)

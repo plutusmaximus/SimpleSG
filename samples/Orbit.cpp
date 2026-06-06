@@ -463,14 +463,14 @@ void ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
     {
         const float radiusA = batchParams->Colliders[i].GetSphereRadius();
         const Vec3f posA = batchParams->Transforms[i].T; // For cache friendliness this is not a reference.
-        const float massA = batchParams->Bodies[i].Mass.Value();
+        const float massA = batchParams->Bodies[i].GetMass().Value();
 
         MLG_ASSERT(j < batchParams->Bodies.size(), "StartIndexB must be greater than StartIndexA");
 
         for(; j < batchParams->Bodies.size() && count < batchParams->BatchSize; ++j, ++count)
         {
             const float radiusB = batchParams->Colliders[j].GetSphereRadius();
-            const float massB = batchParams->Bodies[j].Mass.Value();
+            const float massB = batchParams->Bodies[j].GetMass().Value();
 
             const float minSeparation = radiusA + radiusB;
             const float minSeparationSq = minSeparation * minSeparation;
@@ -635,7 +635,7 @@ void ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
 
         normal = normal.Normalize();
         const Vec3f v = normal * magnitude;
-        const float m = bodies[i].Mass.Value();
+        const float m = bodies[i].GetMass().Value();
 
         const Vec3f force = m * v / kPhysicsTimeStep;
         physLevel.AddForce(i, force);
@@ -649,7 +649,7 @@ void ApplyStoppingImpulse(PhysicsLevel& physLevel)
     for(size_t i = 0; i < bodies.size(); ++i)
     {
         // Apply the impulse opposite to current velocity.
-        const Vec3f impulse = -bodies[i].LinearVelocity * bodies[i].Mass.Value() / kPhysicsTimeStep;
+        const Vec3f impulse = -bodies[i].GetLinearVelocity() * bodies[i].GetMass().Value() / kPhysicsTimeStep;
         physLevel.AddForce(i, impulse);
     }
 }
@@ -714,8 +714,8 @@ void ComputeKineticEnergy(const PhysicsLevel& physLevel)
 
     for(const auto& body : physLevel.GetBodies())
     {
-        const float mass = body.Mass.Value();
-        const float speedSq = body.LinearVelocity.Dot(body.LinearVelocity);
+        const float mass = body.GetMass().Value();
+        const float speedSq = body.GetLinearVelocity().Dot(body.GetLinearVelocity());
         // KE = mv^2 / 2
         totalEnergy += 0.5f * mass * speedSq;
     }

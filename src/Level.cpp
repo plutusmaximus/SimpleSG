@@ -63,11 +63,8 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
                 "RigidBodyDef in node {} has non-positive mass",
                 nodeDef.Name);
 
-            components.Body = RigidBody //
-                {
-                    .LinearVelocity = bodyDef.LinearVelocity,
-                    .Mass = bodyDef.Mass,
-                };
+            components.Body = RigidBody(bodyDef.Mass);
+            components.Body->SetLinearVelocity(bodyDef.LinearVelocity);
         }
 
         if(nodeDef.Components.Collider.has_value())

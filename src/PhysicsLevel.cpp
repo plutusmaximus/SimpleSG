@@ -69,7 +69,7 @@ PhysicsLevel::AddForce(size_t bodyIndex, const Vec3f& force)
     MLG_ASSERT(bodyIndex < m_Bodies.size(), "Body index out of range");
 
     // Accumulate accelerations for the current frame.
-    m_A0[bodyIndex] += force * m_Bodies[bodyIndex].Mass.InvValue();
+    m_A0[bodyIndex] += force * m_Bodies[bodyIndex].GetMass().InvValue();
 }
 
 void
@@ -122,7 +122,7 @@ PhysicsLevel::UpdateVelocities(const float dt)
         // integral from t0 to t1 of a(t) dt ~= (t1 - t0) * (a(t0) + a(t1)) / 2
 
         // m_Am1 is from the previous frame, and m_A0 is from the current frame.
-        m_Bodies[i].LinearVelocity += (m_Am1[i] + m_A0[i]) * dt * 0.5f;
+        m_Bodies[i].SetLinearVelocity(m_Bodies[i].GetLinearVelocity() + (m_Am1[i] + m_A0[i]) * dt * 0.5f);
     }
 }
 
@@ -146,7 +146,8 @@ PhysicsLevel::PredictPositions(const float dt)
         // Use velocity/acceleration from current frame.
         // Note that this frame's velocity was computed from
         // the previous and current frame's acceleration.
-        m_Trs1[i].T = (m_Bodies[i].LinearVelocity * dt) + ((m_A0[i] * dt * dt) / 2) + m_Trs0[i].T;
+        m_Trs1[i].T =
+            (m_Bodies[i].GetLinearVelocity() * dt) + ((m_A0[i] * dt * dt) / 2) + m_Trs0[i].T;
     }
 }
 
@@ -167,7 +168,8 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
     RigidBody& bodyB = m_Bodies[indexB];
 
     // Compute relative velocity along the normal
-    const float vRel = (bodyA.LinearVelocity - bodyB.LinearVelocity).Dot(impactResult.ContactNormalBtoA);
+    const float vRel =
+        (bodyA.GetLinearVelocity() - bodyB.GetLinearVelocity()).Dot(impactResult.ContactNormalBtoA);
 
     // Only resolve if bodies are moving towards each other
     if(vRel < 0)
@@ -192,11 +194,11 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
             // treat as a resting contact.
             : 0.0f;
 
-        const float k = -(1 + e) * vRel / (bodyA.Mass.Value() + bodyB.Mass.Value());
+        const float k = -(1 + e) * vRel / (bodyA.GetMass().Value() + bodyB.GetMass().Value());
         const Vec3f u = k * impactResult.ContactNormalBtoA;
 
-        bodyA.LinearVelocity += u * bodyB.Mass.Value();
-        bodyB.LinearVelocity -= u * bodyA.Mass.Value();
+        bodyA.SetLinearVelocity(bodyA.GetLinearVelocity() + u * bodyB.GetMass().Value());
+        bodyB.SetLinearVelocity(bodyB.GetLinearVelocity() - u * bodyA.GetMass().Value());
     }
 
     // FIXME(KB) - parameterize this.
@@ -236,8 +238,8 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
         // FIXME(KB) - parameterize this.
         constexpr float kCorrectionPercent = 0.1f;
 
-        const float invMA = bodyA.Mass.InvValue();
-        const float invMB = bodyB.Mass.InvValue();
+        const float invMA = bodyA.GetMass().InvValue();
+        const float invMB = bodyB.GetMass().InvValue();
         const float invMassSum = invMA + invMB;
 
         const float C =
