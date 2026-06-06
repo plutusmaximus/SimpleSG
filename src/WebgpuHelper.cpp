@@ -1076,6 +1076,7 @@ Texture::Texture(wgpu::Texture texture)
 size_t
 Texture::GetRowStride() const
 {
+    // Staging buffer rows must be a multiple of 256 bytes.
     return GetTextureAlignedRowStride(this->GetWidth());
 }
 
@@ -1084,9 +1085,7 @@ Texture::MapBytes()
 {
     MLG_CHECKV(!m_StagingBuffer, "Texture::MapBytes called while already mapped");
 
-    // Staging buffer rows must be a multiple of 256 bytes.
-    const uint32_t alignedRowStride = GetTextureAlignedRowStride(this->GetWidth());
-    const uint32_t sizeofBuffer = alignedRowStride * this->GetHeight();
+    const size_t sizeofBuffer = GetRowStride() * this->GetHeight();
     const wgpu::BufferUsage usage = wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc;
 
     wgpu::Buffer stagingBuffer =
