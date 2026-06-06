@@ -15,14 +15,14 @@
 
 #include <thread>
 
-static constexpr const char* kPresentShader = "shaders/PresentShader.wgsl";
-
-static constexpr const char* kColorShader = "shaders/ColorShader.wgsl";
-
-static constexpr const char* kTransformShader = "shaders/TransformShader.wgsl";
-
 namespace
 {
+constexpr const char* kCompositorShader = "shaders/CompositorShader.wgsl";
+
+constexpr const char* kColorShader = "shaders/ColorShader.wgsl";
+
+constexpr const char* kTransformShader = "shaders/TransformShader.wgsl";
+
 Result<>
 LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
 {
@@ -74,7 +74,7 @@ Renderer::Startup()
     MLG_CHECK(RefreshColorTargetResources(static_cast<uint32_t>(screenBounds.Width),
         static_cast<uint32_t>(screenBounds.Height)));
     MLG_CHECK(CreateColorPipeline());
-    MLG_CHECK(CreatePresentPipeline());
+    MLG_CHECK(CreateCompositorPipeline());
     MLG_CHECK(CreateTransformPipeline());
 
     m_Initialized = true;
@@ -96,8 +96,8 @@ Renderer::Shutdown()
     m_ColorPipeline = {};
     m_TransformPipelineResources = {};
     m_TransformPipeline = {};
-    m_PresentPipelineResources = {};
-    m_PresentPipeline = {};
+    m_CompositorPipelineResources = {};
+    m_CompositorPipeline = {};
 
     m_Initialized = false;
 
@@ -108,8 +108,7 @@ Result<>
 Renderer::Render(const TrsTransformf& cameraXForm,
     const Camera& camera,
     const Scene& scene,
-    const PropKit& propKit,
-    Compositor& compositor)
+    const PropKit& propKit)
 {
     MLG_CHECKV(m_Initialized, "Renderer is not initialized");
 
@@ -120,7 +119,10 @@ Renderer::Render(const TrsTransformf& cameraXForm,
 
     MLG_CHECK(RefreshColorTargetResources(viewport.GetWidth(), viewport.GetHeight()));
 
-    const wgpu::CommandEncoder cmdEncoder = compositor.GetCommandEncoder();
+    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "RenderCommandEncoder" };
+
+    const wgpu::CommandEncoder cmdEncoder = WebgpuHelper::GetDevice().CreateCommandEncoder(&encoderDesc);
+    MLG_CHECK(cmdEncoder, "Failed to create command encoder");
 
     {
         MLG_SCOPED_TIMER("Renderer.Render.TransformNodes");
@@ -235,10 +237,20 @@ Renderer::Render(const TrsTransformf& cameraXForm,
 
     renderPass.End();
 
+    wgpu::CommandBuffer cmdBuf;
     {
-        MLG_SCOPED_TIMER("Renderer.Render.Present");
-        auto presentResult = Present(compositor);
-        MLG_CHECK(presentResult);
+        MLG_SCOPED_TIMER("Renderer.FinishCommandBuffer");
+        cmdBuf = cmdEncoder.Finish(nullptr);
+
+        MLG_CHECK(cmdBuf, "Failed to finish command buffer");
+    }
+
+    {
+        MLG_SCOPED_TIMER("Renderer.SubmitCommandBuffer");
+        const wgpu::Queue queue = WebgpuHelper::GetDevice().GetQueue();
+        MLG_CHECK(queue, "Failed to get wgpu::Queue");
+
+        queue.Submit(1, &cmdBuf);
     }
 
     return Result<>::Ok;
@@ -251,6 +263,45 @@ Renderer::GetTarget(wgpu::Texture& outTexture, wgpu::TextureView& outTextureView
 
     outTexture = m_ColorTargetResources.Target;
     outTextureView = m_ColorTargetResources.TargetView;
+    return Result<>::Ok;
+}
+
+Result<> Renderer::Composite(Compositor& compositor) const
+{
+    MLG_CHECKV(m_Initialized, "Renderer is not initialized");
+
+    const wgpu::Texture target = compositor.GetTarget();
+
+    if(!target)
+    {
+        // Off-screen rendering, skip rendering to swapchain
+        return Result<>::Ok;
+    }
+
+    const wgpu::RenderPassColorAttachment attachment //
+        {
+            .view = target.CreateView(),
+            .loadOp = wgpu::LoadOp::Clear,
+            .storeOp = wgpu::StoreOp::Store,
+            .clearValue = { .r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 1.0f },
+        };
+
+    const wgpu::RenderPassDescriptor renderPassDesc //
+        {
+            .label = "CopyRenderPass",
+            .colorAttachmentCount = 1,
+            .colorAttachments = &attachment,
+        };
+
+    const wgpu::CommandEncoder cmdEncoder = compositor.GetCommandEncoder();
+
+    const wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
+
+    renderPass.SetPipeline(m_CompositorPipeline);
+    renderPass.SetBindGroup(0, m_ColorTargetResources.BindGroup, 0, nullptr);
+    renderPass.Draw(3, 1, 0, 0);
+    renderPass.End();
+
     return Result<>::Ok;
 }
 
@@ -293,43 +344,6 @@ Renderer::BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder)
     MLG_CHECK(renderPass, "Failed to begin render pass");
 
     return renderPass;
-}
-
-Result<>
-Renderer::Present(Compositor& compositor) const
-{
-    const wgpu::Texture target = compositor.GetTarget();
-
-    if(!target)
-    {
-        // Off-screen rendering, skip rendering to swapchain
-        return Result<>::Ok;
-    }
-
-    const wgpu::RenderPassColorAttachment attachment //
-        {
-            .view = target.CreateView(),
-            .loadOp = wgpu::LoadOp::Clear,
-            .storeOp = wgpu::StoreOp::Store,
-            .clearValue = { .r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 1.0f },
-        };
-
-    const wgpu::RenderPassDescriptor renderPassDesc //
-        {
-            .label = "CopyRenderPass",
-            .colorAttachmentCount = 1,
-            .colorAttachments = &attachment,
-        };
-
-    const wgpu::RenderPassEncoder renderPass = compositor.GetCommandEncoder().BeginRenderPass(&renderPassDesc);
-    MLG_CHECK(renderPass, "Failed to begin render pass for copying color target to swapchain");
-
-    renderPass.SetPipeline(m_PresentPipeline);
-    renderPass.SetBindGroup(0, m_ColorTargetResources.BindGroup, 0, nullptr);
-    renderPass.Draw(3, 1, 0, 0);
-    renderPass.End();
-
-    return Result<>::Ok;
 }
 
 Result<>
@@ -417,8 +431,8 @@ Renderer::RefreshColorTargetResources(const uint32_t width, const uint32_t heigh
 
     if(!m_ColorTargetResources.BindGroup)
     {
-        auto bgLayouts = WebgpuHelper::GetCompositorPipelineLayouts();
-        MLG_CHECK(bgLayouts);
+        auto bgLayout = WebgpuHelper::GetTextureSamplerBindGroupLayout();
+        MLG_CHECK(bgLayout);
 
         const wgpu::BindGroupEntry bgEntries[] = //
             {
@@ -434,8 +448,8 @@ Renderer::RefreshColorTargetResources(const uint32_t width, const uint32_t heigh
 
         const wgpu::BindGroupDescriptor bgDesc //
             {
-                .label = "ColorTargetCopyBindGroup",
-                .layout = (*bgLayouts)[0],
+                .label = "ColorTargetTextureBindGroup",
+                .layout = *bgLayout,
                 .entryCount = std::size(bgEntries),
                 .entries = &bgEntries[0],
             };
@@ -598,33 +612,31 @@ Renderer::CreateColorPipeline()
 }
 
 Result<>
-Renderer::CreatePresentPipeline()
+Renderer::CreateCompositorPipeline()
 {
-    if(m_PresentPipeline)
+    if(m_CompositorPipeline)
     {
         return Result<>::Ok;
     }
 
-    auto shader = CreateShader(kPresentShader);
+    auto shader = CreateShader(kCompositorShader);
     MLG_CHECK(shader);
 
-    m_PresentPipelineResources.Shader = *shader;
+    m_CompositorPipelineResources.Shader = *shader;
 
-    // Present pipeline bind group layout
-
-    auto bgLayouts = WebgpuHelper::GetCompositorPipelineLayouts();
-    MLG_CHECK(bgLayouts);
+    auto bgLayout = WebgpuHelper::GetTextureSamplerBindGroupLayout();
+    MLG_CHECK(bgLayout);
 
     const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
         {
-            .label = "PresentPipelineLayout",
-            .bindGroupLayoutCount = std::size(*bgLayouts),
-            .bindGroupLayouts = bgLayouts->data(),
+            .label = "CompositorPipelineLayout",
+            .bindGroupLayoutCount = 1,
+            .bindGroupLayouts = &bgLayout.Value(),
         };
 
-    m_PresentPipelineResources.Layout =
+    m_CompositorPipelineResources.Layout =
         WebgpuHelper::GetDevice().CreatePipelineLayout(&pipelineLayoutDesc);
-    MLG_CHECK(m_PresentPipelineResources.Layout, "Failed to create present pipeline layout");
+    MLG_CHECK(m_CompositorPipelineResources.Layout, "Failed to create compositor pipeline layout");
 
     const wgpu::BlendState blendState //
         {
@@ -651,7 +663,7 @@ Renderer::CreatePresentPipeline()
 
     const wgpu::FragmentState fragmentState //
         {
-            .module = m_PresentPipelineResources.Shader,
+            .module = m_CompositorPipelineResources.Shader,
             .entryPoint = "fs_main",
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -659,11 +671,11 @@ Renderer::CreatePresentPipeline()
 
     const wgpu::RenderPipelineDescriptor descriptor//
     {
-        .label = "CopyColorTargetPipeline",
-        .layout = m_PresentPipelineResources.Layout,
+        .label = "CompositorPipeline",
+        .layout = m_CompositorPipelineResources.Layout,
         .vertex =
         {
-            .module = m_PresentPipelineResources.Shader,
+            .module = m_CompositorPipelineResources.Shader,
             .entryPoint = "vs_main",
             .bufferCount = 0,
             .buffers = nullptr,
@@ -686,8 +698,8 @@ Renderer::CreatePresentPipeline()
         .fragment = &fragmentState,
     };
 
-    m_PresentPipeline = WebgpuHelper::GetDevice().CreateRenderPipeline(&descriptor);
-    MLG_CHECK(m_PresentPipeline, "Failed to create present pipeline");
+    m_CompositorPipeline = WebgpuHelper::GetDevice().CreateRenderPipeline(&descriptor);
+    MLG_CHECK(m_CompositorPipeline, "Failed to create compositor pipeline");
 
     return Result<>::Ok;
 }

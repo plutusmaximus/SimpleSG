@@ -251,11 +251,11 @@ public:
         return *buffer;
     }
 
+    static Result<const wgpu::BindGroupLayout> GetTextureSamplerBindGroupLayout();
+
     static Result<const std::array<wgpu::BindGroupLayout, 2>> GetColorPipelineLayouts();
 
     static Result<const std::array<wgpu::BindGroupLayout, 1>> GetTransformPipelineLayouts();
-
-    static Result<const std::array<wgpu::BindGroupLayout, 1>> GetCompositorPipelineLayouts();
 
     static Extent GetScreenBounds();
 

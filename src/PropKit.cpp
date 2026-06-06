@@ -303,8 +303,8 @@ CreateMaterialBindGroups(const std::span<const MaterialDef> materialDefs,
 
     materialBindGroups.reserve(materialDefs.size());
 
-    auto bgLayouts = WebgpuHelper::GetColorPipelineLayouts();
-    MLG_CHECK(bgLayouts);
+    auto bgLayout = WebgpuHelper::GetTextureSamplerBindGroupLayout();
+    MLG_CHECK(bgLayout);
 
     for(const auto& mtlDef : materialDefs)
     {
@@ -328,7 +328,7 @@ CreateMaterialBindGroups(const std::span<const MaterialDef> materialDefs,
         const wgpu::BindGroupDescriptor bindGroupDesc //
         {
             .label = "MaterialBindGroup",
-            .layout = (*bgLayouts)[1],
+            .layout = *bgLayout,
             .entryCount = std::size(bgEntries),
             .entries = &bgEntries[0],
         };

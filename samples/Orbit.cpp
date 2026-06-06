@@ -912,9 +912,9 @@ MainLoop()
             ComputeKineticEnergy(physLevel);
         }
 
-        physLevel.SyncToLevel(level);
+        MLG_CHECK(physLevel.SyncToLevel(level));
 
-        scene.SyncFromLevel(level);
+        MLG_CHECK(scene.SyncFromLevel(level));
 
         mouseNav.Update(elapsedSeconds);
 
@@ -934,18 +934,18 @@ MainLoop()
         }
         trsCamera = mouseNav.GetTransform();
 
-        compositor.BeginFrame();
-        imGuiRenderer.NewFrame();
+        MLG_CHECK(scene.SyncToGpu());
 
-        scene.SyncToGpu();
+        MLG_CHECK(compositor.BeginFrame());
 
-        renderer.Render(trsCamera, camera, scene, propKit, compositor);
+        MLG_CHECK(renderer.Render(trsCamera, camera, scene, propKit));
+        //MLG_CHECK(renderer.Composite(compositor));
 
-        devUi.Render();
+        MLG_CHECK(imGuiRenderer.NewFrame());
+        MLG_CHECK(devUi.Render());
+        MLG_CHECK(imGuiRenderer.Composite(compositor));
 
-        imGuiRenderer.Render(compositor);
-
-        compositor.EndFrame();
+        MLG_CHECK(compositor.EndFrame());
 
         {
 #if !defined(__EMSCRIPTEN__)

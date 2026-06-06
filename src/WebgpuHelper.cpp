@@ -246,7 +246,12 @@ CreateDevice(const wgpu::Instance& instance, const wgpu::Adapter& adapter)
         };
 
     wgpu::Limits requiredLimits{};
+    /*requiredLimits.maxTextureDimension2D = 4096;
+    requiredLimits.maxBindGroups = 3;
+    requiredLimits.maxBindGroupsPlusVertexBuffers = 4;
+    requiredLimits.maxBindingsPerBindGroup = 4;
     requiredLimits.maxStorageBuffersPerShaderStage = 3;
+    requiredLimits.maxUniformBuffersPerShaderStage = 3;*/
 
     wgpu::DeviceDescriptor deviceDesc //
         {
@@ -698,6 +703,15 @@ WebgpuHelper::CreateIndexBuffer(std::span<const VertexIndex> indices, const std:
     return buffer;
 }
 
+Result<const wgpu::BindGroupLayout>
+WebgpuHelper::GetTextureSamplerBindGroupLayout()
+{
+    auto bgLayouts = GetColorPipelineLayouts();
+    MLG_CHECK(bgLayouts);
+
+    return bgLayouts->at(1);
+}
+
 Result<const std::array<wgpu::BindGroupLayout, 2>>
 WebgpuHelper::GetColorPipelineLayouts()
 {
@@ -877,51 +891,6 @@ WebgpuHelper::GetTransformPipelineLayouts()
     return WgpuContext::Ctx->TransformPipelineLayouts;
 }
 
-Result<const std::array<wgpu::BindGroupLayout, 1>>
-WebgpuHelper::GetCompositorPipelineLayouts()
-{
-    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::GetCompositorPipelineLayouts called before Startup");
-
-    if(!WgpuContext::Ctx->CompositorPipelineLayouts[0])
-    {
-        // Compositor pipeline bind group 0 layout
-        const wgpu::BindGroupLayoutEntry entries[] =//
-        {
-            {
-                .binding = 0,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .texture =
-                {
-                    .sampleType = wgpu::TextureSampleType::Float,
-                    .viewDimension = wgpu::TextureViewDimension::e2D,
-                    .multisampled = false,
-                },
-            },
-            {
-                .binding = 1,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .sampler =
-                {
-                    .type = wgpu::SamplerBindingType::Filtering,
-                },
-            },
-        };
-
-        const wgpu::BindGroupLayoutDescriptor desc = //
-            {
-                .label = "CompositorPipelineBg0Layout",
-                .entryCount = std::size(entries),
-                .entries = &entries[0],
-            };
-
-        WgpuContext::Ctx->CompositorPipelineLayouts[0] = GetDevice().CreateBindGroupLayout(&desc);
-        MLG_CHECK(WgpuContext::Ctx->CompositorPipelineLayouts[0],
-            "Failed to create bind group 0 layout for compositor pipeline");
-    }
-
-    return WgpuContext::Ctx->CompositorPipelineLayouts;
-}
-
 Extent
 WebgpuHelper::GetScreenBounds()
 {
@@ -982,12 +951,11 @@ void EnumerateAdapters()
 {
     const dawn::native::Instance instance;
 
-    WGPURequestAdapterOptions options{};
-    options.backendType = WGPUBackendType_OpenGL;
-    options.featureLevel = WGPUFeatureLevel_Core;
-
     const std::vector<dawn::native::Adapter> adapters = instance.EnumerateAdapters();
 
+    MLG_INFO("Available adapters ({}):", adapters.size());
+
+    size_t count = 0;
     for (const dawn::native::Adapter& a : adapters)
     {
         WGPUAdapter adapter = a.Get();
@@ -995,11 +963,13 @@ void EnumerateAdapters()
         WGPUAdapterInfo info{.adapterType = WGPUAdapterType_Unknown};
         wgpuAdapterGetInfo(adapter, &info);
 
-        //std::printf("vendor:      %.*s\n", (int)info.vendor.length, info.vendor.data);
-        //std::printf("architecture:%.*s\n", (int)info.architecture.length, info.architecture.data);
-        //std::printf("device:      %.*s\n", (int)info.device.length, info.device.data);
-        //std::printf("description: %.*s\n", (int)info.description.length, info.description.data);
-        //std::printf("backend:     %d\n\n", (int)info.backendType);
+        MLG_INFO("Adapter {}:", count++);
+        MLG_INFO("  Vendor: {}", std::string_view(info.vendor.data, info.vendor.length));
+        MLG_INFO("  Architecture: {}", std::string_view(info.architecture.data, info.architecture.length));
+        MLG_INFO("  Device: {}", std::string_view(info.device.data, info.device.length));
+        MLG_INFO("  Description: {}", std::string_view(info.description.data, info.description.length));
+        MLG_INFO("  Backend Type: {}", static_cast<int>(info.backendType));
+        MLG_INFO("  Adapter Type: {}", static_cast<int>(info.adapterType));
 
         wgpuAdapterInfoFreeMembers(info);
     }

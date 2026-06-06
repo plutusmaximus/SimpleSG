@@ -26,7 +26,7 @@ public:
 
     Result<> NewFrame() const;
 
-    Result<> Render(Compositor& renderCompositor) const;
+    Result<> Composite(Compositor& compositor) const;
 
 private:
 

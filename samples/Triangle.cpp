@@ -247,26 +247,20 @@ Result<> MainLoop()
             camera.SetViewport(viewport);
             camera.SetAspectRatio(viewport.GetAspectRatio());
 
-            compositor.BeginFrame();
+            MLG_CHECK(compositor.BeginFrame());
 
-            imGuiRenderer.NewFrame();
+            MLG_CHECK(imGuiRenderer.NewFrame());
 
-            RenderGui();
+            MLG_CHECK(RenderGui());
         }
 
-        auto renderResult = renderer.Render(cameraXform,
-            camera,
-            scene,
-            propKit,
-            compositor);
+        MLG_CHECK(renderer.Render(cameraXform, camera, scene, propKit));
 
-        MLG_CHECK(renderResult);
+        MLG_CHECK(renderer.Composite(compositor));
 
-        auto imGuiRenderResult = imGuiRenderer.Render(compositor);
-        MLG_CHECK(imGuiRenderResult);
+        MLG_CHECK(imGuiRenderer.Composite(compositor));
 
-        auto endFrameResult = compositor.EndFrame();
-        MLG_CHECK(endFrameResult);
+        MLG_CHECK(compositor.EndFrame());
 
 #if !defined(__EMSCRIPTEN__)
 
@@ -279,9 +273,9 @@ Result<> MainLoop()
         WebgpuHelper::GetInstance().ProcessEvents();
     }
 
-    imGuiRenderer.Shutdown();
-    renderer.Shutdown();
-    textureCache.Shutdown();
+    MLG_CHECK(imGuiRenderer.Shutdown());
+    MLG_CHECK(renderer.Shutdown());
+    MLG_CHECK(textureCache.Shutdown());
 
     PerfMetrics::LogCounters();
 

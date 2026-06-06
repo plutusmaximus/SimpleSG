@@ -86,7 +86,7 @@ ImGuiRenderer::NewFrame() const
 }
 
 Result<>
-ImGuiRenderer::Render(Compositor& renderCompositor) const
+ImGuiRenderer::Composite(Compositor& compositor) const
 {
     MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
 
@@ -110,8 +110,7 @@ ImGuiRenderer::Render(Compositor& renderCompositor) const
         return Result<>::Ok;
     }
 
-    const wgpu::Texture target = renderCompositor.GetTarget();
-    const wgpu::CommandEncoder cmdEncoder = renderCompositor.GetCommandEncoder();
+    const wgpu::Texture target = compositor.GetTarget();
 
     if(!target)
     {
@@ -133,8 +132,9 @@ ImGuiRenderer::Render(Compositor& renderCompositor) const
         .label = "ImGuiRenderPass",
         .colorAttachmentCount = 1,
         .colorAttachments = &colorAttachment,
-        .depthStencilAttachment = nullptr,
     };
+
+    const wgpu::CommandEncoder cmdEncoder = compositor.GetCommandEncoder();
 
     const wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
 

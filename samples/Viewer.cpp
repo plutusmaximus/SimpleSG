@@ -329,16 +329,16 @@ MainLoop()
         camera.SetAspectRatio(viewport.GetAspectRatio());
         trsCamera = mouseNav.GetTransform();
 
-        compositor.BeginFrame();
-        imGuiRenderer.NewFrame();
+        MLG_CHECK(compositor.BeginFrame());
 
-        renderer.Render(trsCamera, camera, scene, propKit, compositor);
+        MLG_CHECK(renderer.Render(trsCamera, camera, scene, propKit));
+        MLG_CHECK(renderer.Composite(compositor));
 
-        RenderGui();
+        MLG_CHECK(imGuiRenderer.NewFrame());
+        MLG_CHECK(RenderGui());
+        MLG_CHECK(imGuiRenderer.Composite(compositor));
 
-        imGuiRenderer.Render(compositor);
-
-        compositor.EndFrame();
+        MLG_CHECK(compositor.EndFrame());
 
 #if !defined(__EMSCRIPTEN__)
         MLG_CHECK(WebgpuHelper::GetSurface().Present(), "Failed to present backbuffer");

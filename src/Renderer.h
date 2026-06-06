@@ -34,22 +34,21 @@ public:
     Result<> Render(const TrsTransformf& cameraXForm,
         const Camera& camera,
         const Scene& scene,
-        const PropKit& propKit,
-        Compositor& compositor);
+        const PropKit& propKit);
 
     Result<> GetTarget(wgpu::Texture& outTexture, wgpu::TextureView& outTextureView) const;
+
+    Result<> Composite(Compositor& compositor) const;
 
 private:
 
     Result<wgpu::RenderPassEncoder> BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder);
 
-    Result<> Present(Compositor& compositor) const;
-
     Result<> RefreshColorTargetResources(const uint32_t width, const uint32_t height);
 
     Result<> CreateColorPipeline();
 
-    Result<> CreatePresentPipeline();
+    Result<> CreateCompositorPipeline();
 
     Result<> CreateTransformPipeline();
 
@@ -82,7 +81,7 @@ private:
         wgpu::PipelineLayout Layout;
     };
 
-    struct PresentPipelineResources
+    struct CompositorPipelineResources
     {
         wgpu::ShaderModule Shader;
         wgpu::PipelineLayout Layout;
@@ -98,9 +97,9 @@ private:
     TransformPipelineResources m_TransformPipelineResources;
     wgpu::ComputePipeline m_TransformPipeline;
 
-    // Pipeline to present the color target to the swap chain.
-    PresentPipelineResources m_PresentPipelineResources;
-    wgpu::RenderPipeline m_PresentPipeline;
+    // Pipeline to composite the color target to the swap chain.
+    CompositorPipelineResources m_CompositorPipelineResources;
+    wgpu::RenderPipeline m_CompositorPipeline;
 
     bool m_Initialized{false};
 };
