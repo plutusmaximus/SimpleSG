@@ -5,9 +5,9 @@
             "name": "Sample (Windows)",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/${input:winBuildType}/${input:winTarget}.exe",
+            "program": "${workspaceFolder}/build/${input:buildType}/${input:target}.exe",
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build/${input:winBuildType}",
+            "cwd": "${workspaceFolder}/build/${input:buildType}",
             "console": "integratedTerminal",
             "presentation": {
                 "group": "Windows",
@@ -55,6 +55,35 @@
                 "group": "Linux",
                 "order": 1
             }
+        },
+        {
+            "name": "Sample (LLDB, macOS)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/${input:buildType}/${input:target}",
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/${input:buildType}",
+            "externalConsole": false,
+            "presentation": {
+                "group": "macOS",
+                "order": 1
+            }
+        },
+        {
+            "name": "Tests (Debug, List Tests, macOS)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/Tests",
+            "args": [
+                "--gtest_list_tests"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/Debug",
+            "externalConsole": false,
+            "presentation": {
+                "group": "macOS",
+                "order": 2
+            }
         }
     ],
     "inputs": [
@@ -73,26 +102,6 @@
             "id": "target",
             "type": "pickString",
             "description": "Select executable",
-            "options": [
-                "Viewer",
-                "Orbit"
-            ],
-            "default": "Viewer"
-        },
-        {
-            "id": "winBuildType",
-            "type": "pickString",
-            "description": "Select Windows build folder",
-            "options": [
-                "Debug",
-                "Release"
-            ],
-            "default": "Debug"
-        },
-        {
-            "id": "winTarget",
-            "type": "pickString",
-            "description": "Select Windows executable",
             "options": [
                 "Triangle",
                 "Viewer",
