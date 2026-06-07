@@ -28,9 +28,35 @@ std::vector<std::string>& LogPrefixStack()
     return logPrefixStack;
 }
 
+bool& ShouldRebuildPrefix()
+{
+    static thread_local bool shouldRebuildPrefix = false;
+    return shouldRebuildPrefix;
+}
+
 std::string& LogPrefix()
 {
     static thread_local std::string logPrefix;
+
+    if(ShouldRebuildPrefix())
+    {
+        logPrefix = "[";
+
+        int count = 0;
+
+        for(const auto& component : LogPrefixStack())
+        {
+            if(count > 0)
+            {
+                logPrefix += " : ";
+            }
+            logPrefix += component;
+            ++count;
+        }
+
+        logPrefix += "] ";
+        ShouldRebuildPrefix() = false;
+    }
     return logPrefix;
 }
 
@@ -121,7 +147,7 @@ void
 Log::PushPrefix(const std::string& message)
 {
     LogPrefixStack().push_back(message);
-    MakePrefix();
+    ShouldRebuildPrefix() = true;
 }
 
 void
@@ -130,30 +156,8 @@ Log::PopPrefix()
     if(!LogPrefixStack().empty())
     {
         LogPrefixStack().pop_back();
-        MakePrefix();
+        ShouldRebuildPrefix() = true;
     }
-}
-
-void
-Log::MakePrefix()
-{
-    std::string& prefix = LogPrefix();
-    prefix.clear();
-    prefix += "[";
-
-    int count = 0;
-
-    for(const auto& component : LogPrefixStack())
-    {
-        if(count > 0)
-        {
-            prefix += " : ";
-        }
-        prefix += component;
-        ++count;
-    }
-
-    prefix += "] ";
 }
 
 std::string

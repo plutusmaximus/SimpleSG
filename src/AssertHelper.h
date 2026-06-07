@@ -90,7 +90,7 @@ static bool Log(AssertHelper::AssertData& assertData,
     MLG_CLANG_DIAG_PUSH \
     MLG_CLANG_DIAG_IGNORE_C2Y_EXTENSIONS \
     (static_cast<bool>(expr) || \
-        (AssertHelper::Log(AssertHelper::GetAssertData<__COUNTER__>(#expr),#expr, SDL_FUNCTION, SDL_ASSERT_FILE, SDL_LINE __VA_OPT__(, ) __VA_ARGS__) \
+        (AssertHelper::Log(AssertHelper::GetAssertData<__COUNTER__>(#expr),#expr, __func__, __FILE__, __LINE__ __VA_OPT__(, ) __VA_ARGS__) \
             ? (SDL_AssertBreakpoint(), false) : false)) \
     MLG_CLANG_DIAG_POP
 

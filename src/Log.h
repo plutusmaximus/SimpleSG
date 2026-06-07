@@ -94,8 +94,6 @@ private:
 
     static inline Logger s_AssertLogger{"ASSERT"};
 
-    static void MakePrefix();
-
     static std::string Prefix(const std::string& message);
 };
 
@@ -115,7 +113,7 @@ struct LogScope
     }
 
     ~LogScope()
-    {
+    {       
         Log::PopPrefix();
     }
 

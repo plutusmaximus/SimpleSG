@@ -6,13 +6,6 @@
 #include <string>
 #include <vector>
 
-#if defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
-#define WIN32_USE_IOCP 0
-#endif
-
 class FileFetcher
 {
 public:
@@ -75,24 +68,11 @@ public:
             MLG_ASSERT(status == RequestStatus::Success || status == RequestStatus::Failure,
                 "Invalid status for completion");
 
-#if defined(_WIN32) && WIN32_USE_IOCP
-            if(m_hFile)
-            {
-                ::CancelIoEx(m_hFile, &m_Ov);
-                ::CloseHandle(m_hFile);
-                m_hFile = nullptr;
-            }
-#endif
-
             m_Status = status;
         }
 
-#if defined(_WIN32) && WIN32_USE_IOCP
-        HANDLE m_hFile{nullptr};
-        OVERLAPPED m_Ov{0};
-#else
         struct SDL_AsyncIO* m_AsyncIO{nullptr};
-#endif
+
         std::string m_FilePath;
         size_t m_BytesRequested{0};
         size_t m_BytesRead{0};

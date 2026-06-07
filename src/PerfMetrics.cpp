@@ -3,15 +3,27 @@
 #include "PerfMetrics.h"
 
 #include "Log.h"
+#include "SanitizerHelpers.h"
 
 #include <mutex>
 
 namespace
 {
-struct PMGlobals
+std::mutex* MakeMutex()
 {
-    static inline std::mutex Mutex;
-};
+    std::mutex* p = new std::mutex; // NOLINT(cppcoreguidelines-owning-memory)
+
+    // We intentionally leak this, so hide it from leak sanitizers
+    __lsan_ignore_object(p);
+
+    return p;
+}
+
+std::mutex& GetMutex()
+{
+    static std::mutex* mutex = MakeMutex();
+    return *mutex;
+}
 } // namespace
 
 inlist<PerfCounter, &PerfCounter::m_ListNode> PerfMetrics::m_Counters;
@@ -56,13 +68,13 @@ PerfCounter::PerfCounter(
       m_SamplePolicy(samplePolicy),
       m_CategoryId(categoryId)
 {
-    const std::lock_guard lock(PMGlobals::Mutex);
+    const std::lock_guard lock(GetMutex());
     PerfMetrics::m_Counters.push_back(this);
 }
 
 PerfCounter::~PerfCounter()
 {
-    const std::lock_guard lock(PMGlobals::Mutex);
+    const std::lock_guard lock(GetMutex());
     PerfMetrics::m_Counters.erase(this);
 }
 
@@ -96,7 +108,7 @@ PerfTimer::Stop()
 size_t
 PerfMetrics::GetAllCounterCount()
 {
-    const std::lock_guard lock(PMGlobals::Mutex);
+    const std::lock_guard lock(GetMutex());
 
     return m_Counters.size();
 }
@@ -104,7 +116,7 @@ PerfMetrics::GetAllCounterCount()
 size_t
 PerfMetrics::SampleAllCounters(std::span<PerfStats>& outStats)
 {
-    const std::lock_guard lock(PMGlobals::Mutex);
+    const std::lock_guard lock(GetMutex());
 
     size_t count = 0;
 
@@ -127,7 +139,7 @@ PerfMetrics::SampleAllCounters(std::span<PerfStats>& outStats)
 size_t
 PerfMetrics::GetCounterCount(const PerfCounterCategoryId categoryId)
 {
-    const std::lock_guard lock(PMGlobals::Mutex);
+    const std::lock_guard lock(GetMutex());
 
     size_t count = 0;
     for(auto& counter : m_Counters)
@@ -144,7 +156,7 @@ PerfMetrics::GetCounterCount(const PerfCounterCategoryId categoryId)
 size_t
 PerfMetrics::SampleCounters(const PerfCounterCategoryId categoryId, std::span<PerfStats>& outStats)
 {
-    const std::lock_guard lock(PMGlobals::Mutex);
+    const std::lock_guard lock(GetMutex());
 
     size_t count = 0;
 
@@ -172,7 +184,7 @@ PerfMetrics::SampleCounters(const PerfCounterCategoryId categoryId, std::span<Pe
 void
 PerfMetrics::LogCounters()
 {
-    const std::lock_guard lock(PMGlobals::Mutex);
+    const std::lock_guard lock(GetMutex());
 
     for(auto& counter : m_Counters)
     {

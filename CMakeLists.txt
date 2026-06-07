@@ -223,7 +223,10 @@ if(ENABLE_CLANG_TIDY)
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
     find_program(CLANG_TIDY_EXE NAMES clang-tidy-22 clang-tidy)
     if(CLANG_TIDY_EXE)
-      set(CMAKE_CXX_CLANG_TIDY ${CLANG_TIDY_EXE} --use-color "--exclude-header-filter=(thirdparty|build)[/\\]*")
+      set(CMAKE_CXX_CLANG_TIDY
+        ${CLANG_TIDY_EXE}
+        --use-color
+        "--exclude-header-filter=(thirdparty|build)[/\\]*")
     else()
       message(FATAL_ERROR "ENABLE_CLANG_TIDY is ON and the compiler is Clang, but clang-tidy was not found")
     endif()
@@ -308,8 +311,8 @@ target_sources(ssg
 )
 
 # Keep third-party implementations out of clang-tidy noise.
-set_source_files_properties(src/cgltf.cpp PROPERTIES CXX_CLANG_TIDY "")
-set_source_files_properties(src/stb_image.cpp PROPERTIES CXX_CLANG_TIDY "")
+set_source_files_properties(src/cgltf.cpp PROPERTIES SKIP_LINTING ON)
+set_source_files_properties(src/stb_image.cpp PROPERTIES SKIP_LINTING ON)
 
 target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 webgpu_dawn imgui)
 target_include_directories(ssg PUBLIC src src/shaders)

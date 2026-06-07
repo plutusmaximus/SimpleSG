@@ -40,7 +40,7 @@ public:
     constexpr RgbaColor(const RgbaColor<U>& other) noexcept;
 
     /// @brief Converts the color to a hexadecimal string representation - #RRGGBBAA
-    [[nodiscard]] std::string ToHexString() const noexcept;
+    [[nodiscard]] std::string ToHexString() const;
 
     constexpr friend bool operator==(const RgbaColor& colorA, const RgbaColor& colorB) noexcept
     {
@@ -96,7 +96,7 @@ constexpr RgbaColor<float>::RgbaColor(const RgbaColor<uint8_t>& other) noexcept
 
 template<>
 inline std::string
-RgbaColor<uint8_t>::ToHexString() const noexcept
+RgbaColor<uint8_t>::ToHexString() const
 {
     constexpr char kHexDigits[] = "0123456789ABCDEF";
     constexpr size_t kMask = 0x0F;
@@ -115,7 +115,7 @@ RgbaColor<uint8_t>::ToHexString() const noexcept
 }
 
 template<>
-inline std::string RgbaColor<float>::ToHexString() const noexcept
+inline std::string RgbaColor<float>::ToHexString() const
 {
     return RgbaColor<uint8_t>(*this).ToHexString();
 }

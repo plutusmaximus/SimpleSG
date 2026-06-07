@@ -8,6 +8,7 @@
 
 #include <array>
 #include <SDL3/SDL_init.h>
+#include <SDL3/SDL_metal.h>
 #include <SDL3/SDL_video.h>
 #include <string>
 
@@ -28,6 +29,7 @@ class WgpuContext
 public:
 
     SDL_Window* Window{nullptr};
+    SDL_MetalView MetalView{nullptr};
     wgpu::Instance Instance{nullptr};
     wgpu::Adapter Adapter{nullptr};
     wgpu::Device Device{nullptr};
@@ -102,8 +104,13 @@ CreateSdlWindow(const char* appName)
     const int winW = displayRect.w * 3 / 4; // 0.75
     const int winH = displayRect.h * 3 / 4; // 0.75
 
-    // Create window
-    SDL_Window* window = SDL_CreateWindow(appName, winW, winH, SDL_WINDOW_RESIZABLE);
+    SDL_WindowFlags windowFlags = SDL_WINDOW_RESIZABLE;
+
+#if defined(__APPLE__)
+    windowFlags |= SDL_WINDOW_METAL;
+#endif
+
+    SDL_Window* window = SDL_CreateWindow(appName, winW, winH, windowFlags);
     MLG_CHECK(window, SDL_GetError());
 
     SDL_ShowWindow(window);
@@ -160,6 +167,8 @@ CreateAdapter(const wgpu::Instance& instance, const wgpu::Surface& surface)
 #if defined(_WIN32)
             .backendType = wgpu::BackendType::Vulkan,
     //.backendType = wgpu::BackendType::D3D12,
+#elif defined(__APPLE__)
+            .backendType = wgpu::BackendType::Metal,
 #elif defined(__EMSCRIPTEN__)
             .backendType = wgpu::BackendType::WebGPU,
 #else
@@ -245,7 +254,7 @@ CreateDevice(const wgpu::Instance& instance, const wgpu::Adapter& adapter)
             // wgpu::FeatureName::MultiDrawIndirect
         };
 
-    wgpu::Limits requiredLimits{};
+    const wgpu::Limits requiredLimits{};
     /*requiredLimits.maxTextureDimension2D = 4096;
     requiredLimits.maxBindGroups = 3;
     requiredLimits.maxBindGroupsPlusVertexBuffers = 4;
@@ -362,14 +371,18 @@ CreateSurface(wgpu::Instance instance, SDL_Window* window)
 #else
 
 Result<wgpu::Surface>
-CreateSurface(const wgpu::Instance& instance, SDL_Window* window)
+CreateSurface(const wgpu::Instance& instance,
+    [[maybe_unused]] SDL_Window* window,
+    [[maybe_unused]] SDL_MetalView metalView)
 {
-    const SDL_PropertiesID props = SDL_GetWindowProperties(window);
     wgpu::SurfaceDescriptor surfaceDesc{};
     wgpu::Surface surface;
 
 #if defined(_WIN32)
+
     MLG_DEBUG("Creating surface for Win32 HWND");
+
+    const SDL_PropertiesID props = SDL_GetWindowProperties(window);
 
     void* hwnd = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
 
@@ -380,8 +393,11 @@ CreateSurface(const wgpu::Instance& instance, SDL_Window* window)
     surface = instance.CreateSurface(&surfaceDesc);
 
 #elif defined(__linux__)
+
     const char* sdlDriver = SDL_GetCurrentVideoDriver();
     MLG_DEBUG("Creating surface for Linux - SDL video driver: {}", sdlDriver ? sdlDriver : "unknown");
+
+    const SDL_PropertiesID props = SDL_GetWindowProperties(window);
 
     if (sdlDriver && strcmp(sdlDriver, "wayland") == 0)
     {
@@ -404,6 +420,17 @@ CreateSurface(const wgpu::Instance& instance, SDL_Window* window)
     {
         MLG_ERROR("Unsupported SDL video driver: {}", sdlDriver ? sdlDriver : "unknown");
     }
+#elif defined(__APPLE__)
+
+    MLG_DEBUG("Creating surface for Metal");
+
+    void* metalLayer = SDL_Metal_GetLayer(metalView);
+    MLG_CHECK(metalLayer, SDL_GetError());
+
+    wgpu::SurfaceSourceMetalLayer surfaceSrc{};
+    surfaceSrc.layer = metalLayer;
+    surfaceDesc.nextInChain = &surfaceSrc;
+    surface = instance.CreateSurface(&surfaceDesc);
 #else
     MLG_ERROR("Unsupported platform for surface creation");
 #endif
@@ -475,16 +502,31 @@ WebgpuHelper::Startup(const char* appName)
     auto window = CreateSdlWindow(appName);
     MLG_CHECK(window);
 
-    auto cleanupWindow = scope_exit{ [&window]()
+    MLG_DEFER_AS(cleanupWindow)
+    {
+        SDL_DestroyWindow(*window);
+        SDL_Quit();
+    };
+
+    SDL_MetalView metalView = nullptr;
+    
+#if defined(__APPLE__)
+     metalView = SDL_Metal_CreateView(*window);
+    MLG_CHECK(metalView, SDL_GetError());
+#endif
+
+    MLG_DEFER_AS(cleanupMetalView)
+    {
+        if(metalView)
         {
-            SDL_DestroyWindow(*window);
-            SDL_Quit();
-        } };
+            SDL_Metal_DestroyView(metalView);
+        }
+    };
 
     auto instance = CreateInstance();
     MLG_CHECK(instance);
 
-    auto surface = CreateSurface(*instance, *window);
+    auto surface = CreateSurface(*instance, *window, metalView);
     MLG_CHECK(surface);
 
     auto adapter = CreateAdapter(*instance, *surface);
@@ -521,6 +563,7 @@ WebgpuHelper::Startup(const char* appName)
     WgpuContext context //
         {
             .Window = *window,
+            .MetalView = metalView,
             .Instance = std::move(*instance),
             .Adapter = std::move(*adapter),
             .Device = std::move(*device),
@@ -531,6 +574,8 @@ WebgpuHelper::Startup(const char* appName)
 
     auto* contextMem = static_cast<WgpuContext*>(GetContextMem());
     WgpuContext::Ctx = std::construct_at(contextMem, std::move(context));
+
+    cleanupMetalView.release();
     cleanupWindow.release();
 
     return Result<>::Ok;
@@ -542,9 +587,15 @@ WebgpuHelper::Shutdown()
     MLG_VERIFY(WgpuContext::Ctx, "WebgpuHelper::Shutdown called before Startup");
 
     SDL_Window* window = WgpuContext::Ctx->Window;
+    SDL_MetalView metalView = WgpuContext::Ctx->MetalView;
 
     std::destroy_at(WgpuContext::Ctx);
     WgpuContext::Ctx = nullptr;
+
+    if(metalView)
+    {
+        SDL_Metal_DestroyView(metalView);
+    }
 
     SDL_DestroyWindow(window);
     SDL_Quit();

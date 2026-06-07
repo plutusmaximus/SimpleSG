@@ -930,7 +930,7 @@ public:
 
     [[nodiscard]] constexpr Mat44<T> Inverse() const noexcept
     {
-        constexpr T epsilon = T{1e-8};
+        constexpr T epsilon = T{1e-8f};
 
         // Math-style names:
         //
@@ -1016,7 +1016,7 @@ public:
 
     [[nodiscard]] constexpr Mat44 InverseAffine() const noexcept
     {
-        constexpr T epsilon = T{1e-8};
+        constexpr T epsilon = T{1e-8f};
 
         // Assumes column-vector convention and storage as:
         //
@@ -1320,7 +1320,7 @@ public:
     float Width;
     float Height;
 
-    constexpr float GetAspectRatio() const noexcept
+    constexpr float GetAspectRatio() const
     {
         MLG_ASSERT(Height != 0, "Height must be non-zero to compute aspect ratio");
         return Width / Height;

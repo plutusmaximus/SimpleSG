@@ -13,23 +13,15 @@ struct ResultFail final {};
 
 struct ResultOk final {};
 
-template<typename T> class ResultBase{};
-
-template<>
-class ResultBase<ResultOk>
+/// @brief Representation of a result that can either be a value of type T or an Error.
+template<typename SuccessType = ResultOk, typename ErrorType = ResultFail>
+class Result final : private std::variant<ErrorType, SuccessType>
 {
+    using Base = std::variant<ErrorType, SuccessType>;
 public:
     static constexpr ResultOk Ok;
 
     static constexpr ResultFail Fail;
-};
-
-/// @brief Representation of a result that can either be a value of type T or an Error.
-template<typename SuccessType = ResultOk, typename ErrorType = ResultFail>
-class Result final : public ResultBase<SuccessType>, private std::variant<ErrorType, SuccessType>
-{
-    using Base = std::variant<ErrorType, SuccessType>;
-public:
 
     using Base::Base;
 

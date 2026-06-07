@@ -35,7 +35,7 @@ public:
 
     scope_exit(const scope_exit&) = delete;
     scope_exit& operator=(const scope_exit&) = delete;
-    scope_exit(scope_exit&& other)
+    scope_exit(scope_exit&& other) noexcept
         : m_Fn(std::move(other.m_Fn)),
           m_Active(other.m_Active)
     {
