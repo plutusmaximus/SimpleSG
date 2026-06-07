@@ -144,16 +144,13 @@
     "cmake.deleteBuildDirOnCleanConfigure": false,
     "cmake.generator": "Ninja Multi-Config",
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
-    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
-    "C_Cpp.intelliSenseEngine": "default",
+    //"C_Cpp.intelliSenseEngine": "default",
     "C_Cpp.errorSquiggles": "enabled",
-    "C_Cpp.codeAnalysis.clangTidy.enabled": true,
-    //"C_Cpp.codeAnalysis.clangTidy.path": "/usr/bin/clang-tidy-22",
-    "C_Cpp.codeAnalysis.clangTidy.path": "clang-tidy-22",
-    "C_Cpp.codeAnalysis.clangTidy.useBuildPath": true,
-    "C_Cpp.codeAnalysis.runAutomatically": false,
-    "C_Cpp.codeAnalysis.exclude": {
+    //"C_Cpp.codeAnalysis.clangTidy.enabled": true,
+    //"C_Cpp.codeAnalysis.clangTidy.useBuildPath": true,
+    //"C_Cpp.codeAnalysis.runAutomatically": false,
+    /*"C_Cpp.codeAnalysis.exclude": {
         "thirdparty/**": true,
         "build/**": true
-    }
+    }*/
 }
