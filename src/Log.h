@@ -102,12 +102,12 @@ namespace mlg
 struct LogScope
 {
     template<typename... Args>
-    LogScope(std::format_string<Args...> fmt, Args&&... args)
+    explicit LogScope(std::format_string<Args...> fmt, Args&&... args)
     {
         Log::PushPrefix(fmt, std::forward<Args>(args)...);
     }
 
-    LogScope(const std::string& message)
+    explicit LogScope(const std::string& message)
     {
         Log::PushPrefix(message);
     }

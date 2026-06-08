@@ -37,7 +37,7 @@ public:
 
     /// @brief  Conversion constructor.
     template<typename U>
-    constexpr RgbaColor(const RgbaColor<U>& other) noexcept;
+    constexpr explicit RgbaColor(const RgbaColor<U>& other) noexcept;
 
     /// @brief Converts the color to a hexadecimal string representation - #RRGGBBAA
     [[nodiscard]] std::string ToHexString() const;

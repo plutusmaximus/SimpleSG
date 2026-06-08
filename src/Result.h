@@ -23,10 +23,10 @@ public:
     static constexpr ResultFail Fail;
 
     Result() = default;
-    Result(const SuccessType& value) : m_Value(value) {}
-    Result(SuccessType&& value) : m_Value(std::move(value)) {}
-    Result(const ErrorType& error) : m_Value(error) {}
-    Result(ErrorType&& error) : m_Value(std::move(error)) {}
+    Result(const SuccessType& value) : m_Value(value) {} // NOLINT(google-explicit-constructor)
+    Result(SuccessType&& value) : m_Value(std::move(value)) {} // NOLINT(google-explicit-constructor)
+    Result(const ErrorType& error) : m_Value(error) {} // NOLINT(google-explicit-constructor)
+    Result(ErrorType&& error) : m_Value(std::move(error)) {} // NOLINT(google-explicit-constructor)
 
     Result(const Result& other) = default;
     Result(Result&& other) = default;
@@ -76,7 +76,7 @@ public:
         return Value();
     }
 
-    operator bool() const { return std::holds_alternative<SuccessType>(m_Value); }
+    explicit operator bool() const { return std::holds_alternative<SuccessType>(m_Value); }
 
     template<typename... Args>
     static std::string Format(std::format_string<Args...> fmt, Args&&... args)

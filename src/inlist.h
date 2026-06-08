@@ -141,7 +141,7 @@ public:
             : m_Node(node)
         {
         }
-        const_iterator(const iterator& it)
+        explicit const_iterator(const iterator& it)
             : m_Node(it.operator->())
         {
         }
