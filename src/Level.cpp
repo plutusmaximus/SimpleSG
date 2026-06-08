@@ -252,7 +252,7 @@ Result<>
 Level::UpdateLocalTransform(const NodeHandle& handle, const TrsTransformf& localTransform)
 {
     Node* node = GetNode(handle);
-    MLG_CHECK(node);
+    MLG_CHECKV(node);
 
     node->LocalTransform = localTransform;
     if(!node->ParentIndex.IsValid())
@@ -263,15 +263,6 @@ Level::UpdateLocalTransform(const NodeHandle& handle, const TrsTransformf& local
     UpdateWorldTransforms({ node, 1 });
 
     return Result<>::Ok;
-}
-
-Result<Level::NodeFlags>
-Level::GetNodeFlags(const NodeHandle& handle) const
-{
-    const Node* node = GetNode(handle);
-    MLG_CHECK(node);
-
-    return node->Flags;
 }
 
 void

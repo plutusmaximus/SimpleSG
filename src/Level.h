@@ -190,8 +190,6 @@ public:
 
     Result<> UpdateLocalTransform(const NodeHandle& handle, const TrsTransformf& localTransform);
 
-    Result<NodeFlags> GetNodeFlags(const NodeHandle& handle) const;
-
     void SetActive(const NodeHandle& handle, bool active);
     bool IsActive(const NodeHandle& handle) const;
 
