@@ -3,6 +3,7 @@
 #include "Scene.h"
 
 #include "Level.h"
+#include "narrow_cast.h"
 #include "PropKit.h"
 #include "Timer.h"
 
@@ -94,18 +95,16 @@ BuildTransformBuffer(const Level& level,
     return WebgpuHelper::CreateStorageBuffer<WorldTransformBuffer>(outWorldTransforms, "TransformBuffer");
 }
 
-inline size_t
-CountMeshes(std::span<const Model> models, std::span<const ModelInstance> modelInstances)
+Result<size_t>
+CountMeshes(std::span<const ModelInstance> modelInstances, const PropKit& propKit)
 {
     size_t meshCount = 0;
     for(const ModelInstance& modelInstance : modelInstances)
     {
-        MLG_ASSERT(modelInstance.GetModelIndex().Value() < models.size(),
-            "Model instance has invalid model index: {} (model count: {})",
-            modelInstance.GetModelIndex().Value(),
-            models.size());
+        auto meshes = propKit.GetMeshes(modelInstance.GetModelIndex());
+        MLG_CHECK(meshes);
 
-        meshCount += models[modelInstance.GetModelIndex().Value()].MeshCount;
+        meshCount += meshes->size();
     }
     return meshCount;
 }
@@ -113,33 +112,18 @@ CountMeshes(std::span<const Model> models, std::span<const ModelInstance> modelI
 Result<DrawIndirectBuffer>
 BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const PropKit& propKit)
 {
-    const std::span meshes = propKit.GetMeshes();
-    const std::span models = propKit.GetModels();
-
-    const size_t meshInstanceCount = CountMeshes(models, modelInstances);
+    auto meshInstanceCount = CountMeshes(modelInstances, propKit);
+    MLG_CHECK(meshInstanceCount);
 
     std::vector<ShaderInterop::DrawIndirectParams> drawIndirectParams;
-    drawIndirectParams.reserve(meshInstanceCount);
-
-    uint32_t meshCount = 0;
+    drawIndirectParams.reserve(*meshInstanceCount);
 
     for(const ModelInstance& modelInstance : modelInstances)
     {
-        MLG_ASSERT(modelInstance.GetModelIndex().Value() < models.size(),
-            "Model instance has invalid model index: {} (model count: {})",
-            modelInstance.GetModelIndex().Value(), models.size());
+        auto meshes = propKit.GetMeshes(modelInstance.GetModelIndex());
+        MLG_CHECK(meshes);
 
-        const Model& model = models[modelInstance.GetModelIndex().Value()];
-
-        MLG_ASSERT(model.FirstMesh.Value() + model.MeshCount <= meshes.size(),
-            "Model has invalid mesh range: first mesh {}, mesh count {} (total meshes: {})",
-            model.FirstMesh.Value(),
-            model.MeshCount,
-            meshes.size());
-
-        const std::span modelMeshes = meshes.subspan(model.FirstMesh.Value(), model.MeshCount);
-
-        for(const Mesh& meshSrc : modelMeshes)
+        for(const Mesh& meshSrc : *meshes)
         {
             const ShaderInterop::DrawIndirectParams drawParams //
                 {
@@ -147,12 +131,10 @@ BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const Pro
                     .InstanceCount = 1,
                     .FirstIndex = meshSrc.FirstIndex,
                     .BaseVertex = meshSrc.BaseVertex,
-                    .FirstInstance = meshCount,
+                    .FirstInstance = narrow_cast<uint32_t>(drawIndirectParams.size()),
                 };
 
             drawIndirectParams.emplace_back(drawParams);
-
-            ++meshCount;
         }
     }
 
@@ -163,33 +145,20 @@ BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const Pro
 Result<MeshPropertiesBuffer>
 BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const PropKit& propKit)
 {
-    const std::span meshes = propKit.GetMeshes();
-    const std::span models = propKit.GetModels();
-
-    const size_t meshInstanceCount = CountMeshes(models, modelInstances);
+    auto meshInstanceCount = CountMeshes(modelInstances, propKit);
+    MLG_CHECK(meshInstanceCount);
 
     uint32_t transformIndex = 0;
 
     std::vector<ShaderInterop::MeshProperties> meshProperties;
-    meshProperties.reserve(meshInstanceCount);
+    meshProperties.reserve(*meshInstanceCount);
 
     for(const auto& modelInstance : modelInstances)
     {
-        MLG_ASSERT(modelInstance.GetModelIndex().Value() < models.size(),
-            "Model instance has invalid model index: {} (model count: {})",
-            modelInstance.GetModelIndex().Value(), models.size());
+        auto meshes = propKit.GetMeshes(modelInstance.GetModelIndex());
+        MLG_CHECK(meshes);
 
-        const Model& model = models[modelInstance.GetModelIndex().Value()];
-
-        MLG_ASSERT(model.FirstMesh.Value() + model.MeshCount <= meshes.size(),
-            "Model has invalid mesh range: first mesh {}, mesh count {} (total meshes: {})",
-            model.FirstMesh.Value(),
-            model.MeshCount,
-            meshes.size());
-
-        const std::span modelMeshes = meshes.subspan(model.FirstMesh.Value(), model.MeshCount);
-
-        for(const auto& meshSrc : modelMeshes)
+        for(const auto& meshSrc : *meshes)
         {
             const Sphere boundingSphere(meshSrc.BoundingBox);
 

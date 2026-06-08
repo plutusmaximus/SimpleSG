@@ -28,15 +28,6 @@ public:
     PropKit(PropKit&& other) = default;
     PropKit& operator=(PropKit&& other) = default;
 
-    uint32_t GetMeshCount() const { return static_cast<uint32_t>(m_Meshes.size()); }
-
-    std::span<const wgpu::BindGroup> GetMaterialBindGroups() const
-    {
-        return m_MaterialBindGroups;
-    }
-
-    MaterialConstantsBuffer GetMaterialConstantsBuffer() const { return m_MaterialConstantsBuffer; }
-
     Result<ModelIndex> GetModelIndex(const std::string_view& name) const
     {
         auto it = m_ModelNameToIndex.find(name);
@@ -45,9 +36,14 @@ public:
         return it->second;
     }
 
-    std::span<const Mesh> GetMeshes() const { return m_Meshes; }
+    Result<std::span<const Mesh>> GetMeshes(const ModelIndex& modelIndex) const;
 
-    std::span<const Model> GetModels() const { return m_Models; }
+    std::span<const wgpu::BindGroup> GetMaterialBindGroups() const
+    {
+        return m_MaterialBindGroups;
+    }
+
+    MaterialConstantsBuffer GetMaterialConstantsBuffer() const { return m_MaterialConstantsBuffer; }
 
     VertexBuffer GetVertexBuffer() const { return m_VertexBuffer; }
 

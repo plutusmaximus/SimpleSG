@@ -2,15 +2,11 @@
 
 #include "LevelDefs.h"
 #include "Result.h"
-#include "SemanticInteger.h"
 
 #include <optional>
 #include <span>
 #include <string>
 #include <vector>
-
-struct LevelNodeIndexTag {};
-using LevelNodeIndex = SemanticInteger<LevelNodeIndexTag>;
 
 class PropKit;
 
@@ -53,17 +49,7 @@ public:
         std::optional<Collider> Collider;
     };
 
-    struct Node
-    {
-        std::string_view Name;
-        TrsTransformf LocalTransform;
-        Mat44f WorldTransform{ 1 };
-        Components Components;
-        LevelNodeIndex ParentIndex{ LevelNodeIndex::INVALID };
-        LevelNodeIndex FirstChildIndex{ LevelNodeIndex::INVALID };
-        uint32_t ChildCount{ 0 };
-        NodeFlags Flags{ NodeFlags::Active | NodeFlags::Visible };
-    };
+    struct Node;
 
     class NodeHandle
     {
@@ -76,24 +62,38 @@ public:
         NodeHandle(NodeHandle&&) = default;
         NodeHandle& operator=(NodeHandle&&) = default;
 
-        bool IsValid() const { return m_Node != nullptr; }
+        bool IsValid() const { return m_NodeIndex != INVALID_INDEX; }
 
         auto operator<=>(const NodeHandle& that) const = default;
 
         explicit operator bool() const
         {
-            return m_Node != nullptr;
+            return IsValid();
         }
 
     private:
         friend Level;
 
-        explicit NodeHandle(const Node* node)
-            : m_Node(node)
+        static constexpr size_t INVALID_INDEX = static_cast<size_t>(-1);
+
+        explicit NodeHandle(const size_t nodeIndex)
+            : m_NodeIndex(nodeIndex)
         {
         }
 
-        const Node* m_Node{nullptr};
+        size_t m_NodeIndex{INVALID_INDEX};
+    };
+
+    struct Node
+    {
+        std::string_view Name;
+        TrsTransformf LocalTransform;
+        Mat44f WorldTransform{ 1 };
+        Components Components;
+        NodeHandle Parent;
+        NodeHandle FirstChild;
+        size_t ChildCount{ 0 };
+        NodeFlags Flags{ NodeFlags::Active | NodeFlags::Visible };
     };
 
     static Result<Level> Create(const LevelDef& levelDef, const PropKit& propKit);
@@ -139,7 +139,9 @@ public:
 
             for(const auto & tmpHandle : nodesToSearch)
             {
-                if(tmpHandle.m_Node->Name == part)
+                const Node* node = GetNode(tmpHandle);
+                MLG_CHECKV(node, "Invalid node handle found while searching for node: {}", part);
+                if(node->Name == part)
                 {
                     handle = tmpHandle;
                     break;
@@ -204,7 +206,7 @@ private:
 
     Node* GetNode(const NodeHandle& handle);
 
-    void UpdateWorldTransforms(std::span<Node> nodes);
+    void UpdateWorldTransforms(std::span<const NodeHandle> nodes);
 
     std::vector<Node> m_Nodes;
     std::vector<NodeHandle> m_NodeHandles;

@@ -478,6 +478,16 @@ PropKit::Create(
     return std::move(propKit);
 }
 
+Result<std::span<const Mesh>>
+PropKit::GetMeshes(const ModelIndex& modelIndex) const
+{
+    MLG_CHECKV(modelIndex.Value() < m_Models.size(), "Invalid model index: {}", modelIndex.Value());
+    const Model& model = m_Models[modelIndex.Value()];
+    return std::span<const Mesh>(&m_Meshes[model.FirstMesh.Value()], model.MeshCount);
+}
+
+// private:
+
 PropKit::PropKit(VertexBuffer vertexBuffer,
     IndexBuffer indexBuffer,
     std::vector<Mesh> meshes,

@@ -194,8 +194,6 @@ Renderer::Render(const TrsTransformf& cameraXForm,
         uint64_t indirectOffset = 0;
 
         const auto& materialBindGroups = propKit.GetMaterialBindGroups();
-        const auto& meshes = propKit.GetMeshes();
-        const auto& models = propKit.GetModels();
         const auto& modelInstances = scene.GetModelInstances();
         const auto& drawIndirectBuffer = scene.GetDrawIndirectBuffer();
 
@@ -203,18 +201,17 @@ Renderer::Render(const TrsTransformf& cameraXForm,
 
         for(const auto& modelInstance : modelInstances)
         {
-            const Model& model = models[modelInstance.GetModelIndex().Value()];
+            auto meshes = propKit.GetMeshes(modelInstance.GetModelIndex());
+            MLG_CHECK(meshes);
 
             if(!modelInstance.IsVisible())
             {
-                indirectOffset += model.MeshCount * sizeof(ShaderInterop::DrawIndirectParams);
+                indirectOffset += meshes->size() * sizeof(ShaderInterop::DrawIndirectParams);
                 continue;
             }
 
-            for(uint32_t i = 0; i < model.MeshCount; ++i)
+            for(const auto &mesh : *meshes)
             {
-                const Mesh& mesh = meshes[model.FirstMesh.Value() + i];
-
                 const MaterialIndex materialIndex = mesh.MaterialIndex;
 
                 if(materialIndex != lastMaterialIndex)
