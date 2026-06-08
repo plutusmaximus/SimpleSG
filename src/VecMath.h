@@ -244,7 +244,7 @@ public:
     {
     }
 
-    constexpr Vec2(const T(&arr)[2]) noexcept
+    constexpr explicit Vec2(const T(&arr)[2]) noexcept
         : x(arr[0]), y(arr[1])
     {
     }
@@ -403,7 +403,7 @@ public:
     {
     }
 
-    constexpr Vec3(const T(&arr)[3]) noexcept
+    constexpr explicit Vec3(const T(&arr)[3]) noexcept
         : x(arr[0]), y(arr[1]), z(arr[2])
     {
     }
@@ -586,7 +586,7 @@ public:
     {
     }
 
-    constexpr Vec4(const T(&arr)[4]) noexcept
+    constexpr explicit Vec4(const T(&arr)[4]) noexcept
         : x(arr[0]), y(arr[1]), z(arr[2]), w(arr[3])
     {
     }
@@ -761,7 +761,7 @@ public:
     {
     }
 
-    constexpr UnitQuat(const T(&arr)[4]) noexcept
+    constexpr explicit UnitQuat(const T(&arr)[4]) noexcept
         : UnitQuat(Vec4<T>(arr[0], arr[1], arr[2], arr[3]))
     {
     }
@@ -875,7 +875,7 @@ public:
     }
 
     // NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
-    constexpr Mat44(const T(&arr)[16]) noexcept
+    constexpr explicit Mat44(const T(&arr)[16]) noexcept
         : Mat44(Vec4<T>(arr[0], arr[1], arr[2], arr[3]),
                 Vec4<T>(arr[4], arr[5], arr[6], arr[7]),
                 Vec4<T>(arr[8], arr[9], arr[10], arr[11]),

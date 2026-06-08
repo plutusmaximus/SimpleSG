@@ -80,7 +80,7 @@ public:
 
         auto operator<=>(const NodeHandle& that) const = default;
 
-        operator bool() const
+        explicit operator bool() const
         {
             return m_Node != nullptr;
         }
