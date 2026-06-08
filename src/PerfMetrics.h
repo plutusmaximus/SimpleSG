@@ -26,7 +26,7 @@ public:
     auto operator<=>(const PerfCounterCategoryId&) const = default;
 
 private:
-    explicit PerfCounterCategoryId(const void* uniqueId)
+    constexpr explicit PerfCounterCategoryId(const void* uniqueId) noexcept
         : m_UniqueId(uniqueId)
     {
     }
@@ -41,10 +41,10 @@ template<typename Tag>
 class PerfCounterCategory
 {
 private:
-    static inline char uniqueCategoryId;
+    constexpr static const char uniqueCategoryId{};
 public:
 
-    static inline const PerfCounterCategoryId Id{ &uniqueCategoryId };
+    constexpr static const PerfCounterCategoryId Id{ &uniqueCategoryId };
 };
 
 /// @brief Perf counters that don't have an explicity category are put into

@@ -15,15 +15,18 @@ struct ResultOk final {};
 
 /// @brief Representation of a result that can either be a value of type T or an Error.
 template<typename SuccessType = ResultOk, typename ErrorType = ResultFail>
-class Result final : private std::variant<ErrorType, SuccessType>
+class Result final
 {
-    using Base = std::variant<ErrorType, SuccessType>;
 public:
     static constexpr ResultOk Ok;
 
     static constexpr ResultFail Fail;
 
-    using Base::Base;
+    Result() = default;
+    Result(const SuccessType& value) : m_Value(value) {}
+    Result(SuccessType&& value) : m_Value(std::move(value)) {}
+    Result(const ErrorType& error) : m_Value(error) {}
+    Result(ErrorType&& error) : m_Value(std::move(error)) {}
 
     Result(const Result& other) = default;
     Result(Result&& other) = default;
@@ -34,25 +37,25 @@ public:
     constexpr SuccessType& Value() &
     {
         MLG_ASSERT(*this, "Attempted to access value of a failed Result");
-        return std::get<SuccessType>(*this);
+        return std::get<SuccessType>(m_Value);
     }
 
     constexpr const SuccessType& Value() const&
     {
         MLG_ASSERT(*this, "Attempted to access value of a failed Result");
-        return std::get<SuccessType>(*this);
+        return std::get<SuccessType>(m_Value);
     }
 
     constexpr SuccessType&& Value() &&
     {
         MLG_ASSERT(*this, "Attempted to access value of a failed Result");
-        return std::move(std::get<SuccessType>(*this));
+        return std::move(std::get<SuccessType>(m_Value));
     }
 
     constexpr const SuccessType&& Value() const&&
     {
         MLG_ASSERT(*this, "Attempted to access value of a failed Result");
-        return std::move(std::get<SuccessType>(*this));
+        return std::move(std::get<SuccessType>(m_Value));
     }
 
     constexpr SuccessType& operator*() & { return Value(); }
@@ -73,7 +76,7 @@ public:
         return Value();
     }
 
-    operator bool() const { return std::holds_alternative<SuccessType>(*this); }
+    operator bool() const { return std::holds_alternative<SuccessType>(m_Value); }
 
     template<typename... Args>
     static std::string Format(std::format_string<Args...> fmt, Args&&... args)
@@ -101,6 +104,10 @@ public:
     {
         return str;
     }
+
+private:
+
+    std::variant<ErrorType, SuccessType> m_Value;
 };
 
 #define MLG_CHECK(expr, ...) \

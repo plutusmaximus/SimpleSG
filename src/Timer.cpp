@@ -4,11 +4,12 @@
 
 namespace
 {
-struct TimerGlobals
+double
+GetInvPerfFrequency()
 {
-    static inline const uint64_t PerfFrequency = SDL_GetPerformanceFrequency();
-    static inline const double InvPerfFrequency = 1.0 / static_cast<double>(PerfFrequency);
-};
+    static const double invPerfFrequency = 1.0 / static_cast<double>(SDL_GetPerformanceFrequency());
+    return invPerfFrequency;
+}
 
 inline std::uint64_t GetTime()
 {
@@ -45,5 +46,5 @@ Timer::GetElapsedSeconds() const
 {
     const uint64_t elapsed = m_Running ? GetTime() - m_StartTime : m_ElapsedTime;
 
-    return static_cast<float>(elapsed) * static_cast<float>(TimerGlobals::InvPerfFrequency);
+    return static_cast<float>(elapsed) * static_cast<float>(GetInvPerfFrequency());
 }

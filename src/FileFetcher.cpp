@@ -49,13 +49,15 @@ struct FFGlobals
 Result<>
 FileFetcher::Startup()
 {
-        const std::lock_guard lock(GetMutex());
-        if(!FFGlobals::AsyncIOQueue)
-        {
-            FFGlobals::AsyncIOQueue = SDL_CreateAsyncIOQueue();
-            MLG_CHECK(FFGlobals::AsyncIOQueue, "Failed to create SDL Async IO Queue: {}", SDL_GetError());
-        }
-        return Result<>::Ok;
+    MLG_INFO("Starting FileFetcher...");
+
+    const std::lock_guard lock(GetMutex());
+    if(!FFGlobals::AsyncIOQueue)
+    {
+        FFGlobals::AsyncIOQueue = SDL_CreateAsyncIOQueue();
+        MLG_CHECK(FFGlobals::AsyncIOQueue, "Failed to create SDL Async IO Queue: {}", SDL_GetError());
+    }
+    return Result<>::Ok;
 }
 
 void

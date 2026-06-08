@@ -24,6 +24,59 @@ namespace
 constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
 constexpr int kNumTextureChannels = 4;
 
+const char* GetBackendTypeString(const WGPUBackendType backendType)
+{
+    switch(backendType)
+    {
+        case WGPUBackendType_D3D11:
+            return "D3D11";
+        case WGPUBackendType_D3D12:
+            return "D3D12";
+        case WGPUBackendType_Metal:
+            return "Metal";
+        case WGPUBackendType_Vulkan:
+            return "Vulkan";
+        case WGPUBackendType_WebGPU:
+            return "WebGPU";
+        default:
+            return "Unknown";
+    }
+}
+
+const char* GetAdapterTypeString(const WGPUAdapterType adapterType)
+{
+    switch(adapterType)
+    {
+        case WGPUAdapterType_DiscreteGPU:
+            return "Discrete GPU";
+        case WGPUAdapterType_IntegratedGPU:
+            return "Integrated GPU";
+        case WGPUAdapterType_CPU:
+            return "CPU";
+        default:
+            return "Unknown";
+    }
+}
+
+const char* GetPresentModeString(const wgpu::PresentMode presentMode)
+{
+    switch(presentMode)
+    {
+        case wgpu::PresentMode::Undefined:
+            return "Undefined";
+        case wgpu::PresentMode::Fifo:
+            return "Fifo";
+        case wgpu::PresentMode::FifoRelaxed:
+            return "FifoRelaxed";
+        case wgpu::PresentMode::Mailbox:
+            return "Mailbox";
+        case wgpu::PresentMode::Immediate:
+            return "Immediate";
+        default:
+            return "Unknown";
+    }
+}
+
 class WgpuContext
 {
 public:
@@ -41,10 +94,14 @@ public:
     std::array<wgpu::BindGroupLayout, 1> TransformPipelineLayouts{};
     std::array<wgpu::BindGroupLayout, 1> CompositorPipelineLayouts{};
 
-    static WgpuContext* Ctx;
-};
+    static inline WgpuContext* Ctx = nullptr;
 
-WgpuContext* WgpuContext::Ctx = nullptr;
+    static inline auto OnShutdown = scope_exit(
+        []()
+        {
+            MLG_ASSERT(nullptr == Ctx, "WgpuContext not properly shut down");
+        });
+};
 
 void* GetContextMem()
 {
@@ -63,7 +120,7 @@ GetTextureAlignedRowStride(const uint32_t textureWidth)
 }
 
 void EnumerateAdapters();
-Result<> DumpDawnAdapterInfo(const wgpu::Adapter& adapter);
+void DumpAdapterInfo(const WGPUAdapterInfo& adapterInfo);
 void DumpDawnToggles(const wgpu::Device& device);
 void DumpWebgpuLimits(const wgpu::Device& device);
 
@@ -191,7 +248,10 @@ CreateAdapter(const wgpu::Instance& instance, const wgpu::Surface& surface)
 
     MLG_CHECK(supported, "IndirectFirstInstance feature is not supported");
 
-    MLG_CHECK(DumpDawnAdapterInfo(*result));
+    wgpu::AdapterInfo adapterInfo;
+    result->GetInfo(&adapterInfo);
+    MLG_INFO("Selected adapter:");
+    DumpAdapterInfo(adapterInfo);
 
     return result;
 }
@@ -310,29 +370,38 @@ CreateDevice(const wgpu::Instance& instance, const wgpu::Adapter& adapter)
 }
 
 wgpu::PresentMode
-ChoosePresentMode(const std::span<const wgpu::PresentMode> availableModes)
+ChoosePresentMode(const std::span<const wgpu::PresentMode> availableModes,
+    const wgpu::PresentMode preferredMode)
 {
-    wgpu::PresentMode presentMode = wgpu::PresentMode::Undefined;
     for(const wgpu::PresentMode mode : availableModes)
     {
-        // Prefer mailbox if available
-        if(presentMode == wgpu::PresentMode::Undefined || presentMode == wgpu::PresentMode::Fifo)
+        if(mode == preferredMode)
         {
-            switch(mode)
+            return mode;
+        }
+    }
+
+    // Find the next best mode.
+    constexpr std::array<wgpu::PresentMode, 4> modePreference //
+        {
+            wgpu::PresentMode::Mailbox,
+            wgpu::PresentMode::Fifo,
+            wgpu::PresentMode::Immediate,
+            wgpu::PresentMode::FifoRelaxed,
+        };
+
+    for (const wgpu::PresentMode mode : modePreference)
+    {
+        for (const wgpu::PresentMode availableMode : availableModes)
+        {
+            if (mode == availableMode)
             {
-                case wgpu::PresentMode::Fifo:
-                    presentMode = wgpu::PresentMode::Fifo;
-                    break;
-                case wgpu::PresentMode::Mailbox:
-                    presentMode = wgpu::PresentMode::Mailbox;
-                    break;
-                default:
-                    break;
+                return mode;
             }
         }
     }
 
-    return presentMode;
+    return wgpu::PresentMode::Undefined;
 }
 
 wgpu::TextureFormat
@@ -456,8 +525,11 @@ ConfigureSurface(const wgpu::Adapter& adapter,
         capabilities.presentModeCount);
     const std::span<const wgpu::TextureFormat> formats(capabilities.formats, capabilities.formatCount);
 
-    const wgpu::PresentMode presentMode = ChoosePresentMode(presentModes);
+    const wgpu::PresentMode presentMode =
+        ChoosePresentMode(presentModes, wgpu::PresentMode::Immediate);
     MLG_CHECK(presentMode != wgpu::PresentMode::Undefined, "No supported present mode found");
+
+    MLG_INFO("Present mode: {}", GetPresentModeString(presentMode));
 
     const wgpu::TextureFormat format = ChooseBackbufferFormat(formats);
     MLG_CHECK(format != wgpu::TextureFormat::Undefined, "No supported backbuffer format found");
@@ -498,6 +570,8 @@ Result<>
 WebgpuHelper::Startup(const char* appName)
 {
     MLG_CHECKV(!WgpuContext::Ctx, "WebgpuHelper::Startup called more than once");
+
+    MLG_INFO("Starting WebGPU...");
 
     auto window = CreateSdlWindow(appName);
     MLG_CHECK(window);
@@ -1015,72 +1089,23 @@ void EnumerateAdapters()
         wgpuAdapterGetInfo(adapter, &info);
 
         MLG_INFO("Adapter {}:", count++);
-        MLG_INFO("  Vendor: {}", std::string_view(info.vendor.data, info.vendor.length));
-        MLG_INFO("  Architecture: {}", std::string_view(info.architecture.data, info.architecture.length));
-        MLG_INFO("  Device: {}", std::string_view(info.device.data, info.device.length));
-        MLG_INFO("  Description: {}", std::string_view(info.description.data, info.description.length));
-        MLG_INFO("  Backend Type: {}", static_cast<int>(info.backendType));
-        MLG_INFO("  Adapter Type: {}", static_cast<int>(info.adapterType));
+        DumpAdapterInfo(info);
 
         wgpuAdapterInfoFreeMembers(info);
     }
 }
 
-Result<>
-DumpDawnAdapterInfo(const wgpu::Adapter& adapter)
+void
+DumpAdapterInfo(const WGPUAdapterInfo& adapterInfo)
 {
-    wgpu::AdapterInfo adapterInfo;
-    MLG_CHECK(adapter.GetInfo(&adapterInfo), "Failed to get adapter info");
-
-    const char *backendTypeStr = "Unknown";
-    switch(adapterInfo.backendType)
-    {
-        case wgpu::BackendType::D3D11:
-            backendTypeStr = "D3D11";
-            break;
-        case wgpu::BackendType::D3D12:
-            backendTypeStr = "D3D12";
-            break;
-        case wgpu::BackendType::Metal:
-            backendTypeStr = "Metal";
-            break;
-        case wgpu::BackendType::Vulkan:
-            backendTypeStr = "Vulkan";
-            break;
-        case wgpu::BackendType::WebGPU:
-            backendTypeStr = "WebGPU";
-            break;
-        default:
-            break;
-    }
-
-    const char* adapterTypeStr = "Unknown";
-    switch(adapterInfo.adapterType)
-    {
-        case wgpu::AdapterType::DiscreteGPU:
-            adapterTypeStr = "Discrete GPU";
-            break;
-        case wgpu::AdapterType::IntegratedGPU:
-            adapterTypeStr = "Integrated GPU";
-            break;
-        case wgpu::AdapterType::CPU:
-            adapterTypeStr = "CPU";
-            break;
-        default:
-            break;
-    }
-
-    MLG_DEBUG("Adapter info:");
     MLG_DEBUG("  Vendor: {}", std::string_view(adapterInfo.vendor.data, adapterInfo.vendor.length));
     MLG_DEBUG("  Architecture: {}", std::string_view(adapterInfo.architecture.data, adapterInfo.architecture.length));
     MLG_DEBUG("  Device: {}", std::string_view(adapterInfo.device.data, adapterInfo.device.length));
     MLG_DEBUG("  Description: {}", std::string_view(adapterInfo.description.data, adapterInfo.description.length));
-    MLG_DEBUG("  Backend Type: {}", backendTypeStr);
-    MLG_DEBUG("  Adapter Type: {}", adapterTypeStr);
+    MLG_DEBUG("  Backend Type: {}", GetBackendTypeString(adapterInfo.backendType));
+    MLG_DEBUG("  Adapter Type: {}", GetAdapterTypeString(adapterInfo.adapterType));
     MLG_DEBUG("  Vendor ID: {}", adapterInfo.vendorID);
     MLG_DEBUG("  Device ID: {}", adapterInfo.deviceID);
-
-    return Result<>::Ok;
 }
 
 void

@@ -1,5 +1,7 @@
 #include "Log.h"
 
+#include "SanitizerHelpers.h"
+
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/msvc_sink.h>
 #include <spdlog/sinks/ringbuffer_sink.h>
@@ -12,20 +14,69 @@
 namespace
 {
 
-struct LogGlobals
+std::shared_ptr<spdlog::sinks::dist_sink_mt>* MakeMuxSink()
 {
-    static inline std::atomic<bool> InitializeSinks = true;
-    static inline std::shared_ptr<spdlog::sinks::dist_sink_mt> MuxSink;
-    static inline std::mutex LoggerMutex;
-};
+    auto* muxSink = new std::shared_ptr<spdlog::sinks::dist_sink_mt>(
+        std::make_shared<spdlog::sinks::dist_sink_mt>()); // NOLINT(cppcoreguidelines-owning-memory)
+
+    // We intentionally leak this, so hide it from leak sanitizers
+    __lsan_ignore_object(muxSink);
+
+    auto consoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    (*muxSink)->add_sink(consoleSink);
+    consoleSink->set_level(spdlog::level::debug);
+
+#if defined(_MSC_VER)
+    // Logs to the Visual Studio output window when running under the debugger.
+    auto msvcSink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
+    (*muxSink)->add_sink(msvcSink);
+    msvcSink->set_level(spdlog::level::debug);
+#endif
+
+    (*muxSink)->set_level(spdlog::level::debug);
+
+    return muxSink;
+}
+
+std::shared_ptr<spdlog::sinks::dist_sink_mt>& GetMuxSink()
+{
+    static std::shared_ptr<spdlog::sinks::dist_sink_mt>* muxSink = MakeMuxSink();
+    return *muxSink;
+}
+
+std::mutex* MakeMutex()
+{
+    std::mutex* p = new std::mutex; // NOLINT(cppcoreguidelines-owning-memory)
+
+    // We intentionally leak this, so hide it from leak sanitizers
+    __lsan_ignore_object(p);
+
+    return p;
+}
+
+std::mutex& GetMutex()
+{
+    static std::mutex* mutex = MakeMutex();
+    return *mutex;
+}
+
+std::vector<std::string>* MakePreficStack()
+{
+    std::vector<std::string>* p = new std::vector<std::string>; // NOLINT(cppcoreguidelines-owning-memory)
+
+    // We intentionally leak this, so hide it from leak sanitizers
+    __lsan_ignore_object(p);
+
+    return p;
+}
 
 // Keep these thread_local values behind function scope so each thread still gets
 // its own prefix state without exposing namespace-scope thread_local objects.
 // Otherwise MSVC can emit C5046 (__tlregdtor) for internal-linkage thread_local state.
-std::vector<std::string>& LogPrefixStack()
+std::vector<std::string>& GetPrefixStack()
 {
-    static thread_local std::vector<std::string> logPrefixStack;
-    return logPrefixStack;
+    static thread_local std::vector<std::string>* logPrefixStack = MakePreficStack();
+    return *logPrefixStack;
 }
 
 bool& ShouldRebuildPrefix()
@@ -44,7 +95,7 @@ std::string& LogPrefix()
 
         int count = 0;
 
-        for(const auto& component : LogPrefixStack())
+        for(const auto& component : GetPrefixStack())
         {
             if(count > 0)
             {
@@ -60,40 +111,15 @@ std::string& LogPrefix()
     return logPrefix;
 }
 
-void EnsureSinksInitialized()
-{
-    const std::lock_guard<std::mutex> lock(LogGlobals::LoggerMutex);
-
-    if (LogGlobals::InitializeSinks.exchange(false))
-    {
-        LogGlobals::MuxSink = std::make_shared<spdlog::sinks::dist_sink_mt>();
-
-        auto consoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-        LogGlobals::MuxSink->add_sink(consoleSink);
-        consoleSink->set_level(spdlog::level::debug);
-
-#if defined(_MSC_VER)
-        // Logs to the Visual Studio output window when running under the debugger.
-        auto msvcSink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
-        LogGlobals::MuxSink->add_sink(msvcSink);
-        msvcSink->set_level(spdlog::level::debug);
-#endif
-
-        LogGlobals::MuxSink->set_level(spdlog::level::debug);
-    }
-}
-
 std::shared_ptr<spdlog::logger> GetLogger(const std::string& name)
 {
-    EnsureSinksInitialized();
-
-    const std::lock_guard<std::mutex> lock(LogGlobals::LoggerMutex);
+    const std::lock_guard<std::mutex> lock(GetMutex());
 
     std::shared_ptr<spdlog::logger> logger = spdlog::get(name);
 
     if(!logger)
     {
-        logger = std::make_shared<spdlog::logger>(name, LogGlobals::MuxSink);
+        logger = std::make_shared<spdlog::logger>(name, GetMuxSink());
 
         spdlog::initialize_logger(logger);
         spdlog::register_or_replace(logger);
@@ -146,16 +172,16 @@ Log::SetLevel(const Level level)
 void
 Log::PushPrefix(const std::string& message)
 {
-    LogPrefixStack().push_back(message);
+    GetPrefixStack().push_back(message);
     ShouldRebuildPrefix() = true;
 }
 
 void
 Log::PopPrefix()
 {
-    if(!LogPrefixStack().empty())
+    if(!GetPrefixStack().empty())
     {
-        LogPrefixStack().pop_back();
+        GetPrefixStack().pop_back();
         ShouldRebuildPrefix() = true;
     }
 }

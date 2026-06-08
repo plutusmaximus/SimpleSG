@@ -1,5 +1,7 @@
 #include "ThreadPool.h"
 
+#include "scope_exit.h"
+
 #include <atomic>
 #include <cassert>
 #include <condition_variable>
@@ -13,6 +15,23 @@ namespace
 {
 constexpr size_t kMaxWorkerThreads = 32;
 
+size_t GetWorkerThreadCountA()
+{
+    const size_t hardwareThreadCount = std::thread::hardware_concurrency();
+    if (hardwareThreadCount == 0)
+    {
+        return size_t{4};
+    }
+
+    return hardwareThreadCount > kMaxWorkerThreads ? kMaxWorkerThreads : hardwareThreadCount;
+}
+
+size_t GetWorkerThreadCount()
+{
+    static const size_t threadCount = GetWorkerThreadCountA();
+    return threadCount;
+}
+
 struct TPGlobals
 {
     static inline std::mutex JobQueueMutex;
@@ -20,16 +39,8 @@ struct TPGlobals
     static inline std::condition_variable ThreadPoolCv;
     static inline std::atomic<bool> Running{false};
     static inline std::array<std::thread, kMaxWorkerThreads> WorkerThreadPool;
-    static inline const size_t ThreadCount = []{
-        const size_t hardwareThreadCount = std::thread::hardware_concurrency();
-        if(hardwareThreadCount == 0)
-        {
-            return size_t{4};
-        }
-
-        return hardwareThreadCount > kMaxWorkerThreads ? kMaxWorkerThreads : hardwareThreadCount;
-    }();
-    static inline std::span<std::thread> WorkerThreads{WorkerThreadPool.data(), ThreadCount};
+    static inline std::span<std::thread> WorkerThreads{ WorkerThreadPool.data(),
+        GetWorkerThreadCount() };
 
     static Result<> VerifyStarted()
     {
@@ -37,6 +48,12 @@ struct TPGlobals
 
         return Result<>::Ok;
     }
+
+    static inline auto OnShutdown = scope_exit(
+        []()
+        {
+            MLG_ASSERT(!Running.load(), "ThreadPool not properly shut down");
+        });
 };
 } // namespace
 
@@ -50,6 +67,8 @@ ThreadPool::Job *ThreadPool::s_JobQueueTail{ nullptr };
 Result<>
 ThreadPool::Startup()
 {
+    MLG_INFO("Starting ThreadPool with {} worker threads...", GetWorkerThreadCount());
+
     const std::lock_guard<std::mutex> lock(TPGlobals::JobQueueMutex);
 
     bool expected = false;
@@ -150,7 +169,7 @@ ThreadPool::Enqueue(void (*jobFunc)(void*), void* userData)
 size_t
 ThreadPool::GetWorkerCount()
 {
-    return TPGlobals::ThreadCount;
+    return GetWorkerThreadCount();
 }
 
 ThreadPool::Job *
