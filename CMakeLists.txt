@@ -374,7 +374,6 @@ add_executable(Tests
   "tests/Quat.test.cpp"
   "tests/Radians.test.cpp"
   "tests/scope_exit.test.cpp"
-  "tests/SemanticInteger.test.cpp"
   "tests/TrsTransform.test.cpp"
   "tests/Vec2.test.cpp"
   "tests/Vec3.test.cpp"

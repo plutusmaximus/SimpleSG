@@ -48,7 +48,7 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
 
             MLG_CHECKV(!modelRef.Name.empty(), "ModelRef in node {} is empty", nodeDef.Name);
 
-            auto result = propKit.GetModelIndex(modelRef.Name);
+            auto result = propKit.GetModeld(modelRef.Name);
             MLG_CHECK(result);
 
             components.Model = *result;

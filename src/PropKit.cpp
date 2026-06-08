@@ -372,9 +372,9 @@ PropKit::Create(
     createTimer.Start();
 
     size_t vertexCount = 0, indexCount = 0, meshCount = 0, totalStringSize = 0;
-    uint32_t materialIndex = 0;
+    size_t materialId = 0;
 
-    std::map<MaterialDef, MaterialIndex> uniqueMaterialMap;
+    std::map<MaterialDef, MaterialIdentifier> uniqueMaterialMap;
 
     // Count total vertices, indices, and meshes while also building a map of unique materials to
     // assign indices to them.
@@ -387,7 +387,7 @@ PropKit::Create(
             const MaterialDef& materialDef = mesh.MaterialDef;
             if(!uniqueMaterialMap.contains(materialDef))
             {
-                uniqueMaterialMap[materialDef] = MaterialIndex(materialIndex++);
+                uniqueMaterialMap[materialDef] = MaterialIdentifier(materialId++);
             }
 
             vertexCount += mesh.Vertices.size();
@@ -398,9 +398,9 @@ PropKit::Create(
 
     std::vector<MaterialDef> uniqueMaterials;
     uniqueMaterials.resize(uniqueMaterialMap.size());
-    for(const auto& [materialDef, index] : uniqueMaterialMap)
+    for(const auto& [materialDef, id] : uniqueMaterialMap)
     {
-        uniqueMaterials[index.Value()] = materialDef;
+        uniqueMaterials[id.GetValue()] = materialDef;
     }
 
     std::vector<Vertex> vertices;
@@ -423,8 +423,8 @@ PropKit::Create(
         const Model model //
             {
                 .Name = std::string_view(&stringStorage[nameOffset], modelDef.Name.size()),
-                .FirstMesh = MeshIndex(meshes.size()),
-                .MeshCount = narrow_cast<uint32_t>(modelDef.MeshDefs.size()),
+                .FirstMeshId = MeshIdentifier(meshes.size()),
+                .MeshCount = modelDef.MeshDefs.size(),
             };
         models.emplace_back(model);
 
@@ -435,7 +435,7 @@ PropKit::Create(
                     .IndexCount = narrow_cast<uint32_t>(meshDef.Indices.size()),
                     .FirstIndex = narrow_cast<uint32_t>(indices.size()),
                     .BaseVertex = narrow_cast<uint32_t>(vertices.size()),
-                    .MaterialIndex = uniqueMaterialMap[meshDef.MaterialDef],
+                    .MaterialId = uniqueMaterialMap[meshDef.MaterialDef],
                     .BoundingBox = Box::FromVertices(meshDef.Vertices, meshDef.Indices),
                 };
 
@@ -479,11 +479,34 @@ PropKit::Create(
 }
 
 Result<std::span<const Mesh>>
-PropKit::GetMeshes(const ModelIndex& modelIndex) const
+PropKit::GetMeshes(const ModelIdentifier& modelId) const
 {
-    MLG_CHECKV(modelIndex.Value() < m_Models.size(), "Invalid model index: {}", modelIndex.Value());
-    const Model& model = m_Models[modelIndex.Value()];
-    return std::span<const Mesh>(&m_Meshes[model.FirstMesh.Value()], model.MeshCount);
+    MLG_CHECKV(modelId.IsValid() && modelId.GetValue() < m_Models.size(),
+        "Invalid model id: {}",
+        modelId.GetValue());
+
+    const Model& model = m_Models[modelId.GetValue()];
+
+    MLG_CHECKV(model.FirstMeshId.IsValid() &&
+                   model.FirstMeshId.GetValue() + model.MeshCount <= m_Meshes.size(),
+        "Model has invalid mesh range: {}, {}",
+        model.FirstMeshId.GetValue(),
+        model.MeshCount);
+
+    return std::span<const Mesh>(&m_Meshes[model.FirstMeshId.GetValue()], model.MeshCount);
+}
+
+const wgpu::BindGroup*
+PropKit::GetMaterialBindGroup(const MaterialIdentifier& materialId) const
+{
+    if(MLG_VERIFY(materialId.IsValid() && materialId.GetValue() < m_MaterialBindGroups.size(),
+           "Invalid material id: {}",
+           materialId.GetValue()))
+    {
+        return &m_MaterialBindGroups[materialId.GetValue()];
+    }
+
+    return nullptr;
 }
 
 // private:
@@ -513,11 +536,11 @@ PropKit::PropKit(VertexBuffer vertexBuffer,
     }
 #endif // NDEBUG
 
-    m_ModelNameToIndex.reserve(m_Models.size());
-    for(uint32_t i = 0; i < static_cast<uint32_t>(m_Models.size()); ++i)
+    m_ModelNameToId.reserve(m_Models.size());
+    for(size_t i = 0; i < m_Models.size(); ++i)
     {
         const Model& model = m_Models[i];
-        MLG_ASSERT(!m_ModelNameToIndex.contains(model.Name), "Duplicate model name: {}", model.Name);
-        m_ModelNameToIndex[model.Name] = ModelIndex(i);
+        MLG_ASSERT(!m_ModelNameToId.contains(model.Name), "Duplicate model name: {}", model.Name);
+        m_ModelNameToId[model.Name] = ModelIdentifier(i);
     }
 }

@@ -14,6 +14,15 @@
 using MeshPropertiesBuffer = SemanticGpuBuffer<ShaderInterop::MeshProperties>;
 using MaterialConstantsBuffer = SemanticGpuBuffer<ShaderInterop::MaterialConstants>;
 
+struct Mesh final
+{
+    uint32_t IndexCount{ 0 };
+    uint32_t FirstIndex{ 0 };
+    uint32_t BaseVertex{ 0 };
+    MaterialIdentifier MaterialId;
+    Box BoundingBox;
+};
+
 class PropKit
 {
 public:
@@ -28,20 +37,17 @@ public:
     PropKit(PropKit&& other) = default;
     PropKit& operator=(PropKit&& other) = default;
 
-    Result<ModelIndex> GetModelIndex(const std::string_view& name) const
+    Result<ModelIdentifier> GetModeld(const std::string_view& name) const
     {
-        auto it = m_ModelNameToIndex.find(name);
-        MLG_CHECKV(it != m_ModelNameToIndex.end(), "Model not found: {}", name);
+        auto it = m_ModelNameToId.find(name);
+        MLG_CHECKV(it != m_ModelNameToId.end(), "Model not found: {}", name);
 
         return it->second;
     }
 
-    Result<std::span<const Mesh>> GetMeshes(const ModelIndex& modelIndex) const;
+    Result<std::span<const Mesh>> GetMeshes(const ModelIdentifier& modelId) const;
 
-    std::span<const wgpu::BindGroup> GetMaterialBindGroups() const
-    {
-        return m_MaterialBindGroups;
-    }
+    const wgpu::BindGroup* GetMaterialBindGroup(const MaterialIdentifier& materialId) const;
 
     MaterialConstantsBuffer GetMaterialConstantsBuffer() const { return m_MaterialConstantsBuffer; }
 
@@ -50,6 +56,14 @@ public:
     IndexBuffer GetIndexBuffer() const { return m_IndexBuffer; }
 
 private:
+
+    struct Model
+    {
+        std::string_view Name;
+        MeshIdentifier FirstMeshId;
+        size_t MeshCount{ 0 };
+    };
+
     PropKit(VertexBuffer vertexBuffer,
         IndexBuffer indexBuffer,
         std::vector<Mesh> meshes,
@@ -63,7 +77,7 @@ private:
     std::vector<Mesh> m_Meshes;
     std::vector<Model> m_Models;
     MaterialConstantsBuffer m_MaterialConstantsBuffer;
-    std::unordered_map<std::string_view, ModelIndex> m_ModelNameToIndex;
+    std::unordered_map<std::string_view, ModelIdentifier> m_ModelNameToId;
     std::vector<wgpu::BindGroup> m_MaterialBindGroups;
     // Storage for model names to ensure they remain valid for string_views
     // and to reduce memory fragmentation by storing all names contiguously.

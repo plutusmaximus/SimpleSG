@@ -14,7 +14,7 @@
 
 #include <cgltf.h>
 #include <filesystem>
-#include <map>
+#include <unordered_set>
 #include <vector>
 
 namespace
@@ -361,13 +361,13 @@ GenerateNormals(std::span<Vertex> vertices, std::span<const VertexIndex> indices
 
 Result<>
 CollectModels(const std::span<CgltfMeshData> gltfMeshes,
-    std::vector<ModelDef>& models,
-    std::map<const cgltf_mesh*, ModelIndex>& modelIndices)
+    std::vector<ModelDef>& modelDefs,
+    std::unordered_set<const cgltf_mesh*>& validModels)
 {
-    models.clear();
-    modelIndices.clear();
+    modelDefs.clear();
+    validModels.clear();
 
-    models.reserve(gltfMeshes.size());
+    modelDefs.reserve(gltfMeshes.size());
 
     for(size_t i = 0; i < gltfMeshes.size(); ++i)
     {
@@ -419,8 +419,8 @@ CollectModels(const std::span<CgltfMeshData> gltfMeshes,
             .MeshDefs = std::move(meshDefs),
         };
 
-        modelIndices[gltfMesh.Mesh] = ModelIndex(models.size());
-        models.emplace_back(std::move(model));
+        validModels.insert(gltfMesh.Mesh);
+        modelDefs.emplace_back(std::move(model));
     }
 
     return Result<>::Ok;
@@ -443,7 +443,7 @@ ConvertRHtoLH(Mat44f& M)
 
 Result<>
 CollectNode(const cgltf_node& srcNode,
-    const std::map<const cgltf_mesh*, ModelIndex>& modelIndices,
+    const std::unordered_set<const cgltf_mesh*>& validModels,
     std::vector<LevelNodeDef>& nodeDefs)
 {
     std::string nodeName = srcNode.name ? srcNode.name : "<unnamed>";
@@ -472,7 +472,7 @@ CollectNode(const cgltf_node& srcNode,
 
     std::string modelName;
 
-    if(srcNode.mesh && modelIndices.contains(srcNode.mesh))
+    if(srcNode.mesh && validModels.contains(srcNode.mesh))
     {
         // Node has a mesh and the mesh was accepted during model collection phase.
 
@@ -486,7 +486,7 @@ CollectNode(const cgltf_node& srcNode,
     
     for(const cgltf_node* child : childrenSpan)
     {
-        MLG_CHECK(CollectNode(*child, modelIndices, childNodes));
+        MLG_CHECK(CollectNode(*child, validModels, childNodes));
     }
 
     if(childNodes.empty() && !srcNode.mesh)
@@ -551,7 +551,7 @@ CollectNode(const cgltf_node& srcNode,
 Result<>
 CollectNodes(const cgltf_data* gltfData,
     std::vector<LevelNodeDef>& levelNodeDefs,
-    const std::map<const cgltf_mesh*, ModelIndex>& modelIndices)
+    const std::unordered_set<const cgltf_mesh*>& validModels)
 {
     const std::span<const cgltf_scene> scenesSpan(gltfData->scenes, gltfData->scenes_count);
 
@@ -567,7 +567,7 @@ CollectNodes(const cgltf_data* gltfData,
 
     for(const cgltf_node* node : nodesSpan)
     {
-        MLG_CHECK(CollectNode(*node, modelIndices, levelNodeDefs));
+        MLG_CHECK(CollectNode(*node, validModels, levelNodeDefs));
     }
 
     return Result<>::Ok;
@@ -614,11 +614,11 @@ GltfLoader::Load(const std::string& path, PropKitDef& outPropKit, LevelDef& outL
     MLG_CHECK(CollectMeshes(gltfData, gltfMeshes));
 
     std::vector<ModelDef> modelDefs;
-    std::map<const cgltf_mesh*, ModelIndex> modelIndices;
-    MLG_CHECK(CollectModels(gltfMeshes, modelDefs, modelIndices));
+    std::unordered_set<const cgltf_mesh*> validModels;
+    MLG_CHECK(CollectModels(gltfMeshes, modelDefs, validModels));
 
     std::vector<LevelNodeDef> levelNodeDefs;
-    MLG_CHECK(CollectNodes(gltfData, levelNodeDefs, modelIndices));
+    MLG_CHECK(CollectNodes(gltfData, levelNodeDefs, validModels));
 
     PropKitDef propKit //
         {

@@ -16,9 +16,10 @@ class ModelInstance
 {
 public:
 
-    explicit ModelInstance(ModelIndex modelIndex)
-        : m_ModelIndex(modelIndex)
+    explicit ModelInstance(const ModelIdentifier modelId)
+        : m_ModelId(modelId)
     {
+        MLG_ASSERT(modelId.IsValid(), "ModelInstance cannot be created with invalid ModelIdentifier");
     }
 
     ModelInstance() = default;
@@ -28,13 +29,13 @@ public:
     ModelInstance(ModelInstance&&) = default;
     ModelInstance& operator=(ModelInstance&&) = default;
 
-    ModelIndex GetModelIndex() const { return m_ModelIndex; }
+    ModelIdentifier GetModelId() const { return m_ModelId; }
 
     void SetVisible(const bool visible) { m_IsVisible = visible; }
     bool IsVisible() const { return m_IsVisible; }
 
 private:
-    ModelIndex m_ModelIndex{ ModelIndex::INVALID };
+    ModelIdentifier m_ModelId;
 
     bool m_IsVisible{ true };
 };

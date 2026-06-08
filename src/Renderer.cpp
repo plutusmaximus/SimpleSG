@@ -193,16 +193,15 @@ Renderer::Render(const TrsTransformf& cameraXForm,
 
         uint64_t indirectOffset = 0;
 
-        const auto& materialBindGroups = propKit.GetMaterialBindGroups();
         const auto& modelInstances = scene.GetModelInstances();
         const auto& drawIndirectBuffer = scene.GetDrawIndirectBuffer();
 
-        MaterialIndex lastMaterialIndex = MaterialIndex::INVALID;
+        MaterialIdentifier lastMaterialId{};
 
         for(const auto& modelInstance : modelInstances)
         {
-            auto meshes = propKit.GetMeshes(modelInstance.GetModelIndex());
-            MLG_CHECK(meshes);
+            auto meshes = propKit.GetMeshes(modelInstance.GetModelId());
+            MLG_CHECKV(meshes);
 
             if(!modelInstance.IsVisible())
             {
@@ -212,14 +211,18 @@ Renderer::Render(const TrsTransformf& cameraXForm,
 
             for(const auto &mesh : *meshes)
             {
-                const MaterialIndex materialIndex = mesh.MaterialIndex;
+                const MaterialIdentifier materialId = mesh.MaterialId;
 
-                if(materialIndex != lastMaterialIndex)
+                if(materialId != lastMaterialId)
                 {
                     MLG_SCOPED_TIMER("Renderer.Render.Draw.SetMaterialBindGroup");
 
-                    renderPass.SetBindGroup(1, materialBindGroups[materialIndex.Value()], 0, nullptr);
-                    lastMaterialIndex = materialIndex;
+                    const wgpu::BindGroup* materialBindGroup =
+                        propKit.GetMaterialBindGroup(materialId);
+                    MLG_CHECKV(materialBindGroup, "Failed to get material bind group");
+
+                    renderPass.SetBindGroup(1, *materialBindGroup, 0, nullptr);
+                    lastMaterialId = materialId;
                 }
 
                 {

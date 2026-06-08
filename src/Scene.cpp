@@ -74,16 +74,15 @@ BuildTransformBuffer(const Level& level,
         const Level::Node* node = level.GetNode(handle);
         MLG_ASSERT(node);
 
-        const std::optional<ModelIndex>& optModelIdx = node->Components.Model;
+        const std::optional<ModelIdentifier>& optModelId = node->Components.Model;
 
-        if(!optModelIdx)
+        if(!optModelId)
         {
             continue;
         }
 
-        const ModelIndex modelIndex = *optModelIdx;
-        MLG_ASSERT(modelIndex.IsValid(), "Node has invalid model index");
-        const ModelInstance modelInstance{modelIndex };
+        MLG_CHECKV(optModelId->IsValid(), "Node has invalid model id");
+        const ModelInstance modelInstance{*optModelId};
         outModelInstances.emplace_back(modelInstance);
 
         outNodeHandles.emplace_back(handle);
@@ -101,7 +100,7 @@ CountMeshes(std::span<const ModelInstance> modelInstances, const PropKit& propKi
     size_t meshCount = 0;
     for(const ModelInstance& modelInstance : modelInstances)
     {
-        auto meshes = propKit.GetMeshes(modelInstance.GetModelIndex());
+        auto meshes = propKit.GetMeshes(modelInstance.GetModelId());
         MLG_CHECK(meshes);
 
         meshCount += meshes->size();
@@ -120,7 +119,7 @@ BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const Pro
 
     for(const ModelInstance& modelInstance : modelInstances)
     {
-        auto meshes = propKit.GetMeshes(modelInstance.GetModelIndex());
+        auto meshes = propKit.GetMeshes(modelInstance.GetModelId());
         MLG_CHECK(meshes);
 
         for(const Mesh& meshSrc : *meshes)
@@ -155,7 +154,7 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const P
 
     for(const auto& modelInstance : modelInstances)
     {
-        auto meshes = propKit.GetMeshes(modelInstance.GetModelIndex());
+        auto meshes = propKit.GetMeshes(modelInstance.GetModelId());
         MLG_CHECK(meshes);
 
         for(const auto& meshSrc : *meshes)
@@ -166,7 +165,7 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const P
             {
                 .Radius = boundingSphere.GetRadius(),
                 .TransformIndex = transformIndex,
-                .MaterialIndex = meshSrc.MaterialIndex.Value(),
+                .MaterialIndex = narrow_cast<uint32_t>(meshSrc.MaterialId.GetValue()),
             };
 
             meshProperties.emplace_back(meshProps);

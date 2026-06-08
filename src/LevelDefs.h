@@ -2,19 +2,92 @@
 
 #include "Color.h"
 #include "PhysicsTypes.h"
-#include "SemanticInteger.h"
 
 #include <optional>
 #include <string>
 #include <vector>
 #include <variant>
 
-struct MaterialIndexTag {};
-struct MeshIndexTag {};
-struct ModelIndexTag {};
-using MaterialIndex = SemanticInteger<MaterialIndexTag>;
-using MeshIndex = SemanticInteger<MeshIndexTag>;
-using ModelIndex = SemanticInteger<ModelIndexTag>;
+class ModelIdentifier
+{
+public:
+    ModelIdentifier() = default;
+    explicit ModelIdentifier(const size_t value)
+        : m_Value(value)
+    {
+        MLG_ASSERT(value != kInvalidValue, "ModelIdentifier cannot be created with invalid value");
+    }
+
+    bool IsValid() const { return m_Value != kInvalidValue; }
+
+    size_t GetValue() const
+    {
+        MLG_ASSERT(IsValid(), "Cannot get value of invalid ModelIdentifier");
+        return m_Value;
+    }
+
+    auto operator<=>(const ModelIdentifier& other) const = default;
+
+private:
+
+    constexpr static size_t kInvalidValue = static_cast<size_t>(-1);
+
+    size_t m_Value{kInvalidValue};
+};
+
+class MeshIdentifier
+{
+public:
+    MeshIdentifier() = default;
+    explicit MeshIdentifier(const size_t value)
+        : m_Value(value)
+    {
+        MLG_ASSERT(value != kInvalidValue, "MeshIdentifier cannot be created with invalid value");
+    }
+
+    bool IsValid() const { return m_Value != kInvalidValue; }
+
+    size_t GetValue() const
+    {
+        MLG_ASSERT(IsValid(), "Cannot get value of invalid MeshIdentifier");
+        return m_Value;
+    }
+
+    auto operator<=>(const MeshIdentifier& other) const = default;
+
+private:
+
+    constexpr static size_t kInvalidValue = static_cast<size_t>(-1);
+
+    size_t m_Value{kInvalidValue};
+};
+
+class MaterialIdentifier
+{
+public:
+    MaterialIdentifier() = default;
+    explicit MaterialIdentifier(const size_t value)
+        : m_Value(value)
+    {
+        MLG_ASSERT(value != kInvalidValue, "MaterialIdentifier cannot be created with invalid value");
+    }
+
+    bool IsValid() const { return m_Value != kInvalidValue; }
+
+    size_t GetValue() const
+    {
+        MLG_ASSERT(IsValid(), "Cannot get value of invalid MaterialIdentifier");
+        return m_Value;
+    }
+
+    auto operator<=>(const MaterialIdentifier& other) const = default;
+
+private:
+
+    constexpr static size_t kInvalidValue = static_cast<size_t>(-1);
+
+    size_t m_Value{kInvalidValue};
+};
 
 struct MaterialDef final
 {
@@ -78,22 +151,6 @@ struct ModelDef final
 struct PropKitDef final
 {
     std::vector<ModelDef> ModelDefs;
-};
-
-struct Mesh final
-{
-    uint32_t IndexCount{ 0 };
-    uint32_t FirstIndex{ 0 };
-    uint32_t BaseVertex{ 0 };
-    MaterialIndex MaterialIndex{ MaterialIndex::INVALID };
-    Box BoundingBox;
-};
-
-struct Model final
-{
-    std::string_view Name;
-    MeshIndex FirstMesh{ MeshIndex::INVALID };
-    uint32_t MeshCount{ 0 };
 };
 
 struct ModelRef final

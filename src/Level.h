@@ -44,7 +44,7 @@ public:
 
     struct Components
     {
-        std::optional<ModelIndex> Model;
+        std::optional<ModelIdentifier> Model;
         std::optional<RigidBody> Body;
         std::optional<Collider> Collider;
     };
