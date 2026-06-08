@@ -3,3 +3,4 @@ build
 .devcontainer
 out
 .vs
+.DS_Store
