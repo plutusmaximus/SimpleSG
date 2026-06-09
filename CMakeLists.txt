@@ -255,6 +255,7 @@ set(SSG_SOURCES
   src/cgltf.cpp
   src/Compositor.cpp
   src/FileFetcher.cpp
+  src/GridHash.cpp
   src/GltfLoader.cpp
   src/ImGuiRenderer.cpp
   src/Level.cpp
@@ -279,6 +280,7 @@ set(SSG_HEADERS
   src/Compositor.h
   src/FileFetcher.h
   src/GltfLoader.h
+  src/GridHash.h
   src/ImGuiRenderer.h
   src/inlist.h
   src/Level.h
