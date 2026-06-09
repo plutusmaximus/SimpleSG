@@ -160,7 +160,7 @@ Renderer::Render(const TrsTransformf& cameraXForm,
 
     {
         MLG_SCOPED_TIMER("Renderer.Render.Draw.SetPerFrameBindGroup");
-        renderPass.SetBindGroup(0, scene.GetColorPipelineBindGroup0(), 0, nullptr);
+        renderPass.SetBindGroup(0, scene.GetColorShaderBindGroup(), 0, nullptr);
     }
 
     {
@@ -777,7 +777,7 @@ Renderer::TransformNodes(const wgpu::CommandEncoder& cmdEncoder,
 
     const wgpu::ComputePassEncoder pass = cmdEncoder.BeginComputePass();
     pass.SetPipeline(m_TransformPipeline);
-    pass.SetBindGroup(0, scene.GetTransformPipelineBindGroup0());
+    pass.SetBindGroup(0, scene.GetTransformShaderBindGroup());
     const uint32_t workgroupCountX = narrow_cast<uint32_t>(scene.GetModelInstances().size());
     pass.DispatchWorkgroups(workgroupCountX);
     pass.End();

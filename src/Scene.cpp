@@ -9,7 +9,7 @@
 
 namespace
 {
-struct ColorPipelineResources
+struct ColorShaderResources
 {
     WorldTransformBuffer WorldTransformBuffer;
     ClipSpaceBuffer ClipSpaceBuffer;
@@ -18,7 +18,7 @@ struct ColorPipelineResources
     CameraParamsBuffer CameraParamsBuffer;
 };
 
-struct TransformPipelineResources
+struct TransformShaderResources
 {
     WorldTransformBuffer WorldTransformBuffer;
     ClipSpaceBuffer ClipSpaceBuffer;
@@ -179,7 +179,7 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const P
 }
 
 Result<wgpu::BindGroup>
-CreateColorPipelineBindGroup0(ColorPipelineResources& colorPipelineResources)
+CreateColorShaderBindGroup(ColorShaderResources& colorShaderResources)
 {
     auto bgLayouts = WebgpuHelper::GetColorPipelineLayouts();
     MLG_CHECK(bgLayouts);
@@ -188,39 +188,39 @@ CreateColorPipelineBindGroup0(ColorPipelineResources& colorPipelineResources)
     {
         {
             .binding = 0,
-            .buffer = colorPipelineResources.WorldTransformBuffer.GetGpuBuffer(),
+            .buffer = colorShaderResources.WorldTransformBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = colorPipelineResources.WorldTransformBuffer.BufferSize(),
+            .size = colorShaderResources.WorldTransformBuffer.BufferSize(),
         },
         {
             .binding = 1,
-            .buffer = colorPipelineResources.ClipSpaceBuffer.GetGpuBuffer(),
+            .buffer = colorShaderResources.ClipSpaceBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = colorPipelineResources.ClipSpaceBuffer.BufferSize(),
+            .size = colorShaderResources.ClipSpaceBuffer.BufferSize(),
         },
         {
             .binding = 2,
-            .buffer = colorPipelineResources.MeshPropertiesBuffer.GetGpuBuffer(),
+            .buffer = colorShaderResources.MeshPropertiesBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = colorPipelineResources.MeshPropertiesBuffer.BufferSize(),
+            .size = colorShaderResources.MeshPropertiesBuffer.BufferSize(),
         },
         {
             .binding = 3,
-            .buffer = colorPipelineResources.MaterialConstantsBuffer.GetGpuBuffer(),
+            .buffer = colorShaderResources.MaterialConstantsBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = colorPipelineResources.MaterialConstantsBuffer.BufferSize(),
+            .size = colorShaderResources.MaterialConstantsBuffer.BufferSize(),
         },
         {
             .binding = 4,
-            .buffer = colorPipelineResources.CameraParamsBuffer.GetGpuBuffer(),
+            .buffer = colorShaderResources.CameraParamsBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = colorPipelineResources.CameraParamsBuffer.BufferSize(),
+            .size = colorShaderResources.CameraParamsBuffer.BufferSize(),
         },
     };
 
     const wgpu::BindGroupDescriptor bgDesc = //
         {
-            .label = "ColorPipelineBindGroup0",
+            .label = "ColorShaderBindGroup",
             .layout = (*bgLayouts)[0],
             .entryCount = std::size(bgEntries),
             .entries = &bgEntries[0],
@@ -228,13 +228,13 @@ CreateColorPipelineBindGroup0(ColorPipelineResources& colorPipelineResources)
 
     wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
     MLG_CHECK(bindGroup,
-        "Failed to create bind group 0 for color pipeline");
+        "Failed to create bind group 0 for color shader");
 
     return bindGroup;
 }
 
 Result<wgpu::BindGroup>
-CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineResources)
+CreateTransformShaderBindGroup(TransformShaderResources& transformShaderResources)
 {
     auto bgLayouts = WebgpuHelper::GetTransformPipelineLayouts();
     MLG_CHECK(bgLayouts);
@@ -243,27 +243,27 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
     {
         {
             .binding = 0,
-            .buffer = transformPipelineResources.WorldTransformBuffer.GetGpuBuffer(),
+            .buffer = transformShaderResources.WorldTransformBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = transformPipelineResources.WorldTransformBuffer.BufferSize(),
+            .size = transformShaderResources.WorldTransformBuffer.BufferSize(),
         },
         {
             .binding = 1,
-            .buffer = transformPipelineResources.ClipSpaceBuffer.GetGpuBuffer(),
+            .buffer = transformShaderResources.ClipSpaceBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = transformPipelineResources.ClipSpaceBuffer.BufferSize(),
+            .size = transformShaderResources.ClipSpaceBuffer.BufferSize(),
         },
         {
             .binding = 2,
-            .buffer = transformPipelineResources.CameraParamsBuffer.GetGpuBuffer(),
+            .buffer = transformShaderResources.CameraParamsBuffer.GetGpuBuffer(),
             .offset = 0,
-            .size = transformPipelineResources.CameraParamsBuffer.BufferSize(),
+            .size = transformShaderResources.CameraParamsBuffer.BufferSize(),
         },
     };
 
     const wgpu::BindGroupDescriptor bgDesc = //
         {
-            .label = "TransformPipelineBindGroup0",
+            .label = "TransformShaderBindGroup",
             .layout = (*bgLayouts)[0],
             .entryCount = std::size(bgEntries),
             .entries = &bgEntries[0],
@@ -271,7 +271,7 @@ CreateTransformPipelineBindGroup0(TransformPipelineResources& transformPipelineR
 
     wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
     MLG_CHECK(bindGroup,
-        "Failed to create bind group 0 for transform pipeline");
+        "Failed to create bind group 0 for transform shader");
 
     return bindGroup;
 }
@@ -305,7 +305,7 @@ Scene::Create(const Level& level, const PropKit& propKit)
         WebgpuHelper::CreateUniformBuffer<CameraParamsBuffer>(1, "CameraParamsBuffer");
     MLG_CHECK(cameraParamsBuf);
 
-    ColorPipelineResources colorPipelineResources //
+    ColorShaderResources colorShaderResources //
     {
         .WorldTransformBuffer = *transformBuffer,
         .ClipSpaceBuffer = *clipSpaceBuffer,
@@ -314,25 +314,25 @@ Scene::Create(const Level& level, const PropKit& propKit)
         .CameraParamsBuffer = *cameraParamsBuf,
     };
 
-    auto colorPipelineBindGroup0 = CreateColorPipelineBindGroup0(colorPipelineResources);
-    MLG_CHECK(colorPipelineBindGroup0);
+    auto colorShaderBindGroup = CreateColorShaderBindGroup(colorShaderResources);
+    MLG_CHECK(colorShaderBindGroup);
 
-    TransformPipelineResources transformPipelineResources //
+    TransformShaderResources transformShaderResources //
     {
         .WorldTransformBuffer = *transformBuffer,
         .ClipSpaceBuffer = *clipSpaceBuffer,
         .CameraParamsBuffer = *cameraParamsBuf,
     };
 
-    auto transformPipelineBindGroup0 = CreateTransformPipelineBindGroup0(transformPipelineResources);
-    MLG_CHECK(transformPipelineBindGroup0);
+    auto transformShaderBindGroup = CreateTransformShaderBindGroup(transformShaderResources);
+    MLG_CHECK(transformShaderBindGroup);
 
     Scene scene(std::move(*transformBuffer),
         std::move(*drawIndirectBuffer),
         std::move(*meshPropertiesBuffer),
         std::move(*cameraParamsBuf),
-        std::move(*colorPipelineBindGroup0),
-        std::move(*transformPipelineBindGroup0),
+        std::move(*colorShaderBindGroup),
+        std::move(*transformShaderBindGroup),
         std::move(modelInstances),
         std::move(worldTransforms),
         std::move(nodeHandles));
@@ -346,8 +346,8 @@ Scene::Scene(WorldTransformBuffer worldTransformBuffer,
     DrawIndirectBuffer drawIndirectBuffer,
     MeshPropertiesBuffer meshPropertiesBuffer,
     CameraParamsBuffer cameraParamsBuffer,
-    wgpu::BindGroup colorPipelineBindGroup0,
-    wgpu::BindGroup transformPipelineBindGroup0,
+    wgpu::BindGroup colorShaderBindGroup,
+    wgpu::BindGroup transformShaderBindGroup,
     std::vector<ModelInstance> modelInstances,
     std::vector<ShaderInterop::WorldTransform> worldTransforms,
     std::vector<Level::NodeHandle> nodeHandles)
@@ -355,8 +355,8 @@ Scene::Scene(WorldTransformBuffer worldTransformBuffer,
       m_DrawIndirectBuffer(std::move(drawIndirectBuffer)),
       m_MeshPropertiesBuffer(std::move(meshPropertiesBuffer)),
       m_CameraParamsBuffer(std::move(cameraParamsBuffer)),
-      m_ColorPipelineBindGroup0(std::move(colorPipelineBindGroup0)),
-      m_TransformPipelineBindGroup0(std::move(transformPipelineBindGroup0)),
+      m_ColorShaderBindGroup(std::move(colorShaderBindGroup)),
+      m_TransformShaderBindGroup(std::move(transformShaderBindGroup)),
       m_ModelInstances(std::move(modelInstances)),
       m_WorldTransforms(std::move(worldTransforms)),
       m_NodeHandles(std::move(nodeHandles))

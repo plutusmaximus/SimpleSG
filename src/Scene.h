@@ -58,9 +58,9 @@ public:
 
     CameraParamsBuffer GetCameraParamsBuffer() const { return m_CameraParamsBuffer; }
 
-    wgpu::BindGroup GetColorPipelineBindGroup0() const { return m_ColorPipelineBindGroup0; }
+    wgpu::BindGroup GetColorShaderBindGroup() const { return m_ColorShaderBindGroup; }
 
-    wgpu::BindGroup GetTransformPipelineBindGroup0() const { return m_TransformPipelineBindGroup0; }
+    wgpu::BindGroup GetTransformShaderBindGroup() const { return m_TransformShaderBindGroup; }
 
     Result<> SyncFromLevel(const Level& level);
 
@@ -73,8 +73,8 @@ private:
         DrawIndirectBuffer drawIndirectBuffer,
         MeshPropertiesBuffer meshPropertiesBuffer,
         CameraParamsBuffer cameraParamsBuffer,
-        wgpu::BindGroup colorPipelineBindGroup0,
-        wgpu::BindGroup transformPipelineBindGroup0,
+        wgpu::BindGroup colorShaderBindGroup,
+        wgpu::BindGroup transformShaderBindGroup,
         std::vector<ModelInstance> modelInstances,
         std::vector<ShaderInterop::WorldTransform> worldTransforms,
         std::vector<Level::NodeHandle> nodeHandles);
@@ -83,8 +83,8 @@ private:
     DrawIndirectBuffer m_DrawIndirectBuffer;
     MeshPropertiesBuffer m_MeshPropertiesBuffer;
     CameraParamsBuffer m_CameraParamsBuffer;
-    wgpu::BindGroup m_ColorPipelineBindGroup0;
-    wgpu::BindGroup m_TransformPipelineBindGroup0;
+    wgpu::BindGroup m_ColorShaderBindGroup;
+    wgpu::BindGroup m_TransformShaderBindGroup;
     std::vector<ModelInstance> m_ModelInstances;
 
     // Staging buffer for world transforms.
