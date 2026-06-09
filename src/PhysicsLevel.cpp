@@ -69,7 +69,7 @@ PhysicsLevel::AddForce(size_t bodyIndex, const Vec3f& force)
     MLG_ASSERT(bodyIndex < m_Bodies.size(), "Body index out of range");
 
     // Accumulate accelerations for the current frame.
-    m_A0[bodyIndex] += force * m_Bodies[bodyIndex].GetMass().InvValue();
+    m_AccelCur[bodyIndex] += force * m_Bodies[bodyIndex].GetMass().InvValue();
 }
 
 void
@@ -77,13 +77,13 @@ PhysicsLevel::Update(const float timeStep)
 {
     MLG_SCOPED_TIMER("Physics.Update");
 
-    std::swap(m_Trs0, m_Trs1);
+    std::swap(m_TrsCur, m_TrsNext);
     // Update velocities based on accelerations accumulated this frame.
     UpdateVelocities(timeStep);
     PredictPositions(timeStep);
     FindAndResolveAllImpacts();
-    std::swap(m_Am1, m_A0);
-    std::ranges::fill(m_A0, Vec3f{ 0 });
+    std::swap(m_AccelPrev, m_AccelCur);
+    std::ranges::fill(m_AccelCur, Vec3f{ 0 });
 }
 
 Result<>
@@ -93,13 +93,24 @@ PhysicsLevel::SyncToLevel(Level& level)
     {
         m_ActiveBodies[i] = level.IsActive(m_NodeHandles[i]);
 
-        MLG_CHECK(level.UpdateLocalTransform( m_NodeHandles[i], m_Trs0[i]));
+        MLG_CHECK(level.UpdateLocalTransform( m_NodeHandles[i], m_TrsCur[i]));
     }
 
     return Result<>::Ok;
 }
 
 // private:
+
+// Regulare velocity verlet is like this:
+// p1 = p0 + v0*dt + 0.5 * a0 * dt^2
+// a1 = some function of p1
+// v1 = v0 + (a0 + a1) * 0.5 * dt
+//
+// Ours works like this:
+//
+// a0 = some function of p0
+// v0 = v(-1) + (a(-1) + a0) * 0.5 * dt
+// p1 = (v0 * dt) + (a0 * dt^2 * 0.5) + p0
 
 void
 PhysicsLevel::UpdateVelocities(const float dt)
@@ -121,8 +132,10 @@ PhysicsLevel::UpdateVelocities(const float dt)
         // using the trapezoidal rule:
         // integral from t0 to t1 of a(t) dt ~= (t1 - t0) * (a(t0) + a(t1)) / 2
 
-        // m_Am1 is from the previous frame, and m_A0 is from the current frame.
-        m_Bodies[i].SetLinearVelocity(m_Bodies[i].GetLinearVelocity() + (m_Am1[i] + m_A0[i]) * dt * 0.5f);
+        // m_AccelPrev is from the previous frame, and m_A0 is from the current frame.
+        const Vec3f& vPrev = m_Bodies[i].GetLinearVelocity();
+        const Vec3 vCur = vPrev + (m_AccelPrev[i] + m_AccelCur[i]) * dt * 0.5f;
+        m_Bodies[i].SetLinearVelocity(vCur);
     }
 }
 
@@ -146,8 +159,8 @@ PhysicsLevel::PredictPositions(const float dt)
         // Use velocity/acceleration from current frame.
         // Note that this frame's velocity was computed from
         // the previous and current frame's acceleration.
-        m_Trs1[i].T =
-            (m_Bodies[i].GetLinearVelocity() * dt) + ((m_A0[i] * dt * dt) / 2) + m_Trs0[i].T;
+        const Vec3f& vCur = m_Bodies[i].GetLinearVelocity();
+        m_TrsNext[i].T = (vCur * dt) + ((m_AccelCur[i] * dt * dt) / 2) + m_TrsCur[i].T;
     }
 }
 
@@ -209,8 +222,8 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
     if(0 == impactResult.PenetrationDepth)
     {
         // Move bodies to point of impact.
-        m_Trs1[indexA].T = impactResult.PosAtImpactA;
-        m_Trs1[indexB].T = impactResult.PosAtImpactB;
+        m_TrsNext[indexA].T = impactResult.PosAtImpactA;
+        m_TrsNext[indexB].T = impactResult.PosAtImpactB;
     }
     else if(impactResult.PenetrationDepth > kCorrectionSlop)
     {
@@ -247,8 +260,8 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
 
         const Vec3f correction = C * impactResult.ContactNormalBtoA / invMassSum;
 
-        m_Trs1[indexA].T += correction * invMA;
-        m_Trs1[indexB].T -= correction * invMB;
+        m_TrsNext[indexA].T += correction * invMA;
+        m_TrsNext[indexB].T -= correction * invMB;
     }
 }
 
@@ -271,15 +284,15 @@ PhysicsLevel::FindAndResolveAllImpacts()
 
         const Vec3f bbMin //
             {
-                std::min(m_Trs0[i].T.x, m_Trs1[i].T.x),
-                std::min(m_Trs0[i].T.y, m_Trs1[i].T.y),
-                std::min(m_Trs0[i].T.z, m_Trs1[i].T.z),
+                std::min(m_TrsCur[i].T.x, m_TrsNext[i].T.x),
+                std::min(m_TrsCur[i].T.y, m_TrsNext[i].T.y),
+                std::min(m_TrsCur[i].T.z, m_TrsNext[i].T.z),
             };
         const Vec3f bbMax //
             {
-                std::max(m_Trs0[i].T.x, m_Trs1[i].T.x),
-                std::max(m_Trs0[i].T.y, m_Trs1[i].T.y),
-                std::max(m_Trs0[i].T.z, m_Trs1[i].T.z),
+                std::max(m_TrsCur[i].T.x, m_TrsNext[i].T.x),
+                std::max(m_TrsCur[i].T.y, m_TrsNext[i].T.y),
+                std::max(m_TrsCur[i].T.z, m_TrsNext[i].T.z),
             };
 
         m_GridHash.Add(bbMin, bbMax, m_Colliders[i], i);
@@ -319,11 +332,11 @@ PhysicsLevel::FindAndResolveAllImpacts()
                 .Bodies = bodyPair,
                 .SweepParams //
                 {
-                    .StartPosA = m_Trs0[bodyPair.IndexA()].T,
-                    .EndPosA = m_Trs1[bodyPair.IndexA()].T,
+                    .StartPosA = m_TrsCur[bodyPair.IndexA()].T,
+                    .EndPosA = m_TrsNext[bodyPair.IndexA()].T,
                     .ColliderA = m_Colliders[bodyPair.IndexA()],
-                    .StartPosB = m_Trs0[bodyPair.IndexB()].T,
-                    .EndPosB = m_Trs1[bodyPair.IndexB()].T,
+                    .StartPosB = m_TrsCur[bodyPair.IndexB()].T,
+                    .EndPosB = m_TrsNext[bodyPair.IndexB()].T,
                     .ColliderB = m_Colliders[bodyPair.IndexB()],
                 },
             };

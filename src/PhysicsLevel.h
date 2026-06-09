@@ -139,10 +139,9 @@ public:
     /// @param bbMax The maximum corner of the body's bounding box.
     /// @param collider The collider associated with the body.
     /// @param bodyIndex The index of the body.
-    template<typename ColliderType>
     Result<> Add(const Vec3f& bbMin,
         const Vec3f& bbMax,
-        const ColliderType& collider,
+        const Collider& collider,
         const size_t bodyIndex)
     {
         MLG_CHECKV(bbMin.x <= bbMax.x && bbMin.y <= bbMax.y && bbMin.z <= bbMax.z,
@@ -456,7 +455,7 @@ public:
 
     std::span<const Level::NodeHandle> GetNodeHandles() const { return m_NodeHandles; }
     std::span<const RigidBody> GetBodies() const { return m_Bodies; }
-    std::span<const TrsTransformf> GetTransforms() const { return m_Trs0; }
+    std::span<const TrsTransformf> GetTransforms() const { return m_TrsCur; }
     std::span<const Collider> GetColliders() const { return m_Colliders; }
 
 private:
@@ -487,10 +486,10 @@ private:
         m_AccelerationPool[0].resize(m_Bodies.size(), Vec3f{ 0 });
         m_AccelerationPool[1].resize(m_Bodies.size(), Vec3f{ 0 });
         m_ActiveBodies.resize(m_Bodies.size(), true);
-        m_Trs0 = m_TransformPool[0];
-        m_Trs1 = m_TransformPool[1];
-        m_Am1 = m_AccelerationPool[0];
-        m_A0 = m_AccelerationPool[1];
+        m_TrsCur = m_TransformPool[0];
+        m_TrsNext = m_TransformPool[1];
+        m_AccelPrev = m_AccelerationPool[0];
+        m_AccelCur = m_AccelerationPool[1];
     }
 
     void UpdateVelocities(const float dt);
@@ -514,13 +513,13 @@ private:
     std::vector<SweepTestBatch> m_SweepTestBatches;
 
     //Transforms for the current frame.
-    std::span<TrsTransformf> m_Trs0;
+    std::span<TrsTransformf> m_TrsCur;
     //Predicted transforms for the next frame.
-    std::span<TrsTransformf> m_Trs1;
-    //Accelerations for the last frame.
-    std::span<Vec3f> m_Am1;
+    std::span<TrsTransformf> m_TrsNext;
+    //Accelerations for the prefvious frame.
+    std::span<Vec3f> m_AccelPrev;
     //Accelerations for the current frame.
-    std::span<Vec3f> m_A0;
+    std::span<Vec3f> m_AccelCur;
 
     GridHash m_GridHash{GRID_CELL_SIZE};
 
