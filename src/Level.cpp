@@ -2,6 +2,8 @@
 
 #include "PropKit.h"
 
+#include <ranges>
+
 namespace
 {
 size_t
@@ -132,6 +134,8 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit)
     // Flatten nodes into breadth-first order.
     MLG_CHECK(CollectNodes(levelDef.NodeDefs, propKit, nodes, stringStorage));
 
+    const std::span<Node> nodesSpan(nodes);
+
     // Fill in the Name, Parent, FirstChild fields.
     // The children of the first node come directly after all the nodes in the same
     // level as the parent.  The children of the next node with children come after that.
@@ -152,14 +156,19 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit)
             continue;
         }
 
+        MLG_ASSERT(firstChildIndex < nodes.size(),
+            "Invalid first child index calculated for node {}",
+            node.Name);
+        MLG_ASSERT(firstChildIndex + node.ChildCount <= nodes.size(),
+            "Not enough nodes to assign as children for node {}",
+            node.Name);
+
         node.FirstChild = NodeHandle(firstChildIndex);
 
-        for(size_t j = 0; j < node.ChildCount; ++j)
-        {
-            const size_t childIndex = firstChildIndex + j;
-            MLG_ASSERT(childIndex < nodes.size(), "Invalid child index calculated for node {}", node.Name);
+        const std::span<Node> childNodes = nodesSpan.subspan(firstChildIndex, node.ChildCount);
 
-            Node& childNode = nodes[childIndex];
+        for(Node& childNode : childNodes)
+        {
             childNode.Parent = NodeHandle(i);
         }
 
@@ -195,7 +204,7 @@ Level::Level(std::vector<Node>&& nodes, std::vector<char>&& stringStorage)
 
     m_NodeHandles.reserve(m_Nodes.size());
 
-    for(size_t i = 0; i < m_Nodes.size(); ++i)
+    for(const size_t i : std::views::iota(0uz, m_Nodes.size()))
     {
         m_NodeHandles.emplace_back(NodeHandle(i));
     }

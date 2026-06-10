@@ -21,6 +21,7 @@
 #include <imgui_internal.h>
 #include <imgui_impl_sdl3.h>
 #include <random>
+#include <ranges>
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_mouse.h>
 #include <thread>
@@ -382,7 +383,7 @@ Load(TextureCache& textureCache)
 
     std::vector<LevelNodeDef> nodeDefs;
     nodeDefs.reserve(NUM_BODIES);
-    for(size_t i = 0; i < nodeDefs.capacity(); ++i)
+    for(const size_t i : std::views::iota(0uz, NUM_BODIES))
     {
         const float radius = MIN_RADIUS + (std::abs(dis(gen)) * (MAX_RADIUS - MIN_RADIUS));
         const float mass = radius;
@@ -425,8 +426,10 @@ void ApplyRandomVelocities(PhysicsLevel& physLevel)
 
     for(auto& vel : physLevel.GetLinearVelocities())
     {
-        vel = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize() *
-              (MIN_SPEED + (std::abs(dis(gen)) * (MAX_SPEED - MIN_SPEED)));
+        const Vec3f randomVel = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize() *
+            (MIN_SPEED + (std::abs(dis(gen)) * (MAX_SPEED - MIN_SPEED)));
+
+        vel = randomVel;
     }
 }
 
@@ -715,10 +718,12 @@ void ComputeKineticEnergy(const PhysicsLevel& physLevel)
     const std::span<const RigidBody> bodies = physLevel.GetBodies();
     const std::span<const Vec3f> velocities = physLevel.GetLinearVelocities();
 
-    for(size_t i = 0; i < bodies.size(); ++i)
+    auto range = std::views::zip(bodies, velocities);
+
+    for(const auto& [body, velocity] : range)
     {
-        const float mass = bodies[i].GetMass().Value();
-        const float speedSq = velocities[i].Dot(velocities[i]);
+        const float mass = body.GetMass().Value();
+        const float speedSq = velocity.Dot(velocity);
         // KE = mv^2 / 2
         kineticEnergy += 0.5f * mass * speedSq;
     }

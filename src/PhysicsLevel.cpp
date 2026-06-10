@@ -3,6 +3,7 @@
 #include "PerfMetrics.h"
 #include "ThreadPool.h"
 
+#include <ranges>
 #include <thread>
 
 static constexpr float RESTING_VELOCITY_THRESHOLD = 1.0f/128;
@@ -119,9 +120,11 @@ PhysicsLevel::UpdateVelocities(const float dt)
 
     // FIXME(KB) - caller should account for dt not being the entire timestep,
     // but a substep due to collision events.
-    for (size_t i = 0; i < m_Bodies.size(); ++i)
+    const auto range = std::views::zip(m_ActiveBodies, m_LinearVelocities, m_AccelPrev, m_AccelCur);
+
+    for(auto&& [isActive, vel, aPrev, aCur] : range)
     {
-        if(!m_ActiveBodies[i])
+        if(!isActive)
         {
             continue;
         }
@@ -132,8 +135,8 @@ PhysicsLevel::UpdateVelocities(const float dt)
         // using the trapezoidal rule:
         // integral from t0 to t1 of a(t) dt ~= (t1 - t0) * (a(t0) + a(t1)) / 2
 
-        // m_AccelPrev is from the previous frame, and m_A0 is from the current frame.
-        m_LinearVelocities[i] += (m_AccelPrev[i] + m_AccelCur[i]) * dt * 0.5f;
+        // aPrev is from the previous frame, and aCur is from the current frame.
+        vel += (aPrev + aCur) * dt * 0.5f;
     }
 }
 
@@ -142,23 +145,26 @@ PhysicsLevel::PredictPositions(const float dt)
 {
     MLG_SCOPED_TIMER("Physics.PredictPositions");
 
-    for (size_t i = 0; i < m_Bodies.size(); ++i)
+    const auto range = std::views::zip(m_ActiveBodies, m_LinearVelocities, m_AccelCur, m_TrsCur, m_TrsNext);
+
+    for(auto&& [isActive, vel, accel, trsCur, trsNext] : range)
     {
-        if(!m_ActiveBodies[i])
+        if(!isActive)
         {
             continue;
         }
-
         // Update position using velocity and acceleration from previous time step.
         // p = ∫ v dt
         // v = v0 + a * t
-        // p1 = ∫ (v0 + a * t) dt = v0 * dt + (a * dt^2) / 2 + p0
+        // p1 = ∫ (v0 + a * t) dt
+        // p1 = p0 + v0*dt + 0.5 * a0 * dt^2
 
         // Use velocity/acceleration from current frame.
         // Note that this frame's velocity was computed from
         // the previous and current frame's acceleration.
-        const Vec3f& vCur = m_LinearVelocities[i];
-        m_TrsNext[i].T = (vCur * dt) + ((m_AccelCur[i] * dt * dt) / 2) + m_TrsCur[i].T;
+
+        // p1 = p0 + v0*dt + 0.5 * a0 * dt^2
+        trsNext.T = (vel * dt) + ((accel * dt * dt) / 2) + trsCur.T;
     }
 }
 
@@ -273,29 +279,34 @@ PhysicsLevel::FindAndResolveAllImpacts()
     m_GridHash.Clear();
     m_ImpactRecords.clear();
 
+    const auto indices = std::views::iota(0uz, m_ActiveBodies.size());
+    const auto range = std::views::zip(m_ActiveBodies, m_TrsCur, m_TrsNext, m_Colliders, indices);
+
     // Bodies will be added to all cells of the grid overlapped by the bounding box
     // defined by the current and predicted position.
-    for(size_t i = 0; i < m_Bodies.size(); ++i)
+    for(auto&& [isActive, trsCur, trsNext, collider, index] : range)
     {
-        if(!m_ActiveBodies[i])
+        if(!isActive)
         {
             continue;
         }
 
+        // Bodies will be added to all cells of the grid overlapped by the bounding box
+        // defined by the current and predicted position.
         const Vec3f bbMin //
             {
-                std::min(m_TrsCur[i].T.x, m_TrsNext[i].T.x),
-                std::min(m_TrsCur[i].T.y, m_TrsNext[i].T.y),
-                std::min(m_TrsCur[i].T.z, m_TrsNext[i].T.z),
+                std::min(trsCur.T.x, trsNext.T.x),
+                std::min(trsCur.T.y, trsNext.T.y),
+                std::min(trsCur.T.z, trsNext.T.z),
             };
         const Vec3f bbMax //
             {
-                std::max(m_TrsCur[i].T.x, m_TrsNext[i].T.x),
-                std::max(m_TrsCur[i].T.y, m_TrsNext[i].T.y),
-                std::max(m_TrsCur[i].T.z, m_TrsNext[i].T.z),
+                std::max(trsCur.T.x, trsNext.T.x),
+                std::max(trsCur.T.y, trsNext.T.y),
+                std::max(trsCur.T.z, trsNext.T.z),
             };
 
-        m_GridHash.Add(bbMin, bbMax, m_Colliders[i], i);
+        m_GridHash.Add(bbMin, bbMax, collider, index);
     }
 
     const size_t potentialCollisionCount = m_GridHash.PotentialCollisionCount();
