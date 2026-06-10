@@ -252,6 +252,7 @@ add_custom_target(copy_images
 set(SSG_SOURCES
   src/AssertHelper.cpp
   src/Bounds.cpp
+  src/CliUi.cpp
   src/cgltf.cpp
   src/Compositor.cpp
   src/FileFetcher.cpp
@@ -277,6 +278,8 @@ set(SSG_SOURCES
 set(SSG_HEADERS
   src/AssertHelper.h
   src/Bounds.h
+  src/Camera.h
+  src/CliUi.h
   src/Compositor.h
   src/FileFetcher.h
   src/GltfLoader.h
@@ -289,7 +292,6 @@ set(SSG_HEADERS
   src/PhysicsTypes.h
   src/PerfMetrics.h
   src/PhysicsLevel.h
-  src/Camera.h
   src/PropKit.h
   src/Renderer.h
   src/Result.h
@@ -297,6 +299,7 @@ set(SSG_HEADERS
   src/scope_exit.h
   src/shaders/ShaderInterop.h
   src/Shapes.h
+  src/CliState.h
   src/TextureCache.h
   src/ThreadPool.h
   src/Timer.h

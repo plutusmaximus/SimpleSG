@@ -1,3 +1,5 @@
+#include "Camera.h"
+#include "CliUi.h"
 #include "Compositor.h"
 #include "FileFetcher.h"
 #include "ImGuiRenderer.h"
@@ -5,7 +7,6 @@
 #include "MouseNav.h"
 #include "PerfMetrics.h"
 #include "PhysicsLevel.h"
-#include "Camera.h"
 #include "PropKit.h"
 #include "Renderer.h"
 #include "Scene.h"
@@ -43,8 +44,9 @@ struct PerfCounterGlobals
 class DevUi
 {
 public:
-    explicit DevUi(const Renderer& renderer)
-        : m_Renderer(&renderer)
+    explicit DevUi(CliUi& cliUi, const Renderer& renderer)
+        : m_Renderer(&renderer),
+          m_CliUi(&cliUi)
     {
     }
 
@@ -71,6 +73,7 @@ private:
 
     Extent m_ScenePanelDimension{.Width = 0, .Height = 0};
     const Renderer* m_Renderer;
+    CliUi* m_CliUi;
 };
 
 Result<>
@@ -185,10 +188,12 @@ DevUi::DrawScenePanel(const char* panelName)
 
 void DevUi::DrawConsolePanel(const char* panelName) // NOLINT(readability-convert-member-functions-to-static)
 {
-    ImGui::Begin(panelName);
-    MLG_DEFER { ImGui::End(); };
+    //ImGui::Begin(panelName);
+    //MLG_DEFER { ImGui::End(); };
 
-    ImGui::TextUnformatted("Console output will go here");
+    m_CliUi->Render(panelName);
+
+    //ImGui::TextUnformatted("Console output will go here");
 }
 
 void
@@ -328,7 +333,7 @@ DevUi::Render()
 
     // ImGui::ShowDemoWindow();
 
-    DrawStatusBarOverlay();
+    //DrawStatusBarOverlay();
 
     return Result<>::Ok;
 }
@@ -719,7 +724,8 @@ MainLoop()
     TextureCache textureCache;
     PhysicsLevel physLevel;
     WalkMouseNav mouseNav;
-    DevUi devUi(renderer);
+    CliUi cliUi;
+    DevUi devUi(cliUi, renderer);
 
     MLG_CHECK(renderer.Startup());
     MLG_CHECK(imGuiRenderer.Startup());
