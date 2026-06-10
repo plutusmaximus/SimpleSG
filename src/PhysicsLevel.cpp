@@ -133,9 +133,7 @@ PhysicsLevel::UpdateVelocities(const float dt)
         // integral from t0 to t1 of a(t) dt ~= (t1 - t0) * (a(t0) + a(t1)) / 2
 
         // m_AccelPrev is from the previous frame, and m_A0 is from the current frame.
-        const Vec3f& vPrev = m_Bodies[i].GetLinearVelocity();
-        const Vec3 vCur = vPrev + (m_AccelPrev[i] + m_AccelCur[i]) * dt * 0.5f;
-        m_Bodies[i].SetLinearVelocity(vCur);
+        m_LinearVelocities[i] += (m_AccelPrev[i] + m_AccelCur[i]) * dt * 0.5f;
     }
 }
 
@@ -159,7 +157,7 @@ PhysicsLevel::PredictPositions(const float dt)
         // Use velocity/acceleration from current frame.
         // Note that this frame's velocity was computed from
         // the previous and current frame's acceleration.
-        const Vec3f& vCur = m_Bodies[i].GetLinearVelocity();
+        const Vec3f& vCur = m_LinearVelocities[i];
         m_TrsNext[i].T = (vCur * dt) + ((m_AccelCur[i] * dt * dt) / 2) + m_TrsCur[i].T;
     }
 }
@@ -177,12 +175,14 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
     const size_t indexA = bodyPair.IndexA();
     const size_t indexB = bodyPair.IndexB();
 
-    RigidBody& bodyA = m_Bodies[indexA];
-    RigidBody& bodyB = m_Bodies[indexB];
+    const RigidBody& bodyA = m_Bodies[indexA];
+    const RigidBody& bodyB = m_Bodies[indexB];
+
+    Vec3f& velA = m_LinearVelocities[indexA];
+    Vec3f& velB = m_LinearVelocities[indexB];
 
     // Compute relative velocity along the normal
-    const float vRel =
-        (bodyA.GetLinearVelocity() - bodyB.GetLinearVelocity()).Dot(impactResult.ContactNormalBtoA);
+    const float vRel = (velA - velB).Dot(impactResult.ContactNormalBtoA);
 
     // Only resolve if bodies are moving towards each other
     if(vRel < 0)
@@ -210,8 +210,8 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
         const float k = -(1 + e) * vRel / (bodyA.GetMass().Value() + bodyB.GetMass().Value());
         const Vec3f u = k * impactResult.ContactNormalBtoA;
 
-        bodyA.SetLinearVelocity(bodyA.GetLinearVelocity() + u * bodyB.GetMass().Value());
-        bodyB.SetLinearVelocity(bodyB.GetLinearVelocity() - u * bodyA.GetMass().Value());
+        velA += u * bodyB.GetMass().Value();
+        velB -= u * bodyA.GetMass().Value();
     }
 
     // FIXME(KB) - parameterize this.

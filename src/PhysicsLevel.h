@@ -88,6 +88,8 @@ public:
     std::span<const Level::NodeHandle> GetNodeHandles() const { return m_NodeHandles; }
     std::span<const RigidBody> GetBodies() const { return m_Bodies; }
     std::span<const TrsTransformf> GetTransforms() const { return m_TrsCur; }
+    std::span<Vec3f> GetLinearVelocities() { return m_LinearVelocities; }
+    std::span<const Vec3f> GetLinearVelocities() const { return m_LinearVelocities; }
     std::span<const Collider> GetColliders() const { return m_Colliders; }
 
 private:
@@ -114,7 +116,8 @@ private:
           m_Colliders(std::move(colliders))
     {
         m_TransformPool[0] = std::move(transforms);
-        m_TransformPool[1] = m_TransformPool[0];
+        m_TransformPool[1] = m_TransformPool[0];    // Make a copy
+        m_LinearVelocities.resize(m_Bodies.size(), Vec3f{ 0 });
         m_AccelerationPool[0].resize(m_Bodies.size(), Vec3f{ 0 });
         m_AccelerationPool[1].resize(m_Bodies.size(), Vec3f{ 0 });
         m_ActiveBodies.resize(m_Bodies.size(), true);
@@ -136,6 +139,7 @@ private:
 
     std::vector<Level::NodeHandle> m_NodeHandles;
     std::vector<TrsTransformf> m_TransformPool[2];
+    std::vector<Vec3f> m_LinearVelocities;
     std::vector<Vec3f> m_AccelerationPool[2];
     std::vector<RigidBody> m_Bodies;
     std::vector<Collider> m_Colliders;

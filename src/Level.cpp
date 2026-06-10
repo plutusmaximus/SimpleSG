@@ -63,7 +63,6 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
                 nodeDef.Name);
 
             components.Body = RigidBody(bodyDef.Mass);
-            components.Body->SetLinearVelocity(bodyDef.LinearVelocity);
         }
 
         if(nodeDef.Components.Collider)

@@ -373,8 +373,6 @@ Load(TextureCache& textureCache)
     constexpr int GRID_SIZE = 20;
     constexpr float MAX_RADIUS = 1.0f;
     constexpr float MIN_RADIUS = 0.1f;
-    constexpr float MAX_SPEED = 0.5f;
-    constexpr float MIN_SPEED = 0.1f;
 #ifndef NDEBUG
     // Reduce the number of bodies in debug builds to improve performance.
     constexpr size_t NUM_BODIES = 500;
@@ -389,8 +387,6 @@ Load(TextureCache& textureCache)
         const float radius = MIN_RADIUS + (std::abs(dis(gen)) * (MAX_RADIUS - MIN_RADIUS));
         const float mass = radius;
         const Vec3f position{ dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE };
-        const Vec3f velocity = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize() *
-                               (MIN_SPEED + (std::abs(dis(gen)) * (MAX_SPEED - MIN_SPEED)));
 
         LevelNodeDef nodeDef//
         {
@@ -399,7 +395,7 @@ Load(TextureCache& textureCache)
             .Components //
             {
                 .Model = ModelRef{ .Name = "Shape" },
-                .Body = RigidBodyDef{ .LinearVelocity{ velocity }, .Mass{ mass } },
+                .Body = RigidBodyDef{ .Mass{ mass } },
                 .Collider = ColliderDef{ SphereDef{ .Radius = radius } },
             },
         };
@@ -416,6 +412,22 @@ Load(TextureCache& textureCache)
     MLG_CHECK(level, "Failed to create Level");
 
     return std::make_tuple(std::move(*propKit), std::move(*level));
+}
+
+void ApplyRandomVelocities(PhysicsLevel& physLevel)
+{
+    constexpr float MAX_SPEED = 0.5f;
+    constexpr float MIN_SPEED = 0.1f;
+    constexpr unsigned kRngSeed = 12345;
+
+    std::mt19937 gen(kRngSeed);
+    std::uniform_real_distribution<float> dis(-1, 1);
+
+    for(auto& vel : physLevel.GetLinearVelocities())
+    {
+        vel = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize() *
+              (MIN_SPEED + (std::abs(dis(gen)) * (MAX_SPEED - MIN_SPEED)));
+    }
 }
 
 struct ApplyGravityBatchParams
@@ -631,12 +643,13 @@ void ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
 
 void ApplyStoppingImpulse(PhysicsLevel& physLevel)
 {
+    const std::span<const Vec3f> velocities = physLevel.GetLinearVelocities();
     const std::span<const RigidBody> bodies = physLevel.GetBodies();
 
     for(size_t i = 0; i < bodies.size(); ++i)
     {
         // Apply the impulse opposite to current velocity.
-        const Vec3f impulse = -bodies[i].GetLinearVelocity() * bodies[i].GetMass().Value() / kPhysicsTimeStep;
+        const Vec3f impulse = -velocities[i] * bodies[i].GetMass().Value() / kPhysicsTimeStep;
         physLevel.AddForce(i, impulse);
     }
 }
@@ -699,10 +712,13 @@ void ComputeKineticEnergy(const PhysicsLevel& physLevel)
 {
     float kineticEnergy = 0.0f;
 
-    for(const auto& body : physLevel.GetBodies())
+    const std::span<const RigidBody> bodies = physLevel.GetBodies();
+    const std::span<const Vec3f> velocities = physLevel.GetLinearVelocities();
+
+    for(size_t i = 0; i < bodies.size(); ++i)
     {
-        const float mass = body.GetMass().Value();
-        const float speedSq = body.GetLinearVelocity().Dot(body.GetLinearVelocity());
+        const float mass = bodies[i].GetMass().Value();
+        const float speedSq = velocities[i].Dot(velocities[i]);
         // KE = mv^2 / 2
         kineticEnergy += 0.5f * mass * speedSq;
     }
@@ -742,6 +758,7 @@ MainLoop()
     Scene scene = std::move(*sceneResult);
 
     MLG_CHECK(PhysicsLevel::Create(level, physLevel));
+    ApplyRandomVelocities(physLevel);
 
     constexpr float kInitialCameraDistance = 40.0f;
 

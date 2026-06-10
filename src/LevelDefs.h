@@ -160,7 +160,6 @@ struct ModelRef final
 
 struct RigidBodyDef final
 {
-    Vec3f LinearVelocity{ 0 };
     Mass Mass;
 };
 
