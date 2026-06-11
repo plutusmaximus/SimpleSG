@@ -55,14 +55,17 @@ public:
     constexpr static const char* kPerfPanelName = "Performance";
     constexpr static const char* kInspectorPanelName = "Inspector";
     constexpr static const char* kConsolePanelName = "Console";
+    constexpr static const char* kStatusBarPanelName = "StatusBar";
 
     Result<> Render();
 
-    void DrawPerfPanel(const char* panelName);
+    void DrawPerfPanel();
 
-    void DrawScenePanel(const char* panelName);
+    void DrawScenePanel();
 
-    void DrawConsolePanel(const char* panelName);
+    void DrawConsolePanel();
+
+    void DrawStatusBarPanel();
 
     void DrawDockedEditorLayout();
 
@@ -113,11 +116,18 @@ Shutdown()
     ThreadPool::Shutdown();
 }
 
+float
+GetStatusBarHeight()
+{
+    const ImGuiStyle& style = ImGui::GetStyle();
+    return ImGui::GetFrameHeight() + (style.WindowPadding.y * 2.0f);
+}
+
 void
-DevUi::DrawPerfPanel(const char* panelName) // NOLINT(readability-convert-member-functions-to-static)
+DevUi::DrawPerfPanel() // NOLINT(readability-convert-member-functions-to-static)
 {
     ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
-    ImGui::Begin(panelName);
+    ImGui::Begin(kPerfPanelName);
     MLG_DEFER { ImGui::End(); };
 
     constexpr size_t kMaxPerfStats = 256;
@@ -163,10 +173,10 @@ DevUi::DrawPerfPanel(const char* panelName) // NOLINT(readability-convert-member
 }
 
 void
-DevUi::DrawScenePanel(const char* panelName)
+DevUi::DrawScenePanel()
 {
     //ImGui::SetNextWindowBgAlpha(0.0f);
-    ImGui::Begin(panelName, nullptr, ImGuiWindowFlags_NoBackground);
+    ImGui::Begin(kScenePanelName, nullptr, ImGuiWindowFlags_NoBackground);
 
     wgpu::Texture texture;
     wgpu::TextureView textureView;
@@ -187,14 +197,35 @@ DevUi::DrawScenePanel(const char* panelName)
     ImGui::End();
 }
 
-void DevUi::DrawConsolePanel(const char* panelName) // NOLINT(readability-convert-member-functions-to-static)
+void DevUi::DrawConsolePanel() // NOLINT(readability-convert-member-functions-to-static)
 {
-    //ImGui::Begin(panelName);
-    //MLG_DEFER { ImGui::End(); };
+    m_CliUi->Render(kConsolePanelName);
+}
 
-    m_CliUi->Render(panelName);
+void DevUi::DrawStatusBarPanel() // NOLINT(readability-convert-member-functions-to-static)
+{
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
 
-    //ImGui::TextUnformatted("Console output will go here");
+    const float statusBarHeight = GetStatusBarHeight();
+
+    // Position the status bar at the bottom of the viewport, spanning its entire width
+    ImGui::SetNextWindowPos(
+        ImVec2(viewport->WorkPos.x, viewport->WorkPos.y + viewport->WorkSize.y - statusBarHeight));
+    ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, statusBarHeight));
+    ImGui::SetNextWindowViewport(viewport->ID);
+
+    ImGui::Begin(kStatusBarPanelName,
+        nullptr,
+        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_NoScrollbar);
+
+    MLG_DEFER { ImGui::End(); };
+
+    const std::string statusText = std::format("SPF: {:.3f} ms | FPS: {:.1f}",
+        ImGui::GetIO().DeltaTime * 1000.0f,
+        1.0f / ImGui::GetIO().DeltaTime);
+
+    ImGui::TextUnformatted(statusText.c_str());
 }
 
 void
@@ -204,8 +235,12 @@ DevUi::DrawDockedEditorLayout()
 
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
 
+    // Dockspace should fill the entire viewport, except for space at the bottom for the status bar.
+    ImVec2 workSize = viewport->WorkSize;
+    workSize.y -= GetStatusBarHeight();
+
     ImGui::SetNextWindowPos(viewport->WorkPos);
-    ImGui::SetNextWindowSize(viewport->WorkSize);
+    ImGui::SetNextWindowSize(workSize);
     ImGui::SetNextWindowViewport(viewport->ID);
 
     const ImGuiWindowFlags hostFlags =
@@ -267,9 +302,9 @@ DevUi::DrawDockedEditorLayout()
 
     ImGui::End();
 
-    DrawPerfPanel(kPerfPanelName);
-    DrawScenePanel(kScenePanelName);
-    DrawConsolePanel(kConsolePanelName);
+    DrawPerfPanel();
+    DrawScenePanel();
+    DrawConsolePanel();
     ImGui::Begin(kInspectorPanelName);
     if(ImGui::TreeNode("a"))
     {
@@ -292,49 +327,14 @@ DevUi::DrawDockedEditorLayout()
         ImGui::TreePop();
     }
     ImGui::End();
-}
 
-void DevUi::DrawStatusBarOverlay() // NOLINT(readability-convert-member-functions-to-static)
-{
-    const ImGuiViewport* viewport = ImGui::GetMainViewport();
-    ImDrawList* drawList = ImGui::GetForegroundDrawList();
-
-    const ImGuiStyle& style = ImGui::GetStyle();
-
-    const float height =
-        ImGui::GetFrameHeight() + (style.WindowPadding.y * 2.0f);
-
-    const ImVec2 min(
-        viewport->WorkPos.x,
-        viewport->WorkPos.y + viewport->WorkSize.y - height);
-
-    const ImVec2 max(
-        viewport->WorkPos.x + viewport->WorkSize.x,
-        viewport->WorkPos.y + viewport->WorkSize.y);
-
-    drawList->AddRectFilled(min, max, ImGui::GetColorU32(ImGuiCol_WindowBg));
-    drawList->AddLine(min, ImVec2(max.x, min.y), ImGui::GetColorU32(ImGuiCol_Border));
-
-    const std::string statusText = std::format("SPF: {:.3f} ms | FPS: {:.1f}",
-        ImGui::GetIO().DeltaTime * 1000.0f,
-        1.0f / ImGui::GetIO().DeltaTime);
-
-    drawList->AddText(
-        ImVec2(min.x + style.WindowPadding.x, min.y + style.WindowPadding.y),
-        ImGui::GetColorU32(ImGuiCol_Text),
-        statusText.c_str());
+    DrawStatusBarPanel();
 }
 
 Result<>
 DevUi::Render()
 {
-    // ImGuiID dockspaceId = DrawDockSpace();
-
     DrawDockedEditorLayout();
-
-    // ImGui::ShowDemoWindow();
-
-    //DrawStatusBarOverlay();
 
     return Result<>::Ok;
 }

@@ -200,9 +200,7 @@ add_library(imgui STATIC
     thirdparty/imgui/imgui_tables.cpp
     thirdparty/imgui/imgui_widgets.cpp
     thirdparty/imgui/backends/imgui_impl_sdl3.cpp
-    thirdparty/imgui/backends/imgui_impl_sdlgpu3.cpp
     thirdparty/imgui/backends/imgui_impl_wgpu.cpp
-    thirdparty/imgui/imgui_demo.cpp
 )
 
 target_include_directories(imgui SYSTEM PUBLIC
