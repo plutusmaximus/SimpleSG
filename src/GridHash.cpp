@@ -63,9 +63,13 @@ GridHash::Add(
     const Vec3f& bbMin, const Vec3f& bbMax, const Collider& collider, const size_t bodyIndex)
 {
     MLG_CHECKV(bbMin.x <= bbMax.x && bbMin.y <= bbMax.y && bbMin.z <= bbMax.z,
-        "Invalid bounding box: Min: {}, Max: {}",
-        bbMin,
-        bbMax);
+        "Invalid bounding box: Min: ({}, {}, {}), Max: ({}, {}, {})",
+        bbMin.x,
+        bbMin.y,
+        bbMin.z,
+        bbMax.x,
+        bbMax.y,
+        bbMax.z);
 
     const float radius = collider.GetSphereRadius();
     MLG_CHECKV(radius >= 0, "Invalid collider radius: {}", radius);

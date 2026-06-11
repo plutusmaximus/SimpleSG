@@ -193,6 +193,51 @@ set(SPDLOG_HEADER_ONLY OFF CACHE BOOL "Disable header-only mode" FORCE)
 
 add_subdirectory(thirdparty/spdlog EXCLUDE_FROM_ALL SYSTEM)
 
+# --- lua
+add_library(lua STATIC
+  thirdparty/lua/lapi.c
+  thirdparty/lua/lauxlib.c
+  thirdparty/lua/lbaselib.c
+  thirdparty/lua/lcode.c
+  thirdparty/lua/lcorolib.c
+  thirdparty/lua/lctype.c
+  thirdparty/lua/ldblib.c
+  thirdparty/lua/ldebug.c
+  thirdparty/lua/ldo.c
+  thirdparty/lua/ldump.c
+  thirdparty/lua/lfunc.c
+  thirdparty/lua/lgc.c
+  thirdparty/lua/linit.c
+  thirdparty/lua/liolib.c
+  thirdparty/lua/llex.c
+  thirdparty/lua/lmathlib.c
+  thirdparty/lua/lmem.c
+  thirdparty/lua/loadlib.c
+  thirdparty/lua/lobject.c
+  thirdparty/lua/lopcodes.c
+  thirdparty/lua/loslib.c
+  thirdparty/lua/lparser.c
+  thirdparty/lua/lstate.c
+  thirdparty/lua/lstring.c
+  thirdparty/lua/lstrlib.c
+  thirdparty/lua/ltable.c
+  thirdparty/lua/ltablib.c
+  thirdparty/lua/ltests.c
+  thirdparty/lua/ltm.c
+  thirdparty/lua/lundump.c
+  thirdparty/lua/lutf8lib.c
+  thirdparty/lua/lvm.c
+  thirdparty/lua/lzio.c
+)
+
+target_include_directories(lua SYSTEM PUBLIC
+  thirdparty/lua
+)
+
+if(UNIX AND NOT APPLE)
+  target_link_libraries(lua PRIVATE m dl)
+endif()
+
 # --- imgui
 add_library(imgui STATIC
     thirdparty/imgui/imgui.cpp
@@ -270,6 +315,7 @@ set(SSG_SOURCES
   src/TextureCache.cpp
   src/ThreadPool.cpp
   src/Timer.cpp
+  src/VecMath.cpp
   src/WebgpuHelper.cpp
 )
 
