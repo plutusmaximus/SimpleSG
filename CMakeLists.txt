@@ -248,6 +248,10 @@ add_library(imgui STATIC
     thirdparty/imgui/backends/imgui_impl_wgpu.cpp
 )
 
+if(APPLE)
+  set_source_files_properties(thirdparty/imgui/backends/imgui_impl_wgpu.cpp PROPERTIES COMPILE_FLAGS "-x objective-c++")
+endif()
+
 target_include_directories(imgui SYSTEM PUBLIC
     thirdparty/imgui
     thirdparty/imgui/backends
