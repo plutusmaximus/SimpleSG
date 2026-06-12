@@ -24,6 +24,13 @@ std::mutex& GetMutex()
     static std::mutex* mutex = MakeMutex();
     return *mutex;
 }
+
+std::string&& ValidateName(std::string&& name)
+{
+    MLG_ASSERT(!name.empty(), "Empty perf counter name");
+
+    return std::move(name);
+}
 } // namespace
 
 inlist<PerfCounter, &PerfCounter::m_ListNode> PerfMetrics::m_Counters;
@@ -63,7 +70,7 @@ PerfCounter::PerfCounter(std::string name, const SamplePolicy samplePolicy)
 
 PerfCounter::PerfCounter(
     std::string name, const SamplePolicy samplePolicy, const PerfCounterCategoryId categoryId)
-    : m_Name(std::move(name)),
+    : m_Name(std::move(ValidateName(std::move(name)))),
       m_Aggregator(this),
       m_SamplePolicy(samplePolicy),
       m_CategoryId(categoryId)
