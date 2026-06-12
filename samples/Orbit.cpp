@@ -53,7 +53,6 @@ public:
 
     constexpr static const char* kScenePanelName = "Scene";
     constexpr static const char* kPerfPanelName = "Performance";
-    constexpr static const char* kInspectorPanelName = "Inspector";
     constexpr static const char* kConsolePanelName = "Console";
     constexpr static const char* kStatusBarPanelName = "StatusBar";
 
@@ -126,10 +125,6 @@ GetStatusBarHeight()
 void
 DevUi::DrawPerfPanel() // NOLINT(readability-convert-member-functions-to-static)
 {
-    ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
-    ImGui::Begin(kPerfPanelName);
-    MLG_DEFER { ImGui::End(); };
-
     constexpr size_t kMaxPerfStats = 256;
 
     PerfStats perfStats[kMaxPerfStats];
@@ -146,12 +141,90 @@ DevUi::DrawPerfPanel() // NOLINT(readability-convert-member-functions-to-static)
             return a.GetName() < b.GetName();
         });
 
-    for(const auto& counterStat : sortedCounters)
+    ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
+    ImGui::Begin(kPerfPanelName);
+    MLG_DEFER { ImGui::End(); };
+
+    auto drawSubTree = [](this auto&& self, const std::string_view prefix, const std::span<PerfStats> pss) -> std::span<PerfStats>
     {
-        const std::string text =
-            std::format("{}: {:.3f} ms", counterStat.GetName(), counterStat.GetEMA());
-        ImGui::TextUnformatted(text.c_str());
-    }
+        bool isOpen = false;
+        if(!prefix.empty())
+        {
+            // Prefix is non empty - render a tree node.
+            const std::string prefixStr(prefix.data(), prefix.size());
+            isOpen = ImGui::TreeNode(prefixStr.c_str());
+        }
+
+        MLG_DEFER
+        {
+            if(isOpen)
+            {
+                // Pop only if the tree node is open
+                ImGui::TreePop();
+            }
+        };
+
+        std::span<PerfStats> curPss = pss;
+
+        while(!curPss.empty())
+        {
+            const PerfStats& ps = curPss.front();
+            const std::string_view curName = ps.GetName();
+
+            MLG_ASSERT(!curName.empty(), "Empty perf counter name");
+
+            if(!curName.starts_with(prefix))
+            {
+                // Entering a new prefix - return to caller.
+                return curPss;
+            }
+
+            if(prefix.empty())
+            {
+                // First time through prefix is empty.
+                // Get the prefix and recurse.
+                const size_t pos = curName.find_first_of('.');
+                const std::string_view nextPrefix = curName.substr(0, pos);
+                curPss = self(nextPrefix, curPss);
+            }
+            else if(!isOpen)
+            {
+                // Current node is not open.  No need to process subnodes.
+
+                // Advance to the next node in the list.
+                curPss = curPss.subspan(1);
+            }
+            else if(curName.size() >= prefix.size())
+            {
+                const size_t pos = curName.find_first_of('.', prefix.size() + 1);
+
+                if(pos == std::string_view::npos)
+                {
+                    // Reached the leaf node.
+                    const std::string_view leafName =
+                    curName == prefix 
+                    ? curName
+                    : curName.substr(prefix.size() + 1, pos);
+                    const std::string text = std::format("{}: {:.3f}", leafName, ps.GetEMA());
+                    ImGui::TreeNodeEx(text.c_str(),
+                        ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen);
+
+                    // Advance to the next node in the list.
+                    curPss = curPss.subspan(1);
+                }
+                else
+                {
+                    // Recurse to the next subnode.
+                    const std::string_view nextPrefix = curName.substr(0, pos);
+                    curPss = self(nextPrefix, curPss);
+                }
+            }
+        }
+
+        return curPss;
+    };
+
+    drawSubTree("", sortedCounters);
 
     // Other counters
     counterCount = PerfMetrics::SampleCounters<>(perfStatsSpan);
@@ -164,12 +237,7 @@ DevUi::DrawPerfPanel() // NOLINT(readability-convert-member-functions-to-static)
             return a.GetName() < b.GetName();
         });
 
-    for(const auto& counterStat : sortedCounters)
-    {
-        const std::string text =
-            std::format("{}: {:.3f}", counterStat.GetName(), counterStat.GetEMA());
-        ImGui::TextUnformatted(text.c_str());
-    }
+    drawSubTree("", sortedCounters);
 }
 
 void
@@ -283,18 +351,11 @@ DevUi::DrawDockedEditorLayout()
         const ImGuiID dockLeftId =
             ImGui::DockBuilderSplitNode(dockMainId, ImGuiDir_Left, 0.20f, nullptr, &dockMainId);
 
-        const ImGuiID dockRightId = ImGui::DockBuilderSplitNode(dockMainId,
-            ImGuiDir_Right,
-            0.25f,
-            nullptr,
-            &dockMainId);
-
         const ImGuiID dockBottomId =
             ImGui::DockBuilderSplitNode(dockMainId, ImGuiDir_Down, 0.25f, nullptr, &dockMainId);
 
         ImGui::DockBuilderDockWindow(kScenePanelName, dockMainId);
         ImGui::DockBuilderDockWindow(kPerfPanelName, dockLeftId);
-        ImGui::DockBuilderDockWindow(kInspectorPanelName, dockRightId);
         ImGui::DockBuilderDockWindow(kConsolePanelName, dockBottomId);
 
         ImGui::DockBuilderFinish(dockspaceId);
@@ -305,29 +366,6 @@ DevUi::DrawDockedEditorLayout()
     DrawPerfPanel();
     DrawScenePanel();
     DrawConsolePanel();
-    ImGui::Begin(kInspectorPanelName);
-    if(ImGui::TreeNode("a"))
-    {
-        if(ImGui::TreeNode("b"))
-        {
-            if(ImGui::TreeNode("c"))
-            {
-                ImGui::TreeNodeEx("d",
-                    ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen);
-
-                ImGui::SameLine();
-                ImGui::TextUnformatted("value");
-
-                ImGui::TreePop();
-            }
-
-            ImGui::TreePop();
-        }
-
-        ImGui::TreePop();
-    }
-    ImGui::End();
-
     DrawStatusBarPanel();
 }
 
