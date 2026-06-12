@@ -15,7 +15,7 @@
 	url = https://github.com/google/googletest.git
 [submodule "thirdparty/dawn"]
 	path = thirdparty/dawn
-	url = https://dawn.googlesource.com/dawn
+	url = https://github.com/google/dawn.git
 [submodule "thirdparty/cgltf"]
 	path = thirdparty/cgltf
 	url = https://github.com/jkuhlmann/cgltf.git
