@@ -302,6 +302,7 @@ set(SSG_SOURCES
   src/CliUi.cpp
   src/cgltf.cpp
   src/Compositor.cpp
+  src/DevUi.cpp
   src/FileFetcher.cpp
   src/GridHash.cpp
   src/GltfLoader.cpp
@@ -329,6 +330,7 @@ set(SSG_HEADERS
   src/Camera.h
   src/CliUi.h
   src/Compositor.h
+  src/DevUi.h
   src/FileFetcher.h
   src/GltfLoader.h
   src/GridHash.h
