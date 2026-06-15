@@ -19,13 +19,9 @@ public:
 
     Result<> Render();
 
-    const Extent& GetScenePanelDimension() const { return m_ScenePanelDimension; }
+    const Rect& GetScenePanelRect() const { return m_ScenePanelRect; }
 
-    void SetMouseXY(const int x, const int y)
-    {
-        m_MouseX = x;
-        m_MouseY = y;
-    }
+    const Point& GetScenePanelMousePos() const { return m_ScenePanelMousePos; }
 
 private:
 
@@ -34,18 +30,20 @@ private:
     constexpr static const char* kConsolePanelName = "Console";
     constexpr static const char* kStatusBarPanelName = "StatusBar";
 
-    void DrawPerfPanel();
+    void DrawPerfPanel() const;
 
     void DrawScenePanel();
 
-    void DrawConsolePanel();
+    void DrawConsolePanel() const;
 
-    void DrawStatusBarPanel();
+    void DrawStatusBarPanel() const;
 
-    void DrawDockedEditorLayout();
+    void DrawDockedEditorLayout() const;
 
-    Extent m_ScenePanelDimension{.Width = 0, .Height = 0};
+    Rect m_ScenePanelRect{.X = 0, .Y = 0, .Width = 0, .Height = 0};
+
+    Point m_ScenePanelMousePos{.X = 0, .Y = 0};
+
     const Renderer* m_Renderer;
     CliUi* m_CliUi;
-    int m_MouseX{0}, m_MouseY{0};
 };

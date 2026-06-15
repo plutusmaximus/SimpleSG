@@ -24,13 +24,18 @@ DevUi::Render()
 {
     DrawDockedEditorLayout();
 
+    DrawPerfPanel();
+    DrawScenePanel();
+    DrawConsolePanel();
+    DrawStatusBarPanel();
+
     return Result<>::Ok;
 }
 
 // private:
 
 void
-DevUi::DrawDockedEditorLayout()
+DevUi::DrawDockedEditorLayout() const // NOLINT(readability-convert-member-functions-to-static)
 {
     const ImGuiID dockspaceId = ImGui::GetID("MainDockspace");
 
@@ -59,7 +64,6 @@ DevUi::DrawDockedEditorLayout()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 
     ImGui::Begin("Dockspace Host", nullptr, hostFlags);
-    ImGui::PopStyleVar(3);
 
     const ImGuiDockNodeFlags dockspaceFlags =
         ImGuiDockNodeFlags_None;
@@ -95,15 +99,11 @@ DevUi::DrawDockedEditorLayout()
     }
 
     ImGui::End();
-
-    DrawPerfPanel();
-    DrawScenePanel();
-    DrawConsolePanel();
-    DrawStatusBarPanel();
+    ImGui::PopStyleVar(3);
 }
 
 void
-DevUi::DrawPerfPanel() // NOLINT(readability-convert-member-functions-to-static)
+DevUi::DrawPerfPanel() const // NOLINT(readability-convert-member-functions-to-static)
 {
     constexpr size_t kMaxPerfStats = 256;
 
@@ -224,33 +224,42 @@ void
 DevUi::DrawScenePanel()
 {
     //ImGui::SetNextWindowBgAlpha(0.0f);
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ImageBorderSize, 0.0f);
     ImGui::Begin(kScenePanelName, nullptr, ImGuiWindowFlags_NoBackground);
 
     wgpu::Texture texture;
     wgpu::TextureView textureView;
     m_Renderer->GetTarget(texture, textureView);
+    const ImVec2 cursorPos = ImGui::GetCursorScreenPos();
     const ImVec2 avail = ImGui::GetContentRegionAvail();
+    const ImVec2 mousePos = ImGui::GetMousePos();
 
-    m_ScenePanelDimension = Extent{ .Width = avail.x, .Height = avail.y };
+    m_ScenePanelRect = Rect //
+        {
+            .X = static_cast<int>(cursorPos.x),
+            .Y = static_cast<int>(cursorPos.y),
+            .Width = static_cast<unsigned>(avail.x),
+            .Height = static_cast<unsigned>(avail.y),
+        };
+
+    m_ScenePanelMousePos.X = static_cast<int>(mousePos.x - cursorPos.x);
+    m_ScenePanelMousePos.Y = static_cast<int>(mousePos.y - cursorPos.y);
 
     ImGui::Image(ImTextureRef(textureView.Get()), avail);
-
-    /*ImGui::Begin("Scene", nullptr,
-    ImGuiWindowFlags_NoBackground |
-    ImGuiWindowFlags_NoTitleBar |
-    ImGuiWindowFlags_NoScrollbar |
-    ImGuiWindowFlags_NoScrollWithMouse |
-    ImGuiWindowFlags_NoCollapse);*/
-    //ImGui::TextUnformatted("Scene view");
+    
     ImGui::End();
+    ImGui::PopStyleVar(3);
 }
 
-void DevUi::DrawConsolePanel() // NOLINT(readability-convert-member-functions-to-static)
+void DevUi::DrawConsolePanel() const // NOLINT(readability-convert-member-functions-to-static)
 {
     m_CliUi->Render(kConsolePanelName);
 }
 
-void DevUi::DrawStatusBarPanel() // NOLINT(readability-convert-member-functions-to-static)
+void DevUi::DrawStatusBarPanel() const // NOLINT(readability-convert-member-functions-to-static)
 {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
 
@@ -272,8 +281,8 @@ void DevUi::DrawStatusBarPanel() // NOLINT(readability-convert-member-functions-
     const std::string statusText = std::format("SPF: {:.3f} ms | FPS: {:.1f} | mouse: {},{}",
         ImGui::GetIO().DeltaTime * 1000.0f,
         1.0f / ImGui::GetIO().DeltaTime,
-        m_MouseX,
-        m_MouseY);
+        m_ScenePanelMousePos.X,
+        m_ScenePanelMousePos.Y);
 
     ImGui::TextUnformatted(statusText.c_str());
 }

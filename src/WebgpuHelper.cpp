@@ -1024,7 +1024,11 @@ WebgpuHelper::GetScreenBounds()
     {
         MLG_ERROR("Failed to get window size: {}", SDL_GetError());
     }
-    return Extent{ .Width = static_cast<float>(width), .Height = static_cast<float>(height) };
+    return Extent //
+        {
+            .Width = static_cast<unsigned>(width),
+            .Height = static_cast<unsigned>(height),
+        };
 }
 
 wgpu::TextureFormat

@@ -584,8 +584,6 @@ MainLoop()
                 {
                     mouseNav.OnMouseMove(Vec2f(event.motion.xrel, event.motion.yrel));
                 }
-                devUi.SetMouseXY(static_cast<int>(event.motion.x),
-                    static_cast<int>(event.motion.y));
                 break;
 
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
@@ -694,11 +692,10 @@ MainLoop()
             0,
             1);
         camera.SetViewport(viewport);
-        const Extent& scenePanelDim = devUi.GetScenePanelDimension();
-        if(scenePanelDim.Width > 0 && scenePanelDim.Height > 0)
+        const Rect& scenePanelRect = devUi.GetScenePanelRect();
+        if(scenePanelRect.Width > 0 && scenePanelRect.Height > 0)
         {
-            const float scenePanelAspectRatio = scenePanelDim.Width / scenePanelDim.Height;
-            camera.SetAspectRatio(scenePanelAspectRatio);
+            camera.SetAspectRatio(scenePanelRect.GetAspectRatio());
         }
         trsCamera = mouseNav.GetTransform();
 

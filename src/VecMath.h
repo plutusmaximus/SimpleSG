@@ -954,8 +954,7 @@ public:
 
     constexpr friend Mat44 operator*(const Mat44& a, const Mat44& b) noexcept
     {
-        return Mat44 //
-            { a * b[0], a * b[1], a * b[2], a * b[3] };
+        return Mat44{ a * b[0], a * b[1], a * b[2], a * b[3] };
     }
 
     constexpr friend Vec4<T> operator*(const Mat44& mat, const Vec4<T>& vector) noexcept
@@ -965,7 +964,7 @@ public:
 
     constexpr friend Vec4<T> operator*(const Mat44& mat, const Vec3<T>& vector) noexcept
     {
-        return Vec4<T>((mat.m[0] * vector.x) + (mat.m[1] * vector.y) + (mat.m[2] * vector.z) + (mat.m[3]));
+        return (mat.m[0] * vector.x) + (mat.m[1] * vector.y) + (mat.m[2] * vector.z) + mat.m[3];
     }
 
     static constexpr const Mat44& Identity() noexcept
@@ -992,6 +991,8 @@ public:
     UnitQuat<NumType> R{ Radians<NumType>{0}, Vec3<NumType>{0,1,0} };
     Vec3<NumType> S{ 1 };
 
+    static TrsTransform FromMatrix(const Mat44<NumType>& mat) noexcept;
+
     Mat44<NumType> ToMatrix() const noexcept;
 
     // The inverse of a TRS transform cannot in general be represented as a TRS transform,
@@ -999,8 +1000,6 @@ public:
     // So the inverse returns a Mat44, which can represent any affine transform,
     // instead of a new TrsTransform.
     [[nodiscard]] Mat44<NumType> Inverse() const noexcept;
-
-    static TrsTransform FromMatrix(const Mat44<NumType>& mat) noexcept;
 
     constexpr Vec3<NumType> LocalXAxis() const noexcept
     {
@@ -1034,18 +1033,49 @@ class Extent
 {
 public:
 
-    float Width;
-    float Height;
+    unsigned Width;
+    unsigned Height;
 
     constexpr float GetAspectRatio() const
     {
         MLG_ASSERT(Height != 0, "Height must be non-zero to compute aspect ratio");
-        return Width / Height;
+        return static_cast<float>(Width) / static_cast<float>(Height);
     }
 
     constexpr friend bool operator==(const Extent& a, const Extent& b) noexcept
     {
         return a.Width == b.Width && a.Height == b.Height;
+    }
+};
+
+class Point
+{
+public:
+
+    int X{0}, Y{0};
+
+    constexpr friend bool operator==(const Point& a, const Point& b) noexcept
+    {
+        return a.X == b.X && a.Y == b.Y;
+    }
+};
+
+class Rect
+{
+public:
+    int X, Y;
+    unsigned Width, Height;
+
+    constexpr Extent GetExtent() const { return Extent{.Width = Width, .Height = Height }; }
+
+    constexpr float GetAspectRatio() const
+    {
+        return GetExtent().GetAspectRatio();
+    }
+
+    constexpr friend bool operator==(const Rect& a, const Rect& b) noexcept
+    {
+        return a.X == b.X && a.Y == b.Y && a.Width == b.Width && a.Height == b.Height;
     }
 };
 
