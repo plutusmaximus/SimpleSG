@@ -2,6 +2,8 @@
 
 #include "VecMath.h"
 
+class Camera;
+
 class Viewport
 {
 public:
@@ -44,6 +46,46 @@ private:
     uint32_t m_Height{0};
     float m_MinDepth{0.0f};
     float m_MaxDepth{1.0f};
+};
+
+class Frustum
+{
+public:
+
+    Frustum() = delete;
+    Frustum(const Camera& camera, const Posef& pose);
+
+    const Vec4f& GetLeft() const { return m_Left; }
+    const Vec4f& GetRight() const { return m_Right; }
+    const Vec4f& GetTop() const { return m_Top; }
+    const Vec4f& GetBottom() const { return m_Bottom; }
+    const Vec4f& GetNear() const { return m_Near; }
+    const Vec4f& GetFar() const { return m_Far; }
+
+private:
+    friend Camera;
+
+    Frustum(const Vec4f& left,
+        const Vec4f& right,
+        const Vec4f& top,
+        const Vec4f& bottom,
+        const Vec4f& near,
+        const Vec4f& far)
+        : m_Left(left),
+          m_Right(right),
+          m_Top(top),
+          m_Bottom(bottom),
+          m_Near(near),
+          m_Far(far)
+    {
+    }
+
+    Vec4f m_Left;
+    Vec4f m_Right;
+    Vec4f m_Top;
+    Vec4f m_Bottom;
+    Vec4f m_Near;
+    Vec4f m_Far;
 };
 
 class Camera

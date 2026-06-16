@@ -78,23 +78,6 @@ TEST(TrsTransformf, MultiplyOperator_Vec3_MatchesMatrixTransform)
     ExpectVec3Near(transformed, Vec3f(expected4));
 }
 
-TEST(TrsTransformf, Inverse_ComposesToIdentity)
-{
-    TrsTransformf trs;
-    trs.T = Vec3f(3.0f, -4.0f, 2.0f);
-    trs.R = UnitQuatf(Radiansf(std::numbers::pi_v<float> / 3.0f), Vec3f(1.0f, 2.0f, 3.0f).Normalize());
-    trs.S = Vec3f(1);//Vec3f(2.0f, 0.5f, 4.0f); DO NOT SUBMIT
-
-    const Mat44f backward = trs.Inverse();
-    const Mat44f forward = trs.ToMatrix();
-
-    const Mat44f fb = forward * backward;
-    const Mat44f bf = backward * forward;
-
-    ExpectMat44Near(fb, Mat44f::Identity(), 5e-5f);
-    ExpectMat44Near(bf, Mat44f::Identity(), 5e-5f);
-}
-
 TEST(TrsTransformf, FromMatrix_RoundTrip)
 {
     TrsTransformf source;

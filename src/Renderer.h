@@ -31,8 +31,8 @@ public:
 
     Result<> Shutdown();
 
-    Result<> Render(const TrsTransformf& cameraXForm,
-        const Camera& camera,
+    Result<> Render(const Camera& camera,
+        const Posef& cameraXForm,
         const Scene& scene,
         const PropKit& propKit);
 
@@ -53,7 +53,7 @@ private:
     Result<> CreateTransformPipeline();
 
     Result<> TransformNodes(const wgpu::CommandEncoder& cmdEncoder,
-        const TrsTransformf& cameraXForm,
+        const Posef& cameraXForm,
         const Camera& camera,
         const Scene& scene) const;
 

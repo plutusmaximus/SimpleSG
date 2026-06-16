@@ -505,10 +505,10 @@ MainLoop()
 
     constexpr float kInitialCameraDistance = 40.0f;
 
-    TrsTransformf trsCamera{ .T{0, 0, -kInitialCameraDistance} };
+    Posef cameraTransform{ .T{0, 0, -kInitialCameraDistance} };
     Camera camera;
 
-    mouseNav.SetTransform(trsCamera);
+    mouseNav.SetTransform(cameraTransform);
 
     bool mouseCaptured = false;
 
@@ -697,13 +697,13 @@ MainLoop()
         {
             camera.SetAspectRatio(scenePanelRect.GetAspectRatio());
         }
-        trsCamera = mouseNav.GetTransform();
+        cameraTransform = mouseNav.GetTransform();
 
         MLG_CHECK(scene.SyncToGpu());
 
         MLG_CHECK(compositor.BeginFrame());
 
-        MLG_CHECK(renderer.Render(trsCamera, camera, scene, propKit));
+        MLG_CHECK(renderer.Render(camera, cameraTransform, scene, propKit));
         //MLG_CHECK(renderer.Composite(compositor));
 
         MLG_CHECK(imGuiRenderer.NewFrame());

@@ -979,6 +979,49 @@ public:
 };
 
 template<typename NumType>
+class Pose
+{
+    static_assert(std::is_floating_point_v<NumType>, "Pose requires a floating-point type");
+
+public:
+
+    using ValueType = NumType;
+
+    Vec3<NumType> T{ 0 };
+    UnitQuat<NumType> R{ Radians<NumType>{0}, Vec3<NumType>{0,1,0} };
+
+    Mat44<NumType> ToMatrix() const noexcept;
+
+    [[nodiscard]] Pose<NumType> Inverse() const noexcept;
+
+    constexpr Vec3<NumType> LocalXAxis() const noexcept
+    {
+        return (R * Vec3<NumType>::XAXIS()).Normalize();
+    }
+
+    constexpr Vec3<NumType> LocalYAxis() const noexcept
+    {
+        return (R * Vec3<NumType>::YAXIS()).Normalize();
+    }
+
+    constexpr Vec3<NumType> LocalZAxis() const noexcept
+    {
+        return (R * Vec3<NumType>::ZAXIS()).Normalize();
+    }
+
+    constexpr friend Vec3<NumType> operator*(const Pose<NumType>& pose,
+        const Vec3<NumType>& point) noexcept
+    {
+        return (pose.R * point) + pose.T;
+    }
+
+    constexpr friend bool operator==(const Pose<NumType>& a, const Pose<NumType>& b) noexcept
+    {
+        return a.T == b.T && a.R == b.R;
+    }
+};
+
+template<typename NumType>
 class TrsTransform
 {
     static_assert(std::is_floating_point_v<NumType>, "TrsTransform requires a floating-point type");
@@ -994,12 +1037,6 @@ public:
     static TrsTransform FromMatrix(const Mat44<NumType>& mat) noexcept;
 
     Mat44<NumType> ToMatrix() const noexcept;
-
-    // The inverse of a TRS transform cannot in general be represented as a TRS transform,
-    // unless the scale is uniform.
-    // So the inverse returns a Mat44, which can represent any affine transform,
-    // instead of a new TrsTransform.
-    [[nodiscard]] Mat44<NumType> Inverse() const noexcept;
 
     constexpr Vec3<NumType> LocalXAxis() const noexcept
     {
@@ -1086,3 +1123,4 @@ using Vec4f = Vec4<float>;
 using UnitQuatf = UnitQuat<float>;
 using Mat44f = Mat44<float>;
 using TrsTransformf = TrsTransform<float>;
+using Posef = Pose<float>;

@@ -171,10 +171,10 @@ MainLoop()
 
     auto&& [propKit, level, scene] = std::move(*loadResult);
 
-    TrsTransformf trsCamera{ .T{0, 0, -4} };
+    Posef cameraTransform{ .T{0, 0, -4} };
     Camera camera;
 
-    mouseNav.SetTransform(trsCamera);
+    mouseNav.SetTransform(cameraTransform);
 
     bool mouseCaptured = false;
 
@@ -327,11 +327,11 @@ MainLoop()
             1);
         camera.SetViewport(viewport);
         camera.SetAspectRatio(viewport.GetAspectRatio());
-        trsCamera = mouseNav.GetTransform();
+        cameraTransform = mouseNav.GetTransform();
 
         MLG_CHECK(compositor.BeginFrame());
 
-        MLG_CHECK(renderer.Render(trsCamera, camera, scene, propKit));
+        MLG_CHECK(renderer.Render(camera, cameraTransform, scene, propKit));
         MLG_CHECK(renderer.Composite(compositor));
 
         MLG_CHECK(imGuiRenderer.NewFrame());

@@ -129,7 +129,7 @@ Result<> MainLoop()
         WebgpuHelper::Shutdown();
     };
 
-    TrsTransformf cameraXform;
+    Posef cameraXform;
     cameraXform.T = Vec3f{ 0,0,-4 };
     Camera camera;
 
@@ -254,7 +254,7 @@ Result<> MainLoop()
             MLG_CHECK(RenderGui());
         }
 
-        MLG_CHECK(renderer.Render(cameraXform, camera, scene, propKit));
+        MLG_CHECK(renderer.Render(camera, cameraXform, scene, propKit));
 
         MLG_CHECK(renderer.Composite(compositor));
 

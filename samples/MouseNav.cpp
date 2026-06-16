@@ -10,7 +10,7 @@
 //---- WalkMouseNav Implementation ----//
 
 WalkMouseNav::WalkMouseNav(
-        const TrsTransformf& initialTransform,
+        const Posef& initialTransform,
         const float rotPerDXY,
         const float movePerSec)
     : m_CurrentTransform(initialTransform)

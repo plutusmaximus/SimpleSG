@@ -30,7 +30,7 @@ public:
 
     virtual void ClearButtons() = 0;
 
-    virtual const TrsTransformf& GetTransform() const = 0;
+    virtual const Posef& GetTransform() const = 0;
 
     virtual void Update(const float deltaSeconds) = 0;
 };
@@ -51,11 +51,11 @@ public:
     /// @param rotPerDXY Rotation amount (in fractions of a full rotation) per unit of mouse movement in X and Y directions.
     /// @param movePerSec Movement speed in units per second.
     WalkMouseNav(
-        const TrsTransformf& initialTransform,
+        const Posef& initialTransform,
         const float rotPerDXY,
         const float movePerSec);
 
-    WalkMouseNav() : WalkMouseNav(TrsTransformf{}, kDefualtRotPerDXY, kDefaultMovePerSec) {}
+    WalkMouseNav() : WalkMouseNav(Posef{}, kDefualtRotPerDXY, kDefaultMovePerSec) {}
 
     ~WalkMouseNav() override;
     WalkMouseNav(const WalkMouseNav&) = delete;
@@ -79,13 +79,13 @@ public:
 
     void Update(const float deltaSeconds) override;
 
-    void SetTransform(const TrsTransformf& transform)
+    void SetTransform(const Posef& transform)
     {
         m_CurrentTransform = transform;
         m_TargetTransform = transform;
     }
 
-    const TrsTransformf& GetTransform() const override
+    const Posef& GetTransform() const override
     {
         return m_CurrentTransform;
     }
@@ -94,8 +94,8 @@ private:
 
     bool m_AKey{ false }, m_SKey{ false }, m_DKey{ false }, m_WKey{ false };
     Vec2f m_MouseDelta{ 0, 0};
-    TrsTransformf m_CurrentTransform;
-    TrsTransformf m_TargetTransform;
+    Posef m_CurrentTransform;
+    Posef m_TargetTransform;
     const float m_MovePerSec;
     const float m_MouseMoveRotScale;
 };

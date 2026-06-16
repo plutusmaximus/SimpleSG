@@ -19,6 +19,36 @@ Viewport::Viewport(const uint32_t x,
     MLG_ASSERT(height > 0, "Viewport height must be greater than 0");
 }
 
+
+Frustum::Frustum(const Camera& camera, const Posef& pose) // NOLINT(cppcoreguidelines-pro-type-member-init)
+{
+    const Mat44f VP = camera.GetMatrix() * pose.Inverse().ToMatrix();
+    const Vec4f r0(VP[0][0], VP[1][0], VP[2][0], VP[3][0]);
+    const Vec4f r1(VP[0][1], VP[1][1], VP[2][1], VP[3][1]);
+    const Vec4f r2(VP[0][2], VP[1][2], VP[2][2], VP[3][2]);
+    const Vec4f r3(VP[0][3], VP[1][3], VP[2][3], VP[3][3]);
+
+    m_Left = Vec4f(r3 + r0);
+    m_Right = Vec4f(r3 - r0);
+    m_Top = Vec4f(r3 - r1);
+    m_Bottom = Vec4f(r3 + r1);
+    m_Near = Vec4f(r2);
+    m_Far = Vec4f(r3 - r2);
+
+    const float ll = Vec3f(m_Left.x, m_Left.y, m_Left.z).Length();
+    const float lr = Vec3f(m_Right.x, m_Right.y, m_Right.z).Length();
+    const float lt = Vec3f(m_Top.x, m_Top.y, m_Top.z).Length();
+    const float lb = Vec3f(m_Bottom.x, m_Bottom.y, m_Bottom.z).Length();
+    const float ln = Vec3f(m_Near.x, m_Near.y, m_Near.z).Length();
+    const float lf = Vec3f(m_Far.x, m_Far.y, m_Far.z).Length();
+    m_Left /= ll;
+    m_Right /= lr;
+    m_Top /= lt;
+    m_Bottom /= lb;
+    m_Near /= ln;
+    m_Far /= lf;
+}
+
 void
 Camera::SetPerspective(const Radiansf fov,
     const float aspectRatio,

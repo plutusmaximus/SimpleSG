@@ -105,8 +105,8 @@ Renderer::Shutdown()
 }
 
 Result<>
-Renderer::Render(const TrsTransformf& cameraXForm,
-    const Camera& camera,
+Renderer::Render(const Camera& camera,
+    const Posef& cameraXForm,
     const Scene& scene,
     const PropKit& propKit)
 {
@@ -749,14 +749,14 @@ Renderer::CreateTransformPipeline()
 
 Result<>
 Renderer::TransformNodes(const wgpu::CommandEncoder& cmdEncoder,
-    const TrsTransformf& cameraXForm,
+    const Posef& cameraXForm,
     const Camera& camera,
     const Scene& scene) const
 {
     const wgpu::Device device = WebgpuHelper::GetDevice();
 
     // Use inverse of camera transform as view matrix
-    const Mat44f viewXform = cameraXForm.Inverse();
+    const Mat44f viewXform = cameraXForm.Inverse().ToMatrix();
     const Mat44f& projMat = camera.GetMatrix();
     const Mat44f viewProj = projMat.Mul(viewXform);
 
