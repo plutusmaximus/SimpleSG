@@ -62,18 +62,6 @@ static bool Log(AssertHelper::AssertData& assertData,
 
 }   // namespace AssertHelper
 
-#ifndef NDEBUG
-
-// MLG_VERIFY is like MLG_ASSERT excpet that it can be used in boolean expressions.
-//
-// For ex.
-//
-// if(MLG_VERIFY(nullptr != p))...
-//
-// Or
-//
-// return MLG_VERIFY(x > y) ? x : -1;
-
 // Disable the warning about __COUNTER__ being a C2y extension.
 #if defined(__clang__)
 #  define MLG_CLANG_DIAG_PUSH _Pragma("clang diagnostic push")
@@ -85,6 +73,18 @@ static bool Log(AssertHelper::AssertData& assertData,
 #  define MLG_CLANG_DIAG_POP
 #  define MLG_CLANG_DIAG_IGNORE_C2Y_EXTENSIONS
 #endif
+
+#ifndef NDEBUG
+
+// MLG_VERIFY is like MLG_ASSERT excpet that it can be used in boolean expressions.
+//
+// For ex.
+//
+// if(MLG_VERIFY(nullptr != p))...
+//
+// Or
+//
+// return MLG_VERIFY(x > y) ? x : -1;
 
 #define MLG_VERIFY(expr, ...) \
     MLG_CLANG_DIAG_PUSH \
@@ -108,3 +108,17 @@ static bool Log(AssertHelper::AssertData& assertData,
 #define MLG_ASSERT_ONLY(expr)
 
 #endif // NDEBUG
+
+// Like MLG_CHECK except if the condition is false the program will abort.
+// Used to check for invariants that if violated result in undefined behavior.
+// I.e. things that have no chance of recovery, and which cannot return an error
+// to callers, e.g. constructors.
+#define MLG_REQUIRE(expr, ...) \
+    MLG_CLANG_DIAG_PUSH \
+    MLG_CLANG_DIAG_IGNORE_C2Y_EXTENSIONS \
+    while(!static_cast<bool>(expr)) \
+    { \
+        AssertHelper::Log(AssertHelper::GetAssertData<__COUNTER__>(#expr),#expr, __func__, __FILE__, __LINE__ __VA_OPT__(, ) __VA_ARGS__); \
+        std::abort(); \
+    } \
+    MLG_CLANG_DIAG_POP
