@@ -1,5 +1,9 @@
 {
+    // Override token (syntax highlight) colors using the TextMate scoping system.
     "editor.tokenColorCustomizations": {
+        // Theme-scoped overrides: keys matching "[*Light*]" / "[*Dark*]" apply only
+        // when the active theme's name contains "Light" or "Dark" respectively.
+        // These ensure search-match highlight text is readable on any theme.
         "[*Light*]": {
             "textMateRules": [
                 {
@@ -20,6 +24,9 @@
                 }
             ]
         },
+        // Colors for inline test result decorations applied by the C++ TestMate
+        // extension. Scopes are named after Google Test (the test framework), not
+        // after the extension itself.
         "textMateRules": [
             {
                 "scope": "googletest.failed",
@@ -41,101 +48,6 @@
             }
         ]
     },
-    "files.associations": {
-        "sstream": "cpp",
-        "algorithm": "cpp",
-        "any": "cpp",
-        "array": "cpp",
-        "atomic": "cpp",
-        "bit": "cpp",
-        "bitset": "cpp",
-        "cctype": "cpp",
-        "charconv": "cpp",
-        "chrono": "cpp",
-        "clocale": "cpp",
-        "cmath": "cpp",
-        "compare": "cpp",
-        "complex": "cpp",
-        "concepts": "cpp",
-        "condition_variable": "cpp",
-        "coroutine": "cpp",
-        "csignal": "cpp",
-        "cstdarg": "cpp",
-        "cstddef": "cpp",
-        "cstdint": "cpp",
-        "cstdio": "cpp",
-        "cstdlib": "cpp",
-        "cstring": "cpp",
-        "ctime": "cpp",
-        "cwchar": "cpp",
-        "deque": "cpp",
-        "exception": "cpp",
-        "expected": "cpp",
-        "filesystem": "cpp",
-        "format": "cpp",
-        "forward_list": "cpp",
-        "fstream": "cpp",
-        "functional": "cpp",
-        "initializer_list": "cpp",
-        "iomanip": "cpp",
-        "ios": "cpp",
-        "iosfwd": "cpp",
-        "iostream": "cpp",
-        "istream": "cpp",
-        "iterator": "cpp",
-        "limits": "cpp",
-        "list": "cpp",
-        "locale": "cpp",
-        "map": "cpp",
-        "memory": "cpp",
-        "mutex": "cpp",
-        "new": "cpp",
-        "numbers": "cpp",
-        "numeric": "cpp",
-        "optional": "cpp",
-        "ostream": "cpp",
-        "queue": "cpp",
-        "random": "cpp",
-        "ratio": "cpp",
-        "semaphore": "cpp",
-        "set": "cpp",
-        "source_location": "cpp",
-        "span": "cpp",
-        "stack": "cpp",
-        "stacktrace": "cpp",
-        "stdexcept": "cpp",
-        "stop_token": "cpp",
-        "streambuf": "cpp",
-        "string": "cpp",
-        "system_error": "cpp",
-        "thread": "cpp",
-        "tuple": "cpp",
-        "type_traits": "cpp",
-        "typeindex": "cpp",
-        "typeinfo": "cpp",
-        "unordered_map": "cpp",
-        "unordered_set": "cpp",
-        "utility": "cpp",
-        "variant": "cpp",
-        "vector": "cpp",
-        "xfacet": "cpp",
-        "xhash": "cpp",
-        "xiosbase": "cpp",
-        "xlocale": "cpp",
-        "xlocbuf": "cpp",
-        "xlocinfo": "cpp",
-        "xlocmes": "cpp",
-        "xlocmon": "cpp",
-        "xlocnum": "cpp",
-        "xloctime": "cpp",
-        "xmemory": "cpp",
-        "xstring": "cpp",
-        "xtr1common": "cpp",
-        "xtree": "cpp",
-        "xutility": "cpp",
-        "regex": "cpp",
-        "*.rh": "cpp"
-    },
     "cmake.configureOnOpen": false,
     "cmake.configureSettings": {
         "ENABLE_CLANG_TIDY": "ON"
@@ -144,13 +56,6 @@
     "cmake.deleteBuildDirOnCleanConfigure": false,
     "cmake.generator": "Ninja Multi-Config",
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
-    //"C_Cpp.intelliSenseEngine": "default",
     "C_Cpp.errorSquiggles": "enabled",
-    //"C_Cpp.codeAnalysis.clangTidy.enabled": true,
-    //"C_Cpp.codeAnalysis.clangTidy.useBuildPath": true,
-    //"C_Cpp.codeAnalysis.runAutomatically": false,
-    /*"C_Cpp.codeAnalysis.exclude": {
-        "thirdparty/**": true,
-        "build/**": true
-    }*/
+    "testMate.cpp.debug.configTemplate": "name:Tests (Debug, TestMate)"
 }

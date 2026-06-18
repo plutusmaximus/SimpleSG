@@ -121,7 +121,7 @@ Load(TextureCache& textureCache)
 
     std::vector<LevelNodeDef> nodeDefs;
     nodeDefs.reserve(NUM_BODIES);
-    for(const size_t i : std::views::iota(0uz, NUM_BODIES))
+    for(size_t i  = 0; i < NUM_BODIES; ++i)
     {
         const float radius = MIN_RADIUS + (std::abs(dis(gen)) * (MAX_RADIUS - MIN_RADIUS));
         const float mass = radius;
@@ -135,7 +135,7 @@ Load(TextureCache& textureCache)
             {
                 .Model = ModelRef{ .Name = "Shape" },
                 .Body = RigidBodyDef{ .Mass{ mass } },
-                .Collider = ColliderDef{ SphereDef{ .Radius = radius } },
+                .Collider = ColliderDef{ SphereDef{ .Center = Vec3f(0), .Radius = radius } },
             },
         };
 
@@ -201,22 +201,24 @@ void ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
         i < batchParams->Bodies.size() && count < batchParams->BatchSize;
         ++i, j = i + 1)
     {
-        const float radiusA = batchParams->Colliders[i].GetSphereRadius();
-        const Vec3f posA = batchParams->Transforms[i].T; // For cache friendliness this is not a reference.
+        const BoundingSphere& sphereA = batchParams->Colliders[i].GetEnclosingSphere();
+        const float radiusA = sphereA.GetRadius();
+        const Vec3f posA = batchParams->Transforms[i].T + sphereA.GetCenter();
         const float massA = batchParams->Bodies[i].GetMass().Value();
 
         MLG_ASSERT(j < batchParams->Bodies.size(), "StartIndexB must be greater than StartIndexA");
 
         for(; j < batchParams->Bodies.size() && count < batchParams->BatchSize; ++j, ++count)
         {
-            const float radiusB = batchParams->Colliders[j].GetSphereRadius();
+            const BoundingSphere& sphereB = batchParams->Colliders[j].GetEnclosingSphere();
+            const float radiusB = sphereB.GetRadius();
             const float massB = batchParams->Bodies[j].GetMass().Value();
 
             const float minSeparation = radiusA + radiusB;
             const float minSeparationSq = minSeparation * minSeparation;
 
             // Vector from body A to body B
-            const Vec3f& posB = batchParams->Transforms[j].T;
+            const Vec3f posB = batchParams->Transforms[j].T + sphereB.GetCenter();
             const Vec3f delta = posB - posA;
 
             // Gravitational force magnitude: F = G * (M * m) / r^2
@@ -413,13 +415,15 @@ DeactivateNonOverlappingBodies(const PhysicsLevel& physLevel, Level& level)
 
     for(size_t i = 0; i < bodies.size(); ++i)
     {
-        const float radiusA = colliders[i].GetSphereRadius();
-        const Vec3f& posA = transforms[i].T;
+        const BoundingSphere& sphereA = colliders[i].GetEnclosingSphere();
+        const float radiusA = sphereA.GetRadius();
+        const Vec3f& posA = transforms[i].T + sphereA.GetCenter();
 
         for(size_t j = i + 1; j < bodies.size(); ++j)
         {
-            const float radiusB = colliders[j].GetSphereRadius();
-            const Vec3f& posB = transforms[j].T;
+            const BoundingSphere& sphereB = colliders[j].GetEnclosingSphere();
+            const float radiusB = sphereB.GetRadius();
+            const Vec3f& posB = transforms[j].T + sphereB.GetCenter();
 
             const float minSeparation = radiusA + radiusB;
             const float minSeparationSq = minSeparation * minSeparation;

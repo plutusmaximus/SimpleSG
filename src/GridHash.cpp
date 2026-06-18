@@ -71,11 +71,10 @@ GridHash::Add(
         bbMax.y,
         bbMax.z);
 
-    const float radius = collider.GetSphereRadius();
-    MLG_CHECKV(radius >= 0, "Invalid collider radius: {}", radius);
+    const BoundingSphere& sphere = collider.GetEnclosingSphere();
 
-    const Vec3f minExtent{ bbMin.x - radius, bbMin.y - radius, bbMin.z - radius };
-    const Vec3f maxExtent{ bbMax.x + radius, bbMax.y + radius, bbMax.z + radius };
+    const Vec3f minExtent = bbMin + sphere.GetCenter() - Vec3f{sphere.GetRadius()};
+    const Vec3f maxExtent = bbMax + sphere.GetCenter() + Vec3f{sphere.GetRadius()};
 
     const int32_t minX = Quantize(minExtent.x);
     const int32_t minY = Quantize(minExtent.y);

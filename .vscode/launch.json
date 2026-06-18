@@ -2,6 +2,20 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Tests (Debug, TestMate)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/Tests",
+            "cwd": "${workspaceFolder}/build/Debug",
+            "windows": {
+                "type": "cppvsdbg",
+                "program": "${workspaceFolder}/build/Debug/Tests.exe"
+            },
+            "presentation": {
+                "hidden": true
+            }
+        },
+        {
             "name": "Sample (Windows)",
             "type": "cppvsdbg",
             "request": "launch",
@@ -61,9 +75,7 @@
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceFolder}/build/${input:buildType}/${input:target}",
-            "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build/${input:buildType}",
-            "externalConsole": false,
             "presentation": {
                 "group": "macOS",
                 "order": 1
@@ -77,9 +89,7 @@
             "args": [
                 "--gtest_list_tests"
             ],
-            "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build/Debug",
-            "externalConsole": false,
             "presentation": {
                 "group": "macOS",
                 "order": 2

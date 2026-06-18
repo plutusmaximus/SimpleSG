@@ -46,9 +46,9 @@ Frustum::Frustum(const Camera& camera, const Posef& cameraXForm) // NOLINT(cppco
 }
 
 bool
-Frustum::Contains(const BoundingSphere& sphere, const Vec3f& pos) const
+Frustum::Contains(const BoundingSphere& sphere) const
 {
-    const Vec4f pos4(pos + sphere.GetCenter(), 1);
+    const Vec4f pos4(sphere.GetCenter(), 1);
     const float radius = sphere.GetRadius();
 
     for(const Vec4f& plane : m_Planes)

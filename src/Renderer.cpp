@@ -218,7 +218,8 @@ Renderer::Render(const Camera& camera,
             auto sphere = propKit.GetBoundingSphere(modelId);
             MLG_CHECK(sphere);
 
-            if(!modelInstance.IsVisible() || !frustum.Contains(*sphere, Vec3f(pos.x, pos.y, pos.z)))
+            if(!modelInstance.IsVisible() ||
+                !frustum.Contains(*sphere + Vec3f(pos.x, pos.y, pos.z)))
             {
                 indirectOffset += meshes->size() * sizeof(ShaderInterop::DrawIndirectParams);
                 continue;

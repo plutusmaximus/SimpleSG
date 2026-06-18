@@ -74,17 +74,19 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
             {
                 Collider operator()(const SphereDef& def) const
                 {
-                    return Collider{ Sphere{ def.Radius } };
+                    return Collider{ BoundingSphere{ def.Center, def.Radius } };
                 }
 
                 Collider operator()(const BoxDef& def) const
                 {
-                    return Collider{ Box{ def.HalfExtents } };
+                    const Vec3f p0 = def.Center - def.HalfExtents;
+                    const Vec3f p1 = def.Center + def.HalfExtents;
+                    return Collider{ BoundingBox{ p0, p1 } };
                 }
 
                 Collider operator()(const CapsuleDef& def) const
                 {
-                    return Collider{ Capsule{ def.Radius, def.HalfHeight } };
+                    return Collider{ BoundingCapsule{ def.Center, def.Radius, def.HalfHeight } };
                 }
             };
 
@@ -204,7 +206,7 @@ Level::Level(std::vector<Node>&& nodes, std::vector<char>&& stringStorage)
 
     m_NodeHandles.reserve(m_Nodes.size());
 
-    for(const size_t i : std::views::iota(0uz, m_Nodes.size()))
+    for(size_t i = 0; i < m_Nodes.size(); ++i)
     {
         m_NodeHandles.emplace_back(NodeHandle(i));
     }

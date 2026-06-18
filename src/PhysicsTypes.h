@@ -22,50 +22,23 @@ public:
 
     friend constexpr bool operator==(Mass a, Mass b) = default;
     friend constexpr auto operator<=>(Mass a, Mass b) = default;
-    friend constexpr auto operator<=>(Mass a, float b)
-    {
-        return a.Value() <=> b;
-    }
-    friend constexpr auto operator<=>(float a, Mass b)
-    {
-        return b <=> a;
-    }
+    friend constexpr auto operator<=>(Mass a, float b) { return a.Value() <=> b; }
+    friend constexpr auto operator<=>(float a, Mass b) { return b <=> a; }
 
-    friend constexpr Mass operator+(Mass a, Mass b)
-    {
-        return Mass(a.Value() + b.Value());
-    }
+    friend constexpr Mass operator+(Mass a, Mass b) { return Mass(a.Value() + b.Value()); }
 
-    friend constexpr Mass operator-(Mass a, Mass b)
-    {
-        return Mass(a.Value() - b.Value());
-    }
+    friend constexpr Mass operator-(Mass a, Mass b) { return Mass(a.Value() - b.Value()); }
 
-    friend constexpr Mass operator*(Mass a, float scalar)
-    {
-        return Mass(a.Value() * scalar);
-    }
+    friend constexpr Mass operator*(Mass a, float scalar) { return Mass(a.Value() * scalar); }
 
-    friend constexpr Mass operator*(float scalar, Mass a)
-    {
-        return a * scalar;
-    }
+    friend constexpr Mass operator*(float scalar, Mass a) { return a * scalar; }
 
-    friend constexpr Mass operator/(Mass a, float scalar)
-    {
-        return Mass(a.Value() / scalar);
-    }
+    friend constexpr Mass operator/(Mass a, float scalar) { return Mass(a.Value() / scalar); }
 
     // Division of mass by mass results in a dimensionless ratio.
-    friend constexpr float operator/(Mass a, Mass b)
-    {
-        return a.Value() / b.Value();
-    }
+    friend constexpr float operator/(Mass a, Mass b) { return a.Value() / b.Value(); }
 
-    constexpr Mass operator-() const
-    {
-        return Mass(-Value());
-    }
+    constexpr Mass operator-() const { return Mass(-Value()); }
 
     constexpr Mass& operator+=(Mass other)
     {
@@ -73,30 +46,20 @@ public:
         return *this;
     }
 
-    constexpr Mass& operator-=(Mass other)
-    {
-        return *this = *this - other;
-    }
+    constexpr Mass& operator-=(Mass other) { return *this = *this - other; }
 
-    constexpr Mass& operator*=(float scalar)
-    {
-        return *this = *this * scalar;
-    }
+    constexpr Mass& operator*=(float scalar) { return *this = *this * scalar; }
 
-    constexpr Mass& operator/=(float scalar)
-    {
-        return *this = *this / scalar;
-    }
+    constexpr Mass& operator/=(float scalar) { return *this = *this / scalar; }
 
 private:
     float m_Value;
-    float m_InvValue;   // Inverse value
+    float m_InvValue; // Inverse value
 };
 
 class RigidBody
 {
 public:
-
     RigidBody() = delete;
 
     explicit RigidBody(const Mass mass)
@@ -107,43 +70,40 @@ public:
     float GetInvMass() const { return m_Mass.InvValue(); }
 
 private:
-
     Mass m_Mass;
 };
 
 class Collider
 {
 public:
-
     Collider() = delete;
 
-    explicit Collider(const Sphere& sphere)
-        : m_Shape(sphere)
-        , m_SphereRadius(sphere.GetRadius())
+    explicit Collider(const BoundingSphere& sphere)
+        : m_Shape(sphere),
+          m_Sphere(sphere)
     {
     }
 
-    explicit Collider(const Box& box)
-        : m_Shape(box)
-        , m_SphereRadius(box.GetHalfExtents().Length())
+    explicit Collider(const BoundingBox& box)
+        : m_Shape(box),
+          m_Sphere(box)
     {
     }
 
-    explicit Collider(const Capsule& capsule)
-        : m_Shape(capsule)
-        , m_SphereRadius(capsule.GetRadius() + capsule.GetHalfHeight())
+    explicit Collider(const BoundingCapsule& capsule)
+        : m_Shape(capsule),
+          m_Sphere(capsule)
     {
     }
 
-    const std::variant<Sphere, Box, Capsule>& GetShape() const { return m_Shape; }
-
-    float GetSphereRadius() const
+    const std::variant<BoundingSphere, BoundingBox, BoundingCapsule>& GetShape() const
     {
-        return m_SphereRadius;
+        return m_Shape;
     }
+
+    const BoundingSphere& GetEnclosingSphere() const { return m_Sphere; }
 
 private:
-
-    std::variant<Sphere, Box, Capsule> m_Shape;
-    float m_SphereRadius{ 0 };
+    std::variant<BoundingSphere, BoundingBox, BoundingCapsule> m_Shape;
+    BoundingSphere m_Sphere;
 };

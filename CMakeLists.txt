@@ -422,7 +422,9 @@ add_sample_executable(Orbit samples/Orbit.cpp)
 # Executable: Tests
 # ============================================================
 add_executable(Tests
+  "tests/BoundingCapsule.test.cpp"
   "tests/BoundingBox.test.cpp"
+  "tests/BoundingSphere.test.cpp"
   "tests/GridHash.test.cpp"
   "tests/inlist.test.cpp"
   "tests/Mat44.test.cpp"

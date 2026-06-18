@@ -440,9 +440,9 @@ PropKit::Create(
 
         const std::span<const Mesh> meshSpan = std::span<const Mesh>(meshes).subspan(firstMeshIdx);
         BoundingBox boundingBox = meshSpan.front().GetBoundingBox();
-        for(const Mesh& mesh : meshSpan)
+        for(const Mesh& mesh : meshSpan.subspan(1))
         {
-            boundingBox = boundingBox.Combine(mesh.GetBoundingBox());
+            boundingBox += mesh.GetBoundingBox();
         }
 
         const Model model //

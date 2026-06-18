@@ -163,20 +163,35 @@ struct RigidBodyDef final
     Mass Mass;
 };
 
-struct SphereDef final
-{
-    float Radius{ 0 };
-};
-
 struct BoxDef final
 {
+    Vec3f Center{ 0 };
     Vec3f HalfExtents{ 0 };
 };
 
 struct CapsuleDef final
 {
+    Vec3f Center{ 0 };
     float Radius{ 0 };
     float HalfHeight{ 0 };
+};
+
+struct SphereDef final
+{
+    Vec3f Center{ 0 };
+    float Radius{ 0 };
+
+    static SphereDef FromBoxDef(const BoxDef& boxDef)
+    {
+        const float radius = boxDef.HalfExtents.Length();
+        return SphereDef{ .Center = boxDef.Center, .Radius = radius };
+    }
+
+    static SphereDef FromCapsuleDef(const CapsuleDef& capsuleDef)
+    {
+        const float radius = capsuleDef.Radius + capsuleDef.HalfHeight;
+        return SphereDef{ .Center = capsuleDef.Center, .Radius = radius };
+    }
 };
 
 using ColliderDef = std::variant<SphereDef, BoxDef, CapsuleDef>;

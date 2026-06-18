@@ -2,22 +2,10 @@
 
 #include <gtest/gtest.h>
 
-#include <vector>
-
 // NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
 
 namespace
 {
-Vertex
-MakeVertex(const Vec3f& p)
-{
-    Vertex v{};
-    v.pos = p;
-    v.normal = { 0.0f, 0.0f, 1.0f };
-    v.uvs[0] = { .u = 0.0f, .v = 0.0f };
-    return v;
-}
-
 void
 ExpectVec3Eq(const Vec3f& actual, const Vec3f& expected)
 {
@@ -27,74 +15,109 @@ ExpectVec3Eq(const Vec3f& actual, const Vec3f& expected)
 }
 } // namespace
 
-TEST(Box, Constructor_StoresProvidedMinAndMax)
+TEST(BoundingBox, Constructor_ComputesCenterAndHalfExtents)
 {
-    const Vec3f p0{ -3.0f, 2.0f, -7.5f };
-    const Vec3f p1{ 4.0f, 9.0f, 1.25f };
-    const Box box(p0, p1);
+    const BoundingBox box(Vec3f(0.0f, 0.0f, 0.0f), Vec3f(4.0f, 2.0f, 6.0f));
 
-    ExpectVec3Eq(box.GetHalfExtents(), (p1 - p0) * 0.5f);
+    ExpectVec3Eq(box.GetCenter(), Vec3f(2.0f, 1.0f, 3.0f));
+    ExpectVec3Eq(box.GetHalfExtents(), Vec3f(2.0f, 1.0f, 3.0f));
 }
 
-TEST(Box, FromVertices_EmptyInput_ReturnsZeroBox)
+TEST(BoundingBox, Constructor_WithUnorderedPointsStillProducesPositiveHalfExtents)
 {
-    const std::vector<Vertex> vertices;
-    const std::vector<VertexIndex> indices;
+    const BoundingBox box(Vec3f(4.0f, 2.0f, 6.0f), Vec3f(0.0f, 0.0f, 0.0f));
 
-    const Box box = Box::FromVertices(vertices, indices);
-
-    ExpectVec3Eq(box.GetHalfExtents(), Vec3f{ 0 });
+    ExpectVec3Eq(box.GetCenter(), Vec3f(2.0f, 1.0f, 3.0f));
+    ExpectVec3Eq(box.GetHalfExtents(), Vec3f(2.0f, 1.0f, 3.0f));
 }
 
-TEST(Box, FromVertices_SingleVertex_MinAndMaxMatchPoint)
+TEST(BoundingBox, MergeOperator_EnclosesBothBoxes)
 {
-    const std::vector<Vertex> vertices = { MakeVertex({ 2.5f, -4.0f, 8.0f }) };
+    const BoundingBox a(Vec3f(-2.0f, -1.0f, -3.0f), Vec3f(2.0f, 1.0f, 3.0f));
+    const BoundingBox b(Vec3f(1.0f, -5.0f, -1.0f), Vec3f(8.0f, 4.0f, 10.0f));
 
-    const std::vector<VertexIndex> indices = { 0 };
+    const BoundingBox merged = a + b;
 
-    const Box box = Box::FromVertices(vertices, indices);
-
-    ExpectVec3Eq(box.GetHalfExtents(), Vec3f{ 0 });
+    ExpectVec3Eq(merged.GetCenter(), Vec3f(3.0f, -0.5f, 3.5f));
+    ExpectVec3Eq(merged.GetHalfExtents(), Vec3f(5.0f, 4.5f, 6.5f));
 }
 
-TEST(Box, FromVertices_MultipleVertices_ComputesPerAxisExtrema)
+TEST(BoundingBox, TranslateOperator_ReturnsOffsetBox)
 {
-    const std::vector<Vertex> vertices = {
-        MakeVertex({ -1.0f, 4.0f, 0.5f }),
-        MakeVertex({ 3.0f, -2.0f, 7.0f }),
-        MakeVertex({ 0.25f, 9.0f, -5.0f }),
-        MakeVertex({ -4.0f, 1.0f, 2.0f }),
-    };
+    const BoundingBox box(Vec3f(-1.0f, -2.0f, -3.0f), Vec3f(1.0f, 2.0f, 3.0f));
+    const Vec3f offset(3.0f, -5.0f, 7.0f);
 
-    const std::vector<VertexIndex> indices = { 0, 1, 2, 3 };
+    const BoundingBox translated = box + offset;
 
-    const Box box = Box::FromVertices(vertices, indices);
-
-    ExpectVec3Eq(box.GetHalfExtents(), Vec3f{ 3.5f, 5.5f, 6.0f });
+    ExpectVec3Eq(translated.GetCenter(), Vec3f(3.0f, -5.0f, 7.0f));
+    ExpectVec3Eq(translated.GetHalfExtents(), box.GetHalfExtents());
 }
 
-TEST(Box, FromVertices_VertexOrderDoesNotAffectResult)
+TEST(BoundingBox, CompoundMerge_AssignsMergedBounds)
 {
-    const std::vector<Vertex> forward = {
-        MakeVertex({ 5.0f, 1.0f, -3.0f }),
-        MakeVertex({ -2.0f, 4.0f, 9.0f }),
-        MakeVertex({ 7.5f, -6.0f, 2.0f }),
-        MakeVertex({ 0.0f, 8.0f, -1.0f }),
-    };
+    BoundingBox a(Vec3f(-2.0f, -2.0f, -2.0f), Vec3f(0.0f, 0.0f, 0.0f));
+    const BoundingBox b(Vec3f(-1.0f, -1.0f, -1.0f), Vec3f(3.0f, 5.0f, 7.0f));
 
-    const std::vector<Vertex> reverse = {
-        forward[3],
-        forward[2],
-        forward[1],
-        forward[0],
-    };
+    a += b;
 
-    const std::vector<VertexIndex> indices = { 0, 1, 2, 3 };
+    ExpectVec3Eq(a.GetCenter(), Vec3f(0.5f, 1.5f, 2.5f));
+    ExpectVec3Eq(a.GetHalfExtents(), Vec3f(2.5f, 3.5f, 4.5f));
+}
 
-    const Box boxForward = Box::FromVertices(forward, indices);
-    const Box boxReverse = Box::FromVertices(reverse, indices);
+TEST(BoundingBox, CompoundTranslate_AssignsOffsetBounds)
+{
+    BoundingBox box(Vec3f(-2.0f, -4.0f, -6.0f), Vec3f(2.0f, 4.0f, 6.0f));
 
-    ExpectVec3Eq(boxForward.GetHalfExtents(), boxReverse.GetHalfExtents());
+    box += Vec3f(1.0f, 2.0f, 3.0f);
+
+    ExpectVec3Eq(box.GetCenter(), Vec3f(1.0f, 2.0f, 3.0f));
+    ExpectVec3Eq(box.GetHalfExtents(), Vec3f(2.0f, 4.0f, 6.0f));
+}
+
+TEST(BoundingBox, FromVertices_UsesProvidedIndices)
+{
+    const Vertex vertices[] //
+        {
+            { .pos = Vec3f(-1.0f, 2.0f, 3.0f),
+                .normal = Vec3f(0.0f, 1.0f, 0.0f),
+                .uvs = { { .u = 0.0f, .v = 0.0f } } },
+            { .pos = Vec3f(4.0f, -2.0f, 5.0f),
+                .normal = Vec3f(0.0f, 1.0f, 0.0f),
+                .uvs = { { .u = 1.0f, .v = 0.0f } } },
+            { .pos = Vec3f(10.0f, 10.0f, 10.0f),
+                .normal = Vec3f(0.0f, 1.0f, 0.0f),
+                .uvs = { { .u = 1.0f, .v = 1.0f } } },
+            { .pos = Vec3f(0.0f, 8.0f, -1.0f),
+                .normal = Vec3f(0.0f, 1.0f, 0.0f),
+                .uvs = { { .u = 0.0f, .v = 1.0f } } },
+        };
+
+    const VertexIndex indices[] = { 0, 1, 3 };
+
+    const BoundingBox box = BoundingBox::FromVertices(vertices, indices);
+
+    ExpectVec3Eq(box.GetCenter(), Vec3f(1.5f, 3.0f, 2.0f));
+    ExpectVec3Eq(box.GetHalfExtents(), Vec3f(2.5f, 5.0f, 3.0f));
+}
+
+TEST(BoundingBox, FromVertices_SingleIndexProducesDegenerateBox)
+{
+    const Vertex vertices[] //
+        {
+            { .pos = Vec3f(-3.5f, 1.25f, 9.0f),
+                .normal = Vec3f(0.0f, 1.0f, 0.0f),
+                .uvs = { { .u = 0.0f, .v = 0.0f } } },
+            { .pos = Vec3f(0.0f, 0.0f, 0.0f),
+                .normal = Vec3f(0.0f, 1.0f, 0.0f),
+                .uvs = { { .u = 1.0f, .v = 1.0f } } },
+        };
+
+    const VertexIndex indices[] = { 0 };
+
+    const BoundingBox box = BoundingBox::FromVertices(vertices, indices);
+
+    ExpectVec3Eq(box.GetCenter(), Vec3f(-3.5f, 1.25f, 9.0f));
+    ExpectVec3Eq(box.GetHalfExtents(), Vec3f(0.0f, 0.0f, 0.0f));
 }
 
 // NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)

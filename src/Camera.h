@@ -56,7 +56,7 @@ public:
     Frustum() = delete;
     Frustum(const Camera& camera, const Posef& cameraXForm);
 
-    bool Contains(const BoundingSphere& sphere, const Vec3f& pos) const;
+    bool Contains(const BoundingSphere& sphere) const;
 
     const Vec4f& GetLeft() const { return m_Planes[kLeft]; }
     const Vec4f& GetRight() const { return m_Planes[kRight]; }

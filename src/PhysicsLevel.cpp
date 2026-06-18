@@ -440,18 +440,18 @@ PhysicsLevel::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult&
     //
     // Solve the quadratic equation for t.
 
-    const float radiusA = params.ColliderA.GetSphereRadius();
-    const float radiusB = params.ColliderB.GetSphereRadius();
+    const BoundingSphere& sphereA = params.ColliderA.GetEnclosingSphere();
+    const BoundingSphere& sphereB = params.ColliderB.GetEnclosingSphere();
 
-    const Vec3f& pA0 = params.StartPosA;
-    const Vec3f& pA1 = params.EndPosA;
-    const Vec3f& pB0 = params.StartPosB;
-    const Vec3f& pB1 = params.EndPosB;
+    const Vec3f& pA0 = params.StartPosA + sphereA.GetCenter();
+    const Vec3f& pA1 = params.EndPosA + sphereA.GetCenter();
+    const Vec3f& pB0 = params.StartPosB + sphereB.GetCenter();
+    const Vec3f& pB1 = params.EndPosB + sphereB.GetCenter();
 
-    const Vec3 relP0 = pA0 - pB0;
-    const Vec3 relP1 = pA1 - pB1;
-    const Vec3 relMo = relP1 - relP0;
-    const float r = radiusA + radiusB;
+    const Vec3f relP0 = pA0 - pB0;
+    const Vec3f relP1 = pA1 - pB1;
+    const Vec3f relMo = relP1 - relP0;
+    const float r = sphereA.GetRadius() + sphereB.GetRadius();
     const float r2 = r * r;
     const float dist0Sqr = relP0.Dot(relP0);
 
@@ -487,7 +487,7 @@ PhysicsLevel::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult&
             impactResult.ContactNormalBtoA = relP0 / std::sqrt(dist0Sqr);
         }
 
-        impactResult.ContactPoint = pB0 + impactResult.ContactNormalBtoA * radiusB;
+        impactResult.ContactPoint = pB0 + impactResult.ContactNormalBtoA * sphereB.GetRadius();
         impactResult.PosAtImpactA = pA0;
         impactResult.PosAtImpactB = pB0;
 
@@ -559,7 +559,7 @@ PhysicsLevel::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult&
     // Saves a sqrt operation.
     impactResult.ContactNormalBtoA /= r;
     impactResult.ContactPoint =
-        impactResult.PosAtImpactB + (impactResult.ContactNormalBtoA * radiusB);
+        impactResult.PosAtImpactB + (impactResult.ContactNormalBtoA * sphereB.GetRadius());
     impactResult.PenetrationDepth = 0;
 
     return true;
