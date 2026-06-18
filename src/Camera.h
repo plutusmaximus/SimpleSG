@@ -3,6 +3,7 @@
 #include "VecMath.h"
 
 class Camera;
+class BoundingSphere;
 
 class Viewport
 {
@@ -53,14 +54,16 @@ class Frustum
 public:
 
     Frustum() = delete;
-    Frustum(const Camera& camera, const Posef& pose);
+    Frustum(const Camera& camera, const Posef& cameraXForm);
 
-    const Vec4f& GetLeft() const { return m_Left; }
-    const Vec4f& GetRight() const { return m_Right; }
-    const Vec4f& GetTop() const { return m_Top; }
-    const Vec4f& GetBottom() const { return m_Bottom; }
-    const Vec4f& GetNear() const { return m_Near; }
-    const Vec4f& GetFar() const { return m_Far; }
+    bool Contains(const BoundingSphere& sphere, const Vec3f& pos) const;
+
+    const Vec4f& GetLeft() const { return m_Planes[kLeft]; }
+    const Vec4f& GetRight() const { return m_Planes[kRight]; }
+    const Vec4f& GetTop() const { return m_Planes[kTop]; }
+    const Vec4f& GetBottom() const { return m_Planes[kBottom]; }
+    const Vec4f& GetNear() const { return m_Planes[kNear]; }
+    const Vec4f& GetFar() const { return m_Planes[kFar]; }
 
 private:
     friend Camera;
@@ -71,21 +74,19 @@ private:
         const Vec4f& bottom,
         const Vec4f& near,
         const Vec4f& far)
-        : m_Left(left),
-          m_Right(right),
-          m_Top(top),
-          m_Bottom(bottom),
-          m_Near(near),
-          m_Far(far)
+        : m_Planes {left, right, top, bottom, near, far}
     {
     }
 
-    Vec4f m_Left;
-    Vec4f m_Right;
-    Vec4f m_Top;
-    Vec4f m_Bottom;
-    Vec4f m_Near;
-    Vec4f m_Far;
+    constexpr static size_t kLeft = 0;
+    constexpr static size_t kRight = 1;
+    constexpr static size_t kTop = 2;
+    constexpr static size_t kBottom = 3;
+    constexpr static size_t kNear = 4;
+    constexpr static size_t kFar = 5;
+    constexpr static size_t kNumPlanes = 6;
+
+    Vec4f m_Planes[kNumPlanes];
 };
 
 class Camera

@@ -1,5 +1,7 @@
 #include "Camera.h"
 
+#include "Bounds.h"
+
 Viewport::Viewport(const uint32_t x,
     const uint32_t y,
     const uint32_t width,
@@ -19,34 +21,50 @@ Viewport::Viewport(const uint32_t x,
     MLG_ASSERT(height > 0, "Viewport height must be greater than 0");
 }
 
-
-Frustum::Frustum(const Camera& camera, const Posef& pose) // NOLINT(cppcoreguidelines-pro-type-member-init)
+Frustum::Frustum(const Camera& camera, const Posef& cameraXForm) // NOLINT(cppcoreguidelines-pro-type-member-init)
 {
-    const Mat44f VP = camera.GetMatrix() * pose.Inverse().ToMatrix();
+    const Mat44f VP = camera.GetMatrix() * cameraXForm.Inverse().ToMatrix();
     const Vec4f r0(VP[0][0], VP[1][0], VP[2][0], VP[3][0]);
     const Vec4f r1(VP[0][1], VP[1][1], VP[2][1], VP[3][1]);
     const Vec4f r2(VP[0][2], VP[1][2], VP[2][2], VP[3][2]);
     const Vec4f r3(VP[0][3], VP[1][3], VP[2][3], VP[3][3]);
 
-    m_Left = Vec4f(r3 + r0);
-    m_Right = Vec4f(r3 - r0);
-    m_Top = Vec4f(r3 - r1);
-    m_Bottom = Vec4f(r3 + r1);
-    m_Near = Vec4f(r2);
-    m_Far = Vec4f(r3 - r2);
+    m_Planes[kLeft] = Vec4f(r3 + r0);
+    m_Planes[kRight] = Vec4f(r3 - r0);
+    m_Planes[kTop] = Vec4f(r3 - r1);
+    m_Planes[kBottom] = Vec4f(r3 + r1);
+    m_Planes[kNear] = Vec4f(r2);
+    m_Planes[kFar] = Vec4f(r3 - r2);
 
-    const float ll = Vec3f(m_Left.x, m_Left.y, m_Left.z).Length();
-    const float lr = Vec3f(m_Right.x, m_Right.y, m_Right.z).Length();
-    const float lt = Vec3f(m_Top.x, m_Top.y, m_Top.z).Length();
-    const float lb = Vec3f(m_Bottom.x, m_Bottom.y, m_Bottom.z).Length();
-    const float ln = Vec3f(m_Near.x, m_Near.y, m_Near.z).Length();
-    const float lf = Vec3f(m_Far.x, m_Far.y, m_Far.z).Length();
-    m_Left /= ll;
-    m_Right /= lr;
-    m_Top /= lt;
-    m_Bottom /= lb;
-    m_Near /= ln;
-    m_Far /= lf;
+    const float ll = Vec3f(m_Planes[kLeft].x, m_Planes[kLeft].y, m_Planes[kLeft].z).Length();
+    const float lr = Vec3f(m_Planes[kRight].x, m_Planes[kRight].y, m_Planes[kRight].z).Length();
+    const float lt = Vec3f(m_Planes[kTop].x, m_Planes[kTop].y, m_Planes[kTop].z).Length();
+    const float lb = Vec3f(m_Planes[kBottom].x, m_Planes[kBottom].y, m_Planes[kBottom].z).Length();
+    const float ln = Vec3f(m_Planes[kNear].x, m_Planes[kNear].y, m_Planes[kNear].z).Length();
+    const float lf = Vec3f(m_Planes[kFar].x, m_Planes[kFar].y, m_Planes[kFar].z).Length();
+    m_Planes[kLeft] /= ll;
+    m_Planes[kRight] /= lr;
+    m_Planes[kTop] /= lt;
+    m_Planes[kBottom] /= lb;
+    m_Planes[kNear] /= ln;
+    m_Planes[kFar] /= lf;
+}
+
+bool
+Frustum::Contains(const BoundingSphere& sphere, const Vec3f& pos) const
+{
+    const Vec4f pos4(pos + sphere.GetCenter(), 1);
+    const float radius = sphere.GetRadius();
+
+    for(const Vec4f& plane : m_Planes)
+    {
+        if(plane.Dot(pos4) <= -radius)
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 void

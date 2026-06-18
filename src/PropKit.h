@@ -14,13 +14,42 @@
 using MeshPropertiesBuffer = SemanticGpuBuffer<ShaderInterop::MeshProperties>;
 using MaterialConstantsBuffer = SemanticGpuBuffer<ShaderInterop::MaterialConstants>;
 
-struct Mesh final
+struct MeshVertexParams
 {
-    uint32_t IndexCount{ 0 };
-    uint32_t FirstIndex{ 0 };
-    uint32_t BaseVertex{ 0 };
-    MaterialIdentifier MaterialId;
-    Box BoundingBox;
+    uint32_t IndexCount;
+    uint32_t FirstIndex;
+    uint32_t BaseVertex;
+};
+
+class Mesh
+{
+public:
+    Mesh() = delete;
+
+    Mesh(const MeshVertexParams& vertexParams,
+        const MaterialIdentifier materialId,
+        const BoundingBox& boundingBox)
+        : m_IndexCount(vertexParams.IndexCount),
+          m_FirstIndex(vertexParams.FirstIndex),
+          m_BaseVertex(vertexParams.BaseVertex),
+          m_MaterialId(materialId),
+          m_BoundingBox(boundingBox)
+    {
+    }
+
+    uint32_t GetIndexCount() const { return m_IndexCount; }
+    uint32_t GetFirstIndex() const { return m_FirstIndex; }
+    uint32_t GetBaseVertex() const { return m_BaseVertex; }
+    MaterialIdentifier GetMaterialId() const { return m_MaterialId; }
+    const BoundingBox& GetBoundingBox() const { return m_BoundingBox; }
+
+private:
+
+    uint32_t m_IndexCount;
+    uint32_t m_FirstIndex;
+    uint32_t m_BaseVertex;
+    MaterialIdentifier m_MaterialId;
+    BoundingBox m_BoundingBox;
 };
 
 class PropKit
@@ -37,7 +66,7 @@ public:
     PropKit(PropKit&& other) = default;
     PropKit& operator=(PropKit&& other) = default;
 
-    Result<ModelIdentifier> GetModeld(const std::string_view& name) const
+    Result<ModelIdentifier> GetModelId(const std::string_view& name) const
     {
         auto it = m_ModelNameToId.find(name);
         MLG_CHECKV(it != m_ModelNameToId.end(), "Model not found: {}", name);
@@ -46,6 +75,8 @@ public:
     }
 
     Result<std::span<const Mesh>> GetMeshes(const ModelIdentifier& modelId) const;
+
+    Result<BoundingSphere> GetBoundingSphere(const ModelIdentifier& modelId) const;
 
     const wgpu::BindGroup* GetMaterialBindGroup(const MaterialIdentifier& materialId) const;
 
@@ -62,6 +93,8 @@ private:
         std::string_view Name;
         MeshIdentifier FirstMeshId;
         size_t MeshCount{ 0 };
+        BoundingBox BoundingBox;
+        BoundingSphere BoundingSphere;
     };
 
     PropKit(VertexBuffer vertexBuffer,

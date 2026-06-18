@@ -420,29 +420,40 @@ PropKit::Create(
         stringStorage.insert(stringStorage.end(), modelDef.Name.begin(), modelDef.Name.end());
         stringStorage.push_back('\0');
 
-        const Model model //
-            {
-                .Name = std::string_view(&stringStorage[nameOffset], modelDef.Name.size()),
-                .FirstMeshId = MeshIdentifier(meshes.size()),
-                .MeshCount = modelDef.MeshDefs.size(),
-            };
-        models.emplace_back(model);
+        const size_t firstMeshIdx = meshes.size();
 
         for(const auto& meshDef : modelDef.MeshDefs)
         {
-            const Mesh mesh //
+            const Mesh mesh(
                 {
                     .IndexCount = narrow_cast<uint32_t>(meshDef.Indices.size()),
                     .FirstIndex = narrow_cast<uint32_t>(indices.size()),
                     .BaseVertex = narrow_cast<uint32_t>(vertices.size()),
-                    .MaterialId = uniqueMaterialMap[meshDef.MaterialDef],
-                    .BoundingBox = Box::FromVertices(meshDef.Vertices, meshDef.Indices),
-                };
+                },
+                uniqueMaterialMap[meshDef.MaterialDef],
+                BoundingBox::FromVertices(meshDef.Vertices, meshDef.Indices));
 
             vertices.insert(vertices.end(), meshDef.Vertices.begin(), meshDef.Vertices.end());
             indices.insert(indices.end(), meshDef.Indices.begin(), meshDef.Indices.end());
             meshes.emplace_back(mesh);
         }
+
+        const std::span<const Mesh> meshSpan = std::span<const Mesh>(meshes).subspan(firstMeshIdx);
+        BoundingBox boundingBox = meshSpan.front().GetBoundingBox();
+        for(const Mesh& mesh : meshSpan)
+        {
+            boundingBox = boundingBox.Combine(mesh.GetBoundingBox());
+        }
+
+        const Model model //
+            {
+                .Name = std::string_view(&stringStorage[nameOffset], modelDef.Name.size()),
+                .FirstMeshId = MeshIdentifier(firstMeshIdx),
+                .MeshCount = modelDef.MeshDefs.size(),
+                .BoundingBox = boundingBox,
+                .BoundingSphere = BoundingSphere(boundingBox)
+            };
+        models.emplace_back(model);
     }
 
     const wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
@@ -496,6 +507,18 @@ PropKit::GetMeshes(const ModelIdentifier& modelId) const
     return std::span<const Mesh>(&m_Meshes[model.FirstMeshId.GetValue()], model.MeshCount);
 }
 
+Result<BoundingSphere>
+PropKit::GetBoundingSphere(const ModelIdentifier& modelId) const
+{
+    MLG_CHECKV(modelId.IsValid() && modelId.GetValue() < m_Models.size(),
+        "Invalid model id: {}",
+        modelId.GetValue());
+
+    const Model& model = m_Models[modelId.GetValue()];
+
+    return model.BoundingSphere;
+}
+
 const wgpu::BindGroup*
 PropKit::GetMaterialBindGroup(const MaterialIdentifier& materialId) const
 {
@@ -529,7 +552,7 @@ PropKit::PropKit(VertexBuffer vertexBuffer,
 #ifndef NDEBUG
     for(const auto& mesh : m_Meshes)
     {
-        const Vec3f& halfExtents = mesh.BoundingBox.GetHalfExtents();
+        const Vec3f& halfExtents = mesh.GetBoundingBox().GetHalfExtents();
         MLG_ASSERT(halfExtents != Vec3f{0}, "Mesh has degenerate bounding box");
         MLG_ASSERT(halfExtents.x >= 0 && halfExtents.y >= 0 && halfExtents.z >= 0,
             "Mesh has invalid bounding box");

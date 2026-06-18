@@ -52,7 +52,14 @@ public:
     Scene(Scene&& other) = default;
     Scene& operator=(Scene&& other) = default;
 
+    std::span<const Level::NodeHandle> GetNodeHandles() const { return m_NodeHandles; }
+    
     std::span<const ModelInstance> GetModelInstances() const { return m_ModelInstances; }
+
+    std::span<const ShaderInterop::WorldTransform> GetWorldTransforms() const
+    {
+        return m_WorldTransforms;
+    }
 
     DrawIndirectBuffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
 
@@ -75,9 +82,9 @@ private:
         CameraParamsBuffer cameraParamsBuffer,
         wgpu::BindGroup colorShaderBindGroup,
         wgpu::BindGroup transformShaderBindGroup,
+        std::vector<Level::NodeHandle> nodeHandles,
         std::vector<ModelInstance> modelInstances,
-        std::vector<ShaderInterop::WorldTransform> worldTransforms,
-        std::vector<Level::NodeHandle> nodeHandles);
+        std::vector<ShaderInterop::WorldTransform> worldTransforms);
 
     WorldTransformBuffer m_WorldTransformBuffer;
     DrawIndirectBuffer m_DrawIndirectBuffer;
@@ -85,10 +92,10 @@ private:
     CameraParamsBuffer m_CameraParamsBuffer;
     wgpu::BindGroup m_ColorShaderBindGroup;
     wgpu::BindGroup m_TransformShaderBindGroup;
+
+    std::vector<Level::NodeHandle> m_NodeHandles;
     std::vector<ModelInstance> m_ModelInstances;
 
     // Staging buffer for world transforms.
     std::vector<ShaderInterop::WorldTransform> m_WorldTransforms;
-
-    std::vector<Level::NodeHandle> m_NodeHandles;
 };

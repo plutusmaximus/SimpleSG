@@ -27,13 +27,6 @@ ExpectVec3Eq(const Vec3f& actual, const Vec3f& expected)
 }
 } // namespace
 
-TEST(Box, DefaultConstructor_InitializesToZero)
-{
-    const Box box;
-
-    ExpectVec3Eq(box.GetHalfExtents(), Vec3f{ 0 });
-}
-
 TEST(Box, Constructor_StoresProvidedMinAndMax)
 {
     const Vec3f p0{ -3.0f, 2.0f, -7.5f };

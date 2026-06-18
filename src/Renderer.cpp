@@ -14,6 +14,7 @@
 #include "WebgpuHelper.h"
 
 #include <thread>
+#include <ranges>
 
 namespace
 {
@@ -193,25 +194,44 @@ Renderer::Render(const Camera& camera,
 
         uint64_t indirectOffset = 0;
 
-        const auto& modelInstances = scene.GetModelInstances();
+        const double modelCount = static_cast<double>(scene.GetModelInstances().size());
+
+        static PerfCounter pcTotalModels("Renderer.Render.Models.Total",
+            PerfCounter::SamplePolicy::ResetOnSample);
+        
+        pcTotalModels.Increment(modelCount);
+
         const auto& drawIndirectBuffer = scene.GetDrawIndirectBuffer();
+        const Frustum frustum(camera, cameraXForm);
 
         MaterialIdentifier lastMaterialId{};
 
-        for(const auto& modelInstance : modelInstances)
+        const auto view = std::views::zip(scene.GetModelInstances(), scene.GetWorldTransforms());
+
+        for(const auto&& [modelInstance, worldXForm] : view)
         {
-            auto meshes = propKit.GetMeshes(modelInstance.GetModelId());
+            const ModelIdentifier modelId = modelInstance.GetModelId();
+            auto meshes = propKit.GetMeshes(modelId);
             MLG_CHECKV(meshes);
 
-            if(!modelInstance.IsVisible())
+            const Vec4f& pos = worldXForm.Transform[3];
+
+            auto sphere = propKit.GetBoundingSphere(modelId);
+            MLG_CHECK(sphere);
+
+            if(!modelInstance.IsVisible() || !frustum.Contains(*sphere, Vec3f(pos.x, pos.y, pos.z)))
             {
                 indirectOffset += meshes->size() * sizeof(ShaderInterop::DrawIndirectParams);
                 continue;
             }
 
+            static PerfCounter pcCulledModels("Renderer.Render.Models.Visible",
+                PerfCounter::SamplePolicy::ResetOnSample);
+            pcCulledModels.Increment(1);
+
             for(const auto &mesh : *meshes)
             {
-                const MaterialIdentifier materialId = mesh.MaterialId;
+                const MaterialIdentifier materialId = mesh.GetMaterialId();
 
                 if(materialId != lastMaterialId)
                 {

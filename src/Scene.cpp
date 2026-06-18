@@ -126,10 +126,10 @@ BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const Pro
         {
             const ShaderInterop::DrawIndirectParams drawParams //
                 {
-                    .IndexCount = meshSrc.IndexCount,
+                    .IndexCount = meshSrc.GetIndexCount(),
                     .InstanceCount = 1,
-                    .FirstIndex = meshSrc.FirstIndex,
-                    .BaseVertex = meshSrc.BaseVertex,
+                    .FirstIndex = meshSrc.GetFirstIndex(),
+                    .BaseVertex = meshSrc.GetBaseVertex(),
                     .FirstInstance = narrow_cast<uint32_t>(drawIndirectParams.size()),
                 };
 
@@ -159,13 +159,14 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const P
 
         for(const auto& meshSrc : *meshes)
         {
-            const Sphere boundingSphere(meshSrc.BoundingBox);
+            const BoundingSphere boundingSphere(meshSrc.GetBoundingBox());
 
             const ShaderInterop::MeshProperties meshProps//
             {
                 .Radius = boundingSphere.GetRadius(),
                 .TransformIndex = transformIndex,
-                .MaterialIndex = narrow_cast<uint32_t>(meshSrc.MaterialId.GetValue()),
+                // FIXME(KB) - reconcile material ID
+                .MaterialIndex = narrow_cast<uint32_t>(meshSrc.GetMaterialId().GetValue()),
             };
 
             meshProperties.emplace_back(meshProps);
@@ -333,9 +334,9 @@ Scene::Create(const Level& level, const PropKit& propKit)
         std::move(*cameraParamsBuf),
         std::move(*colorShaderBindGroup),
         std::move(*transformShaderBindGroup),
+        std::move(nodeHandles),
         std::move(modelInstances),
-        std::move(worldTransforms),
-        std::move(nodeHandles));
+        std::move(worldTransforms));
 
     MLG_INFO("Scene created in {} ms", createTimer.GetElapsedSeconds() * 1000);
 
@@ -348,18 +349,18 @@ Scene::Scene(WorldTransformBuffer worldTransformBuffer,
     CameraParamsBuffer cameraParamsBuffer,
     wgpu::BindGroup colorShaderBindGroup,
     wgpu::BindGroup transformShaderBindGroup,
+    std::vector<Level::NodeHandle> nodeHandles,
     std::vector<ModelInstance> modelInstances,
-    std::vector<ShaderInterop::WorldTransform> worldTransforms,
-    std::vector<Level::NodeHandle> nodeHandles)
+    std::vector<ShaderInterop::WorldTransform> worldTransforms)
     : m_WorldTransformBuffer(std::move(worldTransformBuffer)),
       m_DrawIndirectBuffer(std::move(drawIndirectBuffer)),
       m_MeshPropertiesBuffer(std::move(meshPropertiesBuffer)),
       m_CameraParamsBuffer(std::move(cameraParamsBuffer)),
       m_ColorShaderBindGroup(std::move(colorShaderBindGroup)),
       m_TransformShaderBindGroup(std::move(transformShaderBindGroup)),
+      m_NodeHandles(std::move(nodeHandles)),
       m_ModelInstances(std::move(modelInstances)),
-      m_WorldTransforms(std::move(worldTransforms)),
-      m_NodeHandles(std::move(nodeHandles))
+      m_WorldTransforms(std::move(worldTransforms))
 {
 }
 
