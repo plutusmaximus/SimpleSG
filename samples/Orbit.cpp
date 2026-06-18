@@ -505,10 +505,10 @@ MainLoop()
 
     constexpr float kInitialCameraDistance = 40.0f;
 
-    Posef cameraTransform{ .T{0, 0, -kInitialCameraDistance} };
-    Camera camera;
+    Posef cameraXForm{ .T{0, 0, -kInitialCameraDistance} };
+    Camera camera((Viewport(WebgpuHelper::GetScreenBounds())));
 
-    mouseNav.SetTransform(cameraTransform);
+    mouseNav.SetTransform(cameraXForm);
 
     bool mouseCaptured = false;
 
@@ -683,27 +683,21 @@ MainLoop()
         MLG_CHECK(scene.SyncFromLevel(level));
 
         mouseNav.Update(elapsedSeconds);
-
-        const Extent screenBounds = WebgpuHelper::GetScreenBounds();
-        const Viewport viewport(0,
-            0,
-            static_cast<uint32_t>(screenBounds.Width),
-            static_cast<uint32_t>(screenBounds.Height),
-            0,
-            1);
+            
+        const Viewport viewport(WebgpuHelper::GetScreenBounds());
         camera.SetViewport(viewport);
         const Rect& scenePanelRect = devUi.GetScenePanelRect();
         if(scenePanelRect.Width > 0 && scenePanelRect.Height > 0)
         {
             camera.SetAspectRatio(scenePanelRect.GetAspectRatio());
         }
-        cameraTransform = mouseNav.GetTransform();
+        cameraXForm = mouseNav.GetTransform();
 
         MLG_CHECK(scene.SyncToGpu());
 
         MLG_CHECK(compositor.BeginFrame());
 
-        MLG_CHECK(renderer.Render(camera, cameraTransform, scene, propKit));
+        MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
         //MLG_CHECK(renderer.Composite(compositor));
 
         MLG_CHECK(imGuiRenderer.NewFrame());

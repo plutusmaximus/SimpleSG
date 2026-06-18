@@ -22,12 +22,7 @@ public:
         MLG_ASSERT(modelId.IsValid(), "ModelInstance cannot be created with invalid ModelIdentifier");
     }
 
-    ModelInstance() = default;
-    ~ModelInstance() = default;
-    ModelInstance(const ModelInstance&) = default;
-    ModelInstance& operator=(const ModelInstance&) = default;
-    ModelInstance(ModelInstance&&) = default;
-    ModelInstance& operator=(ModelInstance&&) = default;
+    ModelInstance() = delete;
 
     ModelIdentifier GetModelId() const { return m_ModelId; }
 

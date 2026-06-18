@@ -114,7 +114,6 @@ Renderer::Render(const Camera& camera,
     MLG_CHECKV(m_Initialized, "Renderer is not initialized");
 
     const Viewport& viewport = camera.GetViewport();
-    MLG_CHECKV(viewport.IsValid(), "Camera's viewport is not valid");
 
     MLG_SCOPED_TIMER("Renderer.Render");
 

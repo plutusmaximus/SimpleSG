@@ -8,19 +8,25 @@ class BoundingSphere;
 class Viewport
 {
 public:
-    Viewport() = default;
-    ~Viewport() = default;
-    Viewport(const Viewport&) = default;
-    Viewport& operator=(const Viewport&) = default;
-    Viewport(Viewport&&) = default;
-    Viewport& operator=(Viewport&&) = default;
+    Viewport() = delete;
 
-    Viewport(const uint32_t x,
-        const uint32_t y,
-        const uint32_t width,
-        const uint32_t height,
-        const float minDepth,
-        const float maxDepth);
+    struct ViewportParams
+    {
+        uint32_t x, y, width, height;
+        float minDepth, maxDepth;
+    };
+
+    explicit Viewport(const ViewportParams& params);
+
+    explicit Viewport(const Extent& bounds)
+        : Viewport({ .x = 0,
+              .y = 0,
+              .width = bounds.Width,
+              .height = bounds.Height,
+              .minDepth = 0,
+              .maxDepth = 1 })
+    {
+    }
 
     uint32_t GetWidth() const { return m_Width; }
     uint32_t GetHeight() const { return m_Height; }
@@ -32,12 +38,6 @@ public:
     float GetAspectRatio() const
     {
         return static_cast<float>(m_Width) / static_cast<float>(m_Height);
-    }
-
-    bool IsValid() const
-    {
-        return m_Width > 0 && m_Height > 0 && m_MinDepth >= 0.0f && m_MaxDepth <= 1.0f &&
-               m_MaxDepth > m_MinDepth;
     }
 
 private:
@@ -92,7 +92,11 @@ private:
 class Camera
 {
 public:
-    Camera() = default;
+    explicit Camera(const Viewport& viewport)
+        : m_Viewport(viewport)
+    {
+        SetAspectRatio(viewport.GetAspectRatio());
+    }
 
     void SetPerspective(const Radiansf fov,
         const float aspectRatio,

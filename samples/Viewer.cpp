@@ -171,10 +171,10 @@ MainLoop()
 
     auto&& [propKit, level, scene] = std::move(*loadResult);
 
-    Posef cameraTransform{ .T{0, 0, -4} };
-    Camera camera;
+    Posef cameraXForm{ .T{0, 0, -4} };
+    Camera camera((Viewport(WebgpuHelper::GetScreenBounds())));
 
-    mouseNav.SetTransform(cameraTransform);
+    mouseNav.SetTransform(cameraXForm);
 
     bool mouseCaptured = false;
 
@@ -317,21 +317,15 @@ MainLoop()
         }
 
         mouseNav.Update(elapsedSeconds);
-
-        const Extent screenBounds = WebgpuHelper::GetScreenBounds();
-        const Viewport viewport(0,
-            0,
-            static_cast<uint32_t>(screenBounds.Width),
-            static_cast<uint32_t>(screenBounds.Height),
-            0,
-            1);
+            
+        const Viewport viewport(WebgpuHelper::GetScreenBounds());
         camera.SetViewport(viewport);
         camera.SetAspectRatio(viewport.GetAspectRatio());
-        cameraTransform = mouseNav.GetTransform();
+        cameraXForm = mouseNav.GetTransform();
 
         MLG_CHECK(compositor.BeginFrame());
 
-        MLG_CHECK(renderer.Render(camera, cameraTransform, scene, propKit));
+        MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
         MLG_CHECK(renderer.Composite(compositor));
 
         MLG_CHECK(imGuiRenderer.NewFrame());

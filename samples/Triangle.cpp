@@ -129,10 +129,6 @@ Result<> MainLoop()
         WebgpuHelper::Shutdown();
     };
 
-    Posef cameraXform;
-    cameraXform.T = Vec3f{ 0,0,-4 };
-    Camera camera;
-
     PropKitDef propKitDef;
     LevelDef levelDef;
     MLG_CHECK(CreateTriangleModel(propKitDef, levelDef));
@@ -160,6 +156,9 @@ Result<> MainLoop()
 
     ImGuiRenderer imGuiRenderer;
     MLG_CHECK(imGuiRenderer.Startup());
+
+    const Posef cameraXForm{ .T{0, 0, -4} };
+    Camera camera((Viewport(WebgpuHelper::GetScreenBounds())));
 
     bool running = true;
     bool minimized = false;
@@ -236,14 +235,8 @@ Result<> MainLoop()
             {
                 continue;
             }
-
-            const Extent screenBounds = WebgpuHelper::GetScreenBounds();
-            const Viewport viewport(0,
-                0,
-                static_cast<uint32_t>(screenBounds.Width),
-                static_cast<uint32_t>(screenBounds.Height),
-                0,
-                1);
+            
+            const Viewport viewport(WebgpuHelper::GetScreenBounds());
             camera.SetViewport(viewport);
             camera.SetAspectRatio(viewport.GetAspectRatio());
 
@@ -254,7 +247,7 @@ Result<> MainLoop()
             MLG_CHECK(RenderGui());
         }
 
-        MLG_CHECK(renderer.Render(camera, cameraXform, scene, propKit));
+        MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
 
         MLG_CHECK(renderer.Composite(compositor));
 
