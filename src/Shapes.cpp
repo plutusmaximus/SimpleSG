@@ -14,18 +14,18 @@ constexpr float kPi = std::numbers::pi_v<float>;
 // NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
 
 Shapes::Geometry
-Shapes::Box(const float width, const float height, const float depth)
+Shapes::Box(const BoxParams& params)
 {
-    MLG_ASSERT(width > 0);
-    MLG_ASSERT(height > 0);
-    MLG_ASSERT(depth > 0);
+    MLG_ASSERT(params.Width > 0);
+    MLG_ASSERT(params.Height > 0);
+    MLG_ASSERT(params.Depth > 0);
 
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
 
-    const float hw = width * 0.5f;
-    const float hh = height * 0.5f;
-    const float hd = depth * 0.5f;
+    const float hw = params.Width * 0.5f;
+    const float hh = params.Height * 0.5f;
+    const float hd = params.Depth * 0.5f;
 
     // 8 vertices - one per corner
     vertices.reserve(8);
@@ -77,16 +77,16 @@ Shapes::Box(const float width, const float height, const float depth)
 }
 
 Shapes::Geometry
-Shapes::Ball(const float radius, const float requestedSmoothness)
+Shapes::Ball(const BallParams& params)
 {
-    MLG_ASSERT(radius > 0);
-    MLG_ASSERT(requestedSmoothness > 0);
+    MLG_ASSERT(params.Radius > 0);
+    MLG_ASSERT(params.Smoothness > 0);
 
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
 
     // Clamp smoothness to determine subdivision level
-    const float smoothness = std::max(1.0f, std::min(kMaxSmoothness, requestedSmoothness));
+    const float smoothness = std::max(1.0f, std::min(kMaxSmoothness, params.Smoothness));
     const size_t subdivisions = static_cast<size_t>(smoothness * 0.3f); // 0 to 3 subdivisions
 
     // Calculate exact final sizes with deduplication
@@ -202,27 +202,27 @@ Shapes::Ball(const float radius, const float requestedSmoothness)
     // Scale to desired radius
     for (auto& vertex : vertices)
     {
-        vertex.pos.x *= radius;
-        vertex.pos.y *= radius;
-        vertex.pos.z *= radius;
+        vertex.pos.x *= params.Radius;
+        vertex.pos.y *= params.Radius;
+        vertex.pos.z *= params.Radius;
     }
 
     return Geometry{ std::move(vertices), std::move(indices) };
 }
 
 Shapes::Geometry
-Shapes::Cylinder(const float height, const float radius, const float requestedSmoothness)
+Shapes::Cylinder(const CylinderParams& params)
 {
-    MLG_ASSERT(height > 0);
-    MLG_ASSERT(radius > 0);
-    MLG_ASSERT(requestedSmoothness > 0);
+    MLG_ASSERT(params.Height > 0);
+    MLG_ASSERT(params.Radius > 0);
+    MLG_ASSERT(params.Smoothness > 0);
 
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
-    const float halfHeight = height * 0.5f;
+    const float halfHeight = params.Height * 0.5f;
 
     // Clamp smoothness and calculate segments
-    const float smoothness = std::max(1.0f, std::min(kMaxSmoothness, requestedSmoothness));
+    const float smoothness = std::max(1.0f, std::min(kMaxSmoothness, params.Smoothness));
     const uint32_t segments = static_cast<uint32_t>(8 + (smoothness * 4)); // 12 to 48 segments
 
     // Reserve exact sizes
@@ -235,9 +235,9 @@ Shapes::Cylinder(const float height, const float radius, const float requestedSm
     for (uint32_t seg = 0; seg < segments; ++seg)
     {
         const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
-        const float x = radius * std::cos(theta);
-        const float z = radius * std::sin(theta);
-        const VertexNormal normal = VertexNormal(x / radius, 0.0f, z / radius).Normalize();
+        const float x = params.Radius * std::cos(theta);
+        const float z = params.Radius * std::sin(theta);
+        const VertexNormal normal = VertexNormal(x / params.Radius, 0.0f, z / params.Radius).Normalize();
 
         // Bottom vertex
         vertices.emplace_back(Vertex{ .pos{ x, -halfHeight, z }, .normal = normal, .uvs{} });
@@ -273,8 +273,8 @@ Shapes::Cylinder(const float height, const float radius, const float requestedSm
     for (uint32_t seg = 0; seg < segments; ++seg)
     {
         const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
-        const float x = radius * std::cos(theta);
-        const float z = radius * std::sin(theta);
+        const float x = params.Radius * std::cos(theta);
+        const float z = params.Radius * std::sin(theta);
         vertices.emplace_back(Vertex{ .pos{ x, -halfHeight, z }, .normal{ 0.0f, -1.0f, 0.0f }, .uvs{} });
     }
 
@@ -285,8 +285,8 @@ Shapes::Cylinder(const float height, const float radius, const float requestedSm
     for (uint32_t seg = 0; seg < segments; ++seg)
     {
         const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
-        const float x = radius * std::cos(theta);
-        const float z = radius * std::sin(theta);
+        const float x = params.Radius * std::cos(theta);
+        const float z = params.Radius * std::sin(theta);
         vertices.emplace_back(Vertex{ .pos{ x, halfHeight, z }, .normal{ 0.0f, 1.0f, 0.0f }, .uvs{} });
     }
 
@@ -318,12 +318,12 @@ Shapes::Cylinder(const float height, const float radius, const float requestedSm
 }
 
 Shapes::Geometry
-Shapes::Cone(const float radius1, const float radius2, const float requestedSmoothness)
+Shapes::Cone(const ConeParams& params)
 {
-    MLG_ASSERT(radius1 >= 0);
-    MLG_ASSERT(radius2 >= 0);
-    MLG_ASSERT(radius1 > 0 || radius2 > 0);
-    MLG_ASSERT(requestedSmoothness > 0);
+    MLG_ASSERT(params.Radius1 >= 0);
+    MLG_ASSERT(params.Radius2 >= 0);
+    MLG_ASSERT(params.Radius1 > 0 || params.Radius2 > 0);
+    MLG_ASSERT(params.Smoothness > 0);
 
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
@@ -332,13 +332,13 @@ Shapes::Cone(const float radius1, const float radius2, const float requestedSmoo
     const float halfHeight = height * 0.5f;
 
     // Clamp smoothness and calculate segments
-    const float smoothness = std::max(1.0f, std::min(kMaxSmoothness, requestedSmoothness));
+    const float smoothness = std::max(1.0f, std::min(kMaxSmoothness, params.Smoothness));
     const uint32_t segments = static_cast<uint32_t>(8 + (smoothness * 4)); // 12 to 48 segments
 
     // Calculate exact sizes
-    const bool hasBottomCap = radius1 > 0.0f;
-    const bool hasTopCap = radius2 > 0.0f;
-    const bool hasSideQuads = radius1 > 0.0f && radius2 > 0.0f;
+    const bool hasBottomCap = params.Radius1 > 0.0f;
+    const bool hasTopCap = params.Radius2 > 0.0f;
+    const bool hasSideQuads = params.Radius1 > 0.0f && params.Radius2 > 0.0f;
 
     uint32_t totalVertices = segments * 2; // Side vertices
     if (hasBottomCap) {totalVertices += segments + 1; } // Bottom cap ring + center
@@ -353,7 +353,7 @@ Shapes::Cone(const float radius1, const float radius2, const float requestedSmoo
     indices.reserve(totalIndices);
 
     // Calculate slant normal for the cone's side
-    const float dr = radius2 - radius1;
+    const float dr = params.Radius2 - params.Radius1;
     const float slantLength = std::sqrt((dr * dr) + (height * height));
     const float normalY = dr / slantLength;
     const float normalXZ = height / slantLength;
@@ -365,10 +365,10 @@ Shapes::Cone(const float radius1, const float radius2, const float requestedSmoo
         const float cosTheta = std::cos(theta);
         const float sinTheta = std::sin(theta);
 
-        const float x1 = radius1 * cosTheta;
-        const float z1 = radius1 * sinTheta;
-        const float x2 = radius2 * cosTheta;
-        const float z2 = radius2 * sinTheta;
+        const float x1 = params.Radius1 * cosTheta;
+        const float z1 = params.Radius1 * sinTheta;
+        const float x2 = params.Radius2 * cosTheta;
+        const float z2 = params.Radius2 * sinTheta;
 
         const VertexNormal normal = VertexNormal{
             cosTheta * normalXZ,
@@ -417,8 +417,8 @@ Shapes::Cone(const float radius1, const float radius2, const float requestedSmoo
         for (uint32_t seg = 0; seg < segments; ++seg)
         {
             const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
-            const float x = radius1 * std::cos(theta);
-            const float z = radius1 * std::sin(theta);
+            const float x = params.Radius1 * std::cos(theta);
+            const float z = params.Radius1 * std::sin(theta);
             vertices.emplace_back(Vertex{ .pos{ x, -halfHeight, z }, .normal{ 0.0f, -1.0f, 0.0f }, .uvs{} });
         }
 
@@ -449,8 +449,8 @@ Shapes::Cone(const float radius1, const float radius2, const float requestedSmoo
         for (uint32_t seg = 0; seg < segments; ++seg)
         {
             const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
-            const float x = radius2 * std::cos(theta);
-            const float z = radius2 * std::sin(theta);
+            const float x = params.Radius2 * std::cos(theta);
+            const float z = params.Radius2 * std::sin(theta);
             vertices.emplace_back(Vertex{ .pos{ x, halfHeight, z }, .normal{ 0.0f, 1.0f, 0.0f }, .uvs{} });
         }
 
@@ -470,17 +470,17 @@ Shapes::Cone(const float radius1, const float radius2, const float requestedSmoo
 }
 
 Shapes::Geometry
-Shapes::Torus(const float ringRadius, const float tubeRadius, const float requestedSmoothness)
+Shapes::Torus(const TorusParams& params)
 {
-    MLG_ASSERT(ringRadius >= 0);
-    MLG_ASSERT(tubeRadius > 0);
-    MLG_ASSERT(requestedSmoothness > 0);
-    
-    const float smoothness = std::max(1.0f, std::min(kMaxSmoothness, requestedSmoothness));
+    MLG_ASSERT(params.RingRadius >= 0);
+    MLG_ASSERT(params.TubeRadius > 0);
+    MLG_ASSERT(params.Smoothness > 0);
 
-    if (0 == ringRadius)
+    const float smoothness = std::max(1.0f, std::min(kMaxSmoothness, params.Smoothness));
+
+    if (0 == params.RingRadius)
     {
-        return Ball(tubeRadius, smoothness);
+        return Ball(BallParams{ .Radius = params.TubeRadius, .Smoothness = smoothness });
     }
 
     std::vector<Vertex> vertices;
@@ -531,10 +531,10 @@ Shapes::Torus(const float ringRadius, const float tubeRadius, const float reques
             const float sinPhi = sinPhiCache[j];
 
             // Vertex position (left-handed)
-            const float distanceFromCenter = ringRadius + (tubeRadius * cosPhi);
+            const float distanceFromCenter = params.RingRadius + (params.TubeRadius * cosPhi);
             const float x = distanceFromCenter * cosTheta;
             const float y = distanceFromCenter * sinTheta;
-            const float z = tubeRadius * sinPhi;
+            const float z = params.TubeRadius * sinPhi;
 
             // Unit normal (same calculation but clearer with explicit names)
             const float nx = cosTheta * cosPhi;

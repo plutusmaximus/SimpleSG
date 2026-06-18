@@ -95,7 +95,7 @@ GridHash::Add(
         {
             for(int32_t z = minZ; z <= maxZ; ++z)
             {
-                const Cell cell(bodyIndex, x, y, z);
+                const Cell cell({.BodyIndex = bodyIndex, .CellX = x, .CellY = y, .CellZ = z});
                 m_Cells.emplace_back(cell);
             }
         }

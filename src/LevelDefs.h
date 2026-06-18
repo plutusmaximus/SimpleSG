@@ -2,92 +2,16 @@
 
 #include "Color.h"
 #include "PhysicsTypes.h"
+#include "SemanticIdentifier.h"
 
 #include <optional>
 #include <string>
-#include <vector>
 #include <variant>
+#include <vector>
 
-class ModelIdentifier
-{
-public:
-    ModelIdentifier() = default;
-    explicit ModelIdentifier(const size_t value)
-        : m_Value(value)
-    {
-        MLG_ASSERT(value != kInvalidValue, "ModelIdentifier cannot be created with invalid value");
-    }
-
-    bool IsValid() const { return m_Value != kInvalidValue; }
-
-    size_t GetValue() const
-    {
-        MLG_ASSERT(IsValid(), "Cannot get value of invalid ModelIdentifier");
-        return m_Value;
-    }
-
-    auto operator<=>(const ModelIdentifier& other) const = default;
-
-private:
-
-    constexpr static size_t kInvalidValue = static_cast<size_t>(-1);
-
-    size_t m_Value{kInvalidValue};
-};
-
-class MeshIdentifier
-{
-public:
-    MeshIdentifier() = default;
-    explicit MeshIdentifier(const size_t value)
-        : m_Value(value)
-    {
-        MLG_ASSERT(value != kInvalidValue, "MeshIdentifier cannot be created with invalid value");
-    }
-
-    bool IsValid() const { return m_Value != kInvalidValue; }
-
-    size_t GetValue() const
-    {
-        MLG_ASSERT(IsValid(), "Cannot get value of invalid MeshIdentifier");
-        return m_Value;
-    }
-
-    auto operator<=>(const MeshIdentifier& other) const = default;
-
-private:
-
-    constexpr static size_t kInvalidValue = static_cast<size_t>(-1);
-
-    size_t m_Value{kInvalidValue};
-};
-
-class MaterialIdentifier
-{
-public:
-    MaterialIdentifier() = default;
-    explicit MaterialIdentifier(const size_t value)
-        : m_Value(value)
-    {
-        MLG_ASSERT(value != kInvalidValue, "MaterialIdentifier cannot be created with invalid value");
-    }
-
-    bool IsValid() const { return m_Value != kInvalidValue; }
-
-    size_t GetValue() const
-    {
-        MLG_ASSERT(IsValid(), "Cannot get value of invalid MaterialIdentifier");
-        return m_Value;
-    }
-
-    auto operator<=>(const MaterialIdentifier& other) const = default;
-
-private:
-
-    constexpr static size_t kInvalidValue = static_cast<size_t>(-1);
-
-    size_t m_Value{kInvalidValue};
-};
+using ModelIdentifier = SemanticIdentifier<struct ModelIdTag>;
+using MeshIdentifier = SemanticIdentifier<struct MeshIdTag>;
+using MaterialIdentifier = SemanticIdentifier<struct MaterialIdTag>;
 
 struct MaterialDef final
 {

@@ -16,13 +16,13 @@ class ModelInstance
 {
 public:
 
+    ModelInstance() = delete;
+
     explicit ModelInstance(const ModelIdentifier modelId)
         : m_ModelId(modelId)
     {
         MLG_ASSERT(modelId.IsValid(), "ModelInstance cannot be created with invalid ModelIdentifier");
     }
-
-    ModelInstance() = delete;
 
     ModelIdentifier GetModelId() const { return m_ModelId; }
 

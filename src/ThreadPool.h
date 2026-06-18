@@ -8,6 +8,13 @@
 class ThreadPool final
 {
 public:
+    ThreadPool() = delete;
+    ~ThreadPool() = delete;
+    ThreadPool(const ThreadPool&) = delete;
+    ThreadPool& operator=(const ThreadPool&) = delete;
+    ThreadPool(ThreadPool&&) = delete;
+    ThreadPool& operator=(ThreadPool&&) = delete;
+    
     static Result<> Startup();
 
     static void Shutdown();

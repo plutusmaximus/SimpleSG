@@ -244,10 +244,10 @@ Level::GetChildren(const NodeHandle& handle) const
     }
 
     MLG_CHECKV(IsInLevel(node->FirstChild), "Invalid FirstChild handle in node {}", node->Name);
-    MLG_CHECKV(node->FirstChild.m_NodeIndex + node->ChildCount <= m_Nodes.size(),
+    MLG_CHECKV(node->FirstChild.GetValue() + node->ChildCount <= m_Nodes.size(),
         "Invalid ChildCount in node {}", node->Name);
 
-    return std::span(m_NodeHandles).subspan(node->FirstChild.m_NodeIndex, node->ChildCount);
+    return std::span(m_NodeHandles).subspan(node->FirstChild.GetValue(), node->ChildCount);
 }
 
 Result<Level::NodeHandle>
@@ -264,7 +264,7 @@ Level::GetNode(const NodeHandle& handle) const
         return nullptr;
     }
 
-    return &m_Nodes[handle.m_NodeIndex];
+    return &m_Nodes[handle.GetValue()];
 }
 
 Result<>
@@ -349,7 +349,7 @@ Level::IsVisible(const NodeHandle& handle) const
 bool
 Level::IsInLevel(const NodeHandle& handle) const
 {
-    return handle.m_NodeIndex < m_Nodes.size();
+    return handle.GetValue() < m_Nodes.size();
 }
 
 Level::Node*
@@ -360,7 +360,7 @@ Level::GetNode(const NodeHandle& handle)
         return nullptr;
     }
 
-    return &m_Nodes[handle.m_NodeIndex];
+    return &m_Nodes[handle.GetValue()];
 }
 
 void

@@ -8,6 +8,7 @@
 class BodyPair
 {
 public:
+    BodyPair() = delete;
 
     BodyPair(const size_t indexA, const size_t indexB)
     {
@@ -46,14 +47,14 @@ public:
     // Arbitrary limit to prevent excessive cell counts for large bodies.
     static constexpr size_t kMaxCellsPerBody = 1000;
 
-    explicit GridHash(const size_t cellSize);
-
     GridHash() = delete;
     ~GridHash() = default;
     GridHash(const GridHash&) = delete;
     GridHash& operator=(const GridHash&) = delete;
     GridHash(GridHash&&) = default;
     GridHash& operator=(GridHash&&) = default;
+
+    explicit GridHash(const size_t cellSize);
 
     /// @brief  Clears the grid hash, removing all bodies and potential collisions.
     void Clear();
@@ -86,9 +87,17 @@ private:
     class Cell
     {
     public:
-        Cell(const size_t bodyIndex, const int32_t cellX, const int32_t cellY, const int32_t cellZ)
-            : Coords{cellX, cellY, cellZ},
-              BodyIndex(bodyIndex)
+        struct CellParams
+        {
+            size_t BodyIndex;
+            int32_t CellX;
+            int32_t CellY;
+            int32_t CellZ;
+        };
+
+        explicit Cell(const CellParams& params)
+            : Coords{params.CellX, params.CellY, params.CellZ},
+              BodyIndex(params.BodyIndex)
         {
         }
 

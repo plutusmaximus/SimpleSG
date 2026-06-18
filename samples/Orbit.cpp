@@ -80,9 +80,9 @@ Shutdown()
 Result<std::tuple<PropKit, Level>>
 Load(TextureCache& textureCache)
 {
-    constexpr float ballRadius = 1.0f;
+    constexpr float kBallRadius = 1.0f;
 
-    auto shape = Shapes::Ball(ballRadius);
+    auto shape = Shapes::Ball({ .Radius = kBallRadius });
 
     const PropKitDef propKitDef //
         {

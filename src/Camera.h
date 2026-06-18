@@ -92,6 +92,8 @@ private:
 class Camera
 {
 public:
+    Camera() = delete;
+    
     explicit Camera(const Viewport& viewport)
         : m_Viewport(viewport)
     {

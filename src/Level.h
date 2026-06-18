@@ -2,6 +2,7 @@
 
 #include "LevelDefs.h"
 #include "Result.h"
+#include "SemanticIdentifier.h"
 
 #include <optional>
 #include <span>
@@ -49,9 +50,7 @@ public:
         std::optional<Collider> Collider;
     };
 
-    struct Node;
-
-    class NodeHandle
+    class NodeHandle : public SemanticIdentifier<struct NodeHandleTag>
     {
     public:
 
@@ -62,26 +61,18 @@ public:
         NodeHandle(NodeHandle&&) = default;
         NodeHandle& operator=(NodeHandle&&) = default;
 
-        bool IsValid() const { return m_NodeIndex != INVALID_INDEX; }
-
-        auto operator<=>(const NodeHandle& that) const = default;
-
-        explicit operator bool() const
-        {
-            return IsValid();
-        }
+        using SemanticIdentifier::IsValid;
+        using SemanticIdentifier::operator bool;
+        using SemanticIdentifier::GetValue;
+        using SemanticIdentifier::operator<=>;
 
     private:
         friend Level;
 
-        static constexpr size_t INVALID_INDEX = static_cast<size_t>(-1);
-
         explicit NodeHandle(const size_t nodeIndex)
-            : m_NodeIndex(nodeIndex)
+            : SemanticIdentifier(nodeIndex)
         {
         }
-
-        size_t m_NodeIndex{INVALID_INDEX};
     };
 
     struct Node

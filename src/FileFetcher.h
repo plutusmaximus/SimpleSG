@@ -6,9 +6,16 @@
 #include <string>
 #include <vector>
 
-class FileFetcher
+class FileFetcher final
 {
 public:
+
+    FileFetcher() = delete;
+    ~FileFetcher() = delete;
+    FileFetcher(const FileFetcher&) = delete;
+    FileFetcher& operator=(const FileFetcher&) = delete;
+    FileFetcher(FileFetcher&&) = delete;
+    FileFetcher& operator=(FileFetcher&&) = delete;
 
     enum class RequestStatus : uint8_t
     {

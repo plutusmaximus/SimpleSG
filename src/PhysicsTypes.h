@@ -66,8 +66,8 @@ public:
         : m_Mass(mass)
     {
     }
+    
     Mass GetMass() const { return m_Mass; }
-    float GetInvMass() const { return m_Mass.InvValue(); }
 
 private:
     Mass m_Mass;

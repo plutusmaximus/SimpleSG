@@ -139,6 +139,12 @@ inline constexpr bool is_gpu_buffer_type_v = is_gpu_buffer_type<T>::value;
 class WebgpuHelper final
 {
 public:
+    WebgpuHelper() = delete;
+    ~WebgpuHelper() = delete;
+    WebgpuHelper(const WebgpuHelper&) = delete;
+    WebgpuHelper& operator=(const WebgpuHelper&) = delete;
+    WebgpuHelper(WebgpuHelper&&) = delete;
+    WebgpuHelper& operator=(WebgpuHelper&&) = delete;
 
     static Result<> Startup(const char* appName);
 

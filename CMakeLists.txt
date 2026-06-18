@@ -346,6 +346,7 @@ set(SSG_HEADERS
   src/Renderer.h
   src/Result.h
   src/Scene.h
+  src/SemanticIdentifier.h
   src/scope_exit.h
   src/shaders/ShaderInterop.h
   src/Shapes.h

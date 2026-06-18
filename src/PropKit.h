@@ -14,19 +14,19 @@
 using MeshPropertiesBuffer = SemanticGpuBuffer<ShaderInterop::MeshProperties>;
 using MaterialConstantsBuffer = SemanticGpuBuffer<ShaderInterop::MaterialConstants>;
 
-struct MeshVertexParams
-{
-    uint32_t IndexCount;
-    uint32_t FirstIndex;
-    uint32_t BaseVertex;
-};
-
 class Mesh
 {
 public:
     Mesh() = delete;
 
-    Mesh(const MeshVertexParams& vertexParams,
+    struct VertexParams
+    {
+        uint32_t IndexCount;
+        uint32_t FirstIndex;
+        uint32_t BaseVertex;
+    };
+
+    Mesh(const VertexParams& vertexParams,
         const MaterialIdentifier materialId,
         const BoundingBox& boundingBox)
         : m_IndexCount(vertexParams.IndexCount),
