@@ -407,18 +407,15 @@ PropKit::Create(
     std::vector<VertexIndex> indices;
     std::vector<Mesh> meshes;
     std::vector<Model> models;
-    std::vector<char> stringStorage;
     vertices.reserve(vertexCount);
     indices.reserve(indexCount);
     meshes.reserve(meshCount);
     models.reserve(propKitDef.ModelDefs.size());
-    stringStorage.reserve(totalStringSize);
+    StringArena stringArena(totalStringSize);
+
     for(const auto& modelDef : propKitDef.ModelDefs)
     {
-        const size_t nameOffset = stringStorage.size();
-
-        stringStorage.insert(stringStorage.end(), modelDef.Name.begin(), modelDef.Name.end());
-        stringStorage.push_back('\0');
+        const StringHandle modelName = stringArena.NewString(modelDef.Name);
 
         const size_t firstMeshIdx = meshes.size();
 
@@ -445,14 +442,11 @@ PropKit::Create(
             boundingBox += mesh.GetBoundingBox();
         }
 
-        const Model model //
-            {
-                .Name = std::string_view(&stringStorage[nameOffset], modelDef.Name.size()),
-                .FirstMeshId = MeshIdentifier(firstMeshIdx),
-                .MeshCount = modelDef.MeshDefs.size(),
-                .BoundingBox = boundingBox,
-                .BoundingSphere = BoundingSphere(boundingBox)
-            };
+        const Model model(modelName,
+            MeshIdentifier(firstMeshIdx),
+            modelDef.MeshDefs.size(),
+            boundingBox,
+            BoundingSphere(boundingBox));
         models.emplace_back(model);
     }
 
@@ -482,7 +476,7 @@ PropKit::Create(
         std::move(models),
         std::move(*materialConstantsBuffer),
         std::move(materialBindGroups),
-        std::move(stringStorage));
+        std::move(stringArena));
 
     MLG_INFO("PropKit created in {} ms", createTimer.GetElapsedSeconds() * 1000);
 
@@ -498,13 +492,13 @@ PropKit::GetMeshes(const ModelIdentifier& modelId) const
 
     const Model& model = m_Models[modelId.GetValue()];
 
-    MLG_CHECKV(model.FirstMeshId.IsValid() &&
-                   model.FirstMeshId.GetValue() + model.MeshCount <= m_Meshes.size(),
+    MLG_CHECKV(model.GetFirstMeshId().IsValid() &&
+                   model.GetFirstMeshId().GetValue() + model.GetMeshCount() <= m_Meshes.size(),
         "Model has invalid mesh range: {}, {}",
-        model.FirstMeshId.GetValue(),
-        model.MeshCount);
+        model.GetFirstMeshId().GetValue(),
+        model.GetMeshCount());
 
-    return std::span<const Mesh>(&m_Meshes[model.FirstMeshId.GetValue()], model.MeshCount);
+    return std::span<const Mesh>(&m_Meshes[model.GetFirstMeshId().GetValue()], model.GetMeshCount());
 }
 
 Result<BoundingSphere>
@@ -516,7 +510,7 @@ PropKit::GetBoundingSphere(const ModelIdentifier& modelId) const
 
     const Model& model = m_Models[modelId.GetValue()];
 
-    return model.BoundingSphere;
+    return model.GetBoundingSphere();
 }
 
 const wgpu::BindGroup*
@@ -540,14 +534,14 @@ PropKit::PropKit(VertexBuffer vertexBuffer,
     std::vector<Model> models,
     MaterialConstantsBuffer materialConstantsBuffer,
     std::vector<wgpu::BindGroup> materialBindGroups,
-    std::vector<char> stringStorage)
+    StringArena stringArena)
     : m_VertexBuffer(std::move(vertexBuffer)),
       m_IndexBuffer(std::move(indexBuffer)),
       m_Meshes(std::move(meshes)),
       m_Models(std::move(models)),
       m_MaterialConstantsBuffer(std::move(materialConstantsBuffer)),
       m_MaterialBindGroups(std::move(materialBindGroups)),
-      m_StringStorage(std::move(stringStorage))
+      m_StringArena(std::move(stringArena))
 {
 #ifndef NDEBUG
     for(const auto& mesh : m_Meshes)
@@ -563,7 +557,7 @@ PropKit::PropKit(VertexBuffer vertexBuffer,
     for(size_t i = 0; i < m_Models.size(); ++i)
     {
         const Model& model = m_Models[i];
-        MLG_ASSERT(!m_ModelNameToId.contains(model.Name), "Duplicate model name: {}", model.Name);
-        m_ModelNameToId[model.Name] = ModelIdentifier(i);
+        MLG_ASSERT(!m_ModelNameToId.contains(model.GetName()), "Duplicate model name: {}", model.GetName());
+        m_ModelNameToId[model.GetName()] = ModelIdentifier(i);
     }
 }

@@ -316,6 +316,7 @@ set(SSG_SOURCES
   src/Renderer.cpp
   src/Scene.cpp
   src/Shapes.cpp
+  src/StringArena.cpp
   src/stb_image.cpp
   src/TextureCache.cpp
   src/ThreadPool.cpp
@@ -346,10 +347,11 @@ set(SSG_HEADERS
   src/Renderer.h
   src/Result.h
   src/Scene.h
-  src/SemanticIdentifier.h
   src/scope_exit.h
+  src/SemanticIdentifier.h
   src/shaders/ShaderInterop.h
   src/Shapes.h
+  src/StringArena.h
   src/CliState.h
   src/TextureCache.h
   src/ThreadPool.h

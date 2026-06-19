@@ -36,9 +36,9 @@ constexpr float kGravitationalConstant = 0.1f;//6.674e-11f;//(m^3 kg^-1 s^-2)
 constexpr bool kApplyGravityMultithreaded = true;
 struct PerfCounterGlobals
 {
-    static inline PerfCounter TotalPE{"Energy.PE"};    // Potential Energy
-    static inline PerfCounter TotalKE{"Energy.KE"};    // Kinetic Energy
-    static inline PerfCounter TotalEnergy{"Energy.Total"};
+    static inline PerfCounter TotalPE{ { .Name = "Energy.PE" } };    // Potential Energy
+    static inline PerfCounter TotalKE{ { .Name = "Energy.KE" } };    // Kinetic Energy
+    static inline PerfCounter TotalEnergy{ { .Name = "Energy.Total" } };
 };
 
 Result<>

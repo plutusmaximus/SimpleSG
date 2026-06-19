@@ -3,6 +3,7 @@
 #include "Bounds.h"
 #include "LevelDefs.h"
 #include "ShaderInterop.h"
+#include "StringArena.h"
 #include "WebgpuHelper.h"
 
 #include <filesystem>
@@ -87,14 +88,34 @@ public:
     IndexBuffer GetIndexBuffer() const { return m_IndexBuffer; }
 
 private:
-
-    struct Model
+    class Model
     {
-        std::string_view Name;
-        MeshIdentifier FirstMeshId;
-        size_t MeshCount{ 0 };
-        BoundingBox BoundingBox;
-        BoundingSphere BoundingSphere;
+    public:
+        Model(const StringHandle& name,
+            const MeshIdentifier& firstMeshId,
+            const size_t meshCount,
+            const BoundingBox& boundingBox,
+            const BoundingSphere& boundingSphere)
+            : m_Name(name),
+              m_FirstMeshId(firstMeshId),
+              m_MeshCount(meshCount),
+              m_BoundingBox(boundingBox),
+              m_BoundingSphere(boundingSphere)
+        {
+        }
+
+        const StringHandle& GetName() const { return m_Name; }
+        const MeshIdentifier& GetFirstMeshId() const { return m_FirstMeshId; }
+        size_t GetMeshCount() const { return m_MeshCount; }
+        const BoundingBox& GetBoundingBox() const { return m_BoundingBox; }
+        const BoundingSphere& GetBoundingSphere() const { return m_BoundingSphere; }
+
+    private:
+        StringHandle m_Name;
+        MeshIdentifier m_FirstMeshId;
+        size_t m_MeshCount{ 0 };
+        BoundingBox m_BoundingBox;
+        BoundingSphere m_BoundingSphere;
     };
 
     PropKit(VertexBuffer vertexBuffer,
@@ -103,7 +124,7 @@ private:
         std::vector<Model> models,
         MaterialConstantsBuffer materialConstantsBuffer,
         std::vector<wgpu::BindGroup> materialBindGroups,
-        std::vector<char> stringStorage);
+        StringArena stringArena);
 
     VertexBuffer m_VertexBuffer;
     IndexBuffer m_IndexBuffer;
@@ -112,7 +133,5 @@ private:
     MaterialConstantsBuffer m_MaterialConstantsBuffer;
     std::unordered_map<std::string_view, ModelIdentifier> m_ModelNameToId;
     std::vector<wgpu::BindGroup> m_MaterialBindGroups;
-    // Storage for model names to ensure they remain valid for string_views
-    // and to reduce memory fragmentation by storing all names contiguously.
-    std::vector<char> m_StringStorage;
+    StringArena m_StringArena;
 };

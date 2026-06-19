@@ -36,7 +36,7 @@ bool Log(AssertHelper::AssertData& assertData,
     const char* function,
     const char* fileName,
     const int lineNum,
-    const std::string& userMsg);
+    const std::string_view& userMsg);
 
 /// @brief Log an assertion failure.
 bool Log(AssertHelper::AssertData& assertData,

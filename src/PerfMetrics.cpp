@@ -9,36 +9,41 @@
 
 namespace
 {
-std::mutex* MakeMutex()
-{
-    std::mutex* p = new std::mutex; // NOLINT(cppcoreguidelines-owning-memory)
-
-    // We intentionally leak this, so hide it from leak sanitizers
-    __lsan_ignore_object(p);
-
-    return p;
-}
-
 std::mutex& GetMutex()
 {
-    static std::mutex* mutex = MakeMutex();
+    static std::mutex* mutex = new std::mutex; // NOLINT(cppcoreguidelines-owning-memory)
+
+    // We intentionally leak this, so hide it from leak sanitizers
+    __lsan_ignore_object(mutex);
+    
     return *mutex;
 }
 
-std::string&& ValidateName(std::string&& name)
+StringArena& GetStringArena()
+{
+    constexpr size_t kStringArenaChunkSize = 1024uz * 4uz;
+    static StringArena* arena = new StringArena(kStringArenaChunkSize); // NOLINT(cppcoreguidelines-owning-memory)
+
+    // We intentionally leak this, so hide it from leak sanitizers
+    __lsan_ignore_object(arena);
+
+    return *arena;
+}
+
+StringHandle ValidateName(const std::string_view& name)
 {
     MLG_ASSERT(!name.empty(), "Empty perf counter name");
 
-    return std::move(name);
+    return GetStringArena().NewString(name);
 }
 } // namespace
 
 inlist<PerfCounter, &PerfCounter::m_ListNode> PerfMetrics::m_Counters;
 
 PerfAggregator::PerfAggregator(const PerfCounter* counter)
-    : m_Counter(counter)
+    : m_Counter(counter),
+    m_Stats(counter->GetName())
 {
-    m_Stats.m_Name = counter->GetName();
 }
 
 void
@@ -53,27 +58,11 @@ PerfAggregator::Sample()
     m_Stats.m_EMA = ((m_Stats.m_EMA * (kSampleWindowSize - 1)) + curValue) * invSampleWindowSize;
 }
 
-PerfCounter::PerfCounter(std::string name)
-    : PerfCounter(std::move(name), PerfCounter::SamplePolicy::Accumulate, PerfCounterDefaultCategory::Id)
-{
-}
-
-PerfCounter::PerfCounter(std::string name, const PerfCounterCategoryId categoryId)
-    : PerfCounter(std::move(name), PerfCounter::SamplePolicy::Accumulate, categoryId)
-{
-}
-
-PerfCounter::PerfCounter(std::string name, const SamplePolicy samplePolicy)
-    : PerfCounter(std::move(name), samplePolicy, PerfCounterDefaultCategory::Id)
-{
-}
-
-PerfCounter::PerfCounter(
-    std::string name, const SamplePolicy samplePolicy, const PerfCounterCategoryId categoryId)
-    : m_Name(std::move(ValidateName(std::move(name)))),
+PerfCounter::PerfCounter(const PerfCounterParams& params)
+    : m_Name(ValidateName(params.Name)),
       m_Aggregator(this),
-      m_SamplePolicy(samplePolicy),
-      m_CategoryId(categoryId)
+      m_SamplePolicy(params.Policy),
+      m_CategoryId(params.CategoryId)
 {
     const std::lock_guard lock(GetMutex());
     PerfMetrics::m_Counters.push_back(this);

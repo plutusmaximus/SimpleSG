@@ -2,11 +2,11 @@
 
 #include "inlist.h"
 #include "scope_exit.h"
+#include "StringArena.h"
 #include "Timer.h"
 
 #include <atomic>
 #include <span>
-#include <string>
 #include <string_view>
 
 class PerfMetrics;
@@ -57,7 +57,9 @@ class PerfStats
 {
 public:
 
-    std::string_view GetName() const { return m_Name; }
+    PerfStats() = default;
+
+    StringHandle GetName() const { return m_Name; }
 
     double GetLastValue() const { return m_LastValue; }
     double GetMinValue() const { return m_MinValue; }
@@ -68,7 +70,12 @@ private:
 
     friend PerfAggregator;
 
-    std::string_view m_Name;
+    explicit PerfStats(const StringHandle& name)
+        : m_Name(name)
+    {
+    }
+
+    StringHandle m_Name;
     double m_LastValue{ 0 };
     double m_MinValue{ std::numeric_limits<double>::max() };
     double m_MaxValue{ 0 };
@@ -82,6 +89,8 @@ public:
 
     static constexpr uint64_t kSampleWindowSize = 16;
     static constexpr double invSampleWindowSize = 1.0 / static_cast<double>(kSampleWindowSize);
+
+    PerfAggregator() = delete;
 
     explicit PerfAggregator(const PerfCounter* counter);
 
@@ -107,14 +116,14 @@ public:
         ResetOnSample, // Counter value will be reset to 0 on each Sample() call.
     };
 
-    explicit PerfCounter(std::string name);
+    struct PerfCounterParams
+    {
+        std::string_view Name;
+        SamplePolicy Policy{ SamplePolicy::Accumulate };
+        PerfCounterCategoryId CategoryId{ PerfCounterDefaultCategory::Id };
+    };
 
-    PerfCounter(std::string name, const PerfCounterCategoryId categoryId);
-
-    PerfCounter(std::string name, const SamplePolicy samplePolicy);
-
-    PerfCounter(
-        std::string name, const SamplePolicy samplePolicy, const PerfCounterCategoryId categoryId);
+    explicit PerfCounter(const PerfCounterParams& params);
 
     ~PerfCounter();
 
@@ -130,7 +139,7 @@ public:
 
     void Set(const double value) { m_Value.store(value, std::memory_order_relaxed); }
 
-    const std::string& GetName() const { return m_Name; }
+    const StringHandle& GetName() const { return m_Name; }
 
     double GetValue() const { return m_Value.load(std::memory_order_relaxed); }
 
@@ -143,7 +152,7 @@ private:
 
     inlist_node<PerfCounter> m_ListNode;
 
-    std::string m_Name;
+    StringHandle m_Name;
     std::atomic<double> m_Value{ 0 };
     PerfAggregator m_Aggregator;
     SamplePolicy m_SamplePolicy{ SamplePolicy::Accumulate };
@@ -229,7 +238,7 @@ using PerfTimerCategory = PerfCounterCategory<PerfTimerCategoryTag>;
 ///     // Code to be timed goes here.
 /// }
 #define MLG_SCOPED_TIMER(name)\
-    static PerfCounter MLG_PERF_TIMER_CONCAT(counter, __LINE__)(name, PerfCounter::SamplePolicy::ResetOnSample, PerfTimerCategory::Id);\
+    static PerfCounter MLG_PERF_TIMER_CONCAT(counter, __LINE__)({.Name = (name), .Policy = PerfCounter::SamplePolicy::ResetOnSample, .CategoryId = PerfTimerCategory::Id});\
     PerfTimer MLG_PERF_TIMER_CONCAT(timer, __LINE__)(MLG_PERF_TIMER_CONCAT(counter, __LINE__));\
     MLG_PERF_TIMER_CONCAT(timer, __LINE__).Start();\
     auto MLG_PERF_TIMER_CONCAT(scope_timer, __LINE__) = scope_exit([&](){MLG_PERF_TIMER_CONCAT(timer, __LINE__).Stop();});

@@ -195,8 +195,8 @@ Renderer::Render(const Camera& camera,
 
         const double modelCount = static_cast<double>(scene.GetModelInstances().size());
 
-        static PerfCounter pcTotalModels("Renderer.Render.Models.Total",
-            PerfCounter::SamplePolicy::ResetOnSample);
+        static PerfCounter pcTotalModels({ .Name = "Renderer.Render.Models.Total",
+            .Policy = PerfCounter::SamplePolicy::ResetOnSample });
         
         pcTotalModels.Increment(modelCount);
 
@@ -225,8 +225,8 @@ Renderer::Render(const Camera& camera,
                 continue;
             }
 
-            static PerfCounter pcCulledModels("Renderer.Render.Models.Visible",
-                PerfCounter::SamplePolicy::ResetOnSample);
+            static PerfCounter pcCulledModels({ .Name = "Renderer.Render.Models.Visible",
+                .Policy = PerfCounter::SamplePolicy::ResetOnSample });
             pcCulledModels.Increment(1);
 
             for(const auto &mesh : *meshes)

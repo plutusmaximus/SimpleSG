@@ -13,7 +13,7 @@ namespace AssertHelper
 namespace
 {
 void
-Log(const std::string& message)
+Log(const std::string_view& message)
 {
 #ifdef __clang__
     // No stack trace support in clang, so just log the message.
@@ -33,7 +33,7 @@ Log(AssertHelper::AssertData& assertData,
     const char* function,
     const char* fileName,
     const int lineNum,
-    const std::string& userMsg)
+    const std::string_view& userMsg)
 {
     const std::string message =
         std::format("{}({}): {} - {}", fileName, lineNum, expression, userMsg);
