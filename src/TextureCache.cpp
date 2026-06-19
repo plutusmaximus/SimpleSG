@@ -61,6 +61,7 @@ Result<>
 TextureCache::Shutdown()
 {
     Clear();
+    m_StringArena = StringArena{kStringArenaChunkSize};
     m_DefaultTexture = {};
     m_DefaultSampler = {};
     m_Initialized = false;

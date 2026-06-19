@@ -36,8 +36,8 @@ public:
 
         Request(const Request&) = delete;
         Request& operator=(const Request&) = delete;
-        Request(Request&& other) = delete;
-        Request& operator=(Request&& other) = delete;
+        Request(Request&& other) = default;
+        Request& operator=(Request&& other) = default;
 
         ~Request()
         {

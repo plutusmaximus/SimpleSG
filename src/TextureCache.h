@@ -1,5 +1,6 @@
 #pragma once
 
+#include "StringArena.h"
 #include "WebgpuHelper.h"
 
 class TextureCache
@@ -20,17 +21,18 @@ public:
         Shutdown();
     }
 
-    bool Contains(const std::string& uri) const
+    bool Contains(const std::string_view& uri) const
     {
         return m_Textures.contains(uri);
     }
 
-    void AddOrReplace(const std::string& uri, Texture&& texture)
+    void AddOrReplace(const std::string_view& uri, Texture&& texture)
     {
-        m_Textures.emplace(uri, std::move(texture));
+        const StringHandle uriHandle = m_StringArena.NewString(uri);
+        m_Textures.emplace(uriHandle, std::move(texture));
     }
 
-    const Texture& Get(const std::string& uri) const
+    const Texture& Get(const std::string_view& uri) const
     {
         auto it = m_Textures.find(uri);
         if(m_Textures.end() == it)
@@ -51,7 +53,11 @@ public:
 
 private:
 
-    std::unordered_map<std::string, Texture> m_Textures;
+    static constexpr size_t kStringArenaChunkSize = 1024uz * 10uz;
+
+    StringArena m_StringArena{kStringArenaChunkSize};
+
+    std::unordered_map<std::string_view, Texture> m_Textures;
 
     wgpu::Sampler m_DefaultSampler;
     Result<Texture> m_DefaultTexture;
