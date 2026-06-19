@@ -188,6 +188,8 @@ Level::Level(std::vector<Node>&& nodes, std::vector<char>&& stringStorage)
     : m_Nodes(std::move(nodes)),
       m_StringStorage(std::move(stringStorage))
 {
+    size_t rootNodeCount = 0;
+
     // Count root nodes.
     // Nodes are stored in breadth-first order, so all root nodes will be at the beginning
     // of the vector.
@@ -199,7 +201,7 @@ Level::Level(std::vector<Node>&& nodes, std::vector<char>&& stringStorage)
             break;
         }
 
-        ++m_RootNodeCount;
+        ++rootNodeCount;
     }
 
     // Populate the node handles array and calculate world transforms.
@@ -224,12 +226,8 @@ Level::Level(std::vector<Node>&& nodes, std::vector<char>&& stringStorage)
             node.WorldTransform = node.LocalTransform.ToMatrix();
         }
     }
-}
 
-std::span<const Level::NodeHandle>
-Level::GetRoots() const
-{
-    return std::span(m_NodeHandles).subspan(0, m_RootNodeCount);
+    m_RootNodes = std::span(m_NodeHandles).subspan(0, rootNodeCount);
 }
 
 Result<std::span<const Level::NodeHandle>>

@@ -96,22 +96,24 @@ public:
     Level(Level&& other) = default;
     Level& operator=(Level&& other) = default;
 
-    // Retuns a span of all nodes in the level, in breadth-first order.
+    /// @brief Returns all nodes in the level, in breadth-first order.
     std::span<const NodeHandle> GetAllHandles() const { return m_NodeHandles; }
 
-    std::span<const NodeHandle> GetRoots() const;
+    /// @brief Returns the root nodes of the level. Root nodes are nodes that have no parent.
+    std::span<const NodeHandle> GetRoots() const { return m_RootNodes; }
 
+    /// @brief Returns the children of the specified node.
     Result<std::span<const NodeHandle>> GetChildren(const NodeHandle& handle) const;
 
-    // Fetches a node by its path from the root, e.g. {"RootNode", "ChildNode", "GrandchildNode"}.
-    // the path argument can take the following forms:
-    // - const char* nodePath[] {"RootNode", "ChildNode", "GrandchildNode"}; GetNode(nodePath);
-    // - std::array<const char*, 2> nodePath{"RootNode", "ChildNode", "GrandchildNode"}; GetNode(nodePath);
-    // - const std::string nodePath[] { "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
-    // - std::array<std::string, 2> nodePath{ "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
-    // - std::vector<std::string> nodePath{ "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
-    // - std::vector<const char*> nodePath{ "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
-    // - and any other contiguous range of strings or string views that can be converted to std::string_view
+    /// @brief Fetches a node by its path from the root, e.g. {"RootNode", "ChildNode", "GrandchildNode"}.
+    /// the path argument can take the following forms:
+    /// - const char* nodePath[] {"RootNode", "ChildNode", "GrandchildNode"}; GetNode(nodePath);
+    /// - std::array<const char*, 2> nodePath{"RootNode", "ChildNode", "GrandchildNode"}; GetNode(nodePath);
+    /// - const std::string nodePath[] { "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
+    /// - std::array<std::string, 2> nodePath{ "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
+    /// - std::vector<std::string> nodePath{ "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
+    /// - std::vector<const char*> nodePath{ "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
+    /// - and any other contiguous range of strings or string views that can be converted to std::string_view
     template <std::ranges::sized_range R>
     requires std::convertible_to<std::ranges::range_reference_t<R>, std::string_view>
     Result<NodeHandle> GetNodeHandle(const R& path) const
@@ -201,7 +203,7 @@ private:
 
     std::vector<Node> m_Nodes;
     std::vector<NodeHandle> m_NodeHandles;
-    size_t m_RootNodeCount{ 0 };
+    std::span<NodeHandle> m_RootNodes;
     // Storage for node names to ensure they remain valid for string_views
     // and to reduce memory fragmentation by storing all names contiguously.
     std::vector<char> m_StringStorage;
