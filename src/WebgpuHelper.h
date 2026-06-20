@@ -161,8 +161,6 @@ public:
     static Result<Texture> CreateTexture(
         const unsigned width, const unsigned height, const std::string& name);
 
-    static Result<wgpu::Sampler> GetDefaultSampler();
-
     static Result<VertexBuffer> CreateVertexBuffer(const size_t count,
         const std::string_view& name);
 

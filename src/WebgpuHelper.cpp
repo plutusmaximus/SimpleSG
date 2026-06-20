@@ -88,7 +88,6 @@ public:
     wgpu::Device Device{nullptr};
     wgpu::Surface Surface{nullptr};
     wgpu::TextureFormat SurfaceFormat{wgpu::TextureFormat::Undefined};
-    wgpu::Sampler DefaultSampler{nullptr};
 
     std::array<wgpu::BindGroupLayout, 2> ColorPipelineLayouts{};
     std::array<wgpu::BindGroupLayout, 1> TransformPipelineLayouts{};
@@ -642,8 +641,7 @@ WebgpuHelper::Startup(const char* appName)
             .Adapter = std::move(*adapter),
             .Device = std::move(*device),
             .Surface = std::move(*surface),
-            .SurfaceFormat = *surfaceFormat,
-            .DefaultSampler{},
+            .SurfaceFormat = *surfaceFormat
         };
 
     auto* contextMem = static_cast<WgpuContext*>(GetContextMem());
@@ -751,35 +749,6 @@ WebgpuHelper::CreateTexture(const unsigned width, const unsigned height, const s
     wgpu::Texture texture = GetDevice().CreateTexture(&desc);
 
     return Texture(std::move(texture));
-}
-
-Result<wgpu::Sampler>
-WebgpuHelper::GetDefaultSampler()
-{
-    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::GetDefaultSampler called before Startup");
-
-    if(!WgpuContext::Ctx->DefaultSampler)
-    {
-        // Create sampler
-        const wgpu::SamplerDescriptor samplerDesc //
-            {
-                .label = "DefaultSampler",
-                .addressModeU = wgpu::AddressMode::Repeat,
-                .addressModeV = wgpu::AddressMode::Repeat,
-                .addressModeW = wgpu::AddressMode::Undefined,
-                .magFilter = wgpu::FilterMode::Linear,
-                .minFilter = wgpu::FilterMode::Linear,
-                .mipmapFilter = wgpu::MipmapFilterMode::Undefined,
-                .lodMinClamp = 0.0f,
-                .lodMaxClamp = 32.0f,
-                .compare = wgpu::CompareFunction::Undefined,
-                .maxAnisotropy = 1,
-            };
-
-        WgpuContext::Ctx->DefaultSampler = GetDevice().CreateSampler(&samplerDesc);
-        MLG_CHECK(WgpuContext::Ctx->DefaultSampler, "Failed to create sampler");
-    }
-    return WgpuContext::Ctx->DefaultSampler;
 }
 
 Result<VertexBuffer>
