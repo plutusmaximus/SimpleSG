@@ -9,15 +9,6 @@
 
 namespace
 {
-struct ColorShaderResources
-{
-    WorldTransformBuffer WorldTransformBuffer;
-    ClipSpaceBuffer ClipSpaceBuffer;
-    MaterialConstantsBuffer MaterialConstantsBuffer;
-    MeshPropertiesBuffer MeshPropertiesBuffer;
-    CameraParamsBuffer CameraParamsBuffer;
-};
-
 struct TransformShaderResources
 {
     WorldTransformBuffer WorldTransformBuffer;
@@ -32,9 +23,12 @@ CountModelInstances(const Level& level)
     for(const Level::NodeHandle& handle : level.GetAllHandles())
     {
         const Level::Node* node = level.GetNode(handle);
-        MLG_ASSERT(node);
+        if(!MLG_VERIFY(node, "Invalid node handle: {}", handle.GetValue()))
+        {
+            continue;
+        }
 
-        if(node->Components.Model.has_value())
+        if(node->Components.Model)
         {
             ++count;
         }
@@ -180,56 +174,15 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const P
 }
 
 Result<wgpu::BindGroup>
-CreateColorShaderBindGroup(ColorShaderResources& colorShaderResources)
+CreateColorShaderBindGroup(const ColorShaderContract::SceneGroup::Resources& resources)
 {
-    auto bgLayouts = WebgpuHelper::GetColorPipelineLayouts();
-    MLG_CHECK(bgLayouts);
+    auto layouts = WebgpuHelper::GetColorPipelineLayouts();
+    MLG_CHECK(layouts);
 
-    const wgpu::BindGroupEntry bgEntries[] =//
-    {
-        {
-            .binding = 0,
-            .buffer = colorShaderResources.WorldTransformBuffer.GetGpuBuffer(),
-            .offset = 0,
-            .size = colorShaderResources.WorldTransformBuffer.BufferSize(),
-        },
-        {
-            .binding = 1,
-            .buffer = colorShaderResources.ClipSpaceBuffer.GetGpuBuffer(),
-            .offset = 0,
-            .size = colorShaderResources.ClipSpaceBuffer.BufferSize(),
-        },
-        {
-            .binding = 2,
-            .buffer = colorShaderResources.MeshPropertiesBuffer.GetGpuBuffer(),
-            .offset = 0,
-            .size = colorShaderResources.MeshPropertiesBuffer.BufferSize(),
-        },
-        {
-            .binding = 3,
-            .buffer = colorShaderResources.MaterialConstantsBuffer.GetGpuBuffer(),
-            .offset = 0,
-            .size = colorShaderResources.MaterialConstantsBuffer.BufferSize(),
-        },
-        {
-            .binding = 4,
-            .buffer = colorShaderResources.CameraParamsBuffer.GetGpuBuffer(),
-            .offset = 0,
-            .size = colorShaderResources.CameraParamsBuffer.BufferSize(),
-        },
-    };
-
-    const wgpu::BindGroupDescriptor bgDesc = //
-        {
-            .label = "ColorShaderBindGroup",
-            .layout = (*bgLayouts)[0],
-            .entryCount = std::size(bgEntries),
-            .entries = &bgEntries[0],
-        };
-
-    wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
-    MLG_CHECK(bindGroup,
-        "Failed to create bind group 0 for color shader");
+    wgpu::BindGroup bindGroup =
+        ColorShaderContract::SceneGroup::CreateBindGroup(WebgpuHelper::GetDevice(),
+            (*layouts)[0],
+            resources);
 
     return bindGroup;
 }
@@ -306,13 +259,13 @@ Scene::Create(const Level& level, const PropKit& propKit)
         WebgpuHelper::CreateUniformBuffer<CameraParamsBuffer>(1, "CameraParamsBuffer");
     MLG_CHECK(cameraParamsBuf);
 
-    ColorShaderResources colorShaderResources //
+    const ColorShaderContract::SceneGroup::Resources colorShaderResources //
     {
-        .WorldTransformBuffer = *transformBuffer,
-        .ClipSpaceBuffer = *clipSpaceBuffer,
-        .MaterialConstantsBuffer = propKit.GetMaterialConstantsBuffer(),
-        .MeshPropertiesBuffer = *meshPropertiesBuffer,
-        .CameraParamsBuffer = *cameraParamsBuf,
+        .WorldTransforms = *transformBuffer,
+        .ClipSpaceTransforms = *clipSpaceBuffer,
+        .MeshProperties = *meshPropertiesBuffer,
+        .MaterialConstants = propKit.GetMaterialConstantsBuffer(),
+        .CameraParams = *cameraParamsBuf,
     };
 
     auto colorShaderBindGroup = CreateColorShaderBindGroup(colorShaderResources);

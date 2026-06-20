@@ -297,32 +297,20 @@ CreateMaterialBindGroups(const std::span<const MaterialDef> materialDefs,
 
     for(const auto& mtlDef : materialDefs)
     {
-        const Texture& baseTexture =
-            mtlDef.BaseTextureUri.empty()
-                ? textureCache.GetDefaultTexture()
-                : textureCache.Get(mtlDef.BaseTextureUri);
+        const Texture& baseTexture = mtlDef.BaseTextureUri.empty()
+                                         ? textureCache.GetDefaultTexture()
+                                         : textureCache.Get(mtlDef.BaseTextureUri);
 
-        const wgpu::BindGroupEntry bgEntries[]//
-        {
+        const ColorShaderContract::MaterialGroup::Resources resources //
             {
-                .binding = 0,
-                .textureView = baseTexture.GetGpuTexture().CreateView(),
-            },
-            {
-                .binding = 1,
-                .sampler = textureCache.GetDefaultSampler(),
-            },
-        };
+                .BaseTexture = baseTexture,
+                .BaseSampler = textureCache.GetDefaultSampler(),
+            };
 
-        const wgpu::BindGroupDescriptor bindGroupDesc //
-        {
-            .label = "MaterialBindGroup",
-            .layout = *bgLayout,
-            .entryCount = std::size(bgEntries),
-            .entries = &bgEntries[0],
-        };
-
-        wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bindGroupDesc);
+        wgpu::BindGroup bindGroup =
+            ColorShaderContract::MaterialGroup::CreateBindGroup(WebgpuHelper::GetDevice(),
+                *bgLayout,
+                resources);
 
         materialBindGroups.emplace_back(std::move(bindGroup));
     }

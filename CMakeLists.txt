@@ -315,6 +315,7 @@ set(SSG_SOURCES
   src/PropKit.cpp
   src/Renderer.cpp
   src/Scene.cpp
+  src/shaders/ColorShaderContract.cpp
   src/Shapes.cpp
   src/StringArena.cpp
   src/stb_image.cpp
@@ -349,6 +350,7 @@ set(SSG_HEADERS
   src/Scene.h
   src/scope_exit.h
   src/SemanticIdentifier.h
+  src/shaders/ColorShaderContract.h
   src/shaders/ShaderInterop.h
   src/Shapes.h
   src/StringArena.h
@@ -373,7 +375,7 @@ set_source_files_properties(src/cgltf.cpp PROPERTIES SKIP_LINTING ON)
 set_source_files_properties(src/stb_image.cpp PROPERTIES SKIP_LINTING ON)
 
 target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 webgpu_dawn imgui)
-target_include_directories(ssg PUBLIC src src/shaders)
+target_include_directories(ssg PUBLIC src)
 target_include_directories(ssg SYSTEM PRIVATE thirdparty/stb thirdparty/cgltf)
 
 compiler_flags(ssg)

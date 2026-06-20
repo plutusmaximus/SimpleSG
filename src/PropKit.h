@@ -2,17 +2,14 @@
 
 #include "Bounds.h"
 #include "LevelDefs.h"
-#include "ShaderInterop.h"
+#include "shaders/ShaderInterop.h"
+#include "shaders/ColorShaderContract.h"
 #include "StringArena.h"
-#include "WebgpuHelper.h"
 
 #include <filesystem>
 #include <span>
 #include <vector>
 #include <unordered_map>
-
-// Strongly-typed GPU storage buffer classes.
-using MaterialConstantsBuffer = SemanticGpuBuffer<ShaderInterop::MaterialConstants>;
 
 class Mesh
 {

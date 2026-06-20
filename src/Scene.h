@@ -1,16 +1,10 @@
 #pragma once
 
 #include "Level.h"
-#include "WebgpuHelper.h"
+#include "shaders/ColorShaderContract.h"
 
 #include <span>
 #include <vector>
-
-// Strongly-typed GPU storage buffer classes.
-using WorldTransformBuffer = SemanticGpuBuffer<ShaderInterop::WorldTransform>;
-using ClipSpaceBuffer = SemanticGpuBuffer<ShaderInterop::ClipSpaceTransform>;
-using MeshPropertiesBuffer = SemanticGpuBuffer<ShaderInterop::MeshProperties>;
-using CameraParamsBuffer = SemanticGpuBuffer<ShaderInterop::CameraParams>;
 
 class ModelInstance
 {

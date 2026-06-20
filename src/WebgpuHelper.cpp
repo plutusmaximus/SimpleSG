@@ -4,6 +4,7 @@
 
 #include "Color.h"
 #include "scope_exit.h"
+#include "shaders/ColorShaderContract.h"
 #include "VecMath.h"
 
 #include <array>
@@ -813,112 +814,16 @@ WebgpuHelper::GetColorPipelineLayouts()
 
     if(!WgpuContext::Ctx->ColorPipelineLayouts[0])
     {
-        // Color pipeline bind group 0 layout
-        const wgpu::BindGroupLayoutEntry entries[] =//
-        {
-            // World transform.
-            {
-                .binding = 0,
-                .visibility = wgpu::ShaderStage::Vertex,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::WorldTransform),
-                },
-            },
-            // Clip transform.
-            {
-                .binding = 1,
-                .visibility = wgpu::ShaderStage::Vertex,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::ClipSpaceTransform),
-                },
-            },
-            // Mesh properties.
-            {
-                .binding = 2,
-                .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::MeshProperties),
-                },
-            },
-            // Material constants buffer.
-            {
-                .binding = 3,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::MaterialConstants),
-                },
-            },
-            // Camera parameters
-            {
-                .binding = 4,
-                .visibility = wgpu::ShaderStage::Vertex,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::Uniform,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::CameraParams),
-                },
-            },
-        };
-        const wgpu::BindGroupLayoutDescriptor desc = //
-            {
-                .label = "ColorPipelineBg0Layout",
-                .entryCount = std::size(entries),
-                .entries = &entries[0],
-            };
-
-        WgpuContext::Ctx->ColorPipelineLayouts[0] = GetDevice().CreateBindGroupLayout(&desc);
+        WgpuContext::Ctx->ColorPipelineLayouts[0] =
+            ColorShaderContract::SceneGroup::CreateLayout(GetDevice());
         MLG_CHECK(WgpuContext::Ctx->ColorPipelineLayouts[0],
             "Failed to create bind group 0 layout for color pipeline");
     }
 
     if(!WgpuContext::Ctx->ColorPipelineLayouts[1])
     {
-        // Color pipeline bind group 1 layout
-        const wgpu::BindGroupLayoutEntry entries[] =//
-        {
-            // Texture
-            {
-                .binding = 0,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .texture =
-                {
-                    .sampleType = wgpu::TextureSampleType::Float,
-                    .viewDimension = wgpu::TextureViewDimension::e2D,
-                    .multisampled = false,
-                },
-            },
-            // Sampler
-            {
-                .binding = 1,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .sampler =
-                {
-                    .type = wgpu::SamplerBindingType::Filtering,
-                },
-            },
-        };
-
-        const wgpu::BindGroupLayoutDescriptor desc = //
-            {
-                .label = "ColorPipelineBg1Layout",
-                .entryCount = std::size(entries),
-                .entries = &entries[0],
-            };
-
-        WgpuContext::Ctx->ColorPipelineLayouts[1] = GetDevice().CreateBindGroupLayout(&desc);
+        WgpuContext::Ctx->ColorPipelineLayouts[1] =
+            ColorShaderContract::MaterialGroup::CreateLayout(GetDevice());
         MLG_CHECK(WgpuContext::Ctx->ColorPipelineLayouts[1],
             "Failed to create bind group 1 layout for color pipeline");
     }

@@ -12,9 +12,11 @@ struct UV2
 using VertexPos = Vec3f;
 using VertexNormal = Vec3f;
 
-template<int NUM_UVS>
+template<size_t NUM_UVS>
 struct VertexT
 {
+    static constexpr size_t kNumUVs = NUM_UVS;
+
     VertexPos pos;
     VertexNormal normal;
     UV2 uvs[NUM_UVS];
@@ -23,6 +25,8 @@ struct VertexT
 template<>
 struct VertexT<0>
 {
+    static constexpr size_t kNumUVs = 0;
+
     VertexPos pos;
     VertexNormal normal;
 };

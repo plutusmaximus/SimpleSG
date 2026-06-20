@@ -10,7 +10,7 @@
 #include "Camera.h"
 #include "Scene.h"
 #include "scope_exit.h"
-#include "ShaderInterop.h"
+#include "shaders/ShaderInterop.h"
 #include "WebgpuHelper.h"
 
 #include <thread>
@@ -19,8 +19,6 @@
 namespace
 {
 constexpr const char* kCompositorShader = "shaders/CompositorShader.wgsl";
-
-constexpr const char* kColorShader = "shaders/ColorShader.wgsl";
 
 constexpr const char* kTransformShader = "shaders/TransformShader.wgsl";
 
@@ -492,7 +490,7 @@ Renderer::CreateColorPipeline()
     MLG_CHECKV(m_ColorTargetResources.Target, "Color target is invalid");
     MLG_CHECKV(m_ColorTargetResources.DepthTarget, "Depth target is invalid");
 
-    auto shader = CreateShader(kColorShader);
+    auto shader = CreateShader(ColorShaderContract::GetShaderPath());
     MLG_CHECK(shader);
 
     m_ColorPipelineResources.Shader = *shader;
@@ -565,36 +563,13 @@ Renderer::CreateColorPipeline()
     const wgpu::FragmentState fragmentState //
         {
             .module = m_ColorPipelineResources.Shader,
-            .entryPoint = "fs_main",
+            .entryPoint = ColorShaderContract::GetFragmentEntryPoint(),
             .targetCount = 1,
             .targets = &colorTargetState,
         };
 
-    const wgpu::VertexAttribute vertexAttributes[] //
-        {
-            {
-                .format = wgpu::VertexFormat::Float32x3,
-                .offset = offsetof(Vertex, pos),
-                .shaderLocation = 0,
-            },
-            {
-                .format = wgpu::VertexFormat::Float32x3,
-                .offset = offsetof(Vertex, normal),
-                .shaderLocation = 1,
-            },
-            {
-                .format = wgpu::VertexFormat::Float32x2,
-                .offset = offsetof(Vertex, uvs[0]),
-                .shaderLocation = 2,
-            },
-        };
-    const wgpu::VertexBufferLayout vertexBufferLayout //
-        {
-            .stepMode = wgpu::VertexStepMode::Vertex,
-            .arrayStride = sizeof(Vertex),
-            .attributeCount = std::size(vertexAttributes),
-            .attributes = &vertexAttributes[0],
-        };
+    const wgpu::VertexBufferLayout vertexBufferLayout =
+        ColorShaderContract::GetVertexBufferLayout();
 
     const wgpu::RenderPipelineDescriptor descriptor//
     {
@@ -603,7 +578,7 @@ Renderer::CreateColorPipeline()
         .vertex =
         {
             .module = m_ColorPipelineResources.Shader,
-            .entryPoint = "vs_main",
+            .entryPoint = ColorShaderContract::GetVertexEntryPoint(),
             .bufferCount = 1,
             .buffers = &vertexBufferLayout,
         },
