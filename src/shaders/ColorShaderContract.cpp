@@ -76,6 +76,12 @@ wgpu::BindGroup
 ColorShaderContract::SceneGroup::CreateBindGroup(wgpu::Device device, wgpu::BindGroupLayout layout,
     const SceneGroup::Resources& resources)
 {
+    if(!resources.Validate())
+    {
+        MLG_ERROR("Invalid resources provided for ColorShaderContract::SceneGroup::CreateBindGroup");
+        return nullptr;
+    }
+
     const wgpu::BindGroupEntry entries[] = //
         {
             {
@@ -162,6 +168,12 @@ wgpu::BindGroup
 ColorShaderContract::MaterialGroup::CreateBindGroup(wgpu::Device device, wgpu::BindGroupLayout layout,
     const MaterialGroup::Resources& resources)
 {
+    if(!resources.Validate())
+    {
+        MLG_ERROR("Invalid resources provided for ColorShaderContract::MaterialGroup::CreateBindGroup");
+        return nullptr;
+    }
+    
     const wgpu::BindGroupEntry entries[] = //
         {
             {

@@ -180,6 +180,8 @@ CreateColorShaderBindGroup(const ColorShaderContract::SceneGroup::Resources& res
             (*layouts)[0],
             resources);
 
+    MLG_CHECK(bindGroup);
+
     return bindGroup;
 }
 
@@ -192,6 +194,8 @@ CreateTransformShaderBindGroup(const TransformShaderContract::SceneGroup::Resour
         TransformShaderContract::SceneGroup::CreateBindGroup(WebgpuHelper::GetDevice(),
             (*layouts)[0],
             resources);
+
+    MLG_CHECK(bindGroup);
 
     return bindGroup;
 }

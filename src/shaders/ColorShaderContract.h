@@ -23,6 +23,15 @@ public:
             MeshPropertiesBuffer MeshProperties;
             MaterialConstantsBuffer MaterialConstants;
             CameraParamsBuffer CameraParams;
+
+            bool Validate() const
+            {
+                return MLG_VERIFY(WorldTransforms, "Invalid WorldTransforms buffer") &&
+                       MLG_VERIFY(ClipSpaceTransforms, "Invalid ClipSpaceTransforms buffer") &&
+                       MLG_VERIFY(MeshProperties, "Invalid MeshProperties buffer") &&
+                       MLG_VERIFY(MaterialConstants, "Invalid MaterialConstants buffer") &&
+                       MLG_VERIFY(CameraParams, "Invalid CameraParams buffer");
+            }
         };
 
         static wgpu::BindGroupLayout CreateLayout(wgpu::Device device);
@@ -39,6 +48,12 @@ public:
         {
             Texture BaseTexture;
             wgpu::Sampler BaseSampler;
+
+            bool Validate() const
+            {
+                return MLG_VERIFY(BaseTexture, "Invalid BaseTexture") &&
+                       MLG_VERIFY(BaseSampler, "Invalid BaseSampler");
+            }
         };
 
         static wgpu::BindGroupLayout CreateLayout(wgpu::Device device);

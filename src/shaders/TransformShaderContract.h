@@ -18,6 +18,13 @@ public:
             WorldTransformBuffer WorldTransforms;
             ClipSpaceBuffer ClipSpaceTransforms;
             CameraParamsBuffer CameraParams;
+
+            bool Validate() const
+            {
+                return MLG_VERIFY(WorldTransforms, "Invalid WorldTransforms buffer") &&
+                       MLG_VERIFY(ClipSpaceTransforms, "Invalid ClipSpaceTransforms buffer") &&
+                       MLG_VERIFY(CameraParams, "Invalid CameraParams buffer");
+            }
         };
 
         static wgpu::BindGroupLayout CreateLayout(wgpu::Device device);

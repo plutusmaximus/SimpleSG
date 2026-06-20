@@ -293,8 +293,8 @@ CreateMaterialBindGroups(const std::span<const MaterialDef> materialDefs,
 
     materialBindGroups.reserve(materialDefs.size());
 
-    auto bgLayout = WebgpuHelper::GetTextureSamplerBindGroupLayout();
-    MLG_CHECK(bgLayout);
+    auto layout = WebgpuHelper::GetTextureSamplerBindGroupLayout();
+    MLG_CHECK(layout);
 
     for(const auto& mtlDef : materialDefs)
     {
@@ -310,8 +310,10 @@ CreateMaterialBindGroups(const std::span<const MaterialDef> materialDefs,
 
         wgpu::BindGroup bindGroup =
             ColorShaderContract::MaterialGroup::CreateBindGroup(WebgpuHelper::GetDevice(),
-                *bgLayout,
+                *layout,
                 resources);
+
+        MLG_CHECK(bindGroup);
 
         materialBindGroups.emplace_back(std::move(bindGroup));
     }

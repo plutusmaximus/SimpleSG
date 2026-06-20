@@ -54,6 +54,12 @@ wgpu::BindGroup
 TransformShaderContract::SceneGroup::CreateBindGroup(wgpu::Device device, wgpu::BindGroupLayout layout,
     const SceneGroup::Resources& resources)
 {
+    if(!resources.Validate())
+    {
+        MLG_ERROR("Invalid resources provided for TransformShaderContract::SceneGroup::CreateBindGroup");
+        return nullptr;
+    }
+    
     const wgpu::BindGroupEntry entries[] = //
         {
             {
