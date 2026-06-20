@@ -12,7 +12,6 @@
 #include <unordered_map>
 
 // Strongly-typed GPU storage buffer classes.
-using MeshPropertiesBuffer = SemanticGpuBuffer<ShaderInterop::MeshProperties>;
 using MaterialConstantsBuffer = SemanticGpuBuffer<ShaderInterop::MaterialConstants>;
 
 class Mesh
