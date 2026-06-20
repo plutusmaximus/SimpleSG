@@ -26,9 +26,9 @@ namespace
 class TextureBuilder
 {
 public:
-    TextureBuilder(std::string baseUri, std::string filePath, std::atomic<unsigned>* stageCounter)
+    TextureBuilder(std::string baseUri, FileFetcher::Request* request, std::atomic<unsigned>* stageCounter)
         : Uri(std::move(baseUri)),
-          Request(std::make_unique<FileFetcher::Request>(std::move(filePath))),
+          Request(request),
           StageCounter(stageCounter)
     {
     }
@@ -107,10 +107,7 @@ public:
     }
 
     std::string Uri;
-    // While loading textures we move TextureBuilder instances around in the pending/completed
-    // request lists, so we use a unique_ptr for the Request because FileFetcher needs a stable
-    // pointer to a request object.
-    std::unique_ptr<FileFetcher::Request> Request;
+    FileFetcher::Request* Request{ nullptr };
     Result<Texture> Texture;
     std::byte* MappedMemory{ nullptr };
     Result<> DecodeResult;
@@ -170,11 +167,21 @@ FetchTextures(const std::filesystem::path& basePath,
     TextureCache& textureCache,
     const wgpu::CommandEncoder& encoder)
 {
-    std::vector<TextureBuilder> fetchRequests;
-    std::vector<TextureBuilder> stagingOps;
+    std::vector<FileFetcher::Request> requestHeap;
+    std::vector<TextureBuilder> fetching;
+    std::vector<TextureBuilder> staging;
 
-    fetchRequests.reserve(materialDefs.size());
-    stagingOps.reserve(materialDefs.size());
+    // Allocate a contiguous block (a heap) of fetch requests.
+    // Pointers to pending fetch requests will be used to initialize
+    // instances of TextureBuilder.
+    requestHeap.reserve(materialDefs.size());
+
+    // Collection of builders for which we're fetching texture files.
+    fetching.reserve(materialDefs.size());
+
+    // Collection of builders for which fetching is complete and we're now staging the textures to
+    // the GPU.
+    staging.reserve(materialDefs.size());
 
     // Counter to track how many staging operations have completed.
     // We wait on this to signal completion of all stating operations.
@@ -196,55 +203,55 @@ FetchTextures(const std::filesystem::path& basePath,
 
         MLG_LOG_SCOPE(mtl.BaseTextureUri);
 
-        TextureBuilder& texBuilder = fetchRequests.emplace_back(mtl.BaseTextureUri,
-            (basePath / mtl.BaseTextureUri).string(),
-            &stageCounter);
+        FileFetcher::Request& request =
+            requestHeap.emplace_back((basePath / mtl.BaseTextureUri).string());
+        fetching.emplace_back(mtl.BaseTextureUri, &request, &stageCounter);
 
         MLG_DEBUG("Fetching texture...");
 
-        if(!FileFetcher::Fetch(*texBuilder.Request))
+        if(!FileFetcher::Fetch(request))
         {
-            MLG_WARN("Failed to fetch texture: {}", texBuilder.Uri);
+            MLG_WARN("Failed to fetch texture");
         }
     }
 
-    while(!fetchRequests.empty())
+    while(!fetching.empty())
     {
         FileFetcher::ProcessCompletions();
 
-        for(size_t i = 0; i < fetchRequests.size();)
+        for(size_t i = 0; i < fetching.size();)
         {
-            auto& fetchRequest = fetchRequests[i];
+            TextureBuilder& fetchingBuilder = fetching[i];
 
-            if(fetchRequest.Request->IsPending())
+            if(fetchingBuilder.Request->IsPending())
             {
                 ++i;
                 continue;
             }
 
             // Move the builder to the staging list.
-            TextureBuilder& builder = stagingOps.emplace_back(std::move(fetchRequest));
+            TextureBuilder& stagingBuilder = staging.emplace_back(std::move(fetchingBuilder));
 
             // Fill the hole.
-            fetchRequests[i] = std::move(fetchRequests.back());
-            fetchRequests.pop_back();
+            fetching[i] = std::move(fetching.back());
+            fetching.pop_back();
 
-            if(builder.Request->Succeeded())
+            if(stagingBuilder.Request->Succeeded())
             {
                 // Add one to the stage counter.  Staging ops will decrement the counter
                 // and when it hits zero we know we're done.
                 stageCounter.fetch_add(1, std::memory_order_relaxed);
 
-                auto result = StageTexture(builder);
+                auto result = StageTexture(stagingBuilder);
                 if(!result)
                 {
-                    MLG_WARN("Failed to stage texture: {}", builder.Uri);
+                    MLG_WARN("Failed to stage texture: {}", stagingBuilder.Uri);
                     stageCounter.fetch_sub(1, std::memory_order_relaxed);
                 }
             }
             else
             {
-                MLG_WARN("Failed to fetch texture: {}", builder.Uri);
+                MLG_WARN("Failed to fetch texture: {}", stagingBuilder.Uri);
             }
         }
     }
@@ -259,7 +266,7 @@ FetchTextures(const std::filesystem::path& basePath,
     // Unmap textures to flush the data to the GPU before adding them to the cache.
     // It appears that mapping/unmapping must be done on the same thread
     // as other wgpu::Device operations.
-    for(auto& builder : stagingOps)
+    for(auto& builder : staging)
     {
         MLG_LOG_SCOPE(builder.Uri);
 
