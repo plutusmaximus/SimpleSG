@@ -2,8 +2,8 @@
 
 #include "Bounds.h"
 #include "LevelDefs.h"
+#include "shaders/GpuBufferTypes.h"
 #include "shaders/ShaderInterop.h"
-#include "shaders/ColorShaderContract.h"
 #include "StringArena.h"
 
 #include <filesystem>

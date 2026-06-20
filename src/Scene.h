@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Level.h"
-#include "shaders/ColorShaderContract.h"
+#include "shaders/GpuBufferTypes.h"
 
 #include <span>
 #include <vector>

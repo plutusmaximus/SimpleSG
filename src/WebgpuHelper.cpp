@@ -5,6 +5,7 @@
 #include "Color.h"
 #include "scope_exit.h"
 #include "shaders/ColorShaderContract.h"
+#include "shaders/TransformShaderContract.h"
 #include "VecMath.h"
 
 #include <array>
@@ -838,51 +839,8 @@ WebgpuHelper::GetTransformPipelineLayouts()
 
     if(!WgpuContext::Ctx->TransformPipelineLayouts[0])
     {
-        // Transform pipeline bind group 0 layout
-        const wgpu::BindGroupLayoutEntry entries[] =//
-        {
-            // World transform.
-            {
-                .binding = 0,
-                .visibility = wgpu::ShaderStage::Compute,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::WorldTransform),
-                },
-            },
-            // Clip transform.
-            {
-                .binding = 1,
-                .visibility = wgpu::ShaderStage::Compute,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::Storage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::ClipSpaceTransform),
-                },
-            },
-            // Camera parameters
-            {
-                .binding = 2,
-                .visibility = wgpu::ShaderStage::Compute,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::Uniform,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::CameraParams),
-                },
-            },
-        };
-        const wgpu::BindGroupLayoutDescriptor desc = //
-            {
-                .label = "TransformPipelineBg0Layout",
-                .entryCount = std::size(entries),
-                .entries = &entries[0],
-            };
-
-        WgpuContext::Ctx->TransformPipelineLayouts[0] = GetDevice().CreateBindGroupLayout(&desc);
+        WgpuContext::Ctx->TransformPipelineLayouts[0] =
+            TransformShaderContract::SceneGroup::CreateLayout(GetDevice());
         MLG_CHECK(WgpuContext::Ctx->TransformPipelineLayouts[0],
             "Failed to create bind group 0 layout for transform pipeline");
     }

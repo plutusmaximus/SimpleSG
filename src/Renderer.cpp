@@ -10,6 +10,8 @@
 #include "Camera.h"
 #include "Scene.h"
 #include "scope_exit.h"
+#include "shaders/ColorShaderContract.h"
+#include "shaders/TransformShaderContract.h"
 #include "shaders/ShaderInterop.h"
 #include "WebgpuHelper.h"
 
@@ -19,8 +21,6 @@
 namespace
 {
 constexpr const char* kCompositorShader = "shaders/CompositorShader.wgsl";
-
-constexpr const char* kTransformShader = "shaders/TransformShader.wgsl";
 
 Result<>
 LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
@@ -707,7 +707,7 @@ Renderer::CreateTransformPipeline()
         return Result<>::Ok;
     }
 
-    auto csResult = CreateShader(kTransformShader);
+    auto csResult = CreateShader(TransformShaderContract::GetShaderPath());
     MLG_CHECK(csResult);
 
     m_TransformPipelineResources.Shader = *csResult;
@@ -732,7 +732,7 @@ Renderer::CreateTransformPipeline()
         .compute//
         {
             .module = m_TransformPipelineResources.Shader,
-            .entryPoint = "main",
+            .entryPoint = TransformShaderContract::GetEntryPoint(),
         },
     };;
 

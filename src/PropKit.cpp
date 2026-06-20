@@ -8,6 +8,7 @@
 #include "Log.h"
 #include "narrow_cast.h"
 #include "scope_exit.h"
+#include "shaders/ColorShaderContract.h"
 #include "Timer.h"
 #include "TextureCache.h"
 #include "ThreadPool.h"

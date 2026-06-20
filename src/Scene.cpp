@@ -5,16 +5,12 @@
 #include "Level.h"
 #include "narrow_cast.h"
 #include "PropKit.h"
+#include "shaders/ColorShaderContract.h"
+#include "shaders/TransformShaderContract.h"
 #include "Timer.h"
 
 namespace
 {
-struct TransformShaderResources
-{
-    WorldTransformBuffer WorldTransformBuffer;
-    ClipSpaceBuffer ClipSpaceBuffer;
-    CameraParamsBuffer CameraParamsBuffer;
-};
 
 size_t
 CountModelInstances(const Level& level)
@@ -188,44 +184,14 @@ CreateColorShaderBindGroup(const ColorShaderContract::SceneGroup::Resources& res
 }
 
 Result<wgpu::BindGroup>
-CreateTransformShaderBindGroup(TransformShaderResources& transformShaderResources)
+CreateTransformShaderBindGroup(const TransformShaderContract::SceneGroup::Resources& resources)
 {
-    auto bgLayouts = WebgpuHelper::GetTransformPipelineLayouts();
-    MLG_CHECK(bgLayouts);
+    auto layouts = WebgpuHelper::GetTransformPipelineLayouts();
 
-    const wgpu::BindGroupEntry bgEntries[] =//
-    {
-        {
-            .binding = 0,
-            .buffer = transformShaderResources.WorldTransformBuffer.GetGpuBuffer(),
-            .offset = 0,
-            .size = transformShaderResources.WorldTransformBuffer.BufferSize(),
-        },
-        {
-            .binding = 1,
-            .buffer = transformShaderResources.ClipSpaceBuffer.GetGpuBuffer(),
-            .offset = 0,
-            .size = transformShaderResources.ClipSpaceBuffer.BufferSize(),
-        },
-        {
-            .binding = 2,
-            .buffer = transformShaderResources.CameraParamsBuffer.GetGpuBuffer(),
-            .offset = 0,
-            .size = transformShaderResources.CameraParamsBuffer.BufferSize(),
-        },
-    };
-
-    const wgpu::BindGroupDescriptor bgDesc = //
-        {
-            .label = "TransformShaderBindGroup",
-            .layout = (*bgLayouts)[0],
-            .entryCount = std::size(bgEntries),
-            .entries = &bgEntries[0],
-        };
-
-    wgpu::BindGroup bindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
-    MLG_CHECK(bindGroup,
-        "Failed to create bind group 0 for transform shader");
+    wgpu::BindGroup bindGroup =
+        TransformShaderContract::SceneGroup::CreateBindGroup(WebgpuHelper::GetDevice(),
+            (*layouts)[0],
+            resources);
 
     return bindGroup;
 }
@@ -271,11 +237,11 @@ Scene::Create(const Level& level, const PropKit& propKit)
     auto colorShaderBindGroup = CreateColorShaderBindGroup(colorShaderResources);
     MLG_CHECK(colorShaderBindGroup);
 
-    TransformShaderResources transformShaderResources //
+    const TransformShaderContract::SceneGroup::Resources transformShaderResources //
     {
-        .WorldTransformBuffer = *transformBuffer,
-        .ClipSpaceBuffer = *clipSpaceBuffer,
-        .CameraParamsBuffer = *cameraParamsBuf,
+        .WorldTransforms = *transformBuffer,
+        .ClipSpaceTransforms = *clipSpaceBuffer,
+        .CameraParams = *cameraParamsBuf,
     };
 
     auto transformShaderBindGroup = CreateTransformShaderBindGroup(transformShaderResources);

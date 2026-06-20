@@ -316,6 +316,7 @@ set(SSG_SOURCES
   src/Renderer.cpp
   src/Scene.cpp
   src/shaders/ColorShaderContract.cpp
+  src/shaders/TransformShaderContract.cpp
   src/Shapes.cpp
   src/StringArena.cpp
   src/stb_image.cpp
@@ -335,6 +336,7 @@ set(SSG_HEADERS
   src/DevUi.h
   src/FileFetcher.h
   src/GltfLoader.h
+  src/shaders/GpuBufferTypes.h
   src/GridHash.h
   src/ImGuiRenderer.h
   src/inlist.h
@@ -352,6 +354,7 @@ set(SSG_HEADERS
   src/SemanticIdentifier.h
   src/shaders/ColorShaderContract.h
   src/shaders/ShaderInterop.h
+  src/shaders/TransformShaderContract.h
   src/Shapes.h
   src/StringArena.h
   src/CliState.h
