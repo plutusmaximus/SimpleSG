@@ -11,38 +11,107 @@ size_t ValidateCellSize(const size_t cellSize)
     return cellSize;
 }
 
-constexpr uint32_t
-Mix32(const uint32_t u)
-{
-    // From https://github.com/skeeto/hash-prospector
-    constexpr uint32_t kHashParam1 = 0x7feb352dU;
-    constexpr uint32_t kHashParam2 = 0x846ca68bU;
-    constexpr size_t kShift16 = 16;
-    constexpr size_t kShift15 = 15;
+// Pack three 21-bit signed integers into a single 64-bit unsigned integer.
+// FIXME (KB) - reduce range of Y (vertical).
 
-    uint32_t v = u;
-    v ^= v >> kShift16;
-    v *= kHashParam1;
-    v ^= v >> kShift15;
-    v *= kHashParam2;
-    v ^= v >> kShift16;
-    return v;
+constexpr uint64_t Bits21 = 21;
+constexpr uint64_t Bits42 = 42;
+constexpr uint64_t Mask21 = (1ull << Bits21) - 1;
+constexpr int32_t MinValue21 = -(1 << (Bits21 - 1));
+constexpr int32_t MaxValue21 = (1 << (Bits21 - 1)) - 1;
+
+uint64_t
+Pack3x21(const int32_t x, const int32_t y, const int32_t z)
+{
+    uint64_t ux = static_cast<uint64_t>(x);
+    uint64_t uy = static_cast<uint64_t>(y);
+    uint64_t uz = static_cast<uint64_t>(z);
+
+    // Clamp values to the valid range for 21-bit signed integers.
+
+    if(x < 0 && !MLG_VERIFY(x >= MinValue21, "x coordinate out of range: {}", x))
+    {
+        ux = static_cast<uint64_t>(MinValue21);
+    }
+    if(x > 0 && !MLG_VERIFY(x <= MaxValue21, "x coordinate out of range: {}", x))
+    {
+        ux = static_cast<uint64_t>(MaxValue21);
+    }
+    if(y < 0 && !MLG_VERIFY(y >= MinValue21, "y coordinate out of range: {}", y))
+    {
+        uy = static_cast<uint64_t>(MinValue21);
+    }
+    if(y > 0 && !MLG_VERIFY(y <= MaxValue21, "y coordinate out of range: {}", y))
+    {
+        uy = static_cast<uint64_t>(MaxValue21);
+    }
+    if(z < 0 && !MLG_VERIFY(z >= MinValue21, "z coordinate out of range: {}", z))
+    {
+        uz = static_cast<uint64_t>(MinValue21);
+    }
+    if(z > 0 && !MLG_VERIFY(z <= MaxValue21, "z coordinate out of range: {}", z))
+    {
+        uz = static_cast<uint64_t>(MaxValue21);
+    }
+
+    return (ux & Mask21) | ((uy & Mask21) << Bits21) | ((uz & Mask21) << Bits42);
 }
 
-constexpr uint32_t
-HashCell(const int32_t x, const int32_t y, const int32_t z)
+int32_t
+SignExtend21(const uint64_t v)
 {
-    const uint32_t ux = static_cast<uint32_t>(x);
-    const uint32_t uy = static_cast<uint32_t>(y);
-    const uint32_t uz = static_cast<uint32_t>(z);
+    uint64_t u = v & Mask21;
 
-    constexpr uint32_t kSaltX = Mix32(0);
-    constexpr uint32_t kSaltY = Mix32(1);
-    constexpr uint32_t kSaltZ = Mix32(2);
+    if(u & (1ull << (Bits21 - 1)))
+    {
+        u |= ~Mask21;
+    }
 
-    return Mix32(ux ^ kSaltX) ^ Mix32(uy ^ kSaltY) ^ Mix32(uz ^ kSaltZ);
+    return static_cast<int32_t>(u);
+}
+
+int32_t
+UnpackX(const uint64_t v)
+{
+    return SignExtend21(v);
+}
+
+int32_t
+UnpackY(const uint64_t v)
+{
+    return SignExtend21(v >> Bits21);
+}
+
+int32_t
+UnpackZ(const uint64_t v)
+{
+    return SignExtend21(v >> Bits42);
 }
 } // namespace
+
+GridHash::Item::Item(const ItemParams& params)
+    : CellCoords(Pack3x21(params.CellX, params.CellY, params.CellZ)),
+      BodyIndex(params.BodyIndex)
+{
+}
+
+int32_t
+GridHash::Item::GetX() const
+{
+    return UnpackX(CellCoords);
+}
+
+int32_t
+GridHash::Item::GetY() const
+{
+    return UnpackY(CellCoords);
+}
+
+int32_t
+GridHash::Item::GetZ() const
+{
+    return UnpackZ(CellCoords);
+}
 
 GridHash::GridHash(const size_t cellSize)
     : m_CellSize(ValidateCellSize(cellSize)),
@@ -53,15 +122,18 @@ GridHash::GridHash(const size_t cellSize)
 void
 GridHash::Clear()
 {
-    m_Cells.clear();
+    m_Items.clear();
     m_PotentialCollisions.clear();
-    m_NeedsSort = false;
+    m_NeedsSort = true;
 }
 
 Result<>
 GridHash::Add(
     const Vec3f& bbMin, const Vec3f& bbMax, const Collider& collider, const size_t bodyIndex)
 {
+    MLG_ASSERT(m_NeedsSort,
+        "Adding bodies after potential collisions have been generated. Is that intentional?");
+
     MLG_CHECKV(bbMin.x <= bbMax.x && bbMin.y <= bbMax.y && bbMin.z <= bbMax.z,
         "Invalid bounding box: Min: ({}, {}, {}), Max: ({}, {}, {})",
         bbMin.x,
@@ -87,7 +159,7 @@ GridHash::Add(
     const uint32_t dy = static_cast<uint32_t>(maxY - minY + 1);
     const uint32_t dz = static_cast<uint32_t>(maxZ - minZ + 1);
 
-    MLG_CHECK(AllocateCells(dx, dy, dz));
+    MLG_CHECK(AllocateItems(dx, dy, dz));
 
     for(int32_t x = minX; x <= maxX; ++x)
     {
@@ -95,8 +167,7 @@ GridHash::Add(
         {
             for(int32_t z = minZ; z <= maxZ; ++z)
             {
-                const Cell cell({.BodyIndex = bodyIndex, .CellX = x, .CellY = y, .CellZ = z});
-                m_Cells.emplace_back(cell);
+                m_Items.emplace_back(Item::ItemParams{.BodyIndex = bodyIndex, .CellX = x, .CellY = y, .CellZ = z});
             }
         }
     }
@@ -130,7 +201,7 @@ GridHash::end()
 // private:
 
 Result<>
-GridHash::AllocateCells(const uint32_t dx, const uint32_t dy, const uint32_t dz)
+GridHash::AllocateItems(const uint32_t dx, const uint32_t dy, const uint32_t dz)
 {
     const size_t dxs = static_cast<size_t>(dx);
     const size_t dys = static_cast<size_t>(dy);
@@ -144,16 +215,17 @@ GridHash::AllocateCells(const uint32_t dx, const uint32_t dy, const uint32_t dz)
     MLG_CHECKV(dxy <= std::numeric_limits<size_t>::max() / dzs,
         "Cell span overflow before multiply.");
 
+    // Number of cells the body potentially occupies.
     const size_t cellCount = dxy * dzs;
 
     MLG_CHECKV(cellCount <= kMaxCellsPerBody, "Too many cells occupied. count={}", cellCount);
 
-    MLG_CHECKV(cellCount <= std::numeric_limits<size_t>::max() - m_Cells.size(),
-        "Cell reserve overflow. current={}, add={}",
-        m_Cells.size(),
+    MLG_CHECKV(cellCount <= std::numeric_limits<size_t>::max() - m_Items.size(),
+        "Grid reserve overflow. current={}, add={}",
+        m_Items.size(),
         cellCount);
 
-    m_Cells.reserve(m_Cells.size() + cellCount);
+    m_Items.reserve(m_Items.size() + cellCount);
 
     return Result<>::Ok;
 }
@@ -165,36 +237,34 @@ GridHash::Quantize(const float value) const
     return static_cast<int32_t>(std::floor(value * m_InvCellSize));
 }
 
-/// @brief Sorts the cells and generates the list of unique body pairs potentially colliding.
 void
 GridHash::Sort() const
 {
-    if(!m_NeedsSort)
+    if(!m_NeedsSort || m_Items.empty())
     {
         return;
     }
 
     m_NeedsSort = false;
 
-    std::ranges::sort(m_Cells);
+    std::ranges::sort(m_Items);
 
     m_PotentialCollisions.clear();
 
-    // For each cell generate body pairs for all bodies that share the cell.
+    // Generate body pairs for all bodies that share the same cell.
 
-    for(size_t i = 0; i < m_Cells.size(); ++i)
+    for(size_t i = 0; i < m_Items.size(); ++i)
     {
-        const size_t indexA = m_Cells[i].BodyIndex;
+        const size_t indexA = m_Items[i].BodyIndex;
 
-        for(size_t j = i + 1; j < m_Cells.size() && m_Cells[j].Coords == m_Cells[i].Coords; ++j)
+        for(size_t j = i + 1; j < m_Items.size() && m_Items[j].CellCoords == m_Items[i].CellCoords; ++j)
         {
             // Bodies that share a cell are potentially colliding.
 
-            const size_t indexB = m_Cells[j].BodyIndex;
+            const size_t indexB = m_Items[j].BodyIndex;
             if(MLG_VERIFY(indexA != indexB, "Duplicate body in same cell"))
             {
-                const BodyPair pair(indexA, indexB);
-                m_PotentialCollisions.emplace_back(pair);
+                m_PotentialCollisions.emplace_back(indexA, indexB);
             }
         }
     }
@@ -207,34 +277,27 @@ GridHash::Sort() const
     // Sort to group duplicates together.
     std::ranges::sort(m_PotentialCollisions);
 
-    size_t dst = 0;
+    auto itDst = m_PotentialCollisions.begin();
+    const auto itEnd = m_PotentialCollisions.end();
 
     // Remove duplicate pairs.
     // Duplicates will be adjacent due to the sort above.
-    for(size_t src = 1; src < m_PotentialCollisions.size(); ++src)
+    for(auto itSrc = itDst + 1; itSrc != itEnd; ++itSrc)
     {
-        if(m_PotentialCollisions[dst] == m_PotentialCollisions[src])
+        if(*itDst == *itSrc)
         {
             // Skip duplicate pair.
             continue;
         }
 
-        ++dst;
+        ++itDst;
 
-        if(src > dst)
+        if(itSrc > itDst)
         {
-            m_PotentialCollisions[dst] = m_PotentialCollisions[src];
+            *itDst = *itSrc;
         }
     }
 
-    const auto newEnd = m_PotentialCollisions.begin() + static_cast<std::ptrdiff_t>(dst + 1);
+    const auto newEnd = itDst + 1;
     m_PotentialCollisions.erase(newEnd, m_PotentialCollisions.end());
-}
-
-GridHash::Cell::Coords::Coords(const int32_t cellX, const int32_t cellY, const int32_t cellZ)
-    : Hash(HashCell(cellX, cellY, cellZ)),
-      CellX(cellX),
-      CellY(cellY),
-      CellZ(cellZ)
-{
 }

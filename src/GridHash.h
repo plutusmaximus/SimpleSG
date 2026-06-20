@@ -61,15 +61,13 @@ public:
 
     size_t GetCellSize() const { return m_CellSize; }
 
-    /// @brief  Adds a body to into the cells it occupies.
+    /// @brief  Adds a body to into the grid cells it occupies.
     /// @param bbMin The minimum corner of the body's bounding box.
     /// @param bbMax The maximum corner of the body's bounding box.
     /// @param collider The collider associated with the body.
     /// @param bodyIndex The index of the body.
-    Result<> Add(const Vec3f& bbMin,
-        const Vec3f& bbMax,
-        const Collider& collider,
-        const size_t bodyIndex);
+    Result<> Add(
+        const Vec3f& bbMin, const Vec3f& bbMax, const Collider& collider, const size_t bodyIndex);
 
     using iterator = std::vector<BodyPair>::iterator;
     using const_iterator = std::vector<BodyPair>::const_iterator;
@@ -84,10 +82,12 @@ public:
 
 private:
 
-    class Cell
+    class Item
     {
     public:
-        struct CellParams
+        Item() = delete;
+
+        struct ItemParams
         {
             size_t BodyIndex;
             int32_t CellX;
@@ -95,82 +95,38 @@ private:
             int32_t CellZ;
         };
 
-        explicit Cell(const CellParams& params)
-            : Coords{params.CellX, params.CellY, params.CellZ},
-              BodyIndex(params.BodyIndex)
+        explicit Item(const ItemParams& params);
+
+        int32_t GetX() const;
+        int32_t GetY() const;
+        int32_t GetZ() const;
+
+        friend bool operator==(const Item& a, const Item& b)
         {
+            return a.CellCoords == b.CellCoords && a.BodyIndex == b.BodyIndex;
         }
 
-        Cell() = delete;
-        ~Cell() = default;
-        Cell(const Cell&) = default;
-        Cell& operator=(const Cell&) = default;
-        Cell(Cell&&) = default;
-        Cell& operator=(Cell&&) = default;
-
-        struct Coords
+        friend auto operator<=>(const Item& a, const Item& b)
         {
-            Coords(const int32_t cellX, const int32_t cellY, const int32_t cellZ);
-
-            friend bool operator==(const Coords& a, const Coords& b)
+            if(a.CellCoords != b.CellCoords)
             {
-                return a.Hash == b.Hash && a.CellX == b.CellX && a.CellY == b.CellY && a.CellZ == b.CellZ;
-            }
-
-            friend auto operator<=>(const Coords& a, const Coords& b)
-            {
-                auto order = a.Hash <=> b.Hash;
-                if(order != 0)
-                {
-                    return order;
-                }
-
-                order = a.CellX <=> b.CellX;
-                if(order != 0)
-                {
-                    return order;
-                }
-
-                order = a.CellY <=> b.CellY;
-                if(order != 0)
-                {
-                    return order;
-                }
-
-                return a.CellZ <=> b.CellZ;
-            }
-
-            uint32_t Hash;
-            int32_t CellX, CellY, CellZ; // Quantized cell coordinates.
-        };
-
-        Coords Coords;
-        size_t BodyIndex; // Index of the body occupying the cell.
-
-        friend bool operator==(const Cell& a, const Cell& b)
-        {
-            return a.Coords == b.Coords && a.BodyIndex == b.BodyIndex;
-        }
-
-        friend auto operator<=>(const Cell& a, const Cell& b)
-        {
-            auto order = a.Coords <=> b.Coords;
-            if(order != 0)
-            {
-                return order;
+                return a.CellCoords <=> b.CellCoords;
             }
 
             return a.BodyIndex <=> b.BodyIndex;
         }
+
+        uint64_t CellCoords;
+        size_t BodyIndex; // Index of the body occupying the cell.
     };
 
-    /// @brief Allocates the necessary number of cells for a body that spans the given number of
+    /// @brief Allocates the necessary number of items for a body that spans the given number of
     /// cells in each dimension.
     /// @param dx The number of cells the body spans in the x dimension.
     /// @param dy The number of cells the body spans in the y dimension.
     /// @param dz The number of cells the body spans in the z dimension.
     /// @return
-    Result<> AllocateCells(const uint32_t dx, const uint32_t dy, const uint32_t dz);
+    Result<> AllocateItems(const uint32_t dx, const uint32_t dy, const uint32_t dz);
 
     int32_t Quantize(const float value) const;
 
@@ -180,8 +136,8 @@ private:
     size_t m_CellSize;
     float m_InvCellSize;
 
-    mutable std::vector<Cell> m_Cells;
+    mutable std::vector<Item> m_Items;
     mutable std::vector<BodyPair> m_PotentialCollisions;
 
-    mutable bool m_NeedsSort{false};
+    mutable bool m_NeedsSort{true};
 };
