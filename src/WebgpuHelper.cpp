@@ -5,6 +5,7 @@
 #include "Color.h"
 #include "scope_exit.h"
 #include "shaders/ColorShaderContract.h"
+#include "shaders/CompositeShaderContract.h"
 #include "shaders/TransformShaderContract.h"
 #include "VecMath.h"
 
@@ -806,6 +807,22 @@ WebgpuHelper::GetTextureSamplerBindGroupLayout()
     MLG_CHECK(bgLayouts);
 
     return bgLayouts->at(1);
+}
+
+Result<const wgpu::BindGroupLayout>
+WebgpuHelper::GetCompositorBindGroupLayout()
+{
+    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::GetColorPipelineLayouts called before Startup");
+
+    if(!WgpuContext::Ctx->CompositorPipelineLayouts[0])
+    {
+        WgpuContext::Ctx->CompositorPipelineLayouts[0] =
+            CompositeShaderContract::MaterialGroup::CreateLayout(GetDevice());
+        MLG_CHECK(WgpuContext::Ctx->CompositorPipelineLayouts[0],
+            "Failed to create bind group 0 layout for compositor");
+    }
+
+    return WgpuContext::Ctx->CompositorPipelineLayouts[0];
 }
 
 Result<const std::array<wgpu::BindGroupLayout, 2>>

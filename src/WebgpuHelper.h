@@ -257,6 +257,8 @@ public:
 
     static Result<const wgpu::BindGroupLayout> GetTextureSamplerBindGroupLayout();
 
+    static Result<const wgpu::BindGroupLayout> GetCompositorBindGroupLayout();
+
     static Result<const std::array<wgpu::BindGroupLayout, 2>> GetColorPipelineLayouts();
 
     static Result<const std::array<wgpu::BindGroupLayout, 1>> GetTransformPipelineLayouts();

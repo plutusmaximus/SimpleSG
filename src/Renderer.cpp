@@ -11,6 +11,7 @@
 #include "Scene.h"
 #include "scope_exit.h"
 #include "shaders/ColorShaderContract.h"
+#include "shaders/CompositeShaderContract.h"
 #include "shaders/TransformShaderContract.h"
 #include "shaders/ShaderInterop.h"
 #include "WebgpuHelper.h"
@@ -449,31 +450,21 @@ Renderer::RefreshColorTargetResources(const uint32_t width, const uint32_t heigh
 
     if(!m_ColorTargetResources.BindGroup)
     {
-        auto bgLayout = WebgpuHelper::GetTextureSamplerBindGroupLayout();
-        MLG_CHECK(bgLayout);
+        auto layout = WebgpuHelper::GetCompositorBindGroupLayout();
+        MLG_CHECK(layout);
 
-        const wgpu::BindGroupEntry bgEntries[] = //
+        const CompositeShaderContract::MaterialGroup::Resources resources //
             {
-                {
-                    .binding = 0,
-                    .textureView = m_ColorTargetResources.TargetView,
-                },
-                {
-                    .binding = 1,
-                    .sampler = m_ColorTargetResources.Sampler,
-                },
+                .TextureView = m_ColorTargetResources.TargetView,
+                .Sampler = m_ColorTargetResources.Sampler,
             };
 
-        const wgpu::BindGroupDescriptor bgDesc //
-            {
-                .label = "ColorTargetTextureBindGroup",
-                .layout = *bgLayout,
-                .entryCount = std::size(bgEntries),
-                .entries = &bgEntries[0],
-            };
-
-        m_ColorTargetResources.BindGroup = WebgpuHelper::GetDevice().CreateBindGroup(&bgDesc);
-        MLG_CHECK(m_ColorTargetResources.BindGroup, "Failed to create bind group 0 for present pipeline");
+        m_ColorTargetResources.BindGroup =
+            CompositeShaderContract::MaterialGroup::CreateBindGroup(WebgpuHelper::GetDevice(),
+                *layout,
+                resources);
+        MLG_CHECK(m_ColorTargetResources.BindGroup,
+            "Failed to create bind group for compositor pipeline");
     }
 
     return Result<>::Ok;
