@@ -3,14 +3,14 @@
 Result<>
 TextureCache::Startup()
 {
-    MLG_CHECKV(WebgpuHelper::GetDevice(), "TextureCache::Initialize called before WebgpuHelper::Startup");
-    MLG_CHECKV(!m_Initialized, "TextureCache::Initialize called more than once");
+    MLG_CHECKV(GpuHelper::GetDevice(), "TextureCache::Startup called before GpuHelper::Startup");
+    MLG_CHECKV(!m_Initialized, "TextureCache::Startup called more than once");
 
     constexpr size_t kDefaultTextureWidth = 128;
     constexpr size_t kDefaultTextureHeight = 128;
     constexpr RgbaColoru8 kDefaultTextureColor{ "#FF00FFFF"_rgba }; // Magenta
 
-    auto defaultTexture = WebgpuHelper::CreateTexture(
+    auto defaultTexture = GpuHelper::CreateTexture(
         kDefaultTextureWidth,
         kDefaultTextureHeight,
         "DefaultTexture");
@@ -52,7 +52,7 @@ TextureCache::Startup()
     };
 
     m_DefaultTexture = std::move(*defaultTexture);
-    m_DefaultSampler = WebgpuHelper::GetDevice().CreateSampler(&samplerDesc);
+    m_DefaultSampler = GpuHelper::GetDevice().CreateSampler(&samplerDesc);
 
     return Result<>::Ok;
 }

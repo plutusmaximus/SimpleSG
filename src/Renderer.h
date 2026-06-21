@@ -2,7 +2,7 @@
 
 #include "Result.h"
 
-#include "WebgpuHelper.h"
+#include "GpuHelper.h"
 
 class Compositor;
 template<typename T>

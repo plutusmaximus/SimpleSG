@@ -304,6 +304,7 @@ set(SSG_SOURCES
   src/Compositor.cpp
   src/DevUi.cpp
   src/FileFetcher.cpp
+  src/GpuHelper.cpp
   src/GridHash.cpp
   src/GltfLoader.cpp
   src/ImGuiRenderer.cpp
@@ -325,7 +326,6 @@ set(SSG_SOURCES
   src/ThreadPool.cpp
   src/Timer.cpp
   src/VecMath.cpp
-  src/WebgpuHelper.cpp
 )
 
 set(SSG_HEADERS
@@ -337,6 +337,7 @@ set(SSG_HEADERS
   src/DevUi.h
   src/FileFetcher.h
   src/GltfLoader.h
+  src/GpuHelper.h
   src/shaders/GpuBufferTypes.h
   src/GridHash.h
   src/ImGuiRenderer.h
@@ -365,7 +366,6 @@ set(SSG_HEADERS
   src/Timer.h
   src/VecMath.h
   src/Vertex.h
-  src/WebgpuHelper.h
 )
 
 add_library(ssg)

@@ -1,5 +1,6 @@
 #include "Compositor.h"
 #include "FileFetcher.h"
+#include "GpuHelper.h"
 #include "ImGuiRenderer.h"
 #include "Level.h"
 #include "Log.h"
@@ -11,7 +12,6 @@
 #include "scope_exit.h"
 #include "TextureCache.h"
 #include "ThreadPool.h"
-#include "WebgpuHelper.h"
 
 #include <filesystem>
 #include <imgui.h>
@@ -123,10 +123,10 @@ Result<> MainLoop()
         FileFetcher::Shutdown();
     };
 
-    MLG_CHECK(WebgpuHelper::Startup(kAppName));
+    MLG_CHECK(GpuHelper::Startup(kAppName));
     MLG_DEFER
     {
-        WebgpuHelper::Shutdown();
+        GpuHelper::Shutdown();
     };
 
     PropKitDef propKitDef;
@@ -158,7 +158,7 @@ Result<> MainLoop()
     MLG_CHECK(imGuiRenderer.Startup());
 
     const Posef cameraXForm{ .T{0, 0, -4} };
-    Camera camera((Viewport(WebgpuHelper::GetScreenBounds())));
+    Camera camera((Viewport(GpuHelper::GetScreenBounds())));
 
     bool running = true;
     bool minimized = false;
@@ -207,7 +207,7 @@ Result<> MainLoop()
                     {
                         const uint32_t newWidth = static_cast<uint32_t>(event.window.data1);
                         const uint32_t newHeight = static_cast<uint32_t>(event.window.data2);
-                        WebgpuHelper::Resize(newWidth, newHeight);
+                        GpuHelper::Resize(newWidth, newHeight);
                     }
                     break;
 
@@ -236,7 +236,7 @@ Result<> MainLoop()
                 continue;
             }
             
-            const Viewport viewport(WebgpuHelper::GetScreenBounds());
+            const Viewport viewport(GpuHelper::GetScreenBounds());
             camera.SetViewport(viewport);
             camera.SetAspectRatio(viewport.GetAspectRatio());
 
@@ -258,12 +258,12 @@ Result<> MainLoop()
 #if !defined(__EMSCRIPTEN__)
 
 #if !defined(OFFSCREEN_RENDERING) || !OFFSCREEN_RENDERING
-        MLG_CHECK(WebgpuHelper::GetSurface().Present(), "Failed to present backbuffer");
+        MLG_CHECK(GpuHelper::GetSurface().Present(), "Failed to present backbuffer");
 #endif
 
 #endif
 
-        WebgpuHelper::GetInstance().ProcessEvents();
+        GpuHelper::GetInstance().ProcessEvents();
     }
 
     MLG_CHECK(imGuiRenderer.Shutdown());

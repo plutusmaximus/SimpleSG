@@ -1,6 +1,6 @@
 #pragma once
 
-#include "WebgpuHelper.h"
+#include "GpuHelper.h"
 
 class CompositeShaderContract
 {

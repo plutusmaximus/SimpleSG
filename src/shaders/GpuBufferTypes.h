@@ -1,6 +1,6 @@
 #pragma once
 
-#include "WebgpuHelper.h"
+#include "GpuHelper.h"
 
 // Strongly-typed GPU storage buffer classes.
 using WorldTransformBuffer = SemanticGpuBuffer<ShaderInterop::WorldTransform>;

@@ -56,7 +56,7 @@ public:
 
 private:
 
-    friend class WebgpuHelper;
+    friend class GpuHelper;
 
     explicit Texture(wgpu::Texture texture);
 
@@ -117,7 +117,7 @@ public:
     void Store(std::size_t index, std::span<const T> values);
 
 private:
-    friend class WebgpuHelper;
+    friend class GpuHelper;
 
     explicit SemanticGpuBuffer(wgpu::Buffer buffer)
         : BasicGpuBuffer(std::move(buffer))
@@ -136,15 +136,15 @@ struct is_gpu_buffer_type<SemanticGpuBuffer<Tag>> : std::true_type {};
 template <typename T>
 inline constexpr bool is_gpu_buffer_type_v = is_gpu_buffer_type<T>::value;
 
-class WebgpuHelper final
+class GpuHelper final
 {
 public:
-    WebgpuHelper() = delete;
-    ~WebgpuHelper() = delete;
-    WebgpuHelper(const WebgpuHelper&) = delete;
-    WebgpuHelper& operator=(const WebgpuHelper&) = delete;
-    WebgpuHelper(WebgpuHelper&&) = delete;
-    WebgpuHelper& operator=(WebgpuHelper&&) = delete;
+    GpuHelper() = delete;
+    ~GpuHelper() = delete;
+    GpuHelper(const GpuHelper&) = delete;
+    GpuHelper& operator=(const GpuHelper&) = delete;
+    GpuHelper(GpuHelper&&) = delete;
+    GpuHelper& operator=(GpuHelper&&) = delete;
 
     static Result<> Startup(const char* appName);
 
@@ -292,7 +292,7 @@ SemanticGpuBuffer<T>::Store(std::size_t index, const T& value)
 
     MLG_ASSERT(offset < BufferSize(), "Index out of bounds");
 
-    WebgpuHelper::GetDevice().GetQueue().WriteBuffer(GetGpuBuffer(), offset, &value, sizeof(T));
+    GpuHelper::GetDevice().GetQueue().WriteBuffer(GetGpuBuffer(), offset, &value, sizeof(T));
 }
 
 template<typename T>
@@ -303,7 +303,7 @@ SemanticGpuBuffer<T>::Store(std::size_t index, std::span<const T> values)
 
     MLG_ASSERT((offset + (values.size() * sizeof(T))) <= BufferSize(), "Index out of bounds");
 
-    WebgpuHelper::GetDevice().GetQueue().WriteBuffer(GetGpuBuffer(),
+    GpuHelper::GetDevice().GetQueue().WriteBuffer(GetGpuBuffer(),
         offset,
         values.data(),
         values.size() * sizeof(T));

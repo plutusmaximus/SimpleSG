@@ -1,6 +1,6 @@
 #define MLG_LOGGER_NAME "WGPU"
 
-#include "WebgpuHelper.h"
+#include "GpuHelper.h"
 
 #include "Color.h"
 #include "scope_exit.h"
@@ -563,15 +563,15 @@ CreateGpuBufferUnmapped(const wgpu::BufferUsage usage, const size_t size, const 
             .mappedAtCreation = false,
         };
 
-    return WebgpuHelper::GetDevice().CreateBuffer(&bufferDesc);
+    return GpuHelper::GetDevice().CreateBuffer(&bufferDesc);
 }
 
 } // namespace
 
 Result<>
-WebgpuHelper::Startup(const char* appName)
+GpuHelper::Startup(const char* appName)
 {
-    MLG_CHECKV(!WgpuContext::Ctx, "WebgpuHelper::Startup called more than once");
+    MLG_CHECKV(!WgpuContext::Ctx, "GpuHelper::Startup called more than once");
 
     MLG_INFO("Starting WebGPU...");
 
@@ -657,9 +657,9 @@ WebgpuHelper::Startup(const char* appName)
 }
 
 void
-WebgpuHelper::Shutdown()
+GpuHelper::Shutdown()
 {
-    MLG_VERIFY(WgpuContext::Ctx, "WebgpuHelper::Shutdown called before Startup");
+    MLG_VERIFY(WgpuContext::Ctx, "GpuHelper::Shutdown called before Startup");
 
     SDL_Window* window = WgpuContext::Ctx->Window;
     SDL_MetalView metalView = WgpuContext::Ctx->MetalView;
@@ -677,37 +677,37 @@ WebgpuHelper::Shutdown()
 }
 
 SDL_Window*
-WebgpuHelper::GetWindow()
+GpuHelper::GetWindow()
 {
-    MLG_VERIFY(WgpuContext::Ctx, "WebgpuHelper::GetWindow called before Startup");
+    MLG_VERIFY(WgpuContext::Ctx, "GpuHelper::GetWindow called before Startup");
     return WgpuContext::Ctx->Window;
 }
 
 wgpu::Instance
-WebgpuHelper::GetInstance()
+GpuHelper::GetInstance()
 {
-    MLG_VERIFY(WgpuContext::Ctx, "WebgpuHelper::GetInstance called before Startup");
+    MLG_VERIFY(WgpuContext::Ctx, "GpuHelper::GetInstance called before Startup");
     return WgpuContext::Ctx->Instance;
 }
 
 wgpu::Device
-WebgpuHelper::GetDevice()
+GpuHelper::GetDevice()
 {
-    MLG_VERIFY(WgpuContext::Ctx, "WebgpuHelper::GetDevice called before Startup");
+    MLG_VERIFY(WgpuContext::Ctx, "GpuHelper::GetDevice called before Startup");
     return WgpuContext::Ctx->Device;
 }
 
 wgpu::Surface
-WebgpuHelper::GetSurface()
+GpuHelper::GetSurface()
 {
-    MLG_VERIFY(WgpuContext::Ctx, "WebgpuHelper::GetSurface called before Startup");
+    MLG_VERIFY(WgpuContext::Ctx, "GpuHelper::GetSurface called before Startup");
     return WgpuContext::Ctx->Surface;
 }
 
 Result<>
-WebgpuHelper::Resize(const uint32_t width, const uint32_t height)
+GpuHelper::Resize(const uint32_t width, const uint32_t height)
 {
-    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::Resize called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::Resize called before Startup");
 
     wgpu::SurfaceTexture currentTexture;
     WgpuContext::Ctx->Surface.GetCurrentTexture(&currentTexture);
@@ -729,9 +729,9 @@ WebgpuHelper::Resize(const uint32_t width, const uint32_t height)
 }
 
 Result<Texture>
-WebgpuHelper::CreateTexture(const unsigned width, const unsigned height, const std::string& name)
+GpuHelper::CreateTexture(const unsigned width, const unsigned height, const std::string& name)
 {
-    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::CreateTexture called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateTexture called before Startup");
 
     const wgpu::TextureDescriptor desc //
         {
@@ -755,9 +755,9 @@ WebgpuHelper::CreateTexture(const unsigned width, const unsigned height, const s
 }
 
 Result<VertexBuffer>
-WebgpuHelper::CreateVertexBuffer(const size_t count, const std::string_view& name)
+GpuHelper::CreateVertexBuffer(const size_t count, const std::string_view& name)
 {
-    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::CreateVertexBuffer called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateVertexBuffer called before Startup");
 
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
 
@@ -765,9 +765,9 @@ WebgpuHelper::CreateVertexBuffer(const size_t count, const std::string_view& nam
 }
 
 Result<VertexBuffer>
-WebgpuHelper::CreateVertexBuffer(std::span<const Vertex> vertices, const std::string_view& name)
+GpuHelper::CreateVertexBuffer(std::span<const Vertex> vertices, const std::string_view& name)
 {
-    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::CreateVertexBuffer called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateVertexBuffer called before Startup");
 
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
 
@@ -778,9 +778,9 @@ WebgpuHelper::CreateVertexBuffer(std::span<const Vertex> vertices, const std::st
 }
 
 Result<IndexBuffer>
-WebgpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name)
+GpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name)
 {
-    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::CreateIndexBuffer called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateIndexBuffer called before Startup");
 
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst;
 
@@ -788,9 +788,9 @@ WebgpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name
 }
 
 Result<IndexBuffer>
-WebgpuHelper::CreateIndexBuffer(std::span<const VertexIndex> indices, const std::string_view& name)
+GpuHelper::CreateIndexBuffer(std::span<const VertexIndex> indices, const std::string_view& name)
 {
-    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::CreateIndexBuffer called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateIndexBuffer called before Startup");
 
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst;
 
@@ -801,7 +801,7 @@ WebgpuHelper::CreateIndexBuffer(std::span<const VertexIndex> indices, const std:
 }
 
 Result<const wgpu::BindGroupLayout>
-WebgpuHelper::GetTextureSamplerBindGroupLayout()
+GpuHelper::GetTextureSamplerBindGroupLayout()
 {
     auto bgLayouts = GetColorPipelineLayouts();
     MLG_CHECK(bgLayouts);
@@ -810,9 +810,9 @@ WebgpuHelper::GetTextureSamplerBindGroupLayout()
 }
 
 Result<const wgpu::BindGroupLayout>
-WebgpuHelper::GetCompositorBindGroupLayout()
+GpuHelper::GetCompositorBindGroupLayout()
 {
-    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::GetColorPipelineLayouts called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::GetColorPipelineLayouts called before Startup");
 
     if(!WgpuContext::Ctx->CompositorPipelineLayouts[0])
     {
@@ -825,9 +825,9 @@ WebgpuHelper::GetCompositorBindGroupLayout()
 }
 
 Result<const std::array<wgpu::BindGroupLayout, 2>>
-WebgpuHelper::GetColorPipelineLayouts()
+GpuHelper::GetColorPipelineLayouts()
 {
-    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::GetColorPipelineLayouts called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::GetColorPipelineLayouts called before Startup");
 
     if(!WgpuContext::Ctx->ColorPipelineLayouts[0])
     {
@@ -847,9 +847,9 @@ WebgpuHelper::GetColorPipelineLayouts()
 }
 
 Result<const std::array<wgpu::BindGroupLayout, 1>>
-WebgpuHelper::GetTransformPipelineLayouts()
+GpuHelper::GetTransformPipelineLayouts()
 {
-    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::GetTransformPipelineLayouts called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::GetTransformPipelineLayouts called before Startup");
 
     if(!WgpuContext::Ctx->TransformPipelineLayouts[0])
     {
@@ -862,7 +862,7 @@ WebgpuHelper::GetTransformPipelineLayouts()
 }
 
 Extent
-WebgpuHelper::GetScreenBounds()
+GpuHelper::GetScreenBounds()
 {
     int width = 0, height = 0;
     if(!SDL_GetWindowSizeInPixels(GetWindow(), &width, &height))
@@ -877,7 +877,7 @@ WebgpuHelper::GetScreenBounds()
 }
 
 wgpu::TextureFormat
-WebgpuHelper::GetSwapChainFormat()
+GpuHelper::GetSwapChainFormat()
 {
     wgpu::SurfaceTexture surfaceTexture;
     GetSurface().GetCurrentTexture(&surfaceTexture);
@@ -888,9 +888,9 @@ WebgpuHelper::GetSwapChainFormat()
 // private:
 
 Result<wgpu::Buffer>
-WebgpuHelper::CreateIndirectBuffer(const size_t size, const std::string_view& name)
+GpuHelper::CreateIndirectBuffer(const size_t size, const std::string_view& name)
 {
-    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::CreateIndirectBuffer called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateIndirectBuffer called before Startup");
 
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst;
 
@@ -898,9 +898,9 @@ WebgpuHelper::CreateIndirectBuffer(const size_t size, const std::string_view& na
 }
 
 Result<wgpu::Buffer>
-WebgpuHelper::CreateStorageBuffer(const size_t size, const std::string_view& name)
+GpuHelper::CreateStorageBuffer(const size_t size, const std::string_view& name)
 {
-    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::CreateStorageBuffer called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateStorageBuffer called before Startup");
 
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst;
 
@@ -908,9 +908,9 @@ WebgpuHelper::CreateStorageBuffer(const size_t size, const std::string_view& nam
 }
 
 Result<wgpu::Buffer>
-WebgpuHelper::CreateUniformBuffer(const size_t size, const std::string_view& name)
+GpuHelper::CreateUniformBuffer(const size_t size, const std::string_view& name)
 {
-    MLG_CHECKV(WgpuContext::Ctx, "WebgpuHelper::CreateUniformBuffer called before Startup");
+    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateUniformBuffer called before Startup");
 
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
 
@@ -1038,7 +1038,7 @@ Texture::MapBytes()
         cb,
         &result);
 
-    const wgpu::WaitStatus waitStatus = WebgpuHelper::GetInstance().WaitAny(fut, UINT64_MAX);
+    const wgpu::WaitStatus waitStatus = GpuHelper::GetInstance().WaitAny(fut, UINT64_MAX);
 
     MLG_CHECK(waitStatus == wgpu::WaitStatus::Success,
         "Failed to map staging buffer - WaitAny failed");
@@ -1055,13 +1055,13 @@ Texture::MapBytes()
 Result<>
 Texture::Unmap()
 {
-    const wgpu::CommandEncoder cmdEncoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
+    const wgpu::CommandEncoder cmdEncoder = GpuHelper::GetDevice().CreateCommandEncoder();
 
     MLG_CHECK(Unmap(cmdEncoder));
 
     const wgpu::CommandBuffer commandBuffer = cmdEncoder.Finish();
 
-    WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
+    GpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
 
     return Result<>::Ok;
 }

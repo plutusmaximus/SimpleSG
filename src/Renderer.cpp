@@ -2,19 +2,18 @@
 
 #include "Renderer.h"
 
+#include "Camera.h"
 #include "Compositor.h"
 #include "FileFetcher.h"
-#include "PropKit.h"
 #include "narrow_cast.h"
 #include "PerfMetrics.h"
-#include "Camera.h"
+#include "PropKit.h"
 #include "Scene.h"
 #include "scope_exit.h"
 #include "shaders/ColorShaderContract.h"
 #include "shaders/CompositeShaderContract.h"
 #include "shaders/TransformShaderContract.h"
 #include "shaders/ShaderInterop.h"
-#include "WebgpuHelper.h"
 
 #include <thread>
 #include <ranges>
@@ -55,7 +54,7 @@ CreateShader(const char* path)
     const wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl, .label = path };
 
     wgpu::ShaderModule shaderModule =
-        WebgpuHelper::GetDevice().CreateShaderModule(&shaderModuleDescriptor);
+        GpuHelper::GetDevice().CreateShaderModule(&shaderModuleDescriptor);
     MLG_CHECK(shaderModule, "Failed to create shader module");
 
     return shaderModule;
@@ -67,9 +66,9 @@ Renderer::Startup()
 {
     MLG_CHECKV(!m_Initialized, "Renderer is already initialized");
 
-    WebgpuHelper::GetDevice().GetLimits(&m_GpuLimits);
+    GpuHelper::GetDevice().GetLimits(&m_GpuLimits);
 
-    const Extent screenBounds = WebgpuHelper::GetScreenBounds();
+    const Extent screenBounds = GpuHelper::GetScreenBounds();
 
     MLG_CHECK(RefreshColorTargetResources(static_cast<uint32_t>(screenBounds.Width),
         static_cast<uint32_t>(screenBounds.Height)));
@@ -120,7 +119,7 @@ Renderer::Render(const Camera& camera,
 
     const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "RenderCommandEncoder" };
 
-    const wgpu::CommandEncoder cmdEncoder = WebgpuHelper::GetDevice().CreateCommandEncoder(&encoderDesc);
+    const wgpu::CommandEncoder cmdEncoder = GpuHelper::GetDevice().CreateCommandEncoder(&encoderDesc);
     MLG_CHECK(cmdEncoder, "Failed to create command encoder");
 
     {
@@ -266,7 +265,7 @@ Renderer::Render(const Camera& camera,
 
     {
         MLG_SCOPED_TIMER("Renderer.SubmitCommandBuffer");
-        const wgpu::Queue queue = WebgpuHelper::GetDevice().GetQueue();
+        const wgpu::Queue queue = GpuHelper::GetDevice().GetQueue();
         MLG_CHECK(queue, "Failed to get wgpu::Queue");
 
         queue.Submit(1, &cmdBuf);
@@ -391,12 +390,12 @@ Renderer::RefreshColorTargetResources(const uint32_t width, const uint32_t heigh
                     .height = height,
                     .depthOrArrayLayers = 1,
                 },
-                .format = WebgpuHelper::GetSwapChainFormat(),
+                .format = GpuHelper::GetSwapChainFormat(),
                 .mipLevelCount = 1,
                 .sampleCount = 1,
             };
 
-        m_ColorTargetResources.Target = WebgpuHelper::GetDevice().CreateTexture(&textureDesc);
+        m_ColorTargetResources.Target = GpuHelper::GetDevice().CreateTexture(&textureDesc);
         m_ColorTargetResources.TargetView = m_ColorTargetResources.Target.CreateView();
     }
 
@@ -422,7 +421,7 @@ Renderer::RefreshColorTargetResources(const uint32_t width, const uint32_t heigh
                 .sampleCount = 1,
             };
 
-        m_ColorTargetResources.DepthTarget = WebgpuHelper::GetDevice().CreateTexture(&textureDesc);
+        m_ColorTargetResources.DepthTarget = GpuHelper::GetDevice().CreateTexture(&textureDesc);
         m_ColorTargetResources.DepthTargetView = m_ColorTargetResources.DepthTarget.CreateView();
     }
 
@@ -443,14 +442,14 @@ Renderer::RefreshColorTargetResources(const uint32_t width, const uint32_t heigh
                 .maxAnisotropy = 1,
             };
 
-        m_ColorTargetResources.Sampler = WebgpuHelper::GetDevice().CreateSampler(&samplerDesc);
+        m_ColorTargetResources.Sampler = GpuHelper::GetDevice().CreateSampler(&samplerDesc);
     }
 
     // Create bind group for the color target texture and sampler
 
     if(!m_ColorTargetResources.BindGroup)
     {
-        auto layout = WebgpuHelper::GetCompositorBindGroupLayout();
+        auto layout = GpuHelper::GetCompositorBindGroupLayout();
         MLG_CHECK(layout);
 
         const CompositeShaderContract::MaterialGroup::Resources resources //
@@ -460,7 +459,7 @@ Renderer::RefreshColorTargetResources(const uint32_t width, const uint32_t heigh
             };
 
         auto bindGroup =
-             CompositeShaderContract::MaterialGroup::CreateBindGroup(WebgpuHelper::GetDevice(),
+             CompositeShaderContract::MaterialGroup::CreateBindGroup(GpuHelper::GetDevice(),
                 *layout,
                 resources);
 
@@ -490,7 +489,7 @@ Renderer::CreateColorPipeline()
 
     // Color target pipeline layout
 
-    auto bgLayouts = WebgpuHelper::GetColorPipelineLayouts();
+    auto bgLayouts = GpuHelper::GetColorPipelineLayouts();
     MLG_CHECK(bgLayouts);
 
     const wgpu::PipelineLayoutDescriptor colorTargetPipelineLayoutDesc //
@@ -501,7 +500,7 @@ Renderer::CreateColorPipeline()
         };
 
     m_ColorPipelineResources.Layout =
-        WebgpuHelper::GetDevice().CreatePipelineLayout(&colorTargetPipelineLayoutDesc);
+        GpuHelper::GetDevice().CreatePipelineLayout(&colorTargetPipelineLayoutDesc);
     MLG_CHECK(m_ColorPipelineResources.Layout, "Failed to create color pipeline layout");
 
     const wgpu::BlendState blendState //
@@ -593,7 +592,7 @@ Renderer::CreateColorPipeline()
         .fragment = &fragmentState,
     };
 
-    m_ColorPipeline = WebgpuHelper::GetDevice().CreateRenderPipeline(&descriptor);
+    m_ColorPipeline = GpuHelper::GetDevice().CreateRenderPipeline(&descriptor);
     MLG_CHECK(m_ColorPipeline, "Failed to create render pipeline");
 
     return Result<>::Ok;
@@ -612,7 +611,7 @@ Renderer::CreateCompositorPipeline()
 
     m_CompositorPipelineResources.Shader = *shader;
 
-    auto bgLayout = WebgpuHelper::GetTextureSamplerBindGroupLayout();
+    auto bgLayout = GpuHelper::GetTextureSamplerBindGroupLayout();
     MLG_CHECK(bgLayout);
 
     const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
@@ -623,7 +622,7 @@ Renderer::CreateCompositorPipeline()
         };
 
     m_CompositorPipelineResources.Layout =
-        WebgpuHelper::GetDevice().CreatePipelineLayout(&pipelineLayoutDesc);
+        GpuHelper::GetDevice().CreatePipelineLayout(&pipelineLayoutDesc);
     MLG_CHECK(m_CompositorPipelineResources.Layout, "Failed to create compositor pipeline layout");
 
     const wgpu::BlendState blendState //
@@ -644,7 +643,7 @@ Renderer::CreateCompositorPipeline()
 
     const wgpu::ColorTargetState colorTargetState //
         {
-            .format = WebgpuHelper::GetSwapChainFormat(),
+            .format = GpuHelper::GetSwapChainFormat(),
             .blend = &blendState,
             .writeMask = wgpu::ColorWriteMask::All,
         };
@@ -686,7 +685,7 @@ Renderer::CreateCompositorPipeline()
         .fragment = &fragmentState,
     };
 
-    m_CompositorPipeline = WebgpuHelper::GetDevice().CreateRenderPipeline(&descriptor);
+    m_CompositorPipeline = GpuHelper::GetDevice().CreateRenderPipeline(&descriptor);
     MLG_CHECK(m_CompositorPipeline, "Failed to create compositor pipeline");
 
     return Result<>::Ok;
@@ -705,7 +704,7 @@ Renderer::CreateTransformPipeline()
 
     m_TransformPipelineResources.Shader = *csResult;
 
-    auto bgLayouts = WebgpuHelper::GetTransformPipelineLayouts();
+    auto bgLayouts = GpuHelper::GetTransformPipelineLayouts();
     MLG_CHECK(bgLayouts);
 
     const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
@@ -716,7 +715,7 @@ Renderer::CreateTransformPipeline()
         };
 
     m_TransformPipelineResources.Layout =
-        WebgpuHelper::GetDevice().CreatePipelineLayout(&pipelineLayoutDesc);
+        GpuHelper::GetDevice().CreatePipelineLayout(&pipelineLayoutDesc);
     MLG_CHECK(m_TransformPipelineResources.Layout, "Failed to create transform pipeline layout");
 
     const wgpu::ComputePipelineDescriptor pipelineDesc//
@@ -729,7 +728,7 @@ Renderer::CreateTransformPipeline()
         },
     };;
 
-    m_TransformPipeline = WebgpuHelper::GetDevice().CreateComputePipeline(&pipelineDesc);
+    m_TransformPipeline = GpuHelper::GetDevice().CreateComputePipeline(&pipelineDesc);
     MLG_CHECK(m_TransformPipeline, "Failed to create compute pipeline for transform");
 
     return Result<>::Ok;
@@ -741,7 +740,7 @@ Renderer::TransformNodes(const wgpu::CommandEncoder& cmdEncoder,
     const Camera& camera,
     const Scene& scene) const
 {
-    const wgpu::Device device = WebgpuHelper::GetDevice();
+    const wgpu::Device device = GpuHelper::GetDevice();
 
     // Use inverse of camera transform as view matrix
     const Mat44f viewXform = cameraXForm.Inverse().ToMatrix();

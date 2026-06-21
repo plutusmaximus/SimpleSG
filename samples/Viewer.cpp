@@ -1,6 +1,7 @@
 #include "Compositor.h"
 #include "FileFetcher.h"
 #include "GltfLoader.h"
+#include "GpuHelper.h"
 #include "ImGuiRenderer.h"
 #include "Level.h"
 #include "MouseNav.h"
@@ -12,7 +13,6 @@
 #include "scope_exit.h"
 #include "TextureCache.h"
 #include "ThreadPool.h"
-#include "WebgpuHelper.h"
 #include "VecMath.h"
 
 #include <filesystem>
@@ -46,7 +46,7 @@ Startup()
         FileFetcher::Shutdown();
     };
 
-    MLG_CHECK(WebgpuHelper::Startup(APP_NAME));
+    MLG_CHECK(GpuHelper::Startup(APP_NAME));
 
     failure.release(); // Success, prevent shutdown in defer.
     fileFetcherShutdown.release();
@@ -57,7 +57,7 @@ Startup()
 void
 Shutdown()
 {
-    WebgpuHelper::Shutdown();
+    GpuHelper::Shutdown();
     FileFetcher::Shutdown();
     ThreadPool::Shutdown();
 }
@@ -172,7 +172,7 @@ MainLoop()
     auto&& [propKit, level, scene] = std::move(*loadResult);
 
     Posef cameraXForm{ .T{0, 0, -4} };
-    Camera camera((Viewport(WebgpuHelper::GetScreenBounds())));
+    Camera camera((Viewport(GpuHelper::GetScreenBounds())));
 
     mouseNav.SetTransform(cameraXForm);
 
@@ -225,7 +225,7 @@ MainLoop()
                 {
                     const uint32_t newWidth = static_cast<uint32_t>(event.window.data1);
                     const uint32_t newHeight = static_cast<uint32_t>(event.window.data2);
-                    WebgpuHelper::Resize(newWidth, newHeight);
+                    GpuHelper::Resize(newWidth, newHeight);
                 }
                 break;
 
@@ -250,7 +250,7 @@ MainLoop()
                 if(event.button.button == SDL_BUTTON_LEFT)
                 {
                     mouseCaptured = true;
-                    SDL_SetWindowRelativeMouseMode(WebgpuHelper::GetWindow(), mouseCaptured);
+                    SDL_SetWindowRelativeMouseMode(GpuHelper::GetWindow(), mouseCaptured);
                 }
                 break;
 
@@ -258,7 +258,7 @@ MainLoop()
                 if(event.button.button == SDL_BUTTON_LEFT)
                 {
                     mouseCaptured = false;
-                    SDL_SetWindowRelativeMouseMode(WebgpuHelper::GetWindow(), mouseCaptured);
+                    SDL_SetWindowRelativeMouseMode(GpuHelper::GetWindow(), mouseCaptured);
                     mouseNav.ClearButtons();
                 }
                 break;
@@ -318,7 +318,7 @@ MainLoop()
 
         mouseNav.Update(elapsedSeconds);
             
-        const Viewport viewport(WebgpuHelper::GetScreenBounds());
+        const Viewport viewport(GpuHelper::GetScreenBounds());
         camera.SetViewport(viewport);
         camera.SetAspectRatio(viewport.GetAspectRatio());
         cameraXForm = mouseNav.GetTransform();
@@ -335,10 +335,10 @@ MainLoop()
         MLG_CHECK(compositor.EndFrame());
 
 #if !defined(__EMSCRIPTEN__)
-        MLG_CHECK(WebgpuHelper::GetSurface().Present(), "Failed to present backbuffer");
+        MLG_CHECK(GpuHelper::GetSurface().Present(), "Failed to present backbuffer");
 #endif
 
-        WebgpuHelper::GetInstance().ProcessEvents();
+        GpuHelper::GetInstance().ProcessEvents();
     }
 
     MLG_CHECK(textureCache.Shutdown());

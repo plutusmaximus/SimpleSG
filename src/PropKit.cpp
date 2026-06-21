@@ -5,6 +5,7 @@
 
 #include "PropKit.h"
 #include "FileFetcher.h"
+#include "GpuHelper.h"
 #include "Log.h"
 #include "narrow_cast.h"
 #include "scope_exit.h"
@@ -12,7 +13,6 @@
 #include "Timer.h"
 #include "TextureCache.h"
 #include "ThreadPool.h"
-#include "WebgpuHelper.h"
 
 #include <atomic>
 #include <filesystem>
@@ -136,7 +136,7 @@ StageTexture(TextureBuilder& builder)
 
     MLG_DEBUG("Image info - {} x {} x {}", width, height, numChannels);
 
-    auto texture = WebgpuHelper::CreateTexture(static_cast<uint32_t>(width),
+    auto texture = GpuHelper::CreateTexture(static_cast<uint32_t>(width),
         static_cast<uint32_t>(height),
         builder.Uri);
 
@@ -293,7 +293,7 @@ CreateMaterialBindGroups(const std::span<const MaterialDef> materialDefs,
 
     materialBindGroups.reserve(materialDefs.size());
 
-    auto layout = WebgpuHelper::GetTextureSamplerBindGroupLayout();
+    auto layout = GpuHelper::GetTextureSamplerBindGroupLayout();
     MLG_CHECK(layout);
 
     for(const auto& mtlDef : materialDefs)
@@ -309,7 +309,7 @@ CreateMaterialBindGroups(const std::span<const MaterialDef> materialDefs,
             };
 
         auto bindGroup =
-            ColorShaderContract::MaterialGroup::CreateBindGroup(WebgpuHelper::GetDevice(),
+            ColorShaderContract::MaterialGroup::CreateBindGroup(GpuHelper::GetDevice(),
                 *layout,
                 resources);
 
@@ -339,7 +339,7 @@ BuildMaterialConstantsBuffer(const std::span<const MaterialDef> materialDefs)
         materialConstants.emplace_back(mc);
     }
 
-    return WebgpuHelper::CreateStorageBuffer<MaterialConstantsBuffer>(materialConstants,
+    return GpuHelper::CreateStorageBuffer<MaterialConstantsBuffer>(materialConstants,
         "MaterialConstantsBuffer");
 }
 } // namespace
@@ -430,14 +430,14 @@ PropKit::Create(
         models.emplace_back(model);
     }
 
-    const wgpu::CommandEncoder encoder = WebgpuHelper::GetDevice().CreateCommandEncoder();
+    const wgpu::CommandEncoder encoder = GpuHelper::GetDevice().CreateCommandEncoder();
 
     MLG_CHECK(FetchTextures(rootPath, uniqueMaterials, textureCache, encoder));
 
-    auto vertexBuffer = WebgpuHelper::CreateVertexBuffer(vertices, "VertexBuffer");
+    auto vertexBuffer = GpuHelper::CreateVertexBuffer(vertices, "VertexBuffer");
     MLG_CHECK(vertexBuffer);
 
-    auto indexBuffer = WebgpuHelper::CreateIndexBuffer(indices, "IndexBuffer");
+    auto indexBuffer = GpuHelper::CreateIndexBuffer(indices, "IndexBuffer");
     MLG_CHECK(indexBuffer);
 
     auto materialConstantsBuffer = BuildMaterialConstantsBuffer(uniqueMaterials);
@@ -447,7 +447,7 @@ PropKit::Create(
     MLG_CHECK(CreateMaterialBindGroups(uniqueMaterials, textureCache, materialBindGroups));
 
     const wgpu::CommandBuffer commandBuffer = encoder.Finish();
-    WebgpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
+    GpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
 
     PropKit propKit(
         std::move(*vertexBuffer),

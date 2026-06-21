@@ -1,7 +1,7 @@
 #pragma once
 
+#include "GpuHelper.h"
 #include "StringArena.h"
-#include "WebgpuHelper.h"
 
 class TextureCache
 {

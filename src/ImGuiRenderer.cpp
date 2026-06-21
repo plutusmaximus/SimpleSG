@@ -1,9 +1,9 @@
 #include "ImGuiRenderer.h"
 
 #include "Compositor.h"
+#include "GpuHelper.h"
 #include "PerfMetrics.h"
 #include "scope_exit.h"
-#include "WebgpuHelper.h"
 
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
@@ -31,12 +31,12 @@ ImGuiRenderer::Startup()
     //ImGui::StyleColorsLight();
     
     // Setup Platform/Renderer backends
-    ImGui_ImplSDL3_InitForOther(WebgpuHelper::GetWindow());
+    ImGui_ImplSDL3_InitForOther(GpuHelper::GetWindow());
 
     ImGui_ImplWGPU_InitInfo init_info;
-    init_info.Device = WebgpuHelper::GetDevice().Get();
+    init_info.Device = GpuHelper::GetDevice().Get();
     init_info.NumFramesInFlight = 3;
-    init_info.RenderTargetFormat = static_cast<WGPUTextureFormat>(WebgpuHelper::GetSwapChainFormat());
+    init_info.RenderTargetFormat = static_cast<WGPUTextureFormat>(GpuHelper::GetSwapChainFormat());
     init_info.DepthStencilFormat = WGPUTextureFormat_Undefined;
     ImGui_ImplWGPU_Init(&init_info);
 

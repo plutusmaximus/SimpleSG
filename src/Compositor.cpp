@@ -1,7 +1,7 @@
 #include "Compositor.h"
 
+#include "GpuHelper.h"
 #include "PerfMetrics.h"
-#include "WebgpuHelper.h"
 
 Result<>
 Compositor::BeginFrame()
@@ -12,12 +12,12 @@ Compositor::BeginFrame()
 
     const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "RenderCompositorEncoder" };
 
-    m_CommandEncoder = WebgpuHelper::GetDevice().CreateCommandEncoder(&encoderDesc);
+    m_CommandEncoder = GpuHelper::GetDevice().CreateCommandEncoder(&encoderDesc);
     MLG_CHECK(m_CommandEncoder, "Failed to create command encoder");
 
 #if !defined(OFFSCREEN_RENDERING) || !OFFSCREEN_RENDERING
     wgpu::SurfaceTexture backbuffer;
-    WebgpuHelper::GetSurface().GetCurrentTexture(&backbuffer);
+    GpuHelper::GetSurface().GetCurrentTexture(&backbuffer);
     MLG_CHECK(backbuffer.texture, "Failed to get current surface texture for render pass");
 
     // TODO - handle SuccessSuboptimal, Timeout, Outdated, Lost, Error statuses
@@ -53,7 +53,7 @@ Compositor::EndFrame()
 
     {
         MLG_SCOPED_TIMER("RenderCompositor.SubmitCommandBuffer");
-        const wgpu::Queue queue = WebgpuHelper::GetDevice().GetQueue();
+        const wgpu::Queue queue = GpuHelper::GetDevice().GetQueue();
         MLG_CHECK(queue, "Failed to get wgpu::Queue");
 
         queue.Submit(1, &cmdBuf);
