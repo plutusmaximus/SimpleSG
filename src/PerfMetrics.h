@@ -133,11 +133,28 @@ public:
     PerfCounter(PerfCounter&&) = delete;
     PerfCounter& operator=(PerfCounter&&) = delete;
 
-    void Increment(const double count) { m_Value.fetch_add(count, std::memory_order_relaxed); }
+    template<typename T>
+    void Increment(const T count)
+    {
+        static_assert(std::is_arithmetic_v<T>,
+            "PerfCounter can only be incremented by arithmetic types");
+        m_Value.fetch_add(static_cast<double>(count), std::memory_order_relaxed);
+    }
 
-    void Decrement(const double count) { m_Value.fetch_sub(count, std::memory_order_relaxed); }
+    template<typename T>
+    void Decrement(const T count)
+    {
+        static_assert(std::is_arithmetic_v<T>,
+            "PerfCounter can only be decremented by arithmetic types");
+        m_Value.fetch_sub(static_cast<double>(count), std::memory_order_relaxed);
+    }
 
-    void Set(const double value) { m_Value.store(value, std::memory_order_relaxed); }
+    template<typename T>
+    void Set(const T value)
+    {
+        static_assert(std::is_arithmetic_v<T>, "PerfCounter can only be set to arithmetic types");
+        m_Value.store(static_cast<double>(value), std::memory_order_relaxed);
+    }
 
     const StringHandle& GetName() const { return m_Name; }
 
