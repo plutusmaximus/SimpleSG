@@ -49,6 +49,36 @@ private:
     BoundingBox m_BoundingBox;
 };
 
+class Model
+{
+public:
+    Model(const StringHandle& name,
+        const MeshIdentifier& firstMeshId,
+        const size_t meshCount,
+        const BoundingBox& boundingBox,
+        const BoundingSphere& boundingSphere)
+        : m_Name(name),
+            m_FirstMeshId(firstMeshId),
+            m_MeshCount(meshCount),
+            m_BoundingBox(boundingBox),
+            m_BoundingSphere(boundingSphere)
+    {
+    }
+
+    const StringHandle& GetName() const { return m_Name; }
+    const MeshIdentifier& GetFirstMeshId() const { return m_FirstMeshId; }
+    size_t GetMeshCount() const { return m_MeshCount; }
+    const BoundingBox& GetBoundingBox() const { return m_BoundingBox; }
+    const BoundingSphere& GetBoundingSphere() const { return m_BoundingSphere; }
+
+private:
+    StringHandle m_Name;
+    MeshIdentifier m_FirstMeshId;
+    size_t m_MeshCount{ 0 };
+    BoundingBox m_BoundingBox;
+    BoundingSphere m_BoundingSphere;
+};
+
 class PropKit
 {
 public:
@@ -84,35 +114,6 @@ public:
     IndexBuffer GetIndexBuffer() const { return m_IndexBuffer; }
 
 private:
-    class Model
-    {
-    public:
-        Model(const StringHandle& name,
-            const MeshIdentifier& firstMeshId,
-            const size_t meshCount,
-            const BoundingBox& boundingBox,
-            const BoundingSphere& boundingSphere)
-            : m_Name(name),
-              m_FirstMeshId(firstMeshId),
-              m_MeshCount(meshCount),
-              m_BoundingBox(boundingBox),
-              m_BoundingSphere(boundingSphere)
-        {
-        }
-
-        const StringHandle& GetName() const { return m_Name; }
-        const MeshIdentifier& GetFirstMeshId() const { return m_FirstMeshId; }
-        size_t GetMeshCount() const { return m_MeshCount; }
-        const BoundingBox& GetBoundingBox() const { return m_BoundingBox; }
-        const BoundingSphere& GetBoundingSphere() const { return m_BoundingSphere; }
-
-    private:
-        StringHandle m_Name;
-        MeshIdentifier m_FirstMeshId;
-        size_t m_MeshCount{ 0 };
-        BoundingBox m_BoundingBox;
-        BoundingSphere m_BoundingSphere;
-    };
 
     PropKit(VertexBuffer vertexBuffer,
         IndexBuffer indexBuffer,

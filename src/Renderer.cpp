@@ -71,9 +71,15 @@ Renderer::Startup()
 
     const Extent screenBounds = GpuHelper::GetScreenBounds();
 
-    MLG_CHECK(RefreshColorTargetResources(static_cast<uint32_t>(screenBounds.Width),
-        static_cast<uint32_t>(screenBounds.Height)));
-    MLG_CHECK(CreateColorPipeline());
+    const uint32_t width = static_cast<uint32_t>(screenBounds.Width);
+    const uint32_t height = static_cast<uint32_t>(screenBounds.Height);
+
+    MLG_CHECK(EnsureColorTarget(width, height));
+
+    const wgpu::TextureFormat targetFormat = m_ColorTargetResources.Target.GetFormat();
+    const wgpu::TextureFormat depthFormat = m_ColorTargetResources.DepthTarget.GetFormat();
+
+    MLG_CHECK(EnsureColorPipeline(targetFormat, depthFormat));
     MLG_CHECK(CreateCompositorPipeline());
     MLG_CHECK(CreateTransformPipeline());
 
@@ -116,7 +122,9 @@ Renderer::Render(const Camera& camera,
 
     MLG_SCOPED_TIMER("Renderer.Render");
 
-    MLG_CHECK(RefreshColorTargetResources(viewport.GetWidth(), viewport.GetHeight()));
+    MLG_CHECK(EnsureColorTarget(viewport.GetWidth(), viewport.GetHeight()));
+    MLG_CHECK(EnsureColorPipeline(m_ColorTargetResources.Target.GetFormat(),
+        m_ColorTargetResources.DepthTarget.GetFormat()));
 
     const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "RenderCommandEncoder" };
 
@@ -236,11 +244,10 @@ Renderer::Render(const Camera& camera,
                 {
                     MLG_SCOPED_TIMER("Renderer.Render.Draw.SetMaterialBindGroup");
 
-                    const wgpu::BindGroup* materialBindGroup =
-                        propKit.GetMaterialBindGroup(materialId);
-                    MLG_CHECKV(materialBindGroup, "Failed to get material bind group");
+                    const wgpu::BindGroup* bindGroup = propKit.GetMaterialBindGroup(materialId);
+                    MLG_CHECKV(bindGroup, "Failed to get material bind group");
 
-                    renderPass.SetBindGroup(1, *materialBindGroup, 0, nullptr);
+                    renderPass.SetBindGroup(1, *bindGroup, 0, nullptr);
                     lastMaterialId = materialId;
                 }
 
@@ -366,7 +373,7 @@ Renderer::BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder)
 }
 
 Result<>
-Renderer::RefreshColorTargetResources(const uint32_t width, const uint32_t height)
+Renderer::EnsureColorTarget(const uint32_t width, const uint32_t height)
 {
     static constexpr wgpu::TextureFormat kDepthTargetFormat = wgpu::TextureFormat::Depth24Plus;
 
@@ -469,20 +476,17 @@ Renderer::RefreshColorTargetResources(const uint32_t width, const uint32_t heigh
 }
 
 Result<>
-Renderer::CreateColorPipeline()
+Renderer::EnsureColorPipeline(const wgpu::TextureFormat targetFormat,
+    const wgpu::TextureFormat depthFormat)
 {
-    if(m_ColorPipeline)
+    if(m_ColorPipeline && m_ColorPipelineResources.TargetFormat == targetFormat &&
+        m_ColorPipelineResources.DepthFormat == depthFormat)
     {
         return Result<>::Ok;
     }
 
-    MLG_CHECKV(m_ColorTargetResources.Target, "Color target is invalid");
-    MLG_CHECKV(m_ColorTargetResources.DepthTarget, "Depth target is invalid");
-
     auto shader = CreateShader(ColorShaderContract::GetShaderPath());
     MLG_CHECK(shader);
-
-    m_ColorPipelineResources.Shader = *shader;
 
     // Color target pipeline layout
 
@@ -503,9 +507,14 @@ Renderer::CreateColorPipeline()
             .bindGroupLayouts = &layouts[0],
         };
 
-    m_ColorPipelineResources.Layout =
+    const wgpu::PipelineLayout pipelineLayout =
         GpuHelper::GetDevice().CreatePipelineLayout(&colorTargetPipelineLayoutDesc);
-    MLG_CHECK(m_ColorPipelineResources.Layout, "Failed to create color pipeline layout");
+    MLG_CHECK(pipelineLayout, "Failed to create color pipeline layout");
+
+    m_ColorPipelineResources.Layout = pipelineLayout;
+    m_ColorPipelineResources.Shader = *shader;
+    m_ColorPipelineResources.TargetFormat = targetFormat;
+    m_ColorPipelineResources.DepthFormat = depthFormat;
 
     const wgpu::BlendState blendState //
         {
@@ -525,14 +534,14 @@ Renderer::CreateColorPipeline()
 
     const wgpu::ColorTargetState colorTargetState //
         {
-            .format = m_ColorTargetResources.Target.GetFormat(),
+            .format = m_ColorPipelineResources.TargetFormat,
             .blend = &blendState,
             .writeMask = wgpu::ColorWriteMask::All,
         };
 
     const wgpu::DepthStencilState depthStencilState //
         {
-            .format = m_ColorTargetResources.DepthTarget.GetFormat(),
+            .format = m_ColorPipelineResources.DepthFormat,
             .depthWriteEnabled = true,
             .depthCompare = wgpu::CompareFunction::Less,
             /*.stencilFront =

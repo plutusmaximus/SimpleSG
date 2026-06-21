@@ -44,9 +44,10 @@ private:
 
     Result<wgpu::RenderPassEncoder> BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder);
 
-    Result<> RefreshColorTargetResources(const uint32_t width, const uint32_t height);
+    Result<> EnsureColorTarget(const uint32_t width, const uint32_t height);
 
-    Result<> CreateColorPipeline();
+    Result<> EnsureColorPipeline(const wgpu::TextureFormat targetFormat,
+        const wgpu::TextureFormat depthFormat);
 
     Result<> CreateCompositorPipeline();
 
@@ -73,6 +74,8 @@ private:
     {
         wgpu::ShaderModule Shader;
         wgpu::PipelineLayout Layout;
+        wgpu::TextureFormat TargetFormat{ wgpu::TextureFormat::Undefined };
+        wgpu::TextureFormat DepthFormat{ wgpu::TextureFormat::Undefined };
     };
 
     struct TransformPipelineResources
