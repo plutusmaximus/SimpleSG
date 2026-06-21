@@ -77,7 +77,7 @@ public:
 
     const wgpu::BindGroup* GetMaterialBindGroup(const MaterialIdentifier& materialId) const;
 
-    MaterialConstantsBuffer GetMaterialConstantsBuffer() const { return m_MaterialConstantsBuffer; }
+    MaterialConstantsBuffer GetMaterialConstants() const { return m_MaterialConstants; }
 
     VertexBuffer GetVertexBuffer() const { return m_VertexBuffer; }
 
@@ -126,7 +126,7 @@ private:
     IndexBuffer m_IndexBuffer;
     std::vector<Mesh> m_Meshes;
     std::vector<Model> m_Models;
-    MaterialConstantsBuffer m_MaterialConstantsBuffer;
+    MaterialConstantsBuffer m_MaterialConstants;
     std::unordered_map<std::string_view, ModelIdentifier> m_ModelNameToId;
     std::vector<wgpu::BindGroup> m_MaterialBindGroups;
     StringArena m_StringArena;

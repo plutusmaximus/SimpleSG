@@ -204,7 +204,7 @@ Scene::Create(const Level& level, const PropKit& propKit)
             .WorldTransforms = *transformBuffer,
             .ClipSpaceTransforms = *clipSpaceBuffer,
             .MeshProperties = *meshPropertiesBuffer,
-            .MaterialConstants = propKit.GetMaterialConstantsBuffer(),
+            .MaterialConstants = propKit.GetMaterialConstants(),
             .CameraParams = *cameraParamsBuf,
         };
 

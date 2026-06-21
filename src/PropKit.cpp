@@ -70,29 +70,25 @@ public:
             &imgNumChannels,
             kNumTextureChannels);
 
-        MLG_CHECKV(data, "Failed to decode image {} - {}", builder.Uri, stbi_failure_reason());
+        MLG_CHECKV(data, "Failed to decode image - {}", stbi_failure_reason());
 
         MLG_DEFER{ stbi_image_free(data); };
 
         MLG_CHECKV(builder.Texture->GetWidth() == static_cast<uint32_t>(imgWidth) &&
                        builder.Texture->GetHeight() == static_cast<uint32_t>(imgHeight),
-            "Decoded image dimensions do not match texture dimensions - {}",
-            builder.Uri);
+            "Decoded image dimensions do not match texture dimensions");
 
         MLG_CHECKV(builder.Texture->GetFormat() == wgpu::TextureFormat::RGBA8Unorm,
-            "Texture format does not match expected format - {}",
-            builder.Uri);
+            "Texture format does not match expected format");
 
-        const size_t sizeofData = static_cast<size_t>(imgWidth) * static_cast<size_t>(imgHeight) *
-                                  static_cast<size_t>(kNumTextureChannels);
+        const size_t sizeofData =
+            static_cast<size_t>(imgWidth) * static_cast<size_t>(imgHeight) * kNumTextureChannels;
 
         const size_t expectedSize = static_cast<size_t>(builder.Texture->GetWidth()) *
-                                                    static_cast<size_t>(builder.Texture->GetHeight()) *
-                                                    static_cast<size_t>(kNumTextureChannels);
+                                    static_cast<size_t>(builder.Texture->GetHeight()) *
+                                    kNumTextureChannels;
 
-        MLG_CHECKV(sizeofData == expectedSize,
-            "Decoded image size does not match texture size - {}",
-            builder.Uri);
+        MLG_CHECKV(sizeofData == expectedSize, "Decoded image size does not match texture size");
 
         const std::span<const stbi_uc> srcSpan(data, sizeofData);
         const std::span<std::byte> dstSpan(builder.MappedMemory, sizeofData);
@@ -168,20 +164,20 @@ FetchTextures(const std::filesystem::path& basePath,
     TextureCache& textureCache,
     const wgpu::CommandEncoder& encoder)
 {
-    std::vector<FileFetcher::Request> requestHeap;
-    std::vector<TextureBuilder> fetching;
-    std::vector<TextureBuilder> staging;
-
-    // Allocate a contiguous block (a heap) of fetch requests.
+    // Heap of fetch requests.
     // Pointers to pending fetch requests will be used to initialize
     // instances of TextureBuilder.
-    requestHeap.reserve(materialDefs.size());
-
+    std::vector<FileFetcher::Request> requestHeap;
     // Collection of builders for which we're fetching texture files.
-    fetching.reserve(materialDefs.size());
-
+    std::vector<TextureBuilder> fetching;
     // Collection of builders for which fetching is complete and we're now staging the textures to
     // the GPU.
+    std::vector<TextureBuilder> staging;
+
+    requestHeap.reserve(materialDefs.size());
+
+    fetching.reserve(materialDefs.size());
+
     staging.reserve(materialDefs.size());
 
     // Counter to track how many staging operations have completed.
@@ -206,6 +202,7 @@ FetchTextures(const std::filesystem::path& basePath,
 
         FileFetcher::Request& request =
             requestHeap.emplace_back((basePath / mtl.BaseTextureUri).string());
+
         fetching.emplace_back(mtl.BaseTextureUri, &request, &stageCounter);
 
         MLG_DEBUG("Fetching texture...");
@@ -336,7 +333,7 @@ BuildMaterialConstantsBuffer(const std::span<const MaterialDef> materialDefs)
     }
 
     return GpuHelper::CreateStorageBuffer<MaterialConstantsBuffer>(materialConstants,
-        "MaterialConstantsBuffer");
+        "MaterialConstants");
 }
 } // namespace
 
@@ -348,7 +345,7 @@ PropKit::Create(
     createTimer.Start();
 
     size_t vertexCount = 0, indexCount = 0, meshCount = 0, totalStringSize = 0;
-    size_t materialId = 0;
+    size_t materialIndex = 0;
 
     std::map<MaterialDef, MaterialIdentifier> uniqueMaterialMap;
 
@@ -363,7 +360,7 @@ PropKit::Create(
             const MaterialDef& materialDef = mesh.MaterialDef;
             if(!uniqueMaterialMap.contains(materialDef))
             {
-                uniqueMaterialMap[materialDef] = MaterialIdentifier(materialId++);
+                uniqueMaterialMap[materialDef] = MaterialIdentifier(materialIndex++);
             }
 
             vertexCount += mesh.Vertices.size();
@@ -397,14 +394,17 @@ PropKit::Create(
 
         for(const auto& meshDef : modelDef.MeshDefs)
         {
+            const MaterialIdentifier materialId = uniqueMaterialMap[meshDef.MaterialDef];
+            const BoundingBox aabb = BoundingBox::FromVertices(meshDef.Vertices, meshDef.Indices);
+
             const Mesh mesh(
                 {
                     .IndexCount = narrow_cast<uint32_t>(meshDef.Indices.size()),
                     .FirstIndex = narrow_cast<uint32_t>(indices.size()),
                     .BaseVertex = narrow_cast<uint32_t>(vertices.size()),
                 },
-                uniqueMaterialMap[meshDef.MaterialDef],
-                BoundingBox::FromVertices(meshDef.Vertices, meshDef.Indices));
+                materialId,
+                aabb);
 
             vertices.insert(vertices.end(), meshDef.Vertices.begin(), meshDef.Vertices.end());
             indices.insert(indices.end(), meshDef.Indices.begin(), meshDef.Indices.end());
@@ -412,17 +412,17 @@ PropKit::Create(
         }
 
         const std::span<const Mesh> meshSpan = std::span<const Mesh>(meshes).subspan(firstMeshIdx);
-        BoundingBox boundingBox = meshSpan.front().GetBoundingBox();
+        BoundingBox aabb = meshSpan.front().GetBoundingBox();
         for(const Mesh& mesh : meshSpan.subspan(1))
         {
-            boundingBox += mesh.GetBoundingBox();
+            aabb += mesh.GetBoundingBox();
         }
 
         const Model model(modelName,
             MeshIdentifier(firstMeshIdx),
             modelDef.MeshDefs.size(),
-            boundingBox,
-            BoundingSphere(boundingBox));
+            aabb,
+            BoundingSphere(aabb));
         models.emplace_back(model);
     }
 
@@ -436,8 +436,8 @@ PropKit::Create(
     auto indexBuffer = GpuHelper::CreateIndexBuffer(indices, "IndexBuffer");
     MLG_CHECK(indexBuffer);
 
-    auto materialConstantsBuffer = BuildMaterialConstantsBuffer(uniqueMaterials);
-    MLG_CHECK(materialConstantsBuffer);
+    auto materialConstants = BuildMaterialConstantsBuffer(uniqueMaterials);
+    MLG_CHECK(materialConstants);
 
     std::vector<wgpu::BindGroup> materialBindGroups;
     MLG_CHECK(CreateMaterialBindGroups(uniqueMaterials, textureCache, materialBindGroups));
@@ -450,7 +450,7 @@ PropKit::Create(
         std::move(*indexBuffer),
         std::move(meshes),
         std::move(models),
-        std::move(*materialConstantsBuffer),
+        std::move(*materialConstants),
         std::move(materialBindGroups),
         std::move(stringArena));
 
@@ -508,14 +508,14 @@ PropKit::PropKit(VertexBuffer vertexBuffer,
     IndexBuffer indexBuffer,
     std::vector<Mesh> meshes,
     std::vector<Model> models,
-    MaterialConstantsBuffer materialConstantsBuffer,
+    MaterialConstantsBuffer materialConstants,
     std::vector<wgpu::BindGroup> materialBindGroups,
     StringArena stringArena)
     : m_VertexBuffer(std::move(vertexBuffer)),
       m_IndexBuffer(std::move(indexBuffer)),
       m_Meshes(std::move(meshes)),
       m_Models(std::move(models)),
-      m_MaterialConstantsBuffer(std::move(materialConstantsBuffer)),
+      m_MaterialConstants(std::move(materialConstants)),
       m_MaterialBindGroups(std::move(materialBindGroups)),
       m_StringArena(std::move(stringArena))
 {
