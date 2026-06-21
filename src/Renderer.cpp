@@ -459,12 +459,14 @@ Renderer::RefreshColorTargetResources(const uint32_t width, const uint32_t heigh
                 .Sampler = m_ColorTargetResources.Sampler,
             };
 
-        m_ColorTargetResources.BindGroup =
-            CompositeShaderContract::MaterialGroup::CreateBindGroup(WebgpuHelper::GetDevice(),
+        auto bindGroup =
+             CompositeShaderContract::MaterialGroup::CreateBindGroup(WebgpuHelper::GetDevice(),
                 *layout,
                 resources);
-        MLG_CHECK(m_ColorTargetResources.BindGroup,
-            "Failed to create bind group for compositor pipeline");
+
+         MLG_CHECK(bindGroup);
+
+        m_ColorTargetResources.BindGroup = std::move(*bindGroup);
     }
 
     return Result<>::Ok;

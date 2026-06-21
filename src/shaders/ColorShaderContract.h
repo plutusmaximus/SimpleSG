@@ -34,9 +34,9 @@ public:
             }
         };
 
-        static wgpu::BindGroupLayout CreateLayout(wgpu::Device device);
+        static Result<wgpu::BindGroupLayout> CreateLayout(wgpu::Device device);
 
-        static wgpu::BindGroup CreateBindGroup(wgpu::Device device, wgpu::BindGroupLayout layout,
+        static Result<wgpu::BindGroup> CreateBindGroup(wgpu::Device device, wgpu::BindGroupLayout layout,
             const Resources& resources);
     };
 
@@ -56,9 +56,9 @@ public:
             }
         };
 
-        static wgpu::BindGroupLayout CreateLayout(wgpu::Device device);
+        static Result<wgpu::BindGroupLayout> CreateLayout(wgpu::Device device);
 
-        static wgpu::BindGroup CreateBindGroup(wgpu::Device device, wgpu::BindGroupLayout layout,
+        static Result<wgpu::BindGroup> CreateBindGroup(wgpu::Device device, wgpu::BindGroupLayout layout,
             const Resources& resources);
     };
 

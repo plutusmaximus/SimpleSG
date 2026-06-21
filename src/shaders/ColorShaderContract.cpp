@@ -1,6 +1,6 @@
 #include "ColorShaderContract.h"
 
-wgpu::BindGroupLayout
+Result<wgpu::BindGroupLayout>
 ColorShaderContract::SceneGroup::CreateLayout(wgpu::Device device)
 {
     const wgpu::BindGroupLayoutEntry entries[]//
@@ -72,15 +72,12 @@ ColorShaderContract::SceneGroup::CreateLayout(wgpu::Device device)
     return device.CreateBindGroupLayout(&desc);
 }
 
-wgpu::BindGroup
+Result<wgpu::BindGroup>
 ColorShaderContract::SceneGroup::CreateBindGroup(wgpu::Device device, wgpu::BindGroupLayout layout,
     const SceneGroup::Resources& resources)
 {
-    if(!resources.Validate())
-    {
-        MLG_ERROR("Invalid resources provided for ColorShaderContract::SceneGroup::CreateBindGroup");
-        return nullptr;
-    }
+    MLG_CHECK(resources.Validate(),
+        "Invalid resources provided for ColorShaderContract::SceneGroup::CreateBindGroup");
 
     const wgpu::BindGroupEntry entries[] = //
         {
@@ -127,7 +124,7 @@ ColorShaderContract::SceneGroup::CreateBindGroup(wgpu::Device device, wgpu::Bind
     return device.CreateBindGroup(&desc);
 }
 
-wgpu::BindGroupLayout
+Result<wgpu::BindGroupLayout>
 ColorShaderContract::MaterialGroup::CreateLayout(wgpu::Device device)
 {
     const wgpu::BindGroupLayoutEntry entries[] =//
@@ -164,16 +161,13 @@ ColorShaderContract::MaterialGroup::CreateLayout(wgpu::Device device)
     return device.CreateBindGroupLayout(&desc);
 }
 
-wgpu::BindGroup
+Result<wgpu::BindGroup>
 ColorShaderContract::MaterialGroup::CreateBindGroup(wgpu::Device device, wgpu::BindGroupLayout layout,
     const MaterialGroup::Resources& resources)
 {
-    if(!resources.Validate())
-    {
-        MLG_ERROR("Invalid resources provided for ColorShaderContract::MaterialGroup::CreateBindGroup");
-        return nullptr;
-    }
-    
+    MLG_CHECK(resources.Validate(),
+        "Invalid resources provided for ColorShaderContract::MaterialGroup::CreateBindGroup");
+
     const wgpu::BindGroupEntry entries[] = //
         {
             {

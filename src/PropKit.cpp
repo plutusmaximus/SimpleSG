@@ -308,14 +308,14 @@ CreateMaterialBindGroups(const std::span<const MaterialDef> materialDefs,
                 .BaseSampler = textureCache.GetDefaultSampler(),
             };
 
-        wgpu::BindGroup bindGroup =
+        auto bindGroup =
             ColorShaderContract::MaterialGroup::CreateBindGroup(WebgpuHelper::GetDevice(),
                 *layout,
                 resources);
 
         MLG_CHECK(bindGroup);
 
-        materialBindGroups.emplace_back(std::move(bindGroup));
+        materialBindGroups.emplace_back(std::move(*bindGroup));
     }
 
     return Result<>::Ok;

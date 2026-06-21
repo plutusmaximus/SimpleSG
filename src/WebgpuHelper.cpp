@@ -816,10 +816,9 @@ WebgpuHelper::GetCompositorBindGroupLayout()
 
     if(!WgpuContext::Ctx->CompositorPipelineLayouts[0])
     {
-        WgpuContext::Ctx->CompositorPipelineLayouts[0] =
-            CompositeShaderContract::MaterialGroup::CreateLayout(GetDevice());
-        MLG_CHECK(WgpuContext::Ctx->CompositorPipelineLayouts[0],
-            "Failed to create bind group 0 layout for compositor");
+        auto layout = CompositeShaderContract::MaterialGroup::CreateLayout(GetDevice());
+        MLG_CHECK(layout);
+        WgpuContext::Ctx->CompositorPipelineLayouts[0] = std::move(*layout);
     }
 
     return WgpuContext::Ctx->CompositorPipelineLayouts[0];
@@ -832,18 +831,16 @@ WebgpuHelper::GetColorPipelineLayouts()
 
     if(!WgpuContext::Ctx->ColorPipelineLayouts[0])
     {
-        WgpuContext::Ctx->ColorPipelineLayouts[0] =
-            ColorShaderContract::SceneGroup::CreateLayout(GetDevice());
-        MLG_CHECK(WgpuContext::Ctx->ColorPipelineLayouts[0],
-            "Failed to create bind group 0 layout for color pipeline");
+        auto layout = ColorShaderContract::SceneGroup::CreateLayout(GetDevice());
+        MLG_CHECK(layout);
+        WgpuContext::Ctx->ColorPipelineLayouts[0] = std::move(*layout);
     }
 
     if(!WgpuContext::Ctx->ColorPipelineLayouts[1])
     {
-        WgpuContext::Ctx->ColorPipelineLayouts[1] =
-            ColorShaderContract::MaterialGroup::CreateLayout(GetDevice());
-        MLG_CHECK(WgpuContext::Ctx->ColorPipelineLayouts[1],
-            "Failed to create bind group 1 layout for color pipeline");
+        auto layout = ColorShaderContract::MaterialGroup::CreateLayout(GetDevice());
+        MLG_CHECK(layout);
+        WgpuContext::Ctx->ColorPipelineLayouts[1] = std::move(*layout);
     }
 
     return WgpuContext::Ctx->ColorPipelineLayouts;
@@ -856,10 +853,9 @@ WebgpuHelper::GetTransformPipelineLayouts()
 
     if(!WgpuContext::Ctx->TransformPipelineLayouts[0])
     {
-        WgpuContext::Ctx->TransformPipelineLayouts[0] =
-            TransformShaderContract::SceneGroup::CreateLayout(GetDevice());
-        MLG_CHECK(WgpuContext::Ctx->TransformPipelineLayouts[0],
-            "Failed to create bind group 0 layout for transform pipeline");
+        auto layout = TransformShaderContract::SceneGroup::CreateLayout(GetDevice());
+        MLG_CHECK(layout);
+        WgpuContext::Ctx->TransformPipelineLayouts[0] = std::move(*layout);
     }
 
     return WgpuContext::Ctx->TransformPipelineLayouts;

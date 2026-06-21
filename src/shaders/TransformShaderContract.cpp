@@ -1,6 +1,6 @@
 #include "TransformShaderContract.h"
 
-wgpu::BindGroupLayout
+Result<wgpu::BindGroupLayout>
 TransformShaderContract::SceneGroup::CreateLayout(wgpu::Device device)
 {
     const wgpu::BindGroupLayoutEntry entries[]//
@@ -50,16 +50,13 @@ TransformShaderContract::SceneGroup::CreateLayout(wgpu::Device device)
     return device.CreateBindGroupLayout(&desc);
 }
 
-wgpu::BindGroup
+Result<wgpu::BindGroup>
 TransformShaderContract::SceneGroup::CreateBindGroup(wgpu::Device device, wgpu::BindGroupLayout layout,
     const SceneGroup::Resources& resources)
 {
-    if(!resources.Validate())
-    {
-        MLG_ERROR("Invalid resources provided for TransformShaderContract::SceneGroup::CreateBindGroup");
-        return nullptr;
-    }
-    
+    MLG_CHECK(resources.Validate(),
+        "Invalid resources provided for TransformShaderContract::SceneGroup::CreateBindGroup");
+
     const wgpu::BindGroupEntry entries[] = //
         {
             {

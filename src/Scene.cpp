@@ -175,14 +175,14 @@ CreateColorShaderBindGroup(const ColorShaderContract::SceneGroup::Resources& res
     auto layouts = WebgpuHelper::GetColorPipelineLayouts();
     MLG_CHECK(layouts);
 
-    wgpu::BindGroup bindGroup =
+    auto bindGroup =
         ColorShaderContract::SceneGroup::CreateBindGroup(WebgpuHelper::GetDevice(),
             (*layouts)[0],
             resources);
 
     MLG_CHECK(bindGroup);
 
-    return bindGroup;
+    return std::move(*bindGroup);
 }
 
 Result<wgpu::BindGroup>
@@ -190,14 +190,14 @@ CreateTransformShaderBindGroup(const TransformShaderContract::SceneGroup::Resour
 {
     auto layouts = WebgpuHelper::GetTransformPipelineLayouts();
 
-    wgpu::BindGroup bindGroup =
+    auto bindGroup =
         TransformShaderContract::SceneGroup::CreateBindGroup(WebgpuHelper::GetDevice(),
             (*layouts)[0],
             resources);
 
     MLG_CHECK(bindGroup);
 
-    return bindGroup;
+    return std::move(*bindGroup);
 }
 } // namespace
 
