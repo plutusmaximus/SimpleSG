@@ -5,9 +5,8 @@
 #include "VecMath.h"
 #include "Vertex.h"
 
-#include <array>
 #include <span>
-#include <string>
+#include <string_view>
 #include <type_traits>
 
 #include <webgpu/webgpu_cpp.h>
@@ -159,7 +158,7 @@ public:
 
     /// @brief Creates an empty texture with the given dimensions and name.
     static Result<Texture> CreateTexture(
-        const unsigned width, const unsigned height, const std::string& name);
+        const unsigned width, const unsigned height, const std::string_view& name);
 
     static Result<VertexBuffer> CreateVertexBuffer(const size_t count,
         const std::string_view& name);
@@ -254,14 +253,6 @@ public:
         buffer->Store(0, values);
         return *buffer;
     }
-
-    static Result<const wgpu::BindGroupLayout> GetTextureSamplerBindGroupLayout();
-
-    static Result<const wgpu::BindGroupLayout> GetCompositorBindGroupLayout();
-
-    static Result<const std::array<wgpu::BindGroupLayout, 2>> GetColorPipelineLayouts();
-
-    static Result<const std::array<wgpu::BindGroupLayout, 1>> GetTransformPipelineLayouts();
 
     static Extent GetScreenBounds();
 

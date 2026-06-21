@@ -305,6 +305,7 @@ set(SSG_SOURCES
   src/DevUi.cpp
   src/FileFetcher.cpp
   src/GpuHelper.cpp
+  src/GpuLayouts.cpp
   src/GridHash.cpp
   src/GltfLoader.cpp
   src/ImGuiRenderer.cpp
@@ -338,6 +339,7 @@ set(SSG_HEADERS
   src/FileFetcher.h
   src/GltfLoader.h
   src/GpuHelper.h
+  src/GpuLayouts.h
   src/shaders/GpuBufferTypes.h
   src/GridHash.h
   src/ImGuiRenderer.h

@@ -2,6 +2,7 @@
 
 #include "Scene.h"
 
+#include "GpuLayouts.h"
 #include "Level.h"
 #include "narrow_cast.h"
 #include "PropKit.h"
@@ -172,13 +173,13 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const P
 Result<wgpu::BindGroup>
 CreateColorShaderBindGroup(const ColorShaderContract::SceneGroup::Resources& resources)
 {
-    auto layouts = GpuHelper::GetColorPipelineLayouts();
-    MLG_CHECK(layouts);
+    auto layout =
+        GpuLayouts::GetOrCreateLayout<ColorShaderContract::SceneGroup>(GpuHelper::GetDevice());
+    MLG_CHECK(layout);
 
-    auto bindGroup =
-        ColorShaderContract::SceneGroup::CreateBindGroup(GpuHelper::GetDevice(),
-            (*layouts)[0],
-            resources);
+    auto bindGroup = ColorShaderContract::SceneGroup::CreateBindGroup(GpuHelper::GetDevice(),
+        *layout,
+        resources);
 
     MLG_CHECK(bindGroup);
 
@@ -188,11 +189,13 @@ CreateColorShaderBindGroup(const ColorShaderContract::SceneGroup::Resources& res
 Result<wgpu::BindGroup>
 CreateTransformShaderBindGroup(const TransformShaderContract::SceneGroup::Resources& resources)
 {
-    auto layouts = GpuHelper::GetTransformPipelineLayouts();
+    auto layout =
+        GpuLayouts::GetOrCreateLayout<TransformShaderContract::SceneGroup>(GpuHelper::GetDevice());
+    MLG_CHECK(layout);
 
     auto bindGroup =
         TransformShaderContract::SceneGroup::CreateBindGroup(GpuHelper::GetDevice(),
-            (*layouts)[0],
+            *layout,
             resources);
 
     MLG_CHECK(bindGroup);

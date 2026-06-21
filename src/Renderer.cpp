@@ -5,6 +5,7 @@
 #include "Camera.h"
 #include "Compositor.h"
 #include "FileFetcher.h"
+#include "GpuLayouts.h"
 #include "narrow_cast.h"
 #include "PerfMetrics.h"
 #include "PropKit.h"
@@ -449,7 +450,9 @@ Renderer::RefreshColorTargetResources(const uint32_t width, const uint32_t heigh
 
     if(!m_ColorTargetResources.BindGroup)
     {
-        auto layout = GpuHelper::GetCompositorBindGroupLayout();
+        auto layout =
+            GpuLayouts::GetOrCreateLayout<CompositeShaderContract::MaterialGroup>(
+                GpuHelper::GetDevice());
         MLG_CHECK(layout);
 
         const CompositeShaderContract::MaterialGroup::Resources resources //
@@ -489,14 +492,21 @@ Renderer::CreateColorPipeline()
 
     // Color target pipeline layout
 
-    auto bgLayouts = GpuHelper::GetColorPipelineLayouts();
-    MLG_CHECK(bgLayouts);
+    auto layout0 =
+        GpuLayouts::GetOrCreateLayout<ColorShaderContract::SceneGroup>(GpuHelper::GetDevice());
+    MLG_CHECK(layout0);
+
+    auto layout1 =
+        GpuLayouts::GetOrCreateLayout<ColorShaderContract::MaterialGroup>(GpuHelper::GetDevice());
+    MLG_CHECK(layout1);
+
+    const wgpu::BindGroupLayout layouts[]{ *layout0, *layout1 };
 
     const wgpu::PipelineLayoutDescriptor colorTargetPipelineLayoutDesc //
         {
             .label = "ColorPipelineLayout",
-            .bindGroupLayoutCount = std::size(*bgLayouts),
-            .bindGroupLayouts = bgLayouts->data(),
+            .bindGroupLayoutCount = std::size(layouts),
+            .bindGroupLayouts = &layouts[0],
         };
 
     m_ColorPipelineResources.Layout =
@@ -611,14 +621,15 @@ Renderer::CreateCompositorPipeline()
 
     m_CompositorPipelineResources.Shader = *shader;
 
-    auto bgLayout = GpuHelper::GetTextureSamplerBindGroupLayout();
-    MLG_CHECK(bgLayout);
+    auto layout = GpuLayouts::GetOrCreateLayout<CompositeShaderContract::MaterialGroup>(
+        GpuHelper::GetDevice());
+    MLG_CHECK(layout);
 
     const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
         {
             .label = "CompositorPipelineLayout",
             .bindGroupLayoutCount = 1,
-            .bindGroupLayouts = &bgLayout.Value(),
+            .bindGroupLayouts = &layout.Value(),
         };
 
     m_CompositorPipelineResources.Layout =
@@ -704,14 +715,15 @@ Renderer::CreateTransformPipeline()
 
     m_TransformPipelineResources.Shader = *csResult;
 
-    auto bgLayouts = GpuHelper::GetTransformPipelineLayouts();
-    MLG_CHECK(bgLayouts);
+    auto layout =
+        GpuLayouts::GetOrCreateLayout<TransformShaderContract::SceneGroup>(GpuHelper::GetDevice());
+    MLG_CHECK(layout);
 
     const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
         {
             .label = "TransformPipelineLayout",
-            .bindGroupLayoutCount = std::size(*bgLayouts),
-            .bindGroupLayouts = bgLayouts->data(),
+            .bindGroupLayoutCount = 1,
+            .bindGroupLayouts = &*layout,
         };
 
     m_TransformPipelineResources.Layout =

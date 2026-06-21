@@ -4,9 +4,6 @@
 
 #include "Color.h"
 #include "scope_exit.h"
-#include "shaders/ColorShaderContract.h"
-#include "shaders/CompositeShaderContract.h"
-#include "shaders/TransformShaderContract.h"
 #include "VecMath.h"
 
 #include <array>
@@ -91,10 +88,6 @@ public:
     wgpu::Device Device{nullptr};
     wgpu::Surface Surface{nullptr};
     wgpu::TextureFormat SurfaceFormat{wgpu::TextureFormat::Undefined};
-
-    std::array<wgpu::BindGroupLayout, 2> ColorPipelineLayouts{};
-    std::array<wgpu::BindGroupLayout, 1> TransformPipelineLayouts{};
-    std::array<wgpu::BindGroupLayout, 1> CompositorPipelineLayouts{};
 
     static inline WgpuContext* Ctx = nullptr;
 
@@ -729,13 +722,13 @@ GpuHelper::Resize(const uint32_t width, const uint32_t height)
 }
 
 Result<Texture>
-GpuHelper::CreateTexture(const unsigned width, const unsigned height, const std::string& name)
+GpuHelper::CreateTexture(const unsigned width, const unsigned height, const std::string_view& name)
 {
     MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateTexture called before Startup");
 
     const wgpu::TextureDescriptor desc //
         {
-            .label = name.c_str(),
+            .label = name,
             .usage = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
             .dimension = wgpu::TextureDimension::e2D,
             .size = //
@@ -798,67 +791,6 @@ GpuHelper::CreateIndexBuffer(std::span<const VertexIndex> indices, const std::st
 
     buffer.Store(0, indices);
     return buffer;
-}
-
-Result<const wgpu::BindGroupLayout>
-GpuHelper::GetTextureSamplerBindGroupLayout()
-{
-    auto bgLayouts = GetColorPipelineLayouts();
-    MLG_CHECK(bgLayouts);
-
-    return bgLayouts->at(1);
-}
-
-Result<const wgpu::BindGroupLayout>
-GpuHelper::GetCompositorBindGroupLayout()
-{
-    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::GetColorPipelineLayouts called before Startup");
-
-    if(!WgpuContext::Ctx->CompositorPipelineLayouts[0])
-    {
-        auto layout = CompositeShaderContract::MaterialGroup::CreateLayout(GetDevice());
-        MLG_CHECK(layout);
-        WgpuContext::Ctx->CompositorPipelineLayouts[0] = std::move(*layout);
-    }
-
-    return WgpuContext::Ctx->CompositorPipelineLayouts[0];
-}
-
-Result<const std::array<wgpu::BindGroupLayout, 2>>
-GpuHelper::GetColorPipelineLayouts()
-{
-    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::GetColorPipelineLayouts called before Startup");
-
-    if(!WgpuContext::Ctx->ColorPipelineLayouts[0])
-    {
-        auto layout = ColorShaderContract::SceneGroup::CreateLayout(GetDevice());
-        MLG_CHECK(layout);
-        WgpuContext::Ctx->ColorPipelineLayouts[0] = std::move(*layout);
-    }
-
-    if(!WgpuContext::Ctx->ColorPipelineLayouts[1])
-    {
-        auto layout = ColorShaderContract::MaterialGroup::CreateLayout(GetDevice());
-        MLG_CHECK(layout);
-        WgpuContext::Ctx->ColorPipelineLayouts[1] = std::move(*layout);
-    }
-
-    return WgpuContext::Ctx->ColorPipelineLayouts;
-}
-
-Result<const std::array<wgpu::BindGroupLayout, 1>>
-GpuHelper::GetTransformPipelineLayouts()
-{
-    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::GetTransformPipelineLayouts called before Startup");
-
-    if(!WgpuContext::Ctx->TransformPipelineLayouts[0])
-    {
-        auto layout = TransformShaderContract::SceneGroup::CreateLayout(GetDevice());
-        MLG_CHECK(layout);
-        WgpuContext::Ctx->TransformPipelineLayouts[0] = std::move(*layout);
-    }
-
-    return WgpuContext::Ctx->TransformPipelineLayouts;
 }
 
 Extent

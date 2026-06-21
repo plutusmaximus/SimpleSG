@@ -5,7 +5,7 @@
 
 #include "PropKit.h"
 #include "FileFetcher.h"
-#include "GpuHelper.h"
+#include "GpuLayouts.h"
 #include "Log.h"
 #include "narrow_cast.h"
 #include "scope_exit.h"
@@ -293,7 +293,8 @@ CreateMaterialBindGroups(const std::span<const MaterialDef> materialDefs,
 
     materialBindGroups.reserve(materialDefs.size());
 
-    auto layout = GpuHelper::GetTextureSamplerBindGroupLayout();
+    auto layout = GpuLayouts::GetOrCreateLayout<ColorShaderContract::MaterialGroup>(
+        GpuHelper::GetDevice());
     MLG_CHECK(layout);
 
     for(const auto& mtlDef : materialDefs)
