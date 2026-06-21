@@ -17,7 +17,6 @@
 #include "shaders/ShaderInterop.h"
 
 #include <thread>
-#include <ranges>
 
 namespace
 {
@@ -198,65 +197,46 @@ Renderer::Render(const Camera& camera,
     {
         MLG_SCOPED_TIMER("Renderer.Render.Draw")
 
-        uint64_t indirectOffset = 0;
-
-        const double modelCount = static_cast<double>(scene.GetModelInstances().size());
-
-        static PerfCounter pcTotalModels({ .Name = "Renderer.Render.Models.Total",
-            .Policy = PerfCounter::SamplePolicy::ResetOnSample });
-        
-        pcTotalModels.Increment(modelCount);
-
         const auto& drawIndirectBuffer = scene.GetDrawIndirectBuffer();
         const Frustum frustum(camera, cameraXForm);
 
         MaterialIdentifier lastMaterialId{};
 
-        const auto view = std::views::zip(scene.GetModelInstances(), scene.GetWorldTransforms());
+        // Get visible meshes and sort by material to minimize bind group changes.
+        scene.GetVisibleMeshes(frustum, propKit, m_VisibleMeshes);
 
-        for(const auto&& [modelInstance, worldXForm] : view)
+        std::ranges::sort(m_VisibleMeshes,
+            [](const MeshInstance& a, const MeshInstance& b)
+            { return a.GetMesh().GetMaterialId() < b.GetMesh().GetMaterialId(); });
+
+        // Track how many times we have to change materials.
+        static PerfCounter pcMaterialChanges({ .Name = "Renderer.Render.MaterialChanges",
+            .Policy = PerfCounter::SamplePolicy::ResetOnSample });
+
+        for(const MeshInstance& meshInstance : m_VisibleMeshes)
         {
-            const ModelIdentifier modelId = modelInstance.GetModelId();
-            auto meshes = propKit.GetMeshes(modelId);
-            MLG_CHECKV(meshes);
+            const Mesh& mesh = meshInstance.GetMesh();
+            const MaterialIdentifier materialId = mesh.GetMaterialId();
 
-            const Vec4f& pos = worldXForm.Transform[3];
-
-            auto sphere = propKit.GetBoundingSphere(modelId);
-            MLG_CHECK(sphere);
-
-            if(!modelInstance.IsVisible() ||
-                !frustum.Contains(*sphere + Vec3f(pos.x, pos.y, pos.z)))
+            if(materialId != lastMaterialId)
             {
-                indirectOffset += meshes->size() * sizeof(ShaderInterop::DrawIndirectParams);
-                continue;
+                MLG_SCOPED_TIMER("Renderer.Render.Draw.SetMaterialBindGroup");
+
+                pcMaterialChanges.Increment(1);
+
+                const wgpu::BindGroup* bindGroup = propKit.GetMaterialBindGroup(materialId);
+                MLG_CHECKV(bindGroup, "Failed to get material bind group");
+
+                renderPass.SetBindGroup(1, *bindGroup, 0, nullptr);
+                lastMaterialId = materialId;
             }
 
-            static PerfCounter pcCulledModels({ .Name = "Renderer.Render.Models.Visible",
-                .Policy = PerfCounter::SamplePolicy::ResetOnSample });
-            pcCulledModels.Increment(1);
-
-            for(const auto &mesh : *meshes)
             {
-                const MaterialIdentifier materialId = mesh.GetMaterialId();
+                MLG_SCOPED_TIMER("Renderer.Render.Draw.DrawIndexed");
 
-                if(materialId != lastMaterialId)
-                {
-                    MLG_SCOPED_TIMER("Renderer.Render.Draw.SetMaterialBindGroup");
-
-                    const wgpu::BindGroup* bindGroup = propKit.GetMaterialBindGroup(materialId);
-                    MLG_CHECKV(bindGroup, "Failed to get material bind group");
-
-                    renderPass.SetBindGroup(1, *bindGroup, 0, nullptr);
-                    lastMaterialId = materialId;
-                }
-
-                {
-                    MLG_SCOPED_TIMER("Renderer.Render.Draw.DrawIndexed");
-
-                    renderPass.DrawIndexedIndirect(drawIndirectBuffer.GetGpuBuffer(), indirectOffset);
-                    indirectOffset += sizeof(ShaderInterop::DrawIndirectParams);
-                }
+                const uint64_t indirectOffset =
+                    meshInstance.GetInstanceIndex() * sizeof(ShaderInterop::DrawIndirectParams);
+                renderPass.DrawIndexedIndirect(drawIndirectBuffer.GetGpuBuffer(), indirectOffset);
             }
         }
     }

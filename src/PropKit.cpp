@@ -6,6 +6,7 @@
 #include "PropKit.h"
 #include "FileFetcher.h"
 #include "GpuLayouts.h"
+#include "LevelDefs.h"
 #include "Log.h"
 #include "narrow_cast.h"
 #include "scope_exit.h"

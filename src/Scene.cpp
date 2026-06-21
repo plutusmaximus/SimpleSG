@@ -2,13 +2,18 @@
 
 #include "Scene.h"
 
+#include "Camera.h"
 #include "GpuLayouts.h"
 #include "Level.h"
 #include "narrow_cast.h"
+#include "PerfMetrics.h"
 #include "PropKit.h"
+#include "SceneTypes.h"
 #include "shaders/ColorShaderContract.h"
 #include "shaders/TransformShaderContract.h"
 #include "Timer.h"
+
+#include <ranges>
 
 namespace
 {
@@ -259,6 +264,64 @@ Scene::Scene(WorldTransformBuffer worldTransformBuffer,
       m_ModelInstances(std::move(modelInstances)),
       m_WorldTransforms(std::move(worldTransforms))
 {
+}
+
+void
+Scene::GetVisibleMeshes(const Frustum& frustum,
+    const PropKit& propKit,
+    std::vector<MeshInstance>& outVisibleMeshes) const
+{
+    static PerfCounter pcTotalMeshes({ .Name = "Scene.Meshes.Total",
+        .Policy = PerfCounter::SamplePolicy::ResetOnSample });
+
+    static PerfCounter pcVisibleMeshes({ .Name = "Scene.Meshes.Visible",
+        .Policy = PerfCounter::SamplePolicy::ResetOnSample });
+
+    outVisibleMeshes.clear();
+
+    const auto view = std::views::zip(m_ModelInstances, m_WorldTransforms);
+
+    size_t meshIndex = 0;
+
+    for(const auto&& [modelInstance, worldXForm] : view)
+    {
+        const ModelIdentifier modelId = modelInstance.GetModelId();
+
+        const Model* model = propKit.GetModel(modelId);
+        if(!MLG_VERIFY(model, "Failed to get model for model id: {}", modelId.GetValue()))
+        {
+            continue;
+        }
+
+        auto meshes = propKit.GetMeshes(modelId);
+        if(!MLG_VERIFY(meshes, "Failed to get meshes for model id: {}", modelId.GetValue()))
+        {
+            continue;
+        }
+
+        pcTotalMeshes.Increment(meshes->size());
+
+        const Vec4f& pos4 = worldXForm.Transform[3];
+        const Vec3f pos = Vec3f(pos4.x, pos4.y, pos4.z);
+
+        if(!modelInstance.IsVisible() || !frustum.Contains(model->GetBoundingSphere() + pos))
+        {
+            meshIndex += meshes->size();
+            continue;
+        }
+
+        for(const Mesh& mesh : *meshes)
+        {
+            if(frustum.Contains(mesh.GetBoundingSphere() + pos))
+            {
+                pcVisibleMeshes.Increment(1);
+
+                outVisibleMeshes.emplace_back(&mesh, meshIndex);
+            }
+
+            ++meshIndex;
+        }
+    }
 }
 
 Result<>

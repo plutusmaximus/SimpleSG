@@ -2,7 +2,7 @@
 
 #include "LevelDefs.h"
 #include "Result.h"
-#include "SemanticIdentifier.h"
+#include "SceneTypes.h"
 
 #include <optional>
 #include <span>
@@ -50,29 +50,26 @@ public:
         std::optional<Collider> Collider;
     };
 
-    class NodeHandle : public SemanticIdentifier<struct NodeHandleTag>
+    class NodeHandle
     {
     public:
 
         NodeHandle() = default;
-        ~NodeHandle() = default;
-        NodeHandle(const NodeHandle&) = default;
-        NodeHandle& operator=(const NodeHandle&) = default;
-        NodeHandle(NodeHandle&&) = default;
-        NodeHandle& operator=(NodeHandle&&) = default;
 
-        using SemanticIdentifier::IsValid;
-        using SemanticIdentifier::operator bool;
-        using SemanticIdentifier::GetValue;
-        using SemanticIdentifier::operator<=>;
+        bool IsValid() const { return m_Id.IsValid(); }
+        explicit operator bool() const { return m_Id.IsValid(); }
+        size_t GetValue() const { return m_Id.GetValue(); }
+        auto operator<=>(const NodeHandle& other) const { return m_Id <=> other.m_Id; }
 
     private:
         friend Level;
 
         explicit NodeHandle(const size_t nodeIndex)
-            : SemanticIdentifier(nodeIndex)
+            : m_Id(nodeIndex)
         {
         }
+
+        SemanticIdentifier<struct NodeHandleTag> m_Id;
     };
 
     struct Node

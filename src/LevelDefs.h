@@ -2,16 +2,11 @@
 
 #include "Color.h"
 #include "PhysicsTypes.h"
-#include "SemanticIdentifier.h"
 
 #include <optional>
 #include <string>
 #include <variant>
 #include <vector>
-
-using ModelIdentifier = SemanticIdentifier<struct ModelIdTag>;
-using MeshIdentifier = SemanticIdentifier<struct MeshIdTag>;
-using MaterialIdentifier = SemanticIdentifier<struct MaterialIdTag>;
 
 struct MaterialDef final
 {

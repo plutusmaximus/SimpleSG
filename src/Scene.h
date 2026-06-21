@@ -1,33 +1,13 @@
 #pragma once
 
 #include "Level.h"
+#include "SceneTypes.h"
 #include "shaders/GpuBufferTypes.h"
 
 #include <span>
 #include <vector>
 
-class ModelInstance
-{
-public:
-
-    ModelInstance() = delete;
-
-    explicit ModelInstance(const ModelIdentifier modelId)
-        : m_ModelId(modelId)
-    {
-        MLG_ASSERT(modelId.IsValid(), "ModelInstance cannot be created with invalid ModelIdentifier");
-    }
-
-    ModelIdentifier GetModelId() const { return m_ModelId; }
-
-    void SetVisible(const bool visible) { m_IsVisible = visible; }
-    bool IsVisible() const { return m_IsVisible; }
-
-private:
-    ModelIdentifier m_ModelId;
-
-    bool m_IsVisible{ true };
-};
+class Frustum;
 
 class Scene
 {
@@ -49,6 +29,10 @@ public:
     {
         return m_WorldTransforms;
     }
+
+    void GetVisibleMeshes(const Frustum& frustum,
+        const PropKit& propKit,
+        std::vector<MeshInstance>& outVisibleMeshes) const;
 
     DrawIndirectBuffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
 

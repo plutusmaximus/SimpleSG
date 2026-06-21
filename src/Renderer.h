@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Result.h"
-
 #include "GpuHelper.h"
+#include "SceneTypes.h"
+#include "Result.h"
 
 class Compositor;
 template<typename T>
@@ -103,6 +103,8 @@ private:
     // Pipeline to composite the color target to the swap chain.
     CompositorPipelineResources m_CompositorPipelineResources;
     wgpu::RenderPipeline m_CompositorPipeline;
+
+    std::vector<MeshInstance> m_VisibleMeshes;
 
     bool m_Initialized{false};
 };
