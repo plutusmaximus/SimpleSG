@@ -25,12 +25,14 @@ public:
 
     Mesh(const VertexParams& vertexParams,
         const MaterialIdentifier materialId,
-        const BoundingBox& boundingBox)
+        const BoundingBox& boundingBox,
+        const BoundingSphere& boundingSphere)
         : m_IndexCount(vertexParams.IndexCount),
           m_FirstIndex(vertexParams.FirstIndex),
           m_BaseVertex(vertexParams.BaseVertex),
           m_MaterialId(materialId),
-          m_BoundingBox(boundingBox)
+          m_BoundingBox(boundingBox),
+          m_BoundingSphere(boundingSphere)
     {
     }
 
@@ -39,6 +41,7 @@ public:
     uint32_t GetBaseVertex() const { return m_BaseVertex; }
     MaterialIdentifier GetMaterialId() const { return m_MaterialId; }
     const BoundingBox& GetBoundingBox() const { return m_BoundingBox; }
+    const BoundingSphere& GetBoundingSphere() const { return m_BoundingSphere; }
 
 private:
 
@@ -47,6 +50,7 @@ private:
     uint32_t m_BaseVertex;
     MaterialIdentifier m_MaterialId;
     BoundingBox m_BoundingBox;
+    BoundingSphere m_BoundingSphere;
 };
 
 class Model
@@ -101,9 +105,9 @@ public:
         return it->second;
     }
 
-    Result<std::span<const Mesh>> GetMeshes(const ModelIdentifier& modelId) const;
+    const Model* GetModel(const ModelIdentifier& modelId) const;
 
-    Result<BoundingSphere> GetBoundingSphere(const ModelIdentifier& modelId) const;
+    Result<std::span<const Mesh>> GetMeshes(const ModelIdentifier& modelId) const;
 
     const wgpu::BindGroup* GetMaterialBindGroup(const MaterialIdentifier& materialId) const;
 

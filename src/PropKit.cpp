@@ -404,7 +404,8 @@ PropKit::Create(
                     .BaseVertex = narrow_cast<uint32_t>(vertices.size()),
                 },
                 materialId,
-                aabb);
+                aabb,
+                BoundingSphere(aabb));
 
             vertices.insert(vertices.end(), meshDef.Vertices.begin(), meshDef.Vertices.end());
             indices.insert(indices.end(), meshDef.Indices.begin(), meshDef.Indices.end());
@@ -459,6 +460,18 @@ PropKit::Create(
     return std::move(propKit);
 }
 
+const Model* PropKit::GetModel(const ModelIdentifier& modelId) const
+{
+    if(MLG_VERIFY(modelId.IsValid() && modelId.GetValue() < m_Models.size(),
+           "Invalid model id: {}",
+           modelId.GetValue()))
+    {
+        return &m_Models[modelId.GetValue()];
+    }
+
+    return nullptr;
+}
+
 Result<std::span<const Mesh>>
 PropKit::GetMeshes(const ModelIdentifier& modelId) const
 {
@@ -475,18 +488,6 @@ PropKit::GetMeshes(const ModelIdentifier& modelId) const
         model.GetMeshCount());
 
     return std::span<const Mesh>(&m_Meshes[model.GetFirstMeshId().GetValue()], model.GetMeshCount());
-}
-
-Result<BoundingSphere>
-PropKit::GetBoundingSphere(const ModelIdentifier& modelId) const
-{
-    MLG_CHECKV(modelId.IsValid() && modelId.GetValue() < m_Models.size(),
-        "Invalid model id: {}",
-        modelId.GetValue());
-
-    const Model& model = m_Models[modelId.GetValue()];
-
-    return model.GetBoundingSphere();
 }
 
 const wgpu::BindGroup*
@@ -519,21 +520,11 @@ PropKit::PropKit(VertexBuffer vertexBuffer,
       m_MaterialBindGroups(std::move(materialBindGroups)),
       m_StringArena(std::move(stringArena))
 {
-#ifndef NDEBUG
-    for(const auto& mesh : m_Meshes)
-    {
-        const Vec3f& halfExtents = mesh.GetBoundingBox().GetHalfExtents();
-        MLG_ASSERT(halfExtents != Vec3f{0}, "Mesh has degenerate bounding box");
-        MLG_ASSERT(halfExtents.x >= 0 && halfExtents.y >= 0 && halfExtents.z >= 0,
-            "Mesh has invalid bounding box");
-    }
-#endif // NDEBUG
-
     m_ModelNameToId.reserve(m_Models.size());
-    for(size_t i = 0; i < m_Models.size(); ++i)
+
+    for(const Model& model : m_Models)
     {
-        const Model& model = m_Models[i];
         MLG_ASSERT(!m_ModelNameToId.contains(model.GetName()), "Duplicate model name: {}", model.GetName());
-        m_ModelNameToId[model.GetName()] = ModelIdentifier(i);
+        m_ModelNameToId[model.GetName()] = ModelIdentifier(m_ModelNameToId.size());
     }
 }
