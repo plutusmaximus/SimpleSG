@@ -125,7 +125,7 @@ ColorShaderContract::SceneGroup::CreateBindGroup(wgpu::Device device, wgpu::Bind
 }
 
 Result<wgpu::BindGroupLayout>
-ColorShaderContract::MaterialGroup::CreateLayout(wgpu::Device device)
+ColorShaderContract::TextureGroup::CreateLayout(wgpu::Device device)
 {
     const wgpu::BindGroupLayoutEntry entries[] =//
     {
@@ -153,7 +153,7 @@ ColorShaderContract::MaterialGroup::CreateLayout(wgpu::Device device)
 
     const wgpu::BindGroupLayoutDescriptor desc = //
         {
-            .label = "ColorShaderMaterialGroupLayout",
+            .label = "ColorShaderTextureGroupLayout",
             .entryCount = std::size(entries),
             .entries = &entries[0],
         };
@@ -162,11 +162,11 @@ ColorShaderContract::MaterialGroup::CreateLayout(wgpu::Device device)
 }
 
 Result<wgpu::BindGroup>
-ColorShaderContract::MaterialGroup::CreateBindGroup(wgpu::Device device, wgpu::BindGroupLayout layout,
-    const MaterialGroup::Resources& resources)
+ColorShaderContract::TextureGroup::CreateBindGroup(wgpu::Device device, wgpu::BindGroupLayout layout,
+    const TextureGroup::Resources& resources)
 {
     MLG_CHECK(resources.Validate(),
-        "Invalid resources provided for ColorShaderContract::MaterialGroup::CreateBindGroup");
+        "Invalid resources provided for ColorShaderContract::TextureGroup::CreateBindGroup");
 
     const wgpu::BindGroupEntry entries[] = //
         {
@@ -182,7 +182,7 @@ ColorShaderContract::MaterialGroup::CreateBindGroup(wgpu::Device device, wgpu::B
 
     const wgpu::BindGroupDescriptor desc = //
         {
-            .label = "ColorShaderMaterialGroupBindings",
+            .label = "ColorShaderTextureGroupBindings",
             .layout = layout,
             .entryCount = std::size(entries),
             .entries = &entries[0],

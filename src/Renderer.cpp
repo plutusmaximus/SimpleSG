@@ -450,23 +450,17 @@ Renderer::RefreshColorTargetResources(const uint32_t width, const uint32_t heigh
 
     if(!m_ColorTargetResources.BindGroup)
     {
-        auto layout =
-            GpuLayouts::GetOrCreateLayout<CompositeShaderContract::MaterialGroup>(
-                GpuHelper::GetDevice());
-        MLG_CHECK(layout);
-
-        const CompositeShaderContract::MaterialGroup::Resources resources //
+        const CompositeShaderContract::TextureGroup::Resources resources //
             {
                 .TextureView = m_ColorTargetResources.TargetView,
                 .Sampler = m_ColorTargetResources.Sampler,
             };
 
-        auto bindGroup =
-             CompositeShaderContract::MaterialGroup::CreateBindGroup(GpuHelper::GetDevice(),
-                *layout,
-                resources);
+        auto bindGroup = GpuLayouts::CreateBindGroup<CompositeShaderContract::TextureGroup>(
+            GpuHelper::GetDevice(),
+            resources);
 
-         MLG_CHECK(bindGroup);
+        MLG_CHECK(bindGroup);
 
         m_ColorTargetResources.BindGroup = std::move(*bindGroup);
     }
@@ -497,7 +491,7 @@ Renderer::CreateColorPipeline()
     MLG_CHECK(layout0);
 
     auto layout1 =
-        GpuLayouts::GetOrCreateLayout<ColorShaderContract::MaterialGroup>(GpuHelper::GetDevice());
+        GpuLayouts::GetOrCreateLayout<ColorShaderContract::TextureGroup>(GpuHelper::GetDevice());
     MLG_CHECK(layout1);
 
     const wgpu::BindGroupLayout layouts[]{ *layout0, *layout1 };
@@ -621,7 +615,7 @@ Renderer::CreateCompositorPipeline()
 
     m_CompositorPipelineResources.Shader = *shader;
 
-    auto layout = GpuLayouts::GetOrCreateLayout<CompositeShaderContract::MaterialGroup>(
+    auto layout = GpuLayouts::GetOrCreateLayout<CompositeShaderContract::TextureGroup>(
         GpuHelper::GetDevice());
     MLG_CHECK(layout);
 

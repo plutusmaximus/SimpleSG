@@ -293,25 +293,20 @@ CreateMaterialBindGroups(const std::span<const MaterialDef> materialDefs,
 
     materialBindGroups.reserve(materialDefs.size());
 
-    auto layout = GpuLayouts::GetOrCreateLayout<ColorShaderContract::MaterialGroup>(
-        GpuHelper::GetDevice());
-    MLG_CHECK(layout);
-
     for(const auto& mtlDef : materialDefs)
     {
         const Texture& baseTexture = mtlDef.BaseTextureUri.empty()
                                          ? textureCache.GetDefaultTexture()
                                          : textureCache.Get(mtlDef.BaseTextureUri);
 
-        const ColorShaderContract::MaterialGroup::Resources resources //
+        const ColorShaderContract::TextureGroup::Resources resources //
             {
                 .BaseTexture = baseTexture,
                 .BaseSampler = textureCache.GetDefaultSampler(),
             };
 
         auto bindGroup =
-            ColorShaderContract::MaterialGroup::CreateBindGroup(GpuHelper::GetDevice(),
-                *layout,
+            GpuLayouts::CreateBindGroup<ColorShaderContract::TextureGroup>(GpuHelper::GetDevice(),
                 resources);
 
         MLG_CHECK(bindGroup);

@@ -10,7 +10,7 @@ class CompositeShaderContract
 
 public:
 
-    struct MaterialGroup
+    struct TextureGroup
     {
         static constexpr uint32_t GroupIndex = 0;
 

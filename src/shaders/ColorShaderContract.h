@@ -40,7 +40,7 @@ public:
             const Resources& resources);
     };
 
-    struct MaterialGroup
+    struct TextureGroup
     {
         static constexpr uint32_t GroupIndex = 1;
 

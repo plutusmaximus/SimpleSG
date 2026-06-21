@@ -169,39 +169,6 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const P
     return GpuHelper::CreateStorageBuffer<MeshPropertiesBuffer>(meshProperties,
         "MeshPropertiesBuffer");
 }
-
-Result<wgpu::BindGroup>
-CreateColorShaderBindGroup(const ColorShaderContract::SceneGroup::Resources& resources)
-{
-    auto layout =
-        GpuLayouts::GetOrCreateLayout<ColorShaderContract::SceneGroup>(GpuHelper::GetDevice());
-    MLG_CHECK(layout);
-
-    auto bindGroup = ColorShaderContract::SceneGroup::CreateBindGroup(GpuHelper::GetDevice(),
-        *layout,
-        resources);
-
-    MLG_CHECK(bindGroup);
-
-    return std::move(*bindGroup);
-}
-
-Result<wgpu::BindGroup>
-CreateTransformShaderBindGroup(const TransformShaderContract::SceneGroup::Resources& resources)
-{
-    auto layout =
-        GpuLayouts::GetOrCreateLayout<TransformShaderContract::SceneGroup>(GpuHelper::GetDevice());
-    MLG_CHECK(layout);
-
-    auto bindGroup =
-        TransformShaderContract::SceneGroup::CreateBindGroup(GpuHelper::GetDevice(),
-            *layout,
-            resources);
-
-    MLG_CHECK(bindGroup);
-
-    return std::move(*bindGroup);
-}
 } // namespace
 
 Result<Scene>
@@ -233,25 +200,29 @@ Scene::Create(const Level& level, const PropKit& propKit)
     MLG_CHECK(cameraParamsBuf);
 
     const ColorShaderContract::SceneGroup::Resources colorShaderResources //
-    {
-        .WorldTransforms = *transformBuffer,
-        .ClipSpaceTransforms = *clipSpaceBuffer,
-        .MeshProperties = *meshPropertiesBuffer,
-        .MaterialConstants = propKit.GetMaterialConstantsBuffer(),
-        .CameraParams = *cameraParamsBuf,
-    };
+        {
+            .WorldTransforms = *transformBuffer,
+            .ClipSpaceTransforms = *clipSpaceBuffer,
+            .MeshProperties = *meshPropertiesBuffer,
+            .MaterialConstants = propKit.GetMaterialConstantsBuffer(),
+            .CameraParams = *cameraParamsBuf,
+        };
 
-    auto colorShaderBindGroup = CreateColorShaderBindGroup(colorShaderResources);
+    auto colorShaderBindGroup =
+        GpuLayouts::CreateBindGroup<ColorShaderContract::SceneGroup>(GpuHelper::GetDevice(),
+            colorShaderResources);
     MLG_CHECK(colorShaderBindGroup);
 
     const TransformShaderContract::SceneGroup::Resources transformShaderResources //
-    {
-        .WorldTransforms = *transformBuffer,
-        .ClipSpaceTransforms = *clipSpaceBuffer,
-        .CameraParams = *cameraParamsBuf,
-    };
+        {
+            .WorldTransforms = *transformBuffer,
+            .ClipSpaceTransforms = *clipSpaceBuffer,
+            .CameraParams = *cameraParamsBuf,
+        };
 
-    auto transformShaderBindGroup = CreateTransformShaderBindGroup(transformShaderResources);
+    auto transformShaderBindGroup =
+        GpuLayouts::CreateBindGroup<TransformShaderContract::SceneGroup>(GpuHelper::GetDevice(),
+            transformShaderResources);
     MLG_CHECK(transformShaderBindGroup);
 
     Scene scene(std::move(*transformBuffer),
