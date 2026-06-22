@@ -58,12 +58,5 @@
     "C_Cpp.intelliSenseEngine": "disabled",
     "C_Cpp.errorSquiggles": "disabled",
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
-    "clangd.arguments": [
-        "--compile-commands-dir=build",
-        "--background-index",
-        "--clang-tidy",
-        "--completion-style=detailed",
-        "--header-insertion=iwyu"
-    ],
     "testMate.cpp.debug.configTemplate": "name:Tests (Debug, TestMate)"
 }

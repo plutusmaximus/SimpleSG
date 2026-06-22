@@ -1,0 +1,12 @@
+CompileFlags:
+  CompilationDatabase: build
+
+Index:
+  Background: Build
+
+Completion:
+  HeaderInsertion: IWYU
+
+Diagnostics:
+  ClangTidy:
+    FastCheckFilter: None
