@@ -51,6 +51,5 @@ private:
 
     std::vector<Mesh> m_Meshes;
     std::vector<Model> m_Models;
-    std::vector<size_t> m_ModelNameToId;
     StringArena m_StringArena;
 };

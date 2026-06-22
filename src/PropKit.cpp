@@ -472,25 +472,25 @@ PropKit::Create(
 const Model*
 PropKit::GetModel(const std::string_view& name) const
 {
-    auto it = std::ranges::lower_bound(m_ModelNameToId,
+    auto it = std::ranges::lower_bound(m_Models,
         name,
         std::ranges::less{},
-        [this](const size_t idx) -> std::string_view { return m_Models[idx].GetName(); });
+        [](const Model& model) -> std::string_view { return model.GetName(); });
 
-    if(it != m_ModelNameToId.end())
+    if(it != m_Models.end())
     {
-        if(m_Models[*it].GetName() != name)
+        if(it->GetName() != name)
         {
-            it = m_ModelNameToId.end();
+            it = m_Models.end();
         }
     }
 
-    if(!MLG_VERIFY(it != m_ModelNameToId.end(), "Model not found: {}", name))
+    if(!MLG_VERIFY(it != m_Models.end(), "Model not found: {}", name))
     {
         return nullptr;
     }
 
-    return &m_Models[*it];
+    return &(*it);
 }
 
 const wgpu::BindGroup*
@@ -523,17 +523,13 @@ PropKit::PropKit(VertexBuffer vertexBuffer,
       m_Models(std::move(models)),
       m_StringArena(std::move(stringArena))
 {
-    m_ModelNameToId.resize(m_Models.size());
+    std::ranges::sort(m_Models,
+        [](const Model& a, const Model& b) { return a.GetName() < b.GetName(); });
 
-    std::ranges::iota(m_ModelNameToId, 0);
-
-    std::ranges::sort(m_ModelNameToId,
-        [&](const size_t a, const size_t b) { return m_Models[a].GetName() < m_Models[b].GetName(); });
-
-    for(auto it = m_ModelNameToId.begin() + 1; it != m_ModelNameToId.end(); ++it)
+    for(auto it = m_Models.begin() + 1; it != m_Models.end(); ++it)
     {
-        const Model& a = m_Models[*(it - 1)];
-        const Model& b = m_Models[*it];
+        const Model& a = *(it - 1);
+        const Model& b = *it;
         
         if(!MLG_VERIFY(a.GetName() != b.GetName()))
         {
