@@ -17,7 +17,6 @@
 
 #include <atomic>
 #include <filesystem>
-#include <numeric>
 #include <ranges>
 #include <map>
 
