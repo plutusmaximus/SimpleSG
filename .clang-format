@@ -16,12 +16,13 @@ BreakStringLiterals: false
 BreakBeforeBraces: Allman
 Cpp11BracedListStyle: false
 AllowShortBlocksOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: Inline
 #BracedInitializerIndentWidth: 1
 
 # Spaces
 SpaceBeforeParens: Never
 SpaceAfterTemplateKeyword: false
-SpaceInTemplateSpecializations: false
+SpacesInAngles: Never
 IndentCaseLabels: true
 NamespaceIndentation: None
 
