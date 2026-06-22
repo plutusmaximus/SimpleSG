@@ -18,6 +18,36 @@ public:
 
     const char* c_str() const { return m_StringView.data(); }
 
+    friend bool operator==(const StringHandle& lhs, const StringHandle& rhs)
+    {
+        return lhs.m_StringView == rhs.m_StringView;
+    }
+
+    friend bool operator!=(const StringHandle& lhs, const StringHandle& rhs)
+    {
+        return !(lhs == rhs);
+    }
+
+    friend bool operator==(const StringHandle& lhs, const std::string_view& rhs)
+    {
+        return lhs.m_StringView == rhs;
+    }
+
+    friend bool operator!=(const StringHandle& lhs, const std::string_view& rhs)
+    {
+        return !(lhs == rhs);
+    }
+
+    friend bool operator==(const std::string_view& lhs, const StringHandle& rhs)
+    {
+        return lhs == rhs.m_StringView;
+    }
+
+    friend bool operator!=(const std::string_view& lhs, const StringHandle& rhs)
+    {
+        return !(lhs == rhs);
+    }
+
     friend auto operator<=>(const StringHandle& lhs, const StringHandle& rhs)
     {
         return lhs.m_StringView <=> rhs.m_StringView;

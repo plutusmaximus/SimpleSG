@@ -45,8 +45,8 @@ CountWorldTransforms(const Level& level)
     return CountModelInstances(level);
 }
 
-Result<WorldTransformBuffer>
-BuildTransformBuffer(const Level& level,
+Result<>
+BuildScene(const Level& level,
     std::vector<Level::NodeHandle>& outNodeHandles,
     std::vector<ShaderInterop::WorldTransform>& outWorldTransforms,
     std::vector<ModelInstance>& outModelInstances)
@@ -86,8 +86,8 @@ BuildTransformBuffer(const Level& level,
         const ShaderInterop::WorldTransform transform{ .Transform = node->WorldTransform };
         outWorldTransforms.emplace_back(transform);
     }
-
-    return GpuHelper::CreateStorageBuffer<WorldTransformBuffer>(outWorldTransforms, "TransformBuffer");
+    
+    return Result<>::Ok;
 }
 
 Result<size_t>
@@ -133,8 +133,13 @@ BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const Pro
         }
     }
 
-    return GpuHelper::CreateIndirectBuffer<DrawIndirectBuffer>(drawIndirectParams,
+    auto buffer = GpuHelper::CreateIndirectBuffer<DrawIndirectBuffer>(drawIndirectParams.size(),
         "DrawIndirectBuffer");
+    MLG_CHECK(buffer);
+
+    buffer->Store(drawIndirectParams);
+
+    return buffer;
 }
 
 Result<MeshPropertiesBuffer>
@@ -171,8 +176,13 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const P
         ++transformIndex;
     }
 
-    return GpuHelper::CreateStorageBuffer<MeshPropertiesBuffer>(meshProperties,
+    auto buffer = GpuHelper::CreateStorageBuffer<MeshPropertiesBuffer>(meshProperties.size(),
         "MeshPropertiesBuffer");
+    MLG_CHECK(buffer);
+
+    buffer->Store(meshProperties);
+
+    return buffer;
 }
 } // namespace
 
@@ -186,12 +196,16 @@ Scene::Create(const Level& level, const PropKit& propKit)
     std::vector<ShaderInterop::WorldTransform> worldTransforms;
     std::vector<ModelInstance> modelInstances;
 
-    auto transformBuffer = BuildTransformBuffer(level, nodeHandles, worldTransforms, modelInstances);
+    MLG_CHECK(BuildScene(level, nodeHandles, worldTransforms, modelInstances));
+
+    auto transformBuffer =
+        GpuHelper::CreateStorageBuffer<WorldTransformBuffer>(nodeHandles.size(), "WorldTransforms");
     MLG_CHECK(transformBuffer);
 
+    transformBuffer->Store(worldTransforms);
+
     auto clipSpaceBuffer =
-        GpuHelper::CreateStorageBuffer<ClipSpaceBuffer>(transformBuffer->Count(),
-            "ClipSpaceBuffer");
+        GpuHelper::CreateStorageBuffer<ClipSpaceBuffer>(nodeHandles.size(), "ClipSpaceTransforms");
     MLG_CHECK(clipSpaceBuffer);
 
     auto drawIndirectBuffer = BuildDrawIndirectBuffer(modelInstances, propKit);
@@ -201,7 +215,7 @@ Scene::Create(const Level& level, const PropKit& propKit)
     MLG_CHECK(meshPropertiesBuffer);
 
     auto cameraParamsBuf =
-        GpuHelper::CreateUniformBuffer<CameraParamsBuffer>(1, "CameraParamsBuffer");
+        GpuHelper::CreateUniformBuffer<CameraParamsBuffer>(1, "CameraParams");
     MLG_CHECK(cameraParamsBuf);
 
     const ColorShaderContract::SceneGroup::Resources colorShaderResources //

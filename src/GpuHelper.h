@@ -110,10 +110,16 @@ public:
     size_t Count() const { return BufferSize() / sizeof(T); }
 
     // Stores a single value at the given index.
-    void Store(std::size_t index, const T& value);
+    void Store(std::size_t index, const T& value)
+    {
+        Store(index, std::span<const T>(&value, 1));
+    }
 
     // Stores an array of values starting at the given index.
     void Store(std::size_t index, std::span<const T> values);
+
+    // Stores an array of values starting at the zero index.
+    void Store(std::span<const T> values) { Store(0, values); }
 
 private:
     friend class GpuHelper;
@@ -163,13 +169,7 @@ public:
     static Result<VertexBuffer> CreateVertexBuffer(const size_t count,
         const std::string_view& name);
 
-    static Result<VertexBuffer> CreateVertexBuffer(std::span<const Vertex> vertices,
-        const std::string_view& name);
-
     static Result<IndexBuffer> CreateIndexBuffer(const size_t count, const std::string_view& name);
-
-    static Result<IndexBuffer> CreateIndexBuffer(std::span<const VertexIndex> indices,
-        const std::string_view& name);
 
     /// @brief Creates a semantically-typed storage buffer.
     template<typename T>
@@ -185,18 +185,6 @@ public:
         MLG_CHECK(bufferResult);
 
         return T(*bufferResult);
-    }
-
-    template<typename T>
-        requires is_gpu_buffer_type_v<T>
-    static Result<T> CreateStorageBuffer(std::span<const typename T::value_type> values,
-        const std::string_view& name)
-    {
-        auto buffer = CreateStorageBuffer<T>(values.size() * sizeof(typename T::value_type), name);
-        MLG_CHECK(buffer);
-
-        buffer->Store(0, values);
-        return *buffer;
     }
 
     /// @brief Creates a semantically-typed uniform buffer.
@@ -215,18 +203,6 @@ public:
         return T(*bufferResult);
     }
 
-    template<typename T>
-        requires is_gpu_buffer_type_v<T>
-    static Result<T> CreateUniformBuffer(std::span<const typename T::value_type> values,
-        const std::string_view& name)
-    {
-        auto buffer = CreateUniformBuffer<T>(values.size() * sizeof(typename T::value_type), name);
-        MLG_CHECK(buffer);
-
-        buffer->Store(0, values);
-        return *buffer;
-    }
-
     /// @brief Creates a semantically-typed indirect buffer.
     template<typename T>
     requires is_gpu_buffer_type_v<T>
@@ -240,18 +216,6 @@ public:
         MLG_CHECK(bufferResult);
 
         return T(*bufferResult);
-    }
-
-    template<typename T>
-        requires is_gpu_buffer_type_v<T>
-    static Result<T> CreateIndirectBuffer(std::span<const typename T::value_type> values,
-        const std::string_view& name)
-    {
-        auto buffer = CreateIndirectBuffer<T>(values.size() * sizeof(typename T::value_type), name);
-        MLG_CHECK(buffer);
-
-        buffer->Store(0, values);
-        return *buffer;
     }
 
     static Extent GetScreenBounds();
@@ -274,17 +238,6 @@ private:
     static Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string_view& name);
     static Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string_view& name);
 };
-
-template<typename T>
-inline void
-SemanticGpuBuffer<T>::Store(std::size_t index, const T& value)
-{
-    const size_t offset = index * sizeof(T);
-
-    MLG_ASSERT(offset < BufferSize(), "Index out of bounds");
-
-    GpuHelper::GetDevice().GetQueue().WriteBuffer(GetGpuBuffer(), offset, &value, sizeof(T));
-}
 
 template<typename T>
 inline void

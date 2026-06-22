@@ -98,12 +98,7 @@ public:
         });
 };
 
-void* GetContextMem()
-{
-    alignas(WgpuContext) static uint8_t s_WgpuContextStorage[sizeof(WgpuContext)];
-
-    return static_cast<void*>(s_WgpuContextStorage);
-}
+alignas(WgpuContext) uint8_t g_WgpuContextBuffer[sizeof(WgpuContext)]; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // Texture staging buffer rows must be a multiple of 256 bytes.
 uint32_t
@@ -640,7 +635,8 @@ GpuHelper::Startup(const char* appName)
             .SurfaceFormat = *surfaceFormat
         };
 
-    auto* contextMem = static_cast<WgpuContext*>(GetContextMem());
+    void* contextPtr = static_cast<void*>(g_WgpuContextBuffer);
+    WgpuContext* contextMem = static_cast<WgpuContext*>(contextPtr);
     WgpuContext::Ctx = std::construct_at(contextMem, std::move(context));
 
     cleanupMetalView.release();
@@ -757,19 +753,6 @@ GpuHelper::CreateVertexBuffer(const size_t count, const std::string_view& name)
     return VertexBuffer(CreateGpuBufferUnmapped(usage, count * sizeof(Vertex), name));
 }
 
-Result<VertexBuffer>
-GpuHelper::CreateVertexBuffer(std::span<const Vertex> vertices, const std::string_view& name)
-{
-    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateVertexBuffer called before Startup");
-
-    const wgpu::BufferUsage usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
-
-    VertexBuffer buffer(CreateGpuBufferUnmapped(usage, vertices.size() * sizeof(Vertex), name));
-
-    buffer.Store(0, vertices);
-    return buffer;
-}
-
 Result<IndexBuffer>
 GpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name)
 {
@@ -778,19 +761,6 @@ GpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name)
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst;
 
     return IndexBuffer(CreateGpuBufferUnmapped(usage, count * sizeof(VertexIndex), name));
-}
-
-Result<IndexBuffer>
-GpuHelper::CreateIndexBuffer(std::span<const VertexIndex> indices, const std::string_view& name)
-{
-    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateIndexBuffer called before Startup");
-
-    const wgpu::BufferUsage usage = wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst;
-
-    IndexBuffer buffer(CreateGpuBufferUnmapped(usage, indices.size() * sizeof(VertexIndex), name));
-
-    buffer.Store(0, indices);
-    return buffer;
 }
 
 Extent

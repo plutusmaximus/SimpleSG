@@ -17,6 +17,8 @@
 
 #include <atomic>
 #include <filesystem>
+#include <numeric>
+#include <ranges>
 #include <map>
 
 #include <stb_image.h>
@@ -333,8 +335,14 @@ BuildMaterialConstantsBuffer(const std::span<const MaterialDef> materialDefs)
         materialConstants.emplace_back(mc);
     }
 
-    return GpuHelper::CreateStorageBuffer<MaterialConstantsBuffer>(materialConstants,
+    auto buffer = GpuHelper::CreateStorageBuffer<MaterialConstantsBuffer>(materialConstants.size(),
         "MaterialConstants");
+
+    MLG_CHECK(buffer);
+
+    buffer->Store(materialConstants);
+
+    return buffer;
 }
 } // namespace
 
@@ -432,11 +440,15 @@ PropKit::Create(
 
     MLG_CHECK(FetchTextures(rootPath, uniqueMaterials, textureCache, encoder));
 
-    auto vertexBuffer = GpuHelper::CreateVertexBuffer(vertices, "VertexBuffer");
+    auto vertexBuffer = GpuHelper::CreateVertexBuffer(vertices.size(), "VertexBuffer");
     MLG_CHECK(vertexBuffer);
 
-    auto indexBuffer = GpuHelper::CreateIndexBuffer(indices, "IndexBuffer");
+    vertexBuffer->Store(vertices);
+
+    auto indexBuffer = GpuHelper::CreateIndexBuffer(indices.size(), "IndexBuffer");
     MLG_CHECK(indexBuffer);
+
+    indexBuffer->Store(indices);
 
     auto materialConstants = BuildMaterialConstantsBuffer(uniqueMaterials);
     MLG_CHECK(materialConstants);
@@ -450,15 +462,36 @@ PropKit::Create(
     PropKit propKit(
         std::move(*vertexBuffer),
         std::move(*indexBuffer),
-        std::move(meshes),
-        std::move(models),
         std::move(*materialConstants),
         std::move(materialBindGroups),
+        std::move(meshes),
+        std::move(models),
         std::move(stringArena));
 
     MLG_INFO("PropKit created in {} ms", createTimer.GetElapsedSeconds() * 1000);
 
     return std::move(propKit);
+}
+
+Result<ModelIdentifier>
+PropKit::GetModelId(const std::string_view& name) const
+{
+    auto it = std::ranges::lower_bound(m_ModelNameToId,
+        name,
+        std::ranges::less{},
+        [this](const size_t idx) -> std::string_view { return m_Models[idx].GetName(); });
+
+    if(it != m_ModelNameToId.end())
+    {
+        if(m_Models[*it].GetName() != name)
+        {
+            it = m_ModelNameToId.end();
+        }
+    }
+
+    MLG_CHECKV(it != m_ModelNameToId.end(), "Model not found: {}", name);
+
+    return ModelIdentifier(*it);
 }
 
 const Model* PropKit::GetModel(const ModelIdentifier& modelId) const
@@ -508,24 +541,34 @@ PropKit::GetMaterialBindGroup(const MaterialIdentifier& materialId) const
 
 PropKit::PropKit(VertexBuffer vertexBuffer,
     IndexBuffer indexBuffer,
-    std::vector<Mesh> meshes,
-    std::vector<Model> models,
     MaterialConstantsBuffer materialConstants,
     std::vector<wgpu::BindGroup> materialBindGroups,
+    std::vector<Mesh> meshes,
+    std::vector<Model> models,
     StringArena stringArena)
     : m_VertexBuffer(std::move(vertexBuffer)),
       m_IndexBuffer(std::move(indexBuffer)),
-      m_Meshes(std::move(meshes)),
-      m_Models(std::move(models)),
       m_MaterialConstants(std::move(materialConstants)),
       m_MaterialBindGroups(std::move(materialBindGroups)),
+      m_Meshes(std::move(meshes)),
+      m_Models(std::move(models)),
       m_StringArena(std::move(stringArena))
 {
-    m_ModelNameToId.reserve(m_Models.size());
+    m_ModelNameToId.resize(m_Models.size());
 
-    for(const Model& model : m_Models)
+    std::ranges::iota(m_ModelNameToId, 0);
+
+    std::ranges::sort(m_ModelNameToId,
+        [&](const size_t a, const size_t b) { return m_Models[a].GetName() < m_Models[b].GetName(); });
+
+    for(auto it = m_ModelNameToId.begin() + 1; it != m_ModelNameToId.end(); ++it)
     {
-        MLG_ASSERT(!m_ModelNameToId.contains(model.GetName()), "Duplicate model name: {}", model.GetName());
-        m_ModelNameToId[model.GetName()] = ModelIdentifier(m_ModelNameToId.size());
+        const Model& a = m_Models[*(it - 1)];
+        const Model& b = m_Models[*it];
+        
+        if(!MLG_VERIFY(a.GetName() != b.GetName()))
+        {
+            MLG_ERROR("Duplicate model name found: {}", a.GetName());
+        }
     }
 }

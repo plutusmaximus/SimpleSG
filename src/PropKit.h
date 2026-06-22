@@ -7,7 +7,6 @@
 #include <filesystem>
 #include <span>
 #include <vector>
-#include <unordered_map>
 
 struct PropKitDef;
 
@@ -25,13 +24,7 @@ public:
     PropKit(PropKit&& other) = default;
     PropKit& operator=(PropKit&& other) = default;
 
-    Result<ModelIdentifier> GetModelId(const std::string_view& name) const
-    {
-        auto it = m_ModelNameToId.find(name);
-        MLG_CHECKV(it != m_ModelNameToId.end(), "Model not found: {}", name);
-
-        return it->second;
-    }
+    Result<ModelIdentifier> GetModelId(const std::string_view& name) const;
 
     const Model* GetModel(const ModelIdentifier& modelId) const;
 
@@ -49,18 +42,19 @@ private:
 
     PropKit(VertexBuffer vertexBuffer,
         IndexBuffer indexBuffer,
+        MaterialConstantsBuffer materialConstants,
+        std::vector<wgpu::BindGroup> materialBindGroups,
         std::vector<Mesh> meshes,
         std::vector<Model> models,
-        MaterialConstantsBuffer materialConstantsBuffer,
-        std::vector<wgpu::BindGroup> materialBindGroups,
         StringArena stringArena);
 
     VertexBuffer m_VertexBuffer;
     IndexBuffer m_IndexBuffer;
+    MaterialConstantsBuffer m_MaterialConstants;
+    std::vector<wgpu::BindGroup> m_MaterialBindGroups;
+
     std::vector<Mesh> m_Meshes;
     std::vector<Model> m_Models;
-    MaterialConstantsBuffer m_MaterialConstants;
-    std::unordered_map<std::string_view, ModelIdentifier> m_ModelNameToId;
-    std::vector<wgpu::BindGroup> m_MaterialBindGroups;
+    std::vector<size_t> m_ModelNameToId;
     StringArena m_StringArena;
 };
