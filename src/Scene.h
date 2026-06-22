@@ -31,7 +31,6 @@ public:
     }
 
     void GetVisibleMeshes(const Frustum& frustum,
-        const PropKit& propKit,
         std::vector<MeshInstance>& outVisibleMeshes) const;
 
     DrawIndirectBuffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }

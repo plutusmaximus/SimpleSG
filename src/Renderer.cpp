@@ -203,7 +203,7 @@ Renderer::Render(const Camera& camera,
         MaterialIdentifier lastMaterialId{};
 
         // Get visible meshes and sort by material to minimize bind group changes.
-        scene.GetVisibleMeshes(frustum, propKit, m_VisibleMeshes);
+        scene.GetVisibleMeshes(frustum, m_VisibleMeshes);
 
         std::ranges::sort(m_VisibleMeshes,
             [](const MeshInstance& a, const MeshInstance& b)

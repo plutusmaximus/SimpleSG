@@ -70,15 +70,15 @@ BuildScene(const Level& level,
         const Level::Node* node = level.GetNode(handle);
         MLG_ASSERT(node);
 
-        const std::optional<ModelIdentifier>& optModelId = node->Components.Model;
+        const std::optional<const Model*> optModel = node->Components.Model;
 
-        if(!optModelId)
+        if(!optModel)
         {
             continue;
         }
 
-        MLG_CHECKV(optModelId->IsValid(), "Node has invalid model id");
-        const ModelInstance modelInstance{*optModelId};
+        MLG_CHECKV(*optModel, "Node has invalid model pointer");
+        const ModelInstance modelInstance{*optModel};
         outModelInstances.emplace_back(modelInstance);
 
         outNodeHandles.emplace_back(handle);
@@ -91,23 +91,22 @@ BuildScene(const Level& level,
 }
 
 Result<size_t>
-CountMeshes(std::span<const ModelInstance> modelInstances, const PropKit& propKit)
+CountMeshes(std::span<const ModelInstance> modelInstances)
 {
     size_t meshCount = 0;
     for(const ModelInstance& modelInstance : modelInstances)
     {
-        auto meshes = propKit.GetMeshes(modelInstance.GetModelId());
-        MLG_CHECK(meshes);
+        const std::span<const Mesh> meshes = modelInstance.GetModel()->GetMeshes();
 
-        meshCount += meshes->size();
+        meshCount += meshes.size();
     }
     return meshCount;
 }
 
 Result<DrawIndirectBuffer>
-BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const PropKit& propKit)
+BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances)
 {
-    auto meshInstanceCount = CountMeshes(modelInstances, propKit);
+    auto meshInstanceCount = CountMeshes(modelInstances);
     MLG_CHECK(meshInstanceCount);
 
     std::vector<ShaderInterop::DrawIndirectParams> drawIndirectParams;
@@ -115,10 +114,12 @@ BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const Pro
 
     for(const ModelInstance& modelInstance : modelInstances)
     {
-        auto meshes = propKit.GetMeshes(modelInstance.GetModelId());
-        MLG_CHECK(meshes);
+        const Model* model = modelInstance.GetModel();
+        MLG_CHECK(model);
 
-        for(const Mesh& meshSrc : *meshes)
+        const std::span<const Mesh> meshes = model->GetMeshes();
+
+        for(const Mesh& meshSrc : meshes)
         {
             const ShaderInterop::DrawIndirectParams drawParams //
                 {
@@ -143,9 +144,9 @@ BuildDrawIndirectBuffer(std::span<const ModelInstance> modelInstances, const Pro
 }
 
 Result<MeshPropertiesBuffer>
-BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const PropKit& propKit)
+BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances)
 {
-    auto meshInstanceCount = CountMeshes(modelInstances, propKit);
+    auto meshInstanceCount = CountMeshes(modelInstances);
     MLG_CHECK(meshInstanceCount);
 
     uint32_t transformIndex = 0;
@@ -155,10 +156,11 @@ BuildMeshPropertiesBuffer(std::span<const ModelInstance> modelInstances, const P
 
     for(const auto& modelInstance : modelInstances)
     {
-        auto meshes = propKit.GetMeshes(modelInstance.GetModelId());
-        MLG_CHECK(meshes);
+        const Model* model = modelInstance.GetModel();
+        MLG_CHECK(model);
+        const std::span<const Mesh> meshes = model->GetMeshes();
 
-        for(const auto& meshSrc : *meshes)
+        for(const auto& meshSrc : meshes)
         {
             const BoundingSphere boundingSphere(meshSrc.GetBoundingBox());
 
@@ -208,10 +210,10 @@ Scene::Create(const Level& level, const PropKit& propKit)
         GpuHelper::CreateStorageBuffer<ClipSpaceBuffer>(nodeHandles.size(), "ClipSpaceTransforms");
     MLG_CHECK(clipSpaceBuffer);
 
-    auto drawIndirectBuffer = BuildDrawIndirectBuffer(modelInstances, propKit);
+    auto drawIndirectBuffer = BuildDrawIndirectBuffer(modelInstances);
     MLG_CHECK(drawIndirectBuffer);
 
-    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(modelInstances, propKit);
+    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(modelInstances);
     MLG_CHECK(meshPropertiesBuffer);
 
     auto cameraParamsBuf =
@@ -281,9 +283,7 @@ Scene::Scene(WorldTransformBuffer worldTransformBuffer,
 }
 
 void
-Scene::GetVisibleMeshes(const Frustum& frustum,
-    const PropKit& propKit,
-    std::vector<MeshInstance>& outVisibleMeshes) const
+Scene::GetVisibleMeshes(const Frustum& frustum, std::vector<MeshInstance>& outVisibleMeshes) const
 {
     static PerfCounter pcTotalMeshes({ .Name = "Scene.Meshes.Total",
         .Policy = PerfCounter::SamplePolicy::ResetOnSample });
@@ -299,32 +299,26 @@ Scene::GetVisibleMeshes(const Frustum& frustum,
 
     for(const auto&& [modelInstance, worldXForm] : view)
     {
-        const ModelIdentifier modelId = modelInstance.GetModelId();
-
-        const Model* model = propKit.GetModel(modelId);
-        if(!MLG_VERIFY(model, "Failed to get model for model id: {}", modelId.GetValue()))
+        const Model* model = modelInstance.GetModel();
+        if(!MLG_VERIFY(model))
         {
             continue;
         }
 
-        auto meshes = propKit.GetMeshes(modelId);
-        if(!MLG_VERIFY(meshes, "Failed to get meshes for model id: {}", modelId.GetValue()))
-        {
-            continue;
-        }
+        const std::span<const Mesh> meshes = model->GetMeshes();
 
-        pcTotalMeshes.Increment(meshes->size());
+        pcTotalMeshes.Increment(meshes.size());
 
         const Vec4f& pos4 = worldXForm.Transform[3];
         const Vec3f pos = Vec3f(pos4.x, pos4.y, pos4.z);
 
         if(!modelInstance.IsVisible() || !frustum.Contains(model->GetBoundingSphere() + pos))
         {
-            meshIndex += meshes->size();
+            meshIndex += meshes.size();
             continue;
         }
 
-        for(const Mesh& mesh : *meshes)
+        for(const Mesh& mesh : meshes)
         {
             if(frustum.Contains(mesh.GetBoundingSphere() + pos))
             {

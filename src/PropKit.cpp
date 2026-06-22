@@ -428,11 +428,7 @@ PropKit::Create(
             aabb += mesh.GetBoundingBox();
         }
 
-        const Model model(modelName,
-            MeshIdentifier(firstMeshIdx),
-            modelDef.MeshDefs.size(),
-            aabb,
-            BoundingSphere(aabb));
+        const Model model(modelName, meshSpan, aabb, BoundingSphere(aabb));
         models.emplace_back(model);
     }
 
@@ -473,8 +469,8 @@ PropKit::Create(
     return std::move(propKit);
 }
 
-Result<ModelIdentifier>
-PropKit::GetModelId(const std::string_view& name) const
+const Model*
+PropKit::GetModel(const std::string_view& name) const
 {
     auto it = std::ranges::lower_bound(m_ModelNameToId,
         name,
@@ -489,39 +485,12 @@ PropKit::GetModelId(const std::string_view& name) const
         }
     }
 
-    MLG_CHECKV(it != m_ModelNameToId.end(), "Model not found: {}", name);
-
-    return ModelIdentifier(*it);
-}
-
-const Model* PropKit::GetModel(const ModelIdentifier& modelId) const
-{
-    if(MLG_VERIFY(modelId.IsValid() && modelId.GetValue() < m_Models.size(),
-           "Invalid model id: {}",
-           modelId.GetValue()))
+    if(!MLG_VERIFY(it != m_ModelNameToId.end(), "Model not found: {}", name))
     {
-        return &m_Models[modelId.GetValue()];
+        return nullptr;
     }
 
-    return nullptr;
-}
-
-Result<std::span<const Mesh>>
-PropKit::GetMeshes(const ModelIdentifier& modelId) const
-{
-    MLG_CHECKV(modelId.IsValid() && modelId.GetValue() < m_Models.size(),
-        "Invalid model id: {}",
-        modelId.GetValue());
-
-    const Model& model = m_Models[modelId.GetValue()];
-
-    MLG_CHECKV(model.GetFirstMeshId().IsValid() &&
-                   model.GetFirstMeshId().GetValue() + model.GetMeshCount() <= m_Meshes.size(),
-        "Model has invalid mesh range: {}, {}",
-        model.GetFirstMeshId().GetValue(),
-        model.GetMeshCount());
-
-    return std::span<const Mesh>(&m_Meshes[model.GetFirstMeshId().GetValue()], model.GetMeshCount());
+    return &m_Models[*it];
 }
 
 const wgpu::BindGroup*

@@ -4,9 +4,7 @@
 #include "SemanticIdentifier.h"
 #include "StringArena.h"
 
-using MeshIdentifier = SemanticIdentifier<struct MeshIdTag>;
 using MaterialIdentifier = SemanticIdentifier<struct MaterialIdTag>;
-using ModelIdentifier = SemanticIdentifier<struct ModelIdTag>;
 
 class Mesh
 {
@@ -54,28 +52,24 @@ class Model
 {
 public:
     Model(const StringHandle& name,
-        const MeshIdentifier& firstMeshId,
-        const size_t meshCount,
+        const std::span<const Mesh>& meshes,
         const BoundingBox& boundingBox,
         const BoundingSphere& boundingSphere)
         : m_Name(name),
-            m_FirstMeshId(firstMeshId),
-            m_MeshCount(meshCount),
+            m_Meshes(meshes),
             m_BoundingBox(boundingBox),
             m_BoundingSphere(boundingSphere)
     {
     }
 
     const StringHandle& GetName() const { return m_Name; }
-    const MeshIdentifier& GetFirstMeshId() const { return m_FirstMeshId; }
-    size_t GetMeshCount() const { return m_MeshCount; }
+    std::span<const Mesh> GetMeshes() const { return m_Meshes; }
     const BoundingBox& GetBoundingBox() const { return m_BoundingBox; }
     const BoundingSphere& GetBoundingSphere() const { return m_BoundingSphere; }
 
 private:
     StringHandle m_Name;
-    MeshIdentifier m_FirstMeshId;
-    size_t m_MeshCount{ 0 };
+    std::span<const Mesh> m_Meshes;
     BoundingBox m_BoundingBox;
     BoundingSphere m_BoundingSphere;
 };
@@ -86,19 +80,19 @@ public:
 
     ModelInstance() = delete;
 
-    explicit ModelInstance(const ModelIdentifier modelId)
-        : m_ModelId(modelId)
+    explicit ModelInstance(const Model* model)
+        : m_Model(model)
     {
-        MLG_ASSERT(modelId.IsValid(), "ModelInstance cannot be created with invalid ModelIdentifier");
+        MLG_REQUIRE(model, "ModelInstance cannot be created with an invalid model pointer");
     }
 
-    ModelIdentifier GetModelId() const { return m_ModelId; }
+    const Model* GetModel() const { return m_Model; }
 
     void SetVisible(const bool visible) { m_IsVisible = visible; }
     bool IsVisible() const { return m_IsVisible; }
 
 private:
-    ModelIdentifier m_ModelId;
+    const Model* m_Model{ nullptr };
 
     bool m_IsVisible{ true };
 };

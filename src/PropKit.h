@@ -24,11 +24,7 @@ public:
     PropKit(PropKit&& other) = default;
     PropKit& operator=(PropKit&& other) = default;
 
-    Result<ModelIdentifier> GetModelId(const std::string_view& name) const;
-
-    const Model* GetModel(const ModelIdentifier& modelId) const;
-
-    Result<std::span<const Mesh>> GetMeshes(const ModelIdentifier& modelId) const;
+    const Model* GetModel(const std::string_view& name) const;
 
     const wgpu::BindGroup* GetMaterialBindGroup(const MaterialIdentifier& materialId) const;
 
