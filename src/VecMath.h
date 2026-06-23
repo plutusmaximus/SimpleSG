@@ -461,6 +461,11 @@ public:
         return vr;
     }
 
+    constexpr Vec2<T> xy() const noexcept
+    {
+        return Vec2<T>(x, y);
+    }
+
     constexpr friend bool operator==(const Vec3& a, const Vec3& b) noexcept
     {
         return a.x == b.x && a.y == b.y && a.z == b.z;
@@ -621,6 +626,16 @@ public:
     [[nodiscard]] constexpr Vec4 Lerp(const Vec4& that, T t) const noexcept
     {
         return Vec4((*this * (1 - t)) + (that * t));
+    }
+
+    constexpr Vec2<T> xy() const noexcept
+    {
+        return Vec2<T>(x, y);
+    }
+
+    constexpr Vec3<T> xyz() const noexcept
+    {
+        return Vec3<T>(x, y, z);
     }
 
     constexpr friend bool operator==(const Vec4& a, const Vec4& b) noexcept
@@ -1100,10 +1115,34 @@ public:
 class Rect
 {
 public:
-    int X, Y;
-    unsigned Width, Height;
+    Rect() = delete;
 
-    constexpr Extent GetExtent() const { return Extent{.Width = Width, .Height = Height }; }
+    struct RectParams
+    {
+        int X, Y;
+        unsigned Width, Height;
+    };
+
+    explicit Rect(const RectParams& params) noexcept
+        : m_X(params.X), m_Y(params.Y), m_Width(params.Width), m_Height(params.Height)
+    {
+        if(!MLG_VERIFY(m_Width > 0, "Width must be non-zero"))
+        {
+            m_Width = 1;
+        }
+
+        if(!MLG_VERIFY(m_Height > 0, "Height must be non-zero"))
+        {
+            m_Height = 1;
+        }
+    }
+
+    int GetX() const { return m_X; }
+    int GetY() const { return m_Y; }
+    unsigned GetWidth() const { return m_Width; }
+    unsigned GetHeight() const { return m_Height; }
+
+    constexpr Extent GetExtent() const { return Extent{.Width = m_Width, .Height = m_Height }; }
 
     constexpr float GetAspectRatio() const
     {
@@ -1112,8 +1151,12 @@ public:
 
     constexpr friend bool operator==(const Rect& a, const Rect& b) noexcept
     {
-        return a.X == b.X && a.Y == b.Y && a.Width == b.Width && a.Height == b.Height;
+        return a.m_X == b.m_X && a.m_Y == b.m_Y && a.m_Width == b.m_Width && a.m_Height == b.m_Height;
     }
+
+private:
+    int m_X{0}, m_Y{0};
+    unsigned m_Width{0}, m_Height{0};
 };
 
 using Radiansf = Radians<float>;

@@ -691,10 +691,7 @@ MainLoop()
         const Viewport viewport(GpuHelper::GetScreenBounds());
         camera.SetViewport(viewport);
         const Rect& scenePanelRect = devUi.GetScenePanelRect();
-        if(scenePanelRect.Width > 0 && scenePanelRect.Height > 0)
-        {
-            camera.SetAspectRatio(scenePanelRect.GetAspectRatio());
-        }
+        camera.SetAspectRatio(scenePanelRect.GetAspectRatio());
         cameraXForm = mouseNav.GetTransform();
 
         MLG_CHECK(scene.SyncToGpu());

@@ -40,10 +40,10 @@ private:
 
     void DrawDockedEditorLayout() const;
 
-    Rect m_ScenePanelRect{.X = 0, .Y = 0, .Width = 0, .Height = 0};
-
-    Point m_ScenePanelMousePos{.X = 0, .Y = 0};
-
     const Renderer* m_Renderer;
     CliUi* m_CliUi;
+
+    Rect m_ScenePanelRect{{.X = 0, .Y = 0, .Width = 1, .Height = 1}};
+
+    Point m_ScenePanelMousePos{.X = 0, .Y = 0};
 };

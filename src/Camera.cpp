@@ -1,6 +1,18 @@
 #include "Camera.h"
 
 #include "Bounds.h"
+#include "VecMath.h"
+
+namespace
+{
+Vec2f ScreenToNdc(const Vec2f& screenPos, const Viewport& viewport)
+{
+    const float x = (screenPos.x - static_cast<float>(viewport.GetX())) / static_cast<float>(viewport.GetWidth());
+    const float y = (screenPos.y - static_cast<float>(viewport.GetY())) / static_cast<float>(viewport.GetHeight());
+
+    return Vec2f((2.0f * x) - 1.0f, 1.0f - (2.0f * y));
+}
+} // namespace
 
 Viewport::Viewport(const ViewportParams& params)
     : m_X(params.x),
@@ -43,6 +55,65 @@ Frustum::Frustum(const Camera& camera, const Posef& cameraXForm) // NOLINT(cppco
     m_Planes[kBottom] /= lb;
     m_Planes[kNear] /= ln;
     m_Planes[kFar] /= lf;
+}
+
+Frustum::Frustum(const Camera& camera, const Posef& cameraXForm, const Rect& selectRect) // NOLINT(cppcoreguidelines-pro-type-member-init)
+{
+    Vec2f ndc00(static_cast<float>(selectRect.GetX()), static_cast<float>(selectRect.GetY()));
+    Vec2f ndc11 = ndc00 + Vec2f(static_cast<float>(selectRect.GetWidth()), static_cast<float>(selectRect.GetHeight()));
+    Vec2f ndc01(ndc00.x, ndc11.y);
+    Vec2f ndc10(ndc11.x, ndc00.y);
+    
+    ndc00 = ScreenToNdc(ndc00, camera.GetViewport());
+    ndc11 = ScreenToNdc(ndc11, camera.GetViewport());
+    ndc01 = ScreenToNdc(ndc01, camera.GetViewport());
+    ndc10 = ScreenToNdc(ndc10, camera.GetViewport());
+
+    // Compute the inverse of the view-projection matrix (invVP) to transform from NDC to world space
+    // VP = P * view and view = cameraWorld^-1
+    // Therefore, invVP = (P * cameraWorld^-1)^-1 = cameraWorld * P^-1
+
+    const Mat44f invVP = cameraXForm.ToMatrix() * camera.GetMatrix().Inverse();
+
+    const Vec4f near00 = invVP * Vec4f(ndc00, 0, 1.0f);
+    const Vec4f near11 = invVP * Vec4f(ndc11, 0, 1.0f);
+    const Vec4f near01 = invVP * Vec4f(ndc01, 0, 1.0f);
+    const Vec4f near10 = invVP * Vec4f(ndc10, 0, 1.0f);
+
+    const Vec4f far00 = invVP * Vec4f(ndc00, 1, 1.0f);
+    //const Vec4f far11 = invVP * Vec4f(ndc11, 1, 1.0f);
+    const Vec4f far01 = invVP * Vec4f(ndc01, 1, 1.0f);
+    const Vec4f far10 = invVP * Vec4f(ndc10, 1, 1.0f);
+
+    const Vec3f worldNear00 = near00.xyz() / near00.w;
+    const Vec3f worldNear11 = near11.xyz() / near11.w;
+    const Vec3f worldNear01 = near01.xyz() / near01.w;
+    const Vec3f worldNear10 = near10.xyz() / near10.w;
+    const Vec3f worldFar00 = far00.xyz() / far00.w;
+    //const Vec3f worldFar11 = far11.xyz() / far11.w;
+    const Vec3f worldFar01 = far01.xyz() / far01.w;
+    const Vec3f worldFar10 = far10.xyz() / far10.w;
+
+    const Vec3f leftNormal = (worldFar00 - worldNear00).Cross(worldNear01 - worldNear00).Normalize();
+    const Vec3f rightNormal = (worldNear11 - worldNear10).Cross(worldFar10 - worldNear10).Normalize();
+    const Vec3f topNormal = (worldNear10 - worldNear00).Cross(worldFar00 - worldNear00).Normalize();
+    const Vec3f bottomNormal = (worldFar01 - worldNear01).Cross(worldNear11 - worldNear01).Normalize();
+    const Vec3f nearNormal = (worldNear01 - worldNear00).Cross(worldNear10 - worldNear00).Normalize();
+    const Vec3f farNormal = (worldFar10 - worldFar00).Cross(worldFar01 - worldFar00).Normalize();
+
+    const float leftD = -leftNormal.Dot(worldNear00);
+    const float rightD = -rightNormal.Dot(worldNear10);
+    const float topD = -topNormal.Dot(worldNear00);
+    const float bottomD = -bottomNormal.Dot(worldNear01);
+    const float nearD = -nearNormal.Dot(worldNear00);
+    const float farD = -farNormal.Dot(worldFar00);
+
+    m_Planes[kLeft] = Vec4f(leftNormal, leftD);
+    m_Planes[kRight] = Vec4f(rightNormal, rightD);
+    m_Planes[kTop] = Vec4f(topNormal, topD);
+    m_Planes[kBottom] = Vec4f(bottomNormal, bottomD);
+    m_Planes[kNear] = Vec4f(nearNormal, nearD);
+    m_Planes[kFar] = Vec4f(farNormal, farD);
 }
 
 bool

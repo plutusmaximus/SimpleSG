@@ -237,13 +237,13 @@ DevUi::DrawScenePanel()
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const ImVec2 mousePos = ImGui::GetMousePos();
 
-    m_ScenePanelRect = Rect //
+    m_ScenePanelRect = Rect( //
         {
             .X = static_cast<int>(cursorPos.x),
             .Y = static_cast<int>(cursorPos.y),
             .Width = static_cast<unsigned>(avail.x),
             .Height = static_cast<unsigned>(avail.y),
-        };
+        });
 
     m_ScenePanelMousePos.X = static_cast<int>(mousePos.x - cursorPos.x);
     m_ScenePanelMousePos.Y = static_cast<int>(mousePos.y - cursorPos.y);

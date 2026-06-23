@@ -55,6 +55,7 @@ public:
 
     Frustum() = delete;
     Frustum(const Camera& camera, const Posef& cameraXForm);
+    Frustum(const Camera& camera, const Posef& cameraXForm, const Rect& selectRect);
 
     bool Contains(const BoundingSphere& sphere) const;
 
