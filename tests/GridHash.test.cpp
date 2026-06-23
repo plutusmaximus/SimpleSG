@@ -37,8 +37,8 @@ TEST(GridHash, SingleBodyProducesNoPairs)
 	GridHash hash{3};
 
 	const Result<> result = hash.Add(
-		Vec3f{ 0.2f, 0.2f, 0.2f },
 		Vec3f{ 0.8f, 0.8f, 0.8f },
+		Vec3f{ 0.2f, 0.2f, 0.2f },
 		MakeSphereCollider(),
 		3);
 
@@ -53,14 +53,14 @@ TEST(GridHash, TwoBodiesInSameCellProduceOneOrderedPair)
 	GridHash hash{3};
 
 	ASSERT_TRUE(hash.Add(
-		Vec3f{ 0.1f, 0.1f, 0.1f },
 		Vec3f{ 0.9f, 0.9f, 0.9f },
+		Vec3f{ 0.1f, 0.1f, 0.1f },
 		MakeSphereCollider(),
 		7));
 
 	ASSERT_TRUE(hash.Add(
-		Vec3f{ 1.0f, 1.0f, 1.0f },
 		Vec3f{ 1.8f, 1.8f, 1.8f },
+		Vec3f{ 1.0f, 1.0f, 1.0f },
 		MakeSphereCollider(),
 		3));
 
@@ -102,8 +102,8 @@ TEST(GridHash, ThreeBodiesInOneCellGenerateAllUniquePairs)
 		MakeSphereCollider(),
 		0));
 	ASSERT_TRUE(hash.Add(
-		Vec3f{ 0.3f, 0.3f, 0.3f },
 		Vec3f{ 0.7f, 0.7f, 0.7f },
+		Vec3f{ 0.3f, 0.3f, 0.3f },
 		MakeSphereCollider(),
 		1));
 	ASSERT_TRUE(hash.Add(
@@ -149,8 +149,8 @@ TEST(GridHash, ClearRemovesExistingCellsAndPairs)
 		MakeSphereCollider(),
 		0));
 	ASSERT_TRUE(hash.Add(
-		Vec3f{ 20.1f, 20.1f, 20.1f },
 		Vec3f{ 20.2f, 20.2f, 20.2f },
+		Vec3f{ 20.1f, 20.1f, 20.1f },
 		MakeSphereCollider(),
 		1));
 

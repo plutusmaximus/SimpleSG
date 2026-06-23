@@ -20,44 +20,34 @@ constexpr uint64_t Mask21 = (1ull << Bits21) - 1;
 constexpr int32_t MinValue21 = -(1 << (Bits21 - 1));
 constexpr int32_t MaxValue21 = (1 << (Bits21 - 1)) - 1;
 
-uint64_t
+constexpr uint64_t Clamp(const int32_t value)
+{
+    if(value < MinValue21)
+    {
+        return static_cast<uint64_t>(MinValue21);
+    }
+    if(value > MaxValue21)
+    {
+        return static_cast<uint64_t>(MaxValue21);
+    }
+    return static_cast<uint64_t>(value);
+}
+
+constexpr uint64_t
 Pack3x21(const int32_t x, const int32_t y, const int32_t z)
 {
-    uint64_t ux = static_cast<uint64_t>(x);
-    uint64_t uy = static_cast<uint64_t>(y);
-    uint64_t uz = static_cast<uint64_t>(z);
+    MLG_ASSERT(x >= MinValue21 && x <= MaxValue21, "x coordinate out of range: {}", x);
+    MLG_ASSERT(y >= MinValue21 && y <= MaxValue21, "y coordinate out of range: {}", y);
+    MLG_ASSERT(z >= MinValue21 && z <= MaxValue21, "z coordinate out of range: {}", z);
 
-    // Clamp values to the valid range for 21-bit signed integers.
-
-    if(x < 0 && !MLG_VERIFY(x >= MinValue21, "x coordinate out of range: {}", x))
-    {
-        ux = static_cast<uint64_t>(MinValue21);
-    }
-    if(x > 0 && !MLG_VERIFY(x <= MaxValue21, "x coordinate out of range: {}", x))
-    {
-        ux = static_cast<uint64_t>(MaxValue21);
-    }
-    if(y < 0 && !MLG_VERIFY(y >= MinValue21, "y coordinate out of range: {}", y))
-    {
-        uy = static_cast<uint64_t>(MinValue21);
-    }
-    if(y > 0 && !MLG_VERIFY(y <= MaxValue21, "y coordinate out of range: {}", y))
-    {
-        uy = static_cast<uint64_t>(MaxValue21);
-    }
-    if(z < 0 && !MLG_VERIFY(z >= MinValue21, "z coordinate out of range: {}", z))
-    {
-        uz = static_cast<uint64_t>(MinValue21);
-    }
-    if(z > 0 && !MLG_VERIFY(z <= MaxValue21, "z coordinate out of range: {}", z))
-    {
-        uz = static_cast<uint64_t>(MaxValue21);
-    }
+    const uint64_t ux = Clamp(x);
+    const uint64_t uy = Clamp(y);
+    const uint64_t uz = Clamp(z);
 
     return (ux & Mask21) | ((uy & Mask21) << Bits21) | ((uz & Mask21) << Bits42);
 }
 
-int32_t
+constexpr int32_t
 SignExtend21(const uint64_t v)
 {
     uint64_t u = v & Mask21;
@@ -70,19 +60,19 @@ SignExtend21(const uint64_t v)
     return static_cast<int32_t>(u);
 }
 
-int32_t
+constexpr int32_t
 UnpackX(const uint64_t v)
 {
     return SignExtend21(v);
 }
 
-int32_t
+constexpr int32_t
 UnpackY(const uint64_t v)
 {
     return SignExtend21(v >> Bits21);
 }
 
-int32_t
+constexpr int32_t
 UnpackZ(const uint64_t v)
 {
     return SignExtend21(v >> Bits42);
@@ -129,45 +119,42 @@ GridHash::Clear()
 
 Result<>
 GridHash::Add(
-    const Vec3f& bbMin, const Vec3f& bbMax, const Collider& collider, const size_t bodyIndex)
+    const Vec3f& p0, const Vec3f& p1, const Collider& collider, const size_t bodyIndex)
 {
     MLG_ASSERT(m_NeedsSort,
         "Adding bodies after potential collisions have been generated. Is that intentional?");
 
-    MLG_CHECKV(bbMin.x <= bbMax.x && bbMin.y <= bbMax.y && bbMin.z <= bbMax.z,
-        "Invalid bounding box: Min: ({}, {}, {}), Max: ({}, {}, {})",
-        bbMin.x,
-        bbMin.y,
-        bbMin.z,
-        bbMax.x,
-        bbMax.y,
-        bbMax.z);
-
     const BoundingSphere& sphere = collider.GetEnclosingSphere();
+    const Vec3f vradius(sphere.GetRadius());
+    const Vec3f& center = sphere.GetCenter();
 
-    const Vec3f minExtent = bbMin + sphere.GetCenter() - Vec3f{sphere.GetRadius()};
-    const Vec3f maxExtent = bbMax + sphere.GetCenter() + Vec3f{sphere.GetRadius()};
+    const Vec3f pmin =
+        Vec3f(std::min(p0.x, p1.x), std::min(p0.y, p1.y), std::min(p0.z, p1.z)) + center - vradius;
+    const Vec3f pmax =
+        Vec3f(std::max(p0.x, p1.x), std::max(p0.y, p1.y), std::max(p0.z, p1.z)) + center + vradius;
 
-    const int32_t minX = Quantize(minExtent.x);
-    const int32_t minY = Quantize(minExtent.y);
-    const int32_t minZ = Quantize(minExtent.z);
-    const int32_t maxX = Quantize(maxExtent.x);
-    const int32_t maxY = Quantize(maxExtent.y);
-    const int32_t maxZ = Quantize(maxExtent.z);
+    const int32_t minX = Quantize(pmin.x);
+    const int32_t minY = Quantize(pmin.y);
+    const int32_t minZ = Quantize(pmin.z);
+    const int32_t maxX = Quantize(pmax.x);
+    const int32_t maxY = Quantize(pmax.y);
+    const int32_t maxZ = Quantize(pmax.z);
 
-    const uint32_t dx = static_cast<uint32_t>(maxX - minX + 1);
-    const uint32_t dy = static_cast<uint32_t>(maxY - minY + 1);
-    const uint32_t dz = static_cast<uint32_t>(maxZ - minZ + 1);
+    const size_t dx = static_cast<size_t>(maxX) - static_cast<size_t>(minX) + 1;
+    const size_t dy = static_cast<size_t>(maxY) - static_cast<size_t>(minY) + 1;
+    const size_t dz = static_cast<size_t>(maxZ) - static_cast<size_t>(minZ) + 1;
 
     MLG_CHECK(AllocateItems(dx, dy, dz));
 
-    for(int32_t x = minX; x <= maxX; ++x)
+    Item::ItemParams params{ .BodyIndex = bodyIndex };
+
+    for(params.CellX = minX; params.CellX <= maxX; ++params.CellX)
     {
-        for(int32_t y = minY; y <= maxY; ++y)
+        for(params.CellY = minY; params.CellY <= maxY; ++params.CellY)
         {
-            for(int32_t z = minZ; z <= maxZ; ++z)
+            for(params.CellZ = minZ; params.CellZ <= maxZ; ++params.CellZ)
             {
-                m_Items.emplace_back(Item::ItemParams{.BodyIndex = bodyIndex, .CellX = x, .CellY = y, .CellZ = z});
+                m_Items.emplace_back(params);
             }
         }
     }
@@ -201,22 +188,18 @@ GridHash::end()
 // private:
 
 Result<>
-GridHash::AllocateItems(const uint32_t dx, const uint32_t dy, const uint32_t dz)
+GridHash::AllocateItems(const size_t dx, const size_t dy, const size_t dz)
 {
-    const size_t dxs = static_cast<size_t>(dx);
-    const size_t dys = static_cast<size_t>(dy);
-    const size_t dzs = static_cast<size_t>(dz);
-
-    MLG_CHECKV(dxs <= std::numeric_limits<size_t>::max() / dys,
+    MLG_CHECKV(dx <= std::numeric_limits<size_t>::max() / dy,
         "Cell span overflow before multiply.");
 
-    const size_t dxy = dxs * dys;
+    const size_t dxy = dx * dy;
 
-    MLG_CHECKV(dxy <= std::numeric_limits<size_t>::max() / dzs,
+    MLG_CHECKV(dxy <= std::numeric_limits<size_t>::max() / dz,
         "Cell span overflow before multiply.");
 
     // Number of cells the body potentially occupies.
-    const size_t cellCount = dxy * dzs;
+    const size_t cellCount = dxy * dz;
 
     MLG_CHECKV(cellCount <= kMaxCellsPerBody, "Too many cells occupied. count={}", cellCount);
 
@@ -277,27 +260,6 @@ GridHash::Sort() const
     // Sort to group duplicates together.
     std::ranges::sort(m_PotentialCollisions);
 
-    auto itDst = m_PotentialCollisions.begin();
-    const auto itEnd = m_PotentialCollisions.end();
-
-    // Remove duplicate pairs.
-    // Duplicates will be adjacent due to the sort above.
-    for(auto itSrc = itDst + 1; itSrc != itEnd; ++itSrc)
-    {
-        if(*itDst == *itSrc)
-        {
-            // Skip duplicate pair.
-            continue;
-        }
-
-        ++itDst;
-
-        if(itSrc > itDst)
-        {
-            *itDst = *itSrc;
-        }
-    }
-
-    const auto newEnd = itDst + 1;
-    m_PotentialCollisions.erase(newEnd, m_PotentialCollisions.end());
+    auto last = std::ranges::unique(m_PotentialCollisions);
+    m_PotentialCollisions.erase(last.begin(), last.end());
 }

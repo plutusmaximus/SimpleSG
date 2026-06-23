@@ -293,20 +293,8 @@ PhysicsLevel::FindAndResolveAllImpacts()
 
         // Bodies will be added to all cells of the grid overlapped by the bounding box
         // defined by the current and predicted position.
-        const Vec3f bbMin //
-            {
-                std::min(trsCur.T.x, trsNext.T.x),
-                std::min(trsCur.T.y, trsNext.T.y),
-                std::min(trsCur.T.z, trsNext.T.z),
-            };
-        const Vec3f bbMax //
-            {
-                std::max(trsCur.T.x, trsNext.T.x),
-                std::max(trsCur.T.y, trsNext.T.y),
-                std::max(trsCur.T.z, trsNext.T.z),
-            };
 
-        m_GridHash.Add(bbMin, bbMax, collider, index);
+        m_GridHash.Add(trsCur.T, trsNext.T, collider, index);
     }
 
     const size_t potentialCollisionCount = m_GridHash.PotentialCollisionCount();

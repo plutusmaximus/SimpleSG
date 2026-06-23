@@ -62,12 +62,12 @@ public:
     size_t GetCellSize() const { return m_CellSize; }
 
     /// @brief  Adds a body to into the grid cells it occupies.
-    /// @param bbMin The minimum corner of the body's bounding box.
-    /// @param bbMax The maximum corner of the body's bounding box.
+    /// @param p0 One corner of the body's bounding box.
+    /// @param p1 The other corner of the body's bounding box.
     /// @param collider The collider associated with the body.
     /// @param bodyIndex The index of the body.
     Result<> Add(
-        const Vec3f& bbMin, const Vec3f& bbMax, const Collider& collider, const size_t bodyIndex);
+        const Vec3f& p0, const Vec3f& p1, const Collider& collider, const size_t bodyIndex);
 
     using iterator = std::vector<BodyPair>::iterator;
     using const_iterator = std::vector<BodyPair>::const_iterator;
@@ -126,7 +126,7 @@ private:
     /// @param dy The number of cells the body spans in the y dimension.
     /// @param dz The number of cells the body spans in the z dimension.
     /// @return
-    Result<> AllocateItems(const uint32_t dx, const uint32_t dy, const uint32_t dz);
+    Result<> AllocateItems(const size_t dx, const size_t dy, const size_t dz);
 
     int32_t Quantize(const float value) const;
 
