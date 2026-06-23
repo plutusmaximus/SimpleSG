@@ -109,6 +109,20 @@ static bool Log(AssertHelper::AssertData& assertData,
 
 #endif // NDEBUG
 
+// Like MLG_CHECK except if the condition is true the program will abort.
+// Used to check for invariants that if violated result in undefined behavior.
+// I.e. things that have no chance of recovery, and which cannot return an error
+// to callers, e.g. constructors.
+#define MLG_ABORTIF(expr, ...) \
+    MLG_CLANG_DIAG_PUSH \
+    MLG_CLANG_DIAG_IGNORE_C2Y_EXTENSIONS \
+    while(static_cast<bool>(expr)) \
+    { \
+        AssertHelper::Log(AssertHelper::GetAssertData<__COUNTER__>(#expr),#expr, __func__, __FILE__, __LINE__ __VA_OPT__(, ) __VA_ARGS__); \
+        std::abort(); \
+    } \
+    MLG_CLANG_DIAG_POP
+
 // Like MLG_CHECK except if the condition is false the program will abort.
 // Used to check for invariants that if violated result in undefined behavior.
 // I.e. things that have no chance of recovery, and which cannot return an error

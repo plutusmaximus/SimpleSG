@@ -79,25 +79,27 @@ TEST(BoundingSphere, CompoundMerge_AssignsMergedSphere)
     EXPECT_FLOAT_EQ(a.GetRadius(), 3.5f);
 }
 
-TEST(BoundingSphere, TranslateOperator_ReturnsOffsetSphere)
+TEST(BoundingSphere, MultiplyByMat44_TransformsCenterAndKeepsRadius)
 {
-    const BoundingSphere sphere(Vec3f(2.0f, -3.0f, 5.0f), 4.0f);
-    const Vec3f offset(-6.0f, 7.0f, 1.0f);
+    const BoundingSphere sphere(Vec3f(1.0f, 2.0f, 3.0f), 2.5f);
+    // Use TrsTransform to compose 37° rotation about X, Y, Z axes with scale and translation
+    const Radiansf angle(37.0f * std::numbers::pi_v<float> / 180.0f);
+    const UnitQuatf Qx(angle, Vec3f::XAXIS());
+    const UnitQuatf Qy(angle, Vec3f::YAXIS());
+    const UnitQuatf Qz(angle, Vec3f::ZAXIS());
+    
+    TrsTransformf trs;
+    trs.R = Qz * Qy * Qx;  // Compose rotations: apply Rx, then Ry, then Rz
+    trs.S = Vec3f(1.0f, 1.0f, 1.0f);
+    trs.T = Vec3f(4.0f, -5.0f, 6.0f);
+    const Mat44f transform = trs.ToMatrix();
 
-    const BoundingSphere translated = sphere + offset;
+    const BoundingSphere transformed = transform * sphere;
 
-    ExpectVec3Eq(translated.GetCenter(), Vec3f(-4.0f, 4.0f, 6.0f));
-    EXPECT_FLOAT_EQ(translated.GetRadius(), sphere.GetRadius());
-}
-
-TEST(BoundingSphere, CompoundTranslate_AssignsOffsetSphere)
-{
-    BoundingSphere sphere(Vec3f(0.0f, 0.0f, 0.0f), 6.0f);
-
-    sphere += Vec3f(3.0f, -2.0f, 1.0f);
-
-    ExpectVec3Eq(sphere.GetCenter(), Vec3f(3.0f, -2.0f, 1.0f));
-    EXPECT_FLOAT_EQ(sphere.GetRadius(), 6.0f);
+    EXPECT_NEAR(transformed.GetCenter().x, 6.49315f, 1e-4f);
+    EXPECT_NEAR(transformed.GetCenter().y, -3.38194f, 1e-4f);
+    EXPECT_NEAR(transformed.GetCenter().z, 8.27290f, 1e-4f);
+    EXPECT_FLOAT_EQ(transformed.GetRadius(), sphere.GetRadius());
 }
 
 // NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)

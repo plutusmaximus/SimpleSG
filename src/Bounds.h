@@ -1,5 +1,6 @@
 #pragma once
 
+#include "VecMath.h"
 #include "Vertex.h"
 
 #include <span>
@@ -18,19 +19,23 @@ public:
     // Merge two bounding boxes into a new bounding box that encompasses both.
     friend BoundingBox operator+(const BoundingBox& a, const BoundingBox& b) noexcept;
 
-    // Translate a bounding box by an offset, producing a new bounding box.
-    friend BoundingBox operator+(const BoundingBox& a, const Vec3f& offset) noexcept
+    friend BoundingBox operator*(const TrsTransformf& transform, const BoundingBox& a) noexcept
     {
         BoundingBox result = a;
-        result.m_Center += offset;
+        result.m_Center = transform * result.m_Center;
+        return result;
+    }
+
+    friend BoundingBox operator*(const Mat44f& transform, const BoundingBox& a) noexcept
+    {
+        const Vec4f center4 = transform * Vec4f(a.m_Center, 1.0f);
+        BoundingBox result = a;
+        result.m_Center = Vec3f(center4.x, center4.y, center4.z);
         return result;
     }
 
     // Compound merge two bounding boxes.
     BoundingBox& operator+=(const BoundingBox& other) noexcept { return *this = *this + other; }
-
-    // Compound translate a bounding box by an offset.
-    BoundingBox& operator+=(const Vec3f& offset) noexcept { return *this = *this + offset; }
 
     static BoundingBox FromVertices(std::span<const Vertex> vertices,
         std::span<const VertexIndex> indices);
@@ -60,14 +65,20 @@ public:
 
     float GetHalfHeight() const { return m_HalfHeight; }
 
-    // Translate a bounding capsule by an offset, producing a new bounding capsule.
-    friend BoundingCapsule operator+(const BoundingCapsule& a, const Vec3f& offset) noexcept
+    friend BoundingCapsule operator*(const TrsTransformf& transform, const BoundingCapsule& a) noexcept
     {
-        return BoundingCapsule(a.GetCenter() + offset, a.GetRadius(), a.GetHalfHeight());
+        BoundingCapsule result = a;
+        result.m_Center = transform * result.m_Center;
+        return result;
     }
 
-    // Compound translate a bounding capsule by an offset.
-    BoundingCapsule& operator+=(const Vec3f& offset) noexcept { return *this = *this + offset; }
+    friend BoundingCapsule operator*(const Mat44f& transform, const BoundingCapsule& a) noexcept
+    {
+        const Vec4f center4 = transform * Vec4f(a.m_Center, 1.0f);
+        BoundingCapsule result = a;
+        result.m_Center = Vec3f(center4.x, center4.y, center4.z);
+        return result;
+    }
 
 private:
     Vec3f m_Center;
@@ -106,10 +117,19 @@ public:
     // Merge two bounding spheres into a new bounding sphere that encompasses both.
     friend BoundingSphere operator+(const BoundingSphere& a, const BoundingSphere& b) noexcept;
 
-    // Translate a bounding sphere by an offset, producing a new bounding sphere.
-    friend BoundingSphere operator+(const BoundingSphere& a, const Vec3f& offset) noexcept
+    friend BoundingSphere operator*(const TrsTransformf& transform, const BoundingSphere& a) noexcept
     {
-        return BoundingSphere(a.GetCenter() + offset, a.GetRadius());
+        BoundingSphere result = a;
+        result.m_Center = transform * result.m_Center;
+        return result;
+    }
+
+    friend BoundingSphere operator*(const Mat44f& transform, const BoundingSphere& a) noexcept
+    {
+        const Vec4f center4 = transform * Vec4f(a.m_Center, 1.0f);
+        BoundingSphere result = a;
+        result.m_Center = Vec3f(center4.x, center4.y, center4.z);
+        return result;
     }
 
     // Compound merge two bounding spheres.
@@ -117,9 +137,6 @@ public:
     {
         return *this = *this + other;
     }
-
-    // Compound translate a bounding sphere by an offset.
-    BoundingSphere& operator+=(const Vec3f& offset) noexcept { return *this = *this + offset; }
 
 private:
     Vec3f m_Center;

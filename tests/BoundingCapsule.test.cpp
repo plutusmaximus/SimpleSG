@@ -23,27 +23,28 @@ TEST(BoundingCapsule, Constructor_StoresCenterRadiusAndHalfHeight)
     EXPECT_FLOAT_EQ(capsule.GetHalfHeight(), 4.0f);
 }
 
-TEST(BoundingCapsule, TranslateOperator_ReturnsOffsetCapsule)
+TEST(BoundingCapsule, MultiplyByMat44_TransformsCenterAndKeepsDimensions)
 {
-    const BoundingCapsule capsule(Vec3f(-3.0f, 2.0f, 1.0f), 1.5f, 6.0f);
-    const Vec3f offset(4.0f, -5.0f, 9.0f);
+    const BoundingCapsule capsule(Vec3f(1.0f, 2.0f, 3.0f), 2.5f, 4.0f);
+    // Use TrsTransform to compose 37° rotation about X, Y, Z axes with scale and translation
+    const Radiansf angle(37.0f * std::numbers::pi_v<float> / 180.0f);
+    const UnitQuatf Qx(angle, Vec3f::XAXIS());
+    const UnitQuatf Qy(angle, Vec3f::YAXIS());
+    const UnitQuatf Qz(angle, Vec3f::ZAXIS());
+    
+    TrsTransformf trs;
+    trs.R = Qz * Qy * Qx;  // Compose rotations: apply Rx, then Ry, then Rz
+    trs.S = Vec3f(1.0f, 1.0f, 1.0f);
+    trs.T = Vec3f(4.0f, -5.0f, 6.0f);
+    const Mat44f transform = trs.ToMatrix();
 
-    const BoundingCapsule translated = capsule + offset;
+    const BoundingCapsule transformed = transform * capsule;
 
-    ExpectVec3Eq(translated.GetCenter(), Vec3f(1.0f, -3.0f, 10.0f));
-    EXPECT_FLOAT_EQ(translated.GetRadius(), capsule.GetRadius());
-    EXPECT_FLOAT_EQ(translated.GetHalfHeight(), capsule.GetHalfHeight());
-}
-
-TEST(BoundingCapsule, CompoundTranslate_AssignsOffsetCapsule)
-{
-    BoundingCapsule capsule(Vec3f(0.0f, 0.0f, 0.0f), 3.0f, 7.0f);
-
-    capsule += Vec3f(2.0f, -4.0f, 8.0f);
-
-    ExpectVec3Eq(capsule.GetCenter(), Vec3f(2.0f, -4.0f, 8.0f));
-    EXPECT_FLOAT_EQ(capsule.GetRadius(), 3.0f);
-    EXPECT_FLOAT_EQ(capsule.GetHalfHeight(), 7.0f);
+    EXPECT_NEAR(transformed.GetCenter().x, 6.49315f, 1e-4f);
+    EXPECT_NEAR(transformed.GetCenter().y, -3.38194f, 1e-4f);
+    EXPECT_NEAR(transformed.GetCenter().z, 8.27290f, 1e-4f);
+    EXPECT_FLOAT_EQ(transformed.GetRadius(), capsule.GetRadius());
+    EXPECT_FLOAT_EQ(transformed.GetHalfHeight(), capsule.GetHalfHeight());
 }
 
 // NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)

@@ -56,6 +56,7 @@ private:
         wgpu::BindGroup transformShaderBindGroup,
         std::vector<Level::NodeHandle> nodeHandles,
         std::vector<ModelInstance> modelInstances,
+        std::vector<MeshInstance> meshInstances,
         std::vector<ShaderInterop::WorldTransform> worldTransforms);
 
     WorldTransformBuffer m_WorldTransformBuffer;
@@ -67,6 +68,7 @@ private:
 
     std::vector<Level::NodeHandle> m_NodeHandles;
     std::vector<ModelInstance> m_ModelInstances;
+    std::vector<MeshInstance> m_MeshInstances;
 
     // Staging buffer for world transforms.
     std::vector<ShaderInterop::WorldTransform> m_WorldTransforms;
