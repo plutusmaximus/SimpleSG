@@ -59,61 +59,46 @@ Frustum::Frustum(const Camera& camera, const Posef& cameraXForm) // NOLINT(cppco
 
 Frustum::Frustum(const Camera& camera, const Posef& cameraXForm, const Rect& selectRect) // NOLINT(cppcoreguidelines-pro-type-member-init)
 {
-    Vec2f ndc00(static_cast<float>(selectRect.GetX()), static_cast<float>(selectRect.GetY()));
-    Vec2f ndc11 = ndc00 + Vec2f(static_cast<float>(selectRect.GetWidth()), static_cast<float>(selectRect.GetHeight()));
-    Vec2f ndc01(ndc00.x, ndc11.y);
-    Vec2f ndc10(ndc11.x, ndc00.y);
-    
-    ndc00 = ScreenToNdc(ndc00, camera.GetViewport());
-    ndc11 = ScreenToNdc(ndc11, camera.GetViewport());
-    ndc01 = ScreenToNdc(ndc01, camera.GetViewport());
-    ndc10 = ScreenToNdc(ndc10, camera.GetViewport());
+    // Screen space points.
+    const Vec2f p00(static_cast<float>(selectRect.GetX()), static_cast<float>(selectRect.GetY()));
+    const Vec2f p11 = p00 + Vec2f(static_cast<float>(selectRect.GetWidth()),
+                                static_cast<float>(selectRect.GetHeight()));
+    const Vec2f p01(p00.x, p11.y);
+    const Vec2f p10(p11.x, p00.y);
 
-    // Compute the inverse of the view-projection matrix (invVP) to transform from NDC to world space
-    // VP = P * view and view = cameraWorld^-1
-    // Therefore, invVP = (P * cameraWorld^-1)^-1 = cameraWorld * P^-1
+    // Normalized device coordinates.
+    const Vec2f ndc00 = ScreenToNdc(p00, camera.GetViewport());
+    const Vec2f ndc11 = ScreenToNdc(p11, camera.GetViewport());
+    const Vec2f ndc01 = ScreenToNdc(p01, camera.GetViewport());
+    const Vec2f ndc10 = ScreenToNdc(p10, camera.GetViewport());
 
-    const Mat44f invVP = cameraXForm.ToMatrix() * camera.GetMatrix().Inverse();
+    // Unprojected rays in camera space.
+    const float tanHalfFov = std::tan(camera.GetFov().GetValue() * 0.5f);
+    const float aspect = camera.GetAspectRatio();
+    const float xScale = aspect * tanHalfFov;
+    const Vec3f ray00 = Vec3f(ndc00.x * xScale, ndc00.y * tanHalfFov, 1);
+    const Vec3f ray11 = Vec3f(ndc11.x * xScale, ndc11.y * tanHalfFov, 1);
+    const Vec3f ray01 = Vec3f(ndc01.x * xScale, ndc01.y * tanHalfFov, 1);
+    const Vec3f ray10 = Vec3f(ndc10.x * xScale, ndc10.y * tanHalfFov, 1);
 
-    const Vec4f near00 = invVP * Vec4f(ndc00, 0, 1.0f);
-    const Vec4f near11 = invVP * Vec4f(ndc11, 0, 1.0f);
-    const Vec4f near01 = invVP * Vec4f(ndc01, 0, 1.0f);
-    const Vec4f near10 = invVP * Vec4f(ndc10, 0, 1.0f);
+    // Frustum plane normals in world space.
+    const Vec3f leftNormal = (cameraXForm.R * ray00.Cross(ray01)).Normalize();
+    const Vec3f rightNormal = (cameraXForm.R * ray11.Cross(ray10)).Normalize();
+    const Vec3f topNormal = (cameraXForm.R * ray10.Cross(ray00)).Normalize();
+    const Vec3f bottomNormal = (cameraXForm.R * ray01.Cross(ray11)).Normalize();
+    const Vec3f nearNormal = (cameraXForm.R * Vec3f(0, 0, 1)).Normalize();
+    const Vec3f farNormal = -nearNormal;
 
-    const Vec4f far00 = invVP * Vec4f(ndc00, 1, 1.0f);
-    //const Vec4f far11 = invVP * Vec4f(ndc11, 1, 1.0f);
-    const Vec4f far01 = invVP * Vec4f(ndc01, 1, 1.0f);
-    const Vec4f far10 = invVP * Vec4f(ndc10, 1, 1.0f);
+    // Point on the far plane in world space.
+    const Vec3f pfar = cameraXForm.T + (cameraXForm.R * Vec3f(0, 0, camera.GetFarClip()));
 
-    const Vec3f worldNear00 = near00.xyz() / near00.w;
-    const Vec3f worldNear11 = near11.xyz() / near11.w;
-    const Vec3f worldNear01 = near01.xyz() / near01.w;
-    const Vec3f worldNear10 = near10.xyz() / near10.w;
-    const Vec3f worldFar00 = far00.xyz() / far00.w;
-    //const Vec3f worldFar11 = far11.xyz() / far11.w;
-    const Vec3f worldFar01 = far01.xyz() / far01.w;
-    const Vec3f worldFar10 = far10.xyz() / far10.w;
-
-    const Vec3f leftNormal = (worldFar00 - worldNear00).Cross(worldNear01 - worldNear00).Normalize();
-    const Vec3f rightNormal = (worldNear11 - worldNear10).Cross(worldFar10 - worldNear10).Normalize();
-    const Vec3f topNormal = (worldNear10 - worldNear00).Cross(worldFar00 - worldNear00).Normalize();
-    const Vec3f bottomNormal = (worldFar01 - worldNear01).Cross(worldNear11 - worldNear01).Normalize();
-    const Vec3f nearNormal = (worldNear01 - worldNear00).Cross(worldNear10 - worldNear00).Normalize();
-    const Vec3f farNormal = (worldFar10 - worldFar00).Cross(worldFar01 - worldFar00).Normalize();
-
-    const float leftD = -leftNormal.Dot(worldNear00);
-    const float rightD = -rightNormal.Dot(worldNear10);
-    const float topD = -topNormal.Dot(worldNear00);
-    const float bottomD = -bottomNormal.Dot(worldNear01);
-    const float nearD = -nearNormal.Dot(worldNear00);
-    const float farD = -farNormal.Dot(worldFar00);
-
-    m_Planes[kLeft] = Vec4f(leftNormal, leftD);
-    m_Planes[kRight] = Vec4f(rightNormal, rightD);
-    m_Planes[kTop] = Vec4f(topNormal, topD);
-    m_Planes[kBottom] = Vec4f(bottomNormal, bottomD);
-    m_Planes[kNear] = Vec4f(nearNormal, nearD);
-    m_Planes[kFar] = Vec4f(farNormal, farD);
+    // Frustum planes in world space.
+    m_Planes[kLeft] = Vec4f(leftNormal, -leftNormal.Dot(cameraXForm.T));
+    m_Planes[kRight] = Vec4f(rightNormal, -rightNormal.Dot(cameraXForm.T));
+    m_Planes[kTop] = Vec4f(topNormal, -topNormal.Dot(cameraXForm.T));
+    m_Planes[kBottom] = Vec4f(bottomNormal, -bottomNormal.Dot(cameraXForm.T));
+    m_Planes[kNear] = Vec4f(nearNormal, -nearNormal.Dot(cameraXForm.T));
+    m_Planes[kFar] = Vec4f(farNormal, -farNormal.Dot(pfar));
 }
 
 bool
