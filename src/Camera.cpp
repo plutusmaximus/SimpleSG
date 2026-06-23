@@ -10,10 +10,10 @@ Viewport::Viewport(const ViewportParams& params)
       m_MinDepth(params.minDepth),
       m_MaxDepth(params.maxDepth)
 {
-    MLG_REQUIRE(params.maxDepth >= 0.0f && params.maxDepth <= 1.0f, "Max depth must be in the range [0, 1]");
-    MLG_REQUIRE(params.maxDepth > params.minDepth, "Max depth must be greater than min depth");
-    MLG_REQUIRE(params.width > 0, "Viewport width must be greater than 0");
-    MLG_REQUIRE(params.height > 0, "Viewport height must be greater than 0");
+    MLG_ABORTIF(params.maxDepth < 0.0f || params.maxDepth > 1.0f, "Max depth must be in the range [0, 1]");
+    MLG_ABORTIF(params.maxDepth <= params.minDepth, "Max depth must be greater than min depth");
+    MLG_ABORTIF(params.width <= 0, "Viewport width must be greater than 0");
+    MLG_ABORTIF(params.height <= 0, "Viewport height must be greater than 0");
 }
 
 Frustum::Frustum(const Camera& camera, const Posef& cameraXForm) // NOLINT(cppcoreguidelines-pro-type-member-init)

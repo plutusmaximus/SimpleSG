@@ -37,7 +37,7 @@ BoundingBox::BoundingBox(const Vec3f& p0, const Vec3f& p1) noexcept
     : m_Center(p0 + ((p1 - p0) * 0.5f)),
       m_HalfExtents(ComputeHalfExtents(p0, p1))
 {
-    MLG_REQUIRE(m_HalfExtents.x >= 0.0f && m_HalfExtents.y >= 0.0f && m_HalfExtents.z >= 0.0f,
+    MLG_ABORTIF(m_HalfExtents.x < 0.0f || m_HalfExtents.y < 0.0f || m_HalfExtents.z < 0.0f,
         "Bounding box half extents must not be negative");
 }
 

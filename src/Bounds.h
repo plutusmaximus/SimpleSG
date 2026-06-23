@@ -55,8 +55,8 @@ public:
           m_Radius(radius),
           m_HalfHeight(halfHeight)
     {
-        MLG_REQUIRE(radius > 0.0f, "Bounding capsule radius must be positive");
-        MLG_REQUIRE(halfHeight > 0.0f, "Bounding capsule half height must be positive");
+        MLG_ABORTIF(radius <= 0.0f, "Bounding capsule radius must be positive");
+        MLG_ABORTIF(halfHeight <= 0.0f, "Bounding capsule half height must be positive");
     }
 
     const Vec3f& GetCenter() const { return m_Center; }
@@ -95,7 +95,7 @@ public:
         : m_Center(center),
           m_Radius(radius)
     {
-        MLG_REQUIRE(radius > 0.0f, "Bounding sphere radius must be positive");
+        MLG_ABORTIF(radius <= 0.0f, "Bounding sphere radius must be positive");
     }
 
     explicit BoundingSphere(const BoundingBox& bbox)

@@ -16,7 +16,7 @@ StringArena::NewString(const std::string_view& stringView)
 {
     const size_t stringSizeWithNull = stringView.size() + 1;
 
-    MLG_REQUIRE(stringSizeWithNull <= m_ChunkSize, "String size exceeds chunk size");
+    MLG_ABORTIF(stringSizeWithNull > m_ChunkSize, "String size exceeds chunk size");
 
     if(m_Chunks.empty() || m_Chunks.back().Buffer.size() + stringSizeWithNull > m_ChunkSize)
     {

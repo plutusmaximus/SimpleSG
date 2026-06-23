@@ -14,7 +14,7 @@ public:
         : m_Value(value),
           m_InvValue(value > 0.0f ? 1.0f / m_Value : 0.0f)
     {
-        MLG_REQUIRE(value > 0.0f, "Mass must be positive");
+        MLG_ABORTIF(value <= 0.0f, "Mass must be positive");
     }
 
     constexpr float Value() const { return m_Value; }
