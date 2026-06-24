@@ -48,16 +48,16 @@ public:
 
 private:
 
-    Scene(WorldTransformBuffer worldTransformBuffer,
-        DrawIndirectBuffer drawIndirectBuffer,
-        MeshPropertiesBuffer meshPropertiesBuffer,
-        CameraParamsBuffer cameraParamsBuffer,
-        wgpu::BindGroup colorShaderBindGroup,
-        wgpu::BindGroup transformShaderBindGroup,
-        std::vector<Level::NodeHandle> nodeHandles,
-        std::vector<ModelInstance> modelInstances,
-        std::vector<MeshInstance> meshInstances,
-        std::vector<ShaderInterop::WorldTransform> worldTransforms);
+    Scene(WorldTransformBuffer&& worldTransformBuffer,
+        DrawIndirectBuffer&& drawIndirectBuffer,
+        MeshPropertiesBuffer&& meshPropertiesBuffer,
+        CameraParamsBuffer&& cameraParamsBuffer,
+        wgpu::BindGroup&& colorShaderBindGroup,
+        wgpu::BindGroup&& transformShaderBindGroup,
+        std::vector<Level::NodeHandle>&& nodeHandles,
+        std::vector<ModelInstance>&& modelInstances,
+        std::vector<MeshInstance>&& meshInstances,
+        std::vector<ShaderInterop::WorldTransform>&& worldTransforms);
 
     WorldTransformBuffer m_WorldTransformBuffer;
     DrawIndirectBuffer m_DrawIndirectBuffer;

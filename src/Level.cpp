@@ -2,8 +2,6 @@
 
 #include "PropKit.h"
 
-#include <ranges>
-
 namespace
 {
 size_t
@@ -37,7 +35,7 @@ Result<>
 CollectNodes(std::span<const LevelNodeDef> nodeDefs,
     const PropKit& propKit,
     std::vector<Level::Node>& nodes,
-    std::vector<char>& stringStorage)
+    StringArena& stringArena)
 {
     // First add nodes from the current level.
     for(const auto& nodeDef : nodeDefs)
@@ -93,12 +91,9 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
             components.Collider = std::visit(Visitor{}, colliderDef);
         }
 
-        stringStorage.insert(stringStorage.end(), nodeDef.Name.begin(), nodeDef.Name.end());
-        stringStorage.push_back('\0'); // Null terminator for the string_view
-
         const Level::Node node //
             {
-                .Name{}, // Will be filled in later from stringStorage
+                .Name{stringArena.NewString(nodeDef.Name)},
                 .LocalTransform{ nodeDef.Transform },
                 .Components{ components },
                 .ChildCount = nodeDef.Children.size(),
@@ -115,7 +110,7 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
             continue;
         }
 
-        MLG_CHECK(CollectNodes(nodeDef.Children, propKit, nodes, stringStorage));
+        MLG_CHECK(CollectNodes(nodeDef.Children, propKit, nodes, stringArena));
     }
 
     return Result<>::Ok;
@@ -129,12 +124,11 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit)
     const size_t totalStringSize = CalculateTotalStringSize(levelDef.NodeDefs);
 
     std::vector<Node> nodes;
-    std::vector<char> stringStorage;
     nodes.reserve(nodeCount);
-    stringStorage.reserve(totalStringSize);
+    StringArena stringArena(totalStringSize);
 
     // Flatten nodes into breadth-first order.
-    MLG_CHECK(CollectNodes(levelDef.NodeDefs, propKit, nodes, stringStorage));
+    MLG_CHECK(CollectNodes(levelDef.NodeDefs, propKit, nodes, stringArena));
 
     const std::span<Node> nodesSpan(nodes);
 
@@ -146,12 +140,9 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit)
     // where N = node, CN = child node, and the number after the underscore is the index of the
     // child within its siblings.
     size_t firstChildIndex = levelDef.NodeDefs.size();
-    size_t stringOffset = 0;
     for(size_t i = 0; i < nodes.size(); ++i)
     {
         Node& node = nodes[i];
-        node.Name = std::string_view(&stringStorage[stringOffset]);
-        stringOffset += node.Name.size() + 1; // +1 for null terminator
 
         if(node.ChildCount == 0)
         {
@@ -179,14 +170,14 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit)
         firstChildIndex += node.ChildCount;
     }
 
-    Level level(std::move(nodes), std::move(stringStorage));
+    Level level(std::move(nodes), std::move(stringArena));
 
     return std::move(level);
 }
 
-Level::Level(std::vector<Node>&& nodes, std::vector<char>&& stringStorage)
+Level::Level(std::vector<Node>&& nodes, StringArena&& stringArena)
     : m_Nodes(std::move(nodes)),
-      m_StringStorage(std::move(stringStorage))
+      m_StringArena(std::move(stringArena))
 {
     size_t rootNodeCount = 0;
 

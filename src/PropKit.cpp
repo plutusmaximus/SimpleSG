@@ -507,13 +507,13 @@ PropKit::GetMaterialBindGroup(const MaterialIdentifier& materialId) const
 
 // private:
 
-PropKit::PropKit(VertexBuffer vertexBuffer,
-    IndexBuffer indexBuffer,
-    MaterialConstantsBuffer materialConstants,
-    std::vector<wgpu::BindGroup> materialBindGroups,
-    std::vector<Mesh> meshes,
-    std::vector<Model> models,
-    StringArena stringArena)
+PropKit::PropKit(VertexBuffer&& vertexBuffer,
+    IndexBuffer&& indexBuffer,
+    MaterialConstantsBuffer&& materialConstants,
+    std::vector<wgpu::BindGroup>&& materialBindGroups,
+    std::vector<Mesh>&& meshes,
+    std::vector<Model>&& models,
+    StringArena&& stringArena)
     : m_VertexBuffer(std::move(vertexBuffer)),
       m_IndexBuffer(std::move(indexBuffer)),
       m_MaterialConstants(std::move(materialConstants)),

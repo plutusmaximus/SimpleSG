@@ -74,7 +74,7 @@ public:
 
     struct Node
     {
-        std::string_view Name;
+        StringHandle Name;
         TrsTransformf LocalTransform;
         Mat44f WorldTransform{ 1 };
         Components Components;
@@ -105,9 +105,9 @@ public:
     /// @brief Fetches a node by its path from the root, e.g. {"RootNode", "ChildNode", "GrandchildNode"}.
     /// the path argument can take the following forms:
     /// - const char* nodePath[] {"RootNode", "ChildNode", "GrandchildNode"}; GetNode(nodePath);
-    /// - std::array<const char*, 2> nodePath{"RootNode", "ChildNode", "GrandchildNode"}; GetNode(nodePath);
+    /// - std::array<const char*, 3> nodePath{"RootNode", "ChildNode", "GrandchildNode"}; GetNode(nodePath);
     /// - const std::string nodePath[] { "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
-    /// - std::array<std::string, 2> nodePath{ "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
+    /// - std::array<std::string, 3> nodePath{ "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
     /// - std::vector<std::string> nodePath{ "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
     /// - std::vector<const char*> nodePath{ "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
     /// - and any other contiguous range of strings or string views that can be converted to std::string_view
@@ -189,7 +189,7 @@ public:
     bool IsVisible(const NodeHandle& handle) const;
 
 private:
-    Level(std::vector<Node>&& nodes, std::vector<char>&& stringStorage);
+    Level(std::vector<Node>&& nodes, StringArena&& stringArena);
 
     // Returns true if the node handle refers to a node within the level.
     bool IsInLevel(const NodeHandle& handle) const;
@@ -201,7 +201,5 @@ private:
     std::vector<Node> m_Nodes;
     std::vector<NodeHandle> m_NodeHandles;
     std::span<NodeHandle> m_RootNodes;
-    // Storage for node names to ensure they remain valid for string_views
-    // and to reduce memory fragmentation by storing all names contiguously.
-    std::vector<char> m_StringStorage;
+    StringArena m_StringArena;
 };

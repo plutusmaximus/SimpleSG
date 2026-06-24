@@ -2,10 +2,8 @@
 
 #include "SceneTypes.h"
 #include "shaders/GpuBufferTypes.h"
-#include "shaders/ShaderInterop.h"
 
 #include <filesystem>
-#include <span>
 #include <vector>
 
 struct PropKitDef;
@@ -36,13 +34,13 @@ public:
 
 private:
 
-    PropKit(VertexBuffer vertexBuffer,
-        IndexBuffer indexBuffer,
-        MaterialConstantsBuffer materialConstants,
-        std::vector<wgpu::BindGroup> materialBindGroups,
-        std::vector<Mesh> meshes,
-        std::vector<Model> models,
-        StringArena stringArena);
+    PropKit(VertexBuffer&& vertexBuffer,
+        IndexBuffer&& indexBuffer,
+        MaterialConstantsBuffer&& materialConstants,
+        std::vector<wgpu::BindGroup>&& materialBindGroups,
+        std::vector<Mesh>&& meshes,
+        std::vector<Model>&& models,
+        StringArena&& stringArena);
 
     VertexBuffer m_VertexBuffer;
     IndexBuffer m_IndexBuffer;

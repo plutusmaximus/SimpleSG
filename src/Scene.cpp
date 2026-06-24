@@ -284,16 +284,16 @@ Scene::Create(const Level& level, const PropKit& propKit)
     return std::move(scene);
 }
 
-Scene::Scene(WorldTransformBuffer worldTransformBuffer,
-    DrawIndirectBuffer drawIndirectBuffer,
-    MeshPropertiesBuffer meshPropertiesBuffer,
-    CameraParamsBuffer cameraParamsBuffer,
-    wgpu::BindGroup colorShaderBindGroup,
-    wgpu::BindGroup transformShaderBindGroup,
-    std::vector<Level::NodeHandle> nodeHandles,
-    std::vector<ModelInstance> modelInstances,
-    std::vector<MeshInstance> meshInstances,
-    std::vector<ShaderInterop::WorldTransform> worldTransforms)
+Scene::Scene(WorldTransformBuffer&& worldTransformBuffer,
+    DrawIndirectBuffer&& drawIndirectBuffer,
+    MeshPropertiesBuffer&& meshPropertiesBuffer,
+    CameraParamsBuffer&& cameraParamsBuffer,
+    wgpu::BindGroup&& colorShaderBindGroup,
+    wgpu::BindGroup&& transformShaderBindGroup,
+    std::vector<Level::NodeHandle>&& nodeHandles,
+    std::vector<ModelInstance>&& modelInstances,
+    std::vector<MeshInstance>&& meshInstances,
+    std::vector<ShaderInterop::WorldTransform>&& worldTransforms)
     : m_WorldTransformBuffer(std::move(worldTransformBuffer)),
       m_DrawIndirectBuffer(std::move(drawIndirectBuffer)),
       m_MeshPropertiesBuffer(std::move(meshPropertiesBuffer)),

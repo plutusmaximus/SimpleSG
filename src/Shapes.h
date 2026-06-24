@@ -1,6 +1,5 @@
 #pragma once
 #include <span>
-#include <cstdint>
 
 #include "Vertex.h"
 
