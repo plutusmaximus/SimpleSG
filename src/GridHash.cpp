@@ -260,6 +260,6 @@ GridHash::Sort() const
     // Sort to group duplicates together.
     std::ranges::sort(m_PotentialCollisions);
 
-    auto last = std::ranges::unique(m_PotentialCollisions);
-    m_PotentialCollisions.erase(last.begin(), last.end());
+    auto removed = std::ranges::unique(m_PotentialCollisions);
+    m_PotentialCollisions.erase(removed.begin(), removed.end());
 }

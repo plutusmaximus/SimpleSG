@@ -3,6 +3,7 @@
 #include "PerfMetrics.h"
 #include "ThreadPool.h"
 
+#include <algorithm>
 #include <ranges>
 #include <thread>
 
@@ -370,22 +371,19 @@ PhysicsLevel::FindAndResolveAllImpacts()
         std::this_thread::yield();
     }
 
-    // Cull non-impacts, and resolve impacts in order.
-    size_t dst = 0;
-    for(size_t src = 0; src < m_ImpactRecords.size(); ++src)
-    {
-        if(m_ImpactRecords[src].ImpactFound)
-        {
-            if(dst != src)
-            {
-                m_ImpactRecords[dst] = m_ImpactRecords[src];
-            }
-            ++dst;
-        }
-    }
+    static PerfCounter pcPotentialImpacts({ .Name = "Physics.Collision.PotentialImpacts", });
+    pcPotentialImpacts.Increment(m_ImpactRecords.size());
 
-    const auto newEnd = m_ImpactRecords.begin() + static_cast<std::ptrdiff_t>(dst);
-    m_ImpactRecords.erase(newEnd, m_ImpactRecords.end());
+    // Cull non-impacts, and resolve impacts in order.
+    auto removed = std::ranges::remove_if(m_ImpactRecords, [](const ImpactRecord& impactRecord)
+    {
+        return !impactRecord.ImpactFound;
+    });
+
+    m_ImpactRecords.erase(removed.begin(), removed.end());
+
+    static PerfCounter pcActualImpacts({ .Name = "Physics.Collision.ActualImpacts", });
+    pcActualImpacts.Increment(m_ImpactRecords.size());
 
     // Sort impact records by time of impact, and resolve in that order.
     // This isn't actually correct, but better than resolving out of order.

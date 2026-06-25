@@ -210,8 +210,7 @@ Renderer::Render(const Camera& camera,
             { return a.GetMesh().GetMaterialId() < b.GetMesh().GetMaterialId(); });
 
         // Track how many times we have to change materials.
-        static PerfCounter pcMaterialChanges({ .Name = "Renderer.Render.MaterialChanges",
-            .Policy = PerfCounter::SamplePolicy::ResetOnSample });
+        static PerfCounter pcMaterialChanges({ .Name = "Renderer.Render.MaterialChanges" });
 
         for(const MeshInstance& meshInstance : m_VisibleMeshes)
         {

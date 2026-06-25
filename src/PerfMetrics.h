@@ -119,7 +119,7 @@ public:
     struct PerfCounterParams
     {
         std::string_view Name;
-        SamplePolicy Policy{ SamplePolicy::Accumulate };
+        SamplePolicy Policy{ SamplePolicy::ResetOnSample };
         PerfCounterCategoryId CategoryId{ PerfCounterDefaultCategory::Id };
     };
 

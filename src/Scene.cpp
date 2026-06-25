@@ -380,11 +380,8 @@ private:
 void
 Scene::GetVisibleMeshes(const Frustum& frustum, std::vector<MeshInstance>& outVisibleMeshes) const
 {
-    static PerfCounter pcTotalMeshes({ .Name = "Scene.Meshes.Total",
-        .Policy = PerfCounter::SamplePolicy::ResetOnSample });
-
-    static PerfCounter pcVisibleMeshes({ .Name = "Scene.Meshes.Visible",
-        .Policy = PerfCounter::SamplePolicy::ResetOnSample });
+    static PerfCounter pcTotalMeshes({ .Name = "Scene.Meshes.Total" });
+    static PerfCounter pcVisibleMeshes({ .Name = "Scene.Meshes.Visible" });
 
     pcTotalMeshes.Increment(m_MeshInstances.size());
 
