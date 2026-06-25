@@ -89,7 +89,6 @@ public:
     std::span<const TrsTransformf> GetTransforms() const { return m_TrsCur; }
     std::span<Vec3f> GetLinearVelocities() { return m_LinearVelocities; }
     std::span<const Vec3f> GetLinearVelocities() const { return m_LinearVelocities; }
-    std::span<const Collider> GetColliders() const { return m_Colliders; }
 
 private:
 
@@ -108,11 +107,9 @@ private:
 
     PhysicsLevel(std::vector<const Level::Node*>&& nodes,
         std::vector<TrsTransformf>&& transforms,
-        std::vector<RigidBody>&& bodies,
-        std::vector<Collider>&& colliders)
+        std::vector<RigidBody>&& bodies)
         : m_Nodes(std::move(nodes)),
-          m_Bodies(std::move(bodies)),
-          m_Colliders(std::move(colliders))
+          m_Bodies(std::move(bodies))
     {
         m_TransformPool[0] = std::move(transforms);
         m_TransformPool[1] = m_TransformPool[0];    // Make a copy
@@ -141,7 +138,6 @@ private:
     std::vector<Vec3f> m_LinearVelocities;
     std::vector<Vec3f> m_AccelerationPool[2];
     std::vector<RigidBody> m_Bodies;
-    std::vector<Collider> m_Colliders;
     // Tracks which bodies are active in the current frame.
     std::vector<bool> m_ActiveBodies;
 

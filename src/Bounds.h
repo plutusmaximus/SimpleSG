@@ -114,6 +114,15 @@ public:
 
     float GetRadius() const { return m_Radius; }
 
+    bool Overlaps(const BoundingSphere& other) const
+    {
+        const float minSeparation = m_Radius + other.m_Radius;
+        const float minSeparationSq = minSeparation * minSeparation;
+        const Vec3f dPos = other.m_Center - m_Center;
+        const float dPosSq = dPos.Dot(dPos);
+        return dPosSq < minSeparationSq;
+    }
+
     // Merge two bounding spheres into a new bounding sphere that encompasses both.
     friend BoundingSphere operator+(const BoundingSphere& a, const BoundingSphere& b) noexcept;
 

@@ -70,12 +70,8 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
                 "RigidBodyDef in node {} has non-positive mass",
                 nodeDef.Name);
 
-            components.Body = RigidBody(bodyDef.Mass);
-        }
+            const ColliderDef& colliderDef = bodyDef.Collider;
 
-        if(nodeDef.Components.Collider)
-        {
-            const ColliderDef& colliderDef = *nodeDef.Components.Collider;
             struct Visitor
             {
                 Collider operator()(const SphereDef& def) const
@@ -96,7 +92,9 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
                 }
             };
 
-            components.Collider = std::visit(Visitor{}, colliderDef);
+            const Collider collider = std::visit(Visitor{}, colliderDef);
+
+            components.Body = RigidBody(bodyDef.Mass, collider);
         }
 
         const Level::Node node //

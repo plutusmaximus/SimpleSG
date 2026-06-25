@@ -25,36 +25,25 @@ PhysicsLevel::Create(const Level& level)
     std::vector<const Level::Node*> nodes;
     std::vector<TrsTransformf> transforms;
     std::vector<RigidBody> bodies;
-    std::vector<Collider> colliders;
     nodes.reserve(count);
     transforms.reserve(count);
     bodies.reserve(count);
-    colliders.reserve(count);
 
     for(const auto& node : level.GetAllNodes())
     {
         const std::optional<RigidBody>& optBody = node.Components.Body;
-        const std::optional<Collider>& optCollider = node.Components.Collider;
 
-        if(optBody && optCollider)
+        if(optBody)
         {
             nodes.emplace_back(&node);
             transforms.emplace_back(node.LocalTransform);
             bodies.emplace_back(*optBody);
-            colliders.emplace_back(*optCollider);
-        }
-        else
-        {
-            MLG_ASSERT(!optBody && !optCollider,
-                "Node {} has Body component but no Collider, or vice versa",
-                node.Name);
         }
     }
 
     PhysicsLevel physLevel(std::move(nodes),
         std::move(transforms),
-        std::move(bodies),
-        std::move(colliders));
+        std::move(bodies));
         
     return std::move(physLevel);
 }
@@ -276,11 +265,11 @@ PhysicsLevel::FindAndResolveAllImpacts()
     m_ImpactRecords.clear();
 
     const auto indices = std::views::iota(0uz, m_ActiveBodies.size());
-    const auto range = std::views::zip(m_ActiveBodies, m_TrsCur, m_TrsNext, m_Colliders, indices);
+    const auto range = std::views::zip(m_Bodies, m_ActiveBodies, m_TrsCur, m_TrsNext, indices);
 
     // Bodies will be added to all cells of the grid overlapped by the bounding box
     // defined by the current and predicted position.
-    for(auto&& [isActive, trsCur, trsNext, collider, index] : range)
+    for(auto&& [body, isActive, trsCur, trsNext, index] : range)
     {
         if(!isActive)
         {
@@ -290,7 +279,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
         // Bodies will be added to all cells of the grid overlapped by the bounding box
         // defined by the current and predicted position.
 
-        m_GridHash.Add(trsCur.T, trsNext.T, collider, index);
+        m_GridHash.Add(trsCur.T, trsNext.T, body.GetCollider(), index);
     }
 
     const size_t potentialCollisionCount = m_GridHash.PotentialCollisionCount();
@@ -329,10 +318,10 @@ PhysicsLevel::FindAndResolveAllImpacts()
                 {
                     .StartPosA = m_TrsCur[bodyPair.IndexA()].T,
                     .EndPosA = m_TrsNext[bodyPair.IndexA()].T,
-                    .ColliderA = m_Colliders[bodyPair.IndexA()],
+                    .ColliderA = m_Bodies[bodyPair.IndexA()].GetCollider(),
                     .StartPosB = m_TrsCur[bodyPair.IndexB()].T,
                     .EndPosB = m_TrsNext[bodyPair.IndexB()].T,
-                    .ColliderB = m_Colliders[bodyPair.IndexB()],
+                    .ColliderB = m_Bodies[bodyPair.IndexB()].GetCollider(),
                 },
             };
 

@@ -57,22 +57,6 @@ private:
     float m_InvValue; // Inverse value
 };
 
-class RigidBody
-{
-public:
-    RigidBody() = delete;
-
-    explicit RigidBody(const Mass mass)
-        : m_Mass(mass)
-    {
-    }
-    
-    Mass GetMass() const { return m_Mass; }
-
-private:
-    Mass m_Mass;
-};
-
 class Collider
 {
 public:
@@ -106,4 +90,24 @@ public:
 private:
     std::variant<BoundingSphere, BoundingBox, BoundingCapsule> m_Shape;
     BoundingSphere m_Sphere;
+};
+
+class RigidBody
+{
+public:
+    RigidBody() = delete;
+
+    explicit RigidBody(const Mass mass, const Collider& collider)
+        : m_Mass(mass),
+          m_Collider(collider)
+    {
+    }
+
+    Mass GetMass() const { return m_Mass; }
+
+    const Collider& GetCollider() const { return m_Collider; }
+
+private:
+    Mass m_Mass;
+    Collider m_Collider;
 };

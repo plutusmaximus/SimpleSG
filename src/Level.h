@@ -47,7 +47,6 @@ public:
     {
         std::optional<const Model*> Model;
         std::optional<RigidBody> Body;
-        std::optional<Collider> Collider;
     };
 
     struct Node

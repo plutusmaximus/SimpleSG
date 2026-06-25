@@ -77,11 +77,6 @@ struct ModelRef final
     std::string Name;
 };
 
-struct RigidBodyDef final
-{
-    Mass Mass;
-};
-
 struct BoxDef final
 {
     Vec3f Center{ 0 };
@@ -115,13 +110,18 @@ struct SphereDef final
 
 using ColliderDef = std::variant<SphereDef, BoxDef, CapsuleDef>;
 
+struct RigidBodyDef final
+{
+    Mass Mass;
+    ColliderDef Collider;
+};
+
 struct LevelNodeDef final
 {
     struct ComponentsDef final
     {
         std::optional<ModelRef> Model;
         std::optional<RigidBodyDef> Body;
-        std::optional<ColliderDef> Collider;
     };
 
     std::string Name;

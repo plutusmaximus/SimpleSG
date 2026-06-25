@@ -127,17 +127,22 @@ Load(TextureCache& textureCache)
         const float mass = radius;
         const Vec3f position{ dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE };
 
-        LevelNodeDef nodeDef//
-        {
-            .Name{ std::format("Body{}", i) },
-            .Transform{ .T{position}, .S{ radius } },
-            .Components //
+        LevelNodeDef nodeDef //
             {
-                .Model = ModelRef{ .Name = "Shape" },
-                .Body = RigidBodyDef{ .Mass{ mass } },
-                .Collider = ColliderDef{ SphereDef{ .Center = Vec3f(0), .Radius = radius } },
-            },
-        };
+                .Name{ std::format("Body{}", i) },
+                .Transform{ .T{ position }, .S{ radius } },
+                .Components //
+                {
+                    .Model = ModelRef{ .Name = "Shape" },
+                    .Body =
+                        RigidBodyDef //
+                    {
+                        .Mass{ mass },
+                        .Collider =
+                            ColliderDef{ SphereDef{ .Center = Vec3f(0), .Radius = radius } },
+                    },
+                },
+            };
 
         nodeDefs.emplace_back(std::move(nodeDef));
     }
@@ -179,7 +184,6 @@ struct ApplyGravityBatchParams
 
     std::span<const RigidBody> Bodies;
     std::span<const TrsTransformf> Transforms;
-    std::span<const Collider> Colliders;
 
     std::vector<Vec3f> Forces;
     float PotentialEnergy{0};
@@ -201,25 +205,23 @@ void ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
         i < batchParams->Bodies.size() && count < batchParams->BatchSize;
         ++i, j = i + 1)
     {
-        const BoundingSphere& sphereA = batchParams->Colliders[i].GetEnclosingSphere();
-        const float radiusA = sphereA.GetRadius();
-        const Vec3f posA = batchParams->Transforms[i].T + sphereA.GetCenter();
-        const float massA = batchParams->Bodies[i].GetMass().Value();
+        const RigidBody& bodyA = batchParams->Bodies[i];
+        const BoundingSphere sphereA = batchParams->Transforms[i] * bodyA.GetCollider().GetEnclosingSphere();
+        const float massA = bodyA.GetMass().Value();
 
         MLG_ASSERT(j < batchParams->Bodies.size(), "StartIndexB must be greater than StartIndexA");
 
         for(; j < batchParams->Bodies.size() && count < batchParams->BatchSize; ++j, ++count)
         {
-            const BoundingSphere& sphereB = batchParams->Colliders[j].GetEnclosingSphere();
-            const float radiusB = sphereB.GetRadius();
-            const float massB = batchParams->Bodies[j].GetMass().Value();
+            const RigidBody& bodyB = batchParams->Bodies[j];
+            const BoundingSphere sphereB = batchParams->Transforms[j] * bodyB.GetCollider().GetEnclosingSphere();
+            const float massB = bodyB.GetMass().Value();
 
-            const float minSeparation = radiusA + radiusB;
+            const float minSeparation = sphereA.GetRadius() + sphereB.GetRadius();
             const float minSeparationSq = minSeparation * minSeparation;
 
             // Vector from body A to body B
-            const Vec3f posB = batchParams->Transforms[j].T + sphereB.GetCenter();
-            const Vec3f delta = posB - posA;
+            const Vec3f delta = sphereB.GetCenter() - sphereA.GetCenter();
 
             // Gravitational force magnitude: F = G * (M * m) / r^2
             // Direction toward source: delta / r
@@ -250,7 +252,6 @@ void ApplyGravity(PhysicsLevel& physLevel)
 
     const std::span<const RigidBody> bodies = physLevel.GetBodies();
     const std::span<const TrsTransformf> transforms = physLevel.GetTransforms();
-    const std::span<const Collider> colliders = physLevel.GetColliders();
 
     const size_t numPairs = bodies.size() * (bodies.size() - 1) / 2;
     const size_t workerCount = ThreadPool::GetWorkerCount();
@@ -278,7 +279,6 @@ void ApplyGravity(PhysicsLevel& physLevel)
                         .BatchSize = pairCount,
                         .Bodies = bodies,
                         .Transforms = transforms,
-                        .Colliders = colliders,
                         .FinishCounter = &finishCounter,
                     };
 
@@ -310,7 +310,6 @@ void ApplyGravity(PhysicsLevel& physLevel)
                 .BatchSize = pairCount,
                 .Bodies = bodies,
                 .Transforms = transforms,
-                .Colliders = colliders,
                 .FinishCounter = &finishCounter,
             };
 
@@ -403,7 +402,6 @@ DeactivateNonOverlappingBodies(const PhysicsLevel& physLevel, Level& level)
     const std::span<const Level::Node* const> nodes = physLevel.GetNodes();
     const std::span<const RigidBody> bodies = physLevel.GetBodies();
     const std::span<const TrsTransformf> transforms = physLevel.GetTransforms();
-    const std::span<const Collider> colliders = physLevel.GetColliders();
 
     // First deactivate all bodies.
     // Then activate only bodies that are overlapping with another body.
@@ -415,22 +413,13 @@ DeactivateNonOverlappingBodies(const PhysicsLevel& physLevel, Level& level)
 
     for(size_t i = 0; i < bodies.size(); ++i)
     {
-        const BoundingSphere& sphereA = colliders[i].GetEnclosingSphere();
-        const float radiusA = sphereA.GetRadius();
-        const Vec3f& posA = transforms[i].T + sphereA.GetCenter();
+        const BoundingSphere sphereA = transforms[i] * bodies[i].GetCollider().GetEnclosingSphere();
 
         for(size_t j = i + 1; j < bodies.size(); ++j)
         {
-            const BoundingSphere& sphereB = colliders[j].GetEnclosingSphere();
-            const float radiusB = sphereB.GetRadius();
-            const Vec3f& posB = transforms[j].T + sphereB.GetCenter();
+            const BoundingSphere sphereB = transforms[j] * bodies[j].GetCollider().GetEnclosingSphere();
 
-            const float minSeparation = radiusA + radiusB;
-            const float minSeparationSq = minSeparation * minSeparation;
-            const Vec3f dPos = posB - posA;
-            const float dPosSq = dPos.Dot(dPos);
-
-            if(dPosSq < minSeparationSq)
+            if(sphereA.Overlaps(sphereB))
             {
                 level.SetActive(*nodes[i], true);
                 level.SetVisible(*nodes[i], true);
