@@ -72,7 +72,7 @@ public:
 class MeshProperties
 {
 public:
-    float Radius;
+
     uint32_t TransformIndex;
     uint32_t MaterialIndex;
 };

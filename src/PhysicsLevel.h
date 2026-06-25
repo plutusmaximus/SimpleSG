@@ -5,7 +5,6 @@
 #include "Result.h"
 #include "VecMath.h"
 
-#include <algorithm>
 #include <atomic>
 
 struct ImpactResult
@@ -70,7 +69,7 @@ public:
 
     constexpr static size_t GRID_CELL_SIZE = 2;
 
-    static Result<> Create(const Level& level, PhysicsLevel& outPhysLevel);
+    static Result<PhysicsLevel> Create(const Level& level);
 
     PhysicsLevel() = default;
     ~PhysicsLevel() = default;
@@ -79,7 +78,7 @@ public:
     PhysicsLevel(PhysicsLevel&& other) = default;
     PhysicsLevel& operator=(PhysicsLevel&& other) = default;
 
-    void AddForce(size_t bodyIndex, const Vec3f& force);
+    void AddForce(const size_t bodyIndex, const Vec3f& force);
 
     void Update(const float timeStep);
 

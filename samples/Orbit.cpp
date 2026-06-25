@@ -502,7 +502,11 @@ MainLoop()
 
     Scene scene = std::move(*sceneResult);
 
-    MLG_CHECK(PhysicsLevel::Create(level, physLevel));
+    auto physLevelResult = PhysicsLevel::Create(level);
+    MLG_CHECK(physLevelResult);
+
+    physLevel = std::move(*physLevelResult);
+    
     ApplyRandomVelocities(physLevel);
 
     constexpr float kInitialCameraDistance = 40.0f;

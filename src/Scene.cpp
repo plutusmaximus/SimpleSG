@@ -152,10 +152,10 @@ BuildMeshPropertiesBuffer(const std::span<const ModelInstance> modelInstances,
 {
     const size_t meshInstanceCount = meshInstances.size();
 
-    uint32_t transformIndex = 0;
-
     std::vector<ShaderInterop::MeshProperties> meshProperties;
     meshProperties.reserve(meshInstanceCount);
+
+    uint32_t transformIndex = 0;
 
     for(const auto& modelInstance : modelInstances)
     {
@@ -165,11 +165,8 @@ BuildMeshPropertiesBuffer(const std::span<const ModelInstance> modelInstances,
 
         for(const auto& meshSrc : meshes)
         {
-            const BoundingSphere boundingSphere(meshSrc.GetBoundingBox());
-
             const ShaderInterop::MeshProperties meshProps//
             {
-                .Radius = boundingSphere.GetRadius(),
                 .TransformIndex = transformIndex,
                 // FIXME(KB) - reconcile material ID
                 .MaterialIndex = narrow_cast<uint32_t>(meshSrc.GetMaterialId().GetValue()),

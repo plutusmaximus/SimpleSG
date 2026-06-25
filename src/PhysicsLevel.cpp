@@ -9,8 +9,8 @@
 static constexpr float RESTING_VELOCITY_THRESHOLD = 1.0f/128;
 static constexpr float COEFF_OF_RESTITUTION = 0.8f;
 
-Result<>
-PhysicsLevel::Create(const Level& level, PhysicsLevel& outPhysLevel)
+Result<PhysicsLevel>
+PhysicsLevel::Create(const Level& level)
 {
     size_t count = 0;
     for(const auto& node : level.GetAllNodes())
@@ -54,14 +54,12 @@ PhysicsLevel::Create(const Level& level, PhysicsLevel& outPhysLevel)
         std::move(transforms),
         std::move(bodies),
         std::move(colliders));
-
-    outPhysLevel = std::move(physLevel);
-
-    return Result<>::Ok;
+        
+    return std::move(physLevel);
 }
 
 void
-PhysicsLevel::AddForce(size_t bodyIndex, const Vec3f& force)
+PhysicsLevel::AddForce(const size_t bodyIndex, const Vec3f& force)
 {
     MLG_ASSERT(bodyIndex < m_Bodies.size(), "Body index out of range");
 
