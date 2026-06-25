@@ -21,7 +21,7 @@ public:
     Scene(Scene&& other) = default;
     Scene& operator=(Scene&& other) = default;
 
-    std::span<const Level::NodeHandle> GetNodeHandles() const { return m_NodeHandles; }
+    std::span<const Level::Node* const> GetNodes() const { return m_Nodes; }
     
     std::span<const ModelInstance> GetModelInstances() const { return m_ModelInstances; }
 
@@ -41,7 +41,7 @@ public:
 
     wgpu::BindGroup GetTransformShaderBindGroup() const { return m_TransformShaderBindGroup; }
 
-    Result<> SyncFromLevel(const Level& level);
+    Result<> SyncFromLevel();
 
     // Sync updates from CPU -< GPU.
     Result<> SyncToGpu();
@@ -54,7 +54,7 @@ private:
         CameraParamsBuffer&& cameraParamsBuffer,
         wgpu::BindGroup&& colorShaderBindGroup,
         wgpu::BindGroup&& transformShaderBindGroup,
-        std::vector<Level::NodeHandle>&& nodeHandles,
+        std::vector<const Level::Node*>&& nodes,
         std::vector<ModelInstance>&& modelInstances,
         std::vector<MeshInstance>&& meshInstances,
         std::vector<ShaderInterop::WorldTransform>&& worldTransforms);
@@ -66,7 +66,7 @@ private:
     wgpu::BindGroup m_ColorShaderBindGroup;
     wgpu::BindGroup m_TransformShaderBindGroup;
 
-    std::vector<Level::NodeHandle> m_NodeHandles;
+    std::vector<const Level::Node*> m_Nodes;
     std::vector<ModelInstance> m_ModelInstances;
     std::vector<MeshInstance> m_MeshInstances;
 

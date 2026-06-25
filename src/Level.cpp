@@ -2,6 +2,8 @@
 
 #include "PropKit.h"
 
+#include <ranges>
+
 namespace
 {
 size_t
@@ -34,9 +36,15 @@ CalculateTotalStringSize(std::span<const LevelNodeDef> nodeDefs)
 Result<>
 CollectNodes(std::span<const LevelNodeDef> nodeDefs,
     const PropKit& propKit,
+    const Level::Node* parentNode,
     std::vector<Level::Node>& nodes,
     StringArena& stringArena)
 {
+    MLG_CHECKV(nodes.capacity() >= nodes.size() + nodeDefs.size(),
+        "Not enough capacity in nodes vector to collect nodes");
+
+    const size_t initialNodeCount = nodes.size();
+
     // First add nodes from the current level.
     for(const auto& nodeDef : nodeDefs)
     {
@@ -96,21 +104,28 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
                 .Name{stringArena.NewString(nodeDef.Name)},
                 .LocalTransform{ nodeDef.Transform },
                 .Components{ components },
-                .ChildCount = nodeDef.Children.size(),
+                .Parent = parentNode,
             };
 
         nodes.emplace_back(node);
     }
 
     // Now add child nodes.
-    for(const LevelNodeDef& nodeDef : nodeDefs)
+
+    const std::span<Level::Node> nodesSpan = std::span(nodes).subspan(initialNodeCount);
+
+    for(auto&& [nodeDef, node] : std::views::zip(nodeDefs, nodesSpan))
     {
         if(nodeDef.Children.empty())
         {
             continue;
         }
 
-        MLG_CHECK(CollectNodes(nodeDef.Children, propKit, nodes, stringArena));
+        const size_t firstChildIndex = nodes.size();
+
+        MLG_CHECK(CollectNodes(nodeDef.Children, propKit, &node, nodes, stringArena));
+
+        node.Children = std::span(nodes).subspan(firstChildIndex, nodeDef.Children.size());
     }
 
     return Result<>::Ok;
@@ -128,47 +143,7 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit)
     StringArena stringArena(totalStringSize);
 
     // Flatten nodes into breadth-first order.
-    MLG_CHECK(CollectNodes(levelDef.NodeDefs, propKit, nodes, stringArena));
-
-    const std::span<Node> nodesSpan(nodes);
-
-    // Fill in the Name, Parent, FirstChild fields.
-    // The children of the first node come directly after all the nodes in the same
-    // level as the parent.  The children of the next node with children come after that.
-    // E.g.
-    // N0,N1,N2,CN0_0,CN0_1,CN1_0,CN1_1,CN2_0
-    // where N = node, CN = child node, and the number after the underscore is the index of the
-    // child within its siblings.
-    size_t firstChildIndex = levelDef.NodeDefs.size();
-    for(size_t i = 0; i < nodes.size(); ++i)
-    {
-        Node& node = nodes[i];
-
-        if(node.ChildCount == 0)
-        {
-            continue;
-        }
-
-        MLG_ASSERT(firstChildIndex < nodes.size(),
-            "Invalid first child index calculated for node {}",
-            node.Name);
-        MLG_ASSERT(firstChildIndex + node.ChildCount <= nodes.size(),
-            "Not enough nodes to assign as children for node {}",
-            node.Name);
-
-        node.FirstChild = NodeHandle(firstChildIndex);
-
-        const std::span<Node> childNodes = nodesSpan.subspan(firstChildIndex, node.ChildCount);
-
-        for(Node& childNode : childNodes)
-        {
-            childNode.Parent = NodeHandle(i);
-        }
-
-        // The first child of the next node with children comes after all the children of the
-        // current node.
-        firstChildIndex += node.ChildCount;
-    }
+    MLG_CHECK(CollectNodes(levelDef.NodeDefs, propKit, nullptr, nodes, stringArena));
 
     Level level(std::move(nodes), std::move(stringArena));
 
@@ -195,22 +170,12 @@ Level::Level(std::vector<Node>&& nodes, StringArena&& stringArena)
         ++rootNodeCount;
     }
 
-    // Populate the node handles array and calculate world transforms.
-
-    m_NodeHandles.reserve(m_Nodes.size());
-
-    for(size_t i = 0; i < m_Nodes.size(); ++i)
-    {
-        m_NodeHandles.emplace_back(NodeHandle(i));
-    }
-
     // Calculate world transforms for all nodes.
     for(auto& node : m_Nodes)
     {
         if(node.Parent)
         {
-            const Node* parent = GetNode(node.Parent);
-            node.WorldTransform = parent->WorldTransform * node.LocalTransform.ToMatrix();
+            node.WorldTransform = node.Parent->WorldTransform * node.LocalTransform.ToMatrix();
         }
         else
         {
@@ -218,146 +183,98 @@ Level::Level(std::vector<Node>&& nodes, StringArena&& stringArena)
         }
     }
 
-    m_RootNodes = std::span(m_NodeHandles).subspan(0, rootNodeCount);
+    m_RootNodes = std::span(m_Nodes).subspan(0, rootNodeCount);
 }
 
-Result<std::span<const Level::NodeHandle>>
-Level::GetChildren(const NodeHandle& handle) const
+Result<const Level::Node*>
+Level::GetNode(std::initializer_list<std::string_view> path) const
 {
-    const Node* node = GetNode(handle);
-    MLG_CHECK(node);
-
-    if(!node->FirstChild)
-    {
-        return std::span<const NodeHandle>{};
-    }
-
-    MLG_CHECKV(IsInLevel(node->FirstChild), "Invalid FirstChild handle in node {}", node->Name);
-    MLG_CHECKV(node->FirstChild.GetValue() + node->ChildCount <= m_Nodes.size(),
-        "Invalid ChildCount in node {}", node->Name);
-
-    return std::span(m_NodeHandles).subspan(node->FirstChild.GetValue(), node->ChildCount);
-}
-
-Result<Level::NodeHandle>
-Level::GetNodeHandle(std::initializer_list<std::string_view> path) const
-{
-    return GetNodeHandle(std::span{ path });
-}
-
-const Level::Node*
-Level::GetNode(const NodeHandle& handle) const
-{
-    if(!MLG_VERIFY(IsInLevel(handle), "Node is not in level"))
-    {
-        return nullptr;
-    }
-
-    return &m_Nodes[handle.GetValue()];
+    return GetNode(std::span{ path });
 }
 
 Result<>
-Level::UpdateLocalTransform(const NodeHandle& handle, const TrsTransformf& localTransform)
+Level::UpdateLocalTransform(const Node& nodeRef, const TrsTransformf& localTransform)
 {
-    Node* node = GetNode(handle);
-    MLG_CHECKV(node);
+    Node* node = GetNode(nodeRef);
+    MLG_CHECKV(node, "Invalid or nonexistent node passed to UpdateLocalTransform");
 
     node->LocalTransform = localTransform;
 
-    const NodeHandle handles[] = { handle };
-
     // Update the world transform of the node and all its descendants.
     // TODO(KB) - this defer updating of world transforms.
-    UpdateWorldTransforms(handles);
+    UpdateWorldTransforms(std::span(node, 1));
 
     return Result<>::Ok;
 }
 
 void
-Level::SetActive(const NodeHandle& handle, bool active)
+Level::SetActive(const Node& nodeRef, bool active)
 {
-    Node* node = GetNode(handle);
-
-    if(!MLG_VERIFY(node))
+    Node* node = GetNode(nodeRef);
+    if(!MLG_VERIFY(node, "Invalid or nonexistent node passed to SetActive"))
     {
         return;
     }
 
     node->Flags = active ? (node->Flags | NodeFlags::Active) : (node->Flags & ~NodeFlags::Active);
 
-    auto children = GetChildren(handle);
-    if(children)
+    for(const auto& childNode : node->Children)
     {
-        for(const NodeHandle& childHandle : *children)
-        {
-            SetActive(childHandle, active);
-        }
+        SetActive(childNode, active);
     }
 }
 
-bool
-Level::IsActive(const NodeHandle& handle) const
-{
-    const Node* node = GetNode(handle);
-
-    return MLG_VERIFY(node) && (node->Flags & NodeFlags::Active) == NodeFlags::Active;
-}
-
 void
-Level::SetVisible(const NodeHandle& handle, bool visible)
+Level::SetVisible(const Node& nodeRef, bool visible)
 {
-    Node* node = GetNode(handle);
+    Node* node = GetNode(nodeRef);
 
-    if(!MLG_VERIFY(node))
+    if(!MLG_VERIFY(node, "Invalid or nonexistent node passed to SetVisible"))
     {
         return;
     }
 
     node->Flags = visible ? (node->Flags | NodeFlags::Visible) : (node->Flags & ~NodeFlags::Visible);
 
-    auto children = GetChildren(handle);
-    if(children)
+    for(const auto& childNode : node->Children)
     {
-        for(const NodeHandle& childHandle : *children)
-        {
-            SetVisible(childHandle, visible);
-        }
+        SetVisible(childNode, visible);
     }
-}
-
-bool
-Level::IsVisible(const NodeHandle& handle) const
-{
-    const Node* node = GetNode(handle);
-
-    return MLG_VERIFY(node) && (node->Flags & NodeFlags::Visible) == NodeFlags::Visible;
 }
 
 // private:
 
-bool
-Level::IsInLevel(const NodeHandle& handle) const
-{
-    return handle.GetValue() < m_Nodes.size();
-}
-
 Level::Node*
-Level::GetNode(const NodeHandle& handle)
+Level::GetNode(const Node& nodeRef)
 {
-    if(!MLG_VERIFY(IsInLevel(handle), "Node is not in level"))
+    if(!MLG_VERIFY(IsInLevel(nodeRef), "Node is not in level"))
     {
         return nullptr;
     }
 
-    return &m_Nodes[handle.GetValue()];
+    const ptrdiff_t index = &nodeRef - m_Nodes.data();
+
+    if(!MLG_VERIFY(index >= 0 && static_cast<size_t>(index) < m_Nodes.size(),
+            "Node index out of range"))
+    {
+        return nullptr;
+    }
+
+    return &m_Nodes[static_cast<size_t>(index)];
+}
+
+bool
+Level::IsInLevel(const Node& nodeRef) const
+{
+    return &nodeRef >= m_Nodes.data() && &nodeRef <= &m_Nodes.back();
 }
 
 void
-Level::UpdateWorldTransforms(std::span<const NodeHandle> nodes)
+Level::UpdateWorldTransforms(std::span<const Node> nodes)
 {
-    for (const NodeHandle nodeHandle : nodes)
+    for (const Node& nodeRef : nodes)
     {
-        Node* node = GetNode(nodeHandle);
+        Node* node = GetNode(nodeRef);
         if(!MLG_VERIFY(node, "Invalid node handle found while updating world transforms"))
         {
             continue;
@@ -365,8 +282,7 @@ Level::UpdateWorldTransforms(std::span<const NodeHandle> nodes)
         
         if(node->Parent)
         {
-            const Node* parent = GetNode(node->Parent);
-            node->WorldTransform = parent->WorldTransform * node->LocalTransform.ToMatrix();
+            node->WorldTransform = node->Parent->WorldTransform * node->LocalTransform.ToMatrix();
         }
         else
         {
@@ -374,15 +290,9 @@ Level::UpdateWorldTransforms(std::span<const NodeHandle> nodes)
             node->WorldTransform = node->LocalTransform.ToMatrix();
         }
 
-        auto childNodes = GetChildren(nodeHandle);
-        if(!MLG_VERIFY(childNodes, "Failed to get children of node while updating world transforms"))
+        if(!node->Children.empty())
         {
-            continue;
-        }
-
-        if(!childNodes->empty())
-        {
-            UpdateWorldTransforms(*childNodes);
+            UpdateWorldTransforms(node->Children);
         }
     }
 }

@@ -85,7 +85,7 @@ public:
 
     Result<> SyncToLevel(Level& level);
 
-    std::span<const Level::NodeHandle> GetNodeHandles() const { return m_NodeHandles; }
+    std::span<const Level::Node* const> GetNodes() const { return m_Nodes; }
     std::span<const RigidBody> GetBodies() const { return m_Bodies; }
     std::span<const TrsTransformf> GetTransforms() const { return m_TrsCur; }
     std::span<Vec3f> GetLinearVelocities() { return m_LinearVelocities; }
@@ -107,11 +107,11 @@ private:
         static void Process(SweepTestBatch* batch);
     };
 
-    PhysicsLevel(std::vector<Level::NodeHandle>&& nodeHandles,
+    PhysicsLevel(std::vector<const Level::Node*>&& nodes,
         std::vector<TrsTransformf>&& transforms,
         std::vector<RigidBody>&& bodies,
         std::vector<Collider>&& colliders)
-        : m_NodeHandles(std::move(nodeHandles)),
+        : m_Nodes(std::move(nodes)),
           m_Bodies(std::move(bodies)),
           m_Colliders(std::move(colliders))
     {
@@ -137,7 +137,7 @@ private:
 
     static bool SphereSphereSweep(const ColliderSweepParams& params, ImpactResult& impactResult);
 
-    std::vector<Level::NodeHandle> m_NodeHandles;
+    std::vector<const Level::Node*> m_Nodes;
     std::vector<TrsTransformf> m_TransformPool[2];
     std::vector<Vec3f> m_LinearVelocities;
     std::vector<Vec3f> m_AccelerationPool[2];

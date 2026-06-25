@@ -400,17 +400,17 @@ void ApplyStoppingImpulse(PhysicsLevel& physLevel)
 [[maybe_unused]] void
 DeactivateNonOverlappingBodies(const PhysicsLevel& physLevel, Level& level)
 {
-    const std::span<const Level::NodeHandle> nodeHandles = physLevel.GetNodeHandles();
+    const std::span<const Level::Node* const> nodes = physLevel.GetNodes();
     const std::span<const RigidBody> bodies = physLevel.GetBodies();
     const std::span<const TrsTransformf> transforms = physLevel.GetTransforms();
     const std::span<const Collider> colliders = physLevel.GetColliders();
 
     // First deactivate all bodies.
     // Then activate only bodies that are overlapping with another body.
-    for(const auto& nodeHandle : nodeHandles)
+    for(const Level::Node* node : nodes)
     {
-        level.SetActive(nodeHandle, false);
-        level.SetVisible(nodeHandle, false);
+        level.SetActive(*node, false);
+        level.SetVisible(*node, false);
     }
 
     for(size_t i = 0; i < bodies.size(); ++i)
@@ -432,11 +432,11 @@ DeactivateNonOverlappingBodies(const PhysicsLevel& physLevel, Level& level)
 
             if(dPosSq < minSeparationSq)
             {
-                level.SetActive(nodeHandles[i], true);
-                level.SetVisible(nodeHandles[i], true);
+                level.SetActive(*nodes[i], true);
+                level.SetVisible(*nodes[i], true);
 
-                level.SetActive(nodeHandles[j], true);
-                level.SetVisible(nodeHandles[j], true);
+                level.SetActive(*nodes[j], true);
+                level.SetVisible(*nodes[j], true);
             }
         }
     }
@@ -444,12 +444,10 @@ DeactivateNonOverlappingBodies(const PhysicsLevel& physLevel, Level& level)
 
 [[maybe_unused]] void ActivateAllBodies(PhysicsLevel& physLevel, Level& level)
 {
-    const std::span<const Level::NodeHandle> nodeHandles = physLevel.GetNodeHandles();
-
-    for(const auto& nodeHandle : nodeHandles)
+    for(const Level::Node* node : physLevel.GetNodes())
     {
-        level.SetActive(nodeHandle, true);
-        level.SetVisible(nodeHandle, true);
+        level.SetActive(*node, true);
+        level.SetVisible(*node, true);
     }
 }
 
@@ -684,7 +682,7 @@ MainLoop()
 
         MLG_CHECK(physLevel.SyncToLevel(level));
 
-        MLG_CHECK(scene.SyncFromLevel(level));
+        MLG_CHECK(scene.SyncFromLevel());
 
         mouseNav.Update(elapsedSeconds);
             

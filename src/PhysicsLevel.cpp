@@ -12,37 +12,33 @@ static constexpr float COEFF_OF_RESTITUTION = 0.8f;
 Result<>
 PhysicsLevel::Create(const Level& level, PhysicsLevel& outPhysLevel)
 {
-    const std::span allHandles = level.GetAllHandles();
-
     size_t count = 0;
-    for(const auto& handle : allHandles)
+    for(const auto& node : level.GetAllNodes())
     {
-        const auto& node = level.GetNode(handle);
-        if(node->Components.Body)
+        if(node.Components.Body)
         {
             ++count;
         }
     }
 
-    std::vector<Level::NodeHandle> nodeHandles;
+    std::vector<const Level::Node*> nodes;
     std::vector<TrsTransformf> transforms;
     std::vector<RigidBody> bodies;
     std::vector<Collider> colliders;
-    nodeHandles.reserve(count);
+    nodes.reserve(count);
     transforms.reserve(count);
     bodies.reserve(count);
     colliders.reserve(count);
 
-    for(const auto& handle : allHandles)
+    for(const auto& node : level.GetAllNodes())
     {
-        const auto& node = level.GetNode(handle);
-        const std::optional<RigidBody>& optBody = node->Components.Body;
-        const std::optional<Collider>& optCollider = node->Components.Collider;
+        const std::optional<RigidBody>& optBody = node.Components.Body;
+        const std::optional<Collider>& optCollider = node.Components.Collider;
 
         if(optBody && optCollider)
         {
-            nodeHandles.emplace_back(handle);
-            transforms.emplace_back(node->LocalTransform);
+            nodes.emplace_back(&node);
+            transforms.emplace_back(node.LocalTransform);
             bodies.emplace_back(*optBody);
             colliders.emplace_back(*optCollider);
         }
@@ -50,11 +46,11 @@ PhysicsLevel::Create(const Level& level, PhysicsLevel& outPhysLevel)
         {
             MLG_ASSERT(!optBody && !optCollider,
                 "Node {} has Body component but no Collider, or vice versa",
-                node->Name);
+                node.Name);
         }
     }
 
-    PhysicsLevel physLevel(std::move(nodeHandles),
+    PhysicsLevel physLevel(std::move(nodes),
         std::move(transforms),
         std::move(bodies),
         std::move(colliders));
@@ -90,11 +86,12 @@ PhysicsLevel::Update(const float timeStep)
 Result<>
 PhysicsLevel::SyncToLevel(Level& level)
 {
-    for(size_t i = 0; i < m_NodeHandles.size(); ++i)
-    {
-        m_ActiveBodies[i] = level.IsActive(m_NodeHandles[i]);
+    auto view = std::views::zip(m_Nodes, m_TrsCur, m_ActiveBodies);
 
-        MLG_CHECK(level.UpdateLocalTransform( m_NodeHandles[i], m_TrsCur[i]));
+    for(const auto&& [node, trs, isActive] : view)
+    {
+        isActive = node->IsActive();
+        MLG_CHECK(level.UpdateLocalTransform(*node, trs));
     }
 
     return Result<>::Ok;

@@ -22,15 +22,9 @@ size_t
 CountModelInstances(const Level& level)
 {
     size_t count = 0;
-    for(const Level::NodeHandle& handle : level.GetAllHandles())
+    for(const Level::Node& node : level.GetAllNodes())
     {
-        const Level::Node* node = level.GetNode(handle);
-        if(!MLG_VERIFY(node, "Invalid node handle: {}", handle.GetValue()))
-        {
-            continue;
-        }
-
-        if(node->Components.Model)
+        if(node.Components.Model)
         {
             ++count;
         }
@@ -40,22 +34,13 @@ CountModelInstances(const Level& level)
 }
 
 size_t
-CountWorldTransforms(const Level& level)
-{
-    return CountModelInstances(level);
-}
-
-size_t
 CountMeshInstances(const Level& level)
 {
     size_t count = 0;
 
-    for(const Level::NodeHandle& handle : level.GetAllHandles())
+    for(const Level::Node& node : level.GetAllNodes())
     {
-        const Level::Node* node = level.GetNode(handle);
-        MLG_ASSERT(node);
-
-        const std::optional<const Model*> optModel = node->Components.Model;
+        const std::optional<const Model*> optModel = node.Components.Model;
 
         if(!optModel)
         {
@@ -75,35 +60,30 @@ CountMeshInstances(const Level& level)
 
 Result<>
 BuildScene(const Level& level,
-    std::vector<Level::NodeHandle>& outNodeHandles,
+    std::vector<const Level::Node*>& outNodes,
     std::vector<ShaderInterop::WorldTransform>& outWorldTransforms,
     std::vector<ModelInstance>& outModelInstances,
     std::vector<MeshInstance>& outMeshInstances)
 {
-    // One world space transform per model instance.
-    const size_t transformCount = CountWorldTransforms(level);
-
+    const size_t modelInstanceCount = CountModelInstances(level);
     const size_t meshInstanceCount = CountMeshInstances(level);
 
-    outNodeHandles.clear();
+    outNodes.clear();
     outWorldTransforms.clear();
     outModelInstances.clear();
     outMeshInstances.clear();
 
-    outNodeHandles.reserve(transformCount);
-    outWorldTransforms.reserve(transformCount);
-    outModelInstances.reserve(transformCount);
+    outNodes.reserve(modelInstanceCount);
+    outWorldTransforms.reserve(modelInstanceCount);
+    outModelInstances.reserve(modelInstanceCount);
     outMeshInstances.reserve(meshInstanceCount);
 
     // Initialize the transform buffer with the world space transform
     // of each node that contains a model instance.
 
-    for(const Level::NodeHandle& handle : level.GetAllHandles())
+    for(const Level::Node& node : level.GetAllNodes())
     {
-        const Level::Node* node = level.GetNode(handle);
-        MLG_CHECKV(node, "Invalid node handle");
-
-        const std::optional<const Model*> optModel = node->Components.Model;
+        const std::optional<const Model*> optModel = node.Components.Model;
 
         if(!optModel)
         {
@@ -113,21 +93,23 @@ BuildScene(const Level& level,
         const Model* model = *optModel;
         MLG_CHECKV(model, "Node has invalid model pointer");
 
-        outNodeHandles.emplace_back(handle);
+        outNodes.emplace_back(&node);
 
-        const ShaderInterop::WorldTransform worldTransform{ .Transform = node->WorldTransform };
+        const ShaderInterop::WorldTransform worldTransform{ .Transform = node.WorldTransform };
         outWorldTransforms.emplace_back(worldTransform);
 
         const size_t meshInstanceOffset = outMeshInstances.size();
-        const std::span<const Mesh> meshes = model->GetMeshes();
 
-        for(const Mesh& mesh : meshes)
+        for(const Mesh& mesh : model->GetMeshes())
         {
-            outMeshInstances.emplace_back(&mesh, outMeshInstances.size());
+            const size_t meshIndex = outMeshInstances.size();
+            outMeshInstances.emplace_back(&mesh, meshIndex);
         }
 
-        outModelInstances.emplace_back(model,
-            std::span(outMeshInstances).subspan(meshInstanceOffset, meshes.size()));
+        const std::span<const MeshInstance> meshInstances =
+            std::span(outMeshInstances).subspan(meshInstanceOffset, model->GetMeshes().size());
+
+        outModelInstances.emplace_back(model, meshInstances);
     }
     
     return Result<>::Ok;
@@ -215,21 +197,21 @@ Scene::Create(const Level& level, const PropKit& propKit)
     Timer createTimer;
     createTimer.Start();
 
-    std::vector<Level::NodeHandle> nodeHandles;
+    std::vector<const Level::Node*> nodes;
     std::vector<ShaderInterop::WorldTransform> worldTransforms;
     std::vector<ModelInstance> modelInstances;
     std::vector<MeshInstance> meshInstances;
 
-    MLG_CHECK(BuildScene(level, nodeHandles, worldTransforms, modelInstances, meshInstances));
+    MLG_CHECK(BuildScene(level, nodes, worldTransforms, modelInstances, meshInstances));
 
     auto transformBuffer =
-        GpuHelper::CreateStorageBuffer<WorldTransformBuffer>(nodeHandles.size(), "WorldTransforms");
+        GpuHelper::CreateStorageBuffer<WorldTransformBuffer>(nodes.size(), "WorldTransforms");
     MLG_CHECK(transformBuffer);
 
     transformBuffer->Store(worldTransforms);
 
     auto clipSpaceBuffer =
-        GpuHelper::CreateStorageBuffer<ClipSpaceBuffer>(nodeHandles.size(), "ClipSpaceTransforms");
+        GpuHelper::CreateStorageBuffer<ClipSpaceBuffer>(nodes.size(), "ClipSpaceTransforms");
     MLG_CHECK(clipSpaceBuffer);
 
     auto drawIndirectBuffer = BuildDrawIndirectBuffer(meshInstances);
@@ -274,7 +256,7 @@ Scene::Create(const Level& level, const PropKit& propKit)
         std::move(*cameraParamsBuf),
         std::move(*colorShaderBindGroup),
         std::move(*transformShaderBindGroup),
-        std::move(nodeHandles),
+        std::move(nodes),
         std::move(modelInstances),
         std::move(meshInstances),
         std::move(worldTransforms));
@@ -290,7 +272,7 @@ Scene::Scene(WorldTransformBuffer&& worldTransformBuffer,
     CameraParamsBuffer&& cameraParamsBuffer,
     wgpu::BindGroup&& colorShaderBindGroup,
     wgpu::BindGroup&& transformShaderBindGroup,
-    std::vector<Level::NodeHandle>&& nodeHandles,
+    std::vector<const Level::Node*>&& nodes,
     std::vector<ModelInstance>&& modelInstances,
     std::vector<MeshInstance>&& meshInstances,
     std::vector<ShaderInterop::WorldTransform>&& worldTransforms)
@@ -300,7 +282,7 @@ Scene::Scene(WorldTransformBuffer&& worldTransformBuffer,
       m_CameraParamsBuffer(std::move(cameraParamsBuffer)),
       m_ColorShaderBindGroup(std::move(colorShaderBindGroup)),
       m_TransformShaderBindGroup(std::move(transformShaderBindGroup)),
-      m_NodeHandles(std::move(nodeHandles)),
+      m_Nodes(std::move(nodes)),
       m_ModelInstances(std::move(modelInstances)),
       m_MeshInstances(std::move(meshInstances)),
       m_WorldTransforms(std::move(worldTransforms))
@@ -426,22 +408,16 @@ Scene::GetVisibleMeshes(const Frustum& frustum, std::vector<MeshInstance>& outVi
 }
 
 Result<>
-Scene::SyncFromLevel(const Level& level)
+Scene::SyncFromLevel()
 {
-    for(size_t i = 0; i < m_NodeHandles.size(); ++i)
+    auto view = std::views::zip(m_Nodes, m_WorldTransforms, m_ModelInstances);
+
+    for(auto&& [node, worldXForm, modelInstance] : view)
     {
-        const Level::NodeHandle& nodeHandle = m_NodeHandles[i];
-        const Level::Node* node = level.GetNode(nodeHandle);
-
-        if(!MLG_VERIFY(node, "Node not found in level"))
-        {
-            continue;
-        }
-
         const ShaderInterop::WorldTransform transform{ .Transform = node->WorldTransform };
-        m_WorldTransforms[i] = transform;
+        worldXForm = transform;
 
-        m_ModelInstances[i].SetVisible(level.IsVisible(nodeHandle));
+        modelInstance.SetVisible(node->IsVisible());
     }
 
     return Result<>::Ok;

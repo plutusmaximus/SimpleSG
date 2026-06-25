@@ -50,37 +50,17 @@ public:
         std::optional<Collider> Collider;
     };
 
-    class NodeHandle
-    {
-    public:
-
-        NodeHandle() = default;
-
-        bool IsValid() const { return m_Id.IsValid(); }
-        explicit operator bool() const { return m_Id.IsValid(); }
-        size_t GetValue() const { return m_Id.GetValue(); }
-        auto operator<=>(const NodeHandle& other) const { return m_Id <=> other.m_Id; }
-
-    private:
-        friend Level;
-
-        explicit NodeHandle(const size_t nodeIndex)
-            : m_Id(nodeIndex)
-        {
-        }
-
-        SemanticIdentifier<struct NodeHandleTag> m_Id;
-    };
-
     struct Node
     {
+        bool IsActive() const { return (Flags & NodeFlags::Active) == NodeFlags::Active; }
+        bool IsVisible() const { return (Flags & NodeFlags::Visible) == NodeFlags::Visible; }
+
         StringHandle Name;
         TrsTransformf LocalTransform;
         Mat44f WorldTransform{ 1 };
         Components Components;
-        NodeHandle Parent;
-        NodeHandle FirstChild;
-        size_t ChildCount{ 0 };
+        const Node* Parent{nullptr};
+        std::span<const Node> Children;
         NodeFlags Flags{ NodeFlags::Active | NodeFlags::Visible };
     };
 
@@ -94,13 +74,10 @@ public:
     Level& operator=(Level&& other) = default;
 
     /// @brief Returns all nodes in the level, in breadth-first order.
-    std::span<const NodeHandle> GetAllHandles() const { return m_NodeHandles; }
+    std::span<const Node> GetAllNodes() const { return m_Nodes; }
 
     /// @brief Returns the root nodes of the level. Root nodes are nodes that have no parent.
-    std::span<const NodeHandle> GetRoots() const { return m_RootNodes; }
-
-    /// @brief Returns the children of the specified node.
-    Result<std::span<const NodeHandle>> GetChildren(const NodeHandle& handle) const;
+    std::span<const Node> GetRoots() const { return m_RootNodes; }
 
     /// @brief Fetches a node by its path from the root, e.g. {"RootNode", "ChildNode", "GrandchildNode"}.
     /// the path argument can take the following forms:
@@ -113,44 +90,40 @@ public:
     /// - and any other contiguous range of strings or string views that can be converted to std::string_view
     template <std::ranges::sized_range R>
     requires std::convertible_to<std::ranges::range_reference_t<R>, std::string_view>
-    Result<NodeHandle> GetNodeHandle(const R& path) const
+    Result<const Node*> GetNode(const R& path) const
     {
-        NodeHandle foundHandle;
+        const Node* foundNode{ nullptr };
 
         const auto pathLen = std::ranges::size(path);
         size_t pathIndex = 0;
 
-        std::span<const NodeHandle> nodesToSearch = GetRoots();
+        std::span<const Node> nodesToSearch = GetRoots();
         for (auto&& x : path)
         {
             std::string_view part = x;
 
-            NodeHandle handle;
+            const Node* node = nullptr;
 
-            for(const auto & tmpHandle : nodesToSearch)
+            for(const auto & tmpNode : nodesToSearch)
             {
-                const Node* node = GetNode(tmpHandle);
-                MLG_CHECKV(node, "Invalid node handle found while searching for node: {}", part);
-                if(node->Name == part)
+                if(tmpNode.Name == part)
                 {
-                    handle = tmpHandle;
+                    node = &tmpNode;
                     break;
                 }
             }
 
-            MLG_CHECKV(handle, "Node not found: {}", part);
+            MLG_CHECKV(node, "Node not found: {}", part);
 
             if(pathIndex == pathLen - 1)
             {
-                foundHandle = handle;
+                foundNode = node;
                 break;
             }
 
             ++pathIndex;
 
-            auto result = GetChildren(handle);
-            MLG_CHECK(result);
-            nodesToSearch = *result;
+            nodesToSearch = node->Children;
         }
 
         auto formatPath = [](const auto& inPath) -> std::string
@@ -167,39 +140,34 @@ public:
             return result;
         };
 
-         MLG_CHECKV(foundHandle, "Node not found: {}", formatPath(path));
+         MLG_CHECKV(foundNode, "Node not found: {}", formatPath(path));
 
-        return foundHandle;
+        return foundNode;
     }
 
     // Fetches a node by its path from the root, e.g. {"RootNode", "ChildNode", "GrandchildNode"}.
     // This overload is provided for convenience to allow passing an initializer list directly
     // without having to wrap it in a std::span or other container.
     // - GetNode({"RootNode", "ChildNode", "GrandchildNode"});
-    Result<NodeHandle> GetNodeHandle(std::initializer_list<std::string_view> path) const;
+    Result<const Node*> GetNode(std::initializer_list<std::string_view> path) const;
 
-    const Node* GetNode(const NodeHandle& handle) const;
+    Result<> UpdateLocalTransform(const Node& node, const TrsTransformf& localTransform);
 
-    Result<> UpdateLocalTransform(const NodeHandle& handle, const TrsTransformf& localTransform);
+    void SetActive(const Node& node, bool active);
 
-    void SetActive(const NodeHandle& handle, bool active);
-    bool IsActive(const NodeHandle& handle) const;
-
-    void SetVisible(const NodeHandle& handle, bool visible);
-    bool IsVisible(const NodeHandle& handle) const;
+    void SetVisible(const Node& node, bool visible);
 
 private:
     Level(std::vector<Node>&& nodes, StringArena&& stringArena);
 
-    // Returns true if the node handle refers to a node within the level.
-    bool IsInLevel(const NodeHandle& handle) const;
+    Node* GetNode(const Node& node);
 
-    Node* GetNode(const NodeHandle& handle);
+    // Returns true if the node is in the level.
+    bool IsInLevel(const Node& node) const;
 
-    void UpdateWorldTransforms(std::span<const NodeHandle> nodes);
+    void UpdateWorldTransforms(std::span<const Node> nodes);
 
     std::vector<Node> m_Nodes;
-    std::vector<NodeHandle> m_NodeHandles;
-    std::span<NodeHandle> m_RootNodes;
+    std::span<Node> m_RootNodes;
     StringArena m_StringArena;
 };
