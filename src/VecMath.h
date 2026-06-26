@@ -1137,6 +1137,11 @@ public:
         }
     }
 
+    Rect(const Point& p0, const Point& p1) noexcept
+    : Rect(MakeRectParams(p0, p1))
+    {
+    }
+
     int GetX() const { return m_X; }
     int GetY() const { return m_Y; }
     unsigned GetWidth() const { return m_Width; }
@@ -1155,6 +1160,17 @@ public:
     }
 
 private:
+
+    static constexpr RectParams MakeRectParams(const Point& p0, const Point& p1) noexcept
+    {
+        const int x = std::min(p0.X, p1.X);
+        const int y = std::min(p0.Y, p1.Y);
+        const unsigned width = static_cast<unsigned>(std::abs(p1.X - p0.X));
+        const unsigned height = static_cast<unsigned>(std::abs(p1.Y - p0.Y));
+
+        return RectParams{.X = x, .Y = y, .Width = width, .Height = height };
+    }
+
     int m_X{0}, m_Y{0};
     unsigned m_Width{0}, m_Height{0};
 };
