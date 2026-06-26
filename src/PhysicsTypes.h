@@ -2,7 +2,6 @@
 
 #include "AssertHelper.h"
 #include "Bounds.h"
-#include "VecMath.h"
 
 #include <variant>
 
