@@ -116,6 +116,9 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
     {
         if(nodeDef.Children.empty())
         {
+            MLG_CHECKV(node.Components.Model || node.Components.Body,
+                "Node {} has no model or body and no children",
+                nodeDef.Name);
             continue;
         }
 
@@ -129,6 +132,60 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
     return Result<>::Ok;
 }
 } // namespace
+
+BoundingSphere
+Level::Node::GetBoundingSphere() const
+{
+    MLG_ABORTIF(!Components.Model && !Components.Body && Children.empty(),
+        "Node {} has no model, body, or children", Name);
+
+    // Compute the combined bounding sphere of the child nodes.
+    auto getChildrenBoundingSphere = [](const std::span<const Level::Node> children)
+    {
+        BoundingSphere bs = children.front().GetBoundingSphere();
+        for(const auto& child : children.subspan(1))
+        {
+            bs = bs + child.GetBoundingSphere();
+        }
+
+        return bs;
+    };
+
+    // Compute the combined bounding sphere of this node's model and/or body.
+    auto getLocalBoundingSphere = [](const Level::Node& node)
+    {
+        if(node.Components.Model)
+        {
+            BoundingSphere bs = (*node.Components.Model)->GetBoundingSphere();
+
+            if(node.Components.Body)
+            {
+                bs = bs + node.Components.Body->GetCollider().GetEnclosingSphere();
+            }
+
+            return bs;
+        }
+
+        return node.Components.Body->GetCollider().GetEnclosingSphere();
+    };
+
+    if(!Children.empty())
+    {
+        // Transform bounding spheres to the node's local space.
+        
+        BoundingSphere bs = LocalTransform * getChildrenBoundingSphere(Children);
+
+        if(Components.Model || Components.Body)
+        {
+            const BoundingSphere localBs = LocalTransform * getLocalBoundingSphere(*this);
+            bs = bs + localBs;
+        }
+
+        return bs;
+    }
+
+    return LocalTransform * getLocalBoundingSphere(*this);
+}
 
 Result<Level>
 Level::Create(const LevelDef& levelDef, const PropKit& propKit)

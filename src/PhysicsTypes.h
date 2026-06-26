@@ -63,32 +63,30 @@ public:
 
     explicit Collider(const BoundingSphere& sphere)
         : m_Shape(sphere),
-          m_Sphere(sphere)
+          m_EnclosingSphere(sphere)
     {
     }
 
     explicit Collider(const BoundingBox& box)
         : m_Shape(box),
-          m_Sphere(box)
+          m_EnclosingSphere(box)
     {
     }
-
     explicit Collider(const BoundingCapsule& capsule)
         : m_Shape(capsule),
-          m_Sphere(capsule)
+          m_EnclosingSphere(capsule)
     {
     }
-
     const std::variant<BoundingSphere, BoundingBox, BoundingCapsule>& GetShape() const
     {
         return m_Shape;
     }
 
-    const BoundingSphere& GetEnclosingSphere() const { return m_Sphere; }
+    const BoundingSphere& GetEnclosingSphere() const { return m_EnclosingSphere; }
 
 private:
     std::variant<BoundingSphere, BoundingBox, BoundingCapsule> m_Shape;
-    BoundingSphere m_Sphere;
+    BoundingSphere m_EnclosingSphere;
 };
 
 class RigidBody
