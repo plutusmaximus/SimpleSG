@@ -393,7 +393,7 @@ compiler_flags(ssg)
 # ============================================================
 function(add_sample_executable target_name source_file)
   add_executable(${target_name} ${source_file} samples/MouseNav.cpp)
-  target_link_libraries(${target_name} PRIVATE ssg::ssg)
+  target_link_libraries(${target_name} PRIVATE ssg::ssg lua)
   add_dependencies(${target_name} shaders copy_images)
 
   compiler_flags(${target_name})
