@@ -49,3 +49,8 @@ ContinuationIndentWidth: 4
 AccessModifierOffset: -4
 
 DerivePointerAlignment : true
+
+# Operators
+BreakBinaryOperations: OnePerLine
+BreakBeforeBinaryOperators: NonAssignment
+AlignOperands: DontAlign
