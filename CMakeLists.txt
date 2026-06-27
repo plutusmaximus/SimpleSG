@@ -311,6 +311,7 @@ set(SSG_SOURCES
   src/ImGuiRenderer.cpp
   src/Level.cpp
   src/Log.cpp
+  src/LuaRuntime.cpp
   src/PerfMetrics.cpp
   src/PhysicsLevel.cpp
   src/Camera.cpp
@@ -347,10 +348,12 @@ set(SSG_HEADERS
   src/Level.h
   src/LevelDefs.h
   src/Log.h
+  src/LuaRuntime.h
   src/PhysicsTypes.h
   src/PerfMetrics.h
   src/PhysicsLevel.h
   src/PropKit.h
+  src/RangeQuery.h
   src/Renderer.h
   src/Result.h
   src/Scene.h
@@ -382,9 +385,9 @@ target_sources(ssg
 set_source_files_properties(src/cgltf.cpp PROPERTIES SKIP_LINTING ON)
 set_source_files_properties(src/stb_image.cpp PROPERTIES SKIP_LINTING ON)
 
-target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 webgpu_dawn imgui)
+target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 webgpu_dawn imgui lua)
 target_include_directories(ssg PUBLIC src)
-target_include_directories(ssg SYSTEM PRIVATE thirdparty/stb thirdparty/cgltf)
+target_include_directories(ssg SYSTEM PRIVATE thirdparty/cgltf thirdparty/stb)
 
 compiler_flags(ssg)
 
@@ -393,7 +396,7 @@ compiler_flags(ssg)
 # ============================================================
 function(add_sample_executable target_name source_file)
   add_executable(${target_name} ${source_file} samples/MouseNav.cpp)
-  target_link_libraries(${target_name} PRIVATE ssg::ssg lua)
+  target_link_libraries(${target_name} PRIVATE ssg::ssg)
   add_dependencies(${target_name} shaders copy_images)
 
   compiler_flags(${target_name})

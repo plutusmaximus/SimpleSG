@@ -6,10 +6,12 @@
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
 #include "Level.h"
+#include "LuaRuntime.h"
 #include "MouseNav.h"
 #include "PerfMetrics.h"
 #include "PhysicsLevel.h"
 #include "PropKit.h"
+#include "RangeQuery.h"
 #include "Renderer.h"
 #include "Scene.h"
 #include "scope_exit.h"
@@ -39,6 +41,95 @@ struct PerfCounterGlobals
     static inline PerfCounter TotalPE{ { .Name = "Energy.PE" } };    // Potential Energy
     static inline PerfCounter TotalKE{ { .Name = "Energy.KE" } };    // Kinetic Energy
     static inline PerfCounter TotalEnergy{ { .Name = "Energy.Total" } };
+};
+
+class NodeActivator
+{
+public:
+
+    NodeActivator() = delete;
+
+    NodeActivator(Level& level, const bool activate)
+        : m_Level(level),
+        m_Activate(activate)
+    {
+    }
+
+    const Level::Node& operator()(const Level::Node& node) const
+    {
+        m_Level.SetActive(node, m_Activate);
+
+        return node; // NOLINT
+    }
+
+    const Level::Node* operator()(const Level::Node* node) const
+    {
+        operator()(*node);
+        return node;
+    }
+
+private:
+
+    Level& m_Level; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
+    bool m_Activate;
+};
+
+class NodeVisibility
+{
+public:
+
+    NodeVisibility() = delete;
+
+    NodeVisibility(Level& level, const bool visible)
+        : m_Level(level),
+        m_Visible(visible)
+    {
+    }
+
+    const Level::Node& operator()(const Level::Node& node) const
+    {
+        m_Level.SetVisible(node, m_Visible);
+
+        return node; // NOLINT
+    }
+
+    const Level::Node* operator()(const Level::Node* node) const
+    {
+        operator()(*node);
+        return node;
+    }
+
+private:
+
+    Level& m_Level; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
+    bool m_Visible;
+};
+
+class NodeSelector
+{
+public:
+
+    NodeSelector() = delete;
+
+    NodeSelector(const Camera& camera, const Posef& cameraXForm, const Rect& selectionRect)
+        : m_Frustum(camera, cameraXForm, selectionRect)
+    {
+    }
+
+    bool operator()(const Level::Node& node) const
+    {
+        const BoundingSphere bs = node.GetBoundingSphere();
+        return m_Frustum.Contains(bs);
+    }
+
+    bool operator()(const Level::Node* node) const
+    {
+        return operator()(*node);
+    }
+
+private:
+
+    Frustum m_Frustum;
 };
 
 Result<>
@@ -121,7 +212,7 @@ Load(TextureCache& textureCache)
 
     std::vector<LevelNodeDef> nodeDefs;
     nodeDefs.reserve(NUM_BODIES);
-    for(size_t i  = 0; i < NUM_BODIES; ++i)
+    for(size_t i = 0; i < NUM_BODIES; ++i)
     {
         const float radius = MIN_RADIUS + (std::abs(dis(gen)) * (MAX_RADIUS - MIN_RADIUS));
         const float mass = radius;
@@ -396,51 +487,7 @@ void ApplyStoppingImpulse(PhysicsLevel& physLevel)
     }
 }
 
-[[maybe_unused]] void
-DeactivateNonOverlappingBodies(const PhysicsLevel& physLevel, Level& level)
-{
-    const std::span<const Level::Node* const> nodes = physLevel.GetNodes();
-    const std::span<const RigidBody> bodies = physLevel.GetBodies();
-    const std::span<const TrsTransformf> transforms = physLevel.GetTransforms();
-
-    // First deactivate all bodies.
-    // Then activate only bodies that are overlapping with another body.
-    for(const Level::Node* node : nodes)
-    {
-        level.SetActive(*node, false);
-        level.SetVisible(*node, false);
-    }
-
-    for(size_t i = 0; i < bodies.size(); ++i)
-    {
-        const BoundingSphere sphereA = transforms[i] * bodies[i].GetCollider().GetEnclosingSphere();
-
-        for(size_t j = i + 1; j < bodies.size(); ++j)
-        {
-            const BoundingSphere sphereB = transforms[j] * bodies[j].GetCollider().GetEnclosingSphere();
-
-            if(sphereA.Overlaps(sphereB))
-            {
-                level.SetActive(*nodes[i], true);
-                level.SetVisible(*nodes[i], true);
-
-                level.SetActive(*nodes[j], true);
-                level.SetVisible(*nodes[j], true);
-            }
-        }
-    }
-}
-
-[[maybe_unused]] void ActivateAllBodies(PhysicsLevel& physLevel, Level& level)
-{
-    for(const Level::Node* node : physLevel.GetNodes())
-    {
-        level.SetActive(*node, true);
-        level.SetVisible(*node, true);
-    }
-}
-
-void ComputeKineticEnergy(const PhysicsLevel& physLevel)
+float ComputeKineticEnergy(const PhysicsLevel& physLevel)
 {
     float kineticEnergy = 0.0f;
 
@@ -457,9 +504,7 @@ void ComputeKineticEnergy(const PhysicsLevel& physLevel)
         kineticEnergy += 0.5f * mass * speedSq;
     }
 
-    PerfCounterGlobals::TotalKE.Set(kineticEnergy);
-
-    PerfCounterGlobals::TotalEnergy.Set(kineticEnergy + PerfCounterGlobals::TotalPE.GetValue());
+    return kineticEnergy;
 }
 
 Result<>
@@ -472,7 +517,6 @@ MainLoop()
     Compositor compositor;
     ImGuiRenderer imGuiRenderer;
     TextureCache textureCache;
-    PhysicsLevel physLevel;
     WalkMouseNav mouseNav;
     CliUi cliUi;
     DevUi devUi(cliUi, renderer);
@@ -494,7 +538,7 @@ MainLoop()
     auto physLevelResult = PhysicsLevel::Create(level);
     MLG_CHECK(physLevelResult);
 
-    physLevel = std::move(*physLevelResult);
+    PhysicsLevel physLevel = std::move(*physLevelResult);
     
     ApplyRandomVelocities(physLevel);
 
@@ -510,8 +554,7 @@ MainLoop()
     Timer frameTimer;
 
     bool pauseSim = false;
-    bool showOverlappingBodies = true;
-    bool continuouslyDeactivateNonOverlappingBodies = false;
+    bool activateSelectedNodes = true;
 
     while(running)
     {
@@ -630,21 +673,29 @@ MainLoop()
                 }
                 else if(SDL_SCANCODE_F2 == event.key.scancode)
                 {
-                    showOverlappingBodies = !showOverlappingBodies;
-                    continuouslyDeactivateNonOverlappingBodies = false;
+                    activateSelectedNodes = !activateSelectedNodes;
 
-                    if(showOverlappingBodies)
+                    if(!activateSelectedNodes)
                     {
-                        ActivateAllBodies(physLevel, level);
+                        RangeQuery::from(physLevel.GetNodes())
+                        .apply(NodeActivator(level, true))
+                        .apply(NodeVisibility(level, true))
+                        .exec();
                     }
                     else
                     {
-                        DeactivateNonOverlappingBodies(physLevel, level);
+                        //const Rect rect(Point(172, 290), Point(247, 360));
+                        const Rect rect({.X = 200, .Y = 400, .Width = 75, .Height = 75});
+                        //const Rect rect(Point(1000, 1000), Point(1050, 1050));
+
+                        RangeQuery::from(physLevel.GetNodes())
+                        .apply(NodeActivator(level, false))
+                        .apply(NodeVisibility(level, false))
+                        .where(NodeSelector(camera, cameraXForm, rect))
+                        .apply(NodeActivator(level, true))
+                        .apply(NodeVisibility(level, true))
+                        .exec();
                     }
-                }
-                else if(SDL_SCANCODE_F3 == event.key.scancode)
-                {
-                    continuouslyDeactivateNonOverlappingBodies = true;
                 }
                 break;
             case SDL_EVENT_KEY_UP:
@@ -659,18 +710,17 @@ MainLoop()
             }
         }
 
-        if(continuouslyDeactivateNonOverlappingBodies)
-        {
-            DeactivateNonOverlappingBodies(physLevel, level);
-        }
-
         if(!pauseSim)
         {
             ApplyGravity(physLevel);
 
             physLevel.Update(kPhysicsTimeStep);
 
-            ComputeKineticEnergy(physLevel);
+            const float kineticEnergy = ComputeKineticEnergy(physLevel);
+            const double totalEnergy = kineticEnergy + PerfCounterGlobals::TotalPE.GetValue();
+
+            PerfCounterGlobals::TotalKE.Set(kineticEnergy);
+            PerfCounterGlobals::TotalEnergy.Set(totalEnergy);
         }
 
         MLG_CHECK(physLevel.SyncToLevel(level));
