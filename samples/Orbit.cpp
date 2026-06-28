@@ -551,12 +551,12 @@ MainLoop()
 
     mouseNav.SetTransform(cameraXForm);
 
-    bool mouseCaptured = false;
+    const bool mouseCaptured = false;
 
     Timer frameTimer;
 
     bool pauseSim = false;
-    bool activateSelectedNodes = true;
+    bool activateSelectedNodes = false;
 
     while(running)
     {
@@ -626,7 +626,7 @@ MainLoop()
                 }
                 break;
 
-            case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            /*case SDL_EVENT_MOUSE_BUTTON_DOWN:
                 if(event.button.button == SDL_BUTTON_LEFT)
                 {
                     mouseCaptured = true;
@@ -641,7 +641,7 @@ MainLoop()
                     SDL_SetWindowRelativeMouseMode(GpuHelper::GetWindow(), mouseCaptured);
                     mouseNav.ClearButtons();
                 }
-                break;
+                break;*/
 
             case SDL_EVENT_MOUSE_WHEEL:
                 if(mouseCaptured)
@@ -731,17 +731,21 @@ MainLoop()
 
         mouseNav.Update(elapsedSeconds);
             
-        const Viewport viewport(GpuHelper::GetScreenBounds());
-        camera.SetViewport(viewport);
         const Rect& scenePanelRect = devUi.GetScenePanelRect();
-        camera.SetAspectRatio(scenePanelRect.GetAspectRatio());
-        cameraXForm = mouseNav.GetTransform();
 
-        MLG_CHECK(scene.SyncToGpu());
+        if(scenePanelRect.GetWidth() > 1 && scenePanelRect.GetHeight() > 1)
+        {
+            const Viewport sceneViewport(scenePanelRect.GetExtent());
+            camera.SetViewport(sceneViewport);
+            cameraXForm = mouseNav.GetTransform();
+
+            MLG_CHECK(scene.SyncToGpu());
+
+            MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
+        }
 
         MLG_CHECK(compositor.BeginFrame());
 
-        MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
         //MLG_CHECK(renderer.Composite(compositor));
 
         MLG_CHECK(imGuiRenderer.NewFrame());

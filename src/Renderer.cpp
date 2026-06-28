@@ -153,10 +153,7 @@ Renderer::Render(const Camera& camera,
         viewport.GetMinDepth(),
         viewport.GetMaxDepth());
 
-    renderPass.SetScissorRect(viewport.GetX(),
-        viewport.GetY(),
-        viewport.GetWidth(),
-        viewport.GetHeight());
+    renderPass.SetScissorRect(0, 0, viewport.GetWidth(), viewport.GetHeight());
 
     {
         MLG_SCOPED_TIMER("Renderer.Render.SetPipeline");

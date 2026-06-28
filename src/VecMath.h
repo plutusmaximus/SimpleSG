@@ -1142,6 +1142,11 @@ public:
     {
     }
 
+    explicit Rect(const Extent& extent) noexcept
+    : Rect(RectParams{.X = 0, .Y = 0, .Width = extent.Width, .Height = extent.Height })
+    {
+    }
+
     int GetX() const { return m_X; }
     int GetY() const { return m_Y; }
     unsigned GetWidth() const { return m_Width; }
@@ -1152,6 +1157,21 @@ public:
     constexpr float GetAspectRatio() const
     {
         return GetExtent().GetAspectRatio();
+    }
+
+    Rect Clip(const Rect& other) const noexcept
+    {
+        const int x0 = std::max(m_X, other.m_X);
+        const int y0 = std::max(m_Y, other.m_Y);
+        const int x1 = std::min(m_X + static_cast<int>(m_Width), other.m_X + static_cast<int>(other.m_Width));
+        const int y1 = std::min(m_Y + static_cast<int>(m_Height), other.m_Y + static_cast<int>(other.m_Height));
+
+        if (x1 <= x0 || y1 <= y0)
+        {
+            return Rect({.X = 0, .Y = 0, .Width = 0, .Height = 0 });
+        }
+
+        return Rect({.X = x0, .Y = y0, .Width = static_cast<unsigned>(x1 - x0), .Height = static_cast<unsigned>(y1 - y0) });
     }
 
     constexpr friend bool operator==(const Rect& a, const Rect& b) noexcept

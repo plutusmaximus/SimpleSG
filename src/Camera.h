@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AssertHelper.h"
 #include "VecMath.h"
 
 class Camera;
@@ -12,8 +13,8 @@ public:
 
     struct ViewportParams
     {
-        uint32_t x, y, width, height;
-        float minDepth, maxDepth;
+        uint32_t x = 0, y = 0, width, height;
+        float minDepth = 0, maxDepth = 1;
     };
 
     explicit Viewport(const ViewportParams& params);
@@ -26,6 +27,22 @@ public:
               .minDepth = 0,
               .maxDepth = 1 })
     {
+        MLG_ABORTIF(bounds.Width == 0, "Width must be non-zero");
+        MLG_ABORTIF(bounds.Height == 0, "Height must be non-zero");
+    }
+
+    explicit Viewport(const Rect& bounds)
+        : Viewport({ .x = static_cast<uint32_t>(bounds.GetX()),
+              .y = static_cast<uint32_t>(bounds.GetY()),
+              .width = bounds.GetWidth(),
+              .height = bounds.GetHeight(),
+              .minDepth = 0,
+              .maxDepth = 1 })
+    {
+        MLG_ABORTIF(bounds.GetWidth() == 0, "Width must be non-zero");
+        MLG_ABORTIF(bounds.GetHeight() == 0, "Height must be non-zero");
+        MLG_ABORTIF(bounds.GetX() < 0, "X must be non-negative");
+        MLG_ABORTIF(bounds.GetY() < 0, "Y must be non-negative");
     }
 
     uint32_t GetWidth() const { return m_Width; }

@@ -320,7 +320,6 @@ MainLoop()
             
         const Viewport viewport(GpuHelper::GetScreenBounds());
         camera.SetViewport(viewport);
-        camera.SetAspectRatio(viewport.GetAspectRatio());
         cameraXForm = mouseNav.GetTransform();
 
         MLG_CHECK(compositor.BeginFrame());

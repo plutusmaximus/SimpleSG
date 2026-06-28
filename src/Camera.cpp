@@ -192,6 +192,7 @@ void
 Camera::SetViewport(const Viewport& viewport)
 {
     m_Viewport = viewport;
+    SetAspectRatio(viewport.GetAspectRatio());
 }
 
 const Mat44f&
