@@ -184,18 +184,21 @@ TEST(Camera, Setters_UpdateProjectionMatrix)
             camera.GetFarClip()));
 }
 
-TEST(Camera, SetViewport_DoesNotChangeProjectionAspectRatio)
+TEST(Camera, SetViewport_ChangesProjectionAspectRatio)
 {
     Camera camera(MakeViewport(0, 0, 853, 497));
     camera.SetAspectRatio(1361.0f / 769.0f);
-    const Mat44f before = camera.GetMatrix();
     const Viewport viewport = MakeViewport(29, 37, 317, 907, 0.23f, 0.81f);
 
     camera.SetViewport(viewport);
 
     ExpectViewportEq(camera.GetViewport(), 29, 37, 317, 907, 0.23f, 0.81f);
-    EXPECT_FLOAT_EQ(camera.GetAspectRatio(), 1361.0f / 769.0f);
-    ExpectMatrixNear(camera.GetMatrix(), before);
+    EXPECT_FLOAT_EQ(camera.GetAspectRatio(), 317.0f / 907.0f);
+    ExpectMatrixNear(camera.GetMatrix(),
+        Mat44f::PerspectiveLH(camera.GetFov(),
+            camera.GetAspectRatio(),
+            camera.GetNearClip(),
+            camera.GetFarClip()));
 }
 
 TEST(Frustum, Contains_ReturnsInsideForSphereInsideCameraView)

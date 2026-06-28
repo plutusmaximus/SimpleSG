@@ -438,20 +438,20 @@ add_sample_executable(Orbit samples/Orbit.cpp)
 # Executable: Tests
 # ============================================================
 add_executable(Tests
-  "tests/BoundingCapsule.test.cpp"
-  "tests/BoundingBox.test.cpp"
-  "tests/BoundingSphere.test.cpp"
-  "tests/Camera.test.cpp"
-  "tests/GridHash.test.cpp"
-  "tests/inlist.test.cpp"
-  "tests/Mat44.test.cpp"
-  "tests/Quat.test.cpp"
-  "tests/Radians.test.cpp"
-  "tests/scope_exit.test.cpp"
-  "tests/TrsTransform.test.cpp"
-  "tests/Vec2.test.cpp"
-  "tests/Vec3.test.cpp"
-  "tests/Vec4.test.cpp")
+  "tests/BoundingCapsule.unit.cpp"
+  "tests/BoundingBox.unit.cpp"
+  "tests/BoundingSphere.unit.cpp"
+  "tests/Camera.unit.cpp"
+  "tests/GridHash.unit.cpp"
+  "tests/inlist.unit.cpp"
+  "tests/Mat44.unit.cpp"
+  "tests/Quat.unit.cpp"
+  "tests/Radians.unit.cpp"
+  "tests/scope_exit.unit.cpp"
+  "tests/TrsTransform.unit.cpp"
+  "tests/Vec2.unit.cpp"
+  "tests/Vec3.unit.cpp"
+  "tests/Vec4.unit.cpp")
 
 target_link_libraries(Tests PRIVATE gtest_main ssg::ssg)
 #add_dependencies(RunAllTests shaders copy_images)
