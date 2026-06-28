@@ -119,7 +119,9 @@ public:
     bool operator()(const Level::Node& node) const
     {
         const BoundingSphere bs = node.GetBoundingSphere();
-        return m_Frustum.Contains(bs);
+        const Frustum::ContainsResult result = m_Frustum.Contains(bs);
+
+        return result == Frustum::ContainsResult::Inside || result == Frustum::ContainsResult::Intersects;
     }
 
     bool operator()(const Level::Node* node) const

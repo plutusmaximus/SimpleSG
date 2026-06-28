@@ -101,21 +101,30 @@ Frustum::Frustum(const Camera& camera, const Posef& cameraXForm, const Rect& sel
     m_Planes[kFar] = Vec4f(farNormal, -farNormal.Dot(pfar));
 }
 
-bool
+Frustum::ContainsResult
 Frustum::Contains(const BoundingSphere& sphere) const
 {
     const Vec4f pos4(sphere.GetCenter(), 1);
     const float radius = sphere.GetRadius();
 
+    ContainsResult result = ContainsResult::Inside;
+
     for(const Vec4f& plane : m_Planes)
     {
-        if(plane.Dot(pos4) <= -radius)
+        const float distance = plane.Dot(pos4);
+
+        if(distance <= -radius)
         {
-            return false;
+            return Frustum::ContainsResult::Outside;
+        }
+
+        if(distance < radius)
+        {
+            result = Frustum::ContainsResult::Intersects;
         }
     }
 
-    return true;
+    return result;
 }
 
 void

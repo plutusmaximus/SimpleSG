@@ -286,97 +286,6 @@ Scene::Scene(WorldTransformBuffer&& worldTransformBuffer,
 {
 }
 
-namespace
-{
-struct ModelCuller
-{
-    ModelCuller() = delete;
-
-    explicit ModelCuller(const Frustum& frustum)
-        : m_Frustum(frustum)
-    {
-    }
-
-    template<typename T>
-    bool operator()(const T& item) const
-    {
-        auto&& [modelInstance, worldXForm] = item;
-
-        static_assert(std::same_as<std::remove_cvref_t<decltype(modelInstance)>, ModelInstance>,
-            "ModelCuller expects element 0 to be ModelInstance");
-
-        static_assert(
-            std::same_as<std::remove_cvref_t<decltype(worldXForm)>, ShaderInterop::WorldTransform>,
-            "ModelCuller expects element 1 to be ShaderInterop::WorldTransform");
-
-        const BoundingSphere& boundingSphere = worldXForm.Transform * modelInstance.GetBoundingSphere();
-
-        return modelInstance.IsVisible() && m_Frustum.Contains(boundingSphere);
-    }
-
-private:
-    const Frustum& m_Frustum; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
-};
-
-struct MeshExtractor
-{
-    template<typename T>
-    auto operator()(const T& item) const
-    {
-        auto&& [modelInstance, worldXForm] = item;
-
-        static_assert(std::same_as<std::remove_cvref_t<decltype(modelInstance)>, ModelInstance>,
-            "MeshExtractor expects element 0 to be ModelInstance");
-
-        static_assert(
-            std::same_as<std::remove_cvref_t<decltype(worldXForm)>, ShaderInterop::WorldTransform>,
-            "MeshExtractor expects element 1 to be ShaderInterop::WorldTransform");
-
-        const std::span<const MeshInstance> meshInstances = modelInstance.GetMeshInstances();
-
-        auto returnValue =
-            meshInstances |
-            std::views::transform(
-                [&worldXForm](const MeshInstance& meshInstance)
-                {
-                    return std::tuple<const MeshInstance&, const ShaderInterop::WorldTransform&>(meshInstance,
-                        worldXForm);
-                });
-                
-        return returnValue;
-    }
-};
-struct MeshCuller
-{
-    MeshCuller() = delete;
-
-    explicit MeshCuller(const Frustum& frustum)
-        : m_Frustum(frustum)
-    {
-    }
-
-    template<typename T>
-    bool operator()(const T& item) const
-    {
-        auto&& [meshInstance, worldXForm] = item;
-
-        static_assert(std::same_as<std::remove_cvref_t<decltype(meshInstance)>, MeshInstance>,
-            "MeshCuller expects element 0 to be MeshInstance");
-
-        static_assert(
-            std::same_as<std::remove_cvref_t<decltype(worldXForm)>, ShaderInterop::WorldTransform>,
-            "MeshCuller expects element 1 to be ShaderInterop::WorldTransform");
-
-        const BoundingSphere& boundingSphere = worldXForm.Transform * meshInstance.GetBoundingSphere();
-
-        return m_Frustum.Contains(boundingSphere);
-    }
-
-private:
-    const Frustum& m_Frustum; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
-};
-} // namespace
-
 void
 Scene::GetVisibleMeshes(const Frustum& frustum, std::vector<MeshInstance>& outVisibleMeshes) const
 {
@@ -387,15 +296,43 @@ Scene::GetVisibleMeshes(const Frustum& frustum, std::vector<MeshInstance>& outVi
 
     outVisibleMeshes.clear();
 
-    auto cullPipeline = std::views::zip(m_ModelInstances, m_WorldTransforms) //
-                        | std::views::filter(ModelCuller(frustum))           //
-                        | std::views::transform(MeshExtractor())             //
-                        | std::views::join                                   //
-                        | std::views::filter(MeshCuller(frustum));
-
-    for(const auto&& [meshInstance, worldXForm] : cullPipeline)
+    for(const auto&& [modelInstance, worldXForm] :
+        std::views::zip(m_ModelInstances, m_WorldTransforms))
     {
-        outVisibleMeshes.emplace_back(meshInstance);
+        const BoundingSphere& modelBs = worldXForm.Transform * modelInstance.GetBoundingSphere();
+
+        const Frustum::ContainsResult result = frustum.Contains(modelBs);
+
+        if(result == Frustum::ContainsResult::Outside)
+        {
+            continue;
+        }
+
+        if(result == Frustum::ContainsResult::Intersects)
+        {
+            // Model intersects frustum, check each mesh instance.
+
+            for(const MeshInstance& meshInstance : modelInstance.GetMeshInstances())
+            {
+                const BoundingSphere& meshBs = worldXForm.Transform * meshInstance.GetBoundingSphere();
+
+                if(Frustum::ContainsResult::Outside == frustum.Contains(meshBs))
+                {
+                    continue;
+                }
+
+                outVisibleMeshes.emplace_back(meshInstance);
+            }
+        }
+        else
+        {
+            // Model is fully inside frustum, add all mesh instances.
+
+            for(const MeshInstance& meshInstance : modelInstance.GetMeshInstances())
+            {
+                outVisibleMeshes.emplace_back(meshInstance);
+            }
+        }
     }
 
     pcVisibleMeshes.Increment(outVisibleMeshes.size());

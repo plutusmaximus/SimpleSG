@@ -8,6 +8,7 @@
 namespace
 {
 constexpr float EPS = 1e-5f;
+using ContainsResult = Frustum::ContainsResult;
 
 Viewport MakeViewport(const uint32_t x = 0,
     const uint32_t y = 0,
@@ -197,31 +198,35 @@ TEST(Camera, SetViewport_DoesNotChangeProjectionAspectRatio)
     ExpectMatrixNear(camera.GetMatrix(), before);
 }
 
-TEST(Frustum, Contains_ReturnsTrueForSphereInsideCameraView)
+TEST(Frustum, Contains_ReturnsInsideForSphereInsideCameraView)
 {
     const Camera camera = MakeFrustumCamera();
     const Posef cameraPose = MakeFrustumCameraPose();
     const Frustum frustum(camera, cameraPose);
 
-    EXPECT_TRUE(frustum.Contains(
-        BoundingSphere(WorldFromCameraPoint(cameraPose, Vec3f(0.31f, -0.27f, 6.4f)), 0.43f)));
-    EXPECT_TRUE(frustum.Contains(
-        BoundingSphere(WorldFromCameraPoint(cameraPose, Vec3f(1.7f, 0.83f, 9.2f)), 0.61f)));
+    EXPECT_EQ(frustum.Contains(
+                  BoundingSphere(WorldFromCameraPoint(cameraPose, Vec3f(0.31f, -0.27f, 6.4f)), 0.43f)),
+        ContainsResult::Inside);
+    EXPECT_EQ(frustum.Contains(
+                  BoundingSphere(WorldFromCameraPoint(cameraPose, Vec3f(1.7f, 0.83f, 9.2f)), 0.61f)),
+        ContainsResult::Inside);
 }
 
-TEST(Frustum, Contains_ReturnsFalseForSphereOutsideCameraView)
+TEST(Frustum, Contains_ReturnsOutsideForSphereOutsideCameraView)
 {
     const Camera camera = MakeFrustumCamera();
     const Posef cameraPose = MakeFrustumCameraPose();
     const Frustum frustum(camera, cameraPose);
 
-    EXPECT_FALSE(frustum.Contains(
-        BoundingSphere(WorldFromCameraPoint(cameraPose, Vec3f(0.19f, -0.11f, 19.1f)), 0.31f)));
-    EXPECT_FALSE(frustum.Contains(
-        BoundingSphere(WorldFromCameraPoint(cameraPose, Vec3f(9.7f, 0.41f, 6.2f)), 0.37f)));
+    EXPECT_EQ(frustum.Contains(
+                  BoundingSphere(WorldFromCameraPoint(cameraPose, Vec3f(0.19f, -0.11f, 19.1f)), 0.31f)),
+        ContainsResult::Outside);
+    EXPECT_EQ(frustum.Contains(
+                  BoundingSphere(WorldFromCameraPoint(cameraPose, Vec3f(9.7f, 0.41f, 6.2f)), 0.37f)),
+        ContainsResult::Outside);
 }
 
-TEST(Frustum, Contains_ReturnsTrueForSphereStraddlingFrustumPlanes)
+TEST(Frustum, Contains_ReturnsIntersectsForSphereStraddlingFrustumPlanes)
 {
     const Camera camera = MakeFrustumCamera();
     const Posef cameraPose = MakeFrustumCameraPose();
@@ -234,14 +239,16 @@ TEST(Frustum, Contains_ReturnsTrueForSphereStraddlingFrustumPlanes)
         interiorPoint - (PlaneNormal(leftPlane) * (leftInteriorDistance + 0.29f));
 
     EXPECT_LT(SignedDistanceToPlane(leftPlane, leftStraddlingCenter), 0.0f);
-    EXPECT_TRUE(frustum.Contains(BoundingSphere(leftStraddlingCenter, 0.67f)));
+    EXPECT_EQ(frustum.Contains(BoundingSphere(leftStraddlingCenter, 0.67f)),
+        ContainsResult::Intersects);
 
     const Vec4f& farPlane = frustum.GetFar();
     const float farInteriorDistance = SignedDistanceToPlane(farPlane, interiorPoint);
     const Vec3f farStraddlingCenter =
         interiorPoint - (PlaneNormal(farPlane) * (farInteriorDistance + 0.37f));
     EXPECT_LT(SignedDistanceToPlane(frustum.GetFar(), farStraddlingCenter), 0.0f);
-    EXPECT_TRUE(frustum.Contains(BoundingSphere(farStraddlingCenter, 0.73f)));
+    EXPECT_EQ(frustum.Contains(BoundingSphere(farStraddlingCenter, 0.73f)),
+        ContainsResult::Intersects);
 }
 
 TEST(Frustum, Contains_HandlesSpheresTangentToFrustumPlanes)
@@ -258,9 +265,11 @@ TEST(Frustum, Contains_HandlesSpheresTangentToFrustumPlanes)
         MoveToSignedDistanceFromPlane(frustum.GetLeft(), interiorPoint, -leftRadius);
 
     EXPECT_NEAR(SignedDistanceToPlane(frustum.GetLeft(), leftInsideTangentCenter), leftRadius, EPS);
-    EXPECT_TRUE(frustum.Contains(BoundingSphere(leftInsideTangentCenter, leftRadius)));
+    EXPECT_EQ(frustum.Contains(BoundingSphere(leftInsideTangentCenter, leftRadius)),
+        ContainsResult::Intersects);
     EXPECT_NEAR(SignedDistanceToPlane(frustum.GetLeft(), leftOutsideTangentCenter), -leftRadius, EPS);
-    EXPECT_FALSE(frustum.Contains(BoundingSphere(leftOutsideTangentCenter, leftRadius)));
+    EXPECT_EQ(frustum.Contains(BoundingSphere(leftOutsideTangentCenter, leftRadius)),
+        ContainsResult::Outside);
 
     const float farRadius = 0.83f;
     const Vec3f farInsideTangentCenter =
@@ -269,9 +278,11 @@ TEST(Frustum, Contains_HandlesSpheresTangentToFrustumPlanes)
         MoveToSignedDistanceFromPlane(frustum.GetFar(), interiorPoint, -farRadius);
 
     EXPECT_NEAR(SignedDistanceToPlane(frustum.GetFar(), farInsideTangentCenter), farRadius, EPS);
-    EXPECT_TRUE(frustum.Contains(BoundingSphere(farInsideTangentCenter, farRadius)));
+    EXPECT_EQ(frustum.Contains(BoundingSphere(farInsideTangentCenter, farRadius)),
+        ContainsResult::Intersects);
     EXPECT_NEAR(SignedDistanceToPlane(frustum.GetFar(), farOutsideTangentCenter), -farRadius, EPS);
-    EXPECT_FALSE(frustum.Contains(BoundingSphere(farOutsideTangentCenter, farRadius)));
+    EXPECT_EQ(frustum.Contains(BoundingSphere(farOutsideTangentCenter, farRadius)),
+        ContainsResult::Outside);
 }
 
 TEST(Frustum, SelectionRectConstructor_ContainsOnlySelectedScreenRegion)
@@ -285,10 +296,10 @@ TEST(Frustum, SelectionRectConstructor_ContainsOnlySelectedScreenRegion)
     const Vec3f selectedPoint = WorldFromScreenPoint(camera, cameraPose, Vec2f(65.5f, 55.5f), 0.43f);
     const Vec3f outsideSelectionPoint = WorldFromScreenPoint(camera, cameraPose, Vec2f(25.7f, 56.3f), 0.43f);
 
-    EXPECT_TRUE(fullFrustum.Contains(BoundingSphere(selectedPoint, 0.017f)));
-    EXPECT_TRUE(selectionFrustum.Contains(BoundingSphere(selectedPoint, 0.017f)));
-    EXPECT_TRUE(fullFrustum.Contains(BoundingSphere(outsideSelectionPoint, 0.017f)));
-    EXPECT_FALSE(selectionFrustum.Contains(BoundingSphere(outsideSelectionPoint, 0.017f)));
+    EXPECT_EQ(fullFrustum.Contains(BoundingSphere(selectedPoint, 0.017f)), ContainsResult::Inside);
+    EXPECT_EQ(selectionFrustum.Contains(BoundingSphere(selectedPoint, 0.017f)), ContainsResult::Inside);
+    EXPECT_EQ(fullFrustum.Contains(BoundingSphere(outsideSelectionPoint, 0.017f)), ContainsResult::Inside);
+    EXPECT_EQ(selectionFrustum.Contains(BoundingSphere(outsideSelectionPoint, 0.017f)), ContainsResult::Outside);
 }
 
 // NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)

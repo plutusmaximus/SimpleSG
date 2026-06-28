@@ -57,7 +57,14 @@ public:
     Frustum(const Camera& camera, const Posef& cameraXForm);
     Frustum(const Camera& camera, const Posef& cameraXForm, const Rect& selectRect);
 
-    bool Contains(const BoundingSphere& sphere) const;
+    enum class ContainsResult
+    {
+        Outside,
+        Intersects,
+        Inside,
+    };
+
+    ContainsResult Contains(const BoundingSphere& sphere) const;
 
     const Vec4f& GetLeft() const { return m_Planes[kLeft]; }
     const Vec4f& GetRight() const { return m_Planes[kRight]; }
