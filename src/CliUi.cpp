@@ -66,8 +66,6 @@ CliUi::Render(const char* panelName)
 
     ImGui::SetNextItemWidth(-1.0f);
 
-    ImGui::SetKeyboardFocusHere(0);
-
     const bool submitted = ImGui::InputText("##CliInput",
         m_State.GetInput().data(),
         m_State.GetInput().size(),
