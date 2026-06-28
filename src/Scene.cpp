@@ -299,6 +299,11 @@ Scene::GetVisibleMeshes(const Frustum& frustum, std::vector<MeshInstance>& outVi
     for(const auto&& [modelInstance, worldXForm] :
         std::views::zip(m_ModelInstances, m_WorldTransforms))
     {
+        if(!modelInstance.IsVisible())
+        {
+            continue;
+        }
+        
         const BoundingSphere& modelBs = worldXForm.Transform * modelInstance.GetBoundingSphere();
 
         const Frustum::ContainsResult result = frustum.Contains(modelBs);
