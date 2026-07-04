@@ -5,6 +5,7 @@
 #include "FileFetcher.h"
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
+#include "InputMapper.h"
 #include "Level.h"
 #include "LuaRuntime.h"
 #include "MouseNav.h"
@@ -19,6 +20,7 @@
 #include "TextureCache.h"
 #include "ThreadPool.h"
 
+#include <SDL3/SDL_timer.h>
 #include <filesystem>
 #include <imgui_impl_sdl3.h>
 #include <random>
@@ -551,7 +553,107 @@ MainLoop()
 
     mouseNav.SetTransform(cameraXForm);
 
-    const bool mouseCaptured = false;
+    constexpr ActionIdentifier quit("Quit");
+    constexpr ActionIdentifier moveForward("MoveForward");
+    constexpr ActionIdentifier moveBackward("MoveBackward");
+    constexpr ActionIdentifier moveLeft("MoveLeft");
+    constexpr ActionIdentifier moveRight("MoveRight");
+    constexpr ActionIdentifier moveUpDown("MoveUpDown");
+    constexpr ActionIdentifier lookLeftRight("LookLeftRight");
+    constexpr ActionIdentifier lookUpDown("LookUpDown");
+    constexpr ActionIdentifier captureMouse("CaptureMouse");
+    constexpr ActionIdentifier releaseMouse("ReleaseMouse");
+
+    static constexpr float kMouseWheelScale = 20.0f;
+
+    InputMapping mappings[] //
+        {
+            {
+                .Input = KeyPressed<SDL_SCANCODE_ESCAPE>(),
+                .ActionId = quit,
+                .Handler =
+                    [&](const InputEvent&)
+                {
+                    SDL_Event event;
+
+                    event.quit = SDL_QuitEvent{
+                        .type = SDL_EVENT_QUIT,
+                        .timestamp = SDL_GetTicksNS(),
+                    };
+
+                    SDL_PushEvent(&event);
+                },
+            },
+            {
+                .Input = KeyDown<SDL_SCANCODE_W>(),
+                .ActionId = moveForward,
+                .Handler = [&](const InputEvent& event)
+                { mouseNav.Move(Vec3f(0, 0, event.Value)); },
+                .Scale = 1,
+            },
+            {
+                .Input = KeyDown<SDL_SCANCODE_S>(),
+                .ActionId = moveBackward,
+                .Handler = [&](const InputEvent& event)
+                { mouseNav.Move(Vec3f(0, 0, event.Value)); },
+                .Scale = -1,
+            },
+            {
+                .Input = KeyDown<SDL_SCANCODE_A>(),
+                .ActionId = moveLeft,
+                .Handler = [&](const InputEvent& event)
+                { mouseNav.Move(Vec3f(event.Value, 0, 0)); },
+                .Scale = -1,
+            },
+            {
+                .Input = KeyDown<SDL_SCANCODE_D>(),
+                .ActionId = moveRight,
+                .Handler = [&](const InputEvent& event)
+                { mouseNav.Move(Vec3f(event.Value, 0, 0)); },
+                .Scale = 1,
+            },
+            {
+                .Input = MouseMoveLeftRight(),
+                .ActionId = lookLeftRight,
+                .Handler = [&](const InputEvent& event) { mouseNav.Look(Vec2f(event.Value, 0)); },
+                .Scale = WalkMouseNav::kDefualtRotPerDXY * 2 * std::numbers::pi_v<float>,
+            },
+            {
+                .Input = MouseMoveUpDown(),
+                .ActionId = lookUpDown,
+                .Handler = [&](const InputEvent& event) { mouseNav.Look(Vec2f(0, event.Value)); },
+                .Scale = WalkMouseNav::kDefualtRotPerDXY * 2 * std::numbers::pi_v<float>,
+            },
+            {
+                .Input = MouseWheelUpDown(),
+                .ActionId = moveUpDown,
+                .Handler = [&](const InputEvent& event)
+                { mouseNav.Move(Vec3f(0, event.Value, 0)); },
+                .Scale = kMouseWheelScale,
+            },
+            {
+                .Input = MousePressed<SDL_BUTTON_LEFT>(),
+                .ActionId = captureMouse,
+                .Handler =
+                    [&](const InputEvent&)
+                {
+                    mouseNav.Activate();
+                    SDL_SetWindowRelativeMouseMode(GpuHelper::GetWindow(), true);
+                },
+            },
+            {
+                .Input = MouseReleased<SDL_BUTTON_LEFT>(),
+                .ActionId = releaseMouse,
+                .Handler =
+                    [&](const InputEvent&)
+                {
+                    mouseNav.Deactivate();
+                    SDL_SetWindowRelativeMouseMode(GpuHelper::GetWindow(), false);
+                },
+            },
+        };
+
+    InputMapper inputMapper(std::span(&mappings[0], std::size(mappings)));
 
     Timer frameTimer;
 
@@ -566,13 +668,13 @@ MainLoop()
 
         frameTimer.Restart();
 
-        SDL_Event event;
+        SDL_Event sdlEvent;
 
-        while(minimized && running && SDL_PollEvent(&event))
+        while(minimized && running && SDL_PollEvent(&sdlEvent))
         {
-            ImGui_ImplSDL3_ProcessEvent(&event);
+            ImGui_ImplSDL3_ProcessEvent(&sdlEvent);
 
-            switch(event.type)
+            switch(sdlEvent.type)
             {
                 case SDL_EVENT_WINDOW_RESTORED:
                 case SDL_EVENT_WINDOW_MAXIMIZED:
@@ -590,11 +692,13 @@ MainLoop()
             continue;
         }
 
-        while(!minimized && running && SDL_PollEvent(&event))
+        while(!minimized && running && SDL_PollEvent(&sdlEvent))
         {
-            ImGui_ImplSDL3_ProcessEvent(&event);
+            ImGui_ImplSDL3_ProcessEvent(&sdlEvent);
 
-            switch (event.type)
+            inputMapper.ProcessEvent(sdlEvent);
+
+            switch (sdlEvent.type)
             {
             case SDL_EVENT_QUIT:
                 running = false;
@@ -603,8 +707,8 @@ MainLoop()
             //case SDL_EVENT_WINDOW_RESIZED:
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
                 {
-                    const uint32_t newWidth = static_cast<uint32_t>(event.window.data1);
-                    const uint32_t newHeight = static_cast<uint32_t>(event.window.data2);
+                    const uint32_t newWidth = static_cast<uint32_t>(sdlEvent.window.data1);
+                    const uint32_t newHeight = static_cast<uint32_t>(sdlEvent.window.data2);
                     GpuHelper::Resize(newWidth, newHeight);
                 }
                 break;
@@ -619,61 +723,21 @@ MainLoop()
                 mouseNav.ClearButtons();
                 break;
 
-            case SDL_EVENT_MOUSE_MOTION:
-                if(mouseCaptured)
-                {
-                    mouseNav.OnMouseMove(Vec2f(event.motion.xrel, event.motion.yrel));
-                }
-                break;
-
-            /*case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                if(event.button.button == SDL_BUTTON_LEFT)
-                {
-                    mouseCaptured = true;
-                    SDL_SetWindowRelativeMouseMode(GpuHelper::GetWindow(), mouseCaptured);
-                }
-                break;
-
-            case SDL_EVENT_MOUSE_BUTTON_UP:
-                if(event.button.button == SDL_BUTTON_LEFT)
-                {
-                    mouseCaptured = false;
-                    SDL_SetWindowRelativeMouseMode(GpuHelper::GetWindow(), mouseCaptured);
-                    mouseNav.ClearButtons();
-                }
-                break;*/
-
-            case SDL_EVENT_MOUSE_WHEEL:
-                if(mouseCaptured)
-                {
-                    mouseNav.OnScroll(Vec2f(event.wheel.x, event.wheel.y));
-                }
-                break;
-
             case SDL_EVENT_KEY_DOWN:
-                if(mouseCaptured)
-                {
-                    mouseNav.OnKeyDown(event.key.scancode);
-                }
-
-                if(SDL_SCANCODE_ESCAPE == event.key.scancode)
-                {
-                    running = false;
-                }
-                else if(SDL_SCANCODE_RETURN == event.key.scancode)
+                if(SDL_SCANCODE_RETURN == sdlEvent.key.scancode)
                 {
                     constexpr float kImpulseMagnitude = 5.0f;
                     ApplyExplosionImpulse(physLevel, kImpulseMagnitude);
                 }
-                else if(SDL_SCANCODE_BACKSPACE == event.key.scancode)
+                else if(SDL_SCANCODE_BACKSPACE == sdlEvent.key.scancode)
                 {
                     ApplyStoppingImpulse(physLevel);
                 }
-                else if(SDL_SCANCODE_F1 == event.key.scancode)
+                else if(SDL_SCANCODE_F1 == sdlEvent.key.scancode)
                 {
                     pauseSim = !pauseSim;
                 }
-                else if(SDL_SCANCODE_F2 == event.key.scancode)
+                else if(SDL_SCANCODE_F2 == sdlEvent.key.scancode)
                 {
                     activateSelectedNodes = !activateSelectedNodes;
 
@@ -700,17 +764,18 @@ MainLoop()
                     }
                 }
                 break;
-            case SDL_EVENT_KEY_UP:
-                if(mouseCaptured)
-                {
-                    mouseNav.OnKeyUp(event.key.scancode);
-                }
-                break;
 
             default:
                 break;
             }
         }
+
+        if(!running)
+        {
+            continue;
+        }
+
+        inputMapper.DispatchEvents();
 
         if(!pauseSim)
         {
@@ -774,8 +839,75 @@ MainLoop()
 }
 } // namespace
 
+namespace
+{
+class ActionIdentifier
+{
+public:
+    ActionIdentifier() = delete;
+
+    template<size_t N>
+    explicit consteval ActionIdentifier(const char (&name)[N])
+        : m_Name(&name[0]),
+          m_Hash(HashName(name))
+    {
+        static_assert(N > 0, "ActionIdentifier name must not be empty");
+    }
+
+    [[maybe_unused]] friend constexpr auto operator<=>(const ActionIdentifier& a,
+        const ActionIdentifier& b)
+    {
+        return a.m_Hash <=> b.m_Hash;
+    }
+
+    friend constexpr bool operator==(const ActionIdentifier& a, const ActionIdentifier& b)
+    {
+        return a.m_Hash == b.m_Hash && std::strcmp(a.m_Name, b.m_Name) == 0;
+    }
+
+    [[maybe_unused]] friend constexpr bool operator!=(const ActionIdentifier& a,
+        const ActionIdentifier& b)
+    {
+        return !(a == b);
+    }
+
+private:
+    template<size_t N>
+    static consteval uint64_t HashName(const char (&str)[N])
+    {
+        static constexpr uint64_t kFNVOffsetBasis = 14695981039346656037ull;
+        static constexpr uint64_t kFNVPrime = 1099511628211ull;
+
+        uint64_t h = kFNVOffsetBasis;
+
+        // N includes the null terminator, so stop at N - 1.
+        for(size_t i = 0; i < N - 1; ++i)
+        {
+            h ^= static_cast<unsigned char>(str[i]);
+            h *= kFNVPrime;
+        }
+
+        return h;
+    }
+    const char* m_Name{ nullptr };
+    uint64_t m_Hash{ 0 };
+};
+
+constexpr ActionIdentifier actionId("QuitAction");
+}
+
+namespace
+{
+constexpr ActionIdentifier actionId2("QuitAction");
+}
+
 int main(int /*argc*/, char** /*argv*/)
 {
+    [[maybe_unused]] const void* p = &actionId;
+    p = &actionId2;
+
+    MLG_ASSERT(actionId == actionId2, "Action identifiers should be equal");
+
     if(!Startup())
     {
         return -1;

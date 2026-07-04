@@ -473,18 +473,10 @@ PropKit::GetModel(const std::string_view& name) const
 {
     auto it = std::ranges::lower_bound(m_Models,
         name,
-        std::ranges::less{},
-        [](const Model& model) -> std::string_view { return model.GetName(); });
+        {},
+        &Model::GetName);
 
-    if(it != m_Models.end())
-    {
-        if(it->GetName() != name)
-        {
-            it = m_Models.end();
-        }
-    }
-
-    if(!MLG_VERIFY(it != m_Models.end(), "Model not found: {}", name))
+    if(!MLG_VERIFY(m_Models.end() != it && it->GetName() == name, "Model not found: {}", name))
     {
         return nullptr;
     }

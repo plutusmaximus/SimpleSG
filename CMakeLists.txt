@@ -309,6 +309,7 @@ set(SSG_SOURCES
   src/GridHash.cpp
   src/GltfLoader.cpp
   src/ImGuiRenderer.cpp
+  src/InputMapper.cpp
   src/Level.cpp
   src/Log.cpp
   src/LuaRuntime.cpp
@@ -345,6 +346,7 @@ set(SSG_HEADERS
   src/GridHash.h
   src/ImGuiRenderer.h
   src/inlist.h
+  src/InputMapper.h
   src/Level.h
   src/LevelDefs.h
   src/Log.h

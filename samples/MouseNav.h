@@ -2,45 +2,10 @@
 
 #include "VecMath.h"
 
-#include <array>
-
-/// @brief Abstract base class for mouse navigation handling.
-class MouseNav
-{
-public:
-
-    MouseNav() = default;
-    virtual ~MouseNav() = 0;
-    MouseNav(const MouseNav&) = delete;
-    MouseNav& operator=(const MouseNav&) = delete;
-    MouseNav(MouseNav&&) = delete;
-    MouseNav& operator=(MouseNav&&) = delete;
-
-    virtual void OnMouseDown(const Vec2f& mouseLoc, const Extent& screenBounds, const int mouseButton) = 0;
-
-    virtual void OnMouseUp(const int mouseButton) = 0;
-
-    virtual void OnKeyDown(const int keyCode) = 0;
-
-    virtual void OnKeyUp(const int keyCode) = 0;
-
-    virtual void OnScroll(const Vec2f& scroll) = 0;
-
-    virtual void OnMouseMove(const Vec2f& mouseDelta) = 0;
-
-    virtual void ClearButtons() = 0;
-
-    virtual const Posef& GetTransform() const = 0;
-
-    virtual void Update(const float deltaSeconds) = 0;
-};
-
-inline MouseNav::~MouseNav() = default;
-
 /// @brief Mouse navigation implementation using walk-style controls.
 ///       Similar to first-person shooter controls.
 ///       W/A/S/D to move, mouse to look around, mouse wheel to pan up/down.
-class WalkMouseNav : public MouseNav
+class WalkMouseNav
 {
 public:
     static constexpr float kDefualtRotPerDXY = 0.0001f;
@@ -57,27 +22,27 @@ public:
 
     WalkMouseNav() : WalkMouseNav(Posef{}, kDefualtRotPerDXY, kDefaultMovePerSec) {}
 
-    ~WalkMouseNav() override;
+    ~WalkMouseNav() = default;
     WalkMouseNav(const WalkMouseNav&) = delete;
     WalkMouseNav& operator=(const WalkMouseNav&) = delete;
     WalkMouseNav(WalkMouseNav&&) = delete;
     WalkMouseNav& operator=(WalkMouseNav&&) = delete;
 
-    void OnMouseDown(const Vec2f& mouseLoc, const Extent& screenBounds, const int mouseButton) override;
+    void OnKeyDown(const int keyCode);
 
-    void OnMouseUp(const int mouseButton) override;
+    void OnKeyUp(const int keyCode);
 
-    void OnKeyDown(const int keyCode) override;
+    void OnScroll(const Vec2f& scroll);
 
-    void OnKeyUp(const int keyCode) override;
+    void OnMouseMove(const Vec2f& mouseDelta);
 
-    void OnScroll(const Vec2f& scroll) override;
+    void ClearButtons();
 
-    void OnMouseMove(const Vec2f& mouseDelta) override;
+    void Update(const float deltaSeconds);
 
-    void ClearButtons() override;
+    void Look(const Vec2f& delta);
 
-    void Update(const float deltaSeconds) override;
+    void Move(const Vec3f& delta);
 
     void SetTransform(const Posef& transform)
     {
@@ -85,17 +50,22 @@ public:
         m_TargetTransform = transform;
     }
 
-    const Posef& GetTransform() const override
+    void Activate();
+
+    void Deactivate();
+
+    const Posef& GetTransform() const
     {
         return m_CurrentTransform;
     }
 
 private:
 
-    bool m_AKey{ false }, m_SKey{ false }, m_DKey{ false }, m_WKey{ false };
-    Vec2f m_MouseDelta{ 0, 0};
+    Vec2f m_LookDelta{ 0, 0};
+    Vec3f m_MoveDelta{ 0, 0, 0 };
     Posef m_CurrentTransform;
     Posef m_TargetTransform;
     const float m_MovePerSec;
-    const float m_MouseMoveRotScale;
+    //const float m_MouseMoveRotScale;
+    bool m_IsActive{ false };
 };

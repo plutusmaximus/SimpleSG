@@ -1,7 +1,5 @@
 #include "MouseNav.h"
 
-#include "AssertHelper.h"
-
 #include <SDL3/SDL_scancode.h>
 
 #include <algorithm>
@@ -11,43 +9,23 @@
 
 WalkMouseNav::WalkMouseNav(
         const Posef& initialTransform,
-        const float rotPerDXY,
+        const float /*rotPerDXY*/,
         const float movePerSec)
     : m_CurrentTransform(initialTransform)
     , m_TargetTransform(initialTransform)
     , m_MovePerSec(movePerSec)
-    , m_MouseMoveRotScale(rotPerDXY * 2 * std::numbers::pi_v<float>)
-{
-}
-
-WalkMouseNav::~WalkMouseNav() = default;
-
-void
-WalkMouseNav::OnMouseDown(const Vec2f& /*mouseLoc*/, const Extent& /*screenBounds*/, const int /*mouseButton*/)
+    //, m_MouseMoveRotScale(rotPerDXY * 2 * std::numbers::pi_v<float>)
 {
 }
 
 void
-WalkMouseNav::OnMouseUp(const int /*mouseButton*/)
+WalkMouseNav::OnKeyDown(const int)
 {
 }
 
 void
-WalkMouseNav::OnKeyDown(const int keyCode)
+WalkMouseNav::OnKeyUp(const int)
 {
-    m_AKey = (SDL_SCANCODE_A == keyCode) ? true : m_AKey;
-    m_SKey = (SDL_SCANCODE_S == keyCode) ? true : m_SKey;
-    m_DKey = (SDL_SCANCODE_D == keyCode) ? true : m_DKey;
-    m_WKey = (SDL_SCANCODE_W == keyCode) ? true : m_WKey;
-}
-
-void
-WalkMouseNav::OnKeyUp(const int keyCode)
-{
-    m_AKey = (SDL_SCANCODE_A == keyCode) ? false : m_AKey;
-    m_SKey = (SDL_SCANCODE_S == keyCode) ? false : m_SKey;
-    m_DKey = (SDL_SCANCODE_D == keyCode) ? false : m_DKey;
-    m_WKey = (SDL_SCANCODE_W == keyCode) ? false : m_WKey;
 }
 
 void
@@ -61,24 +39,34 @@ WalkMouseNav::OnScroll(const Vec2f& scroll)
 void
 WalkMouseNav::OnMouseMove(const Vec2f& mouseDelta)
 {
-    m_MouseDelta += mouseDelta;
+    m_LookDelta += mouseDelta;
 }
 
 void
 WalkMouseNav::ClearButtons()
 {
-    m_AKey = m_SKey = m_DKey = m_WKey = false;
-    m_MouseDelta = Vec2f{ 0,0 };
+    m_LookDelta = Vec2f{ 0,0 };
 }
 
 void
 WalkMouseNav::Update(const float deltaSeconds)
 {
-    //Update rotation
-    if (m_MouseDelta.x != 0 || m_MouseDelta.y != 0)
+    const Vec2f lookDelta = m_LookDelta;
+    const Vec3f moveDelta = m_MoveDelta;
+
+    m_LookDelta = Vec2f(0);
+    m_MoveDelta = Vec3f(0);
+
+    if(!m_IsActive)
     {
-        float rotX = m_MouseDelta.y * m_MouseMoveRotScale;
-        float rotY = m_MouseDelta.x * m_MouseMoveRotScale;
+        return;
+    }
+
+    //Update rotation
+    if (lookDelta.x != 0 || lookDelta.y != 0)
+    {
+        float rotX = lookDelta.y;// * m_MouseMoveRotScale;
+        float rotY = lookDelta.x;// * m_MouseMoveRotScale;
 
         constexpr float kHalfPi = std::numbers::pi_v<float> * 0.5f;
 
@@ -90,32 +78,10 @@ WalkMouseNav::Update(const float deltaSeconds)
         const UnitQuatf yaw = UnitQuatf(Radiansf(rotY), Vec3f::YAXIS());
 
         m_TargetTransform.R = yaw * m_TargetTransform.R * pitch;
-        m_MouseDelta = Vec2f{ 0,0 };
     }
 
     //Update translation
-    Vec3f moveDelta{ 0 };
-    if (m_AKey)
-    {
-        moveDelta += -m_CurrentTransform.LocalXAxis() * m_MovePerSec * deltaSeconds;
-    }
-    if (m_DKey)
-    {
-        moveDelta += m_CurrentTransform.LocalXAxis() * m_MovePerSec * deltaSeconds;
-    }
-    if (m_WKey)
-    {
-        moveDelta += m_CurrentTransform.LocalZAxis() * m_MovePerSec * deltaSeconds;
-    }
-    if (m_SKey)
-    {
-        moveDelta += -m_CurrentTransform.LocalZAxis() * m_MovePerSec * deltaSeconds;
-    }
-
-    if (moveDelta.x != 0 || moveDelta.y != 0 || moveDelta.z != 0)
-    {
-        m_TargetTransform.T += moveDelta;
-    }
+    m_TargetTransform.T += moveDelta * m_MovePerSec * deltaSeconds;
 
     constexpr float kTransformTimeToTarget = 0.1f;
     //constexpr float kRotationTimeToTarget = 0.01f;
@@ -126,4 +92,29 @@ WalkMouseNav::Update(const float deltaSeconds)
     m_CurrentTransform.T = m_CurrentTransform.T.Lerp(m_TargetTransform.T, dtT);
     //m_CurrentTransform.R = m_CurrentTransform.R.Lerp(m_TargetTransform.R, dtR);
     m_CurrentTransform.R = m_TargetTransform.R;
+}
+
+void
+WalkMouseNav::Look(const Vec2f& delta)
+{
+    m_LookDelta += delta;
+}
+
+void
+WalkMouseNav::Move(const Vec3f& delta)
+{
+    m_MoveDelta += m_CurrentTransform.R * delta;
+}
+
+void
+WalkMouseNav::Activate()
+{
+    m_IsActive = true;
+}
+
+void
+WalkMouseNav::Deactivate()
+{
+    m_IsActive = false;
+    ClearButtons();
 }
