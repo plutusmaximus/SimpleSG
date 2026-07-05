@@ -566,6 +566,76 @@ MainLoop()
 
     static constexpr float kMouseWheelScale = 20.0f;
 
+    const ActionMapping actionMappings[] //
+        {
+            {
+                .ActionId = quit,
+                .Handler =
+                    [&](const InputEvent&)
+                {
+                    SDL_Event event;
+
+                    event.quit = SDL_QuitEvent{
+                        .type = SDL_EVENT_QUIT,
+                        .timestamp = SDL_GetTicksNS(),
+                    };
+
+                    SDL_PushEvent(&event);
+                },
+            },
+            {
+                .ActionId = moveForward,
+                .Handler = [&](const InputEvent& event)
+                { mouseNav.Move(Vec3f(0, 0, event.Value)); },
+            },
+            {
+                .ActionId = moveBackward,
+                .Handler = [&](const InputEvent& event)
+                { mouseNav.Move(Vec3f(0, 0, event.Value)); },
+            },
+            {
+                .ActionId = moveLeft,
+                .Handler = [&](const InputEvent& event)
+                { mouseNav.Move(Vec3f(event.Value, 0, 0)); },
+            },
+            {
+                .ActionId = moveRight,
+                .Handler = [&](const InputEvent& event)
+                { mouseNav.Move(Vec3f(event.Value, 0, 0)); },
+            },
+            {
+                .ActionId = lookLeftRight,
+                .Handler = [&](const InputEvent& event) { mouseNav.Look(Vec2f(event.Value, 0)); },
+            },
+            {
+                .ActionId = lookUpDown,
+                .Handler = [&](const InputEvent& event) { mouseNav.Look(Vec2f(0, event.Value)); },
+            },
+            {
+                .ActionId = moveUpDown,
+                .Handler = [&](const InputEvent& event)
+                { mouseNav.Move(Vec3f(0, event.Value, 0)); },
+            },
+            {
+                .ActionId = captureMouse,
+                .Handler =
+                    [&](const InputEvent&)
+                {
+                    mouseNav.Activate();
+                    SDL_SetWindowRelativeMouseMode(GpuHelper::GetWindow(), true);
+                },
+            },
+            {
+                .ActionId = releaseMouse,
+                .Handler =
+                    [&](const InputEvent&)
+                {
+                    mouseNav.Deactivate();
+                    SDL_SetWindowRelativeMouseMode(GpuHelper::GetWindow(), false);
+                },
+            },
+        };
+
     InputMapping mappings[] //
         {
             {
@@ -613,19 +683,19 @@ MainLoop()
                 .Scale = 1,
             },
             {
-                .Input = MouseMoveLeftRight(),
+                .Input = MouseMoveX(),
                 .ActionId = lookLeftRight,
                 .Handler = [&](const InputEvent& event) { mouseNav.Look(Vec2f(event.Value, 0)); },
                 .Scale = WalkMouseNav::kDefualtRotPerDXY * 2 * std::numbers::pi_v<float>,
             },
             {
-                .Input = MouseMoveUpDown(),
+                .Input = MouseMoveY(),
                 .ActionId = lookUpDown,
                 .Handler = [&](const InputEvent& event) { mouseNav.Look(Vec2f(0, event.Value)); },
                 .Scale = WalkMouseNav::kDefualtRotPerDXY * 2 * std::numbers::pi_v<float>,
             },
             {
-                .Input = MouseWheelUpDown(),
+                .Input = MouseWheelY(),
                 .ActionId = moveUpDown,
                 .Handler = [&](const InputEvent& event)
                 { mouseNav.Move(Vec3f(0, event.Value, 0)); },
@@ -839,75 +909,8 @@ MainLoop()
 }
 } // namespace
 
-namespace
-{
-class ActionIdentifier
-{
-public:
-    ActionIdentifier() = delete;
-
-    template<size_t N>
-    explicit consteval ActionIdentifier(const char (&name)[N])
-        : m_Name(&name[0]),
-          m_Hash(HashName(name))
-    {
-        static_assert(N > 0, "ActionIdentifier name must not be empty");
-    }
-
-    [[maybe_unused]] friend constexpr auto operator<=>(const ActionIdentifier& a,
-        const ActionIdentifier& b)
-    {
-        return a.m_Hash <=> b.m_Hash;
-    }
-
-    friend constexpr bool operator==(const ActionIdentifier& a, const ActionIdentifier& b)
-    {
-        return a.m_Hash == b.m_Hash && std::strcmp(a.m_Name, b.m_Name) == 0;
-    }
-
-    [[maybe_unused]] friend constexpr bool operator!=(const ActionIdentifier& a,
-        const ActionIdentifier& b)
-    {
-        return !(a == b);
-    }
-
-private:
-    template<size_t N>
-    static consteval uint64_t HashName(const char (&str)[N])
-    {
-        static constexpr uint64_t kFNVOffsetBasis = 14695981039346656037ull;
-        static constexpr uint64_t kFNVPrime = 1099511628211ull;
-
-        uint64_t h = kFNVOffsetBasis;
-
-        // N includes the null terminator, so stop at N - 1.
-        for(size_t i = 0; i < N - 1; ++i)
-        {
-            h ^= static_cast<unsigned char>(str[i]);
-            h *= kFNVPrime;
-        }
-
-        return h;
-    }
-    const char* m_Name{ nullptr };
-    uint64_t m_Hash{ 0 };
-};
-
-constexpr ActionIdentifier actionId("QuitAction");
-}
-
-namespace
-{
-constexpr ActionIdentifier actionId2("QuitAction");
-}
-
 int main(int /*argc*/, char** /*argv*/)
 {
-    [[maybe_unused]] const void* p = &actionId;
-    p = &actionId2;
-
-    MLG_ASSERT(actionId == actionId2, "Action identifiers should be equal");
-
     if(!Startup())
     {
         return -1;

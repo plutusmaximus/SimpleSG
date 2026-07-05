@@ -12,9 +12,9 @@ namespace
 
 constexpr bool ButtonIdLt(const ButtonIdentifier& a, const ButtonIdentifier& b)
 {
-    if(a.GetType() != b.GetType())
+    if(a.GetDevice() != b.GetDevice())
     {
-        return a.GetType() < b.GetType();
+        return a.GetDevice() < b.GetDevice();
     }
 
     return a.GetId() < b.GetId();
@@ -22,7 +22,7 @@ constexpr bool ButtonIdLt(const ButtonIdentifier& a, const ButtonIdentifier& b)
 
 constexpr bool operator==(const ButtonIdentifier& a, const ButtonIdentifier& b)
 {
-    return a.GetType() == b.GetType() && a.GetId() == b.GetId();
+    return a.GetDevice() == b.GetDevice() && a.GetId() == b.GetId();
 }
 
 constexpr bool ButtonIdEq(const ButtonIdentifier& a, const ButtonIdentifier& b)
@@ -42,9 +42,9 @@ constexpr bool InputButtonLt(const InputButton& a, const InputButton& b)
 
 constexpr bool InputAxisLt(const InputAxis& a, const InputAxis& b)
 {
-    if(a.GetType() != b.GetType())
+    if(a.GetDevice() != b.GetDevice())
     {
-        return a.GetType() < b.GetType();
+        return a.GetDevice() < b.GetDevice();
     }
 
     return a.GetDirection() < b.GetDirection();
@@ -138,7 +138,7 @@ InputMapper::ProcessEvent(const SDL_Event& event)
         case SDL_EVENT_KEY_DOWN:
         case SDL_EVENT_KEY_UP:
         {
-            const ButtonIdentifier buttonId(InputButtonType::Key, event.key.scancode);
+            const ButtonIdentifier buttonId(InputButtonDevice::Keyboard, event.key.scancode);
             const bool pressed = event.type == SDL_EVENT_KEY_DOWN;
             HandleButtonEvent(buttonId, timestamp, pressed);
         }
@@ -147,7 +147,7 @@ InputMapper::ProcessEvent(const SDL_Event& event)
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
         case SDL_EVENT_MOUSE_BUTTON_UP:
         {
-            const ButtonIdentifier buttonId(InputButtonType::Mouse, event.button.button);
+            const ButtonIdentifier buttonId(InputButtonDevice::Mouse, event.button.button);
             const bool pressed = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
             HandleButtonEvent(buttonId, timestamp, pressed);
         }
@@ -174,7 +174,7 @@ InputMapper::DispatchEvents()
     // Dispatch naturally occurring events.
     for(const QueuedEvent& qe : m_EventQueue)
     {
-        qe.Handler->Dispatch(qe.Event);
+        (*qe.Handler)(qe.Event);
     }
 
     m_EventQueue.clear();
@@ -184,7 +184,7 @@ InputMapper::DispatchEvents()
 
     for(const QueuedEvent& qe : m_EventQueue)
     {
-        qe.Handler->Dispatch(qe.Event);
+        (*qe.Handler)(qe.Event);
     }
 
     m_EventQueue.clear();
@@ -246,7 +246,7 @@ InputMapper::SynthesizeEvents()
 
     if(m_MouseDelta.x != 0.0f)
     {
-        const InputAxis axis(InputAxisType::Mouse, InputAxisDirection::LeftRight);
+        const InputAxis axis(InputAxisDevice::Mouse, InputAxisDirection::X);
         const MappingRange mappings = GetMappings(axis);
         for(const InputMapping* mapping : mappings)
         {
@@ -263,7 +263,7 @@ InputMapper::SynthesizeEvents()
 
     if(m_MouseDelta.y != 0.0f)
     {
-        const InputAxis axis(InputAxisType::Mouse, InputAxisDirection::UpDown);
+        const InputAxis axis(InputAxisDevice::Mouse, InputAxisDirection::Y);
         const MappingRange mappings = GetMappings(axis);
         for(const InputMapping* mapping : mappings)
         {
@@ -280,7 +280,7 @@ InputMapper::SynthesizeEvents()
 
     if(m_MouseWheelDelta.x != 0.0f)
     {
-        const InputAxis axis(InputAxisType::MouseWheel, InputAxisDirection::LeftRight);
+        const InputAxis axis(InputAxisDevice::MouseWheel, InputAxisDirection::X);
         const MappingRange mappings = GetMappings(axis);
         for(const InputMapping* mapping : mappings)
         {
@@ -297,7 +297,7 @@ InputMapper::SynthesizeEvents()
 
     if(m_MouseWheelDelta.y != 0.0f)
     {
-        const InputAxis axis(InputAxisType::MouseWheel, InputAxisDirection::UpDown);
+        const InputAxis axis(InputAxisDevice::MouseWheel, InputAxisDirection::Y);
         const MappingRange mappings = GetMappings(axis);
         for(const InputMapping* mapping : mappings)
         {
@@ -382,7 +382,7 @@ InputMapper::GetButtonState(const ButtonIdentifier& buttonId)
 }
 
 void
-InputMapper::EnqueueEvent(const InputEvent& event, const InputEventHandler& handler)
+InputMapper::EnqueueEvent(const InputEvent& event, const ActionHandler& handler)
 {
     if(!MLG_VERIFY(m_EventQueue.size() < kMaxEventQueueSize, "Event queue is full"))
     {
