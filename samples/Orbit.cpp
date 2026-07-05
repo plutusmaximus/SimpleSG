@@ -566,90 +566,21 @@ MainLoop()
 
     static constexpr float kMouseWheelScale = 20.0f;
 
-    const ActionMapping actionMappings[] //
-        {
-            {
-                .ActionId = quit,
-                .Handler =
-                    [&](const InputEvent&)
-                {
-                    SDL_Event event;
-
-                    event.quit = SDL_QuitEvent{
-                        .type = SDL_EVENT_QUIT,
-                        .timestamp = SDL_GetTicksNS(),
-                    };
-
-                    SDL_PushEvent(&event);
-                },
-            },
-            {
-                .ActionId = moveForward,
-                .Handler = [&](const InputEvent& event)
-                { mouseNav.Move(Vec3f(0, 0, event.Value)); },
-            },
-            {
-                .ActionId = moveBackward,
-                .Handler = [&](const InputEvent& event)
-                { mouseNav.Move(Vec3f(0, 0, event.Value)); },
-            },
-            {
-                .ActionId = moveLeft,
-                .Handler = [&](const InputEvent& event)
-                { mouseNav.Move(Vec3f(event.Value, 0, 0)); },
-            },
-            {
-                .ActionId = moveRight,
-                .Handler = [&](const InputEvent& event)
-                { mouseNav.Move(Vec3f(event.Value, 0, 0)); },
-            },
-            {
-                .ActionId = lookLeftRight,
-                .Handler = [&](const InputEvent& event) { mouseNav.Look(Vec2f(event.Value, 0)); },
-            },
-            {
-                .ActionId = lookUpDown,
-                .Handler = [&](const InputEvent& event) { mouseNav.Look(Vec2f(0, event.Value)); },
-            },
-            {
-                .ActionId = moveUpDown,
-                .Handler = [&](const InputEvent& event)
-                { mouseNav.Move(Vec3f(0, event.Value, 0)); },
-            },
-            {
-                .ActionId = captureMouse,
-                .Handler =
-                    [&](const InputEvent&)
-                {
-                    mouseNav.Activate();
-                    SDL_SetWindowRelativeMouseMode(GpuHelper::GetWindow(), true);
-                },
-            },
-            {
-                .ActionId = releaseMouse,
-                .Handler =
-                    [&](const InputEvent&)
-                {
-                    mouseNav.Deactivate();
-                    SDL_SetWindowRelativeMouseMode(GpuHelper::GetWindow(), false);
-                },
-            },
-        };
-
-    InputMapping mappings[] //
+    InputMapping inputMappings[] //
         {
             {
                 .Input = KeyPressed<SDL_SCANCODE_ESCAPE>(),
                 .ActionId = quit,
                 .Handler =
-                    [&](const InputEvent&)
+                    [&](const ActionEvent&)
                 {
                     SDL_Event event;
 
-                    event.quit = SDL_QuitEvent{
-                        .type = SDL_EVENT_QUIT,
-                        .timestamp = SDL_GetTicksNS(),
-                    };
+                    event.quit = SDL_QuitEvent //
+                        {
+                            .type = SDL_EVENT_QUIT,
+                            .timestamp = SDL_GetTicksNS(),
+                        };
 
                     SDL_PushEvent(&event);
                 },
@@ -657,47 +588,47 @@ MainLoop()
             {
                 .Input = KeyDown<SDL_SCANCODE_W>(),
                 .ActionId = moveForward,
-                .Handler = [&](const InputEvent& event)
+                .Handler = [&](const ActionEvent& event)
                 { mouseNav.Move(Vec3f(0, 0, event.Value)); },
                 .Scale = 1,
             },
             {
                 .Input = KeyDown<SDL_SCANCODE_S>(),
                 .ActionId = moveBackward,
-                .Handler = [&](const InputEvent& event)
+                .Handler = [&](const ActionEvent& event)
                 { mouseNav.Move(Vec3f(0, 0, event.Value)); },
                 .Scale = -1,
             },
             {
                 .Input = KeyDown<SDL_SCANCODE_A>(),
                 .ActionId = moveLeft,
-                .Handler = [&](const InputEvent& event)
+                .Handler = [&](const ActionEvent& event)
                 { mouseNav.Move(Vec3f(event.Value, 0, 0)); },
                 .Scale = -1,
             },
             {
                 .Input = KeyDown<SDL_SCANCODE_D>(),
                 .ActionId = moveRight,
-                .Handler = [&](const InputEvent& event)
+                .Handler = [&](const ActionEvent& event)
                 { mouseNav.Move(Vec3f(event.Value, 0, 0)); },
                 .Scale = 1,
             },
             {
                 .Input = MouseMoveX(),
                 .ActionId = lookLeftRight,
-                .Handler = [&](const InputEvent& event) { mouseNav.Look(Vec2f(event.Value, 0)); },
+                .Handler = [&](const ActionEvent& event) { mouseNav.Look(Vec2f(event.Value, 0)); },
                 .Scale = WalkMouseNav::kDefualtRotPerDXY * 2 * std::numbers::pi_v<float>,
             },
             {
                 .Input = MouseMoveY(),
                 .ActionId = lookUpDown,
-                .Handler = [&](const InputEvent& event) { mouseNav.Look(Vec2f(0, event.Value)); },
+                .Handler = [&](const ActionEvent& event) { mouseNav.Look(Vec2f(0, event.Value)); },
                 .Scale = WalkMouseNav::kDefualtRotPerDXY * 2 * std::numbers::pi_v<float>,
             },
             {
                 .Input = MouseWheelY(),
                 .ActionId = moveUpDown,
-                .Handler = [&](const InputEvent& event)
+                .Handler = [&](const ActionEvent& event)
                 { mouseNav.Move(Vec3f(0, event.Value, 0)); },
                 .Scale = kMouseWheelScale,
             },
@@ -705,7 +636,7 @@ MainLoop()
                 .Input = MousePressed<SDL_BUTTON_LEFT>(),
                 .ActionId = captureMouse,
                 .Handler =
-                    [&](const InputEvent&)
+                    [&](const ActionEvent&)
                 {
                     mouseNav.Activate();
                     SDL_SetWindowRelativeMouseMode(GpuHelper::GetWindow(), true);
@@ -715,7 +646,7 @@ MainLoop()
                 .Input = MouseReleased<SDL_BUTTON_LEFT>(),
                 .ActionId = releaseMouse,
                 .Handler =
-                    [&](const InputEvent&)
+                    [&](const ActionEvent&)
                 {
                     mouseNav.Deactivate();
                     SDL_SetWindowRelativeMouseMode(GpuHelper::GetWindow(), false);
@@ -723,7 +654,7 @@ MainLoop()
             },
         };
 
-    InputMapper inputMapper(std::span(&mappings[0], std::size(mappings)));
+    InputMapper inputMapper(std::span(&inputMappings[0], std::size(inputMappings)));
 
     Timer frameTimer;
 

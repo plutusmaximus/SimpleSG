@@ -173,7 +173,7 @@ private:
     uint64_t m_Hash{ 0 };
 };
 
-struct InputEvent;
+struct ActionEvent;
 
 /// @brief ActionHandler contains a callable object that will be invoked when an action is triggered.
 class ActionHandler
@@ -192,7 +192,7 @@ public:
         : m_Invoke(&ActionHandler::Invoke<std::remove_cvref_t<F>>),
           m_Destroy(&ActionHandler::Destroy<std::remove_cvref_t<F>>)
     {
-        static_assert(std::is_invocable_r_v<void, std::remove_cvref_t<F>&, const InputEvent&>);
+        static_assert(std::is_invocable_r_v<void, std::remove_cvref_t<F>&, const ActionEvent&>);
         static_assert(sizeof(F) <= kCapacity, "Callable too large for ActionHandler");
         static_assert(alignof(F) <= kAlign, "Callable alignment too large for ActionHandler");
 
@@ -201,7 +201,7 @@ public:
         std::construct_at(storage, std::forward<F>(f));
     }
 
-    void operator()(const InputEvent& e) const
+    void operator()(const ActionEvent& e) const
     {
         m_Invoke(GetStorage(), e);
     }
@@ -215,7 +215,7 @@ private:
     alignas(kAlign) std::byte m_Bytes[kCapacity]{};
 
     template<typename F>
-    static void Invoke(const void* p, const InputEvent& e)
+    static void Invoke(const void* p, const ActionEvent& e)
     {
         (*static_cast<const F*>(p))(e);
     }
@@ -226,7 +226,7 @@ private:
         std::destroy_at(static_cast<F*>(p));
     }
 
-    void (*m_Invoke)(const void*, const InputEvent&) = nullptr;
+    void (*m_Invoke)(const void*, const ActionEvent&) = nullptr;
     void (*m_Destroy)(void*) = nullptr;
 
     void* GetStorage()
@@ -240,15 +240,9 @@ private:
     }
 };
 
-struct ActionMapping
-{
-    ActionIdentifier ActionId;
-    ActionHandler Handler;
-};
-
-/// @brief Input events are triggered by actions that are mapped to input buttons or axes.
-///       Input events are dispatched to handlers that can respond to the input.
-struct InputEvent
+/// @brief Action events are triggered by input buttons or axes mapped to actions.
+///       Action events are dispatched to handlers that can respond to the input.
+struct ActionEvent
 {
     ActionIdentifier ActionId;
     std::chrono::duration<int64_t, std::micro> Timestamp;
@@ -257,9 +251,9 @@ struct InputEvent
     float Value{0.0f};
 };
 
-/// @brief Represents a mapping between an input button or axis and an input action.
+/// @brief Represents a mapping between an input button or axis and an action.
 /// When an input event occurs for the specified button or axis, the handler will be called
-/// with an input event that contains the associated action identifier and a timestamp.
+/// with an event that contains the associated action identifier and a timestamp.
 struct InputMapping // NOLINT(clang-analyzer-optin.performance.Padding)
 {
     std::variant<InputButton, InputAxis> Input;
@@ -300,13 +294,13 @@ private:
     {
         QueuedEvent() = delete;
 
-        QueuedEvent(const InputEvent& event, const ActionHandler& handler)
+        QueuedEvent(const ActionEvent& event, const ActionHandler& handler)
             : Event(event),
               Handler(&handler)
         {
         }
 
-        InputEvent Event;
+        ActionEvent Event;
         const ActionHandler* Handler{nullptr};
     };
 
@@ -324,7 +318,7 @@ private:
 
     ButtonState* GetButtonState(const ButtonIdentifier& buttonId);
 
-    void EnqueueEvent(const InputEvent& event, const ActionHandler& handler);
+    void EnqueueEvent(const ActionEvent& event, const ActionHandler& handler);
 
     static constexpr size_t kMaxMappingCount = 256;
 

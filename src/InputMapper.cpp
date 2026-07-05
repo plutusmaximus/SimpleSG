@@ -224,14 +224,14 @@ InputMapper::HandleButtonEvent(const ButtonIdentifier& buttonId,
 
     for(const InputMapping* mapping : mappings)
     {
-        const InputEvent inputEvent //
+        const ActionEvent actionEvent //
             {
                 .ActionId = mapping->ActionId,
                 .Timestamp = timestamp,
                 .Value = mapping->Scale,
             };
 
-        EnqueueEvent(inputEvent, mapping->Handler);
+        EnqueueEvent(actionEvent, mapping->Handler);
     }
 
     buttonState->Pressed = pressed;
@@ -250,14 +250,14 @@ InputMapper::SynthesizeEvents()
         const MappingRange mappings = GetMappings(axis);
         for(const InputMapping* mapping : mappings)
         {
-            const InputEvent inputEvent //
+            const ActionEvent actionEvent //
                 {
                     .ActionId = mapping->ActionId,
                     .Timestamp = timestamp,
                     .Value = m_MouseDelta.x * mapping->Scale,
                 };
 
-            EnqueueEvent(inputEvent, mapping->Handler);
+            EnqueueEvent(actionEvent, mapping->Handler);
         }
     }
 
@@ -267,14 +267,14 @@ InputMapper::SynthesizeEvents()
         const MappingRange mappings = GetMappings(axis);
         for(const InputMapping* mapping : mappings)
         {
-            const InputEvent inputEvent //
+            const ActionEvent actionEvent //
                 {
                     .ActionId = mapping->ActionId,
                     .Timestamp = timestamp,
                     .Value = m_MouseDelta.y * mapping->Scale,
                 };
 
-            EnqueueEvent(inputEvent, mapping->Handler);
+            EnqueueEvent(actionEvent, mapping->Handler);
         }
     }
 
@@ -284,14 +284,14 @@ InputMapper::SynthesizeEvents()
         const MappingRange mappings = GetMappings(axis);
         for(const InputMapping* mapping : mappings)
         {
-            const InputEvent inputEvent //
+            const ActionEvent actionEvent //
                 {
                     .ActionId = mapping->ActionId,
                     .Timestamp = timestamp,
                     .Value = m_MouseWheelDelta.x * mapping->Scale,
                 };
 
-            EnqueueEvent(inputEvent, mapping->Handler);
+            EnqueueEvent(actionEvent, mapping->Handler);
         }
     }
 
@@ -301,14 +301,14 @@ InputMapper::SynthesizeEvents()
         const MappingRange mappings = GetMappings(axis);
         for(const InputMapping* mapping : mappings)
         {
-            const InputEvent inputEvent //
+            const ActionEvent actionEvent //
                 {
                     .ActionId = mapping->ActionId,
                     .Timestamp = timestamp,
                     .Value = m_MouseWheelDelta.y * mapping->Scale,
                 };
 
-            EnqueueEvent(inputEvent, mapping->Handler);
+            EnqueueEvent(actionEvent, mapping->Handler);
         }
     }
 
@@ -328,14 +328,14 @@ InputMapper::SynthesizeEvents()
             const MappingRange mappings = GetMappings(button);
             for(const InputMapping* mapping : mappings)
             {
-                const InputEvent inputEvent //
+                const ActionEvent actionEvent //
                     {
                         .ActionId = mapping->ActionId,
                         .Timestamp = timestamp,
                         .Value = mapping->Scale,
                     };
 
-                EnqueueEvent(inputEvent, mapping->Handler);
+                EnqueueEvent(actionEvent, mapping->Handler);
             }
         }
     }
@@ -382,7 +382,7 @@ InputMapper::GetButtonState(const ButtonIdentifier& buttonId)
 }
 
 void
-InputMapper::EnqueueEvent(const InputEvent& event, const ActionHandler& handler)
+InputMapper::EnqueueEvent(const ActionEvent& event, const ActionHandler& handler)
 {
     if(!MLG_VERIFY(m_EventQueue.size() < kMaxEventQueueSize, "Event queue is full"))
     {
