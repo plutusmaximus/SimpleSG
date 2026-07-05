@@ -190,6 +190,12 @@ InputMapper::DispatchEvents()
     m_EventQueue.clear();
 }
 
+void
+InputMapper::ClearEventQueue()
+{
+    m_EventQueue.clear();
+}
+
 // private:
 
 void

@@ -20,13 +20,13 @@
 #include "TextureCache.h"
 #include "ThreadPool.h"
 
-#include <SDL3/SDL_timer.h>
 #include <filesystem>
 #include <imgui_impl_sdl3.h>
 #include <random>
 #include <ranges>
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_mouse.h>
+#include <SDL3/SDL_timer.h>
 #include <thread>
 
 namespace
@@ -514,6 +514,13 @@ float ComputeKineticEnergy(const PhysicsLevel& physLevel)
 Result<>
 MainLoop()
 {
+    MLG_CHECK(Startup());
+
+    MLG_DEFER
+    {
+        Shutdown();
+    };
+
     bool running = true;
     bool minimized = false;
 
@@ -842,16 +849,6 @@ MainLoop()
 
 int main(int /*argc*/, char** /*argv*/)
 {
-    if(!Startup())
-    {
-        return -1;
-    }
-
-    MLG_DEFER
-    {
-        Shutdown();
-    };
-
     if(!MainLoop())
     {
         return -1;

@@ -274,6 +274,8 @@ public:
 
     void DispatchEvents();
 
+    void ClearEventQueue();
+
 private:
 
     struct ButtonState
