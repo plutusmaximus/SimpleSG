@@ -25,6 +25,11 @@ public:
         static_assert(std::is_invocable_r_v<EventDisposition, Func, const SDL_Event&>,
             "Event interceptor must be invocable with signature: EventDisposition(const SDL_Event&)");
 
+        if(!MLG_VERIFY(m_Initialized, "System::Startup() has not been called"))
+        {
+            return;
+        }
+
         struct Interceptor : public EventInterceptor
         {
             explicit Interceptor(const Func& func)
@@ -43,11 +48,29 @@ public:
         ProcessEventsImpl(Interceptor(eventInterceptor));
     }
 
-    static bool IsMinimized() { return m_Minimized; }
-    static bool ShouldQuit() { return m_ShouldQuit; }
+    static bool IsMinimized()
+    {
+        MLG_ASSERT(m_Initialized);
+        return m_Minimized;
+    }
 
-    static bool WasFocusGained() { return m_FocusEvent == FocusEvent::Gained; }
-    static bool WasFocusLost() { return m_FocusEvent == FocusEvent::Lost; }
+    static bool ShouldQuit()
+    {
+        MLG_ASSERT(m_Initialized);
+        return m_ShouldQuit;
+    }
+
+    static bool WasFocusGained()
+    {
+        MLG_ASSERT(m_Initialized);
+        return m_FocusEvent == FocusEvent::Gained;
+    }
+    
+    static bool WasFocusLost()
+    {
+        MLG_ASSERT(m_Initialized);
+        return m_FocusEvent == FocusEvent::Lost;
+    }
 
 private:
 
@@ -75,4 +98,6 @@ private:
 
     static inline bool m_Minimized{ false };
     static inline bool m_ShouldQuit{ false };
+
+    static inline bool m_Initialized{ false };
 };

@@ -10,6 +10,11 @@
 
 Result<> System::Startup(const char* appName)
 {
+    if(m_Initialized)
+    {
+        return Result<>::Ok;
+    }
+
     Log::SetLevel(Log::Level::Trace);
 
     auto cwd = std::filesystem::current_path();
@@ -32,15 +37,24 @@ Result<> System::Startup(const char* appName)
     failure.release(); // Success, prevent shutdown in defer.
     fileFetcherShutdown.release();
 
+    m_Initialized = true;
+
     return Result<>::Ok;
 }
 
 void
 System::Shutdown()
 {
+    if(!m_Initialized)
+    {
+        return;
+    }
+
     GpuHelper::Shutdown();
     FileFetcher::Shutdown();
     ThreadPool::Shutdown();
+
+    m_Initialized = false;
 }
 
 void
