@@ -325,6 +325,7 @@ set(SSG_SOURCES
   src/Shapes.cpp
   src/StringArena.cpp
   src/stb_image.cpp
+  src/System.cpp
   src/TextureCache.cpp
   src/ThreadPool.cpp
   src/Timer.cpp
@@ -368,6 +369,7 @@ set(SSG_HEADERS
   src/shaders/TransformShaderContract.h
   src/Shapes.h
   src/StringArena.h
+  src/System.h
   src/CliState.h
   src/TextureCache.h
   src/ThreadPool.h

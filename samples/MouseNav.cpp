@@ -19,36 +19,6 @@ WalkMouseNav::WalkMouseNav(
 }
 
 void
-WalkMouseNav::OnKeyDown(const int)
-{
-}
-
-void
-WalkMouseNav::OnKeyUp(const int)
-{
-}
-
-void
-WalkMouseNav::OnScroll(const Vec2f& scroll)
-{
-    constexpr float kScrollMoveScale = 0.1f;
-
-    m_TargetTransform.T.y += scroll.y * m_MovePerSec * kScrollMoveScale;
-}
-
-void
-WalkMouseNav::OnMouseMove(const Vec2f& mouseDelta)
-{
-    m_LookDelta += mouseDelta;
-}
-
-void
-WalkMouseNav::ClearButtons()
-{
-    m_LookDelta = Vec2f{ 0,0 };
-}
-
-void
 WalkMouseNav::Update(const float deltaSeconds)
 {
     const Vec2f lookDelta = m_LookDelta;
@@ -116,5 +86,4 @@ void
 WalkMouseNav::Deactivate()
 {
     m_IsActive = false;
-    ClearButtons();
 }

@@ -72,7 +72,7 @@ constexpr bool InputMappingLt(const InputMapping* a, const InputMapping* b)
 }
 } // namespace
 
-InputMapper::InputMapper(const std::span<InputMapping> mappings)
+InputMapper::InputMapper(const std::span<const InputMapping> mappings)
 {
     size_t buttonCount = 0;
     for(const InputMapping& mapping : mappings)

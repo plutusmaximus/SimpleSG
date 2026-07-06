@@ -28,16 +28,6 @@ public:
     WalkMouseNav(WalkMouseNav&&) = delete;
     WalkMouseNav& operator=(WalkMouseNav&&) = delete;
 
-    void OnKeyDown(const int keyCode);
-
-    void OnKeyUp(const int keyCode);
-
-    void OnScroll(const Vec2f& scroll);
-
-    void OnMouseMove(const Vec2f& mouseDelta);
-
-    void ClearButtons();
-
     void Update(const float deltaSeconds);
 
     void Look(const Vec2f& delta);

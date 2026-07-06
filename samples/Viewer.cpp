@@ -1,5 +1,4 @@
 #include "Compositor.h"
-#include "FileFetcher.h"
 #include "GltfLoader.h"
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
@@ -12,15 +11,14 @@
 #include "Renderer.h"
 #include "Scene.h"
 #include "scope_exit.h"
+#include "System.h"
 #include "TextureCache.h"
-#include "ThreadPool.h"
 #include "VecMath.h"
 
 #include <filesystem>
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
 #include <SDL3/SDL_events.h>
-#include <SDL3/SDL_mouse.h>
 #include <SDL3/SDL_timer.h>
 #include <thread>
 
@@ -116,72 +114,38 @@ constexpr const char* SPONZA_MODEL_PATH = "C:/Users/kbaca/Downloads/main_sponza/
 constexpr const char* SPONZA_MODEL_PATH = "../../assets/main_sponza/NewSponza_Main_glTF_003.gltf";
 #endif
 
-class System
-{
-public:
-    System() = delete;
-
-    static Result<> Startup();
-    static void Shutdown();
-};
-
-Result<> System::Startup()
-{
-    Log::SetLevel(Log::Level::Trace);
-
-    auto cwd = std::filesystem::current_path();
-    MLG_INFO("Current working directory: {}", cwd.string());
-
-    MLG_CHECK(ThreadPool::Startup());
-    MLG_DEFER_AS(failure)
-    {
-        ThreadPool::Shutdown();
-    };
-
-    MLG_CHECK(FileFetcher::Startup());
-    MLG_DEFER_AS(fileFetcherShutdown)
-    {
-        FileFetcher::Shutdown();
-    };
-
-    MLG_CHECK(GpuHelper::Startup(APP_NAME));
-
-    failure.release(); // Success, prevent shutdown in defer.
-    fileFetcherShutdown.release();
-
-    return Result<>::Ok;
-}
-
-void
-System::Shutdown()
-{
-    GpuHelper::Shutdown();
-    FileFetcher::Shutdown();
-    ThreadPool::Shutdown();
-}
-
 Result<>
 MainLoop()
 {
-    MLG_CHECK(System::Startup());
-
-    MLG_DEFER
-    {
-        System::Shutdown();
-    };
-
-    bool running = true;
-    bool minimized = false;
-
     Renderer renderer;
     Compositor compositor;
     ImGuiRenderer imGuiRenderer;
     TextureCache textureCache;
     WalkMouseNav mouseNav;
 
+    MLG_CHECK(System::Startup(APP_NAME));
+    MLG_DEFER
+    {
+        System::Shutdown();
+    };
+
     MLG_CHECK(renderer.Startup());
+    MLG_DEFER
+    {
+        renderer.Shutdown();
+    };
+
     MLG_CHECK(imGuiRenderer.Startup());
+    MLG_DEFER
+    {
+        imGuiRenderer.Shutdown();
+    };
+
     MLG_CHECK(textureCache.Startup());
+    MLG_DEFER
+    {
+        textureCache.Shutdown();
+    };
 
     auto loadResult = Load(SPONZA_MODEL_PATH, textureCache);
     MLG_CHECK(loadResult, "Failed to load resources");
@@ -206,10 +170,10 @@ MainLoop()
 
     static constexpr float kMouseWheelScale = 20.0f;
 
-    InputMapping inputMappings[] //
+    const InputMapping inputMappings[] //
         {
             {
-                .Input = KeyPressed<SDL_SCANCODE_ESCAPE>(),
+                .Input = KeyPressed(SDL_SCANCODE_ESCAPE),
                 .ActionId = quit,
                 .Handler =
                     [&](const ActionEvent&)
@@ -226,28 +190,28 @@ MainLoop()
                 },
             },
             {
-                .Input = KeyDown<SDL_SCANCODE_W>(),
+                .Input = KeyDown(SDL_SCANCODE_W),
                 .ActionId = moveForward,
                 .Handler = [&](const ActionEvent& event)
                 { mouseNav.Move(Vec3f(0, 0, event.Value)); },
                 .Scale = 1,
             },
             {
-                .Input = KeyDown<SDL_SCANCODE_S>(),
+                .Input = KeyDown(SDL_SCANCODE_S),
                 .ActionId = moveBackward,
                 .Handler = [&](const ActionEvent& event)
                 { mouseNav.Move(Vec3f(0, 0, event.Value)); },
                 .Scale = -1,
             },
             {
-                .Input = KeyDown<SDL_SCANCODE_A>(),
+                .Input = KeyDown(SDL_SCANCODE_A),
                 .ActionId = moveLeft,
                 .Handler = [&](const ActionEvent& event)
                 { mouseNav.Move(Vec3f(event.Value, 0, 0)); },
                 .Scale = -1,
             },
             {
-                .Input = KeyDown<SDL_SCANCODE_D>(),
+                .Input = KeyDown(SDL_SCANCODE_D),
                 .ActionId = moveRight,
                 .Handler = [&](const ActionEvent& event)
                 { mouseNav.Move(Vec3f(event.Value, 0, 0)); },
@@ -273,7 +237,7 @@ MainLoop()
                 .Scale = kMouseWheelScale,
             },
             {
-                .Input = MousePressed<SDL_BUTTON_LEFT>(),
+                .Input = MousePressed(SDL_BUTTON_LEFT),
                 .ActionId = captureMouse,
                 .Handler =
                     [&](const ActionEvent&)
@@ -283,7 +247,7 @@ MainLoop()
                 },
             },
             {
-                .Input = MouseReleased<SDL_BUTTON_LEFT>(),
+                .Input = MouseReleased(SDL_BUTTON_LEFT),
                 .ActionId = releaseMouse,
                 .Handler =
                     [&](const ActionEvent&)
@@ -294,11 +258,11 @@ MainLoop()
             },
         };
 
-    InputMapper inputMapper(std::span(&inputMappings[0], std::size(inputMappings)));
+    InputMapper inputMapper(inputMappings);
 
     Timer frameTimer;
 
-    while(running)
+    while(!System::ShouldQuit())
     {
         MLG_SCOPED_TIMER("Frame");
 
@@ -306,76 +270,34 @@ MainLoop()
 
         frameTimer.Restart();
 
-        SDL_Event sdlEvent;
+        std::string droppedFile;
 
-        while(minimized && running && SDL_PollEvent(&sdlEvent))
+        auto eventInterceptor = [&](const SDL_Event& sdlEvent)
         {
             switch(sdlEvent.type)
             {
-                case SDL_EVENT_WINDOW_RESTORED:
-                case SDL_EVENT_WINDOW_MAXIMIZED:
-                    minimized = false;
+                case SDL_EVENT_DROP_FILE:
+                    droppedFile = sdlEvent.drop.data;
                     break;
 
                 default:
+                    inputMapper.ProcessEvent(sdlEvent);
                     break;
             }
-        }
+            return System::EventDisposition::Process;
+        };
 
-        if(minimized)
+        System::ProcessEvents(eventInterceptor);
+
+        if(System::IsMinimized())
         {
             std::this_thread::yield();
             continue;
         }
 
-        std::string droppedFile;
-
-        while(!minimized && running && SDL_PollEvent(&sdlEvent))
+        if(System::ShouldQuit())
         {
-            inputMapper.ProcessEvent(sdlEvent);
-
-            switch (sdlEvent.type)
-            {
-            case SDL_EVENT_QUIT:
-                running = false;
-                break;
-
-            //case SDL_EVENT_WINDOW_RESIZED:
-            case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-                {
-                    const uint32_t newWidth = static_cast<uint32_t>(sdlEvent.window.data1);
-                    const uint32_t newHeight = static_cast<uint32_t>(sdlEvent.window.data2);
-                    GpuHelper::Resize(newWidth, newHeight);
-                }
-                break;
-
-            case SDL_EVENT_WINDOW_MINIMIZED:
-                minimized = true;
-                break;
-
-            //case SDL_EVENT_WINDOW_MOUSE_LEAVE:
-            case SDL_EVENT_WINDOW_FOCUS_GAINED:
-            case SDL_EVENT_WINDOW_FOCUS_LOST:
-                mouseNav.ClearButtons();
-                break;
-
-            case SDL_EVENT_DROP_BEGIN:
-            case SDL_EVENT_DROP_TEXT:
-            case SDL_EVENT_DROP_COMPLETE:
-                break;
-
-            case SDL_EVENT_DROP_FILE:
-                droppedFile = sdlEvent.drop.data;
-                break;
-
-            default:
-                break;
-            }
-        }
-
-        if(!running)
-        {
-            continue;
+            break;
         }
 
         inputMapper.DispatchEvents();
@@ -416,10 +338,6 @@ MainLoop()
 
         GpuHelper::GetInstance().ProcessEvents();
     }
-
-    MLG_CHECK(textureCache.Shutdown());
-    MLG_CHECK(imGuiRenderer.Shutdown());
-    MLG_CHECK(renderer.Shutdown());
 
     PerfMetrics::LogCounters();
 

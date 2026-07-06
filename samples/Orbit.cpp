@@ -17,6 +17,7 @@
 #include "Scene.h"
 #include "scope_exit.h"
 #include "Shapes.h"
+#include "System.h"
 #include "TextureCache.h"
 #include "ThreadPool.h"
 
@@ -135,42 +136,6 @@ private:
 
     Frustum m_Frustum;
 };
-
-Result<>
-Startup()
-{
-    Log::SetLevel(Log::Level::Trace);
-
-    auto cwd = std::filesystem::current_path();
-    MLG_INFO("Current working directory: {}", cwd.string());
-
-    MLG_CHECK(ThreadPool::Startup());
-    MLG_DEFER_AS(failure)
-    {
-        ThreadPool::Shutdown();
-    };
-
-    MLG_CHECK(FileFetcher::Startup());
-    MLG_DEFER_AS(fileFetcherShutdown)
-    {
-        FileFetcher::Shutdown();
-    };
-
-    MLG_CHECK(GpuHelper::Startup(APP_NAME));
-
-    failure.release();
-    fileFetcherShutdown.release();
-
-    return Result<>::Ok;
-}
-
-void
-Shutdown()
-{
-    GpuHelper::Shutdown();
-    FileFetcher::Shutdown();
-    ThreadPool::Shutdown();
-}
 
 Result<std::tuple<PropKit, Level>>
 Load(TextureCache& textureCache)
@@ -514,27 +479,38 @@ float ComputeKineticEnergy(const PhysicsLevel& physLevel)
 Result<>
 MainLoop()
 {
-    MLG_CHECK(Startup());
-
-    MLG_DEFER
-    {
-        Shutdown();
-    };
-
-    bool running = true;
-    bool minimized = false;
-
     Renderer renderer;
     Compositor compositor;
     ImGuiRenderer imGuiRenderer;
     TextureCache textureCache;
     WalkMouseNav mouseNav;
-    CliUi cliUi;
-    DevUi devUi(cliUi, renderer);
+
+    MLG_CHECK(System::Startup(APP_NAME));
+    MLG_DEFER
+    {
+        System::Shutdown();
+    };
 
     MLG_CHECK(renderer.Startup());
+    MLG_DEFER
+    {
+        renderer.Shutdown();
+    };
+
     MLG_CHECK(imGuiRenderer.Startup());
+    MLG_DEFER
+    {
+        imGuiRenderer.Shutdown();
+    };
+    
     MLG_CHECK(textureCache.Startup());
+    MLG_DEFER
+    {
+        textureCache.Shutdown();
+    };
+    
+    CliUi cliUi;
+    DevUi devUi(cliUi, renderer);
 
     auto loadResult = Load(textureCache);
     MLG_CHECK(loadResult);
@@ -570,13 +546,20 @@ MainLoop()
     constexpr ActionIdentifier lookUpDown("LookUpDown");
     constexpr ActionIdentifier captureMouse("CaptureMouse");
     constexpr ActionIdentifier releaseMouse("ReleaseMouse");
+    constexpr ActionIdentifier explode("Explode");
+    constexpr ActionIdentifier stopAll("StopAll");
+    constexpr ActionIdentifier pause("Pause");
+    constexpr ActionIdentifier activateNodes("ActivateNodes");
 
     static constexpr float kMouseWheelScale = 20.0f;
 
-    InputMapping inputMappings[] //
+    bool pauseSim = false;
+    bool activateSelectedNodes = false;
+
+    const InputMapping inputMappings[] //
         {
             {
-                .Input = KeyPressed<SDL_SCANCODE_ESCAPE>(),
+                .Input = KeyPressed(SDL_SCANCODE_ESCAPE),
                 .ActionId = quit,
                 .Handler =
                     [&](const ActionEvent&)
@@ -593,28 +576,28 @@ MainLoop()
                 },
             },
             {
-                .Input = KeyDown<SDL_SCANCODE_W>(),
+                .Input = KeyDown(SDL_SCANCODE_W),
                 .ActionId = moveForward,
                 .Handler = [&](const ActionEvent& event)
                 { mouseNav.Move(Vec3f(0, 0, event.Value)); },
                 .Scale = 1,
             },
             {
-                .Input = KeyDown<SDL_SCANCODE_S>(),
+                .Input = KeyDown(SDL_SCANCODE_S),
                 .ActionId = moveBackward,
                 .Handler = [&](const ActionEvent& event)
                 { mouseNav.Move(Vec3f(0, 0, event.Value)); },
                 .Scale = -1,
             },
             {
-                .Input = KeyDown<SDL_SCANCODE_A>(),
+                .Input = KeyDown(SDL_SCANCODE_A),
                 .ActionId = moveLeft,
                 .Handler = [&](const ActionEvent& event)
                 { mouseNav.Move(Vec3f(event.Value, 0, 0)); },
                 .Scale = -1,
             },
             {
-                .Input = KeyDown<SDL_SCANCODE_D>(),
+                .Input = KeyDown(SDL_SCANCODE_D),
                 .ActionId = moveRight,
                 .Handler = [&](const ActionEvent& event)
                 { mouseNav.Move(Vec3f(event.Value, 0, 0)); },
@@ -640,7 +623,7 @@ MainLoop()
                 .Scale = kMouseWheelScale,
             },
             {
-                .Input = MousePressed<SDL_BUTTON_LEFT>(),
+                .Input = MousePressed(SDL_BUTTON_LEFT),
                 .ActionId = captureMouse,
                 .Handler =
                     [&](const ActionEvent&)
@@ -650,7 +633,7 @@ MainLoop()
                 },
             },
             {
-                .Input = MouseReleased<SDL_BUTTON_LEFT>(),
+                .Input = MouseReleased(SDL_BUTTON_LEFT),
                 .ActionId = releaseMouse,
                 .Handler =
                     [&](const ActionEvent&)
@@ -659,93 +642,39 @@ MainLoop()
                     SDL_SetWindowRelativeMouseMode(GpuHelper::GetWindow(), false);
                 },
             },
-        };
-
-    InputMapper inputMapper(std::span(&inputMappings[0], std::size(inputMappings)));
-
-    Timer frameTimer;
-
-    bool pauseSim = false;
-    bool activateSelectedNodes = false;
-
-    while(running)
-    {
-        MLG_SCOPED_TIMER(" Frame");
-
-        const float elapsedSeconds = frameTimer.GetElapsedSeconds();
-
-        frameTimer.Restart();
-
-        SDL_Event sdlEvent;
-
-        while(minimized && running && SDL_PollEvent(&sdlEvent))
-        {
-            ImGui_ImplSDL3_ProcessEvent(&sdlEvent);
-
-            switch(sdlEvent.type)
             {
-                case SDL_EVENT_WINDOW_RESTORED:
-                case SDL_EVENT_WINDOW_MAXIMIZED:
-                    minimized = false;
-                    break;
-
-                default:
-                    break;
-            }
-        }
-
-        if(minimized)
-        {
-            std::this_thread::yield();
-            continue;
-        }
-
-        while(!minimized && running && SDL_PollEvent(&sdlEvent))
-        {
-            ImGui_ImplSDL3_ProcessEvent(&sdlEvent);
-
-            inputMapper.ProcessEvent(sdlEvent);
-
-            switch (sdlEvent.type)
-            {
-            case SDL_EVENT_QUIT:
-                running = false;
-                break;
-
-            //case SDL_EVENT_WINDOW_RESIZED:
-            case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-                {
-                    const uint32_t newWidth = static_cast<uint32_t>(sdlEvent.window.data1);
-                    const uint32_t newHeight = static_cast<uint32_t>(sdlEvent.window.data2);
-                    GpuHelper::Resize(newWidth, newHeight);
-                }
-                break;
-
-            case SDL_EVENT_WINDOW_MINIMIZED:
-                minimized = true;
-                break;
-
-            //case SDL_EVENT_WINDOW_MOUSE_LEAVE:
-            case SDL_EVENT_WINDOW_FOCUS_GAINED:
-            case SDL_EVENT_WINDOW_FOCUS_LOST:
-                mouseNav.ClearButtons();
-                break;
-
-            case SDL_EVENT_KEY_DOWN:
-                if(SDL_SCANCODE_RETURN == sdlEvent.key.scancode)
+                .Input = KeyPressed(SDL_SCANCODE_RETURN),
+                .ActionId = explode,
+                .Handler =
+                    [&](const ActionEvent&)
                 {
                     constexpr float kImpulseMagnitude = 5.0f;
                     ApplyExplosionImpulse(physLevel, kImpulseMagnitude);
-                }
-                else if(SDL_SCANCODE_BACKSPACE == sdlEvent.key.scancode)
+                },
+            },
+            {
+                .Input = KeyPressed(SDL_SCANCODE_BACKSPACE),
+                .ActionId = stopAll,
+                .Handler =
+                    [&](const ActionEvent&)
                 {
                     ApplyStoppingImpulse(physLevel);
-                }
-                else if(SDL_SCANCODE_F1 == sdlEvent.key.scancode)
+                },
+            },
+            {
+                .Input = KeyPressed(SDL_SCANCODE_F1),
+                .ActionId = pause,
+                .Handler =
+                    [&](const ActionEvent&)
                 {
                     pauseSim = !pauseSim;
-                }
-                else if(SDL_SCANCODE_F2 == sdlEvent.key.scancode)
+                },
+            },
+            {
+                .Input = KeyPressed(SDL_SCANCODE_F2),
+                .ActionId = activateNodes,
+                .Handler =
+                    [&](const ActionEvent&)
                 {
                     activateSelectedNodes = !activateSelectedNodes;
 
@@ -770,17 +699,44 @@ MainLoop()
                         .apply(NodeVisibility(level, true))
                         .exec();
                     }
-                }
-                break;
+                },
+            },
+        };
 
-            default:
-                break;
+    InputMapper inputMapper(inputMappings);
+
+    Timer frameTimer;
+
+    while(!System::ShouldQuit())
+    {
+        MLG_SCOPED_TIMER(" Frame");
+
+        const float elapsedSeconds = frameTimer.GetElapsedSeconds();
+
+        frameTimer.Restart();
+
+        auto eventInterceptor = [&](const SDL_Event& sdlEvent)
+        {
+            switch(sdlEvent.type)
+            {
+                default:
+                    inputMapper.ProcessEvent(sdlEvent);
+                    break;
             }
+            return System::EventDisposition::Process;
+        };
+
+        System::ProcessEvents(eventInterceptor);
+
+        if(System::IsMinimized())
+        {
+            std::this_thread::yield();
+            continue;
         }
 
-        if(!running)
+        if(System::ShouldQuit())
         {
-            continue;
+            break;
         }
 
         inputMapper.DispatchEvents();
@@ -836,10 +792,6 @@ MainLoop()
 
         GpuHelper::GetInstance().ProcessEvents();
     }
-
-    MLG_CHECK(textureCache.Shutdown());
-    MLG_CHECK(imGuiRenderer.Shutdown());
-    MLG_CHECK(renderer.Shutdown());
 
     PerfMetrics::LogCounters();
 

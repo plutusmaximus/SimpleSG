@@ -268,7 +268,13 @@ public:
 
     InputMapper() = delete;
 
-    explicit InputMapper(const std::span<InputMapping> mappings);
+    template<size_t N>
+    explicit InputMapper(const InputMapping (&mappings)[N])
+        : InputMapper(std::span(mappings))
+    {
+    }
+
+    explicit InputMapper(const std::span<const InputMapping> mappings);
 
     void ProcessEvent(const union SDL_Event& event);
 
@@ -337,99 +343,68 @@ private:
     Vec2f m_MouseWheelDelta{0, 0};
 };
 
-template<unsigned KEY_CODE>
-class KeyPressed : public InputButton
+consteval InputButton
+KeyPressed(const unsigned KEY_CODE)
 {
-public:
-    KeyPressed()
-        : InputButton(ButtonIdentifier(InputButtonDevice::Keyboard, KEY_CODE), InputButtonState::Pressed)
-    {
-    }
-};
+    return InputButton(ButtonIdentifier(InputButtonDevice::Keyboard, KEY_CODE),
+        InputButtonState::Pressed);
+}
 
-template<unsigned KEY_CODE>
-class KeyReleased : public InputButton
+consteval InputButton
+KeyReleased(const unsigned KEY_CODE)
 {
-public:
-    KeyReleased()
-        : InputButton(ButtonIdentifier(InputButtonDevice::Keyboard, KEY_CODE), InputButtonState::Released)
-    {
-    }
-};
+    return InputButton(ButtonIdentifier(InputButtonDevice::Keyboard, KEY_CODE),
+        InputButtonState::Released);
+}
 
-template<unsigned KEY_CODE>
-class KeyDown : public InputButton
+consteval InputButton
+KeyDown(const unsigned KEY_CODE)
 {
-public:
-    KeyDown()
-        : InputButton(ButtonIdentifier(InputButtonDevice::Keyboard, KEY_CODE), InputButtonState::Down)
-    {
-    }
-};
+    return InputButton(ButtonIdentifier(InputButtonDevice::Keyboard, KEY_CODE),
+        InputButtonState::Down);
+}
 
-template<unsigned BUTTON_CODE>
-class MousePressed : public InputButton
+consteval InputButton
+MousePressed(const unsigned BUTTON_CODE)
 {
-public:
-    MousePressed()
-        : InputButton(ButtonIdentifier(InputButtonDevice::Mouse, BUTTON_CODE),
-              InputButtonState::Pressed)
-    {
-    }
-};
+    return InputButton(ButtonIdentifier(InputButtonDevice::Mouse, BUTTON_CODE),
+        InputButtonState::Pressed);
+}
 
-template<unsigned BUTTON_CODE>
-class MouseReleased : public InputButton
+consteval InputButton
+MouseReleased(const unsigned BUTTON_CODE)
 {
-public:
-    MouseReleased()
-        : InputButton(ButtonIdentifier(InputButtonDevice::Mouse, BUTTON_CODE),
-              InputButtonState::Released)
-    {
-    }
-};
+    return InputButton(ButtonIdentifier(InputButtonDevice::Mouse, BUTTON_CODE),
+        InputButtonState::Released);
+}
 
-template<unsigned BUTTON_CODE>
-class MouseDown : public InputButton
+consteval InputButton
+MouseDown(const unsigned BUTTON_CODE)
 {
-public:
-    MouseDown()
-        : InputButton(ButtonIdentifier(InputButtonDevice::Mouse, BUTTON_CODE), InputButtonState::Down)
-    {
-    }
-};
+    return InputButton(ButtonIdentifier(InputButtonDevice::Mouse, BUTTON_CODE),
+        InputButtonState::Down);
+}
 
-class MouseMoveX : public InputAxis
+consteval InputAxis
+MouseMoveX()
 {
-public:
-    MouseMoveX()
-        : InputAxis(InputAxisDevice::Mouse, InputAxisDirection::X)
-    {
-    }
-};
-class MouseMoveY : public InputAxis
-{
-public:
-    MouseMoveY()
-        : InputAxis(InputAxisDevice::Mouse, InputAxisDirection::Y)
-    {
-    }
-};
+    return InputAxis(InputAxisDevice::Mouse, InputAxisDirection::X);
+}
 
-class MouseWheelX : public InputAxis
+consteval InputAxis
+MouseMoveY()
 {
-public:
-    MouseWheelX()
-        : InputAxis(InputAxisDevice::MouseWheel, InputAxisDirection::X)
-    {
-    }
-};
+    return InputAxis(InputAxisDevice::Mouse, InputAxisDirection::Y);
+}
 
-class MouseWheelY : public InputAxis
+consteval InputAxis
+MouseWheelX()
 {
-public:
-    MouseWheelY()
-        : InputAxis(InputAxisDevice::MouseWheel, InputAxisDirection::Y)
-    {
-    }
-};
+    return InputAxis(InputAxisDevice::MouseWheel, InputAxisDirection::X);
+}
+
+consteval InputAxis
+MouseWheelY()
+{
+    return InputAxis(InputAxisDevice::MouseWheel, InputAxisDirection::Y);
+}
