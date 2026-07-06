@@ -301,7 +301,6 @@ set(SSG_SOURCES
   src/Bounds.cpp
   src/CliUi.cpp
   src/cgltf.cpp
-  src/Compositor.cpp
   src/DevUi.cpp
   src/FileFetcher.cpp
   src/GpuHelper.cpp
@@ -337,7 +336,6 @@ set(SSG_HEADERS
   src/Bounds.h
   src/Camera.h
   src/CliUi.h
-  src/Compositor.h
   src/DevUi.h
   src/FileFetcher.h
   src/GltfLoader.h

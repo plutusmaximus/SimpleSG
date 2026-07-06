@@ -1,6 +1,5 @@
 #include "ImGuiRenderer.h"
 
-#include "Compositor.h"
 #include "GpuHelper.h"
 #include "PerfMetrics.h"
 
@@ -65,7 +64,7 @@ ImGuiRenderer::Shutdown()
 }
 
 Result<>
-ImGuiRenderer::NewFrame(const Compositor& compositor) const
+ImGuiRenderer::NewFrame(const wgpu::Texture& target) const
 {
     MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
 
@@ -76,10 +75,8 @@ ImGuiRenderer::NewFrame(const Compositor& compositor) const
     // the window is resized or if the display has a different DPI scaling factor. Make sure ImGui
     // knows the current size of the target texture.
 
-    auto texture = compositor.GetTarget();
-
-    const float width = static_cast<float>(texture.GetWidth());
-    const float height = static_cast<float>(texture.GetHeight());
+    const float width = static_cast<float>(target.GetWidth());
+    const float height = static_cast<float>(target.GetHeight());
 
     ImGuiIO& io = ImGui::GetIO();
     io.DisplaySize = ImVec2(width, height);
@@ -91,7 +88,7 @@ ImGuiRenderer::NewFrame(const Compositor& compositor) const
 }
 
 Result<>
-ImGuiRenderer::Composite(Compositor& compositor) const
+ImGuiRenderer::Composite(const wgpu::Texture& target) const
 {
     MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
 
@@ -115,8 +112,6 @@ ImGuiRenderer::Composite(Compositor& compositor) const
         return Result<>::Ok;
     }
 
-    const wgpu::Texture target = compositor.GetTarget();
-
     if(!target)
     {
         // Off-screen rendering, skip rendering ImGui
@@ -139,13 +134,22 @@ ImGuiRenderer::Composite(Compositor& compositor) const
         .colorAttachments = &colorAttachment,
     };
 
-    const wgpu::CommandEncoder cmdEncoder = compositor.GetCommandEncoder();
+    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "ImGuiRenderer::Composite" };
+    const wgpu::CommandEncoder cmdEncoder = GpuHelper::GetDevice().CreateCommandEncoder(&encoderDesc);
+    MLG_CHECK(cmdEncoder, "Failed to create command encoder");
 
     const wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
 
     ImGui_ImplWGPU_RenderDrawData(drawData, renderPass.Get());
 
     renderPass.End();
+
+    const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
+    MLG_CHECK(cmdBuf, "Failed to finish command buffer");
+
+    const wgpu::Queue queue = GpuHelper::GetDevice().GetQueue();
+    MLG_CHECK(queue, "Failed to get wgpu::Queue");
+    queue.Submit(1, &cmdBuf);
 
     return Result<>::Ok;
 }

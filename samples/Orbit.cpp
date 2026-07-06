@@ -1,8 +1,6 @@
 #include "Camera.h"
 #include "CliUi.h"
-#include "Compositor.h"
 #include "DevUi.h"
-#include "FileFetcher.h"
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
 #include "InputMapper.h"
@@ -480,7 +478,6 @@ Result<>
 MainLoop()
 {
     Renderer renderer;
-    Compositor compositor;
     ImGuiRenderer imGuiRenderer;
     TextureCache textureCache;
     WalkMouseNav mouseNav;
@@ -717,12 +714,8 @@ MainLoop()
 
         auto eventInterceptor = [&](const SDL_Event& sdlEvent)
         {
-            switch(sdlEvent.type)
-            {
-                default:
-                    inputMapper.ProcessEvent(sdlEvent);
-                    break;
-            }
+            ImGui_ImplSDL3_ProcessEvent(&sdlEvent);
+            inputMapper.ProcessEvent(sdlEvent);
             return System::EventDisposition::Process;
         };
 
@@ -773,15 +766,12 @@ MainLoop()
             MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
         }
 
-        MLG_CHECK(compositor.BeginFrame());
+        auto target = GpuHelper::GetSwapChainTexture();
+        MLG_CHECK(target, "Failed to get swapchain texture");
 
-        //MLG_CHECK(renderer.Composite(compositor));
-
-        MLG_CHECK(imGuiRenderer.NewFrame(compositor));
+        MLG_CHECK(imGuiRenderer.NewFrame(*target));
         MLG_CHECK(devUi.Render());
-        MLG_CHECK(imGuiRenderer.Composite(compositor));
-
-        MLG_CHECK(compositor.EndFrame());
+        MLG_CHECK(imGuiRenderer.Composite(*target));
 
         {
 #if !defined(__EMSCRIPTEN__)

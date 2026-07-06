@@ -4,7 +4,6 @@
 #include "SceneTypes.h"
 #include "Result.h"
 
-class Compositor;
 template<typename T>
 class Mat44;
 using Mat44f = Mat44<float>;
@@ -38,7 +37,7 @@ public:
 
     Result<> GetTarget(wgpu::Texture& outTexture, wgpu::TextureView& outTextureView) const;
 
-    Result<> Composite(Compositor& compositor);
+    Result<> Composite(const wgpu::Texture& target);
 
 private:
 

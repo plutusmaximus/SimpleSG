@@ -1,4 +1,3 @@
-#include "Compositor.h"
 #include "FileFetcher.h"
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
@@ -152,8 +151,6 @@ Result<> MainLoop()
     Renderer renderer;
     MLG_CHECK(renderer.Startup());
 
-    Compositor compositor;
-
     ImGuiRenderer imGuiRenderer;
     MLG_CHECK(imGuiRenderer.Startup());
 
@@ -235,24 +232,23 @@ Result<> MainLoop()
             {
                 continue;
             }
-            
-            const Viewport viewport(GpuHelper::GetScreenBounds());
-            camera.SetViewport(viewport);
-
-            MLG_CHECK(compositor.BeginFrame());
-
-            MLG_CHECK(imGuiRenderer.NewFrame(compositor));
-
-            MLG_CHECK(RenderGui());
         }
+            
+        const Viewport viewport(GpuHelper::GetScreenBounds());
+        camera.SetViewport(viewport);
+
+        auto target = GpuHelper::GetSwapChainTexture();
+        MLG_CHECK(target, "Failed to get swapchain texture");
+
+        MLG_CHECK(imGuiRenderer.NewFrame(*target));
+
+        MLG_CHECK(RenderGui());
 
         MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
 
-        MLG_CHECK(renderer.Composite(compositor));
+        MLG_CHECK(renderer.Composite(*target));
 
-        MLG_CHECK(imGuiRenderer.Composite(compositor));
-
-        MLG_CHECK(compositor.EndFrame());
+        MLG_CHECK(imGuiRenderer.Composite(*target));
 
 #if !defined(__EMSCRIPTEN__)
 

@@ -1,4 +1,3 @@
-#include "Compositor.h"
 #include "GltfLoader.h"
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
@@ -118,7 +117,6 @@ Result<>
 MainLoop()
 {
     Renderer renderer;
-    Compositor compositor;
     ImGuiRenderer imGuiRenderer;
     TextureCache textureCache;
     WalkMouseNav mouseNav;
@@ -152,7 +150,11 @@ MainLoop()
 
     auto&& [propKit, level, scene] = std::move(*loadResult);
 
-    Posef cameraXForm{ .T{0, 0, -4} };
+    static constexpr float kDefaultCameraHeight = 2.0f;
+    static constexpr float kDefaultCameraYaw = 90.0f; // Degrees
+    const Radiansf cameraYaw = Radiansf::FromDegrees(kDefaultCameraYaw);
+
+    Posef cameraXForm{ .T{0, kDefaultCameraHeight, 0}, .R{UnitQuatf(cameraYaw, Vec3f::YAXIS())} };
     Camera camera((Viewport(GpuHelper::GetScreenBounds())));
 
     mouseNav.SetTransform(cameraXForm);
@@ -274,6 +276,9 @@ MainLoop()
 
         auto eventInterceptor = [&](const SDL_Event& sdlEvent)
         {
+            ImGui_ImplSDL3_ProcessEvent(&sdlEvent);
+            inputMapper.ProcessEvent(sdlEvent);
+
             switch(sdlEvent.type)
             {
                 case SDL_EVENT_DROP_FILE:
@@ -281,7 +286,6 @@ MainLoop()
                     break;
 
                 default:
-                    inputMapper.ProcessEvent(sdlEvent);
                     break;
             }
             return System::EventDisposition::Process;
@@ -321,16 +325,15 @@ MainLoop()
         camera.SetViewport(viewport);
         cameraXForm = mouseNav.GetTransform();
 
-        MLG_CHECK(compositor.BeginFrame());
+        auto target = GpuHelper::GetSwapChainTexture();
+        MLG_CHECK(target, "Failed to get swapchain texture");
 
         MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
-        MLG_CHECK(renderer.Composite(compositor));
+        MLG_CHECK(renderer.Composite(*target));
 
-        MLG_CHECK(imGuiRenderer.NewFrame(compositor));
+        MLG_CHECK(imGuiRenderer.NewFrame(*target));
         MLG_CHECK(RenderGui());
-        MLG_CHECK(imGuiRenderer.Composite(compositor));
-
-        MLG_CHECK(compositor.EndFrame());
+        MLG_CHECK(imGuiRenderer.Composite(*target));
 
 #if !defined(__EMSCRIPTEN__)
         MLG_CHECK(GpuHelper::GetSurface().Present(), "Failed to present backbuffer");

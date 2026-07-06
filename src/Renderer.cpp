@@ -3,7 +3,6 @@
 #include "Renderer.h"
 
 #include "Camera.h"
-#include "Compositor.h"
 #include "FileFetcher.h"
 #include "GpuLayouts.h"
 #include "narrow_cast.h"
@@ -124,7 +123,7 @@ Renderer::Render(const Camera& camera,
     MLG_CHECK(EnsureColorPipeline(m_ColorTargetResources.Target.GetFormat(),
         m_ColorTargetResources.DepthTarget.GetFormat()));
 
-    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "RenderCommandEncoder" };
+    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "Renderer::Render" };
 
     const wgpu::CommandEncoder cmdEncoder = GpuHelper::GetDevice().CreateCommandEncoder(&encoderDesc);
     MLG_CHECK(cmdEncoder, "Failed to create command encoder");
@@ -267,11 +266,15 @@ Renderer::GetTarget(wgpu::Texture& outTexture, wgpu::TextureView& outTextureView
     return Result<>::Ok;
 }
 
-Result<> Renderer::Composite(Compositor& compositor)
+Result<> Renderer::Composite(const wgpu::Texture& target)
 {
     MLG_CHECKV(m_Initialized, "Renderer is not initialized");
 
-    const wgpu::Texture target = compositor.GetTarget();
+    if(!target)
+    {
+        // Off-screen rendering, skip rendering to swapchain
+        return Result<>::Ok;
+    }
 
     if(!target)
     {
@@ -280,6 +283,10 @@ Result<> Renderer::Composite(Compositor& compositor)
     }
 
     MLG_CHECK(EnsureCompositorPipeline(target.GetFormat()));
+
+    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "Renderer::Composite" };
+    const wgpu::CommandEncoder cmdEncoder = GpuHelper::GetDevice().CreateCommandEncoder(&encoderDesc);
+    MLG_CHECK(cmdEncoder, "Failed to create command encoder");
 
     const wgpu::RenderPassColorAttachment attachment //
         {
@@ -296,7 +303,7 @@ Result<> Renderer::Composite(Compositor& compositor)
             .colorAttachments = &attachment,
         };
 
-    const wgpu::CommandEncoder cmdEncoder = compositor.GetCommandEncoder();
+    //const wgpu::CommandEncoder cmdEncoder = compositor.GetCommandEncoder();
 
     const wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
 
@@ -304,6 +311,13 @@ Result<> Renderer::Composite(Compositor& compositor)
     renderPass.SetBindGroup(0, m_ColorTargetResources.BindGroup, 0, nullptr);
     renderPass.Draw(3, 1, 0, 0);
     renderPass.End();
+
+    const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
+    MLG_CHECK(cmdBuf, "Failed to finish command buffer");
+
+    const wgpu::Queue queue = GpuHelper::GetDevice().GetQueue();
+    MLG_CHECK(queue, "Failed to get wgpu::Queue");
+    queue.Submit(1, &cmdBuf);
 
     return Result<>::Ok;
 }

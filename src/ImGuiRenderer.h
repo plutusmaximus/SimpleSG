@@ -2,8 +2,11 @@
 
 #include "Result.h"
 
-class Compositor;
 struct ImGuiContext;
+namespace wgpu
+{
+    class Texture;
+}
 
 class ImGuiRenderer
 {
@@ -24,9 +27,9 @@ public:
         Shutdown();
     }
 
-    Result<> NewFrame(const Compositor& compositor) const;
+    Result<> NewFrame(const wgpu::Texture& target) const;
 
-    Result<> Composite(Compositor& compositor) const;
+    Result<> Composite(const wgpu::Texture& target) const;
 
 private:
 
