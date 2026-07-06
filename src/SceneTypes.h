@@ -88,6 +88,7 @@ public:
     }
 
     const Mesh& GetMesh() const { return *m_Mesh; }
+    MaterialIdentifier GetMaterialId() const { return m_Mesh->GetMaterialId(); }
     size_t GetInstanceIndex() const { return m_InstanceIndex; }
     const BoundingBox& GetBoundingBox() const { return m_Mesh->GetBoundingBox(); }
     const BoundingSphere& GetBoundingSphere() const { return m_Mesh->GetBoundingSphere(); }

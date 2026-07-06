@@ -1,8 +1,9 @@
 #pragma once
 
-#include "GpuHelper.h"
 #include "SceneTypes.h"
 #include "Result.h"
+
+#include <webgpu/webgpu_cpp.h>
 
 template<typename T>
 class Mat44;

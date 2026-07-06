@@ -200,9 +200,7 @@ Renderer::Render(const Camera& camera,
         // Get visible meshes and sort by material to minimize bind group changes.
         scene.GetVisibleMeshes(frustum, m_VisibleMeshes);
 
-        std::ranges::sort(m_VisibleMeshes,
-            [](const MeshInstance& a, const MeshInstance& b)
-            { return a.GetMesh().GetMaterialId() < b.GetMesh().GetMaterialId(); });
+        std::ranges::sort(m_VisibleMeshes, {}, &MeshInstance::GetMaterialId);
 
         // Track how many times we have to change materials.
         static PerfCounter pcMaterialChanges({ .Name = "Renderer.Render.MaterialChanges" });
