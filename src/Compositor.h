@@ -19,9 +19,9 @@ public:
 
     Result<> EndFrame();
 
-    wgpu::Texture GetTarget();
+    wgpu::Texture GetTarget() const;
 
-    wgpu::CommandEncoder GetCommandEncoder();
+    wgpu::CommandEncoder GetCommandEncoder() const;
 
 private:
 

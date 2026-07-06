@@ -326,7 +326,7 @@ MainLoop()
         MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
         MLG_CHECK(renderer.Composite(compositor));
 
-        MLG_CHECK(imGuiRenderer.NewFrame());
+        MLG_CHECK(imGuiRenderer.NewFrame(compositor));
         MLG_CHECK(RenderGui());
         MLG_CHECK(imGuiRenderer.Composite(compositor));
 

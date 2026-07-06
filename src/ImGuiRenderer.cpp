@@ -3,7 +3,6 @@
 #include "Compositor.h"
 #include "GpuHelper.h"
 #include "PerfMetrics.h"
-#include "scope_exit.h"
 
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
@@ -66,12 +65,26 @@ ImGuiRenderer::Shutdown()
 }
 
 Result<>
-ImGuiRenderer::NewFrame() const
+ImGuiRenderer::NewFrame(const Compositor& compositor) const
 {
     MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
 
     ImGui_ImplWGPU_NewFrame();
     ImGui_ImplSDL3_NewFrame();
+
+    // ImGui assumes the target texture is the same size as the window, but this may not be true if
+    // the window is resized or if the display has a different DPI scaling factor. Make sure ImGui
+    // knows the current size of the target texture.
+
+    auto texture = compositor.GetTarget();
+
+    const float width = static_cast<float>(texture.GetWidth());
+    const float height = static_cast<float>(texture.GetHeight());
+
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = ImVec2(width, height);
+    io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
+
     ImGui::NewFrame();
 
     return Result<>::Ok;

@@ -241,7 +241,7 @@ Result<> MainLoop()
 
             MLG_CHECK(compositor.BeginFrame());
 
-            MLG_CHECK(imGuiRenderer.NewFrame());
+            MLG_CHECK(imGuiRenderer.NewFrame(compositor));
 
             MLG_CHECK(RenderGui());
         }

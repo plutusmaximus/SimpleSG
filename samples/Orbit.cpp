@@ -777,7 +777,7 @@ MainLoop()
 
         //MLG_CHECK(renderer.Composite(compositor));
 
-        MLG_CHECK(imGuiRenderer.NewFrame());
+        MLG_CHECK(imGuiRenderer.NewFrame(compositor));
         MLG_CHECK(devUi.Render());
         MLG_CHECK(imGuiRenderer.Composite(compositor));
 

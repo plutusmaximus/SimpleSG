@@ -2,7 +2,6 @@
 
 #include "GpuHelper.h"
 
-#include "Color.h"
 #include "scope_exit.h"
 #include "VecMath.h"
 
@@ -778,13 +777,75 @@ GpuHelper::GetScreenBounds()
         };
 }
 
-wgpu::TextureFormat
-GpuHelper::GetSwapChainFormat()
+Result<wgpu::Texture>
+GpuHelper::GetSwapChainTexture()
 {
     wgpu::SurfaceTexture surfaceTexture;
     GetSurface().GetCurrentTexture(&surfaceTexture);
-    MLG_ASSERT(surfaceTexture.texture, "Failed to acquire current surface texture");
-    return surfaceTexture.texture.GetFormat();
+
+    if(surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessSuboptimal)
+    {
+        MLG_WARN(
+            "GetCurrentTexture() returned SuccessSuboptimal - the surface may need to be reconfigured");
+    }
+
+    if(surfaceTexture.status
+        == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal
+        || surfaceTexture.status
+        == wgpu::SurfaceGetCurrentTextureStatus::SuccessSuboptimal)
+    {
+        return surfaceTexture.texture;
+    }
+
+    MLG_CHECK(surfaceTexture.status != wgpu::SurfaceGetCurrentTextureStatus::Error,
+        "Failed to acquire current surface texture: Unknown error");
+
+    if(surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::Timeout)
+    {
+        MLG_WARN("Failed to acquire current surface texture: Timeout");
+    }
+    else if(surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::Outdated)
+    {
+        MLG_WARN("Failed to acquire current surface texture: Outdated");
+    }
+    else if(surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::Lost)
+    {
+        MLG_WARN("Failed to acquire current surface texture: Lost");
+    }
+
+    // Attempt to reconfigure the surface and acquire the texture again
+    WgpuContext::Ctx->Surface.Unconfigure();
+
+    auto surfaceFormat = ConfigureSurface(WgpuContext::Ctx->Adapter,
+        WgpuContext::Ctx->Device,
+        WgpuContext::Ctx->Surface,
+        GetScreenBounds().Width,
+        GetScreenBounds().Height);
+
+    MLG_CHECK(surfaceFormat);
+
+    WgpuContext::Ctx->SurfaceFormat = *surfaceFormat;
+
+    GetSurface().GetCurrentTexture(&surfaceTexture);
+
+    MLG_CHECK(surfaceTexture.status
+            == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal
+            || surfaceTexture.status
+            == wgpu::SurfaceGetCurrentTextureStatus::SuccessSuboptimal,
+        "Failed to acquire current surface texture after reconfiguration");
+
+    return surfaceTexture.texture;
+}
+
+wgpu::TextureFormat
+GpuHelper::GetSwapChainFormat()
+{
+    if(!MLG_VERIFY(WgpuContext::Ctx, "GpuHelper::GetSwapChainFormat called before Startup"))
+    {
+        return wgpu::TextureFormat::Undefined;
+    }
+
+    return WgpuContext::Ctx->SurfaceFormat;
 }
 
 // private:

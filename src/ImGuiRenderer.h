@@ -24,7 +24,7 @@ public:
         Shutdown();
     }
 
-    Result<> NewFrame() const;
+    Result<> NewFrame(const Compositor& compositor) const;
 
     Result<> Composite(Compositor& compositor) const;
 

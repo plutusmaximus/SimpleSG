@@ -219,6 +219,8 @@ public:
     }
 
     static Extent GetScreenBounds();
+    
+    static Result<wgpu::Texture> GetSwapChainTexture();
 
     static wgpu::TextureFormat GetSwapChainFormat();
 

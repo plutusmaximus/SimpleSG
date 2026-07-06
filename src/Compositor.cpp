@@ -16,16 +16,11 @@ Compositor::BeginFrame()
     MLG_CHECK(m_CommandEncoder, "Failed to create command encoder");
 
 #if !defined(OFFSCREEN_RENDERING) || !OFFSCREEN_RENDERING
-    wgpu::SurfaceTexture backbuffer;
-    GpuHelper::GetSurface().GetCurrentTexture(&backbuffer);
-    MLG_CHECK(backbuffer.texture, "Failed to get current surface texture for render pass");
 
-    // TODO - handle SuccessSuboptimal, Timeout, Outdated, Lost, Error statuses
-    MLG_CHECK(backbuffer.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal,
-        std::format("Backbuffer status: {}", static_cast<int>(backbuffer.status)));
+    auto target = GpuHelper::GetSwapChainTexture();
+    MLG_CHECK(target, "Failed to get swapchain texture");
 
-    m_Target = backbuffer.texture;
-    MLG_CHECK(m_Target, "Failed to create texture view for swapchain texture");
+    m_Target = *target;
 #endif
 
     return Result<>::Ok;
@@ -63,7 +58,7 @@ Compositor::EndFrame()
 }
 
 wgpu::Texture
-Compositor::GetTarget()
+Compositor::GetTarget() const
 {
     MLG_ASSERT(m_FrameStarted, "GetTarget() called outside of a frame");
 
@@ -72,7 +67,7 @@ Compositor::GetTarget()
 }
 
 wgpu::CommandEncoder
-Compositor::GetCommandEncoder()
+Compositor::GetCommandEncoder() const
 {
     MLG_ASSERT(m_FrameStarted, "GetCommandBuffer() called outside of a frame");
 
