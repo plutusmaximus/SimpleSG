@@ -116,7 +116,7 @@ public:
 };
 
 Result<>
-StageTexture(TextureBuilder& builder)
+StageTexture(TextureBuilder& builder, ThreadPool& threadPool)
 {
     MLG_DEBUG("Staging texture...");
 
@@ -155,7 +155,7 @@ StageTexture(TextureBuilder& builder)
         texBuilder->Decode();
     };
 
-    ThreadPool::Enqueue(decode, &builder);
+    threadPool.Enqueue(decode, &builder);
 
     return Result<>::Ok;
 }
@@ -164,7 +164,8 @@ Result<>
 FetchTextures(const std::filesystem::path& basePath,
     const std::span<const MaterialDef> materialDefs,
     TextureCache& textureCache,
-    const wgpu::CommandEncoder& encoder)
+    const wgpu::CommandEncoder& encoder,
+    ThreadPool& threadPool)
 {
     // Heap of fetch requests.
     // Pointers to pending fetch requests will be used to initialize
@@ -242,7 +243,7 @@ FetchTextures(const std::filesystem::path& basePath,
                 // and when it hits zero we know we're done.
                 stageCounter.fetch_add(1, std::memory_order_relaxed);
 
-                auto result = StageTexture(stagingBuilder);
+                auto result = StageTexture(stagingBuilder, threadPool);
                 if(!result)
                 {
                     MLG_WARN("Failed to stage texture: {}", stagingBuilder.Uri);
@@ -346,8 +347,10 @@ BuildMaterialConstantsBuffer(const std::span<const MaterialDef> materialDefs)
 } // namespace
 
 Result<PropKit>
-PropKit::Create(
-    const std::filesystem::path& rootPath, TextureCache& textureCache, const PropKitDef& propKitDef)
+PropKit::Create(const std::filesystem::path& rootPath,
+    TextureCache& textureCache,
+    const PropKitDef& propKitDef,
+    ThreadPool& threadPool)
 {
     Timer createTimer;
     createTimer.Start();
@@ -433,7 +436,7 @@ PropKit::Create(
 
     const wgpu::CommandEncoder encoder = GpuHelper::GetDevice().CreateCommandEncoder();
 
-    MLG_CHECK(FetchTextures(rootPath, uniqueMaterials, textureCache, encoder));
+    MLG_CHECK(FetchTextures(rootPath, uniqueMaterials, textureCache, encoder, threadPool));
 
     auto vertexBuffer = GpuHelper::CreateVertexBuffer(vertices.size(), "VertexBuffer");
     MLG_CHECK(vertexBuffer);

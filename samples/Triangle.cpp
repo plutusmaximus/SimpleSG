@@ -110,12 +110,6 @@ Result<> MainLoop()
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
-    MLG_CHECK(ThreadPool::Startup());
-    MLG_DEFER
-    {
-        ThreadPool::Shutdown();
-    };
-
     MLG_CHECK(FileFetcher::Startup());
     MLG_DEFER
     {
@@ -135,8 +129,10 @@ Result<> MainLoop()
     TextureCache textureCache;
     MLG_CHECK(textureCache.Startup());
 
+    ThreadPool threadPool;
+
     const std::filesystem::path rootPath = ".";
-    auto propKitResult = PropKit::Create(rootPath, textureCache, propKitDef);
+    auto propKitResult = PropKit::Create(rootPath, textureCache, propKitDef, threadPool);
     MLG_CHECK(propKitResult, "Failed to create PropKit");
     const PropKit propKit = std::move(*propKitResult);
 

@@ -11,7 +11,7 @@ static constexpr float RESTING_VELOCITY_THRESHOLD = 1.0f/128;
 static constexpr float COEFF_OF_RESTITUTION = 0.8f;
 
 Result<PhysicsLevel>
-PhysicsLevel::Create(const Level& level)
+PhysicsLevel::Create(const Level& level, ThreadPool& threadPool)
 {
     size_t count = 0;
     for(const auto& node : level.GetAllNodes())
@@ -43,7 +43,8 @@ PhysicsLevel::Create(const Level& level)
 
     PhysicsLevel physLevel(std::move(nodes),
         std::move(transforms),
-        std::move(bodies));
+        std::move(bodies),
+        threadPool);
         
     return std::move(physLevel);
 }
@@ -295,7 +296,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
     // Batches of BodyPairs will be offloaded to worker threads.
 
     // Calculate optimal batch size to max out worker threads.
-    const size_t workerCount = ThreadPool::GetWorkerCount();
+    const size_t workerCount = m_ThreadPool->GetWorkerCount();
     const size_t batchSize = (potentialCollisionCount + workerCount - 1) / workerCount;
     const size_t batchCount = (potentialCollisionCount + batchSize - 1) / batchSize;
 
@@ -336,7 +337,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
             SweepTestBatch& batch = m_SweepTestBatches.emplace_back(batchSpan, &finishCounter);
 
             // Enqueue the batch for processing.
-            batch.Enqueue();
+            EnqueueSweepTests(&batch);
 
             subspanStart += pairCount;
             pairCount = 0;
@@ -349,7 +350,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
         const std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
         SweepTestBatch& batch = m_SweepTestBatches.emplace_back(batchSpan, &finishCounter);
 
-        batch.Enqueue();
+        EnqueueSweepTests(&batch);
     }
 
     MLG_ASSERT(m_SweepTestBatches.size() == batchCount);
@@ -383,6 +384,16 @@ PhysicsLevel::FindAndResolveAllImpacts()
     {
         ResolveImpact(impactRecord);
     }
+}
+
+void
+PhysicsLevel::EnqueueSweepTests(SweepTestBatch* batch)
+{
+#if FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED
+    m_ThreadPool->Enqueue<SweepTestBatch::Process>(batch);
+#else
+    SweepTestBatch::Process(batch);
+#endif
 }
 
 bool
@@ -533,16 +544,6 @@ PhysicsLevel::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult&
     impactResult.PenetrationDepth = 0;
 
     return true;
-}
-
-void
-PhysicsLevel::SweepTestBatch::Enqueue()
-{
-#if FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED
-    ThreadPool::Enqueue<SweepTestBatch::Process>(this);
-#else
-    Process(this);
-#endif
 }
 
 void

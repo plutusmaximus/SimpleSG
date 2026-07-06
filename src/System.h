@@ -2,6 +2,7 @@
 
 #include "Result.h"
 
+class ThreadPool;
 union SDL_Event;
 
 class System
@@ -12,6 +13,8 @@ public:
     static Result<> Startup(const char* appName);
 
     static void Shutdown();
+
+    static ThreadPool& GetThreadPool();
 
     enum class EventDisposition
     {

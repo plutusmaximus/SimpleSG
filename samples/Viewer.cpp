@@ -87,7 +87,7 @@ Result<> RenderGui()
 }
 
 Result<std::tuple<PropKit, Level, Scene>>
-Load(const std::filesystem::path& path, TextureCache& textureCache)
+Load(const std::filesystem::path& path, TextureCache& textureCache, ThreadPool& threadPool)
 {
     PropKitDef propKitDef;
     LevelDef levelDef;
@@ -95,7 +95,7 @@ Load(const std::filesystem::path& path, TextureCache& textureCache)
         "Failed to load glTF file: {}",
         path.string());
 
-    auto propKit = PropKit::Create(path.parent_path(), textureCache, propKitDef);
+    auto propKit = PropKit::Create(path.parent_path(), textureCache, propKitDef, threadPool);
     MLG_CHECK(propKit, "Failed to create PropKit for {}", path.string());
 
     auto level = Level::Create(levelDef, *propKit);
@@ -145,7 +145,7 @@ MainLoop()
         textureCache.Shutdown();
     };
 
-    auto loadResult = Load(SPONZA_MODEL_PATH, textureCache);
+    auto loadResult = Load(SPONZA_MODEL_PATH, textureCache, System::GetThreadPool());
     MLG_CHECK(loadResult, "Failed to load resources");
 
     auto&& [propKit, level, scene] = std::move(*loadResult);
@@ -309,7 +309,7 @@ MainLoop()
         if(!droppedFile.empty())
         {
             textureCache.Clear();
-            auto newLoadResult = Load(SPONZA_MODEL_PATH, textureCache);
+            auto newLoadResult = Load(SPONZA_MODEL_PATH, textureCache, System::GetThreadPool());
             MLG_CHECK(newLoadResult, "Failed to load resources");
 
             auto&& [newPropKit, newLevel, newScene] = std::move(*newLoadResult);

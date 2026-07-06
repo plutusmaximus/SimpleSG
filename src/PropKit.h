@@ -7,13 +7,15 @@
 #include <vector>
 
 struct PropKitDef;
+class ThreadPool;
 
 class PropKit
 {
 public:
     static Result<PropKit> Create(const std::filesystem::path& rootPath,
         class TextureCache& textureCache,
-        const PropKitDef& propKitDef);
+        const PropKitDef& propKitDef,
+        ThreadPool& threadPool);
 
     PropKit() = delete;
     ~PropKit() = default;

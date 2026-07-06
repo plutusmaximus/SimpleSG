@@ -136,7 +136,7 @@ private:
 };
 
 Result<std::tuple<PropKit, Level>>
-Load(TextureCache& textureCache)
+Load(TextureCache& textureCache, ThreadPool& threadPool)
 {
     constexpr float kBallRadius = 1.0f;
 
@@ -159,7 +159,7 @@ Load(TextureCache& textureCache)
             },
         };
 
-    auto propKit = PropKit::Create(std::filesystem::path{}, textureCache, propKitDef);
+    auto propKit = PropKit::Create(std::filesystem::path{}, textureCache, propKitDef, threadPool);
     MLG_CHECK(propKit, "Failed to create PropKit");
 
     // Fixed seed for reproducibility
@@ -304,7 +304,7 @@ void ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
 }
 
 // Returns the total potential energy of the system after applying gravity.
-void ApplyGravity(PhysicsLevel& physLevel)
+void ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
 {
     MLG_SCOPED_TIMER("Physics.ApplyGravity");
 
@@ -312,7 +312,7 @@ void ApplyGravity(PhysicsLevel& physLevel)
     const std::span<const TrsTransformf> transforms = physLevel.GetTransforms();
 
     const size_t numPairs = bodies.size() * (bodies.size() - 1) / 2;
-    const size_t workerCount = ThreadPool::GetWorkerCount();
+    const size_t workerCount = threadPool.GetWorkerCount();
     const size_t batchSize = (numPairs + workerCount - 1) / workerCount;
     const size_t numBatches = (numPairs + batchSize - 1) / batchSize;
 
@@ -344,7 +344,7 @@ void ApplyGravity(PhysicsLevel& physLevel)
 
                 if constexpr (kApplyGravityMultithreaded)
                 {
-                    ThreadPool::Enqueue<ApplyGravityBatch>(&params);
+                    threadPool.Enqueue<ApplyGravityBatch>(&params);
                 }
                 else
                 {
@@ -375,7 +375,7 @@ void ApplyGravity(PhysicsLevel& physLevel)
 
         if constexpr (kApplyGravityMultithreaded)
         {
-            ThreadPool::Enqueue<ApplyGravityBatch>(&params);
+            threadPool.Enqueue<ApplyGravityBatch>(&params);
         }
         else
         {
@@ -509,7 +509,7 @@ MainLoop()
     CliUi cliUi;
     DevUi devUi(cliUi, renderer);
 
-    auto loadResult = Load(textureCache);
+    auto loadResult = Load(textureCache, System::GetThreadPool());
     MLG_CHECK(loadResult);
 
     auto&& [propKit, level] = std::move(*loadResult);
@@ -519,7 +519,7 @@ MainLoop()
 
     Scene scene = std::move(*sceneResult);
 
-    auto physLevelResult = PhysicsLevel::Create(level);
+    auto physLevelResult = PhysicsLevel::Create(level, System::GetThreadPool());
     MLG_CHECK(physLevelResult);
 
     PhysicsLevel physLevel = std::move(*physLevelResult);
@@ -736,7 +736,7 @@ MainLoop()
 
         if(!pauseSim)
         {
-            ApplyGravity(physLevel);
+            ApplyGravity(physLevel, System::GetThreadPool());
 
             physLevel.Update(kPhysicsTimeStep);
 

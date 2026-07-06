@@ -20,12 +20,6 @@ Result<> System::Startup(const char* appName)
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
-    MLG_CHECK(ThreadPool::Startup());
-    MLG_DEFER_AS(failure)
-    {
-        ThreadPool::Shutdown();
-    };
-
     MLG_CHECK(FileFetcher::Startup());
     MLG_DEFER_AS(fileFetcherShutdown)
     {
@@ -34,12 +28,19 @@ Result<> System::Startup(const char* appName)
 
     MLG_CHECK(GpuHelper::Startup(appName));
 
-    failure.release(); // Success, prevent shutdown in defer.
     fileFetcherShutdown.release();
 
     m_Initialized = true;
 
     return Result<>::Ok;
+}
+
+ThreadPool&
+System::GetThreadPool()
+{
+    static ThreadPool s_ThreadPool;
+
+    return s_ThreadPool;
 }
 
 void
@@ -52,7 +53,6 @@ System::Shutdown()
 
     GpuHelper::Shutdown();
     FileFetcher::Shutdown();
-    ThreadPool::Shutdown();
 
     m_Initialized = false;
 }

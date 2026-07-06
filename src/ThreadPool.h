@@ -1,28 +1,29 @@
 #pragma once
 
-#include "Result.h"
+#include "AssertHelper.h"
 
 #include <array>
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <span>
+#include <thread>
 
 /// @brief A simple thread pool for executing jobs asynchronously.
 class ThreadPool final
 {
 public:
-    ThreadPool() = delete;
-    ~ThreadPool() = delete;
+    ThreadPool();
+    ~ThreadPool();
     ThreadPool(const ThreadPool&) = delete;
     ThreadPool& operator=(const ThreadPool&) = delete;
     ThreadPool(ThreadPool&&) = delete;
     ThreadPool& operator=(ThreadPool&&) = delete;
-    
-    static Result<> Startup();
 
-    static void Shutdown();
-
-    static bool Enqueue(void (*jobFunc)(void*), void* userData);
+    bool Enqueue(void (*jobFunc)(void*), void* userData);
 
     template<auto JobFunc, typename T>
-    static bool Enqueue(T* userData)
+    bool Enqueue(T* userData)
     {
         auto wrapperFunc = [](void* data)
         {
@@ -32,7 +33,7 @@ public:
         return Enqueue(wrapperFunc, userData);
     }
 
-    static size_t GetWorkerCount();
+    size_t GetWorkerCount() const;
 
 private:
     struct Job
@@ -66,18 +67,28 @@ private:
         void* m_UserData{ nullptr };
     };
 
-    static Job *NewJob();
-    static void DeleteJob(Job *job);
+    Job *NewJob();
+    void DeleteJob(Job *job);
 
-    // Enqueue a new job. Returns false if the pool is stopping or not accepting work.
-    static bool Enqueue(Job *job);
+    void Enqueue(Job *job);
 
-    static void WorkerLoop();
+    static size_t GetWorkerThreadCount();
+
+    static void WorkerLoop(ThreadPool* threadPool);
 
     static constexpr const size_t kMaxJobs = 1024;
-    static std::array<Job, kMaxJobs> s_JobPool;
-    static Job* s_JobPoolFreeList;
+    static constexpr size_t kMaxWorkerThreads = 32;
 
-    static Job *s_JobQueueHead;
-    static Job *s_JobQueueTail;
+    std::array<Job, kMaxJobs> m_JobPool;
+    Job* m_JobPoolFreeList{nullptr};
+
+    Job *m_JobQueueHead{nullptr};
+    Job *m_JobQueueTail{nullptr};
+
+    std::mutex m_JobQueueMutex;
+    std::mutex m_AllocMutex;
+    std::condition_variable m_ThreadPoolCv;
+    std::atomic<bool> m_Running{false};
+    std::array<std::thread, kMaxWorkerThreads> m_WorkerThreadPool;
+    std::span<std::thread> m_WorkerThreads;
 };

@@ -7,6 +7,8 @@
 
 #include <atomic>
 
+class ThreadPool;
+
 struct ImpactResult
 {
     float Alpha; // Distance along path at impact, from 0 to 1.
@@ -69,7 +71,7 @@ public:
 
     constexpr static size_t GRID_CELL_SIZE = 2;
 
-    static Result<PhysicsLevel> Create(const Level& level);
+    static Result<PhysicsLevel> Create(const Level& level, ThreadPool& threadPool);
 
     PhysicsLevel() = default;
     ~PhysicsLevel() = default;
@@ -100,16 +102,16 @@ private:
         std::span<ImpactRecord> PotentialImpacts;
         std::atomic<size_t>* FinishCounter{nullptr};
 
-        void Enqueue();
-
         static void Process(SweepTestBatch* batch);
     };
 
     PhysicsLevel(std::vector<const Level::Node*>&& nodes,
         std::vector<TrsTransformf>&& transforms,
-        std::vector<RigidBody>&& bodies)
+        std::vector<RigidBody>&& bodies,
+        ThreadPool& threadPool)
         : m_Nodes(std::move(nodes)),
-          m_Bodies(std::move(bodies))
+          m_Bodies(std::move(bodies)),
+          m_ThreadPool(&threadPool)
     {
         m_TransformPool[0] = std::move(transforms);
         m_TransformPool[1] = m_TransformPool[0];    // Make a copy
@@ -130,6 +132,8 @@ private:
     void ResolveImpact(const ImpactRecord& impact);
 
     void FindAndResolveAllImpacts();
+
+    void EnqueueSweepTests(SweepTestBatch* batch);
 
     static bool SphereSphereSweep(const ColliderSweepParams& params, ImpactResult& impactResult);
 
@@ -155,4 +159,6 @@ private:
     GridHash m_GridHash{GRID_CELL_SIZE};
 
     std::vector<ImpactRecord> m_ImpactRecords;
+
+    ThreadPool* m_ThreadPool{nullptr};
 };
