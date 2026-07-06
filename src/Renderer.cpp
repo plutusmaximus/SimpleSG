@@ -10,7 +10,6 @@
 #include "PerfMetrics.h"
 #include "PropKit.h"
 #include "Scene.h"
-#include "scope_exit.h"
 #include "shaders/ColorShaderContract.h"
 #include "shaders/CompositeShaderContract.h"
 #include "shaders/TransformShaderContract.h"
@@ -79,7 +78,7 @@ Renderer::Startup()
     const wgpu::TextureFormat depthFormat = m_ColorTargetResources.DepthTarget.GetFormat();
 
     MLG_CHECK(EnsureColorPipeline(targetFormat, depthFormat));
-    MLG_CHECK(CreateCompositorPipeline());
+    MLG_CHECK(EnsureCompositorPipeline(GpuHelper::GetSwapChainFormat()));
     MLG_CHECK(CreateTransformPipeline());
 
     m_Initialized = true;
@@ -268,7 +267,7 @@ Renderer::GetTarget(wgpu::Texture& outTexture, wgpu::TextureView& outTextureView
     return Result<>::Ok;
 }
 
-Result<> Renderer::Composite(Compositor& compositor) const
+Result<> Renderer::Composite(Compositor& compositor)
 {
     MLG_CHECKV(m_Initialized, "Renderer is not initialized");
 
@@ -279,6 +278,8 @@ Result<> Renderer::Composite(Compositor& compositor) const
         // Off-screen rendering, skip rendering to swapchain
         return Result<>::Ok;
     }
+
+    MLG_CHECK(EnsureCompositorPipeline(target.GetFormat()));
 
     const wgpu::RenderPassColorAttachment attachment //
         {
@@ -487,11 +488,6 @@ Renderer::EnsureColorPipeline(const wgpu::TextureFormat targetFormat,
         GpuHelper::GetDevice().CreatePipelineLayout(&colorTargetPipelineLayoutDesc);
     MLG_CHECK(pipelineLayout, "Failed to create color pipeline layout");
 
-    m_ColorPipelineResources.Layout = pipelineLayout;
-    m_ColorPipelineResources.Shader = *shader;
-    m_ColorPipelineResources.TargetFormat = targetFormat;
-    m_ColorPipelineResources.DepthFormat = depthFormat;
-
     const wgpu::BlendState blendState //
         {
             .color =
@@ -510,14 +506,14 @@ Renderer::EnsureColorPipeline(const wgpu::TextureFormat targetFormat,
 
     const wgpu::ColorTargetState colorTargetState //
         {
-            .format = m_ColorPipelineResources.TargetFormat,
+            .format = targetFormat,
             .blend = &blendState,
             .writeMask = wgpu::ColorWriteMask::All,
         };
 
     const wgpu::DepthStencilState depthStencilState //
         {
-            .format = m_ColorPipelineResources.DepthFormat,
+            .format = depthFormat,
             .depthWriteEnabled = true,
             .depthCompare = wgpu::CompareFunction::Less,
             /*.stencilFront =
@@ -543,7 +539,7 @@ Renderer::EnsureColorPipeline(const wgpu::TextureFormat targetFormat,
 
     const wgpu::FragmentState fragmentState //
         {
-            .module = m_ColorPipelineResources.Shader,
+            .module = *shader,
             .entryPoint = ColorShaderContract::GetFragmentEntryPoint(),
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -555,10 +551,10 @@ Renderer::EnsureColorPipeline(const wgpu::TextureFormat targetFormat,
     const wgpu::RenderPipelineDescriptor descriptor//
     {
         .label = "ColorTargetPipeline",
-        .layout = m_ColorPipelineResources.Layout,
+        .layout = pipelineLayout,
         .vertex =
         {
-            .module = m_ColorPipelineResources.Shader,
+            .module = *shader,
             .entryPoint = ColorShaderContract::GetVertexEntryPoint(),
             .bufferCount = 1,
             .buffers = &vertexBufferLayout,
@@ -581,6 +577,11 @@ Renderer::EnsureColorPipeline(const wgpu::TextureFormat targetFormat,
         .fragment = &fragmentState,
     };
 
+    m_ColorPipelineResources.Layout = pipelineLayout;
+    m_ColorPipelineResources.Shader = *shader;
+    m_ColorPipelineResources.TargetFormat = targetFormat;
+    m_ColorPipelineResources.DepthFormat = depthFormat;
+
     m_ColorPipeline = GpuHelper::GetDevice().CreateRenderPipeline(&descriptor);
     MLG_CHECK(m_ColorPipeline, "Failed to create render pipeline");
 
@@ -588,17 +589,15 @@ Renderer::EnsureColorPipeline(const wgpu::TextureFormat targetFormat,
 }
 
 Result<>
-Renderer::CreateCompositorPipeline()
+Renderer::EnsureCompositorPipeline(const wgpu::TextureFormat targetFormat)
 {
-    if(m_CompositorPipeline)
+    if(m_CompositorPipeline && m_CompositorPipelineResources.TargetFormat == targetFormat)
     {
         return Result<>::Ok;
     }
 
     auto shader = CreateShader(kCompositorShader);
     MLG_CHECK(shader);
-
-    m_CompositorPipelineResources.Shader = *shader;
 
     auto layout = GpuLayouts::GetOrCreateLayout<CompositeShaderContract::TextureGroup>(
         GpuHelper::GetDevice());
@@ -611,9 +610,9 @@ Renderer::CreateCompositorPipeline()
             .bindGroupLayouts = &layout.Value(),
         };
 
-    m_CompositorPipelineResources.Layout =
+    const wgpu::PipelineLayout pipelineLayout =
         GpuHelper::GetDevice().CreatePipelineLayout(&pipelineLayoutDesc);
-    MLG_CHECK(m_CompositorPipelineResources.Layout, "Failed to create compositor pipeline layout");
+    MLG_CHECK(pipelineLayout, "Failed to create compositor pipeline layout");
 
     const wgpu::BlendState blendState //
         {
@@ -633,14 +632,14 @@ Renderer::CreateCompositorPipeline()
 
     const wgpu::ColorTargetState colorTargetState //
         {
-            .format = GpuHelper::GetSwapChainFormat(),
+            .format = targetFormat,
             .blend = &blendState,
             .writeMask = wgpu::ColorWriteMask::All,
         };
 
     const wgpu::FragmentState fragmentState //
         {
-            .module = m_CompositorPipelineResources.Shader,
+            .module = *shader,
             .entryPoint = "fs_main",
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -649,10 +648,10 @@ Renderer::CreateCompositorPipeline()
     const wgpu::RenderPipelineDescriptor descriptor//
     {
         .label = "CompositorPipeline",
-        .layout = m_CompositorPipelineResources.Layout,
+        .layout = pipelineLayout,
         .vertex =
         {
-            .module = m_CompositorPipelineResources.Shader,
+            .module = *shader,
             .entryPoint = "vs_main",
             .bufferCount = 0,
             .buffers = nullptr,
@@ -674,6 +673,10 @@ Renderer::CreateCompositorPipeline()
         },
         .fragment = &fragmentState,
     };
+
+    m_CompositorPipelineResources.Shader = *shader;
+    m_CompositorPipelineResources.Layout = pipelineLayout;
+    m_CompositorPipelineResources.TargetFormat = targetFormat;
 
     m_CompositorPipeline = GpuHelper::GetDevice().CreateRenderPipeline(&descriptor);
     MLG_CHECK(m_CompositorPipeline, "Failed to create compositor pipeline");

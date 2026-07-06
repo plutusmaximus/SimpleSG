@@ -38,7 +38,7 @@ public:
 
     Result<> GetTarget(wgpu::Texture& outTexture, wgpu::TextureView& outTextureView) const;
 
-    Result<> Composite(Compositor& compositor) const;
+    Result<> Composite(Compositor& compositor);
 
 private:
 
@@ -49,7 +49,7 @@ private:
     Result<> EnsureColorPipeline(const wgpu::TextureFormat targetFormat,
         const wgpu::TextureFormat depthFormat);
 
-    Result<> CreateCompositorPipeline();
+    Result<> EnsureCompositorPipeline(const wgpu::TextureFormat targetFormat);
 
     Result<> CreateTransformPipeline();
 
@@ -88,6 +88,7 @@ private:
     {
         wgpu::ShaderModule Shader;
         wgpu::PipelineLayout Layout;
+        wgpu::TextureFormat TargetFormat{ wgpu::TextureFormat::Undefined };
     };
 
     ColorTargetResources m_ColorTargetResources;
