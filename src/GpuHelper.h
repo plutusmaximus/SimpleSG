@@ -110,7 +110,21 @@ public:
 
 private:
 
+    enum class BufferMappedState
+    {
+        Unmapped,
+        Mapped,
+    };
+
+    static Result<wgpu::Buffer> CreateGpuBuffer(const wgpu::BufferUsage usage,
+        const size_t size,
+        BufferMappedState mappedState,
+        const std::string_view name);
     static Result<wgpu::Buffer> CreateIndirectBuffer(const size_t size, const std::string_view& name);
     static Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string_view& name);
     static Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string_view& name);
+
+    static Result<wgpu::Texture> CreateDefaultTexture();
+
+    static Result<wgpu::Sampler> CreateDefaultSampler();
 };

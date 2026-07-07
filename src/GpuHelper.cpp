@@ -542,86 +542,6 @@ ConfigureSurface(const wgpu::Adapter& adapter,
     return format;
 }
 
-enum class BufferMappedState
-{
-    Unmapped,
-    Mapped,
-};
-
-wgpu::Buffer
-CreateGpuBuffer(const wgpu::BufferUsage usage,
-    const size_t size,
-    BufferMappedState mappedState,
-    const std::string_view name)
-{
-    const wgpu::BufferDescriptor bufferDesc //
-        {
-            .label = name,
-            .usage = usage,
-            .size = size,
-            .mappedAtCreation = (mappedState == BufferMappedState::Mapped),
-        };
-
-    return GpuHelper::GetDevice().CreateBuffer(&bufferDesc);
-}
-
-Result<wgpu::Texture> CreateDefaultTexture()
-{
-    constexpr size_t kDefaultTextureWidth = 128;
-    constexpr size_t kDefaultTextureHeight = 128;
-    constexpr RgbaColoru8 kDefaultTextureColor{ "#FF00FFFF"_rgba }; // Magenta
-
-    auto texture = GpuHelper::CreateTexture(
-        kDefaultTextureWidth,
-        kDefaultTextureHeight,
-        "DefaultTexture");
-
-    MLG_CHECK(texture);
-
-    auto stagingBuffer = GpuHelper::CreateStagingBuffer(*texture, "DefaultTextureStagingBuffer");
-    MLG_CHECK(stagingBuffer);
-    
-    void* mapped = stagingBuffer->GetMappedRange();
-    MLG_CHECK(mapped);
-
-    const std::span<uint8_t> mappedSpan(static_cast<uint8_t*>(mapped), stagingBuffer->GetSize());
-
-    const size_t rowStride = GetTextureAlignedRowStride(kDefaultTextureWidth);
-
-    for(size_t y = 0; y < kDefaultTextureHeight; ++y)
-    {
-        size_t offset = y * rowStride;
-
-        for(size_t x = 0; x < kDefaultTextureWidth; ++x, offset += 4)
-        {
-            //Magenta
-            mappedSpan[offset + 0] = kDefaultTextureColor.r;
-            mappedSpan[offset + 1] = kDefaultTextureColor.g;
-            mappedSpan[offset + 2] = kDefaultTextureColor.b;
-            mappedSpan[offset + 3] = kDefaultTextureColor.a;
-        }
-    }
-
-    MLG_CHECK(GpuHelper::CommitStagingBuffer(*texture, *stagingBuffer));
-
-    return *texture;
-}
-
-Result<wgpu::Sampler> CreateDefaultSampler()
-{
-    const wgpu::SamplerDescriptor samplerDesc//
-    {
-        .addressModeU = wgpu::AddressMode::Repeat,
-        .addressModeV = wgpu::AddressMode::Repeat,
-        .addressModeW = wgpu::AddressMode::Repeat,
-        .magFilter = wgpu::FilterMode::Linear,
-        .minFilter = wgpu::FilterMode::Linear,
-        .mipmapFilter = wgpu::MipmapFilterMode::Linear,
-    };
-
-    return GpuHelper::GetDevice().CreateSampler(&samplerDesc);
-}
-
 } // namespace
 
 Result<>
@@ -944,7 +864,7 @@ GpuHelper::CreateStagingBuffer(wgpu::Texture texture, const std::string_view& na
     const size_t sizeofBuffer = rowStride * texture.GetHeight();
     const wgpu::BufferUsage usage = wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc;
 
-    wgpu::Buffer stagingBuffer =
+    auto stagingBuffer =
         CreateGpuBuffer(usage, sizeofBuffer, BufferMappedState::Mapped, name);
 
     return stagingBuffer;
@@ -955,13 +875,13 @@ GpuHelper::CommitStagingBuffer(wgpu::Texture texture, wgpu::Buffer stagingBuffer
 {
     MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CommitStagingBuffer called before Startup");
 
-    const wgpu::CommandEncoder cmdEncoder = GpuHelper::GetDevice().CreateCommandEncoder();
+    const wgpu::CommandEncoder cmdEncoder = GetDevice().CreateCommandEncoder();
 
     MLG_CHECK(CommitStagingBuffer(texture, stagingBuffer, cmdEncoder));
 
     const wgpu::CommandBuffer commandBuffer = cmdEncoder.Finish();
 
-    GpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
+    GetDevice().GetQueue().Submit(1, &commandBuffer);
 
     return Result<>::Ok;
 }
@@ -1009,8 +929,11 @@ GpuHelper::CreateVertexBuffer(const size_t count, const std::string_view& name)
 
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
 
-    return VertexBuffer(GetDevice(),
-        CreateGpuBuffer(usage, count * sizeof(Vertex), BufferMappedState::Unmapped, name));
+    auto buffer = CreateGpuBuffer(usage, count * sizeof(Vertex), BufferMappedState::Unmapped, name);
+
+    MLG_CHECK(buffer, "Failed to create vertex buffer");
+
+    return VertexBuffer(GetDevice(), *buffer);
 }
 
 Result<IndexBuffer>
@@ -1020,17 +943,37 @@ GpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name)
 
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst;
 
-    return IndexBuffer(GetDevice(),
-        CreateGpuBuffer(usage, count * sizeof(VertexIndex), BufferMappedState::Unmapped, name));
+    auto buffer = CreateGpuBuffer(usage, count * sizeof(VertexIndex), BufferMappedState::Unmapped, name);
+
+    MLG_CHECK(buffer, "Failed to create index buffer");
+
+    return IndexBuffer(GetDevice(), *buffer);
 }
 
 // private:
 
 Result<wgpu::Buffer>
+GpuHelper::CreateGpuBuffer(const wgpu::BufferUsage usage,
+    const size_t size,
+    BufferMappedState mappedState,
+    const std::string_view name)
+{
+    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateGpuBuffer called before Startup");
+
+    const wgpu::BufferDescriptor bufferDesc //
+        {
+            .label = name,
+            .usage = usage,
+            .size = size,
+            .mappedAtCreation = (mappedState == BufferMappedState::Mapped),
+        };
+
+    return GetDevice().CreateBuffer(&bufferDesc);
+}
+
+Result<wgpu::Buffer>
 GpuHelper::CreateIndirectBuffer(const size_t size, const std::string_view& name)
 {
-    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateIndirectBuffer called before Startup");
-
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst;
 
     return CreateGpuBuffer(usage, size, BufferMappedState::Unmapped, name);
@@ -1039,8 +982,6 @@ GpuHelper::CreateIndirectBuffer(const size_t size, const std::string_view& name)
 Result<wgpu::Buffer>
 GpuHelper::CreateStorageBuffer(const size_t size, const std::string_view& name)
 {
-    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateStorageBuffer called before Startup");
-
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst;
 
     return CreateGpuBuffer(usage, size, BufferMappedState::Unmapped, name);
@@ -1049,11 +990,70 @@ GpuHelper::CreateStorageBuffer(const size_t size, const std::string_view& name)
 Result<wgpu::Buffer>
 GpuHelper::CreateUniformBuffer(const size_t size, const std::string_view& name)
 {
-    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateUniformBuffer called before Startup");
-
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
 
     return CreateGpuBuffer(usage, size, BufferMappedState::Unmapped, name);
+}
+
+Result<wgpu::Texture>
+GpuHelper::CreateDefaultTexture()
+{
+    constexpr size_t kDefaultTextureWidth = 128;
+    constexpr size_t kDefaultTextureHeight = 128;
+    constexpr RgbaColoru8 kDefaultTextureColor{ "#FF00FFFF"_rgba }; // Magenta
+
+    auto texture = CreateTexture(
+        kDefaultTextureWidth,
+        kDefaultTextureHeight,
+        "DefaultTexture");
+
+    MLG_CHECK(texture);
+
+    auto stagingBuffer = CreateStagingBuffer(*texture, "DefaultTextureStagingBuffer");
+    MLG_CHECK(stagingBuffer);
+    
+    void* mapped = stagingBuffer->GetMappedRange();
+    MLG_CHECK(mapped);
+
+    const std::span<uint8_t> mappedSpan(static_cast<uint8_t*>(mapped), stagingBuffer->GetSize());
+
+    const size_t rowStride = GetTextureAlignedRowStride(kDefaultTextureWidth);
+
+    for(size_t y = 0; y < kDefaultTextureHeight; ++y)
+    {
+        size_t offset = y * rowStride;
+
+        for(size_t x = 0; x < kDefaultTextureWidth; ++x, offset += 4)
+        {
+            //Magenta
+            mappedSpan[offset + 0] = kDefaultTextureColor.r;
+            mappedSpan[offset + 1] = kDefaultTextureColor.g;
+            mappedSpan[offset + 2] = kDefaultTextureColor.b;
+            mappedSpan[offset + 3] = kDefaultTextureColor.a;
+        }
+    }
+
+    MLG_CHECK(CommitStagingBuffer(*texture, *stagingBuffer));
+
+    return *texture;
+}
+
+Result<wgpu::Sampler>
+GpuHelper::CreateDefaultSampler()
+{
+    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateDefaultSampler called before Startup");
+
+    const wgpu::SamplerDescriptor samplerDesc//
+    {
+        .addressModeU = wgpu::AddressMode::Repeat,
+        .addressModeV = wgpu::AddressMode::Repeat,
+        .addressModeW = wgpu::AddressMode::Repeat,
+        .magFilter = wgpu::FilterMode::Linear,
+        .minFilter = wgpu::FilterMode::Linear,
+        .mipmapFilter = wgpu::MipmapFilterMode::Linear,
+    };
+
+    return GetDevice().CreateSampler(&samplerDesc);
 }
 
 #include <dawn/native/DawnNative.h> // provides dawn::native::GetTogglesUsed
