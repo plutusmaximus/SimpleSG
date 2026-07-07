@@ -60,8 +60,8 @@ public:
 private:
     friend class GpuHelper;
 
-    SemanticGpuBuffer(wgpu::Device device, wgpu::Buffer buffer)
-        : m_Device(std::move(device)), m_GpuBuffer(std::move(buffer))
+    SemanticGpuBuffer(wgpu::Device gpuDevice, wgpu::Buffer buffer)
+        : m_Device(std::move(gpuDevice)), m_GpuBuffer(std::move(buffer))
     {
     }
 

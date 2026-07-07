@@ -1,3 +1,4 @@
+#include <webgpu/webgpu_cpp.h>
 #define MLG_LOGGER_NAME "DAWN"
 
 #include "Renderer.h"
@@ -41,7 +42,7 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer, FileFetche
 }
 
 Result<wgpu::ShaderModule>
-CreateShader(const char* path, FileFetcher& fileFetcher)
+CreateShader(const wgpu::Device& gpuDevice, const char* path, FileFetcher& fileFetcher)
 {
     std::vector<uint8_t> shaderCode;
     auto loadResult = LoadShaderCode(path, shaderCode, fileFetcher);
@@ -52,8 +53,7 @@ CreateShader(const char* path, FileFetcher& fileFetcher)
     const wgpu::ShaderSourceWGSL wgsl{ { .nextInChain = nullptr, .code = shaderCodeView } };
     const wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl, .label = path };
 
-    wgpu::ShaderModule shaderModule =
-        GpuHelper::GetDevice().CreateShaderModule(&shaderModuleDescriptor);
+    wgpu::ShaderModule shaderModule = gpuDevice.CreateShaderModule(&shaderModuleDescriptor);
     MLG_CHECK(shaderModule, "Failed to create shader module");
 
     return shaderModule;
@@ -61,25 +61,26 @@ CreateShader(const char* path, FileFetcher& fileFetcher)
 }
 
 Result<>
-Renderer::Startup()
+Renderer::Startup(GpuHelper& gpuHelper)
 {
     MLG_CHECKV(!m_Initialized, "Renderer is already initialized");
 
-    GpuHelper::GetDevice().GetLimits(&m_GpuLimits);
+    gpuHelper.GetDevice().GetLimits(&m_GpuLimits);
 
-    const Extent screenBounds = GpuHelper::GetScreenBounds();
+    const Extent screenBounds = gpuHelper.GetScreenBounds();
 
     const uint32_t width = static_cast<uint32_t>(screenBounds.Width);
     const uint32_t height = static_cast<uint32_t>(screenBounds.Height);
 
-    MLG_CHECK(EnsureColorTarget(width, height));
+    const wgpu::TextureFormat targetFormat = gpuHelper.GetSwapChainFormat();
 
-    const wgpu::TextureFormat targetFormat = m_ColorTargetResources.Target.GetFormat();
+    MLG_CHECK(EnsureColorTarget(gpuHelper.GetDevice(), width, height, targetFormat));
+
     const wgpu::TextureFormat depthFormat = m_ColorTargetResources.DepthTarget.GetFormat();
 
-    MLG_CHECK(EnsureColorPipeline(targetFormat, depthFormat));
-    MLG_CHECK(EnsureCompositorPipeline(GpuHelper::GetSwapChainFormat()));
-    MLG_CHECK(CreateTransformPipeline());
+    MLG_CHECK(EnsureColorPipeline(gpuHelper.GetDevice(), targetFormat, depthFormat));
+    MLG_CHECK(EnsureCompositorPipeline(gpuHelper.GetDevice(), targetFormat));
+    MLG_CHECK(CreateTransformPipeline(gpuHelper.GetDevice()));
 
     m_Initialized = true;
 
@@ -109,7 +110,8 @@ Renderer::Shutdown()
 }
 
 Result<>
-Renderer::Render(const Camera& camera,
+Renderer::Render(const wgpu::Device& gpuDevice,
+    const Camera& camera,
     const Posef& cameraXForm,
     const Scene& scene,
     const PropKit& propKit)
@@ -120,19 +122,19 @@ Renderer::Render(const Camera& camera,
 
     MLG_SCOPED_TIMER("Renderer.Render");
 
-    MLG_CHECK(EnsureColorTarget(viewport.GetWidth(), viewport.GetHeight()));
-    MLG_CHECK(EnsureColorPipeline(m_ColorTargetResources.Target.GetFormat(),
+    MLG_CHECK(EnsureColorTarget(gpuDevice, viewport.GetWidth(), viewport.GetHeight(), m_ColorTargetResources.Target.GetFormat()));
+    MLG_CHECK(EnsureColorPipeline(gpuDevice, m_ColorTargetResources.Target.GetFormat(),
         m_ColorTargetResources.DepthTarget.GetFormat()));
 
     const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "Renderer::Render" };
 
-    const wgpu::CommandEncoder cmdEncoder = GpuHelper::GetDevice().CreateCommandEncoder(&encoderDesc);
+    const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
     MLG_CHECK(cmdEncoder, "Failed to create command encoder");
 
     {
         MLG_SCOPED_TIMER("Renderer.Render.TransformNodes");
 
-        auto transformNodesResult = TransformNodes(cmdEncoder, cameraXForm, camera, scene);
+        auto transformNodesResult = TransformNodes(gpuDevice, cmdEncoder, cameraXForm, camera, scene);
         MLG_CHECK(transformNodesResult);
     }
 
@@ -246,7 +248,7 @@ Renderer::Render(const Camera& camera,
 
     {
         MLG_SCOPED_TIMER("Renderer.SubmitCommandBuffer");
-        const wgpu::Queue queue = GpuHelper::GetDevice().GetQueue();
+        const wgpu::Queue queue = gpuDevice.GetQueue();
         MLG_CHECK(queue, "Failed to get wgpu::Queue");
 
         queue.Submit(1, &cmdBuf);
@@ -265,7 +267,7 @@ Renderer::GetTarget(wgpu::Texture& outTexture, wgpu::TextureView& outTextureView
     return Result<>::Ok;
 }
 
-Result<> Renderer::Composite(const wgpu::Texture& target)
+Result<> Renderer::Composite(const wgpu::Device& gpuDevice, const wgpu::Texture& target)
 {
     MLG_CHECKV(m_Initialized, "Renderer is not initialized");
 
@@ -281,10 +283,10 @@ Result<> Renderer::Composite(const wgpu::Texture& target)
         return Result<>::Ok;
     }
 
-    MLG_CHECK(EnsureCompositorPipeline(target.GetFormat()));
+    MLG_CHECK(EnsureCompositorPipeline(gpuDevice, target.GetFormat()));
 
     const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "Renderer::Composite" };
-    const wgpu::CommandEncoder cmdEncoder = GpuHelper::GetDevice().CreateCommandEncoder(&encoderDesc);
+    const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
     MLG_CHECK(cmdEncoder, "Failed to create command encoder");
 
     const wgpu::RenderPassColorAttachment attachment //
@@ -314,7 +316,7 @@ Result<> Renderer::Composite(const wgpu::Texture& target)
     const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
     MLG_CHECK(cmdBuf, "Failed to finish command buffer");
 
-    const wgpu::Queue queue = GpuHelper::GetDevice().GetQueue();
+    const wgpu::Queue queue = gpuDevice.GetQueue();
     MLG_CHECK(queue, "Failed to get wgpu::Queue");
     queue.Submit(1, &cmdBuf);
 
@@ -363,7 +365,10 @@ Renderer::BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder)
 }
 
 Result<>
-Renderer::EnsureColorTarget(const uint32_t width, const uint32_t height)
+Renderer::EnsureColorTarget(const wgpu::Device& gpuDevice,
+    const uint32_t width,
+    const uint32_t height,
+    wgpu::TextureFormat targetFormat)
 {
     static constexpr wgpu::TextureFormat kDepthTargetFormat = wgpu::TextureFormat::Depth24Plus;
 
@@ -388,12 +393,12 @@ Renderer::EnsureColorTarget(const uint32_t width, const uint32_t height)
                     .height = height,
                     .depthOrArrayLayers = 1,
                 },
-                .format = GpuHelper::GetSwapChainFormat(),
+                .format = targetFormat,
                 .mipLevelCount = 1,
                 .sampleCount = 1,
             };
 
-        m_ColorTargetResources.Target = GpuHelper::GetDevice().CreateTexture(&textureDesc);
+        m_ColorTargetResources.Target = gpuDevice.CreateTexture(&textureDesc);
         m_ColorTargetResources.TargetView = m_ColorTargetResources.Target.CreateView();
     }
 
@@ -419,7 +424,7 @@ Renderer::EnsureColorTarget(const uint32_t width, const uint32_t height)
                 .sampleCount = 1,
             };
 
-        m_ColorTargetResources.DepthTarget = GpuHelper::GetDevice().CreateTexture(&textureDesc);
+        m_ColorTargetResources.DepthTarget = gpuDevice.CreateTexture(&textureDesc);
         m_ColorTargetResources.DepthTargetView = m_ColorTargetResources.DepthTarget.CreateView();
     }
 
@@ -440,7 +445,7 @@ Renderer::EnsureColorTarget(const uint32_t width, const uint32_t height)
                 .maxAnisotropy = 1,
             };
 
-        m_ColorTargetResources.Sampler = GpuHelper::GetDevice().CreateSampler(&samplerDesc);
+        m_ColorTargetResources.Sampler = gpuDevice.CreateSampler(&samplerDesc);
     }
 
     // Create bind group for the color target texture and sampler
@@ -454,7 +459,7 @@ Renderer::EnsureColorTarget(const uint32_t width, const uint32_t height)
             };
 
         auto bindGroup = GpuLayouts::CreateBindGroup<CompositeShaderContract::TextureGroup>(
-            GpuHelper::GetDevice(),
+            gpuDevice,
             resources);
 
         MLG_CHECK(bindGroup);
@@ -466,7 +471,8 @@ Renderer::EnsureColorTarget(const uint32_t width, const uint32_t height)
 }
 
 Result<>
-Renderer::EnsureColorPipeline(const wgpu::TextureFormat targetFormat,
+Renderer::EnsureColorPipeline(const wgpu::Device& gpuDevice,
+    const wgpu::TextureFormat targetFormat,
     const wgpu::TextureFormat depthFormat)
 {
     if(m_ColorPipeline && m_ColorPipelineResources.TargetFormat == targetFormat &&
@@ -475,17 +481,19 @@ Renderer::EnsureColorPipeline(const wgpu::TextureFormat targetFormat,
         return Result<>::Ok;
     }
 
-    auto shader = CreateShader(ColorShaderContract::GetShaderPath(), System::GetFileFetcher());
+    auto shader = CreateShader(gpuDevice,
+        ColorShaderContract::GetShaderPath(),
+        System::GetFileFetcher());
     MLG_CHECK(shader);
 
     // Color target pipeline layout
 
     auto layout0 =
-        GpuLayouts::GetOrCreateLayout<ColorShaderContract::SceneGroup>(GpuHelper::GetDevice());
+        GpuLayouts::GetOrCreateLayout<ColorShaderContract::SceneGroup>(gpuDevice);
     MLG_CHECK(layout0);
 
     auto layout1 =
-        GpuLayouts::GetOrCreateLayout<ColorShaderContract::TextureGroup>(GpuHelper::GetDevice());
+        GpuLayouts::GetOrCreateLayout<ColorShaderContract::TextureGroup>(gpuDevice);
     MLG_CHECK(layout1);
 
     const wgpu::BindGroupLayout layouts[]{ *layout0, *layout1 };
@@ -498,7 +506,7 @@ Renderer::EnsureColorPipeline(const wgpu::TextureFormat targetFormat,
         };
 
     const wgpu::PipelineLayout pipelineLayout =
-        GpuHelper::GetDevice().CreatePipelineLayout(&colorTargetPipelineLayoutDesc);
+        gpuDevice.CreatePipelineLayout(&colorTargetPipelineLayoutDesc);
     MLG_CHECK(pipelineLayout, "Failed to create color pipeline layout");
 
     const wgpu::BlendState blendState //
@@ -595,25 +603,25 @@ Renderer::EnsureColorPipeline(const wgpu::TextureFormat targetFormat,
     m_ColorPipelineResources.TargetFormat = targetFormat;
     m_ColorPipelineResources.DepthFormat = depthFormat;
 
-    m_ColorPipeline = GpuHelper::GetDevice().CreateRenderPipeline(&descriptor);
+    m_ColorPipeline = gpuDevice.CreateRenderPipeline(&descriptor);
     MLG_CHECK(m_ColorPipeline, "Failed to create render pipeline");
 
     return Result<>::Ok;
 }
 
 Result<>
-Renderer::EnsureCompositorPipeline(const wgpu::TextureFormat targetFormat)
+Renderer::EnsureCompositorPipeline(const wgpu::Device& gpuDevice, const wgpu::TextureFormat targetFormat)
 {
     if(m_CompositorPipeline && m_CompositorPipelineResources.TargetFormat == targetFormat)
     {
         return Result<>::Ok;
     }
 
-    auto shader = CreateShader(kCompositorShader, System::GetFileFetcher());
+    auto shader = CreateShader(gpuDevice, kCompositorShader, System::GetFileFetcher());
     MLG_CHECK(shader);
 
     auto layout = GpuLayouts::GetOrCreateLayout<CompositeShaderContract::TextureGroup>(
-        GpuHelper::GetDevice());
+        gpuDevice);
     MLG_CHECK(layout);
 
     const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
@@ -624,7 +632,7 @@ Renderer::EnsureCompositorPipeline(const wgpu::TextureFormat targetFormat)
         };
 
     const wgpu::PipelineLayout pipelineLayout =
-        GpuHelper::GetDevice().CreatePipelineLayout(&pipelineLayoutDesc);
+        gpuDevice.CreatePipelineLayout(&pipelineLayoutDesc);
     MLG_CHECK(pipelineLayout, "Failed to create compositor pipeline layout");
 
     const wgpu::BlendState blendState //
@@ -691,27 +699,29 @@ Renderer::EnsureCompositorPipeline(const wgpu::TextureFormat targetFormat)
     m_CompositorPipelineResources.Layout = pipelineLayout;
     m_CompositorPipelineResources.TargetFormat = targetFormat;
 
-    m_CompositorPipeline = GpuHelper::GetDevice().CreateRenderPipeline(&descriptor);
+    m_CompositorPipeline = gpuDevice.CreateRenderPipeline(&descriptor);
     MLG_CHECK(m_CompositorPipeline, "Failed to create compositor pipeline");
 
     return Result<>::Ok;
 }
 
 Result<>
-Renderer::CreateTransformPipeline()
+Renderer::CreateTransformPipeline(const wgpu::Device& gpuDevice)
 {
     if(m_TransformPipeline)
     {
         return Result<>::Ok;
     }
 
-    auto csResult = CreateShader(TransformShaderContract::GetShaderPath(), System::GetFileFetcher());
+    auto csResult = CreateShader(gpuDevice,
+        TransformShaderContract::GetShaderPath(),
+        System::GetFileFetcher());
     MLG_CHECK(csResult);
 
     m_TransformPipelineResources.Shader = *csResult;
 
     auto layout =
-        GpuLayouts::GetOrCreateLayout<TransformShaderContract::SceneGroup>(GpuHelper::GetDevice());
+        GpuLayouts::GetOrCreateLayout<TransformShaderContract::SceneGroup>(gpuDevice);
     MLG_CHECK(layout);
 
     const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
@@ -722,7 +732,7 @@ Renderer::CreateTransformPipeline()
         };
 
     m_TransformPipelineResources.Layout =
-        GpuHelper::GetDevice().CreatePipelineLayout(&pipelineLayoutDesc);
+        gpuDevice.CreatePipelineLayout(&pipelineLayoutDesc);
     MLG_CHECK(m_TransformPipelineResources.Layout, "Failed to create transform pipeline layout");
 
     const wgpu::ComputePipelineDescriptor pipelineDesc//
@@ -735,20 +745,19 @@ Renderer::CreateTransformPipeline()
         },
     };;
 
-    m_TransformPipeline = GpuHelper::GetDevice().CreateComputePipeline(&pipelineDesc);
+    m_TransformPipeline = gpuDevice.CreateComputePipeline(&pipelineDesc);
     MLG_CHECK(m_TransformPipeline, "Failed to create compute pipeline for transform");
 
     return Result<>::Ok;
 }
 
 Result<>
-Renderer::TransformNodes(const wgpu::CommandEncoder& cmdEncoder,
+Renderer::TransformNodes(const wgpu::Device& gpuDevice,
+    const wgpu::CommandEncoder& cmdEncoder,
     const Posef& cameraXForm,
     const Camera& camera,
     const Scene& scene) const
 {
-    const wgpu::Device device = GpuHelper::GetDevice();
-
     // Use inverse of camera transform as view matrix
     const Mat44f viewXform = cameraXForm.Inverse().ToMatrix();
     const Mat44f& projMat = camera.GetMatrix();
@@ -763,7 +772,7 @@ Renderer::TransformNodes(const wgpu::CommandEncoder& cmdEncoder,
 
     auto cameraParamsBuf = scene.GetCameraParamsBuffer();
 
-    device.GetQueue().WriteBuffer(
+    gpuDevice.GetQueue().WriteBuffer(
         cameraParamsBuf.GetGpuBuffer(),
         0,
         &cameraParams,

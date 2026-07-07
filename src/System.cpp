@@ -2,11 +2,17 @@
 
 #include "FileFetcher.h"
 #include "GpuHelper.h"
-#include "scope_exit.h"
 #include "ThreadPool.h"
 
 #include <filesystem>
 #include <SDL3/SDL_events.h>
+#include <memory>
+
+namespace
+{
+uint8_t s_GpuHelperStorage[sizeof(GpuHelper)]; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+GpuHelper* s_GpuHelper = nullptr; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+}
 
 Result<> System::Startup(const char* appName)
 {
@@ -20,11 +26,32 @@ Result<> System::Startup(const char* appName)
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
-    MLG_CHECK(GpuHelper::Startup(appName));
+    void* p = static_cast<void*>(s_GpuHelperStorage);
+    s_GpuHelper = std::construct_at(static_cast<GpuHelper*>(p), appName);
 
     m_Initialized = true;
 
     return Result<>::Ok;
+}
+
+void
+System::Shutdown()
+{
+    if(!m_Initialized)
+    {
+        return;
+    }
+
+    std::destroy_at(s_GpuHelper);
+    s_GpuHelper = nullptr;
+
+    m_Initialized = false;
+}
+
+GpuHelper&
+System::GetGpuHelper()
+{
+    return *s_GpuHelper;
 }
 
 FileFetcher&
@@ -41,19 +68,6 @@ System::GetThreadPool()
     static ThreadPool s_ThreadPool;
 
     return s_ThreadPool;
-}
-
-void
-System::Shutdown()
-{
-    if(!m_Initialized)
-    {
-        return;
-    }
-
-    GpuHelper::Shutdown();
-
-    m_Initialized = false;
 }
 
 void
@@ -100,7 +114,7 @@ System::ProcessEventsImpl(const EventInterceptor& eventInterceptor)
             {
                 const uint32_t newWidth = static_cast<uint32_t>(sdlEvent.window.data1);
                 const uint32_t newHeight = static_cast<uint32_t>(sdlEvent.window.data2);
-                GpuHelper::Resize(newWidth, newHeight);
+                GetGpuHelper().Resize(newWidth, newHeight);
             }
             break;
 

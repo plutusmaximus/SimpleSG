@@ -1,7 +1,7 @@
 #include "TransformShaderContract.h"
 
 Result<wgpu::BindGroupLayout>
-TransformShaderContract::SceneGroup::CreateLayout(wgpu::Device device)
+TransformShaderContract::SceneGroup::CreateLayout(const wgpu::Device& gpuDevice)
 {
     const wgpu::BindGroupLayoutEntry entries[]//
     {
@@ -47,11 +47,11 @@ TransformShaderContract::SceneGroup::CreateLayout(wgpu::Device device)
             .entries = &entries[0],
         };
 
-    return device.CreateBindGroupLayout(&desc);
+    return gpuDevice.CreateBindGroupLayout(&desc);
 }
 
 Result<wgpu::BindGroup>
-TransformShaderContract::SceneGroup::CreateBindGroup(wgpu::Device device, wgpu::BindGroupLayout layout,
+TransformShaderContract::SceneGroup::CreateBindGroup(const wgpu::Device& gpuDevice, wgpu::BindGroupLayout layout,
     const SceneGroup::Resources& resources)
 {
     MLG_CHECK(resources.Validate(),
@@ -87,5 +87,5 @@ TransformShaderContract::SceneGroup::CreateBindGroup(wgpu::Device device, wgpu::
             .entries = &entries[0],
         };
 
-    return device.CreateBindGroup(&desc);
+    return gpuDevice.CreateBindGroup(&desc);
 }

@@ -135,7 +135,7 @@ private:
 };
 
 Result<std::tuple<PropKit, Level>>
-Load(ThreadPool& threadPool, FileFetcher& fileFetcher)
+Load(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher)
 {
     constexpr float kBallRadius = 1.0f;
 
@@ -158,7 +158,8 @@ Load(ThreadPool& threadPool, FileFetcher& fileFetcher)
             },
         };
 
-    auto propKit = PropKit::Create(std::filesystem::path{}, propKitDef, threadPool, fileFetcher);
+    auto propKit =
+        PropKit::Create(gpuHelper, threadPool, fileFetcher, std::filesystem::path{}, propKitDef);
     MLG_CHECK(propKit, "Failed to create PropKit");
 
     // Fixed seed for reproducibility
@@ -486,13 +487,17 @@ MainLoop()
         System::Shutdown();
     };
 
-    MLG_CHECK(renderer.Startup());
+    GpuHelper& gpuHelper = System::GetGpuHelper();
+    ThreadPool& threadPool = System::GetThreadPool();
+    FileFetcher& fileFetcher = System::GetFileFetcher();
+
+    MLG_CHECK(renderer.Startup(gpuHelper));
     MLG_DEFER
     {
         renderer.Shutdown();
     };
 
-    MLG_CHECK(imGuiRenderer.Startup());
+    MLG_CHECK(imGuiRenderer.Startup(gpuHelper));
     MLG_DEFER
     {
         imGuiRenderer.Shutdown();
@@ -501,17 +506,17 @@ MainLoop()
     CliUi cliUi;
     DevUi devUi(cliUi, renderer);
 
-    auto loadResult = Load(System::GetThreadPool(), System::GetFileFetcher());
+    auto loadResult = Load(gpuHelper, threadPool, fileFetcher);
     MLG_CHECK(loadResult);
 
     auto&& [propKit, level] = std::move(*loadResult);
 
-    auto sceneResult = Scene::Create(level, propKit);
+    auto sceneResult = Scene::Create(gpuHelper, level, propKit);
     MLG_CHECK(sceneResult);
 
     Scene scene = std::move(*sceneResult);
 
-    auto physLevelResult = PhysicsLevel::Create(level, System::GetThreadPool());
+    auto physLevelResult = PhysicsLevel::Create(level, threadPool);
     MLG_CHECK(physLevelResult);
 
     PhysicsLevel physLevel = std::move(*physLevelResult);
@@ -521,7 +526,7 @@ MainLoop()
     constexpr float kInitialCameraDistance = 40.0f;
 
     Posef cameraXForm{ .T{0, 0, -kInitialCameraDistance} };
-    Camera camera((Viewport(GpuHelper::GetScreenBounds())));
+    Camera camera((Viewport(gpuHelper.GetScreenBounds())));
 
     mouseNav.SetTransform(cameraXForm);
 
@@ -618,7 +623,7 @@ MainLoop()
                     [&](const ActionEvent&)
                 {
                     mouseNav.Activate();
-                    SDL_SetWindowRelativeMouseMode(GpuHelper::GetWindow(), true);
+                    SDL_SetWindowRelativeMouseMode(gpuHelper.GetWindow(), true);
                 },
             },
             {
@@ -628,7 +633,7 @@ MainLoop()
                     [&](const ActionEvent&)
                 {
                     mouseNav.Deactivate();
-                    SDL_SetWindowRelativeMouseMode(GpuHelper::GetWindow(), false);
+                    SDL_SetWindowRelativeMouseMode(gpuHelper.GetWindow(), false);
                 },
             },
             {
@@ -728,7 +733,7 @@ MainLoop()
 
         if(!pauseSim)
         {
-            ApplyGravity(physLevel, System::GetThreadPool());
+            ApplyGravity(physLevel, threadPool);
 
             physLevel.Update(kPhysicsTimeStep);
 
@@ -753,26 +758,26 @@ MainLoop()
             camera.SetViewport(sceneViewport);
             cameraXForm = mouseNav.GetTransform();
 
-            MLG_CHECK(scene.SyncToGpu());
+            MLG_CHECK(scene.SyncToGpu(gpuHelper.GetDevice()));
 
-            MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
+            MLG_CHECK(renderer.Render(gpuHelper.GetDevice(), camera, cameraXForm, scene, propKit));
         }
 
-        auto target = GpuHelper::GetSwapChainTexture();
+        auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECK(target, "Failed to get swapchain texture");
 
         MLG_CHECK(imGuiRenderer.NewFrame(*target));
         MLG_CHECK(devUi.Render());
-        MLG_CHECK(imGuiRenderer.Composite(*target));
+        MLG_CHECK(imGuiRenderer.Composite(gpuHelper.GetDevice(), *target));
 
         {
 #if !defined(__EMSCRIPTEN__)
             MLG_SCOPED_TIMER("Present");
-            MLG_CHECK(GpuHelper::GetSurface().Present(), "Failed to present backbuffer");
+            MLG_CHECK(gpuHelper.GetSurface().Present(), "Failed to present backbuffer");
 #endif
         }
 
-        GpuHelper::GetInstance().ProcessEvents();
+        gpuHelper.GetInstance().ProcessEvents();
     }
 
     PerfMetrics::LogCounters();

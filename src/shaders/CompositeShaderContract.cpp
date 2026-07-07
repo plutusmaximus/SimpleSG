@@ -1,7 +1,7 @@
 #include "CompositeShaderContract.h"
 
 Result<wgpu::BindGroupLayout>
-CompositeShaderContract::TextureGroup::CreateLayout(wgpu::Device device)
+CompositeShaderContract::TextureGroup::CreateLayout(const wgpu::Device& gpuDevice)
 {
     const wgpu::BindGroupLayoutEntry entries[] =//
     {
@@ -34,11 +34,11 @@ CompositeShaderContract::TextureGroup::CreateLayout(wgpu::Device device)
             .entries = &entries[0],
         };
 
-    return device.CreateBindGroupLayout(&desc);
+    return gpuDevice.CreateBindGroupLayout(&desc);
 }
 
 Result<wgpu::BindGroup>
-CompositeShaderContract::TextureGroup::CreateBindGroup(wgpu::Device device, wgpu::BindGroupLayout layout,
+CompositeShaderContract::TextureGroup::CreateBindGroup(const wgpu::Device& gpuDevice, wgpu::BindGroupLayout layout,
     const TextureGroup::Resources& resources)
 {
     MLG_CHECK(resources.Validate(),
@@ -64,5 +64,5 @@ CompositeShaderContract::TextureGroup::CreateBindGroup(wgpu::Device device, wgpu
             .entries = &entries[0],
         };
 
-    return device.CreateBindGroup(&desc);
+    return gpuDevice.CreateBindGroup(&desc);
 }

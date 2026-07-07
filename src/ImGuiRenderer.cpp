@@ -8,7 +8,7 @@
 #include <imgui_impl_wgpu.h>
 
 Result<>
-ImGuiRenderer::Startup()
+ImGuiRenderer::Startup(GpuHelper& gpuHelper)
 {
     MLG_CHECKV(!m_Initialized, "ImGuiRenderer is already initialized");
 
@@ -29,12 +29,12 @@ ImGuiRenderer::Startup()
     //ImGui::StyleColorsLight();
     
     // Setup Platform/Renderer backends
-    ImGui_ImplSDL3_InitForOther(GpuHelper::GetWindow());
+    ImGui_ImplSDL3_InitForOther(gpuHelper.GetWindow());
 
     ImGui_ImplWGPU_InitInfo init_info;
-    init_info.Device = GpuHelper::GetDevice().Get();
+    init_info.Device = gpuHelper.GetDevice().Get();
     init_info.NumFramesInFlight = 3;
-    init_info.RenderTargetFormat = static_cast<WGPUTextureFormat>(GpuHelper::GetSwapChainFormat());
+    init_info.RenderTargetFormat = static_cast<WGPUTextureFormat>(gpuHelper.GetSwapChainFormat());
     init_info.DepthStencilFormat = WGPUTextureFormat_Undefined;
     ImGui_ImplWGPU_Init(&init_info);
 
@@ -88,7 +88,7 @@ ImGuiRenderer::NewFrame(const wgpu::Texture& target) const
 }
 
 Result<>
-ImGuiRenderer::Composite(const wgpu::Texture& target) const
+ImGuiRenderer::Composite(const wgpu::Device& gpuDevice, const wgpu::Texture& target) const
 {
     MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
 
@@ -135,7 +135,7 @@ ImGuiRenderer::Composite(const wgpu::Texture& target) const
     };
 
     const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "ImGuiRenderer::Composite" };
-    const wgpu::CommandEncoder cmdEncoder = GpuHelper::GetDevice().CreateCommandEncoder(&encoderDesc);
+    const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
     MLG_CHECK(cmdEncoder, "Failed to create command encoder");
 
     const wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
@@ -147,7 +147,7 @@ ImGuiRenderer::Composite(const wgpu::Texture& target) const
     const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
     MLG_CHECK(cmdBuf, "Failed to finish command buffer");
 
-    const wgpu::Queue queue = GpuHelper::GetDevice().GetQueue();
+    const wgpu::Queue queue = gpuDevice.GetQueue();
     MLG_CHECK(queue, "Failed to get wgpu::Queue");
     queue.Submit(1, &cmdBuf);
 

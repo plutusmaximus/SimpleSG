@@ -28,9 +28,9 @@ public:
             }
         };
 
-        static Result<wgpu::BindGroupLayout> CreateLayout(wgpu::Device device);
+        static Result<wgpu::BindGroupLayout> CreateLayout(const wgpu::Device& gpuDevice);
 
-        static Result<wgpu::BindGroup> CreateBindGroup(wgpu::Device device, wgpu::BindGroupLayout layout,
+        static Result<wgpu::BindGroup> CreateBindGroup(const wgpu::Device& gpuDevice, wgpu::BindGroupLayout layout,
             const Resources& resources);
     };
 

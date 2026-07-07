@@ -5,6 +5,8 @@
 
 #include <webgpu/webgpu_cpp.h>
 
+class GpuHelper;
+
 template<typename T>
 class Mat44;
 using Mat44f = Mat44<float>;
@@ -27,33 +29,39 @@ public:
         Shutdown();
     }
 
-    Result<> Startup();
+    Result<> Startup(GpuHelper& gpuHelper);
 
     Result<> Shutdown();
 
-    Result<> Render(const Camera& camera,
+    Result<> Render(const wgpu::Device& gpuDevice,
+        const Camera& camera,
         const Posef& cameraXForm,
         const Scene& scene,
         const PropKit& propKit);
 
     Result<> GetTarget(wgpu::Texture& outTexture, wgpu::TextureView& outTextureView) const;
 
-    Result<> Composite(const wgpu::Texture& target);
+    Result<> Composite(const wgpu::Device& gpuDevice, const wgpu::Texture& target);
 
 private:
 
     Result<wgpu::RenderPassEncoder> BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder);
 
-    Result<> EnsureColorTarget(const uint32_t width, const uint32_t height);
+    Result<> EnsureColorTarget(const wgpu::Device& gpuDevice,
+        const uint32_t width,
+        const uint32_t height,
+        wgpu::TextureFormat targetFormat);
 
-    Result<> EnsureColorPipeline(const wgpu::TextureFormat targetFormat,
+    Result<> EnsureColorPipeline(const wgpu::Device& gpuDevice,
+        const wgpu::TextureFormat targetFormat,
         const wgpu::TextureFormat depthFormat);
 
-    Result<> EnsureCompositorPipeline(const wgpu::TextureFormat targetFormat);
+    Result<> EnsureCompositorPipeline(const wgpu::Device& gpuDevice, const wgpu::TextureFormat targetFormat);
 
-    Result<> CreateTransformPipeline();
+    Result<> CreateTransformPipeline(const wgpu::Device& gpuDevice);
 
-    Result<> TransformNodes(const wgpu::CommandEncoder& cmdEncoder,
+    Result<> TransformNodes(const wgpu::Device& gpuDevice,
+        const wgpu::CommandEncoder& cmdEncoder,
         const Posef& cameraXForm,
         const Camera& camera,
         const Scene& scene) const;

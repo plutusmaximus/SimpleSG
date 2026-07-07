@@ -86,7 +86,10 @@ Result<> RenderGui()
 }
 
 Result<std::tuple<PropKit, Level, Scene>>
-Load(const std::filesystem::path& path, ThreadPool& threadPool, FileFetcher& fileFetcher)
+Load(GpuHelper& gpuHelper,
+    ThreadPool& threadPool,
+    FileFetcher& fileFetcher,
+    const std::filesystem::path& path)
 {
     PropKitDef propKitDef;
     LevelDef levelDef;
@@ -95,13 +98,13 @@ Load(const std::filesystem::path& path, ThreadPool& threadPool, FileFetcher& fil
         path.string());
 
     auto propKit =
-        PropKit::Create(path.parent_path(), propKitDef, threadPool, fileFetcher);
+        PropKit::Create(gpuHelper, threadPool, fileFetcher, path.parent_path(), propKitDef);
     MLG_CHECK(propKit, "Failed to create PropKit for {}", path.string());
 
     auto level = Level::Create(levelDef, *propKit);
     MLG_CHECK(level, "Failed to create Level for {}", path.string());
 
-    auto scene = Scene::Create(*level, *propKit);
+    auto scene = Scene::Create(gpuHelper, *level, *propKit);
     MLG_CHECK(scene, "Failed to create Scene for {}", path.string());
 
     return std::make_tuple(std::move(*propKit), std::move(*level), std::move(*scene));
@@ -126,20 +129,23 @@ MainLoop()
         System::Shutdown();
     };
 
-    MLG_CHECK(renderer.Startup());
+    GpuHelper& gpuHelper = System::GetGpuHelper();
+    ThreadPool& threadPool = System::GetThreadPool();
+    FileFetcher& fileFetcher = System::GetFileFetcher();
+
+    MLG_CHECK(renderer.Startup(gpuHelper));
     MLG_DEFER
     {
         renderer.Shutdown();
     };
 
-    MLG_CHECK(imGuiRenderer.Startup());
+    MLG_CHECK(imGuiRenderer.Startup(gpuHelper));
     MLG_DEFER
     {
         imGuiRenderer.Shutdown();
     };
 
-    auto loadResult =
-        Load(SPONZA_MODEL_PATH, System::GetThreadPool(), System::GetFileFetcher());
+    auto loadResult = Load(gpuHelper, threadPool, fileFetcher, SPONZA_MODEL_PATH);
     MLG_CHECK(loadResult, "Failed to load resources");
 
     auto&& [propKit, level, scene] = std::move(*loadResult);
@@ -149,7 +155,7 @@ MainLoop()
     const Radiansf cameraYaw = Radiansf::FromDegrees(kDefaultCameraYaw);
 
     Posef cameraXForm{ .T{0, kDefaultCameraHeight, 0}, .R{UnitQuatf(cameraYaw, Vec3f::YAXIS())} };
-    Camera camera((Viewport(GpuHelper::GetScreenBounds())));
+    Camera camera((Viewport(gpuHelper.GetScreenBounds())));
 
     mouseNav.SetTransform(cameraXForm);
 
@@ -239,7 +245,7 @@ MainLoop()
                     [&](const ActionEvent&)
                 {
                     mouseNav.Activate();
-                    SDL_SetWindowRelativeMouseMode(GpuHelper::GetWindow(), true);
+                    SDL_SetWindowRelativeMouseMode(gpuHelper.GetWindow(), true);
                 },
             },
             {
@@ -249,7 +255,7 @@ MainLoop()
                     [&](const ActionEvent&)
                 {
                     mouseNav.Deactivate();
-                    SDL_SetWindowRelativeMouseMode(GpuHelper::GetWindow(), false);
+                    SDL_SetWindowRelativeMouseMode(gpuHelper.GetWindow(), false);
                 },
             },
         };
@@ -302,9 +308,7 @@ MainLoop()
 
         if(!droppedFile.empty())
         {
-            auto newLoadResult = Load(SPONZA_MODEL_PATH,
-                System::GetThreadPool(),
-                System::GetFileFetcher());
+            auto newLoadResult = Load(gpuHelper, threadPool, fileFetcher, SPONZA_MODEL_PATH);
             MLG_CHECK(newLoadResult, "Failed to load resources");
 
             auto&& [newPropKit, newLevel, newScene] = std::move(*newLoadResult);
@@ -316,25 +320,25 @@ MainLoop()
 
         mouseNav.Update(elapsedSeconds);
             
-        const Viewport viewport(GpuHelper::GetScreenBounds());
+        const Viewport viewport(gpuHelper.GetScreenBounds());
         camera.SetViewport(viewport);
         cameraXForm = mouseNav.GetTransform();
 
-        auto target = GpuHelper::GetSwapChainTexture();
+        auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECK(target, "Failed to get swapchain texture");
 
-        MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
-        MLG_CHECK(renderer.Composite(*target));
+        MLG_CHECK(renderer.Render(gpuHelper.GetDevice(), camera, cameraXForm, scene, propKit));
+        MLG_CHECK(renderer.Composite(gpuHelper.GetDevice(), *target));
 
         MLG_CHECK(imGuiRenderer.NewFrame(*target));
         MLG_CHECK(RenderGui());
-        MLG_CHECK(imGuiRenderer.Composite(*target));
+        MLG_CHECK(imGuiRenderer.Composite(gpuHelper.GetDevice(), *target));
 
 #if !defined(__EMSCRIPTEN__)
-        MLG_CHECK(GpuHelper::GetSurface().Present(), "Failed to present backbuffer");
+        MLG_CHECK(gpuHelper.GetSurface().Present(), "Failed to present backbuffer");
 #endif
 
-        GpuHelper::GetInstance().ProcessEvents();
+        gpuHelper.GetInstance().ProcessEvents();
     }
 
     PerfMetrics::LogCounters();

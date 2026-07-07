@@ -1,3 +1,4 @@
+#include <webgpu/webgpu_cpp.h>
 #define MLG_LOGGER_NAME "SCEN"
 
 #include "Scene.h"
@@ -117,7 +118,7 @@ BuildScene(const Level& level,
 }
 
 Result<DrawIndirectBuffer>
-BuildDrawIndirectBuffer(std::span<const MeshInstance> meshInstances)
+BuildDrawIndirectBuffer(GpuHelper& gpuHelper, std::span<const MeshInstance> meshInstances)
 {
     std::vector<ShaderInterop::DrawIndirectParams> drawIndirectParams;
     drawIndirectParams.reserve(meshInstances.size());
@@ -138,7 +139,7 @@ BuildDrawIndirectBuffer(std::span<const MeshInstance> meshInstances)
         drawIndirectParams.emplace_back(drawParams);
     }
 
-    auto buffer = GpuHelper::CreateIndirectBuffer<DrawIndirectBuffer>(drawIndirectParams.size(),
+    auto buffer = gpuHelper.CreateIndirectBuffer<DrawIndirectBuffer>(drawIndirectParams.size(),
         "DrawIndirectBuffer");
     MLG_CHECK(buffer);
 
@@ -148,7 +149,8 @@ BuildDrawIndirectBuffer(std::span<const MeshInstance> meshInstances)
 }
 
 Result<MeshPropertiesBuffer>
-BuildMeshPropertiesBuffer(const std::span<const ModelInstance> modelInstances,
+BuildMeshPropertiesBuffer(GpuHelper& gpuHelper,
+    const std::span<const ModelInstance> modelInstances,
     const std::span<const MeshInstance> meshInstances)
 {
     const size_t meshInstanceCount = meshInstances.size();
@@ -179,7 +181,7 @@ BuildMeshPropertiesBuffer(const std::span<const ModelInstance> modelInstances,
         ++transformIndex;
     }
 
-    auto buffer = GpuHelper::CreateStorageBuffer<MeshPropertiesBuffer>(meshProperties.size(),
+    auto buffer = gpuHelper.CreateStorageBuffer<MeshPropertiesBuffer>(meshProperties.size(),
         "MeshPropertiesBuffer");
     MLG_CHECK(buffer);
 
@@ -190,7 +192,7 @@ BuildMeshPropertiesBuffer(const std::span<const ModelInstance> modelInstances,
 } // namespace
 
 Result<Scene>
-Scene::Create(const Level& level, const PropKit& propKit)
+Scene::Create(GpuHelper& gpuHelper, const Level& level, const PropKit& propKit)
 {
     Timer createTimer;
     createTimer.Start();
@@ -203,23 +205,23 @@ Scene::Create(const Level& level, const PropKit& propKit)
     MLG_CHECK(BuildScene(level, nodes, worldTransforms, modelInstances, meshInstances));
 
     auto transformBuffer =
-        GpuHelper::CreateStorageBuffer<WorldTransformBuffer>(nodes.size(), "WorldTransforms");
+        gpuHelper.CreateStorageBuffer<WorldTransformBuffer>(nodes.size(), "WorldTransforms");
     MLG_CHECK(transformBuffer);
 
     transformBuffer->Store(worldTransforms);
 
     auto clipSpaceBuffer =
-        GpuHelper::CreateStorageBuffer<ClipSpaceBuffer>(nodes.size(), "ClipSpaceTransforms");
+        gpuHelper.CreateStorageBuffer<ClipSpaceBuffer>(nodes.size(), "ClipSpaceTransforms");
     MLG_CHECK(clipSpaceBuffer);
 
-    auto drawIndirectBuffer = BuildDrawIndirectBuffer(meshInstances);
+    auto drawIndirectBuffer = BuildDrawIndirectBuffer(gpuHelper, meshInstances);
     MLG_CHECK(drawIndirectBuffer);
 
-    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(modelInstances, meshInstances);
+    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(gpuHelper, modelInstances, meshInstances);
     MLG_CHECK(meshPropertiesBuffer);
 
     auto cameraParamsBuf =
-        GpuHelper::CreateUniformBuffer<CameraParamsBuffer>(1, "CameraParams");
+        gpuHelper.CreateUniformBuffer<CameraParamsBuffer>(1, "CameraParams");
     MLG_CHECK(cameraParamsBuf);
 
     const ColorShaderContract::SceneGroup::Resources colorShaderResources //
@@ -232,7 +234,7 @@ Scene::Create(const Level& level, const PropKit& propKit)
         };
 
     auto colorShaderBindGroup =
-        GpuLayouts::CreateBindGroup<ColorShaderContract::SceneGroup>(GpuHelper::GetDevice(),
+        GpuLayouts::CreateBindGroup<ColorShaderContract::SceneGroup>(gpuHelper.GetDevice(),
             colorShaderResources);
     MLG_CHECK(colorShaderBindGroup);
 
@@ -244,7 +246,7 @@ Scene::Create(const Level& level, const PropKit& propKit)
         };
 
     auto transformShaderBindGroup =
-        GpuLayouts::CreateBindGroup<TransformShaderContract::SceneGroup>(GpuHelper::GetDevice(),
+        GpuLayouts::CreateBindGroup<TransformShaderContract::SceneGroup>(gpuHelper.GetDevice(),
             transformShaderResources);
     MLG_CHECK(transformShaderBindGroup);
 
@@ -361,10 +363,10 @@ Scene::SyncFromLevel()
 }
 
 Result<>
-Scene::SyncToGpu()
+Scene::SyncToGpu(const wgpu::Device& gpuDevice)
 {
     // Brute force copy everything for now.
-    GpuHelper::GetDevice().GetQueue().WriteBuffer(m_WorldTransformBuffer.GetGpuBuffer(),
+    gpuDevice.GetQueue().WriteBuffer(m_WorldTransformBuffer.GetGpuBuffer(),
         0,
         m_WorldTransforms.data(),
         m_WorldTransforms.size() * sizeof(m_WorldTransforms[0]));

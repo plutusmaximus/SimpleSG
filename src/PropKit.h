@@ -8,16 +8,18 @@
 #include <vector>
 
 class FileFetcher;
+class GpuHelper;
 struct PropKitDef;
 class ThreadPool;
 
 class PropKit
 {
 public:
-    static Result<PropKit> Create(const std::filesystem::path& rootPath,
-        const PropKitDef& propKitDef,
+    static Result<PropKit> Create(GpuHelper& gpuHelper,
         ThreadPool& threadPool,
-        FileFetcher& fileFetcher);
+        FileFetcher& fileFetcher,
+        const std::filesystem::path& rootPath,
+        const PropKitDef& propKitDef);
 
     PropKit() = delete;
     ~PropKit() = default;

@@ -123,7 +123,7 @@ public:
 };
 
 Result<>
-StageTexture(TextureBuilder& builder, ThreadPool& threadPool)
+StageTexture(GpuHelper& gpuHelper, ThreadPool& threadPool, TextureBuilder& builder)
 {
     MLG_DEBUG("Staging texture...");
 
@@ -141,13 +141,13 @@ StageTexture(TextureBuilder& builder, ThreadPool& threadPool)
 
     MLG_DEBUG("Image info - {} x {} x {}", width, height, numChannels);
 
-    auto texture = GpuHelper::CreateTexture(static_cast<uint32_t>(width),
+    auto texture = gpuHelper.CreateTexture(static_cast<uint32_t>(width),
         static_cast<uint32_t>(height),
         builder.Uri);
 
     MLG_CHECK(texture);
 
-    auto stagingBuffer = GpuHelper::CreateStagingBuffer(*texture, builder.Uri);
+    auto stagingBuffer = gpuHelper.CreateStagingBuffer(*texture, builder.Uri);
     MLG_CHECK(stagingBuffer);
 
     void* mapped = stagingBuffer->GetMappedRange();
@@ -172,12 +172,12 @@ StageTexture(TextureBuilder& builder, ThreadPool& threadPool)
 }
 
 Result<>
-FetchTextures(const std::filesystem::path& basePath,
-    const std::span<const MaterialDef> materialDefs,
-    TextureCache& textureCache,
-    const wgpu::CommandEncoder& encoder,
+FetchTextures(GpuHelper& gpuHelper,
     ThreadPool& threadPool,
-    FileFetcher& fileFetcher)
+    FileFetcher& fileFetcher,
+    const std::filesystem::path& basePath,
+    const std::span<const MaterialDef> materialDefs,
+    TextureCache& textureCache)
 {
     // Heap of fetch requests.
     // Pointers to pending fetch requests will be used to initialize
@@ -255,7 +255,7 @@ FetchTextures(const std::filesystem::path& basePath,
                 // and when it hits zero we know we're done.
                 stageCounter.fetch_add(1, std::memory_order_relaxed);
 
-                auto result = StageTexture(stagingBuilder, threadPool);
+                auto result = StageTexture(gpuHelper, threadPool, stagingBuilder);
                 if(!result)
                 {
                     MLG_WARN("Failed to stage texture: {}", stagingBuilder.Uri);
@@ -276,6 +276,8 @@ FetchTextures(const std::filesystem::path& basePath,
         stageCounter.wait(value, std::memory_order_acquire);
     }
 
+    const wgpu::CommandEncoder encoder = gpuHelper.GetDevice().CreateCommandEncoder();
+
     // Unmap textures to flush the data to the GPU before adding them to the cache.
     // It appears that mapping/unmapping must be done on the same thread
     // as other wgpu::Device operations.
@@ -289,16 +291,20 @@ FetchTextures(const std::filesystem::path& basePath,
             continue;
         }
 
-        MLG_CHECK(GpuHelper::CommitStagingBuffer(builder.Texture, builder.StagingBuffer, encoder));
+        MLG_CHECK(gpuHelper.CommitStagingBuffer(builder.Texture, builder.StagingBuffer, encoder));
 
         textureCache.AddOrReplace(builder.Uri, builder.Texture);
     }
+
+    const wgpu::CommandBuffer commandBuffer = encoder.Finish();
+    gpuHelper.GetDevice().GetQueue().Submit(1, &commandBuffer);
 
     return Result<>::Ok;
 }
 
 Result<>
-CreateMaterialBindGroups(const std::span<const MaterialDef> materialDefs,
+CreateMaterialBindGroups(GpuHelper& gpuHelper,
+    const std::span<const MaterialDef> materialDefs,
     const TextureCache& textureCache,
     std::vector<wgpu::BindGroup>& materialBindGroups)
 {
@@ -309,17 +315,17 @@ CreateMaterialBindGroups(const std::span<const MaterialDef> materialDefs,
     for(const auto& mtlDef : materialDefs)
     {
         const wgpu::Texture& baseTexture = mtlDef.BaseTextureUri.empty()
-            ? GpuHelper::GetDefaultTexture()
+            ? gpuHelper.GetDefaultTexture()
             : textureCache.Get(mtlDef.BaseTextureUri);
 
         const ColorShaderContract::TextureGroup::Resources resources //
             {
                 .BaseTexture = baseTexture,
-                .BaseSampler = GpuHelper::GetDefaultSampler(),
+                .BaseSampler = gpuHelper.GetDefaultSampler(),
             };
 
         auto bindGroup =
-            GpuLayouts::CreateBindGroup<ColorShaderContract::TextureGroup>(GpuHelper::GetDevice(),
+            GpuLayouts::CreateBindGroup<ColorShaderContract::TextureGroup>(gpuHelper.GetDevice(),
                 resources);
 
         MLG_CHECK(bindGroup);
@@ -331,7 +337,7 @@ CreateMaterialBindGroups(const std::span<const MaterialDef> materialDefs,
 }
 
 Result<MaterialConstantsBuffer>
-BuildMaterialConstantsBuffer(const std::span<const MaterialDef> materialDefs)
+BuildMaterialConstantsBuffer(GpuHelper& gpuHelper, const std::span<const MaterialDef> materialDefs)
 {
     std::vector<ShaderInterop::MaterialConstants> materialConstants;
     materialConstants.reserve(materialDefs.size());
@@ -348,7 +354,7 @@ BuildMaterialConstantsBuffer(const std::span<const MaterialDef> materialDefs)
         materialConstants.emplace_back(mc);
     }
 
-    auto buffer = GpuHelper::CreateStorageBuffer<MaterialConstantsBuffer>(materialConstants.size(),
+    auto buffer = gpuHelper.CreateStorageBuffer<MaterialConstantsBuffer>(materialConstants.size(),
         "MaterialConstants");
 
     MLG_CHECK(buffer);
@@ -360,10 +366,11 @@ BuildMaterialConstantsBuffer(const std::span<const MaterialDef> materialDefs)
 } // namespace
 
 Result<PropKit>
-PropKit::Create(const std::filesystem::path& rootPath,
-    const PropKitDef& propKitDef,
+PropKit::Create(GpuHelper& gpuHelper,
     ThreadPool& threadPool,
-    FileFetcher& fileFetcher)
+    FileFetcher& fileFetcher,
+    const std::filesystem::path& rootPath,
+    const PropKitDef& propKitDef)
 {
     Timer createTimer;
     createTimer.Start();
@@ -447,30 +454,25 @@ PropKit::Create(const std::filesystem::path& rootPath,
         models.emplace_back(model);
     }
 
-    const wgpu::CommandEncoder encoder = GpuHelper::GetDevice().CreateCommandEncoder();
-
     TextureCache textureCache;
 
-    MLG_CHECK(FetchTextures(rootPath, uniqueMaterials, textureCache, encoder, threadPool, fileFetcher));
+    MLG_CHECK(FetchTextures(gpuHelper, threadPool, fileFetcher, rootPath, uniqueMaterials, textureCache));
 
-    auto vertexBuffer = GpuHelper::CreateVertexBuffer(vertices.size(), "VertexBuffer");
+    auto vertexBuffer = gpuHelper.CreateVertexBuffer(vertices.size(), "VertexBuffer");
     MLG_CHECK(vertexBuffer);
 
     vertexBuffer->Store(vertices);
 
-    auto indexBuffer = GpuHelper::CreateIndexBuffer(indices.size(), "IndexBuffer");
+    auto indexBuffer = gpuHelper.CreateIndexBuffer(indices.size(), "IndexBuffer");
     MLG_CHECK(indexBuffer);
 
     indexBuffer->Store(indices);
 
-    auto materialConstants = BuildMaterialConstantsBuffer(uniqueMaterials);
+    auto materialConstants = BuildMaterialConstantsBuffer(gpuHelper, uniqueMaterials);
     MLG_CHECK(materialConstants);
 
     std::vector<wgpu::BindGroup> materialBindGroups;
-    MLG_CHECK(CreateMaterialBindGroups(uniqueMaterials, textureCache, materialBindGroups));
-
-    const wgpu::CommandBuffer commandBuffer = encoder.Finish();
-    GpuHelper::GetDevice().GetQueue().Submit(1, &commandBuffer);
+    MLG_CHECK(CreateMaterialBindGroups(gpuHelper, uniqueMaterials, textureCache, materialBindGroups));
 
     PropKit propKit(
         std::move(*vertexBuffer),

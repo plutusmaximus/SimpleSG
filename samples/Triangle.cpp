@@ -109,22 +109,17 @@ Result<> MainLoop()
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
-    MLG_CHECK(GpuHelper::Startup(kAppName));
-    MLG_DEFER
-    {
-        GpuHelper::Shutdown();
-    };
-
     PropKitDef propKitDef;
     LevelDef levelDef;
     MLG_CHECK(CreateTriangleModel(propKitDef, levelDef));
 
+    GpuHelper gpuHelper(kAppName);
     ThreadPool threadPool;
     FileFetcher fileFetcher;
 
     const std::filesystem::path rootPath = ".";
     auto propKitResult =
-        PropKit::Create(rootPath, propKitDef, threadPool, fileFetcher);
+        PropKit::Create(gpuHelper, threadPool, fileFetcher, rootPath, propKitDef);
     MLG_CHECK(propKitResult, "Failed to create PropKit");
     const PropKit propKit = std::move(*propKitResult);
 
@@ -132,18 +127,18 @@ Result<> MainLoop()
     MLG_CHECK(levelResult, "Failed to create Level");
     const Level level = std::move(*levelResult);
 
-    auto sceneResult = Scene::Create(level, propKit);
+    auto sceneResult = Scene::Create(gpuHelper, level, propKit);
     MLG_CHECK(sceneResult, "Failed to create Scene");
     const Scene scene = std::move(*sceneResult);
 
     Renderer renderer;
-    MLG_CHECK(renderer.Startup());
+    MLG_CHECK(renderer.Startup(gpuHelper));
 
     ImGuiRenderer imGuiRenderer;
-    MLG_CHECK(imGuiRenderer.Startup());
+    MLG_CHECK(imGuiRenderer.Startup(gpuHelper));
 
     const Posef cameraXForm{ .T{0, 0, -4} };
-    Camera camera((Viewport(GpuHelper::GetScreenBounds())));
+    Camera camera((Viewport(gpuHelper.GetScreenBounds())));
 
     bool running = true;
     bool minimized = false;
@@ -192,7 +187,7 @@ Result<> MainLoop()
                     {
                         const uint32_t newWidth = static_cast<uint32_t>(event.window.data1);
                         const uint32_t newHeight = static_cast<uint32_t>(event.window.data2);
-                        GpuHelper::Resize(newWidth, newHeight);
+                        gpuHelper.Resize(newWidth, newHeight);
                     }
                     break;
 
@@ -222,31 +217,31 @@ Result<> MainLoop()
             }
         }
             
-        const Viewport viewport(GpuHelper::GetScreenBounds());
+        const Viewport viewport(gpuHelper.GetScreenBounds());
         camera.SetViewport(viewport);
 
-        auto target = GpuHelper::GetSwapChainTexture();
+        auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECK(target, "Failed to get swapchain texture");
 
         MLG_CHECK(imGuiRenderer.NewFrame(*target));
 
         MLG_CHECK(RenderGui());
 
-        MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
+        MLG_CHECK(renderer.Render(gpuHelper.GetDevice(), camera, cameraXForm, scene, propKit));
 
-        MLG_CHECK(renderer.Composite(*target));
+        MLG_CHECK(renderer.Composite(gpuHelper.GetDevice(), *target));
 
-        MLG_CHECK(imGuiRenderer.Composite(*target));
+        MLG_CHECK(imGuiRenderer.Composite(gpuHelper.GetDevice(), *target));
 
 #if !defined(__EMSCRIPTEN__)
 
 #if !defined(OFFSCREEN_RENDERING) || !OFFSCREEN_RENDERING
-        MLG_CHECK(GpuHelper::GetSurface().Present(), "Failed to present backbuffer");
+        MLG_CHECK(gpuHelper.GetSurface().Present(), "Failed to present backbuffer");
 #endif
 
 #endif
 
-        GpuHelper::GetInstance().ProcessEvents();
+        gpuHelper.GetInstance().ProcessEvents();
     }
 
     MLG_CHECK(imGuiRenderer.Shutdown());

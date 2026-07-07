@@ -8,11 +8,12 @@
 #include <vector>
 
 class Frustum;
+class GpuHelper;
 
 class Scene
 {
 public:
-    static Result<Scene> Create(const Level& level, const PropKit& propKit);
+    static Result<Scene> Create(GpuHelper& gpuHelper, const Level& level, const PropKit& propKit);
 
     Scene() = delete;
     ~Scene() = default;
@@ -43,8 +44,8 @@ public:
 
     Result<> SyncFromLevel();
 
-    // Sync updates from CPU -< GPU.
-    Result<> SyncToGpu();
+    // Sync updates from CPU -> GPU.
+    Result<> SyncToGpu(const wgpu::Device& gpuDevice);
 
 private:
 

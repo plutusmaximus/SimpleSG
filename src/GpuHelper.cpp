@@ -76,31 +76,6 @@ const char* GetPresentModeString(const wgpu::PresentMode presentMode)
     }
 }
 
-class WgpuContext
-{
-public:
-
-    SDL_Window* Window{nullptr};
-    SDL_MetalView MetalView{nullptr};
-    wgpu::Instance Instance{nullptr};
-    wgpu::Adapter Adapter{nullptr};
-    wgpu::Device Device{nullptr};
-    wgpu::Surface Surface{nullptr};
-    wgpu::TextureFormat SurfaceFormat{wgpu::TextureFormat::Undefined};
-    wgpu::Texture DefaultTexture{nullptr};
-    wgpu::Sampler DefaultSampler{nullptr};
-
-    static inline WgpuContext* Ctx = nullptr;
-
-    static inline auto OnShutdown = scope_exit(
-        []()
-        {
-            MLG_ASSERT(nullptr == Ctx, "WgpuContext not properly shut down");
-        });
-};
-
-alignas(WgpuContext) uint8_t g_WgpuContextBuffer[sizeof(WgpuContext)]; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
 // Texture staging buffer rows must be a multiple of 256 bytes.
 uint32_t
 GetTextureAlignedRowStride(const uint32_t textureWidth)
@@ -544,10 +519,325 @@ ConfigureSurface(const wgpu::Adapter& adapter,
 
 } // namespace
 
+namespace mlg::detail
+{
+class GpuHelperImpl
+{
+public:
+
+    SDL_Window* Window{nullptr};
+    SDL_MetalView MetalView{nullptr};
+    wgpu::Instance Instance{nullptr};
+    wgpu::Adapter Adapter{nullptr};
+    wgpu::Device Device{nullptr};
+    wgpu::Surface Surface{nullptr};
+    wgpu::TextureFormat SurfaceFormat{wgpu::TextureFormat::Undefined};
+    wgpu::Texture DefaultTexture{nullptr};
+    wgpu::Sampler DefaultSampler{nullptr};
+};
+} // namespace mlg::detail
+
+GpuHelper::GpuHelper(const char* appName)
+{
+    static_assert(sizeof(mlg::detail::GpuHelperImpl) <= kSizeofImplStorage,
+        "GpuHelperImpl is too large for the storage buffer");
+
+    m_StartupResult = Startup(appName);
+}
+
+GpuHelper::~GpuHelper()
+{
+    Shutdown();
+}
+
+SDL_Window*
+GpuHelper::GetWindow()
+{
+    MLG_VERIFY(m_Impl, "GpuHelper::GetWindow called before Startup");
+    return m_Impl->Window;
+}
+
+wgpu::Instance
+GpuHelper::GetInstance()
+{
+    MLG_VERIFY(m_Impl, "GpuHelper::GetInstance called before Startup");
+    return m_Impl->Instance;
+}
+
+wgpu::Device
+GpuHelper::GetDevice()
+{
+    MLG_VERIFY(m_Impl, "GpuHelper::GetDevice called before Startup");
+    return m_Impl->Device;
+}
+
+wgpu::Surface
+GpuHelper::GetSurface()
+{
+    MLG_VERIFY(m_Impl, "GpuHelper::GetSurface called before Startup");
+    return m_Impl->Surface;
+}
+
+wgpu::Texture
+GpuHelper::GetDefaultTexture()
+{
+    MLG_VERIFY(m_Impl, "GpuHelper::GetDefaultTexture called before Startup");
+    return m_Impl->DefaultTexture;
+}
+
+wgpu::Sampler
+GpuHelper::GetDefaultSampler()
+{
+    MLG_VERIFY(m_Impl, "GpuHelper::GetDefaultSampler called before Startup");
+    return m_Impl->DefaultSampler;
+}
+
+Extent
+GpuHelper::GetScreenBounds()
+{
+    int width = 0, height = 0;
+    if(!SDL_GetWindowSizeInPixels(GetWindow(), &width, &height))
+    {
+        MLG_ERROR("Failed to get window size: {}", SDL_GetError());
+    }
+    return Extent //
+        {
+            .Width = static_cast<unsigned>(width),
+            .Height = static_cast<unsigned>(height),
+        };
+}
+
+Result<wgpu::Texture>
+GpuHelper::GetSwapChainTexture()
+{
+    MLG_CHECKV(m_Impl, "GpuHelper::GetSwapChainTexture called before Startup");
+
+    wgpu::SurfaceTexture surfaceTexture;
+    GetSurface().GetCurrentTexture(&surfaceTexture);
+
+    if(surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessSuboptimal)
+    {
+        MLG_WARN(
+            "GetCurrentTexture() returned SuccessSuboptimal - the surface may need to be reconfigured");
+    }
+
+    if(surfaceTexture.status
+        == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal
+        || surfaceTexture.status
+        == wgpu::SurfaceGetCurrentTextureStatus::SuccessSuboptimal)
+    {
+        return surfaceTexture.texture;
+    }
+
+    MLG_CHECK(surfaceTexture.status != wgpu::SurfaceGetCurrentTextureStatus::Error,
+        "Failed to acquire current surface texture: Unknown error");
+
+    if(surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::Timeout)
+    {
+        MLG_WARN("Failed to acquire current surface texture: Timeout");
+    }
+    else if(surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::Outdated)
+    {
+        MLG_WARN("Failed to acquire current surface texture: Outdated");
+    }
+    else if(surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::Lost)
+    {
+        MLG_WARN("Failed to acquire current surface texture: Lost");
+    }
+
+    // Attempt to reconfigure the surface and acquire the texture again
+    GetSurface().Unconfigure();
+
+    auto surfaceFormat = ConfigureSurface(m_Impl->Adapter,
+        GetDevice(),
+        GetSurface(),
+        GetScreenBounds().Width,
+        GetScreenBounds().Height);
+
+    MLG_CHECK(surfaceFormat);
+
+    m_Impl->SurfaceFormat = *surfaceFormat;
+
+    GetSurface().GetCurrentTexture(&surfaceTexture);
+
+    MLG_CHECK(surfaceTexture.status
+            == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal
+            || surfaceTexture.status
+            == wgpu::SurfaceGetCurrentTextureStatus::SuccessSuboptimal,
+        "Failed to acquire current surface texture after reconfiguration");
+
+    return surfaceTexture.texture;
+}
+
+wgpu::TextureFormat
+GpuHelper::GetSwapChainFormat()
+{
+    if(!MLG_VERIFY(m_Impl, "GpuHelper::GetSwapChainFormat called before Startup"))
+    {
+        return wgpu::TextureFormat::Undefined;
+    }
+
+    return m_Impl->SurfaceFormat;
+}
+
+Result<>
+GpuHelper::Resize(const uint32_t width, const uint32_t height)
+{
+    MLG_CHECKV(m_Impl, "GpuHelper::Resize called before Startup");
+
+    wgpu::SurfaceTexture currentTexture;
+    GetSurface().GetCurrentTexture(&currentTexture);
+    if(width != currentTexture.texture.GetWidth() || height != currentTexture.texture.GetHeight())
+    {
+        GetSurface().Unconfigure();
+
+        auto surfaceFormat = ConfigureSurface(m_Impl->Adapter,
+            GetDevice(),
+            GetSurface(),
+            width,
+            height);
+        MLG_CHECK(surfaceFormat);
+
+        m_Impl->SurfaceFormat = *surfaceFormat;
+    }
+
+    return Result<>::Ok;
+}
+
+Result<wgpu::Texture>
+GpuHelper::CreateTexture(const unsigned width, const unsigned height, const std::string_view& name)
+{
+    MLG_CHECKV(m_Impl, "GpuHelper::CreateTexture called before Startup");
+
+    const wgpu::TextureDescriptor desc //
+        {
+            .label = name,
+            .usage = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
+            .dimension = wgpu::TextureDimension::e2D,
+            .size = //
+            {
+                .width = width,
+                .height = height,
+                .depthOrArrayLayers = 1,
+            },
+            .format = kTextureFormat,
+            .mipLevelCount = 1,
+            .sampleCount = 1,
+        };
+
+    wgpu::Texture texture = GetDevice().CreateTexture(&desc);
+
+    return texture;
+}
+
+// A note on using staging buffers to upload data to the GPU:
+// When copying data to textures we use a staging buffer.
+// When copying data to other buffers we could also use a staging buffer, but it's simpler to use
+// Queue::WriteBuffer which doesn't require a staging buffer. The equivalent of WriteBuffer for
+// textures is Queue::WriteTexture howerver Queue::WriteTexture contains a bunch of validation and
+// is slow compared to using a staging buffer and CopyBufferToTexture.
+
+Result<wgpu::Buffer>
+GpuHelper::CreateStagingBuffer(wgpu::Texture texture, const std::string_view& name)
+{
+    MLG_CHECKV(m_Impl, "GpuHelper::CreateStagingBuffer called before Startup");
+
+    const size_t rowStride = GetTextureAlignedRowStride(texture.GetWidth());
+    const size_t sizeofBuffer = rowStride * texture.GetHeight();
+    const wgpu::BufferUsage usage = wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc;
+
+    auto stagingBuffer =
+        CreateGpuBuffer(usage, sizeofBuffer, BufferMappedState::Mapped, name);
+
+    return stagingBuffer;
+}
+
+Result<>
+GpuHelper::CommitStagingBuffer(wgpu::Texture texture, wgpu::Buffer stagingBuffer)
+{
+    MLG_CHECKV(m_Impl, "GpuHelper::CommitStagingBuffer called before Startup");
+
+    const wgpu::CommandEncoder cmdEncoder = GetDevice().CreateCommandEncoder();
+
+    MLG_CHECK(CommitStagingBuffer(texture, stagingBuffer, cmdEncoder));
+
+    const wgpu::CommandBuffer commandBuffer = cmdEncoder.Finish();
+
+    GetDevice().GetQueue().Submit(1, &commandBuffer);
+
+    return Result<>::Ok;
+}
+
+Result<>
+GpuHelper::CommitStagingBuffer(
+    wgpu::Texture texture, wgpu::Buffer stagingBuffer, wgpu::CommandEncoder cmdEncoder)
+{
+    stagingBuffer.Unmap();
+
+    const wgpu::TexelCopyBufferInfo copySrc = //
+        {
+            .layout = //
+            {
+                .offset = 0,
+                .bytesPerRow = GetTextureAlignedRowStride(texture.GetWidth()),
+                .rowsPerImage = texture.GetHeight(),
+            },
+            .buffer = stagingBuffer,
+        };
+
+    const wgpu::TexelCopyTextureInfo copyDst = //
+        {
+            .texture = texture,
+            .mipLevel = 0,
+            .origin{},
+        };
+
+    const wgpu::Extent3D copySize = //
+        {
+            .width = texture.GetWidth(),
+            .height = texture.GetHeight(),
+            .depthOrArrayLayers = 1,
+        };
+
+    cmdEncoder.CopyBufferToTexture(&copySrc, &copyDst, &copySize);
+
+    return Result<>::Ok;
+}
+
+Result<VertexBuffer>
+GpuHelper::CreateVertexBuffer(const size_t count, const std::string_view& name)
+{
+    const wgpu::BufferUsage usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
+
+    auto buffer = CreateGpuBuffer(usage, count * sizeof(Vertex), BufferMappedState::Unmapped, name);
+
+    MLG_CHECK(buffer, "Failed to create vertex buffer");
+
+    return VertexBuffer(GetDevice(), *buffer);
+}
+
+Result<IndexBuffer>
+GpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name)
+{
+    const wgpu::BufferUsage usage = wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst;
+
+    auto buffer =
+        CreateGpuBuffer(usage, count * sizeof(VertexIndex), BufferMappedState::Unmapped, name);
+
+    MLG_CHECK(buffer, "Failed to create index buffer");
+
+    return IndexBuffer(GetDevice(), *buffer);
+}
+
+// private:
+
 Result<>
 GpuHelper::Startup(const char* appName)
 {
-    MLG_CHECKV(!WgpuContext::Ctx, "GpuHelper::Startup called more than once");
+    static_assert(sizeof(mlg::detail::GpuHelperImpl) <= kSizeofImplStorage,
+        "GpuHelperImpl is too large for the storage buffer");
+
+    MLG_CHECKV(!m_Impl, "GpuHelper::Startup called more than once");
 
     MLG_INFO("Starting WebGPU...");
 
@@ -612,7 +902,7 @@ GpuHelper::Startup(const char* appName)
 
     MLG_CHECK(surfaceFormat);
 
-    WgpuContext context //
+    const mlg::detail::GpuHelperImpl impl //
         {
             .Window = *window,
             .MetalView = metalView,
@@ -623,15 +913,16 @@ GpuHelper::Startup(const char* appName)
             .SurfaceFormat = *surfaceFormat
         };
 
-    // Create the context so we can call CreateDefaultTexture() and CreateDefaultSampler() below.
-    void* contextPtr = static_cast<void*>(g_WgpuContextBuffer);
-    WgpuContext* contextMem = static_cast<WgpuContext*>(contextPtr);
-    WgpuContext::Ctx = std::construct_at(contextMem, std::move(context));
+    // Create the impl so we can call CreateDefaultTexture() and CreateDefaultSampler() below.
+    m_Impl = static_cast<mlg::detail::GpuHelperImpl*>(
+        static_cast<void*>(m_ImplStorage)); // NOLINT(bugprone-casting-through-void)
+
+    std::construct_at(m_Impl, std::move(impl));
 
     cleanupMetalView.release();
     cleanupWindow.release();
 
-    MLG_DEFER_AS(cleanup)
+    MLG_DEFER_AS(shutdown)
     {
         Shutdown();
     };
@@ -642,10 +933,10 @@ GpuHelper::Startup(const char* appName)
     auto defaultSampler = CreateDefaultSampler();
     MLG_CHECK(defaultSampler);
 
-    WgpuContext::Ctx->DefaultTexture = std::move(*defaultTexture);
-    WgpuContext::Ctx->DefaultSampler = std::move(*defaultSampler);
+    m_Impl->DefaultTexture = std::move(*defaultTexture);
+    m_Impl->DefaultSampler = std::move(*defaultSampler);
 
-    cleanup.release();
+    shutdown.release();
 
     return Result<>::Ok;
 }
@@ -653,13 +944,13 @@ GpuHelper::Startup(const char* appName)
 void
 GpuHelper::Shutdown()
 {
-    MLG_VERIFY(WgpuContext::Ctx, "GpuHelper::Shutdown called before Startup");
+    MLG_VERIFY(m_Impl, "GpuHelper::Shutdown called before Startup");
 
-    SDL_Window* window = WgpuContext::Ctx->Window;
-    SDL_MetalView metalView = WgpuContext::Ctx->MetalView;
+    SDL_Window* window = m_Impl->Window;
+    SDL_MetalView metalView = m_Impl->MetalView;
 
-    std::destroy_at(WgpuContext::Ctx);
-    WgpuContext::Ctx = nullptr;
+    std::destroy_at(m_Impl);
+    m_Impl = nullptr;
 
     if(metalView)
     {
@@ -670,295 +961,13 @@ GpuHelper::Shutdown()
     SDL_Quit();
 }
 
-SDL_Window*
-GpuHelper::GetWindow()
-{
-    MLG_VERIFY(WgpuContext::Ctx, "GpuHelper::GetWindow called before Startup");
-    return WgpuContext::Ctx->Window;
-}
-
-wgpu::Instance
-GpuHelper::GetInstance()
-{
-    MLG_VERIFY(WgpuContext::Ctx, "GpuHelper::GetInstance called before Startup");
-    return WgpuContext::Ctx->Instance;
-}
-
-wgpu::Device
-GpuHelper::GetDevice()
-{
-    MLG_VERIFY(WgpuContext::Ctx, "GpuHelper::GetDevice called before Startup");
-    return WgpuContext::Ctx->Device;
-}
-
-wgpu::Surface
-GpuHelper::GetSurface()
-{
-    MLG_VERIFY(WgpuContext::Ctx, "GpuHelper::GetSurface called before Startup");
-    return WgpuContext::Ctx->Surface;
-}
-
-wgpu::Texture
-GpuHelper::GetDefaultTexture()
-{
-    MLG_VERIFY(WgpuContext::Ctx, "GpuHelper::GetDefaultTexture called before Startup");
-    return WgpuContext::Ctx->DefaultTexture;
-}
-
-wgpu::Sampler
-GpuHelper::GetDefaultSampler()
-{
-    MLG_VERIFY(WgpuContext::Ctx, "GpuHelper::GetDefaultSampler called before Startup");
-    return WgpuContext::Ctx->DefaultSampler;
-}
-
-Extent
-GpuHelper::GetScreenBounds()
-{
-    int width = 0, height = 0;
-    if(!SDL_GetWindowSizeInPixels(GetWindow(), &width, &height))
-    {
-        MLG_ERROR("Failed to get window size: {}", SDL_GetError());
-    }
-    return Extent //
-        {
-            .Width = static_cast<unsigned>(width),
-            .Height = static_cast<unsigned>(height),
-        };
-}
-
-Result<wgpu::Texture>
-GpuHelper::GetSwapChainTexture()
-{
-    wgpu::SurfaceTexture surfaceTexture;
-    GetSurface().GetCurrentTexture(&surfaceTexture);
-
-    if(surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessSuboptimal)
-    {
-        MLG_WARN(
-            "GetCurrentTexture() returned SuccessSuboptimal - the surface may need to be reconfigured");
-    }
-
-    if(surfaceTexture.status
-        == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal
-        || surfaceTexture.status
-        == wgpu::SurfaceGetCurrentTextureStatus::SuccessSuboptimal)
-    {
-        return surfaceTexture.texture;
-    }
-
-    MLG_CHECK(surfaceTexture.status != wgpu::SurfaceGetCurrentTextureStatus::Error,
-        "Failed to acquire current surface texture: Unknown error");
-
-    if(surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::Timeout)
-    {
-        MLG_WARN("Failed to acquire current surface texture: Timeout");
-    }
-    else if(surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::Outdated)
-    {
-        MLG_WARN("Failed to acquire current surface texture: Outdated");
-    }
-    else if(surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::Lost)
-    {
-        MLG_WARN("Failed to acquire current surface texture: Lost");
-    }
-
-    // Attempt to reconfigure the surface and acquire the texture again
-    WgpuContext::Ctx->Surface.Unconfigure();
-
-    auto surfaceFormat = ConfigureSurface(WgpuContext::Ctx->Adapter,
-        WgpuContext::Ctx->Device,
-        WgpuContext::Ctx->Surface,
-        GetScreenBounds().Width,
-        GetScreenBounds().Height);
-
-    MLG_CHECK(surfaceFormat);
-
-    WgpuContext::Ctx->SurfaceFormat = *surfaceFormat;
-
-    GetSurface().GetCurrentTexture(&surfaceTexture);
-
-    MLG_CHECK(surfaceTexture.status
-            == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal
-            || surfaceTexture.status
-            == wgpu::SurfaceGetCurrentTextureStatus::SuccessSuboptimal,
-        "Failed to acquire current surface texture after reconfiguration");
-
-    return surfaceTexture.texture;
-}
-
-wgpu::TextureFormat
-GpuHelper::GetSwapChainFormat()
-{
-    if(!MLG_VERIFY(WgpuContext::Ctx, "GpuHelper::GetSwapChainFormat called before Startup"))
-    {
-        return wgpu::TextureFormat::Undefined;
-    }
-
-    return WgpuContext::Ctx->SurfaceFormat;
-}
-
-Result<>
-GpuHelper::Resize(const uint32_t width, const uint32_t height)
-{
-    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::Resize called before Startup");
-
-    wgpu::SurfaceTexture currentTexture;
-    WgpuContext::Ctx->Surface.GetCurrentTexture(&currentTexture);
-    if(width != currentTexture.texture.GetWidth() || height != currentTexture.texture.GetHeight())
-    {
-        WgpuContext::Ctx->Surface.Unconfigure();
-
-        auto surfaceFormat = ConfigureSurface(WgpuContext::Ctx->Adapter,
-            WgpuContext::Ctx->Device,
-            WgpuContext::Ctx->Surface,
-            width,
-            height);
-        MLG_CHECK(surfaceFormat);
-
-        WgpuContext::Ctx->SurfaceFormat = *surfaceFormat;
-    }
-
-    return Result<>::Ok;
-}
-
-Result<wgpu::Texture>
-GpuHelper::CreateTexture(const unsigned width, const unsigned height, const std::string_view& name)
-{
-    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateTexture called before Startup");
-
-    const wgpu::TextureDescriptor desc //
-        {
-            .label = name,
-            .usage = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
-            .dimension = wgpu::TextureDimension::e2D,
-            .size = //
-            {
-                .width = width,
-                .height = height,
-                .depthOrArrayLayers = 1,
-            },
-            .format = kTextureFormat,
-            .mipLevelCount = 1,
-            .sampleCount = 1,
-        };
-
-    wgpu::Texture texture = GetDevice().CreateTexture(&desc);
-
-    return texture;
-}
-
-// A note on using staging buffers to upload data to the GPU:
-// When copying data to textures we use a staging buffer.
-// When copying data to other buffers we could also use a staging buffer, but it's simpler to use
-// Queue::WriteBuffer which doesn't require a staging buffer. The equivalent of WriteBuffer for
-// textures is Queue::WriteTexture howerver Queue::WriteTexture contains a bunch of validation and
-// is slow compared to using a staging buffer and CopyBufferToTexture.
-
-Result<wgpu::Buffer>
-GpuHelper::CreateStagingBuffer(wgpu::Texture texture, const std::string_view& name)
-{
-    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateStagingBuffer called before Startup");
-
-    const size_t rowStride = GetTextureAlignedRowStride(texture.GetWidth());
-    const size_t sizeofBuffer = rowStride * texture.GetHeight();
-    const wgpu::BufferUsage usage = wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc;
-
-    auto stagingBuffer =
-        CreateGpuBuffer(usage, sizeofBuffer, BufferMappedState::Mapped, name);
-
-    return stagingBuffer;
-}
-
-Result<>
-GpuHelper::CommitStagingBuffer(wgpu::Texture texture, wgpu::Buffer stagingBuffer)
-{
-    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CommitStagingBuffer called before Startup");
-
-    const wgpu::CommandEncoder cmdEncoder = GetDevice().CreateCommandEncoder();
-
-    MLG_CHECK(CommitStagingBuffer(texture, stagingBuffer, cmdEncoder));
-
-    const wgpu::CommandBuffer commandBuffer = cmdEncoder.Finish();
-
-    GetDevice().GetQueue().Submit(1, &commandBuffer);
-
-    return Result<>::Ok;
-}
-
-Result<>
-GpuHelper::CommitStagingBuffer(
-    wgpu::Texture texture, wgpu::Buffer stagingBuffer, wgpu::CommandEncoder cmdEncoder)
-{
-    stagingBuffer.Unmap();
-
-    const wgpu::TexelCopyBufferInfo copySrc = //
-        {
-            .layout = //
-            {
-                .offset = 0,
-                .bytesPerRow = GetTextureAlignedRowStride(texture.GetWidth()),
-                .rowsPerImage = texture.GetHeight(),
-            },
-            .buffer = stagingBuffer,
-        };
-
-    const wgpu::TexelCopyTextureInfo copyDst = //
-        {
-            .texture = texture,
-            .mipLevel = 0,
-            .origin{},
-        };
-
-    const wgpu::Extent3D copySize = //
-        {
-            .width = texture.GetWidth(),
-            .height = texture.GetHeight(),
-            .depthOrArrayLayers = 1,
-        };
-
-    cmdEncoder.CopyBufferToTexture(&copySrc, &copyDst, &copySize);
-
-    return Result<>::Ok;
-}
-
-Result<VertexBuffer>
-GpuHelper::CreateVertexBuffer(const size_t count, const std::string_view& name)
-{
-    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateVertexBuffer called before Startup");
-
-    const wgpu::BufferUsage usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
-
-    auto buffer = CreateGpuBuffer(usage, count * sizeof(Vertex), BufferMappedState::Unmapped, name);
-
-    MLG_CHECK(buffer, "Failed to create vertex buffer");
-
-    return VertexBuffer(GetDevice(), *buffer);
-}
-
-Result<IndexBuffer>
-GpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name)
-{
-    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateIndexBuffer called before Startup");
-
-    const wgpu::BufferUsage usage = wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst;
-
-    auto buffer = CreateGpuBuffer(usage, count * sizeof(VertexIndex), BufferMappedState::Unmapped, name);
-
-    MLG_CHECK(buffer, "Failed to create index buffer");
-
-    return IndexBuffer(GetDevice(), *buffer);
-}
-
-// private:
-
 Result<wgpu::Buffer>
 GpuHelper::CreateGpuBuffer(const wgpu::BufferUsage usage,
     const size_t size,
     BufferMappedState mappedState,
     const std::string_view name)
 {
-    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateGpuBuffer called before Startup");
+    MLG_CHECKV(m_Impl, "GpuHelper::CreateGpuBuffer called before Startup");
 
     const wgpu::BufferDescriptor bufferDesc //
         {
@@ -1041,17 +1050,17 @@ GpuHelper::CreateDefaultTexture()
 Result<wgpu::Sampler>
 GpuHelper::CreateDefaultSampler()
 {
-    MLG_CHECKV(WgpuContext::Ctx, "GpuHelper::CreateDefaultSampler called before Startup");
+    MLG_CHECKV(m_Impl, "GpuHelper::CreateDefaultSampler called before Startup");
 
-    const wgpu::SamplerDescriptor samplerDesc//
-    {
-        .addressModeU = wgpu::AddressMode::Repeat,
-        .addressModeV = wgpu::AddressMode::Repeat,
-        .addressModeW = wgpu::AddressMode::Repeat,
-        .magFilter = wgpu::FilterMode::Linear,
-        .minFilter = wgpu::FilterMode::Linear,
-        .mipmapFilter = wgpu::MipmapFilterMode::Linear,
-    };
+    const wgpu::SamplerDescriptor samplerDesc //
+        {
+            .addressModeU = wgpu::AddressMode::Repeat,
+            .addressModeV = wgpu::AddressMode::Repeat,
+            .addressModeW = wgpu::AddressMode::Repeat,
+            .magFilter = wgpu::FilterMode::Linear,
+            .minFilter = wgpu::FilterMode::Linear,
+            .mipmapFilter = wgpu::MipmapFilterMode::Linear,
+        };
 
     return GetDevice().CreateSampler(&samplerDesc);
 }

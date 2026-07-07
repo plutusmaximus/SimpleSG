@@ -16,7 +16,7 @@ Layout* g_Layouts = nullptr; // NOLINT(cppcoreguidelines-avoid-non-const-global-
 
 template<typename T>
 Result<wgpu::BindGroupLayout>
-GetOrCreateLayoutForType(wgpu::Device device)
+GetOrCreateLayoutForType(const wgpu::Device& gpuDevice)
 {
     static Layout s_Layout;
 
@@ -25,7 +25,7 @@ GetOrCreateLayoutForType(wgpu::Device device)
         return s_Layout.GpuLayout;
     }
 
-    s_Layout.GpuLayout = T::CreateLayout(device);
+    s_Layout.GpuLayout = T::CreateLayout(gpuDevice);
 
     s_Layout.Next = g_Layouts;
     g_Layouts = &s_Layout;
@@ -36,72 +36,72 @@ GetOrCreateLayoutForType(wgpu::Device device)
 
 template<>
 Result<wgpu::BindGroupLayout>
-GpuLayouts::GetOrCreateLayout<ColorShaderContract::SceneGroup>(wgpu::Device device)
+GpuLayouts::GetOrCreateLayout<ColorShaderContract::SceneGroup>(const wgpu::Device& gpuDevice)
 {
-    return GetOrCreateLayoutForType<ColorShaderContract::SceneGroup>(device);
+    return GetOrCreateLayoutForType<ColorShaderContract::SceneGroup>(gpuDevice);
 }
 
 template<>
 Result<wgpu::BindGroupLayout>
-GpuLayouts::GetOrCreateLayout<ColorShaderContract::TextureGroup>(wgpu::Device device)
+GpuLayouts::GetOrCreateLayout<ColorShaderContract::TextureGroup>(const wgpu::Device& gpuDevice)
 {
-    return GetOrCreateLayoutForType<ColorShaderContract::TextureGroup>(device);
+    return GetOrCreateLayoutForType<ColorShaderContract::TextureGroup>(gpuDevice);
 }
 
 template<>
 Result<wgpu::BindGroupLayout>
-GpuLayouts::GetOrCreateLayout<CompositeShaderContract::TextureGroup>(wgpu::Device device)
+GpuLayouts::GetOrCreateLayout<CompositeShaderContract::TextureGroup>(const wgpu::Device& gpuDevice)
 {
-    return GetOrCreateLayoutForType<CompositeShaderContract::TextureGroup>(device);
+    return GetOrCreateLayoutForType<CompositeShaderContract::TextureGroup>(gpuDevice);
 }
 
 template<>
 Result<wgpu::BindGroupLayout>
-GpuLayouts::GetOrCreateLayout<TransformShaderContract::SceneGroup>(wgpu::Device device)
+GpuLayouts::GetOrCreateLayout<TransformShaderContract::SceneGroup>(const wgpu::Device& gpuDevice)
 {
-    return GetOrCreateLayoutForType<TransformShaderContract::SceneGroup>(device);
+    return GetOrCreateLayoutForType<TransformShaderContract::SceneGroup>(gpuDevice);
 }
 
 template<>
 Result<wgpu::BindGroup>
-GpuLayouts::CreateBindGroup<ColorShaderContract::SceneGroup>(wgpu::Device device,
+GpuLayouts::CreateBindGroup<ColorShaderContract::SceneGroup>(const wgpu::Device& gpuDevice,
     const ColorShaderContract::SceneGroup::Resources& resources)
 {
-    auto layout = GetOrCreateLayoutForType<ColorShaderContract::SceneGroup>(device);
+    auto layout = GetOrCreateLayoutForType<ColorShaderContract::SceneGroup>(gpuDevice);
     MLG_CHECK(layout);
 
-    return ColorShaderContract::SceneGroup::CreateBindGroup(device, *layout, resources);
+    return ColorShaderContract::SceneGroup::CreateBindGroup(gpuDevice, *layout, resources);
 }
 
 template<>
 Result<wgpu::BindGroup>
-GpuLayouts::CreateBindGroup<ColorShaderContract::TextureGroup>(wgpu::Device device,
+GpuLayouts::CreateBindGroup<ColorShaderContract::TextureGroup>(const wgpu::Device& gpuDevice,
     const ColorShaderContract::TextureGroup::Resources& resources)
 {
-    auto layout = GetOrCreateLayoutForType<ColorShaderContract::TextureGroup>(device);
+    auto layout = GetOrCreateLayoutForType<ColorShaderContract::TextureGroup>(gpuDevice);
     MLG_CHECK(layout);
 
-    return ColorShaderContract::TextureGroup::CreateBindGroup(device, *layout, resources);
+    return ColorShaderContract::TextureGroup::CreateBindGroup(gpuDevice, *layout, resources);
 }
 
 template<>
 Result<wgpu::BindGroup>
-GpuLayouts::CreateBindGroup<CompositeShaderContract::TextureGroup>(wgpu::Device device,
+GpuLayouts::CreateBindGroup<CompositeShaderContract::TextureGroup>(const wgpu::Device& gpuDevice,
     const CompositeShaderContract::TextureGroup::Resources& resources)
 {
-    auto layout = GetOrCreateLayoutForType<CompositeShaderContract::TextureGroup>(device);
+    auto layout = GetOrCreateLayoutForType<CompositeShaderContract::TextureGroup>(gpuDevice);
     MLG_CHECK(layout);
 
-    return CompositeShaderContract::TextureGroup::CreateBindGroup(device, *layout, resources);
+    return CompositeShaderContract::TextureGroup::CreateBindGroup(gpuDevice, *layout, resources);
 }
 
 template<>
 Result<wgpu::BindGroup>
-GpuLayouts::CreateBindGroup<TransformShaderContract::SceneGroup>(wgpu::Device device,
+GpuLayouts::CreateBindGroup<TransformShaderContract::SceneGroup>(const wgpu::Device& gpuDevice,
     const TransformShaderContract::SceneGroup::Resources& resources)
 {
-    auto layout = GetOrCreateLayoutForType<TransformShaderContract::SceneGroup>(device);
+    auto layout = GetOrCreateLayoutForType<TransformShaderContract::SceneGroup>(gpuDevice);
     MLG_CHECK(layout);
 
-    return TransformShaderContract::SceneGroup::CreateBindGroup(device, *layout, resources);
+    return TransformShaderContract::SceneGroup::CreateBindGroup(gpuDevice, *layout, resources);
 }

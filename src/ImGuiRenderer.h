@@ -3,8 +3,11 @@
 #include "Result.h"
 
 struct ImGuiContext;
+class GpuHelper;
+
 namespace wgpu
 {
+    class Device;
     class Texture;
 }
 
@@ -12,7 +15,7 @@ class ImGuiRenderer
 {
 public:
 
-    Result<> Startup();
+    Result<> Startup(GpuHelper& gpuHelper);
 
     Result<> Shutdown();
 
@@ -29,7 +32,7 @@ public:
 
     Result<> NewFrame(const wgpu::Texture& target) const;
 
-    Result<> Composite(const wgpu::Texture& target) const;
+    Result<> Composite(const wgpu::Device& gpuDevice, const wgpu::Texture& target) const;
 
 private:
 

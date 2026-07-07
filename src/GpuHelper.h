@@ -13,55 +13,56 @@ template<typename T> class RgbaColor;
 using RgbaColorf = RgbaColor<float>;
 using RgbaColoru8 = RgbaColor<uint8_t>;
 
+namespace mlg::detail
+{
+class GpuHelperImpl;
+} // namespace mlg::detail
+
 class GpuHelper final
 {
 public:
-    GpuHelper() = delete;
-    ~GpuHelper() = delete;
+    explicit GpuHelper(const char* appName);
+    ~GpuHelper();
     GpuHelper(const GpuHelper&) = delete;
     GpuHelper& operator=(const GpuHelper&) = delete;
     GpuHelper(GpuHelper&&) = delete;
     GpuHelper& operator=(GpuHelper&&) = delete;
 
-    static Result<> Startup(const char* appName);
+    SDL_Window* GetWindow();
+    wgpu::Instance GetInstance();
+    wgpu::Device GetDevice();
+    wgpu::Surface GetSurface();
+    wgpu::Texture GetDefaultTexture();
+    wgpu::Sampler GetDefaultSampler();
+    Extent GetScreenBounds();    
+    Result<wgpu::Texture> GetSwapChainTexture();
+    wgpu::TextureFormat GetSwapChainFormat();
 
-    static void Shutdown();
-
-    static SDL_Window* GetWindow();
-    static wgpu::Instance GetInstance();
-    static wgpu::Device GetDevice();
-    static wgpu::Surface GetSurface();
-    static wgpu::Texture GetDefaultTexture();
-    static wgpu::Sampler GetDefaultSampler();
-    static Extent GetScreenBounds();    
-    static Result<wgpu::Texture> GetSwapChainTexture();
-    static wgpu::TextureFormat GetSwapChainFormat();
-
-    static Result<> Resize(const uint32_t width, const uint32_t height);
+    Result<> Resize(const uint32_t width, const uint32_t height);
 
     /// @brief Creates an empty texture with the given dimensions and name.
-    static Result<wgpu::Texture> CreateTexture(
+    Result<wgpu::Texture> CreateTexture(
         const unsigned width, const unsigned height, const std::string_view& name);
 
     /// @brief Creates a staging buffer for copying texture data to the GPU.
-    static Result<wgpu::Buffer> CreateStagingBuffer(wgpu::Texture texture,
+    Result<wgpu::Buffer> CreateStagingBuffer(wgpu::Texture texture,
         const std::string_view& name);
 
     /// @brief Commits the data in the staging buffer to texture memory on the GPU.
-    static Result<> CommitStagingBuffer(wgpu::Texture texture, wgpu::Buffer stagingBuffer);
+    Result<> CommitStagingBuffer(wgpu::Texture texture, wgpu::Buffer stagingBuffer);
 
     /// @brief Commits the data in the staging buffer to texture memory on the GPU.
     static Result<> CommitStagingBuffer(
         wgpu::Texture texture, wgpu::Buffer stagingBuffer, wgpu::CommandEncoder cmdEncoder);
 
-    static Result<VertexBuffer> CreateVertexBuffer(const size_t count,
+    Result<VertexBuffer> CreateVertexBuffer(const size_t count,
         const std::string_view& name);
 
-    static Result<IndexBuffer> CreateIndexBuffer(const size_t count, const std::string_view& name);
+    Result<IndexBuffer> CreateIndexBuffer(const size_t count, const std::string_view& name);
 
     /// @brief Creates a semantically-typed storage buffer.
     template<typename T>
-    static Result<T> CreateStorageBuffer(const size_t count, const std::string_view& name)
+    Result<T> CreateStorageBuffer(const size_t count, const std::string_view& name)
     {
         static_assert(is_gpu_storage_buffer_type_v<T>, "T must be a SemanticGpuBuffer type with BufferType::Storage");
 
@@ -74,7 +75,7 @@ public:
 
     /// @brief Creates a semantically-typed uniform buffer.
     template<typename T>
-    static Result<T> CreateUniformBuffer(const size_t count, const std::string_view& name)
+    Result<T> CreateUniformBuffer(const size_t count, const std::string_view& name)
     {
         static_assert(is_gpu_uniform_buffer_type_v<T>, "T must be a SemanticGpuBuffer type with BufferType::Uniform");
 
@@ -87,7 +88,7 @@ public:
 
     /// @brief Creates a semantically-typed indirect buffer.
     template<typename T>
-    static Result<T> CreateIndirectBuffer(const size_t count, const std::string_view& name)
+    Result<T> CreateIndirectBuffer(const size_t count, const std::string_view& name)
     {
         static_assert(is_gpu_indirect_buffer_type_v<T>, "T must be a SemanticGpuBuffer type with BufferType::Indirect");
 
@@ -99,7 +100,7 @@ public:
     }
 
     template<typename T>
-    static size_t AlignUniformBuffer()
+    size_t AlignUniformBuffer()
     {
         wgpu::Limits limits;
         GetDevice().GetLimits(&limits);
@@ -116,15 +117,26 @@ private:
         Mapped,
     };
 
-    static Result<wgpu::Buffer> CreateGpuBuffer(const wgpu::BufferUsage usage,
+    Result<> Startup(const char* appName);
+
+    void Shutdown();
+
+    Result<wgpu::Buffer> CreateGpuBuffer(const wgpu::BufferUsage usage,
         const size_t size,
         BufferMappedState mappedState,
         const std::string_view name);
-    static Result<wgpu::Buffer> CreateIndirectBuffer(const size_t size, const std::string_view& name);
-    static Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string_view& name);
-    static Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string_view& name);
+    Result<wgpu::Buffer> CreateIndirectBuffer(const size_t size, const std::string_view& name);
+    Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string_view& name);
+    Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string_view& name);
 
-    static Result<wgpu::Texture> CreateDefaultTexture();
+    Result<wgpu::Texture> CreateDefaultTexture();
+    Result<wgpu::Sampler> CreateDefaultSampler();
 
-    static Result<wgpu::Sampler> CreateDefaultSampler();
+    static constexpr size_t kSizeofImplStorage = 72;
+
+    alignas(std::max_align_t) uint8_t m_ImplStorage[kSizeofImplStorage]{};
+    
+    mlg::detail::GpuHelperImpl* m_Impl{nullptr};
+
+    Result<> m_StartupResult{Result<>::Fail};
 };

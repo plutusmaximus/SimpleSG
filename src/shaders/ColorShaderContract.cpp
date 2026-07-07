@@ -1,7 +1,7 @@
 #include "ColorShaderContract.h"
 
 Result<wgpu::BindGroupLayout>
-ColorShaderContract::SceneGroup::CreateLayout(wgpu::Device device)
+ColorShaderContract::SceneGroup::CreateLayout(const wgpu::Device& gpuDevice)
 {
     const wgpu::BindGroupLayoutEntry entries[]//
     {
@@ -69,11 +69,11 @@ ColorShaderContract::SceneGroup::CreateLayout(wgpu::Device device)
             .entries = &entries[0],
         };
 
-    return device.CreateBindGroupLayout(&desc);
+    return gpuDevice.CreateBindGroupLayout(&desc);
 }
 
 Result<wgpu::BindGroup>
-ColorShaderContract::SceneGroup::CreateBindGroup(wgpu::Device device, wgpu::BindGroupLayout layout,
+ColorShaderContract::SceneGroup::CreateBindGroup(const wgpu::Device& gpuDevice, wgpu::BindGroupLayout layout,
     const SceneGroup::Resources& resources)
 {
     MLG_CHECK(resources.Validate(),
@@ -121,11 +121,11 @@ ColorShaderContract::SceneGroup::CreateBindGroup(wgpu::Device device, wgpu::Bind
             .entries = &entries[0],
         };
 
-    return device.CreateBindGroup(&desc);
+    return gpuDevice.CreateBindGroup(&desc);
 }
 
 Result<wgpu::BindGroupLayout>
-ColorShaderContract::TextureGroup::CreateLayout(wgpu::Device device)
+ColorShaderContract::TextureGroup::CreateLayout(const wgpu::Device& gpuDevice)
 {
     const wgpu::BindGroupLayoutEntry entries[] =//
     {
@@ -158,11 +158,11 @@ ColorShaderContract::TextureGroup::CreateLayout(wgpu::Device device)
             .entries = &entries[0],
         };
 
-    return device.CreateBindGroupLayout(&desc);
+    return gpuDevice.CreateBindGroupLayout(&desc);
 }
 
 Result<wgpu::BindGroup>
-ColorShaderContract::TextureGroup::CreateBindGroup(wgpu::Device device, wgpu::BindGroupLayout layout,
+ColorShaderContract::TextureGroup::CreateBindGroup(const wgpu::Device& gpuDevice, wgpu::BindGroupLayout layout,
     const TextureGroup::Resources& resources)
 {
     MLG_CHECK(resources.Validate(),
@@ -188,7 +188,7 @@ ColorShaderContract::TextureGroup::CreateBindGroup(wgpu::Device device, wgpu::Bi
             .entries = &entries[0],
         };
 
-    return device.CreateBindGroup(&desc);
+    return gpuDevice.CreateBindGroup(&desc);
 }
 
 wgpu::VertexBufferLayout

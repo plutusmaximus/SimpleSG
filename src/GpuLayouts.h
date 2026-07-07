@@ -17,17 +17,17 @@ public:
 
     /// @brief Get or create a bind group layout for the specified type.
     /// @tparam T The type representing the bind group layout, typically a shader contract resource group.
-    /// @param device The WebGPU device.
+    /// @param gpuDevice The WebGPU device.
     /// @return The resulting bind group layout.
     template<typename T>
-    static Result<wgpu::BindGroupLayout> GetOrCreateLayout(wgpu::Device device);
+    static Result<wgpu::BindGroupLayout> GetOrCreateLayout(const wgpu::Device& gpuDevice);
 
     /// @brief Create a bind group for the specified type using the provided resources.
     /// @tparam T The type representing the bind group layout, typically a shader contract resource group.
-    /// @param device The WebGPU device.
+    /// @param gpuDevice The WebGPU device.
     /// @param resources The resources to bind.
     /// @return The resulting bind group.
     template<typename T>
-    static Result<wgpu::BindGroup> CreateBindGroup(wgpu::Device device,
+    static Result<wgpu::BindGroup> CreateBindGroup(const wgpu::Device& gpuDevice,
         const T::Resources& resources);
 };
