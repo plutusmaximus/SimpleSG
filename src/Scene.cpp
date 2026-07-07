@@ -3,6 +3,7 @@
 #include "Scene.h"
 
 #include "Camera.h"
+#include "GpuHelper.h"
 #include "GpuLayouts.h"
 #include "Level.h"
 #include "narrow_cast.h"

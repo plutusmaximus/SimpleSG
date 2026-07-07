@@ -148,7 +148,8 @@ CreateSdlWindow(const char* appName)
     SDL_free(displays);
 
     SDL_Rect displayRect;
-    MLG_CHECK(SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &displayRect), SDL_GetError());
+    const SDL_DisplayID primaryDisplay = SDL_GetPrimaryDisplay();
+    MLG_CHECK(SDL_GetDisplayUsableBounds(primaryDisplay, &displayRect), SDL_GetError());
     const int winW = displayRect.w * 3 / 4; // 0.75
     const int winH = displayRect.h * 3 / 4; // 0.75
 
@@ -1008,7 +1009,7 @@ GpuHelper::CreateVertexBuffer(const size_t count, const std::string_view& name)
 
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
 
-    return VertexBuffer(
+    return VertexBuffer(GetDevice(),
         CreateGpuBuffer(usage, count * sizeof(Vertex), BufferMappedState::Unmapped, name));
 }
 
@@ -1019,7 +1020,7 @@ GpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name)
 
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst;
 
-    return IndexBuffer(
+    return IndexBuffer(GetDevice(),
         CreateGpuBuffer(usage, count * sizeof(VertexIndex), BufferMappedState::Unmapped, name));
 }
 
@@ -1126,12 +1127,3 @@ DumpWebgpuLimits(const wgpu::Device& device)
     MLG_DEBUG("  maxUniformBuffersPerShaderStage: {}", limits.maxUniformBuffersPerShaderStage);
 }
 } // namespace
-
-//////////////////////////////////////////////
-
-/// BasicGpuBuffer
-
-BasicGpuBuffer::BasicGpuBuffer(wgpu::Buffer buffer)
-    : m_GpuBuffer(std::move(buffer))
-{
-}

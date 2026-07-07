@@ -12,27 +12,6 @@ namespace mlg::detail
 {
 struct FileFetcherImpl
 {
-    FileFetcherImpl() = default;
-    ~FileFetcherImpl()
-    {
-        if(AsyncIOQueue)
-        {
-            SDL_DestroyAsyncIOQueue(AsyncIOQueue);
-            AsyncIOQueue = nullptr;
-        }
-    }
-    FileFetcherImpl(const FileFetcherImpl&) = delete;
-    FileFetcherImpl& operator=(const FileFetcherImpl&) = delete;
-    FileFetcherImpl(FileFetcherImpl&&) = delete;
-    FileFetcherImpl& operator=(FileFetcherImpl&&) = delete;
-
-    Result<> VerifyStarted() const
-    {
-        MLG_CHECKV(AsyncIOQueue, "FileFetcher not initialized - call Startup()");
-
-        return Result<>::Ok;
-    }
-
     SDL_AsyncIOQueue* AsyncIOQueue{nullptr};
 
     std::mutex Mutex;
@@ -87,8 +66,6 @@ FileFetcher::FileFetcher()
         "FileFetcherImpl is too large for the storage buffer");
 
     std::construct_at(m_Impl);
-
-    const std::lock_guard lock(m_Impl->Mutex);
 
     m_Impl->AsyncIOQueue = SDL_CreateAsyncIOQueue();
 

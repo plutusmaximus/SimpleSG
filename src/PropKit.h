@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Result.h"
 #include "SceneTypes.h"
 #include "shaders/GpuBufferTypes.h"
 

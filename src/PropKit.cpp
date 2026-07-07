@@ -5,6 +5,7 @@
 
 #include "PropKit.h"
 #include "FileFetcher.h"
+#include "GpuHelper.h"
 #include "GpuLayouts.h"
 #include "LevelDefs.h"
 #include "Log.h"

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GpuBufferTypes.h"
+#include "Result.h"
 
 class TransformShaderContract
 {

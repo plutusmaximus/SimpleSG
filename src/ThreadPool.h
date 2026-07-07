@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 
 namespace mlg::detail
 {
@@ -24,6 +25,8 @@ public:
     template<auto JobFunc, typename T>
     bool Enqueue(T* userData)
     {
+        static_assert(std::is_invocable_v<decltype(JobFunc), T*>);
+        
         auto wrapperFunc = [](void* data)
         {
             JobFunc(static_cast<T*>(data));
@@ -39,6 +42,7 @@ private:
     static constexpr size_t kSizeofImplStorage = 25056;
 
     alignas(std::max_align_t) uint8_t m_ImplStorage[kSizeofImplStorage]{};
+
     mlg::detail::ThreadPoolImpl* m_Impl{ static_cast<mlg::detail::ThreadPoolImpl*>(
         static_cast<void*>(m_ImplStorage)) }; // NOLINT(bugprone-casting-through-void)
 };
