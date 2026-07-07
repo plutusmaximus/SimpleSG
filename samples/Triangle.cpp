@@ -9,7 +9,6 @@
 #include "Renderer.h"
 #include "Scene.h"
 #include "scope_exit.h"
-#include "TextureCache.h"
 #include "ThreadPool.h"
 
 #include <filesystem>
@@ -120,15 +119,12 @@ Result<> MainLoop()
     LevelDef levelDef;
     MLG_CHECK(CreateTriangleModel(propKitDef, levelDef));
 
-    TextureCache textureCache;
-    MLG_CHECK(textureCache.Startup());
-
     ThreadPool threadPool;
     FileFetcher fileFetcher;
 
     const std::filesystem::path rootPath = ".";
     auto propKitResult =
-        PropKit::Create(rootPath, textureCache, propKitDef, threadPool, fileFetcher);
+        PropKit::Create(rootPath, propKitDef, threadPool, fileFetcher);
     MLG_CHECK(propKitResult, "Failed to create PropKit");
     const PropKit propKit = std::move(*propKitResult);
 
@@ -255,7 +251,6 @@ Result<> MainLoop()
 
     MLG_CHECK(imGuiRenderer.Shutdown());
     MLG_CHECK(renderer.Shutdown());
-    MLG_CHECK(textureCache.Shutdown());
 
     PerfMetrics::LogCounters();
 

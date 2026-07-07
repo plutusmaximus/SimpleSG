@@ -74,20 +74,25 @@ public:
 
         MLG_CHECKV(data, "Failed to decode image - {}", stbi_failure_reason());
 
-        MLG_DEFER{ stbi_image_free(data); };
+        MLG_DEFER
+        {
+            stbi_image_free(data);
+        };
 
-        MLG_CHECKV(builder.Texture->GetWidth() == static_cast<uint32_t>(imgWidth) &&
-                       builder.Texture->GetHeight() == static_cast<uint32_t>(imgHeight),
+        MLG_CHECKV(builder.Texture.GetWidth()
+                == static_cast<uint32_t>(imgWidth)
+                && builder.Texture.GetHeight()
+                == static_cast<uint32_t>(imgHeight),
             "Decoded image dimensions do not match texture dimensions");
 
-        MLG_CHECKV(builder.Texture->GetFormat() == wgpu::TextureFormat::RGBA8Unorm,
+        MLG_CHECKV(builder.Texture.GetFormat() == wgpu::TextureFormat::RGBA8Unorm,
             "Texture format does not match expected format");
 
         const size_t sizeofData =
             static_cast<size_t>(imgWidth) * static_cast<size_t>(imgHeight) * kNumTextureChannels;
 
-        const size_t expectedSize = static_cast<size_t>(builder.Texture->GetWidth()) *
-                                    static_cast<size_t>(builder.Texture->GetHeight()) *
+        const size_t expectedSize = static_cast<size_t>(builder.Texture.GetWidth()) *
+                                    static_cast<size_t>(builder.Texture.GetHeight()) *
                                     kNumTextureChannels;
 
         MLG_CHECKV(sizeofData == expectedSize, "Decoded image size does not match texture size");
@@ -107,7 +112,8 @@ public:
 
     std::string Uri;
     FileFetcher::Request* Request{ nullptr };
-    Result<Texture> Texture;
+    wgpu::Texture Texture;
+    wgpu::Buffer StagingBuffer;
     std::byte* MappedMemory{ nullptr };
     Result<> DecodeResult;
 
@@ -140,14 +146,18 @@ StageTexture(TextureBuilder& builder, ThreadPool& threadPool)
 
     MLG_CHECK(texture);
 
+    auto stagingBuffer = GpuHelper::CreateStagingBuffer(*texture, builder.Uri);
+    MLG_CHECK(stagingBuffer);
+
+    void* mapped = stagingBuffer->GetMappedRange();
+    MLG_CHECK(mapped);
+
     // It appears that mapping/unmapping must be done on the same thread
     // as other wgpu::Device operations.  Learned that the hard way by trying to map
     // in the worker thread below.
-    auto mapped = texture->MapBytes();
-    MLG_CHECK(mapped);
-
-    builder.Texture = std::move(*texture);
-    builder.MappedMemory = mapped->data();
+    builder.Texture = *texture;
+    builder.StagingBuffer = *stagingBuffer;
+    builder.MappedMemory = static_cast<std::byte*>(mapped);
 
     auto decode = [](void* userData)
     {
@@ -278,8 +288,9 @@ FetchTextures(const std::filesystem::path& basePath,
             continue;
         }
 
-        builder.Texture->Unmap(encoder);
-        textureCache.AddOrReplace(builder.Uri, std::move(*builder.Texture));
+        MLG_CHECK(GpuHelper::CommitStagingBuffer(builder.Texture, builder.StagingBuffer, encoder));
+
+        textureCache.AddOrReplace(builder.Uri, builder.Texture);
     }
 
     return Result<>::Ok;
@@ -296,14 +307,14 @@ CreateMaterialBindGroups(const std::span<const MaterialDef> materialDefs,
 
     for(const auto& mtlDef : materialDefs)
     {
-        const Texture& baseTexture = mtlDef.BaseTextureUri.empty()
-                                         ? textureCache.GetDefaultTexture()
-                                         : textureCache.Get(mtlDef.BaseTextureUri);
+        const wgpu::Texture& baseTexture = mtlDef.BaseTextureUri.empty()
+            ? GpuHelper::GetDefaultTexture()
+            : textureCache.Get(mtlDef.BaseTextureUri);
 
         const ColorShaderContract::TextureGroup::Resources resources //
             {
                 .BaseTexture = baseTexture,
-                .BaseSampler = textureCache.GetDefaultSampler(),
+                .BaseSampler = GpuHelper::GetDefaultSampler(),
             };
 
         auto bindGroup =
@@ -349,7 +360,6 @@ BuildMaterialConstantsBuffer(const std::span<const MaterialDef> materialDefs)
 
 Result<PropKit>
 PropKit::Create(const std::filesystem::path& rootPath,
-    TextureCache& textureCache,
     const PropKitDef& propKitDef,
     ThreadPool& threadPool,
     FileFetcher& fileFetcher)
@@ -437,6 +447,8 @@ PropKit::Create(const std::filesystem::path& rootPath,
     }
 
     const wgpu::CommandEncoder encoder = GpuHelper::GetDevice().CreateCommandEncoder();
+
+    TextureCache textureCache;
 
     MLG_CHECK(FetchTextures(rootPath, uniqueMaterials, textureCache, encoder, threadPool, fileFetcher));
 

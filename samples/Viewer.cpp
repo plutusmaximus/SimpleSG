@@ -11,7 +11,6 @@
 #include "Scene.h"
 #include "scope_exit.h"
 #include "System.h"
-#include "TextureCache.h"
 #include "VecMath.h"
 
 #include <filesystem>
@@ -87,10 +86,7 @@ Result<> RenderGui()
 }
 
 Result<std::tuple<PropKit, Level, Scene>>
-Load(const std::filesystem::path& path,
-    TextureCache& textureCache,
-    ThreadPool& threadPool,
-    FileFetcher& fileFetcher)
+Load(const std::filesystem::path& path, ThreadPool& threadPool, FileFetcher& fileFetcher)
 {
     PropKitDef propKitDef;
     LevelDef levelDef;
@@ -99,7 +95,7 @@ Load(const std::filesystem::path& path,
         path.string());
 
     auto propKit =
-        PropKit::Create(path.parent_path(), textureCache, propKitDef, threadPool, fileFetcher);
+        PropKit::Create(path.parent_path(), propKitDef, threadPool, fileFetcher);
     MLG_CHECK(propKit, "Failed to create PropKit for {}", path.string());
 
     auto level = Level::Create(levelDef, *propKit);
@@ -122,7 +118,6 @@ MainLoop()
 {
     Renderer renderer;
     ImGuiRenderer imGuiRenderer;
-    TextureCache textureCache;
     WalkMouseNav mouseNav;
 
     MLG_CHECK(System::Startup(APP_NAME));
@@ -143,14 +138,8 @@ MainLoop()
         imGuiRenderer.Shutdown();
     };
 
-    MLG_CHECK(textureCache.Startup());
-    MLG_DEFER
-    {
-        textureCache.Shutdown();
-    };
-
     auto loadResult =
-        Load(SPONZA_MODEL_PATH, textureCache, System::GetThreadPool(), System::GetFileFetcher());
+        Load(SPONZA_MODEL_PATH, System::GetThreadPool(), System::GetFileFetcher());
     MLG_CHECK(loadResult, "Failed to load resources");
 
     auto&& [propKit, level, scene] = std::move(*loadResult);
@@ -313,9 +302,7 @@ MainLoop()
 
         if(!droppedFile.empty())
         {
-            textureCache.Clear();
             auto newLoadResult = Load(SPONZA_MODEL_PATH,
-                textureCache,
                 System::GetThreadPool(),
                 System::GetFileFetcher());
             MLG_CHECK(newLoadResult, "Failed to load resources");

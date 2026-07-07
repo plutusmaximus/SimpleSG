@@ -16,7 +16,6 @@
 #include "scope_exit.h"
 #include "Shapes.h"
 #include "System.h"
-#include "TextureCache.h"
 #include "ThreadPool.h"
 
 #include <filesystem>
@@ -136,7 +135,7 @@ private:
 };
 
 Result<std::tuple<PropKit, Level>>
-Load(TextureCache& textureCache, ThreadPool& threadPool, FileFetcher& fileFetcher)
+Load(ThreadPool& threadPool, FileFetcher& fileFetcher)
 {
     constexpr float kBallRadius = 1.0f;
 
@@ -159,8 +158,7 @@ Load(TextureCache& textureCache, ThreadPool& threadPool, FileFetcher& fileFetche
             },
         };
 
-    auto propKit =
-        PropKit::Create(std::filesystem::path{}, textureCache, propKitDef, threadPool, fileFetcher);
+    auto propKit = PropKit::Create(std::filesystem::path{}, propKitDef, threadPool, fileFetcher);
     MLG_CHECK(propKit, "Failed to create PropKit");
 
     // Fixed seed for reproducibility
@@ -480,7 +478,6 @@ MainLoop()
 {
     Renderer renderer;
     ImGuiRenderer imGuiRenderer;
-    TextureCache textureCache;
     WalkMouseNav mouseNav;
 
     MLG_CHECK(System::Startup(APP_NAME));
@@ -501,16 +498,10 @@ MainLoop()
         imGuiRenderer.Shutdown();
     };
     
-    MLG_CHECK(textureCache.Startup());
-    MLG_DEFER
-    {
-        textureCache.Shutdown();
-    };
-    
     CliUi cliUi;
     DevUi devUi(cliUi, renderer);
 
-    auto loadResult = Load(textureCache, System::GetThreadPool(), System::GetFileFetcher());
+    auto loadResult = Load(System::GetThreadPool(), System::GetFileFetcher());
     MLG_CHECK(loadResult);
 
     auto&& [propKit, level] = std::move(*loadResult);

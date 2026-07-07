@@ -46,7 +46,7 @@ public:
 
         struct Resources
         {
-            Texture BaseTexture;
+            wgpu::Texture BaseTexture;
             wgpu::Sampler BaseSampler;
 
             bool Validate() const

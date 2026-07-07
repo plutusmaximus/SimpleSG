@@ -172,7 +172,7 @@ ColorShaderContract::TextureGroup::CreateBindGroup(wgpu::Device device, wgpu::Bi
         {
             {
                 .binding = 0,
-                .textureView = resources.BaseTexture.GetGpuTexture().CreateView(),
+                .textureView = resources.BaseTexture.CreateView(),
             },
             {
                 .binding = 1,

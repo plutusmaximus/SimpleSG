@@ -14,7 +14,6 @@ class PropKit
 {
 public:
     static Result<PropKit> Create(const std::filesystem::path& rootPath,
-        class TextureCache& textureCache,
         const PropKitDef& propKitDef,
         ThreadPool& threadPool,
         FileFetcher& fileFetcher);
