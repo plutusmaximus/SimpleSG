@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <vector>
 
+class FileFetcher;
 struct PropKitDef;
 class ThreadPool;
 
@@ -15,7 +16,8 @@ public:
     static Result<PropKit> Create(const std::filesystem::path& rootPath,
         class TextureCache& textureCache,
         const PropKitDef& propKitDef,
-        ThreadPool& threadPool);
+        ThreadPool& threadPool,
+        FileFetcher& fileFetcher);
 
     PropKit() = delete;
     ~PropKit() = default;

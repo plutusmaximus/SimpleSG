@@ -12,6 +12,8 @@
 #include <thread>
 #include <utility>
 
+namespace
+{
 struct ThreadPoolJob
 {
     ThreadPoolJob() = default;
@@ -38,8 +40,11 @@ struct ThreadPoolJob
 
     void (*m_JobFunc)(void*){ nullptr };
     void* m_UserData{ nullptr };
-};
+};    
+} // namespace
 
+namespace mlg::detail
+{
 constexpr const size_t kMaxJobs = 1024;
 constexpr size_t kMaxWorkerThreads = 32;
 
@@ -80,6 +85,9 @@ ThreadPoolImpl::GetWorkerThreadCount()
 
     return hardwareThreadCount > kMaxWorkerThreads ? kMaxWorkerThreads : hardwareThreadCount;
 }
+} // namespace mlg::detail
+
+using namespace mlg::detail;
 
 ThreadPool::ThreadPool()
 {

@@ -3,8 +3,10 @@
 #include <cstddef>
 #include <cstdint>
 
+namespace mlg::detail
+{
 struct ThreadPoolImpl;
-struct ThreadPoolJob;
+}
 
 /// @brief A simple thread pool for executing jobs asynchronously.
 class ThreadPool final
@@ -36,6 +38,7 @@ private:
 
     static constexpr size_t kSizeofImplStorage = 25056;
 
-    uint8_t m_ImplStorage[kSizeofImplStorage]{};
-    ThreadPoolImpl* m_Impl{static_cast<ThreadPoolImpl*>(static_cast<void*>(m_ImplStorage))}; // NOLINT(bugprone-casting-through-void)
+    alignas(std::max_align_t) uint8_t m_ImplStorage[kSizeofImplStorage]{};
+    mlg::detail::ThreadPoolImpl* m_Impl{ static_cast<mlg::detail::ThreadPoolImpl*>(
+        static_cast<void*>(m_ImplStorage)) }; // NOLINT(bugprone-casting-through-void)
 };

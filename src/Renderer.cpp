@@ -9,6 +9,7 @@
 #include "PerfMetrics.h"
 #include "PropKit.h"
 #include "Scene.h"
+#include "System.h"
 #include "shaders/ColorShaderContract.h"
 #include "shaders/CompositeShaderContract.h"
 #include "shaders/TransformShaderContract.h"
@@ -21,14 +22,14 @@ namespace
 constexpr const char* kCompositorShader = "shaders/CompositorShader.wgsl";
 
 Result<>
-LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
+LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer, FileFetcher& fileFetcher)
 {
     FileFetcher::Request request(filePath);
-    MLG_CHECK(FileFetcher::Fetch(request));
+    MLG_CHECK(fileFetcher.Fetch(request));
 
     while(request.IsPending())
     {
-        MLG_CHECK(FileFetcher::ProcessCompletions());
+        MLG_CHECK(fileFetcher.ProcessCompletions());
         std::this_thread::yield();
     }
 
@@ -40,10 +41,10 @@ LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer)
 }
 
 Result<wgpu::ShaderModule>
-CreateShader(const char* path)
+CreateShader(const char* path, FileFetcher& fileFetcher)
 {
     std::vector<uint8_t> shaderCode;
-    auto loadResult = LoadShaderCode(path, shaderCode);
+    auto loadResult = LoadShaderCode(path, shaderCode, fileFetcher);
     MLG_CHECK(loadResult);
 
     const void* data = shaderCode.data();
@@ -474,7 +475,7 @@ Renderer::EnsureColorPipeline(const wgpu::TextureFormat targetFormat,
         return Result<>::Ok;
     }
 
-    auto shader = CreateShader(ColorShaderContract::GetShaderPath());
+    auto shader = CreateShader(ColorShaderContract::GetShaderPath(), System::GetFileFetcher());
     MLG_CHECK(shader);
 
     // Color target pipeline layout
@@ -608,7 +609,7 @@ Renderer::EnsureCompositorPipeline(const wgpu::TextureFormat targetFormat)
         return Result<>::Ok;
     }
 
-    auto shader = CreateShader(kCompositorShader);
+    auto shader = CreateShader(kCompositorShader, System::GetFileFetcher());
     MLG_CHECK(shader);
 
     auto layout = GpuLayouts::GetOrCreateLayout<CompositeShaderContract::TextureGroup>(
@@ -704,7 +705,7 @@ Renderer::CreateTransformPipeline()
         return Result<>::Ok;
     }
 
-    auto csResult = CreateShader(TransformShaderContract::GetShaderPath());
+    auto csResult = CreateShader(TransformShaderContract::GetShaderPath(), System::GetFileFetcher());
     MLG_CHECK(csResult);
 
     m_TransformPipelineResources.Shader = *csResult;

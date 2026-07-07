@@ -136,7 +136,7 @@ private:
 };
 
 Result<std::tuple<PropKit, Level>>
-Load(TextureCache& textureCache, ThreadPool& threadPool)
+Load(TextureCache& textureCache, ThreadPool& threadPool, FileFetcher& fileFetcher)
 {
     constexpr float kBallRadius = 1.0f;
 
@@ -159,7 +159,8 @@ Load(TextureCache& textureCache, ThreadPool& threadPool)
             },
         };
 
-    auto propKit = PropKit::Create(std::filesystem::path{}, textureCache, propKitDef, threadPool);
+    auto propKit =
+        PropKit::Create(std::filesystem::path{}, textureCache, propKitDef, threadPool, fileFetcher);
     MLG_CHECK(propKit, "Failed to create PropKit");
 
     // Fixed seed for reproducibility
@@ -509,7 +510,7 @@ MainLoop()
     CliUi cliUi;
     DevUi devUi(cliUi, renderer);
 
-    auto loadResult = Load(textureCache, System::GetThreadPool());
+    auto loadResult = Load(textureCache, System::GetThreadPool(), System::GetFileFetcher());
     MLG_CHECK(loadResult);
 
     auto&& [propKit, level] = std::move(*loadResult);

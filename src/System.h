@@ -2,6 +2,7 @@
 
 #include "Result.h"
 
+class FileFetcher;
 class ThreadPool;
 union SDL_Event;
 
@@ -13,6 +14,8 @@ public:
     static Result<> Startup(const char* appName);
 
     static void Shutdown();
+
+    static FileFetcher& GetFileFetcher();
 
     static ThreadPool& GetThreadPool();
 

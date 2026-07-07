@@ -165,7 +165,8 @@ FetchTextures(const std::filesystem::path& basePath,
     const std::span<const MaterialDef> materialDefs,
     TextureCache& textureCache,
     const wgpu::CommandEncoder& encoder,
-    ThreadPool& threadPool)
+    ThreadPool& threadPool,
+    FileFetcher& fileFetcher)
 {
     // Heap of fetch requests.
     // Pointers to pending fetch requests will be used to initialize
@@ -210,7 +211,7 @@ FetchTextures(const std::filesystem::path& basePath,
 
         MLG_DEBUG("Fetching texture...");
 
-        if(!FileFetcher::Fetch(request))
+        if(!fileFetcher.Fetch(request))
         {
             MLG_WARN("Failed to fetch texture");
         }
@@ -218,7 +219,7 @@ FetchTextures(const std::filesystem::path& basePath,
 
     while(!fetching.empty())
     {
-        FileFetcher::ProcessCompletions();
+        fileFetcher.ProcessCompletions();
 
         for(size_t i = 0; i < fetching.size();)
         {
@@ -350,7 +351,8 @@ Result<PropKit>
 PropKit::Create(const std::filesystem::path& rootPath,
     TextureCache& textureCache,
     const PropKitDef& propKitDef,
-    ThreadPool& threadPool)
+    ThreadPool& threadPool,
+    FileFetcher& fileFetcher)
 {
     Timer createTimer;
     createTimer.Start();
@@ -436,7 +438,7 @@ PropKit::Create(const std::filesystem::path& rootPath,
 
     const wgpu::CommandEncoder encoder = GpuHelper::GetDevice().CreateCommandEncoder();
 
-    MLG_CHECK(FetchTextures(rootPath, uniqueMaterials, textureCache, encoder, threadPool));
+    MLG_CHECK(FetchTextures(rootPath, uniqueMaterials, textureCache, encoder, threadPool, fileFetcher));
 
     auto vertexBuffer = GpuHelper::CreateVertexBuffer(vertices.size(), "VertexBuffer");
     MLG_CHECK(vertexBuffer);

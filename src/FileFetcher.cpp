@@ -2,82 +2,116 @@
 
 #include "Log.h"
 
-#include "SanitizerHelpers.h"
 #include  "scope_exit.h"
 
 #include <mutex>
 #include <SDL3/SDL_error.h>
 #include <SDL3/SDL_asyncio.h>
 
-namespace
+namespace mlg::detail
 {
-std::mutex* MakeMutex()
+struct FileFetcherImpl
 {
-    std::mutex* p = new std::mutex; // NOLINT(cppcoreguidelines-owning-memory)
+    FileFetcherImpl() = default;
+    ~FileFetcherImpl()
+    {
+        if(AsyncIOQueue)
+        {
+            SDL_DestroyAsyncIOQueue(AsyncIOQueue);
+            AsyncIOQueue = nullptr;
+        }
+    }
+    FileFetcherImpl(const FileFetcherImpl&) = delete;
+    FileFetcherImpl& operator=(const FileFetcherImpl&) = delete;
+    FileFetcherImpl(FileFetcherImpl&&) = delete;
+    FileFetcherImpl& operator=(FileFetcherImpl&&) = delete;
 
-    // We intentionally leak this, so hide it from leak sanitizers
-    __lsan_ignore_object(p);
-
-    return p;
-}
-
-std::mutex& GetMutex()
-{
-    static std::mutex* mutex = MakeMutex();
-    return *mutex;
-}
-
-struct FFGlobals
-{
-    static inline SDL_AsyncIOQueue* AsyncIOQueue{nullptr};
-
-    static Result<> VerifyStarted()
+    Result<> VerifyStarted() const
     {
         MLG_CHECKV(AsyncIOQueue, "FileFetcher not initialized - call Startup()");
 
         return Result<>::Ok;
     }
 
-    static inline auto OnShutdown = scope_exit(
-        []()
-        {
-            MLG_ASSERT(nullptr == FFGlobals::AsyncIOQueue, "Async IO Queue not properly shut down");
-        });
+    SDL_AsyncIOQueue* AsyncIOQueue{nullptr};
+
+    std::mutex Mutex;
 };
-}  // namespace
+} // namespace mlg::detail
 
-Result<>
-FileFetcher::Startup()
+using namespace mlg::detail;
+
+FileFetcher::Request::Request(std::string filePath)
+    : m_FilePath(std::move(filePath))
 {
-    MLG_INFO("Starting FileFetcher...");
+}
 
-    const std::lock_guard lock(GetMutex());
-    if(!FFGlobals::AsyncIOQueue)
+FileFetcher::Request::~Request()
+{
+    if(IsPending())
     {
-        FFGlobals::AsyncIOQueue = SDL_CreateAsyncIOQueue();
-        MLG_CHECK(FFGlobals::AsyncIOQueue, "Failed to create SDL Async IO Queue: {}", SDL_GetError());
+        SetComplete(RequestStatus::Failure);
     }
-    return Result<>::Ok;
+}
+
+std::span<const uint8_t>
+FileFetcher::Request::GetData() const
+{
+    MLG_ASSERT(Succeeded(),
+        "Attempted to access data of a request that did not succeed or is still pending");
+    return m_Data;
 }
 
 void
-FileFetcher::Shutdown()
+FileFetcher::Request::MoveDataTo(std::vector<uint8_t>& outBuffer)
 {
-    const std::lock_guard lock(GetMutex());
-    if(FFGlobals::AsyncIOQueue)
-    {
-        FileFetcher::ProcessCompletions();
-        SDL_SignalAsyncIOQueue(FFGlobals::AsyncIOQueue);
-        SDL_DestroyAsyncIOQueue(FFGlobals::AsyncIOQueue);
-        FFGlobals::AsyncIOQueue = nullptr;
-    }
+    MLG_ASSERT(Succeeded(),
+        "Attempted to move data from a request that did not succeed or is still pending");
+    outBuffer = std::move(m_Data);
+}
+
+void
+FileFetcher::Request::SetComplete(RequestStatus status)
+{
+    MLG_ASSERT(RequestStatus::Pending == m_Status,
+        "Attempted to complete a request that is not pending");
+    MLG_ASSERT(status == RequestStatus::Success || status == RequestStatus::Failure,
+        "Invalid status for completion");
+
+    m_Status = status;
+}
+
+FileFetcher::FileFetcher()
+{
+    static_assert(sizeof(FileFetcherImpl) <= kSizeofImplStorage,
+        "FileFetcherImpl is too large for the storage buffer");
+
+    std::construct_at(m_Impl);
+
+    const std::lock_guard lock(m_Impl->Mutex);
+
+    m_Impl->AsyncIOQueue = SDL_CreateAsyncIOQueue();
+
+    MLG_ABORTIF(!m_Impl->AsyncIOQueue, "Failed to create SDL Async IO Queue: {}", SDL_GetError());
+}
+
+FileFetcher::~FileFetcher()
+{
+    const std::lock_guard lock(m_Impl->Mutex);
+
+    ProcessCompletions();
+    SDL_SignalAsyncIOQueue(m_Impl->AsyncIOQueue);
+    SDL_DestroyAsyncIOQueue(m_Impl->AsyncIOQueue);
+    m_Impl->AsyncIOQueue = nullptr;
+
+    std::destroy_at(m_Impl);
 }
 
 Result<>
 FileFetcher::Fetch(FileFetcher::Request& request)
 {
-    MLG_CHECKV(RequestStatus::None == request.m_Status, "Request is already in progress or completed");
-    MLG_CHECK(FFGlobals::VerifyStarted());
+    MLG_CHECKV(RequestStatus::None == request.m_Status,
+        "Request is already in progress or completed");
 
     request.m_Status = RequestStatus::Pending;
 
@@ -97,7 +131,7 @@ FileFetcher::Fetch(FileFetcher::Request& request)
 
     MLG_DEFER_AS(closeOnFailure)
     {
-        SDL_CloseAsyncIO(request.m_AsyncIO, false, FFGlobals::AsyncIOQueue, &request);
+        SDL_CloseAsyncIO(request.m_AsyncIO, false, m_Impl->AsyncIOQueue, &request);
         request.m_AsyncIO = nullptr;
     };
 
@@ -133,60 +167,58 @@ FileFetcher::Fetch(FileFetcher::Request& request)
 Result<>
 FileFetcher::ProcessCompletions()
 {
-    MLG_CHECK(FFGlobals::VerifyStarted());
-
     SDL_AsyncIOOutcome outcome;
-    while(SDL_GetAsyncIOResult(FFGlobals::AsyncIOQueue, &outcome))
+    while(SDL_GetAsyncIOResult(m_Impl->AsyncIOQueue, &outcome))
     {
         if(outcome.type == SDL_ASYNCIO_TASK_CLOSE)
         {
             continue;
         }
 
-        if(outcome.type == SDL_ASYNCIO_TASK_READ)
-        {
-            Request* request = static_cast<Request*>(outcome.userdata);
-            MLG_CHECK(request, "Received SDL Async IO completion with null userdata");
-
-            switch(outcome.result)
-            {
-                case SDL_ASYNCIO_COMPLETE:
-                    request->m_BytesRead += static_cast<size_t>(outcome.bytes_transferred);
-                    if(request->m_BytesRead >= request->m_BytesRequested)
-                    {
-                        SDL_CloseAsyncIO(request->m_AsyncIO, false, FFGlobals::AsyncIOQueue, request);
-                        request->m_AsyncIO = nullptr;
-                        request->SetComplete(RequestStatus::Success);
-                    }
-                    else if(!IssueRead(*request))
-                    {
-                        SDL_CloseAsyncIO(request->m_AsyncIO, false, FFGlobals::AsyncIOQueue, request);
-                        request->m_AsyncIO = nullptr;
-                        request->SetComplete(RequestStatus::Failure);
-                    }
-                    break;
-                case SDL_ASYNCIO_FAILURE:
-                    MLG_ERROR("Async IO read failed for file: {}, error: {}",
-                        request->m_FilePath,
-                        SDL_GetError());
-                    SDL_CloseAsyncIO(request->m_AsyncIO, false, FFGlobals::AsyncIOQueue, request);
-                    break;
-                case SDL_ASYNCIO_CANCELED:
-                    MLG_ERROR("Async IO read failed for file: {}, error: {}",
-                        request->m_FilePath,
-                        SDL_GetError());
-                    if(FFGlobals::AsyncIOQueue)
-                    {
-                        SDL_CloseAsyncIO(request->m_AsyncIO, false, FFGlobals::AsyncIOQueue, request);
-                    }
-                    break;
-            }
-        }
-        else
+        if(outcome.type != SDL_ASYNCIO_TASK_READ)
         {
             MLG_ERROR("Received unexpected SDL Async IO completion of type: {}",
                 static_cast<int>(outcome.type));
             continue;
+        }
+
+        Request* request = static_cast<Request*>(outcome.userdata);
+        MLG_CHECK(request, "Received SDL Async IO completion with null userdata");
+
+        switch(outcome.result)
+        {
+            case SDL_ASYNCIO_COMPLETE:
+                request->m_BytesRead += static_cast<size_t>(outcome.bytes_transferred);
+                if(request->m_BytesRead >= request->m_BytesRequested)
+                {
+                    SDL_CloseAsyncIO(request->m_AsyncIO, false, m_Impl->AsyncIOQueue, request);
+                    request->m_AsyncIO = nullptr;
+                    request->SetComplete(RequestStatus::Success);
+                }
+                else if(!IssueRead(*request))
+                {
+                    SDL_CloseAsyncIO(request->m_AsyncIO, false, m_Impl->AsyncIOQueue, request);
+                    request->m_AsyncIO = nullptr;
+                    request->SetComplete(RequestStatus::Failure);
+                }
+                break;
+            case SDL_ASYNCIO_FAILURE:
+                MLG_ERROR("Async IO read failed for file: {}, error: {}",
+                    request->m_FilePath,
+                    SDL_GetError());
+                SDL_CloseAsyncIO(request->m_AsyncIO, false, m_Impl->AsyncIOQueue, request);
+                // request->SetComplete() will be called when we get the SDL_ASYNCIO_COMPLETE event.
+                break;
+            case SDL_ASYNCIO_CANCELED:
+                MLG_ERROR("Async IO read failed for file: {}, error: {}",
+                    request->m_FilePath,
+                    SDL_GetError());
+                if(m_Impl->AsyncIOQueue)
+                {
+                    SDL_CloseAsyncIO(request->m_AsyncIO, false, m_Impl->AsyncIOQueue, request);
+                }
+                // request->SetComplete() will be called when we get the SDL_ASYNCIO_COMPLETE event.
+                break;
         }
     }
 
@@ -212,7 +244,7 @@ FileFetcher::IssueRead(FileFetcher::Request& request)
                   request.m_Data.data(),
                   0,
                   request.m_BytesRequested,
-                  FFGlobals::AsyncIOQueue,
+                  m_Impl->AsyncIOQueue,
                   &request),
         "Failed to issue async load for file: {}, error: {}",
         request.m_FilePath,

@@ -20,19 +20,19 @@ Result<> System::Startup(const char* appName)
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
-    MLG_CHECK(FileFetcher::Startup());
-    MLG_DEFER_AS(fileFetcherShutdown)
-    {
-        FileFetcher::Shutdown();
-    };
-
     MLG_CHECK(GpuHelper::Startup(appName));
-
-    fileFetcherShutdown.release();
 
     m_Initialized = true;
 
     return Result<>::Ok;
+}
+
+FileFetcher&
+System::GetFileFetcher()
+{
+    static FileFetcher s_FileFetcher;
+
+    return s_FileFetcher;
 }
 
 ThreadPool&
@@ -52,7 +52,6 @@ System::Shutdown()
     }
 
     GpuHelper::Shutdown();
-    FileFetcher::Shutdown();
 
     m_Initialized = false;
 }
