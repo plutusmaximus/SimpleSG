@@ -1,4 +1,4 @@
-#include "Shapes.h"
+#include "ShapeDefs.h"
 #include "AssertHelper.h"
 
 #include <algorithm>
@@ -13,8 +13,8 @@ constexpr float kPi = std::numbers::pi_v<float>;
 
 // NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
 
-Shapes::Geometry
-Shapes::Box(const BoxParams& params)
+MeshDef
+ShapeDefs::Box(const BoxParams& params)
 {
     MLG_ASSERT(params.Width > 0);
     MLG_ASSERT(params.Height > 0);
@@ -73,11 +73,16 @@ Shapes::Box(const BoxParams& params)
     indices.push_back(0); indices.push_back(1); indices.push_back(5);
     indices.push_back(0); indices.push_back(5); indices.push_back(4);
 
-    return Geometry{ std::move(vertices), std::move(indices) };
+    return MeshDef //
+        {
+            .Vertices = std::move(vertices),
+            .Indices = std::move(indices),
+            .MaterialDef = MaterialDef{},
+        };
 }
 
-Shapes::Geometry
-Shapes::Ball(const BallParams& params)
+MeshDef
+ShapeDefs::Ball(const BallParams& params)
 {
     MLG_ASSERT(params.Radius > 0);
     MLG_ASSERT(params.Smoothness > 0);
@@ -207,11 +212,16 @@ Shapes::Ball(const BallParams& params)
         vertex.pos.z *= params.Radius;
     }
 
-    return Geometry{ std::move(vertices), std::move(indices) };
+    return MeshDef //
+        {
+            .Vertices = std::move(vertices),
+            .Indices = std::move(indices),
+            .MaterialDef = MaterialDef{},
+        };
 }
 
-Shapes::Geometry
-Shapes::Cylinder(const CylinderParams& params)
+MeshDef
+ShapeDefs::Cylinder(const CylinderParams& params)
 {
     MLG_ASSERT(params.Height > 0);
     MLG_ASSERT(params.Radius > 0);
@@ -314,11 +324,16 @@ Shapes::Cylinder(const CylinderParams& params)
         indices.push_back(current);
     }
 
-    return Geometry{ std::move(vertices), std::move(indices) };
+    return MeshDef //
+        {
+            .Vertices = std::move(vertices),
+            .Indices = std::move(indices),
+            .MaterialDef = MaterialDef{},
+        };
 }
 
-Shapes::Geometry
-Shapes::Cone(const ConeParams& params)
+MeshDef
+ShapeDefs::Cone(const ConeParams& params)
 {
     MLG_ASSERT(params.Radius1 >= 0);
     MLG_ASSERT(params.Radius2 >= 0);
@@ -466,11 +481,16 @@ Shapes::Cone(const ConeParams& params)
         }
     }
 
-    return Geometry{ std::move(vertices), std::move(indices) };
+    return MeshDef //
+        {
+            .Vertices = std::move(vertices),
+            .Indices = std::move(indices),
+            .MaterialDef = MaterialDef{},
+        };
 }
 
-Shapes::Geometry
-Shapes::Torus(const TorusParams& params)
+MeshDef
+ShapeDefs::Torus(const TorusParams& params)
 {
     MLG_ASSERT(params.RingRadius >= 0);
     MLG_ASSERT(params.TubeRadius > 0);
@@ -573,7 +593,12 @@ Shapes::Torus(const TorusParams& params)
         }
     }
 
-    return Geometry{ std::move(vertices), std::move(indices) };
+    return MeshDef //
+        {
+            .Vertices = std::move(vertices),
+            .Indices = std::move(indices),
+            .MaterialDef = MaterialDef{},
+        };
 }
 
 // NOLINTEND(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)

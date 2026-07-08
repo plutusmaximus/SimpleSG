@@ -14,7 +14,7 @@
 #include "Renderer.h"
 #include "Scene.h"
 #include "scope_exit.h"
-#include "Shapes.h"
+#include "ShapeDefs.h"
 #include "System.h"
 #include "ThreadPool.h"
 
@@ -139,8 +139,6 @@ Load(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher)
 {
     constexpr float kBallRadius = 1.0f;
 
-    auto shape = Shapes::Ball({ .Radius = kBallRadius });
-
     const PropKitDef propKitDef //
         {
             .ModelDefs //
@@ -149,10 +147,7 @@ Load(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher)
                     .Name{ "Shape" },
                     .MeshDefs //
                     {
-                        {
-                            .Vertices{ shape.GetVertices().begin(), shape.GetVertices().end() },
-                            .Indices{ shape.GetIndices().begin(), shape.GetIndices().end() },
-                        },
+                        ShapeDefs::Ball({ .Radius = kBallRadius }),
                     },
                 },
             },
