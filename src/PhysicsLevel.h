@@ -19,22 +19,22 @@ struct ImpactResult
     Vec3f PosAtImpactB;
 };
 
-struct ColliderSweepParams
+struct SphereSweepParams
 {
     Vec3f StartPosA{};
     Vec3f EndPosA{};
-    Collider ColliderA;
+    BoundingSphere SphereA;
 
     Vec3f StartPosB{};
     Vec3f EndPosB{};
-    Collider ColliderB;
+    BoundingSphere SphereB;
 };
 
 struct ImpactRecord
 {
     BodyPair Bodies{0,0}; // Initialized to an invalid pair to catch uninitialized usage.
 
-    ColliderSweepParams SweepParams;
+    SphereSweepParams SweepParams;
 
     ImpactResult Result{};
 
@@ -135,7 +135,7 @@ private:
 
     void EnqueueSweepTests(SweepTestBatch* batch);
 
-    static bool SphereSphereSweep(const ColliderSweepParams& params, ImpactResult& impactResult);
+    static bool SphereSphereSweep(const SphereSweepParams& params, ImpactResult& impactResult);
 
     std::vector<const Level::Node*> m_Nodes;
     std::vector<TrsTransformf> m_TransformPool[2];

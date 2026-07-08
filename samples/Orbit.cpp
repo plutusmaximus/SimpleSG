@@ -191,8 +191,8 @@ Load(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher)
                         RigidBodyDef //
                     {
                         .Mass{ mass },
-                        .Collider =
-                            ColliderDef{ SphereDef{ .Center = Vec3f(0), .Radius = radius } },
+                        .BoundingVolume =
+                            BoundingVolumeDef{ SphereDef{ .Center = Vec3f(0), .Radius = radius } },
                     },
                 },
             };
@@ -259,7 +259,7 @@ void ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
         ++i, j = i + 1)
     {
         const RigidBody& bodyA = batchParams->Bodies[i];
-        const BoundingSphere sphereA = batchParams->Transforms[i] * bodyA.GetCollider().GetEnclosingSphere();
+        const BoundingSphere sphereA = batchParams->Transforms[i] * bodyA.GetBoundingSphere();
         const float massA = bodyA.GetMass().Value();
 
         MLG_ASSERT(j < batchParams->Bodies.size(), "StartIndexB must be greater than StartIndexA");
@@ -267,7 +267,7 @@ void ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
         for(; j < batchParams->Bodies.size() && count < batchParams->BatchSize; ++j, ++count)
         {
             const RigidBody& bodyB = batchParams->Bodies[j];
-            const BoundingSphere sphereB = batchParams->Transforms[j] * bodyB.GetCollider().GetEnclosingSphere();
+            const BoundingSphere sphereB = batchParams->Transforms[j] * bodyB.GetBoundingSphere();
             const float massB = bodyB.GetMass().Value();
 
             const float minSeparation = sphereA.GetRadius() + sphereB.GetRadius();

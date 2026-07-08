@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
-#include "PhysicsLevel.h"
+#include "BoundingVolumes.h"
+#include "GridHash.h"
 
 #include <algorithm>
 #include <array>
@@ -12,14 +13,14 @@
 
 namespace
 {
-	Collider MakeSphereCollider(float radius)
+	BoundingSphere MakeSphere(float radius)
 	{
-		return Collider{ BoundingSphere{ Vec3f{ 0, 0, 0 }, radius } };
+		return BoundingSphere{ Vec3f{0}, radius };
 	}
 
-	Collider MakeSphereCollider()
+	BoundingSphere MakeSphere()
 	{
-		return MakeSphereCollider(0.1f);
+		return MakeSphere(0.1f);
 	}
 }
 
@@ -39,7 +40,7 @@ TEST(GridHash, SingleBodyProducesNoPairs)
 	const Result<> result = hash.Add(
 		Vec3f{ 0.8f, 0.8f, 0.8f },
 		Vec3f{ 0.2f, 0.2f, 0.2f },
-		MakeSphereCollider(),
+		MakeSphere(),
 		3);
 
 	ASSERT_TRUE(result);
@@ -55,13 +56,13 @@ TEST(GridHash, TwoBodiesInSameCellProduceOneOrderedPair)
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 0.9f, 0.9f, 0.9f },
 		Vec3f{ 0.1f, 0.1f, 0.1f },
-		MakeSphereCollider(),
+		MakeSphere(),
 		7));
 
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 1.8f, 1.8f, 1.8f },
 		Vec3f{ 1.0f, 1.0f, 1.0f },
-		MakeSphereCollider(),
+		MakeSphere(),
 		3));
 
     const std::span pairs(hash);
@@ -77,13 +78,13 @@ TEST(GridHash, SharedAcrossManyCellsStillProducesUniquePair)
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
 		Vec3f{ 9.9f, 9.9f, 0.2f },
-		MakeSphereCollider(),
+		MakeSphere(),
 		0));
 
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 0.2f, 0.2f, 0.1f },
 		Vec3f{ 9.8f, 9.8f, 0.2f },
-		MakeSphereCollider(),
+		MakeSphere(),
 		1));
 
     const std::span pairs(hash);
@@ -99,17 +100,17 @@ TEST(GridHash, ThreeBodiesInOneCellGenerateAllUniquePairs)
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
 		Vec3f{ 0.9f, 0.9f, 0.9f },
-		MakeSphereCollider(),
+		MakeSphere(),
 		0));
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 0.7f, 0.7f, 0.7f },
 		Vec3f{ 0.3f, 0.3f, 0.3f },
-		MakeSphereCollider(),
+		MakeSphere(),
 		1));
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 0.4f, 0.4f, 0.4f },
 		Vec3f{ 0.6f, 0.6f, 0.6f },
-		MakeSphereCollider(),
+		MakeSphere(),
 		2));
 
     const std::span pairs(hash);
@@ -127,12 +128,12 @@ TEST(GridHash, ClearRemovesExistingCellsAndPairs)
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
 		Vec3f{ 0.9f, 0.9f, 0.9f },
-		MakeSphereCollider(),
+		MakeSphere(),
 		0));
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 0.2f, 0.2f, 0.2f },
 		Vec3f{ 0.8f, 0.8f, 0.8f },
-		MakeSphereCollider(),
+		MakeSphere(),
 		1));
 
     const std::span beforeClear(hash);
@@ -146,12 +147,12 @@ TEST(GridHash, ClearRemovesExistingCellsAndPairs)
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
 		Vec3f{ 0.2f, 0.2f, 0.2f },
-		MakeSphereCollider(),
+		MakeSphere(),
 		0));
 	ASSERT_TRUE(hash.Add(
 		Vec3f{ 20.2f, 20.2f, 20.2f },
 		Vec3f{ 20.1f, 20.1f, 20.1f },
-		MakeSphereCollider(),
+		MakeSphere(),
 		1));
 
 	const std::span nonOverlappingPairs(hash);
@@ -182,8 +183,8 @@ TEST(GridHash, GridHash4AndGridHash5ContainSameBodyPairSet)
 
 	for(const BodyInput& body : bodies)
 	{
-		ASSERT_TRUE(hash2.Add(body.Min, body.Max, MakeSphereCollider(body.Radius), body.BodyIndex));
-		ASSERT_TRUE(hash3.Add(body.Min, body.Max, MakeSphereCollider(body.Radius), body.BodyIndex));
+		ASSERT_TRUE(hash2.Add(body.Min, body.Max, MakeSphere(body.Radius), body.BodyIndex));
+		ASSERT_TRUE(hash3.Add(body.Min, body.Max, MakeSphere(body.Radius), body.BodyIndex));
 	}
 
 	std::vector<BodyPair> pairs2(hash2.begin(), hash2.end());
@@ -268,7 +269,7 @@ TEST(GridHash, ChaosRandomizedBodies_AllExpectedPairsExist)
                     },
                 };
 
-            ASSERT_TRUE(hash.Add(body.Min, body.Max, MakeSphereCollider(body.Radius), i));
+            ASSERT_TRUE(hash.Add(body.Min, body.Max, MakeSphere(body.Radius), i));
             bodies.push_back(body);
         }
 

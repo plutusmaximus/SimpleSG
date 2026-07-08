@@ -108,12 +108,12 @@ struct SphereDef final
     }
 };
 
-using ColliderDef = std::variant<SphereDef, BoxDef, CapsuleDef>;
+using BoundingVolumeDef = std::variant<SphereDef, BoxDef, CapsuleDef>;
 
 struct RigidBodyDef final
 {
     Mass Mass;
-    ColliderDef Collider;
+    BoundingVolumeDef BoundingVolume;
 };
 
 struct LevelNodeDef final

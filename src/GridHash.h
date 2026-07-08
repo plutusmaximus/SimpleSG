@@ -1,9 +1,13 @@
 #pragma once
 
-#include "PhysicsTypes.h"
 #include "Result.h"
 
 #include <vector>
+
+class BoundingSphere;
+template <typename T>
+class Vec3;
+using Vec3f = Vec3<float>;
 
 class BodyPair
 {
@@ -64,10 +68,10 @@ public:
     /// @brief  Adds a body to into the grid cells it occupies.
     /// @param p0 One corner of the body's bounding box.
     /// @param p1 The other corner of the body's bounding box.
-    /// @param collider The collider associated with the body.
+    /// @param boundingSphere The bounding sphere associated with the body.
     /// @param bodyIndex The index of the body.
     Result<> Add(
-        const Vec3f& p0, const Vec3f& p1, const Collider& collider, const size_t bodyIndex);
+        const Vec3f& p0, const Vec3f& p1, const BoundingSphere& boundingSphere, const size_t bodyIndex);
 
     using iterator = std::vector<BodyPair>::iterator;
     using const_iterator = std::vector<BodyPair>::const_iterator;

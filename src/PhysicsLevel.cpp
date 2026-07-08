@@ -280,7 +280,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
         // Bodies will be added to all cells of the grid overlapped by the bounding box
         // defined by the current and predicted position.
 
-        m_GridHash.Add(trsCur.T, trsNext.T, body.GetCollider(), index);
+        m_GridHash.Add(trsCur.T, trsNext.T, body.GetBoundingSphere(), index);
     }
 
     const size_t potentialCollisionCount = m_GridHash.PotentialCollisionCount();
@@ -319,10 +319,10 @@ PhysicsLevel::FindAndResolveAllImpacts()
                 {
                     .StartPosA = m_TrsCur[bodyPair.IndexA()].T,
                     .EndPosA = m_TrsNext[bodyPair.IndexA()].T,
-                    .ColliderA = m_Bodies[bodyPair.IndexA()].GetCollider(),
+                    .SphereA = m_Bodies[bodyPair.IndexA()].GetBoundingSphere(),
                     .StartPosB = m_TrsCur[bodyPair.IndexB()].T,
                     .EndPosB = m_TrsNext[bodyPair.IndexB()].T,
-                    .ColliderB = m_Bodies[bodyPair.IndexB()].GetCollider(),
+                    .SphereB = m_Bodies[bodyPair.IndexB()].GetBoundingSphere(),
                 },
             };
 
@@ -397,7 +397,7 @@ PhysicsLevel::EnqueueSweepTests(SweepTestBatch* batch)
 }
 
 bool
-PhysicsLevel::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult& impactResult)
+PhysicsLevel::SphereSphereSweep(const SphereSweepParams& params, ImpactResult& impactResult)
 {
     MLG_SCOPED_TIMER("Physics.SphereSphereSweep");
 
@@ -421,8 +421,8 @@ PhysicsLevel::SphereSphereSweep(const ColliderSweepParams& params, ImpactResult&
     //
     // Solve the quadratic equation for t.
 
-    const BoundingSphere& sphereA = params.ColliderA.GetEnclosingSphere();
-    const BoundingSphere& sphereB = params.ColliderB.GetEnclosingSphere();
+    const BoundingSphere& sphereA = params.SphereA;
+    const BoundingSphere& sphereB = params.SphereB;
 
     const Vec3f& pA0 = params.StartPosA + sphereA.GetCenter();
     const Vec3f& pA1 = params.EndPosA + sphereA.GetCenter();

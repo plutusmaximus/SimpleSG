@@ -1,5 +1,6 @@
 #include "Level.h"
 
+#include "PhysicsTypes.h"
 #include "PropKit.h"
 
 #include <ranges>
@@ -70,31 +71,31 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
                 "RigidBodyDef in node {} has non-positive mass",
                 nodeDef.Name);
 
-            const ColliderDef& colliderDef = bodyDef.Collider;
+            const BoundingVolumeDef& boundingVolumeDef = bodyDef.BoundingVolume;
 
             struct Visitor
             {
-                Collider operator()(const SphereDef& def) const
+                BoundingVolume operator()(const SphereDef& def) const
                 {
-                    return Collider{ BoundingSphere{ def.Center, def.Radius } };
+                    return BoundingVolume{ BoundingSphere{ def.Center, def.Radius } };
                 }
 
-                Collider operator()(const BoxDef& def) const
+                BoundingVolume operator()(const BoxDef& def) const
                 {
                     const Vec3f p0 = def.Center - def.HalfExtents;
                     const Vec3f p1 = def.Center + def.HalfExtents;
-                    return Collider{ BoundingBox{ p0, p1 } };
+                    return BoundingVolume{ BoundingBox{ p0, p1 } };
                 }
 
-                Collider operator()(const CapsuleDef& def) const
+                BoundingVolume operator()(const CapsuleDef& def) const
                 {
-                    return Collider{ BoundingCapsule{ def.Center, def.Radius, def.HalfHeight } };
+                    return BoundingVolume{ BoundingCapsule{ def.Center, def.Radius, def.HalfHeight } };
                 }
             };
 
-            const Collider collider = std::visit(Visitor{}, colliderDef);
+            const BoundingVolume boundingVolume = std::visit(Visitor{}, boundingVolumeDef);
 
-            components.Body = RigidBody(bodyDef.Mass, collider);
+            components.Body = RigidBody(bodyDef.Mass, boundingVolume);
         }
 
         const Level::Node node //
@@ -160,13 +161,13 @@ Level::Node::GetBoundingSphere() const
 
             if(node.Components.Body)
             {
-                bs = bs + node.Components.Body->GetCollider().GetEnclosingSphere();
+                bs = bs + node.Components.Body->GetBoundingSphere();
             }
 
             return bs;
         }
 
-        return node.Components.Body->GetCollider().GetEnclosingSphere();
+        return node.Components.Body->GetBoundingSphere();
     };
 
     if(!Children.empty())

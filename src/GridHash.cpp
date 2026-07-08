@@ -1,4 +1,5 @@
 #include "GridHash.h"
+#include "BoundingVolumes.h"
 
 #include <algorithm>
 
@@ -119,14 +120,13 @@ GridHash::Clear()
 
 Result<>
 GridHash::Add(
-    const Vec3f& p0, const Vec3f& p1, const Collider& collider, const size_t bodyIndex)
+    const Vec3f& p0, const Vec3f& p1, const BoundingSphere& boundingSphere, const size_t bodyIndex)
 {
     MLG_ASSERT(m_NeedsSort,
         "Adding bodies after potential collisions have been generated. Is that intentional?");
 
-    const BoundingSphere& sphere = collider.GetEnclosingSphere();
-    const Vec3f vradius(sphere.GetRadius());
-    const Vec3f& center = sphere.GetCenter();
+    const Vec3f vradius(boundingSphere.GetRadius());
+    const Vec3f& center = boundingSphere.GetCenter();
 
     const Vec3f pmin =
         Vec3f(std::min(p0.x, p1.x), std::min(p0.y, p1.y), std::min(p0.z, p1.z)) + center - vradius;

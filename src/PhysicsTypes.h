@@ -3,8 +3,6 @@
 #include "AssertHelper.h"
 #include "BoundingVolumes.h"
 
-#include <variant>
-
 class Mass
 {
 public:
@@ -56,55 +54,24 @@ private:
     float m_InvValue; // Inverse value
 };
 
-class Collider
-{
-public:
-    Collider() = delete;
-
-    explicit Collider(const BoundingSphere& sphere)
-        : m_Shape(sphere),
-          m_EnclosingSphere(sphere)
-    {
-    }
-
-    explicit Collider(const BoundingBox& box)
-        : m_Shape(box),
-          m_EnclosingSphere(box)
-    {
-    }
-    explicit Collider(const BoundingCapsule& capsule)
-        : m_Shape(capsule),
-          m_EnclosingSphere(capsule)
-    {
-    }
-    const std::variant<BoundingSphere, BoundingBox, BoundingCapsule>& GetShape() const
-    {
-        return m_Shape;
-    }
-
-    const BoundingSphere& GetEnclosingSphere() const { return m_EnclosingSphere; }
-
-private:
-    std::variant<BoundingSphere, BoundingBox, BoundingCapsule> m_Shape;
-    BoundingSphere m_EnclosingSphere;
-};
-
 class RigidBody
 {
 public:
     RigidBody() = delete;
 
-    explicit RigidBody(const Mass mass, const Collider& collider)
+    explicit RigidBody(const Mass mass, const BoundingVolume& boundingVolume)
         : m_Mass(mass),
-          m_Collider(collider)
+          m_BoundingVolume(boundingVolume)
     {
     }
 
     Mass GetMass() const { return m_Mass; }
 
-    const Collider& GetCollider() const { return m_Collider; }
+    const BoundingVolume& GetBoundingVolume() const { return m_BoundingVolume; }
+
+    const BoundingSphere& GetBoundingSphere() const { return m_BoundingVolume.GetEnclosingSphere(); }
 
 private:
     Mass m_Mass;
-    Collider m_Collider;
+    BoundingVolume m_BoundingVolume;
 };

@@ -4,6 +4,7 @@
 #include "Vertex.h"
 
 #include <span>
+#include <variant>
 
 class BoundingBox
 {
@@ -150,4 +151,37 @@ public:
 private:
     Vec3f m_Center;
     float m_Radius;
+};
+
+class BoundingVolume
+{
+public:
+    BoundingVolume() = delete;
+
+    explicit BoundingVolume(const BoundingSphere& sphere)
+        : m_Shape(sphere),
+          m_EnclosingSphere(sphere)
+    {
+    }
+
+    explicit BoundingVolume(const BoundingBox& box)
+        : m_Shape(box),
+          m_EnclosingSphere(box)
+    {
+    }
+    explicit BoundingVolume(const BoundingCapsule& capsule)
+        : m_Shape(capsule),
+          m_EnclosingSphere(capsule)
+    {
+    }
+    const std::variant<BoundingSphere, BoundingBox, BoundingCapsule>& GetVolume() const
+    {
+        return m_Shape;
+    }
+
+    const BoundingSphere& GetEnclosingSphere() const { return m_EnclosingSphere; }
+
+private:
+    std::variant<BoundingSphere, BoundingBox, BoundingCapsule> m_Shape;
+    BoundingSphere m_EnclosingSphere;
 };
