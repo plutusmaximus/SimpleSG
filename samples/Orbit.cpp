@@ -14,7 +14,7 @@
 #include "Renderer.h"
 #include "Scene.h"
 #include "scope_exit.h"
-#include "ShapeDefs.h"
+#include "ShapeMeshDefs.h"
 #include "System.h"
 #include "ThreadPool.h"
 
@@ -147,7 +147,7 @@ Load(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher)
                     .Name{ "Shape" },
                     .MeshDefs //
                     {
-                        ShapeDefs::Ball({ .Radius = kBallRadius }),
+                        ShapeMeshDefs::Ball({ .Radius = kBallRadius }),
                     },
                 },
             },

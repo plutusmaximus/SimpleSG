@@ -321,7 +321,7 @@ set(SSG_SOURCES
   src/shaders/ColorShaderContract.cpp
   src/shaders/CompositorShaderContract.cpp
   src/shaders/TransformShaderContract.cpp
-  src/ShapeDefs.cpp
+  src/ShapeMeshDefs.cpp
   src/StringArena.cpp
   src/stb_image.cpp
   src/System.cpp
@@ -365,7 +365,7 @@ set(SSG_HEADERS
   src/shaders/CompositorShaderContract.h
   src/shaders/ShaderInterop.h
   src/shaders/TransformShaderContract.h
-  src/ShapeDefs.h
+  src/ShapeMeshDefs.h
   src/StringArena.h
   src/System.h
   src/CliState.h
