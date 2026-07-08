@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstddef>
-#include <cstdint>
+#include <memory>
 #include <type_traits>
 
 namespace mlg::detail
@@ -17,8 +17,8 @@ public:
     ~ThreadPool();
     ThreadPool(const ThreadPool&) = delete;
     ThreadPool& operator=(const ThreadPool&) = delete;
-    ThreadPool(ThreadPool&& other) noexcept;
-    ThreadPool& operator=(ThreadPool&& other) noexcept;
+    ThreadPool(ThreadPool&& other) = default;
+    ThreadPool& operator=(ThreadPool&& other) = default;
 
     bool Enqueue(void (*jobFunc)(void*), void* userData);
 
@@ -39,5 +39,10 @@ public:
 
 private:
 
-    mlg::detail::ThreadPoolImpl* m_Impl{nullptr};
+    static void Deleter(mlg::detail::ThreadPoolImpl* impl);
+
+    using DeleterType = decltype(&Deleter);
+    using UniquePtrType = std::unique_ptr<mlg::detail::ThreadPoolImpl, DeleterType>;
+
+    UniquePtrType m_Impl{nullptr, &ThreadPool::Deleter};
 };

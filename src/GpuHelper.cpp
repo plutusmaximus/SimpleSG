@@ -1,3 +1,4 @@
+#include <memory>
 #define MLG_LOGGER_NAME "WGPU"
 
 #include "GpuHelper.h"
@@ -584,6 +585,26 @@ class GpuHelperImpl
 {
 public:
 
+    GpuHelperImpl() = default;
+    ~GpuHelperImpl()
+    {
+        if(MetalView)
+        {
+            SDL_Metal_DestroyView(MetalView);
+        }
+
+        if(Window)
+        {
+            SDL_DestroyWindow(Window);
+            SDL_Quit();
+        }
+    }
+
+    GpuHelperImpl(const GpuHelperImpl&) = delete;
+    GpuHelperImpl& operator=(const GpuHelperImpl&) = delete;
+    GpuHelperImpl(GpuHelperImpl&&) = delete;
+    GpuHelperImpl& operator=(GpuHelperImpl&&) = delete;
+
     SDL_Window* Window{nullptr};
     SDL_MetalView MetalView{nullptr};
     wgpu::Instance Instance{nullptr};
@@ -595,34 +616,6 @@ public:
     wgpu::Sampler DefaultSampler{nullptr};
 };
 } // namespace mlg::detail
-
-GpuHelper::GpuHelper(mlg::detail::GpuHelperImpl* impl)
-: m_Impl(impl)
-{
-    MLG_ASSERT(m_Impl, "GpuHelperImpl pointer cannot be null");
-}
-
-GpuHelper::~GpuHelper()
-{
-    Shutdown();
-}
-
-GpuHelper::GpuHelper(GpuHelper&& other) noexcept
-: m_Impl(std::exchange(other.m_Impl, nullptr))
-{
-}
-
-GpuHelper&
-GpuHelper::operator=(GpuHelper&& other) noexcept
-{
-    if(this != &other)
-    {
-        Shutdown();
-        m_Impl = std::exchange(other.m_Impl, nullptr);
-    }
-
-    return *this;
-}
 
 Result<GpuHelper>
 GpuHelper::Create(const char* appName)
@@ -690,18 +683,17 @@ GpuHelper::Create(const char* appName)
 
     MLG_CHECK(surfaceFormat);
 
-    mlg::detail::GpuHelperImpl impl //
-        {
-            .Window = *window,
-            .MetalView = metalView,
-            .Instance = std::move(*instance),
-            .Adapter = std::move(*adapter),
-            .Device = std::move(*device),
-            .Surface = std::move(*surface),
-            .SurfaceFormat = *surfaceFormat
-        };
+    auto impl = std::make_unique<mlg::detail::GpuHelperImpl>();
 
-    GpuHelper gpuHelper(new mlg::detail::GpuHelperImpl(std::move(impl)));
+    impl->Window = *window;
+    impl->MetalView = metalView;
+    impl->Instance = std::move(*instance);
+    impl->Adapter = std::move(*adapter);
+    impl->Device = std::move(*device);
+    impl->Surface = std::move(*surface);
+    impl->SurfaceFormat = *surfaceFormat;
+
+    GpuHelper gpuHelper(UniquePtrType(impl.release(), &GpuHelper::Deleter));
 
     auto defaultTexture = CreateDefaultTexture(gpuHelper);
     MLG_CHECK(defaultTexture);
@@ -716,6 +708,12 @@ GpuHelper::Create(const char* appName)
     cleanupMetalView.release();
 
     return gpuHelper;
+}
+
+void
+GpuHelper::Deleter(mlg::detail::GpuHelperImpl* impl)
+{
+    const std::unique_ptr<mlg::detail::GpuHelperImpl> bye(impl);
 }
 
 SDL_Window*
@@ -1021,29 +1019,6 @@ GpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name)
 }
 
 // private:
-
-void
-GpuHelper::Shutdown()
-{
-    if(!m_Impl)
-    {
-        return;
-    }
-
-    SDL_Window* window = m_Impl->Window;
-    SDL_MetalView metalView = m_Impl->MetalView;
-
-    if(metalView)
-    {
-        SDL_Metal_DestroyView(metalView);
-    }
-
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-
-    delete m_Impl;
-    m_Impl = nullptr;
-}
 
 Result<wgpu::Buffer>
 GpuHelper::CreateGpuBuffer(const wgpu::BufferUsage usage,

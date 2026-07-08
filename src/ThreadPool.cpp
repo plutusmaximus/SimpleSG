@@ -89,29 +89,37 @@ ThreadPoolImpl::GetWorkerThreadCount()
 using namespace mlg::detail;
 
 ThreadPool::ThreadPool()
-    : m_Impl(new ThreadPoolImpl())
 {
-    m_Impl->m_WorkerThreads = std::span<std::thread>(m_Impl->m_WorkerThreadPool.data(),
+    auto impl = std::make_unique<ThreadPoolImpl>();
+
+    impl->m_WorkerThreads = std::span<std::thread>(impl->m_WorkerThreadPool.data(),
         ThreadPoolImpl::GetWorkerThreadCount());
 
-    MLG_INFO("Starting ThreadPool with {} worker threads...", m_Impl->m_WorkerThreads.size());
+    MLG_INFO("Starting ThreadPool with {} worker threads...", impl->m_WorkerThreads.size());
 
-    m_Impl->m_Running.store(true);
+    impl->m_Running.store(true);
 
-    for(std::thread &worker : m_Impl->m_WorkerThreads)
+    for(std::thread& worker : impl->m_WorkerThreads)
     {
-        worker = std::thread(ThreadPoolImpl::WorkerLoop, m_Impl);
+        worker = std::thread(ThreadPoolImpl::WorkerLoop, impl.get());
     }
 
-    for(auto& job : m_Impl->m_JobPool)
+    for(auto& job : impl->m_JobPool)
     {
-        job.m_Next = m_Impl->m_JobPoolFreeList;
-        m_Impl->m_JobPoolFreeList = &job;
+        job.m_Next = impl->m_JobPoolFreeList;
+        impl->m_JobPoolFreeList = &job;
     }
+
+    m_Impl.reset(impl.release());
 }
 
 ThreadPool::~ThreadPool()
 {
+    if(!m_Impl)
+    {
+        return;
+    }
+    
     m_Impl->m_Running.store(false);
 
     ThreadPoolJob *pendingJobs = nullptr;
@@ -150,26 +158,12 @@ ThreadPool::~ThreadPool()
         m_Impl->m_JobPoolFreeList = job->m_Next;
         job->m_Next = nullptr;
     }
-
-    delete m_Impl;
-    m_Impl = nullptr;
 }
 
-ThreadPool::ThreadPool(ThreadPool&& other) noexcept
-: m_Impl(std::exchange(other.m_Impl, nullptr))
+void
+ThreadPool::Deleter(mlg::detail::ThreadPoolImpl* impl)
 {
-}
-
-ThreadPool& ThreadPool::operator=(ThreadPool&& other) noexcept
-{
-    if(this == &other)
-    {
-        return *this;
-    }
-
-    delete m_Impl;
-    m_Impl = std::exchange(other.m_Impl, nullptr);
-    return *this;
+    const std::unique_ptr<mlg::detail::ThreadPoolImpl> bye(impl);
 }
 
 bool

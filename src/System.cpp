@@ -12,6 +12,7 @@ namespace
 {
 std::unique_ptr<GpuHelper> s_GpuHelper; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 std::unique_ptr<FileFetcher> s_FileFetcher; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+std::unique_ptr<ThreadPool> s_ThreadPool; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 } // namespace
 
 Result<> System::Startup(const char* appName)
@@ -35,6 +36,7 @@ Result<> System::Startup(const char* appName)
 
     s_GpuHelper = std::make_unique<GpuHelper>(std::move(*gpuHelperResult));
     s_FileFetcher = std::make_unique<FileFetcher>(std::move(*fileFetcherResult));
+    s_ThreadPool = std::make_unique<ThreadPool>();
 
     m_Initialized = true;
 
@@ -49,8 +51,9 @@ System::Shutdown()
         return;
     }
 
-    const FileFetcher byeFileFetcher = std::move(*s_FileFetcher);
-    const GpuHelper byeGpuHelper = std::move(*s_GpuHelper);
+    const FileFetcher byeFileFetcher(std::move(*s_FileFetcher));
+    const GpuHelper byeGpuHelper(std::move(*s_GpuHelper));
+    const ThreadPool byeThreadPool(std::move(*s_ThreadPool));
 
     m_Initialized = false;
 }
@@ -76,9 +79,7 @@ System::GetThreadPool()
 {
     MLG_ASSERT(m_Initialized, "System must be initialized before calling GetThreadPool");
 
-    static ThreadPool s_ThreadPool;
-
-    return s_ThreadPool;
+    return *s_ThreadPool;
 }
 
 void

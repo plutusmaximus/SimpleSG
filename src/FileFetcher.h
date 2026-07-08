@@ -7,13 +7,11 @@
 #include <string>
 #include <vector>
 
-namespace mlg::detail
-{
-struct FileFetcherImpl;
-}
-
 struct SDL_AsyncIO;
+struct SDL_AsyncIOQueue;
 
+/// @brief A simple file fetcher that uses SDL's Async IO to read files asynchronously.
+/// Do not use simultaneously from multiple threads.  SDL's Async IO is thread-safe, but this class is not.
 class FileFetcher final
 {
 public:
@@ -80,13 +78,16 @@ public:
 
 private:
 
+    static void Deleter(SDL_AsyncIOQueue* asyncIO);
+
+    using DeleterType = decltype(&Deleter);
+    using UniquePtrType = std::unique_ptr<SDL_AsyncIOQueue, DeleterType>;
+
+    explicit FileFetcher(UniquePtrType impl) : m_IoQueue(std::move(impl)) {}
+
     static Result<size_t> GetFileSize(const Request& request);
-
-    FileFetcher() = default;
-
-    static void DeleteImpl(mlg::detail::FileFetcherImpl* impl);
 
     Result<> IssueRead(Request& request);
 
-    std::unique_ptr<mlg::detail::FileFetcherImpl, decltype(&DeleteImpl)> m_Impl{ nullptr, &DeleteImpl };
+    UniquePtrType m_IoQueue{ nullptr, &Deleter };
 };

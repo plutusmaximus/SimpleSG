@@ -19,11 +19,11 @@ class GpuHelperImpl;
 class GpuHelper final
 {
 public:
-    ~GpuHelper();
+    ~GpuHelper() = default;
     GpuHelper(const GpuHelper&) = delete;
     GpuHelper& operator=(const GpuHelper&) = delete;
-    GpuHelper(GpuHelper&& other) noexcept;
-    GpuHelper& operator=(GpuHelper&& other) noexcept;
+    GpuHelper(GpuHelper&&) = default;
+    GpuHelper& operator=(GpuHelper&&) = default;
 
     SDL_Window* GetWindow();
     wgpu::Instance GetInstance();
@@ -110,15 +110,18 @@ public:
 
 private:
 
+    static void Deleter(mlg::detail::GpuHelperImpl*);
+
+    using DeleterType = decltype(&Deleter);
+    using UniquePtrType = std::unique_ptr<mlg::detail::GpuHelperImpl, DeleterType>;
+
+    explicit GpuHelper(UniquePtrType impl) : m_Impl(std::move(impl)) {}
+
     enum class BufferMappedState
     {
         Unmapped,
         Mapped,
     };
-
-    explicit GpuHelper(mlg::detail::GpuHelperImpl* impl);
-
-    void Shutdown();
 
     Result<wgpu::Buffer> CreateGpuBuffer(const wgpu::BufferUsage usage,
         const size_t size,
@@ -128,6 +131,6 @@ private:
     Result<wgpu::Buffer> CreateIndirectBuffer(const size_t size, const std::string_view& name);
     Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string_view& name);
     Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string_view& name);
-    
-    mlg::detail::GpuHelperImpl* m_Impl{nullptr};
+
+    UniquePtrType m_Impl{ nullptr, &GpuHelper::Deleter };
 };
