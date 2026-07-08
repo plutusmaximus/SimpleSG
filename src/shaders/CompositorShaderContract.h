@@ -1,8 +1,10 @@
 #pragma once
 
-#include "GpuHelper.h"
+#include "Result.h"
 
-class CompositeShaderContract
+#include <webgpu/webgpu_cpp.h>
+
+class CompositorShaderContract
 {
     static constexpr const char* ShaderPath = "shaders/CompositeShader.wgsl";
     static constexpr const char* VertexEntry = "vs_main";

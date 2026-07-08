@@ -1,10 +1,10 @@
-#include <webgpu/webgpu_cpp.h>
 #define MLG_LOGGER_NAME "DAWN"
 
 #include "Renderer.h"
 
 #include "Camera.h"
 #include "FileFetcher.h"
+#include "GpuHelper.h"
 #include "GpuLayouts.h"
 #include "narrow_cast.h"
 #include "PerfMetrics.h"
@@ -12,7 +12,7 @@
 #include "Scene.h"
 #include "System.h"
 #include "shaders/ColorShaderContract.h"
-#include "shaders/CompositeShaderContract.h"
+#include "shaders/CompositorShaderContract.h"
 #include "shaders/TransformShaderContract.h"
 #include "shaders/ShaderInterop.h"
 
@@ -452,13 +452,13 @@ Renderer::EnsureColorTarget(const wgpu::Device& gpuDevice,
 
     if(!m_ColorTargetResources.BindGroup)
     {
-        const CompositeShaderContract::TextureGroup::Resources resources //
+        const CompositorShaderContract::TextureGroup::Resources resources //
             {
                 .TextureView = m_ColorTargetResources.TargetView,
                 .Sampler = m_ColorTargetResources.Sampler,
             };
 
-        auto bindGroup = GpuLayouts::CreateBindGroup<CompositeShaderContract::TextureGroup>(
+        auto bindGroup = GpuLayouts::CreateBindGroup<CompositorShaderContract::TextureGroup>(
             gpuDevice,
             resources);
 
@@ -620,7 +620,7 @@ Renderer::EnsureCompositorPipeline(const wgpu::Device& gpuDevice, const wgpu::Te
     auto shader = CreateShader(gpuDevice, kCompositorShader, System::GetFileFetcher());
     MLG_CHECK(shader);
 
-    auto layout = GpuLayouts::GetOrCreateLayout<CompositeShaderContract::TextureGroup>(
+    auto layout = GpuLayouts::GetOrCreateLayout<CompositorShaderContract::TextureGroup>(
         gpuDevice);
     MLG_CHECK(layout);
 

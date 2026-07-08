@@ -1,7 +1,7 @@
-#include "CompositeShaderContract.h"
+#include "CompositorShaderContract.h"
 
 Result<wgpu::BindGroupLayout>
-CompositeShaderContract::TextureGroup::CreateLayout(const wgpu::Device& gpuDevice)
+CompositorShaderContract::TextureGroup::CreateLayout(const wgpu::Device& gpuDevice)
 {
     const wgpu::BindGroupLayoutEntry entries[] =//
     {
@@ -29,7 +29,7 @@ CompositeShaderContract::TextureGroup::CreateLayout(const wgpu::Device& gpuDevic
 
     const wgpu::BindGroupLayoutDescriptor desc = //
         {
-            .label = "CompositeShaderTextureGroupLayout",
+            .label = "CompositorShaderTextureGroupLayout",
             .entryCount = std::size(entries),
             .entries = &entries[0],
         };
@@ -38,11 +38,11 @@ CompositeShaderContract::TextureGroup::CreateLayout(const wgpu::Device& gpuDevic
 }
 
 Result<wgpu::BindGroup>
-CompositeShaderContract::TextureGroup::CreateBindGroup(const wgpu::Device& gpuDevice, wgpu::BindGroupLayout layout,
+CompositorShaderContract::TextureGroup::CreateBindGroup(const wgpu::Device& gpuDevice, wgpu::BindGroupLayout layout,
     const TextureGroup::Resources& resources)
 {
     MLG_CHECK(resources.Validate(),
-        "Invalid resources provided for CompositeShaderContract::TextureGroup::CreateBindGroup");
+        "Invalid resources provided for CompositorShaderContract::TextureGroup::CreateBindGroup");
         
     const wgpu::BindGroupEntry entries[] = //
         {
@@ -58,7 +58,7 @@ CompositeShaderContract::TextureGroup::CreateBindGroup(const wgpu::Device& gpuDe
 
     const wgpu::BindGroupDescriptor desc = //
         {
-            .label = "CompositeShaderTextureGroupBindings",
+            .label = "CompositorShaderTextureGroupBindings",
             .layout = layout,
             .entryCount = std::size(entries),
             .entries = &entries[0],

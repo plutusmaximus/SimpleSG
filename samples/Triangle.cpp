@@ -8,7 +8,6 @@
 #include "PropKit.h"
 #include "Renderer.h"
 #include "Scene.h"
-#include "scope_exit.h"
 #include "ThreadPool.h"
 
 #include <filesystem>
