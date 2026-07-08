@@ -25,12 +25,40 @@ FileFetcher::Request::Request(std::string filePath)
 {
 }
 
-FileFetcher::Request::~Request()
+    FileFetcher::Request::~Request()
 {
     if(IsPending())
     {
         SetComplete(RequestStatus::Failure);
     }
+}
+
+FileFetcher::Request::Request(FileFetcher::Request&& other) noexcept
+    : m_AsyncIO(std::exchange(other.m_AsyncIO, nullptr)),
+      m_FilePath(std::move(other.m_FilePath)),
+      m_BytesRequested(std::exchange(other.m_BytesRequested, 0)),
+      m_BytesRead(std::exchange(other.m_BytesRead, 0)),
+      m_Data(std::move(other.m_Data)),
+      m_Status(std::exchange(other.m_Status, RequestStatus::None))
+{
+}
+
+FileFetcher::Request&
+FileFetcher::Request::operator=(Request&& other) noexcept
+{
+    if(this == &other)
+    {
+        return *this;
+    }
+
+    m_AsyncIO = std::exchange(other.m_AsyncIO, nullptr);
+    m_FilePath = std::move(other.m_FilePath);
+    m_BytesRequested = std::exchange(other.m_BytesRequested, 0);
+    m_BytesRead = std::exchange(other.m_BytesRead, 0);
+    m_Data = std::move(other.m_Data);
+    m_Status = std::exchange(other.m_Status, RequestStatus::None);
+
+    return *this;
 }
 
 std::span<const uint8_t>
@@ -60,20 +88,20 @@ FileFetcher::Request::SetComplete(RequestStatus status)
     m_Status = status;
 }
 
-FileFetcher::FileFetcher()
+FileFetcher::FileFetcher(mlg::detail::FileFetcherImpl* impl)
+: m_Impl(impl)
 {
-    static_assert(sizeof(FileFetcherImpl) <= kSizeofImplStorage,
-        "FileFetcherImpl is too large for the storage buffer");
-
-    std::construct_at(m_Impl);
-
-    m_Impl->AsyncIOQueue = SDL_CreateAsyncIOQueue();
-
-    MLG_ABORTIF(!m_Impl->AsyncIOQueue, "Failed to create SDL Async IO Queue: {}", SDL_GetError());
+    MLG_ASSERT(m_Impl, "FileFetcherImpl pointer cannot be null");
+    MLG_ASSERT(m_Impl->AsyncIOQueue, "AsyncIOQueue pointer cannot be null");
 }
 
 FileFetcher::~FileFetcher()
 {
+    if(!m_Impl)
+    {
+        return;
+    }
+
     const std::lock_guard lock(m_Impl->Mutex);
 
     ProcessCompletions();
@@ -81,7 +109,41 @@ FileFetcher::~FileFetcher()
     SDL_DestroyAsyncIOQueue(m_Impl->AsyncIOQueue);
     m_Impl->AsyncIOQueue = nullptr;
 
-    std::destroy_at(m_Impl);
+    delete m_Impl;
+    m_Impl = nullptr;
+}
+
+Result<FileFetcher>
+FileFetcher::Create()
+{
+    auto impl = std::make_unique<mlg::detail::FileFetcherImpl>();
+    impl->AsyncIOQueue = SDL_CreateAsyncIOQueue();
+
+    if(!MLG_VERIFY(impl->AsyncIOQueue,
+        "Failed to create SDL Async IO Queue: {}",
+        SDL_GetError()))
+    {
+        return Result<FileFetcher>::Fail;
+    }
+
+    return FileFetcher(impl.release());
+}
+
+FileFetcher::FileFetcher(FileFetcher&& other) noexcept
+: m_Impl(std::exchange(other.m_Impl, nullptr))
+{
+}
+
+FileFetcher& FileFetcher::operator=(FileFetcher&& other) noexcept
+{
+    if(this == &other)
+    {
+        return *this;
+    }
+
+    delete m_Impl;
+    m_Impl = std::exchange(other.m_Impl, nullptr);
+    return *this;
 }
 
 Result<>

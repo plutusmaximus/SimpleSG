@@ -17,8 +17,8 @@ public:
     ~ThreadPool();
     ThreadPool(const ThreadPool&) = delete;
     ThreadPool& operator=(const ThreadPool&) = delete;
-    ThreadPool(ThreadPool&&) = delete;
-    ThreadPool& operator=(ThreadPool&&) = delete;
+    ThreadPool(ThreadPool&& other) noexcept;
+    ThreadPool& operator=(ThreadPool&& other) noexcept;
 
     bool Enqueue(void (*jobFunc)(void*), void* userData);
 
@@ -39,10 +39,5 @@ public:
 
 private:
 
-    static constexpr size_t kSizeofImplStorage = 25056;
-
-    alignas(std::max_align_t) uint8_t m_ImplStorage[kSizeofImplStorage]{};
-
-    mlg::detail::ThreadPoolImpl* m_Impl{ static_cast<mlg::detail::ThreadPoolImpl*>(
-        static_cast<void*>(m_ImplStorage)) }; // NOLINT(bugprone-casting-through-void)
+    mlg::detail::ThreadPoolImpl* m_Impl{nullptr};
 };

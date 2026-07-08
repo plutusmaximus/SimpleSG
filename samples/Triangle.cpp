@@ -115,7 +115,10 @@ Result<> MainLoop()
 
     GpuHelper gpuHelper(kAppName);
     ThreadPool threadPool;
-    FileFetcher fileFetcher;
+    Result<FileFetcher> fileFetcherResult = FileFetcher::Create();
+    MLG_CHECK(fileFetcherResult);
+
+    FileFetcher fileFetcher = std::move(*fileFetcherResult);
 
     const std::filesystem::path rootPath = ".";
     auto propKitResult =

@@ -6,7 +6,6 @@
 #include <cassert>
 #include <condition_variable>
 #include <cstddef>
-#include <memory>
 #include <mutex>
 #include <span>
 #include <thread>
@@ -90,13 +89,10 @@ ThreadPoolImpl::GetWorkerThreadCount()
 using namespace mlg::detail;
 
 ThreadPool::ThreadPool()
+    : m_Impl(new ThreadPoolImpl())
 {
-    static_assert(sizeof(ThreadPoolImpl) <= kSizeofImplStorage,
-        "ThreadPoolImpl is too large for the storage buffer");
-
-    std::construct_at(m_Impl);
-
-    m_Impl->m_WorkerThreads = std::span<std::thread>(m_Impl->m_WorkerThreadPool.data(), ThreadPoolImpl::GetWorkerThreadCount());
+    m_Impl->m_WorkerThreads = std::span<std::thread>(m_Impl->m_WorkerThreadPool.data(),
+        ThreadPoolImpl::GetWorkerThreadCount());
 
     MLG_INFO("Starting ThreadPool with {} worker threads...", m_Impl->m_WorkerThreads.size());
 
@@ -155,8 +151,25 @@ ThreadPool::~ThreadPool()
         job->m_Next = nullptr;
     }
 
-    std::destroy_at(m_Impl);
+    delete m_Impl;
     m_Impl = nullptr;
+}
+
+ThreadPool::ThreadPool(ThreadPool&& other) noexcept
+: m_Impl(std::exchange(other.m_Impl, nullptr))
+{
+}
+
+ThreadPool& ThreadPool::operator=(ThreadPool&& other) noexcept
+{
+    if(this == &other)
+    {
+        return *this;
+    }
+
+    delete m_Impl;
+    m_Impl = std::exchange(other.m_Impl, nullptr);
+    return *this;
 }
 
 bool

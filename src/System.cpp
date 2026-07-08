@@ -12,7 +12,14 @@ namespace
 {
 uint8_t s_GpuHelperStorage[sizeof(GpuHelper)]; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 GpuHelper* s_GpuHelper = nullptr; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+Result<FileFetcher>& GetFileFetcherResult()
+{
+    static Result<FileFetcher> s_FileFetcherResult;
+    
+    return s_FileFetcherResult;
 }
+} // namespace
 
 Result<> System::Startup(const char* appName)
 {
@@ -29,6 +36,12 @@ Result<> System::Startup(const char* appName)
     void* p = static_cast<void*>(s_GpuHelperStorage);
     s_GpuHelper = std::construct_at(static_cast<GpuHelper*>(p), appName);
 
+    auto fileFetcherResult = FileFetcher::Create();
+    
+    MLG_CHECK(fileFetcherResult);
+
+    GetFileFetcherResult() = std::move(fileFetcherResult);
+
     m_Initialized = true;
 
     return Result<>::Ok;
@@ -42,6 +55,12 @@ System::Shutdown()
         return;
     }
 
+    auto& fileFetcherResult = GetFileFetcherResult();
+    if(fileFetcherResult)
+    {
+        const FileFetcher bye = std::move(*fileFetcherResult);
+    }
+
     std::destroy_at(s_GpuHelper);
     s_GpuHelper = nullptr;
 
@@ -51,20 +70,24 @@ System::Shutdown()
 GpuHelper&
 System::GetGpuHelper()
 {
+    MLG_ASSERT(m_Initialized, "System must be initialized before calling GetGpuHelper");
+
     return *s_GpuHelper;
 }
 
 FileFetcher&
 System::GetFileFetcher()
 {
-    static FileFetcher s_FileFetcher;
+    MLG_ASSERT(m_Initialized, "System must be initialized before calling GetFileFetcher");
 
-    return s_FileFetcher;
+    return *GetFileFetcherResult();
 }
 
 ThreadPool&
 System::GetThreadPool()
 {
+    MLG_ASSERT(m_Initialized, "System must be initialized before calling GetThreadPool");
+
     static ThreadPool s_ThreadPool;
 
     return s_ThreadPool;
@@ -73,6 +96,8 @@ System::GetThreadPool()
 void
 System::ProcessEventsImpl(const EventInterceptor& eventInterceptor)
 {
+    MLG_ASSERT(m_Initialized, "System must be initialized before calling ProcessEvents");
+
     m_FocusEvent = FocusEvent::None;
 
     SDL_Event sdlEvent;
