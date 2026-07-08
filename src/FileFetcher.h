@@ -2,6 +2,7 @@
 
 #include "Result.h"
 
+#include <memory>
 #include <span>
 #include <string>
 #include <vector>
@@ -11,6 +12,8 @@ namespace mlg::detail
 struct FileFetcherImpl;
 }
 
+struct SDL_AsyncIO;
+
 class FileFetcher final
 {
 public:
@@ -18,8 +21,8 @@ public:
     ~FileFetcher();
     FileFetcher(const FileFetcher&) = delete;
     FileFetcher& operator=(const FileFetcher&) = delete;
-    FileFetcher(FileFetcher&& other) noexcept;
-    FileFetcher& operator=(FileFetcher&& other) noexcept;
+    FileFetcher(FileFetcher&&) = default;
+    FileFetcher& operator=(FileFetcher&&) = default;
 
     enum class RequestStatus : uint8_t
     {
@@ -37,8 +40,8 @@ public:
         ~Request();
         Request(const Request&) = delete;
         Request& operator=(const Request&) = delete;
-        Request(Request&& other) noexcept;
-        Request& operator=(Request&& other) noexcept;
+        Request(Request&& other) = default;
+        Request& operator=(Request&& other) = default;
 
         bool IsPending() const { return m_Status == RequestStatus::Pending; }
         bool Succeeded() const { return m_Status == RequestStatus::Success; }
@@ -55,7 +58,11 @@ public:
 
         void SetComplete(RequestStatus status);
 
-        struct SDL_AsyncIO* m_AsyncIO{nullptr};
+        static void Deleter(SDL_AsyncIO*) {}
+
+        // Use a unique_ptr to make Request easily movable.
+        // Use a custom deleter that does nothing - SDL_AsyncIO is disposed by calling SDL_CloseAsyncIO() when the request is complete.
+        std::unique_ptr<SDL_AsyncIO, decltype(&Deleter)> m_AsyncIO{ nullptr, &Deleter };
 
         std::string m_FilePath;
         size_t m_BytesRequested{0};
@@ -75,9 +82,11 @@ private:
 
     static Result<size_t> GetFileSize(const Request& request);
 
-    explicit FileFetcher(mlg::detail::FileFetcherImpl* impl);
+    FileFetcher() = default;
+
+    static void DeleteImpl(mlg::detail::FileFetcherImpl* impl);
 
     Result<> IssueRead(Request& request);
 
-    mlg::detail::FileFetcherImpl* m_Impl{ nullptr };
+    std::unique_ptr<mlg::detail::FileFetcherImpl, decltype(&DeleteImpl)> m_Impl{ nullptr, &DeleteImpl };
 };

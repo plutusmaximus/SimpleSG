@@ -30,9 +30,9 @@ namespace
 class TextureBuilder
 {
 public:
-    TextureBuilder(std::string baseUri, FileFetcher::Request* request, std::atomic<unsigned>* stageCounter)
+    TextureBuilder(std::string baseUri, FileFetcher::Request& request, std::atomic<unsigned>* stageCounter)
         : Uri(std::move(baseUri)),
-          Request(request),
+          Request(&request),
           StageCounter(stageCounter)
     {
     }
@@ -218,7 +218,7 @@ FetchTextures(GpuHelper& gpuHelper,
         FileFetcher::Request& request =
             requestHeap.emplace_back((basePath / mtl.BaseTextureUri).string());
 
-        fetching.emplace_back(mtl.BaseTextureUri, &request, &stageCounter);
+        fetching.emplace_back(mtl.BaseTextureUri, request, &stageCounter);
 
         MLG_DEBUG("Fetching texture...");
 
