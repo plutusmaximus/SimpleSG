@@ -5,8 +5,6 @@
 
 #include <string_view>
 
-#include <webgpu/webgpu_cpp.h>
-
 struct SDL_Window;
 
 template<typename T> class RgbaColor;
@@ -21,12 +19,11 @@ class GpuHelperImpl;
 class GpuHelper final
 {
 public:
-    explicit GpuHelper(const char* appName);
     ~GpuHelper();
     GpuHelper(const GpuHelper&) = delete;
     GpuHelper& operator=(const GpuHelper&) = delete;
-    GpuHelper(GpuHelper&&) = delete;
-    GpuHelper& operator=(GpuHelper&&) = delete;
+    GpuHelper(GpuHelper&& other) noexcept;
+    GpuHelper& operator=(GpuHelper&& other) noexcept;
 
     SDL_Window* GetWindow();
     wgpu::Instance GetInstance();
@@ -37,6 +34,8 @@ public:
     Extent GetScreenBounds();    
     Result<wgpu::Texture> GetSwapChainTexture();
     wgpu::TextureFormat GetSwapChainFormat();
+
+    static Result<GpuHelper> Create(const char* appName);
 
     Result<> Resize(const uint32_t width, const uint32_t height);
 
@@ -117,7 +116,7 @@ private:
         Mapped,
     };
 
-    Result<> Startup(const char* appName);
+    explicit GpuHelper(mlg::detail::GpuHelperImpl* impl);
 
     void Shutdown();
 
@@ -125,18 +124,10 @@ private:
         const size_t size,
         BufferMappedState mappedState,
         const std::string_view name);
+        
     Result<wgpu::Buffer> CreateIndirectBuffer(const size_t size, const std::string_view& name);
     Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string_view& name);
     Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string_view& name);
-
-    Result<wgpu::Texture> CreateDefaultTexture();
-    Result<wgpu::Sampler> CreateDefaultSampler();
-
-    static constexpr size_t kSizeofImplStorage = 72;
-
-    alignas(std::max_align_t) uint8_t m_ImplStorage[kSizeofImplStorage]{};
     
     mlg::detail::GpuHelperImpl* m_Impl{nullptr};
-
-    Result<> m_StartupResult{Result<>::Fail};
 };

@@ -113,11 +113,14 @@ Result<> MainLoop()
     LevelDef levelDef;
     MLG_CHECK(CreateTriangleModel(propKitDef, levelDef));
 
-    GpuHelper gpuHelper(kAppName);
+    Result<GpuHelper> gpuHelperResult = GpuHelper::Create(kAppName);
+    MLG_CHECK(gpuHelperResult);
+    GpuHelper gpuHelper = std::move(*gpuHelperResult);
+
     ThreadPool threadPool;
+
     Result<FileFetcher> fileFetcherResult = FileFetcher::Create();
     MLG_CHECK(fileFetcherResult);
-
     FileFetcher fileFetcher = std::move(*fileFetcherResult);
 
     const std::filesystem::path rootPath = ".";

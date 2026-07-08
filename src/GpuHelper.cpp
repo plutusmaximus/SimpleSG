@@ -517,6 +517,65 @@ ConfigureSurface(const wgpu::Adapter& adapter,
     return format;
 }
 
+Result<wgpu::Texture>
+CreateDefaultTexture(GpuHelper& gpuHelper)
+{
+    constexpr size_t kDefaultTextureWidth = 128;
+    constexpr size_t kDefaultTextureHeight = 128;
+    constexpr RgbaColoru8 kDefaultTextureColor{ "#FF00FFFF"_rgba }; // Magenta
+
+    auto texture = gpuHelper.CreateTexture(
+        kDefaultTextureWidth,
+        kDefaultTextureHeight,
+        "DefaultTexture");
+
+    MLG_CHECK(texture);
+
+    auto stagingBuffer = gpuHelper.CreateStagingBuffer(*texture, "DefaultTextureStagingBuffer");
+    MLG_CHECK(stagingBuffer);
+    
+    void* mapped = stagingBuffer->GetMappedRange();
+    MLG_CHECK(mapped);
+
+    const std::span<uint8_t> mappedSpan(static_cast<uint8_t*>(mapped), stagingBuffer->GetSize());
+
+    const size_t rowStride = GetTextureAlignedRowStride(kDefaultTextureWidth);
+
+    for(size_t y = 0; y < kDefaultTextureHeight; ++y)
+    {
+        size_t offset = y * rowStride;
+
+        for(size_t x = 0; x < kDefaultTextureWidth; ++x, offset += 4)
+        {
+            //Magenta
+            mappedSpan[offset + 0] = kDefaultTextureColor.r;
+            mappedSpan[offset + 1] = kDefaultTextureColor.g;
+            mappedSpan[offset + 2] = kDefaultTextureColor.b;
+            mappedSpan[offset + 3] = kDefaultTextureColor.a;
+        }
+    }
+
+    MLG_CHECK(gpuHelper.CommitStagingBuffer(*texture, *stagingBuffer));
+
+    return *texture;
+}
+
+Result<wgpu::Sampler>
+CreateDefaultSampler(GpuHelper& gpuHelper)
+{
+    const wgpu::SamplerDescriptor samplerDesc //
+        {
+            .addressModeU = wgpu::AddressMode::Repeat,
+            .addressModeV = wgpu::AddressMode::Repeat,
+            .addressModeW = wgpu::AddressMode::Repeat,
+            .magFilter = wgpu::FilterMode::Linear,
+            .minFilter = wgpu::FilterMode::Linear,
+            .mipmapFilter = wgpu::MipmapFilterMode::Linear,
+        };
+
+    return gpuHelper.GetDevice().CreateSampler(&samplerDesc);
+}
+
 } // namespace
 
 namespace mlg::detail
@@ -537,12 +596,10 @@ public:
 };
 } // namespace mlg::detail
 
-GpuHelper::GpuHelper(const char* appName)
+GpuHelper::GpuHelper(mlg::detail::GpuHelperImpl* impl)
+: m_Impl(impl)
 {
-    static_assert(sizeof(mlg::detail::GpuHelperImpl) <= kSizeofImplStorage,
-        "GpuHelperImpl is too large for the storage buffer");
-
-    m_StartupResult = Startup(appName);
+    MLG_ASSERT(m_Impl, "GpuHelperImpl pointer cannot be null");
 }
 
 GpuHelper::~GpuHelper()
@@ -550,51 +607,185 @@ GpuHelper::~GpuHelper()
     Shutdown();
 }
 
+GpuHelper::GpuHelper(GpuHelper&& other) noexcept
+: m_Impl(std::exchange(other.m_Impl, nullptr))
+{
+}
+
+GpuHelper&
+GpuHelper::operator=(GpuHelper&& other) noexcept
+{
+    if(this != &other)
+    {
+        Shutdown();
+        m_Impl = std::exchange(other.m_Impl, nullptr);
+    }
+
+    return *this;
+}
+
+Result<GpuHelper>
+GpuHelper::Create(const char* appName)
+{
+    MLG_INFO("Starting WebGPU...");
+
+    auto window = CreateSdlWindow(appName);
+    MLG_CHECK(window);
+
+    MLG_DEFER_AS(cleanupWindow)
+    {
+        SDL_DestroyWindow(*window);
+        SDL_Quit();
+    };
+
+    SDL_MetalView metalView = nullptr;
+    
+#if defined(__APPLE__)
+     metalView = SDL_Metal_CreateView(*window);
+    MLG_CHECK(metalView, SDL_GetError());
+#endif
+
+    MLG_DEFER_AS(cleanupMetalView)
+    {
+        if(metalView)
+        {
+            SDL_Metal_DestroyView(metalView);
+        }
+    };
+
+    auto instance = CreateInstance();
+    MLG_CHECK(instance);
+
+    auto surface = CreateSurface(*instance, *window, metalView);
+    MLG_CHECK(surface);
+
+    auto adapter = CreateAdapter(*instance, *surface);
+    MLG_CHECK(adapter);
+
+    auto device = CreateDevice(*instance, *adapter);
+    MLG_CHECK(device);
+
+    int width{0}, height{0};
+    SDL_GetWindowSize(*window, &width, &height);
+
+    //device->PushErrorScope(wgpu::ErrorFilter::Validation);
+    auto surfaceFormat = ConfigureSurface(*adapter,
+        *device,
+        *surface,
+        static_cast<uint32_t>(width),
+        static_cast<uint32_t>(height));
+
+    /*device->PopErrorScope(wgpu::CallbackMode::AllowProcessEvents,
+        []([[maybe_unused]] wgpu::PopErrorScopeStatus status,
+            wgpu::ErrorType errorType,
+            wgpu::StringView message)
+        {
+            if(errorType != wgpu::ErrorType::NoError)
+            {
+                MLG_ERROR("Device error during surface creation (type:{}): {}",
+                    static_cast<int>(errorType),
+                    std::string(message.data, message.length));
+            }
+        });*/
+
+    MLG_CHECK(surfaceFormat);
+
+    mlg::detail::GpuHelperImpl impl //
+        {
+            .Window = *window,
+            .MetalView = metalView,
+            .Instance = std::move(*instance),
+            .Adapter = std::move(*adapter),
+            .Device = std::move(*device),
+            .Surface = std::move(*surface),
+            .SurfaceFormat = *surfaceFormat
+        };
+
+    GpuHelper gpuHelper(new mlg::detail::GpuHelperImpl(std::move(impl)));
+
+    auto defaultTexture = CreateDefaultTexture(gpuHelper);
+    MLG_CHECK(defaultTexture);
+
+    auto defaultSampler = CreateDefaultSampler(gpuHelper);
+    MLG_CHECK(defaultSampler);
+
+    gpuHelper.m_Impl->DefaultTexture = std::move(*defaultTexture);
+    gpuHelper.m_Impl->DefaultSampler = std::move(*defaultSampler);
+
+    cleanupWindow.release();
+    cleanupMetalView.release();
+
+    return gpuHelper;
+}
+
 SDL_Window*
 GpuHelper::GetWindow()
 {
-    MLG_VERIFY(m_Impl, "GpuHelper::GetWindow called before Startup");
-    return m_Impl->Window;
+    if(MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
+    {
+        return m_Impl->Window;
+    }
+    return nullptr;
 }
 
 wgpu::Instance
 GpuHelper::GetInstance()
 {
-    MLG_VERIFY(m_Impl, "GpuHelper::GetInstance called before Startup");
-    return m_Impl->Instance;
+    if(MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
+    {
+        return m_Impl->Instance;
+    }
+    return nullptr;
 }
 
 wgpu::Device
 GpuHelper::GetDevice()
 {
-    MLG_VERIFY(m_Impl, "GpuHelper::GetDevice called before Startup");
-    return m_Impl->Device;
+    if(MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
+    {
+        return m_Impl->Device;
+    }
+    return nullptr;
 }
 
 wgpu::Surface
 GpuHelper::GetSurface()
 {
-    MLG_VERIFY(m_Impl, "GpuHelper::GetSurface called before Startup");
-    return m_Impl->Surface;
+    if(MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
+    {
+        return m_Impl->Surface;
+    }
+    return nullptr;
 }
 
 wgpu::Texture
 GpuHelper::GetDefaultTexture()
 {
-    MLG_VERIFY(m_Impl, "GpuHelper::GetDefaultTexture called before Startup");
-    return m_Impl->DefaultTexture;
+    if(MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
+    {
+        return m_Impl->DefaultTexture;
+    }
+    return nullptr;
 }
 
 wgpu::Sampler
 GpuHelper::GetDefaultSampler()
 {
-    MLG_VERIFY(m_Impl, "GpuHelper::GetDefaultSampler called before Startup");
-    return m_Impl->DefaultSampler;
+    if(MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
+    {
+        return m_Impl->DefaultSampler;
+    }
+    return nullptr;
 }
 
 Extent
 GpuHelper::GetScreenBounds()
 {
+    if(!MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
+    {
+        return Extent{ .Width = 0, .Height = 0 };
+    }
+
     int width = 0, height = 0;
     if(!SDL_GetWindowSizeInPixels(GetWindow(), &width, &height))
     {
@@ -610,7 +801,7 @@ GpuHelper::GetScreenBounds()
 Result<wgpu::Texture>
 GpuHelper::GetSwapChainTexture()
 {
-    MLG_CHECKV(m_Impl, "GpuHelper::GetSwapChainTexture called before Startup");
+    MLG_CHECKV(m_Impl, "Invalid GpuHelper");
 
     wgpu::SurfaceTexture surfaceTexture;
     GetSurface().GetCurrentTexture(&surfaceTexture);
@@ -672,7 +863,7 @@ GpuHelper::GetSwapChainTexture()
 wgpu::TextureFormat
 GpuHelper::GetSwapChainFormat()
 {
-    if(!MLG_VERIFY(m_Impl, "GpuHelper::GetSwapChainFormat called before Startup"))
+    if(!MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
     {
         return wgpu::TextureFormat::Undefined;
     }
@@ -683,7 +874,7 @@ GpuHelper::GetSwapChainFormat()
 Result<>
 GpuHelper::Resize(const uint32_t width, const uint32_t height)
 {
-    MLG_CHECKV(m_Impl, "GpuHelper::Resize called before Startup");
+    MLG_CHECKV(m_Impl, "Invalid GpuHelper");
 
     wgpu::SurfaceTexture currentTexture;
     GetSurface().GetCurrentTexture(&currentTexture);
@@ -707,7 +898,7 @@ GpuHelper::Resize(const uint32_t width, const uint32_t height)
 Result<wgpu::Texture>
 GpuHelper::CreateTexture(const unsigned width, const unsigned height, const std::string_view& name)
 {
-    MLG_CHECKV(m_Impl, "GpuHelper::CreateTexture called before Startup");
+    MLG_CHECKV(m_Impl, "Invalid GpuHelper");
 
     const wgpu::TextureDescriptor desc //
         {
@@ -740,7 +931,7 @@ GpuHelper::CreateTexture(const unsigned width, const unsigned height, const std:
 Result<wgpu::Buffer>
 GpuHelper::CreateStagingBuffer(wgpu::Texture texture, const std::string_view& name)
 {
-    MLG_CHECKV(m_Impl, "GpuHelper::CreateStagingBuffer called before Startup");
+    MLG_CHECKV(m_Impl, "Invalid GpuHelper");
 
     const size_t rowStride = GetTextureAlignedRowStride(texture.GetWidth());
     const size_t sizeofBuffer = rowStride * texture.GetHeight();
@@ -755,7 +946,7 @@ GpuHelper::CreateStagingBuffer(wgpu::Texture texture, const std::string_view& na
 Result<>
 GpuHelper::CommitStagingBuffer(wgpu::Texture texture, wgpu::Buffer stagingBuffer)
 {
-    MLG_CHECKV(m_Impl, "GpuHelper::CommitStagingBuffer called before Startup");
+    MLG_CHECKV(m_Impl, "Invalid GpuHelper");
 
     const wgpu::CommandEncoder cmdEncoder = GetDevice().CreateCommandEncoder();
 
@@ -831,126 +1022,16 @@ GpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name)
 
 // private:
 
-Result<>
-GpuHelper::Startup(const char* appName)
-{
-    static_assert(sizeof(mlg::detail::GpuHelperImpl) <= kSizeofImplStorage,
-        "GpuHelperImpl is too large for the storage buffer");
-
-    MLG_CHECKV(!m_Impl, "GpuHelper::Startup called more than once");
-
-    MLG_INFO("Starting WebGPU...");
-
-    auto window = CreateSdlWindow(appName);
-    MLG_CHECK(window);
-
-    MLG_DEFER_AS(cleanupWindow)
-    {
-        SDL_DestroyWindow(*window);
-        SDL_Quit();
-    };
-
-    SDL_MetalView metalView = nullptr;
-    
-#if defined(__APPLE__)
-     metalView = SDL_Metal_CreateView(*window);
-    MLG_CHECK(metalView, SDL_GetError());
-#endif
-
-    MLG_DEFER_AS(cleanupMetalView)
-    {
-        if(metalView)
-        {
-            SDL_Metal_DestroyView(metalView);
-        }
-    };
-
-    auto instance = CreateInstance();
-    MLG_CHECK(instance);
-
-    auto surface = CreateSurface(*instance, *window, metalView);
-    MLG_CHECK(surface);
-
-    auto adapter = CreateAdapter(*instance, *surface);
-    MLG_CHECK(adapter);
-
-    auto device = CreateDevice(*instance, *adapter);
-    MLG_CHECK(device);
-
-    int width{0}, height{0};
-    SDL_GetWindowSize(*window, &width, &height);
-
-    //device->PushErrorScope(wgpu::ErrorFilter::Validation);
-    auto surfaceFormat = ConfigureSurface(*adapter,
-        *device,
-        *surface,
-        static_cast<uint32_t>(width),
-        static_cast<uint32_t>(height));
-
-    /*device->PopErrorScope(wgpu::CallbackMode::AllowProcessEvents,
-        []([[maybe_unused]] wgpu::PopErrorScopeStatus status,
-            wgpu::ErrorType errorType,
-            wgpu::StringView message)
-        {
-            if(errorType != wgpu::ErrorType::NoError)
-            {
-                MLG_ERROR("Device error during surface creation (type:{}): {}",
-                    static_cast<int>(errorType),
-                    std::string(message.data, message.length));
-            }
-        });*/
-
-    MLG_CHECK(surfaceFormat);
-
-    const mlg::detail::GpuHelperImpl impl //
-        {
-            .Window = *window,
-            .MetalView = metalView,
-            .Instance = std::move(*instance),
-            .Adapter = std::move(*adapter),
-            .Device = std::move(*device),
-            .Surface = std::move(*surface),
-            .SurfaceFormat = *surfaceFormat
-        };
-
-    // Create the impl so we can call CreateDefaultTexture() and CreateDefaultSampler() below.
-    m_Impl = static_cast<mlg::detail::GpuHelperImpl*>(
-        static_cast<void*>(m_ImplStorage)); // NOLINT(bugprone-casting-through-void)
-
-    std::construct_at(m_Impl, std::move(impl));
-
-    cleanupMetalView.release();
-    cleanupWindow.release();
-
-    MLG_DEFER_AS(shutdown)
-    {
-        Shutdown();
-    };
-
-    auto defaultTexture = CreateDefaultTexture();
-    MLG_CHECK(defaultTexture);
-
-    auto defaultSampler = CreateDefaultSampler();
-    MLG_CHECK(defaultSampler);
-
-    m_Impl->DefaultTexture = std::move(*defaultTexture);
-    m_Impl->DefaultSampler = std::move(*defaultSampler);
-
-    shutdown.release();
-
-    return Result<>::Ok;
-}
-
 void
 GpuHelper::Shutdown()
 {
-    MLG_VERIFY(m_Impl, "GpuHelper::Shutdown called before Startup");
+    if(!m_Impl)
+    {
+        return;
+    }
 
     SDL_Window* window = m_Impl->Window;
     SDL_MetalView metalView = m_Impl->MetalView;
-
-    std::destroy_at(m_Impl);
-    m_Impl = nullptr;
 
     if(metalView)
     {
@@ -959,6 +1040,9 @@ GpuHelper::Shutdown()
 
     SDL_DestroyWindow(window);
     SDL_Quit();
+
+    delete m_Impl;
+    m_Impl = nullptr;
 }
 
 Result<wgpu::Buffer>
@@ -967,7 +1051,7 @@ GpuHelper::CreateGpuBuffer(const wgpu::BufferUsage usage,
     BufferMappedState mappedState,
     const std::string_view name)
 {
-    MLG_CHECKV(m_Impl, "GpuHelper::CreateGpuBuffer called before Startup");
+    MLG_CHECKV(m_Impl, "Invalid GpuHelper");
 
     const wgpu::BufferDescriptor bufferDesc //
         {
@@ -1002,67 +1086,6 @@ GpuHelper::CreateUniformBuffer(const size_t size, const std::string_view& name)
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
 
     return CreateGpuBuffer(usage, size, BufferMappedState::Unmapped, name);
-}
-
-Result<wgpu::Texture>
-GpuHelper::CreateDefaultTexture()
-{
-    constexpr size_t kDefaultTextureWidth = 128;
-    constexpr size_t kDefaultTextureHeight = 128;
-    constexpr RgbaColoru8 kDefaultTextureColor{ "#FF00FFFF"_rgba }; // Magenta
-
-    auto texture = CreateTexture(
-        kDefaultTextureWidth,
-        kDefaultTextureHeight,
-        "DefaultTexture");
-
-    MLG_CHECK(texture);
-
-    auto stagingBuffer = CreateStagingBuffer(*texture, "DefaultTextureStagingBuffer");
-    MLG_CHECK(stagingBuffer);
-    
-    void* mapped = stagingBuffer->GetMappedRange();
-    MLG_CHECK(mapped);
-
-    const std::span<uint8_t> mappedSpan(static_cast<uint8_t*>(mapped), stagingBuffer->GetSize());
-
-    const size_t rowStride = GetTextureAlignedRowStride(kDefaultTextureWidth);
-
-    for(size_t y = 0; y < kDefaultTextureHeight; ++y)
-    {
-        size_t offset = y * rowStride;
-
-        for(size_t x = 0; x < kDefaultTextureWidth; ++x, offset += 4)
-        {
-            //Magenta
-            mappedSpan[offset + 0] = kDefaultTextureColor.r;
-            mappedSpan[offset + 1] = kDefaultTextureColor.g;
-            mappedSpan[offset + 2] = kDefaultTextureColor.b;
-            mappedSpan[offset + 3] = kDefaultTextureColor.a;
-        }
-    }
-
-    MLG_CHECK(CommitStagingBuffer(*texture, *stagingBuffer));
-
-    return *texture;
-}
-
-Result<wgpu::Sampler>
-GpuHelper::CreateDefaultSampler()
-{
-    MLG_CHECKV(m_Impl, "GpuHelper::CreateDefaultSampler called before Startup");
-
-    const wgpu::SamplerDescriptor samplerDesc //
-        {
-            .addressModeU = wgpu::AddressMode::Repeat,
-            .addressModeV = wgpu::AddressMode::Repeat,
-            .addressModeW = wgpu::AddressMode::Repeat,
-            .magFilter = wgpu::FilterMode::Linear,
-            .minFilter = wgpu::FilterMode::Linear,
-            .mipmapFilter = wgpu::MipmapFilterMode::Linear,
-        };
-
-    return GetDevice().CreateSampler(&samplerDesc);
 }
 
 #include <dawn/native/DawnNative.h> // provides dawn::native::GetTogglesUsed

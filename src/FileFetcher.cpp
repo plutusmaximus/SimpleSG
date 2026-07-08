@@ -149,6 +149,8 @@ FileFetcher& FileFetcher::operator=(FileFetcher&& other) noexcept
 Result<>
 FileFetcher::Fetch(FileFetcher::Request& request)
 {
+    MLG_CHECKV(m_Impl, "FileFetcher::Fetch called on invalid FileFetcher instance");
+
     MLG_CHECKV(RequestStatus::None == request.m_Status,
         "Request is already in progress or completed");
 
@@ -206,6 +208,8 @@ FileFetcher::Fetch(FileFetcher::Request& request)
 Result<>
 FileFetcher::ProcessCompletions()
 {
+    MLG_CHECKV(m_Impl, "FileFetcher::ProcessCompletions called on invalid FileFetcher instance");
+
     SDL_AsyncIOOutcome outcome;
     while(SDL_GetAsyncIOResult(m_Impl->AsyncIOQueue, &outcome))
     {
@@ -279,6 +283,8 @@ FileFetcher::GetFileSize(const FileFetcher::Request& request)
 Result<>
 FileFetcher::IssueRead(FileFetcher::Request& request)
 {
+    MLG_CHECKV(m_Impl, "FileFetcher::IssueRead called on invalid FileFetcher instance");
+
     MLG_CHECK(SDL_ReadAsyncIO(request.m_AsyncIO,
                   request.m_Data.data(),
                   0,

@@ -10,15 +10,8 @@
 
 namespace
 {
-uint8_t s_GpuHelperStorage[sizeof(GpuHelper)]; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-GpuHelper* s_GpuHelper = nullptr; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-Result<FileFetcher>& GetFileFetcherResult()
-{
-    static Result<FileFetcher> s_FileFetcherResult;
-    
-    return s_FileFetcherResult;
-}
+std::unique_ptr<GpuHelper> s_GpuHelper; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+std::unique_ptr<FileFetcher> s_FileFetcher; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 } // namespace
 
 Result<> System::Startup(const char* appName)
@@ -33,14 +26,15 @@ Result<> System::Startup(const char* appName)
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
-    void* p = static_cast<void*>(s_GpuHelperStorage);
-    s_GpuHelper = std::construct_at(static_cast<GpuHelper*>(p), appName);
+    auto gpuHelperResult = GpuHelper::Create(appName);
+    MLG_CHECK(gpuHelperResult);
 
     auto fileFetcherResult = FileFetcher::Create();
     
     MLG_CHECK(fileFetcherResult);
 
-    GetFileFetcherResult() = std::move(fileFetcherResult);
+    s_GpuHelper = std::make_unique<GpuHelper>(std::move(*gpuHelperResult));
+    s_FileFetcher = std::make_unique<FileFetcher>(std::move(*fileFetcherResult));
 
     m_Initialized = true;
 
@@ -55,14 +49,8 @@ System::Shutdown()
         return;
     }
 
-    auto& fileFetcherResult = GetFileFetcherResult();
-    if(fileFetcherResult)
-    {
-        const FileFetcher bye = std::move(*fileFetcherResult);
-    }
-
-    std::destroy_at(s_GpuHelper);
-    s_GpuHelper = nullptr;
+    const FileFetcher byeFileFetcher = std::move(*s_FileFetcher);
+    const GpuHelper byeGpuHelper = std::move(*s_GpuHelper);
 
     m_Initialized = false;
 }
@@ -80,7 +68,7 @@ System::GetFileFetcher()
 {
     MLG_ASSERT(m_Initialized, "System must be initialized before calling GetFileFetcher");
 
-    return *GetFileFetcherResult();
+    return *s_FileFetcher;
 }
 
 ThreadPool&
