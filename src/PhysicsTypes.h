@@ -1,7 +1,7 @@
 #pragma once
 
 #include "AssertHelper.h"
-#include "Bounds.h"
+#include "BoundingVolumes.h"
 
 #include <variant>
 

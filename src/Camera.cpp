@@ -1,6 +1,6 @@
 #include "Camera.h"
 
-#include "Bounds.h"
+#include "BoundingVolumes.h"
 #include "VecMath.h"
 
 namespace

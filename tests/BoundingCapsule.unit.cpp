@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "Bounds.h"
+#include "BoundingVolumes.h"
 
 // NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
 

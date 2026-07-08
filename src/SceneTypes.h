@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Bounds.h"
+#include "BoundingVolumes.h"
 #include "SemanticIdentifier.h"
 #include "StringArena.h"
 

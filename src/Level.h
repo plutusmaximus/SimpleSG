@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Bounds.h"
+#include "BoundingVolumes.h"
 #include "LevelDefs.h"
 #include "Result.h"
 #include "SceneTypes.h"

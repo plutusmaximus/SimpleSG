@@ -298,7 +298,7 @@ add_custom_target(copy_images
 # ============================================================
 set(SSG_SOURCES
   src/AssertHelper.cpp
-  src/Bounds.cpp
+  src/BoundingVolumes.cpp
   src/CliUi.cpp
   src/cgltf.cpp
   src/DevUi.cpp
@@ -333,7 +333,7 @@ set(SSG_SOURCES
 
 set(SSG_HEADERS
   src/AssertHelper.h
-  src/Bounds.h
+  src/BoundingVolumes.h
   src/Camera.h
   src/CliUi.h
   src/DevUi.h
