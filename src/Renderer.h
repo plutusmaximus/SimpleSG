@@ -5,6 +5,7 @@
 
 #include <webgpu/webgpu_cpp.h>
 
+class FileFetcher;
 class GpuHelper;
 
 template<typename T>
@@ -29,11 +30,12 @@ public:
         Shutdown();
     }
 
-    Result<> Startup(GpuHelper& gpuHelper);
+    Result<> Startup(GpuHelper& gpuHelper, FileFetcher& fileFetcher);
 
     Result<> Shutdown();
 
     Result<> Render(const wgpu::Device& gpuDevice,
+        FileFetcher& fileFetcher,
         const Camera& camera,
         const Posef& cameraXForm,
         const Scene& scene,
@@ -41,7 +43,8 @@ public:
 
     Result<> GetTarget(wgpu::Texture& outTexture, wgpu::TextureView& outTextureView) const;
 
-    Result<> Composite(const wgpu::Device& gpuDevice, const wgpu::Texture& target);
+    Result<> Composite(
+        const wgpu::Device& gpuDevice, FileFetcher& fileFetcher, const wgpu::Texture& target);
 
 private:
 
@@ -53,12 +56,15 @@ private:
         wgpu::TextureFormat targetFormat);
 
     Result<> EnsureColorPipeline(const wgpu::Device& gpuDevice,
+        FileFetcher& fileFetcher,
         const wgpu::TextureFormat targetFormat,
         const wgpu::TextureFormat depthFormat);
 
-    Result<> EnsureCompositorPipeline(const wgpu::Device& gpuDevice, const wgpu::TextureFormat targetFormat);
+    Result<> EnsureCompositorPipeline(const wgpu::Device& gpuDevice,
+        FileFetcher& fileFetcher,
+        const wgpu::TextureFormat targetFormat);
 
-    Result<> CreateTransformPipeline(const wgpu::Device& gpuDevice);
+    Result<> CreateTransformPipeline(const wgpu::Device& gpuDevice, FileFetcher& fileFetcher);
 
     Result<> TransformNodes(const wgpu::Device& gpuDevice,
         const wgpu::CommandEncoder& cmdEncoder,

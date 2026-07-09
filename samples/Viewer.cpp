@@ -133,7 +133,7 @@ MainLoop()
     ThreadPool& threadPool = System::GetThreadPool();
     FileFetcher& fileFetcher = System::GetFileFetcher();
 
-    MLG_CHECK(renderer.Startup(gpuHelper));
+    MLG_CHECK(renderer.Startup(gpuHelper, fileFetcher));
     MLG_DEFER
     {
         renderer.Shutdown();
@@ -327,8 +327,9 @@ MainLoop()
         auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECK(target, "Failed to get swapchain texture");
 
-        MLG_CHECK(renderer.Render(gpuHelper.GetDevice(), camera, cameraXForm, scene, propKit));
-        MLG_CHECK(renderer.Composite(gpuHelper.GetDevice(), *target));
+        MLG_CHECK(renderer
+                .Render(gpuHelper.GetDevice(), fileFetcher, camera, cameraXForm, scene, propKit));
+        MLG_CHECK(renderer.Composite(gpuHelper.GetDevice(), fileFetcher, *target));
 
         MLG_CHECK(imGuiRenderer.NewFrame(*target));
         MLG_CHECK(RenderGui());

@@ -137,7 +137,7 @@ Result<> MainLoop()
     const Scene scene = std::move(*sceneResult);
 
     Renderer renderer;
-    MLG_CHECK(renderer.Startup(gpuHelper));
+    MLG_CHECK(renderer.Startup(gpuHelper, fileFetcher));
 
     ImGuiRenderer imGuiRenderer;
     MLG_CHECK(imGuiRenderer.Startup(gpuHelper));
@@ -232,9 +232,9 @@ Result<> MainLoop()
 
         MLG_CHECK(RenderGui());
 
-        MLG_CHECK(renderer.Render(gpuHelper.GetDevice(), camera, cameraXForm, scene, propKit));
+        MLG_CHECK(renderer.Render(gpuHelper.GetDevice(), fileFetcher, camera, cameraXForm, scene, propKit));
 
-        MLG_CHECK(renderer.Composite(gpuHelper.GetDevice(), *target));
+        MLG_CHECK(renderer.Composite(gpuHelper.GetDevice(), fileFetcher, *target));
 
         MLG_CHECK(imGuiRenderer.Composite(gpuHelper.GetDevice(), *target));
 

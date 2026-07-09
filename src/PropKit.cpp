@@ -454,7 +454,7 @@ PropKit::Create(GpuHelper& gpuHelper,
         models.emplace_back(model);
     }
 
-    TextureCache textureCache;
+    TextureCache textureCache(gpuHelper);
 
     MLG_CHECK(FetchTextures(gpuHelper, threadPool, fileFetcher, rootPath, uniqueMaterials, textureCache));
 
