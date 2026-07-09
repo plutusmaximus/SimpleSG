@@ -142,7 +142,7 @@ Result<> MainLoop()
     ImGuiRenderer imGuiRenderer;
     MLG_CHECK(imGuiRenderer.Startup(gpuHelper));
 
-    const Posef cameraXForm{ .T{0, 0, -4} };
+    const TrTransformf cameraXForm{ .T{0, 0, -4} };
     Camera camera((Viewport(gpuHelper.GetScreenBounds())));
 
     bool running = true;

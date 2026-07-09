@@ -1,4 +1,4 @@
-#define MLG_LOGGER_NAME "DAWN"
+#define MLG_LOGGER_NAME "RNDR"
 
 #include "Renderer.h"
 
@@ -112,7 +112,7 @@ Result<>
 Renderer::Render(const wgpu::Device& gpuDevice,
     FileFetcher& fileFetcher,
     const Camera& camera,
-    const Posef& cameraXForm,
+    const TrTransformf& cameraXForm,
     const Scene& scene,
     const PropKit& propKit)
 {
@@ -758,7 +758,7 @@ Renderer::CreateTransformPipeline(const wgpu::Device& gpuDevice, FileFetcher& fi
 Result<>
 Renderer::TransformNodes(const wgpu::Device& gpuDevice,
     const wgpu::CommandEncoder& cmdEncoder,
-    const Posef& cameraXForm,
+    const TrTransformf& cameraXForm,
     const Camera& camera,
     const Scene& scene) const
 {

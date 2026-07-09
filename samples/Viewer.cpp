@@ -154,7 +154,7 @@ MainLoop()
     static constexpr float kDefaultCameraYaw = 90.0f; // Degrees
     const Radiansf cameraYaw = Radiansf::FromDegrees(kDefaultCameraYaw);
 
-    Posef cameraXForm{ .T{0, kDefaultCameraHeight, 0}, .R{UnitQuatf(cameraYaw, Vec3f::YAXIS())} };
+    TrTransformf cameraXForm{ .T{0, kDefaultCameraHeight, 0}, .R{UnitQuatf(cameraYaw, Vec3f::YAXIS())} };
     Camera camera((Viewport(gpuHelper.GetScreenBounds())));
 
     mouseNav.SetTransform(cameraXForm);

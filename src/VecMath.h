@@ -994,9 +994,9 @@ public:
 };
 
 template<typename NumType>
-class Pose
+class TrTransform
 {
-    static_assert(std::is_floating_point_v<NumType>, "Pose requires a floating-point type");
+    static_assert(std::is_floating_point_v<NumType>, "TrTransform requires a floating-point type");
 
 public:
 
@@ -1007,7 +1007,7 @@ public:
 
     Mat44<NumType> ToMatrix() const noexcept;
 
-    [[nodiscard]] Pose<NumType> Inverse() const noexcept;
+    [[nodiscard]] TrTransform Inverse() const noexcept;
 
     constexpr Vec3<NumType> LocalXAxis() const noexcept
     {
@@ -1024,13 +1024,13 @@ public:
         return (R * Vec3<NumType>::ZAXIS()).Normalize();
     }
 
-    constexpr friend Vec3<NumType> operator*(const Pose<NumType>& pose,
+    constexpr friend Vec3<NumType> operator*(const TrTransform& transform,
         const Vec3<NumType>& point) noexcept
     {
-        return (pose.R * point) + pose.T;
+        return (transform.R * point) + transform.T;
     }
 
-    constexpr friend bool operator==(const Pose<NumType>& a, const Pose<NumType>& b) noexcept
+    constexpr friend bool operator==(const TrTransform& a, const TrTransform& b) noexcept
     {
         return a.T == b.T && a.R == b.R;
     }
@@ -1201,5 +1201,5 @@ using Vec3f = Vec3<float>;
 using Vec4f = Vec4<float>;
 using UnitQuatf = UnitQuat<float>;
 using Mat44f = Mat44<float>;
+using TrTransformf = TrTransform<float>;
 using TrsTransformf = TrsTransform<float>;
-using Posef = Pose<float>;

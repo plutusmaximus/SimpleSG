@@ -110,7 +110,7 @@ public:
 
     NodeSelector() = delete;
 
-    NodeSelector(const Camera& camera, const Posef& cameraXForm, const Rect& selectionRect)
+    NodeSelector(const Camera& camera, const TrTransformf& cameraXForm, const Rect& selectionRect)
         : m_Frustum(camera, cameraXForm, selectionRect)
     {
     }
@@ -518,7 +518,7 @@ MainLoop()
 
     constexpr float kInitialCameraDistance = 40.0f;
 
-    Posef cameraXForm{ .T{0, 0, -kInitialCameraDistance} };
+    TrTransformf cameraXForm{ .T{0, 0, -kInitialCameraDistance} };
     Camera camera((Viewport(gpuHelper.GetScreenBounds())));
 
     mouseNav.SetTransform(cameraXForm);

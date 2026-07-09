@@ -16,11 +16,11 @@ public:
     /// @param rotPerDXY Rotation amount (in fractions of a full rotation) per unit of mouse movement in X and Y directions.
     /// @param movePerSec Movement speed in units per second.
     WalkMouseNav(
-        const Posef& initialTransform,
+        const TrTransformf& initialTransform,
         const float rotPerDXY,
         const float movePerSec);
 
-    WalkMouseNav() : WalkMouseNav(Posef{}, kDefualtRotPerDXY, kDefaultMovePerSec) {}
+    WalkMouseNav() : WalkMouseNav(TrTransformf{}, kDefualtRotPerDXY, kDefaultMovePerSec) {}
 
     ~WalkMouseNav() = default;
     WalkMouseNav(const WalkMouseNav&) = delete;
@@ -34,7 +34,7 @@ public:
 
     void Move(const Vec3f& delta);
 
-    void SetTransform(const Posef& transform)
+    void SetTransform(const TrTransformf& transform)
     {
         m_CurrentTransform = transform;
         m_TargetTransform = transform;
@@ -44,7 +44,7 @@ public:
 
     void Deactivate();
 
-    const Posef& GetTransform() const
+    const TrTransformf& GetTransform() const
     {
         return m_CurrentTransform;
     }
@@ -53,8 +53,8 @@ private:
 
     Vec2f m_LookDelta{ 0, 0};
     Vec3f m_MoveDelta{ 0, 0, 0 };
-    Posef m_CurrentTransform;
-    Posef m_TargetTransform;
+    TrTransformf m_CurrentTransform;
+    TrTransformf m_TargetTransform;
     const float m_MovePerSec;
     //const float m_MouseMoveRotScale;
     bool m_IsActive{ false };

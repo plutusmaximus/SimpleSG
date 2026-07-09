@@ -28,7 +28,7 @@ Viewport::Viewport(const ViewportParams& params)
     MLG_ABORTIF(params.height <= 0, "Viewport height must be greater than 0");
 }
 
-Frustum::Frustum(const Camera& camera, const Posef& cameraXForm) // NOLINT(cppcoreguidelines-pro-type-member-init)
+Frustum::Frustum(const Camera& camera, const TrTransformf& cameraXForm) // NOLINT(cppcoreguidelines-pro-type-member-init)
 {
     const Mat44f VP = camera.GetMatrix() * cameraXForm.Inverse().ToMatrix();
     const Vec4f r0(VP[0][0], VP[1][0], VP[2][0], VP[3][0]);
@@ -57,7 +57,7 @@ Frustum::Frustum(const Camera& camera, const Posef& cameraXForm) // NOLINT(cppco
     m_Planes[kFar] /= lf;
 }
 
-Frustum::Frustum(const Camera& camera, const Posef& cameraXForm, const Rect& selectRect) // NOLINT(cppcoreguidelines-pro-type-member-init)
+Frustum::Frustum(const Camera& camera, const TrTransformf& cameraXForm, const Rect& selectRect) // NOLINT(cppcoreguidelines-pro-type-member-init)
 {
     // Screen space points.
     const Vec2f p00(static_cast<float>(selectRect.GetX()), static_cast<float>(selectRect.GetY()));

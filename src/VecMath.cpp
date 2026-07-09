@@ -280,7 +280,7 @@ Mat44<T>::PerspectiveLH(
 
 template<typename NumType>
 Mat44<NumType>
-Pose<NumType>::ToMatrix() const noexcept
+TrTransform<NumType>::ToMatrix() const noexcept
 {
     Mat44<NumType> M = R.ToMatrix();
     M[3] = Vec4<NumType>(T, 1);
@@ -288,12 +288,12 @@ Pose<NumType>::ToMatrix() const noexcept
 }
 
 template<typename NumType>
-Pose<NumType>
-Pose<NumType>::Inverse() const noexcept
+TrTransform<NumType>
+TrTransform<NumType>::Inverse() const noexcept
 {
     const UnitQuat<NumType> r = R.Inverse();
 
-    const Pose result{.T = -(r * T), .R = r};
+    const TrTransform result{.T = -(r * T), .R = r};
 
     return result;
 }
@@ -332,7 +332,7 @@ template Mat44<float> Mat44<float>::PerspectiveLH(
     const float nearClip,
     const float farClip) noexcept;
 
-template Mat44<float> Pose<float>::ToMatrix() const noexcept;
-template Pose<float> Pose<float>::Inverse() const noexcept;
+template Mat44<float> TrTransform<float>::ToMatrix() const noexcept;
+template TrTransform<float> TrTransform<float>::Inverse() const noexcept;
 template Mat44<float> TrsTransform<float>::ToMatrix() const noexcept;
 template TrsTransform<float> TrsTransform<float>::FromMatrix(const Mat44<float>& mat) noexcept;

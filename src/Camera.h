@@ -71,8 +71,8 @@ class Frustum
 public:
 
     Frustum() = delete;
-    Frustum(const Camera& camera, const Posef& cameraXForm);
-    Frustum(const Camera& camera, const Posef& cameraXForm, const Rect& selectRect);
+    Frustum(const Camera& camera, const TrTransformf& cameraXForm);
+    Frustum(const Camera& camera, const TrTransformf& cameraXForm, const Rect& selectRect);
 
     enum class ContainsResult
     {

@@ -37,7 +37,7 @@ public:
     Result<> Render(const wgpu::Device& gpuDevice,
         FileFetcher& fileFetcher,
         const Camera& camera,
-        const Posef& cameraXForm,
+        const TrTransformf& cameraXForm,
         const Scene& scene,
         const PropKit& propKit);
 
@@ -68,7 +68,7 @@ private:
 
     Result<> TransformNodes(const wgpu::Device& gpuDevice,
         const wgpu::CommandEncoder& cmdEncoder,
-        const Posef& cameraXForm,
+        const TrTransformf& cameraXForm,
         const Camera& camera,
         const Scene& scene) const;
 
