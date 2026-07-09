@@ -1,6 +1,5 @@
 #include "DevUi.h"
 
-#include "CliUi.h"
 #include "PerfMetrics.h"
 #include "Renderer.h"
 
@@ -17,7 +16,104 @@ GetStatusBarHeight()
     const ImGuiStyle& style = ImGui::GetStyle();
     return ImGui::GetFrameHeight() + (style.WindowPadding.y * 2.0f);
 }
+
+int
+CliInputCallback(ImGuiInputTextCallbackData* data)
+{
+    auto* state = static_cast<CliState*>(data->UserData);
+
+    if(data->EventFlag != ImGuiInputTextFlags_CallbackHistory)
+    {
+        return 0;
+    }
+
+    std::string replacement;
+
+    if(data->EventKey == ImGuiKey_UpArrow)
+    {
+        replacement = state->HistoryBack();
+    }
+    else if(data->EventKey == ImGuiKey_DownArrow)
+    {
+        replacement = state->HistoryForward();
+    }
+
+    data->DeleteChars(0, data->BufTextLen);
+    data->InsertChars(0, replacement.c_str());
+
+    return 0;
+}
 } // namespace
+
+// CliState
+
+void
+CliState::ClearInput()
+{
+    m_Input[0] = '\0';
+    m_PendingInput.clear();
+}
+
+void
+CliState::AddLine(std::string line)
+{
+    m_Lines.emplace_back(std::move(line));
+}
+
+void
+CliState::AddHistory(std::string command)
+{
+    if(m_History.empty() || m_History.back() != command)
+    {
+        m_History.emplace_back(std::move(command));
+        m_HistoryIt = m_History.end();
+    }
+}
+
+/// @brief Moves the history pointer back and returns the command at the new position.
+const std::string&
+CliState::HistoryBack()
+{
+    static const std::string emptyString;
+
+    if(m_History.empty())
+    {
+        return emptyString;
+    }
+
+    if(m_HistoryIt == m_History.end())
+    {
+        m_PendingInput.assign(m_Input.data(), static_cast<size_t>(strlen(m_Input.data())));
+    }
+
+    if(m_HistoryIt != m_History.begin())
+    {
+        --m_HistoryIt;
+    }
+
+    return *m_HistoryIt;
+}
+
+/// @brief Moves the history pointer forward and returns the command at the new position.
+const std::string&
+CliState::HistoryForward()
+{
+    static const std::string emptyString;
+
+    if(!m_History.empty() && m_HistoryIt != m_History.end())
+    {
+        ++m_HistoryIt;
+    }
+
+    if(m_HistoryIt == m_History.end())
+    {
+        return m_PendingInput;
+    }
+
+    return *m_HistoryIt;
+}
+
+// DevUi
 
 Result<>
 DevUi::Render()
@@ -26,7 +122,7 @@ DevUi::Render()
 
     DrawPerfPanel();
     DrawScenePanel();
-    DrawConsolePanel();
+    DrawCliPanel();
     DrawStatusBarPanel();
 
     return Result<>::Ok;
@@ -93,7 +189,7 @@ DevUi::DrawDockedEditorLayout() const // NOLINT(readability-convert-member-funct
 
         ImGui::DockBuilderDockWindow(kScenePanelName, dockMainId);
         ImGui::DockBuilderDockWindow(kPerfPanelName, dockLeftId);
-        ImGui::DockBuilderDockWindow(kConsolePanelName, dockBottomId);
+        ImGui::DockBuilderDockWindow(kCliPanelName, dockBottomId);
 
         ImGui::DockBuilderFinish(dockspaceId);
     }
@@ -254,9 +350,65 @@ DevUi::DrawScenePanel()
     ImGui::PopStyleVar(3);
 }
 
-void DevUi::DrawConsolePanel() const // NOLINT(readability-convert-member-functions-to-static)
+void
+DevUi::DrawCliPanel()
 {
-    m_CliUi->Render(kConsolePanelName);
+    ImGui::Begin(kCliPanelName);
+
+    const float input_height = ImGui::GetFrameHeightWithSpacing();
+
+    const float spacing = ImGui::GetStyle().ItemSpacing.y;
+
+    ImGui::BeginChild("CliScrollback",
+        ImVec2(0.0f, -(input_height + spacing)),
+        false,
+        ImGuiWindowFlags_HorizontalScrollbar);
+
+    for(const std::string& line : m_CliState.GetLines())
+    {
+        ImGui::TextUnformatted(line.c_str());
+    }
+
+    if(m_CliScrollToBottom)
+    {
+        ImGui::SetScrollHereY(1.0f);
+        m_CliScrollToBottom = false;
+    }
+
+    ImGui::EndChild();
+
+    ImGui::Separator();
+
+    ImGui::TextUnformatted(">");
+    ImGui::SameLine();
+
+    ImGui::SetNextItemWidth(-1.0f);
+
+    const bool submitted = ImGui::InputText("##CliInput",
+        m_CliState.GetInput().data(),
+        m_CliState.GetInput().size(),
+        ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackHistory,
+        CliInputCallback,
+        &m_CliState);
+
+    ImGui::SetItemDefaultFocus();
+
+    if(submitted)
+    {
+        if(m_CliState.GetInput()[0] != '\0')
+        {
+            const std::string command = m_CliState.GetInput().data();
+
+            m_CliState.AddLine("> " + command);
+            m_CliState.AddHistory(command);
+            m_CliState.ClearInput();
+            m_CliScrollToBottom = true;
+
+            ImGui::SetKeyboardFocusHere(-1);
+        }
+    }
+
+    ImGui::End();
 }
 
 void DevUi::DrawStatusBarPanel() const // NOLINT(readability-convert-member-functions-to-static)

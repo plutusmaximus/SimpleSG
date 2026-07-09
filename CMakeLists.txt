@@ -299,7 +299,6 @@ add_custom_target(copy_images
 set(SSG_SOURCES
   src/AssertHelper.cpp
   src/BoundingVolumes.cpp
-  src/CliUi.cpp
   src/cgltf.cpp
   src/DevUi.cpp
   src/FileFetcher.cpp
@@ -335,7 +334,6 @@ set(SSG_HEADERS
   src/AssertHelper.h
   src/BoundingVolumes.h
   src/Camera.h
-  src/CliUi.h
   src/DevUi.h
   src/FileFetcher.h
   src/GltfLoader.h
@@ -368,7 +366,6 @@ set(SSG_HEADERS
   src/ShapeMeshDefs.h
   src/StringArena.h
   src/System.h
-  src/CliState.h
   src/TextureCache.h
   src/ThreadPool.h
   src/Timer.h

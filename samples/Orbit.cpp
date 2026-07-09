@@ -1,5 +1,4 @@
 #include "Camera.h"
-#include "CliUi.h"
 #include "DevUi.h"
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
@@ -498,8 +497,7 @@ MainLoop()
         imGuiRenderer.Shutdown();
     };
     
-    CliUi cliUi;
-    DevUi devUi(cliUi, renderer);
+    DevUi devUi(renderer);
 
     auto loadResult = Load(gpuHelper, threadPool, fileFetcher);
     MLG_CHECK(loadResult);
