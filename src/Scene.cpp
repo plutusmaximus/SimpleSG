@@ -251,6 +251,7 @@ Scene::Create(GpuHelper& gpuHelper, const Level& level, const PropKit& propKit)
     MLG_CHECK(transformShaderBindGroup);
 
     Scene scene(std::move(*transformBuffer),
+        std::move(*clipSpaceBuffer),
         std::move(*drawIndirectBuffer),
         std::move(*meshPropertiesBuffer),
         std::move(*cameraParamsBuf),
@@ -267,6 +268,7 @@ Scene::Create(GpuHelper& gpuHelper, const Level& level, const PropKit& propKit)
 }
 
 Scene::Scene(WorldTransformBuffer&& worldTransformBuffer,
+    ClipSpaceBuffer&& clipSpaceBuffer,
     DrawIndirectBuffer&& drawIndirectBuffer,
     MeshPropertiesBuffer&& meshPropertiesBuffer,
     CameraParamsBuffer&& cameraParamsBuffer,
@@ -277,6 +279,7 @@ Scene::Scene(WorldTransformBuffer&& worldTransformBuffer,
     std::vector<MeshInstance>&& meshInstances,
     std::vector<ShaderInterop::WorldTransform>&& worldTransforms)
     : m_WorldTransformBuffer(std::move(worldTransformBuffer)),
+      m_ClipSpaceBuffer(std::move(clipSpaceBuffer)),
       m_DrawIndirectBuffer(std::move(drawIndirectBuffer)),
       m_MeshPropertiesBuffer(std::move(meshPropertiesBuffer)),
       m_CameraParamsBuffer(std::move(cameraParamsBuffer)),

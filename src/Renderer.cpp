@@ -4,6 +4,7 @@
 
 #include "Camera.h"
 #include "FileFetcher.h"
+#include "GpuColorPass.h"
 #include "GpuHelper.h"
 #include "GpuLayouts.h"
 #include "narrow_cast.h"
@@ -74,10 +75,7 @@ Renderer::Startup(GpuHelper& gpuHelper, FileFetcher& fileFetcher)
     const wgpu::TextureFormat targetFormat = gpuHelper.GetSwapChainFormat();
 
     MLG_CHECK(EnsureColorTarget(gpuHelper.GetDevice(), width, height, targetFormat));
-
-    const wgpu::TextureFormat depthFormat = m_ColorTargetResources.DepthTarget.GetFormat();
-
-    MLG_CHECK(EnsureColorPipeline(gpuHelper.GetDevice(), fileFetcher, targetFormat, depthFormat));
+    MLG_CHECK(EnsureColorPipeline(gpuHelper.GetDevice(), fileFetcher));
     MLG_CHECK(EnsureCompositorPipeline(gpuHelper.GetDevice(), fileFetcher, targetFormat));
     MLG_CHECK(CreateTransformPipeline(gpuHelper.GetDevice(), fileFetcher));
 
@@ -109,8 +107,8 @@ Renderer::Shutdown()
 }
 
 Result<>
-Renderer::Render(const wgpu::Device& gpuDevice,
-    FileFetcher& fileFetcher,
+Renderer::Render(const GpuHelper& gpuHelper,
+    GpuColorPass& colorPass,
     const Camera& camera,
     const TrTransformf& cameraXForm,
     const Scene& scene,
@@ -122,9 +120,150 @@ Renderer::Render(const wgpu::Device& gpuDevice,
 
     MLG_SCOPED_TIMER("Renderer.Render");
 
-    MLG_CHECK(EnsureColorTarget(gpuDevice, viewport.GetWidth(), viewport.GetHeight(), m_ColorTargetResources.Target.GetFormat()));
-    MLG_CHECK(EnsureColorPipeline(gpuDevice, fileFetcher, m_ColorTargetResources.Target.GetFormat(),
-        m_ColorTargetResources.DepthTarget.GetFormat()));
+    MLG_CHECK(colorPass.Ensure(gpuHelper, viewport.GetWidth(), viewport.GetHeight()));
+
+    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
+
+    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "Renderer::Render" };
+
+    const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
+    MLG_CHECK(cmdEncoder, "Failed to create command encoder");
+
+    {
+        MLG_SCOPED_TIMER("Renderer.Render.TransformNodes");
+
+        auto transformNodesResult = TransformNodes(gpuDevice, cmdEncoder, cameraXForm, camera, scene);
+        MLG_CHECK(transformNodesResult);
+    }
+
+    wgpu::RenderPassEncoder renderPass;
+    {
+        MLG_SCOPED_TIMER("Renderer.Render.BeginRenderPass");
+        auto renderPassResult = colorPass.BeginRenderPass(cmdEncoder);
+        //auto renderPassResult = BeginRenderPass(cmdEncoder);
+        MLG_CHECK(renderPassResult);
+
+        renderPass = *renderPassResult;
+    }
+
+    renderPass.SetViewport(static_cast<float>(viewport.GetX()),
+        static_cast<float>(viewport.GetY()),
+        static_cast<float>(viewport.GetWidth()),
+        static_cast<float>(viewport.GetHeight()),
+        viewport.GetMinDepth(),
+        viewport.GetMaxDepth());
+
+    renderPass.SetScissorRect(0, 0, viewport.GetWidth(), viewport.GetHeight());
+
+    {
+        MLG_SCOPED_TIMER("Renderer.Render.Draw.SetBuffers");
+
+        constexpr size_t kU16BitWidth = 16;
+        constexpr size_t kU32BitWidth = 32;
+
+        static_assert(VERTEX_INDEX_BITS == kU32BitWidth || VERTEX_INDEX_BITS == kU16BitWidth,
+            "Unsupported index buffer format: only 16-bit and 32-bit indices are supported");
+
+        constexpr wgpu::IndexFormat idxFmt =
+            (VERTEX_INDEX_BITS == kU32BitWidth)
+            ? wgpu::IndexFormat::Uint32
+            : wgpu::IndexFormat::Uint16;
+
+        renderPass.SetVertexBuffer(0,
+            propKit.GetVertexBuffer().GetGpuBuffer(),
+            0,
+            propKit.GetVertexBuffer().BufferSize());
+
+        renderPass.SetIndexBuffer(propKit.GetIndexBuffer().GetGpuBuffer(),
+            idxFmt,
+            0,
+            propKit.GetIndexBuffer().BufferSize());
+    }
+
+    {
+        MLG_SCOPED_TIMER("Renderer.Render.Draw")
+
+        const auto& drawIndirectBuffer = scene.GetDrawIndirectBuffer();
+        const Frustum frustum(camera, cameraXForm);
+
+        MaterialIdentifier lastMaterialId{};
+
+        // Get visible meshes and sort by material to minimize bind group changes.
+        scene.GetVisibleMeshes(frustum, m_VisibleMeshes);
+
+        std::ranges::sort(m_VisibleMeshes, {}, &MeshInstance::GetMaterialId);
+
+        // Track how many times we have to change materials.
+        static PerfCounter pcMaterialChanges({ .Name = "Renderer.Render.MaterialChanges" });
+
+        for(const MeshInstance& meshInstance : m_VisibleMeshes)
+        {
+            const Mesh& mesh = meshInstance.GetMesh();
+            const MaterialIdentifier materialId = mesh.GetMaterialId();
+
+            if(materialId != lastMaterialId)
+            {
+                MLG_SCOPED_TIMER("Renderer.Render.Draw.SetMaterialBindGroup");
+
+                pcMaterialChanges.Increment(1);
+
+                const wgpu::BindGroup* bindGroup = propKit.GetMaterialBindGroup(materialId);
+                MLG_CHECKV(bindGroup, "Failed to get material bind group");
+
+                renderPass.SetBindGroup(1, *bindGroup, 0, nullptr);
+                lastMaterialId = materialId;
+            }
+
+            {
+                MLG_SCOPED_TIMER("Renderer.Render.Draw.DrawIndexed");
+
+                const uint64_t indirectOffset =
+                    meshInstance.GetInstanceIndex() * sizeof(ShaderInterop::DrawIndirectParams);
+                renderPass.DrawIndexedIndirect(drawIndirectBuffer.GetGpuBuffer(), indirectOffset);
+            }
+        }
+    }
+
+    renderPass.End();
+
+    wgpu::CommandBuffer cmdBuf;
+    {
+        MLG_SCOPED_TIMER("Renderer.FinishCommandBuffer");
+        cmdBuf = cmdEncoder.Finish(nullptr);
+
+        MLG_CHECK(cmdBuf, "Failed to finish command buffer");
+    }
+
+    {
+        MLG_SCOPED_TIMER("Renderer.SubmitCommandBuffer");
+        const wgpu::Queue queue = gpuDevice.GetQueue();
+        MLG_CHECK(queue, "Failed to get wgpu::Queue");
+
+        queue.Submit(1, &cmdBuf);
+    }
+
+    return Result<>::Ok;
+}
+
+Result<>
+Renderer::Render(const GpuHelper& gpuHelper,
+    FileFetcher& fileFetcher,
+    const Camera& camera,
+    const TrTransformf& cameraXForm,
+    const Scene& scene,
+    const PropKit& propKit)
+{
+    MLG_CHECKV(m_Initialized, "Renderer is not initialized");
+
+    const Viewport& viewport = camera.GetViewport();
+    const wgpu::TextureFormat targetFormat = gpuHelper.GetSwapChainFormat();
+
+    MLG_SCOPED_TIMER("Renderer.Render");
+
+    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
+
+    MLG_CHECK(EnsureColorTarget(gpuDevice, viewport.GetWidth(), viewport.GetHeight(), targetFormat));
+    MLG_CHECK(EnsureColorPipeline(gpuDevice, fileFetcher));
 
     const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "Renderer::Render" };
 
@@ -257,14 +396,14 @@ Renderer::Render(const wgpu::Device& gpuDevice,
     return Result<>::Ok;
 }
 
-Result<>
-Renderer::GetTarget(wgpu::Texture& outTexture, wgpu::TextureView& outTextureView) const
+Result<wgpu::Texture>
+Renderer::GetTarget() const
 {
     MLG_CHECKV(m_Initialized, "Renderer is not initialized");
 
-    outTexture = m_ColorTargetResources.Target;
-    outTextureView = m_ColorTargetResources.TargetView;
-    return Result<>::Ok;
+    MLG_CHECKV(m_ColorTargetResources.Target, "Color target is not initialized");
+
+    return m_ColorTargetResources.Target;
 }
 
 Result<>
@@ -272,12 +411,6 @@ Renderer::Composite(
     const wgpu::Device& gpuDevice, FileFetcher& fileFetcher, const wgpu::Texture& target)
 {
     MLG_CHECKV(m_Initialized, "Renderer is not initialized");
-
-    if(!target)
-    {
-        // Off-screen rendering, skip rendering to swapchain
-        return Result<>::Ok;
-    }
 
     if(!target)
     {
@@ -314,6 +447,33 @@ Renderer::Composite(
     renderPass.SetBindGroup(0, m_ColorTargetResources.BindGroup, 0, nullptr);
     renderPass.Draw(3, 1, 0, 0);
     renderPass.End();
+
+    const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
+    MLG_CHECK(cmdBuf, "Failed to finish command buffer");
+
+    const wgpu::Queue queue = gpuDevice.GetQueue();
+    MLG_CHECK(queue, "Failed to get wgpu::Queue");
+    queue.Submit(1, &cmdBuf);
+
+    return Result<>::Ok;
+}
+
+Result<>
+Renderer::Composite(const wgpu::Device& gpuDevice,
+    GpuCompositorPass& compositorPass,
+    const wgpu::Texture& target) const
+{
+    MLG_CHECKV(m_Initialized, "Renderer is not initialized");
+
+    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "Renderer::Composite" };
+    const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
+    MLG_CHECK(cmdEncoder, "Failed to create command encoder");
+
+    auto renderPass = compositorPass.BeginRenderPass(cmdEncoder, target);
+    MLG_CHECK(renderPass);
+    
+    renderPass->Draw(3, 1, 0, 0);
+    renderPass->End();
 
     const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
     MLG_CHECK(cmdBuf, "Failed to finish command buffer");
@@ -473,13 +633,16 @@ Renderer::EnsureColorTarget(const wgpu::Device& gpuDevice,
 }
 
 Result<>
-Renderer::EnsureColorPipeline(const wgpu::Device& gpuDevice,
-    FileFetcher& fileFetcher,
-    const wgpu::TextureFormat targetFormat,
-    const wgpu::TextureFormat depthFormat)
+Renderer::EnsureColorPipeline(const wgpu::Device& gpuDevice, FileFetcher& fileFetcher)
 {
-    if(m_ColorPipeline && m_ColorPipelineResources.TargetFormat == targetFormat &&
-        m_ColorPipelineResources.DepthFormat == depthFormat)
+    const wgpu::TextureFormat targetFormat = m_ColorTargetResources.Target.GetFormat();
+    const wgpu::TextureFormat depthFormat = m_ColorTargetResources.DepthTarget.GetFormat();
+
+    if(m_ColorPipeline
+        && m_ColorPipelineResources.TargetFormat
+        == targetFormat
+        && m_ColorPipelineResources.DepthFormat
+        == depthFormat)
     {
         return Result<>::Ok;
     }

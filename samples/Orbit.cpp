@@ -753,7 +753,7 @@ MainLoop()
 
             MLG_CHECK(scene.SyncToGpu(gpuHelper.GetDevice()));
 
-            MLG_CHECK(renderer.Render(gpuHelper.GetDevice(), fileFetcher, camera, cameraXForm, scene, propKit));
+            MLG_CHECK(renderer.Render(gpuHelper, fileFetcher, camera, cameraXForm, scene, propKit));
         }
 
         auto target = gpuHelper.GetSwapChainTexture();

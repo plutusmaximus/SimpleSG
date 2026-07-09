@@ -26,15 +26,15 @@ public:
     GpuHelper(GpuHelper&&) = default;
     GpuHelper& operator=(GpuHelper&&) = default;
 
-    SDL_Window* GetWindow();
-    wgpu::Instance GetInstance();
-    wgpu::Device GetDevice();
-    wgpu::Surface GetSurface();
-    wgpu::Texture GetDefaultTexture();
-    wgpu::Sampler GetDefaultSampler();
-    Dimension2 GetScreenDimensions();    
-    Result<wgpu::Texture> GetSwapChainTexture();
-    wgpu::TextureFormat GetSwapChainFormat();
+    SDL_Window* GetWindow() const;
+    wgpu::Instance GetInstance() const;
+    wgpu::Device GetDevice() const;
+    wgpu::Surface GetSurface() const;
+    wgpu::Texture GetDefaultTexture() const;
+    wgpu::Sampler GetDefaultSampler() const;
+    Dimension2 GetScreenDimensions() const;    
+    Result<wgpu::Texture> GetSwapChainTexture() const;
+    wgpu::TextureFormat GetSwapChainFormat() const;
 
     static Result<GpuHelper> Create(const char* appName);
 

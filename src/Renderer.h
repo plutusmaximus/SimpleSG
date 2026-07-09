@@ -6,6 +6,8 @@
 #include <webgpu/webgpu_cpp.h>
 
 class FileFetcher;
+class GpuColorPass;
+class GpuCompositorPass;
 class GpuHelper;
 
 template<typename T>
@@ -34,20 +36,30 @@ public:
 
     Result<> Shutdown();
 
-    Result<> Render(const wgpu::Device& gpuDevice,
+    Result<> Render(const GpuHelper& gpuHelper,
         FileFetcher& fileFetcher,
         const Camera& camera,
         const TrTransformf& cameraXForm,
         const Scene& scene,
         const PropKit& propKit);
 
-    Result<> GetTarget(wgpu::Texture& outTexture, wgpu::TextureView& outTextureView) const;
+    Result<> Render(const GpuHelper& gpuHelper,
+        GpuColorPass& colorPass,
+        const Camera& camera,
+        const TrTransformf& cameraXForm,
+        const Scene& scene,
+        const PropKit& propKit);
+
+    Result<wgpu::Texture> GetTarget() const;
 
     Result<> Composite(
         const wgpu::Device& gpuDevice, FileFetcher& fileFetcher, const wgpu::Texture& target);
 
-private:
+    Result<> Composite(const wgpu::Device& gpuDevice,
+        GpuCompositorPass& compositorPass,
+        const wgpu::Texture& target) const;
 
+private:
     Result<wgpu::RenderPassEncoder> BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder);
 
     Result<> EnsureColorTarget(const wgpu::Device& gpuDevice,
@@ -55,10 +67,7 @@ private:
         const uint32_t height,
         wgpu::TextureFormat targetFormat);
 
-    Result<> EnsureColorPipeline(const wgpu::Device& gpuDevice,
-        FileFetcher& fileFetcher,
-        const wgpu::TextureFormat targetFormat,
-        const wgpu::TextureFormat depthFormat);
+    Result<> EnsureColorPipeline(const wgpu::Device& gpuDevice, FileFetcher& fileFetcher);
 
     Result<> EnsureCompositorPipeline(const wgpu::Device& gpuDevice,
         FileFetcher& fileFetcher,

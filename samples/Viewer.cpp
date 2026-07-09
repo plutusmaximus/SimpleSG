@@ -1,4 +1,5 @@
 #include "GltfLoader.h"
+#include "GpuColorPass.h"
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
 #include "InputMapper.h"
@@ -145,10 +146,36 @@ MainLoop()
         imGuiRenderer.Shutdown();
     };
 
+    auto gpuColorPass = GpuColorPass::Create(gpuHelper, fileFetcher);
+    MLG_CHECK(gpuColorPass);
+
+    auto gpuCompositorPass = GpuCompositorPass::Create(gpuHelper, fileFetcher);
+    MLG_CHECK(gpuCompositorPass);
+
     auto loadResult = Load(gpuHelper, threadPool, fileFetcher, SPONZA_MODEL_PATH);
     MLG_CHECK(loadResult, "Failed to load resources");
 
     auto&& [propKit, level, scene] = std::move(*loadResult);
+
+    const GpuColorPass::Resources colorPassResources //
+        {
+            .Vertices = propKit.GetVertexBuffer(),
+            .Indices = propKit.GetIndexBuffer(),
+            .WorldTransforms = scene.m_WorldTransformBuffer,
+            .ClipSpaceTransforms = scene.m_ClipSpaceBuffer,
+            .MeshProperties = scene.m_MeshPropertiesBuffer,
+            .MaterialConstants = propKit.GetMaterialConstants(),
+            .CameraParams = scene.m_CameraParamsBuffer,
+        };
+
+    MLG_CHECK(gpuColorPass->BindResources(gpuHelper.GetDevice(), colorPassResources));
+
+    const GpuCompositorPass::Resources compositorPassResources //
+        {
+            .SourceTexture = *gpuColorPass->GetTarget(),
+        };
+
+    MLG_CHECK(gpuCompositorPass->BindResources(gpuHelper.GetDevice(), compositorPassResources));
 
     static constexpr float kDefaultCameraHeight = 2.0f;
     static constexpr float kDefaultCameraYaw = 90.0f; // Degrees
@@ -327,9 +354,10 @@ MainLoop()
         auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECK(target, "Failed to get swapchain texture");
 
-        MLG_CHECK(renderer
-                .Render(gpuHelper.GetDevice(), fileFetcher, camera, cameraXForm, scene, propKit));
-        MLG_CHECK(renderer.Composite(gpuHelper.GetDevice(), fileFetcher, *target));
+        MLG_CHECK(
+            renderer.Render(gpuHelper, *gpuColorPass, camera, cameraXForm, scene, propKit));
+        MLG_CHECK(
+            renderer.Composite(gpuHelper.GetDevice(), *gpuCompositorPass, *target));
 
         MLG_CHECK(imGuiRenderer.NewFrame(*target));
         MLG_CHECK(RenderGui());

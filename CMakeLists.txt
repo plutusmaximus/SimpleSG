@@ -302,10 +302,11 @@ set(SSG_SOURCES
   src/cgltf.cpp
   src/DevUi.cpp
   src/FileFetcher.cpp
+  src/GltfLoader.cpp
+  src/GpuColorPass.cpp
   src/GpuHelper.cpp
   src/GpuLayouts.cpp
   src/GridHash.cpp
-  src/GltfLoader.cpp
   src/ImGuiRenderer.cpp
   src/InputMapper.cpp
   src/Level.cpp
@@ -337,6 +338,7 @@ set(SSG_HEADERS
   src/DevUi.h
   src/FileFetcher.h
   src/GltfLoader.h
+  src/GpuColorPass.h
   src/GpuHelper.h
   src/GpuLayouts.h
   src/shaders/GpuBufferTypes.h

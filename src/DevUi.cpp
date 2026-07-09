@@ -7,6 +7,7 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <SDL3/SDL.h>
+#include <webgpu/webgpu_cpp.h>
 
 namespace
 {
@@ -319,6 +320,11 @@ DevUi::DrawPerfPanel() const // NOLINT(readability-convert-member-functions-to-s
 void
 DevUi::DrawScenePanel()
 {
+    auto target = m_Renderer->GetTarget();
+    if(!MLG_VERIFY(target, "Failed to get renderer color target"))
+    {
+        return;
+    }
     //ImGui::SetNextWindowBgAlpha(0.0f);
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
@@ -326,9 +332,6 @@ DevUi::DrawScenePanel()
     ImGui::PushStyleVar(ImGuiStyleVar_ImageBorderSize, 0.0f);
     ImGui::Begin(kScenePanelName, nullptr, ImGuiWindowFlags_NoBackground);
 
-    wgpu::Texture texture;
-    wgpu::TextureView textureView;
-    m_Renderer->GetTarget(texture, textureView);
     const ImVec2 cursorPos = ImGui::GetCursorScreenPos();
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const ImVec2 mousePos = ImGui::GetMousePos();
@@ -344,6 +347,7 @@ DevUi::DrawScenePanel()
     m_ScenePanelMousePos.X = static_cast<int>(mousePos.x - cursorPos.x);
     m_ScenePanelMousePos.Y = static_cast<int>(mousePos.y - cursorPos.y);
 
+    const wgpu::TextureView textureView = target->CreateView();
     ImGui::Image(ImTextureRef(textureView.Get()), avail);
     
     ImGui::End();

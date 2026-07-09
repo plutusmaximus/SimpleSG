@@ -716,7 +716,7 @@ GpuHelper::Deleter(mlg::detail::GpuHelperImpl* impl)
 }
 
 SDL_Window*
-GpuHelper::GetWindow()
+GpuHelper::GetWindow() const
 {
     if(MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
     {
@@ -726,7 +726,7 @@ GpuHelper::GetWindow()
 }
 
 wgpu::Instance
-GpuHelper::GetInstance()
+GpuHelper::GetInstance() const
 {
     if(MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
     {
@@ -736,7 +736,7 @@ GpuHelper::GetInstance()
 }
 
 wgpu::Device
-GpuHelper::GetDevice()
+GpuHelper::GetDevice() const
 {
     if(MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
     {
@@ -746,7 +746,7 @@ GpuHelper::GetDevice()
 }
 
 wgpu::Surface
-GpuHelper::GetSurface()
+GpuHelper::GetSurface() const
 {
     if(MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
     {
@@ -756,7 +756,7 @@ GpuHelper::GetSurface()
 }
 
 wgpu::Texture
-GpuHelper::GetDefaultTexture()
+GpuHelper::GetDefaultTexture() const
 {
     if(MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
     {
@@ -766,7 +766,7 @@ GpuHelper::GetDefaultTexture()
 }
 
 wgpu::Sampler
-GpuHelper::GetDefaultSampler()
+GpuHelper::GetDefaultSampler() const
 {
     if(MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
     {
@@ -776,7 +776,7 @@ GpuHelper::GetDefaultSampler()
 }
 
 Dimension2
-GpuHelper::GetScreenDimensions()
+GpuHelper::GetScreenDimensions() const
 {
     if(!MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
     {
@@ -796,7 +796,7 @@ GpuHelper::GetScreenDimensions()
 }
 
 Result<wgpu::Texture>
-GpuHelper::GetSwapChainTexture()
+GpuHelper::GetSwapChainTexture() const
 {
     MLG_CHECKV(m_Impl, "Invalid GpuHelper");
 
@@ -858,7 +858,7 @@ GpuHelper::GetSwapChainTexture()
 }
 
 wgpu::TextureFormat
-GpuHelper::GetSwapChainFormat()
+GpuHelper::GetSwapChainFormat() const
 {
     if(!MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
     {

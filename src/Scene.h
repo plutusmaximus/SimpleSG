@@ -50,6 +50,7 @@ public:
 private:
 
     Scene(WorldTransformBuffer&& worldTransformBuffer,
+        ClipSpaceBuffer&& clipSpaceBuffer,
         DrawIndirectBuffer&& drawIndirectBuffer,
         MeshPropertiesBuffer&& meshPropertiesBuffer,
         CameraParamsBuffer&& cameraParamsBuffer,
@@ -61,6 +62,7 @@ private:
         std::vector<ShaderInterop::WorldTransform>&& worldTransforms);
 
     WorldTransformBuffer m_WorldTransformBuffer;
+    ClipSpaceBuffer m_ClipSpaceBuffer;
     DrawIndirectBuffer m_DrawIndirectBuffer;
     MeshPropertiesBuffer m_MeshPropertiesBuffer;
     CameraParamsBuffer m_CameraParamsBuffer;
