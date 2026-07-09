@@ -66,10 +66,10 @@ Renderer::Startup(GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 
     gpuHelper.GetDevice().GetLimits(&m_GpuLimits);
 
-    const Extent screenBounds = gpuHelper.GetScreenBounds();
+    const Dimension2 screenDimensions = gpuHelper.GetScreenDimensions();
 
-    const uint32_t width = static_cast<uint32_t>(screenBounds.Width);
-    const uint32_t height = static_cast<uint32_t>(screenBounds.Height);
+    const uint32_t width = static_cast<uint32_t>(screenDimensions.Width);
+    const uint32_t height = static_cast<uint32_t>(screenDimensions.Height);
 
     const wgpu::TextureFormat targetFormat = gpuHelper.GetSwapChainFormat();
 

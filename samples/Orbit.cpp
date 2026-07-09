@@ -519,7 +519,7 @@ MainLoop()
     constexpr float kInitialCameraDistance = 40.0f;
 
     TrTransformf cameraXForm{ .T{0, 0, -kInitialCameraDistance} };
-    Camera camera((Viewport(gpuHelper.GetScreenBounds())));
+    Camera camera((Viewport(gpuHelper.GetScreenDimensions())));
 
     mouseNav.SetTransform(cameraXForm);
 
@@ -747,7 +747,7 @@ MainLoop()
 
         if(scenePanelRect.GetWidth() > 1 && scenePanelRect.GetHeight() > 1)
         {
-            const Viewport sceneViewport(scenePanelRect.GetExtent());
+            const Viewport sceneViewport(scenePanelRect.GetDimensions());
             camera.SetViewport(sceneViewport);
             cameraXForm = mouseNav.GetTransform();
 

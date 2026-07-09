@@ -61,7 +61,7 @@ public:
 
     const Rect& GetScenePanelRect() const { return m_ScenePanelRect; }
 
-    const Point& GetScenePanelMousePos() const { return m_ScenePanelMousePos; }
+    const Point2& GetScenePanelMousePos() const { return m_ScenePanelMousePos; }
 
 private:
 
@@ -85,7 +85,7 @@ private:
 
     Rect m_ScenePanelRect{{.X = 0, .Y = 0, .Width = 1, .Height = 1}};
 
-    Point m_ScenePanelMousePos{.X = 0, .Y = 0};
+    Point2 m_ScenePanelMousePos{.X = 0, .Y = 0};
 
     bool m_CliScrollToBottom{ false };
 };

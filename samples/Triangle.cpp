@@ -143,7 +143,7 @@ Result<> MainLoop()
     MLG_CHECK(imGuiRenderer.Startup(gpuHelper));
 
     const TrTransformf cameraXForm{ .T{0, 0, -4} };
-    Camera camera((Viewport(gpuHelper.GetScreenBounds())));
+    Camera camera((Viewport(gpuHelper.GetScreenDimensions())));
 
     bool running = true;
     bool minimized = false;
@@ -222,7 +222,7 @@ Result<> MainLoop()
             }
         }
             
-        const Viewport viewport(gpuHelper.GetScreenBounds());
+        const Viewport viewport(gpuHelper.GetScreenDimensions());
         camera.SetViewport(viewport);
 
         auto target = gpuHelper.GetSwapChainTexture();

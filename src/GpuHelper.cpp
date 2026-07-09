@@ -4,7 +4,6 @@
 #include "GpuHelper.h"
 
 #include "scope_exit.h"
-#include "VecMath.h"
 
 #include <array>
 #include <SDL3/SDL_init.h>
@@ -776,12 +775,12 @@ GpuHelper::GetDefaultSampler()
     return nullptr;
 }
 
-Extent
-GpuHelper::GetScreenBounds()
+Dimension2
+GpuHelper::GetScreenDimensions()
 {
     if(!MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
     {
-        return Extent{ .Width = 0, .Height = 0 };
+        return Dimension2{ .Width = 0, .Height = 0 };
     }
 
     int width = 0, height = 0;
@@ -789,7 +788,7 @@ GpuHelper::GetScreenBounds()
     {
         MLG_ERROR("Failed to get window size: {}", SDL_GetError());
     }
-    return Extent //
+    return Dimension2 //
         {
             .Width = static_cast<unsigned>(width),
             .Height = static_cast<unsigned>(height),
@@ -840,8 +839,8 @@ GpuHelper::GetSwapChainTexture()
     auto surfaceFormat = ConfigureSurface(m_Impl->Adapter,
         GetDevice(),
         GetSurface(),
-        GetScreenBounds().Width,
-        GetScreenBounds().Height);
+        GetScreenDimensions().Width,
+        GetScreenDimensions().Height);
 
     MLG_CHECK(surfaceFormat);
 

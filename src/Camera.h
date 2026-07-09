@@ -19,16 +19,16 @@ public:
 
     explicit Viewport(const ViewportParams& params);
 
-    explicit Viewport(const Extent& bounds)
+    explicit Viewport(const Dimension2& dimensions)
         : Viewport({ .x = 0,
               .y = 0,
-              .width = bounds.Width,
-              .height = bounds.Height,
+              .width = dimensions.Width,
+              .height = dimensions.Height,
               .minDepth = 0,
               .maxDepth = 1 })
     {
-        MLG_ABORTIF(bounds.Width == 0, "Width must be non-zero");
-        MLG_ABORTIF(bounds.Height == 0, "Height must be non-zero");
+        MLG_ABORTIF(dimensions.Width == 0, "Width must be non-zero");
+        MLG_ABORTIF(dimensions.Height == 0, "Height must be non-zero");
     }
 
     explicit Viewport(const Rect& bounds)

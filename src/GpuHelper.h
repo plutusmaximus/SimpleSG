@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Result.h"
+#include "VecMath.h"
 #include "shaders/GpuBufferTypes.h"
 
 #include <string_view>
@@ -31,7 +32,7 @@ public:
     wgpu::Surface GetSurface();
     wgpu::Texture GetDefaultTexture();
     wgpu::Sampler GetDefaultSampler();
-    Extent GetScreenBounds();    
+    Dimension2 GetScreenDimensions();    
     Result<wgpu::Texture> GetSwapChainTexture();
     wgpu::TextureFormat GetSwapChainFormat();
 

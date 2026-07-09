@@ -136,7 +136,7 @@ TEST(Viewport, Constructor_StoresParamsAndComputesAspectRatio)
 
 TEST(Viewport, Constructor_FromExtentUsesFullDepthAndOrigin)
 {
-    const Viewport viewport(Extent{ .Width = 853, .Height = 497 });
+    const Viewport viewport(Dimension2{ .Width = 853, .Height = 497 });
 
     ExpectViewportEq(viewport, 0, 0, 853, 497, 0.0f, 1.0f);
     EXPECT_FLOAT_EQ(viewport.GetAspectRatio(), 853.0f / 497.0f);

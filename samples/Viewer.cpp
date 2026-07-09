@@ -155,7 +155,7 @@ MainLoop()
     const Radiansf cameraYaw = Radiansf::FromDegrees(kDefaultCameraYaw);
 
     TrTransformf cameraXForm{ .T{0, kDefaultCameraHeight, 0}, .R{UnitQuatf(cameraYaw, Vec3f::YAXIS())} };
-    Camera camera((Viewport(gpuHelper.GetScreenBounds())));
+    Camera camera((Viewport(gpuHelper.GetScreenDimensions())));
 
     mouseNav.SetTransform(cameraXForm);
 
@@ -320,7 +320,7 @@ MainLoop()
 
         mouseNav.Update(elapsedSeconds);
             
-        const Viewport viewport(gpuHelper.GetScreenBounds());
+        const Viewport viewport(gpuHelper.GetScreenDimensions());
         camera.SetViewport(viewport);
         cameraXForm = mouseNav.GetTransform();
 

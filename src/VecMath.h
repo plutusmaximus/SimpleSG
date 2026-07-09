@@ -1081,7 +1081,7 @@ public:
     }
 };
 
-class Extent
+class Dimension2
 {
 public:
 
@@ -1094,19 +1094,19 @@ public:
         return static_cast<float>(Width) / static_cast<float>(Height);
     }
 
-    constexpr friend bool operator==(const Extent& a, const Extent& b) noexcept
+    constexpr friend bool operator==(const Dimension2& a, const Dimension2& b) noexcept
     {
         return a.Width == b.Width && a.Height == b.Height;
     }
 };
 
-class Point
+class Point2
 {
 public:
 
     int X{0}, Y{0};
 
-    constexpr friend bool operator==(const Point& a, const Point& b) noexcept
+    constexpr friend bool operator==(const Point2& a, const Point2& b) noexcept
     {
         return a.X == b.X && a.Y == b.Y;
     }
@@ -1137,13 +1137,13 @@ public:
         }
     }
 
-    Rect(const Point& p0, const Point& p1) noexcept
+    Rect(const Point2& p0, const Point2& p1) noexcept
     : Rect(MakeRectParams(p0, p1))
     {
     }
 
-    explicit Rect(const Extent& extent) noexcept
-    : Rect(RectParams{.X = 0, .Y = 0, .Width = extent.Width, .Height = extent.Height })
+    explicit Rect(const Dimension2& dim) noexcept
+    : Rect(RectParams{.X = 0, .Y = 0, .Width = dim.Width, .Height = dim.Height })
     {
     }
 
@@ -1152,11 +1152,11 @@ public:
     unsigned GetWidth() const { return m_Width; }
     unsigned GetHeight() const { return m_Height; }
 
-    constexpr Extent GetExtent() const { return Extent{.Width = m_Width, .Height = m_Height }; }
+    constexpr Dimension2 GetDimensions() const { return Dimension2{.Width = m_Width, .Height = m_Height }; }
 
     constexpr float GetAspectRatio() const
     {
-        return GetExtent().GetAspectRatio();
+        return GetDimensions().GetAspectRatio();
     }
 
     Rect Clip(const Rect& other) const noexcept
@@ -1181,7 +1181,7 @@ public:
 
 private:
 
-    static constexpr RectParams MakeRectParams(const Point& p0, const Point& p1) noexcept
+    static constexpr RectParams MakeRectParams(const Point2& p0, const Point2& p1) noexcept
     {
         const int x = std::min(p0.X, p1.X);
         const int y = std::min(p0.Y, p1.Y);
