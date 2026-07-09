@@ -228,14 +228,12 @@ Result<> MainLoop()
         auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECK(target, "Failed to get swapchain texture");
 
-        MLG_CHECK(imGuiRenderer.NewFrame(*target));
-
-        MLG_CHECK(RenderGui());
-
-        MLG_CHECK(renderer.Render(gpuHelper.GetDevice(), fileFetcher, camera, cameraXForm, scene, propKit));
-
+        MLG_CHECK(renderer
+                .Render(gpuHelper.GetDevice(), fileFetcher, camera, cameraXForm, scene, propKit));
         MLG_CHECK(renderer.Composite(gpuHelper.GetDevice(), fileFetcher, *target));
 
+        MLG_CHECK(imGuiRenderer.NewFrame(*target));
+        MLG_CHECK(RenderGui());
         MLG_CHECK(imGuiRenderer.Composite(gpuHelper.GetDevice(), *target));
 
 #if !defined(__EMSCRIPTEN__)
