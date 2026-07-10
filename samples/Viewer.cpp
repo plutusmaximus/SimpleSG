@@ -136,38 +136,16 @@ MainLoop()
     MLG_CHECK(renderer.Startup(gpuHelper, fileFetcher));
     MLG_CHECK(imGuiRenderer.Startup(gpuHelper));
 
-    auto gpuColorPass = GpuColorPass::Create(gpuHelper, fileFetcher);
-    MLG_CHECK(gpuColorPass);
-
     auto loadResult = Load(gpuHelper, threadPool, fileFetcher, SPONZA_MODEL_PATH);
     MLG_CHECK(loadResult, "Failed to load resources");
 
     auto&& [propKit, level, scene] = std::move(*loadResult);
 
-    const GpuColorPass::Resources colorPassResources //
-        {
-            .Vertices = propKit.GetVertexBuffer(),
-            .Indices = propKit.GetIndexBuffer(),
-            .WorldTransforms = scene.m_WorldTransformBuffer,
-            .ClipSpaceTransforms = scene.m_ClipSpaceBuffer,
-            .MeshProperties = scene.m_MeshPropertiesBuffer,
-            .MaterialConstants = propKit.GetMaterialConstants(),
-            .CameraParams = scene.m_CameraParamsBuffer,
-        };
-
-    Dimension2 screenDimensions = gpuHelper.GetScreenDimensions();
-
-    auto colorTargetResources = GpuColorPass::CreateTarget(gpuHelper.GetDevice(),
-        screenDimensions.Width,
-        screenDimensions.Height);
-    MLG_CHECK(colorTargetResources);
-
-    MLG_CHECK(gpuColorPass->BindResources(gpuHelper, colorPassResources, *colorTargetResources));
-
     static constexpr float kDefaultCameraHeight = 2.0f;
     static constexpr float kDefaultCameraYaw = 90.0f; // Degrees
     const Radiansf cameraYaw = Radiansf::FromDegrees(kDefaultCameraYaw);
 
+    Dimension2 screenDimensions = gpuHelper.GetScreenDimensions();
     TrTransformf cameraXForm{ .T{0, kDefaultCameraHeight, 0}, .R{UnitQuatf(cameraYaw, Vec3f::YAXIS())} };
     Camera camera((Viewport(screenDimensions)));
 
@@ -336,16 +314,7 @@ MainLoop()
 
         if(curScreenDimensions != screenDimensions)
         {
-            colorTargetResources = GpuColorPass::CreateTarget(gpuHelper.GetDevice(),
-                curScreenDimensions.Width,
-                curScreenDimensions.Height);
-
-            MLG_CHECK(colorTargetResources);
-
-            MLG_CHECK(gpuColorPass->BindResources(gpuHelper, colorPassResources, *colorTargetResources));
-
             camera.SetViewport(Viewport(curScreenDimensions));
-
             screenDimensions = curScreenDimensions;
         }
 
@@ -356,10 +325,9 @@ MainLoop()
         auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECK(target, "Failed to get swapchain texture");
 
-        MLG_CHECK(
-            renderer.Render(gpuHelper, *gpuColorPass, camera, cameraXForm, scene, propKit));
+        MLG_CHECK(renderer.Render(gpuHelper, camera, cameraXForm, scene, propKit));
 
-        MLG_CHECK(gpuColorPass->Composite(gpuHelper.GetDevice(), *target));
+        MLG_CHECK(renderer.Composite(gpuHelper.GetDevice(), *target));
 
         MLG_CHECK(imGuiRenderer.NewFrame(*target));
         MLG_CHECK(RenderGui());

@@ -486,16 +486,7 @@ MainLoop()
     FileFetcher& fileFetcher = System::GetFileFetcher();
 
     MLG_CHECK(renderer.Startup(gpuHelper, fileFetcher));
-    MLG_DEFER
-    {
-        renderer.Shutdown();
-    };
-
     MLG_CHECK(imGuiRenderer.Startup(gpuHelper));
-    MLG_DEFER
-    {
-        imGuiRenderer.Shutdown();
-    };
     
     DevUi devUi(renderer);
 
@@ -753,7 +744,7 @@ MainLoop()
 
             MLG_CHECK(scene.SyncToGpu(gpuHelper.GetDevice()));
 
-            MLG_CHECK(renderer.Render(gpuHelper, fileFetcher, camera, cameraXForm, scene, propKit));
+            MLG_CHECK(renderer.Render(gpuHelper, camera, cameraXForm, scene, propKit));
         }
 
         auto target = gpuHelper.GetSwapChainTexture();
