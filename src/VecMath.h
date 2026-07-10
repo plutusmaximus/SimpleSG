@@ -1159,7 +1159,19 @@ public:
         return GetDimensions().GetAspectRatio();
     }
 
-    Rect Clip(const Rect& other) const noexcept
+    bool Contains(const Point2& point) const noexcept
+    {
+        return point.X >= m_X && point.X < m_X + static_cast<int>(m_Width) &&
+               point.Y >= m_Y && point.Y < m_Y + static_cast<int>(m_Height);
+    }
+
+    bool Contains(const Rect& other) const noexcept
+    {
+        return other.m_X >= m_X && other.m_X + static_cast<int>(other.m_Width) <= m_X + static_cast<int>(m_Width) &&
+               other.m_Y >= m_Y && other.m_Y + static_cast<int>(other.m_Height) <= m_Y + static_cast<int>(m_Height);
+    }
+
+    Rect Intersect(const Rect& other) const noexcept
     {
         const int x0 = std::max(m_X, other.m_X);
         const int y0 = std::max(m_Y, other.m_Y);
