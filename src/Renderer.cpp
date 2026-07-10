@@ -120,8 +120,6 @@ Renderer::Render(const GpuHelper& gpuHelper,
 
     MLG_SCOPED_TIMER("Renderer.Render");
 
-    MLG_CHECK(colorPass.Ensure(gpuHelper, viewport.GetWidth(), viewport.GetHeight()));
-
     const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
 
     const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "Renderer::Render" };
@@ -459,30 +457,11 @@ Renderer::Composite(
 }
 
 Result<>
-Renderer::Composite(const wgpu::Device& gpuDevice,
-    GpuCompositorPass& compositorPass,
-    const wgpu::Texture& target) const
+Renderer::Composite(const wgpu::Device& gpuDevice, GpuColorPass& colorPass, const wgpu::Texture& target) const
 {
     MLG_CHECKV(m_Initialized, "Renderer is not initialized");
 
-    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "Renderer::Composite" };
-    const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
-    MLG_CHECK(cmdEncoder, "Failed to create command encoder");
-
-    auto renderPass = compositorPass.BeginRenderPass(cmdEncoder, target);
-    MLG_CHECK(renderPass);
-    
-    renderPass->Draw(3, 1, 0, 0);
-    renderPass->End();
-
-    const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
-    MLG_CHECK(cmdBuf, "Failed to finish command buffer");
-
-    const wgpu::Queue queue = gpuDevice.GetQueue();
-    MLG_CHECK(queue, "Failed to get wgpu::Queue");
-    queue.Submit(1, &cmdBuf);
-
-    return Result<>::Ok;
+    return colorPass.Composite(gpuDevice, target);
 }
 
 //private:

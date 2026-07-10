@@ -120,10 +120,6 @@ constexpr const char* SPONZA_MODEL_PATH = "../../assets/main_sponza/NewSponza_Ma
 Result<>
 MainLoop()
 {
-    Renderer renderer;
-    ImGuiRenderer imGuiRenderer;
-    WalkMouseNav mouseNav;
-
     MLG_CHECK(System::Startup(APP_NAME));
     MLG_DEFER
     {
@@ -133,24 +129,15 @@ MainLoop()
     GpuHelper& gpuHelper = System::GetGpuHelper();
     ThreadPool& threadPool = System::GetThreadPool();
     FileFetcher& fileFetcher = System::GetFileFetcher();
+    Renderer renderer;
+    ImGuiRenderer imGuiRenderer;
+    WalkMouseNav mouseNav;
 
     MLG_CHECK(renderer.Startup(gpuHelper, fileFetcher));
-    MLG_DEFER
-    {
-        renderer.Shutdown();
-    };
-
     MLG_CHECK(imGuiRenderer.Startup(gpuHelper));
-    MLG_DEFER
-    {
-        imGuiRenderer.Shutdown();
-    };
 
     auto gpuColorPass = GpuColorPass::Create(gpuHelper, fileFetcher);
     MLG_CHECK(gpuColorPass);
-
-    auto gpuCompositorPass = GpuCompositorPass::Create(gpuHelper, fileFetcher);
-    MLG_CHECK(gpuCompositorPass);
 
     auto loadResult = Load(gpuHelper, threadPool, fileFetcher, SPONZA_MODEL_PATH);
     MLG_CHECK(loadResult, "Failed to load resources");
@@ -168,21 +155,21 @@ MainLoop()
             .CameraParams = scene.m_CameraParamsBuffer,
         };
 
-    MLG_CHECK(gpuColorPass->BindResources(gpuHelper.GetDevice(), colorPassResources));
+    Dimension2 screenDimensions = gpuHelper.GetScreenDimensions();
 
-    const GpuCompositorPass::Resources compositorPassResources //
-        {
-            .SourceTexture = *gpuColorPass->GetTarget(),
-        };
+    auto colorTargetResources = GpuColorPass::CreateTarget(gpuHelper.GetDevice(),
+        screenDimensions.Width,
+        screenDimensions.Height);
+    MLG_CHECK(colorTargetResources);
 
-    MLG_CHECK(gpuCompositorPass->BindResources(gpuHelper.GetDevice(), compositorPassResources));
+    MLG_CHECK(gpuColorPass->BindResources(gpuHelper, colorPassResources, *colorTargetResources));
 
     static constexpr float kDefaultCameraHeight = 2.0f;
     static constexpr float kDefaultCameraYaw = 90.0f; // Degrees
     const Radiansf cameraYaw = Radiansf::FromDegrees(kDefaultCameraYaw);
 
     TrTransformf cameraXForm{ .T{0, kDefaultCameraHeight, 0}, .R{UnitQuatf(cameraYaw, Vec3f::YAXIS())} };
-    Camera camera((Viewport(gpuHelper.GetScreenDimensions())));
+    Camera camera((Viewport(screenDimensions)));
 
     mouseNav.SetTransform(cameraXForm);
 
@@ -345,10 +332,25 @@ MainLoop()
             scene = std::move(newScene);
         }
 
+        const Dimension2 curScreenDimensions = gpuHelper.GetScreenDimensions();
+
+        if(curScreenDimensions != screenDimensions)
+        {
+            colorTargetResources = GpuColorPass::CreateTarget(gpuHelper.GetDevice(),
+                curScreenDimensions.Width,
+                curScreenDimensions.Height);
+
+            MLG_CHECK(colorTargetResources);
+
+            MLG_CHECK(gpuColorPass->BindResources(gpuHelper, colorPassResources, *colorTargetResources));
+
+            camera.SetViewport(Viewport(curScreenDimensions));
+
+            screenDimensions = curScreenDimensions;
+        }
+
         mouseNav.Update(elapsedSeconds);
             
-        const Viewport viewport(gpuHelper.GetScreenDimensions());
-        camera.SetViewport(viewport);
         cameraXForm = mouseNav.GetTransform();
 
         auto target = gpuHelper.GetSwapChainTexture();
@@ -356,8 +358,8 @@ MainLoop()
 
         MLG_CHECK(
             renderer.Render(gpuHelper, *gpuColorPass, camera, cameraXForm, scene, propKit));
-        MLG_CHECK(
-            renderer.Composite(gpuHelper.GetDevice(), *gpuCompositorPass, *target));
+
+        MLG_CHECK(gpuColorPass->Composite(gpuHelper.GetDevice(), *target));
 
         MLG_CHECK(imGuiRenderer.NewFrame(*target));
         MLG_CHECK(RenderGui());

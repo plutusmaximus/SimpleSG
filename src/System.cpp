@@ -30,8 +30,7 @@ Result<> System::Startup(const char* appName)
     auto gpuHelperResult = GpuHelper::Create(appName);
     MLG_CHECK(gpuHelperResult);
 
-    auto fileFetcherResult = FileFetcher::Create();
-    
+    auto fileFetcherResult = FileFetcher::Create();    
     MLG_CHECK(fileFetcherResult);
 
     s_GpuHelper = std::make_unique<GpuHelper>(std::move(*gpuHelperResult));

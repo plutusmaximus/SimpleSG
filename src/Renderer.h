@@ -56,7 +56,7 @@ public:
         const wgpu::Device& gpuDevice, FileFetcher& fileFetcher, const wgpu::Texture& target);
 
     Result<> Composite(const wgpu::Device& gpuDevice,
-        GpuCompositorPass& compositorPass,
+        GpuColorPass& colorPass,
         const wgpu::Texture& target) const;
 
 private:

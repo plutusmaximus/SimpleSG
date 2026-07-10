@@ -190,6 +190,22 @@ GetVertexBufferLayout()
     return layout;
 }
 
+bool
+BindGroup0NeedsRefresh(const GpuColorPass::Resources& currentResources,
+    const GpuColorPass::Resources& newResources)
+{
+    return currentResources.WorldTransforms.GetGpuBuffer().Get()
+        != newResources.WorldTransforms.GetGpuBuffer().Get()
+        || currentResources.ClipSpaceTransforms.GetGpuBuffer().Get()
+        != newResources.ClipSpaceTransforms.GetGpuBuffer().Get()
+        || currentResources.MeshProperties.GetGpuBuffer().Get()
+        != newResources.MeshProperties.GetGpuBuffer().Get()
+        || currentResources.MaterialConstants.GetGpuBuffer().Get()
+        != newResources.MaterialConstants.GetGpuBuffer().Get()
+        || currentResources.CameraParams.GetGpuBuffer().Get()
+        != newResources.CameraParams.GetGpuBuffer().Get();
+}
+
 } // namespace
 
 Result<GpuColorPass>
@@ -206,97 +222,164 @@ GpuColorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
     pass.m_ShaderCode = std::move(shaderCode);
     pass.m_CompositorShaderCode = std::move(compositorShaderCode);
 
-    const Dimension2 screenDimensions = gpuHelper.GetScreenDimensions();
-
-    const uint32_t width = static_cast<uint32_t>(screenDimensions.Width);
-    const uint32_t height = static_cast<uint32_t>(screenDimensions.Height);
-
-    MLG_CHECK(pass.Ensure(gpuHelper, width, height));
+    MLG_CHECK(pass.EnsurePipeline(gpuHelper.GetDevice()));
+    MLG_CHECK(pass.EnsureCompositorPipeline(gpuHelper.GetDevice(), gpuHelper.GetSwapChainFormat()));
 
     return pass;
 }
 
-Result<>
-GpuColorPass::Ensure(const GpuHelper& gpuHelper, const uint32_t width, const uint32_t height)
+Result<GpuColorPass::TargetResources>
+GpuColorPass::CreateTarget(
+    const wgpu::Device& gpuDevice, const uint32_t width, const uint32_t height)
 {
-    const wgpu::TextureFormat targetFormat = gpuHelper.GetSwapChainFormat();
+    MLG_DEBUG("Creating new color target with size {}x{}", width, height);
 
-    MLG_CHECK(EnsureTarget(gpuHelper.GetDevice(), width, height, targetFormat));
-    MLG_CHECK(EnsurePipeline(gpuHelper.GetDevice()));
-    MLG_CHECK(EnsureCompositorPipeline(gpuHelper.GetDevice(), targetFormat));
-    return Result<>::Ok;
+    const wgpu::TextureDescriptor targetTextureDesc //
+        {
+            .label = "ColorTarget",
+            .usage = wgpu::TextureUsage::RenderAttachment
+                | wgpu::TextureUsage::CopySrc         // For copying to swap chain texture
+                | wgpu::TextureUsage::TextureBinding, // Also for copying to swap chain texture
+            .dimension = wgpu::TextureDimension::e2D,
+            .size = //
+            {
+                .width = width,
+                .height = height,
+                .depthOrArrayLayers = 1,
+            },
+            .format = kColorTargetFormat,
+            .mipLevelCount = 1,
+            .sampleCount = 1,
+        };
+
+    const wgpu::Texture target = gpuDevice.CreateTexture(&targetTextureDesc);
+    MLG_CHECKV(target, "Failed to create color target texture");
+
+    MLG_DEBUG("Creating new depth target with size {}x{}", width, height);
+
+    const wgpu::TextureDescriptor depthTextureDesc //
+        {
+            .label = "DepthTarget",
+            .usage = wgpu::TextureUsage::RenderAttachment,
+            .dimension = wgpu::TextureDimension::e2D,
+            .size = //
+            {
+                .width = width,
+                .height = height,
+                .depthOrArrayLayers = 1,
+            },
+            .format = kDepthTargetFormat,
+            .mipLevelCount = 1,
+            .sampleCount = 1,
+        };
+
+    const wgpu::Texture depthTarget = gpuDevice.CreateTexture(&depthTextureDesc);
+    MLG_CHECKV(depthTarget, "Failed to create depth target texture");
+
+    return TargetResources //
+        {
+            .Target = target,
+            .DepthTarget = depthTarget,
+        };
 }
 
-Result<wgpu::Texture>
-GpuColorPass::GetTarget() const
-{
-    MLG_CHECKV(m_TargetResources.Target, "Target texture is not valid");
-    
-    return m_TargetResources.Target;
-}
-
 Result<>
-GpuColorPass::BindResources(const wgpu::Device& gpuDevice, const Resources& resources)
+GpuColorPass::BindResources(
+    const GpuHelper& gpuHelper, const Resources& resources, const TargetResources& targetResources)
 {
-    MLG_CHECKV(m_PipelineResources.BindGroupLayouts[0], "Bind group layout is not valid");
-    MLG_CHECKV(resources.WorldTransforms, "World transforms buffer is not valid");
-    MLG_CHECKV(resources.ClipSpaceTransforms, "Clip space transforms buffer is not valid");
-    MLG_CHECKV(resources.MeshProperties, "Mesh properties buffer is not valid");
-    MLG_CHECKV(resources.MaterialConstants, "Material constants buffer is not valid");
-    MLG_CHECKV(resources.CameraParams, "Camera params buffer is not valid");
+    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
 
-    if(m_Resources == resources)
+    MLG_CHECK(EnsurePipeline(gpuDevice));
+    MLG_CHECK(EnsureCompositorPipeline(gpuDevice, gpuHelper.GetSwapChainFormat()));
+
+    MLG_CHECKV(resources.Validate());
+    MLG_CHECKV(targetResources.Validate());
+    MLG_CHECKV(m_PipelineResources.BindGroupLayouts[0], "Pipeline bind group layout is not valid");
+    MLG_CHECKV(m_CompositorPipelineResources.Sampler, "Compositor sampler is not valid");
+    MLG_CHECKV(m_CompositorPipelineResources.BindGroupLayout,
+        "Compositor bind group layout is not valid");
+
+    if(m_Resources == resources && m_TargetResources == targetResources)
     {
         // Resources are already bound, nothing to do
         return Result<>::Ok;
     }
 
-    const wgpu::BindGroupEntry entries[] = //
-        {
+    if(!m_BindGroup || !m_Resources || BindGroup0NeedsRefresh(*m_Resources, resources))
+    {
+        const wgpu::BindGroupEntry entries[] = //
             {
-                .binding = 0,
-                .buffer = resources.WorldTransforms.GetGpuBuffer(),
-                .offset = 0,
-                .size = resources.WorldTransforms.BufferSize(),
-            },
-            {
-                .binding = 1,
-                .buffer = resources.ClipSpaceTransforms.GetGpuBuffer(),
-                .offset = 0,
-                .size = resources.ClipSpaceTransforms.BufferSize(),
-            },
-            {
-                .binding = 2,
-                .buffer = resources.MeshProperties.GetGpuBuffer(),
-                .offset = 0,
-                .size = resources.MeshProperties.BufferSize(),
-            },
-            {
-                .binding = 3,
-                .buffer = resources.MaterialConstants.GetGpuBuffer(),
-                .offset = 0,
-                .size = resources.MaterialConstants.BufferSize(),
-            },
-            {
-                .binding = 4,
-                .buffer = resources.CameraParams.GetGpuBuffer(),
-                .offset = 0,
-                .size = resources.CameraParams.BufferSize(),
-            },
-        };
+                {
+                    .binding = 0,
+                    .buffer = resources.WorldTransforms.GetGpuBuffer(),
+                    .offset = 0,
+                    .size = resources.WorldTransforms.BufferSize(),
+                },
+                {
+                    .binding = 1,
+                    .buffer = resources.ClipSpaceTransforms.GetGpuBuffer(),
+                    .offset = 0,
+                    .size = resources.ClipSpaceTransforms.BufferSize(),
+                },
+                {
+                    .binding = 2,
+                    .buffer = resources.MeshProperties.GetGpuBuffer(),
+                    .offset = 0,
+                    .size = resources.MeshProperties.BufferSize(),
+                },
+                {
+                    .binding = 3,
+                    .buffer = resources.MaterialConstants.GetGpuBuffer(),
+                    .offset = 0,
+                    .size = resources.MaterialConstants.BufferSize(),
+                },
+                {
+                    .binding = 4,
+                    .buffer = resources.CameraParams.GetGpuBuffer(),
+                    .offset = 0,
+                    .size = resources.CameraParams.BufferSize(),
+                },
+            };
 
-    const wgpu::BindGroupDescriptor desc = //
-        {
-            .label = "ColorShaderSceneGroupBindings",
-            .layout = m_PipelineResources.BindGroupLayouts[0],
-            .entryCount = std::size(entries),
-            .entries = &entries[0],
-        };
+        const wgpu::BindGroupDescriptor desc = //
+            {
+                .label = "ColorShaderSceneGroupBindings",
+                .layout = m_PipelineResources.BindGroupLayouts[0],
+                .entryCount = std::size(entries),
+                .entries = &entries[0],
+            };
 
-    m_BindGroup = gpuDevice.CreateBindGroup(&desc);
-    MLG_CHECKV(m_BindGroup, "Failed to create bind group");
+        m_BindGroup = gpuDevice.CreateBindGroup(&desc);
+        MLG_CHECKV(m_BindGroup, "Failed to create bind group");
+    }
+
+    if(!m_CompositorBindGroup || targetResources.Target.Get() != m_TargetResources.Target.Get())
+    {
+        const wgpu::BindGroupEntry entries[] = //
+            {
+                {
+                    .binding = 0,
+                    .textureView = targetResources.Target.CreateView(),
+                },
+                {
+                    .binding = 1,
+                    .sampler = m_CompositorPipelineResources.Sampler,
+                },
+            };
+
+        const wgpu::BindGroupDescriptor desc = //
+            {
+                .label = "Compositor",
+                .layout = m_CompositorPipelineResources.BindGroupLayout,
+                .entryCount = std::size(entries),
+                .entries = &entries[0],
+            };
+
+        m_CompositorBindGroup = gpuDevice.CreateBindGroup(&desc);
+    }
 
     m_Resources = resources;
+    m_TargetResources = targetResources;
 
     return Result<>::Ok;
 }
@@ -304,9 +387,13 @@ GpuColorPass::BindResources(const wgpu::Device& gpuDevice, const Resources& reso
 Result<wgpu::RenderPassEncoder>
 GpuColorPass::BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder)
 {
+    MLG_CHECK(m_TargetResources.Validate());
+    MLG_CHECKV(m_Pipeline, "Pipeline is not valid");
+    MLG_CHECKV(m_BindGroup, "Bind group is not valid");
+
     const wgpu::RenderPassColorAttachment attachment //
         {
-            .view = m_TargetResources.TargetView,
+            .view = m_TargetResources.Target.CreateView(),
             .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
@@ -315,7 +402,7 @@ GpuColorPass::BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder)
 
     const wgpu::RenderPassDepthStencilAttachment depthStencilAttachment //
         {
-            .view = m_TargetResources.DepthTargetView,
+            .view = m_TargetResources.DepthTarget.CreateView(),
             .depthLoadOp = wgpu::LoadOp::Clear,
             .depthStoreOp = wgpu::StoreOp::Store,
             .depthClearValue = kClearDepth,
@@ -349,10 +436,17 @@ GpuColorPass::BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder)
     return renderPass;
 }
 
-Result<wgpu::RenderPassEncoder>
-GpuColorPass::BeginCompositorRenderPass(const wgpu::CommandEncoder& cmdEncoder,
-    wgpu::Texture target)
+Result<>
+GpuColorPass::Composite(const wgpu::Device& gpuDevice, const wgpu::Texture& target) const
 {
+    MLG_CHECK(m_TargetResources.Validate());
+    MLG_CHECKV(m_CompositorPipeline, "Compositor pipeline is not valid");
+    MLG_CHECKV(m_CompositorBindGroup, "Compositor bind group is not valid");
+
+    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "GpuColorPass::Composite" };
+    const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
+    MLG_CHECK(cmdEncoder, "Failed to create command encoder");
+
     const wgpu::RenderPassColorAttachment attachment //
         {
             .view = target.CreateView(),
@@ -363,12 +457,10 @@ GpuColorPass::BeginCompositorRenderPass(const wgpu::CommandEncoder& cmdEncoder,
 
     const wgpu::RenderPassDescriptor renderPassDesc //
         {
-            .label = "CopyRenderPass",
+            .label = "GpuColorPass::Composite",
             .colorAttachmentCount = 1,
             .colorAttachments = &attachment,
         };
-
-    //const wgpu::CommandEncoder cmdEncoder = compositor.GetCommandEncoder();
 
     const wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
     MLG_CHECK(renderPass, "Failed to begin compositor render pass");
@@ -376,110 +468,60 @@ GpuColorPass::BeginCompositorRenderPass(const wgpu::CommandEncoder& cmdEncoder,
     renderPass.SetPipeline(m_CompositorPipeline);
     renderPass.SetBindGroup(0, m_CompositorBindGroup, 0, nullptr);
 
-    return renderPass;
+    renderPass.Draw(3, 1, 0, 0);
+    renderPass.End();
+
+    const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
+    MLG_CHECK(cmdBuf, "Failed to finish command buffer");
+
+    const wgpu::Queue queue = gpuDevice.GetQueue();
+    MLG_CHECK(queue, "Failed to get wgpu::Queue");
+    queue.Submit(1, &cmdBuf);
+
+    return Result<>::Ok;
 }
 
 // private:
 
 Result<>
-GpuColorPass::EnsureTarget(const wgpu::Device& gpuDevice,
-    const uint32_t width,
-    const uint32_t height,
-    wgpu::TextureFormat targetFormat)
-{
-    if(!m_TargetResources.Target
-        || m_TargetResources.Target.GetWidth()
-        != width
-        || m_TargetResources.Target.GetHeight()
-        != height)
-    {
-        MLG_DEBUG("Creating new color target with size {}x{}", width, height);
-
-        const wgpu::TextureDescriptor textureDesc //
-            {
-                .label = "ColorTarget",
-                .usage = wgpu::TextureUsage::RenderAttachment
-                    | wgpu::TextureUsage::CopySrc
-                    | wgpu::TextureUsage::TextureBinding,
-                .dimension = wgpu::TextureDimension::e2D,
-                .size = //
-                {
-                    .width = width,
-                    .height = height,
-                    .depthOrArrayLayers = 1,
-                },
-                .format = targetFormat,
-                .mipLevelCount = 1,
-                .sampleCount = 1,
-            };
-
-        m_TargetResources.Target = gpuDevice.CreateTexture(&textureDesc);
-        m_TargetResources.TargetView = m_TargetResources.Target.CreateView();
-
-        m_CompositorBindGroup = {};
-    }
-
-    if(!m_TargetResources.DepthTarget
-        || m_TargetResources.DepthTarget.GetWidth()
-        != width
-        || m_TargetResources.DepthTarget.GetHeight()
-        != height)
-    {
-        MLG_DEBUG("Creating new depth target with size {}x{}", width, height);
-
-        const wgpu::TextureDescriptor textureDesc //
-            {
-                .label = "DepthTarget",
-                .usage = wgpu::TextureUsage::RenderAttachment,
-                .dimension = wgpu::TextureDimension::e2D,
-                .size = //
-                {
-                    .width = width,
-                    .height = height,
-                    .depthOrArrayLayers = 1,
-                },
-                .format = kDepthTargetFormat,
-                .mipLevelCount = 1,
-                .sampleCount = 1,
-            };
-
-        m_TargetResources.DepthTarget = gpuDevice.CreateTexture(&textureDesc);
-        m_TargetResources.DepthTargetView = m_TargetResources.DepthTarget.CreateView();
-    }
-
-    return Result<>::Ok;
-}
-
-Result<>
 GpuColorPass::EnsurePipeline(const wgpu::Device& gpuDevice)
 {
-    if(m_Pipeline
-        && m_PipelineResources.TargetFormat
-        == m_TargetResources.Target.GetFormat()
-        && m_PipelineResources.DepthFormat
-        == m_TargetResources.DepthTarget.GetFormat())
+    if(m_Pipeline)
     {
         return Result<>::Ok;
     }
 
-    auto shader = CreateShader(gpuDevice, m_ShaderCode);
-    MLG_CHECK(shader);
+    if(!m_PipelineResources.Shader)
+    {
+        auto shader = CreateShader(gpuDevice, m_ShaderCode);
+        MLG_CHECK(shader);
 
-    auto layouts = CreateLayouts(gpuDevice);
-    MLG_CHECK(layouts);
+        m_PipelineResources.Shader = std::move(*shader);
+    }
 
-    const wgpu::BindGroupLayout bgLayouts[]{ (*layouts)[0], (*layouts)[1] };
+    if(!m_PipelineResources.BindGroupLayouts[0] || !m_PipelineResources.BindGroupLayouts[1])
+    {
+        auto layouts = CreateLayouts(gpuDevice);
+        MLG_CHECK(layouts);
 
-    const wgpu::PipelineLayoutDescriptor colorTargetPipelineLayoutDesc //
-        {
-            .label = "ColorPipelineLayout",
-            .bindGroupLayoutCount = std::size(bgLayouts),
-            .bindGroupLayouts = &bgLayouts[0],
-        };
+        m_PipelineResources.BindGroupLayouts = std::move(*layouts);
+    }
 
-    const wgpu::PipelineLayout pipelineLayout =
-        gpuDevice.CreatePipelineLayout(&colorTargetPipelineLayoutDesc);
-    MLG_CHECK(pipelineLayout, "Failed to create color pipeline layout");
+    if(!m_PipelineResources.Layout)
+    {
+        const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
+            {
+                .label = "GpuColorPass::PipelineLayout",
+                .bindGroupLayoutCount = std::size(m_PipelineResources.BindGroupLayouts),
+                .bindGroupLayouts = m_PipelineResources.BindGroupLayouts.data(),
+            };
+
+        const wgpu::PipelineLayout pipelineLayout =
+            gpuDevice.CreatePipelineLayout(&pipelineLayoutDesc);
+        MLG_CHECK(pipelineLayout, "Failed to create color pipeline layout");
+
+        m_PipelineResources.Layout = std::move(pipelineLayout);
+    }
 
     const wgpu::BlendState blendState //
         {
@@ -499,14 +541,14 @@ GpuColorPass::EnsurePipeline(const wgpu::Device& gpuDevice)
 
     const wgpu::ColorTargetState colorTargetState //
         {
-            .format = m_TargetResources.Target.GetFormat(),
+            .format = kColorTargetFormat,
             .blend = &blendState,
             .writeMask = wgpu::ColorWriteMask::All,
         };
 
     const wgpu::DepthStencilState depthStencilState //
         {
-            .format = m_TargetResources.DepthTarget.GetFormat(),
+            .format = kDepthTargetFormat,
             .depthWriteEnabled = true,
             .depthCompare = wgpu::CompareFunction::Less,
             /*.stencilFront =
@@ -532,7 +574,7 @@ GpuColorPass::EnsurePipeline(const wgpu::Device& gpuDevice)
 
     const wgpu::FragmentState fragmentState //
         {
-            .module = *shader,
+            .module = m_PipelineResources.Shader,
             .entryPoint = FragmentEntry,
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -542,11 +584,11 @@ GpuColorPass::EnsurePipeline(const wgpu::Device& gpuDevice)
 
     const wgpu::RenderPipelineDescriptor descriptor//
     {
-        .label = "ColorTargetPipeline",
-        .layout = pipelineLayout,
+        .label = "GpuColorPass::Pipeline",
+        .layout = m_PipelineResources.Layout,
         .vertex =
         {
-            .module = *shader,
+            .module = m_PipelineResources.Shader,
             .entryPoint = VertexEntry,
             .bufferCount = 1,
             .buffers = &vertexBufferLayout,
@@ -571,12 +613,6 @@ GpuColorPass::EnsurePipeline(const wgpu::Device& gpuDevice)
 
     m_Pipeline = gpuDevice.CreateRenderPipeline(&descriptor);
     MLG_CHECK(m_Pipeline, "Failed to create render pipeline");
-
-    m_PipelineResources.Shader = std::move(*shader);
-    m_PipelineResources.BindGroupLayouts = std::move(*layouts);
-    m_PipelineResources.Layout = std::move(pipelineLayout);
-    m_PipelineResources.TargetFormat = m_TargetResources.Target.GetFormat();
-    m_PipelineResources.DepthFormat = m_TargetResources.DepthTarget.GetFormat();
 
     return Result<>::Ok;
 }
@@ -640,39 +676,20 @@ GpuColorPass::EnsureCompositorPipeline(const wgpu::Device& gpuDevice,
             };
 
         m_CompositorPipelineResources.BindGroupLayout = gpuDevice.CreateBindGroupLayout(&desc);
-        MLG_CHECK(m_CompositorPipelineResources.BindGroupLayout, "Failed to create compositor bind group layout");
+        MLG_CHECK(m_CompositorPipelineResources.BindGroupLayout,
+            "Failed to create compositor bind group layout");
     }
 
-    if(!m_CompositorBindGroup)
-    {
-        const wgpu::BindGroupEntry entries[] = //
-            {
-                {
-                    .binding = 0,
-                    .textureView = m_TargetResources.TargetView,
-                },
-                {
-                    .binding = 1,
-                    .sampler = m_CompositorPipelineResources.Sampler,
-                },
-            };
-
-        const wgpu::BindGroupDescriptor desc = //
-            {
-                .label = "Compositor",
-                .layout = m_CompositorPipelineResources.BindGroupLayout,
-                .entryCount = std::size(entries),
-                .entries = &entries[0],
-            };
-
-        m_CompositorBindGroup = gpuDevice.CreateBindGroup(&desc);
-    }
-
-    if(!m_CompositorPipeline || m_CompositorPipelineResources.TargetFormat != targetFormat)
+    if(!m_CompositorPipelineResources.Shader)
     {
         auto shader = CreateShader(gpuDevice, m_CompositorShaderCode);
         MLG_CHECK(shader);
 
+        m_CompositorPipelineResources.Shader = std::move(*shader);
+    }
+
+    if(!m_CompositorPipelineResources.Layout)
+    {
         const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
             {
                 .label = "Compositor",
@@ -680,10 +697,13 @@ GpuColorPass::EnsureCompositorPipeline(const wgpu::Device& gpuDevice,
                 .bindGroupLayouts = &m_CompositorPipelineResources.BindGroupLayout,
             };
 
-        const wgpu::PipelineLayout pipelineLayout =
-            gpuDevice.CreatePipelineLayout(&pipelineLayoutDesc);
-        MLG_CHECK(pipelineLayout, "Failed to create compositor pipeline layout");
+        m_CompositorPipelineResources.Layout = gpuDevice.CreatePipelineLayout(&pipelineLayoutDesc);
+        MLG_CHECK(m_CompositorPipelineResources.Layout,
+            "Failed to create compositor pipeline layout");
+    }
 
+    if(!m_CompositorPipeline || m_CompositorPipelineResources.TargetFormat != targetFormat)
+    {
         const wgpu::BlendState blendState //
         {
             .color =
@@ -709,8 +729,8 @@ GpuColorPass::EnsureCompositorPipeline(const wgpu::Device& gpuDevice,
 
         const wgpu::FragmentState fragmentState //
             {
-                .module = *shader,
-                .entryPoint = "fs_main",
+                .module = m_CompositorPipelineResources.Shader,
+                .entryPoint = CompositorFragmentEntry,
                 .targetCount = 1,
                 .targets = &colorTargetState,
             };
@@ -718,11 +738,11 @@ GpuColorPass::EnsureCompositorPipeline(const wgpu::Device& gpuDevice,
         const wgpu::RenderPipelineDescriptor descriptor//
         {
             .label = "CompositorPipeline",
-            .layout = pipelineLayout,
+            .layout = m_CompositorPipelineResources.Layout,
             .vertex =
             {
-                .module = *shader,
-                .entryPoint = "vs_main",
+                .module = m_CompositorPipelineResources.Shader,
+                .entryPoint = CompositorVertexEntry,
                 .bufferCount = 0,
                 .buffers = nullptr,
             },
@@ -744,255 +764,10 @@ GpuColorPass::EnsureCompositorPipeline(const wgpu::Device& gpuDevice,
             .fragment = &fragmentState,
         };
 
-        m_CompositorPipelineResources.Shader = *shader;
-        m_CompositorPipelineResources.Layout = pipelineLayout;
         m_CompositorPipelineResources.TargetFormat = targetFormat;
 
         m_CompositorPipeline = gpuDevice.CreateRenderPipeline(&descriptor);
         MLG_CHECK(m_CompositorPipeline, "Failed to create compositor pipeline");
-    }
-
-    return Result<>::Ok;
-}
-
-// GpuCompositorPass
-
-Result<GpuCompositorPass>
-GpuCompositorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
-{
-    GpuCompositorPass pass;
-
-    std::vector<uint8_t> shaderCode;
-    MLG_CHECK(LoadShaderCode(ShaderPath, shaderCode, fileFetcher));
-
-    pass.m_ShaderCode = std::move(shaderCode);
-
-    MLG_CHECK(pass.EnsurePipeline(gpuHelper));
-
-    return pass;
-}
-
-Result<>
-GpuCompositorPass::BindResources(const wgpu::Device& gpuDevice, const Resources& resources)
-{
-    if(m_Resources == resources)
-    {
-        return Result<>::Ok;
-    }
-
-    MLG_CHECKV(resources.SourceTexture, "Source texture is not valid");
-    MLG_CHECKV(m_PipelineResources.Sampler, "Sampler is not valid");
-    MLG_CHECKV(m_PipelineResources.BindGroupLayout, "Bind group layout is not valid");
-
-    const wgpu::BindGroupEntry entries[] = //
-        {
-            {
-                .binding = 0,
-                .textureView = resources.SourceTexture.CreateView(),
-            },
-            {
-                .binding = 1,
-                .sampler = m_PipelineResources.Sampler,
-            },
-        };
-
-    const wgpu::BindGroupDescriptor desc = //
-        {
-            .label = "Compositor",
-            .layout = m_PipelineResources.BindGroupLayout,
-            .entryCount = std::size(entries),
-            .entries = &entries[0],
-        };
-
-    m_BindGroup = gpuDevice.CreateBindGroup(&desc);
-
-    MLG_CHECK(m_BindGroup, "Failed to create compositor bind group");
-
-    m_Resources = resources;
-
-    return Result<>::Ok;
-}
-
-Result<wgpu::RenderPassEncoder>
-GpuCompositorPass::BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder, wgpu::Texture target)
-{
-    MLG_CHECKV(m_Pipeline, "Pipeline is not valid");
-    MLG_CHECKV(m_BindGroup, "Bind group is not valid");
-
-    const wgpu::RenderPassColorAttachment attachment //
-        {
-            .view = target.CreateView(),
-            .loadOp = wgpu::LoadOp::Clear,
-            .storeOp = wgpu::StoreOp::Store,
-            .clearValue = { .r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 1.0f },
-        };
-
-    const wgpu::RenderPassDescriptor renderPassDesc //
-        {
-            .label = "CopyRenderPass",
-            .colorAttachmentCount = 1,
-            .colorAttachments = &attachment,
-        };
-
-    //const wgpu::CommandEncoder cmdEncoder = compositor.GetCommandEncoder();
-
-    const wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
-    MLG_CHECK(renderPass, "Failed to begin compositor render pass");
-
-    renderPass.SetPipeline(m_Pipeline);
-    renderPass.SetBindGroup(0, m_BindGroup, 0, nullptr);
-
-    return renderPass;
-}
-
-// private:
-
-Result<>
-GpuCompositorPass::EnsurePipeline(const GpuHelper& gpuHelper)
-{
-    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
-    const wgpu::TextureFormat targetFormat = gpuHelper.GetSwapChainFormat();
-
-    if(!m_PipelineResources.Sampler)
-    {
-        const wgpu::SamplerDescriptor samplerDesc //
-            {
-                .label = "Compositor",
-                .addressModeU = wgpu::AddressMode::Repeat,
-                .addressModeV = wgpu::AddressMode::Repeat,
-                .addressModeW = wgpu::AddressMode::Undefined,
-                .magFilter = wgpu::FilterMode::Linear,
-                .minFilter = wgpu::FilterMode::Linear,
-                .mipmapFilter = wgpu::MipmapFilterMode::Undefined,
-                .lodMinClamp = 0.0f,
-                .lodMaxClamp = 32.0f,
-                .compare = wgpu::CompareFunction::Undefined,
-                .maxAnisotropy = 1,
-            };
-
-        m_PipelineResources.Sampler = gpuDevice.CreateSampler(&samplerDesc);
-        MLG_CHECK(m_PipelineResources.Sampler, "Failed to create compositor sampler");
-    }
-
-    if(!m_PipelineResources.BindGroupLayout)
-    {
-        const wgpu::BindGroupLayoutEntry entries[]//
-        {
-            // Texture
-            {
-                .binding = 0,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .texture =
-                {
-                    .sampleType = wgpu::TextureSampleType::Float,
-                    .viewDimension = wgpu::TextureViewDimension::e2D,
-                    .multisampled = false,
-                },
-            },
-            // Sampler
-            {
-                .binding = 1,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .sampler =
-                {
-                    .type = wgpu::SamplerBindingType::Filtering,
-                },
-            },
-        };
-
-        const wgpu::BindGroupLayoutDescriptor desc = //
-            {
-                .label = "Compositor",
-                .entryCount = std::size(entries),
-                .entries = &entries[0],
-            };
-
-        m_PipelineResources.BindGroupLayout = gpuDevice.CreateBindGroupLayout(&desc);
-        MLG_CHECK(m_PipelineResources.BindGroupLayout, "Failed to create compositor bind group layout");
-    }
-
-    if(!m_Pipeline || m_PipelineResources.TargetFormat != targetFormat)
-    {
-        auto shader = CreateShader(gpuDevice, m_ShaderCode);
-        MLG_CHECK(shader);
-
-        const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
-            {
-                .label = "Compositor",
-                .bindGroupLayoutCount = 1,
-                .bindGroupLayouts = &m_PipelineResources.BindGroupLayout,
-            };
-
-        const wgpu::PipelineLayout pipelineLayout =
-            gpuDevice.CreatePipelineLayout(&pipelineLayoutDesc);
-        MLG_CHECK(pipelineLayout, "Failed to create compositor pipeline layout");
-
-        const wgpu::BlendState blendState //
-        {
-            .color =
-            {
-                .operation = wgpu::BlendOperation::Add,
-                .srcFactor = wgpu::BlendFactor::One,
-                .dstFactor = wgpu::BlendFactor::Zero,
-            },
-            .alpha =
-            {
-                .operation = wgpu::BlendOperation::Add,
-                .srcFactor = wgpu::BlendFactor::One,
-                .dstFactor = wgpu::BlendFactor::Zero,
-            },
-        };
-
-        const wgpu::ColorTargetState colorTargetState //
-            {
-                .format = targetFormat,
-                .blend = &blendState,
-                .writeMask = wgpu::ColorWriteMask::All,
-            };
-
-        const wgpu::FragmentState fragmentState //
-            {
-                .module = *shader,
-                .entryPoint = "fs_main",
-                .targetCount = 1,
-                .targets = &colorTargetState,
-            };
-
-        const wgpu::RenderPipelineDescriptor descriptor//
-        {
-            .label = "CompositorPipeline",
-            .layout = pipelineLayout,
-            .vertex =
-            {
-                .module = *shader,
-                .entryPoint = "vs_main",
-                .bufferCount = 0,
-                .buffers = nullptr,
-            },
-            .primitive =
-            {
-                .topology = wgpu::PrimitiveTopology::TriangleList,
-                .stripIndexFormat = wgpu::IndexFormat::Undefined,
-                .frontFace = wgpu::FrontFace::CW,
-                .cullMode = wgpu::CullMode::Back,
-                .unclippedDepth = false,
-            },
-            .depthStencil = nullptr, // No depth/stencil for this pipeline
-            .multisample =
-            {
-                .count = 1,
-                .mask = 0xFFFFFFFF,
-                .alphaToCoverageEnabled = false,
-            },
-            .fragment = &fragmentState,
-        };
-
-        m_PipelineResources.Shader = *shader;
-        m_PipelineResources.Layout = pipelineLayout;
-        m_PipelineResources.TargetFormat = targetFormat;
-
-        m_Pipeline = gpuDevice.CreateRenderPipeline(&descriptor);
-        MLG_CHECK(m_Pipeline, "Failed to create compositor pipeline");
     }
 
     return Result<>::Ok;
