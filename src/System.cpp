@@ -1,21 +1,10 @@
 #include "System.h"
 
-#include "FileFetcher.h"
-#include "GpuHelper.h"
-#include "ThreadPool.h"
-
 #include <filesystem>
 #include <SDL3/SDL_events.h>
-#include <memory>
 
-namespace
-{
-std::unique_ptr<GpuHelper> s_GpuHelper; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-std::unique_ptr<FileFetcher> s_FileFetcher; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-std::unique_ptr<ThreadPool> s_ThreadPool; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-} // namespace
-
-Result<> System::Startup(const char* appName)
+Result<>
+System::Startup(const char* appName)
 {
     if(m_Initialized)
     {
@@ -33,9 +22,9 @@ Result<> System::Startup(const char* appName)
     auto fileFetcherResult = FileFetcher::Create();    
     MLG_CHECK(fileFetcherResult);
 
-    s_GpuHelper = std::make_unique<GpuHelper>(std::move(*gpuHelperResult));
-    s_FileFetcher = std::make_unique<FileFetcher>(std::move(*fileFetcherResult));
-    s_ThreadPool = std::make_unique<ThreadPool>();
+    m_GpuHelper = std::move(*gpuHelperResult);
+    m_FileFetcher = std::move(*fileFetcherResult);
+    m_ThreadPool = ThreadPool();
 
     m_Initialized = true;
 
@@ -50,9 +39,20 @@ System::Shutdown()
         return;
     }
 
-    const FileFetcher byeFileFetcher(std::move(*s_FileFetcher));
-    const GpuHelper byeGpuHelper(std::move(*s_GpuHelper));
-    const ThreadPool byeThreadPool(std::move(*s_ThreadPool));
+    if(m_FileFetcher)
+    {
+        const FileFetcher byeFileFetcher(std::move(*m_FileFetcher));
+    }
+
+    if(m_GpuHelper)
+    {
+        const GpuHelper byeGpuHelper(std::move(*m_GpuHelper));
+    }
+
+    if(m_ThreadPool)
+    {
+        const ThreadPool byeThreadPool(std::move(*m_ThreadPool));
+    }
 
     m_Initialized = false;
 }
@@ -60,25 +60,25 @@ System::Shutdown()
 GpuHelper&
 System::GetGpuHelper()
 {
-    MLG_ASSERT(m_Initialized, "System must be initialized before calling GetGpuHelper");
+    MLG_ABORTIF(!m_GpuHelper, "GpuHelper is not initialized");
 
-    return *s_GpuHelper;
+    return *m_GpuHelper;
 }
 
 FileFetcher&
 System::GetFileFetcher()
 {
-    MLG_ASSERT(m_Initialized, "System must be initialized before calling GetFileFetcher");
+    MLG_ABORTIF(!m_FileFetcher, "FileFetcher is not initialized");
 
-    return *s_FileFetcher;
+    return *m_FileFetcher;
 }
 
 ThreadPool&
 System::GetThreadPool()
 {
-    MLG_ASSERT(m_Initialized, "System must be initialized before calling GetThreadPool");
+    MLG_ABORTIF(!m_ThreadPool, "ThreadPool is not initialized");
 
-    return *s_ThreadPool;
+    return *m_ThreadPool;
 }
 
 void

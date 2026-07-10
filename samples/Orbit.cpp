@@ -471,20 +471,21 @@ float ComputeKineticEnergy(const PhysicsLevel& physLevel)
 Result<>
 MainLoop()
 {
+    System system;
     Renderer renderer;
     ImGuiRenderer imGuiRenderer;
     WalkMouseNav mouseNav;
     DevUi devUi;
 
-    MLG_CHECK(System::Startup(APP_NAME));
+    MLG_CHECK(system.Startup(APP_NAME));
     MLG_DEFER
     {
-        System::Shutdown();
+        system.Shutdown();
     };
 
-    GpuHelper& gpuHelper = System::GetGpuHelper();
-    ThreadPool& threadPool = System::GetThreadPool();
-    FileFetcher& fileFetcher = System::GetFileFetcher();
+    GpuHelper& gpuHelper = system.GetGpuHelper();
+    ThreadPool& threadPool = system.GetThreadPool();
+    FileFetcher& fileFetcher = system.GetFileFetcher();
 
     MLG_CHECK(renderer.Startup(gpuHelper, fileFetcher));
     MLG_CHECK(imGuiRenderer.Startup(gpuHelper));
@@ -684,7 +685,7 @@ MainLoop()
 
     Timer frameTimer;
 
-    while(!System::ShouldQuit())
+    while(!system.ShouldQuit())
     {
         MLG_SCOPED_TIMER(" Frame");
 
@@ -699,15 +700,15 @@ MainLoop()
             return System::EventDisposition::Process;
         };
 
-        System::ProcessEvents(eventInterceptor);
+        system.ProcessEvents(eventInterceptor);
 
-        if(System::IsMinimized())
+        if(system.IsMinimized())
         {
             std::this_thread::yield();
             continue;
         }
 
-        if(System::ShouldQuit())
+        if(system.ShouldQuit())
         {
             break;
         }

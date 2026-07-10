@@ -1,26 +1,27 @@
 #pragma once
 
-#include "Result.h"
+#include "FileFetcher.h"
+#include "GpuHelper.h"
+#include "ThreadPool.h"
 
-class FileFetcher;
-class GpuHelper;
-class ThreadPool;
+#include <optional>
+
 union SDL_Event;
 
 class System
 {
 public:
-    System() = delete;
+    System() = default;
 
-    static Result<> Startup(const char* appName);
+    Result<> Startup(const char* appName);
 
-    static void Shutdown();
+    void Shutdown();
 
-    static GpuHelper& GetGpuHelper();
+    GpuHelper& GetGpuHelper();
 
-    static FileFetcher& GetFileFetcher();
+    FileFetcher& GetFileFetcher();
 
-    static ThreadPool& GetThreadPool();
+    ThreadPool& GetThreadPool();
 
     enum class EventDisposition
     {
@@ -29,7 +30,7 @@ public:
     };
 
     template<typename Func>
-    static void ProcessEvents(const Func& eventInterceptor)
+    void ProcessEvents(const Func& eventInterceptor)
     {
         static_assert(std::is_invocable_r_v<EventDisposition, Func, const SDL_Event&>,
             "Event interceptor must be invocable with signature: EventDisposition(const SDL_Event&)");
@@ -57,25 +58,25 @@ public:
         ProcessEventsImpl(Interceptor(eventInterceptor));
     }
 
-    static bool IsMinimized()
+    bool IsMinimized() const
     {
         MLG_ASSERT(m_Initialized);
         return m_Minimized;
     }
 
-    static bool ShouldQuit()
+    bool ShouldQuit() const
     {
         MLG_ASSERT(m_Initialized);
         return m_ShouldQuit;
     }
 
-    static bool WasFocusGained()
+    bool WasFocusGained() const
     {
         MLG_ASSERT(m_Initialized);
         return m_FocusEvent == FocusEvent::Gained;
     }
     
-    static bool WasFocusLost()
+    bool WasFocusLost() const
     {
         MLG_ASSERT(m_Initialized);
         return m_FocusEvent == FocusEvent::Lost;
@@ -95,7 +96,7 @@ private:
         virtual EventDisposition operator()(const SDL_Event& event) const = 0;
     };
 
-    static void ProcessEventsImpl(const EventInterceptor& eventInterceptor);
+    void ProcessEventsImpl(const EventInterceptor& eventInterceptor);
 
     enum class FocusEvent
     {
@@ -103,10 +104,15 @@ private:
         Gained,
         Lost
     };
-    static inline FocusEvent m_FocusEvent{ FocusEvent::None };
 
-    static inline bool m_Minimized{ false };
-    static inline bool m_ShouldQuit{ false };
+    std::optional<GpuHelper> m_GpuHelper;
+    std::optional<FileFetcher> m_FileFetcher;
+    std::optional<ThreadPool> m_ThreadPool;
 
-    static inline bool m_Initialized{ false };
+    FocusEvent m_FocusEvent{ FocusEvent::None };
+
+    bool m_Minimized{ false };
+    bool m_ShouldQuit{ false };
+
+    bool m_Initialized{ false };
 };
