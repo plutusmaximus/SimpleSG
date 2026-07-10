@@ -1,7 +1,5 @@
 #pragma once
 
-class Renderer;
-
 #include "Result.h"
 #include "VecMath.h"
 
@@ -47,10 +45,7 @@ private:
 class DevUi
 {
 public:
-    explicit DevUi(const Renderer& renderer)
-        : m_Renderer(&renderer)
-    {
-    }
+    DevUi() = default;
     ~DevUi() = default;
     DevUi(const DevUi&) = delete;
     DevUi& operator=(const DevUi&) = delete;
@@ -80,7 +75,6 @@ private:
 
     void DrawDockedEditorLayout() const;
 
-    const Renderer* m_Renderer;
     CliState m_CliState;
 
     Rect m_ScenePanelRect{{.X = 0, .Y = 0, .Width = 1, .Height = 1}};

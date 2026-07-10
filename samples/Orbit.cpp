@@ -474,6 +474,7 @@ MainLoop()
     Renderer renderer;
     ImGuiRenderer imGuiRenderer;
     WalkMouseNav mouseNav;
+    DevUi devUi;
 
     MLG_CHECK(System::Startup(APP_NAME));
     MLG_DEFER
@@ -488,8 +489,6 @@ MainLoop()
     MLG_CHECK(renderer.Startup(gpuHelper, fileFetcher));
     MLG_CHECK(imGuiRenderer.Startup(gpuHelper));
     
-    DevUi devUi(renderer);
-
     auto loadResult = Load(gpuHelper, threadPool, fileFetcher);
     MLG_CHECK(loadResult);
 
@@ -733,22 +732,27 @@ MainLoop()
         MLG_CHECK(scene.SyncFromLevel());
 
         mouseNav.Update(elapsedSeconds);
-            
-        const Rect& scenePanelRect = devUi.GetScenePanelRect();
+        cameraXForm = mouseNav.GetTransform();
 
-        if(scenePanelRect.GetWidth() > 1 && scenePanelRect.GetHeight() > 1)
-        {
-            const Viewport sceneViewport(scenePanelRect.GetDimensions());
-            camera.SetViewport(sceneViewport);
-            cameraXForm = mouseNav.GetTransform();
-
-            MLG_CHECK(scene.SyncToGpu(gpuHelper.GetDevice()));
-
-            MLG_CHECK(renderer.Render(gpuHelper, camera, cameraXForm, scene, propKit));
-        }
+        MLG_CHECK(scene.SyncToGpu(gpuHelper.GetDevice()));
 
         auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECK(target, "Failed to get swapchain texture");
+
+        if(ImGui::GetFrameCount() > 1)
+        {
+            // ImGui must render at least one frame to calculate panel sizes.
+
+            const Rect& scenePanelRect = devUi.GetScenePanelRect();
+
+            const Viewport sceneViewport(scenePanelRect.GetDimensions());
+            camera.SetViewport(sceneViewport);
+
+            MLG_CHECK(renderer.Render(gpuHelper, camera, cameraXForm, scene, propKit));
+
+            // Composite the image into the rectangle defined by the scene panel.
+            MLG_CHECK(renderer.Composite(gpuHelper.GetDevice(), *target, scenePanelRect));
+        }
 
         MLG_CHECK(imGuiRenderer.NewFrame(*target));
         MLG_CHECK(devUi.Render());

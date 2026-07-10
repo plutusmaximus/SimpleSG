@@ -1,3 +1,5 @@
+#define MLG_LOGGER_NAME "CLRP"
+
 #include "GpuColorPass.h"
 
 #include "FileFetcher.h"
@@ -439,9 +441,27 @@ GpuColorPass::BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder)
 Result<>
 GpuColorPass::Composite(const wgpu::Device& gpuDevice, const wgpu::Texture& target) const
 {
+    const Rect dstRect({.X = 0, .Y = 0, .Width = target.GetWidth(), .Height = target.GetHeight()});
+    return Composite(gpuDevice, target, dstRect);
+}
+
+Result<>
+GpuColorPass::Composite(
+    const wgpu::Device& gpuDevice, const wgpu::Texture& target, const Rect& maybeDstRect) const
+{
     MLG_CHECK(m_TargetResources.Validate());
     MLG_CHECKV(m_CompositorPipeline, "Compositor pipeline is not valid");
     MLG_CHECKV(m_CompositorBindGroup, "Compositor bind group is not valid");
+
+    const Rect targetRect({.X = 0, .Y = 0, .Width = target.GetWidth(), .Height = target.GetHeight()});
+    
+    Rect dstRect = maybeDstRect;
+
+    if(!targetRect.Contains(maybeDstRect))
+    {
+        dstRect = targetRect.Intersect(maybeDstRect);
+        MLG_WARN("dstRect clipped");
+    }
 
     const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "GpuColorPass::Composite" };
     const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
@@ -464,6 +484,24 @@ GpuColorPass::Composite(const wgpu::Device& gpuDevice, const wgpu::Texture& targ
 
     const wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
     MLG_CHECK(renderPass, "Failed to begin compositor render pass");
+
+    {
+        const float x = static_cast<float>(dstRect.GetX());
+        const float y = static_cast<float>(dstRect.GetY());
+        const float width = static_cast<float>(dstRect.GetWidth());
+        const float height = static_cast<float>(dstRect.GetHeight());
+
+        renderPass.SetViewport(x, y, width, height, 0, 1);
+    }
+    {
+        const uint32_t x = static_cast<uint32_t>(dstRect.GetX());
+        const uint32_t y = static_cast<uint32_t>(dstRect.GetY());
+        const uint32_t width = static_cast<uint32_t>(dstRect.GetWidth());
+        const uint32_t height = static_cast<uint32_t>(dstRect.GetHeight());
+
+        renderPass.SetScissorRect(x, y, width, height);
+    }
+
 
     renderPass.SetPipeline(m_CompositorPipeline);
     renderPass.SetBindGroup(0, m_CompositorBindGroup, 0, nullptr);

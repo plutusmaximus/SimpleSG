@@ -44,6 +44,10 @@ public:
     Result<> Composite(const wgpu::Device& gpuDevice,
         const wgpu::Texture& target) const;
 
+    Result<> Composite(const wgpu::Device& gpuDevice,
+        const wgpu::Texture& target,
+        const Rect& dstRect) const;
+
     Result<wgpu::Texture> GetTarget() const;
 
 private:

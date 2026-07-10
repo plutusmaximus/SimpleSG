@@ -160,7 +160,10 @@ Renderer::Render(const GpuHelper& gpuHelper,
         viewport.GetMinDepth(),
         viewport.GetMaxDepth());
 
-    renderPass.SetScissorRect(0, 0, viewport.GetWidth(), viewport.GetHeight());
+    renderPass.SetScissorRect(viewport.GetX(),
+        viewport.GetY(),
+        viewport.GetWidth(),
+        viewport.GetHeight());
 
     {
         MLG_SCOPED_TIMER("Renderer.Render.Draw.SetBuffers");
@@ -255,10 +258,19 @@ Renderer::Render(const GpuHelper& gpuHelper,
 Result<>
 Renderer::Composite(const wgpu::Device& gpuDevice, const wgpu::Texture& target) const
 {
+    const Rect dstRect
+        ({ .X = 0, .Y = 0, .Width = target.GetWidth(), .Height = target.GetHeight() });
+        
+    return Composite(gpuDevice, target, dstRect);
+}
+
+Result<>
+Renderer::Composite(const wgpu::Device& gpuDevice, const wgpu::Texture& target, const Rect& dstRect) const
+{
     MLG_CHECKV(m_Initialized, "Renderer is not initialized");
     MLG_CHECKV(m_ColorPass, "Color pass is not initialized");
 
-    return m_ColorPass->Composite(gpuDevice, target);
+    return m_ColorPass->Composite(gpuDevice, target, dstRect);
 }
 
 Result<wgpu::Texture>

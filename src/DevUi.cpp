@@ -1,7 +1,6 @@
 #include "DevUi.h"
 
 #include "PerfMetrics.h"
-#include "Renderer.h"
 
 #include <algorithm>
 #include <imgui.h>
@@ -320,11 +319,6 @@ DevUi::DrawPerfPanel() const // NOLINT(readability-convert-member-functions-to-s
 void
 DevUi::DrawScenePanel()
 {
-    auto target = m_Renderer->GetTarget();
-    if(!MLG_VERIFY(target, "Failed to get renderer color target"))
-    {
-        return;
-    }
     //ImGui::SetNextWindowBgAlpha(0.0f);
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
@@ -347,9 +341,6 @@ DevUi::DrawScenePanel()
     m_ScenePanelMousePos.X = static_cast<int>(mousePos.x - cursorPos.x);
     m_ScenePanelMousePos.Y = static_cast<int>(mousePos.y - cursorPos.y);
 
-    const wgpu::TextureView textureView = target->CreateView();
-    ImGui::Image(ImTextureRef(textureView.Get()), avail);
-    
     ImGui::End();
     ImGui::PopStyleVar(3);
 }
