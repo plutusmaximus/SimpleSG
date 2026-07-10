@@ -12,7 +12,6 @@
 #include "RangeQuery.h"
 #include "Renderer.h"
 #include "Scene.h"
-#include "scope_exit.h"
 #include "ShapeMeshDefs.h"
 #include "System.h"
 #include "ThreadPool.h"
@@ -471,18 +470,15 @@ float ComputeKineticEnergy(const PhysicsLevel& physLevel)
 Result<>
 MainLoop()
 {
-    System system;
     Renderer renderer;
     ImGuiRenderer imGuiRenderer;
     WalkMouseNav mouseNav;
     DevUi devUi;
 
-    MLG_CHECK(system.Startup(APP_NAME));
-    MLG_DEFER
-    {
-        system.Shutdown();
-    };
+    auto systemResult = System::Create(APP_NAME);
+    MLG_CHECK(systemResult, "Failed to create System");
 
+    System system = std::move(*systemResult);
     GpuHelper& gpuHelper = system.GetGpuHelper();
     ThreadPool& threadPool = system.GetThreadPool();
     FileFetcher& fileFetcher = system.GetFileFetcher();

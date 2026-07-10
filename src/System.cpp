@@ -3,14 +3,9 @@
 #include <filesystem>
 #include <SDL3/SDL_events.h>
 
-Result<>
-System::Startup(const char* appName)
+Result<System>
+System::Create(const char* appName)
 {
-    if(m_Initialized)
-    {
-        return Result<>::Ok;
-    }
-
     Log::SetLevel(Log::Level::Trace);
 
     auto cwd = std::filesystem::current_path();
@@ -22,39 +17,7 @@ System::Startup(const char* appName)
     auto fileFetcherResult = FileFetcher::Create();    
     MLG_CHECK(fileFetcherResult);
 
-    m_GpuHelper = std::move(*gpuHelperResult);
-    m_FileFetcher = std::move(*fileFetcherResult);
-    m_ThreadPool = ThreadPool();
-
-    m_Initialized = true;
-
-    return Result<>::Ok;
-}
-
-void
-System::Shutdown()
-{
-    if(!m_Initialized)
-    {
-        return;
-    }
-
-    if(m_FileFetcher)
-    {
-        const FileFetcher byeFileFetcher(std::move(*m_FileFetcher));
-    }
-
-    if(m_GpuHelper)
-    {
-        const GpuHelper byeGpuHelper(std::move(*m_GpuHelper));
-    }
-
-    if(m_ThreadPool)
-    {
-        const ThreadPool byeThreadPool(std::move(*m_ThreadPool));
-    }
-
-    m_Initialized = false;
+    return System(std::move(*gpuHelperResult), std::move(*fileFetcherResult), ThreadPool());
 }
 
 GpuHelper&
@@ -84,8 +47,6 @@ System::GetThreadPool()
 void
 System::ProcessEventsImpl(const EventInterceptor& eventInterceptor)
 {
-    MLG_ASSERT(m_Initialized, "System must be initialized before calling ProcessEvents");
-
     m_FocusEvent = FocusEvent::None;
 
     SDL_Event sdlEvent;

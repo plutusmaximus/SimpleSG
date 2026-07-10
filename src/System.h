@@ -11,7 +11,14 @@ union SDL_Event;
 class System
 {
 public:
-    System() = default;
+    System() = delete;
+    ~System() = default;
+    System(const System&) = delete;
+    System& operator=(const System&) = delete;
+    System(System&&) = default;
+    System& operator=(System&&) = default;
+
+    static Result<System> Create(const char* appName);
 
     Result<> Startup(const char* appName);
 
@@ -35,11 +42,6 @@ public:
         static_assert(std::is_invocable_r_v<EventDisposition, Func, const SDL_Event&>,
             "Event interceptor must be invocable with signature: EventDisposition(const SDL_Event&)");
 
-        if(!MLG_VERIFY(m_Initialized, "System::Startup() has not been called"))
-        {
-            return;
-        }
-
         struct Interceptor : public EventInterceptor
         {
             explicit Interceptor(const Func& func)
@@ -58,31 +60,22 @@ public:
         ProcessEventsImpl(Interceptor(eventInterceptor));
     }
 
-    bool IsMinimized() const
-    {
-        MLG_ASSERT(m_Initialized);
-        return m_Minimized;
-    }
+    bool IsMinimized() const { return m_Minimized; }
 
-    bool ShouldQuit() const
-    {
-        MLG_ASSERT(m_Initialized);
-        return m_ShouldQuit;
-    }
+    bool ShouldQuit() const { return m_ShouldQuit; }
 
-    bool WasFocusGained() const
-    {
-        MLG_ASSERT(m_Initialized);
-        return m_FocusEvent == FocusEvent::Gained;
-    }
-    
-    bool WasFocusLost() const
-    {
-        MLG_ASSERT(m_Initialized);
-        return m_FocusEvent == FocusEvent::Lost;
-    }
+    bool WasFocusGained() const { return m_FocusEvent == FocusEvent::Gained; }
+
+    bool WasFocusLost() const { return m_FocusEvent == FocusEvent::Lost; }
 
 private:
+
+    System(GpuHelper&& gpuHelper, FileFetcher&& fileFetcher, ThreadPool&& threadPool)
+        : m_GpuHelper(std::move(gpuHelper)),
+        m_FileFetcher(std::move(fileFetcher)),
+        m_ThreadPool(std::move(threadPool))
+    {
+    }
 
     struct EventInterceptor
     {
@@ -113,6 +106,4 @@ private:
 
     bool m_Minimized{ false };
     bool m_ShouldQuit{ false };
-
-    bool m_Initialized{ false };
 };

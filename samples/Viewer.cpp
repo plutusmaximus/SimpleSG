@@ -10,7 +10,6 @@
 #include "PropKit.h"
 #include "Renderer.h"
 #include "Scene.h"
-#include "scope_exit.h"
 #include "System.h"
 #include "VecMath.h"
 
@@ -120,14 +119,10 @@ constexpr const char* SPONZA_MODEL_PATH = "../../assets/main_sponza/NewSponza_Ma
 Result<>
 MainLoop()
 {
-    System system;
+    auto systemResult = System::Create(APP_NAME);
+    MLG_CHECK(systemResult, "Failed to create System");
 
-    MLG_CHECK(system.Startup(APP_NAME));
-    MLG_DEFER
-    {
-        system.Shutdown();
-    };
-
+    System system = std::move(*systemResult);
     GpuHelper& gpuHelper = system.GetGpuHelper();
     ThreadPool& threadPool = system.GetThreadPool();
     FileFetcher& fileFetcher = system.GetFileFetcher();
