@@ -245,6 +245,8 @@ FetchTextures(GpuHelper& gpuHelper,
             // Move the builder to the staging list.
             TextureBuilder& stagingBuilder = staging.emplace_back(std::move(fetchingBuilder));
 
+            MLG_LOG_SCOPE(stagingBuilder.Uri);
+
             // Fill the hole.
             fetching[i] = std::move(fetching.back());
             fetching.pop_back();
