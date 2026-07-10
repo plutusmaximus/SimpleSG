@@ -20,10 +20,6 @@ public:
 
     static Result<System> Create(const char* appName);
 
-    Result<> Startup(const char* appName);
-
-    void Shutdown();
-
     GpuHelper& GetGpuHelper();
 
     FileFetcher& GetFileFetcher();
