@@ -22,7 +22,7 @@ fn vs_main(@builtin(vertex_index) vid : u32) -> VSOut
 
     var o = vsout[vid];
 
-    // Optional: flip Y if needed.
+    // Flip v.
     o.uv.y = 1.0 - o.uv.y;
 
     return o;
