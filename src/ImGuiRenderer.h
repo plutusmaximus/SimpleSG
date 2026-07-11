@@ -27,7 +27,7 @@ public:
 
     ~ImGuiRenderer()
     {
-        Shutdown();
+        MLG_VERIFY(Shutdown());
     }
 
     Result<> NewFrame(const wgpu::Texture& target) const;

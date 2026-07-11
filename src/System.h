@@ -26,6 +26,8 @@ public:
 
     ThreadPool& GetThreadPool();
 
+    static void PostQuitEvent();
+
     enum class EventDisposition
     {
         Ignore,

@@ -14,7 +14,7 @@ struct ResultOk final {};
 
 /// @brief Representation of a result that can either be a value of type T or an Error.
 template<typename SuccessType = ResultOk, typename ErrorType = ResultFail>
-class Result final
+class [[nodiscard]] Result final
 {
 public:
     static constexpr ResultOk Ok;

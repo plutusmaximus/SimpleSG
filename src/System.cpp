@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <SDL3/SDL_events.h>
+#include <SDL3/SDL_timer.h>
 
 Result<System>
 System::Create(const char* appName)
@@ -42,6 +43,19 @@ System::GetThreadPool()
     MLG_ABORTIF(!m_ThreadPool, "ThreadPool is not initialized");
 
     return *m_ThreadPool;
+}
+
+void
+System::PostQuitEvent()
+{
+    SDL_Event event;
+    event.quit = SDL_QuitEvent //
+        {
+            .type = SDL_EVENT_QUIT,
+            .timestamp = SDL_GetTicksNS(),
+        };
+
+    SDL_PushEvent(&event);
 }
 
 void
@@ -88,7 +102,10 @@ System::ProcessEventsImpl(const EventInterceptor& eventInterceptor)
             {
                 const uint32_t newWidth = static_cast<uint32_t>(sdlEvent.window.data1);
                 const uint32_t newHeight = static_cast<uint32_t>(sdlEvent.window.data2);
-                GetGpuHelper().Resize(newWidth, newHeight);
+                if(!MLG_VERIFY(GetGpuHelper().Resize(newWidth, newHeight)))
+                {
+                    PostQuitEvent();
+                }
             }
             break;
 

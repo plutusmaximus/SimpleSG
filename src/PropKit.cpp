@@ -230,7 +230,7 @@ FetchTextures(GpuHelper& gpuHelper,
 
     while(!fetching.empty())
     {
-        fileFetcher.ProcessCompletions();
+        MLG_CHECK(fileFetcher.ProcessCompletions());
 
         for(size_t i = 0; i < fetching.size();)
         {

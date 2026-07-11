@@ -6,8 +6,8 @@
 #include "GltfLoader.h"
 
 #include "Log.h"
+#include "LevelDefs.h"
 #include "narrow_cast.h"
-#include "Level.h"
 #include "PropKit.h"
 #include "scope_exit.h"
 #include "Vertex.h"
@@ -326,7 +326,7 @@ CollectIndices(const CgltfPrimitiveAttributes& attrs, std::vector<VertexIndex>& 
     return Result<>::Ok;
 }
 
-Result<>
+void
 GenerateNormals(std::span<Vertex> vertices, std::span<const VertexIndex> indices)
 {
     for(auto& v : vertices)
@@ -355,8 +355,6 @@ GenerateNormals(std::span<Vertex> vertices, std::span<const VertexIndex> indices
     {
         v.normal = v.normal.Normalize();
     }
-
-    return Result<>::Ok;
 }
 
 Result<>

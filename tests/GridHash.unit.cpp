@@ -37,13 +37,11 @@ TEST(GridHash, SingleBodyProducesNoPairs)
 {
 	GridHash hash{3};
 
-	const Result<> result = hash.Add(
+	hash.Add(
 		Vec3f{ 0.8f, 0.8f, 0.8f },
 		Vec3f{ 0.2f, 0.2f, 0.2f },
 		MakeSphere(),
 		3);
-
-	ASSERT_TRUE(result);
 
     const std::span pairs(hash);
 	EXPECT_TRUE(pairs.empty());
@@ -53,17 +51,17 @@ TEST(GridHash, TwoBodiesInSameCellProduceOneOrderedPair)
 {
 	GridHash hash{3};
 
-	ASSERT_TRUE(hash.Add(
+	hash.Add(
 		Vec3f{ 0.9f, 0.9f, 0.9f },
 		Vec3f{ 0.1f, 0.1f, 0.1f },
 		MakeSphere(),
-		7));
+		7);
 
-	ASSERT_TRUE(hash.Add(
+	hash.Add(
 		Vec3f{ 1.8f, 1.8f, 1.8f },
 		Vec3f{ 1.0f, 1.0f, 1.0f },
 		MakeSphere(),
-		3));
+		3);
 
     const std::span pairs(hash);
 
@@ -75,17 +73,17 @@ TEST(GridHash, SharedAcrossManyCellsStillProducesUniquePair)
 {
 	GridHash hash{3};
 
-	ASSERT_TRUE(hash.Add(
+	hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
 		Vec3f{ 9.9f, 9.9f, 0.2f },
 		MakeSphere(),
-		0));
+		0);
 
-	ASSERT_TRUE(hash.Add(
+	hash.Add(
 		Vec3f{ 0.2f, 0.2f, 0.1f },
 		Vec3f{ 9.8f, 9.8f, 0.2f },
 		MakeSphere(),
-		1));
+		1);
 
     const std::span pairs(hash);
 
@@ -97,21 +95,21 @@ TEST(GridHash, ThreeBodiesInOneCellGenerateAllUniquePairs)
 {
 	GridHash hash{3};
 
-	ASSERT_TRUE(hash.Add(
+	hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
 		Vec3f{ 0.9f, 0.9f, 0.9f },
 		MakeSphere(),
-		0));
-	ASSERT_TRUE(hash.Add(
+		0);
+	hash.Add(
 		Vec3f{ 0.7f, 0.7f, 0.7f },
 		Vec3f{ 0.3f, 0.3f, 0.3f },
 		MakeSphere(),
-		1));
-	ASSERT_TRUE(hash.Add(
+		1);
+	hash.Add(
 		Vec3f{ 0.4f, 0.4f, 0.4f },
 		Vec3f{ 0.6f, 0.6f, 0.6f },
 		MakeSphere(),
-		2));
+		2);
 
     const std::span pairs(hash);
 
@@ -125,16 +123,16 @@ TEST(GridHash, ClearRemovesExistingCellsAndPairs)
 {
 	GridHash hash{3};
 
-	ASSERT_TRUE(hash.Add(
+	hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
 		Vec3f{ 0.9f, 0.9f, 0.9f },
 		MakeSphere(),
-		0));
-	ASSERT_TRUE(hash.Add(
+		0);
+	hash.Add(
 		Vec3f{ 0.2f, 0.2f, 0.2f },
 		Vec3f{ 0.8f, 0.8f, 0.8f },
 		MakeSphere(),
-		1));
+		1);
 
     const std::span beforeClear(hash);
 	ASSERT_EQ(beforeClear.size(), 1u);
@@ -144,16 +142,16 @@ TEST(GridHash, ClearRemovesExistingCellsAndPairs)
 	const std::span afterClear(hash);
 	EXPECT_TRUE(afterClear.empty());
 
-	ASSERT_TRUE(hash.Add(
+	hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
 		Vec3f{ 0.2f, 0.2f, 0.2f },
 		MakeSphere(),
-		0));
-	ASSERT_TRUE(hash.Add(
+		0);
+	hash.Add(
 		Vec3f{ 20.2f, 20.2f, 20.2f },
 		Vec3f{ 20.1f, 20.1f, 20.1f },
 		MakeSphere(),
-		1));
+		1);
 
 	const std::span nonOverlappingPairs(hash);
 	EXPECT_TRUE(nonOverlappingPairs.empty());
@@ -183,8 +181,8 @@ TEST(GridHash, GridHash4AndGridHash5ContainSameBodyPairSet)
 
 	for(const BodyInput& body : bodies)
 	{
-		ASSERT_TRUE(hash2.Add(body.Min, body.Max, MakeSphere(body.Radius), body.BodyIndex));
-		ASSERT_TRUE(hash3.Add(body.Min, body.Max, MakeSphere(body.Radius), body.BodyIndex));
+		hash2.Add(body.Min, body.Max, MakeSphere(body.Radius), body.BodyIndex);
+		hash3.Add(body.Min, body.Max, MakeSphere(body.Radius), body.BodyIndex);
 	}
 
 	std::vector<BodyPair> pairs2(hash2.begin(), hash2.end());
@@ -269,7 +267,7 @@ TEST(GridHash, ChaosRandomizedBodies_AllExpectedPairsExist)
                     },
                 };
 
-            ASSERT_TRUE(hash.Add(body.Min, body.Max, MakeSphere(body.Radius), i));
+            hash.Add(body.Min, body.Max, MakeSphere(body.Radius), i);
             bodies.push_back(body);
         }
 

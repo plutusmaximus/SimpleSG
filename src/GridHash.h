@@ -50,6 +50,7 @@ class GridHash
 public:
     // Arbitrary limit to prevent excessive cell counts for large bodies.
     static constexpr size_t kMaxCellsPerBody = 1000;
+    static constexpr size_t kMaxCellsPerDimension = 100;
 
     GridHash() = delete;
     ~GridHash() = default;
@@ -70,7 +71,7 @@ public:
     /// @param p1 The other corner of the body's bounding box.
     /// @param boundingSphere The bounding sphere associated with the body.
     /// @param bodyIndex The index of the body.
-    Result<> Add(
+    void Add(
         const Vec3f& p0, const Vec3f& p1, const BoundingSphere& boundingSphere, const size_t bodyIndex);
 
     using iterator = std::vector<BodyPair>::iterator;
@@ -130,7 +131,7 @@ private:
     /// @param dy The number of cells the body spans in the y dimension.
     /// @param dz The number of cells the body spans in the z dimension.
     /// @return
-    Result<> AllocateItems(const size_t dx, const size_t dy, const size_t dz);
+    void AllocateItems(const size_t dx, const size_t dy, const size_t dz);
 
     int32_t Quantize(const float value) const;
 

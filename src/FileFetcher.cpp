@@ -55,7 +55,7 @@ FileFetcher::~FileFetcher()
         return;
     }
 
-    ProcessCompletions();
+    MLG_VERIFY(ProcessCompletions());
 }
 
 Result<FileFetcher>
@@ -165,7 +165,7 @@ FileFetcher::ProcessCompletions()
         }
 
         Request* request = static_cast<Request*>(outcome.userdata);
-        MLG_CHECK(request, "Received SDL Async IO completion with null userdata");
+        MLG_CHECKV(request, "Received SDL Async IO completion with null userdata");
 
         switch(outcome.result)
         {

@@ -118,7 +118,7 @@ GridHash::Clear()
     m_NeedsSort = true;
 }
 
-Result<>
+void
 GridHash::Add(
     const Vec3f& p0, const Vec3f& p1, const BoundingSphere& boundingSphere, const size_t bodyIndex)
 {
@@ -144,7 +144,7 @@ GridHash::Add(
     const size_t dy = static_cast<size_t>(maxY) - static_cast<size_t>(minY) + 1;
     const size_t dz = static_cast<size_t>(maxZ) - static_cast<size_t>(minZ) + 1;
 
-    MLG_CHECK(AllocateItems(dx, dy, dz));
+    AllocateItems(dx, dy, dz);
 
     Item::ItemParams params{ .BodyIndex = bodyIndex };
 
@@ -160,8 +160,6 @@ GridHash::Add(
     }
 
     m_NeedsSort = true;
-
-    return Result<>::Ok;
 }
 
 size_t
@@ -187,30 +185,32 @@ GridHash::end()
 
 // private:
 
-Result<>
+void
 GridHash::AllocateItems(const size_t dx, const size_t dy, const size_t dz)
 {
-    MLG_CHECKV(dx <= std::numeric_limits<size_t>::max() / dy,
-        "Cell span overflow before multiply.");
+    const size_t clampedDx = MLG_VERIFY(dx <= kMaxCellsPerDimension) ? dx : kMaxCellsPerDimension;
+    const size_t clampedDy = MLG_VERIFY(dy <= kMaxCellsPerDimension) ? dy : kMaxCellsPerDimension;
+    const size_t clampedDz = MLG_VERIFY(dz <= kMaxCellsPerDimension) ? dz : kMaxCellsPerDimension;
 
-    const size_t dxy = dx * dy;
-
-    MLG_CHECKV(dxy <= std::numeric_limits<size_t>::max() / dz,
-        "Cell span overflow before multiply.");
+    const size_t dxy = clampedDx * clampedDy;
 
     // Number of cells the body potentially occupies.
-    const size_t cellCount = dxy * dz;
+    size_t cellCount = dxy * clampedDz;
 
-    MLG_CHECKV(cellCount <= kMaxCellsPerBody, "Too many cells occupied. count={}", cellCount);
+    if(!MLG_VERIFY(cellCount <= kMaxCellsPerBody, "Too many cells occupied. count={}", cellCount))
+    {
+        cellCount = kMaxCellsPerBody;
+    }
 
-    MLG_CHECKV(cellCount <= std::numeric_limits<size_t>::max() - m_Items.size(),
-        "Grid reserve overflow. current={}, add={}",
-        m_Items.size(),
-        cellCount);
+    if(!MLG_VERIFY(m_Items.size() <= std::numeric_limits<size_t>::max() - cellCount,
+            "Grid reserve overflow. current={}, add={}",
+            m_Items.size(),
+            cellCount))
+    {
+        cellCount = std::numeric_limits<size_t>::max() - m_Items.size();
+    }
 
     m_Items.reserve(m_Items.size() + cellCount);
-
-    return Result<>::Ok;
 }
 
 int32_t
