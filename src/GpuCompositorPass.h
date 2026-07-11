@@ -2,7 +2,6 @@
 
 #include "Result.h"
 
-#include <cstdint>
 #include <vector>
 #include <webgpu/webgpu_cpp.h>
 
@@ -55,7 +54,7 @@ private:
     {
         wgpu::ShaderModule Shader;
         wgpu::BindGroupLayout BindGroupLayout;
-        wgpu::PipelineLayout Layout;
+        wgpu::PipelineLayout PipelineLayout;
         wgpu::Sampler Sampler;
         wgpu::TextureFormat TargetFormat{ wgpu::TextureFormat::Undefined };
     };

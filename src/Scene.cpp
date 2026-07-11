@@ -5,12 +5,10 @@
 
 #include "Camera.h"
 #include "GpuHelper.h"
-#include "GpuLayouts.h"
 #include "Level.h"
 #include "narrow_cast.h"
 #include "PerfMetrics.h"
 #include "SceneTypes.h"
-#include "shaders/TransformShaderContract.h"
 #include "Timer.h"
 
 #include <ranges>
@@ -222,24 +220,11 @@ Scene::Create(GpuHelper& gpuHelper, const Level& level)
         gpuHelper.CreateUniformBuffer<CameraParamsBuffer>(1, "CameraParams");
     MLG_CHECK(cameraParamsBuf);
 
-    const TransformShaderContract::SceneGroup::Resources transformShaderResources //
-        {
-            .WorldTransforms = *transformBuffer,
-            .ClipSpaceTransforms = *clipSpaceBuffer,
-            .CameraParams = *cameraParamsBuf,
-        };
-
-    auto transformShaderBindGroup =
-        GpuLayouts::CreateBindGroup<TransformShaderContract::SceneGroup>(gpuHelper.GetDevice(),
-            transformShaderResources);
-    MLG_CHECK(transformShaderBindGroup);
-
     Scene scene(std::move(*transformBuffer),
         std::move(*clipSpaceBuffer),
         std::move(*drawIndirectBuffer),
         std::move(*meshPropertiesBuffer),
         std::move(*cameraParamsBuf),
-        std::move(*transformShaderBindGroup),
         std::move(nodes),
         std::move(modelInstances),
         std::move(meshInstances),
@@ -255,7 +240,6 @@ Scene::Scene(WorldTransformBuffer&& worldTransformBuffer,
     DrawIndirectBuffer&& drawIndirectBuffer,
     MeshPropertiesBuffer&& meshPropertiesBuffer,
     CameraParamsBuffer&& cameraParamsBuffer,
-    wgpu::BindGroup&& transformShaderBindGroup,
     std::vector<const Level::Node*>&& nodes,
     std::vector<ModelInstance>&& modelInstances,
     std::vector<MeshInstance>&& meshInstances,
@@ -265,7 +249,6 @@ Scene::Scene(WorldTransformBuffer&& worldTransformBuffer,
       m_DrawIndirectBuffer(std::move(drawIndirectBuffer)),
       m_MeshPropertiesBuffer(std::move(meshPropertiesBuffer)),
       m_CameraParamsBuffer(std::move(cameraParamsBuffer)),
-      m_TransformShaderBindGroup(std::move(transformShaderBindGroup)),
       m_Nodes(std::move(nodes)),
       m_ModelInstances(std::move(modelInstances)),
       m_MeshInstances(std::move(meshInstances)),

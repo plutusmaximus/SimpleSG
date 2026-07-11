@@ -205,6 +205,19 @@ Result<>
 GpuCompositorPass::EnsurePipeline(const wgpu::Device& gpuDevice,
     const wgpu::TextureFormat targetFormat)
 {
+    if(m_Pipeline && m_PipelineResources.TargetFormat == targetFormat)
+    {
+        return Result<>::Ok;
+    }
+
+    if(!m_PipelineResources.Shader)
+    {
+        auto shader = CreateShader(gpuDevice, m_ShaderCode);
+        MLG_CHECK(shader);
+
+        m_PipelineResources.Shader = std::move(*shader);
+    }
+
     if(!m_PipelineResources.Sampler)
     {
         const wgpu::SamplerDescriptor samplerDesc //
@@ -263,15 +276,7 @@ GpuCompositorPass::EnsurePipeline(const wgpu::Device& gpuDevice,
         MLG_CHECK(m_PipelineResources.BindGroupLayout, "Failed to create bind group layout");
     }
 
-    if(!m_PipelineResources.Shader)
-    {
-        auto shader = CreateShader(gpuDevice, m_ShaderCode);
-        MLG_CHECK(shader);
-
-        m_PipelineResources.Shader = std::move(*shader);
-    }
-
-    if(!m_PipelineResources.Layout)
+    if(!m_PipelineResources.PipelineLayout)
     {
         const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
             {
@@ -280,77 +285,74 @@ GpuCompositorPass::EnsurePipeline(const wgpu::Device& gpuDevice,
                 .bindGroupLayouts = &m_PipelineResources.BindGroupLayout,
             };
 
-        m_PipelineResources.Layout = gpuDevice.CreatePipelineLayout(&pipelineLayoutDesc);
-        MLG_CHECK(m_PipelineResources.Layout, "Failed to create pipeline layout");
+        m_PipelineResources.PipelineLayout = gpuDevice.CreatePipelineLayout(&pipelineLayoutDesc);
+        MLG_CHECK(m_PipelineResources.PipelineLayout, "Failed to create pipeline layout");
     }
 
-    if(!m_Pipeline || m_PipelineResources.TargetFormat != targetFormat)
+    const wgpu::BlendState blendState //
     {
-        const wgpu::BlendState blendState //
+        .color =
         {
-            .color =
-            {
-                .operation = wgpu::BlendOperation::Add,
-                .srcFactor = wgpu::BlendFactor::One,
-                .dstFactor = wgpu::BlendFactor::Zero,
-            },
-            .alpha =
-            {
-                .operation = wgpu::BlendOperation::Add,
-                .srcFactor = wgpu::BlendFactor::One,
-                .dstFactor = wgpu::BlendFactor::Zero,
-            },
+            .operation = wgpu::BlendOperation::Add,
+            .srcFactor = wgpu::BlendFactor::One,
+            .dstFactor = wgpu::BlendFactor::Zero,
+        },
+        .alpha =
+        {
+            .operation = wgpu::BlendOperation::Add,
+            .srcFactor = wgpu::BlendFactor::One,
+            .dstFactor = wgpu::BlendFactor::Zero,
+        },
+    };
+
+    const wgpu::ColorTargetState colorTargetState //
+        {
+            .format = targetFormat,
+            .blend = &blendState,
+            .writeMask = wgpu::ColorWriteMask::All,
         };
 
-        const wgpu::ColorTargetState colorTargetState //
-            {
-                .format = targetFormat,
-                .blend = &blendState,
-                .writeMask = wgpu::ColorWriteMask::All,
-            };
-
-        const wgpu::FragmentState fragmentState //
-            {
-                .module = m_PipelineResources.Shader,
-                .entryPoint = FragmentEntry,
-                .targetCount = 1,
-                .targets = &colorTargetState,
-            };
-
-        const wgpu::RenderPipelineDescriptor descriptor//
+    const wgpu::FragmentState fragmentState //
         {
-            .label = "Compositor",
-            .layout = m_PipelineResources.Layout,
-            .vertex =
-            {
-                .module = m_PipelineResources.Shader,
-                .entryPoint = VertexEntry,
-                .bufferCount = 0,
-                .buffers = nullptr,
-            },
-            .primitive =
-            {
-                .topology = wgpu::PrimitiveTopology::TriangleList,
-                .stripIndexFormat = wgpu::IndexFormat::Undefined,
-                .frontFace = wgpu::FrontFace::CW,
-                .cullMode = wgpu::CullMode::Back,
-                .unclippedDepth = false,
-            },
-            .depthStencil = nullptr, // No depth/stencil for this pipeline
-            .multisample =
-            {
-                .count = 1,
-                .mask = 0xFFFFFFFF,
-                .alphaToCoverageEnabled = false,
-            },
-            .fragment = &fragmentState,
+            .module = m_PipelineResources.Shader,
+            .entryPoint = FragmentEntry,
+            .targetCount = 1,
+            .targets = &colorTargetState,
         };
 
-        m_PipelineResources.TargetFormat = targetFormat;
+    const wgpu::RenderPipelineDescriptor desc//
+    {
+        .label = "Compositor",
+        .layout = m_PipelineResources.PipelineLayout,
+        .vertex =
+        {
+            .module = m_PipelineResources.Shader,
+            .entryPoint = VertexEntry,
+            .bufferCount = 0,
+            .buffers = nullptr,
+        },
+        .primitive =
+        {
+            .topology = wgpu::PrimitiveTopology::TriangleList,
+            .stripIndexFormat = wgpu::IndexFormat::Undefined,
+            .frontFace = wgpu::FrontFace::CW,
+            .cullMode = wgpu::CullMode::Back,
+            .unclippedDepth = false,
+        },
+        .depthStencil = nullptr, // No depth/stencil for this pipeline
+        .multisample =
+        {
+            .count = 1,
+            .mask = 0xFFFFFFFF,
+            .alphaToCoverageEnabled = false,
+        },
+        .fragment = &fragmentState,
+    };
 
-        m_Pipeline = gpuDevice.CreateRenderPipeline(&descriptor);
-        MLG_CHECK(m_Pipeline, "Failed to create pipeline");
-    }
+    m_PipelineResources.TargetFormat = targetFormat;
+
+    m_Pipeline = gpuDevice.CreateRenderPipeline(&desc);
+    MLG_CHECK(m_Pipeline, "Failed to create pipeline");
 
     return Result<>::Ok;
 }

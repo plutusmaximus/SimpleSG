@@ -2,6 +2,7 @@
 
 #include "GpuColorPass.h"
 #include "GpuCompositorPass.h"
+#include "GpuTransformPass.h"
 #include "SceneTypes.h"
 #include "Result.h"
 
@@ -10,9 +11,6 @@
 class FileFetcher;
 class GpuHelper;
 
-template<typename T>
-class Mat44;
-using Mat44f = Mat44<float>;
 class Camera;
 class PropKit;
 class Scene;
@@ -51,29 +49,18 @@ public:
 
 private:
 
-    Result<> CreateTransformPipeline(const wgpu::Device& gpuDevice, FileFetcher& fileFetcher);
-
-    Result<> TransformNodes(const wgpu::Device& gpuDevice,
+    Result<> TransformNodes(const GpuHelper& gpuHelper,
         const wgpu::CommandEncoder& cmdEncoder,
         const TrTransformf& cameraXForm,
         const Camera& camera,
-        const Scene& scene) const;
+        const Scene& scene);
 
     wgpu::Limits m_GpuLimits;
 
     GpuColorPass::TargetResources m_TargetResources;
     std::optional<GpuColorPass> m_ColorPass;
     std::optional<GpuCompositorPass> m_CompositorPass;
-
-    struct TransformPipelineResources
-    {
-        wgpu::ShaderModule Shader;
-        wgpu::PipelineLayout Layout;
-    };
-
-    // Pipeline for computing world transforms on the GPU.
-    TransformPipelineResources m_TransformPipelineResources;
-    wgpu::ComputePipeline m_TransformPipeline;
+    std::optional<GpuTransformPass> m_TransformPass;
 
     std::vector<MeshInstance> m_VisibleMeshes;
 

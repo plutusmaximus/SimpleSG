@@ -4,7 +4,6 @@
 #include "shaders/GpuBufferTypes.h"
 
 #include <array>
-#include <cstdint>
 #include <optional>
 #include <vector>
 #include <webgpu/webgpu_cpp.h>
@@ -41,6 +40,25 @@ public:
         friend bool operator==(const TargetResources& a, const TargetResources& b)
         {
             return a.Target.Get() == b.Target.Get() && a.DepthTarget.Get() == b.DepthTarget.Get();
+        }
+    };
+
+    struct TextureResources
+    {
+        wgpu::Texture Texture;
+        wgpu::Sampler Sampler;
+
+        Result<> Validate() const
+        {
+            MLG_CHECKV(Texture, "Texture is not valid");
+            MLG_CHECKV(Sampler, "Sampler is not valid");
+
+            return Result<>::Ok;
+        }
+
+        friend bool operator==(const TextureResources& a, const TextureResources& b)
+        {
+            return a.Texture.Get() == b.Texture.Get() && a.Sampler.Get() == b.Sampler.Get();
         }
     };
 
@@ -97,6 +115,9 @@ public:
     static Result<TargetResources> CreateTarget(
         const GpuHelper& gpuHelper, const uint32_t width, const uint32_t height);
 
+    Result<wgpu::BindGroup> CreateTextureBindGroup(const GpuHelper& gpuHelper,
+        const TextureResources& resources);
+
     Result<> BindResources(const GpuHelper& gpuHelper,
         const Resources& resources,
         const TargetResources& targetResources);
@@ -110,7 +131,7 @@ private:
     {
         wgpu::ShaderModule Shader;
         std::array<wgpu::BindGroupLayout, 2> BindGroupLayouts;
-        wgpu::PipelineLayout Layout;
+        wgpu::PipelineLayout PipelineLayout;
     };
 
     Result<> EnsurePipeline(const wgpu::Device& gpuDevice);

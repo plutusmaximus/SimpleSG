@@ -20,7 +20,7 @@ struct Camera
 @group(0) @binding(2) var<uniform> camera : Camera;
 
 @compute @workgroup_size(64)
-fn main(@builtin(global_invocation_id) gid: vec3<u32>)
+fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>)
 {
     let i = gid.x;
     let count = arrayLength(&inMats);

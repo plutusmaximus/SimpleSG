@@ -1,4 +1,4 @@
-#define MLG_LOGGER_NAME "CLRP"
+#define MLG_LOGGER_NAME "CPAS"
 
 #include "GpuColorPass.h"
 
@@ -281,6 +281,40 @@ GpuColorPass::CreateTarget(const GpuHelper& gpuHelper, const uint32_t width, con
         };
 }
 
+Result<wgpu::BindGroup>
+GpuColorPass::CreateTextureBindGroup(const GpuHelper& gpuHelper, const TextureResources& resources)
+{
+    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
+
+    MLG_CHECKV(resources.Validate());
+    MLG_CHECKV(m_PipelineResources.BindGroupLayouts[1]);
+
+    const wgpu::BindGroupEntry entries[] = //
+        {
+            {
+                .binding = 0,
+                .textureView = resources.Texture.CreateView(),
+            },
+            {
+                .binding = 1,
+                .sampler = resources.Sampler,
+            },
+        };
+
+    const wgpu::BindGroupDescriptor desc = //
+        {
+            .label = "ColorShaderTextureGroupBindings",
+            .layout = m_PipelineResources.BindGroupLayouts[1],
+            .entryCount = std::size(entries),
+            .entries = &entries[0],
+        };
+
+    const wgpu::BindGroup bindGroup = gpuDevice.CreateBindGroup(&desc);
+    MLG_CHECKV(bindGroup, "Failed to create texture bind group");
+
+    return bindGroup;
+}
+
 Result<>
 GpuColorPass::BindResources(
     const GpuHelper& gpuHelper, const Resources& resources, const TargetResources& targetResources)
@@ -425,7 +459,7 @@ GpuColorPass::EnsurePipeline(const wgpu::Device& gpuDevice)
         m_PipelineResources.BindGroupLayouts = std::move(*layouts);
     }
 
-    if(!m_PipelineResources.Layout)
+    if(!m_PipelineResources.PipelineLayout)
     {
         const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
             {
@@ -438,7 +472,7 @@ GpuColorPass::EnsurePipeline(const wgpu::Device& gpuDevice)
             gpuDevice.CreatePipelineLayout(&pipelineLayoutDesc);
         MLG_CHECK(pipelineLayout, "Failed to create color pipeline layout");
 
-        m_PipelineResources.Layout = std::move(pipelineLayout);
+        m_PipelineResources.PipelineLayout = std::move(pipelineLayout);
     }
 
     const wgpu::BlendState blendState //
@@ -503,7 +537,7 @@ GpuColorPass::EnsurePipeline(const wgpu::Device& gpuDevice)
     const wgpu::RenderPipelineDescriptor descriptor//
     {
         .label = "GpuColorPass::Pipeline",
-        .layout = m_PipelineResources.Layout,
+        .layout = m_PipelineResources.PipelineLayout,
         .vertex =
         {
             .module = m_PipelineResources.Shader,

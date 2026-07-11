@@ -6,55 +6,11 @@
 #include "FileFetcher.h"
 #include "GpuColorPass.h"
 #include "GpuHelper.h"
-#include "GpuLayouts.h"
 #include "narrow_cast.h"
 #include "PerfMetrics.h"
 #include "PropKit.h"
 #include "Scene.h"
-#include "shaders/TransformShaderContract.h"
 #include "shaders/ShaderInterop.h"
-
-#include <thread>
-
-namespace
-{
-Result<>
-LoadShaderCode(const char* filePath, std::vector<uint8_t>& outBuffer, FileFetcher& fileFetcher)
-{
-    FileFetcher::Request request(filePath);
-    MLG_CHECK(fileFetcher.Fetch(request));
-
-    while(request.IsPending())
-    {
-        MLG_CHECK(fileFetcher.ProcessCompletions());
-        std::this_thread::yield();
-    }
-
-    MLG_CHECK(request.Succeeded(), "Failed to load shader file: {}", filePath);
-
-    request.MoveDataTo(outBuffer);
-
-    return Result<>::Ok;
-}
-
-Result<wgpu::ShaderModule>
-CreateShader(const wgpu::Device& gpuDevice, const char* path, FileFetcher& fileFetcher)
-{
-    std::vector<uint8_t> shaderCode;
-    auto loadResult = LoadShaderCode(path, shaderCode, fileFetcher);
-    MLG_CHECK(loadResult);
-
-    const void* data = shaderCode.data();
-    const wgpu::StringView shaderCodeView{ static_cast<const char*>(data), shaderCode.size() };
-    const wgpu::ShaderSourceWGSL wgsl{ { .nextInChain = nullptr, .code = shaderCodeView } };
-    const wgpu::ShaderModuleDescriptor shaderModuleDescriptor{ .nextInChain = &wgsl, .label = path };
-
-    wgpu::ShaderModule shaderModule = gpuDevice.CreateShaderModule(&shaderModuleDescriptor);
-    MLG_CHECK(shaderModule, "Failed to create shader module");
-
-    return shaderModule;
-}
-}
 
 Result<>
 Renderer::Startup(GpuHelper& gpuHelper, FileFetcher& fileFetcher)
@@ -69,10 +25,12 @@ Renderer::Startup(GpuHelper& gpuHelper, FileFetcher& fileFetcher)
     auto gpuCompositorPassResult = GpuCompositorPass::Create(gpuHelper, fileFetcher);
     MLG_CHECK(gpuCompositorPassResult);
 
+    auto gpuTransformPassResult = GpuTransformPass::Create(gpuHelper, fileFetcher);
+    MLG_CHECK(gpuTransformPassResult);
+
     m_ColorPass = std::move(*gpuColorPassResult);
     m_CompositorPass = std::move(*gpuCompositorPassResult);
-
-    MLG_CHECK(CreateTransformPipeline(gpuHelper.GetDevice(), fileFetcher));
+    m_TransformPass = std::move(*gpuTransformPassResult);
 
     m_Initialized = true;
 
@@ -88,9 +46,6 @@ Renderer::Shutdown()
         return Result<>::Ok;
     }
 
-    m_TransformPipelineResources = {};
-    m_TransformPipeline = {};
-
     m_Initialized = false;
 
     return Result<>::Ok;
@@ -104,11 +59,24 @@ Renderer::Render(const GpuHelper& gpuHelper,
     const PropKit& propKit)
 {
     MLG_CHECKV(m_Initialized, "Renderer is not initialized");
-    MLG_CHECKV(m_ColorPass, "Color pass is not initialized");
 
     const Viewport& viewport = camera.GetViewport();
 
     MLG_SCOPED_TIMER("Renderer.Render");
+
+    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
+
+    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "Renderer::Render" };
+
+    const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
+    MLG_CHECK(cmdEncoder, "Failed to create command encoder");
+
+    {
+        MLG_SCOPED_TIMER("Renderer.Render.TransformNodes");
+
+        auto transformNodesResult = TransformNodes(gpuHelper, cmdEncoder, cameraXForm, camera, scene);
+        MLG_CHECK(transformNodesResult);
+    }
 
     if(!m_TargetResources.Target ||
         m_TargetResources.Target.GetWidth() != viewport.GetWidth() ||
@@ -132,21 +100,9 @@ Renderer::Render(const GpuHelper& gpuHelper,
             .CameraParams = scene.GetCameraParamsBuffer(),
         };
 
+    MLG_CHECKV(m_ColorPass, "Color pass is not initialized");
+
     MLG_CHECK(m_ColorPass->BindResources(gpuHelper, colorPassResources, m_TargetResources));
-
-    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
-
-    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "Renderer::Render" };
-
-    const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
-    MLG_CHECK(cmdEncoder, "Failed to create command encoder");
-
-    {
-        MLG_SCOPED_TIMER("Renderer.Render.TransformNodes");
-
-        auto transformNodesResult = TransformNodes(gpuDevice, cmdEncoder, cameraXForm, camera, scene);
-        MLG_CHECK(transformNodesResult);
-    }
 
     wgpu::RenderPassEncoder renderPass;
     {
@@ -296,58 +252,14 @@ Renderer::GetTarget() const
 //private:
 
 Result<>
-Renderer::CreateTransformPipeline(const wgpu::Device& gpuDevice, FileFetcher& fileFetcher)
-{
-    if(m_TransformPipeline)
-    {
-        return Result<>::Ok;
-    }
-
-    auto csResult = CreateShader(gpuDevice,
-        TransformShaderContract::GetShaderPath(),
-        fileFetcher);
-    MLG_CHECK(csResult);
-
-    m_TransformPipelineResources.Shader = *csResult;
-
-    auto layout =
-        GpuLayouts::GetOrCreateLayout<TransformShaderContract::SceneGroup>(gpuDevice);
-    MLG_CHECK(layout);
-
-    const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
-        {
-            .label = "TransformPipelineLayout",
-            .bindGroupLayoutCount = 1,
-            .bindGroupLayouts = &*layout,
-        };
-
-    m_TransformPipelineResources.Layout =
-        gpuDevice.CreatePipelineLayout(&pipelineLayoutDesc);
-    MLG_CHECK(m_TransformPipelineResources.Layout, "Failed to create transform pipeline layout");
-
-    const wgpu::ComputePipelineDescriptor pipelineDesc//
-    {
-        .layout = m_TransformPipelineResources.Layout,
-        .compute//
-        {
-            .module = m_TransformPipelineResources.Shader,
-            .entryPoint = TransformShaderContract::GetEntryPoint(),
-        },
-    };;
-
-    m_TransformPipeline = gpuDevice.CreateComputePipeline(&pipelineDesc);
-    MLG_CHECK(m_TransformPipeline, "Failed to create compute pipeline for transform");
-
-    return Result<>::Ok;
-}
-
-Result<>
-Renderer::TransformNodes(const wgpu::Device& gpuDevice,
+Renderer::TransformNodes(const GpuHelper& gpuHelper,
     const wgpu::CommandEncoder& cmdEncoder,
     const TrTransformf& cameraXForm,
     const Camera& camera,
-    const Scene& scene) const
+    const Scene& scene)
 {
+    MLG_CHECKV(m_TransformPass, "Transform pass is not initialized");
+
     // Use inverse of camera transform as view matrix
     const Mat44f viewXform = cameraXForm.Inverse().ToMatrix();
     const Mat44f& projMat = camera.GetMatrix();
@@ -362,18 +274,29 @@ Renderer::TransformNodes(const wgpu::Device& gpuDevice,
 
     auto cameraParamsBuf = scene.GetCameraParamsBuffer();
 
+    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
+
     gpuDevice.GetQueue().WriteBuffer(
         cameraParamsBuf.GetGpuBuffer(),
         0,
         &cameraParams,
         sizeof(ShaderInterop::CameraParams));
 
-    const wgpu::ComputePassEncoder pass = cmdEncoder.BeginComputePass();
-    pass.SetPipeline(m_TransformPipeline);
-    pass.SetBindGroup(0, scene.GetTransformShaderBindGroup());
+    const GpuTransformPass::Resources transformResources //
+        {
+            .WorldTransforms = scene.GetWorldTransformBuffer(),
+            .ClipSpaceTransforms = scene.GetClipSpaceBuffer(),
+            .CameraParams = cameraParamsBuf,
+        };
+
+    MLG_CHECK(m_TransformPass->BindResources(gpuHelper, transformResources));
+
+    auto computePass = m_TransformPass->BeginComputePass(cmdEncoder);
+    MLG_CHECK(computePass);
+
     const uint32_t workgroupCountX = narrow_cast<uint32_t>(scene.GetModelInstances().size());
-    pass.DispatchWorkgroups(workgroupCountX);
-    pass.End();
+    computePass->DispatchWorkgroups(workgroupCountX);
+    computePass->End();
 
     return Result<>::Ok;
 }

@@ -44,8 +44,6 @@ public:
 
     CameraParamsBuffer GetCameraParamsBuffer() const { return m_CameraParamsBuffer; }
 
-    wgpu::BindGroup GetTransformShaderBindGroup() const { return m_TransformShaderBindGroup; }
-
     Result<> SyncFromLevel();
 
     // Sync updates from CPU -> GPU.
@@ -58,7 +56,6 @@ private:
         DrawIndirectBuffer&& drawIndirectBuffer,
         MeshPropertiesBuffer&& meshPropertiesBuffer,
         CameraParamsBuffer&& cameraParamsBuffer,
-        wgpu::BindGroup&& transformShaderBindGroup,
         std::vector<const Level::Node*>&& nodes,
         std::vector<ModelInstance>&& modelInstances,
         std::vector<MeshInstance>&& meshInstances,
@@ -69,7 +66,6 @@ private:
     DrawIndirectBuffer m_DrawIndirectBuffer;
     MeshPropertiesBuffer m_MeshPropertiesBuffer;
     CameraParamsBuffer m_CameraParamsBuffer;
-    wgpu::BindGroup m_TransformShaderBindGroup;
 
     std::vector<const Level::Node*> m_Nodes;
     std::vector<ModelInstance> m_ModelInstances;
