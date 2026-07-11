@@ -2,7 +2,6 @@
 
 #include "Result.h"
 
-#include <vector>
 #include <webgpu/webgpu_cpp.h>
 
 class FileFetcher;
@@ -16,17 +15,37 @@ public:
     static constexpr const char* VertexEntry = "vs_main";
     static constexpr const char* FragmentEntry = "fs_main";
 
-    struct Resources
+    struct Inputs
     {
-        wgpu::Texture SourceTexture;
-        wgpu::Texture TargetTexture;
+        wgpu::Texture Texture;
 
         Result<> Validate() const
         {
-            MLG_CHECKV(SourceTexture, "Source texture is not valid");
-            MLG_CHECKV(TargetTexture, "Target texture is not valid");
+            MLG_CHECKV(Texture, "Input texture is not valid");
 
             return Result<>::Ok;
+        }
+
+        friend bool operator==(const Inputs& lhs, const Inputs& rhs)
+        {
+            return lhs.Texture.Get() == rhs.Texture.Get();
+        }
+    };
+
+    struct Outputs
+    {
+        wgpu::Texture Texture;
+
+        Result<> Validate() const
+        {
+            MLG_CHECKV(Texture, "Output texture is not valid");
+
+            return Result<>::Ok;
+        }
+
+        friend bool operator==(const Outputs& lhs, const Outputs& rhs)
+        {
+            return lhs.Texture.Get() == rhs.Texture.Get();
         }
     };
 
@@ -38,7 +57,8 @@ public:
 
     static Result<GpuCompositorPass> Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
 
-    Result<> BindResources(const GpuHelper& gpuHelper, const Resources& resources);
+    Result<> BindInputs(const GpuHelper& gpuHelper, const Inputs& inputs);
+    Result<> BindOutputs(const GpuHelper& gpuHelper, const Outputs& outputs);
 
     Result<wgpu::RenderPassEncoder> BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder) const;
 
@@ -50,21 +70,18 @@ public:
 private:
     GpuCompositorPass() = default;
 
-    struct PipelineResources
-    {
-        wgpu::ShaderModule Shader;
-        wgpu::BindGroupLayout BindGroupLayout;
-        wgpu::PipelineLayout PipelineLayout;
-        wgpu::Sampler Sampler;
-        wgpu::TextureFormat TargetFormat{ wgpu::TextureFormat::Undefined };
-    };
-
+    Result<> EnsureSampler(const wgpu::Device& gpuDevice);
+    Result<> EnsureBindGroupLayout(const wgpu::Device& gpuDevice);
     Result<> EnsurePipeline(const wgpu::Device& gpuDevice, wgpu::TextureFormat targetFormat);
 
-    Resources m_Resources;
+    Inputs m_Inputs;
+    Outputs m_Outputs;
 
-    PipelineResources m_PipelineResources;
+    wgpu::ShaderModule m_Shader;
+    wgpu::BindGroupLayout m_BindGroupLayout;
+    wgpu::PipelineLayout m_PipelineLayout;
+    wgpu::Sampler m_Sampler;
+    wgpu::TextureFormat m_TargetFormat{ wgpu::TextureFormat::Undefined };
     wgpu::BindGroup m_BindGroup;
     wgpu::RenderPipeline m_Pipeline;
-    std::vector<uint8_t> m_ShaderCode;
 };

@@ -12,6 +12,29 @@
 #include "Scene.h"
 #include "shaders/ShaderInterop.h"
 
+namespace
+{
+
+Result<GpuColorPass::Outputs>
+CreateColorPassTarget(const GpuHelper& gpuHelper, const uint32_t width, const uint32_t height)
+{
+    MLG_DEBUG("Creating new color/depth target with size {}x{}", width, height);
+
+    auto renderTarget = gpuHelper.CreateRenderTarget(width, height, "ColorPass::RenderTarget");
+    MLG_CHECK(renderTarget);
+
+    auto depthBuffer = gpuHelper.CreateDepthBuffer(width, height, "ColorPass::DepthBuffer");
+    MLG_CHECK(depthBuffer);
+
+    return GpuColorPass::Outputs //
+        {
+            .RenderTarget = *renderTarget,
+            .DepthBuffer = *depthBuffer,
+        };
+}
+
+} // namespace
+
 Result<>
 Renderer::Startup(GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 {
@@ -78,18 +101,18 @@ Renderer::Render(const GpuHelper& gpuHelper,
         MLG_CHECK(transformNodesResult);
     }
 
-    if(!m_TargetResources.Target ||
-        m_TargetResources.Target.GetWidth() != viewport.GetWidth() ||
-        m_TargetResources.Target.GetHeight() != viewport.GetHeight())
+    if(!m_ColorPassOutputs.RenderTarget ||
+        m_ColorPassOutputs.RenderTarget.GetWidth() != viewport.GetWidth() ||
+        m_ColorPassOutputs.RenderTarget.GetHeight() != viewport.GetHeight())
     {
-        auto colorTargetResources =
-            GpuColorPass::CreateTarget(gpuHelper, viewport.GetWidth(), viewport.GetHeight());
-        MLG_CHECK(colorTargetResources);
+        auto colorPassOutputs =
+            CreateColorPassTarget(gpuHelper, viewport.GetWidth(), viewport.GetHeight());
+        MLG_CHECK(colorPassOutputs);
 
-        m_TargetResources = std::move(*colorTargetResources);
+        m_ColorPassOutputs = std::move(*colorPassOutputs);
     }
 
-    const GpuColorPass::Resources colorPassResources //
+    const GpuColorPass::Inputs colorPassInputs //
         {
             .Vertices = propKit.GetVertexBuffer(),
             .Indices = propKit.GetIndexBuffer(),
@@ -102,7 +125,8 @@ Renderer::Render(const GpuHelper& gpuHelper,
 
     MLG_CHECKV(m_ColorPass, "Color pass is not initialized");
 
-    MLG_CHECK(m_ColorPass->BindResources(gpuHelper, colorPassResources, m_TargetResources));
+    MLG_CHECK(m_ColorPass->BindInputs(gpuHelper, colorPassInputs));
+    MLG_CHECK(m_ColorPass->BindOutputs(gpuHelper, m_ColorPassOutputs));
 
     wgpu::RenderPassEncoder renderPass;
     {
@@ -230,13 +254,18 @@ Renderer::Composite(GpuHelper& gpuHelper, const wgpu::Texture& target, const Rec
     MLG_CHECKV(m_Initialized, "Renderer is not initialized");
     MLG_CHECKV(m_CompositorPass, "Compositor pass is not initialized");
 
-    const GpuCompositorPass::Resources compositorResources //
+    const GpuCompositorPass::Inputs inputs //
         {
-            .SourceTexture = m_TargetResources.Target,
-            .TargetTexture = target,
+            .Texture = m_ColorPassOutputs.RenderTarget,
         };
 
-    MLG_CHECK(m_CompositorPass->BindResources(gpuHelper, compositorResources));
+    const GpuCompositorPass::Outputs outputs //
+        {
+            .Texture = target,
+        };
+
+    MLG_CHECK(m_CompositorPass->BindInputs(gpuHelper, inputs));
+    MLG_CHECK(m_CompositorPass->BindOutputs(gpuHelper, outputs));
 
     return m_CompositorPass->Composite(gpuHelper, target, dstRect);
 }
@@ -246,7 +275,7 @@ Renderer::GetTarget() const
 {
     MLG_CHECKV(m_Initialized, "Renderer is not initialized");
 
-    return m_TargetResources.Target;
+    return m_ColorPassOutputs.RenderTarget;
 }
 
 //private:
@@ -261,15 +290,15 @@ Renderer::TransformNodes(const GpuHelper& gpuHelper,
     MLG_CHECKV(m_TransformPass, "Transform pass is not initialized");
 
     // Use inverse of camera transform as view matrix
-    const Mat44f viewXform = cameraXForm.Inverse().ToMatrix();
+    const Mat44f viewMat = cameraXForm.Inverse().ToMatrix();
     const Mat44f& projMat = camera.GetMatrix();
-    const Mat44f viewProj = projMat.Mul(viewXform);
+    const Mat44f viewProjMat = projMat.Mul(viewMat);
 
     const ShaderInterop::CameraParams cameraParams //
         {
-            .View = viewXform,
+            .View = viewMat,
             .Projection = projMat,
-            .ViewProj = viewProj,
+            .ViewProj = viewProjMat,
         };
 
     auto cameraParamsBuf = scene.GetCameraParamsBuffer();
@@ -282,15 +311,19 @@ Renderer::TransformNodes(const GpuHelper& gpuHelper,
         &cameraParams,
         sizeof(ShaderInterop::CameraParams));
 
-    const GpuTransformPass::Resources transformResources //
+    const GpuTransformPass::Inputs inputs //
         {
             .WorldTransforms = scene.GetWorldTransformBuffer(),
-            .ClipSpaceTransforms = scene.GetClipSpaceBuffer(),
             .CameraParams = cameraParamsBuf,
         };
 
-    MLG_CHECK(m_TransformPass->BindResources(gpuHelper, transformResources));
+    const GpuTransformPass::Outputs outputs //
+        {
+            .ClipSpaceTransforms = scene.GetClipSpaceBuffer(),
+        };
 
+    MLG_CHECK(m_TransformPass->BindInputs(gpuHelper, inputs));
+    MLG_CHECK(m_TransformPass->BindOutputs(gpuHelper, outputs));
     auto computePass = m_TransformPass->BeginComputePass(cmdEncoder);
     MLG_CHECK(computePass);
 

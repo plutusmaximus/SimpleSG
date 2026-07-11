@@ -57,7 +57,7 @@ private:
 
     wgpu::Limits m_GpuLimits;
 
-    GpuColorPass::TargetResources m_TargetResources;
+    GpuColorPass::Outputs m_ColorPassOutputs;
     std::optional<GpuColorPass> m_ColorPass;
     std::optional<GpuCompositorPass> m_CompositorPass;
     std::optional<GpuTransformPass> m_TransformPass;

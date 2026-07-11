@@ -1,14 +1,16 @@
 #pragma once
 
 #include "Result.h"
-#include "VecMath.h"
 #include "shaders/GpuBufferTypes.h"
+#include "VecMath.h"
 
 #include <string_view>
 
+
 struct SDL_Window;
 
-template<typename T> class RgbaColor;
+template<typename T>
+class RgbaColor;
 using RgbaColorf = RgbaColor<float>;
 using RgbaColoru8 = RgbaColor<uint8_t>;
 
@@ -20,6 +22,9 @@ class GpuHelperImpl;
 class GpuHelper final
 {
 public:
+    static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
+    static constexpr wgpu::TextureFormat kDepthBufferFormat = wgpu::TextureFormat::Depth24Plus;
+
     ~GpuHelper() = default;
     GpuHelper(const GpuHelper&) = delete;
     GpuHelper& operator=(const GpuHelper&) = delete;
@@ -32,7 +37,7 @@ public:
     wgpu::Surface GetSurface() const;
     wgpu::Texture GetDefaultTexture() const;
     wgpu::Sampler GetDefaultSampler() const;
-    Dimension2 GetScreenDimensions() const;    
+    Dimension2 GetScreenDimensions() const;
     Result<wgpu::Texture> GetSwapChainTexture() const;
     wgpu::TextureFormat GetSwapChainFormat() const;
 
@@ -42,29 +47,37 @@ public:
 
     /// @brief Creates an empty texture with the given dimensions and name.
     Result<wgpu::Texture> CreateTexture(
-        const unsigned width, const unsigned height, const std::string_view& name);
+        const unsigned width, const unsigned height, const std::string_view& name) const;
+
+    /// @brief Creates a render target with the given dimensions and name.
+    Result<wgpu::Texture> CreateRenderTarget(
+        const unsigned width, const unsigned height, const std::string_view& name) const;
+
+    /// @brief Creates a depth buffer with the given dimensions and name.
+    Result<wgpu::Texture> CreateDepthBuffer(
+        const unsigned width, const unsigned height, const std::string_view& name) const;
 
     /// @brief Creates a staging buffer for copying texture data to the GPU.
     Result<wgpu::Buffer> CreateStagingBuffer(wgpu::Texture texture,
-        const std::string_view& name);
+        const std::string_view& name) const;
 
     /// @brief Commits the data in the staging buffer to texture memory on the GPU.
-    Result<> CommitStagingBuffer(wgpu::Texture texture, wgpu::Buffer stagingBuffer);
+    Result<> CommitStagingBuffer(wgpu::Texture texture, wgpu::Buffer stagingBuffer) const;
 
     /// @brief Commits the data in the staging buffer to texture memory on the GPU.
     static Result<> CommitStagingBuffer(
         wgpu::Texture texture, wgpu::Buffer stagingBuffer, wgpu::CommandEncoder cmdEncoder);
 
-    Result<VertexBuffer> CreateVertexBuffer(const size_t count,
-        const std::string_view& name);
+    Result<VertexBuffer> CreateVertexBuffer(const size_t count, const std::string_view& name) const;
 
-    Result<IndexBuffer> CreateIndexBuffer(const size_t count, const std::string_view& name);
+    Result<IndexBuffer> CreateIndexBuffer(const size_t count, const std::string_view& name) const;
 
     /// @brief Creates a semantically-typed storage buffer.
     template<typename T>
-    Result<T> CreateStorageBuffer(const size_t count, const std::string_view& name)
+    Result<T> CreateStorageBuffer(const size_t count, const std::string_view& name) const
     {
-        static_assert(is_gpu_storage_buffer_type_v<T>, "T must be a SemanticGpuBuffer type with BufferType::Storage");
+        static_assert(is_gpu_storage_buffer_type_v<T>,
+            "T must be a SemanticGpuBuffer type with BufferType::Storage");
 
         const size_t bufferSize = count * sizeof(typename T::value_type);
         auto bufferResult = CreateStorageBuffer(bufferSize, name);
@@ -75,9 +88,10 @@ public:
 
     /// @brief Creates a semantically-typed uniform buffer.
     template<typename T>
-    Result<T> CreateUniformBuffer(const size_t count, const std::string_view& name)
+    Result<T> CreateUniformBuffer(const size_t count, const std::string_view& name) const
     {
-        static_assert(is_gpu_uniform_buffer_type_v<T>, "T must be a SemanticGpuBuffer type with BufferType::Uniform");
+        static_assert(is_gpu_uniform_buffer_type_v<T>,
+            "T must be a SemanticGpuBuffer type with BufferType::Uniform");
 
         const size_t bufferSize = count * sizeof(typename T::value_type);
         auto bufferResult = CreateUniformBuffer(bufferSize, name);
@@ -88,9 +102,10 @@ public:
 
     /// @brief Creates a semantically-typed indirect buffer.
     template<typename T>
-    Result<T> CreateIndirectBuffer(const size_t count, const std::string_view& name)
+    Result<T> CreateIndirectBuffer(const size_t count, const std::string_view& name) const
     {
-        static_assert(is_gpu_indirect_buffer_type_v<T>, "T must be a SemanticGpuBuffer type with BufferType::Indirect");
+        static_assert(is_gpu_indirect_buffer_type_v<T>,
+            "T must be a SemanticGpuBuffer type with BufferType::Indirect");
 
         const size_t bufferSize = count * sizeof(typename T::value_type);
         auto bufferResult = CreateIndirectBuffer(bufferSize, name);
@@ -100,7 +115,7 @@ public:
     }
 
     template<typename T>
-    size_t AlignUniformBuffer()
+    size_t AlignUniformBuffer() const
     {
         wgpu::Limits limits;
         GetDevice().GetLimits(&limits);
@@ -110,13 +125,15 @@ public:
     }
 
 private:
-
     static void Deleter(mlg::detail::GpuHelperImpl*);
 
     using DeleterType = decltype(&Deleter);
     using UniquePtrType = std::unique_ptr<mlg::detail::GpuHelperImpl, DeleterType>;
 
-    explicit GpuHelper(UniquePtrType impl) : m_Impl(std::move(impl)) {}
+    explicit GpuHelper(UniquePtrType impl)
+        : m_Impl(std::move(impl))
+    {
+    }
 
     enum class BufferMappedState
     {
@@ -127,11 +144,12 @@ private:
     Result<wgpu::Buffer> CreateGpuBuffer(const wgpu::BufferUsage usage,
         const size_t size,
         BufferMappedState mappedState,
-        const std::string_view name);
-        
-    Result<wgpu::Buffer> CreateIndirectBuffer(const size_t size, const std::string_view& name);
-    Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string_view& name);
-    Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string_view& name);
+        const std::string_view name) const;
+
+    Result<wgpu::Buffer> CreateIndirectBuffer(const size_t size,
+        const std::string_view& name) const;
+    Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string_view& name) const;
+    Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string_view& name) const;
 
     UniquePtrType m_Impl{ nullptr, &GpuHelper::Deleter };
 };
