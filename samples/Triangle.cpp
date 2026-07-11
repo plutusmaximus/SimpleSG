@@ -131,7 +131,7 @@ Result<> MainLoop()
     MLG_CHECK(levelResult, "Failed to create Level");
     const Level level = std::move(*levelResult);
 
-    auto sceneResult = Scene::Create(gpuHelper, level, propKit);
+    auto sceneResult = Scene::Create(gpuHelper, level);
     MLG_CHECK(sceneResult, "Failed to create Scene");
     const Scene scene = std::move(*sceneResult);
 

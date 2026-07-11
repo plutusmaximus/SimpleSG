@@ -490,7 +490,7 @@ MainLoop()
 
     auto&& [propKit, level] = std::move(*loadResult);
 
-    auto sceneResult = Scene::Create(gpuHelper, level, propKit);
+    auto sceneResult = Scene::Create(gpuHelper, level);
     MLG_CHECK(sceneResult);
 
     Scene scene = std::move(*sceneResult);

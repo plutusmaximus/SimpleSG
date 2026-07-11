@@ -13,7 +13,7 @@ class GpuHelper;
 class Scene
 {
 public:
-    static Result<Scene> Create(GpuHelper& gpuHelper, const Level& level, const PropKit& propKit);
+    static Result<Scene> Create(GpuHelper& gpuHelper, const Level& level);
 
     Scene() = delete;
     ~Scene() = default;
@@ -44,8 +44,6 @@ public:
 
     CameraParamsBuffer GetCameraParamsBuffer() const { return m_CameraParamsBuffer; }
 
-    wgpu::BindGroup GetColorShaderBindGroup() const { return m_ColorShaderBindGroup; }
-
     wgpu::BindGroup GetTransformShaderBindGroup() const { return m_TransformShaderBindGroup; }
 
     Result<> SyncFromLevel();
@@ -60,7 +58,6 @@ private:
         DrawIndirectBuffer&& drawIndirectBuffer,
         MeshPropertiesBuffer&& meshPropertiesBuffer,
         CameraParamsBuffer&& cameraParamsBuffer,
-        wgpu::BindGroup&& colorShaderBindGroup,
         wgpu::BindGroup&& transformShaderBindGroup,
         std::vector<const Level::Node*>&& nodes,
         std::vector<ModelInstance>&& modelInstances,
@@ -72,7 +69,6 @@ private:
     DrawIndirectBuffer m_DrawIndirectBuffer;
     MeshPropertiesBuffer m_MeshPropertiesBuffer;
     CameraParamsBuffer m_CameraParamsBuffer;
-    wgpu::BindGroup m_ColorShaderBindGroup;
     wgpu::BindGroup m_TransformShaderBindGroup;
 
     std::vector<const Level::Node*> m_Nodes;

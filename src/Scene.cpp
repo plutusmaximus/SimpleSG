@@ -9,9 +9,7 @@
 #include "Level.h"
 #include "narrow_cast.h"
 #include "PerfMetrics.h"
-#include "PropKit.h"
 #include "SceneTypes.h"
-#include "shaders/ColorShaderContract.h"
 #include "shaders/TransformShaderContract.h"
 #include "Timer.h"
 
@@ -192,7 +190,7 @@ BuildMeshPropertiesBuffer(GpuHelper& gpuHelper,
 } // namespace
 
 Result<Scene>
-Scene::Create(GpuHelper& gpuHelper, const Level& level, const PropKit& propKit)
+Scene::Create(GpuHelper& gpuHelper, const Level& level)
 {
     Timer createTimer;
     createTimer.Start();
@@ -224,20 +222,6 @@ Scene::Create(GpuHelper& gpuHelper, const Level& level, const PropKit& propKit)
         gpuHelper.CreateUniformBuffer<CameraParamsBuffer>(1, "CameraParams");
     MLG_CHECK(cameraParamsBuf);
 
-    const ColorShaderContract::SceneGroup::Resources colorShaderResources //
-        {
-            .WorldTransforms = *transformBuffer,
-            .ClipSpaceTransforms = *clipSpaceBuffer,
-            .MeshProperties = *meshPropertiesBuffer,
-            .MaterialConstants = propKit.GetMaterialConstants(),
-            .CameraParams = *cameraParamsBuf,
-        };
-
-    auto colorShaderBindGroup =
-        GpuLayouts::CreateBindGroup<ColorShaderContract::SceneGroup>(gpuHelper.GetDevice(),
-            colorShaderResources);
-    MLG_CHECK(colorShaderBindGroup);
-
     const TransformShaderContract::SceneGroup::Resources transformShaderResources //
         {
             .WorldTransforms = *transformBuffer,
@@ -255,7 +239,6 @@ Scene::Create(GpuHelper& gpuHelper, const Level& level, const PropKit& propKit)
         std::move(*drawIndirectBuffer),
         std::move(*meshPropertiesBuffer),
         std::move(*cameraParamsBuf),
-        std::move(*colorShaderBindGroup),
         std::move(*transformShaderBindGroup),
         std::move(nodes),
         std::move(modelInstances),
@@ -272,7 +255,6 @@ Scene::Scene(WorldTransformBuffer&& worldTransformBuffer,
     DrawIndirectBuffer&& drawIndirectBuffer,
     MeshPropertiesBuffer&& meshPropertiesBuffer,
     CameraParamsBuffer&& cameraParamsBuffer,
-    wgpu::BindGroup&& colorShaderBindGroup,
     wgpu::BindGroup&& transformShaderBindGroup,
     std::vector<const Level::Node*>&& nodes,
     std::vector<ModelInstance>&& modelInstances,
@@ -283,7 +265,6 @@ Scene::Scene(WorldTransformBuffer&& worldTransformBuffer,
       m_DrawIndirectBuffer(std::move(drawIndirectBuffer)),
       m_MeshPropertiesBuffer(std::move(meshPropertiesBuffer)),
       m_CameraParamsBuffer(std::move(cameraParamsBuffer)),
-      m_ColorShaderBindGroup(std::move(colorShaderBindGroup)),
       m_TransformShaderBindGroup(std::move(transformShaderBindGroup)),
       m_Nodes(std::move(nodes)),
       m_ModelInstances(std::move(modelInstances)),
