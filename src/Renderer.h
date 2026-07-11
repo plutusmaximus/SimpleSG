@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GpuColorPass.h"
+#include "GpuCompositorPass.h"
 #include "SceneTypes.h"
 #include "Result.h"
 
@@ -28,7 +29,7 @@ public:
 
     ~Renderer()
     {
-        Shutdown();
+        MLG_VERIFY(Shutdown());
     }
 
     Result<> Startup(GpuHelper& gpuHelper, FileFetcher& fileFetcher);
@@ -41,14 +42,12 @@ public:
         const Scene& scene,
         const PropKit& propKit);
 
-    Result<> Composite(const wgpu::Device& gpuDevice,
-        const wgpu::Texture& target) const;
+    Result<> Composite(GpuHelper& gpuHelper, const wgpu::Texture& target);
 
-    Result<> Composite(const wgpu::Device& gpuDevice,
-        const wgpu::Texture& target,
-        const Rect& dstRect) const;
+    Result<> Composite(
+        GpuHelper& gpuHelper, const wgpu::Texture& target, const Rect& dstRect);
 
-    Result<wgpu::Texture> GetTarget() const;
+    Result<wgpu::Texture> GetTarget() const;//DO NOT SUBMIT
 
 private:
 
@@ -64,6 +63,7 @@ private:
 
     GpuColorPass::TargetResources m_TargetResources;
     std::optional<GpuColorPass> m_ColorPass;
+    std::optional<GpuCompositorPass> m_CompositorPass;
 
     struct TransformPipelineResources
     {

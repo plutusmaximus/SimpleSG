@@ -22,10 +22,6 @@ public:
     static constexpr wgpu::TextureFormat kDepthTargetFormat = wgpu::TextureFormat::Depth24Plus;
     static constexpr float kClearDepth = 1.0f;
 
-    static constexpr const char* CompositorShaderPath = "shaders/CompositorShader.wgsl";
-    static constexpr const char* CompositorVertexEntry = "vs_main";
-    static constexpr const char* CompositorFragmentEntry = "fs_main";
-
     struct TargetResources
     {
         wgpu::Texture Target;
@@ -99,18 +95,13 @@ public:
     static Result<GpuColorPass> Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
 
     static Result<TargetResources> CreateTarget(
-        const wgpu::Device& gpuDevice, const uint32_t width, const uint32_t height);
+        const GpuHelper& gpuHelper, const uint32_t width, const uint32_t height);
 
     Result<> BindResources(const GpuHelper& gpuHelper,
         const Resources& resources,
         const TargetResources& targetResources);
 
-    Result<wgpu::RenderPassEncoder> BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder);
-
-    Result<> Composite(const wgpu::Device& gpuDevice, const wgpu::Texture& target) const;
-
-    Result<> Composite(
-        const wgpu::Device& gpuDevice, const wgpu::Texture& target, const Rect& dstRect) const;
+    Result<wgpu::RenderPassEncoder> BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder) const;
 
 private:
     GpuColorPass() = default;
@@ -122,19 +113,7 @@ private:
         wgpu::PipelineLayout Layout;
     };
 
-    struct CompositorPipelineResources
-    {
-        wgpu::ShaderModule Shader;
-        wgpu::BindGroupLayout BindGroupLayout;
-        wgpu::PipelineLayout Layout;
-        wgpu::Sampler Sampler;
-        wgpu::TextureFormat TargetFormat{ wgpu::TextureFormat::Undefined };
-    };
-
     Result<> EnsurePipeline(const wgpu::Device& gpuDevice);
-
-    Result<> EnsureCompositorPipeline(const wgpu::Device& gpuDevice,
-        wgpu::TextureFormat targetFormat);
 
     std::optional<Resources> m_Resources;
 
@@ -143,9 +122,4 @@ private:
     wgpu::BindGroup m_BindGroup;
     wgpu::RenderPipeline m_Pipeline;
     std::vector<uint8_t> m_ShaderCode;
-
-    CompositorPipelineResources m_CompositorPipelineResources;
-    wgpu::BindGroup m_CompositorBindGroup;
-    wgpu::RenderPipeline m_CompositorPipeline;
-    std::vector<uint8_t> m_CompositorShaderCode;
 };

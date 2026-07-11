@@ -34,7 +34,13 @@ public:
     void GetVisibleMeshes(const Frustum& frustum,
         std::vector<MeshInstance>& outVisibleMeshes) const;
 
+    WorldTransformBuffer GetWorldTransformBuffer() const { return m_WorldTransformBuffer; }
+
+    ClipSpaceBuffer GetClipSpaceBuffer() const { return m_ClipSpaceBuffer; }
+
     DrawIndirectBuffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
+
+    MeshPropertiesBuffer GetMeshPropertiesBuffer() const { return m_MeshPropertiesBuffer; }
 
     CameraParamsBuffer GetCameraParamsBuffer() const { return m_CameraParamsBuffer; }
 

@@ -304,6 +304,7 @@ set(SSG_SOURCES
   src/FileFetcher.cpp
   src/GltfLoader.cpp
   src/GpuColorPass.cpp
+  src/GpuCompositorPass.cpp
   src/GpuHelper.cpp
   src/GpuLayouts.cpp
   src/GridHash.cpp
@@ -339,6 +340,7 @@ set(SSG_HEADERS
   src/FileFetcher.h
   src/GltfLoader.h
   src/GpuColorPass.h
+  src/GpuCompositorPass.h
   src/GpuHelper.h
   src/GpuLayouts.h
   src/shaders/GpuBufferTypes.h

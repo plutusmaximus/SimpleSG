@@ -17,7 +17,6 @@
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
 #include <SDL3/SDL_events.h>
-#include <SDL3/SDL_timer.h>
 #include <thread>
 
 namespace
@@ -169,15 +168,7 @@ MainLoop()
                 .Handler =
                     [&](const ActionEvent&)
                 {
-                    SDL_Event event;
-
-                    event.quit = SDL_QuitEvent //
-                        {
-                            .type = SDL_EVENT_QUIT,
-                            .timestamp = SDL_GetTicksNS(),
-                        };
-
-                    SDL_PushEvent(&event);
+                    System::PostQuitEvent();
                 },
             },
             {
@@ -323,8 +314,7 @@ MainLoop()
         MLG_CHECK(target, "Failed to get swapchain texture");
 
         MLG_CHECK(renderer.Render(gpuHelper, camera, cameraXForm, scene, propKit));
-
-        MLG_CHECK(renderer.Composite(gpuHelper.GetDevice(), *target));
+        MLG_CHECK(renderer.Composite(gpuHelper, *target));
 
         MLG_CHECK(imGuiRenderer.NewFrame(*target));
         MLG_CHECK(RenderGui());

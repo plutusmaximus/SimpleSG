@@ -20,9 +20,8 @@
 #include <imgui_impl_sdl3.h>
 #include <random>
 #include <ranges>
-#include <SDL3/SDL_events.h>
 #include <SDL3/SDL_mouse.h>
-#include <SDL3/SDL_timer.h>
+#include <SDL3/SDL_scancode.h>
 #include <thread>
 
 namespace
@@ -538,15 +537,7 @@ MainLoop()
                 .Handler =
                     [&](const ActionEvent&)
                 {
-                    SDL_Event event;
-
-                    event.quit = SDL_QuitEvent //
-                        {
-                            .type = SDL_EVENT_QUIT,
-                            .timestamp = SDL_GetTicksNS(),
-                        };
-
-                    SDL_PushEvent(&event);
+                    System::PostQuitEvent();
                 },
             },
             {
@@ -746,9 +737,7 @@ MainLoop()
             camera.SetViewport(sceneViewport);
 
             MLG_CHECK(renderer.Render(gpuHelper, camera, cameraXForm, scene, propKit));
-
-            // Composite the image into the rectangle defined by the scene panel.
-            MLG_CHECK(renderer.Composite(gpuHelper.GetDevice(), *target, scenePanelRect));
+            MLG_CHECK(renderer.Composite(gpuHelper, *target, scenePanelRect));
         }
 
         MLG_CHECK(imGuiRenderer.NewFrame(*target));

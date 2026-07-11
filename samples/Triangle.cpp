@@ -14,7 +14,6 @@
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
 #include <SDL3/SDL_events.h>
-#include <SDL3/SDL_mouse.h>
 #include <thread>
 
 namespace
@@ -192,7 +191,7 @@ Result<> MainLoop()
                     {
                         const uint32_t newWidth = static_cast<uint32_t>(event.window.data1);
                         const uint32_t newHeight = static_cast<uint32_t>(event.window.data2);
-                        gpuHelper.Resize(newWidth, newHeight);
+                        MLG_CHECKV(gpuHelper.Resize(newWidth, newHeight));
                     }
                     break;
 
@@ -229,7 +228,7 @@ Result<> MainLoop()
         MLG_CHECK(target, "Failed to get swapchain texture");
 
         MLG_CHECK(renderer.Render(gpuHelper, camera, cameraXForm, scene, propKit));
-        MLG_CHECK(renderer.Composite(gpuHelper.GetDevice(), *target));
+        MLG_CHECK(renderer.Composite(gpuHelper, *target));
 
         MLG_CHECK(imGuiRenderer.NewFrame(*target));
         MLG_CHECK(RenderGui());
@@ -257,7 +256,10 @@ Result<> MainLoop()
 
 int main(int /*argc*/, char** /*argv*/)
 {
-    MainLoop();
+    if(!MainLoop())
+    {
+        return -1;
+    }
 
     return 0;
 }

@@ -65,7 +65,12 @@ Renderer::Startup(GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 
     auto gpuColorPassResult = GpuColorPass::Create(gpuHelper, fileFetcher);
     MLG_CHECK(gpuColorPassResult);
+
+    auto gpuCompositorPassResult = GpuCompositorPass::Create(gpuHelper, fileFetcher);
+    MLG_CHECK(gpuCompositorPassResult);
+
     m_ColorPass = std::move(*gpuColorPassResult);
+    m_CompositorPass = std::move(*gpuCompositorPassResult);
 
     MLG_CHECK(CreateTransformPipeline(gpuHelper.GetDevice(), fileFetcher));
 
@@ -109,9 +114,9 @@ Renderer::Render(const GpuHelper& gpuHelper,
         m_TargetResources.Target.GetWidth() != viewport.GetWidth() ||
         m_TargetResources.Target.GetHeight() != viewport.GetHeight())
     {
-        auto colorTargetResources = GpuColorPass::CreateTarget(gpuHelper.GetDevice(),
-            viewport.GetWidth(),
-            viewport.GetHeight());
+        auto colorTargetResources =
+            GpuColorPass::CreateTarget(gpuHelper, viewport.GetWidth(), viewport.GetHeight());
+        MLG_CHECK(colorTargetResources);
 
         m_TargetResources = std::move(*colorTargetResources);
     }
@@ -120,14 +125,14 @@ Renderer::Render(const GpuHelper& gpuHelper,
         {
             .Vertices = propKit.GetVertexBuffer(),
             .Indices = propKit.GetIndexBuffer(),
-            .WorldTransforms = scene.m_WorldTransformBuffer,
-            .ClipSpaceTransforms = scene.m_ClipSpaceBuffer,
-            .MeshProperties = scene.m_MeshPropertiesBuffer,
+            .WorldTransforms = scene.GetWorldTransformBuffer(),
+            .ClipSpaceTransforms = scene.GetClipSpaceBuffer(),
+            .MeshProperties = scene.GetMeshPropertiesBuffer(),
             .MaterialConstants = propKit.GetMaterialConstants(),
-            .CameraParams = scene.m_CameraParamsBuffer,
+            .CameraParams = scene.GetCameraParamsBuffer(),
         };
 
-    m_ColorPass->BindResources(gpuHelper, colorPassResources, m_TargetResources);
+    MLG_CHECK(m_ColorPass->BindResources(gpuHelper, colorPassResources, m_TargetResources));
 
     const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
 
@@ -147,7 +152,6 @@ Renderer::Render(const GpuHelper& gpuHelper,
     {
         MLG_SCOPED_TIMER("Renderer.Render.BeginRenderPass");
         auto renderPassResult = m_ColorPass->BeginRenderPass(cmdEncoder);
-        //auto renderPassResult = BeginRenderPass(cmdEncoder);
         MLG_CHECK(renderPassResult);
 
         renderPass = *renderPassResult;
@@ -256,21 +260,29 @@ Renderer::Render(const GpuHelper& gpuHelper,
 }
 
 Result<>
-Renderer::Composite(const wgpu::Device& gpuDevice, const wgpu::Texture& target) const
+Renderer::Composite(GpuHelper& gpuHelper, const wgpu::Texture& target)
 {
     const Rect dstRect
         ({ .X = 0, .Y = 0, .Width = target.GetWidth(), .Height = target.GetHeight() });
         
-    return Composite(gpuDevice, target, dstRect);
+    return Composite(gpuHelper, target, dstRect);
 }
 
 Result<>
-Renderer::Composite(const wgpu::Device& gpuDevice, const wgpu::Texture& target, const Rect& dstRect) const
+Renderer::Composite(GpuHelper& gpuHelper, const wgpu::Texture& target, const Rect& dstRect)
 {
     MLG_CHECKV(m_Initialized, "Renderer is not initialized");
-    MLG_CHECKV(m_ColorPass, "Color pass is not initialized");
+    MLG_CHECKV(m_CompositorPass, "Compositor pass is not initialized");
 
-    return m_ColorPass->Composite(gpuDevice, target, dstRect);
+    const GpuCompositorPass::Resources compositorResources //
+        {
+            .SourceTexture = m_TargetResources.Target,
+            .TargetTexture = target,
+        };
+
+    MLG_CHECK(m_CompositorPass->BindResources(gpuHelper, compositorResources));
+
+    return m_CompositorPass->Composite(gpuHelper, target, dstRect);
 }
 
 Result<wgpu::Texture>
