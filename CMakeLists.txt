@@ -320,7 +320,6 @@ set(SSG_SOURCES
   src/Renderer.cpp
   src/Scene.cpp
   src/shaders/ColorShaderContract.cpp
-  src/shaders/CompositorShaderContract.cpp
   src/shaders/TransformShaderContract.cpp
   src/ShapeMeshDefs.cpp
   src/StringArena.cpp
@@ -364,7 +363,6 @@ set(SSG_HEADERS
   src/scope_exit.h
   src/SemanticIdentifier.h
   src/shaders/ColorShaderContract.h
-  src/shaders/CompositorShaderContract.h
   src/shaders/ShaderInterop.h
   src/shaders/TransformShaderContract.h
   src/ShapeMeshDefs.h

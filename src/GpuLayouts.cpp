@@ -1,7 +1,6 @@
 #include "GpuLayouts.h"
 
 #include "shaders/ColorShaderContract.h"
-#include "shaders/CompositorShaderContract.h"
 #include "shaders/TransformShaderContract.h"
 
 namespace
@@ -50,13 +49,6 @@ GpuLayouts::GetOrCreateLayout<ColorShaderContract::TextureGroup>(const wgpu::Dev
 
 template<>
 Result<wgpu::BindGroupLayout>
-GpuLayouts::GetOrCreateLayout<CompositorShaderContract::TextureGroup>(const wgpu::Device& gpuDevice)
-{
-    return GetOrCreateLayoutForType<CompositorShaderContract::TextureGroup>(gpuDevice);
-}
-
-template<>
-Result<wgpu::BindGroupLayout>
 GpuLayouts::GetOrCreateLayout<TransformShaderContract::SceneGroup>(const wgpu::Device& gpuDevice)
 {
     return GetOrCreateLayoutForType<TransformShaderContract::SceneGroup>(gpuDevice);
@@ -82,17 +74,6 @@ GpuLayouts::CreateBindGroup<ColorShaderContract::TextureGroup>(const wgpu::Devic
     MLG_CHECK(layout);
 
     return ColorShaderContract::TextureGroup::CreateBindGroup(gpuDevice, *layout, resources);
-}
-
-template<>
-Result<wgpu::BindGroup>
-GpuLayouts::CreateBindGroup<CompositorShaderContract::TextureGroup>(const wgpu::Device& gpuDevice,
-    const CompositorShaderContract::TextureGroup::Resources& resources)
-{
-    auto layout = GetOrCreateLayoutForType<CompositorShaderContract::TextureGroup>(gpuDevice);
-    MLG_CHECK(layout);
-
-    return CompositorShaderContract::TextureGroup::CreateBindGroup(gpuDevice, *layout, resources);
 }
 
 template<>
