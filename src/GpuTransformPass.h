@@ -47,7 +47,7 @@ public:
     Result<> BindInputs(const GpuHelper& gpuHelper, const Inputs& inputs);
     Result<> BindOutputs(const GpuHelper& gpuHelper, const Outputs& outputs);
 
-    Result<wgpu::ComputePassEncoder> BeginComputePass(const wgpu::CommandEncoder& cmdEncoder) const;
+    Result<wgpu::ComputePassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder) const;
 
 private:
     GpuTransformPass() = default;

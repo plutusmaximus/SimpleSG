@@ -94,7 +94,7 @@ GpuTransformPass::BindOutputs(const GpuHelper& gpuHelper, const Outputs& outputs
 }
 
 Result<wgpu::ComputePassEncoder>
-GpuTransformPass::BeginComputePass(const wgpu::CommandEncoder& cmdEncoder) const
+GpuTransformPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder) const
 {
     MLG_CHECKV(m_Pipeline, "Pipeline is not valid");
     MLG_CHECKV(m_BindGroup, "Bind group is not valid - forget to call BindInputs() and BindOutputs()?");

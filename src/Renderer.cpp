@@ -131,7 +131,7 @@ Renderer::Render(const GpuHelper& gpuHelper,
     wgpu::RenderPassEncoder renderPass;
     {
         MLG_SCOPED_TIMER("Renderer.Render.BeginRenderPass");
-        auto renderPassResult = m_ColorPass->BeginRenderPass(cmdEncoder);
+        auto renderPassResult = m_ColorPass->BeginPass(cmdEncoder);
         MLG_CHECK(renderPassResult);
 
         renderPass = *renderPassResult;
@@ -325,12 +325,12 @@ Renderer::TransformNodes(const GpuHelper& gpuHelper,
 
     MLG_CHECK(m_TransformPass->BindInputs(gpuHelper, inputs));
     MLG_CHECK(m_TransformPass->BindOutputs(gpuHelper, outputs));
-    auto computePass = m_TransformPass->BeginComputePass(cmdEncoder);
-    MLG_CHECK(computePass);
+    auto pass = m_TransformPass->BeginPass(cmdEncoder);
+    MLG_CHECK(pass);
 
     const uint32_t workgroupCountX = narrow_cast<uint32_t>(scene.GetModelInstances().size());
-    computePass->DispatchWorkgroups(workgroupCountX);
-    computePass->End();
+    pass->DispatchWorkgroups(workgroupCountX);
+    pass->End();
 
     return Result<>::Ok;
 }

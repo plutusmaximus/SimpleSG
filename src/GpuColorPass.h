@@ -116,7 +116,7 @@ public:
 
     Result<> BindOutputs(const GpuHelper& gpuHelper, const Outputs& outputs);
 
-    Result<wgpu::RenderPassEncoder> BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder) const;
+    Result<wgpu::RenderPassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder) const;
 
 private:
     GpuColorPass() = default;

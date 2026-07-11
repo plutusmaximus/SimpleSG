@@ -337,7 +337,7 @@ GpuColorPass::BindOutputs(const GpuHelper& /*gpuHelper*/, const Outputs& outputs
 }
 
 Result<wgpu::RenderPassEncoder>
-GpuColorPass::BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder) const
+GpuColorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder) const
 {
     MLG_CHECK(m_Outputs.Validate());
     MLG_CHECKV(m_Pipeline, "Pipeline is not valid");
