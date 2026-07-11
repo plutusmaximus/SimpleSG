@@ -115,12 +115,27 @@ GpuCompositorPass::BindOutputs(const GpuHelper& gpuHelper, const Outputs& output
 }
 
 Result<wgpu::RenderPassEncoder>
-GpuCompositorPass::BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder) const
+GpuCompositorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder) const
 {
     MLG_CHECK(m_Inputs.Validate(), "Inputs are not valid - forget to call BindInputs()?");
     MLG_CHECK(m_Outputs.Validate(), "Outputs are not valid - forget to call BindOutputs()?");
     MLG_CHECKV(m_Pipeline, "Pipeline is not valid - forget to call BindOutputs()?");
     MLG_CHECKV(m_BindGroup, "Bind group is not valid - forget to call BindOutputs()?");
+
+    const Rect targetRect({ .X = 0,
+        .Y = 0,
+        .Width = m_Outputs.Texture.GetWidth(),
+        .Height = m_Outputs.Texture.GetHeight() });
+
+    Rect dstRect = m_Inputs.DstRect;
+
+    if(!targetRect.Contains(m_Inputs.DstRect))
+    {
+        MLG_CHECKV(targetRect.Intersects(m_Inputs.DstRect), "DstRect is outside of target rect");
+        
+        dstRect = targetRect.Intersect(m_Inputs.DstRect);
+        MLG_WARN("dstRect clipped");
+    }
 
     const wgpu::RenderPassColorAttachment attachment //
         {
@@ -143,48 +158,13 @@ GpuCompositorPass::BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder) const
     renderPass.SetPipeline(m_Pipeline);
     renderPass.SetBindGroup(0, m_BindGroup, 0, nullptr);
 
-    return renderPass;
-}
-
-Result<>
-GpuCompositorPass::Composite(const GpuHelper& gpuHelper, const wgpu::Texture& target) const
-{
-    const Rect dstRect(
-        { .X = 0, .Y = 0, .Width = target.GetWidth(), .Height = target.GetHeight() });
-    return Composite(gpuHelper, target, dstRect);
-}
-
-Result<>
-GpuCompositorPass::Composite(
-    const GpuHelper& gpuHelper, const wgpu::Texture& target, const Rect& maybeDstRect) const
-{
-    const Rect targetRect(
-        { .X = 0, .Y = 0, .Width = target.GetWidth(), .Height = target.GetHeight() });
-
-    Rect dstRect = maybeDstRect;
-
-    if(!targetRect.Contains(maybeDstRect))
-    {
-        dstRect = targetRect.Intersect(maybeDstRect);
-        MLG_WARN("dstRect clipped");
-    }
-
-    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
-
-    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "GpuCompositorPass" };
-    const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
-    MLG_CHECK(cmdEncoder, "Failed to create command encoder");
-
-    auto renderPass = BeginRenderPass(cmdEncoder);
-    MLG_CHECK(renderPass, "Failed to begin render pass");
-
     {
         const float x = static_cast<float>(dstRect.GetX());
         const float y = static_cast<float>(dstRect.GetY());
         const float width = static_cast<float>(dstRect.GetWidth());
         const float height = static_cast<float>(dstRect.GetHeight());
 
-        renderPass->SetViewport(x, y, width, height, 0, 1);
+        renderPass.SetViewport(x, y, width, height, 0, 1);
     }
     {
         const uint32_t x = static_cast<uint32_t>(dstRect.GetX());
@@ -192,11 +172,26 @@ GpuCompositorPass::Composite(
         const uint32_t width = static_cast<uint32_t>(dstRect.GetWidth());
         const uint32_t height = static_cast<uint32_t>(dstRect.GetHeight());
 
-        renderPass->SetScissorRect(x, y, width, height);
+        renderPass.SetScissorRect(x, y, width, height);
     }
 
-    renderPass->Draw(3, 1, 0, 0);
-    renderPass->End();
+    return renderPass;
+}
+
+Result<>
+GpuCompositorPass::Composite(const GpuHelper& gpuHelper) const
+{
+    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
+
+    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "GpuCompositorPass" };
+    const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
+    MLG_CHECK(cmdEncoder, "Failed to create command encoder");
+
+    auto pass = BeginPass(cmdEncoder);
+    MLG_CHECK(pass, "Failed to begin render pass");
+
+    pass->Draw(3, 1, 0, 0);
+    pass->End();
 
     const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
     MLG_CHECK(cmdBuf, "Failed to finish command buffer");

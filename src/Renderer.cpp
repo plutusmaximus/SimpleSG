@@ -256,6 +256,7 @@ Renderer::Composite(GpuHelper& gpuHelper, const wgpu::Texture& target, const Rec
 
     const GpuCompositorPass::Inputs inputs //
         {
+            .DstRect = dstRect,
             .Texture = m_ColorPassOutputs.RenderTarget,
         };
 
@@ -267,7 +268,7 @@ Renderer::Composite(GpuHelper& gpuHelper, const wgpu::Texture& target, const Rec
     MLG_CHECK(m_CompositorPass->BindInputs(gpuHelper, inputs));
     MLG_CHECK(m_CompositorPass->BindOutputs(gpuHelper, outputs));
 
-    return m_CompositorPass->Composite(gpuHelper, target, dstRect);
+    return m_CompositorPass->Composite(gpuHelper);
 }
 
 Result<wgpu::Texture>

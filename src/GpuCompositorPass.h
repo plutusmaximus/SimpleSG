@@ -1,12 +1,12 @@
 #pragma once
 
 #include "Result.h"
+#include "VecMath.h"
 
 #include <webgpu/webgpu_cpp.h>
 
 class FileFetcher;
 class GpuHelper;
-class Rect;
 
 class GpuCompositorPass
 {
@@ -17,6 +17,7 @@ public:
 
     struct Inputs
     {
+        Rect DstRect = Rect({.X = -1, .Y = -1, .Width = 1, .Height = 1});
         wgpu::Texture Texture;
 
         Result<> Validate() const
@@ -26,9 +27,9 @@ public:
             return Result<>::Ok;
         }
 
-        friend bool operator==(const Inputs& lhs, const Inputs& rhs)
+        friend bool operator==(const Inputs& a, const Inputs& b)
         {
-            return lhs.Texture.Get() == rhs.Texture.Get();
+            return a.Texture.Get() == b.Texture.Get() && a.DstRect == b.DstRect;
         }
     };
 
@@ -43,9 +44,9 @@ public:
             return Result<>::Ok;
         }
 
-        friend bool operator==(const Outputs& lhs, const Outputs& rhs)
+        friend bool operator==(const Outputs& a, const Outputs& b)
         {
-            return lhs.Texture.Get() == rhs.Texture.Get();
+            return a.Texture.Get() == b.Texture.Get();
         }
     };
 
@@ -60,12 +61,9 @@ public:
     Result<> BindInputs(const GpuHelper& gpuHelper, const Inputs& inputs);
     Result<> BindOutputs(const GpuHelper& gpuHelper, const Outputs& outputs);
 
-    Result<wgpu::RenderPassEncoder> BeginRenderPass(const wgpu::CommandEncoder& cmdEncoder) const;
+    Result<wgpu::RenderPassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder) const;
 
-    Result<> Composite(const GpuHelper& gpuHelper, const wgpu::Texture& target) const;
-
-    Result<> Composite(
-        const GpuHelper& gpuHelper, const wgpu::Texture& target, const Rect& dstRect) const;
+    Result<> Composite(const GpuHelper& gpuHelper) const;
 
 private:
     GpuCompositorPass() = default;
