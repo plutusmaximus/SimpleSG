@@ -111,8 +111,18 @@ Result<> MainLoop()
     LevelDef levelDef;
     MLG_CHECK(CreateTriangleModel(propKitDef, levelDef));
 
-    Result<GpuHelper> gpuHelperResult = GpuHelper::Create(kAppName);
-    MLG_CHECK(gpuHelperResult);
+    auto future = GpuHelper::Create(kAppName);
+
+    while(!future->IsComplete())
+    {
+        MLG_CHECK(future->Update());
+    }
+
+    MLG_CHECK(future->Succeeded(), "GpuHelper creation failed");
+
+    auto gpuHelperResult = future->Get();
+    MLG_CHECK(gpuHelperResult, "GpuHelper creation failed");
+
     GpuHelper gpuHelper = std::move(*gpuHelperResult);
 
     ThreadPool threadPool;

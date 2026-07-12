@@ -15,23 +15,60 @@ class RgbaColor;
 using RgbaColorf = RgbaColor<float>;
 using RgbaColoru8 = RgbaColor<uint8_t>;
 
-namespace mlg::detail
-{
-class GpuHelperImpl;
-class GpuHelperCreator;
-} // namespace mlg::detail
-
 class GpuHelper final
-{
+{    
+    class Impl;
+    class FutureImpl;
+
 public:
     static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
     static constexpr wgpu::TextureFormat kDepthBufferFormat = wgpu::TextureFormat::Depth24Plus;
+
+    class Future
+    {
+    public:
+        Future() = delete;
+        ~Future() = default;
+        Future(const Future&) = delete;
+        Future& operator=(const Future&) = delete;
+        Future(Future&&) = default;
+        Future& operator=(Future&&) = default;
+
+        bool IsValid() const;
+
+        Result<> Update();
+
+        bool IsComplete() const;
+
+        bool Succeeded() const;
+
+        /// @brief Returns the GpuHelper if the future succeeded, otherwise returns an error.
+        /// @note This method will invalidate the future, so it can only be called once.
+        Result<GpuHelper> Get();
+
+    private:
+        friend GpuHelper;
+
+        static void Deleter(FutureImpl*);
+
+        using DeleterType = decltype(&Deleter);
+        using UniquePtrType = std::unique_ptr<FutureImpl, DeleterType>;
+
+        explicit Future(UniquePtrType impl)
+            : m_Impl(std::move(impl))
+        {
+        }
+
+        UniquePtrType m_Impl{ nullptr, &Deleter };
+    };
 
     ~GpuHelper() = default;
     GpuHelper(const GpuHelper&) = delete;
     GpuHelper& operator=(const GpuHelper&) = delete;
     GpuHelper(GpuHelper&&) = default;
     GpuHelper& operator=(GpuHelper&&) = default;
+
+    static Result<Future> Create(const char* appName);
 
     SDL_Window* GetWindow() const;
     wgpu::Instance GetInstance() const;
@@ -43,8 +80,6 @@ public:
     Dimension2 GetScreenDimensions() const;
     Result<ValidTexture> GetSwapChainTexture() const;
     wgpu::TextureFormat GetSwapChainFormat() const;
-
-    static Result<GpuHelper> Create(const char* appName);
 
     /// @brief Resizes the swap chain to the given width and height.
     Result<> Resize(const uint32_t width, const uint32_t height);
@@ -129,12 +164,11 @@ public:
     }
 
 private:
-    friend class mlg::detail::GpuHelperCreator;
 
-    static void Deleter(mlg::detail::GpuHelperImpl*);
+    static void Deleter(Impl*);
 
     using DeleterType = decltype(&Deleter);
-    using UniquePtrType = std::unique_ptr<mlg::detail::GpuHelperImpl, DeleterType>;
+    using UniquePtrType = std::unique_ptr<Impl, DeleterType>;
 
     explicit GpuHelper(UniquePtrType impl)
         : m_Impl(std::move(impl))
@@ -157,5 +191,5 @@ private:
     Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string_view& name) const;
     Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string_view& name) const;
 
-    UniquePtrType m_Impl{ nullptr, &GpuHelper::Deleter };
+    UniquePtrType m_Impl{ nullptr, &Deleter };
 };

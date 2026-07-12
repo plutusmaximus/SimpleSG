@@ -12,8 +12,18 @@ System::Create(const char* appName)
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
-    auto gpuHelperResult = GpuHelper::Create(appName);
-    MLG_CHECK(gpuHelperResult);
+    auto future = GpuHelper::Create(appName);
+    MLG_CHECK(future);
+
+    while(!future->IsComplete())
+    {
+        MLG_CHECK(future->Update());
+    }
+
+    MLG_CHECK(future->Succeeded(), "GpuHelper creation failed");
+
+    auto gpuHelperResult = future->Get();
+    MLG_CHECK(gpuHelperResult, "GpuHelper creation failed");
 
     auto fileFetcherResult = FileFetcher::Create();    
     MLG_CHECK(fileFetcherResult);
@@ -24,25 +34,19 @@ System::Create(const char* appName)
 GpuHelper&
 System::GetGpuHelper()
 {
-    MLG_ABORTIF(!m_GpuHelper, "GpuHelper is not initialized");
-
-    return *m_GpuHelper;
+    return m_GpuHelper;
 }
 
 FileFetcher&
 System::GetFileFetcher()
 {
-    MLG_ABORTIF(!m_FileFetcher, "FileFetcher is not initialized");
-
-    return *m_FileFetcher;
+    return m_FileFetcher;
 }
 
 ThreadPool&
 System::GetThreadPool()
 {
-    MLG_ABORTIF(!m_ThreadPool, "ThreadPool is not initialized");
-
-    return *m_ThreadPool;
+    return m_ThreadPool;
 }
 
 void
@@ -61,6 +65,8 @@ System::PostQuitEvent()
 void
 System::ProcessEventsImpl(const EventInterceptor& eventInterceptor)
 {
+    m_GpuHelper.GetInstance().ProcessEvents();
+
     m_FocusEvent = FocusEvent::None;
 
     SDL_Event sdlEvent;

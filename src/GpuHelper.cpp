@@ -451,13 +451,13 @@ CreateTextureBindGroupLayout(const wgpu::Device& gpuDevice)
 
 } // namespace
 
-namespace mlg::detail
-{
-class GpuHelperImpl
+////////// GpuHelper::Impl
+
+class GpuHelper::Impl
 {
 public:
-    GpuHelperImpl() = default;
-    ~GpuHelperImpl()
+    Impl() = default;
+    ~Impl()
     {
         if(MetalView)
         {
@@ -471,10 +471,10 @@ public:
         }
     }
 
-    GpuHelperImpl(const GpuHelperImpl&) = delete;
-    GpuHelperImpl& operator=(const GpuHelperImpl&) = delete;
-    GpuHelperImpl(GpuHelperImpl&&) = delete;
-    GpuHelperImpl& operator=(GpuHelperImpl&&) = delete;
+    Impl(const Impl&) = delete;
+    Impl& operator=(const Impl&) = delete;
+    Impl(Impl&&) = delete;
+    Impl& operator=(Impl&&) = delete;
 
     SDL_Window* Window{ nullptr };
     SDL_MetalView MetalView{ nullptr };
@@ -488,7 +488,9 @@ public:
     wgpu::Sampler DefaultSampler{ nullptr };
 };
 
-class GpuHelperCreator
+////////// GpuHelper::FutureImpl
+
+class GpuHelper::FutureImpl
 {
 public:
 
@@ -537,12 +539,12 @@ public:
     static void RequestAdapterCb(wgpu::RequestAdapterStatus status,
         wgpu::Adapter receivedAdapter,
         wgpu::StringView message,
-        GpuHelperCreator* helperCreator);
+        FutureImpl* helperCreator);
 
     static void RequestDeviceCb(wgpu::RequestDeviceStatus status,
         wgpu::Device receivedDevice,
         wgpu::StringView message,
-        GpuHelperCreator* helperCreator);
+        FutureImpl* helperCreator);
 
     static void DeviceLostCb(
         const wgpu::Device& device, wgpu::DeviceLostReason reason, wgpu::StringView message);
@@ -562,7 +564,7 @@ public:
 
     AdapterRequestData m_AdapterRequestData;
     DeviceRequestData m_DeviceRequestData;
-    std::unique_ptr<mlg::detail::GpuHelperImpl> m_Impl;
+    std::unique_ptr<Impl> m_Impl;
 
     std::optional<GpuHelper> m_GpuHelper;
 
@@ -570,13 +572,13 @@ public:
 };
 
 Result<>
-GpuHelperCreator::Begin(const char* appName)
+GpuHelper::FutureImpl::Begin(const char* appName)
 {
     MLG_ASSERT(GetState() == State::None, "GpuHelperCreator is already in progress");
 
     MLG_INFO("Creating GpuHelper...");
 
-    std::unique_ptr<mlg::detail::GpuHelperImpl> impl = std::make_unique<mlg::detail::GpuHelperImpl>();
+    std::unique_ptr<Impl> impl = std::make_unique<Impl>();
 
     auto window = CreateSdlWindow(appName);
     MLG_CHECK(window);
@@ -613,7 +615,7 @@ GpuHelperCreator::Begin(const char* appName)
 }
 
 Result<>
-GpuHelperCreator::Update()
+GpuHelper::FutureImpl::Update()
 {
     MLG_CHECKV(State::None != GetState(), "GpuHelperCreator is not started");
 
@@ -668,7 +670,7 @@ GpuHelperCreator::Update()
 }
 
 Result<>
-GpuHelperCreator::CreateAdapter()
+GpuHelper::FutureImpl::CreateAdapter()
 {
     MLG_INFO("Creating adapter...");
 
@@ -702,7 +704,7 @@ GpuHelperCreator::CreateAdapter()
 }
 
 Result<>
-GpuHelperCreator::CreateDevice()
+GpuHelper::FutureImpl::CreateDevice()
 {
     MLG_INFO("Creating device...");
 
@@ -761,7 +763,7 @@ GpuHelperCreator::CreateDevice()
 }
 
 Result<>
-GpuHelperCreator::HandleAdapterCreation()
+GpuHelper::FutureImpl::HandleAdapterCreation()
 {
     MLG_CHECK(m_AdapterRequestData.Result, "Failed to create adapter");
     m_Impl->Adapter = std::move(*m_AdapterRequestData.Result);
@@ -778,7 +780,7 @@ GpuHelperCreator::HandleAdapterCreation()
 }
 
 Result<>
-GpuHelperCreator::HandleDeviceCreation()
+GpuHelper::FutureImpl::HandleDeviceCreation()
 {
     MLG_CHECK(m_DeviceRequestData.Result, "Failed to create device");
     m_Impl->Device = std::move(*m_DeviceRequestData.Result);
@@ -790,7 +792,7 @@ GpuHelperCreator::HandleDeviceCreation()
 }
 
 Result<>
-GpuHelperCreator::Finalize()
+GpuHelper::FutureImpl::Finalize()
 {
     int width{ 0 }, height{ 0 };
     SDL_GetWindowSize(m_Impl->Window, &width, &height);
@@ -824,10 +826,10 @@ GpuHelperCreator::Finalize()
 }
 
 void
-GpuHelperCreator::RequestAdapterCb(wgpu::RequestAdapterStatus status,
+GpuHelper::FutureImpl::RequestAdapterCb(wgpu::RequestAdapterStatus status,
     wgpu::Adapter receivedAdapter,
     wgpu::StringView message,
-    GpuHelperCreator* helperCreator)
+    FutureImpl* helperCreator)
 {
     if(status != wgpu::RequestAdapterStatus::Success)
     {
@@ -843,10 +845,10 @@ GpuHelperCreator::RequestAdapterCb(wgpu::RequestAdapterStatus status,
 }
 
 void
-GpuHelperCreator::RequestDeviceCb(wgpu::RequestDeviceStatus status,
+GpuHelper::FutureImpl::RequestDeviceCb(wgpu::RequestDeviceStatus status,
     wgpu::Device receivedDevice,
     wgpu::StringView message,
-    GpuHelperCreator* helperCreator)
+    FutureImpl* helperCreator)
 {
     if(status != wgpu::RequestDeviceStatus::Success)
     {
@@ -863,7 +865,7 @@ GpuHelperCreator::RequestDeviceCb(wgpu::RequestDeviceStatus status,
 
 // TODO(KB) - handle device lost.
 void
-GpuHelperCreator::DeviceLostCb(const wgpu::Device& /*device*/,
+GpuHelper::FutureImpl::DeviceLostCb(const wgpu::Device& /*device*/,
     wgpu::DeviceLostReason reason,
     wgpu::StringView message)
 {
@@ -880,7 +882,7 @@ GpuHelperCreator::DeviceLostCb(const wgpu::Device& /*device*/,
 }
 
 void
-GpuHelperCreator::UncapturedErrorCb(const wgpu::Device& /*device*/,
+GpuHelper::FutureImpl::UncapturedErrorCb(const wgpu::Device& /*device*/,
     wgpu::ErrorType errorType,
     wgpu::StringView message)
 {
@@ -893,29 +895,78 @@ GpuHelperCreator::UncapturedErrorCb(const wgpu::Device& /*device*/,
     MLG_ASSERT(false, errorStr);
 }
 
-} // namespace mlg::detail
+void
+GpuHelper::Future::Deleter(FutureImpl* impl)
+{
+    const std::unique_ptr<FutureImpl> bye(impl);
+}
+
+bool
+GpuHelper::Future::IsValid() const
+{
+    return m_Impl != nullptr;
+}
+
+Result<>
+GpuHelper::Future::Update()
+{
+    MLG_CHECKV(IsValid(), "Invalid GpuHelperFuture");
+
+    return m_Impl->Update();
+}
+
+bool
+GpuHelper::Future::IsComplete() const
+{
+    return MLG_VERIFY(IsValid(), "Invalid GpuHelperFuture")
+        && m_Impl->IsComplete();
+}
+
+bool
+GpuHelper::Future::Succeeded() const
+{
+    return MLG_VERIFY(IsValid(), "Invalid GpuHelperFuture")
+        && m_Impl->IsComplete()
+        && m_Impl->GetState() == FutureImpl::State::Succeeded;
+}
 
 Result<GpuHelper>
+GpuHelper::Future::Get()
+{
+    MLG_CHECKV(Succeeded(), "GpuHelperFuture did not succeed");
+
+    UniquePtrType bye = std::move(m_Impl);
+
+    MLG_CHECKV(bye->m_GpuHelper, "Invalid GpuHelperFuture");
+
+    return std::move(*bye->m_GpuHelper);
+}
+
+////////// GpuHelper
+
+Result<GpuHelper::Future>
 GpuHelper::Create(const char* appName)
 {
-    mlg::detail::GpuHelperCreator creator;
+    std::unique_ptr<FutureImpl> futureImpl = std::make_unique<FutureImpl>();
 
-    MLG_CHECK(creator.Begin(appName))
+    MLG_CHECK(futureImpl->Begin(appName))
 
-    while(!creator.IsComplete())
+    return Future(Future::UniquePtrType(futureImpl.release(), &Future::Deleter));
+
+    /*while(!future.IsComplete())
     {
-        MLG_CHECK(creator.Update());
+        MLG_CHECK(future.Update());
     }
 
-    MLG_CHECKV(creator.m_GpuHelper, "Failed to create GpuHelper");
+    MLG_CHECK(future.Succeeded(), "GpuHelper creation failed");
 
-    return std::move(*creator.m_GpuHelper);
+    return future.Get();*/
 }
 
 void
-GpuHelper::Deleter(mlg::detail::GpuHelperImpl* impl)
+GpuHelper::Deleter(Impl* impl)
 {
-    const std::unique_ptr<mlg::detail::GpuHelperImpl> bye(impl);
+    const std::unique_ptr<Impl> bye(impl);
 }
 
 SDL_Window*

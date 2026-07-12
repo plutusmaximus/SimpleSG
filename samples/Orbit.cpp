@@ -752,8 +752,6 @@ MainLoop()
             MLG_CHECK(gpuHelper.GetSurface().Present(), "Failed to present backbuffer");
 #endif
         }
-
-        gpuHelper.GetInstance().ProcessEvents();
     }
 
     PerfMetrics::LogCounters();

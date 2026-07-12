@@ -4,8 +4,6 @@
 #include "GpuHelper.h"
 #include "ThreadPool.h"
 
-#include <optional>
-
 union SDL_Event;
 
 class System
@@ -96,9 +94,9 @@ private:
         Lost
     };
 
-    std::optional<GpuHelper> m_GpuHelper;
-    std::optional<FileFetcher> m_FileFetcher;
-    std::optional<ThreadPool> m_ThreadPool;
+    GpuHelper m_GpuHelper;
+    FileFetcher m_FileFetcher;
+    ThreadPool m_ThreadPool;
 
     FocusEvent m_FocusEvent{ FocusEvent::None };
 
