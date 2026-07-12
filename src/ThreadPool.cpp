@@ -13,6 +13,9 @@
 
 namespace
 {
+constexpr const size_t kMaxJobs = 1024;
+constexpr size_t kMaxWorkerThreads = 32;
+
 struct ThreadPoolJob
 {
     ThreadPoolJob() = default;
@@ -42,13 +45,10 @@ struct ThreadPoolJob
 };    
 } // namespace
 
-namespace mlg::detail
+class ThreadPool::Impl
 {
-constexpr const size_t kMaxJobs = 1024;
-constexpr size_t kMaxWorkerThreads = 32;
+public:
 
-struct ThreadPoolImpl
-{
     ThreadPoolJob *NewJob();
     
     void DeleteJob(ThreadPoolJob *job);
@@ -57,7 +57,7 @@ struct ThreadPoolImpl
 
     static size_t GetWorkerThreadCount();
 
-    static void WorkerLoop(ThreadPoolImpl* impl);
+    static void WorkerLoop(Impl* impl);
 
     std::array<ThreadPoolJob, kMaxJobs> m_JobPool;
     ThreadPoolJob* m_JobPoolFreeList{nullptr};
@@ -74,7 +74,7 @@ struct ThreadPoolImpl
 };
 
 size_t
-ThreadPoolImpl::GetWorkerThreadCount()
+ThreadPool::Impl::GetWorkerThreadCount()
 {
     const size_t hardwareThreadCount = std::thread::hardware_concurrency();
     if (hardwareThreadCount == 0)
@@ -84,16 +84,13 @@ ThreadPoolImpl::GetWorkerThreadCount()
 
     return hardwareThreadCount > kMaxWorkerThreads ? kMaxWorkerThreads : hardwareThreadCount;
 }
-} // namespace mlg::detail
-
-using namespace mlg::detail;
 
 ThreadPool::ThreadPool()
 {
-    auto impl = std::make_unique<ThreadPoolImpl>();
+    auto impl = std::make_unique<Impl>();
 
     impl->m_WorkerThreads = std::span<std::thread>(impl->m_WorkerThreadPool.data(),
-        ThreadPoolImpl::GetWorkerThreadCount());
+        Impl::GetWorkerThreadCount());
 
     MLG_INFO("Starting ThreadPool with {} worker threads...", impl->m_WorkerThreads.size());
 
@@ -101,7 +98,7 @@ ThreadPool::ThreadPool()
 
     for(std::thread& worker : impl->m_WorkerThreads)
     {
-        worker = std::thread(ThreadPoolImpl::WorkerLoop, impl.get());
+        worker = std::thread(Impl::WorkerLoop, impl.get());
     }
 
     for(auto& job : impl->m_JobPool)
@@ -161,9 +158,9 @@ ThreadPool::~ThreadPool()
 }
 
 void
-ThreadPool::Deleter(mlg::detail::ThreadPoolImpl* impl)
+ThreadPool::Deleter(Impl* impl)
 {
-    const std::unique_ptr<mlg::detail::ThreadPoolImpl> bye(impl);
+    const std::unique_ptr<Impl> bye(impl);
 }
 
 bool
@@ -191,7 +188,7 @@ ThreadPool::GetWorkerCount() const
 }
 
 ThreadPoolJob *
-ThreadPoolImpl::NewJob()
+ThreadPool::Impl::NewJob()
 {
     const std::lock_guard<std::mutex> lock(m_AllocMutex);
 
@@ -206,7 +203,7 @@ ThreadPoolImpl::NewJob()
 }
 
 void
-ThreadPoolImpl::DeleteJob(ThreadPoolJob *job)
+ThreadPool::Impl::DeleteJob(ThreadPoolJob *job)
 {
     const std::lock_guard<std::mutex> lock(m_AllocMutex);
 
@@ -217,7 +214,7 @@ ThreadPoolImpl::DeleteJob(ThreadPoolJob *job)
 }
 
 void
-ThreadPoolImpl::Enqueue(ThreadPoolJob *job)
+ThreadPool::Impl::Enqueue(ThreadPoolJob *job)
 {
     const std::lock_guard<std::mutex> lock(m_JobQueueMutex);
 
@@ -238,7 +235,7 @@ ThreadPoolImpl::Enqueue(ThreadPoolJob *job)
 }
 
 void
-ThreadPoolImpl::WorkerLoop(ThreadPoolImpl* impl)
+ThreadPool::Impl::WorkerLoop(Impl* impl)
 {
     while(impl->m_Running.load())
     {

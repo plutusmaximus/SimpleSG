@@ -4,14 +4,10 @@
 #include <memory>
 #include <type_traits>
 
-namespace mlg::detail
-{
-struct ThreadPoolImpl;
-}
-
 /// @brief A simple thread pool for executing jobs asynchronously.
 class ThreadPool final
 {
+    class Impl;
 public:
     ThreadPool();
     ~ThreadPool();
@@ -39,10 +35,10 @@ public:
 
 private:
 
-    static void Deleter(mlg::detail::ThreadPoolImpl* impl);
+    static void Deleter(Impl* impl);
 
     using DeleterType = decltype(&Deleter);
-    using UniquePtrType = std::unique_ptr<mlg::detail::ThreadPoolImpl, DeleterType>;
+    using UniquePtrType = std::unique_ptr<Impl, DeleterType>;
 
     UniquePtrType m_Impl{nullptr, &ThreadPool::Deleter};
 };
