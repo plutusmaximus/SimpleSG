@@ -9,7 +9,6 @@
 #include <SDL3/SDL_video.h>
 #include <string>
 
-
 #if !defined(EMSCRIPTEN)
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN

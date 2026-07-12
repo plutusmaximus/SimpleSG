@@ -6,7 +6,6 @@
 
 #include <string_view>
 
-
 struct SDL_Window;
 
 template<typename T>

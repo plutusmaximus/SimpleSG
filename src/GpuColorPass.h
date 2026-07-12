@@ -1,12 +1,12 @@
 #pragma once
 
 #include "Camera.h"
-#include "GpuHelper.h"
+#include "GpuTypes.h"
 
 #include <optional>
-#include <webgpu/webgpu_cpp.h>
 
 class FileFetcher;
+class GpuHelper;
 
 class GpuColorPass
 {

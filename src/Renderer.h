@@ -6,8 +6,6 @@
 #include "SceneTypes.h"
 #include "Result.h"
 
-#include <webgpu/webgpu_cpp.h>
-
 class FileFetcher;
 class GpuHelper;
 

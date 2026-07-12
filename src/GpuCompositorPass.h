@@ -3,8 +3,6 @@
 #include "GpuTypes.h"
 #include "VecMath.h"
 
-#include <webgpu/webgpu_cpp.h>
-
 class FileFetcher;
 class GpuHelper;
 

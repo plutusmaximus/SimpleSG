@@ -7,7 +7,6 @@
 
 #include <filesystem>
 #include <thread>
-#include <webgpu/webgpu_cpp.h>
 
 namespace
 {

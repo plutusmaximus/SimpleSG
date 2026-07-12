@@ -1,13 +1,13 @@
 #define MLG_LOGGER_NAME "CPAS"
 
-#include "FileFetcher.h"
 #include "GpuColorPass.h"
+
+#include "FileFetcher.h"
 #include "GpuHelper.h"
 #include "PerfMetrics.h"
 
 #include <filesystem>
 #include <thread>
-#include <webgpu/webgpu_cpp.h>
 
 namespace
 {
