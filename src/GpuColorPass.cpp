@@ -170,12 +170,10 @@ BindGroup0NeedsRefresh(const GpuColorPass::Inputs& currentInputs,
 Result<GpuColorPass>
 GpuColorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 {
-    GpuColorPass pass;
-
     auto shader = LoadShader(ShaderPath, gpuHelper.GetDevice(), fileFetcher);
     MLG_CHECK(shader);
 
-    pass.m_Shader = std::move(*shader);
+    GpuColorPass pass(std::move(*shader));
 
     MLG_CHECK(pass.EnsurePipeline(gpuHelper));
 
@@ -243,8 +241,6 @@ GpuColorPass::SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
 Result<>
 GpuColorPass::SetOutputs(const GpuHelper& /*gpuHelper*/, const Outputs& outputs)
 {
-    MLG_CHECKV(outputs.Validate());
-
     m_Outputs = outputs;
 
     return Result<>::Ok;
@@ -254,13 +250,13 @@ Result<wgpu::RenderPassEncoder>
 GpuColorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder) const
 {
     MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
-    MLG_CHECKV(m_Outputs.Validate(), "Outputs are not valid - forget to call SetOutputs()?");
+    MLG_CHECKV(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
     MLG_CHECKV(m_Pipeline, "Pipeline is not valid");
     MLG_CHECKV(m_InputsBindGroup, "Inputs bind group is not valid");
 
     const wgpu::RenderPassColorAttachment attachment //
         {
-            .view = m_Outputs.RenderTarget.CreateView(),
+            .view = m_Outputs->RenderTarget->CreateView(),
             .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
@@ -269,7 +265,7 @@ GpuColorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder) const
 
     const wgpu::RenderPassDepthStencilAttachment depthStencilAttachment //
         {
-            .view = m_Outputs.DepthBuffer.CreateView(),
+            .view = m_Outputs->DepthBuffer->CreateView(),
             .depthLoadOp = wgpu::LoadOp::Clear,
             .depthStoreOp = wgpu::StoreOp::Store,
             .depthClearValue = kClearDepth,

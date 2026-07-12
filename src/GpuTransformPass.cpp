@@ -47,12 +47,10 @@ LoadShader(const char* filePath, const wgpu::Device& gpuDevice, FileFetcher& fil
 Result<GpuTransformPass>
 GpuTransformPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 {
-    GpuTransformPass pass;
-
     auto shader = LoadShader(ShaderPath, gpuHelper.GetDevice(), fileFetcher);
     MLG_CHECK(shader);
 
-    pass.m_Shader = std::move(*shader);
+    GpuTransformPass pass(std::move(*shader));
 
     MLG_CHECK(pass.EnsurePipeline(gpuHelper.GetDevice()));
 

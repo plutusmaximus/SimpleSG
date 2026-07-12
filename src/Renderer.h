@@ -40,12 +40,10 @@ public:
         const Scene& scene,
         const PropKit& propKit);
 
-    Result<> Composite(GpuHelper& gpuHelper, const wgpu::Texture& target);
+    Result<> Composite(GpuHelper& gpuHelper, const ValidTexture& target);
 
     Result<> Composite(
-        GpuHelper& gpuHelper, const wgpu::Texture& target, const Rect& dstRect);
-
-    Result<wgpu::Texture> GetTarget() const;//DO NOT SUBMIT
+        GpuHelper& gpuHelper, const ValidTexture& target, const Rect& dstRect);
 
 private:
 
@@ -57,7 +55,7 @@ private:
 
     wgpu::Limits m_GpuLimits;
 
-    GpuColorPass::Outputs m_ColorPassOutputs;
+    std::optional<GpuColorPass::Outputs> m_ColorPassOutputs;
     std::optional<GpuColorPass> m_ColorPass;
     std::optional<GpuCompositorPass> m_CompositorPass;
     std::optional<GpuTransformPass> m_TransformPass;

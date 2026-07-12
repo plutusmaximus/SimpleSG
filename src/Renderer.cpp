@@ -101,9 +101,9 @@ Renderer::Render(const GpuHelper& gpuHelper,
         MLG_CHECK(transformNodesResult);
     }
 
-    if(!m_ColorPassOutputs.RenderTarget ||
-        m_ColorPassOutputs.RenderTarget.GetWidth() != viewport.GetWidth() ||
-        m_ColorPassOutputs.RenderTarget.GetHeight() != viewport.GetHeight())
+    if(!m_ColorPassOutputs ||
+        m_ColorPassOutputs->RenderTarget->GetWidth() != viewport.GetWidth() ||
+        m_ColorPassOutputs->RenderTarget->GetHeight() != viewport.GetHeight())
     {
         auto colorPassOutputs =
             CreateColorPassTarget(gpuHelper, viewport.GetWidth(), viewport.GetHeight());
@@ -127,7 +127,7 @@ Renderer::Render(const GpuHelper& gpuHelper,
     MLG_CHECKV(m_ColorPass, "Color pass is not initialized");
 
     MLG_CHECK(m_ColorPass->SetInputs(gpuHelper, colorPassInputs));
-    MLG_CHECK(m_ColorPass->SetOutputs(gpuHelper, m_ColorPassOutputs));
+    MLG_CHECK(m_ColorPass->SetOutputs(gpuHelper, *m_ColorPassOutputs));
 
     wgpu::RenderPassEncoder renderPass;
     {
@@ -204,24 +204,25 @@ Renderer::Render(const GpuHelper& gpuHelper,
 }
 
 Result<>
-Renderer::Composite(GpuHelper& gpuHelper, const wgpu::Texture& target)
+Renderer::Composite(GpuHelper& gpuHelper, const ValidTexture& target)
 {
     const Rect dstRect
-        ({ .X = 0, .Y = 0, .Width = target.GetWidth(), .Height = target.GetHeight() });
+        ({ .X = 0, .Y = 0, .Width = target->GetWidth(), .Height = target->GetHeight() });
         
     return Composite(gpuHelper, target, dstRect);
 }
 
 Result<>
-Renderer::Composite(GpuHelper& gpuHelper, const wgpu::Texture& target, const Rect& dstRect)
+Renderer::Composite(GpuHelper& gpuHelper, const ValidTexture& target, const Rect& dstRect)
 {
     MLG_CHECKV(m_Initialized, "Renderer is not initialized");
     MLG_CHECKV(m_CompositorPass, "Compositor pass is not initialized");
-
+    MLG_CHECKV(m_ColorPassOutputs, "Color pass outputs are not valid");
+    
     const GpuCompositorPass::Inputs inputs //
         {
             .DstRect = dstRect,
-            .Texture = m_ColorPassOutputs.RenderTarget,
+            .Texture = m_ColorPassOutputs->RenderTarget,
         };
 
     const GpuCompositorPass::Outputs outputs //
@@ -233,14 +234,6 @@ Renderer::Composite(GpuHelper& gpuHelper, const wgpu::Texture& target, const Rec
     MLG_CHECK(m_CompositorPass->SetOutputs(gpuHelper, outputs));
 
     return m_CompositorPass->Composite(gpuHelper);
-}
-
-Result<wgpu::Texture>
-Renderer::GetTarget() const
-{
-    MLG_CHECKV(m_Initialized, "Renderer is not initialized");
-
-    return m_ColorPassOutputs.RenderTarget;
 }
 
 //private:

@@ -47,12 +47,10 @@ LoadShader(const char* filePath, const wgpu::Device& gpuDevice, FileFetcher& fil
 Result<GpuCompositorPass>
 GpuCompositorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 {
-    GpuCompositorPass pass;
-
     auto shader = LoadShader(ShaderPath, gpuHelper.GetDevice(), fileFetcher);
     MLG_CHECK(shader);
 
-    pass.m_Shader = std::move(*shader);
+    GpuCompositorPass pass(std::move(*shader));
 
     MLG_CHECK(pass.EnsureSampler(gpuHelper.GetDevice()));
     MLG_CHECK(pass.EnsureBindGroupLayout(gpuHelper.GetDevice()));
@@ -63,7 +61,6 @@ GpuCompositorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 Result<>
 GpuCompositorPass::SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
 {
-    MLG_CHECKV(inputs.Validate());
     MLG_CHECKV(m_Sampler, "Sampler is not valid");
     MLG_CHECKV(m_BindGroupLayout, "Bind group layout is not valid");
 
@@ -75,7 +72,7 @@ GpuCompositorPass::SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
             {
                 {
                     .binding = 0,
-                    .textureView = inputs.Texture.CreateView(),
+                    .textureView = inputs.Texture->CreateView(),
                 },
                 {
                     .binding = 1,
@@ -105,8 +102,6 @@ GpuCompositorPass::SetOutputs(const GpuHelper& gpuHelper, const Outputs& outputs
 {
     const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
 
-    MLG_CHECKV(outputs.Validate());
-
     if(outputs != m_Outputs)
     {
         // Rebuild the pipeline
@@ -123,29 +118,29 @@ GpuCompositorPass::SetOutputs(const GpuHelper& gpuHelper, const Outputs& outputs
 Result<wgpu::RenderPassEncoder>
 GpuCompositorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder) const
 {
-    MLG_CHECK(m_Inputs.Validate(), "Inputs are not valid - forget to call SetInputs()?");
-    MLG_CHECK(m_Outputs.Validate(), "Outputs are not valid - forget to call SetOutputs()?");
+    MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
+    MLG_CHECKV(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
     MLG_CHECKV(m_Pipeline, "Pipeline is not valid");
     MLG_CHECKV(m_BindGroup, "Bind group is not valid ");
 
     const Rect targetRect({ .X = 0,
         .Y = 0,
-        .Width = m_Outputs.Texture.GetWidth(),
-        .Height = m_Outputs.Texture.GetHeight() });
+        .Width = m_Outputs->Texture->GetWidth(),
+        .Height = m_Outputs->Texture->GetHeight() });
 
-    Rect dstRect = m_Inputs.DstRect;
+    Rect dstRect = m_Inputs->DstRect;
 
-    if(!targetRect.Contains(m_Inputs.DstRect))
+    if(!targetRect.Contains(m_Inputs->DstRect))
     {
-        MLG_CHECKV(targetRect.Intersects(m_Inputs.DstRect), "DstRect is outside of target rect");
+        MLG_CHECKV(targetRect.Intersects(m_Inputs->DstRect), "DstRect is outside of target rect");
         
-        dstRect = targetRect.Intersect(m_Inputs.DstRect);
+        dstRect = targetRect.Intersect(m_Inputs->DstRect);
         MLG_WARN("dstRect clipped");
     }
 
     const wgpu::RenderPassColorAttachment attachment //
         {
-            .view = m_Outputs.Texture.CreateView(),
+            .view = m_Outputs->Texture->CreateView(),
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
             .clearValue = { .r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 1.0f },
@@ -324,9 +319,11 @@ GpuCompositorPass::EnsurePipeline(const wgpu::Device& gpuDevice)
         },
     };
 
+    MLG_CHECKV(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
+    
     const wgpu::ColorTargetState colorTargetState //
         {
-            .format = m_Outputs.Texture.GetFormat(),
+            .format = m_Outputs->Texture->GetFormat(),
             .blend = &blendState,
             .writeMask = wgpu::ColorWriteMask::All,
         };

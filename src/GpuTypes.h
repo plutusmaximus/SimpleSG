@@ -12,11 +12,6 @@ class ValidGpuObject
 {
 public:
     ValidGpuObject() = delete;
-    ~ValidGpuObject() = default;
-    ValidGpuObject(const ValidGpuObject&) = delete;
-    ValidGpuObject& operator=(const ValidGpuObject&) = delete;
-    ValidGpuObject(ValidGpuObject&&) = default;
-    ValidGpuObject& operator=(ValidGpuObject&&) = default;
 
     static Result<ValidGpuObject> Create(T gpuObject)
     {
@@ -24,7 +19,11 @@ public:
         return ValidGpuObject(std::move(gpuObject));
     }
 
+    T& Get() { return m_GpuObject; }
     const T& Get() const { return m_GpuObject; }
+
+    T* operator->() { return &m_GpuObject; }
+    const T* operator->() const { return &m_GpuObject; }
 
     friend bool operator==(const ValidGpuObject& a, const ValidGpuObject& b)
     {
@@ -38,12 +37,9 @@ private:
     {
         MLG_ASSERT(m_GpuObject, "Invalid GPU object");
     }
+
     T m_GpuObject;
 };
-
-using ValidTexture = ValidGpuObject<wgpu::Texture>;
-using ValidBindGroupLayout = ValidGpuObject<wgpu::BindGroupLayout>;
-using ValidBindGroup = ValidGpuObject<wgpu::BindGroup>;
 
 enum class SemanticBufferType
 {
@@ -133,6 +129,10 @@ MLG_DEFINE_GPU_BUFFER_TYPE(index, Index)
 MLG_DEFINE_GPU_BUFFER_TYPE(indirect, Indirect)
 MLG_DEFINE_GPU_BUFFER_TYPE(uniform, Uniform)
 MLG_DEFINE_GPU_BUFFER_TYPE(storage, Storage)
+
+using ValidTexture = ValidGpuObject<wgpu::Texture>;
+using ValidBindGroupLayout = ValidGpuObject<wgpu::BindGroupLayout>;
+using ValidBindGroup = ValidGpuObject<wgpu::BindGroup>;
 
 // Strongly-typed GPU storage buffer classes.
 using VertexBuffer = SemanticGpuBuffer<Vertex, SemanticBufferType::Vertex>;

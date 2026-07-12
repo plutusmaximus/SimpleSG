@@ -42,28 +42,16 @@ public:
 
     struct Outputs
     {
-        wgpu::Texture RenderTarget;
-        wgpu::Texture DepthBuffer;
-
-        Result<> Validate() const
-        {
-            MLG_CHECKV(RenderTarget, "Render target texture is not valid");
-            MLG_CHECKV(DepthBuffer, "Depth buffer texture is not valid");
-            MLG_CHECKV(RenderTarget.GetFormat() == GpuHelper::kTextureFormat,
-                "Invalid render target texture format");
-            MLG_CHECKV(DepthBuffer.GetFormat() == GpuHelper::kDepthBufferFormat,
-                "Invalid depth buffer format");
-
-            return Result<>::Ok;
-        }
+        ValidTexture RenderTarget;
+        ValidTexture DepthBuffer;
 
         friend bool operator==(const Outputs& a, const Outputs& b)
         {
-            return a.RenderTarget.Get() == b.RenderTarget.Get()
-                && a.DepthBuffer.Get() == b.DepthBuffer.Get();
+            return a.RenderTarget == b.RenderTarget && a.DepthBuffer == b.DepthBuffer;
         }
     };
 
+    GpuColorPass() = delete;
     ~GpuColorPass() = default;
     GpuColorPass(const GpuColorPass&) = delete;
     GpuColorPass& operator=(const GpuColorPass&) = delete;
@@ -78,12 +66,16 @@ public:
     Result<wgpu::RenderPassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder) const;
 
 private:
-    GpuColorPass() = default;
+
+    explicit GpuColorPass(wgpu::ShaderModule shader)
+        : m_Shader(std::move(shader))
+    {
+    }
 
     Result<> EnsurePipeline(const GpuHelper& gpuHelper);
 
     std::optional<Inputs> m_Inputs;
-    Outputs m_Outputs;
+    std::optional<Outputs> m_Outputs;
 
     wgpu::ShaderModule m_Shader;
     wgpu::BindGroupLayout m_InputsBindGroupLayout;

@@ -64,7 +64,7 @@ ImGuiRenderer::Shutdown()
 }
 
 Result<>
-ImGuiRenderer::NewFrame(const wgpu::Texture& target) const
+ImGuiRenderer::NewFrame(const ValidTexture& target) const
 {
     MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
 
@@ -75,8 +75,8 @@ ImGuiRenderer::NewFrame(const wgpu::Texture& target) const
     // the window is resized or if the display has a different DPI scaling factor. Make sure ImGui
     // knows the current size of the target texture.
 
-    const float width = static_cast<float>(target.GetWidth());
-    const float height = static_cast<float>(target.GetHeight());
+    const float width = static_cast<float>(target->GetWidth());
+    const float height = static_cast<float>(target->GetHeight());
 
     ImGuiIO& io = ImGui::GetIO();
     io.DisplaySize = ImVec2(width, height);
@@ -88,7 +88,7 @@ ImGuiRenderer::NewFrame(const wgpu::Texture& target) const
 }
 
 Result<>
-ImGuiRenderer::Composite(const wgpu::Device& gpuDevice, const wgpu::Texture& target) const
+ImGuiRenderer::Composite(const wgpu::Device& gpuDevice, const ValidTexture& target) const
 {
     MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
 
@@ -112,15 +112,9 @@ ImGuiRenderer::Composite(const wgpu::Device& gpuDevice, const wgpu::Texture& tar
         return Result<>::Ok;
     }
 
-    if(!target)
-    {
-        // Off-screen rendering, skip rendering ImGui
-        return Result<>::Ok;
-    }
-
     const wgpu::RenderPassColorAttachment colorAttachment //
     {
-        .view = target.CreateView(),
+        .view = target->CreateView(),
         .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
         .loadOp = wgpu::LoadOp::Load,
         .storeOp = wgpu::StoreOp::Store,

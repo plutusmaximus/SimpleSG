@@ -11,6 +11,10 @@ namespace wgpu
     class Texture;
 }
 
+template<typename T>
+class ValidGpuObject;
+using ValidTexture = ValidGpuObject<wgpu::Texture>;
+
 class ImGuiRenderer
 {
 public:
@@ -30,9 +34,9 @@ public:
         MLG_VERIFY(Shutdown());
     }
 
-    Result<> NewFrame(const wgpu::Texture& target) const;
+    Result<> NewFrame(const ValidTexture& target) const;
 
-    Result<> Composite(const wgpu::Device& gpuDevice, const wgpu::Texture& target) const;
+    Result<> Composite(const wgpu::Device& gpuDevice, const ValidTexture& target) const;
 
 private:
 

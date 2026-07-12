@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Result.h"
+#include "GpuTypes.h"
 #include "VecMath.h"
 
 #include <webgpu/webgpu_cpp.h>
@@ -18,38 +18,25 @@ public:
     struct Inputs
     {
         Rect DstRect = Rect({.X = -1, .Y = -1, .Width = 1, .Height = 1});
-        wgpu::Texture Texture;
-
-        Result<> Validate() const
-        {
-            MLG_CHECKV(Texture, "Input texture is not valid");
-
-            return Result<>::Ok;
-        }
+        ValidTexture Texture;
 
         friend bool operator==(const Inputs& a, const Inputs& b)
         {
-            return a.Texture.Get() == b.Texture.Get() && a.DstRect == b.DstRect;
+            return a.Texture == b.Texture && a.DstRect == b.DstRect;
         }
     };
 
     struct Outputs
     {
-        wgpu::Texture Texture;
-
-        Result<> Validate() const
-        {
-            MLG_CHECKV(Texture, "Output texture is not valid");
-
-            return Result<>::Ok;
-        }
+        ValidTexture Texture;
 
         friend bool operator==(const Outputs& a, const Outputs& b)
         {
-            return a.Texture.Get() == b.Texture.Get();
+            return a.Texture == b.Texture;
         }
     };
 
+    GpuCompositorPass() = delete;
     ~GpuCompositorPass() = default;
     GpuCompositorPass(const GpuCompositorPass&) = delete;
     GpuCompositorPass& operator=(const GpuCompositorPass&) = delete;
@@ -66,14 +53,18 @@ public:
     Result<> Composite(const GpuHelper& gpuHelper) const;
 
 private:
-    GpuCompositorPass() = default;
+
+    explicit GpuCompositorPass(wgpu::ShaderModule shader)
+        : m_Shader(std::move(shader))
+    {
+    }
 
     Result<> EnsureSampler(const wgpu::Device& gpuDevice);
     Result<> EnsureBindGroupLayout(const wgpu::Device& gpuDevice);
     Result<> EnsurePipeline(const wgpu::Device& gpuDevice);
 
-    Inputs m_Inputs;
-    Outputs m_Outputs;
+    std::optional<Inputs> m_Inputs;
+    std::optional<Outputs> m_Outputs;
 
     wgpu::ShaderModule m_Shader;
     wgpu::BindGroupLayout m_BindGroupLayout;

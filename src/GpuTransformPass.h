@@ -35,6 +35,7 @@ public:
         }
     };
 
+    GpuTransformPass() = delete;
     ~GpuTransformPass() = default;
     GpuTransformPass(const GpuTransformPass&) = delete;
     GpuTransformPass& operator=(const GpuTransformPass&) = delete;
@@ -49,7 +50,11 @@ public:
     Result<wgpu::ComputePassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder) const;
 
 private:
-    GpuTransformPass() = default;
+
+    explicit GpuTransformPass(wgpu::ShaderModule shader)
+        : m_Shader(std::move(shader))
+    {
+    }
 
     Result<> EnsureBindgroup(const wgpu::Device& gpuDevice);
     Result<> EnsurePipeline(const wgpu::Device& gpuDevice);
