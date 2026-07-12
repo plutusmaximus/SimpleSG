@@ -9,8 +9,6 @@ using MaterialIdentifier = SemanticIdentifier<struct MaterialIdTag>;
 class Mesh
 {
 public:
-    Mesh() = delete;
-
     struct VertexParams
     {
         uint32_t IndexCount;
@@ -18,16 +16,17 @@ public:
         uint32_t BaseVertex;
     };
 
+    Mesh() = delete;
+
     Mesh(const VertexParams& vertexParams,
         const MaterialIdentifier materialId,
-        const BoundingBox& boundingBox,
-        const BoundingSphere& boundingSphere)
+        const BoundingBox& boundingBox)
         : m_IndexCount(vertexParams.IndexCount),
           m_FirstIndex(vertexParams.FirstIndex),
           m_BaseVertex(vertexParams.BaseVertex),
           m_MaterialId(materialId),
           m_BoundingBox(boundingBox),
-          m_BoundingSphere(boundingSphere)
+          m_BoundingSphere(boundingBox)
     {
     }
 
@@ -51,14 +50,15 @@ private:
 class Model
 {
 public:
+    Model() = delete;
+
     Model(const StringHandle& name,
         const std::span<const Mesh>& meshes,
-        const BoundingBox& boundingBox,
-        const BoundingSphere& boundingSphere)
+        const BoundingBox& boundingBox)
         : m_Name(name),
             m_Meshes(meshes),
             m_BoundingBox(boundingBox),
-            m_BoundingSphere(boundingSphere)
+            m_BoundingSphere(boundingBox)
     {
         MLG_ABORTIF(meshes.empty(), "Model must have at least one mesh");
     }

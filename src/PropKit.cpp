@@ -426,8 +426,7 @@ PropKit::Create(GpuHelper& gpuHelper,
                     .BaseVertex = narrow_cast<uint32_t>(vertices.size()),
                 },
                 materialId,
-                aabb,
-                BoundingSphere(aabb));
+                aabb);
 
             vertices.insert(vertices.end(), meshDef.Vertices.begin(), meshDef.Vertices.end());
             indices.insert(indices.end(), meshDef.Indices.begin(), meshDef.Indices.end());
@@ -441,7 +440,7 @@ PropKit::Create(GpuHelper& gpuHelper,
             aabb += mesh.GetBoundingBox();
         }
 
-        const Model model(modelName, meshSpan, aabb, BoundingSphere(aabb));
+        const Model model(modelName, meshSpan, aabb);
         models.emplace_back(model);
     }
 
