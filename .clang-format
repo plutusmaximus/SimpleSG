@@ -51,6 +51,6 @@ AccessModifierOffset: -4
 DerivePointerAlignment : true
 
 # Operators
-BreakBinaryOperations: OnePerLine
+BreakBinaryOperations: RespectPrecedence
 BreakBeforeBinaryOperators: NonAssignment
 AlignOperands: DontAlign
