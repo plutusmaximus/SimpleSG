@@ -1,7 +1,7 @@
 #pragma once
 
+#include "GpuTypes.h"
 #include "Result.h"
-#include "shaders/GpuBufferTypes.h"
 #include "VecMath.h"
 
 #include <string_view>

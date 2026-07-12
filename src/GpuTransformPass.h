@@ -1,6 +1,6 @@
 #pragma once
 
-#include "shaders/GpuBufferTypes.h"
+#include "GpuTypes.h"
 #include "Result.h"
 
 #include <webgpu/webgpu_cpp.h>

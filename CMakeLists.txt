@@ -340,7 +340,7 @@ set(SSG_HEADERS
   src/GpuCompositorPass.h
   src/GpuTransformPass.h
   src/GpuHelper.h
-  src/shaders/GpuBufferTypes.h
+  src/GpuTypes.h
   src/GridHash.h
   src/ImGuiRenderer.h
   src/inlist.h

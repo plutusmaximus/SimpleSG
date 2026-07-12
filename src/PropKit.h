@@ -1,8 +1,8 @@
 #pragma once
 
+#include "GpuTypes.h"
 #include "Result.h"
 #include "SceneTypes.h"
-#include "shaders/GpuBufferTypes.h"
 
 #include <filesystem>
 #include <vector>

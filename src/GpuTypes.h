@@ -1,10 +1,49 @@
 #pragma once
 
+#include "AssertHelper.h"
 #include "Result.h"
-#include "ShaderInterop.h"
+#include "shaders/ShaderInterop.h"
 #include "Vertex.h"
 
 #include <webgpu/webgpu_cpp.h>
+
+template<typename T>
+class ValidGpuObject
+{
+public:
+    ValidGpuObject() = delete;
+    ~ValidGpuObject() = default;
+    ValidGpuObject(const ValidGpuObject&) = delete;
+    ValidGpuObject& operator=(const ValidGpuObject&) = delete;
+    ValidGpuObject(ValidGpuObject&&) = default;
+    ValidGpuObject& operator=(ValidGpuObject&&) = default;
+
+    static Result<ValidGpuObject> Create(T gpuObject)
+    {
+        MLG_CHECKV(gpuObject, "Invalid GPU object");
+        return ValidGpuObject(std::move(gpuObject));
+    }
+
+    const T& Get() const { return m_GpuObject; }
+
+    friend bool operator==(const ValidGpuObject& a, const ValidGpuObject& b)
+    {
+        return a.m_GpuObject.Get() == b.m_GpuObject.Get();
+    }
+
+private:
+
+    explicit ValidGpuObject(T gpuObject)
+        : m_GpuObject(std::move(gpuObject))
+    {
+        MLG_ASSERT(m_GpuObject, "Invalid GPU object");
+    }
+    T m_GpuObject;
+};
+
+using ValidTexture = ValidGpuObject<wgpu::Texture>;
+using ValidBindGroupLayout = ValidGpuObject<wgpu::BindGroupLayout>;
+using ValidBindGroup = ValidGpuObject<wgpu::BindGroup>;
 
 enum class SemanticBufferType
 {
