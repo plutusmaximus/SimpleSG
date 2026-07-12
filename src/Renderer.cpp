@@ -125,8 +125,8 @@ Renderer::Render(const GpuHelper& gpuHelper,
 
     MLG_CHECKV(m_ColorPass, "Color pass is not initialized");
 
-    MLG_CHECK(m_ColorPass->BindInputs(gpuHelper, colorPassInputs));
-    MLG_CHECK(m_ColorPass->BindOutputs(gpuHelper, m_ColorPassOutputs));
+    MLG_CHECK(m_ColorPass->SetInputs(gpuHelper, colorPassInputs));
+    MLG_CHECK(m_ColorPass->SetOutputs(gpuHelper, m_ColorPassOutputs));
 
     wgpu::RenderPassEncoder renderPass;
     {
@@ -265,8 +265,8 @@ Renderer::Composite(GpuHelper& gpuHelper, const wgpu::Texture& target, const Rec
             .Texture = target,
         };
 
-    MLG_CHECK(m_CompositorPass->BindInputs(gpuHelper, inputs));
-    MLG_CHECK(m_CompositorPass->BindOutputs(gpuHelper, outputs));
+    MLG_CHECK(m_CompositorPass->SetInputs(gpuHelper, inputs));
+    MLG_CHECK(m_CompositorPass->SetOutputs(gpuHelper, outputs));
 
     return m_CompositorPass->Composite(gpuHelper);
 }
@@ -323,8 +323,8 @@ Renderer::TransformNodes(const GpuHelper& gpuHelper,
             .ClipSpaceTransforms = scene.GetClipSpaceBuffer(),
         };
 
-    MLG_CHECK(m_TransformPass->BindInputs(gpuHelper, inputs));
-    MLG_CHECK(m_TransformPass->BindOutputs(gpuHelper, outputs));
+    MLG_CHECK(m_TransformPass->SetInputs(gpuHelper, inputs));
+    MLG_CHECK(m_TransformPass->SetOutputs(gpuHelper, outputs));
     auto pass = m_TransformPass->BeginPass(cmdEncoder);
     MLG_CHECK(pass);
 

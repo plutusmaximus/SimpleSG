@@ -61,7 +61,7 @@ GpuCompositorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 }
 
 Result<>
-GpuCompositorPass::BindInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
+GpuCompositorPass::SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
 {
     MLG_CHECKV(inputs.Validate());
     MLG_CHECKV(m_Sampler, "Sampler is not valid");
@@ -101,15 +101,21 @@ GpuCompositorPass::BindInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
 }
 
 Result<>
-GpuCompositorPass::BindOutputs(const GpuHelper& gpuHelper, const Outputs& outputs)
+GpuCompositorPass::SetOutputs(const GpuHelper& gpuHelper, const Outputs& outputs)
 {
     const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
 
-    MLG_CHECK(EnsurePipeline(gpuDevice, outputs.Texture.GetFormat()));
-
     MLG_CHECKV(outputs.Validate());
 
+    if(outputs != m_Outputs)
+    {
+        // Rebuild the pipeline
+        m_Pipeline = {};
+    }
+
     m_Outputs = outputs;
+
+    MLG_CHECK(EnsurePipeline(gpuDevice));
 
     return Result<>::Ok;
 }
@@ -117,10 +123,10 @@ GpuCompositorPass::BindOutputs(const GpuHelper& gpuHelper, const Outputs& output
 Result<wgpu::RenderPassEncoder>
 GpuCompositorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder) const
 {
-    MLG_CHECK(m_Inputs.Validate(), "Inputs are not valid - forget to call BindInputs()?");
-    MLG_CHECK(m_Outputs.Validate(), "Outputs are not valid - forget to call BindOutputs()?");
-    MLG_CHECKV(m_Pipeline, "Pipeline is not valid - forget to call BindOutputs()?");
-    MLG_CHECKV(m_BindGroup, "Bind group is not valid - forget to call BindOutputs()?");
+    MLG_CHECK(m_Inputs.Validate(), "Inputs are not valid - forget to call SetInputs()?");
+    MLG_CHECK(m_Outputs.Validate(), "Outputs are not valid - forget to call SetOutputs()?");
+    MLG_CHECKV(m_Pipeline, "Pipeline is not valid");
+    MLG_CHECKV(m_BindGroup, "Bind group is not valid ");
 
     const Rect targetRect({ .X = 0,
         .Y = 0,
@@ -277,10 +283,9 @@ GpuCompositorPass::EnsureBindGroupLayout(const wgpu::Device& gpuDevice)
 }
 
 Result<>
-GpuCompositorPass::EnsurePipeline(const wgpu::Device& gpuDevice,
-    const wgpu::TextureFormat targetFormat)
+GpuCompositorPass::EnsurePipeline(const wgpu::Device& gpuDevice)
 {
-    if(m_Pipeline && m_TargetFormat == targetFormat)
+    if(m_Pipeline)
     {
         return Result<>::Ok;
     }
@@ -321,7 +326,7 @@ GpuCompositorPass::EnsurePipeline(const wgpu::Device& gpuDevice,
 
     const wgpu::ColorTargetState colorTargetState //
         {
-            .format = targetFormat,
+            .format = m_Outputs.Texture.GetFormat(),
             .blend = &blendState,
             .writeMask = wgpu::ColorWriteMask::All,
         };
@@ -362,8 +367,6 @@ GpuCompositorPass::EnsurePipeline(const wgpu::Device& gpuDevice,
         },
         .fragment = &fragmentState,
     };
-
-    m_TargetFormat = targetFormat;
 
     m_Pipeline = gpuDevice.CreateRenderPipeline(&desc);
     MLG_CHECK(m_Pipeline, "Failed to create pipeline");

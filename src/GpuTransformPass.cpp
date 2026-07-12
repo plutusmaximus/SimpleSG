@@ -60,7 +60,7 @@ GpuTransformPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 }
 
 Result<>
-GpuTransformPass::BindInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
+GpuTransformPass::SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
 {
     MLG_CHECKV(inputs.Validate());
 
@@ -77,7 +77,7 @@ GpuTransformPass::BindInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
 }
 
 Result<>
-GpuTransformPass::BindOutputs(const GpuHelper& gpuHelper, const Outputs& outputs)
+GpuTransformPass::SetOutputs(const GpuHelper& gpuHelper, const Outputs& outputs)
 {
     MLG_CHECKV(outputs.Validate());
 
@@ -97,7 +97,7 @@ Result<wgpu::ComputePassEncoder>
 GpuTransformPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder) const
 {
     MLG_CHECKV(m_Pipeline, "Pipeline is not valid");
-    MLG_CHECKV(m_BindGroup, "Bind group is not valid - forget to call BindInputs() and BindOutputs()?");
+    MLG_CHECKV(m_BindGroup, "Bind group is not valid - forget to call SetInputs() and SetOutputs()?");
 
     const wgpu::ComputePassEncoder computePass = cmdEncoder.BeginComputePass();
     computePass.SetPipeline(m_Pipeline);
@@ -111,8 +111,8 @@ GpuTransformPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder) const
 Result<>
 GpuTransformPass::EnsureBindgroup(const wgpu::Device& gpuDevice)
 {
-    MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call BindInputs()?");
-    MLG_CHECKV(m_Outputs, "Outputs are not valid - forget to call BindOutputs()?");
+    MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
+    MLG_CHECKV(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
     MLG_CHECKV(m_BindGroupLayout, "Bind group layout is not valid");
     MLG_CHECKV(m_Inputs->Validate());
     MLG_CHECKV(m_Outputs->Validate());

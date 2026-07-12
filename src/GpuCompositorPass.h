@@ -58,8 +58,8 @@ public:
 
     static Result<GpuCompositorPass> Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
 
-    Result<> BindInputs(const GpuHelper& gpuHelper, const Inputs& inputs);
-    Result<> BindOutputs(const GpuHelper& gpuHelper, const Outputs& outputs);
+    Result<> SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs);
+    Result<> SetOutputs(const GpuHelper& gpuHelper, const Outputs& outputs);
 
     Result<wgpu::RenderPassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder) const;
 
@@ -70,7 +70,7 @@ private:
 
     Result<> EnsureSampler(const wgpu::Device& gpuDevice);
     Result<> EnsureBindGroupLayout(const wgpu::Device& gpuDevice);
-    Result<> EnsurePipeline(const wgpu::Device& gpuDevice, wgpu::TextureFormat targetFormat);
+    Result<> EnsurePipeline(const wgpu::Device& gpuDevice);
 
     Inputs m_Inputs;
     Outputs m_Outputs;
@@ -79,7 +79,6 @@ private:
     wgpu::BindGroupLayout m_BindGroupLayout;
     wgpu::PipelineLayout m_PipelineLayout;
     wgpu::Sampler m_Sampler;
-    wgpu::TextureFormat m_TargetFormat{ wgpu::TextureFormat::Undefined };
     wgpu::BindGroup m_BindGroup;
     wgpu::RenderPipeline m_Pipeline;
 };

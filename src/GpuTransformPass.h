@@ -44,8 +44,8 @@ public:
 
     static Result<GpuTransformPass> Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
 
-    Result<> BindInputs(const GpuHelper& gpuHelper, const Inputs& inputs);
-    Result<> BindOutputs(const GpuHelper& gpuHelper, const Outputs& outputs);
+    Result<> SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs);
+    Result<> SetOutputs(const GpuHelper& gpuHelper, const Outputs& outputs);
 
     Result<wgpu::ComputePassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder) const;
 

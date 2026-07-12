@@ -266,7 +266,7 @@ GpuColorPass::CreateTextureBindGroup(const GpuHelper& gpuHelper, const TextureRe
 }
 
 Result<>
-GpuColorPass::BindInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
+GpuColorPass::SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
 {
     MLG_CHECKV(inputs.Validate());
     MLG_CHECKV(m_InputsBindGroupLayout, "Inputs bind group layout is not valid");
@@ -327,7 +327,7 @@ GpuColorPass::BindInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
 }
 
 Result<>
-GpuColorPass::BindOutputs(const GpuHelper& /*gpuHelper*/, const Outputs& outputs)
+GpuColorPass::SetOutputs(const GpuHelper& /*gpuHelper*/, const Outputs& outputs)
 {
     MLG_CHECKV(outputs.Validate());
     

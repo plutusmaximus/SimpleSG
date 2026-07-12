@@ -112,9 +112,8 @@ public:
     Result<wgpu::BindGroup> CreateTextureBindGroup(const GpuHelper& gpuHelper,
         const TextureResources& resources);
 
-    Result<> BindInputs(const GpuHelper& gpuHelper, const Inputs& inputs);
-
-    Result<> BindOutputs(const GpuHelper& gpuHelper, const Outputs& outputs);
+    Result<> SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs);
+    Result<> SetOutputs(const GpuHelper& gpuHelper, const Outputs& outputs);
 
     Result<wgpu::RenderPassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder) const;
 
