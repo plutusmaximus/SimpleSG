@@ -1146,7 +1146,7 @@ GpuHelper::CreateVertexBuffer(const size_t count, const std::string_view& name) 
 
     MLG_CHECK(buffer, "Failed to create vertex buffer");
 
-    return VertexBuffer(GetDevice(), *buffer);
+    return VertexBuffer::Create(GetDevice(), *buffer);
 }
 
 Result<IndexBuffer>
@@ -1159,7 +1159,7 @@ GpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name) c
 
     MLG_CHECK(buffer, "Failed to create index buffer");
 
-    return IndexBuffer(GetDevice(), *buffer);
+    return IndexBuffer::Create(GetDevice(), *buffer);
 }
 
 // private:

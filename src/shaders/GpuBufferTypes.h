@@ -1,7 +1,8 @@
 #pragma once
 
-#include "Vertex.h"
+#include "Result.h"
 #include "ShaderInterop.h"
+#include "Vertex.h"
 
 #include <webgpu/webgpu_cpp.h>
 
@@ -26,6 +27,14 @@ public:
     using value_type = T;
 
     SemanticGpuBuffer() = delete;
+
+    static Result<SemanticGpuBuffer> Create(wgpu::Device gpuDevice, wgpu::Buffer buffer)
+    {
+        MLG_CHECKV(gpuDevice, "Invalid wgpu::Device");
+        MLG_CHECKV(buffer, "Invalid wgpu::Buffer");
+
+        return SemanticGpuBuffer(std::move(gpuDevice), std::move(buffer));
+    }
 
     explicit operator bool() const { return static_cast<bool>(m_GpuBuffer); }
 
@@ -58,7 +67,6 @@ public:
     void Store(std::span<const T> values) { Store(0, values); }
 
 private:
-    friend class GpuHelper;
 
     SemanticGpuBuffer(wgpu::Device gpuDevice, wgpu::Buffer buffer)
         : m_Device(std::move(gpuDevice)), m_GpuBuffer(std::move(buffer))

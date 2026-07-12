@@ -87,7 +87,7 @@ public:
         auto bufferResult = CreateStorageBuffer(bufferSize, name);
         MLG_CHECK(bufferResult);
 
-        return T(GetDevice(), *bufferResult);
+        return T::Create(GetDevice(), *bufferResult);
     }
 
     /// @brief Creates a semantically-typed uniform buffer.
@@ -101,7 +101,7 @@ public:
         auto bufferResult = CreateUniformBuffer(bufferSize, name);
         MLG_CHECK(bufferResult);
 
-        return T(GetDevice(), *bufferResult);
+        return T::Create(GetDevice(), *bufferResult);
     }
 
     /// @brief Creates a semantically-typed indirect buffer.
@@ -115,7 +115,7 @@ public:
         auto bufferResult = CreateIndirectBuffer(bufferSize, name);
         MLG_CHECK(bufferResult);
 
-        return T(GetDevice(), *bufferResult);
+        return T::Create(GetDevice(), *bufferResult);
     }
 
     template<typename T>
