@@ -37,6 +37,7 @@ public:
     wgpu::Surface GetSurface() const;
     wgpu::Texture GetDefaultTexture() const;
     wgpu::Sampler GetDefaultSampler() const;
+    wgpu::BindGroupLayout GetTextureBindGroupLayout() const;
     Dimension2 GetScreenDimensions() const;
     Result<wgpu::Texture> GetSwapChainTexture() const;
     wgpu::TextureFormat GetSwapChainFormat() const;
@@ -48,6 +49,9 @@ public:
     /// @brief Creates an empty texture with the given dimensions and name.
     Result<wgpu::Texture> CreateTexture(
         const unsigned width, const unsigned height, const std::string_view& name) const;
+
+    Result<wgpu::BindGroup> CreateTextureBindGroup(const wgpu::Texture& texture,
+        const std::string_view& name) const;
 
     /// @brief Creates a render target with the given dimensions and name.
     Result<wgpu::Texture> CreateRenderTarget(

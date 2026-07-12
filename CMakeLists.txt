@@ -307,7 +307,6 @@ set(SSG_SOURCES
   src/GpuCompositorPass.cpp
   src/GpuTransformPass.cpp
   src/GpuHelper.cpp
-  src/GpuLayouts.cpp
   src/GridHash.cpp
   src/ImGuiRenderer.cpp
   src/InputMapper.cpp
@@ -320,7 +319,6 @@ set(SSG_SOURCES
   src/PropKit.cpp
   src/Renderer.cpp
   src/Scene.cpp
-  src/shaders/ColorShaderContract.cpp
   src/ShapeMeshDefs.cpp
   src/StringArena.cpp
   src/stb_image.cpp
@@ -342,7 +340,6 @@ set(SSG_HEADERS
   src/GpuCompositorPass.h
   src/GpuTransformPass.h
   src/GpuHelper.h
-  src/GpuLayouts.h
   src/shaders/GpuBufferTypes.h
   src/GridHash.h
   src/ImGuiRenderer.h
@@ -363,7 +360,6 @@ set(SSG_HEADERS
   src/SceneTypes.h
   src/scope_exit.h
   src/SemanticIdentifier.h
-  src/shaders/ColorShaderContract.h
   src/shaders/ShaderInterop.h
   src/ShapeMeshDefs.h
   src/StringArena.h

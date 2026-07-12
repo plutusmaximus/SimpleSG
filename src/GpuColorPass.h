@@ -109,9 +109,6 @@ public:
 
     static Result<GpuColorPass> Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
 
-    Result<wgpu::BindGroup> CreateTextureBindGroup(const GpuHelper& gpuHelper,
-        const TextureResources& resources);
-
     Result<> SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs);
     Result<> SetOutputs(const GpuHelper& gpuHelper, const Outputs& outputs);
 
@@ -120,7 +117,7 @@ public:
 private:
     GpuColorPass() = default;
 
-    Result<> EnsurePipeline(const wgpu::Device& gpuDevice);
+    Result<> EnsurePipeline(const GpuHelper& gpuHelper);
 
     std::optional<Inputs> m_Inputs;
     Outputs m_Outputs;

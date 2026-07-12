@@ -1,4 +1,3 @@
-#include <memory>
 #define MLG_LOGGER_NAME "WGPU"
 
 #include "GpuHelper.h"
@@ -583,6 +582,46 @@ CreateDefaultSampler(GpuHelper& gpuHelper)
     return sampler;
 }
 
+Result<wgpu::BindGroupLayout>
+CreateTextureBindGroupLayout(const wgpu::Device& gpuDevice)
+{
+    const wgpu::BindGroupLayoutEntry entries[]//
+    {
+        // Texture
+        {
+            .binding = 0,
+            .visibility = wgpu::ShaderStage::Fragment,
+            .texture =
+            {
+                .sampleType = wgpu::TextureSampleType::Float,
+                .viewDimension = wgpu::TextureViewDimension::e2D,
+                .multisampled = false,
+            },
+        },
+        // Sampler
+        {
+            .binding = 1,
+            .visibility = wgpu::ShaderStage::Fragment,
+            .sampler =
+            {
+                .type = wgpu::SamplerBindingType::Filtering,
+            },
+        },
+    };
+
+    const wgpu::BindGroupLayoutDescriptor desc = //
+        {
+            .label = "GpuColorPass::TextureBindGroupLayout",
+            .entryCount = std::size(entries),
+            .entries = &entries[0],
+        };
+
+    wgpu::BindGroupLayout layout = gpuDevice.CreateBindGroupLayout(&desc);
+    MLG_CHECK(layout, "Failed to create texture bind group layout");
+
+    return layout;
+}
+
 } // namespace
 
 namespace mlg::detail
@@ -617,6 +656,7 @@ public:
     wgpu::Device Device{ nullptr };
     wgpu::Surface Surface{ nullptr };
     wgpu::TextureFormat SurfaceFormat{ wgpu::TextureFormat::Undefined };
+    wgpu::BindGroupLayout TextureBindGroupLayout{ nullptr };
     wgpu::Texture DefaultTexture{ nullptr };
     wgpu::Sampler DefaultSampler{ nullptr };
 };
@@ -706,8 +746,12 @@ GpuHelper::Create(const char* appName)
     auto defaultSampler = CreateDefaultSampler(gpuHelper);
     MLG_CHECK(defaultSampler);
 
+    auto textureBindGroupLayout = CreateTextureBindGroupLayout(gpuHelper.GetDevice());
+    MLG_CHECK(textureBindGroupLayout);
+
     gpuHelper.m_Impl->DefaultTexture = std::move(*defaultTexture);
     gpuHelper.m_Impl->DefaultSampler = std::move(*defaultSampler);
+    gpuHelper.m_Impl->TextureBindGroupLayout = std::move(*textureBindGroupLayout);
 
     cleanupWindow.release();
     cleanupMetalView.release();
@@ -777,6 +821,16 @@ GpuHelper::GetDefaultSampler() const
     if(MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
     {
         return m_Impl->DefaultSampler;
+    }
+    return nullptr;
+}
+
+wgpu::BindGroupLayout
+GpuHelper::GetTextureBindGroupLayout() const
+{
+    if(MLG_VERIFY(m_Impl, "Invalid GpuHelper"))
+    {
+        return m_Impl->TextureBindGroupLayout;
     }
     return nullptr;
 }
@@ -921,6 +975,37 @@ GpuHelper::CreateTexture(
     MLG_CHECK(texture, "Failed to create texture");
 
     return texture;
+}
+
+Result<wgpu::BindGroup>
+GpuHelper::CreateTextureBindGroup(const wgpu::Texture& texture, const std::string_view& name) const
+{
+    MLG_CHECKV(m_Impl, "Invalid GpuHelper");
+
+    const wgpu::BindGroupEntry entries[] = //
+        {
+            {
+                .binding = 0,
+                .textureView = texture.CreateView(),
+            },
+            {
+                .binding = 1,
+                .sampler = m_Impl->DefaultSampler,
+            },
+        };
+
+    const wgpu::BindGroupDescriptor desc = //
+        {
+            .label = name,
+            .layout = m_Impl->TextureBindGroupLayout,
+            .entryCount = std::size(entries),
+            .entries = &entries[0],
+        };
+
+    const wgpu::BindGroup bindGroup = GetDevice().CreateBindGroup(&desc);
+    MLG_CHECKV(bindGroup, "Failed to create texture bind group");
+
+    return bindGroup;
 }
 
 Result<wgpu::Texture>

@@ -219,11 +219,11 @@ GpuCompositorPass::EnsureSampler(const wgpu::Device& gpuDevice)
         const wgpu::SamplerDescriptor samplerDesc //
             {
                 .label = "GpuCompositorPass",
-                .addressModeU = wgpu::AddressMode::Repeat,
-                .addressModeV = wgpu::AddressMode::Repeat,
+                .addressModeU = wgpu::AddressMode::ClampToEdge,
+                .addressModeV = wgpu::AddressMode::ClampToEdge,
                 .addressModeW = wgpu::AddressMode::Undefined,
-                .magFilter = wgpu::FilterMode::Linear,
-                .minFilter = wgpu::FilterMode::Linear,
+                .magFilter = wgpu::FilterMode::Nearest,
+                .minFilter = wgpu::FilterMode::Nearest,
                 .mipmapFilter = wgpu::MipmapFilterMode::Undefined,
                 .lodMinClamp = 0.0f,
                 .lodMaxClamp = 32.0f,

@@ -1,9 +1,7 @@
-#include <string_view>
 #define MLG_LOGGER_NAME "CPAS"
 
-#include "GpuColorPass.h"
-
 #include "FileFetcher.h"
+#include "GpuColorPass.h"
 #include "GpuHelper.h"
 #include "PerfMetrics.h"
 
@@ -35,8 +33,7 @@ LoadShader(const char* filePath, const wgpu::Device& gpuDevice, FileFetcher& fil
     const wgpu::StringView shaderCode{ static_cast<const char*>(dataPtr), data.size() };
     const wgpu::StringView label = std::string_view(filename);
     const wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCode } };
-    const wgpu::ShaderModuleDescriptor desc 
-        { .nextInChain = &wgsl, .label = label };
+    const wgpu::ShaderModuleDescriptor desc{ .nextInChain = &wgsl, .label = label };
 
     wgpu::ShaderModule shaderModule = gpuDevice.CreateShaderModule(&desc);
     MLG_CHECK(shaderModule, "Failed to create shader module");
@@ -44,125 +41,79 @@ LoadShader(const char* filePath, const wgpu::Device& gpuDevice, FileFetcher& fil
     return shaderModule;
 }
 
-struct BindGroupLayouts
+Result<wgpu::BindGroupLayout>
+CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
 {
-    wgpu::BindGroupLayout Inputs;
-    wgpu::BindGroupLayout Texture;
-};
-
-Result<BindGroupLayouts>
-CreateLayouts(const wgpu::Device& gpuDevice)
-{
-    BindGroupLayouts layouts;
-
+    const wgpu::BindGroupLayoutEntry entries[]//
     {
-        const wgpu::BindGroupLayoutEntry entries[]//
+        // World transform.
         {
-            // World transform.
+            .binding = 0,
+            .visibility = wgpu::ShaderStage::Vertex,
+            .buffer =
             {
-                .binding = 0,
-                .visibility = wgpu::ShaderStage::Vertex,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::WorldTransform),
-                },
+                .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                .hasDynamicOffset = false,
+                .minBindingSize = sizeof(ShaderInterop::WorldTransform),
             },
-            // Clip transform.
+        },
+        // Clip transform.
+        {
+            .binding = 1,
+            .visibility = wgpu::ShaderStage::Vertex,
+            .buffer =
             {
-                .binding = 1,
-                .visibility = wgpu::ShaderStage::Vertex,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::ClipSpaceTransform),
-                },
+                .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                .hasDynamicOffset = false,
+                .minBindingSize = sizeof(ShaderInterop::ClipSpaceTransform),
             },
-            // Mesh properties.
+        },
+        // Mesh properties.
+        {
+            .binding = 2,
+            .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
+            .buffer =
             {
-                .binding = 2,
-                .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::MeshProperties),
-                },
+                .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                .hasDynamicOffset = false,
+                .minBindingSize = sizeof(ShaderInterop::MeshProperties),
             },
-            // Material constants buffer.
+        },
+        // Material constants buffer.
+        {
+            .binding = 3,
+            .visibility = wgpu::ShaderStage::Fragment,
+            .buffer =
             {
-                .binding = 3,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::MaterialConstants),
-                },
+                .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                .hasDynamicOffset = false,
+                .minBindingSize = sizeof(ShaderInterop::MaterialConstants),
             },
-            // Camera parameters
+        },
+        // Camera parameters
+        {
+            .binding = 4,
+            .visibility = wgpu::ShaderStage::Vertex,
+            .buffer =
             {
-                .binding = 4,
-                .visibility = wgpu::ShaderStage::Vertex,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::Uniform,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::CameraParams),
-                },
+                .type = wgpu::BufferBindingType::Uniform,
+                .hasDynamicOffset = false,
+                .minBindingSize = sizeof(ShaderInterop::CameraParams),
             },
+        },
+    };
+
+    const wgpu::BindGroupLayoutDescriptor desc //
+        {
+            .label = "GpuColorPass::InputsBindGroupLayout",
+            .entryCount = std::size(entries),
+            .entries = &entries[0],
         };
 
-        const wgpu::BindGroupLayoutDescriptor desc //
-            {
-                .label = "GpuColorPass::InputsBindGroupLayout",
-                .entryCount = std::size(entries),
-                .entries = &entries[0],
-            };
+    wgpu::BindGroupLayout layout = gpuDevice.CreateBindGroupLayout(&desc);
+    MLG_CHECK(layout, "Failed to create Inputs bind group layout");
 
-        layouts.Inputs = gpuDevice.CreateBindGroupLayout(&desc);
-        MLG_CHECK(layouts.Inputs, "Failed to create Inputs bind group layout");
-    }
-
-    {
-        const wgpu::BindGroupLayoutEntry entries[]//
-        {
-            // Texture
-            {
-                .binding = 0,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .texture =
-                {
-                    .sampleType = wgpu::TextureSampleType::Float,
-                    .viewDimension = wgpu::TextureViewDimension::e2D,
-                    .multisampled = false,
-                },
-            },
-            // Sampler
-            {
-                .binding = 1,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .sampler =
-                {
-                    .type = wgpu::SamplerBindingType::Filtering,
-                },
-            },
-        };
-
-        const wgpu::BindGroupLayoutDescriptor desc = //
-            {
-                .label = "GpuColorPass::TextureBindGroupLayout",
-                .entryCount = std::size(entries),
-                .entries = &entries[0],
-            };
-
-        layouts.Texture = gpuDevice.CreateBindGroupLayout(&desc);
-        MLG_CHECK(layouts.Texture, "Failed to create texture bind group layout");
-    }
-
-    return layouts;
+    return layout;
 }
 
 wgpu::VertexBufferLayout
@@ -226,43 +177,9 @@ GpuColorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 
     pass.m_Shader = std::move(*shader);
 
-    MLG_CHECK(pass.EnsurePipeline(gpuHelper.GetDevice()));
+    MLG_CHECK(pass.EnsurePipeline(gpuHelper));
 
     return pass;
-}
-
-Result<wgpu::BindGroup>
-GpuColorPass::CreateTextureBindGroup(const GpuHelper& gpuHelper, const TextureResources& resources)
-{
-    MLG_CHECKV(resources.Validate());
-    MLG_CHECKV(m_TextureBindGroupLayout, "Texture bind group layout is not valid");
-
-    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
-
-    const wgpu::BindGroupEntry entries[] = //
-        {
-            {
-                .binding = 0,
-                .textureView = resources.Texture.CreateView(),
-            },
-            {
-                .binding = 1,
-                .sampler = resources.Sampler,
-            },
-        };
-
-    const wgpu::BindGroupDescriptor desc = //
-        {
-            .label = "GpuColorPass::TextureBindGroup",
-            .layout = m_TextureBindGroupLayout,
-            .entryCount = std::size(entries),
-            .entries = &entries[0],
-        };
-
-    const wgpu::BindGroup bindGroup = gpuDevice.CreateBindGroup(&desc);
-    MLG_CHECKV(bindGroup, "Failed to create texture bind group");
-
-    return bindGroup;
 }
 
 Result<>
@@ -330,7 +247,7 @@ Result<>
 GpuColorPass::SetOutputs(const GpuHelper& /*gpuHelper*/, const Outputs& outputs)
 {
     MLG_CHECKV(outputs.Validate());
-    
+
     m_Outputs = outputs;
 
     return Result<>::Ok;
@@ -391,7 +308,7 @@ GpuColorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder) const
 // private:
 
 Result<>
-GpuColorPass::EnsurePipeline(const wgpu::Device& gpuDevice)
+GpuColorPass::EnsurePipeline(const GpuHelper& gpuHelper)
 {
     if(m_Pipeline)
     {
@@ -400,18 +317,28 @@ GpuColorPass::EnsurePipeline(const wgpu::Device& gpuDevice)
 
     MLG_CHECKV(m_Shader, "Shader is not valid");
 
-    if(!m_InputsBindGroupLayout || !m_TextureBindGroupLayout)
-    {
-        auto layouts = CreateLayouts(gpuDevice);
-        MLG_CHECK(layouts);
+    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
 
-        m_InputsBindGroupLayout = std::move(layouts->Inputs);
-        m_TextureBindGroupLayout = std::move(layouts->Texture);
+    if(!m_InputsBindGroupLayout)
+    {
+        auto layout = CreateInputsBindGroupLayout(gpuDevice);
+        MLG_CHECK(layout, "Failed to create Inputs bind group layout");
+
+        m_InputsBindGroupLayout = std::move(*layout);
+    }
+
+    if(!m_TextureBindGroupLayout)
+    {
+        m_TextureBindGroupLayout = gpuHelper.GetTextureBindGroupLayout();
     }
 
     if(!m_PipelineLayout)
     {
-        const wgpu::BindGroupLayout bindGroupLayouts[] = { m_InputsBindGroupLayout, m_TextureBindGroupLayout };
+        const wgpu::BindGroupLayout bindGroupLayouts[] //
+            {
+                m_InputsBindGroupLayout,
+                m_TextureBindGroupLayout,
+            };
 
         const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
             {

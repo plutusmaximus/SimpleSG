@@ -6,12 +6,10 @@
 #include "PropKit.h"
 #include "FileFetcher.h"
 #include "GpuHelper.h"
-#include "GpuLayouts.h"
 #include "LevelDefs.h"
 #include "Log.h"
 #include "narrow_cast.h"
 #include "scope_exit.h"
-#include "shaders/ColorShaderContract.h"
 #include "Timer.h"
 #include "TextureCache.h"
 #include "ThreadPool.h"
@@ -320,16 +318,7 @@ CreateMaterialBindGroups(GpuHelper& gpuHelper,
             ? gpuHelper.GetDefaultTexture()
             : textureCache.Get(mtlDef.BaseTextureUri);
 
-        const ColorShaderContract::TextureGroup::Resources resources //
-            {
-                .BaseTexture = baseTexture,
-                .BaseSampler = gpuHelper.GetDefaultSampler(),
-            };
-
-        auto bindGroup =
-            GpuLayouts::CreateBindGroup<ColorShaderContract::TextureGroup>(gpuHelper.GetDevice(),
-                resources);
-
+        auto bindGroup = gpuHelper.CreateTextureBindGroup(baseTexture, mtlDef.BaseTextureUri);
         MLG_CHECK(bindGroup);
 
         materialBindGroups.emplace_back(std::move(*bindGroup));
