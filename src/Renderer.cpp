@@ -114,6 +114,7 @@ Renderer::Render(const GpuHelper& gpuHelper,
 
     const GpuColorPass::Inputs colorPassInputs //
         {
+            .Viewport = viewport,
             .Vertices = propKit.GetVertexBuffer(),
             .Indices = propKit.GetIndexBuffer(),
             .WorldTransforms = scene.GetWorldTransformBuffer(),
@@ -135,43 +136,6 @@ Renderer::Render(const GpuHelper& gpuHelper,
         MLG_CHECK(renderPassResult);
 
         renderPass = *renderPassResult;
-    }
-
-    renderPass.SetViewport(static_cast<float>(viewport.GetX()),
-        static_cast<float>(viewport.GetY()),
-        static_cast<float>(viewport.GetWidth()),
-        static_cast<float>(viewport.GetHeight()),
-        viewport.GetMinDepth(),
-        viewport.GetMaxDepth());
-
-    renderPass.SetScissorRect(viewport.GetX(),
-        viewport.GetY(),
-        viewport.GetWidth(),
-        viewport.GetHeight());
-
-    {
-        MLG_SCOPED_TIMER("Renderer.Render.Draw.SetBuffers");
-
-        constexpr size_t kU16BitWidth = 16;
-        constexpr size_t kU32BitWidth = 32;
-
-        static_assert(VERTEX_INDEX_BITS == kU32BitWidth || VERTEX_INDEX_BITS == kU16BitWidth,
-            "Unsupported index buffer format: only 16-bit and 32-bit indices are supported");
-
-        constexpr wgpu::IndexFormat idxFmt =
-            (VERTEX_INDEX_BITS == kU32BitWidth)
-            ? wgpu::IndexFormat::Uint32
-            : wgpu::IndexFormat::Uint16;
-
-        renderPass.SetVertexBuffer(0,
-            propKit.GetVertexBuffer().GetGpuBuffer(),
-            0,
-            propKit.GetVertexBuffer().BufferSize());
-
-        renderPass.SetIndexBuffer(propKit.GetIndexBuffer().GetGpuBuffer(),
-            idxFmt,
-            0,
-            propKit.GetIndexBuffer().BufferSize());
     }
 
     {

@@ -36,8 +36,6 @@ public:
         return SemanticGpuBuffer(std::move(gpuDevice), std::move(buffer));
     }
 
-    explicit operator bool() const { return static_cast<bool>(m_GpuBuffer); }
-
     const wgpu::Buffer& GetGpuBuffer() const { return m_GpuBuffer; }
 
     size_t BufferSize() const { return m_GpuBuffer.GetSize(); }
@@ -65,6 +63,11 @@ public:
 
     // Stores an array of values starting at the zero index.
     void Store(std::span<const T> values) { Store(0, values); }
+
+    friend bool operator==(const SemanticGpuBuffer& a, const SemanticGpuBuffer& b)
+    {
+        return a.m_Device.Get() == b.m_Device.Get() && a.m_GpuBuffer.Get() == b.m_GpuBuffer.Get();
+    }
 
 private:
 

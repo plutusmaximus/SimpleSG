@@ -57,6 +57,16 @@ public:
         return static_cast<float>(m_Width) / static_cast<float>(m_Height);
     }
 
+    friend bool operator==(const Viewport& a, const Viewport& b)
+    {
+        return a.m_X == b.m_X
+            && a.m_Y == b.m_Y
+            && a.m_Width == b.m_Width
+            && a.m_Height == b.m_Height
+            && a.m_MinDepth == b.m_MinDepth
+            && a.m_MaxDepth == b.m_MaxDepth;
+    }
+
 private:
     uint32_t m_X{0};
     uint32_t m_Y{0};

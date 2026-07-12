@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Camera.h"
 #include "GpuHelper.h"
 
 #include <optional>
@@ -17,6 +18,7 @@ public:
 
     struct Inputs
     {
+        Viewport Viewport;
         VertexBuffer Vertices;
         IndexBuffer Indices;
         WorldTransformBuffer WorldTransforms;
@@ -25,35 +27,16 @@ public:
         MaterialConstantsBuffer MaterialConstants;
         CameraParamsBuffer CameraParams;
 
-        Result<> Validate() const
-        {
-            MLG_CHECKV(Vertices, "Vertices buffer is not valid");
-            MLG_CHECKV(Indices, "Indices buffer is not valid");
-            MLG_CHECKV(WorldTransforms, "World transforms buffer is not valid");
-            MLG_CHECKV(ClipSpaceTransforms, "Clip space transforms buffer is not valid");
-            MLG_CHECKV(MeshProperties, "Mesh properties buffer is not valid");
-            MLG_CHECKV(MaterialConstants, "Material constants buffer is not valid");
-            MLG_CHECKV(CameraParams, "Camera params buffer is not valid");
-
-            return Result<>::Ok;
-        }
-
         friend bool operator==(const Inputs& a, const Inputs& b)
         {
-            return a.Vertices.GetGpuBuffer().Get()
-                == b.Vertices.GetGpuBuffer().Get()
-                && a.Indices.GetGpuBuffer().Get()
-                == b.Indices.GetGpuBuffer().Get()
-                && a.WorldTransforms.GetGpuBuffer().Get()
-                == b.WorldTransforms.GetGpuBuffer().Get()
-                && a.ClipSpaceTransforms.GetGpuBuffer().Get()
-                == b.ClipSpaceTransforms.GetGpuBuffer().Get()
-                && a.MeshProperties.GetGpuBuffer().Get()
-                == b.MeshProperties.GetGpuBuffer().Get()
-                && a.MaterialConstants.GetGpuBuffer().Get()
-                == b.MaterialConstants.GetGpuBuffer().Get()
-                && a.CameraParams.GetGpuBuffer().Get()
-                == b.CameraParams.GetGpuBuffer().Get();
+            return a.Viewport == b.Viewport
+                && a.Vertices == b.Vertices
+                && a.Indices == b.Indices
+                && a.WorldTransforms == b.WorldTransforms
+                && a.ClipSpaceTransforms == b.ClipSpaceTransforms
+                && a.MeshProperties == b.MeshProperties
+                && a.MaterialConstants == b.MaterialConstants
+                && a.CameraParams == b.CameraParams;
         }
     };
 
@@ -66,7 +49,8 @@ public:
         {
             MLG_CHECKV(RenderTarget, "Render target texture is not valid");
             MLG_CHECKV(DepthBuffer, "Depth buffer texture is not valid");
-            MLG_CHECKV(RenderTarget.GetFormat() == GpuHelper::kTextureFormat, "Invalid render target texture format");
+            MLG_CHECKV(RenderTarget.GetFormat() == GpuHelper::kTextureFormat,
+                "Invalid render target texture format");
             MLG_CHECKV(DepthBuffer.GetFormat() == GpuHelper::kDepthBufferFormat,
                 "Invalid depth buffer format");
 
@@ -75,29 +59,8 @@ public:
 
         friend bool operator==(const Outputs& a, const Outputs& b)
         {
-            return a.RenderTarget.Get()
-                == b.RenderTarget.Get()
-                && a.DepthBuffer.Get()
-                == b.DepthBuffer.Get();
-        }
-    };
-
-    struct TextureResources
-    {
-        wgpu::Texture Texture;
-        wgpu::Sampler Sampler;
-
-        Result<> Validate() const
-        {
-            MLG_CHECKV(Texture, "Texture is not valid");
-            MLG_CHECKV(Sampler, "Sampler is not valid");
-
-            return Result<>::Ok;
-        }
-
-        friend bool operator==(const TextureResources& a, const TextureResources& b)
-        {
-            return a.Texture.Get() == b.Texture.Get() && a.Sampler.Get() == b.Sampler.Get();
+            return a.RenderTarget.Get() == b.RenderTarget.Get()
+                && a.DepthBuffer.Get() == b.DepthBuffer.Get();
         }
     };
 

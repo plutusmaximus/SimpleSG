@@ -19,10 +19,9 @@ public:
         WorldTransformBuffer WorldTransforms;
         CameraParamsBuffer CameraParams;
 
-        bool Validate() const
+        friend bool operator==(const Inputs& a, const Inputs& b)
         {
-            return MLG_VERIFY(WorldTransforms, "Invalid WorldTransforms buffer") &&
-                    MLG_VERIFY(CameraParams, "Invalid CameraParams buffer");
+            return a.WorldTransforms == b.WorldTransforms && a.CameraParams == b.CameraParams;
         }
     };
 
@@ -30,9 +29,9 @@ public:
     {
         ClipSpaceBuffer ClipSpaceTransforms;
 
-        bool Validate() const
+        friend bool operator==(const Outputs& a, const Outputs& b)
         {
-            return MLG_VERIFY(ClipSpaceTransforms, "Invalid ClipSpaceTransforms buffer");
+            return a.ClipSpaceTransforms == b.ClipSpaceTransforms;
         }
     };
 

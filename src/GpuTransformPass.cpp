@@ -62,11 +62,15 @@ GpuTransformPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 Result<>
 GpuTransformPass::SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
 {
-    MLG_CHECKV(inputs.Validate());
-
-    m_BindGroup = {};
+    if(m_Inputs && *m_Inputs == inputs)
+    {
+        // Inputs are the same, no need to update
+        return Result<>::Ok;
+    }
 
     m_Inputs = inputs;
+
+    m_BindGroup = {};
 
     if(m_Inputs && m_Outputs)
     {
@@ -79,11 +83,15 @@ GpuTransformPass::SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
 Result<>
 GpuTransformPass::SetOutputs(const GpuHelper& gpuHelper, const Outputs& outputs)
 {
-    MLG_CHECKV(outputs.Validate());
-
-    m_BindGroup = {};
+    if(m_Outputs && *m_Outputs == outputs)
+    {
+        // Outputs are the same, no need to update
+        return Result<>::Ok;
+    }
 
     m_Outputs = outputs;
+
+    m_BindGroup = {};
 
     if(m_Inputs && m_Outputs)
     {
@@ -114,8 +122,6 @@ GpuTransformPass::EnsureBindgroup(const wgpu::Device& gpuDevice)
     MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
     MLG_CHECKV(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
     MLG_CHECKV(m_BindGroupLayout, "Bind group layout is not valid");
-    MLG_CHECKV(m_Inputs->Validate());
-    MLG_CHECKV(m_Outputs->Validate());
 
     if(!m_BindGroup)
     {

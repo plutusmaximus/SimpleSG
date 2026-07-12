@@ -185,10 +185,7 @@ GpuColorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 Result<>
 GpuColorPass::SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
 {
-    MLG_CHECKV(inputs.Validate());
     MLG_CHECKV(m_InputsBindGroupLayout, "Inputs bind group layout is not valid");
-
-    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
 
     if(!m_InputsBindGroup || !m_Inputs || BindGroup0NeedsRefresh(*m_Inputs, inputs))
     {
@@ -234,7 +231,7 @@ GpuColorPass::SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
                 .entries = &entries[0],
             };
 
-        m_InputsBindGroup = gpuDevice.CreateBindGroup(&desc);
+        m_InputsBindGroup = gpuHelper.GetDevice().CreateBindGroup(&desc);
         MLG_CHECKV(m_InputsBindGroup, "Failed to create bind group");
     }
 
@@ -256,7 +253,8 @@ GpuColorPass::SetOutputs(const GpuHelper& /*gpuHelper*/, const Outputs& outputs)
 Result<wgpu::RenderPassEncoder>
 GpuColorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder) const
 {
-    MLG_CHECK(m_Outputs.Validate());
+    MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
+    MLG_CHECKV(m_Outputs.Validate(), "Outputs are not valid - forget to call SetOutputs()?");
     MLG_CHECKV(m_Pipeline, "Pipeline is not valid");
     MLG_CHECKV(m_InputsBindGroup, "Inputs bind group is not valid");
 
@@ -301,6 +299,45 @@ GpuColorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder) const
         MLG_SCOPED_TIMER("Renderer.Render.BeginRenderPass.SetPerFrameBindGroup");
         renderPass.SetBindGroup(0, m_InputsBindGroup, 0, nullptr);
     }
+
+    {
+        MLG_SCOPED_TIMER("Renderer.Render.BeginRenderPass.SetBuffers");
+
+        constexpr size_t kU16BitWidth = 16;
+        constexpr size_t kU32BitWidth = 32;
+
+        static_assert(VERTEX_INDEX_BITS == kU32BitWidth || VERTEX_INDEX_BITS == kU16BitWidth,
+            "Unsupported index buffer format: only 16-bit and 32-bit indices are supported");
+
+        constexpr wgpu::IndexFormat idxFmt =
+            (VERTEX_INDEX_BITS == kU32BitWidth)
+            ? wgpu::IndexFormat::Uint32
+            : wgpu::IndexFormat::Uint16;
+
+        renderPass.SetVertexBuffer(0,
+            m_Inputs->Vertices.GetGpuBuffer(),
+            0,
+            m_Inputs->Vertices.BufferSize());
+
+        renderPass.SetIndexBuffer(m_Inputs->Indices.GetGpuBuffer(),
+            idxFmt,
+            0,
+            m_Inputs->Indices.BufferSize());
+    }
+
+    const Viewport& viewport = m_Inputs->Viewport;
+
+    renderPass.SetViewport(static_cast<float>(viewport.GetX()),
+        static_cast<float>(viewport.GetY()),
+        static_cast<float>(viewport.GetWidth()),
+        static_cast<float>(viewport.GetHeight()),
+        viewport.GetMinDepth(),
+        viewport.GetMaxDepth());
+
+    renderPass.SetScissorRect(viewport.GetX(),
+        viewport.GetY(),
+        viewport.GetWidth(),
+        viewport.GetHeight());
 
     return renderPass;
 }
