@@ -1,7 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS // NOLINT(bugprone-reserved-identifier)
 #define NOMINMAX
 
-#define MLG_LOGGER_NAME "PPKT"
+#define MLG_LOGGER_NAME "PROP"
 
 #include "PropKit.h"
 #include "FileFetcher.h"
