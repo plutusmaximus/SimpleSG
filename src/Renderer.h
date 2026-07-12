@@ -17,20 +17,14 @@ class Renderer
 {
 public:
 
-    Renderer() = default;
+    Renderer() = delete;
+    ~Renderer() = default;
     Renderer(const Renderer&) = delete;
     Renderer& operator=(const Renderer&) = delete;
-    Renderer(Renderer&&) = delete;
-    Renderer& operator=(Renderer&&) = delete;
+    Renderer(Renderer&&) = default;
+    Renderer& operator=(Renderer&&) = default;
 
-    ~Renderer()
-    {
-        MLG_VERIFY(Shutdown());
-    }
-
-    Result<> Startup(GpuHelper& gpuHelper, FileFetcher& fileFetcher);
-
-    Result<> Shutdown();
+    static Result<Renderer> Create(GpuHelper& gpuHelper, FileFetcher& fileFetcher);
 
     Result<> Render(const GpuHelper& gpuHelper,
         const Camera& camera,
@@ -45,20 +39,25 @@ public:
 
 private:
 
+    Renderer(GpuColorPass&& colorPass,
+        GpuCompositorPass&& compositorPass,
+        GpuTransformPass&& transformPass)
+        : m_ColorPass(std::move(colorPass))
+        , m_CompositorPass(std::move(compositorPass))
+        , m_TransformPass(std::move(transformPass))
+    {
+    }
+
     Result<> TransformNodes(const GpuHelper& gpuHelper,
         const wgpu::CommandEncoder& cmdEncoder,
         const TrTransformf& cameraXForm,
         const Camera& camera,
         const Scene& scene);
 
-    wgpu::Limits m_GpuLimits;
-
     std::optional<GpuColorPass::Outputs> m_ColorPassOutputs;
-    std::optional<GpuColorPass> m_ColorPass;
-    std::optional<GpuCompositorPass> m_CompositorPass;
-    std::optional<GpuTransformPass> m_TransformPass;
+    GpuColorPass m_ColorPass;
+    GpuCompositorPass m_CompositorPass;
+    GpuTransformPass m_TransformPass;
 
     std::vector<MeshInstance> m_VisibleMeshes;
-
-    bool m_Initialized{false};
 };

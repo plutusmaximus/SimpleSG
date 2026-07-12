@@ -3,7 +3,6 @@
 #include "Renderer.h"
 
 #include "Camera.h"
-#include "FileFetcher.h"
 #include "GpuColorPass.h"
 #include "GpuHelper.h"
 #include "narrow_cast.h"
@@ -35,13 +34,9 @@ CreateColorPassTarget(const GpuHelper& gpuHelper, const uint32_t width, const ui
 
 } // namespace
 
-Result<>
-Renderer::Startup(GpuHelper& gpuHelper, FileFetcher& fileFetcher)
+Result<Renderer>
+Renderer::Create(GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 {
-    MLG_CHECKV(!m_Initialized, "Renderer is already initialized");
-
-    gpuHelper.GetDevice().GetLimits(&m_GpuLimits);
-
     auto gpuColorPassResult = GpuColorPass::Create(gpuHelper, fileFetcher);
     MLG_CHECK(gpuColorPassResult);
 
@@ -51,27 +46,9 @@ Renderer::Startup(GpuHelper& gpuHelper, FileFetcher& fileFetcher)
     auto gpuTransformPassResult = GpuTransformPass::Create(gpuHelper, fileFetcher);
     MLG_CHECK(gpuTransformPassResult);
 
-    m_ColorPass = std::move(*gpuColorPassResult);
-    m_CompositorPass = std::move(*gpuCompositorPassResult);
-    m_TransformPass = std::move(*gpuTransformPassResult);
-
-    m_Initialized = true;
-
-    return Result<>::Ok;
-}
-
-Result<>
-Renderer::Shutdown()
-{
-    if(!m_Initialized)
-    {
-        // Not initialized, nothing to do
-        return Result<>::Ok;
-    }
-
-    m_Initialized = false;
-
-    return Result<>::Ok;
+    return Renderer(std::move(*gpuColorPassResult),
+        std::move(*gpuCompositorPassResult),
+        std::move(*gpuTransformPassResult));
 }
 
 Result<>
@@ -81,8 +58,6 @@ Renderer::Render(const GpuHelper& gpuHelper,
     const Scene& scene,
     const PropKit& propKit)
 {
-    MLG_CHECKV(m_Initialized, "Renderer is not initialized");
-
     const Viewport& viewport = camera.GetViewport();
 
     MLG_SCOPED_TIMER("Renderer.Render");
@@ -124,15 +99,13 @@ Renderer::Render(const GpuHelper& gpuHelper,
             .CameraParams = scene.GetCameraParamsBuffer(),
         };
 
-    MLG_CHECKV(m_ColorPass, "Color pass is not initialized");
-
-    MLG_CHECK(m_ColorPass->SetInputs(gpuHelper, colorPassInputs));
-    MLG_CHECK(m_ColorPass->SetOutputs(gpuHelper, *m_ColorPassOutputs));
+    MLG_CHECK(m_ColorPass.SetInputs(gpuHelper, colorPassInputs));
+    MLG_CHECK(m_ColorPass.SetOutputs(gpuHelper, *m_ColorPassOutputs));
 
     wgpu::RenderPassEncoder renderPass;
     {
         MLG_SCOPED_TIMER("Renderer.Render.BeginRenderPass");
-        auto renderPassResult = m_ColorPass->BeginPass(cmdEncoder);
+        auto renderPassResult = m_ColorPass.BeginPass(cmdEncoder);
         MLG_CHECK(renderPassResult);
 
         renderPass = *renderPassResult;
@@ -215,8 +188,6 @@ Renderer::Composite(GpuHelper& gpuHelper, const ValidTexture& target)
 Result<>
 Renderer::Composite(GpuHelper& gpuHelper, const ValidTexture& target, const Rect& dstRect)
 {
-    MLG_CHECKV(m_Initialized, "Renderer is not initialized");
-    MLG_CHECKV(m_CompositorPass, "Compositor pass is not initialized");
     MLG_CHECKV(m_ColorPassOutputs, "Color pass outputs are not valid");
     
     const GpuCompositorPass::Inputs inputs //
@@ -230,10 +201,10 @@ Renderer::Composite(GpuHelper& gpuHelper, const ValidTexture& target, const Rect
             .Texture = target,
         };
 
-    MLG_CHECK(m_CompositorPass->SetInputs(gpuHelper, inputs));
-    MLG_CHECK(m_CompositorPass->SetOutputs(gpuHelper, outputs));
+    MLG_CHECK(m_CompositorPass.SetInputs(gpuHelper, inputs));
+    MLG_CHECK(m_CompositorPass.SetOutputs(gpuHelper, outputs));
 
-    return m_CompositorPass->Composite(gpuHelper);
+    return m_CompositorPass.Composite(gpuHelper);
 }
 
 //private:
@@ -245,8 +216,6 @@ Renderer::TransformNodes(const GpuHelper& gpuHelper,
     const Camera& camera,
     const Scene& scene)
 {
-    MLG_CHECKV(m_TransformPass, "Transform pass is not initialized");
-
     // Use inverse of camera transform as view matrix
     const Mat44f viewMat = cameraXForm.Inverse().ToMatrix();
     const Mat44f& projMat = camera.GetMatrix();
@@ -280,9 +249,9 @@ Renderer::TransformNodes(const GpuHelper& gpuHelper,
             .ClipSpaceTransforms = scene.GetClipSpaceBuffer(),
         };
 
-    MLG_CHECK(m_TransformPass->SetInputs(gpuHelper, inputs));
-    MLG_CHECK(m_TransformPass->SetOutputs(gpuHelper, outputs));
-    auto pass = m_TransformPass->BeginPass(cmdEncoder);
+    MLG_CHECK(m_TransformPass.SetInputs(gpuHelper, inputs));
+    MLG_CHECK(m_TransformPass.SetOutputs(gpuHelper, outputs));
+    auto pass = m_TransformPass.BeginPass(cmdEncoder);
     MLG_CHECK(pass);
 
     const uint32_t workgroupCountX = narrow_cast<uint32_t>(scene.GetModelInstances().size());

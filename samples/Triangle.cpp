@@ -135,8 +135,9 @@ Result<> MainLoop()
     MLG_CHECK(sceneResult, "Failed to create Scene");
     const Scene scene = std::move(*sceneResult);
 
-    Renderer renderer;
-    MLG_CHECK(renderer.Startup(gpuHelper, fileFetcher));
+    auto rendererResult = Renderer::Create(gpuHelper, fileFetcher);
+    MLG_CHECK(rendererResult, "Failed to create Renderer");
+    Renderer renderer = std::move(*rendererResult);
 
     ImGuiRenderer imGuiRenderer;
     MLG_CHECK(imGuiRenderer.Startup(gpuHelper));
@@ -246,7 +247,6 @@ Result<> MainLoop()
     }
 
     MLG_CHECK(imGuiRenderer.Shutdown());
-    MLG_CHECK(renderer.Shutdown());
 
     PerfMetrics::LogCounters();
 

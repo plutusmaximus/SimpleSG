@@ -469,7 +469,6 @@ float ComputeKineticEnergy(const PhysicsLevel& physLevel)
 Result<>
 MainLoop()
 {
-    Renderer renderer;
     ImGuiRenderer imGuiRenderer;
     WalkMouseNav mouseNav;
     DevUi devUi;
@@ -482,7 +481,10 @@ MainLoop()
     ThreadPool& threadPool = system.GetThreadPool();
     FileFetcher& fileFetcher = system.GetFileFetcher();
 
-    MLG_CHECK(renderer.Startup(gpuHelper, fileFetcher));
+    auto rendererResult = Renderer::Create(gpuHelper, fileFetcher);
+    MLG_CHECK(rendererResult, "Failed to create Renderer");
+    Renderer renderer = std::move(*rendererResult);
+
     MLG_CHECK(imGuiRenderer.Startup(gpuHelper));
     
     auto loadResult = Load(gpuHelper, threadPool, fileFetcher);
