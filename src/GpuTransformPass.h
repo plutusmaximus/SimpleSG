@@ -3,8 +3,6 @@
 #include "GpuTypes.h"
 #include "Result.h"
 
-#include <webgpu/webgpu_cpp.h>
-
 class FileFetcher;
 class GpuHelper;
 
@@ -51,7 +49,7 @@ public:
 
 private:
 
-    explicit GpuTransformPass(wgpu::ShaderModule shader)
+    explicit GpuTransformPass(ValidShaderModule shader)
         : m_Shader(std::move(shader))
     {
     }
@@ -62,7 +60,7 @@ private:
     std::optional<Inputs> m_Inputs;
     std::optional<Outputs> m_Outputs;
 
-    wgpu::ShaderModule m_Shader;
+    ValidShaderModule m_Shader;
     wgpu::BindGroupLayout m_BindGroupLayout;
     wgpu::PipelineLayout m_PipelineLayout;
     wgpu::BindGroup m_BindGroup;

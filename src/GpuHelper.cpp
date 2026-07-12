@@ -1,13 +1,16 @@
 #define MLG_LOGGER_NAME "WGPU"
 
 #include "GpuHelper.h"
+
+#include "FileFetcher.h"
 #include "scope_exit.h"
 
-#include <array>
+#include <filesystem>
 #include <SDL3/SDL_init.h>
 #include <SDL3/SDL_metal.h>
 #include <SDL3/SDL_video.h>
 #include <string>
+#include <thread>
 
 #if !defined(EMSCRIPTEN)
 #if defined(_WIN32)
@@ -348,7 +351,7 @@ ChoosePresentMode(const std::span<const wgpu::PresentMode> availableModes,
     }
 
     // Find the next best mode.
-    constexpr std::array<wgpu::PresentMode, 4> modePreference //
+    constexpr wgpu::PresentMode modePreference[] //
         {
             wgpu::PresentMode::Mailbox,
             wgpu::PresentMode::Fifo,
@@ -944,6 +947,35 @@ GpuHelper::Resize(const uint32_t width, const uint32_t height)
     }
 
     return Result<>::Ok;
+}
+
+Result<ValidShaderModule>
+GpuHelper::LoadShader(const char* filePath, FileFetcher& fileFetcher) const
+{
+    FileFetcher::Request request(filePath);
+    MLG_CHECK(fileFetcher.Fetch(request));
+
+    while(request.IsPending())
+    {
+        MLG_CHECK(fileFetcher.ProcessCompletions());
+        std::this_thread::yield();
+    }
+
+    MLG_CHECK(request.Succeeded(), "Failed to load shader file: {}", filePath);
+
+    const std::string filename = std::filesystem::path(filePath).filename().string();
+    const std::span<const uint8_t> data = request.GetData();
+
+    const void* dataPtr = data.data();
+    const wgpu::StringView shaderCode{ static_cast<const char*>(dataPtr), data.size() };
+    const wgpu::StringView label = std::string_view(filename);
+    const wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCode } };
+    const wgpu::ShaderModuleDescriptor desc{ .nextInChain = &wgsl, .label = label };
+
+    const wgpu::ShaderModule shaderModule = GetDevice().CreateShaderModule(&desc);
+    MLG_CHECK(shaderModule, "Failed to create shader module");
+
+    return ValidShaderModule::Create(shaderModule);
 }
 
 Result<wgpu::Texture>

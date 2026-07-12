@@ -2,44 +2,11 @@
 
 #include "GpuColorPass.h"
 
-#include "FileFetcher.h"
 #include "GpuHelper.h"
 #include "PerfMetrics.h"
 
-#include <filesystem>
-#include <thread>
-
 namespace
 {
-
-Result<wgpu::ShaderModule>
-LoadShader(const char* filePath, const wgpu::Device& gpuDevice, FileFetcher& fileFetcher)
-{
-    FileFetcher::Request request(filePath);
-    MLG_CHECK(fileFetcher.Fetch(request));
-
-    while(request.IsPending())
-    {
-        MLG_CHECK(fileFetcher.ProcessCompletions());
-        std::this_thread::yield();
-    }
-
-    MLG_CHECK(request.Succeeded(), "Failed to load shader file: {}", filePath);
-
-    const std::string filename = std::filesystem::path(filePath).filename().string();
-    const std::span<const uint8_t> data = request.GetData();
-
-    const void* dataPtr = data.data();
-    const wgpu::StringView shaderCode{ static_cast<const char*>(dataPtr), data.size() };
-    const wgpu::StringView label = std::string_view(filename);
-    const wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCode } };
-    const wgpu::ShaderModuleDescriptor desc{ .nextInChain = &wgsl, .label = label };
-
-    wgpu::ShaderModule shaderModule = gpuDevice.CreateShaderModule(&desc);
-    MLG_CHECK(shaderModule, "Failed to create shader module");
-
-    return shaderModule;
-}
 
 Result<wgpu::BindGroupLayout>
 CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
@@ -170,8 +137,8 @@ BindGroup0NeedsRefresh(const GpuColorPass::Inputs& currentInputs,
 Result<GpuColorPass>
 GpuColorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 {
-    auto shader = LoadShader(ShaderPath, gpuHelper.GetDevice(), fileFetcher);
-    MLG_CHECK(shader);
+    auto shader = gpuHelper.LoadShader(ShaderPath, fileFetcher);
+    MLG_CHECK(shader, "Failed to load shader: {}", ShaderPath);
 
     GpuColorPass pass(std::move(*shader));
 
@@ -348,8 +315,6 @@ GpuColorPass::EnsurePipeline(const GpuHelper& gpuHelper)
         return Result<>::Ok;
     }
 
-    MLG_CHECKV(m_Shader, "Shader is not valid");
-
     const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
 
     if(!m_InputsBindGroupLayout)
@@ -438,7 +403,7 @@ GpuColorPass::EnsurePipeline(const GpuHelper& gpuHelper)
 
     const wgpu::FragmentState fragmentState //
         {
-            .module = m_Shader,
+            .module = *m_Shader,
             .entryPoint = FragmentEntry,
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -452,7 +417,7 @@ GpuColorPass::EnsurePipeline(const GpuHelper& gpuHelper)
         .layout = m_PipelineLayout,
         .vertex =
         {
-            .module = m_Shader,
+            .module = *m_Shader,
             .entryPoint = VertexEntry,
             .bufferCount = 1,
             .buffers = &vertexBufferLayout,

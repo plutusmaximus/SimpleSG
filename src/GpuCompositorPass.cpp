@@ -2,51 +2,12 @@
 
 #include "GpuCompositorPass.h"
 
-#include "FileFetcher.h"
 #include "GpuHelper.h"
-
-#include <filesystem>
-#include <thread>
-
-namespace
-{
-
-Result<wgpu::ShaderModule>
-LoadShader(const char* filePath, const wgpu::Device& gpuDevice, FileFetcher& fileFetcher)
-{
-    FileFetcher::Request request(filePath);
-    MLG_CHECK(fileFetcher.Fetch(request));
-
-    while(request.IsPending())
-    {
-        MLG_CHECK(fileFetcher.ProcessCompletions());
-        std::this_thread::yield();
-    }
-
-    MLG_CHECK(request.Succeeded(), "Failed to load shader file: {}", filePath);
-
-    const std::string filename = std::filesystem::path(filePath).filename().string();
-    const std::span<const uint8_t> data = request.GetData();
-
-    const void* dataPtr = data.data();
-    const wgpu::StringView shaderCode{ static_cast<const char*>(dataPtr), data.size() };
-    const wgpu::StringView label = std::string_view(filename);
-    const wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCode } };
-    const wgpu::ShaderModuleDescriptor desc 
-        { .nextInChain = &wgsl, .label = label };
-
-    wgpu::ShaderModule shaderModule = gpuDevice.CreateShaderModule(&desc);
-    MLG_CHECK(shaderModule, "Failed to create shader module");
-
-    return shaderModule;
-}
-
-} // namespace
 
 Result<GpuCompositorPass>
 GpuCompositorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 {
-    auto shader = LoadShader(ShaderPath, gpuHelper.GetDevice(), fileFetcher);
+    auto shader = gpuHelper.LoadShader(ShaderPath, fileFetcher);
     MLG_CHECK(shader);
 
     GpuCompositorPass pass(std::move(*shader));
@@ -284,8 +245,6 @@ GpuCompositorPass::EnsurePipeline(const wgpu::Device& gpuDevice)
         return Result<>::Ok;
     }
 
-    MLG_CHECKV(m_Shader, "Shader is not valid");
-
     MLG_CHECK(EnsureSampler(gpuDevice));
     MLG_CHECK(EnsureBindGroupLayout(gpuDevice));
 
@@ -329,7 +288,7 @@ GpuCompositorPass::EnsurePipeline(const wgpu::Device& gpuDevice)
 
     const wgpu::FragmentState fragmentState //
         {
-            .module = m_Shader,
+            .module = *m_Shader,
             .entryPoint = FragmentEntry,
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -341,7 +300,7 @@ GpuCompositorPass::EnsurePipeline(const wgpu::Device& gpuDevice)
         .layout = m_PipelineLayout,
         .vertex =
         {
-            .module = m_Shader,
+            .module = *m_Shader,
             .entryPoint = VertexEntry,
             .bufferCount = 0,
             .buffers = nullptr,

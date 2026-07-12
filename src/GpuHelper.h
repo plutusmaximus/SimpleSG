@@ -6,6 +6,7 @@
 
 #include <string_view>
 
+class FileFetcher;
 struct SDL_Window;
 
 template<typename T>
@@ -43,12 +44,18 @@ public:
 
     static Result<GpuHelper> Create(const char* appName);
 
+    /// @brief Resizes the swap chain to the given width and height.
     Result<> Resize(const uint32_t width, const uint32_t height);
+
+    /// @brief Loads a shader from the given file path.
+    /// FIXME(KB) - need an async version of this.
+    Result<ValidShaderModule> LoadShader(const char* filePath, FileFetcher& fileFetcher) const;
 
     /// @brief Creates an empty texture with the given dimensions and name.
     Result<wgpu::Texture> CreateTexture(
         const unsigned width, const unsigned height, const std::string_view& name) const;
 
+    /// @brief Creates a bind group that includes the texture and the default sampler.
     Result<wgpu::BindGroup> CreateTextureBindGroup(const wgpu::Texture& texture,
         const std::string_view& name) const;
 
@@ -71,8 +78,10 @@ public:
     static Result<> CommitStagingBuffer(
         wgpu::Texture texture, wgpu::Buffer stagingBuffer, wgpu::CommandEncoder cmdEncoder);
 
+    /// @brief Creates a vertex buffer with capacity for the given number of vertices.
     Result<VertexBuffer> CreateVertexBuffer(const size_t count, const std::string_view& name) const;
 
+    /// @brief Creates an index buffer with capacity for the given number of indices.
     Result<IndexBuffer> CreateIndexBuffer(const size_t count, const std::string_view& name) const;
 
     /// @brief Creates a semantically-typed storage buffer.
@@ -115,16 +124,6 @@ public:
         MLG_CHECK(bufferResult);
 
         return T::Create(GetDevice(), *bufferResult);
-    }
-
-    template<typename T>
-    size_t AlignUniformBuffer() const
-    {
-        wgpu::Limits limits;
-        GetDevice().GetLimits(&limits);
-        const size_t alignment = limits.minUniformBufferOffsetAlignment;
-
-        return (sizeof(T) + alignment - 1) & ~(alignment - 1);
     }
 
 private:

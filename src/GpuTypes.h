@@ -7,6 +7,7 @@
 
 #include <webgpu/webgpu_cpp.h>
 
+/// @brief A wrapper for GPU objects that guarantees the underlying object is valid.
 template<typename T>
 class ValidGpuObject
 {
@@ -19,8 +20,14 @@ public:
         return ValidGpuObject(std::move(gpuObject));
     }
 
-    T& Get() { return m_GpuObject; }
-    const T& Get() const { return m_GpuObject; }
+    static Result<ValidGpuObject> Create(Result<T> result)
+    {
+        MLG_CHECKV(result, "Invalid GPU object");
+        return ValidGpuObject(std::move(*result));
+    }
+
+    T& operator*() { return m_GpuObject; }
+    const T& operator*() const { return m_GpuObject; }
 
     T* operator->() { return &m_GpuObject; }
     const T* operator->() const { return &m_GpuObject; }
@@ -133,6 +140,7 @@ MLG_DEFINE_GPU_BUFFER_TYPE(storage, Storage)
 using ValidTexture = ValidGpuObject<wgpu::Texture>;
 using ValidBindGroupLayout = ValidGpuObject<wgpu::BindGroupLayout>;
 using ValidBindGroup = ValidGpuObject<wgpu::BindGroup>;
+using ValidShaderModule = ValidGpuObject<wgpu::ShaderModule>;
 
 // Strongly-typed GPU storage buffer classes.
 using VertexBuffer = SemanticGpuBuffer<Vertex, SemanticBufferType::Vertex>;

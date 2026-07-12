@@ -52,7 +52,7 @@ public:
 
 private:
 
-    explicit GpuCompositorPass(wgpu::ShaderModule shader)
+    explicit GpuCompositorPass(ValidShaderModule shader)
         : m_Shader(std::move(shader))
     {
     }
@@ -64,7 +64,7 @@ private:
     std::optional<Inputs> m_Inputs;
     std::optional<Outputs> m_Outputs;
 
-    wgpu::ShaderModule m_Shader;
+    ValidShaderModule m_Shader;
     wgpu::BindGroupLayout m_BindGroupLayout;
     wgpu::PipelineLayout m_PipelineLayout;
     wgpu::Sampler m_Sampler;

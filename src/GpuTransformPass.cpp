@@ -2,51 +2,12 @@
 
 #include "GpuTransformPass.h"
 
-#include "FileFetcher.h"
 #include "GpuHelper.h"
-
-#include <filesystem>
-#include <thread>
-
-namespace
-{
-
-Result<wgpu::ShaderModule>
-LoadShader(const char* filePath, const wgpu::Device& gpuDevice, FileFetcher& fileFetcher)
-{
-    FileFetcher::Request request(filePath);
-    MLG_CHECK(fileFetcher.Fetch(request));
-
-    while(request.IsPending())
-    {
-        MLG_CHECK(fileFetcher.ProcessCompletions());
-        std::this_thread::yield();
-    }
-
-    MLG_CHECK(request.Succeeded(), "Failed to load shader file: {}", filePath);
-
-    const std::string filename = std::filesystem::path(filePath).filename().string();
-    const std::span<const uint8_t> data = request.GetData();
-
-    const void* dataPtr = data.data();
-    const wgpu::StringView shaderCode{ static_cast<const char*>(dataPtr), data.size() };
-    const wgpu::StringView label = std::string_view(filename);
-    const wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCode } };
-    const wgpu::ShaderModuleDescriptor desc 
-        { .nextInChain = &wgsl, .label = label };
-
-    wgpu::ShaderModule shaderModule = gpuDevice.CreateShaderModule(&desc);
-    MLG_CHECK(shaderModule, "Failed to create shader module");
-
-    return shaderModule;
-}
-
-} // namespace
 
 Result<GpuTransformPass>
 GpuTransformPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 {
-    auto shader = LoadShader(ShaderPath, gpuHelper.GetDevice(), fileFetcher);
+    auto shader = gpuHelper.LoadShader(ShaderPath, fileFetcher);
     MLG_CHECK(shader);
 
     GpuTransformPass pass(std::move(*shader));
@@ -167,8 +128,6 @@ GpuTransformPass::EnsurePipeline(const wgpu::Device& gpuDevice)
         return Result<>::Ok;
     }
 
-    MLG_CHECKV(m_Shader, "Shader is not valid");
-
     if(!m_BindGroupLayout)
     {
         const wgpu::BindGroupLayoutEntry entries[]//
@@ -238,7 +197,7 @@ GpuTransformPass::EnsurePipeline(const wgpu::Device& gpuDevice)
             .layout = m_PipelineLayout,
             .compute //
             {
-                .module = m_Shader,
+                .module = *m_Shader,
                 .entryPoint = ComputeEntry,
             },
         };
