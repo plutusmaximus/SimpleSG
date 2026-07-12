@@ -234,7 +234,7 @@ target_include_directories(lua SYSTEM PUBLIC
   thirdparty/lua
 )
 
-if(UNIX AND NOT APPLE)
+if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
   target_link_libraries(lua PRIVATE m dl)
 endif()
 
@@ -382,7 +382,12 @@ target_sources(ssg
 set_source_files_properties(src/cgltf.cpp PROPERTIES SKIP_LINTING ON)
 set_source_files_properties(src/stb_image.cpp PROPERTIES SKIP_LINTING ON)
 
-target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 webgpu_dawn imgui lua)
+if(EMSCRIPTEN)
+  target_link_libraries(ssg PUBLIC emdawnwebgpu_cpp)
+else()
+  target_link_libraries(ssg PUBLIC webgpu_dawn)
+endif()
+target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 imgui lua)
 target_include_directories(ssg PUBLIC src)
 target_include_directories(ssg SYSTEM PRIVATE thirdparty/cgltf thirdparty/stb)
 
@@ -409,7 +414,7 @@ function(add_sample_executable target_name source_file)
               ${WIN_SYSTEM_DIR}/vulkan-1.dll $<TARGET_FILE_DIR:${target_name}>/
       COMMENT "Copying d3dcompiler_47.dll and vulkan-1.dll to the ${target_name} output directory"
     )
-  elseif(UNIX AND NOT APPLE)
+  elseif(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
     find_package(Vulkan REQUIRED)
 
     target_link_libraries(${target_name} PRIVATE Vulkan::Vulkan)

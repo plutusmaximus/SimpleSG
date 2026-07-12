@@ -4,6 +4,7 @@
 #include "Result.h"
 #include "VecMath.h"
 
+#include <memory.h>
 #include <string_view>
 
 class FileFetcher;
@@ -17,6 +18,7 @@ using RgbaColoru8 = RgbaColor<uint8_t>;
 namespace mlg::detail
 {
 class GpuHelperImpl;
+class GpuHelperCreator;
 } // namespace mlg::detail
 
 class GpuHelper final
@@ -127,6 +129,8 @@ public:
     }
 
 private:
+    friend class mlg::detail::GpuHelperCreator;
+
     static void Deleter(mlg::detail::GpuHelperImpl*);
 
     using DeleterType = decltype(&Deleter);

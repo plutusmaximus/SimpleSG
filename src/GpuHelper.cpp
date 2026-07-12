@@ -3,8 +3,8 @@
 #include "GpuHelper.h"
 
 #include "FileFetcher.h"
-#include "scope_exit.h"
 
+#include <atomic>
 #include <filesystem>
 #include <SDL3/SDL_init.h>
 #include <SDL3/SDL_metal.h>
@@ -161,181 +161,6 @@ CreateInstance()
     MLG_CHECK(instance, "Failed to create WGPUInstance");
 
     return instance;
-}
-
-Result<wgpu::Adapter>
-CreateAdapter(const wgpu::Instance& instance, const wgpu::Surface& surface)
-{
-    EnumerateAdapters();
-
-    Result<wgpu::Adapter> result;
-
-    auto rqstAdapterCb = [&result](wgpu::RequestAdapterStatus status,
-                             wgpu::Adapter receivedAdapter,
-                             wgpu::StringView message) -> void
-    {
-        if(status != wgpu::RequestAdapterStatus::Success)
-        {
-            MLG_ERROR("RequestAdapter failed: {}", std::string(message.data, message.length));
-            result = Result<>::Fail;
-        }
-        else
-        {
-            result = std::move(receivedAdapter);
-        }
-    };
-
-    const wgpu::RequestAdapterOptions options //
-        {
-            .nextInChain = nullptr,
-            .featureLevel = wgpu::FeatureLevel::Core,
-            .powerPreference = wgpu::PowerPreference::HighPerformance,
-            .forceFallbackAdapter = false,
-#if defined(_WIN32)
-            .backendType = wgpu::BackendType::Vulkan,
-    //.backendType = wgpu::BackendType::D3D12,
-#elif defined(__APPLE__)
-            .backendType = wgpu::BackendType::Metal,
-#elif defined(__EMSCRIPTEN__)
-            .backendType = wgpu::BackendType::WebGPU,
-#else
-            .backendType = wgpu::BackendType::Vulkan,
-#endif
-            .compatibleSurface = surface,
-        };
-
-    const wgpu::Future fut =
-        instance.RequestAdapter(&options, wgpu::CallbackMode::WaitAnyOnly, rqstAdapterCb);
-
-    const wgpu::WaitStatus waitStatus = instance.WaitAny(fut, UINT64_MAX);
-
-    MLG_CHECK(waitStatus == wgpu::WaitStatus::Success,
-        "Failed to create WGPUAdapter - WaitAny failed");
-
-    MLG_CHECK(result, "Failed to create WGPUAdapter");
-
-    const bool supported = result->HasFeature(wgpu::FeatureName::IndirectFirstInstance);
-
-    MLG_CHECK(supported, "IndirectFirstInstance feature is not supported");
-
-    wgpu::AdapterInfo adapterInfo;
-    result->GetInfo(&adapterInfo);
-    MLG_INFO("Selected adapter:");
-    DumpAdapterInfo(adapterInfo);
-
-    return result;
-}
-
-Result<wgpu::Device>
-CreateDevice(const wgpu::Instance& instance, const wgpu::Adapter& adapter)
-{
-    // TODO(KB) - handle device lost.
-    auto deviceLostCb = [](const wgpu::Device& device [[maybe_unused]],
-                            wgpu::DeviceLostReason reason,
-                            wgpu::StringView message)
-    {
-        MLG_ERROR("Device lost (reason:{}): {}",
-            static_cast<int>(reason),
-            std::string(message.data, message.length));
-
-        // CallbackCancelled indicates intentional device destruction.
-        // exit() was probably already called, or program terminated normally.
-        if(wgpu::DeviceLostReason::CallbackCancelled != reason)
-        {
-            exit(0);
-        }
-    };
-
-    auto uncapturedErrorCb = [](const wgpu::Device& device [[maybe_unused]],
-                                 wgpu::ErrorType errorType,
-                                 wgpu::StringView message)
-    {
-        const std::string errorStr = std::format("Uncaptured error (type:{}): {}",
-            static_cast<int>(errorType),
-            std::string(message.data, message.length));
-
-        MLG_ERROR(errorStr);
-
-        MLG_ASSERT(false, errorStr);
-    };
-
-    const char* const enabledToggles[] = { //"skip_validation",
-        //"disable_robustness",
-        //"allow_unsafe_apis", // Required for MultiDrawIndirect
-        //"backend_validation",
-        ""
-    };
-
-    // const char* disabledToggles[] =
-    //{
-    //     "lazy_clear_resource_on_first_use",
-    // };
-
-    wgpu::DawnTogglesDescriptor toggles;
-    toggles.enabledToggleCount = std::size(enabledToggles);
-    toggles.enabledToggles = &enabledToggles[0];
-    // toggles.disabledToggleCount = std::size(disabledToggles);
-    // toggles.disabledToggles = disabledToggles;
-
-    const wgpu::FeatureName requiredFeatures[] = //
-        {
-            wgpu::FeatureName::IndirectFirstInstance,
-            // wgpu::FeatureName::MultiDrawIndirect
-        };
-
-    const wgpu::Limits requiredLimits{};
-    /*requiredLimits.maxTextureDimension2D = 4096;
-    requiredLimits.maxBindGroups = 3;
-    requiredLimits.maxBindGroupsPlusVertexBuffers = 4;
-    requiredLimits.maxBindingsPerBindGroup = 4;
-    requiredLimits.maxStorageBuffersPerShaderStage = 3;
-    requiredLimits.maxUniformBuffersPerShaderStage = 3;*/
-
-    wgpu::DeviceDescriptor deviceDesc //
-        {
-            {
-                //.nextInChain = &toggles,
-                .nextInChain = nullptr,
-                .label = "MainDevice",
-                .requiredFeatureCount = std::size(requiredFeatures),
-                .requiredFeatures = &requiredFeatures[0],
-                .requiredLimits = &requiredLimits,
-            },
-        };
-    deviceDesc.SetDeviceLostCallback(wgpu::CallbackMode::AllowProcessEvents, deviceLostCb);
-    deviceDesc.SetUncapturedErrorCallback(uncapturedErrorCb);
-
-    Result<wgpu::Device> result;
-
-    auto rqstDeviceCb = [&result](wgpu::RequestDeviceStatus status,
-                            wgpu::Device receivedDevice,
-                            wgpu::StringView message) -> void
-    {
-        if(status != wgpu::RequestDeviceStatus::Success)
-        {
-            MLG_ERROR("RequestDevice failed: {}", std::string(message.data, message.length));
-            result = Result<>::Fail;
-        }
-        else
-        {
-            result = std::move(receivedDevice);
-        }
-    };
-
-    const wgpu::Future fut =
-        adapter.RequestDevice(&deviceDesc, wgpu::CallbackMode::WaitAnyOnly, rqstDeviceCb);
-
-    const wgpu::WaitStatus waitStatus = instance.WaitAny(fut, UINT64_MAX);
-
-    MLG_CHECK(waitStatus == wgpu::WaitStatus::Success,
-        "Failed to create WGPUDevice - WaitAny failed");
-
-    MLG_CHECK(result);
-
-    DumpDawnToggles(*result);
-    DumpWebgpuLimits(*result);
-
-    return result;
 }
 
 wgpu::PresentMode
@@ -566,7 +391,7 @@ CreateDefaultTexture(GpuHelper& gpuHelper)
 }
 
 Result<wgpu::Sampler>
-CreateDefaultSampler(GpuHelper& gpuHelper)
+CreateDefaultSampler(const wgpu::Device& gpuDevice)
 {
     const wgpu::SamplerDescriptor samplerDesc //
         {
@@ -578,7 +403,7 @@ CreateDefaultSampler(GpuHelper& gpuHelper)
             .mipmapFilter = wgpu::MipmapFilterMode::Linear,
         };
 
-    wgpu::Sampler sampler = gpuHelper.GetDevice().CreateSampler(&samplerDesc);
+    wgpu::Sampler sampler = gpuDevice.CreateSampler(&samplerDesc);
     MLG_CHECK(sampler, "Failed to create default sampler");
 
     return sampler;
@@ -662,103 +487,429 @@ public:
     wgpu::Texture DefaultTexture{ nullptr };
     wgpu::Sampler DefaultSampler{ nullptr };
 };
-} // namespace mlg::detail
 
-Result<GpuHelper>
-GpuHelper::Create(const char* appName)
+class GpuHelperCreator
 {
-    MLG_INFO("Starting WebGPU...");
+public:
+
+    enum class State
+    {
+        None,
+        CreatingAdapter,
+        AdapterCreateComplete,
+        CreatingDevice,
+        DeviceCreateComplete,
+        Succeeded,
+        Failed
+    };
+
+    Result<> Begin(const char* appName);
+
+    Result<> Update();
+
+    Result<> CreateAdapter();
+
+    Result<> HandleAdapterCreation();
+
+    Result<> CreateDevice();
+
+    Result<> HandleDeviceCreation();
+
+    Result<> Finalize();
+
+    bool IsComplete() const
+    {
+        const State state = GetState();
+        MLG_ASSERT(State::None != state, "GpuHelperCreator is not started");
+        return state == State::Succeeded || state == State::Failed;
+    }
+
+    struct AdapterRequestData
+    {
+        Result<wgpu::Adapter> Result;
+    };
+
+    struct DeviceRequestData
+    {
+        Result<wgpu::Device> Result;
+    };
+
+    static void RequestAdapterCb(wgpu::RequestAdapterStatus status,
+        wgpu::Adapter receivedAdapter,
+        wgpu::StringView message,
+        GpuHelperCreator* helperCreator);
+
+    static void RequestDeviceCb(wgpu::RequestDeviceStatus status,
+        wgpu::Device receivedDevice,
+        wgpu::StringView message,
+        GpuHelperCreator* helperCreator);
+
+    static void DeviceLostCb(
+        const wgpu::Device& device, wgpu::DeviceLostReason reason, wgpu::StringView message);
+
+    static void UncapturedErrorCb(
+        const wgpu::Device& device, wgpu::ErrorType errorType, wgpu::StringView message);
+
+    State GetState() const
+    {
+        return m_State.load();
+    }
+
+    void SetState(State newState)
+    {
+        m_State.store(newState);
+    }
+
+    AdapterRequestData m_AdapterRequestData;
+    DeviceRequestData m_DeviceRequestData;
+    std::unique_ptr<mlg::detail::GpuHelperImpl> m_Impl;
+
+    std::optional<GpuHelper> m_GpuHelper;
+
+    std::atomic<State> m_State{ State::None };
+};
+
+Result<>
+GpuHelperCreator::Begin(const char* appName)
+{
+    MLG_ASSERT(GetState() == State::None, "GpuHelperCreator is already in progress");
+
+    MLG_INFO("Creating GpuHelper...");
+
+    std::unique_ptr<mlg::detail::GpuHelperImpl> impl = std::make_unique<mlg::detail::GpuHelperImpl>();
 
     auto window = CreateSdlWindow(appName);
     MLG_CHECK(window);
-
-    MLG_DEFER_AS(cleanupWindow)
-    {
-        SDL_DestroyWindow(*window);
-        SDL_Quit();
-    };
+    impl->Window = *window;
 
     SDL_MetalView metalView = nullptr;
 
 #if defined(__APPLE__)
     metalView = SDL_Metal_CreateView(*window);
     MLG_CHECK(metalView, SDL_GetError());
+    impl->MetalView = metalView;
 #endif
-
-    MLG_DEFER_AS(cleanupMetalView)
-    {
-        if(metalView)
-        {
-            SDL_Metal_DestroyView(metalView);
-        }
-    };
 
     auto instance = CreateInstance();
     MLG_CHECK(instance);
+    impl->Instance = std::move(*instance);
 
     auto surface = CreateSurface(*instance, *window, metalView);
     MLG_CHECK(surface);
+    impl->Surface = std::move(*surface);
 
-    auto adapter = CreateAdapter(*instance, *surface);
-    MLG_CHECK(adapter);
+    m_Impl = std::move(impl);
 
-    auto device = CreateDevice(*instance, *adapter);
-    MLG_CHECK(device);
+    MLG_CHECK(CreateAdapter());
 
+    // The adapter creation callback could have already been called, in which case the state has
+    // already been advanced to AdapterCreateComplete. Otherwise, we set the state to
+    // CreatingAdapter.
+    State expected = State::None;
+
+    m_State.compare_exchange_strong(expected, State::CreatingAdapter);
+
+    return Result<>::Ok;
+}
+
+Result<>
+GpuHelperCreator::Update()
+{
+    MLG_CHECKV(State::None != GetState(), "GpuHelperCreator is not started");
+
+    m_Impl->Instance.ProcessEvents();
+
+    switch(GetState())
+    {
+        case State::None:
+        case State::CreatingAdapter:
+            break;
+
+        case State::AdapterCreateComplete:
+            if(HandleAdapterCreation() && CreateDevice())
+            {
+                // The device creation callback could have already been called, in which case the
+                // state has already been advanced to DeviceCreateComplete. Otherwise, we set the
+                // state to CreatingDevice.
+                State expected = State::AdapterCreateComplete;
+
+                m_State.compare_exchange_strong(expected, State::CreatingDevice);
+            }
+            else
+            {
+                SetState(State::Failed);
+            }
+
+            break;
+
+        case State::CreatingDevice:
+            break;
+
+        case State::DeviceCreateComplete:
+            if(HandleDeviceCreation() && Finalize())
+            {
+                MLG_INFO("GpuHelper creation succeeded");
+                SetState(State::Succeeded);
+            }
+            else
+            {
+                SetState(State::Failed);
+            }
+
+            break;
+        case State::Succeeded:
+        case State::Failed:
+            break;
+    }
+
+    MLG_CHECK(GetState() != State::Failed);
+    
+    return Result<>::Ok;
+}
+
+Result<>
+GpuHelperCreator::CreateAdapter()
+{
+    MLG_INFO("Creating adapter...");
+
+    EnumerateAdapters();
+
+    const wgpu::RequestAdapterOptions options //
+        {
+            .nextInChain = nullptr,
+            .featureLevel = wgpu::FeatureLevel::Core,
+            .powerPreference = wgpu::PowerPreference::HighPerformance,
+            .forceFallbackAdapter = false,
+#if defined(_WIN32)
+            .backendType = wgpu::BackendType::Vulkan,
+    //.backendType = wgpu::BackendType::D3D12,
+#elif defined(__APPLE__)
+            .backendType = wgpu::BackendType::Metal,
+#elif defined(__EMSCRIPTEN__)
+            .backendType = wgpu::BackendType::WebGPU,
+#else
+            .backendType = wgpu::BackendType::Vulkan,
+#endif
+            .compatibleSurface = m_Impl->Surface,
+        };
+
+    m_Impl->Instance.RequestAdapter(&options,
+        wgpu::CallbackMode::AllowSpontaneous,
+        RequestAdapterCb,
+        this);
+
+    return Result<>::Ok;
+}
+
+Result<>
+GpuHelperCreator::CreateDevice()
+{
+    MLG_INFO("Creating device...");
+
+    const char* const enabledToggles[] = { //"skip_validation",
+        //"disable_robustness",
+        //"allow_unsafe_apis", // Required for MultiDrawIndirect
+        //"backend_validation",
+        ""
+    };
+
+    // const char* disabledToggles[] =
+    //{
+    //     "lazy_clear_resource_on_first_use",
+    // };
+
+    wgpu::DawnTogglesDescriptor toggles;
+    toggles.enabledToggleCount = std::size(enabledToggles);
+    toggles.enabledToggles = &enabledToggles[0];
+    // toggles.disabledToggleCount = std::size(disabledToggles);
+    // toggles.disabledToggles = disabledToggles;
+
+    const wgpu::FeatureName requiredFeatures[] = //
+        {
+            wgpu::FeatureName::IndirectFirstInstance,
+            // wgpu::FeatureName::MultiDrawIndirect
+        };
+
+    const wgpu::Limits requiredLimits{};
+    /*requiredLimits.maxTextureDimension2D = 4096;
+    requiredLimits.maxBindGroups = 3;
+    requiredLimits.maxBindGroupsPlusVertexBuffers = 4;
+    requiredLimits.maxBindingsPerBindGroup = 4;
+    requiredLimits.maxStorageBuffersPerShaderStage = 3;
+    requiredLimits.maxUniformBuffersPerShaderStage = 3;*/
+
+    wgpu::DeviceDescriptor deviceDesc //
+        {
+            {
+                //.nextInChain = &toggles,
+                .nextInChain = nullptr,
+                .label = "MainDevice",
+                .requiredFeatureCount = std::size(requiredFeatures),
+                .requiredFeatures = &requiredFeatures[0],
+                .requiredLimits = &requiredLimits,
+            },
+        };
+    deviceDesc.SetDeviceLostCallback(wgpu::CallbackMode::AllowProcessEvents, DeviceLostCb);
+    deviceDesc.SetUncapturedErrorCallback(UncapturedErrorCb);
+
+    m_Impl->Adapter.RequestDevice(&deviceDesc,
+        wgpu::CallbackMode::AllowSpontaneous,
+        RequestDeviceCb,
+        this);
+
+    return Result<>::Ok;
+}
+
+Result<>
+GpuHelperCreator::HandleAdapterCreation()
+{
+    MLG_CHECK(m_AdapterRequestData.Result, "Failed to create adapter");
+    m_Impl->Adapter = std::move(*m_AdapterRequestData.Result);
+
+    const bool supported = m_Impl->Adapter.HasFeature(wgpu::FeatureName::IndirectFirstInstance);
+    MLG_CHECK(supported, "IndirectFirstInstance feature is not supported");
+
+    wgpu::AdapterInfo adapterInfo;
+    m_Impl->Adapter.GetInfo(&adapterInfo);
+    MLG_INFO("Selected adapter:");
+    DumpAdapterInfo(adapterInfo);
+
+    return Result<>::Ok;
+}
+
+Result<>
+GpuHelperCreator::HandleDeviceCreation()
+{
+    MLG_CHECK(m_DeviceRequestData.Result, "Failed to create device");
+    m_Impl->Device = std::move(*m_DeviceRequestData.Result);
+
+    DumpDawnToggles(m_Impl->Device);
+    DumpWebgpuLimits(m_Impl->Device);
+
+    return Result<>::Ok;
+}
+
+Result<>
+GpuHelperCreator::Finalize()
+{
     int width{ 0 }, height{ 0 };
-    SDL_GetWindowSize(*window, &width, &height);
+    SDL_GetWindowSize(m_Impl->Window, &width, &height);
 
-    // device->PushErrorScope(wgpu::ErrorFilter::Validation);
-    auto surfaceFormat = ConfigureSurface(*adapter,
-        *device,
-        *surface,
+    auto surfaceFormat = ConfigureSurface(m_Impl->Adapter,
+        m_Impl->Device,
+        m_Impl->Surface,
         static_cast<uint32_t>(width),
         static_cast<uint32_t>(height));
 
-    /*device->PopErrorScope(wgpu::CallbackMode::AllowProcessEvents,
-        []([[maybe_unused]] wgpu::PopErrorScopeStatus status,
-            wgpu::ErrorType errorType,
-            wgpu::StringView message)
-        {
-            if(errorType != wgpu::ErrorType::NoError)
-            {
-                MLG_ERROR("Device error during surface creation (type:{}): {}",
-                    static_cast<int>(errorType),
-                    std::string(message.data, message.length));
-            }
-        });*/
-
     MLG_CHECK(surfaceFormat);
 
-    auto impl = std::make_unique<mlg::detail::GpuHelperImpl>();
+    m_Impl->SurfaceFormat = *surfaceFormat;
 
-    impl->Window = *window;
-    impl->MetalView = metalView;
-    impl->Instance = std::move(*instance);
-    impl->Adapter = std::move(*adapter);
-    impl->Device = std::move(*device);
-    impl->Surface = std::move(*surface);
-    impl->SurfaceFormat = *surfaceFormat;
+    auto defaultSampler = CreateDefaultSampler(m_Impl->Device);
+    MLG_CHECK(defaultSampler);
+    m_Impl->DefaultSampler = std::move(*defaultSampler);
 
-    GpuHelper gpuHelper(UniquePtrType(impl.release(), &GpuHelper::Deleter));
+    auto textureBindGroupLayout = CreateTextureBindGroupLayout(m_Impl->Device);
+    MLG_CHECK(textureBindGroupLayout);
+    m_Impl->TextureBindGroupLayout = std::move(*textureBindGroupLayout);
 
-    auto defaultTexture = CreateDefaultTexture(gpuHelper);
+    m_GpuHelper = GpuHelper(GpuHelper::UniquePtrType(m_Impl.release(), &GpuHelper::Deleter));
+
+    auto defaultTexture = CreateDefaultTexture(*m_GpuHelper);
     MLG_CHECK(defaultTexture);
 
-    auto defaultSampler = CreateDefaultSampler(gpuHelper);
-    MLG_CHECK(defaultSampler);
+    m_GpuHelper->m_Impl->DefaultTexture = std::move(*defaultTexture);
 
-    auto textureBindGroupLayout = CreateTextureBindGroupLayout(gpuHelper.GetDevice());
-    MLG_CHECK(textureBindGroupLayout);
+    return Result<>::Ok;
+}
 
-    gpuHelper.m_Impl->DefaultTexture = std::move(*defaultTexture);
-    gpuHelper.m_Impl->DefaultSampler = std::move(*defaultSampler);
-    gpuHelper.m_Impl->TextureBindGroupLayout = std::move(*textureBindGroupLayout);
+void
+GpuHelperCreator::RequestAdapterCb(wgpu::RequestAdapterStatus status,
+    wgpu::Adapter receivedAdapter,
+    wgpu::StringView message,
+    GpuHelperCreator* helperCreator)
+{
+    if(status != wgpu::RequestAdapterStatus::Success)
+    {
+        MLG_ERROR("RequestAdapter failed: {}", std::string(message.data, message.length));
+        helperCreator->m_AdapterRequestData.Result = Result<>::Fail;
+    }
+    else
+    {
+        helperCreator->m_AdapterRequestData.Result = std::move(receivedAdapter);
+    }
 
-    cleanupWindow.release();
-    cleanupMetalView.release();
+    helperCreator->SetState(State::AdapterCreateComplete);
+}
 
-    return gpuHelper;
+void
+GpuHelperCreator::RequestDeviceCb(wgpu::RequestDeviceStatus status,
+    wgpu::Device receivedDevice,
+    wgpu::StringView message,
+    GpuHelperCreator* helperCreator)
+{
+    if(status != wgpu::RequestDeviceStatus::Success)
+    {
+        MLG_ERROR("RequestDevice failed: {}", std::string(message.data, message.length));
+        helperCreator->m_DeviceRequestData.Result = Result<>::Fail;
+    }
+    else
+    {
+        helperCreator->m_DeviceRequestData.Result = std::move(receivedDevice);
+    }
+
+    helperCreator->SetState(State::DeviceCreateComplete);
+}
+
+// TODO(KB) - handle device lost.
+void
+GpuHelperCreator::DeviceLostCb(const wgpu::Device& /*device*/,
+    wgpu::DeviceLostReason reason,
+    wgpu::StringView message)
+{
+    MLG_ERROR("Device lost (reason:{}): {}",
+        static_cast<int>(reason),
+        std::string(message.data, message.length));
+
+    // CallbackCancelled indicates intentional device destruction.
+    // exit() was probably already called, or program terminated normally.
+    if(wgpu::DeviceLostReason::CallbackCancelled != reason)
+    {
+        exit(0);
+    }
+}
+
+void
+GpuHelperCreator::UncapturedErrorCb(const wgpu::Device& /*device*/,
+    wgpu::ErrorType errorType,
+    wgpu::StringView message)
+{
+    const std::string errorStr = std::format("Uncaptured error (type:{}): {}",
+        static_cast<int>(errorType),
+        std::string(message.data, message.length));
+
+    MLG_ERROR(errorStr);
+
+    MLG_ASSERT(false, errorStr);
+}
+
+} // namespace mlg::detail
+
+Result<GpuHelper>
+GpuHelper::Create(const char* appName)
+{
+    mlg::detail::GpuHelperCreator creator;
+
+    MLG_CHECK(creator.Begin(appName))
+
+    while(!creator.IsComplete())
+    {
+        MLG_CHECK(creator.Update());
+    }
+
+    MLG_CHECKV(creator.m_GpuHelper, "Failed to create GpuHelper");
+
+    return std::move(*creator.m_GpuHelper);
 }
 
 void
