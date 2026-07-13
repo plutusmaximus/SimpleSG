@@ -27,6 +27,15 @@ public:
     class CreateTask
     {
     public:
+        enum class State
+        {
+            None,
+            CreatingAdapter,
+            CreatingDevice,
+            Succeeded,
+            Failed
+        };
+
         CreateTask() = delete;
         ~CreateTask() = default;
         CreateTask(const CreateTask&) = delete;
