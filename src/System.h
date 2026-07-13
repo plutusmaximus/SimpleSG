@@ -8,7 +8,46 @@ union SDL_Event;
 
 class System
 {
+    class CreateTaskImpl;
 public:
+    class CreateTask
+    {
+    public:
+        CreateTask() = delete;
+        ~CreateTask() = default;
+        CreateTask(const CreateTask&) = delete;
+        CreateTask& operator=(const CreateTask&) = delete;
+        CreateTask(CreateTask&&) = default;
+        CreateTask& operator=(CreateTask&&) = default;
+
+        bool IsValid() const;
+
+        Result<> Update();
+
+        bool IsComplete() const;
+
+        bool Succeeded() const;
+
+        /// @brief Returns the System instance if the task succeeded, otherwise returns an error.
+        /// @note This method will invalidate the task, so it can only be called once.
+        Result<System> Get();
+
+    private:
+        friend System;
+
+        static void Deleter(CreateTaskImpl*);
+
+        using DeleterType = decltype(&Deleter);
+        using UniquePtrType = std::unique_ptr<CreateTaskImpl, DeleterType>;
+
+        explicit CreateTask(UniquePtrType impl)
+            : m_TaskImpl(std::move(impl))
+        {
+        }
+
+        UniquePtrType m_TaskImpl{ nullptr, &Deleter };
+    };
+
     System() = delete;
     ~System() = default;
     System(const System&) = delete;

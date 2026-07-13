@@ -42,8 +42,8 @@ public:
 
         bool Succeeded() const;
 
-        /// @brief Returns the GpuHelper if the future succeeded, otherwise returns an error.
-        /// @note This method will invalidate the future, so it can only be called once.
+        /// @brief Returns the GpuHelper instance if the task succeeded, otherwise returns an error.
+        /// @note This method will invalidate the task, so it can only be called once.
         Result<GpuHelper> Get();
 
     private:
@@ -55,11 +55,11 @@ public:
         using UniquePtrType = std::unique_ptr<CreateTaskImpl, DeleterType>;
 
         explicit CreateTask(UniquePtrType impl)
-            : m_Impl(std::move(impl))
+            : m_TaskImpl(std::move(impl))
         {
         }
 
-        UniquePtrType m_Impl{ nullptr, &Deleter };
+        UniquePtrType m_TaskImpl{ nullptr, &Deleter };
     };
 
     ~GpuHelper() = default;
