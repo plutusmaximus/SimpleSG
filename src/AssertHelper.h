@@ -1,7 +1,6 @@
 #pragma once
 
-#include "Log.h"
-
+#include <format>
 #include <SDL3/SDL_assert.h>
 
 namespace AssertHelper

@@ -1,6 +1,7 @@
 #include "ThreadPool.h"
 
 #include "AssertHelper.h"
+#include "Log.h"
 
 #include <atomic>
 #include <cassert>
