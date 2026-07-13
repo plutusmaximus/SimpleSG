@@ -670,7 +670,7 @@ GpuHelper::CreateTaskImpl::Update()
             break;
     }
 
-    MLG_CHECK(State::Failed != m_State);
+    MLG_CHECK(State::Failed != m_State, "GpuHelper creation failed");
 
     return Result<>::Ok;
 }

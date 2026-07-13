@@ -3,17 +3,17 @@
 #include "FileFetcher.h"
 #include "GpuHelper.h"
 #include "ThreadPool.h"
+#include <memory>
 
 union SDL_Event;
 
 class System
 {
-    class CreateTaskImpl;
 public:
     class CreateTask
     {
     public:
-        CreateTask() = delete;
+        CreateTask() = default;
         ~CreateTask() = default;
         CreateTask(const CreateTask&) = delete;
         CreateTask& operator=(const CreateTask&) = delete;
@@ -35,17 +35,30 @@ public:
     private:
         friend System;
 
-        static void Deleter(CreateTaskImpl*);
-
-        using DeleterType = decltype(&Deleter);
-        using UniquePtrType = std::unique_ptr<CreateTaskImpl, DeleterType>;
-
-        explicit CreateTask(UniquePtrType impl)
-            : m_TaskImpl(std::move(impl))
+        enum class State
         {
-        }
+            None,
+            CreatingGpuHelper,
+            Succeeded,
+            Failed
+        };
 
-        UniquePtrType m_TaskImpl{ nullptr, &Deleter };
+        // To make the task moveable we keep it's implementation state
+        // in a separate Impl struct that is heap-allocated and managed by a unique_ptr.
+        struct Impl
+        {
+        private:
+
+            friend System::CreateTask;
+
+            std::optional<GpuHelper::CreateTask> m_GpuHelperTask;
+
+            State m_State{ State::None };
+        };
+
+        Result<> Begin(const char* appName);
+
+        std::unique_ptr<Impl> m_Impl = std::make_unique<Impl>();
     };
 
     System() = delete;
