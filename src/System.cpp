@@ -12,20 +12,20 @@ System::Create(const char* appName)
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
-    auto future = GpuHelper::Create(appName);
-    MLG_CHECK(future);
+    auto task = GpuHelper::Create(appName);
+    MLG_CHECK(task);
 
-    while(!future->IsComplete())
+    while(!task->IsComplete())
     {
-        MLG_CHECK(future->Update());
+        MLG_CHECK(task->Update());
     }
 
-    MLG_CHECK(future->Succeeded(), "GpuHelper creation failed");
+    MLG_CHECK(task->Succeeded(), "GpuHelper creation failed");
 
     auto fileFetcherResult = FileFetcher::Create();    
     MLG_CHECK(fileFetcherResult);
 
-    return System(std::move(*future->Get()), std::move(*fileFetcherResult), ThreadPool());
+    return System(std::move(*task->Get()), std::move(*fileFetcherResult), ThreadPool());
 }
 
 GpuHelper&
