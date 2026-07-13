@@ -18,21 +18,21 @@ using RgbaColoru8 = RgbaColor<uint8_t>;
 class GpuHelper final
 {    
     class Impl;
-    class FutureImpl;
+    class CreateTaskImpl;
 
 public:
     static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
     static constexpr wgpu::TextureFormat kDepthBufferFormat = wgpu::TextureFormat::Depth24Plus;
 
-    class Future
+    class CreateTask
     {
     public:
-        Future() = delete;
-        ~Future() = default;
-        Future(const Future&) = delete;
-        Future& operator=(const Future&) = delete;
-        Future(Future&&) = default;
-        Future& operator=(Future&&) = default;
+        CreateTask() = delete;
+        ~CreateTask() = default;
+        CreateTask(const CreateTask&) = delete;
+        CreateTask& operator=(const CreateTask&) = delete;
+        CreateTask(CreateTask&&) = default;
+        CreateTask& operator=(CreateTask&&) = default;
 
         bool IsValid() const;
 
@@ -49,12 +49,12 @@ public:
     private:
         friend GpuHelper;
 
-        static void Deleter(FutureImpl*);
+        static void Deleter(CreateTaskImpl*);
 
         using DeleterType = decltype(&Deleter);
-        using UniquePtrType = std::unique_ptr<FutureImpl, DeleterType>;
+        using UniquePtrType = std::unique_ptr<CreateTaskImpl, DeleterType>;
 
-        explicit Future(UniquePtrType impl)
+        explicit CreateTask(UniquePtrType impl)
             : m_Impl(std::move(impl))
         {
         }
@@ -68,7 +68,7 @@ public:
     GpuHelper(GpuHelper&&) = default;
     GpuHelper& operator=(GpuHelper&&) = default;
 
-    static Result<Future> Create(const char* appName);
+    static Result<CreateTask> Create(const char* appName);
 
     SDL_Window* GetWindow() const;
     wgpu::Instance GetInstance() const;

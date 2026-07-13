@@ -22,13 +22,10 @@ System::Create(const char* appName)
 
     MLG_CHECK(future->Succeeded(), "GpuHelper creation failed");
 
-    auto gpuHelperResult = future->Get();
-    MLG_CHECK(gpuHelperResult, "GpuHelper creation failed");
-
     auto fileFetcherResult = FileFetcher::Create();    
     MLG_CHECK(fileFetcherResult);
 
-    return System(std::move(*gpuHelperResult), std::move(*fileFetcherResult), ThreadPool());
+    return System(std::move(*future->Get()), std::move(*fileFetcherResult), ThreadPool());
 }
 
 GpuHelper&

@@ -488,9 +488,9 @@ public:
     wgpu::Sampler DefaultSampler{ nullptr };
 };
 
-////////// GpuHelper::FutureImpl
+////////// GpuHelper::CreateTaskImpl
 
-class GpuHelper::FutureImpl
+class GpuHelper::CreateTaskImpl
 {
 public:
 
@@ -539,12 +539,12 @@ public:
     static void RequestAdapterCb(wgpu::RequestAdapterStatus status,
         wgpu::Adapter receivedAdapter,
         wgpu::StringView message,
-        FutureImpl* helperCreator);
+        CreateTaskImpl* helperCreator);
 
     static void RequestDeviceCb(wgpu::RequestDeviceStatus status,
         wgpu::Device receivedDevice,
         wgpu::StringView message,
-        FutureImpl* helperCreator);
+        CreateTaskImpl* helperCreator);
 
     static void DeviceLostCb(
         const wgpu::Device& device, wgpu::DeviceLostReason reason, wgpu::StringView message);
@@ -572,7 +572,7 @@ public:
 };
 
 Result<>
-GpuHelper::FutureImpl::Begin(const char* appName)
+GpuHelper::CreateTaskImpl::Begin(const char* appName)
 {
     MLG_ASSERT(GetState() == State::None, "GpuHelperCreator is already in progress");
 
@@ -615,7 +615,7 @@ GpuHelper::FutureImpl::Begin(const char* appName)
 }
 
 Result<>
-GpuHelper::FutureImpl::Update()
+GpuHelper::CreateTaskImpl::Update()
 {
     MLG_CHECKV(State::None != GetState(), "GpuHelperCreator is not started");
 
@@ -670,7 +670,7 @@ GpuHelper::FutureImpl::Update()
 }
 
 Result<>
-GpuHelper::FutureImpl::CreateAdapter()
+GpuHelper::CreateTaskImpl::CreateAdapter()
 {
     MLG_INFO("Creating adapter...");
 
@@ -704,7 +704,7 @@ GpuHelper::FutureImpl::CreateAdapter()
 }
 
 Result<>
-GpuHelper::FutureImpl::CreateDevice()
+GpuHelper::CreateTaskImpl::CreateDevice()
 {
     MLG_INFO("Creating device...");
 
@@ -763,7 +763,7 @@ GpuHelper::FutureImpl::CreateDevice()
 }
 
 Result<>
-GpuHelper::FutureImpl::HandleAdapterCreation()
+GpuHelper::CreateTaskImpl::HandleAdapterCreation()
 {
     MLG_CHECK(m_AdapterRequestData.Result, "Failed to create adapter");
     m_Impl->Adapter = std::move(*m_AdapterRequestData.Result);
@@ -780,7 +780,7 @@ GpuHelper::FutureImpl::HandleAdapterCreation()
 }
 
 Result<>
-GpuHelper::FutureImpl::HandleDeviceCreation()
+GpuHelper::CreateTaskImpl::HandleDeviceCreation()
 {
     MLG_CHECK(m_DeviceRequestData.Result, "Failed to create device");
     m_Impl->Device = std::move(*m_DeviceRequestData.Result);
@@ -792,7 +792,7 @@ GpuHelper::FutureImpl::HandleDeviceCreation()
 }
 
 Result<>
-GpuHelper::FutureImpl::Finalize()
+GpuHelper::CreateTaskImpl::Finalize()
 {
     int width{ 0 }, height{ 0 };
     SDL_GetWindowSize(m_Impl->Window, &width, &height);
@@ -826,10 +826,10 @@ GpuHelper::FutureImpl::Finalize()
 }
 
 void
-GpuHelper::FutureImpl::RequestAdapterCb(wgpu::RequestAdapterStatus status,
+GpuHelper::CreateTaskImpl::RequestAdapterCb(wgpu::RequestAdapterStatus status,
     wgpu::Adapter receivedAdapter,
     wgpu::StringView message,
-    FutureImpl* helperCreator)
+    CreateTaskImpl* helperCreator)
 {
     if(status != wgpu::RequestAdapterStatus::Success)
     {
@@ -845,10 +845,10 @@ GpuHelper::FutureImpl::RequestAdapterCb(wgpu::RequestAdapterStatus status,
 }
 
 void
-GpuHelper::FutureImpl::RequestDeviceCb(wgpu::RequestDeviceStatus status,
+GpuHelper::CreateTaskImpl::RequestDeviceCb(wgpu::RequestDeviceStatus status,
     wgpu::Device receivedDevice,
     wgpu::StringView message,
-    FutureImpl* helperCreator)
+    CreateTaskImpl* helperCreator)
 {
     if(status != wgpu::RequestDeviceStatus::Success)
     {
@@ -865,7 +865,7 @@ GpuHelper::FutureImpl::RequestDeviceCb(wgpu::RequestDeviceStatus status,
 
 // TODO(KB) - handle device lost.
 void
-GpuHelper::FutureImpl::DeviceLostCb(const wgpu::Device& /*device*/,
+GpuHelper::CreateTaskImpl::DeviceLostCb(const wgpu::Device& /*device*/,
     wgpu::DeviceLostReason reason,
     wgpu::StringView message)
 {
@@ -882,7 +882,7 @@ GpuHelper::FutureImpl::DeviceLostCb(const wgpu::Device& /*device*/,
 }
 
 void
-GpuHelper::FutureImpl::UncapturedErrorCb(const wgpu::Device& /*device*/,
+GpuHelper::CreateTaskImpl::UncapturedErrorCb(const wgpu::Device& /*device*/,
     wgpu::ErrorType errorType,
     wgpu::StringView message)
 {
@@ -896,62 +896,62 @@ GpuHelper::FutureImpl::UncapturedErrorCb(const wgpu::Device& /*device*/,
 }
 
 void
-GpuHelper::Future::Deleter(FutureImpl* impl)
+GpuHelper::CreateTask::Deleter(CreateTaskImpl* impl)
 {
-    const std::unique_ptr<FutureImpl> bye(impl);
+    const std::unique_ptr<CreateTaskImpl> bye(impl);
 }
 
 bool
-GpuHelper::Future::IsValid() const
+GpuHelper::CreateTask::IsValid() const
 {
     return m_Impl != nullptr;
 }
 
 Result<>
-GpuHelper::Future::Update()
+GpuHelper::CreateTask::Update()
 {
-    MLG_CHECKV(IsValid(), "Invalid GpuHelperFuture");
+    MLG_CHECKV(IsValid(), "Invalid CreateTask");
 
     return m_Impl->Update();
 }
 
 bool
-GpuHelper::Future::IsComplete() const
+GpuHelper::CreateTask::IsComplete() const
 {
-    return MLG_VERIFY(IsValid(), "Invalid GpuHelperFuture")
+    return MLG_VERIFY(IsValid(), "Invalid CreateTask")
         && m_Impl->IsComplete();
 }
 
 bool
-GpuHelper::Future::Succeeded() const
+GpuHelper::CreateTask::Succeeded() const
 {
-    return MLG_VERIFY(IsValid(), "Invalid GpuHelperFuture")
+    return MLG_VERIFY(IsValid(), "Invalid CreateTask")
         && m_Impl->IsComplete()
-        && m_Impl->GetState() == FutureImpl::State::Succeeded;
+        && m_Impl->GetState() == CreateTaskImpl::State::Succeeded;
 }
 
 Result<GpuHelper>
-GpuHelper::Future::Get()
+GpuHelper::CreateTask::Get()
 {
-    MLG_CHECKV(Succeeded(), "GpuHelperFuture did not succeed");
+    MLG_CHECKV(Succeeded(), "CreateTask did not succeed");
 
     UniquePtrType bye = std::move(m_Impl);
 
-    MLG_CHECKV(bye->m_GpuHelper, "Invalid GpuHelperFuture");
+    MLG_CHECKV(bye->m_GpuHelper, "Invalid GpuHelper");
 
     return std::move(*bye->m_GpuHelper);
 }
 
 ////////// GpuHelper
 
-Result<GpuHelper::Future>
+Result<GpuHelper::CreateTask>
 GpuHelper::Create(const char* appName)
 {
-    std::unique_ptr<FutureImpl> futureImpl = std::make_unique<FutureImpl>();
+    std::unique_ptr<CreateTaskImpl> createTaskImpl = std::make_unique<CreateTaskImpl>();
 
-    MLG_CHECK(futureImpl->Begin(appName))
+    MLG_CHECK(createTaskImpl->Begin(appName))
 
-    return Future(Future::UniquePtrType(futureImpl.release(), &Future::Deleter));
+    return CreateTask(CreateTask::UniquePtrType(createTaskImpl.release(), &CreateTask::Deleter));
 
     /*while(!future.IsComplete())
     {
