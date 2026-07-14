@@ -1,12 +1,12 @@
 #include "FileFetcher.h"
 
 #include "Log.h"
-
-#include  "scope_exit.h"
+#include "scope_exit.h"
 
 #include <memory>
-#include <SDL3/SDL_error.h>
 #include <SDL3/SDL_asyncio.h>
+#include <SDL3/SDL_error.h>
+
 
 FileFetcher::Request::Request(std::string filePath)
     : m_FilePath(std::move(filePath))
@@ -62,9 +62,7 @@ Result<FileFetcher>
 FileFetcher::Create()
 {
     SDL_AsyncIOQueue* asyncIOQueue = SDL_CreateAsyncIOQueue();
-    MLG_CHECKV(asyncIOQueue,
-        "Failed to create SDL Async IO Queue: {}",
-        SDL_GetError());
+    MLG_CHECKV(asyncIOQueue, "Failed to create SDL Async IO Queue: {}", SDL_GetError());
 
     return FileFetcher(UniquePtrType(asyncIOQueue, &FileFetcher::Deleter));
 }
