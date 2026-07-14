@@ -691,14 +691,16 @@ MainLoop()
 
         frameTimer.Restart();
 
-        auto eventInterceptor = [&](const SDL_Event& sdlEvent)
+        auto eventHandlerFunc = [](const SDL_Event& sdlEvent, InputMapper* im)
         {
             ImGui_ImplSDL3_ProcessEvent(&sdlEvent);
-            inputMapper.ProcessEvent(sdlEvent);
-            return System::EventDisposition::Process;
+            im->ProcessEvent(sdlEvent);
+            return EventDisposition::Process;
         };
 
-        system.ProcessEvents(eventInterceptor);
+        const EventHandler eventHandler(+eventHandlerFunc, &inputMapper);
+
+        system.ProcessEvents(eventHandler);
 
         if(system.IsMinimized())
         {

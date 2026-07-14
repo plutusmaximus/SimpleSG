@@ -162,7 +162,7 @@ System::PostQuitEvent()
 }
 
 void
-System::ProcessEventsImpl(const EventInterceptor& eventInterceptor)
+System::ProcessEvents(const EventHandler& eventHandler)
 {
     m_GpuHelper.GetInstance().ProcessEvents();
 
@@ -195,7 +195,7 @@ System::ProcessEventsImpl(const EventInterceptor& eventInterceptor)
             continue;
         }
 
-        if(eventInterceptor(sdlEvent) == EventDisposition::Ignore)
+        if(eventHandler(sdlEvent) == EventDisposition::Ignore)
         {
             continue;
         }

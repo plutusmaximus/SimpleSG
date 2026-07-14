@@ -7,6 +7,53 @@
 
 union SDL_Event;
 
+enum class EventDisposition
+{
+    Ignore,
+    Process
+};
+
+class EventHandler
+{
+public:
+    EventHandler() = delete;
+    ~EventHandler() = default;
+    EventHandler(const EventHandler&) = delete;
+    EventHandler& operator=(const EventHandler&) = delete;
+    EventHandler(EventHandler&&) = delete;
+    EventHandler& operator=(EventHandler&&) = delete;
+
+    //NOLINTBEGIN
+    template<typename T>
+    EventHandler(EventDisposition (*func)(const SDL_Event&, T* userData), T* userData)
+        : m_Invoke(&EventHandler::InvokeImpl<T>),
+          m_Cb(reinterpret_cast<EventDisposition (*)(const SDL_Event&, void*)>(func)),
+          m_UserData(userData)
+    {
+    }
+    //NOLINTEND
+
+    EventDisposition operator()(const SDL_Event& event) const
+    {
+        return (this->*m_Invoke)(event);
+    }
+
+private:
+
+    // NOLINTBEGIN
+    template<typename T>
+    EventDisposition InvokeImpl(const SDL_Event& event) const
+    {
+        auto cb = reinterpret_cast<EventDisposition (*)(const SDL_Event&, T*)>(m_Cb);
+        return cb(event, reinterpret_cast<T*>(m_UserData));
+    }
+    // NOLINTEND
+
+    EventDisposition (EventHandler::*m_Invoke)(const SDL_Event&) const = nullptr;
+    EventDisposition (*m_Cb)(const SDL_Event&, void* userData) = nullptr;
+    void* m_UserData = nullptr;
+};
+
 class System final
 {
 public:
@@ -78,35 +125,7 @@ public:
 
     static void PostQuitEvent();
 
-    enum class EventDisposition
-    {
-        Ignore,
-        Process
-    };
-
-    template<typename Func>
-    void ProcessEvents(const Func& eventInterceptor)
-    {
-        static_assert(std::is_invocable_r_v<EventDisposition, Func, const SDL_Event&>,
-            "Event interceptor must be invocable with signature: EventDisposition(const SDL_Event&)");
-
-        struct Interceptor : public EventInterceptor
-        {
-            explicit Interceptor(const Func& func)
-                : m_Func(func)
-            {
-            }
-
-            EventDisposition operator()(const SDL_Event& event) const override
-            {
-                return std::invoke(m_Func, event);
-            }
-
-            const Func& m_Func;
-        };
-
-        ProcessEventsImpl(Interceptor(eventInterceptor));
-    }
+    void ProcessEvents(const EventHandler& eventHandler);
 
     bool IsMinimized() const { return m_Minimized; }
 
@@ -124,20 +143,6 @@ private:
         m_ThreadPool(std::move(threadPool))
     {
     }
-
-    struct EventInterceptor
-    {
-        EventInterceptor() = default;
-        virtual ~EventInterceptor() = default;
-        EventInterceptor(const EventInterceptor&) = delete;
-        EventInterceptor& operator=(const EventInterceptor&) = delete;
-        EventInterceptor(EventInterceptor&&) = delete;
-        EventInterceptor& operator=(EventInterceptor&&) = delete;
-
-        virtual EventDisposition operator()(const SDL_Event& event) const = 0;
-    };
-
-    void ProcessEventsImpl(const EventInterceptor& eventInterceptor);
 
     enum class FocusEvent
     {

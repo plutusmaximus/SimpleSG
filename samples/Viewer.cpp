@@ -264,26 +264,34 @@ MainLoop()
 
         frameTimer.Restart();
 
-        std::string droppedFile;
+        struct EventHandlerData
+        {
+            std::string droppedFile;
+            InputMapper* inputMapper;
+        };
 
-        auto eventInterceptor = [&](const SDL_Event& sdlEvent)
+        EventHandlerData eventHandlerData{ .droppedFile = "", .inputMapper = &inputMapper };
+
+        auto eventHandlerFunc = [](const SDL_Event& sdlEvent, EventHandlerData* data)
         {
             ImGui_ImplSDL3_ProcessEvent(&sdlEvent);
-            inputMapper.ProcessEvent(sdlEvent);
+            data->inputMapper->ProcessEvent(sdlEvent);
 
             switch(sdlEvent.type)
             {
                 case SDL_EVENT_DROP_FILE:
-                    droppedFile = sdlEvent.drop.data;
+                    data->droppedFile = sdlEvent.drop.data;
                     break;
 
                 default:
                     break;
             }
-            return System::EventDisposition::Process;
+            return EventDisposition::Process;
         };
 
-        system.ProcessEvents(eventInterceptor);
+        const EventHandler eventHandler(+eventHandlerFunc, &eventHandlerData);
+
+        system.ProcessEvents(eventHandler);
 
         if(system.IsMinimized())
         {
@@ -298,7 +306,7 @@ MainLoop()
 
         inputMapper.DispatchEvents();
 
-        if(!droppedFile.empty())
+        if(!eventHandlerData.droppedFile.empty())
         {
             auto newLoadResult = Load(gpuHelper, threadPool, fileFetcher, SPONZA_MODEL_PATH);
             MLG_CHECK(newLoadResult, "Failed to load resources");
