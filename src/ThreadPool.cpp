@@ -3,112 +3,99 @@
 #include "AssertHelper.h"
 #include "Log.h"
 
-#include <atomic>
-#include <cassert>
-#include <condition_variable>
-#include <cstddef>
-#include <mutex>
-#include <span>
-#include <thread>
-#include <utility>
+////////// ThreadPool::Job
 
-namespace
+ThreadPool::Job::~Job()
 {
-constexpr const size_t kMaxJobs = 1024;
-constexpr size_t kMaxWorkerThreads = 32;
-
-struct ThreadPoolJob
-{
-    ThreadPoolJob() = default;
-    ~ThreadPoolJob() { MLG_ASSERT(m_Next == nullptr); }
-    ThreadPoolJob(const ThreadPoolJob&) = delete;
-    ThreadPoolJob& operator=(const ThreadPoolJob&) = delete;
-    ThreadPoolJob(ThreadPoolJob&&) = delete;
-    ThreadPoolJob& operator=(ThreadPoolJob&&) = delete;
-
-    void Invoke() const
-    {
-        MLG_ASSERT(m_JobFunc != nullptr);
-        m_JobFunc(m_UserData);
-    }
-
-    void Clear()
-    {
-        MLG_ASSERT(nullptr == m_Next, "Cannot clear a job that is still in a list!");
-        m_JobFunc = nullptr;
-        m_UserData = nullptr;
-    }
-
-    ThreadPoolJob* m_Next{ nullptr };
-
-    void (*m_JobFunc)(void*){ nullptr };
-    void* m_UserData{ nullptr };
-};    
-} // namespace
-
-class ThreadPool::Impl
-{
-public:
-
-    ThreadPoolJob *NewJob();
-    
-    void DeleteJob(ThreadPoolJob *job);
-
-    void Enqueue(ThreadPoolJob *job);
-
-    static size_t GetWorkerThreadCount();
-
-    static void WorkerLoop(Impl* impl);
-
-    std::array<ThreadPoolJob, kMaxJobs> m_JobPool;
-    ThreadPoolJob* m_JobPoolFreeList{nullptr};
-
-    ThreadPoolJob *m_JobQueueHead{nullptr};
-    ThreadPoolJob *m_JobQueueTail{nullptr};
-
-    std::mutex m_JobQueueMutex;
-    std::mutex m_AllocMutex;
-    std::condition_variable m_ThreadPoolCv;
-    std::atomic<bool> m_Running{false};
-    std::array<std::thread, kMaxWorkerThreads> m_WorkerThreadPool;
-    std::span<std::thread> m_WorkerThreads;
-};
-
-size_t
-ThreadPool::Impl::GetWorkerThreadCount()
-{
-    const size_t hardwareThreadCount = std::thread::hardware_concurrency();
-    if (hardwareThreadCount == 0)
-    {
-        return size_t{4};
-    }
-
-    return hardwareThreadCount > kMaxWorkerThreads ? kMaxWorkerThreads : hardwareThreadCount;
+    MLG_ASSERT(m_Next == nullptr, "Job is being destroyed while still in a list!");
 }
 
-ThreadPool::ThreadPool()
+void
+ThreadPool::Job::Invoke() const
 {
-    auto impl = std::make_unique<Impl>();
+    MLG_ASSERT(m_JobFunc != nullptr);
+    m_JobFunc(m_UserData);
+}
 
-    impl->m_WorkerThreads = std::span<std::thread>(impl->m_WorkerThreadPool.data(),
-        Impl::GetWorkerThreadCount());
+void
+ThreadPool::Job::Clear()
+{
+    MLG_ASSERT(nullptr == m_Next, "Cannot clear a job that is still in a list!");
+    m_JobFunc = nullptr;
+    m_UserData = nullptr;
+}
 
-    MLG_INFO("Starting ThreadPool with {} worker threads...", impl->m_WorkerThreads.size());
+////////// ThreadPool::Impl
 
-    impl->m_Running.store(true);
+ThreadPool::Job*
+ThreadPool::Impl::NewJob()
+{
+    const std::lock_guard<std::mutex> lock(m_AllocMutex);
 
-    for(std::thread& worker : impl->m_WorkerThreads)
+    Job* job = m_JobPoolFreeList;
+    if(MLG_VERIFY(job, "Failed to allocate job for ThreadPool.  Max jobs: {}", kMaxJobs))
     {
-        worker = std::thread(Impl::WorkerLoop, impl.get());
+        m_JobPoolFreeList = job->m_Next;
+        job->m_Next = nullptr;
     }
 
-    for(auto& job : impl->m_JobPool)
+    return job;
+}
+
+void
+ThreadPool::Impl::DeleteJob(Job* job)
+{
+    const std::lock_guard<std::mutex> lock(m_AllocMutex);
+
+    job->Clear();
+
+    job->m_Next = m_JobPoolFreeList;
+    m_JobPoolFreeList = job;
+}
+
+void
+ThreadPool::Impl::Enqueue(Job* job)
+{
+    const std::lock_guard<std::mutex> lock(m_JobQueueMutex);
+
+    MLG_ASSERT(job->m_Next == nullptr);
+
+    if(m_JobQueueTail)
     {
-        job.m_Next = impl->m_JobPoolFreeList;
-        impl->m_JobPoolFreeList = &job;
+        m_JobQueueTail->m_Next = job;
+        m_JobQueueTail = job;
+    }
+    else
+    {
+        m_JobQueueHead = job;
+        m_JobQueueTail = job;
     }
 
-    m_Impl.reset(impl.release());
+    m_ThreadPoolCv.notify_one();
+}
+
+////////// ThreadPool
+
+ThreadPool::ThreadPool()
+    : m_Impl(std::make_unique<Impl>())
+{
+    m_Impl->m_WorkerThreads =
+        std::span<std::thread>(m_Impl->m_WorkerThreadPool.data(), GetWorkerThreadCount());
+
+    MLG_INFO("Starting ThreadPool with {} worker threads...", m_Impl->m_WorkerThreads.size());
+
+    m_Impl->m_Running.store(true);
+
+    for(std::thread& worker : m_Impl->m_WorkerThreads)
+    {
+        worker = std::thread(WorkerLoop, m_Impl.get());
+    }
+
+    for(auto& job : m_Impl->m_JobPool)
+    {
+        job.m_Next = m_Impl->m_JobPoolFreeList;
+        m_Impl->m_JobPoolFreeList = &job;
+    }
 }
 
 ThreadPool::~ThreadPool()
@@ -117,10 +104,10 @@ ThreadPool::~ThreadPool()
     {
         return;
     }
-    
+
     m_Impl->m_Running.store(false);
 
-    ThreadPoolJob *pendingJobs = nullptr;
+    Job* pendingJobs = nullptr;
     {
         const std::lock_guard<std::mutex> lock(m_Impl->m_JobQueueMutex);
 
@@ -143,7 +130,7 @@ ThreadPool::~ThreadPool()
 
     while(pendingJobs)
     {
-        ThreadPoolJob *job = pendingJobs;
+        Job* job = pendingJobs;
         pendingJobs = pendingJobs->m_Next;
         job->m_Next = nullptr;
 
@@ -152,22 +139,21 @@ ThreadPool::~ThreadPool()
 
     while(m_Impl->m_JobPoolFreeList)
     {
-        ThreadPoolJob *job = m_Impl->m_JobPoolFreeList;
+        Job* job = m_Impl->m_JobPoolFreeList;
         m_Impl->m_JobPoolFreeList = job->m_Next;
         job->m_Next = nullptr;
     }
 }
 
-void
-ThreadPool::Deleter(Impl* impl)
-{
-    const std::unique_ptr<Impl> bye(impl);
-}
-
 bool
 ThreadPool::Enqueue(void (*jobFunc)(void*), void* userData)
 {
-    ThreadPoolJob *job = m_Impl->NewJob();
+    if(!MLG_VERIFY(m_Impl, "ThreadPool is invalid."))
+    {
+        return false;
+    }
+
+    Job* job = m_Impl->NewJob();
 
     if(!MLG_VERIFY(job, "Failed to allocate job for ThreadPool.  Max jobs: {}", kMaxJobs))
     {
@@ -185,84 +171,55 @@ ThreadPool::Enqueue(void (*jobFunc)(void*), void* userData)
 size_t
 ThreadPool::GetWorkerCount() const
 {
+    if(!MLG_VERIFY(m_Impl, "ThreadPool is invalid."))
+    {
+        return 0;
+    }
+
     return m_Impl->m_WorkerThreads.size();
 }
 
-ThreadPoolJob *
-ThreadPool::Impl::NewJob()
+size_t
+ThreadPool::GetWorkerThreadCount()
 {
-    const std::lock_guard<std::mutex> lock(m_AllocMutex);
-
-    ThreadPoolJob* job = m_JobPoolFreeList;
-    if(MLG_VERIFY(job, "Failed to allocate job for ThreadPool.  Max jobs: {}", kMaxJobs))
+    const size_t hardwareThreadCount = std::thread::hardware_concurrency();
+    if(hardwareThreadCount == 0)
     {
-        m_JobPoolFreeList = job->m_Next;
-        job->m_Next = nullptr;
+        return size_t{ 4 };
     }
 
-    return job;
+    return hardwareThreadCount > kMaxWorkerThreads ? kMaxWorkerThreads : hardwareThreadCount;
 }
 
 void
-ThreadPool::Impl::DeleteJob(ThreadPoolJob *job)
-{
-    const std::lock_guard<std::mutex> lock(m_AllocMutex);
-
-    job->Clear();
-
-    job->m_Next = m_JobPoolFreeList;
-    m_JobPoolFreeList = job;
-}
-
-void
-ThreadPool::Impl::Enqueue(ThreadPoolJob *job)
-{
-    const std::lock_guard<std::mutex> lock(m_JobQueueMutex);
-
-    MLG_ASSERT(job->m_Next == nullptr);
-
-    if(m_JobQueueTail)
-    {
-        m_JobQueueTail->m_Next = job;
-        m_JobQueueTail = job;
-    }
-    else
-    {
-        m_JobQueueHead = job;
-        m_JobQueueTail = job;
-    }
-
-    m_ThreadPoolCv.notify_one();
-}
-
-void
-ThreadPool::Impl::WorkerLoop(Impl* impl)
+ThreadPool::WorkerLoop(Impl* impl)
 {
     while(impl->m_Running.load())
     {
-        ThreadPoolJob *job = nullptr;
+        Job* job = nullptr;
 
-        std::unique_lock<std::mutex> lock(impl->m_JobQueueMutex);
-        impl->m_ThreadPoolCv.wait(lock,
-            [impl]
-            { return !impl->m_Running.load() || impl->m_JobQueueHead != nullptr; });
-
-        job = impl->m_JobQueueHead;
-        if(!job)
         {
-            continue;
+            //Scope lock for the job queue mutex.  This will be released when the lock goes out of scope.
+            std::unique_lock<std::mutex> lock(impl->m_JobQueueMutex);
+
+            impl->m_ThreadPoolCv.wait(lock,
+                [impl] { return !impl->m_Running.load() || impl->m_JobQueueHead != nullptr; });
+
+            job = impl->m_JobQueueHead;
+            if(!job)
+            {
+                continue;
+            }
+
+            impl->m_JobQueueHead = job->m_Next;
+
+            if(!impl->m_JobQueueHead)
+            {
+                impl->m_JobQueueTail = nullptr;
+            }
+
+            job->m_Next = nullptr;
         }
-
-        impl->m_JobQueueHead = job->m_Next;
-
-        if(!impl->m_JobQueueHead)
-        {
-            impl->m_JobQueueTail = nullptr;
-        }
-
-        job->m_Next = nullptr;
-
-        lock.unlock();
 
         job->Invoke();
 

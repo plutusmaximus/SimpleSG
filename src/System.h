@@ -7,7 +7,7 @@
 
 union SDL_Event;
 
-class System
+class System final
 {
 public:
     class CreateTask
