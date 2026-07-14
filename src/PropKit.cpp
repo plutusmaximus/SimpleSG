@@ -4,22 +4,23 @@
 #define MLG_LOGGER_NAME "PROP"
 
 #include "PropKit.h"
+
 #include "FileFetcher.h"
 #include "GpuHelper.h"
 #include "LevelDefs.h"
 #include "Log.h"
 #include "narrow_cast.h"
 #include "scope_exit.h"
-#include "Timer.h"
 #include "TextureCache.h"
 #include "ThreadPool.h"
+#include "Timer.h"
 
 #include <atomic>
 #include <filesystem>
-#include <ranges>
 #include <map>
-
+#include <ranges>
 #include <stb_image.h>
+
 
 static constexpr size_t kNumTextureChannels = 4;
 
@@ -28,7 +29,8 @@ namespace
 class TextureBuilder
 {
 public:
-    TextureBuilder(std::string baseUri, FileFetcher::Request& request, std::atomic<unsigned>* stageCounter)
+    TextureBuilder(
+        std::string baseUri, FileFetcher::Request& request, std::atomic<unsigned>* stageCounter)
         : Uri(std::move(baseUri)),
           Request(&request),
           StageCounter(stageCounter)
@@ -42,10 +44,7 @@ public:
     TextureBuilder(TextureBuilder&&) = default;
     TextureBuilder& operator=(TextureBuilder&&) = default;
 
-    void Decode()
-    {
-        DecodeResult = Decode(*this);
-    }
+    void Decode() { DecodeResult = Decode(*this); }
 
     static Result<> Decode(const TextureBuilder& builder)
     {
@@ -78,10 +77,8 @@ public:
             stbi_image_free(data);
         };
 
-        MLG_CHECKV(builder.Texture.GetWidth()
-                == static_cast<uint32_t>(imgWidth)
-                && builder.Texture.GetHeight()
-                == static_cast<uint32_t>(imgHeight),
+        MLG_CHECKV(builder.Texture.GetWidth() == static_cast<uint32_t>(imgWidth)
+                && builder.Texture.GetHeight() == static_cast<uint32_t>(imgHeight),
             "Decoded image dimensions do not match texture dimensions");
 
         MLG_CHECKV(builder.Texture.GetFormat() == wgpu::TextureFormat::RGBA8Unorm,
@@ -90,9 +87,9 @@ public:
         const size_t sizeofData =
             static_cast<size_t>(imgWidth) * static_cast<size_t>(imgHeight) * kNumTextureChannels;
 
-        const size_t expectedSize = static_cast<size_t>(builder.Texture.GetWidth()) *
-                                    static_cast<size_t>(builder.Texture.GetHeight()) *
-                                    kNumTextureChannels;
+        const size_t expectedSize = static_cast<size_t>(builder.Texture.GetWidth())
+            * static_cast<size_t>(builder.Texture.GetHeight())
+            * kNumTextureChannels;
 
         MLG_CHECKV(sizeofData == expectedSize, "Decoded image size does not match texture size");
 
@@ -195,7 +192,7 @@ FetchTextures(GpuHelper& gpuHelper,
 
     // Counter to track how many staging operations have completed.
     // We wait on this to signal completion of all stating operations.
-    std::atomic<unsigned> stageCounter{0};
+    std::atomic<unsigned> stageCounter{ 0 };
 
     for(const auto& mtl : materialDefs)
     {
@@ -444,9 +441,10 @@ PropKit::Create(GpuHelper& gpuHelper,
         models.emplace_back(model);
     }
 
-    TextureCache textureCache(gpuHelper);
+    TextureCache textureCache(gpuHelper.GetDefaultTexture());
 
-    MLG_CHECK(FetchTextures(gpuHelper, threadPool, fileFetcher, rootPath, uniqueMaterials, textureCache));
+    MLG_CHECK(
+        FetchTextures(gpuHelper, threadPool, fileFetcher, rootPath, uniqueMaterials, textureCache));
 
     auto vertexBuffer = gpuHelper.CreateVertexBuffer(vertices.size(), "VertexBuffer");
     MLG_CHECK(vertexBuffer);
@@ -462,10 +460,10 @@ PropKit::Create(GpuHelper& gpuHelper,
     MLG_CHECK(materialConstants);
 
     std::vector<wgpu::BindGroup> materialBindGroups;
-    MLG_CHECK(CreateMaterialBindGroups(gpuHelper, uniqueMaterials, textureCache, materialBindGroups));
+    MLG_CHECK(
+        CreateMaterialBindGroups(gpuHelper, uniqueMaterials, textureCache, materialBindGroups));
 
-    PropKit propKit(
-        std::move(*vertexBuffer),
+    PropKit propKit(std::move(*vertexBuffer),
         std::move(*indexBuffer),
         std::move(*materialConstants),
         std::move(materialBindGroups),
@@ -481,10 +479,7 @@ PropKit::Create(GpuHelper& gpuHelper,
 const Model*
 PropKit::GetModel(const std::string_view& name) const
 {
-    auto it = std::ranges::lower_bound(m_Models,
-        name,
-        {},
-        &Model::GetName);
+    auto it = std::ranges::lower_bound(m_Models, name, {}, &Model::GetName);
 
     if(!MLG_VERIFY(m_Models.end() != it && it->GetName() == name, "Model not found: {}", name))
     {
@@ -531,7 +526,7 @@ PropKit::PropKit(VertexBuffer&& vertexBuffer,
     {
         const Model& a = *(it - 1);
         const Model& b = *it;
-        
+
         if(!MLG_VERIFY(a.GetName() != b.GetName()))
         {
             MLG_ERROR("Duplicate model name found: {}", a.GetName());

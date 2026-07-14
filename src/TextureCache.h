@@ -4,15 +4,14 @@
 
 #include <webgpu/webgpu_cpp.h>
 
-class GpuHelper;
-
 class TextureCache
 {
 public:
-    explicit TextureCache(GpuHelper& gpuHelper)
-    : m_GpuHelper(&gpuHelper)
+    explicit TextureCache(wgpu::Texture defaultTexture)
+    : m_DefaultTexture(std::move(defaultTexture))
     {
     }
+
     ~TextureCache() = default;
     TextureCache(const TextureCache&) = delete;
     TextureCache& operator=(const TextureCache&) = delete;
@@ -29,7 +28,7 @@ public:
 
 private:
 
-    GpuHelper* m_GpuHelper;
+    wgpu::Texture m_DefaultTexture;
 
     static constexpr size_t kStringArenaChunkSize = 1024uz * 10uz;
 

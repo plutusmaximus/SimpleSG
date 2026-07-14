@@ -1,6 +1,6 @@
 #include "TextureCache.h"
 
-#include "GpuHelper.h"
+#include "Log.h"
 
 bool
 TextureCache::Contains(const std::string_view& uri) const
@@ -22,7 +22,7 @@ TextureCache::Get(const std::string_view& uri) const
     if(m_Textures.end() == it)
     {
         MLG_ERROR("TextureCache does not contain a texture with URI: {}", uri);
-        return m_GpuHelper->GetDefaultTexture();
+        return m_DefaultTexture;
     }
     return it->second;
 }
