@@ -68,7 +68,7 @@ public:
     System(System&&) = default;
     System& operator=(System&&) = default;
 
-    static Result<System> Create(const char* appName);
+    static Result<CreateTask> Create(const char* appName);
 
     GpuHelper& GetGpuHelper();
 

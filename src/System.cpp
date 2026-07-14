@@ -111,7 +111,7 @@ System::CreateTask::Get()
 
 ////////// System
 
-Result<System>
+Result<System::CreateTask>
 System::Create(const char* appName)
 {
     Log::SetLevel(Log::Level::Trace);
@@ -123,14 +123,7 @@ System::Create(const char* appName)
 
     MLG_CHECK(createTask.Begin(appName));
 
-    while(!createTask.IsComplete())
-    {
-        MLG_CHECK(createTask.Update());
-    }
-
-    MLG_CHECK(createTask.Succeeded(), "System creation failed");
-
-    return createTask.Get();
+    return std::move(createTask);
 }
 
 GpuHelper&

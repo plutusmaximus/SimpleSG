@@ -21,7 +21,7 @@
 
 namespace
 {
-constexpr const char* APP_NAME = "Viewer";
+constexpr const char* kAppName = "Viewer";
 
 Result<> RenderGui()
 {
@@ -118,8 +118,17 @@ constexpr const char* SPONZA_MODEL_PATH = "../../assets/main_sponza/NewSponza_Ma
 Result<>
 MainLoop()
 {
-    auto systemResult = System::Create(APP_NAME);
-    MLG_CHECK(systemResult, "Failed to create System");
+    auto task = System::Create(kAppName);
+    MLG_CHECK(task, "Failed to create System");
+
+    while(!task->IsComplete())
+    {
+        MLG_CHECK(task->Update());
+    }
+
+    MLG_CHECK(task->Succeeded(), "System creation failed");
+    auto systemResult = task->Get();
+    MLG_CHECK(systemResult, "Failed to get System instance");
 
     System system = std::move(*systemResult);
     GpuHelper& gpuHelper = system.GetGpuHelper();

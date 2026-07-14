@@ -1,14 +1,12 @@
-#include "FileFetcher.h"
-#include "GpuHelper.h"
+#include "Camera.h"
 #include "ImGuiRenderer.h"
 #include "Level.h"
 #include "Log.h"
 #include "PerfMetrics.h"
-#include "Camera.h"
 #include "PropKit.h"
 #include "Renderer.h"
 #include "Scene.h"
-#include "ThreadPool.h"
+#include "System.h"
 
 #include <filesystem>
 #include <imgui.h>
@@ -20,7 +18,8 @@ namespace
 {
 constexpr const char* kAppName = "Triangle";
 
-Result<> RenderGui()
+Result<>
+RenderGui()
 {
     ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
     ImGui::Begin("Counters");
@@ -42,13 +41,20 @@ Result<> RenderGui()
     return Result<>::Ok;
 }
 
-Result<> CreateTriangleModel(PropKitDef& outPropKit, LevelDef& outLevelDef)
+Result<>
+CreateTriangleModel(PropKitDef& outPropKit, LevelDef& outLevelDef)
 {
     std::vector<Vertex> triangleVertices = //
         {
-            { .pos{ 0.0f, 0.5f, 0.0f }, .normal{ 0.0f, 0.0f, -1.0f }, .uvs{{ .u = 1, .v = 1 }} },  // 0
-            { .pos{ 0.5f, 0.0f, 0.0f }, .normal{ 0.0f, 0.0f, -1.0f }, .uvs{{ .u = 0, .v = 1 }} },  // 1
-            { .pos{ -0.5f, 0.0f, 0.0f }, .normal{ 0.0f, 0.0f, -1.0f }, .uvs{{ .u = 0, .v = 0 }} }, // 2
+            { .pos{ 0.0f, 0.5f, 0.0f },
+                .normal{ 0.0f, 0.0f, -1.0f },
+                .uvs{ { .u = 1, .v = 1 } } }, // 0
+            { .pos{ 0.5f, 0.0f, 0.0f },
+                .normal{ 0.0f, 0.0f, -1.0f },
+                .uvs{ { .u = 0, .v = 1 } } }, // 1
+            { .pos{ -0.5f, 0.0f, 0.0f },
+                .normal{ 0.0f, 0.0f, -1.0f },
+                .uvs{ { .u = 0, .v = 0 } } }, // 2
         };
 
     std::vector<VertexIndex> triangleIndices = { 0, 1, 2 };
@@ -86,9 +92,9 @@ Result<> CreateTriangleModel(PropKitDef& outPropKit, LevelDef& outLevelDef)
                 {
                     .Name{ "TriangleNode" },
                     .Transform{},
-                    .Components//
+                    .Components //
                     {
-                        .Model = ModelRef{.Name = "Triangle"},
+                        .Model = ModelRef{ .Name = "Triangle" },
                     },
                 },
             },
@@ -100,7 +106,8 @@ Result<> CreateTriangleModel(PropKitDef& outPropKit, LevelDef& outLevelDef)
     return Result<>::Ok;
 }
 
-Result<> MainLoop()
+Result<>
+MainLoop()
 {
     Log::SetLevel(Log::Level::Trace);
 
@@ -111,26 +118,26 @@ Result<> MainLoop()
     LevelDef levelDef;
     MLG_CHECK(CreateTriangleModel(propKitDef, levelDef));
 
-    auto task = GpuHelper::Create(kAppName);
+    auto task = System::Create(kAppName);
+    MLG_CHECK(task, "Failed to create System");
 
     while(!task->IsComplete())
     {
         MLG_CHECK(task->Update());
     }
 
-    MLG_CHECK(task->Succeeded(), "GpuHelper creation failed");
+    MLG_CHECK(task->Succeeded(), "System creation failed");
+    auto systemResult = task->Get();
+    MLG_CHECK(systemResult, "Failed to get System instance");
 
-    GpuHelper gpuHelper = std::move(*task->Get());
+    System system = std::move(*systemResult);
 
-    ThreadPool threadPool;
-
-    Result<FileFetcher> fileFetcherResult = FileFetcher::Create();
-    MLG_CHECK(fileFetcherResult);
-    FileFetcher fileFetcher = std::move(*fileFetcherResult);
+    GpuHelper& gpuHelper = system.GetGpuHelper();
+    ThreadPool& threadPool = system.GetThreadPool();
+    FileFetcher& fileFetcher = system.GetFileFetcher();
 
     const std::filesystem::path rootPath = ".";
-    auto propKitResult =
-        PropKit::Create(gpuHelper, threadPool, fileFetcher, rootPath, propKitDef);
+    auto propKitResult = PropKit::Create(gpuHelper, threadPool, fileFetcher, rootPath, propKitDef);
     MLG_CHECK(propKitResult, "Failed to create PropKit");
     const PropKit propKit = std::move(*propKitResult);
 
@@ -149,7 +156,7 @@ Result<> MainLoop()
     ImGuiRenderer imGuiRenderer;
     MLG_CHECK(imGuiRenderer.Startup(gpuHelper));
 
-    const TrTransformf cameraXForm{ .T{0, 0, -4} };
+    const TrTransformf cameraXForm{ .T{ 0, 0, -4 } };
     Camera camera((Viewport(gpuHelper.GetScreenDimensions())));
 
     bool running = true;
@@ -188,14 +195,14 @@ Result<> MainLoop()
             {
                 ImGui_ImplSDL3_ProcessEvent(&event);
 
-                switch (event.type)
+                switch(event.type)
                 {
-                case SDL_EVENT_QUIT:
-                    running = false;
-                    break;
+                    case SDL_EVENT_QUIT:
+                        running = false;
+                        break;
 
-                //case SDL_EVENT_WINDOW_RESIZED:
-                case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+                    // case SDL_EVENT_WINDOW_RESIZED:
+                    case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
                     {
                         const uint32_t newWidth = static_cast<uint32_t>(event.window.data1);
                         const uint32_t newHeight = static_cast<uint32_t>(event.window.data2);
@@ -203,23 +210,23 @@ Result<> MainLoop()
                     }
                     break;
 
-                case SDL_EVENT_WINDOW_MINIMIZED:
-                    minimized = true;
-                    break;
+                    case SDL_EVENT_WINDOW_MINIMIZED:
+                        minimized = true;
+                        break;
 
-                /*case SDL_EVENT_WINDOW_MOUSE_LEAVE:
-                case SDL_EVENT_WINDOW_FOCUS_GAINED:
-                case SDL_EVENT_WINDOW_FOCUS_LOST:
-                case SDL_EVENT_MOUSE_MOTION:
-                case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                case SDL_EVENT_MOUSE_BUTTON_UP:
-                case SDL_EVENT_MOUSE_WHEEL:
-                case SDL_EVENT_KEY_DOWN:
-                case SDL_EVENT_KEY_UP:
-                    break;*/
+                        /*case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+                        case SDL_EVENT_WINDOW_FOCUS_GAINED:
+                        case SDL_EVENT_WINDOW_FOCUS_LOST:
+                        case SDL_EVENT_MOUSE_MOTION:
+                        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                        case SDL_EVENT_MOUSE_BUTTON_UP:
+                        case SDL_EVENT_MOUSE_WHEEL:
+                        case SDL_EVENT_KEY_DOWN:
+                        case SDL_EVENT_KEY_UP:
+                            break;*/
 
-                default:
-                    break;
+                    default:
+                        break;
                 }
             }
 
@@ -228,7 +235,7 @@ Result<> MainLoop()
                 continue;
             }
         }
-            
+
         const Viewport viewport(gpuHelper.GetScreenDimensions());
         camera.SetViewport(viewport);
 
@@ -261,7 +268,8 @@ Result<> MainLoop()
 }
 } // namespace
 
-int main(int /*argc*/, char** /*argv*/)
+int
+main(int /*argc*/, char** /*argv*/)
 {
     if(!MainLoop())
     {

@@ -26,7 +26,7 @@
 
 namespace
 {
-constexpr const char* APP_NAME = "Orbit";
+constexpr const char* kAppName = "Orbit";
 
 constexpr float kPhysicsFps = 60.0f;
 constexpr float kPhysicsTimeStep = 1.0f/kPhysicsFps;
@@ -473,8 +473,17 @@ MainLoop()
     WalkMouseNav mouseNav;
     DevUi devUi;
 
-    auto systemResult = System::Create(APP_NAME);
-    MLG_CHECK(systemResult, "Failed to create System");
+    auto task = System::Create(kAppName);
+    MLG_CHECK(task, "Failed to create System");
+
+    while(!task->IsComplete())
+    {
+        MLG_CHECK(task->Update());
+    }
+
+    MLG_CHECK(task->Succeeded(), "System creation failed");
+    auto systemResult = task->Get();
+    MLG_CHECK(systemResult, "Failed to get System instance");
 
     System system = std::move(*systemResult);
     GpuHelper& gpuHelper = system.GetGpuHelper();
