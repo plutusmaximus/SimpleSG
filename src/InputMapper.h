@@ -343,6 +343,9 @@ private:
     Vec2f m_MouseWheelDelta{0, 0};
 };
 
+/// @brief Predefined InputButton and InputAxis instances for common input devices.
+namespace InputButtons
+{
 consteval InputButton
 KeyPressed(const unsigned KEY_CODE)
 {
@@ -384,27 +387,17 @@ MouseDown(const unsigned BUTTON_CODE)
     return InputButton(ButtonIdentifier(InputButtonDevice::Mouse, BUTTON_CODE),
         InputButtonState::Down);
 }
-
-consteval InputAxis
-MouseMoveX()
-{
-    return InputAxis(InputAxisDevice::Mouse, InputAxisDirection::X);
 }
 
-consteval InputAxis
-MouseMoveY()
+namespace InputAxes
 {
-    return InputAxis(InputAxisDevice::Mouse, InputAxisDirection::Y);
-}
+constexpr InputAxis MouseMoveX(InputAxisDevice::Mouse, InputAxisDirection::X);
 
-consteval InputAxis
-MouseWheelX()
-{
-    return InputAxis(InputAxisDevice::MouseWheel, InputAxisDirection::X);
-}
+constexpr InputAxis MouseMoveY(InputAxisDevice::Mouse, InputAxisDirection::Y);
 
-consteval InputAxis
-MouseWheelY()
-{
-    return InputAxis(InputAxisDevice::MouseWheel, InputAxisDirection::Y);
+constexpr InputAxis MouseMoveZ(InputAxisDevice::Mouse, InputAxisDirection::Z);
+
+constexpr InputAxis MouseWheelX(InputAxisDevice::MouseWheel, InputAxisDirection::X);
+
+constexpr InputAxis MouseWheelY(InputAxisDevice::MouseWheel, InputAxisDirection::Y);
 }

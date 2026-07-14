@@ -150,10 +150,11 @@ MainLoop()
 
     static constexpr float kDefaultCameraHeight = 2.0f;
     static constexpr float kDefaultCameraYaw = 90.0f; // Degrees
+
     const Radiansf cameraYaw = Radiansf::FromDegrees(kDefaultCameraYaw);
 
     Dimension2 screenDimensions = gpuHelper.GetScreenDimensions();
-    TrTransformf cameraXForm{ .T{0, kDefaultCameraHeight, 0}, .R{UnitQuatf(cameraYaw, Vec3f::YAXIS())} };
+    TrTransformf cameraXForm{ .T{0, kDefaultCameraHeight, 0}, .R{cameraYaw, Vec3f::YAXIS()} };
     Camera camera((Viewport(screenDimensions)));
 
     mouseNav.SetTransform(cameraXForm);
@@ -174,7 +175,7 @@ MainLoop()
     const InputMapping inputMappings[] //
         {
             {
-                .Input = KeyPressed(SDL_SCANCODE_ESCAPE),
+                .Input = InputButtons::KeyPressed(SDL_SCANCODE_ESCAPE),
                 .ActionId = quit,
                 .Handler =
                     [&](const ActionEvent&)
@@ -183,54 +184,54 @@ MainLoop()
                 },
             },
             {
-                .Input = KeyDown(SDL_SCANCODE_W),
+                .Input = InputButtons::KeyDown(SDL_SCANCODE_W),
                 .ActionId = moveForward,
                 .Handler = [&](const ActionEvent& event)
                 { mouseNav.Move(Vec3f(0, 0, event.Value)); },
                 .Scale = 1,
             },
             {
-                .Input = KeyDown(SDL_SCANCODE_S),
+                .Input = InputButtons::KeyDown(SDL_SCANCODE_S),
                 .ActionId = moveBackward,
                 .Handler = [&](const ActionEvent& event)
                 { mouseNav.Move(Vec3f(0, 0, event.Value)); },
                 .Scale = -1,
             },
             {
-                .Input = KeyDown(SDL_SCANCODE_A),
+                .Input = InputButtons::KeyDown(SDL_SCANCODE_A),
                 .ActionId = moveLeft,
                 .Handler = [&](const ActionEvent& event)
                 { mouseNav.Move(Vec3f(event.Value, 0, 0)); },
                 .Scale = -1,
             },
             {
-                .Input = KeyDown(SDL_SCANCODE_D),
+                .Input = InputButtons::KeyDown(SDL_SCANCODE_D),
                 .ActionId = moveRight,
                 .Handler = [&](const ActionEvent& event)
                 { mouseNav.Move(Vec3f(event.Value, 0, 0)); },
                 .Scale = 1,
             },
             {
-                .Input = MouseMoveX(),
+                .Input = InputAxes::MouseMoveX,
                 .ActionId = lookLeftRight,
                 .Handler = [&](const ActionEvent& event) { mouseNav.Look(Vec2f(event.Value, 0)); },
                 .Scale = WalkMouseNav::kDefualtRotPerDXY * 2 * std::numbers::pi_v<float>,
             },
             {
-                .Input = MouseMoveY(),
+                .Input = InputAxes::MouseMoveY,
                 .ActionId = lookUpDown,
                 .Handler = [&](const ActionEvent& event) { mouseNav.Look(Vec2f(0, event.Value)); },
                 .Scale = WalkMouseNav::kDefualtRotPerDXY * 2 * std::numbers::pi_v<float>,
             },
             {
-                .Input = MouseWheelY(),
+                .Input = InputAxes::MouseWheelY,
                 .ActionId = moveUpDown,
                 .Handler = [&](const ActionEvent& event)
                 { mouseNav.Move(Vec3f(0, event.Value, 0)); },
                 .Scale = kMouseWheelScale,
             },
             {
-                .Input = MousePressed(SDL_BUTTON_LEFT),
+                .Input = InputButtons::MousePressed(SDL_BUTTON_LEFT),
                 .ActionId = captureMouse,
                 .Handler =
                     [&](const ActionEvent&)
@@ -240,7 +241,7 @@ MainLoop()
                 },
             },
             {
-                .Input = MouseReleased(SDL_BUTTON_LEFT),
+                .Input = InputButtons::MouseReleased(SDL_BUTTON_LEFT),
                 .ActionId = releaseMouse,
                 .Handler =
                     [&](const ActionEvent&)
