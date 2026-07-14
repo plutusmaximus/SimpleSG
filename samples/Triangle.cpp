@@ -1,4 +1,6 @@
 #include "Camera.h"
+#include "FileFetcher.h"
+#include "GpuHelper.h"
 #include "ImGuiRenderer.h"
 #include "Level.h"
 #include "Log.h"
@@ -6,7 +8,7 @@
 #include "PropKit.h"
 #include "Renderer.h"
 #include "Scene.h"
-#include "System.h"
+#include "ThreadPool.h"
 
 #include <filesystem>
 #include <imgui.h>
@@ -42,7 +44,7 @@ RenderGui()
 }
 
 Result<>
-CreateTriangleModel(PropKitDef& outPropKit, LevelDef& outLevelDef)
+CreateTriangleModel(PropKitDef& outPropKitDef, LevelDef& outLevelDef)
 {
     std::vector<Vertex> triangleVertices = //
         {
@@ -100,7 +102,7 @@ CreateTriangleModel(PropKitDef& outPropKit, LevelDef& outLevelDef)
             },
         };
 
-    outPropKit = std::move(propKitDef);
+    outPropKitDef = std::move(propKitDef);
     outLevelDef = std::move(levelDef);
 
     return Result<>::Ok;
@@ -114,12 +116,8 @@ MainLoop()
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
-    PropKitDef propKitDef;
-    LevelDef levelDef;
-    MLG_CHECK(CreateTriangleModel(propKitDef, levelDef));
-
-    auto task = System::Create(kAppName);
-    MLG_CHECK(task, "Failed to create System");
+    auto task = GpuHelper::Create(kAppName);
+    MLG_CHECK(task, "Failed to create GpuHelper");
 
     while(!task->IsComplete())
     {
@@ -127,37 +125,46 @@ MainLoop()
     }
 
     MLG_CHECK(task->Succeeded(), "System creation failed");
-    auto systemResult = task->Get();
-    MLG_CHECK(systemResult, "Failed to get System instance");
+    auto gpuHelperResult = task->Get();
+    MLG_CHECK(gpuHelperResult, "Failed to get GpuHelper instance");
 
-    System system = std::move(*systemResult);
+    auto threadPoolResult = ThreadPool::Create();
+    MLG_CHECK(threadPoolResult, "Failed to create ThreadPool");
 
-    GpuHelper& gpuHelper = system.GetGpuHelper();
-    ThreadPool& threadPool = system.GetThreadPool();
-    FileFetcher& fileFetcher = system.GetFileFetcher();
+    auto fileFetcherResult = FileFetcher::Create();
+    MLG_CHECK(fileFetcherResult, "Failed to create FileFetcher");
+
+    GpuHelper& gpuHelper = *gpuHelperResult;
+    ThreadPool& threadPool = *threadPoolResult;
+    FileFetcher& fileFetcher = *fileFetcherResult;
+
+    auto rendererResult = Renderer::Create(gpuHelper, fileFetcher);
+    MLG_CHECK(rendererResult, "Failed to create Renderer");
+    Renderer& renderer = *rendererResult;
+
+    PropKitDef propKitDef;
+    LevelDef levelDef;
+    MLG_CHECK(CreateTriangleModel(propKitDef, levelDef));
 
     const std::filesystem::path rootPath = ".";
     auto propKitResult = PropKit::Create(gpuHelper, threadPool, fileFetcher, rootPath, propKitDef);
     MLG_CHECK(propKitResult, "Failed to create PropKit");
-    const PropKit propKit = std::move(*propKitResult);
+    const PropKit& propKit = *propKitResult;
 
     auto levelResult = Level::Create(levelDef, propKit);
     MLG_CHECK(levelResult, "Failed to create Level");
-    const Level level = std::move(*levelResult);
+    const Level& level = *levelResult;
 
     auto sceneResult = Scene::Create(gpuHelper, level);
     MLG_CHECK(sceneResult, "Failed to create Scene");
-    const Scene scene = std::move(*sceneResult);
-
-    auto rendererResult = Renderer::Create(gpuHelper, fileFetcher);
-    MLG_CHECK(rendererResult, "Failed to create Renderer");
-    Renderer renderer = std::move(*rendererResult);
+    const Scene& scene = *sceneResult;
 
     ImGuiRenderer imGuiRenderer;
     MLG_CHECK(imGuiRenderer.Startup(gpuHelper));
 
     const TrTransformf cameraXForm{ .T{ 0, 0, -4 } };
-    Camera camera((Viewport(gpuHelper.GetScreenDimensions())));
+    const Viewport viewport(gpuHelper.GetScreenDimensions());
+    Camera camera(viewport);
 
     bool running = true;
     bool minimized = false;
@@ -236,8 +243,8 @@ MainLoop()
             }
         }
 
-        const Viewport viewport(gpuHelper.GetScreenDimensions());
-        camera.SetViewport(viewport);
+        const Viewport curViewport(gpuHelper.GetScreenDimensions());
+        camera.SetViewport(curViewport);
 
         auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECK(target, "Failed to get swapchain texture");
