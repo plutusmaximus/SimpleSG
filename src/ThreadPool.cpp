@@ -76,6 +76,12 @@ ThreadPool::Impl::Enqueue(Job* job)
 
 ////////// ThreadPool
 
+Result<ThreadPool>
+ThreadPool::Create()
+{
+    return ThreadPool();
+}
+
 ThreadPool::ThreadPool()
     : m_Impl(std::make_unique<Impl>())
 {

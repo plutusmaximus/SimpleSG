@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Result.h"
+
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -13,12 +15,13 @@ public:
     static constexpr const size_t kMaxJobs = 1024;
     static constexpr size_t kMaxWorkerThreads = 32;
 
-    ThreadPool();
     ~ThreadPool();
     ThreadPool(const ThreadPool&) = delete;
     ThreadPool& operator=(const ThreadPool&) = delete;
     ThreadPool(ThreadPool&& other) = default;
     ThreadPool& operator=(ThreadPool&& other) = default;
+
+    static Result<ThreadPool> Create();
 
     bool Enqueue(void (*jobFunc)(void*), void* userData);
 
@@ -77,6 +80,8 @@ private:
         std::array<std::thread, kMaxWorkerThreads> m_WorkerThreadPool;
         std::span<std::thread> m_WorkerThreads;
     };
+
+    ThreadPool();
 
     static size_t GetWorkerThreadCount();
 

@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_timer.h>
+#include <utility>
 
 ////////// System::CreateTask
 
@@ -104,9 +105,12 @@ System::CreateTask::Get()
     auto fileFetcherResult = FileFetcher::Create();    
     MLG_CHECK(fileFetcherResult);
 
+    auto threadPoolResult = ThreadPool::Create();
+    MLG_CHECK(threadPoolResult);
+
     return System(std::move(*gpuHelperResult), 
         std::move(*fileFetcherResult),
-        ThreadPool());
+        std::move(*threadPoolResult));
 }
 
 ////////// System
