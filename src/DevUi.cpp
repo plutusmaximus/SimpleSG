@@ -423,8 +423,6 @@ void DevUi::DrawStatusBarPanel() const // NOLINT(readability-convert-member-func
         ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
             ImGuiWindowFlags_NoScrollbar);
 
-    MLG_DEFER { ImGui::End(); };
-
     const std::string statusText = std::format("SPF: {:.3f} ms | FPS: {:.1f} | mouse: {},{}",
         ImGui::GetIO().DeltaTime * 1000.0f,
         1.0f / ImGui::GetIO().DeltaTime,
@@ -432,4 +430,6 @@ void DevUi::DrawStatusBarPanel() const // NOLINT(readability-convert-member-func
         m_ScenePanelMousePos.Y);
 
     ImGui::TextUnformatted(statusText.c_str());
+
+    ImGui::End();
 }
