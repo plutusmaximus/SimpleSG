@@ -1,54 +1,70 @@
 #pragma once
 
 #include "GpuTypes.h"
-#include "Result.h"
 #include "VecMath.h"
 
-#include <memory.h>
+#include <atomic>
+#include <memory>
 #include <string_view>
 
 class FileFetcher;
 struct SDL_Window;
-
-template<typename T>
-class RgbaColor;
-using RgbaColorf = RgbaColor<float>;
-using RgbaColoru8 = RgbaColor<uint8_t>;
+using SDL_MetalView = void*;
 
 class GpuHelper final
-{    
+{
     class Impl;
-    class CreateTaskImpl;
 
 public:
     static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
     static constexpr wgpu::TextureFormat kDepthBufferFormat = wgpu::TextureFormat::Depth24Plus;
 
+    /// @brief A task that creates a GpuHelper instance asynchronously.
     class CreateTask
     {
     public:
         enum class State
         {
             None,
+            CreateAdapter,
             CreatingAdapter,
             CreatingDevice,
             Succeeded,
             Failed
         };
 
-        CreateTask() = delete;
+        // Passed to the adapter request callback to store the result of the request.
+        struct AdapterRequestData
+        {
+            Result<wgpu::Adapter> Result;
+            std::atomic<bool> IsComplete{ false };
+        };
+
+        // Passed to the device request callback to store the result of the request.
+        struct DeviceRequestData
+        {
+            Result<wgpu::Device> Result;
+            std::atomic<bool> IsComplete{ false };
+        };
+
         ~CreateTask() = default;
         CreateTask(const CreateTask&) = delete;
         CreateTask& operator=(const CreateTask&) = delete;
         CreateTask(CreateTask&&) = default;
         CreateTask& operator=(CreateTask&&) = default;
 
-        bool IsValid() const;
-
+        /// @brief Updates the task.  This must be called periodically until IsComplete() returns
+        /// true.
         Result<> Update();
 
+        /// @brief Returns true if the task is valid and can be updated.
+        /// Returns false if the task has been invalidated by calling Get().
+        bool IsValid() const;
+
+        /// @brief Returns true if the task is complete (either succeeded or failed).
         bool IsComplete() const;
 
+        /// @brief Returns true if the task succeeded.
         bool Succeeded() const;
 
         /// @brief Returns the GpuHelper instance if the task succeeded, otherwise returns an error.
@@ -58,17 +74,36 @@ public:
     private:
         friend GpuHelper;
 
-        static void Deleter(CreateTaskImpl*);
+        // Only callable by GpuHelper
+        CreateTask() = default;
 
-        using DeleterType = decltype(&Deleter);
-        using UniquePtrType = std::unique_ptr<CreateTaskImpl, DeleterType>;
+        Result<> Begin(const std::string_view& appName);
+        Result<> CreateAdapter();
+        Result<> FinalizeAdapter();
+        Result<> CreateDevice();
+        Result<> FinalizeDevice();
 
-        explicit CreateTask(UniquePtrType impl)
-            : m_TaskImpl(std::move(impl))
+        void Invalidate();
+
+        // To make the task moveable we keep it's implementation state
+        // in a separate Impl struct that is heap-allocated and managed by a unique_ptr.
+        struct Impl
         {
-        }
+            Impl();
+            ~Impl();
+            Impl(const Impl&) = delete;
+            Impl& operator=(const Impl&) = delete;
+            Impl(Impl&&) = delete;
+            Impl& operator=(Impl&&) = delete;
 
-        UniquePtrType m_TaskImpl{ nullptr, &Deleter };
+            GpuHelper::CreateTask::AdapterRequestData m_AdapterRequestData;
+            GpuHelper::CreateTask::DeviceRequestData m_DeviceRequestData;
+
+            CreateTask::State m_State{ CreateTask::State::None };
+        };
+
+        std::unique_ptr<Impl> m_TaskImpl;
+        std::unique_ptr<GpuHelper::Impl> m_GpuHelperImpl;
     };
 
     ~GpuHelper() = default;
@@ -77,7 +112,9 @@ public:
     GpuHelper(GpuHelper&&) = default;
     GpuHelper& operator=(GpuHelper&&) = default;
 
-    static Result<CreateTask> Create(const char* appName);
+    /// @brief Creates a GpuHelper instance asynchronously.
+    ///
+    static Result<CreateTask> Create(const std::string_view& appName);
 
     SDL_Window* GetWindow() const;
     wgpu::Instance GetInstance() const;
@@ -95,7 +132,8 @@ public:
 
     /// @brief Loads a shader from the given file path.
     /// FIXME(KB) - need an async version of this.
-    Result<ValidShaderModule> LoadShader(const char* filePath, FileFetcher& fileFetcher) const;
+    Result<ValidShaderModule> LoadShader(const std::string_view& filePath,
+        FileFetcher& fileFetcher) const;
 
     /// @brief Creates an empty texture with the given dimensions and name.
     Result<wgpu::Texture> CreateTexture(
@@ -173,13 +211,31 @@ public:
     }
 
 private:
+    // To make the class moveable we keep it's implementation state
+    // in a separate Impl struct that is heap-allocated and managed by a unique_ptr.
+    class Impl
+    {
+    public:
+        Impl();
+        ~Impl();
+        Impl(const Impl&) = delete;
+        Impl& operator=(const Impl&) = delete;
+        Impl(Impl&&) = delete;
+        Impl& operator=(Impl&&) = delete;
 
-    static void Deleter(Impl*);
+        SDL_Window* Window{ nullptr };
+        SDL_MetalView MetalView{ nullptr };
+        wgpu::Instance Instance{ nullptr };
+        wgpu::Adapter Adapter{ nullptr };
+        wgpu::Device Device{ nullptr };
+        wgpu::Surface Surface{ nullptr };
+        wgpu::TextureFormat SurfaceFormat{ wgpu::TextureFormat::Undefined };
+        wgpu::BindGroupLayout TextureBindGroupLayout{ nullptr };
+        wgpu::Texture DefaultTexture{ nullptr };
+        wgpu::Sampler DefaultSampler{ nullptr };
+    };
 
-    using DeleterType = decltype(&Deleter);
-    using UniquePtrType = std::unique_ptr<Impl, DeleterType>;
-
-    explicit GpuHelper(UniquePtrType impl)
+    explicit GpuHelper(std::unique_ptr<Impl> impl)
         : m_Impl(std::move(impl))
     {
     }
@@ -200,5 +256,5 @@ private:
     Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string_view& name) const;
     Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string_view& name) const;
 
-    UniquePtrType m_Impl{ nullptr, &Deleter };
+    std::unique_ptr<Impl> m_Impl;
 };

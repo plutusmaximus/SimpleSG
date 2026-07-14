@@ -1,16 +1,16 @@
+#include <memory>
 #define MLG_LOGGER_NAME "WGPU"
 
+#include "FileFetcher.h"
 #include "GpuHelper.h"
 
-#include "FileFetcher.h"
-
-#include <atomic>
 #include <filesystem>
 #include <SDL3/SDL_init.h>
 #include <SDL3/SDL_metal.h>
 #include <SDL3/SDL_video.h>
 #include <string>
 #include <thread>
+
 
 #if !defined(EMSCRIPTEN)
 #if defined(_WIN32)
@@ -94,7 +94,7 @@ void DumpDawnToggles(const wgpu::Device& device);
 void DumpWebgpuLimits(const wgpu::Device& device);
 
 Result<SDL_Window*>
-CreateSdlWindow(const char* appName)
+CreateSdlWindow(const std::string_view& appName)
 {
     MLG_CHECK(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
 
@@ -137,7 +137,8 @@ CreateSdlWindow(const char* appName)
     windowFlags |= SDL_WINDOW_METAL;
 #endif
 
-    SDL_Window* window = SDL_CreateWindow(appName, winW, winH, windowFlags);
+    const std::string windowTitle(appName);
+    SDL_Window* window = SDL_CreateWindow(windowTitle.c_str(), winW, winH, windowFlags);
     MLG_CHECK(window, SDL_GetError());
 
     SDL_ShowWindow(window);
@@ -453,62 +454,30 @@ CreateTextureBindGroupLayout(const wgpu::Device& gpuDevice)
 
 ////////// GpuHelper::Impl
 
-class GpuHelper::Impl
+GpuHelper::Impl::Impl() = default;
+GpuHelper::Impl::~Impl()
 {
-public:
-    Impl() = default;
-    ~Impl()
+    if(MetalView)
     {
-        if(MetalView)
-        {
-            SDL_Metal_DestroyView(MetalView);
-        }
-
-        if(Window)
-        {
-            SDL_DestroyWindow(Window);
-            SDL_Quit();
-        }
+        SDL_Metal_DestroyView(MetalView);
     }
 
-    Impl(const Impl&) = delete;
-    Impl& operator=(const Impl&) = delete;
-    Impl(Impl&&) = delete;
-    Impl& operator=(Impl&&) = delete;
+    if(Window)
+    {
+        SDL_DestroyWindow(Window);
+        SDL_Quit();
+    }
+}
 
-    SDL_Window* Window{ nullptr };
-    SDL_MetalView MetalView{ nullptr };
-    wgpu::Instance Instance{ nullptr };
-    wgpu::Adapter Adapter{ nullptr };
-    wgpu::Device Device{ nullptr };
-    wgpu::Surface Surface{ nullptr };
-    wgpu::TextureFormat SurfaceFormat{ wgpu::TextureFormat::Undefined };
-    wgpu::BindGroupLayout TextureBindGroupLayout{ nullptr };
-    wgpu::Texture DefaultTexture{ nullptr };
-    wgpu::Sampler DefaultSampler{ nullptr };
-};
-
-////////// GpuHelper::CreateTaskImpl
+////////// GpuHelper::CreateTask
 
 namespace
 {
-    struct AdapterRequestData
-    {
-        Result<wgpu::Adapter> Result;
-        std::atomic<bool> IsComplete{false};
-    };
-
-    struct DeviceRequestData
-    {
-        Result<wgpu::Device> Result;
-        std::atomic<bool> IsComplete{false};
-    };
-
 void
 RequestAdapterCb(wgpu::RequestAdapterStatus status,
     wgpu::Adapter receivedAdapter,
     wgpu::StringView message,
-    AdapterRequestData* requestData)
+    GpuHelper::CreateTask::AdapterRequestData* requestData)
 {
     if(status != wgpu::RequestAdapterStatus::Success)
     {
@@ -527,7 +496,7 @@ void
 RequestDeviceCb(wgpu::RequestDeviceStatus status,
     wgpu::Device receivedDevice,
     wgpu::StringView message,
-    DeviceRequestData* requestData)
+    GpuHelper::CreateTask::DeviceRequestData* requestData)
 {
     if(status != wgpu::RequestDeviceStatus::Success)
     {
@@ -573,48 +542,167 @@ UncapturedErrorCb(
 }
 } // namespace
 
-class GpuHelper::CreateTaskImpl
-{
-public:
-    Result<> Begin(const char* appName);
-
-    Result<> Update();
-
-    bool IsComplete() const
-    {
-        MLG_ASSERT(CreateTask::State::None != m_State, "Task is not started");
-        return CreateTask::State::Succeeded == m_State || CreateTask::State::Failed == m_State;
-    }
-
-private:
-
-    friend GpuHelper;
-
-    Result<> CreateAdapter();
-
-    Result<> FinalizeAdapter();
-
-    Result<> CreateDevice();
-
-    Result<> FinalizeDevice();
-
-    Result<GpuHelper> Finalize();
-
-    AdapterRequestData m_AdapterRequestData;
-    DeviceRequestData m_DeviceRequestData;
-    std::unique_ptr<GpuHelper::Impl> m_GpuHelperImpl;
-
-    CreateTask::State m_State{ CreateTask::State::None };
-};
+GpuHelper::CreateTask::Impl::Impl() = default;
+GpuHelper::CreateTask::Impl::~Impl() = default;
 
 Result<>
-GpuHelper::CreateTaskImpl::Begin(const char* appName)
+GpuHelper::CreateTask::Update()
 {
-    MLG_ASSERT(m_State == CreateTask::State::None, "Task is already in progress");
+    MLG_CHECKV(!IsComplete(), "CreateTask is already complete");
+
+    m_GpuHelperImpl->Instance.ProcessEvents();
+
+    switch(m_TaskImpl->m_State)
+    {
+        case CreateTask::State::None:
+            break;
+
+        case CreateTask::State::CreateAdapter:
+            if(CreateAdapter())
+            {
+                m_TaskImpl->m_State = CreateTask::State::CreatingAdapter;
+            }
+            else
+            {
+                m_TaskImpl->m_State = CreateTask::State::Failed;
+            }
+            break;
+
+        case CreateTask::State::CreatingAdapter:
+            if(m_TaskImpl->m_AdapterRequestData.IsComplete
+                && m_TaskImpl->m_AdapterRequestData.Result)
+            {
+                MLG_INFO("Adapter creation succeeded");
+
+                if(FinalizeAdapter() && CreateDevice())
+                {
+                    m_TaskImpl->m_State = CreateTask::State::CreatingDevice;
+                }
+                else
+                {
+                    m_TaskImpl->m_State = CreateTask::State::Failed;
+                }
+            }
+            else if(m_TaskImpl->m_AdapterRequestData.IsComplete
+                && !m_TaskImpl->m_AdapterRequestData.Result)
+            {
+                MLG_ERROR("Adapter creation failed");
+                m_TaskImpl->m_State = CreateTask::State::Failed;
+            }
+
+            break;
+
+        case CreateTask::State::CreatingDevice:
+            if(m_TaskImpl->m_DeviceRequestData.IsComplete && m_TaskImpl->m_DeviceRequestData.Result)
+            {
+                MLG_INFO("Device creation succeeded");
+
+                if(FinalizeDevice())
+                {
+                    m_TaskImpl->m_State = CreateTask::State::Succeeded;
+                }
+                else
+                {
+                    m_TaskImpl->m_State = CreateTask::State::Failed;
+                }
+            }
+            else if(m_TaskImpl->m_DeviceRequestData.IsComplete
+                && !m_TaskImpl->m_DeviceRequestData.Result)
+            {
+                MLG_ERROR("Device creation failed");
+                m_TaskImpl->m_State = CreateTask::State::Failed;
+            }
+
+            break;
+
+        case CreateTask::State::Succeeded:
+            break;
+
+        case CreateTask::State::Failed:
+            Invalidate();
+            break;
+    }
+
+    MLG_CHECK(CreateTask::State::Failed != m_TaskImpl->m_State, "GpuHelper creation failed");
+
+    return Result<>::Ok;
+}
+
+bool
+GpuHelper::CreateTask::IsValid() const
+{
+    return m_TaskImpl != nullptr && m_GpuHelperImpl != nullptr;
+}
+
+bool
+GpuHelper::CreateTask::IsComplete() const
+{
+    return MLG_VERIFY(IsValid(), "Invalid CreateTask")
+        && MLG_VERIFY(CreateTask::State::None != m_TaskImpl->m_State, "Task is not started")
+        && (CreateTask::State::Succeeded == m_TaskImpl->m_State
+            || CreateTask::State::Failed == m_TaskImpl->m_State);
+}
+
+bool
+GpuHelper::CreateTask::Succeeded() const
+{
+    return IsComplete() && m_TaskImpl->m_State == State::Succeeded;
+}
+
+Result<GpuHelper>
+GpuHelper::CreateTask::Get()
+{
+    MLG_CHECKV(Succeeded(), "CreateTask did not succeed");
+
+    std::unique_ptr<GpuHelper::Impl> gpuHelperImpl = std::move(m_GpuHelperImpl);
+
+    Invalidate();
+
+    int width{ 0 }, height{ 0 };
+    SDL_GetWindowSize(gpuHelperImpl->Window, &width, &height);
+
+    auto surfaceFormat = ConfigureSurface(gpuHelperImpl->Adapter,
+        gpuHelperImpl->Device,
+        gpuHelperImpl->Surface,
+        static_cast<uint32_t>(width),
+        static_cast<uint32_t>(height));
+
+    MLG_CHECK(surfaceFormat);
+
+    gpuHelperImpl->SurfaceFormat = *surfaceFormat;
+
+    auto defaultSampler = CreateDefaultSampler(gpuHelperImpl->Device);
+    MLG_CHECK(defaultSampler);
+    gpuHelperImpl->DefaultSampler = std::move(*defaultSampler);
+
+    auto textureBindGroupLayout = CreateTextureBindGroupLayout(gpuHelperImpl->Device);
+    MLG_CHECK(textureBindGroupLayout);
+    gpuHelperImpl->TextureBindGroupLayout = std::move(*textureBindGroupLayout);
+
+    // We need a full GpuHelper instance to create the default texture
+    // so we create a temporary GpuHelper instance with the Impl.
+    GpuHelper gpuHelper(std::move(gpuHelperImpl));
+
+    auto defaultTexture = CreateDefaultTexture(gpuHelper);
+    MLG_CHECK(defaultTexture);
+
+    gpuHelper.m_Impl->DefaultTexture = std::move(*defaultTexture);
+
+    return std::move(gpuHelper);
+}
+
+// private:
+
+Result<>
+GpuHelper::CreateTask::Begin(const std::string_view& appName)
+{
+    MLG_CHECKV(!m_TaskImpl, "CreateTask is already started");
+    MLG_CHECKV(!m_GpuHelperImpl, "CreateTask is already started");
 
     MLG_INFO("Creating GpuHelper...");
 
-    std::unique_ptr<GpuHelper::Impl> gpuHelperImpl = std::make_unique<Impl>();
+    std::unique_ptr<Impl> taskImpl = std::make_unique<Impl>();
+    std::unique_ptr<GpuHelper::Impl> gpuHelperImpl = std::make_unique<GpuHelper::Impl>();
 
     auto window = CreateSdlWindow(appName);
     MLG_CHECK(window);
@@ -636,85 +724,10 @@ GpuHelper::CreateTaskImpl::Begin(const char* appName)
     MLG_CHECK(surface);
     gpuHelperImpl->Surface = std::move(*surface);
 
+    taskImpl->m_State = CreateTask::State::CreateAdapter;
+
+    m_TaskImpl = std::move(taskImpl);
     m_GpuHelperImpl = std::move(gpuHelperImpl);
-
-    MLG_CHECK(CreateAdapter());
-
-    m_State = CreateTask::State::CreatingAdapter;
-
-    return Result<>::Ok;
-}
-
-Result<>
-GpuHelper::CreateTaskImpl::Update()
-{
-    MLG_CHECKV(CreateTask::State::None != m_State, "Task is not started");
-    MLG_CHECKV(m_GpuHelperImpl, "Task implementation is not initialized");
-
-    m_GpuHelperImpl->Instance.ProcessEvents();
-
-    switch(m_State)
-    {
-        case CreateTask::State::None:
-            break;
-
-        case CreateTask::State::CreatingAdapter:
-            if(!m_AdapterRequestData.IsComplete)
-            {
-                break;
-            }
-
-            if(!m_AdapterRequestData.Result)
-            {
-                MLG_ERROR("Adapter creation failed");
-                m_State = CreateTask::State::Failed;
-                break;
-            }
-
-            MLG_INFO("Adapter creation succeeded");
-
-            if(FinalizeAdapter() && CreateDevice())
-            {
-                m_State = CreateTask::State::CreatingDevice;
-            }
-            else
-            {
-                m_State = CreateTask::State::Failed;
-            }
-
-            break;
-
-        case CreateTask::State::CreatingDevice:
-            if(!m_DeviceRequestData.IsComplete)
-            {
-                break;
-            }
-
-            if(!m_DeviceRequestData.Result)
-            {
-                MLG_ERROR("Device creation failed");
-                m_State = CreateTask::State::Failed;
-                break;
-            }
-
-            MLG_INFO("Device creation succeeded");
-
-            if(FinalizeDevice())
-            {
-                m_State = CreateTask::State::Succeeded;
-            }
-            else
-            {
-                m_State = CreateTask::State::Failed;
-            }
-
-            break;
-        case CreateTask::State::Succeeded:
-        case CreateTask::State::Failed:
-            break;
-    }
-
-    MLG_CHECK(CreateTask::State::Failed != m_State, "GpuHelper creation failed");
 
     return Result<>::Ok;
 }
@@ -722,8 +735,12 @@ GpuHelper::CreateTaskImpl::Update()
 // private:
 
 Result<>
-GpuHelper::CreateTaskImpl::CreateAdapter()
+GpuHelper::CreateTask::CreateAdapter()
 {
+    MLG_CHECKV(IsValid(), "Invalid CreateTask");
+    MLG_CHECKV(m_TaskImpl->m_State == CreateTask::State::CreateAdapter,
+        "Task is not in the correct state");
+
     MLG_INFO("Creating adapter...");
 
     EnumerateAdapters();
@@ -750,14 +767,41 @@ GpuHelper::CreateTaskImpl::CreateAdapter()
     m_GpuHelperImpl->Instance.RequestAdapter(&options,
         wgpu::CallbackMode::AllowSpontaneous,
         RequestAdapterCb,
-        &m_AdapterRequestData);
+        &m_TaskImpl->m_AdapterRequestData);
 
     return Result<>::Ok;
 }
 
 Result<>
-GpuHelper::CreateTaskImpl::CreateDevice()
+GpuHelper::CreateTask::FinalizeAdapter()
 {
+    MLG_CHECKV(IsValid(), "Invalid CreateTask");
+    MLG_CHECKV(m_TaskImpl->m_State == CreateTask::State::CreatingAdapter,
+        "Task is not in the correct state");
+
+    MLG_CHECK(m_TaskImpl->m_AdapterRequestData.Result, "Failed to create adapter");
+
+    m_GpuHelperImpl->Adapter = std::move(*m_TaskImpl->m_AdapterRequestData.Result);
+
+    const bool supported =
+        m_GpuHelperImpl->Adapter.HasFeature(wgpu::FeatureName::IndirectFirstInstance);
+    MLG_CHECK(supported, "IndirectFirstInstance feature is not supported");
+
+    wgpu::AdapterInfo adapterInfo;
+    m_GpuHelperImpl->Adapter.GetInfo(&adapterInfo);
+    MLG_INFO("Selected adapter:");
+    DumpAdapterInfo(adapterInfo);
+
+    return Result<>::Ok;
+}
+
+Result<>
+GpuHelper::CreateTask::CreateDevice()
+{
+    MLG_CHECKV(IsValid(), "Invalid CreateTask");
+    MLG_CHECKV(m_TaskImpl->m_State == CreateTask::State::CreatingAdapter,
+        "Task is not in the correct state");
+
     MLG_INFO("Creating device...");
 
     const char* const enabledToggles[] = { //"skip_validation",
@@ -809,33 +853,20 @@ GpuHelper::CreateTaskImpl::CreateDevice()
     m_GpuHelperImpl->Adapter.RequestDevice(&deviceDesc,
         wgpu::CallbackMode::AllowSpontaneous,
         RequestDeviceCb,
-        &m_DeviceRequestData);
+        &m_TaskImpl->m_DeviceRequestData);
 
     return Result<>::Ok;
 }
 
 Result<>
-GpuHelper::CreateTaskImpl::FinalizeAdapter()
+GpuHelper::CreateTask::FinalizeDevice()
 {
-    MLG_CHECK(m_AdapterRequestData.Result, "Failed to create adapter");
-    m_GpuHelperImpl->Adapter = std::move(*m_AdapterRequestData.Result);
+    MLG_CHECKV(IsValid(), "Invalid CreateTask");
+    MLG_CHECKV(m_TaskImpl->m_State == CreateTask::State::CreatingDevice,
+        "Task is not in the correct state");
 
-    const bool supported = m_GpuHelperImpl->Adapter.HasFeature(wgpu::FeatureName::IndirectFirstInstance);
-    MLG_CHECK(supported, "IndirectFirstInstance feature is not supported");
-
-    wgpu::AdapterInfo adapterInfo;
-    m_GpuHelperImpl->Adapter.GetInfo(&adapterInfo);
-    MLG_INFO("Selected adapter:");
-    DumpAdapterInfo(adapterInfo);
-
-    return Result<>::Ok;
-}
-
-Result<>
-GpuHelper::CreateTaskImpl::FinalizeDevice()
-{
-    MLG_CHECK(m_DeviceRequestData.Result, "Failed to create device");
-    m_GpuHelperImpl->Device = std::move(*m_DeviceRequestData.Result);
+    MLG_CHECK(m_TaskImpl->m_DeviceRequestData.Result, "Failed to create device");
+    m_GpuHelperImpl->Device = std::move(*m_TaskImpl->m_DeviceRequestData.Result);
 
     DumpDawnToggles(m_GpuHelperImpl->Device);
     DumpWebgpuLimits(m_GpuHelperImpl->Device);
@@ -843,105 +874,23 @@ GpuHelper::CreateTaskImpl::FinalizeDevice()
     return Result<>::Ok;
 }
 
-Result<GpuHelper>
-GpuHelper::CreateTaskImpl::Finalize()
-{
-    MLG_CHECKV(IsComplete() && m_State == CreateTask::State::Succeeded,
-        "CreateTask did not succeed");
-
-    int width{ 0 }, height{ 0 };
-    SDL_GetWindowSize(m_GpuHelperImpl->Window, &width, &height);
-
-    auto surfaceFormat = ConfigureSurface(m_GpuHelperImpl->Adapter,
-        m_GpuHelperImpl->Device,
-        m_GpuHelperImpl->Surface,
-        static_cast<uint32_t>(width),
-        static_cast<uint32_t>(height));
-
-    MLG_CHECK(surfaceFormat);
-
-    m_GpuHelperImpl->SurfaceFormat = *surfaceFormat;
-
-    auto defaultSampler = CreateDefaultSampler(m_GpuHelperImpl->Device);
-    MLG_CHECK(defaultSampler);
-    m_GpuHelperImpl->DefaultSampler = std::move(*defaultSampler);
-
-    auto textureBindGroupLayout = CreateTextureBindGroupLayout(m_GpuHelperImpl->Device);
-    MLG_CHECK(textureBindGroupLayout);
-    m_GpuHelperImpl->TextureBindGroupLayout = std::move(*textureBindGroupLayout);
-
-    GpuHelper gpuHelper(GpuHelper::UniquePtrType(m_GpuHelperImpl.release(), &GpuHelper::Deleter));
-
-    auto defaultTexture = CreateDefaultTexture(gpuHelper);
-    MLG_CHECK(defaultTexture);
-
-    gpuHelper.m_Impl->DefaultTexture = std::move(*defaultTexture);
-
-    return std::move(gpuHelper);
-}
-
-////////// GpuHelper::CreateTask
-
 void
-GpuHelper::CreateTask::Deleter(CreateTaskImpl* impl)
+GpuHelper::CreateTask::Invalidate()
 {
-    const std::unique_ptr<CreateTaskImpl> bye(impl);
-}
-
-bool
-GpuHelper::CreateTask::IsValid() const
-{
-    return m_TaskImpl != nullptr;
-}
-
-Result<>
-GpuHelper::CreateTask::Update()
-{
-    MLG_CHECKV(IsValid(), "Invalid CreateTask");
-
-    return m_TaskImpl->Update();
-}
-
-bool
-GpuHelper::CreateTask::IsComplete() const
-{
-    return MLG_VERIFY(IsValid(), "Invalid CreateTask") && m_TaskImpl->IsComplete();
-}
-
-bool
-GpuHelper::CreateTask::Succeeded() const
-{
-    return MLG_VERIFY(IsValid(), "Invalid CreateTask")
-        && m_TaskImpl->IsComplete()
-        && m_TaskImpl->m_State == State::Succeeded;
-}
-
-Result<GpuHelper>
-GpuHelper::CreateTask::Get()
-{
-    MLG_CHECKV(Succeeded(), "CreateTask did not succeed");
-
-    UniquePtrType bye = std::move(m_TaskImpl);
-
-    return bye->Finalize();
+    m_TaskImpl.reset();
+    m_GpuHelperImpl.reset();
 }
 
 ////////// GpuHelper
 
 Result<GpuHelper::CreateTask>
-GpuHelper::Create(const char* appName)
+GpuHelper::Create(const std::string_view& appName)
 {
-    std::unique_ptr<CreateTaskImpl> createTaskImpl = std::make_unique<CreateTaskImpl>();
+    CreateTask createTask;
 
-    MLG_CHECK(createTaskImpl->Begin(appName))
+    MLG_CHECK(createTask.Begin(appName));
 
-    return CreateTask(CreateTask::UniquePtrType(createTaskImpl.release(), &CreateTask::Deleter));
-}
-
-void
-GpuHelper::Deleter(Impl* impl)
-{
-    const std::unique_ptr<Impl> bye(impl);
+    return std::move(createTask);
 }
 
 SDL_Window*
@@ -1125,9 +1074,9 @@ GpuHelper::Resize(const uint32_t width, const uint32_t height)
 }
 
 Result<ValidShaderModule>
-GpuHelper::LoadShader(const char* filePath, FileFetcher& fileFetcher) const
+GpuHelper::LoadShader(const std::string_view& filePath, FileFetcher& fileFetcher) const
 {
-    FileFetcher::Request request(filePath);
+    FileFetcher::Request request{ std::string(filePath) };
     MLG_CHECK(fileFetcher.Fetch(request));
 
     while(request.IsPending())
@@ -1136,9 +1085,9 @@ GpuHelper::LoadShader(const char* filePath, FileFetcher& fileFetcher) const
         std::this_thread::yield();
     }
 
-    MLG_CHECK(request.Succeeded(), "Failed to load shader file: {}", filePath);
+    MLG_CHECK(request.Succeeded(), "Failed to load shader file: {}", request.GetFilePath());
 
-    const std::string filename = std::filesystem::path(filePath).filename().string();
+    const std::string filename = std::filesystem::path(request.GetFilePath()).filename().string();
     const std::span<const uint8_t> data = request.GetData();
 
     const void* dataPtr = data.data();
