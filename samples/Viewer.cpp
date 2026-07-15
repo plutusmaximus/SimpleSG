@@ -15,7 +15,6 @@
 
 #include <filesystem>
 #include <imgui.h>
-#include <imgui_impl_sdl3.h>
 #include <SDL3/SDL_events.h>
 #include <thread>
 
@@ -270,7 +269,6 @@ MainLoop()
 
         auto eventHandlerFunc = [](const SDL_Event& sdlEvent, EventHandlerData* data)
         {
-            ImGui_ImplSDL3_ProcessEvent(&sdlEvent);
             data->inputMapper->ProcessEvent(sdlEvent);
 
             switch(sdlEvent.type)

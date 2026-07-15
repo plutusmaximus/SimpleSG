@@ -17,7 +17,7 @@
 #include "ThreadPool.h"
 
 #include <filesystem>
-#include <imgui_impl_sdl3.h>
+#include <imgui.h>
 #include <random>
 #include <ranges>
 #include <SDL3/SDL_mouse.h>
@@ -688,7 +688,6 @@ MainLoop()
 
         auto eventHandlerFunc = [](const SDL_Event& sdlEvent, InputMapper* im)
         {
-            ImGui_ImplSDL3_ProcessEvent(&sdlEvent);
             im->ProcessEvent(sdlEvent);
             return EventDisposition::Process;
         };

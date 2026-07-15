@@ -1,6 +1,7 @@
 #include "System.h"
 
 #include <filesystem>
+#include <imgui_impl_sdl3.h>
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_timer.h>
 #include <utility>
@@ -191,6 +192,8 @@ System::ProcessEvents(const EventHandler& eventHandler)
     SDL_Event sdlEvent;
     while(SDL_PollEvent(&sdlEvent))
     {
+        ImGui_ImplSDL3_ProcessEvent(&sdlEvent);
+
         switch(sdlEvent.type)
         {
             case SDL_EVENT_QUIT:

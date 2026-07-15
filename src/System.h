@@ -47,7 +47,7 @@ public:
 private:
     // NOLINTBEGIN
     template<typename T>
-    requires(!std::is_same_v<T, void>)
+        requires(!std::is_same_v<T, void>)
     EventDisposition InvokeImpl(const SDL_Event& event) const
     {
         auto cb = reinterpret_cast<EventDisposition (*)(const SDL_Event&, T*)>(m_Cb1);
@@ -55,7 +55,7 @@ private:
     }
 
     template<typename T>
-    requires(std::is_same_v<T, void>)
+        requires(std::is_same_v<T, void>)
     EventDisposition InvokeImpl(const SDL_Event& event) const
     {
         auto cb = reinterpret_cast<EventDisposition (*)(const SDL_Event&)>(m_Cb2);
@@ -146,6 +146,12 @@ public:
     const ImGuiRenderer& GetImGuiRenderer() const;
 
     static void PostQuitEvent();
+
+    void ProcessEvents()
+    {
+        const EventHandler eventHandler([](const SDL_Event&) { return EventDisposition::Process; });
+        ProcessEvents(eventHandler);
+    }
 
     void ProcessEvents(const EventHandler& eventHandler);
 
