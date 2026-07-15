@@ -6,6 +6,8 @@
 #include "SceneTypes.h"
 #include "Result.h"
 
+#include <memory>
+
 class FileFetcher;
 class GpuHelper;
 
@@ -24,35 +26,38 @@ public:
     Renderer(Renderer&&) = default;
     Renderer& operator=(Renderer&&) = default;
 
-    static Result<Renderer> Create(GpuHelper& gpuHelper, FileFetcher& fileFetcher);
+    static Result<std::unique_ptr<class Renderer>> Create(GpuHelper& gpuHelper,
+        FileFetcher& fileFetcher);
 
-    Result<> Render(const GpuHelper& gpuHelper,
-        const Camera& camera,
+    Result<> Render(const Camera& camera,
         const TrTransformf& cameraXForm,
         const Scene& scene,
         const PropKit& propKit);
 
-    Result<> Composite(GpuHelper& gpuHelper, const ValidTexture& target);
+    Result<> Composite(const ValidTexture& target);
 
-    Result<> Composite(
-        GpuHelper& gpuHelper, const ValidTexture& target, const Rect& dstRect);
+    Result<> Composite(const ValidTexture& target, const Rect& dstRect);
 
 private:
 
-    Renderer(GpuColorPass&& colorPass,
+    Renderer(const GpuHelper& gpuHelper,
+        GpuColorPass&& colorPass,
         GpuCompositorPass&& compositorPass,
         GpuTransformPass&& transformPass)
-        : m_ColorPass(std::move(colorPass))
+        : m_GpuHelper(&gpuHelper)
+        , m_ColorPass(std::move(colorPass))
         , m_CompositorPass(std::move(compositorPass))
         , m_TransformPass(std::move(transformPass))
     {
     }
 
-    Result<> TransformNodes(const GpuHelper& gpuHelper,
+    Result<> TransformNodes(const wgpu::Device& gpuDevice,
         const wgpu::CommandEncoder& cmdEncoder,
         const TrTransformf& cameraXForm,
         const Camera& camera,
         const Scene& scene);
+
+    const GpuHelper* m_GpuHelper{ nullptr };
 
     std::optional<GpuColorPass::Outputs> m_ColorPassOutputs;
     GpuColorPass m_ColorPass;

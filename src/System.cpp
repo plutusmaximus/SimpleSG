@@ -1,9 +1,12 @@
 #include "System.h"
+#include "FileFetcher.h"
+#include "GpuHelper.h"
 
 #include <filesystem>
 #include <imgui_impl_sdl3.h>
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_timer.h>
+#include <memory>
 #include <utility>
 
 ////////// System::CreateTask
@@ -101,25 +104,30 @@ System::CreateTask::Get()
 
     MLG_CHECK(bye->m_GpuHelperTask, "GpuHelper task is not initialized");
     auto gpuHelperResult = bye->m_GpuHelperTask->Get();
-    MLG_CHECK(gpuHelperResult, "GpuHelper creation failed");
-
+    MLG_CHECK(gpuHelperResult, "Failed to get GpuHelper instance");
+    std::unique_ptr<GpuHelper> gpuHelper(std::move(*gpuHelperResult));
+    
     auto fileFetcherResult = FileFetcher::Create();
-    MLG_CHECK(fileFetcherResult);
+    MLG_CHECK(fileFetcherResult, "Failed to create FileFetcher");
+    std::unique_ptr<FileFetcher> fileFetcher(std::move(*fileFetcherResult));
 
     auto threadPoolResult = ThreadPool::Create();
-    MLG_CHECK(threadPoolResult);
+    MLG_CHECK(threadPoolResult, "Failed to create ThreadPool");
+    std::unique_ptr<ThreadPool> threadPool(std::move(*threadPoolResult));
 
-    auto rendererResult = Renderer::Create(*gpuHelperResult, *fileFetcherResult);
+    auto rendererResult = Renderer::Create(*gpuHelper, *fileFetcher);
     MLG_CHECK(rendererResult, "Failed to create Renderer");
+    std::unique_ptr<Renderer> renderer(std::move(*rendererResult));
 
-    auto imGuiRendererResult = ImGuiRenderer::Create(*gpuHelperResult);
+    auto imGuiRendererResult = ImGuiRenderer::Create(*gpuHelper);
     MLG_CHECK(imGuiRendererResult, "Failed to create ImGuiRenderer");
+    std::unique_ptr<ImGuiRenderer> imGuiRenderer(std::move(*imGuiRendererResult));
 
-    return System(std::move(*gpuHelperResult),
-        std::move(*fileFetcherResult),
-        std::move(*threadPoolResult),
-        std::move(*rendererResult),
-        std::move(*imGuiRendererResult));
+    return System(std::move(gpuHelper),
+        std::move(fileFetcher),
+        std::move(threadPool),
+        std::move(renderer),
+        std::move(imGuiRenderer));
 }
 
 ////////// System
@@ -142,31 +150,31 @@ System::Create(const char* appName)
 GpuHelper&
 System::GetGpuHelper()
 {
-    return m_GpuHelper;
+    return *m_GpuHelper;
 }
 
 FileFetcher&
 System::GetFileFetcher()
 {
-    return m_FileFetcher;
+    return *m_FileFetcher;
 }
 
 ThreadPool&
 System::GetThreadPool()
 {
-    return m_ThreadPool;
+    return *m_ThreadPool;
 }
 
 Renderer&
 System::GetRenderer()
 {
-    return m_Renderer;
+    return *m_Renderer;
 }
 
 const ImGuiRenderer&
 System::GetImGuiRenderer() const
 {
-    return m_ImGuiRenderer;
+    return *m_ImGuiRenderer;
 }
 
 void
@@ -185,7 +193,7 @@ System::PostQuitEvent()
 void
 System::ProcessEvents(const EventHandler& eventHandler)
 {
-    m_GpuHelper.GetInstance().ProcessEvents();
+    m_GpuHelper->GetInstance().ProcessEvents();
 
     m_FocusEvent = FocusEvent::None;
 

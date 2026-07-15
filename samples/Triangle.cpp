@@ -14,6 +14,7 @@
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
 #include <SDL3/SDL_events.h>
+#include <memory>
 #include <thread>
 
 namespace
@@ -127,31 +128,30 @@ MainLoop()
     MLG_CHECK(task->Succeeded(), "System creation failed");
     auto gpuHelperResult = task->Get();
     MLG_CHECK(gpuHelperResult, "Failed to get GpuHelper instance");
+    std::unique_ptr<GpuHelper> gpuHelper(std::move(*gpuHelperResult));
 
     auto threadPoolResult = ThreadPool::Create();
     MLG_CHECK(threadPoolResult, "Failed to create ThreadPool");
+    std::unique_ptr<ThreadPool> threadPool(std::move(*threadPoolResult));
 
     auto fileFetcherResult = FileFetcher::Create();
     MLG_CHECK(fileFetcherResult, "Failed to create FileFetcher");
+    std::unique_ptr<FileFetcher> fileFetcher(std::move(*fileFetcherResult));
 
-    GpuHelper& gpuHelper = *gpuHelperResult;
-    ThreadPool& threadPool = *threadPoolResult;
-    FileFetcher& fileFetcher = *fileFetcherResult;
-
-    auto rendererResult = Renderer::Create(gpuHelper, fileFetcher);
+    auto rendererResult = Renderer::Create(*gpuHelper, *fileFetcher);
     MLG_CHECK(rendererResult, "Failed to create Renderer");
-    Renderer& renderer = *rendererResult;
+    std::unique_ptr<Renderer> renderer(std::move(*rendererResult));
 
-    auto imGuiRendererResult = ImGuiRenderer::Create(gpuHelper);
+    auto imGuiRendererResult = ImGuiRenderer::Create(*gpuHelper);
     MLG_CHECK(imGuiRendererResult, "Failed to create ImGuiRenderer");
-    const ImGuiRenderer& imGuiRenderer = *imGuiRendererResult;
+    std::unique_ptr<ImGuiRenderer> imGuiRenderer(std::move(*imGuiRendererResult));
 
     PropKitDef propKitDef;
     LevelDef levelDef;
     MLG_CHECK(CreateTriangleModel(propKitDef, levelDef));
 
     const std::filesystem::path rootPath = ".";
-    auto propKitResult = PropKit::Create(gpuHelper, threadPool, fileFetcher, rootPath, propKitDef);
+    auto propKitResult = PropKit::Create(*gpuHelper, *threadPool, *fileFetcher, rootPath, propKitDef);
     MLG_CHECK(propKitResult, "Failed to create PropKit");
     const PropKit& propKit = *propKitResult;
 
@@ -159,12 +159,12 @@ MainLoop()
     MLG_CHECK(levelResult, "Failed to create Level");
     const Level& level = *levelResult;
 
-    auto sceneResult = Scene::Create(gpuHelper, level);
+    auto sceneResult = Scene::Create(*gpuHelper, level);
     MLG_CHECK(sceneResult, "Failed to create Scene");
     const Scene& scene = *sceneResult;
 
     const TrTransformf cameraXForm{ .T{ 0, 0, -4 } };
-    const Viewport viewport(gpuHelper.GetScreenDimensions());
+    const Viewport viewport(gpuHelper->GetScreenDimensions());
     Camera camera(viewport);
 
     bool running = true;
@@ -214,7 +214,7 @@ MainLoop()
                     {
                         const uint32_t newWidth = static_cast<uint32_t>(event.window.data1);
                         const uint32_t newHeight = static_cast<uint32_t>(event.window.data2);
-                        MLG_CHECKV(gpuHelper.Resize(newWidth, newHeight));
+                        MLG_CHECKV(gpuHelper->Resize(newWidth, newHeight));
                     }
                     break;
 
@@ -244,26 +244,26 @@ MainLoop()
             }
         }
 
-        const Viewport curViewport(gpuHelper.GetScreenDimensions());
+        const Viewport curViewport(gpuHelper->GetScreenDimensions());
         camera.SetViewport(curViewport);
 
-        auto target = gpuHelper.GetSwapChainTexture();
+        auto target = gpuHelper->GetSwapChainTexture();
         MLG_CHECK(target, "Failed to get swapchain texture");
 
-        MLG_CHECK(renderer.Render(gpuHelper, camera, cameraXForm, scene, propKit));
-        MLG_CHECK(renderer.Composite(gpuHelper, *target));
+        MLG_CHECK(renderer->Render(camera, cameraXForm, scene, propKit));
+        MLG_CHECK(renderer->Composite(*target));
 
-        MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, RenderGui));
+        MLG_CHECK(imGuiRenderer->Render(gpuHelper->GetDevice(), *target, RenderGui));
 
 #if !defined(__EMSCRIPTEN__)
 
 #if !defined(OFFSCREEN_RENDERING) || !OFFSCREEN_RENDERING
-        MLG_CHECK(gpuHelper.GetSurface().Present(), "Failed to present backbuffer");
+        MLG_CHECK(gpuHelper->GetSurface().Present(), "Failed to present backbuffer");
 #endif
 
 #endif
 
-        gpuHelper.GetInstance().ProcessEvents();
+        gpuHelper->GetInstance().ProcessEvents();
     }
 
     PerfMetrics::LogCounters();

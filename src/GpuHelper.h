@@ -69,7 +69,7 @@ public:
 
         /// @brief Returns the GpuHelper instance if the task succeeded, otherwise returns an error.
         /// @note This method will invalidate the task, so it can only be called once.
-        Result<GpuHelper> Get();
+        Result<std::unique_ptr<GpuHelper>> Get();
 
     private:
         friend GpuHelper;

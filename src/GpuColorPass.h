@@ -60,19 +60,22 @@ public:
 
     static Result<GpuColorPass> Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
 
-    Result<> SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs);
-    Result<> SetOutputs(const GpuHelper& gpuHelper, const Outputs& outputs);
+    Result<> SetInputs(const Inputs& inputs);
+    Result<> SetOutputs(const Outputs& outputs);
 
     Result<wgpu::RenderPassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder) const;
 
 private:
 
-    explicit GpuColorPass(ValidShaderModule shader)
-        : m_Shader(std::move(shader))
+    explicit GpuColorPass(const GpuHelper& gpuHelper, ValidShaderModule shader)
+        : m_GpuHelper(&gpuHelper)
+        , m_Shader(std::move(shader))
     {
     }
 
-    Result<> EnsurePipeline(const GpuHelper& gpuHelper);
+    Result<> EnsurePipeline();
+
+    const GpuHelper* m_GpuHelper{ nullptr };
 
     std::optional<Inputs> m_Inputs;
     std::optional<Outputs> m_Outputs;

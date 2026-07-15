@@ -1,3 +1,4 @@
+#include <webgpu/webgpu_cpp.h>
 #define MLG_LOGGER_NAME "RNDR"
 
 #include "Renderer.h"
@@ -34,26 +35,26 @@ CreateColorPassTarget(const GpuHelper& gpuHelper, const uint32_t width, const ui
 
 } // namespace
 
-Result<Renderer>
+Result<std::unique_ptr<Renderer>>
 Renderer::Create(GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 {
     auto gpuColorPassResult = GpuColorPass::Create(gpuHelper, fileFetcher);
-    MLG_CHECK(gpuColorPassResult);
+    MLG_CHECK(gpuColorPassResult, "Failed to create GpuColorPass");
 
     auto gpuCompositorPassResult = GpuCompositorPass::Create(gpuHelper, fileFetcher);
-    MLG_CHECK(gpuCompositorPassResult);
+    MLG_CHECK(gpuCompositorPassResult, "Failed to create GpuCompositorPass");
 
     auto gpuTransformPassResult = GpuTransformPass::Create(gpuHelper, fileFetcher);
-    MLG_CHECK(gpuTransformPassResult);
+    MLG_CHECK(gpuTransformPassResult, "Failed to create GpuTransformPass");
 
-    return Renderer(std::move(*gpuColorPassResult),
+    return std::unique_ptr<Renderer>(new Renderer(gpuHelper,
+        std::move(*gpuColorPassResult),
         std::move(*gpuCompositorPassResult),
-        std::move(*gpuTransformPassResult));
+        std::move(*gpuTransformPassResult)));
 }
 
 Result<>
-Renderer::Render(const GpuHelper& gpuHelper,
-    const Camera& camera,
+Renderer::Render(const Camera& camera,
     const TrTransformf& cameraXForm,
     const Scene& scene,
     const PropKit& propKit)
@@ -62,7 +63,7 @@ Renderer::Render(const GpuHelper& gpuHelper,
 
     MLG_SCOPED_TIMER("Renderer.Render");
 
-    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
+    const wgpu::Device& gpuDevice = m_GpuHelper->GetDevice();
 
     const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "Renderer::Render" };
 
@@ -72,7 +73,7 @@ Renderer::Render(const GpuHelper& gpuHelper,
     {
         MLG_SCOPED_TIMER("Renderer.Render.TransformNodes");
 
-        auto transformNodesResult = TransformNodes(gpuHelper, cmdEncoder, cameraXForm, camera, scene);
+        auto transformNodesResult = TransformNodes(gpuDevice, cmdEncoder, cameraXForm, camera, scene);
         MLG_CHECK(transformNodesResult);
     }
 
@@ -81,7 +82,7 @@ Renderer::Render(const GpuHelper& gpuHelper,
         m_ColorPassOutputs->RenderTarget->GetHeight() != viewport.GetHeight())
     {
         auto colorPassOutputs =
-            CreateColorPassTarget(gpuHelper, viewport.GetWidth(), viewport.GetHeight());
+            CreateColorPassTarget(*m_GpuHelper, viewport.GetWidth(), viewport.GetHeight());
         MLG_CHECK(colorPassOutputs);
 
         m_ColorPassOutputs = std::move(*colorPassOutputs);
@@ -99,8 +100,8 @@ Renderer::Render(const GpuHelper& gpuHelper,
             .CameraParams = scene.GetCameraParamsBuffer(),
         };
 
-    MLG_CHECK(m_ColorPass.SetInputs(gpuHelper, colorPassInputs));
-    MLG_CHECK(m_ColorPass.SetOutputs(gpuHelper, *m_ColorPassOutputs));
+    MLG_CHECK(m_ColorPass.SetInputs(colorPassInputs));
+    MLG_CHECK(m_ColorPass.SetOutputs(*m_ColorPassOutputs));
 
     wgpu::RenderPassEncoder renderPass;
     {
@@ -177,16 +178,16 @@ Renderer::Render(const GpuHelper& gpuHelper,
 }
 
 Result<>
-Renderer::Composite(GpuHelper& gpuHelper, const ValidTexture& target)
+Renderer::Composite(const ValidTexture& target)
 {
     const Rect dstRect
         ({ .X = 0, .Y = 0, .Width = target->GetWidth(), .Height = target->GetHeight() });
         
-    return Composite(gpuHelper, target, dstRect);
+    return Composite(target, dstRect);
 }
 
 Result<>
-Renderer::Composite(GpuHelper& gpuHelper, const ValidTexture& target, const Rect& dstRect)
+Renderer::Composite(const ValidTexture& target, const Rect& dstRect)
 {
     MLG_CHECKV(m_ColorPassOutputs, "Color pass outputs are not valid");
     
@@ -201,16 +202,16 @@ Renderer::Composite(GpuHelper& gpuHelper, const ValidTexture& target, const Rect
             .Texture = target,
         };
 
-    MLG_CHECK(m_CompositorPass.SetInputs(gpuHelper, inputs));
-    MLG_CHECK(m_CompositorPass.SetOutputs(gpuHelper, outputs));
+    MLG_CHECK(m_CompositorPass.SetInputs(inputs));
+    MLG_CHECK(m_CompositorPass.SetOutputs(outputs));
 
-    return m_CompositorPass.Composite(gpuHelper);
+    return m_CompositorPass.Composite();
 }
 
 //private:
 
 Result<>
-Renderer::TransformNodes(const GpuHelper& gpuHelper,
+Renderer::TransformNodes(const wgpu::Device& gpuDevice,
     const wgpu::CommandEncoder& cmdEncoder,
     const TrTransformf& cameraXForm,
     const Camera& camera,
@@ -230,8 +231,6 @@ Renderer::TransformNodes(const GpuHelper& gpuHelper,
 
     auto cameraParamsBuf = scene.GetCameraParamsBuffer();
 
-    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
-
     gpuDevice.GetQueue().WriteBuffer(
         cameraParamsBuf.GetGpuBuffer(),
         0,
@@ -249,8 +248,8 @@ Renderer::TransformNodes(const GpuHelper& gpuHelper,
             .ClipSpaceTransforms = scene.GetClipSpaceBuffer(),
         };
 
-    MLG_CHECK(m_TransformPass.SetInputs(gpuHelper, inputs));
-    MLG_CHECK(m_TransformPass.SetOutputs(gpuHelper, outputs));
+    MLG_CHECK(m_TransformPass.SetInputs(inputs));
+    MLG_CHECK(m_TransformPass.SetOutputs(outputs));
     auto pass = m_TransformPass.BeginPass(cmdEncoder);
     MLG_CHECK(pass);
 

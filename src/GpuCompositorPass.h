@@ -43,27 +43,29 @@ public:
 
     static Result<GpuCompositorPass> Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
 
-    Result<> SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs);
-    Result<> SetOutputs(const GpuHelper& gpuHelper, const Outputs& outputs);
+    Result<> SetInputs(const Inputs& inputs);
+    Result<> SetOutputs(const Outputs& outputs);
 
     Result<wgpu::RenderPassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder) const;
 
-    Result<> Composite(const GpuHelper& gpuHelper) const;
+    Result<> Composite() const;
 
 private:
 
-    explicit GpuCompositorPass(ValidShaderModule shader)
-        : m_Shader(std::move(shader))
+    explicit GpuCompositorPass(const GpuHelper& gpuHelper, ValidShaderModule shader)
+        : m_GpuHelper(&gpuHelper)
+        , m_Shader(std::move(shader))
     {
     }
 
-    Result<> EnsureSampler(const wgpu::Device& gpuDevice);
-    Result<> EnsureBindGroupLayout(const wgpu::Device& gpuDevice);
-    Result<> EnsurePipeline(const wgpu::Device& gpuDevice);
+    Result<> EnsureSampler();
+    Result<> EnsureBindGroupLayout();
+    Result<> EnsurePipeline();
 
     std::optional<Inputs> m_Inputs;
     std::optional<Outputs> m_Outputs;
 
+    const GpuHelper* m_GpuHelper{ nullptr };
     ValidShaderModule m_Shader;
     wgpu::BindGroupLayout m_BindGroupLayout;
     wgpu::PipelineLayout m_PipelineLayout;

@@ -76,10 +76,10 @@ ThreadPool::Impl::Enqueue(Job* job)
 
 ////////// ThreadPool
 
-Result<ThreadPool>
+Result<std::unique_ptr<ThreadPool>>
 ThreadPool::Create()
 {
-    return ThreadPool();
+    return std::unique_ptr<ThreadPool>(new ThreadPool());
 }
 
 ThreadPool::ThreadPool()

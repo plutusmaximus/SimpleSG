@@ -58,13 +58,16 @@ FileFetcher::~FileFetcher()
     MLG_VERIFY(ProcessCompletions());
 }
 
-Result<FileFetcher>
+Result<std::unique_ptr<FileFetcher>>
 FileFetcher::Create()
 {
     SDL_AsyncIOQueue* asyncIOQueue = SDL_CreateAsyncIOQueue();
     MLG_CHECKV(asyncIOQueue, "Failed to create SDL Async IO Queue: {}", SDL_GetError());
 
-    return FileFetcher(UniquePtrType(asyncIOQueue, &FileFetcher::Deleter));
+    UniquePtrType m_IoQueue(asyncIOQueue, &FileFetcher::Deleter);
+    std::unique_ptr<FileFetcher> fileFetcher(new FileFetcher(std::move(m_IoQueue)));
+
+    return fileFetcher;
 }
 
 void

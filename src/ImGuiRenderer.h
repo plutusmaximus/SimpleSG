@@ -39,7 +39,7 @@ public:
         return *this;
     }
 
-    static Result<ImGuiRenderer> Create(GpuHelper& gpuHelper);
+    static Result<std::unique_ptr<ImGuiRenderer>> Create(GpuHelper& gpuHelper);
 
     template<typename Func>
     Result<> Render(const wgpu::Device& gpuDevice, const ValidTexture& target, Func& renderFunc) const

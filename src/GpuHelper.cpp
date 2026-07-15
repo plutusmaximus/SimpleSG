@@ -649,7 +649,7 @@ GpuHelper::CreateTask::Succeeded() const
     return IsComplete() && m_TaskImpl->m_State == State::Succeeded;
 }
 
-Result<GpuHelper>
+Result<std::unique_ptr<GpuHelper>>
 GpuHelper::CreateTask::Get()
 {
     MLG_CHECKV(Succeeded(), "CreateTask did not succeed");
@@ -679,16 +679,15 @@ GpuHelper::CreateTask::Get()
     MLG_CHECK(textureBindGroupLayout);
     gpuHelperImpl->TextureBindGroupLayout = std::move(*textureBindGroupLayout);
 
-    // We need a full GpuHelper instance to create the default texture
-    // so we create a temporary GpuHelper instance with the Impl.
-    GpuHelper gpuHelper(std::move(gpuHelperImpl));
+    // We need a full GpuHelper instance to create the default texture.
+    std::unique_ptr<GpuHelper> gpuHelper(new GpuHelper(std::move(gpuHelperImpl)));
 
-    auto defaultTexture = CreateDefaultTexture(gpuHelper);
+    auto defaultTexture = CreateDefaultTexture(*gpuHelper);
     MLG_CHECK(defaultTexture);
 
-    gpuHelper.m_Impl->DefaultTexture = std::move(*defaultTexture);
+    gpuHelper->m_Impl->DefaultTexture = std::move(*defaultTexture);
 
-    return std::move(gpuHelper);
+    return gpuHelper;
 }
 
 // private:

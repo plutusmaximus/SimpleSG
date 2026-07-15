@@ -10,15 +10,15 @@ GpuTransformPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
     auto shader = gpuHelper.LoadShader(ShaderPath, fileFetcher);
     MLG_CHECK(shader);
 
-    GpuTransformPass pass(std::move(*shader));
+    GpuTransformPass pass(gpuHelper, std::move(*shader));
 
-    MLG_CHECK(pass.EnsurePipeline(gpuHelper.GetDevice()));
+    MLG_CHECK(pass.EnsurePipeline());
 
     return pass;
 }
 
 Result<>
-GpuTransformPass::SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
+GpuTransformPass::SetInputs(const Inputs& inputs)
 {
     if(m_Inputs && *m_Inputs == inputs)
     {
@@ -32,14 +32,14 @@ GpuTransformPass::SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
 
     if(m_Inputs && m_Outputs)
     {
-        MLG_CHECK(EnsureBindgroup(gpuHelper.GetDevice()));
+        MLG_CHECK(EnsureBindgroup());
     }
 
     return Result<>::Ok;
 }
 
 Result<>
-GpuTransformPass::SetOutputs(const GpuHelper& gpuHelper, const Outputs& outputs)
+GpuTransformPass::SetOutputs(const Outputs& outputs)
 {
     if(m_Outputs && *m_Outputs == outputs)
     {
@@ -53,7 +53,7 @@ GpuTransformPass::SetOutputs(const GpuHelper& gpuHelper, const Outputs& outputs)
 
     if(m_Inputs && m_Outputs)
     {
-        MLG_CHECK(EnsureBindgroup(gpuHelper.GetDevice()));
+        MLG_CHECK(EnsureBindgroup());
     }
 
     return Result<>::Ok;
@@ -75,7 +75,7 @@ GpuTransformPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder) const
 // private:
 
 Result<>
-GpuTransformPass::EnsureBindgroup(const wgpu::Device& gpuDevice)
+GpuTransformPass::EnsureBindgroup()
 {
     MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
     MLG_CHECKV(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
@@ -83,6 +83,8 @@ GpuTransformPass::EnsureBindgroup(const wgpu::Device& gpuDevice)
 
     if(!m_BindGroup)
     {
+        const wgpu::Device& gpuDevice = m_GpuHelper->GetDevice();
+
         const wgpu::BindGroupEntry entries[] = //
             {
                 {
@@ -121,12 +123,14 @@ GpuTransformPass::EnsureBindgroup(const wgpu::Device& gpuDevice)
 }
 
 Result<>
-GpuTransformPass::EnsurePipeline(const wgpu::Device& gpuDevice)
+GpuTransformPass::EnsurePipeline()
 {
     if(m_Pipeline)
     {
         return Result<>::Ok;
     }
+
+    const wgpu::Device& gpuDevice = m_GpuHelper->GetDevice();
 
     if(!m_BindGroupLayout)
     {

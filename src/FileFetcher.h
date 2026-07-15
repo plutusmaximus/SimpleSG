@@ -69,7 +69,7 @@ public:
         RequestStatus m_Status{ RequestStatus::None };
     };
 
-    static Result<FileFetcher> Create();
+    static Result<std::unique_ptr<FileFetcher>> Create();
 
     Result<> Fetch(Request& request);
 

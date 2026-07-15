@@ -7,7 +7,7 @@
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_wgpu.h>
 
-Result<ImGuiRenderer>
+Result<std::unique_ptr<ImGuiRenderer>>
 ImGuiRenderer::Create(GpuHelper& gpuHelper)
 {
     // Setup Dear ImGui context
@@ -36,7 +36,7 @@ ImGuiRenderer::Create(GpuHelper& gpuHelper)
     init_info.DepthStencilFormat = WGPUTextureFormat_Undefined;
     ImGui_ImplWGPU_Init(&init_info);
 
-    return ImGuiRenderer(context);
+    return std::unique_ptr<ImGuiRenderer>(new ImGuiRenderer(context));
 }
 
 ImGuiRenderer::~ImGuiRenderer()

@@ -743,8 +743,8 @@ MainLoop()
             const Viewport sceneViewport(scenePanelRect.GetDimensions());
             camera.SetViewport(sceneViewport);
 
-            MLG_CHECK(renderer.Render(gpuHelper, camera, cameraXForm, scene, propKit));
-            MLG_CHECK(renderer.Composite(gpuHelper, *target, scenePanelRect));
+            MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
+            MLG_CHECK(renderer.Composite(*target, scenePanelRect));
         }
 
         auto renderGui = [&]()

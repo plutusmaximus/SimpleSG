@@ -42,20 +42,22 @@ public:
 
     static Result<GpuTransformPass> Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
 
-    Result<> SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs);
-    Result<> SetOutputs(const GpuHelper& gpuHelper, const Outputs& outputs);
+    Result<> SetInputs(const Inputs& inputs);
+    Result<> SetOutputs(const Outputs& outputs);
 
     Result<wgpu::ComputePassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder) const;
 
 private:
-
-    explicit GpuTransformPass(ValidShaderModule shader)
-        : m_Shader(std::move(shader))
+    explicit GpuTransformPass(const GpuHelper& gpuHelper, ValidShaderModule shader)
+        : m_GpuHelper(&gpuHelper),
+          m_Shader(std::move(shader))
     {
     }
 
-    Result<> EnsureBindgroup(const wgpu::Device& gpuDevice);
-    Result<> EnsurePipeline(const wgpu::Device& gpuDevice);
+    Result<> EnsureBindgroup();
+    Result<> EnsurePipeline();
+
+    GpuHelper const* m_GpuHelper;
 
     std::optional<Inputs> m_Inputs;
     std::optional<Outputs> m_Outputs;

@@ -140,15 +140,15 @@ GpuColorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
     auto shader = gpuHelper.LoadShader(ShaderPath, fileFetcher);
     MLG_CHECK(shader, "Failed to load shader: {}", ShaderPath);
 
-    GpuColorPass pass(std::move(*shader));
+    GpuColorPass pass(gpuHelper, std::move(*shader));
 
-    MLG_CHECK(pass.EnsurePipeline(gpuHelper));
+    MLG_CHECK(pass.EnsurePipeline());
 
     return pass;
 }
 
 Result<>
-GpuColorPass::SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
+GpuColorPass::SetInputs(const Inputs& inputs)
 {
     MLG_CHECKV(m_InputsBindGroupLayout, "Inputs bind group layout is not valid");
 
@@ -196,7 +196,7 @@ GpuColorPass::SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
                 .entries = &entries[0],
             };
 
-        m_InputsBindGroup = gpuHelper.GetDevice().CreateBindGroup(&desc);
+        m_InputsBindGroup = m_GpuHelper->GetDevice().CreateBindGroup(&desc);
         MLG_CHECKV(m_InputsBindGroup, "Failed to create bind group");
     }
 
@@ -206,7 +206,7 @@ GpuColorPass::SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
 }
 
 Result<>
-GpuColorPass::SetOutputs(const GpuHelper& /*gpuHelper*/, const Outputs& outputs)
+GpuColorPass::SetOutputs(const Outputs& outputs)
 {
     m_Outputs = outputs;
 
@@ -308,14 +308,14 @@ GpuColorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder) const
 // private:
 
 Result<>
-GpuColorPass::EnsurePipeline(const GpuHelper& gpuHelper)
+GpuColorPass::EnsurePipeline()
 {
     if(m_Pipeline)
     {
         return Result<>::Ok;
     }
 
-    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
+    const wgpu::Device& gpuDevice = m_GpuHelper->GetDevice();
 
     if(!m_InputsBindGroupLayout)
     {
@@ -327,7 +327,7 @@ GpuColorPass::EnsurePipeline(const GpuHelper& gpuHelper)
 
     if(!m_TextureBindGroupLayout)
     {
-        m_TextureBindGroupLayout = gpuHelper.GetTextureBindGroupLayout();
+        m_TextureBindGroupLayout = m_GpuHelper->GetTextureBindGroupLayout();
     }
 
     if(!m_PipelineLayout)

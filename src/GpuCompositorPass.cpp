@@ -10,21 +10,21 @@ GpuCompositorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
     auto shader = gpuHelper.LoadShader(ShaderPath, fileFetcher);
     MLG_CHECK(shader);
 
-    GpuCompositorPass pass(std::move(*shader));
+    GpuCompositorPass pass(gpuHelper, std::move(*shader));
 
-    MLG_CHECK(pass.EnsureSampler(gpuHelper.GetDevice()));
-    MLG_CHECK(pass.EnsureBindGroupLayout(gpuHelper.GetDevice()));
+    MLG_CHECK(pass.EnsureSampler());
+    MLG_CHECK(pass.EnsureBindGroupLayout());
 
     return pass;
 }
 
 Result<>
-GpuCompositorPass::SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
+GpuCompositorPass::SetInputs(const Inputs& inputs)
 {
     MLG_CHECKV(m_Sampler, "Sampler is not valid");
     MLG_CHECKV(m_BindGroupLayout, "Bind group layout is not valid");
 
-    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
+    const wgpu::Device& gpuDevice = m_GpuHelper->GetDevice();
 
     if(!m_BindGroup || inputs != m_Inputs)
     {
@@ -58,10 +58,8 @@ GpuCompositorPass::SetInputs(const GpuHelper& gpuHelper, const Inputs& inputs)
 }
 
 Result<>
-GpuCompositorPass::SetOutputs(const GpuHelper& gpuHelper, const Outputs& outputs)
+GpuCompositorPass::SetOutputs(const Outputs& outputs)
 {
-    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
-
     if(outputs != m_Outputs)
     {
         // Rebuild the pipeline
@@ -70,7 +68,7 @@ GpuCompositorPass::SetOutputs(const GpuHelper& gpuHelper, const Outputs& outputs
 
     m_Outputs = outputs;
 
-    MLG_CHECK(EnsurePipeline(gpuDevice));
+    MLG_CHECK(EnsurePipeline());
 
     return Result<>::Ok;
 }
@@ -140,9 +138,9 @@ GpuCompositorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder) const
 }
 
 Result<>
-GpuCompositorPass::Composite(const GpuHelper& gpuHelper) const
+GpuCompositorPass::Composite() const
 {
-    const wgpu::Device& gpuDevice = gpuHelper.GetDevice();
+    const wgpu::Device& gpuDevice = m_GpuHelper->GetDevice();
 
     const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "GpuCompositorPass" };
     const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
@@ -167,10 +165,12 @@ GpuCompositorPass::Composite(const GpuHelper& gpuHelper) const
 // private:
 
 Result<>
-GpuCompositorPass::EnsureSampler(const wgpu::Device& gpuDevice)
+GpuCompositorPass::EnsureSampler()
 {
     if(!m_Sampler)
     {
+        const wgpu::Device& gpuDevice = m_GpuHelper->GetDevice();
+
         const wgpu::SamplerDescriptor samplerDesc //
             {
                 .label = "GpuCompositorPass",
@@ -195,10 +195,12 @@ GpuCompositorPass::EnsureSampler(const wgpu::Device& gpuDevice)
 
 
 Result<>
-GpuCompositorPass::EnsureBindGroupLayout(const wgpu::Device& gpuDevice)
+GpuCompositorPass::EnsureBindGroupLayout()
 {
     if(!m_BindGroupLayout)
     {
+        const wgpu::Device& gpuDevice = m_GpuHelper->GetDevice();
+
         const wgpu::BindGroupLayoutEntry entries[]//
         {
             // Texture
@@ -238,15 +240,17 @@ GpuCompositorPass::EnsureBindGroupLayout(const wgpu::Device& gpuDevice)
 }
 
 Result<>
-GpuCompositorPass::EnsurePipeline(const wgpu::Device& gpuDevice)
+GpuCompositorPass::EnsurePipeline()
 {
     if(m_Pipeline)
     {
         return Result<>::Ok;
     }
 
-    MLG_CHECK(EnsureSampler(gpuDevice));
-    MLG_CHECK(EnsureBindGroupLayout(gpuDevice));
+    MLG_CHECK(EnsureSampler());
+    MLG_CHECK(EnsureBindGroupLayout());
+
+    const wgpu::Device& gpuDevice = m_GpuHelper->GetDevice();
 
     if(!m_PipelineLayout)
     {

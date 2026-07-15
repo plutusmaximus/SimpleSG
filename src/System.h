@@ -164,11 +164,11 @@ public:
     bool WasFocusLost() const { return m_FocusEvent == FocusEvent::Lost; }
 
 private:
-    System(GpuHelper&& gpuHelper,
-        FileFetcher&& fileFetcher,
-        ThreadPool&& threadPool,
-        Renderer&& renderer,
-        ImGuiRenderer&& imGuiRenderer)
+    System(std::unique_ptr<GpuHelper>&& gpuHelper,
+        std::unique_ptr<FileFetcher>&& fileFetcher,
+        std::unique_ptr<ThreadPool>&& threadPool,
+        std::unique_ptr<Renderer>&& renderer,
+        std::unique_ptr<ImGuiRenderer>&& imGuiRenderer)
         : m_GpuHelper(std::move(gpuHelper)),
           m_FileFetcher(std::move(fileFetcher)),
           m_ThreadPool(std::move(threadPool)),
@@ -184,11 +184,11 @@ private:
         Lost
     };
 
-    GpuHelper m_GpuHelper;
-    FileFetcher m_FileFetcher;
-    ThreadPool m_ThreadPool;
-    Renderer m_Renderer;
-    ImGuiRenderer m_ImGuiRenderer;
+    std::unique_ptr<GpuHelper> m_GpuHelper;
+    std::unique_ptr<FileFetcher> m_FileFetcher;
+    std::unique_ptr<ThreadPool> m_ThreadPool;
+    std::unique_ptr<Renderer> m_Renderer;
+    std::unique_ptr<ImGuiRenderer> m_ImGuiRenderer;
 
     FocusEvent m_FocusEvent{ FocusEvent::None };
 

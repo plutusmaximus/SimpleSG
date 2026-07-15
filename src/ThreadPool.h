@@ -21,7 +21,7 @@ public:
     ThreadPool(ThreadPool&& other) = default;
     ThreadPool& operator=(ThreadPool&& other) = default;
 
-    static Result<ThreadPool> Create();
+    static Result<std::unique_ptr<ThreadPool>> Create();
 
     bool Enqueue(void (*jobFunc)(void*), void* userData);
 
