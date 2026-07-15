@@ -142,6 +142,10 @@ MainLoop()
     MLG_CHECK(rendererResult, "Failed to create Renderer");
     Renderer& renderer = *rendererResult;
 
+    auto imGuiRendererResult = ImGuiRenderer::Create(gpuHelper);
+    MLG_CHECK(imGuiRendererResult, "Failed to create ImGuiRenderer");
+    const ImGuiRenderer& imGuiRenderer = *imGuiRendererResult;
+
     PropKitDef propKitDef;
     LevelDef levelDef;
     MLG_CHECK(CreateTriangleModel(propKitDef, levelDef));
@@ -158,9 +162,6 @@ MainLoop()
     auto sceneResult = Scene::Create(gpuHelper, level);
     MLG_CHECK(sceneResult, "Failed to create Scene");
     const Scene& scene = *sceneResult;
-
-    ImGuiRenderer imGuiRenderer;
-    MLG_CHECK(imGuiRenderer.Startup(gpuHelper));
 
     const TrTransformf cameraXForm{ .T{ 0, 0, -4 } };
     const Viewport viewport(gpuHelper.GetScreenDimensions());
@@ -266,8 +267,6 @@ MainLoop()
 
         gpuHelper.GetInstance().ProcessEvents();
     }
-
-    MLG_CHECK(imGuiRenderer.Shutdown());
 
     PerfMetrics::LogCounters();
 

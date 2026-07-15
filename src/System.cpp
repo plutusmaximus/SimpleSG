@@ -102,15 +102,23 @@ System::CreateTask::Get()
     auto gpuHelperResult = bye->m_GpuHelperTask->Get();
     MLG_CHECK(gpuHelperResult, "GpuHelper creation failed");
 
-    auto fileFetcherResult = FileFetcher::Create();    
+    auto fileFetcherResult = FileFetcher::Create();
     MLG_CHECK(fileFetcherResult);
 
     auto threadPoolResult = ThreadPool::Create();
     MLG_CHECK(threadPoolResult);
 
-    return System(std::move(*gpuHelperResult), 
+    auto rendererResult = Renderer::Create(*gpuHelperResult, *fileFetcherResult);
+    MLG_CHECK(rendererResult, "Failed to create Renderer");
+
+    auto imGuiRendererResult = ImGuiRenderer::Create(*gpuHelperResult);
+    MLG_CHECK(imGuiRendererResult, "Failed to create ImGuiRenderer");
+
+    return System(std::move(*gpuHelperResult),
         std::move(*fileFetcherResult),
-        std::move(*threadPoolResult));
+        std::move(*threadPoolResult),
+        std::move(*rendererResult),
+        std::move(*imGuiRendererResult));
 }
 
 ////////// System
@@ -146,6 +154,18 @@ ThreadPool&
 System::GetThreadPool()
 {
     return m_ThreadPool;
+}
+
+Renderer&
+System::GetRenderer()
+{
+    return m_Renderer;
+}
+
+const ImGuiRenderer&
+System::GetImGuiRenderer() const
+{
+    return m_ImGuiRenderer;
 }
 
 void

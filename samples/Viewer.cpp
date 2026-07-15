@@ -130,18 +130,14 @@ MainLoop()
     auto systemResult = task->Get();
     MLG_CHECK(systemResult, "Failed to get System instance");
 
-    System system = std::move(*systemResult);
+    System& system = *systemResult;
     GpuHelper& gpuHelper = system.GetGpuHelper();
     ThreadPool& threadPool = system.GetThreadPool();
     FileFetcher& fileFetcher = system.GetFileFetcher();
-    ImGuiRenderer imGuiRenderer;
+    Renderer& renderer = system.GetRenderer();
+    const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
+
     WalkMouseNav mouseNav;
-
-    auto rendererResult = Renderer::Create(gpuHelper, fileFetcher);
-    MLG_CHECK(rendererResult, "Failed to create Renderer");
-    Renderer renderer = std::move(*rendererResult);
-
-    MLG_CHECK(imGuiRenderer.Startup(gpuHelper));
 
     auto loadResult = Load(gpuHelper, threadPool, fileFetcher, SPONZA_MODEL_PATH);
     MLG_CHECK(loadResult, "Failed to load resources");

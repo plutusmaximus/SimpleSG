@@ -7,9 +7,9 @@ class GpuHelper;
 
 namespace wgpu
 {
-    class Device;
-    class Texture;
-}
+class Device;
+class Texture;
+} // namespace wgpu
 
 template<typename T>
 class ValidGpuObject;
@@ -19,28 +19,37 @@ class ImGuiRenderer
 {
 public:
 
-    Result<> Startup(GpuHelper& gpuHelper);
-
-    Result<> Shutdown();
-
-    ImGuiRenderer() = default;
+    ImGuiRenderer() = delete;
+    ~ImGuiRenderer();
     ImGuiRenderer(const ImGuiRenderer&) = delete;
     ImGuiRenderer& operator=(const ImGuiRenderer&) = delete;
-    ImGuiRenderer(ImGuiRenderer&&) = delete;
-    ImGuiRenderer& operator=(ImGuiRenderer&&) = delete;
-
-    ~ImGuiRenderer()
+    ImGuiRenderer(ImGuiRenderer&& other)
+        : m_Context(other.m_Context)
     {
-        MLG_VERIFY(Shutdown());
+        other.m_Context = nullptr;
     }
+    ImGuiRenderer& operator=(ImGuiRenderer&& other)
+    {
+        if(this != &other)
+        {
+            m_Context = other.m_Context;
+            other.m_Context = nullptr;
+        }
+
+        return *this;
+    }
+
+    static Result<ImGuiRenderer> Create(GpuHelper& gpuHelper);
 
     Result<> NewFrame(const ValidTexture& target) const;
 
     Result<> Composite(const wgpu::Device& gpuDevice, const ValidTexture& target) const;
 
 private:
+    explicit ImGuiRenderer(ImGuiContext* context)
+        : m_Context(context)
+    {
+    }
 
-    ImGuiContext* m_Context{nullptr};
-
-    bool m_Initialized{ false };
+    ImGuiContext* m_Context{ nullptr };
 };

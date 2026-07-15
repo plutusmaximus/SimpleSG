@@ -7,27 +7,25 @@
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_wgpu.h>
 
-Result<>
-ImGuiRenderer::Startup(GpuHelper& gpuHelper)
+Result<ImGuiRenderer>
+ImGuiRenderer::Create(GpuHelper& gpuHelper)
 {
-    MLG_CHECKV(!m_Initialized, "ImGuiRenderer is already initialized");
-
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
-    m_Context = ImGui::CreateContext();
+    ImGuiContext* context = ImGui::CreateContext();
 
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
-    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
-    //io.ConfigFlags |= ImGuiDockNodeFlags_PassthruCentralNode;
-
+    ImGuiIO& io = ImGui::GetIO();
+    (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;     // Enable Docking
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable; // Enable Multi-Viewport / Platform Windows
+    // io.ConfigFlags |= ImGuiDockNodeFlags_PassthruCentralNode;
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
-    //ImGui::StyleColorsLight();
-    
+    // ImGui::StyleColorsLight();
+
     // Setup Platform/Renderer backends
     ImGui_ImplSDL3_InitForOther(gpuHelper.GetWindow());
 
@@ -38,18 +36,16 @@ ImGuiRenderer::Startup(GpuHelper& gpuHelper)
     init_info.DepthStencilFormat = WGPUTextureFormat_Undefined;
     ImGui_ImplWGPU_Init(&init_info);
 
-    m_Initialized = true;
-
-    return Result<>::Ok;
+    return ImGuiRenderer(context);
 }
 
-Result<>
-ImGuiRenderer::Shutdown()
+ImGuiRenderer::~ImGuiRenderer()
 {
-    if(!m_Initialized)
+    if(!m_Context)
     {
-        // Not initialized, nothing to do
-        return Result<>::Ok;
+        // nothing to do
+        return;
+        ;
     }
 
     ImGui_ImplWGPU_Shutdown();
@@ -57,16 +53,12 @@ ImGuiRenderer::Shutdown()
     ImGui::DestroyContext(m_Context);
 
     m_Context = nullptr;
-
-    m_Initialized = false;
-
-    return Result<>::Ok;
 }
 
 Result<>
 ImGuiRenderer::NewFrame(const ValidTexture& target) const
 {
-    MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
+    MLG_CHECKV(m_Context, "ImGuiRenderer is not initialized");
 
     ImGui_ImplWGPU_NewFrame();
     ImGui_ImplSDL3_NewFrame();
@@ -90,7 +82,7 @@ ImGuiRenderer::NewFrame(const ValidTexture& target) const
 Result<>
 ImGuiRenderer::Composite(const wgpu::Device& gpuDevice, const ValidTexture& target) const
 {
-    MLG_CHECKV(m_Initialized, "ImGuiRenderer is not initialized");
+    MLG_CHECKV(m_Context, "ImGuiRenderer is not initialized");
 
     MLG_SCOPED_TIMER("ImGuiRenderer.Render");
 
@@ -113,20 +105,20 @@ ImGuiRenderer::Composite(const wgpu::Device& gpuDevice, const ValidTexture& targ
     }
 
     const wgpu::RenderPassColorAttachment colorAttachment //
-    {
-        .view = target->CreateView(),
-        .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
-        .loadOp = wgpu::LoadOp::Load,
-        .storeOp = wgpu::StoreOp::Store,
-        .clearValue = {.r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 1.0f},
-    };
+        {
+            .view = target->CreateView(),
+            .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+            .loadOp = wgpu::LoadOp::Load,
+            .storeOp = wgpu::StoreOp::Store,
+            .clearValue = { .r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 1.0f },
+        };
 
     const wgpu::RenderPassDescriptor renderPassDesc //
-    {
-        .label = "ImGuiRenderPass",
-        .colorAttachmentCount = 1,
-        .colorAttachments = &colorAttachment,
-    };
+        {
+            .label = "ImGuiRenderPass",
+            .colorAttachmentCount = 1,
+            .colorAttachments = &colorAttachment,
+        };
 
     const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "ImGuiRenderer::Composite" };
     const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);

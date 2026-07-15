@@ -469,7 +469,6 @@ float ComputeKineticEnergy(const PhysicsLevel& physLevel)
 Result<>
 MainLoop()
 {
-    ImGuiRenderer imGuiRenderer;
     WalkMouseNav mouseNav;
     DevUi devUi;
 
@@ -485,16 +484,12 @@ MainLoop()
     auto systemResult = task->Get();
     MLG_CHECK(systemResult, "Failed to get System instance");
 
-    System system = std::move(*systemResult);
+    System& system = *systemResult;
     GpuHelper& gpuHelper = system.GetGpuHelper();
     ThreadPool& threadPool = system.GetThreadPool();
     FileFetcher& fileFetcher = system.GetFileFetcher();
-
-    auto rendererResult = Renderer::Create(gpuHelper, fileFetcher);
-    MLG_CHECK(rendererResult, "Failed to create Renderer");
-    Renderer renderer = std::move(*rendererResult);
-
-    MLG_CHECK(imGuiRenderer.Startup(gpuHelper));
+    Renderer& renderer = system.GetRenderer();
+    const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
     
     auto loadResult = Load(gpuHelper, threadPool, fileFetcher);
     MLG_CHECK(loadResult);
