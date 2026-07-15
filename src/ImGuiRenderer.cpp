@@ -55,6 +55,8 @@ ImGuiRenderer::~ImGuiRenderer()
     m_Context = nullptr;
 }
 
+// private:
+
 Result<>
 ImGuiRenderer::NewFrame(const ValidTexture& target) const
 {

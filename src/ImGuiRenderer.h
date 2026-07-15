@@ -41,15 +41,32 @@ public:
 
     static Result<ImGuiRenderer> Create(GpuHelper& gpuHelper);
 
-    Result<> NewFrame(const ValidTexture& target) const;
+    template<typename Func>
+    Result<> Render(const wgpu::Device& gpuDevice, const ValidTexture& target, Func& renderFunc) const
+    {
+        static_assert(std::is_invocable_r_v<Result<>, Func>,
+            "renderFunc must be callable with signature Result<> func()");
 
-    Result<> Composite(const wgpu::Device& gpuDevice, const ValidTexture& target) const;
+        MLG_CHECKV(m_Context, "ImGuiRenderer is not initialized");
+
+        MLG_CHECK(NewFrame(target));
+
+        MLG_CHECK(renderFunc());
+
+        MLG_CHECK(Composite(gpuDevice, target));
+
+        return Result<>::Ok;
+    }
 
 private:
     explicit ImGuiRenderer(ImGuiContext* context)
         : m_Context(context)
     {
     }
+
+    Result<> NewFrame(const ValidTexture& target) const;
+
+    Result<> Composite(const wgpu::Device& gpuDevice, const ValidTexture& target) const;
 
     ImGuiContext* m_Context{ nullptr };
 };

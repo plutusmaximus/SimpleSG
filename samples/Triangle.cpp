@@ -253,9 +253,7 @@ MainLoop()
         MLG_CHECK(renderer.Render(gpuHelper, camera, cameraXForm, scene, propKit));
         MLG_CHECK(renderer.Composite(gpuHelper, *target));
 
-        MLG_CHECK(imGuiRenderer.NewFrame(*target));
-        MLG_CHECK(RenderGui());
-        MLG_CHECK(imGuiRenderer.Composite(gpuHelper.GetDevice(), *target));
+        MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, RenderGui));
 
 #if !defined(__EMSCRIPTEN__)
 

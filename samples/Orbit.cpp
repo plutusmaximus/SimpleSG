@@ -747,9 +747,12 @@ MainLoop()
             MLG_CHECK(renderer.Composite(gpuHelper, *target, scenePanelRect));
         }
 
-        MLG_CHECK(imGuiRenderer.NewFrame(*target));
-        MLG_CHECK(devUi.Render());
-        MLG_CHECK(imGuiRenderer.Composite(gpuHelper.GetDevice(), *target));
+        auto renderGui = [&]()
+        {
+            return devUi.Render();
+        };
+
+        MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, renderGui));
 
         {
 #if !defined(__EMSCRIPTEN__)
