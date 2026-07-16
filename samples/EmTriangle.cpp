@@ -8,6 +8,7 @@
 #include "PropKit.h"
 #include "Renderer.h"
 #include "Scene.h"
+#include "Shell.h"
 #include "System.h"
 #include "ThreadPool.h"
 
@@ -110,9 +111,10 @@ CreateTriangleModel(PropKitDef& outPropKitDef, LevelDef& outLevelDef)
 class TriangleApp
 {
 public:
-    static Result<> MainLoop(System& system, TriangleApp* self);
 
-    Result<> Update(System& system);
+    /// @brief Called by the Shell.  Calls InnerUpdate to perform the main work of the application,
+    /// and handles any errors that occur.
+    Shell::AppState Update(System& system);
 
 private:
     enum class State
@@ -122,6 +124,14 @@ private:
         Shutdown,
         Stopped
     };
+
+    /// @brief Performs the the main work of the application.
+    Result<> InnerUpdate(System& system);
+
+    Shell::AppState GetAppState() const
+    {
+        return State::Stopped == m_State ? Shell::AppState::Stopped : Shell::AppState::Running;
+    }
 
     PropKitDef m_PropKitDef;
     LevelDef m_LevelDef;
@@ -141,26 +151,27 @@ private:
 
     State m_State{ State::Init };
 };
-
-Result<>
-TriangleApp::MainLoop(System& system, TriangleApp* self)
+    
+Shell::AppState
+TriangleApp::Update(System& system)
 {
-    return self->Update(system);
+    const Result<> result = InnerUpdate(system);
+
+    if(!result)
+    {
+        MLG_ERROR("TriangleApp::Update failed: {}");
+        m_State = State::Shutdown;
+    }
+
+    return GetAppState();
 }
 
 Result<>
-TriangleApp::Update(System& system)
+TriangleApp::InnerUpdate(System& system)
 {
-    // If an error occurs that causes an early exit this will run and set the state to Shutdown.
-    MLG_DEFER_AS(shutdownOnExit)
-    {
-        System::PostQuitEvent();
-        m_State = TriangleApp::State::Shutdown;
-    };
-
     switch(m_State)
     {
-        case TriangleApp::State::Init:
+        case State::Init:
         {
             MLG_CHECK(CreateTriangleModel(m_PropKitDef, m_LevelDef));
 
@@ -185,8 +196,12 @@ TriangleApp::Update(System& system)
         }
         break;
 
-        case TriangleApp::State::Running:
-            if(!system.IsMinimized())
+        case State::Running:
+            if(system.ShouldQuit())
+            {
+                m_State = State::Shutdown;
+            }
+            else if(!system.IsMinimized())
             {
                 const GpuHelper& gpuHelper = system.GetGpuHelper();
                 Renderer& renderer = system.GetRenderer();
@@ -194,8 +209,7 @@ TriangleApp::Update(System& system)
                 m_Viewport = Viewport(gpuHelper.GetScreenDimensions());
                 m_Camera.SetViewport(m_Viewport);
 
-                MLG_CHECK(
-                    renderer.Render(m_Camera, m_CameraXForm, *m_Scene, *m_PropKit));
+                MLG_CHECK(renderer.Render(m_Camera, m_CameraXForm, *m_Scene, *m_PropKit));
 
                 auto target = gpuHelper.GetSwapChainTexture();
                 MLG_CHECK(target, "Failed to get swapchain texture");
@@ -207,222 +221,50 @@ TriangleApp::Update(System& system)
             }
             break;
 
-        case TriangleApp::State::Shutdown:
-            System::PostQuitEvent();
-            m_State = TriangleApp::State::Stopped;
-            break;
-
-        case TriangleApp::State::Stopped:
-            break;
-    }
-
-    // We're returning successfully - cancel the shutdownOnExit.
-    shutdownOnExit.release();
-
-    return Result<>::Ok;
-}
-
-struct Shell
-{
-    enum class State
-    {
-        Init,
-        CreatingSystem,
-        Running,
-        Shutdown,
-        Stopped
-    };
-
-    class MainLoopHandler
-    {
-    public:
-        MainLoopHandler() = delete;
-        ~MainLoopHandler() = default;
-        MainLoopHandler(const MainLoopHandler&) = delete;
-        MainLoopHandler& operator=(const MainLoopHandler&) = delete;
-        MainLoopHandler(MainLoopHandler&& other)
-            : m_Invoke(other.m_Invoke),
-              m_Cb(other.m_Cb),
-              m_UserData(other.m_UserData)
-        {
-            other.m_Invoke = nullptr;
-            other.m_Cb = nullptr;
-            other.m_UserData = nullptr;
-        }
-        MainLoopHandler& operator=(MainLoopHandler&& other)
-        {
-            if(this != &other)
-            {
-                m_Invoke = other.m_Invoke;
-                m_Cb = other.m_Cb;
-                m_UserData = other.m_UserData;
-
-                other.m_Invoke = nullptr;
-                other.m_Cb = nullptr;
-                other.m_UserData = nullptr;
-            }
-
-            return *this;
-        }
-
-        // NOLINTBEGIN
-        template<typename T>
-        MainLoopHandler(Result<> (*func)(System& system, T* userData), T* userData)
-            : m_Invoke(&MainLoopHandler::InvokeImpl<T>),
-              m_Cb(reinterpret_cast<Result<> (*)(System&, void*)>(func)),
-              m_UserData(userData)
-        {
-        }
-        // NOLINTEND
-
-        Result<> operator()(System& system) const { return (this->*m_Invoke)(system); }
-
-    private:
-        // NOLINTBEGIN
-        template<typename T>
-        Result<> InvokeImpl(System& system) const
-        {
-            auto cb = reinterpret_cast<Result<> (*)(System&, T*)>(m_Cb);
-            return cb(system, reinterpret_cast<T*>(m_UserData));
-        }
-        // NOLINTEND
-
-        Result<> (MainLoopHandler::*m_Invoke)(System& system) const = nullptr;
-        Result<> (*m_Cb)(System&, void*) = nullptr;
-        void* m_UserData = nullptr;
-    };
-
-    /// Main entry point for the application.  Used to call the main loop from Emscripten or other
-    /// platforms that require a static entry point.
-    static void Main(Shell* shell);
-
-    /// Handles system level tasks.  Calls the application main loop handler when the system is
-    /// running.
-    Result<> InnerMain();
-
-    bool IsStopped() const { return State::Stopped == m_State; }
-
-    Result<System::CreateTask> SystemCreateTask;
-    Result<System> SystemInstance;
-
-    MainLoopHandler mainLoopHandler;
-
-    State m_State{ State::Init };
-};
-
-void
-Shell::Main(Shell* shell)
-{
-    Result<> result = Result<>::Fail;
-
-    if(MLG_VERIFY(shell, "Shell is null"))
-    {
-        result = shell->InnerMain();
-    }
-
-    if(!result && !shell->IsStopped())
-    {
-        MLG_ERROR("Shell::Main failed:");
-        shell->m_State = State::Shutdown;
-    }
-}
-
-Result<>
-Shell::InnerMain()
-{
-    // If an error occurs that results in an early exit then this
-    // will run and set the state to Shutdown.
-    MLG_DEFER_AS(shutdownOnExit)
-    {
-        m_State = State::Shutdown;
-    };
-
-    switch(m_State)
-    {
-        case State::Init:
-        {
-            Log::SetLevel(Log::Level::Trace);
-
-            auto cwd = std::filesystem::current_path();
-            MLG_INFO("Current working directory: {}", cwd.string());
-
-            SystemCreateTask = System::Create(kAppName);
-            MLG_CHECK(SystemCreateTask, "Failed to create System");
-            m_State = State::CreatingSystem;
-        }
-        break;
-
-        case State::CreatingSystem:
-            MLG_CHECK(SystemCreateTask->Update());
-
-            if(SystemCreateTask->IsComplete())
-            {
-                MLG_CHECK(SystemCreateTask->Succeeded(), "System creation failed");
-                SystemInstance = SystemCreateTask->Get();
-                MLG_CHECK(SystemInstance, "Failed to get System instance");
-
-                m_State = State::Running;
-            }
-            break;
-
-        case State::Running:
-        {
-            MLG_SCOPED_TIMER("Frame");
-
-            SystemInstance->ProcessEvents();
-
-            if(SystemInstance->ShouldQuit())
-            {
-                m_State = State::Shutdown;
-            }
-            else
-            {
-                MLG_CHECK(mainLoopHandler(*SystemInstance), "MainLoop failed");
-
-#if !defined(__EMSCRIPTEN__)
-
-                const GpuHelper& gpuHelper = SystemInstance->GetGpuHelper();
-
-                MLG_CHECK(gpuHelper.GetSurface().Present(), "Failed to present backbuffer");
-                gpuHelper.GetInstance().ProcessEvents();
-#endif
-            }
-        }
-        break;
-
         case State::Shutdown:
-            PerfMetrics::LogCounters();
             m_State = State::Stopped;
             break;
 
         case State::Stopped:
-            // emscripten_cancel_main_loop();
             break;
     }
 
-    // We're returning successfully - cancel the shutdownOnExit.
-    shutdownOnExit.release();
-
     return Result<>::Ok;
 }
+
+void
+Run()
+{
+    static Shell shell(kAppName);
+    static TriangleApp triangleApp;
+
+    static auto AppUpdate = [](System& system)
+    {
+        return triangleApp.Update(system);
+    };
+
+    if(!shell.IsStopped())
+    {
+        const Result<> result = shell.Update(+AppUpdate);
+
+        if(!result)
+        {
+            MLG_ERROR("Shell::Main failed:");
+            shell.Shutdown();
+        }
+    }
+    else
+    {
+        emscripten_cancel_main_loop();
+    }
+}
+
 } // namespace
 
 int
 main(int /*argc*/, char** /*argv*/)
 {
-    static TriangleApp triangleApp;
-    ;
-    static Shell shellContext //
-        {
-            .mainLoopHandler = Shell::MainLoopHandler(TriangleApp::MainLoop, &triangleApp),
-        };
-
-    while(!shellContext.IsStopped())
-    {
-        Shell::Main(&shellContext);
-    }
-
-    // emscripten_set_main_loop_arg(Shell::Main, &shellContext, 0, 1);
+    emscripten_set_main_loop(Run, 0, 1);
 
     return 0;
 }

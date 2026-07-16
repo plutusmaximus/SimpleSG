@@ -309,6 +309,7 @@ add_custom_target(copy_images
 set(SSG_SOURCES
   src/AssertHelper.cpp
   src/BoundingVolumes.cpp
+  src/Camera.cpp
   src/cgltf.cpp
   src/DevUi.cpp
   src/FileFetcher.cpp
@@ -325,11 +326,11 @@ set(SSG_SOURCES
   src/LuaRuntime.cpp
   src/PerfMetrics.cpp
   src/PhysicsLevel.cpp
-  src/Camera.cpp
   src/PropKit.cpp
   src/Renderer.cpp
   src/Scene.cpp
   src/ShapeMeshDefs.cpp
+  src/Shell.cpp
   src/StringArena.cpp
   src/stb_image.cpp
   src/System.cpp
@@ -373,6 +374,7 @@ set(SSG_HEADERS
   src/SemanticIdentifier.h
   src/shaders/ShaderInterop.h
   src/ShapeMeshDefs.h
+  src/Shell.h
   src/StringArena.h
   src/System.h
   src/TextureCache.h
