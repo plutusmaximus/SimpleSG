@@ -96,12 +96,11 @@ FileFetcher::Fetch(FileFetcher::Request& request)
 
     MLG_ASSERT(!request.m_AsyncIO, "Request already has an SDL_AsyncIO object");
 
-    request.m_AsyncIO.reset(asyncIO);
+    request.m_AsyncIO = foreign_ptr<SDL_AsyncIO>(asyncIO);
 
     MLG_DEFER_AS(closeOnFailure)
     {
-        SDL_CloseAsyncIO(request.m_AsyncIO.get(), false, m_IoQueue, &request);
-        request.m_AsyncIO = nullptr;
+        SDL_CloseAsyncIO(request.m_AsyncIO.release(), false, m_IoQueue, &request);
     };
 
     const auto fileSize = GetFileSize(request);
@@ -162,14 +161,12 @@ FileFetcher::ProcessCompletions()
                 request->m_BytesRead += static_cast<size_t>(outcome.bytes_transferred);
                 if(request->m_BytesRead >= request->m_BytesRequested)
                 {
-                    SDL_CloseAsyncIO(request->m_AsyncIO.get(), false, m_IoQueue, request);
-                    request->m_AsyncIO = nullptr;
+                    SDL_CloseAsyncIO(request->m_AsyncIO.release(), false, m_IoQueue, request);
                     request->SetComplete(RequestStatus::Success);
                 }
                 else if(!IssueRead(*request))
                 {
-                    SDL_CloseAsyncIO(request->m_AsyncIO.get(), false, m_IoQueue, request);
-                    request->m_AsyncIO = nullptr;
+                    SDL_CloseAsyncIO(request->m_AsyncIO.release(), false, m_IoQueue, request);
                     request->SetComplete(RequestStatus::Failure);
                 }
                 break;
@@ -177,7 +174,7 @@ FileFetcher::ProcessCompletions()
                 MLG_ERROR("Async IO read failed for file: {}, error: {}",
                     request->m_FilePath,
                     SDL_GetError());
-                SDL_CloseAsyncIO(request->m_AsyncIO.get(), false, m_IoQueue, request);
+                SDL_CloseAsyncIO(request->m_AsyncIO.release(), false, m_IoQueue, request);
                 // request->SetComplete() will be called when we get the SDL_ASYNCIO_COMPLETE event.
                 break;
             case SDL_ASYNCIO_CANCELED:
@@ -186,7 +183,7 @@ FileFetcher::ProcessCompletions()
                     SDL_GetError());
                 if(m_IoQueue)
                 {
-                    SDL_CloseAsyncIO(request->m_AsyncIO.get(), false, m_IoQueue, request);
+                    SDL_CloseAsyncIO(request->m_AsyncIO.release(), false, m_IoQueue, request);
                 }
                 // request->SetComplete() will be called when we get the SDL_ASYNCIO_COMPLETE event.
                 break;

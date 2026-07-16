@@ -1,5 +1,6 @@
 #pragma once
 
+#include "foreign_ptr.h"
 #include "Result.h"
 
 #include <memory>
@@ -54,12 +55,11 @@ public:
 
         void SetComplete(RequestStatus status);
 
-        static void Deleter(SDL_AsyncIO*) {}
-
-        // Use a unique_ptr to make Request easily movable.
-        // Use a custom deleter that does nothing - SDL_AsyncIO is disposed by calling
-        // SDL_CloseAsyncIO() when the request is complete.
-        std::unique_ptr<SDL_AsyncIO, decltype(&Deleter)> m_AsyncIO{ nullptr, &Deleter };
+        // Use a foreign_ptr to make Request easily movable.
+        // Note that foreign_ptr does not destroy the pointer, so we must call SDL_CloseAsyncIO() or
+        // SDL_AbortAsyncIO() to clean up the SDL_AsyncIO object.  We do this in
+        // FileFetcher::ProcessCompletions() when the request is complete.
+        foreign_ptr<SDL_AsyncIO> m_AsyncIO{ nullptr };
 
         std::string m_FilePath;
         size_t m_BytesRequested{ 0 };
@@ -76,7 +76,6 @@ public:
     Result<> ProcessCompletions();
 
 private:
-
     explicit FileFetcher(SDL_AsyncIOQueue* ioQueue)
         : m_IoQueue(ioQueue)
     {
