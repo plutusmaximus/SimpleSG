@@ -16,16 +16,16 @@ set(CMAKE_CONFIGURATION_TYPES
 
 add_compile_options(
     # Clang/GCC
-    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-O1>
-    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-O1>
-    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-g>
-    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-g>
-    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-fno-omit-frame-pointer>
-    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-fno-sanitize-merge>
-    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-fno-omit-frame-pointer>
-    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-fno-sanitize-merge>
-    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-fsanitize=address,undefined>
-    $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-fsanitize=address,undefined>
+  $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,AppleClang,GNU>>:-O1>
+  $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang,GNU>>:-O1>
+  $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,AppleClang,GNU>>:-g>
+  $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang,GNU>>:-g>
+  $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,AppleClang,GNU>>:-fno-omit-frame-pointer>
+  $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,AppleClang,GNU>>:-fno-sanitize-merge>
+  $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang,GNU>>:-fno-omit-frame-pointer>
+  $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang,GNU>>:-fno-sanitize-merge>
+  $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,AppleClang,GNU>>:-fsanitize=address,undefined>
+  $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang,GNU>>:-fsanitize=address,undefined>
 
     # MSVC
     $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,MSVC>>:/fsanitize=address>
@@ -34,8 +34,8 @@ add_compile_options(
 
 add_link_options(
     # Clang/GCC
-    $<$<AND:$<CONFIG:Sanitize>,$<C_COMPILER_ID:Clang,GNU>>:-fsanitize=address,undefined>
-    $<$<AND:$<CONFIG:Sanitize>,$<CXX_COMPILER_ID:Clang,GNU>>:-fsanitize=address,undefined>
+  $<$<AND:$<CONFIG:Sanitize>,$<C_COMPILER_ID:Clang,AppleClang,GNU>>:-fsanitize=address,undefined>
+  $<$<AND:$<CONFIG:Sanitize>,$<CXX_COMPILER_ID:Clang,AppleClang,GNU>>:-fsanitize=address,undefined>
 
     # MSVC
     $<$<AND:$<CONFIG:Sanitize>,$<C_COMPILER_ID:MSVC>>:/fsanitize=address>
