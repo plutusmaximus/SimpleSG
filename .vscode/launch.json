@@ -65,6 +65,16 @@
                     "ignoreFailures": true
                 }
             ],
+            "environment": [
+                {
+                    "name": "ASAN_OPTIONS",
+                    "value": "detect_leaks=1:abort_on_error=0"
+                },
+                {
+                    "name": "UBSAN_OPTIONS",
+                    "value": "abort_on_error=0:print_stacktrace=1"
+                }
+            ],
             "presentation": {
                 "group": "Linux",
                 "order": 1
@@ -76,6 +86,10 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/${input:buildType}/${input:target}",
             "cwd": "${workspaceFolder}/build/${input:buildType}",
+            "env": {
+                "ASAN_OPTIONS": "abort_on_error=0",
+                "UBSAN_OPTIONS": "abort_on_error=0:print_stacktrace=1"
+            },
             "presentation": {
                 "group": "macOS",
                 "order": 1

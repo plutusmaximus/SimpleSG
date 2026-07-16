@@ -15,7 +15,7 @@ set(CMAKE_CONFIGURATION_TYPES
 )
 
 add_compile_options(
-    # Clang/GCC
+    # Clang/GCC common
   $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,AppleClang,GNU>>:-O1>
   $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang,GNU>>:-O1>
   $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,AppleClang,GNU>>:-g>
@@ -24,8 +24,14 @@ add_compile_options(
   $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,AppleClang,GNU>>:-fno-sanitize-merge>
   $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang,GNU>>:-fno-omit-frame-pointer>
   $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang,GNU>>:-fno-sanitize-merge>
-  $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,AppleClang,GNU>>:-fsanitize=address,undefined>
-  $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang,GNU>>:-fsanitize=address,undefined>
+
+    # AppleClang: leak sanitizer is not generally available
+  $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,AppleClang>>:-fsanitize=address,undefined>
+  $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,AppleClang>>:-fsanitize=address,undefined>
+
+    # Clang/GNU: include leak sanitizer
+  $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,Clang,GNU>>:-fsanitize=address,undefined,leak>
+  $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>>:-fsanitize=address,undefined,leak>
 
     # MSVC
     $<$<AND:$<CONFIG:Sanitize>,$<COMPILE_LANG_AND_ID:C,MSVC>>:/fsanitize=address>
@@ -33,9 +39,13 @@ add_compile_options(
 )
 
 add_link_options(
-    # Clang/GCC
-  $<$<AND:$<CONFIG:Sanitize>,$<C_COMPILER_ID:Clang,AppleClang,GNU>>:-fsanitize=address,undefined>
-  $<$<AND:$<CONFIG:Sanitize>,$<CXX_COMPILER_ID:Clang,AppleClang,GNU>>:-fsanitize=address,undefined>
+    # AppleClang
+  $<$<AND:$<CONFIG:Sanitize>,$<C_COMPILER_ID:AppleClang>>:-fsanitize=address,undefined>
+  $<$<AND:$<CONFIG:Sanitize>,$<CXX_COMPILER_ID:AppleClang>>:-fsanitize=address,undefined>
+
+    # Clang/GNU
+  $<$<AND:$<CONFIG:Sanitize>,$<C_COMPILER_ID:Clang,GNU>>:-fsanitize=address,undefined,leak>
+  $<$<AND:$<CONFIG:Sanitize>,$<CXX_COMPILER_ID:Clang,GNU>>:-fsanitize=address,undefined,leak>
 
     # MSVC
     $<$<AND:$<CONFIG:Sanitize>,$<C_COMPILER_ID:MSVC>>:/fsanitize=address>
