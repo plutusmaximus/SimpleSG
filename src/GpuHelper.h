@@ -1,6 +1,5 @@
 #pragma once
 
-#include "foreign_ptr.h"
 #include "GpuTypes.h"
 #include "VecMath.h"
 
@@ -14,28 +13,6 @@ using SDL_MetalView = void*;
 
 class GpuHelper final
 {
-    class Impl
-    {
-    public:
-        Impl() = default;
-        ~Impl();
-        Impl(const Impl&) = delete;
-        Impl& operator=(const Impl&) = delete;
-        Impl(Impl&& other) = default;
-        Impl& operator=(Impl&& other) = default;
-
-        foreign_ptr<SDL_Window> Window{ nullptr };
-        foreign_ptr<SDL_MetalView> MetalView{ nullptr };
-        wgpu::Instance Instance{ nullptr };
-        wgpu::Adapter Adapter{ nullptr };
-        wgpu::Device Device{ nullptr };
-        wgpu::Surface Surface{ nullptr };
-        mutable wgpu::TextureFormat SurfaceFormat{ wgpu::TextureFormat::Undefined };
-        wgpu::BindGroupLayout TextureBindGroupLayout{ nullptr };
-        wgpu::Texture DefaultTexture{ nullptr };
-        wgpu::Sampler DefaultSampler{ nullptr };
-    };
-
 public:
     static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
     static constexpr wgpu::TextureFormat kDepthBufferFormat = wgpu::TextureFormat::Depth24Plus;
@@ -120,14 +97,15 @@ public:
             GpuHelper::CreateTask::AdapterRequestData m_AdapterRequestData;
             GpuHelper::CreateTask::DeviceRequestData m_DeviceRequestData;
 
+            std::unique_ptr<GpuHelper> m_GpuHelper;
+
             CreateTask::State m_State{ CreateTask::State::None };
         };
 
         std::unique_ptr<Impl> m_TaskImpl;
-        GpuHelper::Impl m_GpuHelperImpl;
     };
 
-    ~GpuHelper() = default;
+    ~GpuHelper();
     GpuHelper(const GpuHelper&) = delete;
     GpuHelper& operator=(const GpuHelper&) = delete;
     GpuHelper(GpuHelper&&) = delete;
@@ -232,10 +210,7 @@ public:
     }
 
 private:
-    explicit GpuHelper(Impl impl)
-        : m_Impl(std::move(impl))
-    {
-    }
+    GpuHelper() = default;
 
     enum class BufferMappedState
     {
@@ -253,5 +228,14 @@ private:
     Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string_view& name) const;
     Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string_view& name) const;
 
-    Impl m_Impl;
+    SDL_Window* Window{ nullptr };
+    SDL_MetalView MetalView{ nullptr };
+    wgpu::Instance Instance{ nullptr };
+    wgpu::Adapter Adapter{ nullptr };
+    wgpu::Device Device{ nullptr };
+    wgpu::Surface Surface{ nullptr };
+    mutable wgpu::TextureFormat SurfaceFormat{ wgpu::TextureFormat::Undefined };
+    wgpu::BindGroupLayout TextureBindGroupLayout{ nullptr };
+    wgpu::Texture DefaultTexture{ nullptr };
+    wgpu::Sampler DefaultSampler{ nullptr };
 };
