@@ -1,5 +1,3 @@
-#include "foreign_ptr.h"
-#include <memory>
 #define MLG_LOGGER_NAME "WGPU"
 
 #include "FileFetcher.h"
