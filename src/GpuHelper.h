@@ -1,5 +1,6 @@
 #pragma once
 
+#include "foreign_ptr.h"
 #include "GpuTypes.h"
 #include "VecMath.h"
 
@@ -13,7 +14,27 @@ using SDL_MetalView = void*;
 
 class GpuHelper final
 {
-    class Impl;
+    class Impl
+    {
+    public:
+        Impl() = default;
+        ~Impl();
+        Impl(const Impl&) = delete;
+        Impl& operator=(const Impl&) = delete;
+        Impl(Impl&& other) = default;
+        Impl& operator=(Impl&& other) = default;
+
+        foreign_ptr<SDL_Window> Window{ nullptr };
+        foreign_ptr<SDL_MetalView> MetalView{ nullptr };
+        wgpu::Instance Instance{ nullptr };
+        wgpu::Adapter Adapter{ nullptr };
+        wgpu::Device Device{ nullptr };
+        wgpu::Surface Surface{ nullptr };
+        mutable wgpu::TextureFormat SurfaceFormat{ wgpu::TextureFormat::Undefined };
+        wgpu::BindGroupLayout TextureBindGroupLayout{ nullptr };
+        wgpu::Texture DefaultTexture{ nullptr };
+        wgpu::Sampler DefaultSampler{ nullptr };
+    };
 
 public:
     static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
@@ -103,26 +124,26 @@ public:
         };
 
         std::unique_ptr<Impl> m_TaskImpl;
-        std::unique_ptr<GpuHelper::Impl> m_GpuHelperImpl;
+        GpuHelper::Impl m_GpuHelperImpl;
     };
 
     ~GpuHelper() = default;
     GpuHelper(const GpuHelper&) = delete;
     GpuHelper& operator=(const GpuHelper&) = delete;
-    GpuHelper(GpuHelper&&) = default;
-    GpuHelper& operator=(GpuHelper&&) = default;
+    GpuHelper(GpuHelper&&) = delete;
+    GpuHelper& operator=(GpuHelper&&) = delete;
 
     /// @brief Creates a GpuHelper instance asynchronously.
     ///
     static Result<CreateTask> Create(const std::string_view& appName);
 
     SDL_Window* GetWindow() const;
-    wgpu::Instance GetInstance() const;
-    wgpu::Device GetDevice() const;
-    wgpu::Surface GetSurface() const;
-    wgpu::Texture GetDefaultTexture() const;
-    wgpu::Sampler GetDefaultSampler() const;
-    wgpu::BindGroupLayout GetTextureBindGroupLayout() const;
+    const wgpu::Instance& GetInstance() const;
+    const wgpu::Device& GetDevice() const;
+    const wgpu::Surface& GetSurface() const;
+    const wgpu::Texture& GetDefaultTexture() const;
+    const wgpu::Sampler& GetDefaultSampler() const;
+    const wgpu::BindGroupLayout& GetTextureBindGroupLayout() const;
     Dimension2 GetScreenDimensions() const;
     Result<ValidTexture> GetSwapChainTexture() const;
     wgpu::TextureFormat GetSwapChainFormat() const;
@@ -211,31 +232,7 @@ public:
     }
 
 private:
-    // To make the class moveable we keep it's implementation state
-    // in a separate Impl struct that is heap-allocated and managed by a unique_ptr.
-    class Impl
-    {
-    public:
-        Impl();
-        ~Impl();
-        Impl(const Impl&) = delete;
-        Impl& operator=(const Impl&) = delete;
-        Impl(Impl&&) = delete;
-        Impl& operator=(Impl&&) = delete;
-
-        SDL_Window* Window{ nullptr };
-        SDL_MetalView MetalView{ nullptr };
-        wgpu::Instance Instance{ nullptr };
-        wgpu::Adapter Adapter{ nullptr };
-        wgpu::Device Device{ nullptr };
-        wgpu::Surface Surface{ nullptr };
-        wgpu::TextureFormat SurfaceFormat{ wgpu::TextureFormat::Undefined };
-        wgpu::BindGroupLayout TextureBindGroupLayout{ nullptr };
-        wgpu::Texture DefaultTexture{ nullptr };
-        wgpu::Sampler DefaultSampler{ nullptr };
-    };
-
-    explicit GpuHelper(std::unique_ptr<Impl> impl)
+    explicit GpuHelper(Impl impl)
         : m_Impl(std::move(impl))
     {
     }
@@ -256,5 +253,5 @@ private:
     Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string_view& name) const;
     Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string_view& name) const;
 
-    std::unique_ptr<Impl> m_Impl;
+    Impl m_Impl;
 };

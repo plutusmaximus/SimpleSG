@@ -19,8 +19,8 @@ public:
     ~FileFetcher();
     FileFetcher(const FileFetcher&) = delete;
     FileFetcher& operator=(const FileFetcher&) = delete;
-    FileFetcher(FileFetcher&&) = default;
-    FileFetcher& operator=(FileFetcher&&) = default;
+    FileFetcher(FileFetcher&&) = delete;
+    FileFetcher& operator=(FileFetcher&&) = delete;
 
     enum class RequestStatus : uint8_t
     {
@@ -76,17 +76,9 @@ public:
     Result<> ProcessCompletions();
 
 private:
-    // Custom deleter for SDL_AsyncIOQueue.  SDL_AsyncIOQueue is disposed by calling
-    // SDL_CloseAsyncIO() when the FileFetcher is destroyed.
-    static void Deleter(SDL_AsyncIOQueue* asyncIO);
 
-    // Use a unique_ptr to make FileFetcher easily movable.
-    // Construct it with the custom deleter that knows how to dispose of the SDL_AsyncIOQueue.
-    using DeleterType = decltype(&Deleter);
-    using UniquePtrType = std::unique_ptr<SDL_AsyncIOQueue, DeleterType>;
-
-    explicit FileFetcher(UniquePtrType impl)
-        : m_IoQueue(std::move(impl))
+    explicit FileFetcher(SDL_AsyncIOQueue* ioQueue)
+        : m_IoQueue(ioQueue)
     {
     }
 
@@ -94,5 +86,5 @@ private:
 
     Result<> IssueRead(Request& request);
 
-    UniquePtrType m_IoQueue{ nullptr, &Deleter };
+    SDL_AsyncIOQueue* m_IoQueue{ nullptr };
 };

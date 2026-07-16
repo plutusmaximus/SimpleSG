@@ -335,6 +335,7 @@ set(SSG_HEADERS
   src/Camera.h
   src/DevUi.h
   src/FileFetcher.h
+  src/foreign_ptr.h
   src/GltfLoader.h
   src/GpuColorPass.h
   src/GpuCompositorPass.h
@@ -425,6 +426,11 @@ endfunction()
 # Executable: Triangle
 # ============================================================
 add_sample_executable(Triangle samples/Triangle.cpp)
+
+# ============================================================
+# Executable: EmTriangle
+# ============================================================
+add_sample_executable(EmTriangle samples/EmTriangle.cpp)
 
 # ============================================================
 # Executable: Viewer

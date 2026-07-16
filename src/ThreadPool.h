@@ -18,8 +18,8 @@ public:
     ~ThreadPool();
     ThreadPool(const ThreadPool&) = delete;
     ThreadPool& operator=(const ThreadPool&) = delete;
-    ThreadPool(ThreadPool&& other) = default;
-    ThreadPool& operator=(ThreadPool&& other) = default;
+    ThreadPool(ThreadPool&& other) = delete;
+    ThreadPool& operator=(ThreadPool&& other) = delete;
 
     static Result<std::unique_ptr<ThreadPool>> Create();
 
@@ -57,35 +57,28 @@ private:
         void* m_UserData{ nullptr };
     };
 
-    // To make the class moveable we keep it's implementation state
-    // in a separate Impl struct that is heap-allocated and managed by a unique_ptr.
-    struct Impl
-    {
-        Job* NewJob();
-
-        void DeleteJob(Job* job);
-
-        void Enqueue(Job* job);
-
-        std::array<Job, kMaxJobs> m_JobPool;
-        Job* m_JobPoolFreeList{ nullptr };
-
-        Job* m_JobQueueHead{ nullptr };
-        Job* m_JobQueueTail{ nullptr };
-
-        std::mutex m_JobQueueMutex;
-        std::mutex m_AllocMutex;
-        std::condition_variable m_ThreadPoolCv;
-        std::atomic<bool> m_Running{ false };
-        std::array<std::thread, kMaxWorkerThreads> m_WorkerThreadPool;
-        std::span<std::thread> m_WorkerThreads;
-    };
-
     ThreadPool();
 
     static size_t GetWorkerThreadCount();
 
-    static void WorkerLoop(Impl* impl);
+    static void WorkerLoop(ThreadPool* threadPool);
 
-    std::unique_ptr<Impl> m_Impl;
+    Job* NewJob();
+
+    void DeleteJob(Job* job);
+
+    void Enqueue(Job* job);
+
+    std::array<Job, kMaxJobs> m_JobPool;
+    Job* m_JobPoolFreeList{ nullptr };
+
+    Job* m_JobQueueHead{ nullptr };
+    Job* m_JobQueueTail{ nullptr };
+
+    std::mutex m_JobQueueMutex;
+    std::mutex m_AllocMutex;
+    std::condition_variable m_ThreadPoolCv;
+    std::atomic<bool> m_Running{ false };
+    std::array<std::thread, kMaxWorkerThreads> m_WorkerThreadPool;
+    std::span<std::thread> m_WorkerThreads;
 };
