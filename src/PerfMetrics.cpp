@@ -14,7 +14,7 @@ std::mutex& GetMutex()
     static std::mutex* mutex = new std::mutex; // NOLINT(cppcoreguidelines-owning-memory)
 
     // We intentionally leak this, so hide it from leak sanitizers
-    __lsan_ignore_object(mutex);
+    MLG_LSAN_IGNORE_OBJECT(mutex);
     
     return *mutex;
 }
@@ -25,7 +25,7 @@ StringArena& GetStringArena()
     static StringArena* arena = new StringArena(kStringArenaChunkSize); // NOLINT(cppcoreguidelines-owning-memory)
 
     // We intentionally leak this, so hide it from leak sanitizers
-    __lsan_ignore_object(arena);
+    MLG_LSAN_IGNORE_OBJECT(arena);
 
     return *arena;
 }

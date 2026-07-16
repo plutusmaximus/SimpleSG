@@ -20,7 +20,7 @@ std::shared_ptr<spdlog::sinks::dist_sink_mt>* MakeMuxSink()
         std::make_shared<spdlog::sinks::dist_sink_mt>()); // NOLINT(cppcoreguidelines-owning-memory)
 
     // We intentionally leak this, so hide it from leak sanitizers
-    __lsan_ignore_object(muxSink);
+    MLG_LSAN_IGNORE_OBJECT(muxSink);
 
     auto consoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
     (*muxSink)->add_sink(consoleSink);
@@ -49,7 +49,7 @@ std::mutex* MakeMutex()
     std::mutex* p = new std::mutex; // NOLINT(cppcoreguidelines-owning-memory)
 
     // We intentionally leak this, so hide it from leak sanitizers
-    __lsan_ignore_object(p);
+    MLG_LSAN_IGNORE_OBJECT(p);
 
     return p;
 }
@@ -65,7 +65,7 @@ std::vector<std::string>* MakePreficStack()
     std::vector<std::string>* p = new std::vector<std::string>; // NOLINT(cppcoreguidelines-owning-memory)
 
     // We intentionally leak this, so hide it from leak sanitizers
-    __lsan_ignore_object(p);
+    MLG_LSAN_IGNORE_OBJECT(p);
 
     return p;
 }

@@ -405,14 +405,31 @@ target_include_directories(ssg SYSTEM PRIVATE thirdparty/cgltf thirdparty/stb)
 compiler_flags(ssg)
 
 # ============================================================
-# Helper function for sample executables
+# Helper functions for executables
 # ============================================================
+set(SIGN_EXECUTABLE ${APPLE})
+
+function(sign_executable target_name)
+  if(SIGN_EXECUTABLE)
+    set(entitlements_file "${CMAKE_CURRENT_SOURCE_DIR}/samples/debug.entitlements")
+    set_property(TARGET ${target_name} APPEND PROPERTY LINK_DEPENDS
+                 "$<$<CONFIG:Debug>:${entitlements_file}>")
+    add_custom_command(
+      TARGET ${target_name} POST_BUILD
+      COMMAND "$<OUTPUT_CONFIG:$<$<CONFIG:Debug>:/usr/bin/codesign;--verbose;--force;--sign;-;--entitlements;${entitlements_file};$<TARGET_FILE:${target_name}>>>"
+      COMMAND_EXPAND_LISTS
+      VERBATIM
+    )
+  endif()
+endfunction()
+
 function(add_sample_executable target_name source_file)
   add_executable(${target_name} ${source_file} samples/MouseNav.cpp)
   target_link_libraries(${target_name} PRIVATE ssg::ssg)
   add_dependencies(${target_name} shaders copy_images)
 
   compiler_flags(${target_name})
+  sign_executable(${target_name})
 
   # Keep required runtime DLLs beside the executable so runs work outside System32.
   if(WIN32)
@@ -475,6 +492,7 @@ target_link_libraries(Tests PRIVATE gtest_main ssg::ssg)
 #add_dependencies(RunAllTests shaders copy_images)
 
 compiler_flags(Tests)
+sign_executable(Tests)
 
 # Enable testing and register tests
 # In Visual Studio tests should show up in Test Explorer.
