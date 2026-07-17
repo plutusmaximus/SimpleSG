@@ -6,25 +6,39 @@
 #include "shaders/ShaderInterop.h"
 #include "Vertex.h"
 
+#include <concepts>
+#include <type_traits>
 #include <webgpu/webgpu_cpp.h>
 
 /// @brief A wrapper for GPU objects that guarantees the underlying object is valid.
 template<typename T>
-class ValidGpuObject
+class GpuValidObject
 {
-public:
-    ValidGpuObject() = delete;
+    static_assert(std::is_copy_constructible_v<T> && std::is_move_constructible_v<T>,
+        "GpuValidObject can only be used with copyable and movable types");
+    static_assert(!std::is_pointer_v<T> && !std::is_reference_v<T>,
+        "GpuValidObject can only be used with non-pointer, non-reference types");
+    static_assert(
+        requires(const T& object) { object.Get(); },
+        "GpuValidObject requires T to have a const Get() method");
+    static_assert(
+        requires(const T& a, const T& b) {
+            { a.Get() == b.Get() } -> std::convertible_to<bool>;
+        }, "GpuValidObject requires values returned by T::Get() to support operator==");
 
-    static Result<ValidGpuObject> Create(T gpuObject)
+public:
+    GpuValidObject() = delete;
+
+    static Result<GpuValidObject> Create(T gpuObject)
     {
         MLG_CHECKV(gpuObject, "Invalid GPU object");
-        return ValidGpuObject(std::move(gpuObject));
+        return GpuValidObject(std::move(gpuObject));
     }
 
-    static Result<ValidGpuObject> Create(Result<T> result)
+    static Result<GpuValidObject> Create(Result<T> result)
     {
         MLG_CHECKV(result, "Invalid GPU object");
-        return ValidGpuObject(std::move(*result));
+        return GpuValidObject(std::move(*result));
     }
 
     T& operator*() { return m_GpuObject; }
@@ -33,14 +47,13 @@ public:
     T* operator->() { return &m_GpuObject; }
     const T* operator->() const { return &m_GpuObject; }
 
-    friend bool operator==(const ValidGpuObject& a, const ValidGpuObject& b)
+    friend bool operator==(const GpuValidObject& a, const GpuValidObject& b)
     {
         return a.m_GpuObject.Get() == b.m_GpuObject.Get();
     }
 
 private:
-
-    explicit ValidGpuObject(T gpuObject)
+    explicit GpuValidObject(T gpuObject)
         : m_GpuObject(std::move(gpuObject))
     {
         MLG_ASSERT(m_GpuObject, "Invalid GPU object");
@@ -49,7 +62,8 @@ private:
     T m_GpuObject;
 };
 
-enum class SemanticBufferType
+/// @brief Identifies the intended usage of a GpuBuffer.
+enum class GpuBufferUsage
 {
     Vertex,
     Index,
@@ -58,25 +72,27 @@ enum class SemanticBufferType
     Storage
 };
 
-/// @brief A strongly-typed GPU buffer that wraps a wgpu::Buffer and provides type-safe access to its contents.
-template<typename T, SemanticBufferType BufferType>
-class SemanticGpuBuffer
+/// @brief A strongly-typed GPU buffer that wraps a wgpu::Buffer, guarantees
+/// its validity, and provides type-safe access to its contents.
+template<typename T, GpuBufferUsage BufferUsage>
+class GpuBuffer
 {
-    static_assert(std::is_trivially_copyable_v<T>, "SemanticGpuBuffer can only be used with trivially copyable types");
-    static_assert(!std::is_pointer_v<T>, "SemanticGpuBuffer can only be used with non-pointer types");
-    static_assert(!std::is_reference_v<T>, "SemanticGpuBuffer can only be used with non-reference types");
+    static_assert(std::is_trivially_copyable_v<T>,
+        "GpuBuffer can only be used with trivially copyable types");
+    static_assert(!std::is_pointer_v<T>, "GpuBuffer can only be used with non-pointer types");
+    static_assert(!std::is_reference_v<T>, "GpuBuffer can only be used with non-reference types");
 
 public:
     using value_type = T;
 
-    SemanticGpuBuffer() = delete;
+    GpuBuffer() = delete;
 
-    static Result<SemanticGpuBuffer> Create(wgpu::Device gpuDevice, wgpu::Buffer buffer)
+    static Result<GpuBuffer> Create(wgpu::Device gpuDevice, wgpu::Buffer buffer)
     {
         MLG_CHECKV(gpuDevice, "Invalid wgpu::Device");
         MLG_CHECKV(buffer, "Invalid wgpu::Buffer");
 
-        return SemanticGpuBuffer(std::move(gpuDevice), std::move(buffer));
+        return GpuBuffer(std::move(gpuDevice), std::move(buffer));
     }
 
     const wgpu::Buffer& GetGpuBuffer() const { return m_GpuBuffer; }
@@ -86,10 +102,7 @@ public:
     size_t Count() const { return BufferSize() / sizeof(T); }
 
     // Stores a single value at the given index.
-    void Store(std::size_t index, const T& value)
-    {
-        Store(index, std::span<const T>(&value, 1));
-    }
+    void Store(std::size_t index, const T& value) { Store(index, std::span<const T>(&value, 1)); }
 
     // Stores an array of values starting at the given index.
     void Store(std::size_t index, std::span<const T> values)
@@ -107,48 +120,55 @@ public:
     // Stores an array of values starting at the zero index.
     void Store(std::span<const T> values) { Store(0, values); }
 
-    friend bool operator==(const SemanticGpuBuffer& a, const SemanticGpuBuffer& b)
+    friend bool operator==(const GpuBuffer& a, const GpuBuffer& b)
     {
         return a.m_Device.Get() == b.m_Device.Get() && a.m_GpuBuffer.Get() == b.m_GpuBuffer.Get();
     }
 
 private:
-
-    SemanticGpuBuffer(wgpu::Device gpuDevice, wgpu::Buffer buffer)
-        : m_Device(std::move(gpuDevice)), m_GpuBuffer(std::move(buffer))
+    GpuBuffer(wgpu::Device gpuDevice, wgpu::Buffer buffer)
+        : m_Device(std::move(gpuDevice)),
+          m_GpuBuffer(std::move(buffer))
     {
     }
 
-    wgpu::Device m_Device{nullptr};
-    wgpu::Buffer m_GpuBuffer{nullptr};
+    wgpu::Device m_Device{ nullptr };
+    wgpu::Buffer m_GpuBuffer{ nullptr };
 };
 
-/// @brief Type traits to determine if a type is a SemanticGpuBuffer of a specific buffer type.
-#define MLG_DEFINE_GPU_BUFFER_TYPE(typeName, bufferType) \
-template<typename T>\
-struct is_gpu_##typeName##_buffer_type : std::false_type {}; \
-template<typename T> \
-struct is_gpu_##typeName##_buffer_type<SemanticGpuBuffer<T, SemanticBufferType::bufferType>> : std::true_type {}; \
-template<typename T> \
-inline constexpr bool is_gpu_##typeName##_buffer_type_v = is_gpu_##typeName##_buffer_type<T>::value;
+/// @brief Type traits to determine if a type is a GpuBuffer of a specific buffer type.
+#define MLG_DEFINE_GPU_BUFFER_TRAITS(typeName, bufferUsage)                                        \
+    template<typename T>                                                                           \
+    struct is_gpu_##typeName##_buffer_type : std::false_type                                       \
+    {                                                                                              \
+    };                                                                                             \
+    template<typename T>                                                                           \
+    struct is_gpu_##typeName##                                                                     \
+        _buffer_type<GpuBuffer<T, GpuBufferUsage::bufferUsage>> : std::true_type                   \
+    {                                                                                              \
+    };                                                                                             \
+    template<typename T>                                                                           \
+    inline constexpr bool is_gpu_##typeName##_buffer_type_v =                                      \
+        is_gpu_##typeName##_buffer_type<T>::value;
 
-MLG_DEFINE_GPU_BUFFER_TYPE(vertex, Vertex)
-MLG_DEFINE_GPU_BUFFER_TYPE(index, Index)
-MLG_DEFINE_GPU_BUFFER_TYPE(indirect, Indirect)
-MLG_DEFINE_GPU_BUFFER_TYPE(uniform, Uniform)
-MLG_DEFINE_GPU_BUFFER_TYPE(storage, Storage)
+MLG_DEFINE_GPU_BUFFER_TRAITS(vertex, Vertex)
+MLG_DEFINE_GPU_BUFFER_TRAITS(index, Index)
+MLG_DEFINE_GPU_BUFFER_TRAITS(indirect, Indirect)
+MLG_DEFINE_GPU_BUFFER_TRAITS(uniform, Uniform)
+MLG_DEFINE_GPU_BUFFER_TRAITS(storage, Storage)
 
-using ValidTexture = ValidGpuObject<wgpu::Texture>;
-using ValidBindGroupLayout = ValidGpuObject<wgpu::BindGroupLayout>;
-using ValidBindGroup = ValidGpuObject<wgpu::BindGroup>;
-using ValidShaderModule = ValidGpuObject<wgpu::ShaderModule>;
+using ValidTexture = GpuValidObject<wgpu::Texture>;
+using ValidBindGroupLayout = GpuValidObject<wgpu::BindGroupLayout>;
+using ValidBindGroup = GpuValidObject<wgpu::BindGroup>;
+using ValidShaderModule = GpuValidObject<wgpu::ShaderModule>;
 
 // Strongly-typed GPU storage buffer classes.
-using VertexBuffer = SemanticGpuBuffer<Vertex, SemanticBufferType::Vertex>;
-using IndexBuffer = SemanticGpuBuffer<VertexIndex, SemanticBufferType::Index>;
-using DrawIndirectBuffer = SemanticGpuBuffer<ShaderInterop::DrawIndirectParams, SemanticBufferType::Indirect>;
-using WorldTransformBuffer = SemanticGpuBuffer<ShaderInterop::WorldTransform, SemanticBufferType::Storage>;
-using ClipSpaceBuffer = SemanticGpuBuffer<ShaderInterop::ClipSpaceTransform, SemanticBufferType::Storage>;
-using MeshPropertiesBuffer = SemanticGpuBuffer<ShaderInterop::MeshProperties, SemanticBufferType::Storage>;
-using CameraParamsBuffer = SemanticGpuBuffer<ShaderInterop::CameraParams, SemanticBufferType::Uniform>;
-using MaterialConstantsBuffer = SemanticGpuBuffer<ShaderInterop::MaterialConstants, SemanticBufferType::Storage>;
+using VertexBuffer = GpuBuffer<Vertex, GpuBufferUsage::Vertex>;
+using IndexBuffer = GpuBuffer<VertexIndex, GpuBufferUsage::Index>;
+using DrawIndirectBuffer = GpuBuffer<ShaderInterop::DrawIndirectParams, GpuBufferUsage::Indirect>;
+using WorldTransformBuffer = GpuBuffer<ShaderInterop::WorldTransform, GpuBufferUsage::Storage>;
+using ClipSpaceBuffer = GpuBuffer<ShaderInterop::ClipSpaceTransform, GpuBufferUsage::Storage>;
+using MeshPropertiesBuffer = GpuBuffer<ShaderInterop::MeshProperties, GpuBufferUsage::Storage>;
+using CameraParamsBuffer = GpuBuffer<ShaderInterop::CameraParams, GpuBufferUsage::Uniform>;
+using MaterialConstantsBuffer =
+    GpuBuffer<ShaderInterop::MaterialConstants, GpuBufferUsage::Storage>;

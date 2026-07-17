@@ -12,8 +12,8 @@ class Texture;
 } // namespace wgpu
 
 template<typename T>
-class ValidGpuObject;
-using ValidTexture = ValidGpuObject<wgpu::Texture>;
+class GpuValidObject;
+using ValidTexture = GpuValidObject<wgpu::Texture>;
 
 class ImGuiRenderer
 {

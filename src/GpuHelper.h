@@ -172,7 +172,7 @@ public:
     Result<T> CreateStorageBuffer(const size_t count, const std::string_view& name) const
     {
         static_assert(is_gpu_storage_buffer_type_v<T>,
-            "T must be a SemanticGpuBuffer type with BufferType::Storage");
+            "T must be a GpuBuffer type with GpuBufferUsage::Storage");
 
         const size_t bufferSize = count * sizeof(typename T::value_type);
         auto bufferResult = CreateStorageBuffer(bufferSize, name);
@@ -186,7 +186,7 @@ public:
     Result<T> CreateUniformBuffer(const size_t count, const std::string_view& name) const
     {
         static_assert(is_gpu_uniform_buffer_type_v<T>,
-            "T must be a SemanticGpuBuffer type with BufferType::Uniform");
+            "T must be a GpuBuffer type with GpuBufferUsage::Uniform");
 
         const size_t bufferSize = count * sizeof(typename T::value_type);
         auto bufferResult = CreateUniformBuffer(bufferSize, name);
@@ -200,7 +200,7 @@ public:
     Result<T> CreateIndirectBuffer(const size_t count, const std::string_view& name) const
     {
         static_assert(is_gpu_indirect_buffer_type_v<T>,
-            "T must be a SemanticGpuBuffer type with BufferType::Indirect");
+            "T must be a GpuBuffer type with GpuBufferUsage::Indirect");
 
         const size_t bufferSize = count * sizeof(typename T::value_type);
         auto bufferResult = CreateIndirectBuffer(bufferSize, name);
