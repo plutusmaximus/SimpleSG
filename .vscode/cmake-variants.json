@@ -1,23 +1,35 @@
 {
-    "buildType":
-    {
+    "toolchain": {
+        "default": "native",
+        "choices": {
+            "native": {
+                "short": "Native",
+                "long": "Native compiler"
+            },
+            "emscripten": {
+                "short": "Emscripten",
+                "long": "Emscripten WebAssembly compiler",
+                "settings": {
+                    "CMAKE_TOOLCHAIN_FILE": "${env:EMSDK}/cmake/Modules/Platform/Emscripten.cmake",
+                    "ENABLE_CLANG_TIDY": "OFF"
+                }
+            }
+        }
+    },
+    "buildType": {
         "default": "debug",
-        "choices":
-        {
-            "debug":
-            {
+        "choices": {
+            "debug": {
                 "short": "Debug",
                 "long": "Debug build",
                 "buildType": "Debug"
             },
-            "release":
-            {
+            "release": {
                 "short": "Release",
                 "long": "Release build",
                 "buildType": "Release"
             },
-            "asan":
-            {
+            "asan": {
                 "short": "Sanitize",
                 "long": "Sanitizer build",
                 "buildType": "Sanitize"

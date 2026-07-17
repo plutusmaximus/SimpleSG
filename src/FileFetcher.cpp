@@ -142,6 +142,7 @@ FileFetcher::ProcessCompletions()
     {
         if(outcome.type == SDL_ASYNCIO_TASK_CLOSE)
         {
+            // Do not try to access userdata here, as it may have been freed already.
             continue;
         }
 

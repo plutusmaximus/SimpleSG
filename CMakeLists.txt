@@ -3,6 +3,17 @@ cmake_policy(SET CMP0091 NEW) # Use the new MSVC runtime library flag behavior
 set(CMAKE_CROSS_CONFIGS "all")
 project(SimpleSG LANGUAGES C CXX)
 
+if(CMAKE_TOOLCHAIN_FILE MATCHES "Emscripten\\.cmake$" AND NOT EMSCRIPTEN)
+  message(FATAL_ERROR
+    "The Emscripten toolchain was requested, but CMake configured a native compiler.\n"
+    "In VS Code, run 'CMake: Select a Kit' and select '[Unspecified]', then\n"
+    "delete build/emscripten and configure again.\n"
+    "C compiler: ${CMAKE_C_COMPILER}\n"
+    "C++ compiler: ${CMAKE_CXX_COMPILER}\n"
+    "Toolchain: ${CMAKE_TOOLCHAIN_FILE}"
+  )
+endif()
+
 # ============================================================
 # Global settings
 # ============================================================
@@ -51,6 +62,11 @@ add_link_options(
     $<$<AND:$<CONFIG:Sanitize>,$<C_COMPILER_ID:MSVC>>:/fsanitize=address>
     $<$<AND:$<CONFIG:Sanitize>,$<CXX_COMPILER_ID:MSVC>>:/fsanitize=address>
 )
+
+if(EMSCRIPTEN)
+  add_compile_options(-pthread)
+  add_link_options(-pthread)
+endif()
 
 set(BUILD_SHARED_LIBS OFF)
 set(CMAKE_CXX_STANDARD 23)
@@ -148,6 +164,7 @@ add_subdirectory(thirdparty/googletest)
 
 # --- SDL3
 set(SDL_SHARED OFF CACHE BOOL "Build shared SDL library" FORCE)
+set(SDL_PTHREADS ON CACHE BOOL "Build SDL with pthreads" FORCE) # Required to use AsyncIO on emscripten
 set(SDL_STATIC ON CACHE BOOL "Build static SDL library" FORCE)
 set(SDL_TEST OFF CACHE BOOL "Build SDL test programs" FORCE)
 set(SDL_TESTS OFF CACHE BOOL "Build SDL tests" FORCE)
@@ -267,7 +284,11 @@ target_include_directories(imgui SYSTEM PUBLIC
     thirdparty/imgui/backends
 )
 
-target_link_libraries(imgui PUBLIC SDL3::SDL3 dawn_headers)
+if(EMSCRIPTEN)
+  target_link_libraries(imgui PUBLIC SDL3::SDL3 emdawnwebgpu_cpp)
+else()
+  target_link_libraries(imgui PUBLIC SDL3::SDL3 dawn_headers)
+endif()
 target_compile_definitions(imgui PRIVATE IMGUI_IMPL_WEBGPU_BACKEND_DAWN)
 
 # ============================================================
@@ -460,6 +481,16 @@ add_sample_executable(Triangle samples/Triangle.cpp)
 # Executable: EmTriangle
 # ============================================================
 add_sample_executable(EmTriangle samples/EmTriangle.cpp)
+if(EMSCRIPTEN)
+  set_target_properties(EmTriangle PROPERTIES SUFFIX ".html")
+
+  target_link_options(EmTriangle PRIVATE
+    "-sPTHREAD_POOL_SIZE=8"
+    "-sJSPI"
+    "--preload-file=${CMAKE_BINARY_DIR}/$<CONFIG>/images@/images"
+    "--preload-file=${CMAKE_BINARY_DIR}/$<CONFIG>/shaders@/shaders"
+  )
+endif()
 
 # ============================================================
 # Executable: Viewer

@@ -2,6 +2,23 @@
 
 #include "PerfMetrics.h"
 
+#ifndef __EMSCRIPTEN__
+
+void emscripten_set_main_loop(void (*func)(), int /*fps*/, int /*simulate_infinite_loop*/)
+{
+    while(EmscriptenState::IsRunning)
+    {
+        func();
+    }
+}
+
+void emscripten_cancel_main_loop()
+{
+    EmscriptenState::IsRunning = false;
+}
+
+#endif
+
 Shell::Shell(const char* appName)
     : SystemCreateTask(System::Create(appName))
 {
@@ -99,20 +116,3 @@ Shell::Update(AppUpdateCallback appUpdateCb)
 
     return Result<>::Ok;
 }
-
-#if !defined(__EMSCRIPTEN__)
-
-void emscripten_set_main_loop(void (*func)(), int /*fps*/, int /*simulate_infinite_loop*/)
-{
-    while(EmscriptenState::IsRunning)
-    {
-        func();
-    }
-}
-
-void emscripten_cancel_main_loop()
-{
-    EmscriptenState::IsRunning = false;
-}
-
-#endif

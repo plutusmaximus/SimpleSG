@@ -46,7 +46,10 @@ private:
     State m_State{ State::Init };
 };
 
-#if !defined(__EMSCRIPTEN__)
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#else
+
 struct EmscriptenState
 {
     static inline bool IsRunning{ true };
@@ -56,4 +59,4 @@ void emscripten_set_main_loop(void (*func)(), int fps, int simulate_infinite_loo
 
 void emscripten_cancel_main_loop();
 
-#endif
+#endif // __EMSCRIPTEN__

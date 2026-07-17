@@ -22,42 +22,6 @@ namespace
 constexpr int kNumTextureChannels = 4;
 
 const char*
-GetBackendTypeString(const WGPUBackendType backendType)
-{
-    switch(backendType)
-    {
-        case WGPUBackendType_D3D11:
-            return "D3D11";
-        case WGPUBackendType_D3D12:
-            return "D3D12";
-        case WGPUBackendType_Metal:
-            return "Metal";
-        case WGPUBackendType_Vulkan:
-            return "Vulkan";
-        case WGPUBackendType_WebGPU:
-            return "WebGPU";
-        default:
-            return "Unknown";
-    }
-}
-
-const char*
-GetAdapterTypeString(const WGPUAdapterType adapterType)
-{
-    switch(adapterType)
-    {
-        case WGPUAdapterType_DiscreteGPU:
-            return "Discrete GPU";
-        case WGPUAdapterType_IntegratedGPU:
-            return "Integrated GPU";
-        case WGPUAdapterType_CPU:
-            return "CPU";
-        default:
-            return "Unknown";
-    }
-}
-
-const char*
 GetPresentModeString(const wgpu::PresentMode presentMode)
 {
     switch(presentMode)
@@ -212,25 +176,6 @@ ChooseBackbufferFormat(const std::span<const wgpu::TextureFormat> availableForma
     return availableFormats[0];
 }
 
-#if defined(__EMSCRIPTEN__)
-
-static Result<wgpu::Surface>
-CreateSurface(wgpu::Instance instance, SDL_Window* window)
-{
-    wgpu::EmscriptenSurfaceSourceCanvasHTMLSelector canvas_desc = {};
-    canvas_desc.selector = "#canvas";
-
-    wgpu::SurfaceDescriptor surface_desc = {};
-    surface_desc.nextInChain = &canvas_desc;
-    wgpu::Surface surface = instance.CreateSurface(&surface_desc);
-
-    MLG_CHECK(surface, "Failed to create WGPUSurface from SDL window");
-
-    return surface;
-}
-
-#else
-
 Result<wgpu::Surface>
 CreateSurface(const wgpu::Instance& instance,
     [[maybe_unused]] SDL_Window* window,
@@ -239,7 +184,15 @@ CreateSurface(const wgpu::Instance& instance,
     wgpu::SurfaceDescriptor surfaceDesc{};
     wgpu::Surface surface;
 
-#if defined(_WIN32)
+#if defined(__EMSCRIPTEN__)
+
+    wgpu::EmscriptenSurfaceSourceCanvasHTMLSelector canvas_desc = {};
+    canvas_desc.selector = "#canvas";
+
+    surfaceDesc.nextInChain = &canvas_desc;
+    surface = instance.CreateSurface(&surfaceDesc);
+
+#elif defined(_WIN32)
 
     MLG_DEBUG("Creating surface for Win32 HWND");
 
@@ -301,12 +254,10 @@ CreateSurface(const wgpu::Instance& instance,
     MLG_ERROR("Unsupported platform for surface creation");
 #endif
 
-    MLG_CHECK(surface, "Failed to create WGPUSurface from SDL window");
+    MLG_CHECK(surface, "Failed to create Surface");
 
     return surface;
 }
-
-#endif // defined(__EMSCRIPTEN__)
 
 Result<wgpu::TextureFormat>
 ConfigureSurface(const wgpu::Adapter& adapter,
@@ -366,7 +317,8 @@ CreateDefaultTexture(GpuHelper& gpuHelper)
     void* mapped = stagingBuffer->GetMappedRange();
     MLG_CHECK(mapped);
 
-    const std::span<uint8_t> mappedSpan(static_cast<uint8_t*>(mapped), stagingBuffer->GetSize());
+    const std::span<uint8_t> mappedSpan(static_cast<uint8_t*>(mapped),
+        narrow_cast<size_t>(stagingBuffer->GetSize()));
 
     const size_t rowStride = GetTextureAlignedRowStride(kDefaultTextureWidth);
 
@@ -682,10 +634,8 @@ GpuHelper::CreateTask::Begin(const std::string_view& appName)
     MLG_CHECK(window);
     gpuHelper->Window = std::move(*window);
 
-    SDL_MetalView metalView = nullptr;
-
 #if defined(__APPLE__)
-    metalView = SDL_Metal_CreateView(*window);
+    SDL_MetalView metalView = SDL_Metal_CreateView(*window);
     MLG_CHECK(metalView, SDL_GetError());
     gpuHelper->MetalView = metalView;
 #endif
@@ -775,6 +725,7 @@ GpuHelper::CreateTask::CreateDevice()
 
     MLG_INFO("Creating device...");
 
+#ifndef __EMSCRIPTEN__
     const char* const enabledToggles[] = { //"skip_validation",
         //"disable_robustness",
         //"allow_unsafe_apis", // Required for MultiDrawIndirect
@@ -792,6 +743,7 @@ GpuHelper::CreateTask::CreateDevice()
     toggles.enabledToggles = &enabledToggles[0];
     // toggles.disabledToggleCount = std::size(disabledToggles);
     // toggles.disabledToggles = disabledToggles;
+#endif
 
     const wgpu::FeatureName requiredFeatures[] = //
         {
@@ -810,7 +762,9 @@ GpuHelper::CreateTask::CreateDevice()
     wgpu::DeviceDescriptor deviceDesc //
         {
             {
+#ifndef __EMSCRIPTEN__
                 //.nextInChain = &toggles,
+#endif
                 .nextInChain = nullptr,
                 .label = "MainDevice",
                 .requiredFeatureCount = std::size(requiredFeatures),
@@ -1020,6 +974,8 @@ GpuHelper::Resize(const uint32_t width, const uint32_t height)
 Result<ValidShaderModule>
 GpuHelper::LoadShader(const std::string_view& filePath, FileFetcher& fileFetcher) const
 {
+    MLG_INFO("Loading shader file: {}", filePath);
+
     FileFetcher::Request request{ std::string(filePath) };
     MLG_CHECK(fileFetcher.Fetch(request));
 
@@ -1040,6 +996,8 @@ GpuHelper::LoadShader(const std::string_view& filePath, FileFetcher& fileFetcher
     const wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCode } };
     const wgpu::ShaderModuleDescriptor desc{ .nextInChain = &wgsl, .label = label };
 
+    MLG_INFO("Creating shader module: {}", filename);
+    
     const wgpu::ShaderModule shaderModule = GetDevice().CreateShaderModule(&desc);
     MLG_CHECK(shaderModule, "Failed to create shader module");
 
@@ -1304,10 +1262,66 @@ GpuHelper::CreateUniformBuffer(const size_t size, const std::string_view& name) 
     return buffer;
 }
 
+#ifndef __EMSCRIPTEN__
 #include <dawn/native/DawnNative.h> // provides dawn::native::GetTogglesUsed
+#endif
 
 namespace
 {
+
+#ifdef __EMSCRIPTEN__
+void
+EnumerateAdapters()
+{
+}
+
+void
+DumpAdapterInfo(const WGPUAdapterInfo&)
+{
+}
+
+void
+DumpDawnToggles(const wgpu::Device&)
+{
+}
+#else
+
+const char*
+GetBackendTypeString(const WGPUBackendType backendType)
+{
+    switch(backendType)
+    {
+        case WGPUBackendType_D3D11:
+            return "D3D11";
+        case WGPUBackendType_D3D12:
+            return "D3D12";
+        case WGPUBackendType_Metal:
+            return "Metal";
+        case WGPUBackendType_Vulkan:
+            return "Vulkan";
+        case WGPUBackendType_WebGPU:
+            return "WebGPU";
+        default:
+            return "Unknown";
+    }
+}
+
+const char*
+GetAdapterTypeString(const WGPUAdapterType adapterType)
+{
+    switch(adapterType)
+    {
+        case WGPUAdapterType_DiscreteGPU:
+            return "Discrete GPU";
+        case WGPUAdapterType_IntegratedGPU:
+            return "Integrated GPU";
+        case WGPUAdapterType_CPU:
+            return "CPU";
+        default:
+            return "Unknown";
+    }
+}
+
 void
 EnumerateAdapters()
 {
@@ -1357,6 +1371,8 @@ DumpDawnToggles(const wgpu::Device& device)
         MLG_DEBUG("  {}", t);
     }
 }
+
+#endif // __EMSCRIPTEN__
 
 void
 DumpWebgpuLimits(const wgpu::Device& device)

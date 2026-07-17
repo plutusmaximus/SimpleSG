@@ -52,9 +52,10 @@
     "cmake.configureSettings": {
         "ENABLE_CLANG_TIDY": "ON"
     },
-    "cmake.buildDirectory": "${workspaceFolder}/build",
+    "cmake.buildDirectory": "${workspaceFolder}/build/${variant:toolchain}",
     "cmake.deleteBuildDirOnCleanConfigure": false,
     "cmake.generator": "Ninja Multi-Config",
+    "cmake.copyCompileCommands": "${workspaceFolder}/build/compile_commands.json",
     "C_Cpp.intelliSenseEngine": "disabled",
     "C_Cpp.errorSquiggles": "disabled",
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",

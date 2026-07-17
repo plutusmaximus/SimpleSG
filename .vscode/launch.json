@@ -2,26 +2,12 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Tests (Debug, TestMate)",
-            "type": "lldb",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/Debug/Tests",
-            "cwd": "${workspaceFolder}/build/Debug",
-            "windows": {
-                "type": "cppvsdbg",
-                "program": "${workspaceFolder}/build/Debug/Tests.exe"
-            },
-            "presentation": {
-                "hidden": true
-            }
-        },
-        {
             "name": "Sample (Windows)",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/${input:buildType}/${input:target}.exe",
+            "program": "${workspaceFolder}/build/native/${input:buildType}/${input:target}.exe",
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build/${input:buildType}",
+            "cwd": "${workspaceFolder}/build/native/${input:buildType}",
             "console": "integratedTerminal",
             "presentation": {
                 "group": "Windows",
@@ -29,28 +15,12 @@
             }
         },
         {
-            "name": "Tests (Debug, List Tests, Windows)",
-            "type": "cppvsdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/Debug/Tests.exe",
-            "args": [
-                "--gtest_list_tests"
-            ],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build/Debug",
-            "console": "integratedTerminal",
-            "presentation": {
-                "group": "Windows",
-                "order": 2
-            }
-        },
-        {
             "name": "Sample (GDB, Linux)",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/${input:buildType}/${input:target}",
+            "program": "${workspaceFolder}/build/native/${input:buildType}/${input:target}",
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build/${input:buildType}",
+            "cwd": "${workspaceFolder}/build/native/${input:buildType}",
             "externalConsole": false,
             "MIMode": "gdb",
             "setupCommands": [
@@ -84,8 +54,8 @@
             "name": "Sample (LLDB, macOS)",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/build/${input:buildType}/${input:target}",
-            "cwd": "${workspaceFolder}/build/${input:buildType}",
+            "program": "${workspaceFolder}/build/native/${input:buildType}/${input:target}",
+            "cwd": "${workspaceFolder}/build/native/${input:buildType}",
             "env": {
                 "ASAN_OPTIONS": "abort_on_error=0",
                 "UBSAN_OPTIONS": "abort_on_error=0:print_stacktrace=1"
@@ -93,20 +63,6 @@
             "presentation": {
                 "group": "macOS",
                 "order": 1
-            }
-        },
-        {
-            "name": "Tests (Debug, List Tests, macOS)",
-            "type": "lldb",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/Debug/Tests",
-            "args": [
-                "--gtest_list_tests"
-            ],
-            "cwd": "${workspaceFolder}/build/Debug",
-            "presentation": {
-                "group": "macOS",
-                "order": 2
             }
         }
     ],
