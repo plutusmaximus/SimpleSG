@@ -111,7 +111,7 @@ Load(GpuHelper& gpuHelper,
 #ifdef _WIN32
 constexpr const char* SPONZA_MODEL_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
 #else
-constexpr const char* SPONZA_MODEL_PATH = "../../assets/main_sponza/NewSponza_Main_glTF_003.gltf";
+constexpr const char* SPONZA_MODEL_PATH = "../../../assets/main_sponza/NewSponza_Main_glTF_003.gltf";
 #endif
 
 Result<>

@@ -87,8 +87,8 @@ public:
         // in a separate Impl struct that is heap-allocated and managed by a unique_ptr.
         struct Impl
         {
-            Impl();
-            ~Impl();
+            Impl() = default;
+            ~Impl() = default;
             Impl(const Impl&) = delete;
             Impl& operator=(const Impl&) = delete;
             Impl(Impl&&) = delete;

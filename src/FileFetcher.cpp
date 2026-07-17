@@ -80,6 +80,7 @@ FileFetcher::Fetch(FileFetcher::Request& request)
 
     request.m_Status = RequestStatus::Pending;
 
+    // If we early exit this function due to an error, we need to mark the request as failed.
     MLG_DEFER_AS(setFailedOnExit)
     {
         if(request.IsPending())
@@ -98,6 +99,7 @@ FileFetcher::Fetch(FileFetcher::Request& request)
 
     request.m_AsyncIO = foreign_ptr<SDL_AsyncIO>(asyncIO);
 
+    // If we early exit this function due to an error, we need to close the SDL_AsyncIO object.
     MLG_DEFER_AS(closeOnFailure)
     {
         SDL_CloseAsyncIO(request.m_AsyncIO.release(), false, m_IoQueue, &request);
@@ -126,6 +128,7 @@ FileFetcher::Fetch(FileFetcher::Request& request)
 
     MLG_CHECK(IssueRead(request));
 
+    // We're returning successfully - cancel the setFailedOnExit and closeOnFailure.
     closeOnFailure.release();
     setFailedOnExit.release();
 

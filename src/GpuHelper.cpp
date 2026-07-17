@@ -408,7 +408,7 @@ RequestAdapterCb(wgpu::RequestAdapterStatus status,
 {
     if(status != wgpu::RequestAdapterStatus::Success)
     {
-        MLG_ERROR("RequestAdapter failed: {}", std::string(message.data, message.length));
+        MLG_ERROR("RequestAdapter failed: {}", std::string_view(message.data, message.length));
         requestData->Result = Result<>::Fail;
     }
     else
@@ -427,7 +427,7 @@ RequestDeviceCb(wgpu::RequestDeviceStatus status,
 {
     if(status != wgpu::RequestDeviceStatus::Success)
     {
-        MLG_ERROR("RequestDevice failed: {}", std::string(message.data, message.length));
+        MLG_ERROR("RequestDevice failed: {}", std::string_view(message.data, message.length));
         requestData->Result = Result<>::Fail;
     }
     else
@@ -445,7 +445,7 @@ DeviceLostCb(
 {
     MLG_ERROR("Device lost (reason:{}): {}",
         static_cast<int>(reason),
-        std::string(message.data, message.length));
+        std::string_view(message.data, message.length));
 
     // CallbackCancelled indicates intentional device destruction.
     // exit() was probably already called, or program terminated normally.
@@ -461,7 +461,7 @@ UncapturedErrorCb(
 {
     const std::string errorStr = std::format("Uncaptured error (type:{}): {}",
         static_cast<int>(errorType),
-        std::string(message.data, message.length));
+        std::string_view(message.data, message.length));
 
     MLG_ERROR(errorStr);
 
@@ -471,9 +471,6 @@ UncapturedErrorCb(
 } // namespace
 
 ////////// GpuHelper::CreateTask
-
-GpuHelper::CreateTask::Impl::Impl() = default;
-GpuHelper::CreateTask::Impl::~Impl() = default;
 
 Result<>
 GpuHelper::CreateTask::Update()
@@ -583,9 +580,11 @@ GpuHelper::CreateTask::Get()
 {
     MLG_CHECKV(Succeeded(), "CreateTask did not succeed");
 
-    std::unique_ptr<Impl> taskImpl = std::move(m_TaskImpl);
+    // Invalidate the task and allow the impl to be destroyed, but keep the GpuHelper instance alive
+    // and return it to the caller.
+    std::unique_ptr<Impl> bye = std::move(m_TaskImpl);
 
-    std::unique_ptr<GpuHelper> gpuHelper = std::move(taskImpl->m_GpuHelper);
+    std::unique_ptr<GpuHelper> gpuHelper = std::move(bye->m_GpuHelper);
 
     int width{ 0 }, height{ 0 };
     SDL_GetWindowSize(gpuHelper->Window, &width, &height);
@@ -625,10 +624,7 @@ GpuHelper::CreateTask::Begin(const std::string_view& appName)
 
     MLG_INFO("Creating GpuHelper...");
 
-    std::unique_ptr<Impl> taskImpl = std::make_unique<Impl>();
-
-    taskImpl->m_GpuHelper = std::unique_ptr<GpuHelper>(new GpuHelper());
-    GpuHelper* gpuHelper = taskImpl->m_GpuHelper.get();
+    std::unique_ptr<GpuHelper> gpuHelper = std::unique_ptr<GpuHelper>(new GpuHelper());
 
     auto window = CreateSdlWindow(appName);
     MLG_CHECK(window);
@@ -648,9 +644,9 @@ GpuHelper::CreateTask::Begin(const std::string_view& appName)
     MLG_CHECK(surface);
     gpuHelper->Surface = std::move(*surface);
 
-    taskImpl->m_State = CreateTask::State::CreateAdapter;
-
-    m_TaskImpl = std::move(taskImpl);
+    m_TaskImpl = std::make_unique<Impl>();
+    m_TaskImpl->m_GpuHelper = std::move(gpuHelper);
+    m_TaskImpl->m_State = CreateTask::State::CreateAdapter;
 
     return Result<>::Ok;
 }
