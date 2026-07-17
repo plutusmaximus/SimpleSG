@@ -57,7 +57,7 @@ private:
     Result<> EnsureBindgroup();
     Result<> EnsurePipeline();
 
-    GpuHelper const* m_GpuHelper;
+    const GpuHelper* m_GpuHelper;
 
     std::optional<Inputs> m_Inputs;
     std::optional<Outputs> m_Outputs;

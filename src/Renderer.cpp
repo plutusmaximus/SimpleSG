@@ -1,4 +1,3 @@
-#include <webgpu/webgpu_cpp.h>
 #define MLG_LOGGER_NAME "RNDR"
 
 #include "Renderer.h"
