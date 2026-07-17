@@ -21,7 +21,6 @@ class logger;
 class Log final
 {
 public:
-
     enum class Level : uint8_t
     {
         Trace = 0,
@@ -34,8 +33,7 @@ public:
     class Logger
     {
     public:
-
-        explicit Logger(const std::string& name);
+        explicit Logger(std::string name);
 
         ~Logger() = default;
 
@@ -45,21 +43,40 @@ public:
         Logger(Logger&&) = delete;
         Logger& operator=(Logger&&) = delete;
 
+        void Log(const Level level, const std::string& message) { LogImpl(level, Prefix(message)); }
+
         template<typename... Args>
         void Log(const Level level, std::format_string<Args...> fmt, Args&&... args)
         {
-            LogImpl(level, Prefix(std::format(fmt, std::forward<Args>(args)...)));
+            Log(level, std::format(fmt, std::forward<Args>(args)...));
         }
 
-        void Log(const Level level, const std::string& message)
+        void LogError(const char* function,
+            const char* fileName,
+            const int lineNum,
+            const std::string& message)
         {
-            LogImpl(level, Prefix(message));
+            const std::string formattedMessage =
+                std::format("{}({}): {} - {}", fileName, lineNum, function, message);
+
+            Log(Log::Level::Error, Prefix(formattedMessage));
+        }
+
+        template<typename... Args>
+        void LogError(const char* function,
+            const char* fileName,
+            const int lineNum,
+            std::format_string<Args...> fmt,
+            Args&&... args)
+        {
+            const std::string userMsg = std::format(fmt, std::forward<Args>(args)...);
+
+            LogError(function, fileName, lineNum, userMsg);
         }
 
         void SetLevel(const Level level);
 
     private:
-
         void LogImpl(const Level level, const std::string& message);
 
         std::shared_ptr<spdlog::logger> m_Logger;
@@ -86,13 +103,12 @@ public:
         PushPrefix(std::format(fmt, std::forward<Args>(args)...));
     }
 
-    static void PushPrefix(const std::string& message);
+    static void PushPrefix(std::string message);
 
     static void PopPrefix();
 
 private:
-
-    static inline Logger s_AssertLogger{"ASSERT"};
+    static inline Logger s_AssertLogger{ "ASSERT" };
 
     static std::string Prefix(const std::string& message);
 };
@@ -107,15 +123,9 @@ struct LogScope
         Log::PushPrefix(fmt, std::forward<Args>(args)...);
     }
 
-    explicit LogScope(const std::string& message)
-    {
-        Log::PushPrefix(message);
-    }
+    explicit LogScope(std::string message) { Log::PushPrefix(std::move(message)); }
 
-    ~LogScope()
-    {       
-        Log::PopPrefix();
-    }
+    ~LogScope() { Log::PopPrefix(); }
 
     LogScope() = delete;
     LogScope(const LogScope&) = delete;
@@ -123,7 +133,7 @@ struct LogScope
     LogScope(LogScope&&) = delete;
     LogScope& operator=(LogScope&&) = delete;
 };
-}
+} // namespace mlg
 
 // Helper macros for scoping log messages.
 // Usage:
@@ -152,16 +162,18 @@ struct LogScope
 
 #define MLG_LOG_SCOPE_CONCAT_HELPER(a, b) a##b
 #define MLG_LOG_SCOPE_CONCAT(a, b) MLG_LOG_SCOPE_CONCAT_HELPER(a, b)
-#define MLG_LOG_SCOPE(...) const mlg::LogScope MLG_LOG_SCOPE_CONCAT(logScope_, __LINE__)(__VA_ARGS__);
+#define MLG_LOG_SCOPE(...) \
+    const mlg::LogScope MLG_LOG_SCOPE_CONCAT(logScope_, __LINE__)(__VA_ARGS__);
 
-static inline Log::Logger& MLG_LocalLogger()
+static inline Log::Logger&
+MLG_LocalLogger()
 {
     static Log::Logger logger(MLG_LOGGER_NAME);
     return logger;
 }
 
-#define MLG_TRACE(...) MLG_LocalLogger().Log( Log::Level::Trace, __VA_ARGS__)
-#define MLG_DEBUG(...) MLG_LocalLogger().Log( Log::Level::Debug, __VA_ARGS__)
-#define MLG_INFO(...) MLG_LocalLogger().Log( Log::Level::Info, __VA_ARGS__)
-#define MLG_WARN(...) MLG_LocalLogger().Log( Log::Level::Warn, __VA_ARGS__)
-#define MLG_ERROR(...) MLG_LocalLogger().Log( Log::Level::Error, __VA_ARGS__)
+#define MLG_TRACE(...) MLG_LocalLogger().Log(Log::Level::Trace, __VA_ARGS__)
+#define MLG_DEBUG(...) MLG_LocalLogger().Log(Log::Level::Debug, __VA_ARGS__)
+#define MLG_INFO(...) MLG_LocalLogger().Log(Log::Level::Info, __VA_ARGS__)
+#define MLG_WARN(...) MLG_LocalLogger().Log(Log::Level::Warn, __VA_ARGS__)
+#define MLG_ERROR(...) MLG_LocalLogger().LogError(__func__, __FILE__, __LINE__ __VA_OPT__(,) __VA_ARGS__)

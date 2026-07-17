@@ -111,7 +111,7 @@ std::string& LogPrefix()
     return logPrefix;
 }
 
-std::shared_ptr<spdlog::logger> GetLogger(const std::string& name)
+std::shared_ptr<spdlog::logger> GetLogger(std::string name)
 {
     const std::lock_guard<std::mutex> lock(GetMutex());
 
@@ -119,7 +119,7 @@ std::shared_ptr<spdlog::logger> GetLogger(const std::string& name)
 
     if(!logger)
     {
-        logger = std::make_shared<spdlog::logger>(name, GetMuxSink());
+        logger = std::make_shared<spdlog::logger>(std::move(name), GetMuxSink());
 
         spdlog::initialize_logger(logger);
         spdlog::register_or_replace(logger);
@@ -129,8 +129,8 @@ std::shared_ptr<spdlog::logger> GetLogger(const std::string& name)
 }
 } // namespace
 
-Log::Logger::Logger(const std::string& name)
-    : m_Logger(GetLogger(name))
+Log::Logger::Logger(std::string name)
+    : m_Logger(GetLogger(std::move(name)))
 {
 }
 
@@ -170,9 +170,9 @@ Log::SetLevel(const Level level)
 }
 
 void
-Log::PushPrefix(const std::string& message)
+Log::PushPrefix(std::string message)
 {
-    GetPrefixStack().push_back(message);
+    GetPrefixStack().push_back(std::move(message));
     ShouldRebuildPrefix() = true;
 }
 

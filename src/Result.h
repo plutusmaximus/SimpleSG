@@ -112,8 +112,7 @@ private:
 #define MLG_CHECK(expr, ...) \
     while(!static_cast<bool>(expr)) \
     { \
-        __VA_OPT__(const std::string errorMessage = Result<>::Format(__VA_ARGS__);) \
-        __VA_OPT__(MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, errorMessage)); \
+        __VA_OPT__(MLG_ERROR(__VA_ARGS__)); \
         return Result<>::Fail; \
     }
 
@@ -121,7 +120,6 @@ private:
 #define MLG_CHECKV(expr, ...) \
     while(!MLG_VERIFY(expr __VA_OPT__(,) __VA_ARGS__)) \
     { \
-        __VA_OPT__(const std::string errorMessage = Result<>::Format(__VA_ARGS__);) \
-        __VA_OPT__(MLG_ERROR("[{}:{}]:{}", __FILE__, __LINE__, errorMessage)); \
+        __VA_OPT__(MLG_ERROR(__VA_ARGS__)); \
         return Result<>::Fail; \
     }
