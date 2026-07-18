@@ -9,40 +9,40 @@
 
 namespace
 {
-std::mutex& GetMutex()
+
+struct PerfMetricsState
 {
-    static std::mutex* mutex = new std::mutex; // NOLINT(cppcoreguidelines-owning-memory)
+    static constexpr size_t kStringArenaChunkSize = 1024uz * 4uz;
+
+    std::mutex Mutex;
+    StringArena Strings{ kStringArenaChunkSize };
+};
+
+PerfMetricsState&
+GetPerfMetricsState()
+{
+    PerfMetricsState* state = new PerfMetricsState; // NOLINT(cppcoreguidelines-owning-memory)
 
     // We intentionally leak this, so hide it from leak sanitizers
-    MLG_LSAN_IGNORE_OBJECT(mutex);
-    
-    return *mutex;
+    MLG_LSAN_IGNORE_OBJECT(state);
+
+    return *state;
 }
 
-StringArena& GetStringArena()
-{
-    constexpr size_t kStringArenaChunkSize = 1024uz * 4uz;
-    static StringArena* arena = new StringArena(kStringArenaChunkSize); // NOLINT(cppcoreguidelines-owning-memory)
-
-    // We intentionally leak this, so hide it from leak sanitizers
-    MLG_LSAN_IGNORE_OBJECT(arena);
-
-    return *arena;
-}
-
-StringHandle ValidateName(const std::string_view& name)
+StringHandle
+ValidateName(const std::string_view& name)
 {
     MLG_ASSERT(!name.empty(), "Empty perf counter name");
 
-    return GetStringArena().NewString(name);
+    return GetPerfMetricsState().Strings.NewString(name);
 }
 } // namespace
 
-inlist<PerfCounter, &PerfCounter::m_ListNode> PerfMetrics::m_Counters;
+////////// PerfAggregator
 
 PerfAggregator::PerfAggregator(const PerfCounter* counter)
     : m_Counter(counter),
-    m_Stats(counter->GetName())
+      m_Stats(counter->GetName())
 {
 }
 
@@ -58,20 +58,22 @@ PerfAggregator::Sample()
     m_Stats.m_EMA = ((m_Stats.m_EMA * (kSampleWindowSize - 1)) + curValue) * invSampleWindowSize;
 }
 
+////////// PerfCounter
+
 PerfCounter::PerfCounter(const PerfCounterParams& params)
     : m_Name(ValidateName(params.Name)),
       m_Aggregator(this),
       m_SamplePolicy(params.Policy),
       m_CategoryId(params.CategoryId)
 {
-    const std::lock_guard lock(GetMutex());
-    PerfMetrics::m_Counters.push_back(this);
+    const std::lock_guard lock(GetPerfMetricsState().Mutex);
+    PerfMetrics::GetCounters().push_back(this);
 }
 
 PerfCounter::~PerfCounter()
 {
-    const std::lock_guard lock(GetMutex());
-    PerfMetrics::m_Counters.erase(this);
+    const std::lock_guard lock(GetPerfMetricsState().Mutex);
+    PerfMetrics::GetCounters().erase(this);
 }
 
 void
@@ -82,6 +84,8 @@ PerfCounter::ApplySamplePolicy()
         m_Value.store(0, std::memory_order_relaxed);
     }
 }
+
+////////// PerfTimer
 
 void
 PerfTimer::Start()
@@ -101,22 +105,24 @@ PerfTimer::Stop()
     m_Counter->Increment(elapsed * kMsPerSecond);
 }
 
+////////// PerfMetrics
+
 size_t
 PerfMetrics::GetAllCounterCount()
 {
-    const std::lock_guard lock(GetMutex());
+    const std::lock_guard lock(GetPerfMetricsState().Mutex);
 
-    return m_Counters.size();
+    return GetCounters().size();
 }
 
 size_t
 PerfMetrics::SampleAllCounters(std::span<PerfStats>& outStats)
 {
-    const std::lock_guard lock(GetMutex());
+    const std::lock_guard lock(GetPerfMetricsState().Mutex);
 
     size_t count = 0;
 
-    for(auto& counter : m_Counters)
+    for(auto& counter : GetCounters())
     {
         if(count >= outStats.size())
         {
@@ -132,13 +138,45 @@ PerfMetrics::SampleAllCounters(std::span<PerfStats>& outStats)
     return count;
 }
 
+void
+PerfMetrics::LogCounters()
+{
+    const std::lock_guard lock(GetPerfMetricsState().Mutex);
+
+    for(auto& counter : GetCounters())
+    {
+        const PerfStats& stats = counter.m_Aggregator.GetStats();
+        if(counter.m_CategoryId != PerfTimerCategory::Id)
+        {
+            MLG_INFO("{}: {}", stats.GetName(), stats.GetLastValue());
+        }
+        else
+        {
+            MLG_INFO("{}: {} ms", stats.GetName(), stats.GetLastValue());
+        }
+    }
+}
+
+// private:
+
+PerfMetrics::CounterList&
+PerfMetrics::GetCounters()
+{
+    static CounterList* counters = new CounterList; // NOLINT(cppcoreguidelines-owning-memory)
+
+    // We intentionally leak this, so hide it from leak sanitizers
+    MLG_LSAN_IGNORE_OBJECT(counters);
+
+    return *counters;
+}
+
 size_t
 PerfMetrics::GetCounterCount(const PerfCounterCategoryId categoryId)
 {
-    const std::lock_guard lock(GetMutex());
+    const std::lock_guard lock(GetPerfMetricsState().Mutex);
 
     size_t count = 0;
-    for(auto& counter : m_Counters)
+    for(auto& counter : GetCounters())
     {
         if(counter.m_CategoryId == categoryId)
         {
@@ -152,11 +190,11 @@ PerfMetrics::GetCounterCount(const PerfCounterCategoryId categoryId)
 size_t
 PerfMetrics::SampleCounters(const PerfCounterCategoryId categoryId, std::span<PerfStats>& outStats)
 {
-    const std::lock_guard lock(GetMutex());
+    const std::lock_guard lock(GetPerfMetricsState().Mutex);
 
     size_t count = 0;
 
-    for(auto& counter : m_Counters)
+    for(auto& counter : GetCounters())
     {
         if(count >= outStats.size())
         {
@@ -175,23 +213,4 @@ PerfMetrics::SampleCounters(const PerfCounterCategoryId categoryId, std::span<Pe
     }
 
     return count;
-}
-
-void
-PerfMetrics::LogCounters()
-{
-    const std::lock_guard lock(GetMutex());
-
-    for(auto& counter : m_Counters)
-    {
-        const PerfStats& stats = counter.m_Aggregator.GetStats();
-        if(counter.m_CategoryId != PerfTimerCategory::Id)
-        {
-            MLG_INFO("{}: {}", stats.GetName(), stats.GetLastValue());
-        }
-        else
-        {
-            MLG_INFO("{}: {} ms", stats.GetName(), stats.GetLastValue());
-        }
-    }
 }

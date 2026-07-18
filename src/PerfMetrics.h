@@ -1,7 +1,7 @@
 #pragma once
 
 #include "inlist.h"
-#include "scope_exit.h"
+#include "scope_exit.h" // used for MLG_SCOPED_TIMER macro
 #include "StringArena.h"
 #include "Timer.h"
 
@@ -9,20 +9,18 @@
 #include <span>
 #include <string_view>
 
+
 class PerfMetrics;
 class PerfCounter;
 class PerfAggregator;
 
-/// @brief Perf counters can have a category Id which can be used to group related counters together.
-/// Declare a perf counter category like this:
-/// struct MyCategoryTag{};
-/// using MyCategory = PerfCounterCategory<MyCategoryTag>;
-/// Then perf counters can be created in that category like this:
-/// PerfCounter myCounter("MyCounter", MyCategory::Id);
+/// @brief Perf counters can have a category Id which can be used to group related counters
+/// together. Declare a perf counter category like this: struct MyCategoryTag{}; using MyCategory =
+/// PerfCounterCategory<MyCategoryTag>; Then perf counters can be created in that category like
+/// this: PerfCounter myCounter("MyCounter", MyCategory::Id);
 class PerfCounterCategoryId
 {
 public:
-
     auto operator<=>(const PerfCounterCategoryId&) const = default;
 
 private:
@@ -42,21 +40,22 @@ class PerfCounterCategory
 {
 private:
     constexpr static const char uniqueCategoryId{};
-public:
 
+public:
     constexpr static const PerfCounterCategoryId Id{ &uniqueCategoryId };
 };
 
 /// @brief Perf counters that don't have an explicity category are put into
 /// the default category.
-struct PerfCounterDefaultCategoryTag{};
+struct PerfCounterDefaultCategoryTag
+{
+};
 using PerfCounterDefaultCategory = PerfCounterCategory<PerfCounterDefaultCategoryTag>;
 
 /// @brief Represents aggregated stats for a perf counter, such as min/max/EMA values.
 class PerfStats
 {
 public:
-
     PerfStats() = default;
 
     StringHandle GetName() const { return m_Name; }
@@ -67,7 +66,6 @@ public:
     double GetEMA() const { return m_EMA; }
 
 private:
-
     friend PerfAggregator;
 
     explicit PerfStats(const StringHandle& name)
@@ -86,7 +84,6 @@ private:
 class PerfAggregator
 {
 public:
-
     static constexpr uint64_t kSampleWindowSize = 16;
     static constexpr double invSampleWindowSize = 1.0 / static_cast<double>(kSampleWindowSize);
 
@@ -161,11 +158,11 @@ public:
     double GetValue() const { return m_Value.load(std::memory_order_relaxed); }
 
 private:
-
     void ApplySamplePolicy();
 
     friend PerfMetrics;
-    template<typename T> friend class PerfCounterCategory;
+    template<typename T>
+    friend class PerfCounterCategory;
 
     inlist_node<PerfCounter> m_ListNode;
 
@@ -180,7 +177,6 @@ private:
 class PerfTimer
 {
 public:
-
     explicit PerfTimer(PerfCounter& counter)
         : m_Counter(&counter)
     {
@@ -195,7 +191,6 @@ public:
     void Stop();
 
 private:
-
     PerfCounter* m_Counter;
     Timer m_Timer;
 };
@@ -203,7 +198,6 @@ private:
 class PerfMetrics final
 {
 public:
-
     PerfMetrics() = delete;
     ~PerfMetrics() = delete;
     PerfMetrics(const PerfMetrics&) = delete;
@@ -226,24 +220,28 @@ public:
         return SampleCounters(Cat::Id, outStats);
     }
 
-    /// @brief Gets the aggregated counter stats. The caller should provide a buffer of sufficient size based
-    /// on GetCounterCount().
+    /// @brief Gets the aggregated counter stats. The caller should provide a buffer of sufficient
+    /// size based on GetCounterCount().
     static size_t SampleAllCounters(std::span<PerfStats>& outStats);
 
     /// @brief Logs all counters to log output.
     static void LogCounters();
 
 private:
+    using CounterList = inlist<PerfCounter, &PerfCounter::m_ListNode>;
+
+    static CounterList& GetCounters();
 
     static size_t GetCounterCount(const PerfCounterCategoryId categoryId);
-    static size_t SampleCounters(const PerfCounterCategoryId categoryId, std::span<PerfStats>& outStats);
+    static size_t SampleCounters(const PerfCounterCategoryId categoryId,
+        std::span<PerfStats>& outStats);
 
     friend PerfCounter;
-
-    static inlist<PerfCounter, &PerfCounter::m_ListNode> m_Counters;
 };
 
-struct PerfTimerCategoryTag{};
+struct PerfTimerCategoryTag
+{
+};
 using PerfTimerCategory = PerfCounterCategory<PerfTimerCategoryTag>;
 
 #define MLG_PERF_TIMER_CONCAT2(a, b) a##b
@@ -254,8 +252,11 @@ using PerfTimerCategory = PerfCounterCategory<PerfTimerCategoryTag>;
 ///     MLG_SCOPED_TIMER("MyCounter");
 ///     // Code to be timed goes here.
 /// }
-#define MLG_SCOPED_TIMER(name)\
-    static PerfCounter MLG_PERF_TIMER_CONCAT(counter, __LINE__)({.Name = (name), .Policy = PerfCounter::SamplePolicy::ResetOnSample, .CategoryId = PerfTimerCategory::Id});\
-    PerfTimer MLG_PERF_TIMER_CONCAT(timer, __LINE__)(MLG_PERF_TIMER_CONCAT(counter, __LINE__));\
-    MLG_PERF_TIMER_CONCAT(timer, __LINE__).Start();\
-    auto MLG_PERF_TIMER_CONCAT(scope_timer, __LINE__) = scope_exit([&](){MLG_PERF_TIMER_CONCAT(timer, __LINE__).Stop();});
+#define MLG_SCOPED_TIMER(name)                                                                     \
+    static PerfCounter MLG_PERF_TIMER_CONCAT(counter, __LINE__)({ .Name = (name),                  \
+        .Policy = PerfCounter::SamplePolicy::ResetOnSample,                                        \
+        .CategoryId = PerfTimerCategory::Id });                                                    \
+    PerfTimer MLG_PERF_TIMER_CONCAT(timer, __LINE__)(MLG_PERF_TIMER_CONCAT(counter, __LINE__));    \
+    MLG_PERF_TIMER_CONCAT(timer, __LINE__).Start();                                                \
+    auto MLG_PERF_TIMER_CONCAT(scope_timer, __LINE__) =                                            \
+        scope_exit([&]() { MLG_PERF_TIMER_CONCAT(timer, __LINE__).Stop(); });
