@@ -11,8 +11,17 @@ TextureCache::Contains(const std::string_view& uri) const
 void
 TextureCache::AddOrReplace(const std::string_view& uri, wgpu::Texture texture)
 {
-    const StringHandle uriHandle = m_StringArena.NewString(uri);
-    m_Textures.emplace(uriHandle, std::move(texture));
+    const auto it = m_Textures.find(uri);
+
+    if(m_Textures.end() == it)
+    {
+        const StringHandle uriHandle = m_StringArena.NewString(uri);
+        m_Textures.emplace(uriHandle, std::move(texture));
+    }
+    else
+    {
+        it->second = std::move(texture);
+    }
 }
 
 wgpu::Texture
