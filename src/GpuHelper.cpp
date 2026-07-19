@@ -19,8 +19,6 @@
 
 namespace
 {
-constexpr int kNumTextureChannels = 4;
-
 const char*
 GetPresentModeString(const wgpu::PresentMode presentMode)
 {
@@ -39,15 +37,6 @@ GetPresentModeString(const wgpu::PresentMode presentMode)
         default:
             return "Unknown";
     }
-}
-
-// Texture staging buffer rows must be a multiple of 256 bytes.
-uint32_t
-GetTextureAlignedRowStride(const uint32_t textureWidth)
-{
-    const uint32_t rowStride = textureWidth * kNumTextureChannels;
-    const uint32_t alignedRowStride = (rowStride + 255u) & ~255u;
-    return alignedRowStride;
 }
 
 void EnumerateAdapters();
@@ -320,7 +309,7 @@ CreateDefaultTexture(GpuHelper& gpuHelper)
     const std::span<uint8_t> mappedSpan(static_cast<uint8_t*>(mapped),
         narrow_cast<size_t>(stagingBuffer->GetSize()));
 
-    const size_t rowStride = GetTextureAlignedRowStride(kDefaultTextureWidth);
+    const size_t rowStride = GpuHelper::GetTextureAlignedRowStride(kDefaultTextureWidth);
 
     for(size_t y = 0; y < kDefaultTextureHeight; ++y)
     {
@@ -977,7 +966,7 @@ GpuHelper::LoadShader(const std::string_view& filePath, FileFetcher& fileFetcher
 
     while(request.IsPending())
     {
-        MLG_CHECK(fileFetcher.ProcessCompletions());
+        fileFetcher.ProcessCompletions();
         std::this_thread::yield();
     }
 
@@ -1153,7 +1142,8 @@ GpuHelper::CommitStagingBuffer(
             .layout = //
             {
                 .offset = 0,
-                .bytesPerRow = GetTextureAlignedRowStride(texture.GetWidth()),
+                .bytesPerRow = static_cast<uint32_t>(
+                    GpuHelper::GetTextureAlignedRowStride(texture.GetWidth())),
                 .rowsPerImage = texture.GetHeight(),
             },
             .buffer = stagingBuffer,
@@ -1201,6 +1191,15 @@ GpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name) c
     MLG_CHECK(buffer, "Failed to create index buffer");
 
     return IndexBuffer::Create(GetDevice(), *buffer);
+}
+
+// Texture staging buffer rows must be a multiple of 256 bytes.
+size_t
+GpuHelper::GetTextureAlignedRowStride(const size_t textureWidth)
+{
+    const size_t rowNumBytes = textureWidth * GpuHelper::kNumTextureChannels;
+    const size_t alignedRowStride = (rowNumBytes + 255uz) & ~255uz; // Round up to the next multiple of 256
+    return alignedRowStride;
 }
 
 // private:

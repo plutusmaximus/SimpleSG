@@ -15,6 +15,7 @@ class GpuHelper final
 {
 public:
     static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
+    static constexpr size_t kNumTextureChannels = 4;
     static constexpr wgpu::TextureFormat kDepthBufferFormat = wgpu::TextureFormat::Depth24Plus;
 
     /// @brief A task that creates a GpuHelper instance asynchronously.
@@ -208,6 +209,12 @@ public:
 
         return T::Create(GetDevice(), *bufferResult);
     }
+
+    /// @brief Returns the aligned row stride for a texture staging buffer.
+    /// Texture staging buffer rows must be a multiple of 256 bytes.
+    /// @param textureWidth The width of the texture in pixels.
+    /// @return The aligned row stride in bytes.
+    static size_t GetTextureAlignedRowStride(const size_t textureWidth);
 
 private:
     GpuHelper() = default;

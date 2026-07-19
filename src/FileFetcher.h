@@ -73,7 +73,7 @@ public:
 
     Result<> Fetch(Request& request);
 
-    Result<> ProcessCompletions();
+    void ProcessCompletions();
 
 private:
     explicit FileFetcher(SDL_AsyncIOQueue* ioQueue)

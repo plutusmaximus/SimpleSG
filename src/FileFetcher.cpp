@@ -51,7 +51,7 @@ FileFetcher::~FileFetcher()
         return;
     }
 
-    MLG_VERIFY(ProcessCompletions());
+    ProcessCompletions();
 
     SDL_SignalAsyncIOQueue(m_IoQueue);
     SDL_DestroyAsyncIOQueue(m_IoQueue);
@@ -135,10 +135,10 @@ FileFetcher::Fetch(FileFetcher::Request& request)
     return Result<>::Ok;
 }
 
-Result<>
+void
 FileFetcher::ProcessCompletions()
 {
-    MLG_CHECKV(m_IoQueue, "FileFetcher::ProcessCompletions called on invalid FileFetcher instance");
+    MLG_ABORTIF(!m_IoQueue, "FileFetcher::ProcessCompletions called on invalid FileFetcher instance");
 
     SDL_AsyncIOOutcome outcome;
     while(SDL_GetAsyncIOResult(m_IoQueue, &outcome))
@@ -157,7 +157,7 @@ FileFetcher::ProcessCompletions()
         }
 
         Request* request = static_cast<Request*>(outcome.userdata);
-        MLG_CHECKV(request, "Received SDL Async IO completion with null userdata");
+        MLG_ABORTIF(request == nullptr, "Received SDL Async IO completion with null userdata");
 
         switch(outcome.result)
         {
@@ -193,8 +193,6 @@ FileFetcher::ProcessCompletions()
                 break;
         }
     }
-
-    return Result<>::Ok;
 }
 
 Result<size_t>

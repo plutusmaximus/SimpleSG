@@ -21,8 +21,6 @@
 #include <ranges>
 #include <stb_image.h>
 
-static constexpr size_t kNumTextureChannels = 4;
-
 namespace
 {
 class TextureLoadTask
@@ -79,10 +77,10 @@ public:
     {
         TextureLoadTask* task = static_cast<TextureLoadTask*>(userData);
         task->m_DecodeResult = task->Decode();
+        task->m_CompletionFlag->store(true, std::memory_order_release);
     }
 
 private:
-
     std::string m_Uri;
     GpuHelper* m_GpuHelper{ nullptr };
     FileFetcher* m_FileFetcher{ nullptr };
@@ -213,7 +211,8 @@ TextureLoadTask::Stage()
     m_StagingBuffer = *stagingBuffer;
     m_MappedMemory = static_cast<std::byte*>(mapped);
 
-    m_ThreadPool->Enqueue(TextureLoadTask::Decode, this);
+    MLG_CHECK(m_ThreadPool->Enqueue(TextureLoadTask::Decode, this),
+        "Failed to enqueue texture decode task");
 
     return Result<>::Ok;
 }
@@ -221,11 +220,6 @@ TextureLoadTask::Stage()
 Result<>
 TextureLoadTask::Decode() const
 {
-    MLG_DEFER
-    {
-        m_CompletionFlag->store(true, std::memory_order_release);
-    };
-
     MLG_DEBUG("Decoding...");
 
     int imgWidth = 0, imgHeight = 0, imgNumChannels = 0;
@@ -234,7 +228,7 @@ TextureLoadTask::Decode() const
         &imgWidth,
         &imgHeight,
         &imgNumChannels,
-        kNumTextureChannels);
+        GpuHelper::kNumTextureChannels);
 
     MLG_CHECKV(data, "Failed to decode image - {}", stbi_failure_reason());
 
@@ -250,23 +244,173 @@ TextureLoadTask::Decode() const
     MLG_CHECKV(m_Texture.GetFormat() == wgpu::TextureFormat::RGBA8Unorm,
         "Texture format does not match expected format");
 
-    const size_t sizeofData =
-        static_cast<size_t>(imgWidth) * static_cast<size_t>(imgHeight) * kNumTextureChannels;
+    const size_t sizeofSrcData =
+        static_cast<size_t>(imgWidth) * static_cast<size_t>(imgHeight) * GpuHelper::kNumTextureChannels;
 
-    const size_t expectedSize = static_cast<size_t>(m_Texture.GetWidth())
+    const size_t expectedSizeofSrcData = static_cast<size_t>(m_Texture.GetWidth())
         * static_cast<size_t>(m_Texture.GetHeight())
-        * kNumTextureChannels;
+        * GpuHelper::kNumTextureChannels;
 
-    MLG_CHECKV(sizeofData == expectedSize, "Decoded image size does not match texture size");
+    MLG_CHECKV(sizeofSrcData == expectedSizeofSrcData, "Decoded image size does not match texture size");
 
-    const std::span<const stbi_uc> srcSpan(data, sizeofData);
-    const std::span<std::byte> dstSpan(m_MappedMemory, sizeofData);
+    const std::span<const stbi_uc> srcSpan(data, sizeofSrcData);
+    const std::span<std::byte> dstSpan(m_MappedMemory, m_StagingBuffer.GetSize());
     size_t dstOffset = 0, srcOffset = 0;
-    const size_t srcRowStride = static_cast<size_t>(imgWidth) * kNumTextureChannels;
-    const size_t dstRowStride = (srcRowStride + 255) & ~255uz;
+    const size_t srcRowStride = static_cast<size_t>(imgWidth) * GpuHelper::kNumTextureChannels;
+    const size_t dstRowStride = GpuHelper::GetTextureAlignedRowStride(static_cast<size_t>(imgWidth));
     for(int y = 0; y < imgHeight; ++y, dstOffset += dstRowStride, srcOffset += srcRowStride)
     {
         ::memcpy(&dstSpan[dstOffset], &srcSpan[srcOffset], srcRowStride);
+    }
+
+    return Result<>::Ok;
+}
+
+class FetchTexturesTask
+{
+public:
+    FetchTexturesTask(GpuHelper& gpuHelper,
+        ThreadPool& threadPool,
+        FileFetcher& fileFetcher,
+        TextureCache& textureCache,
+        std::filesystem::path basePath,
+        const std::span<const MaterialDef>& materialDefs)
+        : m_GpuHelper(&gpuHelper),
+          m_ThreadPool(&threadPool),
+          m_FileFetcher(&fileFetcher),
+          m_TextureCache(&textureCache),
+          m_BasePath(std::move(basePath)),
+          m_MaterialDefs(materialDefs),
+          m_CompletionFlags(materialDefs.size())
+    {
+        m_TaskHeap.reserve(materialDefs.size());
+        m_Tasks.reserve(materialDefs.size());
+    }
+
+    Result<> Begin();
+
+    Result<> Update();
+
+    bool IsComplete() const { return m_State == State::Succeeded || m_State == State::Failed; }
+
+private:
+    enum class State
+    {
+        None,
+        Fetching,
+        Succeeded,
+        Failed,
+    };
+
+    GpuHelper* m_GpuHelper{ nullptr };
+    ThreadPool* m_ThreadPool{ nullptr };
+    FileFetcher* m_FileFetcher{ nullptr };
+    TextureCache* m_TextureCache{ nullptr };
+    std::filesystem::path m_BasePath;
+    std::span<const MaterialDef> m_MaterialDefs;
+    std::vector<TextureLoadTask> m_TaskHeap;
+    std::vector<TextureLoadTask*> m_Tasks;
+    wgpu::CommandEncoder m_Encoder{ nullptr };
+    std::vector<std::atomic<bool>> m_CompletionFlags;
+
+    State m_State{ State::None };
+};
+
+Result<>
+FetchTexturesTask::Begin()
+{
+    MLG_CHECKV(m_State == State::None, "FetchTexturesTask has already been started");
+
+    m_Encoder = m_GpuHelper->GetDevice().CreateCommandEncoder();
+    MLG_CHECKV(m_Encoder, "Failed to create command encoder");
+
+    for(const auto& mtl : m_MaterialDefs)
+    {
+        if(mtl.BaseTextureUri.empty())
+        {
+            // No base texture for this material, skip it.
+            continue;
+        }
+
+        if(m_TextureCache->Contains(mtl.BaseTextureUri))
+        {
+            // We've already loaded this texture, skip it.
+            continue;
+        }
+
+        MLG_LOG_SCOPE(mtl.BaseTextureUri);
+
+        const size_t index = m_TaskHeap.size();
+
+        MLG_DEBUG("Fetching texture...");
+
+        // Prepopulate the cache with the default texture.  If texture loading fails
+        // then the default texture will be used instead of the missing texture.
+        m_TextureCache->AddOrReplace(mtl.BaseTextureUri, m_GpuHelper->GetDefaultTexture());
+
+        TextureLoadTask& task = m_TaskHeap.emplace_back(m_BasePath,
+            mtl.BaseTextureUri,
+            *m_GpuHelper,
+            *m_FileFetcher,
+            *m_ThreadPool,
+            *m_TextureCache,
+            m_Encoder,
+            &m_CompletionFlags[index]);
+
+        m_Tasks.emplace_back(&task);
+    }
+
+    m_State = State::Fetching;
+
+    return Result<>::Ok;
+}
+
+Result<>
+FetchTexturesTask::Update()
+{
+    switch(m_State)
+    {
+        case State::None:
+            MLG_ERROR("FetchTexturesTask has not been started");
+            return Result<>::Fail;
+
+        case State::Fetching:
+            m_FileFetcher->ProcessCompletions();
+
+            for(size_t i = 0; i < m_Tasks.size();)
+            {
+                TextureLoadTask* tlTask = m_Tasks[i];
+
+                tlTask->Update();
+
+                if(tlTask->IsComplete())
+                {
+                    // Remove from the list.
+                    m_Tasks[i] = std::move(m_Tasks.back());
+                    m_Tasks.pop_back();
+                }
+                else
+                {
+                    ++i;
+                }
+            }
+
+            if(m_Tasks.empty())
+            {
+                const wgpu::CommandBuffer commandBuffer = m_Encoder.Finish();
+                m_GpuHelper->GetDevice().GetQueue().Submit(1, &commandBuffer);
+
+                m_State = State::Succeeded;
+            }
+            break;
+
+        case State::Succeeded:
+        case State::Failed:
+            break;
+
+        default:
+            MLG_ERROR("Invalid state: {}", static_cast<int>(m_State));
+            return Result<>::Fail;
     }
 
     return Result<>::Ok;
@@ -280,72 +424,19 @@ FetchTextures(GpuHelper& gpuHelper,
     const std::span<const MaterialDef> materialDefs,
     TextureCache& textureCache)
 {
-    std::vector<TextureLoadTask> tlTaskHeap;
-    std::vector<TextureLoadTask*> tlTasks;
-    std::vector<std::atomic<bool>> completionFlags(materialDefs.size());
+    FetchTexturesTask fetchTask(gpuHelper,
+        threadPool,
+        fileFetcher,
+        textureCache,
+        basePath,
+        materialDefs);
 
-    tlTaskHeap.reserve(materialDefs.size());
-    tlTasks.reserve(materialDefs.size());
+    MLG_CHECK(fetchTask.Begin());
 
-    const wgpu::CommandEncoder encoder = gpuHelper.GetDevice().CreateCommandEncoder();
-
-    for(const auto& mtl : materialDefs)
+    while(!fetchTask.IsComplete())
     {
-        if(mtl.BaseTextureUri.empty())
-        {
-            // No base texture for this material, skip it.
-            continue;
-        }
-
-        if(textureCache.Contains(mtl.BaseTextureUri))
-        {
-            // We've already loaded this texture, skip it.
-            continue;
-        }
-
-        MLG_LOG_SCOPE(mtl.BaseTextureUri);
-
-        const size_t index = tlTaskHeap.size();
-
-        MLG_DEBUG("Fetching texture...");
-
-        TextureLoadTask& task = tlTaskHeap.emplace_back(basePath,
-            mtl.BaseTextureUri,
-            gpuHelper,
-            fileFetcher,
-            threadPool,
-            textureCache,
-            encoder,
-            &completionFlags[index]);
-
-        tlTasks.emplace_back(&task);
+        MLG_CHECK(fetchTask.Update());
     }
-
-    while(!tlTasks.empty())
-    {
-        MLG_CHECK(fileFetcher.ProcessCompletions());
-
-        for(size_t i = 0; i < tlTasks.size();)
-        {
-            TextureLoadTask* tlTask = tlTasks[i];
-
-            tlTask->Update();
-
-            if(tlTask->IsComplete())
-            {
-                // Remove from the list.
-                tlTasks[i] = std::move(tlTasks.back());
-                tlTasks.pop_back();
-            }
-            else
-            {
-                ++i;
-            }
-        }
-    }
-
-    const wgpu::CommandBuffer commandBuffer = encoder.Finish();
-    gpuHelper.GetDevice().GetQueue().Submit(1, &commandBuffer);
 
     return Result<>::Ok;
 }
