@@ -26,10 +26,10 @@ static constexpr size_t kNumTextureChannels = 4;
 
 namespace
 {
-class TextureBuilder
+class TextureLoadState
 {
 public:
-    TextureBuilder(
+    TextureLoadState(
         std::string baseUri, FileFetcher::Request& request, std::atomic<unsigned>* stageCounter)
         : Uri(std::move(baseUri)),
           Request(&request),
@@ -37,34 +37,34 @@ public:
     {
     }
 
-    TextureBuilder() = delete;
-    ~TextureBuilder() = default;
-    TextureBuilder(const TextureBuilder&) = delete;
-    TextureBuilder& operator=(const TextureBuilder&) = delete;
-    TextureBuilder(TextureBuilder&&) = default;
-    TextureBuilder& operator=(TextureBuilder&&) = default;
+    TextureLoadState() = delete;
+    ~TextureLoadState() = default;
+    TextureLoadState(const TextureLoadState&) = delete;
+    TextureLoadState& operator=(const TextureLoadState&) = delete;
+    TextureLoadState(TextureLoadState&&) = default;
+    TextureLoadState& operator=(TextureLoadState&&) = default;
 
     void Decode() { DecodeResult = Decode(*this); }
 
-    static Result<> Decode(const TextureBuilder& builder)
+    static Result<> Decode(const TextureLoadState& tls)
     {
         MLG_DEFER
         {
-            const unsigned oldValue = builder.StageCounter->fetch_sub(1, std::memory_order_acq_rel);
+            const unsigned oldValue = tls.StageCounter->fetch_sub(1, std::memory_order_acq_rel);
             if(oldValue == 1)
             {
                 // Last staging finished, signal completion.
-                builder.StageCounter->notify_all();
+                tls.StageCounter->notify_all();
             }
         };
 
-        MLG_LOG_SCOPE(builder.Uri);
+        MLG_LOG_SCOPE(tls.Uri);
 
         MLG_DEBUG("Decoding...");
 
         int imgWidth = 0, imgHeight = 0, imgNumChannels = 0;
-        stbi_uc* data = stbi_load_from_memory(builder.Request->GetData().data(),
-            narrow_cast<int>(builder.Request->GetData().size()),
+        stbi_uc* data = stbi_load_from_memory(tls.Request->GetData().data(),
+            narrow_cast<int>(tls.Request->GetData().size()),
             &imgWidth,
             &imgHeight,
             &imgNumChannels,
@@ -77,24 +77,24 @@ public:
             stbi_image_free(data);
         };
 
-        MLG_CHECKV(builder.Texture.GetWidth() == static_cast<uint32_t>(imgWidth)
-                && builder.Texture.GetHeight() == static_cast<uint32_t>(imgHeight),
+        MLG_CHECKV(tls.Texture.GetWidth() == static_cast<uint32_t>(imgWidth)
+                && tls.Texture.GetHeight() == static_cast<uint32_t>(imgHeight),
             "Decoded image dimensions do not match texture dimensions");
 
-        MLG_CHECKV(builder.Texture.GetFormat() == wgpu::TextureFormat::RGBA8Unorm,
+        MLG_CHECKV(tls.Texture.GetFormat() == wgpu::TextureFormat::RGBA8Unorm,
             "Texture format does not match expected format");
 
         const size_t sizeofData =
             static_cast<size_t>(imgWidth) * static_cast<size_t>(imgHeight) * kNumTextureChannels;
 
-        const size_t expectedSize = static_cast<size_t>(builder.Texture.GetWidth())
-            * static_cast<size_t>(builder.Texture.GetHeight())
+        const size_t expectedSize = static_cast<size_t>(tls.Texture.GetWidth())
+            * static_cast<size_t>(tls.Texture.GetHeight())
             * kNumTextureChannels;
 
         MLG_CHECKV(sizeofData == expectedSize, "Decoded image size does not match texture size");
 
         const std::span<const stbi_uc> srcSpan(data, sizeofData);
-        const std::span<std::byte> dstSpan(builder.MappedMemory, sizeofData);
+        const std::span<std::byte> dstSpan(tls.MappedMemory, sizeofData);
         size_t dstOffset = 0, srcOffset = 0;
         const size_t srcRowStride = static_cast<size_t>(imgWidth) * kNumTextureChannels;
         const size_t dstRowStride = (srcRowStride + 255) & ~255uz;
@@ -118,19 +118,19 @@ public:
 };
 
 Result<>
-StageTexture(GpuHelper& gpuHelper, ThreadPool& threadPool, TextureBuilder& builder)
+StageTexture(GpuHelper& gpuHelper, ThreadPool& threadPool, TextureLoadState& tls)
 {
     MLG_DEBUG("Staging texture...");
 
     int width = 0, height = 0, numChannels = 0;
 
-    if(!stbi_info_from_memory(builder.Request->GetData().data(),
-           narrow_cast<int>(builder.Request->GetData().size()),
+    if(!stbi_info_from_memory(tls.Request->GetData().data(),
+           narrow_cast<int>(tls.Request->GetData().size()),
            &width,
            &height,
            &numChannels))
     {
-        MLG_ERROR("Error getting image info - {}", builder.Uri, stbi_failure_reason());
+        MLG_ERROR("Error getting image info - {}", tls.Uri, stbi_failure_reason());
         return Result<>::Fail;
     }
 
@@ -138,11 +138,11 @@ StageTexture(GpuHelper& gpuHelper, ThreadPool& threadPool, TextureBuilder& build
 
     auto texture = gpuHelper.CreateTexture(static_cast<uint32_t>(width),
         static_cast<uint32_t>(height),
-        builder.Uri);
+        tls.Uri);
 
     MLG_CHECK(texture);
 
-    auto stagingBuffer = gpuHelper.CreateStagingBuffer(*texture, builder.Uri);
+    auto stagingBuffer = gpuHelper.CreateStagingBuffer(*texture, tls.Uri);
     MLG_CHECK(stagingBuffer);
 
     void* mapped = stagingBuffer->GetMappedRange();
@@ -151,17 +151,16 @@ StageTexture(GpuHelper& gpuHelper, ThreadPool& threadPool, TextureBuilder& build
     // It appears that mapping/unmapping must be done on the same thread
     // as other wgpu::Device operations.  Learned that the hard way by trying to map
     // in the worker thread below.
-    builder.Texture = *texture;
-    builder.StagingBuffer = *stagingBuffer;
-    builder.MappedMemory = static_cast<std::byte*>(mapped);
+    tls.Texture = *texture;
+    tls.StagingBuffer = *stagingBuffer;
+    tls.MappedMemory = static_cast<std::byte*>(mapped);
 
     auto decode = [](void* userData)
     {
-        TextureBuilder* texBuilder = static_cast<TextureBuilder*>(userData);
-        texBuilder->Decode();
+        static_cast<TextureLoadState*>(userData)->Decode();
     };
 
-    threadPool.Enqueue(decode, &builder);
+    threadPool.Enqueue(decode, &tls);
 
     return Result<>::Ok;
 }
@@ -176,13 +175,13 @@ FetchTextures(GpuHelper& gpuHelper,
 {
     // Heap of fetch requests.
     // Pointers to pending fetch requests will be used to initialize
-    // instances of TextureBuilder.
+    // instances of TextureLoadState.
     std::vector<FileFetcher::Request> requestHeap;
-    // Collection of builders for which we're fetching texture files.
-    std::vector<TextureBuilder> fetching;
-    // Collection of builders for which fetching is complete and we're now staging the textures to
+    // Collection of load states for which we're fetching texture files.
+    std::vector<TextureLoadState> fetching;
+    // Collection of load states for which fetching is complete and we're now staging the textures to
     // the GPU.
-    std::vector<TextureBuilder> staging;
+    std::vector<TextureLoadState> staging;
 
     requestHeap.reserve(materialDefs.size());
 
@@ -229,39 +228,39 @@ FetchTextures(GpuHelper& gpuHelper,
 
         for(size_t i = 0; i < fetching.size();)
         {
-            TextureBuilder& fetchingBuilder = fetching[i];
+            TextureLoadState& fetchingTls = fetching[i];
 
-            if(fetchingBuilder.Request->IsPending())
+            if(fetchingTls.Request->IsPending())
             {
                 ++i;
                 continue;
             }
 
-            // Move the builder to the staging list.
-            TextureBuilder& stagingBuilder = staging.emplace_back(std::move(fetchingBuilder));
+            // Move the tls to the staging list.
+            TextureLoadState& stagingTls = staging.emplace_back(std::move(fetchingTls));
 
-            MLG_LOG_SCOPE(stagingBuilder.Uri);
+            MLG_LOG_SCOPE(stagingTls.Uri);
 
             // Fill the hole.
             fetching[i] = std::move(fetching.back());
             fetching.pop_back();
 
-            if(stagingBuilder.Request->Succeeded())
+            if(stagingTls.Request->Succeeded())
             {
                 // Add one to the stage counter.  Staging ops will decrement the counter
                 // and when it hits zero we know we're done.
                 stageCounter.fetch_add(1, std::memory_order_relaxed);
 
-                auto result = StageTexture(gpuHelper, threadPool, stagingBuilder);
+                auto result = StageTexture(gpuHelper, threadPool, stagingTls);
                 if(!result)
                 {
-                    MLG_WARN("Failed to stage texture: {}", stagingBuilder.Uri);
+                    MLG_WARN("Failed to stage texture: {}", stagingTls.Uri);
                     stageCounter.fetch_sub(1, std::memory_order_relaxed);
                 }
             }
             else
             {
-                MLG_WARN("Failed to fetch texture: {}", stagingBuilder.Uri);
+                MLG_WARN("Failed to fetch texture: {}", stagingTls.Uri);
             }
         }
     }
@@ -278,19 +277,19 @@ FetchTextures(GpuHelper& gpuHelper,
     // Unmap textures to flush the data to the GPU before adding them to the cache.
     // It appears that mapping/unmapping must be done on the same thread
     // as other wgpu::Device operations.
-    for(auto& builder : staging)
+    for(auto& tls : staging)
     {
-        MLG_LOG_SCOPE(builder.Uri);
+        MLG_LOG_SCOPE(tls.Uri);
 
-        if(!builder.DecodeResult)
+        if(!tls.DecodeResult)
         {
-            MLG_ERROR("Failed to decode texture: {}", builder.Uri);
+            MLG_ERROR("Failed to decode texture: {}", tls.Uri);
             continue;
         }
 
-        MLG_CHECK(gpuHelper.CommitStagingBuffer(builder.Texture, builder.StagingBuffer, encoder));
+        MLG_CHECK(gpuHelper.CommitStagingBuffer(tls.Texture, tls.StagingBuffer, encoder));
 
-        textureCache.AddOrReplace(builder.Uri, builder.Texture);
+        textureCache.AddOrReplace(tls.Uri, tls.Texture);
     }
 
     const wgpu::CommandBuffer commandBuffer = encoder.Finish();
