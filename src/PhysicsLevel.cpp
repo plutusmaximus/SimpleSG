@@ -424,10 +424,10 @@ PhysicsLevel::SphereSphereSweep(const SphereSweepParams& params, ImpactResult& i
     const BoundingSphere& sphereA = params.SphereA;
     const BoundingSphere& sphereB = params.SphereB;
 
-    const Vec3f& pA0 = params.StartPosA + sphereA.GetCenter();
-    const Vec3f& pA1 = params.EndPosA + sphereA.GetCenter();
-    const Vec3f& pB0 = params.StartPosB + sphereB.GetCenter();
-    const Vec3f& pB1 = params.EndPosB + sphereB.GetCenter();
+    const Vec3f pA0 = params.StartPosA + sphereA.GetCenter();
+    const Vec3f pA1 = params.EndPosA + sphereA.GetCenter();
+    const Vec3f pB0 = params.StartPosB + sphereB.GetCenter();
+    const Vec3f pB1 = params.EndPosB + sphereB.GetCenter();
 
     const Vec3f relP0 = pA0 - pB0;
     const Vec3f relP1 = pA1 - pB1;
