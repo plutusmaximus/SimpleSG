@@ -29,10 +29,11 @@ namespace
 class TextureLoadState
 {
 public:
-    TextureLoadState(
-        std::string baseUri, FileFetcher::Request& request, std::atomic<unsigned>* stageCounter)
-        : Uri(std::move(baseUri)),
-          Request(&request),
+    TextureLoadState(const std::filesystem::path& basePath,
+        const std::string_view& baseUri,
+        std::atomic<unsigned>* stageCounter)
+        : Uri(baseUri),
+          Request(basePath / baseUri),
           StageCounter(stageCounter)
     {
     }
@@ -63,8 +64,8 @@ public:
         MLG_DEBUG("Decoding...");
 
         int imgWidth = 0, imgHeight = 0, imgNumChannels = 0;
-        stbi_uc* data = stbi_load_from_memory(tls.Request->GetData().data(),
-            narrow_cast<int>(tls.Request->GetData().size()),
+        stbi_uc* data = stbi_load_from_memory(tls.Request.GetData().data(),
+            narrow_cast<int>(tls.Request.GetData().size()),
             &imgWidth,
             &imgHeight,
             &imgNumChannels,
@@ -107,7 +108,7 @@ public:
     }
 
     std::string Uri;
-    FileFetcher::Request* Request{ nullptr };
+    FileFetcher::Request Request;
     wgpu::Texture Texture;
     wgpu::Buffer StagingBuffer;
     std::byte* MappedMemory{ nullptr };
@@ -124,8 +125,8 @@ StageTexture(GpuHelper& gpuHelper, ThreadPool& threadPool, TextureLoadState& tls
 
     int width = 0, height = 0, numChannels = 0;
 
-    if(!stbi_info_from_memory(tls.Request->GetData().data(),
-           narrow_cast<int>(tls.Request->GetData().size()),
+    if(!stbi_info_from_memory(tls.Request.GetData().data(),
+           narrow_cast<int>(tls.Request.GetData().size()),
            &width,
            &height,
            &numChannels))
@@ -173,17 +174,15 @@ FetchTextures(GpuHelper& gpuHelper,
     const std::span<const MaterialDef> materialDefs,
     TextureCache& textureCache)
 {
-    // Heap of fetch requests.
-    // Pointers to pending fetch requests will be used to initialize
-    // instances of TextureLoadState.
-    std::vector<FileFetcher::Request> requestHeap;
+    // Heap of texture load states.
+    std::vector<TextureLoadState> tlsHeap;
     // Collection of load states for which we're fetching texture files.
-    std::vector<TextureLoadState> fetching;
+    std::vector<TextureLoadState*> fetching;
     // Collection of load states for which fetching is complete and we're now staging the textures to
     // the GPU.
-    std::vector<TextureLoadState> staging;
+    std::vector<TextureLoadState*> staging;
 
-    requestHeap.reserve(materialDefs.size());
+    tlsHeap.reserve(materialDefs.size());
 
     fetching.reserve(materialDefs.size());
 
@@ -209,14 +208,13 @@ FetchTextures(GpuHelper& gpuHelper,
 
         MLG_LOG_SCOPE(mtl.BaseTextureUri);
 
-        FileFetcher::Request& request =
-            requestHeap.emplace_back((basePath / mtl.BaseTextureUri).string());
+        TextureLoadState& tls = tlsHeap.emplace_back(basePath, mtl.BaseTextureUri, &stageCounter);
 
-        fetching.emplace_back(mtl.BaseTextureUri, request, &stageCounter);
+        fetching.emplace_back(&tls);
 
         MLG_DEBUG("Fetching texture...");
 
-        if(!fileFetcher.Fetch(request))
+        if(!fileFetcher.Fetch(tls.Request))
         {
             MLG_WARN("Failed to fetch texture");
         }
@@ -228,39 +226,39 @@ FetchTextures(GpuHelper& gpuHelper,
 
         for(size_t i = 0; i < fetching.size();)
         {
-            TextureLoadState& fetchingTls = fetching[i];
+            TextureLoadState* fetchingTls = fetching[i];
 
-            if(fetchingTls.Request->IsPending())
+            if(fetchingTls->Request.IsPending())
             {
                 ++i;
                 continue;
             }
 
             // Move the tls to the staging list.
-            TextureLoadState& stagingTls = staging.emplace_back(std::move(fetchingTls));
+            TextureLoadState* stagingTls = staging.emplace_back(fetchingTls);
 
-            MLG_LOG_SCOPE(stagingTls.Uri);
+            MLG_LOG_SCOPE(stagingTls->Uri);
 
             // Fill the hole.
             fetching[i] = std::move(fetching.back());
             fetching.pop_back();
 
-            if(stagingTls.Request->Succeeded())
+            if(stagingTls->Request.Succeeded())
             {
                 // Add one to the stage counter.  Staging ops will decrement the counter
                 // and when it hits zero we know we're done.
                 stageCounter.fetch_add(1, std::memory_order_relaxed);
 
-                auto result = StageTexture(gpuHelper, threadPool, stagingTls);
+                auto result = StageTexture(gpuHelper, threadPool, *stagingTls);
                 if(!result)
                 {
-                    MLG_WARN("Failed to stage texture: {}", stagingTls.Uri);
+                    MLG_WARN("Failed to stage texture: {}", stagingTls->Uri);
                     stageCounter.fetch_sub(1, std::memory_order_relaxed);
                 }
             }
             else
             {
-                MLG_WARN("Failed to fetch texture: {}", stagingTls.Uri);
+                MLG_WARN("Failed to fetch texture: {}", stagingTls->Uri);
             }
         }
     }
@@ -277,19 +275,19 @@ FetchTextures(GpuHelper& gpuHelper,
     // Unmap textures to flush the data to the GPU before adding them to the cache.
     // It appears that mapping/unmapping must be done on the same thread
     // as other wgpu::Device operations.
-    for(auto& tls : staging)
+    for(auto* tls : staging)
     {
-        MLG_LOG_SCOPE(tls.Uri);
+        MLG_LOG_SCOPE(tls->Uri);
 
-        if(!tls.DecodeResult)
+        if(!tls->DecodeResult)
         {
-            MLG_ERROR("Failed to decode texture: {}", tls.Uri);
+            MLG_ERROR("Failed to decode texture: {}", tls->Uri);
             continue;
         }
 
-        MLG_CHECK(gpuHelper.CommitStagingBuffer(tls.Texture, tls.StagingBuffer, encoder));
+        MLG_CHECK(gpuHelper.CommitStagingBuffer(tls->Texture, tls->StagingBuffer, encoder));
 
-        textureCache.AddOrReplace(tls.Uri, tls.Texture);
+        textureCache.AddOrReplace(tls->Uri, tls->Texture);
     }
 
     const wgpu::CommandBuffer commandBuffer = encoder.Finish();
