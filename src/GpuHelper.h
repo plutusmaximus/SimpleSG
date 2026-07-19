@@ -124,7 +124,7 @@ public:
     const wgpu::Sampler& GetDefaultSampler() const;
     const wgpu::BindGroupLayout& GetTextureBindGroupLayout() const;
     Dimension2 GetScreenDimensions() const;
-    Result<ValidTexture> GetSwapChainTexture() const;
+    Result<GpuValidTexture> GetSwapChainTexture() const;
     wgpu::TextureFormat GetSwapChainFormat() const;
 
     /// @brief Resizes the swap chain to the given width and height.
@@ -132,7 +132,7 @@ public:
 
     /// @brief Loads a shader from the given file path.
     /// FIXME(KB) - need an async version of this.
-    Result<ValidShaderModule> LoadShader(const std::string_view& filePath,
+    Result<GpuValidShaderModule> LoadShader(const std::string_view& filePath,
         FileFetcher& fileFetcher) const;
 
     /// @brief Creates an empty texture with the given dimensions and name.
@@ -144,11 +144,11 @@ public:
         const std::string_view& name) const;
 
     /// @brief Creates a render target with the given dimensions and name.
-    Result<ValidTexture> CreateRenderTarget(
+    Result<GpuValidTexture> CreateRenderTarget(
         const unsigned width, const unsigned height, const std::string_view& name) const;
 
     /// @brief Creates a depth buffer with the given dimensions and name.
-    Result<ValidTexture> CreateDepthBuffer(
+    Result<GpuValidTexture> CreateDepthBuffer(
         const unsigned width, const unsigned height, const std::string_view& name) const;
 
     /// @brief Creates a staging buffer for copying texture data to the GPU.
@@ -163,10 +163,10 @@ public:
         wgpu::Texture texture, wgpu::Buffer stagingBuffer, wgpu::CommandEncoder cmdEncoder);
 
     /// @brief Creates a vertex buffer with capacity for the given number of vertices.
-    Result<VertexBuffer> CreateVertexBuffer(const size_t count, const std::string_view& name) const;
+    Result<GpuVertexBuffer> CreateVertexBuffer(const size_t count, const std::string_view& name) const;
 
     /// @brief Creates an index buffer with capacity for the given number of indices.
-    Result<IndexBuffer> CreateIndexBuffer(const size_t count, const std::string_view& name) const;
+    Result<GpuIndexBuffer> CreateIndexBuffer(const size_t count, const std::string_view& name) const;
 
     /// @brief Creates a semantically-typed storage buffer.
     template<typename T>

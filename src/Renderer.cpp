@@ -177,7 +177,7 @@ Renderer::Render(const Camera& camera,
 }
 
 Result<>
-Renderer::Composite(const ValidTexture& target)
+Renderer::Composite(const GpuValidTexture& target)
 {
     const Rect dstRect
         ({ .X = 0, .Y = 0, .Width = target->GetWidth(), .Height = target->GetHeight() });
@@ -186,7 +186,7 @@ Renderer::Composite(const ValidTexture& target)
 }
 
 Result<>
-Renderer::Composite(const ValidTexture& target, const Rect& dstRect)
+Renderer::Composite(const GpuValidTexture& target, const Rect& dstRect)
 {
     MLG_CHECKV(m_ColorPassOutputs, "Color pass outputs are not valid");
     

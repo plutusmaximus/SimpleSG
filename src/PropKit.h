@@ -32,25 +32,25 @@ public:
 
     const wgpu::BindGroup* GetMaterialBindGroup(const MaterialIdentifier& materialId) const;
 
-    MaterialConstantsBuffer GetMaterialConstants() const { return m_MaterialConstants; }
+    GpuMaterialConstantsBuffer GetMaterialConstants() const { return m_MaterialConstants; }
 
-    VertexBuffer GetVertexBuffer() const { return m_VertexBuffer; }
+    GpuVertexBuffer GetVertexBuffer() const { return m_VertexBuffer; }
 
-    IndexBuffer GetIndexBuffer() const { return m_IndexBuffer; }
+    GpuIndexBuffer GetIndexBuffer() const { return m_IndexBuffer; }
 
 private:
 
-    PropKit(VertexBuffer&& vertexBuffer,
-        IndexBuffer&& indexBuffer,
-        MaterialConstantsBuffer&& materialConstants,
+    PropKit(GpuVertexBuffer&& vertexBuffer,
+        GpuIndexBuffer&& indexBuffer,
+        GpuMaterialConstantsBuffer&& materialConstants,
         std::vector<wgpu::BindGroup>&& materialBindGroups,
         std::vector<Mesh>&& meshes,
         std::vector<Model>&& models,
         StringArena&& stringArena);
 
-    VertexBuffer m_VertexBuffer;
-    IndexBuffer m_IndexBuffer;
-    MaterialConstantsBuffer m_MaterialConstants;
+    GpuVertexBuffer m_VertexBuffer;
+    GpuIndexBuffer m_IndexBuffer;
+    GpuMaterialConstantsBuffer m_MaterialConstants;
     std::vector<wgpu::BindGroup> m_MaterialBindGroups;
 
     std::vector<Mesh> m_Meshes;

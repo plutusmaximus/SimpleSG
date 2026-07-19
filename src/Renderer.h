@@ -34,9 +34,9 @@ public:
         const Scene& scene,
         const PropKit& propKit);
 
-    Result<> Composite(const ValidTexture& target);
+    Result<> Composite(const GpuValidTexture& target);
 
-    Result<> Composite(const ValidTexture& target, const Rect& dstRect);
+    Result<> Composite(const GpuValidTexture& target, const Rect& dstRect);
 
 private:
 

@@ -41,8 +41,7 @@ public:
         return GpuValidObject(std::move(*result));
     }
 
-    T& operator*() { return m_GpuObject; }
-    const T& operator*() const { return m_GpuObject; }
+    const T& Get() const { return m_GpuObject; }
 
     T* operator->() { return &m_GpuObject; }
     const T* operator->() const { return &m_GpuObject; }
@@ -157,18 +156,21 @@ MLG_DEFINE_GPU_BUFFER_TRAITS(indirect, Indirect)
 MLG_DEFINE_GPU_BUFFER_TRAITS(uniform, Uniform)
 MLG_DEFINE_GPU_BUFFER_TRAITS(storage, Storage)
 
-using ValidTexture = GpuValidObject<wgpu::Texture>;
-using ValidBindGroupLayout = GpuValidObject<wgpu::BindGroupLayout>;
-using ValidBindGroup = GpuValidObject<wgpu::BindGroup>;
-using ValidShaderModule = GpuValidObject<wgpu::ShaderModule>;
+using GpuValidTexture = GpuValidObject<wgpu::Texture>;
+using GpuValidBindGroupLayout = GpuValidObject<wgpu::BindGroupLayout>;
+using GpuValidBindGroup = GpuValidObject<wgpu::BindGroup>;
+using GpuValidShaderModule = GpuValidObject<wgpu::ShaderModule>;
+using GpuValidSampler = GpuValidObject<wgpu::Sampler>;
+using GpuValidPipelineLayout = GpuValidObject<wgpu::PipelineLayout>;
 
 // Strongly-typed GPU storage buffer classes.
-using VertexBuffer = GpuBuffer<Vertex, GpuBufferUsage::Vertex>;
-using IndexBuffer = GpuBuffer<VertexIndex, GpuBufferUsage::Index>;
-using DrawIndirectBuffer = GpuBuffer<ShaderInterop::DrawIndirectParams, GpuBufferUsage::Indirect>;
-using WorldTransformBuffer = GpuBuffer<ShaderInterop::WorldTransform, GpuBufferUsage::Storage>;
-using ClipSpaceBuffer = GpuBuffer<ShaderInterop::ClipSpaceTransform, GpuBufferUsage::Storage>;
-using MeshPropertiesBuffer = GpuBuffer<ShaderInterop::MeshProperties, GpuBufferUsage::Storage>;
-using CameraParamsBuffer = GpuBuffer<ShaderInterop::CameraParams, GpuBufferUsage::Uniform>;
-using MaterialConstantsBuffer =
+using GpuVertexBuffer = GpuBuffer<Vertex, GpuBufferUsage::Vertex>;
+using GpuIndexBuffer = GpuBuffer<VertexIndex, GpuBufferUsage::Index>;
+using GpuDrawIndirectBuffer =
+    GpuBuffer<ShaderInterop::DrawIndirectParams, GpuBufferUsage::Indirect>;
+using GpuWorldTransformBuffer = GpuBuffer<ShaderInterop::WorldTransform, GpuBufferUsage::Storage>;
+using GpuClipSpaceBuffer = GpuBuffer<ShaderInterop::ClipSpaceTransform, GpuBufferUsage::Storage>;
+using GpuMeshPropertiesBuffer = GpuBuffer<ShaderInterop::MeshProperties, GpuBufferUsage::Storage>;
+using GpuCameraParamsBuffer = GpuBuffer<ShaderInterop::CameraParams, GpuBufferUsage::Uniform>;
+using GpuMaterialConstantsBuffer =
     GpuBuffer<ShaderInterop::MaterialConstants, GpuBufferUsage::Storage>;

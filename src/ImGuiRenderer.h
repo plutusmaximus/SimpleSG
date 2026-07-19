@@ -13,7 +13,7 @@ class Texture;
 
 template<typename T>
 class GpuValidObject;
-using ValidTexture = GpuValidObject<wgpu::Texture>;
+using GpuValidTexture = GpuValidObject<wgpu::Texture>;
 
 class ImGuiRenderer
 {
@@ -42,7 +42,7 @@ public:
     static Result<std::unique_ptr<ImGuiRenderer>> Create(GpuHelper& gpuHelper);
 
     template<typename Func>
-    Result<> Render(const wgpu::Device& gpuDevice, const ValidTexture& target, Func& renderFunc) const
+    Result<> Render(const wgpu::Device& gpuDevice, const GpuValidTexture& target, Func& renderFunc) const
     {
         static_assert(std::is_invocable_r_v<Result<>, Func>,
             "renderFunc must be callable with signature Result<> func()");
@@ -64,9 +64,9 @@ private:
     {
     }
 
-    Result<> NewFrame(const ValidTexture& target) const;
+    Result<> NewFrame(const GpuValidTexture& target) const;
 
-    Result<> Composite(const wgpu::Device& gpuDevice, const ValidTexture& target) const;
+    Result<> Composite(const wgpu::Device& gpuDevice, const GpuValidTexture& target) const;
 
     ImGuiContext* m_Context{ nullptr };
 };

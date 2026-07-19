@@ -403,7 +403,7 @@ GpuColorPass::EnsurePipeline()
 
     const wgpu::FragmentState fragmentState //
         {
-            .module = *m_Shader,
+            .module = m_Shader.Get(),
             .entryPoint = FragmentEntry,
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -414,10 +414,10 @@ GpuColorPass::EnsurePipeline()
     const wgpu::RenderPipelineDescriptor descriptor//
     {
         .label = "GpuColorPass",
-        .layout = m_PipelineLayout,
+        .layout = m_PipelineLayout.Get(),
         .vertex =
         {
-            .module = *m_Shader,
+            .module = m_Shader.Get(),
             .entryPoint = VertexEntry,
             .bufferCount = 1,
             .buffers = &vertexBufferLayout,

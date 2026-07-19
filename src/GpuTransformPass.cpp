@@ -198,10 +198,10 @@ GpuTransformPass::EnsurePipeline()
     const wgpu::ComputePipelineDescriptor desc //
         {
             .label = "GpuTransformPass",
-            .layout = m_PipelineLayout,
+            .layout = m_PipelineLayout.Get(),
             .compute //
             {
-                .module = *m_Shader,
+                .module = m_Shader.Get(),
                 .entryPoint = ComputeEntry,
             },
         };

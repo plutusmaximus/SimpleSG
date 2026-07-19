@@ -14,8 +14,8 @@ public:
 
     struct Inputs
     {
-        WorldTransformBuffer WorldTransforms;
-        CameraParamsBuffer CameraParams;
+        GpuWorldTransformBuffer WorldTransforms;
+        GpuCameraParamsBuffer CameraParams;
 
         friend bool operator==(const Inputs& a, const Inputs& b)
         {
@@ -25,7 +25,7 @@ public:
 
     struct Outputs
     {
-        ClipSpaceBuffer ClipSpaceTransforms;
+        GpuClipSpaceBuffer ClipSpaceTransforms;
 
         friend bool operator==(const Outputs& a, const Outputs& b)
         {
@@ -48,7 +48,7 @@ public:
     Result<wgpu::ComputePassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder) const;
 
 private:
-    explicit GpuTransformPass(const GpuHelper& gpuHelper, ValidShaderModule shader)
+    explicit GpuTransformPass(const GpuHelper& gpuHelper, GpuValidShaderModule shader)
         : m_GpuHelper(&gpuHelper),
           m_Shader(std::move(shader))
     {
@@ -62,7 +62,7 @@ private:
     std::optional<Inputs> m_Inputs;
     std::optional<Outputs> m_Outputs;
 
-    ValidShaderModule m_Shader;
+    GpuValidShaderModule m_Shader;
     wgpu::BindGroupLayout m_BindGroupLayout;
     wgpu::PipelineLayout m_PipelineLayout;
     wgpu::BindGroup m_BindGroup;

@@ -112,7 +112,7 @@ BuildScene(const Level& level,
     return Result<>::Ok;
 }
 
-Result<DrawIndirectBuffer>
+Result<GpuDrawIndirectBuffer>
 BuildDrawIndirectBuffer(GpuHelper& gpuHelper, std::span<const MeshInstance> meshInstances)
 {
     std::vector<ShaderInterop::DrawIndirectParams> drawIndirectParams;
@@ -134,7 +134,7 @@ BuildDrawIndirectBuffer(GpuHelper& gpuHelper, std::span<const MeshInstance> mesh
         drawIndirectParams.emplace_back(drawParams);
     }
 
-    auto buffer = gpuHelper.CreateIndirectBuffer<DrawIndirectBuffer>(drawIndirectParams.size(),
+    auto buffer = gpuHelper.CreateIndirectBuffer<GpuDrawIndirectBuffer>(drawIndirectParams.size(),
         "DrawIndirectBuffer");
     MLG_CHECK(buffer);
 
@@ -143,7 +143,7 @@ BuildDrawIndirectBuffer(GpuHelper& gpuHelper, std::span<const MeshInstance> mesh
     return buffer;
 }
 
-Result<MeshPropertiesBuffer>
+Result<GpuMeshPropertiesBuffer>
 BuildMeshPropertiesBuffer(GpuHelper& gpuHelper,
     const std::span<const ModelInstance> modelInstances,
     const std::span<const MeshInstance> meshInstances)
@@ -176,7 +176,7 @@ BuildMeshPropertiesBuffer(GpuHelper& gpuHelper,
         ++transformIndex;
     }
 
-    auto buffer = gpuHelper.CreateStorageBuffer<MeshPropertiesBuffer>(meshProperties.size(),
+    auto buffer = gpuHelper.CreateStorageBuffer<GpuMeshPropertiesBuffer>(meshProperties.size(),
         "MeshPropertiesBuffer");
     MLG_CHECK(buffer);
 
@@ -200,13 +200,13 @@ Scene::Create(GpuHelper& gpuHelper, const Level& level)
     MLG_CHECK(BuildScene(level, nodes, worldTransforms, modelInstances, meshInstances));
 
     auto transformBuffer =
-        gpuHelper.CreateStorageBuffer<WorldTransformBuffer>(nodes.size(), "WorldTransforms");
+        gpuHelper.CreateStorageBuffer<GpuWorldTransformBuffer>(nodes.size(), "WorldTransforms");
     MLG_CHECK(transformBuffer);
 
     transformBuffer->Store(worldTransforms);
 
     auto clipSpaceBuffer =
-        gpuHelper.CreateStorageBuffer<ClipSpaceBuffer>(nodes.size(), "ClipSpaceTransforms");
+        gpuHelper.CreateStorageBuffer<GpuClipSpaceBuffer>(nodes.size(), "ClipSpaceTransforms");
     MLG_CHECK(clipSpaceBuffer);
 
     auto drawIndirectBuffer = BuildDrawIndirectBuffer(gpuHelper, meshInstances);
@@ -216,7 +216,7 @@ Scene::Create(GpuHelper& gpuHelper, const Level& level)
     MLG_CHECK(meshPropertiesBuffer);
 
     auto cameraParamsBuf =
-        gpuHelper.CreateUniformBuffer<CameraParamsBuffer>(1, "CameraParams");
+        gpuHelper.CreateUniformBuffer<GpuCameraParamsBuffer>(1, "CameraParams");
     MLG_CHECK(cameraParamsBuf);
 
     Scene scene(std::move(*transformBuffer),
@@ -234,11 +234,11 @@ Scene::Create(GpuHelper& gpuHelper, const Level& level)
     return std::move(scene);
 }
 
-Scene::Scene(WorldTransformBuffer&& worldTransformBuffer,
-    ClipSpaceBuffer&& clipSpaceBuffer,
-    DrawIndirectBuffer&& drawIndirectBuffer,
-    MeshPropertiesBuffer&& meshPropertiesBuffer,
-    CameraParamsBuffer&& cameraParamsBuffer,
+Scene::Scene(GpuWorldTransformBuffer&& worldTransformBuffer,
+    GpuClipSpaceBuffer&& clipSpaceBuffer,
+    GpuDrawIndirectBuffer&& drawIndirectBuffer,
+    GpuMeshPropertiesBuffer&& meshPropertiesBuffer,
+    GpuCameraParamsBuffer&& cameraParamsBuffer,
     std::vector<const Level::Node*>&& nodes,
     std::vector<ModelInstance>&& modelInstances,
     std::vector<MeshInstance>&& meshInstances,

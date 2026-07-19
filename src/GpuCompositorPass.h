@@ -16,22 +16,16 @@ public:
     struct Inputs
     {
         Rect DstRect = Rect({.X = -1, .Y = -1, .Width = 1, .Height = 1});
-        ValidTexture Texture;
+        GpuValidTexture Texture;
 
-        friend bool operator==(const Inputs& a, const Inputs& b)
-        {
-            return a.Texture == b.Texture && a.DstRect == b.DstRect;
-        }
+        friend bool operator==(const Inputs& a, const Inputs& b) = default;
     };
 
     struct Outputs
     {
-        ValidTexture Texture;
+        GpuValidTexture Texture;
 
-        friend bool operator==(const Outputs& a, const Outputs& b)
-        {
-            return a.Texture == b.Texture;
-        }
+        friend bool operator==(const Outputs& a, const Outputs& b) = default;
     };
 
     GpuCompositorPass() = delete;
@@ -46,30 +40,39 @@ public:
     Result<> SetInputs(const Inputs& inputs);
     Result<> SetOutputs(const Outputs& outputs);
 
-    Result<wgpu::RenderPassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder) const;
+    Result<wgpu::RenderPassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder);
 
-    Result<> Composite() const;
+    Result<> Composite();
 
 private:
-
-    explicit GpuCompositorPass(const GpuHelper& gpuHelper, ValidShaderModule shader)
-        : m_GpuHelper(&gpuHelper)
-        , m_Shader(std::move(shader))
+    explicit GpuCompositorPass(const GpuHelper& gpuHelper,
+        GpuValidShaderModule shader,
+        GpuValidSampler sampler,
+        GpuValidBindGroupLayout bindGroupLayout,
+        GpuValidPipelineLayout pipelineLayout)
+        : m_GpuHelper(&gpuHelper),
+          m_Shader(std::move(shader)),
+          m_Sampler(std::move(sampler)),
+          m_BindGroupLayout(std::move(bindGroupLayout)),
+          m_PipelineLayout(std::move(pipelineLayout))
     {
     }
 
-    Result<> EnsureSampler();
-    Result<> EnsureBindGroupLayout();
+    static Result<GpuValidSampler> CreateSampler(const GpuHelper& gpuHelper);
+    static Result<GpuValidBindGroupLayout> CreateBindGroupLayout(const GpuHelper& gpuHelper);
+    static Result<GpuValidPipelineLayout> CreatePipelineLayout(const GpuHelper& gpuHelper,
+        const GpuValidBindGroupLayout& bindGroupLayout);
+    Result<> EnsureBindGroup();
     Result<> EnsurePipeline();
 
     std::optional<Inputs> m_Inputs;
     std::optional<Outputs> m_Outputs;
 
     const GpuHelper* m_GpuHelper{ nullptr };
-    ValidShaderModule m_Shader;
-    wgpu::BindGroupLayout m_BindGroupLayout;
-    wgpu::PipelineLayout m_PipelineLayout;
-    wgpu::Sampler m_Sampler;
+    GpuValidShaderModule m_Shader;
+    GpuValidSampler m_Sampler;
+    GpuValidBindGroupLayout m_BindGroupLayout;
+    GpuValidPipelineLayout m_PipelineLayout;
     wgpu::BindGroup m_BindGroup;
     wgpu::RenderPipeline m_Pipeline;
 };

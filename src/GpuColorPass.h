@@ -19,13 +19,13 @@ public:
     struct Inputs
     {
         Viewport Viewport;
-        VertexBuffer Vertices;
-        IndexBuffer Indices;
-        WorldTransformBuffer WorldTransforms;
-        ClipSpaceBuffer ClipSpaceTransforms;
-        MeshPropertiesBuffer MeshProperties;
-        MaterialConstantsBuffer MaterialConstants;
-        CameraParamsBuffer CameraParams;
+        GpuVertexBuffer Vertices;
+        GpuIndexBuffer Indices;
+        GpuWorldTransformBuffer WorldTransforms;
+        GpuClipSpaceBuffer ClipSpaceTransforms;
+        GpuMeshPropertiesBuffer MeshProperties;
+        GpuMaterialConstantsBuffer MaterialConstants;
+        GpuCameraParamsBuffer CameraParams;
 
         friend bool operator==(const Inputs& a, const Inputs& b)
         {
@@ -42,8 +42,8 @@ public:
 
     struct Outputs
     {
-        ValidTexture RenderTarget;
-        ValidTexture DepthBuffer;
+        GpuValidTexture RenderTarget;
+        GpuValidTexture DepthBuffer;
 
         friend bool operator==(const Outputs& a, const Outputs& b)
         {
@@ -67,7 +67,7 @@ public:
 
 private:
 
-    explicit GpuColorPass(const GpuHelper& gpuHelper, ValidShaderModule shader)
+    explicit GpuColorPass(const GpuHelper& gpuHelper, GpuValidShaderModule shader)
         : m_GpuHelper(&gpuHelper)
         , m_Shader(std::move(shader))
     {
@@ -80,7 +80,7 @@ private:
     std::optional<Inputs> m_Inputs;
     std::optional<Outputs> m_Outputs;
 
-    ValidShaderModule m_Shader;
+    GpuValidShaderModule m_Shader;
     wgpu::BindGroupLayout m_InputsBindGroupLayout;
     wgpu::BindGroupLayout m_TextureBindGroupLayout;
     wgpu::PipelineLayout m_PipelineLayout;

@@ -34,15 +34,15 @@ public:
     void GetVisibleMeshes(const Frustum& frustum,
         std::vector<MeshInstance>& outVisibleMeshes) const;
 
-    WorldTransformBuffer GetWorldTransformBuffer() const { return m_WorldTransformBuffer; }
+    GpuWorldTransformBuffer GetWorldTransformBuffer() const { return m_WorldTransformBuffer; }
 
-    ClipSpaceBuffer GetClipSpaceBuffer() const { return m_ClipSpaceBuffer; }
+    GpuClipSpaceBuffer GetClipSpaceBuffer() const { return m_ClipSpaceBuffer; }
 
-    DrawIndirectBuffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
+    GpuDrawIndirectBuffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
 
-    MeshPropertiesBuffer GetMeshPropertiesBuffer() const { return m_MeshPropertiesBuffer; }
+    GpuMeshPropertiesBuffer GetMeshPropertiesBuffer() const { return m_MeshPropertiesBuffer; }
 
-    CameraParamsBuffer GetCameraParamsBuffer() const { return m_CameraParamsBuffer; }
+    GpuCameraParamsBuffer GetCameraParamsBuffer() const { return m_CameraParamsBuffer; }
 
     Result<> SyncFromLevel();
 
@@ -51,21 +51,21 @@ public:
 
 private:
 
-    Scene(WorldTransformBuffer&& worldTransformBuffer,
-        ClipSpaceBuffer&& clipSpaceBuffer,
-        DrawIndirectBuffer&& drawIndirectBuffer,
-        MeshPropertiesBuffer&& meshPropertiesBuffer,
-        CameraParamsBuffer&& cameraParamsBuffer,
+    Scene(GpuWorldTransformBuffer&& worldTransformBuffer,
+        GpuClipSpaceBuffer&& clipSpaceBuffer,
+        GpuDrawIndirectBuffer&& drawIndirectBuffer,
+        GpuMeshPropertiesBuffer&& meshPropertiesBuffer,
+        GpuCameraParamsBuffer&& cameraParamsBuffer,
         std::vector<const Level::Node*>&& nodes,
         std::vector<ModelInstance>&& modelInstances,
         std::vector<MeshInstance>&& meshInstances,
         std::vector<ShaderInterop::WorldTransform>&& worldTransforms);
 
-    WorldTransformBuffer m_WorldTransformBuffer;
-    ClipSpaceBuffer m_ClipSpaceBuffer;
-    DrawIndirectBuffer m_DrawIndirectBuffer;
-    MeshPropertiesBuffer m_MeshPropertiesBuffer;
-    CameraParamsBuffer m_CameraParamsBuffer;
+    GpuWorldTransformBuffer m_WorldTransformBuffer;
+    GpuClipSpaceBuffer m_ClipSpaceBuffer;
+    GpuDrawIndirectBuffer m_DrawIndirectBuffer;
+    GpuMeshPropertiesBuffer m_MeshPropertiesBuffer;
+    GpuCameraParamsBuffer m_CameraParamsBuffer;
 
     std::vector<const Level::Node*> m_Nodes;
     std::vector<ModelInstance> m_ModelInstances;

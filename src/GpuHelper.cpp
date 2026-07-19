@@ -875,7 +875,7 @@ GpuHelper::GetScreenDimensions() const
         };
 }
 
-Result<ValidTexture>
+Result<GpuValidTexture>
 GpuHelper::GetSwapChainTexture() const
 {
     wgpu::SurfaceTexture surfaceTexture;
@@ -890,7 +890,7 @@ GpuHelper::GetSwapChainTexture() const
     if(surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal
         || surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessSuboptimal)
     {
-        return ValidTexture::Create(surfaceTexture.texture);
+        return GpuValidTexture::Create(surfaceTexture.texture);
     }
 
     MLG_CHECK(surfaceTexture.status != wgpu::SurfaceGetCurrentTextureStatus::Error,
@@ -928,7 +928,7 @@ GpuHelper::GetSwapChainTexture() const
             || surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessSuboptimal,
         "Failed to acquire current surface texture after reconfiguration");
 
-    return ValidTexture::Create(surfaceTexture.texture);
+    return GpuValidTexture::Create(surfaceTexture.texture);
 }
 
 wgpu::TextureFormat
@@ -956,7 +956,7 @@ GpuHelper::Resize(const uint32_t width, const uint32_t height)
     return Result<>::Ok;
 }
 
-Result<ValidShaderModule>
+Result<GpuValidShaderModule>
 GpuHelper::LoadShader(const std::string_view& filePath, FileFetcher& fileFetcher) const
 {
     MLG_INFO("Loading shader file: {}", filePath);
@@ -986,7 +986,7 @@ GpuHelper::LoadShader(const std::string_view& filePath, FileFetcher& fileFetcher
     const wgpu::ShaderModule shaderModule = GetDevice().CreateShaderModule(&desc);
     MLG_CHECK(shaderModule, "Failed to create shader module");
 
-    return ValidShaderModule::Create(shaderModule);
+    return GpuValidShaderModule::Create(shaderModule);
 }
 
 Result<wgpu::Texture>
@@ -1044,7 +1044,7 @@ GpuHelper::CreateTextureBindGroup(const wgpu::Texture& texture, const std::strin
     return bindGroup;
 }
 
-Result<ValidTexture>
+Result<GpuValidTexture>
 GpuHelper::CreateRenderTarget(
     const unsigned width, const unsigned height, const std::string_view& name) const
 {
@@ -1068,10 +1068,10 @@ GpuHelper::CreateRenderTarget(
     const wgpu::Texture texture = GetDevice().CreateTexture(&desc);
     MLG_CHECK(texture, "Failed to create texture");
 
-    return ValidTexture::Create(texture);
+    return GpuValidTexture::Create(texture);
 }
 
-Result<ValidTexture>
+Result<GpuValidTexture>
 GpuHelper::CreateDepthBuffer(
     const unsigned width, const unsigned height, const std::string_view& name) const
 {
@@ -1094,7 +1094,7 @@ GpuHelper::CreateDepthBuffer(
     const wgpu::Texture depthBuffer = GetDevice().CreateTexture(&desc);
     MLG_CHECK(depthBuffer, "Failed to create depth buffer");
 
-    return ValidTexture::Create(depthBuffer);
+    return GpuValidTexture::Create(depthBuffer);
 }
 
 // A note on using staging buffers to upload data to the GPU:
@@ -1168,7 +1168,7 @@ GpuHelper::CommitStagingBuffer(
     return Result<>::Ok;
 }
 
-Result<VertexBuffer>
+Result<GpuVertexBuffer>
 GpuHelper::CreateVertexBuffer(const size_t count, const std::string_view& name) const
 {
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
@@ -1177,10 +1177,10 @@ GpuHelper::CreateVertexBuffer(const size_t count, const std::string_view& name) 
 
     MLG_CHECK(buffer, "Failed to create vertex buffer");
 
-    return VertexBuffer::Create(GetDevice(), *buffer);
+    return GpuVertexBuffer::Create(GetDevice(), *buffer);
 }
 
-Result<IndexBuffer>
+Result<GpuIndexBuffer>
 GpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name) const
 {
     const wgpu::BufferUsage usage = wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst;
@@ -1190,7 +1190,7 @@ GpuHelper::CreateIndexBuffer(const size_t count, const std::string_view& name) c
 
     MLG_CHECK(buffer, "Failed to create index buffer");
 
-    return IndexBuffer::Create(GetDevice(), *buffer);
+    return GpuIndexBuffer::Create(GetDevice(), *buffer);
 }
 
 // Texture staging buffer rows must be a multiple of 256 bytes.
