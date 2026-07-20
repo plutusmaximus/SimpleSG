@@ -20,15 +20,17 @@ CreateColorPassTarget(const GpuHelper& gpuHelper, const uint32_t width, const ui
     MLG_DEBUG("Creating new color/depth target with size {}x{}", width, height);
 
     auto renderTarget = gpuHelper.CreateRenderTarget(width, height, "ColorPass::RenderTarget");
-    MLG_CHECK(renderTarget);
+    auto validRenderTarget = GpuValidTexture::Create(renderTarget);
+    MLG_CHECK(validRenderTarget, "Failed to create valid render target");
 
     auto depthBuffer = gpuHelper.CreateDepthBuffer(width, height, "ColorPass::DepthBuffer");
-    MLG_CHECK(depthBuffer);
+    auto validDepthBuffer = GpuValidTexture::Create(depthBuffer);
+    MLG_CHECK(validDepthBuffer, "Failed to create valid depth buffer");
 
     return GpuColorPass::Outputs //
         {
-            .RenderTarget = *renderTarget,
-            .DepthBuffer = *depthBuffer,
+            .RenderTarget = *validRenderTarget,
+            .DepthBuffer = *validDepthBuffer,
         };
 }
 

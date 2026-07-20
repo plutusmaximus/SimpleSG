@@ -875,7 +875,7 @@ GpuHelper::GetScreenDimensions() const
         };
 }
 
-Result<GpuValidTexture>
+Result<wgpu::Texture>
 GpuHelper::GetSwapChainTexture() const
 {
     wgpu::SurfaceTexture surfaceTexture;
@@ -890,7 +890,7 @@ GpuHelper::GetSwapChainTexture() const
     if(surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal
         || surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessSuboptimal)
     {
-        return GpuValidTexture::Create(surfaceTexture.texture);
+        return surfaceTexture.texture;
     }
 
     MLG_CHECK(surfaceTexture.status != wgpu::SurfaceGetCurrentTextureStatus::Error,
@@ -928,7 +928,7 @@ GpuHelper::GetSwapChainTexture() const
             || surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessSuboptimal,
         "Failed to acquire current surface texture after reconfiguration");
 
-    return GpuValidTexture::Create(surfaceTexture.texture);
+    return surfaceTexture.texture;
 }
 
 wgpu::TextureFormat
@@ -956,7 +956,7 @@ GpuHelper::Resize(const uint32_t width, const uint32_t height)
     return Result<>::Ok;
 }
 
-Result<GpuValidShaderModule>
+Result<wgpu::ShaderModule>
 GpuHelper::LoadShader(const std::string_view& filePath, FileFetcher& fileFetcher) const
 {
     MLG_INFO("Loading shader file: {}", filePath);
@@ -986,7 +986,7 @@ GpuHelper::LoadShader(const std::string_view& filePath, FileFetcher& fileFetcher
     const wgpu::ShaderModule shaderModule = GetDevice().CreateShaderModule(&desc);
     MLG_CHECK(shaderModule, "Failed to create shader module");
 
-    return GpuValidShaderModule::Create(shaderModule);
+    return shaderModule;
 }
 
 Result<wgpu::Texture>
@@ -1044,7 +1044,7 @@ GpuHelper::CreateTextureBindGroup(const wgpu::Texture& texture, const std::strin
     return bindGroup;
 }
 
-Result<GpuValidTexture>
+Result<wgpu::Texture>
 GpuHelper::CreateRenderTarget(
     const unsigned width, const unsigned height, const std::string_view& name) const
 {
@@ -1068,10 +1068,10 @@ GpuHelper::CreateRenderTarget(
     const wgpu::Texture texture = GetDevice().CreateTexture(&desc);
     MLG_CHECK(texture, "Failed to create texture");
 
-    return GpuValidTexture::Create(texture);
+    return texture;
 }
 
-Result<GpuValidTexture>
+Result<wgpu::Texture>
 GpuHelper::CreateDepthBuffer(
     const unsigned width, const unsigned height, const std::string_view& name) const
 {
@@ -1094,7 +1094,7 @@ GpuHelper::CreateDepthBuffer(
     const wgpu::Texture depthBuffer = GetDevice().CreateTexture(&desc);
     MLG_CHECK(depthBuffer, "Failed to create depth buffer");
 
-    return GpuValidTexture::Create(depthBuffer);
+    return depthBuffer;
 }
 
 // A note on using staging buffers to upload data to the GPU:

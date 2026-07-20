@@ -138,9 +138,10 @@ Result<GpuColorPass>
 GpuColorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 {
     auto shader = gpuHelper.LoadShader(ShaderPath, fileFetcher);
-    MLG_CHECK(shader, "Failed to load shader: {}", ShaderPath);
+    auto validShader = GpuValidShaderModule::Create(shader);
+    MLG_CHECK(validShader, "Failed to load shader: {}", ShaderPath);
 
-    GpuColorPass pass(gpuHelper, std::move(*shader));
+    GpuColorPass pass(gpuHelper, std::move(*validShader));
 
     MLG_CHECK(pass.EnsurePipeline());
 

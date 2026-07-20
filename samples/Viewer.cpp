@@ -1,3 +1,4 @@
+#include "Camera.h"
 #include "GltfLoader.h"
 #include "GpuColorPass.h"
 #include "GpuHelper.h"
@@ -6,7 +7,6 @@
 #include "Level.h"
 #include "MouseNav.h"
 #include "PerfMetrics.h"
-#include "Camera.h"
 #include "PropKit.h"
 #include "Renderer.h"
 #include "Scene.h"
@@ -18,13 +18,15 @@
 #include <SDL3/SDL_events.h>
 #include <thread>
 
+
 namespace
 {
 constexpr const char* kAppName = "Viewer";
 
-Result<> RenderGui()
+Result<>
+RenderGui()
 {
-#if defined (NDEBUG)
+#if defined(NDEBUG)
     constexpr const char* buildType = "Release";
 #else
     constexpr const char* buildType = "Debug";
@@ -48,10 +50,7 @@ Result<> RenderGui()
     std::span<PerfStats> sortedCounters = perfStatsSpan.first(counterCount);
 
     std::ranges::sort(sortedCounters,
-        [](const PerfStats& a, const PerfStats& b)
-        {
-            return a.GetName() < b.GetName();
-        });
+        [](const PerfStats& a, const PerfStats& b) { return a.GetName() < b.GetName(); });
 
     for(const auto& counterStat : sortedCounters)
     {
@@ -66,10 +65,7 @@ Result<> RenderGui()
     sortedCounters = perfStatsSpan.first(counterCount);
 
     std::ranges::sort(sortedCounters,
-        [](const PerfStats& a, const PerfStats& b)
-        {
-            return a.GetName() < b.GetName();
-        });
+        [](const PerfStats& a, const PerfStats& b) { return a.GetName() < b.GetName(); });
 
     for(const auto& counterStat : sortedCounters)
     {
@@ -109,9 +105,11 @@ Load(GpuHelper& gpuHelper,
 }
 
 #ifdef _WIN32
-constexpr const char* SPONZA_MODEL_PATH = "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
+constexpr const char* SPONZA_MODEL_PATH =
+    "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
 #else
-constexpr const char* SPONZA_MODEL_PATH = "../../../assets/main_sponza/NewSponza_Main_glTF_003.gltf";
+constexpr const char* SPONZA_MODEL_PATH =
+    "../../../assets/main_sponza/NewSponza_Main_glTF_003.gltf";
 #endif
 
 Result<>
@@ -149,7 +147,7 @@ MainLoop()
     const Radiansf cameraYaw = Radiansf::FromDegrees(kDefaultCameraYaw);
 
     Dimension2 screenDimensions = gpuHelper.GetScreenDimensions();
-    TrTransformf cameraXForm{ .T{0, kDefaultCameraHeight, 0}, .R{cameraYaw, Vec3f::YAXIS()} };
+    TrTransformf cameraXForm{ .T{ 0, kDefaultCameraHeight, 0 }, .R{ cameraYaw, Vec3f::YAXIS() } };
     Camera camera((Viewport(screenDimensions)));
 
     mouseNav.SetTransform(cameraXForm);
@@ -172,11 +170,7 @@ MainLoop()
             {
                 .Input = InputButtons::KeyPressed(SDL_SCANCODE_ESCAPE),
                 .ActionId = quit,
-                .Handler =
-                    [&](const ActionEvent&)
-                {
-                    System::PostQuitEvent();
-                },
+                .Handler = [&](const ActionEvent&) { System::PostQuitEvent(); },
             },
             {
                 .Input = InputButtons::KeyDown(SDL_SCANCODE_W),
@@ -321,16 +315,18 @@ MainLoop()
         }
 
         mouseNav.Update(elapsedSeconds);
-            
+
         cameraXForm = mouseNav.GetTransform();
 
         auto target = gpuHelper.GetSwapChainTexture();
-        MLG_CHECK(target, "Failed to get swapchain texture");
+
+        auto validTarget = GpuValidTexture::Create(target);
+        MLG_CHECK(validTarget, "Failed to create valid render target");
 
         MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
-        MLG_CHECK(renderer.Composite(*target));
+        MLG_CHECK(renderer.Composite(*validTarget));
 
-        MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, RenderGui));
+        MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *validTarget, RenderGui));
 
 #if !defined(__EMSCRIPTEN__)
         MLG_CHECK(gpuHelper.GetSurface().Present(), "Failed to present backbuffer");
@@ -343,7 +339,8 @@ MainLoop()
 }
 } // namespace
 
-int main(int /*argc*/, char** /*argv*/)
+int
+main(int /*argc*/, char** /*argv*/)
 {
     if(!MainLoop())
     {

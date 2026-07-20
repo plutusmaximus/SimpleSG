@@ -13,8 +13,8 @@
 #include <filesystem>
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
-#include <SDL3/SDL_events.h>
 #include <memory>
+#include <SDL3/SDL_events.h>
 #include <thread>
 
 namespace
@@ -151,7 +151,8 @@ MainLoop()
     MLG_CHECK(CreateTriangleModel(propKitDef, levelDef));
 
     const std::filesystem::path rootPath = ".";
-    auto propKitResult = PropKit::Create(*gpuHelper, *threadPool, *fileFetcher, rootPath, propKitDef);
+    auto propKitResult =
+        PropKit::Create(*gpuHelper, *threadPool, *fileFetcher, rootPath, propKitDef);
     MLG_CHECK(propKitResult, "Failed to create PropKit");
     const PropKit& propKit = *propKitResult;
 
@@ -248,12 +249,14 @@ MainLoop()
         camera.SetViewport(curViewport);
 
         auto target = gpuHelper->GetSwapChainTexture();
-        MLG_CHECK(target, "Failed to get swapchain texture");
+
+        auto validTarget = GpuValidTexture::Create(target);
+        MLG_CHECK(validTarget, "Failed to create valid render target");
 
         MLG_CHECK(renderer->Render(camera, cameraXForm, scene, propKit));
-        MLG_CHECK(renderer->Composite(*target));
+        MLG_CHECK(renderer->Composite(*validTarget));
 
-        MLG_CHECK(imGuiRenderer->Render(gpuHelper->GetDevice(), *target, RenderGui));
+        MLG_CHECK(imGuiRenderer->Render(gpuHelper->GetDevice(), *validTarget, RenderGui));
 
 #if !defined(__EMSCRIPTEN__)
 

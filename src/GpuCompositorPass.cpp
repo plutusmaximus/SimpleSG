@@ -7,7 +7,8 @@ Result<GpuCompositorPass>
 GpuCompositorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 {
     auto shader = gpuHelper.LoadShader(ShaderPath, fileFetcher);
-    MLG_CHECK(shader);
+    auto validShader = GpuValidShaderModule::Create(shader);
+    MLG_CHECK(validShader, "Failed to load shader: {}", ShaderPath);
 
     auto sampler = CreateSampler(gpuHelper);
     MLG_CHECK(sampler);
@@ -19,7 +20,7 @@ GpuCompositorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
     MLG_CHECK(pipelineLayout);
 
     GpuCompositorPass pass(gpuHelper,
-        std::move(*shader),
+        std::move(*validShader),
         std::move(*sampler),
         std::move(*bindGroupLayout),
         std::move(*pipelineLayout));

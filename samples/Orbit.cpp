@@ -29,26 +29,25 @@ namespace
 constexpr const char* kAppName = "Orbit";
 
 constexpr float kPhysicsFps = 60.0f;
-constexpr float kPhysicsTimeStep = 1.0f/kPhysicsFps;
-constexpr float kGravitationalConstant = 0.1f;//6.674e-11f;//(m^3 kg^-1 s^-2)
+constexpr float kPhysicsTimeStep = 1.0f / kPhysicsFps;
+constexpr float kGravitationalConstant = 0.1f; // 6.674e-11f;//(m^3 kg^-1 s^-2)
 
 constexpr bool kApplyGravityMultithreaded = true;
 struct PerfCounterGlobals
 {
-    static inline PerfCounter TotalPE{ { .Name = "Energy.PE" } };    // Potential Energy
-    static inline PerfCounter TotalKE{ { .Name = "Energy.KE" } };    // Kinetic Energy
+    static inline PerfCounter TotalPE{ { .Name = "Energy.PE" } }; // Potential Energy
+    static inline PerfCounter TotalKE{ { .Name = "Energy.KE" } }; // Kinetic Energy
     static inline PerfCounter TotalEnergy{ { .Name = "Energy.Total" } };
 };
 
 class NodeActivator
 {
 public:
-
     NodeActivator() = delete;
 
     NodeActivator(Level& level, const bool activate)
         : m_Level(level),
-        m_Activate(activate)
+          m_Activate(activate)
     {
     }
 
@@ -66,7 +65,6 @@ public:
     }
 
 private:
-
     Level& m_Level; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
     bool m_Activate;
 };
@@ -74,12 +72,11 @@ private:
 class NodeVisibility
 {
 public:
-
     NodeVisibility() = delete;
 
     NodeVisibility(Level& level, const bool visible)
         : m_Level(level),
-        m_Visible(visible)
+          m_Visible(visible)
     {
     }
 
@@ -97,7 +94,6 @@ public:
     }
 
 private:
-
     Level& m_Level; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
     bool m_Visible;
 };
@@ -105,7 +101,6 @@ private:
 class NodeSelector
 {
 public:
-
     NodeSelector() = delete;
 
     NodeSelector(const Camera& camera, const TrTransformf& cameraXForm, const Rect& selectionRect)
@@ -118,16 +113,13 @@ public:
         const BoundingSphere bs = node.GetBoundingSphere();
         const Frustum::ContainsResult result = m_Frustum.Contains(bs);
 
-        return result == Frustum::ContainsResult::Inside || result == Frustum::ContainsResult::Intersects;
+        return result == Frustum::ContainsResult::Inside
+            || result == Frustum::ContainsResult::Intersects;
     }
 
-    bool operator()(const Level::Node* node) const
-    {
-        return operator()(*node);
-    }
+    bool operator()(const Level::Node* node) const { return operator()(*node); }
 
 private:
-
     Frustum m_Frustum;
 };
 
@@ -198,9 +190,9 @@ Load(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher)
     }
 
     const LevelDef levelDef //
-    {
-        .NodeDefs = std::move(nodeDefs),
-    };
+        {
+            .NodeDefs = std::move(nodeDefs),
+        };
 
     auto level = Level::Create(levelDef, *propKit);
     MLG_CHECK(level, "Failed to create Level");
@@ -208,7 +200,8 @@ Load(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher)
     return std::make_tuple(std::move(*propKit), std::move(*level));
 }
 
-void ApplyRandomVelocities(PhysicsLevel& physLevel)
+void
+ApplyRandomVelocities(PhysicsLevel& physLevel)
 {
     constexpr float MAX_SPEED = 0.5f;
     constexpr float MIN_SPEED = 0.1f;
@@ -219,8 +212,8 @@ void ApplyRandomVelocities(PhysicsLevel& physLevel)
 
     for(auto& vel : physLevel.GetLinearVelocities())
     {
-        const Vec3f randomVel = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize() *
-            (MIN_SPEED + (std::abs(dis(gen)) * (MAX_SPEED - MIN_SPEED)));
+        const Vec3f randomVel = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize()
+            * (MIN_SPEED + (std::abs(dis(gen)) * (MAX_SPEED - MIN_SPEED)));
 
         vel = randomVel;
     }
@@ -228,20 +221,21 @@ void ApplyRandomVelocities(PhysicsLevel& physLevel)
 
 struct ApplyGravityBatchParams
 {
-    size_t StartIndexA{0};
-    size_t StartIndexB{0};
-    size_t BatchSize{0};
+    size_t StartIndexA{ 0 };
+    size_t StartIndexB{ 0 };
+    size_t BatchSize{ 0 };
 
     std::span<const RigidBody> Bodies;
     std::span<const TrsTransformf> Transforms;
 
     std::vector<Vec3f> Forces;
-    float PotentialEnergy{0};
+    float PotentialEnergy{ 0 };
 
-    std::atomic<size_t>* FinishCounter{nullptr};
+    std::atomic<size_t>* FinishCounter{ nullptr };
 };
 
-void ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
+void
+ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
 {
     batchParams->Forces.clear();
     batchParams->Forces.resize(batchParams->Bodies.size(), Vec3f{ 0 });
@@ -283,7 +277,7 @@ void ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
 
             const float pe = -kGravitationalConstant * massProduct / std::sqrt(r2);
             const Vec3f F = -pe * delta / r2;
-            //const Vec3f F = kGravitationalConstant * massProduct * delta / (r2 * std::sqrt(r2));
+            // const Vec3f F = kGravitationalConstant * massProduct * delta / (r2 * std::sqrt(r2));
 
             batchParams->PotentialEnergy += pe;
 
@@ -296,7 +290,8 @@ void ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
 }
 
 // Returns the total potential energy of the system after applying gravity.
-void ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
+void
+ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
 {
     MLG_SCOPED_TIMER("Physics.ApplyGravity");
 
@@ -334,7 +329,7 @@ void ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
 
                 ApplyGravityBatchParams& params = batches.emplace_back(batchParams);
 
-                if constexpr (kApplyGravityMultithreaded)
+                if constexpr(kApplyGravityMultithreaded)
                 {
                     threadPool.Enqueue<ApplyGravityBatch>(&params);
                 }
@@ -365,7 +360,7 @@ void ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
 
         ApplyGravityBatchParams& params = batches.emplace_back(batchParams);
 
-        if constexpr (kApplyGravityMultithreaded)
+        if constexpr(kApplyGravityMultithreaded)
         {
             threadPool.Enqueue<ApplyGravityBatch>(&params);
         }
@@ -375,7 +370,7 @@ void ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
         }
     }
 
-    if constexpr (kApplyGravityMultithreaded)
+    if constexpr(kApplyGravityMultithreaded)
     {
         while(finishCounter.load(std::memory_order_relaxed) < batches.size())
         {
@@ -400,7 +395,8 @@ void ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
     PerfCounterGlobals::TotalPE.Set(totalPotentialEnergy);
 }
 
-void ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
+void
+ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
 {
     const std::span<const RigidBody> bodies = physLevel.GetBodies();
     constexpr unsigned kRngSeed = 12345;
@@ -433,7 +429,8 @@ void ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
     }
 }
 
-void ApplyStoppingImpulse(PhysicsLevel& physLevel)
+void
+ApplyStoppingImpulse(PhysicsLevel& physLevel)
 {
     const std::span<const Vec3f> velocities = physLevel.GetLinearVelocities();
     const std::span<const RigidBody> bodies = physLevel.GetBodies();
@@ -446,7 +443,8 @@ void ApplyStoppingImpulse(PhysicsLevel& physLevel)
     }
 }
 
-float ComputeKineticEnergy(const PhysicsLevel& physLevel)
+float
+ComputeKineticEnergy(const PhysicsLevel& physLevel)
 {
     float kineticEnergy = 0.0f;
 
@@ -490,7 +488,7 @@ MainLoop()
     FileFetcher& fileFetcher = system.GetFileFetcher();
     Renderer& renderer = system.GetRenderer();
     const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
-    
+
     auto loadResult = Load(gpuHelper, threadPool, fileFetcher);
     MLG_CHECK(loadResult);
 
@@ -505,12 +503,12 @@ MainLoop()
     MLG_CHECK(physLevelResult);
 
     PhysicsLevel physLevel = std::move(*physLevelResult);
-    
+
     ApplyRandomVelocities(physLevel);
 
     constexpr float kInitialCameraDistance = 40.0f;
 
-    TrTransformf cameraXForm{ .T{0, 0, -kInitialCameraDistance} };
+    TrTransformf cameraXForm{ .T{ 0, 0, -kInitialCameraDistance } };
     Camera camera((Viewport(gpuHelper.GetScreenDimensions())));
 
     mouseNav.SetTransform(cameraXForm);
@@ -540,11 +538,7 @@ MainLoop()
             {
                 .Input = InputButtons::KeyPressed(SDL_SCANCODE_ESCAPE),
                 .ActionId = quit,
-                .Handler =
-                    [&](const ActionEvent&)
-                {
-                    System::PostQuitEvent();
-                },
+                .Handler = [&](const ActionEvent&) { System::PostQuitEvent(); },
             },
             {
                 .Input = InputButtons::KeyDown(SDL_SCANCODE_W),
@@ -626,20 +620,12 @@ MainLoop()
             {
                 .Input = InputButtons::KeyPressed(SDL_SCANCODE_BACKSPACE),
                 .ActionId = stopAll,
-                .Handler =
-                    [&](const ActionEvent&)
-                {
-                    ApplyStoppingImpulse(physLevel);
-                },
+                .Handler = [&](const ActionEvent&) { ApplyStoppingImpulse(physLevel); },
             },
             {
                 .Input = InputButtons::KeyPressed(SDL_SCANCODE_F1),
                 .ActionId = pause,
-                .Handler =
-                    [&](const ActionEvent&)
-                {
-                    pauseSim = !pauseSim;
-                },
+                .Handler = [&](const ActionEvent&) { pauseSim = !pauseSim; },
             },
             {
                 .Input = InputButtons::KeyPressed(SDL_SCANCODE_F2),
@@ -652,23 +638,23 @@ MainLoop()
                     if(!activateSelectedNodes)
                     {
                         RangeQuery::from(physLevel.GetNodes())
-                        .apply(NodeActivator(level, true))
-                        .apply(NodeVisibility(level, true))
-                        .exec();
+                            .apply(NodeActivator(level, true))
+                            .apply(NodeVisibility(level, true))
+                            .exec();
                     }
                     else
                     {
-                        //const Rect rect(Point(172, 290), Point(247, 360));
-                        const Rect rect({.X = 200, .Y = 400, .Width = 75, .Height = 75});
-                        //const Rect rect(Point(1000, 1000), Point(1050, 1050));
+                        // const Rect rect(Point(172, 290), Point(247, 360));
+                        const Rect rect({ .X = 200, .Y = 400, .Width = 75, .Height = 75 });
+                        // const Rect rect(Point(1000, 1000), Point(1050, 1050));
 
                         RangeQuery::from(physLevel.GetNodes())
-                        .apply(NodeActivator(level, false))
-                        .apply(NodeVisibility(level, false))
-                        .where(NodeSelector(camera, cameraXForm, rect))
-                        .apply(NodeActivator(level, true))
-                        .apply(NodeVisibility(level, true))
-                        .exec();
+                            .apply(NodeActivator(level, false))
+                            .apply(NodeVisibility(level, false))
+                            .where(NodeSelector(camera, cameraXForm, rect))
+                            .apply(NodeActivator(level, true))
+                            .apply(NodeVisibility(level, true))
+                            .exec();
                     }
                 },
             },
@@ -732,7 +718,9 @@ MainLoop()
         MLG_CHECK(scene.SyncToGpu(gpuHelper.GetDevice()));
 
         auto target = gpuHelper.GetSwapChainTexture();
-        MLG_CHECK(target, "Failed to get swapchain texture");
+
+        auto validTarget = GpuValidTexture::Create(target);
+        MLG_CHECK(validTarget, "Failed to create valid render target");
 
         if(ImGui::GetFrameCount() > 1)
         {
@@ -744,15 +732,12 @@ MainLoop()
             camera.SetViewport(sceneViewport);
 
             MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
-            MLG_CHECK(renderer.Composite(*target, scenePanelRect));
+            MLG_CHECK(renderer.Composite(*validTarget, scenePanelRect));
         }
 
-        auto renderGui = [&]()
-        {
-            return devUi.Render();
-        };
+        auto renderGui = [&]() { return devUi.Render(); };
 
-        MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, renderGui));
+        MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *validTarget, renderGui));
 
         {
 #if !defined(__EMSCRIPTEN__)
@@ -768,7 +753,8 @@ MainLoop()
 }
 } // namespace
 
-int main(int /*argc*/, char** /*argv*/)
+int
+main(int /*argc*/, char** /*argv*/)
 {
     if(!MainLoop())
     {

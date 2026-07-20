@@ -124,7 +124,7 @@ public:
     const wgpu::Sampler& GetDefaultSampler() const;
     const wgpu::BindGroupLayout& GetTextureBindGroupLayout() const;
     Dimension2 GetScreenDimensions() const;
-    Result<GpuValidTexture> GetSwapChainTexture() const;
+    Result<wgpu::Texture> GetSwapChainTexture() const;
     wgpu::TextureFormat GetSwapChainFormat() const;
 
     /// @brief Resizes the swap chain to the given width and height.
@@ -132,7 +132,7 @@ public:
 
     /// @brief Loads a shader from the given file path.
     /// FIXME(KB) - need an async version of this.
-    Result<GpuValidShaderModule> LoadShader(const std::string_view& filePath,
+    Result<wgpu::ShaderModule> LoadShader(const std::string_view& filePath,
         FileFetcher& fileFetcher) const;
 
     /// @brief Creates an empty texture with the given dimensions and name.
@@ -144,11 +144,11 @@ public:
         const std::string_view& name) const;
 
     /// @brief Creates a render target with the given dimensions and name.
-    Result<GpuValidTexture> CreateRenderTarget(
+    Result<wgpu::Texture> CreateRenderTarget(
         const unsigned width, const unsigned height, const std::string_view& name) const;
 
     /// @brief Creates a depth buffer with the given dimensions and name.
-    Result<GpuValidTexture> CreateDepthBuffer(
+    Result<wgpu::Texture> CreateDepthBuffer(
         const unsigned width, const unsigned height, const std::string_view& name) const;
 
     /// @brief Creates a staging buffer for copying texture data to the GPU.

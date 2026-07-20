@@ -8,9 +8,10 @@ Result<GpuTransformPass>
 GpuTransformPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 {
     auto shader = gpuHelper.LoadShader(ShaderPath, fileFetcher);
-    MLG_CHECK(shader);
+    auto validShader = GpuValidShaderModule::Create(shader);
+    MLG_CHECK(validShader, "Failed to load shader: {}", ShaderPath);
 
-    GpuTransformPass pass(gpuHelper, std::move(*shader));
+    GpuTransformPass pass(gpuHelper, std::move(*validShader));
 
     MLG_CHECK(pass.EnsurePipeline());
 
