@@ -174,3 +174,9 @@ using GpuMeshPropertiesBuffer = GpuBuffer<ShaderInterop::MeshProperties, GpuBuff
 using GpuCameraParamsBuffer = GpuBuffer<ShaderInterop::CameraParams, GpuBufferUsage::Uniform>;
 using GpuMaterialConstantsBuffer =
     GpuBuffer<ShaderInterop::MaterialConstants, GpuBufferUsage::Storage>;
+
+
+inline bool operator==(const wgpu::Texture& a, const wgpu::Texture& b)
+{
+    return a.Get() == b.Get();
+}

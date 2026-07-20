@@ -195,12 +195,12 @@ Renderer::Composite(const GpuValidTexture& target, const Rect& dstRect)
     const GpuCompositorPass::Inputs inputs //
         {
             .DstRect = dstRect,
-            .Texture = m_ColorPassOutputs->RenderTarget,
+            .Texture = m_ColorPassOutputs->RenderTarget.Get(),
         };
 
     const GpuCompositorPass::Outputs outputs //
         {
-            .Texture = target,
+            .Texture = target.Get(),
         };
 
     MLG_CHECK(m_CompositorPass.SetInputs(inputs));
