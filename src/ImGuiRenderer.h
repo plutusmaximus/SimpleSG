@@ -23,12 +23,12 @@ public:
     ~ImGuiRenderer();
     ImGuiRenderer(const ImGuiRenderer&) = delete;
     ImGuiRenderer& operator=(const ImGuiRenderer&) = delete;
-    ImGuiRenderer(ImGuiRenderer&& other)
+    ImGuiRenderer(ImGuiRenderer&& other) noexcept
         : m_Context(other.m_Context)
     {
         other.m_Context = nullptr;
     }
-    ImGuiRenderer& operator=(ImGuiRenderer&& other)
+    ImGuiRenderer& operator=(ImGuiRenderer&& other) noexcept
     {
         if(this != &other)
         {
