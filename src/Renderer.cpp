@@ -218,7 +218,7 @@ Renderer::TransformNodes(const wgpu::Device& gpuDevice,
 {
     // Use inverse of camera transform as view matrix
     const Mat44f viewMat = cameraXForm.Inverse().ToMatrix();
-    const Mat44f& projMat = camera.GetMatrix();
+    const Mat44f& projMat = camera.GetProjectionMatrix();
     const Mat44f viewProjMat = projMat.Mul(viewMat);
 
     const ShaderInterop::CameraParams cameraParams //

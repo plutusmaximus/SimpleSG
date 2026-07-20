@@ -120,7 +120,7 @@ WorldFromScreenPoint(const Camera& camera,
     const float ndcDepth)
 {
     const Vec2f ndc = ScreenToNdcForTest(screenPos, camera.GetViewport());
-    const Mat44f invViewProj = cameraXform.ToMatrix() * camera.GetMatrix().Inverse();
+    const Mat44f invViewProj = cameraXform.ToMatrix() * camera.GetProjectionMatrix().Inverse();
     const Vec4f world = invViewProj * Vec4f(ndc, ndcDepth, 1.0f);
     return world.xyz() / world.w;
 }
@@ -152,7 +152,7 @@ TEST(Camera, Constructor_UsesViewportAspectRatioWithDefaultProjection)
     EXPECT_FLOAT_EQ(camera.GetNearClip(), 0.1f);
     EXPECT_FLOAT_EQ(camera.GetFarClip(), 1000.0f);
     ExpectViewportEq(camera.GetViewport(), 0, 0, 853, 497, 0.0f, 1.0f);
-    ExpectMatrixNear(camera.GetMatrix(),
+    ExpectMatrixNear(camera.GetProjectionMatrix(),
         Mat44f::PerspectiveLH(camera.GetFov(),
             camera.GetAspectRatio(),
             camera.GetNearClip(),
@@ -175,7 +175,7 @@ TEST(Camera, SetPerspective_UpdatesProjectionParamsViewportAndMatrix)
     EXPECT_FLOAT_EQ(camera.GetNearClip(), nearClip);
     EXPECT_FLOAT_EQ(camera.GetFarClip(), farClip);
     ExpectViewportEq(camera.GetViewport(), 7, 13, 1031, 587, 0.13f, 0.91f);
-    ExpectMatrixNear(camera.GetMatrix(),
+    ExpectMatrixNear(camera.GetProjectionMatrix(),
         Mat44f::PerspectiveLH(fov, aspectRatio, nearClip, farClip));
 }
 
@@ -192,7 +192,7 @@ TEST(Camera, Setters_UpdateProjectionMatrix)
     EXPECT_FLOAT_EQ(camera.GetAspectRatio(), 1417.0f / 823.0f);
     EXPECT_FLOAT_EQ(camera.GetNearClip(), 0.43f);
     EXPECT_FLOAT_EQ(camera.GetFarClip(), 617.0f);
-    ExpectMatrixNear(camera.GetMatrix(),
+    ExpectMatrixNear(camera.GetProjectionMatrix(),
         Mat44f::PerspectiveLH(camera.GetFov(),
             camera.GetAspectRatio(),
             camera.GetNearClip(),
@@ -209,7 +209,7 @@ TEST(Camera, SetViewport_ChangesProjectionAspectRatio)
 
     ExpectViewportEq(camera.GetViewport(), 29, 37, 317, 907, 0.23f, 0.81f);
     EXPECT_FLOAT_EQ(camera.GetAspectRatio(), 317.0f / 907.0f);
-    ExpectMatrixNear(camera.GetMatrix(),
+    ExpectMatrixNear(camera.GetProjectionMatrix(),
         Mat44f::PerspectiveLH(camera.GetFov(),
             camera.GetAspectRatio(),
             camera.GetNearClip(),

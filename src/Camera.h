@@ -161,7 +161,7 @@ public:
 
     const Viewport& GetViewport() const { return m_Viewport; }
 
-    const Mat44f& GetMatrix() const;
+    const Mat44f& GetProjectionMatrix() const;
 
 private:
 

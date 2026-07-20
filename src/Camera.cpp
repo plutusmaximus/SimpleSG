@@ -30,7 +30,7 @@ Viewport::Viewport(const ViewportParams& params)
 
 Frustum::Frustum(const Camera& camera, const TrTransformf& cameraXForm) // NOLINT(cppcoreguidelines-pro-type-member-init)
 {
-    const Mat44f VP = camera.GetMatrix() * cameraXForm.Inverse().ToMatrix();
+    const Mat44f VP = camera.GetProjectionMatrix() * cameraXForm.Inverse().ToMatrix();
     const Vec4f r0(VP[0][0], VP[1][0], VP[2][0], VP[3][0]);
     const Vec4f r1(VP[0][1], VP[1][1], VP[2][1], VP[3][1]);
     const Vec4f r2(VP[0][2], VP[1][2], VP[2][2], VP[3][2]);
@@ -196,7 +196,7 @@ Camera::SetViewport(const Viewport& viewport)
 }
 
 const Mat44f&
-Camera::GetMatrix() const
+Camera::GetProjectionMatrix() const
 {
     return m_Proj;
 }
