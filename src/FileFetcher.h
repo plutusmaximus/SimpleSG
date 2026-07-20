@@ -55,10 +55,9 @@ public:
 
         void SetComplete(RequestStatus status);
 
-        // Use a foreign_ptr to make Request easily movable.
-        // Note that foreign_ptr does not destroy the pointer, so we must call SDL_CloseAsyncIO() or
-        // SDL_AbortAsyncIO() to clean up the SDL_AsyncIO object.  We do this in
-        // FileFetcher::ProcessCompletions() when the request is complete.
+        // Use a foreign_ptr to make Request easily movable.  Note that foreign_ptr does not destroy
+        // the pointer, so we must call SDL_CloseAsyncIO() to clean up the SDL_AsyncIO object.  We
+        // do this in FileFetcher::ProcessCompletions() when the request is complete.
         foreign_ptr<SDL_AsyncIO> m_AsyncIO{ nullptr };
 
         std::string m_FilePath;
