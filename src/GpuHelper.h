@@ -235,14 +235,14 @@ private:
     Result<wgpu::Buffer> CreateStorageBuffer(const size_t size, const std::string_view& name) const;
     Result<wgpu::Buffer> CreateUniformBuffer(const size_t size, const std::string_view& name) const;
 
-    SDL_Window* Window{ nullptr };
-    SDL_MetalView MetalView{ nullptr };
-    wgpu::Instance Instance{ nullptr };
-    wgpu::Adapter Adapter{ nullptr };
-    wgpu::Device Device{ nullptr };
-    wgpu::Surface Surface{ nullptr };
-    mutable wgpu::TextureFormat SurfaceFormat{ wgpu::TextureFormat::Undefined };
-    wgpu::BindGroupLayout TextureBindGroupLayout{ nullptr };
-    wgpu::Texture DefaultTexture{ nullptr };
-    wgpu::Sampler DefaultSampler{ nullptr };
+    SDL_Window* m_Window{ nullptr };
+    SDL_MetalView m_MetalView{ nullptr };
+    wgpu::Instance m_Instance{ nullptr };
+    wgpu::Adapter m_Adapter{ nullptr };
+    wgpu::Device m_Device{ nullptr };
+    wgpu::Surface m_Surface{ nullptr };
+    mutable wgpu::TextureFormat m_SurfaceFormat{ wgpu::TextureFormat::Undefined };
+    wgpu::BindGroupLayout m_TextureBindGroupLayout{ nullptr };
+    wgpu::Texture m_DefaultTexture{ nullptr };
+    wgpu::Sampler m_DefaultSampler{ nullptr };
 };

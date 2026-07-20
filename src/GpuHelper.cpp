@@ -466,7 +466,7 @@ GpuHelper::CreateTask::Update()
 {
     MLG_CHECKV(!IsComplete(), "CreateTask is already complete");
 
-    m_TaskImpl->m_GpuHelper->Instance.ProcessEvents();
+    m_TaskImpl->m_GpuHelper->m_Instance.ProcessEvents();
 
     switch(m_TaskImpl->m_State)
     {
@@ -576,30 +576,30 @@ GpuHelper::CreateTask::Get()
     std::unique_ptr<GpuHelper> gpuHelper = std::move(bye->m_GpuHelper);
 
     int width{ 0 }, height{ 0 };
-    SDL_GetWindowSize(gpuHelper->Window, &width, &height);
+    SDL_GetWindowSize(gpuHelper->m_Window, &width, &height);
 
-    auto surfaceFormat = ConfigureSurface(gpuHelper->Adapter,
-        gpuHelper->Device,
-        gpuHelper->Surface,
+    auto surfaceFormat = ConfigureSurface(gpuHelper->m_Adapter,
+        gpuHelper->m_Device,
+        gpuHelper->m_Surface,
         static_cast<uint32_t>(width),
         static_cast<uint32_t>(height));
 
     MLG_CHECK(surfaceFormat);
 
-    gpuHelper->SurfaceFormat = *surfaceFormat;
+    gpuHelper->m_SurfaceFormat = *surfaceFormat;
 
-    auto defaultSampler = CreateDefaultSampler(gpuHelper->Device);
+    auto defaultSampler = CreateDefaultSampler(gpuHelper->m_Device);
     MLG_CHECK(defaultSampler);
-    gpuHelper->DefaultSampler = std::move(*defaultSampler);
+    gpuHelper->m_DefaultSampler = std::move(*defaultSampler);
 
-    auto textureBindGroupLayout = CreateTextureBindGroupLayout(gpuHelper->Device);
+    auto textureBindGroupLayout = CreateTextureBindGroupLayout(gpuHelper->m_Device);
     MLG_CHECK(textureBindGroupLayout);
-    gpuHelper->TextureBindGroupLayout = std::move(*textureBindGroupLayout);
+    gpuHelper->m_TextureBindGroupLayout = std::move(*textureBindGroupLayout);
 
     auto defaultTexture = CreateDefaultTexture(*gpuHelper);
     MLG_CHECK(defaultTexture);
 
-    gpuHelper->DefaultTexture = std::move(*defaultTexture);
+    gpuHelper->m_DefaultTexture = std::move(*defaultTexture);
 
     return gpuHelper;
 }
@@ -617,21 +617,21 @@ GpuHelper::CreateTask::Begin(const std::string_view& appName)
 
     auto window = CreateSdlWindow(appName);
     MLG_CHECK(window);
-    gpuHelper->Window = std::move(*window);
+    gpuHelper->m_Window = std::move(*window);
 
 #if defined(__APPLE__)
     SDL_MetalView metalView = SDL_Metal_CreateView(*window);
     MLG_CHECK(metalView, SDL_GetError());
-    gpuHelper->MetalView = metalView;
+    gpuHelper->m_MetalView = metalView;
 #endif
 
     auto instance = CreateInstance();
     MLG_CHECK(instance);
-    gpuHelper->Instance = std::move(*instance);
+    gpuHelper->m_Instance = std::move(*instance);
 
-    auto surface = CreateSurface(gpuHelper->Instance, gpuHelper->Window, gpuHelper->MetalView);
+    auto surface = CreateSurface(gpuHelper->m_Instance, gpuHelper->m_Window, gpuHelper->m_MetalView);
     MLG_CHECK(surface);
-    gpuHelper->Surface = std::move(*surface);
+    gpuHelper->m_Surface = std::move(*surface);
 
     m_TaskImpl = std::make_unique<Impl>();
     m_TaskImpl->m_GpuHelper = std::move(gpuHelper);
@@ -667,10 +667,10 @@ GpuHelper::CreateTask::CreateAdapter()
 #else
             .backendType = wgpu::BackendType::Vulkan,
 #endif
-            .compatibleSurface = m_TaskImpl->m_GpuHelper->Surface,
+            .compatibleSurface = m_TaskImpl->m_GpuHelper->m_Surface,
         };
 
-    m_TaskImpl->m_GpuHelper->Instance.RequestAdapter(&options,
+    m_TaskImpl->m_GpuHelper->m_Instance.RequestAdapter(&options,
         wgpu::CallbackMode::AllowSpontaneous,
         RequestAdapterCb,
         &m_TaskImpl->m_AdapterRequestData);
@@ -687,14 +687,14 @@ GpuHelper::CreateTask::FinalizeAdapter()
 
     MLG_CHECK(m_TaskImpl->m_AdapterRequestData.Result, "Failed to create adapter");
 
-    m_TaskImpl->m_GpuHelper->Adapter = std::move(*m_TaskImpl->m_AdapterRequestData.Result);
+    m_TaskImpl->m_GpuHelper->m_Adapter = std::move(*m_TaskImpl->m_AdapterRequestData.Result);
 
     const bool supported =
-        m_TaskImpl->m_GpuHelper->Adapter.HasFeature(wgpu::FeatureName::IndirectFirstInstance);
+        m_TaskImpl->m_GpuHelper->m_Adapter.HasFeature(wgpu::FeatureName::IndirectFirstInstance);
     MLG_CHECK(supported, "IndirectFirstInstance feature is not supported");
 
     wgpu::AdapterInfo adapterInfo;
-    m_TaskImpl->m_GpuHelper->Adapter.GetInfo(&adapterInfo);
+    m_TaskImpl->m_GpuHelper->m_Adapter.GetInfo(&adapterInfo);
     MLG_INFO("Selected adapter:");
     DumpAdapterInfo(adapterInfo);
 
@@ -760,7 +760,7 @@ GpuHelper::CreateTask::CreateDevice()
     deviceDesc.SetDeviceLostCallback(wgpu::CallbackMode::AllowProcessEvents, DeviceLostCb);
     deviceDesc.SetUncapturedErrorCallback(UncapturedErrorCb);
 
-    m_TaskImpl->m_GpuHelper->Adapter.RequestDevice(&deviceDesc,
+    m_TaskImpl->m_GpuHelper->m_Adapter.RequestDevice(&deviceDesc,
         wgpu::CallbackMode::AllowSpontaneous,
         RequestDeviceCb,
         &m_TaskImpl->m_DeviceRequestData);
@@ -776,10 +776,10 @@ GpuHelper::CreateTask::FinalizeDevice()
         "Task is not in the correct state");
 
     MLG_CHECK(m_TaskImpl->m_DeviceRequestData.Result, "Failed to create device");
-    m_TaskImpl->m_GpuHelper->Device = std::move(*m_TaskImpl->m_DeviceRequestData.Result);
+    m_TaskImpl->m_GpuHelper->m_Device = std::move(*m_TaskImpl->m_DeviceRequestData.Result);
 
-    DumpDawnToggles(m_TaskImpl->m_GpuHelper->Device);
-    DumpWebgpuLimits(m_TaskImpl->m_GpuHelper->Device);
+    DumpDawnToggles(m_TaskImpl->m_GpuHelper->m_Device);
+    DumpWebgpuLimits(m_TaskImpl->m_GpuHelper->m_Device);
 
     return Result<>::Ok;
 }
@@ -794,16 +794,16 @@ GpuHelper::CreateTask::Invalidate()
 
 GpuHelper::~GpuHelper()
 {
-    if(MetalView)
+    if(m_MetalView)
     {
-        SDL_Metal_DestroyView(MetalView);
-        MetalView = nullptr;
+        SDL_Metal_DestroyView(m_MetalView);
+        m_MetalView = nullptr;
     }
 
-    if(Window)
+    if(m_Window)
     {
-        SDL_DestroyWindow(Window);
-        Window = nullptr;
+        SDL_DestroyWindow(m_Window);
+        m_Window = nullptr;
         SDL_Quit();
     }
 }
@@ -821,43 +821,43 @@ GpuHelper::Create(const std::string_view& appName)
 SDL_Window*
 GpuHelper::GetWindow() const
 {
-    return Window;
+    return m_Window;
 }
 
 const wgpu::Instance&
 GpuHelper::GetInstance() const
 {
-    return Instance;
+    return m_Instance;
 }
 
 const wgpu::Device&
 GpuHelper::GetDevice() const
 {
-    return Device;
+    return m_Device;
 }
 
 const wgpu::Surface&
 GpuHelper::GetSurface() const
 {
-    return Surface;
+    return m_Surface;
 }
 
 const wgpu::Texture&
 GpuHelper::GetDefaultTexture() const
 {
-    return DefaultTexture;
+    return m_DefaultTexture;
 }
 
 const wgpu::Sampler&
 GpuHelper::GetDefaultSampler() const
 {
-    return DefaultSampler;
+    return m_DefaultSampler;
 }
 
 const wgpu::BindGroupLayout&
 GpuHelper::GetTextureBindGroupLayout() const
 {
-    return TextureBindGroupLayout;
+    return m_TextureBindGroupLayout;
 }
 
 Dimension2
@@ -912,7 +912,7 @@ GpuHelper::GetSwapChainTexture() const
     // Attempt to reconfigure the surface and acquire the texture again
     GetSurface().Unconfigure();
 
-    auto surfaceFormat = ConfigureSurface(Adapter,
+    auto surfaceFormat = ConfigureSurface(m_Adapter,
         GetDevice(),
         GetSurface(),
         GetScreenDimensions().Width,
@@ -920,7 +920,7 @@ GpuHelper::GetSwapChainTexture() const
 
     MLG_CHECK(surfaceFormat);
 
-    SurfaceFormat = *surfaceFormat;
+    m_SurfaceFormat = *surfaceFormat;
 
     GetSurface().GetCurrentTexture(&surfaceTexture);
 
@@ -934,7 +934,7 @@ GpuHelper::GetSwapChainTexture() const
 wgpu::TextureFormat
 GpuHelper::GetSwapChainFormat() const
 {
-    return SurfaceFormat;
+    return m_SurfaceFormat;
 }
 
 Result<>
@@ -947,10 +947,10 @@ GpuHelper::Resize(const uint32_t width, const uint32_t height)
         GetSurface().Unconfigure();
 
         auto surfaceFormat =
-            ConfigureSurface(Adapter, GetDevice(), GetSurface(), width, height);
+            ConfigureSurface(m_Adapter, GetDevice(), GetSurface(), width, height);
         MLG_CHECK(surfaceFormat);
 
-        SurfaceFormat = *surfaceFormat;
+        m_SurfaceFormat = *surfaceFormat;
     }
 
     return Result<>::Ok;
@@ -1026,14 +1026,14 @@ GpuHelper::CreateTextureBindGroup(const wgpu::Texture& texture, const std::strin
             },
             {
                 .binding = 1,
-                .sampler = DefaultSampler,
+                .sampler = m_DefaultSampler,
             },
         };
 
     const wgpu::BindGroupDescriptor desc = //
         {
             .label = name,
-            .layout = TextureBindGroupLayout,
+            .layout = m_TextureBindGroupLayout,
             .entryCount = std::size(entries),
             .entries = &entries[0],
         };
