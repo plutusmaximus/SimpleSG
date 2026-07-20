@@ -8,6 +8,7 @@
 namespace
 {
 
+// Creates a bind group layout for the inputs of the color pass.
 Result<wgpu::BindGroupLayout>
 CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
 {
@@ -83,6 +84,33 @@ CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
     return layout;
 }
 
+Result<wgpu::PipelineLayout>
+CreatePipelineLayout(const wgpu::Device& gpuDevice,
+    const wgpu::BindGroupLayout& inputsBindGroupLayout,
+    const wgpu::BindGroupLayout& textureBindGroupLayout)
+{
+    MLG_CHECK(inputsBindGroupLayout, "Inputs bind group layout is not valid");
+    MLG_CHECK(textureBindGroupLayout, "Texture bind group layout is not valid");
+
+    const wgpu::BindGroupLayout bindGroupLayouts[] //
+        {
+            inputsBindGroupLayout,
+            textureBindGroupLayout,
+        };
+
+    const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
+        {
+            .label = "GpuColorPass",
+            .bindGroupLayoutCount = std::size(bindGroupLayouts),
+            .bindGroupLayouts = &bindGroupLayouts[0],
+        };
+
+    const wgpu::PipelineLayout pipelineLayout = gpuDevice.CreatePipelineLayout(&pipelineLayoutDesc);
+    MLG_CHECK(pipelineLayout, "Failed to create color pipeline layout");
+
+    return pipelineLayout;
+}
+
 wgpu::VertexBufferLayout
 GetVertexBufferLayout()
 {
@@ -138,14 +166,19 @@ Result<GpuColorPass>
 GpuColorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 {
     auto shader = gpuHelper.LoadShader(ShaderPath, fileFetcher);
-    auto validShader = GpuValidShaderModule::Create(shader);
-    MLG_CHECK(validShader, "Failed to load shader: {}", ShaderPath);
+    MLG_CHECK(shader, "Failed to load shader: {}", ShaderPath);
 
-    GpuColorPass pass(gpuHelper, std::move(*validShader));
+    auto inputsBindGroupLayout = CreateInputsBindGroupLayout(gpuHelper.GetDevice());
+    MLG_CHECK(inputsBindGroupLayout, "Failed to create Inputs bind group layout");
 
-    MLG_CHECK(pass.EnsurePipeline());
+    auto textureBindGroupLayout = gpuHelper.GetTextureBindGroupLayout();
+    MLG_CHECK(textureBindGroupLayout, "Failed to get texture bind group layout");
 
-    return pass;
+    auto pipelineLayout =
+        CreatePipelineLayout(gpuHelper.GetDevice(), *inputsBindGroupLayout, textureBindGroupLayout);
+    MLG_CHECK(pipelineLayout, "Failed to create pipeline layout");
+
+    return GpuColorPass(gpuHelper, *shader, *inputsBindGroupLayout, *pipelineLayout);
 }
 
 Result<>
@@ -153,52 +186,10 @@ GpuColorPass::SetInputs(const Inputs& inputs)
 {
     MLG_CHECKV(m_InputsBindGroupLayout, "Inputs bind group layout is not valid");
 
-    if(!m_InputsBindGroup || !m_Inputs || BindGroup0NeedsRefresh(*m_Inputs, inputs))
+    if(!m_Inputs || BindGroup0NeedsRefresh(*m_Inputs, inputs))
     {
-        const wgpu::BindGroupEntry entries[] = //
-            {
-                {
-                    .binding = 0,
-                    .buffer = inputs.WorldTransforms.GetGpuBuffer(),
-                    .offset = 0,
-                    .size = inputs.WorldTransforms.BufferSize(),
-                },
-                {
-                    .binding = 1,
-                    .buffer = inputs.ClipSpaceTransforms.GetGpuBuffer(),
-                    .offset = 0,
-                    .size = inputs.ClipSpaceTransforms.BufferSize(),
-                },
-                {
-                    .binding = 2,
-                    .buffer = inputs.MeshProperties.GetGpuBuffer(),
-                    .offset = 0,
-                    .size = inputs.MeshProperties.BufferSize(),
-                },
-                {
-                    .binding = 3,
-                    .buffer = inputs.MaterialConstants.GetGpuBuffer(),
-                    .offset = 0,
-                    .size = inputs.MaterialConstants.BufferSize(),
-                },
-                {
-                    .binding = 4,
-                    .buffer = inputs.CameraParams.GetGpuBuffer(),
-                    .offset = 0,
-                    .size = inputs.CameraParams.BufferSize(),
-                },
-            };
-
-        const wgpu::BindGroupDescriptor desc = //
-            {
-                .label = "GpuColorPass::InputsBindGroup",
-                .layout = m_InputsBindGroupLayout,
-                .entryCount = std::size(entries),
-                .entries = &entries[0],
-            };
-
-        m_InputsBindGroup = m_GpuHelper->GetDevice().CreateBindGroup(&desc);
-        MLG_CHECKV(m_InputsBindGroup, "Failed to create bind group");
+        // Rebuild the bind group
+        m_InputsBindGroup = {};
     }
 
     m_Inputs = inputs;
@@ -215,12 +206,13 @@ GpuColorPass::SetOutputs(const Outputs& outputs)
 }
 
 Result<wgpu::RenderPassEncoder>
-GpuColorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder) const
+GpuColorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder)
 {
+    MLG_CHECK(EnsurePipeline());
+    MLG_CHECK(EnsureInputsBindGroup());
+
     MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
     MLG_CHECKV(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
-    MLG_CHECKV(m_Pipeline, "Pipeline is not valid");
-    MLG_CHECKV(m_InputsBindGroup, "Inputs bind group is not valid");
 
     const wgpu::RenderPassColorAttachment attachment //
         {
@@ -273,8 +265,7 @@ GpuColorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder) const
         static_assert(VERTEX_INDEX_BITS == kU32BitWidth || VERTEX_INDEX_BITS == kU16BitWidth,
             "Unsupported index buffer format: only 16-bit and 32-bit indices are supported");
 
-        constexpr wgpu::IndexFormat idxFmt =
-            (VERTEX_INDEX_BITS == kU32BitWidth)
+        constexpr wgpu::IndexFormat idxFmt = (VERTEX_INDEX_BITS == kU32BitWidth)
             ? wgpu::IndexFormat::Uint32
             : wgpu::IndexFormat::Uint16;
 
@@ -314,43 +305,6 @@ GpuColorPass::EnsurePipeline()
     if(m_Pipeline)
     {
         return Result<>::Ok;
-    }
-
-    const wgpu::Device& gpuDevice = m_GpuHelper->GetDevice();
-
-    if(!m_InputsBindGroupLayout)
-    {
-        auto layout = CreateInputsBindGroupLayout(gpuDevice);
-        MLG_CHECK(layout, "Failed to create Inputs bind group layout");
-
-        m_InputsBindGroupLayout = std::move(*layout);
-    }
-
-    if(!m_TextureBindGroupLayout)
-    {
-        m_TextureBindGroupLayout = m_GpuHelper->GetTextureBindGroupLayout();
-    }
-
-    if(!m_PipelineLayout)
-    {
-        const wgpu::BindGroupLayout bindGroupLayouts[] //
-            {
-                m_InputsBindGroupLayout,
-                m_TextureBindGroupLayout,
-            };
-
-        const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
-            {
-                .label = "GpuColorPass",
-                .bindGroupLayoutCount = std::size(bindGroupLayouts),
-                .bindGroupLayouts = &bindGroupLayouts[0],
-            };
-
-        const wgpu::PipelineLayout pipelineLayout =
-            gpuDevice.CreatePipelineLayout(&pipelineLayoutDesc);
-        MLG_CHECK(pipelineLayout, "Failed to create color pipeline layout");
-
-        m_PipelineLayout = std::move(pipelineLayout);
     }
 
     const wgpu::BlendState blendState //
@@ -404,7 +358,7 @@ GpuColorPass::EnsurePipeline()
 
     const wgpu::FragmentState fragmentState //
         {
-            .module = m_Shader.Get(),
+            .module = m_Shader,
             .entryPoint = FragmentEntry,
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -415,10 +369,10 @@ GpuColorPass::EnsurePipeline()
     const wgpu::RenderPipelineDescriptor descriptor//
     {
         .label = "GpuColorPass",
-        .layout = m_PipelineLayout.Get(),
+        .layout = m_PipelineLayout,
         .vertex =
         {
-            .module = m_Shader.Get(),
+            .module = m_Shader,
             .entryPoint = VertexEntry,
             .bufferCount = 1,
             .buffers = &vertexBufferLayout,
@@ -441,8 +395,66 @@ GpuColorPass::EnsurePipeline()
         .fragment = &fragmentState,
     };
 
-    m_Pipeline = gpuDevice.CreateRenderPipeline(&descriptor);
+    m_Pipeline = m_GpuHelper->GetDevice().CreateRenderPipeline(&descriptor);
     MLG_CHECK(m_Pipeline, "Failed to create render pipeline");
+
+    return Result<>::Ok;
+}
+
+Result<>
+GpuColorPass::EnsureInputsBindGroup()
+{
+    if(m_InputsBindGroup)
+    {
+        return Result<>::Ok;
+    }
+    
+    MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
+
+    const wgpu::BindGroupEntry entries[] //
+        {
+            {
+                .binding = 0,
+                .buffer = m_Inputs->WorldTransforms.GetGpuBuffer(),
+                .offset = 0,
+                .size = m_Inputs->WorldTransforms.BufferSize(),
+            },
+            {
+                .binding = 1,
+                .buffer = m_Inputs->ClipSpaceTransforms.GetGpuBuffer(),
+                .offset = 0,
+                .size = m_Inputs->ClipSpaceTransforms.BufferSize(),
+            },
+            {
+                .binding = 2,
+                .buffer = m_Inputs->MeshProperties.GetGpuBuffer(),
+                .offset = 0,
+                .size = m_Inputs->MeshProperties.BufferSize(),
+            },
+            {
+                .binding = 3,
+                .buffer = m_Inputs->MaterialConstants.GetGpuBuffer(),
+                .offset = 0,
+                .size = m_Inputs->MaterialConstants.BufferSize(),
+            },
+            {
+                .binding = 4,
+                .buffer = m_Inputs->CameraParams.GetGpuBuffer(),
+                .offset = 0,
+                .size = m_Inputs->CameraParams.BufferSize(),
+            },
+        };
+
+    const wgpu::BindGroupDescriptor desc = //
+        {
+            .label = "GpuColorPass::InputsBindGroup",
+            .layout = m_InputsBindGroupLayout,
+            .entryCount = std::size(entries),
+            .entries = &entries[0],
+        };
+
+    m_InputsBindGroup = m_GpuHelper->GetDevice().CreateBindGroup(&desc);
+    MLG_CHECKV(m_InputsBindGroup, "Failed to create bind group");
 
     return Result<>::Ok;
 }

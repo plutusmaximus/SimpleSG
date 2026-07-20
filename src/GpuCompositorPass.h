@@ -46,33 +46,34 @@ public:
 
 private:
     explicit GpuCompositorPass(const GpuHelper& gpuHelper,
-        GpuValidShaderModule shader,
-        GpuValidSampler sampler,
-        GpuValidBindGroupLayout bindGroupLayout,
-        GpuValidPipelineLayout pipelineLayout)
+        wgpu::ShaderModule shader,
+        wgpu::Sampler sampler,
+        wgpu::BindGroupLayout bindGroupLayout,
+        wgpu::PipelineLayout pipelineLayout)
         : m_GpuHelper(&gpuHelper),
           m_Shader(std::move(shader)),
           m_Sampler(std::move(sampler)),
           m_BindGroupLayout(std::move(bindGroupLayout)),
           m_PipelineLayout(std::move(pipelineLayout))
     {
+        MLG_ASSERT(m_Shader, "Shader module is not valid");
+        MLG_ASSERT(m_Sampler, "Sampler is not valid");
+        MLG_ASSERT(m_BindGroupLayout, "Bind group layout is not valid");
+        MLG_ASSERT(m_PipelineLayout, "Pipeline layout is not valid");
     }
 
-    static Result<GpuValidSampler> CreateSampler(const GpuHelper& gpuHelper);
-    static Result<GpuValidBindGroupLayout> CreateBindGroupLayout(const GpuHelper& gpuHelper);
-    static Result<GpuValidPipelineLayout> CreatePipelineLayout(const GpuHelper& gpuHelper,
-        const GpuValidBindGroupLayout& bindGroupLayout);
-    Result<> EnsureBindGroup();
     Result<> EnsurePipeline();
+    Result<> EnsureInputsBindGroup();
 
     std::optional<Inputs> m_Inputs;
     std::optional<Outputs> m_Outputs;
 
     const GpuHelper* m_GpuHelper{ nullptr };
-    GpuValidShaderModule m_Shader;
-    GpuValidSampler m_Sampler;
-    GpuValidBindGroupLayout m_BindGroupLayout;
-    GpuValidPipelineLayout m_PipelineLayout;
-    wgpu::BindGroup m_BindGroup;
+    wgpu::ShaderModule m_Shader;
+    wgpu::Sampler m_Sampler;
+    wgpu::BindGroupLayout m_BindGroupLayout;
+    wgpu::PipelineLayout m_PipelineLayout;
+    wgpu::BindGroup m_InputsBindGroup;
     wgpu::RenderPipeline m_Pipeline;
+    wgpu::TextureFormat m_TargetFormat{ wgpu::TextureFormat::Undefined };
 };

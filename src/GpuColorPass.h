@@ -4,6 +4,7 @@
 #include "GpuTypes.h"
 
 #include <optional>
+#include <webgpu/webgpu_cpp.h>
 
 class FileFetcher;
 class GpuHelper;
@@ -63,26 +64,33 @@ public:
     Result<> SetInputs(const Inputs& inputs);
     Result<> SetOutputs(const Outputs& outputs);
 
-    Result<wgpu::RenderPassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder) const;
+    Result<wgpu::RenderPassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder);
 
 private:
-
-    explicit GpuColorPass(const GpuHelper& gpuHelper, GpuValidShaderModule shader)
-        : m_GpuHelper(&gpuHelper)
-        , m_Shader(std::move(shader))
+    explicit GpuColorPass(const GpuHelper& gpuHelper,
+        wgpu::ShaderModule shader,
+        wgpu::BindGroupLayout inputsBindGroupLayout,
+        wgpu::PipelineLayout pipelineLayout)
+        : m_GpuHelper(&gpuHelper),
+          m_Shader(std::move(shader)),
+          m_InputsBindGroupLayout(std::move(inputsBindGroupLayout)),
+          m_PipelineLayout(std::move(pipelineLayout))
     {
+        MLG_ASSERT(m_Shader, "Shader module is not valid");
+        MLG_ASSERT(m_InputsBindGroupLayout, "Inputs bind group layout is not valid");
+        MLG_ASSERT(m_PipelineLayout, "Pipeline layout is not valid");
     }
 
     Result<> EnsurePipeline();
+    Result<> EnsureInputsBindGroup();
 
     const GpuHelper* m_GpuHelper{ nullptr };
 
     std::optional<Inputs> m_Inputs;
     std::optional<Outputs> m_Outputs;
 
-    GpuValidShaderModule m_Shader;
+    wgpu::ShaderModule m_Shader;
     wgpu::BindGroupLayout m_InputsBindGroupLayout;
-    wgpu::BindGroupLayout m_TextureBindGroupLayout;
     wgpu::PipelineLayout m_PipelineLayout;
     wgpu::BindGroup m_InputsBindGroup;
     wgpu::RenderPipeline m_Pipeline;

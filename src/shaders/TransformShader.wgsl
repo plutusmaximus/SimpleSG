@@ -19,7 +19,9 @@ struct Camera
 @group(0) @binding(1) var<storage, read_write> outMats : array<ClipSpaceTransform>;
 @group(0) @binding(2) var<uniform> camera : Camera;
 
-@compute @workgroup_size(64)
+override WorkgroupSizeOverride: u32;
+
+@compute @workgroup_size(WorkgroupSizeOverride)
 fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>)
 {
     let i = gid.x;

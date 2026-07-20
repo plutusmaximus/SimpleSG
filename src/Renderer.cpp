@@ -254,7 +254,12 @@ Renderer::TransformNodes(const wgpu::Device& gpuDevice,
     auto pass = m_TransformPass.BeginPass(cmdEncoder);
     MLG_CHECK(pass);
 
-    const uint32_t workgroupCountX = narrow_cast<uint32_t>(scene.GetModelInstances().size());
+    const uint32_t instanceCount = narrow_cast<uint32_t>(scene.GetModelInstances().size());
+
+    //Number of workgroups to dispatch is the number of instances divided by the workgroup size, rounded up.
+    const uint32_t workgroupCountX = (instanceCount / GpuTransformPass::kWorkgroupSize)
+        + (instanceCount % GpuTransformPass::kWorkgroupSize != 0);
+
     pass->DispatchWorkgroups(workgroupCountX);
     pass->End();
 
