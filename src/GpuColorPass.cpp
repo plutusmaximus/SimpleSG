@@ -184,7 +184,7 @@ GpuColorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 Result<>
 GpuColorPass::SetInputs(const Inputs& inputs)
 {
-    MLG_CHECKV(m_InputsBindGroupLayout, "Inputs bind group layout is not valid");
+    MLG_CHECK(inputs.Validate(), "Inputs are not valid");
 
     if(!m_Inputs || BindGroup0NeedsRefresh(*m_Inputs, inputs))
     {
@@ -200,6 +200,8 @@ GpuColorPass::SetInputs(const Inputs& inputs)
 Result<>
 GpuColorPass::SetOutputs(const Outputs& outputs)
 {
+    MLG_CHECK(outputs.Validate(), "Outputs are not valid");
+
     m_Outputs = outputs;
 
     return Result<>::Ok;
@@ -408,7 +410,7 @@ GpuColorPass::EnsureInputsBindGroup()
     {
         return Result<>::Ok;
     }
-    
+
     MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
 
     const wgpu::BindGroupEntry entries[] //

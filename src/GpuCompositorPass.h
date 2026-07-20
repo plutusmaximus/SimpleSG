@@ -3,6 +3,8 @@
 #include "GpuTypes.h"   // for operator==(const wgpu::Texture&, const wgpu::Texture&)
 #include "VecMath.h"
 
+#include <optional>
+
 class FileFetcher;
 class GpuHelper;
 
@@ -36,12 +38,10 @@ public:
     /// @brief Provides the output texture for the compositor pass.
     struct Outputs
     {
-        wgpu::Texture Texture;
+        GpuRenderTarget RenderTarget;
 
-        Result<> Validate() const
+        Result<> Validate() const // NOLINT(readability-convert-member-functions-to-static)
         {
-            MLG_CHECKV(Texture, "Output texture is not valid");
-
             return Result<>::Ok;
         }
 
@@ -85,8 +85,8 @@ private:
     Result<> EnsurePipeline();
     Result<> EnsureInputsBindGroup();
 
-    Inputs m_Inputs;
-    Outputs m_Outputs;
+    std::optional<Inputs> m_Inputs;
+    std::optional<Outputs> m_Outputs;
 
     const GpuHelper* m_GpuHelper{ nullptr };
     wgpu::ShaderModule m_Shader;

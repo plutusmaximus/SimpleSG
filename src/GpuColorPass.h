@@ -4,7 +4,6 @@
 #include "GpuTypes.h"
 
 #include <optional>
-#include <webgpu/webgpu_cpp.h>
 
 class FileFetcher;
 class GpuHelper;
@@ -28,6 +27,11 @@ public:
         GpuMaterialConstantsBuffer MaterialConstants;
         GpuCameraParamsBuffer CameraParams;
 
+        Result<> Validate() const // NOLINT(readability-convert-member-functions-to-static)
+        {
+            return Result<>::Ok;
+        }
+
         friend bool operator==(const Inputs& a, const Inputs& b)
         {
             return a.Viewport == b.Viewport
@@ -43,13 +47,15 @@ public:
 
     struct Outputs
     {
-        GpuValidTexture RenderTarget;
-        GpuValidTexture DepthBuffer;
+        GpuRenderTarget RenderTarget;
+        GpuDepthTarget DepthBuffer;
 
-        friend bool operator==(const Outputs& a, const Outputs& b)
+        Result<> Validate() const // NOLINT(readability-convert-member-functions-to-static)
         {
-            return a.RenderTarget == b.RenderTarget && a.DepthBuffer == b.DepthBuffer;
+            return Result<>::Ok;
         }
+
+        friend bool operator==(const Outputs& a, const Outputs& b) = default;
     };
 
     GpuColorPass() = delete;

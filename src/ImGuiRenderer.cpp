@@ -58,7 +58,7 @@ ImGuiRenderer::~ImGuiRenderer()
 // private:
 
 Result<>
-ImGuiRenderer::NewFrame(const GpuValidTexture& target) const
+ImGuiRenderer::NewFrame(const GpuRenderTarget& target) const
 {
     MLG_CHECKV(m_Context, "ImGuiRenderer is not initialized");
 
@@ -82,7 +82,7 @@ ImGuiRenderer::NewFrame(const GpuValidTexture& target) const
 }
 
 Result<>
-ImGuiRenderer::Composite(const wgpu::Device& gpuDevice, const GpuValidTexture& target) const
+ImGuiRenderer::Composite(const wgpu::Device& gpuDevice, const GpuRenderTarget& target) const
 {
     MLG_CHECKV(m_Context, "ImGuiRenderer is not initialized");
 

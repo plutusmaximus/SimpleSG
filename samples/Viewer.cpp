@@ -319,14 +319,12 @@ MainLoop()
         cameraXForm = mouseNav.GetTransform();
 
         auto target = gpuHelper.GetSwapChainTexture();
-
-        auto validTarget = GpuValidTexture::Create(target);
-        MLG_CHECK(validTarget, "Failed to create valid render target");
+        MLG_CHECKV(target, "Failed to get swap chain texture");
 
         MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
-        MLG_CHECK(renderer.Composite(*validTarget));
+        MLG_CHECK(renderer.Composite(*target));
 
-        MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *validTarget, RenderGui));
+        MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, RenderGui));
 
 #if !defined(__EMSCRIPTEN__)
         MLG_CHECK(gpuHelper.GetSurface().Present(), "Failed to present backbuffer");

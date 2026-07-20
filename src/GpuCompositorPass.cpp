@@ -134,9 +134,9 @@ GpuCompositorPass::SetOutputs(const Outputs& outputs)
 
     m_Outputs = outputs;
 
-    if(m_TargetFormat != m_Outputs.Texture.GetFormat())
+    if(m_TargetFormat != outputs.RenderTarget->GetFormat())
     {
-        m_TargetFormat = m_Outputs.Texture.GetFormat();
+        m_TargetFormat = outputs.RenderTarget->GetFormat();
 
         // Rebuild the pipeline
         m_Pipeline = {};
@@ -151,30 +151,30 @@ GpuCompositorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder)
     MLG_CHECK(EnsurePipeline());
     MLG_CHECK(EnsureInputsBindGroup());
 
-    MLG_CHECK(m_Inputs.Validate(), "Inputs are not valid - forget to call SetInputs()?");
-    MLG_CHECK(m_Outputs.Validate(), "Outputs are not valid - forget to call SetOutputs()?");
+    MLG_CHECK(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
+    MLG_CHECK(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
 
-    MLG_CHECKV(m_Outputs.Texture != m_Inputs.Texture,
+    MLG_CHECKV(m_Outputs->RenderTarget.Get() != m_Inputs->Texture,
         "Output texture must be different from input texture");
 
     const Rect targetRect({ .X = 0,
         .Y = 0,
-        .Width = m_Outputs.Texture.GetWidth(),
-        .Height = m_Outputs.Texture.GetHeight() });
+        .Width = m_Outputs->RenderTarget->GetWidth(),
+        .Height = m_Outputs->RenderTarget->GetHeight() });
 
-    Rect dstRect = m_Inputs.DstRect;
+    Rect dstRect = m_Inputs->DstRect;
 
-    if(!targetRect.Contains(m_Inputs.DstRect))
+    if(!targetRect.Contains(m_Inputs->DstRect))
     {
-        MLG_CHECKV(targetRect.Intersects(m_Inputs.DstRect), "DstRect is outside of target rect");
+        MLG_CHECKV(targetRect.Intersects(m_Inputs->DstRect), "DstRect is outside of target rect");
 
-        dstRect = targetRect.Intersect(m_Inputs.DstRect);
+        dstRect = targetRect.Intersect(m_Inputs->DstRect);
         MLG_WARN("dstRect clipped");
     }
 
     const wgpu::RenderPassColorAttachment attachment //
         {
-            .view = m_Outputs.Texture.CreateView(),
+            .view = m_Outputs->RenderTarget->CreateView(),
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
             .clearValue = { .r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 1.0f },
@@ -248,7 +248,7 @@ GpuCompositorPass::EnsurePipeline()
         return Result<>::Ok;
     }
 
-    MLG_CHECK(m_Outputs.Validate(), "Outputs are not valid - forget to call SetOutputs()?");
+    MLG_CHECK(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
 
     const wgpu::BlendState blendState //
     {
@@ -268,7 +268,7 @@ GpuCompositorPass::EnsurePipeline()
 
     const wgpu::ColorTargetState colorTargetState //
         {
-            .format = m_Outputs.Texture.GetFormat(),
+            .format = m_Outputs->RenderTarget->GetFormat(),
             .blend = &blendState,
             .writeMask = wgpu::ColorWriteMask::All,
         };
@@ -324,13 +324,13 @@ GpuCompositorPass::EnsureInputsBindGroup()
         return Result<>::Ok;
     }
 
-    MLG_CHECK(m_Inputs.Validate(), "Inputs are not valid - forget to call SetInputs()?");
+    MLG_CHECK(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
 
     const wgpu::BindGroupEntry entries[] //
         {
             {
                 .binding = 0,
-                .textureView = m_Inputs.Texture.CreateView(),
+                .textureView = m_Inputs->Texture.CreateView(),
             },
             {
                 .binding = 1,

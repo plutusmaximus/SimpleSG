@@ -124,7 +124,7 @@ public:
     const wgpu::Sampler& GetDefaultSampler() const;
     const wgpu::BindGroupLayout& GetTextureBindGroupLayout() const;
     Dimension2 GetScreenDimensions() const;
-    Result<wgpu::Texture> GetSwapChainTexture() const;
+    Result<GpuRenderTarget> GetSwapChainTexture() const;
     wgpu::TextureFormat GetSwapChainFormat() const;
 
     /// @brief Resizes the swap chain to the given width and height.
@@ -144,11 +144,11 @@ public:
         const std::string_view& name) const;
 
     /// @brief Creates a render target with the given dimensions and name.
-    Result<wgpu::Texture> CreateRenderTarget(
+    Result<GpuRenderTarget> CreateRenderTarget(
         const unsigned width, const unsigned height, const std::string_view& name) const;
 
     /// @brief Creates a depth buffer with the given dimensions and name.
-    Result<wgpu::Texture> CreateDepthBuffer(
+    Result<GpuDepthTarget> CreateDepthBuffer(
         const unsigned width, const unsigned height, const std::string_view& name) const;
 
     /// @brief Creates a staging buffer for copying texture data to the GPU.

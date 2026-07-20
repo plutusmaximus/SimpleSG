@@ -20,17 +20,15 @@ CreateColorPassTarget(const GpuHelper& gpuHelper, const uint32_t width, const ui
     MLG_DEBUG("Creating new color/depth target with size {}x{}", width, height);
 
     auto renderTarget = gpuHelper.CreateRenderTarget(width, height, "ColorPass::RenderTarget");
-    auto validRenderTarget = GpuValidTexture::Create(renderTarget);
-    MLG_CHECK(validRenderTarget, "Failed to create valid render target");
+    MLG_CHECK(renderTarget, "Failed to create color render target");
 
     auto depthBuffer = gpuHelper.CreateDepthBuffer(width, height, "ColorPass::DepthBuffer");
-    auto validDepthBuffer = GpuValidTexture::Create(depthBuffer);
-    MLG_CHECK(validDepthBuffer, "Failed to create valid depth buffer");
+    MLG_CHECK(depthBuffer, "Failed to create color depth buffer");
 
     return GpuColorPass::Outputs //
         {
-            .RenderTarget = *validRenderTarget,
-            .DepthBuffer = *validDepthBuffer,
+            .RenderTarget = *renderTarget,
+            .DepthBuffer = *depthBuffer,
         };
 }
 
@@ -179,7 +177,7 @@ Renderer::Render(const Camera& camera,
 }
 
 Result<>
-Renderer::Composite(const GpuValidTexture& target)
+Renderer::Composite(const GpuRenderTarget& target)
 {
     const Rect dstRect
         ({ .X = 0, .Y = 0, .Width = target->GetWidth(), .Height = target->GetHeight() });
@@ -188,7 +186,7 @@ Renderer::Composite(const GpuValidTexture& target)
 }
 
 Result<>
-Renderer::Composite(const GpuValidTexture& target, const Rect& dstRect)
+Renderer::Composite(const GpuRenderTarget& target, const Rect& dstRect)
 {
     MLG_CHECKV(m_ColorPassOutputs, "Color pass outputs are not valid");
     
@@ -200,7 +198,7 @@ Renderer::Composite(const GpuValidTexture& target, const Rect& dstRect)
 
     const GpuCompositorPass::Outputs outputs //
         {
-            .Texture = target.Get(),
+            .RenderTarget = target,
         };
 
     MLG_CHECK(m_CompositorPass.SetInputs(inputs));

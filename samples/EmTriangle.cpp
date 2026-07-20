@@ -212,14 +212,12 @@ TriangleApp::InnerUpdate(System& system)
                 MLG_CHECK(renderer.Render(m_Camera, m_CameraXForm, *m_Scene, *m_PropKit));
 
                 auto target = gpuHelper.GetSwapChainTexture();
-                auto validTarget = GpuValidTexture::Create(target);
-                MLG_CHECK(validTarget, "Failed to create valid render target");
+                MLG_CHECKV(target, "Failed to get swap chain texture");
 
-                MLG_CHECK(renderer.Composite(*validTarget));
+                MLG_CHECK(renderer.Composite(*target));
 
-                MLG_CHECK(system.GetImGuiRenderer().Render(gpuHelper.GetDevice(),
-                    *validTarget,
-                    RenderGui));
+                MLG_CHECK(
+                    system.GetImGuiRenderer().Render(gpuHelper.GetDevice(), *target, RenderGui));
             }
             break;
 

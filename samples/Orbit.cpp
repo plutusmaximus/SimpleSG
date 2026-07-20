@@ -718,9 +718,7 @@ MainLoop()
         MLG_CHECK(scene.SyncToGpu(gpuHelper.GetDevice()));
 
         auto target = gpuHelper.GetSwapChainTexture();
-
-        auto validTarget = GpuValidTexture::Create(target);
-        MLG_CHECK(validTarget, "Failed to create valid render target");
+        MLG_CHECKV(target, "Failed to get swap chain texture");
 
         if(ImGui::GetFrameCount() > 1)
         {
@@ -732,12 +730,12 @@ MainLoop()
             camera.SetViewport(sceneViewport);
 
             MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
-            MLG_CHECK(renderer.Composite(*validTarget, scenePanelRect));
+            MLG_CHECK(renderer.Composite(*target, scenePanelRect));
         }
 
         auto renderGui = [&]() { return devUi.Render(); };
 
-        MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *validTarget, renderGui));
+        MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, renderGui));
 
         {
 #if !defined(__EMSCRIPTEN__)

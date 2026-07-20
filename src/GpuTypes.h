@@ -10,55 +10,97 @@
 #include <type_traits>
 #include <webgpu/webgpu_cpp.h>
 
-/// @brief A wrapper for GPU objects that guarantees the underlying object is valid.
-template<typename T>
-class GpuValidObject
+class GpuRenderTarget
 {
-    static_assert(std::is_copy_constructible_v<T> && std::is_move_constructible_v<T>,
-        "GpuValidObject can only be used with copyable and movable types");
-    static_assert(!std::is_pointer_v<T> && !std::is_reference_v<T>,
-        "GpuValidObject can only be used with non-pointer, non-reference types");
-    static_assert(
-        requires(const T& object) { object.Get(); },
-        "GpuValidObject requires T to have a const Get() method");
-    static_assert(
-        requires(const T& a, const T& b) {
-            { a.Get() == b.Get() } -> std::convertible_to<bool>;
-        }, "GpuValidObject requires values returned by T::Get() to support operator==");
-
 public:
-    GpuValidObject() = delete;
+    GpuRenderTarget() = delete;
+    ~GpuRenderTarget() = default;
+    GpuRenderTarget(const GpuRenderTarget&) = default;
+    GpuRenderTarget& operator=(const GpuRenderTarget&) = default;
 
-    static Result<GpuValidObject> Create(T gpuObject)
+    // Because GpuRenderTarget guarantees validity of the underlying texture we must
+    // not allow resource stealing.  Therefore move ctor and assignment delegate
+    // to the copy ctor and assignment operator.
+
+    GpuRenderTarget(GpuRenderTarget&& other) noexcept
+        : GpuRenderTarget(static_cast<const GpuRenderTarget&>(other))
     {
-        MLG_CHECKV(gpuObject, "Invalid GPU object");
-        return GpuValidObject(std::move(gpuObject));
     }
 
-    static Result<GpuValidObject> Create(Result<T> result)
+    GpuRenderTarget& operator=(GpuRenderTarget&& other) noexcept
     {
-        MLG_CHECKV(result, "Invalid GPU object");
-        return GpuValidObject(std::move(*result));
+        if(this != &other)
+        {
+            return *this = static_cast<const GpuRenderTarget&>(other);
+        }
+        return *this;
     }
 
-    const T& Get() const { return m_GpuObject; }
+    const wgpu::Texture& Get() const { return m_Texture; }
 
-    T* operator->() { return &m_GpuObject; }
-    const T* operator->() const { return &m_GpuObject; }
+    const wgpu::Texture* operator->() const { return &m_Texture; }
 
-    friend bool operator==(const GpuValidObject& a, const GpuValidObject& b)
+    friend bool operator==(const GpuRenderTarget& a, const GpuRenderTarget& b)
     {
-        return a.m_GpuObject.Get() == b.m_GpuObject.Get();
+        return a.m_Texture.Get() == b.m_Texture.Get();
     }
 
 private:
-    explicit GpuValidObject(T gpuObject)
-        : m_GpuObject(std::move(gpuObject))
+    friend class GpuHelper;
+
+    explicit GpuRenderTarget(wgpu::Texture gpuObject)
+        : m_Texture(std::move(gpuObject))
     {
-        MLG_ASSERT(m_GpuObject, "Invalid GPU object");
+        MLG_ASSERT(m_Texture, "Invalid GPU object");
     }
 
-    T m_GpuObject;
+    wgpu::Texture m_Texture;
+};
+
+class GpuDepthTarget
+{
+public:
+    GpuDepthTarget() = delete;
+    ~GpuDepthTarget() = default;
+    GpuDepthTarget(const GpuDepthTarget&) = default;
+    GpuDepthTarget& operator=(const GpuDepthTarget&) = default;
+
+    // Because GpuDepthTarget guarantees validity of the underlying texture we must
+    // not allow resource stealing.  Therefore move ctor and assignment delegate
+    // to the copy ctor and assignment operator.
+
+    GpuDepthTarget(GpuDepthTarget&& other) noexcept
+        : GpuDepthTarget(static_cast<const GpuDepthTarget&>(other))
+    {
+    }
+
+    GpuDepthTarget& operator=(GpuDepthTarget&& other) noexcept
+    {
+        if(this != &other)
+        {
+            return *this = static_cast<const GpuDepthTarget&>(other);
+        }
+        return *this;
+    }
+    const wgpu::Texture& Get() const { return m_Texture; }
+
+    const wgpu::Texture* operator->() const { return &m_Texture; }
+
+    friend bool operator==(const GpuDepthTarget& a, const GpuDepthTarget& b)
+    {
+        return a.m_Texture.Get() == b.m_Texture.Get();
+    }
+
+private:
+    friend class GpuHelper;
+
+    explicit GpuDepthTarget(wgpu::Texture texture)
+        : m_Texture(std::move(texture))
+    {
+        MLG_ASSERT(m_Texture, "Invalid GPU object");
+    }
+
+    wgpu::Texture m_Texture;
 };
 
 /// @brief Identifies the intended usage of a GpuBuffer.
@@ -85,6 +127,26 @@ public:
     using value_type = T;
 
     GpuBuffer() = delete;
+    ~GpuBuffer() = default;
+    GpuBuffer(const GpuBuffer&) = default;
+    GpuBuffer& operator=(const GpuBuffer&) = default;
+
+    // Because GpuBuffer guarantess validity of the underlying buffer we must
+    // not allow resource stealing.  Therefore move ctor and assignment delegate
+    // to the copy ctor and assignment operator.
+
+    GpuBuffer(GpuBuffer&& other) noexcept
+        : GpuBuffer(static_cast<const GpuBuffer&>(other))
+    {
+    }
+    GpuBuffer& operator=(GpuBuffer&& other) noexcept
+    {
+        if(this != &other)
+        {
+            return *this = static_cast<const GpuBuffer&>(other);
+        }
+        return *this;
+    }
 
     static Result<GpuBuffer> Create(wgpu::Device gpuDevice, wgpu::Buffer buffer)
     {
@@ -156,13 +218,6 @@ MLG_DEFINE_GPU_BUFFER_TRAITS(indirect, Indirect)
 MLG_DEFINE_GPU_BUFFER_TRAITS(uniform, Uniform)
 MLG_DEFINE_GPU_BUFFER_TRAITS(storage, Storage)
 
-using GpuValidTexture = GpuValidObject<wgpu::Texture>;
-using GpuValidBindGroupLayout = GpuValidObject<wgpu::BindGroupLayout>;
-using GpuValidBindGroup = GpuValidObject<wgpu::BindGroup>;
-using GpuValidShaderModule = GpuValidObject<wgpu::ShaderModule>;
-using GpuValidSampler = GpuValidObject<wgpu::Sampler>;
-using GpuValidPipelineLayout = GpuValidObject<wgpu::PipelineLayout>;
-
 // Strongly-typed GPU storage buffer classes.
 using GpuVertexBuffer = GpuBuffer<Vertex, GpuBufferUsage::Vertex>;
 using GpuIndexBuffer = GpuBuffer<VertexIndex, GpuBufferUsage::Index>;
@@ -175,8 +230,8 @@ using GpuCameraParamsBuffer = GpuBuffer<ShaderInterop::CameraParams, GpuBufferUs
 using GpuMaterialConstantsBuffer =
     GpuBuffer<ShaderInterop::MaterialConstants, GpuBufferUsage::Storage>;
 
-
-inline bool operator==(const wgpu::Texture& a, const wgpu::Texture& b)
+inline bool
+operator==(const wgpu::Texture& a, const wgpu::Texture& b)
 {
     return a.Get() == b.Get();
 }
