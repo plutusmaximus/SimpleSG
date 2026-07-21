@@ -52,7 +52,7 @@ public:
     {
     public:
         Invocation() = delete;
-        ~Invocation() { MLG_ASSERT(!m_CmdEncoder, "Pass must be executed before destruction"); }
+        ~Invocation();
         Invocation(const Invocation&) = delete;
         Invocation& operator=(const Invocation&) = delete;
         Invocation(Invocation&&) = default;
@@ -64,11 +64,9 @@ public:
         friend class GpuCompositorPass;
 
         explicit Invocation(wgpu::Device gpuDevice,
-            wgpu::RenderPassEncoder renderPass,
-            wgpu::CommandEncoder cmdEncoder)
+            wgpu::RenderPassEncoder renderPass)
             : m_GpuDevice(std::move(gpuDevice)),
-              m_RenderPass(std::move(renderPass)),
-              m_CmdEncoder(std::move(cmdEncoder))
+              m_RenderPass(std::move(renderPass))
         {
         }
 
@@ -89,7 +87,15 @@ public:
     Result<> SetInputs(const Inputs& inputs);
     Result<> SetOutputs(const Outputs& outputs);
 
+    /// @brief Prepares an invocation of the pass for execution.
+    /// This variant of Prepare creates a command encoder that's owned and
+    /// submitted to the GPU by the invocation.
     Result<Invocation> Prepare();
+
+    /// @brief Prepares an invocation of the pass for execution.
+    /// This variant of Prepare uses the provided command encoder.
+    /// The caller is responsible for submitting the command encoder to the GPU.
+    Result<Invocation> Prepare(const wgpu::CommandEncoder& cmdEncoder);
 
 private:
     explicit GpuCompositorPass(const GpuHelper& gpuHelper,

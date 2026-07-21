@@ -14,12 +14,17 @@ public:
     static constexpr const char* ShaderPath = "shaders/TransformShader.wgsl";
     static constexpr const char* ComputeEntry = "cs_main";
     static constexpr const char* kWorkgroupSizeOverride = "WorkgroupSizeOverride";
-    static constexpr uint32_t kWorkgroupSize = 64;
+    static constexpr size_t kWorkgroupSize = 64;
 
     struct Inputs
     {
         GpuWorldTransformBuffer WorldTransforms;
         GpuCameraParamsBuffer CameraParams;
+
+        Result<> Validate() const // NOLINT(readability-convert-member-functions-to-static)
+        {
+            return Result<>::Ok;
+        }
 
         friend bool operator==(const Inputs& a, const Inputs& b) = default;
     };
@@ -28,7 +33,39 @@ public:
     {
         GpuClipSpaceBuffer ClipSpaceTransforms;
 
+        Result<> Validate() const // NOLINT(readability-convert-member-functions-to-static)
+        {
+            return Result<>::Ok;
+        }
+
         friend bool operator==(const Outputs& a, const Outputs& b) = default;
+    };
+
+    class Invocation
+    {
+    public:
+        Invocation() = delete;
+        ~Invocation();
+        Invocation(const Invocation&) = delete;
+        Invocation& operator=(const Invocation&) = delete;
+        Invocation(Invocation&&) = default;
+        Invocation& operator=(Invocation&&) = delete;
+
+        Result<> Execute(const size_t instanceCount);
+
+    private:
+        friend class GpuTransformPass;
+
+        explicit Invocation(wgpu::Device gpuDevice,
+            wgpu::ComputePassEncoder computePass)
+            : m_GpuDevice(std::move(gpuDevice)),
+              m_ComputePass(std::move(computePass))
+        {
+        }
+
+        wgpu::Device m_GpuDevice;
+        wgpu::ComputePassEncoder m_ComputePass;
+        wgpu::CommandEncoder m_CmdEncoder;
     };
 
     GpuTransformPass() = delete;
@@ -43,7 +80,9 @@ public:
     Result<> SetInputs(const Inputs& inputs);
     Result<> SetOutputs(const Outputs& outputs);
 
-    Result<wgpu::ComputePassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder);
+    Result<Invocation> Prepare();
+
+    Result<Invocation> Prepare(wgpu::CommandEncoder cmdEncoder);
 
 private:
     explicit GpuTransformPass(const GpuHelper& gpuHelper,

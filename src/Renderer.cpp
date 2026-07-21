@@ -5,7 +5,6 @@
 #include "Camera.h"
 #include "GpuColorPass.h"
 #include "GpuHelper.h"
-#include "narrow_cast.h"
 #include "PerfMetrics.h"
 #include "PropKit.h"
 #include "Scene.h"
@@ -254,18 +253,11 @@ Renderer::TransformNodes(const wgpu::Device& gpuDevice,
 
     MLG_CHECK(m_TransformPass.SetInputs(inputs));
     MLG_CHECK(m_TransformPass.SetOutputs(outputs));
-    auto pass = m_TransformPass.BeginPass(cmdEncoder);
-    MLG_CHECK(pass);
+    auto invocation = m_TransformPass.Prepare(cmdEncoder);
+    MLG_CHECK(invocation, "Failed to prepare transform pass");
 
-    const uint32_t instanceCount = narrow_cast<uint32_t>(scene.GetModelInstances().size());
-
-    // Number of workgroups to dispatch is the number of instances divided by the workgroup size,
-    // rounded up.
-    const uint32_t workgroupCountX = (instanceCount / GpuTransformPass::kWorkgroupSize)
-        + (instanceCount % GpuTransformPass::kWorkgroupSize != 0);
-
-    pass->DispatchWorkgroups(workgroupCountX);
-    pass->End();
+    MLG_CHECK(invocation->Execute(scene.GetModelInstances().size()),
+        "Failed to execute transform pass");
 
     return Result<>::Ok;
 }

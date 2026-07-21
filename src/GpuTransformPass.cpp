@@ -1,8 +1,8 @@
-#include <webgpu/webgpu_cpp.h>
 #define MLG_LOGGER_NAME "TPAS"
 
-#include "GpuHelper.h"
 #include "GpuTransformPass.h"
+
+#include "GpuHelper.h"
 
 namespace
 {
@@ -98,6 +98,8 @@ GpuTransformPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
 Result<>
 GpuTransformPass::SetInputs(const Inputs& inputs)
 {
+    MLG_CHECK(inputs.Validate(), "Inputs are not valid");
+
     if(inputs != m_Inputs)
     {
         m_Inputs = inputs;
@@ -112,6 +114,8 @@ GpuTransformPass::SetInputs(const Inputs& inputs)
 Result<>
 GpuTransformPass::SetOutputs(const Outputs& outputs)
 {
+    MLG_CHECK(outputs.Validate(), "Outputs are not valid");
+
     if(outputs != m_Outputs)
     {
         m_Outputs = outputs;
@@ -123,15 +127,35 @@ GpuTransformPass::SetOutputs(const Outputs& outputs)
     return Result<>::Ok;
 }
 
-Result<wgpu::ComputePassEncoder>
-GpuTransformPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder)
+Result<GpuTransformPass::Invocation>
+GpuTransformPass::Prepare()
+{
+    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "GpuTransformPass" };
+    const wgpu::CommandEncoder cmdEncoder =
+        m_GpuHelper->GetDevice().CreateCommandEncoder(&encoderDesc);
+    MLG_CHECK(cmdEncoder, "Failed to create command encoder");
+
+    auto invocation = Prepare(cmdEncoder);
+
+    if(invocation)
+    {
+        // We own the encoder - hand it over to the invocation so it can submit the command buffer
+        // when Execute() is called.
+        invocation->m_CmdEncoder = std::move(cmdEncoder);
+    }
+
+    return invocation;
+}
+
+Result<GpuTransformPass::Invocation>
+GpuTransformPass::Prepare(wgpu::CommandEncoder cmdEncoder)
 {
     MLG_CHECK(EnsurePipeline());
     MLG_CHECK(EnsureInputOutputBindGroup());
 
     MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
     MLG_CHECKV(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
-    
+
     MLG_CHECK(m_Inputs->WorldTransforms.BufferSize() <= m_Outputs->ClipSpaceTransforms.BufferSize(),
         "The ClipSpaceTransforms buffer must be at least as big as the WorldTransforms buffer");
 
@@ -141,7 +165,7 @@ GpuTransformPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder)
     computePass.SetPipeline(m_Pipeline);
     computePass.SetBindGroup(0, m_InputOutputBindGroup);
 
-    return computePass;
+    return Invocation(m_GpuHelper->GetDevice(), std::move(computePass));
 }
 
 // private:
@@ -226,6 +250,46 @@ GpuTransformPass::EnsureInputOutputBindGroup()
 
     m_InputOutputBindGroup = m_GpuHelper->GetDevice().CreateBindGroup(&desc);
     MLG_CHECKV(m_InputOutputBindGroup, "Failed to create bind group");
+
+    return Result<>::Ok;
+}
+
+// GpuTransformPass::Invocation
+
+GpuTransformPass::Invocation::~Invocation()
+{
+    MLG_ASSERT(!m_ComputePass, "Pass must be executed before destruction");
+}
+
+Result<>
+GpuTransformPass::Invocation::Execute(const size_t instanceCount)
+{
+    MLG_CHECKV(m_ComputePass, "Pass has already been executed");
+
+    // Consume the compute pass so it can't be used again.
+    const wgpu::ComputePassEncoder computePass = std::move(m_ComputePass);
+
+    m_ComputePass = {};
+
+    // Number of workgroups to dispatch is the number of instances divided by the workgroup size,
+    // rounded up.
+    const size_t workgroupCountX = (instanceCount / GpuTransformPass::kWorkgroupSize)
+        + (instanceCount % GpuTransformPass::kWorkgroupSize != 0);
+
+    computePass.DispatchWorkgroups(narrow_cast<uint32_t>(workgroupCountX));
+    computePass.End();
+
+    // If m_CmdEncoder is null then it's owned by the caller and they are responsible for submitting
+    // it to the GPU. Otherwise, we own it and we will submit it to the GPU here.
+    if(m_CmdEncoder)
+    {
+        const wgpu::CommandBuffer cmdBuf = m_CmdEncoder.Finish(nullptr);
+        MLG_CHECK(cmdBuf, "Failed to finish command buffer");
+
+        const wgpu::Queue queue = m_GpuDevice.GetQueue();
+        MLG_CHECK(queue, "Failed to get wgpu::Queue");
+        queue.Submit(1, &cmdBuf);
+    }
 
     return Result<>::Ok;
 }
