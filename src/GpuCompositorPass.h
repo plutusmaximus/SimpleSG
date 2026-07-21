@@ -1,6 +1,6 @@
 #pragma once
 
-#include "GpuTypes.h"   // for operator==(const wgpu::Texture&, const wgpu::Texture&)
+#include "GpuTypes.h"
 #include "VecMath.h"
 
 #include <optional>
@@ -48,6 +48,35 @@ public:
         friend bool operator==(const Outputs& a, const Outputs& b) = default;
     };
 
+    class Invocation
+    {
+    public:
+        Invocation() = delete;
+        ~Invocation() { MLG_ASSERT(!m_CmdEncoder, "Pass must be executed before destruction"); }
+        Invocation(const Invocation&) = delete;
+        Invocation& operator=(const Invocation&) = delete;
+        Invocation(Invocation&&) = default;
+        Invocation& operator=(Invocation&&) = delete;
+
+        Result<> Execute();
+
+    private:
+        friend class GpuCompositorPass;
+
+        explicit Invocation(wgpu::Device gpuDevice,
+            wgpu::RenderPassEncoder renderPass,
+            wgpu::CommandEncoder cmdEncoder)
+            : m_GpuDevice(std::move(gpuDevice)),
+              m_RenderPass(std::move(renderPass)),
+              m_CmdEncoder(std::move(cmdEncoder))
+        {
+        }
+
+        wgpu::Device m_GpuDevice;
+        wgpu::RenderPassEncoder m_RenderPass;
+        wgpu::CommandEncoder m_CmdEncoder;
+    };
+
     GpuCompositorPass() = delete;
     ~GpuCompositorPass() = default;
     GpuCompositorPass(const GpuCompositorPass&) = delete;
@@ -60,9 +89,7 @@ public:
     Result<> SetInputs(const Inputs& inputs);
     Result<> SetOutputs(const Outputs& outputs);
 
-    Result<wgpu::RenderPassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder);
-
-    Result<> Composite();
+    Result<Invocation> Prepare();
 
 private:
     explicit GpuCompositorPass(const GpuHelper& gpuHelper,
@@ -95,5 +122,4 @@ private:
     wgpu::PipelineLayout m_PipelineLayout;
     wgpu::BindGroup m_InputsBindGroup;
     wgpu::RenderPipeline m_Pipeline;
-    wgpu::TextureFormat m_TargetFormat{ wgpu::TextureFormat::Undefined };
 };

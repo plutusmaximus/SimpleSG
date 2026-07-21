@@ -72,13 +72,14 @@ Renderer::Render(const Camera& camera,
     {
         MLG_SCOPED_TIMER("Renderer.Render.TransformNodes");
 
-        auto transformNodesResult = TransformNodes(gpuDevice, cmdEncoder, cameraXForm, camera, scene);
+        auto transformNodesResult =
+            TransformNodes(gpuDevice, cmdEncoder, cameraXForm, camera, scene);
         MLG_CHECK(transformNodesResult);
     }
 
-    if(!m_ColorPassOutputs ||
-        m_ColorPassOutputs->RenderTarget->GetWidth() != viewport.GetWidth() ||
-        m_ColorPassOutputs->RenderTarget->GetHeight() != viewport.GetHeight())
+    if(!m_ColorPassOutputs
+        || m_ColorPassOutputs->RenderTarget->GetWidth() != viewport.GetWidth()
+        || m_ColorPassOutputs->RenderTarget->GetHeight() != viewport.GetHeight())
     {
         auto colorPassOutputs =
             CreateColorPassTarget(*m_GpuHelper, viewport.GetWidth(), viewport.GetHeight());
@@ -179,9 +180,9 @@ Renderer::Render(const Camera& camera,
 Result<>
 Renderer::Composite(const GpuRenderTarget& target)
 {
-    const Rect dstRect
-        ({ .X = 0, .Y = 0, .Width = target->GetWidth(), .Height = target->GetHeight() });
-        
+    const Rect dstRect(
+        { .X = 0, .Y = 0, .Width = target->GetWidth(), .Height = target->GetHeight() });
+
     return Composite(target, dstRect);
 }
 
@@ -189,7 +190,7 @@ Result<>
 Renderer::Composite(const GpuRenderTarget& target, const Rect& dstRect)
 {
     MLG_CHECKV(m_ColorPassOutputs, "Color pass outputs are not valid");
-    
+
     const GpuCompositorPass::Inputs inputs //
         {
             .DstRect = dstRect,
@@ -204,10 +205,15 @@ Renderer::Composite(const GpuRenderTarget& target, const Rect& dstRect)
     MLG_CHECK(m_CompositorPass.SetInputs(inputs));
     MLG_CHECK(m_CompositorPass.SetOutputs(outputs));
 
-    return m_CompositorPass.Composite();
+    auto pass = m_CompositorPass.Prepare();
+    MLG_CHECK(pass, "Failed to begin compositor pass");
+
+    MLG_CHECK(pass->Execute(), "Failed to execute compositor pass");
+
+    return Result<>::Ok;
 }
 
-//private:
+// private:
 
 Result<>
 Renderer::TransformNodes(const wgpu::Device& gpuDevice,
@@ -230,8 +236,7 @@ Renderer::TransformNodes(const wgpu::Device& gpuDevice,
 
     auto cameraParamsBuf = scene.GetCameraParamsBuffer();
 
-    gpuDevice.GetQueue().WriteBuffer(
-        cameraParamsBuf.GetGpuBuffer(),
+    gpuDevice.GetQueue().WriteBuffer(cameraParamsBuf.GetGpuBuffer(),
         0,
         &cameraParams,
         sizeof(ShaderInterop::CameraParams));
@@ -254,7 +259,8 @@ Renderer::TransformNodes(const wgpu::Device& gpuDevice,
 
     const uint32_t instanceCount = narrow_cast<uint32_t>(scene.GetModelInstances().size());
 
-    //Number of workgroups to dispatch is the number of instances divided by the workgroup size, rounded up.
+    // Number of workgroups to dispatch is the number of instances divided by the workgroup size,
+    // rounded up.
     const uint32_t workgroupCountX = (instanceCount / GpuTransformPass::kWorkgroupSize)
         + (instanceCount % GpuTransformPass::kWorkgroupSize != 0);
 

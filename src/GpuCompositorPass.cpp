@@ -1,3 +1,4 @@
+#include <webgpu/webgpu_cpp.h>
 #define MLG_LOGGER_NAME "CMPP"
 
 #include "GpuCompositorPass.h"
@@ -118,10 +119,14 @@ GpuCompositorPass::SetInputs(const Inputs& inputs)
 
     if(inputs != m_Inputs)
     {
+        if(!m_Inputs || inputs.Texture != m_Inputs->Texture)
+        {
+            // Rebuild the bind group
+            m_InputsBindGroup = {};
+        }
+
         m_Inputs = inputs;
 
-        // Rebuild the bind group
-        m_InputsBindGroup = {};
     }
 
     return Result<>::Ok;
@@ -132,24 +137,31 @@ GpuCompositorPass::SetOutputs(const Outputs& outputs)
 {
     MLG_CHECK(outputs.Validate(), "Outputs are not valid");
 
-    m_Outputs = outputs;
-
-    if(m_TargetFormat != outputs.RenderTarget->GetFormat())
+    if(outputs != m_Outputs)
     {
-        m_TargetFormat = outputs.RenderTarget->GetFormat();
+        if(!m_Outputs || outputs.RenderTarget->GetFormat() != m_Outputs->RenderTarget->GetFormat())
+        {
+            // Rebuild the pipeline
+            m_Pipeline = {};
+        }
 
-        // Rebuild the pipeline
-        m_Pipeline = {};
+        m_Outputs = outputs;
     }
 
     return Result<>::Ok;
 }
 
-Result<wgpu::RenderPassEncoder>
-GpuCompositorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder)
+Result<GpuCompositorPass::Invocation>
+GpuCompositorPass::Prepare()
 {
     MLG_CHECK(EnsurePipeline());
     MLG_CHECK(EnsureInputsBindGroup());
+
+    const wgpu::Device& gpuDevice = m_GpuHelper->GetDevice();
+
+    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "GpuCompositorPass" };
+    const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
+    MLG_CHECK(cmdEncoder, "Failed to create command encoder");
 
     MLG_CHECK(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
     MLG_CHECK(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
@@ -210,32 +222,9 @@ GpuCompositorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder)
         renderPass.SetScissorRect(x, y, width, height);
     }
 
-    return renderPass;
-}
-
-Result<>
-GpuCompositorPass::Composite()
-{
-    const wgpu::Device& gpuDevice = m_GpuHelper->GetDevice();
-
-    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "GpuCompositorPass" };
-    const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
-    MLG_CHECK(cmdEncoder, "Failed to create command encoder");
-
-    auto pass = BeginPass(cmdEncoder);
-    MLG_CHECK(pass, "Failed to begin render pass");
-
-    pass->Draw(3, 1, 0, 0);
-    pass->End();
-
-    const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
-    MLG_CHECK(cmdBuf, "Failed to finish command buffer");
-
-    const wgpu::Queue queue = gpuDevice.GetQueue();
-    MLG_CHECK(queue, "Failed to get wgpu::Queue");
-    queue.Submit(1, &cmdBuf);
-
-    return Result<>::Ok;
+    return GpuCompositorPass::Invocation(m_GpuHelper->GetDevice(),
+        std::move(renderPass),
+        std::move(cmdEncoder));
 }
 
 // private:
@@ -348,6 +337,30 @@ GpuCompositorPass::EnsureInputsBindGroup()
 
     m_InputsBindGroup = m_GpuHelper->GetDevice().CreateBindGroup(&desc);
     MLG_CHECK(m_InputsBindGroup, "Failed to create bind group");
+
+    return Result<>::Ok;
+}
+
+// GpuCompositorPass::Pass
+
+Result<>
+GpuCompositorPass::Invocation::Execute()
+{
+    MLG_CHECKV(m_CmdEncoder, "Pass has already been executed");
+
+    const wgpu::CommandEncoder cmdEncoder = std::move(m_CmdEncoder);
+    
+    m_CmdEncoder = {};
+
+    m_RenderPass.Draw(3, 1, 0, 0);
+    m_RenderPass.End();
+
+    const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
+    MLG_CHECK(cmdBuf, "Failed to finish command buffer");
+
+    const wgpu::Queue queue = m_GpuDevice.GetQueue();
+    MLG_CHECK(queue, "Failed to get wgpu::Queue");
+    queue.Submit(1, &cmdBuf);
 
     return Result<>::Ok;
 }
