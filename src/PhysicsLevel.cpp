@@ -154,7 +154,7 @@ PhysicsLevel::PredictPositions(const float dt)
     }
 }
 
-#define FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED 1
+#define FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED 0
 
 void
 PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
@@ -268,97 +268,110 @@ PhysicsLevel::FindAndResolveAllImpacts()
     const auto indices = std::views::iota(0uz, m_ActiveBodies.size());
     const auto range = std::views::zip(m_Bodies, m_ActiveBodies, m_TrsCur, m_TrsNext, indices);
 
-    // Bodies will be added to all cells of the grid overlapped by the bounding box
-    // defined by the current and predicted position.
-    for(auto&& [body, isActive, trsCur, trsNext, index] : range)
+    size_t potentialCollisionCount = 0;
+
     {
-        if(!isActive)
-        {
-            continue;
-        }
+        MLG_SCOPED_TIMER("Physics.FindAndResolveAllImpacts.GridHash");
 
         // Bodies will be added to all cells of the grid overlapped by the bounding box
         // defined by the current and predicted position.
-
-        m_GridHash.Add(trsCur.T, trsNext.T, body.GetBoundingSphere(), index);
-    }
-
-    const size_t potentialCollisionCount = m_GridHash.PotentialCollisionCount();
-
-    if(potentialCollisionCount == 0)
-    {
-        return;
-    }
-
-    m_ImpactRecords.reserve(potentialCollisionCount);
-
-    // Prepare to process potential collisions in parallel.
-    // Batches of BodyPairs will be offloaded to worker threads.
-
-    // Calculate optimal batch size to max out worker threads.
-    const size_t workerCount = m_ThreadPool->GetWorkerCount();
-    const size_t batchSize = (potentialCollisionCount + workerCount - 1) / workerCount;
-    const size_t batchCount = (potentialCollisionCount + batchSize - 1) / batchSize;
-
-    m_SweepTestBatches.clear();
-    m_SweepTestBatches.reserve(batchCount);
-
-    size_t pairCount = 0;
-    size_t subspanStart = 0;
-
-    // Counter used to determine when all batches have finished processing.
-    std::atomic<size_t> finishCounter;
-
-    // Collect impact records into batches and enqueue for processing.
-    for(const BodyPair& bodyPair : m_GridHash)
-    {
-        const ImpactRecord impactRecord //
-            {
-                .Bodies = bodyPair,
-                .SweepParams //
-                {
-                    .StartPosA = m_TrsCur[bodyPair.IndexA()].T,
-                    .EndPosA = m_TrsNext[bodyPair.IndexA()].T,
-                    .SphereA = m_Bodies[bodyPair.IndexA()].GetBoundingSphere(),
-                    .StartPosB = m_TrsCur[bodyPair.IndexB()].T,
-                    .EndPosB = m_TrsNext[bodyPair.IndexB()].T,
-                    .SphereB = m_Bodies[bodyPair.IndexB()].GetBoundingSphere(),
-                },
-            };
-
-        m_ImpactRecords.emplace_back(impactRecord);
-        ++pairCount;
-
-        if(pairCount >= batchSize)
+        for(auto&& [body, isActive, trsCur, trsNext, index] : range)
         {
-            MLG_ASSERT(m_SweepTestBatches.size() < batchCount, "Batch count exceeded expected count");
+            if(!isActive)
+            {
+                continue;
+            }
 
+            // Bodies will be added to all cells of the grid overlapped by the bounding box
+            // defined by the current and predicted position.
+
+            m_GridHash.Add(trsCur.T, trsNext.T, body.GetBoundingSphere(), index);
+        }
+
+        potentialCollisionCount = m_GridHash.PotentialCollisionCount();
+
+        if(potentialCollisionCount == 0)
+        {
+            return;
+        }
+
+        m_ImpactRecords.reserve(potentialCollisionCount);
+    }
+
+    {
+        MLG_SCOPED_TIMER("Physics.FindAndResolveAllImpacts.SweepTests");
+        
+        // Prepare to process potential collisions in parallel.
+        // Batches of BodyPairs will be offloaded to worker threads.
+
+        // Calculate optimal batch size to max out worker threads.
+        const size_t workerCount = m_ThreadPool->GetWorkerCount();
+        const size_t batchSize = (potentialCollisionCount + workerCount - 1) / workerCount;
+        const size_t batchCount = (potentialCollisionCount + batchSize - 1) / batchSize;
+
+        m_SweepTestBatches.clear();
+        m_SweepTestBatches.reserve(batchCount);
+
+        size_t pairCount = 0;
+        size_t subspanStart = 0;
+
+        // Counter used to determine when all batches have finished processing.
+        std::atomic<size_t> finishCounter;
+
+        // Collect impact records into batches and enqueue for processing.
+        for(const BodyPair& bodyPair : m_GridHash)
+        {
+            const ImpactRecord impactRecord //
+                {
+                    .Bodies = bodyPair,
+                    .SweepParams //
+                    {
+                        .StartPosA = m_TrsCur[bodyPair.IndexA()].T,
+                        .EndPosA = m_TrsNext[bodyPair.IndexA()].T,
+                        .SphereA = m_Bodies[bodyPair.IndexA()].GetBoundingSphere(),
+                        .StartPosB = m_TrsCur[bodyPair.IndexB()].T,
+                        .EndPosB = m_TrsNext[bodyPair.IndexB()].T,
+                        .SphereB = m_Bodies[bodyPair.IndexB()].GetBoundingSphere(),
+                    },
+                };
+
+            m_ImpactRecords.emplace_back(impactRecord);
+            ++pairCount;
+
+            if(pairCount >= batchSize)
+            {
+                MLG_ASSERT(m_SweepTestBatches.size() < batchCount, "Batch count exceeded expected count");
+
+                const std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
+                SweepTestBatch& batch = m_SweepTestBatches.emplace_back(batchSpan, &finishCounter);
+
+                // Enqueue the batch for processing.
+                EnqueueSweepTests(&batch);
+
+                subspanStart += pairCount;
+                pairCount = 0;
+            }
+        }
+
+        // Enqueue any remaining pairs that didn't fill an entire batch.
+        if(pairCount > 0)
+        {
             const std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
             SweepTestBatch& batch = m_SweepTestBatches.emplace_back(batchSpan, &finishCounter);
 
-            // Enqueue the batch for processing.
             EnqueueSweepTests(&batch);
-
-            subspanStart += pairCount;
-            pairCount = 0;
         }
-    }
 
-    // Enqueue any remaining pairs that didn't fill an entire batch.
-    if(pairCount > 0)
-    {
-        const std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
-        SweepTestBatch& batch = m_SweepTestBatches.emplace_back(batchSpan, &finishCounter);
+        MLG_ASSERT(m_SweepTestBatches.size() == batchCount);
 
-        EnqueueSweepTests(&batch);
-    }
+        MLG_SCOPED_TIMER("Physics.FindAndResolveAllImpacts.SweepTests.Wait");
 
-    MLG_ASSERT(m_SweepTestBatches.size() == batchCount);
-
-    // Wait for all batches to finish.
-    while(finishCounter.load(std::memory_order_acquire) < m_SweepTestBatches.size())
-    {
-        std::this_thread::yield();
+        size_t finishCount = finishCounter.load();
+        while(finishCount < m_SweepTestBatches.size())
+        {
+            finishCounter.wait(finishCount);
+            finishCount = finishCounter.load();
+        }
     }
 
     static PerfCounter pcPotentialImpacts({ .Name = "Physics.Collision.PotentialImpacts", });
@@ -387,7 +400,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
 }
 
 void
-PhysicsLevel::EnqueueSweepTests(SweepTestBatch* batch)
+PhysicsLevel::EnqueueSweepTests(SweepTestBatch* batch) // NOLINT(readability-convert-member-functions-to-static,-warnings-as-errors)
 {
 #if FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED
     m_ThreadPool->Enqueue<SweepTestBatch::Process>(batch);
@@ -556,4 +569,5 @@ PhysicsLevel::SweepTestBatch::Process(SweepTestBatch* batch)
     }
 
     batch->FinishCounter->fetch_add(1, std::memory_order_release);
+    batch->FinishCounter->notify_all();
 }

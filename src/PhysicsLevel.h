@@ -116,8 +116,8 @@ private:
         m_TransformPool[0] = std::move(transforms);
         m_TransformPool[1] = m_TransformPool[0];    // Make a copy
         m_LinearVelocities.resize(m_Bodies.size(), Vec3f{ 0 });
-        m_AccelerationPool[0].resize(m_Bodies.size(), Vec3f{ 0 });
-        m_AccelerationPool[1].resize(m_Bodies.size(), Vec3f{ 0 });
+        m_AccelerationPool[0] = m_LinearVelocities; // Make a copy
+        m_AccelerationPool[1] = m_AccelerationPool[0]; // Make a copy
         m_ActiveBodies.resize(m_Bodies.size(), true);
         m_TrsCur = m_TransformPool[0];
         m_TrsNext = m_TransformPool[1];
@@ -160,5 +160,5 @@ private:
 
     std::vector<ImpactRecord> m_ImpactRecords;
 
-    ThreadPool* m_ThreadPool{nullptr};
+    [[maybe_unused]] ThreadPool* m_ThreadPool{nullptr};
 };
