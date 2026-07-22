@@ -244,20 +244,24 @@ TextureLoadTask::Decode() const
     MLG_CHECKV(m_Texture.GetFormat() == wgpu::TextureFormat::RGBA8Unorm,
         "Texture format does not match expected format");
 
-    const size_t sizeofSrcData =
-        static_cast<size_t>(imgWidth) * static_cast<size_t>(imgHeight) * GpuHelper::kNumTextureChannels;
+    const size_t sizeofSrcData = static_cast<size_t>(imgWidth)
+        * static_cast<size_t>(imgHeight)
+        * GpuHelper::kNumTextureChannels;
 
     const size_t expectedSizeofSrcData = static_cast<size_t>(m_Texture.GetWidth())
         * static_cast<size_t>(m_Texture.GetHeight())
         * GpuHelper::kNumTextureChannels;
 
-    MLG_CHECKV(sizeofSrcData == expectedSizeofSrcData, "Decoded image size does not match texture size");
+    MLG_CHECKV(sizeofSrcData == expectedSizeofSrcData,
+        "Decoded image size does not match texture size");
 
     const std::span<const stbi_uc> srcSpan(data, sizeofSrcData);
-    const std::span<std::byte> dstSpan(m_MappedMemory, m_StagingBuffer.GetSize());
+    const std::span<std::byte> dstSpan(m_MappedMemory,
+        narrow_cast<size_t>(m_StagingBuffer.GetSize()));
     size_t dstOffset = 0, srcOffset = 0;
     const size_t srcRowStride = static_cast<size_t>(imgWidth) * GpuHelper::kNumTextureChannels;
-    const size_t dstRowStride = GpuHelper::GetTextureAlignedRowStride(static_cast<size_t>(imgWidth));
+    const size_t dstRowStride =
+        GpuHelper::GetTextureAlignedRowStride(static_cast<size_t>(imgWidth));
     for(int y = 0; y < imgHeight; ++y, dstOffset += dstRowStride, srcOffset += srcRowStride)
     {
         ::memcpy(&dstSpan[dstOffset], &srcSpan[srcOffset], srcRowStride);
@@ -484,8 +488,9 @@ BuildMaterialConstantsBuffer(GpuHelper& gpuHelper, const std::span<const Materia
         materialConstants.emplace_back(mc);
     }
 
-    auto buffer = gpuHelper.CreateStorageBuffer<GpuMaterialConstantsBuffer>(materialConstants.size(),
-        "MaterialConstants");
+    auto buffer =
+        gpuHelper.CreateStorageBuffer<GpuMaterialConstantsBuffer>(materialConstants.size(),
+            "MaterialConstants");
 
     MLG_CHECK(buffer);
 

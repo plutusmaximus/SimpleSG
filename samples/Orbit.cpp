@@ -23,6 +23,7 @@
 #include <SDL3/SDL_mouse.h>
 #include <SDL3/SDL_scancode.h>
 #include <thread>
+#include <vector>
 
 namespace
 {
@@ -225,20 +226,89 @@ struct ApplyGravityBatchParams
     size_t StartIndexB{ 0 };
     size_t BatchSize{ 0 };
 
-    std::span<const RigidBody> Bodies;
-    std::span<const TrsTransformf> Transforms;
+    std::span<float> BodyX;
+    std::span<float> BodyY;
+    std::span<float> BodyZ;
+    std::span<float> BodyRadius;
+    std::span<float> BodyMass;
 
-    std::vector<Vec3f> Forces;
+    std::span<float> ForceX;
+    std::span<float> ForceY;
+    std::span<float> ForceZ;
+    
     float PotentialEnergy{ 0 };
 
     std::atomic<size_t>* FinishCounter{ nullptr };
 };
 
+[[maybe_unused]] void
+ApplyGravityRow2(ApplyGravityBatchParams* batchParams, const size_t i, const size_t jStart, const size_t jEnd)
+{
+    const float ax = batchParams->BodyX[i];
+    const float ay = batchParams->BodyY[i];
+    const float az = batchParams->BodyZ[i];
+    const float ar = batchParams->BodyRadius[i];
+    const float am = batchParams->BodyMass[i];
+
+    const float* __restrict bx = batchParams->BodyX.data();
+    const float* __restrict by = batchParams->BodyY.data();
+    const float* __restrict bz = batchParams->BodyZ.data();
+    const float* __restrict br = batchParams->BodyRadius.data();
+    const float* __restrict bm = batchParams->BodyMass.data();
+
+    float* __restrict fx = batchParams->ForceX.data();
+    float* __restrict fy = batchParams->ForceY.data();
+    float* __restrict fz = batchParams->ForceZ.data();
+
+    float forceAX = 0, forceAY = 0, forceAZ = 0;
+    float energy = 0;
+
+    MLG_ASSERT(jStart < batchParams->BodyX.size(), "StartIndexB must be greater than StartIndexA");
+
+    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    for(size_t j = jStart; j < jEnd; ++j)
+    {
+        const float dx = bx[j] - ax;
+        const float dy = by[j] - ay;
+        const float dz = bz[j] - az;
+
+        const float minR = ar + br[j];
+        const float minR2 = minR * minR;
+        const float delta2 = (dx * dx) + (dy * dy) + (dz * dz);
+        const float r2 = std::max(delta2, minR2);
+
+        const float massProduct = am * bm[j];
+        const float invR = 1.0f / std::sqrt(r2);
+
+        const float pe = -kGravitationalConstant * massProduct * invR;
+
+        const float scale = -pe / r2;
+
+        const float forceX = scale * dx;
+        const float forceY = scale * dy;
+        const float forceZ = scale * dz;
+
+        forceAX += forceX;
+        forceAY += forceY;
+        forceAZ += forceZ;
+        energy += pe;
+
+        fx[j] -= forceX;
+        fy[j] -= forceY;
+        fz[j] -= forceZ;
+    }
+
+    fx[i] += forceAX;
+    fy[i] += forceAY;
+    fz[i] += forceAZ;
+
+    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    batchParams->PotentialEnergy += energy;
+}
+
 void
 ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
 {
-    batchParams->Forces.clear();
-    batchParams->Forces.resize(batchParams->Bodies.size(), Vec3f{ 0 });
     batchParams->PotentialEnergy = 0;
 
     size_t count = 0;
@@ -246,44 +316,15 @@ ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
     size_t j = batchParams->StartIndexB;
 
     for(size_t i = batchParams->StartIndexA;
-        i < batchParams->Bodies.size() && count < batchParams->BatchSize;
+        i < batchParams->BodyX.size() && count < batchParams->BatchSize;
         ++i, j = i + 1)
     {
-        const RigidBody& bodyA = batchParams->Bodies[i];
-        const BoundingSphere sphereA = batchParams->Transforms[i] * bodyA.GetBoundingSphere();
-        const float massA = bodyA.GetMass().Value();
+        const size_t jStart = j;
+        const size_t jEnd =
+            std::min(batchParams->BodyX.size(), jStart + (batchParams->BatchSize - count));
+        ApplyGravityRow2(batchParams, i, jStart, jEnd);
 
-        MLG_ASSERT(j < batchParams->Bodies.size(), "StartIndexB must be greater than StartIndexA");
-
-        for(; j < batchParams->Bodies.size() && count < batchParams->BatchSize; ++j, ++count)
-        {
-            const RigidBody& bodyB = batchParams->Bodies[j];
-            const BoundingSphere sphereB = batchParams->Transforms[j] * bodyB.GetBoundingSphere();
-            const float massB = bodyB.GetMass().Value();
-
-            const float minSeparation = sphereA.GetRadius() + sphereB.GetRadius();
-            const float minSeparationSq = minSeparation * minSeparation;
-
-            // Vector from body A to body B
-            const Vec3f delta = sphereB.GetCenter() - sphereA.GetCenter();
-
-            // Gravitational force magnitude: F = G * (M * m) / r^2
-            // Direction toward source: delta / r
-            // Combined vector form: F = G * M * m * delta / r^3
-
-            // If bodies overlap clamp to minimum separation.
-            const float r2 = std::max(delta.Dot(delta), minSeparationSq);
-            const float massProduct = massA * massB;
-
-            const float pe = -kGravitationalConstant * massProduct / std::sqrt(r2);
-            const Vec3f F = -pe * delta / r2;
-            // const Vec3f F = kGravitationalConstant * massProduct * delta / (r2 * std::sqrt(r2));
-
-            batchParams->PotentialEnergy += pe;
-
-            batchParams->Forces[i] += F;
-            batchParams->Forces[j] -= F;
-        }
+        count += (jEnd - jStart);
     }
 
     batchParams->FinishCounter->fetch_add(1, std::memory_order_relaxed);
@@ -300,8 +341,32 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
 
     const size_t numPairs = bodies.size() * (bodies.size() - 1) / 2;
     const size_t workerCount = threadPool.GetWorkerCount();
-    const size_t batchSize = (numPairs + workerCount - 1) / workerCount;
-    const size_t numBatches = (numPairs + batchSize - 1) / batchSize;
+    const size_t batchSize = (numPairs / workerCount) + (numPairs % workerCount != 0 ? 1 : 0);
+    const size_t numBatches = (numPairs / batchSize) + (numPairs % batchSize != 0 ? 1 : 0);
+
+    std::vector<float> centerX(bodies.size());
+    std::vector<float> centerY(bodies.size());
+    std::vector<float> centerZ(bodies.size());
+    std::vector<float> radius(bodies.size());
+    std::vector<float> mass(bodies.size());
+    std::vector<float> forceX(bodies.size());
+    std::vector<float> forceY(bodies.size());
+    std::vector<float> forceZ(bodies.size());
+
+    for(size_t i = 0; i < bodies.size(); ++i)
+    {
+        const RigidBody& body = bodies[i];
+        const BoundingSphere& sphere = body.GetBoundingSphere();
+        const Vec3f center = transforms[i] * sphere.GetCenter();
+        centerX[i] = center.x;
+        centerY[i] = center.y;
+        centerZ[i] = center.z;
+        radius[i] = sphere.GetRadius();
+        mass[i] = body.GetMass().Value();
+        forceX[i] = 0;
+        forceY[i] = 0;
+        forceZ[i] = 0;
+    }
 
     size_t pairCount = 0;
 
@@ -322,8 +387,14 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
                         .StartIndexA = startIndexA,
                         .StartIndexB = startIndexB,
                         .BatchSize = pairCount,
-                        .Bodies = bodies,
-                        .Transforms = transforms,
+                        .BodyX = centerX,
+                        .BodyY = centerY,
+                        .BodyZ = centerZ,
+                        .BodyRadius = radius,
+                        .BodyMass = mass,
+                        .ForceX = forceX,
+                        .ForceY = forceY,
+                        .ForceZ = forceZ,
                         .FinishCounter = &finishCounter,
                     };
 
@@ -353,8 +424,14 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
                 .StartIndexA = startIndexA,
                 .StartIndexB = startIndexB,
                 .BatchSize = pairCount,
-                .Bodies = bodies,
-                .Transforms = transforms,
+                .BodyX = centerX,
+                .BodyY = centerY,
+                .BodyZ = centerZ,
+                .BodyRadius = radius,
+                .BodyMass = mass,
+                .ForceX = forceX,
+                .ForceY = forceY,
+                .ForceZ = forceZ,
                 .FinishCounter = &finishCounter,
             };
 
@@ -382,13 +459,13 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
 
     float totalPotentialEnergy = 0;
 
+    for(size_t i = 0; i < bodies.size(); ++i)
+    {
+        physLevel.AddForce(i, Vec3f(forceX[i], forceY[i], forceZ[i]));
+    }
+
     for(const auto& params : batches)
     {
-        for(size_t i = 0; i < params.Forces.size(); ++i)
-        {
-            physLevel.AddForce(i, params.Forces[i]);
-        }
-
         totalPotentialEnergy += params.PotentialEnergy;
     }
 
