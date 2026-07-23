@@ -117,6 +117,7 @@ GridHash::Clear()
 {
     m_Items.clear();
     m_PotentialCollisions.clear();
+    m_UniquePairs.Clear();
     m_NeedsSort = true;
 }
 
@@ -224,7 +225,7 @@ GridHash::Quantize(const float value) const
     return static_cast<int32_t>(std::floor(value * m_InvCellSize));
 }
 
-#define METHOD 0
+#define METHOD 2
 
 void
 GridHash::Sort() const
@@ -251,6 +252,8 @@ GridHash::Sort() const
 
 #if METHOD == 1
     std::unordered_set<uint64_t> uniquePairs;
+#elif METHOD == 2
+    m_UniquePairs.Clear();
 #endif
 
     {
@@ -273,6 +276,12 @@ GridHash::Sort() const
                     const uint64_t pairKey = (static_cast<uint64_t>(std::min(indexA, indexB)) << 32) |
                         static_cast<uint64_t>(std::max(indexA, indexB));
                     uniquePairs.emplace(pairKey);
+#elif METHOD == 2
+                    const uint64_t pairKey = (static_cast<uint64_t>(std::min(indexA, indexB)) << 32) | static_cast<uint64_t>(std::max(indexA, indexB));
+                    if(m_UniquePairs.Insert(pairKey))
+                    {
+                        m_PotentialCollisions.emplace_back(indexA, indexB);
+                    }
 #endif
                 }
             }
@@ -283,6 +292,8 @@ GridHash::Sort() const
     if(m_PotentialCollisions.empty())
 #elif METHOD == 1
     if(uniquePairs.empty())
+#elif METHOD == 2
+    if(m_UniquePairs.Empty())
 #endif
     {
         return;
