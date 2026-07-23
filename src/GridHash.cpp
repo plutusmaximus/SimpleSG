@@ -1,7 +1,9 @@
 #include "GridHash.h"
 #include "BoundingVolumes.h"
+#include "PerfMetrics.h"
 
 #include <algorithm>
+#include <unordered_set>
 
 namespace
 {
@@ -122,6 +124,8 @@ void
 GridHash::Add(
     const Vec3f& p0, const Vec3f& p1, const BoundingSphere& boundingSphere, const size_t bodyIndex)
 {
+    MLG_SCOPED_TIMER("GridHash.Add");
+
     MLG_ASSERT(m_NeedsSort,
         "Adding bodies after potential collisions have been generated. Is that intentional?");
 
@@ -220,9 +224,13 @@ GridHash::Quantize(const float value) const
     return static_cast<int32_t>(std::floor(value * m_InvCellSize));
 }
 
+#define METHOD 0
+
 void
 GridHash::Sort() const
 {
+    MLG_SCOPED_TIMER("GridHash.Sort");
+
     if(!m_NeedsSort || m_Items.empty())
     {
         return;
@@ -230,36 +238,79 @@ GridHash::Sort() const
 
     m_NeedsSort = false;
 
-    std::ranges::sort(m_Items);
+    // Sort the items by cell coordinates, so that all bodies in the same cell are adjacent.
+    {
+        MLG_SCOPED_TIMER("GridHash.Sort.Items");
+
+        std::ranges::sort(m_Items);
+    }
 
     m_PotentialCollisions.clear();
 
     // Generate body pairs for all bodies that share the same cell.
 
-    for(size_t i = 0; i < m_Items.size(); ++i)
+#if METHOD == 1
+    std::unordered_set<uint64_t> uniquePairs;
+#endif
+
     {
-        const size_t indexA = m_Items[i].BodyIndex;
+        MLG_SCOPED_TIMER("GridHash.Sort.GenerateBodyPairs");
 
-        for(size_t j = i + 1; j < m_Items.size() && m_Items[j].CellCoords == m_Items[i].CellCoords; ++j)
+        for(size_t i = 0; i < m_Items.size(); ++i)
         {
-            // Bodies that share a cell are potentially colliding.
+            const size_t indexA = m_Items[i].BodyIndex;
 
-            const size_t indexB = m_Items[j].BodyIndex;
-            if(MLG_VERIFY(indexA != indexB, "Duplicate body in same cell"))
+            for(size_t j = i + 1; j < m_Items.size() && m_Items[j].CellCoords == m_Items[i].CellCoords; ++j)
             {
-                m_PotentialCollisions.emplace_back(indexA, indexB);
+                // Bodies that share a cell are potentially colliding.
+
+                const size_t indexB = m_Items[j].BodyIndex;
+                if(MLG_VERIFY(indexA != indexB, "Duplicate body in same cell"))
+                {
+#if METHOD == 0
+                    m_PotentialCollisions.emplace_back(indexA, indexB);
+#elif METHOD == 1                    
+                    const uint64_t pairKey = (static_cast<uint64_t>(std::min(indexA, indexB)) << 32) |
+                        static_cast<uint64_t>(std::max(indexA, indexB));
+                    uniquePairs.emplace(pairKey);
+#endif
+                }
             }
         }
     }
 
+#if METHOD == 0
     if(m_PotentialCollisions.empty())
+#elif METHOD == 1
+    if(uniquePairs.empty())
+#endif
     {
         return;
     }
 
+#if METHOD == 0
     // Sort to group duplicates together.
-    std::ranges::sort(m_PotentialCollisions);
+    {
+        MLG_SCOPED_TIMER("GridHash.Sort.PotentialCollisions");
 
-    auto removed = std::ranges::unique(m_PotentialCollisions);
-    m_PotentialCollisions.erase(removed.begin(), removed.end());
+        std::ranges::sort(m_PotentialCollisions);
+    }
+
+    // Remove duplicates.
+    {
+        MLG_SCOPED_TIMER("GridHash.Sort.UniquePotentialCollisions");
+
+        auto removed = std::ranges::unique(m_PotentialCollisions);
+        m_PotentialCollisions.erase(removed.begin(), removed.end());
+    }
+
+#elif METHOD == 1
+
+    for(const uint64_t pairKey : uniquePairs)
+    {
+        const size_t indexA = static_cast<size_t>(pairKey >> 32);
+        const size_t indexB = static_cast<size_t>(pairKey & 0xFFFFFFFFull);
+        m_PotentialCollisions.emplace_back(indexA, indexB);
+    }
+#endif
 }
