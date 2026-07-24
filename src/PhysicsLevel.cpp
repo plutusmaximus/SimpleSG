@@ -26,6 +26,8 @@ PhysicsLevel::Create(const Level& level, ThreadPool& threadPool)
         }
     }
 
+    //FIXME(KB) - use center of bounding volume as position
+
     std::vector<const Level::Node*> nodes;
     std::vector<Vec3f> positions;
     std::vector<RigidBody> bodies;
@@ -46,7 +48,7 @@ PhysicsLevel::Create(const Level& level, ThreadPool& threadPool)
     }
 
     PhysicsLevel physLevel(std::move(nodes),
-        std::move(positions),
+        positions,
         std::move(bodies),
         threadPool);
         
@@ -63,10 +65,14 @@ PhysicsLevel::PredictPositions(const float dt)
         m_LinearVelocities.Y,
         m_LinearVelocities.Z,
         m_A0,
-        m_P0,
-        m_P1);
+        m_P0.X,
+        m_P0.Y,
+        m_P0.Z,
+        m_P1.X,
+        m_P1.Y,
+        m_P1.Z);
 
-    for(auto&& [isActive, v0x, v0y, v0z, a0, p0, p1] : range)
+    for(auto&& [isActive, v0x, v0y, v0z, a0, p0x, p0y, p0z, p1x, p1y, p1z] : range)
     {
         if(!isActive)
         {
@@ -78,7 +84,11 @@ PhysicsLevel::PredictPositions(const float dt)
         // p1 = ∫ (v0 + a * t) dt
         // p1 = p0 + v0*dt + 0.5 * a0 * dt^2
 
-        p1 = p0 + Vec3f{ v0x, v0y, v0z } * dt + (0.5f * a0 * dt * dt);
+        const float ascale = 0.5f * dt * dt;
+
+        p1x = p0x + (v0x * dt) + (ascale * a0.x);
+        p1y = p0y + (v0y * dt) + (ascale * a0.y);
+        p1z = p0z + (v0z * dt) + (ascale * a0.z);
     }
 }
 
@@ -139,13 +149,13 @@ PhysicsLevel::UpdateVelocities(const float dt)
 Result<>
 PhysicsLevel::SyncToLevel(Level& level)
 {
-    auto view = std::views::zip(m_Nodes, m_P0, m_ActiveBodies);
+    auto view = std::views::zip(m_Nodes, m_P0.X, m_P0.Y, m_P0.Z, m_ActiveBodies);
 
-    for(const auto&& [node, pos, isActive] : view)
+    for(const auto&& [node, posX, posY, posZ, isActive] : view)
     {
         isActive = node->IsActive();
         TrsTransformf trs = node->LocalTransform;
-        trs.T = pos;
+        trs.T = Vec3f{ posX, posY, posZ };
         MLG_CHECK(level.UpdateLocalTransform(*node, trs));
     }
 
@@ -221,8 +231,12 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
     if(0 == impactResult.PenetrationDepth)
     {
         // Move bodies to point of impact.
-        m_P1[indexA] = impactResult.PosAtImpactA;
-        m_P1[indexB] = impactResult.PosAtImpactB;
+        m_P1.X[indexA] = impactResult.PosAtImpactA.x;
+        m_P1.Y[indexA] = impactResult.PosAtImpactA.y;
+        m_P1.Z[indexA] = impactResult.PosAtImpactA.z;
+        m_P1.X[indexB] = impactResult.PosAtImpactB.x;
+        m_P1.Y[indexB] = impactResult.PosAtImpactB.y;
+        m_P1.Z[indexB] = impactResult.PosAtImpactB.z;
     }
     else if(impactResult.PenetrationDepth > kCorrectionSlop)
     {
@@ -259,8 +273,12 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
 
         const Vec3f correction = C * impactResult.ContactNormalBtoA / invMassSum;
 
-        m_P1[indexA] += correction * invMA;
-        m_P1[indexB] -= correction * invMB;
+        m_P1.X[indexA] += correction.x * invMA;
+        m_P1.Y[indexA] += correction.y * invMA;
+        m_P1.Z[indexA] += correction.z * invMA;
+        m_P1.X[indexB] -= correction.x * invMB;
+        m_P1.Y[indexB] -= correction.y * invMB;
+        m_P1.Z[indexB] -= correction.z * invMB;
     }
 }
 
@@ -278,7 +296,15 @@ PhysicsLevel::FindAndResolveAllImpacts()
         m_ActiveBodies.size());
 
     const auto indices = std::views::iota(0u, static_cast<uint32_t>(m_ActiveBodies.size()));
-    const auto range = std::views::zip(m_Bodies, m_ActiveBodies, m_P0, m_P1, indices);
+    const auto range = std::views::zip(m_Bodies,
+        m_ActiveBodies,
+        m_P0.X,
+        m_P0.Y,
+        m_P0.Z,
+        m_P1.X,
+        m_P1.Y,
+        m_P1.Z,
+        indices);
 
     size_t potentialCollisionCount = 0;
 
@@ -287,7 +313,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
 
         // Bodies will be added to all cells of the grid overlapped by the bounding box
         // defined by the current and predicted position.
-        for(auto&& [body, isActive, p0, p1, index] : range)
+        for(auto&& [body, isActive, p0x, p0y, p0z, p1x, p1y, p1z, index] : range)
         {
             if(!isActive)
             {
@@ -297,7 +323,8 @@ PhysicsLevel::FindAndResolveAllImpacts()
             // Bodies will be added to all cells of the grid overlapped by the bounding box
             // defined by the current and predicted position.
 
-            m_GridHash.Add(p0, p1, body.GetBoundingSphere(), index);
+            //FIXME(KB) - transform bounding spher to world space and use its position.
+            m_GridHash.Add({ p0x, p0y, p0z }, { p1x, p1y, p1z }, body.GetBoundingSphere(), index);
         }
 
         potentialCollisionCount = m_GridHash.PotentialCollisionCount();
@@ -338,11 +365,11 @@ PhysicsLevel::FindAndResolveAllImpacts()
                     .Bodies = bodyPair,
                     .SweepParams //
                     {
-                        .StartPosA = m_P0[bodyPair.IndexA()],
-                        .EndPosA = m_P1[bodyPair.IndexA()],
+                        .StartPosA{m_P0.X[bodyPair.IndexA()], m_P0.Y[bodyPair.IndexA()], m_P0.Z[bodyPair.IndexA()]},
+                        .EndPosA{m_P1.X[bodyPair.IndexA()], m_P1.Y[bodyPair.IndexA()], m_P1.Z[bodyPair.IndexA()]},
                         .SphereA = m_Bodies[bodyPair.IndexA()].GetBoundingSphere(),
-                        .StartPosB = m_P0[bodyPair.IndexB()],
-                        .EndPosB = m_P1[bodyPair.IndexB()],
+                        .StartPosB{m_P0.X[bodyPair.IndexB()], m_P0.Y[bodyPair.IndexB()], m_P0.Z[bodyPair.IndexB()]},
+                        .EndPosB{m_P1.X[bodyPair.IndexB()], m_P1.Y[bodyPair.IndexB()], m_P1.Z[bodyPair.IndexB()]},
                         .SphereB = m_Bodies[bodyPair.IndexB()].GetBoundingSphere(),
                     },
                 };

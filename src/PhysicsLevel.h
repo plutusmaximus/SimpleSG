@@ -99,7 +99,7 @@ public:
 
     std::span<const Level::Node* const> GetNodes() const { return m_Nodes; }
     std::span<const RigidBody> GetBodies() const { return m_Bodies; }
-    std::span<const Vec3f> GetPositions() const { return m_P0; }
+    const VVec& GetPositions() const { return m_P0; }
     const VVec& GetLinearVelocities() const { return m_LinearVelocities; }
 
     void SetLinearVelocity(const size_t bodyIndex, const Vec3f& velocity)
@@ -126,24 +126,41 @@ private:
     };
 
     PhysicsLevel(std::vector<const Level::Node*>&& nodes,
-        std::vector<Vec3f>&& positions,
+        std::vector<Vec3f>& positions,
         std::vector<RigidBody>&& bodies,
         ThreadPool& threadPool)
         : m_Nodes(std::move(nodes)),
           m_Bodies(std::move(bodies)),
           m_ThreadPool(&threadPool)
     {
-        m_PosPool[0] = std::move(positions);
-        m_PosPool[1] = m_PosPool[0];    // Make a copy
-        m_LV[0].resize(m_Bodies.size(), 0);
-        m_LV[1].resize(m_Bodies.size(), 0);
-        m_LV[2].resize(m_Bodies.size(), 0);
-        m_LinearVelocities = VVec{ .X = m_LV[0], .Y = m_LV[1], .Z = m_LV[2] };
+        m_PosPool[0][0].reserve(m_Bodies.size());
+        m_PosPool[0][1].reserve(m_Bodies.size());
+        m_PosPool[0][2].reserve(m_Bodies.size());
+        for(const Vec3f& pos : positions)
+        {
+            m_PosPool[0][0].emplace_back(pos.x);
+            m_PosPool[0][1].emplace_back(pos.y);
+            m_PosPool[0][2].emplace_back(pos.z);
+        }
+        m_PosPool[1][0] = m_PosPool[0][0]; // Make a copy
+        m_PosPool[1][1] = m_PosPool[0][1]; // Make a copy
+        m_PosPool[1][2] = m_PosPool[0][2]; // Make a copy
+
+        m_LinearVelocitiesPool[0].resize(m_Bodies.size(), 0);
+        m_LinearVelocitiesPool[1].resize(m_Bodies.size(), 0);
+        m_LinearVelocitiesPool[2].resize(m_Bodies.size(), 0);
+        m_LinearVelocities = VVec{ .X = m_LinearVelocitiesPool[0],
+            .Y = m_LinearVelocitiesPool[1],
+            .Z = m_LinearVelocitiesPool[2] };
         m_AccelerationPool[0].resize(m_Bodies.size(), Vec3f{ 0 });
         m_AccelerationPool[1] = m_AccelerationPool[0]; // Make a copy
         m_ActiveBodies.resize(m_Bodies.size(), true);
-        m_P0 = m_PosPool[0];
-        m_P1 = m_PosPool[1];
+        m_P0.X = m_PosPool[0][0];
+        m_P0.Y = m_PosPool[0][1];
+        m_P0.Z = m_PosPool[0][2];
+        m_P1.X = m_PosPool[1][0];
+        m_P1.Y = m_PosPool[1][1];
+        m_P1.Z = m_PosPool[1][2];
         m_A0 = m_AccelerationPool[0];
         m_A1 = m_AccelerationPool[1];
     }
@@ -157,8 +174,8 @@ private:
     static bool SphereSphereSweep(const SphereSweepParams& params, ImpactResult& impactResult);
 
     std::vector<const Level::Node*> m_Nodes;
-    std::vector<Vec3f> m_PosPool[2];
-    std::array<std::vector<float>, 3> m_LV;
+    std::vector<float> m_PosPool[2][3];
+    std::vector<float> m_LinearVelocitiesPool[3];
     VVec m_LinearVelocities;
     std::vector<Vec3f> m_AccelerationPool[2];
     std::vector<RigidBody> m_Bodies;
@@ -168,9 +185,9 @@ private:
     std::vector<SweepTestBatch> m_SweepTestBatches;
 
     //Positions for the current frame.
-    std::span<Vec3f> m_P0;
+    VVec m_P0;
     //Predicted positions for the next frame.
-    std::span<Vec3f> m_P1;
+    VVec m_P1;
     //Accelerations for the current frame.
     std::span<Vec3f> m_A0;
     //Accelerations for the next frame.

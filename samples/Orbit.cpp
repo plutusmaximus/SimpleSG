@@ -455,10 +455,10 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
 
     const std::span<const Level::Node* const> nodes = physLevel.GetNodes();
     const std::span<const RigidBody> bodies = physLevel.GetBodies();
-    const std::span<const Vec3f> positions = physLevel.GetPositions();
+    const auto& positions = physLevel.GetPositions();
 
     MLG_ASSERT(nodes.size() == bodies.size(), "Nodes and bodies must have the same size");
-    MLG_ASSERT(nodes.size() == positions.size(), "Nodes and positions must have the same size");
+    MLG_ASSERT(nodes.size() == positions.X.size(), "Nodes and positions must have the same size");
 
     const size_t numPairs = bodies.size() * (bodies.size() - 1) / 2;
     const size_t workerCount = threadPool.GetWorkerCount();
@@ -479,7 +479,7 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
         const RigidBody& body = bodies[i];
         const BoundingSphere& sphere = body.GetBoundingSphere();
         TrsTransformf trs = nodes[i]->LocalTransform;
-        trs.T = positions[i];
+        trs.T = {positions.X[i], positions.Y[i], positions.Z[i]};
         const Vec3f center = trs * sphere.GetCenter();
         centerX[i] = center.x;
         centerY[i] = center.y;
