@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <iterator>
 #include <random>
 #include <vector>
 
@@ -22,6 +23,43 @@ namespace
 	{
 		return MakeSphere(0.1f);
 	}
+
+	BoundingSphere MakeSphere(const Vec3f& center, const float radius)
+	{
+		return BoundingSphere{ center, radius };
+	}
+}
+
+TEST(UniqueBodyPairSet, GrowsAndRetainsItems)
+{
+	UniqueBodyPairSet set{16};
+
+	for(uint64_t item = 0; item < 40; ++item)
+	{
+		EXPECT_TRUE(set.Insert(item));
+	}
+
+	EXPECT_EQ(set.Size(), 40u);
+
+	for(uint64_t item = 0; item < 40; ++item)
+	{
+		EXPECT_TRUE(set.Contains(item));
+		EXPECT_FALSE(set.Insert(item));
+	}
+
+	EXPECT_EQ(set.Size(), 40u);
+
+	set.Clear();
+
+	EXPECT_EQ(set.Size(), 0u);
+
+	for(uint64_t item = 0; item < 40; ++item)
+	{
+		EXPECT_FALSE(set.Contains(item));
+		EXPECT_TRUE(set.Insert(item));
+	}
+
+	EXPECT_EQ(set.Size(), 40u);
 }
 
 TEST(GridHash, EmptyGridHasNoPotentialCollisions)
@@ -31,6 +69,63 @@ TEST(GridHash, EmptyGridHasNoPotentialCollisions)
     const std::span pairs(hash);
 
 	EXPECT_TRUE(pairs.empty());
+}
+
+TEST(GridHash, ReportsConfiguredCellSize)
+{
+	const GridHash hash{17};
+
+	EXPECT_EQ(hash.GetCellSize(), 17u);
+}
+
+TEST(GridHash, PotentialCollisionCountAndIteratorsAreStable)
+{
+	GridHash hash{3};
+
+	hash.Add(Vec3f{0.1f}, Vec3f{0.9f}, MakeSphere(), 5);
+	hash.Add(Vec3f{0.2f}, Vec3f{0.8f}, MakeSphere(), 2);
+
+	EXPECT_EQ(hash.PotentialCollisionCount(), 1u);
+	EXPECT_EQ(hash.PotentialCollisionCount(), 1u);
+	ASSERT_NE(hash.begin(), hash.end());
+	EXPECT_EQ(*hash.begin(), BodyPair(2, 5));
+	EXPECT_EQ(static_cast<size_t>(std::distance(hash.begin(), hash.end())), 1u);
+}
+
+TEST(GridHash, NegativeCoordinatesAreQuantizedUsingFloor)
+{
+	GridHash hash{3};
+
+	hash.Add(Vec3f{-0.1f}, Vec3f{-0.1f}, MakeSphere(0.001f), 0);
+	hash.Add(Vec3f{-2.9f}, Vec3f{-2.9f}, MakeSphere(0.001f), 1);
+	hash.Add(Vec3f{0.1f}, Vec3f{0.1f}, MakeSphere(0.001f), 2);
+
+	const std::vector<BodyPair> pairs(hash.begin(), hash.end());
+
+	ASSERT_EQ(pairs.size(), 1u);
+	EXPECT_EQ(pairs[0], BodyPair(0, 1));
+}
+
+TEST(GridHash, BoundingSphereCenterAndRadiusExpandOccupiedCells)
+{
+	GridHash hash{3};
+
+	// The first body's local sphere center moves its occupied cell from the origin to x=3.
+	hash.Add(Vec3f{0.0f}, Vec3f{0.0f}, MakeSphere(Vec3f{3.1f, 0.0f, 0.0f}, 0.001f), 0);
+	hash.Add(Vec3f{3.1f, 0.0f, 0.0f}, Vec3f{3.1f, 0.0f, 0.0f}, MakeSphere(0.001f), 1);
+
+	// Radius makes this body cross the x=3 cell boundary and share the same cell as body 1.
+	hash.Add(Vec3f{2.9f, 0.0f, 0.0f}, Vec3f{2.9f, 0.0f, 0.0f}, MakeSphere(0.2f), 2);
+
+	std::vector<BodyPair> pairs(hash.begin(), hash.end());
+	std::ranges::sort(pairs);
+
+	const std::vector<BodyPair> expected{
+		BodyPair(0, 1),
+		BodyPair(0, 2),
+		BodyPair(1, 2),
+	};
+	EXPECT_EQ(pairs, expected);
 }
 
 TEST(GridHash, SingleBodyProducesNoPairs)
@@ -157,6 +252,75 @@ TEST(GridHash, ClearRemovesExistingCellsAndPairs)
 	EXPECT_TRUE(nonOverlappingPairs.empty());
 }
 
+TEST(GridHash, ClearAllowsTheSamePairToBeGeneratedAgain)
+{
+	GridHash hash{3};
+
+	const auto addPair = [&hash]()
+	{
+		hash.Add(Vec3f{0.1f}, Vec3f{0.9f}, MakeSphere(), 0);
+		hash.Add(Vec3f{0.2f}, Vec3f{0.8f}, MakeSphere(), 1);
+	};
+
+	addPair();
+	ASSERT_EQ(hash.PotentialCollisionCount(), 1u);
+
+	hash.Clear();
+	addPair();
+
+	ASSERT_EQ(hash.PotentialCollisionCount(), 1u);
+	EXPECT_EQ(*hash.begin(), BodyPair(0, 1));
+}
+
+TEST(GridHash, GrowsUniquePairStorage)
+{
+	GridHash hash{3};
+	constexpr uint32_t kBodyCount = 47;
+
+	for(uint32_t bodyIndex = 0; bodyIndex < kBodyCount; ++bodyIndex)
+	{
+		hash.Add(Vec3f{0.1f}, Vec3f{0.9f}, MakeSphere(), bodyIndex);
+	}
+
+	const size_t expectedCount =
+		(static_cast<size_t>(kBodyCount) * (kBodyCount - 1)) / 2;
+	ASSERT_GT(expectedCount, 1024u);
+	ASSERT_EQ(hash.PotentialCollisionCount(), expectedCount);
+
+	std::vector<BodyPair> actual(hash.begin(), hash.end());
+	std::vector<BodyPair> expected;
+	expected.reserve(expectedCount);
+	for(uint32_t indexA = 0; indexA < kBodyCount; ++indexA)
+	{
+		for(uint32_t indexB = indexA + 1; indexB < kBodyCount; ++indexB)
+		{
+			expected.emplace_back(indexA, indexB);
+		}
+	}
+
+	std::ranges::sort(actual);
+	std::ranges::sort(expected);
+	EXPECT_EQ(actual, expected);
+}
+
+TEST(GridHash, MoveConstructionAndAssignmentPreservePairs)
+{
+	GridHash source{3};
+	source.Add(Vec3f{0.1f}, Vec3f{0.9f}, MakeSphere(), 4);
+	source.Add(Vec3f{0.2f}, Vec3f{0.8f}, MakeSphere(), 9);
+
+	GridHash moveConstructed{std::move(source)};
+	ASSERT_EQ(moveConstructed.PotentialCollisionCount(), 1u);
+	EXPECT_EQ(*moveConstructed.begin(), BodyPair(4, 9));
+
+	GridHash moveAssigned{7};
+	moveAssigned = std::move(moveConstructed);
+
+	EXPECT_EQ(moveAssigned.GetCellSize(), 3u);
+	ASSERT_EQ(moveAssigned.PotentialCollisionCount(), 1u);
+	EXPECT_EQ(*moveAssigned.begin(), BodyPair(4, 9));
+}
+
 TEST(GridHash, GridHash4AndGridHash5ContainSameBodyPairSet)
 {
 	GridHash hash2{2};
@@ -167,7 +331,7 @@ TEST(GridHash, GridHash4AndGridHash5ContainSameBodyPairSet)
 		Vec3f Min;
 		Vec3f Max;
 		float Radius;
-		size_t BodyIndex;
+		uint32_t BodyIndex;
 	};
 
 	const std::vector<BodyInput> bodies//
@@ -205,7 +369,7 @@ TEST(GridHash, ChaosRandomizedBodies_AllExpectedPairsExist)
 		std::array<int64_t, 3> MaxQ;
 	};
 
-	constexpr size_t kBodyCount = 1000;
+	constexpr uint32_t kBodyCount = 1000;
 
     std::mt19937 rng(0xC0FFEEu);
 
@@ -228,7 +392,7 @@ TEST(GridHash, ChaosRandomizedBodies_AllExpectedPairsExist)
         std::vector<RandomBody> bodies;
         bodies.reserve(kBodyCount);
 
-        for(size_t i = 0; i < kBodyCount; ++i)
+        for(uint32_t i = 0; i < kBodyCount; ++i)
         {
             const Vec3f center //
                 {

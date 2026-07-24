@@ -88,9 +88,16 @@ public:
 
     std::span<const Level::Node* const> GetNodes() const { return m_Nodes; }
     std::span<const RigidBody> GetBodies() const { return m_Bodies; }
-    std::span<const TrsTransformf> GetTransforms() const { return m_TrsCur; }
-    std::span<Vec3f> GetLinearVelocities() { return m_LinearVelocities; }
+    std::span<const Vec3f> GetPositions() const { return m_P0; }
     std::span<const Vec3f> GetLinearVelocities() const { return m_LinearVelocities; }
+
+    void SetLinearVelocity(const size_t bodyIndex, const Vec3f& velocity)
+    {
+        if(MLG_VERIFY(bodyIndex < m_Bodies.size(), "Body index out of range"))
+        {
+            m_LinearVelocities[bodyIndex] = velocity;
+        }
+    }
 
 private:
 
@@ -106,23 +113,23 @@ private:
     };
 
     PhysicsLevel(std::vector<const Level::Node*>&& nodes,
-        std::vector<TrsTransformf>&& transforms,
+        std::vector<Vec3f>&& positions,
         std::vector<RigidBody>&& bodies,
         ThreadPool& threadPool)
         : m_Nodes(std::move(nodes)),
           m_Bodies(std::move(bodies)),
           m_ThreadPool(&threadPool)
     {
-        m_TransformPool[0] = std::move(transforms);
-        m_TransformPool[1] = m_TransformPool[0];    // Make a copy
+        m_PosPool[0] = std::move(positions);
+        m_PosPool[1] = m_PosPool[0];    // Make a copy
         m_LinearVelocities.resize(m_Bodies.size(), Vec3f{ 0 });
         m_AccelerationPool[0] = m_LinearVelocities; // Make a copy
         m_AccelerationPool[1] = m_AccelerationPool[0]; // Make a copy
         m_ActiveBodies.resize(m_Bodies.size(), true);
-        m_TrsCur = m_TransformPool[0];
-        m_TrsNext = m_TransformPool[1];
-        m_AccelPrev = m_AccelerationPool[0];
-        m_AccelCur = m_AccelerationPool[1];
+        m_P0 = m_PosPool[0];
+        m_P1 = m_PosPool[1];
+        m_A0 = m_AccelerationPool[0];
+        m_A1 = m_AccelerationPool[1];
     }
 
     void UpdateVelocities(const float dt);
@@ -138,7 +145,7 @@ private:
     static bool SphereSphereSweep(const SphereSweepParams& params, ImpactResult& impactResult);
 
     std::vector<const Level::Node*> m_Nodes;
-    std::vector<TrsTransformf> m_TransformPool[2];
+    std::vector<Vec3f> m_PosPool[2];
     std::vector<Vec3f> m_LinearVelocities;
     std::vector<Vec3f> m_AccelerationPool[2];
     std::vector<RigidBody> m_Bodies;
@@ -147,14 +154,14 @@ private:
 
     std::vector<SweepTestBatch> m_SweepTestBatches;
 
-    //Transforms for the current frame.
-    std::span<TrsTransformf> m_TrsCur;
-    //Predicted transforms for the next frame.
-    std::span<TrsTransformf> m_TrsNext;
-    //Accelerations for the prefvious frame.
-    std::span<Vec3f> m_AccelPrev;
+    //Positions for the current frame.
+    std::span<Vec3f> m_P0;
+    //Predicted positions for the next frame.
+    std::span<Vec3f> m_P1;
     //Accelerations for the current frame.
-    std::span<Vec3f> m_AccelCur;
+    std::span<Vec3f> m_A0;
+    //Accelerations for the next frame.
+    std::span<Vec3f> m_A1;
 
     GridHash m_GridHash{GRID_CELL_SIZE};
 

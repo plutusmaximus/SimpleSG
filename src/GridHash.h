@@ -2,9 +2,7 @@
 
 #include "AssertHelper.h"
 
-#include <algorithm>
 #include <limits>
-#include <utility>
 #include <vector>
 
 class BoundingSphere;
@@ -45,91 +43,30 @@ private:
     size_t m_IndexB;
 };
 
-class FixedSwissSet
+/// @brief A hash set that stores unique body pairs using a SwissTable-like structure.
+/// See https://abseil.io/about/design/swisstables
+class UniqueBodyPairSet
 {
-    static_assert(sizeof(uint64_t) == sizeof(size_t), "FixedSwissSet requires 64-bit size_t");
-
 public:
-    static constexpr size_t kGroupSize = 1 << 4; // 16
+    // The number of control bytes in a group. Each group contains 16 control bytes, which are
+    // processed together using SIMD instructions.
+    static constexpr size_t kGroupSize = 1 << 4;
 
-    // Largest item count for which ((itemCount * 8) + 6) can be calculated without overflow.
-    // This also keeps the resulting slot count below SIZE_MAX / 7, leaving enough headroom for
-    // power-of-two group rounding, converting groups back to slots, and probe-index addition.
+    // Maintain a 7/8 load factor to avoid excessive probing.  See calculation in RequiredSlots()
+    // for details.  Therefore we need to set the largest item count for which ((itemCount * 8) + 6)
+    // can be calculated without overflow.
     static constexpr size_t kMaximumItems = (std::numeric_limits<size_t>::max() - 6) / 8;
 
-    explicit FixedSwissSet(const size_t initialSize)
-        : m_MaxItems(initialSize)
-    {
-        MLG_ABORTIF(initialSize > kMaximumItems,
-            "FixedSwissSet initial size is too large: {}",
-            initialSize);
+    explicit UniqueBodyPairSet(const size_t initialSize);
 
-        // Keep the table at or below SwissTable's typical 7/8 load.
-        const size_t requiredSlots = ((m_MaxItems * 8) + 6) / 7;
-        m_GroupCount = NextPowerOfTwoSlots(requiredSlots);
+    /// @brief  Removes all items from the set.
+    void Clear();
+    
+    /// @brief  Inserts an item into the set, growing the set if necessary.
+    bool Insert(const uint64_t item);
 
-        m_Controls.assign(m_GroupCount * kGroupSize, EmptyTag);
-        m_Items.resize(m_GroupCount * kGroupSize);
-    }
-
-    void Clear()
-    {
-        std::ranges::fill(m_Controls, EmptyTag);
-        m_Size = 0;
-    }
-
-    // Returns true only when a new item is inserted.
-    // Returns false when the item already exists or the table is full.
-    bool Insert(const uint64_t item)
-    {
-        while(true)
-        {
-            switch(InsertWithoutGrowth(item))
-            {
-                case InsertResult::Inserted:
-                    return true;
-                case InsertResult::AlreadyPresent:
-                    return false;
-                case InsertResult::Full:
-                    Grow();
-                    break;
-            }
-        }
-    }
-
-    bool Contains(const uint64_t item) const
-    {
-        const uint64_t hash = Hash(item);
-        const uint8_t tag = static_cast<uint8_t>(hash & 0x7f);
-        const size_t firstGroup = static_cast<size_t>(hash >> 7) & (m_GroupCount - 1);
-
-        for(size_t probe = 0; probe < m_GroupCount; ++probe)
-        {
-            const size_t group = (firstGroup + probe) & (m_GroupCount - 1);
-            const size_t base = group * kGroupSize;
-
-            // Check possible matches.
-            for(size_t i = 0; i < kGroupSize; ++i)
-            {
-                const size_t slot = base + i;
-
-                if(m_Controls[slot] == tag && m_Items[slot].Value == item)
-                {
-                    return true;
-                }
-            }
-
-            for(size_t i = 0; i < kGroupSize; ++i)
-            {
-                if(m_Controls[base + i] == EmptyTag)
-                {
-                    return false;
-                }
-            }
-        }
-
-        return false;
-    }
+    /// @brief  Returns true if the set contains the given item.
+    bool Contains(const uint64_t item) const;
 
     size_t Size() const { return m_Size; }
 
@@ -155,115 +92,34 @@ private:
         Full
     };
 
-    InsertResult InsertWithoutGrowth(const uint64_t item)
+    /// @brief  Returns a bitmask of the control bytes in the group that match the given value.
+    uint32_t MatchControls(const size_t base, const uint8_t value) const;
+
+    /// @brief  Inserts an item into the set without growing the set.  Returns InsertResult::Full if
+    /// the set is full and needs to be grown.
+    InsertResult InsertWithoutGrowth(const uint64_t item);
+
+    /// @brief  Grows the set to accommodate more items.  Rehashes all existing items into the new
+    /// set.
+    void Grow();
+
+    /// @brief  Returns the number of slots required to store the given number of items, keeping the
+    /// load factor at or below 7/8.
+    static size_t RequiredSlots(const size_t itemCount)
     {
-        const uint64_t hash = Hash(item);
-        const uint8_t tag = static_cast<uint8_t>(hash & 0x7f);
-        const size_t firstGroup = static_cast<size_t>(hash >> 7) & (m_GroupCount - 1);
-
-        for(size_t probe = 0; probe < m_GroupCount; ++probe)
-        {
-            const size_t group = (firstGroup + probe) & (m_GroupCount - 1);
-            const size_t base = group * kGroupSize;
-
-            for(size_t i = 0; i < kGroupSize; ++i)
-            {
-                const size_t slot = base + i;
-
-                if(m_Controls[slot] == tag && m_Items[slot].Value == item)
-                {
-                    return InsertResult::AlreadyPresent;
-                }
-            }
-
-            // With no deletion, the first empty slot terminates the search.
-            for(size_t i = 0; i < kGroupSize; ++i)
-            {
-                const size_t slot = base + i;
-
-                if(m_Controls[slot] == EmptyTag)
-                {
-                    if(m_Size == m_MaxItems)
-                    {
-                        return InsertResult::Full;
-                    }
-
-                    m_Items[slot].Value = item;
-                    m_Controls[slot] = tag;
-                    ++m_Size;
-                    return InsertResult::Inserted;
-                }
-            }
-        }
-
-        return InsertResult::Full;
+        // Keep the table at or below SwissTable's typical 7/8 load.
+        return ((itemCount * 8) + 6) / 7; // NOLINT(readability-magic-numbers)
     }
 
-    void Grow()
-    {
-        MLG_ABORTIF(m_MaxItems > kMaximumItems / 2,
-            "FixedSwissSet cannot grow beyond {} items",
-            m_MaxItems);
-
-        std::vector<uint8_t> oldControls = std::move(m_Controls);
-        std::vector<ItemSlot> oldItems = std::move(m_Items);
-
-        m_MaxItems = m_MaxItems == 0 ? 1 : m_MaxItems * 2;
-
-        const size_t requiredSlots = ((m_MaxItems * 8) + 6) / 7;
-        m_GroupCount = NextPowerOfTwoSlots(requiredSlots);
-
-        m_Controls.assign(m_GroupCount * kGroupSize, EmptyTag);
-        m_Items.resize(m_GroupCount * kGroupSize);
-        m_Size = 0;
-
-        for(size_t slot = 0; slot < oldControls.size(); ++slot)
-        {
-            if(oldControls[slot] != EmptyTag)
-            {
-                const InsertResult result = InsertWithoutGrowth(oldItems[slot].Value);
-                MLG_ASSERT(result == InsertResult::Inserted,
-                    "Failed to rehash item while growing set");
-                    (void)result; // Silence unused variable warning in release builds.
-            }
-        }
-    }
-
-    static size_t NextPowerOfTwoSlots(const size_t requiredSlots)
-    {
-        const size_t requiredSlotsRoundedUp =
-            (requiredSlots / kGroupSize) + (requiredSlots % kGroupSize != 0 ? 1 : 0);
-
-        size_t result = 1;
-
-        while(result < requiredSlotsRoundedUp)
-        {
-            result *= 2;
-        }
-
-        return result;
-    }
+    /// @brief  Computes the power of 2 group count from the given slot count.
+    static size_t GroupCountPow2(const size_t slotCount);
 
     /// @brief  Hashes a 64-bit value into another 64-bit value.
-    /// It's the finalizer from the SplitMix64 PRNG, which is a fast and high-quality hash function.
-    /// https://prng.di.unimi.it/splitmix64.c
-    static uint64_t Hash(uint64_t value)
-    {
-        static constexpr uint64_t k1 = 0xbf58476d1ce4e5b9ULL;
-        static constexpr uint64_t k2 = 0x94d049bb133111ebULL;
-        static constexpr uint64_t kShift1 = 30;
-        static constexpr uint64_t kShift2 = 27;
-        static constexpr uint64_t kShift3 = 31;
-        // SplitMix64 finalizer.
-        value ^= value >> kShift1;
-        value *= k1;
-        value ^= value >> kShift2;
-        value *= k2;
-        value ^= value >> kShift3;
-        return value;
-    }
+    static uint64_t Hash(uint64_t value);
 
+    // The control bytes for each group.
     std::vector<uint8_t> m_Controls;
+    // The items.
     std::vector<ItemSlot> m_Items;
 
     size_t m_GroupCount = 0;
@@ -302,7 +158,7 @@ public:
     void Add(const Vec3f& p0,
         const Vec3f& p1,
         const BoundingSphere& boundingSphere,
-        const size_t bodyIndex);
+        const uint32_t bodyIndex);
 
     using iterator = std::vector<BodyPair>::iterator;
     using const_iterator = std::vector<BodyPair>::const_iterator;
@@ -324,7 +180,7 @@ private:
 
         struct ItemParams
         {
-            size_t BodyIndex;
+            uint32_t BodyIndex;
             int32_t CellX;
             int32_t CellY;
             int32_t CellZ;
@@ -352,7 +208,7 @@ private:
         }
 
         uint64_t CellCoords;
-        size_t BodyIndex; // Index of the body occupying the cell.
+        uint32_t BodyIndex; // Index of the body occupying the cell.
     };
 
     /// @brief Allocates the necessary number of items for a body that spans the given number of
@@ -375,7 +231,7 @@ private:
     mutable std::vector<BodyPair> m_PotentialCollisions;
 
     static constexpr size_t kInitialUniquePairsSize = 1024;
-    mutable FixedSwissSet m_UniquePairs{ kInitialUniquePairsSize };
+    mutable UniqueBodyPairSet m_UniquePairs{ kInitialUniquePairsSize };
 
     mutable bool m_NeedsSort{ true };
 };

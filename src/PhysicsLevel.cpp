@@ -4,11 +4,15 @@
 #include "ThreadPool.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <limits>
 #include <ranges>
 #include <thread>
 
 static constexpr float RESTING_VELOCITY_THRESHOLD = 1.0f/128;
 static constexpr float COEFF_OF_RESTITUTION = 0.8f;
+
+// FIXME(KB) - Calculate world space pos for collision detection.
 
 Result<PhysicsLevel>
 PhysicsLevel::Create(const Level& level, ThreadPool& threadPool)
@@ -23,10 +27,10 @@ PhysicsLevel::Create(const Level& level, ThreadPool& threadPool)
     }
 
     std::vector<const Level::Node*> nodes;
-    std::vector<TrsTransformf> transforms;
+    std::vector<Vec3f> positions;
     std::vector<RigidBody> bodies;
     nodes.reserve(count);
-    transforms.reserve(count);
+    positions.reserve(count);
     bodies.reserve(count);
 
     for(const auto& node : level.GetAllNodes())
@@ -36,13 +40,13 @@ PhysicsLevel::Create(const Level& level, ThreadPool& threadPool)
         if(optBody)
         {
             nodes.emplace_back(&node);
-            transforms.emplace_back(node.LocalTransform);
+            positions.emplace_back(node.LocalTransform.T);
             bodies.emplace_back(*optBody);
         }
     }
 
     PhysicsLevel physLevel(std::move(nodes),
-        std::move(transforms),
+        std::move(positions),
         std::move(bodies),
         threadPool);
         
@@ -54,8 +58,7 @@ PhysicsLevel::AddForce(const size_t bodyIndex, const Vec3f& force)
 {
     MLG_ASSERT(bodyIndex < m_Bodies.size(), "Body index out of range");
 
-    // Accumulate accelerations for the current frame.
-    m_AccelCur[bodyIndex] += force * m_Bodies[bodyIndex].GetMass().InvValue();
+    m_A1[bodyIndex] += force * m_Bodies[bodyIndex].GetMass().InvValue();
 }
 
 void
@@ -63,23 +66,24 @@ PhysicsLevel::Update(const float timeStep)
 {
     MLG_SCOPED_TIMER("Physics.Update");
 
-    std::swap(m_TrsCur, m_TrsNext);
-    // Update velocities based on accelerations accumulated this frame.
-    UpdateVelocities(timeStep);
     PredictPositions(timeStep);
+    UpdateVelocities(timeStep);
     FindAndResolveAllImpacts();
-    std::swap(m_AccelPrev, m_AccelCur);
-    std::ranges::fill(m_AccelCur, Vec3f{ 0 });
+    std::swap(m_P0, m_P1);
+    std::swap(m_A0, m_A1);
+    std::ranges::fill(m_A1, Vec3f{ 0 });
 }
 
 Result<>
 PhysicsLevel::SyncToLevel(Level& level)
 {
-    auto view = std::views::zip(m_Nodes, m_TrsCur, m_ActiveBodies);
+    auto view = std::views::zip(m_Nodes, m_P0, m_ActiveBodies);
 
-    for(const auto&& [node, trs, isActive] : view)
+    for(const auto&& [node, pos, isActive] : view)
     {
         isActive = node->IsActive();
+        TrsTransformf trs = node->LocalTransform;
+        trs.T = pos;
         MLG_CHECK(level.UpdateLocalTransform(*node, trs));
     }
 
@@ -88,16 +92,28 @@ PhysicsLevel::SyncToLevel(Level& level)
 
 // private:
 
-// Regulare velocity verlet is like this:
-// p1 = p0 + v0*dt + 0.5 * a0 * dt^2
-// a1 = some function of p1
-// v1 = v0 + (a0 + a1) * 0.5 * dt
-//
-// Ours works like this:
-//
-// a0 = some function of p0
-// v0 = v(-1) + (a(-1) + a0) * 0.5 * dt
-// p1 = (v0 * dt) + (a0 * dt^2 * 0.5) + p0
+void
+PhysicsLevel::PredictPositions(const float dt)
+{
+    MLG_SCOPED_TIMER("Physics.PredictPositions");
+
+    const auto range = std::views::zip(m_ActiveBodies, m_LinearVelocities, m_A0, m_P0, m_P1);
+
+    for(auto&& [isActive, v0, a0, p0, p1] : range)
+    {
+        if(!isActive)
+        {
+            continue;
+        }
+        // Update position using velocity and acceleration from previous time step.
+        // p = ∫ v dt
+        // v = v0 + a * t
+        // p1 = ∫ (v0 + a * t) dt
+        // p1 = p0 + v0*dt + 0.5 * a0 * dt^2
+
+        p1 = p0 + (v0 * dt) + (0.5f * a0 * dt * dt);
+    }
+}
 
 void
 PhysicsLevel::UpdateVelocities(const float dt)
@@ -106,9 +122,9 @@ PhysicsLevel::UpdateVelocities(const float dt)
 
     // FIXME(KB) - caller should account for dt not being the entire timestep,
     // but a substep due to collision events.
-    const auto range = std::views::zip(m_ActiveBodies, m_LinearVelocities, m_AccelPrev, m_AccelCur);
+    const auto range = std::views::zip(m_ActiveBodies, m_LinearVelocities, m_A0, m_A1);
 
-    for(auto&& [isActive, vel, aPrev, aCur] : range)
+    for(auto&& [isActive, v, a0, a1] : range)
     {
         if(!isActive)
         {
@@ -121,36 +137,7 @@ PhysicsLevel::UpdateVelocities(const float dt)
         // using the trapezoidal rule:
         // integral from t0 to t1 of a(t) dt ~= (t1 - t0) * (a(t0) + a(t1)) / 2
 
-        // aPrev is from the previous frame, and aCur is from the current frame.
-        vel += (aPrev + aCur) * dt * 0.5f;
-    }
-}
-
-void
-PhysicsLevel::PredictPositions(const float dt)
-{
-    MLG_SCOPED_TIMER("Physics.PredictPositions");
-
-    const auto range = std::views::zip(m_ActiveBodies, m_LinearVelocities, m_AccelCur, m_TrsCur, m_TrsNext);
-
-    for(auto&& [isActive, vel, accel, trsCur, trsNext] : range)
-    {
-        if(!isActive)
-        {
-            continue;
-        }
-        // Update position using velocity and acceleration from previous time step.
-        // p = ∫ v dt
-        // v = v0 + a * t
-        // p1 = ∫ (v0 + a * t) dt
-        // p1 = p0 + v0*dt + 0.5 * a0 * dt^2
-
-        // Use velocity/acceleration from current frame.
-        // Note that this frame's velocity was computed from
-        // the previous and current frame's acceleration.
-
-        // p1 = p0 + v0*dt + 0.5 * a0 * dt^2
-        trsNext.T = (vel * dt) + ((accel * dt * dt) / 2) + trsCur.T;
+        v += (a0 + a1) * dt * 0.5f;
     }
 }
 
@@ -214,8 +201,8 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
     if(0 == impactResult.PenetrationDepth)
     {
         // Move bodies to point of impact.
-        m_TrsNext[indexA].T = impactResult.PosAtImpactA;
-        m_TrsNext[indexB].T = impactResult.PosAtImpactB;
+        m_P1[indexA] = impactResult.PosAtImpactA;
+        m_P1[indexB] = impactResult.PosAtImpactB;
     }
     else if(impactResult.PenetrationDepth > kCorrectionSlop)
     {
@@ -252,8 +239,8 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
 
         const Vec3f correction = C * impactResult.ContactNormalBtoA / invMassSum;
 
-        m_TrsNext[indexA].T += correction * invMA;
-        m_TrsNext[indexB].T -= correction * invMB;
+        m_P1[indexA] += correction * invMA;
+        m_P1[indexB] -= correction * invMB;
     }
 }
 
@@ -265,8 +252,13 @@ PhysicsLevel::FindAndResolveAllImpacts()
     m_GridHash.Clear();
     m_ImpactRecords.clear();
 
-    const auto indices = std::views::iota(0uz, m_ActiveBodies.size());
-    const auto range = std::views::zip(m_Bodies, m_ActiveBodies, m_TrsCur, m_TrsNext, indices);
+    MLG_ABORTIF(m_ActiveBodies.size() > std::numeric_limits<uint32_t>::max(),
+        "PhysicsLevel supports a maximum of {} active bodies, but {} are active.",
+        std::numeric_limits<uint32_t>::max(),
+        m_ActiveBodies.size());
+
+    const auto indices = std::views::iota(0u, static_cast<uint32_t>(m_ActiveBodies.size()));
+    const auto range = std::views::zip(m_Bodies, m_ActiveBodies, m_P0, m_P1, indices);
 
     size_t potentialCollisionCount = 0;
 
@@ -275,7 +267,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
 
         // Bodies will be added to all cells of the grid overlapped by the bounding box
         // defined by the current and predicted position.
-        for(auto&& [body, isActive, trsCur, trsNext, index] : range)
+        for(auto&& [body, isActive, p0, p1, index] : range)
         {
             if(!isActive)
             {
@@ -285,7 +277,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
             // Bodies will be added to all cells of the grid overlapped by the bounding box
             // defined by the current and predicted position.
 
-            m_GridHash.Add(trsCur.T, trsNext.T, body.GetBoundingSphere(), index);
+            m_GridHash.Add(p0, p1, body.GetBoundingSphere(), index);
         }
 
         potentialCollisionCount = m_GridHash.PotentialCollisionCount();
@@ -326,11 +318,11 @@ PhysicsLevel::FindAndResolveAllImpacts()
                     .Bodies = bodyPair,
                     .SweepParams //
                     {
-                        .StartPosA = m_TrsCur[bodyPair.IndexA()].T,
-                        .EndPosA = m_TrsNext[bodyPair.IndexA()].T,
+                        .StartPosA = m_P0[bodyPair.IndexA()],
+                        .EndPosA = m_P1[bodyPair.IndexA()],
                         .SphereA = m_Bodies[bodyPair.IndexA()].GetBoundingSphere(),
-                        .StartPosB = m_TrsCur[bodyPair.IndexB()].T,
-                        .EndPosB = m_TrsNext[bodyPair.IndexB()].T,
+                        .StartPosB = m_P0[bodyPair.IndexB()],
+                        .EndPosB = m_P1[bodyPair.IndexB()],
                         .SphereB = m_Bodies[bodyPair.IndexB()].GetBoundingSphere(),
                     },
                 };

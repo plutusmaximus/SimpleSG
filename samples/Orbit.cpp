@@ -17,6 +17,7 @@
 #include "ThreadPool.h"
 
 #include <filesystem>
+#include <arm_neon.h>
 #include <imgui.h>
 #include <random>
 #include <ranges>
@@ -211,12 +212,12 @@ ApplyRandomVelocities(PhysicsLevel& physLevel)
     std::mt19937 gen(kRngSeed);
     std::uniform_real_distribution<float> dis(-1, 1);
 
-    for(auto& vel : physLevel.GetLinearVelocities())
+    for(size_t i = 0; i < physLevel.GetLinearVelocities().size(); ++i)
     {
         const Vec3f randomVel = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize()
             * (MIN_SPEED + (std::abs(dis(gen)) * (MAX_SPEED - MIN_SPEED)));
 
-        vel = randomVel;
+        physLevel.SetLinearVelocity(i, randomVel);
     }
 }
 
@@ -242,7 +243,7 @@ struct ApplyGravityBatchParams
 };
 
 [[maybe_unused]] void
-ApplyGravityRow2(ApplyGravityBatchParams* batchParams, const size_t i, const size_t jStart, const size_t jEnd)
+ApplyGravityRow(ApplyGravityBatchParams* batchParams, const size_t i, const size_t jStart, const size_t jEnd)
 {
     const float ax = batchParams->BodyX[i];
     const float ay = batchParams->BodyY[i];
@@ -250,11 +251,11 @@ ApplyGravityRow2(ApplyGravityBatchParams* batchParams, const size_t i, const siz
     const float ar = batchParams->BodyRadius[i];
     const float am = batchParams->BodyMass[i];
 
-    const float* __restrict bx = batchParams->BodyX.data();
-    const float* __restrict by = batchParams->BodyY.data();
-    const float* __restrict bz = batchParams->BodyZ.data();
-    const float* __restrict br = batchParams->BodyRadius.data();
-    const float* __restrict bm = batchParams->BodyMass.data();
+    const float* __restrict centerx = batchParams->BodyX.data();
+    const float* __restrict centery = batchParams->BodyY.data();
+    const float* __restrict centerz = batchParams->BodyZ.data();
+    const float* __restrict radius = batchParams->BodyRadius.data();
+    const float* __restrict mass = batchParams->BodyMass.data();
 
     float* __restrict fx = batchParams->ForceX.data();
     float* __restrict fy = batchParams->ForceY.data();
@@ -265,24 +266,25 @@ ApplyGravityRow2(ApplyGravityBatchParams* batchParams, const size_t i, const siz
 
     MLG_ASSERT(jStart < batchParams->BodyX.size(), "StartIndexB must be greater than StartIndexA");
 
+    //VECTORIZE
     // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     for(size_t j = jStart; j < jEnd; ++j)
     {
-        const float dx = bx[j] - ax;
-        const float dy = by[j] - ay;
-        const float dz = bz[j] - az;
+        const float dx = centerx[j] - ax;
+        const float dy = centery[j] - ay;
+        const float dz = centerz[j] - az;
 
-        const float minR = ar + br[j];
+        const float minR = ar + radius[j];
         const float minR2 = minR * minR;
         const float delta2 = (dx * dx) + (dy * dy) + (dz * dz);
         const float r2 = std::max(delta2, minR2);
 
-        const float massProduct = am * bm[j];
+        const float massProduct = am * mass[j];
         const float invR = 1.0f / std::sqrt(r2);
 
         const float pe = -kGravitationalConstant * massProduct * invR;
 
-        const float scale = -pe / r2;
+        const float scale = -pe * invR * invR; // -pe / r2;
 
         const float forceX = scale * dx;
         const float forceY = scale * dy;
@@ -306,6 +308,121 @@ ApplyGravityRow2(ApplyGravityBatchParams* batchParams, const size_t i, const siz
     batchParams->PotentialEnergy += energy;
 }
 
+[[maybe_unused]] void
+ApplyGravityRowNeon(ApplyGravityBatchParams* batchParams,
+                    const size_t i,
+                    const size_t jStart,
+                    const size_t jEnd)
+{
+    const float ax = batchParams->BodyX[i];
+    const float ay = batchParams->BodyY[i];
+    const float az = batchParams->BodyZ[i];
+    const float ar = batchParams->BodyRadius[i];
+    const float am = batchParams->BodyMass[i];
+
+    const float* __restrict centerx = batchParams->BodyX.data();
+    const float* __restrict centery = batchParams->BodyY.data();
+    const float* __restrict centerz = batchParams->BodyZ.data();
+    const float* __restrict radius = batchParams->BodyRadius.data();
+    const float* __restrict mass = batchParams->BodyMass.data();
+
+    float* __restrict fx = batchParams->ForceX.data();
+    float* __restrict fy = batchParams->ForceY.data();
+    float* __restrict fz = batchParams->ForceZ.data();
+
+    float32x4_t forceAX = vdupq_n_f32(0.0f);
+    float32x4_t forceAY = vdupq_n_f32(0.0f);
+    float32x4_t forceAZ = vdupq_n_f32(0.0f);
+    float32x4_t energy = vdupq_n_f32(0.0f);
+
+    MLG_ASSERT(jStart < batchParams->BodyX.size(), "StartIndexB must be greater than StartIndexA");
+
+    const float32x4_t avecX = vdupq_n_f32(ax);
+    const float32x4_t avecY = vdupq_n_f32(ay);
+    const float32x4_t avecZ = vdupq_n_f32(az);
+    const float32x4_t avecR = vdupq_n_f32(ar);
+    const float32x4_t avecM = vdupq_n_f32(am);
+    const float32x4_t gravity = vdupq_n_f32(-kGravitationalConstant);
+    const float32x4_t one = vdupq_n_f32(1.0f);
+
+    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    size_t j = jStart;
+    for(; j + 4 <= jEnd; j += 4)
+    {
+        const float32x4_t dx = vsubq_f32(vld1q_f32(centerx + j), avecX);
+        const float32x4_t dy = vsubq_f32(vld1q_f32(centery + j), avecY);
+        const float32x4_t dz = vsubq_f32(vld1q_f32(centerz + j), avecZ);
+
+        const float32x4_t minR = vaddq_f32(avecR, vld1q_f32(radius + j));
+        const float32x4_t minR2 = vmulq_f32(minR, minR);
+        float32x4_t delta2 = vmulq_f32(dx, dx);
+        delta2 = vfmaq_f32(delta2, dy, dy);
+        delta2 = vfmaq_f32(delta2, dz, dz);
+        const float32x4_t r2 = vmaxq_f32(delta2, minR2);
+
+        const float32x4_t massProduct = vmulq_f32(avecM, vld1q_f32(mass + j));
+        const float32x4_t invR = vdivq_f32(one, vsqrtq_f32(r2));
+        const float32x4_t pe = vmulq_f32(gravity, vmulq_f32(massProduct, invR));
+        const float32x4_t scale = vmulq_f32(vnegq_f32(pe), vmulq_f32(invR, invR));
+        //const float32x4_t scale = vdivq_f32(vnegq_f32(pe), r2);
+
+        const float32x4_t forceX = vmulq_f32(scale, dx);
+        const float32x4_t forceY = vmulq_f32(scale, dy);
+        const float32x4_t forceZ = vmulq_f32(scale, dz);
+
+        forceAX = vaddq_f32(forceAX, forceX);
+        forceAY = vaddq_f32(forceAY, forceY);
+        forceAZ = vaddq_f32(forceAZ, forceZ);
+        energy = vaddq_f32(energy, pe);
+
+        vst1q_f32(fx + j, vsubq_f32(vld1q_f32(fx + j), forceX));
+        vst1q_f32(fy + j, vsubq_f32(vld1q_f32(fy + j), forceY));
+        vst1q_f32(fz + j, vsubq_f32(vld1q_f32(fz + j), forceZ));
+    }
+
+    float forceAXScalar = vaddvq_f32(forceAX);
+    float forceAYScalar = vaddvq_f32(forceAY);
+    float forceAZScalar = vaddvq_f32(forceAZ);
+    float energyScalar = vaddvq_f32(energy);
+
+    for(; j < jEnd; ++j)
+    {
+        const float dx = centerx[j] - ax;
+        const float dy = centery[j] - ay;
+        const float dz = centerz[j] - az;
+
+        const float minR = ar + radius[j];
+        const float minR2 = minR * minR;
+        const float delta2 = (dx * dx) + (dy * dy) + (dz * dz);
+        const float r2 = std::max(delta2, minR2);
+
+        const float massProduct = am * mass[j];
+        const float invR = 1.0f / std::sqrt(r2);
+        const float pe = -kGravitationalConstant * massProduct * invR;
+        const float scale = -pe / r2;
+
+        const float forceX = scale * dx;
+        const float forceY = scale * dy;
+        const float forceZ = scale * dz;
+
+        forceAXScalar += forceX;
+        forceAYScalar += forceY;
+        forceAZScalar += forceZ;
+        energyScalar += pe;
+
+        fx[j] -= forceX;
+        fy[j] -= forceY;
+        fz[j] -= forceZ;
+    }
+
+    fx[i] += forceAXScalar;
+    fy[i] += forceAYScalar;
+    fz[i] += forceAZScalar;
+
+    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    batchParams->PotentialEnergy += energyScalar;
+}
+
 void
 ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
 {
@@ -322,7 +439,7 @@ ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
         const size_t jStart = j;
         const size_t jEnd =
             std::min(batchParams->BodyX.size(), jStart + (batchParams->BatchSize - count));
-        ApplyGravityRow2(batchParams, i, jStart, jEnd);
+        ApplyGravityRow(batchParams, i, jStart, jEnd);
 
         count += (jEnd - jStart);
     }
@@ -336,8 +453,12 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
 {
     MLG_SCOPED_TIMER("Physics.ApplyGravity");
 
+    const std::span<const Level::Node* const> nodes = physLevel.GetNodes();
     const std::span<const RigidBody> bodies = physLevel.GetBodies();
-    const std::span<const TrsTransformf> transforms = physLevel.GetTransforms();
+    const std::span<const Vec3f> positions = physLevel.GetPositions();
+
+    MLG_ASSERT(nodes.size() == bodies.size(), "Nodes and bodies must have the same size");
+    MLG_ASSERT(nodes.size() == positions.size(), "Nodes and positions must have the same size");
 
     const size_t numPairs = bodies.size() * (bodies.size() - 1) / 2;
     const size_t workerCount = threadPool.GetWorkerCount();
@@ -353,11 +474,13 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
     std::vector<float> forceY(bodies.size());
     std::vector<float> forceZ(bodies.size());
 
-    for(size_t i = 0; i < bodies.size(); ++i)
+    for(size_t i = 0; i < nodes.size(); ++i)
     {
         const RigidBody& body = bodies[i];
         const BoundingSphere& sphere = body.GetBoundingSphere();
-        const Vec3f center = transforms[i] * sphere.GetCenter();
+        TrsTransformf trs = nodes[i]->LocalTransform;
+        trs.T = positions[i];
+        const Vec3f center = trs * sphere.GetCenter();
         centerX[i] = center.x;
         centerY[i] = center.y;
         centerZ[i] = center.z;
