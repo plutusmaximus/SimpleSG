@@ -54,6 +54,46 @@ PhysicsLevel::Create(const Level& level, ThreadPool& threadPool)
 }
 
 void
+PhysicsLevel::PredictPositions(const float dt)
+{
+    MLG_SCOPED_TIMER("Physics.PredictPositions");
+
+    const auto range = std::views::zip(m_ActiveBodies,
+        m_LinearVelocities.X,
+        m_LinearVelocities.Y,
+        m_LinearVelocities.Z,
+        m_A0,
+        m_P0,
+        m_P1);
+
+    for(auto&& [isActive, v0x, v0y, v0z, a0, p0, p1] : range)
+    {
+        if(!isActive)
+        {
+            continue;
+        }
+        // Update position using velocity and acceleration from previous time step.
+        // p = ∫ v dt
+        // v = v0 + a * t
+        // p1 = ∫ (v0 + a * t) dt
+        // p1 = p0 + v0*dt + 0.5 * a0 * dt^2
+
+        p1 = p0 + Vec3f{ v0x, v0y, v0z } * dt + (0.5f * a0 * dt * dt);
+    }
+}
+
+void
+PhysicsLevel::Resolve()
+{
+    MLG_SCOPED_TIMER("Physics.Resolve");
+
+    FindAndResolveAllImpacts();
+    std::swap(m_P0, m_P1);
+    std::swap(m_A0, m_A1);
+    std::ranges::fill(m_A1, Vec3f{ 0 });
+}
+
+void
 PhysicsLevel::AddForce(const size_t bodyIndex, const Vec3f& force)
 {
     MLG_ASSERT(bodyIndex < m_Bodies.size(), "Body index out of range");
@@ -62,16 +102,38 @@ PhysicsLevel::AddForce(const size_t bodyIndex, const Vec3f& force)
 }
 
 void
-PhysicsLevel::Update(const float timeStep)
+PhysicsLevel::UpdateVelocities(const float dt)
 {
-    MLG_SCOPED_TIMER("Physics.Update");
+    MLG_SCOPED_TIMER("Physics.UpdateVelocities");
 
-    PredictPositions(timeStep);
-    UpdateVelocities(timeStep);
-    FindAndResolveAllImpacts();
-    std::swap(m_P0, m_P1);
-    std::swap(m_A0, m_A1);
-    std::ranges::fill(m_A1, Vec3f{ 0 });
+    // FIXME(KB) - caller should account for dt not being the entire timestep,
+    // but a substep due to collision events.
+    const auto range = std::views::zip(m_ActiveBodies,
+        m_LinearVelocities.X,
+        m_LinearVelocities.Y,
+        m_LinearVelocities.Z,
+        m_A0,
+        m_A1);
+
+    for(auto&& [isActive, v0x, v0y, v0z, a0, a1] : range)
+    {
+        if(!isActive)
+        {
+            continue;
+        }
+
+        // Acceleration can change over the timestep due to, e.g., gravity.
+        // So it's incorrect to use a single acceleration over the timestep.
+        // Instead we approximate the integral of the acceleration function
+        // using the trapezoidal rule:
+        // integral from t0 to t1 of a(t) dt ~= (t1 - t0) * (a(t0) + a(t1)) / 2
+
+        const float scale = dt * 0.5f;
+
+        v0x += (a0.x + a1.x) * scale;
+        v0y += (a0.y + a1.y) * scale;
+        v0z += (a0.z + a1.z) * scale;
+    }
 }
 
 Result<>
@@ -92,55 +154,6 @@ PhysicsLevel::SyncToLevel(Level& level)
 
 // private:
 
-void
-PhysicsLevel::PredictPositions(const float dt)
-{
-    MLG_SCOPED_TIMER("Physics.PredictPositions");
-
-    const auto range = std::views::zip(m_ActiveBodies, m_LinearVelocities, m_A0, m_P0, m_P1);
-
-    for(auto&& [isActive, v0, a0, p0, p1] : range)
-    {
-        if(!isActive)
-        {
-            continue;
-        }
-        // Update position using velocity and acceleration from previous time step.
-        // p = ∫ v dt
-        // v = v0 + a * t
-        // p1 = ∫ (v0 + a * t) dt
-        // p1 = p0 + v0*dt + 0.5 * a0 * dt^2
-
-        p1 = p0 + (v0 * dt) + (0.5f * a0 * dt * dt);
-    }
-}
-
-void
-PhysicsLevel::UpdateVelocities(const float dt)
-{
-    MLG_SCOPED_TIMER("Physics.UpdateVelocities");
-
-    // FIXME(KB) - caller should account for dt not being the entire timestep,
-    // but a substep due to collision events.
-    const auto range = std::views::zip(m_ActiveBodies, m_LinearVelocities, m_A0, m_A1);
-
-    for(auto&& [isActive, v, a0, a1] : range)
-    {
-        if(!isActive)
-        {
-            continue;
-        }
-
-        // Acceleration can change over the timestep due to, e.g., gravity.
-        // So it's incorrect to use a single acceleration over the timestep.
-        // Instead we approximate the integral of the acceleration function
-        // using the trapezoidal rule:
-        // integral from t0 to t1 of a(t) dt ~= (t1 - t0) * (a(t0) + a(t1)) / 2
-
-        v += (a0 + a1) * dt * 0.5f;
-    }
-}
-
 #define FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED 0
 
 void
@@ -157,8 +170,8 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
     const RigidBody& bodyA = m_Bodies[indexA];
     const RigidBody& bodyB = m_Bodies[indexB];
 
-    Vec3f& velA = m_LinearVelocities[indexA];
-    Vec3f& velB = m_LinearVelocities[indexB];
+    Vec3f velA{ m_LinearVelocities.X[indexA], m_LinearVelocities.Y[indexA], m_LinearVelocities.Z[indexA] };
+    Vec3f velB{ m_LinearVelocities.X[indexB], m_LinearVelocities.Y[indexB], m_LinearVelocities.Z[indexB] };
 
     // Compute relative velocity along the normal
     const float vRel = (velA - velB).Dot(impactResult.ContactNormalBtoA);
@@ -191,6 +204,13 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
 
         velA += u * bodyB.GetMass().Value();
         velB -= u * bodyA.GetMass().Value();
+
+        m_LinearVelocities.X[indexA] = velA.x;
+        m_LinearVelocities.Y[indexA] = velA.y;
+        m_LinearVelocities.Z[indexA] = velA.z;
+        m_LinearVelocities.X[indexB] = velB.x;
+        m_LinearVelocities.Y[indexB] = velB.y;
+        m_LinearVelocities.Z[indexB] = velB.z;
     }
 
     // FIXME(KB) - parameterize this.

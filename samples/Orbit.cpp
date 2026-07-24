@@ -212,7 +212,7 @@ ApplyRandomVelocities(PhysicsLevel& physLevel)
     std::mt19937 gen(kRngSeed);
     std::uniform_real_distribution<float> dis(-1, 1);
 
-    for(size_t i = 0; i < physLevel.GetLinearVelocities().size(); ++i)
+    for(size_t i = 0; i < physLevel.GetBodies().size(); ++i)
     {
         const Vec3f randomVel = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize()
             * (MIN_SPEED + (std::abs(dis(gen)) * (MAX_SPEED - MIN_SPEED)));
@@ -632,13 +632,14 @@ ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
 void
 ApplyStoppingImpulse(PhysicsLevel& physLevel)
 {
-    const std::span<const Vec3f> velocities = physLevel.GetLinearVelocities();
+    auto velocities = physLevel.GetLinearVelocities();
     const std::span<const RigidBody> bodies = physLevel.GetBodies();
 
     for(size_t i = 0; i < bodies.size(); ++i)
     {
         // Apply the impulse opposite to current velocity.
-        const Vec3f impulse = -velocities[i] * bodies[i].GetMass().Value() / kPhysicsTimeStep;
+        const float scale = bodies[i].GetMass().Value() / kPhysicsTimeStep;
+        const Vec3f impulse(-velocities.X[i] * scale, -velocities.Y[i] * scale, -velocities.Z[i] * scale);
         physLevel.AddForce(i, impulse);
     }
 }
@@ -649,14 +650,14 @@ ComputeKineticEnergy(const PhysicsLevel& physLevel)
     float kineticEnergy = 0.0f;
 
     const std::span<const RigidBody> bodies = physLevel.GetBodies();
-    const std::span<const Vec3f> velocities = physLevel.GetLinearVelocities();
+    auto velocities = physLevel.GetLinearVelocities();
 
-    auto range = std::views::zip(bodies, velocities);
+    auto range = std::views::zip(bodies, velocities.X, velocities.Y, velocities.Z);
 
-    for(const auto& [body, velocity] : range)
+    for(const auto& [body, vx, vy, vz] : range)
     {
         const float mass = body.GetMass().Value();
-        const float speedSq = velocity.Dot(velocity);
+        const float speedSq = (vx * vx) + (vy * vy) + (vz * vz);
         // KE = mv^2 / 2
         kineticEnergy += 0.5f * mass * speedSq;
     }
@@ -897,9 +898,10 @@ MainLoop()
 
         if(!pauseSim)
         {
+            physLevel.PredictPositions(kPhysicsTimeStep);
+            physLevel.Resolve();
             ApplyGravity(physLevel, threadPool);
-
-            physLevel.Update(kPhysicsTimeStep);
+            physLevel.UpdateVelocities(kPhysicsTimeStep);
 
             const float kineticEnergy = ComputeKineticEnergy(physLevel);
             const double totalEnergy = kineticEnergy + PerfCounterGlobals::TotalPE.GetValue();

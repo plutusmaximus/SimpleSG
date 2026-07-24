@@ -69,6 +69,13 @@ class PhysicsLevel
 {
 public:
 
+    struct VVec
+    {
+        std::span<float> X;
+        std::span<float> Y;
+        std::span<float> Z;
+    };
+
     constexpr static size_t GRID_CELL_SIZE = 2;
 
     static Result<PhysicsLevel> Create(const Level& level, ThreadPool& threadPool);
@@ -80,22 +87,28 @@ public:
     PhysicsLevel(PhysicsLevel&& other) = default;
     PhysicsLevel& operator=(PhysicsLevel&& other) = default;
 
+    void PredictPositions(const float dt);
+
+    void Resolve();
+
     void AddForce(const size_t bodyIndex, const Vec3f& force);
 
-    void Update(const float timeStep);
+    void UpdateVelocities(const float dt);
 
     Result<> SyncToLevel(Level& level);
 
     std::span<const Level::Node* const> GetNodes() const { return m_Nodes; }
     std::span<const RigidBody> GetBodies() const { return m_Bodies; }
     std::span<const Vec3f> GetPositions() const { return m_P0; }
-    std::span<const Vec3f> GetLinearVelocities() const { return m_LinearVelocities; }
+    const VVec& GetLinearVelocities() const { return m_LinearVelocities; }
 
     void SetLinearVelocity(const size_t bodyIndex, const Vec3f& velocity)
     {
         if(MLG_VERIFY(bodyIndex < m_Bodies.size(), "Body index out of range"))
         {
-            m_LinearVelocities[bodyIndex] = velocity;
+            m_LinearVelocities.X[bodyIndex] = velocity.x;
+            m_LinearVelocities.Y[bodyIndex] = velocity.y;
+            m_LinearVelocities.Z[bodyIndex] = velocity.z;
         }
     }
 
@@ -122,8 +135,11 @@ private:
     {
         m_PosPool[0] = std::move(positions);
         m_PosPool[1] = m_PosPool[0];    // Make a copy
-        m_LinearVelocities.resize(m_Bodies.size(), Vec3f{ 0 });
-        m_AccelerationPool[0] = m_LinearVelocities; // Make a copy
+        m_LV[0].resize(m_Bodies.size(), 0);
+        m_LV[1].resize(m_Bodies.size(), 0);
+        m_LV[2].resize(m_Bodies.size(), 0);
+        m_LinearVelocities = VVec{ .X = m_LV[0], .Y = m_LV[1], .Z = m_LV[2] };
+        m_AccelerationPool[0].resize(m_Bodies.size(), Vec3f{ 0 });
         m_AccelerationPool[1] = m_AccelerationPool[0]; // Make a copy
         m_ActiveBodies.resize(m_Bodies.size(), true);
         m_P0 = m_PosPool[0];
@@ -131,10 +147,6 @@ private:
         m_A0 = m_AccelerationPool[0];
         m_A1 = m_AccelerationPool[1];
     }
-
-    void UpdateVelocities(const float dt);
-
-    void PredictPositions(const float dt);
 
     void ResolveImpact(const ImpactRecord& impact);
 
@@ -146,7 +158,8 @@ private:
 
     std::vector<const Level::Node*> m_Nodes;
     std::vector<Vec3f> m_PosPool[2];
-    std::vector<Vec3f> m_LinearVelocities;
+    std::array<std::vector<float>, 3> m_LV;
+    VVec m_LinearVelocities;
     std::vector<Vec3f> m_AccelerationPool[2];
     std::vector<RigidBody> m_Bodies;
     // Tracks which bodies are active in the current frame.
