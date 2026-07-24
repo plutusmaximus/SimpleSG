@@ -64,7 +64,9 @@ PhysicsLevel::PredictPositions(const float dt)
         m_LinearVelocities.X,
         m_LinearVelocities.Y,
         m_LinearVelocities.Z,
-        m_A0,
+        m_A0.X,
+        m_A0.Y,
+        m_A0.Z,
         m_P0.X,
         m_P0.Y,
         m_P0.Z,
@@ -72,7 +74,7 @@ PhysicsLevel::PredictPositions(const float dt)
         m_P1.Y,
         m_P1.Z);
 
-    for(auto&& [isActive, v0x, v0y, v0z, a0, p0x, p0y, p0z, p1x, p1y, p1z] : range)
+    for(auto&& [isActive, v0x, v0y, v0z, a0x, a0y, a0z, p0x, p0y, p0z, p1x, p1y, p1z] : range)
     {
         if(!isActive)
         {
@@ -86,9 +88,9 @@ PhysicsLevel::PredictPositions(const float dt)
 
         const float ascale = 0.5f * dt * dt;
 
-        p1x = p0x + (v0x * dt) + (ascale * a0.x);
-        p1y = p0y + (v0y * dt) + (ascale * a0.y);
-        p1z = p0z + (v0z * dt) + (ascale * a0.z);
+        p1x = p0x + (v0x * dt) + (ascale * a0x);
+        p1y = p0y + (v0y * dt) + (ascale * a0y);
+        p1z = p0z + (v0z * dt) + (ascale * a0z);
     }
 }
 
@@ -100,7 +102,9 @@ PhysicsLevel::Resolve()
     FindAndResolveAllImpacts();
     std::swap(m_P0, m_P1);
     std::swap(m_A0, m_A1);
-    std::ranges::fill(m_A1, Vec3f{ 0 });
+    std::ranges::fill(m_A1.X, 0);
+    std::ranges::fill(m_A1.Y, 0);
+    std::ranges::fill(m_A1.Z, 0);
 }
 
 void
@@ -108,7 +112,10 @@ PhysicsLevel::AddForce(const size_t bodyIndex, const Vec3f& force)
 {
     MLG_ASSERT(bodyIndex < m_Bodies.size(), "Body index out of range");
 
-    m_A1[bodyIndex] += force * m_Bodies[bodyIndex].GetMass().InvValue();
+    const Vec3 accel = force * m_Bodies[bodyIndex].GetMass().InvValue();
+    m_A1.X[bodyIndex] += accel.x;
+    m_A1.Y[bodyIndex] += accel.y;
+    m_A1.Z[bodyIndex] += accel.z;
 }
 
 void
@@ -122,10 +129,14 @@ PhysicsLevel::UpdateVelocities(const float dt)
         m_LinearVelocities.X,
         m_LinearVelocities.Y,
         m_LinearVelocities.Z,
-        m_A0,
-        m_A1);
+        m_A0.X,
+        m_A0.Y,
+        m_A0.Z,
+        m_A1.X,
+        m_A1.Y,
+        m_A1.Z);
 
-    for(auto&& [isActive, v0x, v0y, v0z, a0, a1] : range)
+    for(auto&& [isActive, v0x, v0y, v0z, a0x, a0y, a0z, a1x, a1y, a1z] : range)
     {
         if(!isActive)
         {
@@ -140,9 +151,9 @@ PhysicsLevel::UpdateVelocities(const float dt)
 
         const float scale = dt * 0.5f;
 
-        v0x += (a0.x + a1.x) * scale;
-        v0y += (a0.y + a1.y) * scale;
-        v0z += (a0.z + a1.z) * scale;
+        v0x += (a0x + a1x) * scale;
+        v0y += (a0y + a1y) * scale;
+        v0z += (a0z + a1z) * scale;
     }
 }
 

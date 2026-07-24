@@ -69,7 +69,7 @@ class PhysicsLevel
 {
 public:
 
-    struct VVec
+    struct VVec3
     {
         std::span<float> X;
         std::span<float> Y;
@@ -99,8 +99,8 @@ public:
 
     std::span<const Level::Node* const> GetNodes() const { return m_Nodes; }
     std::span<const RigidBody> GetBodies() const { return m_Bodies; }
-    const VVec& GetPositions() const { return m_P0; }
-    const VVec& GetLinearVelocities() const { return m_LinearVelocities; }
+    const VVec3& GetPositions() const { return m_P0; }
+    const VVec3& GetLinearVelocities() const { return m_LinearVelocities; }
 
     void SetLinearVelocity(const size_t bodyIndex, const Vec3f& velocity)
     {
@@ -149,11 +149,15 @@ private:
         m_LinearVelocitiesPool[0].resize(m_Bodies.size(), 0);
         m_LinearVelocitiesPool[1].resize(m_Bodies.size(), 0);
         m_LinearVelocitiesPool[2].resize(m_Bodies.size(), 0);
-        m_LinearVelocities = VVec{ .X = m_LinearVelocitiesPool[0],
+        m_LinearVelocities = VVec3{ .X = m_LinearVelocitiesPool[0],
             .Y = m_LinearVelocitiesPool[1],
             .Z = m_LinearVelocitiesPool[2] };
-        m_AccelerationPool[0].resize(m_Bodies.size(), Vec3f{ 0 });
-        m_AccelerationPool[1] = m_AccelerationPool[0]; // Make a copy
+        m_AccelerationPool[0][0].resize(m_Bodies.size(), 0);
+        m_AccelerationPool[0][1].resize(m_Bodies.size(), 0);
+        m_AccelerationPool[0][2].resize(m_Bodies.size(), 0);
+        m_AccelerationPool[1][0] = m_AccelerationPool[0][0]; // Make a copy
+        m_AccelerationPool[1][1] = m_AccelerationPool[0][1]; // Make a copy
+        m_AccelerationPool[1][2] = m_AccelerationPool[0][2]; // Make a copy
         m_ActiveBodies.resize(m_Bodies.size(), true);
         m_P0.X = m_PosPool[0][0];
         m_P0.Y = m_PosPool[0][1];
@@ -161,8 +165,12 @@ private:
         m_P1.X = m_PosPool[1][0];
         m_P1.Y = m_PosPool[1][1];
         m_P1.Z = m_PosPool[1][2];
-        m_A0 = m_AccelerationPool[0];
-        m_A1 = m_AccelerationPool[1];
+        m_A0.X = m_AccelerationPool[0][0];
+        m_A0.Y = m_AccelerationPool[0][1];
+        m_A0.Z = m_AccelerationPool[0][2];
+        m_A1.X = m_AccelerationPool[1][0];
+        m_A1.Y = m_AccelerationPool[1][1];
+        m_A1.Z = m_AccelerationPool[1][2];
     }
 
     void ResolveImpact(const ImpactRecord& impact);
@@ -176,8 +184,8 @@ private:
     std::vector<const Level::Node*> m_Nodes;
     std::vector<float> m_PosPool[2][3];
     std::vector<float> m_LinearVelocitiesPool[3];
-    VVec m_LinearVelocities;
-    std::vector<Vec3f> m_AccelerationPool[2];
+    VVec3 m_LinearVelocities;
+    std::vector<float> m_AccelerationPool[2][3];
     std::vector<RigidBody> m_Bodies;
     // Tracks which bodies are active in the current frame.
     std::vector<bool> m_ActiveBodies;
@@ -185,13 +193,13 @@ private:
     std::vector<SweepTestBatch> m_SweepTestBatches;
 
     //Positions for the current frame.
-    VVec m_P0;
+    VVec3 m_P0;
     //Predicted positions for the next frame.
-    VVec m_P1;
+    VVec3 m_P1;
     //Accelerations for the current frame.
-    std::span<Vec3f> m_A0;
+    VVec3 m_A0;
     //Accelerations for the next frame.
-    std::span<Vec3f> m_A1;
+    VVec3 m_A1;
 
     GridHash m_GridHash{GRID_CELL_SIZE};
 
