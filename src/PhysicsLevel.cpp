@@ -178,6 +178,54 @@ PhysicsLevel::SyncToLevel(Level& level)
 
 #define FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED 0
 
+PhysicsLevel::PhysicsLevel(std::vector<const Level::Node*>&& nodes,
+    std::vector<Vec3f>& positions,
+    std::vector<RigidBody>&& bodies,
+    ThreadPool& threadPool)
+    : m_Nodes(std::move(nodes)),
+      m_Bodies(std::move(bodies)),
+      m_ThreadPool(&threadPool)
+{
+    m_PosPool[0][0].reserve(m_Bodies.size());
+    m_PosPool[0][1].reserve(m_Bodies.size());
+    m_PosPool[0][2].reserve(m_Bodies.size());
+    for(const Vec3f& pos : positions)
+    {
+        m_PosPool[0][0].emplace_back(pos.x);
+        m_PosPool[0][1].emplace_back(pos.y);
+        m_PosPool[0][2].emplace_back(pos.z);
+    }
+    m_PosPool[1][0] = m_PosPool[0][0]; // Make a copy
+    m_PosPool[1][1] = m_PosPool[0][1]; // Make a copy
+    m_PosPool[1][2] = m_PosPool[0][2]; // Make a copy
+
+    m_LinearVelocitiesPool[0].resize(m_Bodies.size(), 0);
+    m_LinearVelocitiesPool[1].resize(m_Bodies.size(), 0);
+    m_LinearVelocitiesPool[2].resize(m_Bodies.size(), 0);
+    m_LinearVelocities = VVec3{ .X = m_LinearVelocitiesPool[0],
+        .Y = m_LinearVelocitiesPool[1],
+        .Z = m_LinearVelocitiesPool[2] };
+    m_AccelerationPool[0][0].resize(m_Bodies.size(), 0);
+    m_AccelerationPool[0][1].resize(m_Bodies.size(), 0);
+    m_AccelerationPool[0][2].resize(m_Bodies.size(), 0);
+    m_AccelerationPool[1][0] = m_AccelerationPool[0][0]; // Make a copy
+    m_AccelerationPool[1][1] = m_AccelerationPool[0][1]; // Make a copy
+    m_AccelerationPool[1][2] = m_AccelerationPool[0][2]; // Make a copy
+    m_ActiveBodies.resize(m_Bodies.size(), true);
+    m_P0.X = m_PosPool[0][0];
+    m_P0.Y = m_PosPool[0][1];
+    m_P0.Z = m_PosPool[0][2];
+    m_P1.X = m_PosPool[1][0];
+    m_P1.Y = m_PosPool[1][1];
+    m_P1.Z = m_PosPool[1][2];
+    m_A0.X = m_AccelerationPool[0][0];
+    m_A0.Y = m_AccelerationPool[0][1];
+    m_A0.Z = m_AccelerationPool[0][2];
+    m_A1.X = m_AccelerationPool[1][0];
+    m_A1.Y = m_AccelerationPool[1][1];
+    m_A1.Z = m_AccelerationPool[1][2];
+}
+
 void
 PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
 {
