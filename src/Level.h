@@ -7,7 +7,7 @@
 
 #include <optional>
 #include <span>
-#include <string>
+#include <string_view>
 #include <vector>
 
 class PropKit;
@@ -93,66 +93,18 @@ public:
     /// - and any other contiguous range of strings or string views that can be converted to std::string_view
     template <std::ranges::sized_range R>
     requires std::convertible_to<std::ranges::range_reference_t<R>, std::string_view>
-    Result<const Node*> GetNode(const R& path) const
+    const Node* GetNode(const R& path) const
     {
-        const Node* foundNode{ nullptr };
-
-        const auto pathLen = std::ranges::size(path);
-        size_t pathIndex = 0;
-
-        std::span<const Node> nodesToSearch = GetRoots();
-        for (auto&& x : path)
-        {
-            std::string_view part = x;
-
-            const Node* node = nullptr;
-
-            for(const auto & tmpNode : nodesToSearch)
-            {
-                if(tmpNode.Name == part)
-                {
-                    node = &tmpNode;
-                    break;
-                }
-            }
-
-            MLG_CHECKV(node, "Node not found: {}", part);
-
-            if(pathIndex == pathLen - 1)
-            {
-                foundNode = node;
-                break;
-            }
-
-            ++pathIndex;
-
-            nodesToSearch = node->Children;
-        }
-
-        auto formatPath = [](const auto& inPath) -> std::string
-        {
-            std::string result;
-            for (auto&& x : inPath)
-            {
-                if (!result.empty())
-                {
-                    result += ".";
-                }
-                result += x;
-            }
-            return result;
-        };
-
-         MLG_CHECKV(foundNode, "Node not found: {}", formatPath(path));
-
-        return foundNode;
+        return GetNode(std::span{ path });
     }
 
     // Fetches a node by its path from the root, e.g. {"RootNode", "ChildNode", "GrandchildNode"}.
     // This overload is provided for convenience to allow passing an initializer list directly
     // without having to wrap it in a std::span or other container.
     // - GetNode({"RootNode", "ChildNode", "GrandchildNode"});
-    Result<const Node*> GetNode(std::initializer_list<std::string_view> path) const;
+    const Node* GetNode(std::initializer_list<std::string_view> path) const;
+
+    const Node* GetNode(const std::span<const std::string_view> path) const;
 
     Result<> UpdateLocalTransform(const Node& node, const TrsTransformf& localTransform);
 

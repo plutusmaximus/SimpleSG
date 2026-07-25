@@ -242,10 +242,72 @@ Level::Level(std::vector<Node>&& nodes, StringArena&& stringArena)
     m_RootNodes = std::span(m_Nodes).subspan(0, rootNodeCount);
 }
 
-Result<const Level::Node*>
+const Level::Node*
 Level::GetNode(std::initializer_list<std::string_view> path) const
 {
     return GetNode(std::span{ path });
+}
+
+const Level::Node*
+Level::GetNode(const std::span<const std::string_view> path) const
+{
+    const Node* foundNode{ nullptr };
+
+    const size_t pathLen = path.size();
+    size_t pathIndex = 0;
+
+    std::span<const Node> nodesToSearch = GetRoots();
+    for(const std::string_view& x : path)
+    {
+        std::string_view part = x;
+
+        const Node* node = nullptr;
+
+        for(const auto& tmpNode : nodesToSearch)
+        {
+            if(tmpNode.Name == part)
+            {
+                node = &tmpNode;
+                break;
+            }
+        }
+
+        if(!MLG_VERIFY(node, "Node not found: {}", part))
+        {
+            return nullptr;
+        }
+
+        if(pathIndex == pathLen - 1)
+        {
+            foundNode = node;
+            break;
+        }
+
+        ++pathIndex;
+
+        nodesToSearch = node->Children;
+    }
+
+    auto formatPath = [](const auto& inPath) -> std::string
+    {
+        std::string result;
+        for(auto&& x : inPath)
+        {
+            if(!result.empty())
+            {
+                result += ".";
+            }
+            result += x;
+        }
+        return result;
+    };
+
+    if(!MLG_VERIFY(foundNode, "Node not found: {}", formatPath(path)))
+    {
+        return nullptr;
+    }
+
+    return foundNode;
 }
 
 Result<>
