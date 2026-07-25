@@ -15,56 +15,21 @@ static constexpr float COEFF_OF_RESTITUTION = 0.8f;
 // FIXME(KB) - Calculate world space pos for collision detection.
 
 Result<PhysicsLevel>
-PhysicsLevel::Create(const Level& level, ThreadPool& threadPool)
+PhysicsLevel::Create(const std::span<const Level::Node>& nodes, ThreadPool& threadPool)
 {
-    size_t count = 0;
-    for(const auto& node : level.GetAllNodes())
-    {
-        if(node.Components.Body)
-        {
-            ++count;
-        }
-    }
-
-    //FIXME(KB) - use center of bounding volume as position
-
-    std::vector<const Level::Node*> nodes;
-    std::vector<Vec3f> positions;
-    std::vector<RigidBody> bodies;
-    nodes.reserve(count);
-    positions.reserve(count);
-    bodies.reserve(count);
-
-    for(const auto& node : level.GetAllNodes())
-    {
-        const std::optional<RigidBody>& optBody = node.Components.Body;
-
-        if(optBody)
-        {
-            nodes.emplace_back(&node);
-            positions.emplace_back(node.LocalTransform.T);
-            bodies.emplace_back(*optBody);
-        }
-    }
-
-    PhysicsLevel physLevel(std::move(nodes),
-        positions,
-        std::move(bodies),
-        threadPool);
-        
-    return std::move(physLevel);
+    return PhysicsLevel(nodes, threadPool);
 }
 
 void
 PhysicsLevel::PredictPositions(const float dt)
 {
     MLG_SCOPED_TIMER("Physics.PredictPositions");
-    const float* __restrict p0x = m_P1.X.data();
-    const float* __restrict p0y = m_P1.Y.data();
-    const float* __restrict p0z = m_P1.Z.data();
-    float* __restrict p1x = m_P0.X.data();
-    float* __restrict p1y = m_P0.Y.data();
-    float* __restrict p1z = m_P0.Z.data();
+    const float* __restrict p0x = m_P0.X.data();
+    const float* __restrict p0y = m_P0.Y.data();
+    const float* __restrict p0z = m_P0.Z.data();
+    float* __restrict p1x = m_P1.X.data();
+    float* __restrict p1y = m_P1.Y.data();
+    float* __restrict p1z = m_P1.Z.data();
     const float* __restrict v0x = m_LinearVelocities.X.data();
     const float* __restrict v0y = m_LinearVelocities.Y.data();
     const float* __restrict v0z = m_LinearVelocities.Z.data();
@@ -109,14 +74,16 @@ PhysicsLevel::Resolve()
 }
 
 void
-PhysicsLevel::AddForce(const size_t bodyIndex, const Vec3f& force)
+PhysicsLevel::AddForce(const Level::Node* node, const Vec3f& force)
 {
-    MLG_ASSERT(bodyIndex < m_Bodies.size(), "Body index out of range");
-
-    const Vec3 accel = force * m_Bodies[bodyIndex].GetMass().InvValue();
-    m_A1.X[bodyIndex] += accel.x;
-    m_A1.Y[bodyIndex] += accel.y;
-    m_A1.Z[bodyIndex] += accel.z;
+    const size_t index = GetNodeIndex(node);
+    if(MLG_VERIFY(index != NodeAndIndex::kInvalidIndex, "Node not found in PhysicsLevel"))
+    {
+        const Vec3 accel = force * m_Bodies[index].GetMass().InvValue();
+        m_A1.X[index] += accel.x;
+        m_A1.Y[index] += accel.y;
+        m_A1.Z[index] += accel.z;
+    }
 }
 
 void
@@ -174,27 +141,63 @@ PhysicsLevel::SyncToLevel(Level& level)
     return Result<>::Ok;
 }
 
+void
+PhysicsLevel::SetLinearVelocity(const Level::Node* node, const Vec3f& velocity)
+{
+    const size_t index = GetNodeIndex(node);
+    if(MLG_VERIFY(index != NodeAndIndex::kInvalidIndex, "Node not found in PhysicsLevel"))
+    {
+        m_LinearVelocities.X[index] = velocity.x;
+        m_LinearVelocities.Y[index] = velocity.y;
+        m_LinearVelocities.Z[index] = velocity.z;
+    }
+}
+
 // private:
 
 #define FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED 0
 
-PhysicsLevel::PhysicsLevel(std::vector<const Level::Node*>&& nodes,
-    std::vector<Vec3f>& positions,
-    std::vector<RigidBody>&& bodies,
-    ThreadPool& threadPool)
-    : m_Nodes(std::move(nodes)),
-      m_Bodies(std::move(bodies)),
-      m_ThreadPool(&threadPool)
+PhysicsLevel::PhysicsLevel(const std::span<const Level::Node>& nodes, ThreadPool& threadPool)
+: m_ThreadPool(&threadPool)
 {
-    m_PosPool[0][0].reserve(m_Bodies.size());
-    m_PosPool[0][1].reserve(m_Bodies.size());
-    m_PosPool[0][2].reserve(m_Bodies.size());
-    for(const Vec3f& pos : positions)
+    size_t bodyCount = 0;
+    for(const auto& node : nodes)
     {
-        m_PosPool[0][0].emplace_back(pos.x);
-        m_PosPool[0][1].emplace_back(pos.y);
-        m_PosPool[0][2].emplace_back(pos.z);
+        if(node.Components.Body)
+        {
+            ++bodyCount;
+        }
     }
+
+    m_NodeIndexMap.reserve(bodyCount);
+    m_Nodes.reserve(bodyCount);
+    m_PosPool[0][0].reserve(bodyCount);
+    m_PosPool[0][1].reserve(bodyCount);
+    m_PosPool[0][2].reserve(bodyCount);
+    m_Bodies.reserve(bodyCount);
+    m_ActiveBodies.reserve(bodyCount);
+
+    for(const auto& node : nodes)
+    {
+        const std::optional<RigidBody>& optBody = node.Components.Body;
+
+        if(!optBody)
+        {
+            continue;
+        }
+
+        // m_NodeIndexMap is ordered by node pointer, so we can use binary search to find the index
+        // of a node.
+        m_NodeIndexMap.emplace_back(&node, m_Nodes.size());
+
+        m_Nodes.emplace_back(&node);
+        m_PosPool[0][0].emplace_back(node.WorldTransform[3].x);
+        m_PosPool[0][1].emplace_back(node.WorldTransform[3].y);
+        m_PosPool[0][2].emplace_back(node.WorldTransform[3].z);
+        m_Bodies.emplace_back(*optBody);
+        m_ActiveBodies.emplace_back(node.IsActive());
+    }
+
     m_PosPool[1][0] = m_PosPool[0][0]; // Make a copy
     m_PosPool[1][1] = m_PosPool[0][1]; // Make a copy
     m_PosPool[1][2] = m_PosPool[0][2]; // Make a copy
@@ -202,28 +205,63 @@ PhysicsLevel::PhysicsLevel(std::vector<const Level::Node*>&& nodes,
     m_LinearVelocitiesPool[0].resize(m_Bodies.size(), 0);
     m_LinearVelocitiesPool[1].resize(m_Bodies.size(), 0);
     m_LinearVelocitiesPool[2].resize(m_Bodies.size(), 0);
-    m_LinearVelocities = VVec3{ .X = m_LinearVelocitiesPool[0],
-        .Y = m_LinearVelocitiesPool[1],
-        .Z = m_LinearVelocitiesPool[2] };
+
     m_AccelerationPool[0][0].resize(m_Bodies.size(), 0);
     m_AccelerationPool[0][1].resize(m_Bodies.size(), 0);
     m_AccelerationPool[0][2].resize(m_Bodies.size(), 0);
+
     m_AccelerationPool[1][0] = m_AccelerationPool[0][0]; // Make a copy
     m_AccelerationPool[1][1] = m_AccelerationPool[0][1]; // Make a copy
     m_AccelerationPool[1][2] = m_AccelerationPool[0][2]; // Make a copy
-    m_ActiveBodies.resize(m_Bodies.size(), true);
-    m_P0.X = m_PosPool[0][0];
-    m_P0.Y = m_PosPool[0][1];
-    m_P0.Z = m_PosPool[0][2];
-    m_P1.X = m_PosPool[1][0];
-    m_P1.Y = m_PosPool[1][1];
-    m_P1.Z = m_PosPool[1][2];
-    m_A0.X = m_AccelerationPool[0][0];
-    m_A0.Y = m_AccelerationPool[0][1];
-    m_A0.Z = m_AccelerationPool[0][2];
-    m_A1.X = m_AccelerationPool[1][0];
-    m_A1.Y = m_AccelerationPool[1][1];
-    m_A1.Z = m_AccelerationPool[1][2];
+
+    m_P0 = VVec3 //
+        {
+            .X = m_PosPool[0][0],
+            .Y = m_PosPool[0][1],
+            .Z = m_PosPool[0][2],
+        };
+
+    m_P1 = VVec3 //
+        {
+            .X = m_PosPool[1][0],
+            .Y = m_PosPool[1][1],
+            .Z = m_PosPool[1][2],
+        };
+
+    m_A0 = VVec3 //
+        {
+            .X = m_AccelerationPool[0][0],
+            .Y = m_AccelerationPool[0][1],
+            .Z = m_AccelerationPool[0][2],
+        };
+
+    m_A1 = VVec3 //
+        {
+            .X = m_AccelerationPool[1][0],
+            .Y = m_AccelerationPool[1][1],
+            .Z = m_AccelerationPool[1][2],
+        };
+
+    m_LinearVelocities = VVec3 //
+        {
+            .X = m_LinearVelocitiesPool[0],
+            .Y = m_LinearVelocitiesPool[1],
+            .Z = m_LinearVelocitiesPool[2],
+        };
+}
+    
+size_t
+PhysicsLevel::GetNodeIndex(const Level::Node* node) const
+{
+    MLG_ASSERT(node, "Node pointer is null");
+    
+    auto it = std::ranges::lower_bound(m_NodeIndexMap, node, {}, &NodeAndIndex::m_Node);
+
+    if(it != m_NodeIndexMap.end() && it->GetNode() == node)
+    {
+        return it->GetIndex();
+    }
+    return NodeAndIndex::kInvalidIndex;
 }
 
 void

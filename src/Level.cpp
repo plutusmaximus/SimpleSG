@@ -259,7 +259,7 @@ Level::GetNode(const std::span<const std::string_view> path) const
     std::span<const Node> nodesToSearch = GetRoots();
     for(const std::string_view& x : path)
     {
-        std::string_view part = x;
+        const std::string_view part = x;
 
         const Node* node = nullptr;
 
@@ -288,21 +288,9 @@ Level::GetNode(const std::span<const std::string_view> path) const
         nodesToSearch = node->Children;
     }
 
-    auto formatPath = [](const auto& inPath) -> std::string
-    {
-        std::string result;
-        for(auto&& x : inPath)
-        {
-            if(!result.empty())
-            {
-                result += ".";
-            }
-            result += x;
-        }
-        return result;
-    };
-
-    if(!MLG_VERIFY(foundNode, "Node not found: {}", formatPath(path)))
+    if(!MLG_VERIFY(foundNode,
+           "Node not found: {}",
+           path | std::views::join_with('.') | std::ranges::to<std::string>()))
     {
         return nullptr;
     }

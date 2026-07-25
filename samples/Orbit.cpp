@@ -212,12 +212,12 @@ ApplyRandomVelocities(PhysicsLevel& physLevel)
     std::mt19937 gen(kRngSeed);
     std::uniform_real_distribution<float> dis(-1, 1);
 
-    for(size_t i = 0; i < physLevel.GetBodies().size(); ++i)
+    for(const Level::Node* node : physLevel.GetNodes())
     {
         const Vec3f randomVel = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize()
             * (MIN_SPEED + (std::abs(dis(gen)) * (MAX_SPEED - MIN_SPEED)));
 
-        physLevel.SetLinearVelocity(i, randomVel);
+        physLevel.SetLinearVelocity(node, randomVel);
     }
 }
 
@@ -453,37 +453,26 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
 {
     MLG_SCOPED_TIMER("Physics.ApplyGravity");
 
-    const std::span<const Level::Node* const> nodes = physLevel.GetNodes();
     const std::span<const RigidBody> bodies = physLevel.GetBodies();
     const auto& positions = physLevel.GetPositions();
 
-    MLG_ASSERT(nodes.size() == bodies.size(), "Nodes and bodies must have the same size");
-    MLG_ASSERT(nodes.size() == positions.X.size(), "Nodes and positions must have the same size");
+    MLG_ASSERT(bodies.size() == positions.X.size(), "Bodies and positions must have the same size");
 
     const size_t numPairs = bodies.size() * (bodies.size() - 1) / 2;
     const size_t workerCount = threadPool.GetWorkerCount();
     const size_t batchSize = (numPairs / workerCount) + (numPairs % workerCount != 0 ? 1 : 0);
     const size_t numBatches = (numPairs / batchSize) + (numPairs % batchSize != 0 ? 1 : 0);
 
-    std::vector<float> centerX(bodies.size());
-    std::vector<float> centerY(bodies.size());
-    std::vector<float> centerZ(bodies.size());
     std::vector<float> radius(bodies.size());
     std::vector<float> mass(bodies.size());
     std::vector<float> forceX(bodies.size());
     std::vector<float> forceY(bodies.size());
     std::vector<float> forceZ(bodies.size());
 
-    for(size_t i = 0; i < nodes.size(); ++i)
+    for(size_t i = 0; i < bodies.size(); ++i)
     {
         const RigidBody& body = bodies[i];
         const BoundingSphere& sphere = body.GetBoundingSphere();
-        TrsTransformf trs = nodes[i]->LocalTransform;
-        trs.T = {positions.X[i], positions.Y[i], positions.Z[i]};
-        const Vec3f center = trs * sphere.GetCenter();
-        centerX[i] = center.x;
-        centerY[i] = center.y;
-        centerZ[i] = center.z;
         radius[i] = sphere.GetRadius();
         mass[i] = body.GetMass().Value();
         forceX[i] = 0;
@@ -510,9 +499,9 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
                         .StartIndexA = startIndexA,
                         .StartIndexB = startIndexB,
                         .BatchSize = pairCount,
-                        .BodyX = centerX,
-                        .BodyY = centerY,
-                        .BodyZ = centerZ,
+                        .BodyX = positions.X,
+                        .BodyY = positions.Y,
+                        .BodyZ = positions.Z,
                         .BodyRadius = radius,
                         .BodyMass = mass,
                         .ForceX = forceX,
@@ -547,9 +536,9 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
                 .StartIndexA = startIndexA,
                 .StartIndexB = startIndexB,
                 .BatchSize = pairCount,
-                .BodyX = centerX,
-                .BodyY = centerY,
-                .BodyZ = centerZ,
+                .BodyX = positions.X,
+                .BodyY = positions.Y,
+                .BodyZ = positions.Z,
                 .BodyRadius = radius,
                 .BodyMass = mass,
                 .ForceX = forceX,
@@ -582,9 +571,10 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
 
     float totalPotentialEnergy = 0;
 
-    for(size_t i = 0; i < bodies.size(); ++i)
+    const std::span nodes = physLevel.GetNodes();
+    for(size_t i = 0; i < nodes.size(); ++i)
     {
-        physLevel.AddForce(i, Vec3f(forceX[i], forceY[i], forceZ[i]));
+        physLevel.AddForce(nodes[i], Vec3f(forceX[i], forceY[i], forceZ[i]));
     }
 
     for(const auto& params : batches)
@@ -598,13 +588,14 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
 void
 ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
 {
-    const std::span<const RigidBody> bodies = physLevel.GetBodies();
     constexpr unsigned kRngSeed = 12345;
     std::mt19937 gen(kRngSeed);
     std::uniform_real_distribution<float> dis(0.5, 1);
     std::bernoulli_distribution sign;
 
-    for(size_t i = 0; i < bodies.size(); ++i)
+    auto view = std::views::zip(physLevel.GetBodies(), physLevel.GetNodes());
+
+    for(const auto & [body, node] : view)
     {
         // Impulse is force integrated over time.
         // J = integral from t0 to t1 ​​F(t)dt
@@ -622,10 +613,10 @@ ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
 
         normal = normal.Normalize();
         const Vec3f v = normal * magnitude;
-        const float m = bodies[i].GetMass().Value();
+        const float m = body.GetMass().Value();
 
         const Vec3f force = m * v / kPhysicsTimeStep;
-        physLevel.AddForce(i, force);
+        physLevel.AddForce(node, force);
     }
 }
 
@@ -633,14 +624,23 @@ void
 ApplyStoppingImpulse(PhysicsLevel& physLevel)
 {
     auto velocities = physLevel.GetLinearVelocities();
-    const std::span<const RigidBody> bodies = physLevel.GetBodies();
+    const std::span bodies = physLevel.GetBodies();
+    const std::span nodes = physLevel.GetNodes();
 
+    const float invTimeStep = 1.0f / kPhysicsTimeStep;
+    
     for(size_t i = 0; i < bodies.size(); ++i)
     {
+        const RigidBody& body = bodies[i];
+        const Level::Node* node = nodes[i];
+        const float vx = velocities.X[i];
+        const float vy = velocities.Y[i];
+        const float vz = velocities.Z[i];
+
         // Apply the impulse opposite to current velocity.
-        const float scale = bodies[i].GetMass().Value() / kPhysicsTimeStep;
-        const Vec3f impulse(-velocities.X[i] * scale, -velocities.Y[i] * scale, -velocities.Z[i] * scale);
-        physLevel.AddForce(i, impulse);
+        const float scale = body.GetMass().Value() * invTimeStep;
+        const Vec3f impulse(-vx * scale, -vy * scale, -vz * scale);
+        physLevel.AddForce(node, impulse);
     }
 }
 
@@ -700,7 +700,7 @@ MainLoop()
 
     Scene scene = std::move(*sceneResult);
 
-    auto physLevelResult = PhysicsLevel::Create(level, threadPool);
+    auto physLevelResult = PhysicsLevel::Create(level.GetAllNodes(), threadPool);
     MLG_CHECK(physLevelResult);
 
     PhysicsLevel physLevel = std::move(*physLevelResult);
@@ -838,7 +838,7 @@ MainLoop()
 
                     if(!activateSelectedNodes)
                     {
-                        RangeQuery::from(physLevel.GetNodes())
+                        RangeQuery::from(level.GetAllNodes())
                             .apply(NodeActivator(level, true))
                             .apply(NodeVisibility(level, true))
                             .exec();
@@ -849,7 +849,7 @@ MainLoop()
                         const Rect rect({ .X = 200, .Y = 400, .Width = 75, .Height = 75 });
                         // const Rect rect(Point(1000, 1000), Point(1050, 1050));
 
-                        RangeQuery::from(physLevel.GetNodes())
+                        RangeQuery::from(level.GetAllNodes())
                             .apply(NodeActivator(level, false))
                             .apply(NodeVisibility(level, false))
                             .where(NodeSelector(camera, cameraXForm, rect))

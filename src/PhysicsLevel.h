@@ -21,22 +21,22 @@ struct ImpactResult
 
 struct SphereSweepParams
 {
-    Vec3f StartPosA{};
-    Vec3f EndPosA{};
+    Vec3f StartPosA;
+    Vec3f EndPosA;
     BoundingSphere SphereA;
 
-    Vec3f StartPosB{};
-    Vec3f EndPosB{};
+    Vec3f StartPosB;
+    Vec3f EndPosB;
     BoundingSphere SphereB;
 };
 
 struct ImpactRecord
 {
-    BodyPair Bodies{0,0}; // Initialized to an invalid pair to catch uninitialized usage.
+    BodyPair Bodies;
 
     SphereSweepParams SweepParams;
 
-    ImpactResult Result{};
+    ImpactResult Result;
 
     bool ImpactFound{false};
 
@@ -78,7 +78,8 @@ public:
 
     constexpr static size_t GRID_CELL_SIZE = 2;
 
-    static Result<PhysicsLevel> Create(const Level& level, ThreadPool& threadPool);
+    static Result<PhysicsLevel> Create(const std::span<const Level::Node>& nodes,
+        ThreadPool& threadPool);
 
     PhysicsLevel() = default;
     ~PhysicsLevel() = default;
@@ -91,7 +92,7 @@ public:
 
     void Resolve();
 
-    void AddForce(const size_t bodyIndex, const Vec3f& force);
+    void AddForce(const Level::Node* node, const Vec3f& force);
 
     void UpdateVelocities(const float dt);
 
@@ -102,15 +103,7 @@ public:
     const VVec3& GetPositions() const { return m_P0; }
     const VVec3& GetLinearVelocities() const { return m_LinearVelocities; }
 
-    void SetLinearVelocity(const size_t bodyIndex, const Vec3f& velocity)
-    {
-        if(MLG_VERIFY(bodyIndex < m_Bodies.size(), "Body index out of range"))
-        {
-            m_LinearVelocities.X[bodyIndex] = velocity.x;
-            m_LinearVelocities.Y[bodyIndex] = velocity.y;
-            m_LinearVelocities.Z[bodyIndex] = velocity.z;
-        }
-    }
+    void SetLinearVelocity(const Level::Node* node, const Vec3f& velocity);
 
 private:
 
@@ -125,10 +118,42 @@ private:
         static void Process(SweepTestBatch* batch);
     };
 
-    PhysicsLevel(std::vector<const Level::Node*>&& nodes,
-        std::vector<Vec3f>& positions,
-        std::vector<RigidBody>&& bodies,
-        ThreadPool& threadPool);
+    /// Mapping between a node and its index into the various arrays below.
+    /// We maintain a sorted vector of NodeAndIndex so we can quickly find
+    /// the index of a node using binary search.
+    class NodeAndIndex
+    {
+    public:
+        static constexpr size_t kInvalidIndex = std::numeric_limits<size_t>::max();
+        
+        NodeAndIndex() = delete;
+
+        NodeAndIndex(const Level::Node* node, size_t index)
+            : m_Node(node), m_Index(index)
+        {
+        }
+
+        const Level::Node* GetNode() const { return m_Node; }
+        size_t GetIndex() const { return m_Index; }
+
+        friend auto operator<=>(const NodeAndIndex& a, const NodeAndIndex& b)
+        {
+            return a.m_Node <=> b.m_Node;
+        }
+
+        friend bool operator==(const NodeAndIndex& lhs, const NodeAndIndex& rhs) = default;
+        friend bool operator!=(const NodeAndIndex& lhs, const NodeAndIndex& rhs) = default;
+
+    private:
+        friend class PhysicsLevel;
+
+        const Level::Node* m_Node{nullptr};
+        size_t m_Index{0};
+    };
+
+    PhysicsLevel(const std::span<const Level::Node>& nodes, ThreadPool& threadPool);
+
+    size_t GetNodeIndex(const Level::Node* node) const;
 
     void ResolveImpact(const ImpactRecord& impact);
 
@@ -138,10 +163,13 @@ private:
 
     static bool SphereSphereSweep(const SphereSweepParams& params, ImpactResult& impactResult);
 
+    // Sorted mapping of nodes to their index in the various arrays below.
+    std::vector<NodeAndIndex> m_NodeIndexMap;
+    // Nodes in the level that have rigid bodies.
+    // These are stored in the same order as the other arrays below.
     std::vector<const Level::Node*> m_Nodes;
     std::vector<float> m_PosPool[2][3];
     std::vector<float> m_LinearVelocitiesPool[3];
-    VVec3 m_LinearVelocities;
     std::vector<float> m_AccelerationPool[2][3];
     std::vector<RigidBody> m_Bodies;
     // Tracks which bodies are active in the current frame.
@@ -157,6 +185,8 @@ private:
     VVec3 m_A0;
     //Accelerations for the next frame.
     VVec3 m_A1;
+
+    VVec3 m_LinearVelocities;
 
     GridHash m_GridHash{GRID_CELL_SIZE};
 
