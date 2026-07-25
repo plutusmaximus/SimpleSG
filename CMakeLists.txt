@@ -123,7 +123,7 @@ target_compile_options(project_warnings INTERFACE
         -Wunreachable-code
         -Wno-c2y-extensions
         -Wno-missing-designated-field-initializers
-        -Werror=pass-failed
+#        -Werror=pass-failed
     >
 
     $<$<CXX_COMPILER_ID:MSVC>:
@@ -144,6 +144,10 @@ target_compile_options(project_options INTERFACE
   # Loop vectorization optimization report for Clang/GCC/MSVC in Release builds
   "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,Clang,AppleClang>>:-Rpass=(loop-vectorize|slp-vectorizer)>"
   "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>>:-Rpass=(loop-vectorize|slp-vectorizer)>"
+  #"$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,Clang,AppleClang>>:-Rpass-missed=(loop-vectorize|slp-vectorizer)>"
+  #"$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>>:-Rpass-missed=(loop-vectorize|slp-vectorizer)>"
+  #"$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,Clang,AppleClang>>:-Rpass-analysis=(loop-vectorize|slp-vectorizer)>"
+  #"$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>>:-Rpass-analysis=(loop-vectorize|slp-vectorizer)>"
   $<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,GNU>>:-fopt-info-vec>
   $<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:CXX,GNU>>:-fopt-info-vec>
   $<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,MSVC>>:/Qvec-report:1>

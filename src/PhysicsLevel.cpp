@@ -59,38 +59,39 @@ void
 PhysicsLevel::PredictPositions(const float dt)
 {
     MLG_SCOPED_TIMER("Physics.PredictPositions");
+    const float* __restrict p0x = m_P1.X.data();
+    const float* __restrict p0y = m_P1.Y.data();
+    const float* __restrict p0z = m_P1.Z.data();
+    float* __restrict p1x = m_P0.X.data();
+    float* __restrict p1y = m_P0.Y.data();
+    float* __restrict p1z = m_P0.Z.data();
+    const float* __restrict v0x = m_LinearVelocities.X.data();
+    const float* __restrict v0y = m_LinearVelocities.Y.data();
+    const float* __restrict v0z = m_LinearVelocities.Z.data();
+    const float* __restrict a0x = m_A0.X.data();
+    const float* __restrict a0y = m_A0.Y.data();
+    const float* __restrict a0z = m_A0.Z.data();
 
-    const auto range = std::views::zip(m_ActiveBodies,
-        m_LinearVelocities.X,
-        m_LinearVelocities.Y,
-        m_LinearVelocities.Z,
-        m_A0.X,
-        m_A0.Y,
-        m_A0.Z,
-        m_P0.X,
-        m_P0.Y,
-        m_P0.Z,
-        m_P1.X,
-        m_P1.Y,
-        m_P1.Z);
+    const float ascale = 0.5f * dt * dt;
+    const size_t count = m_ActiveBodies.size();
 
-    for(auto&& [isActive, v0x, v0y, v0z, a0x, a0y, a0z, p0x, p0y, p0z, p1x, p1y, p1z] : range)
+    for(size_t i = 0; i < count; ++i)
     {
-        if(!isActive)
+        if(!m_ActiveBodies[i])
         {
             continue;
         }
-        // Update position using velocity and acceleration from previous time step.
+
         // p = ∫ v dt
         // v = v0 + a * t
         // p1 = ∫ (v0 + a * t) dt
         // p1 = p0 + v0*dt + 0.5 * a0 * dt^2
 
-        const float ascale = 0.5f * dt * dt;
-
-        p1x = p0x + (v0x * dt) + (ascale * a0x);
-        p1y = p0y + (v0y * dt) + (ascale * a0y);
-        p1z = p0z + (v0z * dt) + (ascale * a0z);
+        // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+        p1x[i] = p0x[i] + (v0x[i] * dt) + (ascale * a0x[i]);
+        p1y[i] = p0y[i] + (v0y[i] * dt) + (ascale * a0y[i]);
+        p1z[i] = p0z[i] + (v0z[i] * dt) + (ascale * a0z[i]);
+        // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     }
 }
 
