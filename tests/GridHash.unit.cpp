@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
-#include "BoundingVolumes.h"
 #include "GridHash.h"
+#include "VecMath.h"
 
 #include <algorithm>
 #include <array>
@@ -14,20 +14,10 @@
 
 namespace
 {
-	BoundingSphere MakeSphere(float radius)
-	{
-		return BoundingSphere{ Vec3f{0}, radius };
-	}
-
-	BoundingSphere MakeSphere()
-	{
-		return MakeSphere(0.1f);
-	}
-
-	BoundingSphere MakeSphere(const Vec3f& center, const float radius)
-	{
-		return BoundingSphere{ center, radius };
-	}
+	constexpr float kDefaultRadius = 0.1f;
+	constexpr float kTinyRadius = 0.001f;
+	constexpr float kBoundaryCrossingRadius = 0.2f;
+	constexpr float kComparisonRadius = 0.25f;
 }
 
 TEST(UniqueBodyPairSet, GrowsAndRetainsItems)
@@ -82,8 +72,8 @@ TEST(GridHash, PotentialCollisionCountAndIteratorsAreStable)
 {
 	GridHash hash{3};
 
-	hash.Add(Vec3f{0.1f}, Vec3f{0.9f}, MakeSphere(), 5);
-	hash.Add(Vec3f{0.2f}, Vec3f{0.8f}, MakeSphere(), 2);
+	hash.Add(Vec3f{0.1f}, Vec3f{0.9f}, kDefaultRadius, 5);
+	hash.Add(Vec3f{0.2f}, Vec3f{0.8f}, kDefaultRadius, 2);
 
 	EXPECT_EQ(hash.PotentialCollisionCount(), 1u);
 	EXPECT_EQ(hash.PotentialCollisionCount(), 1u);
@@ -96,9 +86,9 @@ TEST(GridHash, NegativeCoordinatesAreQuantizedUsingFloor)
 {
 	GridHash hash{3};
 
-	hash.Add(Vec3f{-0.1f}, Vec3f{-0.1f}, MakeSphere(0.001f), 0);
-	hash.Add(Vec3f{-2.9f}, Vec3f{-2.9f}, MakeSphere(0.001f), 1);
-	hash.Add(Vec3f{0.1f}, Vec3f{0.1f}, MakeSphere(0.001f), 2);
+	hash.Add(Vec3f{-0.1f}, Vec3f{-0.1f}, kTinyRadius, 0);
+	hash.Add(Vec3f{-2.9f}, Vec3f{-2.9f}, kTinyRadius, 1);
+	hash.Add(Vec3f{0.1f}, Vec3f{0.1f}, kTinyRadius, 2);
 
 	const std::vector<BodyPair> pairs(hash.begin(), hash.end());
 
@@ -106,22 +96,20 @@ TEST(GridHash, NegativeCoordinatesAreQuantizedUsingFloor)
 	EXPECT_EQ(pairs[0], BodyPair(0, 1));
 }
 
-TEST(GridHash, BoundingSphereCenterAndRadiusExpandOccupiedCells)
+TEST(GridHash, SphereRadiusExpandsOccupiedCells)
 {
 	GridHash hash{3};
 
-	// The first body's local sphere center moves its occupied cell from the origin to x=3.
-	hash.Add(Vec3f{0.0f}, Vec3f{0.0f}, MakeSphere(Vec3f{3.1f, 0.0f, 0.0f}, 0.001f), 0);
-	hash.Add(Vec3f{3.1f, 0.0f, 0.0f}, Vec3f{3.1f, 0.0f, 0.0f}, MakeSphere(0.001f), 1);
+	hash.Add(Vec3f{0.0f}, Vec3f{0.0f}, kTinyRadius, 0);
+	hash.Add(Vec3f{3.1f, 0.0f, 0.0f}, Vec3f{3.1f, 0.0f, 0.0f}, kTinyRadius, 1);
 
 	// Radius makes this body cross the x=3 cell boundary and share the same cell as body 1.
-	hash.Add(Vec3f{2.9f, 0.0f, 0.0f}, Vec3f{2.9f, 0.0f, 0.0f}, MakeSphere(0.2f), 2);
+	hash.Add(Vec3f{2.9f, 0.0f, 0.0f}, Vec3f{2.9f, 0.0f, 0.0f}, kBoundaryCrossingRadius, 2);
 
 	std::vector<BodyPair> pairs(hash.begin(), hash.end());
 	std::ranges::sort(pairs);
 
 	const std::vector<BodyPair> expected{
-		BodyPair(0, 1),
 		BodyPair(0, 2),
 		BodyPair(1, 2),
 	};
@@ -135,7 +123,7 @@ TEST(GridHash, SingleBodyProducesNoPairs)
 	hash.Add(
 		Vec3f{ 0.8f, 0.8f, 0.8f },
 		Vec3f{ 0.2f, 0.2f, 0.2f },
-		MakeSphere(),
+		kDefaultRadius,
 		3);
 
     const std::span pairs(hash);
@@ -149,13 +137,13 @@ TEST(GridHash, TwoBodiesInSameCellProduceOneOrderedPair)
 	hash.Add(
 		Vec3f{ 0.9f, 0.9f, 0.9f },
 		Vec3f{ 0.1f, 0.1f, 0.1f },
-		MakeSphere(),
+		kDefaultRadius,
 		7);
 
 	hash.Add(
 		Vec3f{ 1.8f, 1.8f, 1.8f },
 		Vec3f{ 1.0f, 1.0f, 1.0f },
-		MakeSphere(),
+		kDefaultRadius,
 		3);
 
     const std::span pairs(hash);
@@ -171,13 +159,13 @@ TEST(GridHash, SharedAcrossManyCellsStillProducesUniquePair)
 	hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
 		Vec3f{ 9.9f, 9.9f, 0.2f },
-		MakeSphere(),
+		kDefaultRadius,
 		0);
 
 	hash.Add(
 		Vec3f{ 0.2f, 0.2f, 0.1f },
 		Vec3f{ 9.8f, 9.8f, 0.2f },
-		MakeSphere(),
+		kDefaultRadius,
 		1);
 
     const std::span pairs(hash);
@@ -193,17 +181,17 @@ TEST(GridHash, ThreeBodiesInOneCellGenerateAllUniquePairs)
 	hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
 		Vec3f{ 0.9f, 0.9f, 0.9f },
-		MakeSphere(),
+		kDefaultRadius,
 		0);
 	hash.Add(
 		Vec3f{ 0.7f, 0.7f, 0.7f },
 		Vec3f{ 0.3f, 0.3f, 0.3f },
-		MakeSphere(),
+		kDefaultRadius,
 		1);
 	hash.Add(
 		Vec3f{ 0.4f, 0.4f, 0.4f },
 		Vec3f{ 0.6f, 0.6f, 0.6f },
-		MakeSphere(),
+		kDefaultRadius,
 		2);
 
     const std::span pairs(hash);
@@ -221,12 +209,12 @@ TEST(GridHash, ClearRemovesExistingCellsAndPairs)
 	hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
 		Vec3f{ 0.9f, 0.9f, 0.9f },
-		MakeSphere(),
+		kDefaultRadius,
 		0);
 	hash.Add(
 		Vec3f{ 0.2f, 0.2f, 0.2f },
 		Vec3f{ 0.8f, 0.8f, 0.8f },
-		MakeSphere(),
+		kDefaultRadius,
 		1);
 
     const std::span beforeClear(hash);
@@ -240,12 +228,12 @@ TEST(GridHash, ClearRemovesExistingCellsAndPairs)
 	hash.Add(
 		Vec3f{ 0.1f, 0.1f, 0.1f },
 		Vec3f{ 0.2f, 0.2f, 0.2f },
-		MakeSphere(),
+		kDefaultRadius,
 		0);
 	hash.Add(
 		Vec3f{ 20.2f, 20.2f, 20.2f },
 		Vec3f{ 20.1f, 20.1f, 20.1f },
-		MakeSphere(),
+		kDefaultRadius,
 		1);
 
 	const std::span nonOverlappingPairs(hash);
@@ -258,8 +246,8 @@ TEST(GridHash, ClearAllowsTheSamePairToBeGeneratedAgain)
 
 	const auto addPair = [&hash]()
 	{
-		hash.Add(Vec3f{0.1f}, Vec3f{0.9f}, MakeSphere(), 0);
-		hash.Add(Vec3f{0.2f}, Vec3f{0.8f}, MakeSphere(), 1);
+		hash.Add(Vec3f{0.1f}, Vec3f{0.9f}, kDefaultRadius, 0);
+		hash.Add(Vec3f{0.2f}, Vec3f{0.8f}, kDefaultRadius, 1);
 	};
 
 	addPair();
@@ -279,7 +267,7 @@ TEST(GridHash, GrowsUniquePairStorage)
 
 	for(uint32_t bodyIndex = 0; bodyIndex < kBodyCount; ++bodyIndex)
 	{
-		hash.Add(Vec3f{0.1f}, Vec3f{0.9f}, MakeSphere(), bodyIndex);
+		hash.Add(Vec3f{0.1f}, Vec3f{0.9f}, kDefaultRadius, bodyIndex);
 	}
 
 	const size_t expectedCount =
@@ -306,8 +294,8 @@ TEST(GridHash, GrowsUniquePairStorage)
 TEST(GridHash, MoveConstructionAndAssignmentPreservePairs)
 {
 	GridHash source{3};
-	source.Add(Vec3f{0.1f}, Vec3f{0.9f}, MakeSphere(), 4);
-	source.Add(Vec3f{0.2f}, Vec3f{0.8f}, MakeSphere(), 9);
+	source.Add(Vec3f{0.1f}, Vec3f{0.9f}, kDefaultRadius, 4);
+	source.Add(Vec3f{0.2f}, Vec3f{0.8f}, kDefaultRadius, 9);
 
 	GridHash moveConstructed{std::move(source)};
 	ASSERT_EQ(moveConstructed.PotentialCollisionCount(), 1u);
@@ -336,17 +324,17 @@ TEST(GridHash, GridHash4AndGridHash5ContainSameBodyPairSet)
 
 	const std::vector<BodyInput> bodies//
 	{
-		{ .Min{ 0.0f, 0.0f, 0.0f }, .Max{ 2.0f, 2.0f, 2.0f }, .Radius = 0.25f, .BodyIndex = 0 },
-		{ .Min{ 1.0f, 1.0f, 1.0f }, .Max{ 3.0f, 3.0f, 3.0f }, .Radius = 0.25f, .BodyIndex = 1 },
-		{ .Min{ 10.0f, 0.0f, 0.0f }, .Max{ 12.0f, 2.0f, 2.0f }, .Radius = 0.25f, .BodyIndex = 2 },
-		{ .Min{ 11.0f, 1.0f, 1.0f }, .Max{ 13.0f, 3.0f, 3.0f }, .Radius = 0.25f, .BodyIndex = 3 },
-		{ .Min{ 50.0f, 50.0f, 50.0f }, .Max{ 52.0f, 52.0f, 52.0f }, .Radius = 0.25f, .BodyIndex = 4 },
+		{ .Min{ 0.0f, 0.0f, 0.0f }, .Max{ 2.0f, 2.0f, 2.0f }, .Radius = kComparisonRadius, .BodyIndex = 0 },
+		{ .Min{ 1.0f, 1.0f, 1.0f }, .Max{ 3.0f, 3.0f, 3.0f }, .Radius = kComparisonRadius, .BodyIndex = 1 },
+		{ .Min{ 10.0f, 0.0f, 0.0f }, .Max{ 12.0f, 2.0f, 2.0f }, .Radius = kComparisonRadius, .BodyIndex = 2 },
+		{ .Min{ 11.0f, 1.0f, 1.0f }, .Max{ 13.0f, 3.0f, 3.0f }, .Radius = kComparisonRadius, .BodyIndex = 3 },
+		{ .Min{ 50.0f, 50.0f, 50.0f }, .Max{ 52.0f, 52.0f, 52.0f }, .Radius = kComparisonRadius, .BodyIndex = 4 },
 	};
 
 	for(const BodyInput& body : bodies)
 	{
-		hash2.Add(body.Min, body.Max, MakeSphere(body.Radius), body.BodyIndex);
-		hash3.Add(body.Min, body.Max, MakeSphere(body.Radius), body.BodyIndex);
+		hash2.Add(body.Min, body.Max, body.Radius, body.BodyIndex);
+		hash3.Add(body.Min, body.Max, body.Radius, body.BodyIndex);
 	}
 
 	std::vector<BodyPair> pairs2(hash2.begin(), hash2.end());
@@ -431,7 +419,7 @@ TEST(GridHash, ChaosRandomizedBodies_AllExpectedPairsExist)
                     },
                 };
 
-            hash.Add(body.Min, body.Max, MakeSphere(body.Radius), i);
+			hash.Add(body.Min, body.Max, body.Radius, i);
             bodies.push_back(body);
         }
 

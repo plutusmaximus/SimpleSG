@@ -23,11 +23,11 @@ struct SphereSweepParams
 {
     Vec3f StartPosA;
     Vec3f EndPosA;
-    BoundingSphere SphereA;
+    float SphereRadiusA;
 
     Vec3f StartPosB;
     Vec3f EndPosB;
-    BoundingSphere SphereB;
+    float SphereRadiusB;
 };
 
 struct ImpactRecord
@@ -65,16 +65,16 @@ struct ImpactRecord
     }
 };
 
+struct VVec3
+{
+    std::span<float> X;
+    std::span<float> Y;
+    std::span<float> Z;
+};
+
 class PhysicsLevel
 {
 public:
-
-    struct VVec3
-    {
-        std::span<float> X;
-        std::span<float> Y;
-        std::span<float> Z;
-    };
 
     constexpr static size_t GRID_CELL_SIZE = 2;
 
@@ -92,6 +92,8 @@ public:
 
     void Resolve();
 
+    void ApplyImpulse(const Level::Node* node, const Vec3f& impulse);
+
     void AddForce(const Level::Node* node, const Vec3f& force);
 
     void UpdateVelocities(const float dt);
@@ -99,9 +101,10 @@ public:
     Result<> SyncToLevel(Level& level);
 
     std::span<const Level::Node* const> GetNodes() const { return m_Nodes; }
-    std::span<const RigidBody> GetBodies() const { return m_Bodies; }
     const VVec3& GetPositions() const { return m_P0; }
     const VVec3& GetLinearVelocities() const { return m_LinearVelocities; }
+    std::span<const float> GetRadii() const { return m_Radii; }
+    std::span<const float> GetInverseMasses() const { return m_InvMasses; }
 
     void SetLinearVelocity(const Level::Node* node, const Vec3f& velocity);
 
@@ -171,7 +174,8 @@ private:
     std::vector<float> m_PosPool[2][3];
     std::vector<float> m_LinearVelocitiesPool[3];
     std::vector<float> m_AccelerationPool[2][3];
-    std::vector<RigidBody> m_Bodies;
+    std::vector<float> m_Radii; // Radii of the bounding spheres of the rigid bodies.
+    std::vector<float> m_InvMasses; // Inverse masses of the rigid bodies.
     // Tracks which bodies are active in the current frame.
     std::vector<bool> m_ActiveBodies;
 

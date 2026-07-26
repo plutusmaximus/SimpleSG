@@ -157,7 +157,7 @@ public:
     /// @param bodyIndex The index of the body.
     void Add(const Vec3f& p0,
         const Vec3f& p1,
-        const BoundingSphere& boundingSphere,
+        const float sphereRadius,
         const uint32_t bodyIndex);
 
     using iterator = std::vector<BodyPair>::iterator;

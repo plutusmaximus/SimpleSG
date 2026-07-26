@@ -12,6 +12,8 @@
 static constexpr float RESTING_VELOCITY_THRESHOLD = 1.0f/128;
 static constexpr float COEFF_OF_RESTITUTION = 0.8f;
 
+static constexpr bool kSweepTestsMultiThreaded = false;
+
 // FIXME(KB) - Calculate world space pos for collision detection.
 
 Result<PhysicsLevel>
@@ -74,12 +76,26 @@ PhysicsLevel::Resolve()
 }
 
 void
+PhysicsLevel::ApplyImpulse(const Level::Node* node, const Vec3f& impulse)
+{
+    const size_t index = GetNodeIndex(node);
+    if(MLG_VERIFY(index != NodeAndIndex::kInvalidIndex, "Node not found in PhysicsLevel"))
+    {
+        // dv = J / m
+        const Vec3 dv = impulse * m_InvMasses[index];
+        m_LinearVelocities.X[index] += dv.x;
+        m_LinearVelocities.Y[index] += dv.y;
+        m_LinearVelocities.Z[index] += dv.z;
+    }
+}
+
+void
 PhysicsLevel::AddForce(const Level::Node* node, const Vec3f& force)
 {
     const size_t index = GetNodeIndex(node);
     if(MLG_VERIFY(index != NodeAndIndex::kInvalidIndex, "Node not found in PhysicsLevel"))
     {
-        const Vec3 accel = force * m_Bodies[index].GetMass().InvValue();
+        const Vec3 accel = force * m_InvMasses[index];
         m_A1.X[index] += accel.x;
         m_A1.Y[index] += accel.y;
         m_A1.Z[index] += accel.z;
@@ -155,8 +171,6 @@ PhysicsLevel::SetLinearVelocity(const Level::Node* node, const Vec3f& velocity)
 
 // private:
 
-#define FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED 0
-
 PhysicsLevel::PhysicsLevel(const std::span<const Level::Node>& nodes, ThreadPool& threadPool)
 : m_ThreadPool(&threadPool)
 {
@@ -174,7 +188,8 @@ PhysicsLevel::PhysicsLevel(const std::span<const Level::Node>& nodes, ThreadPool
     m_PosPool[0][0].reserve(bodyCount);
     m_PosPool[0][1].reserve(bodyCount);
     m_PosPool[0][2].reserve(bodyCount);
-    m_Bodies.reserve(bodyCount);
+    m_Radii.reserve(bodyCount);
+    m_InvMasses.reserve(bodyCount);
     m_ActiveBodies.reserve(bodyCount);
 
     for(const auto& node : nodes)
@@ -191,10 +206,14 @@ PhysicsLevel::PhysicsLevel(const std::span<const Level::Node>& nodes, ThreadPool
         m_NodeIndexMap.emplace_back(&node, m_Nodes.size());
 
         m_Nodes.emplace_back(&node);
-        m_PosPool[0][0].emplace_back(node.WorldTransform[3].x);
-        m_PosPool[0][1].emplace_back(node.WorldTransform[3].y);
-        m_PosPool[0][2].emplace_back(node.WorldTransform[3].z);
-        m_Bodies.emplace_back(*optBody);
+
+        const BoundingSphere& sphere = node.WorldTransform * optBody->GetBoundingSphere();
+
+        m_PosPool[0][0].emplace_back(sphere.GetCenter().x);
+        m_PosPool[0][1].emplace_back(sphere.GetCenter().y);
+        m_PosPool[0][2].emplace_back(sphere.GetCenter().z);
+        m_Radii.emplace_back(sphere.GetRadius());
+        m_InvMasses.emplace_back(optBody->GetMass().InvValue());
         m_ActiveBodies.emplace_back(node.IsActive());
     }
 
@@ -202,13 +221,13 @@ PhysicsLevel::PhysicsLevel(const std::span<const Level::Node>& nodes, ThreadPool
     m_PosPool[1][1] = m_PosPool[0][1]; // Make a copy
     m_PosPool[1][2] = m_PosPool[0][2]; // Make a copy
 
-    m_LinearVelocitiesPool[0].resize(m_Bodies.size(), 0);
-    m_LinearVelocitiesPool[1].resize(m_Bodies.size(), 0);
-    m_LinearVelocitiesPool[2].resize(m_Bodies.size(), 0);
+    m_LinearVelocitiesPool[0].resize(m_Nodes.size(), 0);
+    m_LinearVelocitiesPool[1] = m_LinearVelocitiesPool[0]; // Make a copy
+    m_LinearVelocitiesPool[2] = m_LinearVelocitiesPool[0]; // Make a copy
 
-    m_AccelerationPool[0][0].resize(m_Bodies.size(), 0);
-    m_AccelerationPool[0][1].resize(m_Bodies.size(), 0);
-    m_AccelerationPool[0][2].resize(m_Bodies.size(), 0);
+    m_AccelerationPool[0][0] = m_LinearVelocitiesPool[0]; // Make a copy
+    m_AccelerationPool[0][1] = m_LinearVelocitiesPool[0]; // Make a copy
+    m_AccelerationPool[0][2] = m_LinearVelocitiesPool[0]; // Make a copy
 
     m_AccelerationPool[1][0] = m_AccelerationPool[0][0]; // Make a copy
     m_AccelerationPool[1][1] = m_AccelerationPool[0][1]; // Make a copy
@@ -275,28 +294,40 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
     const size_t indexA = bodyPair.IndexA();
     const size_t indexB = bodyPair.IndexB();
 
-    const RigidBody& bodyA = m_Bodies[indexA];
-    const RigidBody& bodyB = m_Bodies[indexB];
-
-    Vec3f velA{ m_LinearVelocities.X[indexA], m_LinearVelocities.Y[indexA], m_LinearVelocities.Z[indexA] };
-    Vec3f velB{ m_LinearVelocities.X[indexB], m_LinearVelocities.Y[indexB], m_LinearVelocities.Z[indexB] };
+    Vec3f velA //
+        {
+            m_LinearVelocities.X[indexA],
+            m_LinearVelocities.Y[indexA],
+            m_LinearVelocities.Z[indexA],
+        };
+    Vec3f velB //
+        {
+            m_LinearVelocities.X[indexB],
+            m_LinearVelocities.Y[indexB],
+            m_LinearVelocities.Z[indexB],
+        };
 
     // Compute relative velocity along the normal
     const float vRel = (velA - velB).Dot(impactResult.ContactNormalBtoA);
 
-    // Only resolve if bodies are moving towards each other
-    if(vRel < 0)
+    const float invMA = m_InvMasses[indexA];
+    const float invMB = m_InvMasses[indexB];
+    const float invMassSum = invMA + invMB;
+
+    // Only resolve if bodies are moving towards each other and at least one body has finite mass.
+    if(vRel < 0 && invMassSum > 0.0f)
     {
         // Impulse
 
-        // n = contact normal
-        // vrel ​= (vA​−vB​)⋅n
-        // j = -(1 + e) * vrel / (1/mA + 1/mB)
-        // vA' += n * (j / mA)
-        // vA' += n * -(1 + e) * vRel * (1/mA) * (1 / (1/mA + 1/mB))
-        // vA' += n * -(1 + e) * vRel * (1/(mA * (mA + mB)/(mA * mB)))
-        // vA' += n * -(1 + e) * vRel * ((mA * mB)/(mA * (mA + mB))
-        // vA' += n * -(1 + e) * vRel * mB/(mA + mB)
+        // n      = contact normal from B to A
+        // vRel   = (vA - vB) dot n
+        // invMA  = 1 / mA
+        // invMB  = 1 / mB
+        //
+        // j = -(1 + e) * vRel / (invMA + invMB)
+        //
+        // deltaVA =  j * invMA * n
+        // deltaVB = -j * invMB * n
 
         const float e =
             (vRel < -RESTING_VELOCITY_THRESHOLD)
@@ -307,11 +338,11 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
             // treat as a resting contact.
             : 0.0f;
 
-        const float k = -(1 + e) * vRel / (bodyA.GetMass().Value() + bodyB.GetMass().Value());
-        const Vec3f u = k * impactResult.ContactNormalBtoA;
+        const float impulseMagnitude = -(1.0f + e) * vRel / invMassSum;
+        const Vec3f impulse = impulseMagnitude * impactResult.ContactNormalBtoA;
 
-        velA += u * bodyB.GetMass().Value();
-        velB -= u * bodyA.GetMass().Value();
+        velA += impulse * invMA;
+        velB -= impulse * invMB;
 
         m_LinearVelocities.X[indexA] = velA.x;
         m_LinearVelocities.Y[indexA] = velA.y;
@@ -326,7 +357,7 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
 
     MLG_ASSERT(impactResult.PenetrationDepth >= 0, "Penetration depth should be non-negative");
 
-    if(0 == impactResult.PenetrationDepth)
+    if(0 == impactResult.PenetrationDepth && invMassSum > 0.0f)
     {
         // Move bodies to point of impact.
         m_P1.X[indexA] = impactResult.PosAtImpactA.x;
@@ -362,10 +393,6 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
         // FIXME(KB) - parameterize this.
         constexpr float kCorrectionPercent = 0.1f;
 
-        const float invMA = bodyA.GetMass().InvValue();
-        const float invMB = bodyB.GetMass().InvValue();
-        const float invMassSum = invMA + invMB;
-
         const float C =
             std::max(0.0f, impactResult.PenetrationDepth - kCorrectionSlop) * kCorrectionPercent;
 
@@ -394,7 +421,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
         m_ActiveBodies.size());
 
     const auto indices = std::views::iota(0u, static_cast<uint32_t>(m_ActiveBodies.size()));
-    const auto range = std::views::zip(m_Bodies,
+    const auto range = std::views::zip(m_Radii,
         m_ActiveBodies,
         m_P0.X,
         m_P0.Y,
@@ -411,7 +438,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
 
         // Bodies will be added to all cells of the grid overlapped by the bounding box
         // defined by the current and predicted position.
-        for(auto&& [body, isActive, p0x, p0y, p0z, p1x, p1y, p1z, index] : range)
+        for(auto&& [radius, isActive, p0x, p0y, p0z, p1x, p1y, p1z, index] : range)
         {
             if(!isActive)
             {
@@ -422,7 +449,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
             // defined by the current and predicted position.
 
             //FIXME(KB) - transform bounding spher to world space and use its position.
-            m_GridHash.Add({ p0x, p0y, p0z }, { p1x, p1y, p1z }, body.GetBoundingSphere(), index);
+            m_GridHash.Add({ p0x, p0y, p0z }, { p1x, p1y, p1z }, radius, index);
         }
 
         potentialCollisionCount = m_GridHash.PotentialCollisionCount();
@@ -458,17 +485,20 @@ PhysicsLevel::FindAndResolveAllImpacts()
         // Collect impact records into batches and enqueue for processing.
         for(const BodyPair& bodyPair : m_GridHash)
         {
+            const size_t indexA = bodyPair.IndexA();
+            const size_t indexB = bodyPair.IndexB();
+
             const ImpactRecord impactRecord //
                 {
                     .Bodies = bodyPair,
                     .SweepParams //
                     {
-                        .StartPosA{m_P0.X[bodyPair.IndexA()], m_P0.Y[bodyPair.IndexA()], m_P0.Z[bodyPair.IndexA()]},
-                        .EndPosA{m_P1.X[bodyPair.IndexA()], m_P1.Y[bodyPair.IndexA()], m_P1.Z[bodyPair.IndexA()]},
-                        .SphereA = m_Bodies[bodyPair.IndexA()].GetBoundingSphere(),
-                        .StartPosB{m_P0.X[bodyPair.IndexB()], m_P0.Y[bodyPair.IndexB()], m_P0.Z[bodyPair.IndexB()]},
-                        .EndPosB{m_P1.X[bodyPair.IndexB()], m_P1.Y[bodyPair.IndexB()], m_P1.Z[bodyPair.IndexB()]},
-                        .SphereB = m_Bodies[bodyPair.IndexB()].GetBoundingSphere(),
+                        .StartPosA{m_P0.X[indexA], m_P0.Y[indexA], m_P0.Z[indexA]},
+                        .EndPosA{m_P1.X[indexA], m_P1.Y[indexA], m_P1.Z[indexA]},
+                        .SphereRadiusA = m_Radii[indexA],
+                        .StartPosB{m_P0.X[indexB], m_P0.Y[indexB], m_P0.Z[indexB]},
+                        .EndPosB{m_P1.X[indexB], m_P1.Y[indexB], m_P1.Z[indexB]},
+                        .SphereRadiusB = m_Radii[indexB],
                     },
                 };
 
@@ -539,11 +569,14 @@ PhysicsLevel::FindAndResolveAllImpacts()
 void
 PhysicsLevel::EnqueueSweepTests(SweepTestBatch* batch) // NOLINT(readability-convert-member-functions-to-static,-warnings-as-errors)
 {
-#if FIND_AND_RESOLVE_ALL_IMPACTS_MULTITHREADED
-    m_ThreadPool->Enqueue<SweepTestBatch::Process>(batch);
-#else
-    SweepTestBatch::Process(batch);
-#endif
+    if constexpr (kSweepTestsMultiThreaded)
+    {
+        m_ThreadPool->Enqueue<SweepTestBatch::Process>(batch);
+    }
+    else
+    {
+        SweepTestBatch::Process(batch);
+    }
 }
 
 bool
@@ -571,18 +604,15 @@ PhysicsLevel::SphereSphereSweep(const SphereSweepParams& params, ImpactResult& i
     //
     // Solve the quadratic equation for t.
 
-    const BoundingSphere& sphereA = params.SphereA;
-    const BoundingSphere& sphereB = params.SphereB;
-
-    const Vec3f pA0 = params.StartPosA + sphereA.GetCenter();
-    const Vec3f pA1 = params.EndPosA + sphereA.GetCenter();
-    const Vec3f pB0 = params.StartPosB + sphereB.GetCenter();
-    const Vec3f pB1 = params.EndPosB + sphereB.GetCenter();
+    const Vec3f pA0 = params.StartPosA;
+    const Vec3f pA1 = params.EndPosA;
+    const Vec3f pB0 = params.StartPosB;
+    const Vec3f pB1 = params.EndPosB;
 
     const Vec3f relP0 = pA0 - pB0;
     const Vec3f relP1 = pA1 - pB1;
     const Vec3f relMo = relP1 - relP0;
-    const float r = sphereA.GetRadius() + sphereB.GetRadius();
+    const float r = params.SphereRadiusA + params.SphereRadiusB;
     const float r2 = r * r;
     const float dist0Sqr = relP0.Dot(relP0);
 
@@ -618,7 +648,7 @@ PhysicsLevel::SphereSphereSweep(const SphereSweepParams& params, ImpactResult& i
             impactResult.ContactNormalBtoA = relP0 / std::sqrt(dist0Sqr);
         }
 
-        impactResult.ContactPoint = pB0 + impactResult.ContactNormalBtoA * sphereB.GetRadius();
+        impactResult.ContactPoint = pB0 + impactResult.ContactNormalBtoA * params.SphereRadiusB;
         impactResult.PosAtImpactA = pA0;
         impactResult.PosAtImpactB = pB0;
 
@@ -690,7 +720,7 @@ PhysicsLevel::SphereSphereSweep(const SphereSweepParams& params, ImpactResult& i
     // Saves a sqrt operation.
     impactResult.ContactNormalBtoA /= r;
     impactResult.ContactPoint =
-        impactResult.PosAtImpactB + (impactResult.ContactNormalBtoA * sphereB.GetRadius());
+        impactResult.PosAtImpactB + (impactResult.ContactNormalBtoA * params.SphereRadiusB);
     impactResult.PenetrationDepth = 0;
 
     return true;

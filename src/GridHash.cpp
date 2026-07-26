@@ -364,7 +364,7 @@ GridHash::Clear()
 void
 GridHash::Add(const Vec3f& p0,
     const Vec3f& p1,
-    const BoundingSphere& boundingSphere,
+    const float sphereRadius,
     const uint32_t bodyIndex)
 {
     MLG_SCOPED_TIMER("GridHash.Add");
@@ -372,13 +372,12 @@ GridHash::Add(const Vec3f& p0,
     MLG_ASSERT(m_NeedsSort,
         "Adding bodies after potential collisions have been generated. Is that intentional?");
 
-    const Vec3f vradius(boundingSphere.GetRadius());
-    const Vec3f& center = boundingSphere.GetCenter();
+    const Vec3f vradius(sphereRadius);
 
     const Vec3f pmin =
-        Vec3f(std::min(p0.x, p1.x), std::min(p0.y, p1.y), std::min(p0.z, p1.z)) + center - vradius;
+        Vec3f(std::min(p0.x, p1.x), std::min(p0.y, p1.y), std::min(p0.z, p1.z)) - vradius;
     const Vec3f pmax =
-        Vec3f(std::max(p0.x, p1.x), std::max(p0.y, p1.y), std::max(p0.z, p1.z)) + center + vradius;
+        Vec3f(std::max(p0.x, p1.x), std::max(p0.y, p1.y), std::max(p0.z, p1.z)) + vradius;
 
     const int32_t minX = Quantize(pmin.x);
     const int32_t minY = Quantize(pmin.y);

@@ -227,11 +227,11 @@ struct ApplyGravityBatchParams
     size_t StartIndexB{ 0 };
     size_t BatchSize{ 0 };
 
-    std::span<float> BodyX;
-    std::span<float> BodyY;
-    std::span<float> BodyZ;
-    std::span<float> BodyRadius;
-    std::span<float> BodyMass;
+    std::span<const float> BodyX;
+    std::span<const float> BodyY;
+    std::span<const float> BodyZ;
+    std::span<const float> Radii;
+    std::span<const float> InvMasses;
 
     std::span<float> ForceX;
     std::span<float> ForceY;
@@ -242,20 +242,20 @@ struct ApplyGravityBatchParams
     std::atomic<size_t>* FinishCounter{ nullptr };
 };
 
-[[maybe_unused]] void
+void
 ApplyGravityRow(ApplyGravityBatchParams* batchParams, const size_t i, const size_t jStart, const size_t jEnd)
 {
     const float ax = batchParams->BodyX[i];
     const float ay = batchParams->BodyY[i];
     const float az = batchParams->BodyZ[i];
-    const float ar = batchParams->BodyRadius[i];
-    const float am = batchParams->BodyMass[i];
+    const float ar = batchParams->Radii[i];
+    const float am = 1.0f / batchParams->InvMasses[i];
 
     const float* __restrict centerx = batchParams->BodyX.data();
     const float* __restrict centery = batchParams->BodyY.data();
     const float* __restrict centerz = batchParams->BodyZ.data();
-    const float* __restrict radius = batchParams->BodyRadius.data();
-    const float* __restrict mass = batchParams->BodyMass.data();
+    const float* __restrict radii = batchParams->Radii.data();
+    const float* __restrict invMasses = batchParams->InvMasses.data();
 
     float* __restrict fx = batchParams->ForceX.data();
     float* __restrict fy = batchParams->ForceY.data();
@@ -274,12 +274,12 @@ ApplyGravityRow(ApplyGravityBatchParams* batchParams, const size_t i, const size
         const float dy = centery[j] - ay;
         const float dz = centerz[j] - az;
 
-        const float minR = ar + radius[j];
+        const float minR = ar + radii[j];
         const float minR2 = minR * minR;
         const float delta2 = (dx * dx) + (dy * dy) + (dz * dz);
         const float r2 = std::max(delta2, minR2);
 
-        const float massProduct = am * mass[j];
+        const float massProduct = am * (1.0f / invMasses[j]);
         const float invR = 1.0f / std::sqrt(r2);
 
         const float pe = -kGravitationalConstant * massProduct * invR;
@@ -308,121 +308,6 @@ ApplyGravityRow(ApplyGravityBatchParams* batchParams, const size_t i, const size
     batchParams->PotentialEnergy += energy;
 }
 
-[[maybe_unused]] void
-ApplyGravityRowNeon(ApplyGravityBatchParams* batchParams,
-                    const size_t i,
-                    const size_t jStart,
-                    const size_t jEnd)
-{
-    const float ax = batchParams->BodyX[i];
-    const float ay = batchParams->BodyY[i];
-    const float az = batchParams->BodyZ[i];
-    const float ar = batchParams->BodyRadius[i];
-    const float am = batchParams->BodyMass[i];
-
-    const float* __restrict centerx = batchParams->BodyX.data();
-    const float* __restrict centery = batchParams->BodyY.data();
-    const float* __restrict centerz = batchParams->BodyZ.data();
-    const float* __restrict radius = batchParams->BodyRadius.data();
-    const float* __restrict mass = batchParams->BodyMass.data();
-
-    float* __restrict fx = batchParams->ForceX.data();
-    float* __restrict fy = batchParams->ForceY.data();
-    float* __restrict fz = batchParams->ForceZ.data();
-
-    float32x4_t forceAX = vdupq_n_f32(0.0f);
-    float32x4_t forceAY = vdupq_n_f32(0.0f);
-    float32x4_t forceAZ = vdupq_n_f32(0.0f);
-    float32x4_t energy = vdupq_n_f32(0.0f);
-
-    MLG_ASSERT(jStart < batchParams->BodyX.size(), "StartIndexB must be greater than StartIndexA");
-
-    const float32x4_t avecX = vdupq_n_f32(ax);
-    const float32x4_t avecY = vdupq_n_f32(ay);
-    const float32x4_t avecZ = vdupq_n_f32(az);
-    const float32x4_t avecR = vdupq_n_f32(ar);
-    const float32x4_t avecM = vdupq_n_f32(am);
-    const float32x4_t gravity = vdupq_n_f32(-kGravitationalConstant);
-    const float32x4_t one = vdupq_n_f32(1.0f);
-
-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-    size_t j = jStart;
-    for(; j + 4 <= jEnd; j += 4)
-    {
-        const float32x4_t dx = vsubq_f32(vld1q_f32(centerx + j), avecX);
-        const float32x4_t dy = vsubq_f32(vld1q_f32(centery + j), avecY);
-        const float32x4_t dz = vsubq_f32(vld1q_f32(centerz + j), avecZ);
-
-        const float32x4_t minR = vaddq_f32(avecR, vld1q_f32(radius + j));
-        const float32x4_t minR2 = vmulq_f32(minR, minR);
-        float32x4_t delta2 = vmulq_f32(dx, dx);
-        delta2 = vfmaq_f32(delta2, dy, dy);
-        delta2 = vfmaq_f32(delta2, dz, dz);
-        const float32x4_t r2 = vmaxq_f32(delta2, minR2);
-
-        const float32x4_t massProduct = vmulq_f32(avecM, vld1q_f32(mass + j));
-        const float32x4_t invR = vdivq_f32(one, vsqrtq_f32(r2));
-        const float32x4_t pe = vmulq_f32(gravity, vmulq_f32(massProduct, invR));
-        const float32x4_t scale = vmulq_f32(vnegq_f32(pe), vmulq_f32(invR, invR));
-        //const float32x4_t scale = vdivq_f32(vnegq_f32(pe), r2);
-
-        const float32x4_t forceX = vmulq_f32(scale, dx);
-        const float32x4_t forceY = vmulq_f32(scale, dy);
-        const float32x4_t forceZ = vmulq_f32(scale, dz);
-
-        forceAX = vaddq_f32(forceAX, forceX);
-        forceAY = vaddq_f32(forceAY, forceY);
-        forceAZ = vaddq_f32(forceAZ, forceZ);
-        energy = vaddq_f32(energy, pe);
-
-        vst1q_f32(fx + j, vsubq_f32(vld1q_f32(fx + j), forceX));
-        vst1q_f32(fy + j, vsubq_f32(vld1q_f32(fy + j), forceY));
-        vst1q_f32(fz + j, vsubq_f32(vld1q_f32(fz + j), forceZ));
-    }
-
-    float forceAXScalar = vaddvq_f32(forceAX);
-    float forceAYScalar = vaddvq_f32(forceAY);
-    float forceAZScalar = vaddvq_f32(forceAZ);
-    float energyScalar = vaddvq_f32(energy);
-
-    for(; j < jEnd; ++j)
-    {
-        const float dx = centerx[j] - ax;
-        const float dy = centery[j] - ay;
-        const float dz = centerz[j] - az;
-
-        const float minR = ar + radius[j];
-        const float minR2 = minR * minR;
-        const float delta2 = (dx * dx) + (dy * dy) + (dz * dz);
-        const float r2 = std::max(delta2, minR2);
-
-        const float massProduct = am * mass[j];
-        const float invR = 1.0f / std::sqrt(r2);
-        const float pe = -kGravitationalConstant * massProduct * invR;
-        const float scale = -pe / r2;
-
-        const float forceX = scale * dx;
-        const float forceY = scale * dy;
-        const float forceZ = scale * dz;
-
-        forceAXScalar += forceX;
-        forceAYScalar += forceY;
-        forceAZScalar += forceZ;
-        energyScalar += pe;
-
-        fx[j] -= forceX;
-        fy[j] -= forceY;
-        fz[j] -= forceZ;
-    }
-
-    fx[i] += forceAXScalar;
-    fy[i] += forceAYScalar;
-    fz[i] += forceAZScalar;
-
-    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-    batchParams->PotentialEnergy += energyScalar;
-}
-
 void
 ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
 {
@@ -444,7 +329,8 @@ ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
         count += (jEnd - jStart);
     }
 
-    batchParams->FinishCounter->fetch_add(1, std::memory_order_relaxed);
+    batchParams->FinishCounter->fetch_add(1, std::memory_order_release);
+    batchParams->FinishCounter->notify_all();
 }
 
 // Returns the total potential energy of the system after applying gravity.
@@ -453,32 +339,21 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
 {
     MLG_SCOPED_TIMER("Physics.ApplyGravity");
 
-    const std::span<const RigidBody> bodies = physLevel.GetBodies();
-    const auto& positions = physLevel.GetPositions();
+    const std::span nodes = physLevel.GetNodes();
+    const VVec3& positions = physLevel.GetPositions();
 
-    MLG_ASSERT(bodies.size() == positions.X.size(), "Bodies and positions must have the same size");
+    MLG_ASSERT(nodes.size() == positions.X.size(), "Nodes and positions must have the same size");
 
-    const size_t numPairs = bodies.size() * (bodies.size() - 1) / 2;
+    const size_t numPairs = nodes.size() * (nodes.size() - 1) / 2;
     const size_t workerCount = threadPool.GetWorkerCount();
     const size_t batchSize = (numPairs / workerCount) + (numPairs % workerCount != 0 ? 1 : 0);
     const size_t numBatches = (numPairs / batchSize) + (numPairs % batchSize != 0 ? 1 : 0);
 
-    std::vector<float> radius(bodies.size());
-    std::vector<float> mass(bodies.size());
-    std::vector<float> forceX(bodies.size());
-    std::vector<float> forceY(bodies.size());
-    std::vector<float> forceZ(bodies.size());
-
-    for(size_t i = 0; i < bodies.size(); ++i)
-    {
-        const RigidBody& body = bodies[i];
-        const BoundingSphere& sphere = body.GetBoundingSphere();
-        radius[i] = sphere.GetRadius();
-        mass[i] = body.GetMass().Value();
-        forceX[i] = 0;
-        forceY[i] = 0;
-        forceZ[i] = 0;
-    }
+    const std::span radii = physLevel.GetRadii();
+    const std::span invMasses = physLevel.GetInverseMasses();
+    std::vector<std::vector<float>> forceX(numBatches, std::vector<float>(nodes.size(), 0));
+    std::vector<std::vector<float>> forceY(numBatches, std::vector<float>(nodes.size(), 0));
+    std::vector<std::vector<float>> forceZ(numBatches, std::vector<float>(nodes.size(), 0));
 
     size_t pairCount = 0;
 
@@ -488,10 +363,22 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
 
     size_t startIndexA = 0, startIndexB = 1;
 
-    for(size_t i = 0; i < bodies.size(); ++i)
+    for(size_t i = 0; i < nodes.size(); ++i)
     {
-        for(size_t j = i + 1; j < bodies.size(); ++j, ++pairCount)
+        if(invMasses[i] == 0)
         {
+            // Skip infinite mass bodies
+            continue;
+        }
+
+        for(size_t j = i + 1; j < nodes.size(); ++j, ++pairCount)
+        {
+            if(invMasses[j] == 0)
+            {
+                // Skip infinite mass bodies
+                continue;
+            }
+
             if(pairCount >= batchSize)
             {
                 const ApplyGravityBatchParams batchParams //
@@ -502,11 +389,11 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
                         .BodyX = positions.X,
                         .BodyY = positions.Y,
                         .BodyZ = positions.Z,
-                        .BodyRadius = radius,
-                        .BodyMass = mass,
-                        .ForceX = forceX,
-                        .ForceY = forceY,
-                        .ForceZ = forceZ,
+                        .Radii = radii,
+                        .InvMasses = invMasses,
+                        .ForceX = forceX[batches.size()],
+                        .ForceY = forceY[batches.size()],
+                        .ForceZ = forceZ[batches.size()],
                         .FinishCounter = &finishCounter,
                     };
 
@@ -539,11 +426,11 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
                 .BodyX = positions.X,
                 .BodyY = positions.Y,
                 .BodyZ = positions.Z,
-                .BodyRadius = radius,
-                .BodyMass = mass,
-                .ForceX = forceX,
-                .ForceY = forceY,
-                .ForceZ = forceZ,
+                .Radii = radii,
+                .InvMasses = invMasses,
+                .ForceX = forceX[batches.size()],
+                .ForceY = forceY[batches.size()],
+                .ForceZ = forceZ[batches.size()],
                 .FinishCounter = &finishCounter,
             };
 
@@ -561,9 +448,12 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
 
     if constexpr(kApplyGravityMultithreaded)
     {
-        while(finishCounter.load(std::memory_order_relaxed) < batches.size())
+
+        size_t finishCount = finishCounter.load();
+        while(finishCount < batches.size())
         {
-            std::this_thread::yield();
+            finishCounter.wait(finishCount);
+            finishCount = finishCounter.load();
         }
     }
 
@@ -571,15 +461,21 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
 
     float totalPotentialEnergy = 0;
 
-    const std::span nodes = physLevel.GetNodes();
     for(size_t i = 0; i < nodes.size(); ++i)
     {
-        physLevel.AddForce(nodes[i], Vec3f(forceX[i], forceY[i], forceZ[i]));
+        float fx = 0, fy = 0, fz = 0;
+        for(const auto& batch : batches)
+        {
+            fx += batch.ForceX[i];
+            fy += batch.ForceY[i];
+            fz += batch.ForceZ[i];
+        }
+        physLevel.AddForce(nodes[i], Vec3f(fx, fy, fz));
     }
 
-    for(const auto& params : batches)
+    for(const auto& batch : batches)
     {
-        totalPotentialEnergy += params.PotentialEnergy;
+        totalPotentialEnergy += batch.PotentialEnergy;
     }
 
     PerfCounterGlobals::TotalPE.Set(totalPotentialEnergy);
@@ -593,54 +489,28 @@ ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
     std::uniform_real_distribution<float> dis(0.5, 1);
     std::bernoulli_distribution sign;
 
-    auto view = std::views::zip(physLevel.GetBodies(), physLevel.GetNodes());
-
-    for(const auto & [body, node] : view)
+    for(const Level::Node* node : physLevel.GetNodes())
     {
-        // Impulse is force integrated over time.
-        // J = integral from t0 to t1 ​​F(t)dt
-        // J = F * dt (if we assume the force is constant over the time step)
-        // F = J / dt
-        // F = mv / dt (to achieve a change in velocity of v over the time step)
-
         // Randomize the direction of the impulse.
-        Vec3f normal //
+        const Vec3f normal //
             {
                 dis(gen) * (sign(gen) ? 1.0f : -1.0f),
                 dis(gen) * (sign(gen) ? 1.0f : -1.0f),
                 dis(gen) * (sign(gen) ? 1.0f : -1.0f),
             };
 
-        normal = normal.Normalize();
-        const Vec3f v = normal * magnitude;
-        const float m = body.GetMass().Value();
-
-        const Vec3f force = m * v / kPhysicsTimeStep;
-        physLevel.AddForce(node, force);
+        const Vec3f impulse = normal.Normalize() * magnitude;
+        physLevel.ApplyImpulse(node, impulse);
     }
 }
 
 void
-ApplyStoppingImpulse(PhysicsLevel& physLevel)
+StopAll(PhysicsLevel& physLevel)
 {
-    auto velocities = physLevel.GetLinearVelocities();
-    const std::span bodies = physLevel.GetBodies();
-    const std::span nodes = physLevel.GetNodes();
-
-    const float invTimeStep = 1.0f / kPhysicsTimeStep;
-    
-    for(size_t i = 0; i < bodies.size(); ++i)
+    const Vec3f zeroVelocity{ 0};
+    for(const Level::Node* node : physLevel.GetNodes())
     {
-        const RigidBody& body = bodies[i];
-        const Level::Node* node = nodes[i];
-        const float vx = velocities.X[i];
-        const float vy = velocities.Y[i];
-        const float vz = velocities.Z[i];
-
-        // Apply the impulse opposite to current velocity.
-        const float scale = body.GetMass().Value() * invTimeStep;
-        const Vec3f impulse(-vx * scale, -vy * scale, -vz * scale);
-        physLevel.AddForce(node, impulse);
+        physLevel.SetLinearVelocity(node, zeroVelocity);
     }
 }
 
@@ -649,17 +519,21 @@ ComputeKineticEnergy(const PhysicsLevel& physLevel)
 {
     float kineticEnergy = 0.0f;
 
-    const std::span<const RigidBody> bodies = physLevel.GetBodies();
     auto velocities = physLevel.GetLinearVelocities();
+    auto invMasses = physLevel.GetInverseMasses();
 
-    auto range = std::views::zip(bodies, velocities.X, velocities.Y, velocities.Z);
+    auto range = std::views::zip(invMasses, velocities.X, velocities.Y, velocities.Z);
 
-    for(const auto& [body, vx, vy, vz] : range)
+    for(const auto& [invMass, vx, vy, vz] : range)
     {
-        const float mass = body.GetMass().Value();
+        if(0 == invMass)
+        {
+            continue; // Skip infinite mass bodies
+        }
+
         const float speedSq = (vx * vx) + (vy * vy) + (vz * vz);
         // KE = mv^2 / 2
-        kineticEnergy += 0.5f * mass * speedSq;
+        kineticEnergy += 0.5f * speedSq / invMass;
     }
 
     return kineticEnergy;
@@ -821,7 +695,7 @@ MainLoop()
             {
                 .Input = InputButtons::KeyPressed(SDL_SCANCODE_BACKSPACE),
                 .ActionId = stopAll,
-                .Handler = [&](const ActionEvent&) { ApplyStoppingImpulse(physLevel); },
+                .Handler = [&](const ActionEvent&) { StopAll(physLevel); },
             },
             {
                 .Input = InputButtons::KeyPressed(SDL_SCANCODE_F1),
