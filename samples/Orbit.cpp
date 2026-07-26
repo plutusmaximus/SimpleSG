@@ -26,11 +26,18 @@
 #include <thread>
 #include <vector>
 
+// TODO
+// gravity-only energy drift
+// energy removed by restitution
+// energy removed by resting contacts
+// energy introduced by positional correction
+// total numerical error
+
 namespace
 {
 constexpr const char* kAppName = "Orbit";
 
-constexpr float kPhysicsFps = 60.0f;
+constexpr float kPhysicsFps = 120.0f;
 constexpr float kPhysicsTimeStep = 1.0f / kPhysicsFps;
 constexpr float kGravitationalConstant = 0.1f; // 6.674e-11f;//(m^3 kg^-1 s^-2)
 
@@ -237,7 +244,7 @@ struct ApplyGravityBatchParams
     std::span<float> ForceY;
     std::span<float> ForceZ;
     
-    float PotentialEnergy{ 0 };
+    double PotentialEnergyy{ 0 };
 
     std::atomic<size_t>* FinishCounter{ nullptr };
 };
@@ -262,7 +269,7 @@ ApplyGravityRow(ApplyGravityBatchParams* batchParams, const size_t i, const size
     float* __restrict fz = batchParams->ForceZ.data();
 
     float forceAX = 0, forceAY = 0, forceAZ = 0;
-    float energy = 0;
+    double energy = 0;
 
     MLG_ASSERT(jStart < batchParams->BodyX.size(), "StartIndexB must be greater than StartIndexA");
 
@@ -282,17 +289,37 @@ ApplyGravityRow(ApplyGravityBatchParams* batchParams, const size_t i, const size
         const float massProduct = am * (1.0f / invMasses[j]);
         const float invR = 1.0f / std::sqrt(r2);
 
-        const float pe = -kGravitationalConstant * massProduct * invR;
+        // F = G * (m1 * m2) / r^2
+        // PE = -G * (m1 * m2) / r
+        // PE = -F * r
 
-        const float scale = -pe * invR * invR; // -pe / r2;
+        // Force magnitude at clamped distance.
+        // Not actual distance if the bodies are closer than the sum of their radii, but this is a
+        // common technique to avoid singularities in gravitational simulations.
+        const float A = kGravitationalConstant * massProduct;
+        const float F = A * invR * invR;
+        const float PE = -A * invR;
 
-        const float forceX = scale * dx;
-        const float forceY = scale * dy;
-        const float forceZ = scale * dz;
+        // Multiply the force magnitude by the normalized direction vector between centers.
+        // Outside the min distance the length of the direction vector is 1.
+        // Inside the min distance the length of the direction vector is r/R,
+        // where r is the distance between centers and R is the sum of the radii.
+        // This provides a softening effect as distance between centers approaches zero,
+        // preventing singularities and extreme accelerations.
+        const float forceX = F * dx * invR;
+        const float forceY = F * dy * invR;
+        const float forceZ = F * dz * invR;
 
         forceAX += forceX;
         forceAY += forceY;
         forceAZ += forceZ;
+
+        // Inside the minimum distance, the actual force magnitude is A*r/R^3.
+        // Since F = -dU/dr, integrating gives U = A*r^2/(2*R^3) + C.
+        // Choosing C so this meets the ordinary potential, U(R) = -A/R, gives
+        // U = A*r^2/(2*R^3) - 3*A/(2*R). The expression below combines that
+        // softened potential with PE = -A/r outside the minimum distance.
+        const float pe = PE - (0.5f * A * invR * (1.0f - (delta2 / r2)));
         energy += pe;
 
         fx[j] -= forceX;
@@ -305,13 +332,13 @@ ApplyGravityRow(ApplyGravityBatchParams* batchParams, const size_t i, const size
     fz[i] += forceAZ;
 
     // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-    batchParams->PotentialEnergy += energy;
+    batchParams->PotentialEnergyy += energy;
 }
 
 void
 ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
 {
-    batchParams->PotentialEnergy = 0;
+    batchParams->PotentialEnergyy = 0;
 
     size_t count = 0;
 
@@ -459,7 +486,7 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
 
     MLG_ASSERT(batches.size() == numBatches);
 
-    float totalPotentialEnergy = 0;
+    double totalPotentialEnergy = 0;
 
     for(size_t i = 0; i < nodes.size(); ++i)
     {
@@ -475,7 +502,7 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
 
     for(const auto& batch : batches)
     {
-        totalPotentialEnergy += batch.PotentialEnergy;
+        totalPotentialEnergy += batch.PotentialEnergyy;
     }
 
     PerfCounterGlobals::TotalPE.Set(totalPotentialEnergy);
