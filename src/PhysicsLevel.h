@@ -162,7 +162,7 @@ private:
 
     void FindAndResolveAllImpacts();
 
-    void EnqueueSweepTests(SweepTestBatch* batch);
+    [[nodiscard]] bool EnqueueSweepTests(SweepTestBatch* batch);
 
     static bool SphereSphereSweep(const SphereSweepParams& params, ImpactResult& impactResult);
 

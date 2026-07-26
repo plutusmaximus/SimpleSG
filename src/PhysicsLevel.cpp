@@ -26,6 +26,7 @@ void
 PhysicsLevel::PredictPositions(const float dt)
 {
     MLG_SCOPED_TIMER("Physics.PredictPositions");
+
     const float* __restrict p0x = m_P0.X.data();
     const float* __restrict p0y = m_P0.Y.data();
     const float* __restrict p0z = m_P0.Z.data();
@@ -472,6 +473,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
         const size_t workerCount = m_ThreadPool->GetWorkerCount();
         const size_t batchSize = (potentialCollisionCount + workerCount - 1) / workerCount;
         const size_t batchCount = (potentialCollisionCount + batchSize - 1) / batchSize;
+        size_t batchesQueued = 0;
 
         m_SweepTestBatches.clear();
         m_SweepTestBatches.reserve(batchCount);
@@ -513,7 +515,10 @@ PhysicsLevel::FindAndResolveAllImpacts()
                 SweepTestBatch& batch = m_SweepTestBatches.emplace_back(batchSpan, &finishCounter);
 
                 // Enqueue the batch for processing.
-                EnqueueSweepTests(&batch);
+                if(MLG_VERIFY(EnqueueSweepTests(&batch)))
+                {
+                    batchesQueued++;
+                }
 
                 subspanStart += pairCount;
                 pairCount = 0;
@@ -526,7 +531,10 @@ PhysicsLevel::FindAndResolveAllImpacts()
             const std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
             SweepTestBatch& batch = m_SweepTestBatches.emplace_back(batchSpan, &finishCounter);
 
-            EnqueueSweepTests(&batch);
+            if(MLG_VERIFY(EnqueueSweepTests(&batch)))
+            {
+                batchesQueued++;
+            }
         }
 
         MLG_ASSERT(m_SweepTestBatches.size() == batchCount);
@@ -534,7 +542,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
         MLG_SCOPED_TIMER("Physics.FindAndResolveAllImpacts.SweepTests.Wait");
 
         size_t finishCount = finishCounter.load();
-        while(finishCount < m_SweepTestBatches.size())
+        while(finishCount < batchesQueued)
         {
             finishCounter.wait(finishCount);
             finishCount = finishCounter.load();
@@ -566,24 +574,23 @@ PhysicsLevel::FindAndResolveAllImpacts()
     }
 }
 
-void
+bool
 PhysicsLevel::EnqueueSweepTests(SweepTestBatch* batch) // NOLINT(readability-convert-member-functions-to-static,-warnings-as-errors)
 {
     if constexpr (kSweepTestsMultiThreaded)
     {
-        m_ThreadPool->Enqueue<SweepTestBatch::Process>(batch);
+        return m_ThreadPool->Enqueue<SweepTestBatch::Process>(batch);
     }
     else
     {
         SweepTestBatch::Process(batch);
+        return true;
     }
 }
 
 bool
 PhysicsLevel::SphereSphereSweep(const SphereSweepParams& params, ImpactResult& impactResult)
 {
-    MLG_SCOPED_TIMER("Physics.SphereSphereSweep");
-
     constexpr float EPSILON = 1e-6f;
     constexpr float EPSILON_SQ = EPSILON * EPSILON;
 
@@ -729,6 +736,8 @@ PhysicsLevel::SphereSphereSweep(const SphereSweepParams& params, ImpactResult& i
 void
 PhysicsLevel::SweepTestBatch::Process(SweepTestBatch* batch)
 {
+    MLG_SCOPED_TIMER("Physics.SweepTestBatch");
+
     for(ImpactRecord& impactRecord : batch->PotentialImpacts)
     {
         impactRecord.ImpactFound =

@@ -145,13 +145,9 @@ Renderer::Render(const Camera& camera,
                 lastMaterialId = materialId;
             }
 
-            {
-                MLG_SCOPED_TIMER("Renderer.Render.Draw.DrawIndexed");
-
-                const uint64_t indirectOffset =
-                    meshInstance.GetInstanceIndex() * sizeof(ShaderInterop::DrawIndirectParams);
-                renderPass.DrawIndexedIndirect(drawIndirectBuffer.GetGpuBuffer(), indirectOffset);
-            }
+            const uint64_t indirectOffset =
+                meshInstance.GetInstanceIndex() * sizeof(ShaderInterop::DrawIndirectParams);
+            renderPass.DrawIndexedIndirect(drawIndirectBuffer.GetGpuBuffer(), indirectOffset);
         }
     }
 
