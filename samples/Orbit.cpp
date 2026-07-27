@@ -601,7 +601,7 @@ MainLoop()
 
     Scene scene = std::move(*sceneResult);
 
-    auto physLevelResult = PhysicsLevel::Create(level.GetAllNodes(), threadPool);
+    auto physLevelResult = PhysicsLevel::Create(level.GetAllNodes());
     MLG_CHECK(physLevelResult);
 
     PhysicsLevel physLevel = std::move(*physLevelResult);

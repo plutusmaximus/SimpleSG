@@ -1,25 +1,30 @@
 #include "PhysicsLevel.h"
 
 #include "PerfMetrics.h"
-#include "ThreadPool.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <ranges>
-#include <thread>
 
 static constexpr float RESTING_VELOCITY_THRESHOLD = 1.0f/128;
 static constexpr float COEFF_OF_RESTITUTION = 0.8f;
 
-static constexpr bool kSweepTestsMultiThreaded = false;
+// Distance under which penetration is ignored, to avoid jittering due to numerical error.
+static constexpr float kPenetrationSlop = 1e-3f;
+// Percentage of penetration depth to correct per timestep.
+static constexpr float kCorrectionPercent = 0.1f;
+// Maximum number of contact solver iterations to find convergence.
+static constexpr size_t kContactSolverMaxIterations = 10;
+// Closing speed threshold below which we consider all contacts to have converged.
+static constexpr float kContactSolverVelocityThreshold = 1e-3f;
 
 // FIXME(KB) - Calculate world space pos for collision detection.
 
 Result<PhysicsLevel>
-PhysicsLevel::Create(const std::span<const Level::Node>& nodes, ThreadPool& threadPool)
+PhysicsLevel::Create(const std::span<const Level::Node>& nodes)
 {
-    return PhysicsLevel(nodes, threadPool);
+    return PhysicsLevel(nodes);
 }
 
 void
@@ -66,8 +71,6 @@ PhysicsLevel::PredictPositions(const float dt)
 void
 PhysicsLevel::Resolve()
 {
-    MLG_SCOPED_TIMER("Physics.Resolve");
-
     FindAndResolveAllImpacts();
     std::swap(m_P0, m_P1);
     std::swap(m_A0, m_A1);
@@ -172,8 +175,7 @@ PhysicsLevel::SetLinearVelocity(const Level::Node* node, const Vec3f& velocity)
 
 // private:
 
-PhysicsLevel::PhysicsLevel(const std::span<const Level::Node>& nodes, ThreadPool& threadPool)
-: m_ThreadPool(&threadPool)
+PhysicsLevel::PhysicsLevel(const std::span<const Level::Node>& nodes)
 {
     size_t bodyCount = 0;
     for(const auto& node : nodes)
@@ -287,13 +289,10 @@ PhysicsLevel::GetNodeIndex(const Level::Node* node) const
 void
 PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
 {
-    MLG_SCOPED_TIMER("Physics.ResolveImpact");
-
-    const BodyPair& bodyPair = impact.Bodies;
     const ImpactResult& impactResult = impact.Result;
 
-    const size_t indexA = bodyPair.IndexA();
-    const size_t indexB = bodyPair.IndexB();
+    const size_t indexA = impact.Bodies.IndexA();
+    const size_t indexB = impact.Bodies.IndexB();
 
     Vec3f velA //
         {
@@ -313,10 +312,11 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
 
     const float invMA = m_InvMasses[indexA];
     const float invMB = m_InvMasses[indexB];
-    const float invMassSum = invMA + invMB;
+
+    MLG_ASSERT(impact.InvMassSum > 0.0f, "Both bodies have infinite mass, so we can't move them.");
 
     // Only resolve if bodies are moving towards each other and at least one body has finite mass.
-    if(vRel < 0 && invMassSum > 0.0f)
+    if(vRel < 0)
     {
         // Impulse
 
@@ -339,7 +339,7 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
             // treat as a resting contact.
             : 0.0f;
 
-        const float impulseMagnitude = -(1.0f + e) * vRel / invMassSum;
+        const float impulseMagnitude = -(1.0f + e) * vRel * impact.RecipInvMassSum;
         const Vec3f impulse = impulseMagnitude * impactResult.ContactNormalBtoA;
 
         velA += impulse * invMA;
@@ -353,58 +353,152 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
         m_LinearVelocities.Z[indexB] = velB.z;
     }
 
-    // FIXME(KB) - parameterize this.
-    constexpr float kCorrectionSlop = 1e-3f;
+    // Move bodies to point of impact.
+    m_P1.X[indexA] = impactResult.PosAtImpactA.x;
+    m_P1.Y[indexA] = impactResult.PosAtImpactA.y;
+    m_P1.Z[indexA] = impactResult.PosAtImpactA.z;
+    m_P1.X[indexB] = impactResult.PosAtImpactB.x;
+    m_P1.Y[indexB] = impactResult.PosAtImpactB.y;
+    m_P1.Z[indexB] = impactResult.PosAtImpactB.z;
+}
 
-    MLG_ASSERT(impactResult.PenetrationDepth >= 0, "Penetration depth should be non-negative");
-
-    if(0 == impactResult.PenetrationDepth && invMassSum > 0.0f)
+void
+PhysicsLevel::ResolveContactVelocities(const std::span<ImpactRecord>& contacts)
+{
+    for(const ImpactRecord& contact : contacts)
     {
-        // Move bodies to point of impact.
-        m_P1.X[indexA] = impactResult.PosAtImpactA.x;
-        m_P1.Y[indexA] = impactResult.PosAtImpactA.y;
-        m_P1.Z[indexA] = impactResult.PosAtImpactA.z;
-        m_P1.X[indexB] = impactResult.PosAtImpactB.x;
-        m_P1.Y[indexB] = impactResult.PosAtImpactB.y;
-        m_P1.Z[indexB] = impactResult.PosAtImpactB.z;
+        const ImpactResult& impactResult = contact.Result;
+        const size_t indexA = contact.Bodies.IndexA();
+        const size_t indexB = contact.Bodies.IndexB();
+
+        const float invMA = m_InvMasses[indexA];
+        const float invMB = m_InvMasses[indexB];
+
+        MLG_ASSERT(contact.InvMassSum > 0.0f, "Both bodies have infinite mass, so we can't move them.");
+
+        const Vec3f vRel //
+            {
+                m_LinearVelocities.X[indexA] - m_LinearVelocities.X[indexB],
+                m_LinearVelocities.Y[indexA] - m_LinearVelocities.Y[indexB],
+                m_LinearVelocities.Z[indexA] - m_LinearVelocities.Z[indexB],
+            };
+
+        const float closingSpeed = vRel.Dot(impactResult.ContactNormalBtoA);
+
+        if(closingSpeed < 0)
+        {
+            // Impulse
+
+            // n      = contact normal from B to A
+            // vn     = (vA - vB) dot n (closing speed)
+            // invMA  = 1 / mA
+            // invMB  = 1 / mB
+            //
+            // j = -vn / (invMA + invMB)
+            //
+            // deltaVA =  j * invMA * n
+            // deltaVB = -j * invMB * n
+
+            const float j = -closingSpeed * contact.RecipInvMassSum;
+            const Vec3f impulse = j * impactResult.ContactNormalBtoA;
+
+            m_LinearVelocities.X[indexA] += impulse.x * invMA;
+            m_LinearVelocities.Y[indexA] += impulse.y * invMA;
+            m_LinearVelocities.Z[indexA] += impulse.z * invMA;
+            m_LinearVelocities.X[indexB] -= impulse.x * invMB;
+            m_LinearVelocities.Y[indexB] -= impulse.y * invMB;
+            m_LinearVelocities.Z[indexB] -= impulse.z * invMB;
+        }
     }
-    else if(impactResult.PenetrationDepth > kCorrectionSlop)
+}
+
+float
+PhysicsLevel::ComputeMaxClosingSpeed(const std::span<ImpactRecord>& contacts) const
+{
+    float maxClosingSpeed = 0.0f;
+
+    for(const ImpactRecord& contact : contacts)
     {
-        // mA = mass of A
-        // mB = mass of B
-        // n  = unit normal from B to A
-        // d  = penetration depth
-        // s  = slop
-        // p  = correction percent
-        // Magnitude of correction:
-        // C = max(d - s, 0) * p
-        // moveA + moveB = C
-        // Weight the movement by the inverse of the mass (i.e., more massive bodies move less):
-        // moveA = C * mB / (mA + mB)
-        // moveB = C * mA / (mA + mB)
-        // posA' = posA + n * C * mB / (mA + mB)
-        // posB' = posB - n * C * mA / (mA + mB)
-        // Equivalent to:
-        // posA' = posA + n * C * (invMA) / ((invMA) + (invMB))
-        // posB' = posB - n * C * (invMB) / ((invMA) + (invMB))
-        // Where invMA = 1/mA and invMB = 1/mB are the inverse masses of A and B, respectively.
-        // Inverse masses are used because bodies with infinite mass (i.e., immovable bodies) will
-        // have an inverse mass of zero, which correctly results in them not moving.
+        const ImpactResult& impactResult = contact.Result;
+        const size_t indexA = contact.Bodies.IndexA();
+        const size_t indexB = contact.Bodies.IndexB();
 
-        // FIXME(KB) - parameterize this.
-        constexpr float kCorrectionPercent = 0.1f;
+        const Vec3f vRel //
+            {
+                m_LinearVelocities.X[indexA] - m_LinearVelocities.X[indexB],
+                m_LinearVelocities.Y[indexA] - m_LinearVelocities.Y[indexB],
+                m_LinearVelocities.Z[indexA] - m_LinearVelocities.Z[indexB],
+            };
 
-        const float C =
-            std::max(0.0f, impactResult.PenetrationDepth - kCorrectionSlop) * kCorrectionPercent;
+        const float closingSpeed = vRel.Dot(impactResult.ContactNormalBtoA);
 
-        const Vec3f correction = C * impactResult.ContactNormalBtoA / invMassSum;
+        if(closingSpeed < 0)
+        {
+            maxClosingSpeed = std::max(maxClosingSpeed, -closingSpeed);
+        }
+    }
 
-        m_P1.X[indexA] += correction.x * invMA;
-        m_P1.Y[indexA] += correction.y * invMA;
-        m_P1.Z[indexA] += correction.z * invMA;
-        m_P1.X[indexB] -= correction.x * invMB;
-        m_P1.Y[indexB] -= correction.y * invMB;
-        m_P1.Z[indexB] -= correction.z * invMB;
+    return maxClosingSpeed;
+}
+
+void
+PhysicsLevel::ResolveContactPenetrations(const std::span<ImpactRecord>& contacts)
+{
+    for(const ImpactRecord& contact : contacts)
+    {
+        const ImpactResult& impactResult = contact.Result;
+        const size_t indexA = contact.Bodies.IndexA();
+        const size_t indexB = contact.Bodies.IndexB();
+
+        // Calculate penetration depth based on current positions.
+        const Vec3f posA //
+            {
+                m_P1.X[indexA],
+                m_P1.Y[indexA],
+                m_P1.Z[indexA],
+            };
+
+        const Vec3f posB //
+            {
+                m_P1.X[indexB],
+                m_P1.Y[indexB],
+                m_P1.Z[indexB],
+            };
+
+        const Vec3f delta = posA - posB;
+        const float distanceSq = delta.Dot(delta);
+        const float minDistance = m_Radii[indexA] + m_Radii[indexB];
+
+        if(distanceSq < minDistance * minDistance)
+        {
+            const float distance = std::sqrt(distanceSq);
+
+            const Vec3f contactNormal =
+                distance > 1e-6f ? delta / distance : impactResult.ContactNormalBtoA;
+
+            const float penetration = minDistance - distance;
+
+            if(penetration > kPenetrationSlop)
+            {
+                const float C = (penetration - kPenetrationSlop) * kCorrectionPercent;
+
+                const float invMA = m_InvMasses[indexA];
+                const float invMB = m_InvMasses[indexB];
+
+                MLG_ASSERT(contact.InvMassSum > 0.0f,
+                    "Both bodies have infinite mass, so we can't move them.");
+
+                const Vec3f correction = C * contactNormal * contact.RecipInvMassSum;
+
+                m_P1.X[indexA] += correction.x * invMA;
+                m_P1.Y[indexA] += correction.y * invMA;
+                m_P1.Z[indexA] += correction.z * invMA;
+
+                m_P1.X[indexB] -= correction.x * invMB;
+                m_P1.Y[indexB] -= correction.y * invMB;
+                m_P1.Z[indexB] -= correction.z * invMB;
+            }
+        }
     }
 }
 
@@ -415,6 +509,7 @@ PhysicsLevel::FindAndResolveAllImpacts()
 
     m_GridHash.Clear();
     m_ImpactRecords.clear();
+    m_ContactRecords.clear();
 
     MLG_ABORTIF(m_ActiveBodies.size() > std::numeric_limits<uint32_t>::max(),
         "PhysicsLevel supports a maximum of {} active bodies, but {} are active.",
@@ -461,135 +556,103 @@ PhysicsLevel::FindAndResolveAllImpacts()
         }
 
         m_ImpactRecords.reserve(potentialCollisionCount);
+        m_ContactRecords.reserve(potentialCollisionCount);
     }
+
+    static PerfCounter pcPotentialImpacts({ .Name = "Physics.Collision.PotentialImpacts", });
+    pcPotentialImpacts.Increment(potentialCollisionCount);
 
     {
         MLG_SCOPED_TIMER("Physics.FindAndResolveAllImpacts.SweepTests");
-        
-        // Prepare to process potential collisions in parallel.
-        // Batches of BodyPairs will be offloaded to worker threads.
 
-        // Calculate optimal batch size to max out worker threads.
-        const size_t workerCount = m_ThreadPool->GetWorkerCount();
-        const size_t batchSize = (potentialCollisionCount + workerCount - 1) / workerCount;
-        const size_t batchCount = (potentialCollisionCount + batchSize - 1) / batchSize;
-        size_t batchesQueued = 0;
-
-        m_SweepTestBatches.clear();
-        m_SweepTestBatches.reserve(batchCount);
-
-        size_t pairCount = 0;
-        size_t subspanStart = 0;
-
-        // Counter used to determine when all batches have finished processing.
-        std::atomic<size_t> finishCounter;
-
-        // Collect impact records into batches and enqueue for processing.
+        // Collect impact records.
         for(const BodyPair& bodyPair : m_GridHash)
         {
             const size_t indexA = bodyPair.IndexA();
             const size_t indexB = bodyPair.IndexB();
 
-            const ImpactRecord impactRecord //
+            const float invMA = m_InvMasses[indexA];
+            const float invMB = m_InvMasses[indexB];
+            const float invMassSum = invMA + invMB;
+
+            if(invMassSum <= 0.0f)
+            {
+                // Both bodies have infinite mass, so we can't move them.
+                continue;
+            }
+
+            ImpactRecord impactRecord //
                 {
                     .Bodies = bodyPair,
-                    .SweepParams //
-                    {
-                        .StartPosA{m_P0.X[indexA], m_P0.Y[indexA], m_P0.Z[indexA]},
-                        .EndPosA{m_P1.X[indexA], m_P1.Y[indexA], m_P1.Z[indexA]},
-                        .SphereRadiusA = m_Radii[indexA],
-                        .StartPosB{m_P0.X[indexB], m_P0.Y[indexB], m_P0.Z[indexB]},
-                        .EndPosB{m_P1.X[indexB], m_P1.Y[indexB], m_P1.Z[indexB]},
-                        .SphereRadiusB = m_Radii[indexB],
-                    },
+                    .InvMassSum = invMassSum,
+                    .RecipInvMassSum = 1.0f / invMassSum,
                 };
 
-            m_ImpactRecords.emplace_back(impactRecord);
-            ++pairCount;
+            impactRecord.ImpactFound =
+                SphereSphereSweep(impactRecord.Bodies, impactRecord.Result);
 
-            if(pairCount >= batchSize)
+            if(impactRecord.ImpactFound)
             {
-                MLG_ASSERT(m_SweepTestBatches.size() < batchCount, "Batch count exceeded expected count");
-
-                const std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
-                SweepTestBatch& batch = m_SweepTestBatches.emplace_back(batchSpan, &finishCounter);
-
-                // Enqueue the batch for processing.
-                if(MLG_VERIFY(EnqueueSweepTests(&batch)))
+                if(0 == impactRecord.Result.Alpha)
                 {
-                    batchesQueued++;
+                    m_ContactRecords.emplace_back(impactRecord);
                 }
-
-                subspanStart += pairCount;
-                pairCount = 0;
+                else
+                {
+                    m_ImpactRecords.emplace_back(impactRecord);
+                }
             }
-        }
-
-        // Enqueue any remaining pairs that didn't fill an entire batch.
-        if(pairCount > 0)
-        {
-            const std::span batchSpan = std::span(m_ImpactRecords).subspan(subspanStart, pairCount);
-            SweepTestBatch& batch = m_SweepTestBatches.emplace_back(batchSpan, &finishCounter);
-
-            if(MLG_VERIFY(EnqueueSweepTests(&batch)))
-            {
-                batchesQueued++;
-            }
-        }
-
-        MLG_ASSERT(m_SweepTestBatches.size() == batchCount);
-
-        MLG_SCOPED_TIMER("Physics.FindAndResolveAllImpacts.SweepTests.Wait");
-
-        size_t finishCount = finishCounter.load();
-        while(finishCount < batchesQueued)
-        {
-            finishCounter.wait(finishCount);
-            finishCount = finishCounter.load();
         }
     }
 
-    static PerfCounter pcPotentialImpacts({ .Name = "Physics.Collision.PotentialImpacts", });
-    pcPotentialImpacts.Increment(m_ImpactRecords.size());
+    static PerfCounter pcContacts({ .Name = "Physics.Collision.Contacts", });
+    pcContacts.Increment(m_ContactRecords.size());
 
-    // Cull non-impacts, and resolve impacts in order.
-    auto removed = std::ranges::remove_if(m_ImpactRecords, [](const ImpactRecord& impactRecord)
+    static PerfCounter pcImpacts({ .Name = "Physics.Collision.Impacts", });
+    pcImpacts.Increment(m_ImpactRecords.size());
+
+    size_t contactSolverIterations = 0;
+    if(!m_ContactRecords.empty())
     {
-        return !impactRecord.ImpactFound;
+        MLG_SCOPED_TIMER("Physics.FindAndResolveAllImpacts.ResolveContactVelocities");
+
+        float maxClosingSpeed = kContactSolverVelocityThreshold;
+        for(contactSolverIterations = 0; contactSolverIterations < kContactSolverMaxIterations
+            && maxClosingSpeed >= kContactSolverVelocityThreshold;
+            ++contactSolverIterations)
+        {
+            ResolveContactVelocities(m_ContactRecords);
+            maxClosingSpeed = ComputeMaxClosingSpeed(m_ContactRecords);
+        }
+    }
+
+    static PerfCounter pcContactSolverIterations({
+        .Name = "Physics.Collision.ContactSolverIterations",
     });
+    pcContactSolverIterations.Increment(contactSolverIterations);
 
-    m_ImpactRecords.erase(removed.begin(), removed.end());
-
-    static PerfCounter pcActualImpacts({ .Name = "Physics.Collision.ActualImpacts", });
-    pcActualImpacts.Increment(m_ImpactRecords.size());
-
-    // Sort impact records by time of impact, and resolve in that order.
-    // This isn't actually correct, but better than resolving out of order.
-    // Substepping will make this better.
-    std::ranges::sort(m_ImpactRecords);
-
-    for(auto& impactRecord : m_ImpactRecords)
     {
-        ResolveImpact(impactRecord);
+        MLG_SCOPED_TIMER("Physics.FindAndResolveAllImpacts.ResolveContactPenetrations");
+        ResolveContactPenetrations(m_ContactRecords);
+    }
+
+    {
+        MLG_SCOPED_TIMER("Physics.FindAndResolveAllImpacts.ResolveImpacts");
+        
+        // Sort impact records by time of impact, and resolve in that order.
+        // This isn't actually correct, but better than resolving out of order.
+        // Substepping will make this better.
+        std::ranges::sort(m_ImpactRecords);
+
+        for(auto& impactRecord : m_ImpactRecords)
+        {
+            ResolveImpact(impactRecord);
+        }
     }
 }
 
 bool
-PhysicsLevel::EnqueueSweepTests(SweepTestBatch* batch) // NOLINT(readability-convert-member-functions-to-static,-warnings-as-errors)
-{
-    if constexpr (kSweepTestsMultiThreaded)
-    {
-        return m_ThreadPool->Enqueue<SweepTestBatch::Process>(batch);
-    }
-    else
-    {
-        SweepTestBatch::Process(batch);
-        return true;
-    }
-}
-
-bool
-PhysicsLevel::SphereSphereSweep(const SphereSweepParams& params, ImpactResult& impactResult)
+PhysicsLevel::SphereSphereSweep(const BodyPair& bodies, ImpactResult& impactResult) const
 {
     constexpr float EPSILON = 1e-6f;
     constexpr float EPSILON_SQ = EPSILON * EPSILON;
@@ -611,15 +674,18 @@ PhysicsLevel::SphereSphereSweep(const SphereSweepParams& params, ImpactResult& i
     //
     // Solve the quadratic equation for t.
 
-    const Vec3f pA0 = params.StartPosA;
-    const Vec3f pA1 = params.EndPosA;
-    const Vec3f pB0 = params.StartPosB;
-    const Vec3f pB1 = params.EndPosB;
+    const size_t indexA = bodies.IndexA();
+    const size_t indexB = bodies.IndexB();
+
+    const Vec3f pA0{m_P0.X[indexA], m_P0.Y[indexA], m_P0.Z[indexA]};
+    const Vec3f pA1{m_P1.X[indexA], m_P1.Y[indexA], m_P1.Z[indexA]};
+    const Vec3f pB0{m_P0.X[indexB], m_P0.Y[indexB], m_P0.Z[indexB]};
+    const Vec3f pB1{m_P1.X[indexB], m_P1.Y[indexB], m_P1.Z[indexB]};
 
     const Vec3f relP0 = pA0 - pB0;
     const Vec3f relP1 = pA1 - pB1;
     const Vec3f relMo = relP1 - relP0;
-    const float r = params.SphereRadiusA + params.SphereRadiusB;
+    const float r = m_Radii[indexA] + m_Radii[indexB];
     const float r2 = r * r;
     const float dist0Sqr = relP0.Dot(relP0);
 
@@ -655,19 +721,9 @@ PhysicsLevel::SphereSphereSweep(const SphereSweepParams& params, ImpactResult& i
             impactResult.ContactNormalBtoA = relP0 / std::sqrt(dist0Sqr);
         }
 
-        impactResult.ContactPoint = pB0 + impactResult.ContactNormalBtoA * params.SphereRadiusB;
+        impactResult.ContactPoint = pB0 + impactResult.ContactNormalBtoA * m_Radii[indexB];
         impactResult.PosAtImpactA = pA0;
         impactResult.PosAtImpactB = pB0;
-
-        // Penetration depth = r - d.
-        // Where:
-        // r = sum of radii, d = distance between centers.
-        // (r^2 - d^2) = (r - d)(r + d)
-        // So: (r - d) = (r^2 - d^2) / (r + d)
-        // Using this formula avoids catastrophic cancellation when r and d are close, which can
-        // happen with shallow penetrations.
-        // https://en.wikipedia.org/wiki/Catastrophic_cancellation
-        impactResult.PenetrationDepth = ((r * r) - dist0Sqr) / (r + std::sqrt(dist0Sqr));
 
         return true;
     }
@@ -727,23 +783,7 @@ PhysicsLevel::SphereSphereSweep(const SphereSweepParams& params, ImpactResult& i
     // Saves a sqrt operation.
     impactResult.ContactNormalBtoA /= r;
     impactResult.ContactPoint =
-        impactResult.PosAtImpactB + (impactResult.ContactNormalBtoA * params.SphereRadiusB);
-    impactResult.PenetrationDepth = 0;
+        impactResult.PosAtImpactB + (impactResult.ContactNormalBtoA * m_Radii[indexB]);
 
     return true;
-}
-
-void
-PhysicsLevel::SweepTestBatch::Process(SweepTestBatch* batch)
-{
-    MLG_SCOPED_TIMER("Physics.SweepTestBatch");
-
-    for(ImpactRecord& impactRecord : batch->PotentialImpacts)
-    {
-        impactRecord.ImpactFound =
-            SphereSphereSweep(impactRecord.SweepParams, impactRecord.Result);
-    }
-
-    batch->FinishCounter->fetch_add(1, std::memory_order_release);
-    batch->FinishCounter->notify_all();
 }

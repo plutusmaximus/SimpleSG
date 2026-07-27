@@ -5,36 +5,24 @@
 #include "Result.h"
 #include "VecMath.h"
 
-#include <atomic>
-
-class ThreadPool;
-
 struct ImpactResult
 {
     float Alpha; // Distance along path at impact, from 0 to 1.
-    float PenetrationDepth;
     Vec3f ContactPoint;
     Vec3f ContactNormalBtoA; // Contact normal points from body B to body A.
     Vec3f PosAtImpactA;
     Vec3f PosAtImpactB;
 };
 
-struct SphereSweepParams
-{
-    Vec3f StartPosA;
-    Vec3f EndPosA;
-    float SphereRadiusA;
-
-    Vec3f StartPosB;
-    Vec3f EndPosB;
-    float SphereRadiusB;
-};
-
 struct ImpactRecord
 {
     BodyPair Bodies;
 
-    SphereSweepParams SweepParams;
+    // Sum of the inverse masses of the two bodies.
+    float InvMassSum;
+
+    // Reciprocal of the sum of the inverse masses of the two bodies.
+    float RecipInvMassSum;
 
     ImpactResult Result;
 
@@ -78,8 +66,7 @@ public:
 
     constexpr static size_t GRID_CELL_SIZE = 2;
 
-    static Result<PhysicsLevel> Create(const std::span<const Level::Node>& nodes,
-        ThreadPool& threadPool);
+    static Result<PhysicsLevel> Create(const std::span<const Level::Node>& nodes);
 
     PhysicsLevel() = default;
     ~PhysicsLevel() = default;
@@ -109,17 +96,6 @@ public:
     void SetLinearVelocity(const Level::Node* node, const Vec3f& velocity);
 
 private:
-
-    // Represents a batch of sweep tests to be processed by a worker thread.
-    // Many batches can be processed in parallel.
-    struct SweepTestBatch
-    {
-        // Collection of pairs of bodies that potentially collide during the time step.
-        std::span<ImpactRecord> PotentialImpacts;
-        std::atomic<size_t>* FinishCounter{nullptr};
-
-        static void Process(SweepTestBatch* batch);
-    };
 
     /// Mapping between a node and its index into the various arrays below.
     /// We maintain a sorted vector of NodeAndIndex so we can quickly find
@@ -154,17 +130,21 @@ private:
         size_t m_Index{0};
     };
 
-    PhysicsLevel(const std::span<const Level::Node>& nodes, ThreadPool& threadPool);
+    explicit PhysicsLevel(const std::span<const Level::Node>& nodes);
 
     size_t GetNodeIndex(const Level::Node* node) const;
 
     void ResolveImpact(const ImpactRecord& impact);
 
+    void ResolveContactVelocities(const std::span<ImpactRecord>& contacts);
+
+    float ComputeMaxClosingSpeed(const std::span<ImpactRecord>& contacts) const;
+
+    void ResolveContactPenetrations(const std::span<ImpactRecord>& contacts);
+
     void FindAndResolveAllImpacts();
 
-    [[nodiscard]] bool EnqueueSweepTests(SweepTestBatch* batch);
-
-    static bool SphereSphereSweep(const SphereSweepParams& params, ImpactResult& impactResult);
+    [[nodiscard]] bool SphereSphereSweep(const BodyPair& bodies, ImpactResult& impactResult) const;
 
     // Sorted mapping of nodes to their index in the various arrays below.
     std::vector<NodeAndIndex> m_NodeIndexMap;
@@ -178,8 +158,6 @@ private:
     std::vector<float> m_InvMasses; // Inverse masses of the rigid bodies.
     // Tracks which bodies are active in the current frame.
     std::vector<bool> m_ActiveBodies;
-
-    std::vector<SweepTestBatch> m_SweepTestBatches;
 
     //Positions for the current frame.
     VVec3 m_P0;
@@ -195,6 +173,5 @@ private:
     GridHash m_GridHash{GRID_CELL_SIZE};
 
     std::vector<ImpactRecord> m_ImpactRecords;
-
-    [[maybe_unused]] ThreadPool* m_ThreadPool{nullptr};
+    std::vector<ImpactRecord> m_ContactRecords;
 };

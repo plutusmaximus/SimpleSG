@@ -504,13 +504,13 @@ GridHash::Sort() const
                 // Bodies that share a cell are potentially colliding.
 
                 const size_t indexB = m_Items[j].BodyIndex;
-                if(MLG_VERIFY(indexA != indexB, "Duplicate body in same cell"))
+
+                const BodyPair bodyPair(indexA, indexB);
+                const uint64_t pairKey = (static_cast<uint64_t>(bodyPair.IndexA()) << 32)
+                    | static_cast<uint64_t>(bodyPair.IndexB());
+                if(m_UniquePairs.Insert(pairKey))
                 {
-                    const uint64_t pairKey = (static_cast<uint64_t>(std::min(indexA, indexB)) << 32) | static_cast<uint64_t>(std::max(indexA, indexB));
-                    if(m_UniquePairs.Insert(pairKey))
-                    {
-                        m_PotentialCollisions.emplace_back(indexA, indexB);
-                    }
+                    m_PotentialCollisions.emplace_back(bodyPair);
                 }
             }
         }
