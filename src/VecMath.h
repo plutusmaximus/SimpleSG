@@ -1223,3 +1223,12 @@ using UnitQuatf = UnitQuat<float>;
 using Mat44f = Mat44<float>;
 using TrTransformf = TrTransform<float>;
 using TrsTransformf = TrsTransform<float>;
+
+
+#include <span>
+struct VVec3
+{
+    std::span<float> X;
+    std::span<float> Y;
+    std::span<float> Z;
+};

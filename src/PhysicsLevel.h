@@ -14,9 +14,10 @@ struct ImpactResult
     Vec3f PosAtImpactB;
 };
 
-struct ImpactRecord
+struct ImpactRecord // NOLINT(cppcoreguidelines-pro-type-member-init)
 {
-    BodyPair Bodies;
+    size_t BodyIndexA;
+    size_t BodyIndexB;
 
     // Sum of the inverse masses of the two bodies.
     float InvMassSum;
@@ -30,7 +31,9 @@ struct ImpactRecord
 
     bool operator==(const ImpactRecord& that) const
     {
-        return Bodies == that.Bodies && Result.Alpha == that.Result.Alpha;
+        return BodyIndexA == that.BodyIndexA
+            && BodyIndexB == that.BodyIndexB
+            && Result.Alpha == that.Result.Alpha;
     }
 
     bool operator!=(const ImpactRecord& that) const
@@ -51,13 +54,6 @@ struct ImpactRecord
         // For records with impacts, sort by time of impact (Alpha).
         return std::strong_order(Result.Alpha, that.Result.Alpha);
     }
-};
-
-struct VVec3
-{
-    std::span<float> X;
-    std::span<float> Y;
-    std::span<float> Z;
 };
 
 class PhysicsLevel
@@ -87,13 +83,21 @@ public:
 
     Result<> SyncToLevel(Level& level);
 
+    size_t GetNodeCount() const { return m_Nodes.size(); }
+
     std::span<const Level::Node* const> GetNodes() const { return m_Nodes; }
-    const VVec3& GetPositions() const { return m_P0; }
-    const VVec3& GetLinearVelocities() const { return m_LinearVelocities; }
-    std::span<const float> GetRadii() const { return m_Radii; }
-    std::span<const float> GetInverseMasses() const { return m_InvMasses; }
+    Vec3f GetPosition(const Level::Node* node) const;
+    Vec3f GetLinearVelocity(const Level::Node* node) const;
+    float GetRadius(const Level::Node* node) const;
+    float GetInverseMass(const Level::Node* node) const;
+    void GetPositions(VVec3& positions) const;
+    void GetLinearVelocities(VVec3& linearVelocities) const;
+    void GetInverseMasses(std::span<float>& invMasses) const;
 
     void SetLinearVelocity(const Level::Node* node, const Vec3f& velocity);
+
+    // Radians per second
+    void SetAngularVelocity(const Level::Node* node, const Vec3f& angularVelocity);
 
 private:
 

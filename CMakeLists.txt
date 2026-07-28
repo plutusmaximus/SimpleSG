@@ -297,6 +297,9 @@ else()
 endif()
 target_compile_definitions(imgui PRIVATE IMGUI_IMPL_WEBGPU_BACKEND_DAWN)
 
+# --- box3d
+add_subdirectory(thirdparty/box3d EXCLUDE_FROM_ALL SYSTEM)
+
 # ============================================================
 # Enable clang-tidy only after all thirdparty targets exist
 # ============================================================
@@ -353,6 +356,7 @@ set(SSG_SOURCES
   src/LuaRuntime.cpp
   src/PerfMetrics.cpp
   src/PhysicsLevel.cpp
+  src/PhysicsLevel2.cpp
   src/PropKit.cpp
   src/Renderer.cpp
   src/Scene.cpp
@@ -391,6 +395,7 @@ set(SSG_HEADERS
   src/PhysicsTypes.h
   src/PerfMetrics.h
   src/PhysicsLevel.h
+  src/PhysicsLevel2.h
   src/PropKit.h
   src/RangeQuery.h
   src/Renderer.h
@@ -427,7 +432,7 @@ if(EMSCRIPTEN)
 else()
   target_link_libraries(ssg PUBLIC webgpu_dawn)
 endif()
-target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 imgui lua)
+target_link_libraries(ssg PUBLIC spdlog::spdlog SDL3::SDL3 imgui lua box3d::box3d)
 target_include_directories(ssg PUBLIC src)
 target_include_directories(ssg SYSTEM PRIVATE thirdparty/cgltf thirdparty/stb)
 

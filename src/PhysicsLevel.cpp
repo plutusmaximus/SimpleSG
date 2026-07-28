@@ -3,6 +3,7 @@
 #include "PerfMetrics.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <ranges>
@@ -161,6 +162,80 @@ PhysicsLevel::SyncToLevel(Level& level)
     return Result<>::Ok;
 }
 
+Vec3f
+PhysicsLevel::GetPosition(const Level::Node* node) const
+{
+    const size_t index = GetNodeIndex(node);
+    if(MLG_VERIFY(index != NodeAndIndex::kInvalidIndex, "Node not found in PhysicsLevel"))
+    {
+        return Vec3f{ m_P0.X[index], m_P0.Y[index], m_P0.Z[index] };
+    }
+    return Vec3f{ 0 };
+}
+
+Vec3f
+PhysicsLevel::GetLinearVelocity(const Level::Node* node) const
+{
+    const size_t index = GetNodeIndex(node);
+    if(MLG_VERIFY(index != NodeAndIndex::kInvalidIndex, "Node not found in PhysicsLevel"))
+    {
+        return Vec3f{ m_LinearVelocities.X[index], m_LinearVelocities.Y[index], m_LinearVelocities.Z[index] };
+    }
+    return Vec3f{ 0 };
+}
+
+float
+PhysicsLevel::GetRadius(const Level::Node* node) const
+{
+    const size_t index = GetNodeIndex(node);
+    if(MLG_VERIFY(index != NodeAndIndex::kInvalidIndex, "Node not found in PhysicsLevel"))
+    {
+        return m_Radii[index];
+    }
+    return 0.0f;
+}
+
+float
+PhysicsLevel::GetInverseMass(const Level::Node* node) const
+{
+    const size_t index = GetNodeIndex(node);
+    if(MLG_VERIFY(index != NodeAndIndex::kInvalidIndex, "Node not found in PhysicsLevel"))
+    {
+        return m_InvMasses[index];
+    }
+    return 0.0f;
+}
+
+void
+PhysicsLevel::GetPositions(VVec3& positions) const
+{
+    MLG_ASSERT(positions.X.size() == m_P0.X.size(), "Size mismatch");
+    MLG_ASSERT(positions.Y.size() == m_P0.Y.size(), "Size mismatch");
+    MLG_ASSERT(positions.Z.size() == m_P0.Z.size(), "Size mismatch");
+
+    std::ranges::copy(m_P0.X, positions.X.begin());
+    std::ranges::copy(m_P0.Y, positions.Y.begin());
+    std::ranges::copy(m_P0.Z, positions.Z.begin());
+}
+void
+PhysicsLevel::GetLinearVelocities(VVec3& linearVelocities) const
+{
+    MLG_ASSERT(linearVelocities.X.size() == m_LinearVelocities.X.size(), "Size mismatch");
+    MLG_ASSERT(linearVelocities.Y.size() == m_LinearVelocities.Y.size(), "Size mismatch");
+    MLG_ASSERT(linearVelocities.Z.size() == m_LinearVelocities.Z.size(), "Size mismatch");
+
+    std::ranges::copy(m_LinearVelocities.X, linearVelocities.X.begin());
+    std::ranges::copy(m_LinearVelocities.Y, linearVelocities.Y.begin());
+    std::ranges::copy(m_LinearVelocities.Z, linearVelocities.Z.begin());
+}
+
+void
+PhysicsLevel::GetInverseMasses(std::span<float>& invMasses) const
+{
+    MLG_ASSERT(invMasses.size() == m_InvMasses.size(), "Size mismatch");
+    std::ranges::copy(m_InvMasses, invMasses.begin());
+}
+
 void
 PhysicsLevel::SetLinearVelocity(const Level::Node* node, const Vec3f& velocity)
 {
@@ -170,6 +245,18 @@ PhysicsLevel::SetLinearVelocity(const Level::Node* node, const Vec3f& velocity)
         m_LinearVelocities.X[index] = velocity.x;
         m_LinearVelocities.Y[index] = velocity.y;
         m_LinearVelocities.Z[index] = velocity.z;
+    }
+}
+
+void
+PhysicsLevel::SetAngularVelocity(const Level::Node* node, const Vec3f& /*angularVelocity*/)
+{
+    const size_t index = GetNodeIndex(node);
+    if(MLG_VERIFY(index != NodeAndIndex::kInvalidIndex, "Node not found in PhysicsLevel"))
+    {
+        //m_AngularVelocities.X[index] = angularVelocity.x;
+        //m_AngularVelocities.Y[index] = angularVelocity.y;
+        //m_AngularVelocities.Z[index] = angularVelocity.z;
     }
 }
 
@@ -276,13 +363,13 @@ size_t
 PhysicsLevel::GetNodeIndex(const Level::Node* node) const
 {
     MLG_ASSERT(node, "Node pointer is null");
-    
-    auto it = std::ranges::lower_bound(m_NodeIndexMap, node, {}, &NodeAndIndex::m_Node);
 
-    if(it != m_NodeIndexMap.end() && it->GetNode() == node)
+    const size_t offset = static_cast<size_t>(node - m_NodeIndexMap.front().GetNode());
+    if(offset < m_NodeIndexMap.size() && MLG_VERIFY(m_NodeIndexMap[offset].GetNode() == node))
     {
-        return it->GetIndex();
+        return m_NodeIndexMap[offset].GetIndex();
     }
+    
     return NodeAndIndex::kInvalidIndex;
 }
 
@@ -291,8 +378,8 @@ PhysicsLevel::ResolveImpact(const ImpactRecord& impact)
 {
     const ImpactResult& impactResult = impact.Result;
 
-    const size_t indexA = impact.Bodies.IndexA();
-    const size_t indexB = impact.Bodies.IndexB();
+    const size_t indexA = impact.BodyIndexA;
+    const size_t indexB = impact.BodyIndexB;
 
     Vec3f velA //
         {
@@ -368,8 +455,8 @@ PhysicsLevel::ResolveContactVelocities(const std::span<ImpactRecord>& contacts)
     for(const ImpactRecord& contact : contacts)
     {
         const ImpactResult& impactResult = contact.Result;
-        const size_t indexA = contact.Bodies.IndexA();
-        const size_t indexB = contact.Bodies.IndexB();
+        const size_t indexA = contact.BodyIndexA;
+        const size_t indexB = contact.BodyIndexB;
 
         const float invMA = m_InvMasses[indexA];
         const float invMB = m_InvMasses[indexB];
@@ -420,8 +507,8 @@ PhysicsLevel::ComputeMaxClosingSpeed(const std::span<ImpactRecord>& contacts) co
     for(const ImpactRecord& contact : contacts)
     {
         const ImpactResult& impactResult = contact.Result;
-        const size_t indexA = contact.Bodies.IndexA();
-        const size_t indexB = contact.Bodies.IndexB();
+        const size_t indexA = contact.BodyIndexA;
+        const size_t indexB = contact.BodyIndexB;
 
         const Vec3f vRel //
             {
@@ -447,8 +534,8 @@ PhysicsLevel::ResolveContactPenetrations(const std::span<ImpactRecord>& contacts
     for(const ImpactRecord& contact : contacts)
     {
         const ImpactResult& impactResult = contact.Result;
-        const size_t indexA = contact.Bodies.IndexA();
-        const size_t indexB = contact.Bodies.IndexB();
+        const size_t indexA = contact.BodyIndexA;
+        const size_t indexB = contact.BodyIndexB;
 
         // Calculate penetration depth based on current positions.
         const Vec3f posA //
@@ -583,13 +670,14 @@ PhysicsLevel::FindAndResolveAllImpacts()
 
             ImpactRecord impactRecord //
                 {
-                    .Bodies = bodyPair,
+                    .BodyIndexA = indexA,
+                    .BodyIndexB = indexB,
                     .InvMassSum = invMassSum,
                     .RecipInvMassSum = 1.0f / invMassSum,
                 };
 
             impactRecord.ImpactFound =
-                SphereSphereSweep(impactRecord.Bodies, impactRecord.Result);
+                SphereSphereSweep(bodyPair, impactRecord.Result);
 
             if(impactRecord.ImpactFound)
             {

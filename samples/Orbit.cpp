@@ -8,6 +8,7 @@
 #include "MouseNav.h"
 #include "PerfMetrics.h"
 #include "PhysicsLevel.h"
+#include "PhysicsLevel2.h"
 #include "PropKit.h"
 #include "RangeQuery.h"
 #include "Renderer.h"
@@ -19,6 +20,7 @@
 #include <filesystem>
 #include <arm_neon.h>
 #include <imgui.h>
+#include <numbers>
 #include <random>
 #include <ranges>
 #include <SDL3/SDL_mouse.h>
@@ -32,6 +34,9 @@
 // energy removed by resting contacts
 // energy introduced by positional correction
 // total numerical error
+
+//using PhysLevel = PhysicsLevel;
+using PhysLevel = PhysicsLevel2;
 
 namespace
 {
@@ -146,6 +151,7 @@ Load(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher)
                     .MeshDefs //
                     {
                         ShapeMeshDefs::Ball({ .Radius = kBallRadius }),
+                        //ShapeMeshDefs::Box({ .Width = kBallRadius * 2.0f, .Height = kBallRadius * 2.0f, .Depth = kBallRadius * 2.0f }),
                     },
                 },
             },
@@ -190,7 +196,22 @@ Load(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher)
                     {
                         .Mass{ mass },
                         .BoundingVolume =
-                            BoundingVolumeDef{ SphereDef{ .Center = Vec3f(0), .Radius = radius } },
+                            BoundingVolumeDef //
+                        {
+                            SphereDef //
+                            {
+                                .Center = Vec3f(0),
+                                .Radius = radius,
+                            },
+                        },
+                        /*BoundingVolumeDef //
+                        {
+                            BoxDef //
+                            {
+                                .Center = Vec3f(0),
+                                .HalfExtents = Vec3f(radius),
+                            },
+                        },*/
                     },
                 },
             };
@@ -210,10 +231,10 @@ Load(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher)
 }
 
 void
-ApplyRandomVelocities(PhysicsLevel& physLevel)
+ApplyRandomVelocities(PhysLevel& physLevel)
 {
-    constexpr float MAX_SPEED = 0.5f;
-    constexpr float MIN_SPEED = 0.1f;
+    constexpr float kMaxSpeed = 0.5f;//2.0f;
+    constexpr float kMinSpeed = 0.1f;//1.0f;
     constexpr unsigned kRngSeed = 12345;
 
     std::mt19937 gen(kRngSeed);
@@ -221,8 +242,9 @@ ApplyRandomVelocities(PhysicsLevel& physLevel)
 
     for(const Level::Node* node : physLevel.GetNodes())
     {
-        const Vec3f randomVel = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize()
-            * (MIN_SPEED + (std::abs(dis(gen)) * (MAX_SPEED - MIN_SPEED)));
+        const Vec3f randomNormal = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize();
+        const Vec3f randomVel =
+            randomNormal * (kMinSpeed + (std::abs(dis(gen)) * (kMaxSpeed - kMinSpeed)));
 
         physLevel.SetLinearVelocity(node, randomVel);
     }
@@ -237,7 +259,6 @@ struct ApplyGravityBatchParams
     std::span<const float> BodyX;
     std::span<const float> BodyY;
     std::span<const float> BodyZ;
-    std::span<const float> Radii;
     std::span<const float> InvMasses;
 
     std::span<float> ForceX;
@@ -252,16 +273,17 @@ struct ApplyGravityBatchParams
 void
 ApplyGravityRow(ApplyGravityBatchParams* batchParams, const size_t i, const size_t jStart, const size_t jEnd)
 {
+    constexpr float kMinDistance = 0.1f; // Minimum distance to avoid singularities in gravitational force calculations.
+    constexpr float kMinDistance2 = kMinDistance * kMinDistance;
+
     const float ax = batchParams->BodyX[i];
     const float ay = batchParams->BodyY[i];
     const float az = batchParams->BodyZ[i];
-    const float ar = batchParams->Radii[i];
     const float am = 1.0f / batchParams->InvMasses[i];
 
     const float* __restrict centerx = batchParams->BodyX.data();
     const float* __restrict centery = batchParams->BodyY.data();
     const float* __restrict centerz = batchParams->BodyZ.data();
-    const float* __restrict radii = batchParams->Radii.data();
     const float* __restrict invMasses = batchParams->InvMasses.data();
 
     float* __restrict fx = batchParams->ForceX.data();
@@ -281,10 +303,8 @@ ApplyGravityRow(ApplyGravityBatchParams* batchParams, const size_t i, const size
         const float dy = centery[j] - ay;
         const float dz = centerz[j] - az;
 
-        const float minR = ar + radii[j];
-        const float minR2 = minR * minR;
         const float delta2 = (dx * dx) + (dy * dy) + (dz * dz);
-        const float r2 = std::max(delta2, minR2);
+        const float r2 = std::max(delta2, kMinDistance2);
 
         const float massProduct = am * (1.0f / invMasses[j]);
         const float invR = 1.0f / std::sqrt(r2);
@@ -362,25 +382,35 @@ ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
 
 // Returns the total potential energy of the system after applying gravity.
 void
-ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
+ApplyGravity(PhysLevel& physLevel, ThreadPool& threadPool)
 {
     MLG_SCOPED_TIMER("Physics.ApplyGravity");
 
     const std::span nodes = physLevel.GetNodes();
-    const VVec3& positions = physLevel.GetPositions();
-
-    MLG_ASSERT(nodes.size() == positions.X.size(), "Nodes and positions must have the same size");
 
     const size_t numPairs = nodes.size() * (nodes.size() - 1) / 2;
     const size_t workerCount = threadPool.GetWorkerCount();
     const size_t batchSize = (numPairs / workerCount) + (numPairs % workerCount != 0 ? 1 : 0);
     const size_t numBatches = (numPairs / batchSize) + (numPairs % batchSize != 0 ? 1 : 0);
 
-    const std::span radii = physLevel.GetRadii();
-    const std::span invMasses = physLevel.GetInverseMasses();
     std::vector<std::vector<float>> forceX(numBatches, std::vector<float>(nodes.size(), 0));
     std::vector<std::vector<float>> forceY(numBatches, std::vector<float>(nodes.size(), 0));
     std::vector<std::vector<float>> forceZ(numBatches, std::vector<float>(nodes.size(), 0));
+
+    std::vector<float> posArrays[3]//
+    {
+        std::vector<float>(nodes.size()),
+        std::vector<float>(nodes.size()),
+        std::vector<float>(nodes.size()),
+    };
+
+    std::vector<float> invMassesArray(nodes.size());
+
+    VVec3 positions{ .X = posArrays[0], .Y = posArrays[1], .Z = posArrays[2] };
+    std::span invMasses(invMassesArray);
+
+    physLevel.GetPositions(positions);
+    physLevel.GetInverseMasses(invMasses);
 
     size_t pairCount = 0;
 
@@ -416,7 +446,6 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
                         .BodyX = positions.X,
                         .BodyY = positions.Y,
                         .BodyZ = positions.Z,
-                        .Radii = radii,
                         .InvMasses = invMasses,
                         .ForceX = forceX[batches.size()],
                         .ForceY = forceY[batches.size()],
@@ -453,7 +482,6 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
                 .BodyX = positions.X,
                 .BodyY = positions.Y,
                 .BodyZ = positions.Z,
-                .Radii = radii,
                 .InvMasses = invMasses,
                 .ForceX = forceX[batches.size()],
                 .ForceY = forceY[batches.size()],
@@ -509,7 +537,7 @@ ApplyGravity(PhysicsLevel& physLevel, ThreadPool& threadPool)
 }
 
 void
-ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
+ApplyExplosionImpulse(PhysLevel& physLevel, const float magnitude)
 {
     constexpr unsigned kRngSeed = 12345;
     std::mt19937 gen(kRngSeed);
@@ -532,7 +560,7 @@ ApplyExplosionImpulse(PhysicsLevel& physLevel, const float magnitude)
 }
 
 void
-StopAll(PhysicsLevel& physLevel)
+StopAll(PhysLevel& physLevel)
 {
     const Vec3f zeroVelocity{ 0};
     for(const Level::Node* node : physLevel.GetNodes())
@@ -542,14 +570,30 @@ StopAll(PhysicsLevel& physLevel)
 }
 
 float
-ComputeKineticEnergy(const PhysicsLevel& physLevel)
+ComputeKineticEnergy(const PhysLevel& physLevel)
 {
     float kineticEnergy = 0.0f;
 
-    auto velocities = physLevel.GetLinearVelocities();
-    auto invMasses = physLevel.GetInverseMasses();
+    std::vector<float> linearVelocitiesArrays[3] //
+    {
+        std::vector<float>(physLevel.GetNodeCount()),
+        std::vector<float>(physLevel.GetNodeCount()),
+        std::vector<float>(physLevel.GetNodeCount()),
+    };
+    std::vector<float> invMassesArray(physLevel.GetNodeCount());
 
-    auto range = std::views::zip(invMasses, velocities.X, velocities.Y, velocities.Z);
+    VVec3 linearVelocities //
+        {
+            .X = linearVelocitiesArrays[0],
+            .Y = linearVelocitiesArrays[1],
+            .Z = linearVelocitiesArrays[2],
+        };
+    std::span<float> invMasses(invMassesArray);
+
+    physLevel.GetLinearVelocities(linearVelocities);
+    physLevel.GetInverseMasses(invMasses);
+
+    auto range = std::views::zip(invMasses, linearVelocities.X, linearVelocities.Y, linearVelocities.Z);
 
     for(const auto& [invMass, vx, vy, vz] : range)
     {
@@ -601,10 +645,10 @@ MainLoop()
 
     Scene scene = std::move(*sceneResult);
 
-    auto physLevelResult = PhysicsLevel::Create(level.GetAllNodes());
+    auto physLevelResult = PhysLevel::Create(level.GetAllNodes());
     MLG_CHECK(physLevelResult);
 
-    PhysicsLevel physLevel = std::move(*physLevelResult);
+    PhysLevel physLevel = std::move(*physLevelResult);
 
     ApplyRandomVelocities(physLevel);
 
