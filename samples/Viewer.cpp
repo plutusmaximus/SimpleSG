@@ -165,83 +165,58 @@ MainLoop()
 
     static constexpr float kMouseWheelScale = 20.0f;
 
-    const InputMapping inputMappings[] //
+    const ActionMapping actionMappings[] //
         {
             {
-                .Input = InputButtons::KeyPressed(SDL_SCANCODE_ESCAPE),
                 .ActionId = quit,
-                .Handler = [&](const ActionEvent&) { System::PostQuitEvent(); },
+                .Input = InputButton::KeyPressed(SDL_SCANCODE_ESCAPE),
             },
             {
-                .Input = InputButtons::KeyDown(SDL_SCANCODE_W),
                 .ActionId = moveForward,
-                .Handler = [&](const ActionEvent& event)
-                { mouseNav.Move(Vec3f(0, 0, event.Value)); },
+                .Input = InputButton::KeyDown(SDL_SCANCODE_W),
                 .Scale = 1,
             },
             {
-                .Input = InputButtons::KeyDown(SDL_SCANCODE_S),
                 .ActionId = moveBackward,
-                .Handler = [&](const ActionEvent& event)
-                { mouseNav.Move(Vec3f(0, 0, event.Value)); },
+                .Input = InputButton::KeyDown(SDL_SCANCODE_S),
                 .Scale = -1,
             },
             {
-                .Input = InputButtons::KeyDown(SDL_SCANCODE_A),
                 .ActionId = moveLeft,
-                .Handler = [&](const ActionEvent& event)
-                { mouseNav.Move(Vec3f(event.Value, 0, 0)); },
+                .Input = InputButton::KeyDown(SDL_SCANCODE_A),
                 .Scale = -1,
             },
             {
-                .Input = InputButtons::KeyDown(SDL_SCANCODE_D),
                 .ActionId = moveRight,
-                .Handler = [&](const ActionEvent& event)
-                { mouseNav.Move(Vec3f(event.Value, 0, 0)); },
+                .Input = InputButton::KeyDown(SDL_SCANCODE_D),
                 .Scale = 1,
             },
             {
-                .Input = InputAxes::MouseMoveX,
                 .ActionId = lookLeftRight,
-                .Handler = [&](const ActionEvent& event) { mouseNav.Look(Vec2f(event.Value, 0)); },
+                .Input = InputAxis::MouseMoveX,
                 .Scale = WalkMouseNav::kDefualtRotPerDXY * 2 * std::numbers::pi_v<float>,
             },
             {
-                .Input = InputAxes::MouseMoveY,
                 .ActionId = lookUpDown,
-                .Handler = [&](const ActionEvent& event) { mouseNav.Look(Vec2f(0, event.Value)); },
+                .Input = InputAxis::MouseMoveY,
                 .Scale = WalkMouseNav::kDefualtRotPerDXY * 2 * std::numbers::pi_v<float>,
             },
             {
-                .Input = InputAxes::MouseWheelY,
                 .ActionId = moveUpDown,
-                .Handler = [&](const ActionEvent& event)
-                { mouseNav.Move(Vec3f(0, event.Value, 0)); },
+                .Input = InputAxis::MouseWheelY,
                 .Scale = kMouseWheelScale,
             },
             {
-                .Input = InputButtons::MousePressed(SDL_BUTTON_LEFT),
                 .ActionId = captureMouse,
-                .Handler =
-                    [&](const ActionEvent&)
-                {
-                    mouseNav.Activate();
-                    SDL_SetWindowRelativeMouseMode(gpuHelper.GetWindow(), true);
-                },
+                .Input = InputButton::MousePressed(SDL_BUTTON_LEFT),
             },
             {
-                .Input = InputButtons::MouseReleased(SDL_BUTTON_LEFT),
                 .ActionId = releaseMouse,
-                .Handler =
-                    [&](const ActionEvent&)
-                {
-                    mouseNav.Deactivate();
-                    SDL_SetWindowRelativeMouseMode(gpuHelper.GetWindow(), false);
-                },
+                .Input = InputButton::MouseReleased(SDL_BUTTON_LEFT),
             },
         };
 
-    InputMapper inputMapper(inputMappings);
+    InputMapper inputMapper(actionMappings);
 
     Timer frameTimer;
 
@@ -252,6 +227,8 @@ MainLoop()
         const float elapsedSeconds = frameTimer.GetElapsedSeconds();
 
         frameTimer.Restart();
+
+        inputMapper.BeginFrame();
 
         struct EventHandlerData
         {
@@ -281,6 +258,8 @@ MainLoop()
 
         system.ProcessEvents(eventHandler);
 
+        inputMapper.EndFrame();
+
         if(system.IsMinimized())
         {
             std::this_thread::yield();
@@ -292,7 +271,59 @@ MainLoop()
             break;
         }
 
-        inputMapper.DispatchEvents();
+        if(system.WasMinimized()
+            || system.WasRestored()
+            || system.WasFocusGained()
+            || system.WasFocusLost())
+        {
+            inputMapper.Clear();
+        }
+
+        float actionValue = 0;
+
+        if(inputMapper.Action(quit))
+        {
+            System::PostQuitEvent();
+        }
+        if(inputMapper.Action(moveForward, actionValue))
+        {
+            mouseNav.Move(Vec3f(0, 0, actionValue));
+        }
+        // Removed redundant block
+        if(inputMapper.Action(moveBackward, actionValue))
+        {
+            mouseNav.Move(Vec3f(0, 0, actionValue));
+        }
+        if(inputMapper.Action(moveLeft, actionValue))
+        {
+            mouseNav.Move(Vec3f(actionValue, 0, 0));
+        }
+        if(inputMapper.Action(moveRight, actionValue))
+        {
+            mouseNav.Move(Vec3f(actionValue, 0, 0));
+        }
+        if(inputMapper.Action(moveUpDown, actionValue))
+        {
+            mouseNav.Move(Vec3f(0, actionValue, 0));
+        }
+        if(inputMapper.Action(lookLeftRight, actionValue))
+        {
+            mouseNav.Look(Vec2f(actionValue, 0));
+        }
+        if(inputMapper.Action(lookUpDown, actionValue))
+        {
+            mouseNav.Look(Vec2f(0, actionValue));
+        }
+        if(inputMapper.Action(captureMouse))
+        {
+            mouseNav.Activate();
+            SDL_SetWindowRelativeMouseMode(gpuHelper.GetWindow(), true);
+        }
+        if(inputMapper.Action(releaseMouse))
+        {
+            mouseNav.Deactivate();
+            SDL_SetWindowRelativeMouseMode(gpuHelper.GetWindow(), false);
+        }
 
         if(!eventHandlerData.droppedFile.empty())
         {

@@ -153,8 +153,20 @@ System::GetGpuHelper()
     return *m_GpuHelper;
 }
 
+const GpuHelper&
+System::GetGpuHelper() const
+{
+    return *m_GpuHelper;
+}
+
 FileFetcher&
 System::GetFileFetcher()
+{
+    return *m_FileFetcher;
+}
+
+const FileFetcher&
+System::GetFileFetcher() const
 {
     return *m_FileFetcher;
 }
@@ -165,8 +177,20 @@ System::GetThreadPool()
     return *m_ThreadPool;
 }
 
+const ThreadPool&
+System::GetThreadPool() const
+{
+    return *m_ThreadPool;
+}
+
 Renderer&
 System::GetRenderer()
+{
+    return *m_Renderer;
+}
+
+const Renderer&
+System::GetRenderer() const
 {
     return *m_Renderer;
 }
@@ -196,6 +220,7 @@ System::ProcessEvents(const EventHandler& eventHandler)
     m_GpuHelper->GetInstance().ProcessEvents();
 
     m_FocusEvent = FocusEvent::None;
+    m_WindowStateEvent = WindowStateEvent::None;
 
     SDL_Event sdlEvent;
     while(SDL_PollEvent(&sdlEvent))
@@ -211,10 +236,12 @@ System::ProcessEvents(const EventHandler& eventHandler)
             case SDL_EVENT_WINDOW_RESTORED:
             case SDL_EVENT_WINDOW_MAXIMIZED:
                 m_Minimized = false;
+                m_WindowStateEvent = WindowStateEvent::Restored;
                 break;
 
             case SDL_EVENT_WINDOW_MINIMIZED:
                 m_Minimized = true;
+                m_WindowStateEvent = WindowStateEvent::Minimized;
                 break;
 
             default:
@@ -263,4 +290,19 @@ System::ProcessEvents(const EventHandler& eventHandler)
                 break;
         }
     }
+}
+
+bool
+System::SetMouseCaptured(const bool captured)
+{
+    const bool wasCaptured = IsMouseCaptured();
+    SDL_SetWindowRelativeMouseMode(GetGpuHelper().GetWindow(), captured);
+
+    return wasCaptured;
+}
+
+bool
+System::IsMouseCaptured() const
+{
+    return SDL_GetWindowRelativeMouseMode(GetGpuHelper().GetWindow());
 }

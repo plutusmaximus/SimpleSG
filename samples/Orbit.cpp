@@ -10,7 +10,6 @@
 #include "PhysicsLevel.h"
 #include "PhysicsLevel2.h"
 #include "PropKit.h"
-#include "RangeQuery.h"
 #include "Renderer.h"
 #include "Scene.h"
 #include "ShapeMeshDefs.h"
@@ -47,6 +46,7 @@ constexpr float kPhysicsTimeStep = 1.0f / kPhysicsFps;
 constexpr float kGravitationalConstant = 0.1f; // 6.674e-11f;//(m^3 kg^-1 s^-2)
 
 constexpr bool kApplyGravityMultithreaded = true;
+
 struct PerfCounterGlobals
 {
     static inline PerfCounter TotalPE{ { .Name = "Energy.PE" } }; // Potential Energy
@@ -54,93 +54,27 @@ struct PerfCounterGlobals
     static inline PerfCounter TotalEnergy{ { .Name = "Energy.Total" } };
 };
 
-class NodeActivator
-{
-public:
-    NodeActivator() = delete;
-
-    NodeActivator(Level& level, const bool activate)
-        : m_Level(level),
-          m_Activate(activate)
-    {
-    }
-
-    const Level::Node& operator()(const Level::Node& node) const
-    {
-        m_Level.SetActive(node, m_Activate);
-
-        return node; // NOLINT
-    }
-
-    const Level::Node* operator()(const Level::Node* node) const
-    {
-        operator()(*node);
-        return node;
-    }
-
-private:
-    Level& m_Level; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
-    bool m_Activate;
-};
-
-class NodeVisibility
-{
-public:
-    NodeVisibility() = delete;
-
-    NodeVisibility(Level& level, const bool visible)
-        : m_Level(level),
-          m_Visible(visible)
-    {
-    }
-
-    const Level::Node& operator()(const Level::Node& node) const
-    {
-        m_Level.SetVisible(node, m_Visible);
-
-        return node; // NOLINT
-    }
-
-    const Level::Node* operator()(const Level::Node* node) const
-    {
-        operator()(*node);
-        return node;
-    }
-
-private:
-    Level& m_Level; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
-    bool m_Visible;
-};
-
-class NodeSelector
-{
-public:
-    NodeSelector() = delete;
-
-    NodeSelector(const Camera& camera, const TrTransformf& cameraXForm, const Rect& selectionRect)
-        : m_Frustum(camera, cameraXForm, selectionRect)
-    {
-    }
-
-    bool operator()(const Level::Node& node) const
-    {
-        const BoundingSphere bs = node.GetBoundingSphere();
-        const Frustum::ContainsResult result = m_Frustum.Contains(bs);
-
-        return result == Frustum::ContainsResult::Inside
-            || result == Frustum::ContainsResult::Intersects;
-    }
-
-    bool operator()(const Level::Node* node) const { return operator()(*node); }
-
-private:
-    Frustum m_Frustum;
-};
-
 Result<std::tuple<PropKit, Level>>
-Load(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher)
+LoadLevel(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher)
 {
     constexpr float kBallRadius = 1.0f;
+    //constexpr float kBoxExtent = kBallRadius * 2;
+
+    // Fixed seed for reproducibility
+    constexpr unsigned kRngSeed = 12345;
+    std::mt19937 gen(kRngSeed);
+    std::uniform_real_distribution<float> dis(-1, 1);
+
+    constexpr float kDispersionRadius = 20;
+    constexpr float kMaxBodyRadius = 1.0f;
+    constexpr float kMinBodyRadius = 0.1f;
+
+#ifndef NDEBUG
+    // Reduce the number of bodies in debug builds to improve performance.
+    constexpr size_t kNumBodies = 500;
+#else
+    constexpr size_t kNumBodies = 1000;
+#endif
 
     const PropKitDef propKitDef //
         {
@@ -151,38 +85,24 @@ Load(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher)
                     .MeshDefs //
                     {
                         ShapeMeshDefs::Ball({ .Radius = kBallRadius }),
-                        //ShapeMeshDefs::Box({ .Width = kBallRadius * 2.0f, .Height = kBallRadius * 2.0f, .Depth = kBallRadius * 2.0f }),
+                        //ShapeMeshDefs::Box({ .Width = kBoxExtent, .Height = kBoxExtent, .Depth = kBoxExtent }),
                     },
                 },
             },
         };
 
-    auto propKit =
-        PropKit::Create(gpuHelper, threadPool, fileFetcher, std::filesystem::path{}, propKitDef);
-    MLG_CHECK(propKit, "Failed to create PropKit");
-
-    // Fixed seed for reproducibility
-    constexpr unsigned kRngSeed = 12345;
-    std::mt19937 gen(kRngSeed);
-    std::uniform_real_distribution<float> dis(-1, 1);
-
-    constexpr int GRID_SIZE = 20;
-    constexpr float MAX_RADIUS = 1.0f;
-    constexpr float MIN_RADIUS = 0.1f;
-#ifndef NDEBUG
-    // Reduce the number of bodies in debug builds to improve performance.
-    constexpr size_t NUM_BODIES = 500;
-#else
-    constexpr size_t NUM_BODIES = 1000;
-#endif
-
     std::vector<LevelNodeDef> nodeDefs;
-    nodeDefs.reserve(NUM_BODIES);
-    for(size_t i = 0; i < NUM_BODIES; ++i)
+    nodeDefs.reserve(kNumBodies);
+    for(size_t i = 0; i < kNumBodies; ++i)
     {
-        const float radius = MIN_RADIUS + (std::abs(dis(gen)) * (MAX_RADIUS - MIN_RADIUS));
+        const float radius = kMinBodyRadius + (std::abs(dis(gen)) * (kMaxBodyRadius - kMinBodyRadius));
         const float mass = radius;
-        const Vec3f position{ dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE, dis(gen) * GRID_SIZE };
+        const Vec3f position //
+            {
+                dis(gen) * kDispersionRadius,
+                dis(gen) * kDispersionRadius,
+                dis(gen) * kDispersionRadius,
+            };
 
         LevelNodeDef nodeDef //
             {
@@ -196,21 +116,15 @@ Load(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher)
                     {
                         .Mass{ mass },
                         .BoundingVolume =
-                            BoundingVolumeDef //
-                        {
                             SphereDef //
-                            {
-                                .Center = Vec3f(0),
-                                .Radius = radius,
-                            },
-                        },
-                        /*BoundingVolumeDef //
                         {
-                            BoxDef //
-                            {
-                                .Center = Vec3f(0),
-                                .HalfExtents = Vec3f(radius),
-                            },
+                            .Center = Vec3f(0),
+                            .Radius = radius,
+                        },
+                        /*BoxDef //
+                        {
+                            .Center = Vec3f(0),
+                            .HalfExtents = Vec3f(radius),
                         },*/
                     },
                 },
@@ -224,12 +138,17 @@ Load(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher)
             .NodeDefs = std::move(nodeDefs),
         };
 
+    auto propKit =
+        PropKit::Create(gpuHelper, threadPool, fileFetcher, std::filesystem::path{}, propKitDef);
+    MLG_CHECK(propKit, "Failed to create PropKit");
+
     auto level = Level::Create(levelDef, *propKit);
     MLG_CHECK(level, "Failed to create Level");
 
     return std::make_tuple(std::move(*propKit), std::move(*level));
 }
 
+/// @brief Applies random linear velocities to all bodies in the physics level.
 void
 ApplyRandomVelocities(PhysLevel& physLevel)
 {
@@ -562,7 +481,8 @@ ApplyExplosionImpulse(PhysLevel& physLevel, const float magnitude)
 void
 StopAll(PhysLevel& physLevel)
 {
-    const Vec3f zeroVelocity{ 0};
+    constexpr Vec3f zeroVelocity{ 0};
+
     for(const Level::Node* node : physLevel.GetNodes())
     {
         physLevel.SetLinearVelocity(node, zeroVelocity);
@@ -635,7 +555,7 @@ MainLoop()
     Renderer& renderer = system.GetRenderer();
     const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
 
-    auto loadResult = Load(gpuHelper, threadPool, fileFetcher);
+    auto loadResult = LoadLevel(gpuHelper, threadPool, fileFetcher);
     MLG_CHECK(loadResult);
 
     auto&& [propKit, level] = std::move(*loadResult);
@@ -672,141 +592,75 @@ MainLoop()
     constexpr ActionIdentifier explode("Explode");
     constexpr ActionIdentifier stopAll("StopAll");
     constexpr ActionIdentifier pause("Pause");
-    constexpr ActionIdentifier activateNodes("ActivateNodes");
 
     static constexpr float kMouseWheelScale = 20.0f;
 
     bool pauseSim = false;
-    bool activateSelectedNodes = false;
 
-    const InputMapping inputMappings[] //
+    const ActionMapping actionMappings[] //
         {
             {
-                .Input = InputButtons::KeyPressed(SDL_SCANCODE_ESCAPE),
                 .ActionId = quit,
-                .Handler = [&](const ActionEvent&) { System::PostQuitEvent(); },
+                .Input = InputButton::KeyPressed(SDL_SCANCODE_ESCAPE),
             },
             {
-                .Input = InputButtons::KeyDown(SDL_SCANCODE_W),
                 .ActionId = moveForward,
-                .Handler = [&](const ActionEvent& event)
-                { mouseNav.Move(Vec3f(0, 0, event.Value)); },
+                .Input = InputButton::KeyDown(SDL_SCANCODE_W),
                 .Scale = 1,
             },
             {
-                .Input = InputButtons::KeyDown(SDL_SCANCODE_S),
                 .ActionId = moveBackward,
-                .Handler = [&](const ActionEvent& event)
-                { mouseNav.Move(Vec3f(0, 0, event.Value)); },
+                .Input = InputButton::KeyDown(SDL_SCANCODE_S),
                 .Scale = -1,
             },
             {
-                .Input = InputButtons::KeyDown(SDL_SCANCODE_A),
                 .ActionId = moveLeft,
-                .Handler = [&](const ActionEvent& event)
-                { mouseNav.Move(Vec3f(event.Value, 0, 0)); },
+                .Input = InputButton::KeyDown(SDL_SCANCODE_A),
                 .Scale = -1,
             },
             {
-                .Input = InputButtons::KeyDown(SDL_SCANCODE_D),
                 .ActionId = moveRight,
-                .Handler = [&](const ActionEvent& event)
-                { mouseNav.Move(Vec3f(event.Value, 0, 0)); },
+                .Input = InputButton::KeyDown(SDL_SCANCODE_D),
                 .Scale = 1,
             },
             {
-                .Input = InputAxes::MouseMoveX,
                 .ActionId = lookLeftRight,
-                .Handler = [&](const ActionEvent& event) { mouseNav.Look(Vec2f(event.Value, 0)); },
+                .Input = InputAxis::MouseMoveX,
                 .Scale = WalkMouseNav::kDefualtRotPerDXY * 2 * std::numbers::pi_v<float>,
             },
             {
-                .Input = InputAxes::MouseMoveY,
                 .ActionId = lookUpDown,
-                .Handler = [&](const ActionEvent& event) { mouseNav.Look(Vec2f(0, event.Value)); },
+                .Input = InputAxis::MouseMoveY,
                 .Scale = WalkMouseNav::kDefualtRotPerDXY * 2 * std::numbers::pi_v<float>,
             },
             {
-                .Input = InputAxes::MouseWheelY,
                 .ActionId = moveUpDown,
-                .Handler = [&](const ActionEvent& event)
-                { mouseNav.Move(Vec3f(0, event.Value, 0)); },
+                .Input = InputAxis::MouseWheelY,
                 .Scale = kMouseWheelScale,
             },
             {
-                .Input = InputButtons::MousePressed(SDL_BUTTON_LEFT),
                 .ActionId = captureMouse,
-                .Handler =
-                    [&](const ActionEvent&)
-                {
-                    mouseNav.Activate();
-                    SDL_SetWindowRelativeMouseMode(gpuHelper.GetWindow(), true);
-                },
+                .Input = InputButton::MousePressed(SDL_BUTTON_LEFT),
             },
             {
-                .Input = InputButtons::MouseReleased(SDL_BUTTON_LEFT),
                 .ActionId = releaseMouse,
-                .Handler =
-                    [&](const ActionEvent&)
-                {
-                    mouseNav.Deactivate();
-                    SDL_SetWindowRelativeMouseMode(gpuHelper.GetWindow(), false);
-                },
+                .Input = InputButton::MouseReleased(SDL_BUTTON_LEFT),
             },
             {
-                .Input = InputButtons::KeyPressed(SDL_SCANCODE_RETURN),
                 .ActionId = explode,
-                .Handler =
-                    [&](const ActionEvent&)
-                {
-                    constexpr float kImpulseMagnitude = 5.0f;
-                    ApplyExplosionImpulse(physLevel, kImpulseMagnitude);
-                },
+                .Input = InputButton::KeyPressed(SDL_SCANCODE_RETURN),
             },
             {
-                .Input = InputButtons::KeyPressed(SDL_SCANCODE_BACKSPACE),
                 .ActionId = stopAll,
-                .Handler = [&](const ActionEvent&) { StopAll(physLevel); },
+                .Input = InputButton::KeyPressed(SDL_SCANCODE_BACKSPACE),
             },
             {
-                .Input = InputButtons::KeyPressed(SDL_SCANCODE_F1),
                 .ActionId = pause,
-                .Handler = [&](const ActionEvent&) { pauseSim = !pauseSim; },
-            },
-            {
-                .Input = InputButtons::KeyPressed(SDL_SCANCODE_F2),
-                .ActionId = activateNodes,
-                .Handler =
-                    [&](const ActionEvent&)
-                {
-                    activateSelectedNodes = !activateSelectedNodes;
-
-                    if(!activateSelectedNodes)
-                    {
-                        RangeQuery::from(level.GetAllNodes())
-                            .apply(NodeActivator(level, true))
-                            .apply(NodeVisibility(level, true))
-                            .exec();
-                    }
-                    else
-                    {
-                        // const Rect rect(Point(172, 290), Point(247, 360));
-                        const Rect rect({ .X = 200, .Y = 400, .Width = 75, .Height = 75 });
-                        // const Rect rect(Point(1000, 1000), Point(1050, 1050));
-
-                        RangeQuery::from(level.GetAllNodes())
-                            .apply(NodeActivator(level, false))
-                            .apply(NodeVisibility(level, false))
-                            .where(NodeSelector(camera, cameraXForm, rect))
-                            .apply(NodeActivator(level, true))
-                            .apply(NodeVisibility(level, true))
-                            .exec();
-                    }
-                },
+                .Input = InputButton::KeyPressed(SDL_SCANCODE_F1),
             },
         };
 
-    InputMapper inputMapper(inputMappings);
+    InputMapper inputMapper(actionMappings);
 
     Timer frameTimer;
 
@@ -818,6 +672,8 @@ MainLoop()
 
         frameTimer.Restart();
 
+        inputMapper.BeginFrame();
+
         auto eventHandlerFunc = [](const SDL_Event& sdlEvent, InputMapper* im)
         {
             im->ProcessEvent(sdlEvent);
@@ -827,6 +683,8 @@ MainLoop()
         const EventHandler eventHandler(+eventHandlerFunc, &inputMapper);
 
         system.ProcessEvents(eventHandler);
+
+        inputMapper.EndFrame();
 
         if(system.IsMinimized())
         {
@@ -839,7 +697,71 @@ MainLoop()
             break;
         }
 
-        inputMapper.DispatchEvents();
+        if(system.WasMinimized()
+            || system.WasRestored()
+            || system.WasFocusGained()
+            || system.WasFocusLost())
+        {
+            inputMapper.Clear();
+        }
+
+        float actionValue = 0;
+
+        if(inputMapper.Action(quit))
+        {
+            System::PostQuitEvent();
+        }
+        if(inputMapper.Action(moveForward, actionValue))
+        {
+            mouseNav.Move(Vec3f(0, 0, actionValue));
+        }
+        if(inputMapper.Action(moveBackward, actionValue))
+        {
+            mouseNav.Move(Vec3f(0, 0, actionValue));
+        }
+        if(inputMapper.Action(moveLeft, actionValue))
+        {
+            mouseNav.Move(Vec3f(actionValue, 0, 0));
+        }
+        if(inputMapper.Action(moveRight, actionValue))
+        {
+            mouseNav.Move(Vec3f(actionValue, 0, 0));
+        }
+        if(inputMapper.Action(moveUpDown, actionValue))
+        {
+            mouseNav.Move(Vec3f(0, actionValue, 0));
+        }
+        if(inputMapper.Action(lookLeftRight, actionValue))
+        {
+            mouseNav.Look(Vec2f(actionValue, 0));
+        }
+        if(inputMapper.Action(lookUpDown, actionValue))
+        {
+            mouseNav.Look(Vec2f(0, actionValue));
+        }
+        if(inputMapper.Action(captureMouse))
+        {
+            mouseNav.Activate();
+            system.SetMouseCaptured(true);
+        }
+        if(inputMapper.Action(releaseMouse))
+        {
+            mouseNav.Deactivate();
+            system.SetMouseCaptured(false);
+        }
+        if(inputMapper.Action(explode))
+        {
+            constexpr float kImpulseMagnitude = 5.0f;
+            ApplyExplosionImpulse(physLevel, kImpulseMagnitude);
+        }
+        if(inputMapper.Action(stopAll))
+        {
+            StopAll(physLevel);
+        }
+        if(inputMapper.Action(pause))
+        {
+            pauseSim = !pauseSim;
+        }
 
         if(!pauseSim)
         {

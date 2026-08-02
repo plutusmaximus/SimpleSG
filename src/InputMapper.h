@@ -2,31 +2,33 @@
 
 #include "VecMath.h"
 
-#include <chrono>
 #include <cstddef>
 #include <span>
 #include <variant>
 #include <vector>
 
-/*
-Event   = observed fact
-Action  = semantic intent
-Command = executable mutation
-Message = transport/envelope
+// Forward decls
+union SDL_Event;
 
-Event       -> Action
-Action      -> Command
-Command     -> Event(s)
-*/
-
+/// @brief Represents the device that an input button belongs.
+// Devices like gamepads, etc. can be added as they are implemented.
 enum class InputButtonDevice
 {
     Keyboard,
     Mouse,
-    Gamepad
 };
 
-enum class InputButtonState
+/// @brief Represents the device that an input axis belongs.
+/// Devices like gamepads, etc. can be added as they are implemented.
+enum class InputAxisDevice
+{
+    Mouse,
+    MouseWheel
+};
+
+/// @brief Represents input button event (pressed, released, down) that
+/// triggers an action.
+enum class InputButtonTrigger
 {
     // Button pressed this frame.
     Pressed,
@@ -36,93 +38,118 @@ enum class InputButtonState
     Down
 };
 
-enum class InputAxisDevice
-{
-    Mouse,
-    MouseWheel,
-    GamepadLeft,
-    GamepadRight
-};
-
-enum class InputAxisDirection
+/// @brief Represents the identifier of an input axis (X, Y, Z) that can be mapped to an action.
+enum class InputAxisIdentifier
 {
     X,
     Y,
     Z
 };
 
-/// @brief A unique identifier for an input button.
-class ButtonIdentifier
-{
-public:
-
-    ButtonIdentifier() = delete;
-
-    /// @brief Construct a ButtonIdentifier with the specified device and id.
-    /// @param device The device of the input button.
-    /// @param id The identifier for the button within its device.  E.g. for a keyboard key, this
-    /// would be the SDL scancode.  For a mouse button, this would be the SDL mouse button code. For
-    /// a gamepad button, this would be the SDL gamepad button code.
-    constexpr ButtonIdentifier(const InputButtonDevice device, const unsigned id)
-        : m_Device(device),
-          m_Id(id)
-    {
-    }
-
-    constexpr InputButtonDevice GetDevice() const { return m_Device; }
-    constexpr unsigned GetId() const { return m_Id; }
-
-private:
-
-    InputButtonDevice m_Device;
-    unsigned m_Id;
-};
-
 /// @brief Represents a specific input button and its state (pressed, released, down).
-///       This is used to map input events to actions in the InputMapper.
+/// Used to map input button events to actions.
 class InputButton
 {
 public:
     InputButton() = delete;
 
-    constexpr InputButton(const ButtonIdentifier& buttonId, const InputButtonState state)
-        : m_ButtonId(buttonId),
-          m_State(state)
+    constexpr InputButton(
+        const InputButtonDevice device, const unsigned buttonId, const InputButtonTrigger trigger)
+        : m_Device(device),
+          m_ButtonId(buttonId),
+          m_Trigger(trigger)
     {
     }
 
-    constexpr const ButtonIdentifier& GetButtonId() const { return m_ButtonId; }
-    constexpr InputButtonState GetState() const { return m_State; }
+    constexpr InputButtonDevice GetDevice() const { return m_Device; }
+    constexpr unsigned GetId() const { return m_ButtonId; }
+    constexpr InputButtonTrigger GetTrigger() const { return m_Trigger; }
+
+    constexpr bool TriggersOnPress() const { return m_Trigger == InputButtonTrigger::Pressed; }
+    constexpr bool TriggersOnRelease() const { return m_Trigger == InputButtonTrigger::Released; }
+    constexpr bool TriggersWhileDown() const { return m_Trigger == InputButtonTrigger::Down; }
+
+    friend constexpr bool operator==(const InputButton& a, const InputButton& b) = default;
+
+    /// Helper functions to create InputButton instances for specific button states.
+
+    static constexpr InputButton KeyPressed(const unsigned keyCode)
+    {
+        return InputButton(InputButtonDevice::Keyboard, keyCode, InputButtonTrigger::Pressed);
+    }
+
+    static constexpr InputButton KeyReleased(const unsigned keyCode)
+    {
+        return InputButton(InputButtonDevice::Keyboard, keyCode, InputButtonTrigger::Released);
+    }
+
+    static constexpr InputButton KeyDown(const unsigned keyCode)
+    {
+        return InputButton(InputButtonDevice::Keyboard, keyCode, InputButtonTrigger::Down);
+    }
+
+    static constexpr InputButton MousePressed(const unsigned buttonCode)
+    {
+        return InputButton(InputButtonDevice::Mouse, buttonCode, InputButtonTrigger::Pressed);
+    }
+
+    static constexpr InputButton MouseReleased(const unsigned buttonCode)
+    {
+        return InputButton(InputButtonDevice::Mouse, buttonCode, InputButtonTrigger::Released);
+    }
+
+    static constexpr InputButton MouseDown(const unsigned buttonCode)
+    {
+        return InputButton(InputButtonDevice::Mouse, buttonCode, InputButtonTrigger::Down);
+    }
 
 private:
-
-    ButtonIdentifier m_ButtonId;
-    InputButtonState m_State;
+    InputButtonDevice m_Device;
+    unsigned m_ButtonId;
+    InputButtonTrigger m_Trigger;
 };
 
-/// @brief Represents a specific input axis and its direction (left-right, up-down).
-///       This is used to map input events to actions in the InputMapper.
+/// @brief Represents a specific input axis and its direction (X, Y, Z).
+/// Used to map input axis events to actions.
 class InputAxis
 {
 public:
     InputAxis() = delete;
 
-    constexpr InputAxis(const InputAxisDevice device, const InputAxisDirection direction)
+    constexpr InputAxis(const InputAxisDevice device, const InputAxisIdentifier axisId)
         : m_Device(device),
-          m_Direction(direction)
+          m_AxisId(axisId)
     {
     }
 
     constexpr InputAxisDevice GetDevice() const { return m_Device; }
-    constexpr InputAxisDirection GetDirection() const { return m_Direction; }
+    constexpr InputAxisIdentifier GetAxisId() const { return m_AxisId; }
+
+    friend constexpr bool operator==(const InputAxis& a, const InputAxis& b) = default;
+
+    /// Predefined InputAxis instances.
+
+    static const InputAxis MouseMoveX;
+    static const InputAxis MouseMoveY;
+    static const InputAxis MouseMoveZ;
+    static const InputAxis MouseWheelX;
+    static const InputAxis MouseWheelY;
 
 private:
     InputAxisDevice m_Device;
-    InputAxisDirection m_Direction;
+    InputAxisIdentifier m_AxisId;
 };
 
-/// @brief Represents an input action.  Input actions are mapped to input buttons or axes, and can
-/// be used to trigger specific behaviors in the application.
+inline const InputAxis InputAxis::MouseMoveX{ InputAxisDevice::Mouse, InputAxisIdentifier::X };
+inline const InputAxis InputAxis::MouseMoveY{ InputAxisDevice::Mouse, InputAxisIdentifier::Y };
+inline const InputAxis InputAxis::MouseMoveZ{ InputAxisDevice::Mouse, InputAxisIdentifier::Z };
+inline const InputAxis InputAxis::MouseWheelX{ InputAxisDevice::MouseWheel,
+    InputAxisIdentifier::X };
+inline const InputAxis InputAxis::MouseWheelY{ InputAxisDevice::MouseWheel,
+    InputAxisIdentifier::Y };
+
+/// @brief Represents a unique identifier for an action that can be mapped to input events.
+/// Action identifiers are created at compile time using a string literal.
 class ActionIdentifier
 {
 public:
@@ -130,20 +157,31 @@ public:
 
     template<size_t N>
     explicit consteval ActionIdentifier(const char (&name)[N])
-        : m_Name(&name[0]),
-          m_Hash(HashName(name))
+        : m_Hash(HashName(name))
     {
         static_assert(N > 0, "ActionIdentifier name must not be empty");
+        static_assert(N <= kMaxNameLength + 1, "ActionIdentifier name is too long");
+        for(size_t i = 0; i < N; ++i)
+        {
+            m_Name[i] = name[i];
+        }
     }
+
+    constexpr const char* c_str() const { return &m_Name[0]; }
 
     friend constexpr auto operator<=>(const ActionIdentifier& a, const ActionIdentifier& b)
     {
-        return a.m_Hash <=> b.m_Hash;
+        if(a.m_Hash != b.m_Hash)
+        {
+            return a.m_Hash <=> b.m_Hash;
+        }
+
+        return std::strcmp(a.c_str(), b.c_str()) <=> 0;
     }
 
     friend constexpr bool operator==(const ActionIdentifier& a, const ActionIdentifier& b)
     {
-        return a.m_Hash == b.m_Hash && std::strcmp(a.m_Name, b.m_Name) == 0;
+        return a.m_Hash == b.m_Hash && std::strcmp(a.c_str(), b.c_str()) == 0;
     }
 
     friend constexpr bool operator!=(const ActionIdentifier& a, const ActionIdentifier& b)
@@ -169,235 +207,123 @@ private:
 
         return h;
     }
-    const char* m_Name{ nullptr };
+
+    static constexpr size_t kMaxNameLength = 63; // 63 chars + null terminator
+
+    char m_Name[kMaxNameLength + 1]{ 0 };
     uint64_t m_Hash{ 0 };
 };
 
-struct ActionEvent;
-
-/// @brief ActionHandler contains a callable object that will be invoked when an action is triggered.
-class ActionHandler
+/// @brief Maps an action identifier to an input.
+/// The application passes an array of these to InputMapper ctor.
+struct ActionMapping
 {
-public:
-    ActionHandler() = delete;
-    ~ActionHandler() { m_Destroy(GetStorage()); }
-    ActionHandler(const ActionHandler&) = delete;
-    ActionHandler& operator=(const ActionHandler&) = delete;
-    ActionHandler(ActionHandler&& other) = delete;
-    ActionHandler& operator=(ActionHandler&& other) = delete;
-
-    template<class F>
-        requires(!std::is_same_v<std::remove_cvref_t<F>, ActionHandler>)
-    ActionHandler(F&& f) // NOLINT(google-explicit-constructor)
-        : m_Invoke(&ActionHandler::Invoke<std::remove_cvref_t<F>>),
-          m_Destroy(&ActionHandler::Destroy<std::remove_cvref_t<F>>)
-    {
-        static_assert(std::is_invocable_r_v<void, std::remove_cvref_t<F>&, const ActionEvent&>);
-        static_assert(sizeof(F) <= kCapacity, "Callable too large for ActionHandler");
-        static_assert(alignof(F) <= kAlign, "Callable alignment too large for ActionHandler");
-
-        F* storage = static_cast<F*>(GetStorage());
-
-        std::construct_at(storage, std::forward<F>(f));
-    }
-
-    void operator()(const ActionEvent& e) const
-    {
-        m_Invoke(GetStorage(), e);
-    }
-
-private:
-
-    friend class InputMapper;
-
-    static constexpr std::size_t kAlign = alignof(std::max_align_t);
-    static constexpr std::size_t kCapacity = 64;
-    alignas(kAlign) std::byte m_Bytes[kCapacity]{};
-
-    template<typename F>
-    static void Invoke(const void* p, const ActionEvent& e)
-    {
-        (*static_cast<const F*>(p))(e);
-    }
-
-    template<typename F>
-    static void Destroy(void* p)
-    {
-        std::destroy_at(static_cast<F*>(p));
-    }
-
-    void (*m_Invoke)(const void*, const ActionEvent&) = nullptr;
-    void (*m_Destroy)(void*) = nullptr;
-
-    void* GetStorage()
-    {
-        return static_cast<void*>(m_Bytes);
-    }
-
-    const void* GetStorage() const
-    {
-        return static_cast<const void*>(m_Bytes);
-    }
-};
-
-/// @brief Action events are triggered by input buttons or axes mapped to actions.
-///       Action events are dispatched to handlers that can respond to the input.
-struct ActionEvent
-{
+    /// @brief The unique identifier for the action.
     ActionIdentifier ActionId;
-    std::chrono::duration<int64_t, std::micro> Timestamp;
-    // For axis events, this is the value of the axis movement
-    // For button events, this is always 1.0f
-    float Value{0.0f};
-};
-
-/// @brief Represents a mapping between an input button or axis and an action.
-/// When an input event occurs for the specified button or axis, the handler will be called
-/// with an event that contains the associated action identifier and a timestamp.
-struct InputMapping // NOLINT(clang-analyzer-optin.performance.Padding)
-{
+    /// @brief The input that triggers the action. This can be an InputButton or an InputAxis.
     std::variant<InputButton, InputAxis> Input;
-    ActionIdentifier ActionId;
-    ActionHandler Handler;
-    float Scale = 1;
+    /// @brief The scale factor to apply to the input value when triggering the action.
+    float Scale{ 1 };
 };
 
+/// @brief Maps input events (button presses, axis movements) to actions identified by
+/// ActionIdentifier. If two or more input events are mapped to the same action, the action is
+/// triggered if any of the mapped inputs are triggered. In such cases the action's value will
+/// be set by the event that generates the maximum absolute value.
+/// If two events generate the same absolute value, the event that is processed first will set the
+/// action's value.  For example, if one event generates -3, and another generates 3, the action's
+/// value will be set to -3 if that event is processed first.
+///
+/// To process input events, call BeginFrame() at the start of the frame, then call ProcessEvent()
+/// for each SDL_Event, and finally call EndFrame() at the end of the frame. After EndFrame(),
+/// call an Action() variant to check if an action was triggered and get its value.
 class InputMapper
 {
 public:
+    // SDL supports 5 mouse buttons (left, right, middle, X1, X2),
+    // but button indexes begin at 1, so we allocate an array of 6
+    // and ignore index zero.  See SDL/include/SDL3/SDL_mouse.h
+    static constexpr size_t kMaxMouseButtons = 6;
 
-    InputMapper() = delete;
+    explicit InputMapper(const std::span<const ActionMapping> mappings);
 
-    template<size_t N>
-    explicit InputMapper(const InputMapping (&mappings)[N])
-        : InputMapper(std::span(mappings))
-    {
-    }
+    /// @brief Clears the state of all actions. This should be called when the application loses
+    /// focus or is minimized to prevent actions from being triggered when the application regains
+    /// focus.
+    void Clear();
 
-    explicit InputMapper(const std::span<const InputMapping> mappings);
+    /// @brief Begins a new frame. This should be called at the start of each frame before processing
+    /// input events.
+    void BeginFrame();
 
-    void ProcessEvent(const union SDL_Event& event);
+    /// @brief Processes an SDL_Event and updates the state of the mapped actions accordingly.
+    void ProcessEvent(const SDL_Event& event);
 
-    void DispatchEvents();
+    /// @brief Ends the current frame. This should be called at the end of each frame after
+    /// processing all input events.
+    void EndFrame();
 
-    void ClearEventQueue();
+    /// @brief Checks if the specified action was triggered during the current frame.
+    /// Must not be called before EndFrame() is called.
+    bool Action(const ActionIdentifier& actionId) const;
+
+    bool Action(const ActionIdentifier& actionId, float& value) const;
 
 private:
+    struct ButtonActionMapping // NOLINT(cppcoreguidelines-pro-type-member-init)
+    {
+        InputButton Button;
+        float Scale{ 1 };
+        // Index into m_ActionStates for the action that this button mapping triggers.
+        size_t ActionStateIndex{ 0 };
+    };
 
+    struct AxisActionMapping // NOLINT(cppcoreguidelines-pro-type-member-init)
+    {
+        InputAxis Axis;
+        float Scale{ 1 };
+        // Index into m_ActionStates for the action that this axis mapping triggers.
+        size_t ActionStateIndex{ 0 };
+    };
+
+    // Represents the state of an action, including whether it was triggered and its value.
+    struct ActionState
+    {
+        ActionIdentifier ActionId;
+        bool Triggered{ false };
+        float Value{ 0.0f };
+    };
+
+    // Tracks the current state of a button.
     struct ButtonState
     {
-        ButtonState() = delete;
+        unsigned PressCount{ 0 };
+        unsigned ReleaseCount{ 0 };
+        bool DownState{ false };
 
-        explicit ButtonState(const ButtonIdentifier& buttonId)
-            : ButtonId(buttonId)
-        {
-        }
-
-        ButtonIdentifier ButtonId;
-        bool Pressed{false};
-        bool WasPressed{false};
+        bool IsPressed() const { return PressCount > 0; }
+        bool IsReleased() const { return ReleaseCount > 0; }
+        bool IsDown() const { return DownState; }
     };
 
-    struct QueuedEvent
-    {
-        QueuedEvent() = delete;
+    void TriggerAction(const ButtonActionMapping& mapping);
 
-        QueuedEvent(const ActionEvent& event, const ActionHandler& handler)
-            : Event(event),
-              Handler(&handler)
-        {
-        }
+    void TriggerAction(const InputAxis& inputAxis, const float value);
 
-        ActionEvent Event;
-        const ActionHandler* Handler{nullptr};
-    };
+    std::vector<ButtonActionMapping> m_ButtonActionMappings;
+    std::vector<AxisActionMapping> m_AxisActionMappings;
 
-    void HandleButtonEvent(const ButtonIdentifier& buttonId,
-        std::chrono::duration<int64_t, std::micro> timestamp,
-        const bool pressed);
+    // Track button states for all keys and mouse buttons.  The index into the vector is the scancode
+    // for keys and the button index for mouse buttons.
+    std::vector<ButtonState> m_KeyStates;
+    std::array<ButtonState, kMaxMouseButtons> m_MouseButtonStates{};
 
-    void SynthesizeEvents();
+    // Current state of all registered actions.
+    std::vector<ActionState> m_ActionStates;
 
-    using MappingRange = std::ranges::subrange<std::vector<const InputMapping*>::iterator>;
+    // Mouse move and wheel deltas this frame.
+    Vec2f m_MouseDelta{ 0, 0 };
+    Vec2f m_MouseWheelDelta{ 0, 0 };
 
-    MappingRange GetMappings(const InputButton& button) const;
-
-    MappingRange GetMappings(const InputAxis& axis) const;
-
-    ButtonState* GetButtonState(const ButtonIdentifier& buttonId);
-
-    void EnqueueEvent(const ActionEvent& event, const ActionHandler& handler);
-
-    static constexpr size_t kMaxMappingCount = 256;
-
-    static constexpr size_t kMaxEventQueueSize = 256;
-
-    std::vector<const InputMapping*> m_Mappings;
-    std::vector<ButtonState> m_ButtonStates;
-    std::vector<QueuedEvent> m_EventQueue;
-
-    std::span<const InputMapping*> m_ButtonMappings;
-    std::span<const InputMapping*> m_AxisMappings;
-
-    Vec2f m_MouseDelta{0, 0};
-    Vec2f m_MouseWheelDelta{0, 0};
+    bool m_InFrame{false};
 };
-
-/// @brief Predefined InputButton and InputAxis instances for common input devices.
-namespace InputButtons
-{
-consteval InputButton
-KeyPressed(const unsigned KEY_CODE)
-{
-    return InputButton(ButtonIdentifier(InputButtonDevice::Keyboard, KEY_CODE),
-        InputButtonState::Pressed);
-}
-
-consteval InputButton
-KeyReleased(const unsigned KEY_CODE)
-{
-    return InputButton(ButtonIdentifier(InputButtonDevice::Keyboard, KEY_CODE),
-        InputButtonState::Released);
-}
-
-consteval InputButton
-KeyDown(const unsigned KEY_CODE)
-{
-    return InputButton(ButtonIdentifier(InputButtonDevice::Keyboard, KEY_CODE),
-        InputButtonState::Down);
-}
-
-consteval InputButton
-MousePressed(const unsigned BUTTON_CODE)
-{
-    return InputButton(ButtonIdentifier(InputButtonDevice::Mouse, BUTTON_CODE),
-        InputButtonState::Pressed);
-}
-
-consteval InputButton
-MouseReleased(const unsigned BUTTON_CODE)
-{
-    return InputButton(ButtonIdentifier(InputButtonDevice::Mouse, BUTTON_CODE),
-        InputButtonState::Released);
-}
-
-consteval InputButton
-MouseDown(const unsigned BUTTON_CODE)
-{
-    return InputButton(ButtonIdentifier(InputButtonDevice::Mouse, BUTTON_CODE),
-        InputButtonState::Down);
-}
-}
-
-namespace InputAxes
-{
-constexpr InputAxis MouseMoveX(InputAxisDevice::Mouse, InputAxisDirection::X);
-
-constexpr InputAxis MouseMoveY(InputAxisDevice::Mouse, InputAxisDirection::Y);
-
-constexpr InputAxis MouseMoveZ(InputAxisDevice::Mouse, InputAxisDirection::Z);
-
-constexpr InputAxis MouseWheelX(InputAxisDevice::MouseWheel, InputAxisDirection::X);
-
-constexpr InputAxis MouseWheelY(InputAxisDevice::MouseWheel, InputAxisDirection::Y);
-}
