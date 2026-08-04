@@ -67,7 +67,7 @@ public:
 
     void Update();
 
-    bool IsComplete() const { return m_CompletionFlag->load(std::memory_order_acquire); }
+    bool IsComplete() const { return m_State == State::Completed; }
 
     Result<> Stage();
 
@@ -186,7 +186,7 @@ TextureLoadTask::Stage()
            &height,
            &numChannels))
     {
-        MLG_ERROR("Error getting image info - {}", m_Uri, stbi_failure_reason());
+        MLG_ERROR("Error getting image info - {}/{}", m_Uri, stbi_failure_reason());
         return Result<>::Fail;
     }
 
