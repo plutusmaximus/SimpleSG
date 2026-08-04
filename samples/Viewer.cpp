@@ -18,7 +18,6 @@
 #include <SDL3/SDL_events.h>
 #include <thread>
 
-
 namespace
 {
 constexpr const char* kAppName = "Viewer";
@@ -80,7 +79,7 @@ RenderGui()
 }
 
 Result<std::tuple<PropKit, Level, Scene>>
-Load(GpuHelper& gpuHelper,
+LoadLevel(GpuHelper& gpuHelper,
     ThreadPool& threadPool,
     FileFetcher& fileFetcher,
     const std::filesystem::path& path)
@@ -136,7 +135,7 @@ MainLoop()
 
     WalkMouseNav mouseNav;
 
-    auto loadResult = Load(gpuHelper, threadPool, fileFetcher, SPONZA_MODEL_PATH);
+    auto loadResult = LoadLevel(gpuHelper, threadPool, fileFetcher, SPONZA_MODEL_PATH);
     MLG_CHECK(loadResult, "Failed to load resources");
 
     auto&& [propKit, level, scene] = std::move(*loadResult);
@@ -317,17 +316,17 @@ MainLoop()
         if(inputMapper.Action(captureMouse))
         {
             mouseNav.Activate();
-            SDL_SetWindowRelativeMouseMode(gpuHelper.GetWindow(), true);
+            system.SetMouseCaptured(true);
         }
         if(inputMapper.Action(releaseMouse))
         {
             mouseNav.Deactivate();
-            SDL_SetWindowRelativeMouseMode(gpuHelper.GetWindow(), false);
+            system.SetMouseCaptured(false);
         }
 
         if(!eventHandlerData.droppedFile.empty())
         {
-            auto newLoadResult = Load(gpuHelper, threadPool, fileFetcher, SPONZA_MODEL_PATH);
+            auto newLoadResult = LoadLevel(gpuHelper, threadPool, fileFetcher, SPONZA_MODEL_PATH);
             MLG_CHECK(newLoadResult, "Failed to load resources");
 
             auto&& [newPropKit, newLevel, newScene] = std::move(*newLoadResult);

@@ -16,10 +16,6 @@ public:
 
     explicit Shell(const char* appName);
 
-    Result<> BeginFrame();
-
-    Result<> EndFrame();
-
     /// Handles system level tasks.  Calls the application main loop handler when the system is
     /// running.
     Result<> Update(AppUpdateCallback appUpdateCb);
@@ -39,6 +35,10 @@ private:
         Shutdown,
         Stopped
     };
+
+    Result<> BeginFrame();
+
+    Result<> EndFrame();
 
     Result<System::CreateTask> SystemCreateTask;
     Result<System> SystemInstance;

@@ -211,17 +211,15 @@ DevUi::DrawPerfPanel() const // NOLINT(readability-convert-member-functions-to-s
 
     std::span<PerfStats> sortedCounters = perfStatsSpan.first(counterCount);
 
-    std::ranges::sort(sortedCounters,
-        [](const PerfStats& a, const PerfStats& b)
-        {
-            return a.GetName() < b.GetName();
-        });
+    std::ranges::sort(sortedCounters, {}, &PerfStats::GetName);
 
     ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
     ImGui::Begin(kPerfPanelName);
     MLG_DEFER { ImGui::End(); };
 
-    auto drawSubTree = [](this auto&& self, const std::string_view prefix, const std::span<PerfStats> pss) -> std::span<PerfStats>
+    auto drawSubTree = [](this auto&& self,
+                           const std::string_view prefix,
+                           const std::span<PerfStats> pss) -> std::span<PerfStats>
     {
         bool isOpen = false;
         if(!prefix.empty())

@@ -25,33 +25,6 @@ Shell::Shell(const char* appName)
 }
 
 Result<>
-Shell::BeginFrame()
-{
-    if(State::Running == m_State)
-    {
-        SystemInstance->ProcessEvents();
-    }
-
-    return Result<>::Ok;
-}
-
-Result<>
-Shell::EndFrame()
-{
-    if(State::Running == m_State)
-    {
-#if !defined(__EMSCRIPTEN__)
-
-        const GpuHelper& gpuHelper = SystemInstance->GetGpuHelper();
-
-        MLG_CHECK(gpuHelper.GetSurface().Present(), "Failed to present backbuffer");
-        gpuHelper.GetInstance().ProcessEvents();
-#endif
-    }
-    return Result<>::Ok;
-}
-
-Result<>
 Shell::Update(AppUpdateCallback appUpdateCb)
 {
     // If an error occurs that results in an early exit then this
@@ -113,6 +86,33 @@ Shell::Update(AppUpdateCallback appUpdateCb)
 
     // We're returning successfully - cancel the shutdownOnExit.
     shutdownOnExit.release();
+
+    return Result<>::Ok;
+}
+
+// private:
+
+Result<>
+Shell::BeginFrame()
+{
+    MLG_ASSERT(State::Running == m_State, "BeginFrame() called when not running");
+    
+    SystemInstance->ProcessEvents();
+
+    return Result<>::Ok;
+}
+
+Result<>
+Shell::EndFrame()
+{
+    MLG_ASSERT(State::Running == m_State, "EndFrame() called when not running");
+#if !defined(__EMSCRIPTEN__)
+
+    const GpuHelper& gpuHelper = SystemInstance->GetGpuHelper();
+
+    MLG_CHECK(gpuHelper.GetSurface().Present(), "Failed to present backbuffer");
+    gpuHelper.GetInstance().ProcessEvents();
+#endif
 
     return Result<>::Ok;
 }
