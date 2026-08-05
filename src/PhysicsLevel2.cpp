@@ -5,10 +5,10 @@
 #include <variant>
 
 Result<PhysicsLevel2>
-PhysicsLevel2::Create(const std::span<const Level::Node>& srcNodes)
+PhysicsLevel2::Create(const Level& level)
 {
     size_t bodyCount = 0;
-    for(const auto& node : srcNodes)
+    for(const auto& node : level.GetAllNodes())
     {
         if(node.Components.Body)
         {
@@ -33,11 +33,18 @@ PhysicsLevel2::Create(const std::span<const Level::Node>& srcNodes)
     const b3WorldId worldId = b3CreateWorld(&worldDef);
     MLG_ASSERT(b3World_IsValid(worldId));
 
-    for(const auto& node : srcNodes)
+    for(const auto& node : level.GetAllNodes())
     {
         const std::optional<RigidBody>& optBody = node.Components.Body;
 
         if(!optBody)
+        {
+            continue;
+        }
+
+        const RigidBody& body = *optBody;
+
+        if(body.GetMotionType() == MotionType::Static && body.GetCollisionType() == CollisionType::None)
         {
             continue;
         }
@@ -48,8 +55,8 @@ PhysicsLevel2::Create(const std::span<const Level::Node>& srcNodes)
 
         nodes.emplace_back(&node);
 
-        const BoundingSphere& boundingSphere = node.WorldTransform * optBody->GetBoundingSphere();
-        const Mass mass = optBody->GetMass();
+        const BoundingSphere& boundingSphere = node.WorldTransform * body.GetBoundingSphere();
+        const Mass mass = body.GetMass();
         const Vec3f pos = boundingSphere.GetCenter();
         const float radius = boundingSphere.GetRadius();
 
@@ -57,7 +64,22 @@ PhysicsLevel2::Create(const std::span<const Level::Node>& srcNodes)
         const float density = mass.Value() / (4.0f / 3.0f * pi * radius * radius * radius);
 
         b3BodyDef bodyDef = b3DefaultBodyDef();
-        bodyDef.type = b3_dynamicBody;
+        switch(body.GetMotionType())
+        {
+            case MotionType::Static:
+                bodyDef.type = b3_staticBody;
+                break;
+            case MotionType::Kinematic:
+                bodyDef.type = b3_kinematicBody;
+                break;
+            case MotionType::Dynamic:
+                bodyDef.type = b3_dynamicBody;
+                break;
+            default:
+                MLG_ERROR("Invalid motion type for node {}", node.Name);
+                return Result<>::Fail;
+        }
+
         bodyDef.position = b3Pos{ .x = pos.x, .y = pos.y, .z = pos.z };
 
         const b3BodyId bodyId = b3CreateBody(worldId, &bodyDef);
@@ -67,6 +89,27 @@ PhysicsLevel2::Create(const std::span<const Level::Node>& srcNodes)
         shapeDef.density = density;
         constexpr float kDefaultRestitution = 0.8f;
         shapeDef.baseMaterial.restitution = kDefaultRestitution;
+
+        switch(body.GetCollisionType())
+        {
+            case CollisionType::None:
+                shapeDef.filter.categoryBits = 0;
+                shapeDef.filter.maskBits = 0;
+                shapeDef.isSensor = false;
+                shapeDef.enableSensorEvents = false;
+                break;
+            case CollisionType::Block:
+                shapeDef.isSensor = false;
+                shapeDef.enableSensorEvents = false;
+                break;
+            case CollisionType::Trigger:
+                shapeDef.isSensor = true;
+                shapeDef.enableSensorEvents = true;
+                break;
+            default:
+                MLG_ERROR("Invalid collision type for node {}", node.Name);
+                return Result<>::Fail;
+        } 
 
         struct Visitor
         {

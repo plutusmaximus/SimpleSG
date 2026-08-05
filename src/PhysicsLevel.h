@@ -62,7 +62,7 @@ public:
 
     constexpr static size_t GRID_CELL_SIZE = 2;
 
-    static Result<PhysicsLevel> Create(const std::span<const Level::Node>& nodes);
+    static Result<PhysicsLevel> Create(const Level& level);
 
     PhysicsLevel() = default;
     ~PhysicsLevel() = default;
@@ -134,7 +134,7 @@ private:
         size_t m_Index{0};
     };
 
-    explicit PhysicsLevel(const std::span<const Level::Node>& nodes);
+    explicit PhysicsLevel(const Level& level);
 
     size_t GetNodeIndex(const Level::Node* node) const;
 

@@ -3,6 +3,20 @@
 #include "AssertHelper.h"
 #include "BoundingVolumes.h"
 
+enum class MotionType
+{
+    Static,
+    Kinematic,
+    Dynamic
+};
+
+enum class CollisionType
+{
+    None,
+    Trigger,
+    Block
+};
+
 class Mass
 {
 public:
@@ -59,9 +73,14 @@ class RigidBody
 public:
     RigidBody() = delete;
 
-    explicit RigidBody(const Mass mass, const BoundingVolume& boundingVolume)
+    explicit RigidBody(const Mass mass,
+        const BoundingVolume& boundingVolume,
+        const MotionType motionType,
+        const CollisionType collisionType)
         : m_Mass(mass),
-          m_BoundingVolume(boundingVolume)
+          m_BoundingVolume(boundingVolume),
+          m_MotionType(motionType),
+          m_CollisionType(collisionType)
     {
     }
 
@@ -69,9 +88,18 @@ public:
 
     const BoundingVolume& GetBoundingVolume() const { return m_BoundingVolume; }
 
-    const BoundingSphere& GetBoundingSphere() const { return m_BoundingVolume.GetEnclosingSphere(); }
+    const BoundingSphere& GetBoundingSphere() const
+    {
+        return m_BoundingVolume.GetEnclosingSphere();
+    }
+
+    MotionType GetMotionType() const { return m_MotionType; }
+    
+    CollisionType GetCollisionType() const { return m_CollisionType; }
 
 private:
     Mass m_Mass;
     BoundingVolume m_BoundingVolume;
+    MotionType m_MotionType;
+    CollisionType m_CollisionType;
 };

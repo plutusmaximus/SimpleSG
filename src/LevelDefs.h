@@ -114,6 +114,8 @@ struct RigidBodyDef final
 {
     Mass Mass;
     BoundingVolumeDef BoundingVolume;
+    MotionType MotionType{ MotionType::Static };
+    CollisionType CollisionType{ CollisionType::None };
 };
 
 struct LevelNodeDef final

@@ -126,6 +126,8 @@ LoadLevel(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher
                             .Center = Vec3f(0),
                             .HalfExtents = Vec3f(radius),
                         },*/
+                        .MotionType = MotionType::Dynamic,
+                        .CollisionType = CollisionType::Block,
                     },
                 },
             };
@@ -565,7 +567,7 @@ MainLoop()
 
     Scene scene = std::move(*sceneResult);
 
-    auto physLevelResult = PhysLevel::Create(level.GetAllNodes());
+    auto physLevelResult = PhysLevel::Create(level);
     MLG_CHECK(physLevelResult);
 
     PhysLevel physLevel = std::move(*physLevelResult);

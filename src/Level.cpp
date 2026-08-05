@@ -89,18 +89,21 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
 
                 BoundingVolume operator()(const CapsuleDef& def) const
                 {
-                    return BoundingVolume{ BoundingCapsule{ def.Center, def.Radius, def.HalfHeight } };
+                    return BoundingVolume{
+                        BoundingCapsule{ def.Center, def.Radius, def.HalfHeight }
+                    };
                 }
             };
 
             const BoundingVolume boundingVolume = std::visit(Visitor{}, boundingVolumeDef);
 
-            components.Body = RigidBody(bodyDef.Mass, boundingVolume);
+            components.Body =
+                RigidBody(bodyDef.Mass, boundingVolume, bodyDef.MotionType, bodyDef.CollisionType);
         }
 
         const Level::Node node //
             {
-                .Name{stringArena.NewString(nodeDef.Name)},
+                .Name{ stringArena.NewString(nodeDef.Name) },
                 .LocalTransform{ nodeDef.Transform },
                 .Components{ components },
                 .Parent = parentNode,
@@ -138,7 +141,8 @@ BoundingSphere
 Level::Node::GetBoundingSphere() const
 {
     MLG_ABORTIF(!Components.Model && !Components.Body && Children.empty(),
-        "Node {} has no model, body, or children", Name);
+        "Node {} has no model, body, or children",
+        Name);
 
     // Compute the combined bounding sphere of the child nodes.
     auto getChildrenBoundingSphere = [](const std::span<const Level::Node> children)
@@ -173,7 +177,7 @@ Level::Node::GetBoundingSphere() const
     if(!Children.empty())
     {
         // Transform bounding spheres to the node's local space.
-        
+
         BoundingSphere bs = LocalTransform * getChildrenBoundingSphere(Children);
 
         if(Components.Model || Components.Body)
@@ -226,20 +230,9 @@ Level::Level(std::vector<Node>&& nodes, StringArena&& stringArena)
         ++rootNodeCount;
     }
 
-    // Calculate world transforms for all nodes.
-    for(auto& node : m_Nodes)
-    {
-        if(node.Parent)
-        {
-            node.WorldTransform = node.Parent->WorldTransform * node.LocalTransform.ToMatrix();
-        }
-        else
-        {
-            node.WorldTransform = node.LocalTransform.ToMatrix();
-        }
-    }
-
     m_RootNodes = std::span(m_Nodes).subspan(0, rootNodeCount);
+
+    UpdateWorldTransforms(m_RootNodes);
 }
 
 const Level::Node*
@@ -340,7 +333,8 @@ Level::SetVisible(const Node& nodeRef, bool visible)
         return;
     }
 
-    node->Flags = visible ? (node->Flags | NodeFlags::Visible) : (node->Flags & ~NodeFlags::Visible);
+    node->Flags =
+        visible ? (node->Flags | NodeFlags::Visible) : (node->Flags & ~NodeFlags::Visible);
 
     for(const auto& childNode : node->Children)
     {
@@ -361,7 +355,7 @@ Level::GetNode(const Node& nodeRef)
     const ptrdiff_t index = &nodeRef - m_Nodes.data();
 
     if(!MLG_VERIFY(index >= 0 && static_cast<size_t>(index) < m_Nodes.size(),
-            "Node index out of range"))
+           "Node index out of range"))
     {
         return nullptr;
     }
@@ -378,14 +372,14 @@ Level::IsInLevel(const Node& nodeRef) const
 void
 Level::UpdateWorldTransforms(std::span<const Node> nodes)
 {
-    for (const Node& nodeRef : nodes)
+    for(const Node& nodeRef : nodes)
     {
         Node* node = GetNode(nodeRef);
         if(!MLG_VERIFY(node, "Invalid node handle found while updating world transforms"))
         {
             continue;
         }
-        
+
         if(node->Parent)
         {
             node->WorldTransform = node->Parent->WorldTransform * node->LocalTransform.ToMatrix();

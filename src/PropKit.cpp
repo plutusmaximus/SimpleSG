@@ -23,6 +23,8 @@
 
 namespace
 {
+////////// TextureLoadTask
+
 class TextureLoadTask
 {
 public:
@@ -269,6 +271,8 @@ TextureLoadTask::Decode() const
 
     return Result<>::Ok;
 }
+
+////////// FetchTexturesTask
 
 class FetchTexturesTask
 {
@@ -577,6 +581,7 @@ PropKit::Create(GpuHelper& gpuHelper,
             meshes.emplace_back(mesh);
         }
 
+        // The span of meshes for this model starts at firstMeshIdx and goes to the end of the meshes vector.
         const std::span<const Mesh> meshSpan = std::span<const Mesh>(meshes).subspan(firstMeshIdx);
         BoundingBox aabb = meshSpan.front().GetBoundingBox();
         for(const Mesh& mesh : meshSpan.subspan(1))

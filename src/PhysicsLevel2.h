@@ -11,7 +11,7 @@ class PhysicsLevel2
 {
 public:
 
-    static Result<PhysicsLevel2> Create(const std::span<const Level::Node>& nodes);
+    static Result<PhysicsLevel2> Create(const Level& level);
 
     PhysicsLevel2() = default;
     ~PhysicsLevel2() = default;
