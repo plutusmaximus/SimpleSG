@@ -252,8 +252,7 @@ Renderer::TransformNodes(const wgpu::Device& gpuDevice,
     auto invocation = m_TransformPass.Prepare(cmdEncoder);
     MLG_CHECK(invocation, "Failed to prepare transform pass");
 
-    MLG_CHECK(invocation->Execute(scene.GetModelInstances().size()),
-        "Failed to execute transform pass");
+    MLG_CHECK(invocation->Execute(), "Failed to execute transform pass");
 
     return Result<>::Ok;
 }

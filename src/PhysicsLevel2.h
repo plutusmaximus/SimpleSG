@@ -20,19 +20,13 @@ public:
     PhysicsLevel2(PhysicsLevel2&& other) = default;
     PhysicsLevel2& operator=(PhysicsLevel2&& other) = default;
 
-    void PredictPositions(const float dt);
-
-    void Resolve();
+    void Update(const float timeStep);
 
     void ApplyImpulse(const Level::Node* node, const Vec3f& impulse);
 
     void AddForce(const Level::Node* node, const Vec3f& force);
 
-    void UpdateVelocities(const float dt);
-
     Result<> SyncToLevel(Level& level);
-
-    size_t GetNodeCount() const { return m_Nodes.size(); }
 
     std::span<const Level::Node* const> GetNodes() const { return m_Nodes; }
     Vec3f GetPosition(const Level::Node* node) const;
@@ -68,16 +62,7 @@ private:
         const Level::Node* GetNode() const { return m_Node; }
         size_t GetIndex() const { return m_Index; }
 
-        friend auto operator<=>(const NodeAndIndex& a, const NodeAndIndex& b)
-        {
-            return a.m_Node <=> b.m_Node;
-        }
-
-        friend bool operator==(const NodeAndIndex& lhs, const NodeAndIndex& rhs) = default;
-        friend bool operator!=(const NodeAndIndex& lhs, const NodeAndIndex& rhs) = default;
-
     private:
-        friend class PhysicsLevel2;
 
         const Level::Node* m_Node{nullptr};
         size_t m_Index{0};
@@ -104,7 +89,7 @@ private:
     // These are stored in the same order as the other arrays below.
     std::vector<const Level::Node*> m_Nodes;
 
-    [[maybe_unused]] b3WorldId m_WorldId{b3_nullWorldId};
+    b3WorldId m_WorldId{b3_nullWorldId};
     std::vector<b3ShapeId> m_ShapeIds;
     std::vector<b3BodyId> m_BodyIds;
 };

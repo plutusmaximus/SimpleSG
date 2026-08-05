@@ -51,21 +51,24 @@ public:
         Invocation(Invocation&&) = default;
         Invocation& operator=(Invocation&&) = delete;
 
-        Result<> Execute(const size_t instanceCount);
+        Result<> Execute();
 
     private:
         friend class GpuTransformPass;
 
         explicit Invocation(wgpu::Device gpuDevice,
-            wgpu::ComputePassEncoder computePass)
+            wgpu::ComputePassEncoder computePass,
+            size_t instanceCount)
             : m_GpuDevice(std::move(gpuDevice)),
-              m_ComputePass(std::move(computePass))
+              m_ComputePass(std::move(computePass)),
+              m_InstanceCount(instanceCount)
         {
         }
 
         wgpu::Device m_GpuDevice;
         wgpu::ComputePassEncoder m_ComputePass;
         wgpu::CommandEncoder m_CmdEncoder;
+        size_t m_InstanceCount = 0;
     };
 
     GpuTransformPass() = delete;

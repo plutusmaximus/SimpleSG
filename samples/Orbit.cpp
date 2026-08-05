@@ -7,7 +7,6 @@
 #include "LuaRuntime.h"
 #include "MouseNav.h"
 #include "PerfMetrics.h"
-#include "PhysicsLevel.h"
 #include "PhysicsLevel2.h"
 #include "PropKit.h"
 #include "Renderer.h"
@@ -33,9 +32,6 @@
 // energy removed by resting contacts
 // energy introduced by positional correction
 // total numerical error
-
-//using PhysLevel = PhysicsLevel;
-using PhysLevel = PhysicsLevel2;
 
 namespace
 {
@@ -158,7 +154,7 @@ LoadLevel(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher
 
 /// @brief Applies random linear velocities to all bodies in the physics level.
 void
-ApplyRandomVelocities(PhysLevel& physLevel)
+ApplyRandomVelocities(PhysicsLevel2& physLevel)
 {
     constexpr float kMaxSpeed = 0.5f;//2.0f;
     constexpr float kMinSpeed = 0.1f;//1.0f;
@@ -309,7 +305,7 @@ ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
 
 // Returns the total potential energy of the system after applying gravity.
 void
-ApplyGravity(PhysLevel& physLevel, ThreadPool& threadPool)
+ApplyGravity(PhysicsLevel2& physLevel, ThreadPool& threadPool)
 {
     MLG_SCOPED_TIMER("Physics.ApplyGravity");
 
@@ -464,7 +460,7 @@ ApplyGravity(PhysLevel& physLevel, ThreadPool& threadPool)
 }
 
 void
-ApplyExplosionImpulse(PhysLevel& physLevel, const float magnitude)
+ApplyExplosionImpulse(PhysicsLevel2& physLevel, const float magnitude)
 {
     constexpr unsigned kRngSeed = 12345;
     std::mt19937 gen(kRngSeed);
@@ -487,7 +483,7 @@ ApplyExplosionImpulse(PhysLevel& physLevel, const float magnitude)
 }
 
 void
-StopAll(PhysLevel& physLevel)
+StopAll(PhysicsLevel2& physLevel)
 {
     constexpr Vec3f zeroVelocity{ 0};
 
@@ -498,17 +494,19 @@ StopAll(PhysLevel& physLevel)
 }
 
 float
-ComputeKineticEnergy(const PhysLevel& physLevel)
+ComputeKineticEnergy(const PhysicsLevel2& physLevel)
 {
     float kineticEnergy = 0.0f;
 
+    const size_t nodeCount = physLevel.GetNodes().size();
+
     std::vector<float> linearVelocitiesArrays[3] //
     {
-        std::vector<float>(physLevel.GetNodeCount()),
-        std::vector<float>(physLevel.GetNodeCount()),
-        std::vector<float>(physLevel.GetNodeCount()),
+        std::vector<float>(nodeCount),
+        std::vector<float>(nodeCount),
+        std::vector<float>(nodeCount),
     };
-    std::vector<float> invMassesArray(physLevel.GetNodeCount());
+    std::vector<float> invMassesArray(nodeCount);
 
     VVec3 linearVelocities //
         {
@@ -573,10 +571,10 @@ MainLoop()
 
     Scene scene = std::move(*sceneResult);
 
-    auto physLevelResult = PhysLevel::Create(level);
+    auto physLevelResult = PhysicsLevel2::Create(level);
     MLG_CHECK(physLevelResult);
 
-    PhysLevel physLevel = std::move(*physLevelResult);
+    PhysicsLevel2 physLevel = std::move(*physLevelResult);
 
     ApplyRandomVelocities(physLevel);
 
@@ -773,10 +771,8 @@ MainLoop()
 
         if(!pauseSim)
         {
-            physLevel.PredictPositions(kPhysicsTimeStep);
-            physLevel.Resolve();
+            physLevel.Update(kPhysicsTimeStep);
             ApplyGravity(physLevel, threadPool);
-            physLevel.UpdateVelocities(kPhysicsTimeStep);
 
             const float kineticEnergy = ComputeKineticEnergy(physLevel);
             const double totalEnergy = kineticEnergy + PerfCounterGlobals::TotalPE.GetValue();

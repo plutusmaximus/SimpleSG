@@ -4,7 +4,6 @@
 #include "Level.h"
 #include "SceneTypes.h"
 
-#include <span>
 #include <vector>
 
 class Frustum;
@@ -21,15 +20,6 @@ public:
     Scene& operator=(const Scene&) = delete;
     Scene(Scene&& other) = default;
     Scene& operator=(Scene&& other) = default;
-
-    std::span<const Level::Node* const> GetNodes() const { return m_Nodes; }
-    
-    std::span<const ModelInstance> GetModelInstances() const { return m_ModelInstances; }
-
-    std::span<const ShaderInterop::WorldTransform> GetWorldTransforms() const
-    {
-        return m_WorldTransforms;
-    }
 
     void GetVisibleMeshes(const Frustum& frustum,
         std::vector<MeshInstance>& outVisibleMeshes) const;
@@ -50,7 +40,6 @@ public:
     Result<> SyncToGpu(const wgpu::Device& gpuDevice);
 
 private:
-
     Scene(GpuWorldTransformBuffer&& worldTransformBuffer,
         GpuClipSpaceBuffer&& clipSpaceBuffer,
         GpuDrawIndirectBuffer&& drawIndirectBuffer,

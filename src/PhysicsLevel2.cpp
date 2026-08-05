@@ -168,15 +168,10 @@ PhysicsLevel2::Create(const Level& level)
 }
 
 void
-PhysicsLevel2::PredictPositions(const float dt)
+PhysicsLevel2::Update(const float timeStep)
 {
     constexpr int kSubStepCount = 4;
-    b3World_Step( m_WorldId, dt, kSubStepCount );
-}
-
-void
-PhysicsLevel2::Resolve()
-{
+    b3World_Step( m_WorldId, timeStep, kSubStepCount );
 }
 
 void
@@ -209,11 +204,6 @@ PhysicsLevel2::AddForce(const Level::Node* node, const Vec3f& force)
             };
         b3Body_ApplyForceToCenter(m_BodyIds[index], forceVec, true);
     }
-}
-
-void
-PhysicsLevel2::UpdateVelocities(const float /*dt*/)
-{
 }
 
 //DO NOT SUBMIT

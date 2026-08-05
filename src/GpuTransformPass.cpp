@@ -165,7 +165,9 @@ GpuTransformPass::Prepare(wgpu::CommandEncoder cmdEncoder)
     computePass.SetPipeline(m_Pipeline);
     computePass.SetBindGroup(0, m_InputOutputBindGroup);
 
-    return Invocation(m_GpuHelper->GetDevice(), std::move(computePass));
+    const size_t instanceCount = m_Inputs->WorldTransforms.Count();
+
+    return Invocation(m_GpuHelper->GetDevice(), std::move(computePass), instanceCount);
 }
 
 // private:
@@ -262,7 +264,7 @@ GpuTransformPass::Invocation::~Invocation()
 }
 
 Result<>
-GpuTransformPass::Invocation::Execute(const size_t instanceCount)
+GpuTransformPass::Invocation::Execute()
 {
     MLG_CHECKV(m_ComputePass, "Pass has already been executed");
 
@@ -273,8 +275,8 @@ GpuTransformPass::Invocation::Execute(const size_t instanceCount)
 
     // Number of workgroups to dispatch is the number of instances divided by the workgroup size,
     // rounded up.
-    const size_t workgroupCountX = (instanceCount / GpuTransformPass::kWorkgroupSize)
-        + (instanceCount % GpuTransformPass::kWorkgroupSize != 0);
+    const size_t workgroupCountX = (m_InstanceCount / GpuTransformPass::kWorkgroupSize)
+        + (m_InstanceCount % GpuTransformPass::kWorkgroupSize != 0);
 
     computePass.DispatchWorkgroups(narrow_cast<uint32_t>(workgroupCountX));
     computePass.End();
