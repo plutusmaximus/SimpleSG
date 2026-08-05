@@ -110,12 +110,17 @@ struct SphereDef final
 
 using BoundingVolumeDef = std::variant<SphereDef, BoxDef, CapsuleDef>;
 
+struct ColliderDef final
+{
+    BoundingVolumeDef BoundingVolume;
+    CollisionType CollisionType{ CollisionType::Block };
+};
+
 struct RigidBodyDef final
 {
     Mass Mass;
-    BoundingVolumeDef BoundingVolume;
     MotionType MotionType{ MotionType::Static };
-    CollisionType CollisionType{ CollisionType::None };
+    std::vector<ColliderDef> Colliders;
 };
 
 struct LevelNodeDef final

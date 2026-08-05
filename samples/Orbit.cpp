@@ -115,19 +115,25 @@ LoadLevel(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher
                         RigidBodyDef //
                     {
                         .Mass{ mass },
-                        .BoundingVolume =
-                            SphereDef //
-                        {
-                            .Center = Vec3f(0),
-                            .Radius = radius,
-                        },
-                        /*BoxDef //
-                        {
-                            .Center = Vec3f(0),
-                            .HalfExtents = Vec3f(radius),
-                        },*/
                         .MotionType = MotionType::Dynamic,
-                        .CollisionType = CollisionType::Block,
+                        .Colliders =
+                        {
+                            ColliderDef //
+                            {
+                                .BoundingVolume =
+                                    SphereDef //
+                                {
+                                    .Center = Vec3f(0),
+                                    .Radius = radius,
+                                },
+                                /*BoxDef //
+                                {
+                                    .Center = Vec3f(0),
+                                    .HalfExtents = Vec3f(radius),
+                                },*/
+                                .CollisionType = CollisionType::Block,
+                            },
+                        },
                     },
                 },
             };

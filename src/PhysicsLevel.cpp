@@ -1,5 +1,7 @@
 #include "PhysicsLevel.h"
 
+#if PL_V1
+
 #include "PerfMetrics.h"
 
 #include <algorithm>
@@ -890,3 +892,5 @@ PhysicsLevel::SphereSphereSweep(const BodyPair& bodies, ImpactResult& impactResu
 
     return true;
 }
+
+#endif // PL_V1

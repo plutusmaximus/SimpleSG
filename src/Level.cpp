@@ -39,6 +39,7 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
     const PropKit& propKit,
     const Level::Node* parentNode,
     std::vector<Level::Node>& nodes,
+    std::vector<Collider>& colliders,
     StringArena& stringArena)
 {
     MLG_CHECKV(nodes.capacity() >= nodes.size() + nodeDefs.size(),
@@ -71,7 +72,7 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
                 "RigidBodyDef in node {} has non-positive mass",
                 nodeDef.Name);
 
-            const BoundingVolumeDef& boundingVolumeDef = bodyDef.BoundingVolume;
+            const size_t colliderCount = colliders.size();
 
             struct Visitor
             {
@@ -95,10 +96,18 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
                 }
             };
 
-            const BoundingVolume boundingVolume = std::visit(Visitor{}, boundingVolumeDef);
+            for(const ColliderDef& colliderDef : bodyDef.Colliders)
+            {
+                const BoundingVolumeDef& boundingVolumeDef = colliderDef.BoundingVolume;
 
-            components.Body =
-                RigidBody(bodyDef.Mass, boundingVolume, bodyDef.MotionType, bodyDef.CollisionType);
+                const BoundingVolume boundingVolume = std::visit(Visitor{}, boundingVolumeDef);
+
+                colliders.emplace_back(boundingVolume, colliderDef.CollisionType);
+            }
+
+            const std::span colliderSpan = std::span(colliders).subspan(colliderCount);
+
+            components.Body = RigidBody(bodyDef.Mass, bodyDef.MotionType, colliderSpan);
         }
 
         const Level::Node node //
@@ -128,7 +137,7 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
 
         const size_t firstChildIndex = nodes.size();
 
-        MLG_CHECK(CollectNodes(nodeDef.Children, propKit, &node, nodes, stringArena));
+        MLG_CHECK(CollectNodes(nodeDef.Children, propKit, &node, nodes, colliders, stringArena));
 
         node.Children = std::span(nodes).subspan(firstChildIndex, nodeDef.Children.size());
     }
@@ -137,61 +146,6 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
 }
 } // namespace
 
-BoundingSphere
-Level::Node::GetBoundingSphere() const
-{
-    MLG_ABORTIF(!Components.Model && !Components.Body && Children.empty(),
-        "Node {} has no model, body, or children",
-        Name);
-
-    // Compute the combined bounding sphere of the child nodes.
-    auto getChildrenBoundingSphere = [](const std::span<const Level::Node> children)
-    {
-        BoundingSphere bs = children.front().GetBoundingSphere();
-        for(const auto& child : children.subspan(1))
-        {
-            bs = bs + child.GetBoundingSphere();
-        }
-
-        return bs;
-    };
-
-    // Compute the combined bounding sphere of this node's model and/or body.
-    auto getLocalBoundingSphere = [](const Level::Node& node)
-    {
-        if(node.Components.Model)
-        {
-            BoundingSphere bs = (*node.Components.Model)->GetBoundingSphere();
-
-            if(node.Components.Body)
-            {
-                bs = bs + node.Components.Body->GetBoundingSphere();
-            }
-
-            return bs;
-        }
-
-        return node.Components.Body->GetBoundingSphere();
-    };
-
-    if(!Children.empty())
-    {
-        // Transform bounding spheres to the node's local space.
-
-        BoundingSphere bs = LocalTransform * getChildrenBoundingSphere(Children);
-
-        if(Components.Model || Components.Body)
-        {
-            const BoundingSphere localBs = LocalTransform * getLocalBoundingSphere(*this);
-            bs = bs + localBs;
-        }
-
-        return bs;
-    }
-
-    return LocalTransform * getLocalBoundingSphere(*this);
-}
-
 Result<Level>
 Level::Create(const LevelDef& levelDef, const PropKit& propKit)
 {
@@ -199,11 +153,13 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit)
     const size_t totalStringSize = CalculateTotalStringSize(levelDef.NodeDefs);
 
     std::vector<Node> nodes;
+    std::vector<Collider> colliders;
     nodes.reserve(nodeCount);
+    colliders.reserve(nodeCount); // Worst case, every node has a collider.
     StringArena stringArena(totalStringSize);
 
     // Flatten nodes into breadth-first order.
-    MLG_CHECK(CollectNodes(levelDef.NodeDefs, propKit, nullptr, nodes, stringArena));
+    MLG_CHECK(CollectNodes(levelDef.NodeDefs, propKit, nullptr, nodes, colliders, stringArena));
 
     Level level(std::move(nodes), std::move(stringArena));
 

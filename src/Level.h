@@ -55,9 +55,6 @@ public:
         bool IsActive() const { return (Flags & NodeFlags::Active) == NodeFlags::Active; }
         bool IsVisible() const { return (Flags & NodeFlags::Visible) == NodeFlags::Visible; }
 
-        /// @brief Computes the bounding sphere of this node and all its children, if any.
-        BoundingSphere GetBoundingSphere() const;
-
         StringHandle Name;
         TrsTransformf LocalTransform;
         Mat44f WorldTransform{ 1 };

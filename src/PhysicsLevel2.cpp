@@ -4,6 +4,85 @@
 #include <box3d/collision.h>
 #include <variant>
 
+namespace
+{
+Result<b3ShapeId>
+CreateShape(const b3BodyId bodyId, const RigidBody& body, const Collider& collider)
+{
+    constexpr float pi = std::numbers::pi_v<float>;
+    const float radius = collider.GetBoundingSphere().GetRadius();
+    const float density = body.GetMass().Value() / (4.0f / 3.0f * pi * radius * radius * radius);
+
+    b3ShapeDef shapeDef = b3DefaultShapeDef();
+    shapeDef.density = density;
+    constexpr float kDefaultRestitution = 0.8f;
+    shapeDef.baseMaterial.restitution = kDefaultRestitution;
+
+    switch(collider.GetCollisionType())
+    {
+        case CollisionType::Block:
+            shapeDef.isSensor = false;
+            shapeDef.enableSensorEvents = false;
+            break;
+        case CollisionType::Trigger:
+            shapeDef.isSensor = true;
+            shapeDef.enableSensorEvents = true;
+            break;
+        default:
+            MLG_ERROR("Invalid collision type");
+            return Result<>::Fail;
+    } 
+
+    struct Visitor
+    {
+        b3BodyId BodyId;
+        b3ShapeDef ShapeDef;
+
+        b3ShapeId operator()(const BoundingSphere& boundingSphere) const
+        {
+            const Vec3f center = boundingSphere.GetCenter();
+            const b3Sphere sphere //
+                {
+                    .center = b3Pos{ .x = center.x, .y = center.y, .z = center.z },
+                    .radius = boundingSphere.GetRadius(),
+                };
+
+            return b3CreateSphereShape(BodyId, &ShapeDef, &sphere);
+        }
+
+        b3ShapeId operator()(const BoundingBox& boundingBox) const
+        {
+            //const Vec3f center = boundingBox.GetCenter();
+            const Vec3f halfExtents = boundingBox.GetHalfExtents();                
+            const b3BoxHull dynamicBox = b3MakeBoxHull(halfExtents.x, halfExtents.y, halfExtents.z);
+            return b3CreateHullShape(BodyId, &ShapeDef, &dynamicBox.base);
+        }
+
+        b3ShapeId operator()(const BoundingCapsule& boundingCapsule) const
+        {
+            const float halfHeight = boundingCapsule.GetHalfHeight();
+            const Vec3f center = boundingCapsule.GetCenter();
+            const b3Capsule capsule //
+                {
+                    .center1 = b3Pos{ .x = center.x,
+                                    .y = center.y - halfHeight,
+                                    .z = center.z },
+                    .center2 = b3Pos{ .x = center.x,
+                                    .y = center.y + halfHeight,
+                                    .z = center.z },
+                    .radius = boundingCapsule.GetRadius(),
+                };
+            return b3CreateCapsuleShape(BodyId, &ShapeDef, &capsule);
+        }
+    };
+
+    const Visitor visitor{ .BodyId = bodyId, .ShapeDef = shapeDef };
+    const b3ShapeId shapeId = std::visit(visitor, collider.GetBoundingVolume().GetVolume());
+
+    return shapeId;
+}
+} // namespace
+
 Result<PhysicsLevel2>
 PhysicsLevel2::Create(const Level& level)
 {
@@ -44,24 +123,11 @@ PhysicsLevel2::Create(const Level& level)
 
         const RigidBody& body = *optBody;
 
-        if(body.GetMotionType() == MotionType::Static && body.GetCollisionType() == CollisionType::None)
-        {
-            continue;
-        }
-
         // m_NodeIndexMap is ordered by node pointer, so we can use binary search to find the index
         // of a node.
         nodeIndexMap.emplace_back(&node, nodes.size());
 
         nodes.emplace_back(&node);
-
-        const BoundingSphere& boundingSphere = node.WorldTransform * body.GetBoundingSphere();
-        const Mass mass = body.GetMass();
-        const Vec3f pos = boundingSphere.GetCenter();
-        const float radius = boundingSphere.GetRadius();
-
-        constexpr float pi = std::numbers::pi_v<float>;
-        const float density = mass.Value() / (4.0f / 3.0f * pi * radius * radius * radius);
 
         b3BodyDef bodyDef = b3DefaultBodyDef();
         switch(body.GetMotionType())
@@ -80,87 +146,22 @@ PhysicsLevel2::Create(const Level& level)
                 return Result<>::Fail;
         }
 
+        const Vec3f pos = node.WorldTransform[3].xyz();
         bodyDef.position = b3Pos{ .x = pos.x, .y = pos.y, .z = pos.z };
 
         const b3BodyId bodyId = b3CreateBody(worldId, &bodyDef);
         MLG_ASSERT(b3Body_IsValid(bodyId));
 
-        b3ShapeDef shapeDef = b3DefaultShapeDef();
-        shapeDef.density = density;
-        constexpr float kDefaultRestitution = 0.8f;
-        shapeDef.baseMaterial.restitution = kDefaultRestitution;
-
-        switch(body.GetCollisionType())
+        for(const Collider& collider : body.GetColliders())
         {
-            case CollisionType::None:
-                shapeDef.filter.categoryBits = 0;
-                shapeDef.filter.maskBits = 0;
-                shapeDef.isSensor = false;
-                shapeDef.enableSensorEvents = false;
-                break;
-            case CollisionType::Block:
-                shapeDef.isSensor = false;
-                shapeDef.enableSensorEvents = false;
-                break;
-            case CollisionType::Trigger:
-                shapeDef.isSensor = true;
-                shapeDef.enableSensorEvents = true;
-                break;
-            default:
-                MLG_ERROR("Invalid collision type for node {}", node.Name);
-                return Result<>::Fail;
-        } 
+            auto shapeId = CreateShape(bodyId, body, collider);
+            MLG_CHECK(shapeId, "Failed to create shape for node {}", node.Name);
 
-        struct Visitor
-        {
-            b3BodyId BodyId;
-            b3ShapeDef ShapeDef;
-
-            b3ShapeId operator()(const BoundingSphere& boundingSphere) const
-            {
-                const Vec3f center = boundingSphere.GetCenter();
-                const b3Sphere sphere //
-                    {
-                        .center = b3Pos{ .x = center.x, .y = center.y, .z = center.z },
-                        .radius = boundingSphere.GetRadius(),
-                    };
-
-                return b3CreateSphereShape(BodyId, &ShapeDef, &sphere);
-            }
-
-            b3ShapeId operator()(const BoundingBox& boundingBox) const
-            {
-                //const Vec3f center = boundingBox.GetCenter();
-                const Vec3f halfExtents = boundingBox.GetHalfExtents();                
-                const b3BoxHull dynamicBox = b3MakeBoxHull(halfExtents.x, halfExtents.y, halfExtents.z);
-                return b3CreateHullShape(BodyId, &ShapeDef, &dynamicBox.base);
-            }
-
-            b3ShapeId operator()(const BoundingCapsule& boundingCapsule) const
-            {
-                const float halfHeight = boundingCapsule.GetHalfHeight();
-                const Vec3f center = boundingCapsule.GetCenter();
-                const b3Capsule capsule //
-                    {
-                        .center1 = b3Pos{ .x = center.x,
-                                          .y = center.y - halfHeight,
-                                          .z = center.z },
-                        .center2 = b3Pos{ .x = center.x,
-                                          .y = center.y + halfHeight,
-                                          .z = center.z },
-                        .radius = boundingCapsule.GetRadius(),
-                    };
-                return b3CreateCapsuleShape(BodyId, &ShapeDef, &capsule);
-            }
-        };
-
-        const Visitor visitor{ .BodyId = bodyId, .ShapeDef = shapeDef };
-        const b3ShapeId shapeId = std::visit(visitor, optBody->GetBoundingVolume().GetVolume());
-
-        MLG_ASSERT(b3Shape_IsValid(shapeId), "Failed to create shape for node {}", node.Name);
+            MLG_ASSERT(b3Shape_IsValid(*shapeId));
+            shapeIds.emplace_back(*shapeId);
+        }
 
         bodyIds.emplace_back(bodyId);
-        shapeIds.emplace_back(shapeId);
     }
 
     return PhysicsLevel2(nodeIndexMap, nodes, worldId, shapeIds, bodyIds);

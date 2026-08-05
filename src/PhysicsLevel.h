@@ -1,5 +1,8 @@
 #pragma once
 
+#define PL_V1 0
+#if PL_V1
+
 #include "GridHash.h"
 #include "Level.h"
 #include "Result.h"
@@ -179,3 +182,5 @@ private:
     std::vector<ImpactRecord> m_ImpactRecords;
     std::vector<ImpactRecord> m_ContactRecords;
 };
+
+#endif // PL_V1
