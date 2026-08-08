@@ -1,11 +1,9 @@
-#include "Camera.h"
+#include "CameraActor.h"
+#include "CommonActionIds.h"
 #include "DevUi.h"
 #include "GpuHelper.h"
-#include "ImGuiRenderer.h"
-#include "InputMapper.h"
 #include "Level.h"
 #include "LuaRuntime.h"
-#include "MouseNav.h"
 #include "PerfMetrics.h"
 #include "PhysicsLevel2.h"
 #include "PropKit.h"
@@ -539,7 +537,7 @@ ComputeKineticEnergy(const PhysicsLevel2& physLevel)
 Result<>
 MainLoop()
 {
-    WalkMouseNav mouseNav;
+    CameraActor cameraActor;
     DevUi devUi;
 
     auto task = System::Create(kAppName);
@@ -581,23 +579,10 @@ MainLoop()
     constexpr float kInitialCameraDistance = 40.0f;
 
     TrTransformf cameraXForm{ .T{ 0, 0, -kInitialCameraDistance } };
-    Camera camera((Viewport(gpuHelper.GetScreenDimensions())));
+    //Camera camera((Viewport(gpuHelper.GetScreenDimensions())));
 
-    mouseNav.SetTransform(cameraXForm);
-
-    constexpr ActionIdentifier quit("Quit");
-    constexpr ActionIdentifier moveForward("MoveForward");
-    constexpr ActionIdentifier moveBackward("MoveBackward");
-    constexpr ActionIdentifier moveLeft("MoveLeft");
-    constexpr ActionIdentifier moveRight("MoveRight");
-    constexpr ActionIdentifier moveUpDown("MoveUpDown");
-    constexpr ActionIdentifier lookLeftRight("LookLeftRight");
-    constexpr ActionIdentifier lookUpDown("LookUpDown");
-    constexpr ActionIdentifier captureMouse("CaptureMouse");
-    constexpr ActionIdentifier releaseMouse("ReleaseMouse");
-    constexpr ActionIdentifier explode("Explode");
-    constexpr ActionIdentifier stopAll("StopAll");
-    constexpr ActionIdentifier pause("Pause");
+    cameraActor.SetTransform(cameraXForm);
+    cameraActor.SetViewport(Viewport(gpuHelper.GetScreenDimensions()));
 
     static constexpr float kMouseWheelScale = 20.0f;
 
@@ -632,12 +617,12 @@ MainLoop()
             {
                 .ActionId = lookLeftRight,
                 .Input = InputAxis::MouseMoveX,
-                .Scale = WalkMouseNav::kDefualtRotPerDXY * 2 * std::numbers::pi_v<float>,
+                .Scale = CameraActor::kDefaultRotPerMouseMove * 2 * std::numbers::pi_v<float>,
             },
             {
                 .ActionId = lookUpDown,
                 .Input = InputAxis::MouseMoveY,
-                .Scale = WalkMouseNav::kDefualtRotPerDXY * 2 * std::numbers::pi_v<float>,
+                .Scale = CameraActor::kDefaultRotPerMouseMove * 2 * std::numbers::pi_v<float>,
             },
             {
                 .ActionId = moveUpDown,
@@ -669,6 +654,8 @@ MainLoop()
     InputMapper inputMapper(actionMappings);
 
     Timer frameTimer;
+
+    bool isCameraActorActive = false;
 
     while(!system.ShouldQuit())
     {
@@ -711,48 +698,18 @@ MainLoop()
             inputMapper.Clear();
         }
 
-        float actionValue = 0;
-
         if(inputMapper.Action(quit))
         {
             System::PostQuitEvent();
         }
-        if(inputMapper.Action(moveForward, actionValue))
-        {
-            mouseNav.Move(Vec3f(0, 0, actionValue));
-        }
-        if(inputMapper.Action(moveBackward, actionValue))
-        {
-            mouseNav.Move(Vec3f(0, 0, actionValue));
-        }
-        if(inputMapper.Action(moveLeft, actionValue))
-        {
-            mouseNav.Move(Vec3f(actionValue, 0, 0));
-        }
-        if(inputMapper.Action(moveRight, actionValue))
-        {
-            mouseNav.Move(Vec3f(actionValue, 0, 0));
-        }
-        if(inputMapper.Action(moveUpDown, actionValue))
-        {
-            mouseNav.Move(Vec3f(0, actionValue, 0));
-        }
-        if(inputMapper.Action(lookLeftRight, actionValue))
-        {
-            mouseNav.Look(Vec2f(actionValue, 0));
-        }
-        if(inputMapper.Action(lookUpDown, actionValue))
-        {
-            mouseNav.Look(Vec2f(0, actionValue));
-        }
         if(inputMapper.Action(captureMouse))
         {
-            mouseNav.Activate();
+            isCameraActorActive = true;
             system.SetMouseCaptured(true);
         }
         if(inputMapper.Action(releaseMouse))
         {
-            mouseNav.Deactivate();
+            isCameraActorActive = false;
             system.SetMouseCaptured(false);
         }
         if(inputMapper.Action(explode))
@@ -785,8 +742,11 @@ MainLoop()
 
         MLG_CHECK(scene.SyncFromLevel());
 
-        mouseNav.Update(elapsedSeconds);
-        cameraXForm = mouseNav.GetTransform();
+        if(isCameraActorActive)
+        {
+            cameraActor.Update(inputMapper, elapsedSeconds);
+        }
+        cameraXForm = cameraActor.GetTransform();
 
         MLG_CHECK(scene.SyncToGpu(gpuHelper.GetDevice()));
 
@@ -800,9 +760,9 @@ MainLoop()
             const Rect& scenePanelRect = devUi.GetScenePanelRect();
 
             const Viewport sceneViewport(scenePanelRect.GetDimensions());
-            camera.SetViewport(sceneViewport);
+            cameraActor.SetViewport(sceneViewport);
 
-            MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
+            MLG_CHECK(renderer.Render(cameraActor.GetCamera(), cameraXForm, scene, propKit));
             MLG_CHECK(renderer.Composite(*target, scenePanelRect));
         }
 

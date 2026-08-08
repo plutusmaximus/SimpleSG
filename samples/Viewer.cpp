@@ -1,11 +1,10 @@
-#include "Camera.h"
+#include "CameraActor.h"
 #include "GltfLoader.h"
 #include "GpuColorPass.h"
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
 #include "InputMapper.h"
 #include "Level.h"
-#include "MouseNav.h"
 #include "PerfMetrics.h"
 #include "PropKit.h"
 #include "Renderer.h"
@@ -133,7 +132,7 @@ MainLoop()
     Renderer& renderer = system.GetRenderer();
     const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
 
-    WalkMouseNav mouseNav;
+    CameraActor cameraActor;
 
     auto loadResult = LoadLevel(gpuHelper, threadPool, fileFetcher, SPONZA_MODEL_PATH);
     MLG_CHECK(loadResult, "Failed to load resources");
@@ -149,7 +148,7 @@ MainLoop()
     TrTransformf cameraXForm{ .T{ 0, kDefaultCameraHeight, 0 }, .R{ cameraYaw, Vec3f::YAXIS() } };
     Camera camera((Viewport(screenDimensions)));
 
-    mouseNav.SetTransform(cameraXForm);
+    cameraActor.SetTransform(cameraXForm);
 
     constexpr ActionIdentifier quit("Quit");
     constexpr ActionIdentifier moveForward("MoveForward");
@@ -193,12 +192,12 @@ MainLoop()
             {
                 .ActionId = lookLeftRight,
                 .Input = InputAxis::MouseMoveX,
-                .Scale = WalkMouseNav::kDefualtRotPerDXY * 2 * std::numbers::pi_v<float>,
+                .Scale = CameraActor::kDefaultRotPerMouseMove * 2 * std::numbers::pi_v<float>,
             },
             {
                 .ActionId = lookUpDown,
                 .Input = InputAxis::MouseMoveY,
-                .Scale = WalkMouseNav::kDefualtRotPerDXY * 2 * std::numbers::pi_v<float>,
+                .Scale = CameraActor::kDefaultRotPerMouseMove * 2 * std::numbers::pi_v<float>,
             },
             {
                 .ActionId = moveUpDown,
@@ -218,6 +217,8 @@ MainLoop()
     InputMapper inputMapper(actionMappings);
 
     Timer frameTimer;
+
+    bool isCameraActorActive = false;
 
     while(!system.ShouldQuit())
     {
@@ -278,49 +279,18 @@ MainLoop()
             inputMapper.Clear();
         }
 
-        float actionValue = 0;
-
         if(inputMapper.Action(quit))
         {
             System::PostQuitEvent();
         }
-        if(inputMapper.Action(moveForward, actionValue))
-        {
-            mouseNav.Move(Vec3f(0, 0, actionValue));
-        }
-        // Removed redundant block
-        if(inputMapper.Action(moveBackward, actionValue))
-        {
-            mouseNav.Move(Vec3f(0, 0, actionValue));
-        }
-        if(inputMapper.Action(moveLeft, actionValue))
-        {
-            mouseNav.Move(Vec3f(actionValue, 0, 0));
-        }
-        if(inputMapper.Action(moveRight, actionValue))
-        {
-            mouseNav.Move(Vec3f(actionValue, 0, 0));
-        }
-        if(inputMapper.Action(moveUpDown, actionValue))
-        {
-            mouseNav.Move(Vec3f(0, actionValue, 0));
-        }
-        if(inputMapper.Action(lookLeftRight, actionValue))
-        {
-            mouseNav.Look(Vec2f(actionValue, 0));
-        }
-        if(inputMapper.Action(lookUpDown, actionValue))
-        {
-            mouseNav.Look(Vec2f(0, actionValue));
-        }
         if(inputMapper.Action(captureMouse))
         {
-            mouseNav.Activate();
+            isCameraActorActive = true;
             system.SetMouseCaptured(true);
         }
         if(inputMapper.Action(releaseMouse))
         {
-            mouseNav.Deactivate();
+            isCameraActorActive = false;
             system.SetMouseCaptured(false);
         }
 
@@ -344,9 +314,11 @@ MainLoop()
             screenDimensions = curScreenDimensions;
         }
 
-        mouseNav.Update(elapsedSeconds);
-
-        cameraXForm = mouseNav.GetTransform();
+        if(isCameraActorActive)
+        {
+            cameraActor.Update(inputMapper, elapsedSeconds);
+        }
+        cameraXForm = cameraActor.GetTransform();
 
         auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECKV(target, "Failed to get swap chain texture");

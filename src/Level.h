@@ -110,7 +110,7 @@ public:
     void SetVisible(const Node& node, bool visible);
 
 private:
-    Level(std::vector<Node>&& nodes, StringArena&& stringArena);
+    Level(std::vector<Node>&& nodes, std::vector<Collider>&& colliders, StringArena&& stringArena);
 
     Node* GetNode(const Node& node);
 
@@ -120,6 +120,7 @@ private:
     void UpdateWorldTransforms(std::span<const Node> nodes);
 
     std::vector<Node> m_Nodes;
+    std::vector<Collider> m_Colliders;
     std::span<Node> m_RootNodes;
     StringArena m_StringArena;
 };

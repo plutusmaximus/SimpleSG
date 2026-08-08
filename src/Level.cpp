@@ -161,13 +161,14 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit)
     // Flatten nodes into breadth-first order.
     MLG_CHECK(CollectNodes(levelDef.NodeDefs, propKit, nullptr, nodes, colliders, stringArena));
 
-    Level level(std::move(nodes), std::move(stringArena));
+    Level level(std::move(nodes), std::move(colliders), std::move(stringArena));
 
     return std::move(level);
 }
 
-Level::Level(std::vector<Node>&& nodes, StringArena&& stringArena)
+Level::Level(std::vector<Node>&& nodes, std::vector<Collider>&& colliders, StringArena&& stringArena)
     : m_Nodes(std::move(nodes)),
+      m_Colliders(std::move(colliders)),
       m_StringArena(std::move(stringArena))
 {
     size_t rootNodeCount = 0;

@@ -458,7 +458,7 @@ function(sign_executable target_name)
 endfunction()
 
 function(add_sample_executable target_name source_file)
-  add_executable(${target_name} ${source_file} samples/MouseNav.cpp)
+  add_executable(${target_name} ${source_file} samples/CameraActor.cpp)
   target_link_libraries(${target_name} PRIVATE ssg::ssg)
   add_dependencies(${target_name} shaders copy_images)
 
