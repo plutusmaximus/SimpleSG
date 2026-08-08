@@ -1,6 +1,27 @@
 #include "VecMath.h"
 
 template<typename T>
+const UnitQuat<T> UnitQuat<T>::Identity{ T{ 0 }, T{ 0 }, T{ 0 }, T{ 1 } };
+
+template<typename T>
+const Mat44<T> Mat44<T>::Identity{ T{ 1 } };
+
+template<typename NumType>
+const TrTransform<NumType> TrTransform<NumType>::Identity //
+    {
+        .T = Vec3<NumType>{ 0 },
+        .R = UnitQuat<NumType>::Identity,
+    };
+
+template<typename NumType>
+const TrsTransform<NumType> TrsTransform<NumType>::Identity //
+    {
+        .T = Vec3<NumType>{ 0 },
+        .R = UnitQuat<NumType>::Identity,
+        .S = Vec3<NumType>{ 1 },
+    };
+
+template<typename T>
 Mat44<T>
 UnitQuat<T>::ToMatrix() const noexcept
 {
@@ -15,8 +36,7 @@ UnitQuat<T>::ToMatrix() const noexcept
     const T wz = m_Vec.w * m_Vec.z;
 
     // Column-major 4x4 rotation matrix
-    return Mat44<T>
-    {
+    return Mat44<T>{
         Vec4<T>(1 - (2 * (yy + zz)), 2 * (xy + wz), 2 * (xz - wy), 0),
         Vec4<T>(2 * (xy - wz), 1 - (2 * (xx + zz)), 2 * (yz + wx), 0),
         Vec4<T>(2 * (xz + wy), 2 * (yz - wx), 1 - (2 * (xx + yy)), 0),
@@ -28,7 +48,7 @@ template<typename T>
 Mat44<T>
 Mat44<T>::Inverse() const noexcept
 {
-    constexpr T epsilon = T{1e-8f};
+    constexpr T epsilon = T{ 1e-8f };
 
     // Math-style names:
     //
@@ -77,7 +97,7 @@ Mat44<T>::Inverse() const noexcept
 
     if(std::abs(det) <= epsilon)
     {
-        return Mat44<T>{0};
+        return Mat44<T>{ 0 };
     }
 
     const T invDet = 1 / det;
@@ -103,8 +123,7 @@ Mat44<T>::Inverse() const noexcept
     const T b32 = (-(a30 * s3) + (a31 * s1) - (a32 * s0)) * invDet;
     const T b33 = ((a20 * s3) - (a21 * s1) + (a22 * s0)) * invDet;
 
-    return Mat44<T>
-    {
+    return Mat44<T>{
         Vec4<T>(b00, b10, b20, b30),
         Vec4<T>(b01, b11, b21, b31),
         Vec4<T>(b02, b12, b22, b32),
@@ -116,7 +135,7 @@ template<typename T>
 Mat44<T>
 Mat44<T>::InverseAffine() const noexcept
 {
-    constexpr T epsilon = T{1e-8f};
+    constexpr T epsilon = T{ 1e-8f };
 
     // Assumes column-vector convention and storage as:
     //
@@ -182,13 +201,25 @@ Mat44<T>::InverseAffine() const noexcept
     const T ity = (-(b10 * tx) - (b11 * ty) - (b12 * tz));
     const T itz = (-(b20 * tx) - (b21 * ty) - (b22 * tz));
 
-    return Mat44
-    {
+    return Mat44{
         Vec4<T>(b00, b10, b20, 0),
         Vec4<T>(b01, b11, b21, 0),
         Vec4<T>(b02, b12, b22, 0),
         Vec4<T>(itx, ity, itz, 1),
     };
+}
+
+template<typename T>
+Mat44<T>
+Mat44<T>::Transpose() const noexcept
+{
+    return Mat44 //
+        {
+            Vec4<T>(m[0].x, m[1].x, m[2].x, m[3].x),
+            Vec4<T>(m[0].y, m[1].y, m[2].y, m[3].y),
+            Vec4<T>(m[0].z, m[1].z, m[2].z, m[3].z),
+            Vec4<T>(m[0].w, m[1].w, m[2].w, m[3].w),
+        };
 }
 
 template<typename T>
@@ -229,7 +260,7 @@ Mat44<T>::Decompose(Vec3<T>& translation, UnitQuat<T>& rotation, Vec3<T>& scale)
     if(trace > 0)
     {
         const T s = std::sqrt(trace + 1) * 2;
-        qw = T{0.25} * s;
+        qw = T{ 0.25 } * s;
         qx = (r21 - r12) / s;
         qy = (r02 - r20) / s;
         qz = (r10 - r01) / s;
@@ -238,7 +269,7 @@ Mat44<T>::Decompose(Vec3<T>& translation, UnitQuat<T>& rotation, Vec3<T>& scale)
     {
         const T s = std::sqrt(1 + r00 - r11 - r22) * 2;
         qw = (r21 - r12) / s;
-        qx = T{0.25} * s;
+        qx = T{ 0.25 } * s;
         qy = (r01 + r10) / s;
         qz = (r02 + r20) / s;
     }
@@ -247,7 +278,7 @@ Mat44<T>::Decompose(Vec3<T>& translation, UnitQuat<T>& rotation, Vec3<T>& scale)
         const T s = std::sqrt(1 + r11 - r00 - r22) * 2;
         qw = (r02 - r20) / s;
         qx = (r01 + r10) / s;
-        qy = T{0.25} * s;
+        qy = T{ 0.25 } * s;
         qz = (r12 + r21) / s;
     }
     else
@@ -256,7 +287,7 @@ Mat44<T>::Decompose(Vec3<T>& translation, UnitQuat<T>& rotation, Vec3<T>& scale)
         qw = (r10 - r01) / s;
         qx = (r02 + r20) / s;
         qy = (r12 + r21) / s;
-        qz = T{0.25} * s;
+        qz = T{ 0.25 } * s;
     }
 
     rotation = UnitQuat<T>(qx, qy, qz, qw);
@@ -267,7 +298,7 @@ Mat44<T>
 Mat44<T>::PerspectiveLH(
     const Radians<T> fov, const T aspectRatio, const T nearClip, const T farClip) noexcept
 {
-    const T t = (fov * T{0.5}).Tan();
+    const T t = (fov * T{ 0.5 }).Tan();
 
     Mat44 result(0);
     result[0][0] = static_cast<T>(1.0 / (t * aspectRatio));
@@ -293,7 +324,7 @@ TrTransform<NumType>::Inverse() const noexcept
 {
     const UnitQuat<NumType> r = R.Inverse();
 
-    const TrTransform result{.T = -(r * T), .R = r};
+    const TrTransform result{ .T = -(r * T), .R = r };
 
     return result;
 }
@@ -319,15 +350,84 @@ TrsTransform<NumType>::FromMatrix(const Mat44<NumType>& mat) noexcept
     return result;
 }
 
+Rect::Rect(const RectParams& params) noexcept
+    : m_X(params.X),
+      m_Y(params.Y),
+      m_Width(params.Width),
+      m_Height(params.Height)
+{
+    if(!MLG_VERIFY(m_Width > 0, "Width must be non-zero"))
+    {
+        m_Width = 1;
+    }
+
+    if(!MLG_VERIFY(m_Height > 0, "Height must be non-zero"))
+    {
+        m_Height = 1;
+    }
+}
+
+bool
+Rect::Contains(const Point2& point) const noexcept
+{
+    return point.X >= m_X
+        && point.X < m_X + static_cast<int>(m_Width)
+        && point.Y >= m_Y
+        && point.Y < m_Y + static_cast<int>(m_Height);
+}
+
+bool
+Rect::Contains(const Rect& other) const noexcept
+{
+    return other.m_X >= m_X
+        && other.m_X + static_cast<int>(other.m_Width) <= m_X + static_cast<int>(m_Width)
+        && other.m_Y >= m_Y
+        && other.m_Y + static_cast<int>(other.m_Height) <= m_Y + static_cast<int>(m_Height);
+}
+
+bool
+Rect::Intersects(const Rect& other) const noexcept
+{
+    return other.m_X < m_X + static_cast<int>(m_Width)
+        && other.m_X + static_cast<int>(other.m_Width) > m_X
+        && other.m_Y < m_Y + static_cast<int>(m_Height)
+        && other.m_Y + static_cast<int>(other.m_Height) > m_Y;
+}
+
+Rect
+Rect::Intersect(const Rect& other) const noexcept
+{
+    const int x0 = std::max(m_X, other.m_X);
+    const int y0 = std::max(m_Y, other.m_Y);
+    const int x1 =
+        std::min(m_X + static_cast<int>(m_Width), other.m_X + static_cast<int>(other.m_Width));
+    const int y1 =
+        std::min(m_Y + static_cast<int>(m_Height), other.m_Y + static_cast<int>(other.m_Height));
+
+    if(x1 <= x0 || y1 <= y0)
+    {
+        return Rect({ .X = 0, .Y = 0, .Width = 0, .Height = 0 });
+    }
+
+    return Rect({ .X = x0,
+        .Y = y0,
+        .Width = static_cast<unsigned>(x1 - x0),
+        .Height = static_cast<unsigned>(y1 - y0) });
+}
+
+template UnitQuat<float> UnitQuat<float>::Identity;
+template Mat44<float> Mat44<float>::Identity;
+template TrTransform<float> TrTransform<float>::Identity;
+template TrsTransform<float> TrsTransform<float>::Identity;
+
 template Mat44<float> UnitQuat<float>::ToMatrix() const noexcept;
 
 template Mat44<float> Mat44<float>::Inverse() const noexcept;
 template Mat44<float> Mat44<float>::InverseAffine() const noexcept;
-template void Mat44<float>::Decompose(Vec3<float>& translation,
-    UnitQuat<float>& rotation,
-    Vec3<float>& scale) const noexcept;
-template Mat44<float> Mat44<float>::PerspectiveLH(
-    const Radians<float> fov,
+template Mat44<float> Mat44<float>::Transpose() const noexcept;
+template void Mat44<float>::Decompose(
+    Vec3<float>& translation, UnitQuat<float>& rotation, Vec3<float>& scale) const noexcept;
+template Mat44<float> Mat44<float>::PerspectiveLH(const Radians<float> fov,
     const float aspectRatio,
     const float nearClip,
     const float farClip) noexcept;

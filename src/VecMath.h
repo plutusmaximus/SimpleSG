@@ -766,6 +766,8 @@ public:
 
     using ValueType = T;
 
+    static const UnitQuat<T> Identity;
+
     constexpr UnitQuat() = default;
 
     constexpr UnitQuat(T x, T y, T z, T w) noexcept
@@ -873,6 +875,8 @@ public:
 
     using ValueType = T;
 
+    static const Mat44<T> Identity;
+
     Vec4<T> m[4];
 
     constexpr Mat44() = default;
@@ -944,16 +948,7 @@ public:
 
     [[nodiscard]] Mat44 InverseAffine() const noexcept;
 
-    [[nodiscard]] constexpr Mat44 Transpose() const noexcept
-    {
-        return Mat44 //
-            {
-                Vec4<T>(m[0].x, m[1].x, m[2].x, m[3].x),
-                Vec4<T>(m[0].y, m[1].y, m[2].y, m[3].y),
-                Vec4<T>(m[0].z, m[1].z, m[2].z, m[3].z),
-                Vec4<T>(m[0].w, m[1].w, m[2].w, m[3].w),
-            };
-    }
+    [[nodiscard]] Mat44 Transpose() const noexcept;
 
     void Decompose(Vec3<T>& translation, UnitQuat<T>& rotation, Vec3<T>& scale) const noexcept;
 
@@ -982,13 +977,6 @@ public:
         return (mat.m[0] * vector.x) + (mat.m[1] * vector.y) + (mat.m[2] * vector.z) + mat.m[3];
     }
 
-    static constexpr const Mat44& Identity() noexcept
-    {
-        static constexpr Mat44 IDENT(1);
-
-        return IDENT;
-    }
-
     static Mat44 PerspectiveLH(
         const Radians<T> fov, const T aspectRatio, const T nearClip, const T farClip) noexcept;
 };
@@ -1001,6 +989,8 @@ class TrTransform
 public:
 
     using ValueType = NumType;
+
+    static const TrTransform<NumType> Identity;
 
     Vec3<NumType> T{ 0 };
     UnitQuat<NumType> R{ Radians<NumType>{0}, Vec3<NumType>{0,1,0} };
@@ -1042,6 +1032,7 @@ class TrsTransform
     static_assert(std::is_floating_point_v<NumType>, "TrsTransform requires a floating-point type");
 
 public:
+    static const TrsTransform<NumType> Identity;
 
     using ValueType = NumType;
 
@@ -1123,19 +1114,7 @@ public:
         unsigned Width, Height;
     };
 
-    explicit Rect(const RectParams& params) noexcept
-        : m_X(params.X), m_Y(params.Y), m_Width(params.Width), m_Height(params.Height)
-    {
-        if(!MLG_VERIFY(m_Width > 0, "Width must be non-zero"))
-        {
-            m_Width = 1;
-        }
-
-        if(!MLG_VERIFY(m_Height > 0, "Height must be non-zero"))
-        {
-            m_Height = 1;
-        }
-    }
+    explicit Rect(const RectParams& params) noexcept;
 
     Rect(const Point2& p0, const Point2& p1) noexcept
     : Rect(MakeRectParams(p0, p1))
@@ -1159,40 +1138,13 @@ public:
         return GetDimensions().GetAspectRatio();
     }
 
-    bool Contains(const Point2& point) const noexcept
-    {
-        return point.X >= m_X && point.X < m_X + static_cast<int>(m_Width) &&
-               point.Y >= m_Y && point.Y < m_Y + static_cast<int>(m_Height);
-    }
+    bool Contains(const Point2& point) const noexcept;
 
-    bool Contains(const Rect& other) const noexcept
-    {
-        return other.m_X >= m_X && other.m_X + static_cast<int>(other.m_Width) <= m_X + static_cast<int>(m_Width) &&
-               other.m_Y >= m_Y && other.m_Y + static_cast<int>(other.m_Height) <= m_Y + static_cast<int>(m_Height);
-    }
+    bool Contains(const Rect& other) const noexcept;
 
-    bool Intersects(const Rect& other) const noexcept
-    {
-        return other.m_X < m_X + static_cast<int>(m_Width) &&
-               other.m_X + static_cast<int>(other.m_Width) > m_X &&
-               other.m_Y < m_Y + static_cast<int>(m_Height) &&
-               other.m_Y + static_cast<int>(other.m_Height) > m_Y;
-    }
+    bool Intersects(const Rect& other) const noexcept;
 
-    Rect Intersect(const Rect& other) const noexcept
-    {
-        const int x0 = std::max(m_X, other.m_X);
-        const int y0 = std::max(m_Y, other.m_Y);
-        const int x1 = std::min(m_X + static_cast<int>(m_Width), other.m_X + static_cast<int>(other.m_Width));
-        const int y1 = std::min(m_Y + static_cast<int>(m_Height), other.m_Y + static_cast<int>(other.m_Height));
-
-        if (x1 <= x0 || y1 <= y0)
-        {
-            return Rect({.X = 0, .Y = 0, .Width = 0, .Height = 0 });
-        }
-
-        return Rect({.X = x0, .Y = y0, .Width = static_cast<unsigned>(x1 - x0), .Height = static_cast<unsigned>(y1 - y0) });
-    }
+    Rect Intersect(const Rect& other) const noexcept;
 
     constexpr friend bool operator==(const Rect& a, const Rect& b) noexcept
     {
@@ -1224,6 +1176,10 @@ using Mat44f = Mat44<float>;
 using TrTransformf = TrTransform<float>;
 using TrsTransformf = TrsTransform<float>;
 
+extern template const UnitQuat<float> UnitQuat<float>::Identity;
+extern template const TrTransform<float> TrTransform<float>::Identity;
+extern template const TrsTransform<float> TrsTransform<float>::Identity;
+extern template const Mat44<float> Mat44<float>::Identity;
 
 #include <span>
 struct VVec3
