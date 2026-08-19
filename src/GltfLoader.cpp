@@ -169,10 +169,10 @@ CollectMeshes(const cgltf_data* gltfData)
                     .Attributes = *attrs,
                 };
 
-            meshData.Primitives.emplace_back(primData);
+            meshData.Primitives.push_back(primData);
         }
 
-        gltfMeshes.emplace_back(std::move(meshData));
+        gltfMeshes.push_back(std::move(meshData));
     }
 
     return std::move(gltfMeshes);
@@ -404,7 +404,7 @@ CollectModels(const std::span<CgltfMeshData> gltfMeshes)
                     .MaterialDef = std::move(*mtlDef),
                 };
 
-            meshDefs.emplace_back(meshDef);
+            meshDefs.push_back(meshDef);
         }
 
         ModelDef model //
@@ -413,7 +413,7 @@ CollectModels(const std::span<CgltfMeshData> gltfMeshes)
                 .MeshDefs = std::move(meshDefs),
             };
 
-        modelDefs.emplace_back(std::move(model));
+        modelDefs.push_back(std::move(model));
     }
 
     return modelDefs;
@@ -531,7 +531,7 @@ CollectNode(const cgltf_node& srcNode, std::vector<LevelNodeDef>& nodeDefs)
                 .Children{ std::move(childNodes) },
             };
 
-        nodeDefs.emplace_back(std::move(newNodeDef));
+        nodeDefs.push_back(std::move(newNodeDef));
     }
 
     return Result<>::Ok;

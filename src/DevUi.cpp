@@ -57,7 +57,7 @@ CliState::ClearInput()
 void
 CliState::AddLine(std::string line)
 {
-    m_Lines.emplace_back(std::move(line));
+    m_Lines.push_back(std::move(line));
 }
 
 void
@@ -65,7 +65,7 @@ CliState::AddHistory(std::string command)
 {
     if(m_History.empty() || m_History.back() != command)
     {
-        m_History.emplace_back(std::move(command));
+        m_History.push_back(std::move(command));
         m_HistoryIt = m_History.end();
     }
 }

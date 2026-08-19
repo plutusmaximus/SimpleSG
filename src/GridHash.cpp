@@ -505,12 +505,11 @@ GridHash::Sort() const
 
                 const size_t indexB = m_Items[j].BodyIndex;
 
-                const BodyPair bodyPair(indexA, indexB);
-                const uint64_t pairKey = (static_cast<uint64_t>(bodyPair.IndexA()) << 32)
-                    | static_cast<uint64_t>(bodyPair.IndexB());
+                const uint64_t pairKey =
+                    (static_cast<uint64_t>(indexA) << 32) | static_cast<uint64_t>(indexB);
                 if(m_UniquePairs.Insert(pairKey))
                 {
-                    m_PotentialCollisions.emplace_back(bodyPair);
+                    m_PotentialCollisions.emplace_back(indexA, indexB);
                 }
             }
         }

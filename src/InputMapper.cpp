@@ -58,7 +58,7 @@ InputMapper::InputMapper(const std::span<const ActionMapping> mappings)
             auto it = std::ranges::find(m_ActionStates, mapping.ActionId, &ActionState::ActionId);
             if(it == m_ActionStates.end())
             {
-                m_ActionStates.emplace_back(ActionState{ .ActionId = mapping.ActionId });
+                m_ActionStates.push_back(ActionState{ .ActionId = mapping.ActionId });
                 it = std::prev(m_ActionStates.end());
             }
 
@@ -74,7 +74,7 @@ InputMapper::InputMapper(const std::span<const ActionMapping> mappings)
             auto it = std::ranges::find(m_ActionStates, mapping.ActionId, &ActionState::ActionId);
             if(it == m_ActionStates.end())
             {
-                m_ActionStates.emplace_back(ActionState{ .ActionId = mapping.ActionId });
+                m_ActionStates.push_back(ActionState{ .ActionId = mapping.ActionId });
                 it = std::prev(m_ActionStates.end());
             }
 

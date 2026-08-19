@@ -186,7 +186,7 @@ public:
     {
         auto append = [&out](auto&& item)
         {
-            out.emplace_back(std::forward<decltype(item)>(item));
+            out.push_back(std::forward<decltype(item)>(item));
         };
 
         for(auto&& item : m_Source)

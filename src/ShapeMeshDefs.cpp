@@ -40,14 +40,14 @@ ShapeMeshDefs::Box(const BoxParams& params)
     // 4: (-x, -y, +z)  5: (+x, -y, +z)
     // 6: (+x, +y, +z)  7: (-x, +y, +z)
 
-    vertices.emplace_back(Vertex{ .pos{ -hw, -hh, -hd }, .normal{ -invSqrt3, -invSqrt3, -invSqrt3 }, .uvs{} });
-    vertices.emplace_back(Vertex{ .pos{  hw, -hh, -hd }, .normal{  invSqrt3, -invSqrt3, -invSqrt3 }, .uvs{} });
-    vertices.emplace_back(Vertex{ .pos{  hw,  hh, -hd }, .normal{  invSqrt3,  invSqrt3, -invSqrt3 }, .uvs{} });
-    vertices.emplace_back(Vertex{ .pos{ -hw,  hh, -hd }, .normal{ -invSqrt3,  invSqrt3, -invSqrt3 }, .uvs{} });
-    vertices.emplace_back(Vertex{ .pos{ -hw, -hh,  hd }, .normal{ -invSqrt3, -invSqrt3,  invSqrt3 }, .uvs{} });
-    vertices.emplace_back(Vertex{ .pos{  hw, -hh,  hd }, .normal{  invSqrt3, -invSqrt3,  invSqrt3 }, .uvs{} });
-    vertices.emplace_back(Vertex{ .pos{  hw,  hh,  hd }, .normal{  invSqrt3,  invSqrt3,  invSqrt3 }, .uvs{} });
-    vertices.emplace_back(Vertex{ .pos{ -hw,  hh,  hd }, .normal{ -invSqrt3,  invSqrt3,  invSqrt3 }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{ -hw, -hh, -hd }, .normal{ -invSqrt3, -invSqrt3, -invSqrt3 }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{  hw, -hh, -hd }, .normal{  invSqrt3, -invSqrt3, -invSqrt3 }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{  hw,  hh, -hd }, .normal{  invSqrt3,  invSqrt3, -invSqrt3 }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{ -hw,  hh, -hd }, .normal{ -invSqrt3,  invSqrt3, -invSqrt3 }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{ -hw, -hh,  hd }, .normal{ -invSqrt3, -invSqrt3,  invSqrt3 }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{  hw, -hh,  hd }, .normal{  invSqrt3, -invSqrt3,  invSqrt3 }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{  hw,  hh,  hd }, .normal{  invSqrt3,  invSqrt3,  invSqrt3 }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{ -hw,  hh,  hd }, .normal{ -invSqrt3,  invSqrt3,  invSqrt3 }, .uvs{} });
 
     // Front face (+Z) - clockwise from front
     indices.push_back(4); indices.push_back(5); indices.push_back(6);
@@ -111,18 +111,18 @@ ShapeMeshDefs::Ball(const BallParams& params)
     const float b = t / len;
 
     // 12 vertices of icosahedron
-    vertices.emplace_back(Vertex{ .pos{ -a,  b,  0 }, .normal{ -a,  b,  0 }, .uvs{} });
-    vertices.emplace_back(Vertex{ .pos{  a,  b,  0 }, .normal{  a,  b,  0 }, .uvs{} });
-    vertices.emplace_back(Vertex{ .pos{ -a, -b,  0 }, .normal{ -a, -b,  0 }, .uvs{} });
-    vertices.emplace_back(Vertex{ .pos{  a, -b,  0 }, .normal{  a, -b,  0 }, .uvs{} });
-    vertices.emplace_back(Vertex{ .pos{  0, -a,  b }, .normal{  0, -a,  b }, .uvs{} });
-    vertices.emplace_back(Vertex{ .pos{  0,  a,  b }, .normal{  0,  a,  b }, .uvs{} });
-    vertices.emplace_back(Vertex{ .pos{  0, -a, -b }, .normal{  0, -a, -b }, .uvs{} });
-    vertices.emplace_back(Vertex{ .pos{  0,  a, -b }, .normal{  0,  a, -b }, .uvs{} });
-    vertices.emplace_back(Vertex{ .pos{  b,  0, -a }, .normal{  b,  0, -a }, .uvs{} });
-    vertices.emplace_back(Vertex{ .pos{  b,  0,  a }, .normal{  b,  0,  a }, .uvs{} });
-    vertices.emplace_back(Vertex{ .pos{ -b,  0, -a }, .normal{ -b,  0, -a }, .uvs{} });
-    vertices.emplace_back(Vertex{ .pos{ -b,  0,  a }, .normal{ -b,  0,  a }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{ -a,  b,  0 }, .normal{ -a,  b,  0 }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{  a,  b,  0 }, .normal{  a,  b,  0 }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{ -a, -b,  0 }, .normal{ -a, -b,  0 }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{  a, -b,  0 }, .normal{  a, -b,  0 }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{  0, -a,  b }, .normal{  0, -a,  b }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{  0,  a,  b }, .normal{  0,  a,  b }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{  0, -a, -b }, .normal{  0, -a, -b }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{  0,  a, -b }, .normal{  0,  a, -b }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{  b,  0, -a }, .normal{  b,  0, -a }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{  b,  0,  a }, .normal{  b,  0,  a }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{ -b,  0, -a }, .normal{ -b,  0, -a }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{ -b,  0,  a }, .normal{ -b,  0,  a }, .uvs{} });
 
     // 20 faces of icosahedron (clockwise winding)
     const VertexIndex faces[][3] =
@@ -165,7 +165,7 @@ ShapeMeshDefs::Ball(const BallParams& params)
         mid = mid.Normalize();
 
         const VertexIndex newIdx = static_cast<VertexIndex>(vertices.size());
-        vertices.emplace_back(Vertex{ .pos = mid, .normal{mid.x, mid.y, mid.z}, .uvs{} });
+        vertices.push_back(Vertex{ .pos = mid, .normal{mid.x, mid.y, mid.z}, .uvs{} });
         midpointCache[key] = newIdx;
         return newIdx;
     };
@@ -250,9 +250,9 @@ ShapeMeshDefs::Cylinder(const CylinderParams& params)
         const VertexNormal normal = VertexNormal(x / params.Radius, 0.0f, z / params.Radius).Normalize();
 
         // Bottom vertex
-        vertices.emplace_back(Vertex{ .pos{ x, -halfHeight, z }, .normal = normal, .uvs{} });
+        vertices.push_back(Vertex{ .pos{ x, -halfHeight, z }, .normal = normal, .uvs{} });
         // Top vertex
-        vertices.emplace_back(Vertex{ .pos{ x, halfHeight, z }, .normal = normal, .uvs{} });
+        vertices.push_back(Vertex{ .pos{ x, halfHeight, z }, .normal = normal, .uvs{} });
     }
 
     // Generate side indices
@@ -277,7 +277,7 @@ ShapeMeshDefs::Cylinder(const CylinderParams& params)
     const uint32_t topCapStart = bottomCapStart + segments + 1;
 
     // Bottom cap center
-    vertices.emplace_back(Vertex{ .pos{ 0.0f, -halfHeight, 0.0f }, .normal{ 0.0f, -1.0f, 0.0f }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{ 0.0f, -halfHeight, 0.0f }, .normal{ 0.0f, -1.0f, 0.0f }, .uvs{} });
 
     // Bottom cap ring
     for (uint32_t seg = 0; seg < segments; ++seg)
@@ -285,11 +285,11 @@ ShapeMeshDefs::Cylinder(const CylinderParams& params)
         const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
         const float x = params.Radius * std::cos(theta);
         const float z = params.Radius * std::sin(theta);
-        vertices.emplace_back(Vertex{ .pos{ x, -halfHeight, z }, .normal{ 0.0f, -1.0f, 0.0f }, .uvs{} });
+        vertices.push_back(Vertex{ .pos{ x, -halfHeight, z }, .normal{ 0.0f, -1.0f, 0.0f }, .uvs{} });
     }
 
     // Top cap center
-    vertices.emplace_back(Vertex{ .pos{ 0.0f, halfHeight, 0.0f }, .normal{ 0.0f, 1.0f, 0.0f }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{ 0.0f, halfHeight, 0.0f }, .normal{ 0.0f, 1.0f, 0.0f }, .uvs{} });
 
     // Top cap ring
     for (uint32_t seg = 0; seg < segments; ++seg)
@@ -297,7 +297,7 @@ ShapeMeshDefs::Cylinder(const CylinderParams& params)
         const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
         const float x = params.Radius * std::cos(theta);
         const float z = params.Radius * std::sin(theta);
-        vertices.emplace_back(Vertex{ .pos{ x, halfHeight, z }, .normal{ 0.0f, 1.0f, 0.0f }, .uvs{} });
+        vertices.push_back(Vertex{ .pos{ x, halfHeight, z }, .normal{ 0.0f, 1.0f, 0.0f }, .uvs{} });
     }
 
     // Bottom cap indices (clockwise from below)
@@ -392,9 +392,9 @@ ShapeMeshDefs::Cone(const ConeParams& params)
         }.Normalize();
 
         // Bottom vertex
-        vertices.emplace_back(Vertex{ .pos{ x1, -halfHeight, z1 }, .normal = normal, .uvs{} });
+        vertices.push_back(Vertex{ .pos{ x1, -halfHeight, z1 }, .normal = normal, .uvs{} });
         // Top vertex
-        vertices.emplace_back(Vertex{ .pos{ x2, halfHeight, z2 }, .normal = normal, .uvs{} });
+        vertices.push_back(Vertex{ .pos{ x2, halfHeight, z2 }, .normal = normal, .uvs{} });
     }
 
     // Generate side indices
@@ -426,7 +426,7 @@ ShapeMeshDefs::Cone(const ConeParams& params)
         const uint32_t bottomRingStart = currentVertexOffset + 1;
 
         // Bottom cap center
-        vertices.emplace_back(Vertex{ .pos{ 0.0f, -halfHeight, 0.0f }, .normal{ 0.0f, -1.0f, 0.0f }, .uvs{} });
+        vertices.push_back(Vertex{ .pos{ 0.0f, -halfHeight, 0.0f }, .normal{ 0.0f, -1.0f, 0.0f }, .uvs{} });
 
         // Bottom cap ring with vertical normals
         for (uint32_t seg = 0; seg < segments; ++seg)
@@ -434,7 +434,7 @@ ShapeMeshDefs::Cone(const ConeParams& params)
             const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
             const float x = params.Radius1 * std::cos(theta);
             const float z = params.Radius1 * std::sin(theta);
-            vertices.emplace_back(Vertex{ .pos{ x, -halfHeight, z }, .normal{ 0.0f, -1.0f, 0.0f }, .uvs{} });
+            vertices.push_back(Vertex{ .pos{ x, -halfHeight, z }, .normal{ 0.0f, -1.0f, 0.0f }, .uvs{} });
         }
 
         // Bottom cap indices
@@ -458,7 +458,7 @@ ShapeMeshDefs::Cone(const ConeParams& params)
         const uint32_t topRingStart = currentVertexOffset + 1;
 
         // Top cap center
-        vertices.emplace_back(Vertex{ .pos{ 0.0f, halfHeight, 0.0f }, .normal{ 0.0f, 1.0f, 0.0f }, .uvs{} });
+        vertices.push_back(Vertex{ .pos{ 0.0f, halfHeight, 0.0f }, .normal{ 0.0f, 1.0f, 0.0f }, .uvs{} });
 
         // Top cap ring with vertical normals
         for (uint32_t seg = 0; seg < segments; ++seg)
@@ -466,7 +466,7 @@ ShapeMeshDefs::Cone(const ConeParams& params)
             const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
             const float x = params.Radius2 * std::cos(theta);
             const float z = params.Radius2 * std::sin(theta);
-            vertices.emplace_back(Vertex{ .pos{ x, halfHeight, z }, .normal{ 0.0f, 1.0f, 0.0f }, .uvs{} });
+            vertices.push_back(Vertex{ .pos{ x, halfHeight, z }, .normal{ 0.0f, 1.0f, 0.0f }, .uvs{} });
         }
 
         // Top cap indices
@@ -561,7 +561,7 @@ ShapeMeshDefs::Torus(const TorusParams& params)
             const float ny = sinTheta * cosPhi;
             const float nz = sinPhi;
 
-            vertices.emplace_back(Vertex{ .pos{ x, y, z }, .normal{ nx, ny, nz }, .uvs{} });
+            vertices.push_back(Vertex{ .pos{ x, y, z }, .normal{ nx, ny, nz }, .uvs{} });
         }
     }
 
