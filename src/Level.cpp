@@ -87,14 +87,11 @@ AttachShapeToBody(const b3BodyId bodyId, const Mass& mass, const ColliderDef& co
 
     constexpr float pi = std::numbers::pi_v<float>;
 
-    struct Visitor
+    switch(colliderDef.BoundingVolume.GetType())
     {
-        b3BodyId BodyId;
-        b3ShapeDef ShapeDef;
-        Mass Mass;
-
-        b3ShapeId operator()(const SphereDef& sphereDef)
+        case BoundingVolumeDef::Type::Sphere:
         {
+            const SphereDef& sphereDef = colliderDef.BoundingVolume.GetSphereDef();
             const Vec3f center = sphereDef.Center;
             const b3Sphere sphere //
                 {
@@ -104,24 +101,25 @@ AttachShapeToBody(const b3BodyId bodyId, const Mass& mass, const ColliderDef& co
 
             const float r3 = sphereDef.Radius * sphereDef.Radius * sphereDef.Radius;
             const float volume = (4.0f / 3.0f) * pi * r3;
-            ShapeDef.density = Mass.Value() / volume;
+            shapeDef.density = mass.Value() / volume;
 
-            return b3CreateSphereShape(BodyId, &ShapeDef, &sphere);
+            return b3CreateSphereShape(bodyId, &shapeDef, &sphere);
         }
-
-        b3ShapeId operator()(const BoxDef& boxDef)
+        break;
+        case BoundingVolumeDef::Type::Box:
         {
-            // const Vec3f center = boundingBox.GetCenter();
+            const BoxDef& boxDef = colliderDef.BoundingVolume.GetBoxDef();
             const Vec3f halfExtents = boxDef.HalfExtents;
             const b3BoxHull dynamicBox = b3MakeBoxHull(halfExtents.x, halfExtents.y, halfExtents.z);
             const float volume = 8.0f * halfExtents.x * halfExtents.y * halfExtents.z;
-            ShapeDef.density = Mass.Value() / volume;
+            shapeDef.density = mass.Value() / volume;
 
-            return b3CreateHullShape(BodyId, &ShapeDef, &dynamicBox.base);
+            return b3CreateHullShape(bodyId, &shapeDef, &dynamicBox.base);
         }
-
-        b3ShapeId operator()(const CapsuleDef& capsuleDef)
+        break;
+        case BoundingVolumeDef::Type::Capsule:
         {
+            const CapsuleDef& capsuleDef = colliderDef.BoundingVolume.GetCapsuleDef();
             const float halfHeight = capsuleDef.HalfHeight;
             const Vec3f& center = capsuleDef.Center;
             const b3Capsule capsule //
@@ -143,16 +141,15 @@ AttachShapeToBody(const b3BodyId bodyId, const Mass& mass, const ColliderDef& co
             const float r2 = capsuleDef.Radius * capsuleDef.Radius;
             const float volume =
                 ((4.0f / 3.0f) * pi * r2 * capsuleDef.Radius) + (4.0f * halfHeight * pi * r2);
-            ShapeDef.density = Mass.Value() / volume;
+            shapeDef.density = mass.Value() / volume;
 
-            return b3CreateCapsuleShape(BodyId, &ShapeDef, &capsule);
+            return b3CreateCapsuleShape(bodyId, &shapeDef, &capsule);
         }
-    };
+        break;
+    }
 
-    Visitor visitor{ .BodyId = bodyId, .ShapeDef = shapeDef, .Mass = mass };
-    const b3ShapeId shapeId = std::visit(visitor, colliderDef.BoundingVolume);
-
-    return shapeId;
+    MLG_ERROR("Invalid bounding volume type");
+    return Result<>::Fail;
 }
 
 Result<RigidBodyIdentifier>

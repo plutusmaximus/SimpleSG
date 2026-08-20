@@ -4,7 +4,6 @@
 #include "Vertex.h"
 
 #include <span>
-#include <variant>
 
 class BoundingBox
 {
@@ -66,7 +65,8 @@ public:
 
     float GetHalfHeight() const { return m_HalfHeight; }
 
-    friend BoundingCapsule operator*(const TrsTransformf& transform, const BoundingCapsule& a) noexcept
+    friend BoundingCapsule operator*(const TrsTransformf& transform,
+        const BoundingCapsule& a) noexcept
     {
         BoundingCapsule result = a;
         result.m_Center = transform * result.m_Center;
@@ -127,7 +127,8 @@ public:
     // Merge two bounding spheres into a new bounding sphere that encompasses both.
     friend BoundingSphere operator+(const BoundingSphere& a, const BoundingSphere& b) noexcept;
 
-    friend BoundingSphere operator*(const TrsTransformf& transform, const BoundingSphere& a) noexcept
+    friend BoundingSphere operator*(const TrsTransformf& transform,
+        const BoundingSphere& a) noexcept
     {
         BoundingSphere result = a;
         result.m_Center = transform * result.m_Center;
@@ -151,37 +152,4 @@ public:
 private:
     Vec3f m_Center;
     float m_Radius;
-};
-
-class BoundingVolume
-{
-public:
-    BoundingVolume() = delete;
-
-    explicit BoundingVolume(const BoundingSphere& sphere)
-        : m_Shape(sphere),
-          m_EnclosingSphere(sphere)
-    {
-    }
-
-    explicit BoundingVolume(const BoundingBox& box)
-        : m_Shape(box),
-          m_EnclosingSphere(box)
-    {
-    }
-    explicit BoundingVolume(const BoundingCapsule& capsule)
-        : m_Shape(capsule),
-          m_EnclosingSphere(capsule)
-    {
-    }
-    const std::variant<BoundingSphere, BoundingBox, BoundingCapsule>& GetVolume() const
-    {
-        return m_Shape;
-    }
-
-    const BoundingSphere& GetEnclosingSphere() const { return m_EnclosingSphere; }
-
-private:
-    std::variant<BoundingSphere, BoundingBox, BoundingCapsule> m_Shape;
-    BoundingSphere m_EnclosingSphere;
 };

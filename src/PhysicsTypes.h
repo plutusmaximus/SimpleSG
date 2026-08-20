@@ -1,7 +1,6 @@
 #pragma once
 
 #include "AssertHelper.h"
-#include "BoundingVolumes.h"
 #include "SemanticIdentifier.h"
 
 enum class MotionType
@@ -66,57 +65,6 @@ public:
 private:
     float m_Value;
     float m_InvValue; // Inverse value
-};
-
-class Collider
-{
-public:
-    Collider() = delete;
-
-    Collider(const BoundingVolume& boundingVolume, const CollisionType collisionType)
-        : m_BoundingVolume(boundingVolume),
-          m_CollisionType(collisionType)
-    {
-    }
-
-    const BoundingVolume& GetBoundingVolume() const { return m_BoundingVolume; }
-
-    const BoundingSphere& GetBoundingSphere() const
-    {
-        return m_BoundingVolume.GetEnclosingSphere();
-    }
-
-    CollisionType GetCollisionType() const { return m_CollisionType; }
-
-private:
-    BoundingVolume m_BoundingVolume;
-    CollisionType m_CollisionType;
-};
-
-class RigidBody
-{
-public:
-    RigidBody() = delete;
-
-    explicit RigidBody(
-        const Mass mass, const MotionType motionType, const std::span<const Collider> colliders)
-        : m_Mass(mass),
-          m_MotionType(motionType),
-          m_Colliders(colliders)
-    {
-        MLG_ABORTIF(colliders.empty(), "RigidBody must have at least one collider");
-    }
-
-    Mass GetMass() const { return m_Mass; }
-
-    std::span<const Collider> GetColliders() const { return m_Colliders; }
-
-    MotionType GetMotionType() const { return m_MotionType; }
-
-private:
-    Mass m_Mass;
-    MotionType m_MotionType;
-    std::span<const Collider> m_Colliders;
 };
 
 /// @brief A strongly-typed identifier for a Box3d world.

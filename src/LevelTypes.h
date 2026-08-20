@@ -2,6 +2,7 @@
 
 #include "PhysicsTypes.h"
 #include "StringArena.h"
+#include "VecMath.h"
 
 #include <span>
 #include <string_view>

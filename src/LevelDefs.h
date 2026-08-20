@@ -2,10 +2,10 @@
 
 #include "Color.h"
 #include "PhysicsTypes.h"
+#include "Vertex.h"
 
 #include <optional>
 #include <string>
-#include <variant>
 #include <vector>
 
 struct MaterialDef final
@@ -108,7 +108,66 @@ struct SphereDef final
     }
 };
 
-using BoundingVolumeDef = std::variant<SphereDef, BoxDef, CapsuleDef>;
+struct BoundingVolumeDef final
+{
+    enum class Type
+    {
+        Sphere,
+        Box,
+        Capsule,
+    };
+
+    BoundingVolumeDef() = delete;
+
+    BoundingVolumeDef(const SphereDef& sphereDef) // NOLINT(google-explicit-constructor)
+        : m_Type(Type::Sphere),
+          m_Sphere(sphereDef)
+    {
+    }
+
+    BoundingVolumeDef(const BoxDef& boxDef) // NOLINT(google-explicit-constructor)
+        : m_Type(Type::Box),
+          m_Box(boxDef)
+    {
+    }
+
+    BoundingVolumeDef(const CapsuleDef& capsuleDef) // NOLINT(google-explicit-constructor)
+        : m_Type(Type::Capsule),
+          m_Capsule(capsuleDef)
+    {
+    }
+
+    Type GetType() const { return m_Type; }
+
+    const SphereDef& GetSphereDef() const
+    {
+        MLG_VERIFY(m_Type == Type::Sphere, "BoundingVolumeDef is not a Sphere");
+        return m_Sphere; // NOLINT(cppcoreguidelines-pro-type-union-access)
+    }
+
+    const BoxDef& GetBoxDef() const
+    {
+        MLG_VERIFY(m_Type == Type::Box, "BoundingVolumeDef is not a Box");
+        return m_Box; // NOLINT(cppcoreguidelines-pro-type-union-access)
+    }
+
+    const CapsuleDef& GetCapsuleDef() const
+    {
+        MLG_VERIFY(m_Type == Type::Capsule, "BoundingVolumeDef is not a Capsule");
+        return m_Capsule; // NOLINT(cppcoreguidelines-pro-type-union-access)
+    }
+
+private:
+
+    Type m_Type;
+
+    union
+    {
+        SphereDef m_Sphere;
+        BoxDef m_Box;
+        CapsuleDef m_Capsule;
+    };
+};
 
 struct ColliderDef final
 {
