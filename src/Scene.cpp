@@ -19,9 +19,9 @@ size_t
 CountModelInstances(const Level& level)
 {
     size_t count = 0;
-    for(const Level::Node& node : level.GetAllNodes())
+    for(const LevelNode& node : level.GetAllNodes())
     {
-        if(node.Components.Model)
+        if(node.GetModel())
         {
             ++count;
         }
@@ -35,21 +35,16 @@ CountMeshInstances(const Level& level)
 {
     size_t count = 0;
 
-    for(const Level::Node& node : level.GetAllNodes())
+    for(const LevelNode& node : level.GetAllNodes())
     {
-        const std::optional<const Model*> optModel = node.Components.Model;
+        const Model* model = node.GetModel();
 
-        if(!optModel)
+        if(!model)
         {
             continue;
         }
 
-        if(!MLG_VERIFY(*optModel, "Node has invalid model pointer"))
-        {
-            continue;
-        }
-
-        count += (*optModel)->GetMeshes().size();
+        count += model->GetMeshes().size();
     }
 
     return count;
@@ -57,7 +52,7 @@ CountMeshInstances(const Level& level)
 
 Result<>
 BuildScene(const Level& level,
-    std::vector<const Level::Node*>& outNodes,
+    std::vector<const LevelNode*>& outNodes,
     std::vector<ShaderInterop::WorldTransform>& outWorldTransforms,
     std::vector<ModelInstance>& outModelInstances,
     std::vector<MeshInstance>& outMeshInstances)
@@ -78,22 +73,19 @@ BuildScene(const Level& level,
     // Initialize the transform buffer with the world space transform
     // of each node that contains a model instance.
 
-    for(const Level::Node& node : level.GetAllNodes())
+    for(const LevelNode& node : level.GetAllNodes())
     {
-        const std::optional<const Model*> optModel = node.Components.Model;
+        const Model* model = node.GetModel();
 
-        if(!optModel)
+        if(!model)
         {
             continue;
         }
 
-        const Model* model = *optModel;
-        MLG_CHECKV(model, "Node has invalid model pointer");
+        outNodes.push_back(&node);
 
-        outNodes.emplace_back(&node);
-
-        const ShaderInterop::WorldTransform worldTransform{ .Transform = node.WorldTransform };
-        outWorldTransforms.emplace_back(worldTransform);
+        const ShaderInterop::WorldTransform worldTransform{ .Transform = node.GetWorldTransform() };
+        outWorldTransforms.push_back(worldTransform);
 
         const size_t meshInstanceOffset = outMeshInstances.size();
 
@@ -131,7 +123,7 @@ BuildDrawIndirectBuffer(GpuHelper& gpuHelper, std::span<const MeshInstance> mesh
                 .FirstInstance = narrow_cast<uint32_t>(drawIndirectParams.size()),
             };
 
-        drawIndirectParams.emplace_back(drawParams);
+        drawIndirectParams.push_back(drawParams);
     }
 
     auto buffer = gpuHelper.CreateIndirectBuffer<GpuDrawIndirectBuffer>(drawIndirectParams.size(),
@@ -170,7 +162,7 @@ BuildMeshPropertiesBuffer(GpuHelper& gpuHelper,
                 .MaterialIndex = narrow_cast<uint32_t>(meshSrc.GetMaterialId().GetValue()),
             };
 
-            meshProperties.emplace_back(meshProps);
+            meshProperties.push_back(meshProps);
         }
 
         ++transformIndex;
@@ -192,7 +184,7 @@ Scene::Create(GpuHelper& gpuHelper, const Level& level)
     Timer createTimer;
     createTimer.Start();
 
-    std::vector<const Level::Node*> nodes;
+    std::vector<const LevelNode*> nodes;
     std::vector<ShaderInterop::WorldTransform> worldTransforms;
     std::vector<ModelInstance> modelInstances;
     std::vector<MeshInstance> meshInstances;
@@ -239,7 +231,7 @@ Scene::Scene(GpuWorldTransformBuffer&& worldTransformBuffer,
     GpuDrawIndirectBuffer&& drawIndirectBuffer,
     GpuMeshPropertiesBuffer&& meshPropertiesBuffer,
     GpuCameraParamsBuffer&& cameraParamsBuffer,
-    std::vector<const Level::Node*>&& nodes,
+    std::vector<const LevelNode*>&& nodes,
     std::vector<ModelInstance>&& modelInstances,
     std::vector<MeshInstance>&& meshInstances,
     std::vector<ShaderInterop::WorldTransform>&& worldTransforms)
@@ -295,7 +287,7 @@ Scene::GetVisibleMeshes(const Frustum& frustum, std::vector<MeshInstance>& outVi
                     continue;
                 }
 
-                outVisibleMeshes.emplace_back(meshInstance);
+                outVisibleMeshes.push_back(meshInstance);
             }
         }
         else
@@ -304,7 +296,7 @@ Scene::GetVisibleMeshes(const Frustum& frustum, std::vector<MeshInstance>& outVi
 
             for(const MeshInstance& meshInstance : modelInstance.GetMeshInstances())
             {
-                outVisibleMeshes.emplace_back(meshInstance);
+                outVisibleMeshes.push_back(meshInstance);
             }
         }
     }
@@ -319,7 +311,7 @@ Scene::SyncFromLevel()
 
     for(auto&& [node, worldXForm, modelInstance] : view)
     {
-        const ShaderInterop::WorldTransform transform{ .Transform = node->WorldTransform };
+        const ShaderInterop::WorldTransform transform{ .Transform = node->GetWorldTransform() };
         worldXForm = transform;
 
         modelInstance.SetVisible(node->IsVisible());

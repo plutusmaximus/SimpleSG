@@ -365,7 +365,7 @@ FetchTexturesTask::Begin()
             m_Encoder,
             &m_CompletionFlags[index]);
 
-        m_Tasks.emplace_back(&task);
+        m_Tasks.push_back(&task);
     }
 
     m_State = State::Fetching;
@@ -468,7 +468,7 @@ CreateMaterialBindGroups(GpuHelper& gpuHelper,
         auto bindGroup = gpuHelper.CreateTextureBindGroup(baseTexture, mtlDef.BaseTextureUri);
         MLG_CHECK(bindGroup);
 
-        materialBindGroups.emplace_back(std::move(*bindGroup));
+        materialBindGroups.push_back(std::move(*bindGroup));
     }
 
     return Result<>::Ok;
@@ -489,7 +489,7 @@ BuildMaterialConstantsBuffer(GpuHelper& gpuHelper, const std::span<const Materia
                 .Roughness = mtlDef.Roughness,
             };
 
-        materialConstants.emplace_back(mc);
+        materialConstants.push_back(mc);
     }
 
     auto buffer =
@@ -564,21 +564,19 @@ PropKit::Create(GpuHelper& gpuHelper,
 
         for(const auto& meshDef : modelDef.MeshDefs)
         {
-            const MaterialIdentifier materialId = uniqueMaterialMap[meshDef.MaterialDef];
-            const BoundingBox aabb = BoundingBox::FromVertices(meshDef.Vertices, meshDef.Indices);
-
-            const Mesh mesh(
+            const Mesh::VertexParams vertexParams //
                 {
                     .IndexCount = narrow_cast<uint32_t>(meshDef.Indices.size()),
                     .FirstIndex = narrow_cast<uint32_t>(indices.size()),
                     .BaseVertex = narrow_cast<uint32_t>(vertices.size()),
-                },
-                materialId,
-                aabb);
+                };
 
+            const MaterialIdentifier materialId = uniqueMaterialMap[meshDef.MaterialDef];
+            const BoundingBox aabb = BoundingBox::FromVertices(meshDef.Vertices, meshDef.Indices);
+
+            meshes.emplace_back(vertexParams, materialId, aabb);
             vertices.insert(vertices.end(), meshDef.Vertices.begin(), meshDef.Vertices.end());
             indices.insert(indices.end(), meshDef.Indices.begin(), meshDef.Indices.end());
-            meshes.emplace_back(mesh);
         }
 
         // The span of meshes for this model starts at firstMeshIdx and goes to the end of the meshes vector.
@@ -589,8 +587,7 @@ PropKit::Create(GpuHelper& gpuHelper,
             aabb += mesh.GetBoundingBox();
         }
 
-        const Model model(modelName, meshSpan, aabb);
-        models.emplace_back(model);
+        models.emplace_back(modelName, meshSpan, aabb);
     }
 
     TextureCache textureCache(gpuHelper.GetDefaultTexture());

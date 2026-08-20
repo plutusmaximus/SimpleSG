@@ -125,19 +125,22 @@ struct RigidBodyDef final
 
 struct LevelNodeDef final
 {
-    struct ComponentsDef final
-    {
-        std::optional<ModelRef> Model;
-        std::optional<RigidBodyDef> Body;
-    };
-
     std::string Name;
     TrsTransformf Transform;
-    ComponentsDef Components;
     std::vector<LevelNodeDef> Children;
+    std::optional<ModelRef> Model;
+};
+
+struct RootNodeDef final
+{
+    std::string Name;
+    TrsTransformf Transform;
+    std::vector<LevelNodeDef> Children;
+    std::optional<ModelRef> Model;
+    std::optional<RigidBodyDef> Body;
 };
 
 struct LevelDef final
 {
-    std::vector<LevelNodeDef> NodeDefs;
+    std::vector<RootNodeDef> NodeDefs;
 };

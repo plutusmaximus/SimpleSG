@@ -1,11 +1,9 @@
 #pragma once
 
-#include "BoundingVolumes.h"
 #include "LevelDefs.h"
+#include "LevelTypes.h"
 #include "Result.h"
-#include "SceneTypes.h"
 
-#include <optional>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -15,82 +13,48 @@ class PropKit;
 class Level
 {
 public:
-
-    enum class NodeFlags : uint8_t
-    {
-        None = 0,
-        Active = 1 << 0,
-        Visible = 1 << 1,
-        All = Active | Visible
-    };
-
-    friend NodeFlags operator|(const NodeFlags a, const NodeFlags b)
-    {
-        using U = std::underlying_type_t<Level::NodeFlags>;
-        return static_cast<NodeFlags>(static_cast<U>(a) | static_cast<U>(b));
-    }
-
-    friend NodeFlags operator&(const NodeFlags a, const NodeFlags b)
-    {
-        using U = std::underlying_type_t<Level::NodeFlags>;
-        return static_cast<NodeFlags>(static_cast<U>(a) & static_cast<U>(b));
-    }
-
-    friend NodeFlags operator~(const NodeFlags a)
-    {
-        using U = std::underlying_type_t<Level::NodeFlags>;
-
-        return static_cast<NodeFlags>(
-            static_cast<U>(~static_cast<U>(a)) & static_cast<U>(NodeFlags::All));
-    }
-
-    struct Components
-    {
-        std::optional<const Model*> Model;
-        std::optional<RigidBody> Body;
-    };
-
-    struct Node
-    {
-        bool IsActive() const { return (Flags & NodeFlags::Active) == NodeFlags::Active; }
-        bool IsVisible() const { return (Flags & NodeFlags::Visible) == NodeFlags::Visible; }
-
-        StringHandle Name;
-        TrsTransformf LocalTransform;
-        Mat44f WorldTransform{ 1 };
-        Components Components;
-        const Node* Parent{nullptr};
-        std::span<const Node> Children;
-        NodeFlags Flags{ NodeFlags::Active | NodeFlags::Visible };
-    };
-
     static Result<Level> Create(const LevelDef& levelDef, const PropKit& propKit);
 
     Level() = delete;
-    ~Level() = default;
+    ~Level();
     Level(const Level&) = delete;
     Level& operator=(const Level&) = delete;
     Level(Level&& other) = default;
     Level& operator=(Level&& other) = default;
 
     /// @brief Returns all nodes in the level, in breadth-first order.
-    std::span<const Node> GetAllNodes() const { return m_Nodes; }
+    std::span<const LevelNode> GetAllNodes() const { return m_Nodes; }
+
+    /// @brief Returns all physics nodes in the level, in breadth-first order.
+    std::span<const PhysicsNode> GetAllPhysicsNodes() const { return m_PhysicsNodes; }
+    std::span<PhysicsNode> GetAllPhysicsNodes() { return m_PhysicsNodes; }
 
     /// @brief Returns the root nodes of the level. Root nodes are nodes that have no parent.
-    std::span<const Node> GetRoots() const { return m_RootNodes; }
+    std::span<const LevelNode> GetRoots() const { return m_RootNodes; }
 
-    /// @brief Fetches a node by its path from the root, e.g. {"RootNode", "ChildNode", "GrandchildNode"}.
-    /// the path argument can take the following forms:
-    /// - const char* nodePath[] {"RootNode", "ChildNode", "GrandchildNode"}; GetNode(nodePath);
-    /// - std::array<const char*, 3> nodePath{"RootNode", "ChildNode", "GrandchildNode"}; GetNode(nodePath);
-    /// - const std::string nodePath[] { "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
-    /// - std::array<std::string, 3> nodePath{ "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
-    /// - std::vector<std::string> nodePath{ "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
-    /// - std::vector<const char*> nodePath{ "RootNode", "ChildNode", "GrandchildNode" }; GetNode(nodePath);
-    /// - and any other contiguous range of strings or string views that can be converted to std::string_view
-    template <std::ranges::sized_range R>
-    requires std::convertible_to<std::ranges::range_reference_t<R>, std::string_view>
-    const Node* GetNode(const R& path) const
+    /// @brief Fetches a node by its path from the root, e.g. {"RootNode", "ChildNode",
+    /// "GrandchildNode"}. the path argument can take the following forms:
+    /// const char* nodePath[] {"RootNode", "ChildNode", "GrandchildNode"}; GetNode(nodePath);
+    /// std::array<const char*, 3> nodePath{"RootNode", "ChildNode", "GrandchildNode"};
+    /// GetNode(nodePath);
+    ///
+    /// const std::string nodePath[] { "RootNode", "ChildNode", "GrandchildNode" };
+    /// GetNode(nodePath);
+    ///
+    /// std::array<std::string, 3> nodePath{ "RootNode", "ChildNode", "GrandchildNode" };
+    /// GetNode(nodePath);
+    ///
+    /// std::vector<std::string> nodePath{ "RootNode", "ChildNode", "GrandchildNode" };
+    /// GetNode(nodePath);
+    ///
+    /// std::vector<const char*> nodePath{ "RootNode", "ChildNode", "GrandchildNode" };
+    /// GetNode(nodePath);
+    ///
+    /// and any other contiguous range of strings or string views that can be converted to
+    /// std::string_view
+    template<std::ranges::sized_range R>
+        requires std::convertible_to<std::ranges::range_reference_t<R>, std::string_view>
+    const LevelNode* GetNode(const R& path) const
     {
         return GetNode(std::span{ path });
     }
@@ -99,28 +63,32 @@ public:
     // This overload is provided for convenience to allow passing an initializer list directly
     // without having to wrap it in a std::span or other container.
     // - GetNode({"RootNode", "ChildNode", "GrandchildNode"});
-    const Node* GetNode(std::initializer_list<std::string_view> path) const;
+    const LevelNode* GetNode(std::initializer_list<std::string_view> path) const;
 
-    const Node* GetNode(const std::span<const std::string_view> path) const;
+    const LevelNode* GetNode(const std::span<const std::string_view> path) const;
 
-    Result<> UpdateLocalTransform(const Node& node, const TrsTransformf& localTransform);
+    void Update(const float timeStep);
 
-    void SetActive(const Node& node, bool active);
+    void SetActive(const LevelNode& node, bool active);
 
-    void SetVisible(const Node& node, bool visible);
+    void SetVisible(const LevelNode& node, bool visible);
 
 private:
-    Level(std::vector<Node>&& nodes, std::vector<Collider>&& colliders, StringArena&& stringArena);
+    Level(std::vector<LevelNode>&& nodes,
+        std::vector<PhysicsNode>&& physicsNodes,
+        const WorldIdentifier worldId,
+        StringArena&& stringArena);
 
-    Node* GetNode(const Node& node);
+    LevelNode* GetNode(const LevelNode& node);
 
     // Returns true if the node is in the level.
-    bool IsInLevel(const Node& node) const;
+    bool IsInLevel(const LevelNode& node) const;
 
-    void UpdateWorldTransforms(std::span<const Node> nodes);
+    void UpdateWorldTransforms(std::span<LevelNode> nodes);
 
-    std::vector<Node> m_Nodes;
-    std::vector<Collider> m_Colliders;
-    std::span<Node> m_RootNodes;
+    std::vector<LevelNode> m_Nodes;
+    std::vector<PhysicsNode> m_PhysicsNodes;
+    std::span<LevelNode> m_RootNodes;
     StringArena m_StringArena;
+    WorldIdentifier m_WorldId;
 };

@@ -94,10 +94,7 @@ CreateTriangleModel(PropKitDef& outPropKitDef, LevelDef& outLevelDef)
                 {
                     .Name{ "TriangleNode" },
                     .Transform{},
-                    .Components //
-                    {
-                        .Model = ModelRef{ .Name = "Triangle" },
-                    },
+                    .Model = ModelRef{ .Name = "Triangle" },
                 },
             },
         };

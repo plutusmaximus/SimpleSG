@@ -352,11 +352,10 @@ set(SSG_SOURCES
   src/ImGuiRenderer.cpp
   src/InputMapper.cpp
   src/Level.cpp
+  src/LevelTypes.cpp
   src/Log.cpp
   src/LuaRuntime.cpp
   src/PerfMetrics.cpp
-  src/PhysicsLevel.cpp
-  src/PhysicsLevel2.cpp
   src/PropKit.cpp
   src/Renderer.cpp
   src/Scene.cpp
@@ -389,13 +388,12 @@ set(SSG_HEADERS
   src/inlist.h
   src/InputMapper.h
   src/Level.h
+  src/LevelTypes.h
   src/LevelDefs.h
   src/Log.h
   src/LuaRuntime.h
   src/PhysicsTypes.h
   src/PerfMetrics.h
-  src/PhysicsLevel.h
-  src/PhysicsLevel2.h
   src/PropKit.h
   src/RangeQuery.h
   src/Renderer.h

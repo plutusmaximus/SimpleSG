@@ -45,7 +45,7 @@ private:
         GpuDrawIndirectBuffer&& drawIndirectBuffer,
         GpuMeshPropertiesBuffer&& meshPropertiesBuffer,
         GpuCameraParamsBuffer&& cameraParamsBuffer,
-        std::vector<const Level::Node*>&& nodes,
+        std::vector<const LevelNode*>&& nodes,
         std::vector<ModelInstance>&& modelInstances,
         std::vector<MeshInstance>&& meshInstances,
         std::vector<ShaderInterop::WorldTransform>&& worldTransforms);
@@ -56,7 +56,7 @@ private:
     GpuMeshPropertiesBuffer m_MeshPropertiesBuffer;
     GpuCameraParamsBuffer m_CameraParamsBuffer;
 
-    std::vector<const Level::Node*> m_Nodes;
+    std::vector<const LevelNode*> m_Nodes;
     std::vector<ModelInstance> m_ModelInstances;
     std::vector<MeshInstance> m_MeshInstances;
 

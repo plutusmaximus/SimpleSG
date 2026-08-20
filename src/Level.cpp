@@ -3,13 +3,21 @@
 #include "PhysicsTypes.h"
 #include "PropKit.h"
 
+#include <box3d/Box3D.h>
+#include <box3d/collision.h>
 #include <ranges>
 
 namespace
 {
+template<typename T>
 size_t
-CountNodes(std::span<const LevelNodeDef> nodeDefs)
+CountNodes(const T& nodeDefs)
 {
+    using NodeDef = std::ranges::range_value_t<T>;
+
+    static_assert(std::same_as<NodeDef, LevelNodeDef> || std::same_as<NodeDef, RootNodeDef>,
+        "CountNodes requires a range of LevelNodeDef or RootNodeDef");
+
     size_t count = nodeDefs.size();
     for(const auto& nodeDef : nodeDefs)
     {
@@ -20,8 +28,31 @@ CountNodes(std::span<const LevelNodeDef> nodeDefs)
 }
 
 size_t
-CalculateTotalStringSize(std::span<const LevelNodeDef> nodeDefs)
+CountBodies(std::span<const RootNodeDef> nodeDefs)
 {
+    size_t count = 0;
+    for(const auto& nodeDef : nodeDefs)
+    {
+        if(nodeDef.Body)
+        {
+            ++count;
+        }
+
+        // We don't count bodies in children because rigid bodies can only be attched to root nodes.
+    }
+
+    return count;
+}
+
+template<typename T>
+size_t
+CalculateTotalStringSize(const T& nodeDefs)
+{
+    using NodeDef = std::ranges::range_value_t<T>;
+
+    static_assert(std::same_as<NodeDef, LevelNodeDef> || std::same_as<NodeDef, RootNodeDef>,
+        "CountNodes requires a range of LevelNodeDef or RootNodeDef");
+
     size_t totalSize = 0;
     for(const auto& nodeDef : nodeDefs)
     {
@@ -32,14 +63,172 @@ CalculateTotalStringSize(std::span<const LevelNodeDef> nodeDefs)
     return totalSize;
 }
 
+Result<b3ShapeId>
+AttachShapeToBody(const b3BodyId bodyId, const Mass& mass, const ColliderDef& colliderDef)
+{
+    b3ShapeDef shapeDef = b3DefaultShapeDef();
+    constexpr float kDefaultRestitution = 0.8f;
+    shapeDef.baseMaterial.restitution = kDefaultRestitution;
+
+    switch(colliderDef.CollisionType)
+    {
+        case CollisionType::Block:
+            shapeDef.isSensor = false;
+            shapeDef.enableSensorEvents = false;
+            break;
+        case CollisionType::Trigger:
+            shapeDef.isSensor = true;
+            shapeDef.enableSensorEvents = true;
+            break;
+        default:
+            MLG_ERROR("Invalid collision type");
+            return Result<>::Fail;
+    }
+
+    constexpr float pi = std::numbers::pi_v<float>;
+
+    struct Visitor
+    {
+        b3BodyId BodyId;
+        b3ShapeDef ShapeDef;
+        Mass Mass;
+
+        b3ShapeId operator()(const SphereDef& sphereDef)
+        {
+            const Vec3f center = sphereDef.Center;
+            const b3Sphere sphere //
+                {
+                    .center = b3Pos{ .x = center.x, .y = center.y, .z = center.z },
+                    .radius = sphereDef.Radius,
+                };
+
+            const float r3 = sphereDef.Radius * sphereDef.Radius * sphereDef.Radius;
+            const float volume = (4.0f / 3.0f) * pi * r3;
+            ShapeDef.density = Mass.Value() / volume;
+
+            return b3CreateSphereShape(BodyId, &ShapeDef, &sphere);
+        }
+
+        b3ShapeId operator()(const BoxDef& boxDef)
+        {
+            // const Vec3f center = boundingBox.GetCenter();
+            const Vec3f halfExtents = boxDef.HalfExtents;
+            const b3BoxHull dynamicBox = b3MakeBoxHull(halfExtents.x, halfExtents.y, halfExtents.z);
+            const float volume = 8.0f * halfExtents.x * halfExtents.y * halfExtents.z;
+            ShapeDef.density = Mass.Value() / volume;
+
+            return b3CreateHullShape(BodyId, &ShapeDef, &dynamicBox.base);
+        }
+
+        b3ShapeId operator()(const CapsuleDef& capsuleDef)
+        {
+            const float halfHeight = capsuleDef.HalfHeight;
+            const Vec3f& center = capsuleDef.Center;
+            const b3Capsule capsule //
+                {
+                    .center1 //
+                    {
+                        .x = center.x,
+                        .y = center.y - halfHeight,
+                        .z = center.z,
+                    },
+                    .center2 //
+                    {
+                        .x = center.x,
+                        .y = center.y + halfHeight,
+                        .z = center.z,
+                    },
+                    .radius = capsuleDef.Radius,
+                };
+            const float r2 = capsuleDef.Radius * capsuleDef.Radius;
+            const float volume =
+                ((4.0f / 3.0f) * pi * r2 * capsuleDef.Radius) + (4.0f * halfHeight * pi * r2);
+            ShapeDef.density = Mass.Value() / volume;
+
+            return b3CreateCapsuleShape(BodyId, &ShapeDef, &capsule);
+        }
+    };
+
+    Visitor visitor{ .BodyId = bodyId, .ShapeDef = shapeDef, .Mass = mass };
+    const b3ShapeId shapeId = std::visit(visitor, colliderDef.BoundingVolume);
+
+    return shapeId;
+}
+
+Result<RigidBodyIdentifier>
+CreateRigidBody(const RootNodeDef& nodeDef, const RigidBodyDef& rbodyDef, const b3WorldId worldId)
+{
+    b3BodyDef bodyDef = b3DefaultBodyDef();
+    switch(rbodyDef.MotionType)
+    {
+        case MotionType::Static:
+            bodyDef.type = b3_staticBody;
+            break;
+        case MotionType::Kinematic:
+            bodyDef.type = b3_kinematicBody;
+            break;
+        case MotionType::Dynamic:
+            bodyDef.type = b3_dynamicBody;
+            break;
+        default:
+            MLG_ERROR("Invalid motion type for node {}", nodeDef.Name);
+            return Result<>::Fail;
+    }
+
+    const Vec3f& pos = nodeDef.Transform.T;
+    const Vec4f rot = nodeDef.Transform.R.ToVector();
+    bodyDef.position = b3Pos{ .x = pos.x, .y = pos.y, .z = pos.z };
+    bodyDef.rotation = b3Quat //
+        {
+            .v = { .x = rot.x, .y = rot.y, .z = rot.z },
+            .s = rot.w,
+        };
+
+    const b3BodyId bodyId = b3CreateBody(worldId, &bodyDef);
+    MLG_CHECK(b3Body_IsValid(bodyId), "Failed to create body for node {}", nodeDef.Name);
+
+    for(const ColliderDef& colliderDef : rbodyDef.Colliders)
+    {
+        auto shapeId = AttachShapeToBody(bodyId, rbodyDef.Mass, colliderDef);
+        MLG_CHECK(shapeId);
+    }
+
+    return RigidBodyIdentifier{ b3StoreBodyId(bodyId) };
+}
+
+b3BodyId
+GetBodyId(const RigidBodyIdentifier rigidBodyId)
+{
+    MLG_ASSERT(rigidBodyId.IsValid(), "RigidBodyIdentifier must be valid");
+    const b3BodyId bodyId = b3LoadBodyId(rigidBodyId.GetValue());
+    MLG_ASSERT(b3Body_IsValid(bodyId), "Node does not have a valid body id");
+    return bodyId;
+}
+} // namespace
+
+class LevelBuilder
+{
+public:
+    template<typename T>
+    static Result<> CollectNodes(T nodeDefs,
+        const PropKit& propKit,
+        const b3WorldId worldId,
+        const LevelNode* parentNode,
+        std::vector<LevelNode>& nodes,
+        std::vector<PhysicsNode>& physicsNodes,
+        StringArena& stringArena);
+};
+
 // Collect nodes in breadth-first order.
 // Parents come before children, siblings are contiguous.
+template<typename T>
 Result<>
-CollectNodes(std::span<const LevelNodeDef> nodeDefs,
+LevelBuilder::CollectNodes(T nodeDefs,
     const PropKit& propKit,
-    const Level::Node* parentNode,
-    std::vector<Level::Node>& nodes,
-    std::vector<Collider>& colliders,
+    const b3WorldId worldId,
+    const LevelNode* parentNode,
+    std::vector<LevelNode>& nodes,
+    std::vector<PhysicsNode>& physicsNodes,
     StringArena& stringArena)
 {
     MLG_CHECKV(nodes.capacity() >= nodes.size() + nodeDefs.size(),
@@ -47,129 +236,133 @@ CollectNodes(std::span<const LevelNodeDef> nodeDefs,
 
     const size_t initialNodeCount = nodes.size();
 
-    // First add nodes from the current level.
+    // Add nodes from the current level.
     for(const auto& nodeDef : nodeDefs)
     {
-        Level::Components components;
+        using NodeDefType = std::remove_cvref_t<decltype(nodeDef)>;
 
-        if(nodeDef.Components.Model)
+        if(nodeDef.Children.empty())
         {
-            const ModelRef& modelRef = *nodeDef.Components.Model;
+            bool uselessNode = false;
+            if constexpr(std::same_as<NodeDefType, RootNodeDef>)
+            {
+                uselessNode = !nodeDef.Model && !nodeDef.Body;
+            }
+            else
+            {
+                uselessNode = !nodeDef.Model;
+            }
+
+            // Useless node - return an error.
+            MLG_CHECKV(!uselessNode, "Node {} has no model or body and no children", nodeDef.Name);
+        }
+
+        const StringHandle name = stringArena.NewString(nodeDef.Name);
+
+        const Model* model = nullptr;
+
+        if(nodeDef.Model)
+        {
+            const ModelRef& modelRef = *nodeDef.Model;
 
             MLG_CHECKV(!modelRef.Name.empty(), "ModelRef in node {} is empty", nodeDef.Name);
 
-            const Model* model = propKit.GetModel(modelRef.Name);
+            model = propKit.GetModel(modelRef.Name);
             MLG_CHECK(model);
-
-            components.Model = model;
         }
 
-        if(nodeDef.Components.Body)
+        nodes.emplace_back(name, nodeDef.Transform, model, parentNode);
+
+        // For root nodes, create a rigid body if specified.
+        if constexpr(std::same_as<NodeDefType, RootNodeDef>)
         {
-            const RigidBodyDef& bodyDef = *nodeDef.Components.Body;
-
-            MLG_CHECKV(bodyDef.Mass > 0,
-                "RigidBodyDef in node {} has non-positive mass",
-                nodeDef.Name);
-
-            const size_t colliderCount = colliders.size();
-
-            struct Visitor
+            if(nodeDef.Body)
             {
-                BoundingVolume operator()(const SphereDef& def) const
-                {
-                    return BoundingVolume{ BoundingSphere{ def.Center, def.Radius } };
-                }
+                const RigidBodyDef& rigidBodyDef = *nodeDef.Body;
 
-                BoundingVolume operator()(const BoxDef& def) const
-                {
-                    const Vec3f p0 = def.Center - def.HalfExtents;
-                    const Vec3f p1 = def.Center + def.HalfExtents;
-                    return BoundingVolume{ BoundingBox{ p0, p1 } };
-                }
+                MLG_CHECKV(rigidBodyDef.Mass > 0,
+                    "RigidBodyDef in node {} has non-positive mass",
+                    nodeDef.Name);
 
-                BoundingVolume operator()(const CapsuleDef& def) const
-                {
-                    return BoundingVolume{
-                        BoundingCapsule{ def.Center, def.Radius, def.HalfHeight }
-                    };
-                }
-            };
+                auto bodyId = CreateRigidBody(nodeDef, rigidBodyDef, worldId);
+                MLG_CHECK(bodyId, "Failed to create rigid body for node {}", nodeDef.Name);
 
-            for(const ColliderDef& colliderDef : bodyDef.Colliders)
-            {
-                const BoundingVolumeDef& boundingVolumeDef = colliderDef.BoundingVolume;
-
-                const BoundingVolume boundingVolume = std::visit(Visitor{}, boundingVolumeDef);
-
-                colliders.emplace_back(boundingVolume, colliderDef.CollisionType);
+                physicsNodes.push_back(PhysicsNode{ &nodes.back(), *bodyId });
             }
-
-            const std::span colliderSpan = std::span(colliders).subspan(colliderCount);
-
-            components.Body = RigidBody(bodyDef.Mass, bodyDef.MotionType, colliderSpan);
         }
-
-        const Level::Node node //
-            {
-                .Name{ stringArena.NewString(nodeDef.Name) },
-                .LocalTransform{ nodeDef.Transform },
-                .Components{ components },
-                .Parent = parentNode,
-            };
-
-        nodes.emplace_back(node);
     }
 
     // Now add child nodes.
 
-    const std::span<Level::Node> nodesSpan = std::span(nodes).subspan(initialNodeCount);
+    const std::span<LevelNode> nodesSpan = std::span(nodes).subspan(initialNodeCount);
 
     for(auto&& [nodeDef, node] : std::views::zip(nodeDefs, nodesSpan))
     {
         if(nodeDef.Children.empty())
         {
-            MLG_CHECKV(node.Components.Model || node.Components.Body,
-                "Node {} has no model or body and no children",
-                nodeDef.Name);
             continue;
         }
 
         const size_t firstChildIndex = nodes.size();
 
-        MLG_CHECK(CollectNodes(nodeDef.Children, propKit, &node, nodes, colliders, stringArena));
+        MLG_CHECK(CollectNodes(nodeDef.Children,
+            propKit,
+            worldId,
+            &node,
+            nodes,
+            physicsNodes,
+            stringArena));
 
-        node.Children = std::span(nodes).subspan(firstChildIndex, nodeDef.Children.size());
+        node.m_Children = std::span(nodes).subspan(firstChildIndex, nodeDef.Children.size());
     }
 
     return Result<>::Ok;
 }
-} // namespace
 
 Result<Level>
 Level::Create(const LevelDef& levelDef, const PropKit& propKit)
 {
     const size_t nodeCount = CountNodes(levelDef.NodeDefs);
+    const size_t bodyCount = CountBodies(levelDef.NodeDefs);
     const size_t totalStringSize = CalculateTotalStringSize(levelDef.NodeDefs);
 
-    std::vector<Node> nodes;
-    std::vector<Collider> colliders;
+    std::vector<LevelNode> nodes;
+    std::vector<PhysicsNode> physicsNodes;
     nodes.reserve(nodeCount);
-    colliders.reserve(nodeCount); // Worst case, every node has a collider.
+    physicsNodes.reserve(bodyCount);
     StringArena stringArena(totalStringSize);
 
-    // Flatten nodes into breadth-first order.
-    MLG_CHECK(CollectNodes(levelDef.NodeDefs, propKit, nullptr, nodes, colliders, stringArena));
+    b3WorldDef worldDef = b3DefaultWorldDef();
+    worldDef.restitutionThreshold = 0.0f;
+    worldDef.gravity = b3Vec3{ .x = 0.0f, .y = 0.0f, .z = 0.0f };
 
-    Level level(std::move(nodes), std::move(colliders), std::move(stringArena));
+    const b3WorldId worldId = b3CreateWorld(&worldDef);
+    MLG_ASSERT(b3World_IsValid(worldId));
+
+    // Flatten nodes into breadth-first order.
+    MLG_CHECK(LevelBuilder::CollectNodes(levelDef.NodeDefs,
+        propKit,
+        worldId,
+        nullptr,
+        nodes,
+        physicsNodes,
+        stringArena));
+
+    const WorldIdentifier worldIdentifier{ b3StoreWorldId(worldId) };
+
+    Level level(std::move(nodes), std::move(physicsNodes), worldIdentifier, std::move(stringArena));
 
     return std::move(level);
 }
 
-Level::Level(std::vector<Node>&& nodes, std::vector<Collider>&& colliders, StringArena&& stringArena)
+Level::Level(std::vector<LevelNode>&& nodes,
+    std::vector<PhysicsNode>&& physicsNodes,
+    const WorldIdentifier worldId,
+    StringArena&& stringArena)
     : m_Nodes(std::move(nodes)),
-      m_Colliders(std::move(colliders)),
-      m_StringArena(std::move(stringArena))
+      m_PhysicsNodes(std::move(physicsNodes)),
+      m_StringArena(std::move(stringArena)),
+      m_WorldId(worldId)
 {
     size_t rootNodeCount = 0;
 
@@ -178,7 +371,7 @@ Level::Level(std::vector<Node>&& nodes, std::vector<Collider>&& colliders, Strin
     // of the vector.
     for(const auto& node : m_Nodes)
     {
-        if(node.Parent)
+        if(node.m_Parent)
         {
             // No more root nodes after this.
             break;
@@ -192,30 +385,42 @@ Level::Level(std::vector<Node>&& nodes, std::vector<Collider>&& colliders, Strin
     UpdateWorldTransforms(m_RootNodes);
 }
 
-const Level::Node*
+Level::~Level()
+{
+    if(m_WorldId.IsValid())
+    {
+        const b3WorldId worldId = b3LoadWorldId(m_WorldId.GetValue());
+        MLG_ASSERT(b3World_IsValid(worldId));
+        b3DestroyWorld(worldId);
+
+        m_WorldId = {};
+    }
+}
+
+const LevelNode*
 Level::GetNode(std::initializer_list<std::string_view> path) const
 {
     return GetNode(std::span{ path });
 }
 
-const Level::Node*
+const LevelNode*
 Level::GetNode(const std::span<const std::string_view> path) const
 {
-    const Node* foundNode{ nullptr };
+    const LevelNode* foundNode{ nullptr };
 
     const size_t pathLen = path.size();
     size_t pathIndex = 0;
 
-    std::span<const Node> nodesToSearch = GetRoots();
+    std::span<const LevelNode> nodesToSearch = GetRoots();
     for(const std::string_view& x : path)
     {
         const std::string_view part = x;
 
-        const Node* node = nullptr;
+        const LevelNode* node = nullptr;
 
         for(const auto& tmpNode : nodesToSearch)
         {
-            if(tmpNode.Name == part)
+            if(tmpNode.m_Name == part)
             {
                 node = &tmpNode;
                 break;
@@ -235,7 +440,7 @@ Level::GetNode(const std::span<const std::string_view> path) const
 
         ++pathIndex;
 
-        nodesToSearch = node->Children;
+        nodesToSearch = node->m_Children;
     }
 
     if(!MLG_VERIFY(foundNode,
@@ -248,52 +453,68 @@ Level::GetNode(const std::span<const std::string_view> path) const
     return foundNode;
 }
 
-Result<>
-Level::UpdateLocalTransform(const Node& nodeRef, const TrsTransformf& localTransform)
+void
+Level::Update(const float timeStep)
 {
-    Node* node = GetNode(nodeRef);
-    MLG_CHECKV(node, "Invalid or nonexistent node passed to UpdateLocalTransform");
+    constexpr int kSubStepCount = 4;
+    const b3WorldId worldId = b3LoadWorldId(m_WorldId.GetValue());
+    MLG_ASSERT(b3World_IsValid(worldId));
+    b3World_Step(worldId, timeStep, kSubStepCount);
 
-    node->LocalTransform = localTransform;
+    // Sync to level nodes.
+    for(const PhysicsNode& physicsNode : m_PhysicsNodes)
+    {
+        LevelNode* node = physicsNode.m_Node;
+        const b3BodyId bodyId = GetBodyId(physicsNode.m_RigidBodyId);
+        const b3Pos pos = b3Body_GetPosition(bodyId);
+        const b3Quat rot = b3Body_GetRotation(bodyId);
+        const b3Vec3 vel = b3Body_GetLinearVelocity(bodyId);
+        const b3Vec3 angVel = b3Body_GetAngularVelocity(bodyId);
 
-    // Update the world transform of the node and all its descendants.
-    // TODO(KB) - this defer updating of world transforms.
-    UpdateWorldTransforms(std::span(node, 1));
+        // Rigid bodies can only be attached to root nodes.
+        // Updating the local transform of a root node is equivalent to updating its world
+        // transform.
+        node->m_LocalTransform.T = Vec3f{ pos.x, pos.y, pos.z };
+        node->m_LocalTransform.R = UnitQuatf{ rot.v.x, rot.v.y, rot.v.z, rot.s };
+        node->m_LinearVelocity = Vec3f{ vel.x, vel.y, vel.z };
+        node->m_AngularVelocity = Vec3f{ angVel.x, angVel.y, angVel.z };
+    }
 
-    return Result<>::Ok;
+    UpdateWorldTransforms(m_RootNodes);
 }
 
 void
-Level::SetActive(const Node& nodeRef, bool active)
+Level::SetActive(const LevelNode& nodeRef, bool active)
 {
-    Node* node = GetNode(nodeRef);
+    LevelNode* node = GetNode(nodeRef);
     if(!MLG_VERIFY(node, "Invalid or nonexistent node passed to SetActive"))
     {
         return;
     }
 
-    node->Flags = active ? (node->Flags | NodeFlags::Active) : (node->Flags & ~NodeFlags::Active);
+    node->m_Flags = active ? (node->m_Flags | LevelNode::Flags::Active)
+                           : (node->m_Flags & ~LevelNode::Flags::Active);
 
-    for(const auto& childNode : node->Children)
+    for(const auto& childNode : node->m_Children)
     {
         SetActive(childNode, active);
     }
 }
 
 void
-Level::SetVisible(const Node& nodeRef, bool visible)
+Level::SetVisible(const LevelNode& nodeRef, bool visible)
 {
-    Node* node = GetNode(nodeRef);
+    LevelNode* node = GetNode(nodeRef);
 
     if(!MLG_VERIFY(node, "Invalid or nonexistent node passed to SetVisible"))
     {
         return;
     }
 
-    node->Flags =
-        visible ? (node->Flags | NodeFlags::Visible) : (node->Flags & ~NodeFlags::Visible);
+    node->m_Flags = visible ? (node->m_Flags | LevelNode::Flags::Visible)
+                            : (node->m_Flags & ~LevelNode::Flags::Visible);
 
-    for(const auto& childNode : node->Children)
+    for(const auto& childNode : node->m_Children)
     {
         SetVisible(childNode, visible);
     }
@@ -301,8 +522,8 @@ Level::SetVisible(const Node& nodeRef, bool visible)
 
 // private:
 
-Level::Node*
-Level::GetNode(const Node& nodeRef)
+LevelNode*
+Level::GetNode(const LevelNode& nodeRef)
 {
     if(!MLG_VERIFY(IsInLevel(nodeRef), "Node is not in level"))
     {
@@ -321,35 +542,30 @@ Level::GetNode(const Node& nodeRef)
 }
 
 bool
-Level::IsInLevel(const Node& nodeRef) const
+Level::IsInLevel(const LevelNode& nodeRef) const
 {
     return &nodeRef >= m_Nodes.data() && &nodeRef <= &m_Nodes.back();
 }
 
 void
-Level::UpdateWorldTransforms(std::span<const Node> nodes)
+Level::UpdateWorldTransforms(std::span<LevelNode> nodes)
 {
-    for(const Node& nodeRef : nodes)
+    for(LevelNode& node : nodes)
     {
-        Node* node = GetNode(nodeRef);
-        if(!MLG_VERIFY(node, "Invalid node handle found while updating world transforms"))
+        if(node.m_Parent)
         {
-            continue;
-        }
-
-        if(node->Parent)
-        {
-            node->WorldTransform = node->Parent->WorldTransform * node->LocalTransform.ToMatrix();
+            node.m_WorldTransform =
+                node.m_Parent->m_WorldTransform * node.m_LocalTransform.ToMatrix();
         }
         else
         {
             // No parent - the world transform is the same as the local transform.
-            node->WorldTransform = node->LocalTransform.ToMatrix();
+            node.m_WorldTransform = node.m_LocalTransform.ToMatrix();
         }
 
-        if(!node->Children.empty())
+        if(!node.m_Children.empty())
         {
-            UpdateWorldTransforms(node->Children);
+            UpdateWorldTransforms(node.m_Children);
         }
     }
 }

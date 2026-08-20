@@ -83,7 +83,7 @@ PhysicsLevel::Resolve()
 }
 
 void
-PhysicsLevel::ApplyImpulse(const Level::Node* node, const Vec3f& impulse)
+PhysicsLevel::ApplyImpulse(const LevelNode* node, const Vec3f& impulse)
 {
     const size_t index = GetNodeIndex(node);
     if(MLG_VERIFY(index != NodeAndIndex::kInvalidIndex, "Node not found in PhysicsLevel"))
@@ -97,7 +97,7 @@ PhysicsLevel::ApplyImpulse(const Level::Node* node, const Vec3f& impulse)
 }
 
 void
-PhysicsLevel::AddForce(const Level::Node* node, const Vec3f& force)
+PhysicsLevel::AddForce(const LevelNode* node, const Vec3f& force)
 {
     const size_t index = GetNodeIndex(node);
     if(MLG_VERIFY(index != NodeAndIndex::kInvalidIndex, "Node not found in PhysicsLevel"))
@@ -165,7 +165,7 @@ PhysicsLevel::SyncToLevel(Level& level)
 }
 
 Vec3f
-PhysicsLevel::GetPosition(const Level::Node* node) const
+PhysicsLevel::GetPosition(const LevelNode* node) const
 {
     const size_t index = GetNodeIndex(node);
     if(MLG_VERIFY(index != NodeAndIndex::kInvalidIndex, "Node not found in PhysicsLevel"))
@@ -176,7 +176,7 @@ PhysicsLevel::GetPosition(const Level::Node* node) const
 }
 
 Vec3f
-PhysicsLevel::GetLinearVelocity(const Level::Node* node) const
+PhysicsLevel::GetLinearVelocity(const LevelNode* node) const
 {
     const size_t index = GetNodeIndex(node);
     if(MLG_VERIFY(index != NodeAndIndex::kInvalidIndex, "Node not found in PhysicsLevel"))
@@ -189,7 +189,7 @@ PhysicsLevel::GetLinearVelocity(const Level::Node* node) const
 }
 
 float
-PhysicsLevel::GetRadius(const Level::Node* node) const
+PhysicsLevel::GetRadius(const LevelNode* node) const
 {
     const size_t index = GetNodeIndex(node);
     if(MLG_VERIFY(index != NodeAndIndex::kInvalidIndex, "Node not found in PhysicsLevel"))
@@ -200,7 +200,7 @@ PhysicsLevel::GetRadius(const Level::Node* node) const
 }
 
 float
-PhysicsLevel::GetInverseMass(const Level::Node* node) const
+PhysicsLevel::GetInverseMass(const LevelNode* node) const
 {
     const size_t index = GetNodeIndex(node);
     if(MLG_VERIFY(index != NodeAndIndex::kInvalidIndex, "Node not found in PhysicsLevel"))
@@ -241,7 +241,7 @@ PhysicsLevel::GetInverseMasses(std::span<float>& invMasses) const
 }
 
 void
-PhysicsLevel::SetLinearVelocity(const Level::Node* node, const Vec3f& velocity)
+PhysicsLevel::SetLinearVelocity(const LevelNode* node, const Vec3f& velocity)
 {
     const size_t index = GetNodeIndex(node);
     if(MLG_VERIFY(index != NodeAndIndex::kInvalidIndex, "Node not found in PhysicsLevel"))
@@ -253,7 +253,7 @@ PhysicsLevel::SetLinearVelocity(const Level::Node* node, const Vec3f& velocity)
 }
 
 void
-PhysicsLevel::SetAngularVelocity(const Level::Node* node, const Vec3f& /*angularVelocity*/)
+PhysicsLevel::SetAngularVelocity(const LevelNode* node, const Vec3f& /*angularVelocity*/)
 {
     const size_t index = GetNodeIndex(node);
     if(MLG_VERIFY(index != NodeAndIndex::kInvalidIndex, "Node not found in PhysicsLevel"))
@@ -307,16 +307,16 @@ PhysicsLevel::PhysicsLevel(const Level& level)
         // of a node.
         m_NodeIndexMap.emplace_back(&node, m_Nodes.size());
 
-        m_Nodes.emplace_back(&node);
+        m_Nodes.push_back(&node);
 
         const BoundingSphere& sphere = node.WorldTransform * body.GetBoundingSphere();
 
-        m_PosPool[0][0].emplace_back(sphere.GetCenter().x);
-        m_PosPool[0][1].emplace_back(sphere.GetCenter().y);
-        m_PosPool[0][2].emplace_back(sphere.GetCenter().z);
-        m_Radii.emplace_back(sphere.GetRadius());
-        m_InvMasses.emplace_back(body.GetMass().InvValue());
-        m_ActiveBodies.emplace_back(node.IsActive());
+        m_PosPool[0][0].push_back(sphere.GetCenter().x);
+        m_PosPool[0][1].push_back(sphere.GetCenter().y);
+        m_PosPool[0][2].push_back(sphere.GetCenter().z);
+        m_Radii.push_back(sphere.GetRadius());
+        m_InvMasses.push_back(body.GetMass().InvValue());
+        m_ActiveBodies.push_back(node.IsActive());
     }
 
     m_PosPool[1][0] = m_PosPool[0][0]; // Make a copy
@@ -372,7 +372,7 @@ PhysicsLevel::PhysicsLevel(const Level& level)
 }
 
 size_t
-PhysicsLevel::GetNodeIndex(const Level::Node* node) const
+PhysicsLevel::GetNodeIndex(const LevelNode* node) const
 {
     MLG_ASSERT(node, "Node pointer is null");
 
@@ -696,11 +696,11 @@ PhysicsLevel::FindAndResolveAllImpacts()
             {
                 if(0 == impactRecord.Result.Alpha)
                 {
-                    m_ContactRecords.emplace_back(impactRecord);
+                    m_ContactRecords.push_back(impactRecord);
                 }
                 else
                 {
-                    m_ImpactRecords.emplace_back(impactRecord);
+                    m_ImpactRecords.push_back(impactRecord);
                 }
             }
         }

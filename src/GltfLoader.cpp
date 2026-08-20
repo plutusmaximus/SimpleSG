@@ -434,8 +434,9 @@ ConvertRHtoLH(Mat44f& M)
     M.m[3].x = -M.m[3].x;
 }
 
+template<typename T>
 Result<>
-CollectNode(const cgltf_node& srcNode, std::vector<LevelNodeDef>& nodeDefs)
+CollectNode(const cgltf_node& srcNode, T& nodeDefs)
 {
     std::string nodeName = srcNode.name ? srcNode.name : "<unnamed>";
 
@@ -516,20 +517,19 @@ CollectNode(const cgltf_node& srcNode, std::vector<LevelNodeDef>& nodeDefs)
     }
     else
     {
-        LevelNodeDef::ComponentsDef componentsDef;
-
-        if(!modelName.empty())
-        {
-            componentsDef.Model = ModelRef{ .Name = modelName };
-        }
-
-        LevelNodeDef newNodeDef //
+        using NodeDef = std::ranges::range_value_t<T>;
+        
+        NodeDef newNodeDef //
             {
                 .Name{ nodeName },
                 .Transform{ nodeTransform },
-                .Components{ std::move(componentsDef) },
                 .Children{ std::move(childNodes) },
             };
+
+        if(!modelName.empty())
+        {
+            newNodeDef.Model = ModelRef{ .Name = modelName };
+        }
 
         nodeDefs.push_back(std::move(newNodeDef));
     }
@@ -537,7 +537,7 @@ CollectNode(const cgltf_node& srcNode, std::vector<LevelNodeDef>& nodeDefs)
     return Result<>::Ok;
 }
 
-Result<std::vector<LevelNodeDef>>
+Result<std::vector<RootNodeDef>>
 CollectNodes(const cgltf_data* gltfData)
 {
     const std::span<const cgltf_scene> scenesSpan(gltfData->scenes, gltfData->scenes_count);
@@ -547,17 +547,17 @@ CollectNodes(const cgltf_data* gltfData)
 
     const cgltf_scene& scene = scenesSpan[0];
 
-    std::vector<LevelNodeDef> levelNodeDefs;
-    levelNodeDefs.reserve(scene.nodes_count);
+    std::vector<RootNodeDef> rootNodeDefs;
+    rootNodeDefs.reserve(scene.nodes_count);
 
     const std::span<const cgltf_node* const> nodesSpan(scene.nodes, scene.nodes_count);
 
     for(const cgltf_node* node : nodesSpan)
     {
-        MLG_CHECK(CollectNode(*node, levelNodeDefs));
+        MLG_CHECK(CollectNode(*node, rootNodeDefs));
     }
 
-    return levelNodeDefs;
+    return rootNodeDefs;
 }
 
 } // namespace
@@ -605,8 +605,8 @@ GltfLoader::Load(const std::string& path, PropKitDef& outPropKit, LevelDef& outL
     auto modelDefs = CollectModels(*gltfMeshes);
     MLG_CHECK(modelDefs);
 
-    auto levelNodeDefs = CollectNodes(gltfData);
-    MLG_CHECK(levelNodeDefs);
+    auto rootNodeDefs = CollectNodes(gltfData);
+    MLG_CHECK(rootNodeDefs);
 
     PropKitDef propKit //
         {
@@ -615,7 +615,7 @@ GltfLoader::Load(const std::string& path, PropKitDef& outPropKit, LevelDef& outL
 
     LevelDef levelDef //
         {
-            .NodeDefs = std::move(*levelNodeDefs),
+            .NodeDefs = std::move(*rootNodeDefs),
         };
 
     outPropKit = std::move(propKit);

@@ -2,6 +2,7 @@
 
 #include "AssertHelper.h"
 #include "BoundingVolumes.h"
+#include "SemanticIdentifier.h"
 
 enum class MotionType
 {
@@ -117,3 +118,9 @@ private:
     MotionType m_MotionType;
     std::span<const Collider> m_Colliders;
 };
+
+/// @brief A strongly-typed identifier for a Box3d world.
+using WorldIdentifier = SemanticIdentifier<struct WorldTag, uint32_t, 0>;
+
+/// @brief A strongly-typed identifier for a Box3d RigidBody.
+using RigidBodyIdentifier = SemanticIdentifier<struct RigidBodyTag, uint64_t, 0>;

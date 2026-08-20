@@ -78,9 +78,9 @@ public:
 
     void Resolve();
 
-    void ApplyImpulse(const Level::Node* node, const Vec3f& impulse);
+    void ApplyImpulse(const LevelNode* node, const Vec3f& impulse);
 
-    void AddForce(const Level::Node* node, const Vec3f& force);
+    void AddForce(const LevelNode* node, const Vec3f& force);
 
     void UpdateVelocities(const float dt);
 
@@ -88,19 +88,19 @@ public:
 
     size_t GetNodeCount() const { return m_Nodes.size(); }
 
-    std::span<const Level::Node* const> GetNodes() const { return m_Nodes; }
-    Vec3f GetPosition(const Level::Node* node) const;
-    Vec3f GetLinearVelocity(const Level::Node* node) const;
-    float GetRadius(const Level::Node* node) const;
-    float GetInverseMass(const Level::Node* node) const;
+    std::span<const LevelNode* const> GetNodes() const { return m_Nodes; }
+    Vec3f GetPosition(const LevelNode* node) const;
+    Vec3f GetLinearVelocity(const LevelNode* node) const;
+    float GetRadius(const LevelNode* node) const;
+    float GetInverseMass(const LevelNode* node) const;
     void GetPositions(VVec3& positions) const;
     void GetLinearVelocities(VVec3& linearVelocities) const;
     void GetInverseMasses(std::span<float>& invMasses) const;
 
-    void SetLinearVelocity(const Level::Node* node, const Vec3f& velocity);
+    void SetLinearVelocity(const LevelNode* node, const Vec3f& velocity);
 
     // Radians per second
-    void SetAngularVelocity(const Level::Node* node, const Vec3f& angularVelocity);
+    void SetAngularVelocity(const LevelNode* node, const Vec3f& angularVelocity);
 
 private:
 
@@ -114,12 +114,12 @@ private:
         
         NodeAndIndex() = delete;
 
-        NodeAndIndex(const Level::Node* node, size_t index)
+        NodeAndIndex(const LevelNode* node, size_t index)
             : m_Node(node), m_Index(index)
         {
         }
 
-        const Level::Node* GetNode() const { return m_Node; }
+        const LevelNode* GetNode() const { return m_Node; }
         size_t GetIndex() const { return m_Index; }
 
         friend auto operator<=>(const NodeAndIndex& a, const NodeAndIndex& b)
@@ -133,13 +133,13 @@ private:
     private:
         friend class PhysicsLevel;
 
-        const Level::Node* m_Node{nullptr};
+        const LevelNode* m_Node{nullptr};
         size_t m_Index{0};
     };
 
     explicit PhysicsLevel(const Level& level);
 
-    size_t GetNodeIndex(const Level::Node* node) const;
+    size_t GetNodeIndex(const LevelNode* node) const;
 
     void ResolveImpact(const ImpactRecord& impact);
 
@@ -157,7 +157,7 @@ private:
     std::vector<NodeAndIndex> m_NodeIndexMap;
     // Nodes in the level that have rigid bodies.
     // These are stored in the same order as the other arrays below.
-    std::vector<const Level::Node*> m_Nodes;
+    std::vector<const LevelNode*> m_Nodes;
     std::vector<float> m_PosPool[2][3];
     std::vector<float> m_LinearVelocitiesPool[3];
     std::vector<float> m_AccelerationPool[2][3];
