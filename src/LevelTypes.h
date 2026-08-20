@@ -8,7 +8,6 @@
 #include <string_view>
 
 class Level;
-class LevelBuilder;
 class Model;
 
 class LevelNode
@@ -24,11 +23,9 @@ public:
 
     LevelNode(const StringHandle& name,
         const TrsTransformf& localTransform,
-        const Model* model,
         const LevelNode* parent)
         : m_Name(name),
           m_LocalTransform(localTransform),
-          m_Model(model),
           m_Parent(parent)
     {
     }
@@ -50,7 +47,6 @@ public:
     const Vec3f& GetAngularVelocity() const { return m_AngularVelocity; }
     const LevelNode* GetParent() const { return m_Parent; }
     std::span<const LevelNode> GetChildren() const { return m_Children; }
-    const Model* GetModel() const { return m_Model; }
 
     friend Flags operator|(const Flags a, const Flags b)
     {
@@ -73,14 +69,12 @@ public:
 
 private:
     friend Level;
-    friend LevelBuilder;
 
     StringHandle m_Name;
     TrsTransformf m_LocalTransform;
     Vec3f m_LinearVelocity{ 0 };
     Vec3f m_AngularVelocity{ 0 };
     Mat44f m_WorldTransform{ 1 };
-    const Model* m_Model{ nullptr };
     const LevelNode* m_Parent{ nullptr };
     std::span<LevelNode> m_Children;
     Flags m_Flags{ Flags::Active | Flags::Visible };
@@ -118,9 +112,8 @@ public:
 
 private:
     friend Level;
-    friend LevelBuilder;
 
-    explicit PhysicsNode(LevelNode* node, const RigidBodyIdentifier rigidBodyId)
+    PhysicsNode(LevelNode* node, const RigidBodyIdentifier rigidBodyId)
         : m_Node(node),
           m_RigidBodyId(rigidBodyId)
     {
@@ -132,4 +125,35 @@ private:
 
     LevelNode* m_Node{ nullptr };
     RigidBodyIdentifier m_RigidBodyId;
+};
+
+class ModelNode
+{
+public:
+    ModelNode() = delete;
+    ~ModelNode() = default;
+    ModelNode(const ModelNode&) = delete;
+    ModelNode& operator=(const ModelNode&) = delete;
+    ModelNode(ModelNode&&) = default;
+    ModelNode& operator=(ModelNode&&) = default;
+
+    const Model* GetModel() const { return m_Model; }
+
+    const Mat44f& GetWorldTransform() const { return m_Node->GetWorldTransform(); }
+
+    bool IsVisible() const { return m_Node->IsVisible(); }
+
+private:
+    friend Level;
+
+    ModelNode(LevelNode* node, const Model* model)
+        : m_Node(node),
+          m_Model(model)
+    {
+        MLG_ASSERT(node, "ModelNode must be associated with a valid LevelNode");
+        MLG_ASSERT(model, "ModelNode must be associated with a valid Model");
+    }
+
+    LevelNode* m_Node{ nullptr };
+    const Model* m_Model{ nullptr };
 };

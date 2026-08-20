@@ -742,15 +742,13 @@ MainLoop()
             PerfCounterGlobals::TotalEnergy.Set(totalEnergy);
         }
 
-        MLG_CHECK(scene.SyncFromLevel());
-
         if(isCameraActorActive)
         {
             cameraActor.Update(inputMapper, elapsedSeconds);
         }
         cameraXForm = cameraActor.GetTransform();
 
-        MLG_CHECK(scene.SyncToGpu(gpuHelper.GetDevice()));
+        MLG_CHECK(scene.SyncToGpu());
 
         auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECKV(target, "Failed to get swap chain texture");

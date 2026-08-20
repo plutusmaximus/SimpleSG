@@ -26,6 +26,28 @@ CountNodes(const T& nodeDefs)
 
     return count;
 }
+template<typename T>
+size_t
+CountModels(const T& nodeDefs)
+{
+    using NodeDef = std::ranges::range_value_t<T>;
+
+    static_assert(std::same_as<NodeDef, LevelNodeDef> || std::same_as<NodeDef, RootNodeDef>,
+        "CountModels requires a range of LevelNodeDef or RootNodeDef");
+
+    size_t count = 0;
+    for(const auto& nodeDef : nodeDefs)
+    {
+        if(nodeDef.Model)
+        {
+            ++count;
+        }
+
+        count += CountModels(nodeDef.Children);
+    }
+
+    return count;
+}
 
 size_t
 CountBodies(std::span<const RootNodeDef> nodeDefs)
@@ -153,7 +175,8 @@ AttachShapeToBody(const b3BodyId bodyId, const Mass& mass, const ColliderDef& co
 }
 
 Result<RigidBodyIdentifier>
-CreateRigidBody(const RootNodeDef& nodeDef, const RigidBodyDef& rbodyDef, const b3WorldId worldId)
+CreateRigidBody(
+    const RootNodeDef& nodeDef, const RigidBodyDef& rbodyDef, const WorldIdentifier worldId)
 {
     b3BodyDef bodyDef = b3DefaultBodyDef();
     switch(rbodyDef.MotionType)
@@ -181,7 +204,7 @@ CreateRigidBody(const RootNodeDef& nodeDef, const RigidBodyDef& rbodyDef, const 
             .s = rot.w,
         };
 
-    const b3BodyId bodyId = b3CreateBody(worldId, &bodyDef);
+    const b3BodyId bodyId = b3CreateBody(b3LoadWorldId(worldId.GetValue()), &bodyDef);
     MLG_CHECK(b3Body_IsValid(bodyId), "Failed to create body for node {}", nodeDef.Name);
 
     for(const ColliderDef& colliderDef : rbodyDef.Colliders)
@@ -203,29 +226,17 @@ GetBodyId(const RigidBodyIdentifier rigidBodyId)
 }
 } // namespace
 
-class LevelBuilder
-{
-public:
-    template<typename T>
-    static Result<> CollectNodes(T nodeDefs,
-        const PropKit& propKit,
-        const b3WorldId worldId,
-        const LevelNode* parentNode,
-        std::vector<LevelNode>& nodes,
-        std::vector<PhysicsNode>& physicsNodes,
-        StringArena& stringArena);
-};
-
 // Collect nodes in breadth-first order.
 // Parents come before children, siblings are contiguous.
 template<typename T>
 Result<>
-LevelBuilder::CollectNodes(T nodeDefs,
+Level::CollectNodes(T nodeDefs,
     const PropKit& propKit,
-    const b3WorldId worldId,
+    const WorldIdentifier worldId,
     const LevelNode* parentNode,
     std::vector<LevelNode>& nodes,
     std::vector<PhysicsNode>& physicsNodes,
+    std::vector<ModelNode>& modelNodes,
     StringArena& stringArena)
 {
     MLG_CHECKV(nodes.capacity() >= nodes.size() + nodeDefs.size(),
@@ -256,7 +267,7 @@ LevelBuilder::CollectNodes(T nodeDefs,
 
         const StringHandle name = stringArena.NewString(nodeDef.Name);
 
-        const Model* model = nullptr;
+        nodes.emplace_back(name, nodeDef.Transform, parentNode);
 
         if(nodeDef.Model)
         {
@@ -264,11 +275,11 @@ LevelBuilder::CollectNodes(T nodeDefs,
 
             MLG_CHECKV(!modelRef.Name.empty(), "ModelRef in node {} is empty", nodeDef.Name);
 
-            model = propKit.GetModel(modelRef.Name);
+            const Model* model = propKit.GetModel(modelRef.Name);
             MLG_CHECK(model);
-        }
 
-        nodes.emplace_back(name, nodeDef.Transform, model, parentNode);
+            modelNodes.emplace_back(ModelNode(&nodes.back(), model));
+        }
 
         // For root nodes, create a rigid body if specified.
         if constexpr(std::same_as<NodeDefType, RootNodeDef>)
@@ -308,6 +319,7 @@ LevelBuilder::CollectNodes(T nodeDefs,
             &node,
             nodes,
             physicsNodes,
+            modelNodes,
             stringArena));
 
         node.m_Children = std::span(nodes).subspan(firstChildIndex, nodeDef.Children.size());
@@ -321,12 +333,15 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit)
 {
     const size_t nodeCount = CountNodes(levelDef.NodeDefs);
     const size_t bodyCount = CountBodies(levelDef.NodeDefs);
+    const size_t modelCount = CountModels(levelDef.NodeDefs);
     const size_t totalStringSize = CalculateTotalStringSize(levelDef.NodeDefs);
 
     std::vector<LevelNode> nodes;
     std::vector<PhysicsNode> physicsNodes;
+    std::vector<ModelNode> modelNodes;
     nodes.reserve(nodeCount);
     physicsNodes.reserve(bodyCount);
+    modelNodes.reserve(modelCount);
     StringArena stringArena(totalStringSize);
 
     b3WorldDef worldDef = b3DefaultWorldDef();
@@ -337,27 +352,34 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit)
     MLG_ASSERT(b3World_IsValid(worldId));
 
     // Flatten nodes into breadth-first order.
-    MLG_CHECK(LevelBuilder::CollectNodes(levelDef.NodeDefs,
+    MLG_CHECK(CollectNodes(levelDef.NodeDefs,
         propKit,
-        worldId,
+        WorldIdentifier{ b3StoreWorldId(worldId) },
         nullptr,
         nodes,
         physicsNodes,
+        modelNodes,
         stringArena));
 
     const WorldIdentifier worldIdentifier{ b3StoreWorldId(worldId) };
 
-    Level level(std::move(nodes), std::move(physicsNodes), worldIdentifier, std::move(stringArena));
+    Level level(std::move(nodes),
+        std::move(physicsNodes),
+        std::move(modelNodes),
+        worldIdentifier,
+        std::move(stringArena));
 
     return std::move(level);
 }
 
 Level::Level(std::vector<LevelNode>&& nodes,
     std::vector<PhysicsNode>&& physicsNodes,
+    std::vector<ModelNode>&& modelNodes,
     const WorldIdentifier worldId,
     StringArena&& stringArena)
     : m_Nodes(std::move(nodes)),
       m_PhysicsNodes(std::move(physicsNodes)),
+      m_ModelNodes(std::move(modelNodes)),
       m_StringArena(std::move(stringArena)),
       m_WorldId(worldId)
 {

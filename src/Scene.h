@@ -34,21 +34,21 @@ public:
 
     GpuCameraParamsBuffer GetCameraParamsBuffer() const { return m_CameraParamsBuffer; }
 
-    Result<> SyncFromLevel();
-
     // Sync updates from CPU -> GPU.
-    Result<> SyncToGpu(const wgpu::Device& gpuDevice);
+    Result<> SyncToGpu();
 
 private:
-    Scene(GpuWorldTransformBuffer&& worldTransformBuffer,
+    Scene(const wgpu::Device& gpuDevice,
+        GpuWorldTransformBuffer&& worldTransformBuffer,
         GpuClipSpaceBuffer&& clipSpaceBuffer,
         GpuDrawIndirectBuffer&& drawIndirectBuffer,
         GpuMeshPropertiesBuffer&& meshPropertiesBuffer,
         GpuCameraParamsBuffer&& cameraParamsBuffer,
-        std::vector<const LevelNode*>&& nodes,
         std::vector<ModelInstance>&& modelInstances,
         std::vector<MeshInstance>&& meshInstances,
-        std::vector<ShaderInterop::WorldTransform>&& worldTransforms);
+        std::vector<const ModelNode*>&& modelNodes);
+
+    const wgpu::Device* m_GpuDevice{ nullptr };
 
     GpuWorldTransformBuffer m_WorldTransformBuffer;
     GpuClipSpaceBuffer m_ClipSpaceBuffer;
@@ -56,10 +56,8 @@ private:
     GpuMeshPropertiesBuffer m_MeshPropertiesBuffer;
     GpuCameraParamsBuffer m_CameraParamsBuffer;
 
-    std::vector<const LevelNode*> m_Nodes;
     std::vector<ModelInstance> m_ModelInstances;
     std::vector<MeshInstance> m_MeshInstances;
 
-    // Staging buffer for world transforms.
-    std::vector<ShaderInterop::WorldTransform> m_WorldTransforms;
+    std::vector<const ModelNode*> m_ModelNodes;
 };
