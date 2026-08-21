@@ -75,14 +75,12 @@ BuildDrawIndirectBuffer(GpuHelper& gpuHelper, std::span<const MeshInstance> mesh
 
     for(const MeshInstance& meshInstance : meshInstances)
     {
-        const Mesh& meshSrc = meshInstance.GetMesh();
-
         const ShaderInterop::DrawIndirectParams drawParams //
             {
-                .IndexCount = meshSrc.GetIndexCount(),
+                .IndexCount = meshInstance.GetIndexCount(),
                 .InstanceCount = 1,
-                .FirstIndex = meshSrc.GetFirstIndex(),
-                .BaseVertex = meshSrc.GetBaseVertex(),
+                .FirstIndex = meshInstance.GetFirstIndex(),
+                .BaseVertex = meshInstance.GetBaseVertex(),
                 .FirstInstance = narrow_cast<uint32_t>(drawIndirectParams.size()),
             };
 
@@ -112,17 +110,13 @@ BuildMeshPropertiesBuffer(GpuHelper& gpuHelper,
 
     for(const auto& modelInstance : modelInstances)
     {
-        const Model* model = modelInstance.GetModel();
-        MLG_CHECK(model);
-        const std::span<const Mesh> meshes = model->GetMeshes();
-
-        for(const auto& meshSrc : meshes)
+        for(const MeshInstance& meshInstance : modelInstance.GetMeshInstances())
         {
             const ShaderInterop::MeshProperties meshProps //
                 {
                     .TransformIndex = transformIndex,
                     // FIXME(KB) - reconcile material ID
-                    .MaterialIndex = narrow_cast<uint32_t>(meshSrc.GetMaterialId().GetValue()),
+                    .MaterialIndex = narrow_cast<uint32_t>(meshInstance.GetMaterialId().GetValue()),
                 };
 
             meshProperties.push_back(meshProps);
@@ -224,7 +218,9 @@ Scene::GetVisibleMeshes(const Frustum& frustum, std::vector<MeshInstance>& outVi
 
     outVisibleMeshes.clear();
 
-    for(const auto&& [modelInstance, modelNode] : std::views::zip(m_ModelInstances, m_ModelNodes))
+    const auto view = std::views::zip(m_ModelInstances, m_ModelNodes);
+
+    for(const auto&& [modelInstance, modelNode] : view)
     {
         if(!modelInstance.IsVisible())
         {
@@ -235,11 +231,6 @@ Scene::GetVisibleMeshes(const Frustum& frustum, std::vector<MeshInstance>& outVi
             modelNode->GetWorldTransform() * modelInstance.GetBoundingSphere();
 
         const Frustum::ContainsResult result = frustum.Contains(modelBs);
-
-        if(result == Frustum::ContainsResult::Outside)
-        {
-            continue;
-        }
 
         if(result == Frustum::ContainsResult::Intersects)
         {
@@ -258,7 +249,7 @@ Scene::GetVisibleMeshes(const Frustum& frustum, std::vector<MeshInstance>& outVi
                 outVisibleMeshes.push_back(meshInstance);
             }
         }
-        else
+        else if(result == Frustum::ContainsResult::Inside)
         {
             // Model is fully inside frustum, add all mesh instances.
 
@@ -266,6 +257,11 @@ Scene::GetVisibleMeshes(const Frustum& frustum, std::vector<MeshInstance>& outVi
             {
                 outVisibleMeshes.push_back(meshInstance);
             }
+        }
+        else
+        {
+            // Model is fully outside frustum, skip all mesh instances.
+            continue;
         }
     }
 

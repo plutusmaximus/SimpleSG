@@ -550,10 +550,12 @@ PropKit::Create(GpuHelper& gpuHelper,
     std::vector<VertexIndex> indices;
     std::vector<Mesh> meshes;
     std::vector<Model> models;
+    std::vector<NameIndexPair> modelNameIndex;
     vertices.reserve(vertexCount);
     indices.reserve(indexCount);
     meshes.reserve(meshCount);
     models.reserve(propKitDef.ModelDefs.size());
+    modelNameIndex.reserve(propKitDef.ModelDefs.size());
     StringArena stringArena(totalStringSize);
 
     for(const auto& modelDef : propKitDef.ModelDefs)
@@ -587,7 +589,8 @@ PropKit::Create(GpuHelper& gpuHelper,
             aabb += mesh.GetBoundingBox();
         }
 
-        models.emplace_back(modelName, meshSpan, aabb);
+        models.emplace_back(meshSpan, aabb);
+        modelNameIndex.emplace_back(modelName, models.size() - 1);
     }
 
     TextureCache textureCache(gpuHelper.GetDefaultTexture());
@@ -618,8 +621,8 @@ PropKit::Create(GpuHelper& gpuHelper,
         std::move(materialBindGroups),
         std::move(meshes),
         std::move(models),
+        std::move(modelNameIndex),
         std::move(stringArena));
-
     MLG_INFO("PropKit created in {} ms", createTimer.GetElapsedSeconds() * 1000);
 
     return std::move(propKit);
@@ -628,14 +631,14 @@ PropKit::Create(GpuHelper& gpuHelper,
 const Model*
 PropKit::GetModel(const std::string_view& name) const
 {
-    auto it = std::ranges::lower_bound(m_Models, name, {}, &Model::GetName);
+    auto it = std::ranges::lower_bound(m_ModelNameIndex, name, {}, &NameIndexPair::Name);
 
-    if(!MLG_VERIFY(m_Models.end() != it && it->GetName() == name, "Model not found: {}", name))
+    if(!MLG_VERIFY(m_ModelNameIndex.end() != it && it->Name == name, "Model not found: {}", name))
     {
         return nullptr;
     }
 
-    return &(*it);
+    return &m_Models[it->Index];
 }
 
 const wgpu::BindGroup*
@@ -659,6 +662,7 @@ PropKit::PropKit(GpuVertexBuffer&& vertexBuffer,
     std::vector<wgpu::BindGroup>&& materialBindGroups,
     std::vector<Mesh>&& meshes,
     std::vector<Model>&& models,
+    std::vector<NameIndexPair>&& modelNameIndex,
     StringArena&& stringArena)
     : m_VertexBuffer(std::move(vertexBuffer)),
       m_IndexBuffer(std::move(indexBuffer)),
@@ -666,19 +670,19 @@ PropKit::PropKit(GpuVertexBuffer&& vertexBuffer,
       m_MaterialBindGroups(std::move(materialBindGroups)),
       m_Meshes(std::move(meshes)),
       m_Models(std::move(models)),
+      m_ModelNameIndex(std::move(modelNameIndex)),
       m_StringArena(std::move(stringArena))
 {
-    std::ranges::sort(m_Models,
-        [](const Model& a, const Model& b) { return a.GetName() < b.GetName(); });
+    std::ranges::sort(m_ModelNameIndex, {}, &NameIndexPair::Name);
 
-    for(auto it = m_Models.begin() + 1; it != m_Models.end(); ++it)
+    for(size_t i = 1; i < m_ModelNameIndex.size(); ++i)
     {
-        const Model& a = *(it - 1);
-        const Model& b = *it;
+        const StringHandle& a = m_ModelNameIndex[i - 1].Name;
+        const StringHandle& b = m_ModelNameIndex[i].Name;
 
-        if(!MLG_VERIFY(a.GetName() != b.GetName()))
+        if(!MLG_VERIFY(a != b, "Duplicate model name found: {}", a))
         {
-            MLG_ERROR("Duplicate model name found: {}", a.GetName());
+            MLG_ERROR("Duplicate model name found: {}", a);
         }
     }
 }

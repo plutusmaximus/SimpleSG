@@ -1,7 +1,6 @@
 #pragma once
 
 #include "PhysicsTypes.h"
-#include "StringArena.h"
 #include "VecMath.h"
 
 #include <span>
@@ -21,11 +20,9 @@ public:
         All = Active | Visible
     };
 
-    LevelNode(const StringHandle& name,
-        const TrsTransformf& localTransform,
+    LevelNode(const TrsTransformf& localTransform,
         const LevelNode* parent)
-        : m_Name(name),
-          m_LocalTransform(localTransform),
+        : m_LocalTransform(localTransform),
           m_Parent(parent)
     {
     }
@@ -40,7 +37,6 @@ public:
     bool IsActive() const { return (m_Flags & Flags::Active) == Flags::Active; }
     bool IsVisible() const { return (m_Flags & Flags::Visible) == Flags::Visible; }
 
-    std::string_view GetName() const { return m_Name; }
     const TrsTransformf& GetLocalTransform() const { return m_LocalTransform; }
     const Mat44f& GetWorldTransform() const { return m_WorldTransform; }
     const Vec3f& GetLinearVelocity() const { return m_LinearVelocity; }
@@ -70,7 +66,6 @@ public:
 private:
     friend Level;
 
-    StringHandle m_Name;
     TrsTransformf m_LocalTransform;
     Vec3f m_LinearVelocity{ 0 };
     Vec3f m_AngularVelocity{ 0 };

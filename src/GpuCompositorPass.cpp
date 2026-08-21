@@ -1,6 +1,7 @@
 #define MLG_LOGGER_NAME "CMPP"
 
 #include "GpuCompositorPass.h"
+
 #include "GpuHelper.h"
 
 namespace

@@ -4,6 +4,7 @@
 
 #include "GpuHelper.h"
 #include "PerfMetrics.h"
+#include "PropKit.h"
 
 namespace
 {
@@ -207,8 +208,27 @@ GpuColorPass::SetOutputs(const Outputs& outputs)
     return Result<>::Ok;
 }
 
-Result<wgpu::RenderPassEncoder>
-GpuColorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder)
+Result<GpuColorPass::Invocation>
+GpuColorPass::Prepare()
+{
+    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "GpuColorPass" };
+    wgpu::CommandEncoder cmdEncoder = m_GpuHelper->GetDevice().CreateCommandEncoder(&encoderDesc);
+    MLG_CHECK(cmdEncoder, "Failed to create command encoder");
+
+    auto invocation = Prepare(cmdEncoder);
+
+    if(invocation)
+    {
+        // We own the encoder - hand it over to the invocation so it can submit the command buffer
+        // when Execute() is called.
+        invocation->m_CmdEncoder = std::move(cmdEncoder);
+    }
+
+    return invocation;
+}
+
+Result<GpuColorPass::Invocation>
+GpuColorPass::Prepare(const wgpu::CommandEncoder& cmdEncoder)
 {
     MLG_CHECK(EnsurePipeline());
     MLG_CHECK(EnsureInputsBindGroup());
@@ -244,22 +264,22 @@ GpuColorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder)
             .depthStencilAttachment = &depthStencilAttachment,
         };
 
-    wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
+    const wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
     MLG_CHECK(renderPass, "Failed to begin render pass");
 
     {
-        MLG_SCOPED_TIMER("Renderer.Render.BeginRenderPass.SetPipeline");
+        MLG_SCOPED_TIMER("GpuColorPass.Prepare.SetPipeline");
 
         renderPass.SetPipeline(m_Pipeline);
     }
 
     {
-        MLG_SCOPED_TIMER("Renderer.Render.BeginRenderPass.SetPerFrameBindGroup");
+        MLG_SCOPED_TIMER("GpuColorPass.Prepare.SetPerFrameBindGroup");
         renderPass.SetBindGroup(0, m_InputsBindGroup, 0, nullptr);
     }
 
     {
-        MLG_SCOPED_TIMER("Renderer.Render.BeginRenderPass.SetBuffers");
+        MLG_SCOPED_TIMER("GpuColorPass.Prepare.SetBuffers");
 
         constexpr size_t kU16BitWidth = 16;
         constexpr size_t kU32BitWidth = 32;
@@ -296,7 +316,9 @@ GpuColorPass::BeginPass(const wgpu::CommandEncoder& cmdEncoder)
         viewport.GetWidth(),
         viewport.GetHeight());
 
-    return renderPass;
+    return Invocation(m_GpuHelper->GetDevice(),
+        std::move(renderPass),
+        m_Inputs->DrawIndirectBuffer);
 }
 
 // private:
@@ -457,6 +479,69 @@ GpuColorPass::EnsureInputsBindGroup()
 
     m_InputsBindGroup = m_GpuHelper->GetDevice().CreateBindGroup(&desc);
     MLG_CHECKV(m_InputsBindGroup, "Failed to create bind group");
+
+    return Result<>::Ok;
+}
+
+// GpuColorPass::Invocation
+
+GpuColorPass::Invocation::~Invocation()
+{
+    MLG_ASSERT(!m_RenderPass, "Pass must be executed before destruction");
+}
+
+Result<>
+GpuColorPass::Invocation::Execute(const std::span<MeshInstance> visibleMeshes, const PropKit& propKit)
+{
+    MLG_SCOPED_TIMER("GpuColorPass.Execute")
+
+    MLG_CHECKV(m_RenderPass, "Pass has already been executed");
+
+    // Consume the render pass so it can't be used again.
+    const wgpu::RenderPassEncoder renderPass = std::move(m_RenderPass);
+
+    m_RenderPass = {};
+
+    // Track how many times we have to change materials.
+    static PerfCounter pcMaterialChanges({ .Name = "GpuColorPass.Execute.MaterialChanges" });
+
+    MaterialIdentifier lastMaterialId;
+
+    for(const MeshInstance& meshInstance : visibleMeshes)
+    {
+        if(meshInstance.GetMaterialId() != lastMaterialId)
+        {
+            pcMaterialChanges.Increment(1);
+
+            lastMaterialId = meshInstance.GetMaterialId();
+
+            const wgpu::BindGroup* bindGroup = propKit.GetMaterialBindGroup(lastMaterialId);
+            MLG_ASSERT(bindGroup,
+                "Failed to get material bind group for material ID {}",
+                lastMaterialId.GetValue());
+
+            renderPass.SetBindGroup(1, *bindGroup, 0, nullptr);
+        }
+
+        const uint64_t indirectOffset =
+            meshInstance.GetInstanceIndex() * sizeof(ShaderInterop::DrawIndirectParams);
+        renderPass.DrawIndexedIndirect(m_DrawIndirectBuffer.GetGpuBuffer(), indirectOffset);
+    }
+
+    renderPass.End();
+
+    // If m_CmdEncoder is null then it's owned by the caller and they are responsible for submitting
+    // it to the GPU. Otherwise, we own it and we will submit it to the GPU here.
+    if(m_CmdEncoder)
+    {
+        const wgpu::CommandBuffer cmdBuf = m_CmdEncoder.Finish(nullptr);
+        MLG_CHECK(cmdBuf, "Failed to finish command buffer");
+
+        const wgpu::Queue queue = m_GpuDevice.GetQueue();
+        MLG_CHECK(queue, "Failed to get wgpu::Queue");
+
+        queue.Submit(1, &cmdBuf);
+    }
 
     return Result<>::Ok;
 }

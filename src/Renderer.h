@@ -3,7 +3,6 @@
 #include "GpuColorPass.h"
 #include "GpuCompositorPass.h"
 #include "GpuTransformPass.h"
-#include "SceneTypes.h"
 #include "Result.h"
 
 #include <memory>

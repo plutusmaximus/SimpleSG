@@ -3,6 +3,7 @@
 #include "GpuTypes.h"
 #include "Result.h"
 #include "SceneTypes.h"
+#include "StringArena.h"
 
 #include <filesystem>
 #include <vector>
@@ -40,12 +41,25 @@ public:
 
 private:
 
+    struct NameIndexPair
+    {
+        NameIndexPair() = delete;
+        NameIndexPair(const StringHandle& name, size_t index)
+            : Name(name), Index(index)
+        {
+        }
+
+        StringHandle Name;
+        size_t Index;
+    };
+
     PropKit(GpuVertexBuffer&& vertexBuffer,
         GpuIndexBuffer&& indexBuffer,
         GpuMaterialConstantsBuffer&& materialConstants,
         std::vector<wgpu::BindGroup>&& materialBindGroups,
         std::vector<Mesh>&& meshes,
         std::vector<Model>&& models,
+        std::vector<NameIndexPair>&& modelNameIndex,
         StringArena&& stringArena);
 
     GpuVertexBuffer m_VertexBuffer;
@@ -55,5 +69,6 @@ private:
 
     std::vector<Mesh> m_Meshes;
     std::vector<Model> m_Models;
+    std::vector<NameIndexPair> m_ModelNameIndex;
     StringArena m_StringArena;
 };

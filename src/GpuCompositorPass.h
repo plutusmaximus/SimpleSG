@@ -63,8 +63,7 @@ public:
     private:
         friend class GpuCompositorPass;
 
-        explicit Invocation(wgpu::Device gpuDevice,
-            wgpu::RenderPassEncoder renderPass)
+        Invocation(wgpu::Device gpuDevice, wgpu::RenderPassEncoder renderPass)
             : m_GpuDevice(std::move(gpuDevice)),
               m_RenderPass(std::move(renderPass))
         {

@@ -2,9 +2,13 @@
 
 #include "BoundingVolumes.h"
 #include "SemanticIdentifier.h"
-#include "StringArena.h"
 
 using MaterialIdentifier = SemanticIdentifier<struct MaterialIdTag>;
+
+namespace wgpu
+{
+class BindGroup;
+}
 
 class Mesh
 {
@@ -38,7 +42,6 @@ public:
     const BoundingSphere& GetBoundingSphere() const { return m_BoundingSphere; }
 
 private:
-
     uint32_t m_IndexCount;
     uint32_t m_FirstIndex;
     uint32_t m_BaseVertex;
@@ -52,24 +55,20 @@ class Model
 public:
     Model() = delete;
 
-    Model(const StringHandle& name,
-        const std::span<const Mesh>& meshes,
+    Model(const std::span<const Mesh>& meshes,
         const BoundingBox& boundingBox)
-        : m_Name(name),
-            m_Meshes(meshes),
-            m_BoundingBox(boundingBox),
-            m_BoundingSphere(boundingBox)
+        : m_Meshes(meshes),
+          m_BoundingBox(boundingBox),
+          m_BoundingSphere(boundingBox)
     {
         MLG_ABORTIF(meshes.empty(), "Model must have at least one mesh");
     }
 
-    const StringHandle& GetName() const { return m_Name; }
     std::span<const Mesh> GetMeshes() const { return m_Meshes; }
     const BoundingBox& GetBoundingBox() const { return m_BoundingBox; }
     const BoundingSphere& GetBoundingSphere() const { return m_BoundingSphere; }
 
 private:
-    StringHandle m_Name;
     std::span<const Mesh> m_Meshes;
     BoundingBox m_BoundingBox;
     BoundingSphere m_BoundingSphere;
@@ -78,31 +77,31 @@ private:
 class MeshInstance
 {
 public:
-
     MeshInstance() = delete;
 
     MeshInstance(const Mesh* mesh, const size_t instanceIndex)
-        : m_Mesh(mesh), m_InstanceIndex(instanceIndex)
+        : m_Mesh(mesh),
+          m_InstanceIndex(instanceIndex)
     {
         MLG_ABORTIF(!mesh, "MeshInstance cannot be created with an invalid mesh pointer");
     }
 
-    const Mesh& GetMesh() const { return *m_Mesh; }
     MaterialIdentifier GetMaterialId() const { return m_Mesh->GetMaterialId(); }
-    size_t GetInstanceIndex() const { return m_InstanceIndex; }
+    uint32_t GetIndexCount() const { return m_Mesh->GetIndexCount(); }
+    uint32_t GetFirstIndex() const { return m_Mesh->GetFirstIndex(); }
+    uint32_t GetBaseVertex() const { return m_Mesh->GetBaseVertex(); }
     const BoundingBox& GetBoundingBox() const { return m_Mesh->GetBoundingBox(); }
     const BoundingSphere& GetBoundingSphere() const { return m_Mesh->GetBoundingSphere(); }
+    size_t GetInstanceIndex() const { return m_InstanceIndex; }
 
 private:
-
-    const Mesh* m_Mesh{nullptr};
-    size_t m_InstanceIndex{0};
+    const Mesh* m_Mesh{ nullptr };
+    size_t m_InstanceIndex{ 0 };
 };
 
 class ModelInstance
 {
 public:
-
     ModelInstance() = delete;
 
     ModelInstance(const Model* model, const std::span<const MeshInstance>& meshInstances)
@@ -110,12 +109,12 @@ public:
           m_MeshInstances(meshInstances)
     {
         MLG_ABORTIF(!model, "ModelInstance cannot be created with an invalid model pointer");
-        MLG_ABORTIF(meshInstances.empty(), "ModelInstance cannot be created with an empty mesh instance list");
+        MLG_ABORTIF(meshInstances.empty(),
+            "ModelInstance cannot be created with an empty mesh instance list");
         MLG_ABORTIF(meshInstances.size() != model->GetMeshes().size(),
             "ModelInstance mesh instance count must match model mesh count");
     }
 
-    const Model* GetModel() const { return m_Model; }
     const BoundingBox& GetBoundingBox() const { return m_Model->GetBoundingBox(); }
     const BoundingSphere& GetBoundingSphere() const { return m_Model->GetBoundingSphere(); }
 

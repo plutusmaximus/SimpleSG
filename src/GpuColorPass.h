@@ -2,11 +2,13 @@
 
 #include "Camera.h"
 #include "GpuTypes.h"
+#include "SceneTypes.h"
 
 #include <optional>
 
 class FileFetcher;
 class GpuHelper;
+class PropKit;
 
 class GpuColorPass
 {
@@ -26,6 +28,7 @@ public:
         GpuMeshPropertiesBuffer MeshProperties;
         GpuMaterialConstantsBuffer MaterialConstants;
         GpuCameraParamsBuffer CameraParams;
+        GpuDrawIndirectBuffer DrawIndirectBuffer;
 
         Result<> Validate() const // NOLINT(readability-convert-member-functions-to-static)
         {
@@ -41,7 +44,8 @@ public:
                 && a.ClipSpaceTransforms == b.ClipSpaceTransforms
                 && a.MeshProperties == b.MeshProperties
                 && a.MaterialConstants == b.MaterialConstants
-                && a.CameraParams == b.CameraParams;
+                && a.CameraParams == b.CameraParams
+                && a.DrawIndirectBuffer == b.DrawIndirectBuffer;
         }
     };
 
@@ -58,6 +62,36 @@ public:
         friend bool operator==(const Outputs& a, const Outputs& b) = default;
     };
 
+    class Invocation
+    {
+    public:
+        Invocation() = delete;
+        ~Invocation();
+        Invocation(const Invocation&) = delete;
+        Invocation& operator=(const Invocation&) = delete;
+        Invocation(Invocation&&) = default;
+        Invocation& operator=(Invocation&&) = delete;
+
+        Result<> Execute(const std::span<MeshInstance> visibleMeshes, const PropKit& propKit);
+
+    private:
+        friend class GpuColorPass;
+
+        Invocation(wgpu::Device gpuDevice,
+            wgpu::RenderPassEncoder renderPass,
+            GpuDrawIndirectBuffer drawIndirectBuffer)
+            : m_GpuDevice(std::move(gpuDevice)),
+              m_RenderPass(std::move(renderPass)),
+              m_DrawIndirectBuffer(std::move(drawIndirectBuffer))
+        {
+        }
+
+        wgpu::Device m_GpuDevice;
+        wgpu::RenderPassEncoder m_RenderPass;
+        GpuDrawIndirectBuffer m_DrawIndirectBuffer;
+        wgpu::CommandEncoder m_CmdEncoder;
+    };
+
     GpuColorPass() = delete;
     ~GpuColorPass() = default;
     GpuColorPass(const GpuColorPass&) = delete;
@@ -70,7 +104,15 @@ public:
     Result<> SetInputs(const Inputs& inputs);
     Result<> SetOutputs(const Outputs& outputs);
 
-    Result<wgpu::RenderPassEncoder> BeginPass(const wgpu::CommandEncoder& cmdEncoder);
+    /// @brief Prepares an invocation of the pass for execution.
+    /// This variant of Prepare creates a command encoder that's owned and
+    /// submitted to the GPU by the invocation.
+    Result<Invocation> Prepare();
+
+    /// @brief Prepares an invocation of the pass for execution.
+    /// This variant of Prepare uses the provided command encoder.
+    /// The caller is responsible for submitting the command encoder to the GPU.
+    Result<Invocation> Prepare(const wgpu::CommandEncoder& cmdEncoder);
 
 private:
     explicit GpuColorPass(const GpuHelper& gpuHelper,

@@ -57,24 +57,20 @@ Renderer::Render(const Camera& camera,
     const Scene& scene,
     const PropKit& propKit)
 {
-    const Viewport& viewport = camera.GetViewport();
-
     MLG_SCOPED_TIMER("Renderer.Render");
 
     const wgpu::Device& gpuDevice = m_GpuHelper->GetDevice();
 
     const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "Renderer::Render" };
-
     const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
     MLG_CHECK(cmdEncoder, "Failed to create command encoder");
 
-    {
-        MLG_SCOPED_TIMER("Renderer.Render.TransformNodes");
+    auto transformNodesResult = TransformNodes(gpuDevice, cmdEncoder, cameraXForm, camera, scene);
+    MLG_CHECK(transformNodesResult);
 
-        auto transformNodesResult =
-            TransformNodes(gpuDevice, cmdEncoder, cameraXForm, camera, scene);
-        MLG_CHECK(transformNodesResult);
-    }
+    const Frustum frustum(camera, cameraXForm);
+
+    const Viewport& viewport = camera.GetViewport();
 
     if(!m_ColorPassOutputs
         || m_ColorPassOutputs->RenderTarget->GetWidth() != viewport.GetWidth()
@@ -87,6 +83,8 @@ Renderer::Render(const Camera& camera,
         m_ColorPassOutputs = std::move(*colorPassOutputs);
     }
 
+    const auto& drawIndirectBuffer = scene.GetDrawIndirectBuffer();
+
     const GpuColorPass::Inputs colorPassInputs //
         {
             .Viewport = viewport,
@@ -97,77 +95,28 @@ Renderer::Render(const Camera& camera,
             .MeshProperties = scene.GetMeshPropertiesBuffer(),
             .MaterialConstants = propKit.GetMaterialConstants(),
             .CameraParams = scene.GetCameraParamsBuffer(),
+            .DrawIndirectBuffer = drawIndirectBuffer,
         };
 
     MLG_CHECK(m_ColorPass.SetInputs(colorPassInputs));
     MLG_CHECK(m_ColorPass.SetOutputs(*m_ColorPassOutputs));
 
-    wgpu::RenderPassEncoder renderPass;
-    {
-        MLG_SCOPED_TIMER("Renderer.Render.BeginRenderPass");
-        auto renderPassResult = m_ColorPass.BeginPass(cmdEncoder);
-        MLG_CHECK(renderPassResult);
+    auto invocation = m_ColorPass.Prepare(cmdEncoder);
+    MLG_CHECK(invocation);
 
-        renderPass = *renderPassResult;
-    }
+    m_VisibleMeshes.clear();
+    scene.GetVisibleMeshes(frustum, m_VisibleMeshes);
+    std::ranges::sort(m_VisibleMeshes, {}, &MeshInstance::GetMaterialId);
 
-    {
-        MLG_SCOPED_TIMER("Renderer.Render.Draw")
+    MLG_CHECK(invocation->Execute(m_VisibleMeshes, propKit));
 
-        const auto& drawIndirectBuffer = scene.GetDrawIndirectBuffer();
-        const Frustum frustum(camera, cameraXForm);
+    const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
+    MLG_CHECK(cmdBuf, "Failed to finish command buffer");
 
-        MaterialIdentifier lastMaterialId{};
+    const wgpu::Queue queue = gpuDevice.GetQueue();
+    MLG_CHECK(queue, "Failed to get wgpu::Queue");
 
-        // Get visible meshes and sort by material to minimize bind group changes.
-        scene.GetVisibleMeshes(frustum, m_VisibleMeshes);
-
-        std::ranges::sort(m_VisibleMeshes, {}, &MeshInstance::GetMaterialId);
-
-        // Track how many times we have to change materials.
-        static PerfCounter pcMaterialChanges({ .Name = "Renderer.Render.MaterialChanges" });
-
-        for(const MeshInstance& meshInstance : m_VisibleMeshes)
-        {
-            const Mesh& mesh = meshInstance.GetMesh();
-            const MaterialIdentifier materialId = mesh.GetMaterialId();
-
-            if(materialId != lastMaterialId)
-            {
-                MLG_SCOPED_TIMER("Renderer.Render.Draw.SetMaterialBindGroup");
-
-                pcMaterialChanges.Increment(1);
-
-                const wgpu::BindGroup* bindGroup = propKit.GetMaterialBindGroup(materialId);
-                MLG_CHECKV(bindGroup, "Failed to get material bind group");
-
-                renderPass.SetBindGroup(1, *bindGroup, 0, nullptr);
-                lastMaterialId = materialId;
-            }
-
-            const uint64_t indirectOffset =
-                meshInstance.GetInstanceIndex() * sizeof(ShaderInterop::DrawIndirectParams);
-            renderPass.DrawIndexedIndirect(drawIndirectBuffer.GetGpuBuffer(), indirectOffset);
-        }
-    }
-
-    renderPass.End();
-
-    wgpu::CommandBuffer cmdBuf;
-    {
-        MLG_SCOPED_TIMER("Renderer.FinishCommandBuffer");
-        cmdBuf = cmdEncoder.Finish(nullptr);
-
-        MLG_CHECK(cmdBuf, "Failed to finish command buffer");
-    }
-
-    {
-        MLG_SCOPED_TIMER("Renderer.SubmitCommandBuffer");
-        const wgpu::Queue queue = gpuDevice.GetQueue();
-        MLG_CHECK(queue, "Failed to get wgpu::Queue");
-
-        queue.Submit(1, &cmdBuf);
-    }
+    queue.Submit(1, &cmdBuf);
 
     return Result<>::Ok;
 }

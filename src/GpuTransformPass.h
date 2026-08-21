@@ -56,9 +56,8 @@ public:
     private:
         friend class GpuTransformPass;
 
-        explicit Invocation(wgpu::Device gpuDevice,
-            wgpu::ComputePassEncoder computePass,
-            size_t instanceCount)
+        Invocation(
+            wgpu::Device gpuDevice, wgpu::ComputePassEncoder computePass, size_t instanceCount)
             : m_GpuDevice(std::move(gpuDevice)),
               m_ComputePass(std::move(computePass)),
               m_InstanceCount(instanceCount)

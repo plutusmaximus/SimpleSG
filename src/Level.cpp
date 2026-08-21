@@ -66,25 +66,6 @@ CountBodies(std::span<const RootNodeDef> nodeDefs)
     return count;
 }
 
-template<typename T>
-size_t
-CalculateTotalStringSize(const T& nodeDefs)
-{
-    using NodeDef = std::ranges::range_value_t<T>;
-
-    static_assert(std::same_as<NodeDef, LevelNodeDef> || std::same_as<NodeDef, RootNodeDef>,
-        "CountNodes requires a range of LevelNodeDef or RootNodeDef");
-
-    size_t totalSize = 0;
-    for(const auto& nodeDef : nodeDefs)
-    {
-        totalSize += nodeDef.Name.size() + 1; // +1 for null terminator
-        totalSize += CalculateTotalStringSize(nodeDef.Children);
-    }
-
-    return totalSize;
-}
-
 Result<b3ShapeId>
 AttachShapeToBody(const b3BodyId bodyId, const Mass& mass, const ColliderDef& colliderDef)
 {
@@ -236,8 +217,7 @@ Level::CollectNodes(T nodeDefs,
     const LevelNode* parentNode,
     std::vector<LevelNode>& nodes,
     std::vector<PhysicsNode>& physicsNodes,
-    std::vector<ModelNode>& modelNodes,
-    StringArena& stringArena)
+    std::vector<ModelNode>& modelNodes)
 {
     MLG_CHECKV(nodes.capacity() >= nodes.size() + nodeDefs.size(),
         "Not enough capacity in nodes vector to collect nodes");
@@ -265,9 +245,7 @@ Level::CollectNodes(T nodeDefs,
             MLG_CHECKV(!uselessNode, "Node {} has no model or body and no children", nodeDef.Name);
         }
 
-        const StringHandle name = stringArena.NewString(nodeDef.Name);
-
-        nodes.emplace_back(name, nodeDef.Transform, parentNode);
+        nodes.emplace_back(nodeDef.Transform, parentNode);
 
         if(nodeDef.Model)
         {
@@ -319,8 +297,7 @@ Level::CollectNodes(T nodeDefs,
             &node,
             nodes,
             physicsNodes,
-            modelNodes,
-            stringArena));
+            modelNodes));
 
         node.m_Children = std::span(nodes).subspan(firstChildIndex, nodeDef.Children.size());
     }
@@ -334,7 +311,6 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit)
     const size_t nodeCount = CountNodes(levelDef.NodeDefs);
     const size_t bodyCount = CountBodies(levelDef.NodeDefs);
     const size_t modelCount = CountModels(levelDef.NodeDefs);
-    const size_t totalStringSize = CalculateTotalStringSize(levelDef.NodeDefs);
 
     std::vector<LevelNode> nodes;
     std::vector<PhysicsNode> physicsNodes;
@@ -342,7 +318,6 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit)
     nodes.reserve(nodeCount);
     physicsNodes.reserve(bodyCount);
     modelNodes.reserve(modelCount);
-    StringArena stringArena(totalStringSize);
 
     b3WorldDef worldDef = b3DefaultWorldDef();
     worldDef.restitutionThreshold = 0.0f;
@@ -358,16 +333,14 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit)
         nullptr,
         nodes,
         physicsNodes,
-        modelNodes,
-        stringArena));
+        modelNodes));
 
     const WorldIdentifier worldIdentifier{ b3StoreWorldId(worldId) };
 
     Level level(std::move(nodes),
         std::move(physicsNodes),
         std::move(modelNodes),
-        worldIdentifier,
-        std::move(stringArena));
+        worldIdentifier);
 
     return std::move(level);
 }
@@ -375,12 +348,10 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit)
 Level::Level(std::vector<LevelNode>&& nodes,
     std::vector<PhysicsNode>&& physicsNodes,
     std::vector<ModelNode>&& modelNodes,
-    const WorldIdentifier worldId,
-    StringArena&& stringArena)
+    const WorldIdentifier worldId)
     : m_Nodes(std::move(nodes)),
       m_PhysicsNodes(std::move(physicsNodes)),
       m_ModelNodes(std::move(modelNodes)),
-      m_StringArena(std::move(stringArena)),
       m_WorldId(worldId)
 {
     size_t rootNodeCount = 0;
@@ -414,62 +385,6 @@ Level::~Level()
 
         m_WorldId = {};
     }
-}
-
-const LevelNode*
-Level::GetNode(std::initializer_list<std::string_view> path) const
-{
-    return GetNode(std::span{ path });
-}
-
-const LevelNode*
-Level::GetNode(const std::span<const std::string_view> path) const
-{
-    const LevelNode* foundNode{ nullptr };
-
-    const size_t pathLen = path.size();
-    size_t pathIndex = 0;
-
-    std::span<const LevelNode> nodesToSearch = GetRoots();
-    for(const std::string_view& x : path)
-    {
-        const std::string_view part = x;
-
-        const LevelNode* node = nullptr;
-
-        for(const auto& tmpNode : nodesToSearch)
-        {
-            if(tmpNode.m_Name == part)
-            {
-                node = &tmpNode;
-                break;
-            }
-        }
-
-        if(!MLG_VERIFY(node, "Node not found: {}", part))
-        {
-            return nullptr;
-        }
-
-        if(pathIndex == pathLen - 1)
-        {
-            foundNode = node;
-            break;
-        }
-
-        ++pathIndex;
-
-        nodesToSearch = node->m_Children;
-    }
-
-    if(!MLG_VERIFY(foundNode,
-           "Node not found: {}",
-           path | std::views::join_with('.') | std::ranges::to<std::string>()))
-    {
-        return nullptr;
-    }
-
-    return foundNode;
 }
 
 void

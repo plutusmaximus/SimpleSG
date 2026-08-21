@@ -142,8 +142,8 @@ target_compile_options(project_options INTERFACE
   $<$<CXX_COMPILER_ID:MSVC>:/GR- /EHs-c- /Zc:preprocessor>
 
   # Loop vectorization optimization report for Clang/GCC/MSVC in Release builds
-  "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,Clang,AppleClang>>:-Rpass=(loop-vectorize|slp-vectorizer)>"
-  "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>>:-Rpass=(loop-vectorize|slp-vectorizer)>"
+  #"$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,Clang,AppleClang>>:-Rpass=(loop-vectorize|slp-vectorizer)>"
+  #"$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>>:-Rpass=(loop-vectorize|slp-vectorizer)>"
   #"$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,Clang,AppleClang>>:-Rpass-missed=(loop-vectorize|slp-vectorizer)>"
   #"$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>>:-Rpass-missed=(loop-vectorize|slp-vectorizer)>"
   #"$<$<AND:$<CONFIG:Release>,$<COMPILE_LANG_AND_ID:C,Clang,AppleClang>>:-Rpass-analysis=(loop-vectorize|slp-vectorizer)>"
