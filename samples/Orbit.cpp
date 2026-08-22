@@ -6,7 +6,6 @@
 #include "LuaRuntime.h"
 #include "PerfMetrics.h"
 #include "PropKit.h"
-#include "Renderer.h"
 #include "Scene.h"
 #include "ShapeMeshDefs.h"
 #include "System.h"
@@ -565,7 +564,6 @@ MainLoop()
     GpuHelper& gpuHelper = system.GetGpuHelper();
     ThreadPool& threadPool = system.GetThreadPool();
     FileFetcher& fileFetcher = system.GetFileFetcher();
-    Renderer& renderer = system.GetRenderer();
     const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
 
     auto loadResult = LoadLevel(gpuHelper, threadPool, fileFetcher);
@@ -573,7 +571,7 @@ MainLoop()
 
     auto&& [propKit, level] = std::move(*loadResult);
 
-    auto sceneResult = Scene::Create(gpuHelper, level);
+    auto sceneResult = Scene::Create(gpuHelper, fileFetcher, level.GetAllModelNodes());
     MLG_CHECK(sceneResult);
 
     Scene scene = std::move(*sceneResult);
@@ -748,8 +746,6 @@ MainLoop()
         }
         cameraXForm = cameraActor.GetTransform();
 
-        MLG_CHECK(scene.SyncToGpu());
-
         auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECKV(target, "Failed to get swap chain texture");
 
@@ -762,8 +758,8 @@ MainLoop()
             const Viewport sceneViewport(scenePanelRect.GetDimensions());
             cameraActor.SetViewport(sceneViewport);
 
-            MLG_CHECK(renderer.Render(cameraActor.GetCamera(), cameraXForm, scene, propKit));
-            MLG_CHECK(renderer.Composite(*target, scenePanelRect));
+            MLG_CHECK(scene.Render(cameraActor.GetCamera(), cameraXForm, propKit));
+            MLG_CHECK(scene.Composite(*target, scenePanelRect));
         }
 
         auto renderGui = [&]() { return devUi.Render(); };

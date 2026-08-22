@@ -6,7 +6,6 @@
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "PropKit.h"
-#include "Renderer.h"
 #include "Scene.h"
 #include "ThreadPool.h"
 
@@ -135,10 +134,6 @@ MainLoop()
     MLG_CHECK(fileFetcherResult, "Failed to create FileFetcher");
     std::unique_ptr<FileFetcher> fileFetcher(std::move(*fileFetcherResult));
 
-    auto rendererResult = Renderer::Create(*gpuHelper, *fileFetcher);
-    MLG_CHECK(rendererResult, "Failed to create Renderer");
-    std::unique_ptr<Renderer> renderer(std::move(*rendererResult));
-
     auto imGuiRendererResult = ImGuiRenderer::Create(*gpuHelper);
     MLG_CHECK(imGuiRendererResult, "Failed to create ImGuiRenderer");
     std::unique_ptr<ImGuiRenderer> imGuiRenderer(std::move(*imGuiRendererResult));
@@ -157,9 +152,9 @@ MainLoop()
     MLG_CHECK(levelResult, "Failed to create Level");
     const Level& level = *levelResult;
 
-    auto sceneResult = Scene::Create(*gpuHelper, level);
+    auto sceneResult = Scene::Create(*gpuHelper, *fileFetcher, level.GetAllModelNodes());
     MLG_CHECK(sceneResult, "Failed to create Scene");
-    const Scene& scene = *sceneResult;
+    Scene& scene = *sceneResult;
 
     const TrTransformf cameraXForm{ .T{ 0, 0, -4 } };
     const Viewport viewport(gpuHelper->GetScreenDimensions());
@@ -248,8 +243,8 @@ MainLoop()
         auto target = gpuHelper->GetSwapChainTexture();
         MLG_CHECKV(target, "Failed to get swap chain texture");
 
-        MLG_CHECK(renderer->Render(camera, cameraXForm, scene, propKit));
-        MLG_CHECK(renderer->Composite(*target));
+        MLG_CHECK(scene.Render(camera, cameraXForm, propKit));
+        MLG_CHECK(scene.Composite(*target));
 
         MLG_CHECK(imGuiRenderer->Render(gpuHelper->GetDevice(), *target, RenderGui));
 

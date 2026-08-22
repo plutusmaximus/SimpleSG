@@ -98,34 +98,3 @@ private:
     const Mesh* m_Mesh{ nullptr };
     size_t m_InstanceIndex{ 0 };
 };
-
-class ModelInstance
-{
-public:
-    ModelInstance() = delete;
-
-    ModelInstance(const Model* model, const std::span<const MeshInstance>& meshInstances)
-        : m_Model(model),
-          m_MeshInstances(meshInstances)
-    {
-        MLG_ABORTIF(!model, "ModelInstance cannot be created with an invalid model pointer");
-        MLG_ABORTIF(meshInstances.empty(),
-            "ModelInstance cannot be created with an empty mesh instance list");
-        MLG_ABORTIF(meshInstances.size() != model->GetMeshes().size(),
-            "ModelInstance mesh instance count must match model mesh count");
-    }
-
-    const BoundingBox& GetBoundingBox() const { return m_Model->GetBoundingBox(); }
-    const BoundingSphere& GetBoundingSphere() const { return m_Model->GetBoundingSphere(); }
-
-    std::span<const MeshInstance> GetMeshInstances() const { return m_MeshInstances; }
-
-    void SetVisible(const bool visible) { m_IsVisible = visible; }
-    bool IsVisible() const { return m_IsVisible; }
-
-private:
-    const Model* m_Model{ nullptr };
-    std::span<const MeshInstance> m_MeshInstances;
-
-    bool m_IsVisible{ true };
-};

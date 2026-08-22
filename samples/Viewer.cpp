@@ -7,7 +7,6 @@
 #include "Level.h"
 #include "PerfMetrics.h"
 #include "PropKit.h"
-#include "Renderer.h"
 #include "Scene.h"
 #include "System.h"
 #include "VecMath.h"
@@ -96,7 +95,7 @@ LoadLevel(GpuHelper& gpuHelper,
     auto level = Level::Create(levelDef, *propKit);
     MLG_CHECK(level, "Failed to create Level for {}", path.string());
 
-    auto scene = Scene::Create(gpuHelper, *level);
+    auto scene = Scene::Create(gpuHelper, fileFetcher, level->GetAllModelNodes());
     MLG_CHECK(scene, "Failed to create Scene for {}", path.string());
 
     return std::make_tuple(std::move(*propKit), std::move(*level), std::move(*scene));
@@ -129,7 +128,6 @@ MainLoop()
     GpuHelper& gpuHelper = system.GetGpuHelper();
     ThreadPool& threadPool = system.GetThreadPool();
     FileFetcher& fileFetcher = system.GetFileFetcher();
-    Renderer& renderer = system.GetRenderer();
     const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
 
     CameraActor cameraActor;
@@ -323,8 +321,8 @@ MainLoop()
         auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECKV(target, "Failed to get swap chain texture");
 
-        MLG_CHECK(renderer.Render(camera, cameraXForm, scene, propKit));
-        MLG_CHECK(renderer.Composite(*target));
+        MLG_CHECK(scene.Render(camera, cameraXForm, propKit));
+        MLG_CHECK(scene.Composite(*target));
 
         MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, RenderGui));
 

@@ -94,18 +94,6 @@ struct SphereDef final
 {
     Vec3f Center{ 0 };
     float Radius{ 0 };
-
-    static SphereDef FromBoxDef(const BoxDef& boxDef)
-    {
-        const float radius = boxDef.HalfExtents.Length();
-        return SphereDef{ .Center = boxDef.Center, .Radius = radius };
-    }
-
-    static SphereDef FromCapsuleDef(const CapsuleDef& capsuleDef)
-    {
-        const float radius = capsuleDef.Radius + capsuleDef.HalfHeight;
-        return SphereDef{ .Center = capsuleDef.Center, .Radius = radius };
-    }
 };
 
 struct BoundingVolumeDef final

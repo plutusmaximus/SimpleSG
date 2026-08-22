@@ -45,6 +45,7 @@ private:
     Level(std::vector<LevelNode>&& nodes,
         std::vector<PhysicsNode>&& physicsNodes,
         std::vector<ModelNode>&& modelNodes,
+        std::vector<MeshInstance>&& meshInstances,
         const WorldIdentifier worldId);
 
     template<typename T>
@@ -54,7 +55,8 @@ private:
         const LevelNode* parentNode,
         std::vector<LevelNode>& nodes,
         std::vector<PhysicsNode>& physicsNodes,
-        std::vector<ModelNode>& modelNodes);
+        std::vector<ModelNode>& modelNodes,
+        std::vector<MeshInstance>& meshInstances);
 
     LevelNode* GetNode(const LevelNode& node);
 
@@ -66,6 +68,7 @@ private:
     std::vector<LevelNode> m_Nodes;
     std::vector<PhysicsNode> m_PhysicsNodes;
     std::vector<ModelNode> m_ModelNodes;
+    std::vector<MeshInstance> m_MeshInstances;
     std::span<LevelNode> m_RootNodes;
     WorldIdentifier m_WorldId;
 };

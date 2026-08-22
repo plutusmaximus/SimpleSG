@@ -6,7 +6,6 @@
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "PropKit.h"
-#include "Renderer.h"
 #include "Scene.h"
 #include "Shell.h"
 #include "System.h"
@@ -183,7 +182,7 @@ TriangleApp::InnerUpdate(System& system)
             m_Level = Level::Create(m_LevelDef, *m_PropKit);
             MLG_CHECK(m_Level, "Failed to create Level");
 
-            m_Scene = Scene::Create(gpuHelper, *m_Level);
+            m_Scene = Scene::Create(gpuHelper, fileFetcher, m_Level->GetAllModelNodes());
             MLG_CHECK(m_Scene, "Failed to create Scene");
 
             m_Viewport = Viewport(gpuHelper.GetScreenDimensions());
@@ -201,17 +200,16 @@ TriangleApp::InnerUpdate(System& system)
             else if(!system.IsMinimized())
             {
                 const GpuHelper& gpuHelper = system.GetGpuHelper();
-                Renderer& renderer = system.GetRenderer();
 
                 m_Viewport = Viewport(gpuHelper.GetScreenDimensions());
                 m_Camera.SetViewport(m_Viewport);
 
-                MLG_CHECK(renderer.Render(m_Camera, m_CameraXForm, *m_Scene, *m_PropKit));
+                MLG_CHECK(m_Scene->Render(m_Camera, m_CameraXForm, *m_PropKit));
 
                 auto target = gpuHelper.GetSwapChainTexture();
                 MLG_CHECKV(target, "Failed to get swap chain texture");
 
-                MLG_CHECK(renderer.Composite(*target));
+                MLG_CHECK(m_Scene->Composite(*target));
 
                 MLG_CHECK(
                     system.GetImGuiRenderer().Render(gpuHelper.GetDevice(), *target, RenderGui));

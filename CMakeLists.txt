@@ -357,7 +357,6 @@ set(SSG_SOURCES
   src/LuaRuntime.cpp
   src/PerfMetrics.cpp
   src/PropKit.cpp
-  src/Renderer.cpp
   src/Scene.cpp
   src/ShapeMeshDefs.cpp
   src/Shell.cpp
@@ -396,7 +395,6 @@ set(SSG_HEADERS
   src/PerfMetrics.h
   src/PropKit.h
   src/RangeQuery.h
-  src/Renderer.h
   src/Result.h
   src/Scene.h
   src/SceneTypes.h

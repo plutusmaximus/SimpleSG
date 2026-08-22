@@ -3,7 +3,6 @@
 #include "FileFetcher.h"
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
-#include "Renderer.h"
 #include "ThreadPool.h"
 
 #include <memory>
@@ -144,9 +143,6 @@ public:
     ThreadPool& GetThreadPool();
     const ThreadPool& GetThreadPool() const;
 
-    Renderer& GetRenderer();
-    const Renderer& GetRenderer() const;
-
     const ImGuiRenderer& GetImGuiRenderer() const;
 
     static void PostQuitEvent();
@@ -191,12 +187,10 @@ private:
     System(std::unique_ptr<GpuHelper>&& gpuHelper,
         std::unique_ptr<FileFetcher>&& fileFetcher,
         std::unique_ptr<ThreadPool>&& threadPool,
-        std::unique_ptr<Renderer>&& renderer,
         std::unique_ptr<ImGuiRenderer>&& imGuiRenderer)
         : m_GpuHelper(std::move(gpuHelper)),
           m_FileFetcher(std::move(fileFetcher)),
           m_ThreadPool(std::move(threadPool)),
-          m_Renderer(std::move(renderer)),
           m_ImGuiRenderer(std::move(imGuiRenderer))
     {
     }
@@ -218,7 +212,6 @@ private:
     std::unique_ptr<GpuHelper> m_GpuHelper;
     std::unique_ptr<FileFetcher> m_FileFetcher;
     std::unique_ptr<ThreadPool> m_ThreadPool;
-    std::unique_ptr<Renderer> m_Renderer;
     std::unique_ptr<ImGuiRenderer> m_ImGuiRenderer;
 
     FocusEvent m_FocusEvent{ FocusEvent::None };

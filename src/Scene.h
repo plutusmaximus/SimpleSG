@@ -1,18 +1,20 @@
 #pragma once
 
+#include "GpuColorPass.h"
+#include "GpuCompositorPass.h"
+#include "GpuTransformPass.h"
 #include "GpuTypes.h"
 #include "Level.h"
 #include "SceneTypes.h"
 
 #include <vector>
 
-class Frustum;
-class GpuHelper;
-
 class Scene
 {
 public:
-    static Result<Scene> Create(GpuHelper& gpuHelper, const Level& level);
+    static Result<Scene> Create(GpuHelper& gpuHelper,
+        FileFetcher& fileFetcher,
+        const std::span<const ModelNode> modelNodes);
 
     Scene() = delete;
     ~Scene() = default;
@@ -21,43 +23,49 @@ public:
     Scene(Scene&& other) = default;
     Scene& operator=(Scene&& other) = default;
 
-    void GetVisibleMeshes(const Frustum& frustum,
-        std::vector<MeshInstance>& outVisibleMeshes) const;
+    Result<> Render(const Camera& camera, const TrTransformf& cameraXForm, const PropKit& propKit);
 
-    GpuWorldTransformBuffer GetWorldTransformBuffer() const { return m_WorldTransformBuffer; }
+    Result<> Composite(const GpuRenderTarget& target);
 
-    GpuClipSpaceBuffer GetClipSpaceBuffer() const { return m_ClipSpaceBuffer; }
-
-    GpuDrawIndirectBuffer GetDrawIndirectBuffer() const { return m_DrawIndirectBuffer; }
-
-    GpuMeshPropertiesBuffer GetMeshPropertiesBuffer() const { return m_MeshPropertiesBuffer; }
-
-    GpuCameraParamsBuffer GetCameraParamsBuffer() const { return m_CameraParamsBuffer; }
-
-    // Sync updates from CPU -> GPU.
-    Result<> SyncToGpu();
+    Result<> Composite(const GpuRenderTarget& target, const Rect& dstRect);
 
 private:
-    Scene(const wgpu::Device& gpuDevice,
+    Scene(const GpuHelper& gpuHelper,
+        const std::span<const ModelNode> modelNodes,
+        GpuColorPass&& colorPass,
+        GpuCompositorPass&& compositorPass,
+        GpuTransformPass&& transformPass,
         GpuWorldTransformBuffer&& worldTransformBuffer,
         GpuClipSpaceBuffer&& clipSpaceBuffer,
         GpuDrawIndirectBuffer&& drawIndirectBuffer,
         GpuMeshPropertiesBuffer&& meshPropertiesBuffer,
-        GpuCameraParamsBuffer&& cameraParamsBuffer,
-        std::vector<ModelInstance>&& modelInstances,
-        std::vector<MeshInstance>&& meshInstances,
-        std::vector<const ModelNode*>&& modelNodes);
+        GpuCameraParamsBuffer&& cameraParamsBuffer);
 
-    const wgpu::Device* m_GpuDevice{ nullptr };
+    void CollectVisibleMeshes(const Frustum& frustum,
+        std::vector<MeshInstance>& outVisibleMeshes) const;
+
+    // Sync updates from CPU -> GPU.
+    Result<> SyncToGpu();
+
+    Result<> TransformNodes(const wgpu::Device& gpuDevice,
+        const wgpu::CommandEncoder& cmdEncoder,
+        const TrTransformf& cameraXForm,
+        const Camera& camera);
+
+    const GpuHelper* m_GpuHelper{ nullptr };
+
+    std::span<const ModelNode> m_ModelNodes;
+
+    std::optional<GpuColorPass::Outputs> m_ColorPassOutputs;
+    GpuColorPass m_ColorPass;
+    GpuCompositorPass m_CompositorPass;
+    GpuTransformPass m_TransformPass;
 
     GpuWorldTransformBuffer m_WorldTransformBuffer;
     GpuClipSpaceBuffer m_ClipSpaceBuffer;
     GpuDrawIndirectBuffer m_DrawIndirectBuffer;
     GpuMeshPropertiesBuffer m_MeshPropertiesBuffer;
     GpuCameraParamsBuffer m_CameraParamsBuffer;
-
-    std::vector<ModelInstance> m_ModelInstances;
-    std::vector<MeshInstance> m_MeshInstances;
-
-    std::vector<const ModelNode*> m_ModelNodes;
+    
+    std::vector<MeshInstance> m_VisibleMeshes;
 };

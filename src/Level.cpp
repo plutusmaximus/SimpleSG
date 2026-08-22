@@ -26,6 +26,7 @@ CountNodes(const T& nodeDefs)
 
     return count;
 }
+
 template<typename T>
 size_t
 CountModels(const T& nodeDefs)
@@ -44,6 +45,33 @@ CountModels(const T& nodeDefs)
         }
 
         count += CountModels(nodeDef.Children);
+    }
+
+    return count;
+}
+template<typename T>
+size_t
+CountMeshInstances(const T& nodeDefs, const PropKit& propKit)
+{
+    using NodeDef = std::ranges::range_value_t<T>;
+
+    static_assert(std::same_as<NodeDef, LevelNodeDef> || std::same_as<NodeDef, RootNodeDef>,
+        "CountMeshInstances requires a range of LevelNodeDef or RootNodeDef");
+
+    size_t count = 0;
+    for(const auto& nodeDef : nodeDefs)
+    {
+        if(nodeDef.Model)
+        {
+            const ModelRef& modelRef = *nodeDef.Model;
+
+            MLG_ABORTIF(modelRef.Name.empty(), "ModelRef in node {} is empty", nodeDef.Name);
+
+            const Model* model = propKit.GetModel(nodeDef.Model->Name);
+            MLG_ABORTIF(!model, "Model {} not found in PropKit", nodeDef.Model->Name);
+            count += model->GetMeshes().size();
+        }
+        count += CountMeshInstances(nodeDef.Children, propKit);
     }
 
     return count;
@@ -217,14 +245,14 @@ Level::CollectNodes(T nodeDefs,
     const LevelNode* parentNode,
     std::vector<LevelNode>& nodes,
     std::vector<PhysicsNode>& physicsNodes,
-    std::vector<ModelNode>& modelNodes)
+    std::vector<ModelNode>& modelNodes,
+    std::vector<MeshInstance>& meshInstances)
 {
     MLG_CHECKV(nodes.capacity() >= nodes.size() + nodeDefs.size(),
         "Not enough capacity in nodes vector to collect nodes");
 
     const size_t initialNodeCount = nodes.size();
 
-    // Add nodes from the current level.
     for(const auto& nodeDef : nodeDefs)
     {
         using NodeDefType = std::remove_cvref_t<decltype(nodeDef)>;
@@ -247,6 +275,7 @@ Level::CollectNodes(T nodeDefs,
 
         nodes.emplace_back(nodeDef.Transform, parentNode);
 
+        // If the node has a model, create a ModelNode and MeshInstances for each mesh in the model.
         if(nodeDef.Model)
         {
             const ModelRef& modelRef = *nodeDef.Model;
@@ -254,17 +283,30 @@ Level::CollectNodes(T nodeDefs,
             MLG_CHECKV(!modelRef.Name.empty(), "ModelRef in node {} is empty", nodeDef.Name);
 
             const Model* model = propKit.GetModel(modelRef.Name);
-            MLG_CHECK(model);
+            MLG_CHECKV(model);
 
-            modelNodes.emplace_back(ModelNode(&nodes.back(), model));
+            const size_t meshInstanceOffset = meshInstances.size();
+
+            for(const Mesh& mesh : model->GetMeshes())
+            {
+                const size_t meshIndex = meshInstances.size();
+                meshInstances.emplace_back(&mesh, meshIndex);
+            }
+
+            const std::span<const MeshInstance> meshInstancesSpan =
+                std::span(meshInstances).subspan(meshInstanceOffset, model->GetMeshes().size());
+
+            modelNodes.emplace_back(ModelNode(&nodes.back(), model, meshInstancesSpan));
         }
 
         // For root nodes, create a rigid body if specified.
         if constexpr(std::same_as<NodeDefType, RootNodeDef>)
         {
-            if(nodeDef.Body)
+            const auto& body = nodeDef.Body;
+
+            if(body)
             {
-                const RigidBodyDef& rigidBodyDef = *nodeDef.Body;
+                const RigidBodyDef& rigidBodyDef = *body;
 
                 MLG_CHECKV(rigidBodyDef.Mass > 0,
                     "RigidBodyDef in node {} has non-positive mass",
@@ -297,7 +339,8 @@ Level::CollectNodes(T nodeDefs,
             &node,
             nodes,
             physicsNodes,
-            modelNodes));
+            modelNodes,
+            meshInstances));
 
         node.m_Children = std::span(nodes).subspan(firstChildIndex, nodeDef.Children.size());
     }
@@ -311,13 +354,17 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit)
     const size_t nodeCount = CountNodes(levelDef.NodeDefs);
     const size_t bodyCount = CountBodies(levelDef.NodeDefs);
     const size_t modelCount = CountModels(levelDef.NodeDefs);
+    const size_t meshInstanceCount = CountMeshInstances(levelDef.NodeDefs, propKit);
 
     std::vector<LevelNode> nodes;
     std::vector<PhysicsNode> physicsNodes;
     std::vector<ModelNode> modelNodes;
+    std::vector<MeshInstance> meshInstances;
+
     nodes.reserve(nodeCount);
     physicsNodes.reserve(bodyCount);
     modelNodes.reserve(modelCount);
+    meshInstances.reserve(meshInstanceCount);
 
     b3WorldDef worldDef = b3DefaultWorldDef();
     worldDef.restitutionThreshold = 0.0f;
@@ -333,13 +380,15 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit)
         nullptr,
         nodes,
         physicsNodes,
-        modelNodes));
+        modelNodes,
+        meshInstances));
 
     const WorldIdentifier worldIdentifier{ b3StoreWorldId(worldId) };
 
     Level level(std::move(nodes),
         std::move(physicsNodes),
         std::move(modelNodes),
+        std::move(meshInstances),
         worldIdentifier);
 
     return std::move(level);
@@ -348,10 +397,12 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit)
 Level::Level(std::vector<LevelNode>&& nodes,
     std::vector<PhysicsNode>&& physicsNodes,
     std::vector<ModelNode>&& modelNodes,
+    std::vector<MeshInstance>&& meshInstances,
     const WorldIdentifier worldId)
     : m_Nodes(std::move(nodes)),
       m_PhysicsNodes(std::move(physicsNodes)),
       m_ModelNodes(std::move(modelNodes)),
+      m_MeshInstances(std::move(meshInstances)),
       m_WorldId(worldId)
 {
     size_t rootNodeCount = 0;

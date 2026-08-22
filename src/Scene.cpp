@@ -4,13 +4,11 @@
 
 #include "Camera.h"
 #include "GpuHelper.h"
-#include "Level.h"
 #include "narrow_cast.h"
 #include "PerfMetrics.h"
+#include "PropKit.h"
 #include "SceneTypes.h"
 #include "Timer.h"
-
-#include <ranges>
 
 namespace
 {
@@ -28,63 +26,28 @@ CountMeshInstances(const std::span<const ModelNode> modelNodes)
     return count;
 }
 
-Result<>
-BuildScene(const Level& level,
-    std::vector<ModelInstance>& outModelInstances,
-    std::vector<MeshInstance>& outMeshInstances)
-{
-    const std::span modelNodes = level.GetAllModelNodes();
-    const size_t modelInstanceCount = modelNodes.size();
-    const size_t meshInstanceCount = CountMeshInstances(modelNodes);
-
-    outModelInstances.clear();
-    outMeshInstances.clear();
-
-    outModelInstances.reserve(modelInstanceCount);
-    outMeshInstances.reserve(meshInstanceCount);
-
-    // Initialize the transform buffer with the world space transform
-    // of each node that contains a model instance.
-
-    for(const ModelNode& node : modelNodes)
-    {
-        const Model* model = node.GetModel();
-
-        const size_t meshInstanceOffset = outMeshInstances.size();
-
-        for(const Mesh& mesh : model->GetMeshes())
-        {
-            const size_t meshIndex = outMeshInstances.size();
-            outMeshInstances.emplace_back(&mesh, meshIndex);
-        }
-
-        const std::span<const MeshInstance> meshInstances =
-            std::span(outMeshInstances).subspan(meshInstanceOffset, model->GetMeshes().size());
-
-        outModelInstances.emplace_back(model, meshInstances);
-    }
-
-    return Result<>::Ok;
-}
-
 Result<GpuDrawIndirectBuffer>
-BuildDrawIndirectBuffer(GpuHelper& gpuHelper, std::span<const MeshInstance> meshInstances)
+BuildDrawIndirectBuffer(GpuHelper& gpuHelper, const std::span<const ModelNode> modelNodes)
 {
+    const size_t meshInstanceCount = CountMeshInstances(modelNodes);
     std::vector<ShaderInterop::DrawIndirectParams> drawIndirectParams;
-    drawIndirectParams.reserve(meshInstances.size());
+    drawIndirectParams.reserve(meshInstanceCount);
 
-    for(const MeshInstance& meshInstance : meshInstances)
+    for(const ModelNode& modelNode : modelNodes)
     {
-        const ShaderInterop::DrawIndirectParams drawParams //
-            {
-                .IndexCount = meshInstance.GetIndexCount(),
-                .InstanceCount = 1,
-                .FirstIndex = meshInstance.GetFirstIndex(),
-                .BaseVertex = meshInstance.GetBaseVertex(),
-                .FirstInstance = narrow_cast<uint32_t>(drawIndirectParams.size()),
-            };
+        for(const MeshInstance& meshInstance : modelNode.GetMeshInstances())
+        {
+            const ShaderInterop::DrawIndirectParams drawParams //
+                {
+                    .IndexCount = meshInstance.GetIndexCount(),
+                    .InstanceCount = 1,
+                    .FirstIndex = meshInstance.GetFirstIndex(),
+                    .BaseVertex = meshInstance.GetBaseVertex(),
+                    .FirstInstance = narrow_cast<uint32_t>(drawIndirectParams.size()),
+                };
 
-        drawIndirectParams.push_back(drawParams);
+            drawIndirectParams.push_back(drawParams);
+        }
     }
 
     auto buffer = gpuHelper.CreateIndirectBuffer<GpuDrawIndirectBuffer>(drawIndirectParams.size(),
@@ -97,20 +60,17 @@ BuildDrawIndirectBuffer(GpuHelper& gpuHelper, std::span<const MeshInstance> mesh
 }
 
 Result<GpuMeshPropertiesBuffer>
-BuildMeshPropertiesBuffer(GpuHelper& gpuHelper,
-    const std::span<const ModelInstance> modelInstances,
-    const std::span<const MeshInstance> meshInstances)
+BuildMeshPropertiesBuffer(GpuHelper& gpuHelper, const std::span<const ModelNode> modelNodes)
 {
-    const size_t meshInstanceCount = meshInstances.size();
-
+    const size_t meshInstanceCount = CountMeshInstances(modelNodes);
     std::vector<ShaderInterop::MeshProperties> meshProperties;
     meshProperties.reserve(meshInstanceCount);
 
     uint32_t transformIndex = 0;
 
-    for(const auto& modelInstance : modelInstances)
+    for(const ModelNode& modelNode : modelNodes)
     {
-        for(const MeshInstance& meshInstance : modelInstance.GetMeshInstances())
+        for(const MeshInstance& meshInstance : modelNode.GetMeshInstances())
         {
             const ShaderInterop::MeshProperties meshProps //
                 {
@@ -133,25 +93,41 @@ BuildMeshPropertiesBuffer(GpuHelper& gpuHelper,
 
     return buffer;
 }
+
+Result<GpuColorPass::Outputs>
+CreateColorPassTarget(const GpuHelper& gpuHelper, const uint32_t width, const uint32_t height)
+{
+    MLG_DEBUG("Creating new color/depth target with size {}x{}", width, height);
+
+    auto renderTarget = gpuHelper.CreateRenderTarget(width, height, "ColorPass::RenderTarget");
+    MLG_CHECK(renderTarget, "Failed to create color render target");
+
+    auto depthBuffer = gpuHelper.CreateDepthBuffer(width, height, "ColorPass::DepthBuffer");
+    MLG_CHECK(depthBuffer, "Failed to create color depth buffer");
+
+    return GpuColorPass::Outputs //
+        {
+            .RenderTarget = *renderTarget,
+            .DepthBuffer = *depthBuffer,
+        };
+}
 } // namespace
 
 Result<Scene>
-Scene::Create(GpuHelper& gpuHelper, const Level& level)
+Scene::Create(
+    GpuHelper& gpuHelper, FileFetcher& fileFetcher, const std::span<const ModelNode> modelNodes)
 {
     Timer createTimer;
     createTimer.Start();
 
-    std::vector<ModelInstance> modelInstances;
-    std::vector<MeshInstance> meshInstances;
-    std::vector<const ModelNode*> modelNodes;
+    auto gpuColorPassResult = GpuColorPass::Create(gpuHelper, fileFetcher);
+    MLG_CHECK(gpuColorPassResult, "Failed to create GpuColorPass");
 
-    modelNodes.reserve(level.GetAllModelNodes().size());
-    for(const ModelNode& node : level.GetAllModelNodes())
-    {
-        modelNodes.push_back(&node);
-    }
+    auto gpuCompositorPassResult = GpuCompositorPass::Create(gpuHelper, fileFetcher);
+    MLG_CHECK(gpuCompositorPassResult, "Failed to create GpuCompositorPass");
 
-    MLG_CHECK(BuildScene(level, modelInstances, meshInstances));
+    auto gpuTransformPassResult = GpuTransformPass::Create(gpuHelper, fileFetcher);
+    MLG_CHECK(gpuTransformPassResult, "Failed to create GpuTransformPass");
 
     auto transformBuffer = gpuHelper.CreateStorageBuffer<GpuWorldTransformBuffer>(modelNodes.size(),
         "WorldTransforms");
@@ -161,24 +137,25 @@ Scene::Create(GpuHelper& gpuHelper, const Level& level)
         gpuHelper.CreateStorageBuffer<GpuClipSpaceBuffer>(modelNodes.size(), "ClipSpaceTransforms");
     MLG_CHECK(clipSpaceBuffer);
 
-    auto drawIndirectBuffer = BuildDrawIndirectBuffer(gpuHelper, meshInstances);
+    auto drawIndirectBuffer = BuildDrawIndirectBuffer(gpuHelper, modelNodes);
     MLG_CHECK(drawIndirectBuffer);
 
-    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(gpuHelper, modelInstances, meshInstances);
+    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(gpuHelper, modelNodes);
     MLG_CHECK(meshPropertiesBuffer);
 
     auto cameraParamsBuf = gpuHelper.CreateUniformBuffer<GpuCameraParamsBuffer>(1, "CameraParams");
     MLG_CHECK(cameraParamsBuf);
 
-    Scene scene(gpuHelper.GetDevice(),
+    Scene scene(gpuHelper,
+        modelNodes,
+        std::move(*gpuColorPassResult),
+        std::move(*gpuCompositorPassResult),
+        std::move(*gpuTransformPassResult),
         std::move(*transformBuffer),
         std::move(*clipSpaceBuffer),
         std::move(*drawIndirectBuffer),
         std::move(*meshPropertiesBuffer),
-        std::move(*cameraParamsBuf),
-        std::move(modelInstances),
-        std::move(meshInstances),
-        std::move(modelNodes));
+        std::move(*cameraParamsBuf));
 
     MLG_CHECK(scene.SyncToGpu());
 
@@ -187,48 +164,157 @@ Scene::Create(GpuHelper& gpuHelper, const Level& level)
     return std::move(scene);
 }
 
-Scene::Scene(const wgpu::Device& gpuDevice,
+Scene::Scene(const GpuHelper& gpuHelper,
+    const std::span<const ModelNode> modelNodes,
+    GpuColorPass&& colorPass,
+    GpuCompositorPass&& compositorPass,
+    GpuTransformPass&& transformPass,
     GpuWorldTransformBuffer&& worldTransformBuffer,
     GpuClipSpaceBuffer&& clipSpaceBuffer,
     GpuDrawIndirectBuffer&& drawIndirectBuffer,
     GpuMeshPropertiesBuffer&& meshPropertiesBuffer,
-    GpuCameraParamsBuffer&& cameraParamsBuffer,
-    std::vector<ModelInstance>&& modelInstances,
-    std::vector<MeshInstance>&& meshInstances,
-    std::vector<const ModelNode*>&& modelNodes)
-    : m_GpuDevice(&gpuDevice),
+    GpuCameraParamsBuffer&& cameraParamsBuffer)
+    : m_GpuHelper(&gpuHelper),
+      m_ModelNodes(modelNodes),
+      m_ColorPass(std::move(colorPass)),
+      m_CompositorPass(std::move(compositorPass)),
+      m_TransformPass(std::move(transformPass)),
       m_WorldTransformBuffer(std::move(worldTransformBuffer)),
       m_ClipSpaceBuffer(std::move(clipSpaceBuffer)),
       m_DrawIndirectBuffer(std::move(drawIndirectBuffer)),
       m_MeshPropertiesBuffer(std::move(meshPropertiesBuffer)),
-      m_CameraParamsBuffer(std::move(cameraParamsBuffer)),
-      m_ModelInstances(std::move(modelInstances)),
-      m_MeshInstances(std::move(meshInstances)),
-      m_ModelNodes(std::move(modelNodes))
+      m_CameraParamsBuffer(std::move(cameraParamsBuffer))
 {
+    const size_t meshInstanceCount = CountMeshInstances(m_ModelNodes);
+    m_VisibleMeshes.reserve(meshInstanceCount);
 }
 
+Result<>
+Scene::Render(const Camera& camera, const TrTransformf& cameraXForm, const PropKit& propKit)
+{
+    MLG_SCOPED_TIMER("Scene.Render");
+
+    MLG_CHECK(SyncToGpu());
+
+    const wgpu::Device& gpuDevice = m_GpuHelper->GetDevice();
+
+    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "Renderer::Render" };
+    const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
+    MLG_CHECK(cmdEncoder, "Failed to create command encoder");
+
+    auto transformNodesResult = TransformNodes(gpuDevice, cmdEncoder, cameraXForm, camera);
+    MLG_CHECK(transformNodesResult);
+
+    const Viewport& viewport = camera.GetViewport();
+
+    if(!m_ColorPassOutputs
+        || m_ColorPassOutputs->RenderTarget->GetWidth() != viewport.GetWidth()
+        || m_ColorPassOutputs->RenderTarget->GetHeight() != viewport.GetHeight())
+    {
+        auto colorPassOutputs =
+            CreateColorPassTarget(*m_GpuHelper, viewport.GetWidth(), viewport.GetHeight());
+        MLG_CHECK(colorPassOutputs);
+
+        m_ColorPassOutputs = std::move(*colorPassOutputs);
+    }
+
+    const GpuColorPass::Inputs colorPassInputs //
+        {
+            .Viewport = viewport,
+            .Vertices = propKit.GetVertexBuffer(),
+            .Indices = propKit.GetIndexBuffer(),
+            .WorldTransforms = m_WorldTransformBuffer,
+            .ClipSpaceTransforms = m_ClipSpaceBuffer,
+            .MeshProperties = m_MeshPropertiesBuffer,
+            .MaterialConstants = propKit.GetMaterialConstants(),
+            .CameraParams = m_CameraParamsBuffer,
+            .DrawIndirectBuffer = m_DrawIndirectBuffer,
+        };
+
+    MLG_CHECK(m_ColorPass.SetInputs(colorPassInputs));
+    MLG_CHECK(m_ColorPass.SetOutputs(*m_ColorPassOutputs));
+
+    auto invocation = m_ColorPass.Prepare(cmdEncoder);
+    MLG_CHECK(invocation);
+
+    m_VisibleMeshes.clear();
+    const Frustum frustum(camera, cameraXForm);
+    CollectVisibleMeshes(frustum, m_VisibleMeshes);
+    std::ranges::sort(m_VisibleMeshes, {}, &MeshInstance::GetMaterialId);
+
+    MLG_CHECK(invocation->Execute(m_VisibleMeshes, propKit));
+
+    const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
+    MLG_CHECK(cmdBuf, "Failed to finish command buffer");
+
+    const wgpu::Queue queue = gpuDevice.GetQueue();
+    MLG_CHECK(queue, "Failed to get wgpu::Queue");
+
+    queue.Submit(1, &cmdBuf);
+
+    return Result<>::Ok;
+}
+
+Result<>
+Scene::Composite(const GpuRenderTarget& target)
+{
+    const Rect dstRect(
+        { .X = 0, .Y = 0, .Width = target->GetWidth(), .Height = target->GetHeight() });
+
+    return Composite(target, dstRect);
+}
+
+Result<>
+Scene::Composite(const GpuRenderTarget& target, const Rect& dstRect)
+{
+    MLG_CHECKV(m_ColorPassOutputs, "Color pass outputs are not valid");
+
+    const GpuCompositorPass::Inputs inputs //
+        {
+            .DstRect = dstRect,
+            .Texture = m_ColorPassOutputs->RenderTarget.Get(),
+        };
+
+    const GpuCompositorPass::Outputs outputs //
+        {
+            .RenderTarget = target,
+        };
+
+    MLG_CHECK(m_CompositorPass.SetInputs(inputs));
+    MLG_CHECK(m_CompositorPass.SetOutputs(outputs));
+
+    auto pass = m_CompositorPass.Prepare();
+    MLG_CHECK(pass, "Failed to begin compositor pass");
+
+    MLG_CHECK(pass->Execute(), "Failed to execute compositor pass");
+
+    return Result<>::Ok;
+}
+
+// private:
+
 void
-Scene::GetVisibleMeshes(const Frustum& frustum, std::vector<MeshInstance>& outVisibleMeshes) const
+Scene::CollectVisibleMeshes(const Frustum& frustum,
+    std::vector<MeshInstance>& outVisibleMeshes) const
 {
     static PerfCounter pcTotalMeshes({ .Name = "Scene.Meshes.Total" });
     static PerfCounter pcVisibleMeshes({ .Name = "Scene.Meshes.Visible" });
 
-    pcTotalMeshes.Increment(m_MeshInstances.size());
-
     outVisibleMeshes.clear();
 
-    const auto view = std::views::zip(m_ModelInstances, m_ModelNodes);
+    size_t totalMeshes = 0;
 
-    for(const auto&& [modelInstance, modelNode] : view)
+    for(const ModelNode& modelNode : m_ModelNodes)
     {
-        if(!modelInstance.IsVisible())
+        totalMeshes += modelNode.GetMeshInstances().size();
+
+        if(!modelNode.IsVisible())
         {
             continue;
         }
 
         const BoundingSphere& modelBs =
-            modelNode->GetWorldTransform() * modelInstance.GetBoundingSphere();
+            modelNode.GetWorldTransform() * modelNode.GetBoundingSphere();
 
         const Frustum::ContainsResult result = frustum.Contains(modelBs);
 
@@ -236,10 +322,10 @@ Scene::GetVisibleMeshes(const Frustum& frustum, std::vector<MeshInstance>& outVi
         {
             // Model intersects frustum, check each mesh instance.
 
-            for(const MeshInstance& meshInstance : modelInstance.GetMeshInstances())
+            for(const MeshInstance& meshInstance : modelNode.GetMeshInstances())
             {
                 const BoundingSphere& meshBs =
-                    modelNode->GetWorldTransform() * meshInstance.GetBoundingSphere();
+                    modelNode.GetWorldTransform() * meshInstance.GetBoundingSphere();
 
                 if(Frustum::ContainsResult::Outside == frustum.Contains(meshBs))
                 {
@@ -253,7 +339,7 @@ Scene::GetVisibleMeshes(const Frustum& frustum, std::vector<MeshInstance>& outVi
         {
             // Model is fully inside frustum, add all mesh instances.
 
-            for(const MeshInstance& meshInstance : modelInstance.GetMeshInstances())
+            for(const MeshInstance& meshInstance : modelNode.GetMeshInstances())
             {
                 outVisibleMeshes.push_back(meshInstance);
             }
@@ -265,6 +351,7 @@ Scene::GetVisibleMeshes(const Frustum& frustum, std::vector<MeshInstance>& outVi
         }
     }
 
+    pcTotalMeshes.Increment(totalMeshes);
     pcVisibleMeshes.Increment(outVisibleMeshes.size());
 }
 
@@ -273,20 +360,60 @@ Scene::SyncToGpu()
 {
     // Brute force copy everything for now.
     uint64_t bufferOffset = 0;
-    for(size_t i = 0; i < m_ModelNodes.size(); ++i)
+    for(const ModelNode& modelNode : m_ModelNodes)
     {
-        const ModelNode& node = *m_ModelNodes[i];
-
-        const ShaderInterop::WorldTransform transform{ .Transform = node.GetWorldTransform() };
-        m_GpuDevice->GetQueue().WriteBuffer(m_WorldTransformBuffer.GetGpuBuffer(),
+        const ShaderInterop::WorldTransform transform{ .Transform = modelNode.GetWorldTransform() };
+        m_GpuHelper->GetDevice().GetQueue().WriteBuffer(m_WorldTransformBuffer.GetGpuBuffer(),
             bufferOffset,
             &transform,
             sizeof(transform));
 
         bufferOffset += sizeof(transform);
-
-        m_ModelInstances[i].SetVisible(node.IsVisible());
     }
+
+    return Result<>::Ok;
+}
+
+Result<>
+Scene::TransformNodes(const wgpu::Device& gpuDevice,
+    const wgpu::CommandEncoder& cmdEncoder,
+    const TrTransformf& cameraXForm,
+    const Camera& camera)
+{
+    // Use inverse of camera transform as view matrix
+    const Mat44f viewMat = cameraXForm.Inverse().ToMatrix();
+    const Mat44f& projMat = camera.GetProjectionMatrix();
+    const Mat44f viewProjMat = projMat.Mul(viewMat);
+
+    const ShaderInterop::CameraParams cameraParams //
+        {
+            .View = viewMat,
+            .Projection = projMat,
+            .ViewProj = viewProjMat,
+        };
+
+    gpuDevice.GetQueue().WriteBuffer(m_CameraParamsBuffer.GetGpuBuffer(),
+        0,
+        &cameraParams,
+        sizeof(ShaderInterop::CameraParams));
+
+    const GpuTransformPass::Inputs inputs //
+        {
+            .WorldTransforms = m_WorldTransformBuffer,
+            .CameraParams = m_CameraParamsBuffer,
+        };
+
+    const GpuTransformPass::Outputs outputs //
+        {
+            .ClipSpaceTransforms = m_ClipSpaceBuffer,
+        };
+
+    MLG_CHECK(m_TransformPass.SetInputs(inputs));
+    MLG_CHECK(m_TransformPass.SetOutputs(outputs));
+    auto invocation = m_TransformPass.Prepare(cmdEncoder);
+    MLG_CHECK(invocation, "Failed to prepare transform pass");
+
+    MLG_CHECK(invocation->Execute(), "Failed to execute transform pass");
 
     return Result<>::Ok;
 }

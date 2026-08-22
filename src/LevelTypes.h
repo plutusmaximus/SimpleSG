@@ -1,13 +1,13 @@
 #pragma once
 
 #include "PhysicsTypes.h"
+#include "SceneTypes.h"
 #include "VecMath.h"
 
 #include <span>
 #include <string_view>
 
 class Level;
-class Model;
 
 class LevelNode
 {
@@ -136,19 +136,26 @@ public:
 
     const Mat44f& GetWorldTransform() const { return m_Node->GetWorldTransform(); }
 
+    const BoundingBox& GetBoundingBox() const { return m_Model->GetBoundingBox(); }
+    const BoundingSphere& GetBoundingSphere() const { return m_Model->GetBoundingSphere(); }
+
+    std::span<const MeshInstance> GetMeshInstances() const { return m_MeshInstances; }
+
     bool IsVisible() const { return m_Node->IsVisible(); }
 
 private:
     friend Level;
 
-    ModelNode(LevelNode* node, const Model* model)
+    ModelNode(LevelNode* node, const Model* model, std::span<const MeshInstance> meshInstances)
         : m_Node(node),
-          m_Model(model)
+          m_Model(model),
+          m_MeshInstances(meshInstances)
     {
-        MLG_ASSERT(node, "ModelNode must be associated with a valid LevelNode");
-        MLG_ASSERT(model, "ModelNode must be associated with a valid Model");
+        MLG_ABORTIF(!node, "ModelNode must be associated with a valid LevelNode");
+        MLG_ABORTIF(!model, "ModelNode must be associated with a valid Model");
     }
 
     LevelNode* m_Node{ nullptr };
     const Model* m_Model{ nullptr };
+    std::span<const MeshInstance> m_MeshInstances;
 };
