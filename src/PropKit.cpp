@@ -502,6 +502,143 @@ BuildMaterialConstantsBuffer(GpuHelper& gpuHelper, const std::span<const Materia
 
     return buffer;
 }
+
+std::map<MaterialDef, MaterialIdentifier>
+BuildUniqueMaterialsMap(const std::span<const ModelDef> modelDefs)
+{
+    std::map<MaterialDef, MaterialIdentifier> uniqueMaterialMap;
+    size_t materialIndex = 0;
+
+    for(const auto& modelDef : modelDefs)
+    {
+        for(const auto& meshDef : modelDef.MeshDefs)
+        {
+            const MaterialDef& materialDef = meshDef.MaterialDef;
+            if(!uniqueMaterialMap.contains(materialDef))
+            {
+                uniqueMaterialMap[materialDef] = MaterialIdentifier(materialIndex++);
+            }
+        }
+    }
+    return uniqueMaterialMap;
+}
+
+Result<std::vector<Mesh>>
+BuildMeshes(const std::span<const ModelDef> modelDefs,
+    const std::map<MaterialDef, MaterialIdentifier>& uniqueMaterialMap)
+{
+    size_t meshCount = 0;
+    for(const auto& modelDef : modelDefs)
+    {
+        meshCount += modelDef.MeshDefs.size();
+    }
+
+    std::vector<Mesh> meshes;
+    meshes.reserve(meshCount);
+
+    size_t firstIndex = 0;
+    size_t baseVertex = 0;
+
+    for(const auto& modelDef : modelDefs)
+    {
+        for(const auto& meshDef : modelDef.MeshDefs)
+        {
+            auto it = uniqueMaterialMap.find(meshDef.MaterialDef);
+            MLG_CHECKV(it != uniqueMaterialMap.end(),
+                "Failed to find material for mesh");
+            const MaterialIdentifier materialId = it->second;
+
+            const Mesh::VertexParams vertexParams //
+                {
+                    .IndexCount = narrow_cast<uint32_t>(meshDef.Indices.size()),
+                    .FirstIndex = narrow_cast<uint32_t>(firstIndex),
+                    .BaseVertex = narrow_cast<uint32_t>(baseVertex),
+                };
+
+            const BoundingBox aabb = BoundingBox::FromVertices(meshDef.Vertices, meshDef.Indices);
+
+            meshes.emplace_back(vertexParams, materialId, aabb);
+            firstIndex += meshDef.Indices.size();
+            baseVertex += meshDef.Vertices.size();
+        }
+    }
+
+    return meshes;
+}
+
+std::vector<Model>
+BuildModels(const std::span<const ModelDef> modelDefs, const std::vector<Mesh>& meshes)
+{
+    std::vector<Model> models;
+    models.reserve(modelDefs.size());
+
+    size_t meshIndex = 0;
+
+    for(const auto& modelDef : modelDefs)
+    {
+        const std::span meshSpan = std::span(meshes).subspan(meshIndex, modelDef.MeshDefs.size());
+        BoundingBox aabb = meshSpan.front().GetBoundingBox();
+        for(const Mesh& mesh : meshSpan.subspan(1))
+        {
+            aabb += mesh.GetBoundingBox();
+        }
+        models.emplace_back(meshSpan, aabb);
+        meshIndex += modelDef.MeshDefs.size();
+    }
+
+    return models;
+}
+
+std::vector<Vertex>
+BuildVertices(const std::span<const ModelDef> modelDefs)
+{
+    size_t vertexCount = 0;
+    for(const auto& modelDef : modelDefs)
+    {
+        for(const auto& meshDef : modelDef.MeshDefs)
+        {
+            vertexCount += meshDef.Vertices.size();
+        }
+    }
+    std::vector<Vertex> vertices;
+    vertices.reserve(vertexCount);
+
+    for(const auto& modelDef : modelDefs)
+    {
+        for(const auto& meshDef : modelDef.MeshDefs)
+        {
+            vertices.append_range(meshDef.Vertices);
+        }
+    }
+
+    return vertices;
+}
+
+std::vector<VertexIndex>
+BuildIndices(const std::span<const ModelDef> modelDefs)
+{
+    size_t indexCount = 0;
+    for(const auto& modelDef : modelDefs)
+    {
+        for(const auto& meshDef : modelDef.MeshDefs)
+        {
+            indexCount += meshDef.Indices.size();
+        }
+    }
+
+    std::vector<VertexIndex> indices;
+    indices.reserve(indexCount);
+
+    for(const auto& modelDef : modelDefs)
+    {
+        for(const auto& meshDef : modelDef.MeshDefs)
+        {
+            indices.append_range(meshDef.Indices);
+        }
+    }
+
+    return indices;
+}
 } // namespace
 
 Result<PropKit>
@@ -514,30 +651,8 @@ PropKit::Create(GpuHelper& gpuHelper,
     Timer createTimer;
     createTimer.Start();
 
-    size_t vertexCount = 0, indexCount = 0, meshCount = 0, totalStringSize = 0;
-    size_t materialIndex = 0;
-
-    std::map<MaterialDef, MaterialIdentifier> uniqueMaterialMap;
-
-    // Count total vertices, indices, and meshes while also building a map of unique materials to
-    // assign indices to them.
-    for(const auto& modelDef : propKitDef.ModelDefs)
-    {
-        totalStringSize += modelDef.Name.size() + 1;
-
-        for(const auto& mesh : modelDef.MeshDefs)
-        {
-            const MaterialDef& materialDef = mesh.MaterialDef;
-            if(!uniqueMaterialMap.contains(materialDef))
-            {
-                uniqueMaterialMap[materialDef] = MaterialIdentifier(materialIndex++);
-            }
-
-            vertexCount += mesh.Vertices.size();
-            indexCount += mesh.Indices.size();
-            meshCount += 1;
-        }
-    }
+    const std::map<MaterialDef, MaterialIdentifier> uniqueMaterialMap =
+        BuildUniqueMaterialsMap(propKitDef.ModelDefs);
 
     std::vector<MaterialDef> uniqueMaterials;
     uniqueMaterials.resize(uniqueMaterialMap.size());
@@ -546,51 +661,28 @@ PropKit::Create(GpuHelper& gpuHelper,
         uniqueMaterials[id.GetValue()] = materialDef;
     }
 
-    std::vector<Vertex> vertices;
-    std::vector<VertexIndex> indices;
-    std::vector<Mesh> meshes;
-    std::vector<Model> models;
-    std::vector<NameIndexPair> modelNameIndex;
-    vertices.reserve(vertexCount);
-    indices.reserve(indexCount);
-    meshes.reserve(meshCount);
-    models.reserve(propKitDef.ModelDefs.size());
-    modelNameIndex.reserve(propKitDef.ModelDefs.size());
-    StringArena stringArena(totalStringSize);
+    auto meshes = BuildMeshes(propKitDef.ModelDefs, uniqueMaterialMap);
+    MLG_CHECK(meshes);
+    std::vector<Model> models = BuildModels(propKitDef.ModelDefs, *meshes);
+    std::vector<Vertex> vertices = BuildVertices(propKitDef.ModelDefs);
+    std::vector<VertexIndex> indices = BuildIndices(propKitDef.ModelDefs);
 
+    size_t totalStringSize = 0;
     for(const auto& modelDef : propKitDef.ModelDefs)
     {
+        totalStringSize += modelDef.Name.size() + 1;
+    }
+    StringArena stringArena(totalStringSize);
+
+    std::vector<NameIndexPair> modelNameIndex;
+    modelNameIndex.reserve(propKitDef.ModelDefs.size());
+
+    for(size_t i = 0; i < propKitDef.ModelDefs.size(); ++i)
+    {
+        const auto& modelDef = propKitDef.ModelDefs[i];
         const StringHandle modelName = stringArena.NewString(modelDef.Name);
 
-        const size_t firstMeshIdx = meshes.size();
-
-        for(const auto& meshDef : modelDef.MeshDefs)
-        {
-            const Mesh::VertexParams vertexParams //
-                {
-                    .IndexCount = narrow_cast<uint32_t>(meshDef.Indices.size()),
-                    .FirstIndex = narrow_cast<uint32_t>(indices.size()),
-                    .BaseVertex = narrow_cast<uint32_t>(vertices.size()),
-                };
-
-            const MaterialIdentifier materialId = uniqueMaterialMap[meshDef.MaterialDef];
-            const BoundingBox aabb = BoundingBox::FromVertices(meshDef.Vertices, meshDef.Indices);
-
-            meshes.emplace_back(vertexParams, materialId, aabb);
-            vertices.insert(vertices.end(), meshDef.Vertices.begin(), meshDef.Vertices.end());
-            indices.insert(indices.end(), meshDef.Indices.begin(), meshDef.Indices.end());
-        }
-
-        // The span of meshes for this model starts at firstMeshIdx and goes to the end of the meshes vector.
-        const std::span<const Mesh> meshSpan = std::span<const Mesh>(meshes).subspan(firstMeshIdx);
-        BoundingBox aabb = meshSpan.front().GetBoundingBox();
-        for(const Mesh& mesh : meshSpan.subspan(1))
-        {
-            aabb += mesh.GetBoundingBox();
-        }
-
-        models.emplace_back(meshSpan, aabb);
-        modelNameIndex.emplace_back(modelName, models.size() - 1);
+        modelNameIndex.emplace_back(modelName, i);
     }
 
     TextureCache textureCache(gpuHelper.GetDefaultTexture());
@@ -619,7 +711,7 @@ PropKit::Create(GpuHelper& gpuHelper,
         std::move(*indexBuffer),
         std::move(*materialConstants),
         std::move(materialBindGroups),
-        std::move(meshes),
+        std::move(*meshes),
         std::move(models),
         std::move(modelNameIndex),
         std::move(stringArena));
