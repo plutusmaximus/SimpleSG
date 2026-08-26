@@ -224,7 +224,7 @@ using GpuDrawIndirectBuffer =
     GpuBuffer<ShaderInterop::DrawIndirectParams, GpuBufferUsage::Indirect>;
 using GpuWorldTransformBuffer = GpuBuffer<ShaderInterop::WorldTransform, GpuBufferUsage::Storage>;
 using GpuClipSpaceBuffer = GpuBuffer<ShaderInterop::ClipSpaceTransform, GpuBufferUsage::Storage>;
-using GpuMeshPropertiesBuffer = GpuBuffer<ShaderInterop::MeshProperties, GpuBufferUsage::Storage>;
+using GpuMeshInstanceParamsBuffer = GpuBuffer<ShaderInterop::MeshInstanceParams, GpuBufferUsage::Storage>;
 using GpuCameraParamsBuffer = GpuBuffer<ShaderInterop::CameraParams, GpuBufferUsage::Uniform>;
 using GpuMaterialConstantsBuffer =
     GpuBuffer<ShaderInterop::MaterialConstants, GpuBufferUsage::Storage>;

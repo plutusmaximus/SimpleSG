@@ -37,7 +37,7 @@ CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
                 .minBindingSize = sizeof(ShaderInterop::ClipSpaceTransform),
             },
         },
-        // Mesh properties.
+        // Mesh instance parameters.
         {
             .binding = 2,
             .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
@@ -45,7 +45,7 @@ CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
             {
                 .type = wgpu::BufferBindingType::ReadOnlyStorage,
                 .hasDynamicOffset = false,
-                .minBindingSize = sizeof(ShaderInterop::MeshProperties),
+                .minBindingSize = sizeof(ShaderInterop::MeshInstanceParams),
             },
         },
         // Material constants buffer.
@@ -153,8 +153,8 @@ BindGroup0NeedsRefresh(const GpuColorPass::Inputs& currentInputs,
         != newInputs.WorldTransforms.GetGpuBuffer().Get()
         || currentInputs.ClipSpaceTransforms.GetGpuBuffer().Get()
         != newInputs.ClipSpaceTransforms.GetGpuBuffer().Get()
-        || currentInputs.MeshProperties.GetGpuBuffer().Get()
-        != newInputs.MeshProperties.GetGpuBuffer().Get()
+        || currentInputs.MeshInstanceParams.GetGpuBuffer().Get()
+        != newInputs.MeshInstanceParams.GetGpuBuffer().Get()
         || currentInputs.MaterialConstants.GetGpuBuffer().Get()
         != newInputs.MaterialConstants.GetGpuBuffer().Get()
         || currentInputs.CameraParams.GetGpuBuffer().Get()
@@ -388,7 +388,10 @@ GpuColorPass::EnsurePipeline()
             .targets = &colorTargetState,
         };
 
-    const wgpu::VertexBufferLayout vertexBufferLayout = GetVertexBufferLayout();
+    const wgpu::VertexBufferLayout vertexBufferLayouts[]//
+    {
+        GetVertexBufferLayout(),
+    };
 
     const wgpu::RenderPipelineDescriptor descriptor//
     {
@@ -399,7 +402,7 @@ GpuColorPass::EnsurePipeline()
             .module = m_Shader,
             .entryPoint = VertexEntry,
             .bufferCount = 1,
-            .buffers = &vertexBufferLayout,
+            .buffers = &vertexBufferLayouts[0],
         },
         .primitive =
         {
@@ -451,9 +454,9 @@ GpuColorPass::EnsureInputsBindGroup()
             },
             {
                 .binding = 2,
-                .buffer = m_Inputs->MeshProperties.GetGpuBuffer(),
+                .buffer = m_Inputs->MeshInstanceParams.GetGpuBuffer(),
                 .offset = 0,
-                .size = m_Inputs->MeshProperties.BufferSize(),
+                .size = m_Inputs->MeshInstanceParams.BufferSize(),
             },
             {
                 .binding = 3,

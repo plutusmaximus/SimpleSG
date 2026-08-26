@@ -25,7 +25,7 @@ public:
         GpuIndexBuffer Indices;
         GpuWorldTransformBuffer WorldTransforms;
         GpuClipSpaceBuffer ClipSpaceTransforms;
-        GpuMeshPropertiesBuffer MeshProperties;
+        GpuMeshInstanceParamsBuffer MeshInstanceParams;
         GpuMaterialConstantsBuffer MaterialConstants;
         GpuCameraParamsBuffer CameraParams;
         GpuDrawIndirectBuffer DrawIndirectBuffer;
@@ -42,7 +42,7 @@ public:
                 && a.Indices == b.Indices
                 && a.WorldTransforms == b.WorldTransforms
                 && a.ClipSpaceTransforms == b.ClipSpaceTransforms
-                && a.MeshProperties == b.MeshProperties
+                && a.MeshInstanceParams == b.MeshInstanceParams
                 && a.MaterialConstants == b.MaterialConstants
                 && a.CameraParams == b.CameraParams
                 && a.DrawIndirectBuffer == b.DrawIndirectBuffer;

@@ -69,7 +69,7 @@ public:
     Mat44f Transform;
 };
 
-class MeshProperties
+class MeshInstanceParams
 {
 public:
 

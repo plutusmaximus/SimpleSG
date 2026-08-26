@@ -38,7 +38,7 @@ private:
         GpuWorldTransformBuffer&& worldTransformBuffer,
         GpuClipSpaceBuffer&& clipSpaceBuffer,
         GpuDrawIndirectBuffer&& drawIndirectBuffer,
-        GpuMeshPropertiesBuffer&& meshPropertiesBuffer,
+        GpuMeshInstanceParamsBuffer&& meshInstanceParamsBuffer,
         GpuCameraParamsBuffer&& cameraParamsBuffer);
 
     void CollectVisibleMeshes(const Frustum& frustum,
@@ -64,7 +64,7 @@ private:
     GpuWorldTransformBuffer m_WorldTransformBuffer;
     GpuClipSpaceBuffer m_ClipSpaceBuffer;
     GpuDrawIndirectBuffer m_DrawIndirectBuffer;
-    GpuMeshPropertiesBuffer m_MeshPropertiesBuffer;
+    GpuMeshInstanceParamsBuffer m_MeshInstanceParamsBuffer;
     GpuCameraParamsBuffer m_CameraParamsBuffer;
     
     std::vector<MeshInstance> m_VisibleMeshes;

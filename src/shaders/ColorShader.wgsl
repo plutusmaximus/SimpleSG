@@ -8,7 +8,7 @@ struct ClipSpaceTransform
     xform : mat4x4<f32>,
 }
 
-struct MeshProperties
+struct MeshInstanceParams
 {
     transformIndex : u32,
     materialIndex : u32,
@@ -33,7 +33,7 @@ struct Camera
 
 @group(0) @binding(0) var<storage, read> worldTransforms : array<WorldTransform>;
 @group(0) @binding(1) var<storage, read> clipSpaceTransforms : array<ClipSpaceTransform>;
-@group(0) @binding(2) var<storage, read> meshProperties : array<MeshProperties>;
+@group(0) @binding(2) var<storage, read> meshInstanceParams : array<MeshInstanceParams>;
 @group(0) @binding(3) var<storage, read> materials : array<Material>;
 @group(0) @binding(4) var<uniform> camera : Camera;
 
@@ -60,7 +60,7 @@ fn vs_main(input: VSInput, @builtin(instance_index) instance_index: u32) -> FSIn
 {
     var output: FSInput;
 
-    let transformIndex = meshProperties[instance_index].transformIndex;
+    let transformIndex = meshInstanceParams[instance_index].transformIndex;
     let clipXform = clipSpaceTransforms[transformIndex].xform;
     let worldTransform = worldTransforms[transformIndex].xform;
 
@@ -75,7 +75,7 @@ fn vs_main(input: VSInput, @builtin(instance_index) instance_index: u32) -> FSIn
 @fragment
 fn fs_main(input: FSInput) -> @location(0) vec4<f32>
 {
-    let material = materials[meshProperties[input.instanceIndex].materialIndex];
+    let material = materials[meshInstanceParams[input.instanceIndex].materialIndex];
     let lightDir = normalize(vec3<f32>(1.0, -1.0, 1.0));
     let ambientFactor = 0.1;
     let diff = max(-dot(input.fragNormal, lightDir), 0.0);

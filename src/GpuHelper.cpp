@@ -691,6 +691,7 @@ GpuHelper::CreateTask::FinalizeAdapter()
 
     const bool supported =
         m_TaskImpl->m_GpuHelper->m_Adapter.HasFeature(wgpu::FeatureName::IndirectFirstInstance);
+    //FIXME(KB) - show a big error message and exit if not supported.
     MLG_CHECK(supported, "IndirectFirstInstance feature is not supported");
 
     wgpu::AdapterInfo adapterInfo;

@@ -59,12 +59,12 @@ BuildDrawIndirectBuffer(GpuHelper& gpuHelper, const std::span<const ModelNode> m
     return buffer;
 }
 
-Result<GpuMeshPropertiesBuffer>
-BuildMeshPropertiesBuffer(GpuHelper& gpuHelper, const std::span<const ModelNode> modelNodes)
+Result<GpuMeshInstanceParamsBuffer>
+BuildMeshInstanceParamsBuffer(GpuHelper& gpuHelper, const std::span<const ModelNode> modelNodes)
 {
     const size_t meshInstanceCount = CountMeshInstances(modelNodes);
-    std::vector<ShaderInterop::MeshProperties> meshProperties;
-    meshProperties.reserve(meshInstanceCount);
+    std::vector<ShaderInterop::MeshInstanceParams> meshInstanceParams;
+    meshInstanceParams.reserve(meshInstanceCount);
 
     uint32_t transformIndex = 0;
 
@@ -72,24 +72,24 @@ BuildMeshPropertiesBuffer(GpuHelper& gpuHelper, const std::span<const ModelNode>
     {
         for(const MeshInstance& meshInstance : modelNode.GetMeshInstances())
         {
-            const ShaderInterop::MeshProperties meshProps //
+            const ShaderInterop::MeshInstanceParams mip //
                 {
                     .TransformIndex = transformIndex,
                     // FIXME(KB) - reconcile material ID
                     .MaterialIndex = narrow_cast<uint32_t>(meshInstance.GetMaterialId().GetValue()),
                 };
 
-            meshProperties.push_back(meshProps);
+            meshInstanceParams.push_back(mip);
         }
 
         ++transformIndex;
     }
 
-    auto buffer = gpuHelper.CreateStorageBuffer<GpuMeshPropertiesBuffer>(meshProperties.size(),
-        "MeshPropertiesBuffer");
+    auto buffer = gpuHelper.CreateStorageBuffer<GpuMeshInstanceParamsBuffer>(meshInstanceParams.size(),
+        "MeshInstanceParamsBuffer");
     MLG_CHECK(buffer);
 
-    buffer->Store(meshProperties);
+    buffer->Store(meshInstanceParams);
 
     return buffer;
 }
@@ -140,8 +140,8 @@ Scene::Create(
     auto drawIndirectBuffer = BuildDrawIndirectBuffer(gpuHelper, modelNodes);
     MLG_CHECK(drawIndirectBuffer);
 
-    auto meshPropertiesBuffer = BuildMeshPropertiesBuffer(gpuHelper, modelNodes);
-    MLG_CHECK(meshPropertiesBuffer);
+    auto meshInstanceParamsBuffer = BuildMeshInstanceParamsBuffer(gpuHelper, modelNodes);
+    MLG_CHECK(meshInstanceParamsBuffer);
 
     auto cameraParamsBuf = gpuHelper.CreateUniformBuffer<GpuCameraParamsBuffer>(1, "CameraParams");
     MLG_CHECK(cameraParamsBuf);
@@ -154,7 +154,7 @@ Scene::Create(
         std::move(*transformBuffer),
         std::move(*clipSpaceBuffer),
         std::move(*drawIndirectBuffer),
-        std::move(*meshPropertiesBuffer),
+        std::move(*meshInstanceParamsBuffer),
         std::move(*cameraParamsBuf));
 
     MLG_CHECK(scene.SyncToGpu());
@@ -172,7 +172,7 @@ Scene::Scene(const GpuHelper& gpuHelper,
     GpuWorldTransformBuffer&& worldTransformBuffer,
     GpuClipSpaceBuffer&& clipSpaceBuffer,
     GpuDrawIndirectBuffer&& drawIndirectBuffer,
-    GpuMeshPropertiesBuffer&& meshPropertiesBuffer,
+    GpuMeshInstanceParamsBuffer&& meshInstanceParamsBuffer,
     GpuCameraParamsBuffer&& cameraParamsBuffer)
     : m_GpuHelper(&gpuHelper),
       m_ModelNodes(modelNodes),
@@ -182,7 +182,7 @@ Scene::Scene(const GpuHelper& gpuHelper,
       m_WorldTransformBuffer(std::move(worldTransformBuffer)),
       m_ClipSpaceBuffer(std::move(clipSpaceBuffer)),
       m_DrawIndirectBuffer(std::move(drawIndirectBuffer)),
-      m_MeshPropertiesBuffer(std::move(meshPropertiesBuffer)),
+      m_MeshInstanceParamsBuffer(std::move(meshInstanceParamsBuffer)),
       m_CameraParamsBuffer(std::move(cameraParamsBuffer))
 {
     const size_t meshInstanceCount = CountMeshInstances(m_ModelNodes);
@@ -225,7 +225,7 @@ Scene::Render(const Camera& camera, const TrTransformf& cameraXForm, const PropK
             .Indices = propKit.GetIndexBuffer(),
             .WorldTransforms = m_WorldTransformBuffer,
             .ClipSpaceTransforms = m_ClipSpaceBuffer,
-            .MeshProperties = m_MeshPropertiesBuffer,
+            .MeshInstanceParams = m_MeshInstanceParamsBuffer,
             .MaterialConstants = propKit.GetMaterialConstants(),
             .CameraParams = m_CameraParamsBuffer,
             .DrawIndirectBuffer = m_DrawIndirectBuffer,
