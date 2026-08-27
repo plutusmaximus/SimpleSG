@@ -9,69 +9,73 @@
 
 namespace
 {
+
+using NodeDefPtr = std::variant<const RootNodeDef*, const ChildNodeDef*>;
+
 template<typename T>
-size_t
-CountNodes(const T& nodeDefs)
+std::vector<NodeDefPtr>
+FlattenNodes(const T& nodeDefs)
 {
     using NodeDef = std::ranges::range_value_t<T>;
 
-    static_assert(std::same_as<NodeDef, LevelNodeDef> || std::same_as<NodeDef, RootNodeDef>,
-        "CountNodes requires a range of LevelNodeDef or RootNodeDef");
+    static_assert(std::same_as<NodeDef, ChildNodeDef> || std::same_as<NodeDef, RootNodeDef>,
+        "CountNodes requires a range of ChildNodeDef or RootNodeDef");
 
-    size_t count = nodeDefs.size();
+    std::vector<NodeDefPtr> flatNodes;
     for(const auto& nodeDef : nodeDefs)
     {
-        count += CountNodes(nodeDef.Children);
+        flatNodes.push_back(&nodeDef);
+        flatNodes.append_range(FlattenNodes(nodeDef.Children));
+    }
+
+    return flatNodes;
+}
+
+size_t
+CountModels(const std::span<const NodeDefPtr> flattenedNodeDefs)
+{
+    size_t count = 0;
+    for(const auto& nodeDefPtr : flattenedNodeDefs)
+    {
+        std::visit(
+            [&count](const auto* nodeDef)
+            {
+                if(nodeDef->Model)
+                {
+                    ++count;
+                }
+            },
+            nodeDefPtr);
     }
 
     return count;
 }
 
-template<typename T>
 size_t
-CountModels(const T& nodeDefs)
+CountMeshInstances(const std::span<const NodeDefPtr> flattenedNodeDefs, const PropKit& propKit)
 {
-    using NodeDef = std::ranges::range_value_t<T>;
-
-    static_assert(std::same_as<NodeDef, LevelNodeDef> || std::same_as<NodeDef, RootNodeDef>,
-        "CountModels requires a range of LevelNodeDef or RootNodeDef");
-
     size_t count = 0;
-    for(const auto& nodeDef : nodeDefs)
+    for(const auto& nodeDefPtr : flattenedNodeDefs)
     {
-        if(nodeDef.Model)
-        {
-            ++count;
-        }
+        std::visit(
+            [&count, &propKit](const auto* nodeDef)
+            {
+                const std::optional<ModelRef>& optModel = nodeDef->Model;
 
-        count += CountModels(nodeDef.Children);
-    }
+                if(optModel)
+                {
+                    const ModelRef& modelRef = *optModel;
 
-    return count;
-}
-template<typename T>
-size_t
-CountMeshInstances(const T& nodeDefs, const PropKit& propKit)
-{
-    using NodeDef = std::ranges::range_value_t<T>;
+                    MLG_ABORTIF(modelRef.Name.empty(),
+                        "ModelRef in node {} is empty",
+                        nodeDef->Name);
 
-    static_assert(std::same_as<NodeDef, LevelNodeDef> || std::same_as<NodeDef, RootNodeDef>,
-        "CountMeshInstances requires a range of LevelNodeDef or RootNodeDef");
-
-    size_t count = 0;
-    for(const auto& nodeDef : nodeDefs)
-    {
-        if(nodeDef.Model)
-        {
-            const ModelRef& modelRef = *nodeDef.Model;
-
-            MLG_ABORTIF(modelRef.Name.empty(), "ModelRef in node {} is empty", nodeDef.Name);
-
-            const Model* model = propKit.GetModel(nodeDef.Model->Name);
-            MLG_ABORTIF(!model, "Model {} not found in PropKit", nodeDef.Model->Name);
-            count += model->GetMeshes().size();
-        }
-        count += CountMeshInstances(nodeDef.Children, propKit);
+                    const Model* model = propKit.GetModel(modelRef.Name);
+                    MLG_ABORTIF(!model, "Model {} not found in PropKit", modelRef.Name);
+                    count += model->GetMeshes().size();
+                }
+            },
+            nodeDefPtr);
     }
 
     return count;
@@ -118,11 +122,11 @@ AttachShapeToBody(const b3BodyId bodyId, const Mass& mass, const ColliderDef& co
 
     constexpr float pi = std::numbers::pi_v<float>;
 
-    switch(colliderDef.BoundingVolume.GetType())
+    switch(colliderDef.Shape.GetType())
     {
-        case BoundingVolumeDef::Type::Sphere:
+        case ColliderShapeType::Sphere:
         {
-            const SphereDef& sphereDef = colliderDef.BoundingVolume.GetSphereDef();
+            const SphereDef& sphereDef = colliderDef.Shape.GetSphere();
             const Vec3f center = sphereDef.Center;
             const b3Sphere sphere //
                 {
@@ -137,9 +141,9 @@ AttachShapeToBody(const b3BodyId bodyId, const Mass& mass, const ColliderDef& co
             return b3CreateSphereShape(bodyId, &shapeDef, &sphere);
         }
         break;
-        case BoundingVolumeDef::Type::Box:
+        case ColliderShapeType::Box:
         {
-            const BoxDef& boxDef = colliderDef.BoundingVolume.GetBoxDef();
+            const BoxDef& boxDef = colliderDef.Shape.GetBox();
             const Vec3f halfExtents = boxDef.HalfExtents;
             const b3BoxHull dynamicBox = b3MakeBoxHull(halfExtents.x, halfExtents.y, halfExtents.z);
             const float volume = 8.0f * halfExtents.x * halfExtents.y * halfExtents.z;
@@ -148,9 +152,9 @@ AttachShapeToBody(const b3BodyId bodyId, const Mass& mass, const ColliderDef& co
             return b3CreateHullShape(bodyId, &shapeDef, &dynamicBox.base);
         }
         break;
-        case BoundingVolumeDef::Type::Capsule:
+        case ColliderShapeType::Capsule:
         {
-            const CapsuleDef& capsuleDef = colliderDef.BoundingVolume.GetCapsuleDef();
+            const CapsuleDef& capsuleDef = colliderDef.Shape.GetCapsule();
             const float halfHeight = capsuleDef.HalfHeight;
             const Vec3f& center = capsuleDef.Center;
             const b3Capsule capsule //
@@ -351,17 +355,17 @@ Level::CollectNodes(T nodeDefs,
 Result<Level>
 Level::Create(const LevelDef& levelDef, const PropKit& propKit)
 {
-    const size_t nodeCount = CountNodes(levelDef.NodeDefs);
+    const std::vector<NodeDefPtr> flattenedNodeDefs = FlattenNodes(levelDef.NodeDefs);
     const size_t bodyCount = CountBodies(levelDef.NodeDefs);
-    const size_t modelCount = CountModels(levelDef.NodeDefs);
-    const size_t meshInstanceCount = CountMeshInstances(levelDef.NodeDefs, propKit);
+    const size_t modelCount = CountModels(flattenedNodeDefs);
+    const size_t meshInstanceCount = CountMeshInstances(flattenedNodeDefs, propKit);
 
     std::vector<LevelNode> nodes;
     std::vector<PhysicsNode> physicsNodes;
     std::vector<ModelNode> modelNodes;
     std::vector<MeshInstance> meshInstances;
 
-    nodes.reserve(nodeCount);
+    nodes.reserve(flattenedNodeDefs.size());
     physicsNodes.reserve(bodyCount);
     modelNodes.reserve(modelCount);
     meshInstances.reserve(meshInstanceCount);
@@ -537,10 +541,11 @@ Level::UpdateWorldTransforms(std::span<LevelNode> nodes)
 {
     for(LevelNode& node : nodes)
     {
-        if(node.m_Parent)
+        const LevelNode* parent = node.GetParent();
+
+        if(parent)
         {
-            node.m_WorldTransform =
-                node.m_Parent->m_WorldTransform * node.m_LocalTransform.ToMatrix();
+            node.m_WorldTransform = parent->m_WorldTransform * node.m_LocalTransform.ToMatrix();
         }
         else
         {
@@ -548,9 +553,6 @@ Level::UpdateWorldTransforms(std::span<LevelNode> nodes)
             node.m_WorldTransform = node.m_LocalTransform.ToMatrix();
         }
 
-        if(!node.m_Children.empty())
-        {
-            UpdateWorldTransforms(node.m_Children);
-        }
+        UpdateWorldTransforms(node.m_Children);
     }
 }

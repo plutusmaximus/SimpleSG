@@ -16,6 +16,13 @@ enum class CollisionType
     Trigger
 };
 
+enum class ColliderShapeType
+{
+    Sphere,
+    Box,
+    Capsule,
+};
+
 class Mass
 {
 public:

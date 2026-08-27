@@ -469,7 +469,7 @@ CollectNode(const cgltf_node& srcNode, T& nodeDefs)
         modelName = srcNode.mesh->name ? srcNode.mesh->name : "<unnamed>";
     }
 
-    std::vector<LevelNodeDef> childNodes;
+    std::vector<ChildNodeDef> childNodes;
     childNodes.reserve(srcNode.children_count);
 
     const std::span<const cgltf_node* const> childrenSpan(srcNode.children, srcNode.children_count);

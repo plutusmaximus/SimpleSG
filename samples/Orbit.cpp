@@ -110,7 +110,7 @@ LoadLevel(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher
                     {
                         ColliderDef //
                         {
-                            .BoundingVolume =
+                            .Shape =
                                 SphereDef //
                             {
                                 .Center = Vec3f(0),

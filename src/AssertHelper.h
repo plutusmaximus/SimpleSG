@@ -121,3 +121,5 @@ static bool Log(AssertHelper::AssertData& assertData,
         std::abort(); \
     } \
     MLG_CLANG_DIAG_POP
+
+#define MLG_ABORT(...) MLG_ABORTIF(true, __VA_ARGS__)

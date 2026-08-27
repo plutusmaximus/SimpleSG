@@ -96,58 +96,50 @@ struct SphereDef final
     float Radius{ 0 };
 };
 
-struct BoundingVolumeDef final
+struct ColliderShapeDef final
 {
-    enum class Type
-    {
-        Sphere,
-        Box,
-        Capsule,
-    };
+    ColliderShapeDef() = delete;
 
-    BoundingVolumeDef() = delete;
-
-    BoundingVolumeDef(const SphereDef& sphereDef) // NOLINT(google-explicit-constructor)
-        : m_Type(Type::Sphere),
+    ColliderShapeDef(const SphereDef& sphereDef) // NOLINT(google-explicit-constructor)
+        : m_Type(ColliderShapeType::Sphere),
           m_Sphere(sphereDef)
     {
     }
 
-    BoundingVolumeDef(const BoxDef& boxDef) // NOLINT(google-explicit-constructor)
-        : m_Type(Type::Box),
+    ColliderShapeDef(const BoxDef& boxDef) // NOLINT(google-explicit-constructor)
+        : m_Type(ColliderShapeType::Box),
           m_Box(boxDef)
     {
     }
 
-    BoundingVolumeDef(const CapsuleDef& capsuleDef) // NOLINT(google-explicit-constructor)
-        : m_Type(Type::Capsule),
+    ColliderShapeDef(const CapsuleDef& capsuleDef) // NOLINT(google-explicit-constructor)
+        : m_Type(ColliderShapeType::Capsule),
           m_Capsule(capsuleDef)
     {
     }
 
-    Type GetType() const { return m_Type; }
+    ColliderShapeType GetType() const { return m_Type; }
 
-    const SphereDef& GetSphereDef() const
+    const SphereDef& GetSphere() const
     {
-        MLG_VERIFY(m_Type == Type::Sphere, "BoundingVolumeDef is not a Sphere");
+        MLG_VERIFY(m_Type == ColliderShapeType::Sphere, "ColliderShapeDef is not a Sphere");
         return m_Sphere; // NOLINT(cppcoreguidelines-pro-type-union-access)
     }
 
-    const BoxDef& GetBoxDef() const
+    const BoxDef& GetBox() const
     {
-        MLG_VERIFY(m_Type == Type::Box, "BoundingVolumeDef is not a Box");
+        MLG_VERIFY(m_Type == ColliderShapeType::Box, "ColliderShapeDef is not a Box");
         return m_Box; // NOLINT(cppcoreguidelines-pro-type-union-access)
     }
 
-    const CapsuleDef& GetCapsuleDef() const
+    const CapsuleDef& GetCapsule() const
     {
-        MLG_VERIFY(m_Type == Type::Capsule, "BoundingVolumeDef is not a Capsule");
+        MLG_VERIFY(m_Type == ColliderShapeType::Capsule, "ColliderShapeDef is not a Capsule");
         return m_Capsule; // NOLINT(cppcoreguidelines-pro-type-union-access)
     }
 
 private:
-
-    Type m_Type;
+    ColliderShapeType m_Type;
 
     union
     {
@@ -159,7 +151,7 @@ private:
 
 struct ColliderDef final
 {
-    BoundingVolumeDef BoundingVolume;
+    ColliderShapeDef Shape;
     CollisionType CollisionType{ CollisionType::Block };
 };
 
@@ -170,11 +162,11 @@ struct RigidBodyDef final
     std::vector<ColliderDef> Colliders;
 };
 
-struct LevelNodeDef final
+struct ChildNodeDef final
 {
     std::string Name;
     TrsTransformf Transform;
-    std::vector<LevelNodeDef> Children;
+    std::vector<ChildNodeDef> Children;
     std::optional<ModelRef> Model;
 };
 
@@ -182,7 +174,7 @@ struct RootNodeDef final
 {
     std::string Name;
     TrsTransformf Transform;
-    std::vector<LevelNodeDef> Children;
+    std::vector<ChildNodeDef> Children;
     std::optional<ModelRef> Model;
     std::optional<RigidBodyDef> Body;
 };
