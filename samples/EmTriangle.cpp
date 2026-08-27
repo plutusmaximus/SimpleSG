@@ -107,7 +107,6 @@ CreateTriangleModel(PropKitDef& outPropKitDef, LevelDef& outLevelDef)
 class TriangleApp
 {
 public:
-
     /// @brief Called by the Shell.  Calls InnerUpdate to perform the main work of the application,
     /// and handles any errors that occur.
     Shell::AppState Update(System& system);
@@ -147,7 +146,7 @@ private:
 
     State m_State{ State::Init };
 };
-    
+
 Shell::AppState
 TriangleApp::Update(System& system)
 {
@@ -233,10 +232,7 @@ Run()
     static Shell shell(kAppName);
     static TriangleApp triangleApp;
 
-    static auto AppUpdate = [](System& system)
-    {
-        return triangleApp.Update(system);
-    };
+    static auto AppUpdate = [](System& system) { return triangleApp.Update(system); };
 
     if(!shell.IsStopped())
     {

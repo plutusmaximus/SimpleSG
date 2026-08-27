@@ -27,7 +27,7 @@ CountMeshInstances(const std::span<const ModelNode> modelNodes)
 }
 
 Result<GpuDrawIndirectBuffer>
-BuildDrawIndirectBuffer(GpuHelper& gpuHelper, const std::span<const ModelNode> modelNodes)
+BuildDrawIndirectBuffer(const GpuHelper& gpuHelper, const std::span<const ModelNode> modelNodes)
 {
     const size_t meshInstanceCount = CountMeshInstances(modelNodes);
     std::vector<ShaderInterop::DrawIndirectParams> drawIndirectParams;
@@ -60,7 +60,8 @@ BuildDrawIndirectBuffer(GpuHelper& gpuHelper, const std::span<const ModelNode> m
 }
 
 Result<GpuMeshInstanceParamsBuffer>
-BuildMeshInstanceParamsBuffer(GpuHelper& gpuHelper, const std::span<const ModelNode> modelNodes)
+BuildMeshInstanceParamsBuffer(const GpuHelper& gpuHelper,
+    const std::span<const ModelNode> modelNodes)
 {
     const size_t meshInstanceCount = CountMeshInstances(modelNodes);
     std::vector<ShaderInterop::MeshInstanceParams> meshInstanceParams;
@@ -85,8 +86,9 @@ BuildMeshInstanceParamsBuffer(GpuHelper& gpuHelper, const std::span<const ModelN
         ++transformIndex;
     }
 
-    auto buffer = gpuHelper.CreateStorageBuffer<GpuMeshInstanceParamsBuffer>(meshInstanceParams.size(),
-        "MeshInstanceParamsBuffer");
+    auto buffer =
+        gpuHelper.CreateStorageBuffer<GpuMeshInstanceParamsBuffer>(meshInstanceParams.size(),
+            "MeshInstanceParamsBuffer");
     MLG_CHECK(buffer);
 
     buffer->Store(meshInstanceParams);
@@ -114,8 +116,9 @@ CreateColorPassTarget(const GpuHelper& gpuHelper, const uint32_t width, const ui
 } // namespace
 
 Result<Scene>
-Scene::Create(
-    GpuHelper& gpuHelper, FileFetcher& fileFetcher, const std::span<const ModelNode> modelNodes)
+Scene::Create(const GpuHelper& gpuHelper,
+    FileFetcher& fileFetcher,
+    const std::span<const ModelNode> modelNodes)
 {
     Timer createTimer;
     createTimer.Start();

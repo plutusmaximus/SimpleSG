@@ -1,7 +1,8 @@
 #define MLG_LOGGER_NAME "WGPU"
 
-#include "FileFetcher.h"
 #include "GpuHelper.h"
+
+#include "FileFetcher.h"
 
 #include <filesystem>
 #include <SDL3/SDL_init.h>
@@ -9,6 +10,7 @@
 #include <SDL3/SDL_video.h>
 #include <string>
 #include <thread>
+
 
 #if !defined(EMSCRIPTEN)
 #if defined(_WIN32)
@@ -629,7 +631,8 @@ GpuHelper::CreateTask::Begin(const std::string_view& appName)
     MLG_CHECK(instance);
     gpuHelper->m_Instance = std::move(*instance);
 
-    auto surface = CreateSurface(gpuHelper->m_Instance, gpuHelper->m_Window, gpuHelper->m_MetalView);
+    auto surface =
+        CreateSurface(gpuHelper->m_Instance, gpuHelper->m_Window, gpuHelper->m_MetalView);
     MLG_CHECK(surface);
     gpuHelper->m_Surface = std::move(*surface);
 
@@ -691,7 +694,7 @@ GpuHelper::CreateTask::FinalizeAdapter()
 
     const bool supported =
         m_TaskImpl->m_GpuHelper->m_Adapter.HasFeature(wgpu::FeatureName::IndirectFirstInstance);
-    //FIXME(KB) - show a big error message and exit if not supported.
+    // FIXME(KB) - show a big error message and exit if not supported.
     MLG_CHECK(supported, "IndirectFirstInstance feature is not supported");
 
     wgpu::AdapterInfo adapterInfo;
@@ -731,11 +734,12 @@ GpuHelper::CreateTask::CreateDevice()
     // toggles.disabledToggles = disabledToggles;
 #endif
 
-    const wgpu::FeatureName requiredFeatures[] = //
+    /*const wgpu::FeatureName requiredFeatures[] = //
         {
-            wgpu::FeatureName::IndirectFirstInstance,
+            // indirect-first-instance
+            //wgpu::FeatureName::IndirectFirstInstance,
             // wgpu::FeatureName::MultiDrawIndirect
-        };
+        };*/
 
     const wgpu::Limits requiredLimits{};
     /*requiredLimits.maxTextureDimension2D = 4096;
@@ -749,12 +753,12 @@ GpuHelper::CreateTask::CreateDevice()
         {
             {
 #ifndef __EMSCRIPTEN__
-                //.nextInChain = &toggles,
+    //.nextInChain = &toggles,
 #endif
                 .nextInChain = nullptr,
                 .label = "MainDevice",
-                .requiredFeatureCount = std::size(requiredFeatures),
-                .requiredFeatures = &requiredFeatures[0],
+                .requiredFeatureCount = 0,   // std::size(requiredFeatures),
+                .requiredFeatures = nullptr, // &requiredFeatures[0],
                 .requiredLimits = &requiredLimits,
             },
         };
@@ -947,8 +951,7 @@ GpuHelper::Resize(const uint32_t width, const uint32_t height)
     {
         GetSurface().Unconfigure();
 
-        auto surfaceFormat =
-            ConfigureSurface(m_Adapter, GetDevice(), GetSurface(), width, height);
+        auto surfaceFormat = ConfigureSurface(m_Adapter, GetDevice(), GetSurface(), width, height);
         MLG_CHECK(surfaceFormat);
 
         m_SurfaceFormat = *surfaceFormat;
@@ -983,7 +986,7 @@ GpuHelper::LoadShader(const std::string_view& filePath, FileFetcher& fileFetcher
     const wgpu::ShaderModuleDescriptor desc{ .nextInChain = &wgsl, .label = label };
 
     MLG_INFO("Creating shader module: {}", filename);
-    
+
     const wgpu::ShaderModule shaderModule = GetDevice().CreateShaderModule(&desc);
     MLG_CHECK(shaderModule, "Failed to create shader module");
 
@@ -1199,7 +1202,8 @@ size_t
 GpuHelper::GetTextureAlignedRowStride(const size_t textureWidth)
 {
     const size_t rowNumBytes = textureWidth * GpuHelper::kNumTextureChannels;
-    const size_t alignedRowStride = (rowNumBytes + 255uz) & ~255uz; // Round up to the next multiple of 256
+    const size_t alignedRowStride =
+        (rowNumBytes + 255uz) & ~255uz; // Round up to the next multiple of 256
     return alignedRowStride;
 }
 

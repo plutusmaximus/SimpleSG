@@ -11,8 +11,8 @@
 #include "System.h"
 #include "ThreadPool.h"
 
-#include <filesystem>
 #include <arm_neon.h>
+#include <filesystem>
 #include <imgui.h>
 #include <numbers>
 #include <random>
@@ -21,6 +21,7 @@
 #include <SDL3/SDL_scancode.h>
 #include <thread>
 #include <vector>
+
 
 // TODO
 // gravity-only energy drift
@@ -46,11 +47,11 @@ struct PerfCounterGlobals
     static inline PerfCounter TotalEnergy{ { .Name = "Energy.Total" } };
 };
 
-Result<std::tuple<PropKit, Level>>
+Result<std::tuple<PropKit, Level, Scene>>
 LoadLevel(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher)
 {
     constexpr float kBallRadius = 1.0f;
-    //constexpr float kBoxExtent = kBallRadius * 2;
+    // constexpr float kBoxExtent = kBallRadius * 2;
 
     // Fixed seed for reproducibility
     constexpr unsigned kRngSeed = 12345;
@@ -77,7 +78,8 @@ LoadLevel(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher
                     .MeshDefs //
                     {
                         ShapeMeshDefs::Ball({ .Radius = kBallRadius }),
-                        //ShapeMeshDefs::Box({ .Width = kBoxExtent, .Height = kBoxExtent, .Depth = kBoxExtent }),
+                        // ShapeMeshDefs::Box({ .Width = kBoxExtent, .Height = kBoxExtent, .Depth =
+                        // kBoxExtent }),
                     },
                 },
             },
@@ -87,7 +89,8 @@ LoadLevel(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher
     nodeDefs.reserve(kNumBodies);
     for(size_t i = 0; i < kNumBodies; ++i)
     {
-        const float radius = kMinBodyRadius + (std::abs(dis(gen)) * (kMaxBodyRadius - kMinBodyRadius));
+        const float radius =
+            kMinBodyRadius + (std::abs(dis(gen)) * (kMaxBodyRadius - kMinBodyRadius));
         const float mass = radius;
         const Vec3f position //
             {
@@ -142,15 +145,18 @@ LoadLevel(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher
     auto level = Level::Create(levelDef, *propKit);
     MLG_CHECK(level, "Failed to create Level");
 
-    return std::make_tuple(std::move(*propKit), std::move(*level));
+    auto sceneResult = Scene::Create(gpuHelper, fileFetcher, level->GetAllModelNodes());
+    MLG_CHECK(sceneResult, "Failed to create Scene");
+
+    return std::make_tuple(std::move(*propKit), std::move(*level), std::move(*sceneResult));
 }
 
 /// @brief Applies random linear velocities to all bodies in the physics level.
 void
 ApplyRandomVelocities(Level& level)
 {
-    constexpr float kMaxSpeed = 0.5f;//2.0f;
-    constexpr float kMinSpeed = 0.1f;//1.0f;
+    constexpr float kMaxSpeed = 0.5f; // 2.0f;
+    constexpr float kMinSpeed = 0.1f; // 1.0f;
     constexpr unsigned kRngSeed = 12345;
 
     std::mt19937 gen(kRngSeed);
@@ -180,16 +186,18 @@ struct ApplyGravityBatchParams
     std::span<float> ForceX;
     std::span<float> ForceY;
     std::span<float> ForceZ;
-    
+
     double PotentialEnergyy{ 0 };
 
     std::atomic<size_t>* FinishCounter{ nullptr };
 };
 
 void
-ApplyGravityRow(ApplyGravityBatchParams* batchParams, const size_t i, const size_t jStart, const size_t jEnd)
+ApplyGravityRow(
+    ApplyGravityBatchParams* batchParams, const size_t i, const size_t jStart, const size_t jEnd)
 {
-    constexpr float kMinDistance = 0.1f; // Minimum distance to avoid singularities in gravitational force calculations.
+    // Minimum distance to avoid singularities in gravitational force calculations.
+    constexpr float kMinDistance = 0.1f;
     constexpr float kMinDistance2 = kMinDistance * kMinDistance;
 
     const float ax = batchParams->BodyX[i];
@@ -211,8 +219,8 @@ ApplyGravityRow(ApplyGravityBatchParams* batchParams, const size_t i, const size
 
     MLG_ASSERT(jStart < batchParams->BodyX.size(), "StartIndexB must be greater than StartIndexA");
 
-    //VECTORIZE
-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    // VECTORIZE
+    //  NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     for(size_t j = jStart; j < jEnd; ++j)
     {
         const float dx = centerx[j] - ax;
@@ -313,12 +321,12 @@ ApplyGravity(Level& level, ThreadPool& threadPool)
     std::vector<std::vector<float>> forceY(numBatches, std::vector<float>(physNodes.size(), 0));
     std::vector<std::vector<float>> forceZ(numBatches, std::vector<float>(physNodes.size(), 0));
 
-    std::vector<float> posArrays[3]//
-    {
-        std::vector<float>(physNodes.size()),
-        std::vector<float>(physNodes.size()),
-        std::vector<float>(physNodes.size()),
-    };
+    std::vector<float> posArrays[3] //
+        {
+            std::vector<float>(physNodes.size()),
+            std::vector<float>(physNodes.size()),
+            std::vector<float>(physNodes.size()),
+        };
 
     std::vector<float> invMassesArray(physNodes.size());
 
@@ -485,7 +493,7 @@ ApplyExplosionImpulse(Level& level, const float magnitude)
 void
 StopAll(Level& level)
 {
-    constexpr Vec3f zeroVelocity{ 0};
+    constexpr Vec3f zeroVelocity{ 0 };
 
     for(PhysicsNode& node : level.GetAllPhysicsNodes())
     {
@@ -501,11 +509,11 @@ ComputeKineticEnergy(const Level& level)
     const std::span<const PhysicsNode> nodes = level.GetAllPhysicsNodes();
 
     std::vector<float> linearVelocitiesArrays[3] //
-    {
-        std::vector<float>(nodes.size()),
-        std::vector<float>(nodes.size()),
-        std::vector<float>(nodes.size()),
-    };
+        {
+            std::vector<float>(nodes.size()),
+            std::vector<float>(nodes.size()),
+            std::vector<float>(nodes.size()),
+        };
     std::vector<float> invMassesArray(nodes.size());
 
     const VVec3 linearVelocities //
@@ -525,7 +533,8 @@ ComputeKineticEnergy(const Level& level)
         invMasses[i] = node.GetInverseMass();
     }
 
-    auto range = std::views::zip(invMasses, linearVelocities.X, linearVelocities.Y, linearVelocities.Z);
+    auto range =
+        std::views::zip(invMasses, linearVelocities.X, linearVelocities.Y, linearVelocities.Z);
 
     for(const auto& [invMass, vx, vy, vz] : range)
     {
@@ -569,19 +578,14 @@ MainLoop()
     auto loadResult = LoadLevel(gpuHelper, threadPool, fileFetcher);
     MLG_CHECK(loadResult);
 
-    auto&& [propKit, level] = std::move(*loadResult);
-
-    auto sceneResult = Scene::Create(gpuHelper, fileFetcher, level.GetAllModelNodes());
-    MLG_CHECK(sceneResult);
-
-    Scene scene = std::move(*sceneResult);
+    auto&& [propKit, level, scene] = std::move(*loadResult);
 
     ApplyRandomVelocities(level);
 
     constexpr float kInitialCameraDistance = 40.0f;
 
     TrTransformf cameraXForm{ .T{ 0, 0, -kInitialCameraDistance } };
-    //Camera camera((Viewport(gpuHelper.GetScreenDimensions())));
+    // Camera camera((Viewport(gpuHelper.GetScreenDimensions())));
 
     cameraActor.SetTransform(cameraXForm);
     cameraActor.SetViewport(Viewport(gpuHelper.GetScreenDimensions()));

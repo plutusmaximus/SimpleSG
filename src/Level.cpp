@@ -12,20 +12,34 @@ namespace
 
 using NodeDefPtr = std::variant<const RootNodeDef*, const ChildNodeDef*>;
 
-template<typename T>
 std::vector<NodeDefPtr>
-FlattenNodes(const T& nodeDefs)
+FlattenNodesBreadthFirst(const std::span<const RootNodeDef> rootNodeDefs)
 {
-    using NodeDef = std::ranges::range_value_t<T>;
-
-    static_assert(std::same_as<NodeDef, ChildNodeDef> || std::same_as<NodeDef, RootNodeDef>,
-        "CountNodes requires a range of ChildNodeDef or RootNodeDef");
-
     std::vector<NodeDefPtr> flatNodes;
-    for(const auto& nodeDef : nodeDefs)
+    std::vector<NodeDefPtr> pendingNodes;
+
+    // Queue root nodes for processing.
+    for(const RootNodeDef& rootNodeDef : rootNodeDefs)
     {
-        flatNodes.push_back(&nodeDef);
-        flatNodes.append_range(FlattenNodes(nodeDef.Children));
+        pendingNodes.emplace_back(&rootNodeDef);
+    }
+
+    for(size_t pendingIndex = 0; pendingIndex < pendingNodes.size(); ++pendingIndex)
+    {
+        const NodeDefPtr& pendingNode = pendingNodes[pendingIndex];
+
+        flatNodes.push_back(pendingNode);
+
+        // Queue child nodes for processing.
+        std::visit(
+            [&](const auto* nodeDef)
+            {
+                for(const ChildNodeDef& childNodeDef : nodeDef->Children)
+                {
+                    pendingNodes.emplace_back(&childNodeDef);
+                }
+            },
+            pendingNode);
     }
 
     return flatNodes;
@@ -355,7 +369,7 @@ Level::CollectNodes(T nodeDefs,
 Result<Level>
 Level::Create(const LevelDef& levelDef, const PropKit& propKit)
 {
-    const std::vector<NodeDefPtr> flattenedNodeDefs = FlattenNodes(levelDef.NodeDefs);
+    const std::vector<NodeDefPtr> flattenedNodeDefs = FlattenNodesBreadthFirst(levelDef.NodeDefs);
     const size_t bodyCount = CountBodies(levelDef.NodeDefs);
     const size_t modelCount = CountModels(flattenedNodeDefs);
     const size_t meshInstanceCount = CountMeshInstances(flattenedNodeDefs, propKit);

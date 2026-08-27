@@ -12,7 +12,7 @@
 class Scene
 {
 public:
-    static Result<Scene> Create(GpuHelper& gpuHelper,
+    static Result<Scene> Create(const GpuHelper& gpuHelper,
         FileFetcher& fileFetcher,
         const std::span<const ModelNode> modelNodes);
 

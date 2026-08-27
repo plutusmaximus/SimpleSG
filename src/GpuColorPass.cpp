@@ -526,9 +526,15 @@ GpuColorPass::Invocation::Execute(const std::span<MeshInstance> visibleMeshes, c
             renderPass.SetBindGroup(1, *bindGroup, 0, nullptr);
         }
 
-        const uint64_t indirectOffset =
+        renderPass.DrawIndexed(meshInstance.GetIndexCount(),
+            1,
+            meshInstance.GetFirstIndex(),
+            static_cast<int32_t>(meshInstance.GetBaseVertex()),
+            static_cast<uint32_t>(meshInstance.GetInstanceIndex()));
+
+        /*const uint64_t indirectOffset =
             meshInstance.GetInstanceIndex() * sizeof(ShaderInterop::DrawIndirectParams);
-        renderPass.DrawIndexedIndirect(m_DrawIndirectBuffer.GetGpuBuffer(), indirectOffset);
+        renderPass.DrawIndexedIndirect(m_DrawIndirectBuffer.GetGpuBuffer(), indirectOffset);*/
     }
 
     renderPass.End();
