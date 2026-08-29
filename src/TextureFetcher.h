@@ -4,13 +4,13 @@
 
 #include <filesystem>
 #include <span>
+#include <string_view>
 #include <vector>
 
 class GpuHelper;
 class ThreadPool;
 class FileFetcher;
 class TextureCache;
-struct MaterialDef;
 
 namespace detail
 {
@@ -25,7 +25,7 @@ public:
         FileFetcher& fileFetcher,
         TextureCache& textureCache,
         std::filesystem::path basePath,
-        const std::span<const MaterialDef>& materialDefs);
+        const std::span<const std::string_view>& textureUris);
 
     TextureFetcher() = delete;
     ~TextureFetcher();
@@ -56,7 +56,7 @@ private:
     FileFetcher* m_FileFetcher{ nullptr };
     TextureCache* m_TextureCache{ nullptr };
     std::filesystem::path m_BasePath;
-    std::span<const MaterialDef> m_MaterialDefs;
+    std::span<const std::string_view> m_TextureUris;
     std::vector<detail::TextureLoadTask> m_TaskHeap;
     std::vector<detail::TextureLoadTask*> m_Tasks;
     std::vector<std::atomic<bool>> m_CompletionFlags;

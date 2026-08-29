@@ -2,7 +2,6 @@
 
 #include "FileFetcher.h"
 #include "GpuHelper.h"
-#include "LevelDefs.h"
 #include "scope_exit.h"
 #include "ThreadPool.h"
 #include "TextureCache.h"
@@ -277,19 +276,23 @@ TextureFetcher::TextureFetcher(GpuHelper& gpuHelper,
     FileFetcher& fileFetcher,
     TextureCache& textureCache,
     std::filesystem::path basePath,
-    const std::span<const MaterialDef>& materialDefs)
+    const std::span<const std::string_view>& textureUris)
     : m_GpuHelper(&gpuHelper),
         m_ThreadPool(&threadPool),
         m_FileFetcher(&fileFetcher),
         m_TextureCache(&textureCache),
         m_BasePath(std::move(basePath)),
-        m_MaterialDefs(materialDefs),
-        m_CompletionFlags(materialDefs.size())
+        m_TextureUris(textureUris),
+        m_CompletionFlags(textureUris.size())
 {
-    m_TaskHeap.reserve(materialDefs.size());
-    m_Tasks.reserve(materialDefs.size());
+    m_TaskHeap.reserve(textureUris.size());
+    m_Tasks.reserve(textureUris.size());
 }
 
+// This is here to avoid the compiler generating a default destructor that doesn't
+// know how to destruct std::vector<detail::TextureLoadTask*> properly, because detail::TextureLoadTask
+// is forward-declared in the header and other translation units do not have the full definition.
+// Esoteric C++ bullsh*t.  Comment out this dtor and see what happens.
 TextureFetcher::~TextureFetcher() = default;
 
 void
@@ -353,21 +356,21 @@ TextureFetcher::Begin()
     const wgpu::CommandEncoder encoder = m_GpuHelper->GetDevice().CreateCommandEncoder();
     MLG_CHECKV(encoder, "Failed to create command encoder");
 
-    for(const auto& mtl : m_MaterialDefs)
+    for(const std::string_view& uri : m_TextureUris)
     {
-        if(mtl.BaseTextureUri.empty())
+        if(uri.empty())
         {
-            // No base texture for this material, skip it.
+            // No base texture - skip it.
             continue;
         }
 
-        if(m_TextureCache->Contains(mtl.BaseTextureUri))
+        if(m_TextureCache->Contains(uri))
         {
             // We've already loaded this texture, skip it.
             continue;
         }
 
-        MLG_LOG_SCOPE(mtl.BaseTextureUri);
+        MLG_LOG_SCOPE(uri);
 
         const size_t index = m_TaskHeap.size();
 
@@ -375,10 +378,10 @@ TextureFetcher::Begin()
 
         // Prepopulate the cache with the default texture.  If texture loading fails
         // then the default texture will be used instead of the missing texture.
-        m_TextureCache->AddOrReplace(mtl.BaseTextureUri, m_GpuHelper->GetDefaultTexture());
+        m_TextureCache->AddOrReplace(uri, m_GpuHelper->GetDefaultTexture());
 
         detail::TextureLoadTask& task = m_TaskHeap.emplace_back(m_BasePath,
-            mtl.BaseTextureUri,
+            uri,
             *m_GpuHelper,
             *m_FileFetcher,
             *m_ThreadPool,

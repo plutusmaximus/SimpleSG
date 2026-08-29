@@ -28,7 +28,7 @@ FetchTextures(GpuHelper& gpuHelper,
     ThreadPool& threadPool,
     FileFetcher& fileFetcher,
     const std::filesystem::path& basePath,
-    const std::span<const MaterialDef> materialDefs,
+    const std::span<std::string_view> textureUris,
     TextureCache& textureCache)
 {
     TextureFetcher fetcher(gpuHelper,
@@ -36,7 +36,7 @@ FetchTextures(GpuHelper& gpuHelper,
         fileFetcher,
         textureCache,
         basePath,
-        materialDefs);
+        textureUris);
 
     while(!fetcher.IsComplete())
     {
@@ -254,10 +254,13 @@ PropKit::Create(GpuHelper& gpuHelper,
         BuildUniqueMaterialsMap(propKitDef.ModelDefs);
 
     std::vector<MaterialDef> uniqueMaterials;
+    std::vector<std::string_view> textureUris;
     uniqueMaterials.resize(uniqueMaterialMap.size());
+    textureUris.resize(uniqueMaterialMap.size());
     for(const auto& [materialDef, id] : uniqueMaterialMap)
     {
         uniqueMaterials[id.GetValue()] = materialDef;
+        textureUris[id.GetValue()] = materialDef.BaseTextureUri;
     }
 
     auto meshes = BuildMeshes(propKitDef.ModelDefs, uniqueMaterialMap);
@@ -287,7 +290,7 @@ PropKit::Create(GpuHelper& gpuHelper,
     TextureCache textureCache(gpuHelper.GetDefaultTexture());
 
     MLG_CHECK(
-        FetchTextures(gpuHelper, threadPool, fileFetcher, rootPath, uniqueMaterials, textureCache));
+        FetchTextures(gpuHelper, threadPool, fileFetcher, rootPath, textureUris, textureCache));
 
     auto vertexBuffer = gpuHelper.CreateVertexBuffer(vertices.size(), "VertexBuffer");
     MLG_CHECK(vertexBuffer);
