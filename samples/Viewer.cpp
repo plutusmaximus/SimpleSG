@@ -5,6 +5,7 @@
 #include "ImGuiRenderer.h"
 #include "InputMapper.h"
 #include "Level.h"
+#include "ResourceBundle.h"
 #include "PerfMetrics.h"
 #include "PropKit.h"
 #include "Scene.h"
@@ -88,11 +89,15 @@ LoadLevel(GpuHelper& gpuHelper,
         "Failed to load glTF file: {}",
         path.string());
 
+    ResourceBundleBuilder builder;
+    auto rsrcBundle = builder.Build(levelDef, propKitDef);
+    MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
+
     auto propKit =
         PropKit::Create(gpuHelper, threadPool, fileFetcher, path.parent_path(), propKitDef);
     MLG_CHECK(propKit, "Failed to create PropKit for {}", path.string());
 
-    auto level = Level::Create(levelDef, *propKit);
+    auto level = Level::Create(*rsrcBundle, levelDef, *propKit);
     MLG_CHECK(level, "Failed to create Level for {}", path.string());
 
     auto scene = Scene::Create(gpuHelper, fileFetcher, level->GetAllModelNodes());

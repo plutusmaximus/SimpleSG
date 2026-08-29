@@ -357,6 +357,7 @@ set(SSG_SOURCES
   src/LuaRuntime.cpp
   src/PerfMetrics.cpp
   src/PropKit.cpp
+  src/ResourceBundle.cpp
   src/Scene.cpp
   src/ShapeMeshDefs.cpp
   src/Shell.cpp
@@ -364,6 +365,7 @@ set(SSG_SOURCES
   src/stb_image.cpp
   src/System.cpp
   src/TextureCache.cpp
+  src/TextureFetcher.cpp
   src/ThreadPool.cpp
   src/Timer.cpp
   src/VecMath.cpp
@@ -395,6 +397,7 @@ set(SSG_HEADERS
   src/PerfMetrics.h
   src/PropKit.h
   src/RangeQuery.h
+  src/ResourceBundle.h
   src/Result.h
   src/Scene.h
   src/SceneTypes.h
@@ -406,6 +409,7 @@ set(SSG_HEADERS
   src/StringArena.h
   src/System.h
   src/TextureCache.h
+  src/TextureFetcher.h
   src/ThreadPool.h
   src/Timer.h
   src/VecMath.h

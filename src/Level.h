@@ -2,7 +2,7 @@
 
 #include "LevelDefs.h"
 #include "LevelTypes.h"
-#include "Result.h"
+#include "ResourceBundle.h"
 
 #include <span>
 #include <vector>
@@ -12,7 +12,14 @@ class PropKit;
 class Level
 {
 public:
+    //DO NOT SUBMIT
+    using NodeDefPtr = std::variant<const RootNodeDef*, const ChildNodeDef*>;
+
     static Result<Level> Create(const LevelDef& levelDef, const PropKit& propKit);
+
+    static Result<Level> Create(const ResourceBundle& resourceBundle,
+        const LevelDef& levelDef,
+        const PropKit& propKit);
 
     Level() = delete;
     ~Level();
@@ -53,6 +60,15 @@ private:
         const PropKit& propKit,
         const WorldIdentifier worldId,
         const LevelNode* parentNode,
+        std::vector<LevelNode>& nodes,
+        std::vector<PhysicsNode>& physicsNodes,
+        std::vector<ModelNode>& modelNodes,
+        std::vector<MeshInstance>& meshInstances);
+
+    static Result<> CollectNodes(const std::span<const LevelNodeResource>& nodeRsrcs,
+        const std::span<const NodeDefPtr>& nodeDefs,
+        const PropKit& propKit,
+        const WorldIdentifier worldId,
         std::vector<LevelNode>& nodes,
         std::vector<PhysicsNode>& physicsNodes,
         std::vector<ModelNode>& modelNodes,

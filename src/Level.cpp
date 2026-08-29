@@ -10,13 +10,11 @@
 namespace
 {
 
-using NodeDefPtr = std::variant<const RootNodeDef*, const ChildNodeDef*>;
-
-std::vector<NodeDefPtr>
+std::vector<Level::NodeDefPtr>
 FlattenNodesBreadthFirst(const std::span<const RootNodeDef> rootNodeDefs)
 {
-    std::vector<NodeDefPtr> flatNodes;
-    std::vector<NodeDefPtr> pendingNodes;
+    std::vector<Level::NodeDefPtr> flatNodes;
+    std::vector<Level::NodeDefPtr> pendingNodes;
 
     // Queue root nodes for processing.
     for(const RootNodeDef& rootNodeDef : rootNodeDefs)
@@ -26,7 +24,7 @@ FlattenNodesBreadthFirst(const std::span<const RootNodeDef> rootNodeDefs)
 
     for(size_t pendingIndex = 0; pendingIndex < pendingNodes.size(); ++pendingIndex)
     {
-        const NodeDefPtr& pendingNode = pendingNodes[pendingIndex];
+        const Level::NodeDefPtr& pendingNode = pendingNodes[pendingIndex];
 
         flatNodes.push_back(pendingNode);
 
@@ -46,10 +44,10 @@ FlattenNodesBreadthFirst(const std::span<const RootNodeDef> rootNodeDefs)
 }
 
 size_t
-CountModels(const std::span<const NodeDefPtr> flattenedNodeDefs)
+CountModels(const std::span<const Level::NodeDefPtr> flattenedNodeDefs)
 {
     size_t count = 0;
-    for(const auto& nodeDefPtr : flattenedNodeDefs)
+    for(const Level::NodeDefPtr& nodeDefPtr : flattenedNodeDefs)
     {
         std::visit(
             [&count](const auto* nodeDef)
@@ -66,10 +64,10 @@ CountModels(const std::span<const NodeDefPtr> flattenedNodeDefs)
 }
 
 size_t
-CountMeshInstances(const std::span<const NodeDefPtr> flattenedNodeDefs, const PropKit& propKit)
+CountMeshInstances(const std::span<const Level::NodeDefPtr> flattenedNodeDefs, const PropKit& propKit)
 {
     size_t count = 0;
-    for(const auto& nodeDefPtr : flattenedNodeDefs)
+    for(const Level::NodeDefPtr& nodeDefPtr : flattenedNodeDefs)
     {
         std::visit(
             [&count, &propKit](const auto* nodeDef)
@@ -366,6 +364,97 @@ Level::CollectNodes(T nodeDefs,
     return Result<>::Ok;
 }
 
+Result<>
+Level::CollectNodes(const std::span<const LevelNodeResource>& nodeRsrcs,
+    const std::span<const NodeDefPtr>& nodeDefs,
+    const PropKit& propKit,
+    const WorldIdentifier worldId,
+    std::vector<LevelNode>& nodes,
+    std::vector<PhysicsNode>& physicsNodes,
+    std::vector<ModelNode>& modelNodes,
+    std::vector<MeshInstance>& meshInstances)
+{
+    for(const auto& [nodeRsrc, nodeDefPtr] : std::views::zip(nodeRsrcs, nodeDefs))
+    {
+        const LevelNode* parent = nullptr;
+        if(nodeRsrc.ParentIndex != ResourceBundle::kInvalidIndex)
+        {
+            parent = &nodes[nodeRsrc.ParentIndex];
+        }
+
+        TrsTransformf transform;
+        transform.T = nodeRsrc.LocalPos;
+        transform.R = UnitQuatf(nodeRsrc.LocalRot);
+        transform.S = nodeRsrc.LocalScale;
+
+        nodes.emplace_back(transform, parent);
+
+        auto result = 
+        std::visit([&](auto&& nodeDef) -> Result<>
+        {
+            using NodeDefType = std::decay_t<decltype(nodeDef)>;
+
+            // If the node has a model, create a ModelNode and MeshInstances for each mesh in the model.
+            if(nodeDef->Model)
+            {
+                const ModelRef& modelRef = *nodeDef->Model;
+
+                MLG_CHECKV(!modelRef.Name.empty(), "ModelRef in node {} is empty", nodeDef->Name);
+
+                const Model* model = propKit.GetModel(modelRef.Name);
+                MLG_CHECKV(model);
+
+                const size_t meshInstanceOffset = meshInstances.size();
+
+                for(const Mesh& mesh : model->GetMeshes())
+                {
+                    const size_t meshIndex = meshInstances.size();
+                    meshInstances.emplace_back(&mesh, meshIndex);
+                }
+
+                const std::span<const MeshInstance> meshInstancesSpan =
+                    std::span(meshInstances).subspan(meshInstanceOffset, model->GetMeshes().size());
+
+                modelNodes.emplace_back(ModelNode(&nodes.back(), model, meshInstancesSpan));
+            }
+
+            // For root nodes, create a rigid body if specified.
+            if constexpr(std::same_as<NodeDefType, RootNodeDef>)
+            {
+                const auto& body = nodeDef->Body;
+
+                if(body)
+                {
+                    const RigidBodyDef& rigidBodyDef = *body;
+
+                    MLG_CHECKV(rigidBodyDef.Mass > 0,
+                        "RigidBodyDef in node {} has non-positive mass",
+                        nodeDef->Name);
+
+                    auto bodyId = CreateRigidBody(nodeDef, rigidBodyDef, worldId);
+                    MLG_CHECK(bodyId, "Failed to create rigid body for node {}", nodeDef->Name);
+
+                    physicsNodes.push_back(PhysicsNode{ &nodes.back(), *bodyId });
+                }
+            }
+
+            return Result<>::Ok;
+        }, nodeDefPtr);
+
+        MLG_CHECK(result);
+    }
+
+    // Now populate child nodes.
+    const std::span nodeSpan = std::span(nodes);
+
+    for(const auto& [nodeRsrc, node] : std::views::zip(nodeRsrcs, nodes))
+    {
+        node.m_Children = nodeSpan.subspan(nodeRsrc.FirstChildIndex, nodeRsrc.ChildCount);
+    }
+
+    return Result<>::Ok;
+}
+
 Result<Level>
 Level::Create(const LevelDef& levelDef, const PropKit& propKit)
 {
@@ -396,6 +485,63 @@ Level::Create(const LevelDef& levelDef, const PropKit& propKit)
         propKit,
         WorldIdentifier{ b3StoreWorldId(worldId) },
         nullptr,
+        nodes,
+        physicsNodes,
+        modelNodes,
+        meshInstances));
+
+    const WorldIdentifier worldIdentifier{ b3StoreWorldId(worldId) };
+
+    Level level(std::move(nodes),
+        std::move(physicsNodes),
+        std::move(modelNodes),
+        std::move(meshInstances),
+        worldIdentifier);
+
+    return std::move(level);
+}
+
+Result<Level>
+Level::Create(
+    const ResourceBundle& resourceBundle, const LevelDef& levelDef, const PropKit& propKit)
+{
+    const std::vector<NodeDefPtr> flattenedNodeDefs = FlattenNodesBreadthFirst(levelDef.NodeDefs);
+    const size_t bodyCount = CountBodies(levelDef.NodeDefs);
+    const size_t modelCount = CountModels(flattenedNodeDefs);
+    const size_t meshInstanceCount = CountMeshInstances(flattenedNodeDefs, propKit);
+
+    std::vector<LevelNode> nodes;
+    std::vector<PhysicsNode> physicsNodes;
+    std::vector<ModelNode> modelNodes;
+    std::vector<MeshInstance> meshInstances;
+
+    [[maybe_unused]] const std::span<const LevelNodeResource> nodeRsrcs = resourceBundle.GetNodes();
+
+    nodes.reserve(nodeRsrcs.size());
+    physicsNodes.reserve(bodyCount);
+    modelNodes.reserve(modelCount);
+    meshInstances.reserve(meshInstanceCount);
+
+    b3WorldDef worldDef = b3DefaultWorldDef();
+    worldDef.restitutionThreshold = 0.0f;
+    worldDef.gravity = b3Vec3{ .x = 0.0f, .y = 0.0f, .z = 0.0f };
+
+    const b3WorldId worldId = b3CreateWorld(&worldDef);
+    MLG_ASSERT(b3World_IsValid(worldId));
+
+    /*MLG_CHECK(CollectNodes(levelDef.NodeDefs,
+        propKit,
+        WorldIdentifier{ b3StoreWorldId(worldId) },
+        nullptr,
+        nodes,
+        physicsNodes,
+        modelNodes,
+        meshInstances));*/
+
+    MLG_CHECK(CollectNodes(nodeRsrcs,
+        flattenedNodeDefs,
+        propKit,
+        WorldIdentifier{ b3StoreWorldId(worldId) },
         nodes,
         physicsNodes,
         modelNodes,
