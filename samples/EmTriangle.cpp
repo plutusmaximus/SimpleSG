@@ -178,7 +178,11 @@ TriangleApp::InnerUpdate(System& system)
             m_PropKit = PropKit::Create(gpuHelper, threadPool, fileFetcher, rootPath, m_PropKitDef);
             MLG_CHECK(m_PropKit, "Failed to create PropKit");
 
-            m_Level = Level::Create(m_LevelDef, *m_PropKit);
+            ResourceBundleBuilder builder;
+            auto rsrcBundle = builder.Build(m_LevelDef, m_PropKitDef);
+            MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
+
+            m_Level = Level::Create(*rsrcBundle, *m_PropKit);
             MLG_CHECK(m_Level, "Failed to create Level");
 
             m_Scene = Scene::Create(gpuHelper, fileFetcher, m_Level->GetAllModelNodes());

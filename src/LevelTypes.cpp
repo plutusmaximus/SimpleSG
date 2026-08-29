@@ -16,6 +16,18 @@ GetBodyId(const RigidBodyIdentifier rigidBodyId)
 
 } // namespace
 
+/// PhysicsNode
+
+PhysicsNode::PhysicsNode(LevelNode* node, const RigidBodyIdentifier rigidBodyId)
+    : m_Node(node),
+      m_RigidBodyId(rigidBodyId)
+{
+    MLG_ASSERT(node, "PhysicsNode must be associated with a valid LevelNode");
+    MLG_ASSERT(!node->GetParent(), "PhysicsNode must be associated with a root LevelNode");
+    MLG_ASSERT(rigidBodyId.IsValid(),
+        "PhysicsNode must be associated with a LevelNode that has a valid rigid body ID");
+}
+
 void
 PhysicsNode::ApplyImpulse(const Vec3f& impulse)
 {
@@ -26,7 +38,7 @@ PhysicsNode::ApplyImpulse(const Vec3f& impulse)
             .z = impulse.z,
         };
     const b3BodyId bodyId = GetBodyId(m_RigidBodyId);
-    b3Body_ApplyLinearImpulseToCenter(bodyId, impulseVec, true);   
+    b3Body_ApplyLinearImpulseToCenter(bodyId, impulseVec, true);
 }
 
 void
@@ -97,4 +109,16 @@ PhysicsNode::GetInverseMass() const
 {
     const b3BodyId bodyId = GetBodyId(m_RigidBodyId);
     return b3Body_GetInverseMass(bodyId);
+}
+
+/// ModelNode
+
+ModelNode::ModelNode(
+    const LevelNode* node, const Model* model, std::span<const MeshInstance> meshInstances)
+    : m_Node(node),
+      m_Model(model),
+      m_MeshInstances(meshInstances)
+{
+    MLG_ABORTIF(!node, "ModelNode must be associated with a valid LevelNode");
+    MLG_ABORTIF(!model, "ModelNode must be associated with a valid Model");
 }

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "LevelDefs.h"
 #include "LevelTypes.h"
 #include "ResourceBundle.h"
 
@@ -12,14 +11,7 @@ class PropKit;
 class Level
 {
 public:
-    //DO NOT SUBMIT
-    using NodeDefPtr = std::variant<const RootNodeDef*, const ChildNodeDef*>;
-
-    static Result<Level> Create(const LevelDef& levelDef, const PropKit& propKit);
-
-    static Result<Level> Create(const ResourceBundle& resourceBundle,
-        const LevelDef& levelDef,
-        const PropKit& propKit);
+    static Result<Level> Create(const ResourceBundle& resourceBundle, const PropKit& propKit);
 
     Level() = delete;
     ~Level();
@@ -55,29 +47,7 @@ private:
         std::vector<MeshInstance>&& meshInstances,
         const WorldIdentifier worldId);
 
-    template<typename T>
-    static Result<> CollectNodes(T nodeDefs,
-        const PropKit& propKit,
-        const WorldIdentifier worldId,
-        const LevelNode* parentNode,
-        std::vector<LevelNode>& nodes,
-        std::vector<PhysicsNode>& physicsNodes,
-        std::vector<ModelNode>& modelNodes,
-        std::vector<MeshInstance>& meshInstances);
-
-    static Result<> CollectNodes(const std::span<const LevelNodeResource>& nodeRsrcs,
-        const std::span<const NodeDefPtr>& nodeDefs,
-        const PropKit& propKit,
-        const WorldIdentifier worldId,
-        std::vector<LevelNode>& nodes,
-        std::vector<PhysicsNode>& physicsNodes,
-        std::vector<ModelNode>& modelNodes,
-        std::vector<MeshInstance>& meshInstances);
-
     LevelNode* GetNode(const LevelNode& node);
-
-    // Returns true if the node is in the level.
-    bool IsInLevel(const LevelNode& node) const;
 
     void UpdateWorldTransforms(std::span<LevelNode> nodes);
 

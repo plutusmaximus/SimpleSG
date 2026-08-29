@@ -148,7 +148,11 @@ MainLoop()
     MLG_CHECK(propKitResult, "Failed to create PropKit");
     const PropKit& propKit = *propKitResult;
 
-    auto levelResult = Level::Create(levelDef, propKit);
+    ResourceBundleBuilder builder;
+    auto rsrcBundle = builder.Build(levelDef, propKitDef);
+    MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
+
+    auto levelResult = Level::Create(*rsrcBundle, propKit);
     MLG_CHECK(levelResult, "Failed to create Level");
     const Level& level = *levelResult;
 

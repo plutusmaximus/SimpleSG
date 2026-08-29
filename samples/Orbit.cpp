@@ -142,7 +142,11 @@ LoadLevel(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher
         PropKit::Create(gpuHelper, threadPool, fileFetcher, std::filesystem::path{}, propKitDef);
     MLG_CHECK(propKit, "Failed to create PropKit");
 
-    auto level = Level::Create(levelDef, *propKit);
+    ResourceBundleBuilder builder;
+    auto rsrcBundle = builder.Build(levelDef, propKitDef);
+    MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
+
+    auto level = Level::Create(*rsrcBundle, *propKit);
     MLG_CHECK(level, "Failed to create Level");
 
     auto sceneResult = Scene::Create(gpuHelper, fileFetcher, level->GetAllModelNodes());

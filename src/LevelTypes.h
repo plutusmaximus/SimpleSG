@@ -20,8 +20,7 @@ public:
         All = Active | Visible
     };
 
-    LevelNode(const TrsTransformf& localTransform,
-        const LevelNode* parent)
+    LevelNode(const TrsTransformf& localTransform, const LevelNode* parent)
         : m_LocalTransform(localTransform),
           m_Parent(parent)
     {
@@ -42,7 +41,6 @@ public:
     const Vec3f& GetLinearVelocity() const { return m_LinearVelocity; }
     const Vec3f& GetAngularVelocity() const { return m_AngularVelocity; }
     const LevelNode* GetParent() const { return m_Parent; }
-    std::span<const LevelNode> GetChildren() const { return m_Children; }
 
     friend Flags operator|(const Flags a, const Flags b)
     {
@@ -78,6 +76,8 @@ private:
 class PhysicsNode
 {
 public:
+    PhysicsNode(LevelNode* node, const RigidBodyIdentifier rigidBodyId);
+
     PhysicsNode() = delete;
     ~PhysicsNode() = default;
     PhysicsNode(const PhysicsNode&) = delete;
@@ -108,16 +108,6 @@ public:
 private:
     friend Level;
 
-    PhysicsNode(LevelNode* node, const RigidBodyIdentifier rigidBodyId)
-        : m_Node(node),
-          m_RigidBodyId(rigidBodyId)
-    {
-        MLG_ASSERT(node, "PhysicsNode must be associated with a valid LevelNode");
-        MLG_ASSERT(!node->GetParent(), "PhysicsNode must be associated with a root LevelNode");
-        MLG_ASSERT(rigidBodyId.IsValid(),
-            "PhysicsNode must be associated with a LevelNode that has a valid rigid body ID");
-    }
-
     LevelNode* m_Node{ nullptr };
     RigidBodyIdentifier m_RigidBodyId;
 };
@@ -125,14 +115,15 @@ private:
 class ModelNode
 {
 public:
+    ModelNode(
+        const LevelNode* node, const Model* model, std::span<const MeshInstance> meshInstances);
+
     ModelNode() = delete;
     ~ModelNode() = default;
     ModelNode(const ModelNode&) = delete;
     ModelNode& operator=(const ModelNode&) = delete;
     ModelNode(ModelNode&&) = default;
     ModelNode& operator=(ModelNode&&) = default;
-
-    const Model* GetModel() const { return m_Model; }
 
     const Mat44f& GetWorldTransform() const { return m_Node->GetWorldTransform(); }
 
@@ -146,16 +137,7 @@ public:
 private:
     friend Level;
 
-    ModelNode(LevelNode* node, const Model* model, std::span<const MeshInstance> meshInstances)
-        : m_Node(node),
-          m_Model(model),
-          m_MeshInstances(meshInstances)
-    {
-        MLG_ABORTIF(!node, "ModelNode must be associated with a valid LevelNode");
-        MLG_ABORTIF(!model, "ModelNode must be associated with a valid Model");
-    }
-
-    LevelNode* m_Node{ nullptr };
+    const LevelNode* m_Node{ nullptr };
     const Model* m_Model{ nullptr };
     std::span<const MeshInstance> m_MeshInstances;
 };

@@ -20,7 +20,7 @@ CountMeshInstances(const std::span<const ModelNode> modelNodes)
 
     for(const ModelNode& node : modelNodes)
     {
-        count += node.GetModel()->GetMeshes().size();
+        count += node.GetMeshInstances().size();
     }
 
     return count;

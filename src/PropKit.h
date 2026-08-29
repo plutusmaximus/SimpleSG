@@ -31,6 +31,10 @@ public:
 
     const Model* GetModel(const std::string_view& name) const;
 
+    std::span<const Model> GetAllModels() const { return m_Models; }
+
+    std::span<const Mesh> GetAllMeshes() const { return m_Meshes; }
+
     const wgpu::BindGroup* GetMaterialBindGroup(const MaterialIdentifier& materialId) const;
 
     GpuVertexBuffer GetVertexBuffer() const { return m_VertexBuffer; }

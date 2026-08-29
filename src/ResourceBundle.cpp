@@ -107,7 +107,8 @@ CollectNodeNames(const std::span<const FlatNodeDef> flatNodeDefs, std::vector<ch
                     const NodeNameResource nodeName //
                         {
                             .NodeIndex = nodeIndex,
-                            .String{
+                            .String //
+                            {
                                 .Offset = static_cast<uint32_t>(chars.size()),
                                 .Length = static_cast<uint32_t>(nodeDef->Name.length()),
                             },
@@ -146,8 +147,11 @@ CollectTextureUris(const std::span<const MeshDef> meshDefs, std::vector<char>& c
 
         const TextureUriResource textureUri //
             {
-                .Offset = static_cast<uint32_t>(chars.size()),
-                .Length = static_cast<uint32_t>(materialDef.BaseTextureUri.length()),
+                .String //
+                {
+                    .Offset = static_cast<uint32_t>(chars.size()),
+                    .Length = static_cast<uint32_t>(materialDef.BaseTextureUri.length()),
+                },
             };
 
         stringIndexMap[materialDef.BaseTextureUri] = static_cast<uint32_t>(textureUris.size());
@@ -481,7 +485,8 @@ CreateCollider(const ColliderDef& colliderDef)
                 {
                     .CollisionType = colliderDef.CollisionType,
                     .ShapeType = colliderDef.Shape.GetType(),
-                    .Sphere = //
+                    .Shape =
+                        ColliderResource::Sphere //
                     {
                         .Radius = sphereDef.Radius,
                         .Center = sphereDef.Center,
@@ -495,7 +500,8 @@ CreateCollider(const ColliderDef& colliderDef)
                 {
                     .CollisionType = colliderDef.CollisionType,
                     .ShapeType = colliderDef.Shape.GetType(),
-                    .Box = //
+                    .Shape =
+                        ColliderResource::Box //
                     {
                         .HalfExtents = boxDef.HalfExtents,
                         .Center = boxDef.Center,
@@ -509,7 +515,8 @@ CreateCollider(const ColliderDef& colliderDef)
                 {
                     .CollisionType = colliderDef.CollisionType,
                     .ShapeType = colliderDef.Shape.GetType(),
-                    .Capsule = //
+                    .Shape =
+                        ColliderResource::Capsule //
                     {
                         .Radius = capsuleDef.Radius,
                         .HalfHeight = capsuleDef.HalfHeight,
@@ -668,32 +675,12 @@ AppendSpan(const std::span<const T>& v, std::vector<char>& buffer)
     buffer.append_range(std::span(static_cast<const char*>(src), v.size() * sizeof(T)));
 }
 
-template<typename T>
 std::string_view
-MakeStringView(const T& resource, const std::span<const char>& chars)
+MakeStringView(const StringResource& resource, const std::span<const char>& chars)
 {
-    static_assert(std::is_same_v<T, StringResource> || std::is_same_v<T, TextureUriResource>,
-        "T must be StringResource or TextureUriResource");
-
     MLG_ASSERT(resource.Offset + resource.Length <= chars.size(), "Resource out of bounds");
 
     return std::string_view(chars.subspan(resource.Offset, resource.Length));
-}
-
-template<typename T>
-std::map<const std::string_view, uint32_t>
-CreateNameStringIndexMap(const std::span<const T>& stringResources,
-    const std::span<const char>& chars)
-{
-    static_assert(std::is_same_v<T, StringResource> || std::is_same_v<T, TextureUriResource>,
-        "T must be StringResource or TextureUriResource");
-
-    std::map<const std::string_view, uint32_t> nameStringIndex;
-    for(uint32_t i = 0; i < stringResources.size(); ++i)
-    {
-        nameStringIndex[MakeStringView(stringResources[i], chars)] = i;
-    }
-    return nameStringIndex;
 }
 
 } // namespace
@@ -714,8 +701,11 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKit
     const std::vector<NodeNameResource> nodeNames = CollectNodeNames(flatNodeDefs, chars);
     const std::vector<TextureUriResource> textureUris = CollectTextureUris(meshDefs, chars);
 
-    const std::map<const std::string_view, uint32_t> textureUriIndexMap =
-        CreateNameStringIndexMap(std::span(textureUris), chars);
+    std::map<const std::string_view, uint32_t> textureUriIndexMap;
+    for(uint32_t i = 0; i < textureUris.size(); ++i)
+    {
+        textureUriIndexMap[MakeStringView(textureUris[i].String, chars)] = i;
+    }
 
     const std::vector<MaterialResource> materials =
         CollectMaterials(materialIndexMap, textureUriIndexMap);
@@ -771,7 +761,7 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKit
     Append(nodes);
 
     m_Header = nullptr;
-    return ResourceBundle{std::move(m_Buffer)};
+    return ResourceBundle{ std::move(m_Buffer) };
 }
 
 // private:
@@ -791,7 +781,6 @@ ResourceBundleBuilder::Append(const std::span<const char>& chars)
 {
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
     MLG_ASSERT(m_Header->CharsOffset == ResourceBundle::kInvalidOffset, "Chars already appended");
-    MLG_ASSERT(!chars.empty(), "Chars span is empty");
     MLG_ASSERT(m_Buffer.size() + chars.size() <= m_Header->TotalSize,
         "Chars span exceeds total size");
     m_Header->CharsOffset = static_cast<uint32_t>(m_Buffer.size());
@@ -805,7 +794,6 @@ ResourceBundleBuilder::Append(const std::span<const NodeNameResource>& nodeNames
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
     MLG_ASSERT(m_Header->NodeNamesOffset == ResourceBundle::kInvalidOffset,
         "Node names already appended");
-    MLG_ASSERT(!nodeNames.empty(), "Node names span is empty");
     MLG_ASSERT(m_Buffer.size() + (nodeNames.size() * sizeof(NodeNameResource))
             <= m_Header->TotalSize,
         "Node names span exceeds total size");
@@ -820,7 +808,6 @@ ResourceBundleBuilder::Append(const std::span<const TextureUriResource>& texture
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
     MLG_ASSERT(m_Header->TextureUrisOffset == ResourceBundle::kInvalidOffset,
         "Texture URIs already appended");
-    MLG_ASSERT(!textureUris.empty(), "Texture URIs span is empty");
     MLG_ASSERT(m_Buffer.size() + (textureUris.size() * sizeof(TextureUriResource))
             <= m_Header->TotalSize,
         "Texture URIs span exceeds total size");
@@ -835,7 +822,6 @@ ResourceBundleBuilder::Append(const std::span<const MaterialResource>& materials
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
     MLG_ASSERT(m_Header->MaterialsOffset == ResourceBundle::kInvalidOffset,
         "Materials already appended");
-    MLG_ASSERT(!materials.empty(), "Materials span is empty");
     MLG_ASSERT(m_Buffer.size() + (materials.size() * sizeof(MaterialResource))
             <= m_Header->TotalSize,
         "Materials span exceeds total size");
@@ -850,7 +836,6 @@ ResourceBundleBuilder::Append(const std::span<const Vertex>& vertices)
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
     MLG_ASSERT(m_Header->VerticesOffset == ResourceBundle::kInvalidOffset,
         "Vertices already appended");
-    MLG_ASSERT(!vertices.empty(), "Vertices span is empty");
     MLG_ASSERT(m_Buffer.size() + (vertices.size() * sizeof(Vertex)) <= m_Header->TotalSize,
         "Vertices span exceeds total size");
     m_Header->VerticesOffset = static_cast<uint32_t>(m_Buffer.size());
@@ -864,7 +849,6 @@ ResourceBundleBuilder::Append(const std::span<const VertexIndex>& indices)
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
     MLG_ASSERT(m_Header->IndicesOffset == ResourceBundle::kInvalidOffset,
         "Indices already appended");
-    MLG_ASSERT(!indices.empty(), "Indices span is empty");
     MLG_ASSERT(m_Buffer.size() + (indices.size() * sizeof(VertexIndex)) <= m_Header->TotalSize,
         "Indices span exceeds total size");
     m_Header->IndicesOffset = static_cast<uint32_t>(m_Buffer.size());
@@ -877,7 +861,6 @@ ResourceBundleBuilder::Append(const std::span<const MeshResource>& meshes)
 {
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
     MLG_ASSERT(m_Header->MeshesOffset == ResourceBundle::kInvalidOffset, "Meshes already appended");
-    MLG_ASSERT(!meshes.empty(), "Meshes span is empty");
     MLG_ASSERT(m_Buffer.size() + (meshes.size() * sizeof(MeshResource)) <= m_Header->TotalSize,
         "Meshes span exceeds total size");
     m_Header->MeshesOffset = static_cast<uint32_t>(m_Buffer.size());
@@ -890,7 +873,6 @@ ResourceBundleBuilder::Append(const std::span<const ModelResource>& models)
 {
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
     MLG_ASSERT(m_Header->ModelsOffset == ResourceBundle::kInvalidOffset, "Models already appended");
-    MLG_ASSERT(!models.empty(), "Models span is empty");
     MLG_ASSERT(m_Buffer.size() + (models.size() * sizeof(ModelResource)) <= m_Header->TotalSize,
         "Models span exceeds total size");
     m_Header->ModelsOffset = static_cast<uint32_t>(m_Buffer.size());
@@ -904,7 +886,6 @@ ResourceBundleBuilder::Append(const std::span<const MeshInstanceResource>& meshI
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
     MLG_ASSERT(m_Header->MeshInstancesOffset == ResourceBundle::kInvalidOffset,
         "Mesh Instances already appended");
-    MLG_ASSERT(!meshInstances.empty(), "Mesh Instances span is empty");
     MLG_ASSERT(m_Buffer.size() + (meshInstances.size() * sizeof(MeshInstanceResource))
             <= m_Header->TotalSize,
         "Mesh Instances span exceeds total size");
@@ -919,7 +900,6 @@ ResourceBundleBuilder::Append(const std::span<const ModelInstanceResource>& mode
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
     MLG_ASSERT(m_Header->ModelInstancesOffset == ResourceBundle::kInvalidOffset,
         "Model Instances already appended");
-    MLG_ASSERT(!modelInstances.empty(), "Model Instances span is empty");
     MLG_ASSERT(m_Buffer.size() + (modelInstances.size() * sizeof(ModelInstanceResource))
             <= m_Header->TotalSize,
         "Model Instances span exceeds total size");
@@ -935,7 +915,6 @@ ResourceBundleBuilder::Append(
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
     MLG_ASSERT(m_Header->DrawIndirectParamsOffset == ResourceBundle::kInvalidOffset,
         "DrawIndirectParams already appended");
-    MLG_ASSERT(!drawIndirectParams.empty(), "DrawIndirectParams span is empty");
     MLG_ASSERT(m_Buffer.size()
                 + (drawIndirectParams.size() * sizeof(ShaderInterop::DrawIndirectParams))
             <= m_Header->TotalSize,
@@ -978,7 +957,6 @@ ResourceBundleBuilder::Append(const std::span<const LevelNodeResource>& nodes)
 {
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
     MLG_ASSERT(m_Header->NodesOffset == ResourceBundle::kInvalidOffset, "Nodes already appended");
-    MLG_ASSERT(!nodes.empty(), "Nodes span is empty");
     MLG_ASSERT(m_Buffer.size() + (nodes.size() * sizeof(LevelNodeResource)) <= m_Header->TotalSize,
         "Nodes span exceeds total size");
     m_Header->NodesOffset = static_cast<uint32_t>(m_Buffer.size());

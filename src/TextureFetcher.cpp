@@ -301,7 +301,11 @@ TextureFetcher::Update()
     switch(m_State)
     {
         case State::Begin:
-            if(!Begin())
+            if(Begin())
+            {
+                m_State = State::Fetching;
+            }
+            else
             {
                 m_State = State::Failed;
             }
@@ -330,9 +334,12 @@ TextureFetcher::Update()
 
             if(m_Tasks.empty())
             {
-                const wgpu::CommandEncoder encoder = m_TaskHeap.front().m_Encoder;
-                const wgpu::CommandBuffer commandBuffer = encoder.Finish();
-                m_GpuHelper->GetDevice().GetQueue().Submit(1, &commandBuffer);
+                if(!m_TaskHeap.empty())
+                {
+                    const wgpu::CommandEncoder encoder = m_TaskHeap.front().m_Encoder;
+                    const wgpu::CommandBuffer commandBuffer = encoder.Finish();
+                    m_GpuHelper->GetDevice().GetQueue().Submit(1, &commandBuffer);
+                }
 
                 m_State = State::Succeeded;
             }
@@ -391,8 +398,6 @@ TextureFetcher::Begin()
 
         m_Tasks.push_back(&task);
     }
-
-    m_State = State::Fetching;
 
     return Result<>::Ok;
 }
