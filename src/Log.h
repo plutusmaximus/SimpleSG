@@ -124,6 +124,7 @@ struct LogScope
     }
 
     explicit LogScope(std::string message) { Log::PushPrefix(std::move(message)); }
+    explicit LogScope(std::string_view message) { Log::PushPrefix(std::string(message)); }
 
     ~LogScope() { Log::PopPrefix(); }
 
