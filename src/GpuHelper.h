@@ -122,7 +122,7 @@ public:
     const wgpu::Surface& GetSurface() const;
     const wgpu::Texture& GetDefaultTexture() const;
     const wgpu::Sampler& GetDefaultSampler() const;
-    const wgpu::BindGroupLayout& GetTextureBindGroupLayout() const;
+    const wgpu::BindGroupLayout& GetMaterialBindGroupLayout() const;
     Dimension2 GetScreenDimensions() const;
     Result<GpuRenderTarget> GetSwapChainTexture() const;
     wgpu::TextureFormat GetSwapChainFormat() const;
@@ -139,8 +139,9 @@ public:
     Result<wgpu::Texture> CreateTexture(
         const unsigned width, const unsigned height, const std::string_view& name) const;
 
-    /// @brief Creates a bind group that includes the texture and the default sampler.
-    Result<wgpu::BindGroup> CreateTextureBindGroup(const wgpu::Texture& texture,
+    /// @brief Creates a bind group that includes the texture, sampler, and material constants.
+    Result<wgpu::BindGroup> CreateMaterialBindGroup(const wgpu::Texture& texture,
+        const GpuMaterialConstantsBuffer& materialConstants,
         const std::string_view& name) const;
 
     /// @brief Creates a render target with the given dimensions and name.
@@ -242,7 +243,7 @@ private:
     wgpu::Device m_Device{ nullptr };
     wgpu::Surface m_Surface{ nullptr };
     mutable wgpu::TextureFormat m_SurfaceFormat{ wgpu::TextureFormat::Undefined };
-    wgpu::BindGroupLayout m_TextureBindGroupLayout{ nullptr };
+    wgpu::BindGroupLayout m_MaterialBindGroupLayout{ nullptr };
     wgpu::Texture m_DefaultTexture{ nullptr };
     wgpu::Sampler m_DefaultSampler{ nullptr };
 };

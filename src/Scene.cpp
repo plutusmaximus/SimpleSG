@@ -71,13 +71,11 @@ BuildMeshInstanceParamsBuffer(const GpuHelper& gpuHelper,
 
     for(const ModelNode& modelNode : modelNodes)
     {
-        for(const MeshInstance& meshInstance : modelNode.GetMeshInstances())
+        for([[maybe_unused]] auto&& _ : modelNode.GetMeshInstances())
         {
             const ShaderInterop::MeshInstanceParams mip //
                 {
                     .TransformIndex = transformIndex,
-                    // FIXME(KB) - reconcile material ID
-                    .MaterialIndex = narrow_cast<uint32_t>(meshInstance.GetMaterialId().GetValue()),
                 };
 
             meshInstanceParams.push_back(mip);
@@ -229,7 +227,6 @@ Scene::Render(const Camera& camera, const TrTransformf& cameraXForm, const PropK
             .WorldTransforms = m_WorldTransformBuffer,
             .ClipSpaceTransforms = m_ClipSpaceBuffer,
             .MeshInstanceParams = m_MeshInstanceParamsBuffer,
-            .MaterialConstants = propKit.GetMaterialConstants(),
             .CameraParams = m_CameraParamsBuffer,
             .DrawIndirectBuffer = m_DrawIndirectBuffer,
         };

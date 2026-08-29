@@ -227,7 +227,7 @@ using GpuClipSpaceBuffer = GpuBuffer<ShaderInterop::ClipSpaceTransform, GpuBuffe
 using GpuMeshInstanceParamsBuffer = GpuBuffer<ShaderInterop::MeshInstanceParams, GpuBufferUsage::Storage>;
 using GpuCameraParamsBuffer = GpuBuffer<ShaderInterop::CameraParams, GpuBufferUsage::Uniform>;
 using GpuMaterialConstantsBuffer =
-    GpuBuffer<ShaderInterop::MaterialConstants, GpuBufferUsage::Storage>;
+    GpuBuffer<ShaderInterop::MaterialConstants, GpuBufferUsage::Uniform>;
 
 inline bool
 operator==(const wgpu::Texture& a, const wgpu::Texture& b)

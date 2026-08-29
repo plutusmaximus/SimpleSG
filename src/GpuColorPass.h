@@ -26,7 +26,6 @@ public:
         GpuWorldTransformBuffer WorldTransforms;
         GpuClipSpaceBuffer ClipSpaceTransforms;
         GpuMeshInstanceParamsBuffer MeshInstanceParams;
-        GpuMaterialConstantsBuffer MaterialConstants;
         GpuCameraParamsBuffer CameraParams;
         GpuDrawIndirectBuffer DrawIndirectBuffer;
 
@@ -43,7 +42,6 @@ public:
                 && a.WorldTransforms == b.WorldTransforms
                 && a.ClipSpaceTransforms == b.ClipSpaceTransforms
                 && a.MeshInstanceParams == b.MeshInstanceParams
-                && a.MaterialConstants == b.MaterialConstants
                 && a.CameraParams == b.CameraParams
                 && a.DrawIndirectBuffer == b.DrawIndirectBuffer;
         }

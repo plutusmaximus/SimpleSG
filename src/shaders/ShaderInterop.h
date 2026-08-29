@@ -74,7 +74,6 @@ class MeshInstanceParams
 public:
 
     uint32_t TransformIndex;
-    uint32_t MaterialIndex;
 };
 
 class CameraParams

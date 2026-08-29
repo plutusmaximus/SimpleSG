@@ -352,7 +352,7 @@ CreateDefaultSampler(const wgpu::Device& gpuDevice)
 }
 
 Result<wgpu::BindGroupLayout>
-CreateTextureBindGroupLayout(const wgpu::Device& gpuDevice)
+CreateMaterialBindGroupLayout(const wgpu::Device& gpuDevice)
 {
     const wgpu::BindGroupLayoutEntry entries[]//
     {
@@ -376,6 +376,16 @@ CreateTextureBindGroupLayout(const wgpu::Device& gpuDevice)
                 .type = wgpu::SamplerBindingType::Filtering,
             },
         },
+        // Material properties
+        {
+            .binding = 2,
+            .visibility = wgpu::ShaderStage::Fragment,
+            .buffer =
+            {
+                .type = wgpu::BufferBindingType::Uniform,
+                .minBindingSize = sizeof(ShaderInterop::MaterialConstants)
+            },
+        }
     };
 
     const wgpu::BindGroupLayoutDescriptor desc = //
@@ -594,9 +604,9 @@ GpuHelper::CreateTask::Get()
     MLG_CHECK(defaultSampler);
     gpuHelper->m_DefaultSampler = std::move(*defaultSampler);
 
-    auto textureBindGroupLayout = CreateTextureBindGroupLayout(gpuHelper->m_Device);
-    MLG_CHECK(textureBindGroupLayout);
-    gpuHelper->m_TextureBindGroupLayout = std::move(*textureBindGroupLayout);
+    auto materialBindGroupLayout = CreateMaterialBindGroupLayout(gpuHelper->m_Device);
+    MLG_CHECK(materialBindGroupLayout);
+    gpuHelper->m_MaterialBindGroupLayout = std::move(*materialBindGroupLayout);
 
     auto defaultTexture = CreateDefaultTexture(*gpuHelper);
     MLG_CHECK(defaultTexture);
@@ -860,9 +870,9 @@ GpuHelper::GetDefaultSampler() const
 }
 
 const wgpu::BindGroupLayout&
-GpuHelper::GetTextureBindGroupLayout() const
+GpuHelper::GetMaterialBindGroupLayout() const
 {
-    return m_TextureBindGroupLayout;
+    return m_MaterialBindGroupLayout;
 }
 
 Dimension2
@@ -1020,7 +1030,9 @@ GpuHelper::CreateTexture(
 }
 
 Result<wgpu::BindGroup>
-GpuHelper::CreateTextureBindGroup(const wgpu::Texture& texture, const std::string_view& name) const
+GpuHelper::CreateMaterialBindGroup(const wgpu::Texture& texture,
+    const GpuMaterialConstantsBuffer& materialConstants,
+    const std::string_view& name) const
 {
     const wgpu::BindGroupEntry entries[] = //
         {
@@ -1032,12 +1044,18 @@ GpuHelper::CreateTextureBindGroup(const wgpu::Texture& texture, const std::strin
                 .binding = 1,
                 .sampler = m_DefaultSampler,
             },
+            {
+                .binding = 2,
+                .buffer = materialConstants.GetGpuBuffer(),
+                .offset = 0,
+                .size = materialConstants.BufferSize(),
+            }
         };
 
     const wgpu::BindGroupDescriptor desc = //
         {
             .label = name,
-            .layout = m_TextureBindGroupLayout,
+            .layout = m_MaterialBindGroupLayout,
             .entryCount = std::size(entries),
             .entries = &entries[0],
         };

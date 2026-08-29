@@ -48,20 +48,9 @@ CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
                 .minBindingSize = sizeof(ShaderInterop::MeshInstanceParams),
             },
         },
-        // Material constants buffer.
-        {
-            .binding = 3,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                .hasDynamicOffset = false,
-                .minBindingSize = sizeof(ShaderInterop::MaterialConstants),
-            },
-        },
         // Camera parameters
         {
-            .binding = 4,
+            .binding = 3,
             .visibility = wgpu::ShaderStage::Vertex,
             .buffer =
             {
@@ -88,15 +77,15 @@ CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
 Result<wgpu::PipelineLayout>
 CreatePipelineLayout(const wgpu::Device& gpuDevice,
     const wgpu::BindGroupLayout& inputsBindGroupLayout,
-    const wgpu::BindGroupLayout& textureBindGroupLayout)
+    const wgpu::BindGroupLayout& materialBindGroupLayout)
 {
     MLG_CHECK(inputsBindGroupLayout, "Inputs bind group layout is not valid");
-    MLG_CHECK(textureBindGroupLayout, "Texture bind group layout is not valid");
+    MLG_CHECK(materialBindGroupLayout, "Material bind group layout is not valid");
 
     const wgpu::BindGroupLayout bindGroupLayouts[] //
         {
             inputsBindGroupLayout,
-            textureBindGroupLayout,
+            materialBindGroupLayout,
         };
 
     const wgpu::PipelineLayoutDescriptor pipelineLayoutDesc //
@@ -155,8 +144,6 @@ BindGroup0NeedsRefresh(const GpuColorPass::Inputs& currentInputs,
         != newInputs.ClipSpaceTransforms.GetGpuBuffer().Get()
         || currentInputs.MeshInstanceParams.GetGpuBuffer().Get()
         != newInputs.MeshInstanceParams.GetGpuBuffer().Get()
-        || currentInputs.MaterialConstants.GetGpuBuffer().Get()
-        != newInputs.MaterialConstants.GetGpuBuffer().Get()
         || currentInputs.CameraParams.GetGpuBuffer().Get()
         != newInputs.CameraParams.GetGpuBuffer().Get();
 }
@@ -172,11 +159,11 @@ GpuColorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
     auto inputsBindGroupLayout = CreateInputsBindGroupLayout(gpuHelper.GetDevice());
     MLG_CHECK(inputsBindGroupLayout, "Failed to create Inputs bind group layout");
 
-    auto textureBindGroupLayout = gpuHelper.GetTextureBindGroupLayout();
-    MLG_CHECK(textureBindGroupLayout, "Failed to get texture bind group layout");
+    const wgpu::BindGroupLayout materialBindGroupLayout = gpuHelper.GetMaterialBindGroupLayout();
+    MLG_CHECK(materialBindGroupLayout, "Failed to get material bind group layout");
 
     auto pipelineLayout =
-        CreatePipelineLayout(gpuHelper.GetDevice(), *inputsBindGroupLayout, textureBindGroupLayout);
+        CreatePipelineLayout(gpuHelper.GetDevice(), *inputsBindGroupLayout, materialBindGroupLayout);
     MLG_CHECK(pipelineLayout, "Failed to create pipeline layout");
 
     return GpuColorPass(gpuHelper, *shader, *inputsBindGroupLayout, *pipelineLayout);
@@ -460,12 +447,6 @@ GpuColorPass::EnsureInputsBindGroup()
             },
             {
                 .binding = 3,
-                .buffer = m_Inputs->MaterialConstants.GetGpuBuffer(),
-                .offset = 0,
-                .size = m_Inputs->MaterialConstants.BufferSize(),
-            },
-            {
-                .binding = 4,
                 .buffer = m_Inputs->CameraParams.GetGpuBuffer(),
                 .offset = 0,
                 .size = m_Inputs->CameraParams.BufferSize(),

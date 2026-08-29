@@ -48,14 +48,12 @@ FetchTextures(GpuHelper& gpuHelper,
     return Result<>::Ok;
 }
 
-Result<>
+Result<std::vector<wgpu::BindGroup>>
 CreateMaterialBindGroups(GpuHelper& gpuHelper,
     const std::span<const MaterialDef> materialDefs,
-    const TextureCache& textureCache,
-    std::vector<wgpu::BindGroup>& materialBindGroups)
+    const TextureCache& textureCache)
 {
-    materialBindGroups.clear();
-
+    std::vector<wgpu::BindGroup> materialBindGroups;
     materialBindGroups.reserve(materialDefs.size());
 
     for(const auto& mtlDef : materialDefs)
@@ -64,23 +62,6 @@ CreateMaterialBindGroups(GpuHelper& gpuHelper,
             ? gpuHelper.GetDefaultTexture()
             : textureCache.Get(mtlDef.BaseTextureUri);
 
-        auto bindGroup = gpuHelper.CreateTextureBindGroup(baseTexture, mtlDef.BaseTextureUri);
-        MLG_CHECK(bindGroup);
-
-        materialBindGroups.push_back(std::move(*bindGroup));
-    }
-
-    return Result<>::Ok;
-}
-
-Result<GpuMaterialConstantsBuffer>
-BuildMaterialConstantsBuffer(GpuHelper& gpuHelper, const std::span<const MaterialDef> materialDefs)
-{
-    std::vector<ShaderInterop::MaterialConstants> materialConstants;
-    materialConstants.reserve(materialDefs.size());
-
-    for(const auto& mtlDef : materialDefs)
-    {
         const ShaderInterop::MaterialConstants mc //
             {
                 .Color = mtlDef.Color,
@@ -88,18 +69,19 @@ BuildMaterialConstantsBuffer(GpuHelper& gpuHelper, const std::span<const Materia
                 .Roughness = mtlDef.Roughness,
             };
 
-        materialConstants.push_back(mc);
+        auto buffer =
+            gpuHelper.CreateUniformBuffer<GpuMaterialConstantsBuffer>(1, "MaterialConstants");
+        MLG_CHECK(buffer);
+
+        buffer->Store(0, mc);
+
+        auto bindGroup = gpuHelper.CreateMaterialBindGroup(baseTexture, *buffer, mtlDef.BaseTextureUri);
+        MLG_CHECK(bindGroup);
+
+        materialBindGroups.push_back(std::move(*bindGroup));
     }
 
-    auto buffer =
-        gpuHelper.CreateStorageBuffer<GpuMaterialConstantsBuffer>(materialConstants.size(),
-            "MaterialConstants");
-
-    MLG_CHECK(buffer);
-
-    buffer->Store(materialConstants);
-
-    return buffer;
+    return materialBindGroups;
 }
 
 std::map<MaterialDef, MaterialIdentifier>
@@ -302,17 +284,12 @@ PropKit::Create(GpuHelper& gpuHelper,
 
     indexBuffer->Store(indices);
 
-    auto materialConstants = BuildMaterialConstantsBuffer(gpuHelper, uniqueMaterials);
-    MLG_CHECK(materialConstants);
-
-    std::vector<wgpu::BindGroup> materialBindGroups;
-    MLG_CHECK(
-        CreateMaterialBindGroups(gpuHelper, uniqueMaterials, textureCache, materialBindGroups));
+    auto materialBindGroups = CreateMaterialBindGroups(gpuHelper, uniqueMaterials, textureCache);
+    MLG_CHECK(materialBindGroups);
 
     PropKit propKit(std::move(*vertexBuffer),
         std::move(*indexBuffer),
-        std::move(*materialConstants),
-        std::move(materialBindGroups),
+        std::move(*materialBindGroups),
         std::move(*meshes),
         std::move(models),
         std::move(modelNameIndex),
@@ -352,7 +329,6 @@ PropKit::GetMaterialBindGroup(const MaterialIdentifier& materialId) const
 
 PropKit::PropKit(GpuVertexBuffer&& vertexBuffer,
     GpuIndexBuffer&& indexBuffer,
-    GpuMaterialConstantsBuffer&& materialConstants,
     std::vector<wgpu::BindGroup>&& materialBindGroups,
     std::vector<Mesh>&& meshes,
     std::vector<Model>&& models,
@@ -360,7 +336,6 @@ PropKit::PropKit(GpuVertexBuffer&& vertexBuffer,
     StringArena&& stringArena)
     : m_VertexBuffer(std::move(vertexBuffer)),
       m_IndexBuffer(std::move(indexBuffer)),
-      m_MaterialConstants(std::move(materialConstants)),
       m_MaterialBindGroups(std::move(materialBindGroups)),
       m_Meshes(std::move(meshes)),
       m_Models(std::move(models)),
