@@ -173,47 +173,15 @@ CollectNodes(const ResourceBundle& resourceBundle)
     return nodes;
 }
 
-Result<std::vector<MeshInstance>>
-CollectMeshInstances(const ResourceBundle& resourceBundle, const PropKit& propKit)
-{
-    const std::span modelInstanceRsrcs = resourceBundle.GetModelInstances();
-    const std::span models = propKit.GetAllModels();
-
-    size_t meshInstanceCount = 0;
-    for(const ModelInstanceResource& modelInstanceRsrc : modelInstanceRsrcs)
-    {
-        MLG_CHECKV(modelInstanceRsrc.ModelIndex < models.size(),
-            "ModelInstanceResource has invalid ModelIndex");
-
-        meshInstanceCount += models[modelInstanceRsrc.ModelIndex].GetMeshes().size();
-    }
-
-    std::vector<MeshInstance> meshInstances;
-    meshInstances.reserve(meshInstanceCount);
-    for(const ModelInstanceResource& modelInstanceRsrc : modelInstanceRsrcs)
-    {
-        MLG_CHECKV(modelInstanceRsrc.ModelIndex < models.size(),
-            "ModelInstanceResource has invalid ModelIndex");
-
-        const Model& model = models[modelInstanceRsrc.ModelIndex];
-
-        for(const Mesh& mesh : model.GetMeshes())
-        {
-            meshInstances.emplace_back(&mesh, meshInstances.size());
-        }
-    }
-
-    return meshInstances;
-}
-
 Result<std::vector<ModelNode>>
 CollectModelNodes(const ResourceBundle& resourceBundle,
     const PropKit& propKit,
-    const std::span<const LevelNode>& nodes,
-    const std::span<const MeshInstance>& meshInstances)
+    const std::span<const LevelNode>& nodes)
 {
     const std::span modelInstanceRsrcs = resourceBundle.GetModelInstances();
     const std::span models = propKit.GetAllModels();
+
+    uint32_t firstMeshInstanceIndex = 0;
 
     std::vector<ModelNode> modelNodes;
     modelNodes.reserve(modelInstanceRsrcs.size());
@@ -227,14 +195,13 @@ CollectModelNodes(const ResourceBundle& resourceBundle,
             "ModelInstanceResource has invalid ModelIndex");
         const Model* model = &models[modelInstanceRsrc.ModelIndex];
 
-        MLG_CHECKV(modelInstanceRsrc.MeshInstanceOffset + model->GetMeshes().size()
-            <= meshInstances.size(),
-            "ModelInstanceResource has invalid MeshInstance range");
+        const size_t meshCount = model->GetMeshes().size();
+        MLG_CHECKV(std::numeric_limits<uint32_t>::max() - firstMeshInstanceIndex > meshCount,
+            "Exceeded maximum number of mesh instances");
 
-        const std::span meshInstanceSpan =
-            meshInstances.subspan(modelInstanceRsrc.MeshInstanceOffset,
-                model->GetMeshes().size());
-        modelNodes.emplace_back(levelNode, model, meshInstanceSpan);
+        modelNodes.emplace_back(levelNode, model, firstMeshInstanceIndex);
+
+        firstMeshInstanceIndex += meshCount;
     }
 
     return modelNodes;
@@ -303,10 +270,7 @@ Level::Create(const ResourceBundle& resourceBundle, const PropKit& propKit)
         node.m_Children = nodeSpan.subspan(nodeRsrc.FirstChildIndex, nodeRsrc.ChildCount);
     }
 
-    auto meshInstances = CollectMeshInstances(resourceBundle, propKit);
-    MLG_CHECK(meshInstances, "Failed to collect mesh instances");
-
-    auto modelNodes = CollectModelNodes(resourceBundle, propKit, *levelNodes, *meshInstances);
+    auto modelNodes = CollectModelNodes(resourceBundle, propKit, *levelNodes);
     MLG_CHECK(modelNodes, "Failed to collect model nodes");
 
     auto physicsNodes = CollectPhysicsNodes(worldIdentifier, resourceBundle, *levelNodes);
@@ -315,7 +279,6 @@ Level::Create(const ResourceBundle& resourceBundle, const PropKit& propKit)
     Level level(std::move(*levelNodes),
         std::move(*physicsNodes),
         std::move(*modelNodes),
-        std::move(*meshInstances),
         worldIdentifier);
 
     return std::move(level);
@@ -324,12 +287,10 @@ Level::Create(const ResourceBundle& resourceBundle, const PropKit& propKit)
 Level::Level(std::vector<LevelNode>&& nodes,
     std::vector<PhysicsNode>&& physicsNodes,
     std::vector<ModelNode>&& modelNodes,
-    std::vector<MeshInstance>&& meshInstances,
     const WorldIdentifier worldId)
     : m_Nodes(std::move(nodes)),
       m_PhysicsNodes(std::move(physicsNodes)),
       m_ModelNodes(std::move(modelNodes)),
-      m_MeshInstances(std::move(meshInstances)),
       m_WorldId(worldId)
 {
     size_t rootNodeCount = 0;

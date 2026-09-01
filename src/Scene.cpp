@@ -19,7 +19,7 @@ CountMeshInstances(const std::span<const ModelNode> modelNodes)
 
     for(const ModelNode& node : modelNodes)
     {
-        count += node.GetMeshInstances().size();
+        count += node.GetMeshes().size();
     }
 
     return count;
@@ -37,7 +37,7 @@ BuildMeshInstanceParamsBuffer(const GpuHelper& gpuHelper,
 
     for(const ModelNode& modelNode : modelNodes)
     {
-        for([[maybe_unused]] auto&& _ : modelNode.GetMeshInstances())
+        for([[maybe_unused]] const Mesh& _ : modelNode.GetMeshes())
         {
             const ShaderInterop::MeshInstanceParams mip //
                 {
@@ -265,7 +265,7 @@ Scene::CollectVisibleMeshes(const Frustum& frustum,
 
     for(const ModelNode& modelNode : m_ModelNodes)
     {
-        totalMeshes += modelNode.GetMeshInstances().size();
+        totalMeshes += modelNode.GetMeshes().size();
 
         if(!modelNode.IsVisible())
         {
@@ -281,26 +281,28 @@ Scene::CollectVisibleMeshes(const Frustum& frustum,
         {
             // Model intersects frustum, check each mesh instance.
 
-            for(const MeshInstance& meshInstance : modelNode.GetMeshInstances())
+            uint32_t meshInstanceIndex = modelNode.GetFirstMeshInstanceIndex();
+
+            for(const Mesh& mesh : modelNode.GetMeshes())
             {
                 const BoundingSphere& meshBs =
-                    modelNode.GetWorldTransform() * meshInstance.GetBoundingSphere();
+                    modelNode.GetWorldTransform() * mesh.GetBoundingSphere();
 
-                if(Frustum::ContainsResult::Outside == frustum.Contains(meshBs))
+                if(Frustum::ContainsResult::Outside != frustum.Contains(meshBs))
                 {
-                    continue;
+                    outVisibleMeshes.emplace_back(&mesh, meshInstanceIndex++);
                 }
-
-                outVisibleMeshes.push_back(meshInstance);
             }
         }
         else if(result == Frustum::ContainsResult::Inside)
         {
             // Model is fully inside frustum, add all mesh instances.
 
-            for(const MeshInstance& meshInstance : modelNode.GetMeshInstances())
+            uint32_t meshInstanceIndex = modelNode.GetFirstMeshInstanceIndex();
+
+            for(const Mesh& mesh : modelNode.GetMeshes())
             {
-                outVisibleMeshes.push_back(meshInstance);
+                outVisibleMeshes.emplace_back(&mesh, meshInstanceIndex++);
             }
         }
         else

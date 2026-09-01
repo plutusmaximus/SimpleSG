@@ -113,11 +113,12 @@ PhysicsNode::GetInverseMass() const
 
 /// ModelNode
 
-ModelNode::ModelNode(
-    const LevelNode* node, const Model* model, std::span<const MeshInstance> meshInstances)
+ModelNode::ModelNode(const LevelNode* node,
+    const Model* model,
+    const uint32_t firstMeshInstanceIndex)
     : m_Node(node),
       m_Model(model),
-      m_MeshInstances(meshInstances)
+      m_FirstMeshInstanceIndex(firstMeshInstanceIndex)
 {
     MLG_ABORTIF(!node, "ModelNode must be associated with a valid LevelNode");
     MLG_ABORTIF(!model, "ModelNode must be associated with a valid Model");

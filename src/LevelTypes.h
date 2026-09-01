@@ -115,8 +115,7 @@ private:
 class ModelNode
 {
 public:
-    ModelNode(
-        const LevelNode* node, const Model* model, std::span<const MeshInstance> meshInstances);
+    ModelNode(const LevelNode* node, const Model* model, const uint32_t firstMeshInstanceIndex);
 
     ModelNode() = delete;
     ~ModelNode() = default;
@@ -130,7 +129,9 @@ public:
     const BoundingBox& GetBoundingBox() const { return m_Model->GetBoundingBox(); }
     const BoundingSphere& GetBoundingSphere() const { return m_Model->GetBoundingSphere(); }
 
-    std::span<const MeshInstance> GetMeshInstances() const { return m_MeshInstances; }
+    std::span<const Mesh> GetMeshes() const { return m_Model->GetMeshes(); }
+
+    uint32_t GetFirstMeshInstanceIndex() const { return m_FirstMeshInstanceIndex; }
 
     bool IsVisible() const { return m_Node->IsVisible(); }
 
@@ -139,5 +140,5 @@ private:
 
     const LevelNode* m_Node{ nullptr };
     const Model* m_Model{ nullptr };
-    std::span<const MeshInstance> m_MeshInstances;
+    uint32_t m_FirstMeshInstanceIndex{ 0 };
 };
