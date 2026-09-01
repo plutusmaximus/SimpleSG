@@ -82,17 +82,7 @@ public:
         std::shared_ptr<spdlog::logger> m_Logger;
     };
 
-    /// Log an assertion failure
-    template<typename... Args>
-    static void Assert(std::format_string<Args...> fmt, Args&&... args)
-    {
-        s_AssertLogger.Log(Log::Level::Error, std::format(fmt, std::forward<Args>(args)...));
-    }
-
-    static void Assert(const std::string& message)
-    {
-        s_AssertLogger.Log(Log::Level::Error, message);
-    }
+    static void LogAssert(const std::string& message);
 
     /// @brief Sets the global log level.
     static void SetLevel(const Level level);
@@ -108,7 +98,6 @@ public:
     static void PopPrefix();
 
 private:
-    static inline Logger s_AssertLogger{ "ASSERT" };
 
     static std::string Prefix(const std::string& message);
 };

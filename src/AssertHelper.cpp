@@ -13,22 +13,20 @@ namespace AssertHelper
 namespace
 {
 void
-Log(const std::string_view& message)
+Log(const std::string& message)
 {
 #ifdef __clang__
     // No stack trace support in clang, so just log the message.
-    const std::string logMsg = std::format("{}", message);
+    Log::LogAssert(message);
 #else
     auto trace = std::stacktrace::current(1);
-    const std::string logMsg = std::format("{}\n\n{}", message, std::to_string(trace));
+    Log::LogAssert(std::format("{}\n\n{}", message, std::to_string(trace)));
 #endif
-
-    Log::Assert(logMsg);
 }
 } // namespace
 
 bool
-Log(AssertHelper::AssertData& assertData,
+Log(AssertData& assertData,
     const char* expression,
     const char* function,
     const char* fileName,
@@ -68,7 +66,7 @@ Log(AssertHelper::AssertData& assertData,
 }
 
 bool
-Log(AssertHelper::AssertData& assertData,
+Log(AssertData& assertData,
     const char* expression,
     const char* function,
     const char* fileName,

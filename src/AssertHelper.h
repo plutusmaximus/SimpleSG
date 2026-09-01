@@ -19,18 +19,18 @@ struct AssertData
 //
 // DO NOT REMOVE THE static decl!!!
 template<int UNIQUE_ID, size_t N>
-static AssertHelper::AssertData& GetAssertData(const char(&expression)[N])
+static AssertData& GetAssertData(const char(&expression)[N])
 {
     // Store a copy of the expression in a static buffer
     // to guarantee it's lifetime.
     static char expr[N];
     [[maybe_unused]] static const bool copied = std::copy_n(&expression[0], N, &expr[0]) == (&expr[N]);
-    static AssertHelper::AssertData assertData{ {false, 0, &expr[0], nullptr, 0, nullptr, nullptr}, SDL_ASSERTION_BREAK };
+    static AssertData assertData{ {false, 0, &expr[0], nullptr, 0, nullptr, nullptr}, SDL_ASSERTION_BREAK };
     return assertData;
 }
 
 /// @brief Log an assertion failure.
-bool Log(AssertHelper::AssertData& assertData,
+bool Log(AssertData& assertData,
     const char* expression,
     const char* function,
     const char* fileName,
@@ -38,7 +38,7 @@ bool Log(AssertHelper::AssertData& assertData,
     const std::string_view& userMsg);
 
 /// @brief Log an assertion failure.
-bool Log(AssertHelper::AssertData& assertData,
+bool Log(AssertData& assertData,
     const char* expression,
     const char* function,
     const char* fileName,
@@ -46,7 +46,7 @@ bool Log(AssertHelper::AssertData& assertData,
 
 /// @brief Log an assertion failure.
 template<typename... Args>
-static bool Log(AssertHelper::AssertData& assertData,
+static bool Log(AssertData& assertData,
     const char* expression,
     const char* function,
     const char* fileName,
@@ -56,7 +56,7 @@ static bool Log(AssertHelper::AssertData& assertData,
 {
     const std::string userMsg = std::format(fmt, std::forward<Args>(args)...);
 
-    return AssertHelper::Log(assertData, expression, function, fileName, lineNum, userMsg);
+    return Log(assertData, expression, function, fileName, lineNum, userMsg);
 }
 
 }   // namespace AssertHelper

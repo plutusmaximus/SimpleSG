@@ -61,13 +61,23 @@ GetLogState()
 ThreadLogState&
 GetThreadLogState()
 {
-    static thread_local ThreadLogState* threadLogState = // NOLINT(cppcoreguidelines-owning-memory)
-        new ThreadLogState;
+    static thread_local ThreadLogState* threadLogState { new ThreadLogState };
 
     // We intentionally leak this, so hide it from leak sanitizers
     MLG_LSAN_IGNORE_OBJECT(threadLogState);
 
     return *threadLogState;
+}
+
+Log::Logger&
+GetAssertLogger()
+{
+    static Log::Logger* assertLogger{ new Log::Logger("ASSERT") };
+
+    // We intentionally leak this, so hide it from leak sanitizers
+    MLG_LSAN_IGNORE_OBJECT(assertLogger);
+
+    return *assertLogger;
 }
 
 std::string&
@@ -143,6 +153,12 @@ Log::Logger::LogImpl(const Level level, const std::string& message)
             m_Logger->error(message);
             break;
     }
+}
+
+void
+Log::LogAssert(const std::string& message)
+{
+    GetAssertLogger().Log(Log::Level::Error, message);
 }
 
 void
