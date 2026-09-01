@@ -3,6 +3,7 @@
 #include "PhysicsTypes.h"
 #include "PropKit.h"
 #include "Result.h"
+#include "SceneTypes.h"
 
 #include <box3d/Box3D.h>
 #include <box3d/collision.h>
@@ -155,7 +156,7 @@ CollectNodes(const ResourceBundle& resourceBundle)
     for(const auto& nodeRsrc : nodeRsrcs)
     {
         const LevelNode* parent = nullptr;
-        if(nodeRsrc.ParentIndex != ResourceBundle::kInvalidIndex)
+        if(nodeRsrc.ParentIndex != Resource::kInvalidIndex)
         {
             MLG_CHECKV(nodeRsrc.ParentIndex < nodes.size(), "Invalid parent index for node");
             parent = &nodes[nodeRsrc.ParentIndex];
@@ -175,17 +176,31 @@ CollectNodes(const ResourceBundle& resourceBundle)
 Result<std::vector<MeshInstance>>
 CollectMeshInstances(const ResourceBundle& resourceBundle, const PropKit& propKit)
 {
-    const std::span meshInstanceRsrcs = resourceBundle.GetMeshInstances();
-    const std::span meshes = propKit.GetAllMeshes();
+    const std::span modelInstanceRsrcs = resourceBundle.GetModelInstances();
+    const std::span models = propKit.GetAllModels();
+
+    size_t meshInstanceCount = 0;
+    for(const ModelInstanceResource& modelInstanceRsrc : modelInstanceRsrcs)
+    {
+        MLG_CHECKV(modelInstanceRsrc.ModelIndex < models.size(),
+            "ModelInstanceResource has invalid ModelIndex");
+
+        meshInstanceCount += models[modelInstanceRsrc.ModelIndex].GetMeshes().size();
+    }
 
     std::vector<MeshInstance> meshInstances;
-    meshInstances.reserve(meshInstanceRsrcs.size());
-    for(const MeshInstanceResource& meshInstanceRsrc : meshInstanceRsrcs)
+    meshInstances.reserve(meshInstanceCount);
+    for(const ModelInstanceResource& modelInstanceRsrc : modelInstanceRsrcs)
     {
-        MLG_CHECKV(meshInstanceRsrc.MeshIndex < meshes.size(),
-            "MeshInstanceResource has invalid MeshIndex");
-        const Mesh& mesh = meshes[meshInstanceRsrc.MeshIndex];
-        meshInstances.emplace_back(&mesh, meshInstances.size());
+        MLG_CHECKV(modelInstanceRsrc.ModelIndex < models.size(),
+            "ModelInstanceResource has invalid ModelIndex");
+
+        const Model& model = models[modelInstanceRsrc.ModelIndex];
+
+        for(const Mesh& mesh : model.GetMeshes())
+        {
+            meshInstances.emplace_back(&mesh, meshInstances.size());
+        }
     }
 
     return meshInstances;
@@ -212,13 +227,13 @@ CollectModelNodes(const ResourceBundle& resourceBundle,
             "ModelInstanceResource has invalid ModelIndex");
         const Model* model = &models[modelInstanceRsrc.ModelIndex];
 
-        MLG_CHECKV(modelInstanceRsrc.MeshInstanceOffset + modelInstanceRsrc.MeshInstanceCount
+        MLG_CHECKV(modelInstanceRsrc.MeshInstanceOffset + model->GetMeshes().size()
             <= meshInstances.size(),
             "ModelInstanceResource has invalid MeshInstance range");
 
         const std::span meshInstanceSpan =
             meshInstances.subspan(modelInstanceRsrc.MeshInstanceOffset,
-                modelInstanceRsrc.MeshInstanceCount);
+                model->GetMeshes().size());
         modelNodes.emplace_back(levelNode, model, meshInstanceSpan);
     }
 
