@@ -181,7 +181,7 @@ TextureLoadTask::Stage()
     int width = 0, height = 0, numChannels = 0;
 
     if(!stbi_info_from_memory(m_Request.GetData().data(),
-           narrow_cast<int>(m_Request.GetData().size()),
+           static_cast<int>(m_Request.GetData().size()),
            &width,
            &height,
            &numChannels))
@@ -224,7 +224,7 @@ TextureLoadTask::Decode() const
 
     int imgWidth = 0, imgHeight = 0, imgNumChannels = 0;
     stbi_uc* data = stbi_load_from_memory(m_Request.GetData().data(),
-        narrow_cast<int>(m_Request.GetData().size()),
+        static_cast<int>(m_Request.GetData().size()),
         &imgWidth,
         &imgHeight,
         &imgNumChannels,
@@ -257,7 +257,7 @@ TextureLoadTask::Decode() const
 
     const std::span<const stbi_uc> srcSpan(data, sizeofSrcData);
     const std::span<std::byte> dstSpan(m_MappedMemory,
-        narrow_cast<size_t>(m_StagingBuffer.GetSize()));
+        static_cast<size_t>(m_StagingBuffer.GetSize()));
     size_t dstOffset = 0, srcOffset = 0;
     const size_t srcRowStride = static_cast<size_t>(imgWidth) * GpuHelper::kNumTextureChannels;
     const size_t dstRowStride =

@@ -309,7 +309,7 @@ CreateDefaultTexture(GpuHelper& gpuHelper)
     MLG_CHECK(mapped);
 
     const std::span<uint8_t> mappedSpan(static_cast<uint8_t*>(mapped),
-        narrow_cast<size_t>(stagingBuffer->GetSize()));
+        static_cast<size_t>(stagingBuffer->GetSize()));
 
     const size_t rowStride = GpuHelper::GetTextureAlignedRowStride(kDefaultTextureWidth);
 

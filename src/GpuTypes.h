@@ -1,7 +1,6 @@
 #pragma once
 
 #include "AssertHelper.h"
-#include "narrow_cast.h"
 #include "Result.h"
 #include "shaders/ShaderInterop.h"
 #include "Vertex.h"
@@ -157,7 +156,7 @@ public:
 
     const wgpu::Buffer& GetGpuBuffer() const { return m_GpuBuffer; }
 
-    size_t BufferSize() const { return narrow_cast<size_t>(m_GpuBuffer.GetSize()); }
+    size_t BufferSize() const { return static_cast<size_t>(m_GpuBuffer.GetSize()); }
 
     size_t Count() const { return BufferSize() / sizeof(T); }
 

@@ -7,7 +7,6 @@
 
 #include "LevelDefs.h"
 #include "Log.h"
-#include "narrow_cast.h"
 #include "PropKit.h"
 #include "scope_exit.h"
 #include "Vertex.h"
@@ -315,7 +314,7 @@ CollectIndices(const CgltfPrimitiveAttributes& attrs)
 
         for(size_t i = 0; i < attrs.SrcPosition->count; ++i)
         {
-            indices[i] = narrow_cast<VertexIndex>(i);
+            indices[i] = static_cast<VertexIndex>(i);
         }
     }
 

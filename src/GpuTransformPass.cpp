@@ -278,7 +278,7 @@ GpuTransformPass::Invocation::Execute()
     const size_t workgroupCountX = (m_InstanceCount / GpuTransformPass::kWorkgroupSize)
         + (m_InstanceCount % GpuTransformPass::kWorkgroupSize != 0);
 
-    computePass.DispatchWorkgroups(narrow_cast<uint32_t>(workgroupCountX));
+    computePass.DispatchWorkgroups(static_cast<uint32_t>(workgroupCountX));
     computePass.End();
 
     // If m_CmdEncoder is null then it's owned by the caller and they are responsible for submitting

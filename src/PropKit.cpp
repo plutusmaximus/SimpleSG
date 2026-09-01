@@ -9,7 +9,6 @@
 #include "GpuHelper.h"
 #include "LevelDefs.h"
 #include "Log.h"
-#include "narrow_cast.h"
 #include "TextureCache.h"
 #include "TextureFetcher.h"
 #include "ThreadPool.h"
@@ -131,9 +130,9 @@ BuildMeshes(const std::span<const ModelDef> modelDefs,
 
             const Mesh::VertexParams vertexParams //
                 {
-                    .IndexCount = narrow_cast<uint32_t>(meshDef.Indices.size()),
-                    .FirstIndex = narrow_cast<uint32_t>(firstIndex),
-                    .BaseVertex = narrow_cast<uint32_t>(baseVertex),
+                    .IndexCount = static_cast<uint32_t>(meshDef.Indices.size()),
+                    .FirstIndex = static_cast<uint32_t>(firstIndex),
+                    .BaseVertex = static_cast<uint32_t>(baseVertex),
                 };
 
             const BoundingBox aabb = BoundingBox::FromVertices(meshDef.Vertices, meshDef.Indices);
