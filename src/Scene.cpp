@@ -4,7 +4,6 @@
 
 #include "Camera.h"
 #include "GpuHelper.h"
-#include "narrow_cast.h"
 #include "PerfMetrics.h"
 #include "PropKit.h"
 #include "SceneTypes.h"
@@ -24,39 +23,6 @@ CountMeshInstances(const std::span<const ModelNode> modelNodes)
     }
 
     return count;
-}
-
-Result<GpuDrawIndirectBuffer>
-BuildDrawIndirectBuffer(const GpuHelper& gpuHelper, const std::span<const ModelNode> modelNodes)
-{
-    const size_t meshInstanceCount = CountMeshInstances(modelNodes);
-    std::vector<ShaderInterop::DrawIndirectParams> drawIndirectParams;
-    drawIndirectParams.reserve(meshInstanceCount);
-
-    for(const ModelNode& modelNode : modelNodes)
-    {
-        for(const MeshInstance& meshInstance : modelNode.GetMeshInstances())
-        {
-            const ShaderInterop::DrawIndirectParams drawParams //
-                {
-                    .IndexCount = meshInstance.GetIndexCount(),
-                    .InstanceCount = 1,
-                    .FirstIndex = meshInstance.GetFirstIndex(),
-                    .BaseVertex = meshInstance.GetBaseVertex(),
-                    .FirstInstance = narrow_cast<uint32_t>(drawIndirectParams.size()),
-                };
-
-            drawIndirectParams.push_back(drawParams);
-        }
-    }
-
-    auto buffer = gpuHelper.CreateIndirectBuffer<GpuDrawIndirectBuffer>(drawIndirectParams.size(),
-        "DrawIndirectBuffer");
-    MLG_CHECK(buffer);
-
-    buffer->Store(drawIndirectParams);
-
-    return buffer;
 }
 
 Result<GpuMeshInstanceParamsBuffer>
@@ -138,9 +104,6 @@ Scene::Create(const GpuHelper& gpuHelper,
         gpuHelper.CreateStorageBuffer<GpuClipSpaceBuffer>(modelNodes.size(), "ClipSpaceTransforms");
     MLG_CHECK(clipSpaceBuffer);
 
-    auto drawIndirectBuffer = BuildDrawIndirectBuffer(gpuHelper, modelNodes);
-    MLG_CHECK(drawIndirectBuffer);
-
     auto meshInstanceParamsBuffer = BuildMeshInstanceParamsBuffer(gpuHelper, modelNodes);
     MLG_CHECK(meshInstanceParamsBuffer);
 
@@ -154,7 +117,6 @@ Scene::Create(const GpuHelper& gpuHelper,
         std::move(*gpuTransformPassResult),
         std::move(*transformBuffer),
         std::move(*clipSpaceBuffer),
-        std::move(*drawIndirectBuffer),
         std::move(*meshInstanceParamsBuffer),
         std::move(*cameraParamsBuf));
 
@@ -172,7 +134,6 @@ Scene::Scene(const GpuHelper& gpuHelper,
     GpuTransformPass&& transformPass,
     GpuWorldTransformBuffer&& worldTransformBuffer,
     GpuClipSpaceBuffer&& clipSpaceBuffer,
-    GpuDrawIndirectBuffer&& drawIndirectBuffer,
     GpuMeshInstanceParamsBuffer&& meshInstanceParamsBuffer,
     GpuCameraParamsBuffer&& cameraParamsBuffer)
     : m_GpuHelper(&gpuHelper),
@@ -182,7 +143,6 @@ Scene::Scene(const GpuHelper& gpuHelper,
       m_TransformPass(std::move(transformPass)),
       m_WorldTransformBuffer(std::move(worldTransformBuffer)),
       m_ClipSpaceBuffer(std::move(clipSpaceBuffer)),
-      m_DrawIndirectBuffer(std::move(drawIndirectBuffer)),
       m_MeshInstanceParamsBuffer(std::move(meshInstanceParamsBuffer)),
       m_CameraParamsBuffer(std::move(cameraParamsBuffer))
 {
@@ -228,7 +188,6 @@ Scene::Render(const Camera& camera, const TrTransformf& cameraXForm, const PropK
             .ClipSpaceTransforms = m_ClipSpaceBuffer,
             .MeshInstanceParams = m_MeshInstanceParamsBuffer,
             .CameraParams = m_CameraParamsBuffer,
-            .DrawIndirectBuffer = m_DrawIndirectBuffer,
         };
 
     MLG_CHECK(m_ColorPass.SetInputs(colorPassInputs));

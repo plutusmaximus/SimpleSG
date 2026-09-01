@@ -162,8 +162,9 @@ GpuColorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
     const wgpu::BindGroupLayout materialBindGroupLayout = gpuHelper.GetMaterialBindGroupLayout();
     MLG_CHECK(materialBindGroupLayout, "Failed to get material bind group layout");
 
-    auto pipelineLayout =
-        CreatePipelineLayout(gpuHelper.GetDevice(), *inputsBindGroupLayout, materialBindGroupLayout);
+    auto pipelineLayout = CreatePipelineLayout(gpuHelper.GetDevice(),
+        *inputsBindGroupLayout,
+        materialBindGroupLayout);
     MLG_CHECK(pipelineLayout, "Failed to create pipeline layout");
 
     return GpuColorPass(gpuHelper, *shader, *inputsBindGroupLayout, *pipelineLayout);
@@ -303,9 +304,7 @@ GpuColorPass::Prepare(const wgpu::CommandEncoder& cmdEncoder)
         viewport.GetWidth(),
         viewport.GetHeight());
 
-    return Invocation(m_GpuHelper->GetDevice(),
-        std::move(renderPass),
-        m_Inputs->DrawIndirectBuffer);
+    return Invocation(m_GpuHelper->GetDevice(), std::move(renderPass));
 }
 
 // private:
@@ -375,10 +374,10 @@ GpuColorPass::EnsurePipeline()
             .targets = &colorTargetState,
         };
 
-    const wgpu::VertexBufferLayout vertexBufferLayouts[]//
-    {
-        GetVertexBufferLayout(),
-    };
+    const wgpu::VertexBufferLayout vertexBufferLayouts[] //
+        {
+            GetVertexBufferLayout(),
+        };
 
     const wgpu::RenderPipelineDescriptor descriptor//
     {
@@ -475,7 +474,8 @@ GpuColorPass::Invocation::~Invocation()
 }
 
 Result<>
-GpuColorPass::Invocation::Execute(const std::span<MeshInstance> visibleMeshes, const PropKit& propKit)
+GpuColorPass::Invocation::Execute(const std::span<MeshInstance> visibleMeshes,
+    const PropKit& propKit)
 {
     MLG_SCOPED_TIMER("GpuColorPass.Execute")
 
@@ -512,10 +512,6 @@ GpuColorPass::Invocation::Execute(const std::span<MeshInstance> visibleMeshes, c
             meshInstance.GetFirstIndex(),
             static_cast<int32_t>(meshInstance.GetBaseVertex()),
             static_cast<uint32_t>(meshInstance.GetInstanceIndex()));
-
-        /*const uint64_t indirectOffset =
-            meshInstance.GetInstanceIndex() * sizeof(ShaderInterop::DrawIndirectParams);
-        renderPass.DrawIndexedIndirect(m_DrawIndirectBuffer.GetGpuBuffer(), indirectOffset);*/
     }
 
     renderPass.End();

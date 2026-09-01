@@ -37,7 +37,6 @@ private:
         GpuTransformPass&& transformPass,
         GpuWorldTransformBuffer&& worldTransformBuffer,
         GpuClipSpaceBuffer&& clipSpaceBuffer,
-        GpuDrawIndirectBuffer&& drawIndirectBuffer,
         GpuMeshInstanceParamsBuffer&& meshInstanceParamsBuffer,
         GpuCameraParamsBuffer&& cameraParamsBuffer);
 
@@ -63,7 +62,6 @@ private:
 
     GpuWorldTransformBuffer m_WorldTransformBuffer;
     GpuClipSpaceBuffer m_ClipSpaceBuffer;
-    GpuDrawIndirectBuffer m_DrawIndirectBuffer;
     GpuMeshInstanceParamsBuffer m_MeshInstanceParamsBuffer;
     GpuCameraParamsBuffer m_CameraParamsBuffer;
     

@@ -27,7 +27,6 @@ public:
         GpuClipSpaceBuffer ClipSpaceTransforms;
         GpuMeshInstanceParamsBuffer MeshInstanceParams;
         GpuCameraParamsBuffer CameraParams;
-        GpuDrawIndirectBuffer DrawIndirectBuffer;
 
         Result<> Validate() const // NOLINT(readability-convert-member-functions-to-static)
         {
@@ -42,8 +41,7 @@ public:
                 && a.WorldTransforms == b.WorldTransforms
                 && a.ClipSpaceTransforms == b.ClipSpaceTransforms
                 && a.MeshInstanceParams == b.MeshInstanceParams
-                && a.CameraParams == b.CameraParams
-                && a.DrawIndirectBuffer == b.DrawIndirectBuffer;
+                && a.CameraParams == b.CameraParams;
         }
     };
 
@@ -75,18 +73,14 @@ public:
     private:
         friend class GpuColorPass;
 
-        Invocation(wgpu::Device gpuDevice,
-            wgpu::RenderPassEncoder renderPass,
-            GpuDrawIndirectBuffer drawIndirectBuffer)
+        Invocation(wgpu::Device gpuDevice, wgpu::RenderPassEncoder renderPass)
             : m_GpuDevice(std::move(gpuDevice)),
-              m_RenderPass(std::move(renderPass)),
-              m_DrawIndirectBuffer(std::move(drawIndirectBuffer))
+              m_RenderPass(std::move(renderPass))
         {
         }
 
         wgpu::Device m_GpuDevice;
         wgpu::RenderPassEncoder m_RenderPass;
-        GpuDrawIndirectBuffer m_DrawIndirectBuffer;
         wgpu::CommandEncoder m_CmdEncoder;
     };
 
