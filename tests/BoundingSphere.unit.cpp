@@ -36,16 +36,6 @@ TEST(BoundingSphere, Constructor_FromBoundingBox)
     EXPECT_NEAR(sphere.GetRadius(), std::sqrt(12.0f), EPS);
 }
 
-TEST(BoundingSphere, Constructor_FromBoundingCapsule)
-{
-    const BoundingCapsule capsule(Vec3f(-4.0f, 5.0f, 6.0f), 1.5f, 2.0f);
-
-    const BoundingSphere sphere(capsule);
-
-    ExpectVec3Eq(sphere.GetCenter(), Vec3f(-4.0f, 5.0f, 6.0f));
-    EXPECT_FLOAT_EQ(sphere.GetRadius(), 3.5f);
-}
-
 TEST(BoundingSphere, MergeOperator_WhenContainingSphere_ReturnsContaining)
 {
     const BoundingSphere a(Vec3f(0.0f, 0.0f, 0.0f), 10.0f);

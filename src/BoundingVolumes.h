@@ -45,48 +45,6 @@ private:
     Vec3f m_HalfExtents;
 };
 
-class BoundingCapsule
-{
-public:
-    BoundingCapsule() = delete;
-
-    BoundingCapsule(const Vec3f& center, const float radius, const float halfHeight) noexcept
-        : m_Center(center),
-          m_Radius(radius),
-          m_HalfHeight(halfHeight)
-    {
-        MLG_ABORTIF(radius <= 0.0f, "Bounding capsule radius must be positive");
-        MLG_ABORTIF(halfHeight <= 0.0f, "Bounding capsule half height must be positive");
-    }
-
-    const Vec3f& GetCenter() const { return m_Center; }
-
-    float GetRadius() const { return m_Radius; }
-
-    float GetHalfHeight() const { return m_HalfHeight; }
-
-    friend BoundingCapsule operator*(const TrsTransformf& transform,
-        const BoundingCapsule& a) noexcept
-    {
-        BoundingCapsule result = a;
-        result.m_Center = transform * result.m_Center;
-        return result;
-    }
-
-    friend BoundingCapsule operator*(const Mat44f& transform, const BoundingCapsule& a) noexcept
-    {
-        const Vec4f center4 = transform * Vec4f(a.m_Center, 1.0f);
-        BoundingCapsule result = a;
-        result.m_Center = Vec3f(center4.x, center4.y, center4.z);
-        return result;
-    }
-
-private:
-    Vec3f m_Center;
-    float m_Radius;
-    float m_HalfHeight;
-};
-
 class BoundingSphere
 {
 public:
@@ -102,12 +60,6 @@ public:
     explicit BoundingSphere(const BoundingBox& bbox)
         : m_Center(bbox.GetCenter()),
           m_Radius(bbox.GetHalfExtents().Length())
-    {
-    }
-
-    explicit BoundingSphere(const BoundingCapsule& capsule)
-        : m_Center(capsule.GetCenter()),
-          m_Radius(capsule.GetRadius() + capsule.GetHalfHeight())
     {
     }
 

@@ -147,63 +147,57 @@ MLG_ASSERT_SIZE(MaterialResource, 28)
     X(uint32_t, FirstIndex, 0)                                                                     \
     X(uint32_t, BaseVertex, 0)                                                                     \
     X(uint32_t, MaterialIndex, Resource::kInvalidIndex)                                            \
-    X(BoundingBox, BoundingBox)                                                                    \
-    X(BoundingSphere, BoundingSphere)
+    X(BoundingBox, BoundingBox)
 
 struct MeshResource final
 {
     MESH_RESOURCE_FIELDS(MLG_DECLARE_FIELD)
 };
 static_assert(BinaryStruct<MeshResource>);
-MLG_ASSERT_FIELD_COUNT(MESH_RESOURCE_FIELDS, 6);
+MLG_ASSERT_FIELD_COUNT(MESH_RESOURCE_FIELDS, 5);
 MLG_ASSERT_NO_PADDING(MeshResource, MESH_RESOURCE_FIELDS);
 MLG_ASSERT_OFFSET(MeshResource, IndexCount, 0)
 MLG_ASSERT_OFFSET(MeshResource, FirstIndex, 4)
 MLG_ASSERT_OFFSET(MeshResource, BaseVertex, 8)
 MLG_ASSERT_OFFSET(MeshResource, MaterialIndex, 12)
 MLG_ASSERT_OFFSET(MeshResource, BoundingBox, 16)
-MLG_ASSERT_OFFSET(MeshResource, BoundingSphere, 40)
-MLG_ASSERT_SIZE(MeshResource, 56)
+MLG_ASSERT_SIZE(MeshResource, 40)
 
 /// ModelResource
 
 #define MODEL_RESOURCE_FIELDS(X)                                                                   \
     X(uint32_t, MeshOffset, 0)                                                                     \
     X(uint32_t, MeshCount, 0)                                                                      \
-    X(BoundingBox, BoundingBox)                                                                    \
-    X(BoundingSphere, BoundingSphere)
+    X(BoundingBox, BoundingBox)
 
 struct ModelResource final
 {
     MODEL_RESOURCE_FIELDS(MLG_DECLARE_FIELD)
 };
 static_assert(BinaryStruct<ModelResource>);
-MLG_ASSERT_FIELD_COUNT(MODEL_RESOURCE_FIELDS, 4);
+MLG_ASSERT_FIELD_COUNT(MODEL_RESOURCE_FIELDS, 3);
 MLG_ASSERT_NO_PADDING(ModelResource, MODEL_RESOURCE_FIELDS);
 MLG_ASSERT_OFFSET(ModelResource, MeshOffset, 0)
 MLG_ASSERT_OFFSET(ModelResource, MeshCount, 4)
 MLG_ASSERT_OFFSET(ModelResource, BoundingBox, 8)
-MLG_ASSERT_OFFSET(ModelResource, BoundingSphere, 32)
-MLG_ASSERT_SIZE(ModelResource, 48)
+MLG_ASSERT_SIZE(ModelResource, 32)
 
 /// ModelInstanceResource
 
 #define MODEL_INSTANCE_RESOURCE_FIELDS(X)                                                          \
     X(uint32_t, NodeIndex, Resource::kInvalidIndex)                                                \
-    X(uint32_t, ModelIndex, Resource::kInvalidIndex)                                               \
-    X(uint32_t, MeshInstanceOffset, 0)
+    X(uint32_t, ModelIndex, Resource::kInvalidIndex)
 
 struct ModelInstanceResource final
 {
     MODEL_INSTANCE_RESOURCE_FIELDS(MLG_DECLARE_FIELD)
 };
 static_assert(BinaryStruct<ModelInstanceResource>);
-MLG_ASSERT_FIELD_COUNT(MODEL_INSTANCE_RESOURCE_FIELDS, 3);
+MLG_ASSERT_FIELD_COUNT(MODEL_INSTANCE_RESOURCE_FIELDS, 2);
 MLG_ASSERT_NO_PADDING(ModelInstanceResource, MODEL_INSTANCE_RESOURCE_FIELDS);
 MLG_ASSERT_OFFSET(ModelInstanceResource, NodeIndex, 0)
 MLG_ASSERT_OFFSET(ModelInstanceResource, ModelIndex, 4)
-MLG_ASSERT_OFFSET(ModelInstanceResource, MeshInstanceOffset, 8)
-MLG_ASSERT_SIZE(ModelInstanceResource, 12)
+MLG_ASSERT_SIZE(ModelInstanceResource, 8)
 
 /// ColliderResource
 

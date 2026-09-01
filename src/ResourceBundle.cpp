@@ -307,7 +307,6 @@ CollectMeshes(const std::span<const MeshDef> meshDefs,
                 .BaseVertex = vertexOffset,
                 .MaterialIndex = materialIndexMap.at(meshDef.MaterialDef),
                 .BoundingBox = boundingBox,
-                .BoundingSphere = BoundingSphere(boundingBox),
             };
         meshes.push_back(mesh);
         indexOffset += indexCount;
@@ -341,7 +340,6 @@ CollectModels(const std::span<const ModelDef> modelDefs, const std::span<const M
                 .MeshOffset = meshOffset,
                 .MeshCount = meshCount,
                 .BoundingBox = boundingBox,
-                .BoundingSphere = BoundingSphere(boundingBox),
             };
         models.push_back(model);
         meshOffset += meshCount;
@@ -370,8 +368,6 @@ CollectModelInstances(const std::span<const FlatNodeDef> flatNodeDefs,
     std::vector<ModelInstanceResource> modelInstances;
     modelInstances.reserve(count);
 
-    uint32_t meshInstanceIndex = 0;
-
     for(const FlatNodeDef& flatNodeDef : flatNodeDefs)
     {
         const uint32_t nodeIndex = static_cast<uint32_t>(&flatNodeDef - flatNodeDefs.data());
@@ -390,17 +386,14 @@ CollectModelInstances(const std::span<const FlatNodeDef> flatNodeDefs,
                     MLG_ASSERT(modelIdx < modelResources.size(),
                         "Model index {} out of range",
                         modelIdx);
-                    const ModelResource* model = &modelResources[modelIdx];
 
                     const ModelInstanceResource modelInstance //
                         {
                             .NodeIndex = nodeIndex,
                             .ModelIndex = modelIdx,
-                            .MeshInstanceOffset = meshInstanceIndex,
                         };
 
                     modelInstances.push_back(modelInstance);
-                    meshInstanceIndex += model->MeshCount;
                 }
             },
             flatNodeDef.NodeDefPtr);
