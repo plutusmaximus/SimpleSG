@@ -34,16 +34,16 @@ Shell::Update(AppUpdateCallback appUpdateCb)
         Shutdown();
     };
 
-    switch(m_State)
+    switch(m_Stage)
     {
-        case State::Init:
+        case Stage::Init:
         {
             MLG_CHECK(SystemCreateTask, "Failed to create System");
-            m_State = State::CreatingSystem;
+            m_Stage = Stage::CreatingSystem;
         }
         break;
 
-        case State::CreatingSystem:
+        case Stage::CreatingSystem:
             MLG_CHECK(SystemCreateTask->Update());
 
             if(SystemCreateTask->IsComplete())
@@ -52,11 +52,11 @@ Shell::Update(AppUpdateCallback appUpdateCb)
                 SystemInstance = SystemCreateTask->Get();
                 MLG_CHECK(SystemInstance, "Failed to get System instance");
 
-                m_State = State::Running;
+                m_Stage = Stage::Running;
             }
             break;
 
-        case State::Running:
+        case Stage::Running:
         {
             MLG_SCOPED_TIMER("Frame");
 
@@ -73,13 +73,13 @@ Shell::Update(AppUpdateCallback appUpdateCb)
         }
         break;
 
-        case State::Shutdown:
+        case Stage::Shutdown:
             MLG_INFO("Shutting down...");
             PerfMetrics::LogCounters();
-            m_State = State::Stopped;
+            m_Stage = Stage::Stopped;
             break;
 
-        case State::Stopped:
+        case Stage::Stopped:
             MLG_INFO("Stopped");
             break;
     }
@@ -95,7 +95,7 @@ Shell::Update(AppUpdateCallback appUpdateCb)
 Result<>
 Shell::BeginFrame()
 {
-    MLG_ASSERT(State::Running == m_State, "BeginFrame() called when not running");
+    MLG_ASSERT(Stage::Running == m_Stage, "BeginFrame() called when not running");
     
     SystemInstance->ProcessEvents();
 
@@ -105,7 +105,7 @@ Shell::BeginFrame()
 Result<>
 Shell::EndFrame()
 {
-    MLG_ASSERT(State::Running == m_State, "EndFrame() called when not running");
+    MLG_ASSERT(Stage::Running == m_Stage, "EndFrame() called when not running");
 #if !defined(__EMSCRIPTEN__)
 
     const GpuHelper& gpuHelper = SystemInstance->GetGpuHelper();

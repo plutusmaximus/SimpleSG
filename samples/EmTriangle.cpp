@@ -113,7 +113,7 @@ public:
     Shell::AppState Update(System& system);
 
 private:
-    enum class State
+    enum class Stage
     {
         Init,
         Running,
@@ -126,7 +126,7 @@ private:
 
     Shell::AppState GetAppState() const
     {
-        return State::Stopped == m_State ? Shell::AppState::Stopped : Shell::AppState::Running;
+        return Stage::Stopped == m_Stage ? Shell::AppState::Stopped : Shell::AppState::Running;
     }
 
     PropKitDef m_PropKitDef;
@@ -144,7 +144,7 @@ private:
 
     Camera m_Camera{ m_Viewport };
 
-    State m_State{ State::Init };
+    Stage m_Stage{ Stage::Init };
 };
 
 Shell::AppState
@@ -155,7 +155,7 @@ TriangleApp::Update(System& system)
     if(!result)
     {
         MLG_ERROR("TriangleApp::Update failed: {}");
-        m_State = State::Shutdown;
+        m_Stage = Stage::Shutdown;
     }
 
     return GetAppState();
@@ -164,9 +164,9 @@ TriangleApp::Update(System& system)
 Result<>
 TriangleApp::InnerUpdate(System& system)
 {
-    switch(m_State)
+    switch(m_Stage)
     {
-        case State::Init:
+        case Stage::Init:
         {
             MLG_CHECK(CreateTriangleModel(m_PropKitDef, m_LevelDef));
 
@@ -194,14 +194,14 @@ TriangleApp::InnerUpdate(System& system)
             m_Viewport = Viewport(gpuHelper.GetScreenDimensions());
             m_Camera.SetViewport(m_Viewport);
 
-            m_State = TriangleApp::State::Running;
+            m_Stage = TriangleApp::Stage::Running;
         }
         break;
 
-        case State::Running:
+        case Stage::Running:
             if(system.ShouldQuit())
             {
-                m_State = State::Shutdown;
+                m_Stage = Stage::Shutdown;
             }
             else if(!system.IsMinimized())
             {
@@ -222,11 +222,11 @@ TriangleApp::InnerUpdate(System& system)
             }
             break;
 
-        case State::Shutdown:
-            m_State = State::Stopped;
+        case Stage::Shutdown:
+            m_Stage = Stage::Stopped;
             break;
 
-        case State::Stopped:
+        case Stage::Stopped:
             break;
     }
 

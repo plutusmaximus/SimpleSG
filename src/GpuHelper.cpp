@@ -430,23 +430,23 @@ GpuHelper::CreateTask::Update()
 
     m_TaskImpl->m_GpuHelper->m_Instance.ProcessEvents();
 
-    switch(m_TaskImpl->m_State)
+    switch(m_TaskImpl->m_Stage)
     {
-        case CreateTask::State::None:
+        case Stage::None:
             break;
 
-        case CreateTask::State::CreateAdapter:
+        case Stage::CreateAdapter:
             if(CreateAdapter())
             {
-                m_TaskImpl->m_State = CreateTask::State::CreatingAdapter;
+                m_TaskImpl->m_Stage = Stage::CreatingAdapter;
             }
             else
             {
-                m_TaskImpl->m_State = CreateTask::State::Failed;
+                m_TaskImpl->m_Stage = Stage::Failed;
             }
             break;
 
-        case CreateTask::State::CreatingAdapter:
+        case Stage::CreatingAdapter:
             if(m_TaskImpl->m_AdapterRequestData.IsComplete
                 && m_TaskImpl->m_AdapterRequestData.Result)
             {
@@ -454,49 +454,49 @@ GpuHelper::CreateTask::Update()
 
                 if(FinalizeAdapter() && CreateDevice())
                 {
-                    m_TaskImpl->m_State = CreateTask::State::CreatingDevice;
+                    m_TaskImpl->m_Stage = Stage::CreatingDevice;
                 }
                 else
                 {
-                    m_TaskImpl->m_State = CreateTask::State::Failed;
+                    m_TaskImpl->m_Stage = Stage::Failed;
                 }
             }
             else if(m_TaskImpl->m_AdapterRequestData.IsComplete
                 && !m_TaskImpl->m_AdapterRequestData.Result)
             {
                 MLG_ERROR("Adapter creation failed");
-                m_TaskImpl->m_State = CreateTask::State::Failed;
+                m_TaskImpl->m_Stage = Stage::Failed;
             }
 
             break;
 
-        case CreateTask::State::CreatingDevice:
+        case Stage::CreatingDevice:
             if(m_TaskImpl->m_DeviceRequestData.IsComplete && m_TaskImpl->m_DeviceRequestData.Result)
             {
                 MLG_INFO("Device creation succeeded");
 
                 if(FinalizeDevice())
                 {
-                    m_TaskImpl->m_State = CreateTask::State::Succeeded;
+                    m_TaskImpl->m_Stage = Stage::Succeeded;
                 }
                 else
                 {
-                    m_TaskImpl->m_State = CreateTask::State::Failed;
+                    m_TaskImpl->m_Stage = Stage::Failed;
                 }
             }
             else if(m_TaskImpl->m_DeviceRequestData.IsComplete
                 && !m_TaskImpl->m_DeviceRequestData.Result)
             {
                 MLG_ERROR("Device creation failed");
-                m_TaskImpl->m_State = CreateTask::State::Failed;
+                m_TaskImpl->m_Stage = Stage::Failed;
             }
 
             break;
 
-        case CreateTask::State::Succeeded:
+        case Stage::Succeeded:
             break;
 
-        case CreateTask::State::Failed:
+        case Stage::Failed:
             MLG_ERROR("GpuHelper creation failed");
             Invalidate();
             return Result<>::Fail;
@@ -515,15 +515,15 @@ bool
 GpuHelper::CreateTask::IsComplete() const
 {
     return MLG_VERIFY(IsValid(), "Invalid CreateTask")
-        && MLG_VERIFY(CreateTask::State::None != m_TaskImpl->m_State, "Task is not started")
-        && (CreateTask::State::Succeeded == m_TaskImpl->m_State
-            || CreateTask::State::Failed == m_TaskImpl->m_State);
+        && MLG_VERIFY(Stage::None != m_TaskImpl->m_Stage, "Task is not started")
+        && (Stage::Succeeded == m_TaskImpl->m_Stage
+            || Stage::Failed == m_TaskImpl->m_Stage);
 }
 
 bool
 GpuHelper::CreateTask::Succeeded() const
 {
-    return IsComplete() && m_TaskImpl->m_State == State::Succeeded;
+    return IsComplete() && m_TaskImpl->m_Stage == Stage::Succeeded;
 }
 
 Result<std::unique_ptr<GpuHelper>>
@@ -594,7 +594,7 @@ GpuHelper::CreateTask::Begin(const std::string_view& appName)
 
     m_TaskImpl = std::make_unique<Impl>();
     m_TaskImpl->m_GpuHelper = std::move(gpuHelper);
-    m_TaskImpl->m_State = CreateTask::State::CreateAdapter;
+    m_TaskImpl->m_Stage = Stage::CreateAdapter;
 
     return Result<>::Ok;
 }
@@ -603,7 +603,7 @@ Result<>
 GpuHelper::CreateTask::CreateAdapter()
 {
     MLG_CHECKV(IsValid(), "Invalid CreateTask");
-    MLG_CHECKV(m_TaskImpl->m_State == CreateTask::State::CreateAdapter,
+    MLG_CHECKV(m_TaskImpl->m_Stage == Stage::CreateAdapter,
         "Task is not in the correct state");
 
     MLG_INFO("Creating adapter...");
@@ -641,7 +641,7 @@ Result<>
 GpuHelper::CreateTask::FinalizeAdapter()
 {
     MLG_CHECKV(IsValid(), "Invalid CreateTask");
-    MLG_CHECKV(m_TaskImpl->m_State == CreateTask::State::CreatingAdapter,
+    MLG_CHECKV(m_TaskImpl->m_Stage == Stage::CreatingAdapter,
         "Task is not in the correct state");
 
     MLG_CHECK(m_TaskImpl->m_AdapterRequestData.Result, "Failed to create adapter");
@@ -665,7 +665,7 @@ Result<>
 GpuHelper::CreateTask::CreateDevice()
 {
     MLG_CHECKV(IsValid(), "Invalid CreateTask");
-    MLG_CHECKV(m_TaskImpl->m_State == CreateTask::State::CreatingAdapter,
+    MLG_CHECKV(m_TaskImpl->m_Stage == Stage::CreatingAdapter,
         "Task is not in the correct state");
 
     MLG_INFO("Creating device...");
@@ -733,7 +733,7 @@ Result<>
 GpuHelper::CreateTask::FinalizeDevice()
 {
     MLG_CHECKV(IsValid(), "Invalid CreateTask");
-    MLG_CHECKV(m_TaskImpl->m_State == CreateTask::State::CreatingDevice,
+    MLG_CHECKV(m_TaskImpl->m_Stage == Stage::CreatingDevice,
         "Task is not in the correct state");
 
     MLG_CHECK(m_TaskImpl->m_DeviceRequestData.Result, "Failed to create device");

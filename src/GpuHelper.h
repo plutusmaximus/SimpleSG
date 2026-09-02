@@ -22,7 +22,7 @@ public:
     class CreateTask
     {
     public:
-        enum class State
+        enum class Stage
         {
             None,
             CreateAdapter,
@@ -100,7 +100,7 @@ public:
 
             std::unique_ptr<GpuHelper> m_GpuHelper;
 
-            CreateTask::State m_State{ CreateTask::State::None };
+            CreateTask::Stage m_Stage{ Stage::None };
         };
 
         std::unique_ptr<Impl> m_TaskImpl;

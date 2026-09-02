@@ -100,7 +100,7 @@ public:
     private:
         friend System;
 
-        enum class State
+        enum class Stage
         {
             None,
             CreatingGpuHelper,
@@ -117,7 +117,7 @@ public:
 
             std::optional<GpuHelper::CreateTask> m_GpuHelperTask;
 
-            State m_State{ State::None };
+            Stage m_Stage{ Stage::None };
         };
 
         Result<> Begin(const char* appName);

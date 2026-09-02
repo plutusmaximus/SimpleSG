@@ -20,14 +20,14 @@ public:
     /// running.
     Result<> Update(AppUpdateCallback appUpdateCb);
 
-    bool IsRunning() const { return State::Running == m_State; }
+    bool IsRunning() const { return Stage::Running == m_Stage; }
 
-    bool IsStopped() const { return State::Stopped == m_State; }
+    bool IsStopped() const { return Stage::Stopped == m_Stage; }
 
-    void Shutdown() { m_State = State::Shutdown; }
+    void Shutdown() { m_Stage = Stage::Shutdown; }
 
 private:
-    enum class State
+    enum class Stage
     {
         Init,
         CreatingSystem,
@@ -43,7 +43,7 @@ private:
     Result<System::CreateTask> SystemCreateTask;
     Result<System> SystemInstance;
     
-    State m_State{ State::Init };
+    Stage m_Stage{ Stage::Init };
 };
 
 #ifdef __EMSCRIPTEN__

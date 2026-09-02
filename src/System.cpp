@@ -15,7 +15,7 @@ Result<>
 System::CreateTask::Begin(const char* appName)
 {
     MLG_CHECKV(IsValid(), "Invalid CreateTask");
-    MLG_CHECKV(m_Impl->m_State == State::None, "Task is already in progress");
+    MLG_CHECKV(m_Impl->m_Stage == Stage::None, "Task is already in progress");
 
     MLG_INFO("Creating System...");
 
@@ -24,7 +24,7 @@ System::CreateTask::Begin(const char* appName)
 
     m_Impl->m_GpuHelperTask = std::move(*gpuHelperTaskResult);
 
-    m_Impl->m_State = State::CreatingGpuHelper;
+    m_Impl->m_Stage = Stage::CreatingGpuHelper;
 
     return Result<>::Ok;
 }
@@ -33,14 +33,14 @@ Result<>
 System::CreateTask::Update()
 {
     MLG_CHECKV(IsValid(), "Invalid CreateTask");
-    MLG_CHECKV(State::None != m_Impl->m_State, "Task is not started");
+    MLG_CHECKV(Stage::None != m_Impl->m_Stage, "Task is not started");
 
-    switch(m_Impl->m_State)
+    switch(m_Impl->m_Stage)
     {
-        case State::None:
+        case Stage::None:
             break;
 
-        case State::CreatingGpuHelper:
+        case Stage::CreatingGpuHelper:
             MLG_CHECKV(m_Impl->m_GpuHelperTask, "GpuHelper task is not initialized");
 
             if(!m_Impl->m_GpuHelperTask->IsComplete())
@@ -52,21 +52,21 @@ System::CreateTask::Update()
             if(m_Impl->m_GpuHelperTask->Succeeded())
             {
                 MLG_INFO("GpuHelper creation succeeded");
-                m_Impl->m_State = State::Succeeded;
+                m_Impl->m_Stage = Stage::Succeeded;
             }
             else
             {
                 MLG_ERROR("GpuHelper creation failed");
-                m_Impl->m_State = State::Failed;
+                m_Impl->m_Stage = Stage::Failed;
             }
             break;
 
-        case State::Succeeded:
-        case State::Failed:
+        case Stage::Succeeded:
+        case Stage::Failed:
             break;
     }
 
-    MLG_CHECK(State::Failed != m_Impl->m_State, "System creation failed");
+    MLG_CHECK(Stage::Failed != m_Impl->m_Stage, "System creation failed");
 
     return Result<>::Ok;
 }
@@ -81,8 +81,8 @@ bool
 System::CreateTask::IsComplete() const
 {
     return MLG_VERIFY(IsValid(), "Invalid CreateTask")
-        && MLG_VERIFY(m_Impl->m_State != State::None, "Task is not started")
-        && (State::Succeeded == m_Impl->m_State || State::Failed == m_Impl->m_State);
+        && MLG_VERIFY(m_Impl->m_Stage != Stage::None, "Task is not started")
+        && (Stage::Succeeded == m_Impl->m_Stage || Stage::Failed == m_Impl->m_Stage);
 }
 
 bool
@@ -90,7 +90,7 @@ System::CreateTask::Succeeded() const
 {
     return MLG_VERIFY(IsValid(), "Invalid CreateTask")
         && IsComplete()
-        && m_Impl->m_State == CreateTask::State::Succeeded;
+        && m_Impl->m_Stage == Stage::Succeeded;
 }
 
 Result<System>
