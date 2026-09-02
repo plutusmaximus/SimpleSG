@@ -6,51 +6,98 @@
 
 namespace
 {
+constexpr auto
+CreateBindGroupLayoutEntries()
+{
+    return std::array//
+    {
+        // World transform.
+        wgpu::BindGroupLayoutEntry//
+        {
+            .binding = 0,
+            .visibility = wgpu::ShaderStage::Compute,
+            .buffer =
+            {
+                .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                .hasDynamicOffset = false,
+                .minBindingSize = sizeof(ShaderInterop::WorldTransform),
+            },
+        },
+        // Clip transform.
+        wgpu::BindGroupLayoutEntry//
+        {
+            .binding = 1,
+            .visibility = wgpu::ShaderStage::Compute,
+            .buffer =
+            {
+                .type = wgpu::BufferBindingType::Storage,
+                .hasDynamicOffset = false,
+                .minBindingSize = sizeof(ShaderInterop::ClipSpaceTransform),
+            },
+        },
+        // Camera parameters
+        wgpu::BindGroupLayoutEntry{
+            .binding = 2,
+            .visibility = wgpu::ShaderStage::Compute,
+            .buffer =
+            {
+                .type = wgpu::BufferBindingType::Uniform,
+                .hasDynamicOffset = false,
+                .minBindingSize = sizeof(ShaderInterop::CameraParams),
+            },
+        },
+    };
+}
+
+auto
+CreateBindGroupEntries(const GpuTransformPass::Inputs& inputs,
+    const GpuTransformPass::Outputs& outputs)
+{
+    return std::array //
+        {
+            wgpu::BindGroupEntry //
+            {
+                .binding = 0,
+                .buffer = inputs.WorldTransforms.GetGpuBuffer(),
+                .offset = 0,
+                .size = inputs.WorldTransforms.BufferSize(),
+            },
+            wgpu::BindGroupEntry //
+            {
+                .binding = 1,
+                .buffer = outputs.ClipSpaceTransforms.GetGpuBuffer(),
+                .offset = 0,
+                .size = outputs.ClipSpaceTransforms.BufferSize(),
+            },
+            wgpu::BindGroupEntry //
+            {
+                .binding = 2,
+                .buffer = inputs.CameraParams.GetGpuBuffer(),
+                .offset = 0,
+                .size = inputs.CameraParams.BufferSize(),
+            },
+        };
+}
+
+using LayoutEntries = decltype(CreateBindGroupLayoutEntries());
+
+using BindGroupEntries =
+    decltype(CreateBindGroupEntries(std::declval<const GpuTransformPass::Inputs&>(),
+        std::declval<const GpuTransformPass::Outputs&>()));
+
+static_assert(std::tuple_size_v<LayoutEntries> == std::tuple_size_v<BindGroupEntries>,
+    "Bind group layout entries and bind group entries must have the same size");
+
 Result<wgpu::BindGroupLayout>
 CreateBindGroupLayout(const wgpu::Device& gpuDevice)
 {
-    const wgpu::BindGroupLayoutEntry entries[]//
-        {
-            // World transform.
-            {
-                .binding = 0,
-                .visibility = wgpu::ShaderStage::Compute,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::WorldTransform),
-                },
-            },
-            // Clip transform.
-            {
-                .binding = 1,
-                .visibility = wgpu::ShaderStage::Compute,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::Storage,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::ClipSpaceTransform),
-                },
-            },
-            // Camera parameters
-            {
-                .binding = 2,
-                .visibility = wgpu::ShaderStage::Compute,
-                .buffer =
-                {
-                    .type = wgpu::BufferBindingType::Uniform,
-                    .hasDynamicOffset = false,
-                    .minBindingSize = sizeof(ShaderInterop::CameraParams),
-                },
-            },
-        };
+    auto bglEntries = CreateBindGroupLayoutEntries();
 
     const wgpu::BindGroupLayoutDescriptor desc //
         {
             .label = "GpuTransformPass",
-            .entryCount = std::size(entries),
-            .entries = &entries[0],
+            .entryCount = std::size(bglEntries),
+            .entries = bglEntries.data(),
         };
 
     wgpu::BindGroupLayout layout = gpuDevice.CreateBindGroupLayout(&desc);
@@ -220,34 +267,14 @@ GpuTransformPass::EnsureInputOutputBindGroup()
     MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
     MLG_CHECKV(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
 
-    const wgpu::BindGroupEntry entries[] = //
-        {
-            {
-                .binding = 0,
-                .buffer = m_Inputs->WorldTransforms.GetGpuBuffer(),
-                .offset = 0,
-                .size = m_Inputs->WorldTransforms.BufferSize(),
-            },
-            {
-                .binding = 1,
-                .buffer = m_Outputs->ClipSpaceTransforms.GetGpuBuffer(),
-                .offset = 0,
-                .size = m_Outputs->ClipSpaceTransforms.BufferSize(),
-            },
-            {
-                .binding = 2,
-                .buffer = m_Inputs->CameraParams.GetGpuBuffer(),
-                .offset = 0,
-                .size = m_Inputs->CameraParams.BufferSize(),
-            },
-        };
+    auto entries = CreateBindGroupEntries(m_Inputs.value(), m_Outputs.value());
 
     const wgpu::BindGroupDescriptor desc = //
         {
             .label = "GpuTransformPass",
             .layout = m_BindGroupLayout,
             .entryCount = std::size(entries),
-            .entries = &entries[0],
+            .entries = entries.data(),
         };
 
     m_InputOutputBindGroup = m_GpuHelper->GetDevice().CreateBindGroup(&desc);

@@ -6,6 +6,61 @@
 
 namespace
 {
+constexpr auto
+CreateBindGroupLayoutEntries()
+{
+    return std::array//
+    {
+        // Texture
+        wgpu::BindGroupLayoutEntry//
+        {
+            .binding = 0,
+            .visibility = wgpu::ShaderStage::Fragment,
+            .texture =
+            {
+                .sampleType = wgpu::TextureSampleType::Float,
+                .viewDimension = wgpu::TextureViewDimension::e2D,
+                .multisampled = false,
+            },
+        },
+        // Sampler
+        wgpu::BindGroupLayoutEntry//
+        {
+            .binding = 1,
+            .visibility = wgpu::ShaderStage::Fragment,
+            .sampler =
+            {
+                .type = wgpu::SamplerBindingType::Filtering,
+            },
+        },
+    };
+}
+
+auto
+CreateBindGroupEntries(const GpuCompositorPass::Inputs& inputs, const wgpu::Sampler& sampler)
+{
+    return std::array //
+        {
+            wgpu::BindGroupEntry //
+            {
+                .binding = 0,
+                .textureView = inputs.Texture.CreateView(),
+            },
+            wgpu::BindGroupEntry //
+            {
+                .binding = 1,
+                .sampler = sampler,
+            },
+        };
+}
+
+using LayoutEntries = decltype(CreateBindGroupLayoutEntries());
+
+using BindGroupEntries = decltype(CreateBindGroupEntries(
+    std::declval<const GpuCompositorPass::Inputs&>(), std::declval<const wgpu::Sampler&>()));
+
+static_assert(std::tuple_size_v<LayoutEntries> == std::tuple_size_v<BindGroupEntries>,
+    "Bind group layout entries and bind group entries must have the same size");
 
 Result<wgpu::Sampler>
 CreateSampler(const GpuHelper& gpuHelper)
@@ -34,35 +89,13 @@ CreateSampler(const GpuHelper& gpuHelper)
 Result<wgpu::BindGroupLayout>
 CreateBindGroupLayout(const GpuHelper& gpuHelper)
 {
-    const wgpu::BindGroupLayoutEntry entries[]//
-        {
-            // Texture
-            {
-                .binding = 0,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .texture =
-                {
-                    .sampleType = wgpu::TextureSampleType::Float,
-                    .viewDimension = wgpu::TextureViewDimension::e2D,
-                    .multisampled = false,
-                },
-            },
-            // Sampler
-            {
-                .binding = 1,
-                .visibility = wgpu::ShaderStage::Fragment,
-                .sampler =
-                {
-                    .type = wgpu::SamplerBindingType::Filtering,
-                },
-            },
-        };
+    auto bglEntries = CreateBindGroupLayoutEntries();
 
     const wgpu::BindGroupLayoutDescriptor desc //
         {
             .label = "GpuCompositorPass",
-            .entryCount = std::size(entries),
-            .entries = &entries[0],
+            .entryCount = std::size(bglEntries),
+            .entries = bglEntries.data(),
         };
 
     const wgpu::BindGroupLayout bindGroupLayout =
@@ -324,24 +357,14 @@ GpuCompositorPass::EnsureInputsBindGroup()
 
     MLG_CHECK(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
 
-    const wgpu::BindGroupEntry entries[] //
-        {
-            {
-                .binding = 0,
-                .textureView = m_Inputs->Texture.CreateView(),
-            },
-            {
-                .binding = 1,
-                .sampler = m_Sampler,
-            },
-        };
+    auto entries = CreateBindGroupEntries(m_Inputs.value(), m_Sampler);
 
     const wgpu::BindGroupDescriptor desc //
         {
             .label = "GpuCompositorPass::Inputs",
             .layout = m_BindGroupLayout,
             .entryCount = std::size(entries),
-            .entries = &entries[0],
+            .entries = entries.data(),
         };
 
     m_InputsBindGroup = m_GpuHelper->GetDevice().CreateBindGroup(&desc);

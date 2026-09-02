@@ -8,15 +8,14 @@
 
 namespace
 {
-
-// Creates a bind group layout for the inputs of the color pass.
-Result<wgpu::BindGroupLayout>
-CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
+constexpr auto
+CreateBindGroupLayoutEntries()
 {
-    const wgpu::BindGroupLayoutEntry entries[]//
+    return std::array//
     {
         // World transform.
-        {
+        wgpu::BindGroupLayoutEntry//
+            {
             .binding = 0,
             .visibility = wgpu::ShaderStage::Vertex,
             .buffer =
@@ -27,6 +26,7 @@ CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
             },
         },
         // Clip transform.
+        wgpu::BindGroupLayoutEntry//
         {
             .binding = 1,
             .visibility = wgpu::ShaderStage::Vertex,
@@ -38,6 +38,7 @@ CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
             },
         },
         // Mesh instance parameters.
+        wgpu::BindGroupLayoutEntry//
         {
             .binding = 2,
             .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
@@ -49,6 +50,7 @@ CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
             },
         },
         // Camera parameters
+        wgpu::BindGroupLayoutEntry//
         {
             .binding = 3,
             .visibility = wgpu::ShaderStage::Vertex,
@@ -60,12 +62,63 @@ CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
             },
         },
     };
+}
+
+auto
+CreateBindGroupEntries(const GpuColorPass::Inputs& inputs)
+{
+    return std::array //
+        {
+            wgpu::BindGroupEntry //
+            {
+                .binding = 0,
+                .buffer = inputs.WorldTransforms.GetGpuBuffer(),
+                .offset = 0,
+                .size = inputs.WorldTransforms.BufferSize(),
+            },
+            wgpu::BindGroupEntry //
+            {
+                .binding = 1,
+                .buffer = inputs.ClipSpaceTransforms.GetGpuBuffer(),
+                .offset = 0,
+                .size = inputs.ClipSpaceTransforms.BufferSize(),
+            },
+            wgpu::BindGroupEntry //
+            {
+                .binding = 2,
+                .buffer = inputs.MeshInstanceParams.GetGpuBuffer(),
+                .offset = 0,
+                .size = inputs.MeshInstanceParams.BufferSize(),
+            },
+            wgpu::BindGroupEntry //
+            {
+                .binding = 3,
+                .buffer = inputs.CameraParams.GetGpuBuffer(),
+                .offset = 0,
+                .size = inputs.CameraParams.BufferSize(),
+            },
+        };
+}
+
+using LayoutEntries = decltype(CreateBindGroupLayoutEntries());
+
+using BindGroupEntries =
+    decltype(CreateBindGroupEntries(std::declval<const GpuColorPass::Inputs&>()));
+
+static_assert(std::tuple_size_v<LayoutEntries> == std::tuple_size_v<BindGroupEntries>,
+    "Bind group layout entries and bind group entries must have the same size");
+
+// Creates a bind group layout for the inputs of the color pass.
+Result<wgpu::BindGroupLayout>
+CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
+{
+    auto bglEntries = CreateBindGroupLayoutEntries();
 
     const wgpu::BindGroupLayoutDescriptor desc //
         {
             .label = "GpuColorPass::InputsBindGroupLayout",
-            .entryCount = std::size(entries),
-            .entries = &entries[0],
+            .entryCount = std::size(bglEntries),
+            .entries = bglEntries.data(),
         };
 
     wgpu::BindGroupLayout layout = gpuDevice.CreateBindGroupLayout(&desc);
@@ -424,40 +477,14 @@ GpuColorPass::EnsureInputsBindGroup()
 
     MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
 
-    const wgpu::BindGroupEntry entries[] //
-        {
-            {
-                .binding = 0,
-                .buffer = m_Inputs->WorldTransforms.GetGpuBuffer(),
-                .offset = 0,
-                .size = m_Inputs->WorldTransforms.BufferSize(),
-            },
-            {
-                .binding = 1,
-                .buffer = m_Inputs->ClipSpaceTransforms.GetGpuBuffer(),
-                .offset = 0,
-                .size = m_Inputs->ClipSpaceTransforms.BufferSize(),
-            },
-            {
-                .binding = 2,
-                .buffer = m_Inputs->MeshInstanceParams.GetGpuBuffer(),
-                .offset = 0,
-                .size = m_Inputs->MeshInstanceParams.BufferSize(),
-            },
-            {
-                .binding = 3,
-                .buffer = m_Inputs->CameraParams.GetGpuBuffer(),
-                .offset = 0,
-                .size = m_Inputs->CameraParams.BufferSize(),
-            },
-        };
+    auto entries = CreateBindGroupEntries(m_Inputs.value());
 
     const wgpu::BindGroupDescriptor desc = //
         {
             .label = "GpuColorPass::InputsBindGroup",
             .layout = m_InputsBindGroupLayout,
             .entryCount = std::size(entries),
-            .entries = &entries[0],
+            .entries = entries.data(),
         };
 
     m_InputsBindGroup = m_GpuHelper->GetDevice().CreateBindGroup(&desc);
