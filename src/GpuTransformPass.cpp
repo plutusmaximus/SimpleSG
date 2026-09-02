@@ -7,7 +7,7 @@
 namespace
 {
 constexpr auto
-CreateBindGroupLayoutEntries()
+CreateInputOutputBindGroupLayoutEntries()
 {
     return std::array//
     {
@@ -50,7 +50,7 @@ CreateBindGroupLayoutEntries()
 }
 
 auto
-CreateBindGroupEntries(const GpuTransformPass::Inputs& inputs,
+CreateInputOutputBindGroupEntries(const GpuTransformPass::Inputs& inputs,
     const GpuTransformPass::Outputs& outputs)
 {
     return std::array //
@@ -79,10 +79,10 @@ CreateBindGroupEntries(const GpuTransformPass::Inputs& inputs,
         };
 }
 
-using LayoutEntries = decltype(CreateBindGroupLayoutEntries());
+using LayoutEntries = decltype(CreateInputOutputBindGroupLayoutEntries());
 
 using BindGroupEntries =
-    decltype(CreateBindGroupEntries(std::declval<const GpuTransformPass::Inputs&>(),
+    decltype(CreateInputOutputBindGroupEntries(std::declval<const GpuTransformPass::Inputs&>(),
         std::declval<const GpuTransformPass::Outputs&>()));
 
 static_assert(std::tuple_size_v<LayoutEntries> == std::tuple_size_v<BindGroupEntries>,
@@ -91,7 +91,7 @@ static_assert(std::tuple_size_v<LayoutEntries> == std::tuple_size_v<BindGroupEnt
 Result<wgpu::BindGroupLayout>
 CreateBindGroupLayout(const wgpu::Device& gpuDevice)
 {
-    auto bglEntries = CreateBindGroupLayoutEntries();
+    auto bglEntries = CreateInputOutputBindGroupLayoutEntries();
 
     const wgpu::BindGroupLayoutDescriptor desc //
         {
@@ -267,7 +267,7 @@ GpuTransformPass::EnsureInputOutputBindGroup()
     MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
     MLG_CHECKV(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
 
-    auto entries = CreateBindGroupEntries(m_Inputs.value(), m_Outputs.value());
+    auto entries = CreateInputOutputBindGroupEntries(m_Inputs.value(), m_Outputs.value());
 
     const wgpu::BindGroupDescriptor desc = //
         {

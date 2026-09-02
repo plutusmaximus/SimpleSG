@@ -101,6 +101,7 @@ FetchTextures(const GpuHelper& gpuHelper,
 
 Result<std::vector<wgpu::BindGroup>>
 CreateMaterialBindGroups(const GpuHelper& gpuHelper,
+    const GpuColorPass& gpuColorPass,
     const std::span<const MaterialResource> materialRsrcs,
     const std::span<const wgpu::Texture> textures,
     const std::span<const std::string_view> textureUris)
@@ -141,7 +142,7 @@ CreateMaterialBindGroups(const GpuHelper& gpuHelper,
         buffer->Store(0, mc);
 
         auto bindGroup =
-            gpuHelper.CreateMaterialBindGroup(baseTexture, *buffer, textureUri);
+            gpuColorPass.CreateMaterialBindGroup(baseTexture, *buffer, textureUri);
         MLG_CHECK(bindGroup);
 
         materialBindGroups.push_back(std::move(*bindGroup));
@@ -182,10 +183,6 @@ Scene::Create(const GpuHelper& gpuHelper,
         textures.push_back(textureCache.Get(uri));
     }
 
-    auto materialBindGroups =
-        CreateMaterialBindGroups(gpuHelper, resourceBundle.GetMaterials(), textures, textureUris);
-    MLG_CHECK(materialBindGroups);
-
     auto gpuColorPassResult = GpuColorPass::Create(gpuHelper, fileFetcher);
     MLG_CHECK(gpuColorPassResult, "Failed to create GpuColorPass");
 
@@ -194,6 +191,13 @@ Scene::Create(const GpuHelper& gpuHelper,
 
     auto gpuTransformPassResult = GpuTransformPass::Create(gpuHelper, fileFetcher);
     MLG_CHECK(gpuTransformPassResult, "Failed to create GpuTransformPass");
+
+    auto materialBindGroups = CreateMaterialBindGroups(gpuHelper,
+        *gpuColorPassResult,
+        resourceBundle.GetMaterials(),
+        textures,
+        textureUris);
+    MLG_CHECK(materialBindGroups);
 
     const std::span vertices = resourceBundle.GetVertices();
     auto vertexBuffer = gpuHelper.CreateVertexBuffer(vertices.size(), "VertexBuffer");

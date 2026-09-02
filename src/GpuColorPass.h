@@ -106,19 +106,30 @@ public:
     /// The caller is responsible for submitting the command encoder to the GPU.
     Result<Invocation> Prepare(const wgpu::CommandEncoder& cmdEncoder);
 
+    /// @brief Creates a material bind group for the color pass.
+    Result<wgpu::BindGroup> CreateMaterialBindGroup(const wgpu::Texture& texture,
+        const GpuMaterialConstantsBuffer& materialConstants,
+        const std::string_view& name) const;
+
 private:
     explicit GpuColorPass(const GpuHelper& gpuHelper,
         wgpu::ShaderModule shader,
         wgpu::BindGroupLayout inputsBindGroupLayout,
-        wgpu::PipelineLayout pipelineLayout)
+        wgpu::BindGroupLayout materialBindGroupLayout,
+        wgpu::PipelineLayout pipelineLayout,
+        wgpu::Sampler defaultSampler)
         : m_GpuHelper(&gpuHelper),
           m_Shader(std::move(shader)),
           m_InputsBindGroupLayout(std::move(inputsBindGroupLayout)),
-          m_PipelineLayout(std::move(pipelineLayout))
+          m_MaterialBindGroupLayout(std::move(materialBindGroupLayout)),
+          m_PipelineLayout(std::move(pipelineLayout)),
+          m_DefaultSampler(std::move(defaultSampler))
     {
         MLG_ASSERT(m_Shader, "Shader module is not valid");
         MLG_ASSERT(m_InputsBindGroupLayout, "Inputs bind group layout is not valid");
+        MLG_ASSERT(m_MaterialBindGroupLayout, "Material bind group layout is not valid");
         MLG_ASSERT(m_PipelineLayout, "Pipeline layout is not valid");
+        MLG_ASSERT(m_DefaultSampler, "Default sampler is not valid");
     }
 
     Result<> EnsurePipeline();
@@ -131,7 +142,10 @@ private:
 
     wgpu::ShaderModule m_Shader;
     wgpu::BindGroupLayout m_InputsBindGroupLayout;
+    wgpu::BindGroupLayout m_MaterialBindGroupLayout;
     wgpu::PipelineLayout m_PipelineLayout;
     wgpu::BindGroup m_InputsBindGroup;
     wgpu::RenderPipeline m_Pipeline;
+
+    wgpu::Sampler m_DefaultSampler;
 };

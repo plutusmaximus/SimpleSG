@@ -9,7 +9,7 @@
 namespace
 {
 constexpr auto
-CreateBindGroupLayoutEntries()
+CreateInputBindGroupLayoutEntries()
 {
     return std::array//
     {
@@ -65,7 +65,7 @@ CreateBindGroupLayoutEntries()
 }
 
 auto
-CreateBindGroupEntries(const GpuColorPass::Inputs& inputs)
+CreateInputBindGroupEntries(const GpuColorPass::Inputs& inputs)
 {
     return std::array //
         {
@@ -100,19 +100,96 @@ CreateBindGroupEntries(const GpuColorPass::Inputs& inputs)
         };
 }
 
-using LayoutEntries = decltype(CreateBindGroupLayoutEntries());
+using LayoutEntries = decltype(CreateInputBindGroupLayoutEntries());
 
 using BindGroupEntries =
-    decltype(CreateBindGroupEntries(std::declval<const GpuColorPass::Inputs&>()));
+    decltype(CreateInputBindGroupEntries(std::declval<const GpuColorPass::Inputs&>()));
 
 static_assert(std::tuple_size_v<LayoutEntries> == std::tuple_size_v<BindGroupEntries>,
+    "Bind group layout entries and bind group entries must have the same size");
+
+constexpr auto CreateMaterialBindGroupLayoutEntries()
+{
+    return std::array//
+    {
+        // Texture
+        wgpu::BindGroupLayoutEntry//
+        {
+            .binding = 0,
+            .visibility = wgpu::ShaderStage::Fragment,
+            .texture =
+            {
+                .sampleType = wgpu::TextureSampleType::Float,
+                .viewDimension = wgpu::TextureViewDimension::e2D,
+                .multisampled = false,
+            },
+        },
+        // Sampler
+        wgpu::BindGroupLayoutEntry//
+        {
+            .binding = 1,
+            .visibility = wgpu::ShaderStage::Fragment,
+            .sampler =
+            {
+                .type = wgpu::SamplerBindingType::Filtering,
+            },
+        },
+        // Material properties
+        wgpu::BindGroupLayoutEntry//
+        {
+            .binding = 2,
+            .visibility = wgpu::ShaderStage::Fragment,
+            .buffer =
+            {
+                .type = wgpu::BufferBindingType::Uniform,
+                .minBindingSize = sizeof(ShaderInterop::MaterialConstants)
+            },
+        },
+    };
+}
+
+auto
+CreateMaterialBindGroupEntries(const wgpu::Texture& texture,
+    const wgpu::Sampler& sampler,
+    const GpuMaterialConstantsBuffer& materialConstants)
+{
+    return std::array //
+        {
+            wgpu::BindGroupEntry //
+            {
+                .binding = 0,
+                .textureView = texture.CreateView(),
+            },
+            wgpu::BindGroupEntry //
+            {
+                .binding = 1,
+                .sampler = sampler,
+            },
+            wgpu::BindGroupEntry //
+            {
+                .binding = 2,
+                .buffer = materialConstants.GetGpuBuffer(),
+                .offset = 0,
+                .size = materialConstants.BufferSize(),
+            },
+        };
+}
+
+using MBG_LayoutEntries = decltype(CreateMaterialBindGroupLayoutEntries());
+
+using MBG_BindGroupEntries =
+    decltype(CreateMaterialBindGroupEntries(std::declval<const wgpu::Texture&>(),
+        std::declval<const wgpu::Sampler&>(),
+        std::declval<const GpuMaterialConstantsBuffer&>()));
+
+static_assert(std::tuple_size_v<MBG_LayoutEntries> == std::tuple_size_v<MBG_BindGroupEntries>,
     "Bind group layout entries and bind group entries must have the same size");
 
 // Creates a bind group layout for the inputs of the color pass.
 Result<wgpu::BindGroupLayout>
 CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
 {
-    auto bglEntries = CreateBindGroupLayoutEntries();
+    auto bglEntries = CreateInputBindGroupLayoutEntries();
 
     const wgpu::BindGroupLayoutDescriptor desc //
         {
@@ -123,6 +200,24 @@ CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
 
     wgpu::BindGroupLayout layout = gpuDevice.CreateBindGroupLayout(&desc);
     MLG_CHECK(layout, "Failed to create Inputs bind group layout");
+
+    return layout;
+}
+
+Result<wgpu::BindGroupLayout>
+CreateMaterialBindGroupLayout(const wgpu::Device& gpuDevice)
+{
+    auto bglEntries = CreateMaterialBindGroupLayoutEntries();
+
+    const wgpu::BindGroupLayoutDescriptor desc //
+        {
+            .label = "GpuColorPass::MaterialBindGroupLayout",
+            .entryCount = std::size(bglEntries),
+            .entries = bglEntries.data(),
+        };
+
+    wgpu::BindGroupLayout layout = gpuDevice.CreateBindGroupLayout(&desc);
+    MLG_CHECK(layout, "Failed to create Material bind group layout");
 
     return layout;
 }
@@ -201,6 +296,25 @@ BindGroup0NeedsRefresh(const GpuColorPass::Inputs& currentInputs,
         != newInputs.CameraParams.GetGpuBuffer().Get();
 }
 
+Result<wgpu::Sampler>
+CreateDefaultSampler(const wgpu::Device& gpuDevice)
+{
+    const wgpu::SamplerDescriptor samplerDesc //
+        {
+            .addressModeU = wgpu::AddressMode::Repeat,
+            .addressModeV = wgpu::AddressMode::Repeat,
+            .addressModeW = wgpu::AddressMode::Repeat,
+            .magFilter = wgpu::FilterMode::Linear,
+            .minFilter = wgpu::FilterMode::Linear,
+            .mipmapFilter = wgpu::MipmapFilterMode::Linear,
+        };
+
+    wgpu::Sampler sampler = gpuDevice.CreateSampler(&samplerDesc);
+    MLG_CHECK(sampler, "Failed to create default sampler");
+
+    return sampler;
+}
+
 } // namespace
 
 Result<GpuColorPass>
@@ -212,15 +326,23 @@ GpuColorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
     auto inputsBindGroupLayout = CreateInputsBindGroupLayout(gpuHelper.GetDevice());
     MLG_CHECK(inputsBindGroupLayout, "Failed to create Inputs bind group layout");
 
-    const wgpu::BindGroupLayout materialBindGroupLayout = gpuHelper.GetMaterialBindGroupLayout();
-    MLG_CHECK(materialBindGroupLayout, "Failed to get material bind group layout");
+    auto materialBindGroupLayout = CreateMaterialBindGroupLayout(gpuHelper.GetDevice());
+    MLG_CHECK(materialBindGroupLayout, "Failed to create Material bind group layout");
 
     auto pipelineLayout = CreatePipelineLayout(gpuHelper.GetDevice(),
         *inputsBindGroupLayout,
-        materialBindGroupLayout);
+        *materialBindGroupLayout);
     MLG_CHECK(pipelineLayout, "Failed to create pipeline layout");
 
-    return GpuColorPass(gpuHelper, *shader, *inputsBindGroupLayout, *pipelineLayout);
+    auto defaultSampler = CreateDefaultSampler(gpuHelper.GetDevice());
+    MLG_CHECK(defaultSampler, "Failed to create default sampler");
+
+    return GpuColorPass(gpuHelper,
+        *shader,
+        *inputsBindGroupLayout,
+        *materialBindGroupLayout,
+        *pipelineLayout,
+        *defaultSampler);
 }
 
 Result<>
@@ -360,6 +482,27 @@ GpuColorPass::Prepare(const wgpu::CommandEncoder& cmdEncoder)
     return Invocation(m_GpuHelper->GetDevice(), std::move(renderPass));
 }
 
+Result<wgpu::BindGroup>
+GpuColorPass::CreateMaterialBindGroup(const wgpu::Texture& texture,
+    const GpuMaterialConstantsBuffer& materialConstants,
+    const std::string_view& name) const
+{
+    auto entries = CreateMaterialBindGroupEntries(texture, m_DefaultSampler, materialConstants);
+
+    const wgpu::BindGroupDescriptor desc = //
+        {
+            .label = name,
+            .layout = m_MaterialBindGroupLayout,
+            .entryCount = std::size(entries),
+            .entries = entries.data(),
+        };
+
+    const wgpu::BindGroup bindGroup = m_GpuHelper->GetDevice().CreateBindGroup(&desc);
+    MLG_CHECKV(bindGroup, "Failed to create texture bind group");
+
+    return bindGroup;
+}
+
 // private:
 
 Result<>
@@ -477,7 +620,7 @@ GpuColorPass::EnsureInputsBindGroup()
 
     MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
 
-    auto entries = CreateBindGroupEntries(m_Inputs.value());
+    auto entries = CreateInputBindGroupEntries(m_Inputs.value());
 
     const wgpu::BindGroupDescriptor desc = //
         {

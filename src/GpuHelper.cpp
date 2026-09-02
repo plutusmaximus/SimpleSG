@@ -351,56 +351,6 @@ CreateDefaultSampler(const wgpu::Device& gpuDevice)
     return sampler;
 }
 
-Result<wgpu::BindGroupLayout>
-CreateMaterialBindGroupLayout(const wgpu::Device& gpuDevice)
-{
-    const wgpu::BindGroupLayoutEntry entries[]//
-    {
-        // Texture
-        {
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .texture =
-            {
-                .sampleType = wgpu::TextureSampleType::Float,
-                .viewDimension = wgpu::TextureViewDimension::e2D,
-                .multisampled = false,
-            },
-        },
-        // Sampler
-        {
-            .binding = 1,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .sampler =
-            {
-                .type = wgpu::SamplerBindingType::Filtering,
-            },
-        },
-        // Material properties
-        {
-            .binding = 2,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::Uniform,
-                .minBindingSize = sizeof(ShaderInterop::MaterialConstants)
-            },
-        }
-    };
-
-    const wgpu::BindGroupLayoutDescriptor desc = //
-        {
-            .label = "GpuColorPass::MaterialBindGroupLayout",
-            .entryCount = std::size(entries),
-            .entries = &entries[0],
-        };
-
-    wgpu::BindGroupLayout layout = gpuDevice.CreateBindGroupLayout(&desc);
-    MLG_CHECK(layout, "Failed to create material bind group layout");
-
-    return layout;
-}
-
 void
 RequestAdapterCb(wgpu::RequestAdapterStatus status,
     wgpu::Adapter receivedAdapter,
@@ -603,10 +553,6 @@ GpuHelper::CreateTask::Get()
     auto defaultSampler = CreateDefaultSampler(gpuHelper->m_Device);
     MLG_CHECK(defaultSampler);
     gpuHelper->m_DefaultSampler = std::move(*defaultSampler);
-
-    auto materialBindGroupLayout = CreateMaterialBindGroupLayout(gpuHelper->m_Device);
-    MLG_CHECK(materialBindGroupLayout);
-    gpuHelper->m_MaterialBindGroupLayout = std::move(*materialBindGroupLayout);
 
     auto defaultTexture = CreateDefaultTexture(*gpuHelper);
     MLG_CHECK(defaultTexture);
@@ -869,12 +815,6 @@ GpuHelper::GetDefaultSampler() const
     return m_DefaultSampler;
 }
 
-const wgpu::BindGroupLayout&
-GpuHelper::GetMaterialBindGroupLayout() const
-{
-    return m_MaterialBindGroupLayout;
-}
-
 Dimension2
 GpuHelper::GetScreenDimensions() const
 {
@@ -1027,43 +967,6 @@ GpuHelper::CreateTexture(
     MLG_CHECK(texture, "Failed to create texture");
 
     return texture;
-}
-
-Result<wgpu::BindGroup>
-GpuHelper::CreateMaterialBindGroup(const wgpu::Texture& texture,
-    const GpuMaterialConstantsBuffer& materialConstants,
-    const std::string_view& name) const
-{
-    const wgpu::BindGroupEntry entries[] = //
-        {
-            {
-                .binding = 0,
-                .textureView = texture.CreateView(),
-            },
-            {
-                .binding = 1,
-                .sampler = m_DefaultSampler,
-            },
-            {
-                .binding = 2,
-                .buffer = materialConstants.GetGpuBuffer(),
-                .offset = 0,
-                .size = materialConstants.BufferSize(),
-            }
-        };
-
-    const wgpu::BindGroupDescriptor desc = //
-        {
-            .label = name,
-            .layout = m_MaterialBindGroupLayout,
-            .entryCount = std::size(entries),
-            .entries = &entries[0],
-        };
-
-    const wgpu::BindGroup bindGroup = GetDevice().CreateBindGroup(&desc);
-    MLG_CHECKV(bindGroup, "Failed to create texture bind group");
-
-    return bindGroup;
 }
 
 Result<GpuRenderTarget>

@@ -7,7 +7,7 @@
 namespace
 {
 constexpr auto
-CreateBindGroupLayoutEntries()
+CreateInputBindGroupLayoutEntries()
 {
     return std::array//
     {
@@ -37,7 +37,7 @@ CreateBindGroupLayoutEntries()
 }
 
 auto
-CreateBindGroupEntries(const GpuCompositorPass::Inputs& inputs, const wgpu::Sampler& sampler)
+CreateInputBindGroupEntries(const GpuCompositorPass::Inputs& inputs, const wgpu::Sampler& sampler)
 {
     return std::array //
         {
@@ -54,9 +54,9 @@ CreateBindGroupEntries(const GpuCompositorPass::Inputs& inputs, const wgpu::Samp
         };
 }
 
-using LayoutEntries = decltype(CreateBindGroupLayoutEntries());
+using LayoutEntries = decltype(CreateInputBindGroupLayoutEntries());
 
-using BindGroupEntries = decltype(CreateBindGroupEntries(
+using BindGroupEntries = decltype(CreateInputBindGroupEntries(
     std::declval<const GpuCompositorPass::Inputs&>(), std::declval<const wgpu::Sampler&>()));
 
 static_assert(std::tuple_size_v<LayoutEntries> == std::tuple_size_v<BindGroupEntries>,
@@ -89,7 +89,7 @@ CreateSampler(const GpuHelper& gpuHelper)
 Result<wgpu::BindGroupLayout>
 CreateBindGroupLayout(const GpuHelper& gpuHelper)
 {
-    auto bglEntries = CreateBindGroupLayoutEntries();
+    auto bglEntries = CreateInputBindGroupLayoutEntries();
 
     const wgpu::BindGroupLayoutDescriptor desc //
         {
@@ -357,7 +357,7 @@ GpuCompositorPass::EnsureInputsBindGroup()
 
     MLG_CHECK(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
 
-    auto entries = CreateBindGroupEntries(m_Inputs.value(), m_Sampler);
+    auto entries = CreateInputBindGroupEntries(m_Inputs.value(), m_Sampler);
 
     const wgpu::BindGroupDescriptor desc //
         {
