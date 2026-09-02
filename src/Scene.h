@@ -6,15 +6,19 @@
 #include "GpuTypes.h"
 #include "LevelTypes.h"
 
+#include <filesystem>
 #include <vector>
 
 class ResourceBundle;
+class ThreadPool;
 
 class Scene
 {
 public:
     static Result<Scene> Create(const GpuHelper& gpuHelper,
+        ThreadPool& threadPool,
         FileFetcher& fileFetcher,
+        const std::filesystem::path& rootPath,
         const ResourceBundle& resourceBundle,
         const std::span<const ModelNode> modelNodes);
 
@@ -25,7 +29,7 @@ public:
     Scene(Scene&& other) = default;
     Scene& operator=(Scene&& other) = default;
 
-    Result<> Render(const Camera& camera, const TrTransformf& cameraXForm, const PropKit& propKit);
+    Result<> Render(const Camera& camera, const TrTransformf& cameraXForm);
 
     Result<> Composite(const GpuRenderTarget& target);
 
@@ -42,7 +46,8 @@ private:
         GpuWorldTransformBuffer&& worldTransformBuffer,
         GpuClipSpaceBuffer&& clipSpaceBuffer,
         GpuMeshInstanceParamsBuffer&& meshInstanceParamsBuffer,
-        GpuCameraParamsBuffer&& cameraParamsBuffer);
+        GpuCameraParamsBuffer&& cameraParamsBuffer,
+        std::vector<wgpu::BindGroup>&& materialBindGroups);
 
     void CollectVisibleMeshes(const Frustum& frustum,
         std::vector<MeshInstance>& outVisibleMeshes) const;
@@ -70,6 +75,8 @@ private:
     GpuClipSpaceBuffer m_ClipSpaceBuffer;
     GpuMeshInstanceParamsBuffer m_MeshInstanceParamsBuffer;
     GpuCameraParamsBuffer m_CameraParamsBuffer;
+
+    std::vector<wgpu::BindGroup> m_MaterialBindGroups;
     
     std::vector<MeshInstance> m_VisibleMeshes;
 };

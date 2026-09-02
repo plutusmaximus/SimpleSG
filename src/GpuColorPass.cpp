@@ -3,8 +3,8 @@
 #include "GpuColorPass.h"
 
 #include "GpuHelper.h"
+#include "LevelTypes.h"
 #include "PerfMetrics.h"
-#include "PropKit.h"
 
 namespace
 {
@@ -475,7 +475,7 @@ GpuColorPass::Invocation::~Invocation()
 
 Result<>
 GpuColorPass::Invocation::Execute(const std::span<MeshInstance> visibleMeshes,
-    const PropKit& propKit)
+    const std::span<const wgpu::BindGroup> materialBindGroups)
 {
     MLG_SCOPED_TIMER("GpuColorPass.Execute")
 
@@ -489,22 +489,23 @@ GpuColorPass::Invocation::Execute(const std::span<MeshInstance> visibleMeshes,
     // Track how many times we have to change materials.
     static PerfCounter pcMaterialChanges({ .Name = "GpuColorPass.Execute.MaterialChanges" });
 
-    MaterialIdentifier lastMaterialId;
+    uint32_t materialIndex = std::numeric_limits<uint32_t>::max();
 
     for(const MeshInstance& meshInstance : visibleMeshes)
     {
-        if(meshInstance.GetMaterialId() != lastMaterialId)
+        if(meshInstance.GetMaterialIndex() != materialIndex)
         {
             pcMaterialChanges.Increment(1);
 
-            lastMaterialId = meshInstance.GetMaterialId();
+            materialIndex = meshInstance.GetMaterialIndex();
+            MLG_ASSERT(materialIndex < materialBindGroups.size(),
+                "Material index {} is out of bounds (material bind group count: {})",
+                materialIndex,
+                materialBindGroups.size());
 
-            const wgpu::BindGroup* bindGroup = propKit.GetMaterialBindGroup(lastMaterialId);
-            MLG_ASSERT(bindGroup,
-                "Failed to get material bind group for material ID {}",
-                lastMaterialId.GetValue());
+            const wgpu::BindGroup& bindGroup = materialBindGroups[materialIndex];
 
-            renderPass.SetBindGroup(1, *bindGroup, 0, nullptr);
+            renderPass.SetBindGroup(1, bindGroup, 0, nullptr);
         }
 
         renderPass.DrawIndexed(meshInstance.GetIndexCount(),

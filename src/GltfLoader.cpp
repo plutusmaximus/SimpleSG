@@ -7,7 +7,6 @@
 
 #include "LevelDefs.h"
 #include "Log.h"
-#include "PropKit.h"
 #include "scope_exit.h"
 #include "Vertex.h"
 

@@ -20,7 +20,7 @@ class TextureLoadTask;
 class TextureFetcher
 {
 public:
-    TextureFetcher(GpuHelper& gpuHelper,
+    TextureFetcher(const GpuHelper& gpuHelper,
         ThreadPool& threadPool,
         FileFetcher& fileFetcher,
         TextureCache& textureCache,
@@ -51,7 +51,7 @@ private:
 
     Result<> Begin();
 
-    GpuHelper* m_GpuHelper{ nullptr };
+    const GpuHelper* m_GpuHelper{ nullptr };
     ThreadPool* m_ThreadPool{ nullptr };
     FileFetcher* m_FileFetcher{ nullptr };
     TextureCache* m_TextureCache{ nullptr };

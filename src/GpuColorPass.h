@@ -8,7 +8,6 @@
 class FileFetcher;
 class GpuHelper;
 class MeshInstance;
-class PropKit;
 
 class GpuColorPass
 {
@@ -68,7 +67,8 @@ public:
         Invocation(Invocation&&) = default;
         Invocation& operator=(Invocation&&) = delete;
 
-        Result<> Execute(const std::span<MeshInstance> visibleMeshes, const PropKit& propKit);
+        Result<> Execute(const std::span<MeshInstance> visibleMeshes,
+            const std::span<const wgpu::BindGroup> materialBindGroups);
 
     private:
         friend class GpuColorPass;

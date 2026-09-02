@@ -27,7 +27,7 @@ public:
 
     TextureLoadTask(const std::filesystem::path& basePath,
         const std::string_view& baseUri,
-        GpuHelper& gpuHelper,
+        const GpuHelper& gpuHelper,
         FileFetcher& fileFetcher,
         ThreadPool& threadPool,
         TextureCache& textureCache,
@@ -61,7 +61,7 @@ private:
     friend TextureFetcher;
 
     std::string m_Uri;
-    GpuHelper* m_GpuHelper{ nullptr };
+    const GpuHelper* m_GpuHelper{ nullptr };
     FileFetcher* m_FileFetcher{ nullptr };
     ThreadPool* m_ThreadPool{ nullptr };
     TextureCache* m_TextureCache{ nullptr };
@@ -79,7 +79,7 @@ private:
 
 TextureLoadTask::TextureLoadTask(const std::filesystem::path& basePath,
     const std::string_view& baseUri,
-    GpuHelper& gpuHelper,
+    const GpuHelper& gpuHelper,
     FileFetcher& fileFetcher,
     ThreadPool& threadPool,
     TextureCache& textureCache,
@@ -271,7 +271,7 @@ TextureLoadTask::Decode() const
 }
 } // namespace detail
 
-TextureFetcher::TextureFetcher(GpuHelper& gpuHelper,
+TextureFetcher::TextureFetcher(const GpuHelper& gpuHelper,
     ThreadPool& threadPool,
     FileFetcher& fileFetcher,
     TextureCache& textureCache,

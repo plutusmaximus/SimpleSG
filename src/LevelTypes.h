@@ -2,12 +2,9 @@
 
 #include "BoundingVolumes.h"
 #include "PhysicsTypes.h"
-#include "SemanticIdentifier.h"
 #include "VecMath.h"
 
 #include <span>
-
-using MaterialIdentifier = SemanticIdentifier<struct MaterialIdTag>;
 
 class Level;
 
@@ -22,7 +19,7 @@ public:
         uint32_t FirstIndex;
         uint32_t BaseVertex;
         uint32_t FirstInstance;
-        uint32_t MaterialId;
+        uint32_t MaterialIndex;
         BoundingSphere BoundingSphere;
     };
 
@@ -31,7 +28,7 @@ public:
     {
     }
 
-    MaterialIdentifier GetMaterialId() const { return MaterialIdentifier(m_Params.MaterialId); }
+    uint32_t GetMaterialIndex() const { return m_Params.MaterialIndex; }
     uint32_t GetIndexCount() const { return m_Params.IndexCount; }
     uint32_t GetFirstIndex() const { return m_Params.FirstIndex; }
     uint32_t GetBaseVertex() const { return m_Params.BaseVertex; }

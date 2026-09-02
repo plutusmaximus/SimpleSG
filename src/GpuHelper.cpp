@@ -390,13 +390,13 @@ CreateMaterialBindGroupLayout(const wgpu::Device& gpuDevice)
 
     const wgpu::BindGroupLayoutDescriptor desc = //
         {
-            .label = "GpuColorPass::TextureBindGroupLayout",
+            .label = "GpuColorPass::MaterialBindGroupLayout",
             .entryCount = std::size(entries),
             .entries = &entries[0],
         };
 
     wgpu::BindGroupLayout layout = gpuDevice.CreateBindGroupLayout(&desc);
-    MLG_CHECK(layout, "Failed to create texture bind group layout");
+    MLG_CHECK(layout, "Failed to create material bind group layout");
 
     return layout;
 }

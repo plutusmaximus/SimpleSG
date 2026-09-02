@@ -6,7 +6,6 @@
 #include "LevelDefs.h"
 #include "Log.h"
 #include "PerfMetrics.h"
-#include "PropKit.h"
 #include "ResourceBundle.h"
 #include "Scene.h"
 #include "ThreadPool.h"
@@ -149,16 +148,17 @@ MainLoop()
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
     const std::filesystem::path rootPath = ".";
-    auto propKitResult =
-        PropKit::Create(*gpuHelper, *threadPool, *fileFetcher, rootPath, *rsrcBundle);
-    MLG_CHECK(propKitResult, "Failed to create PropKit");
-    const PropKit& propKit = *propKitResult;
 
     auto levelResult = Level::Create(*rsrcBundle);
     MLG_CHECK(levelResult, "Failed to create Level");
     const Level& level = *levelResult;
 
-    auto sceneResult = Scene::Create(*gpuHelper, *fileFetcher, *rsrcBundle, level.GetAllModelNodes());
+    auto sceneResult = Scene::Create(*gpuHelper,
+        *threadPool,
+        *fileFetcher,
+        rootPath,
+        *rsrcBundle,
+        level.GetAllModelNodes());
     MLG_CHECK(sceneResult, "Failed to create Scene");
     Scene& scene = *sceneResult;
 
@@ -249,7 +249,7 @@ MainLoop()
         auto target = gpuHelper->GetSwapChainTexture();
         MLG_CHECKV(target, "Failed to get swap chain texture");
 
-        MLG_CHECK(scene.Render(camera, cameraXForm, propKit));
+        MLG_CHECK(scene.Render(camera, cameraXForm));
         MLG_CHECK(scene.Composite(*target));
 
         MLG_CHECK(imGuiRenderer->Render(gpuHelper->GetDevice(), *target, RenderGui));

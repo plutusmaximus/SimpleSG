@@ -6,7 +6,6 @@
 #include "LevelDefs.h"
 #include "Log.h"
 #include "PerfMetrics.h"
-#include "PropKit.h"
 #include "ResourceBundle.h"
 #include "Scene.h"
 #include "Shell.h"
@@ -133,7 +132,6 @@ private:
     PropKitDef m_PropKitDef;
     LevelDef m_LevelDef;
 
-    Result<PropKit> m_PropKit;
     Result<Level> m_Level;
     Result<Scene> m_Scene;
 
@@ -172,7 +170,7 @@ TriangleApp::InnerUpdate(System& system)
         {
             MLG_CHECK(CreateTriangleModel(m_PropKitDef, m_LevelDef));
 
-            GpuHelper& gpuHelper = system.GetGpuHelper();
+            const GpuHelper& gpuHelper = system.GetGpuHelper();
             ThreadPool& threadPool = system.GetThreadPool();
             FileFetcher& fileFetcher = system.GetFileFetcher();
 
@@ -181,18 +179,16 @@ TriangleApp::InnerUpdate(System& system)
             MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
             const std::filesystem::path rootPath = ".";
-            m_PropKit = PropKit::Create(gpuHelper,
-                threadPool,
-                fileFetcher,
-                rootPath,
-                *rsrcBundle);
-            MLG_CHECK(m_PropKit, "Failed to create PropKit");
 
             m_Level = Level::Create(*rsrcBundle);
             MLG_CHECK(m_Level, "Failed to create Level");
 
-            m_Scene =
-                Scene::Create(gpuHelper, fileFetcher, *rsrcBundle, m_Level->GetAllModelNodes());
+            m_Scene = Scene::Create(gpuHelper,
+                threadPool,
+                fileFetcher,
+                rootPath,
+                *rsrcBundle,
+                m_Level->GetAllModelNodes());
             MLG_CHECK(m_Scene, "Failed to create Scene");
 
             m_Viewport = Viewport(gpuHelper.GetScreenDimensions());
@@ -214,7 +210,7 @@ TriangleApp::InnerUpdate(System& system)
                 m_Viewport = Viewport(gpuHelper.GetScreenDimensions());
                 m_Camera.SetViewport(m_Viewport);
 
-                MLG_CHECK(m_Scene->Render(m_Camera, m_CameraXForm, *m_PropKit));
+                MLG_CHECK(m_Scene->Render(m_Camera, m_CameraXForm));
 
                 auto target = gpuHelper.GetSwapChainTexture();
                 MLG_CHECKV(target, "Failed to get swap chain texture");

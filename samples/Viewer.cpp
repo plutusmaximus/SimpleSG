@@ -7,7 +7,6 @@
 #include "Level.h"
 #include "LevelDefs.h"
 #include "PerfMetrics.h"
-#include "PropKit.h"
 #include "ResourceBundle.h"
 #include "Scene.h"
 #include "System.h"
@@ -79,7 +78,7 @@ RenderGui()
     return Result<>::Ok;
 }
 
-Result<std::tuple<PropKit, Level, Scene>>
+Result<std::tuple<Level, Scene>>
 LoadLevel(GpuHelper& gpuHelper,
     ThreadPool& threadPool,
     FileFetcher& fileFetcher,
@@ -95,20 +94,18 @@ LoadLevel(GpuHelper& gpuHelper,
     auto rsrcBundle = builder.Build(levelDef, propKitDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
-    auto propKit = PropKit::Create(gpuHelper,
-        threadPool,
-        fileFetcher,
-        path.parent_path(),
-        *rsrcBundle);
-    MLG_CHECK(propKit, "Failed to create PropKit for {}", path.string());
-
     auto level = Level::Create(*rsrcBundle);
     MLG_CHECK(level, "Failed to create Level for {}", path.string());
 
-    auto scene = Scene::Create(gpuHelper, fileFetcher, *rsrcBundle, level->GetAllModelNodes());
+    auto scene = Scene::Create(gpuHelper,
+        threadPool,
+        fileFetcher,
+        path.parent_path(),
+        *rsrcBundle,
+        level->GetAllModelNodes());
     MLG_CHECK(scene, "Failed to create Scene for {}", path.string());
 
-    return std::make_tuple(std::move(*propKit), std::move(*level), std::move(*scene));
+    return std::make_tuple(std::move(*level), std::move(*scene));
 }
 
 #ifdef _WIN32
@@ -145,7 +142,7 @@ MainLoop()
     auto loadResult = LoadLevel(gpuHelper, threadPool, fileFetcher, SPONZA_MODEL_PATH);
     MLG_CHECK(loadResult, "Failed to load resources");
 
-    auto&& [propKit, level, scene] = std::move(*loadResult);
+    auto&& [level, scene] = std::move(*loadResult);
 
     static constexpr float kDefaultCameraHeight = 2.0f;
     static constexpr float kDefaultCameraYaw = 90.0f; // Degrees
@@ -307,9 +304,8 @@ MainLoop()
             auto newLoadResult = LoadLevel(gpuHelper, threadPool, fileFetcher, SPONZA_MODEL_PATH);
             MLG_CHECK(newLoadResult, "Failed to load resources");
 
-            auto&& [newPropKit, newLevel, newScene] = std::move(*newLoadResult);
+            auto&& [newLevel, newScene] = std::move(*newLoadResult);
 
-            propKit = std::move(newPropKit);
             level = std::move(newLevel);
             scene = std::move(newScene);
         }
@@ -331,7 +327,7 @@ MainLoop()
         auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECKV(target, "Failed to get swap chain texture");
 
-        MLG_CHECK(scene.Render(camera, cameraXForm, propKit));
+        MLG_CHECK(scene.Render(camera, cameraXForm));
         MLG_CHECK(scene.Composite(*target));
 
         MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, RenderGui));

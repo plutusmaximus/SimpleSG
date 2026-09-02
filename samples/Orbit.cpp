@@ -5,7 +5,6 @@
 #include "Level.h"
 #include "LuaRuntime.h"
 #include "PerfMetrics.h"
-#include "PropKit.h"
 #include "ResourceBundle.h"
 #include "Scene.h"
 #include "ShapeMeshDefs.h"
@@ -47,7 +46,7 @@ struct PerfCounterGlobals
     static inline PerfCounter TotalEnergy{ { .Name = "Energy.Total" } };
 };
 
-Result<std::tuple<PropKit, Level, Scene>>
+Result<std::tuple<Level, Scene>>
 LoadLevel(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher)
 {
     constexpr float kBallRadius = 1.0f;
@@ -142,20 +141,20 @@ LoadLevel(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher
     auto rsrcBundle = builder.Build(levelDef, propKitDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
-    auto propKit = PropKit::Create(gpuHelper,
-        threadPool,
-        fileFetcher,
-        std::filesystem::path{},
-        *rsrcBundle);
-    MLG_CHECK(propKit, "Failed to create PropKit");
+    const std::filesystem::path rootPath{};
 
     auto level = Level::Create(*rsrcBundle);
     MLG_CHECK(level, "Failed to create Level");
 
-    auto sceneResult = Scene::Create(gpuHelper, fileFetcher, *rsrcBundle, level->GetAllModelNodes());
+    auto sceneResult = Scene::Create(gpuHelper,
+        threadPool,
+        fileFetcher,
+        rootPath,
+        *rsrcBundle,
+        level->GetAllModelNodes());
     MLG_CHECK(sceneResult, "Failed to create Scene");
 
-    return std::make_tuple(std::move(*propKit), std::move(*level), std::move(*sceneResult));
+    return std::make_tuple(std::move(*level), std::move(*sceneResult));
 }
 
 /// @brief Applies random linear velocities to all bodies in the physics level.
@@ -585,7 +584,7 @@ MainLoop()
     auto loadResult = LoadLevel(gpuHelper, threadPool, fileFetcher);
     MLG_CHECK(loadResult);
 
-    auto&& [propKit, level, scene] = std::move(*loadResult);
+    auto&& [level, scene] = std::move(*loadResult);
 
     ApplyRandomVelocities(level);
 
@@ -769,7 +768,7 @@ MainLoop()
             const Viewport sceneViewport(scenePanelRect.GetDimensions());
             cameraActor.SetViewport(sceneViewport);
 
-            MLG_CHECK(scene.Render(cameraActor.GetCamera(), cameraXForm, propKit));
+            MLG_CHECK(scene.Render(cameraActor.GetCamera(), cameraXForm));
             MLG_CHECK(scene.Composite(*target, scenePanelRect));
         }
 

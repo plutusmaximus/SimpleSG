@@ -5,8 +5,9 @@
 #include "Camera.h"
 #include "GpuHelper.h"
 #include "PerfMetrics.h"
-#include "PropKit.h"
 #include "ResourceBundle.h"
+#include "TextureCache.h"
+#include "TextureFetcher.h"
 #include "Timer.h"
 
 namespace
@@ -77,16 +78,113 @@ CreateColorPassTarget(const GpuHelper& gpuHelper, const uint32_t width, const ui
             .DepthBuffer = *depthBuffer,
         };
 }
+
+Result<>
+FetchTextures(const GpuHelper& gpuHelper,
+    ThreadPool& threadPool,
+    FileFetcher& fileFetcher,
+    const std::filesystem::path& basePath,
+    const std::span<std::string_view> textureUris,
+    TextureCache& textureCache)
+{
+    TextureFetcher fetcher(gpuHelper, threadPool, fileFetcher, textureCache, basePath, textureUris);
+
+    while(!fetcher.IsComplete())
+    {
+        fetcher.Update();
+    }
+
+    MLG_CHECK(fetcher.Succeeded(), "Failed to fetch textures");
+
+    return Result<>::Ok;
+}
+
+Result<std::vector<wgpu::BindGroup>>
+CreateMaterialBindGroups(const GpuHelper& gpuHelper,
+    const std::span<const MaterialResource> materialRsrcs,
+    const std::span<const wgpu::Texture> textures,
+    const std::span<const std::string_view> textureUris)
+{
+    std::vector<wgpu::BindGroup> materialBindGroups;
+    materialBindGroups.reserve(materialRsrcs.size());
+
+    for(const MaterialResource& mtlRsrc : materialRsrcs)
+    {
+        MLG_CHECKV(mtlRsrc.BaseTextureIndex == Resource::kInvalidIndex
+                || mtlRsrc.BaseTextureIndex < textures.size(),
+            "Invalid base texture index");
+
+        wgpu::Texture baseTexture;
+        std::string_view textureUri;
+        if(mtlRsrc.BaseTextureIndex == Resource::kInvalidIndex)
+        {
+            baseTexture = gpuHelper.GetDefaultTexture();
+            textureUri = "<default>";
+        }
+        else
+        {
+            baseTexture = textures[mtlRsrc.BaseTextureIndex];
+            textureUri = textureUris[mtlRsrc.BaseTextureIndex];
+        }
+
+        const ShaderInterop::MaterialConstants mc //
+            {
+                .Color = mtlRsrc.Color,
+                .Metalness = mtlRsrc.Metalness,
+                .Roughness = mtlRsrc.Roughness,
+            };
+
+        auto buffer =
+            gpuHelper.CreateUniformBuffer<GpuMaterialConstantsBuffer>(1, "MaterialConstants");
+        MLG_CHECK(buffer);
+
+        buffer->Store(0, mc);
+
+        auto bindGroup =
+            gpuHelper.CreateMaterialBindGroup(baseTexture, *buffer, textureUri);
+        MLG_CHECK(bindGroup);
+
+        materialBindGroups.push_back(std::move(*bindGroup));
+    }
+
+    return materialBindGroups;
+}
 } // namespace
 
 Result<Scene>
 Scene::Create(const GpuHelper& gpuHelper,
+    ThreadPool& threadPool,
     FileFetcher& fileFetcher,
+    const std::filesystem::path& rootPath,
     const ResourceBundle& resourceBundle,
     const std::span<const ModelNode> modelNodes)
 {
     Timer createTimer;
     createTimer.Start();
+
+    TextureCache textureCache(gpuHelper.GetDefaultTexture());
+
+    const std::span textureUriStrings = resourceBundle.GetTextureUris();
+    std::vector<std::string_view> textureUris;
+    textureUris.reserve(textureUriStrings.size());
+    for(const auto& uri : textureUriStrings)
+    {
+        textureUris.push_back(resourceBundle.GetString(uri));
+    }
+
+    MLG_CHECK(
+        FetchTextures(gpuHelper, threadPool, fileFetcher, rootPath, textureUris, textureCache));
+
+    std::vector<wgpu::Texture> textures;
+    textures.reserve(textureUris.size());
+    for(const std::string_view& uri : textureUris)
+    {
+        textures.push_back(textureCache.Get(uri));
+    }
+
+    auto materialBindGroups =
+        CreateMaterialBindGroups(gpuHelper, resourceBundle.GetMaterials(), textures, textureUris);
+    MLG_CHECK(materialBindGroups);
 
     auto gpuColorPassResult = GpuColorPass::Create(gpuHelper, fileFetcher);
     MLG_CHECK(gpuColorPassResult, "Failed to create GpuColorPass");
@@ -131,7 +229,8 @@ Scene::Create(const GpuHelper& gpuHelper,
         std::move(*transformBuffer),
         std::move(*clipSpaceBuffer),
         std::move(*meshInstanceParamsBuffer),
-        std::move(*cameraParamsBuf));
+        std::move(*cameraParamsBuf),
+        std::move(*materialBindGroups));
 
     MLG_CHECK(scene.SyncToGpu());
 
@@ -150,7 +249,8 @@ Scene::Scene(const GpuHelper& gpuHelper,
     GpuWorldTransformBuffer&& worldTransformBuffer,
     GpuClipSpaceBuffer&& clipSpaceBuffer,
     GpuMeshInstanceParamsBuffer&& meshInstanceParamsBuffer,
-    GpuCameraParamsBuffer&& cameraParamsBuffer)
+    GpuCameraParamsBuffer&& cameraParamsBuffer,
+    std::vector<wgpu::BindGroup>&& materialBindGroups)
     : m_GpuHelper(&gpuHelper),
       m_ModelNodes(modelNodes),
       m_ColorPass(std::move(colorPass)),
@@ -161,14 +261,15 @@ Scene::Scene(const GpuHelper& gpuHelper,
       m_WorldTransformBuffer(std::move(worldTransformBuffer)),
       m_ClipSpaceBuffer(std::move(clipSpaceBuffer)),
       m_MeshInstanceParamsBuffer(std::move(meshInstanceParamsBuffer)),
-      m_CameraParamsBuffer(std::move(cameraParamsBuffer))
+      m_CameraParamsBuffer(std::move(cameraParamsBuffer)),
+      m_MaterialBindGroups(std::move(materialBindGroups))
 {
     const size_t meshInstanceCount = CountMeshInstances(m_ModelNodes);
     m_VisibleMeshes.reserve(meshInstanceCount);
 }
 
 Result<>
-Scene::Render(const Camera& camera, const TrTransformf& cameraXForm, const PropKit& propKit)
+Scene::Render(const Camera& camera, const TrTransformf& cameraXForm)
 {
     MLG_SCOPED_TIMER("Scene.Render");
 
@@ -216,9 +317,9 @@ Scene::Render(const Camera& camera, const TrTransformf& cameraXForm, const PropK
     m_VisibleMeshes.clear();
     const Frustum frustum(camera, cameraXForm);
     CollectVisibleMeshes(frustum, m_VisibleMeshes);
-    std::ranges::sort(m_VisibleMeshes, {}, &MeshInstance::GetMaterialId);
+    std::ranges::sort(m_VisibleMeshes, {}, &MeshInstance::GetMaterialIndex);
 
-    MLG_CHECK(invocation->Execute(m_VisibleMeshes, propKit));
+    MLG_CHECK(invocation->Execute(m_VisibleMeshes, m_MaterialBindGroups));
 
     const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
     MLG_CHECK(cmdBuf, "Failed to finish command buffer");

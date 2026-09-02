@@ -221,7 +221,7 @@ CollectMeshInstances(const ResourceBundle& resourceBundle)
                     .FirstIndex = meshRsrc.FirstIndex,
                     .BaseVertex = meshRsrc.BaseVertex,
                     .FirstInstance = static_cast<uint32_t>(meshInstances.size()),
-                    .MaterialId = meshRsrc.MaterialIndex,
+                    .MaterialIndex = meshRsrc.MaterialIndex,
                     .BoundingSphere = BoundingSphere(meshRsrc.BoundingBox),
                 };
 
