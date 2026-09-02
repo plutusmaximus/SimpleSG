@@ -363,7 +363,6 @@ set(SSG_SOURCES
   src/StringArena.cpp
   src/stb_image.cpp
   src/System.cpp
-  src/TextureCache.cpp
   src/TextureFetcher.cpp
   src/ThreadPool.cpp
   src/Timer.cpp
@@ -405,7 +404,6 @@ set(SSG_HEADERS
   src/Shell.h
   src/StringArena.h
   src/System.h
-  src/TextureCache.h
   src/TextureFetcher.h
   src/ThreadPool.h
   src/Timer.h

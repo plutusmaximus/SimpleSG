@@ -10,11 +10,15 @@
 class GpuHelper;
 class ThreadPool;
 class FileFetcher;
-class TextureCache;
 
 namespace detail
 {
 class TextureLoadTask;
+}
+
+namespace wgpu
+{
+class Texture;
 }
 
 class TextureFetcher
@@ -23,7 +27,6 @@ public:
     TextureFetcher(const GpuHelper& gpuHelper,
         ThreadPool& threadPool,
         FileFetcher& fileFetcher,
-        TextureCache& textureCache,
         std::filesystem::path basePath,
         const std::span<const std::string_view>& textureUris);
 
@@ -36,12 +39,14 @@ public:
 
     void Update();
 
-    bool IsComplete() const { return m_State == State::Succeeded || m_State == State::Failed; }
+    bool IsComplete() const { return m_Stage == Stage::Succeeded || m_Stage == Stage::Failed; }
 
-    bool Succeeded() const { return m_State == State::Succeeded; }
+    bool Succeeded() const { return m_Stage == Stage::Succeeded; }
+
+    std::span<const wgpu::Texture> GetTextures() const;
 
 private:
-    enum class State
+    enum class Stage
     {
         Begin,
         Fetching,
@@ -54,12 +59,11 @@ private:
     const GpuHelper* m_GpuHelper{ nullptr };
     ThreadPool* m_ThreadPool{ nullptr };
     FileFetcher* m_FileFetcher{ nullptr };
-    TextureCache* m_TextureCache{ nullptr };
     std::filesystem::path m_BasePath;
-    std::span<const std::string_view> m_TextureUris;
-    std::vector<detail::TextureLoadTask> m_TaskHeap;
+    std::vector<std::string> m_TextureUris;
+    std::vector<std::unique_ptr<detail::TextureLoadTask>> m_TaskHeap;
     std::vector<detail::TextureLoadTask*> m_Tasks;
-    std::vector<std::atomic<bool>> m_CompletionFlags;
+    std::vector<wgpu::Texture> m_Textures;
 
-    State m_State{ State::Begin };
+    Stage m_Stage{ Stage::Begin };
 };

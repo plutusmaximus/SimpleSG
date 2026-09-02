@@ -6,7 +6,6 @@
 #include "GpuHelper.h"
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"
-#include "TextureCache.h"
 #include "TextureFetcher.h"
 #include "Timer.h"
 
@@ -79,26 +78,6 @@ CreateColorPassTarget(const GpuHelper& gpuHelper, const uint32_t width, const ui
         };
 }
 
-Result<>
-FetchTextures(const GpuHelper& gpuHelper,
-    ThreadPool& threadPool,
-    FileFetcher& fileFetcher,
-    const std::filesystem::path& basePath,
-    const std::span<std::string_view> textureUris,
-    TextureCache& textureCache)
-{
-    TextureFetcher fetcher(gpuHelper, threadPool, fileFetcher, textureCache, basePath, textureUris);
-
-    while(!fetcher.IsComplete())
-    {
-        fetcher.Update();
-    }
-
-    MLG_CHECK(fetcher.Succeeded(), "Failed to fetch textures");
-
-    return Result<>::Ok;
-}
-
 Result<std::vector<wgpu::BindGroup>>
 CreateMaterialBindGroups(const GpuHelper& gpuHelper,
     const GpuColorPass& gpuColorPass,
@@ -163,8 +142,6 @@ Scene::Create(const GpuHelper& gpuHelper,
     Timer createTimer;
     createTimer.Start();
 
-    TextureCache textureCache(gpuHelper.GetDefaultTexture());
-
     const std::span textureUriStrings = resourceBundle.GetTextureUris();
     std::vector<std::string_view> textureUris;
     textureUris.reserve(textureUriStrings.size());
@@ -173,15 +150,18 @@ Scene::Create(const GpuHelper& gpuHelper,
         textureUris.push_back(resourceBundle.GetString(uri));
     }
 
-    MLG_CHECK(
-        FetchTextures(gpuHelper, threadPool, fileFetcher, rootPath, textureUris, textureCache));
+    TextureFetcher fetcher(gpuHelper, threadPool, fileFetcher, rootPath, textureUris);
 
+    while(!fetcher.IsComplete())
+    {
+        fetcher.Update();
+    }
+
+    MLG_CHECK(fetcher.Succeeded(), "Failed to fetch textures");
+        
     std::vector<wgpu::Texture> textures;
     textures.reserve(textureUris.size());
-    for(const std::string_view& uri : textureUris)
-    {
-        textures.push_back(textureCache.Get(uri));
-    }
+    textures.append_range(fetcher.GetTextures());
 
     auto gpuColorPassResult = GpuColorPass::Create(gpuHelper, fileFetcher);
     MLG_CHECK(gpuColorPassResult, "Failed to create GpuColorPass");
