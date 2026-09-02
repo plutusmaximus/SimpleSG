@@ -31,17 +31,9 @@ public:
 
     const wgpu::BindGroup* GetMaterialBindGroup(const MaterialIdentifier& materialId) const;
 
-    GpuVertexBuffer GetVertexBuffer() const { return m_VertexBuffer; }
-
-    GpuIndexBuffer GetIndexBuffer() const { return m_IndexBuffer; }
-
 private:
 
-    PropKit(GpuVertexBuffer&& vertexBuffer,
-        GpuIndexBuffer&& indexBuffer,
-        std::vector<wgpu::BindGroup>&& materialBindGroups);
+    explicit PropKit(std::vector<wgpu::BindGroup>&& materialBindGroups);
 
-    GpuVertexBuffer m_VertexBuffer;
-    GpuIndexBuffer m_IndexBuffer;
     std::vector<wgpu::BindGroup> m_MaterialBindGroups;
 };

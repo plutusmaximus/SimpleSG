@@ -152,7 +152,7 @@ LoadLevel(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher
     auto level = Level::Create(*rsrcBundle);
     MLG_CHECK(level, "Failed to create Level");
 
-    auto sceneResult = Scene::Create(gpuHelper, fileFetcher, level->GetAllModelNodes());
+    auto sceneResult = Scene::Create(gpuHelper, fileFetcher, *rsrcBundle, level->GetAllModelNodes());
     MLG_CHECK(sceneResult, "Failed to create Scene");
 
     return std::make_tuple(std::move(*propKit), std::move(*level), std::move(*sceneResult));

@@ -191,7 +191,8 @@ TriangleApp::InnerUpdate(System& system)
             m_Level = Level::Create(*rsrcBundle);
             MLG_CHECK(m_Level, "Failed to create Level");
 
-            m_Scene = Scene::Create(gpuHelper, fileFetcher, m_Level->GetAllModelNodes());
+            m_Scene =
+                Scene::Create(gpuHelper, fileFetcher, *rsrcBundle, m_Level->GetAllModelNodes());
             MLG_CHECK(m_Scene, "Failed to create Scene");
 
             m_Viewport = Viewport(gpuHelper.GetScreenDimensions());

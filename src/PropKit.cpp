@@ -123,25 +123,11 @@ PropKit::Create(GpuHelper& gpuHelper,
         textures.push_back(textureCache.Get(uri));
     }
 
-    const std::span vertices = resourceBundle.GetVertices();
-    auto vertexBuffer = gpuHelper.CreateVertexBuffer(vertices.size(), "VertexBuffer");
-    MLG_CHECK(vertexBuffer);
-
-    vertexBuffer->Store(vertices);
-
-    const std::span indices = resourceBundle.GetIndices();
-    auto indexBuffer = gpuHelper.CreateIndexBuffer(indices.size(), "IndexBuffer");
-    MLG_CHECK(indexBuffer);
-
-    indexBuffer->Store(indices);
-
     auto materialBindGroups =
         CreateMaterialBindGroups(gpuHelper, resourceBundle.GetMaterials(), textures, textureUris);
     MLG_CHECK(materialBindGroups);
 
-    PropKit propKit(std::move(*vertexBuffer),
-        std::move(*indexBuffer),
-        std::move(*materialBindGroups));
+    PropKit propKit(std::move(*materialBindGroups));
     MLG_INFO("PropKit created in {} ms", createTimer.GetElapsedSeconds() * 1000);
 
     return std::move(propKit);
@@ -162,11 +148,7 @@ PropKit::GetMaterialBindGroup(const MaterialIdentifier& materialId) const
 
 // private:
 
-PropKit::PropKit(GpuVertexBuffer&& vertexBuffer,
-    GpuIndexBuffer&& indexBuffer,
-    std::vector<wgpu::BindGroup>&& materialBindGroups)
-    : m_VertexBuffer(std::move(vertexBuffer)),
-      m_IndexBuffer(std::move(indexBuffer)),
-      m_MaterialBindGroups(std::move(materialBindGroups))
+PropKit::PropKit(std::vector<wgpu::BindGroup>&& materialBindGroups)
+    : m_MaterialBindGroups(std::move(materialBindGroups))
 {
 }

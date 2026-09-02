@@ -158,7 +158,7 @@ MainLoop()
     MLG_CHECK(levelResult, "Failed to create Level");
     const Level& level = *levelResult;
 
-    auto sceneResult = Scene::Create(*gpuHelper, *fileFetcher, level.GetAllModelNodes());
+    auto sceneResult = Scene::Create(*gpuHelper, *fileFetcher, *rsrcBundle, level.GetAllModelNodes());
     MLG_CHECK(sceneResult, "Failed to create Scene");
     Scene& scene = *sceneResult;
 

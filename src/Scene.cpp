@@ -6,6 +6,7 @@
 #include "GpuHelper.h"
 #include "PerfMetrics.h"
 #include "PropKit.h"
+#include "ResourceBundle.h"
 #include "Timer.h"
 
 namespace
@@ -81,6 +82,7 @@ CreateColorPassTarget(const GpuHelper& gpuHelper, const uint32_t width, const ui
 Result<Scene>
 Scene::Create(const GpuHelper& gpuHelper,
     FileFetcher& fileFetcher,
+    const ResourceBundle& resourceBundle,
     const std::span<const ModelNode> modelNodes)
 {
     Timer createTimer;
@@ -94,6 +96,16 @@ Scene::Create(const GpuHelper& gpuHelper,
 
     auto gpuTransformPassResult = GpuTransformPass::Create(gpuHelper, fileFetcher);
     MLG_CHECK(gpuTransformPassResult, "Failed to create GpuTransformPass");
+
+    const std::span vertices = resourceBundle.GetVertices();
+    auto vertexBuffer = gpuHelper.CreateVertexBuffer(vertices.size(), "VertexBuffer");
+    MLG_CHECK(vertexBuffer);
+    vertexBuffer->Store(vertices);
+
+    const std::span indices = resourceBundle.GetIndices();
+    auto indexBuffer = gpuHelper.CreateIndexBuffer(indices.size(), "IndexBuffer");
+    MLG_CHECK(indexBuffer);
+    indexBuffer->Store(indices);
 
     auto transformBuffer = gpuHelper.CreateStorageBuffer<GpuWorldTransformBuffer>(modelNodes.size(),
         "WorldTransforms");
@@ -114,6 +126,8 @@ Scene::Create(const GpuHelper& gpuHelper,
         std::move(*gpuColorPassResult),
         std::move(*gpuCompositorPassResult),
         std::move(*gpuTransformPassResult),
+        std::move(*vertexBuffer),
+        std::move(*indexBuffer),
         std::move(*transformBuffer),
         std::move(*clipSpaceBuffer),
         std::move(*meshInstanceParamsBuffer),
@@ -131,6 +145,8 @@ Scene::Scene(const GpuHelper& gpuHelper,
     GpuColorPass&& colorPass,
     GpuCompositorPass&& compositorPass,
     GpuTransformPass&& transformPass,
+    GpuVertexBuffer&& vertexBuffer,
+    GpuIndexBuffer&& indexBuffer,
     GpuWorldTransformBuffer&& worldTransformBuffer,
     GpuClipSpaceBuffer&& clipSpaceBuffer,
     GpuMeshInstanceParamsBuffer&& meshInstanceParamsBuffer,
@@ -140,6 +156,8 @@ Scene::Scene(const GpuHelper& gpuHelper,
       m_ColorPass(std::move(colorPass)),
       m_CompositorPass(std::move(compositorPass)),
       m_TransformPass(std::move(transformPass)),
+      m_VertexBuffer(std::move(vertexBuffer)),
+      m_IndexBuffer(std::move(indexBuffer)),
       m_WorldTransformBuffer(std::move(worldTransformBuffer)),
       m_ClipSpaceBuffer(std::move(clipSpaceBuffer)),
       m_MeshInstanceParamsBuffer(std::move(meshInstanceParamsBuffer)),
@@ -181,8 +199,8 @@ Scene::Render(const Camera& camera, const TrTransformf& cameraXForm, const PropK
     const GpuColorPass::Inputs colorPassInputs //
         {
             .Viewport = viewport,
-            .Vertices = propKit.GetVertexBuffer(),
-            .Indices = propKit.GetIndexBuffer(),
+            .Vertices = m_VertexBuffer,
+            .Indices = m_IndexBuffer,
             .WorldTransforms = m_WorldTransformBuffer,
             .ClipSpaceTransforms = m_ClipSpaceBuffer,
             .MeshInstanceParams = m_MeshInstanceParamsBuffer,

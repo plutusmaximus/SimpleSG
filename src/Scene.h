@@ -8,11 +8,14 @@
 
 #include <vector>
 
+class ResourceBundle;
+
 class Scene
 {
 public:
     static Result<Scene> Create(const GpuHelper& gpuHelper,
         FileFetcher& fileFetcher,
+        const ResourceBundle& resourceBundle,
         const std::span<const ModelNode> modelNodes);
 
     Scene() = delete;
@@ -34,6 +37,8 @@ private:
         GpuColorPass&& colorPass,
         GpuCompositorPass&& compositorPass,
         GpuTransformPass&& transformPass,
+        GpuVertexBuffer&& vertexBuffer,
+        GpuIndexBuffer&& indexBuffer,
         GpuWorldTransformBuffer&& worldTransformBuffer,
         GpuClipSpaceBuffer&& clipSpaceBuffer,
         GpuMeshInstanceParamsBuffer&& meshInstanceParamsBuffer,
@@ -59,6 +64,8 @@ private:
     GpuCompositorPass m_CompositorPass;
     GpuTransformPass m_TransformPass;
 
+    GpuVertexBuffer m_VertexBuffer;
+    GpuIndexBuffer m_IndexBuffer;
     GpuWorldTransformBuffer m_WorldTransformBuffer;
     GpuClipSpaceBuffer m_ClipSpaceBuffer;
     GpuMeshInstanceParamsBuffer m_MeshInstanceParamsBuffer;
