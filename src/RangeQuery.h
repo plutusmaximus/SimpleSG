@@ -216,7 +216,7 @@ private:
         return NewQuery{ std::move(m_Source), std::move(newStages) };
     }
 
-    template<std::size_t I, class T, typename Sink>
+    template<size_t I, class T, typename Sink>
     void RunStage(T& value, Sink sink)
     {
         if constexpr(I == sizeof...(Stages))

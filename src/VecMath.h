@@ -952,12 +952,12 @@ public:
 
     void Decompose(Vec3<T>& translation, UnitQuat<T>& rotation, Vec3<T>& scale) const noexcept;
 
-    constexpr Vec4<T>& operator[](std::size_t index) noexcept
+    constexpr Vec4<T>& operator[](size_t index) noexcept
     {
         return m[index];
     }
 
-    constexpr const Vec4<T>& operator[](std::size_t index) const noexcept
+    constexpr const Vec4<T>& operator[](size_t index) const noexcept
     {
         return m[index];
     }

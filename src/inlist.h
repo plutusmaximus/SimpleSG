@@ -301,7 +301,7 @@ public:
 
     iterator erase(const_iterator pos) { return erase(iterator(const_cast<T*>(pos.m_Node))); }
 
-    std::size_t size() const { return m_Size; }
+    size_t size() const { return m_Size; }
 
     bool empty() const { return m_Size == 0; }
 
@@ -315,5 +315,5 @@ public:
 private:
     T* m_Head{ nullptr };
     T* m_Tail{ nullptr };
-    std::size_t m_Size{ 0 };
+    size_t m_Size{ 0 };
 };

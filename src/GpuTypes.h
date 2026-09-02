@@ -161,10 +161,10 @@ public:
     size_t Count() const { return BufferSize() / sizeof(T); }
 
     // Stores a single value at the given index.
-    void Store(std::size_t index, const T& value) { Store(index, std::span<const T>(&value, 1)); }
+    void Store(size_t index, const T& value) { Store(index, std::span<const T>(&value, 1)); }
 
     // Stores an array of values starting at the given index.
-    void Store(std::size_t index, std::span<const T> values)
+    void Store(size_t index, std::span<const T> values)
     {
         const size_t offset = index * sizeof(T);
 
