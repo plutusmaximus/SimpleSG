@@ -23,7 +23,6 @@
 #include <thread>
 #include <vector>
 
-
 // TODO
 // gravity-only energy drift
 // energy removed by restitution
@@ -139,13 +138,16 @@ LoadLevel(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher
             .NodeDefs = std::move(nodeDefs),
         };
 
-    auto propKit =
-        PropKit::Create(gpuHelper, threadPool, fileFetcher, std::filesystem::path{}, propKitDef);
-    MLG_CHECK(propKit, "Failed to create PropKit");
-
     ResourceBundleBuilder builder;
     auto rsrcBundle = builder.Build(levelDef, propKitDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
+
+    auto propKit = PropKit::Create(gpuHelper,
+        threadPool,
+        fileFetcher,
+        std::filesystem::path{},
+        *rsrcBundle);
+    MLG_CHECK(propKit, "Failed to create PropKit");
 
     auto level = Level::Create(*rsrcBundle);
     MLG_CHECK(level, "Failed to create Level");

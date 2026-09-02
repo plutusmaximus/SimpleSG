@@ -196,7 +196,7 @@ CollectMaterials(const std::map<const MaterialDef, uint32_t>& materialIndexMap,
     const std::map<const std::string_view, uint32_t>& stringIndexMap)
 {
     std::vector<MaterialResource> materials;
-    materials.reserve(materialIndexMap.size());
+    materials.resize(materialIndexMap.size());
 
     for(const auto& [materialDef, materialIndex] : materialIndexMap)
     {
@@ -216,7 +216,7 @@ CollectMaterials(const std::map<const MaterialDef, uint32_t>& materialIndexMap,
                 .Roughness = materialDef.Roughness,
             };
 
-        materials.push_back(materialResource);
+        materials[materialIndex] = materialResource;
     }
 
     return materials;

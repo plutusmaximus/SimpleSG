@@ -4,7 +4,7 @@
 #include "GpuCompositorPass.h"
 #include "GpuTransformPass.h"
 #include "GpuTypes.h"
-#include "Level.h"
+#include "LevelTypes.h"
 
 #include <vector>
 

@@ -3,6 +3,7 @@
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
 #include "Level.h"
+#include "LevelDefs.h"
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "PropKit.h"
@@ -175,13 +176,17 @@ TriangleApp::InnerUpdate(System& system)
             ThreadPool& threadPool = system.GetThreadPool();
             FileFetcher& fileFetcher = system.GetFileFetcher();
 
-            const std::filesystem::path rootPath = ".";
-            m_PropKit = PropKit::Create(gpuHelper, threadPool, fileFetcher, rootPath, m_PropKitDef);
-            MLG_CHECK(m_PropKit, "Failed to create PropKit");
-
             ResourceBundleBuilder builder;
             auto rsrcBundle = builder.Build(m_LevelDef, m_PropKitDef);
             MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
+
+            const std::filesystem::path rootPath = ".";
+            m_PropKit = PropKit::Create(gpuHelper,
+                threadPool,
+                fileFetcher,
+                rootPath,
+                *rsrcBundle);
+            MLG_CHECK(m_PropKit, "Failed to create PropKit");
 
             m_Level = Level::Create(*rsrcBundle);
             MLG_CHECK(m_Level, "Failed to create Level");

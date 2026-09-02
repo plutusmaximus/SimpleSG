@@ -3,6 +3,7 @@
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
 #include "Level.h"
+#include "LevelDefs.h"
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "PropKit.h"
@@ -143,15 +144,15 @@ MainLoop()
     LevelDef levelDef;
     MLG_CHECK(CreateTriangleModel(propKitDef, levelDef));
 
-    const std::filesystem::path rootPath = ".";
-    auto propKitResult =
-        PropKit::Create(*gpuHelper, *threadPool, *fileFetcher, rootPath, propKitDef);
-    MLG_CHECK(propKitResult, "Failed to create PropKit");
-    const PropKit& propKit = *propKitResult;
-
     ResourceBundleBuilder builder;
     auto rsrcBundle = builder.Build(levelDef, propKitDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
+
+    const std::filesystem::path rootPath = ".";
+    auto propKitResult =
+        PropKit::Create(*gpuHelper, *threadPool, *fileFetcher, rootPath, *rsrcBundle);
+    MLG_CHECK(propKitResult, "Failed to create PropKit");
+    const PropKit& propKit = *propKitResult;
 
     auto levelResult = Level::Create(*rsrcBundle);
     MLG_CHECK(levelResult, "Failed to create Level");

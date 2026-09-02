@@ -5,9 +5,10 @@
 #include "ImGuiRenderer.h"
 #include "InputMapper.h"
 #include "Level.h"
-#include "ResourceBundle.h"
+#include "LevelDefs.h"
 #include "PerfMetrics.h"
 #include "PropKit.h"
+#include "ResourceBundle.h"
 #include "Scene.h"
 #include "System.h"
 #include "VecMath.h"
@@ -16,6 +17,7 @@
 #include <imgui.h>
 #include <SDL3/SDL_events.h>
 #include <thread>
+
 
 namespace
 {
@@ -93,8 +95,11 @@ LoadLevel(GpuHelper& gpuHelper,
     auto rsrcBundle = builder.Build(levelDef, propKitDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
-    auto propKit =
-        PropKit::Create(gpuHelper, threadPool, fileFetcher, path.parent_path(), propKitDef);
+    auto propKit = PropKit::Create(gpuHelper,
+        threadPool,
+        fileFetcher,
+        path.parent_path(),
+        *rsrcBundle);
     MLG_CHECK(propKit, "Failed to create PropKit for {}", path.string());
 
     auto level = Level::Create(*rsrcBundle);

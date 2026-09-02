@@ -1,10 +1,14 @@
 #pragma once
 
+#include "AssertHelper.h"
 #include "BoundingVolumes.h"
-#include "LevelDefs.h"
+#include "Color.h"
+#include "PhysicsTypes.h"
 #include "Result.h"
 
 #include <bit>
+#include <string_view>
+#include <vector>
 
 /**
 Format contract:
@@ -20,6 +24,9 @@ Object placement:    explicitly aligned
 Struct requirements: standard-layout + trivially-copyable
 Layout:              sizeof/offsetof compile-time verified
 */
+
+struct LevelDef;
+struct PropKitDef;
 
 struct Resource
 {
@@ -45,13 +52,13 @@ concept BinaryStruct = std::is_standard_layout_v<T> && std::is_trivially_copyabl
 // Compile-time assertions for struct offsets and sizes that will print
 // a compiler error that includes the actual offset or size.
 
-template<std::size_t Expected, std::size_t Actual>
+template<size_t Expected, size_t Actual>
 struct mlg_assert_offset
 {
     static_assert(Actual == Expected, "offset mismatch");
 };
 
-template<typename T, std::size_t Expected, std::size_t Actual = sizeof(T)>
+template<typename T, size_t Expected, size_t Actual = sizeof(T)>
 struct mlg_assert_size
 {
     static_assert(Actual == Expected, "size mismatch");
@@ -122,7 +129,7 @@ MLG_ASSERT_SIZE(NodeNameResource, 12)
 /// MaterialResource
 
 #define MATERIAL_RESOURCE_FIELDS(X)                                                                \
-    X(uint32_t, BaseTextureIndex, )                                                                \
+    X(uint32_t, BaseTextureIndex{ Resource::kInvalidIndex }, )                                     \
     X(RgbaColorf, Color, { 1, 0, 1, 1 })                                                           \
     X(float, Metalness, 0)                                                                         \
     X(float, Roughness, 0)
@@ -487,6 +494,15 @@ public:
     std::span<const LevelNodeResource> GetNodes() const
     {
         return GetSpan<LevelNodeResource>(m_Header->NodesOffset, m_Header->NodeCount);
+    }
+
+    std::string_view GetString(const StringResource& stringResource) const
+    {
+        const std::span<const char> chars = GetChars();
+        MLG_ASSERT(chars.size() - stringResource.Offset >= stringResource.Length,
+            "StringResource exceeds bounds");
+        return std::string_view(chars.subspan(stringResource.Offset, stringResource.Length).data(),
+            stringResource.Length);
     }
 
 private:

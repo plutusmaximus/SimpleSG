@@ -10,6 +10,7 @@
 class FileFetcher;
 class GpuHelper;
 struct PropKitDef;
+class ResourceBundle;
 class ThreadPool;
 
 class PropKit
@@ -19,7 +20,7 @@ public:
         ThreadPool& threadPool,
         FileFetcher& fileFetcher,
         const std::filesystem::path& rootPath,
-        const PropKitDef& propKitDef);
+        const ResourceBundle& resourceBundle);
 
     PropKit() = delete;
     ~PropKit() = default;
