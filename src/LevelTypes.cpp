@@ -1,5 +1,7 @@
 #include "LevelTypes.h"
 
+#include "ResourceBundle.h"
+
 #include <box3d/Box3D.h>
 
 namespace
@@ -18,12 +20,11 @@ GetBodyId(const RigidBodyIdentifier rigidBodyId)
 
 /// PhysicsNode
 
-PhysicsNode::PhysicsNode(LevelNode* node, const RigidBodyIdentifier rigidBodyId)
-    : m_Node(node),
+PhysicsNode::PhysicsNode(LevelNode& node, const RigidBodyIdentifier rigidBodyId)
+    : m_Node(&node),
       m_RigidBodyId(rigidBodyId)
 {
-    MLG_ASSERT(node, "PhysicsNode must be associated with a valid LevelNode");
-    MLG_ASSERT(!node->GetParent(), "PhysicsNode must be associated with a root LevelNode");
+    MLG_ASSERT(!node.GetParent(), "PhysicsNode must be associated with a root LevelNode");
     MLG_ASSERT(rigidBodyId.IsValid(),
         "PhysicsNode must be associated with a LevelNode that has a valid rigid body ID");
 }
@@ -113,13 +114,11 @@ PhysicsNode::GetInverseMass() const
 
 /// ModelNode
 
-ModelNode::ModelNode(const LevelNode* node,
-    const Model* model,
-    const uint32_t firstMeshInstanceIndex)
-    : m_Node(node),
-      m_Model(model),
-      m_FirstMeshInstanceIndex(firstMeshInstanceIndex)
+ModelNode::ModelNode(const LevelNode& node,
+    const BoundingSphere& boundingSphere,
+    std::span<const MeshInstance> meshInstances)
+    : m_Node(&node),
+      m_BoundingSphere(boundingSphere),
+      m_Meshes(meshInstances)
 {
-    MLG_ABORTIF(!node, "ModelNode must be associated with a valid LevelNode");
-    MLG_ABORTIF(!model, "ModelNode must be associated with a valid Model");
 }

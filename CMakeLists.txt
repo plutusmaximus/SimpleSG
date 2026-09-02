@@ -400,7 +400,6 @@ set(SSG_HEADERS
   src/ResourceBundle.h
   src/Result.h
   src/Scene.h
-  src/SceneTypes.h
   src/scope_exit.h
   src/SemanticIdentifier.h
   src/shaders/ShaderInterop.h

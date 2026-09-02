@@ -6,7 +6,6 @@
 #include "GpuHelper.h"
 #include "PerfMetrics.h"
 #include "PropKit.h"
-#include "SceneTypes.h"
 #include "Timer.h"
 
 namespace
@@ -19,7 +18,7 @@ CountMeshInstances(const std::span<const ModelNode> modelNodes)
 
     for(const ModelNode& node : modelNodes)
     {
-        count += node.GetMeshes().size();
+        count += node.GetMeshCount();
     }
 
     return count;
@@ -37,7 +36,7 @@ BuildMeshInstanceParamsBuffer(const GpuHelper& gpuHelper,
 
     for(const ModelNode& modelNode : modelNodes)
     {
-        for([[maybe_unused]] const Mesh& _ : modelNode.GetMeshes())
+        for(uint32_t i = 0; i < modelNode.GetMeshCount(); ++i)
         {
             const ShaderInterop::MeshInstanceParams mip //
                 {
@@ -265,7 +264,7 @@ Scene::CollectVisibleMeshes(const Frustum& frustum,
 
     for(const ModelNode& modelNode : m_ModelNodes)
     {
-        totalMeshes += modelNode.GetMeshes().size();
+        totalMeshes += modelNode.GetMeshCount();
 
         if(!modelNode.IsVisible())
         {
@@ -281,16 +280,14 @@ Scene::CollectVisibleMeshes(const Frustum& frustum,
         {
             // Model intersects frustum, check each mesh instance.
 
-            uint32_t meshInstanceIndex = modelNode.GetFirstMeshInstanceIndex();
-
-            for(const Mesh& mesh : modelNode.GetMeshes())
+            for(const MeshInstance& meshInstance : modelNode.GetMeshes())
             {
-                const BoundingSphere& meshBs =
-                    modelNode.GetWorldTransform() * mesh.GetBoundingSphere();
+                const BoundingSphere meshBs =
+                    modelNode.GetWorldTransform() * meshInstance.GetBoundingSphere();
 
                 if(Frustum::ContainsResult::Outside != frustum.Contains(meshBs))
                 {
-                    outVisibleMeshes.emplace_back(&mesh, meshInstanceIndex++);
+                    outVisibleMeshes.push_back(meshInstance);
                 }
             }
         }
@@ -298,11 +295,9 @@ Scene::CollectVisibleMeshes(const Frustum& frustum,
         {
             // Model is fully inside frustum, add all mesh instances.
 
-            uint32_t meshInstanceIndex = modelNode.GetFirstMeshInstanceIndex();
-
-            for(const Mesh& mesh : modelNode.GetMeshes())
+            for(const MeshInstance& meshInstance : modelNode.GetMeshes())
             {
-                outVisibleMeshes.emplace_back(&mesh, meshInstanceIndex++);
+                outVisibleMeshes.push_back(meshInstance);
             }
         }
         else

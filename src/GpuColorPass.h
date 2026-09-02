@@ -2,12 +2,12 @@
 
 #include "Camera.h"
 #include "GpuTypes.h"
-#include "SceneTypes.h"
 
 #include <optional>
 
 class FileFetcher;
 class GpuHelper;
+class MeshInstance;
 class PropKit;
 
 class GpuColorPass

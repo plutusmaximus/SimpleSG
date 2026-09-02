@@ -6,6 +6,7 @@
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "PropKit.h"
+#include "ResourceBundle.h"
 #include "Scene.h"
 #include "Shell.h"
 #include "System.h"
@@ -182,7 +183,7 @@ TriangleApp::InnerUpdate(System& system)
             auto rsrcBundle = builder.Build(m_LevelDef, m_PropKitDef);
             MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
-            m_Level = Level::Create(*rsrcBundle, *m_PropKit);
+            m_Level = Level::Create(*rsrcBundle);
             MLG_CHECK(m_Level, "Failed to create Level");
 
             m_Scene = Scene::Create(gpuHelper, fileFetcher, m_Level->GetAllModelNodes());

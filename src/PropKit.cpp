@@ -30,12 +30,7 @@ FetchTextures(GpuHelper& gpuHelper,
     const std::span<std::string_view> textureUris,
     TextureCache& textureCache)
 {
-    TextureFetcher fetcher(gpuHelper,
-        threadPool,
-        fileFetcher,
-        textureCache,
-        basePath,
-        textureUris);
+    TextureFetcher fetcher(gpuHelper, threadPool, fileFetcher, textureCache, basePath, textureUris);
 
     while(!fetcher.IsComplete())
     {
@@ -74,7 +69,8 @@ CreateMaterialBindGroups(GpuHelper& gpuHelper,
 
         buffer->Store(0, mc);
 
-        auto bindGroup = gpuHelper.CreateMaterialBindGroup(baseTexture, *buffer, mtlDef.BaseTextureUri);
+        auto bindGroup =
+            gpuHelper.CreateMaterialBindGroup(baseTexture, *buffer, mtlDef.BaseTextureUri);
         MLG_CHECK(bindGroup);
 
         materialBindGroups.push_back(std::move(*bindGroup));
@@ -101,72 +97,6 @@ BuildUniqueMaterialsMap(const std::span<const ModelDef> modelDefs)
         }
     }
     return uniqueMaterialMap;
-}
-
-Result<std::vector<Mesh>>
-BuildMeshes(const std::span<const ModelDef> modelDefs,
-    const std::map<MaterialDef, MaterialIdentifier>& uniqueMaterialMap)
-{
-    size_t meshCount = 0;
-    for(const auto& modelDef : modelDefs)
-    {
-        meshCount += modelDef.MeshDefs.size();
-    }
-
-    std::vector<Mesh> meshes;
-    meshes.reserve(meshCount);
-
-    size_t firstIndex = 0;
-    size_t baseVertex = 0;
-
-    for(const auto& modelDef : modelDefs)
-    {
-        for(const auto& meshDef : modelDef.MeshDefs)
-        {
-            auto it = uniqueMaterialMap.find(meshDef.MaterialDef);
-            MLG_CHECKV(it != uniqueMaterialMap.end(),
-                "Failed to find material for mesh");
-            const MaterialIdentifier materialId = it->second;
-
-            const Mesh::VertexParams vertexParams //
-                {
-                    .IndexCount = static_cast<uint32_t>(meshDef.Indices.size()),
-                    .FirstIndex = static_cast<uint32_t>(firstIndex),
-                    .BaseVertex = static_cast<uint32_t>(baseVertex),
-                };
-
-            const BoundingBox aabb = BoundingBox::FromVertices(meshDef.Vertices, meshDef.Indices);
-
-            meshes.emplace_back(vertexParams, materialId, aabb);
-            firstIndex += meshDef.Indices.size();
-            baseVertex += meshDef.Vertices.size();
-        }
-    }
-
-    return meshes;
-}
-
-std::vector<Model>
-BuildModels(const std::span<const ModelDef> modelDefs, const std::vector<Mesh>& meshes)
-{
-    std::vector<Model> models;
-    models.reserve(modelDefs.size());
-
-    size_t meshIndex = 0;
-
-    for(const auto& modelDef : modelDefs)
-    {
-        const std::span meshSpan = std::span(meshes).subspan(meshIndex, modelDef.MeshDefs.size());
-        BoundingBox aabb = meshSpan.front().GetBoundingBox();
-        for(const Mesh& mesh : meshSpan.subspan(1))
-        {
-            aabb += mesh.GetBoundingBox();
-        }
-        models.emplace_back(meshSpan, aabb);
-        meshIndex += modelDef.MeshDefs.size();
-    }
-
-    return models;
 }
 
 std::vector<Vertex>
@@ -244,29 +174,8 @@ PropKit::Create(GpuHelper& gpuHelper,
         textureUris[id.GetValue()] = materialDef.BaseTextureUri;
     }
 
-    auto meshes = BuildMeshes(propKitDef.ModelDefs, uniqueMaterialMap);
-    MLG_CHECK(meshes);
-    std::vector<Model> models = BuildModels(propKitDef.ModelDefs, *meshes);
     std::vector<Vertex> vertices = BuildVertices(propKitDef.ModelDefs);
     std::vector<VertexIndex> indices = BuildIndices(propKitDef.ModelDefs);
-
-    size_t totalStringSize = 0;
-    for(const auto& modelDef : propKitDef.ModelDefs)
-    {
-        totalStringSize += modelDef.Name.size() + 1;
-    }
-    StringArena stringArena(totalStringSize);
-
-    std::vector<NameIndexPair> modelNameIndex;
-    modelNameIndex.reserve(propKitDef.ModelDefs.size());
-
-    for(size_t i = 0; i < propKitDef.ModelDefs.size(); ++i)
-    {
-        const auto& modelDef = propKitDef.ModelDefs[i];
-        const StringHandle modelName = stringArena.NewString(modelDef.Name);
-
-        modelNameIndex.emplace_back(modelName, i);
-    }
 
     TextureCache textureCache(gpuHelper.GetDefaultTexture());
 
@@ -288,27 +197,10 @@ PropKit::Create(GpuHelper& gpuHelper,
 
     PropKit propKit(std::move(*vertexBuffer),
         std::move(*indexBuffer),
-        std::move(*materialBindGroups),
-        std::move(*meshes),
-        std::move(models),
-        std::move(modelNameIndex),
-        std::move(stringArena));
+        std::move(*materialBindGroups));
     MLG_INFO("PropKit created in {} ms", createTimer.GetElapsedSeconds() * 1000);
 
     return std::move(propKit);
-}
-
-const Model*
-PropKit::GetModel(const std::string_view& name) const
-{
-    auto it = std::ranges::lower_bound(m_ModelNameIndex, name, {}, &NameIndexPair::Name);
-
-    if(!MLG_VERIFY(m_ModelNameIndex.end() != it && it->Name == name, "Model not found: {}", name))
-    {
-        return nullptr;
-    }
-
-    return &m_Models[it->Index];
 }
 
 const wgpu::BindGroup*
@@ -328,29 +220,9 @@ PropKit::GetMaterialBindGroup(const MaterialIdentifier& materialId) const
 
 PropKit::PropKit(GpuVertexBuffer&& vertexBuffer,
     GpuIndexBuffer&& indexBuffer,
-    std::vector<wgpu::BindGroup>&& materialBindGroups,
-    std::vector<Mesh>&& meshes,
-    std::vector<Model>&& models,
-    std::vector<NameIndexPair>&& modelNameIndex,
-    StringArena&& stringArena)
+    std::vector<wgpu::BindGroup>&& materialBindGroups)
     : m_VertexBuffer(std::move(vertexBuffer)),
       m_IndexBuffer(std::move(indexBuffer)),
-      m_MaterialBindGroups(std::move(materialBindGroups)),
-      m_Meshes(std::move(meshes)),
-      m_Models(std::move(models)),
-      m_ModelNameIndex(std::move(modelNameIndex)),
-      m_StringArena(std::move(stringArena))
+      m_MaterialBindGroups(std::move(materialBindGroups))
 {
-    std::ranges::sort(m_ModelNameIndex, {}, &NameIndexPair::Name);
-
-    for(size_t i = 1; i < m_ModelNameIndex.size(); ++i)
-    {
-        const StringHandle& a = m_ModelNameIndex[i - 1].Name;
-        const StringHandle& b = m_ModelNameIndex[i].Name;
-
-        if(!MLG_VERIFY(a != b, "Duplicate model name found: {}", a))
-        {
-            MLG_ERROR("Duplicate model name found: {}", a);
-        }
-    }
 }

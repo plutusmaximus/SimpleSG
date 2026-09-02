@@ -6,6 +6,7 @@
 #include "LuaRuntime.h"
 #include "PerfMetrics.h"
 #include "PropKit.h"
+#include "ResourceBundle.h"
 #include "Scene.h"
 #include "ShapeMeshDefs.h"
 #include "System.h"
@@ -146,7 +147,7 @@ LoadLevel(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher
     auto rsrcBundle = builder.Build(levelDef, propKitDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
-    auto level = Level::Create(*rsrcBundle, *propKit);
+    auto level = Level::Create(*rsrcBundle);
     MLG_CHECK(level, "Failed to create Level");
 
     auto sceneResult = Scene::Create(gpuHelper, fileFetcher, level->GetAllModelNodes());

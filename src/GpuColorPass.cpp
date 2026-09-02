@@ -511,7 +511,7 @@ GpuColorPass::Invocation::Execute(const std::span<MeshInstance> visibleMeshes,
             1,
             meshInstance.GetFirstIndex(),
             static_cast<int32_t>(meshInstance.GetBaseVertex()),
-            static_cast<uint32_t>(meshInstance.GetInstanceIndex()));
+            meshInstance.GetFirstInstance());
     }
 
     renderPass.End();

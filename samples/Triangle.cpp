@@ -6,6 +6,7 @@
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "PropKit.h"
+#include "ResourceBundle.h"
 #include "Scene.h"
 #include "ThreadPool.h"
 
@@ -152,7 +153,7 @@ MainLoop()
     auto rsrcBundle = builder.Build(levelDef, propKitDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
-    auto levelResult = Level::Create(*rsrcBundle, propKit);
+    auto levelResult = Level::Create(*rsrcBundle);
     MLG_CHECK(levelResult, "Failed to create Level");
     const Level& level = *levelResult;
 

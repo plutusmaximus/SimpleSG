@@ -5,7 +5,6 @@
 #include "GpuTransformPass.h"
 #include "GpuTypes.h"
 #include "Level.h"
-#include "SceneTypes.h"
 
 #include <vector>
 
