@@ -301,11 +301,10 @@ TextureFetcher::TextureFetcher(const GpuHelper& gpuHelper,
     m_Textures.reserve(textureUris.size());
 }
 
-// This is here to avoid the compiler generating a default destructor that doesn't
-// know how to destruct std::vector<detail::TextureLoadTask*> properly, because detail::TextureLoadTask
-// is forward-declared in the header and other translation units do not have the full definition.
-// Esoteric C++ bullsh*t.  Comment out this dtor and see what happens.
-TextureFetcher::~TextureFetcher() = default;
+TextureFetcher::~TextureFetcher()
+{
+    MLG_ASSERT(m_Tasks.empty());
+}
 
 void
 TextureFetcher::Update()

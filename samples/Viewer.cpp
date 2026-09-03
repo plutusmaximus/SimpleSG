@@ -124,11 +124,11 @@ MainLoop()
 
     while(!task->IsComplete())
     {
-        MLG_CHECK(task->Update());
+        task->Update();
     }
 
     MLG_CHECK(task->Succeeded(), "System creation failed");
-    auto systemResult = task->Get();
+    auto systemResult = task->Take();
     MLG_CHECK(systemResult, "Failed to get System instance");
 
     System& system = *systemResult;

@@ -78,51 +78,39 @@ public:
     class CreateTask
     {
     public:
-        CreateTask() = default;
-        ~CreateTask() = default;
+        CreateTask() = delete;
+        ~CreateTask();
         CreateTask(const CreateTask&) = delete;
         CreateTask& operator=(const CreateTask&) = delete;
-        CreateTask(CreateTask&&) = default;
-        CreateTask& operator=(CreateTask&&) = default;
+        CreateTask(CreateTask&&) noexcept;
+        CreateTask& operator=(CreateTask&&) noexcept;
 
+        /// @brief Updates the task.  This must be called periodically until IsComplete() returns
+        /// true.
+        void Update();
+
+        /// @brief Returns true if the task is valid and can be updated.
+        /// Returns false if the task has been invalidated by calling Take().
         bool IsValid() const;
 
-        Result<> Update();
-
+        /// @brief Returns true if the task is complete (either succeeded or failed).
         bool IsComplete() const;
 
+        /// @brief Returns true if the task succeeded.
         bool Succeeded() const;
 
         /// @brief Returns the System instance if the task succeeded, otherwise returns an error.
         /// @note This method will invalidate the task, so it can only be called once.
-        Result<System> Get();
+        Result<System> Take();
 
     private:
         friend System;
 
-        enum class Stage
-        {
-            None,
-            CreatingGpuHelper,
-            Succeeded,
-            Failed
-        };
+        class Impl;
 
-        // To make the task moveable we keep it's implementation state
-        // in a separate Impl struct that is heap-allocated and managed by a unique_ptr.
-        struct Impl
-        {
-        private:
-            friend System::CreateTask;
+        explicit CreateTask(std::unique_ptr<Impl> impl);
 
-            std::optional<GpuHelper::CreateTask> m_GpuHelperTask;
-
-            Stage m_Stage{ Stage::None };
-        };
-
-        Result<> Begin(const char* appName);
-
-        std::unique_ptr<Impl> m_Impl = std::make_unique<Impl>();
+        std::unique_ptr<Impl> m_Impl;
     };
 
     System() = delete;
@@ -155,9 +143,9 @@ public:
 
     void ProcessEvents(const EventHandler& eventHandler);
 
-    /// @brief Captures or releases the mouse cursor. When captured, the cursor is hidden and relative
-    /// mouse motion events are generated. When released, the cursor is visible and absolute mouse
-    /// motion events are generated.
+    /// @brief Captures or releases the mouse cursor. When captured, the cursor is hidden and
+    /// relative mouse motion events are generated. When released, the cursor is visible and
+    /// absolute mouse motion events are generated.
     /// @param captured True to capture the mouse, false to release it.
     /// @return Prior capture state.
     bool SetMouseCaptured(const bool captured);
@@ -184,6 +172,8 @@ public:
     bool WasFocusLost() const { return m_FocusEvent == FocusEvent::Lost; }
 
 private:
+    friend CreateTask::Impl;
+
     System(std::unique_ptr<GpuHelper>&& gpuHelper,
         std::unique_ptr<FileFetcher>&& fileFetcher,
         std::unique_ptr<ThreadPool>&& threadPool,

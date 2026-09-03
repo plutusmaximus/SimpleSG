@@ -44,12 +44,12 @@ Shell::Update(AppUpdateCallback appUpdateCb)
         break;
 
         case Stage::CreatingSystem:
-            MLG_CHECK(SystemCreateTask->Update());
+            SystemCreateTask->Update();
 
             if(SystemCreateTask->IsComplete())
             {
                 MLG_CHECK(SystemCreateTask->Succeeded(), "System creation failed");
-                SystemInstance = SystemCreateTask->Get();
+                SystemInstance = SystemCreateTask->Take();
                 MLG_CHECK(SystemInstance, "Failed to get System instance");
 
                 m_Stage = Stage::Running;

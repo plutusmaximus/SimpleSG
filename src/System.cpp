@@ -1,112 +1,153 @@
 #include "System.h"
+
 #include "FileFetcher.h"
 #include "GpuHelper.h"
 
 #include <filesystem>
 #include <imgui_impl_sdl3.h>
+#include <memory>
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_timer.h>
-#include <memory>
 #include <utility>
 
-////////// System::CreateTask
+class System::CreateTask::Impl
+{
+public:
+    Impl() = default;
+    ~Impl();
+    Impl(const Impl&) = delete;
+    Impl& operator=(const Impl&) = delete;
+    Impl(Impl&&) = delete;
+    Impl& operator=(Impl&&) = delete;
+
+    void Update();
+
+    bool IsComplete() const;
+
+    bool Succeeded() const;
+
+    /// @brief Returns the System instance if the task succeeded, otherwise returns an error.
+    /// @note This method will invalidate the task, so it can only be called once.
+    Result<System> Take();
+
+private:
+    friend System;
+
+    enum class Stage
+    {
+        None,
+        CreatingGpuHelper,
+        Succeeded,
+        Failed
+    };
+
+    Result<> Begin(const char* appName);
+
+    std::optional<GpuHelper::CreateTask> m_GpuHelperTask;
+
+    Stage m_Stage{ Stage::None };
+};
+
+System::CreateTask::Impl::~Impl()
+{
+    MLG_ASSERT(IsComplete(), "Destroying CreateTaskImpl before it is complete");
+}
 
 Result<>
-System::CreateTask::Begin(const char* appName)
+System::CreateTask::Impl::Begin(const char* appName)
 {
-    MLG_CHECKV(IsValid(), "Invalid CreateTask");
-    MLG_CHECKV(m_Impl->m_Stage == Stage::None, "Task is already in progress");
+    MLG_CHECKV(m_Stage == Stage::None, "Task is already in progress");
+
+    // Set the initial stage to failed to ensure that any early exit will mark the task as failed.
+    m_Stage = Stage::Failed;
 
     MLG_INFO("Creating System...");
 
     auto gpuHelperTaskResult = GpuHelper::Create(appName);
     MLG_CHECK(gpuHelperTaskResult);
 
-    m_Impl->m_GpuHelperTask = std::move(*gpuHelperTaskResult);
+    m_GpuHelperTask = std::move(*gpuHelperTaskResult);
 
-    m_Impl->m_Stage = Stage::CreatingGpuHelper;
+    m_Stage = Stage::CreatingGpuHelper;
 
     return Result<>::Ok;
 }
 
-Result<>
-System::CreateTask::Update()
+void
+System::CreateTask::Impl::Update()
 {
-    MLG_CHECKV(IsValid(), "Invalid CreateTask");
-    MLG_CHECKV(Stage::None != m_Impl->m_Stage, "Task is not started");
+    if(!MLG_VERIFY(!IsComplete(), "CreateTask is already complete"))
+    {
+        return;
+    }
+    if(!MLG_VERIFY(Stage::None != m_Stage, "Task is not started"))
+    {
+        return;
+    }
+    if(!MLG_VERIFY(m_GpuHelperTask.has_value(), "GpuHelper task is not initialized"))
+    {
+        return;
+    }
 
-    switch(m_Impl->m_Stage)
+    switch(m_Stage)
     {
         case Stage::None:
             break;
 
         case Stage::CreatingGpuHelper:
-            MLG_CHECKV(m_Impl->m_GpuHelperTask, "GpuHelper task is not initialized");
-
-            if(!m_Impl->m_GpuHelperTask->IsComplete())
+            if(!m_GpuHelperTask->IsComplete())
             {
-                MLG_CHECK(m_Impl->m_GpuHelperTask->Update());
+                m_GpuHelperTask->Update();
                 break;
             }
 
-            if(m_Impl->m_GpuHelperTask->Succeeded())
+            if(m_GpuHelperTask->Succeeded())
             {
                 MLG_INFO("GpuHelper creation succeeded");
-                m_Impl->m_Stage = Stage::Succeeded;
+                m_Stage = Stage::Succeeded;
             }
             else
             {
                 MLG_ERROR("GpuHelper creation failed");
-                m_Impl->m_Stage = Stage::Failed;
+                m_Stage = Stage::Failed;
             }
             break;
 
         case Stage::Succeeded:
+            break;
+
         case Stage::Failed:
+            MLG_ERROR("System creation failed");
             break;
     }
-
-    MLG_CHECK(Stage::Failed != m_Impl->m_Stage, "System creation failed");
-
-    return Result<>::Ok;
 }
 
 bool
-System::CreateTask::IsValid() const
+System::CreateTask::Impl::IsComplete() const
 {
-    return m_Impl != nullptr;
+    return MLG_VERIFY(m_Stage != Stage::None, "Task is not started")
+        && (Stage::Succeeded == m_Stage || Stage::Failed == m_Stage);
 }
 
 bool
-System::CreateTask::IsComplete() const
+System::CreateTask::Impl::Succeeded() const
 {
-    return MLG_VERIFY(IsValid(), "Invalid CreateTask")
-        && MLG_VERIFY(m_Impl->m_Stage != Stage::None, "Task is not started")
-        && (Stage::Succeeded == m_Impl->m_Stage || Stage::Failed == m_Impl->m_Stage);
-}
+    MLG_ASSERT(IsComplete(), "Task is not complete");
 
-bool
-System::CreateTask::Succeeded() const
-{
-    return MLG_VERIFY(IsValid(), "Invalid CreateTask")
-        && IsComplete()
-        && m_Impl->m_Stage == Stage::Succeeded;
+    return m_Stage == Stage::Succeeded;
 }
 
 Result<System>
-System::CreateTask::Get()
+System::CreateTask::Impl::Take()
 {
-    MLG_CHECKV(IsValid(), "Invalid CreateTask");
     MLG_CHECKV(Succeeded(), "CreateTask did not succeed");
+    MLG_CHECKV(m_GpuHelperTask.has_value(), "GpuHelper task is not initialized");
 
     // Destroy on scope exit
-    std::unique_ptr<Impl> bye(std::move(m_Impl));
-
-    MLG_CHECK(bye->m_GpuHelperTask, "GpuHelper task is not initialized");
-    auto gpuHelperResult = bye->m_GpuHelperTask->Get();
+    auto gpuHelperResult = m_GpuHelperTask->Take();
     MLG_CHECK(gpuHelperResult, "Failed to get GpuHelper instance");
     std::unique_ptr<GpuHelper> gpuHelper(std::move(*gpuHelperResult));
-    
+
     auto fileFetcherResult = FileFetcher::Create();
     MLG_CHECK(fileFetcherResult, "Failed to create FileFetcher");
     std::unique_ptr<FileFetcher> fileFetcher(std::move(*fileFetcherResult));
@@ -125,6 +166,57 @@ System::CreateTask::Get()
         std::move(imGuiRenderer));
 }
 
+/// System::CreateTask
+
+System::CreateTask::CreateTask(std::unique_ptr<Impl> impl)
+    : m_Impl(std::move(impl))
+{
+}
+
+// These need to know details of CreateTaskImpl, so they are defined in the .cpp file.
+System::CreateTask::~CreateTask() = default;
+System::CreateTask::CreateTask(CreateTask&&) noexcept = default;
+System::CreateTask& System::CreateTask::operator=(CreateTask&&) noexcept = default;
+
+void
+System::CreateTask::Update()
+{
+    MLG_ASSERT(IsValid(), "Invalid CreateTask");
+
+    m_Impl->Update();
+}
+
+bool
+System::CreateTask::IsValid() const
+{
+    return m_Impl != nullptr;
+}
+
+bool
+System::CreateTask::IsComplete() const
+{
+    MLG_ASSERT(IsValid(), "Invalid CreateTask");
+
+    return m_Impl->IsComplete();
+}
+
+bool
+System::CreateTask::Succeeded() const
+{
+    MLG_ASSERT(IsValid(), "Invalid CreateTask");
+
+    return m_Impl->Succeeded();
+}
+
+Result<System>
+System::CreateTask::Take()
+{
+    MLG_CHECKV(m_Impl, "Invalid CreateTask");
+
+    std::unique_ptr bye = std::move(m_Impl);
+    return bye->Take();
+}
+
 ////////// System
 
 Result<System::CreateTask>
@@ -135,11 +227,11 @@ System::Create(const char* appName)
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
-    CreateTask createTask;
+    std::unique_ptr createTaskImpl = std::make_unique<CreateTask::Impl>();
 
-    MLG_CHECK(createTask.Begin(appName));
+    MLG_CHECK(createTaskImpl->Begin(appName));
 
-    return std::move(createTask);
+    return CreateTask(std::move(createTaskImpl));
 }
 
 GpuHelper&

@@ -119,11 +119,11 @@ MainLoop()
 
     while(!task->IsComplete())
     {
-        MLG_CHECK(task->Update());
+        task->Update();
     }
 
     MLG_CHECK(task->Succeeded(), "System creation failed");
-    auto gpuHelperResult = task->Get();
+    auto gpuHelperResult = task->Take();
     MLG_CHECK(gpuHelperResult, "Failed to get GpuHelper instance");
     std::unique_ptr<GpuHelper> gpuHelper(std::move(*gpuHelperResult));
 

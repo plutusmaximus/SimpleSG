@@ -3,7 +3,6 @@
 #include "GpuTypes.h"
 #include "VecMath.h"
 
-#include <atomic>
 #include <memory>
 #include <string_view>
 
@@ -22,42 +21,19 @@ public:
     class CreateTask
     {
     public:
-        enum class Stage
-        {
-            None,
-            CreateAdapter,
-            CreatingAdapter,
-            CreatingDevice,
-            Succeeded,
-            Failed
-        };
-
-        // Passed to the adapter request callback to store the result of the request.
-        struct AdapterRequestData
-        {
-            Result<wgpu::Adapter> Result;
-            std::atomic<bool> IsComplete{ false };
-        };
-
-        // Passed to the device request callback to store the result of the request.
-        struct DeviceRequestData
-        {
-            Result<wgpu::Device> Result;
-            std::atomic<bool> IsComplete{ false };
-        };
-
-        ~CreateTask() = default;
+        CreateTask() = delete;
+        ~CreateTask();
         CreateTask(const CreateTask&) = delete;
         CreateTask& operator=(const CreateTask&) = delete;
-        CreateTask(CreateTask&&) = default;
-        CreateTask& operator=(CreateTask&&) = default;
+        CreateTask(CreateTask&&) noexcept;
+        CreateTask& operator=(CreateTask&&) noexcept;
 
         /// @brief Updates the task.  This must be called periodically until IsComplete() returns
         /// true.
-        Result<> Update();
+        void Update();
 
         /// @brief Returns true if the task is valid and can be updated.
-        /// Returns false if the task has been invalidated by calling Get().
+        /// Returns false if the task has been invalidated by calling Take().
         bool IsValid() const;
 
         /// @brief Returns true if the task is complete (either succeeded or failed).
@@ -68,42 +44,16 @@ public:
 
         /// @brief Returns the GpuHelper instance if the task succeeded, otherwise returns an error.
         /// @note This method will invalidate the task, so it can only be called once.
-        Result<std::unique_ptr<GpuHelper>> Get();
+        Result<std::unique_ptr<GpuHelper>> Take();
 
     private:
         friend GpuHelper;
 
-        // Only callable by GpuHelper
-        CreateTask() = default;
+        class Impl;
 
-        Result<> Begin(const std::string_view& appName);
-        Result<> CreateAdapter();
-        Result<> FinalizeAdapter();
-        Result<> CreateDevice();
-        Result<> FinalizeDevice();
+        explicit CreateTask(std::unique_ptr<Impl> impl);
 
-        void Invalidate();
-
-        // To make the task moveable we keep it's implementation state
-        // in a separate Impl struct that is heap-allocated and managed by a unique_ptr.
-        struct Impl
-        {
-            Impl() = default;
-            ~Impl() = default;
-            Impl(const Impl&) = delete;
-            Impl& operator=(const Impl&) = delete;
-            Impl(Impl&&) = delete;
-            Impl& operator=(Impl&&) = delete;
-
-            GpuHelper::CreateTask::AdapterRequestData m_AdapterRequestData;
-            GpuHelper::CreateTask::DeviceRequestData m_DeviceRequestData;
-
-            std::unique_ptr<GpuHelper> m_GpuHelper;
-
-            CreateTask::Stage m_Stage{ Stage::None };
-        };
-
-        std::unique_ptr<Impl> m_TaskImpl;
+        std::unique_ptr<Impl> m_Impl;
     };
 
     ~GpuHelper();
@@ -158,10 +108,12 @@ public:
         wgpu::Texture texture, wgpu::Buffer stagingBuffer, wgpu::CommandEncoder cmdEncoder);
 
     /// @brief Creates a vertex buffer with capacity for the given number of vertices.
-    Result<GpuVertexBuffer> CreateVertexBuffer(const size_t count, const std::string_view& name) const;
+    Result<GpuVertexBuffer> CreateVertexBuffer(const size_t count,
+        const std::string_view& name) const;
 
     /// @brief Creates an index buffer with capacity for the given number of indices.
-    Result<GpuIndexBuffer> CreateIndexBuffer(const size_t count, const std::string_view& name) const;
+    Result<GpuIndexBuffer> CreateIndexBuffer(const size_t count,
+        const std::string_view& name) const;
 
     /// @brief Creates a semantically-typed storage buffer.
     template<typename T>
@@ -212,6 +164,8 @@ public:
     static size_t GetTextureAlignedRowStride(const size_t textureWidth);
 
 private:
+    friend class CreateTaskImpl;
+
     GpuHelper() = default;
 
     enum class BufferMappedState
