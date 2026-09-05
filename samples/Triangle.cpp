@@ -114,16 +114,16 @@ MainLoop()
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
-    auto task = GpuHelper::Create(kAppName);
-    MLG_CHECK(task, "Failed to create GpuHelper");
+    GpuHelper::CreateTask task(kAppName);
+    MLG_CHECK(task.Begin(), "Failed to begin GpuHelper creation");
 
-    while(!task->IsComplete())
+    while(!task.IsComplete())
     {
-        task->Update();
+        task.Update();
     }
 
-    MLG_CHECK(task->Succeeded(), "System creation failed");
-    auto gpuHelperResult = task->Take();
+    MLG_CHECK(task.Succeeded(), "System creation failed");
+    auto gpuHelperResult = task.Take();
     MLG_CHECK(gpuHelperResult, "Failed to get GpuHelper instance");
     std::unique_ptr<GpuHelper> gpuHelper(std::move(*gpuHelperResult));
 

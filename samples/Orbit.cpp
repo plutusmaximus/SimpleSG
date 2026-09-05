@@ -563,16 +563,17 @@ MainLoop()
     CameraActor cameraActor;
     DevUi devUi;
 
-    auto task = System::Create(kAppName);
-    MLG_CHECK(task, "Failed to create System");
+    System::CreateTask sysCreateTask(kAppName);
 
-    while(!task->IsComplete())
+    MLG_CHECK(sysCreateTask.Begin());
+
+    while(!sysCreateTask.IsComplete())
     {
-        task->Update();
+        sysCreateTask.Update();
     }
 
-    MLG_CHECK(task->Succeeded(), "System creation failed");
-    auto systemResult = task->Take();
+    MLG_CHECK(sysCreateTask.Succeeded(), "System creation failed");
+    auto systemResult = sysCreateTask.Take();
     MLG_CHECK(systemResult, "Failed to get System instance");
 
     System& system = *systemResult;

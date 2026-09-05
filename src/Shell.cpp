@@ -20,7 +20,7 @@ void emscripten_cancel_main_loop()
 #endif
 
 Shell::Shell(const char* appName)
-    : SystemCreateTask(System::Create(appName))
+    : m_SystemCreateTask(appName)
 {
 }
 
@@ -38,19 +38,19 @@ Shell::Update(AppUpdateCallback appUpdateCb)
     {
         case Stage::Init:
         {
-            MLG_CHECK(SystemCreateTask, "Failed to create System");
+            MLG_CHECK(m_SystemCreateTask.Begin(), "Failed to create System");
             m_Stage = Stage::CreatingSystem;
         }
         break;
 
         case Stage::CreatingSystem:
-            SystemCreateTask->Update();
+            m_SystemCreateTask.Update();
 
-            if(SystemCreateTask->IsComplete())
+            if(m_SystemCreateTask.IsComplete())
             {
-                MLG_CHECK(SystemCreateTask->Succeeded(), "System creation failed");
-                SystemInstance = SystemCreateTask->Take();
-                MLG_CHECK(SystemInstance, "Failed to get System instance");
+                MLG_CHECK(m_SystemCreateTask.Succeeded(), "System creation failed");
+                m_SystemInstance = m_SystemCreateTask.Take();
+                MLG_CHECK(m_SystemInstance, "Failed to get System instance");
 
                 m_Stage = Stage::Running;
             }
@@ -62,7 +62,7 @@ Shell::Update(AppUpdateCallback appUpdateCb)
 
             MLG_CHECK(BeginFrame());
 
-            const AppState appState = appUpdateCb(*SystemInstance);
+            const AppState appState = appUpdateCb(*m_SystemInstance);
 
             MLG_CHECK(EndFrame());
 
@@ -97,7 +97,7 @@ Shell::BeginFrame()
 {
     MLG_ASSERT(Stage::Running == m_Stage, "BeginFrame() called when not running");
     
-    SystemInstance->ProcessEvents();
+    m_SystemInstance->ProcessEvents();
 
     return Result<>::Ok;
 }
@@ -108,7 +108,7 @@ Shell::EndFrame()
     MLG_ASSERT(Stage::Running == m_Stage, "EndFrame() called when not running");
 #if !defined(__EMSCRIPTEN__)
 
-    const GpuHelper& gpuHelper = SystemInstance->GetGpuHelper();
+    const GpuHelper& gpuHelper = m_SystemInstance->GetGpuHelper();
 
     MLG_CHECK(gpuHelper.GetSurface().Present(), "Failed to present backbuffer");
     gpuHelper.GetInstance().ProcessEvents();

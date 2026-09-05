@@ -78,16 +78,22 @@ public:
     class CreateTask
     {
     public:
-        CreateTask() = delete;
+        explicit CreateTask(std::string appName);
         ~CreateTask();
         CreateTask(const CreateTask&) = delete;
         CreateTask& operator=(const CreateTask&) = delete;
-        CreateTask(CreateTask&&) noexcept;
-        CreateTask& operator=(CreateTask&&) noexcept;
+        CreateTask(CreateTask&&) = delete;
+        CreateTask& operator=(CreateTask&&) = delete;
+
+        /// @brief Begins the task.
+        Result<> Begin();
 
         /// @brief Updates the task.  This must be called periodically until IsComplete() returns
         /// true.
         void Update();
+
+        /// @brief Returns true if the task is running (started but not complete).
+        bool IsRunning() const;
 
         /// @brief Returns true if the task is complete (either succeeded or failed).
         bool IsComplete() const;
@@ -99,18 +105,22 @@ public:
         /// @note This method will invalidate the task, so it can only be called once.
         Result<System> Take();
 
-        /// @brief Returns true if the task is valid and can be updated.
-        /// Returns false if the task has been invalidated by calling Take().
-        bool IsValid() const;
-
     private:
         friend System;
 
-        class Impl;
+        enum class Stage
+        {
+            None,
+            CreatingGpuHelper,
+            Succeeded,
+            Failed
+        };
 
-        explicit CreateTask(std::unique_ptr<Impl> impl);
+        GpuHelper::CreateTask m_GpuHelperTask;
 
-        std::unique_ptr<Impl> m_Impl;
+        Stage m_Stage{ Stage::None };
+
+        bool m_Consumed{ false };
     };
 
     System() = delete;
@@ -119,8 +129,6 @@ public:
     System& operator=(const System&) = delete;
     System(System&&) = default;
     System& operator=(System&&) = default;
-
-    static Result<CreateTask> Create(const char* appName);
 
     GpuHelper& GetGpuHelper();
     const GpuHelper& GetGpuHelper() const;
@@ -172,7 +180,7 @@ public:
     bool WasFocusLost() const { return m_FocusEvent == FocusEvent::Lost; }
 
 private:
-    friend CreateTask::Impl;
+    friend CreateTask;
 
     System(std::unique_ptr<GpuHelper>&& gpuHelper,
         std::unique_ptr<FileFetcher>&& fileFetcher,

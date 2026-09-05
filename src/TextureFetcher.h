@@ -13,12 +13,13 @@ class FileFetcher;
 namespace wgpu
 {
 class Texture;
-}
+class CommandEncoder;
+} // namespace wgpu
 
 class TextureFetcher
 {
 public:
-    static Result<TextureFetcher> Create(const GpuHelper& gpuHelper,
+    TextureFetcher(const GpuHelper& gpuHelper,
         ThreadPool& threadPool,
         FileFetcher& fileFetcher,
         std::filesystem::path basePath,
@@ -28,12 +29,18 @@ public:
     ~TextureFetcher();
     TextureFetcher(const TextureFetcher&) = delete;
     TextureFetcher& operator=(const TextureFetcher&) = delete;
-    TextureFetcher(TextureFetcher&&) noexcept;
-    TextureFetcher& operator=(TextureFetcher&&) noexcept;
+    TextureFetcher(TextureFetcher&&) = delete;
+    TextureFetcher& operator=(TextureFetcher&&) = delete;
+
+    /// @brief Begins the task.
+    Result<> Begin();
 
     /// @brief Updates the task.  This must be called periodically until IsComplete() returns
     /// true.
     void Update();
+
+    /// @brief Returns true if the task is running (started but not complete).
+    bool IsRunning() const;
 
     /// @brief Returns true if the task is complete (either succeeded or failed).
     bool IsComplete() const;
@@ -43,17 +50,36 @@ public:
 
     /// @brief Returns the collection of textures if the task succeeded, otherwise returns an error.
     /// @note This method will invalidate the task, so it can only be called once.
-
     Result<std::vector<wgpu::Texture>> Take();
 
-    /// @brief Returns true if the task is valid and can be updated.
-    /// Returns false if the task has been invalidated by calling Take().
-    bool IsValid() const;
-
 private:
-    class Impl;
+    enum class Stage
+    {
+        None,
+        Fetching,
+        Succeeded,
+        Failed,
+    };
 
-    explicit TextureFetcher(std::unique_ptr<Impl> impl);
+    class LoadTask;
 
-    std::unique_ptr<Impl> m_Impl;
+    struct PendingTask
+    {
+        LoadTask* Task;
+        size_t Index;
+    };
+
+    const GpuHelper* m_GpuHelper{ nullptr };
+    ThreadPool* m_ThreadPool{ nullptr };
+    FileFetcher* m_FileFetcher{ nullptr };
+    std::filesystem::path m_BasePath;
+    std::vector<std::string> m_TextureUris;
+    std::vector<std::unique_ptr<LoadTask>> m_TaskHeap;
+    std::vector<PendingTask> m_Tasks;
+    std::vector<wgpu::Texture> m_Textures;
+    wgpu::CommandEncoder* m_CmdEncoder{ nullptr };
+
+    Stage m_Stage{ Stage::None };
+
+    bool m_Consumed{ false };
 };

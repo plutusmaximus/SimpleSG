@@ -3,6 +3,7 @@
 #include "GpuTypes.h"
 #include "VecMath.h"
 
+#include <atomic>
 #include <memory>
 #include <string_view>
 
@@ -21,16 +22,36 @@ public:
     class CreateTask
     {
     public:
-        CreateTask() = delete;
+        // Passed to the adapter request callback to store the result of the request.
+        struct AdapterRequestData
+        {
+            Result<WGPUAdapter> Result;
+            std::atomic<bool> IsComplete{ false };
+        };
+
+        // Passed to the device request callback to store the result of the request.
+        struct DeviceRequestData
+        {
+            Result<WGPUDevice> Result;
+            std::atomic<bool> IsComplete{ false };
+        };
+
+        explicit CreateTask(std::string appName);
         ~CreateTask();
         CreateTask(const CreateTask&) = delete;
         CreateTask& operator=(const CreateTask&) = delete;
-        CreateTask(CreateTask&&) noexcept;
-        CreateTask& operator=(CreateTask&&) noexcept;
+        CreateTask(CreateTask&&) = delete;
+        CreateTask& operator=(CreateTask&&) = delete;
+
+        /// @brief Begins the task.
+        Result<> Begin();
 
         /// @brief Updates the task.  This must be called periodically until IsComplete() returns
         /// true.
         void Update();
+
+        /// @brief Returns true if the task is running (started but not complete).
+        bool IsRunning() const;
 
         /// @brief Returns true if the task is complete (either succeeded or failed).
         bool IsComplete() const;
@@ -42,18 +63,35 @@ public:
         /// @note This method will invalidate the task, so it can only be called once.
         Result<std::unique_ptr<GpuHelper>> Take();
 
-        /// @brief Returns true if the task is valid and can be updated.
-        /// Returns false if the task has been invalidated by calling Take().
-        bool IsValid() const;
-
     private:
         friend GpuHelper;
 
-        class Impl;
+        enum class Stage
+        {
+            None,
+            CreateAdapter,
+            CreatingAdapter,
+            CreatingDevice,
+            Succeeded,
+            Failed
+        };
 
-        explicit CreateTask(std::unique_ptr<Impl> impl);
+        Result<> CreateAdapter();
+        Result<> FinalizeAdapter();
+        Result<> CreateDevice();
+        Result<> FinalizeDevice();
+        Result<> Configure();
 
-        std::unique_ptr<Impl> m_Impl;
+        std::string m_AppName;
+
+        AdapterRequestData m_AdapterRequestData;
+        DeviceRequestData m_DeviceRequestData;
+
+        std::unique_ptr<GpuHelper> m_GpuHelper;
+
+        Stage m_Stage{ Stage::None };
+
+        bool m_Consumed{ false };
     };
 
     ~GpuHelper();
@@ -61,10 +99,6 @@ public:
     GpuHelper& operator=(const GpuHelper&) = delete;
     GpuHelper(GpuHelper&&) = delete;
     GpuHelper& operator=(GpuHelper&&) = delete;
-
-    /// @brief Creates a GpuHelper instance asynchronously.
-    ///
-    static Result<CreateTask> Create(const std::string_view& appName);
 
     SDL_Window* GetWindow() const;
     const wgpu::Instance& GetInstance() const;
@@ -164,8 +198,6 @@ public:
     static size_t GetTextureAlignedRowStride(const size_t textureWidth);
 
 private:
-    friend class CreateTaskImpl;
-
     GpuHelper() = default;
 
     enum class BufferMappedState

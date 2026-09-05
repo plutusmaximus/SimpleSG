@@ -40,8 +40,8 @@ private:
 
     Result<> EndFrame();
 
-    Result<System::CreateTask> SystemCreateTask;
-    Result<System> SystemInstance;
+    System::CreateTask m_SystemCreateTask;
+    Result<System> m_SystemInstance;
     
     Stage m_Stage{ Stage::Init };
 };

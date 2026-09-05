@@ -149,17 +149,16 @@ Scene::Create(const GpuHelper& gpuHelper,
         textureUris.emplace_back(resourceBundle.GetString(uri));
     }
 
-    auto textureFetcher =
-        TextureFetcher::Create(gpuHelper, threadPool, fileFetcher, rootPath, textureUris);
-    MLG_CHECK(textureFetcher, "Failed to create TextureFetcher");
+    TextureFetcher textureFetcher(gpuHelper, threadPool, fileFetcher, rootPath, textureUris);
+    MLG_CHECK(textureFetcher.Begin(), "Failed to begin TextureFetcher");
 
-    while(!textureFetcher->IsComplete())
+    while(!textureFetcher.IsComplete())
     {
-        textureFetcher->Update();
+        textureFetcher.Update();
     }
 
-    MLG_CHECK(textureFetcher->Succeeded(), "Failed to fetch textures");
-    auto textures = textureFetcher->Take();
+    MLG_CHECK(textureFetcher.Succeeded(), "Failed to fetch textures");
+    auto textures = textureFetcher.Take();
     MLG_CHECK(textures);
 
     auto gpuColorPassResult = GpuColorPass::Create(gpuHelper, fileFetcher);
