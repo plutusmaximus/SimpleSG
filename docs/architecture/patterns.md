@@ -43,3 +43,27 @@ if(task->Succeeded())
 Tasks generally provide `Update()`, `IsComplete()`, and `Succeeded()`. Tasks
 that produce a value also provide `Take()`, which transfers the result and
 consumes the task.
+
+## Valid Construction
+
+An object should be valid and ready to use after it is constructed. Delete the
+default constructor when default construction cannot produce a valid object.
+
+When object creation can fail, instead of exposing a constructor, use a static
+`Create()` function that returns a `Result<T>`. Keep the constructor private so
+callers cannot bypass the creation path.
+
+### General shape
+
+```cpp
+class Thing
+{
+public:
+    Thing() = delete;
+
+    static Result<Thing> Create(...);
+
+private:
+    Thing(...);
+};
+```

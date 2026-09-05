@@ -27,6 +27,9 @@ are too specific to be principles and too small to be patterns.
   appropriate.
 - Make an effort to determine a vector's eventual size and call `reserve()`
   before adding elements so the vector does not repeatedly grow.
+- Reuse the capacity of temporary vectors in frequently run code. When
+  practical, keep the vector with the system that uses it and call `clear()`
+  between uses instead of repeatedly creating and destroying it.
 - Avoid non-contiguous containers such as `std::list` and `std::map` unless their
   specific behavior is needed and a contiguous representation would not be a
   good fit.
@@ -43,6 +46,10 @@ predictable. Occasional temporary allocations are less concerning because
 their cost does not accumulate and the memory is quickly returned to the
 allocator. Bulk contiguous storage uses less overhead and gives the CPU better
 memory locality.
+
+`std::vector::clear()` destroys the elements and resets the vector's size to
+zero, but it does not release the allocation. The vector's capacity remains
+available for the next use.
 
 ## Parameters stored by value
 
@@ -76,8 +83,58 @@ Why:
 - A `const` value or `const` reference cannot be moved into the member, so the
   member must be copied instead.
 
-In cases where the function/constructor only uses the value but doesn't store it
-use a `const` reference.
+When a function only reads a non-trivial value and does not store it, usually
+pass it by `const` reference. Small non-owning views are passed by value as
+described below.
+
+## Non-owning views
+
+- Use a non-owning view like `std::span` or `std::string_view` when a function
+  borrows existing data and only needs it for the duration of the call.
+- Pass small view types like `std::span` and `std::string_view` by value, not by
+  reference.
+- Do not store a view unless the API clearly requires its source to outlive the
+  object storing it.
+- When an object needs to keep the data, accept an appropriate owning type and
+  move it into the object.
+
+Why:
+
+A view provides access without taking ownership or copying the underlying data.
+Small views are cheap to copy, so passing them by reference adds unnecessary
+indirection. Views do not extend the lifetime of the data they refer to.
+Storing an owning type keeps the object's lifetime independent of the caller's
+storage.
+
+## Copy and move behavior
+
+- Let ordinary value types use compiler-generated copy and move operations.
+- Explicitly declare copy and move operations for types that own resources or
+  have lifetime or address constraints.
+- Delete any operation that does not have valid semantics for the type.
+- Only default move operations when all member variables behave correctly when
+  moved.
+
+Why:
+
+Copying or moving a resource-owning object can transfer ownership, duplicate
+ownership, or leave internal references pointing at the wrong object. Declaring
+these operations explicitly makes those semantics deliberate and prevents them
+from changing accidentally when members change.
+
+A default move copies raw pointers and does not clear them in the moved-from
+object. When a pointer represents ownership or must be cleared after a move,
+implement the move operations explicitly. The same care is needed for internal
+pointers or views that refer to another member's storage.
+
+## Non-owned dependencies
+
+When storing a non-owned dependency as a pointer, accept it as a reference and
+store its address. Accepting it as a reference prevents the possibility of
+passing `nullptr`.
+
+The dependency must outlive the object that stores its address. Accept a pointer
+instead of a reference only when `nullptr` is a valid argument.
 
 ## Style
 
