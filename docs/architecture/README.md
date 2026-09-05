@@ -11,6 +11,7 @@ Each file has a different job:
 | [Patterns](patterns.md) | Approaches we use repeatedly to solve the same kind of problem |
 | [Conventions](conventions.md) | How project code is expected to be written |
 | [Decisions](decisions.md) | Important choices and the reasons behind them |
+| [Architecture Backlog](backlog.md) | Architectural questions that still need a decision |
 
 The categories are related but should stay separate. Principles guide our
 judgment. Patterns show how we put those principles into practice. Conventions
