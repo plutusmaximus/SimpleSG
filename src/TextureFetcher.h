@@ -28,7 +28,7 @@ public:
         ThreadPool& threadPool,
         FileFetcher& fileFetcher,
         std::filesystem::path basePath,
-        const std::span<const std::string_view>& textureUris);
+        std::vector<std::string> textureUris);
 
     TextureFetcher() = delete;
     ~TextureFetcher();
@@ -43,7 +43,7 @@ public:
 
     bool Succeeded() const { return m_Stage == Stage::Succeeded; }
 
-    std::span<const wgpu::Texture> GetTextures() const;
+    Result<std::vector<wgpu::Texture>> Take() const;
 
 private:
     enum class Stage

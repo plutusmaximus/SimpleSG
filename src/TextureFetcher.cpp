@@ -54,7 +54,6 @@ public:
     wgpu::Texture& GetTexture() { return m_Texture; }
 
 private:
-
     Result<> BeginDecode();
 
     Result<> Decode() const;
@@ -288,17 +287,16 @@ TextureFetcher::TextureFetcher(const GpuHelper& gpuHelper,
     ThreadPool& threadPool,
     FileFetcher& fileFetcher,
     std::filesystem::path basePath,
-    const std::span<const std::string_view>& textureUris)
+    std::vector<std::string> textureUris)
     : m_GpuHelper(&gpuHelper),
-        m_ThreadPool(&threadPool),
-        m_FileFetcher(&fileFetcher),
-        m_BasePath(std::move(basePath))
+      m_ThreadPool(&threadPool),
+      m_FileFetcher(&fileFetcher),
+      m_BasePath(std::move(basePath)),
+      m_TextureUris(std::move(textureUris))
 {
-    m_TextureUris.reserve(textureUris.size());
-    m_TextureUris.assign(textureUris.begin(), textureUris.end());
-    m_TaskHeap.reserve(textureUris.size());
-    m_Tasks.reserve(textureUris.size());
-    m_Textures.reserve(textureUris.size());
+    m_TaskHeap.reserve(m_TextureUris.size());
+    m_Tasks.reserve(m_TextureUris.size());
+    m_Textures.reserve(m_TextureUris.size());
 }
 
 TextureFetcher::~TextureFetcher()
@@ -375,12 +373,14 @@ TextureFetcher::Update()
     }
 }
 
-std::span<const wgpu::Texture>
-TextureFetcher::GetTextures() const
+Result<std::vector<wgpu::Texture>>
+TextureFetcher::Take() const
 {
-    MLG_ASSERT(IsComplete());
+    MLG_CHECKV(IsComplete(), "TextureFetcher is not complete");
+    MLG_CHECKV(Succeeded(), "TextureFetcher did not succeed");
+    MLG_CHECKV(!m_Textures.empty(), "No textures available");
 
-    return m_Textures;
+    return std::move(m_Textures);
 }
 
 // private:
@@ -407,13 +407,13 @@ TextureFetcher::Begin()
 
         MLG_DEBUG("Fetching texture...");
 
-        detail::TextureLoadTask& task = *m_TaskHeap.emplace_back(std::make_unique<detail::TextureLoadTask>(
-            m_BasePath,
-            uri,
-            *m_GpuHelper,
-            *m_FileFetcher,
-            *m_ThreadPool,
-            encoder));
+        detail::TextureLoadTask& task =
+            *m_TaskHeap.emplace_back(std::make_unique<detail::TextureLoadTask>(m_BasePath,
+                uri,
+                *m_GpuHelper,
+                *m_FileFetcher,
+                *m_ThreadPool,
+                encoder));
 
         m_Tasks.push_back(&task);
     }
