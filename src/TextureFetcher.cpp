@@ -5,14 +5,69 @@
 #include "scope_exit.h"
 #include "ThreadPool.h"
 
-#include <ranges>
 #include <stb_image.h>
 #include <string>
 #include <webgpu/webgpu_cpp.h>
 
-namespace
+class TextureFetcher::Impl
 {
-class TextureLoadTask
+public:
+    Impl(const GpuHelper& gpuHelper,
+        ThreadPool& threadPool,
+        FileFetcher& fileFetcher,
+        std::filesystem::path basePath,
+        std::vector<std::string> textureUris);
+
+    Impl() = delete;
+    ~Impl();
+    Impl(const Impl&) = delete;
+    Impl& operator=(const Impl&) = delete;
+    Impl(Impl&&) = delete;
+    Impl& operator=(Impl&&) = delete;
+
+    Result<> Begin();
+
+    void Update();
+
+    bool IsComplete() const;
+
+    bool Succeeded() const;
+
+    Result<std::vector<wgpu::Texture>> Take();
+
+private:
+    enum class Stage
+    {
+        None,
+        Fetching,
+        Succeeded,
+        Failed,
+    };    
+    
+    class LoadTask;
+
+    struct PendingTask
+    {
+        LoadTask* Task;
+        size_t Index;
+    };
+
+    const GpuHelper* m_GpuHelper{ nullptr };
+    ThreadPool* m_ThreadPool{ nullptr };
+    FileFetcher* m_FileFetcher{ nullptr };
+    std::filesystem::path m_BasePath;
+    std::vector<std::string> m_TextureUris;
+    std::vector<std::unique_ptr<LoadTask>> m_TaskHeap;
+    std::vector<PendingTask> m_Tasks;
+    std::vector<wgpu::Texture> m_Textures;
+    wgpu::CommandEncoder m_CmdEncoder;
+
+    Stage m_Stage{ Stage::None };
+
+    bool m_Consumed{false};
+};
+
+class TextureFetcher::Impl::LoadTask
 {
 public:
     enum class Stage
@@ -25,19 +80,19 @@ public:
         Failed
     };
 
-    TextureLoadTask(const std::filesystem::path& basePath,
+    LoadTask(const std::filesystem::path& basePath,
         std::string baseUri,
         const GpuHelper& gpuHelper,
         FileFetcher& fileFetcher,
         ThreadPool& threadPool,
         wgpu::CommandEncoder encoder);
 
-    TextureLoadTask() = delete;
-    ~TextureLoadTask() = default;
-    TextureLoadTask(const TextureLoadTask&) = delete;
-    TextureLoadTask& operator=(const TextureLoadTask&) = delete;
-    TextureLoadTask(TextureLoadTask&&) = delete;
-    TextureLoadTask& operator=(TextureLoadTask&&) = delete;
+    LoadTask() = delete;
+    ~LoadTask() = default;
+    LoadTask(const LoadTask&) = delete;
+    LoadTask& operator=(const LoadTask&) = delete;
+    LoadTask(LoadTask&&) = delete;
+    LoadTask& operator=(LoadTask&&) = delete;
 
     void Update();
 
@@ -69,7 +124,7 @@ private:
 
     static void Decode(void* userData)
     {
-        TextureLoadTask* task = static_cast<TextureLoadTask*>(userData);
+        LoadTask* task = static_cast<LoadTask*>(userData);
         task->m_DecodeResult = task->Decode();
         task->m_CompletionFlag.store(true, std::memory_order_release);
     }
@@ -96,7 +151,7 @@ private:
     Stage m_Stage{ Stage::None };
 };
 
-TextureLoadTask::TextureLoadTask(const std::filesystem::path& basePath,
+TextureFetcher::Impl::LoadTask::LoadTask(const std::filesystem::path& basePath,
     std::string baseUri,
     const GpuHelper& gpuHelper,
     FileFetcher& fileFetcher,
@@ -113,7 +168,7 @@ TextureLoadTask::TextureLoadTask(const std::filesystem::path& basePath,
 }
 
 void
-TextureLoadTask::Update()
+TextureFetcher::Impl::LoadTask::Update()
 {
     MLG_LOG_SCOPE(m_Uri);
 
@@ -183,7 +238,7 @@ TextureLoadTask::Update()
 }
 
 Result<>
-TextureLoadTask::BeginDecode()
+TextureFetcher::Impl::LoadTask::BeginDecode()
 {
     MLG_DEBUG("Staging texture...");
 
@@ -220,14 +275,14 @@ TextureLoadTask::BeginDecode()
     m_StagingBuffer = *stagingBuffer;
     m_MappedMemory = static_cast<std::byte*>(mapped);
 
-    MLG_CHECK(m_ThreadPool->Enqueue(TextureLoadTask::Decode, this),
+    MLG_CHECK(m_ThreadPool->Enqueue(LoadTask::Decode, this),
         "Failed to enqueue texture decode task");
 
     return Result<>::Ok;
 }
 
 Result<>
-TextureLoadTask::Decode() const
+TextureFetcher::Impl::LoadTask::Decode() const
 {
     MLG_DEBUG("Decoding...");
 
@@ -280,73 +335,18 @@ TextureLoadTask::Decode() const
 }
 
 void
-TextureLoadTask::SetSucceeded()
+TextureFetcher::Impl::LoadTask::SetSucceeded()
 {
     m_Stage = Stage::Succeeded;
 }
 
 void
-TextureLoadTask::SetFailed()
+TextureFetcher::Impl::LoadTask::SetFailed()
 {
     m_Stage = Stage::Failed;
 }
-} // namespace
 
-class TextureFetcher::Impl
-{
-public:
-    Impl(const GpuHelper& gpuHelper,
-        ThreadPool& threadPool,
-        FileFetcher& fileFetcher,
-        std::filesystem::path basePath,
-        std::vector<std::string> textureUris);
-
-    Impl() = delete;
-    ~Impl();
-    Impl(const Impl&) = delete;
-    Impl& operator=(const Impl&) = delete;
-    Impl(Impl&&) = delete;
-    Impl& operator=(Impl&&) = delete;
-
-    Result<> Begin();
-
-    void Update();
-
-    bool IsComplete() const;
-
-    bool Succeeded() const;
-
-    Result<std::vector<wgpu::Texture>> Take();
-
-private:
-    enum class Stage
-    {
-        None,
-        Fetching,
-        Succeeded,
-        Failed,
-    };
-
-    struct PendingTask
-    {
-        TextureLoadTask* Task;
-        size_t Index;
-    };
-
-    const GpuHelper* m_GpuHelper{ nullptr };
-    ThreadPool* m_ThreadPool{ nullptr };
-    FileFetcher* m_FileFetcher{ nullptr };
-    std::filesystem::path m_BasePath;
-    std::vector<std::string> m_TextureUris;
-    std::vector<std::unique_ptr<TextureLoadTask>> m_TaskHeap;
-    std::vector<PendingTask> m_Tasks;
-    std::vector<wgpu::Texture> m_Textures;
-    wgpu::CommandEncoder m_CmdEncoder;
-
-    Stage m_Stage{ Stage::None };
-
-    bool m_Consumed{false};
-};
+/// TextureFetcher::Impl
 
 TextureFetcher::Impl::Impl(const GpuHelper& gpuHelper,
     ThreadPool& threadPool,
@@ -389,7 +389,7 @@ TextureFetcher::Impl::Update()
 
             for(size_t i = 0; i < m_Tasks.size();)
             {
-                TextureLoadTask* tlTask = m_Tasks[i].Task;
+                LoadTask* tlTask = m_Tasks[i].Task;
 
                 tlTask->Update();
 
@@ -488,8 +488,8 @@ TextureFetcher::Impl::Begin()
 
         MLG_DEBUG("Fetching texture...");
 
-        TextureLoadTask& task =
-            *m_TaskHeap.emplace_back(std::make_unique<TextureLoadTask>(m_BasePath,
+        LoadTask& task =
+            *m_TaskHeap.emplace_back(std::make_unique<LoadTask>(m_BasePath,
                 uri,
                 *m_GpuHelper,
                 *m_FileFetcher,
