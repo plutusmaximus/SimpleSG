@@ -120,8 +120,7 @@ CreateMaterialBindGroups(const GpuHelper& gpuHelper,
 
         buffer->Store(0, mc);
 
-        auto bindGroup =
-            gpuColorPass.CreateMaterialBindGroup(baseTexture, *buffer, textureUri);
+        auto bindGroup = gpuColorPass.CreateMaterialBindGroup(baseTexture, *buffer, textureUri);
         MLG_CHECK(bindGroup);
 
         materialBindGroups.push_back(std::move(*bindGroup));
@@ -150,15 +149,17 @@ Scene::Create(const GpuHelper& gpuHelper,
         textureUris.emplace_back(resourceBundle.GetString(uri));
     }
 
-    TextureFetcher fetcher(gpuHelper, threadPool, fileFetcher, rootPath, textureUris);
+    auto textureFetcher =
+        TextureFetcher::Create(gpuHelper, threadPool, fileFetcher, rootPath, textureUris);
+    MLG_CHECK(textureFetcher, "Failed to create TextureFetcher");
 
-    while(!fetcher.IsComplete())
+    while(!textureFetcher->IsComplete())
     {
-        fetcher.Update();
+        textureFetcher->Update();
     }
 
-    MLG_CHECK(fetcher.Succeeded(), "Failed to fetch textures");
-    auto textures = fetcher.Take();
+    MLG_CHECK(textureFetcher->Succeeded(), "Failed to fetch textures");
+    auto textures = textureFetcher->Take();
     MLG_CHECK(textures);
 
     auto gpuColorPassResult = GpuColorPass::Create(gpuHelper, fileFetcher);

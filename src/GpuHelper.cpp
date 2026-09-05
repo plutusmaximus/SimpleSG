@@ -448,6 +448,9 @@ public:
     Impl(Impl&&) = delete;
     Impl& operator=(Impl&&) = delete;
 
+    /// @brief Begins the task.
+    Result<> Begin(const std::string_view& appName);
+
     /// @brief Updates the task.  This must be called periodically until IsComplete() returns
     /// true.
     void Update();
@@ -475,7 +478,6 @@ private:
         Failed
     };
 
-    Result<> Begin(const std::string_view& appName);
     Result<> CreateAdapter();
     Result<> FinalizeAdapter();
     Result<> CreateDevice();
@@ -488,6 +490,8 @@ private:
     std::unique_ptr<GpuHelper> m_GpuHelper;
 
     Stage m_Stage{ Stage::None };
+
+    bool m_Consumed{false};
 };
 
 GpuHelper::CreateTask::Impl::~Impl()
@@ -495,10 +499,52 @@ GpuHelper::CreateTask::Impl::~Impl()
     MLG_ASSERT(IsComplete(), "Destroying CreateTaskImpl before it is complete");
 }
 
+Result<>
+GpuHelper::CreateTask::Impl::Begin(const std::string_view& appName)
+{
+    MLG_CHECKV(Stage::None == m_Stage, "Task has already been started");
+
+    // Set the initial stage to failed to ensure that any early exit will mark the task as failed.
+    m_Stage = Stage::Failed;
+
+    MLG_INFO("Creating GpuHelper...");
+
+    std::unique_ptr<GpuHelper> gpuHelper = std::unique_ptr<GpuHelper>(new GpuHelper());
+
+    auto window = CreateSdlWindow(appName);
+    MLG_CHECK(window);
+    gpuHelper->m_Window = std::move(*window);
+
+#if defined(__APPLE__)
+    SDL_MetalView metalView = SDL_Metal_CreateView(*window);
+    MLG_CHECK(metalView, SDL_GetError());
+    gpuHelper->m_MetalView = metalView;
+#endif
+
+    auto instance = CreateInstance();
+    MLG_CHECK(instance);
+    gpuHelper->m_Instance = std::move(*instance);
+
+    auto surface =
+        CreateSurface(gpuHelper->m_Instance, gpuHelper->m_Window, gpuHelper->m_MetalView);
+    MLG_CHECK(surface);
+    gpuHelper->m_Surface = std::move(*surface);
+
+    m_GpuHelper = std::move(gpuHelper);
+    m_Stage = Stage::CreateAdapter;
+
+    return Result<>::Ok;
+}
+
 void
 GpuHelper::CreateTask::Impl::Update()
 {
-    if(!MLG_VERIFY(!IsComplete(), "CreateTask is already complete"))
+    if(!MLG_VERIFY(!IsComplete(), "Task is already complete"))
+    {
+        return;
+    }
+
+    if(!MLG_VERIFY(Stage::None != m_Stage, "Task is not started"))
     {
         return;
     }
@@ -592,50 +638,15 @@ GpuHelper::CreateTask::Impl::Succeeded() const
 Result<std::unique_ptr<GpuHelper>>
 GpuHelper::CreateTask::Impl::Take()
 {
-    MLG_CHECKV(Succeeded(), "CreateTask did not succeed");
-    MLG_CHECKV(m_GpuHelper, "GpuHelper instance is not available");
+    MLG_CHECKV(IsComplete(), "Task is not complete");
+    MLG_CHECKV(Succeeded(), "Task did not succeed");
+    MLG_CHECKV(!m_Consumed, "Task result already consumed");
 
+    m_Consumed = true;
     return std::move(m_GpuHelper);
 }
 
 // private:
-
-Result<>
-GpuHelper::CreateTask::Impl::Begin(const std::string_view& appName)
-{
-    MLG_CHECKV(Stage::None == m_Stage, "Task has already been started");
-
-    // Set the initial stage to failed to ensure that any early exit will mark the task as failed.
-    m_Stage = Stage::Failed;
-
-    MLG_INFO("Creating GpuHelper...");
-
-    std::unique_ptr<GpuHelper> gpuHelper = std::unique_ptr<GpuHelper>(new GpuHelper());
-
-    auto window = CreateSdlWindow(appName);
-    MLG_CHECK(window);
-    gpuHelper->m_Window = std::move(*window);
-
-#if defined(__APPLE__)
-    SDL_MetalView metalView = SDL_Metal_CreateView(*window);
-    MLG_CHECK(metalView, SDL_GetError());
-    gpuHelper->m_MetalView = metalView;
-#endif
-
-    auto instance = CreateInstance();
-    MLG_CHECK(instance);
-    gpuHelper->m_Instance = std::move(*instance);
-
-    auto surface =
-        CreateSurface(gpuHelper->m_Instance, gpuHelper->m_Window, gpuHelper->m_MetalView);
-    MLG_CHECK(surface);
-    gpuHelper->m_Surface = std::move(*surface);
-
-    m_GpuHelper = std::move(gpuHelper);
-    m_Stage = Stage::CreateAdapter;
-
-    return Result<>::Ok;
-}
 
 Result<>
 GpuHelper::CreateTask::Impl::CreateAdapter()
@@ -812,7 +823,7 @@ GpuHelper::CreateTask::CreateTask(std::unique_ptr<Impl> impl)
 {
 }
 
-// These need to know details of CreateTaskImpl, so they are defined in the .cpp file.
+// These need to know details of CreateTask:Impl, so they are defined in the .cpp file.
 GpuHelper::CreateTask::~CreateTask() = default;
 GpuHelper::CreateTask::CreateTask(CreateTask&&) noexcept = default;
 GpuHelper::CreateTask& GpuHelper::CreateTask::operator=(CreateTask&&) noexcept = default;
@@ -820,21 +831,16 @@ GpuHelper::CreateTask& GpuHelper::CreateTask::operator=(CreateTask&&) noexcept =
 void
 GpuHelper::CreateTask::Update()
 {
-    MLG_ASSERT(IsValid(), "Invalid CreateTask");
+    MLG_ASSERT(!IsComplete(), "Task is already complete");
+    MLG_ASSERT(IsValid(), "Invalid Task");
 
     m_Impl->Update();
 }
 
 bool
-GpuHelper::CreateTask::IsValid() const
-{
-    return m_Impl != nullptr;
-}
-
-bool
 GpuHelper::CreateTask::IsComplete() const
 {
-    MLG_ASSERT(IsValid(), "Invalid CreateTask");
+    MLG_ASSERT(IsValid(), "Invalid Task");
 
     return m_Impl->IsComplete();
 }
@@ -842,7 +848,8 @@ GpuHelper::CreateTask::IsComplete() const
 bool
 GpuHelper::CreateTask::Succeeded() const
 {
-    MLG_ASSERT(IsValid(), "Invalid CreateTask");
+    MLG_ASSERT(IsValid(), "Invalid Task");
+    MLG_ASSERT(IsComplete(), "Task is not complete");
 
     return m_Impl->Succeeded();
 }
@@ -850,10 +857,16 @@ GpuHelper::CreateTask::Succeeded() const
 Result<std::unique_ptr<GpuHelper>>
 GpuHelper::CreateTask::Take()
 {
-    MLG_CHECKV(m_Impl, "Invalid CreateTask");
+    MLG_CHECKV(IsValid(), "Invalid Task");
 
     std::unique_ptr bye = std::move(m_Impl);
     return bye->Take();
+}
+
+bool
+GpuHelper::CreateTask::IsValid() const
+{
+    return m_Impl != nullptr;
 }
 
 ////////// GpuHelper

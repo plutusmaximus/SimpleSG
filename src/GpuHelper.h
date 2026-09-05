@@ -32,10 +32,6 @@ public:
         /// true.
         void Update();
 
-        /// @brief Returns true if the task is valid and can be updated.
-        /// Returns false if the task has been invalidated by calling Take().
-        bool IsValid() const;
-
         /// @brief Returns true if the task is complete (either succeeded or failed).
         bool IsComplete() const;
 
@@ -45,6 +41,10 @@ public:
         /// @brief Returns the GpuHelper instance if the task succeeded, otherwise returns an error.
         /// @note This method will invalidate the task, so it can only be called once.
         Result<std::unique_ptr<GpuHelper>> Take();
+
+        /// @brief Returns true if the task is valid and can be updated.
+        /// Returns false if the task has been invalidated by calling Take().
+        bool IsValid() const;
 
     private:
         friend GpuHelper;

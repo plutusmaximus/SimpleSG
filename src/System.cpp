@@ -20,10 +20,17 @@ public:
     Impl(Impl&&) = delete;
     Impl& operator=(Impl&&) = delete;
 
+    /// @brief Begins the task.
+    Result<> Begin(const char* appName);
+
+    /// @brief Updates the task.  This must be called periodically until IsComplete() returns
+    /// true.
     void Update();
 
+    /// @brief Returns true if the task is complete (either succeeded or failed).
     bool IsComplete() const;
 
+    /// @brief Returns true if the task succeeded.
     bool Succeeded() const;
 
     /// @brief Returns the System instance if the task succeeded, otherwise returns an error.
@@ -41,11 +48,11 @@ private:
         Failed
     };
 
-    Result<> Begin(const char* appName);
-
     std::optional<GpuHelper::CreateTask> m_GpuHelperTask;
 
     Stage m_Stage{ Stage::None };
+
+    bool m_Consumed{false};
 };
 
 System::CreateTask::Impl::~Impl()
@@ -76,7 +83,7 @@ System::CreateTask::Impl::Begin(const char* appName)
 void
 System::CreateTask::Impl::Update()
 {
-    if(!MLG_VERIFY(!IsComplete(), "CreateTask is already complete"))
+    if(!MLG_VERIFY(!IsComplete(), "Task is already complete"))
     {
         return;
     }
@@ -140,7 +147,12 @@ System::CreateTask::Impl::Succeeded() const
 Result<System>
 System::CreateTask::Impl::Take()
 {
-    MLG_CHECKV(Succeeded(), "CreateTask did not succeed");
+    MLG_CHECKV(IsComplete(), "Task is not complete");
+    MLG_CHECKV(Succeeded(), "Task did not succeed");
+    MLG_CHECKV(!m_Consumed, "Task result already consumed");
+
+    m_Consumed = true;
+
     MLG_CHECKV(m_GpuHelperTask.has_value(), "GpuHelper task is not initialized");
 
     // Destroy on scope exit
@@ -173,7 +185,7 @@ System::CreateTask::CreateTask(std::unique_ptr<Impl> impl)
 {
 }
 
-// These need to know details of CreateTaskImpl, so they are defined in the .cpp file.
+// These need to know details of CreateTask::Impl, so they are defined in the .cpp file.
 System::CreateTask::~CreateTask() = default;
 System::CreateTask::CreateTask(CreateTask&&) noexcept = default;
 System::CreateTask& System::CreateTask::operator=(CreateTask&&) noexcept = default;
@@ -181,21 +193,15 @@ System::CreateTask& System::CreateTask::operator=(CreateTask&&) noexcept = defau
 void
 System::CreateTask::Update()
 {
-    MLG_ASSERT(IsValid(), "Invalid CreateTask");
+    MLG_ASSERT(IsValid(), "Invalid Task");
 
     m_Impl->Update();
 }
 
 bool
-System::CreateTask::IsValid() const
-{
-    return m_Impl != nullptr;
-}
-
-bool
 System::CreateTask::IsComplete() const
 {
-    MLG_ASSERT(IsValid(), "Invalid CreateTask");
+    MLG_ASSERT(IsValid(), "Invalid Task");
 
     return m_Impl->IsComplete();
 }
@@ -203,7 +209,8 @@ System::CreateTask::IsComplete() const
 bool
 System::CreateTask::Succeeded() const
 {
-    MLG_ASSERT(IsValid(), "Invalid CreateTask");
+    MLG_ASSERT(IsValid(), "Invalid Task");
+    MLG_ASSERT(IsComplete(), "Task is not complete");
 
     return m_Impl->Succeeded();
 }
@@ -211,10 +218,16 @@ System::CreateTask::Succeeded() const
 Result<System>
 System::CreateTask::Take()
 {
-    MLG_CHECKV(m_Impl, "Invalid CreateTask");
+    MLG_CHECKV(IsValid(), "Invalid Task");
 
     std::unique_ptr bye = std::move(m_Impl);
     return bye->Take();
+}
+
+bool
+System::CreateTask::IsValid() const
+{
+    return m_Impl != nullptr;
 }
 
 ////////// System
