@@ -2,6 +2,7 @@
 #include "CommonActionIds.h"
 #include "DevUi.h"
 #include "GpuHelper.h"
+#include "ImGuiRenderer.h"
 #include "Level.h"
 #include "LuaRuntime.h"
 #include "PerfMetrics.h"

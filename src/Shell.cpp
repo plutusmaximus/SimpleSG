@@ -49,9 +49,10 @@ Shell::Update(AppUpdateCallback appUpdateCb)
             if(m_SystemCreateTask.IsComplete())
             {
                 MLG_CHECK(m_SystemCreateTask.Succeeded(), "System creation failed");
-                m_SystemInstance = m_SystemCreateTask.Take();
-                MLG_CHECK(m_SystemInstance, "Failed to get System instance");
+                auto system = m_SystemCreateTask.Take();
+                MLG_CHECK(system, "Failed to get System instance");
 
+                m_System = std::move(*system);
                 m_Stage = Stage::Running;
             }
             break;
@@ -62,7 +63,7 @@ Shell::Update(AppUpdateCallback appUpdateCb)
 
             MLG_CHECK(BeginFrame());
 
-            const AppState appState = appUpdateCb(*m_SystemInstance);
+            const AppState appState = appUpdateCb(*m_System);
 
             MLG_CHECK(EndFrame());
 
@@ -97,7 +98,7 @@ Shell::BeginFrame()
 {
     MLG_ASSERT(Stage::Running == m_Stage, "BeginFrame() called when not running");
     
-    m_SystemInstance->ProcessEvents();
+    m_System->ProcessEvents();
 
     return Result<>::Ok;
 }
@@ -108,7 +109,7 @@ Shell::EndFrame()
     MLG_ASSERT(Stage::Running == m_Stage, "EndFrame() called when not running");
 #if !defined(__EMSCRIPTEN__)
 
-    const GpuHelper& gpuHelper = m_SystemInstance->GetGpuHelper();
+    const GpuHelper& gpuHelper = m_System->GetGpuHelper();
 
     MLG_CHECK(gpuHelper.GetSurface().Present(), "Failed to present backbuffer");
     gpuHelper.GetInstance().ProcessEvents();

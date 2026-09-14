@@ -333,25 +333,6 @@ CreateDefaultTexture(GpuHelper& gpuHelper)
     return *texture;
 }
 
-Result<wgpu::Sampler>
-CreateDefaultSampler(const wgpu::Device& gpuDevice)
-{
-    const wgpu::SamplerDescriptor samplerDesc //
-        {
-            .addressModeU = wgpu::AddressMode::Repeat,
-            .addressModeV = wgpu::AddressMode::Repeat,
-            .addressModeW = wgpu::AddressMode::Repeat,
-            .magFilter = wgpu::FilterMode::Linear,
-            .minFilter = wgpu::FilterMode::Linear,
-            .mipmapFilter = wgpu::MipmapFilterMode::Linear,
-        };
-
-    wgpu::Sampler sampler = gpuDevice.CreateSampler(&samplerDesc);
-    MLG_CHECK(sampler, "Failed to create default sampler");
-
-    return sampler;
-}
-
 void
 RequestAdapterCb(wgpu::RequestAdapterStatus status,
     wgpu::Adapter receivedAdapter,
@@ -740,10 +721,6 @@ GpuHelper::CreateTask::Configure()
 
     m_GpuHelper->m_SurfaceFormat = *surfaceFormat;
 
-    auto defaultSampler = CreateDefaultSampler(m_GpuHelper->m_Device);
-    MLG_CHECK(defaultSampler);
-    m_GpuHelper->m_DefaultSampler = std::move(*defaultSampler);
-
     auto defaultTexture = CreateDefaultTexture(*m_GpuHelper);
     MLG_CHECK(defaultTexture);
 
@@ -798,12 +775,6 @@ const wgpu::Texture&
 GpuHelper::GetDefaultTexture() const
 {
     return m_DefaultTexture;
-}
-
-const wgpu::Sampler&
-GpuHelper::GetDefaultSampler() const
-{
-    return m_DefaultSampler;
 }
 
 Dimension2

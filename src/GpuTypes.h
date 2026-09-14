@@ -8,28 +8,29 @@
 #include <type_traits>
 #include <webgpu/webgpu_cpp.h>
 
-class GpuRenderTarget
+template<typename Tag>
+class GpuTextureTarget
 {
 public:
-    GpuRenderTarget() = delete;
-    ~GpuRenderTarget() = default;
-    GpuRenderTarget(const GpuRenderTarget&) = default;
-    GpuRenderTarget& operator=(const GpuRenderTarget&) = default;
+    GpuTextureTarget() = delete;
+    ~GpuTextureTarget() = default;
+    GpuTextureTarget(const GpuTextureTarget&) = default;
+    GpuTextureTarget& operator=(const GpuTextureTarget&) = default;
 
     // Because GpuRenderTarget guarantees validity of the underlying texture we must
     // not allow resource stealing.  Therefore move ctor and assignment delegate
     // to the copy ctor and assignment operator.
 
-    GpuRenderTarget(GpuRenderTarget&& other) noexcept
-        : GpuRenderTarget(static_cast<const GpuRenderTarget&>(other))
+    GpuTextureTarget(GpuTextureTarget&& other) noexcept
+        : GpuTextureTarget(static_cast<const GpuTextureTarget&>(other))
     {
     }
 
-    GpuRenderTarget& operator=(GpuRenderTarget&& other) noexcept
+    GpuTextureTarget& operator=(GpuTextureTarget&& other) noexcept
     {
         if(this != &other)
         {
-            return *this = static_cast<const GpuRenderTarget&>(other);
+            return *this = static_cast<const GpuTextureTarget&>(other);
         }
         return *this;
     }
@@ -38,7 +39,7 @@ public:
 
     const wgpu::Texture* operator->() const { return &m_Texture; }
 
-    friend bool operator==(const GpuRenderTarget& a, const GpuRenderTarget& b)
+    friend bool operator==(const GpuTextureTarget& a, const GpuTextureTarget& b)
     {
         return a.m_Texture.Get() == b.m_Texture.Get();
     }
@@ -46,7 +47,7 @@ public:
 private:
     friend class GpuHelper;
 
-    explicit GpuRenderTarget(wgpu::Texture gpuObject)
+    explicit GpuTextureTarget(wgpu::Texture gpuObject)
         : m_Texture(std::move(gpuObject))
     {
         MLG_ASSERT(m_Texture, "Invalid GPU object");
@@ -55,51 +56,8 @@ private:
     wgpu::Texture m_Texture;
 };
 
-class GpuDepthTarget
-{
-public:
-    GpuDepthTarget() = delete;
-    ~GpuDepthTarget() = default;
-    GpuDepthTarget(const GpuDepthTarget&) = default;
-    GpuDepthTarget& operator=(const GpuDepthTarget&) = default;
-
-    // Because GpuDepthTarget guarantees validity of the underlying texture we must
-    // not allow resource stealing.  Therefore move ctor and assignment delegate
-    // to the copy ctor and assignment operator.
-
-    GpuDepthTarget(GpuDepthTarget&& other) noexcept
-        : GpuDepthTarget(static_cast<const GpuDepthTarget&>(other))
-    {
-    }
-
-    GpuDepthTarget& operator=(GpuDepthTarget&& other) noexcept
-    {
-        if(this != &other)
-        {
-            return *this = static_cast<const GpuDepthTarget&>(other);
-        }
-        return *this;
-    }
-    const wgpu::Texture& Get() const { return m_Texture; }
-
-    const wgpu::Texture* operator->() const { return &m_Texture; }
-
-    friend bool operator==(const GpuDepthTarget& a, const GpuDepthTarget& b)
-    {
-        return a.m_Texture.Get() == b.m_Texture.Get();
-    }
-
-private:
-    friend class GpuHelper;
-
-    explicit GpuDepthTarget(wgpu::Texture texture)
-        : m_Texture(std::move(texture))
-    {
-        MLG_ASSERT(m_Texture, "Invalid GPU object");
-    }
-
-    wgpu::Texture m_Texture;
-};
+using GpuRenderTarget = GpuTextureTarget<struct RenderTarget>;
+using GpuDepthTarget = GpuTextureTarget<struct DepthTarget>;
 
 /// @brief Identifies the intended usage of a GpuBuffer.
 enum class GpuBufferUsage
@@ -223,7 +181,8 @@ using GpuDrawIndirectBuffer =
     GpuBuffer<ShaderInterop::DrawIndirectParams, GpuBufferUsage::Indirect>;
 using GpuWorldTransformBuffer = GpuBuffer<ShaderInterop::WorldTransform, GpuBufferUsage::Storage>;
 using GpuClipSpaceBuffer = GpuBuffer<ShaderInterop::ClipSpaceTransform, GpuBufferUsage::Storage>;
-using GpuMeshInstanceParamsBuffer = GpuBuffer<ShaderInterop::MeshInstanceParams, GpuBufferUsage::Storage>;
+using GpuMeshInstanceParamsBuffer =
+    GpuBuffer<ShaderInterop::MeshInstanceParams, GpuBufferUsage::Storage>;
 using GpuCameraParamsBuffer = GpuBuffer<ShaderInterop::CameraParams, GpuBufferUsage::Uniform>;
 using GpuMaterialConstantsBuffer =
     GpuBuffer<ShaderInterop::MaterialConstants, GpuBufferUsage::Uniform>;

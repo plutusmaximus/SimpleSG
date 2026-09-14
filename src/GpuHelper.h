@@ -105,7 +105,6 @@ public:
     const wgpu::Device& GetDevice() const;
     const wgpu::Surface& GetSurface() const;
     const wgpu::Texture& GetDefaultTexture() const;
-    const wgpu::Sampler& GetDefaultSampler() const;
     Dimension2 GetScreenDimensions() const;
     Result<GpuRenderTarget> GetSwapChainTexture() const;
     wgpu::TextureFormat GetSwapChainFormat() const;
@@ -224,5 +223,4 @@ private:
     wgpu::Surface m_Surface{ nullptr };
     mutable wgpu::TextureFormat m_SurfaceFormat{ wgpu::TextureFormat::Undefined };
     wgpu::Texture m_DefaultTexture{ nullptr };
-    wgpu::Sampler m_DefaultSampler{ nullptr };
 };

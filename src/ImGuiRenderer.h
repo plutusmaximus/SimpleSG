@@ -4,7 +4,9 @@
 
 struct ImGuiContext;
 class GpuHelper;
-class GpuRenderTarget;
+
+template<typename Tag> class GpuTextureTarget;
+using GpuRenderTarget = GpuTextureTarget<struct RenderTarget>;
 
 namespace wgpu
 {
@@ -20,23 +22,10 @@ public:
     ~ImGuiRenderer();
     ImGuiRenderer(const ImGuiRenderer&) = delete;
     ImGuiRenderer& operator=(const ImGuiRenderer&) = delete;
-    ImGuiRenderer(ImGuiRenderer&& other) noexcept
-        : m_Context(other.m_Context)
-    {
-        other.m_Context = nullptr;
-    }
-    ImGuiRenderer& operator=(ImGuiRenderer&& other) noexcept
-    {
-        if(this != &other)
-        {
-            m_Context = other.m_Context;
-            other.m_Context = nullptr;
-        }
+    ImGuiRenderer(ImGuiRenderer&& other) = delete;
+    ImGuiRenderer& operator=(ImGuiRenderer&& other) = delete;
 
-        return *this;
-    }
-
-    static Result<std::unique_ptr<ImGuiRenderer>> Create(GpuHelper& gpuHelper);
+    static Result<std::unique_ptr<ImGuiRenderer>> Create(const GpuHelper& gpuHelper);
 
     template<typename Func>
     Result<> Render(const wgpu::Device& gpuDevice, const GpuRenderTarget& target, Func& renderFunc) const

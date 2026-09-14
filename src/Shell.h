@@ -15,6 +15,12 @@ public:
     using AppUpdateCallback = AppState (*)(System& system);
 
     explicit Shell(const char* appName);
+    Shell() = delete;
+    ~Shell() = default;
+    Shell(const Shell&) = delete;
+    Shell& operator=(const Shell&) = delete;
+    Shell(Shell&&) = delete;
+    Shell& operator=(Shell&&) = delete;
 
     /// Handles system level tasks.  Calls the application main loop handler when the system is
     /// running.
@@ -41,7 +47,7 @@ private:
     Result<> EndFrame();
 
     System::CreateTask m_SystemCreateTask;
-    Result<System> m_SystemInstance;
+    Result<System> m_System;
     
     Stage m_Stage{ Stage::Init };
 };

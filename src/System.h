@@ -1,13 +1,14 @@
 #pragma once
 
-#include "FileFetcher.h"
 #include "GpuHelper.h"
-#include "ImGuiRenderer.h"
-#include "ThreadPool.h"
+#include "Result.h"
 
 #include <memory>
 
 union SDL_Event;
+class FileFetcher;
+class ImGuiRenderer;
+class ThreadPool;
 
 enum class EventDisposition
 {
@@ -124,11 +125,11 @@ public:
     };
 
     System() = delete;
-    ~System() = default;
+    ~System();
     System(const System&) = delete;
     System& operator=(const System&) = delete;
-    System(System&&) = default;
-    System& operator=(System&&) = default;
+    System(System&&) noexcept;
+    System& operator=(System&&) noexcept;
 
     GpuHelper& GetGpuHelper();
     const GpuHelper& GetGpuHelper() const;
@@ -185,13 +186,7 @@ private:
     System(std::unique_ptr<GpuHelper>&& gpuHelper,
         std::unique_ptr<FileFetcher>&& fileFetcher,
         std::unique_ptr<ThreadPool>&& threadPool,
-        std::unique_ptr<ImGuiRenderer>&& imGuiRenderer)
-        : m_GpuHelper(std::move(gpuHelper)),
-          m_FileFetcher(std::move(fileFetcher)),
-          m_ThreadPool(std::move(threadPool)),
-          m_ImGuiRenderer(std::move(imGuiRenderer))
-    {
-    }
+        std::unique_ptr<ImGuiRenderer>&& imGuiRenderer);
 
     enum class FocusEvent
     {

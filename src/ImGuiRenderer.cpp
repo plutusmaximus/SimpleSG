@@ -8,7 +8,7 @@
 #include <imgui_impl_wgpu.h>
 
 Result<std::unique_ptr<ImGuiRenderer>>
-ImGuiRenderer::Create(GpuHelper& gpuHelper)
+ImGuiRenderer::Create(const GpuHelper& gpuHelper)
 {
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();

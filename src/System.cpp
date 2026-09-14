@@ -1,7 +1,8 @@
 #include "System.h"
 
 #include "FileFetcher.h"
-#include "GpuHelper.h"
+#include "ImGuiRenderer.h"
+#include "ThreadPool.h"
 
 #include <imgui_impl_sdl3.h>
 #include <memory>
@@ -130,6 +131,21 @@ System::CreateTask::Take()
 }
 
 ////////// System
+
+System::System(std::unique_ptr<GpuHelper>&& gpuHelper,
+    std::unique_ptr<FileFetcher>&& fileFetcher,
+    std::unique_ptr<ThreadPool>&& threadPool,
+    std::unique_ptr<ImGuiRenderer>&& imGuiRenderer)
+    : m_GpuHelper(std::move(gpuHelper)),
+      m_FileFetcher(std::move(fileFetcher)),
+      m_ThreadPool(std::move(threadPool)),
+      m_ImGuiRenderer(std::move(imGuiRenderer))
+{
+}
+
+System::~System() = default;
+System::System(System&&) noexcept = default;
+System& System::operator=(System&&) noexcept = default;
 
 GpuHelper&
 System::GetGpuHelper()
