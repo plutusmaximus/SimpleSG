@@ -270,28 +270,26 @@ public:
     bool Action(const ActionIdentifier& actionId, float& value) const;
 
 private:
-    struct ButtonActionMapping // NOLINT(cppcoreguidelines-pro-type-member-init)
-    {
-        InputButton Button;
-        float Scale{ 1 };
-        // Index into m_ActionStates for the action that this button mapping triggers.
-        size_t ActionStateIndex{ 0 };
-    };
-
-    struct AxisActionMapping // NOLINT(cppcoreguidelines-pro-type-member-init)
-    {
-        InputAxis Axis;
-        float Scale{ 1 };
-        // Index into m_ActionStates for the action that this axis mapping triggers.
-        size_t ActionStateIndex{ 0 };
-    };
-
     // Represents the state of an action, including whether it was triggered and its value.
     struct ActionState
     {
         ActionIdentifier ActionId;
         bool Triggered{ false };
         float Value{ 0.0f };
+    };
+
+    struct ButtonActionMapping // NOLINT(cppcoreguidelines-pro-type-member-init)
+    {
+        InputButton Button;
+        float Scale{ 1 };
+        ActionState* m_ActionState { nullptr };
+    };
+
+    struct AxisActionMapping // NOLINT(cppcoreguidelines-pro-type-member-init)
+    {
+        InputAxis Axis;
+        float Scale{ 1 };
+        ActionState* m_ActionState { nullptr };
     };
 
     // Tracks the current state of a button.
@@ -306,9 +304,11 @@ private:
         bool IsDown() const { return DownState; }
     };
 
-    void TriggerAction(const ButtonActionMapping& mapping);
+    static void TriggerAction(const ButtonActionMapping& mapping);
 
     void TriggerAction(const InputAxis& inputAxis, const float value);
+
+    ActionState* GetActionState(const ActionIdentifier& actionId);
 
     std::vector<ButtonActionMapping> m_ButtonActionMappings;
     std::vector<AxisActionMapping> m_AxisActionMappings;

@@ -26,6 +26,7 @@ ValidateInputButton(const InputButton& button)
 
 InputMapper::InputMapper(const std::span<const ActionMapping> mappings)
 {
+    // Count mappings so action arrays can be allocated.
     size_t buttonMappingCount = 0;
     size_t axisMappingCount = 0;
     for(const ActionMapping& mapping : mappings)
@@ -42,10 +43,22 @@ InputMapper::InputMapper(const std::span<const ActionMapping> mappings)
 
     m_ButtonActionMappings.reserve(buttonMappingCount);
     m_AxisActionMappings.reserve(axisMappingCount);
-    m_ActionStates.reserve(buttonMappingCount + axisMappingCount);
+    m_ActionStates.reserve(mappings.size());
 
     for(const ActionMapping& mapping : mappings)
     {
+        m_ActionStates.push_back(ActionState{ .ActionId = mapping.ActionId });
+    }
+
+    // Sort action states and remove duplicates.
+    std::ranges::sort(m_ActionStates, {}, &ActionState::ActionId);
+    const auto dupRange = std::ranges::unique(m_ActionStates, {}, &ActionState::ActionId);
+    m_ActionStates.erase(dupRange.begin(), dupRange.end());
+
+    for(const ActionMapping& mapping : mappings)
+    {
+        // Input can be either InputButton or InputAxis.
+
         if(std::holds_alternative<InputButton>(mapping.Input))
         {
             const InputButton& button = std::get<InputButton>(mapping.Input);
@@ -55,32 +68,15 @@ InputMapper::InputMapper(const std::span<const ActionMapping> mappings)
                 static_cast<int>(button.GetDevice()),
                 button.GetId());
 
-            auto it = std::ranges::find(m_ActionStates, mapping.ActionId, &ActionState::ActionId);
-            if(it == m_ActionStates.end())
-            {
-                m_ActionStates.push_back(ActionState{ .ActionId = mapping.ActionId });
-                it = std::prev(m_ActionStates.end());
-            }
-
             ButtonActionMapping& bam = m_ButtonActionMappings.emplace_back(button, mapping.Scale);
-
-            const ptrdiff_t dist = std::distance(m_ActionStates.begin(), it);
-
-            bam.ActionStateIndex = static_cast<size_t>(dist);
+            bam.m_ActionState = GetActionState(mapping.ActionId);
         }
         else if(std::holds_alternative<InputAxis>(mapping.Input))
         {
             const InputAxis& axis = std::get<InputAxis>(mapping.Input);
-            auto it = std::ranges::find(m_ActionStates, mapping.ActionId, &ActionState::ActionId);
-            if(it == m_ActionStates.end())
-            {
-                m_ActionStates.push_back(ActionState{ .ActionId = mapping.ActionId });
-                it = std::prev(m_ActionStates.end());
-            }
 
             AxisActionMapping& aam = m_AxisActionMappings.emplace_back(axis, mapping.Scale);
-            const ptrdiff_t dist = std::distance(m_ActionStates.begin(), it);
-            aam.ActionStateIndex = static_cast<size_t>(dist);
+            aam.m_ActionState = GetActionState(mapping.ActionId);
         }
     }
 
@@ -341,16 +337,13 @@ InputMapper::Action(const ActionIdentifier& actionId, float& value) const
 void
 InputMapper::TriggerAction(const ButtonActionMapping& mapping)
 {
-    MLG_ASSERT(mapping.ActionStateIndex < m_ActionStates.size(), "ActionState index out of bounds");
-    ActionState& actionState = m_ActionStates[mapping.ActionStateIndex];
-
-    actionState.Triggered = true;
+    mapping.m_ActionState->Triggered = true;
     const float actionValue = mapping.Scale;
 
     // The event that generates the highest absolute value takes precedence.
-    if(std::abs(actionValue) > std::abs(actionState.Value))
+    if(std::abs(actionValue) > std::abs(mapping.m_ActionState->Value))
     {
-        actionState.Value = actionValue;
+        mapping.m_ActionState->Value = actionValue;
     }
 }
 
@@ -361,18 +354,26 @@ InputMapper::TriggerAction(const InputAxis& inputAxis, const float value)
     {
         if(mapping.Axis == inputAxis)
         {
-            MLG_ASSERT(mapping.ActionStateIndex < m_ActionStates.size(),
-                "ActionState index out of bounds");
-            ActionState& actionState = m_ActionStates[mapping.ActionStateIndex];
-
-            actionState.Triggered = true;
+            mapping.m_ActionState->Triggered = true;
             const float actionValue = mapping.Scale * value;
 
             // The event that generates the highest absolute value takes precedence.
-            if(std::abs(actionValue) > std::abs(actionState.Value))
+            if(std::abs(actionValue) > std::abs(mapping.m_ActionState->Value))
             {
-                actionState.Value = actionValue;
+                mapping.m_ActionState->Value = actionValue;
             }
         }
     }
+}
+
+InputMapper::ActionState*
+InputMapper::GetActionState(const ActionIdentifier& actionId)
+{
+    const auto it = std::ranges::lower_bound(m_ActionStates, actionId, {}, &ActionState::ActionId);
+    if(it != m_ActionStates.end() && it->ActionId == actionId)
+    {
+        return &(*it);
+    }
+
+    return nullptr;
 }
