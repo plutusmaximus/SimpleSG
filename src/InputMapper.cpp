@@ -97,14 +97,14 @@ InputMapper::Clear()
     {
         keyState.PressCount = 0;
         keyState.ReleaseCount = 0;
-        keyState.DownState = false;
+        keyState.HeldState = false;
     }
 
     for(auto& mouseButtonState : m_MouseButtonStates)
     {
         mouseButtonState.PressCount = 0;
         mouseButtonState.ReleaseCount = 0;
-        mouseButtonState.DownState = false;
+        mouseButtonState.HeldState = false;
     }
 
     int numKeys = 0;
@@ -117,7 +117,7 @@ InputMapper::Clear()
 
     for(size_t i = 0; i < keyCount; ++i)
     {
-        m_KeyStates[i].DownState = keyboardStateSpan[i];
+        m_KeyStates[i].HeldState = keyboardStateSpan[i];
     }
 
     const SDL_MouseButtonFlags mouseButtonBits = SDL_GetMouseState(nullptr, nullptr);
@@ -126,7 +126,7 @@ InputMapper::Clear()
     {
         const unsigned buttonMask = SDL_BUTTON_MASK(i);
 
-        m_MouseButtonStates[i].DownState = (mouseButtonBits & buttonMask) != 0;
+        m_MouseButtonStates[i].HeldState = (mouseButtonBits & buttonMask) != 0;
     }
 }
 
@@ -144,6 +144,100 @@ InputMapper::BeginFrame()
 }
 
 void
+InputMapper::OnButtonPressed(const InputButtonDevice device, const unsigned buttonId)
+{
+    switch(device)
+    {
+        case InputButtonDevice::Keyboard:
+            if(MLG_VERIFY(buttonId < m_KeyStates.size()))
+            {
+                // Ignore key repeat events.
+                if(!m_KeyStates[buttonId].HeldState)
+                {
+                    ++m_KeyStates[buttonId].PressCount;
+                    m_KeyStates[buttonId].HeldState = true;
+                }
+            }
+            break;
+        case InputButtonDevice::Mouse:
+            if(MLG_VERIFY(buttonId < m_MouseButtonStates.size()))
+            {
+                // Ignore key repeat events.
+                if(!m_MouseButtonStates[buttonId].HeldState)
+                {
+                    ++m_MouseButtonStates[buttonId].PressCount;
+                    m_MouseButtonStates[buttonId].HeldState = true;
+                }
+            }
+            break;
+        default:
+            MLG_ASSERT(false, "Unknown input device");
+            break;
+    }
+}
+
+void
+InputMapper::OnButtonReleased(const InputButtonDevice device, const unsigned buttonId)
+{
+    switch(device)
+    {
+        case InputButtonDevice::Keyboard:
+            if(MLG_VERIFY(buttonId < m_KeyStates.size()))
+            {
+                ++m_KeyStates[buttonId].ReleaseCount;
+                m_KeyStates[buttonId].HeldState = false;
+            }
+            break;
+        case InputButtonDevice::Mouse:
+            if(MLG_VERIFY(buttonId < m_MouseButtonStates.size()))
+            {
+                ++m_MouseButtonStates[buttonId].ReleaseCount;
+                m_MouseButtonStates[buttonId].HeldState = false;
+            }
+            break;
+        default:
+            MLG_ASSERT(false, "Unknown input device");
+            break;
+    }
+}
+
+void
+InputMapper::OnAxis(const InputAxisDevice device, const InputAxisIdentifier axisId, const float value)
+{
+    switch(device)
+    {
+        case InputAxisDevice::Mouse:
+            switch(axisId)
+            {
+                case InputAxisIdentifier::X:
+                    m_MouseDelta.x += value;
+                    break;
+                case InputAxisIdentifier::Y:
+                    m_MouseDelta.y += value;
+                    break;
+                case InputAxisIdentifier::Z:
+                    m_MouseDelta.z += value;
+                    break;
+            }
+            break;
+        case InputAxisDevice::MouseWheel:
+            switch(axisId)
+            {
+                case InputAxisIdentifier::X:
+                    m_MouseWheelDelta.x += value;
+                    break;
+                case InputAxisIdentifier::Y:
+                    m_MouseWheelDelta.y += value;
+                    break;
+                case InputAxisIdentifier::Z:
+                    m_MouseWheelDelta.z += value;
+                    break;
+            }
+            break;
+    }
+}
+
+void
 InputMapper::ProcessEvent(const SDL_Event& event)
 {
     MLG_ASSERT(m_InFrame, "ConsumeEvent() called outside of BeginFrame()/EndFrame()");
@@ -151,71 +245,43 @@ InputMapper::ProcessEvent(const SDL_Event& event)
     switch(event.type)
     {
         case SDL_EVENT_KEY_DOWN:
+            OnButtonPressed(InputButtonDevice::Keyboard, static_cast<unsigned>(event.key.scancode));
+            break;
+
         case SDL_EVENT_KEY_UP:
-        {
-            if(event.type == SDL_EVENT_KEY_UP)
-            {
-                const unsigned scancode = static_cast<unsigned>(event.key.scancode);
-                if(MLG_VERIFY(scancode < m_KeyStates.size()))
-                {
-                    ++m_KeyStates[scancode].ReleaseCount;
-                    m_KeyStates[scancode].DownState = false;
-                }
-            }
-            else
-            {
-                // Enqueue an action only if the key was not already down.
-                const unsigned scancode = static_cast<unsigned>(event.key.scancode);
-                if(MLG_VERIFY(scancode < m_KeyStates.size()))
-                {
-                    // Ignore key repeat events.
-                    if(!m_KeyStates[scancode].DownState)
-                    {
-                        ++m_KeyStates[scancode].PressCount;
-                        m_KeyStates[scancode].DownState = true;
-                    }
-                }
-            }
-        }
-        break;
+            OnButtonReleased(InputButtonDevice::Keyboard, static_cast<unsigned>(event.key.scancode));
+            break;
 
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            OnButtonPressed(InputButtonDevice::Mouse, static_cast<unsigned>(event.button.button));
+            break;
+
         case SDL_EVENT_MOUSE_BUTTON_UP:
-        {
-            if(event.type == SDL_EVENT_MOUSE_BUTTON_UP)
-            {
-                const unsigned button = static_cast<unsigned>(event.button.button);
-                if(MLG_VERIFY(button < m_MouseButtonStates.size()))
-                {
-                    ++m_MouseButtonStates[button].ReleaseCount;
-                    m_MouseButtonStates[button].DownState = false;
-                }
-            }
-            else
-            {
-                // Enqueue an action event only if the button was not already down.
-                const unsigned button = static_cast<unsigned>(event.button.button);
-                if(MLG_VERIFY(button < m_MouseButtonStates.size()))
-                {
-                    // Ignore button repeat events.
-                    if(!m_MouseButtonStates[button].DownState)
-                    {
-                        ++m_MouseButtonStates[button].PressCount;
-                        m_MouseButtonStates[button].DownState = true;
-                    }
-                }
-            }
-        }
-        break;
+            OnButtonReleased(InputButtonDevice::Mouse, static_cast<unsigned>(event.button.button));
+            break;
 
         case SDL_EVENT_MOUSE_WHEEL:
-            m_MouseWheelDelta.x += event.wheel.x;
-            m_MouseWheelDelta.y += event.wheel.y;
+            if(event.wheel.x != 0)
+            {
+                OnAxis(InputAxisDevice::MouseWheel, InputAxisIdentifier::X, event.wheel.x);
+            }
+
+            if(event.wheel.y != 0)
+            {
+                OnAxis(InputAxisDevice::MouseWheel, InputAxisIdentifier::Y, event.wheel.y);
+            }
             break;
 
         case SDL_EVENT_MOUSE_MOTION:
-            m_MouseDelta.x += event.motion.xrel;
-            m_MouseDelta.y += event.motion.yrel;
+            if(event.motion.xrel != 0)
+            {
+                OnAxis(InputAxisDevice::Mouse, InputAxisIdentifier::X, event.motion.xrel);
+            }
+
+            if(event.motion.yrel != 0)
+            {
+                OnAxis(InputAxisDevice::Mouse, InputAxisIdentifier::Y, event.motion.yrel);
+            }
             break;
 
         default:
@@ -238,6 +304,11 @@ InputMapper::EndFrame()
         TriggerAction(InputAxis::MouseMoveY, m_MouseDelta.y);
     }
 
+    if(m_MouseDelta.z != 0.0f)
+    {
+        TriggerAction(InputAxis::MouseMoveZ, m_MouseDelta.z);
+    }
+
     if(m_MouseWheelDelta.x != 0.0f)
     {
         TriggerAction(InputAxis::MouseWheelX, m_MouseWheelDelta.x);
@@ -248,8 +319,8 @@ InputMapper::EndFrame()
         TriggerAction(InputAxis::MouseWheelY, m_MouseWheelDelta.y);
     }
 
-    m_MouseDelta = Vec2f(0);
-    m_MouseWheelDelta = Vec2f(0);
+    m_MouseDelta = Vec3f(0);
+    m_MouseWheelDelta = Vec3f(0);
 
     // Synthesize button events.
 
@@ -278,7 +349,7 @@ InputMapper::EndFrame()
         {
             if((mapping.Button.TriggersOnPress() && buttonState->IsPressed())
                 || (mapping.Button.TriggersOnRelease() && buttonState->IsReleased())
-                || (mapping.Button.TriggersWhileDown() && buttonState->IsDown()))
+                || (mapping.Button.TriggersWhileHeld() && buttonState->IsHeld()))
             {
                 TriggerAction(mapping);
             }

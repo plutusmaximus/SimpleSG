@@ -610,22 +610,22 @@ MainLoop()
             },
             {
                 .ActionId = moveForward,
-                .Input = InputButton::KeyDown(SDL_SCANCODE_W),
+                .Input = InputButton::KeyHeld(SDL_SCANCODE_W),
                 .Scale = 1,
             },
             {
                 .ActionId = moveBackward,
-                .Input = InputButton::KeyDown(SDL_SCANCODE_S),
+                .Input = InputButton::KeyHeld(SDL_SCANCODE_S),
                 .Scale = -1,
             },
             {
                 .ActionId = moveLeft,
-                .Input = InputButton::KeyDown(SDL_SCANCODE_A),
+                .Input = InputButton::KeyHeld(SDL_SCANCODE_A),
                 .Scale = -1,
             },
             {
                 .ActionId = moveRight,
-                .Input = InputButton::KeyDown(SDL_SCANCODE_D),
+                .Input = InputButton::KeyHeld(SDL_SCANCODE_D),
                 .Scale = 1,
             },
             {

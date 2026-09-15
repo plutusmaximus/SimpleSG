@@ -26,7 +26,7 @@ enum class InputAxisDevice
     MouseWheel
 };
 
-/// Represents input button event (pressed, released, down) that
+/// Represents input button event (pressed, released, held) that
 /// triggers an action.
 enum class InputButtonTrigger
 {
@@ -35,7 +35,7 @@ enum class InputButtonTrigger
     // Button released this frame.
     Released,
     // Button is being held down.
-    Down
+    Held
 };
 
 /// Represents the identifier of an input axis (X, Y, Z) that can be mapped to an action.
@@ -46,7 +46,7 @@ enum class InputAxisIdentifier
     Z
 };
 
-/// Represents a specific input button and its state (pressed, released, down).
+/// Represents a specific input button and its state (pressed, released, held).
 /// Used to map input button events to actions.
 class InputButton
 {
@@ -67,7 +67,7 @@ public:
 
     constexpr bool TriggersOnPress() const { return m_Trigger == InputButtonTrigger::Pressed; }
     constexpr bool TriggersOnRelease() const { return m_Trigger == InputButtonTrigger::Released; }
-    constexpr bool TriggersWhileDown() const { return m_Trigger == InputButtonTrigger::Down; }
+    constexpr bool TriggersWhileHeld() const { return m_Trigger == InputButtonTrigger::Held; }
 
     friend constexpr bool operator==(const InputButton& a, const InputButton& b) = default;
 
@@ -83,9 +83,9 @@ public:
         return InputButton(InputButtonDevice::Keyboard, keyCode, InputButtonTrigger::Released);
     }
 
-    static constexpr InputButton KeyDown(const unsigned keyCode)
+    static constexpr InputButton KeyHeld(const unsigned keyCode)
     {
-        return InputButton(InputButtonDevice::Keyboard, keyCode, InputButtonTrigger::Down);
+        return InputButton(InputButtonDevice::Keyboard, keyCode, InputButtonTrigger::Held);
     }
 
     static constexpr InputButton MousePressed(const unsigned buttonCode)
@@ -98,9 +98,9 @@ public:
         return InputButton(InputButtonDevice::Mouse, buttonCode, InputButtonTrigger::Released);
     }
 
-    static constexpr InputButton MouseDown(const unsigned buttonCode)
+    static constexpr InputButton MouseHeld(const unsigned buttonCode)
     {
-        return InputButton(InputButtonDevice::Mouse, buttonCode, InputButtonTrigger::Down);
+        return InputButton(InputButtonDevice::Mouse, buttonCode, InputButtonTrigger::Held);
     }
 
 private:
@@ -256,6 +256,10 @@ public:
     /// input events.
     void BeginFrame();
 
+    void OnButtonPressed(const InputButtonDevice device, const unsigned buttonId);
+    void OnButtonReleased(const InputButtonDevice device, const unsigned buttonId);
+    void OnAxis(const InputAxisDevice device, const InputAxisIdentifier axisId, const float value);
+
     /// Processes an SDL_Event and updates the state of the mapped actions accordingly.
     void ProcessEvent(const SDL_Event& event);
 
@@ -297,11 +301,11 @@ private:
     {
         unsigned PressCount{ 0 };
         unsigned ReleaseCount{ 0 };
-        bool DownState{ false };
+        bool HeldState{ false };
 
         bool IsPressed() const { return PressCount > 0; }
         bool IsReleased() const { return ReleaseCount > 0; }
-        bool IsDown() const { return DownState; }
+        bool IsHeld() const { return HeldState; }
     };
 
     static void TriggerAction(const ButtonActionMapping& mapping);
@@ -322,8 +326,8 @@ private:
     std::vector<ActionState> m_ActionStates;
 
     // Mouse move and wheel deltas this frame.
-    Vec2f m_MouseDelta{ 0, 0 };
-    Vec2f m_MouseWheelDelta{ 0, 0 };
+    Vec3f m_MouseDelta{ 0, 0, 0 };
+    Vec3f m_MouseWheelDelta{ 0, 0, 0 };
 
     bool m_InFrame{false};
 };
