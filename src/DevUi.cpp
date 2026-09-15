@@ -70,7 +70,7 @@ CliState::AddHistory(std::string command)
     }
 }
 
-/// @brief Moves the history pointer back and returns the command at the new position.
+/// Moves the history pointer back and returns the command at the new position.
 const std::string&
 CliState::HistoryBack()
 {
@@ -94,7 +94,7 @@ CliState::HistoryBack()
     return *m_HistoryIt;
 }
 
-/// @brief Moves the history pointer forward and returns the command at the new position.
+/// Moves the history pointer forward and returns the command at the new position.
 const std::string&
 CliState::HistoryForward()
 {

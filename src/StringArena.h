@@ -7,7 +7,7 @@
 
 class StringArena;
 
-/// @brief A handle to a string stored in a StringArena.
+/// A handle to a string stored in a StringArena.
 /// The StringHandle lifetime is tied to the StringArena that created it.
 /// Make sure to not use a StringHandle after the StringArena that created it has been destroyed.
 class StringHandle
@@ -84,7 +84,7 @@ private:
     size_t m_HashCode{ 0 };
 };
 
-/// @brief A simple arena allocator for strings. Strings are stored in contiguous chunks of memory.
+/// A simple arena allocator for strings. Strings are stored in contiguous chunks of memory.
 /// This is optimized for the case where a large number of strings are created and have similar lifetimes.
 /// The arena will allocate new chunks as needed, but does not support deallocation of individual strings.
 /// Instead, the entire arena can be destroyed to free all memory.
@@ -98,7 +98,7 @@ public:
     {
     }
 
-    /// @brief Constructs a StringArena with the specified chunk size.
+    /// Constructs a StringArena with the specified chunk size.
     /// Attempts to allocate a string larger than the chunk size will abort the program.
     explicit StringArena(const size_t chunkSize);
 

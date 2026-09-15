@@ -108,7 +108,7 @@ CreateTriangleModel(PropKitDef& outPropKitDef, LevelDef& outLevelDef)
 class TriangleApp
 {
 public:
-    /// @brief Called by the Shell.  Calls InnerUpdate to perform the main work of the application,
+    /// Called by the Shell.  Calls InnerUpdate to perform the main work of the application,
     /// and handles any errors that occur.
     Shell::AppState Update(System& system);
 
@@ -121,7 +121,7 @@ private:
         Stopped
     };
 
-    /// @brief Performs the the main work of the application.
+    /// Performs the the main work of the application.
     Result<> InnerUpdate(System& system);
 
     Shell::AppState GetAppState() const

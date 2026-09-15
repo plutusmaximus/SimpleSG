@@ -74,8 +74,8 @@ private:
     float m_InvValue; // Inverse value
 };
 
-/// @brief A strongly-typed identifier for a Box3d world.
+/// A strongly-typed identifier for a Box3d world.
 using WorldIdentifier = SemanticIdentifier<struct WorldTag, uint32_t, 0>;
 
-/// @brief A strongly-typed identifier for a Box3d RigidBody.
+/// A strongly-typed identifier for a Box3d RigidBody.
 using RigidBodyIdentifier = SemanticIdentifier<struct RigidBodyTag, uint64_t, 0>;

@@ -96,17 +96,17 @@ public:
     Result<> SetInputs(const Inputs& inputs);
     Result<> SetOutputs(const Outputs& outputs);
 
-    /// @brief Prepares an invocation of the pass for execution.
+    /// Prepares an invocation of the pass for execution.
     /// This variant of Prepare creates a command encoder that's owned and
     /// submitted to the GPU by the invocation.
     Result<Invocation> Prepare();
 
-    /// @brief Prepares an invocation of the pass for execution.
+    /// Prepares an invocation of the pass for execution.
     /// This variant of Prepare uses the provided command encoder.
     /// The caller is responsible for submitting the command encoder to the GPU.
     Result<Invocation> Prepare(const wgpu::CommandEncoder& cmdEncoder);
 
-    /// @brief Creates a material bind group for the color pass.
+    /// Creates a material bind group for the color pass.
     Result<wgpu::BindGroup> CreateMaterialBindGroup(const wgpu::Texture& texture,
         const GpuMaterialConstantsBuffer& materialConstants,
         const std::string_view& name) const;

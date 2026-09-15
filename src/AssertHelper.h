@@ -29,7 +29,7 @@ static AssertData& GetAssertData(const char(&expression)[N])
     return assertData;
 }
 
-/// @brief Log an assertion failure.
+/// Log an assertion failure.
 bool Log(AssertData& assertData,
     const char* expression,
     const char* function,
@@ -37,14 +37,14 @@ bool Log(AssertData& assertData,
     const int lineNum,
     const std::string_view& userMsg);
 
-/// @brief Log an assertion failure.
+/// Log an assertion failure.
 bool Log(AssertData& assertData,
     const char* expression,
     const char* function,
     const char* fileName,
     const int lineNum);
 
-/// @brief Log an assertion failure.
+/// Log an assertion failure.
 template<typename... Args>
 static bool Log(AssertData& assertData,
     const char* expression,

@@ -59,7 +59,7 @@ private:
 using GpuRenderTarget = GpuTextureTarget<struct RenderTarget>;
 using GpuDepthTarget = GpuTextureTarget<struct DepthTarget>;
 
-/// @brief Identifies the intended usage of a GpuBuffer.
+/// Identifies the intended usage of a GpuBuffer.
 enum class GpuBufferUsage
 {
     Vertex,
@@ -69,7 +69,7 @@ enum class GpuBufferUsage
     Storage
 };
 
-/// @brief A strongly-typed GPU buffer that wraps a wgpu::Buffer, guarantees
+/// A strongly-typed GPU buffer that wraps a wgpu::Buffer, guarantees
 /// its validity, and provides type-safe access to its contents.
 template<typename T, GpuBufferUsage BufferUsage>
 class GpuBuffer
@@ -153,7 +153,7 @@ private:
     wgpu::Buffer m_GpuBuffer{ nullptr };
 };
 
-/// @brief Type traits to determine if a type is a GpuBuffer of a specific buffer type.
+/// Type traits to determine if a type is a GpuBuffer of a specific buffer type.
 #define MLG_DEFINE_GPU_BUFFER_TRAITS(typeName, bufferUsage)                                        \
     template<typename T>                                                                           \
     struct is_gpu_##typeName##_buffer_type : std::false_type                                       \

@@ -43,7 +43,7 @@ private:
     size_t m_IndexB;
 };
 
-/// @brief A hash set that stores unique body pairs using a SwissTable-like structure.
+/// A hash set that stores unique body pairs using a SwissTable-like structure.
 /// See https://abseil.io/about/design/swisstables
 class UniqueBodyPairSet
 {
@@ -59,13 +59,13 @@ public:
 
     explicit UniqueBodyPairSet(const size_t initialSize);
 
-    /// @brief  Removes all items from the set.
+    ///  Removes all items from the set.
     void Clear();
     
-    /// @brief  Inserts an item into the set, growing the set if necessary.
+    ///  Inserts an item into the set, growing the set if necessary.
     bool Insert(const uint64_t item);
 
-    /// @brief  Returns true if the set contains the given item.
+    ///  Returns true if the set contains the given item.
     bool Contains(const uint64_t item) const;
 
     size_t Size() const { return m_Size; }
@@ -92,18 +92,18 @@ private:
         Full
     };
 
-    /// @brief  Returns a bitmask of the control bytes in the group that match the given value.
+    ///  Returns a bitmask of the control bytes in the group that match the given value.
     uint32_t MatchControls(const size_t base, const uint8_t value) const;
 
-    /// @brief  Inserts an item into the set without growing the set.  Returns InsertResult::Full if
+    ///  Inserts an item into the set without growing the set.  Returns InsertResult::Full if
     /// the set is full and needs to be grown.
     InsertResult InsertWithoutGrowth(const uint64_t item);
 
-    /// @brief  Grows the set to accommodate more items.  Rehashes all existing items into the new
+    ///  Grows the set to accommodate more items.  Rehashes all existing items into the new
     /// set.
     void Grow();
 
-    /// @brief  Returns the number of slots required to store the given number of items, keeping the
+    ///  Returns the number of slots required to store the given number of items, keeping the
     /// load factor at or below 7/8.
     static size_t RequiredSlots(const size_t itemCount)
     {
@@ -111,10 +111,10 @@ private:
         return ((itemCount * 8) + 6) / 7; // NOLINT(readability-magic-numbers)
     }
 
-    /// @brief  Computes the power of 2 group count from the given slot count.
+    ///  Computes the power of 2 group count from the given slot count.
     static size_t GroupCountPow2(const size_t slotCount);
 
-    /// @brief  Hashes a 64-bit value into another 64-bit value.
+    ///  Hashes a 64-bit value into another 64-bit value.
     static uint64_t Hash(uint64_t value);
 
     // The control bytes for each group.
@@ -127,7 +127,7 @@ private:
     size_t m_Size = 0;
 };
 
-/// @brief  Spatial hash for broad-phase collision detection. Divides space into a grid of cells,
+///  Spatial hash for broad-phase collision detection. Divides space into a grid of cells,
 /// and hashes bodies into the cells they occupy.
 class GridHash
 {
@@ -145,12 +145,12 @@ public:
 
     explicit GridHash(const size_t cellSize);
 
-    /// @brief  Clears the grid hash, removing all bodies and potential collisions.
+    ///  Clears the grid hash, removing all bodies and potential collisions.
     void Clear();
 
     size_t GetCellSize() const { return m_CellSize; }
 
-    /// @brief  Adds a body to into the grid cells it occupies.
+    ///  Adds a body to into the grid cells it occupies.
     /// @param p0 One corner of the body's bounding box.
     /// @param p1 The other corner of the body's bounding box.
     /// @param boundingSphere The bounding sphere associated with the body.
@@ -165,11 +165,11 @@ public:
 
     size_t PotentialCollisionCount() const;
 
-    /// @brief Returns an iterator to the beginning of the range of unique body pairs that share a
+    /// Returns an iterator to the beginning of the range of unique body pairs that share a
     /// cell.
     iterator begin();
 
-    /// @brief Returns an iterator to the end of the range of unique body pairs that share a cell.
+    /// Returns an iterator to the end of the range of unique body pairs that share a cell.
     iterator end();
 
 private:
@@ -211,7 +211,7 @@ private:
         uint32_t BodyIndex; // Index of the body occupying the cell.
     };
 
-    /// @brief Allocates the necessary number of items for a body that spans the given number of
+    /// Allocates the necessary number of items for a body that spans the given number of
     /// cells in each dimension.
     /// @param dx The number of cells the body spans in the x dimension.
     /// @param dy The number of cells the body spans in the y dimension.
@@ -221,7 +221,7 @@ private:
 
     int32_t Quantize(const float value) const;
 
-    /// @brief Sorts the cells and generates the list of unique body pairs potentially colliding.
+    /// Sorts the cells and generates the list of unique body pairs potentially colliding.
     void Sort() const;
 
     size_t m_CellSize;

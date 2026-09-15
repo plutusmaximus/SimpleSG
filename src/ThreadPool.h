@@ -8,7 +8,7 @@
 #include <span>
 #include <thread>
 
-/// @brief A simple thread pool for executing jobs asynchronously.
+/// A simple thread pool for executing jobs asynchronously.
 class ThreadPool final
 {
 public:

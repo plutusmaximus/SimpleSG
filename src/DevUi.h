@@ -21,10 +21,10 @@ public:
 
     void AddHistory(std::string command);
 
-    /// @brief Moves the history pointer back and returns the command at the new position.
+    /// Moves the history pointer back and returns the command at the new position.
     const std::string& HistoryBack();
 
-    /// @brief Moves the history pointer forward and returns the command at the new position.
+    /// Moves the history pointer forward and returns the command at the new position.
     const std::string& HistoryForward();
 
     std::span<const std::string> GetLines() const { return m_Lines; }
@@ -40,7 +40,7 @@ private:
     std::string m_PendingInput; // Input restored after navigating back past newest history item.
 };
 
-/// @brief Dev UI overlay.  Pass in the renderer for access to the render target
+/// Dev UI overlay.  Pass in the renderer for access to the render target
 /// so it can be rendered in the scene panel.
 class DevUi
 {

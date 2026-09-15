@@ -5,7 +5,7 @@
 #include <span>
 #include <string>
 
-/// @brief RGBA color representation.
+/// RGBA color representation.
 template<typename T>
 class RgbaColor
 {
@@ -35,11 +35,11 @@ public:
         return static_cast<T>(clampedValue);
     }
 
-    /// @brief  Conversion constructor.
+    ///  Conversion constructor.
     template<typename U>
     constexpr explicit RgbaColor(const RgbaColor<U>& other) noexcept;
 
-    /// @brief Converts the color to a hexadecimal string representation - #RRGGBBAA
+    /// Converts the color to a hexadecimal string representation - #RRGGBBAA
     [[nodiscard]] std::string ToHexString() const;
 
     constexpr friend bool operator==(const RgbaColor& colorA, const RgbaColor& colorB) noexcept
@@ -54,14 +54,14 @@ public:
 using RgbaColorf = RgbaColor<float>;
 using RgbaColoru8 = RgbaColor<uint8_t>;
 
-/// @brief Specialization for uint8_t with default alpha of 255.
+/// Specialization for uint8_t with default alpha of 255.
 template<>
 constexpr RgbaColor<uint8_t>::RgbaColor(const uint8_t inR, const uint8_t inG, const uint8_t inB) noexcept
     : RgbaColor<uint8_t>(inR, inG, inB, kMaxValue)
 {
 }
 
-/// @brief Specialization for converting from float to uint8_t.
+/// Specialization for converting from float to uint8_t.
 template<>
 template<>
 constexpr RgbaColor<uint8_t>::RgbaColor(const RgbaColor<float>& other) noexcept
@@ -72,7 +72,7 @@ constexpr RgbaColor<uint8_t>::RgbaColor(const RgbaColor<float>& other) noexcept
 {
 }
 
-/// @brief Specialization for float with clamping between 0.0 and 1.0.
+/// Specialization for float with clamping between 0.0 and 1.0.
 template<>
 constexpr RgbaColor<float>::RgbaColor(const float inR, const float inG, const float inB, const float inA) noexcept
     : r(Clamp(inR)), g(Clamp(inG)), b(Clamp(inB)), a(Clamp(inA))
@@ -83,7 +83,7 @@ constexpr RgbaColor<float>::RgbaColor(const float inR, const float inG, const fl
     MLG_ASSERT(inA >= kMinValue && inA <= kMaxValue);
 }
 
-/// @brief Specialization for converting from uint8_t to float.
+/// Specialization for converting from uint8_t to float.
 template<>
 template<>
 constexpr RgbaColor<float>::RgbaColor(const RgbaColor<uint8_t>& other) noexcept
@@ -120,7 +120,7 @@ inline std::string RgbaColor<float>::ToHexString() const
     return RgbaColor<uint8_t>(*this).ToHexString();
 }
 
-/// @brief User-defined literal to convert a hex color code to an RGBA color.
+/// User-defined literal to convert a hex color code to an RGBA color.
 constexpr RgbaColor<uint8_t> operator""_rgba(const char* str, const size_t len)
 {
     auto from_hex = [](char c) -> uint8_t

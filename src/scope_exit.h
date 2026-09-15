@@ -13,7 +13,7 @@ using scope_exit = std::scope_exit<F>;
 #include <type_traits>
 #include <utility>
 
-/// @brief A scope guard that executes a provided callable when it goes out of scope.
+/// A scope guard that executes a provided callable when it goes out of scope.
 /// This is a replacement for std::scope_exit in case it's not available.
 /// As of MSVC 2022, std::scope_exit is not available.
 template<typename F>

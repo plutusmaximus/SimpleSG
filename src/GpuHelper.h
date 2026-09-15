@@ -18,7 +18,7 @@ public:
     static constexpr size_t kNumTextureChannels = 4;
     static constexpr wgpu::TextureFormat kDepthBufferFormat = wgpu::TextureFormat::Depth24Plus;
 
-    /// @brief A task that creates a GpuHelper instance asynchronously.
+    /// A task that creates a GpuHelper instance asynchronously.
     class CreateTask
     {
     public:
@@ -43,23 +43,23 @@ public:
         CreateTask(CreateTask&&) = delete;
         CreateTask& operator=(CreateTask&&) = delete;
 
-        /// @brief Begins the task.
+        /// Begins the task.
         Result<> Begin();
 
-        /// @brief Updates the task.  This must be called periodically until IsComplete() returns
+        /// Updates the task.  This must be called periodically until IsComplete() returns
         /// true.
         void Update();
 
-        /// @brief Returns true if the task is running (started but not complete).
+        /// Returns true if the task is running (started but not complete).
         bool IsRunning() const;
 
-        /// @brief Returns true if the task is complete (either succeeded or failed).
+        /// Returns true if the task is complete (either succeeded or failed).
         bool IsComplete() const;
 
-        /// @brief Returns true if the task succeeded.
+        /// Returns true if the task succeeded.
         bool Succeeded() const;
 
-        /// @brief Returns the GpuHelper instance if the task succeeded, otherwise returns an error.
+        /// Returns the GpuHelper instance if the task succeeded, otherwise returns an error.
         /// @note This method will invalidate the task, so it can only be called once.
         Result<std::unique_ptr<GpuHelper>> Take();
 
@@ -109,46 +109,46 @@ public:
     Result<GpuRenderTarget> GetSwapChainTexture() const;
     wgpu::TextureFormat GetSwapChainFormat() const;
 
-    /// @brief Resizes the swap chain to the given width and height.
+    /// Resizes the swap chain to the given width and height.
     Result<> Resize(const uint32_t width, const uint32_t height);
 
-    /// @brief Loads a shader from the given file path.
+    /// Loads a shader from the given file path.
     /// FIXME(KB) - need an async version of this.
     Result<wgpu::ShaderModule> LoadShader(const std::string_view& filePath,
         FileFetcher& fileFetcher) const;
 
-    /// @brief Creates an empty texture with the given dimensions and name.
+    /// Creates an empty texture with the given dimensions and name.
     Result<wgpu::Texture> CreateTexture(
         const unsigned width, const unsigned height, const std::string_view& name) const;
 
-    /// @brief Creates a render target with the given dimensions and name.
+    /// Creates a render target with the given dimensions and name.
     Result<GpuRenderTarget> CreateRenderTarget(
         const unsigned width, const unsigned height, const std::string_view& name) const;
 
-    /// @brief Creates a depth buffer with the given dimensions and name.
+    /// Creates a depth buffer with the given dimensions and name.
     Result<GpuDepthTarget> CreateDepthBuffer(
         const unsigned width, const unsigned height, const std::string_view& name) const;
 
-    /// @brief Creates a staging buffer for copying texture data to the GPU.
+    /// Creates a staging buffer for copying texture data to the GPU.
     Result<wgpu::Buffer> CreateStagingBuffer(wgpu::Texture texture,
         const std::string_view& name) const;
 
-    /// @brief Commits the data in the staging buffer to texture memory on the GPU.
+    /// Commits the data in the staging buffer to texture memory on the GPU.
     Result<> CommitStagingBuffer(wgpu::Texture texture, wgpu::Buffer stagingBuffer) const;
 
-    /// @brief Commits the data in the staging buffer to texture memory on the GPU.
+    /// Commits the data in the staging buffer to texture memory on the GPU.
     static Result<> CommitStagingBuffer(
         wgpu::Texture texture, wgpu::Buffer stagingBuffer, wgpu::CommandEncoder cmdEncoder);
 
-    /// @brief Creates a vertex buffer with capacity for the given number of vertices.
+    /// Creates a vertex buffer with capacity for the given number of vertices.
     Result<GpuVertexBuffer> CreateVertexBuffer(const size_t count,
         const std::string_view& name) const;
 
-    /// @brief Creates an index buffer with capacity for the given number of indices.
+    /// Creates an index buffer with capacity for the given number of indices.
     Result<GpuIndexBuffer> CreateIndexBuffer(const size_t count,
         const std::string_view& name) const;
 
-    /// @brief Creates a semantically-typed storage buffer.
+    /// Creates a semantically-typed storage buffer.
     template<typename T>
     Result<T> CreateStorageBuffer(const size_t count, const std::string_view& name) const
     {
@@ -162,7 +162,7 @@ public:
         return T::Create(GetDevice(), *bufferResult);
     }
 
-    /// @brief Creates a semantically-typed uniform buffer.
+    /// Creates a semantically-typed uniform buffer.
     template<typename T>
     Result<T> CreateUniformBuffer(const size_t count, const std::string_view& name) const
     {
@@ -176,7 +176,7 @@ public:
         return T::Create(GetDevice(), *bufferResult);
     }
 
-    /// @brief Creates a semantically-typed indirect buffer.
+    /// Creates a semantically-typed indirect buffer.
     template<typename T>
     Result<T> CreateIndirectBuffer(const size_t count, const std::string_view& name) const
     {
@@ -190,7 +190,7 @@ public:
         return T::Create(GetDevice(), *bufferResult);
     }
 
-    /// @brief Returns the aligned row stride for a texture staging buffer.
+    /// Returns the aligned row stride for a texture staging buffer.
     /// Texture staging buffer rows must be a multiple of 256 bytes.
     /// @param textureWidth The width of the texture in pixels.
     /// @return The aligned row stride in bytes.

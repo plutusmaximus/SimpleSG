@@ -32,23 +32,23 @@ public:
     TextureFetcher(TextureFetcher&&) = delete;
     TextureFetcher& operator=(TextureFetcher&&) = delete;
 
-    /// @brief Begins the task.
+    /// Begins the task.
     Result<> Begin();
 
-    /// @brief Updates the task.  This must be called periodically until IsComplete() returns
+    /// Updates the task.  This must be called periodically until IsComplete() returns
     /// true.
     void Update();
 
-    /// @brief Returns true if the task is running (started but not complete).
+    /// Returns true if the task is running (started but not complete).
     bool IsRunning() const;
 
-    /// @brief Returns true if the task is complete (either succeeded or failed).
+    /// Returns true if the task is complete (either succeeded or failed).
     bool IsComplete() const;
 
-    /// @brief Returns true if the task succeeded.
+    /// Returns true if the task succeeded.
     bool Succeeded() const;
 
-    /// @brief Returns the collection of textures if the task succeeded, otherwise returns an error.
+    /// Returns the collection of textures if the task succeeded, otherwise returns an error.
     /// @note This method will invalidate the task, so it can only be called once.
     Result<std::vector<wgpu::Texture>> Take();
 

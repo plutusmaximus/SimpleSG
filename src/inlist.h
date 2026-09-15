@@ -5,7 +5,7 @@
 #include <cstddef>
 #include <iterator>
 
-/// @brief Intrusive doubly-linked list that stores existing objects without allocating.
+/// Intrusive doubly-linked list that stores existing objects without allocating.
 ///
 /// Usage:
 /// - Add an inlist_node<T> member to your type.
@@ -25,7 +25,7 @@
 /// - Nodes must not be in multiple lists using the same node member.
 /// - A node is considered linked when its Next or Prev pointer is non-null.
 
-/// @brief Node for an intrusive linked list
+/// Node for an intrusive linked list
 template<typename T>
 class inlist_node
 {
@@ -37,7 +37,7 @@ public:
     T* Prev{ nullptr };
 };
 
-/// @brief Intrusive linked list
+/// Intrusive linked list
 /// T is the type of the objects stored in the list, and NodeMember is a pointer to the inlist_node
 /// member of T that will be used for the list links.
 template<typename T, inlist_node<T> T::* NodeMember>

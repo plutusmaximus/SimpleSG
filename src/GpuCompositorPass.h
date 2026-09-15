@@ -8,7 +8,7 @@
 class FileFetcher;
 class GpuHelper;
 
-/// @brief A GPU pass that composites a texture onto another texture.
+/// A GPU pass that composites a texture onto another texture.
 class GpuCompositorPass
 {
 public:
@@ -16,7 +16,7 @@ public:
     static constexpr const char* VertexEntry = "vs_main";
     static constexpr const char* FragmentEntry = "fs_main";
 
-    /// @brief Provides the source texture and destination rectangle for the compositor pass.
+    /// Provides the source texture and destination rectangle for the compositor pass.
     /// The source texture will be scaled to fit the destination rectangle in the output texture.
     struct Inputs
     {
@@ -35,7 +35,7 @@ public:
         friend bool operator==(const Inputs& a, const Inputs& b) = default;
     };
 
-    /// @brief Provides the output texture for the compositor pass.
+    /// Provides the output texture for the compositor pass.
     struct Outputs
     {
         GpuRenderTarget RenderTarget;
@@ -86,12 +86,12 @@ public:
     Result<> SetInputs(const Inputs& inputs);
     Result<> SetOutputs(const Outputs& outputs);
 
-    /// @brief Prepares an invocation of the pass for execution.
+    /// Prepares an invocation of the pass for execution.
     /// This variant of Prepare creates a command encoder that's owned and
     /// submitted to the GPU by the invocation.
     Result<Invocation> Prepare();
 
-    /// @brief Prepares an invocation of the pass for execution.
+    /// Prepares an invocation of the pass for execution.
     /// This variant of Prepare uses the provided command encoder.
     /// The caller is responsible for submitting the command encoder to the GPU.
     Result<Invocation> Prepare(const wgpu::CommandEncoder& cmdEncoder);

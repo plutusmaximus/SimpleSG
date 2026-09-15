@@ -4,7 +4,7 @@
 
 #include <cstddef>
 
-/// @brief A helper class for creating strongly-typed identifiers for various semantics, such as
+/// A helper class for creating strongly-typed identifiers for various semantics, such as
 /// models, meshes, materials, etc.
 /// @tparam Tag A unique type used to differentiate between different semantics. The Tag type itself
 /// is not important, only that it is unique for each semantic.

@@ -158,7 +158,7 @@ LoadLevel(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher
     return std::make_tuple(std::move(*level), std::move(*sceneResult));
 }
 
-/// @brief Applies random linear velocities to all bodies in the physics level.
+/// Applies random linear velocities to all bodies in the physics level.
 void
 ApplyRandomVelocities(Level& level)
 {

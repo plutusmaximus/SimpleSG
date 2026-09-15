@@ -10,7 +10,7 @@
 // Forward decls
 union SDL_Event;
 
-/// @brief Represents the device that an input button belongs.
+/// Represents the device to which an input button belongs.
 // Devices like gamepads, etc. can be added as they are implemented.
 enum class InputButtonDevice
 {
@@ -18,7 +18,7 @@ enum class InputButtonDevice
     Mouse,
 };
 
-/// @brief Represents the device that an input axis belongs.
+/// Represents the device to which an input axis belongs.
 /// Devices like gamepads, etc. can be added as they are implemented.
 enum class InputAxisDevice
 {
@@ -26,7 +26,7 @@ enum class InputAxisDevice
     MouseWheel
 };
 
-/// @brief Represents input button event (pressed, released, down) that
+/// Represents input button event (pressed, released, down) that
 /// triggers an action.
 enum class InputButtonTrigger
 {
@@ -38,7 +38,7 @@ enum class InputButtonTrigger
     Down
 };
 
-/// @brief Represents the identifier of an input axis (X, Y, Z) that can be mapped to an action.
+/// Represents the identifier of an input axis (X, Y, Z) that can be mapped to an action.
 enum class InputAxisIdentifier
 {
     X,
@@ -46,7 +46,7 @@ enum class InputAxisIdentifier
     Z
 };
 
-/// @brief Represents a specific input button and its state (pressed, released, down).
+/// Represents a specific input button and its state (pressed, released, down).
 /// Used to map input button events to actions.
 class InputButton
 {
@@ -109,7 +109,7 @@ private:
     InputButtonTrigger m_Trigger;
 };
 
-/// @brief Represents a specific input axis and its direction (X, Y, Z).
+/// Represents a specific input axis and its direction (X, Y, Z).
 /// Used to map input axis events to actions.
 class InputAxis
 {
@@ -148,7 +148,7 @@ inline const InputAxis InputAxis::MouseWheelX{ InputAxisDevice::MouseWheel,
 inline const InputAxis InputAxis::MouseWheelY{ InputAxisDevice::MouseWheel,
     InputAxisIdentifier::Y };
 
-/// @brief Represents a unique identifier for an action that can be mapped to input events.
+/// Represents a unique identifier for an action that can be mapped to input events.
 /// Action identifiers are created at compile time using a string literal.
 class ActionIdentifier
 {
@@ -214,19 +214,19 @@ private:
     uint64_t m_Hash{ 0 };
 };
 
-/// @brief Maps an action identifier to an input.
+/// Maps an action identifier to an input.
 /// The application passes an array of these to InputMapper ctor.
 struct ActionMapping
 {
-    /// @brief The unique identifier for the action.
+    /// The unique identifier for the action.
     ActionIdentifier ActionId;
-    /// @brief The input that triggers the action. This can be an InputButton or an InputAxis.
+    /// The input that triggers the action. This can be an InputButton or an InputAxis.
     std::variant<InputButton, InputAxis> Input;
-    /// @brief The scale factor to apply to the input value when triggering the action.
+    /// The scale factor to apply to the input value when triggering the action.
     float Scale{ 1 };
 };
 
-/// @brief Maps input events (button presses, axis movements) to actions identified by
+/// Maps input events (button presses, axis movements) to actions identified by
 /// ActionIdentifier. If two or more input events are mapped to the same action, the action is
 /// triggered if any of the mapped inputs are triggered. In such cases the action's value will
 /// be set by the event that generates the maximum absolute value.
@@ -247,23 +247,23 @@ public:
 
     explicit InputMapper(const std::span<const ActionMapping> mappings);
 
-    /// @brief Clears the state of all actions. This should be called when the application loses
+    /// Clears the state of all actions. This should be called when the application loses
     /// focus or is minimized to prevent actions from being triggered when the application regains
     /// focus.
     void Clear();
 
-    /// @brief Begins a new frame. This should be called at the start of each frame before processing
+    /// Begins a new frame. This should be called at the start of each frame before processing
     /// input events.
     void BeginFrame();
 
-    /// @brief Processes an SDL_Event and updates the state of the mapped actions accordingly.
+    /// Processes an SDL_Event and updates the state of the mapped actions accordingly.
     void ProcessEvent(const SDL_Event& event);
 
-    /// @brief Ends the current frame. This should be called at the end of each frame after
+    /// Ends the current frame. This should be called at the end of each frame after
     /// processing all input events.
     void EndFrame();
 
-    /// @brief Checks if the specified action was triggered during the current frame.
+    /// Checks if the specified action was triggered during the current frame.
     /// Must not be called before EndFrame() is called.
     bool Action(const ActionIdentifier& actionId) const;
 

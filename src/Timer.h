@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-/// @brief High-precision timer implementation.
+/// High-precision timer implementation.
 class Timer
 {
 public:

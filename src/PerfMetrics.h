@@ -14,7 +14,7 @@ class PerfMetrics;
 class PerfCounter;
 class PerfAggregator;
 
-/// @brief Perf counters can have a category Id which can be used to group related counters
+/// Perf counters can have a category Id which can be used to group related counters
 /// together. Declare a perf counter category like this: struct MyCategoryTag{}; using MyCategory =
 /// PerfCounterCategory<MyCategoryTag>; Then perf counters can be created in that category like
 /// this: PerfCounter myCounter("MyCounter", MyCategory::Id);
@@ -45,14 +45,14 @@ public:
     constexpr static const PerfCounterCategoryId Id{ &uniqueCategoryId };
 };
 
-/// @brief Perf counters that don't have an explicity category are put into
+/// Perf counters that don't have an explicity category are put into
 /// the default category.
 struct PerfCounterDefaultCategoryTag
 {
 };
 using PerfCounterDefaultCategory = PerfCounterCategory<PerfCounterDefaultCategoryTag>;
 
-/// @brief Represents aggregated stats for a perf counter, such as min/max/EMA values.
+/// Represents aggregated stats for a perf counter, such as min/max/EMA values.
 class PerfStats
 {
 public:
@@ -101,7 +101,7 @@ private:
     PerfStats m_Stats;
 };
 
-/// @brief Represents a performance counter whose value can be incremented/decremented/set.
+/// Represents a performance counter whose value can be incremented/decremented/set.
 /// Periodically call PerfMetrics::SampleCounters() to sample the counter values and update the
 /// aggregated stats.
 class PerfCounter
@@ -173,7 +173,7 @@ private:
     PerfCounterCategoryId m_CategoryId{ PerfCounterDefaultCategory::Id };
 };
 
-/// @brief  Helper class to measure elapsed time update a PerfCounter with the result.
+///  Helper class to measure elapsed time update a PerfCounter with the result.
 class PerfTimer
 {
 public:
@@ -182,10 +182,10 @@ public:
     {
     }
 
-    /// @brief  Starts the timer.
+    ///  Starts the timer.
     void Start();
 
-    /// @brief  Stops the timer and and adds to the total elapsed time.
+    ///  Stops the timer and and adds to the total elapsed time.
     /// Total elapsed time will continue to be accumulated across mutiple Start/Stop calls
     /// until Sample() is called.
     void Stop();
@@ -205,7 +205,7 @@ public:
     PerfMetrics(PerfMetrics&&) = delete;
     PerfMetrics& operator=(PerfMetrics&&) = delete;
 
-    /// @brief Gets the number of recorded counters.
+    /// Gets the number of recorded counters.
     static size_t GetAllCounterCount();
 
     template<typename Cat = PerfCounterDefaultCategory>
@@ -220,11 +220,11 @@ public:
         return SampleCounters(Cat::Id, outStats);
     }
 
-    /// @brief Gets the aggregated counter stats. The caller should provide a buffer of sufficient
+    /// Gets the aggregated counter stats. The caller should provide a buffer of sufficient
     /// size based on GetCounterCount().
     static size_t SampleAllCounters(std::span<PerfStats>& outStats);
 
-    /// @brief Logs all counters to log output.
+    /// Logs all counters to log output.
     static void LogCounters();
 
 private:
@@ -247,7 +247,7 @@ using PerfTimerCategory = PerfCounterCategory<PerfTimerCategoryTag>;
 #define MLG_PERF_TIMER_CONCAT2(a, b) a##b
 #define MLG_PERF_TIMER_CONCAT(a, b) MLG_PERF_TIMER_CONCAT2(a, b)
 
-/// @brief Helper macro to time a scope and record the result in a PerfCounter. Usage:
+/// Helper macro to time a scope and record the result in a PerfCounter. Usage:
 /// {   // Scope for the timer
 ///     MLG_SCOPED_TIMER("MyCounter");
 ///     // Code to be timed goes here.

@@ -84,7 +84,7 @@ public:
 
     static void LogAssert(const std::string& message);
 
-    /// @brief Sets the global log level.
+    /// Sets the global log level.
     static void SetLevel(const Level level);
 
     template<typename... Args>

@@ -20,18 +20,18 @@ public:
     Level(Level&& other) = default;
     Level& operator=(Level&& other) = default;
 
-    /// @brief Returns all nodes in the level, in breadth-first order.
+    /// Returns all nodes in the level, in breadth-first order.
     std::span<const LevelNode> GetAllNodes() const { return m_Nodes; }
 
-    /// @brief Returns all physics nodes in the level, in breadth-first order.
+    /// Returns all physics nodes in the level, in breadth-first order.
     std::span<const PhysicsNode> GetAllPhysicsNodes() const { return m_PhysicsNodes; }
     std::span<PhysicsNode> GetAllPhysicsNodes() { return m_PhysicsNodes; }
 
-    /// @brief Returns all model nodes in the level, in breadth-first order.
+    /// Returns all model nodes in the level, in breadth-first order.
     std::span<const ModelNode> GetAllModelNodes() const { return m_ModelNodes; }
     std::span<ModelNode> GetAllModelNodes() { return m_ModelNodes; }
 
-    /// @brief Returns the root nodes of the level. Root nodes are nodes that have no parent.
+    /// Returns the root nodes of the level. Root nodes are nodes that have no parent.
     std::span<const LevelNode> GetRoots() const { return m_RootNodes; }
 
     void Update(const float timeStep);

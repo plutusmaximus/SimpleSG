@@ -86,23 +86,23 @@ public:
         CreateTask(CreateTask&&) = delete;
         CreateTask& operator=(CreateTask&&) = delete;
 
-        /// @brief Begins the task.
+        /// Begins the task.
         Result<> Begin();
 
-        /// @brief Updates the task.  This must be called periodically until IsComplete() returns
+        /// Updates the task.  This must be called periodically until IsComplete() returns
         /// true.
         void Update();
 
-        /// @brief Returns true if the task is running (started but not complete).
+        /// Returns true if the task is running (started but not complete).
         bool IsRunning() const;
 
-        /// @brief Returns true if the task is complete (either succeeded or failed).
+        /// Returns true if the task is complete (either succeeded or failed).
         bool IsComplete() const;
 
-        /// @brief Returns true if the task succeeded.
+        /// Returns true if the task succeeded.
         bool Succeeded() const;
 
-        /// @brief Returns the System instance if the task succeeded, otherwise returns an error.
+        /// Returns the System instance if the task succeeded, otherwise returns an error.
         /// @note This method will invalidate the task, so it can only be called once.
         Result<System> Take();
 
@@ -152,32 +152,32 @@ public:
 
     void ProcessEvents(const EventHandler& eventHandler);
 
-    /// @brief Captures or releases the mouse cursor. When captured, the cursor is hidden and
+    /// Captures or releases the mouse cursor. When captured, the cursor is hidden and
     /// relative mouse motion events are generated. When released, the cursor is visible and
     /// absolute mouse motion events are generated.
     /// @param captured True to capture the mouse, false to release it.
     /// @return Prior capture state.
     bool SetMouseCaptured(const bool captured);
 
-    /// @brief Returns true if the mouse is currently captured.
+    /// Returns true if the mouse is currently captured.
     bool IsMouseCaptured() const;
 
-    /// @brief Returns true if the window is currently minimized.
+    /// Returns true if the window is currently minimized.
     bool IsMinimized() const { return m_Minimized; }
 
-    /// @brief Returns true if the window was minimized during the last event processing.
+    /// Returns true if the window was minimized during the last event processing.
     bool WasMinimized() const { return m_WindowStateEvent == WindowStateEvent::Minimized; }
 
-    /// @brief Returns true if the window was restored during the last event processing.
+    /// Returns true if the window was restored during the last event processing.
     bool WasRestored() const { return m_WindowStateEvent == WindowStateEvent::Restored; }
 
-    /// @brief Returns true if the application should quit (e.g., if a quit event was received).
+    /// Returns true if the application should quit (e.g., if a quit event was received).
     bool ShouldQuit() const { return m_ShouldQuit; }
 
-    /// @brief Returns true if the application gained focus during the last event processing.
+    /// Returns true if the application gained focus during the last event processing.
     bool WasFocusGained() const { return m_FocusEvent == FocusEvent::Gained; }
 
-    /// @brief Returns true if the application lost focus during the last event processing.
+    /// Returns true if the application lost focus during the last event processing.
     bool WasFocusLost() const { return m_FocusEvent == FocusEvent::Lost; }
 
 private:

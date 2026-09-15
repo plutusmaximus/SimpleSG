@@ -12,7 +12,7 @@ struct SDL_AsyncIOQueue;
 
 using FetchRequestId = uint64_t;
 
-/// @brief A simple file fetcher that uses SDL's Async IO to read files asynchronously.
+/// A simple file fetcher that uses SDL's Async IO to read files asynchronously.
 /// Do not use simultaneously from multiple threads.  SDL's Async IO is thread-safe, but this class
 /// is not.
 class FileFetcher final
@@ -24,22 +24,22 @@ public:
     FileFetcher(FileFetcher&&) = delete;
     FileFetcher& operator=(FileFetcher&&) = delete;
 
-    /// @brief Creates a new instance of the FileFetcher.
+    /// Creates a new instance of the FileFetcher.
     static Result<std::unique_ptr<FileFetcher>> Create();
 
-    /// @brief Initiates an asynchronous fetch for the specified file.
+    /// Initiates an asynchronous fetch for the specified file.
     /// Returns a FetchRequestId that can be used to track the request.
     Result<FetchRequestId> Fetch(std::string filePath);
 
-    /// @brief Checks if the specified fetch request is still pending.
+    /// Checks if the specified fetch request is still pending.
     bool IsPending(const FetchRequestId requestId) const;
 
-    /// @brief Retrieves the data for the specified fetch request once it has completed.
+    /// Retrieves the data for the specified fetch request once it has completed.
     /// If the request has not completed successfully, this will return a failure result.
     /// If the request has completed successfully, the data will be moved into the provided output buffer.
     Result<> Take(const FetchRequestId requestId, std::vector<uint8_t>& outBuffer);
 
-    /// @brief Processes pending asynchronous IO operations.  Must be called once per frame.
+    /// Processes pending asynchronous IO operations.  Must be called once per frame.
     void ProcessCompletions();
 
 private:
