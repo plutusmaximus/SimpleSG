@@ -140,3 +140,14 @@ instead of a reference only when `nullptr` is a valid argument.
 
 - Format source code using the root `.clang-format` file.
 - Follow the naming used by nearby project code.
+
+## Comments and API documentation
+
+- Use `///` for documentation comments.
+- Document contracts and non-obvious behavior instead of restating declarations.
+- Do not require comments for every public method. Omit comments when the declaration already
+  communicates the complete contract.
+- Document private methods when they have non-obvious behavior, constraints, side effects, ordering
+  requirements, or invariants.
+- Use `@brief`, `@param`, `@return`, and similar tags only when the tag adds information that is not
+  already clear from the declaration and surrounding documentation.
