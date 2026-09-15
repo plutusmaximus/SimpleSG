@@ -78,11 +78,13 @@ private:
     friend TextureFetcher;
 
     std::string m_Uri;
+    std::string m_FullPath;
     const GpuHelper* m_GpuHelper{ nullptr };
     FileFetcher* m_FileFetcher{ nullptr };
     ThreadPool* m_ThreadPool{ nullptr };
     wgpu::CommandEncoder m_Encoder{ nullptr };
-    FileFetcher::Request m_Request;
+    FetchRequestId m_FetchRequestId{};
+    std::vector<uint8_t> m_FetchedData;
     wgpu::Texture m_Texture;
     wgpu::Buffer m_StagingBuffer;
     std::byte* m_MappedMemory{ nullptr };
@@ -100,11 +102,11 @@ TextureFetcher::LoadTask::LoadTask(const std::filesystem::path& basePath,
     ThreadPool& threadPool,
     wgpu::CommandEncoder encoder)
     : m_Uri(std::move(baseUri)),
+      m_FullPath((basePath / m_Uri).string()),
       m_GpuHelper(&gpuHelper),
       m_FileFetcher(&fileFetcher),
       m_ThreadPool(&threadPool),
       m_Encoder(std::move(encoder)),
-      m_Request(basePath / m_Uri),
       m_Stage(Stage::Fetch)
 {
 }
@@ -124,32 +126,45 @@ TextureFetcher::LoadTask::Update()
         case Stage::None:
             break;
         case Stage::Fetch:
-            if(m_FileFetcher->Fetch(m_Request))
+        {
+            auto fetchRequestId = m_FileFetcher->Fetch(m_FullPath);
+            if(!fetchRequestId)
             {
-                m_Stage = Stage::Fetching;
+                MLG_ERROR("Failed to initiate fetch");
+                SetFailed();
             }
             else
             {
-                MLG_ERROR("Failed to fetch texture");
-                SetFailed();
-            }
-            break;
-        case Stage::Fetching:
-            if(m_Request.Succeeded())
-            {
-                if(BeginDecode())
+                m_FetchRequestId = *fetchRequestId;
+                if(m_FileFetcher->IsPending(m_FetchRequestId))
                 {
-                    m_Stage = Stage::Decoding;
+                    m_Stage = Stage::Fetching;
                 }
                 else
                 {
-                    MLG_ERROR("Failed to stage texture");
+                    MLG_ERROR("Failed to fetch texture");
                     SetFailed();
                 }
             }
-            else if(!m_Request.IsPending())
+            break;
+        }
+        case Stage::Fetching:
+            if(m_FileFetcher->IsPending(m_FetchRequestId))
             {
-                MLG_ERROR("Failed to fetch texture");
+                break;
+            }
+            else if(!m_FileFetcher->Take(m_FetchRequestId, m_FetchedData))
+            {
+                MLG_ERROR("Failed to take fetched data");
+                SetFailed();
+            }
+            else if(BeginDecode())
+            {
+                m_Stage = Stage::Decoding;
+            }
+            else
+            {
+                MLG_ERROR("Failed to stage texture");
                 SetFailed();
             }
             break;
@@ -191,8 +206,8 @@ TextureFetcher::LoadTask::BeginDecode()
 
     int width = 0, height = 0, numChannels = 0;
 
-    if(!stbi_info_from_memory(m_Request.GetData().data(),
-           static_cast<int>(m_Request.GetData().size()),
+    if(!stbi_info_from_memory(m_FetchedData.data(),
+           static_cast<int>(m_FetchedData.size()),
            &width,
            &height,
            &numChannels))
@@ -234,8 +249,8 @@ TextureFetcher::LoadTask::Decode() const
     MLG_DEBUG("Decoding...");
 
     int imgWidth = 0, imgHeight = 0, imgNumChannels = 0;
-    stbi_uc* data = stbi_load_from_memory(m_Request.GetData().data(),
-        static_cast<int>(m_Request.GetData().size()),
+    stbi_uc* data = stbi_load_from_memory(m_FetchedData.data(),
+        static_cast<int>(m_FetchedData.size()),
         &imgWidth,
         &imgHeight,
         &imgNumChannels,

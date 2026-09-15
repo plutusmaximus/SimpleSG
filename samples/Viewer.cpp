@@ -119,6 +119,8 @@ constexpr const char* SPONZA_MODEL_PATH =
 Result<>
 MainLoop()
 {
+    Log::SetLevel(Log::Level::Trace);
+
     System::CreateTask sysCreateTask(kAppName);
 
     MLG_CHECK(sysCreateTask.Begin());

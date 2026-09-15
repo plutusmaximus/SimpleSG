@@ -1,15 +1,16 @@
 #pragma once
 
-#include "foreign_ptr.h"
 #include "Result.h"
 
+#include <cstdint>
 #include <memory>
-#include <span>
 #include <string>
 #include <vector>
 
 struct SDL_AsyncIO;
 struct SDL_AsyncIOQueue;
+
+using FetchRequestId = uint64_t;
 
 /// @brief A simple file fetcher that uses SDL's Async IO to read files asynchronously.
 /// Do not use simultaneously from multiple threads.  SDL's Async IO is thread-safe, but this class
@@ -23,66 +24,108 @@ public:
     FileFetcher(FileFetcher&&) = delete;
     FileFetcher& operator=(FileFetcher&&) = delete;
 
-    enum class RequestStatus : uint8_t
-    {
-        None,
-        Failure,
-        Pending,
-        Success,
-    };
+    /// @brief Creates a new instance of the FileFetcher.
+    static Result<std::unique_ptr<FileFetcher>> Create();
+
+    /// @brief Initiates an asynchronous fetch for the specified file.
+    /// Returns a FetchRequestId that can be used to track the request.
+    Result<FetchRequestId> Fetch(std::string filePath);
+
+    /// @brief Checks if the specified fetch request is still pending.
+    bool IsPending(const FetchRequestId requestId) const;
+
+    /// @brief Retrieves the data for the specified fetch request once it has completed.
+    /// If the request has not completed successfully, this will return a failure result.
+    /// If the request has completed successfully, the data will be moved into the provided output buffer.
+    Result<> Take(const FetchRequestId requestId, std::vector<uint8_t>& outBuffer);
+
+    /// @brief Processes pending asynchronous IO operations.  Must be called once per frame.
+    void ProcessCompletions();
+
+private:
+
+    /// The maximum number of read attempts before failing a request.
+    static constexpr uint32_t kMaxReadAttempts = 5;
 
     class Request
     {
     public:
-        explicit Request(std::string filePath);
+        enum class Status : uint8_t
+        {
+            None,
+            Failure,
+            Pending,
+            Success,
+        };
+        Request() = default;
         ~Request();
         Request(const Request&) = delete;
         Request& operator=(const Request&) = delete;
-        Request(Request&& other) = default;
-        Request& operator=(Request&& other) = default;
+        Request(Request&&) = delete;
+        Request& operator=(Request&&) = delete;
 
-        bool IsPending() const { return m_Status == RequestStatus::Pending; }
-        bool Succeeded() const { return m_Status == RequestStatus::Success; }
+        bool IsPending() const { return m_Status == Status::Pending; }
+        bool Succeeded() const { return m_Status == Status::Success; }
 
-        std::span<const uint8_t> GetData() const;
-
-        void MoveDataTo(std::vector<uint8_t>& outBuffer);
-
-        const std::string& GetFilePath() const { return m_FilePath; }
-
-    private:
-        friend class FileFetcher;
-
-        void SetComplete(RequestStatus status);
-
-        // Use a foreign_ptr to make Request easily movable.  Note that foreign_ptr does not destroy
-        // the pointer, so we must call SDL_CloseAsyncIO() to clean up the SDL_AsyncIO object.  We
-        // do this in FileFetcher::ProcessCompletions() when the request is complete.
-        foreign_ptr<SDL_AsyncIO> m_AsyncIO{ nullptr };
+        SDL_AsyncIO* m_AsyncIO{ nullptr };
 
         std::string m_FilePath;
         size_t m_BytesRequested{ 0 };
         size_t m_BytesRead{ 0 };
         std::vector<uint8_t> m_Data;
+        uint32_t m_ReadAttempts{ 0 };
 
-        RequestStatus m_Status{ RequestStatus::None };
+        Status m_Status{ Status::None };
+
+        FetchRequestId m_RequestId{ 0 };
     };
 
-    static Result<std::unique_ptr<FileFetcher>> Create();
+    static constexpr uint32_t kInvalidIndex = UINT32_MAX;
+    static constexpr uint32_t kInvalidGeneration = UINT32_MAX;
 
-    Result<> Fetch(Request& request);
+    /// Storage for a fetch request.
+    struct RequestBuffer
+    {
+        Request* m_Request{ nullptr };
+        RequestBuffer* m_Next{ nullptr };
 
-    void ProcessCompletions();
+        /// The index of this request buffer within the heap.
+        uint32_t m_Index{ kInvalidIndex };
 
-private:
+        /// The generation of this request buffer, used to detect stale requests.
+        uint32_t m_Generation{ kInvalidGeneration };
+
+        /// Storage for the Request object.
+        alignas(Request) char m_Storage[sizeof(Request)]{};
+    };
+
     explicit FileFetcher(SDL_AsyncIOQueue* ioQueue)
         : m_IoQueue(ioQueue)
     {
     }
 
-    static Result<size_t> GetFileSize(const Request& request);
-
     Result<> IssueRead(Request& request);
 
+    RequestBuffer* AllocateRequest();
+
+    void FreeRequest(RequestBuffer* requestBuf);
+
+    void SetSucceeded(const FetchRequestId requestId);
+
+    void SetFailed(const FetchRequestId requestId);
+
+    void Close(const FetchRequestId requestId);
+
+    RequestBuffer* GetRequestBuffer(const FetchRequestId requestId);
+
+    const RequestBuffer* GetRequestBuffer(const FetchRequestId requestId) const;
+
     SDL_AsyncIOQueue* m_IoQueue{ nullptr };
+
+    static constexpr size_t kBucketSize = 256;
+
+    uint32_t m_HeapSize{ 0 };
+    uint32_t m_AllocCount{ 0 };
+    std::vector<std::vector<RequestBuffer>> m_RequestBuffers;
+    RequestBuffer* m_FreeList{ nullptr };
 };

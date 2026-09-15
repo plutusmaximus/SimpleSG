@@ -877,19 +877,19 @@ GpuHelper::LoadShader(const std::string_view& filePath, FileFetcher& fileFetcher
 {
     MLG_INFO("Loading shader file: {}", filePath);
 
-    FileFetcher::Request request{ std::string(filePath) };
-    MLG_CHECK(fileFetcher.Fetch(request));
+    auto requestId = fileFetcher.Fetch(std::string(filePath));
+    MLG_CHECK(requestId);
 
-    while(request.IsPending())
+    while(fileFetcher.IsPending(*requestId))
     {
         fileFetcher.ProcessCompletions();
         std::this_thread::yield();
     }
 
-    MLG_CHECK(request.Succeeded(), "Failed to load shader file: {}", request.GetFilePath());
+    std::vector<uint8_t> data;
+    MLG_CHECK(fileFetcher.Take(*requestId, data), "Failed to take shader file data: {}", filePath);
 
-    const std::string filename = std::filesystem::path(request.GetFilePath()).filename().string();
-    const std::span<const uint8_t> data = request.GetData();
+    const std::string filename = std::filesystem::path(filePath).filename().string();
 
     const void* dataPtr = data.data();
     const wgpu::StringView shaderCode{ static_cast<const char*>(dataPtr), data.size() };
