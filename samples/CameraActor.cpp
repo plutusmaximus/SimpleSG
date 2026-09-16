@@ -10,32 +10,32 @@ CameraActor::Update(const InputMapper& inputMapper, const float deltaSeconds)
     UnitQuatf yaw = UnitQuatf::Identity, pitch = UnitQuatf::Identity;
     Vec3f moveDelta(0);
 
-    if(inputMapper.Action(moveForward, actionValue))
+    if(inputMapper.IsActionTriggered(moveForward, actionValue))
     {
         moveDelta += m_CurrentTransform.R * Vec3f(0, 0, actionValue);
     }
-    if(inputMapper.Action(moveBackward, actionValue))
+    if(inputMapper.IsActionTriggered(moveBackward, actionValue))
     {
         moveDelta += m_CurrentTransform.R * Vec3f(0, 0, actionValue);
     }
-    if(inputMapper.Action(moveLeft, actionValue))
+    if(inputMapper.IsActionTriggered(moveLeft, actionValue))
     {
         moveDelta += m_CurrentTransform.R * Vec3f(actionValue, 0, 0);
     }
-    if(inputMapper.Action(moveRight, actionValue))
+    if(inputMapper.IsActionTriggered(moveRight, actionValue))
     {
         moveDelta += m_CurrentTransform.R * Vec3f(actionValue, 0, 0);
     }
-    if(inputMapper.Action(moveUpDown, actionValue))
+    if(inputMapper.IsActionTriggered(moveUpDown, actionValue))
     {
         moveDelta += m_CurrentTransform.R * Vec3f(0, actionValue, 0);
     }
-    if(inputMapper.Action(lookLeftRight, actionValue))
+    if(inputMapper.IsActionTriggered(lookLeftRight, actionValue))
     {
         yaw = ClampRot(actionValue, Vec3f::YAXIS());
         m_TargetTransform.R = yaw * m_TargetTransform.R;
     }
-    if(inputMapper.Action(lookUpDown, actionValue))
+    if(inputMapper.IsActionTriggered(lookUpDown, actionValue))
     {
         pitch = ClampRot(actionValue, Vec3f::XAXIS());
         m_TargetTransform.R = m_TargetTransform.R * pitch;

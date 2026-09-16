@@ -17,7 +17,6 @@
 #include <SDL3/SDL_events.h>
 #include <thread>
 
-
 namespace
 {
 constexpr const char* kAppName = "Viewer";
@@ -175,54 +174,54 @@ MainLoop()
         {
             {
                 .ActionId = quit,
-                .Input = InputButton::KeyPressed(SDL_SCANCODE_ESCAPE),
+                .Trigger = InputButton::KeyPressed(SDL_SCANCODE_ESCAPE),
             },
             {
                 .ActionId = moveForward,
-                .Input = InputButton::KeyHeld(SDL_SCANCODE_W),
+                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_W),
                 .Scale = 1,
             },
             {
                 .ActionId = moveBackward,
-                .Input = InputButton::KeyHeld(SDL_SCANCODE_S),
+                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_S),
                 .Scale = -1,
             },
             {
                 .ActionId = moveLeft,
-                .Input = InputButton::KeyHeld(SDL_SCANCODE_A),
+                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_A),
                 .Scale = -1,
             },
             {
                 .ActionId = moveRight,
-                .Input = InputButton::KeyHeld(SDL_SCANCODE_D),
+                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_D),
                 .Scale = 1,
             },
             {
                 .ActionId = lookLeftRight,
-                .Input = InputAxis::MouseMoveX,
+                .Trigger = InputAxis::MouseMoveX(),
                 .Scale = CameraActor::kDefaultRotPerMouseMove * 2 * std::numbers::pi_v<float>,
             },
             {
                 .ActionId = lookUpDown,
-                .Input = InputAxis::MouseMoveY,
+                .Trigger = InputAxis::MouseMoveY(),
                 .Scale = CameraActor::kDefaultRotPerMouseMove * 2 * std::numbers::pi_v<float>,
             },
             {
                 .ActionId = moveUpDown,
-                .Input = InputAxis::MouseWheelY,
+                .Trigger = InputAxis::MouseWheelY(),
                 .Scale = kMouseWheelScale,
             },
             {
                 .ActionId = captureMouse,
-                .Input = InputButton::MousePressed(SDL_BUTTON_LEFT),
+                .Trigger = InputButton::MousePressed(SDL_BUTTON_LEFT),
             },
             {
                 .ActionId = releaseMouse,
-                .Input = InputButton::MouseReleased(SDL_BUTTON_LEFT),
+                .Trigger = InputButton::MouseReleased(SDL_BUTTON_LEFT),
             },
         };
 
-    InputMapper inputMapper(actionMappings);
+    system.SetActionMapping(actionMappings);
 
     Timer frameTimer;
 
@@ -236,37 +235,7 @@ MainLoop()
 
         frameTimer.Restart();
 
-        inputMapper.BeginFrame();
-
-        struct EventHandlerData
-        {
-            std::string droppedFile;
-            InputMapper* inputMapper;
-        };
-
-        EventHandlerData eventHandlerData{ .droppedFile = "", .inputMapper = &inputMapper };
-
-        auto eventHandlerFunc = [](const SDL_Event& sdlEvent, EventHandlerData* data)
-        {
-            data->inputMapper->ProcessEvent(sdlEvent);
-
-            switch(sdlEvent.type)
-            {
-                case SDL_EVENT_DROP_FILE:
-                    data->droppedFile = sdlEvent.drop.data;
-                    break;
-
-                default:
-                    break;
-            }
-            return EventDisposition::Process;
-        };
-
-        const EventHandler eventHandler(+eventHandlerFunc, &eventHandlerData);
-
-        system.ProcessEvents(eventHandler);
-
-        inputMapper.EndFrame();
+        system.ProcessEvents();
 
         if(system.IsMinimized())
         {
@@ -279,38 +248,21 @@ MainLoop()
             break;
         }
 
-        if(system.WasMinimized()
-            || system.WasRestored()
-            || system.WasFocusGained()
-            || system.WasFocusLost())
-        {
-            inputMapper.Clear();
-        }
+        const InputMapper& inputMapper = system.GetInputMapper();
 
-        if(inputMapper.Action(quit))
+        if(inputMapper.IsActionTriggered(quit))
         {
             System::PostQuitEvent();
         }
-        if(inputMapper.Action(captureMouse))
+        if(inputMapper.IsActionTriggered(captureMouse))
         {
             isCameraActorActive = true;
             system.SetMouseCaptured(true);
         }
-        if(inputMapper.Action(releaseMouse))
+        if(inputMapper.IsActionTriggered(releaseMouse))
         {
             isCameraActorActive = false;
             system.SetMouseCaptured(false);
-        }
-
-        if(!eventHandlerData.droppedFile.empty())
-        {
-            auto newLoadResult = LoadLevel(gpuHelper, threadPool, fileFetcher, SPONZA_MODEL_PATH);
-            MLG_CHECK(newLoadResult, "Failed to load resources");
-
-            auto&& [newLevel, newScene] = std::move(*newLoadResult);
-
-            level = std::move(newLevel);
-            scene = std::move(newScene);
         }
 
         const Dimension2 curScreenDimensions = gpuHelper.GetScreenDimensions();

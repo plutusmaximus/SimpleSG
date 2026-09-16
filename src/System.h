@@ -4,74 +4,14 @@
 #include "Result.h"
 
 #include <memory>
+#include <span>
 
+struct ActionMapping;
 union SDL_Event;
 class FileFetcher;
 class ImGuiRenderer;
+class InputMapper;
 class ThreadPool;
-
-enum class EventDisposition
-{
-    Ignore,
-    Process
-};
-
-class EventHandler
-{
-public:
-    EventHandler() = delete;
-    ~EventHandler() = default;
-    EventHandler(const EventHandler&) = delete;
-    EventHandler& operator=(const EventHandler&) = delete;
-    EventHandler(EventHandler&&) = delete;
-    EventHandler& operator=(EventHandler&&) = delete;
-
-    explicit EventHandler(EventDisposition (*func)(const SDL_Event&))
-        : m_Invoke(&EventHandler::InvokeImpl<void>),
-          m_Cb2(func)
-    {
-    }
-
-    // NOLINTBEGIN
-    template<typename T>
-    EventHandler(EventDisposition (*func)(const SDL_Event&, T* userData), T* userData)
-        : m_Invoke(&EventHandler::InvokeImpl<T>),
-          m_Cb1(reinterpret_cast<EventDisposition (*)(const SDL_Event&, void*)>(func)),
-          m_UserData(userData)
-    {
-    }
-    // NOLINTEND
-
-    EventDisposition operator()(const SDL_Event& event) const { return (this->*m_Invoke)(event); }
-
-private:
-    // NOLINTBEGIN
-    template<typename T>
-        requires(!std::is_same_v<T, void>)
-    EventDisposition InvokeImpl(const SDL_Event& event) const
-    {
-        auto cb = reinterpret_cast<EventDisposition (*)(const SDL_Event&, T*)>(m_Cb1);
-        return cb(event, reinterpret_cast<T*>(m_UserData));
-    }
-
-    template<typename T>
-        requires(std::is_same_v<T, void>)
-    EventDisposition InvokeImpl(const SDL_Event& event) const
-    {
-        auto cb = reinterpret_cast<EventDisposition (*)(const SDL_Event&)>(m_Cb2);
-        return cb(event);
-    }
-    // NOLINTEND
-
-    EventDisposition (EventHandler::*m_Invoke)(const SDL_Event&) const = nullptr;
-    union
-    {
-        EventDisposition (*m_Cb1)(const SDL_Event&, void* userData) = nullptr;
-        EventDisposition (*m_Cb2)(const SDL_Event&);
-    };
-
-    void* m_UserData = nullptr;
-};
 
 class System final
 {
@@ -131,6 +71,8 @@ public:
     System(System&&) noexcept;
     System& operator=(System&&) noexcept;
 
+    void SetActionMapping(const std::span<const ActionMapping> actionMappings);
+
     GpuHelper& GetGpuHelper();
     const GpuHelper& GetGpuHelper() const;
 
@@ -142,15 +84,11 @@ public:
 
     const ImGuiRenderer& GetImGuiRenderer() const;
 
+    const InputMapper& GetInputMapper() const;
+
     static void PostQuitEvent();
 
-    void ProcessEvents()
-    {
-        const EventHandler eventHandler([](const SDL_Event&) { return EventDisposition::Process; });
-        ProcessEvents(eventHandler);
-    }
-
-    void ProcessEvents(const EventHandler& eventHandler);
+    void ProcessEvents();
 
     /// Captures or releases the mouse cursor. When captured, the cursor is hidden and
     /// relative mouse motion events are generated. When released, the cursor is visible and
@@ -212,4 +150,8 @@ private:
 
     bool m_Minimized{ false };
     bool m_ShouldQuit{ false };
+
+    class Impl;
+
+    std::unique_ptr<Impl> m_Impl;
 };

@@ -606,66 +606,66 @@ MainLoop()
         {
             {
                 .ActionId = quit,
-                .Input = InputButton::KeyPressed(SDL_SCANCODE_ESCAPE),
+                .Trigger = InputButton::KeyPressed(SDL_SCANCODE_ESCAPE),
             },
             {
                 .ActionId = moveForward,
-                .Input = InputButton::KeyHeld(SDL_SCANCODE_W),
+                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_W),
                 .Scale = 1,
             },
             {
                 .ActionId = moveBackward,
-                .Input = InputButton::KeyHeld(SDL_SCANCODE_S),
+                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_S),
                 .Scale = -1,
             },
             {
                 .ActionId = moveLeft,
-                .Input = InputButton::KeyHeld(SDL_SCANCODE_A),
+                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_A),
                 .Scale = -1,
             },
             {
                 .ActionId = moveRight,
-                .Input = InputButton::KeyHeld(SDL_SCANCODE_D),
+                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_D),
                 .Scale = 1,
             },
             {
                 .ActionId = lookLeftRight,
-                .Input = InputAxis::MouseMoveX,
+                .Trigger = InputAxis::MouseMoveX(),
                 .Scale = CameraActor::kDefaultRotPerMouseMove * 2 * std::numbers::pi_v<float>,
             },
             {
                 .ActionId = lookUpDown,
-                .Input = InputAxis::MouseMoveY,
+                .Trigger = InputAxis::MouseMoveY(),
                 .Scale = CameraActor::kDefaultRotPerMouseMove * 2 * std::numbers::pi_v<float>,
             },
             {
                 .ActionId = moveUpDown,
-                .Input = InputAxis::MouseWheelY,
+                .Trigger = InputAxis::MouseWheelY(),
                 .Scale = kMouseWheelScale,
             },
             {
                 .ActionId = captureMouse,
-                .Input = InputButton::MousePressed(SDL_BUTTON_LEFT),
+                .Trigger = InputButton::MousePressed(SDL_BUTTON_LEFT),
             },
             {
                 .ActionId = releaseMouse,
-                .Input = InputButton::MouseReleased(SDL_BUTTON_LEFT),
+                .Trigger = InputButton::MouseReleased(SDL_BUTTON_LEFT),
             },
             {
                 .ActionId = explode,
-                .Input = InputButton::KeyPressed(SDL_SCANCODE_RETURN),
+                .Trigger = InputButton::KeyPressed(SDL_SCANCODE_RETURN),
             },
             {
                 .ActionId = stopAll,
-                .Input = InputButton::KeyPressed(SDL_SCANCODE_BACKSPACE),
+                .Trigger = InputButton::KeyPressed(SDL_SCANCODE_BACKSPACE),
             },
             {
                 .ActionId = pause,
-                .Input = InputButton::KeyPressed(SDL_SCANCODE_F1),
+                .Trigger = InputButton::KeyPressed(SDL_SCANCODE_F1),
             },
         };
 
-    InputMapper inputMapper(actionMappings);
+    system.SetActionMapping(actionMappings);
 
     Timer frameTimer;
 
@@ -679,19 +679,7 @@ MainLoop()
 
         frameTimer.Restart();
 
-        inputMapper.BeginFrame();
-
-        auto eventHandlerFunc = [](const SDL_Event& sdlEvent, InputMapper* im)
-        {
-            im->ProcessEvent(sdlEvent);
-            return EventDisposition::Process;
-        };
-
-        const EventHandler eventHandler(+eventHandlerFunc, &inputMapper);
-
-        system.ProcessEvents(eventHandler);
-
-        inputMapper.EndFrame();
+        system.ProcessEvents();
 
         if(system.IsMinimized())
         {
@@ -704,38 +692,32 @@ MainLoop()
             break;
         }
 
-        if(system.WasMinimized()
-            || system.WasRestored()
-            || system.WasFocusGained()
-            || system.WasFocusLost())
-        {
-            inputMapper.Clear();
-        }
+        const InputMapper& inputMapper = system.GetInputMapper();
 
-        if(inputMapper.Action(quit))
+        if(inputMapper.IsActionTriggered(quit))
         {
             System::PostQuitEvent();
         }
-        if(inputMapper.Action(captureMouse))
+        if(inputMapper.IsActionTriggered(captureMouse))
         {
             isCameraActorActive = true;
             system.SetMouseCaptured(true);
         }
-        if(inputMapper.Action(releaseMouse))
+        if(inputMapper.IsActionTriggered(releaseMouse))
         {
             isCameraActorActive = false;
             system.SetMouseCaptured(false);
         }
-        if(inputMapper.Action(explode))
+        if(inputMapper.IsActionTriggered(explode))
         {
             constexpr float kImpulseMagnitude = 5.0f;
             ApplyExplosionImpulse(level, kImpulseMagnitude);
         }
-        if(inputMapper.Action(stopAll))
+        if(inputMapper.IsActionTriggered(stopAll))
         {
             StopAll(level);
         }
-        if(inputMapper.Action(pause))
+        if(inputMapper.IsActionTriggered(pause))
         {
             pauseSim = !pauseSim;
         }

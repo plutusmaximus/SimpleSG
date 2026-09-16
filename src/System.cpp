@@ -2,13 +2,21 @@
 
 #include "FileFetcher.h"
 #include "ImGuiRenderer.h"
+#include "InputMapper.h"
 #include "ThreadPool.h"
 
 #include <imgui_impl_sdl3.h>
 #include <memory>
+#include <optional>
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_timer.h>
 #include <utility>
+
+class System::Impl
+{
+public:
+    InputMapper m_InputMapper;
+};
 
 System::CreateTask::CreateTask(std::string appName)
     : m_GpuHelperTask(std::move(appName))
@@ -139,13 +147,20 @@ System::System(std::unique_ptr<GpuHelper>&& gpuHelper,
     : m_GpuHelper(std::move(gpuHelper)),
       m_FileFetcher(std::move(fileFetcher)),
       m_ThreadPool(std::move(threadPool)),
-      m_ImGuiRenderer(std::move(imGuiRenderer))
+      m_ImGuiRenderer(std::move(imGuiRenderer)),
+      m_Impl(std::make_unique<Impl>())
 {
 }
 
 System::~System() = default;
 System::System(System&&) noexcept = default;
 System& System::operator=(System&&) noexcept = default;
+
+void
+System::SetActionMapping(const std::span<const ActionMapping> actionMappings)
+{
+    m_Impl->m_InputMapper = InputMapper(actionMappings);
+}
 
 GpuHelper&
 System::GetGpuHelper()
@@ -189,6 +204,12 @@ System::GetImGuiRenderer() const
     return *m_ImGuiRenderer;
 }
 
+const InputMapper&
+System::GetInputMapper() const
+{
+    return m_Impl->m_InputMapper;
+}
+
 void
 System::PostQuitEvent()
 {
@@ -203,12 +224,14 @@ System::PostQuitEvent()
 }
 
 void
-System::ProcessEvents(const EventHandler& eventHandler)
+System::ProcessEvents()
 {
     m_GpuHelper->GetInstance().ProcessEvents();
 
     m_FocusEvent = FocusEvent::None;
     m_WindowStateEvent = WindowStateEvent::None;
+
+    m_Impl->m_InputMapper.BeginFrame();
 
     SDL_Event sdlEvent;
     while(SDL_PollEvent(&sdlEvent))
@@ -225,11 +248,13 @@ System::ProcessEvents(const EventHandler& eventHandler)
             case SDL_EVENT_WINDOW_MAXIMIZED:
                 m_Minimized = false;
                 m_WindowStateEvent = WindowStateEvent::Restored;
+                m_Impl->m_InputMapper.Clear();
                 break;
 
             case SDL_EVENT_WINDOW_MINIMIZED:
                 m_Minimized = true;
                 m_WindowStateEvent = WindowStateEvent::Minimized;
+                m_Impl->m_InputMapper.Clear();
                 break;
 
             default:
@@ -237,11 +262,6 @@ System::ProcessEvents(const EventHandler& eventHandler)
         }
 
         if(IsMinimized() || ShouldQuit())
-        {
-            continue;
-        }
-
-        if(eventHandler(sdlEvent) == EventDisposition::Ignore)
         {
             continue;
         }
@@ -268,16 +288,72 @@ System::ProcessEvents(const EventHandler& eventHandler)
             // case SDL_EVENT_WINDOW_MOUSE_LEAVE:
             case SDL_EVENT_WINDOW_FOCUS_GAINED:
                 m_FocusEvent = FocusEvent::Gained;
+                m_Impl->m_InputMapper.Clear();
                 break;
 
             case SDL_EVENT_WINDOW_FOCUS_LOST:
                 m_FocusEvent = FocusEvent::Lost;
+                m_Impl->m_InputMapper.Clear();
+                break;
+
+            case SDL_EVENT_KEY_DOWN:
+                m_Impl->m_InputMapper.OnButtonPressed(InputButtonDevice::Keyboard,
+                    static_cast<unsigned>(sdlEvent.key.scancode));
+                break;
+
+            case SDL_EVENT_KEY_UP:
+                m_Impl->m_InputMapper.OnButtonReleased(InputButtonDevice::Keyboard,
+                    static_cast<unsigned>(sdlEvent.key.scancode));
+                break;
+
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                m_Impl->m_InputMapper.OnButtonPressed(InputButtonDevice::Mouse,
+                    static_cast<unsigned>(sdlEvent.button.button));
+                break;
+
+            case SDL_EVENT_MOUSE_BUTTON_UP:
+                m_Impl->m_InputMapper.OnButtonReleased(InputButtonDevice::Mouse,
+                    static_cast<unsigned>(sdlEvent.button.button));
+                break;
+
+            case SDL_EVENT_MOUSE_WHEEL:
+                if(sdlEvent.wheel.x != 0)
+                {
+                    m_Impl->m_InputMapper.OnAxis(InputAxisDevice::MouseWheel,
+                        InputAxisIdentifier::X,
+                        sdlEvent.wheel.x);
+                }
+
+                if(sdlEvent.wheel.y != 0)
+                {
+                    m_Impl->m_InputMapper.OnAxis(InputAxisDevice::MouseWheel,
+                        InputAxisIdentifier::Y,
+                        sdlEvent.wheel.y);
+                }
+                break;
+
+            case SDL_EVENT_MOUSE_MOTION:
+                if(sdlEvent.motion.xrel != 0)
+                {
+                    m_Impl->m_InputMapper.OnAxis(InputAxisDevice::Mouse,
+                        InputAxisIdentifier::X,
+                        sdlEvent.motion.xrel);
+                }
+
+                if(sdlEvent.motion.yrel != 0)
+                {
+                    m_Impl->m_InputMapper.OnAxis(InputAxisDevice::Mouse,
+                        InputAxisIdentifier::Y,
+                        sdlEvent.motion.yrel);
+                }
                 break;
 
             default:
                 break;
         }
     }
+
+    m_Impl->m_InputMapper.EndFrame();
 }
 
 bool

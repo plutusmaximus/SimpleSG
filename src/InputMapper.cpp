@@ -1,10 +1,9 @@
 #include "InputMapper.h"
 
 #include <algorithm>
+#include <cmath>
 #include <SDL3/SDL_events.h>
-#include <SDL3/SDL_timer.h>
 #include <span>
-#include <variant>
 
 namespace
 {
@@ -24,6 +23,9 @@ ValidateInputButton(const InputButton& button)
 }
 } // namespace
 
+static_assert(InputMapper::kMaxKeyButtons >= SDL_SCANCODE_COUNT,
+    "kMaxKeyButtons must be at least SDL_SCANCODE_COUNT");
+
 InputMapper::InputMapper(const std::span<const ActionMapping> mappings)
 {
     // Count mappings so action arrays can be allocated.
@@ -31,13 +33,14 @@ InputMapper::InputMapper(const std::span<const ActionMapping> mappings)
     size_t axisMappingCount = 0;
     for(const ActionMapping& mapping : mappings)
     {
-        if(std::holds_alternative<InputButton>(mapping.Input))
+        switch(mapping.Trigger.GetType())
         {
-            ++buttonMappingCount;
-        }
-        else if(std::holds_alternative<InputAxis>(mapping.Input))
-        {
-            ++axisMappingCount;
+            case InputTrigger::Type::Button:
+                ++buttonMappingCount;
+                break;
+            case InputTrigger::Type::Axis:
+                ++axisMappingCount;
+                break;
         }
     }
 
@@ -57,31 +60,32 @@ InputMapper::InputMapper(const std::span<const ActionMapping> mappings)
 
     for(const ActionMapping& mapping : mappings)
     {
-        // Input can be either InputButton or InputAxis.
-
-        if(std::holds_alternative<InputButton>(mapping.Input))
+        switch(mapping.Trigger.GetType())
         {
-            const InputButton& button = std::get<InputButton>(mapping.Input);
+            case InputTrigger::Type::Button:
+            {
+                const InputButton& button = mapping.Trigger.GetButton();
 
-            MLG_ABORTIF(!ValidateInputButton(button),
-                "Invalid InputButton mapping: device={}, id={}",
-                static_cast<int>(button.GetDevice()),
-                button.GetId());
+                MLG_ABORTIF(!ValidateInputButton(button),
+                    "Invalid InputButton mapping: device={}, id={}",
+                    static_cast<int>(button.GetDevice()),
+                    button.GetId());
 
-            ButtonActionMapping& bam = m_ButtonActionMappings.emplace_back(button, mapping.Scale);
-            bam.m_ActionState = GetActionState(mapping.ActionId);
-        }
-        else if(std::holds_alternative<InputAxis>(mapping.Input))
-        {
-            const InputAxis& axis = std::get<InputAxis>(mapping.Input);
+                ButtonActionMapping& bam =
+                    m_ButtonActionMappings.emplace_back(button, mapping.Scale);
+                bam.m_ActionState = GetActionState(mapping.ActionId);
+            }
+            break;
+            case InputTrigger::Type::Axis:
+            {
+                const InputAxis& axis = mapping.Trigger.GetAxis();
 
-            AxisActionMapping& aam = m_AxisActionMappings.emplace_back(axis, mapping.Scale);
-            aam.m_ActionState = GetActionState(mapping.ActionId);
+                AxisActionMapping& aam = m_AxisActionMappings.emplace_back(axis, mapping.Scale);
+                aam.m_ActionState = GetActionState(mapping.ActionId);
+            }
+            break;
         }
     }
-
-    const size_t numKeyStates = static_cast<size_t>(SDL_SCANCODE_COUNT);
-    m_KeyStates.resize(numKeyStates);
 }
 
 void
@@ -111,11 +115,12 @@ InputMapper::Clear()
     const bool* keyboardState = SDL_GetKeyboardState(&numKeys);
 
     const size_t keyCount = static_cast<size_t>(numKeys);
-    MLG_ASSERT(keyCount == m_KeyStates.size(), "SDL_GetKeyboardState() returned unexpected number of keys");
+    MLG_ASSERT(keyCount == m_KeyStates.size(),
+        "SDL_GetKeyboardState() returned unexpected number of keys");
 
     const std::span<const bool> keyboardStateSpan(keyboardState, keyCount);
 
-    for(size_t i = 0; i < keyCount; ++i)
+    for(size_t i = 0; i < keyCount && i < m_KeyStates.size(); ++i)
     {
         m_KeyStates[i].HeldState = keyboardStateSpan[i];
     }
@@ -128,6 +133,9 @@ InputMapper::Clear()
 
         m_MouseButtonStates[i].HeldState = (mouseButtonBits & buttonMask) != 0;
     }
+
+    m_MouseDelta = Vec3f{ 0, 0, 0 };
+    m_MouseWheelDelta = Vec3f{ 0, 0, 0 };
 }
 
 void
@@ -202,7 +210,8 @@ InputMapper::OnButtonReleased(const InputButtonDevice device, const unsigned but
 }
 
 void
-InputMapper::OnAxis(const InputAxisDevice device, const InputAxisIdentifier axisId, const float value)
+InputMapper::OnAxis(
+    const InputAxisDevice device, const InputAxisIdentifier axisId, const float value)
 {
     switch(device)
     {
@@ -238,85 +247,33 @@ InputMapper::OnAxis(const InputAxisDevice device, const InputAxisIdentifier axis
 }
 
 void
-InputMapper::ProcessEvent(const SDL_Event& event)
-{
-    MLG_ASSERT(m_InFrame, "ConsumeEvent() called outside of BeginFrame()/EndFrame()");
-
-    switch(event.type)
-    {
-        case SDL_EVENT_KEY_DOWN:
-            OnButtonPressed(InputButtonDevice::Keyboard, static_cast<unsigned>(event.key.scancode));
-            break;
-
-        case SDL_EVENT_KEY_UP:
-            OnButtonReleased(InputButtonDevice::Keyboard, static_cast<unsigned>(event.key.scancode));
-            break;
-
-        case SDL_EVENT_MOUSE_BUTTON_DOWN:
-            OnButtonPressed(InputButtonDevice::Mouse, static_cast<unsigned>(event.button.button));
-            break;
-
-        case SDL_EVENT_MOUSE_BUTTON_UP:
-            OnButtonReleased(InputButtonDevice::Mouse, static_cast<unsigned>(event.button.button));
-            break;
-
-        case SDL_EVENT_MOUSE_WHEEL:
-            if(event.wheel.x != 0)
-            {
-                OnAxis(InputAxisDevice::MouseWheel, InputAxisIdentifier::X, event.wheel.x);
-            }
-
-            if(event.wheel.y != 0)
-            {
-                OnAxis(InputAxisDevice::MouseWheel, InputAxisIdentifier::Y, event.wheel.y);
-            }
-            break;
-
-        case SDL_EVENT_MOUSE_MOTION:
-            if(event.motion.xrel != 0)
-            {
-                OnAxis(InputAxisDevice::Mouse, InputAxisIdentifier::X, event.motion.xrel);
-            }
-
-            if(event.motion.yrel != 0)
-            {
-                OnAxis(InputAxisDevice::Mouse, InputAxisIdentifier::Y, event.motion.yrel);
-            }
-            break;
-
-        default:
-            break;
-    }
-}
-
-void
 InputMapper::EndFrame()
 {
     MLG_ASSERT(m_InFrame, "EndFrame() called without a matching BeginFrame()");
 
     if(m_MouseDelta.x != 0.0f)
     {
-        TriggerAction(InputAxis::MouseMoveX, m_MouseDelta.x);
+        TriggerAction(InputAxis::MouseMoveX(), m_MouseDelta.x);
     }
 
     if(m_MouseDelta.y != 0.0f)
     {
-        TriggerAction(InputAxis::MouseMoveY, m_MouseDelta.y);
+        TriggerAction(InputAxis::MouseMoveY(), m_MouseDelta.y);
     }
 
     if(m_MouseDelta.z != 0.0f)
     {
-        TriggerAction(InputAxis::MouseMoveZ, m_MouseDelta.z);
+        TriggerAction(InputAxis::MouseMoveZ(), m_MouseDelta.z);
     }
 
     if(m_MouseWheelDelta.x != 0.0f)
     {
-        TriggerAction(InputAxis::MouseWheelX, m_MouseWheelDelta.x);
+        TriggerAction(InputAxis::MouseWheelX(), m_MouseWheelDelta.x);
     }
 
     if(m_MouseWheelDelta.y != 0.0f)
     {
-        TriggerAction(InputAxis::MouseWheelY, m_MouseWheelDelta.y);
+        TriggerAction(InputAxis::MouseWheelY(), m_MouseWheelDelta.y);
     }
 
     m_MouseDelta = Vec3f(0);
@@ -372,9 +329,9 @@ InputMapper::EndFrame()
 }
 
 bool
-InputMapper::Action(const ActionIdentifier& actionId) const
+InputMapper::IsActionTriggered(const ActionIdentifier& actionId) const
 {
-    MLG_ASSERT(!m_InFrame, "Action() called during BeginFrame()/EndFrame()");
+    MLG_ASSERT(!m_InFrame, "IsActionTriggered() called during BeginFrame()/EndFrame()");
 
     for(const ActionState& actionState : m_ActionStates)
     {
@@ -388,9 +345,9 @@ InputMapper::Action(const ActionIdentifier& actionId) const
 }
 
 bool
-InputMapper::Action(const ActionIdentifier& actionId, float& value) const
+InputMapper::IsActionTriggered(const ActionIdentifier& actionId, float& value) const
 {
-    MLG_ASSERT(!m_InFrame, "Action() called during BeginFrame()/EndFrame()");
+    MLG_ASSERT(!m_InFrame, "IsActionTriggered() called during BeginFrame()/EndFrame()");
 
     for(const ActionState& actionState : m_ActionStates)
     {
