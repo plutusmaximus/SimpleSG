@@ -1,6 +1,7 @@
 #include "System.h"
 
 #include "FileFetcher.h"
+#include "GpuHelper.h"
 #include "ImGuiRenderer.h"
 #include "InputMapper.h"
 #include "ThreadPool.h"
@@ -14,16 +15,22 @@
 class System::Impl
 {
 public:
+    explicit Impl(std::string appName)
+        : m_GpuHelperTask(std::move(appName))
+    {
+    }
 
     std::unique_ptr<GpuHelper> m_GpuHelper;
     std::unique_ptr<FileFetcher> m_FileFetcher;
     std::unique_ptr<ImGuiRenderer> m_ImGuiRenderer;
     ThreadPool m_ThreadPool;
     InputMapper m_InputMapper;
+
+    GpuHelper::CreateTask m_GpuHelperTask;
 };
 
 System::CreateTask::CreateTask(std::string appName)
-    : m_GpuHelperTask(std::move(appName))
+    : m_Impl(std::make_unique<Impl>(appName))
 {
 }
 
@@ -42,7 +49,7 @@ System::CreateTask::Begin()
 
     MLG_INFO("Creating System...");
 
-    MLG_CHECK(m_GpuHelperTask.Begin(), "Failed to begin GpuHelper creation");
+    MLG_CHECK(m_Impl->m_GpuHelperTask.Begin(), "Failed to begin GpuHelper creation");
 
     m_Stage = Stage::CreatingGpuHelper;
 
@@ -63,9 +70,9 @@ System::CreateTask::Update()
             break;
 
         case Stage::CreatingGpuHelper:
-            if(m_GpuHelperTask.IsPending())
+            if(m_Impl->m_GpuHelperTask.IsPending())
             {
-                m_GpuHelperTask.Update();
+                m_Impl->m_GpuHelperTask.Update();
             }
             else
             {
@@ -94,28 +101,24 @@ Result<System>
 System::CreateTask::Take()
 {
     MLG_CHECKV(Stage::Succeeded == m_Stage, "Task did not succeed");
-    MLG_CHECKV(!m_Consumed, "Task result already consumed");
+    MLG_CHECKV(m_Impl, "Task result already consumed");
 
-    m_Consumed = true;
-
-    auto gpuHelperResult = m_GpuHelperTask.Take();
+    auto gpuHelperResult = m_Impl->m_GpuHelperTask.Take();
     MLG_CHECK(gpuHelperResult, "Failed create GpuHelper");
-    std::unique_ptr<GpuHelper> gpuHelper(std::move(*gpuHelperResult));
+
+    m_Impl->m_GpuHelper = std::move(*gpuHelperResult);
 
     auto fileFetcherResult = FileFetcher::Create();
     MLG_CHECK(fileFetcherResult, "Failed to create FileFetcher");
-    std::unique_ptr<FileFetcher> fileFetcher(std::move(*fileFetcherResult));
 
-    auto imGuiRendererResult = ImGuiRenderer::Create(*gpuHelper);
+    m_Impl->m_FileFetcher = std::move(*fileFetcherResult);
+
+    auto imGuiRendererResult = ImGuiRenderer::Create(*m_Impl->m_GpuHelper);
     MLG_CHECK(imGuiRendererResult, "Failed to create ImGuiRenderer");
-    std::unique_ptr<ImGuiRenderer> imGuiRenderer(std::move(*imGuiRendererResult));
 
-    std::unique_ptr<System::Impl> impl = std::make_unique<System::Impl>(
-        std::move(gpuHelper),
-        std::move(fileFetcher),
-        std::move(imGuiRenderer));
+    m_Impl->m_ImGuiRenderer = std::move(*imGuiRendererResult);
 
-    return System(std::move(impl));
+    return System(std::move(m_Impl));
 }
 
 ////////// System

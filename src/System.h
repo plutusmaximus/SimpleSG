@@ -1,6 +1,5 @@
 #pragma once
 
-#include "GpuHelper.h"
 #include "Result.h"
 
 #include <memory>
@@ -8,12 +7,15 @@
 
 struct ActionMapping;
 class FileFetcher;
+class GpuHelper;
 class ImGuiRenderer;
 class InputMapper;
 class ThreadPool;
 
 class System final
 {
+    class Impl;
+
 public:
     class CreateTask
     {
@@ -49,11 +51,9 @@ public:
             Failed
         };
 
-        GpuHelper::CreateTask m_GpuHelperTask;
-
         Stage m_Stage{ Stage::None };
 
-        bool m_Consumed{ false };
+        std::unique_ptr<Impl> m_Impl;
     };
 
     System() = delete;
@@ -112,8 +112,6 @@ public:
 
 private:
     friend CreateTask;
-
-    class Impl;
 
     explicit System(std::unique_ptr<Impl>&& impl);
 

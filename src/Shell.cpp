@@ -1,5 +1,6 @@
 #include "Shell.h"
 
+#include "GpuHelper.h"
 #include "PerfMetrics.h"
 
 #ifndef __EMSCRIPTEN__
