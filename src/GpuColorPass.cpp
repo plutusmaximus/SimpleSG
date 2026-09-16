@@ -8,66 +8,100 @@
 
 namespace
 {
-constexpr auto
-CreateInputBindGroupLayoutEntries()
+
+constexpr wgpu::BindGroupLayoutEntry InputBindGroupLayoutEntries[]//
 {
-    return std::array//
+    // World transform.
+    wgpu::BindGroupLayoutEntry//
+        {
+        .binding = 0,
+        .visibility = wgpu::ShaderStage::Vertex,
+        .buffer =
+        {
+            .type = wgpu::BufferBindingType::ReadOnlyStorage,
+            .hasDynamicOffset = false,
+            .minBindingSize = sizeof(ShaderInterop::WorldTransform),
+        },
+    },
+    // Clip transform.
+    wgpu::BindGroupLayoutEntry//
     {
-        // World transform.
-        wgpu::BindGroupLayoutEntry//
-            {
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Vertex,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                .hasDynamicOffset = false,
-                .minBindingSize = sizeof(ShaderInterop::WorldTransform),
-            },
-        },
-        // Clip transform.
-        wgpu::BindGroupLayoutEntry//
+        .binding = 1,
+        .visibility = wgpu::ShaderStage::Vertex,
+        .buffer =
         {
-            .binding = 1,
-            .visibility = wgpu::ShaderStage::Vertex,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                .hasDynamicOffset = false,
-                .minBindingSize = sizeof(ShaderInterop::ClipSpaceTransform),
-            },
+            .type = wgpu::BufferBindingType::ReadOnlyStorage,
+            .hasDynamicOffset = false,
+            .minBindingSize = sizeof(ShaderInterop::ClipSpaceTransform),
         },
-        // Mesh instance parameters.
-        wgpu::BindGroupLayoutEntry//
+    },
+    // Mesh instance parameters.
+    wgpu::BindGroupLayoutEntry//
+    {
+        .binding = 2,
+        .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
+        .buffer =
         {
-            .binding = 2,
-            .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                .hasDynamicOffset = false,
-                .minBindingSize = sizeof(ShaderInterop::MeshInstanceParams),
-            },
+            .type = wgpu::BufferBindingType::ReadOnlyStorage,
+            .hasDynamicOffset = false,
+            .minBindingSize = sizeof(ShaderInterop::MeshInstanceParams),
         },
-        // Camera parameters
-        wgpu::BindGroupLayoutEntry//
+    },
+    // Camera parameters
+    wgpu::BindGroupLayoutEntry//
+    {
+        .binding = 3,
+        .visibility = wgpu::ShaderStage::Vertex,
+        .buffer =
         {
-            .binding = 3,
-            .visibility = wgpu::ShaderStage::Vertex,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::Uniform,
-                .hasDynamicOffset = false,
-                .minBindingSize = sizeof(ShaderInterop::CameraParams),
-            },
+            .type = wgpu::BufferBindingType::Uniform,
+            .hasDynamicOffset = false,
+            .minBindingSize = sizeof(ShaderInterop::CameraParams),
         },
-    };
-}
+    },
+};
+
+constexpr wgpu::BindGroupLayoutEntry MaterialBindGroupLayoutEntries[]//
+{
+    // Texture
+    wgpu::BindGroupLayoutEntry//
+    {
+        .binding = 0,
+        .visibility = wgpu::ShaderStage::Fragment,
+        .texture =
+        {
+            .sampleType = wgpu::TextureSampleType::Float,
+            .viewDimension = wgpu::TextureViewDimension::e2D,
+            .multisampled = false,
+        },
+    },
+    // Sampler
+    wgpu::BindGroupLayoutEntry//
+    {
+        .binding = 1,
+        .visibility = wgpu::ShaderStage::Fragment,
+        .sampler =
+        {
+            .type = wgpu::SamplerBindingType::Filtering,
+        },
+    },
+    // Material properties
+    wgpu::BindGroupLayoutEntry//
+    {
+        .binding = 2,
+        .visibility = wgpu::ShaderStage::Fragment,
+        .buffer =
+        {
+            .type = wgpu::BufferBindingType::Uniform,
+            .minBindingSize = sizeof(ShaderInterop::MaterialConstants)
+        },
+    },
+};
 
 auto
 CreateInputBindGroupEntries(const GpuColorPass::Inputs& inputs)
 {
-    return std::array //
+    const std::array entries //
         {
             wgpu::BindGroupEntry //
             {
@@ -98,54 +132,11 @@ CreateInputBindGroupEntries(const GpuColorPass::Inputs& inputs)
                 .size = inputs.CameraParams.BufferSize(),
             },
         };
-}
 
-using LayoutEntries = decltype(CreateInputBindGroupLayoutEntries());
+    static_assert(std::size(entries) == std::size(InputBindGroupLayoutEntries),
+        "Bind group layout entries and bind group entries must have the same size");
 
-using BindGroupEntries =
-    decltype(CreateInputBindGroupEntries(std::declval<const GpuColorPass::Inputs&>()));
-
-static_assert(std::tuple_size_v<LayoutEntries> == std::tuple_size_v<BindGroupEntries>,
-    "Bind group layout entries and bind group entries must have the same size");
-
-constexpr auto CreateMaterialBindGroupLayoutEntries()
-{
-    return std::array//
-    {
-        // Texture
-        wgpu::BindGroupLayoutEntry//
-        {
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .texture =
-            {
-                .sampleType = wgpu::TextureSampleType::Float,
-                .viewDimension = wgpu::TextureViewDimension::e2D,
-                .multisampled = false,
-            },
-        },
-        // Sampler
-        wgpu::BindGroupLayoutEntry//
-        {
-            .binding = 1,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .sampler =
-            {
-                .type = wgpu::SamplerBindingType::Filtering,
-            },
-        },
-        // Material properties
-        wgpu::BindGroupLayoutEntry//
-        {
-            .binding = 2,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::Uniform,
-                .minBindingSize = sizeof(ShaderInterop::MaterialConstants)
-            },
-        },
-    };
+    return entries;
 }
 
 auto
@@ -153,7 +144,7 @@ CreateMaterialBindGroupEntries(const wgpu::Texture& texture,
     const wgpu::Sampler& sampler,
     const GpuMaterialConstantsBuffer& materialConstants)
 {
-    return std::array //
+    const std::array entries//
         {
             wgpu::BindGroupEntry //
             {
@@ -173,29 +164,22 @@ CreateMaterialBindGroupEntries(const wgpu::Texture& texture,
                 .size = materialConstants.BufferSize(),
             },
         };
+
+    static_assert(std::size(entries) == std::size(MaterialBindGroupLayoutEntries),
+        "Bind group layout entries and bind group entries must have the same size");
+
+    return entries;
 }
-
-using MBG_LayoutEntries = decltype(CreateMaterialBindGroupLayoutEntries());
-
-using MBG_BindGroupEntries =
-    decltype(CreateMaterialBindGroupEntries(std::declval<const wgpu::Texture&>(),
-        std::declval<const wgpu::Sampler&>(),
-        std::declval<const GpuMaterialConstantsBuffer&>()));
-
-static_assert(std::tuple_size_v<MBG_LayoutEntries> == std::tuple_size_v<MBG_BindGroupEntries>,
-    "Bind group layout entries and bind group entries must have the same size");
 
 // Creates a bind group layout for the inputs of the color pass.
 Result<wgpu::BindGroupLayout>
 CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
 {
-    auto bglEntries = CreateInputBindGroupLayoutEntries();
-
-    const wgpu::BindGroupLayoutDescriptor desc //
+    static constexpr wgpu::BindGroupLayoutDescriptor desc //
         {
             .label = "GpuColorPass::InputsBindGroupLayout",
-            .entryCount = std::size(bglEntries),
-            .entries = bglEntries.data(),
+            .entryCount = std::size(InputBindGroupLayoutEntries),
+            .entries = &InputBindGroupLayoutEntries[0],
         };
 
     wgpu::BindGroupLayout layout = gpuDevice.CreateBindGroupLayout(&desc);
@@ -207,13 +191,11 @@ CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
 Result<wgpu::BindGroupLayout>
 CreateMaterialBindGroupLayout(const wgpu::Device& gpuDevice)
 {
-    auto bglEntries = CreateMaterialBindGroupLayoutEntries();
-
-    const wgpu::BindGroupLayoutDescriptor desc //
+    static constexpr wgpu::BindGroupLayoutDescriptor desc //
         {
             .label = "GpuColorPass::MaterialBindGroupLayout",
-            .entryCount = std::size(bglEntries),
-            .entries = bglEntries.data(),
+            .entryCount = std::size(MaterialBindGroupLayoutEntries),
+            .entries = &MaterialBindGroupLayoutEntries[0],
         };
 
     wgpu::BindGroupLayout layout = gpuDevice.CreateBindGroupLayout(&desc);
@@ -252,7 +234,7 @@ CreatePipelineLayout(const wgpu::Device& gpuDevice,
 wgpu::VertexBufferLayout
 GetVertexBufferLayout()
 {
-    static const wgpu::VertexAttribute attributes[] = //
+    static constexpr wgpu::VertexAttribute attributes[] = //
         {
             {
                 .format = wgpu::VertexFormat::Float32x3,
@@ -271,7 +253,7 @@ GetVertexBufferLayout()
             },
         };
 
-    static const wgpu::VertexBufferLayout layout = //
+    static constexpr wgpu::VertexBufferLayout layout = //
         {
             .stepMode = wgpu::VertexStepMode::Vertex,
             .arrayStride = sizeof(Vertex),
@@ -299,7 +281,7 @@ BindGroup0NeedsRefresh(const GpuColorPass::Inputs& currentInputs,
 Result<wgpu::Sampler>
 CreateDefaultSampler(const wgpu::Device& gpuDevice)
 {
-    const wgpu::SamplerDescriptor samplerDesc //
+    static constexpr wgpu::SamplerDescriptor samplerDesc //
         {
             .addressModeU = wgpu::AddressMode::Repeat,
             .addressModeV = wgpu::AddressMode::Repeat,
@@ -513,7 +495,7 @@ GpuColorPass::EnsurePipeline()
         return Result<>::Ok;
     }
 
-    const wgpu::BlendState blendState //
+    static constexpr wgpu::BlendState blendState //
         {
             .color =
             {
@@ -529,14 +511,14 @@ GpuColorPass::EnsurePipeline()
             },
         };
 
-    const wgpu::ColorTargetState colorTargetState //
+    static constexpr wgpu::ColorTargetState colorTargetState //
         {
             .format = GpuHelper::kTextureFormat,
             .blend = &blendState,
             .writeMask = wgpu::ColorWriteMask::All,
         };
 
-    const wgpu::DepthStencilState depthStencilState //
+    static constexpr wgpu::DepthStencilState depthStencilState //
         {
             .format = GpuHelper::kDepthBufferFormat,
             .depthWriteEnabled = true,

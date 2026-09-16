@@ -6,54 +6,51 @@
 
 namespace
 {
-constexpr auto
-CreateInputOutputBindGroupLayoutEntries()
+
+constexpr wgpu::BindGroupLayoutEntry InputOutputBindGroupLayoutEntries[]//
 {
-    return std::array//
+    // World transform.
+    wgpu::BindGroupLayoutEntry//
     {
-        // World transform.
-        wgpu::BindGroupLayoutEntry//
+        .binding = 0,
+        .visibility = wgpu::ShaderStage::Compute,
+        .buffer =
         {
-            .binding = 0,
-            .visibility = wgpu::ShaderStage::Compute,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                .hasDynamicOffset = false,
-                .minBindingSize = sizeof(ShaderInterop::WorldTransform),
-            },
+            .type = wgpu::BufferBindingType::ReadOnlyStorage,
+            .hasDynamicOffset = false,
+            .minBindingSize = sizeof(ShaderInterop::WorldTransform),
         },
-        // Clip transform.
-        wgpu::BindGroupLayoutEntry//
+    },
+    // Clip transform.
+    wgpu::BindGroupLayoutEntry//
+    {
+        .binding = 1,
+        .visibility = wgpu::ShaderStage::Compute,
+        .buffer =
         {
-            .binding = 1,
-            .visibility = wgpu::ShaderStage::Compute,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::Storage,
-                .hasDynamicOffset = false,
-                .minBindingSize = sizeof(ShaderInterop::ClipSpaceTransform),
-            },
+            .type = wgpu::BufferBindingType::Storage,
+            .hasDynamicOffset = false,
+            .minBindingSize = sizeof(ShaderInterop::ClipSpaceTransform),
         },
-        // Camera parameters
-        wgpu::BindGroupLayoutEntry{
-            .binding = 2,
-            .visibility = wgpu::ShaderStage::Compute,
-            .buffer =
-            {
-                .type = wgpu::BufferBindingType::Uniform,
-                .hasDynamicOffset = false,
-                .minBindingSize = sizeof(ShaderInterop::CameraParams),
-            },
+    },
+    // Camera parameters
+    wgpu::BindGroupLayoutEntry{
+        .binding = 2,
+        .visibility = wgpu::ShaderStage::Compute,
+        .buffer =
+        {
+            .type = wgpu::BufferBindingType::Uniform,
+            .hasDynamicOffset = false,
+            .minBindingSize = sizeof(ShaderInterop::CameraParams),
         },
-    };
-}
+    },
+};
 
 auto
 CreateInputOutputBindGroupEntries(const GpuTransformPass::Inputs& inputs,
     const GpuTransformPass::Outputs& outputs)
 {
-    return std::array //
+    const std::array entries = //
         {
             wgpu::BindGroupEntry //
             {
@@ -77,27 +74,21 @@ CreateInputOutputBindGroupEntries(const GpuTransformPass::Inputs& inputs,
                 .size = inputs.CameraParams.BufferSize(),
             },
         };
+
+    static_assert(std::size(entries) == std::size(InputOutputBindGroupLayoutEntries),
+        "Bind group layout entries and bind group entries must have the same size");
+
+    return entries;
 }
-
-using LayoutEntries = decltype(CreateInputOutputBindGroupLayoutEntries());
-
-using BindGroupEntries =
-    decltype(CreateInputOutputBindGroupEntries(std::declval<const GpuTransformPass::Inputs&>(),
-        std::declval<const GpuTransformPass::Outputs&>()));
-
-static_assert(std::tuple_size_v<LayoutEntries> == std::tuple_size_v<BindGroupEntries>,
-    "Bind group layout entries and bind group entries must have the same size");
 
 Result<wgpu::BindGroupLayout>
 CreateBindGroupLayout(const wgpu::Device& gpuDevice)
 {
-    auto bglEntries = CreateInputOutputBindGroupLayoutEntries();
-
-    const wgpu::BindGroupLayoutDescriptor desc //
+    static constexpr wgpu::BindGroupLayoutDescriptor desc //
         {
             .label = "GpuTransformPass",
-            .entryCount = std::size(bglEntries),
-            .entries = bglEntries.data(),
+            .entryCount = std::size(InputOutputBindGroupLayoutEntries),
+            .entries = &InputOutputBindGroupLayoutEntries[0],
         };
 
     wgpu::BindGroupLayout layout = gpuDevice.CreateBindGroupLayout(&desc);
@@ -228,7 +219,7 @@ GpuTransformPass::EnsurePipeline()
     }
 
     const wgpu::Device& gpuDevice = m_GpuHelper->GetDevice();
-    const wgpu::ConstantEntry constants[] //
+    static constexpr wgpu::ConstantEntry constants[] //
         {
             {
                 .key = kWorkgroupSizeOverride,
