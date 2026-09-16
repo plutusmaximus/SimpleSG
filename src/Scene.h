@@ -10,14 +10,13 @@
 #include <vector>
 
 class ResourceBundle;
+class System;
 class ThreadPool;
 
 class Scene
 {
 public:
-    static Result<Scene> Create(const GpuHelper& gpuHelper,
-        ThreadPool& threadPool,
-        FileFetcher& fileFetcher,
+    static Result<Scene> Create(System& system,
         const std::filesystem::path& rootPath,
         const ResourceBundle& resourceBundle,
         const std::span<const ModelNode> modelNodes);
@@ -77,6 +76,6 @@ private:
     GpuCameraParamsBuffer m_CameraParamsBuffer;
 
     std::vector<wgpu::BindGroup> m_MaterialBindGroups;
-    
+
     std::vector<MeshInstance> m_VisibleMeshes;
 };

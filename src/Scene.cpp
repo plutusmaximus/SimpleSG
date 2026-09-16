@@ -6,6 +6,7 @@
 #include "GpuHelper.h"
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"
+#include "System.h"
 #include "TextureFetcher.h"
 #include "Timer.h"
 
@@ -131,9 +132,7 @@ CreateMaterialBindGroups(const GpuHelper& gpuHelper,
 } // namespace
 
 Result<Scene>
-Scene::Create(const GpuHelper& gpuHelper,
-    ThreadPool& threadPool,
-    FileFetcher& fileFetcher,
+Scene::Create(System& system,
     const std::filesystem::path& rootPath,
     const ResourceBundle& resourceBundle,
     const std::span<const ModelNode> modelNodes)
@@ -149,7 +148,7 @@ Scene::Create(const GpuHelper& gpuHelper,
         textureUris.emplace_back(resourceBundle.GetString(uri));
     }
 
-    TextureFetcher textureFetcher(gpuHelper, threadPool, fileFetcher, rootPath, textureUris);
+    TextureFetcher textureFetcher(system, rootPath, textureUris);
     MLG_CHECK(textureFetcher.Begin(), "Failed to begin TextureFetcher");
 
     while(textureFetcher.IsPending())
@@ -159,6 +158,9 @@ Scene::Create(const GpuHelper& gpuHelper,
 
     auto textures = textureFetcher.Take();
     MLG_CHECK(textures, "Failed to fetch textures");
+
+    const GpuHelper& gpuHelper = system.GetGpuHelper();
+    FileFetcher& fileFetcher = system.GetFileFetcher();
 
     auto gpuColorPassResult = GpuColorPass::Create(gpuHelper, fileFetcher);
     MLG_CHECK(gpuColorPassResult, "Failed to create GpuColorPass");

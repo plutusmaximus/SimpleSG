@@ -48,7 +48,7 @@ struct PerfCounterGlobals
 };
 
 Result<std::tuple<Level, Scene>>
-LoadLevel(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher)
+LoadLevel(System& system)
 {
     constexpr float kBallRadius = 1.0f;
     // constexpr float kBoxExtent = kBallRadius * 2;
@@ -147,12 +147,7 @@ LoadLevel(GpuHelper& gpuHelper, ThreadPool& threadPool, FileFetcher& fileFetcher
     auto level = Level::Create(*rsrcBundle);
     MLG_CHECK(level, "Failed to create Level");
 
-    auto sceneResult = Scene::Create(gpuHelper,
-        threadPool,
-        fileFetcher,
-        rootPath,
-        *rsrcBundle,
-        level->GetAllModelNodes());
+    auto sceneResult = Scene::Create(system, rootPath, *rsrcBundle, level->GetAllModelNodes());
     MLG_CHECK(sceneResult, "Failed to create Scene");
 
     return std::make_tuple(std::move(*level), std::move(*sceneResult));
@@ -577,12 +572,9 @@ MainLoop()
     MLG_CHECK(systemResult, "Failed to get create System");
 
     System& system = *systemResult;
-    GpuHelper& gpuHelper = system.GetGpuHelper();
-    ThreadPool& threadPool = system.GetThreadPool();
-    FileFetcher& fileFetcher = system.GetFileFetcher();
-    const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
+    const GpuHelper& gpuHelper = system.GetGpuHelper();
 
-    auto loadResult = LoadLevel(gpuHelper, threadPool, fileFetcher);
+    auto loadResult = LoadLevel(system);
     MLG_CHECK(loadResult);
 
     auto&& [level, scene] = std::move(*loadResult);
@@ -724,7 +716,7 @@ MainLoop()
         if(!pauseSim)
         {
             level.Update(kPhysicsTimeStep);
-            ApplyGravity(level, threadPool);
+            ApplyGravity(level, system.GetThreadPool());
 
             const float kineticEnergy = ComputeKineticEnergy(level);
             const double totalEnergy = kineticEnergy + PerfCounterGlobals::TotalPE.GetValue();
@@ -757,6 +749,7 @@ MainLoop()
 
         auto renderGui = [&]() { return devUi.Render(); };
 
+        const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
         MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, renderGui));
 
         {

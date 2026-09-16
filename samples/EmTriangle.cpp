@@ -1,5 +1,4 @@
 #include "Camera.h"
-#include "FileFetcher.h"
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
 #include "Level.h"
@@ -10,7 +9,6 @@
 #include "Scene.h"
 #include "Shell.h"
 #include "System.h"
-#include "ThreadPool.h"
 
 #include <filesystem>
 #include <imgui.h>
@@ -171,8 +169,6 @@ TriangleApp::InnerUpdate(System& system)
             MLG_CHECK(CreateTriangleModel(m_PropKitDef, m_LevelDef));
 
             const GpuHelper& gpuHelper = system.GetGpuHelper();
-            ThreadPool& threadPool = system.GetThreadPool();
-            FileFetcher& fileFetcher = system.GetFileFetcher();
 
             ResourceBundleBuilder builder;
             auto rsrcBundle = builder.Build(m_LevelDef, m_PropKitDef);
@@ -183,12 +179,7 @@ TriangleApp::InnerUpdate(System& system)
             m_Level = Level::Create(*rsrcBundle);
             MLG_CHECK(m_Level, "Failed to create Level");
 
-            m_Scene = Scene::Create(gpuHelper,
-                threadPool,
-                fileFetcher,
-                rootPath,
-                *rsrcBundle,
-                m_Level->GetAllModelNodes());
+            m_Scene = Scene::Create(system, rootPath, *rsrcBundle, m_Level->GetAllModelNodes());
             MLG_CHECK(m_Scene, "Failed to create Scene");
 
             m_Viewport = Viewport(gpuHelper.GetScreenDimensions());

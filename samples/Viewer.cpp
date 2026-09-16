@@ -78,10 +78,7 @@ RenderGui()
 }
 
 Result<std::tuple<Level, Scene>>
-LoadLevel(GpuHelper& gpuHelper,
-    ThreadPool& threadPool,
-    FileFetcher& fileFetcher,
-    const std::filesystem::path& path)
+LoadLevel(System& system, const std::filesystem::path& path)
 {
     PropKitDef propKitDef;
     LevelDef levelDef;
@@ -96,12 +93,7 @@ LoadLevel(GpuHelper& gpuHelper,
     auto level = Level::Create(*rsrcBundle);
     MLG_CHECK(level, "Failed to create Level for {}", path.string());
 
-    auto scene = Scene::Create(gpuHelper,
-        threadPool,
-        fileFetcher,
-        path.parent_path(),
-        *rsrcBundle,
-        level->GetAllModelNodes());
+    auto scene = Scene::Create(system, path.parent_path(), *rsrcBundle, level->GetAllModelNodes());
     MLG_CHECK(scene, "Failed to create Scene for {}", path.string());
 
     return std::make_tuple(std::move(*level), std::move(*scene));
@@ -133,14 +125,10 @@ MainLoop()
     MLG_CHECK(systemResult, "Failed to get create System");
 
     System& system = *systemResult;
-    GpuHelper& gpuHelper = system.GetGpuHelper();
-    ThreadPool& threadPool = system.GetThreadPool();
-    FileFetcher& fileFetcher = system.GetFileFetcher();
-    const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
 
     CameraActor cameraActor;
 
-    auto loadResult = LoadLevel(gpuHelper, threadPool, fileFetcher, SPONZA_MODEL_PATH);
+    auto loadResult = LoadLevel(system, SPONZA_MODEL_PATH);
     MLG_CHECK(loadResult, "Failed to load resources");
 
     auto&& [level, scene] = std::move(*loadResult);
@@ -149,6 +137,8 @@ MainLoop()
     static constexpr float kDefaultCameraYaw = 90.0f; // Degrees
 
     const Radiansf cameraYaw = Radiansf::FromDegrees(kDefaultCameraYaw);
+
+    const GpuHelper& gpuHelper = system.GetGpuHelper();
 
     Dimension2 screenDimensions = gpuHelper.GetScreenDimensions();
     TrTransformf cameraXForm{ .T{ 0, kDefaultCameraHeight, 0 }, .R{ cameraYaw, Vec3f::YAXIS() } };
@@ -284,6 +274,7 @@ MainLoop()
         MLG_CHECK(scene.Render(camera, cameraXForm));
         MLG_CHECK(scene.Composite(*target));
 
+        const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
         MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, RenderGui));
 
 #if !defined(__EMSCRIPTEN__)

@@ -8,6 +8,7 @@
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"
 #include "Scene.h"
+#include "System.h"
 #include "ThreadPool.h"
 
 #include <filesystem>
@@ -111,30 +112,22 @@ MainLoop()
 {
     Log::SetLevel(Log::Level::Trace);
 
-    auto cwd = std::filesystem::current_path();
-    MLG_INFO("Current working directory: {}", cwd.string());
+    System::CreateTask sysCreateTask(kAppName);
 
-    GpuHelper::CreateTask task(kAppName);
-    MLG_CHECK(task.Begin(), "Failed to begin GpuHelper creation");
+    MLG_CHECK(sysCreateTask.Begin());
 
-    while(task.IsPending())
+    while(sysCreateTask.IsPending())
     {
-        task.Update();
+        sysCreateTask.Update();
     }
 
-    auto gpuHelperResult = task.Take();
-    MLG_CHECK(gpuHelperResult, "Failed to create GpuHelper");
-    std::unique_ptr<GpuHelper> gpuHelper(std::move(*gpuHelperResult));
+    auto systemResult = sysCreateTask.Take();
+    MLG_CHECK(systemResult, "Failed to get create System");
 
-    ThreadPool threadPool;
+    System& system = *systemResult;
 
-    auto fileFetcherResult = FileFetcher::Create();
-    MLG_CHECK(fileFetcherResult, "Failed to create FileFetcher");
-    std::unique_ptr<FileFetcher> fileFetcher(std::move(*fileFetcherResult));
-
-    auto imGuiRendererResult = ImGuiRenderer::Create(*gpuHelper);
-    MLG_CHECK(imGuiRendererResult, "Failed to create ImGuiRenderer");
-    std::unique_ptr<ImGuiRenderer> imGuiRenderer(std::move(*imGuiRendererResult));
+    auto cwd = std::filesystem::current_path();
+    MLG_INFO("Current working directory: {}", cwd.string());
 
     PropKitDef propKitDef;
     LevelDef levelDef;
@@ -150,17 +143,14 @@ MainLoop()
     MLG_CHECK(levelResult, "Failed to create Level");
     const Level& level = *levelResult;
 
-    auto sceneResult = Scene::Create(*gpuHelper,
-        threadPool,
-        *fileFetcher,
-        rootPath,
-        *rsrcBundle,
-        level.GetAllModelNodes());
+    auto sceneResult = Scene::Create(system, rootPath, *rsrcBundle, level.GetAllModelNodes());
     MLG_CHECK(sceneResult, "Failed to create Scene");
     Scene& scene = *sceneResult;
 
+    GpuHelper& gpuHelper = system.GetGpuHelper();
+
     const TrTransformf cameraXForm{ .T{ 0, 0, -4 } };
-    const Viewport viewport(gpuHelper->GetScreenDimensions());
+    const Viewport viewport(gpuHelper.GetScreenDimensions());
     Camera camera(viewport);
 
     bool running = true;
@@ -210,7 +200,7 @@ MainLoop()
                     {
                         const uint32_t newWidth = static_cast<uint32_t>(event.window.data1);
                         const uint32_t newHeight = static_cast<uint32_t>(event.window.data2);
-                        MLG_CHECKV(gpuHelper->Resize(newWidth, newHeight));
+                        MLG_CHECKV(gpuHelper.Resize(newWidth, newHeight));
                     }
                     break;
 
@@ -240,26 +230,27 @@ MainLoop()
             }
         }
 
-        const Viewport curViewport(gpuHelper->GetScreenDimensions());
+        const Viewport curViewport(gpuHelper.GetScreenDimensions());
         camera.SetViewport(curViewport);
 
-        auto target = gpuHelper->GetSwapChainTexture();
+        auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECKV(target, "Failed to get swap chain texture");
 
         MLG_CHECK(scene.Render(camera, cameraXForm));
         MLG_CHECK(scene.Composite(*target));
 
-        MLG_CHECK(imGuiRenderer->Render(gpuHelper->GetDevice(), *target, RenderGui));
+        const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
+        MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, RenderGui));
 
 #if !defined(__EMSCRIPTEN__)
 
 #if !defined(OFFSCREEN_RENDERING) || !OFFSCREEN_RENDERING
-        MLG_CHECK(gpuHelper->GetSurface().Present(), "Failed to present backbuffer");
+        MLG_CHECK(gpuHelper.GetSurface().Present(), "Failed to present backbuffer");
 #endif
 
 #endif
 
-        gpuHelper->GetInstance().ProcessEvents();
+        gpuHelper.GetInstance().ProcessEvents();
     }
 
     PerfMetrics::LogCounters();
