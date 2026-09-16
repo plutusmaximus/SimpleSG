@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <span>
 #include <variant>
 #include <vector>
@@ -344,18 +345,11 @@ private:
         float Value{ 0.0f };
     };
 
-    struct ButtonActionMapping // NOLINT(cppcoreguidelines-pro-type-member-init)
+    struct InputTriggerMapping
     {
-        InputButton Button;
+        InputTrigger Trigger;
         float Scale{ 1 };
-        ActionState* m_ActionState{ nullptr };
-    };
-
-    struct AxisActionMapping // NOLINT(cppcoreguidelines-pro-type-member-init)
-    {
-        InputAxis Axis;
-        float Scale{ 1 };
-        ActionState* m_ActionState{ nullptr };
+        size_t ActionStateIndex{ static_cast<size_t>(-1) };
     };
 
     // Tracks the current state of a button.
@@ -370,14 +364,13 @@ private:
         bool IsHeld() const { return HeldState; }
     };
 
-    static void TriggerAction(const ButtonActionMapping& mapping);
+    size_t GetActionStateIndex(const ActionIdentifier& actionId) const;
 
-    void TriggerAction(const InputAxis& inputAxis, const float value);
+    std::optional<float> EvaluateTrigger(const InputTrigger& trigger) const;
+    std::optional<float> EvaluateButton(const InputButton& button) const;
+    std::optional<float> EvaluateAxis(const InputAxis& axis) const;
 
-    ActionState* GetActionState(const ActionIdentifier& actionId);
-
-    std::vector<ButtonActionMapping> m_ButtonActionMappings;
-    std::vector<AxisActionMapping> m_AxisActionMappings;
+    std::vector<InputTriggerMapping> m_InputTriggerMappings;
 
     // Track button states for all keys and mouse buttons.  The index into the vector is the
     // scancode for keys and the button index for mouse buttons.

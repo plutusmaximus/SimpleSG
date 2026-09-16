@@ -2,7 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
-#include <SDL3/SDL_events.h>
+#include <SDL3/SDL_scancode.h>
 #include <span>
 
 namespace
@@ -28,24 +28,7 @@ static_assert(InputMapper::kMaxKeyButtons >= SDL_SCANCODE_COUNT,
 
 InputMapper::InputMapper(const std::span<const ActionMapping> mappings)
 {
-    // Count mappings so action arrays can be allocated.
-    size_t buttonMappingCount = 0;
-    size_t axisMappingCount = 0;
-    for(const ActionMapping& mapping : mappings)
-    {
-        switch(mapping.Trigger.GetType())
-        {
-            case InputTrigger::Type::Button:
-                ++buttonMappingCount;
-                break;
-            case InputTrigger::Type::Axis:
-                ++axisMappingCount;
-                break;
-        }
-    }
-
-    m_ButtonActionMappings.reserve(buttonMappingCount);
-    m_AxisActionMappings.reserve(axisMappingCount);
+    m_InputTriggerMappings.reserve(mappings.size());
     m_ActionStates.reserve(mappings.size());
 
     for(const ActionMapping& mapping : mappings)
@@ -60,31 +43,18 @@ InputMapper::InputMapper(const std::span<const ActionMapping> mappings)
 
     for(const ActionMapping& mapping : mappings)
     {
-        switch(mapping.Trigger.GetType())
+        if(mapping.Trigger.GetType() == InputTrigger::Type::Button)
         {
-            case InputTrigger::Type::Button:
-            {
-                const InputButton& button = mapping.Trigger.GetButton();
+            const InputButton& button = mapping.Trigger.GetButton();
 
-                MLG_ABORTIF(!ValidateInputButton(button),
-                    "Invalid InputButton mapping: device={}, id={}",
-                    static_cast<int>(button.GetDevice()),
-                    button.GetId());
-
-                ButtonActionMapping& bam =
-                    m_ButtonActionMappings.emplace_back(button, mapping.Scale);
-                bam.m_ActionState = GetActionState(mapping.ActionId);
-            }
-            break;
-            case InputTrigger::Type::Axis:
-            {
-                const InputAxis& axis = mapping.Trigger.GetAxis();
-
-                AxisActionMapping& aam = m_AxisActionMappings.emplace_back(axis, mapping.Scale);
-                aam.m_ActionState = GetActionState(mapping.ActionId);
-            }
-            break;
+            MLG_ABORTIF(!ValidateInputButton(button),
+                "Invalid InputButton mapping: device={}, id={}",
+                static_cast<int>(button.GetDevice()),
+                button.GetId());
         }
+
+        const size_t actionStateIndex = GetActionStateIndex(mapping.ActionId);
+        m_InputTriggerMappings.emplace_back(mapping.Trigger, mapping.Scale, actionStateIndex);
     }
 }
 
@@ -109,29 +79,6 @@ InputMapper::Clear()
         mouseButtonState.PressCount = 0;
         mouseButtonState.ReleaseCount = 0;
         mouseButtonState.HeldState = false;
-    }
-
-    int numKeys = 0;
-    const bool* keyboardState = SDL_GetKeyboardState(&numKeys);
-
-    const size_t keyCount = static_cast<size_t>(numKeys);
-    MLG_ASSERT(keyCount == m_KeyStates.size(),
-        "SDL_GetKeyboardState() returned unexpected number of keys");
-
-    const std::span<const bool> keyboardStateSpan(keyboardState, keyCount);
-
-    for(size_t i = 0; i < keyCount && i < m_KeyStates.size(); ++i)
-    {
-        m_KeyStates[i].HeldState = keyboardStateSpan[i];
-    }
-
-    const SDL_MouseButtonFlags mouseButtonBits = SDL_GetMouseState(nullptr, nullptr);
-
-    for(size_t i = 1; i < m_MouseButtonStates.size(); ++i)
-    {
-        const unsigned buttonMask = SDL_BUTTON_MASK(i);
-
-        m_MouseButtonStates[i].HeldState = (mouseButtonBits & buttonMask) != 0;
     }
 
     m_MouseDelta = Vec3f{ 0, 0, 0 };
@@ -251,67 +198,27 @@ InputMapper::EndFrame()
 {
     MLG_ASSERT(m_InFrame, "EndFrame() called without a matching BeginFrame()");
 
-    if(m_MouseDelta.x != 0.0f)
+    for(const InputTriggerMapping& mapping : m_InputTriggerMappings)
     {
-        TriggerAction(InputAxis::MouseMoveX(), m_MouseDelta.x);
-    }
+        const std::optional<float> value = EvaluateTrigger(mapping.Trigger);
 
-    if(m_MouseDelta.y != 0.0f)
-    {
-        TriggerAction(InputAxis::MouseMoveY(), m_MouseDelta.y);
-    }
+        if(value)
+        {
+            ActionState& actionState = m_ActionStates[mapping.ActionStateIndex];
 
-    if(m_MouseDelta.z != 0.0f)
-    {
-        TriggerAction(InputAxis::MouseMoveZ(), m_MouseDelta.z);
-    }
+            actionState.Triggered = true;
+            const float actionValue = mapping.Scale * value.value();
 
-    if(m_MouseWheelDelta.x != 0.0f)
-    {
-        TriggerAction(InputAxis::MouseWheelX(), m_MouseWheelDelta.x);
-    }
-
-    if(m_MouseWheelDelta.y != 0.0f)
-    {
-        TriggerAction(InputAxis::MouseWheelY(), m_MouseWheelDelta.y);
+            // The event that generates the highest absolute value takes precedence.
+            if(std::abs(actionValue) > std::abs(actionState.Value))
+            {
+                actionState.Value = actionValue;
+            }
+        }
     }
 
     m_MouseDelta = Vec3f(0);
     m_MouseWheelDelta = Vec3f(0);
-
-    // Synthesize button events.
-
-    for(const ButtonActionMapping& mapping : m_ButtonActionMappings)
-    {
-        const ButtonState* buttonState = nullptr;
-
-        switch(mapping.Button.GetDevice())
-        {
-            case InputButtonDevice::Mouse:
-                if(MLG_VERIFY(mapping.Button.GetId() < m_MouseButtonStates.size()))
-                {
-                    buttonState = &m_MouseButtonStates[mapping.Button.GetId()];
-                }
-                break;
-
-            case InputButtonDevice::Keyboard:
-                if(MLG_VERIFY(mapping.Button.GetId() < m_KeyStates.size()))
-                {
-                    buttonState = &m_KeyStates[mapping.Button.GetId()];
-                }
-                break;
-        }
-
-        if(MLG_VERIFY(buttonState))
-        {
-            if((mapping.Button.TriggersOnPress() && buttonState->IsPressed())
-                || (mapping.Button.TriggersOnRelease() && buttonState->IsReleased())
-                || (mapping.Button.TriggersWhileHeld() && buttonState->IsHeld()))
-            {
-                TriggerAction(mapping);
-            }
-        }
-    }
 
     for(auto& buttonState : m_KeyStates)
     {
@@ -331,17 +238,8 @@ InputMapper::EndFrame()
 bool
 InputMapper::IsActionTriggered(const ActionIdentifier& actionId) const
 {
-    MLG_ASSERT(!m_InFrame, "IsActionTriggered() called during BeginFrame()/EndFrame()");
-
-    for(const ActionState& actionState : m_ActionStates)
-    {
-        if(actionState.ActionId == actionId)
-        {
-            return actionState.Triggered;
-        }
-    }
-
-    return false;
+    float value = 0.0f;
+    return IsActionTriggered(actionId, value);
 }
 
 bool
@@ -362,46 +260,109 @@ InputMapper::IsActionTriggered(const ActionIdentifier& actionId, float& value) c
     return false;
 }
 
-void
-InputMapper::TriggerAction(const ButtonActionMapping& mapping)
-{
-    mapping.m_ActionState->Triggered = true;
-    const float actionValue = mapping.Scale;
+// private:
 
-    // The event that generates the highest absolute value takes precedence.
-    if(std::abs(actionValue) > std::abs(mapping.m_ActionState->Value))
-    {
-        mapping.m_ActionState->Value = actionValue;
-    }
-}
-
-void
-InputMapper::TriggerAction(const InputAxis& inputAxis, const float value)
-{
-    for(const AxisActionMapping& mapping : m_AxisActionMappings)
-    {
-        if(mapping.Axis == inputAxis)
-        {
-            mapping.m_ActionState->Triggered = true;
-            const float actionValue = mapping.Scale * value;
-
-            // The event that generates the highest absolute value takes precedence.
-            if(std::abs(actionValue) > std::abs(mapping.m_ActionState->Value))
-            {
-                mapping.m_ActionState->Value = actionValue;
-            }
-        }
-    }
-}
-
-InputMapper::ActionState*
-InputMapper::GetActionState(const ActionIdentifier& actionId)
+size_t
+InputMapper::GetActionStateIndex(const ActionIdentifier& actionId) const
 {
     const auto it = std::ranges::lower_bound(m_ActionStates, actionId, {}, &ActionState::ActionId);
-    if(it != m_ActionStates.end() && it->ActionId == actionId)
+    MLG_ABORTIF(it == m_ActionStates.end() || it->ActionId != actionId, "ActionState not found");
+
+    return static_cast<size_t>(std::distance(m_ActionStates.begin(), it));
+}
+
+std::optional<float>
+InputMapper::EvaluateTrigger(const InputTrigger& trigger) const
+{
+    switch(trigger.GetType())
     {
-        return &(*it);
+        case InputTrigger::Type::Button:
+            return EvaluateButton(trigger.GetButton());
+        case InputTrigger::Type::Axis:
+            return EvaluateAxis(trigger.GetAxis());
+        default:
+            return std::nullopt;
     }
 
-    return nullptr;
+    return std::nullopt;
+}
+
+std::optional<float>
+InputMapper::EvaluateButton(const InputButton& button) const
+{
+    const ButtonState* state = nullptr;
+    switch(button.GetDevice())
+    {
+        case InputButtonDevice::Keyboard:
+            if(button.GetId() < m_KeyStates.size())
+            {
+                state = &m_KeyStates[button.GetId()];
+            }
+            break;
+        case InputButtonDevice::Mouse:
+            if(button.GetId() < m_MouseButtonStates.size())
+            {
+                state = &m_MouseButtonStates[button.GetId()];
+            }
+            break;
+        default:
+            break;
+    }
+
+    if(!state)
+    {
+        return std::nullopt;
+    }
+
+    const bool triggered = (button.TriggersOnPress() && state->IsPressed())
+        || (button.TriggersOnRelease() && state->IsReleased())
+        || (button.TriggersWhileHeld() && state->IsHeld());
+
+    return triggered ? std::optional<float>{ 1.0f } : std::nullopt;
+}
+
+std::optional<float>
+InputMapper::EvaluateAxis(const InputAxis& axis) const
+{
+    float value = 0.0;
+
+    switch(axis.GetDevice())
+    {
+        case InputAxisDevice::Mouse:
+            switch(axis.GetAxisId())
+            {
+                case InputAxisIdentifier::X:
+                    value = m_MouseDelta.x;
+                    break;
+                case InputAxisIdentifier::Y:
+                    value = m_MouseDelta.y;
+                    break;
+                case InputAxisIdentifier::Z:
+                    value = m_MouseDelta.z;
+                    break;
+                default:
+                    break;
+            }
+            break;
+        case InputAxisDevice::MouseWheel:
+            switch(axis.GetAxisId())
+            {
+                case InputAxisIdentifier::X:
+                    value = m_MouseWheelDelta.x;
+                    break;
+                case InputAxisIdentifier::Y:
+                    value = m_MouseWheelDelta.y;
+                    break;
+                case InputAxisIdentifier::Z:
+                    value = m_MouseWheelDelta.z;
+                    break;
+                default:
+                    break;
+            }
+            break;
+        default:
+            break;
+    }
+
+    return value != 0.0f ? std::optional<float>{ value } : std::nullopt;
 }
