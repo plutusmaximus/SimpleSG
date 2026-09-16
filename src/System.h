@@ -7,7 +7,6 @@
 #include <span>
 
 struct ActionMapping;
-union SDL_Event;
 class FileFetcher;
 class ImGuiRenderer;
 class InputMapper;
@@ -121,10 +120,9 @@ public:
 private:
     friend CreateTask;
 
-    System(std::unique_ptr<GpuHelper>&& gpuHelper,
-        std::unique_ptr<FileFetcher>&& fileFetcher,
-        std::unique_ptr<ThreadPool>&& threadPool,
-        std::unique_ptr<ImGuiRenderer>&& imGuiRenderer);
+    class Impl;
+
+    explicit System(std::unique_ptr<Impl>&& impl);
 
     enum class FocusEvent
     {
@@ -140,18 +138,11 @@ private:
         Restored
     };
 
-    std::unique_ptr<GpuHelper> m_GpuHelper;
-    std::unique_ptr<FileFetcher> m_FileFetcher;
-    std::unique_ptr<ThreadPool> m_ThreadPool;
-    std::unique_ptr<ImGuiRenderer> m_ImGuiRenderer;
-
     FocusEvent m_FocusEvent{ FocusEvent::None };
     WindowStateEvent m_WindowStateEvent{ WindowStateEvent::None };
 
     bool m_Minimized{ false };
     bool m_ShouldQuit{ false };
-
-    class Impl;
 
     std::unique_ptr<Impl> m_Impl;
 };

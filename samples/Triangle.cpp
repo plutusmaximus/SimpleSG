@@ -127,9 +127,7 @@ MainLoop()
     MLG_CHECK(gpuHelperResult, "Failed to get GpuHelper instance");
     std::unique_ptr<GpuHelper> gpuHelper(std::move(*gpuHelperResult));
 
-    auto threadPoolResult = ThreadPool::Create();
-    MLG_CHECK(threadPoolResult, "Failed to create ThreadPool");
-    std::unique_ptr<ThreadPool> threadPool(std::move(*threadPoolResult));
+    ThreadPool threadPool;
 
     auto fileFetcherResult = FileFetcher::Create();
     MLG_CHECK(fileFetcherResult, "Failed to create FileFetcher");
@@ -154,7 +152,7 @@ MainLoop()
     const Level& level = *levelResult;
 
     auto sceneResult = Scene::Create(*gpuHelper,
-        *threadPool,
+        threadPool,
         *fileFetcher,
         rootPath,
         *rsrcBundle,

@@ -14,6 +14,11 @@
 class System::Impl
 {
 public:
+
+    std::unique_ptr<GpuHelper> m_GpuHelper;
+    std::unique_ptr<FileFetcher> m_FileFetcher;
+    std::unique_ptr<ImGuiRenderer> m_ImGuiRenderer;
+    ThreadPool m_ThreadPool;
     InputMapper m_InputMapper;
 };
 
@@ -123,31 +128,22 @@ System::CreateTask::Take()
     MLG_CHECK(fileFetcherResult, "Failed to create FileFetcher");
     std::unique_ptr<FileFetcher> fileFetcher(std::move(*fileFetcherResult));
 
-    auto threadPoolResult = ThreadPool::Create();
-    MLG_CHECK(threadPoolResult, "Failed to create ThreadPool");
-    std::unique_ptr<ThreadPool> threadPool(std::move(*threadPoolResult));
-
     auto imGuiRendererResult = ImGuiRenderer::Create(*gpuHelper);
     MLG_CHECK(imGuiRendererResult, "Failed to create ImGuiRenderer");
     std::unique_ptr<ImGuiRenderer> imGuiRenderer(std::move(*imGuiRendererResult));
 
-    return System(std::move(gpuHelper),
+    std::unique_ptr<System::Impl> impl = std::make_unique<System::Impl>(
+        std::move(gpuHelper),
         std::move(fileFetcher),
-        std::move(threadPool),
         std::move(imGuiRenderer));
+
+    return System(std::move(impl));
 }
 
 ////////// System
 
-System::System(std::unique_ptr<GpuHelper>&& gpuHelper,
-    std::unique_ptr<FileFetcher>&& fileFetcher,
-    std::unique_ptr<ThreadPool>&& threadPool,
-    std::unique_ptr<ImGuiRenderer>&& imGuiRenderer)
-    : m_GpuHelper(std::move(gpuHelper)),
-      m_FileFetcher(std::move(fileFetcher)),
-      m_ThreadPool(std::move(threadPool)),
-      m_ImGuiRenderer(std::move(imGuiRenderer)),
-      m_Impl(std::make_unique<Impl>())
+System::System(std::unique_ptr<Impl>&& impl)
+    : m_Impl(std::move(impl))
 {
 }
 
@@ -164,43 +160,43 @@ System::SetActionMapping(const std::span<const ActionMapping> actionMappings)
 GpuHelper&
 System::GetGpuHelper()
 {
-    return *m_GpuHelper;
+    return *m_Impl->m_GpuHelper;
 }
 
 const GpuHelper&
 System::GetGpuHelper() const
 {
-    return *m_GpuHelper;
+    return *m_Impl->m_GpuHelper;
 }
 
 FileFetcher&
 System::GetFileFetcher()
 {
-    return *m_FileFetcher;
+    return *m_Impl->m_FileFetcher;
 }
 
 const FileFetcher&
 System::GetFileFetcher() const
 {
-    return *m_FileFetcher;
+    return *m_Impl->m_FileFetcher;
 }
 
 ThreadPool&
 System::GetThreadPool()
 {
-    return *m_ThreadPool;
+    return m_Impl->m_ThreadPool;
 }
 
 const ThreadPool&
 System::GetThreadPool() const
 {
-    return *m_ThreadPool;
+    return m_Impl->m_ThreadPool;
 }
 
 const ImGuiRenderer&
 System::GetImGuiRenderer() const
 {
-    return *m_ImGuiRenderer;
+    return *m_Impl->m_ImGuiRenderer;
 }
 
 const InputMapper&
@@ -225,7 +221,7 @@ System::PostQuitEvent()
 void
 System::ProcessEvents()
 {
-    m_GpuHelper->GetInstance().ProcessEvents();
+    GetGpuHelper().GetInstance().ProcessEvents();
 
     m_FocusEvent = FocusEvent::None;
     m_WindowStateEvent = WindowStateEvent::None;
