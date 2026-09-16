@@ -35,18 +35,11 @@ public:
     /// Begins the task.
     Result<> Begin();
 
-    /// Updates the task.  This must be called periodically until IsComplete() returns
-    /// true.
+    /// Updates the task.  This must be called periodically while IsPending() returns true.
     void Update();
 
     /// Returns true if the task is running (started but not complete).
-    bool IsRunning() const;
-
-    /// Returns true if the task is complete (either succeeded or failed).
-    bool IsComplete() const;
-
-    /// Returns true if the task succeeded.
-    bool Succeeded() const;
+    bool IsPending() const;
 
     /// Returns the collection of textures if the task succeeded, otherwise returns an error.
     /// @note This method will invalidate the task, so it can only be called once.
@@ -61,11 +54,11 @@ private:
         Failed,
     };
 
-    class LoadTask;
+    class FetchTask;
 
     struct PendingTask
     {
-        LoadTask* Task;
+        FetchTask* Task;
         size_t Index;
     };
 
@@ -74,7 +67,7 @@ private:
     FileFetcher* m_FileFetcher{ nullptr };
     std::filesystem::path m_BasePath;
     std::vector<std::string> m_TextureUris;
-    std::vector<std::unique_ptr<LoadTask>> m_TaskHeap;
+    std::vector<std::unique_ptr<FetchTask>> m_TaskHeap;
     std::vector<PendingTask> m_Tasks;
     std::vector<wgpu::Texture> m_Textures;
     wgpu::CommandEncoder* m_CmdEncoder{ nullptr };

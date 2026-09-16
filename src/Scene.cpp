@@ -152,14 +152,13 @@ Scene::Create(const GpuHelper& gpuHelper,
     TextureFetcher textureFetcher(gpuHelper, threadPool, fileFetcher, rootPath, textureUris);
     MLG_CHECK(textureFetcher.Begin(), "Failed to begin TextureFetcher");
 
-    while(!textureFetcher.IsComplete())
+    while(textureFetcher.IsPending())
     {
         textureFetcher.Update();
     }
 
-    MLG_CHECK(textureFetcher.Succeeded(), "Failed to fetch textures");
     auto textures = textureFetcher.Take();
-    MLG_CHECK(textures);
+    MLG_CHECK(textures, "Failed to fetch textures");
 
     auto gpuColorPassResult = GpuColorPass::Create(gpuHelper, fileFetcher);
     MLG_CHECK(gpuColorPassResult, "Failed to create GpuColorPass");

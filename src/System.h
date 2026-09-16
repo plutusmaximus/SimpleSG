@@ -28,18 +28,11 @@ public:
         /// Begins the task.
         Result<> Begin();
 
-        /// Updates the task.  This must be called periodically until IsComplete() returns
-        /// true.
+        /// Updates the task.  This must be called periodically while IsPending() returns
         void Update();
 
         /// Returns true if the task is running (started but not complete).
-        bool IsRunning() const;
-
-        /// Returns true if the task is complete (either succeeded or failed).
-        bool IsComplete() const;
-
-        /// Returns true if the task succeeded.
-        bool Succeeded() const;
+        bool IsPending() const;
 
         /// Returns the System instance if the task succeeded, otherwise returns an error.
         /// @note This method will invalidate the task, so it can only be called once.

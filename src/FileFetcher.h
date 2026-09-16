@@ -18,6 +18,8 @@ using FetchRequestId = uint64_t;
 class FileFetcher final
 {
 public:
+    static constexpr uint64_t kInvalidRequestId = UINT64_MAX;
+    
     ~FileFetcher();
     FileFetcher(const FileFetcher&) = delete;
     FileFetcher& operator=(const FileFetcher&) = delete;

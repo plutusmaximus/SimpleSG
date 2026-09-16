@@ -117,14 +117,13 @@ MainLoop()
     GpuHelper::CreateTask task(kAppName);
     MLG_CHECK(task.Begin(), "Failed to begin GpuHelper creation");
 
-    while(!task.IsComplete())
+    while(task.IsPending())
     {
         task.Update();
     }
 
-    MLG_CHECK(task.Succeeded(), "System creation failed");
     auto gpuHelperResult = task.Take();
-    MLG_CHECK(gpuHelperResult, "Failed to get GpuHelper instance");
+    MLG_CHECK(gpuHelperResult, "Failed to create GpuHelper");
     std::unique_ptr<GpuHelper> gpuHelper(std::move(*gpuHelperResult));
 
     ThreadPool threadPool;

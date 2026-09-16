@@ -165,7 +165,7 @@ bool
 FileFetcher::IsPending(const FetchRequestId requestId) const
 {
     const RequestBuffer* requestBuf = GetRequestBuffer(requestId);
-    return requestBuf && requestBuf->m_Request->IsPending();
+    return MLG_VERIFY(requestBuf) && requestBuf->m_Request->IsPending();
 }
 
 Result<>

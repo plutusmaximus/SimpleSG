@@ -29,7 +29,7 @@ System::CreateTask::CreateTask(std::string appName)
 
 System::CreateTask::~CreateTask()
 {
-    MLG_ASSERT(IsComplete(), "Destroying task before it is complete");
+    MLG_ASSERT(!IsPending(), "Destroying task before it is complete");
 }
 
 Result<>
@@ -52,7 +52,7 @@ System::CreateTask::Begin()
 void
 System::CreateTask::Update()
 {
-    if(!MLG_VERIFY(IsRunning(), "Task is not running"))
+    if(!MLG_VERIFY(IsPending(), "Task is not running"))
     {
         return;
     }
@@ -63,21 +63,13 @@ System::CreateTask::Update()
             break;
 
         case Stage::CreatingGpuHelper:
-            if(!m_GpuHelperTask.IsComplete())
+            if(m_GpuHelperTask.IsPending())
             {
                 m_GpuHelperTask.Update();
-                break;
-            }
-
-            if(m_GpuHelperTask.Succeeded())
-            {
-                MLG_INFO("GpuHelper creation succeeded");
-                m_Stage = Stage::Succeeded;
             }
             else
             {
-                MLG_ERROR("GpuHelper creation failed");
-                m_Stage = Stage::Failed;
+                m_Stage = Stage::Succeeded;
             }
             break;
 
@@ -91,37 +83,23 @@ System::CreateTask::Update()
 }
 
 bool
-System::CreateTask::IsRunning() const
+System::CreateTask::IsPending() const
 {
-    return Stage::None != m_Stage && !IsComplete();
-}
-
-bool
-System::CreateTask::IsComplete() const
-{
-    return MLG_VERIFY(m_Stage != Stage::None, "Task is not started")
-        && (Stage::Succeeded == m_Stage || Stage::Failed == m_Stage);
-}
-
-bool
-System::CreateTask::Succeeded() const
-{
-    MLG_ASSERT(IsComplete(), "Task is not complete");
-
-    return m_Stage == Stage::Succeeded;
+    return MLG_VERIFY(Stage::None != m_Stage, "Task is not started")
+        && Stage::Succeeded != m_Stage
+        && Stage::Failed != m_Stage;
 }
 
 Result<System>
 System::CreateTask::Take()
 {
-    MLG_CHECKV(IsComplete(), "Task is not complete");
-    MLG_CHECKV(Succeeded(), "Task did not succeed");
+    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task did not succeed");
     MLG_CHECKV(!m_Consumed, "Task result already consumed");
 
     m_Consumed = true;
 
     auto gpuHelperResult = m_GpuHelperTask.Take();
-    MLG_CHECK(gpuHelperResult, "Failed to get GpuHelper instance");
+    MLG_CHECK(gpuHelperResult, "Failed create GpuHelper");
     std::unique_ptr<GpuHelper> gpuHelper(std::move(*gpuHelperResult));
 
     auto fileFetcherResult = FileFetcher::Create();
@@ -222,6 +200,7 @@ void
 System::ProcessEvents()
 {
     GetGpuHelper().GetInstance().ProcessEvents();
+    GetFileFetcher().ProcessCompletions();
 
     m_FocusEvent = FocusEvent::None;
     m_WindowStateEvent = WindowStateEvent::None;

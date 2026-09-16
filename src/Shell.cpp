@@ -44,13 +44,14 @@ Shell::Update(AppUpdateCallback appUpdateCb)
         break;
 
         case Stage::CreatingSystem:
-            m_SystemCreateTask.Update();
-
-            if(m_SystemCreateTask.IsComplete())
+            if(m_SystemCreateTask.IsPending())
             {
-                MLG_CHECK(m_SystemCreateTask.Succeeded(), "System creation failed");
+                m_SystemCreateTask.Update();
+            }
+            else
+            {
                 auto system = m_SystemCreateTask.Take();
-                MLG_CHECK(system, "Failed to get System instance");
+                MLG_CHECK(system, "Failed to create System");
 
                 m_System = std::move(*system);
                 m_Stage = Stage::Running;

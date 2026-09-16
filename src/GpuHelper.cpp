@@ -1,4 +1,3 @@
-#include <webgpu/webgpu_cpp.h>
 #define MLG_LOGGER_NAME "WGPU"
 
 #include "FileFetcher.h"
@@ -403,6 +402,100 @@ UncapturedErrorCb(
 
 } // namespace
 
+// GpuShaderFetchTask
+
+GpuShaderFetchTask::GpuShaderFetchTask(
+    std::string path, const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
+    : m_Path(std::move(path)),
+      m_GpuHelper(&gpuHelper),
+      m_FileFetcher(&fileFetcher),
+      m_RequestId(FileFetcher::kInvalidRequestId)
+{
+}
+
+GpuShaderFetchTask::~GpuShaderFetchTask()
+{
+    MLG_ASSERT(!IsPending(), "Destroying task before it is complete");
+}
+
+Result<>
+GpuShaderFetchTask::Begin()
+{
+    MLG_CHECKV(Stage::None == m_Stage, "Task has already been started");
+    
+    MLG_INFO("Loading shader: {}", m_Path);
+
+    m_Stage = Stage::Failed;
+
+    auto requestId = m_FileFetcher->Fetch(std::string(m_Path));
+    MLG_CHECK(requestId);
+
+    m_RequestId = *requestId;
+
+    m_Stage = Stage::Fetching;
+
+    return Result<>::Ok;
+}
+
+void
+GpuShaderFetchTask::Update()
+{
+    switch(m_Stage)
+    {
+        case Stage::None:
+            break;
+        case Stage::Fetching:
+            m_FileFetcher->ProcessCompletions();
+            
+            if(!m_FileFetcher->IsPending(m_RequestId))
+            {
+                if(m_FileFetcher->Take(m_RequestId, m_ShaderData))
+                {
+                    m_Stage = Stage::Succeeded;
+                }
+                else
+                {
+                    m_Stage = Stage::Failed;
+                }
+            }
+            break;
+        case Stage::Succeeded:
+        case Stage::Failed:
+            break;
+    }
+}
+
+bool
+GpuShaderFetchTask::IsPending()
+{
+    return MLG_VERIFY(Stage::None != m_Stage, "Task is not started")
+        && Stage::Succeeded != m_Stage
+        && Stage::Failed != m_Stage;
+}
+
+Result<wgpu::ShaderModule>
+GpuShaderFetchTask::Take()
+{
+    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task has not succeeded");
+
+    MLG_CHECKV(!m_ShaderData.empty(), "Shader data already consumed");
+
+    const std::string filename = std::filesystem::path(m_Path).filename().string();
+
+    const void* dataPtr = m_ShaderData.data();
+    const wgpu::StringView shaderCode{ static_cast<const char*>(dataPtr), m_ShaderData.size() };
+    const wgpu::StringView label = std::string_view(filename);
+    const wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCode } };
+    const wgpu::ShaderModuleDescriptor desc{ .nextInChain = &wgsl, .label = label };
+
+    MLG_INFO("Creating shader module: {}", filename);
+
+    const wgpu::ShaderModule shaderModule = m_GpuHelper->GetDevice().CreateShaderModule(&desc);
+    MLG_CHECK(shaderModule, "Failed to create shader module");
+
+    return shaderModule;
+}
+
 // GpuHelper::CreateTask
 
 GpuHelper::CreateTask::CreateTask(std::string appName)
@@ -412,7 +505,7 @@ GpuHelper::CreateTask::CreateTask(std::string appName)
 
 GpuHelper::CreateTask::~CreateTask()
 {
-    MLG_ASSERT(IsComplete(), "Destroying task before it is complete");
+    MLG_ASSERT(!IsPending(), "Destroying task before it is complete");
 }
 
 Result<>
@@ -455,7 +548,7 @@ GpuHelper::CreateTask::Begin()
 void
 GpuHelper::CreateTask::Update()
 {
-    if(!MLG_VERIFY(IsRunning(), "Task is not running"))
+    if(!MLG_VERIFY(IsPending(), "Task is not pending"))
     {
         return;
     }
@@ -532,31 +625,17 @@ GpuHelper::CreateTask::Update()
 }
 
 bool
-GpuHelper::CreateTask::IsRunning() const
-{
-    return Stage::None != m_Stage && !IsComplete();
-}
-
-bool
-GpuHelper::CreateTask::IsComplete() const
+GpuHelper::CreateTask::IsPending() const
 {
     return MLG_VERIFY(Stage::None != m_Stage, "Task is not started")
-        && (Stage::Succeeded == m_Stage || Stage::Failed == m_Stage);
-}
-
-bool
-GpuHelper::CreateTask::Succeeded() const
-{
-    MLG_ASSERT(IsComplete(), "Task is not complete");
-
-    return m_Stage == Stage::Succeeded;
+        && Stage::Succeeded != m_Stage
+        && Stage::Failed != m_Stage;
 }
 
 Result<std::unique_ptr<GpuHelper>>
 GpuHelper::CreateTask::Take()
 {
-    MLG_CHECKV(IsComplete(), "Task is not complete");
-    MLG_CHECKV(Succeeded(), "Task did not succeed");
+    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task has not succeeded");
     MLG_CHECKV(!m_Consumed, "Task result already consumed");
 
     m_Consumed = true;
@@ -875,34 +954,20 @@ GpuHelper::Resize(const uint32_t width, const uint32_t height)
 Result<wgpu::ShaderModule>
 GpuHelper::LoadShader(const std::string_view& filePath, FileFetcher& fileFetcher) const
 {
-    MLG_INFO("Loading shader file: {}", filePath);
+    GpuShaderFetchTask fetchTask(std::string(filePath), *this, fileFetcher);
 
-    auto requestId = fileFetcher.Fetch(std::string(filePath));
-    MLG_CHECK(requestId);
+    MLG_CHECK(fetchTask.Begin(), "Failed to begin shader fetch task");
 
-    while(fileFetcher.IsPending(*requestId))
+    while(fetchTask.IsPending())
     {
         fileFetcher.ProcessCompletions();
+        fetchTask.Update();
         std::this_thread::yield();
     }
 
-    std::vector<uint8_t> data;
-    MLG_CHECK(fileFetcher.Take(*requestId, data), "Failed to take shader file data: {}", filePath);
-
-    const std::string filename = std::filesystem::path(filePath).filename().string();
-
-    const void* dataPtr = data.data();
-    const wgpu::StringView shaderCode{ static_cast<const char*>(dataPtr), data.size() };
-    const wgpu::StringView label = std::string_view(filename);
-    const wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCode } };
-    const wgpu::ShaderModuleDescriptor desc{ .nextInChain = &wgsl, .label = label };
-
-    MLG_INFO("Creating shader module: {}", filename);
-
-    const wgpu::ShaderModule shaderModule = GetDevice().CreateShaderModule(&desc);
-    MLG_CHECK(shaderModule, "Failed to create shader module");
-
-    return shaderModule;
+    auto shaderModuleResult = fetchTask.Take();
+    MLG_CHECK(shaderModuleResult, "Failed to create shader: {}", filePath);
+    return *shaderModuleResult;
 }
 
 Result<wgpu::Texture>

@@ -568,14 +568,13 @@ MainLoop()
 
     MLG_CHECK(sysCreateTask.Begin());
 
-    while(!sysCreateTask.IsComplete())
+    while(sysCreateTask.IsPending())
     {
         sysCreateTask.Update();
     }
 
-    MLG_CHECK(sysCreateTask.Succeeded(), "System creation failed");
     auto systemResult = sysCreateTask.Take();
-    MLG_CHECK(systemResult, "Failed to get System instance");
+    MLG_CHECK(systemResult, "Failed to get create System");
 
     System& system = *systemResult;
     GpuHelper& gpuHelper = system.GetGpuHelper();
