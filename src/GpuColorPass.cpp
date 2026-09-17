@@ -2,9 +2,11 @@
 
 #include "GpuColorPass.h"
 
+#include "FileFetcher.h"
 #include "GpuHelper.h"
 #include "LevelTypes.h"
 #include "PerfMetrics.h"
+#include "ShaderFetcher.h"
 
 namespace
 {
@@ -144,7 +146,7 @@ CreateMaterialBindGroupEntries(const wgpu::Texture& texture,
     const wgpu::Sampler& sampler,
     const GpuMaterialConstantsBuffer& materialConstants)
 {
-    const std::array entries//
+    const std::array entries //
         {
             wgpu::BindGroupEntry //
             {
@@ -299,33 +301,123 @@ CreateDefaultSampler(const wgpu::Device& gpuDevice)
 
 } // namespace
 
-Result<GpuColorPass>
-GpuColorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
-{
-    auto shader = gpuHelper.LoadShader(ShaderPath, fileFetcher);
-    MLG_CHECK(shader, "Failed to load shader: {}", ShaderPath);
+/// GpuColorPass::CreateTask
 
-    auto inputsBindGroupLayout = CreateInputsBindGroupLayout(gpuHelper.GetDevice());
+GpuColorPass::CreateTask::CreateTask(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
+    : m_GpuHelper(&gpuHelper),
+      m_ShaderFetcher(std::make_unique<ShaderFetcher>(ShaderPath, gpuHelper, fileFetcher))
+{
+}
+
+GpuColorPass::CreateTask::~CreateTask()
+{
+    MLG_ASSERT(Stage::None == m_Stage || !IsPending(), "Destroying pending task");
+}
+
+Result<>
+GpuColorPass::CreateTask::Begin()
+{
+    MLG_DEBUG("Creating color pass...");
+
+    MLG_CHECKV(Stage::None == m_Stage, "Task has already been started");
+
+    m_Stage = Stage::Failed;
+
+    MLG_CHECK(m_ShaderFetcher->Begin());
+
+    m_Stage = Stage::FetchingShader;
+
+    return Result<>::Ok;
+}
+
+void
+GpuColorPass::CreateTask::Update()
+{
+    if(!MLG_VERIFY(IsPending(), "Task is not running"))
+    {
+        return;
+    }
+
+    switch(m_Stage)
+    {
+        case Stage::None:
+            break;
+        case Stage::FetchingShader:
+            if(m_ShaderFetcher->IsPending())
+            {
+                m_ShaderFetcher->Update();
+            }
+            else if(CreatePass())
+            {
+                MLG_DEBUG("Created color pass");
+                m_Stage = Stage::Succeeded;
+            }
+            else
+            {
+                MLG_ERROR("Failed to create color pass");
+                m_Stage = Stage::Failed;
+            }
+            break;
+        case Stage::Succeeded:
+        case Stage::Failed:
+            break;
+        default:
+            MLG_ABORT("Invalid stage: {}", static_cast<int>(m_Stage));
+            return;
+    }
+}
+
+bool
+GpuColorPass::CreateTask::IsPending() const
+{
+    return MLG_VERIFY(Stage::None != m_Stage, "Task is not started")
+        && Stage::Succeeded != m_Stage
+        && Stage::Failed != m_Stage;
+}
+
+Result<GpuColorPass>
+GpuColorPass::CreateTask::Take()
+{
+    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task did not succeed");
+    MLG_CHECKV(m_GpuPass, "Task result already consumed");
+
+    std::unique_ptr bye = std::move(m_GpuPass);
+
+    return std::move(*bye);
+}
+
+Result<>
+GpuColorPass::CreateTask::CreatePass()
+{
+    const wgpu::Device gpuDevice = m_GpuHelper->GetDevice();
+
+    auto shader = m_ShaderFetcher->Take();
+    MLG_CHECK(shader, "Failed to fetch shader: {}", ShaderPath);
+
+    auto inputsBindGroupLayout = CreateInputsBindGroupLayout(gpuDevice);
     MLG_CHECK(inputsBindGroupLayout, "Failed to create Inputs bind group layout");
 
-    auto materialBindGroupLayout = CreateMaterialBindGroupLayout(gpuHelper.GetDevice());
+    auto materialBindGroupLayout = CreateMaterialBindGroupLayout(gpuDevice);
     MLG_CHECK(materialBindGroupLayout, "Failed to create Material bind group layout");
 
-    auto pipelineLayout = CreatePipelineLayout(gpuHelper.GetDevice(),
-        *inputsBindGroupLayout,
-        *materialBindGroupLayout);
+    auto pipelineLayout =
+        CreatePipelineLayout(gpuDevice, *inputsBindGroupLayout, *materialBindGroupLayout);
     MLG_CHECK(pipelineLayout, "Failed to create pipeline layout");
 
-    auto defaultSampler = CreateDefaultSampler(gpuHelper.GetDevice());
+    auto defaultSampler = CreateDefaultSampler(gpuDevice);
     MLG_CHECK(defaultSampler, "Failed to create default sampler");
 
-    return GpuColorPass(gpuHelper,
+    m_GpuPass = std::unique_ptr<GpuColorPass>(new GpuColorPass(*m_GpuHelper,
         *shader,
         *inputsBindGroupLayout,
         *materialBindGroupLayout,
         *pipelineLayout,
-        *defaultSampler);
+        *defaultSampler));
+
+    return Result<>::Ok;
 }
+
+/// GpuColorPass
 
 Result<>
 GpuColorPass::SetInputs(const Inputs& inputs)

@@ -52,7 +52,7 @@ private:
     class Request
     {
     public:
-        enum class Status : uint8_t
+        enum class Stage
         {
             None,
             Failure,
@@ -66,8 +66,8 @@ private:
         Request(Request&&) = delete;
         Request& operator=(Request&&) = delete;
 
-        bool IsPending() const { return m_Status == Status::Pending; }
-        bool Succeeded() const { return m_Status == Status::Success; }
+        bool IsPending() const { return m_Stage == Stage::Pending; }
+        bool Succeeded() const { return m_Stage == Stage::Success; }
 
         SDL_AsyncIO* m_AsyncIO{ nullptr };
 
@@ -77,7 +77,7 @@ private:
         std::vector<uint8_t> m_Data;
         uint32_t m_ReadAttempts{ 0 };
 
-        Status m_Status{ Status::None };
+        Stage m_Stage{ Stage::None };
 
         FetchRequestId m_RequestId{ 0 };
     };

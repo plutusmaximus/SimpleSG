@@ -1,3 +1,5 @@
+#define MLG_LOGGER_NAME "TEXF"
+
 #include "TextureFetcher.h"
 
 #include "FileFetcher.h"
@@ -22,7 +24,7 @@ TextureFetcher::FetchTask::FetchTask(
 
 TextureFetcher::FetchTask::~FetchTask()
 {
-    MLG_ASSERT(!IsPending(), "Destroying task before it is complete");
+    MLG_ASSERT(Stage::None == m_Stage || !IsPending(), "Destroying pending task");
 }
 
 Result<>
@@ -45,12 +47,12 @@ TextureFetcher::FetchTask::Begin()
 void
 TextureFetcher::FetchTask::Update()
 {
+    MLG_LOG_SCOPE(m_Uri);
+
     if(!MLG_VERIFY(IsPending(), "Task is not running"))
     {
         return;
     }
-
-    MLG_LOG_SCOPE(m_Uri);
 
     switch(m_Stage)
     {
@@ -255,7 +257,7 @@ TextureFetcher::TextureFetcher(
 
 TextureFetcher::~TextureFetcher()
 {
-    MLG_ASSERT(!IsPending(), "Destroying task before it is complete");
+    MLG_ASSERT(Stage::None == m_Stage || !IsPending(), "Destroying pending task");
     MLG_ASSERT(m_PendingTasks.empty());
 }
 
@@ -324,8 +326,6 @@ TextureFetcher::Update()
     switch(m_Stage)
     {
         case Stage::Fetching:
-            m_System->GetFileFetcher().ProcessCompletions();
-
             for(size_t i = 0; i < m_PendingTasks.size();)
             {
                 FetchTask* task = m_PendingTasks[i].Task;

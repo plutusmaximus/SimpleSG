@@ -7,7 +7,6 @@
 #include <memory>
 #include <string_view>
 
-class FileFetcher;
 struct SDL_Window;
 using SDL_MetalView = void*;
 
@@ -19,73 +18,7 @@ public:
     static constexpr wgpu::TextureFormat kDepthBufferFormat = wgpu::TextureFormat::Depth24Plus;
 
     /// A task that creates a GpuHelper instance asynchronously.
-    class CreateTask
-    {
-    public:
-        // Passed to the adapter request callback to store the result of the request.
-        struct AdapterRequestData
-        {
-            Result<WGPUAdapter> Result;
-            std::atomic<bool> IsComplete{ false };
-        };
-
-        // Passed to the device request callback to store the result of the request.
-        struct DeviceRequestData
-        {
-            Result<WGPUDevice> Result;
-            std::atomic<bool> IsComplete{ false };
-        };
-
-        explicit CreateTask(std::string appName);
-        ~CreateTask();
-        CreateTask(const CreateTask&) = delete;
-        CreateTask& operator=(const CreateTask&) = delete;
-        CreateTask(CreateTask&&) = delete;
-        CreateTask& operator=(CreateTask&&) = delete;
-
-        /// Begins the task.
-        Result<> Begin();
-
-        /// Updates the task.  This must be called periodically while IsPending() returns true.
-        void Update();
-
-        /// Returns true if the task is running (started but not complete).
-        bool IsPending() const;
-
-        /// Returns the GpuHelper instance if the task succeeded, otherwise returns an error.
-        /// This method will invalidate the task, so it can only be called once.
-        Result<std::unique_ptr<GpuHelper>> Take();
-
-    private:
-        friend GpuHelper;
-
-        enum class Stage
-        {
-            None,
-            CreateAdapter,
-            CreatingAdapter,
-            CreatingDevice,
-            Succeeded,
-            Failed
-        };
-
-        Result<> CreateAdapter();
-        Result<> FinalizeAdapter();
-        Result<> CreateDevice();
-        Result<> FinalizeDevice();
-        Result<> Configure();
-
-        std::string m_AppName;
-
-        AdapterRequestData m_AdapterRequestData;
-        DeviceRequestData m_DeviceRequestData;
-
-        std::unique_ptr<GpuHelper> m_GpuHelper;
-
-        Stage m_Stage{ Stage::None };
-
-        bool m_Consumed{ false };
-    };
+    class CreateTask;
 
     ~GpuHelper();
     GpuHelper(const GpuHelper&) = delete;
@@ -104,11 +37,6 @@ public:
 
     /// Resizes the swap chain to the given width and height.
     Result<> Resize(const uint32_t width, const uint32_t height);
-
-    /// Loads a shader from the given file path.
-    /// FIXME(KB) - need an async version of this.
-    Result<wgpu::ShaderModule> LoadShader(const std::string_view& filePath,
-        FileFetcher& fileFetcher) const;
 
     /// Creates an empty texture with the given dimensions and name.
     Result<wgpu::Texture> CreateTexture(
@@ -216,4 +144,72 @@ private:
     wgpu::Surface m_Surface{ nullptr };
     mutable wgpu::TextureFormat m_SurfaceFormat{ wgpu::TextureFormat::Undefined };
     wgpu::Texture m_DefaultTexture{ nullptr };
+};
+
+class GpuHelper::CreateTask
+{
+public:
+    // Passed to the adapter request callback to store the result of the request.
+    struct AdapterRequestData
+    {
+        Result<WGPUAdapter> Result;
+        std::atomic<bool> IsComplete{ false };
+    };
+
+    // Passed to the device request callback to store the result of the request.
+    struct DeviceRequestData
+    {
+        Result<WGPUDevice> Result;
+        std::atomic<bool> IsComplete{ false };
+    };
+
+    explicit CreateTask(std::string appName);
+    ~CreateTask();
+    CreateTask(const CreateTask&) = delete;
+    CreateTask& operator=(const CreateTask&) = delete;
+    CreateTask(CreateTask&&) = delete;
+    CreateTask& operator=(CreateTask&&) = delete;
+
+    /// Begins the task.
+    Result<> Begin();
+
+    /// Updates the task.  This must be called periodically while IsPending() returns true.
+    void Update();
+
+    /// Returns true if the task is running (started but not complete).
+    bool IsPending() const;
+
+    /// Returns the GpuHelper instance if the task succeeded, otherwise returns an error.
+    /// This method will invalidate the task, so it can only be called once.
+    Result<std::unique_ptr<GpuHelper>> Take();
+
+private:
+    friend GpuHelper;
+
+    enum class Stage
+    {
+        None,
+        CreateAdapter,
+        CreatingAdapter,
+        CreatingDevice,
+        Succeeded,
+        Failed
+    };
+
+    Result<> CreateAdapter();
+    Result<> FinalizeAdapter();
+    Result<> CreateDevice();
+    Result<> FinalizeDevice();
+    Result<> Configure();
+
+    std::string m_AppName;
+
+    AdapterRequestData m_AdapterRequestData;
+    DeviceRequestData m_DeviceRequestData;
+
+    std::unique_ptr<GpuHelper> m_GpuHelper;
+
+    Stage m_Stage{ Stage::None };
+
+    bool m_Consumed{ false };
 };

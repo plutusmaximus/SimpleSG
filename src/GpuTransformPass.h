@@ -3,10 +3,12 @@
 #include "GpuTypes.h"
 #include "Result.h"
 
+#include <memory>
 #include <webgpu/webgpu_cpp.h>
 
 class FileFetcher;
 class GpuHelper;
+class ShaderFetcher;
 
 class GpuTransformPass
 {
@@ -15,6 +17,8 @@ public:
     static constexpr const char* ComputeEntry = "cs_main";
     static constexpr const char* kWorkgroupSizeOverride = "WorkgroupSizeOverride";
     static constexpr size_t kWorkgroupSize = 64;
+
+    class CreateTask;
 
     struct Inputs
     {
@@ -77,8 +81,6 @@ public:
     GpuTransformPass(GpuTransformPass&&) = default;
     GpuTransformPass& operator=(GpuTransformPass&&) = default;
 
-    static Result<GpuTransformPass> Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
-
     Result<> SetInputs(const Inputs& inputs);
     Result<> SetOutputs(const Outputs& outputs);
 
@@ -114,4 +116,40 @@ private:
     wgpu::PipelineLayout m_PipelineLayout;
     wgpu::BindGroup m_InputOutputBindGroup;
     wgpu::ComputePipeline m_Pipeline;
+};
+
+class GpuTransformPass::CreateTask
+{
+public:
+    CreateTask(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
+    ~CreateTask();
+    CreateTask(const CreateTask&) = delete;
+    CreateTask& operator=(const CreateTask&) = delete;
+    CreateTask(CreateTask&&) = delete;
+    CreateTask& operator=(CreateTask&&) = delete;
+
+    Result<> Begin();
+
+    void Update();
+
+    bool IsPending() const;
+
+    Result<GpuTransformPass> Take();
+
+private:
+    enum class Stage
+    {
+        None,
+        FetchingShader,
+        Succeeded,
+        Failed
+    };
+
+    Result<> CreatePass();
+
+    const GpuHelper* m_GpuHelper{ nullptr };
+    std::unique_ptr<ShaderFetcher> m_ShaderFetcher;
+    std::unique_ptr<GpuTransformPass> m_GpuPass;
+
+    Stage m_Stage{ Stage::None };
 };

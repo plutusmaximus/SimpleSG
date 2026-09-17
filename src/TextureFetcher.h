@@ -20,8 +20,6 @@ class TextureFetcher
 public:
     TextureFetcher(
         System& system, std::filesystem::path basePath, std::vector<std::string> textureUris);
-
-    TextureFetcher() = delete;
     ~TextureFetcher();
     TextureFetcher(const TextureFetcher&) = delete;
     TextureFetcher& operator=(const TextureFetcher&) = delete;
@@ -32,6 +30,8 @@ public:
     Result<> Begin();
 
     /// Updates the task.  This must be called periodically while IsPending() returns true.
+    /// In addition this task depends on the FileFetcher to be updated periodically, so the
+    /// caller must ensure that the FileFetcher is updated as well.
     void Update();
 
     /// Returns true if the task is running (started but not complete).

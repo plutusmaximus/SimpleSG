@@ -28,6 +28,8 @@ public:
     Result<> Begin();
 
     /// Updates the task.  This must be called periodically while IsPending() returns true.
+    /// In addition this task depends on the FileFetcher to be updated periodically, so the
+    /// caller must ensure that the FileFetcher is updated as well.
     void Update();
 
     /// Returns true if the task is running (started but not complete).

@@ -1,15 +1,12 @@
 #define MLG_LOGGER_NAME "WGPU"
 
-#include "FileFetcher.h"
 #include "GpuHelper.h"
-#include "ShaderFetcher.h"
 
 #include <atomic>
 #include <SDL3/SDL_init.h>
 #include <SDL3/SDL_metal.h>
 #include <SDL3/SDL_video.h>
 #include <string>
-#include <thread>
 
 #if !defined(EMSCRIPTEN)
 #if defined(_WIN32)
@@ -410,7 +407,7 @@ GpuHelper::CreateTask::CreateTask(std::string appName)
 
 GpuHelper::CreateTask::~CreateTask()
 {
-    MLG_ASSERT(!IsPending(), "Destroying task before it is complete");
+    MLG_ASSERT(Stage::None == m_Stage || !IsPending(), "Destroying pending task");
 }
 
 Result<>
@@ -854,25 +851,6 @@ GpuHelper::Resize(const uint32_t width, const uint32_t height)
     }
 
     return Result<>::Ok;
-}
-
-Result<wgpu::ShaderModule>
-GpuHelper::LoadShader(const std::string_view& filePath, FileFetcher& fileFetcher) const
-{
-    ShaderFetcher fetchTask(std::string(filePath), *this, fileFetcher);
-
-    MLG_CHECK(fetchTask.Begin(), "Failed to begin shader fetch task");
-
-    while(fetchTask.IsPending())
-    {
-        fileFetcher.ProcessCompletions();
-        fetchTask.Update();
-        std::this_thread::yield();
-    }
-
-    auto shaderModuleResult = fetchTask.Take();
-    MLG_CHECK(shaderModuleResult, "Failed to create shader: {}", filePath);
-    return *shaderModuleResult;
 }
 
 Result<wgpu::Texture>

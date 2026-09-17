@@ -1,3 +1,5 @@
+#define MLG_LOGGER_NAME "SHDR"
+
 #include "ShaderFetcher.h"
 
 #include "FileFetcher.h"
@@ -17,15 +19,17 @@ ShaderFetcher::ShaderFetcher(
 
 ShaderFetcher::~ShaderFetcher()
 {
-    MLG_ASSERT(!IsPending(), "Destroying task before it is complete");
+    MLG_ASSERT(Stage::None == m_Stage || !IsPending(), "Destroying pending task");
 }
 
 Result<>
 ShaderFetcher::Begin()
 {
+    MLG_LOG_SCOPE(m_Path);
+
     MLG_CHECKV(Stage::None == m_Stage, "Task has already been started");
     
-    MLG_INFO("Loading shader: {}", m_Path);
+    MLG_INFO("Loading shader...");
 
     m_Stage = Stage::Failed;
 
@@ -42,18 +46,18 @@ ShaderFetcher::Begin()
 void
 ShaderFetcher::Update()
 {
+    MLG_LOG_SCOPE(m_Path);
+
     if(!MLG_VERIFY(IsPending(), "Task is not running"))
     {
         return;
     }
-    
+
     switch(m_Stage)
     {
         case Stage::None:
             break;
         case Stage::Fetching:
-            m_FileFetcher->ProcessCompletions();
-            
             if(!m_FileFetcher->IsPending(m_RequestId))
             {
                 if(m_FileFetcher->Take(m_RequestId, m_ShaderData))
@@ -94,7 +98,7 @@ ShaderFetcher::Take()
 {
     MLG_CHECKV(Stage::Succeeded == m_Stage, "Task has not succeeded");
 
-    MLG_CHECKV(m_ShaderModule, "Shader data already consumed");
+    MLG_CHECKV(m_ShaderModule, "Shader module already consumed");
 
     wgpu::ShaderModule shaderModule = m_ShaderModule;
     m_ShaderModule = nullptr; // Invalidate the shader module so it can only be taken once
@@ -113,7 +117,7 @@ ShaderFetcher::CreateShaderModule()
     const wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCode } };
     const wgpu::ShaderModuleDescriptor desc{ .nextInChain = &wgsl, .label = label };
 
-    MLG_INFO("Creating shader module: {}", filename);
+    MLG_INFO("Creating shader module...");
 
     m_ShaderModule = m_GpuHelper->GetDevice().CreateShaderModule(&desc);
     MLG_CHECK(m_ShaderModule, "Failed to create shader module");

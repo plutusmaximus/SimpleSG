@@ -34,7 +34,7 @@ GetGeneration(FetchRequestId requestId)
 
 FileFetcher::Request::~Request()
 {
-    MLG_ASSERT(!IsPending(), "Request destroyed while still pending");
+    MLG_ASSERT(Stage::None == m_Stage || !IsPending(), "Request destroyed while still pending");
     MLG_ASSERT(!m_AsyncIO, "Request destroyed with active SDL_AsyncIO");
 }
 
@@ -103,11 +103,11 @@ FileFetcher::Fetch(std::string filePath)
 
     Request& request = *requestBuf->m_Request;
 
-    MLG_ASSERT(Request::Status::None == request.m_Status);
+    MLG_ASSERT(Request::Stage::None == request.m_Stage);
     MLG_ASSERT(!request.m_AsyncIO);
 
     request.m_FilePath = std::move(filePath);
-    request.m_Status = Request::Status::Pending;
+    request.m_Stage = Request::Stage::Pending;
 
     // Free resources if we early exit due to an error.
     MLG_DEFER_AS(freeRequest)
@@ -341,7 +341,7 @@ FileFetcher::SetSucceeded(const FetchRequestId requestId)
     const RequestBuffer* requestBuf = GetRequestBuffer(requestId);
     if(MLG_VERIFY(requestBuf) && MLG_VERIFY(requestBuf->m_Request->IsPending()))
     {
-        requestBuf->m_Request->m_Status = FileFetcher::Request::Status::Success;
+        requestBuf->m_Request->m_Stage = FileFetcher::Request::Stage::Success;
     }
 }
 
@@ -351,7 +351,7 @@ FileFetcher::SetFailed(const FetchRequestId requestId)
     const RequestBuffer* requestBuf = GetRequestBuffer(requestId);
     if(MLG_VERIFY(requestBuf) && MLG_VERIFY(requestBuf->m_Request->IsPending()))
     {
-        requestBuf->m_Request->m_Status = FileFetcher::Request::Status::Failure;
+        requestBuf->m_Request->m_Stage = FileFetcher::Request::Stage::Failure;
     }
 }
 

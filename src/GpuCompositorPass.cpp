@@ -3,10 +3,10 @@
 #include "GpuCompositorPass.h"
 
 #include "GpuHelper.h"
+#include "ShaderFetcher.h"
 
 namespace
 {
-
 constexpr wgpu::BindGroupLayoutEntry InputBindGroupLayoutEntries[]//
 {
     // Texture
@@ -36,7 +36,7 @@ constexpr wgpu::BindGroupLayoutEntry InputBindGroupLayoutEntries[]//
 auto
 CreateInputBindGroupEntries(const GpuCompositorPass::Inputs& inputs, const wgpu::Sampler& sampler)
 {
-    const std::array entries//
+    const std::array entries //
         {
             wgpu::BindGroupEntry //
             {
@@ -116,25 +116,113 @@ CreatePipelineLayout(const GpuHelper& gpuHelper, const wgpu::BindGroupLayout& bi
 }
 } // namespace
 
-Result<GpuCompositorPass>
-GpuCompositorPass::Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
-{
-    auto shader = gpuHelper.LoadShader(ShaderPath, fileFetcher);
-    MLG_CHECK(shader, "Failed to load shader: {}", ShaderPath);
+/// GpuCompositorPass::CreateTask
 
-    auto sampler = CreateSampler(gpuHelper);
+GpuCompositorPass::CreateTask::CreateTask(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
+    : m_GpuHelper(&gpuHelper),
+      m_ShaderFetcher(std::make_unique<ShaderFetcher>(ShaderPath, gpuHelper, fileFetcher))
+{
+}
+
+GpuCompositorPass::CreateTask::~CreateTask()
+{
+    MLG_ASSERT(Stage::None == m_Stage || !IsPending(), "Destroying pending task");
+}
+
+Result<>
+GpuCompositorPass::CreateTask::Begin()
+{
+    MLG_DEBUG("Creating compositor pass...");
+
+    MLG_CHECKV(Stage::None == m_Stage, "Task has already been started");
+
+    m_Stage = Stage::Failed;
+
+    MLG_CHECK(m_ShaderFetcher->Begin());
+
+    m_Stage = Stage::FetchingShader;
+
+    return Result<>::Ok;
+}
+
+void
+GpuCompositorPass::CreateTask::Update()
+{
+    if(!MLG_VERIFY(IsPending(), "Task is not running"))
+    {
+        return;
+    }
+
+    switch(m_Stage)
+    {
+        case Stage::None:
+            break;
+        case Stage::FetchingShader:
+            if(m_ShaderFetcher->IsPending())
+            {
+                m_ShaderFetcher->Update();
+            }
+            else if(CreatePass())
+            {
+                MLG_DEBUG("Created compositor pass");
+                m_Stage = Stage::Succeeded;
+            }
+            else
+            {
+                MLG_ERROR("Failed to create compositor pass");
+                m_Stage = Stage::Failed;
+            }
+            break;
+        case Stage::Succeeded:
+        case Stage::Failed:
+            break;
+        default:
+            MLG_ABORT("Invalid stage: {}", static_cast<int>(m_Stage));
+            return;
+    }
+}
+
+bool
+GpuCompositorPass::CreateTask::IsPending() const
+{
+    return MLG_VERIFY(Stage::None != m_Stage, "Task is not started")
+        && Stage::Succeeded != m_Stage
+        && Stage::Failed != m_Stage;
+}
+
+Result<GpuCompositorPass>
+GpuCompositorPass::CreateTask::Take()
+{
+    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task did not succeed");
+    MLG_CHECKV(m_GpuPass, "Task result already consumed");
+
+    std::unique_ptr bye = std::move(m_GpuPass);
+
+    return std::move(*bye);
+}
+
+Result<>
+GpuCompositorPass::CreateTask::CreatePass()
+{
+    auto shader = m_ShaderFetcher->Take();
+    MLG_CHECK(shader, "Failed to fetch shader: {}", ShaderPath);
+
+    auto sampler = CreateSampler(*m_GpuHelper);
     MLG_CHECK(sampler);
 
-    auto bindGroupLayout = CreateBindGroupLayout(gpuHelper);
+    auto bindGroupLayout = CreateBindGroupLayout(*m_GpuHelper);
     MLG_CHECK(bindGroupLayout);
 
-    auto pipelineLayout = CreatePipelineLayout(gpuHelper, *bindGroupLayout);
+    auto pipelineLayout = CreatePipelineLayout(*m_GpuHelper, *bindGroupLayout);
     MLG_CHECK(pipelineLayout);
 
-    GpuCompositorPass pass(gpuHelper, *shader, *sampler, *bindGroupLayout, *pipelineLayout);
+    m_GpuPass = std::unique_ptr<GpuCompositorPass>(
+        new GpuCompositorPass(*m_GpuHelper, *shader, *sampler, *bindGroupLayout, *pipelineLayout));
 
-    return pass;
+    return Result<>::Ok;
 }
+
+/// GpuCompositorPass
 
 Result<>
 GpuCompositorPass::SetInputs(const Inputs& inputs)

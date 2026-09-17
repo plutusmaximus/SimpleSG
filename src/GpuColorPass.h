@@ -3,11 +3,13 @@
 #include "Camera.h"
 #include "GpuTypes.h"
 
+#include <memory>
 #include <optional>
 
 class FileFetcher;
 class GpuHelper;
 class MeshInstance;
+class ShaderFetcher;
 
 class GpuColorPass
 {
@@ -16,6 +18,8 @@ public:
     static constexpr const char* VertexEntry = "vs_main";
     static constexpr const char* FragmentEntry = "fs_main";
     static constexpr float kClearDepth = 1.0f;
+
+    class CreateTask;
 
     struct Inputs
     {
@@ -91,8 +95,6 @@ public:
     GpuColorPass(GpuColorPass&&) = default;
     GpuColorPass& operator=(GpuColorPass&&) = default;
 
-    static Result<GpuColorPass> Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
-
     Result<> SetInputs(const Inputs& inputs);
     Result<> SetOutputs(const Outputs& outputs);
 
@@ -148,4 +150,40 @@ private:
     wgpu::RenderPipeline m_Pipeline;
 
     wgpu::Sampler m_DefaultSampler;
+};
+
+class GpuColorPass::CreateTask
+{
+public:
+    CreateTask(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
+    ~CreateTask();
+    CreateTask(const CreateTask&) = delete;
+    CreateTask& operator=(const CreateTask&) = delete;
+    CreateTask(CreateTask&&) = delete;
+    CreateTask& operator=(CreateTask&&) = delete;
+
+    Result<> Begin();
+
+    void Update();
+
+    bool IsPending() const;
+
+    Result<GpuColorPass> Take();
+
+private:
+    enum class Stage
+    {
+        None,
+        FetchingShader,
+        Succeeded,
+        Failed
+    };
+
+    Result<> CreatePass();
+
+    const GpuHelper* m_GpuHelper{ nullptr };
+    std::unique_ptr<ShaderFetcher> m_ShaderFetcher;
+    std::unique_ptr<GpuColorPass> m_GpuPass;
+
+    Stage m_Stage{ Stage::None };
 };

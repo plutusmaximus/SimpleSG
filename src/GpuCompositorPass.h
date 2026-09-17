@@ -3,10 +3,12 @@
 #include "GpuTypes.h"
 #include "VecMath.h"
 
+#include <memory>
 #include <optional>
 
 class FileFetcher;
 class GpuHelper;
+class ShaderFetcher;
 
 /// A GPU pass that composites a texture onto another texture.
 class GpuCompositorPass
@@ -15,6 +17,8 @@ public:
     static constexpr const char* ShaderPath = "shaders/CompositorShader.wgsl";
     static constexpr const char* VertexEntry = "vs_main";
     static constexpr const char* FragmentEntry = "fs_main";
+
+    class CreateTask;
 
     /// Provides the source texture and destination rectangle for the compositor pass.
     /// The source texture will be scaled to fit the destination rectangle in the output texture.
@@ -81,8 +85,6 @@ public:
     GpuCompositorPass(GpuCompositorPass&&) = default;
     GpuCompositorPass& operator=(GpuCompositorPass&&) = default;
 
-    static Result<GpuCompositorPass> Create(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
-
     Result<> SetInputs(const Inputs& inputs);
     Result<> SetOutputs(const Outputs& outputs);
 
@@ -127,4 +129,40 @@ private:
     wgpu::PipelineLayout m_PipelineLayout;
     wgpu::BindGroup m_InputsBindGroup;
     wgpu::RenderPipeline m_Pipeline;
+};
+
+class GpuCompositorPass::CreateTask
+{
+public:
+    CreateTask(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
+    ~CreateTask();
+    CreateTask(const CreateTask&) = delete;
+    CreateTask& operator=(const CreateTask&) = delete;
+    CreateTask(CreateTask&&) = delete;
+    CreateTask& operator=(CreateTask&&) = delete;
+
+    Result<> Begin();
+
+    void Update();
+
+    bool IsPending() const;
+
+    Result<GpuCompositorPass> Take();
+
+private:
+    enum class Stage
+    {
+        None,
+        FetchingShader,
+        Succeeded,
+        Failed
+    };
+
+    Result<> CreatePass();
+
+    const GpuHelper* m_GpuHelper{ nullptr };
+    std::unique_ptr<ShaderFetcher> m_ShaderFetcher;
+    std::unique_ptr<GpuCompositorPass> m_GpuPass;
+
+    Stage m_Stage{ Stage::None };
 };
