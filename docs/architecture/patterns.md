@@ -18,31 +18,51 @@ A task advances through a series of stages, usually defined with an enum. Its
 `Update()` method typically uses a `switch` on the current stage, does the work
 for that stage, and moves to the next stage when it can.
 
-Tasks can be composed. A parent task can own child tasks and call their
+Cooperative tasks implement `ICoopTask`, which provides `Begin()`, `IsPending()`,
+and `Update()`. A task that produces a result also provides a typed `Take()`
+method. `Take()` is not part of `ICoopTask` because different tasks produce
+different result types.
+
+Construct a task with the dependencies and inputs it needs, then call `Begin()`
+once. Calling `IsPending()` before `Begin()` is a contract violation. After a
+task reaches a terminal stage, `IsPending()` returns false. Destroying an
+unstarted or terminal task is valid, but destroying a pending task violates the
+task's lifetime invariant.
+
+Tasks can be composed directly. A parent task can own child tasks and call their
 `Update()` methods from its own `Update()`. The parent uses the children's
 results to decide how to continue.
+
+Use `CoopTaskBatch` when several heterogeneous tasks can run concurrently. The
+batch borrows its tasks through `ICoopTask` pointers. Every pointer must be
+non-null, and every task must remain at a stable address and outlive the batch.
+The batch begins and updates its children and completes after every child has
+reached a terminal stage.
+
+Batch completion does not mean that every child succeeded. The batch coordinates
+lifetime and progress, while the owner remains responsible for taking each
+child's result and handling its failure. If a child fails to begin, the batch
+removes it from the pending set so that successfully started children can still
+run to completion.
 
 ### General shape
 
 ```cpp
-auto task = Thing::Create(...);
+ThingTask task(...);
+MLG_CHECK(task.Begin());
 
-while(!task->IsComplete())
+while(task.IsPending())
 {
-    task->Update();
+    task.Update();
 
     // Other work can be done here...
 }
 
-if(task->Succeeded())
-{
-    auto result = task->Take();
-}
+auto result = task.Take();
+MLG_CHECK(result);
 ```
 
-Tasks generally provide `Update()`, `IsComplete()`, and `Succeeded()`. Tasks
-that produce a value also provide `Take()`, which transfers the result and
-consumes the task.
+`Take()` transfers the result and consumes it, so it can only succeed once.
 
 ## Valid Construction
 
