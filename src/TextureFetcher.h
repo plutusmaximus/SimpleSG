@@ -13,13 +13,7 @@
 
 class System;
 
-class TextureFetcher;
 using FetchRequestId = uint64_t;
-
-namespace wgpu
-{
-class Texture;
-}
 
 class TextureFetcher
 {
@@ -44,7 +38,7 @@ public:
     bool IsPending() const;
 
     /// Returns the collection of textures if the task succeeded, otherwise returns an error.
-    /// @note This method will invalidate the task, so it can only be called once.
+    /// This method will invalidate the task, so it can only be called once.
     Result<std::vector<wgpu::Texture>> Take();
 
 private:
@@ -59,14 +53,6 @@ private:
     class FetchTask
     {
     public:
-        enum class Stage
-        {
-            None,
-            Fetching,
-            Decoding,
-            Succeeded,
-            Failed
-        };
 
         FetchTask(const std::filesystem::path& basePath,
             std::string baseUri,
@@ -89,6 +75,15 @@ private:
         Result<wgpu::Texture> Take();
 
     private:
+        enum class Stage
+        {
+            None,
+            Fetching,
+            Decoding,
+            Succeeded,
+            Failed
+        };
+
         Result<> BeginDecode();
 
         Result<> Decode() const;

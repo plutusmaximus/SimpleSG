@@ -358,6 +358,7 @@ set(SSG_SOURCES
   src/PerfMetrics.cpp
   src/ResourceBundle.cpp
   src/Scene.cpp
+  src/ShaderFetcher.cpp
   src/ShapeMeshDefs.cpp
   src/Shell.cpp
   src/StringArena.cpp
@@ -400,6 +401,7 @@ set(SSG_HEADERS
   src/scope_exit.h
   src/SemanticIdentifier.h
   src/shaders/ShaderInterop.h
+  src/ShaderFetcher.h
   src/ShapeMeshDefs.h
   src/Shell.h
   src/StringArena.h

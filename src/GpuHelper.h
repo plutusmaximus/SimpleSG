@@ -8,47 +8,8 @@
 #include <string_view>
 
 class FileFetcher;
-class GpuHelper;
 struct SDL_Window;
 using SDL_MetalView = void*;
-
-class GpuShaderFetchTask
-{
-public:
-    enum class Stage
-    {
-        None,
-        Fetching,
-        Succeeded,
-        Failed
-    };
-
-    GpuShaderFetchTask(std::string path, const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
-    GpuShaderFetchTask() = delete;
-    ~GpuShaderFetchTask();
-    GpuShaderFetchTask(const GpuShaderFetchTask&) = delete;
-    GpuShaderFetchTask& operator=(const GpuShaderFetchTask&) = delete;
-    GpuShaderFetchTask(GpuShaderFetchTask&&) = delete;
-    GpuShaderFetchTask& operator=(GpuShaderFetchTask&&) = delete;
-
-    Result<> Begin();
-
-    void Update();
-
-    bool IsPending();
-
-    Result<wgpu::ShaderModule> Take();
-
-private:
-
-    std::string m_Path;
-    const GpuHelper* m_GpuHelper{ nullptr };
-    FileFetcher* m_FileFetcher{ nullptr };
-    uint64_t m_RequestId;
-    std::vector<uint8_t> m_ShaderData;
-
-    Stage m_Stage{ Stage::None };
-};
 
 class GpuHelper final
 {
@@ -92,7 +53,7 @@ public:
         bool IsPending() const;
 
         /// Returns the GpuHelper instance if the task succeeded, otherwise returns an error.
-        /// @note This method will invalidate the task, so it can only be called once.
+        /// This method will invalidate the task, so it can only be called once.
         Result<std::unique_ptr<GpuHelper>> Take();
 
     private:

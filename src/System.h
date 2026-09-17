@@ -37,7 +37,7 @@ public:
         bool IsPending() const;
 
         /// Returns the System instance if the task succeeded, otherwise returns an error.
-        /// @note This method will invalidate the task, so it can only be called once.
+        /// This method will invalidate the task, so it can only be called once.
         Result<System> Take();
 
     private:
