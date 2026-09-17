@@ -2,13 +2,13 @@
 
 #include "GpuTypes.h"
 #include "Result.h"
+#include "ShaderFetcher.h"
 
-#include <memory>
+#include <optional>
 #include <webgpu/webgpu_cpp.h>
 
 class FileFetcher;
 class GpuHelper;
-class ShaderFetcher;
 
 class GpuTransformPass
 {
@@ -19,6 +19,7 @@ public:
     static constexpr size_t kWorkgroupSize = 64;
 
     class CreateTask;
+    class Invocation;
 
     struct Inputs
     {
@@ -43,35 +44,6 @@ public:
         }
 
         friend bool operator==(const Outputs& a, const Outputs& b) = default;
-    };
-
-    class Invocation
-    {
-    public:
-        Invocation() = delete;
-        ~Invocation();
-        Invocation(const Invocation&) = delete;
-        Invocation& operator=(const Invocation&) = delete;
-        Invocation(Invocation&&) = default;
-        Invocation& operator=(Invocation&&) = delete;
-
-        Result<> Execute();
-
-    private:
-        friend class GpuTransformPass;
-
-        Invocation(
-            wgpu::Device gpuDevice, wgpu::ComputePassEncoder computePass, size_t instanceCount)
-            : m_GpuDevice(std::move(gpuDevice)),
-              m_ComputePass(std::move(computePass)),
-              m_InstanceCount(instanceCount)
-        {
-        }
-
-        wgpu::Device m_GpuDevice;
-        wgpu::ComputePassEncoder m_ComputePass;
-        wgpu::CommandEncoder m_CmdEncoder;
-        size_t m_InstanceCount = 0;
     };
 
     GpuTransformPass() = delete;
@@ -148,8 +120,37 @@ private:
     Result<> CreatePass();
 
     const GpuHelper* m_GpuHelper{ nullptr };
-    std::unique_ptr<ShaderFetcher> m_ShaderFetcher;
-    std::unique_ptr<GpuTransformPass> m_GpuPass;
+    ShaderFetcher m_ShaderFetcher;
+    std::optional<GpuTransformPass> m_GpuPass;
 
     Stage m_Stage{ Stage::None };
+};
+
+class GpuTransformPass::Invocation
+{
+public:
+    Invocation() = delete;
+    ~Invocation();
+    Invocation(const Invocation&) = delete;
+    Invocation& operator=(const Invocation&) = delete;
+    Invocation(Invocation&&) = default;
+    Invocation& operator=(Invocation&&) = delete;
+
+    Result<> Execute();
+
+private:
+    friend GpuTransformPass;
+
+    Invocation(
+        wgpu::Device gpuDevice, wgpu::ComputePassEncoder computePass, size_t instanceCount)
+        : m_GpuDevice(std::move(gpuDevice)),
+            m_ComputePass(std::move(computePass)),
+            m_InstanceCount(instanceCount)
+    {
+    }
+
+    wgpu::Device m_GpuDevice;
+    wgpu::ComputePassEncoder m_ComputePass;
+    wgpu::CommandEncoder m_CmdEncoder;
+    size_t m_InstanceCount = 0;
 };

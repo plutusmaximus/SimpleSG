@@ -2,14 +2,13 @@
 
 #include "Camera.h"
 #include "GpuTypes.h"
+#include "ShaderFetcher.h"
 
-#include <memory>
 #include <optional>
 
 class FileFetcher;
 class GpuHelper;
 class MeshInstance;
-class ShaderFetcher;
 
 class GpuColorPass
 {
@@ -20,6 +19,7 @@ public:
     static constexpr float kClearDepth = 1.0f;
 
     class CreateTask;
+    class Invocation;
 
     struct Inputs
     {
@@ -59,33 +59,6 @@ public:
         }
 
         friend bool operator==(const Outputs& a, const Outputs& b) = default;
-    };
-
-    class Invocation
-    {
-    public:
-        Invocation() = delete;
-        ~Invocation();
-        Invocation(const Invocation&) = delete;
-        Invocation& operator=(const Invocation&) = delete;
-        Invocation(Invocation&&) = default;
-        Invocation& operator=(Invocation&&) = delete;
-
-        Result<> Execute(const std::span<MeshInstance> visibleMeshes,
-            const std::span<const wgpu::BindGroup> materialBindGroups);
-
-    private:
-        friend class GpuColorPass;
-
-        Invocation(wgpu::Device gpuDevice, wgpu::RenderPassEncoder renderPass)
-            : m_GpuDevice(std::move(gpuDevice)),
-              m_RenderPass(std::move(renderPass))
-        {
-        }
-
-        wgpu::Device m_GpuDevice;
-        wgpu::RenderPassEncoder m_RenderPass;
-        wgpu::CommandEncoder m_CmdEncoder;
     };
 
     GpuColorPass() = delete;
@@ -182,8 +155,35 @@ private:
     Result<> CreatePass();
 
     const GpuHelper* m_GpuHelper{ nullptr };
-    std::unique_ptr<ShaderFetcher> m_ShaderFetcher;
-    std::unique_ptr<GpuColorPass> m_GpuPass;
+    ShaderFetcher m_ShaderFetcher;
+    std::optional<GpuColorPass> m_GpuPass;
 
     Stage m_Stage{ Stage::None };
+};
+
+class GpuColorPass::Invocation
+{
+public:
+    Invocation() = delete;
+    ~Invocation();
+    Invocation(const Invocation&) = delete;
+    Invocation& operator=(const Invocation&) = delete;
+    Invocation(Invocation&&) = default;
+    Invocation& operator=(Invocation&&) = delete;
+
+    Result<> Execute(const std::span<MeshInstance> visibleMeshes,
+        const std::span<const wgpu::BindGroup> materialBindGroups);
+
+private:
+    friend GpuColorPass;
+
+    Invocation(wgpu::Device gpuDevice, wgpu::RenderPassEncoder renderPass)
+        : m_GpuDevice(std::move(gpuDevice)),
+            m_RenderPass(std::move(renderPass))
+    {
+    }
+
+    wgpu::Device m_GpuDevice;
+    wgpu::RenderPassEncoder m_RenderPass;
+    wgpu::CommandEncoder m_CmdEncoder;
 };

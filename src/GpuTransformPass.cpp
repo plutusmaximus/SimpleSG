@@ -3,7 +3,6 @@
 #include "GpuTransformPass.h"
 
 #include "GpuHelper.h"
-#include "ShaderFetcher.h"
 
 namespace
 {
@@ -120,7 +119,7 @@ CreatePipelineLayout(const wgpu::Device& gpuDevice, const wgpu::BindGroupLayout&
 
 GpuTransformPass::CreateTask::CreateTask(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
     : m_GpuHelper(&gpuHelper),
-      m_ShaderFetcher(std::make_unique<ShaderFetcher>(ShaderPath, gpuHelper, fileFetcher))
+      m_ShaderFetcher(ShaderPath, gpuHelper, fileFetcher)
 {
 }
 
@@ -138,7 +137,7 @@ GpuTransformPass::CreateTask::Begin()
 
     m_Stage = Stage::Failed;
 
-    MLG_CHECK(m_ShaderFetcher->Begin());
+    MLG_CHECK(m_ShaderFetcher.Begin());
 
     m_Stage = Stage::FetchingShader;
 
@@ -158,9 +157,9 @@ GpuTransformPass::CreateTask::Update()
         case Stage::None:
             break;
         case Stage::FetchingShader:
-            if(m_ShaderFetcher->IsPending())
+            if(m_ShaderFetcher.IsPending())
             {
-                m_ShaderFetcher->Update();
+                m_ShaderFetcher.Update();
             }
             else if(CreatePass())
             {
@@ -196,7 +195,8 @@ GpuTransformPass::CreateTask::Take()
     MLG_CHECKV(Stage::Succeeded == m_Stage, "Task did not succeed");
     MLG_CHECKV(m_GpuPass, "Task result already consumed");
 
-    std::unique_ptr bye = std::move(m_GpuPass);
+    std::optional bye = std::move(m_GpuPass);
+    m_GpuPass.reset(); // Invalidate the result so it can only be taken once
 
     return std::move(*bye);
 }
@@ -204,7 +204,7 @@ GpuTransformPass::CreateTask::Take()
 Result<>
 GpuTransformPass::CreateTask::CreatePass()
 {
-    auto shader = m_ShaderFetcher->Take();
+    auto shader = m_ShaderFetcher.Take();
     MLG_CHECK(shader, "Failed to fetch shader: {}", ShaderPath);
 
     const wgpu::Device& gpuDevice = m_GpuHelper->GetDevice();
@@ -215,8 +215,7 @@ GpuTransformPass::CreateTask::CreatePass()
     auto pipelineLayout = CreatePipelineLayout(gpuDevice, *bindGroupLayout);
     MLG_CHECK(pipelineLayout);
 
-    m_GpuPass = std::unique_ptr<GpuTransformPass>(
-        new GpuTransformPass(*m_GpuHelper, *shader, *bindGroupLayout, *pipelineLayout));
+    m_GpuPass = GpuTransformPass(*m_GpuHelper, *shader, *bindGroupLayout, *pipelineLayout);
 
     return Result<>::Ok;
 }

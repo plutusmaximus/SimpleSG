@@ -1,14 +1,13 @@
 #pragma once
 
 #include "GpuTypes.h"
+#include "ShaderFetcher.h"
 #include "VecMath.h"
 
-#include <memory>
 #include <optional>
 
 class FileFetcher;
 class GpuHelper;
-class ShaderFetcher;
 
 /// A GPU pass that composites a texture onto another texture.
 class GpuCompositorPass
@@ -19,6 +18,7 @@ public:
     static constexpr const char* FragmentEntry = "fs_main";
 
     class CreateTask;
+    class Invocation;
 
     /// Provides the source texture and destination rectangle for the compositor pass.
     /// The source texture will be scaled to fit the destination rectangle in the output texture.
@@ -50,32 +50,6 @@ public:
         }
 
         friend bool operator==(const Outputs& a, const Outputs& b) = default;
-    };
-
-    class Invocation
-    {
-    public:
-        Invocation() = delete;
-        ~Invocation();
-        Invocation(const Invocation&) = delete;
-        Invocation& operator=(const Invocation&) = delete;
-        Invocation(Invocation&&) = default;
-        Invocation& operator=(Invocation&&) = delete;
-
-        Result<> Execute();
-
-    private:
-        friend class GpuCompositorPass;
-
-        Invocation(wgpu::Device gpuDevice, wgpu::RenderPassEncoder renderPass)
-            : m_GpuDevice(std::move(gpuDevice)),
-              m_RenderPass(std::move(renderPass))
-        {
-        }
-
-        wgpu::Device m_GpuDevice;
-        wgpu::RenderPassEncoder m_RenderPass;
-        wgpu::CommandEncoder m_CmdEncoder;
     };
 
     GpuCompositorPass() = delete;
@@ -161,8 +135,34 @@ private:
     Result<> CreatePass();
 
     const GpuHelper* m_GpuHelper{ nullptr };
-    std::unique_ptr<ShaderFetcher> m_ShaderFetcher;
-    std::unique_ptr<GpuCompositorPass> m_GpuPass;
+    ShaderFetcher m_ShaderFetcher;
+    std::optional<GpuCompositorPass> m_GpuPass;
 
     Stage m_Stage{ Stage::None };
+};
+
+class GpuCompositorPass::Invocation
+{
+public:
+    Invocation() = delete;
+    ~Invocation();
+    Invocation(const Invocation&) = delete;
+    Invocation& operator=(const Invocation&) = delete;
+    Invocation(Invocation&&) = default;
+    Invocation& operator=(Invocation&&) = delete;
+
+    Result<> Execute();
+
+private:
+    friend GpuCompositorPass;
+
+    Invocation(wgpu::Device gpuDevice, wgpu::RenderPassEncoder renderPass)
+        : m_GpuDevice(std::move(gpuDevice)),
+            m_RenderPass(std::move(renderPass))
+    {
+    }
+
+    wgpu::Device m_GpuDevice;
+    wgpu::RenderPassEncoder m_RenderPass;
+    wgpu::CommandEncoder m_CmdEncoder;
 };
