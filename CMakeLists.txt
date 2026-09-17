@@ -374,6 +374,7 @@ set(SSG_HEADERS
   src/AssertHelper.h
   src/BoundingVolumes.h
   src/Camera.h
+  src/CoopTask.h
   src/DevUi.h
   src/FileFetcher.h
   src/foreign_ptr.h

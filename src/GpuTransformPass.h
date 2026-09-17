@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CoopTask.h"
 #include "GpuTypes.h"
 #include "Result.h"
 #include "ShaderFetcher.h"
@@ -90,21 +91,21 @@ private:
     wgpu::ComputePipeline m_Pipeline;
 };
 
-class GpuTransformPass::CreateTask
+class GpuTransformPass::CreateTask : public ICoopTask
 {
 public:
     CreateTask(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
-    ~CreateTask();
+    ~CreateTask() override;
     CreateTask(const CreateTask&) = delete;
     CreateTask& operator=(const CreateTask&) = delete;
     CreateTask(CreateTask&&) = delete;
     CreateTask& operator=(CreateTask&&) = delete;
 
-    Result<> Begin();
+    Result<> Begin() override;
 
-    void Update();
+    void Update() override;
 
-    bool IsPending() const;
+    bool IsPending() const override;
 
     Result<GpuTransformPass> Take();
 

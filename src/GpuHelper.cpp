@@ -407,7 +407,7 @@ GpuHelper::CreateTask::CreateTask(std::string appName)
 
 GpuHelper::CreateTask::~CreateTask()
 {
-    MLG_ASSERT(Stage::None == m_Stage || !IsPending(), "Destroying pending task");
+    MLG_ASSERT(Stage::None == m_Stage || !CreateTask::IsPending(), "Destroying pending task");
 }
 
 Result<>

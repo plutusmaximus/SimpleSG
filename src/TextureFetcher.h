@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CoopTask.h"
 #include "Result.h"
 
 #include <atomic>
@@ -15,27 +16,27 @@ class System;
 
 using FetchRequestId = uint64_t;
 
-class TextureFetcher
+class TextureFetcher : public ICoopTask
 {
 public:
     TextureFetcher(
         System& system, std::filesystem::path basePath, std::vector<std::string> textureUris);
-    ~TextureFetcher();
+    ~TextureFetcher() override;
     TextureFetcher(const TextureFetcher&) = delete;
     TextureFetcher& operator=(const TextureFetcher&) = delete;
     TextureFetcher(TextureFetcher&&) = delete;
     TextureFetcher& operator=(TextureFetcher&&) = delete;
 
     /// Begins the task.
-    Result<> Begin();
+    Result<> Begin() override;
 
     /// Updates the task.  This must be called periodically while IsPending() returns true.
     /// In addition this task depends on the FileFetcher to be updated periodically, so the
     /// caller must ensure that the FileFetcher is updated as well.
-    void Update();
+    void Update() override;
 
     /// Returns true if the task is running (started but not complete).
-    bool IsPending() const;
+    bool IsPending() const override;
 
     /// Returns the collection of textures if the task succeeded, otherwise returns an error.
     /// This method will invalidate the task, so it can only be called once.
@@ -50,7 +51,7 @@ private:
         Failed,
     };
 
-    class FetchTask
+    class FetchTask : public ICoopTask
     {
     public:
 
@@ -60,17 +61,17 @@ private:
             wgpu::CommandEncoder commandEncoder);
 
         FetchTask() = delete;
-        ~FetchTask();
+        ~FetchTask() override;
         FetchTask(const FetchTask&) = delete;
         FetchTask& operator=(const FetchTask&) = delete;
         FetchTask(FetchTask&&) = delete;
         FetchTask& operator=(FetchTask&&) = delete;
 
-        Result<> Begin();
+        Result<> Begin() override;
 
-        void Update();
+        void Update() override;
 
-        bool IsPending() const;
+        bool IsPending() const override;
 
         Result<wgpu::Texture> Take();
 

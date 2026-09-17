@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CoopTask.h"
 #include "Result.h"
 
 #include <memory>
@@ -17,44 +18,7 @@ class System final
     class Impl;
 
 public:
-    class CreateTask
-    {
-    public:
-        explicit CreateTask(std::string appName);
-        ~CreateTask();
-        CreateTask(const CreateTask&) = delete;
-        CreateTask& operator=(const CreateTask&) = delete;
-        CreateTask(CreateTask&&) = delete;
-        CreateTask& operator=(CreateTask&&) = delete;
-
-        /// Begins the task.
-        Result<> Begin();
-
-        /// Updates the task.  This must be called periodically while IsPending() returns
-        void Update();
-
-        /// Returns true if the task is running (started but not complete).
-        bool IsPending() const;
-
-        /// Returns the System instance if the task succeeded, otherwise returns an error.
-        /// This method will invalidate the task, so it can only be called once.
-        Result<System> Take();
-
-    private:
-        friend System;
-
-        enum class Stage
-        {
-            None,
-            CreatingGpuHelper,
-            Succeeded,
-            Failed
-        };
-
-        Stage m_Stage{ Stage::None };
-
-        std::unique_ptr<Impl> m_Impl;
-    };
+    class CreateTask;
 
     System() = delete;
     ~System();
@@ -134,6 +98,45 @@ private:
 
     bool m_Minimized{ false };
     bool m_ShouldQuit{ false };
+
+    std::unique_ptr<Impl> m_Impl;
+};
+
+class System::CreateTask : public ICoopTask
+{
+public:
+    explicit CreateTask(std::string appName);
+    ~CreateTask() override;
+    CreateTask(const CreateTask&) = delete;
+    CreateTask& operator=(const CreateTask&) = delete;
+    CreateTask(CreateTask&&) = delete;
+    CreateTask& operator=(CreateTask&&) = delete;
+
+    /// Begins the task.
+    Result<> Begin() override;
+
+    /// Updates the task.  This must be called periodically while IsPending() returns
+    void Update() override;
+
+    /// Returns true if the task is running (started but not complete).
+    bool IsPending() const override;
+
+    /// Returns the System instance if the task succeeded, otherwise returns an error.
+    /// This method will invalidate the task, so it can only be called once.
+    Result<System> Take();
+
+private:
+    friend System;
+
+    enum class Stage
+    {
+        None,
+        CreatingGpuHelper,
+        Succeeded,
+        Failed
+    };
+
+    Stage m_Stage{ Stage::None };
 
     std::unique_ptr<Impl> m_Impl;
 };

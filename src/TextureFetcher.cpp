@@ -24,7 +24,7 @@ TextureFetcher::FetchTask::FetchTask(
 
 TextureFetcher::FetchTask::~FetchTask()
 {
-    MLG_ASSERT(Stage::None == m_Stage || !IsPending(), "Destroying pending task");
+    MLG_ASSERT(Stage::None == m_Stage || !FetchTask::IsPending(), "Destroying pending task");
 }
 
 Result<>
@@ -257,7 +257,7 @@ TextureFetcher::TextureFetcher(
 
 TextureFetcher::~TextureFetcher()
 {
-    MLG_ASSERT(Stage::None == m_Stage || !IsPending(), "Destroying pending task");
+    MLG_ASSERT(Stage::None == m_Stage || !TextureFetcher::IsPending(), "Destroying pending task");
     MLG_ASSERT(m_PendingTasks.empty());
 }
 

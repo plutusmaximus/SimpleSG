@@ -36,7 +36,7 @@ System::CreateTask::CreateTask(std::string appName)
 
 System::CreateTask::~CreateTask()
 {
-    MLG_ASSERT(Stage::None == m_Stage || !IsPending(), "Destroying pending task");
+    MLG_ASSERT(Stage::None == m_Stage || !CreateTask::IsPending(), "Destroying pending task");
 }
 
 Result<>

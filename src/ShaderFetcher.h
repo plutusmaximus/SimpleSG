@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CoopTask.h"
 #include "Result.h"
 
 #include <cstdint>
@@ -11,29 +12,29 @@ class GpuHelper;
 class FileFetcher;
 
 /// A task that fetches a shader from disk and creates a wgpu::ShaderModule.
-class ShaderFetcher
+class ShaderFetcher : public ICoopTask
 {
 public:
 
     ShaderFetcher(std::string path, const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
 
     ShaderFetcher() = delete;
-    ~ShaderFetcher();
+    ~ShaderFetcher() override;
     ShaderFetcher(const ShaderFetcher&) = delete;
     ShaderFetcher& operator=(const ShaderFetcher&) = delete;
     ShaderFetcher(ShaderFetcher&&) = delete;
     ShaderFetcher& operator=(ShaderFetcher&&) = delete;
 
     /// Begins the task.
-    Result<> Begin();
+    Result<> Begin() override;
 
     /// Updates the task.  This must be called periodically while IsPending() returns true.
     /// In addition this task depends on the FileFetcher to be updated periodically, so the
     /// caller must ensure that the FileFetcher is updated as well.
-    void Update();
+    void Update() override;
 
     /// Returns true if the task is running (started but not complete).
-    bool IsPending() const;
+    bool IsPending() const override;
 
     /// Returns the shader module if the task succeeded, otherwise returns an error.
     /// This method will invalidate the task, so it can only be called once.

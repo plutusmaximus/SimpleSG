@@ -19,7 +19,7 @@ ShaderFetcher::ShaderFetcher(
 
 ShaderFetcher::~ShaderFetcher()
 {
-    MLG_ASSERT(Stage::None == m_Stage || !IsPending(), "Destroying pending task");
+    MLG_ASSERT(Stage::None == m_Stage || !ShaderFetcher::IsPending(), "Destroying pending task");
 }
 
 Result<>

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CoopTask.h"
 #include "GpuTypes.h"
 #include "ShaderFetcher.h"
 #include "VecMath.h"
@@ -105,21 +106,21 @@ private:
     wgpu::RenderPipeline m_Pipeline;
 };
 
-class GpuCompositorPass::CreateTask
+class GpuCompositorPass::CreateTask : public ICoopTask
 {
 public:
     CreateTask(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
-    ~CreateTask();
+    ~CreateTask() override;
     CreateTask(const CreateTask&) = delete;
     CreateTask& operator=(const CreateTask&) = delete;
     CreateTask(CreateTask&&) = delete;
     CreateTask& operator=(CreateTask&&) = delete;
 
-    Result<> Begin();
+    Result<> Begin() override;
 
-    void Update();
+    void Update() override;
 
-    bool IsPending() const;
+    bool IsPending() const override;
 
     Result<GpuCompositorPass> Take();
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CoopTask.h"
 #include "GpuTypes.h"
 #include "VecMath.h"
 
@@ -146,7 +147,7 @@ private:
     wgpu::Texture m_DefaultTexture{ nullptr };
 };
 
-class GpuHelper::CreateTask
+class GpuHelper::CreateTask : public ICoopTask
 {
 public:
     // Passed to the adapter request callback to store the result of the request.
@@ -164,20 +165,20 @@ public:
     };
 
     explicit CreateTask(std::string appName);
-    ~CreateTask();
+    ~CreateTask() override;
     CreateTask(const CreateTask&) = delete;
     CreateTask& operator=(const CreateTask&) = delete;
     CreateTask(CreateTask&&) = delete;
     CreateTask& operator=(CreateTask&&) = delete;
 
     /// Begins the task.
-    Result<> Begin();
+    Result<> Begin() override;
 
     /// Updates the task.  This must be called periodically while IsPending() returns true.
-    void Update();
+    void Update() override;
 
     /// Returns true if the task is running (started but not complete).
-    bool IsPending() const;
+    bool IsPending() const override;
 
     /// Returns the GpuHelper instance if the task succeeded, otherwise returns an error.
     /// This method will invalidate the task, so it can only be called once.

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Camera.h"
+#include "CoopTask.h"
 #include "GpuTypes.h"
 #include "ShaderFetcher.h"
 
@@ -125,21 +126,21 @@ private:
     wgpu::Sampler m_DefaultSampler;
 };
 
-class GpuColorPass::CreateTask
+class GpuColorPass::CreateTask : public ICoopTask
 {
 public:
     CreateTask(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
-    ~CreateTask();
+    ~CreateTask() override;
     CreateTask(const CreateTask&) = delete;
     CreateTask& operator=(const CreateTask&) = delete;
     CreateTask(CreateTask&&) = delete;
     CreateTask& operator=(CreateTask&&) = delete;
 
-    Result<> Begin();
+    Result<> Begin() override;
 
-    void Update();
+    void Update() override;
 
-    bool IsPending() const;
+    bool IsPending() const override;
 
     Result<GpuColorPass> Take();
 
