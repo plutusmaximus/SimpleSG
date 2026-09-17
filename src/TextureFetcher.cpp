@@ -9,15 +9,20 @@
 #include "ThreadPool.h"
 
 #include <atomic>
+#include <ranges>
 #include <stb_image.h>
 #include <string>
 #include <webgpu/webgpu_cpp.h>
 
-TextureFetcher::FetchTask::FetchTask(
-    const std::filesystem::path& basePath, std::string baseUri, System& system, wgpu::CommandEncoder commandEncoder)
+TextureFetcher::FetchTask::FetchTask(const GpuHelper& gpuHelper,
+    const std::filesystem::path& basePath,
+    std::string baseUri,
+    System& system,
+    wgpu::CommandEncoder commandEncoder)
     : m_Uri(std::move(baseUri)),
       m_FullPath((basePath / m_Uri).string()),
       m_System(&system),
+      m_Texture(gpuHelper.GetDefaultTexture()),
       m_CommandEncoder(std::move(commandEncoder))
 {
 }
@@ -31,6 +36,15 @@ Result<>
 TextureFetcher::FetchTask::Begin()
 {
     MLG_CHECKV(Stage::None == m_Stage, "Task already started");
+
+    if(m_Uri.empty())
+    {
+        MLG_ERROR("URI is empty");
+
+        // It's ok - we logged the problem and we'll use the default texture.
+        m_Stage = Stage::Succeeded;
+        return Result<>::Ok;
+    }
 
     m_Stage = Stage::Failed; // Set to failed in case of early exit
 
@@ -251,14 +265,12 @@ TextureFetcher::TextureFetcher(
       m_BasePath(std::move(basePath)),
       m_TextureUris(std::move(textureUris))
 {
-    m_PendingTasks.reserve(m_TextureUris.size());
     m_Textures.reserve(m_TextureUris.size());
 }
 
 TextureFetcher::~TextureFetcher()
 {
     MLG_ASSERT(Stage::None == m_Stage || !TextureFetcher::IsPending(), "Destroying pending task");
-    MLG_ASSERT(m_PendingTasks.empty());
 }
 
 Result<>
@@ -271,46 +283,33 @@ TextureFetcher::Begin()
 
     MLG_CHECKV(!m_TextureUris.empty(), "No texture URIs provided");
 
-    m_CommandEncoder = m_System->GetGpuHelper().GetDevice().CreateCommandEncoder();
+    const GpuHelper& gpuHelper = m_System->GetGpuHelper();
+
+    m_CommandEncoder = gpuHelper.GetDevice().CreateCommandEncoder();
     MLG_CHECKV(m_CommandEncoder, "Failed to create command encoder");
+
+    std::vector<ICoopTask*> taskBatch;
+    taskBatch.reserve(m_TextureUris.size());
 
     for(const std::string& uri : m_TextureUris)
     {
-        m_Textures.push_back(m_System->GetGpuHelper().GetDefaultTexture());
-
-        if(uri.empty())
-        {
-            // No texture to load
-            continue;
-        }
+        m_Textures.push_back(gpuHelper.GetDefaultTexture());
 
         MLG_LOG_SCOPE(uri);
 
         MLG_DEBUG("Fetching texture...");
 
-        FetchTask& task = m_TaskStorage.emplace_back(m_BasePath, uri, *m_System, m_CommandEncoder);
+        FetchTask& task =
+            m_Tasks.emplace_back(gpuHelper, m_BasePath, uri, *m_System, m_CommandEncoder);
 
-        if(!task.Begin())
-        {
-            MLG_ERROR("Failed to begin texture fetch task");
-
-            // Don't return here - the texture will simply be the default texture,
-            // and we want to continue processing the other textures.
-            continue;
-        }
-
-        m_PendingTasks.emplace_back(&task, m_Textures.size() - 1);
+        taskBatch.push_back(&task);
     }
 
-    if(m_PendingTasks.empty())
-    {
-        // Nothing to do
-        m_Stage = Stage::Succeeded;
-    }
-    else
-    {
-        m_Stage = Stage::Fetching;
-    }
+    m_TaskBatch.emplace(std::move(taskBatch));
+
+    MLG_CHECK(m_TaskBatch->Begin());
+
+    m_Stage = Stage::Fetching;
 
     return Result<>::Ok;
 }
@@ -323,39 +322,28 @@ TextureFetcher::Update()
         return;
     }
 
+    MLG_ABORTIF(!m_TaskBatch, "Task batch is not initialized");
+
     switch(m_Stage)
     {
         case Stage::Fetching:
-            for(size_t i = 0; i < m_PendingTasks.size();)
+            if(m_TaskBatch->IsPending())
             {
-                FetchTask* task = m_PendingTasks[i].Task;
-
-                task->Update();
-
-                if(task->IsPending())
-                {
-                    ++i;
-                    continue;
-                }
-
-                auto texture = task->Take();
-
-                if(texture)
-                {
-                    m_Textures[m_PendingTasks[i].Index] = std::move(*texture);
-                }
-
-                // Remove from the list.
-                m_PendingTasks[i] = std::move(m_PendingTasks.back());
-                m_PendingTasks.pop_back();
+                m_TaskBatch->Update();
             }
-
-            if(m_PendingTasks.empty())
+            else
             {
-                // We're done.
-
                 const wgpu::CommandBuffer commandBuffer = m_CommandEncoder.Finish();
                 m_System->GetGpuHelper().GetDevice().GetQueue().Submit(1, &commandBuffer);
+
+                for(auto [task, texture] : std::views::zip(m_Tasks, m_Textures))
+                {
+                    auto result = task.Take();
+                    if(result)
+                    {
+                        texture = std::move(*result);
+                    }
+                }
 
                 m_Stage = Stage::Succeeded;
             }

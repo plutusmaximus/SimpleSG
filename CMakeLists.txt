@@ -341,6 +341,7 @@ set(SSG_SOURCES
   src/BoundingVolumes.cpp
   src/Camera.cpp
   src/cgltf.cpp
+  src/CoopTask.cpp
   src/DevUi.cpp
   src/FileFetcher.cpp
   src/GltfLoader.cpp

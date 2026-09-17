@@ -150,54 +150,30 @@ Scene::Create(System& system,
     }
 
     TextureFetcher textureFetcher(system, rootPath, textureUris);
-    auto textureFetcherResult = textureFetcher.Begin();
-
     GpuColorPass::CreateTask colorPassTask(system.GetGpuHelper(), system.GetFileFetcher());
-    auto colorPassTaskResult = colorPassTask.Begin();
-
-    GpuCompositorPass::CreateTask compositorPassTask(system.GetGpuHelper(), system.GetFileFetcher());
-    auto compositorPassTaskResult =
-        compositorPassTask.Begin();
-
+    GpuCompositorPass::CreateTask compositorPassTask(system.GetGpuHelper(),
+        system.GetFileFetcher());
     GpuTransformPass::CreateTask transformPassTask(system.GetGpuHelper(), system.GetFileFetcher());
-    auto transformPassTaskResult =
-        transformPassTask.Begin();
+
+    CoopTaskBatch taskBatch //
+        {
+            &textureFetcher,
+            &colorPassTask,
+            &compositorPassTask,
+            &transformPassTask,
+        };
+
+    MLG_CHECK(taskBatch.Begin(), "Failed to begin task batch");
 
     // If any of the tasks successfully started, we need to continue processing until they are all
     // complete.
 
-    while(textureFetcher.IsPending()
-        || colorPassTask.IsPending()
-        || compositorPassTask.IsPending()
-        || transformPassTask.IsPending())
+    while(taskBatch.IsPending())
     {
         system.GetFileFetcher().ProcessCompletions();
 
-        if(textureFetcher.IsPending())
-        {
-            textureFetcher.Update();
-        }
-
-        if(colorPassTask.IsPending())
-        {
-            colorPassTask.Update();
-        }
-
-        if(compositorPassTask.IsPending())
-        {
-            compositorPassTask.Update();
-        }
-
-        if(transformPassTask.IsPending())
-        {
-            transformPassTask.Update();
-        }
+        taskBatch.Update();
     }
-
-    MLG_CHECK(textureFetcherResult, "Failed to begin texture fetcher");
-    MLG_CHECK(colorPassTaskResult, "Failed to begin GpuColorPass task");
-    MLG_CHECK(compositorPassTaskResult, "Failed to begin GpuCompositorPass task");
-    MLG_CHECK(transformPassTaskResult, "Failed to begin GpuTransformPass task");
 
     auto textures = textureFetcher.Take();
     MLG_CHECK(textures, "Failed to fetch textures");

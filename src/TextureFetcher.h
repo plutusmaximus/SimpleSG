@@ -8,11 +8,13 @@
 #include <cstdint>
 #include <deque>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 #include <webgpu/webgpu_cpp.h>
 
 class System;
+class GpuHelper;
 
 using FetchRequestId = uint64_t;
 
@@ -55,7 +57,8 @@ private:
     {
     public:
 
-        FetchTask(const std::filesystem::path& basePath,
+        FetchTask(const GpuHelper& gpuHelper,
+            const std::filesystem::path& basePath,
             std::string baseUri,
             System& system,
             wgpu::CommandEncoder commandEncoder);
@@ -112,17 +115,11 @@ private:
         Stage m_Stage{ Stage::None };
     };
 
-    struct PendingTask
-    {
-        FetchTask* Task;
-        size_t Index;
-    };
-
     System* m_System{ nullptr };
     std::filesystem::path m_BasePath;
     std::vector<std::string> m_TextureUris;
-    std::deque<FetchTask> m_TaskStorage;
-    std::vector<PendingTask> m_PendingTasks;
+    std::deque<FetchTask> m_Tasks;
+    std::optional<CoopTaskBatch> m_TaskBatch;
     std::vector<wgpu::Texture> m_Textures;
     wgpu::CommandEncoder m_CommandEncoder{ nullptr };
 
