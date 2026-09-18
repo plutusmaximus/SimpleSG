@@ -3,6 +3,7 @@
 #include "LevelTypes.h"
 #include "Result.h"
 
+#include <memory>
 #include <span>
 #include <vector>
 
@@ -11,14 +12,14 @@ class ResourceBundle;
 class Level
 {
 public:
-    static Result<Level> Create(const ResourceBundle& resourceBundle);
+    static Result<std::unique_ptr<Level>> Create(const ResourceBundle& resourceBundle);
 
     Level() = delete;
     ~Level();
     Level(const Level&) = delete;
     Level& operator=(const Level&) = delete;
-    Level(Level&& other) = default;
-    Level& operator=(Level&& other) = default;
+    Level(Level&&) = delete;
+    Level& operator=(Level&&) = delete;
 
     /// Returns all nodes in the level, in breadth-first order.
     std::span<const LevelNode> GetAllNodes() const { return m_Nodes; }

@@ -47,7 +47,7 @@ struct PerfCounterGlobals
     static inline PerfCounter TotalEnergy{ { .Name = "Energy.Total" } };
 };
 
-Result<std::tuple<Level, Scene>>
+Result<std::tuple<std::unique_ptr<Level>, std::unique_ptr<Scene>>>
 LoadLevel(System& system)
 {
     constexpr float kBallRadius = 1.0f;
@@ -144,13 +144,17 @@ LoadLevel(System& system)
 
     const std::filesystem::path rootPath{};
 
-    auto level = Level::Create(*rsrcBundle);
-    MLG_CHECK(level, "Failed to create Level");
+    auto levelResult = Level::Create(*rsrcBundle);
+    MLG_CHECK(levelResult, "Failed to create Level");
 
-    auto sceneResult = Scene::Create(system, rootPath, *rsrcBundle, level->GetAllModelNodes());
+    std::unique_ptr<Level> level = std::move(*levelResult);
+
+    auto sceneResult = Scene::Create(system, rootPath, *rsrcBundle, *level);
     MLG_CHECK(sceneResult, "Failed to create Scene");
 
-    return std::make_tuple(std::move(*level), std::move(*sceneResult));
+    std::unique_ptr<Scene> scene = std::move(*sceneResult);
+
+    return std::make_tuple(std::move(level), std::move(scene));
 }
 
 /// Applies random linear velocities to all bodies in the physics level.
@@ -579,7 +583,7 @@ MainLoop()
 
     auto&& [level, scene] = std::move(*loadResult);
 
-    ApplyRandomVelocities(level);
+    ApplyRandomVelocities(*level);
 
     constexpr float kInitialCameraDistance = 40.0f;
 
@@ -702,11 +706,11 @@ MainLoop()
         if(inputMapper.IsActionTriggered(explode))
         {
             constexpr float kImpulseMagnitude = 5.0f;
-            ApplyExplosionImpulse(level, kImpulseMagnitude);
+            ApplyExplosionImpulse(*level, kImpulseMagnitude);
         }
         if(inputMapper.IsActionTriggered(stopAll))
         {
-            StopAll(level);
+            StopAll(*level);
         }
         if(inputMapper.IsActionTriggered(pause))
         {
@@ -715,10 +719,10 @@ MainLoop()
 
         if(!pauseSim)
         {
-            level.Update(kPhysicsTimeStep);
-            ApplyGravity(level, system.GetThreadPool());
+            level->Update(kPhysicsTimeStep);
+            ApplyGravity(*level, system.GetThreadPool());
 
-            const float kineticEnergy = ComputeKineticEnergy(level);
+            const float kineticEnergy = ComputeKineticEnergy(*level);
             const double totalEnergy = kineticEnergy + PerfCounterGlobals::TotalPE.GetValue();
 
             PerfCounterGlobals::TotalKE.Set(kineticEnergy);
@@ -743,8 +747,8 @@ MainLoop()
             const Viewport sceneViewport(scenePanelRect.GetDimensions());
             cameraActor.SetViewport(sceneViewport);
 
-            MLG_CHECK(scene.Render(cameraActor.GetCamera(), cameraXForm));
-            MLG_CHECK(scene.Composite(*target, scenePanelRect));
+            MLG_CHECK(scene->Render(cameraActor.GetCamera(), cameraXForm));
+            MLG_CHECK(scene->Composite(*target, scenePanelRect));
         }
 
         auto renderGui = [&]() { return devUi.Render(); };

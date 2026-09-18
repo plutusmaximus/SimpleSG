@@ -5,11 +5,11 @@
 #include "Camera.h"
 #include "FileFetcher.h"
 #include "GpuHelper.h"
+#include "Level.h"
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"
 #include "System.h"
 #include "TextureFetcher.h"
-#include "Timer.h"
 
 namespace
 {
@@ -132,116 +132,26 @@ CreateMaterialBindGroups(const GpuHelper& gpuHelper,
 }
 } // namespace
 
-Result<Scene>
+Result<std::unique_ptr<Scene>>
 Scene::Create(System& system,
     const std::filesystem::path& rootPath,
     const ResourceBundle& resourceBundle,
-    const std::span<const ModelNode> modelNodes)
+    const Level& level)
 {
-    Timer createTimer;
-    createTimer.Start();
+    CreateTask createTask(system, rootPath, resourceBundle, level);
 
-    const std::span textureUriStrings = resourceBundle.GetTextureUris();
-    std::vector<std::string> textureUris;
-    textureUris.reserve(textureUriStrings.size());
-    for(const auto& uri : textureUriStrings)
+    MLG_CHECK(createTask.Begin(), "Failed to begin create task");
+
+    while(createTask.IsPending())
     {
-        textureUris.emplace_back(resourceBundle.GetString(uri));
+        createTask.Update();
     }
 
-    TextureFetcher textureFetcher(system, rootPath, textureUris);
-    GpuColorPass::CreateTask colorPassTask(system.GetGpuHelper(), system.GetFileFetcher());
-    GpuCompositorPass::CreateTask compositorPassTask(system.GetGpuHelper(),
-        system.GetFileFetcher());
-    GpuTransformPass::CreateTask transformPassTask(system.GetGpuHelper(), system.GetFileFetcher());
-
-    CoopTaskBatch taskBatch //
-        {
-            &textureFetcher,
-            &colorPassTask,
-            &compositorPassTask,
-            &transformPassTask,
-        };
-
-    MLG_CHECK(taskBatch.Begin(), "Failed to begin task batch");
-
-    // If any of the tasks successfully started, we need to continue processing until they are all
-    // complete.
-
-    while(taskBatch.IsPending())
-    {
-        system.GetFileFetcher().ProcessCompletions();
-
-        taskBatch.Update();
-    }
-
-    auto textures = textureFetcher.Take();
-    MLG_CHECK(textures, "Failed to fetch textures");
-
-    auto gpuColorPassResult = colorPassTask.Take();
-    MLG_CHECK(gpuColorPassResult, "Failed to create GpuColorPass");
-
-    auto gpuCompositorPassResult = compositorPassTask.Take();
-    MLG_CHECK(gpuCompositorPassResult, "Failed to create GpuCompositorPass");
-
-    auto gpuTransformPassResult = transformPassTask.Take();
-    MLG_CHECK(gpuTransformPassResult, "Failed to create GpuTransformPass");
-
-    const GpuHelper& gpuHelper = system.GetGpuHelper();
-
-    auto materialBindGroups = CreateMaterialBindGroups(gpuHelper,
-        *gpuColorPassResult,
-        resourceBundle.GetMaterials(),
-        *textures,
-        textureUris);
-    MLG_CHECK(materialBindGroups);
-
-    const std::span vertices = resourceBundle.GetVertices();
-    auto vertexBuffer = gpuHelper.CreateVertexBuffer(vertices.size(), "VertexBuffer");
-    MLG_CHECK(vertexBuffer);
-    vertexBuffer->Store(vertices);
-
-    const std::span indices = resourceBundle.GetIndices();
-    auto indexBuffer = gpuHelper.CreateIndexBuffer(indices.size(), "IndexBuffer");
-    MLG_CHECK(indexBuffer);
-    indexBuffer->Store(indices);
-
-    auto transformBuffer = gpuHelper.CreateStorageBuffer<GpuWorldTransformBuffer>(modelNodes.size(),
-        "WorldTransforms");
-    MLG_CHECK(transformBuffer);
-
-    auto clipSpaceBuffer =
-        gpuHelper.CreateStorageBuffer<GpuClipSpaceBuffer>(modelNodes.size(), "ClipSpaceTransforms");
-    MLG_CHECK(clipSpaceBuffer);
-
-    auto meshInstanceParamsBuffer = BuildMeshInstanceParamsBuffer(gpuHelper, modelNodes);
-    MLG_CHECK(meshInstanceParamsBuffer);
-
-    auto cameraParamsBuf = gpuHelper.CreateUniformBuffer<GpuCameraParamsBuffer>(1, "CameraParams");
-    MLG_CHECK(cameraParamsBuf);
-
-    Scene scene(gpuHelper,
-        modelNodes,
-        std::move(*gpuColorPassResult),
-        std::move(*gpuCompositorPassResult),
-        std::move(*gpuTransformPassResult),
-        std::move(*vertexBuffer),
-        std::move(*indexBuffer),
-        std::move(*transformBuffer),
-        std::move(*clipSpaceBuffer),
-        std::move(*meshInstanceParamsBuffer),
-        std::move(*cameraParamsBuf),
-        std::move(*materialBindGroups));
-
-    MLG_CHECK(scene.SyncToGpu());
-
-    MLG_INFO("Scene created in {} ms", createTimer.GetElapsedSeconds() * 1000);
-
-    return std::move(scene);
+    return createTask.Take();
 }
 
 Scene::Scene(const GpuHelper& gpuHelper,
-    const std::span<const ModelNode> modelNodes,
+    const Level& level,
     GpuColorPass&& colorPass,
     GpuCompositorPass&& compositorPass,
     GpuTransformPass&& transformPass,
@@ -253,7 +163,7 @@ Scene::Scene(const GpuHelper& gpuHelper,
     GpuCameraParamsBuffer&& cameraParamsBuffer,
     std::vector<wgpu::BindGroup>&& materialBindGroups)
     : m_GpuHelper(&gpuHelper),
-      m_ModelNodes(modelNodes),
+      m_Level(&level),
       m_ColorPass(std::move(colorPass)),
       m_CompositorPass(std::move(compositorPass)),
       m_TransformPass(std::move(transformPass)),
@@ -265,7 +175,7 @@ Scene::Scene(const GpuHelper& gpuHelper,
       m_CameraParamsBuffer(std::move(cameraParamsBuffer)),
       m_MaterialBindGroups(std::move(materialBindGroups))
 {
-    const size_t meshInstanceCount = CountMeshInstances(m_ModelNodes);
+    const size_t meshInstanceCount = CountMeshInstances(level.GetAllModelNodes());
     m_VisibleMeshes.reserve(meshInstanceCount);
 }
 
@@ -382,7 +292,7 @@ Scene::CollectVisibleMeshes(const Frustum& frustum,
 
     size_t totalMeshes = 0;
 
-    for(const ModelNode& modelNode : m_ModelNodes)
+    for(const ModelNode& modelNode : m_Level->GetAllModelNodes())
     {
         totalMeshes += modelNode.GetMeshCount();
 
@@ -436,7 +346,7 @@ Scene::SyncToGpu()
 {
     // Brute force copy everything for now.
     uint64_t bufferOffset = 0;
-    for(const ModelNode& modelNode : m_ModelNodes)
+    for(const ModelNode& modelNode : m_Level->GetAllModelNodes())
     {
         const ShaderInterop::WorldTransform transform{ .Transform = modelNode.GetWorldTransform() };
         m_GpuHelper->GetDevice().GetQueue().WriteBuffer(m_WorldTransformBuffer.GetGpuBuffer(),
@@ -492,4 +402,174 @@ Scene::TransformNodes(const wgpu::Device& gpuDevice,
     MLG_CHECK(invocation->Execute(), "Failed to execute transform pass");
 
     return Result<>::Ok;
+}
+
+namespace
+{
+std::vector<std::string>
+GetTextureUris(const ResourceBundle& resourceBundle)
+{
+    const std::span textureUriStrings = resourceBundle.GetTextureUris();
+    std::vector<std::string> textureUris;
+    textureUris.reserve(textureUriStrings.size());
+    for(const auto& uri : textureUriStrings)
+    {
+        textureUris.emplace_back(resourceBundle.GetString(uri));
+    }
+    return textureUris;
+}
+} // namespace
+
+// Scene::CreateTask
+Scene::CreateTask::CreateTask(System& system,
+    std::filesystem::path rootPath,
+    const ResourceBundle& resourceBundle,
+    const Level& level)
+    : m_System(&system),
+      m_RootPath(std::move(rootPath)),
+      m_ResourceBundle(&resourceBundle),
+      m_Level(&level),
+      m_TextureUris(GetTextureUris(resourceBundle)),
+      m_TextureFetcher(m_System->GetGpuHelper(),
+          m_System->GetFileFetcher(),
+          m_System->GetThreadPool(),
+          m_RootPath,
+          m_TextureUris),
+      m_ColorPassTask(m_System->GetGpuHelper(), m_System->GetFileFetcher()),
+      m_CompositorPassTask(m_System->GetGpuHelper(), m_System->GetFileFetcher()),
+      m_TransformPassTask(m_System->GetGpuHelper(), m_System->GetFileFetcher()),
+      m_TaskBatch(
+          { &m_TextureFetcher, &m_ColorPassTask, &m_CompositorPassTask, &m_TransformPassTask }),
+      m_Stage(Stage::Pending)
+{
+}
+
+Scene::CreateTask::~CreateTask()
+{
+    MLG_ASSERT(Stage::None == m_Stage || !CreateTask::IsPending(), "Destroying pending task");
+}
+
+Result<>
+Scene::CreateTask::Begin()
+{
+    m_Timer.Start();
+
+    m_Stage = Stage::Failed;
+
+    MLG_CHECK(m_TaskBatch.Begin(), "Failed to begin task batch");
+
+    m_Stage = Stage::Pending;
+
+    return Result<>::Ok;
+}
+void
+Scene::CreateTask::Update()
+{
+    if(!MLG_VERIFY(IsPending(), "Task is not running"))
+    {
+        return;
+    }
+
+    switch(m_Stage)
+    {
+        case Stage::None:
+        case Stage::Pending:
+            if(m_TaskBatch.IsPending())
+            {
+                m_System->GetFileFetcher().ProcessCompletions();
+                m_TaskBatch.Update();
+            }
+            else
+            {
+                m_Stage = Stage::Succeeded;
+            }
+            break;
+        case Stage::Succeeded:
+        case Stage::Failed:
+            break;
+    }
+}
+
+bool
+Scene::CreateTask::IsPending() const
+{
+    return MLG_VERIFY(Stage::None != m_Stage, "Task is not started")
+        && Stage::Succeeded != m_Stage
+        && Stage::Failed != m_Stage;
+}
+
+Result<std::unique_ptr<Scene>>
+Scene::CreateTask::Take()
+{
+    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task did not succeed");
+    MLG_CHECKV(!m_Consumed, "Task result already consumed");
+
+    m_Consumed = true;
+
+    auto textures = m_TextureFetcher.Take();
+    MLG_CHECK(textures, "Failed to fetch textures");
+
+    auto gpuColorPassResult = m_ColorPassTask.Take();
+    MLG_CHECK(gpuColorPassResult, "Failed to create GpuColorPass");
+
+    auto gpuCompositorPassResult = m_CompositorPassTask.Take();
+    MLG_CHECK(gpuCompositorPassResult, "Failed to create GpuCompositorPass");
+
+    auto gpuTransformPassResult = m_TransformPassTask.Take();
+    MLG_CHECK(gpuTransformPassResult, "Failed to create GpuTransformPass");
+
+    const GpuHelper& gpuHelper = m_System->GetGpuHelper();
+
+    auto materialBindGroups = CreateMaterialBindGroups(gpuHelper,
+        *gpuColorPassResult,
+        m_ResourceBundle->GetMaterials(),
+        *textures,
+        m_TextureUris);
+    MLG_CHECK(materialBindGroups);
+
+    const std::span vertices = m_ResourceBundle->GetVertices();
+    auto vertexBuffer = gpuHelper.CreateVertexBuffer(vertices.size(), "VertexBuffer");
+    MLG_CHECK(vertexBuffer);
+    vertexBuffer->Store(vertices);
+
+    const std::span indices = m_ResourceBundle->GetIndices();
+    auto indexBuffer = gpuHelper.CreateIndexBuffer(indices.size(), "IndexBuffer");
+    MLG_CHECK(indexBuffer);
+    indexBuffer->Store(indices);
+
+    const std::span modelNodes = m_Level->GetAllModelNodes();
+
+    auto transformBuffer =
+        gpuHelper.CreateStorageBuffer<GpuWorldTransformBuffer>(modelNodes.size(),
+            "WorldTransforms");
+    MLG_CHECK(transformBuffer);
+
+    auto clipSpaceBuffer = gpuHelper.CreateStorageBuffer<GpuClipSpaceBuffer>(modelNodes.size(),
+        "ClipSpaceTransforms");
+    MLG_CHECK(clipSpaceBuffer);
+
+    auto meshInstanceParamsBuffer = BuildMeshInstanceParamsBuffer(gpuHelper, modelNodes);
+    MLG_CHECK(meshInstanceParamsBuffer);
+
+    auto cameraParamsBuf = gpuHelper.CreateUniformBuffer<GpuCameraParamsBuffer>(1, "CameraParams");
+    MLG_CHECK(cameraParamsBuf);
+
+    std::unique_ptr<Scene> scene(new Scene(gpuHelper,
+        *m_Level,
+        std::move(*gpuColorPassResult),
+        std::move(*gpuCompositorPassResult),
+        std::move(*gpuTransformPassResult),
+        std::move(*vertexBuffer),
+        std::move(*indexBuffer),
+        std::move(*transformBuffer),
+        std::move(*clipSpaceBuffer),
+        std::move(*meshInstanceParamsBuffer),
+        std::move(*cameraParamsBuf),
+        std::move(*materialBindGroups)));
+
+    MLG_CHECK(scene->SyncToGpu());
+
+    MLG_INFO("Scene created in {} ms", m_Timer.GetElapsedSeconds() * 1000);
+
+    return scene;
 }

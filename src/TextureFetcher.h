@@ -15,14 +15,19 @@
 
 class System;
 class GpuHelper;
+class FileFetcher;
+class ThreadPool;
 
 using FetchRequestId = uint64_t;
 
 class TextureFetcher : public ICoopTask
 {
 public:
-    TextureFetcher(
-        System& system, std::filesystem::path basePath, std::vector<std::string> textureUris);
+    TextureFetcher(const GpuHelper& gpuHelper,
+        FileFetcher& fileFetcher,
+        ThreadPool& threadPool,
+        std::filesystem::path basePath,
+        std::vector<std::string> textureUris);
     ~TextureFetcher() override;
     TextureFetcher(const TextureFetcher&) = delete;
     TextureFetcher& operator=(const TextureFetcher&) = delete;
@@ -58,9 +63,10 @@ private:
     public:
 
         FetchTask(const GpuHelper& gpuHelper,
+            FileFetcher& fileFetcher,
+            ThreadPool& threadPool,
             const std::filesystem::path& basePath,
             std::string baseUri,
-            System& system,
             wgpu::CommandEncoder commandEncoder);
 
         FetchTask() = delete;
@@ -99,9 +105,11 @@ private:
 
         friend TextureFetcher;
 
+        const GpuHelper* m_GpuHelper{ nullptr };
+        FileFetcher* m_FileFetcher{ nullptr };
+        ThreadPool* m_ThreadPool{ nullptr };
         std::string m_Uri;
         std::string m_FullPath;
-        System* m_System{ nullptr };
         FetchRequestId m_FetchRequestId{};
         std::vector<uint8_t> m_FetchedData;
         wgpu::Texture m_Texture{ nullptr };
@@ -115,7 +123,9 @@ private:
         Stage m_Stage{ Stage::None };
     };
 
-    System* m_System{ nullptr };
+    const GpuHelper* m_GpuHelper{ nullptr };
+    FileFetcher* m_FileFetcher{ nullptr };
+    ThreadPool* m_ThreadPool{ nullptr };
     std::filesystem::path m_BasePath;
     std::vector<std::string> m_TextureUris;
     std::deque<FetchTask> m_Tasks;

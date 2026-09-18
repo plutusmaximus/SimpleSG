@@ -130,8 +130,8 @@ private:
     PropKitDef m_PropKitDef;
     LevelDef m_LevelDef;
 
-    Result<Level> m_Level;
-    Result<Scene> m_Scene;
+    std::unique_ptr<Level> m_Level;
+    std::unique_ptr<Scene> m_Scene;
 
     Viewport m_Viewport //
         {
@@ -176,11 +176,13 @@ TriangleApp::InnerUpdate(System& system)
 
             const std::filesystem::path rootPath = ".";
 
-            m_Level = Level::Create(*rsrcBundle);
-            MLG_CHECK(m_Level, "Failed to create Level");
+            auto levelResult = Level::Create(*rsrcBundle);
+            MLG_CHECK(levelResult, "Failed to create Level");
+            m_Level = std::move(*levelResult);
 
-            m_Scene = Scene::Create(system, rootPath, *rsrcBundle, m_Level->GetAllModelNodes());
-            MLG_CHECK(m_Scene, "Failed to create Scene");
+            auto sceneResult = Scene::Create(system, rootPath, *rsrcBundle, *m_Level);
+            MLG_CHECK(sceneResult, "Failed to create Scene");
+            m_Scene = std::move(*sceneResult);
 
             m_Viewport = Viewport(gpuHelper.GetScreenDimensions());
             m_Camera.SetViewport(m_Viewport);

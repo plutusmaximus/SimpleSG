@@ -15,13 +15,16 @@
 #include <webgpu/webgpu_cpp.h>
 
 TextureFetcher::FetchTask::FetchTask(const GpuHelper& gpuHelper,
+    FileFetcher& fileFetcher,
+    ThreadPool& threadPool,
     const std::filesystem::path& basePath,
     std::string baseUri,
-    System& system,
     wgpu::CommandEncoder commandEncoder)
-    : m_Uri(std::move(baseUri)),
+    : m_GpuHelper(&gpuHelper),
+      m_FileFetcher(&fileFetcher),
+      m_ThreadPool(&threadPool),
+      m_Uri(std::move(baseUri)),
       m_FullPath((basePath / m_Uri).string()),
-      m_System(&system),
       m_Texture(gpuHelper.GetDefaultTexture()),
       m_CommandEncoder(std::move(commandEncoder))
 {
@@ -48,7 +51,7 @@ TextureFetcher::FetchTask::Begin()
 
     m_Stage = Stage::Failed; // Set to failed in case of early exit
 
-    auto fetchRequestId = m_System->GetFileFetcher().Fetch(m_FullPath);
+    auto fetchRequestId = m_FileFetcher->Fetch(m_FullPath);
     MLG_CHECK(fetchRequestId);
 
     m_FetchRequestId = *fetchRequestId;
@@ -73,9 +76,9 @@ TextureFetcher::FetchTask::Update()
         case Stage::None:
             break;
         case Stage::Fetching:
-            if(!m_System->GetFileFetcher().IsPending(m_FetchRequestId))
+            if(!m_FileFetcher->IsPending(m_FetchRequestId))
             {
-                if(!m_System->GetFileFetcher().Take(m_FetchRequestId, m_FetchedData))
+                if(!m_FileFetcher->Take(m_FetchRequestId, m_FetchedData))
                 {
                     MLG_ERROR("Failed to take fetched data");
                     m_Stage = Stage::Failed;
@@ -160,13 +163,13 @@ TextureFetcher::FetchTask::BeginDecode()
 
     MLG_DEBUG("Image info - {} x {} x {}", width, height, numChannels);
 
-    auto texture = m_System->GetGpuHelper().CreateTexture(static_cast<uint32_t>(width),
+    auto texture = m_GpuHelper->CreateTexture(static_cast<uint32_t>(width),
         static_cast<uint32_t>(height),
         m_Uri);
 
     MLG_CHECK(texture);
 
-    auto stagingBuffer = m_System->GetGpuHelper().CreateStagingBuffer(*texture, m_Uri);
+    auto stagingBuffer = m_GpuHelper->CreateStagingBuffer(*texture, m_Uri);
     MLG_CHECK(stagingBuffer);
 
     void* mapped = stagingBuffer->GetMappedRange();
@@ -179,8 +182,7 @@ TextureFetcher::FetchTask::BeginDecode()
     m_StagingBuffer = *stagingBuffer;
     m_MappedMemory = static_cast<std::byte*>(mapped);
 
-    MLG_CHECK(m_System->GetThreadPool().Enqueue(Decode, this),
-        "Failed to enqueue texture decode task");
+    MLG_CHECK(m_ThreadPool->Enqueue(Decode, this), "Failed to enqueue texture decode task");
 
     return Result<>::Ok;
 }
@@ -259,9 +261,14 @@ TextureFetcher::FetchTask::CommitStagingBuffer()
 
 /// TextureFetcher
 
-TextureFetcher::TextureFetcher(
-    System& system, std::filesystem::path basePath, std::vector<std::string> textureUris)
-    : m_System(&system),
+TextureFetcher::TextureFetcher(const GpuHelper& gpuHelper,
+    FileFetcher& fileFetcher,
+    ThreadPool& threadPool,
+    std::filesystem::path basePath,
+    std::vector<std::string> textureUris)
+    : m_GpuHelper(&gpuHelper),
+      m_FileFetcher(&fileFetcher),
+      m_ThreadPool(&threadPool),
       m_BasePath(std::move(basePath)),
       m_TextureUris(std::move(textureUris))
 {
@@ -283,9 +290,7 @@ TextureFetcher::Begin()
 
     MLG_CHECKV(!m_TextureUris.empty(), "No texture URIs provided");
 
-    const GpuHelper& gpuHelper = m_System->GetGpuHelper();
-
-    m_CommandEncoder = gpuHelper.GetDevice().CreateCommandEncoder();
+    m_CommandEncoder = m_GpuHelper->GetDevice().CreateCommandEncoder();
     MLG_CHECKV(m_CommandEncoder, "Failed to create command encoder");
 
     std::vector<ICoopTask*> taskBatch;
@@ -293,14 +298,18 @@ TextureFetcher::Begin()
 
     for(const std::string& uri : m_TextureUris)
     {
-        m_Textures.push_back(gpuHelper.GetDefaultTexture());
+        m_Textures.push_back(m_GpuHelper->GetDefaultTexture());
 
         MLG_LOG_SCOPE(uri);
 
         MLG_DEBUG("Fetching texture...");
 
-        FetchTask& task =
-            m_Tasks.emplace_back(gpuHelper, m_BasePath, uri, *m_System, m_CommandEncoder);
+        FetchTask& task = m_Tasks.emplace_back(*m_GpuHelper,
+            *m_FileFetcher,
+            *m_ThreadPool,
+            m_BasePath,
+            uri,
+            m_CommandEncoder);
 
         taskBatch.push_back(&task);
     }
@@ -334,7 +343,7 @@ TextureFetcher::Update()
             else
             {
                 const wgpu::CommandBuffer commandBuffer = m_CommandEncoder.Finish();
-                m_System->GetGpuHelper().GetDevice().GetQueue().Submit(1, &commandBuffer);
+                m_GpuHelper->GetDevice().GetQueue().Submit(1, &commandBuffer);
 
                 for(auto [task, texture] : std::views::zip(m_Tasks, m_Textures))
                 {

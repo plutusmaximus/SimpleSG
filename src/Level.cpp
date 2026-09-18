@@ -312,7 +312,7 @@ GetBodyId(const RigidBodyIdentifier rigidBodyId)
 }
 } // namespace
 
-Result<Level>
+Result<std::unique_ptr<Level>>
 Level::Create(const ResourceBundle& resourceBundle)
 {
     b3WorldDef worldDef = b3DefaultWorldDef();
@@ -344,13 +344,11 @@ Level::Create(const ResourceBundle& resourceBundle)
     auto physicsNodes = CollectPhysicsNodes(worldIdentifier, resourceBundle, *levelNodes);
     MLG_CHECK(physicsNodes, "Failed to collect physics nodes");
 
-    Level level(std::move(*levelNodes),
+    return std::unique_ptr<Level>(new Level(std::move(*levelNodes),
         std::move(*physicsNodes),
         std::move(*modelNodes),
         std::move(*meshInstances),
-        worldIdentifier);
-
-    return std::move(level);
+        worldIdentifier));
 }
 
 Level::Level(std::vector<LevelNode>&& nodes,

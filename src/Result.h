@@ -28,9 +28,9 @@ public:
     Result(ErrorType&& error) : m_Value(std::move(error)) {} // NOLINT(google-explicit-constructor)
 
     Result(const Result& other) = default;
-    Result(Result&& other) = default;
-    Result& operator=(const Result& other) = default;
-    Result& operator=(Result&& other) = default;
+    Result(Result&&) = default;
+    Result& operator=(const Result&) = default;
+    Result& operator=(Result&&) = default;
     ~Result() = default;
 
     constexpr SuccessType& Value() &

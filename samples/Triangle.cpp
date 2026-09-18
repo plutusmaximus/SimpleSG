@@ -141,11 +141,11 @@ MainLoop()
 
     auto levelResult = Level::Create(*rsrcBundle);
     MLG_CHECK(levelResult, "Failed to create Level");
-    const Level& level = *levelResult;
+    const std::unique_ptr<Level> level = std::move(*levelResult);
 
-    auto sceneResult = Scene::Create(system, rootPath, *rsrcBundle, level.GetAllModelNodes());
+    auto sceneResult = Scene::Create(system, rootPath, *rsrcBundle, *level);
     MLG_CHECK(sceneResult, "Failed to create Scene");
-    Scene& scene = *sceneResult;
+    std::unique_ptr<Scene> scene = std::move(*sceneResult);
 
     GpuHelper& gpuHelper = system.GetGpuHelper();
 
@@ -236,8 +236,8 @@ MainLoop()
         auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECKV(target, "Failed to get swap chain texture");
 
-        MLG_CHECK(scene.Render(camera, cameraXForm));
-        MLG_CHECK(scene.Composite(*target));
+        MLG_CHECK(scene->Render(camera, cameraXForm));
+        MLG_CHECK(scene->Composite(*target));
 
         const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
         MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, RenderGui));

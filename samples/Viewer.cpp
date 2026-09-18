@@ -77,7 +77,7 @@ RenderGui()
     return Result<>::Ok;
 }
 
-Result<std::tuple<Level, Scene>>
+Result<std::tuple<std::unique_ptr<Level>, std::unique_ptr<Scene>>>
 LoadLevel(System& system, const std::filesystem::path& path)
 {
     PropKitDef propKitDef;
@@ -90,13 +90,17 @@ LoadLevel(System& system, const std::filesystem::path& path)
     auto rsrcBundle = builder.Build(levelDef, propKitDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
-    auto level = Level::Create(*rsrcBundle);
-    MLG_CHECK(level, "Failed to create Level for {}", path.string());
+    auto levelResult = Level::Create(*rsrcBundle);
+    MLG_CHECK(levelResult, "Failed to create Level for {}", path.string());
 
-    auto scene = Scene::Create(system, path.parent_path(), *rsrcBundle, level->GetAllModelNodes());
-    MLG_CHECK(scene, "Failed to create Scene for {}", path.string());
+    std::unique_ptr<Level> level = std::move(*levelResult);
 
-    return std::make_tuple(std::move(*level), std::move(*scene));
+    auto sceneResult = Scene::Create(system, path.parent_path(), *rsrcBundle, *level);
+    MLG_CHECK(sceneResult, "Failed to create Scene for {}", path.string());
+
+    std::unique_ptr<Scene> scene = std::move(*sceneResult);
+
+    return std::make_tuple(std::move(level), std::move(scene));
 }
 
 #ifdef _WIN32
@@ -271,8 +275,8 @@ MainLoop()
         auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECKV(target, "Failed to get swap chain texture");
 
-        MLG_CHECK(scene.Render(camera, cameraXForm));
-        MLG_CHECK(scene.Composite(*target));
+        MLG_CHECK(scene->Render(camera, cameraXForm));
+        MLG_CHECK(scene->Composite(*target));
 
         const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
         MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, RenderGui));

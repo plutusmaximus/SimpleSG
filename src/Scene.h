@@ -1,12 +1,16 @@
 #pragma once
 
+#include "CoopTask.h"
 #include "GpuColorPass.h"
 #include "GpuCompositorPass.h"
 #include "GpuTransformPass.h"
 #include "GpuTypes.h"
 #include "LevelTypes.h"
+#include "TextureFetcher.h"
+#include "Timer.h"
 
 #include <filesystem>
+#include <memory>
 #include <vector>
 
 class ResourceBundle;
@@ -16,17 +20,17 @@ class ThreadPool;
 class Scene
 {
 public:
-    static Result<Scene> Create(System& system,
+    static Result<std::unique_ptr<Scene>> Create(System& system,
         const std::filesystem::path& rootPath,
         const ResourceBundle& resourceBundle,
-        const std::span<const ModelNode> modelNodes);
+        const Level& level);
 
     Scene() = delete;
     ~Scene() = default;
     Scene(const Scene&) = delete;
     Scene& operator=(const Scene&) = delete;
-    Scene(Scene&& other) = default;
-    Scene& operator=(Scene&& other) = default;
+    Scene(Scene&&) = delete;
+    Scene& operator=(Scene&&) = delete;
 
     Result<> Render(const Camera& camera, const TrTransformf& cameraXForm);
 
@@ -34,9 +38,11 @@ public:
 
     Result<> Composite(const GpuRenderTarget& target, const Rect& dstRect);
 
+    class CreateTask;
+
 private:
     Scene(const GpuHelper& gpuHelper,
-        const std::span<const ModelNode> modelNodes,
+        const Level& level,
         GpuColorPass&& colorPass,
         GpuCompositorPass&& compositorPass,
         GpuTransformPass&& transformPass,
@@ -61,7 +67,7 @@ private:
 
     const GpuHelper* m_GpuHelper{ nullptr };
 
-    std::span<const ModelNode> m_ModelNodes;
+    const Level* m_Level{ nullptr };
 
     std::optional<GpuColorPass::Outputs> m_ColorPassOutputs;
     GpuColorPass m_ColorPass;
@@ -78,4 +84,54 @@ private:
     std::vector<wgpu::BindGroup> m_MaterialBindGroups;
 
     std::vector<MeshInstance> m_VisibleMeshes;
+};
+
+class Scene::CreateTask : public ICoopTask
+{
+public:
+    CreateTask(System& system,
+        std::filesystem::path rootPath,
+        const ResourceBundle& resourceBundle,
+        const Level& level);
+
+    CreateTask() = delete;
+    ~CreateTask() override;
+    CreateTask(const CreateTask&) = delete;
+    CreateTask& operator=(const CreateTask&) = delete;
+    CreateTask(CreateTask&&) = delete;
+    CreateTask& operator=(CreateTask&&) = delete;
+
+    Result<> Begin() override;
+
+    void Update() override;
+
+    bool IsPending() const override;
+
+    Result<std::unique_ptr<Scene>> Take();
+
+private:
+
+    enum class Stage
+    {
+        None,
+        Pending,
+        Succeeded,
+        Failed
+    };
+
+    Timer m_Timer;
+    System* m_System{ nullptr };
+    std::filesystem::path m_RootPath;
+    const ResourceBundle* m_ResourceBundle{ nullptr };
+    const Level* m_Level{ nullptr };
+    std::vector<std::string> m_TextureUris;
+
+    TextureFetcher m_TextureFetcher;
+    GpuColorPass::CreateTask m_ColorPassTask;
+    GpuCompositorPass::CreateTask m_CompositorPassTask;
+    GpuTransformPass::CreateTask m_TransformPassTask;
+    CoopTaskBatch m_TaskBatch;
+    bool m_Consumed{ false };
+
+    Stage m_Stage{ Stage::None };
 };
