@@ -252,7 +252,7 @@ MainLoop()
 #if !defined(__EMSCRIPTEN__)
 
 #if !defined(OFFSCREEN_RENDERING) || !OFFSCREEN_RENDERING
-        MLG_CHECK(gpuHelper.GetSurface().Present(), "Failed to present backbuffer");
+        MLG_CHECK(gpuHelper.Present(), "Failed to present backbuffer");
 #endif
 
 #endif

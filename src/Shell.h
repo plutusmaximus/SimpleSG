@@ -56,11 +56,6 @@ private:
 #include <emscripten/emscripten.h>
 #else
 
-struct EmscriptenState
-{
-    static inline bool IsRunning{ true };
-};
-
 void emscripten_set_main_loop(void (*func)(), int fps, int simulate_infinite_loop);
 
 void emscripten_cancel_main_loop();

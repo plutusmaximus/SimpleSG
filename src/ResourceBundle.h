@@ -435,6 +435,14 @@ public:
         m_Header = static_cast<const Header*>(p);
     }
 
+    /// Clears the resource bundle, releasing its internal buffer and resetting the header pointer.
+    void Clear()
+    {
+        m_Buffer.clear();
+        const std::vector<char> bye = std::move(m_Buffer);
+        m_Header = nullptr;
+    }
+
     std::span<const char> GetChars() const
     {
         return GetSpan<char>(m_Header->CharsOffset, m_Header->CharsLength);

@@ -5,9 +5,18 @@
 
 #ifndef __EMSCRIPTEN__
 
+namespace
+{
+bool& EmpscriptenIsRunning()
+{
+    static bool isRunning = true;
+    return isRunning;
+}
+} // namespace
+
 void emscripten_set_main_loop(void (*func)(), int /*fps*/, int /*simulate_infinite_loop*/)
 {
-    while(EmscriptenState::IsRunning)
+    while(EmpscriptenIsRunning())
     {
         func();
     }
@@ -15,7 +24,7 @@ void emscripten_set_main_loop(void (*func)(), int /*fps*/, int /*simulate_infini
 
 void emscripten_cancel_main_loop()
 {
-    EmscriptenState::IsRunning = false;
+    EmpscriptenIsRunning() = false;
 }
 
 #endif
@@ -67,11 +76,13 @@ Shell::Update(AppUpdateCallback appUpdateCb)
 
             const AppState appState = appUpdateCb(*m_System);
 
-            MLG_CHECK(EndFrame());
-
             if(AppState::Stopped == appState)
             {
                 Shutdown();
+            }
+            else
+            {
+                MLG_CHECK(EndFrame(), "Failed to end frame");
             }
         }
         break;
@@ -113,7 +124,7 @@ Shell::EndFrame()
 
     const GpuHelper& gpuHelper = m_System->GetGpuHelper();
 
-    MLG_CHECK(gpuHelper.GetSurface().Present(), "Failed to present backbuffer");
+    MLG_CHECK(gpuHelper.Present(), "Failed to present backbuffer");
     gpuHelper.GetInstance().ProcessEvents();
 #endif
 

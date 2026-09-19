@@ -30,11 +30,13 @@ public:
     SDL_Window* GetWindow() const;
     const wgpu::Instance& GetInstance() const;
     const wgpu::Device& GetDevice() const;
-    const wgpu::Surface& GetSurface() const;
     const wgpu::Texture& GetDefaultTexture() const;
     Dimension2 GetScreenDimensions() const;
     Result<GpuRenderTarget> GetSwapChainTexture() const;
     wgpu::TextureFormat GetSwapChainFormat() const;
+
+    /// Presents the current swap chain texture to the screen.
+    Result<> Present() const;
 
     /// Resizes the swap chain to the given width and height.
     Result<> Resize(const uint32_t width, const uint32_t height);

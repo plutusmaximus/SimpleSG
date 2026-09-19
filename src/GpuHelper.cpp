@@ -391,9 +391,7 @@ UncapturedErrorCb(
         static_cast<int>(errorType),
         std::string_view(message.data, message.length));
 
-    MLG_ERROR(errorStr);
-
-    MLG_ASSERT(false, errorStr);
+    MLG_ABORT(errorStr);
 }
 
 } // namespace
@@ -746,12 +744,6 @@ GpuHelper::GetDevice() const
     return m_Device;
 }
 
-const wgpu::Surface&
-GpuHelper::GetSurface() const
-{
-    return m_Surface;
-}
-
 const wgpu::Texture&
 GpuHelper::GetDefaultTexture() const
 {
@@ -777,7 +769,7 @@ Result<GpuRenderTarget>
 GpuHelper::GetSwapChainTexture() const
 {
     wgpu::SurfaceTexture surfaceTexture;
-    GetSurface().GetCurrentTexture(&surfaceTexture);
+    m_Surface.GetCurrentTexture(&surfaceTexture);
 
     if(surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessSuboptimal)
     {
@@ -808,11 +800,11 @@ GpuHelper::GetSwapChainTexture() const
     }
 
     // Attempt to reconfigure the surface and acquire the texture again
-    GetSurface().Unconfigure();
+    m_Surface.Unconfigure();
 
     auto surfaceFormat = ConfigureSurface(m_Adapter,
         GetDevice(),
-        GetSurface(),
+        m_Surface,
         GetScreenDimensions().Width,
         GetScreenDimensions().Height);
 
@@ -820,7 +812,7 @@ GpuHelper::GetSwapChainTexture() const
 
     m_SurfaceFormat = *surfaceFormat;
 
-    GetSurface().GetCurrentTexture(&surfaceTexture);
+    m_Surface.GetCurrentTexture(&surfaceTexture);
 
     MLG_CHECK(surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessOptimal
             || surfaceTexture.status == wgpu::SurfaceGetCurrentTextureStatus::SuccessSuboptimal,
@@ -836,15 +828,26 @@ GpuHelper::GetSwapChainFormat() const
 }
 
 Result<>
+GpuHelper::Present() const
+{
+    wgpu::SurfaceTexture surfaceTexture;
+    m_Surface.GetCurrentTexture(&surfaceTexture);
+    
+    auto result = m_Surface.Present();
+    MLG_CHECK(result.status == wgpu::Status::Success, "Failed to present current surface texture");
+    return Result<>::Ok;
+}
+
+Result<>
 GpuHelper::Resize(const uint32_t width, const uint32_t height)
 {
     wgpu::SurfaceTexture currentTexture;
-    GetSurface().GetCurrentTexture(&currentTexture);
+    m_Surface.GetCurrentTexture(&currentTexture);
     if(width != currentTexture.texture.GetWidth() || height != currentTexture.texture.GetHeight())
     {
-        GetSurface().Unconfigure();
+        m_Surface.Unconfigure();
 
-        auto surfaceFormat = ConfigureSurface(m_Adapter, GetDevice(), GetSurface(), width, height);
+        auto surfaceFormat = ConfigureSurface(m_Adapter, GetDevice(), m_Surface, width, height);
         MLG_CHECK(surfaceFormat);
 
         m_SurfaceFormat = *surfaceFormat;

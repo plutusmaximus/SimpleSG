@@ -12,6 +12,7 @@
 
 #include <filesystem>
 #include <imgui.h>
+#include <optional>
 #include <SDL3/SDL_events.h>
 
 namespace
@@ -114,13 +115,14 @@ private:
     enum class Stage
     {
         Init,
+        CreatingScene,
         Running,
-        Shutdown,
         Stopped
     };
 
-    /// Performs the the main work of the application.
-    Result<> InnerUpdate(System& system);
+    Result<> Init(System& system);
+
+    Result<> RenderScene(System& system);
 
     Shell::AppState GetAppState() const
     {
@@ -129,6 +131,9 @@ private:
 
     PropKitDef m_PropKitDef;
     LevelDef m_LevelDef;
+
+    std::optional<ResourceBundle> m_ResourceBundle;
+    std::optional<Scene::CreateTask> m_SceneCreateTask;
 
     std::unique_ptr<Level> m_Level;
     std::unique_ptr<Scene> m_Scene;
@@ -148,89 +153,108 @@ private:
 Shell::AppState
 TriangleApp::Update(System& system)
 {
-    const Result<> result = InnerUpdate(system);
-
-    if(!result)
+    switch(m_Stage)
     {
-        MLG_ERROR("TriangleApp::Update failed: {}");
-        m_Stage = Stage::Shutdown;
+        case Stage::Init:
+            if(MLG_VERIFY(Init(system), "Failed to initialize TriangleApp"))
+            {
+                m_Stage = Stage::CreatingScene;
+            }
+            else
+            {
+                m_Stage = Stage::Stopped;
+            }
+            break;
+
+        case Stage::CreatingScene:
+            MLG_ABORTIF(!m_SceneCreateTask, "Scene create task is not initialized");
+
+            if(m_SceneCreateTask->IsPending())
+            {
+                m_SceneCreateTask->Update();
+            }
+            else
+            {
+                auto sceneResult = m_SceneCreateTask->Take();
+                if(MLG_VERIFY(sceneResult, "Failed to create Scene"))
+                {
+                    m_Scene = std::move(*sceneResult);
+                    m_SceneCreateTask.reset();
+                    m_ResourceBundle.reset();
+                    m_Stage = TriangleApp::Stage::Running;
+                }
+                else
+                {
+                    m_Stage = Stage::Stopped;
+                }
+            }
+            break;
+
+        case Stage::Running:
+            if(system.ShouldQuit())
+            {
+                m_Stage = Stage::Stopped;
+            }
+            else if(!system.IsMinimized())
+            {
+                if(!MLG_VERIFY(RenderScene(system), "Failed to render Scene"))
+                {
+                    m_Stage = Stage::Stopped;
+                }
+            }
+            break;
+
+        case Stage::Stopped:
+            break;
     }
 
     return GetAppState();
 }
 
 Result<>
-TriangleApp::InnerUpdate(System& system)
+TriangleApp::Init(System& system)
 {
-    switch(m_Stage)
-    {
-        case Stage::Init:
-        {
-            MLG_CHECK(CreateTriangleModel(m_PropKitDef, m_LevelDef));
+    MLG_CHECK(CreateTriangleModel(m_PropKitDef, m_LevelDef));
 
-            const GpuHelper& gpuHelper = system.GetGpuHelper();
+    ResourceBundleBuilder builder;
+    auto rsrcBundle = builder.Build(m_LevelDef, m_PropKitDef);
+    MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
-            ResourceBundleBuilder builder;
-            auto rsrcBundle = builder.Build(m_LevelDef, m_PropKitDef);
-            MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
+    m_ResourceBundle = std::move(*rsrcBundle);
 
-            const std::filesystem::path rootPath = ".";
+    auto levelResult = Level::Create(*m_ResourceBundle);
+    MLG_CHECK(levelResult, "Failed to create Level");
+    m_Level = std::move(*levelResult);
 
-            auto levelResult = Level::Create(*rsrcBundle);
-            MLG_CHECK(levelResult, "Failed to create Level");
-            m_Level = std::move(*levelResult);
+    const std::filesystem::path rootPath = ".";
 
-            Scene::CreateTask createTask(system, rootPath, *rsrcBundle, *m_Level);
+    m_SceneCreateTask.emplace(system, rootPath, *m_ResourceBundle, *m_Level);
 
-            MLG_CHECK(createTask.Begin(), "Failed to begin create task");
+    MLG_CHECK(m_SceneCreateTask->Begin(), "Failed to begin scene create task");
 
-            while(createTask.IsPending())
-            {
-                createTask.Update();
-            }
+    m_Viewport = Viewport(system.GetGpuHelper().GetScreenDimensions());
+    m_Camera.SetViewport(m_Viewport);
 
-            auto sceneResult = createTask.Take();
-            MLG_CHECK(sceneResult, "Failed to create Scene");
-            m_Scene = std::move(*sceneResult);
+    return Result<>::Ok;
+}
 
-            m_Viewport = Viewport(gpuHelper.GetScreenDimensions());
-            m_Camera.SetViewport(m_Viewport);
+Result<>
+TriangleApp::RenderScene(System& system)
+{
+    const GpuHelper& gpuHelper = system.GetGpuHelper();
 
-            m_Stage = TriangleApp::Stage::Running;
-        }
-        break;
+    m_Viewport = Viewport(gpuHelper.GetScreenDimensions());
+    m_Camera.SetViewport(m_Viewport);
 
-        case Stage::Running:
-            if(system.ShouldQuit())
-            {
-                m_Stage = Stage::Shutdown;
-            }
-            else if(!system.IsMinimized())
-            {
-                const GpuHelper& gpuHelper = system.GetGpuHelper();
+    MLG_CHECK(m_Scene->Render(m_Camera, m_CameraXForm), "Failed to render Scene");
 
-                m_Viewport = Viewport(gpuHelper.GetScreenDimensions());
-                m_Camera.SetViewport(m_Viewport);
+    auto target = gpuHelper.GetSwapChainTexture();
+    MLG_CHECK(target, "Failed to get swap chain texture");
 
-                MLG_CHECK(m_Scene->Render(m_Camera, m_CameraXForm));
+    MLG_CHECK(m_Scene->Composite(*target), "Failed to composite Scene");
 
-                auto target = gpuHelper.GetSwapChainTexture();
-                MLG_CHECKV(target, "Failed to get swap chain texture");
-
-                MLG_CHECK(m_Scene->Composite(*target));
-
-                MLG_CHECK(
-                    system.GetImGuiRenderer().Render(gpuHelper.GetDevice(), *target, RenderGui));
-            }
-            break;
-
-        case Stage::Shutdown:
-            m_Stage = Stage::Stopped;
-            break;
-
-        case Stage::Stopped:
-            break;
-    }
+    MLG_CHECK(system.GetImGuiRenderer().Render(gpuHelper.GetDevice(), *target, RenderGui),
+        "Failed to render ImGui");
 
     return Result<>::Ok;
 }
@@ -241,7 +265,8 @@ Run()
     static Shell shell(kAppName);
     static TriangleApp triangleApp;
 
-    static auto AppUpdate = [](System& system) { return triangleApp.Update(system); };
+    static Shell::AppUpdateCallback AppUpdate = [](System& system)
+    { return triangleApp.Update(system); };
 
     if(!shell.IsStopped())
     {
