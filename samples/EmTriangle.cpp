@@ -180,7 +180,16 @@ TriangleApp::InnerUpdate(System& system)
             MLG_CHECK(levelResult, "Failed to create Level");
             m_Level = std::move(*levelResult);
 
-            auto sceneResult = Scene::Create(system, rootPath, *rsrcBundle, *m_Level);
+            Scene::CreateTask createTask(system, rootPath, *rsrcBundle, *m_Level);
+
+            MLG_CHECK(createTask.Begin(), "Failed to begin create task");
+
+            while(createTask.IsPending())
+            {
+                createTask.Update();
+            }
+
+            auto sceneResult = createTask.Take();
             MLG_CHECK(sceneResult, "Failed to create Scene");
             m_Scene = std::move(*sceneResult);
 

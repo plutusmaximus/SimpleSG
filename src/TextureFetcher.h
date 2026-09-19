@@ -7,7 +7,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
-#include <filesystem>
 #include <optional>
 #include <string>
 #include <vector>
@@ -26,7 +25,6 @@ public:
     TextureFetcher(const GpuHelper& gpuHelper,
         FileFetcher& fileFetcher,
         ThreadPool& threadPool,
-        std::filesystem::path basePath,
         std::vector<std::string> textureUris);
     ~TextureFetcher() override;
     TextureFetcher(const TextureFetcher&) = delete;
@@ -65,8 +63,7 @@ private:
         FetchTask(const GpuHelper& gpuHelper,
             FileFetcher& fileFetcher,
             ThreadPool& threadPool,
-            const std::filesystem::path& basePath,
-            std::string baseUri,
+            std::string uri,
             wgpu::CommandEncoder commandEncoder);
 
         FetchTask() = delete;
@@ -109,7 +106,6 @@ private:
         FileFetcher* m_FileFetcher{ nullptr };
         ThreadPool* m_ThreadPool{ nullptr };
         std::string m_Uri;
-        std::string m_FullPath;
         FetchRequestId m_FetchRequestId{};
         std::vector<uint8_t> m_FetchedData;
         wgpu::Texture m_Texture{ nullptr };
@@ -126,12 +122,11 @@ private:
     const GpuHelper* m_GpuHelper{ nullptr };
     FileFetcher* m_FileFetcher{ nullptr };
     ThreadPool* m_ThreadPool{ nullptr };
-    std::filesystem::path m_BasePath;
-    std::vector<std::string> m_TextureUris;
+    wgpu::CommandEncoder m_CommandEncoder{ nullptr };
     std::deque<FetchTask> m_Tasks;
     std::optional<CoopTaskBatch> m_TaskBatch;
     std::vector<wgpu::Texture> m_Textures;
-    wgpu::CommandEncoder m_CommandEncoder{ nullptr };
+    std::vector<std::string> m_TextureUris;
 
     Stage m_Stage{ Stage::None };
 

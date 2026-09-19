@@ -149,7 +149,16 @@ LoadLevel(System& system)
 
     std::unique_ptr<Level> level = std::move(*levelResult);
 
-    auto sceneResult = Scene::Create(system, rootPath, *rsrcBundle, *level);
+    Scene::CreateTask createTask(system, rootPath, *rsrcBundle, *level);
+
+    MLG_CHECK(createTask.Begin(), "Failed to begin create task");
+
+    while(createTask.IsPending())
+    {
+        createTask.Update();
+    }
+
+    auto sceneResult = createTask.Take();
     MLG_CHECK(sceneResult, "Failed to create Scene");
 
     std::unique_ptr<Scene> scene = std::move(*sceneResult);

@@ -25,6 +25,8 @@ CoopTaskBatch::Begin()
 {
     MLG_CHECKV(Stage::None == m_Stage, "Task is already in progress");
 
+    MLG_CHECKV(!m_Tasks.empty(), "No tasks provided");
+
     for(size_t i = 0; i < m_Tasks.size(); )
     {
         MLG_ASSERT(m_Tasks[i] != nullptr, "Task is null");

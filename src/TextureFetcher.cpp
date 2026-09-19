@@ -17,15 +17,12 @@
 TextureFetcher::FetchTask::FetchTask(const GpuHelper& gpuHelper,
     FileFetcher& fileFetcher,
     ThreadPool& threadPool,
-    const std::filesystem::path& basePath,
-    std::string baseUri,
+    std::string uri,
     wgpu::CommandEncoder commandEncoder)
     : m_GpuHelper(&gpuHelper),
       m_FileFetcher(&fileFetcher),
       m_ThreadPool(&threadPool),
-      m_Uri(std::move(baseUri)),
-      m_FullPath((basePath / m_Uri).string()),
-      m_Texture(gpuHelper.GetDefaultTexture()),
+      m_Uri(std::move(uri)),
       m_CommandEncoder(std::move(commandEncoder))
 {
 }
@@ -40,18 +37,12 @@ TextureFetcher::FetchTask::Begin()
 {
     MLG_CHECKV(Stage::None == m_Stage, "Task already started");
 
-    if(m_Uri.empty())
-    {
-        MLG_ERROR("URI is empty");
-
-        // It's ok - we logged the problem and we'll use the default texture.
-        m_Stage = Stage::Succeeded;
-        return Result<>::Ok;
-    }
+    m_Texture = m_GpuHelper->GetDefaultTexture();
+    MLG_CHECK(m_Texture, "Failed to get default texture");
 
     m_Stage = Stage::Failed; // Set to failed in case of early exit
 
-    auto fetchRequestId = m_FileFetcher->Fetch(m_FullPath);
+    auto fetchRequestId = m_FileFetcher->Fetch(m_Uri);
     MLG_CHECK(fetchRequestId);
 
     m_FetchRequestId = *fetchRequestId;
@@ -157,7 +148,7 @@ TextureFetcher::FetchTask::BeginDecode()
            &height,
            &numChannels))
     {
-        MLG_ERROR("Error getting image info - {}/{}", m_Uri, stbi_failure_reason());
+        MLG_ERROR("Error getting image info - {}", stbi_failure_reason());
         return Result<>::Fail;
     }
 
@@ -264,15 +255,13 @@ TextureFetcher::FetchTask::CommitStagingBuffer()
 TextureFetcher::TextureFetcher(const GpuHelper& gpuHelper,
     FileFetcher& fileFetcher,
     ThreadPool& threadPool,
-    std::filesystem::path basePath,
     std::vector<std::string> textureUris)
     : m_GpuHelper(&gpuHelper),
       m_FileFetcher(&fileFetcher),
       m_ThreadPool(&threadPool),
-      m_BasePath(std::move(basePath)),
       m_TextureUris(std::move(textureUris))
 {
-    m_Textures.reserve(m_TextureUris.size());
+    MLG_ASSERT(!m_TextureUris.empty(), "No texture URIs provided");
 }
 
 TextureFetcher::~TextureFetcher()
@@ -288,26 +277,21 @@ TextureFetcher::Begin()
     // Set the initial stage to failed to ensure that any early exit will mark the task as failed.
     m_Stage = Stage::Failed;
 
-    MLG_CHECKV(!m_TextureUris.empty(), "No texture URIs provided");
-
     m_CommandEncoder = m_GpuHelper->GetDevice().CreateCommandEncoder();
-    MLG_CHECKV(m_CommandEncoder, "Failed to create command encoder");
+    MLG_CHECK(m_CommandEncoder, "Failed to create command encoder");
+
+    // Initialize the textures vector with default textures for each URI.
+    // If a texture fails to load then we'll get the default texture.
+    m_Textures.resize(m_TextureUris.size(), m_GpuHelper->GetDefaultTexture());
 
     std::vector<ICoopTask*> taskBatch;
     taskBatch.reserve(m_TextureUris.size());
 
     for(const std::string& uri : m_TextureUris)
     {
-        m_Textures.push_back(m_GpuHelper->GetDefaultTexture());
-
-        MLG_LOG_SCOPE(uri);
-
-        MLG_DEBUG("Fetching texture...");
-
         FetchTask& task = m_Tasks.emplace_back(*m_GpuHelper,
             *m_FileFetcher,
             *m_ThreadPool,
-            m_BasePath,
             uri,
             m_CommandEncoder);
 
@@ -331,7 +315,7 @@ TextureFetcher::Update()
         return;
     }
 
-    MLG_ABORTIF(!m_TaskBatch, "Task batch is not initialized");
+    MLG_ABORTIF(!m_TaskBatch.has_value(), "Task batch is not initialized");
 
     switch(m_Stage)
     {

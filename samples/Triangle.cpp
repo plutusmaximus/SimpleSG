@@ -1,5 +1,4 @@
 #include "Camera.h"
-#include "FileFetcher.h"
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
 #include "Level.h"
@@ -9,7 +8,6 @@
 #include "ResourceBundle.h"
 #include "Scene.h"
 #include "System.h"
-#include "ThreadPool.h"
 
 #include <filesystem>
 #include <imgui.h>
@@ -143,7 +141,16 @@ MainLoop()
     MLG_CHECK(levelResult, "Failed to create Level");
     const std::unique_ptr<Level> level = std::move(*levelResult);
 
-    auto sceneResult = Scene::Create(system, rootPath, *rsrcBundle, *level);
+    Scene::CreateTask createTask(system, rootPath, *rsrcBundle, *level);
+
+    MLG_CHECK(createTask.Begin(), "Failed to begin create task");
+
+    while(createTask.IsPending())
+    {
+        createTask.Update();
+    }
+
+    auto sceneResult = createTask.Take();
     MLG_CHECK(sceneResult, "Failed to create Scene");
     std::unique_ptr<Scene> scene = std::move(*sceneResult);
 

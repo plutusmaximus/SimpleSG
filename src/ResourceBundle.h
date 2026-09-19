@@ -496,7 +496,7 @@ public:
         return GetSpan<LevelNodeResource>(m_Header->NodesOffset, m_Header->NodeCount);
     }
 
-    std::string_view GetString(const StringResource& stringResource) const
+    std::string_view GetStringView(const StringResource& stringResource) const
     {
         const std::span<const char> chars = GetChars();
         MLG_ASSERT(chars.size() - stringResource.Offset >= stringResource.Length,

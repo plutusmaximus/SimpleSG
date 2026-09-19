@@ -132,24 +132,6 @@ CreateMaterialBindGroups(const GpuHelper& gpuHelper,
 }
 } // namespace
 
-Result<std::unique_ptr<Scene>>
-Scene::Create(System& system,
-    const std::filesystem::path& rootPath,
-    const ResourceBundle& resourceBundle,
-    const Level& level)
-{
-    CreateTask createTask(system, rootPath, resourceBundle, level);
-
-    MLG_CHECK(createTask.Begin(), "Failed to begin create task");
-
-    while(createTask.IsPending())
-    {
-        createTask.Update();
-    }
-
-    return createTask.Take();
-}
-
 Scene::Scene(const GpuHelper& gpuHelper,
     const Level& level,
     GpuColorPass&& colorPass,
@@ -407,14 +389,15 @@ Scene::TransformNodes(const wgpu::Device& gpuDevice,
 namespace
 {
 std::vector<std::string>
-GetTextureUris(const ResourceBundle& resourceBundle)
+GetTextureUris(const std::filesystem::path& rootPath, const ResourceBundle& resourceBundle)
 {
     const std::span textureUriStrings = resourceBundle.GetTextureUris();
     std::vector<std::string> textureUris;
     textureUris.reserve(textureUriStrings.size());
     for(const auto& uri : textureUriStrings)
     {
-        textureUris.emplace_back(resourceBundle.GetString(uri));
+        const std::string_view uriView(resourceBundle.GetStringView(uri));
+        textureUris.emplace_back((rootPath / uriView).string());
     }
     return textureUris;
 }
@@ -426,21 +409,18 @@ Scene::CreateTask::CreateTask(System& system,
     const ResourceBundle& resourceBundle,
     const Level& level)
     : m_System(&system),
-      m_RootPath(std::move(rootPath)),
       m_ResourceBundle(&resourceBundle),
       m_Level(&level),
-      m_TextureUris(GetTextureUris(resourceBundle)),
+      m_TextureUris(GetTextureUris(rootPath, resourceBundle)),
       m_TextureFetcher(m_System->GetGpuHelper(),
           m_System->GetFileFetcher(),
           m_System->GetThreadPool(),
-          m_RootPath,
           m_TextureUris),
       m_ColorPassTask(m_System->GetGpuHelper(), m_System->GetFileFetcher()),
       m_CompositorPassTask(m_System->GetGpuHelper(), m_System->GetFileFetcher()),
       m_TransformPassTask(m_System->GetGpuHelper(), m_System->GetFileFetcher()),
       m_TaskBatch(
-          { &m_TextureFetcher, &m_ColorPassTask, &m_CompositorPassTask, &m_TransformPassTask }),
-      m_Stage(Stage::Pending)
+          { &m_TextureFetcher, &m_ColorPassTask, &m_CompositorPassTask, &m_TransformPassTask })
 {
 }
 
@@ -539,13 +519,12 @@ Scene::CreateTask::Take()
 
     const std::span modelNodes = m_Level->GetAllModelNodes();
 
-    auto transformBuffer =
-        gpuHelper.CreateStorageBuffer<GpuWorldTransformBuffer>(modelNodes.size(),
-            "WorldTransforms");
+    auto transformBuffer = gpuHelper.CreateStorageBuffer<GpuWorldTransformBuffer>(modelNodes.size(),
+        "WorldTransforms");
     MLG_CHECK(transformBuffer);
 
-    auto clipSpaceBuffer = gpuHelper.CreateStorageBuffer<GpuClipSpaceBuffer>(modelNodes.size(),
-        "ClipSpaceTransforms");
+    auto clipSpaceBuffer =
+        gpuHelper.CreateStorageBuffer<GpuClipSpaceBuffer>(modelNodes.size(), "ClipSpaceTransforms");
     MLG_CHECK(clipSpaceBuffer);
 
     auto meshInstanceParamsBuffer = BuildMeshInstanceParamsBuffer(gpuHelper, modelNodes);

@@ -20,10 +20,6 @@ class ThreadPool;
 class Scene
 {
 public:
-    static Result<std::unique_ptr<Scene>> Create(System& system,
-        const std::filesystem::path& rootPath,
-        const ResourceBundle& resourceBundle,
-        const Level& level);
 
     Scene() = delete;
     ~Scene() = default;
@@ -121,7 +117,6 @@ private:
 
     Timer m_Timer;
     System* m_System{ nullptr };
-    std::filesystem::path m_RootPath;
     const ResourceBundle* m_ResourceBundle{ nullptr };
     const Level* m_Level{ nullptr };
     std::vector<std::string> m_TextureUris;
