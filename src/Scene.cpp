@@ -424,11 +424,6 @@ Scene::CreateTask::CreateTask(System& system,
 {
 }
 
-Scene::CreateTask::~CreateTask()
-{
-    MLG_ASSERT(Stage::None == m_Stage || !CreateTask::IsPending(), "Destroying pending task");
-}
-
 Result<>
 Scene::CreateTask::OnStart()
 {

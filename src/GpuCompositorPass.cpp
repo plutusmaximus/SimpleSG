@@ -137,7 +137,7 @@ GpuCompositorPass::CreateTask::Begin()
 
     m_Stage = Stage::Failed;
 
-    MLG_CHECK(m_ShaderFetcher.Begin());
+    MLG_CHECK(m_ShaderFetcher.Start());
 
     m_Stage = Stage::FetchingShader;
 

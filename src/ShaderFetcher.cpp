@@ -17,13 +17,8 @@ ShaderFetcher::ShaderFetcher(
 {
 }
 
-ShaderFetcher::~ShaderFetcher()
-{
-    MLG_ASSERT(Stage::None == m_Stage || !ShaderFetcher::IsPending(), "Destroying pending task");
-}
-
 Result<>
-ShaderFetcher::Begin()
+ShaderFetcher::OnStart()
 {
     MLG_LOG_SCOPE(m_Path);
 
@@ -44,14 +39,9 @@ ShaderFetcher::Begin()
 }
 
 void
-ShaderFetcher::Update()
+ShaderFetcher::OnUpdate()
 {
     MLG_LOG_SCOPE(m_Path);
-
-    if(!MLG_VERIFY(IsPending(), "Task is not running"))
-    {
-        return;
-    }
 
     switch(m_Stage)
     {
@@ -79,18 +69,13 @@ ShaderFetcher::Update()
                 }
             }
             break;
-        case Stage::Succeeded:
         case Stage::Failed:
+            MLG_ERROR("Failed to load shader: {}", m_Path);
+            [[fallthrough]];
+        case Stage::Succeeded:
+            SetComplete();
             break;
     }
-}
-
-bool
-ShaderFetcher::IsPending() const
-{
-    return MLG_VERIFY(Stage::None != m_Stage, "Task is not started")
-        && Stage::Succeeded != m_Stage
-        && Stage::Failed != m_Stage;
 }
 
 Result<wgpu::ShaderModule>

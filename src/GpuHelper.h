@@ -167,7 +167,7 @@ public:
     };
 
     explicit CreateTask(std::string appName);
-    ~CreateTask() override;
+    ~CreateTask() override = default;
     CreateTask(const CreateTask&) = delete;
     CreateTask& operator=(const CreateTask&) = delete;
     CreateTask(CreateTask&&) = delete;

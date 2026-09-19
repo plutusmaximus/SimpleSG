@@ -12,29 +12,18 @@ class GpuHelper;
 class FileFetcher;
 
 /// A task that fetches a shader from disk and creates a wgpu::ShaderModule.
-class ShaderFetcher : public ICoopTask
+class ShaderFetcher : public ICoopTask2
 {
 public:
 
     ShaderFetcher(std::string path, const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
 
     ShaderFetcher() = delete;
-    ~ShaderFetcher() override;
+    ~ShaderFetcher() override = default;
     ShaderFetcher(const ShaderFetcher&) = delete;
     ShaderFetcher& operator=(const ShaderFetcher&) = delete;
     ShaderFetcher(ShaderFetcher&&) = delete;
     ShaderFetcher& operator=(ShaderFetcher&&) = delete;
-
-    /// Begins the task.
-    Result<> Begin() override;
-
-    /// Updates the task.  This must be called periodically while IsPending() returns true.
-    /// In addition this task depends on the FileFetcher to be updated periodically, so the
-    /// caller must ensure that the FileFetcher is updated as well.
-    void Update() override;
-
-    /// Returns true if the task is running (started but not complete).
-    bool IsPending() const override;
 
     /// Returns the shader module if the task succeeded, otherwise returns an error.
     /// This method will invalidate the task, so it can only be called once.
@@ -49,6 +38,10 @@ private:
         Succeeded,
         Failed
     };
+
+    Result<> OnStart() override;
+
+    void OnUpdate() override;
 
     Result<> CreateShaderModule();
 

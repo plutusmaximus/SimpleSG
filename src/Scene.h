@@ -91,7 +91,7 @@ public:
         const Level& level);
 
     CreateTask() = delete;
-    ~CreateTask() override;
+    ~CreateTask() override = default;
     CreateTask(const CreateTask&) = delete;
     CreateTask& operator=(const CreateTask&) = delete;
     CreateTask(CreateTask&&) = delete;
