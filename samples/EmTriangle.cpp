@@ -230,7 +230,7 @@ TriangleApp::Init(System& system)
 
     m_SceneCreateTask.emplace(system, rootPath, *m_ResourceBundle, *m_Level);
 
-    MLG_CHECK(m_SceneCreateTask->Begin(), "Failed to begin scene create task");
+    MLG_CHECK(m_SceneCreateTask->Start(), "Failed to begin scene create task");
 
     m_Viewport = Viewport(system.GetGpuHelper().GetScreenDimensions());
     m_Camera.SetViewport(m_Viewport);

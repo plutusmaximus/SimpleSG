@@ -149,7 +149,7 @@ private:
     wgpu::Texture m_DefaultTexture{ nullptr };
 };
 
-class GpuHelper::CreateTask : public ICoopTask
+class GpuHelper::CreateTask : public ICoopTask2
 {
 public:
     // Passed to the adapter request callback to store the result of the request.
@@ -173,15 +173,6 @@ public:
     CreateTask(CreateTask&&) = delete;
     CreateTask& operator=(CreateTask&&) = delete;
 
-    /// Begins the task.
-    Result<> Begin() override;
-
-    /// Updates the task.  This must be called periodically while IsPending() returns true.
-    void Update() override;
-
-    /// Returns true if the task is running (started but not complete).
-    bool IsPending() const override;
-
     /// Returns the GpuHelper instance if the task succeeded, otherwise returns an error.
     /// This method will invalidate the task, so it can only be called once.
     Result<std::unique_ptr<GpuHelper>> Take();
@@ -198,6 +189,12 @@ private:
         Succeeded,
         Failed
     };
+
+    /// Begins the task.
+    Result<> OnStart() override;
+
+    /// Updates the task.  This must be called periodically while IsPending() returns true.
+    void OnUpdate() override;
 
     Result<> CreateAdapter();
     Result<> FinalizeAdapter();

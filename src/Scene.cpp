@@ -430,7 +430,7 @@ Scene::CreateTask::~CreateTask()
 }
 
 Result<>
-Scene::CreateTask::Begin()
+Scene::CreateTask::OnStart()
 {
     m_Timer.Start();
 
@@ -443,16 +443,13 @@ Scene::CreateTask::Begin()
     return Result<>::Ok;
 }
 void
-Scene::CreateTask::Update()
+Scene::CreateTask::OnUpdate()
 {
-    if(!MLG_VERIFY(IsPending(), "Task is not running"))
-    {
-        return;
-    }
-
     switch(m_Stage)
     {
         case Stage::None:
+            MLG_ABORT("Task is not running");
+            break;
         case Stage::Pending:
             if(m_TaskBatch.IsPending())
             {
@@ -464,18 +461,13 @@ Scene::CreateTask::Update()
                 m_Stage = Stage::Succeeded;
             }
             break;
-        case Stage::Succeeded:
         case Stage::Failed:
+            MLG_ERROR("Scene creation failed");
+            [[fallthrough]];
+        case Stage::Succeeded:
+            SetComplete();
             break;
     }
-}
-
-bool
-Scene::CreateTask::IsPending() const
-{
-    return MLG_VERIFY(Stage::None != m_Stage, "Task is not started")
-        && Stage::Succeeded != m_Stage
-        && Stage::Failed != m_Stage;
 }
 
 Result<std::unique_ptr<Scene>>

@@ -8,6 +8,7 @@ Checks: >
     -misc-include-cleaner,
     -misc-non-private-member-variables-in-classes,
     -misc-no-recursion,
+    -misc-override-with-different-visibility,
   modernize-*,
     -modernize-use-trailing-return-type,
     -modernize-avoid-c-arrays,

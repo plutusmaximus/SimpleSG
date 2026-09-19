@@ -82,7 +82,7 @@ private:
     std::vector<MeshInstance> m_VisibleMeshes;
 };
 
-class Scene::CreateTask : public ICoopTask
+class Scene::CreateTask : public ICoopTask2
 {
 public:
     CreateTask(System& system,
@@ -97,12 +97,6 @@ public:
     CreateTask(CreateTask&&) = delete;
     CreateTask& operator=(CreateTask&&) = delete;
 
-    Result<> Begin() override;
-
-    void Update() override;
-
-    bool IsPending() const override;
-
     Result<std::unique_ptr<Scene>> Take();
 
 private:
@@ -114,6 +108,10 @@ private:
         Succeeded,
         Failed
     };
+
+    Result<> OnStart() override;
+
+    void OnUpdate() override;
 
     Timer m_Timer;
     System* m_System{ nullptr };

@@ -151,7 +151,7 @@ LoadLevel(System& system)
 
     Scene::CreateTask createTask(system, rootPath, *rsrcBundle, *level);
 
-    MLG_CHECK(createTask.Begin(), "Failed to begin create task");
+    MLG_CHECK(createTask.Start(), "Failed to begin create task");
 
     while(createTask.IsPending())
     {

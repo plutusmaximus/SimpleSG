@@ -49,7 +49,7 @@ System::CreateTask::Begin()
 
     MLG_INFO("Creating System...");
 
-    MLG_CHECK(m_Impl->m_GpuHelperTask.Begin(), "Failed to begin GpuHelper creation");
+    MLG_CHECK(m_Impl->m_GpuHelperTask.Start(), "Failed to start GpuHelper creation");
 
     m_Stage = Stage::CreatingGpuHelper;
 

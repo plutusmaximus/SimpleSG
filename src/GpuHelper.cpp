@@ -409,7 +409,7 @@ GpuHelper::CreateTask::~CreateTask()
 }
 
 Result<>
-GpuHelper::CreateTask::Begin()
+GpuHelper::CreateTask::OnStart()
 {
     MLG_CHECKV(Stage::None == m_Stage, "Task has already been started");
 
@@ -446,18 +446,14 @@ GpuHelper::CreateTask::Begin()
 }
 
 void
-GpuHelper::CreateTask::Update()
+GpuHelper::CreateTask::OnUpdate()
 {
-    if(!MLG_VERIFY(IsPending(), "Task is not pending"))
-    {
-        return;
-    }
-
     m_GpuHelper->m_Instance.ProcessEvents();
 
     switch(m_Stage)
     {
         case Stage::None:
+            MLG_ABORT("Task is not running");
             break;
 
         case Stage::CreateAdapter:
@@ -515,21 +511,13 @@ GpuHelper::CreateTask::Update()
 
             break;
 
-        case Stage::Succeeded:
-            break;
-
         case Stage::Failed:
             MLG_ERROR("GpuHelper creation failed");
+            [[fallthrough]];
+        case Stage::Succeeded:
+            SetComplete();
             break;
     }
-}
-
-bool
-GpuHelper::CreateTask::IsPending() const
-{
-    return MLG_VERIFY(Stage::None != m_Stage, "Task is not started")
-        && Stage::Succeeded != m_Stage
-        && Stage::Failed != m_Stage;
 }
 
 Result<std::unique_ptr<GpuHelper>>
