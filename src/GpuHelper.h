@@ -190,10 +190,8 @@ private:
         Failed
     };
 
-    /// Begins the task.
     Result<> OnStart() override;
 
-    /// Updates the task.  This must be called periodically while IsPending() returns true.
     void OnUpdate() override;
 
     Result<> CreateAdapter();

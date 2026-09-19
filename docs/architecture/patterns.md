@@ -6,63 +6,56 @@ is not a rule for every situation, but differences should be intentional.
 
 ## Cooperative Tasks
 
-Some work cannot be finished in one call. For that work, create a task and call
-`Update()` until it is complete.
-
-`Update()` does whatever work it can and then returns. It never waits or blocks,
-and the task always runs on the thread that called `Update()`. The task may
-check on work happening elsewhere, such as a file read or worker job, but that
-work is separate from the task itself.
-
-A task advances through a series of stages, usually defined with an enum. Its
-`Update()` method typically uses a `switch` on the current stage, does the work
-for that stage, and moves to the next stage when it can.
-
-Cooperative tasks implement `ICoopTask`, which provides `Begin()`, `IsPending()`,
-and `Update()`. A task that produces a result also provides a typed `Take()`
-method. `Take()` is not part of `ICoopTask` because different tasks produce
-different result types.
-
-Construct a task with the dependencies and inputs it needs, then call `Begin()`
-once. Calling `IsPending()` before `Begin()` is a contract violation. After a
-task reaches a terminal stage, `IsPending()` returns false. Destroying an
-unstarted or terminal task is valid, but destroying a pending task violates the
-task's lifetime invariant.
-
-Tasks can be composed directly. A parent task can own child tasks and call their
-`Update()` methods from its own `Update()`. The parent uses the children's
-results to decide how to continue.
-
-Use `CoopTaskBatch` when several heterogeneous tasks can run concurrently. The
-batch borrows its tasks through `ICoopTask` pointers. Every pointer must be
-non-null, and every task must remain at a stable address and outlive the batch.
-The batch begins and updates its children and completes after every child has
-reached a terminal stage.
-
-Batch completion does not mean that every child succeeded. The batch coordinates
-lifetime and progress, while the owner remains responsible for taking each
-child's result and handling its failure. If a child fails to begin, the batch
-removes it from the pending set so that successfully started children can still
-run to completion.
-
-### General shape
+Use a cooperative task for work that spans multiple frames. The caller
+starts the task and keeps updating it until it is complete.
 
 ```cpp
 ThingTask task(...);
-MLG_CHECK(task.Begin());
+MLG_CHECK(task.Start());
 
 while(task.IsPending())
 {
     task.Update();
 
-    // Other work can be done here...
+    // Other work can be done here.
 }
-
-auto result = task.Take();
-MLG_CHECK(result);
 ```
 
-`Take()` transfers the result and consumes it, so it can only succeed once.
+Call `Start()` once, then use `IsPending()` to decide whether to call `Update()`.
+A task must finish before it is destroyed. Destroying a task that was never
+started is also valid.
+
+To write a task, derive from [`ICoopTask`](../../src/CoopTask.h) and implement
+`OnStart()` and `OnUpdate()`. `Start()` calls `OnStart()`, and `Update()` calls
+`OnUpdate()`. The base checks that you start the task only once and update it only
+while it is pending.
+
+`OnStart()` sets up the work and returns a `Result`. If it fails, the base marks
+the task complete. `OnUpdate()` does the work it can and then returns without
+waiting. It runs on the caller's thread. It may check whether a file read or
+worker job has finished, but it must not wait for it.
+
+Tasks usually track their progress with an enum and a `switch` in `OnUpdate()`.
+Call `SetComplete()` when no more updates are needed. This can happen during
+`OnStart()`, or when `OnUpdate()` reaches a finished stage. It is also fine to
+handle that stage and call `SetComplete()` on the next update.
+
+Completion means the task has finished, whether it succeeded or failed. Some
+tasks provide a `Take()` method to return a result. For those tasks, call `Take()`
+after `IsPending()` becomes false and check the result. The result can only be
+taken once. `Take()` is not required by `ICoopTask`.
+
+A task can own other tasks and start and update them as part of its own work.
+It must let any children it starts finish before it finishes.
+
+Use `CoopTaskBatch` to start and update several tasks together. Give it a nonempty
+collection of non-null task pointers. The batch does not own the tasks, so they
+must stay at the same addresses and outlive it. A batch is itself a task and can
+be included in another batch.
+
+The batch finishes after all its children finish. If a child fails to start,
+the batch still lets the other children finish. It does not decide how to handle
+child failures or collect their results. That remains the caller's job.
 
 ## Valid Construction
 

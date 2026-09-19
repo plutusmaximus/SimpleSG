@@ -7,9 +7,8 @@
 #include <vector>
 
 /// A cooperative task that executes over multiple frames.
-/// Call Start() to begin the task.
-/// Each frame check IsPending() to see if the task is still running,
-/// and call Update() to advance the task.
+/// Call Start() once, then call Update() while IsPending() returns true.
+/// Let a started task finish before destroying it. An unstarted task can be destroyed.
 class ICoopTask
 {
 public:
@@ -21,27 +20,30 @@ public:
     ICoopTask(ICoopTask&&) = delete;
     ICoopTask& operator=(ICoopTask&&) = delete;
 
-    /// Starts the task by calling OnStart(). Returns a Result indicating success or failure.
-    /// If OnStart() succeeds, the task is set to the pending stage (unless OnStart() calls SetComplete()).
-    /// If OnStart() fails, the task is set to the complete stage.
+    /// Call once to start the task. Sets it pending, calls OnStart(), and returns its result.
+    /// If OnStart() fails or calls SetComplete(), the task is complete when Start() returns.
     Result<> Start();
 
-    /// Returns true if the task is still pending, false if it is complete.
+    /// Call only after Start(). Returns true while the task needs more updates.
+    /// False means it has finished, not necessarily that it succeeded.
     bool IsPending() const;
 
-    /// Runs the task by calling OnUpdate(), advancing it to the next stage.
-    /// This must be called periodically while IsPending() returns true.
+    /// Calls OnUpdate() once on this thread. Call only while IsPending() returns true.
     void Update();
 
 protected:
 
-    /// Called by Start(). Returns a Result indicating success or failure.
+    /// Sets up the work. Start() calls this with the task already pending.
+    /// Call SetComplete() if the work finishes here.
+    /// Do not return failure while child tasks or other work still need updates.
     virtual Result<> OnStart() = 0;
 
-    /// Called by Update() to advance the task to the next stage.
+    /// Does the work it can and returns without waiting. Update() calls this once.
+    /// Call SetComplete() when finished.
     virtual void OnUpdate() = 0;
 
-    /// Marks the task as complete.
+    /// Marks a pending task as finished. IsPending() will return false.
+    /// The derived task keeps track of whether the work succeeded or failed.
     void SetComplete();
 
 private:
@@ -55,9 +57,11 @@ private:
     Stage m_Stage{ Stage::None };
 };
 
-/// A batch of cooperative tasks that completes when all tasks in the batch have completed.
-/// The batch itself is a cooperative task and can be used like any other ICoopTask.
-/// Note: The tasks in the batch must be non-null and remain valid for the lifetime of the batch.
+/// Starts and updates a group of tasks until they have all finished.
+/// Supply at least one task and no null pointers. Keep the tasks alive and at the same
+/// addresses until the batch is destroyed. The batch does not own them.
+/// If one task fails to start, the others still run to completion.
+/// The caller handles failures and collects any results. Batches can also be tasks.
 class CoopTaskBatch : public ICoopTask
 {
 public:
