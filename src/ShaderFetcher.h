@@ -12,7 +12,7 @@ class GpuHelper;
 class FileFetcher;
 
 /// A task that fetches a shader from disk and creates a wgpu::ShaderModule.
-class ShaderFetcher : public ICoopTask2
+class ShaderFetcher : public ICoopTask
 {
 public:
 

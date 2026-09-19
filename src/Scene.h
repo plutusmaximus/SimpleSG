@@ -82,7 +82,7 @@ private:
     std::vector<MeshInstance> m_VisibleMeshes;
 };
 
-class Scene::CreateTask : public ICoopTask2
+class Scene::CreateTask : public ICoopTask
 {
 public:
     CreateTask(System& system,

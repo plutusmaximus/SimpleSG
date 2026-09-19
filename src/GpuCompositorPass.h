@@ -106,7 +106,7 @@ private:
     wgpu::RenderPipeline m_Pipeline;
 };
 
-class GpuCompositorPass::CreateTask : public ICoopTask2
+class GpuCompositorPass::CreateTask : public ICoopTask
 {
 public:
     CreateTask(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);

@@ -149,7 +149,7 @@ private:
     wgpu::Texture m_DefaultTexture{ nullptr };
 };
 
-class GpuHelper::CreateTask : public ICoopTask2
+class GpuHelper::CreateTask : public ICoopTask
 {
 public:
     // Passed to the adapter request callback to store the result of the request.

@@ -277,7 +277,7 @@ TextureFetcher::OnStart()
     // If a texture fails to load then we'll get the default texture.
     m_Textures.resize(m_TextureUris.size(), m_GpuHelper->GetDefaultTexture());
 
-    std::vector<ICoopTask2*> taskBatch;
+    std::vector<ICoopTask*> taskBatch;
     taskBatch.reserve(m_TextureUris.size());
 
     for(const std::string& uri : m_TextureUris)

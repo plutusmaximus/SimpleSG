@@ -102,7 +102,7 @@ private:
     std::unique_ptr<Impl> m_Impl;
 };
 
-class System::CreateTask : public ICoopTask2
+class System::CreateTask : public ICoopTask
 {
 public:
     explicit CreateTask(std::string appName);

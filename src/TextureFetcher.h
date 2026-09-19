@@ -19,7 +19,7 @@ class ThreadPool;
 
 using FetchRequestId = uint64_t;
 
-class TextureFetcher : public ICoopTask2
+class TextureFetcher : public ICoopTask
 {
 public:
     TextureFetcher(const GpuHelper& gpuHelper,
@@ -49,7 +49,7 @@ private:
 
     void OnUpdate() override;
 
-    class FetchTask : public ICoopTask2
+    class FetchTask : public ICoopTask
     {
     public:
 
