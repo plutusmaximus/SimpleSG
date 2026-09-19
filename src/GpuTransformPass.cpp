@@ -123,13 +123,22 @@ GpuTransformPass::CreateTask::CreateTask(const GpuHelper& gpuHelper, FileFetcher
 {
 }
 
-GpuTransformPass::CreateTask::~CreateTask()
+Result<GpuTransformPass>
+GpuTransformPass::CreateTask::Take()
 {
-    MLG_ASSERT(Stage::None == m_Stage || !CreateTask::IsPending(), "Destroying pending task");
+    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task did not succeed");
+    MLG_CHECKV(m_GpuPass, "Task result already consumed");
+
+    std::optional bye = std::move(m_GpuPass);
+    m_GpuPass.reset(); // Invalidate the result so it can only be taken once
+
+    return std::move(*bye);
 }
 
+// private:
+
 Result<>
-GpuTransformPass::CreateTask::Begin()
+GpuTransformPass::CreateTask::OnStart()
 {
     MLG_DEBUG("Creating transform pass...");
 
@@ -145,17 +154,14 @@ GpuTransformPass::CreateTask::Begin()
 }
 
 void
-GpuTransformPass::CreateTask::Update()
+GpuTransformPass::CreateTask::OnUpdate()
 {
-    if(!MLG_VERIFY(IsPending(), "Task is not running"))
-    {
-        return;
-    }
-
     switch(m_Stage)
     {
         case Stage::None:
+            MLG_ABORT("Task is not running");
             break;
+
         case Stage::FetchingShader:
             if(m_ShaderFetcher.IsPending())
             {
@@ -172,33 +178,13 @@ GpuTransformPass::CreateTask::Update()
                 m_Stage = Stage::Failed;
             }
             break;
-        case Stage::Succeeded:
         case Stage::Failed:
+            MLG_ERROR("Failed to create transform pass");
+            [[fallthrough]];
+        case Stage::Succeeded:
+            SetComplete();
             break;
-        default:
-            MLG_ABORT("Invalid stage: {}", static_cast<int>(m_Stage));
-            return;
     }
-}
-
-bool
-GpuTransformPass::CreateTask::IsPending() const
-{
-    return MLG_VERIFY(Stage::None != m_Stage, "Task is not started")
-        && Stage::Succeeded != m_Stage
-        && Stage::Failed != m_Stage;
-}
-
-Result<GpuTransformPass>
-GpuTransformPass::CreateTask::Take()
-{
-    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task did not succeed");
-    MLG_CHECKV(m_GpuPass, "Task result already consumed");
-
-    std::optional bye = std::move(m_GpuPass);
-    m_GpuPass.reset(); // Invalidate the result so it can only be taken once
-
-    return std::move(*bye);
 }
 
 Result<>

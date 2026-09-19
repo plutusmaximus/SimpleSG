@@ -48,7 +48,7 @@ Shell::Update(AppUpdateCallback appUpdateCb)
     {
         case Stage::Init:
         {
-            MLG_CHECK(m_SystemCreateTask.Begin(), "Failed to create System");
+            MLG_CHECK(m_SystemCreateTask.Start(), "Failed to create System");
             m_Stage = Stage::CreatingSystem;
         }
         break;

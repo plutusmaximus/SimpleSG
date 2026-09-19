@@ -112,7 +112,7 @@ MainLoop()
 
     System::CreateTask sysCreateTask(kAppName);
 
-    MLG_CHECK(sysCreateTask.Begin());
+    MLG_CHECK(sysCreateTask.Start());
 
     while(sysCreateTask.IsPending())
     {

@@ -126,21 +126,15 @@ private:
     wgpu::Sampler m_DefaultSampler;
 };
 
-class GpuColorPass::CreateTask : public ICoopTask
+class GpuColorPass::CreateTask : public ICoopTask2
 {
 public:
     CreateTask(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
-    ~CreateTask() override;
+    ~CreateTask() override = default;
     CreateTask(const CreateTask&) = delete;
     CreateTask& operator=(const CreateTask&) = delete;
     CreateTask(CreateTask&&) = delete;
     CreateTask& operator=(CreateTask&&) = delete;
-
-    Result<> Begin() override;
-
-    void Update() override;
-
-    bool IsPending() const override;
 
     Result<GpuColorPass> Take();
 
@@ -152,6 +146,10 @@ private:
         Succeeded,
         Failed
     };
+
+    Result<> OnStart() override;
+
+    void OnUpdate() override;
 
     Result<> CreatePass();
 

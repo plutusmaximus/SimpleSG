@@ -403,6 +403,18 @@ GpuHelper::CreateTask::CreateTask(std::string appName)
 {
 }
 
+Result<std::unique_ptr<GpuHelper>>
+GpuHelper::CreateTask::Take()
+{
+    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task has not succeeded");
+    MLG_CHECKV(!m_Consumed, "Task result already consumed");
+
+    m_Consumed = true;
+    return std::move(m_GpuHelper);
+}
+
+// private:
+
 Result<>
 GpuHelper::CreateTask::OnStart()
 {
@@ -514,18 +526,6 @@ GpuHelper::CreateTask::OnUpdate()
             break;
     }
 }
-
-Result<std::unique_ptr<GpuHelper>>
-GpuHelper::CreateTask::Take()
-{
-    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task has not succeeded");
-    MLG_CHECKV(!m_Consumed, "Task result already consumed");
-
-    m_Consumed = true;
-    return std::move(m_GpuHelper);
-}
-
-// private:
 
 Result<>
 GpuHelper::CreateTask::CreateAdapter()

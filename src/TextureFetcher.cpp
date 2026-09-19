@@ -27,13 +27,22 @@ TextureFetcher::FetchTask::FetchTask(const GpuHelper& gpuHelper,
 {
 }
 
-TextureFetcher::FetchTask::~FetchTask()
+Result<wgpu::Texture>
+TextureFetcher::FetchTask::Take()
 {
-    MLG_ASSERT(Stage::None == m_Stage || !FetchTask::IsPending(), "Destroying pending task");
+    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task is not complete");
+    MLG_CHECKV(m_Texture, "Texture is not valid");
+
+    wgpu::Texture texture = m_Texture;
+    m_Texture = nullptr; // Invalidate the texture so it can only be taken once
+
+    return texture;
 }
 
+// private:
+
 Result<>
-TextureFetcher::FetchTask::Begin()
+TextureFetcher::FetchTask::OnStart()
 {
     MLG_CHECKV(Stage::None == m_Stage, "Task already started");
 
@@ -53,19 +62,16 @@ TextureFetcher::FetchTask::Begin()
 }
 
 void
-TextureFetcher::FetchTask::Update()
+TextureFetcher::FetchTask::OnUpdate()
 {
     MLG_LOG_SCOPE(m_Uri);
-
-    if(!MLG_VERIFY(IsPending(), "Task is not running"))
-    {
-        return;
-    }
 
     switch(m_Stage)
     {
         case Stage::None:
+            MLG_ABORT("Task is not running");
             break;
+
         case Stage::Fetching:
             if(!m_FileFetcher->IsPending(m_FetchRequestId))
             {
@@ -105,34 +111,14 @@ TextureFetcher::FetchTask::Update()
             }
             break;
 
-        case Stage::Succeeded:
         case Stage::Failed:
+            MLG_ERROR("Task failed");
+            [[fallthrough]];
+        case Stage::Succeeded:
+            SetComplete();
             m_CompletionFlag.store(true, std::memory_order_release);
             break;
-        default:
-            MLG_ERROR("Invalid stage: {}", static_cast<int>(m_Stage));
-            break;
     }
-}
-
-bool
-TextureFetcher::FetchTask::IsPending() const
-{
-    return MLG_VERIFY(Stage::None != m_Stage, "Task is not started")
-        && Stage::Succeeded != m_Stage
-        && Stage::Failed != m_Stage;
-}
-
-Result<wgpu::Texture>
-TextureFetcher::FetchTask::Take()
-{
-    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task is not complete");
-    MLG_CHECKV(m_Texture, "Texture is not valid");
-
-    wgpu::Texture texture = m_Texture;
-    m_Texture = nullptr; // Invalidate the texture so it can only be taken once
-
-    return texture;
 }
 
 Result<>
@@ -264,13 +250,20 @@ TextureFetcher::TextureFetcher(const GpuHelper& gpuHelper,
     MLG_ASSERT(!m_TextureUris.empty(), "No texture URIs provided");
 }
 
-TextureFetcher::~TextureFetcher()
+Result<std::vector<wgpu::Texture>>
+TextureFetcher::Take()
 {
-    MLG_ASSERT(Stage::None == m_Stage || !TextureFetcher::IsPending(), "Destroying pending task");
+    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task did not succeed");
+    MLG_CHECKV(!m_Consumed, "Task result already consumed");
+
+    m_Consumed = true;
+    return std::move(m_Textures);
 }
 
+// private:
+
 Result<>
-TextureFetcher::Begin()
+TextureFetcher::OnStart()
 {
     MLG_CHECKV(m_Stage == Stage::None, "Task is already in progress");
 
@@ -284,7 +277,7 @@ TextureFetcher::Begin()
     // If a texture fails to load then we'll get the default texture.
     m_Textures.resize(m_TextureUris.size(), m_GpuHelper->GetDefaultTexture());
 
-    std::vector<ICoopTask*> taskBatch;
+    std::vector<ICoopTask2*> taskBatch;
     taskBatch.reserve(m_TextureUris.size());
 
     for(const std::string& uri : m_TextureUris)
@@ -300,7 +293,7 @@ TextureFetcher::Begin()
 
     m_TaskBatch.emplace(std::move(taskBatch));
 
-    MLG_CHECK(m_TaskBatch->Begin());
+    MLG_CHECK(m_TaskBatch->Start());
 
     m_Stage = Stage::Fetching;
 
@@ -308,17 +301,16 @@ TextureFetcher::Begin()
 }
 
 void
-TextureFetcher::Update()
+TextureFetcher::OnUpdate()
 {
-    if(!MLG_VERIFY(IsPending(), "Task is not running"))
-    {
-        return;
-    }
-
     MLG_ABORTIF(!m_TaskBatch.has_value(), "Task batch is not initialized");
 
     switch(m_Stage)
     {
+        case Stage::None:
+            MLG_ABORT("Task is not running");
+            break;
+
         case Stage::Fetching:
             if(m_TaskBatch->IsPending())
             {
@@ -342,30 +334,10 @@ TextureFetcher::Update()
             }
             break;
 
-        case Stage::Succeeded:
         case Stage::Failed:
+            [[fallthrough]];
+        case Stage::Succeeded:
+            SetComplete();
             break;
-
-        default:
-            MLG_ABORT("Invalid stage: {}", static_cast<int>(m_Stage));
-            return;
     }
-}
-
-bool
-TextureFetcher::IsPending() const
-{
-    return MLG_VERIFY(Stage::None != m_Stage, "Task is not started")
-        && Stage::Succeeded != m_Stage
-        && Stage::Failed != m_Stage;
-}
-
-Result<std::vector<wgpu::Texture>>
-TextureFetcher::Take()
-{
-    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task did not succeed");
-    MLG_CHECKV(!m_Consumed, "Task result already consumed");
-
-    m_Consumed = true;
-    return std::move(m_Textures);
 }

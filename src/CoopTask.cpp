@@ -50,28 +50,25 @@ ICoopTask2::SetComplete()
     }
 }
 
-CoopTaskBatch::CoopTaskBatch(std::initializer_list<ICoopTask*> tasks)
-    : CoopTaskBatch(std::vector<ICoopTask*>(tasks))
+CoopTaskBatch::CoopTaskBatch(std::initializer_list<ICoopTask2*> tasks)
+    : CoopTaskBatch(std::vector<ICoopTask2*>(tasks))
 {
 }
 
-CoopTaskBatch::CoopTaskBatch(std::span<ICoopTask*> tasks)
-    : CoopTaskBatch(std::vector<ICoopTask*>(tasks.begin(), tasks.end()))
+CoopTaskBatch::CoopTaskBatch(std::span<ICoopTask2*> tasks)
+    : CoopTaskBatch(std::vector<ICoopTask2*>(tasks.begin(), tasks.end()))
 {
 }
 
-CoopTaskBatch::CoopTaskBatch(std::vector<ICoopTask*> tasks)
+CoopTaskBatch::CoopTaskBatch(std::vector<ICoopTask2*> tasks)
     : m_Tasks(std::move(tasks))
 {
 }
 
-CoopTaskBatch::~CoopTaskBatch()
-{
-    MLG_ASSERT(Stage::None == m_Stage || !CoopTaskBatch::IsPending(), "Destroying pending task");
-}
+// private:
 
 Result<>
-CoopTaskBatch::Begin()
+CoopTaskBatch::OnStart()
 {
     MLG_CHECKV(Stage::None == m_Stage, "Task is already in progress");
 
@@ -81,7 +78,7 @@ CoopTaskBatch::Begin()
     {
         MLG_ASSERT(m_Tasks[i] != nullptr, "Task is null");
 
-        if(m_Tasks[i]->Begin())
+        if(m_Tasks[i]->Start())
         {
             ++i;
         }
@@ -97,25 +94,12 @@ CoopTaskBatch::Begin()
     return Result<>::Ok;
 }
 
-bool
-CoopTaskBatch::IsPending() const
-{
-    MLG_ASSERT(Stage::None != m_Stage, "Task is not started");
-
-    return Stage::Pending == m_Stage;
-}
-
 void
-CoopTaskBatch::Update()
+CoopTaskBatch::OnUpdate()
 {
-    if(!MLG_VERIFY(IsPending(), "Task is not running"))
-    {
-        return;
-    }
-
     for(size_t i = 0; i < m_Tasks.size(); )
     {
-        ICoopTask* task = m_Tasks[i];
+        ICoopTask2* task = m_Tasks[i];
         if(task->IsPending())
         {
             task->Update();
@@ -131,5 +115,6 @@ CoopTaskBatch::Update()
     if(m_Tasks.empty())
     {
         m_Stage = Stage::Succeeded;
+        SetComplete();
     }
 }

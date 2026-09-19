@@ -91,21 +91,15 @@ private:
     wgpu::ComputePipeline m_Pipeline;
 };
 
-class GpuTransformPass::CreateTask : public ICoopTask
+class GpuTransformPass::CreateTask : public ICoopTask2
 {
 public:
     CreateTask(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
-    ~CreateTask() override;
+    ~CreateTask() override = default;
     CreateTask(const CreateTask&) = delete;
     CreateTask& operator=(const CreateTask&) = delete;
     CreateTask(CreateTask&&) = delete;
     CreateTask& operator=(CreateTask&&) = delete;
-
-    Result<> Begin() override;
-
-    void Update() override;
-
-    bool IsPending() const override;
 
     Result<GpuTransformPass> Take();
 
@@ -117,6 +111,10 @@ private:
         Succeeded,
         Failed
     };
+
+    Result<> OnStart() override;
+
+    void OnUpdate() override;
 
     Result<> CreatePass();
 

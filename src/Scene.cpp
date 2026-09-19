@@ -424,47 +424,6 @@ Scene::CreateTask::CreateTask(System& system,
 {
 }
 
-Result<>
-Scene::CreateTask::OnStart()
-{
-    m_Timer.Start();
-
-    m_Stage = Stage::Failed;
-
-    MLG_CHECK(m_TaskBatch.Begin(), "Failed to begin task batch");
-
-    m_Stage = Stage::Pending;
-
-    return Result<>::Ok;
-}
-void
-Scene::CreateTask::OnUpdate()
-{
-    switch(m_Stage)
-    {
-        case Stage::None:
-            MLG_ABORT("Task is not running");
-            break;
-        case Stage::Pending:
-            if(m_TaskBatch.IsPending())
-            {
-                m_System->GetFileFetcher().ProcessCompletions();
-                m_TaskBatch.Update();
-            }
-            else
-            {
-                m_Stage = Stage::Succeeded;
-            }
-            break;
-        case Stage::Failed:
-            MLG_ERROR("Scene creation failed");
-            [[fallthrough]];
-        case Stage::Succeeded:
-            SetComplete();
-            break;
-    }
-}
-
 Result<std::unique_ptr<Scene>>
 Scene::CreateTask::Take()
 {
@@ -538,4 +497,48 @@ Scene::CreateTask::Take()
     MLG_INFO("Scene created in {} ms", m_Timer.GetElapsedSeconds() * 1000);
 
     return scene;
+}
+
+// private:
+
+Result<>
+Scene::CreateTask::OnStart()
+{
+    m_Timer.Start();
+
+    m_Stage = Stage::Failed;
+
+    MLG_CHECK(m_TaskBatch.Start(), "Failed to begin task batch");
+
+    m_Stage = Stage::Pending;
+
+    return Result<>::Ok;
+}
+void
+Scene::CreateTask::OnUpdate()
+{
+    switch(m_Stage)
+    {
+        case Stage::None:
+            MLG_ABORT("Task is not running");
+            break;
+
+        case Stage::Pending:
+            if(m_TaskBatch.IsPending())
+            {
+                m_System->GetFileFetcher().ProcessCompletions();
+                m_TaskBatch.Update();
+            }
+            else
+            {
+                m_Stage = Stage::Succeeded;
+            }
+            break;
+        case Stage::Failed:
+            MLG_ERROR("Scene creation failed");
+            [[fallthrough]];
+        case Stage::Succeeded:
+            SetComplete();
+            break;
+    }
 }

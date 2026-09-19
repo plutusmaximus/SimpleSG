@@ -19,29 +19,18 @@ class ThreadPool;
 
 using FetchRequestId = uint64_t;
 
-class TextureFetcher : public ICoopTask
+class TextureFetcher : public ICoopTask2
 {
 public:
     TextureFetcher(const GpuHelper& gpuHelper,
         FileFetcher& fileFetcher,
         ThreadPool& threadPool,
         std::vector<std::string> textureUris);
-    ~TextureFetcher() override;
+    ~TextureFetcher() override = default;
     TextureFetcher(const TextureFetcher&) = delete;
     TextureFetcher& operator=(const TextureFetcher&) = delete;
     TextureFetcher(TextureFetcher&&) = delete;
     TextureFetcher& operator=(TextureFetcher&&) = delete;
-
-    /// Begins the task.
-    Result<> Begin() override;
-
-    /// Updates the task.  This must be called periodically while IsPending() returns true.
-    /// In addition this task depends on the FileFetcher to be updated periodically, so the
-    /// caller must ensure that the FileFetcher is updated as well.
-    void Update() override;
-
-    /// Returns true if the task is running (started but not complete).
-    bool IsPending() const override;
 
     /// Returns the collection of textures if the task succeeded, otherwise returns an error.
     /// This method will invalidate the task, so it can only be called once.
@@ -56,7 +45,11 @@ private:
         Failed,
     };
 
-    class FetchTask : public ICoopTask
+    Result<> OnStart() override;
+
+    void OnUpdate() override;
+
+    class FetchTask : public ICoopTask2
     {
     public:
 
@@ -67,17 +60,11 @@ private:
             wgpu::CommandEncoder commandEncoder);
 
         FetchTask() = delete;
-        ~FetchTask() override;
+        ~FetchTask() override = default;
         FetchTask(const FetchTask&) = delete;
         FetchTask& operator=(const FetchTask&) = delete;
         FetchTask(FetchTask&&) = delete;
         FetchTask& operator=(FetchTask&&) = delete;
-
-        Result<> Begin() override;
-
-        void Update() override;
-
-        bool IsPending() const override;
 
         Result<wgpu::Texture> Take();
 
@@ -90,6 +77,10 @@ private:
             Succeeded,
             Failed
         };
+
+        Result<> OnStart() override;
+
+        void OnUpdate() override;
 
         Result<> BeginDecode();
 

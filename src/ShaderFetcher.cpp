@@ -17,6 +17,21 @@ ShaderFetcher::ShaderFetcher(
 {
 }
 
+Result<wgpu::ShaderModule>
+ShaderFetcher::Take()
+{
+    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task has not succeeded");
+
+    MLG_CHECKV(m_ShaderModule, "Shader module already consumed");
+
+    wgpu::ShaderModule shaderModule = m_ShaderModule;
+    m_ShaderModule = nullptr; // Invalidate the shader module so it can only be taken once
+
+    return shaderModule;
+}
+
+// private
+
 Result<>
 ShaderFetcher::OnStart()
 {
@@ -46,7 +61,9 @@ ShaderFetcher::OnUpdate()
     switch(m_Stage)
     {
         case Stage::None:
+            MLG_ABORT("Task is not running");
             break;
+
         case Stage::Fetching:
             if(!m_FileFetcher->IsPending(m_RequestId))
             {
@@ -76,19 +93,6 @@ ShaderFetcher::OnUpdate()
             SetComplete();
             break;
     }
-}
-
-Result<wgpu::ShaderModule>
-ShaderFetcher::Take()
-{
-    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task has not succeeded");
-
-    MLG_CHECKV(m_ShaderModule, "Shader module already consumed");
-
-    wgpu::ShaderModule shaderModule = m_ShaderModule;
-    m_ShaderModule = nullptr; // Invalidate the shader module so it can only be taken once
-
-    return shaderModule;
 }
 
 Result<>

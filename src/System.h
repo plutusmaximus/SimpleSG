@@ -102,7 +102,7 @@ private:
     std::unique_ptr<Impl> m_Impl;
 };
 
-class System::CreateTask : public ICoopTask
+class System::CreateTask : public ICoopTask2
 {
 public:
     explicit CreateTask(std::string appName);
@@ -111,15 +111,6 @@ public:
     CreateTask& operator=(const CreateTask&) = delete;
     CreateTask(CreateTask&&) = delete;
     CreateTask& operator=(CreateTask&&) = delete;
-
-    /// Begins the task.
-    Result<> Begin() override;
-
-    /// Updates the task.  This must be called periodically while IsPending() returns
-    void Update() override;
-
-    /// Returns true if the task is running (started but not complete).
-    bool IsPending() const override;
 
     /// Returns the System instance if the task succeeded, otherwise returns an error.
     /// This method will invalidate the task, so it can only be called once.
@@ -135,6 +126,10 @@ private:
         Succeeded,
         Failed
     };
+
+    Result<> OnStart() override;
+
+    void OnUpdate() override;
 
     Stage m_Stage{ Stage::None };
 

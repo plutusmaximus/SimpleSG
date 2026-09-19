@@ -34,68 +34,7 @@ System::CreateTask::CreateTask(std::string appName)
 {
 }
 
-System::CreateTask::~CreateTask()
-{
-    MLG_ASSERT(Stage::None == m_Stage || !CreateTask::IsPending(), "Destroying pending task");
-}
-
-Result<>
-System::CreateTask::Begin()
-{
-    MLG_CHECKV(m_Stage == Stage::None, "Task is already in progress");
-
-    // Set the initial stage to failed to ensure that any early exit will mark the task as failed.
-    m_Stage = Stage::Failed;
-
-    MLG_INFO("Creating System...");
-
-    MLG_CHECK(m_Impl->m_GpuHelperTask.Start(), "Failed to start GpuHelper creation");
-
-    m_Stage = Stage::CreatingGpuHelper;
-
-    return Result<>::Ok;
-}
-
-void
-System::CreateTask::Update()
-{
-    if(!MLG_VERIFY(IsPending(), "Task is not running"))
-    {
-        return;
-    }
-
-    switch(m_Stage)
-    {
-        case Stage::None:
-            break;
-
-        case Stage::CreatingGpuHelper:
-            if(m_Impl->m_GpuHelperTask.IsPending())
-            {
-                m_Impl->m_GpuHelperTask.Update();
-            }
-            else
-            {
-                m_Stage = Stage::Succeeded;
-            }
-            break;
-
-        case Stage::Succeeded:
-            break;
-
-        case Stage::Failed:
-            MLG_ERROR("System creation failed");
-            break;
-    }
-}
-
-bool
-System::CreateTask::IsPending() const
-{
-    return MLG_VERIFY(Stage::None != m_Stage, "Task is not started")
-        && Stage::Succeeded != m_Stage
-        && Stage::Failed != m_Stage;
-}
+System::CreateTask::~CreateTask() = default;
 
 Result<System>
 System::CreateTask::Take()
@@ -119,6 +58,54 @@ System::CreateTask::Take()
     m_Impl->m_ImGuiRenderer = std::move(*imGuiRendererResult);
 
     return System(std::move(m_Impl));
+}
+
+// private:
+
+Result<>
+System::CreateTask::OnStart()
+{
+    MLG_CHECKV(m_Stage == Stage::None, "Task is already in progress");
+
+    // Set the initial stage to failed to ensure that any early exit will mark the task as failed.
+    m_Stage = Stage::Failed;
+
+    MLG_INFO("Creating System...");
+
+    MLG_CHECK(m_Impl->m_GpuHelperTask.Start(), "Failed to start GpuHelper creation");
+
+    m_Stage = Stage::CreatingGpuHelper;
+
+    return Result<>::Ok;
+}
+
+void
+System::CreateTask::OnUpdate()
+{
+    switch(m_Stage)
+    {
+        case Stage::None:
+            MLG_ABORT("Task is not running");
+            break;
+
+        case Stage::CreatingGpuHelper:
+            if(m_Impl->m_GpuHelperTask.IsPending())
+            {
+                m_Impl->m_GpuHelperTask.Update();
+            }
+            else
+            {
+                m_Stage = Stage::Succeeded;
+            }
+            break;
+
+        case Stage::Failed:
+            MLG_ERROR("System creation failed");
+            [[fallthrough]];
+        case Stage::Succeeded:
+            SetComplete();
+            break;
+    }
 }
 
 ////////// System

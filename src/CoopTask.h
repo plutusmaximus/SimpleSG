@@ -73,24 +73,18 @@ private:
 /// A batch of cooperative tasks that completes when all tasks in the batch have completed.
 /// The batch itself is a cooperative task and can be used like any other ICoopTask.
 /// Note: The tasks in the batch must be non-null and remain valid for the lifetime of the batch.
-class CoopTaskBatch : public ICoopTask
+class CoopTaskBatch : public ICoopTask2
 {
 public:
-    CoopTaskBatch(std::initializer_list<ICoopTask*> tasks);
-    explicit CoopTaskBatch(std::span<ICoopTask*> tasks);
-    explicit CoopTaskBatch(std::vector<ICoopTask*> tasks);
-    ~CoopTaskBatch() override;
+    CoopTaskBatch(std::initializer_list<ICoopTask2*> tasks);
+    explicit CoopTaskBatch(std::span<ICoopTask2*> tasks);
+    explicit CoopTaskBatch(std::vector<ICoopTask2*> tasks);
+    ~CoopTaskBatch() override = default;
     CoopTaskBatch() = default;
     CoopTaskBatch(const CoopTaskBatch&) = delete;
     CoopTaskBatch& operator=(const CoopTaskBatch&) = delete;
     CoopTaskBatch(CoopTaskBatch&&) = delete;
     CoopTaskBatch& operator=(CoopTaskBatch&&) = delete;
-
-    Result<> Begin() override;
-
-    bool IsPending() const override;
-
-    void Update() override;
 
 private:
     enum class Stage
@@ -100,6 +94,11 @@ private:
         Succeeded,
         Failed
     };
+
+    Result<> OnStart() override;
+
+    void OnUpdate() override;
+
     Stage m_Stage{ Stage::None };
-    std::vector<ICoopTask*> m_Tasks;
+    std::vector<ICoopTask2*> m_Tasks;
 };
