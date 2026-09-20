@@ -17,6 +17,16 @@
 
 namespace
 {
+
+constexpr std::pair<wgpu::FeatureName, const char*> kRequiredFeatures[] = //
+    {
+        {wgpu::FeatureName::CoreFeaturesAndLimits, "CoreFeaturesAndLimits"},
+        //{wgpu::FeatureName::IndirectFirstInstance, "IndirectFirstInstance"},
+        //{wgpu::FeatureName::MultiDrawIndirect, "MultiDrawIndirect"},
+    };
+
+constexpr size_t kRequiredFeatureCount = std::size(kRequiredFeatures);
+
 const char*
 GetPresentModeString(const wgpu::PresentMode presentMode)
 {
@@ -455,6 +465,7 @@ GpuHelper::CreateTask::OnStart()
 void
 GpuHelper::CreateTask::OnUpdate()
 {
+    // Process events so callbacks get called.
     m_GpuHelper->m_Instance.ProcessEvents();
 
     switch(m_Stage)
@@ -572,10 +583,11 @@ GpuHelper::CreateTask::FinalizeAdapter()
 
     m_GpuHelper->m_Adapter = wgpu::Adapter::Acquire(*m_AdapterRequestData.Result);
 
-    const bool supported =
-        m_GpuHelper->m_Adapter.HasFeature(wgpu::FeatureName::IndirectFirstInstance);
-    // FIXME(KB) - show a big error message and exit if not supported.
-    MLG_CHECK(supported, "IndirectFirstInstance feature is not supported");
+    for(const auto& feature : kRequiredFeatures)
+    {
+        const bool supported = m_GpuHelper->m_Adapter.HasFeature(feature.first);
+        MLG_CHECK(supported, "GPU feature not supported: {}", feature.second);
+    }
 
     wgpu::AdapterInfo adapterInfo;
     m_GpuHelper->m_Adapter.GetInfo(&adapterInfo);
@@ -612,12 +624,11 @@ GpuHelper::CreateTask::CreateDevice()
     // toggles.disabledToggles = disabledToggles;
 #endif
 
-    /*const wgpu::FeatureName requiredFeatures[] = //
-        {
-            // indirect-first-instance
-            //wgpu::FeatureName::IndirectFirstInstance,
-            // wgpu::FeatureName::MultiDrawIndirect
-        };*/
+    wgpu::FeatureName requiredFeatures[kRequiredFeatureCount];
+    for(size_t i = 0; i < kRequiredFeatureCount; ++i)
+    {
+        requiredFeatures[i] = kRequiredFeatures[i].first;
+    }
 
     const wgpu::Limits requiredLimits{};
     /*requiredLimits.maxTextureDimension2D = 4096;
@@ -635,8 +646,8 @@ GpuHelper::CreateTask::CreateDevice()
 #endif
                 .nextInChain = nullptr,
                 .label = "MainDevice",
-                .requiredFeatureCount = 0,   // std::size(requiredFeatures),
-                .requiredFeatures = nullptr, // &requiredFeatures[0],
+                .requiredFeatureCount = kRequiredFeatureCount,
+                .requiredFeatures = &requiredFeatures[0],
                 .requiredLimits = &requiredLimits,
             },
         };
@@ -813,12 +824,15 @@ GpuHelper::GetSwapChainFormat() const
 Result<>
 GpuHelper::Present() const
 {
+#if !defined(__EMSCRIPTEN__)
+
     wgpu::SurfaceTexture surfaceTexture;
     m_Surface.GetCurrentTexture(&surfaceTexture);
     
     auto result = m_Surface.Present();
     MLG_CHECK(result.status == wgpu::Status::Success, "Failed to present current surface texture");
     return Result<>::Ok;
+#endif // !defined(__EMSCRIPTEN__)
 }
 
 Result<>

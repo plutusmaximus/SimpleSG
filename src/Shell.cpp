@@ -120,13 +120,10 @@ Result<>
 Shell::EndFrame()
 {
     MLG_ASSERT(Stage::Running == m_Stage, "EndFrame() called when not running");
-#if !defined(__EMSCRIPTEN__)
 
     const GpuHelper& gpuHelper = m_System->GetGpuHelper();
 
     MLG_CHECK(gpuHelper.Present(), "Failed to present backbuffer");
-    gpuHelper.GetInstance().ProcessEvents();
-#endif
 
     return Result<>::Ok;
 }

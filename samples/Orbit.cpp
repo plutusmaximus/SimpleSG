@@ -766,10 +766,8 @@ MainLoop()
         MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, renderGui));
 
         {
-#if !defined(__EMSCRIPTEN__)
             MLG_SCOPED_TIMER("Present");
             MLG_CHECK(gpuHelper.Present(), "Failed to present backbuffer");
-#endif
         }
     }
 

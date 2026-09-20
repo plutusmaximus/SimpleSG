@@ -292,9 +292,7 @@ MainLoop()
         const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
         MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, RenderGui));
 
-#if !defined(__EMSCRIPTEN__)
         MLG_CHECK(gpuHelper.Present(), "Failed to present backbuffer");
-#endif
     }
 
     PerfMetrics::LogCounters();

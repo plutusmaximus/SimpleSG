@@ -479,7 +479,7 @@ function(add_sample_executable target_name source_file)
     find_package(Vulkan REQUIRED)
 
     target_link_libraries(${target_name} PRIVATE Vulkan::Vulkan)
-endif()
+  endif()
 endfunction()
 
 # ============================================================
