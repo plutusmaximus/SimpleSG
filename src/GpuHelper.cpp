@@ -109,14 +109,7 @@ CreateSdlWindow(const std::string_view& appName)
 Result<wgpu::Instance>
 CreateInstance()
 {
-    constexpr wgpu::InstanceFeatureName kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
-
-    const wgpu::InstanceDescriptor instanceDesc //
-        {
-            .requiredFeatureCount = 1,
-            .requiredFeatures = &kTimedWaitAny,
-        };
-    wgpu::Instance instance = wgpu::CreateInstance(&instanceDesc);
+    wgpu::Instance instance = wgpu::CreateInstance(nullptr);
 
     MLG_CHECK(instance, "Failed to create WGPUInstance");
 
@@ -831,8 +824,8 @@ GpuHelper::Present() const
     
     auto result = m_Surface.Present();
     MLG_CHECK(result.status == wgpu::Status::Success, "Failed to present current surface texture");
-    return Result<>::Ok;
 #endif // !defined(__EMSCRIPTEN__)
+    return Result<>::Ok;
 }
 
 Result<>

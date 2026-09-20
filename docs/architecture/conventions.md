@@ -136,6 +136,17 @@ passing `nullptr`.
 The dependency must outlive the object that stores its address. Accept a pointer
 instead of a reference only when `nullptr` is a valid argument.
 
+## WebGPU and threads
+
+Only access WebGPU objects on the main thread. This includes creating and
+releasing objects, calling their methods, and reading properties through getters.
+
+In browser builds, WebGPU objects belong to a JavaScript context and are not
+shared with worker threads. For example, even calling `GetWidth()` on a texture
+from a worker can fail.
+
+Give workers the plain data they need instead of WebGPU objects.
+
 ## Style
 
 - Format source code using the root `.clang-format` file.

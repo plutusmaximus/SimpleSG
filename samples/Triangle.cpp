@@ -108,8 +108,6 @@ CreateTriangleModel(PropKitDef& outPropKitDef, LevelDef& outLevelDef)
 Result<>
 MainLoop()
 {
-    Log::SetLevel(Log::Level::Trace);
-
     System::CreateTask sysCreateTask(kAppName);
 
     MLG_CHECK(sysCreateTask.Start());
@@ -263,6 +261,8 @@ MainLoop()
 int
 main(int /*argc*/, char** /*argv*/)
 {
+    Log::SetLevel(Log::Level::Trace);
+
     if(!MainLoop())
     {
         return -1;

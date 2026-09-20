@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SimpleSG</title>
+    <style>
+        html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+        body { background: #181818; color: #eee; font-family: sans-serif; }
+        #canvas { display: block; width: 100%; height: 100%; }
+        #status {
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            right: 1rem;
+            padding: 1rem;
+            background: #292929;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" tabindex="0"></canvas>
+    <div id="status" role="status">Loading application…</div>
+    <noscript>This application requires JavaScript.</noscript>
+
+    <!-- Keep the generated loader inactive until the capability checks pass. -->
+    <!-- Emscripten replaces the placeholder below with the script tag that loads the application. -->
+    <template id="application-loader">{{{ SCRIPT }}}</template>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const statusPanel = document.getElementById('status');
+        let failed = false;
+
+        function showError(message) {
+            failed = true;
+            statusPanel.hidden = false;
+            statusPanel.textContent = 'Unable to run the application.\n' + message;
+            console.error(message);
+        }
+
+        var Module = {
+            canvas,
+            print: (text) => console.log(text),
+            printErr: (text) => console.error(text),
+            setStatus(text) {
+                if (!failed && text) statusPanel.textContent = text;
+            },
+            onAbort(reason) {
+                showError(String(reason));
+            },
+            onRuntimeInitialized() {
+                if (!failed) statusPanel.hidden = true;
+                canvas.focus();
+            }
+        };
+
+        function startupFailure() {
+            if (typeof WebAssembly !== 'object') return 'This browser does not support WebAssembly.';
+            if (!window.isSecureContext) return 'Open this page over HTTPS or on localhost.';
+            if (!navigator.gpu) return 'WebGPU is unavailable in this browser.';
+            if (!window.crossOriginIsolated) {
+                return 'The server must enable cross-origin isolation. See the browser setup instructions.';
+            }
+            if (typeof SharedArrayBuffer === 'undefined' || typeof Atomics === 'undefined') {
+                return 'This browser does not provide the shared memory required by the application.';
+            }
+            return null;
+        }
+
+        const failure = startupFailure();
+        if (failure) {
+            showError(failure);
+        } else {
+            window.addEventListener('error', (event) => {
+                if (event.message) showError(event.message);
+            });
+            window.addEventListener('unhandledrejection', (event) => showError(String(event.reason)));
+            // Scripts inside the template do not run. Copy them into the page now that the checks passed.
+            for (const source of document.getElementById('application-loader').content.querySelectorAll('script')) {
+                const script = document.createElement('script');
+                // Copy attributes such as src, which names the generated JavaScript file.
+                for (const attribute of source.attributes) script.setAttribute(attribute.name, attribute.value);
+                script.async = false;
+                script.textContent = source.textContent;
+                script.onerror = () => showError('Failed to load the application script.');
+                document.body.appendChild(script);
+            }
+        }
+    </script>
+</body>
+</html>

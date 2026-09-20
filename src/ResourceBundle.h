@@ -520,9 +520,9 @@ private:
         MLG_ASSERT(offset != Resource::kInvalidOffset, "Offset is invalid");
         MLG_ASSERT(offset + (count * sizeof(T)) <= m_Header->TotalSize, "Span exceeds total size");
 
-        const void* p = static_cast<const void*>(m_Buffer.data());
-        const std::span s(static_cast<const char*>(p), m_Header->TotalSize);
-        const void* p2 = s.subspan(offset).data();
+        const std::span s(m_Buffer);
+        MLG_ABORTIF(offset > s.size(), "Offset exceeds buffer size");
+        const void* p2 = s.subspan(static_cast<size_t>(offset)).data();
         return std::span<const T>(static_cast<const T*>(p2), count);
     }
 

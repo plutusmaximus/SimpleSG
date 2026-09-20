@@ -289,6 +289,8 @@ Run()
 int
 main(int /*argc*/, char** /*argv*/)
 {
+    Log::SetLevel(Log::Level::Trace);
+
     emscripten_set_main_loop(Run, 0, 1);
 
     return 0;

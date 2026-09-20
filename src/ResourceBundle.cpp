@@ -12,6 +12,11 @@ namespace
 
 constexpr uint32_t kInvalidIndex = std::numeric_limits<uint32_t>::max();
 
+// Maximum allowed size for a resource bundle.
+// This is currently set to the maximum value of a 32-bit unsigned integer
+// in order to maximize browser compatibility.
+constexpr uint32_t kMaxBundleSize = std::numeric_limits<uint32_t>::max();
+
 using NodeDefPointer = std::variant<const RootNodeDef*, const ChildNodeDef*>;
 
 struct FlatNodeDef
@@ -614,6 +619,8 @@ MakeStringView(const StringResource& resource, const std::span<const char>& char
 
 } // namespace
 
+// ResourceBundleBuilder
+
 Result<ResourceBundle>
 ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKitDef)
 {
@@ -665,7 +672,9 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKit
         + SizeOfSpan(std::span(rigidBodies))
         + SizeOfSpan(std::span(nodes));
 
-    m_Buffer.reserve(totalSize);
+    MLG_CHECK(totalSize <= kMaxBundleSize, "Total size exceeds maximum allowed size");
+
+    m_Buffer.reserve(static_cast<size_t>(totalSize));
 
     AppendHeader(totalSize);
     Append(chars);

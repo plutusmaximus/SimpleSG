@@ -87,7 +87,7 @@ private:
 
         Result<> BeginDecode();
 
-        Result<> Decode() const;
+        Result<> Decode();
 
         // Worker thread entry point for decoding the texture.
         static void Decode(void* userData);
@@ -105,8 +105,14 @@ private:
         wgpu::Texture m_Texture{ nullptr };
         wgpu::Buffer m_StagingBuffer{ nullptr };
         wgpu::CommandEncoder m_CommandEncoder{ nullptr };
-        std::byte* m_MappedMemory{ nullptr };
+        std::span<std::byte> m_MappedMemory;
         Result<> m_DecodeResult;
+
+        // We cannot access webgpu objects directly in the worker thread,
+        // so we cache the necessary properties here.
+        uint32_t m_TexWidth{ 0 };
+        uint32_t m_TexHeight{ 0 };
+        wgpu::TextureFormat m_TexFormat{ wgpu::TextureFormat::Undefined };
 
         std::atomic<bool> m_CompletionFlag{ false };
 

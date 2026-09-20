@@ -9,6 +9,7 @@
 #include "ThreadPool.h"
 
 #include <atomic>
+#include <limits>
 #include <ranges>
 #include <stb_image.h>
 #include <string>
@@ -148,16 +149,23 @@ TextureFetcher::FetchTask::BeginDecode()
 
     auto stagingBuffer = m_GpuHelper->CreateStagingBuffer(*texture, m_Uri);
     MLG_CHECK(stagingBuffer);
+    MLG_CHECKV(stagingBuffer->GetSize() > 0, "Staging buffer has zero size");
+    MLG_CHECKV(stagingBuffer->GetSize() <= std::numeric_limits<size_t>::max(),
+        "Staging buffer size exceeds maximum allowed size");
 
     void* mapped = stagingBuffer->GetMappedRange();
     MLG_CHECK(mapped);
 
-    // It appears that mapping/unmapping must be done on the same thread
-    // as other wgpu::Device operations.  Learned that the hard way by trying to map
-    // in the worker thread below.
     m_Texture = *texture;
     m_StagingBuffer = *stagingBuffer;
-    m_MappedMemory = static_cast<std::byte*>(mapped);
+    m_MappedMemory = std::span<std::byte>(static_cast<std::byte*>(mapped),
+        static_cast<size_t>(stagingBuffer->GetSize()));
+
+    // webgpu objects must be accessed only on the main thread, so we cache
+    // values needed by the worker thread during decoding.
+    m_TexWidth = static_cast<uint32_t>(width);
+    m_TexHeight = static_cast<uint32_t>(height);
+    m_TexFormat = wgpu::TextureFormat::RGBA8Unorm;
 
     MLG_CHECK(m_ThreadPool->Enqueue(Decode, this), "Failed to enqueue texture decode task");
 
@@ -165,7 +173,7 @@ TextureFetcher::FetchTask::BeginDecode()
 }
 
 Result<>
-TextureFetcher::FetchTask::Decode() const
+TextureFetcher::FetchTask::Decode()
 {
     MLG_DEBUG("Decoding...");
 
@@ -177,6 +185,12 @@ TextureFetcher::FetchTask::Decode() const
         &imgNumChannels,
         GpuHelper::kNumTextureChannels);
 
+    // Free the fetched data to save memory.
+    m_FetchedData.clear();
+    {
+        const std::vector<uint8_t> bye = std::move(m_FetchedData);
+    }
+
     MLG_CHECKV(data, "Failed to decode image - {}", stbi_failure_reason());
 
     MLG_DEFER
@@ -184,34 +198,32 @@ TextureFetcher::FetchTask::Decode() const
         stbi_image_free(data);
     };
 
-    MLG_CHECKV(std::cmp_equal(m_Texture.GetWidth(), imgWidth)
-            && std::cmp_equal(m_Texture.GetHeight(), imgHeight),
+    MLG_CHECKV(std::cmp_equal(m_TexWidth, imgWidth)
+            && std::cmp_equal(m_TexHeight, imgHeight),
         "Decoded image dimensions do not match texture dimensions");
 
-    MLG_CHECKV(m_Texture.GetFormat() == wgpu::TextureFormat::RGBA8Unorm,
+    MLG_CHECKV(m_TexFormat == wgpu::TextureFormat::RGBA8Unorm,
         "Texture format does not match expected format");
 
     const size_t sizeofSrcData = static_cast<size_t>(imgWidth)
         * static_cast<size_t>(imgHeight)
         * GpuHelper::kNumTextureChannels;
 
-    const size_t expectedSizeofSrcData = static_cast<size_t>(m_Texture.GetWidth())
-        * static_cast<size_t>(m_Texture.GetHeight())
+    const size_t expectedSizeofSrcData = static_cast<size_t>(m_TexWidth)
+        * static_cast<size_t>(m_TexHeight)
         * GpuHelper::kNumTextureChannels;
 
     MLG_CHECKV(sizeofSrcData == expectedSizeofSrcData,
         "Decoded image size does not match texture size");
 
     const std::span<const stbi_uc> srcSpan(data, sizeofSrcData);
-    const std::span<std::byte> dstSpan(m_MappedMemory,
-        static_cast<size_t>(m_StagingBuffer.GetSize()));
     size_t dstOffset = 0, srcOffset = 0;
     const size_t srcRowStride = static_cast<size_t>(imgWidth) * GpuHelper::kNumTextureChannels;
     const size_t dstRowStride =
         GpuHelper::GetTextureAlignedRowStride(static_cast<size_t>(imgWidth));
     for(int y = 0; y < imgHeight; ++y, dstOffset += dstRowStride, srcOffset += srcRowStride)
     {
-        ::memcpy(&dstSpan[dstOffset], &srcSpan[srcOffset], srcRowStride);
+        ::memcpy(&m_MappedMemory[dstOffset], &srcSpan[srcOffset], srcRowStride);
     }
 
     return Result<>::Ok;

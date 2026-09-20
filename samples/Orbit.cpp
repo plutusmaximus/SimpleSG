@@ -780,6 +780,8 @@ MainLoop()
 int
 main(int /*argc*/, char** /*argv*/)
 {
+    Log::SetLevel(Log::Level::Trace);
+
     if(!MainLoop())
     {
         return -1;

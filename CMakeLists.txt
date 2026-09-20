@@ -494,9 +494,15 @@ add_sample_executable(EmTriangle samples/EmTriangle.cpp)
 if(EMSCRIPTEN)
   set_target_properties(EmTriangle PROPERTIES SUFFIX ".html")
 
+  set(browser_shell "${CMAKE_CURRENT_SOURCE_DIR}/samples/browser-shell.html")
+  set_property(TARGET EmTriangle APPEND PROPERTY LINK_DEPENDS "${browser_shell}")
+
   target_link_options(EmTriangle PRIVATE
+    "--shell-file"
+    "${browser_shell}"
     "-sPTHREAD_POOL_SIZE=8"
-    "-sJSPI"
+    "-sALLOW_MEMORY_GROWTH=1"
+#    "-sJSPI"
     "--preload-file=${CMAKE_BINARY_DIR}/$<CONFIG>/images@/images"
     "--preload-file=${CMAKE_BINARY_DIR}/$<CONFIG>/shaders@/shaders"
   )
@@ -541,4 +547,8 @@ sign_executable(Tests)
 # In VS Code install the CMake Test Explorer extension and open the testing view.
 include(GoogleTest)
 enable_testing()
-gtest_discover_tests(Tests)
+
+if(NOT EMSCRIPTEN)
+  gtest_discover_tests(Tests)
+endif()
+
