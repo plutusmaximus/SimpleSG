@@ -374,6 +374,7 @@ set(SSG_SOURCES
 set(SSG_HEADERS
   src/AssertHelper.h
   src/BoundingVolumes.h
+  src/BoundsCheck.h
   src/Camera.h
   src/CoopTask.h
   src/DevUi.h

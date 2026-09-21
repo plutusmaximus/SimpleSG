@@ -5,6 +5,7 @@
 
 #include <box3d/Box3D.h>
 #include <box3d/collision.h>
+#include <limits>
 #include <ranges>
 
 namespace
@@ -174,55 +175,52 @@ CollectNodes(const ResourceBundle& resourceBundle)
 Result<std::vector<MeshInstance>>
 CollectMeshInstances(const ResourceBundle& resourceBundle)
 {
-    const std::span modelRsrcs = resourceBundle.GetModels();
-    const std::span modelInstanceRsrcs = resourceBundle.GetModelInstances();
+    const std::span models = resourceBundle.GetModels();
+    const std::span modelInstances = resourceBundle.GetModelInstances();
 
-    size_t meshCount = 0;
+    size_t meshInstanceCount = 0;
 
-    for(const ModelInstanceResource& modelInstanceRsrc : modelInstanceRsrcs)
+    for(const ModelInstanceResource& modelInstance : modelInstances)
     {
-        MLG_CHECKV(modelInstanceRsrc.ModelIndex < modelRsrcs.size(),
-            "Invalid ModelIndex for model instance");
+        const size_t modelIndex = BoundsCheck::Index(modelInstance.ModelIndex, models.size());
 
-        const ModelResource& modelRsrc = modelRsrcs[modelInstanceRsrc.ModelIndex];
-        meshCount += modelRsrc.MeshCount;
+        const ModelResource& modelRsrc = models[modelIndex];
+
+        meshInstanceCount = BoundsCheck::Sum(meshInstanceCount,
+            modelRsrc.MeshCount,
+            std::numeric_limits<size_t>::max());
     }
 
     std::vector<MeshInstance> meshInstances;
-    meshInstances.reserve(meshCount);
+    meshInstances.reserve(meshInstanceCount);
 
-    const std::span meshRsrcs = resourceBundle.GetMeshes();
     const std::span vertices = resourceBundle.GetVertices();
     const std::span indices = resourceBundle.GetIndices();
+    const std::span materials = resourceBundle.GetMaterials();
 
-    for(const ModelInstanceResource& modelInstanceRsrc : modelInstanceRsrcs)
+    for(const ModelInstanceResource& modelInstance : modelInstances)
     {
-        const ModelResource& modelRsrc = modelRsrcs[modelInstanceRsrc.ModelIndex];
+        const size_t modelIndex = BoundsCheck::Index(modelInstance.ModelIndex, models.size());
+        const ModelResource& modelRsrc = models[modelIndex];
 
-        MLG_CHECKV(modelRsrc.FirstMeshIndex < meshRsrcs.size(),
-            "Invalid MeshOffset for model resource");
-        MLG_CHECKV(meshRsrcs.size() - modelRsrc.FirstMeshIndex >= modelRsrc.MeshCount,
-            "Invalid mesh range for model resource");
+        const std::span modelMeshes = resourceBundle.GetMeshes(modelRsrc);
 
-        const std::span meshRsrcSpan = meshRsrcs.subspan(modelRsrc.FirstMeshIndex, modelRsrc.MeshCount);
-
-        for(const MeshResource& meshRsrc : meshRsrcSpan)
+        for(const MeshResource& mesh : modelMeshes)
         {
-            MLG_CHECKV(meshRsrc.FirstIndex < indices.size(),
-                "Invalid VertexOffset for mesh resource");
-            MLG_CHECKV(indices.size() - meshRsrc.FirstIndex >= meshRsrc.IndexCount,
-                "Invalid vertex range for mesh resource");
-            MLG_CHECKV(meshRsrc.BaseVertex < vertices.size(),
-                "Invalid BaseVertex for mesh resource");
+            const size_t firstInstance = meshInstances.size();
 
             const MeshInstance::Params params //
                 {
-                    .IndexCount = meshRsrc.IndexCount,
-                    .FirstIndex = meshRsrc.FirstIndex,
-                    .BaseVertex = meshRsrc.BaseVertex,
-                    .FirstInstance = static_cast<uint32_t>(meshInstances.size()),
-                    .MaterialIndex = meshRsrc.MaterialIndex,
-                    .BoundingSphere = BoundingSphere(meshRsrc.BoundingBox),
+                    .IndexCount = BoundsCheck::Count<uint32_t>(mesh.FirstIndex,
+                        mesh.IndexCount,
+                        indices.size()),
+                    .FirstIndex = BoundsCheck::Index<uint32_t>(mesh.FirstIndex, indices.size()),
+                    .BaseVertex = BoundsCheck::Index<uint32_t>(mesh.BaseVertex, vertices.size()),
+                    .FirstInstance = BoundsCheck::Index<uint32_t>(firstInstance,
+                        std::numeric_limits<uint32_t>::max()),
+                    .MaterialIndex =
+                        BoundsCheck::Index<uint32_t>(mesh.MaterialIndex, materials.size()),
+                    .BoundingSphere = BoundingSphere(mesh.BoundingBox),
                 };
 
             meshInstances.emplace_back(params);
@@ -247,26 +245,26 @@ CollectModelNodes(const ResourceBundle& resourceBundle,
 
     for(const ModelInstanceResource& modelInstanceRsrc : modelInstanceRsrcs)
     {
-        MLG_CHECKV(modelInstanceRsrc.NodeIndex < nodes.size(),
-            "ModelInstanceResource has invalid NodeIndex");
-        const LevelNode& levelNode = nodes[modelInstanceRsrc.NodeIndex];
+        const LevelNode& levelNode =
+            nodes[BoundsCheck::Index(modelInstanceRsrc.NodeIndex, nodes.size())];
 
-        MLG_CHECKV(modelInstanceRsrc.ModelIndex < modelRsrcs.size(),
-            "ModelInstanceResource has invalid ModelIndex");
-        const ModelResource& modelRsrc = modelRsrcs[modelInstanceRsrc.ModelIndex];
+        const size_t modelIndex =
+            BoundsCheck::Index(modelInstanceRsrc.ModelIndex, modelRsrcs.size());
 
-        MLG_CHECKV(meshInstanceOffset < meshInstances.size(),
-            "ModelResource has invalid mesh instance offset");
+        const ModelResource& modelRsrc = modelRsrcs[modelIndex];
 
-        MLG_CHECKV(meshInstances.size() - meshInstanceOffset >= modelRsrc.MeshCount,
-            "ModelResource has invalid mesh range");
+        const size_t meshInstanceStart =
+            BoundsCheck::Index(meshInstanceOffset, meshInstances.size());
+        const size_t meshInstanceCount =
+            BoundsCheck::Count(meshInstanceStart, modelRsrc.MeshCount, meshInstances.size());
 
         const std::span meshInstanceSpan =
-            meshInstances.subspan(meshInstanceOffset, modelRsrc.MeshCount);
+            meshInstances.subspan(meshInstanceStart, meshInstanceCount);
 
         modelNodes.emplace_back(levelNode, BoundingSphere(modelRsrc.BoundingBox), meshInstanceSpan);
 
-        meshInstanceOffset += modelRsrc.MeshCount;
+        meshInstanceOffset =
+            BoundsCheck::Sum(meshInstanceOffset, modelRsrc.MeshCount, meshInstances.size());
     }
 
     return modelNodes;
@@ -277,23 +275,18 @@ CollectPhysicsNodes(const WorldIdentifier worldId,
     const ResourceBundle& resourceBundle,
     const std::span<LevelNode>& nodes)
 {
-    const std::span rigidBodyRsrcs = resourceBundle.GetRigidBodies();
-    const std::span colliders = resourceBundle.GetColliders();
+    const std::span rigidBodies = resourceBundle.GetRigidBodies();
     std::vector<PhysicsNode> physicsNodes;
-    physicsNodes.reserve(rigidBodyRsrcs.size());
+    physicsNodes.reserve(rigidBodies.size());
 
-    for(const RigidBodyResource& rigidBodyRsrc : rigidBodyRsrcs)
+    for(const RigidBodyResource& rigidBody : rigidBodies)
     {
-        MLG_CHECKV(rigidBodyRsrc.NodeIndex < nodes.size(),
-            "RigidBodyResource has invalid NodeIndex");
-        LevelNode& levelNode = nodes[rigidBodyRsrc.NodeIndex];
+        const size_t nodeIndex = BoundsCheck::Index(rigidBody.NodeIndex, nodes.size());
+        LevelNode& levelNode = nodes[nodeIndex];
 
-        MLG_CHECKV(rigidBodyRsrc.FirstColliderIndex + rigidBodyRsrc.ColliderCount <= colliders.size(),
-            "RigidBodyResource has invalid Collider range");
-        const std::span colliderSpan =
-            colliders.subspan(rigidBodyRsrc.FirstColliderIndex, rigidBodyRsrc.ColliderCount);
+        const std::span colliders = resourceBundle.GetColliders(rigidBody);
 
-        auto bodyId = CreateRigidBody(levelNode, rigidBodyRsrc, colliderSpan, worldId);
+        auto bodyId = CreateRigidBody(levelNode, rigidBody, colliders, worldId);
         MLG_CHECK(bodyId, "Failed to create rigid body for node");
 
         physicsNodes.emplace_back(levelNode, *bodyId);
@@ -332,7 +325,14 @@ Level::Create(const ResourceBundle& resourceBundle)
 
     for(const auto& [nodeRsrc, node] : std::views::zip(resourceBundle.GetNodes(), *levelNodes))
     {
-        node.m_Children = nodeSpan.subspan(nodeRsrc.FirstChildIndex, nodeRsrc.ChildCount);
+        if(nodeRsrc.ChildCount > 0)
+        {
+            const size_t firstChildIndex =
+                BoundsCheck::Index(nodeRsrc.FirstChildIndex, nodeSpan.size());
+            const size_t childCount =
+                BoundsCheck::Count(nodeRsrc.FirstChildIndex, nodeRsrc.ChildCount, nodeSpan.size());
+            node.m_Children = nodeSpan.subspan(firstChildIndex, childCount);
+        }
     }
 
     auto meshInstances = CollectMeshInstances(resourceBundle);

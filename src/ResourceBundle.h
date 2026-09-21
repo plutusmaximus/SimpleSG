@@ -2,12 +2,15 @@
 
 #include "AssertHelper.h"
 #include "BoundingVolumes.h"
+#include "BoundsCheck.h"
 #include "Color.h"
 #include "PhysicsTypes.h"
 #include "Result.h"
 
 #include <bit>
+#include <limits>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 /**
@@ -106,8 +109,6 @@ public:
     static constexpr OffsetType kMaxBundleSize = std::numeric_limits<OffsetType>::max();
 
     static constexpr OffsetType kMaxOffset = kMaxBundleSize - 1;
-    static constexpr IndexType kMaxIndex = std::numeric_limits<IndexType>::max() - 1;
-    static constexpr CountType kMaxCount = std::numeric_limits<CountType>::max();
 
 #define RESOURCE_BUNDLE_HEADER_FIELDS(X)                                                           \
     X(OffsetType, TotalSize, 0)                                                                    \
@@ -189,62 +190,80 @@ public:
 
     std::span<const char> GetChars() const
     {
+        MLG_ABORTIF(m_Header == nullptr);
         return GetSpan<char>(m_Header->CharsOffset, m_Header->CharsLength);
     }
 
     std::span<const NodeNameResource> GetNodeNames() const
     {
+        MLG_ABORTIF(m_Header == nullptr);
         return GetSpan<NodeNameResource>(m_Header->NodeNamesOffset, m_Header->NodeNameCount);
     }
 
     std::span<const StringResource> GetTextureUris() const
     {
+        MLG_ABORTIF(m_Header == nullptr);
         return GetSpan<StringResource>(m_Header->TextureUrisOffset, m_Header->TextureUriCount);
     }
 
     std::span<const MaterialResource> GetMaterials() const
     {
+        MLG_ABORTIF(m_Header == nullptr);
         return GetSpan<MaterialResource>(m_Header->MaterialsOffset, m_Header->MaterialCount);
     }
 
     std::span<const Vertex> GetVertices() const
     {
+        MLG_ABORTIF(m_Header == nullptr);
         return GetSpan<Vertex>(m_Header->VerticesOffset, m_Header->VertexCount);
     }
 
     std::span<const VertexIndex> GetIndices() const
     {
+        MLG_ABORTIF(m_Header == nullptr);
         return GetSpan<VertexIndex>(m_Header->IndicesOffset, m_Header->IndexCount);
     }
 
     std::span<const MeshResource> GetMeshes() const
     {
+        MLG_ABORTIF(m_Header == nullptr);
         return GetSpan<MeshResource>(m_Header->MeshesOffset, m_Header->MeshCount);
     }
 
+    /// Returns a span of meshes associated with the model resource.
+    std::span<const MeshResource> GetMeshes(const ModelResource& modelRsrc) const;
+
     std::span<const ModelResource> GetModels() const
     {
+        MLG_ABORTIF(m_Header == nullptr);
         return GetSpan<ModelResource>(m_Header->ModelsOffset, m_Header->ModelCount);
     }
 
     std::span<const ModelInstanceResource> GetModelInstances() const
     {
+        MLG_ABORTIF(m_Header == nullptr);
         return GetSpan<ModelInstanceResource>(m_Header->ModelInstancesOffset,
             m_Header->ModelInstanceCount);
     }
 
     std::span<const ColliderResource> GetColliders() const
     {
+        MLG_ABORTIF(m_Header == nullptr);
         return GetSpan<ColliderResource>(m_Header->CollidersOffset, m_Header->ColliderCount);
     }
 
+    /// Returns a span of colliders associated with the rigid body resource.
+    std::span<const ColliderResource> GetColliders(const RigidBodyResource& rigidBodyRsrc) const;
+
     std::span<const RigidBodyResource> GetRigidBodies() const
     {
+        MLG_ABORTIF(m_Header == nullptr);
         return GetSpan<RigidBodyResource>(m_Header->RigidBodiesOffset, m_Header->RigidBodyCount);
     }
 
     std::span<const LevelNodeResource> GetNodes() const
     {
+        MLG_ABORTIF(m_Header == nullptr);
         return GetSpan<LevelNodeResource>(m_Header->NodesOffset, m_Header->NodeCount);
     }
 
@@ -252,15 +271,15 @@ public:
 
 private:
     template<typename T>
-    std::span<const T> GetSpan(const OffsetType offset, const CountType count) const
+    std::span<const T> GetSpan(const OffsetType byteOffset, const CountType itemCount) const
     {
-        MLG_ASSERT(offset != kInvalidOffset, "Offset is invalid");
+        MLG_ABORTIF(byteOffset == kInvalidOffset, "Offset is invalid");
 
         const std::span s(m_Buffer);
-        MLG_ABORTIF(offset > s.size() || count > (s.size() - offset) / sizeof(T),
+        MLG_ABORTIF(byteOffset > s.size() || itemCount > (s.size() - byteOffset) / sizeof(T),
             "Span exceeds total size");
-        const void* p2 = s.subspan(static_cast<size_t>(offset)).data();
-        return std::span<const T>(static_cast<const T*>(p2), count);
+        const void* p2 = s.subspan(static_cast<size_t>(byteOffset)).data();
+        return std::span<const T>(static_cast<const T*>(p2), itemCount);
     }
 
     const Header* m_Header;
@@ -560,3 +579,27 @@ MLG_ASSERT_OFFSET(LevelNodeResource, LocalPos, 12)
 MLG_ASSERT_OFFSET(LevelNodeResource, LocalRot, 24)
 MLG_ASSERT_OFFSET(LevelNodeResource, LocalScale, 40)
 MLG_ASSERT_SIZE(LevelNodeResource, 52)
+
+inline std::span<const MeshResource>
+ResourceBundle::GetMeshes(const ModelResource& modelRsrc) const
+{
+    const std::span meshes = GetMeshes();
+
+    BoundsCheck::Index(modelRsrc.FirstMeshIndex, meshes.size());
+    BoundsCheck::Count(modelRsrc.FirstMeshIndex, modelRsrc.MeshCount, meshes.size());
+
+    return meshes.subspan(modelRsrc.FirstMeshIndex, modelRsrc.MeshCount);
+}
+
+inline std::span<const ColliderResource>
+ResourceBundle::GetColliders(const RigidBodyResource& rigidBodyRsrc) const
+{
+    const std::span colliders = GetColliders();
+
+    BoundsCheck::Index(rigidBodyRsrc.FirstColliderIndex, colliders.size());
+    BoundsCheck::Count(rigidBodyRsrc.FirstColliderIndex,
+        rigidBodyRsrc.ColliderCount,
+        colliders.size());
+
+    return colliders.subspan(rigidBodyRsrc.FirstColliderIndex, rigidBodyRsrc.ColliderCount);
+}

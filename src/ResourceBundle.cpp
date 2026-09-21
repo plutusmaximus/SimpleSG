@@ -11,8 +11,6 @@
 namespace
 {
 
-constexpr size_t kMaxSizeT = std::numeric_limits<size_t>::max();
-
 using NodeDefPointer = std::variant<const RootNodeDef*, const ChildNodeDef*>;
 
 struct FlatNodeDef
@@ -23,24 +21,29 @@ struct FlatNodeDef
 };
 
 [[nodiscard]] ResourceBundle::IndexType
-IndexBoundsCheck(const size_t size)
+BoundsCheckIndex(const size_t index)
 {
-    MLG_ABORTIF(size > ResourceBundle::kMaxIndex, "Index out of bounds");
-    return static_cast<ResourceBundle::IndexType>(size);
+    static constexpr ResourceBundle::IndexType kMaxIndex = std::numeric_limits<ResourceBundle::IndexType>::max();
+    return BoundsCheck::Index<ResourceBundle::IndexType>(index, kMaxIndex);
+}
+
+[[nodiscard]] ResourceBundle::IndexType
+BoundsCheckIndex(const size_t index, const size_t maxValue)
+{
+    return BoundsCheck::Index<ResourceBundle::IndexType>(index, maxValue);
 }
 
 [[nodiscard]] ResourceBundle::CountType
-CountBoundsCheck(const size_t count)
+BoundsCheckCount(const size_t count)
 {
-    MLG_ABORTIF(count > ResourceBundle::kMaxCount, "Count out of bounds");
-    return static_cast<ResourceBundle::CountType>(count);
+    static constexpr ResourceBundle::CountType kMaxCount = std::numeric_limits<ResourceBundle::CountType>::max();
+    return BoundsCheck::Count<ResourceBundle::CountType>(0u, count, kMaxCount);
 }
 
 [[nodiscard]] ResourceBundle::OffsetType
-OffsetBoundsCheck(const size_t offset)
+BoundsCheckOffset(const size_t offset)
 {
-    MLG_ABORTIF(offset > ResourceBundle::kMaxOffset, "Offset out of bounds");
-    return static_cast<ResourceBundle::OffsetType>(offset);
+    return BoundsCheck::Count<ResourceBundle::OffsetType>(0u, offset, ResourceBundle::kMaxOffset);
 }
 
 std::vector<FlatNodeDef>
@@ -65,7 +68,7 @@ FlattenNodesBreadthFirst(const std::span<const RootNodeDef> rootNodeDefs)
     {
         const PendingNode& pendingNode = pendingNodes[pendingIndex];
 
-        const ResourceBundle::IndexType nodeIndex = IndexBoundsCheck(flatNodes.size());
+        const ResourceBundle::IndexType nodeIndex = BoundsCheckIndex(flatNodes.size());
 
         const FlatNodeDef flatNodeDef //
             {
@@ -98,7 +101,7 @@ FlattenNodesBreadthFirst(const std::span<const RootNodeDef> rootNodeDefs)
         {
             parentIndex = flatNode.ParentIndex;
             FlatNodeDef& parentNode = flatNodes[parentIndex];
-            parentNode.FirstChildIndex = IndexBoundsCheck(nodeIndex);
+            parentNode.FirstChildIndex = BoundsCheckIndex(nodeIndex);
         }
     }
 
@@ -108,24 +111,17 @@ FlattenNodesBreadthFirst(const std::span<const RootNodeDef> rootNodeDefs)
 [[nodiscard]] StringResource
 AddString(std::vector<char>& chars, const std::string_view& str)
 {
-    MLG_ABORTIF(chars.size() > ResourceBundle::kMaxBundleSize, "Exceeded maximum buffer size");
+    BoundsCheck::Sum(chars.size(), str.length(), ResourceBundle::kMaxBundleSize);
 
-    using LengthType = decltype(ResourceBundle::kMaxBundleSize);
-
-    const LengthType capacity =
-        ResourceBundle::kMaxBundleSize - static_cast<LengthType>(chars.size());
-
-    MLG_ABORTIF(capacity < str.length(), "Exceeded maximum buffer size");
-
-    const ResourceBundle::IndexType charIndex = IndexBoundsCheck(chars.size());
+    const StringResource sr = StringResource //
+        {
+            .CharIndex = BoundsCheckIndex(chars.size()),
+            .Length = BoundsCheckCount(str.length()),
+        };
 
     chars.append_range(str);
 
-    return StringResource //
-        {
-            .CharIndex = charIndex,
-            .Length = CountBoundsCheck(str.length()),
-        };
+    return sr;
 }
 
 std::vector<NodeNameResource>
@@ -145,7 +141,7 @@ CollectNodeNames(const std::span<const FlatNodeDef> flatNodeDefs, std::vector<ch
                 {
                     const NodeNameResource nodeName //
                         {
-                            .NodeIndex = IndexBoundsCheck(nodeIndex),
+                            .NodeIndex = BoundsCheckIndex(nodeIndex),
                             .String = AddString(chars, nodeDef->Name),
                         };
 
@@ -196,7 +192,7 @@ CreateMaterialIndexMap(const std::span<const MeshDef> meshDefs)
         const MaterialDef& materialDef = meshDef.MaterialDef;
         if(!materialIndexMap.contains(materialDef))
         {
-            materialIndexMap[materialDef] = IndexBoundsCheck(materialIndexMap.size());
+            materialIndexMap[materialDef] = BoundsCheckIndex(materialIndexMap.size());
         }
     }
 
@@ -214,7 +210,7 @@ CreateModelIndexMap(const std::span<const ModelDef> modelDefs)
     {
         MLG_ABORTIF(modelDef.Name.empty(), "ModelDef has empty name");
         MLG_ABORTIF(modelIndex.contains(modelDef.Name), "Duplicate model name: {}", modelDef.Name);
-        modelIndex[modelDef.Name] = IndexBoundsCheck(index);
+        modelIndex[modelDef.Name] = BoundsCheckIndex(index);
     }
 
     return modelIndex;
@@ -229,19 +225,12 @@ CollectMaterials(const std::map<const MaterialDef, ResourceBundle::IndexType>& m
 
     for(const auto& [materialDef, materialIndex] : materialIndexMap)
     {
-        MLG_ABORTIF(materialIndex >= materials.size(),
-            "Material index out of bounds: {}",
-            materialIndex);
-
         ResourceBundle::IndexType baseTextureIndex = ResourceBundle::kInvalidIndex;
 
         auto it = textureUriIndexMap.find(materialDef.BaseTextureUri);
         if(it != textureUriIndexMap.end())
         {
-            baseTextureIndex = it->second;
-            MLG_ABORTIF(baseTextureIndex >= textureUriIndexMap.size(),
-                "Texture index out of bounds: {}",
-                baseTextureIndex);
+            baseTextureIndex = BoundsCheckIndex(it->second, textureUriIndexMap.size());
         }
 
         const MaterialResource materialResource //
@@ -252,7 +241,7 @@ CollectMaterials(const std::map<const MaterialDef, ResourceBundle::IndexType>& m
                 .Roughness = materialDef.Roughness,
             };
 
-        materials[materialIndex] = materialResource;
+        materials[BoundsCheckIndex(materialIndex, materials.size())] = materialResource;
     }
 
     return materials;
@@ -264,7 +253,8 @@ CollectMeshDefs(const std::span<const ModelDef> modelDefs)
     size_t count = 0;
     for(const ModelDef& modelDef : modelDefs)
     {
-        count += modelDef.MeshDefs.size();
+        count =
+            BoundsCheck::Sum(count, modelDef.MeshDefs.size(), std::numeric_limits<size_t>::max());
     }
 
     std::vector<MeshDef> meshDefs;
@@ -284,7 +274,8 @@ CollectVertices(const std::span<const MeshDef> meshDefs)
     size_t count = 0;
     for(const MeshDef& meshDef : meshDefs)
     {
-        count += meshDef.Vertices.size();
+        count =
+            BoundsCheck::Sum(count, meshDef.Vertices.size(), std::numeric_limits<size_t>::max());
     }
 
     std::vector<Vertex> vertices;
@@ -304,7 +295,7 @@ CollectIndices(const std::span<const MeshDef> meshDefs)
     size_t count = 0;
     for(const MeshDef& meshDef : meshDefs)
     {
-        count += meshDef.Indices.size();
+        count = BoundsCheck::Sum(count, meshDef.Indices.size(), std::numeric_limits<size_t>::max());
     }
 
     std::vector<VertexIndex> indices;
@@ -338,26 +329,23 @@ CollectMeshes(const std::span<const MeshDef> meshDefs,
 
         const auto it = materialIndexMap.find(meshDef.MaterialDef);
         MLG_ABORTIF(it == materialIndexMap.end(), "Material not found in material index map");
-        const ResourceBundle::IndexType materialIndex = it->second;
-        MLG_ABORTIF(materialIndex >= materialIndexMap.size(),
-            "Material index out of bounds: {}",
-            materialIndex);
+
+        const ResourceBundle::IndexType materialIndex =
+            BoundsCheckIndex(it->second, materialIndexMap.size());
 
         const MeshResource mesh //
             {
-                .IndexCount = CountBoundsCheck(indexCount),
-                .FirstIndex = IndexBoundsCheck(indexIndex),
-                .BaseVertex = IndexBoundsCheck(vertexIndex),
+                .IndexCount = BoundsCheckCount(indexCount),
+                .FirstIndex = BoundsCheckIndex(indexIndex),
+                .BaseVertex = BoundsCheckIndex(vertexIndex),
                 .MaterialIndex = materialIndex,
                 .BoundingBox = boundingBox,
             };
         meshes.push_back(mesh);
 
-        MLG_ABORTIF(kMaxSizeT - indexIndex < indexCount, "Index overflow");
-        MLG_ABORTIF(kMaxSizeT - vertexIndex < vertexCount, "Vertex overflow");
-
-        indexIndex += indexCount;
-        vertexIndex += vertexCount;
+        indexIndex = BoundsCheck::Sum(indexIndex, indexCount, std::numeric_limits<size_t>::max());
+        vertexIndex =
+            BoundsCheck::Sum(vertexIndex, vertexCount, std::numeric_limits<size_t>::max());
     }
 
     return meshes;
@@ -379,8 +367,6 @@ CollectModels(const std::span<const ModelDef> modelDefs, const std::span<const M
         const size_t meshCount = modelDef.MeshDefs.size();
 
         MLG_ABORTIF(meshCount == 0, "Model has no meshes");
-        MLG_ABORTIF(meshIndex >= meshes.size(), "Mesh index out of bounds");
-        MLG_ABORTIF(meshes.size() - meshIndex < meshCount, "Mesh span out of bounds");
 
         const std::span meshSpan = meshes.subspan(meshIndex, meshCount);
 
@@ -392,13 +378,13 @@ CollectModels(const std::span<const ModelDef> modelDefs, const std::span<const M
 
         const ModelResource model //
             {
-                .FirstMeshIndex = IndexBoundsCheck(meshIndex),
-                .MeshCount = CountBoundsCheck(meshCount),
+                .FirstMeshIndex = BoundsCheckIndex(meshIndex, meshes.size()),
+                .MeshCount = BoundsCheckCount(meshCount),
                 .BoundingBox = boundingBox,
             };
         models.push_back(model);
 
-        meshIndex += meshCount;
+        meshIndex = BoundsCheck::Sum(meshIndex, meshCount, std::numeric_limits<size_t>::max());
     }
 
     return models;
@@ -441,14 +427,10 @@ CollectModelInstances(const std::span<const FlatNodeDef> flatNodeDefs,
 
                     const ResourceBundle::IndexType modelIdx = it->second;
 
-                    MLG_ABORTIF(modelIdx >= modelResources.size(),
-                        "Model index {} out of range",
-                        modelIdx);
-
                     const ModelInstanceResource modelInstance //
                         {
-                            .NodeIndex = IndexBoundsCheck(nodeIndex),
-                            .ModelIndex = modelIdx,
+                            .NodeIndex = BoundsCheckIndex(nodeIndex),
+                            .ModelIndex = BoundsCheckIndex(modelIdx, modelResources.size()),
                         };
 
                     modelInstances.push_back(modelInstance);
@@ -524,7 +506,9 @@ CollectColliders(const std::span<const RootNodeDef> nodeDefs)
     {
         if(nodeDef.Body)
         {
-            count += nodeDef.Body->Colliders.size();
+            count = BoundsCheck::Sum(count,
+                nodeDef.Body->Colliders.size(),
+                std::numeric_limits<size_t>::max());
         }
     }
 
@@ -583,16 +567,16 @@ CollectRigidBodies(const std::span<const RootNodeDef> nodeDefs,
 
         const RigidBodyResource rigidBody //
             {
-                .NodeIndex = IndexBoundsCheck(nodeIndex),
+                .NodeIndex = BoundsCheckIndex(nodeIndex),
                 .Mass = body->Mass.Value(),
                 .MotionType = body->MotionType,
-                .FirstColliderIndex = IndexBoundsCheck(colliderIndex),
-                .ColliderCount = CountBoundsCheck(body->Colliders.size()),
+                .FirstColliderIndex = BoundsCheckIndex(colliderIndex, colliders.size()),
+                .ColliderCount = BoundsCheckCount(body->Colliders.size()),
             };
 
         rigidBodies.push_back(rigidBody);
 
-        colliderIndex += body->Colliders.size();
+        colliderIndex = BoundsCheck::Sum(colliderIndex, body->Colliders.size(), colliders.size());
     }
 
     return rigidBodies;
@@ -613,7 +597,7 @@ CollectLevelNodes(const std::span<const FlatNodeDef> flatNodeDefs)
                     {
                         .ParentIndex = flatNodeDef.ParentIndex,
                         .FirstChildIndex = flatNodeDef.FirstChildIndex,
-                        .ChildCount = CountBoundsCheck(nodeDef->Children.size()),
+                        .ChildCount = BoundsCheckCount(nodeDef->Children.size()),
                         .LocalPos = nodeDef->Transform.T,
                         .LocalRot = nodeDef->Transform.R.ToVector(),
                         .LocalScale = nodeDef->Transform.S,
@@ -667,7 +651,8 @@ AppendItem(const T& v, std::vector<char>& buffer)
 
     const ResourceBundle::Header* header = GetHeader(buffer);
 
-    MLG_ABORTIF(header->TotalSize - buffer.size() < SizeOfItem<T>(), "Not enough space in buffer");
+    [[maybe_unused]] const auto _ =
+        BoundsCheckSum(buffer.size(), SizeOfItem<T>(), header->TotalSize);
 
     const void* src = static_cast<const void*>(&v);
     buffer.append_range(std::span(static_cast<const char*>(src), sizeof(T)));
@@ -682,7 +667,7 @@ AppendSpan(const std::span<const T>& v, std::vector<char>& buffer)
 
     const ResourceBundle::Header* header = GetHeader(buffer);
 
-    MLG_ABORTIF(header->TotalSize - buffer.size() < SizeOfSpan(v), "Not enough space in buffer");
+    BoundsCheck::Sum(buffer.size(), SizeOfSpan(v), header->TotalSize);
 
     const void* src = static_cast<const void*>(v.data());
     buffer.append_range(std::span(static_cast<const char*>(src), v.size() * sizeof(T)));
@@ -730,7 +715,7 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKit
     std::map<const std::string_view, ResourceBundle::IndexType> textureUriIndexMap;
     for(size_t i = 0; i < textureUris.size(); ++i)
     {
-        textureUriIndexMap[MakeStringView(textureUris[i], chars)] = IndexBoundsCheck(i);
+        textureUriIndexMap[MakeStringView(textureUris[i], chars)] = BoundsCheckIndex(i);
     }
 
     const std::vector<MaterialResource> materials =
@@ -817,8 +802,8 @@ ResourceBundleBuilder::Append(const std::span<const char>& chars)
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
     MLG_ASSERT(m_Header->CharsOffset == ResourceBundle::kInvalidOffset, "Chars already appended");
 
-    m_Header->CharsOffset = OffsetBoundsCheck(m_Buffer.size());
-    m_Header->CharsLength = CountBoundsCheck(chars.size());
+    m_Header->CharsOffset = BoundsCheckOffset(m_Buffer.size());
+    m_Header->CharsLength = BoundsCheckCount(chars.size());
     AppendSpan(chars, m_Buffer);
 }
 
@@ -829,8 +814,8 @@ ResourceBundleBuilder::Append(const std::span<const NodeNameResource>& nodeNames
     MLG_ASSERT(m_Header->NodeNamesOffset == ResourceBundle::kInvalidOffset,
         "Node names already appended");
 
-    m_Header->NodeNamesOffset = OffsetBoundsCheck(m_Buffer.size());
-    m_Header->NodeNameCount = CountBoundsCheck(nodeNames.size());
+    m_Header->NodeNamesOffset = BoundsCheckOffset(m_Buffer.size());
+    m_Header->NodeNameCount = BoundsCheckCount(nodeNames.size());
     AppendSpan(nodeNames, m_Buffer);
 }
 
@@ -841,8 +826,8 @@ ResourceBundleBuilder::Append(const std::span<const StringResource>& textureUris
     MLG_ASSERT(m_Header->TextureUrisOffset == ResourceBundle::kInvalidOffset,
         "Texture URIs already appended");
 
-    m_Header->TextureUrisOffset = OffsetBoundsCheck(m_Buffer.size());
-    m_Header->TextureUriCount = CountBoundsCheck(textureUris.size());
+    m_Header->TextureUrisOffset = BoundsCheckOffset(m_Buffer.size());
+    m_Header->TextureUriCount = BoundsCheckCount(textureUris.size());
     AppendSpan(textureUris, m_Buffer);
 }
 
@@ -853,8 +838,8 @@ ResourceBundleBuilder::Append(const std::span<const MaterialResource>& materials
     MLG_ASSERT(m_Header->MaterialsOffset == ResourceBundle::kInvalidOffset,
         "Materials already appended");
 
-    m_Header->MaterialsOffset = OffsetBoundsCheck(m_Buffer.size());
-    m_Header->MaterialCount = CountBoundsCheck(materials.size());
+    m_Header->MaterialsOffset = BoundsCheckOffset(m_Buffer.size());
+    m_Header->MaterialCount = BoundsCheckCount(materials.size());
     AppendSpan(materials, m_Buffer);
 }
 
@@ -865,8 +850,8 @@ ResourceBundleBuilder::Append(const std::span<const Vertex>& vertices)
     MLG_ASSERT(m_Header->VerticesOffset == ResourceBundle::kInvalidOffset,
         "Vertices already appended");
 
-    m_Header->VerticesOffset = OffsetBoundsCheck(m_Buffer.size());
-    m_Header->VertexCount = CountBoundsCheck(vertices.size());
+    m_Header->VerticesOffset = BoundsCheckOffset(m_Buffer.size());
+    m_Header->VertexCount = BoundsCheckCount(vertices.size());
     AppendSpan(vertices, m_Buffer);
 }
 
@@ -877,8 +862,8 @@ ResourceBundleBuilder::Append(const std::span<const VertexIndex>& indices)
     MLG_ASSERT(m_Header->IndicesOffset == ResourceBundle::kInvalidOffset,
         "Indices already appended");
 
-    m_Header->IndicesOffset = OffsetBoundsCheck(m_Buffer.size());
-    m_Header->IndexCount = CountBoundsCheck(indices.size());
+    m_Header->IndicesOffset = BoundsCheckOffset(m_Buffer.size());
+    m_Header->IndexCount = BoundsCheckCount(indices.size());
     AppendSpan(indices, m_Buffer);
 }
 
@@ -888,8 +873,8 @@ ResourceBundleBuilder::Append(const std::span<const MeshResource>& meshes)
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
     MLG_ASSERT(m_Header->MeshesOffset == ResourceBundle::kInvalidOffset, "Meshes already appended");
 
-    m_Header->MeshesOffset = OffsetBoundsCheck(m_Buffer.size());
-    m_Header->MeshCount = CountBoundsCheck(meshes.size());
+    m_Header->MeshesOffset = BoundsCheckOffset(m_Buffer.size());
+    m_Header->MeshCount = BoundsCheckCount(meshes.size());
     AppendSpan(meshes, m_Buffer);
 }
 
@@ -899,8 +884,8 @@ ResourceBundleBuilder::Append(const std::span<const ModelResource>& models)
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
     MLG_ASSERT(m_Header->ModelsOffset == ResourceBundle::kInvalidOffset, "Models already appended");
 
-    m_Header->ModelsOffset = OffsetBoundsCheck(m_Buffer.size());
-    m_Header->ModelCount = CountBoundsCheck(models.size());
+    m_Header->ModelsOffset = BoundsCheckOffset(m_Buffer.size());
+    m_Header->ModelCount = BoundsCheckCount(models.size());
     AppendSpan(models, m_Buffer);
 }
 
@@ -911,8 +896,8 @@ ResourceBundleBuilder::Append(const std::span<const ModelInstanceResource>& mode
     MLG_ASSERT(m_Header->ModelInstancesOffset == ResourceBundle::kInvalidOffset,
         "Model Instances already appended");
 
-    m_Header->ModelInstancesOffset = OffsetBoundsCheck(m_Buffer.size());
-    m_Header->ModelInstanceCount = CountBoundsCheck(modelInstances.size());
+    m_Header->ModelInstancesOffset = BoundsCheckOffset(m_Buffer.size());
+    m_Header->ModelInstanceCount = BoundsCheckCount(modelInstances.size());
     AppendSpan(modelInstances, m_Buffer);
 }
 
@@ -923,8 +908,8 @@ ResourceBundleBuilder::Append(const std::span<const ColliderResource>& colliders
     MLG_ASSERT(m_Header->CollidersOffset == ResourceBundle::kInvalidOffset,
         "Colliders already appended");
 
-    m_Header->CollidersOffset = OffsetBoundsCheck(m_Buffer.size());
-    m_Header->ColliderCount = CountBoundsCheck(colliders.size());
+    m_Header->CollidersOffset = BoundsCheckOffset(m_Buffer.size());
+    m_Header->ColliderCount = BoundsCheckCount(colliders.size());
     AppendSpan(colliders, m_Buffer);
 }
 
@@ -935,8 +920,8 @@ ResourceBundleBuilder::Append(const std::span<const RigidBodyResource>& rigidBod
     MLG_ASSERT(m_Header->RigidBodiesOffset == ResourceBundle::kInvalidOffset,
         "RigidBodies already appended");
 
-    m_Header->RigidBodiesOffset = OffsetBoundsCheck(m_Buffer.size());
-    m_Header->RigidBodyCount = CountBoundsCheck(rigidBodies.size());
+    m_Header->RigidBodiesOffset = BoundsCheckOffset(m_Buffer.size());
+    m_Header->RigidBodyCount = BoundsCheckCount(rigidBodies.size());
     AppendSpan(rigidBodies, m_Buffer);
 }
 
@@ -946,7 +931,7 @@ ResourceBundleBuilder::Append(const std::span<const LevelNodeResource>& nodes)
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
     MLG_ASSERT(m_Header->NodesOffset == ResourceBundle::kInvalidOffset, "Nodes already appended");
 
-    m_Header->NodesOffset = OffsetBoundsCheck(m_Buffer.size());
-    m_Header->NodeCount = CountBoundsCheck(nodes.size());
+    m_Header->NodesOffset = BoundsCheckOffset(m_Buffer.size());
+    m_Header->NodeCount = BoundsCheckCount(nodes.size());
     AppendSpan(nodes, m_Buffer);
 }
