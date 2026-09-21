@@ -28,12 +28,6 @@ Layout:              sizeof/offsetof compile-time verified
 struct LevelDef;
 struct PropKitDef;
 
-struct Resource
-{
-    static constexpr uint64_t kInvalidOffset = std::numeric_limits<uint64_t>::max();
-    static constexpr uint32_t kInvalidIndex = std::numeric_limits<uint32_t>::max();
-};
-
 static_assert(sizeof(std::uint32_t) == 4);
 static_assert(sizeof(std::uint64_t) == 8); // NOLINT(readability-magic-numbers)
 static_assert(sizeof(float) == 4);
@@ -64,17 +58,11 @@ struct mlg_assert_size
     static_assert(Actual == Expected, "size mismatch");
 };
 
-#define MLG_CONCAT2(a, b) a##b
-#define MLG_CONCAT(a, b) MLG_CONCAT2(a, b)
-
-/// Compile-time assertions for struct offsets and sizes.
 #define MLG_ASSERT_OFFSET(struct_name, member, offset)                                             \
-    mlg_assert_offset<offset, offsetof(struct_name, member)> static const MLG_CONCAT(              \
-        __assert_offset_,                                                                          \
-        __LINE__);
+    static_assert(offsetof(struct_name, member) == (offset), "offset mismatch");
 
 #define MLG_ASSERT_SIZE(struct_name, size)                                                         \
-    mlg_assert_size<struct_name, size> static const MLG_CONCAT(__assert_size_, __LINE__);
+    static_assert(sizeof(struct_name) == (size), "size mismatch");
 
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define MLG_COUNT_FIELD(type, name, ...) +1
@@ -92,11 +80,222 @@ struct mlg_assert_size
 
 #define MLG_ASSERT_FIELD_COUNT(fields, count) static_assert(MLG_FIELD_COUNT(fields) == (count))
 
-#define STRING_RESOURCE_FIELDS(X)                                                                  \
-    X(uint32_t, Offset, 0)                                                                         \
-    X(uint32_t, Length, 0)
+struct StringResource;
+struct NodeNameResource;
+struct MaterialResource;
+struct MeshResource;
+struct ModelResource;
+struct ModelInstanceResource;
+struct ColliderResource;
+struct RigidBodyResource;
+struct LevelNodeResource;
+
+class ResourceBundle final
+{
+public:
+    using OffsetType = uint32_t;
+    using IndexType = uint32_t;
+    using CountType = uint32_t;
+
+    static constexpr OffsetType kInvalidOffset = std::numeric_limits<OffsetType>::max();
+    static constexpr IndexType kInvalidIndex = std::numeric_limits<IndexType>::max();
+
+    // Maximum allowed size for a resource bundle.
+    // This is currently set to the maximum value of a 32-bit unsigned integer
+    // in order to maximize browser compatibility.
+    static constexpr OffsetType kMaxBundleSize = std::numeric_limits<OffsetType>::max();
+
+    static constexpr OffsetType kMaxOffset = kMaxBundleSize - 1;
+    static constexpr IndexType kMaxIndex = std::numeric_limits<IndexType>::max() - 1;
+    static constexpr CountType kMaxCount = std::numeric_limits<CountType>::max();
+
+#define RESOURCE_BUNDLE_HEADER_FIELDS(X)                                                           \
+    X(OffsetType, TotalSize, 0)                                                                    \
+    X(OffsetType, CharsOffset, kInvalidOffset)                                                     \
+    X(OffsetType, NodeNamesOffset, kInvalidOffset)                                                 \
+    X(OffsetType, TextureUrisOffset, kInvalidOffset)                                               \
+    X(OffsetType, MaterialsOffset, kInvalidOffset)                                                 \
+    X(OffsetType, VerticesOffset, kInvalidOffset)                                                  \
+    X(OffsetType, IndicesOffset, kInvalidOffset)                                                   \
+    X(OffsetType, MeshesOffset, kInvalidOffset)                                                    \
+    X(OffsetType, ModelsOffset, kInvalidOffset)                                                    \
+    X(OffsetType, ModelInstancesOffset, kInvalidOffset)                                            \
+    X(OffsetType, CollidersOffset, kInvalidOffset)                                                 \
+    X(OffsetType, RigidBodiesOffset, kInvalidOffset)                                               \
+    X(OffsetType, NodesOffset, kInvalidOffset)                                                     \
+    X(CountType, CharsLength, 0)                                                                   \
+    X(CountType, NodeNameCount, 0)                                                                 \
+    X(CountType, TextureUriCount, 0)                                                               \
+    X(CountType, MaterialCount, 0)                                                                 \
+    X(CountType, VertexCount, 0)                                                                   \
+    X(CountType, IndexCount, 0)                                                                    \
+    X(CountType, MeshCount, 0)                                                                     \
+    X(CountType, ModelCount, 0)                                                                    \
+    X(CountType, ModelInstanceCount, 0)                                                            \
+    X(CountType, ColliderCount, 0)                                                                 \
+    X(CountType, RigidBodyCount, 0)                                                                \
+    X(CountType, NodeCount, 0)
+
+    struct Header
+    {
+        RESOURCE_BUNDLE_HEADER_FIELDS(MLG_DECLARE_FIELD)
+    };
+    static_assert(BinaryStruct<Header>);
+    MLG_ASSERT_FIELD_COUNT(RESOURCE_BUNDLE_HEADER_FIELDS, 25);
+    MLG_ASSERT_NO_PADDING(Header, RESOURCE_BUNDLE_HEADER_FIELDS);
+    MLG_ASSERT_OFFSET(Header, TotalSize, 0)
+    MLG_ASSERT_OFFSET(Header, CharsOffset, 4)
+    MLG_ASSERT_OFFSET(Header, NodeNamesOffset, 8)
+    MLG_ASSERT_OFFSET(Header, TextureUrisOffset, 12)
+    MLG_ASSERT_OFFSET(Header, MaterialsOffset, 16)
+    MLG_ASSERT_OFFSET(Header, VerticesOffset, 20)
+    MLG_ASSERT_OFFSET(Header, IndicesOffset, 24)
+    MLG_ASSERT_OFFSET(Header, MeshesOffset, 28)
+    MLG_ASSERT_OFFSET(Header, ModelsOffset, 32)
+    MLG_ASSERT_OFFSET(Header, ModelInstancesOffset, 36)
+    MLG_ASSERT_OFFSET(Header, CollidersOffset, 40)
+    MLG_ASSERT_OFFSET(Header, RigidBodiesOffset, 44)
+    MLG_ASSERT_OFFSET(Header, NodesOffset, 48)
+    MLG_ASSERT_OFFSET(Header, CharsLength, 52)
+    MLG_ASSERT_OFFSET(Header, NodeNameCount, 56)
+    MLG_ASSERT_OFFSET(Header, TextureUriCount, 60)
+    MLG_ASSERT_OFFSET(Header, MaterialCount, 64)
+    MLG_ASSERT_OFFSET(Header, VertexCount, 68)
+    MLG_ASSERT_OFFSET(Header, IndexCount, 72)
+    MLG_ASSERT_OFFSET(Header, MeshCount, 76)
+    MLG_ASSERT_OFFSET(Header, ModelCount, 80)
+    MLG_ASSERT_OFFSET(Header, ModelInstanceCount, 84)
+    MLG_ASSERT_OFFSET(Header, ColliderCount, 88)
+    MLG_ASSERT_OFFSET(Header, RigidBodyCount, 92)
+    MLG_ASSERT_OFFSET(Header, NodeCount, 96)
+    MLG_ASSERT_SIZE(Header, 100)
+
+    ResourceBundle() = delete;
+
+    explicit ResourceBundle(std::vector<char>&& buffer)
+        : m_Buffer(std::move(buffer))
+    {
+        const void* p = m_Buffer.data();
+        m_Header = static_cast<const Header*>(p);
+    }
+
+    /// Clears the resource bundle, releasing its internal buffer and resetting the header pointer.
+    void Clear()
+    {
+        m_Buffer.clear();
+        const std::vector<char> bye = std::move(m_Buffer);
+        m_Header = nullptr;
+    }
+
+    std::span<const char> GetChars() const
+    {
+        return GetSpan<char>(m_Header->CharsOffset, m_Header->CharsLength);
+    }
+
+    std::span<const NodeNameResource> GetNodeNames() const
+    {
+        return GetSpan<NodeNameResource>(m_Header->NodeNamesOffset, m_Header->NodeNameCount);
+    }
+
+    std::span<const StringResource> GetTextureUris() const
+    {
+        return GetSpan<StringResource>(m_Header->TextureUrisOffset, m_Header->TextureUriCount);
+    }
+
+    std::span<const MaterialResource> GetMaterials() const
+    {
+        return GetSpan<MaterialResource>(m_Header->MaterialsOffset, m_Header->MaterialCount);
+    }
+
+    std::span<const Vertex> GetVertices() const
+    {
+        return GetSpan<Vertex>(m_Header->VerticesOffset, m_Header->VertexCount);
+    }
+
+    std::span<const VertexIndex> GetIndices() const
+    {
+        return GetSpan<VertexIndex>(m_Header->IndicesOffset, m_Header->IndexCount);
+    }
+
+    std::span<const MeshResource> GetMeshes() const
+    {
+        return GetSpan<MeshResource>(m_Header->MeshesOffset, m_Header->MeshCount);
+    }
+
+    std::span<const ModelResource> GetModels() const
+    {
+        return GetSpan<ModelResource>(m_Header->ModelsOffset, m_Header->ModelCount);
+    }
+
+    std::span<const ModelInstanceResource> GetModelInstances() const
+    {
+        return GetSpan<ModelInstanceResource>(m_Header->ModelInstancesOffset,
+            m_Header->ModelInstanceCount);
+    }
+
+    std::span<const ColliderResource> GetColliders() const
+    {
+        return GetSpan<ColliderResource>(m_Header->CollidersOffset, m_Header->ColliderCount);
+    }
+
+    std::span<const RigidBodyResource> GetRigidBodies() const
+    {
+        return GetSpan<RigidBodyResource>(m_Header->RigidBodiesOffset, m_Header->RigidBodyCount);
+    }
+
+    std::span<const LevelNodeResource> GetNodes() const
+    {
+        return GetSpan<LevelNodeResource>(m_Header->NodesOffset, m_Header->NodeCount);
+    }
+
+    std::string_view GetStringView(const StringResource& stringResource) const;
+
+private:
+    template<typename T>
+    std::span<const T> GetSpan(const OffsetType offset, const CountType count) const
+    {
+        MLG_ASSERT(offset != kInvalidOffset, "Offset is invalid");
+
+        const std::span s(m_Buffer);
+        MLG_ABORTIF(offset > s.size() || count > (s.size() - offset) / sizeof(T),
+            "Span exceeds total size");
+        const void* p2 = s.subspan(static_cast<size_t>(offset)).data();
+        return std::span<const T>(static_cast<const T*>(p2), count);
+    }
+
+    const Header* m_Header;
+    std::vector<char> m_Buffer;
+};
+
+class ResourceBundleBuilder final
+{
+public:
+    Result<ResourceBundle> Build(const LevelDef& levelDef, const PropKitDef& propKitDef);
+
+private:
+    void AppendHeader(const ResourceBundle::OffsetType totalSize);
+    void Append(const std::span<const char>& chars);
+    void Append(const std::span<const NodeNameResource>& nodeNames);
+    void Append(const std::span<const StringResource>& textureUris);
+    void Append(const std::span<const MaterialResource>& materials);
+    void Append(const std::span<const Vertex>& vertices);
+    void Append(const std::span<const VertexIndex>& indices);
+    void Append(const std::span<const MeshResource>& meshes);
+    void Append(const std::span<const ModelResource>& models);
+    void Append(const std::span<const ModelInstanceResource>& modelInstances);
+    void Append(const std::span<const ColliderResource>& colliders);
+    void Append(const std::span<const RigidBodyResource>& rigidBodies);
+    void Append(const std::span<const LevelNodeResource>& nodes);
+
+    ResourceBundle::Header* m_Header{ nullptr };
+    std::vector<char> m_Buffer;
+};
 
 /// StringResource
+
+#define STRING_RESOURCE_FIELDS(X)                                                                  \
+    X(ResourceBundle::IndexType, CharIndex, 0)                                                     \
+    X(ResourceBundle::CountType, Length, 0)
 
 struct StringResource final
 {
@@ -105,14 +304,14 @@ struct StringResource final
 static_assert(BinaryStruct<StringResource>);
 MLG_ASSERT_FIELD_COUNT(STRING_RESOURCE_FIELDS, 2);
 MLG_ASSERT_NO_PADDING(StringResource, STRING_RESOURCE_FIELDS);
-MLG_ASSERT_OFFSET(StringResource, Offset, 0)
+MLG_ASSERT_OFFSET(StringResource, CharIndex, 0)
 MLG_ASSERT_OFFSET(StringResource, Length, 4)
 MLG_ASSERT_SIZE(StringResource, 8)
 
 /// NodeNameResource
 
 #define NODE_NAME_RESOURCE_FIELDS(X)                                                               \
-    X(uint32_t, NodeIndex, Resource::kInvalidIndex)                                                \
+    X(ResourceBundle::IndexType, NodeIndex, ResourceBundle::kInvalidIndex)                         \
     X(StringResource, String)
 
 struct NodeNameResource final
@@ -129,7 +328,7 @@ MLG_ASSERT_SIZE(NodeNameResource, 12)
 /// MaterialResource
 
 #define MATERIAL_RESOURCE_FIELDS(X)                                                                \
-    X(uint32_t, BaseTextureIndex{ Resource::kInvalidIndex }, )                                     \
+    X(ResourceBundle::IndexType, BaseTextureIndex, ResourceBundle::kInvalidIndex)                  \
     X(RgbaColorf, Color, { 1, 0, 1, 1 })                                                           \
     X(float, Metalness, 0)                                                                         \
     X(float, Roughness, 0)
@@ -150,10 +349,10 @@ MLG_ASSERT_SIZE(MaterialResource, 28)
 /// MeshResource
 
 #define MESH_RESOURCE_FIELDS(X)                                                                    \
-    X(uint32_t, IndexCount, 0)                                                                     \
-    X(uint32_t, FirstIndex, 0)                                                                     \
-    X(uint32_t, BaseVertex, 0)                                                                     \
-    X(uint32_t, MaterialIndex, Resource::kInvalidIndex)                                            \
+    X(ResourceBundle::CountType, IndexCount, 0)                                                    \
+    X(ResourceBundle::IndexType, FirstIndex, 0)                                                    \
+    X(ResourceBundle::IndexType, BaseVertex, 0)                                                    \
+    X(ResourceBundle::IndexType, MaterialIndex, ResourceBundle::kInvalidIndex)                     \
     X(BoundingBox, BoundingBox)
 
 struct MeshResource final
@@ -173,8 +372,8 @@ MLG_ASSERT_SIZE(MeshResource, 40)
 /// ModelResource
 
 #define MODEL_RESOURCE_FIELDS(X)                                                                   \
-    X(uint32_t, MeshOffset, 0)                                                                     \
-    X(uint32_t, MeshCount, 0)                                                                      \
+    X(ResourceBundle::IndexType, FirstMeshIndex, 0)                                                \
+    X(ResourceBundle::CountType, MeshCount, 0)                                                     \
     X(BoundingBox, BoundingBox)
 
 struct ModelResource final
@@ -184,7 +383,7 @@ struct ModelResource final
 static_assert(BinaryStruct<ModelResource>);
 MLG_ASSERT_FIELD_COUNT(MODEL_RESOURCE_FIELDS, 3);
 MLG_ASSERT_NO_PADDING(ModelResource, MODEL_RESOURCE_FIELDS);
-MLG_ASSERT_OFFSET(ModelResource, MeshOffset, 0)
+MLG_ASSERT_OFFSET(ModelResource, FirstMeshIndex, 0)
 MLG_ASSERT_OFFSET(ModelResource, MeshCount, 4)
 MLG_ASSERT_OFFSET(ModelResource, BoundingBox, 8)
 MLG_ASSERT_SIZE(ModelResource, 32)
@@ -192,8 +391,8 @@ MLG_ASSERT_SIZE(ModelResource, 32)
 /// ModelInstanceResource
 
 #define MODEL_INSTANCE_RESOURCE_FIELDS(X)                                                          \
-    X(uint32_t, NodeIndex, Resource::kInvalidIndex)                                                \
-    X(uint32_t, ModelIndex, Resource::kInvalidIndex)
+    X(ResourceBundle::IndexType, NodeIndex, ResourceBundle::kInvalidIndex)                         \
+    X(ResourceBundle::IndexType, ModelIndex, ResourceBundle::kInvalidIndex)
 
 struct ModelInstanceResource final
 {
@@ -317,11 +516,11 @@ MLG_ASSERT_SIZE(ColliderResource, 32)
 /// RigidBodyResource
 
 #define RIGID_BODY_RESOURCE_FIELDS(X)                                                              \
-    X(uint32_t, NodeIndex, Resource::kInvalidIndex)                                                \
+    X(ResourceBundle::IndexType, NodeIndex, ResourceBundle::kInvalidIndex)                         \
     X(float, Mass, 0.0f)                                                                           \
     X(MotionType, MotionType)                                                                      \
-    X(uint32_t, ColliderOffset, 0)                                                                 \
-    X(uint32_t, ColliderCount, 0)
+    X(ResourceBundle::IndexType, FirstColliderIndex, 0)                                            \
+    X(ResourceBundle::CountType, ColliderCount, 0)
 
 struct RigidBodyResource final
 {
@@ -333,16 +532,16 @@ MLG_ASSERT_NO_PADDING(RigidBodyResource, RIGID_BODY_RESOURCE_FIELDS);
 MLG_ASSERT_OFFSET(RigidBodyResource, NodeIndex, 0)
 MLG_ASSERT_OFFSET(RigidBodyResource, Mass, 4)
 MLG_ASSERT_OFFSET(RigidBodyResource, MotionType, 8)
-MLG_ASSERT_OFFSET(RigidBodyResource, ColliderOffset, 12)
+MLG_ASSERT_OFFSET(RigidBodyResource, FirstColliderIndex, 12)
 MLG_ASSERT_OFFSET(RigidBodyResource, ColliderCount, 16)
 MLG_ASSERT_SIZE(RigidBodyResource, 20)
 
 /// LevelNodeResource
 
 #define LEVEL_NODE_RESOURCE_FIELDS(X)                                                              \
-    X(uint32_t, ParentIndex, Resource::kInvalidIndex)                                              \
-    X(uint32_t, FirstChildIndex, Resource::kInvalidIndex)                                          \
-    X(uint32_t, ChildCount, 0)                                                                     \
+    X(ResourceBundle::IndexType, ParentIndex, ResourceBundle::kInvalidIndex)                       \
+    X(ResourceBundle::IndexType, FirstChildIndex, ResourceBundle::kInvalidIndex)                   \
+    X(ResourceBundle::CountType, ChildCount, 0)                                                    \
     X(Vec3f, LocalPos, Vec3f{ 0.0f, 0.0f, 0.0f })                                                  \
     X(Vec4f, LocalRot, Vec4f{ 0.0f, 0.0f, 0.0f, 1.0f })                                            \
     X(Vec3f, LocalScale, Vec3f{ 1.0f, 1.0f, 1.0f })
@@ -361,195 +560,3 @@ MLG_ASSERT_OFFSET(LevelNodeResource, LocalPos, 12)
 MLG_ASSERT_OFFSET(LevelNodeResource, LocalRot, 24)
 MLG_ASSERT_OFFSET(LevelNodeResource, LocalScale, 40)
 MLG_ASSERT_SIZE(LevelNodeResource, 52)
-
-class ResourceBundle final
-{
-public:
-#define RESOURCE_BUNDLE_HEADER_FIELDS(X)                                                           \
-    X(uint64_t, TotalSize, 0)                                                                      \
-    X(uint64_t, CharsOffset, Resource::kInvalidOffset)                                             \
-    X(uint64_t, NodeNamesOffset, Resource::kInvalidOffset)                                         \
-    X(uint64_t, TextureUrisOffset, Resource::kInvalidOffset)                                       \
-    X(uint64_t, MaterialsOffset, Resource::kInvalidOffset)                                         \
-    X(uint64_t, VerticesOffset, Resource::kInvalidOffset)                                          \
-    X(uint64_t, IndicesOffset, Resource::kInvalidOffset)                                           \
-    X(uint64_t, MeshesOffset, Resource::kInvalidOffset)                                            \
-    X(uint64_t, ModelsOffset, Resource::kInvalidOffset)                                            \
-    X(uint64_t, ModelInstancesOffset, Resource::kInvalidOffset)                                    \
-    X(uint64_t, CollidersOffset, Resource::kInvalidOffset)                                         \
-    X(uint64_t, RigidBodiesOffset, Resource::kInvalidOffset)                                       \
-    X(uint64_t, NodesOffset, Resource::kInvalidOffset)                                             \
-    X(uint32_t, CharsLength, 0)                                                                    \
-    X(uint32_t, NodeNameCount, 0)                                                                  \
-    X(uint32_t, TextureUriCount, 0)                                                                \
-    X(uint32_t, MaterialCount, 0)                                                                  \
-    X(uint32_t, VertexCount, 0)                                                                    \
-    X(uint32_t, IndexCount, 0)                                                                     \
-    X(uint32_t, MeshCount, 0)                                                                      \
-    X(uint32_t, ModelCount, 0)                                                                     \
-    X(uint32_t, ModelInstanceCount, 0)                                                             \
-    X(uint32_t, ColliderCount, 0)                                                                  \
-    X(uint32_t, RigidBodyCount, 0)                                                                 \
-    X(uint32_t, NodeCount, 0)    
-
-    struct Header
-    {
-        RESOURCE_BUNDLE_HEADER_FIELDS(MLG_DECLARE_FIELD)
-    };
-    static_assert(BinaryStruct<Header>);
-    MLG_ASSERT_FIELD_COUNT(RESOURCE_BUNDLE_HEADER_FIELDS, 25);
-    MLG_ASSERT_NO_PADDING(Header, RESOURCE_BUNDLE_HEADER_FIELDS);
-    MLG_ASSERT_OFFSET(Header, TotalSize, 0)
-    MLG_ASSERT_OFFSET(Header, CharsOffset, 8)
-    MLG_ASSERT_OFFSET(Header, NodeNamesOffset, 16)
-    MLG_ASSERT_OFFSET(Header, TextureUrisOffset, 24)
-    MLG_ASSERT_OFFSET(Header, MaterialsOffset, 32)
-    MLG_ASSERT_OFFSET(Header, VerticesOffset, 40)
-    MLG_ASSERT_OFFSET(Header, IndicesOffset, 48)
-    MLG_ASSERT_OFFSET(Header, MeshesOffset, 56)
-    MLG_ASSERT_OFFSET(Header, ModelsOffset, 64)
-    MLG_ASSERT_OFFSET(Header, ModelInstancesOffset, 72)
-    MLG_ASSERT_OFFSET(Header, CollidersOffset, 80)
-    MLG_ASSERT_OFFSET(Header, RigidBodiesOffset, 88)
-    MLG_ASSERT_OFFSET(Header, NodesOffset, 96)
-    MLG_ASSERT_OFFSET(Header, CharsLength, 104)
-    MLG_ASSERT_OFFSET(Header, NodeNameCount, 108)
-    MLG_ASSERT_OFFSET(Header, TextureUriCount, 112)
-    MLG_ASSERT_OFFSET(Header, MaterialCount, 116)
-    MLG_ASSERT_OFFSET(Header, VertexCount, 120)
-    MLG_ASSERT_OFFSET(Header, IndexCount, 124)
-    MLG_ASSERT_OFFSET(Header, MeshCount, 128)
-    MLG_ASSERT_OFFSET(Header, ModelCount, 132)
-    MLG_ASSERT_OFFSET(Header, ModelInstanceCount, 136)
-    MLG_ASSERT_OFFSET(Header, ColliderCount, 140)
-    MLG_ASSERT_OFFSET(Header, RigidBodyCount, 144)
-    MLG_ASSERT_OFFSET(Header, NodeCount, 148)
-    MLG_ASSERT_SIZE(Header, 152)
-
-    ResourceBundle() = delete;
-
-    explicit ResourceBundle(std::vector<char>&& buffer)
-        : m_Buffer(std::move(buffer))
-    {
-        const void* p = m_Buffer.data();
-        m_Header = static_cast<const Header*>(p);
-    }
-
-    /// Clears the resource bundle, releasing its internal buffer and resetting the header pointer.
-    void Clear()
-    {
-        m_Buffer.clear();
-        const std::vector<char> bye = std::move(m_Buffer);
-        m_Header = nullptr;
-    }
-
-    std::span<const char> GetChars() const
-    {
-        return GetSpan<char>(m_Header->CharsOffset, m_Header->CharsLength);
-    }
-
-    std::span<const NodeNameResource> GetNodeNames() const
-    {
-        return GetSpan<NodeNameResource>(m_Header->NodeNamesOffset, m_Header->NodeNameCount);
-    }
-
-    std::span<const StringResource> GetTextureUris() const
-    {
-        return GetSpan<StringResource>(m_Header->TextureUrisOffset, m_Header->TextureUriCount);
-    }
-
-    std::span<const MaterialResource> GetMaterials() const
-    {
-        return GetSpan<MaterialResource>(m_Header->MaterialsOffset, m_Header->MaterialCount);
-    }
-
-    std::span<const Vertex> GetVertices() const
-    {
-        return GetSpan<Vertex>(m_Header->VerticesOffset, m_Header->VertexCount);
-    }
-
-    std::span<const VertexIndex> GetIndices() const
-    {
-        return GetSpan<VertexIndex>(m_Header->IndicesOffset, m_Header->IndexCount);
-    }
-
-    std::span<const MeshResource> GetMeshes() const
-    {
-        return GetSpan<MeshResource>(m_Header->MeshesOffset, m_Header->MeshCount);
-    }
-
-    std::span<const ModelResource> GetModels() const
-    {
-        return GetSpan<ModelResource>(m_Header->ModelsOffset, m_Header->ModelCount);
-    }
-
-    std::span<const ModelInstanceResource> GetModelInstances() const
-    {
-        return GetSpan<ModelInstanceResource>(m_Header->ModelInstancesOffset,
-            m_Header->ModelInstanceCount);
-    }
-
-    std::span<const ColliderResource> GetColliders() const
-    {
-        return GetSpan<ColliderResource>(m_Header->CollidersOffset, m_Header->ColliderCount);
-    }
-
-    std::span<const RigidBodyResource> GetRigidBodies() const
-    {
-        return GetSpan<RigidBodyResource>(m_Header->RigidBodiesOffset, m_Header->RigidBodyCount);
-    }
-
-    std::span<const LevelNodeResource> GetNodes() const
-    {
-        return GetSpan<LevelNodeResource>(m_Header->NodesOffset, m_Header->NodeCount);
-    }
-
-    std::string_view GetStringView(const StringResource& stringResource) const
-    {
-        const std::span<const char> chars = GetChars();
-        MLG_ASSERT(chars.size() - stringResource.Offset >= stringResource.Length,
-            "StringResource exceeds bounds");
-        return std::string_view(chars.subspan(stringResource.Offset, stringResource.Length).data(),
-            stringResource.Length);
-    }
-
-private:
-    template<typename T>
-    std::span<const T> GetSpan(const uint64_t offset, const uint32_t count) const
-    {
-        MLG_ASSERT(offset != Resource::kInvalidOffset, "Offset is invalid");
-        MLG_ASSERT(offset + (count * sizeof(T)) <= m_Header->TotalSize, "Span exceeds total size");
-
-        const std::span s(m_Buffer);
-        MLG_ABORTIF(offset > s.size(), "Offset exceeds buffer size");
-        const void* p2 = s.subspan(static_cast<size_t>(offset)).data();
-        return std::span<const T>(static_cast<const T*>(p2), count);
-    }
-
-    const Header* m_Header;
-    std::vector<char> m_Buffer;
-};
-
-class ResourceBundleBuilder final
-{
-public:
-    Result<ResourceBundle> Build(const LevelDef& levelDef, const PropKitDef& propKitDef);
-
-private:
-    void AppendHeader(const uint64_t totalSize);
-    void Append(const std::span<const char>& chars);
-    void Append(const std::span<const NodeNameResource>& nodeNames);
-    void Append(const std::span<const StringResource>& textureUris);
-    void Append(const std::span<const MaterialResource>& materials);
-    void Append(const std::span<const Vertex>& vertices);
-    void Append(const std::span<const VertexIndex>& indices);
-    void Append(const std::span<const MeshResource>& meshes);
-    void Append(const std::span<const ModelResource>& models);
-    void Append(const std::span<const ModelInstanceResource>& modelInstances);
-    void Append(const std::span<const ColliderResource>& colliders);
-    void Append(const std::span<const RigidBodyResource>& rigidBodies);
-    void Append(const std::span<const LevelNodeResource>& nodes);
-
-    ResourceBundle::Header* m_Header{ nullptr };
-    std::vector<char> m_Buffer;
-};

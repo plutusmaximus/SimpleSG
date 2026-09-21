@@ -154,7 +154,7 @@ CollectNodes(const ResourceBundle& resourceBundle)
     for(const auto& nodeRsrc : nodeRsrcs)
     {
         const LevelNode* parent = nullptr;
-        if(nodeRsrc.ParentIndex != Resource::kInvalidIndex)
+        if(nodeRsrc.ParentIndex != ResourceBundle::kInvalidIndex)
         {
             MLG_CHECKV(nodeRsrc.ParentIndex < nodes.size(), "Invalid parent index for node");
             parent = &nodes[nodeRsrc.ParentIndex];
@@ -199,12 +199,12 @@ CollectMeshInstances(const ResourceBundle& resourceBundle)
     {
         const ModelResource& modelRsrc = modelRsrcs[modelInstanceRsrc.ModelIndex];
 
-        MLG_CHECKV(modelRsrc.MeshOffset < meshRsrcs.size(),
+        MLG_CHECKV(modelRsrc.FirstMeshIndex < meshRsrcs.size(),
             "Invalid MeshOffset for model resource");
-        MLG_CHECKV(meshRsrcs.size() - modelRsrc.MeshOffset >= modelRsrc.MeshCount,
+        MLG_CHECKV(meshRsrcs.size() - modelRsrc.FirstMeshIndex >= modelRsrc.MeshCount,
             "Invalid mesh range for model resource");
 
-        const std::span meshRsrcSpan = meshRsrcs.subspan(modelRsrc.MeshOffset, modelRsrc.MeshCount);
+        const std::span meshRsrcSpan = meshRsrcs.subspan(modelRsrc.FirstMeshIndex, modelRsrc.MeshCount);
 
         for(const MeshResource& meshRsrc : meshRsrcSpan)
         {
@@ -288,10 +288,10 @@ CollectPhysicsNodes(const WorldIdentifier worldId,
             "RigidBodyResource has invalid NodeIndex");
         LevelNode& levelNode = nodes[rigidBodyRsrc.NodeIndex];
 
-        MLG_CHECKV(rigidBodyRsrc.ColliderOffset + rigidBodyRsrc.ColliderCount <= colliders.size(),
+        MLG_CHECKV(rigidBodyRsrc.FirstColliderIndex + rigidBodyRsrc.ColliderCount <= colliders.size(),
             "RigidBodyResource has invalid Collider range");
         const std::span colliderSpan =
-            colliders.subspan(rigidBodyRsrc.ColliderOffset, rigidBodyRsrc.ColliderCount);
+            colliders.subspan(rigidBodyRsrc.FirstColliderIndex, rigidBodyRsrc.ColliderCount);
 
         auto bodyId = CreateRigidBody(levelNode, rigidBodyRsrc, colliderSpan, worldId);
         MLG_CHECK(bodyId, "Failed to create rigid body for node");

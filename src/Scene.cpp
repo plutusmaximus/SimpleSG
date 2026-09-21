@@ -92,13 +92,13 @@ CreateMaterialBindGroups(const GpuHelper& gpuHelper,
 
     for(const MaterialResource& mtlRsrc : materialRsrcs)
     {
-        MLG_CHECKV(mtlRsrc.BaseTextureIndex == Resource::kInvalidIndex
+        MLG_CHECKV(mtlRsrc.BaseTextureIndex == ResourceBundle::kInvalidIndex
                 || mtlRsrc.BaseTextureIndex < textures.size(),
             "Invalid base texture index");
 
         wgpu::Texture baseTexture;
         std::string_view textureUri;
-        if(mtlRsrc.BaseTextureIndex == Resource::kInvalidIndex)
+        if(mtlRsrc.BaseTextureIndex == ResourceBundle::kInvalidIndex)
         {
             baseTexture = gpuHelper.GetDefaultTexture();
             textureUri = "<default>";

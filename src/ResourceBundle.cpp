@@ -5,31 +5,42 @@
 #include <limits>
 #include <map>
 #include <ranges>
+#include <set>
 #include <string_view>
 
 namespace
 {
 
-constexpr uint32_t kInvalidIndex = std::numeric_limits<uint32_t>::max();
-
-// Maximum allowed size for a resource bundle.
-// This is currently set to the maximum value of a 32-bit unsigned integer
-// in order to maximize browser compatibility.
-constexpr uint32_t kMaxBundleSize = std::numeric_limits<uint32_t>::max();
+constexpr size_t kMaxSizeT = std::numeric_limits<size_t>::max();
 
 using NodeDefPointer = std::variant<const RootNodeDef*, const ChildNodeDef*>;
 
 struct FlatNodeDef
 {
     NodeDefPointer NodeDefPtr;
-    uint32_t ParentIndex;
-    uint32_t FirstChildIndex;
+    ResourceBundle::IndexType ParentIndex;
+    ResourceBundle::IndexType FirstChildIndex;
 };
 
-[[maybe_unused]] bool
-Validate([[maybe_unused]] const PropKitDef& propKitDef, [[maybe_unused]] const LevelDef& levelDef)
+[[nodiscard]] ResourceBundle::IndexType
+IndexBoundsCheck(const size_t size)
 {
-    return false;
+    MLG_ABORTIF(size > ResourceBundle::kMaxIndex, "Index out of bounds");
+    return static_cast<ResourceBundle::IndexType>(size);
+}
+
+[[nodiscard]] ResourceBundle::CountType
+CountBoundsCheck(const size_t count)
+{
+    MLG_ABORTIF(count > ResourceBundle::kMaxCount, "Count out of bounds");
+    return static_cast<ResourceBundle::CountType>(count);
+}
+
+[[nodiscard]] ResourceBundle::OffsetType
+OffsetBoundsCheck(const size_t offset)
+{
+    MLG_ABORTIF(offset > ResourceBundle::kMaxOffset, "Offset out of bounds");
+    return static_cast<ResourceBundle::OffsetType>(offset);
 }
 
 std::vector<FlatNodeDef>
@@ -38,7 +49,7 @@ FlattenNodesBreadthFirst(const std::span<const RootNodeDef> rootNodeDefs)
     struct PendingNode
     {
         NodeDefPointer Node;
-        uint32_t ParentIndex;
+        ResourceBundle::IndexType ParentIndex;
     };
 
     std::vector<FlatNodeDef> flatNodes;
@@ -47,20 +58,20 @@ FlattenNodesBreadthFirst(const std::span<const RootNodeDef> rootNodeDefs)
     // Queue root nodes for processing.
     for(const RootNodeDef& rootNodeDef : rootNodeDefs)
     {
-        pendingNodes.emplace_back(&rootNodeDef, kInvalidIndex);
+        pendingNodes.emplace_back(&rootNodeDef, ResourceBundle::kInvalidIndex);
     }
 
     for(size_t pendingIndex = 0; pendingIndex < pendingNodes.size(); ++pendingIndex)
     {
         const PendingNode& pendingNode = pendingNodes[pendingIndex];
 
-        const uint32_t nodeIndex = static_cast<uint32_t>(flatNodes.size());
+        const ResourceBundle::IndexType nodeIndex = IndexBoundsCheck(flatNodes.size());
 
         const FlatNodeDef flatNodeDef //
             {
                 .NodeDefPtr = pendingNode.Node,
                 .ParentIndex = pendingNode.ParentIndex,
-                .FirstChildIndex = kInvalidIndex,
+                .FirstChildIndex = ResourceBundle::kInvalidIndex,
             };
 
         flatNodes.push_back(flatNodeDef);
@@ -78,48 +89,68 @@ FlattenNodesBreadthFirst(const std::span<const RootNodeDef> rootNodeDefs)
     }
 
     // Populate the FirstChildIndex for each parent node.
-    uint32_t parentIndex = kInvalidIndex;
-    for(FlatNodeDef& flatNode : flatNodes)
+    ResourceBundle::IndexType parentIndex = ResourceBundle::kInvalidIndex;
+    auto view = std::views::zip(flatNodes, std::views::iota(size_t{ 0 }));
+
+    for(const auto& [flatNode, nodeIndex] : view)
     {
         if(flatNode.ParentIndex != parentIndex)
         {
             parentIndex = flatNode.ParentIndex;
             FlatNodeDef& parentNode = flatNodes[parentIndex];
-            parentNode.FirstChildIndex = static_cast<uint32_t>(&flatNode - flatNodes.data());
+            parentNode.FirstChildIndex = IndexBoundsCheck(nodeIndex);
         }
     }
 
     return flatNodes;
 }
 
+[[nodiscard]] StringResource
+AddString(std::vector<char>& chars, const std::string_view& str)
+{
+    MLG_ABORTIF(chars.size() > ResourceBundle::kMaxBundleSize, "Exceeded maximum buffer size");
+
+    using LengthType = decltype(ResourceBundle::kMaxBundleSize);
+
+    const LengthType capacity =
+        ResourceBundle::kMaxBundleSize - static_cast<LengthType>(chars.size());
+
+    MLG_ABORTIF(capacity < str.length(), "Exceeded maximum buffer size");
+
+    const ResourceBundle::IndexType charIndex = IndexBoundsCheck(chars.size());
+
+    chars.append_range(str);
+
+    return StringResource //
+        {
+            .CharIndex = charIndex,
+            .Length = CountBoundsCheck(str.length()),
+        };
+}
+
 std::vector<NodeNameResource>
 CollectNodeNames(const std::span<const FlatNodeDef> flatNodeDefs, std::vector<char>& chars)
 {
     std::vector<NodeNameResource> nodeNames;
-    std::map<const std::string_view, uint32_t> stringIndexMap;
+    std::set<std::string_view> stringDedup;
 
-    auto view = std::views::zip(flatNodeDefs, std::views::iota(0u));
+    auto view = std::views::zip(flatNodeDefs, std::views::iota(size_t{ 0 }));
 
     for(const auto& [flatNodeDef, nodeIndex] : view)
     {
         std::visit(
             [&](const auto* nodeDef)
             {
-                if(!stringIndexMap.contains(nodeDef->Name))
+                if(!stringDedup.contains(nodeDef->Name))
                 {
                     const NodeNameResource nodeName //
                         {
-                            .NodeIndex = nodeIndex,
-                            .String //
-                            {
-                                .Offset = static_cast<uint32_t>(chars.size()),
-                                .Length = static_cast<uint32_t>(nodeDef->Name.length()),
-                            },
+                            .NodeIndex = IndexBoundsCheck(nodeIndex),
+                            .String = AddString(chars, nodeDef->Name),
                         };
 
-                    stringIndexMap[nodeDef->Name] = static_cast<uint32_t>(nodeNames.size());
+                    stringDedup.insert(nodeDef->Name);
                     nodeNames.push_back(nodeName);
-                    chars.append_range(nodeDef->Name);
                 }
             },
             flatNodeDef.NodeDefPtr);
@@ -132,7 +163,7 @@ std::vector<StringResource>
 CollectTextureUris(const std::span<const MeshDef> meshDefs, std::vector<char>& chars)
 {
     std::vector<StringResource> textureUris;
-    std::map<const std::string_view, uint32_t> stringIndexMap;
+    std::set<std::string_view> stringDedup;
 
     for(const MeshDef& meshDef : meshDefs)
     {
@@ -143,74 +174,74 @@ CollectTextureUris(const std::span<const MeshDef> meshDefs, std::vector<char>& c
             continue;
         }
 
-        if(stringIndexMap.contains(materialDef.BaseTextureUri))
+        if(!stringDedup.contains(materialDef.BaseTextureUri))
         {
-            continue;
+            const StringResource textureUri = AddString(chars, materialDef.BaseTextureUri);
+
+            stringDedup.insert(materialDef.BaseTextureUri);
+            textureUris.push_back(textureUri);
         }
-
-        const StringResource textureUri //
-            {
-                .Offset = static_cast<uint32_t>(chars.size()),
-                .Length = static_cast<uint32_t>(materialDef.BaseTextureUri.length()),
-            };
-
-        stringIndexMap[materialDef.BaseTextureUri] = static_cast<uint32_t>(textureUris.size());
-        textureUris.push_back(textureUri);
-        chars.append_range(materialDef.BaseTextureUri);
     }
 
     return textureUris;
 }
 
-std::map<const MaterialDef, uint32_t>
+std::map<const MaterialDef, ResourceBundle::IndexType>
 CreateMaterialIndexMap(const std::span<const MeshDef> meshDefs)
 {
-    std::map<const MaterialDef, uint32_t> materialIndexMap;
+    std::map<const MaterialDef, ResourceBundle::IndexType> materialIndexMap;
 
     for(const MeshDef& meshDef : meshDefs)
     {
         const MaterialDef& materialDef = meshDef.MaterialDef;
         if(!materialIndexMap.contains(materialDef))
         {
-            const uint32_t materialIndex = static_cast<uint32_t>(materialIndexMap.size());
-            materialIndexMap[materialDef] = materialIndex;
+            materialIndexMap[materialDef] = IndexBoundsCheck(materialIndexMap.size());
         }
     }
 
     return materialIndexMap;
 }
 
-std::map<const std::string_view, uint32_t>
+std::map<const std::string_view, ResourceBundle::IndexType>
 CreateModelIndexMap(const std::span<const ModelDef> modelDefs)
 {
-    std::map<const std::string_view, uint32_t> modelIndex;
+    std::map<const std::string_view, ResourceBundle::IndexType> modelIndex;
 
-    for(size_t i = 0; i < modelDefs.size(); ++i)
+    const auto view = std::views::zip(modelDefs, std::views::iota(size_t{ 0 }));
+
+    for(const auto& [modelDef, index] : view)
     {
-        const ModelDef& modelDef = modelDefs[i];
-        MLG_ASSERT(!modelDef.Name.empty(), "ModelDef has empty name");
-        MLG_ASSERT(!modelIndex.contains(modelDef.Name), "Duplicate model name: {}", modelDef.Name);
-        modelIndex[modelDef.Name] = static_cast<uint32_t>(i);
+        MLG_ABORTIF(modelDef.Name.empty(), "ModelDef has empty name");
+        MLG_ABORTIF(modelIndex.contains(modelDef.Name), "Duplicate model name: {}", modelDef.Name);
+        modelIndex[modelDef.Name] = IndexBoundsCheck(index);
     }
 
     return modelIndex;
 }
 
 std::vector<MaterialResource>
-CollectMaterials(const std::map<const MaterialDef, uint32_t>& materialIndexMap,
-    const std::map<const std::string_view, uint32_t>& stringIndexMap)
+CollectMaterials(const std::map<const MaterialDef, ResourceBundle::IndexType>& materialIndexMap,
+    const std::map<const std::string_view, ResourceBundle::IndexType>& textureUriIndexMap)
 {
     std::vector<MaterialResource> materials;
     materials.resize(materialIndexMap.size());
 
     for(const auto& [materialDef, materialIndex] : materialIndexMap)
     {
-        uint32_t baseTextureIndex = Resource::kInvalidIndex;
+        MLG_ABORTIF(materialIndex >= materials.size(),
+            "Material index out of bounds: {}",
+            materialIndex);
 
-        auto it = stringIndexMap.find(materialDef.BaseTextureUri);
-        if(it != stringIndexMap.end())
+        ResourceBundle::IndexType baseTextureIndex = ResourceBundle::kInvalidIndex;
+
+        auto it = textureUriIndexMap.find(materialDef.BaseTextureUri);
+        if(it != textureUriIndexMap.end())
         {
             baseTextureIndex = it->second;
+            MLG_ABORTIF(baseTextureIndex >= textureUriIndexMap.size(),
+                "Texture index out of bounds: {}",
+                baseTextureIndex);
         }
 
         const MaterialResource materialResource //
@@ -289,33 +320,44 @@ CollectIndices(const std::span<const MeshDef> meshDefs)
 
 std::vector<MeshResource>
 CollectMeshes(const std::span<const MeshDef> meshDefs,
-    const std::map<const MaterialDef, uint32_t>& materialIndexMap)
+    const std::map<const MaterialDef, ResourceBundle::IndexType>& materialIndexMap)
 {
     std::vector<MeshResource> meshes;
     meshes.reserve(meshDefs.size());
 
-    uint32_t indexOffset = 0;
-    uint32_t vertexOffset = 0;
+    size_t indexIndex = 0;
+    size_t vertexIndex = 0;
 
     for(const MeshDef& meshDef : meshDefs)
     {
-        const uint32_t indexCount = static_cast<uint32_t>(meshDef.Indices.size());
-        const uint32_t vertexCount = static_cast<uint32_t>(meshDef.Vertices.size());
+        const size_t indexCount = meshDef.Indices.size();
+        const size_t vertexCount = meshDef.Vertices.size();
 
         const BoundingBox boundingBox =
             BoundingBox::FromVertices(meshDef.Vertices, meshDef.Indices);
 
+        const auto it = materialIndexMap.find(meshDef.MaterialDef);
+        MLG_ABORTIF(it == materialIndexMap.end(), "Material not found in material index map");
+        const ResourceBundle::IndexType materialIndex = it->second;
+        MLG_ABORTIF(materialIndex >= materialIndexMap.size(),
+            "Material index out of bounds: {}",
+            materialIndex);
+
         const MeshResource mesh //
             {
-                .IndexCount = indexCount,
-                .FirstIndex = indexOffset,
-                .BaseVertex = vertexOffset,
-                .MaterialIndex = materialIndexMap.at(meshDef.MaterialDef),
+                .IndexCount = CountBoundsCheck(indexCount),
+                .FirstIndex = IndexBoundsCheck(indexIndex),
+                .BaseVertex = IndexBoundsCheck(vertexIndex),
+                .MaterialIndex = materialIndex,
                 .BoundingBox = boundingBox,
             };
         meshes.push_back(mesh);
-        indexOffset += indexCount;
-        vertexOffset += vertexCount;
+
+        MLG_ABORTIF(kMaxSizeT - indexIndex < indexCount, "Index overflow");
+        MLG_ABORTIF(kMaxSizeT - vertexIndex < vertexCount, "Vertex overflow");
+
+        indexIndex += indexCount;
+        vertexIndex += vertexCount;
     }
 
     return meshes;
@@ -327,12 +369,20 @@ CollectModels(const std::span<const ModelDef> modelDefs, const std::span<const M
     std::vector<ModelResource> models;
     models.reserve(modelDefs.size());
 
-    uint32_t meshOffset = 0;
+    size_t meshIndex = 0;
+
+    // Meshes are collected sequentially for each model.
+    // I.e. meshes for model N+1 immediately follow those for model N.
 
     for(const ModelDef& modelDef : modelDefs)
     {
-        const uint32_t meshCount = static_cast<uint32_t>(modelDef.MeshDefs.size());
-        const std::span meshSpan = meshes.subspan(meshOffset, meshCount);
+        const size_t meshCount = modelDef.MeshDefs.size();
+
+        MLG_ABORTIF(meshCount == 0, "Model has no meshes");
+        MLG_ABORTIF(meshIndex >= meshes.size(), "Mesh index out of bounds");
+        MLG_ABORTIF(meshes.size() - meshIndex < meshCount, "Mesh span out of bounds");
+
+        const std::span meshSpan = meshes.subspan(meshIndex, meshCount);
 
         BoundingBox boundingBox = meshSpan[0].BoundingBox;
         for(const MeshResource& mesh : meshSpan.subspan(1))
@@ -342,12 +392,13 @@ CollectModels(const std::span<const ModelDef> modelDefs, const std::span<const M
 
         const ModelResource model //
             {
-                .MeshOffset = meshOffset,
-                .MeshCount = meshCount,
+                .FirstMeshIndex = IndexBoundsCheck(meshIndex),
+                .MeshCount = CountBoundsCheck(meshCount),
                 .BoundingBox = boundingBox,
             };
         models.push_back(model);
-        meshOffset += meshCount;
+
+        meshIndex += meshCount;
     }
 
     return models;
@@ -355,7 +406,7 @@ CollectModels(const std::span<const ModelDef> modelDefs, const std::span<const M
 
 std::vector<ModelInstanceResource>
 CollectModelInstances(const std::span<const FlatNodeDef> flatNodeDefs,
-    const std::map<const std::string_view, uint32_t>& modelIndexMap,
+    const std::map<const std::string_view, ResourceBundle::IndexType>& modelIndexMap,
     const std::span<const ModelResource> modelResources)
 {
     size_t count = 0;
@@ -373,10 +424,10 @@ CollectModelInstances(const std::span<const FlatNodeDef> flatNodeDefs,
     std::vector<ModelInstanceResource> modelInstances;
     modelInstances.reserve(count);
 
-    for(const FlatNodeDef& flatNodeDef : flatNodeDefs)
-    {
-        const uint32_t nodeIndex = static_cast<uint32_t>(&flatNodeDef - flatNodeDefs.data());
+    const auto view = std::views::zip(flatNodeDefs, std::views::iota(size_t{ 0 }));
 
+    for(const auto& [flatNodeDef, nodeIndex] : view)
+    {
         std::visit(
             [&](const auto* nodeDef)
             {
@@ -386,15 +437,17 @@ CollectModelInstances(const std::span<const FlatNodeDef> flatNodeDefs,
                 {
                     const ModelRef& modelRef = *optModel;
                     auto it = modelIndexMap.find(modelRef.Name);
-                    MLG_ASSERT(it != modelIndexMap.end(), "Model {} not found", modelRef.Name);
-                    const uint32_t modelIdx = it->second;
-                    MLG_ASSERT(modelIdx < modelResources.size(),
+                    MLG_ABORTIF(it == modelIndexMap.end(), "Model {} not found", modelRef.Name);
+
+                    const ResourceBundle::IndexType modelIdx = it->second;
+
+                    MLG_ABORTIF(modelIdx >= modelResources.size(),
                         "Model index {} out of range",
                         modelIdx);
 
                     const ModelInstanceResource modelInstance //
                         {
-                            .NodeIndex = nodeIndex,
+                            .NodeIndex = IndexBoundsCheck(nodeIndex),
                             .ModelIndex = modelIdx,
                         };
 
@@ -496,7 +549,8 @@ CollectColliders(const std::span<const RootNodeDef> nodeDefs)
 }
 
 std::vector<RigidBodyResource>
-CollectRigidBodies(const std::span<const RootNodeDef> nodeDefs)
+CollectRigidBodies(const std::span<const RootNodeDef> nodeDefs,
+    const std::span<const ColliderResource> colliders)
 {
     size_t count = 0;
     for(const RootNodeDef& nodeDef : nodeDefs)
@@ -510,9 +564,11 @@ CollectRigidBodies(const std::span<const RootNodeDef> nodeDefs)
     std::vector<RigidBodyResource> rigidBodies;
     rigidBodies.reserve(count);
 
-    uint32_t colliderOffset = 0;
+    size_t colliderIndex = 0;
 
-    for(const RootNodeDef& nodeDef : nodeDefs)
+    const auto view = std::views::zip(nodeDefs, std::views::iota(size_t{ 0 }));
+
+    for(const auto& [nodeDef, nodeIndex] : view)
     {
         const std::optional<RigidBodyDef> body = nodeDef.Body;
         if(!body)
@@ -520,18 +576,23 @@ CollectRigidBodies(const std::span<const RootNodeDef> nodeDefs)
             continue;
         }
 
+        MLG_ABORTIF(body->Colliders.empty(), "Rigid body has no colliders");
+        MLG_ABORTIF(colliderIndex >= colliders.size(), "Collider index out of bounds");
+        MLG_ABORTIF(colliders.size() - colliderIndex < body->Colliders.size(),
+            "Collider span out of bounds");
+
         const RigidBodyResource rigidBody //
             {
-                .NodeIndex = static_cast<uint32_t>(&nodeDef - nodeDefs.data()),
+                .NodeIndex = IndexBoundsCheck(nodeIndex),
                 .Mass = body->Mass.Value(),
                 .MotionType = body->MotionType,
-                .ColliderOffset = colliderOffset,
-                .ColliderCount = static_cast<uint32_t>(body->Colliders.size()),
+                .FirstColliderIndex = IndexBoundsCheck(colliderIndex),
+                .ColliderCount = CountBoundsCheck(body->Colliders.size()),
             };
 
         rigidBodies.push_back(rigidBody);
 
-        colliderOffset += static_cast<uint32_t>(body->Colliders.size());
+        colliderIndex += body->Colliders.size();
     }
 
     return rigidBodies;
@@ -552,7 +613,7 @@ CollectLevelNodes(const std::span<const FlatNodeDef> flatNodeDefs)
                     {
                         .ParentIndex = flatNodeDef.ParentIndex,
                         .FirstChildIndex = flatNodeDef.FirstChildIndex,
-                        .ChildCount = static_cast<uint32_t>(nodeDef->Children.size()),
+                        .ChildCount = CountBoundsCheck(nodeDef->Children.size()),
                         .LocalPos = nodeDef->Transform.T,
                         .LocalRot = nodeDef->Transform.R.ToVector(),
                         .LocalScale = nodeDef->Transform.S,
@@ -567,20 +628,34 @@ CollectLevelNodes(const std::span<const FlatNodeDef> flatNodeDefs)
 }
 
 template<typename T>
-size_t
+constexpr size_t
 SizeOfItem()
 {
     static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
     static_assert(std::is_standard_layout_v<T>, "T must have standard layout");
 
-    return sizeof(T);
+    constexpr size_t size = sizeof(T);
+    MLG_ABORTIF(size > ResourceBundle::kMaxOffset, "Maximum item size exceeded");
+    return size;
 }
 
 template<typename T>
-size_t
+constexpr size_t
 SizeOfSpan(const std::span<T>& s)
 {
-    return s.size() * SizeOfItem<T>();
+    static constexpr size_t itemSize = SizeOfItem<T>();
+    static constexpr size_t kMaxSpan = ResourceBundle::kMaxOffset / itemSize;
+
+    MLG_ABORTIF(s.size() > kMaxSpan, "Maximum span length exceeded");
+
+    return s.size() * itemSize;
+}
+
+const ResourceBundle::Header*
+GetHeader(const std::vector<char>& buffer)
+{
+    const void* p = buffer.data();
+    return static_cast<const ResourceBundle::Header*>(p);
 }
 
 template<typename T>
@@ -590,7 +665,9 @@ AppendItem(const T& v, std::vector<char>& buffer)
     static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
     static_assert(std::is_standard_layout_v<T>, "T must have standard layout");
 
-    MLG_ASSERT(SizeOfItem<T>() + buffer.size() <= buffer.capacity(), "Not enough space in buffer");
+    const ResourceBundle::Header* header = GetHeader(buffer);
+
+    MLG_ABORTIF(header->TotalSize - buffer.size() < SizeOfItem<T>(), "Not enough space in buffer");
 
     const void* src = static_cast<const void*>(&v);
     buffer.append_range(std::span(static_cast<const char*>(src), sizeof(T)));
@@ -603,7 +680,9 @@ AppendSpan(const std::span<const T>& v, std::vector<char>& buffer)
     static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
     static_assert(std::is_standard_layout_v<T>, "T must have standard layout");
 
-    MLG_ASSERT(SizeOfSpan(v) + buffer.size() <= buffer.capacity(), "Not enough space in buffer");
+    const ResourceBundle::Header* header = GetHeader(buffer);
+
+    MLG_ABORTIF(header->TotalSize - buffer.size() < SizeOfSpan(v), "Not enough space in buffer");
 
     const void* src = static_cast<const void*>(v.data());
     buffer.append_range(std::span(static_cast<const char*>(src), v.size() * sizeof(T)));
@@ -612,12 +691,22 @@ AppendSpan(const std::span<const T>& v, std::vector<char>& buffer)
 std::string_view
 MakeStringView(const StringResource& resource, const std::span<const char>& chars)
 {
-    MLG_ASSERT(resource.Offset + resource.Length <= chars.size(), "Resource out of bounds");
+    MLG_ABORTIF(resource.CharIndex > chars.size()
+            || resource.Length > chars.size() - resource.CharIndex,
+        "StringResource out of bounds");
 
-    return std::string_view(chars.subspan(resource.Offset, resource.Length));
+    return std::string_view(chars.subspan(resource.CharIndex, resource.Length));
 }
 
 } // namespace
+
+// ResourceBundle
+
+std::string_view
+ResourceBundle::GetStringView(const StringResource& stringResource) const
+{
+    return MakeStringView(stringResource, GetChars());
+}
 
 // ResourceBundleBuilder
 
@@ -629,18 +718,19 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKit
     const std::vector<FlatNodeDef> flatNodeDefs = FlattenNodesBreadthFirst(levelDef.NodeDefs);
     const std::vector<MeshDef> meshDefs = CollectMeshDefs(propKitDef.ModelDefs);
 
-    const std::map<const MaterialDef, uint32_t> materialIndexMap = CreateMaterialIndexMap(meshDefs);
-    const std::map<const std::string_view, uint32_t> modelIndexMap =
+    const std::map<const MaterialDef, ResourceBundle::IndexType> materialIndexMap =
+        CreateMaterialIndexMap(meshDefs);
+    const std::map<const std::string_view, ResourceBundle::IndexType> modelIndexMap =
         CreateModelIndexMap(propKitDef.ModelDefs);
 
     std::vector<char> chars;
     const std::vector<NodeNameResource> nodeNames = CollectNodeNames(flatNodeDefs, chars);
     const std::vector<StringResource> textureUris = CollectTextureUris(meshDefs, chars);
 
-    std::map<const std::string_view, uint32_t> textureUriIndexMap;
-    for(uint32_t i = 0; i < textureUris.size(); ++i)
+    std::map<const std::string_view, ResourceBundle::IndexType> textureUriIndexMap;
+    for(size_t i = 0; i < textureUris.size(); ++i)
     {
-        textureUriIndexMap[MakeStringView(textureUris[i], chars)] = i;
+        textureUriIndexMap[MakeStringView(textureUris[i], chars)] = IndexBoundsCheck(i);
     }
 
     const std::vector<MaterialResource> materials =
@@ -652,31 +742,40 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKit
     const std::vector<ModelInstanceResource> modelInstances =
         CollectModelInstances(flatNodeDefs, modelIndexMap, models);
     const std::vector<ColliderResource> colliders = CollectColliders(levelDef.NodeDefs);
-    const std::vector<RigidBodyResource> rigidBodies = CollectRigidBodies(levelDef.NodeDefs);
+    const std::vector<RigidBodyResource> rigidBodies =
+        CollectRigidBodies(levelDef.NodeDefs, colliders);
     const std::vector<LevelNodeResource> nodes = CollectLevelNodes(flatNodeDefs);
 
     m_Header = nullptr;
     m_Buffer = {};
 
-    const uint64_t totalSize = SizeOfItem<ResourceBundle::Header>()
-        + SizeOfSpan(std::span(chars))
-        + SizeOfSpan(std::span(nodeNames))
-        + SizeOfSpan(std::span(textureUris))
-        + SizeOfSpan(std::span(materials))
-        + SizeOfSpan(std::span(vertices))
-        + SizeOfSpan(std::span(indices))
-        + SizeOfSpan(std::span(meshes))
-        + SizeOfSpan(std::span(models))
-        + SizeOfSpan(std::span(modelInstances))
-        + SizeOfSpan(std::span(colliders))
-        + SizeOfSpan(std::span(rigidBodies))
-        + SizeOfSpan(std::span(nodes));
+#define ADD_AND_CHECK_OVERFLOW(value)                                                              \
+    MLG_ABORTIF(ResourceBundle::kMaxOffset - totalSize < (value));                                 \
+    totalSize += (value);
 
-    MLG_CHECK(totalSize <= kMaxBundleSize, "Total size exceeds maximum allowed size");
+    size_t totalSize = SizeOfItem<ResourceBundle::Header>();
 
-    m_Buffer.reserve(static_cast<size_t>(totalSize));
+    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(chars)));
+    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(nodeNames)));
+    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(textureUris)));
+    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(materials)));
+    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(vertices)));
+    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(indices)));
+    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(meshes)));
+    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(models)));
+    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(modelInstances)));
+    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(colliders)));
+    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(rigidBodies)));
+    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(nodes)));
 
-    AppendHeader(totalSize);
+#undef ADD_AND_CHECK_OVERFLOW
+
+    MLG_CHECK(totalSize <= ResourceBundle::kMaxBundleSize,
+        "Total size exceeds maximum allowed size");
+
+    m_Buffer.reserve(totalSize);
+
+    AppendHeader(static_cast<ResourceBundle::OffsetType>(totalSize));
     Append(chars);
     Append(nodeNames);
     Append(textureUris);
@@ -697,24 +796,29 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKit
 // private:
 
 void
-ResourceBundleBuilder::AppendHeader(const uint64_t totalSize)
+ResourceBundleBuilder::AppendHeader(const ResourceBundle::OffsetType totalSize)
 {
     MLG_ASSERT(m_Buffer.empty(), "Header already appended");
-    AppendItem(ResourceBundle::Header{}, m_Buffer);
-    void* p = m_Buffer.data();
-    m_Header = static_cast<ResourceBundle::Header*>(p);
-    m_Header->TotalSize = totalSize;
+
+    ResourceBundle::Header header{};
+
+    header.TotalSize = totalSize;
+
+    const void* p = &header;
+    m_Buffer.append_range(std::span(static_cast<const char*>(p), sizeof(ResourceBundle::Header)));
+
+    void* pp = m_Buffer.data();
+    m_Header = static_cast<ResourceBundle::Header*>(pp);
 }
 
 void
 ResourceBundleBuilder::Append(const std::span<const char>& chars)
 {
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->CharsOffset == Resource::kInvalidOffset, "Chars already appended");
-    MLG_ASSERT(m_Buffer.size() + chars.size() <= m_Header->TotalSize,
-        "Chars span exceeds total size");
-    m_Header->CharsOffset = static_cast<uint32_t>(m_Buffer.size());
-    m_Header->CharsLength = static_cast<uint32_t>(chars.size());
+    MLG_ASSERT(m_Header->CharsOffset == ResourceBundle::kInvalidOffset, "Chars already appended");
+
+    m_Header->CharsOffset = OffsetBoundsCheck(m_Buffer.size());
+    m_Header->CharsLength = CountBoundsCheck(chars.size());
     AppendSpan(chars, m_Buffer);
 }
 
@@ -722,13 +826,11 @@ void
 ResourceBundleBuilder::Append(const std::span<const NodeNameResource>& nodeNames)
 {
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->NodeNamesOffset == Resource::kInvalidOffset,
+    MLG_ASSERT(m_Header->NodeNamesOffset == ResourceBundle::kInvalidOffset,
         "Node names already appended");
-    MLG_ASSERT(m_Buffer.size() + (nodeNames.size() * sizeof(NodeNameResource))
-            <= m_Header->TotalSize,
-        "Node names span exceeds total size");
-    m_Header->NodeNamesOffset = static_cast<uint32_t>(m_Buffer.size());
-    m_Header->NodeNameCount = static_cast<uint32_t>(nodeNames.size());
+
+    m_Header->NodeNamesOffset = OffsetBoundsCheck(m_Buffer.size());
+    m_Header->NodeNameCount = CountBoundsCheck(nodeNames.size());
     AppendSpan(nodeNames, m_Buffer);
 }
 
@@ -736,13 +838,11 @@ void
 ResourceBundleBuilder::Append(const std::span<const StringResource>& textureUris)
 {
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->TextureUrisOffset == Resource::kInvalidOffset,
+    MLG_ASSERT(m_Header->TextureUrisOffset == ResourceBundle::kInvalidOffset,
         "Texture URIs already appended");
-    MLG_ASSERT(m_Buffer.size() + (textureUris.size() * sizeof(StringResource))
-            <= m_Header->TotalSize,
-        "Texture URIs span exceeds total size");
-    m_Header->TextureUrisOffset = static_cast<uint32_t>(m_Buffer.size());
-    m_Header->TextureUriCount = static_cast<uint32_t>(textureUris.size());
+
+    m_Header->TextureUrisOffset = OffsetBoundsCheck(m_Buffer.size());
+    m_Header->TextureUriCount = CountBoundsCheck(textureUris.size());
     AppendSpan(textureUris, m_Buffer);
 }
 
@@ -750,13 +850,11 @@ void
 ResourceBundleBuilder::Append(const std::span<const MaterialResource>& materials)
 {
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->MaterialsOffset == Resource::kInvalidOffset,
+    MLG_ASSERT(m_Header->MaterialsOffset == ResourceBundle::kInvalidOffset,
         "Materials already appended");
-    MLG_ASSERT(m_Buffer.size() + (materials.size() * sizeof(MaterialResource))
-            <= m_Header->TotalSize,
-        "Materials span exceeds total size");
-    m_Header->MaterialsOffset = static_cast<uint32_t>(m_Buffer.size());
-    m_Header->MaterialCount = static_cast<uint32_t>(materials.size());
+
+    m_Header->MaterialsOffset = OffsetBoundsCheck(m_Buffer.size());
+    m_Header->MaterialCount = CountBoundsCheck(materials.size());
     AppendSpan(materials, m_Buffer);
 }
 
@@ -764,12 +862,11 @@ void
 ResourceBundleBuilder::Append(const std::span<const Vertex>& vertices)
 {
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->VerticesOffset == Resource::kInvalidOffset,
+    MLG_ASSERT(m_Header->VerticesOffset == ResourceBundle::kInvalidOffset,
         "Vertices already appended");
-    MLG_ASSERT(m_Buffer.size() + (vertices.size() * sizeof(Vertex)) <= m_Header->TotalSize,
-        "Vertices span exceeds total size");
-    m_Header->VerticesOffset = static_cast<uint32_t>(m_Buffer.size());
-    m_Header->VertexCount = static_cast<uint32_t>(vertices.size());
+
+    m_Header->VerticesOffset = OffsetBoundsCheck(m_Buffer.size());
+    m_Header->VertexCount = CountBoundsCheck(vertices.size());
     AppendSpan(vertices, m_Buffer);
 }
 
@@ -777,12 +874,11 @@ void
 ResourceBundleBuilder::Append(const std::span<const VertexIndex>& indices)
 {
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->IndicesOffset == Resource::kInvalidOffset,
+    MLG_ASSERT(m_Header->IndicesOffset == ResourceBundle::kInvalidOffset,
         "Indices already appended");
-    MLG_ASSERT(m_Buffer.size() + (indices.size() * sizeof(VertexIndex)) <= m_Header->TotalSize,
-        "Indices span exceeds total size");
-    m_Header->IndicesOffset = static_cast<uint32_t>(m_Buffer.size());
-    m_Header->IndexCount = static_cast<uint32_t>(indices.size());
+
+    m_Header->IndicesOffset = OffsetBoundsCheck(m_Buffer.size());
+    m_Header->IndexCount = CountBoundsCheck(indices.size());
     AppendSpan(indices, m_Buffer);
 }
 
@@ -790,11 +886,10 @@ void
 ResourceBundleBuilder::Append(const std::span<const MeshResource>& meshes)
 {
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->MeshesOffset == Resource::kInvalidOffset, "Meshes already appended");
-    MLG_ASSERT(m_Buffer.size() + (meshes.size() * sizeof(MeshResource)) <= m_Header->TotalSize,
-        "Meshes span exceeds total size");
-    m_Header->MeshesOffset = static_cast<uint32_t>(m_Buffer.size());
-    m_Header->MeshCount = static_cast<uint32_t>(meshes.size());
+    MLG_ASSERT(m_Header->MeshesOffset == ResourceBundle::kInvalidOffset, "Meshes already appended");
+
+    m_Header->MeshesOffset = OffsetBoundsCheck(m_Buffer.size());
+    m_Header->MeshCount = CountBoundsCheck(meshes.size());
     AppendSpan(meshes, m_Buffer);
 }
 
@@ -802,11 +897,10 @@ void
 ResourceBundleBuilder::Append(const std::span<const ModelResource>& models)
 {
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->ModelsOffset == Resource::kInvalidOffset, "Models already appended");
-    MLG_ASSERT(m_Buffer.size() + (models.size() * sizeof(ModelResource)) <= m_Header->TotalSize,
-        "Models span exceeds total size");
-    m_Header->ModelsOffset = static_cast<uint32_t>(m_Buffer.size());
-    m_Header->ModelCount = static_cast<uint32_t>(models.size());
+    MLG_ASSERT(m_Header->ModelsOffset == ResourceBundle::kInvalidOffset, "Models already appended");
+
+    m_Header->ModelsOffset = OffsetBoundsCheck(m_Buffer.size());
+    m_Header->ModelCount = CountBoundsCheck(models.size());
     AppendSpan(models, m_Buffer);
 }
 
@@ -814,13 +908,11 @@ void
 ResourceBundleBuilder::Append(const std::span<const ModelInstanceResource>& modelInstances)
 {
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->ModelInstancesOffset == Resource::kInvalidOffset,
+    MLG_ASSERT(m_Header->ModelInstancesOffset == ResourceBundle::kInvalidOffset,
         "Model Instances already appended");
-    MLG_ASSERT(m_Buffer.size() + (modelInstances.size() * sizeof(ModelInstanceResource))
-            <= m_Header->TotalSize,
-        "Model Instances span exceeds total size");
-    m_Header->ModelInstancesOffset = static_cast<uint32_t>(m_Buffer.size());
-    m_Header->ModelInstanceCount = static_cast<uint32_t>(modelInstances.size());
+
+    m_Header->ModelInstancesOffset = OffsetBoundsCheck(m_Buffer.size());
+    m_Header->ModelInstanceCount = CountBoundsCheck(modelInstances.size());
     AppendSpan(modelInstances, m_Buffer);
 }
 
@@ -828,13 +920,11 @@ void
 ResourceBundleBuilder::Append(const std::span<const ColliderResource>& colliders)
 {
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->CollidersOffset == Resource::kInvalidOffset,
+    MLG_ASSERT(m_Header->CollidersOffset == ResourceBundle::kInvalidOffset,
         "Colliders already appended");
-    MLG_ASSERT(m_Buffer.size() + (colliders.size() * sizeof(ColliderResource))
-            <= m_Header->TotalSize,
-        "Colliders span exceeds total size");
-    m_Header->CollidersOffset = static_cast<uint32_t>(m_Buffer.size());
-    m_Header->ColliderCount = static_cast<uint32_t>(colliders.size());
+
+    m_Header->CollidersOffset = OffsetBoundsCheck(m_Buffer.size());
+    m_Header->ColliderCount = CountBoundsCheck(colliders.size());
     AppendSpan(colliders, m_Buffer);
 }
 
@@ -842,13 +932,11 @@ void
 ResourceBundleBuilder::Append(const std::span<const RigidBodyResource>& rigidBodies)
 {
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->RigidBodiesOffset == Resource::kInvalidOffset,
+    MLG_ASSERT(m_Header->RigidBodiesOffset == ResourceBundle::kInvalidOffset,
         "RigidBodies already appended");
-    MLG_ASSERT(m_Buffer.size() + (rigidBodies.size() * sizeof(RigidBodyResource))
-            <= m_Header->TotalSize,
-        "RigidBodies span exceeds total size");
-    m_Header->RigidBodiesOffset = static_cast<uint32_t>(m_Buffer.size());
-    m_Header->RigidBodyCount = static_cast<uint32_t>(rigidBodies.size());
+
+    m_Header->RigidBodiesOffset = OffsetBoundsCheck(m_Buffer.size());
+    m_Header->RigidBodyCount = CountBoundsCheck(rigidBodies.size());
     AppendSpan(rigidBodies, m_Buffer);
 }
 
@@ -856,10 +944,9 @@ void
 ResourceBundleBuilder::Append(const std::span<const LevelNodeResource>& nodes)
 {
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->NodesOffset == Resource::kInvalidOffset, "Nodes already appended");
-    MLG_ASSERT(m_Buffer.size() + (nodes.size() * sizeof(LevelNodeResource)) <= m_Header->TotalSize,
-        "Nodes span exceeds total size");
-    m_Header->NodesOffset = static_cast<uint32_t>(m_Buffer.size());
-    m_Header->NodeCount = static_cast<uint32_t>(nodes.size());
+    MLG_ASSERT(m_Header->NodesOffset == ResourceBundle::kInvalidOffset, "Nodes already appended");
+
+    m_Header->NodesOffset = OffsetBoundsCheck(m_Buffer.size());
+    m_Header->NodeCount = CountBoundsCheck(nodes.size());
     AppendSpan(nodes, m_Buffer);
 }
