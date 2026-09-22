@@ -324,7 +324,7 @@ TextureFetcher::OnUpdate()
             break;
 
         case Stage::Fetching:
-            if(m_TaskBatch->IsPending())
+            if(m_TaskBatch->IsRunning())
             {
                 m_TaskBatch->Update();
             }

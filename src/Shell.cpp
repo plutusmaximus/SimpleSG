@@ -54,7 +54,7 @@ Shell::Update(AppUpdateCallback appUpdateCb)
         break;
 
         case Stage::CreatingSystem:
-            if(m_SystemCreateTask.IsPending())
+            if(m_SystemCreateTask.IsRunning())
             {
                 m_SystemCreateTask.Update();
             }

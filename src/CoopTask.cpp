@@ -2,7 +2,7 @@
 
 ICoopTask::~ICoopTask()
 {
-    MLG_ASSERT(Stage::Pending != m_Stage, "Destroying pending task");
+    MLG_ASSERT(Stage::Running != m_Stage, "Destroying a running task");
 }
 
 Result<>
@@ -10,7 +10,7 @@ ICoopTask::Start()
 {
     MLG_CHECKV(m_Stage == Stage::None, "Task has already been started.");
 
-    m_Stage = Stage::Pending;
+    m_Stage = Stage::Running;
 
     Result<> result = OnStart();
     if (!result)
@@ -20,22 +20,22 @@ ICoopTask::Start()
     return result;
 }
 
-/// Returns true if the task is still pending, false if it is complete.
+/// Returns true if the task is still running, false if it is complete.
 bool
-ICoopTask::IsPending() const
+ICoopTask::IsRunning() const
 {
     if(!MLG_VERIFY(m_Stage != Stage::None, "Task is not started"))
     {
         return false;
     }
 
-    return m_Stage == Stage::Pending;
+    return m_Stage == Stage::Running;
 }
 
 void
 ICoopTask::Update()
 {
-    if(MLG_VERIFY(IsPending(), "Task is not running"))
+    if(MLG_VERIFY(IsRunning(), "Task is not running"))
     {
         OnUpdate();
     }
@@ -44,7 +44,7 @@ ICoopTask::Update()
 void
 ICoopTask::SetComplete()
 {
-    if(MLG_VERIFY(m_Stage == Stage::Pending, "Task is not pending."))
+    if(MLG_VERIFY(m_Stage == Stage::Running, "Task is not running."))
     {
         m_Stage = Stage::Complete;
     }
@@ -89,7 +89,7 @@ CoopTaskBatch::OnStart()
         }
     }
 
-    m_Stage = Stage::Pending;
+    m_Stage = Stage::Running;
 
     return Result<>::Ok;
 }
@@ -100,7 +100,7 @@ CoopTaskBatch::OnUpdate()
     for(size_t i = 0; i < m_Tasks.size(); )
     {
         ICoopTask* task = m_Tasks[i];
-        if(task->IsPending())
+        if(task->IsRunning())
         {
             task->Update();
             ++i;

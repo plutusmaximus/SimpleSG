@@ -13,7 +13,7 @@ starts the task and keeps updating it until it is complete.
 ThingTask task(...);
 MLG_CHECK(task.Start());
 
-while(task.IsPending())
+while(task.IsRunning())
 {
     task.Update();
 
@@ -21,14 +21,14 @@ while(task.IsPending())
 }
 ```
 
-Call `Start()` once, then use `IsPending()` to decide whether to call `Update()`.
+Call `Start()` once, then use `IsRunning()` to decide whether to call `Update()`.
 A task must finish before it is destroyed. Destroying a task that was never
 started is also valid.
 
 To write a task, derive from [`ICoopTask`](../../src/CoopTask.h) and implement
 `OnStart()` and `OnUpdate()`. `Start()` calls `OnStart()`, and `Update()` calls
 `OnUpdate()`. The base checks that you start the task only once and update it only
-while it is pending.
+while it is running.
 
 `OnStart()` sets up the work and returns a `Result`. If it fails, the base marks
 the task complete. `OnUpdate()` does the work it can and then returns without
@@ -42,7 +42,7 @@ handle that stage and call `SetComplete()` on the next update.
 
 Completion means the task has finished, whether it succeeded or failed. Some
 tasks provide a `Take()` method to return a result. For those tasks, call `Take()`
-after `IsPending()` becomes false and check the result. The result can only be
+after `IsRunning()` becomes false and check the result. The result can only be
 taken once. `Take()` is not required by `ICoopTask`.
 
 A task can own other tasks and start and update them as part of its own work.

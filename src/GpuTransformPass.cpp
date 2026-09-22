@@ -163,7 +163,7 @@ GpuTransformPass::CreateTask::OnUpdate()
             break;
 
         case Stage::FetchingShader:
-            if(m_ShaderFetcher.IsPending())
+            if(m_ShaderFetcher.IsRunning())
             {
                 m_ShaderFetcher.Update();
             }

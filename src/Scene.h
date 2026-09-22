@@ -104,7 +104,7 @@ private:
     enum class Stage
     {
         None,
-        Pending,
+        Running,
         Succeeded,
         Failed
     };

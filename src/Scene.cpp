@@ -510,7 +510,7 @@ Scene::CreateTask::OnStart()
 
     MLG_CHECK(m_TaskBatch.Start(), "Failed to begin task batch");
 
-    m_Stage = Stage::Pending;
+    m_Stage = Stage::Running;
 
     return Result<>::Ok;
 }
@@ -523,8 +523,8 @@ Scene::CreateTask::OnUpdate()
             MLG_ABORT("Task is not running");
             break;
 
-        case Stage::Pending:
-            if(m_TaskBatch.IsPending())
+        case Stage::Running:
+            if(m_TaskBatch.IsRunning())
             {
                 m_System->GetFileFetcher().ProcessCompletions();
                 m_TaskBatch.Update();

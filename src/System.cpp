@@ -89,7 +89,7 @@ System::CreateTask::OnUpdate()
             break;
 
         case Stage::CreatingGpuHelper:
-            if(m_Impl->m_GpuHelperTask.IsPending())
+            if(m_Impl->m_GpuHelperTask.IsRunning())
             {
                 m_Impl->m_GpuHelperTask.Update();
             }

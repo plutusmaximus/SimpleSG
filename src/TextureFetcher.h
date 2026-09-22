@@ -20,7 +20,7 @@ class ThreadPool;
 using FetchRequestId = uint64_t;
 
 /// Loads textures. A failed load uses the default texture for that slot.
-/// Keep calling FileFetcher::ProcessCompletions() while this task is pending.
+/// Keep calling FileFetcher::ProcessCompletions() while this task is running.
 /// Calling Update() alone does not process file completions.
 class TextureFetcher : public ICoopTask
 {

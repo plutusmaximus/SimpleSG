@@ -7,7 +7,7 @@
 #include <vector>
 
 /// A cooperative task that executes over multiple frames.
-/// Call Start() once, then call Update() while IsPending() returns true.
+/// Call Start() once, then call Update() while IsRunning() returns true.
 /// Let a started task finish before destroying it. An unstarted task can be destroyed.
 class ICoopTask
 {
@@ -20,20 +20,20 @@ public:
     ICoopTask(ICoopTask&&) = delete;
     ICoopTask& operator=(ICoopTask&&) = delete;
 
-    /// Call once to start the task. Sets it pending, calls OnStart(), and returns its result.
+    /// Call once to start the task. Sets it running, calls OnStart(), and returns its result.
     /// If OnStart() fails or calls SetComplete(), the task is complete when Start() returns.
     Result<> Start();
 
     /// Call only after Start(). Returns true while the task needs more updates.
     /// False means it has finished, not necessarily that it succeeded.
-    bool IsPending() const;
+    bool IsRunning() const;
 
-    /// Calls OnUpdate() once on this thread. Call only while IsPending() returns true.
+    /// Calls OnUpdate() once on this thread. Call only while IsRunning() returns true.
     void Update();
 
 protected:
 
-    /// Sets up the work. Start() calls this with the task already pending.
+    /// Sets up the work. Start() calls this with the task already running.
     /// Call SetComplete() if the work finishes here.
     /// Do not return failure while child tasks or other work still need updates.
     virtual Result<> OnStart() = 0;
@@ -42,7 +42,7 @@ protected:
     /// Call SetComplete() when finished.
     virtual void OnUpdate() = 0;
 
-    /// Marks a pending task as finished. IsPending() will return false.
+    /// Marks a running task as finished. IsRunning() will return false.
     /// The derived task keeps track of whether the work succeeded or failed.
     void SetComplete();
 
@@ -50,7 +50,7 @@ private:
     enum class Stage
     {
         None,
-        Pending,
+        Running,
         Complete
     };
 
@@ -79,7 +79,7 @@ private:
     enum class Stage
     {
         None,
-        Pending,
+        Running,
         Succeeded,
         Failed
     };

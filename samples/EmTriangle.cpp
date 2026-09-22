@@ -169,7 +169,7 @@ TriangleApp::Update(System& system)
         case Stage::CreatingScene:
             MLG_ABORTIF(!m_SceneCreateTask, "Scene create task is not initialized");
 
-            if(m_SceneCreateTask->IsPending())
+            if(m_SceneCreateTask->IsRunning())
             {
                 m_SceneCreateTask->Update();
             }

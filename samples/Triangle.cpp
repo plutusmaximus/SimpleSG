@@ -112,7 +112,7 @@ MainLoop()
 
     MLG_CHECK(sysCreateTask.Start());
 
-    while(sysCreateTask.IsPending())
+    while(sysCreateTask.IsRunning())
     {
         sysCreateTask.Update();
     }
@@ -143,7 +143,7 @@ MainLoop()
 
     MLG_CHECK(createTask.Start(), "Failed to begin create task");
 
-    while(createTask.IsPending())
+    while(createTask.IsRunning())
     {
         createTask.Update();
     }
