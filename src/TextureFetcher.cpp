@@ -165,7 +165,7 @@ TextureFetcher::FetchTask::BeginDecode()
     // values needed by the worker thread during decoding.
     m_TexWidth = static_cast<uint32_t>(width);
     m_TexHeight = static_cast<uint32_t>(height);
-    m_TexFormat = wgpu::TextureFormat::RGBA8Unorm;
+    m_TexFormat = m_Texture.GetFormat();
 
     MLG_CHECK(m_ThreadPool->Enqueue(Decode, this), "Failed to enqueue texture decode task");
 
@@ -202,7 +202,7 @@ TextureFetcher::FetchTask::Decode()
             && std::cmp_equal(m_TexHeight, imgHeight),
         "Decoded image dimensions do not match texture dimensions");
 
-    MLG_CHECKV(m_TexFormat == wgpu::TextureFormat::RGBA8Unorm,
+    MLG_CHECKV(m_TexFormat == GpuHelper::kTextureFormat,
         "Texture format does not match expected format");
 
     const size_t sizeofSrcData = static_cast<size_t>(imgWidth)
