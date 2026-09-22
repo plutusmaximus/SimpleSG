@@ -2,16 +2,30 @@
 
 #include "Log.h"
 
+#include <SDL3/SDL_init.h>
+
 #ifndef __clang__
 // No stack trace support in clang, so we won't include the header.
 #include <stacktrace>
-#endif  //__clang__
+#endif //__clang__
 
 namespace AssertHelper
 {
 
 namespace
 {
+SDL_AssertState
+ReportAssertion(SDL_AssertData* data, const char* func, const char* file, int line)
+{
+    // On many platforms assert dialogs will cause background workers to hang, so we break instead.
+    if(!SDL_IsMainThread())
+    {
+        return SDL_ASSERTION_BREAK;
+    }
+
+    return SDL_ReportAssertion(data, func, file, line);
+}
+
 void
 Log(const std::string& message)
 {
@@ -43,12 +57,12 @@ Log(AssertData& assertData,
 #pragma clang diagnostic ignored "-Wunreachable-code"
 #endif
     assertData.sdlAssertState =
-        SDL_ReportAssertion(&assertData.sdlAssertData, function, fileName, lineNum);
+        ReportAssertion(&assertData.sdlAssertData, function, fileName, lineNum);
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
 
-    switch (assertData.sdlAssertState)
+    switch(assertData.sdlAssertState)
     {
         case SDL_ASSERTION_RETRY:
         case SDL_ASSERTION_BREAK:
@@ -81,12 +95,12 @@ Log(AssertData& assertData,
 #pragma clang diagnostic ignored "-Wunreachable-code"
 #endif
     assertData.sdlAssertState =
-        SDL_ReportAssertion(&assertData.sdlAssertData, function, fileName, lineNum);
+        ReportAssertion(&assertData.sdlAssertData, function, fileName, lineNum);
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
 
-    switch (assertData.sdlAssertState)
+    switch(assertData.sdlAssertState)
     {
         case SDL_ASSERTION_RETRY:
         case SDL_ASSERTION_BREAK:
@@ -103,4 +117,4 @@ Log(AssertData& assertData,
     return false;
 }
 
-}   // namespace AssertHelper
+} // namespace AssertHelper
