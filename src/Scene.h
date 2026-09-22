@@ -117,7 +117,7 @@ private:
     System* m_System{ nullptr };
     const ResourceBundle* m_ResourceBundle{ nullptr };
     const Level* m_Level{ nullptr };
-    std::vector<std::string> m_TextureUris;
+    std::vector<std::string> m_TexturePaths;
 
     TextureFetcher m_TextureFetcher;
     GpuColorPass::CreateTask m_ColorPassTask;

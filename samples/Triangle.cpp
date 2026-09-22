@@ -63,7 +63,7 @@ CreateTriangleModel(PropKitDef& outPropKitDef, LevelDef& outLevelDef)
 
     MaterialDef mtlDef //
         {
-            .BaseTextureUri{ "images/Ant.png" },
+            .BaseTexturePath{ "images/Ant.png" },
             .Color{ "#FFA500"_rgba },
             .Metalness = 0,
             .Roughness = 0,

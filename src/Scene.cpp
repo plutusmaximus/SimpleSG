@@ -85,7 +85,7 @@ CreateMaterialBindGroups(const GpuHelper& gpuHelper,
     const GpuColorPass& gpuColorPass,
     const std::span<const MaterialResource> materialRsrcs,
     const std::span<const wgpu::Texture> textures,
-    const std::span<const std::string> textureUris)
+    const std::span<const std::string> texturePaths)
 {
     std::vector<wgpu::BindGroup> materialBindGroups;
     materialBindGroups.reserve(materialRsrcs.size());
@@ -97,16 +97,16 @@ CreateMaterialBindGroups(const GpuHelper& gpuHelper,
             "Invalid base texture index");
 
         wgpu::Texture baseTexture;
-        std::string_view textureUri;
+        std::string_view texturePath;
         if(mtlRsrc.BaseTextureIndex == ResourceBundle::kInvalidIndex)
         {
             baseTexture = gpuHelper.GetDefaultTexture();
-            textureUri = "<default>";
+            texturePath = "<default>";
         }
         else
         {
             baseTexture = textures[mtlRsrc.BaseTextureIndex];
-            textureUri = textureUris[mtlRsrc.BaseTextureIndex];
+            texturePath = texturePaths[mtlRsrc.BaseTextureIndex];
         }
 
         const ShaderInterop::MaterialConstants mc //
@@ -122,7 +122,7 @@ CreateMaterialBindGroups(const GpuHelper& gpuHelper,
 
         buffer->Store(0, mc);
 
-        auto bindGroup = gpuColorPass.CreateMaterialBindGroup(baseTexture, *buffer, textureUri);
+        auto bindGroup = gpuColorPass.CreateMaterialBindGroup(baseTexture, *buffer, texturePath);
         MLG_CHECK(bindGroup);
 
         materialBindGroups.push_back(std::move(*bindGroup));
@@ -389,17 +389,17 @@ Scene::TransformNodes(const wgpu::Device& gpuDevice,
 namespace
 {
 std::vector<std::string>
-GetTextureUris(const std::filesystem::path& rootPath, const ResourceBundle& resourceBundle)
+GetTexturePaths(const std::filesystem::path& rootPath, const ResourceBundle& resourceBundle)
 {
-    const std::span textureUriStrings = resourceBundle.GetTextureUris();
-    std::vector<std::string> textureUris;
-    textureUris.reserve(textureUriStrings.size());
-    for(const auto& uri : textureUriStrings)
+    const std::span texturePathStrings = resourceBundle.GetTexturePaths();
+    std::vector<std::string> texturePaths;
+    texturePaths.reserve(texturePathStrings.size());
+    for(const auto& path : texturePathStrings)
     {
-        const std::string_view uriView(resourceBundle.GetStringView(uri));
-        textureUris.emplace_back((rootPath / uriView).string());
+        const std::string_view pathView(resourceBundle.GetStringView(path));
+        texturePaths.emplace_back((rootPath / pathView).string());
     }
-    return textureUris;
+    return texturePaths;
 }
 } // namespace
 
@@ -411,11 +411,11 @@ Scene::CreateTask::CreateTask(System& system,
     : m_System(&system),
       m_ResourceBundle(&resourceBundle),
       m_Level(&level),
-      m_TextureUris(GetTextureUris(rootPath, resourceBundle)),
+      m_TexturePaths(GetTexturePaths(rootPath, resourceBundle)),
       m_TextureFetcher(m_System->GetGpuHelper(),
           m_System->GetFileFetcher(),
           m_System->GetThreadPool(),
-          m_TextureUris),
+          m_TexturePaths),
       m_ColorPassTask(m_System->GetGpuHelper(), m_System->GetFileFetcher()),
       m_CompositorPassTask(m_System->GetGpuHelper(), m_System->GetFileFetcher()),
       m_TransformPassTask(m_System->GetGpuHelper(), m_System->GetFileFetcher()),
@@ -450,7 +450,7 @@ Scene::CreateTask::Take()
         *gpuColorPassResult,
         m_ResourceBundle->GetMaterials(),
         *textures,
-        m_TextureUris);
+        m_TexturePaths);
     MLG_CHECK(materialBindGroups);
 
     const std::span vertices = m_ResourceBundle->GetVertices();

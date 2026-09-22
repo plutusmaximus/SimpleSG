@@ -114,7 +114,7 @@ public:
     X(OffsetType, TotalSize, 0)                                                                    \
     X(OffsetType, CharsOffset, kInvalidOffset)                                                     \
     X(OffsetType, NodeNamesOffset, kInvalidOffset)                                                 \
-    X(OffsetType, TextureUrisOffset, kInvalidOffset)                                               \
+    X(OffsetType, TexturePathsOffset, kInvalidOffset)                                              \
     X(OffsetType, MaterialsOffset, kInvalidOffset)                                                 \
     X(OffsetType, VerticesOffset, kInvalidOffset)                                                  \
     X(OffsetType, IndicesOffset, kInvalidOffset)                                                   \
@@ -126,7 +126,7 @@ public:
     X(OffsetType, NodesOffset, kInvalidOffset)                                                     \
     X(CountType, CharsLength, 0)                                                                   \
     X(CountType, NodeNameCount, 0)                                                                 \
-    X(CountType, TextureUriCount, 0)                                                               \
+    X(CountType, TexturePathCount, 0)                                                              \
     X(CountType, MaterialCount, 0)                                                                 \
     X(CountType, VertexCount, 0)                                                                   \
     X(CountType, IndexCount, 0)                                                                    \
@@ -147,7 +147,7 @@ public:
     MLG_ASSERT_OFFSET(Header, TotalSize, 0)
     MLG_ASSERT_OFFSET(Header, CharsOffset, 4)
     MLG_ASSERT_OFFSET(Header, NodeNamesOffset, 8)
-    MLG_ASSERT_OFFSET(Header, TextureUrisOffset, 12)
+    MLG_ASSERT_OFFSET(Header, TexturePathsOffset, 12)
     MLG_ASSERT_OFFSET(Header, MaterialsOffset, 16)
     MLG_ASSERT_OFFSET(Header, VerticesOffset, 20)
     MLG_ASSERT_OFFSET(Header, IndicesOffset, 24)
@@ -159,7 +159,7 @@ public:
     MLG_ASSERT_OFFSET(Header, NodesOffset, 48)
     MLG_ASSERT_OFFSET(Header, CharsLength, 52)
     MLG_ASSERT_OFFSET(Header, NodeNameCount, 56)
-    MLG_ASSERT_OFFSET(Header, TextureUriCount, 60)
+    MLG_ASSERT_OFFSET(Header, TexturePathCount, 60)
     MLG_ASSERT_OFFSET(Header, MaterialCount, 64)
     MLG_ASSERT_OFFSET(Header, VertexCount, 68)
     MLG_ASSERT_OFFSET(Header, IndexCount, 72)
@@ -200,10 +200,10 @@ public:
         return GetSpan<NodeNameResource>(m_Header->NodeNamesOffset, m_Header->NodeNameCount);
     }
 
-    std::span<const StringResource> GetTextureUris() const
+    std::span<const StringResource> GetTexturePaths() const
     {
         MLG_ABORTIF(m_Header == nullptr);
-        return GetSpan<StringResource>(m_Header->TextureUrisOffset, m_Header->TextureUriCount);
+        return GetSpan<StringResource>(m_Header->TexturePathsOffset, m_Header->TexturePathCount);
     }
 
     std::span<const MaterialResource> GetMaterials() const
@@ -295,7 +295,7 @@ private:
     void AppendHeader(const ResourceBundle::OffsetType totalSize);
     void Append(const std::span<const char>& chars);
     void Append(const std::span<const NodeNameResource>& nodeNames);
-    void Append(const std::span<const StringResource>& textureUris);
+    void Append(const std::span<const StringResource>& texturePaths);
     void Append(const std::span<const MaterialResource>& materials);
     void Append(const std::span<const Vertex>& vertices);
     void Append(const std::span<const VertexIndex>& indices);

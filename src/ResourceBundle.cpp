@@ -156,30 +156,30 @@ CollectNodeNames(const std::span<const FlatNodeDef> flatNodeDefs, std::vector<ch
 }
 
 std::vector<StringResource>
-CollectTextureUris(const std::span<const MeshDef> meshDefs, std::vector<char>& chars)
+CollectTexturePaths(const std::span<const MeshDef> meshDefs, std::vector<char>& chars)
 {
-    std::vector<StringResource> textureUris;
+    std::vector<StringResource> texturePaths;
     std::set<std::string_view> stringDedup;
 
     for(const MeshDef& meshDef : meshDefs)
     {
         const MaterialDef& materialDef = meshDef.MaterialDef;
 
-        if(materialDef.BaseTextureUri.empty())
+        if(materialDef.BaseTexturePath.empty())
         {
             continue;
         }
 
-        if(!stringDedup.contains(materialDef.BaseTextureUri))
+        if(!stringDedup.contains(materialDef.BaseTexturePath))
         {
-            const StringResource textureUri = AddString(chars, materialDef.BaseTextureUri);
+            const StringResource texturePath = AddString(chars, materialDef.BaseTexturePath);
 
-            stringDedup.insert(materialDef.BaseTextureUri);
-            textureUris.push_back(textureUri);
+            stringDedup.insert(materialDef.BaseTexturePath);
+            texturePaths.push_back(texturePath);
         }
     }
 
-    return textureUris;
+    return texturePaths;
 }
 
 std::map<const MaterialDef, ResourceBundle::IndexType>
@@ -218,7 +218,7 @@ CreateModelIndexMap(const std::span<const ModelDef> modelDefs)
 
 std::vector<MaterialResource>
 CollectMaterials(const std::map<const MaterialDef, ResourceBundle::IndexType>& materialIndexMap,
-    const std::map<const std::string_view, ResourceBundle::IndexType>& textureUriIndexMap)
+    const std::map<const std::string_view, ResourceBundle::IndexType>& texturePathIndexMap)
 {
     std::vector<MaterialResource> materials;
     materials.resize(materialIndexMap.size());
@@ -227,10 +227,10 @@ CollectMaterials(const std::map<const MaterialDef, ResourceBundle::IndexType>& m
     {
         ResourceBundle::IndexType baseTextureIndex = ResourceBundle::kInvalidIndex;
 
-        auto it = textureUriIndexMap.find(materialDef.BaseTextureUri);
-        if(it != textureUriIndexMap.end())
+        auto it = texturePathIndexMap.find(materialDef.BaseTexturePath);
+        if(it != texturePathIndexMap.end())
         {
-            baseTextureIndex = BoundsCheckIndex(it->second, textureUriIndexMap.size());
+            baseTextureIndex = BoundsCheckIndex(it->second, texturePathIndexMap.size());
         }
 
         const MaterialResource materialResource //
@@ -710,16 +710,16 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKit
 
     std::vector<char> chars;
     const std::vector<NodeNameResource> nodeNames = CollectNodeNames(flatNodeDefs, chars);
-    const std::vector<StringResource> textureUris = CollectTextureUris(meshDefs, chars);
+    const std::vector<StringResource> texturePaths = CollectTexturePaths(meshDefs, chars);
 
-    std::map<const std::string_view, ResourceBundle::IndexType> textureUriIndexMap;
-    for(size_t i = 0; i < textureUris.size(); ++i)
+    std::map<const std::string_view, ResourceBundle::IndexType> texturePathIndexMap;
+    for(size_t i = 0; i < texturePaths.size(); ++i)
     {
-        textureUriIndexMap[MakeStringView(textureUris[i], chars)] = BoundsCheckIndex(i);
+        texturePathIndexMap[MakeStringView(texturePaths[i], chars)] = BoundsCheckIndex(i);
     }
 
     const std::vector<MaterialResource> materials =
-        CollectMaterials(materialIndexMap, textureUriIndexMap);
+        CollectMaterials(materialIndexMap, texturePathIndexMap);
     const std::vector<Vertex> vertices = CollectVertices(meshDefs);
     const std::vector<VertexIndex> indices = CollectIndices(meshDefs);
     const std::vector<MeshResource> meshes = CollectMeshes(meshDefs, materialIndexMap);
@@ -742,7 +742,7 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKit
 
     ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(chars)));
     ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(nodeNames)));
-    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(textureUris)));
+    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(texturePaths)));
     ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(materials)));
     ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(vertices)));
     ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(indices)));
@@ -763,7 +763,7 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKit
     AppendHeader(static_cast<ResourceBundle::OffsetType>(totalSize));
     Append(chars);
     Append(nodeNames);
-    Append(textureUris);
+    Append(texturePaths);
     Append(materials);
     Append(vertices);
     Append(indices);
@@ -820,15 +820,15 @@ ResourceBundleBuilder::Append(const std::span<const NodeNameResource>& nodeNames
 }
 
 void
-ResourceBundleBuilder::Append(const std::span<const StringResource>& textureUris)
+ResourceBundleBuilder::Append(const std::span<const StringResource>& texturePaths)
 {
     MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->TextureUrisOffset == ResourceBundle::kInvalidOffset,
-        "Texture URIs already appended");
+    MLG_ASSERT(m_Header->TexturePathsOffset == ResourceBundle::kInvalidOffset,
+        "Texture paths already appended");
 
-    m_Header->TextureUrisOffset = BoundsCheckOffset(m_Buffer.size());
-    m_Header->TextureUriCount = BoundsCheckCount(textureUris.size());
-    AppendSpan(textureUris, m_Buffer);
+    m_Header->TexturePathsOffset = BoundsCheckOffset(m_Buffer.size());
+    m_Header->TexturePathCount = BoundsCheckCount(texturePaths.size());
+    AppendSpan(texturePaths, m_Buffer);
 }
 
 void

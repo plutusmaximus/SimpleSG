@@ -179,7 +179,7 @@ CollectMeshes(const cgltf_data* gltfData)
 Result<MaterialDef>
 CreateMaterialDef(const cgltf_material* gltfMaterial)
 {
-    std::string baseTextureUri;
+    std::string baseTexturePath;
     RgbaColorf color = kDefaultColor;
     float metalness = 0;
     float roughness = 0;
@@ -215,7 +215,7 @@ CreateMaterialDef(const cgltf_material* gltfMaterial)
         }
         else
         {
-            baseTextureUri = pbr.base_color_texture.texture->image->uri;
+            baseTexturePath = pbr.base_color_texture.texture->image->uri;
         }
     }
     else
@@ -225,7 +225,7 @@ CreateMaterialDef(const cgltf_material* gltfMaterial)
 
     MaterialDef materialDef //
         {
-            .BaseTextureUri = baseTextureUri,
+            .BaseTexturePath = baseTexturePath,
             .Color = color,
             .Metalness = metalness,
             .Roughness = roughness,

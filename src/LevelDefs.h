@@ -10,7 +10,7 @@
 
 struct MaterialDef final
 {
-    std::string BaseTextureUri;
+    std::string BaseTexturePath;
     RgbaColorf Color{ 1, 1, 1, 1 };
     float Metalness{ 0.0f };
     float Roughness{ 0.0f };
@@ -18,7 +18,7 @@ struct MaterialDef final
     // Used to deduplicate materials based on their properties.
     friend auto operator<=>(const MaterialDef& lhs, const MaterialDef& rhs)
     {
-        if(auto cmp = lhs.BaseTextureUri <=> rhs.BaseTextureUri; cmp != 0)
+        if(auto cmp = lhs.BaseTexturePath <=> rhs.BaseTexturePath; cmp != 0)
         {
             return cmp;
         }
