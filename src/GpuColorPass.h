@@ -14,11 +14,6 @@ class MeshInstance;
 class GpuColorPass
 {
 public:
-    static constexpr const char* ShaderPath = "shaders/ColorShader.wgsl";
-    static constexpr const char* VertexEntry = "vs_main";
-    static constexpr const char* FragmentEntry = "fs_main";
-    static constexpr float kClearDepth = 1.0f;
-
     class CreateTask;
     class Invocation;
 
@@ -88,6 +83,11 @@ public:
         const std::string_view& name) const;
 
 private:
+    static constexpr const char* ShaderPath = "shaders/ColorShader.wgsl";
+    static constexpr const char* VertexEntry = "vs_main";
+    static constexpr const char* FragmentEntry = "fs_main";
+    static constexpr float kClearDepth = 1.0f;
+
     explicit GpuColorPass(const GpuHelper& gpuHelper,
         wgpu::ShaderModule shader,
         wgpu::BindGroupLayout inputsBindGroupLayout,
@@ -178,7 +178,7 @@ private:
 
     Invocation(wgpu::Device gpuDevice, wgpu::RenderPassEncoder renderPass)
         : m_GpuDevice(std::move(gpuDevice)),
-            m_RenderPass(std::move(renderPass))
+          m_RenderPass(std::move(renderPass))
     {
     }
 

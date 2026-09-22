@@ -1,4 +1,5 @@
 #include "CameraActor.h"
+#include "CoopTask.h"
 #include "GltfLoader.h"
 #include "GpuColorPass.h"
 #include "GpuHelper.h"
@@ -297,6 +298,28 @@ MainLoop()
 
     return Result<>::Ok;
 }
+
+class Viewer : public ICoopTask<>
+{
+public:
+    Viewer() = default;
+
+    Result<> OnStart() override;
+
+    void OnUpdate() override;
+};
+
+Result<> Viewer::OnStart()
+{
+    // Implement the start logic for the viewer here.
+    return Result<>::Ok;
+}
+
+void Viewer::OnUpdate()
+{
+    // Implement the update logic for the viewer here.
+}
+
 } // namespace
 
 int

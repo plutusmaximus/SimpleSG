@@ -14,10 +14,6 @@ class GpuHelper;
 class GpuCompositorPass
 {
 public:
-    static constexpr const char* ShaderPath = "shaders/CompositorShader.wgsl";
-    static constexpr const char* VertexEntry = "vs_main";
-    static constexpr const char* FragmentEntry = "fs_main";
-
     class CreateTask;
     class Invocation;
 
@@ -74,6 +70,14 @@ public:
     Result<Invocation> Prepare(const wgpu::CommandEncoder& cmdEncoder);
 
 private:
+    static constexpr const char* ShaderPath = "shaders/CompositorShader.wgsl";
+    static constexpr const char* VertexEntry = "vs_main";
+
+    /// Entry point for the fragment shader when outputting to a non-sRGB framebuffer.
+    static constexpr const char* FragmentEntry_non_srgb = "fs_main_non_srgb";
+    /// Entry point for the fragment shader when outputting to an sRGB framebuffer.
+    static constexpr const char* FragmentEntry_srgb = "fs_main_srgb";
+
     explicit GpuCompositorPass(const GpuHelper& gpuHelper,
         wgpu::ShaderModule shader,
         wgpu::Sampler sampler,
@@ -157,7 +161,7 @@ private:
 
     Invocation(wgpu::Device gpuDevice, wgpu::RenderPassEncoder renderPass)
         : m_GpuDevice(std::move(gpuDevice)),
-            m_RenderPass(std::move(renderPass))
+          m_RenderPass(std::move(renderPass))
     {
     }
 

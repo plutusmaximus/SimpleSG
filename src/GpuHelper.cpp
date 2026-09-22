@@ -154,14 +154,35 @@ ChoosePresentMode(const std::span<const wgpu::PresentMode> availableModes,
 wgpu::TextureFormat
 ChooseBackbufferFormat(const std::span<const wgpu::TextureFormat> availableFormats)
 {
+    constexpr wgpu::TextureFormat preferredFormats[] = //
+    {
+        wgpu::TextureFormat::RGBA8UnormSrgb,
+        wgpu::TextureFormat::BGRA8UnormSrgb,
+        wgpu::TextureFormat::RGBA8Unorm,
+        wgpu::TextureFormat::BGRA8Unorm,
+    };
+
+    wgpu::TextureFormat best = wgpu::TextureFormat::Undefined;
+    size_t bestIdx = std::numeric_limits<size_t>::max();
+
     // Prefer BGRA8Unorm if available
     for(const wgpu::TextureFormat format : availableFormats)
     {
-        if(format == wgpu::TextureFormat::BGRA8Unorm || format == wgpu::TextureFormat::RGBA8Unorm)
+        for(size_t i = 0; i < std::size(preferredFormats); ++i)
         {
-            return format;
+            if(format == preferredFormats[i] && i < bestIdx)
+            {
+                best = format;
+                bestIdx = i;
+            }
         }
     }
+
+    if(best != wgpu::TextureFormat::Undefined)
+    {
+        return best;
+    }
+    
     // Fallback to first available format
     return availableFormats[0];
 }
@@ -888,7 +909,7 @@ GpuHelper::CreateRenderTarget(
                 .height = height,
                 .depthOrArrayLayers = 1,
             },
-            .format = kTextureFormat,
+            .format = kRenderTargetFormat,
             .mipLevelCount = 1,
             .sampleCount = 1,
         };

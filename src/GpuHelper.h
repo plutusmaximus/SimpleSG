@@ -14,7 +14,10 @@ using SDL_MetalView = void*;
 class GpuHelper final
 {
 public:
-    static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8Unorm;
+    /// The preferred texture format for render targets.
+    static constexpr wgpu::TextureFormat kRenderTargetFormat = wgpu::TextureFormat::RGBA8Unorm;
+    /// The preferred texture format for general textures.
+    static constexpr wgpu::TextureFormat kTextureFormat = wgpu::TextureFormat::RGBA8UnormSrgb;
     static constexpr size_t kNumTextureChannels = 4;
     static constexpr wgpu::TextureFormat kDepthBufferFormat = wgpu::TextureFormat::Depth24Plus;
 

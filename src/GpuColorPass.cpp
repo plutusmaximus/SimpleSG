@@ -459,6 +459,9 @@ GpuColorPass::Prepare(const wgpu::CommandEncoder& cmdEncoder)
     MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
     MLG_CHECKV(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
 
+    MLG_CHECKV(m_Outputs->RenderTarget->GetFormat() == GpuHelper::kRenderTargetFormat,
+        "Unexpected render target format");
+
     const wgpu::RenderPassColorAttachment attachment //
         {
             .view = m_Outputs->RenderTarget->CreateView(),
@@ -591,7 +594,7 @@ GpuColorPass::EnsurePipeline()
 
     static constexpr wgpu::ColorTargetState colorTargetState //
         {
-            .format = GpuHelper::kTextureFormat,
+            .format = GpuHelper::kRenderTargetFormat,
             .blend = &blendState,
             .writeMask = wgpu::ColorWriteMask::All,
         };

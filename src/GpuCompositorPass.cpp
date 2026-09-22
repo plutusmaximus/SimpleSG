@@ -363,17 +363,31 @@ GpuCompositorPass::EnsurePipeline()
         },
     };
 
+    const wgpu::TextureFormat targetFormat = m_Outputs->RenderTarget->GetFormat();
+
     const wgpu::ColorTargetState colorTargetState //
         {
-            .format = m_Outputs->RenderTarget->GetFormat(),
+            .format = targetFormat,
             .blend = &blendState,
             .writeMask = wgpu::ColorWriteMask::All,
         };
 
+    const char* fragmentEntry = nullptr;
+
+    if(wgpu::TextureFormat::RGBA8UnormSrgb == targetFormat
+        || wgpu::TextureFormat::BGRA8UnormSrgb == targetFormat)
+    {
+        fragmentEntry = FragmentEntry_srgb;
+    }
+    else
+    {
+        fragmentEntry = FragmentEntry_non_srgb;
+    }
+
     const wgpu::FragmentState fragmentState //
         {
             .module = m_Shader,
-            .entryPoint = FragmentEntry,
+            .entryPoint = fragmentEntry,
             .targetCount = 1,
             .targets = &colorTargetState,
         };

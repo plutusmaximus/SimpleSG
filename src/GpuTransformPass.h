@@ -14,11 +14,6 @@ class GpuHelper;
 class GpuTransformPass
 {
 public:
-    static constexpr const char* ShaderPath = "shaders/TransformShader.wgsl";
-    static constexpr const char* ComputeEntry = "cs_main";
-    static constexpr const char* kWorkgroupSizeOverride = "WorkgroupSizeOverride";
-    static constexpr size_t kWorkgroupSize = 64;
-
     class CreateTask;
     class Invocation;
 
@@ -62,6 +57,11 @@ public:
     Result<Invocation> Prepare(wgpu::CommandEncoder cmdEncoder);
 
 private:
+    static constexpr const char* ShaderPath = "shaders/TransformShader.wgsl";
+    static constexpr const char* ComputeEntry = "cs_main";
+    static constexpr const char* kWorkgroupSizeOverride = "WorkgroupSizeOverride";
+    static constexpr size_t kWorkgroupSize = 64;
+
     explicit GpuTransformPass(const GpuHelper& gpuHelper,
         wgpu::ShaderModule shader,
         wgpu::BindGroupLayout bindGroupLayout,
@@ -140,11 +140,10 @@ public:
 private:
     friend GpuTransformPass;
 
-    Invocation(
-        wgpu::Device gpuDevice, wgpu::ComputePassEncoder computePass, size_t instanceCount)
+    Invocation(wgpu::Device gpuDevice, wgpu::ComputePassEncoder computePass, size_t instanceCount)
         : m_GpuDevice(std::move(gpuDevice)),
-            m_ComputePass(std::move(computePass)),
-            m_InstanceCount(instanceCount)
+          m_ComputePass(std::move(computePass)),
+          m_InstanceCount(instanceCount)
     {
     }
 
