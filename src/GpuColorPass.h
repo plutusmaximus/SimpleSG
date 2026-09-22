@@ -126,7 +126,7 @@ private:
     wgpu::Sampler m_DefaultSampler;
 };
 
-class GpuColorPass::CreateTask : public ICoopTask
+class GpuColorPass::CreateTask : public ICoopTask<>
 {
 public:
     CreateTask(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);

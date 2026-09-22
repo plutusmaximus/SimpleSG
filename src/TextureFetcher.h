@@ -22,7 +22,7 @@ using FetchRequestId = uint64_t;
 /// Loads textures. A failed load uses the default texture for that slot.
 /// Keep calling FileFetcher::ProcessCompletions() while this task is running.
 /// Calling Update() alone does not process file completions.
-class TextureFetcher : public ICoopTask
+class TextureFetcher : public ICoopTask<>
 {
 public:
     TextureFetcher(const GpuHelper& gpuHelper,
@@ -52,7 +52,7 @@ private:
 
     void OnUpdate() override;
 
-    class FetchTask : public ICoopTask
+    class FetchTask : public ICoopTask<>
     {
     public:
 

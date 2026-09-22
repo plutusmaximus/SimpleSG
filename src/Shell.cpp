@@ -29,29 +29,33 @@ void emscripten_cancel_main_loop()
 
 #endif
 
-Shell::Shell(const char* appName)
-    : m_SystemCreateTask(appName)
+Shell::Shell(const char* appName, ICoopTask<System&>& appTask)
+    : m_AppTask(&appTask)
+    , m_SystemCreateTask(appName)
 {
 }
 
-Result<>
-Shell::Update(AppUpdateCallback appUpdateCb)
+Result<> Shell::OnStart()
 {
-    // If an error occurs that results in an early exit then this
-    // will run and set the state to Shutdown.
-    MLG_DEFER_AS(shutdownOnExit)
-    {
-        Shutdown();
-    };
+    MLG_CHECK(Stage::None == m_Stage, "Task has already been started");
 
+    m_Stage = Stage::Stopped;
+
+    MLG_CHECK(m_SystemCreateTask.Start(), "Failed to create System");
+
+    m_Stage = Stage::CreatingSystem;
+
+    return Result<>::Ok;
+}
+
+void
+Shell::OnUpdate()
+{
     switch(m_Stage)
     {
-        case Stage::Init:
-        {
-            MLG_CHECK(m_SystemCreateTask.Start(), "Failed to create System");
-            m_Stage = Stage::CreatingSystem;
-        }
-        break;
+        case Stage::None:
+            MLG_ABORT("Shell is in None stage during update");
+            break;
 
         case Stage::CreatingSystem:
             if(m_SystemCreateTask.IsRunning())
@@ -61,10 +65,25 @@ Shell::Update(AppUpdateCallback appUpdateCb)
             else
             {
                 auto system = m_SystemCreateTask.Take();
-                MLG_CHECK(system, "Failed to create System");
+                if(!system)
+                {
+                    MLG_ERROR("Failed to create System");
+                    m_Stage = Stage::Shutdown;
+                }
+                else
+                {
+                    m_System = std::move(*system);
 
-                m_System = std::move(*system);
-                m_Stage = Stage::Running;
+                    if(!m_AppTask->Start(*m_System))
+                    {
+                        MLG_ERROR("Failed to start AppTask");
+                        m_Stage = Stage::Shutdown;
+                    }
+                    else
+                    {
+                        m_Stage = Stage::Running;
+                    }
+                }
             }
             break;
 
@@ -72,17 +91,24 @@ Shell::Update(AppUpdateCallback appUpdateCb)
         {
             MLG_SCOPED_TIMER("Frame");
 
-            MLG_CHECK(BeginFrame());
-
-            const AppState appState = appUpdateCb(*m_System);
-
-            if(AppState::Stopped == appState)
+            if(!m_AppTask->IsRunning())
             {
-                Shutdown();
+                m_Stage = Stage::Shutdown;
+            }
+            else if(!BeginFrame())
+            {
+                MLG_ERROR("Failed to begin frame");
+                m_Stage = Stage::Shutdown;
             }
             else
             {
-                MLG_CHECK(EndFrame(), "Failed to end frame");
+                m_AppTask->Update();
+
+                if(!EndFrame())
+                {
+                    MLG_ERROR("Failed to end frame");
+                    m_Stage = Stage::Shutdown;
+                }
             }
         }
         break;
@@ -95,13 +121,9 @@ Shell::Update(AppUpdateCallback appUpdateCb)
 
         case Stage::Stopped:
             MLG_INFO("Stopped");
+            SetComplete();
             break;
     }
-
-    // We're returning successfully - cancel the shutdownOnExit.
-    shutdownOnExit.release();
-
-    return Result<>::Ok;
 }
 
 // private:

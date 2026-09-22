@@ -1,30 +1,14 @@
 #include "CoopTask.h"
 
-ICoopTask::~ICoopTask()
+ICoopTaskBase::~ICoopTaskBase()
 {
     MLG_ASSERT(Stage::Running != m_Stage, "Destroying a running task");
 }
 
-Result<>
-ICoopTask::Start()
-{
-    MLG_CHECKV(m_Stage == Stage::None, "Task has already been started.");
-
-    m_Stage = Stage::Running;
-
-    Result<> result = OnStart();
-    if (!result)
-    {
-        m_Stage = Stage::Complete;
-    }
-    return result;
-}
-
-/// Returns true if the task is still running, false if it is complete.
 bool
-ICoopTask::IsRunning() const
+ICoopTaskBase::IsRunning() const
 {
-    if(!MLG_VERIFY(m_Stage != Stage::None, "Task is not started"))
+    if(!MLG_VERIFY(WasStarted(), "Task is not started"))
     {
         return false;
     }
@@ -33,7 +17,7 @@ ICoopTask::IsRunning() const
 }
 
 void
-ICoopTask::Update()
+ICoopTaskBase::Update()
 {
     if(MLG_VERIFY(IsRunning(), "Task is not running"))
     {
@@ -42,13 +26,29 @@ ICoopTask::Update()
 }
 
 void
-ICoopTask::SetComplete()
+ICoopTaskBase::SetComplete()
 {
     if(MLG_VERIFY(m_Stage == Stage::Running, "Task is not running."))
     {
         m_Stage = Stage::Complete;
     }
 }
+
+// private:
+
+bool
+ICoopTaskBase::WasStarted() const
+{
+    return m_Stage != Stage::None;
+}
+
+void
+ICoopTaskBase::SetRunning()
+{
+    m_Stage = Stage::Running;
+}
+
+// CoopTaskBatch
 
 CoopTaskBatch::CoopTaskBatch(std::initializer_list<ICoopTask*> tasks)
     : CoopTaskBatch(std::vector<ICoopTask*>(tasks))
@@ -74,7 +74,7 @@ CoopTaskBatch::OnStart()
 
     MLG_CHECKV(!m_Tasks.empty(), "No tasks provided");
 
-    for(size_t i = 0; i < m_Tasks.size(); )
+    for(size_t i = 0; i < m_Tasks.size();)
     {
         MLG_ASSERT(m_Tasks[i] != nullptr, "Task is null");
 
@@ -97,7 +97,7 @@ CoopTaskBatch::OnStart()
 void
 CoopTaskBatch::OnUpdate()
 {
-    for(size_t i = 0; i < m_Tasks.size(); )
+    for(size_t i = 0; i < m_Tasks.size();)
     {
         ICoopTask* task = m_Tasks[i];
         if(task->IsRunning())

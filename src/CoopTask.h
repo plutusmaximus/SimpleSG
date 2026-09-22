@@ -6,23 +6,18 @@
 #include <span>
 #include <vector>
 
-/// A cooperative task that executes over multiple frames.
-/// Call Start() once, then call Update() while IsRunning() returns true.
-/// Let a started task finish before destroying it. An unstarted task can be destroyed.
-class ICoopTask
+template<typename... StartParams>
+class ICoopTask;
+
+class ICoopTaskBase
 {
 public:
-
-    ICoopTask() = default;
-    virtual ~ICoopTask();
-    ICoopTask(const ICoopTask&) = delete;
-    ICoopTask& operator=(const ICoopTask&) = delete;
-    ICoopTask(ICoopTask&&) = delete;
-    ICoopTask& operator=(ICoopTask&&) = delete;
-
-    /// Call once to start the task. Sets it running, calls OnStart(), and returns its result.
-    /// If OnStart() fails or calls SetComplete(), the task is complete when Start() returns.
-    Result<> Start();
+    ICoopTaskBase() = default;
+    virtual ~ICoopTaskBase();
+    ICoopTaskBase(const ICoopTaskBase&) = delete;
+    ICoopTaskBase& operator=(const ICoopTaskBase&) = delete;
+    ICoopTaskBase(ICoopTaskBase&&) = delete;
+    ICoopTaskBase& operator=(ICoopTaskBase&&) = delete;
 
     /// Call only after Start(). Returns true while the task needs more updates.
     /// False means it has finished, not necessarily that it succeeded.
@@ -30,13 +25,6 @@ public:
 
     /// Calls OnUpdate() once on this thread. Call only while IsRunning() returns true.
     void Update();
-
-protected:
-
-    /// Sets up the work. Start() calls this with the task already running.
-    /// Call SetComplete() if the work finishes here.
-    /// Do not return failure while child tasks or other work still need updates.
-    virtual Result<> OnStart() = 0;
 
     /// Does the work it can and returns without waiting. Update() calls this once.
     /// Call SetComplete() when finished.
@@ -47,6 +35,9 @@ protected:
     void SetComplete();
 
 private:
+    template<typename... StartParams>
+    friend class ICoopTask;
+
     enum class Stage
     {
         None,
@@ -54,7 +45,48 @@ private:
         Complete
     };
 
+    bool WasStarted() const;
+
+    void SetRunning();
+
     Stage m_Stage{ Stage::None };
+};
+
+/// A cooperative task that executes over multiple frames.
+/// Call Start() once, then call Update() while IsRunning() returns true.
+/// Let a started task finish before destroying it. An unstarted task can be destroyed.
+template<typename... StartParams>
+class ICoopTask : public ICoopTaskBase
+{
+public:
+    ICoopTask() = default;
+    ~ICoopTask() override = default;
+    ICoopTask(const ICoopTask&) = delete;
+    ICoopTask& operator=(const ICoopTask&) = delete;
+    ICoopTask(ICoopTask&&) = delete;
+    ICoopTask& operator=(ICoopTask&&) = delete;
+
+    /// Call once to start the task. Sets it running, calls OnStart(), and returns its result.
+    /// If OnStart() fails or calls SetComplete(), the task is complete when Start() returns.
+    Result<> Start(StartParams... params)
+    {
+        MLG_CHECKV(!WasStarted(), "Task has already been started.");
+
+        SetRunning();
+
+        Result<> result = OnStart(params...);
+        if(!result)
+        {
+            SetComplete();
+        }
+        return result;
+    }
+
+protected:
+    /// Sets up the work. Start() calls this with the task already running.
+    /// Call SetComplete() if the work finishes here.
+    /// Do not return failure while child tasks or other work still need updates.
+    virtual Result<> OnStart(StartParams... params) = 0;
 };
 
 /// Starts and updates a group of tasks until they have all finished.
@@ -62,7 +94,7 @@ private:
 /// addresses until the batch is destroyed. The batch does not own them.
 /// If one task fails to start, the others still run to completion.
 /// The caller handles failures and collects any results. Batches can also be tasks.
-class CoopTaskBatch : public ICoopTask
+class CoopTaskBatch : public ICoopTask<>
 {
 public:
     CoopTaskBatch(std::initializer_list<ICoopTask*> tasks);

@@ -1,55 +1,45 @@
 #pragma once
 
+#include "CoopTask.h"
 #include "Result.h"
 #include "System.h"
 
-class Shell
+class Shell : public ICoopTask<>
 {
 public:
-    enum class AppState
-    {
-        Running,
-        Stopped
-    };
 
-    using AppUpdateCallback = AppState (*)(System& system);
-
-    explicit Shell(const char* appName);
+    explicit Shell(const char* appName, ICoopTask<System&>& appTask);
     Shell() = delete;
-    ~Shell() = default;
+    ~Shell() override = default;
     Shell(const Shell&) = delete;
     Shell& operator=(const Shell&) = delete;
     Shell(Shell&&) = delete;
     Shell& operator=(Shell&&) = delete;
 
-    /// Handles system level tasks.  Calls the application main loop handler when the system is
-    /// running.
-    Result<> Update(AppUpdateCallback appUpdateCb);
-
-    bool IsRunning() const { return Stage::Running == m_Stage; }
-
-    bool IsStopped() const { return Stage::Stopped == m_Stage; }
-
-    void Shutdown() { m_Stage = Stage::Shutdown; }
-
 private:
     enum class Stage
     {
-        Init,
+        None,
         CreatingSystem,
         Running,
         Shutdown,
         Stopped
     };
 
+    Result<> OnStart() override;
+
+    void OnUpdate() override;
+
     Result<> BeginFrame();
 
     Result<> EndFrame();
 
+    ICoopTask<System&>* m_AppTask{ nullptr};
+
     System::CreateTask m_SystemCreateTask;
     Result<System> m_System;
     
-    Stage m_Stage{ Stage::Init };
+    Stage m_Stage{ Stage::None };
 };
 
 #ifdef __EMSCRIPTEN__
