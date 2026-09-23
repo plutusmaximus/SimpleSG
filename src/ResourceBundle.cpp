@@ -250,14 +250,13 @@ CollectMaterials(const std::map<const MaterialDef, ResourceBundle::IndexType>& m
 std::vector<MeshDef>
 CollectMeshDefs(const std::span<const ModelDef> modelDefs)
 {
+    std::vector<MeshDef> meshDefs;
     size_t count = 0;
     for(const ModelDef& modelDef : modelDefs)
     {
-        count =
-            BoundsCheck::Sum(count, modelDef.MeshDefs.size(), std::numeric_limits<size_t>::max());
+        count = BoundsCheck::Sum(count, modelDef.MeshDefs.size(), meshDefs.max_size());
     }
 
-    std::vector<MeshDef> meshDefs;
     meshDefs.reserve(count);
 
     for(const ModelDef& modelDef : modelDefs)
@@ -271,14 +270,13 @@ CollectMeshDefs(const std::span<const ModelDef> modelDefs)
 std::vector<Vertex>
 CollectVertices(const std::span<const MeshDef> meshDefs)
 {
+    std::vector<Vertex> vertices;
     size_t count = 0;
     for(const MeshDef& meshDef : meshDefs)
     {
-        count =
-            BoundsCheck::Sum(count, meshDef.Vertices.size(), std::numeric_limits<size_t>::max());
+        count = BoundsCheck::Sum(count, meshDef.Vertices.size(), vertices.max_size());
     }
 
-    std::vector<Vertex> vertices;
     vertices.reserve(count);
 
     for(const MeshDef& meshDef : meshDefs)
@@ -292,13 +290,13 @@ CollectVertices(const std::span<const MeshDef> meshDefs)
 std::vector<VertexIndex>
 CollectIndices(const std::span<const MeshDef> meshDefs)
 {
+    std::vector<VertexIndex> indices;
     size_t count = 0;
     for(const MeshDef& meshDef : meshDefs)
     {
-        count = BoundsCheck::Sum(count, meshDef.Indices.size(), std::numeric_limits<size_t>::max());
+        count = BoundsCheck::Sum(count, meshDef.Indices.size(), indices.max_size());
     }
 
-    std::vector<VertexIndex> indices;
     indices.reserve(count);
 
     for(const MeshDef& meshDef : meshDefs)
@@ -501,18 +499,16 @@ CreateCollider(const ColliderDef& colliderDef)
 std::vector<ColliderResource>
 CollectColliders(const std::span<const RootNodeDef> nodeDefs)
 {
+    std::vector<ColliderResource> colliders;
     size_t count = 0;
     for(const RootNodeDef& nodeDef : nodeDefs)
     {
         if(nodeDef.Body)
         {
-            count = BoundsCheck::Sum(count,
-                nodeDef.Body->Colliders.size(),
-                std::numeric_limits<size_t>::max());
+            count = BoundsCheck::Sum(count, nodeDef.Body->Colliders.size(), colliders.max_size());
         }
     }
 
-    std::vector<ColliderResource> colliders;
     colliders.reserve(count);
 
     for(const RootNodeDef& nodeDef : nodeDefs)
