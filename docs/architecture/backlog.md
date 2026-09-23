@@ -20,6 +20,9 @@ Questions to answer:
 - How should each kind of failure be represented?
 - Where should unrecoverable failures terminate the current operation or the
   program?
+- How should bounds-checking helpers distinguish invariant violations from
+  values that should produce a returned failure, so callers are not forced to
+  abort?
 - When should code use assertions, verification, returned errors, logging, or
   termination?
 - What error context should be preserved as a failure passes through systems?
