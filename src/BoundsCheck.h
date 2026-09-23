@@ -33,6 +33,29 @@ public:
         return static_cast<T>(curValue + addend);
     }
 
+    template<typename T, typename U, typename V>
+    static T Mul(const T curValue, const U multiplicand, const V inclusiveMaxValue)
+    {
+        static_assert(std::is_integral_v<T> && std::is_unsigned_v<T>,
+            "T must be an unsigned integral type");
+        static_assert(std::is_integral_v<U> && std::is_unsigned_v<U>,
+            "U must be an unsigned integral type");
+        static_assert(std::is_integral_v<V> && std::is_unsigned_v<V>,
+            "V must be an unsigned integral type");
+
+        constexpr T maxT = std::numeric_limits<T>::max();
+
+        MLG_ABORTIF(curValue > inclusiveMaxValue, "Current value out of bounds");
+        MLG_ABORTIF(multiplicand > inclusiveMaxValue, "Multiplicand out of bounds");
+        MLG_ABORTIF(inclusiveMaxValue / curValue < multiplicand, "Product out of bounds");
+
+        MLG_ABORTIF(curValue > maxT, "Current value out of bounds");
+        MLG_ABORTIF(multiplicand > maxT, "Multiplicand out of bounds");
+        MLG_ABORTIF(maxT / curValue < multiplicand, "Product out of bounds");
+
+        return static_cast<T>(curValue * multiplicand);
+    }
+
     /// Check an index against a maximum value and return it as type T.
     template<typename T = size_t, typename U, typename V>
     static T Index(const U index, const V exclusiveMaxValue)
