@@ -180,11 +180,16 @@ public:
         m_Header = static_cast<const Header*>(p);
     }
 
+    std::span<const char> GetBuffer() const
+    {
+        MLG_ABORTIF(m_Header == nullptr);
+        return std::span<const char>(m_Buffer);
+    }
+
     /// Clears the resource bundle, releasing its internal buffer and resetting the header pointer.
     void Clear()
     {
-        m_Buffer.clear();
-        const std::vector<char> bye = std::move(m_Buffer);
+        std::vector<char>().swap(m_Buffer);
         m_Header = nullptr;
     }
 
