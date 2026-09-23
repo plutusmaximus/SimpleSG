@@ -186,10 +186,7 @@ TextureFetcher::FetchTask::Decode()
         GpuHelper::kNumTextureChannels);
 
     // Free the fetched data to save memory.
-    m_FetchedData.clear();
-    {
-        const std::vector<uint8_t> bye = std::move(m_FetchedData);
-    }
+    std::vector<uint8_t>().swap(m_FetchedData);
 
     MLG_CHECKV(data, "Failed to decode image - {}", stbi_failure_reason());
 
@@ -259,7 +256,6 @@ TextureFetcher::TextureFetcher(const GpuHelper& gpuHelper,
       m_ThreadPool(&threadPool),
       m_TexturePaths(std::move(texturePaths))
 {
-    MLG_ASSERT(!m_TexturePaths.empty(), "No texture paths provided");
 }
 
 Result<std::vector<wgpu::Texture>>
@@ -278,6 +274,14 @@ Result<>
 TextureFetcher::OnStart()
 {
     MLG_CHECKV(m_Stage == Stage::None, "Task is already in progress");
+
+    if(m_TexturePaths.empty())
+    {
+        MLG_DEBUG("No texture paths provided");
+        m_Stage = Stage::Succeeded;
+        SetComplete();
+        return Result<>::Ok;
+    }
 
     // Set the initial stage to failed to ensure that any early exit will mark the task as failed.
     m_Stage = Stage::Failed;
