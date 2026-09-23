@@ -457,39 +457,47 @@ function(sign_executable target_name)
   endif()
 endfunction()
 
-function(add_sample_executable target_name source_file)
-  add_executable(${target_name} ${source_file} samples/CameraActor.cpp)
-  target_link_libraries(${target_name} PRIVATE ssg::ssg)
-  add_dependencies(${target_name} shaders copy_images)
+function(add_project_executable target_name)
+  cmake_parse_arguments(ARG "" "" "SOURCES;LIBRARIES;DEPENDENCIES" ${ARGN})
+
+  add_executable(${target_name} ${ARG_SOURCES})
+  if(ARG_LIBRARIES)
+    target_link_libraries(${target_name} PRIVATE ${ARG_LIBRARIES})
+  endif()
+  if(ARG_DEPENDENCIES)
+    add_dependencies(${target_name} ${ARG_DEPENDENCIES})
+  endif()
 
   compiler_flags(${target_name})
   sign_executable(${target_name})
+endfunction()
 
-  # Keep required runtime DLLs beside the executable so runs work outside System32.
-  if(WIN32)
-    set(WIN_SYSTEM_DIR "$ENV{SystemRoot}/System32")
-    add_custom_command(
-      TARGET ${target_name} POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-              ${WIN_SYSTEM_DIR}/d3dcompiler_47.dll $<TARGET_FILE_DIR:${target_name}>/
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-              ${WIN_SYSTEM_DIR}/vulkan-1.dll $<TARGET_FILE_DIR:${target_name}>/
-      COMMENT "Copying d3dcompiler_47.dll and vulkan-1.dll to the ${target_name} output directory"
-    )
-  elseif(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
-    find_package(Vulkan REQUIRED)
+function(add_sample_executable target_name source_file)
+  add_project_executable(${target_name}
+    SOURCES ${source_file} samples/CameraActor.cpp
+    LIBRARIES ssg::ssg
+    DEPENDENCIES shaders copy_images)
+endfunction()
 
-    target_link_libraries(${target_name} PRIVATE Vulkan::Vulkan)
-  endif()
+function(add_tool_executable target_name source_file)
+  add_project_executable(${target_name}
+    SOURCES ${source_file}
+    LIBRARIES ssg::ssg)
 endfunction()
 
 # ============================================================
-# Executable: Triangle
+# Tool: Cook
+# ============================================================
+add_tool_executable(Cook tools/Cook/Cook.cpp)
+target_include_directories(Cook SYSTEM PRIVATE thirdparty/stb)
+
+# ============================================================
+# Sample: Triangle
 # ============================================================
 add_sample_executable(Triangle samples/Triangle.cpp)
 
 # ============================================================
-# Executable: EmTriangle
+# Sample: EmTriangle
 # ============================================================
 add_sample_executable(EmTriangle samples/EmTriangle.cpp)
 if(EMSCRIPTEN)
@@ -510,12 +518,12 @@ if(EMSCRIPTEN)
 endif()
 
 # ============================================================
-# Executable: Viewer
+# Sample: Viewer
 # ============================================================
 add_sample_executable(Viewer samples/Viewer.cpp)
 
 # ============================================================
-# Executable: Orbit
+# Sample: Orbit
 # ============================================================
 add_sample_executable(Orbit samples/Orbit.cpp)
 

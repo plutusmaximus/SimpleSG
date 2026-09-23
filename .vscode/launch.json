@@ -64,6 +64,71 @@
                 "group": "macOS",
                 "order": 1
             }
+        },
+        {
+            "name": "Cook (Windows)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/native/${input:buildType}/Cook.exe",
+            "args": ["-i", "${input:inputFile}", "-o", "${input:outputFile}"],
+            "cwd": "${workspaceFolder}/build/native/${input:buildType}",
+            "console": "integratedTerminal",
+            "presentation": {
+                "group": "Windows",
+                "order": 2
+            }
+        },
+        {
+            "name": "Cook (GDB, Linux)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/native/${input:buildType}/Cook",
+            "args": ["-i", "${input:inputFile}", "-o", "${input:outputFile}"],
+            "cwd": "${workspaceFolder}/build/native/${input:buildType}",
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set disassembly flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ],
+            "environment": [
+                {
+                    "name": "ASAN_OPTIONS",
+                    "value": "detect_leaks=1:abort_on_error=0"
+                },
+                {
+                    "name": "UBSAN_OPTIONS",
+                    "value": "abort_on_error=0:print_stacktrace=1"
+                }
+            ],
+            "presentation": {
+                "group": "Linux",
+                "order": 2
+            }
+        },
+        {
+            "name": "Cook (LLDB, macOS)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/native/${input:buildType}/Cook",
+            "args": ["-i", "${input:inputFile}", "-o", "${input:outputFile}"],
+            "cwd": "${workspaceFolder}/build/native/${input:buildType}",
+            "env": {
+                "ASAN_OPTIONS": "abort_on_error=0",
+                "UBSAN_OPTIONS": "abort_on_error=0:print_stacktrace=1"
+            },
+            "presentation": {
+                "group": "macOS",
+                "order": 2
+            }
         }
     ],
     "inputs": [
@@ -89,6 +154,16 @@
                 "Orbit"
             ],
             "default": "Viewer"
+        },
+        {
+            "id": "inputFile",
+            "type": "promptString",
+            "description": "Input file for Cook"
+        },
+        {
+            "id": "outputFile",
+            "type": "promptString",
+            "description": "Output file for Cook"
         }
     ]
 }
