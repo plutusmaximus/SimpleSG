@@ -33,11 +33,11 @@ BoundsCheckIndex(const size_t index, const size_t maxValue)
     return BoundsCheck::Index<ResourceBundle::IndexType>(index, maxValue);
 }
 
-[[nodiscard]] ResourceBundle::CountType
+[[nodiscard]] ResourceBundle::IndexType
 BoundsCheckCount(const size_t count)
 {
-    static constexpr ResourceBundle::CountType kMaxCount = std::numeric_limits<ResourceBundle::CountType>::max();
-    return BoundsCheck::Count<ResourceBundle::CountType>(0u, count, kMaxCount);
+    static constexpr ResourceBundle::IndexType kMaxCount = std::numeric_limits<ResourceBundle::IndexType>::max();
+    return BoundsCheck::Count<ResourceBundle::IndexType>(0u, count, kMaxCount);
 }
 
 [[nodiscard]] ResourceBundle::OffsetType

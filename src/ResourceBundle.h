@@ -98,7 +98,6 @@ class ResourceBundle final
 public:
     using OffsetType = uint32_t;
     using IndexType = uint32_t;
-    using CountType = uint32_t;
 
     static constexpr OffsetType kInvalidOffset = std::numeric_limits<OffsetType>::max();
     static constexpr IndexType kInvalidIndex = std::numeric_limits<IndexType>::max();
@@ -124,18 +123,18 @@ public:
     X(OffsetType, CollidersOffset, kInvalidOffset)                                                 \
     X(OffsetType, RigidBodiesOffset, kInvalidOffset)                                               \
     X(OffsetType, NodesOffset, kInvalidOffset)                                                     \
-    X(CountType, CharsLength, 0)                                                                   \
-    X(CountType, NodeNameCount, 0)                                                                 \
-    X(CountType, TexturePathCount, 0)                                                              \
-    X(CountType, MaterialCount, 0)                                                                 \
-    X(CountType, VertexCount, 0)                                                                   \
-    X(CountType, IndexCount, 0)                                                                    \
-    X(CountType, MeshCount, 0)                                                                     \
-    X(CountType, ModelCount, 0)                                                                    \
-    X(CountType, ModelInstanceCount, 0)                                                            \
-    X(CountType, ColliderCount, 0)                                                                 \
-    X(CountType, RigidBodyCount, 0)                                                                \
-    X(CountType, NodeCount, 0)
+    X(IndexType, CharsLength, 0)                                                                   \
+    X(IndexType, NodeNameCount, 0)                                                                 \
+    X(IndexType, TexturePathCount, 0)                                                              \
+    X(IndexType, MaterialCount, 0)                                                                 \
+    X(IndexType, VertexCount, 0)                                                                   \
+    X(IndexType, IndexCount, 0)                                                                    \
+    X(IndexType, MeshCount, 0)                                                                     \
+    X(IndexType, ModelCount, 0)                                                                    \
+    X(IndexType, ModelInstanceCount, 0)                                                            \
+    X(IndexType, ColliderCount, 0)                                                                 \
+    X(IndexType, RigidBodyCount, 0)                                                                \
+    X(IndexType, NodeCount, 0)
 
     struct Header
     {
@@ -276,7 +275,7 @@ public:
 
 private:
     template<typename T>
-    std::span<const T> GetSpan(const OffsetType byteOffset, const CountType itemCount) const
+    std::span<const T> GetSpan(const OffsetType byteOffset, const IndexType itemCount) const
     {
         MLG_ABORTIF(byteOffset == kInvalidOffset, "Offset is invalid");
 
@@ -319,7 +318,7 @@ private:
 
 #define STRING_RESOURCE_FIELDS(X)                                                                  \
     X(ResourceBundle::IndexType, CharIndex, 0)                                                     \
-    X(ResourceBundle::CountType, Length, 0)
+    X(ResourceBundle::IndexType, Length, 0)
 
 struct StringResource final
 {
@@ -373,7 +372,7 @@ MLG_ASSERT_SIZE(MaterialResource, 28)
 /// MeshResource
 
 #define MESH_RESOURCE_FIELDS(X)                                                                    \
-    X(ResourceBundle::CountType, IndexCount, 0)                                                    \
+    X(ResourceBundle::IndexType, IndexCount, 0)                                                    \
     X(ResourceBundle::IndexType, FirstIndex, 0)                                                    \
     X(ResourceBundle::IndexType, BaseVertex, 0)                                                    \
     X(ResourceBundle::IndexType, MaterialIndex, ResourceBundle::kInvalidIndex)                     \
@@ -397,7 +396,7 @@ MLG_ASSERT_SIZE(MeshResource, 40)
 
 #define MODEL_RESOURCE_FIELDS(X)                                                                   \
     X(ResourceBundle::IndexType, FirstMeshIndex, 0)                                                \
-    X(ResourceBundle::CountType, MeshCount, 0)                                                     \
+    X(ResourceBundle::IndexType, MeshCount, 0)                                                     \
     X(BoundingBox, BoundingBox)
 
 struct ModelResource final
@@ -544,7 +543,7 @@ MLG_ASSERT_SIZE(ColliderResource, 32)
     X(float, Mass, 0.0f)                                                                           \
     X(MotionType, MotionType)                                                                      \
     X(ResourceBundle::IndexType, FirstColliderIndex, 0)                                            \
-    X(ResourceBundle::CountType, ColliderCount, 0)
+    X(ResourceBundle::IndexType, ColliderCount, 0)
 
 struct RigidBodyResource final
 {
@@ -565,7 +564,7 @@ MLG_ASSERT_SIZE(RigidBodyResource, 20)
 #define LEVEL_NODE_RESOURCE_FIELDS(X)                                                              \
     X(ResourceBundle::IndexType, ParentIndex, ResourceBundle::kInvalidIndex)                       \
     X(ResourceBundle::IndexType, FirstChildIndex, ResourceBundle::kInvalidIndex)                   \
-    X(ResourceBundle::CountType, ChildCount, 0)                                                    \
+    X(ResourceBundle::IndexType, ChildCount, 0)                                                    \
     X(Vec3f, LocalPos, Vec3f{ 0.0f, 0.0f, 0.0f })                                                  \
     X(Vec4f, LocalRot, Vec4f{ 0.0f, 0.0f, 0.0f, 1.0f })                                            \
     X(Vec3f, LocalScale, Vec3f{ 1.0f, 1.0f, 1.0f })
