@@ -10,7 +10,34 @@
 struct SDL_AsyncIO;
 struct SDL_AsyncIOQueue;
 
-using FetchRequestId = uint64_t;
+class FetchRequestId
+{
+public:
+
+    constexpr FetchRequestId() = default;
+
+    friend bool operator==(const FetchRequestId& lhs, const FetchRequestId& rhs) = default;
+
+    bool IsValid() const { return m_Generation != 0; }
+
+private:
+    friend class FileFetcher;
+
+    FetchRequestId GetNextGeneration() const
+    {
+        FetchRequestId next = *this;
+        ++next.m_Generation;
+        if(0 == next.m_Generation)
+        {
+            ++next.m_Generation;
+        }
+
+        return next;
+    }
+
+    uint32_t m_Index{ 0 };
+    uint32_t m_Generation{ 0 };
+};
 
 /// A simple file fetcher that uses SDL's Async IO to read files asynchronously.
 /// Do not use simultaneously from multiple threads.  SDL's Async IO is thread-safe, but this class
@@ -18,8 +45,7 @@ using FetchRequestId = uint64_t;
 class FileFetcher final
 {
 public:
-    static constexpr uint64_t kInvalidRequestId = UINT64_MAX;
-    
+   
     ~FileFetcher();
     FileFetcher(const FileFetcher&) = delete;
     FileFetcher& operator=(const FileFetcher&) = delete;
@@ -79,11 +105,8 @@ private:
 
         Stage m_Stage{ Stage::None };
 
-        FetchRequestId m_RequestId{ 0 };
+        FetchRequestId m_RequestId;
     };
-
-    static constexpr uint32_t kInvalidIndex = UINT32_MAX;
-    static constexpr uint32_t kInvalidGeneration = UINT32_MAX;
 
     /// Storage for a fetch request.
     struct RequestBuffer
@@ -91,11 +114,7 @@ private:
         Request* m_Request{ nullptr };
         RequestBuffer* m_Next{ nullptr };
 
-        /// The index of this request buffer within the heap.
-        uint32_t m_Index{ kInvalidIndex };
-
-        /// The generation of this request buffer, used to detect stale requests.
-        uint32_t m_Generation{ kInvalidGeneration };
+        FetchRequestId m_RequestId;
 
         /// Storage for the Request object.
         alignas(Request) char m_Storage[sizeof(Request)]{};

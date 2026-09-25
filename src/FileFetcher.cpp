@@ -9,29 +9,6 @@
 #include <SDL3/SDL_error.h>
 #include <string>
 
-namespace
-{
-constexpr uint32_t kShift = 32;
-
-FetchRequestId
-MakeFetchRequestId(uint32_t index, uint32_t generation)
-{
-    return (static_cast<FetchRequestId>(index) << kShift) | generation;
-}
-
-uint32_t
-GetIndex(FetchRequestId requestId)
-{
-    return static_cast<uint32_t>(requestId >> kShift);
-}
-
-uint32_t
-GetGeneration(FetchRequestId requestId)
-{
-    return static_cast<uint32_t>(requestId & ((static_cast<FetchRequestId>(1) << kShift) - 1));
-}
-} // namespace
-
 FileFetcher::Request::~Request()
 {
     MLG_ASSERT(Stage::None == m_Stage || !IsPending(), "Request destroyed while still pending");
@@ -102,6 +79,7 @@ FileFetcher::Fetch(std::string filePath)
     MLG_CHECKV(requestBuf, "Failed to allocate request buffer for file: {}", filePath);
 
     Request& request = *requestBuf->m_Request;
+    MLG_ASSERT(request.m_RequestId.IsValid(), "Request ID is invalid");
 
     MLG_ASSERT(Request::Stage::None == request.m_Stage);
     MLG_ASSERT(!request.m_AsyncIO);
@@ -172,7 +150,7 @@ Result<>
 FileFetcher::Take(const FetchRequestId requestId, std::vector<uint8_t>& outBuffer)
 {
     RequestBuffer* requestBuf = GetRequestBuffer(requestId);
-    MLG_CHECKV(requestBuf, "Invalid request ID: {}", requestId);
+    MLG_CHECKV(requestBuf, "Invalid request ID");
     MLG_CHECKV(!requestBuf->m_Request->IsPending(),
         "Request is still pending for file: {}",
         requestBuf->m_Request->m_FilePath);
@@ -286,7 +264,9 @@ FileFetcher::AllocateRequest()
         m_AllocCount += kBucketSize;
         for(RequestBuffer& buffer : m_RequestBuffers.back())
         {
-            buffer.m_Index = m_HeapSize++;
+            buffer.m_RequestId.m_Index = m_HeapSize++;
+
+            // Call FreeRequest to add the buffer to the free list.
             FreeRequest(&buffer);
         }
     }
@@ -297,10 +277,9 @@ FileFetcher::AllocateRequest()
     void* p = static_cast<void*>(requestBuf->m_Storage);
     requestBuf->m_Request = std::construct_at(static_cast<Request*>(p));
 
-    const FetchRequestId requestId =
-        MakeFetchRequestId(requestBuf->m_Index, requestBuf->m_Generation);
+    const FetchRequestId requestId = requestBuf->m_RequestId.GetNextGeneration();
 
-    requestBuf->m_Request->m_RequestId = requestId;
+    requestBuf->m_Request->m_RequestId = requestBuf->m_RequestId = requestId;
     ++m_AllocCount;
     return requestBuf;
 }
@@ -319,12 +298,6 @@ FileFetcher::FreeRequest(RequestBuffer* requestBuf)
 
             requestBuf->m_Request->~Request();
             requestBuf->m_Request = nullptr;
-        }
-
-        ++requestBuf->m_Generation;
-        if(kInvalidGeneration == requestBuf->m_Generation)
-        {
-            ++requestBuf->m_Generation;
         }
 
         requestBuf->m_Next = m_FreeList;
@@ -374,19 +347,22 @@ FileFetcher::Close(const FetchRequestId requestId)
 FileFetcher::RequestBuffer*
 FileFetcher::GetRequestBuffer(const FetchRequestId requestId)
 {
-    const uint32_t index = GetIndex(requestId);
-    const uint32_t generation = GetGeneration(requestId);
-
-    if(!MLG_VERIFY(index < m_HeapSize))
+    if(!MLG_VERIFY(requestId.m_Index < m_HeapSize))
     {
         return nullptr;
     }
 
-    const uint32_t bucket = index / kBucketSize;
-    const uint32_t indexInBucket = index % kBucketSize;
+    const uint32_t bucket = requestId.m_Index / kBucketSize;
+    const uint32_t indexInBucket = requestId.m_Index % kBucketSize;
+
+    if(!MLG_VERIFY(bucket < m_RequestBuffers.size())
+        || !MLG_VERIFY(indexInBucket < m_RequestBuffers[bucket].size()))
+    {
+        return nullptr;
+    }
 
     RequestBuffer* requestBuf = &m_RequestBuffers[bucket][indexInBucket];
-    if(!MLG_VERIFY(requestBuf->m_Generation == generation))
+    if(!MLG_VERIFY(requestBuf->m_RequestId == requestId))
     {
         return nullptr;
     }

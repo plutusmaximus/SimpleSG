@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoopTask.h"
+#include "FileFetcher.h"
 #include "Result.h"
 
 #include <atomic>
@@ -14,10 +15,7 @@
 
 class System;
 class GpuHelper;
-class FileFetcher;
 class ThreadPool;
-
-using FetchRequestId = uint64_t;
 
 /// Loads textures. A failed load uses the default texture for that slot.
 /// Keep calling FileFetcher::ProcessCompletions() while this task is running.
@@ -100,7 +98,7 @@ private:
         FileFetcher* m_FileFetcher{ nullptr };
         ThreadPool* m_ThreadPool{ nullptr };
         std::string m_Path;
-        FetchRequestId m_FetchRequestId{};
+        FetchRequestId m_FetchRequestId;
         std::vector<uint8_t> m_FetchedData;
         wgpu::Texture m_Texture{ nullptr };
         wgpu::Buffer m_StagingBuffer{ nullptr };

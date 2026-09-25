@@ -12,8 +12,7 @@ ShaderFetcher::ShaderFetcher(
     std::string path, const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
     : m_Path(std::move(path)),
       m_GpuHelper(&gpuHelper),
-      m_FileFetcher(&fileFetcher),
-      m_RequestId(FileFetcher::kInvalidRequestId)
+      m_FileFetcher(&fileFetcher)
 {
 }
 
@@ -43,7 +42,7 @@ ShaderFetcher::OnStart()
 
     m_Stage = Stage::Failed;
 
-    auto requestId = m_FileFetcher->Fetch(std::string(m_Path));
+    auto requestId = m_FileFetcher->Fetch(m_Path);
     MLG_CHECK(requestId);
 
     m_RequestId = *requestId;
@@ -71,12 +70,11 @@ ShaderFetcher::OnUpdate()
                 {
                     if(!CreateShaderModule())
                     {
-                        MLG_ERROR("Failed to create shader module: {}", m_Path);
                         m_Stage = Stage::Failed;
                     }
                     else
                     {
-                        MLG_DEBUG("Loaded shader: {}", m_Path);
+                        MLG_DEBUG("Loaded shader");
                         m_Stage = Stage::Succeeded;
                     }
                 }
@@ -87,7 +85,7 @@ ShaderFetcher::OnUpdate()
             }
             break;
         case Stage::Failed:
-            MLG_ERROR("Failed to load shader: {}", m_Path);
+            MLG_ERROR("Failed to load shader");
             [[fallthrough]];
         case Stage::Succeeded:
             SetComplete();
@@ -98,6 +96,8 @@ ShaderFetcher::OnUpdate()
 Result<>
 ShaderFetcher::CreateShaderModule()
 {
+    MLG_LOG_SCOPE(m_Path);
+
     const std::string filename = std::filesystem::path(m_Path).filename().string();
 
     const void* dataPtr = m_ShaderData.data();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoopTask.h"
+#include "FileFetcher.h"
 #include "Result.h"
 
 #include <cstdint>
@@ -50,7 +51,7 @@ private:
     std::string m_Path;
     const GpuHelper* m_GpuHelper{ nullptr };
     FileFetcher* m_FileFetcher{ nullptr };
-    uint64_t m_RequestId;
+    FetchRequestId m_RequestId;
     std::vector<uint8_t> m_ShaderData;
     wgpu::ShaderModule m_ShaderModule;
 
