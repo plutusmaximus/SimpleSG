@@ -18,8 +18,6 @@ public:
 
     friend bool operator==(const FetchRequestId& lhs, const FetchRequestId& rhs) = default;
 
-    bool IsValid() const { return m_Generation != 0; }
-
 private:
     friend class FileFetcher;
 
@@ -104,19 +102,18 @@ private:
         uint32_t m_ReadAttempts{ 0 };
 
         Stage m_Stage{ Stage::None };
-
-        FetchRequestId m_RequestId;
     };
 
     /// Storage for a fetch request.
-    struct RequestBuffer
+    struct RequestWrapper
     {
         Request* m_Request{ nullptr };
-        RequestBuffer* m_Next{ nullptr };
+        RequestWrapper* m_Next{ nullptr };
 
         FetchRequestId m_RequestId;
 
         /// Storage for the Request object.
+        /// Structuring like this enables construction/destruction of the Request object in-place.
         alignas(Request) char m_Storage[sizeof(Request)]{};
     };
 
@@ -125,11 +122,11 @@ private:
     {
     }
 
-    Result<> IssueRead(Request& request);
+    Result<> IssueRead(RequestWrapper& wrapper);
 
-    RequestBuffer* AllocateRequest();
+    RequestWrapper* AllocateRequest();
 
-    void FreeRequest(RequestBuffer* requestBuf);
+    void FreeRequest(RequestWrapper* wrapper);
 
     void SetSucceeded(const FetchRequestId requestId);
 
@@ -137,9 +134,9 @@ private:
 
     void Close(const FetchRequestId requestId);
 
-    RequestBuffer* GetRequestBuffer(const FetchRequestId requestId);
+    RequestWrapper* GetRequest(const FetchRequestId requestId);
 
-    const RequestBuffer* GetRequestBuffer(const FetchRequestId requestId) const;
+    const RequestWrapper* GetRequest(const FetchRequestId requestId) const;
 
     SDL_AsyncIOQueue* m_IoQueue{ nullptr };
 
@@ -147,6 +144,6 @@ private:
 
     uint32_t m_HeapSize{ 0 };
     uint32_t m_AllocCount{ 0 };
-    std::vector<std::vector<RequestBuffer>> m_RequestBuffers;
-    RequestBuffer* m_FreeList{ nullptr };
+    std::vector<std::vector<RequestWrapper>> m_RequestPool;
+    RequestWrapper* m_FreeList{ nullptr };
 };
