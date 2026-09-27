@@ -317,6 +317,9 @@ CollectIndices(const CgltfPrimitiveAttributes& attrs)
         }
     }
 
+    MLG_CHECKV(indices.size() % 3 == 0,
+        "Index count must be a multiple of three for triangle primitives");
+
     // Change winding from CCW to CW.
     const size_t endIndex = indices.size();
     for(size_t idx = 0; idx < endIndex; idx += 3)
@@ -327,13 +330,16 @@ CollectIndices(const CgltfPrimitiveAttributes& attrs)
     return std::move(indices);
 }
 
-void
+Result<>
 GenerateNormals(std::span<Vertex> vertices, std::span<const VertexIndex> indices)
 {
     for(auto& v : vertices)
     {
         v.normal = { 0.0f, 0.0f, 0.0f };
     }
+
+    MLG_CHECKV(indices.size() % 3 == 0,
+        "Index count must be a multiple of three for triangle primitives");
 
     for(size_t i = 0; i < indices.size(); i += 3)
     {
@@ -356,6 +362,8 @@ GenerateNormals(std::span<Vertex> vertices, std::span<const VertexIndex> indices
     {
         v.normal = v.normal.Normalize();
     }
+
+    return Result<>::Ok;
 }
 
 Result<std::vector<ModelDef>>
@@ -387,7 +395,7 @@ CollectModels(const std::span<CgltfMeshData> gltfMeshes)
 
             if(!primData.Attributes.SrcNormal)
             {
-                GenerateNormals(*vertices, *indices);
+                MLG_CHECK(GenerateNormals(*vertices, *indices));
             }
 
             const cgltf_primitive& prim = *primData.Primitive;
