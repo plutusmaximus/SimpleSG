@@ -20,13 +20,6 @@ using IndexType = ResourceBundle::IndexType;
 using OffsetType = ResourceBundle::OffsetType;
 using Header = ResourceBundle::Header;
 
-struct FlatNodeDef
-{
-    NodeDefPointer NodeDefPtr;
-    IndexType ParentIndex;
-    IndexType FirstChildIndex;
-};
-
 constexpr IndexType kInvalidIndex = ResourceBundle::kInvalidIndex;
 constexpr OffsetType kInvalidOffset = ResourceBundle::kInvalidOffset;
 constexpr size_t kMaxBundleSize = ResourceBundle::kMaxBundleSize;
@@ -35,110 +28,79 @@ constexpr size_t kMaxOffset = ResourceBundle::kMaxOffset;
 template<typename T>
 constexpr size_t kMaxVectorSize = std::min(ResourceBundle::kMaxCount, std::vector<T>().max_size());
 
-template<typename K, typename V>
-class IndexedVector
+struct FlatNodeDef
+{
+    NodeDefPointer NodeDefPtr;
+    IndexType ParentIndex;
+    IndexType FirstChildIndex;
+};
+
+template<typename T>
+struct IndexEntry
+{
+    T Value;
+    size_t Index;
+};
+
+template<typename T>
+class Collection
 {
 public:
+    static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
+    static_assert(std::is_standard_layout_v<T>, "T must have standard layout");
+    static_assert(sizeof(T) < kMaxOffset);
 
-    using value_type = V;
-    using key_type = K;
-    using reference = V&;
-    using const_reference = const V&;
-    using size_type = size_t;
+    using ValueType = T;
 
-    using iterator = std::vector<V>::iterator;
-    using const_iterator = std::vector<V>::const_iterator;
-
-    template<typename... Args>
-    V& emplace(const key_type& key, Args&&... args)
+    explicit Collection(const std::span<const T> span)
+        : m_Storage(span)
     {
-        if(!contains(key))
+    }
+
+    explicit Collection(const std::vector<T>& vector)
+        : Collection(std::span(vector))
+    {
+    }
+
+    explicit Collection(std::vector<T>&& vector)
+        : m_Storage(std::move(vector))
+    {
+    }
+
+    explicit Collection(const std::vector<T>&& vector) = delete;
+
+    template<typename K>
+    explicit Collection(const std::map<K, IndexEntry<T>>& map)
+    {
+        std::vector<T> vector;
+        vector.reserve(map.size());
+        for(const auto& [key, indexEntry] : map)
         {
-            m_map[key] = m_vector.size();
-            m_vector.emplace_back(std::forward<Args>(args)...);
+            vector.push_back(indexEntry.Value);
         }
-        return m_vector.back();
+        m_Storage = std::move(vector);
     }
 
-    size_type size() const
+    std::span<const T> GetSpan() const
     {
-        return m_vector.size();
+        return std::visit([](const auto& storage) -> std::span<const T>
+            { return std::span<const T>(storage); },
+            m_Storage);
     }
 
-    size_type max_size() const
-    {
-        return std::min(m_map.max_size(), m_vector.max_size());
-    }
-
-    bool empty() const
-    {
-        return m_vector.empty();
-    }
-
-    bool contains(const key_type& key) const
-    {
-        return m_map.contains(key);
-    }
-
-    iterator find(const key_type& key)
-    {
-        auto it = m_map.find(key);
-        if(it != m_map.end())
-        {
-            return m_vector.begin() + it->second;
-        }
-        return m_vector.end();
-    }
-
-    const_iterator find(const key_type& key) const
-    {
-        auto it = m_map.find(key);
-        if(it != m_map.end())
-        {
-            return m_vector.begin() + it->second;
-        }
-        return m_vector.end();
-    }
-
-    auto keys() const
-    {
-        return m_map | std::views::keys;
-    }
-    
-    const_reference operator[](const key_type& key) const
-    {
-        return m_vector[m_map.at(key)];
-    }
-
-    reference operator[](const key_type& key)
-    {
-        return m_vector[m_map.at(key)];
-    }
-
-    iterator begin()
-    {
-        return m_vector.begin();
-    }
-
-    const_iterator begin() const
-    {
-        return m_vector.begin();
-    }
-
-    iterator end()
-    {
-        return m_vector.end();
-    }
-
-    const_iterator end() const
-    {
-        return m_vector.end();
-    }
+    size_t size() const { return GetSpan().size(); }
 
 private:
-    std::map<K, size_t> m_map;
-    std::vector<V> m_vector;
+    std::variant<std::span<const T>, std::vector<T>> m_Storage;
 };
+
+/// Pads the given buffer to ensure it is properly aligned for type T.
+template<typename T>
+void Pad(std::vector<std::byte>& buffer)
+{
+    const size_t pad = (alignof(T) - (buffer.size() % alignof(T))) % alignof(T);
+    buffer.insert(buffer.end(), pad, std::byte{0});
+}
 
 Result<std::vector<FlatNodeDef>>
 FlattenNodesBreadthFirst(const std::span<const RootNodeDef> rootNodeDefs)
@@ -270,15 +232,16 @@ AddString(std::vector<char>& chars, const std::string_view& str)
     return sr;
 }
 
-/*Result<IndexedVector<std::string_view, StringResource>>
-CollectStrings2(const std::span<const FlatNodeDef> flatNodeDefs,
+Result<std::map<std::string_view, IndexEntry<StringResource>>>
+CollectStrings(const std::span<const FlatNodeDef> flatNodeDefs,
     const std::span<const MeshDef> meshDefs,
     std::vector<char>& chars)
 {
-    IndexedVector<std::string_view, StringResource> stringResourceMap;
+    std::map<std::string_view, IndexEntry<StringResource>> stringResourceMap;
 
     constexpr size_t kMaxCharCount = kMaxVectorSize<char>;
-    const size_t kMaxStringCount = std::min(kMaxVectorSize<StringResource>, stringResourceMap.max_size());
+    const size_t kMaxStringCount =
+        std::min(kMaxVectorSize<StringResource>, stringResourceMap.max_size());
 
     chars.clear();
 
@@ -302,8 +265,11 @@ CollectStrings2(const std::span<const FlatNodeDef> flatNodeDefs,
                     MLG_CHECKV(stringResourceMap.size() < kMaxStringCount,
                         "String count out of range");
 
-                    // Placeholder string resource, will be filled later
-                    stringResourceMap.emplace(name, StringResource{});
+                    const auto sr = AddString(chars, name);
+                    MLG_CHECK(sr);
+
+                    // Index will be filled later
+                    stringResourceMap.emplace(name, *sr);
                     totalStrLen += strLen;
                 }
 
@@ -327,126 +293,39 @@ CollectStrings2(const std::span<const FlatNodeDef> flatNodeDefs,
         if(!stringResourceMap.contains(materialDef.BaseTexturePath))
         {
             const std::string& texPath = materialDef.BaseTexturePath;
-            const size_t strLen = texPath.length();
-            MLG_CHECKV(strLen <= kMaxCharCount, "String length out of range");
-            MLG_CHECKV(kMaxCharCount - totalStrLen >= strLen, "Char count out of range");
-
-            MLG_CHECKV(stringResourceMap.size() < kMaxStringCount, "String count out of range");
-
-            // Placeholder string resource, will be filled later
-            stringResourceMap.emplace(texPath, StringResource{});
-            totalStrLen += strLen;
-        }
-    }
-
-    chars.reserve(totalStrLen);
-
-    for(const std::string_view sv : stringResourceMap.keys())
-    {
-        auto result = AddString(chars, sv);
-        MLG_CHECK(result);
-
-        // Fill in the actual string resources.
-        stringResourceMap[sv] = *result;
-    }
-
-    return stringResourceMap;
-}*/
-
-Result<std::map<std::string_view, StringResource>>
-CollectStrings(const std::span<const FlatNodeDef> flatNodeDefs,
-    const std::span<const MeshDef> meshDefs,
-    std::vector<char>& chars)
-{
-    constexpr size_t kMaxCharCount = kMaxVectorSize<char>;
-    constexpr size_t kMaxStringCount = kMaxVectorSize<StringResource>;
-
-    std::map<std::string_view, StringResource> stringResourceMap;
-
-    chars.clear();
-
-    size_t totalStrLen = 0;
-
-    // Collect unique strings from node names.
-    for(const FlatNodeDef& flatNodeDef : flatNodeDefs)
-    {
-        const Result<> result = std::visit(
-            [&](const auto* nodeDef) -> Result<>
-            {
-                const std::string& name = nodeDef->Name;
-                MLG_CHECKV(!name.empty(), "Node name is empty");
-
-                if(!stringResourceMap.contains(name))
-                {
-                    const size_t strLen = name.length();
-                    MLG_CHECKV(strLen <= kMaxCharCount, "String length out of range");
-                    MLG_CHECKV(kMaxCharCount - totalStrLen >= strLen, "Char count out of range");
-
-                    MLG_CHECKV(stringResourceMap.size() < kMaxStringCount,
-                        "String count out of range");
-                    MLG_CHECKV(stringResourceMap.size() < stringResourceMap.max_size(),
-                        "String count out of range");
-
-                    // Placeholder string resource, will be filled later
-                    stringResourceMap.emplace(name, StringResource{});
-                    totalStrLen += strLen;
-                }
-
-                return Result<>::Ok;
-            },
-            flatNodeDef.NodeDefPtr);
-
-        MLG_CHECK(result);
-    }
-
-    // Collect unique strings from texture paths.
-    for(const MeshDef& meshDef : meshDefs)
-    {
-        const MaterialDef& materialDef = meshDef.MaterialDef;
-
-        if(materialDef.BaseTexturePath.empty())
-        {
-            continue;
-        }
-
-        if(!stringResourceMap.contains(materialDef.BaseTexturePath))
-        {
             const size_t strLen = materialDef.BaseTexturePath.length();
             MLG_CHECKV(strLen <= kMaxCharCount, "String length out of range");
             MLG_CHECKV(kMaxCharCount - totalStrLen >= strLen, "Char count out of range");
 
             MLG_CHECKV(stringResourceMap.size() < kMaxStringCount, "String count out of range");
-            MLG_CHECKV(stringResourceMap.size() < stringResourceMap.max_size(),
-                "String count out of range");
 
-            // Placeholder string resource, will be filled later
-            stringResourceMap.emplace(materialDef.BaseTexturePath, StringResource{});
+            const auto sr = AddString(chars, texPath);
+            MLG_CHECK(sr);
+
+            // Index will be filled later
+            stringResourceMap.emplace(texPath, *sr);
             totalStrLen += strLen;
         }
     }
 
-    chars.reserve(totalStrLen);
+    size_t index = 0;
 
-    for(auto& [str, sr] : stringResourceMap)
+    for(auto& [str, entry] : stringResourceMap)
     {
-        auto result = AddString(chars, str);
-        MLG_CHECK(result);
-
-        // Fill in the actual string resources.
-        sr = *result;
+        // Fill in the index.
+        entry.Index = index++;
     }
 
     return stringResourceMap;
 }
-
-Result<std::vector<TextureResource>>
+Result<std::map<std::string_view, IndexEntry<TextureResource>>>
 CollectTextures(const std::span<const MeshDef> meshDefs,
-    const std::map<std::string_view, StringResource>& stringResourceMap,
-    std::map<std::string_view, size_t>& textureIndexMap)
+    const std::map<std::string_view, IndexEntry<StringResource>>& stringIndexMap)
 {
-    constexpr size_t kMaxTextureCount = kMaxVectorSize<TextureResource>;
+    std::map<std::string_view, IndexEntry<TextureResource>> textureIndexMap;
 
-    textureIndexMap.clear();
+    const size_t kMaxTextureCount =
+        std::min(kMaxVectorSize<TextureResource>, textureIndexMap.max_size());
 
     for(const MeshDef& meshDef : meshDefs)
     {
@@ -461,94 +340,85 @@ CollectTextures(const std::span<const MeshDef> meshDefs,
             continue;
         }
 
-        // Placeholder for the resource index - will be updated later
-        constexpr size_t kPlaceholderIndex = 0;
-
-        MLG_CHECKV(textureIndexMap.size() < kMaxTextureCount, "Texture index out of range");
-        MLG_CHECKV(textureIndexMap.size() < textureIndexMap.max_size(),
-            "Texture count out of range");
-
-        textureIndexMap.emplace(texPath, kPlaceholderIndex);
-    }
-
-    std::vector<TextureResource> texResources;
-    texResources.reserve(textureIndexMap.size());
-
-    for(auto& [texPath, texIndex] : textureIndexMap)
-    {
-        const auto it = stringResourceMap.find(texPath);
+        const auto it = stringIndexMap.find(texPath);
 
         // The string resource map was built from the texture paths so the
         // lookup should succeed 100%.
-        MLG_ASSERT(it != stringResourceMap.end());
+        MLG_ASSERT(it != stringIndexMap.end());
+
+        const auto& [stringRsrc, index] = it->second;
 
         const TextureResource texRsrc //
             {
-                .TexturePath = it->second,
+                .TexturePathIndex = static_cast<IndexType>(index),
             };
 
-        // Replace the placeholder index.
-        texIndex = texResources.size();
-        texResources.push_back(texRsrc);
+        MLG_CHECKV(textureIndexMap.size() < kMaxTextureCount, "Texture index out of range");
+
+        // Index will be filled later
+        textureIndexMap.emplace(texPath, texRsrc);
     }
 
-    return texResources;
+    size_t index = 0;
+    for(auto& [texPath, entry] : textureIndexMap)
+    {
+        // Fill in the index.
+        entry.Index = index++;
+    }
+
+    return textureIndexMap;
 }
 
-Result<std::vector<MaterialResource>>
+Result<std::map<MaterialDef, IndexEntry<MaterialResource>>>
 CollectMaterials(const std::span<const MeshDef> meshDefs,
-    const std::map<std::string_view, size_t>& textureIndexMap,
-    std::map<const MaterialDef, size_t>& materialIndexMap)
+    const std::map<std::string_view, IndexEntry<TextureResource>>& textureIndexMap)
 {
-    constexpr size_t kMaxMaterialCount = kMaxVectorSize<MaterialResource>;
+    std::map<MaterialDef, IndexEntry<MaterialResource>> materialIndexMap;
 
-    materialIndexMap.clear();
+    const size_t kMaxMaterialCount =
+        std::min(kMaxVectorSize<MaterialResource>, materialIndexMap.max_size());
 
     for(const MeshDef& meshDef : meshDefs)
     {
         if(!materialIndexMap.contains(meshDef.MaterialDef))
         {
-            // Placeholder for the resource index - will be updated later
-            constexpr size_t kPlaceholderIndex = 0;
-
             MLG_CHECKV(materialIndexMap.size() < kMaxMaterialCount, "Material index out of range");
-            MLG_CHECKV(materialIndexMap.size() < materialIndexMap.max_size(),
-                "Material index out of range");
 
-            materialIndexMap.emplace(meshDef.MaterialDef, kPlaceholderIndex);
-        }
-    }
+            const MaterialDef& materialDef = meshDef.MaterialDef;
 
-    std::vector<MaterialResource> materials;
-    materials.reserve(materialIndexMap.size());
+            IndexType baseTextureIndex = kInvalidIndex;
 
-    for(auto& [materialDef, materialIndex] : materialIndexMap)
-    {
-        IndexType baseTextureIndex = kInvalidIndex;
+            const std::string_view texPath = materialDef.BaseTexturePath;
 
-        const std::string_view texPath = materialDef.BaseTexturePath;
-
-        if(!texPath.empty())
-        {
-            auto it = textureIndexMap.find(texPath);
-            MLG_CHECKV(it != textureIndexMap.end(), "Texture not found: {}", texPath);
-            baseTextureIndex = static_cast<IndexType>(it->second);
-        }
-
-        const MaterialResource materialResource //
+            if(!texPath.empty())
             {
-                .BaseTextureIndex = baseTextureIndex,
-                .Color = materialDef.Color,
-                .Metalness = materialDef.Metalness,
-                .Roughness = materialDef.Roughness,
-            };
+                auto it = textureIndexMap.find(texPath);
+                MLG_CHECKV(it != textureIndexMap.end(), "Texture not found: {}", texPath);
+                const IndexEntry<TextureResource>& entry = it->second;
+                baseTextureIndex = static_cast<IndexType>(entry.Index);
+            }
 
-        // Replace the placeholder index.
-        materialIndex = materials.size();
-        materials.push_back(materialResource);
+            const MaterialResource materialResource //
+                {
+                    .BaseTextureIndex = baseTextureIndex,
+                    .Color = materialDef.Color,
+                    .Metalness = materialDef.Metalness,
+                    .Roughness = materialDef.Roughness,
+                };
+
+            // Index will be filled later
+            materialIndexMap.emplace(meshDef.MaterialDef, materialResource);
+        }
     }
 
-    return materials;
+    size_t index = 0;
+    for(auto& [mtlDef, entry] : materialIndexMap)
+    {
+        // Fill in the index.
+        entry.Index = index++;
+    }
+
+    return materialIndexMap;
 }
 
 Result<std::vector<Vertex>>
@@ -560,6 +430,7 @@ CollectVertices(const std::span<const MeshDef> meshDefs)
     for(const MeshDef& meshDef : meshDefs)
     {
         const size_t vtxCount = meshDef.Vertices.size();
+        MLG_CHECKV(vtxCount > 0, "Vertex count must be greater than zero");
         MLG_CHECKV(vtxCount <= kMaxVertexCount, "Vertex count out of range");
         MLG_CHECKV(kMaxVertexCount - count >= vtxCount, "Vertex count out of range");
         count += vtxCount;
@@ -585,6 +456,7 @@ CollectIndices(const std::span<const MeshDef> meshDefs)
     for(const MeshDef& meshDef : meshDefs)
     {
         const size_t idxCount = meshDef.Indices.size();
+        MLG_CHECKV(idxCount >= 3, "Index count must be at least three");
         MLG_CHECKV(idxCount <= kMaxIndexCount, "Index count out of range");
         MLG_CHECKV(kMaxIndexCount - count >= idxCount, "Index count out of range");
         count += idxCount;
@@ -608,7 +480,7 @@ CollectIndices(const std::span<const MeshDef> meshDefs)
 
 Result<std::vector<MeshResource>>
 CollectMeshes(const std::span<const MeshDef> meshDefs,
-    const std::map<const MaterialDef, size_t>& materialIndexMap)
+    const std::map<MaterialDef, IndexEntry<MaterialResource>>& materialIndexMap)
 {
     constexpr size_t kMaxMeshCount = kMaxVectorSize<MeshResource>;
 
@@ -627,12 +499,13 @@ CollectMeshes(const std::span<const MeshDef> meshDefs,
 
         const auto it = materialIndexMap.find(meshDef.MaterialDef);
         MLG_CHECKV(it != materialIndexMap.end(), "Material not found");
+        const IndexEntry<MaterialResource>& entry = it->second;
 
         // At this point vertices/indices/materials have been confirmed to not
         // exceed the max count so no checking is needed.
         const size_t indexCount = meshDef.Indices.size();
         const size_t vertexCount = meshDef.Vertices.size();
-        const size_t materialIndex = it->second;
+        const size_t materialIndex = entry.Index;
 
         const MeshResource mesh //
             {
@@ -651,19 +524,14 @@ CollectMeshes(const std::span<const MeshDef> meshDefs,
     return meshes;
 }
 
-Result<std::vector<ModelResource>>
-CollectModels(const std::span<const ModelDef> modelDefs,
-    const std::span<const MeshResource> meshes,
-    std::map<std::string_view, size_t>& modelIndexMap)
+Result<std::map<std::string_view, IndexEntry<ModelResource>>>
+CollectModels(const std::span<const ModelDef> modelDefs, const std::span<const MeshResource> meshes)
 {
-    constexpr size_t kMaxModelCount = kMaxVectorSize<ModelResource>;
+    std::map<std::string_view, IndexEntry<ModelResource>> modelIndexMap;
 
-    modelIndexMap.clear();
-
-    std::vector<ModelResource> models;
+    const size_t kMaxModelCount = std::min(kMaxVectorSize<ModelResource>, modelIndexMap.max_size());
 
     MLG_CHECKV(modelDefs.size() <= kMaxModelCount, "Model count out of range");
-    models.reserve(modelDefs.size());
 
     size_t meshIndex = 0;
 
@@ -686,6 +554,13 @@ CollectModels(const std::span<const ModelDef> modelDefs,
             boundingBox += mesh.BoundingBox;
         }
 
+        const std::string_view modelName = modelDef.Name;
+
+        MLG_CHECKV(!modelName.empty(), "Model name is empty");
+
+        MLG_CHECKV(!modelIndexMap.contains(modelName), "Duplicate model name: {}", modelName);
+        MLG_CHECKV(modelIndexMap.size() < kMaxModelCount, "Model index out of range");
+
         const ModelResource model //
             {
                 .FirstMeshIndex = static_cast<IndexType>(meshIndex),
@@ -693,26 +568,25 @@ CollectModels(const std::span<const ModelDef> modelDefs,
                 .BoundingBox = boundingBox,
             };
 
-        const std::string_view modelName = modelDef.Name;
-        if(!modelName.empty())
-        {
-            MLG_CHECKV(!modelIndexMap.contains(modelName), "Duplicate model name: {}", modelName);
-            MLG_CHECKV(modelIndexMap.size() < modelIndexMap.max_size(), "Model index out of range");
-
-            modelIndexMap.emplace(modelName, models.size());
-        }
-
-        models.push_back(model);
+        // Index will be filled later
+        modelIndexMap.emplace(modelName, model);
 
         meshIndex += meshCount;
     }
 
-    return models;
+    size_t index = 0;
+    for(auto& [modelName, entry] : modelIndexMap)
+    {
+        // Fill in the index.
+        entry.Index = index++;
+    }
+
+    return modelIndexMap;
 }
 
 Result<std::vector<ModelInstanceResource>>
 CollectModelInstances(const std::span<const FlatNodeDef> flatNodeDefs,
-    const std::map<std::string_view, size_t>& modelIndexMap)
+    const std::map<std::string_view, IndexEntry<ModelResource>>& modelIndexMap)
 {
     constexpr size_t kMaxModelInstanceCount = kMaxVectorSize<ModelInstanceResource>;
 
@@ -746,8 +620,9 @@ CollectModelInstances(const std::span<const FlatNodeDef> flatNodeDefs,
                     const ModelRef& modelRef = *optModel;
                     auto it = modelIndexMap.find(modelRef.Name);
                     MLG_CHECKV(it != modelIndexMap.end(), "Model not found: {}", modelRef.Name);
+                    const IndexEntry<ModelResource>& modelEntry = it->second;
 
-                    const size_t modelIdx = it->second;
+                    const size_t modelIdx = modelEntry.Index;
 
                     const ModelInstanceResource modelInstance //
                         {
@@ -916,7 +791,7 @@ CollectRigidBodies(const std::span<const RootNodeDef> nodeDefs)
 
 Result<std::vector<LevelNodeResource>>
 CollectLevelNodes(const std::span<const FlatNodeDef> flatNodeDefs,
-    const std::map<std::string_view, StringResource>& stringResourceMap)
+    const std::map<std::string_view, IndexEntry<StringResource>>& stringIndexMap)
 {
     constexpr size_t kMaxLevelNodeCount = kMaxVectorSize<LevelNodeResource>;
 
@@ -930,18 +805,18 @@ CollectLevelNodes(const std::span<const FlatNodeDef> flatNodeDefs,
         const auto result = std::visit(
             [&](const auto* nodeDef) -> Result<>
             {
-                auto it = stringResourceMap.find(nodeDef->Name);
-                MLG_CHECKV(it != stringResourceMap.end(), "Node name not found: {}", nodeDef->Name);
+                auto it = stringIndexMap.find(nodeDef->Name);
+                MLG_CHECKV(it != stringIndexMap.end(), "Node name not found: {}", nodeDef->Name);
 
-                const StringResource& name = it->second;
+                const auto& [stringRsrc, nameIndex] = it->second;
                 const size_t childCount = nodeDef->Children.size();
 
                 const LevelNodeResource levelNode //
                     {
+                        .NameIndex = static_cast<IndexType>(nameIndex),
                         .ParentIndex = flatNodeDef.ParentIndex,
                         .FirstChildIndex = flatNodeDef.FirstChildIndex,
                         .ChildCount = static_cast<IndexType>(childCount),
-                        .Name = name,
                         .LocalPos = nodeDef->Transform.T,
                         .LocalRot = nodeDef->Transform.R.ToVector(),
                         .LocalScale = nodeDef->Transform.S,
@@ -959,21 +834,6 @@ CollectLevelNodes(const std::span<const FlatNodeDef> flatNodeDefs,
     }
 
     return levelNodes;
-}
-
-template<typename T>
-constexpr size_t
-SizeOfSpan(const std::span<T>& s)
-{
-    static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
-    static_assert(std::is_standard_layout_v<T>, "T must have standard layout");
-    static_assert(sizeof(T) < kMaxOffset);
-
-    static constexpr size_t kMaxSpan = kMaxOffset / sizeof(T);
-
-    MLG_ABORTIF(s.size() > kMaxSpan, "Maximum span length exceeded");
-
-    return s.size() * sizeof(T);
 }
 
 const Header&
@@ -994,16 +854,20 @@ AsBytes(const T& value)
 }
 
 template<typename T>
-Result<>
-AppendSpan(const std::span<const T>& span, std::vector<std::byte>& buffer)
+std::span<const std::byte>
+AsBytes(const std::span<const T> span)
 {
-    static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
-    static_assert(std::is_standard_layout_v<T>, "T must have standard layout");
-    static_assert(sizeof(T) < kMaxOffset);
+    return std::as_bytes(span);
+}
 
+template<typename T>
+Result<>
+AppendSpan(const std::span<const T> span, std::vector<std::byte>& buffer)
+{
     const Header& header = GetHeader(buffer);
-    const std::span bytes = std::as_bytes(span);
+    const std::span bytes = AsBytes(span);
 
+    MLG_CHECKV(buffer.size() <= header.TotalSize, "Buffer size exceeds bundle capacity");
     MLG_CHECKV(header.TotalSize - buffer.size() >= bytes.size(),
         "Appending span exceeds bundle capacity");
 
@@ -1030,6 +894,18 @@ MakeStringView(const StringResource& resource, const std::span<const char>& char
 // ResourceBundle
 
 std::string_view
+ResourceBundle::GetStringViewFromIndex(const IndexType index) const
+{
+    const std::span strings = GetStrings();
+    if(!MLG_VERIFY(index < strings.size(), "String index out of range"))
+    {
+        return std::string_view();
+    }
+
+    return MakeStringView(strings[index], GetChars());
+}
+
+std::string_view
 ResourceBundle::GetStringView(const StringResource& stringResource) const
 {
     return MakeStringView(stringResource, GetChars());
@@ -1040,7 +916,8 @@ ResourceBundle::GetStringView(const StringResource& stringResource) const
 Result<ResourceBundle>
 ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKitDef)
 {
-    // MLG_CHECK(Validate(propKitDef, levelDef), "LevelDef validation failed");
+    // Free buffer mem
+    std::vector<std::byte>().swap(m_Buffer);
 
     const auto flatNodeDefs = FlattenNodesBreadthFirst(levelDef.NodeDefs);
     MLG_CHECK(flatNodeDefs);
@@ -1049,85 +926,95 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKit
     MLG_CHECK(meshDefs);
 
     std::vector<char> chars;
-    auto stringResourceMap = CollectStrings(*flatNodeDefs, *meshDefs, chars);
-    MLG_CHECK(stringResourceMap);
 
-    std::map<std::string_view, size_t> textureIndexMap;
-    auto textureResources = CollectTextures(*meshDefs, *stringResourceMap, textureIndexMap);
-    MLG_CHECK(textureResources);
-
-    std::map<const MaterialDef, size_t> materialIndexMap;
-    const auto materials = CollectMaterials(*meshDefs, textureIndexMap, materialIndexMap);
-    MLG_CHECK(materials);
+    auto stringIndexMap = CollectStrings(*flatNodeDefs, *meshDefs, chars);
+    MLG_CHECK(stringIndexMap);
+    auto textureIndexMap = CollectTextures(*meshDefs, *stringIndexMap);
+    MLG_CHECK(textureIndexMap);
+    const auto materialIndexMap = CollectMaterials(*meshDefs, *textureIndexMap);
+    MLG_CHECK(materialIndexMap);
     const auto vertices = CollectVertices(*meshDefs);
     MLG_CHECK(vertices);
     const auto indices = CollectIndices(*meshDefs);
     MLG_CHECK(indices);
-    const auto meshes = CollectMeshes(*meshDefs, materialIndexMap);
+    const auto meshes = CollectMeshes(*meshDefs, *materialIndexMap);
     MLG_CHECK(meshes);
-
-    std::map<std::string_view, size_t> modelIndexMap;
-    const auto models = CollectModels(propKitDef.ModelDefs, *meshes, modelIndexMap);
-    MLG_CHECK(models);
-    const auto modelInstances = CollectModelInstances(*flatNodeDefs, modelIndexMap);
+    const auto modelIndexMap = CollectModels(propKitDef.ModelDefs, *meshes);
+    MLG_CHECK(modelIndexMap);
+    const auto modelInstances = CollectModelInstances(*flatNodeDefs, *modelIndexMap);
     MLG_CHECK(modelInstances);
     const auto colliders = CollectColliders(levelDef.NodeDefs);
     MLG_CHECK(colliders);
     const auto rigidBodies = CollectRigidBodies(levelDef.NodeDefs);
     MLG_CHECK(rigidBodies);
-    auto nodes = CollectLevelNodes(*flatNodeDefs, *stringResourceMap);
+    auto nodes = CollectLevelNodes(*flatNodeDefs, *stringIndexMap);
     MLG_CHECK(nodes);
 
-    std::vector<StringResource> stringResources;
-    stringResources.reserve(stringResourceMap->size());
-    for(const auto& [key, value] : *stringResourceMap)
-    {
-        stringResources.push_back(value);
-    }
-
-    m_Header = nullptr;
-    m_Buffer = {};
-
-#define ADD_AND_CHECK_OVERFLOW(value)                                                              \
-    MLG_ABORTIF(kMaxOffset - totalSize < (value));                                                 \
-    totalSize += (value);
+    const auto charCollection = Collection(chars);
+    const auto stringCollection = Collection(*stringIndexMap);
+    const auto textureCollection = Collection(*textureIndexMap);
+    const auto materialCollection = Collection(*materialIndexMap);
+    const auto modelCollection = Collection(*modelIndexMap);
+    const auto vertexCollection = Collection(*vertices);
+    const auto indexCollection = Collection(*indices);
+    const auto meshCollection = Collection(*meshes);
+    const auto modelInstanceCollection = Collection(*modelInstances);
+    const auto colliderCollection = Collection(*colliders);
+    const auto rigidBodyCollection = Collection(*rigidBodies);
+    const auto nodeCollection = Collection(*nodes);
 
     size_t totalSize = sizeof(Header);
 
-    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(chars)));
-    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(stringResources)));
-    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(*textureResources)));
-    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(*materials)));
-    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(*vertices)));
-    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(*indices)));
-    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(*meshes)));
-    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(*models)));
-    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(*modelInstances)));
-    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(*colliders)));
-    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(*rigidBodies)));
-    ADD_AND_CHECK_OVERFLOW(SizeOfSpan(std::span(*nodes)));
+    auto addAndCheckOverflow = [&](const auto& collection) -> Result<>
+    {
+        using CollectionType = std::decay_t<decltype(collection)>;
+        using ValueType = CollectionType::ValueType;
 
-#undef ADD_AND_CHECK_OVERFLOW
+        const size_t pad =
+            (alignof(ValueType) - (totalSize % alignof(ValueType))) % alignof(ValueType);
 
-    MLG_CHECK(totalSize <= kMaxBundleSize, "Total size exceeds maximum allowed size");
+        const size_t remaining = kMaxBundleSize - totalSize;
+
+        MLG_CHECK(pad <= remaining, "Padding size exceeds maximum bundle size");
+        MLG_CHECKV((remaining - pad) / sizeof(ValueType) >= collection.size(),
+            "Collection size would overflow maximum allowable size");
+
+        const size_t byteSizeOfCollection = (collection.size() * sizeof(ValueType)) + pad;
+
+        totalSize += byteSizeOfCollection;
+
+        return Result<>::Ok;
+    };
+
+    MLG_CHECK(addAndCheckOverflow(charCollection));
+    MLG_CHECK(addAndCheckOverflow(stringCollection));
+    MLG_CHECK(addAndCheckOverflow(textureCollection));
+    MLG_CHECK(addAndCheckOverflow(materialCollection));
+    MLG_CHECK(addAndCheckOverflow(vertexCollection));
+    MLG_CHECK(addAndCheckOverflow(indexCollection));
+    MLG_CHECK(addAndCheckOverflow(meshCollection));
+    MLG_CHECK(addAndCheckOverflow(modelCollection));
+    MLG_CHECK(addAndCheckOverflow(modelInstanceCollection));
+    MLG_CHECK(addAndCheckOverflow(colliderCollection));
+    MLG_CHECK(addAndCheckOverflow(rigidBodyCollection));
+    MLG_CHECK(addAndCheckOverflow(nodeCollection));
 
     m_Buffer.reserve(totalSize);
 
     AppendHeader(static_cast<OffsetType>(totalSize));
-    MLG_CHECK(Append(chars));
-    MLG_CHECK(Append(stringResources));
-    MLG_CHECK(Append(*textureResources));
-    MLG_CHECK(Append(*materials));
-    MLG_CHECK(Append(*vertices));
-    MLG_CHECK(Append(*indices));
-    MLG_CHECK(Append(*meshes));
-    MLG_CHECK(Append(*models));
-    MLG_CHECK(Append(*modelInstances));
-    MLG_CHECK(Append(*colliders));
-    MLG_CHECK(Append(*rigidBodies));
-    MLG_CHECK(Append(*nodes));
+    MLG_CHECK(Append(charCollection.GetSpan()));
+    MLG_CHECK(Append(stringCollection.GetSpan()));
+    MLG_CHECK(Append(textureCollection.GetSpan()));
+    MLG_CHECK(Append(materialCollection.GetSpan()));
+    MLG_CHECK(Append(vertexCollection.GetSpan()));
+    MLG_CHECK(Append(indexCollection.GetSpan()));
+    MLG_CHECK(Append(meshCollection.GetSpan()));
+    MLG_CHECK(Append(modelCollection.GetSpan()));
+    MLG_CHECK(Append(modelInstanceCollection.GetSpan()));
+    MLG_CHECK(Append(colliderCollection.GetSpan()));
+    MLG_CHECK(Append(rigidBodyCollection.GetSpan()));
+    MLG_CHECK(Append(nodeCollection.GetSpan()));
 
-    m_Header = nullptr;
     return ResourceBundle{ std::move(m_Buffer) };
 }
 
@@ -1143,140 +1030,161 @@ ResourceBundleBuilder::AppendHeader(const OffsetType totalSize)
     header.TotalSize = totalSize;
 
     m_Buffer.append_range(AsBytes(header));
-
-    void* p = m_Buffer.data();
-    m_Header = static_cast<Header*>(p);
 }
 
 Result<>
 ResourceBundleBuilder::Append(const std::span<const char>& chars)
 {
-    MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->CharsOffset == kInvalidOffset, "Chars already appended");
+    Header* h = GetHeader();
+    MLG_ASSERT(h != nullptr, "Header is not initialized");
+    MLG_ASSERT(h->CharsOffset == kInvalidOffset, "Chars already appended");
 
-    m_Header->CharsOffset = static_cast<OffsetType>(m_Buffer.size());
-    m_Header->CharsLength = static_cast<IndexType>(chars.size());
+    Pad<char>(m_Buffer);
+    h->CharsOffset = static_cast<OffsetType>(m_Buffer.size());
+    h->CharsLength = static_cast<IndexType>(chars.size());
     return AppendSpan(chars, m_Buffer);
 }
 
 Result<>
 ResourceBundleBuilder::Append(const std::span<const StringResource>& strings)
 {
-    MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->StringsOffset == kInvalidOffset, "Strings already appended");
+    Header* h = GetHeader();
+    MLG_ASSERT(h != nullptr, "Header is not initialized");
+    MLG_ASSERT(h->StringsOffset == kInvalidOffset, "Strings already appended");
 
-    m_Header->StringsOffset = static_cast<OffsetType>(m_Buffer.size());
-    m_Header->StringCount = static_cast<IndexType>(strings.size());
+    Pad<StringResource>(m_Buffer);
+    h->StringsOffset = static_cast<OffsetType>(m_Buffer.size());
+    h->StringCount = static_cast<IndexType>(strings.size());
     return AppendSpan(strings, m_Buffer);
 }
 
 Result<>
 ResourceBundleBuilder::Append(const std::span<const TextureResource>& textures)
 {
-    MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->TexturesOffset == kInvalidOffset, "Textures already appended");
+    Header* h = GetHeader();
+    MLG_ASSERT(h != nullptr, "Header is not initialized");
+    MLG_ASSERT(h->TexturesOffset == kInvalidOffset, "Textures already appended");
 
-    m_Header->TexturesOffset = static_cast<OffsetType>(m_Buffer.size());
-    m_Header->TextureCount = static_cast<IndexType>(textures.size());
+    Pad<TextureResource>(m_Buffer);
+    h->TexturesOffset = static_cast<OffsetType>(m_Buffer.size());
+    h->TextureCount = static_cast<IndexType>(textures.size());
     return AppendSpan(textures, m_Buffer);
 }
 
 Result<>
 ResourceBundleBuilder::Append(const std::span<const MaterialResource>& materials)
 {
-    MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->MaterialsOffset == kInvalidOffset, "Materials already appended");
+    Header* h = GetHeader();
+    MLG_ASSERT(h != nullptr, "Header is not initialized");
+    MLG_ASSERT(h->MaterialsOffset == kInvalidOffset, "Materials already appended");
 
-    m_Header->MaterialsOffset = static_cast<OffsetType>(m_Buffer.size());
-    m_Header->MaterialCount = static_cast<IndexType>(materials.size());
+    Pad<MaterialResource>(m_Buffer);
+    h->MaterialsOffset = static_cast<OffsetType>(m_Buffer.size());
+    h->MaterialCount = static_cast<IndexType>(materials.size());
     return AppendSpan(materials, m_Buffer);
 }
 
 Result<>
 ResourceBundleBuilder::Append(const std::span<const Vertex>& vertices)
 {
-    MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->VerticesOffset == kInvalidOffset, "Vertices already appended");
+    Header* h = GetHeader();
+    MLG_ASSERT(h != nullptr, "Header is not initialized");
+    MLG_ASSERT(h->VerticesOffset == kInvalidOffset, "Vertices already appended");
 
-    m_Header->VerticesOffset = static_cast<OffsetType>(m_Buffer.size());
-    m_Header->VertexCount = static_cast<IndexType>(vertices.size());
+    Pad<Vertex>(m_Buffer);
+    h->VerticesOffset = static_cast<OffsetType>(m_Buffer.size());
+    h->VertexCount = static_cast<IndexType>(vertices.size());
     return AppendSpan(vertices, m_Buffer);
 }
 
 Result<>
 ResourceBundleBuilder::Append(const std::span<const VertexIndex>& indices)
 {
-    MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->IndicesOffset == kInvalidOffset, "Indices already appended");
+    Header* h = GetHeader();
+    MLG_ASSERT(h != nullptr, "Header is not initialized");
+    MLG_ASSERT(h->IndicesOffset == kInvalidOffset, "Indices already appended");
 
-    m_Header->IndicesOffset = static_cast<OffsetType>(m_Buffer.size());
-    m_Header->IndexCount = static_cast<IndexType>(indices.size());
+    Pad<VertexIndex>(m_Buffer);
+    h->IndicesOffset = static_cast<OffsetType>(m_Buffer.size());
+    h->IndexCount = static_cast<IndexType>(indices.size());
     return AppendSpan(indices, m_Buffer);
 }
 
 Result<>
 ResourceBundleBuilder::Append(const std::span<const MeshResource>& meshes)
 {
-    MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->MeshesOffset == kInvalidOffset, "Meshes already appended");
+    Header* h = GetHeader();
+    MLG_ASSERT(h != nullptr, "Header is not initialized");
+    MLG_ASSERT(h->MeshesOffset == kInvalidOffset, "Meshes already appended");
 
-    m_Header->MeshesOffset = static_cast<OffsetType>(m_Buffer.size());
-    m_Header->MeshCount = static_cast<IndexType>(meshes.size());
+    Pad<MeshResource>(m_Buffer);
+    h->MeshesOffset = static_cast<OffsetType>(m_Buffer.size());
+    h->MeshCount = static_cast<IndexType>(meshes.size());
     return AppendSpan(meshes, m_Buffer);
 }
 
 Result<>
 ResourceBundleBuilder::Append(const std::span<const ModelResource>& models)
 {
-    MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->ModelsOffset == kInvalidOffset, "Models already appended");
+    Header* h = GetHeader();
+    MLG_ASSERT(h != nullptr, "Header is not initialized");
+    MLG_ASSERT(h->ModelsOffset == kInvalidOffset, "Models already appended");
 
-    m_Header->ModelsOffset = static_cast<OffsetType>(m_Buffer.size());
-    m_Header->ModelCount = static_cast<IndexType>(models.size());
+    Pad<ModelResource>(m_Buffer);
+    h->ModelsOffset = static_cast<OffsetType>(m_Buffer.size());
+    h->ModelCount = static_cast<IndexType>(models.size());
     return AppendSpan(models, m_Buffer);
 }
 
 Result<>
 ResourceBundleBuilder::Append(const std::span<const ModelInstanceResource>& modelInstances)
 {
-    MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->ModelInstancesOffset == kInvalidOffset,
+    Header* h = GetHeader();
+    MLG_ASSERT(h != nullptr, "Header is not initialized");
+    MLG_ASSERT(h->ModelInstancesOffset == kInvalidOffset,
         "Model Instances already appended");
 
-    m_Header->ModelInstancesOffset = static_cast<OffsetType>(m_Buffer.size());
-    m_Header->ModelInstanceCount = static_cast<IndexType>(modelInstances.size());
+    Pad<ModelInstanceResource>(m_Buffer);
+    h->ModelInstancesOffset = static_cast<OffsetType>(m_Buffer.size());
+    h->ModelInstanceCount = static_cast<IndexType>(modelInstances.size());
     return AppendSpan(modelInstances, m_Buffer);
 }
 
 Result<>
 ResourceBundleBuilder::Append(const std::span<const ColliderResource>& colliders)
 {
-    MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->CollidersOffset == kInvalidOffset, "Colliders already appended");
+    Header* h = GetHeader();
+    MLG_ASSERT(h != nullptr, "Header is not initialized");
+    MLG_ASSERT(h->CollidersOffset == kInvalidOffset, "Colliders already appended");
 
-    m_Header->CollidersOffset = static_cast<OffsetType>(m_Buffer.size());
-    m_Header->ColliderCount = static_cast<IndexType>(colliders.size());
+    Pad<ColliderResource>(m_Buffer);
+    h->CollidersOffset = static_cast<OffsetType>(m_Buffer.size());
+    h->ColliderCount = static_cast<IndexType>(colliders.size());
     return AppendSpan(colliders, m_Buffer);
 }
 
 Result<>
 ResourceBundleBuilder::Append(const std::span<const RigidBodyResource>& rigidBodies)
 {
-    MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->RigidBodiesOffset == kInvalidOffset, "RigidBodies already appended");
+    Header* h = GetHeader();
+    MLG_ASSERT(h != nullptr, "Header is not initialized");
+    MLG_ASSERT(h->RigidBodiesOffset == kInvalidOffset, "RigidBodies already appended");
 
-    m_Header->RigidBodiesOffset = static_cast<OffsetType>(m_Buffer.size());
-    m_Header->RigidBodyCount = static_cast<IndexType>(rigidBodies.size());
+    Pad<RigidBodyResource>(m_Buffer);
+    h->RigidBodiesOffset = static_cast<OffsetType>(m_Buffer.size());
+    h->RigidBodyCount = static_cast<IndexType>(rigidBodies.size());
     return AppendSpan(rigidBodies, m_Buffer);
 }
 
 Result<>
 ResourceBundleBuilder::Append(const std::span<const LevelNodeResource>& nodes)
 {
-    MLG_ASSERT(m_Header != nullptr, "Header is not initialized");
-    MLG_ASSERT(m_Header->NodesOffset == kInvalidOffset, "Nodes already appended");
+    Header* h = GetHeader();
+    MLG_ASSERT(h != nullptr, "Header is not initialized");
+    MLG_ASSERT(h->NodesOffset == kInvalidOffset, "Nodes already appended");
 
-    m_Header->NodesOffset = static_cast<OffsetType>(m_Buffer.size());
-    m_Header->NodeCount = static_cast<IndexType>(nodes.size());
+    Pad<LevelNodeResource>(m_Buffer);
+    h->NodesOffset = static_cast<OffsetType>(m_Buffer.size());
+    h->NodeCount = static_cast<IndexType>(nodes.size());
     return AppendSpan(nodes, m_Buffer);
 }

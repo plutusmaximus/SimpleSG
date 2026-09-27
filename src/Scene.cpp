@@ -396,7 +396,7 @@ GetTexturePaths(const std::filesystem::path& rootPath, const ResourceBundle& res
     texturePaths.reserve(texResources.size());
     for(const auto& tr : texResources)
     {
-        const std::string_view sv = resourceBundle.GetStringView(tr.TexturePath);
+        const std::string_view sv = resourceBundle.GetStringViewFromIndex(tr.TexturePathIndex);
         texturePaths.emplace_back((rootPath / sv).string());
     }
     return texturePaths;

@@ -1,5 +1,6 @@
 #include "Level.h"
 
+#include "BoundsCheck.h"
 #include "PhysicsTypes.h"
 #include "ResourceBundle.h"
 
