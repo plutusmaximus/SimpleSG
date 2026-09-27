@@ -380,8 +380,8 @@ WriteResourceBundle(const CookDirs& cookDirs,
     std::filesystem::path outputFilePath = cookDirs.OutputDir / inPath.filename();
     outputFilePath.replace_extension(".bin");
 
-    const std::span<const char> buffer = resourceBundle.GetBuffer();
-    MLG_CHECK(WriteFile(outputFilePath, std::as_bytes(buffer)));
+    const std::span<const std::byte> buffer = resourceBundle.GetBuffer();
+    MLG_CHECK(WriteFile(outputFilePath, buffer));
 
     MLG_INFO("Wrote resource bundle: {}", outputFilePath.string());
 

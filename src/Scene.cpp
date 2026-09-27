@@ -391,13 +391,13 @@ namespace
 std::vector<std::string>
 GetTexturePaths(const std::filesystem::path& rootPath, const ResourceBundle& resourceBundle)
 {
-    const std::span texturePathStrings = resourceBundle.GetTexturePaths();
+    const std::span texResources = resourceBundle.GetTextures();
     std::vector<std::string> texturePaths;
-    texturePaths.reserve(texturePathStrings.size());
-    for(const auto& path : texturePathStrings)
+    texturePaths.reserve(texResources.size());
+    for(const auto& tr : texResources)
     {
-        const std::string_view pathView(resourceBundle.GetStringView(path));
-        texturePaths.emplace_back((rootPath / pathView).string());
+        const std::string_view sv = resourceBundle.GetStringView(tr.TexturePath);
+        texturePaths.emplace_back((rootPath / sv).string());
     }
     return texturePaths;
 }
