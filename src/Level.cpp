@@ -1,8 +1,8 @@
 #include "Level.h"
 
-#include "BoundsCheck.h"
 #include "PhysicsTypes.h"
 #include "ResourceBundle.h"
+#include "scope_exit.h"
 
 #include <box3d/Box3D.h>
 #include <box3d/collision.h>
@@ -158,7 +158,6 @@ CollectNodes(const ResourceBundle& resourceBundle)
         const LevelNode* parent = nullptr;
         if(nodeRsrc.ParentIndex != ResourceBundle::kInvalidIndex)
         {
-            MLG_CHECKV(nodeRsrc.ParentIndex < nodes.size(), "Invalid parent index for node");
             parent = &nodes[nodeRsrc.ParentIndex];
         }
 
@@ -179,30 +178,32 @@ CollectMeshInstances(const ResourceBundle& resourceBundle)
     const std::span models = resourceBundle.GetModels();
     const std::span modelInstances = resourceBundle.GetModelInstances();
 
-    size_t meshInstanceCount = 0;
+    constexpr size_t kMaxMeshInstances =
+        std::numeric_limits<uint32_t>::max() > std::vector<MeshInstance>().max_size()
+        ? std::vector<MeshInstance>().max_size()
+        : static_cast<size_t>(std::numeric_limits<uint32_t>::max());
+
+    size_t count = 0;
 
     for(const ModelInstanceResource& modelInstance : modelInstances)
     {
-        const size_t modelIndex = BoundsCheck::Index(modelInstance.ModelIndex, models.size());
+        const ModelResource& modelRsrc = models[modelInstance.ModelIndex];
 
-        const ModelResource& modelRsrc = models[modelIndex];
+        const size_t meshInstanceCount = modelRsrc.MeshCount;
 
-        meshInstanceCount = BoundsCheck::Sum(meshInstanceCount,
-            modelRsrc.MeshCount,
-            std::numeric_limits<size_t>::max());
+        MLG_CHECKV(meshInstanceCount > 0, "Model has no mesh instances");
+        MLG_CHECKV(meshInstanceCount <= kMaxMeshInstances, "Too many mesh instances");
+        MLG_CHECKV(kMaxMeshInstances - count >= meshInstanceCount, "Too many mesh instances");
+
+        count += meshInstanceCount;
     }
 
     std::vector<MeshInstance> meshInstances;
-    meshInstances.reserve(meshInstanceCount);
-
-    const std::span vertices = resourceBundle.GetVertices();
-    const std::span indices = resourceBundle.GetIndices();
-    const std::span materials = resourceBundle.GetMaterials();
+    meshInstances.reserve(count);
 
     for(const ModelInstanceResource& modelInstance : modelInstances)
     {
-        const size_t modelIndex = BoundsCheck::Index(modelInstance.ModelIndex, models.size());
-        const ModelResource& modelRsrc = models[modelIndex];
+        const ModelResource& modelRsrc = models[modelInstance.ModelIndex];
 
         const std::span modelMeshes = resourceBundle.GetMeshes(modelRsrc);
 
@@ -212,15 +213,11 @@ CollectMeshInstances(const ResourceBundle& resourceBundle)
 
             const MeshInstance::Params params //
                 {
-                    .IndexCount = BoundsCheck::Count<uint32_t>(mesh.FirstIndex,
-                        mesh.IndexCount,
-                        indices.size()),
-                    .FirstIndex = BoundsCheck::Index<uint32_t>(mesh.FirstIndex, indices.size()),
-                    .BaseVertex = BoundsCheck::Index<uint32_t>(mesh.BaseVertex, vertices.size()),
-                    .FirstInstance = BoundsCheck::Index<uint32_t>(firstInstance,
-                        std::numeric_limits<uint32_t>::max()),
-                    .MaterialIndex =
-                        BoundsCheck::Index<uint32_t>(mesh.MaterialIndex, materials.size()),
+                    .IndexCount = mesh.IndexCount,
+                    .FirstIndex = mesh.FirstIndex,
+                    .BaseVertex = mesh.BaseVertex,
+                    .FirstInstance = static_cast<uint32_t>(firstInstance),
+                    .MaterialIndex = mesh.MaterialIndex,
                     .BoundingSphere = BoundingSphere(mesh.BoundingBox),
                 };
 
@@ -246,26 +243,20 @@ CollectModelNodes(const ResourceBundle& resourceBundle,
 
     for(const ModelInstanceResource& modelInstanceRsrc : modelInstanceRsrcs)
     {
-        const LevelNode& levelNode =
-            nodes[BoundsCheck::Index(modelInstanceRsrc.NodeIndex, nodes.size())];
+        const LevelNode& levelNode = nodes[modelInstanceRsrc.NodeIndex];
 
-        const size_t modelIndex =
-            BoundsCheck::Index(modelInstanceRsrc.ModelIndex, modelRsrcs.size());
+        const ModelResource& modelRsrc = modelRsrcs[modelInstanceRsrc.ModelIndex];
 
-        const ModelResource& modelRsrc = modelRsrcs[modelIndex];
-
-        const size_t meshInstanceStart =
-            BoundsCheck::Index(meshInstanceOffset, meshInstances.size());
-        const size_t meshInstanceCount =
-            BoundsCheck::Count(meshInstanceStart, modelRsrc.MeshCount, meshInstances.size());
+        MLG_CHECKV(meshInstanceOffset < meshInstances.size(), "Mesh instance offset out of bounds");
+        MLG_CHECK(meshInstances.size() - meshInstanceOffset >= modelRsrc.MeshCount,
+            "Mesh instance span out of bounds");
 
         const std::span meshInstanceSpan =
-            meshInstances.subspan(meshInstanceStart, meshInstanceCount);
+            meshInstances.subspan(meshInstanceOffset, modelRsrc.MeshCount);
 
         modelNodes.emplace_back(levelNode, BoundingSphere(modelRsrc.BoundingBox), meshInstanceSpan);
 
-        meshInstanceOffset =
-            BoundsCheck::Sum(meshInstanceOffset, modelRsrc.MeshCount, meshInstances.size());
+        meshInstanceOffset += modelRsrc.MeshCount;
     }
 
     return modelNodes;
@@ -282,8 +273,7 @@ CollectPhysicsNodes(const WorldIdentifier worldId,
 
     for(const RigidBodyResource& rigidBody : rigidBodies)
     {
-        const size_t nodeIndex = BoundsCheck::Index(rigidBody.NodeIndex, nodes.size());
-        LevelNode& levelNode = nodes[nodeIndex];
+        LevelNode& levelNode = nodes[rigidBody.NodeIndex];
 
         const std::span colliders = resourceBundle.GetColliders(rigidBody);
 
@@ -316,6 +306,14 @@ Level::Create(const ResourceBundle& resourceBundle)
     const b3WorldId worldId = b3CreateWorld(&worldDef);
     MLG_ASSERT(b3World_IsValid(worldId));
 
+    MLG_DEFER_AS(cleanup)
+    {
+        if(b3World_IsValid(worldId))
+        {
+            b3DestroyWorld(worldId);
+        }
+    };
+
     const WorldIdentifier worldIdentifier{ b3StoreWorldId(worldId) };
 
     auto levelNodes = CollectNodes(resourceBundle);
@@ -328,11 +326,7 @@ Level::Create(const ResourceBundle& resourceBundle)
     {
         if(nodeRsrc.ChildCount > 0)
         {
-            const size_t firstChildIndex =
-                BoundsCheck::Index(nodeRsrc.FirstChildIndex, nodeSpan.size());
-            const size_t childCount =
-                BoundsCheck::Count(nodeRsrc.FirstChildIndex, nodeRsrc.ChildCount, nodeSpan.size());
-            node.m_Children = nodeSpan.subspan(firstChildIndex, childCount);
+            node.m_Children = nodeSpan.subspan(nodeRsrc.FirstChildIndex, nodeRsrc.ChildCount);
         }
     }
 
@@ -344,6 +338,8 @@ Level::Create(const ResourceBundle& resourceBundle)
 
     auto physicsNodes = CollectPhysicsNodes(worldIdentifier, resourceBundle, *levelNodes);
     MLG_CHECK(physicsNodes, "Failed to collect physics nodes");
+
+    cleanup.release();
 
     return std::unique_ptr<Level>(new Level(std::move(*levelNodes),
         std::move(*physicsNodes),

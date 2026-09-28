@@ -1,5 +1,4 @@
 
-#include "BoundsCheck.h"
 #include "GltfLoader.h"
 #include "LevelDefs.h"
 #include "Log.h"
@@ -155,10 +154,12 @@ uint32_t
 AlignUp(uint32_t value, uint32_t alignment)
 {
     MLG_ABORTIF(alignment == 0, "Alignment must be non-zero");
-    const uint32_t sum =
-        BoundsCheck::Sum(value, alignment - 1, std::numeric_limits<uint32_t>::max());
 
-    return sum & ~(alignment - 1);
+    constexpr uint32_t kMaxValue = std::numeric_limits<uint32_t>::max();
+
+    MLG_ABORTIF(value > kMaxValue - (alignment - 1), "Value overflow on alignment");
+
+    return (value + (alignment - 1)) & ~(alignment - 1);
 }
 
 Result<std::vector<std::string>>
@@ -291,12 +292,19 @@ LoadImage(const CookDirs& cookDirs, const std::string_view texturePath)
     const uint32_t uImgWidth = static_cast<uint32_t>(imgWidth);
     const uint32_t uImgHeight = static_cast<uint32_t>(imgHeight);
 
-    const uint32_t bytesPerSrcRow =
-        BoundsCheck::Mul(uImgWidth, kTextureBytesPerPixel, std::numeric_limits<uint32_t>::max());
+    constexpr uint32_t kMaxBytesPerRow = std::numeric_limits<uint32_t>::max();
+    constexpr uint32_t kmaxDataSize = std::numeric_limits<uint32_t>::max();
 
+    MLG_CHECKV(kMaxBytesPerRow / kTextureBytesPerPixel >= uImgWidth,
+        "Image row size exceeds maximum allowed bytes per row");
+
+    const uint32_t bytesPerSrcRow = uImgWidth * kTextureBytesPerPixel;
     const uint32_t bytesPerDstRow = AlignUp(bytesPerSrcRow, kTextureRowAlignment);
-    const uint32_t dataSize =
-        BoundsCheck::Mul(bytesPerDstRow, uImgHeight, std::numeric_limits<uint32_t>::max());
+
+    MLG_CHECKV(kmaxDataSize / bytesPerDstRow >= uImgHeight,
+        "Image data size exceeds maximum allowed size");
+        
+    const uint32_t dataSize = bytesPerDstRow * uImgHeight;
 
     std::vector<std::byte> textureData(dataSize + sizeof(CookedTextureHeader));
 

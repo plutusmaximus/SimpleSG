@@ -1,7 +1,5 @@
 #include "BoundingVolumes.h"
 
-#include "BoundsCheck.h"
-
 namespace
 {
 Vec3f
@@ -26,7 +24,8 @@ ComputeMax(const Vec3f& p0, const Vec3f& p1)
         };
 }
 
-Vec3f ComputeCenter(const Vec3f& p0, const Vec3f& p1)
+Vec3f
+ComputeCenter(const Vec3f& p0, const Vec3f& p1)
 {
     const Vec3f min = ComputeMin(p0, p1);
     const Vec3f max = ComputeMax(p0, p1);
@@ -68,16 +67,18 @@ BoundingBox::FromVertices(std::span<const Vertex> vertices, std::span<const Vert
     MLG_ABORTIF(vertices.empty(), "Cannot compute bounding box from empty vertex list");
     MLG_ABORTIF(indices.empty(), "Cannot compute bounding box from empty index list");
 
-    const VertexIndex firstIndex = BoundsCheck::Index<VertexIndex>(indices[0], vertices.size());
+    const VertexIndex firstIndex = indices[0];
+
+    MLG_ABORTIF(firstIndex >= vertices.size(), "First index out of bounds");
 
     Vec3f min = vertices[firstIndex].pos;
     Vec3f max = vertices[firstIndex].pos;
 
     if(indices.size() > 1)
     {
-        for(const VertexIndex& rawIndex : indices.subspan(1))
+        for(const VertexIndex index : indices.subspan(1))
         {
-            const VertexIndex index = BoundsCheck::Index<VertexIndex>(rawIndex, vertices.size());
+            MLG_ABORTIF(index >= vertices.size(), "Index out of bounds");
 
             const Vec3f& pos = vertices[index].pos;
             min.x = std::min(min.x, pos.x);

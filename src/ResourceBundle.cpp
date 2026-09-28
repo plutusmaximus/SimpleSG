@@ -12,6 +12,8 @@
 #include <utility>
 #include <vector>
 
+#include <SDL3/SDL_stdinc.h>
+
 namespace
 {
 
@@ -836,13 +838,16 @@ CollectLevelNodes(const std::span<const FlatNodeDef> flatNodeDefs,
     return levelNodes;
 }
 
-const Header&
-GetHeader(const std::vector<std::byte>& buffer)
+const Header*
+GetHeader(const std::span<const std::byte>& buffer)
 {
-    MLG_ASSERT(buffer.size() >= sizeof(Header));
+    if(!MLG_VERIFY(buffer.size() >= sizeof(Header)))
+    {
+        return nullptr;
+    }
 
     const void* p = buffer.data();
-    return *static_cast<const Header*>(p);
+    return static_cast<const Header*>(p);
 }
 
 template<typename T>
@@ -864,14 +869,16 @@ template<typename T>
 Result<>
 AppendSpan(const std::span<const T> span, std::vector<std::byte>& buffer)
 {
-    const Header& header = GetHeader(buffer);
+    const Header* header = GetHeader(buffer);
+    MLG_CHECKV(header != nullptr, "Header is not initialized");
+
     const std::span bytes = AsBytes(span);
 
-    MLG_CHECKV(buffer.size() <= header.TotalSize, "Buffer size exceeds bundle capacity");
-    MLG_CHECKV(header.TotalSize - buffer.size() >= bytes.size(),
+    MLG_CHECKV(buffer.size() <= header->TotalSize, "Buffer size exceeds bundle capacity");
+    MLG_CHECKV(header->TotalSize - buffer.size() >= bytes.size(),
         "Appending span exceeds bundle capacity");
 
-    buffer.append_range(bytes);
+    buffer.insert(buffer.end(), bytes.begin(), bytes.end());
 
     return Result<>::Ok;
 }
@@ -889,9 +896,40 @@ MakeStringView(const StringResource& resource, const std::span<const char>& char
     return std::string_view(chars.subspan(resource.CharIndex, resource.Length));
 }
 
+uint32_t
+GetChecksum(const std::span<const std::byte>& buffer)
+{
+    const Header* header = GetHeader(buffer);
+    if(!MLG_VERIFY(header != nullptr, "Header is not initialized"))
+    {
+        return 0;
+    }
+
+    static_assert(offsetof(Header, Checksum) == 0, "Checksum must be at offset 0");
+
+    constexpr size_t crcStartOffset = offsetof(Header, Checksum) + sizeof(Header::Checksum);
+
+    const void* crcStart = &buffer[crcStartOffset];
+    const size_t crcLen = buffer.size() - crcStartOffset;
+    return SDL_crc32(0, crcStart, crcLen);
+}
+
 } // namespace
 
 // ResourceBundle
+
+bool
+ResourceBundle::ValidateChecksum() const
+{
+    const Header* header = GetHeader();
+
+    if(!MLG_VERIFY(header != nullptr, "Header is not initialized"))
+    {
+        return false;
+    }
+
+    return ::GetChecksum(m_Buffer) == header->Checksum;
+}
 
 std::string_view
 ResourceBundle::GetStringViewFromIndex(const IndexType index) const
@@ -1014,6 +1052,8 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKit
     MLG_CHECK(Append(colliderCollection.GetSpan()));
     MLG_CHECK(Append(rigidBodyCollection.GetSpan()));
     MLG_CHECK(Append(nodeCollection.GetSpan()));
+
+    GetHeader()->Checksum = GetChecksum(m_Buffer);
 
     return ResourceBundle{ std::move(m_Buffer) };
 }
