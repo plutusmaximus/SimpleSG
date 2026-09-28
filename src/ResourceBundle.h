@@ -96,6 +96,12 @@ struct LevelNodeResource;
 
 class ResourceBundleBuilder;
 
+/// Owns a level's geometry, materials, texture paths, nodes, and physics data in a single buffer.
+///
+/// Build it with ResourceBundleBuilder::Build(). Accessors return read-only views of the data.
+///
+/// Resource indices and ranges can be used without bounds checks.
+/// Returned spans and string views remain valid until the bundle's memory is freed.
 class ResourceBundle final
 {
     static constexpr uint32_t kMagicRaw = (static_cast<uint32_t>('M') << 24)
@@ -211,6 +217,7 @@ public:
     }
 
     /// Clears the resource bundle, releasing its internal buffer.
+    /// Invalidates all previously returned spans and string views.
     void Clear() { std::vector<std::byte>().swap(m_Buffer); }
 
     std::span<const char> GetChars() const

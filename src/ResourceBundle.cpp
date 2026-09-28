@@ -96,11 +96,18 @@ private:
     std::variant<std::span<const T>, std::vector<T>> m_Storage;
 };
 
+template<typename T>
+constexpr size_t
+Pad(const size_t size)
+{
+    return (alignof(T) - (size % alignof(T))) % alignof(T);
+}
+
 /// Pads the given buffer to ensure it is properly aligned for type T.
 template<typename T>
-void Pad(std::vector<std::byte>& buffer)
+void AppendPad(std::vector<std::byte>& buffer)
 {
-    const size_t pad = (alignof(T) - (buffer.size() % alignof(T))) % alignof(T);
+    const size_t pad = Pad<T>(buffer.size());
     buffer.insert(buffer.end(), pad, std::byte{0});
 }
 
@@ -965,9 +972,9 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKit
 
     std::vector<char> chars;
 
-    auto stringIndexMap = CollectStrings(*flatNodeDefs, *meshDefs, chars);
+    const auto stringIndexMap = CollectStrings(*flatNodeDefs, *meshDefs, chars);
     MLG_CHECK(stringIndexMap);
-    auto textureIndexMap = CollectTextures(*meshDefs, *stringIndexMap);
+    const auto textureIndexMap = CollectTextures(*meshDefs, *stringIndexMap);
     MLG_CHECK(textureIndexMap);
     const auto materialIndexMap = CollectMaterials(*meshDefs, *textureIndexMap);
     MLG_CHECK(materialIndexMap);
@@ -985,7 +992,7 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKit
     MLG_CHECK(colliders);
     const auto rigidBodies = CollectRigidBodies(levelDef.NodeDefs);
     MLG_CHECK(rigidBodies);
-    auto nodes = CollectLevelNodes(*flatNodeDefs, *stringIndexMap);
+    const auto nodes = CollectLevelNodes(*flatNodeDefs, *stringIndexMap);
     MLG_CHECK(nodes);
 
     const auto charCollection = Collection(chars);
@@ -1008,9 +1015,7 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKit
         using CollectionType = std::decay_t<decltype(collection)>;
         using ValueType = CollectionType::ValueType;
 
-        const size_t pad =
-            (alignof(ValueType) - (totalSize % alignof(ValueType))) % alignof(ValueType);
-
+        const size_t pad = Pad<ValueType>(totalSize);
         const size_t remaining = kMaxBundleSize - totalSize;
 
         MLG_CHECK(pad <= remaining, "Padding size exceeds maximum bundle size");
@@ -1079,7 +1084,7 @@ ResourceBundleBuilder::Append(const std::span<const char>& chars)
     MLG_ASSERT(h != nullptr, "Header is not initialized");
     MLG_ASSERT(h->CharsOffset == kInvalidOffset, "Chars already appended");
 
-    Pad<char>(m_Buffer);
+    AppendPad<char>(m_Buffer);
     h->CharsOffset = static_cast<OffsetType>(m_Buffer.size());
     h->CharsLength = static_cast<IndexType>(chars.size());
     return AppendSpan(chars, m_Buffer);
@@ -1092,7 +1097,7 @@ ResourceBundleBuilder::Append(const std::span<const StringResource>& strings)
     MLG_ASSERT(h != nullptr, "Header is not initialized");
     MLG_ASSERT(h->StringsOffset == kInvalidOffset, "Strings already appended");
 
-    Pad<StringResource>(m_Buffer);
+    AppendPad<StringResource>(m_Buffer);
     h->StringsOffset = static_cast<OffsetType>(m_Buffer.size());
     h->StringCount = static_cast<IndexType>(strings.size());
     return AppendSpan(strings, m_Buffer);
@@ -1105,7 +1110,7 @@ ResourceBundleBuilder::Append(const std::span<const TextureResource>& textures)
     MLG_ASSERT(h != nullptr, "Header is not initialized");
     MLG_ASSERT(h->TexturesOffset == kInvalidOffset, "Textures already appended");
 
-    Pad<TextureResource>(m_Buffer);
+    AppendPad<TextureResource>(m_Buffer);
     h->TexturesOffset = static_cast<OffsetType>(m_Buffer.size());
     h->TextureCount = static_cast<IndexType>(textures.size());
     return AppendSpan(textures, m_Buffer);
@@ -1118,7 +1123,7 @@ ResourceBundleBuilder::Append(const std::span<const MaterialResource>& materials
     MLG_ASSERT(h != nullptr, "Header is not initialized");
     MLG_ASSERT(h->MaterialsOffset == kInvalidOffset, "Materials already appended");
 
-    Pad<MaterialResource>(m_Buffer);
+    AppendPad<MaterialResource>(m_Buffer);
     h->MaterialsOffset = static_cast<OffsetType>(m_Buffer.size());
     h->MaterialCount = static_cast<IndexType>(materials.size());
     return AppendSpan(materials, m_Buffer);
@@ -1131,7 +1136,7 @@ ResourceBundleBuilder::Append(const std::span<const Vertex>& vertices)
     MLG_ASSERT(h != nullptr, "Header is not initialized");
     MLG_ASSERT(h->VerticesOffset == kInvalidOffset, "Vertices already appended");
 
-    Pad<Vertex>(m_Buffer);
+    AppendPad<Vertex>(m_Buffer);
     h->VerticesOffset = static_cast<OffsetType>(m_Buffer.size());
     h->VertexCount = static_cast<IndexType>(vertices.size());
     return AppendSpan(vertices, m_Buffer);
@@ -1144,7 +1149,7 @@ ResourceBundleBuilder::Append(const std::span<const VertexIndex>& indices)
     MLG_ASSERT(h != nullptr, "Header is not initialized");
     MLG_ASSERT(h->IndicesOffset == kInvalidOffset, "Indices already appended");
 
-    Pad<VertexIndex>(m_Buffer);
+    AppendPad<VertexIndex>(m_Buffer);
     h->IndicesOffset = static_cast<OffsetType>(m_Buffer.size());
     h->IndexCount = static_cast<IndexType>(indices.size());
     return AppendSpan(indices, m_Buffer);
@@ -1157,7 +1162,7 @@ ResourceBundleBuilder::Append(const std::span<const MeshResource>& meshes)
     MLG_ASSERT(h != nullptr, "Header is not initialized");
     MLG_ASSERT(h->MeshesOffset == kInvalidOffset, "Meshes already appended");
 
-    Pad<MeshResource>(m_Buffer);
+    AppendPad<MeshResource>(m_Buffer);
     h->MeshesOffset = static_cast<OffsetType>(m_Buffer.size());
     h->MeshCount = static_cast<IndexType>(meshes.size());
     return AppendSpan(meshes, m_Buffer);
@@ -1170,7 +1175,7 @@ ResourceBundleBuilder::Append(const std::span<const ModelResource>& models)
     MLG_ASSERT(h != nullptr, "Header is not initialized");
     MLG_ASSERT(h->ModelsOffset == kInvalidOffset, "Models already appended");
 
-    Pad<ModelResource>(m_Buffer);
+    AppendPad<ModelResource>(m_Buffer);
     h->ModelsOffset = static_cast<OffsetType>(m_Buffer.size());
     h->ModelCount = static_cast<IndexType>(models.size());
     return AppendSpan(models, m_Buffer);
@@ -1184,7 +1189,7 @@ ResourceBundleBuilder::Append(const std::span<const ModelInstanceResource>& mode
     MLG_ASSERT(h->ModelInstancesOffset == kInvalidOffset,
         "Model Instances already appended");
 
-    Pad<ModelInstanceResource>(m_Buffer);
+    AppendPad<ModelInstanceResource>(m_Buffer);
     h->ModelInstancesOffset = static_cast<OffsetType>(m_Buffer.size());
     h->ModelInstanceCount = static_cast<IndexType>(modelInstances.size());
     return AppendSpan(modelInstances, m_Buffer);
@@ -1197,7 +1202,7 @@ ResourceBundleBuilder::Append(const std::span<const ColliderResource>& colliders
     MLG_ASSERT(h != nullptr, "Header is not initialized");
     MLG_ASSERT(h->CollidersOffset == kInvalidOffset, "Colliders already appended");
 
-    Pad<ColliderResource>(m_Buffer);
+    AppendPad<ColliderResource>(m_Buffer);
     h->CollidersOffset = static_cast<OffsetType>(m_Buffer.size());
     h->ColliderCount = static_cast<IndexType>(colliders.size());
     return AppendSpan(colliders, m_Buffer);
@@ -1210,7 +1215,7 @@ ResourceBundleBuilder::Append(const std::span<const RigidBodyResource>& rigidBod
     MLG_ASSERT(h != nullptr, "Header is not initialized");
     MLG_ASSERT(h->RigidBodiesOffset == kInvalidOffset, "RigidBodies already appended");
 
-    Pad<RigidBodyResource>(m_Buffer);
+    AppendPad<RigidBodyResource>(m_Buffer);
     h->RigidBodiesOffset = static_cast<OffsetType>(m_Buffer.size());
     h->RigidBodyCount = static_cast<IndexType>(rigidBodies.size());
     return AppendSpan(rigidBodies, m_Buffer);
@@ -1223,7 +1228,7 @@ ResourceBundleBuilder::Append(const std::span<const LevelNodeResource>& nodes)
     MLG_ASSERT(h != nullptr, "Header is not initialized");
     MLG_ASSERT(h->NodesOffset == kInvalidOffset, "Nodes already appended");
 
-    Pad<LevelNodeResource>(m_Buffer);
+    AppendPad<LevelNodeResource>(m_Buffer);
     h->NodesOffset = static_cast<OffsetType>(m_Buffer.size());
     h->NodeCount = static_cast<IndexType>(nodes.size());
     return AppendSpan(nodes, m_Buffer);
