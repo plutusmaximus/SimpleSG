@@ -323,8 +323,6 @@ public:
             : std::span<const LevelNodeResource>();
     }
 
-    std::string_view GetStringViewFromIndex(const IndexType index) const;
-
     std::string_view GetStringView(const StringResource& stringResource) const;
 
 private:
@@ -431,7 +429,7 @@ MLG_ASSERT_OFFSET(StringResource, Length, 4)
 MLG_ASSERT_SIZE(StringResource, 8)
 
 /// TextureResource
-#define TEXTURE_RESOURCE_FIELDS(X) X(ResourceBundle::IndexType, TexturePathIndex)
+#define TEXTURE_RESOURCE_FIELDS(X) X(StringResource, TexturePath)
 
 struct TextureResource final
 {
@@ -440,8 +438,8 @@ struct TextureResource final
 static_assert(BinaryStruct<TextureResource>);
 MLG_ASSERT_FIELD_COUNT(TEXTURE_RESOURCE_FIELDS, 1);
 MLG_ASSERT_NO_PADDING(TextureResource, TEXTURE_RESOURCE_FIELDS);
-MLG_ASSERT_OFFSET(TextureResource, TexturePathIndex, 0)
-MLG_ASSERT_SIZE(TextureResource, 4)
+MLG_ASSERT_OFFSET(TextureResource, TexturePath, 0)
+MLG_ASSERT_SIZE(TextureResource, 8)
 
 /// MaterialResource
 
@@ -657,7 +655,7 @@ MLG_ASSERT_SIZE(RigidBodyResource, 20)
 /// LevelNodeResource
 
 #define LEVEL_NODE_RESOURCE_FIELDS(X)                                                              \
-    X(ResourceBundle::IndexType, NameIndex, ResourceBundle::kInvalidIndex)                         \
+    X(StringResource, Name)                                                                        \
     X(ResourceBundle::IndexType, ParentIndex, ResourceBundle::kInvalidIndex)                       \
     X(ResourceBundle::IndexType, FirstChildIndex, ResourceBundle::kInvalidIndex)                   \
     X(ResourceBundle::IndexType, ChildCount, 0)                                                    \
@@ -672,14 +670,14 @@ struct LevelNodeResource final
 static_assert(BinaryStruct<LevelNodeResource>);
 MLG_ASSERT_FIELD_COUNT(LEVEL_NODE_RESOURCE_FIELDS, 7);
 MLG_ASSERT_NO_PADDING(LevelNodeResource, LEVEL_NODE_RESOURCE_FIELDS);
-MLG_ASSERT_OFFSET(LevelNodeResource, NameIndex, 0)
-MLG_ASSERT_OFFSET(LevelNodeResource, ParentIndex, 4)
-MLG_ASSERT_OFFSET(LevelNodeResource, FirstChildIndex, 8)
-MLG_ASSERT_OFFSET(LevelNodeResource, ChildCount, 12)
-MLG_ASSERT_OFFSET(LevelNodeResource, LocalPos, 16)
-MLG_ASSERT_OFFSET(LevelNodeResource, LocalRot, 28)
-MLG_ASSERT_OFFSET(LevelNodeResource, LocalScale, 44)
-MLG_ASSERT_SIZE(LevelNodeResource, 56)
+MLG_ASSERT_OFFSET(LevelNodeResource, Name, 0)
+MLG_ASSERT_OFFSET(LevelNodeResource, ParentIndex, 8)
+MLG_ASSERT_OFFSET(LevelNodeResource, FirstChildIndex, 12)
+MLG_ASSERT_OFFSET(LevelNodeResource, ChildCount, 16)
+MLG_ASSERT_OFFSET(LevelNodeResource, LocalPos, 20)
+MLG_ASSERT_OFFSET(LevelNodeResource, LocalRot, 32)
+MLG_ASSERT_OFFSET(LevelNodeResource, LocalScale, 48)
+MLG_ASSERT_SIZE(LevelNodeResource, 60)
 
 inline std::span<const MeshResource>
 ResourceBundle::GetMeshes(const ModelResource& modelRsrc) const

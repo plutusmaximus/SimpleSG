@@ -72,6 +72,18 @@ public:
     explicit Collection(const std::vector<T>&& vector) = delete;
 
     template<typename K>
+    explicit Collection(const std::map<K, T>& map)
+    {
+        std::vector<T> vector;
+        vector.reserve(map.size());
+        for(const auto& [key, value] : map)
+        {
+            vector.push_back(value);
+        }
+        m_Storage = std::move(vector);
+    }
+
+    template<typename K>
     explicit Collection(const std::map<K, IndexEntry<T>>& map)
     {
         std::vector<T> vector;
@@ -221,14 +233,23 @@ CollectMeshDefs(const std::span<const ModelDef> modelDefs)
 }
 
 Result<StringResource>
-AddString(std::vector<char>& chars, const std::string_view& str)
+AddString(std::map<std::string_view, StringResource>& stringResourceMap,
+    std::vector<char>& chars,
+    const std::string_view& str)
 {
     constexpr size_t kMaxCharCount = kMaxVectorSize<char>;
+    const size_t kMaxStringCount =
+        std::min(kMaxVectorSize<StringResource>, stringResourceMap.max_size());
+
+    MLG_CHECKV(!str.empty(), "String is empty");
+
+    MLG_CHECKV(!stringResourceMap.contains(str), "String already exists: {}", str);
 
     const size_t strLen = str.length();
     const size_t charIndex = chars.size();
-    MLG_CHECKV(strLen <= kMaxCharCount, "String length out of bounds");
-    MLG_CHECKV(kMaxCharCount - charIndex >= strLen, "Char count out of bouds");
+    MLG_CHECKV(strLen <= kMaxCharCount, "String length out of bounds: {}", str);
+    MLG_CHECKV(kMaxCharCount - charIndex >= strLen, "Char count out of bounds: {}", str);
+    MLG_CHECKV(stringResourceMap.size() < kMaxStringCount, "String count out of range: {}", str);
 
     const StringResource sr = StringResource //
         {
@@ -238,23 +259,19 @@ AddString(std::vector<char>& chars, const std::string_view& str)
 
     chars.append_range(str);
 
+    stringResourceMap.emplace(str, sr);
+
     return sr;
 }
 
-Result<std::map<std::string_view, IndexEntry<StringResource>>>
+Result<std::map<std::string_view, StringResource>>
 CollectStrings(const std::span<const FlatNodeDef> flatNodeDefs,
     const std::span<const MeshDef> meshDefs,
     std::vector<char>& chars)
 {
-    std::map<std::string_view, IndexEntry<StringResource>> stringResourceMap;
-
-    constexpr size_t kMaxCharCount = kMaxVectorSize<char>;
-    const size_t kMaxStringCount =
-        std::min(kMaxVectorSize<StringResource>, stringResourceMap.max_size());
+    std::map<std::string_view, StringResource> stringResourceMap;
 
     chars.clear();
-
-    size_t totalStrLen = 0;
 
     // Collect unique strings from node names.
     for(const FlatNodeDef& flatNodeDef : flatNodeDefs)
@@ -262,26 +279,10 @@ CollectStrings(const std::span<const FlatNodeDef> flatNodeDefs,
         const Result<> result = std::visit(
             [&](const auto* nodeDef) -> Result<>
             {
-                const std::string& name = nodeDef->Name;
-                MLG_CHECKV(!name.empty(), "Node name is empty");
-
-                if(!stringResourceMap.contains(name))
+                if(!stringResourceMap.contains(nodeDef->Name))
                 {
-                    const size_t strLen = name.length();
-                    MLG_CHECKV(strLen <= kMaxCharCount, "String length out of range");
-                    MLG_CHECKV(kMaxCharCount - totalStrLen >= strLen, "Char count out of range");
-
-                    MLG_CHECKV(stringResourceMap.size() < kMaxStringCount,
-                        "String count out of range");
-
-                    const auto sr = AddString(chars, name);
-                    MLG_CHECK(sr);
-
-                    // Index will be filled later
-                    stringResourceMap.emplace(name, *sr);
-                    totalStrLen += strLen;
+                    MLG_CHECK(AddString(stringResourceMap, chars, nodeDef->Name));
                 }
-
                 return Result<>::Ok;
             },
             flatNodeDef.NodeDefPtr);
@@ -292,44 +293,18 @@ CollectStrings(const std::span<const FlatNodeDef> flatNodeDefs,
     // Collect unique strings from texture paths.
     for(const MeshDef& meshDef : meshDefs)
     {
-        const MaterialDef& materialDef = meshDef.MaterialDef;
-
-        if(materialDef.BaseTexturePath.empty())
+        if(!meshDef.MaterialDef.BaseTexturePath.empty()
+            && !stringResourceMap.contains(meshDef.MaterialDef.BaseTexturePath))
         {
-            continue;
+            MLG_CHECK(AddString(stringResourceMap, chars, meshDef.MaterialDef.BaseTexturePath));
         }
-
-        if(!stringResourceMap.contains(materialDef.BaseTexturePath))
-        {
-            const std::string& texPath = materialDef.BaseTexturePath;
-            const size_t strLen = materialDef.BaseTexturePath.length();
-            MLG_CHECKV(strLen <= kMaxCharCount, "String length out of range");
-            MLG_CHECKV(kMaxCharCount - totalStrLen >= strLen, "Char count out of range");
-
-            MLG_CHECKV(stringResourceMap.size() < kMaxStringCount, "String count out of range");
-
-            const auto sr = AddString(chars, texPath);
-            MLG_CHECK(sr);
-
-            // Index will be filled later
-            stringResourceMap.emplace(texPath, *sr);
-            totalStrLen += strLen;
-        }
-    }
-
-    size_t index = 0;
-
-    for(auto& [str, entry] : stringResourceMap)
-    {
-        // Fill in the index.
-        entry.Index = index++;
     }
 
     return stringResourceMap;
 }
 Result<std::map<std::string_view, IndexEntry<TextureResource>>>
 CollectTextures(const std::span<const MeshDef> meshDefs,
-    const std::map<std::string_view, IndexEntry<StringResource>>& stringIndexMap)
+    const std::map<std::string_view, StringResource>& stringIndexMap)
 {
     std::map<std::string_view, IndexEntry<TextureResource>> textureIndexMap;
 
@@ -355,11 +330,11 @@ CollectTextures(const std::span<const MeshDef> meshDefs,
         // lookup should succeed 100%.
         MLG_ASSERT(it != stringIndexMap.end());
 
-        const auto& [stringRsrc, index] = it->second;
+        const auto& stringRsrc = it->second;
 
         const TextureResource texRsrc //
             {
-                .TexturePathIndex = static_cast<IndexType>(index),
+                .TexturePath = stringRsrc,
             };
 
         MLG_CHECKV(textureIndexMap.size() < kMaxTextureCount, "Texture index out of range");
@@ -800,7 +775,7 @@ CollectRigidBodies(const std::span<const RootNodeDef> nodeDefs)
 
 Result<std::vector<LevelNodeResource>>
 CollectLevelNodes(const std::span<const FlatNodeDef> flatNodeDefs,
-    const std::map<std::string_view, IndexEntry<StringResource>>& stringIndexMap)
+    const std::map<std::string_view, StringResource>& stringIndexMap)
 {
     constexpr size_t kMaxLevelNodeCount = kMaxVectorSize<LevelNodeResource>;
 
@@ -817,12 +792,12 @@ CollectLevelNodes(const std::span<const FlatNodeDef> flatNodeDefs,
                 auto it = stringIndexMap.find(nodeDef->Name);
                 MLG_CHECKV(it != stringIndexMap.end(), "Node name not found: {}", nodeDef->Name);
 
-                const auto& [stringRsrc, nameIndex] = it->second;
+                const auto& stringRsrc = it->second;
                 const size_t childCount = nodeDef->Children.size();
 
                 const LevelNodeResource levelNode //
                     {
-                        .NameIndex = static_cast<IndexType>(nameIndex),
+                        .Name = stringRsrc,
                         .ParentIndex = flatNodeDef.ParentIndex,
                         .FirstChildIndex = flatNodeDef.FirstChildIndex,
                         .ChildCount = static_cast<IndexType>(childCount),
@@ -936,18 +911,6 @@ ResourceBundle::ValidateChecksum() const
     }
 
     return ::GetChecksum(m_Buffer) == header->Checksum;
-}
-
-std::string_view
-ResourceBundle::GetStringViewFromIndex(const IndexType index) const
-{
-    const std::span strings = GetStrings();
-    if(!MLG_VERIFY(index < strings.size(), "String index out of range"))
-    {
-        return std::string_view();
-    }
-
-    return MakeStringView(strings[index], GetChars());
 }
 
 std::string_view
