@@ -349,13 +349,11 @@ set(SSG_SOURCES
   src/GpuCompositorPass.cpp
   src/GpuTransformPass.cpp
   src/GpuHelper.cpp
-  src/GridHash.cpp
   src/ImGuiRenderer.cpp
   src/InputMapper.cpp
   src/Level.cpp
   src/LevelTypes.cpp
   src/Log.cpp
-  src/LuaRuntime.cpp
   src/PerfMetrics.cpp
   src/ResourceBundle.cpp
   src/Scene.cpp
@@ -378,14 +376,12 @@ set(SSG_HEADERS
   src/CoopTask.h
   src/DevUi.h
   src/FileFetcher.h
-  src/foreign_ptr.h
   src/GltfLoader.h
   src/GpuColorPass.h
   src/GpuCompositorPass.h
   src/GpuTransformPass.h
   src/GpuHelper.h
   src/GpuTypes.h
-  src/GridHash.h
   src/ImGuiRenderer.h
   src/inlist.h
   src/InputMapper.h
@@ -393,10 +389,8 @@ set(SSG_HEADERS
   src/LevelTypes.h
   src/LevelDefs.h
   src/Log.h
-  src/LuaRuntime.h
   src/PhysicsTypes.h
   src/PerfMetrics.h
-  src/RangeQuery.h
   src/ResourceBundle.h
   src/Result.h
   src/Scene.h
@@ -533,7 +527,6 @@ add_executable(Tests
   "tests/BoundingBox.unit.cpp"
   "tests/BoundingSphere.unit.cpp"
   "tests/Camera.unit.cpp"
-  "tests/GridHash.unit.cpp"
   "tests/inlist.unit.cpp"
   "tests/Mat44.unit.cpp"
   "tests/Quat.unit.cpp"

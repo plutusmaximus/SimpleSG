@@ -4,7 +4,6 @@
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
 #include "Level.h"
-#include "LuaRuntime.h"
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"
 #include "Scene.h"
