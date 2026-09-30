@@ -11,7 +11,6 @@
 #include "Vertex.h"
 
 #include <cgltf.h>
-#include <filesystem>
 #include <unordered_map>
 #include <vector>
 
@@ -603,13 +602,13 @@ CollectNodes(const cgltf_data* gltfData, const ModelCollection& modelCollection)
 Result<>
 GltfLoader::Load(const std::string_view path, PropKitDef& outPropKit, LevelDef& outLevelDef)
 {
-    const std::filesystem::path filePath(path);
+    const std::string filePath(path);
 
-    MLG_LOG_SCOPE(filePath.filename().string());
+    MLG_LOG_SCOPE(filePath);
 
     const cgltf_options options = {};
     cgltf_data* gltfData = nullptr;
-    const cgltf_result result = cgltf_parse_file(&options, filePath.string().c_str(), &gltfData);
+    const cgltf_result result = cgltf_parse_file(&options, filePath.c_str(), &gltfData);
     MLG_CHECK(result == cgltf_result_success, "Failed to load glTF file");
 
     auto cleanup = scope_exit(
@@ -634,7 +633,7 @@ GltfLoader::Load(const std::string_view path, PropKitDef& outPropKit, LevelDef& 
     }
 
     const cgltf_result loadBuffersResult =
-        cgltf_load_buffers(&options, gltfData, filePath.string().c_str());
+        cgltf_load_buffers(&options, gltfData, filePath.c_str());
     MLG_CHECK(loadBuffersResult == cgltf_result_success, "Failed to load buffers");
 
     auto gltfMeshes = CollectMeshes(gltfData);

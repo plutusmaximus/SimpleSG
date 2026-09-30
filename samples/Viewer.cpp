@@ -77,24 +77,22 @@ RenderGui()
 }
 
 Result<std::tuple<std::unique_ptr<Level>, std::unique_ptr<Scene>>>
-LoadLevel(System& system, const std::filesystem::path& path)
+LoadLevel(System& system, const std::string_view path)
 {
     PropKitDef propKitDef;
     LevelDef levelDef;
-    MLG_CHECK(GltfLoader::Load(path.string(), propKitDef, levelDef),
-        "Failed to load glTF file: {}",
-        path.string());
+    MLG_CHECK(GltfLoader::Load(path, propKitDef, levelDef), "Failed to load glTF file: {}", path);
 
     ResourceBundleBuilder builder;
     auto rsrcBundle = builder.Build(levelDef, propKitDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
     auto levelResult = Level::Create(*rsrcBundle);
-    MLG_CHECK(levelResult, "Failed to create Level for {}", path.string());
+    MLG_CHECK(levelResult, "Failed to create Level for {}", path);
 
     std::unique_ptr<Level> level = std::move(*levelResult);
 
-    const std::filesystem::path rootPath = path.parent_path();
+    const std::filesystem::path rootPath = std::filesystem::path(path).parent_path();
 
     Scene::CreateTask createTask(system, rootPath, *rsrcBundle, *level);
 
@@ -307,13 +305,15 @@ public:
     void OnUpdate() override;
 };
 
-Result<> Viewer::OnStart()
+Result<>
+Viewer::OnStart()
 {
     // Implement the start logic for the viewer here.
     return Result<>::Ok;
 }
 
-void Viewer::OnUpdate()
+void
+Viewer::OnUpdate()
 {
     // Implement the update logic for the viewer here.
 }
