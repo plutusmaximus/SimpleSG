@@ -1,10 +1,10 @@
 #pragma once
 
+#include "FixedString.h"
 #include "Result.h"
 
 #include <cstdint>
 #include <memory>
-#include <string>
 #include <vector>
 
 struct SDL_AsyncIO;
@@ -55,7 +55,7 @@ public:
 
     /// Initiates an asynchronous fetch for the specified file.
     /// Returns a FetchRequestId that can be used to track the request.
-    Result<FetchRequestId> Fetch(std::string filePath);
+    Result<FetchRequestId> Fetch(const std::string_view filePath);
 
     /// Checks if the specified fetch request is still pending.
     bool IsPending(const FetchRequestId requestId) const;
@@ -83,7 +83,11 @@ private:
             Pending,
             Success,
         };
-        Request() = default;
+
+        explicit Request(const std::string_view filePath)
+            : m_FilePath(filePath)
+        {
+        }
         ~Request();
         Request(const Request&) = delete;
         Request& operator=(const Request&) = delete;
@@ -95,7 +99,9 @@ private:
 
         SDL_AsyncIO* m_AsyncIO{ nullptr };
 
-        std::string m_FilePath;
+        constexpr static size_t kMaxFilePathLen = 256;
+
+        FixedString<kMaxFilePathLen> m_FilePath;
         size_t m_BytesRequested{ 0 };
         size_t m_BytesRead{ 0 };
         std::vector<uint8_t> m_Data;
@@ -124,7 +130,7 @@ private:
 
     Result<> IssueRead(RequestWrapper& wrapper);
 
-    RequestWrapper* AllocateRequest();
+    RequestWrapper* AllocateRequest(const std::string_view filePath);
 
     void FreeRequest(RequestWrapper* wrapper);
 

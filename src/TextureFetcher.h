@@ -2,6 +2,7 @@
 
 #include "CoopTask.h"
 #include "FileFetcher.h"
+#include "FixedString.h"
 #include "Result.h"
 
 #include <atomic>
@@ -23,10 +24,14 @@ class ThreadPool;
 class TextureFetcher : public ICoopTask<>
 {
 public:
+    static constexpr size_t MaxPathLength = 256;
+
+    using TexturePath = FixedString<MaxPathLength>;
+
     TextureFetcher(const GpuHelper& gpuHelper,
         FileFetcher& fileFetcher,
         ThreadPool& threadPool,
-        std::vector<std::string> texturePaths);
+        std::vector<TexturePath> texturePaths);
     ~TextureFetcher() override = default;
     TextureFetcher(const TextureFetcher&) = delete;
     TextureFetcher& operator=(const TextureFetcher&) = delete;
@@ -57,7 +62,7 @@ private:
         FetchTask(const GpuHelper& gpuHelper,
             FileFetcher& fileFetcher,
             ThreadPool& threadPool,
-            std::string path,
+            const std::string_view path,
             wgpu::CommandEncoder commandEncoder);
 
         FetchTask() = delete;
@@ -97,7 +102,7 @@ private:
         const GpuHelper* m_GpuHelper{ nullptr };
         FileFetcher* m_FileFetcher{ nullptr };
         ThreadPool* m_ThreadPool{ nullptr };
-        std::string m_Path;
+        FixedString<MaxPathLength> m_Path;
         FetchRequestId m_FetchRequestId;
         std::vector<uint8_t> m_FetchedData;
         wgpu::Texture m_Texture{ nullptr };
@@ -124,7 +129,7 @@ private:
     std::deque<FetchTask> m_Tasks;
     std::optional<CoopTaskBatch> m_TaskBatch;
     std::vector<wgpu::Texture> m_Textures;
-    std::vector<std::string> m_TexturePaths;
+    std::vector<TexturePath> m_TexturePaths;
 
     Stage m_Stage{ Stage::None };
 

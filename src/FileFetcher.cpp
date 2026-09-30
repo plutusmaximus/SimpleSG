@@ -72,11 +72,11 @@ FileFetcher::Create()
 }
 
 Result<FetchRequestId>
-FileFetcher::Fetch(std::string filePath)
+FileFetcher::Fetch(const std::string_view filePath)
 {
     MLG_CHECKV(m_IoQueue, "FileFetcher::Fetch called on invalid FileFetcher instance");
 
-    RequestWrapper* wrapper = AllocateRequest();
+    RequestWrapper* wrapper = AllocateRequest(filePath);
     MLG_CHECKV(wrapper, "Failed to allocate request buffer for file: {}", filePath);
 
     Request& request = *wrapper->m_Request;
@@ -84,7 +84,6 @@ FileFetcher::Fetch(std::string filePath)
     MLG_ASSERT(Request::Stage::None == request.m_Stage);
     MLG_ASSERT(!request.m_AsyncIO);
 
-    request.m_FilePath = std::move(filePath);
     request.m_Stage = Request::Stage::Pending;
 
     // Free resources if we early exit due to an error.
@@ -264,7 +263,7 @@ FileFetcher::IssueRead(RequestWrapper& wrapper)
 }
 
 FileFetcher::RequestWrapper*
-FileFetcher::AllocateRequest()
+FileFetcher::AllocateRequest(const std::string_view filePath)
 {
     if(!m_FreeList)
     {
@@ -287,7 +286,7 @@ FileFetcher::AllocateRequest()
     m_FreeList = m_FreeList->m_Next;
     wrapper->m_Next = nullptr;
     void* p = static_cast<void*>(wrapper->m_Storage);
-    wrapper->m_Request = std::construct_at(static_cast<Request*>(p));
+    wrapper->m_Request = std::construct_at(static_cast<Request*>(p), filePath);
 
     ++m_AllocCount;
     return wrapper;

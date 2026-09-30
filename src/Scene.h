@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoopTask.h"
+#include "FixedString.h"
 #include "GpuColorPass.h"
 #include "GpuCompositorPass.h"
 #include "GpuTransformPass.h"
@@ -117,7 +118,7 @@ private:
     System* m_System{ nullptr };
     const ResourceBundle* m_ResourceBundle{ nullptr };
     const Level* m_Level{ nullptr };
-    std::vector<std::string> m_TexturePaths;
+    std::vector<TextureFetcher::TexturePath> m_TexturePaths;
 
     TextureFetcher m_TextureFetcher;
     GpuColorPass::CreateTask m_ColorPassTask;

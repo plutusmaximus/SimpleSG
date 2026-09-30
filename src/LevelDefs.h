@@ -1,16 +1,23 @@
 #pragma once
 
 #include "Color.h"
+#include "FixedString.h"
 #include "PhysicsTypes.h"
 #include "Vertex.h"
 
 #include <optional>
-#include <string>
 #include <vector>
+
+namespace LevelDefs
+{
+constexpr size_t kMaxNameLength = 32;
+constexpr size_t kMaxPathLength = 256;
+
+} // namespace LevelDefs
 
 struct MaterialDef final
 {
-    std::string BaseTexturePath;
+    FixedString<LevelDefs::kMaxPathLength> BaseTexturePath;
     RgbaColorf Color{ 1, 1, 1, 1 };
     float Metalness{ 0.0f };
     float Roughness{ 0.0f };
@@ -63,7 +70,7 @@ struct MeshDef final
 
 struct ModelDef final
 {
-    std::string Name;
+    FixedString<LevelDefs::kMaxNameLength> Name;
     std::vector<MeshDef> MeshDefs;
 };
 
@@ -74,7 +81,7 @@ struct PropKitDef final
 
 struct ModelRef final
 {
-    std::string Name;
+    FixedString<LevelDefs::kMaxNameLength> Name;
 };
 
 struct BoxDef final
@@ -164,7 +171,7 @@ struct RigidBodyDef final
 
 struct ChildNodeDef final
 {
-    std::string Name;
+    FixedString<LevelDefs::kMaxNameLength> Name;
     TrsTransformf Transform;
     std::vector<ChildNodeDef> Children;
     std::optional<ModelRef> Model;
@@ -172,7 +179,7 @@ struct ChildNodeDef final
 
 struct RootNodeDef final
 {
-    std::string Name;
+    FixedString<LevelDefs::kMaxNameLength> Name;
     TrsTransformf Transform;
     std::vector<ChildNodeDef> Children;
     std::optional<ModelRef> Model;

@@ -15,8 +15,8 @@
 class System::Impl
 {
 public:
-    explicit Impl(std::string appName)
-        : m_GpuHelperTask(std::move(appName))
+    explicit Impl(const std::string_view appName)
+        : m_GpuHelperTask(appName)
     {
     }
 
@@ -29,7 +29,7 @@ public:
     GpuHelper::CreateTask m_GpuHelperTask;
 };
 
-System::CreateTask::CreateTask(std::string appName)
+System::CreateTask::CreateTask(const std::string_view appName)
     : m_Impl(std::make_unique<Impl>(appName))
 {
 }

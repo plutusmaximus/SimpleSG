@@ -12,29 +12,18 @@ namespace
 
 struct PerfMetricsState
 {
-    static constexpr size_t kStringArenaChunkSize = 1024uz * 4uz;
-
     std::mutex Mutex;
-    StringArena Strings{ kStringArenaChunkSize };
 };
 
 PerfMetricsState&
 GetPerfMetricsState()
 {
-    PerfMetricsState* state = new PerfMetricsState; // NOLINT(cppcoreguidelines-owning-memory)
+    static PerfMetricsState* state = new PerfMetricsState; // NOLINT(cppcoreguidelines-owning-memory)
 
     // We intentionally leak this, so hide it from leak sanitizers
     MLG_LSAN_IGNORE_OBJECT(state);
 
     return *state;
-}
-
-StringHandle
-ValidateName(const std::string_view& name)
-{
-    MLG_ASSERT(!name.empty(), "Empty perf counter name");
-
-    return GetPerfMetricsState().Strings.NewString(name);
 }
 } // namespace
 
@@ -61,7 +50,7 @@ PerfAggregator::Sample()
 ////////// PerfCounter
 
 PerfCounter::PerfCounter(const PerfCounterParams& params)
-    : m_Name(ValidateName(params.Name)),
+    : m_Name(params.Name),
       m_Aggregator(this),
       m_SamplePolicy(params.Policy),
       m_CategoryId(params.CategoryId)
@@ -116,7 +105,7 @@ PerfMetrics::GetAllCounterCount()
 }
 
 size_t
-PerfMetrics::SampleAllCounters(std::span<PerfStats>& outStats)
+PerfMetrics::SampleAllCounters(std::span<const PerfStats*>& outStats)
 {
     const std::lock_guard lock(GetPerfMetricsState().Mutex);
 
@@ -132,7 +121,7 @@ PerfMetrics::SampleAllCounters(std::span<PerfStats>& outStats)
         counter.m_Aggregator.Sample();
         counter.ApplySamplePolicy();
 
-        outStats[count++] = counter.m_Aggregator.GetStats();
+        outStats[count++] = &counter.m_Aggregator.GetStats();
     }
 
     return count;
@@ -188,7 +177,7 @@ PerfMetrics::GetCounterCount(const PerfCounterCategoryId categoryId)
 }
 
 size_t
-PerfMetrics::SampleCounters(const PerfCounterCategoryId categoryId, std::span<PerfStats>& outStats)
+PerfMetrics::SampleCounters(const PerfCounterCategoryId categoryId, std::span<const PerfStats*>& outStats)
 {
     const std::lock_guard lock(GetPerfMetricsState().Mutex);
 
@@ -209,7 +198,7 @@ PerfMetrics::SampleCounters(const PerfCounterCategoryId categoryId, std::span<Pe
         counter.m_Aggregator.Sample();
         counter.ApplySamplePolicy();
 
-        outStats[count++] = counter.m_Aggregator.GetStats();
+        outStats[count++] = &counter.m_Aggregator.GetStats();
     }
 
     return count;

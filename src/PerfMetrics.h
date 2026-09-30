@@ -1,14 +1,13 @@
 #pragma once
 
+#include "FixedString.h"
 #include "inlist.h"
 #include "scope_exit.h" // used for MLG_SCOPED_TIMER macro
-#include "StringArena.h"
 #include "Timer.h"
 
 #include <atomic>
 #include <span>
 #include <string_view>
-
 
 class PerfMetrics;
 class PerfCounter;
@@ -38,14 +37,13 @@ private:
 template<typename Tag>
 class PerfCounterCategory
 {
-private:
     constexpr static const char uniqueCategoryId{};
 
 public:
     constexpr static const PerfCounterCategoryId Id{ &uniqueCategoryId };
 };
 
-/// Perf counters that don't have an explicity category are put into
+/// Perf counters that don't have an explicit category are put into
 /// the default category.
 struct PerfCounterDefaultCategoryTag
 {
@@ -56,9 +54,9 @@ using PerfCounterDefaultCategory = PerfCounterCategory<PerfCounterDefaultCategor
 class PerfStats
 {
 public:
-    PerfStats() = default;
+    PerfStats() = delete;
 
-    StringHandle GetName() const { return m_Name; }
+    std::string_view GetName() const { return m_Name; }
 
     double GetLastValue() const { return m_LastValue; }
     double GetMinValue() const { return m_MinValue; }
@@ -68,12 +66,14 @@ public:
 private:
     friend PerfAggregator;
 
-    explicit PerfStats(const StringHandle& name)
+    explicit PerfStats(const std::string_view name)
         : m_Name(name)
     {
     }
 
-    StringHandle m_Name;
+    constexpr static size_t kMaxNameLen = 64;
+
+    FixedString<kMaxNameLen> m_Name;
     double m_LastValue{ 0 };
     double m_MinValue{ std::numeric_limits<double>::max() };
     double m_MaxValue{ 0 };
@@ -153,7 +153,7 @@ public:
         m_Value.store(static_cast<double>(value), std::memory_order_relaxed);
     }
 
-    const StringHandle& GetName() const { return m_Name; }
+    std::string_view GetName() const { return m_Name; }
 
     double GetValue() const { return m_Value.load(std::memory_order_relaxed); }
 
@@ -166,7 +166,9 @@ private:
 
     inlist_node<PerfCounter> m_ListNode;
 
-    StringHandle m_Name;
+    constexpr static size_t kMaxNameLen = 64;
+
+    FixedString<kMaxNameLen> m_Name;
     std::atomic<double> m_Value{ 0 };
     PerfAggregator m_Aggregator;
     SamplePolicy m_SamplePolicy{ SamplePolicy::Accumulate };
@@ -215,14 +217,14 @@ public:
     }
 
     template<typename Cat = PerfCounterDefaultCategory>
-    static size_t SampleCounters(std::span<PerfStats>& outStats)
+    static size_t SampleCounters(std::span<const PerfStats*>& outStats)
     {
         return SampleCounters(Cat::Id, outStats);
     }
 
     /// Gets the aggregated counter stats. The caller should provide a buffer of sufficient
     /// size based on GetCounterCount().
-    static size_t SampleAllCounters(std::span<PerfStats>& outStats);
+    static size_t SampleAllCounters(std::span<const PerfStats*>& outStats);
 
     /// Logs all counters to log output.
     static void LogCounters();
@@ -234,7 +236,7 @@ private:
 
     static size_t GetCounterCount(const PerfCounterCategoryId categoryId);
     static size_t SampleCounters(const PerfCounterCategoryId categoryId,
-        std::span<PerfStats>& outStats);
+        std::span<const PerfStats*>& outStats);
 
     friend PerfCounter;
 };

@@ -53,7 +53,7 @@ void DumpDawnToggles(const wgpu::Device& device);
 void DumpWebgpuLimits(const wgpu::Device& device);
 
 Result<SDL_Window*>
-CreateSdlWindow(const std::string_view& appName)
+CreateSdlWindow(const std::string_view appName)
 {
     MLG_CHECK(SDL_Init(SDL_INIT_VIDEO), SDL_GetError());
 
@@ -96,7 +96,7 @@ CreateSdlWindow(const std::string_view& appName)
     windowFlags |= SDL_WINDOW_METAL;
 #endif
 
-    const std::string windowTitle(appName);
+    const FixedString<64> windowTitle(appName);
     SDL_Window* window = SDL_CreateWindow(windowTitle.c_str(), winW, winH, windowFlags);
     MLG_CHECK(window, SDL_GetError());
 
@@ -422,8 +422,8 @@ UncapturedErrorCb(
 
 // GpuHelper::CreateTask
 
-GpuHelper::CreateTask::CreateTask(std::string appName)
-    : m_AppName(std::move(appName))
+GpuHelper::CreateTask::CreateTask(const std::string_view appName)
+    : m_AppName(appName)
 {
 }
 
@@ -434,7 +434,9 @@ GpuHelper::CreateTask::Take()
     MLG_CHECKV(!m_Consumed, "Task result already consumed");
 
     m_Consumed = true;
-    return std::move(m_GpuHelper);
+
+    auto bye = std::move(m_GpuHelper);
+    return bye;
 }
 
 // private:

@@ -27,13 +27,13 @@ RenderGui()
 
     constexpr size_t kMaxPerfStats = 256;
 
-    PerfStats perfStats[kMaxPerfStats];
-    std::span<PerfStats> perfStatsSpan(perfStats);
+    const PerfStats* perfStats[kMaxPerfStats];
+    std::span<const PerfStats*> perfStatsSpan(perfStats);
     const size_t counterCount = PerfMetrics::SampleCounters(perfStatsSpan);
-    for(const auto& counterStat : perfStatsSpan.first(counterCount))
+    for(const auto* counterStat : perfStatsSpan.first(counterCount))
     {
         const std::string text =
-            std::format("{}: {:.3f} ms", counterStat.GetName(), counterStat.GetEMA());
+            std::format("{}: {:.3f} ms", counterStat->GetName(), counterStat->GetEMA());
         ImGui::Text("%s", text.c_str()); // NOLINT(cppcoreguidelines-pro-type-vararg)
     }
 
@@ -93,7 +93,7 @@ CreateTriangleModel(PropKitDef& outPropKitDef, LevelDef& outLevelDef)
                 {
                     .Name{ "TriangleNode" },
                     .Transform{},
-                    .Model = ModelRef{ .Name = "Triangle" },
+                    .Model = ModelRef{ .Name{ "Triangle" } },
                 },
             },
         };

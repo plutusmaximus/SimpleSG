@@ -23,6 +23,9 @@ are too specific to be principles and too small to be patterns.
   happen repeatedly, such as once per frame or update.
 - Prefer a small number of bulk allocations over many long-lived small
   allocations.
+- Prefer `std::string::append()` over `operator+` for concatenation. It accepts
+  `std::string_view` directly and can reuse existing capacity, avoiding
+  unnecessary temporary strings.
 - Use `std::vector` for dynamically sized collections when contiguous storage is
   appropriate.
 - Make an effort to determine a vector's eventual size and call `reserve()`

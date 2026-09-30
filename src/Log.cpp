@@ -80,7 +80,7 @@ GetAssertLogger()
     return *assertLogger;
 }
 
-std::string&
+const std::string&
 LogPrefix()
 {
     static thread_local std::string logPrefix;
@@ -213,7 +213,11 @@ Log::PopPrefix()
 }
 
 std::string
-Log::Prefix(const std::string& message)
+Log::Prefix(const std::string_view message)
 {
-    return LogPrefix() + message;
+    std::string prefixedMessage;
+    prefixedMessage.reserve(LogPrefix().size() + message.size());
+    prefixedMessage = LogPrefix();
+    prefixedMessage.append(message);
+    return prefixedMessage;
 }

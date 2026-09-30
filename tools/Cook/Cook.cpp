@@ -17,7 +17,6 @@
 #include <iostream>
 #include <latch>
 #include <limits>
-#include <set>
 #include <span>
 #include <stb_image.h>
 #include <string>
@@ -25,7 +24,6 @@
 #include <system_error>
 #include <type_traits>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 namespace
@@ -84,8 +82,8 @@ static_assert(kTextureRowAlignment % kTextureBytesPerPixel == 0);
 struct CookTextureWorkerParams
 {
     const CookDirs* CookDirs;
-    std::string_view InTexturePath;
-    std::string OutTexturePath;
+    FixedString<LevelDefs::kMaxPathLength> InTexturePath;
+    FixedString<LevelDefs::kMaxPathLength> OutTexturePath;
     std::latch* Latch{ nullptr };
     Result<> Result;
 };
@@ -162,51 +160,35 @@ AlignUp(uint32_t value, uint32_t alignment)
     return (value + (alignment - 1)) & ~(alignment - 1);
 }
 
-Result<std::vector<std::string>>
-CollectTexturePaths(const PropKitDef& propKitDef)
+Result<std::unordered_map<FixedString<LevelDefs::kMaxPathLength>, FixedString<LevelDefs::kMaxPathLength>>>
+ReplaceTexturePaths(PropKitDef& propKitDef)
 {
-    std::set<std::string> uniqueTexturePaths;
-    for(const ModelDef& modelDef : propKitDef.ModelDefs)
-    {
-        for(const MeshDef& meshDef : modelDef.MeshDefs)
-        {
-            const std::string& texPath = meshDef.MaterialDef.BaseTexturePath;
-
-            if(!texPath.empty())
-            {
-                uniqueTexturePaths.insert(texPath);
-            }
-        }
-    }
-
-    std::vector<std::string> texturePaths(uniqueTexturePaths.begin(), uniqueTexturePaths.end());
-
-    return texturePaths;
-}
-
-Result<>
-ReplaceTexturePaths(PropKitDef& propKitDef,
-    const std::unordered_map<std::string, std::string>& texturePathReplacements)
-{
+    std::unordered_map<FixedString<LevelDefs::kMaxPathLength>, FixedString<LevelDefs::kMaxPathLength>> texPathMap;
     for(ModelDef& modelDef : propKitDef.ModelDefs)
     {
         for(MeshDef& meshDef : modelDef.MeshDefs)
         {
-            std::string& texPath = meshDef.MaterialDef.BaseTexturePath;
+            FixedString<LevelDefs::kMaxPathLength>& texPath =
+                meshDef.MaterialDef.BaseTexturePath;
 
             if(!texPath.empty())
             {
-                const auto it = texturePathReplacements.find(texPath);
+                if(!texPathMap.contains(texPath))
+                {
+                    std::filesystem::path texPathFsPath = std::string_view(texPath);
 
-                MLG_CHECKV(it != texturePathReplacements.end(),
-                    "Texture path replacement not found for: {}",
-                    texPath);
+                    const FixedString<LevelDefs::kMaxPathLength> newPath(
+                        texPathFsPath.replace_extension(".ctex").string());
 
-                texPath = it->second;
+                    texPathMap.emplace(texPath, newPath);
+                }
+
+                texPath = texPathMap.at(texPath);
             }
         }
     }
-    return Result<>::Ok;
+
+    return texPathMap;
 }
 
 Result<>
@@ -303,7 +285,7 @@ LoadImage(const CookDirs& cookDirs, const std::string_view texturePath)
 
     MLG_CHECKV(kmaxDataSize / bytesPerDstRow >= uImgHeight,
         "Image data size exceeds maximum allowed size");
-        
+
     const uint32_t dataSize = bytesPerDstRow * uImgHeight;
 
     std::vector<std::byte> textureData(dataSize + sizeof(CookedTextureHeader));
@@ -409,25 +391,15 @@ Cook(const CmdLinArgs& args, ThreadPool& threadPool)
 
     MLG_CHECK(GltfLoader::Load(args.InputFile, propKitDef, levelDef));
 
-    auto texPaths = CollectTexturePaths(propKitDef);
-    MLG_CHECK(texPaths);
-
-    std::unordered_map<std::string, std::string> texturePathReplacements;
-    for(const std::string_view texPath : *texPaths)
-    {
-        std::filesystem::path inPath = texPath;
-        inPath.replace_extension(".ctex");
-        texturePathReplacements.emplace(texPath, inPath.string());
-    }
-
-    MLG_CHECK(ReplaceTexturePaths(propKitDef, texturePathReplacements));
+    auto texPathMap = ReplaceTexturePaths(propKitDef);
+    MLG_CHECK(texPathMap);
 
     const Result<CookDirs> cookDirs = CookDirs::FromArgs(args);
     MLG_CHECK(cookDirs);
 
     std::deque<CookTextureWorkerParams> cookTextureParamsQueue;
 
-    std::latch cookTextureLatch(static_cast<int>(texPaths->size()));
+    std::latch cookTextureLatch(static_cast<int>(texPathMap->size()));
 
     MLG_DEFER
     {
@@ -435,13 +407,17 @@ Cook(const CmdLinArgs& args, ThreadPool& threadPool)
         cookTextureLatch.wait();
     };
 
-    for(const std::string& inTexPath : *texPaths)
+    for(const auto [inTexPath, outTexPath] : *texPathMap)
     {
-        const std::string& outTexPath = texturePathReplacements.at(inTexPath);
-        CookTextureWorkerParams& params = cookTextureParamsQueue.emplace_back(&*cookDirs,
-            inTexPath,
-            outTexPath,
-            &cookTextureLatch);
+        const CookTextureWorkerParams tmpParams //
+            {
+                .CookDirs = &*cookDirs,
+                .InTexturePath{ inTexPath },
+                .OutTexturePath{ outTexPath },
+                .Latch = &cookTextureLatch,
+            };
+
+        CookTextureWorkerParams& params = cookTextureParamsQueue.emplace_back(tmpParams);
 
         if(!threadPool.Enqueue(CookTextureWorker, &params))
         {

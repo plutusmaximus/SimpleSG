@@ -2,7 +2,7 @@
 
 #include "Result.h"
 
-#include <string>
+#include <string_view>
 
 struct PropKitDef;
 struct LevelDef;
@@ -18,5 +18,5 @@ public:
     GltfLoader(GltfLoader&&) = delete;
     GltfLoader& operator=(GltfLoader&&) = delete;
 
-    static Result<> Load(const std::string& path, PropKitDef& outPropKit, LevelDef& outLevelDef);
+    static Result<> Load(const std::string_view path, PropKitDef& outPropKit, LevelDef& outLevelDef);
 };

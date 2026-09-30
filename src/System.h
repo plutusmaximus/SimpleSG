@@ -105,7 +105,7 @@ private:
 class System::CreateTask : public ICoopTask<>
 {
 public:
-    explicit CreateTask(std::string appName);
+    explicit CreateTask(const std::string_view appName);
     ~CreateTask() override;
     CreateTask(const CreateTask&) = delete;
     CreateTask& operator=(const CreateTask&) = delete;

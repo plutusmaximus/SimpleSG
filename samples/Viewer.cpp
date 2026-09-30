@@ -40,21 +40,20 @@ RenderGui()
 
     constexpr size_t kMaxPerfStats = 256;
 
-    PerfStats perfStats[kMaxPerfStats];
-    std::span<PerfStats> perfStatsSpan(perfStats);
+    const PerfStats* perfStats[kMaxPerfStats];
+    std::span<const PerfStats*> perfStatsSpan(perfStats);
 
     // Timers
     size_t counterCount = PerfMetrics::SampleCounters<PerfTimerCategory>(perfStatsSpan);
 
-    std::span<PerfStats> sortedCounters = perfStatsSpan.first(counterCount);
+    std::span<const PerfStats*> sortedCounters = perfStatsSpan.first(counterCount);
 
-    std::ranges::sort(sortedCounters,
-        [](const PerfStats& a, const PerfStats& b) { return a.GetName() < b.GetName(); });
+    std::ranges::sort(sortedCounters, {}, &PerfStats::GetName);
 
-    for(const auto& counterStat : sortedCounters)
+    for(const auto* counterStat : sortedCounters)
     {
         const std::string text =
-            std::format("{}: {:.3f} ms", counterStat.GetName(), counterStat.GetEMA());
+            std::format("{}: {:.3f} ms", counterStat->GetName(), counterStat->GetEMA());
         ImGui::TextUnformatted(text.c_str());
     }
 
@@ -63,13 +62,12 @@ RenderGui()
 
     sortedCounters = perfStatsSpan.first(counterCount);
 
-    std::ranges::sort(sortedCounters,
-        [](const PerfStats& a, const PerfStats& b) { return a.GetName() < b.GetName(); });
+    std::ranges::sort(sortedCounters, {}, &PerfStats::GetName);
 
-    for(const auto& counterStat : sortedCounters)
+    for(const auto* counterStat : sortedCounters)
     {
         const std::string text =
-            std::format("{}: {:.3f}", counterStat.GetName(), counterStat.GetEMA());
+            std::format("{}: {:.3f}", counterStat->GetName(), counterStat->GetEMA());
         ImGui::TextUnformatted(text.c_str());
     }
 

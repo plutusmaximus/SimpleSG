@@ -5,12 +5,11 @@
 #include "FileFetcher.h"
 #include "GpuHelper.h"
 
-#include <filesystem>
 #include <webgpu/webgpu_cpp.h>
 
 ShaderFetcher::ShaderFetcher(
-    std::string path, const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
-    : m_Path(std::move(path)),
+    const std::string_view path, const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
+    : m_Path(path),
       m_GpuHelper(&gpuHelper),
       m_FileFetcher(&fileFetcher)
 {
@@ -37,7 +36,7 @@ ShaderFetcher::OnStart()
     MLG_LOG_SCOPE(m_Path);
 
     MLG_CHECKV(Stage::None == m_Stage, "Task has already been started");
-    
+
     MLG_INFO("Loading shader...");
 
     m_Stage = Stage::Failed;
@@ -98,11 +97,9 @@ ShaderFetcher::CreateShaderModule()
 {
     MLG_LOG_SCOPE(m_Path);
 
-    const std::string filename = std::filesystem::path(m_Path).filename().string();
-
     const void* dataPtr = m_ShaderData.data();
     const wgpu::StringView shaderCode{ static_cast<const char*>(dataPtr), m_ShaderData.size() };
-    const wgpu::StringView label = std::string_view(filename);
+    const wgpu::StringView label = std::string_view(m_Path);
     const wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCode } };
     const wgpu::ShaderModuleDescriptor desc{ .nextInChain = &wgsl, .label = label };
 

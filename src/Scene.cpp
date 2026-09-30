@@ -85,7 +85,7 @@ CreateMaterialBindGroups(const GpuHelper& gpuHelper,
     const GpuColorPass& gpuColorPass,
     const std::span<const MaterialResource> materialRsrcs,
     const std::span<const wgpu::Texture> textures,
-    const std::span<const std::string> texturePaths)
+    const std::span<TextureFetcher::TexturePath> texturePaths)
 {
     std::vector<wgpu::BindGroup> materialBindGroups;
     materialBindGroups.reserve(materialRsrcs.size());
@@ -388,11 +388,11 @@ Scene::TransformNodes(const wgpu::Device& gpuDevice,
 
 namespace
 {
-std::vector<std::string>
+std::vector<TextureFetcher::TexturePath>
 GetTexturePaths(const std::filesystem::path& rootPath, const ResourceBundle& resourceBundle)
 {
     const std::span texResources = resourceBundle.GetTextures();
-    std::vector<std::string> texturePaths;
+    std::vector<TextureFetcher::TexturePath> texturePaths;
     texturePaths.reserve(texResources.size());
     for(const auto& tr : texResources)
     {

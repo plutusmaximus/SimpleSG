@@ -203,13 +203,13 @@ DevUi::DrawPerfPanel() const // NOLINT(readability-convert-member-functions-to-s
 {
     constexpr size_t kMaxPerfStats = 256;
 
-    PerfStats perfStats[kMaxPerfStats];
-    std::span<PerfStats> perfStatsSpan(perfStats);
+    const PerfStats* perfStats[kMaxPerfStats];
+    std::span<const PerfStats*> perfStatsSpan(perfStats);
 
     // Timers
     size_t counterCount = PerfMetrics::SampleCounters<PerfTimerCategory>(perfStatsSpan);
 
-    std::span<PerfStats> sortedCounters = perfStatsSpan.first(counterCount);
+    std::span<const PerfStats*> sortedCounters = perfStatsSpan.first(counterCount);
 
     std::ranges::sort(sortedCounters, {}, &PerfStats::GetName);
 
@@ -219,7 +219,7 @@ DevUi::DrawPerfPanel() const // NOLINT(readability-convert-member-functions-to-s
 
     auto drawSubTree = [](this auto&& self,
                            const std::string_view prefix,
-                           const std::span<PerfStats> pss) -> std::span<PerfStats>
+                           const std::span<const PerfStats*> pss) -> std::span<const PerfStats*>
     {
         bool isOpen = false;
         if(!prefix.empty())
@@ -238,11 +238,11 @@ DevUi::DrawPerfPanel() const // NOLINT(readability-convert-member-functions-to-s
             }
         };
 
-        std::span<PerfStats> curPss = pss;
+        std::span<const PerfStats*> curPss = pss;
 
         while(!curPss.empty())
         {
-            const PerfStats& ps = curPss.front();
+            const PerfStats& ps = *curPss.front();
             const std::string_view curName = ps.GetName();
 
             MLG_ASSERT(!curName.empty(), "Empty perf counter name");
@@ -305,11 +305,7 @@ DevUi::DrawPerfPanel() const // NOLINT(readability-convert-member-functions-to-s
 
     sortedCounters = perfStatsSpan.first(counterCount);
 
-    std::ranges::sort(sortedCounters,
-        [](const PerfStats& a, const PerfStats& b)
-        {
-            return a.GetName() < b.GetName();
-        });
+    std::ranges::sort(sortedCounters, {}, &PerfStats::GetName);
 
     drawSubTree("", sortedCounters);
 }
@@ -390,9 +386,15 @@ DevUi::DrawCliPanel()
     {
         if(m_CliState.GetInput()[0] != '\0')
         {
+            constexpr std::string_view prompt = "> ";
             const std::string command = m_CliState.GetInput().data();
 
-            m_CliState.AddLine("> " + command);
+            std::string line;
+            
+            line.reserve(prompt.size() + command.size());
+            line.append(prompt).append(command);
+
+            m_CliState.AddLine(std::move(line));
             m_CliState.AddHistory(command);
             m_CliState.ClearInput();
             m_CliScrollToBottom = true;

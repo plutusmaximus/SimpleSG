@@ -18,12 +18,12 @@
 TextureFetcher::FetchTask::FetchTask(const GpuHelper& gpuHelper,
     FileFetcher& fileFetcher,
     ThreadPool& threadPool,
-    std::string path,
+    const std::string_view path,
     wgpu::CommandEncoder commandEncoder)
     : m_GpuHelper(&gpuHelper),
       m_FileFetcher(&fileFetcher),
       m_ThreadPool(&threadPool),
-      m_Path(std::move(path)),
+      m_Path(path),
       m_CommandEncoder(std::move(commandEncoder))
 {
 }
@@ -250,7 +250,7 @@ TextureFetcher::FetchTask::CommitStagingBuffer()
 TextureFetcher::TextureFetcher(const GpuHelper& gpuHelper,
     FileFetcher& fileFetcher,
     ThreadPool& threadPool,
-    std::vector<std::string> texturePaths)
+    std::vector<TexturePath> texturePaths)
     : m_GpuHelper(&gpuHelper),
       m_FileFetcher(&fileFetcher),
       m_ThreadPool(&threadPool),
@@ -265,7 +265,9 @@ TextureFetcher::Take()
     MLG_CHECKV(!m_Consumed, "Task result already consumed");
 
     m_Consumed = true;
-    return std::move(m_Textures);
+
+    auto bye = std::move(m_Textures);
+    return bye;
 }
 
 // private:
@@ -296,7 +298,7 @@ TextureFetcher::OnStart()
     std::vector<ICoopTask*> taskBatch;
     taskBatch.reserve(m_TexturePaths.size());
 
-    for(const std::string& path : m_TexturePaths)
+    for(const TexturePath& path : m_TexturePaths)
     {
         FetchTask& task = m_Tasks.emplace_back(*m_GpuHelper,
             *m_FileFetcher,

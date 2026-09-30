@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoopTask.h"
+#include "FixedString.h"
 #include "GpuTypes.h"
 #include "VecMath.h"
 
@@ -169,7 +170,7 @@ public:
         std::atomic<bool> IsComplete{ false };
     };
 
-    explicit CreateTask(std::string appName);
+    explicit CreateTask(const std::string_view appName);
     ~CreateTask() override = default;
     CreateTask(const CreateTask&) = delete;
     CreateTask& operator=(const CreateTask&) = delete;
@@ -203,7 +204,8 @@ private:
     Result<> FinalizeDevice();
     Result<> Configure();
 
-    std::string m_AppName;
+    constexpr static size_t kMaxAppNameLen = 64;
+    FixedString<kMaxAppNameLen> m_AppName;
 
     AdapterRequestData m_AdapterRequestData;
     DeviceRequestData m_DeviceRequestData;

@@ -12,6 +12,7 @@
 
 #include <cgltf.h>
 #include <filesystem>
+#include <unordered_map>
 #include <vector>
 
 namespace
@@ -39,10 +40,14 @@ struct CgltfMeshData
 
 constexpr RgbaColorf kDefaultColor{ "#FF00FFFF"_rgba };
 
-std::string
-MakeName(const char* name, const char* baseName, const size_t index)
+/// Makes a name for a model or primitive.
+/// If the name is empty, a name will be generated using the baseName and index.
+FixedString<LevelDefs::kMaxNameLength>
+MakeName(const std::string_view name, const char* baseName, const size_t index)
 {
-    return name ? std::string(name) : std::format("{}_{}", baseName, index);
+    return !name.empty()
+        ? FixedString<LevelDefs::kMaxNameLength>(name)
+        : FixedString<LevelDefs::kMaxNameLength>(std::format("{}_{}", baseName, index));
 }
 
 Result<CgltfPrimitiveAttributes>
@@ -173,13 +178,13 @@ CollectMeshes(const cgltf_data* gltfData)
         gltfMeshes.push_back(std::move(meshData));
     }
 
-    return std::move(gltfMeshes);
+    return gltfMeshes;
 }
 
 Result<MaterialDef>
 CreateMaterialDef(const cgltf_material* gltfMaterial)
 {
-    std::string baseTexturePath;
+    FixedString<LevelDefs::kMaxPathLength> baseTexturePath;
     RgbaColorf color = kDefaultColor;
     float metalness = 0;
     float roughness = 0;
@@ -225,13 +230,13 @@ CreateMaterialDef(const cgltf_material* gltfMaterial)
 
     MaterialDef materialDef //
         {
-            .BaseTexturePath = baseTexturePath,
+            .BaseTexturePath{ baseTexturePath },
             .Color = color,
             .Metalness = metalness,
             .Roughness = roughness,
         };
 
-    return std::move(materialDef);
+    return materialDef;
 }
 
 Result<std::vector<Vertex>>
@@ -287,7 +292,7 @@ CollectVertices(const CgltfPrimitiveAttributes& attrs)
         vertices.push_back(vertex);
     }
 
-    return std::move(vertices);
+    return vertices;
 }
 
 Result<std::vector<VertexIndex>>
@@ -327,7 +332,7 @@ CollectIndices(const CgltfPrimitiveAttributes& attrs)
         std::swap(indices[idx + 1], indices[idx + 2]);
     }
 
-    return std::move(indices);
+    return indices;
 }
 
 Result<>
@@ -366,11 +371,27 @@ GenerateNormals(std::span<Vertex> vertices, std::span<const VertexIndex> indices
     return Result<>::Ok;
 }
 
-Result<std::vector<ModelDef>>
+struct ModelCollection
+{
+    std::unordered_map<const cgltf_mesh*, size_t> MeshModelMap;
+    std::vector<ModelDef> Models;
+
+    const ModelDef* GetModel(const cgltf_mesh* mesh) const
+    {
+        auto it = MeshModelMap.find(mesh);
+        if(MLG_VERIFY(it != MeshModelMap.end()))
+        {
+            return &Models[it->second];
+        }
+        return nullptr;
+    }
+};
+
+Result<ModelCollection>
 CollectModels(const std::span<CgltfMeshData> gltfMeshes)
 {
-    std::vector<ModelDef> modelDefs;
-    modelDefs.reserve(gltfMeshes.size());
+    ModelCollection collection;
+    collection.Models.reserve(gltfMeshes.size());
 
     for(size_t i = 0; i < gltfMeshes.size(); ++i)
     {
@@ -403,26 +424,29 @@ CollectModels(const std::span<CgltfMeshData> gltfMeshes)
             auto mtlDef = CreateMaterialDef(prim.material);
             MLG_CHECK(mtlDef);
 
-            const MeshDef meshDef //
+            MeshDef meshDef //
                 {
                     .Vertices = std::move(*vertices),
                     .Indices = std::move(*indices),
                     .MaterialDef = std::move(*mtlDef),
                 };
 
-            meshDefs.push_back(meshDef);
+            meshDefs.push_back(std::move(meshDef));
         }
+
+        const std::string_view modelName = gltfMesh.Mesh->name ? gltfMesh.Mesh->name : "";
 
         ModelDef model //
             {
-                .Name = MakeName(gltfMesh.Mesh->name, "Model", i),
+                .Name = MakeName(modelName, "Model", i),
                 .MeshDefs = std::move(meshDefs),
             };
 
-        modelDefs.push_back(std::move(model));
+        collection.MeshModelMap.emplace(gltfMesh.Mesh, collection.Models.size());
+        collection.Models.push_back(std::move(model));
     }
 
-    return modelDefs;
+    return collection;
 }
 
 void
@@ -442,9 +466,11 @@ ConvertRHtoLH(Mat44f& M)
 
 template<typename T>
 Result<>
-CollectNode(const cgltf_node& srcNode, T& nodeDefs)
+CollectNode(
+    const cgltf_node& srcNode, std::vector<T>& nodeDefs, const ModelCollection& modelCollection)
 {
-    std::string nodeName = srcNode.name ? srcNode.name : "<unnamed>";
+    const FixedString<LevelDefs::kMaxNameLength> nodeName =
+        MakeName(srcNode.name ? srcNode.name : "", "Node", nodeDefs.size());
 
     MLG_LOG_SCOPE("node {}", nodeName);
 
@@ -468,12 +494,18 @@ CollectNode(const cgltf_node& srcNode, T& nodeDefs)
         nodeTransform.R = flipX * nodeTransform.R * flipX.Conjugate();
     }
 
-    std::string modelName;
+    const ModelDef* modelDef = nullptr;
 
     if(srcNode.mesh)
     {
-        modelName = srcNode.mesh->name ? srcNode.mesh->name : "<unnamed>";
+        modelDef = modelCollection.GetModel(srcNode.mesh);
+        MLG_CHECKV(modelDef, "Mesh not found in modelCollection");
     }
+
+    const FixedString<LevelDefs::kMaxNameLength> modelName =
+        modelDef ? modelDef->Name : FixedString<LevelDefs::kMaxNameLength>{};
+
+    MLG_CHECKV(!modelDef || !modelName.empty(), "Model name must not be empty");
 
     std::vector<ChildNodeDef> childNodes;
     childNodes.reserve(srcNode.children_count);
@@ -482,7 +514,7 @@ CollectNode(const cgltf_node& srcNode, T& nodeDefs)
 
     for(const cgltf_node* child : childrenSpan)
     {
-        MLG_CHECK(CollectNode(*child, childNodes));
+        MLG_CHECK(CollectNode(*child, childNodes, modelCollection));
     }
 
     if(childNodes.empty() && !srcNode.mesh)
@@ -523,8 +555,8 @@ CollectNode(const cgltf_node& srcNode, T& nodeDefs)
     }
     else
     {
-        using NodeDef = std::ranges::range_value_t<T>;
-        
+        using NodeDef = T;
+
         NodeDef newNodeDef //
             {
                 .Name{ nodeName },
@@ -534,7 +566,7 @@ CollectNode(const cgltf_node& srcNode, T& nodeDefs)
 
         if(!modelName.empty())
         {
-            newNodeDef.Model = ModelRef{ .Name = modelName };
+            newNodeDef.Model = ModelRef{ .Name{ modelName } };
         }
 
         nodeDefs.push_back(std::move(newNodeDef));
@@ -544,7 +576,7 @@ CollectNode(const cgltf_node& srcNode, T& nodeDefs)
 }
 
 Result<std::vector<RootNodeDef>>
-CollectNodes(const cgltf_data* gltfData)
+CollectNodes(const cgltf_data* gltfData, const ModelCollection& modelCollection)
 {
     const std::span<const cgltf_scene> scenesSpan(gltfData->scenes, gltfData->scenes_count);
 
@@ -560,7 +592,7 @@ CollectNodes(const cgltf_data* gltfData)
 
     for(const cgltf_node* node : nodesSpan)
     {
-        MLG_CHECK(CollectNode(*node, rootNodeDefs));
+        MLG_CHECK(CollectNode(*node, rootNodeDefs, modelCollection));
     }
 
     return rootNodeDefs;
@@ -569,7 +601,7 @@ CollectNodes(const cgltf_data* gltfData)
 } // namespace
 
 Result<>
-GltfLoader::Load(const std::string& path, PropKitDef& outPropKit, LevelDef& outLevelDef)
+GltfLoader::Load(const std::string_view path, PropKitDef& outPropKit, LevelDef& outLevelDef)
 {
     const std::filesystem::path filePath(path);
 
@@ -577,7 +609,7 @@ GltfLoader::Load(const std::string& path, PropKitDef& outPropKit, LevelDef& outL
 
     const cgltf_options options = {};
     cgltf_data* gltfData = nullptr;
-    const cgltf_result result = cgltf_parse_file(&options, path.c_str(), &gltfData);
+    const cgltf_result result = cgltf_parse_file(&options, filePath.string().c_str(), &gltfData);
     MLG_CHECK(result == cgltf_result_success, "Failed to load glTF file");
 
     auto cleanup = scope_exit(
@@ -608,15 +640,15 @@ GltfLoader::Load(const std::string& path, PropKitDef& outPropKit, LevelDef& outL
     auto gltfMeshes = CollectMeshes(gltfData);
     MLG_CHECK(gltfMeshes)
 
-    auto modelDefs = CollectModels(*gltfMeshes);
-    MLG_CHECK(modelDefs);
+    auto modelCollection = CollectModels(*gltfMeshes);
+    MLG_CHECK(modelCollection);
 
-    auto rootNodeDefs = CollectNodes(gltfData);
+    auto rootNodeDefs = CollectNodes(gltfData, *modelCollection);
     MLG_CHECK(rootNodeDefs);
 
     PropKitDef propKit //
         {
-            .ModelDefs = std::move(*modelDefs),
+            .ModelDefs = std::move(modelCollection->Models),
         };
 
     LevelDef levelDef //

@@ -2,10 +2,10 @@
 
 #include "CoopTask.h"
 #include "FileFetcher.h"
+#include "FixedString.h"
 #include "Result.h"
 
 #include <cstdint>
-#include <string>
 #include <vector>
 #include <webgpu/webgpu_cpp.h>
 
@@ -19,7 +19,7 @@ class ShaderFetcher : public ICoopTask<>
 {
 public:
 
-    ShaderFetcher(std::string path, const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
+    ShaderFetcher(const std::string_view path, const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
 
     ShaderFetcher() = delete;
     ~ShaderFetcher() override = default;
@@ -48,7 +48,8 @@ private:
 
     Result<> CreateShaderModule();
 
-    std::string m_Path;
+    constexpr static size_t kMaxPathLen = 256; // Adjust as needed
+    FixedString<kMaxPathLen> m_Path;
     const GpuHelper* m_GpuHelper{ nullptr };
     FileFetcher* m_FileFetcher{ nullptr };
     FetchRequestId m_RequestId;

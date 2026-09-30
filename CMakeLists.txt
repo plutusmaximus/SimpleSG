@@ -360,7 +360,6 @@ set(SSG_SOURCES
   src/ShaderFetcher.cpp
   src/ShapeMeshDefs.cpp
   src/Shell.cpp
-  src/StringArena.cpp
   src/stb_image.cpp
   src/System.cpp
   src/TextureFetcher.cpp
@@ -376,6 +375,7 @@ set(SSG_HEADERS
   src/CoopTask.h
   src/DevUi.h
   src/FileFetcher.h
+  src/FixedString.h
   src/GltfLoader.h
   src/GpuColorPass.h
   src/GpuCompositorPass.h
@@ -400,7 +400,6 @@ set(SSG_HEADERS
   src/ShaderFetcher.h
   src/ShapeMeshDefs.h
   src/Shell.h
-  src/StringArena.h
   src/System.h
   src/TextureFetcher.h
   src/ThreadPool.h

@@ -102,7 +102,7 @@ LoadLevel(System& system)
             {
                 .Name{ std::format("Body{}", i) },
                 .Transform{ .T{ position }, .S{ radius } },
-                .Model = ModelRef{ .Name = "Shape" },
+                .Model = ModelRef{ .Name{ "Shape" } },
                 .Body =
                     RigidBodyDef //
                 {

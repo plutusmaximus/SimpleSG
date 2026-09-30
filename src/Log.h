@@ -43,7 +43,7 @@ public:
         Logger(Logger&&) = delete;
         Logger& operator=(Logger&&) = delete;
 
-        void Log(const Level level, const std::string& message) { LogImpl(level, Prefix(message)); }
+        void Log(const Level level, const std::string_view message) { LogImpl(level, Prefix(message)); }
 
         template<typename... Args>
         void Log(const Level level, std::format_string<Args...> fmt, Args&&... args)
@@ -59,7 +59,7 @@ public:
             const std::string formattedMessage =
                 std::format("{}({}): {} - {}", fileName, lineNum, function, message);
 
-            Log(Log::Level::Error, Prefix(formattedMessage));
+            Log(Log::Level::Error, formattedMessage);
         }
 
         template<typename... Args>
@@ -99,7 +99,7 @@ public:
 
 private:
 
-    static std::string Prefix(const std::string& message);
+    static std::string Prefix(const std::string_view message);
 };
 
 namespace mlg
