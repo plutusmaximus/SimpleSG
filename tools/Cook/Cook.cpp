@@ -397,7 +397,8 @@ Cook(const CmdLinArgs& args, ThreadPool& threadPool)
     const Result<CookDirs> cookDirs = CookDirs::FromArgs(args);
     MLG_CHECK(cookDirs);
 
-    std::deque<CookTextureWorkerParams> cookTextureParamsQueue;
+    std::vector<CookTextureWorkerParams> cookTextureParams;
+    cookTextureParams.reserve(texPathMap->size());
 
     std::latch cookTextureLatch(static_cast<int>(texPathMap->size()));
 
@@ -417,7 +418,7 @@ Cook(const CmdLinArgs& args, ThreadPool& threadPool)
                 .Latch = &cookTextureLatch,
             };
 
-        CookTextureWorkerParams& params = cookTextureParamsQueue.emplace_back(tmpParams);
+        CookTextureWorkerParams& params = cookTextureParams.emplace_back(tmpParams);
 
         if(!threadPool.Enqueue(CookTextureWorker, &params))
         {
@@ -435,7 +436,7 @@ Cook(const CmdLinArgs& args, ThreadPool& threadPool)
 
     Result<> cookTexResult = Result<>::Ok;
 
-    for(const CookTextureWorkerParams& params : cookTextureParamsQueue)
+    for(const CookTextureWorkerParams& params : cookTextureParams)
     {
         if(!params.Result)
         {

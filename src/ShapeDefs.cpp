@@ -519,9 +519,11 @@ ShapeDefs::Torus(const TorusParams& params)
     vertices.reserve(totalVertices);
     indices.reserve(totalIndices);
 
+    constexpr size_t kMaxSegments = static_cast<size_t>(ShapeDefs::kMaxSmoothness * 4);
+
     // Precompute trig values for major circle
-    std::vector<float> cosThetaCache(numSegmentsMajor);
-    std::vector<float> sinThetaCache(numSegmentsMajor);
+    float cosThetaCache[kMaxSegments];
+    float sinThetaCache[kMaxSegments];
     for (size_t i = 0; i < numSegmentsMajor; ++i)
     {
         const float theta = static_cast<float>(i) * dTheta;
@@ -530,8 +532,8 @@ ShapeDefs::Torus(const TorusParams& params)
     }
 
     // Precompute trig values for minor circle
-    std::vector<float> cosPhiCache(numSegmentsMinor);
-    std::vector<float> sinPhiCache(numSegmentsMinor);
+    float cosPhiCache[kMaxSegments];
+    float sinPhiCache[kMaxSegments];
     for (size_t j = 0; j < numSegmentsMinor; ++j)
     {
         const float phi = static_cast<float>(j) * dPhi;

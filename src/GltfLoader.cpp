@@ -44,9 +44,8 @@ constexpr RgbaColorf kDefaultColor{ "#FF00FFFF"_rgba };
 LevelDefs::NameString
 MakeName(const std::string_view name, const char* baseName, const size_t index)
 {
-    return !name.empty()
-        ? LevelDefs::NameString(name)
-        : LevelDefs::NameString(std::format("{}_{}", baseName, index));
+    return !name.empty() ? LevelDefs::NameString(name)
+                         : LevelDefs::NameString(std::format("{}_{}", baseName, index));
 }
 
 Result<CgltfPrimitiveAttributes>
@@ -137,6 +136,7 @@ Result<std::vector<CgltfMeshData>>
 CollectMeshes(const cgltf_data* gltfData)
 {
     std::vector<CgltfMeshData> gltfMeshes;
+    gltfMeshes.reserve(gltfData->meshes_count);
 
     const std::span<const cgltf_mesh> meshesSpan(gltfData->meshes, gltfData->meshes_count);
     for(const cgltf_mesh& mesh : meshesSpan)
@@ -149,6 +149,8 @@ CollectMeshes(const cgltf_data* gltfData)
             };
 
         const std::span<const cgltf_primitive> primsSpan(mesh.primitives, mesh.primitives_count);
+        meshData.Primitives.reserve(mesh.primitives_count);
+
         for(const cgltf_primitive& prim : primsSpan)
         {
             MLG_LOG_SCOPE("prim {}", &prim - primsSpan.data());
@@ -501,8 +503,7 @@ CollectNode(
         MLG_CHECKV(modelDef, "Mesh not found in modelCollection");
     }
 
-    const LevelDefs::NameString modelName =
-        modelDef ? modelDef->Name : LevelDefs::NameString{};
+    const LevelDefs::NameString modelName = modelDef ? modelDef->Name : LevelDefs::NameString{};
 
     MLG_CHECKV(!modelDef || !modelName.empty(), "Model name must not be empty");
 
@@ -632,8 +633,7 @@ GltfLoader::Load(const std::string_view path, PropKitDef& outPropKit, LevelDef& 
             bufferView.name ? bufferView.name : "<unnamed>");
     }
 
-    const cgltf_result loadBuffersResult =
-        cgltf_load_buffers(&options, gltfData, filePath.c_str());
+    const cgltf_result loadBuffersResult = cgltf_load_buffers(&options, gltfData, filePath.c_str());
     MLG_CHECK(loadBuffersResult == cgltf_result_success, "Failed to load buffers");
 
     auto gltfMeshes = CollectMeshes(gltfData);
