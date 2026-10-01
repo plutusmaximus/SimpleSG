@@ -17,6 +17,11 @@ Build larger behavior by putting focused components together. Use inheritance
 when different types genuinely need to be used through the same interface, not
 just to reuse code or give several classes the same shape.
 
+## Make invalid states unrepresentable
+
+Prefer types whose instances are always valid. Enforce their rules during
+construction and preserve those rules in any operation that changes the value.  For example, a move operation should not leave one of these types unusable.  Either delete the move operations, or shunt move ops to copy ops.
+
 ## Keep abstractions thin and boundaries strong
 
 - Use a class when it owns something, enforces a rule, or hides a meaningful
