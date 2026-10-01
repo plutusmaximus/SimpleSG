@@ -12,7 +12,7 @@
 #include <vector>
 
 /// Represents the device to which an input button belongs.
-// Devices like gamepads, etc. can be added as they are implemented.
+/// Devices like gamepads, etc. can be added as they are implemented.
 enum class InputButtonDevice
 {
     Keyboard,
@@ -319,8 +319,13 @@ public:
     /// input events.
     void BeginFrame();
 
+    /// Called when a button is pressed on an input device.
     void OnButtonPressed(const InputButtonDevice device, const unsigned buttonId);
+
+    /// Called when a button is released on an input device.
     void OnButtonReleased(const InputButtonDevice device, const unsigned buttonId);
+
+    /// Called when an axis on an input device changes value.
     void OnAxis(const InputAxisDevice device, const InputAxisIdentifier axisId, const float value);
 
     /// Ends the current frame. This should be called at the end of each frame after

@@ -10,6 +10,11 @@
 #include <string>
 #include <utility>
 
+namespace
+{
+constexpr size_t kBucketSize = 256;
+}
+
 FileFetcher::Request::~Request()
 {
     MLG_ASSERT(Stage::None == m_Stage || !IsPending(), "Request destroyed while still pending");
@@ -333,7 +338,7 @@ FileFetcher::SetSucceeded(const FetchRequestId requestId)
     const RequestWrapper* wrapper = GetRequest(requestId);
     if(MLG_VERIFY(wrapper) && MLG_VERIFY(wrapper->m_Request->IsPending()))
     {
-        wrapper->m_Request->m_Stage = FileFetcher::Request::Stage::Success;
+        wrapper->m_Request->m_Stage = FileFetcher::Request::Stage::Succeeded;
     }
 }
 
@@ -343,7 +348,7 @@ FileFetcher::SetFailed(const FetchRequestId requestId)
     const RequestWrapper* wrapper = GetRequest(requestId);
     if(MLG_VERIFY(wrapper) && MLG_VERIFY(wrapper->m_Request->IsPending()))
     {
-        wrapper->m_Request->m_Stage = FileFetcher::Request::Stage::Failure;
+        wrapper->m_Request->m_Stage = FileFetcher::Request::Stage::Failed;
     }
 }
 

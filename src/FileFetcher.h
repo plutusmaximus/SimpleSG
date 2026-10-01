@@ -80,9 +80,9 @@ private:
     enum class Stage
         {
             None,
-            Failure,
             Pending,
-            Success,
+            Succeeded,
+            Failed,
         };
 
         explicit Request(const RelativeFilePath& relativePath)
@@ -96,7 +96,7 @@ private:
         Request& operator=(Request&&) = delete;
 
         bool IsPending() const { return m_Stage == Stage::Pending; }
-        bool Succeeded() const { return m_Stage == Stage::Success; }
+        bool Succeeded() const { return m_Stage == Stage::Succeeded; }
 
         SDL_AsyncIO* m_AsyncIO{ nullptr };
 
@@ -145,8 +145,6 @@ private:
     const RequestWrapper* GetRequest(const FetchRequestId requestId) const;
 
     SDL_AsyncIOQueue* m_IoQueue{ nullptr };
-
-    static constexpr size_t kBucketSize = 256;
 
     uint32_t m_HeapSize{ 0 };
     uint32_t m_AllocCount{ 0 };
