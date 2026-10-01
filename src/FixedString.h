@@ -2,14 +2,15 @@
 
 #include "AssertHelper.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <format>
+#include <initializer_list>
+#include <optional>
 #include <string_view>
 
 /// A fixed-size string class that stores a string of up to N-1 characters and a null terminator.
 /// Used instead of std::string for strings at rest (e.g. member vars).
-/// Typically FixedString is not passed as a parameter - pass std::string_view instead for
-/// maximum compatibility.
 template<size_t N>
 // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
 class FixedString
@@ -20,7 +21,7 @@ public:
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
     FixedString()
     {
-        Chars[0] = '\0';
+        m_Chars[0] = '\0';
         m_Hash = ComputeHash(*this); // NOLINT(cppcoreguidelines-prefer-member-initializer)
     }
 
@@ -32,9 +33,9 @@ public:
 
         for(size_t i = 0; i < m_Length; ++i)
         {
-            Chars[i] = str[i];
+            m_Chars[i] = str[i];
         }
-        Chars[m_Length] = '\0';
+        m_Chars[m_Length] = '\0';
 
         m_Hash = ComputeHash(*this);
     }
@@ -47,9 +48,9 @@ public:
 
         for(size_t i = 0; i < m_Length; ++i)
         {
-            Chars[i] = str[i];
+            m_Chars[i] = str[i];
         }
-        Chars[m_Length] = '\0';
+        m_Chars[m_Length] = '\0';
 
         m_Hash = ComputeHash(*this);
 
@@ -60,10 +61,36 @@ public:
 
     bool empty() const { return m_Length == 0; }
 
-    const char* c_str() const { return &Chars[0]; }
+    const char* c_str() const { return &m_Chars[0]; }
+
+    /// Attempts to concatenate the given parts into a FixedString.
+    /// Returns std::nullopt if the concatenated string would exceed the capacity.
+    [[nodiscard]] static std::optional<FixedString> TryCat(const std::initializer_list<std::string_view> parts)
+    {
+        size_t remaining = (N - 1);
+        for(const std::string_view view : parts)
+        {
+            if(!MLG_VERIFY(view.size() <= remaining))
+            {
+                return std::nullopt;
+            }
+            remaining -= view.size();
+        }
+
+        FixedString<N> result;
+        char* out = &result.m_Chars[0];
+        for(const std::string_view view : parts)
+        {
+            out = std::ranges::copy(view, out).out;
+        }
+        *out = '\0';
+        result.m_Length = (N - 1) - remaining;
+        result.m_Hash = ComputeHash(result);
+        return result;
+    }
 
     // NOLINTNEXTLINE(google-explicit-constructor)
-    operator std::string_view() const { return std::string_view(&Chars[0], m_Length); }
+    operator std::string_view() const { return std::string_view(&m_Chars[0], m_Length); }
 
     friend auto operator<=>(const FixedString& lhs, const FixedString& rhs)
     {
@@ -93,7 +120,7 @@ private:
         return std::hash<std::string_view>{}(str);
     }
 
-    char Chars[N];
+    char m_Chars[N];
     size_t m_Length{ 0 };
     size_t m_Hash{ 0 };
 };

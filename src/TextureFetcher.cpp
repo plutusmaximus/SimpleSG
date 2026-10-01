@@ -18,12 +18,14 @@
 TextureFetcher::FetchTask::FetchTask(const GpuHelper& gpuHelper,
     FileFetcher& fileFetcher,
     ThreadPool& threadPool,
-    const std::string_view path,
+    const TextureFetcher& textureFetcher,
+    const RelativeFilePath& relativePath,
     wgpu::CommandEncoder commandEncoder)
     : m_GpuHelper(&gpuHelper),
       m_FileFetcher(&fileFetcher),
       m_ThreadPool(&threadPool),
-      m_Path(path),
+      m_TextureFetcher(&textureFetcher),
+      m_RelativePath(relativePath),
       m_CommandEncoder(std::move(commandEncoder))
 {
 }
@@ -31,7 +33,8 @@ TextureFetcher::FetchTask::FetchTask(const GpuHelper& gpuHelper,
 Result<wgpu::Texture>
 TextureFetcher::FetchTask::Take()
 {
-    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task is not complete");
+    MLG_CHECKV(!IsRunning(), "Task is not complete");
+    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task failed");
     MLG_CHECKV(m_Texture, "Texture is not valid");
 
     wgpu::Texture texture = m_Texture;
@@ -47,12 +50,18 @@ TextureFetcher::FetchTask::OnStart()
 {
     MLG_CHECKV(Stage::None == m_Stage, "Task already started");
 
+    m_Stage = Stage::Failed; // Set to failed in case of early exit
+
     m_Texture = m_GpuHelper->GetDefaultTexture();
     MLG_CHECK(m_Texture, "Failed to get default texture");
 
-    m_Stage = Stage::Failed; // Set to failed in case of early exit
+    auto fullPath = m_TextureFetcher->m_ParentPath.Join(m_RelativePath);
+    MLG_CHECK(fullPath,
+        "Failed to construct full path for {}/{}",
+        m_TextureFetcher->m_ParentPath,
+        m_RelativePath);
 
-    auto fetchRequestId = m_FileFetcher->Fetch(m_Path);
+    auto fetchRequestId = m_FileFetcher->Fetch(*fullPath);
     MLG_CHECK(fetchRequestId);
 
     m_FetchRequestId = *fetchRequestId;
@@ -65,7 +74,7 @@ TextureFetcher::FetchTask::OnStart()
 void
 TextureFetcher::FetchTask::OnUpdate()
 {
-    MLG_LOG_SCOPE(m_Path);
+    MLG_LOG_SCOPE(m_RelativePath);
 
     switch(m_Stage)
     {
@@ -143,11 +152,11 @@ TextureFetcher::FetchTask::BeginDecode()
 
     auto texture = m_GpuHelper->CreateTexture(static_cast<uint32_t>(width),
         static_cast<uint32_t>(height),
-        m_Path);
+        m_RelativePath);
 
     MLG_CHECK(texture);
 
-    auto stagingBuffer = m_GpuHelper->CreateStagingBuffer(*texture, m_Path);
+    auto stagingBuffer = m_GpuHelper->CreateStagingBuffer(*texture, m_RelativePath);
     MLG_CHECK(stagingBuffer);
     MLG_CHECKV(stagingBuffer->GetSize() > 0, "Staging buffer has zero size");
     MLG_CHECKV(stagingBuffer->GetSize() <= std::numeric_limits<size_t>::max(),
@@ -250,10 +259,12 @@ TextureFetcher::FetchTask::CommitStagingBuffer()
 TextureFetcher::TextureFetcher(const GpuHelper& gpuHelper,
     FileFetcher& fileFetcher,
     ThreadPool& threadPool,
-    std::vector<TexturePath> texturePaths)
+    const DirectoryPath& parentPath,
+    std::vector<RelativeFilePath> texturePaths)
     : m_GpuHelper(&gpuHelper),
       m_FileFetcher(&fileFetcher),
       m_ThreadPool(&threadPool),
+      m_ParentPath(parentPath),
       m_TexturePaths(std::move(texturePaths))
 {
 }
@@ -298,12 +309,13 @@ TextureFetcher::OnStart()
     std::vector<ICoopTask*> taskBatch;
     taskBatch.reserve(m_TexturePaths.size());
 
-    for(const TexturePath& path : m_TexturePaths)
+    for(const RelativeFilePath& texPath : m_TexturePaths)
     {
         FetchTask& task = m_Tasks.emplace_back(*m_GpuHelper,
             *m_FileFetcher,
             *m_ThreadPool,
-            path,
+            *this,
+            texPath,
             m_CommandEncoder);
 
         taskBatch.push_back(&task);

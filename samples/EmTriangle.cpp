@@ -10,7 +10,6 @@
 #include "Shell.h"
 #include "System.h"
 
-#include <filesystem>
 #include <imgui.h>
 #include <optional>
 #include <SDL3/SDL_events.h>
@@ -174,9 +173,9 @@ TriangleApp::OnStart(System& system)
     MLG_CHECK(levelResult, "Failed to create Level");
     m_Level = std::move(*levelResult);
 
-    const std::filesystem::path rootPath = ".";
+    const DirectoryPath parentPath = DirectoryPath::Current();
 
-    m_SceneCreateTask.emplace(*m_System, rootPath, *m_ResourceBundle, *m_Level);
+    m_SceneCreateTask.emplace(*m_System, parentPath, *m_ResourceBundle, *m_Level);
 
     MLG_CHECK(m_SceneCreateTask->Start(), "Failed to begin scene create task");
 

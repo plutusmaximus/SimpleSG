@@ -7,10 +7,8 @@
 
 #include <webgpu/webgpu_cpp.h>
 
-ShaderFetcher::ShaderFetcher(
-    const std::string_view path, const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
-    : m_Path(path),
-      m_GpuHelper(&gpuHelper),
+ShaderFetcher::ShaderFetcher(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
+    : m_GpuHelper(&gpuHelper),
       m_FileFetcher(&fileFetcher)
 {
 }
@@ -31,9 +29,9 @@ ShaderFetcher::Take()
 // private
 
 Result<>
-ShaderFetcher::OnStart()
+ShaderFetcher::OnStart(const FilePath& path)
 {
-    MLG_LOG_SCOPE(m_Path);
+    MLG_LOG_SCOPE(path);
 
     MLG_CHECKV(Stage::None == m_Stage, "Task has already been started");
 
@@ -41,12 +39,14 @@ ShaderFetcher::OnStart()
 
     m_Stage = Stage::Failed;
 
-    auto requestId = m_FileFetcher->Fetch(m_Path);
+    auto requestId = m_FileFetcher->Fetch(path);
     MLG_CHECK(requestId);
 
     m_RequestId = *requestId;
 
     m_Stage = Stage::Fetching;
+
+    m_DiagPath = path.GetStem();
 
     return Result<>::Ok;
 }
@@ -54,7 +54,7 @@ ShaderFetcher::OnStart()
 void
 ShaderFetcher::OnUpdate()
 {
-    MLG_LOG_SCOPE(m_Path);
+    MLG_LOG_SCOPE(m_DiagPath);
 
     switch(m_Stage)
     {
@@ -95,11 +95,11 @@ ShaderFetcher::OnUpdate()
 Result<>
 ShaderFetcher::CreateShaderModule()
 {
-    MLG_LOG_SCOPE(m_Path);
+    MLG_LOG_SCOPE(m_DiagPath);
 
     const void* dataPtr = m_ShaderData.data();
     const wgpu::StringView shaderCode{ static_cast<const char*>(dataPtr), m_ShaderData.size() };
-    const wgpu::StringView label = std::string_view(m_Path);
+    const wgpu::StringView label = std::string_view(m_DiagPath);
     const wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCode } };
     const wgpu::ShaderModuleDescriptor desc{ .nextInChain = &wgsl, .label = label };
 

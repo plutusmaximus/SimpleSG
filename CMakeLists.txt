@@ -325,12 +325,21 @@ endif()
 # ============================================================
 # Shaders / Assets
 # ============================================================
+set(RESOURCE_ROOT "${CMAKE_SOURCE_DIR}/resources")
 add_subdirectory(src/shaders)
 
 add_custom_target(copy_images
   COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
-          ${CMAKE_SOURCE_DIR}/images ${CMAKE_BINARY_DIR}/$<CONFIG>/images
+          "${CMAKE_SOURCE_DIR}/images" "${RESOURCE_ROOT}/images"
   COMMENT "Copying image files"
+  VERBATIM
+)
+
+add_custom_target(copy_sponza
+  COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+          "${CMAKE_SOURCE_DIR}/assets/main_sponza" "${RESOURCE_ROOT}/main_sponza"
+  COMMENT "Copying Sponza files"
+  VERBATIM
 )
 
 # ============================================================
@@ -344,6 +353,7 @@ set(SSG_SOURCES
   src/CoopTask.cpp
   src/DevUi.cpp
   src/FileFetcher.cpp
+  src/FilePath.cpp
   src/GltfLoader.cpp
   src/GpuColorPass.cpp
   src/GpuCompositorPass.cpp
@@ -375,6 +385,8 @@ set(SSG_HEADERS
   src/CoopTask.h
   src/DevUi.h
   src/FileFetcher.h
+  src/FilePath.h
+  src/FilePathHelper.h
   src/FixedString.h
   src/GltfLoader.h
   src/GpuColorPass.h
@@ -468,7 +480,7 @@ function(add_sample_executable target_name source_file)
   add_project_executable(${target_name}
     SOURCES ${source_file} samples/CameraActor.cpp
     LIBRARIES ssg::ssg
-    DEPENDENCIES shaders copy_images)
+    DEPENDENCIES shaders)
 endfunction()
 
 function(add_tool_executable target_name source_file)
@@ -487,16 +499,21 @@ target_include_directories(Cook SYSTEM PRIVATE thirdparty/stb)
 # Sample: Triangle
 # ============================================================
 add_sample_executable(Triangle samples/Triangle.cpp)
+add_dependencies(Triangle copy_images)
 
 # ============================================================
 # Sample: EmTriangle
 # ============================================================
 add_sample_executable(EmTriangle samples/EmTriangle.cpp)
+add_dependencies(EmTriangle copy_images)
 if(EMSCRIPTEN)
   set_target_properties(EmTriangle PROPERTIES SUFFIX ".html")
 
   set(browser_shell "${CMAKE_CURRENT_SOURCE_DIR}/samples/browser-shell.html")
-  set_property(TARGET EmTriangle APPEND PROPERTY LINK_DEPENDS "${browser_shell}")
+  file(GLOB_RECURSE _image_sources CONFIGURE_DEPENDS LIST_DIRECTORIES false
+       "${CMAKE_SOURCE_DIR}/images/*")
+  set_property(TARGET EmTriangle APPEND PROPERTY LINK_DEPENDS
+               "${browser_shell}" ${SSG_WGSL_SOURCES} ${_image_sources})
 
   target_link_options(EmTriangle PRIVATE
     "--shell-file"
@@ -504,8 +521,8 @@ if(EMSCRIPTEN)
     "-sPTHREAD_POOL_SIZE=8"
     "-sALLOW_MEMORY_GROWTH=1"
 #    "-sJSPI"
-    "--preload-file=${CMAKE_BINARY_DIR}/$<CONFIG>/images@/images"
-    "--preload-file=${CMAKE_BINARY_DIR}/$<CONFIG>/shaders@/shaders"
+    "--preload-file=${RESOURCE_ROOT}/images@images"
+    "--preload-file=${RESOURCE_ROOT}/shaders@shaders"
   )
 endif()
 
@@ -513,6 +530,7 @@ endif()
 # Sample: Viewer
 # ============================================================
 add_sample_executable(Viewer samples/Viewer.cpp)
+add_dependencies(Viewer copy_sponza)
 
 # ============================================================
 # Sample: Orbit
@@ -526,6 +544,7 @@ add_executable(Tests
   "tests/BoundingBox.unit.cpp"
   "tests/BoundingSphere.unit.cpp"
   "tests/Camera.unit.cpp"
+  "tests/FilePath.unit.cpp"
   "tests/inlist.unit.cpp"
   "tests/Mat44.unit.cpp"
   "tests/Quat.unit.cpp"

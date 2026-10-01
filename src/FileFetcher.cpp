@@ -72,12 +72,14 @@ FileFetcher::Create()
 }
 
 Result<FetchRequestId>
-FileFetcher::Fetch(const std::string_view filePath)
+FileFetcher::Fetch(const FilePath& filePath)
 {
     MLG_CHECKV(m_IoQueue, "FileFetcher::Fetch called on invalid FileFetcher instance");
 
-    RequestWrapper* wrapper = AllocateRequest(filePath);
-    MLG_CHECKV(wrapper, "Failed to allocate request buffer for file: {}", filePath);
+    auto wrapperResult = AllocateRequest(filePath);
+    MLG_CHECKV(wrapperResult, "Failed to allocate request buffer for file: {}", filePath);
+
+    RequestWrapper* wrapper = *wrapperResult;
 
     Request& request = *wrapper->m_Request;
 
@@ -96,24 +98,24 @@ FileFetcher::Fetch(const std::string_view filePath)
         FreeRequest(wrapper);
     };
 
-    request.m_AsyncIO = SDL_AsyncIOFromFile(request.m_FilePath.c_str(), "r");
+    request.m_AsyncIO = SDL_AsyncIOFromFile(filePath.c_str(), "r");
     MLG_CHECK(request.m_AsyncIO,
         "Failed to create SDL Async IO for file: {}, error: {}",
-        request.m_FilePath,
+        request.m_DiagFilePath,
         SDL_GetError());
 
     const Sint64 fileSize = SDL_GetAsyncIOSize(request.m_AsyncIO);
     MLG_CHECK(fileSize >= 0,
         "Failed to get file size for file: {}, error: {}",
-        request.m_FilePath,
+        request.m_DiagFilePath,
         SDL_GetError());
 
-    MLG_CHECK(fileSize > 0, "File size is zero for file: {}", request.m_FilePath);
+    MLG_CHECK(fileSize > 0, "File size is zero for file: {}", request.m_DiagFilePath);
 
     MLG_CHECKV(std::in_range<size_t>(fileSize),
         "File size {} exceeds maximum supported size for file: {}",
         fileSize,
-        request.m_FilePath);
+        request.m_DiagFilePath);
 
     const size_t fileSizeBytes = static_cast<size_t>(fileSize);
 
@@ -127,7 +129,7 @@ FileFetcher::Fetch(const std::string_view filePath)
             "Requested byte count {} exceeds file size {} for file: {}",
             request.m_BytesRequested,
             fileSizeBytes,
-            request.m_FilePath);
+            request.m_DiagFilePath);
     }
 
     if(request.m_Data.size() < request.m_BytesRequested)
@@ -155,9 +157,12 @@ FileFetcher::Take(const FetchRequestId requestId, std::vector<uint8_t>& outBuffe
 {
     RequestWrapper* wrapper = GetRequest(requestId);
     MLG_CHECKV(wrapper, "Invalid request ID");
+
+    // Check if still pending BEFORE scheuling the FreeRequest to ensure we don't free an active
+    // request.
     MLG_CHECKV(!wrapper->m_Request->IsPending(),
         "Request is still pending for file: {}",
-        wrapper->m_Request->m_FilePath);
+        wrapper->m_Request->m_DiagFilePath);
 
     MLG_DEFER
     {
@@ -166,7 +171,7 @@ FileFetcher::Take(const FetchRequestId requestId, std::vector<uint8_t>& outBuffe
 
     MLG_CHECKV(wrapper->m_Request->Succeeded(),
         "Request did not succeed for file: {}",
-        wrapper->m_Request->m_FilePath);
+        wrapper->m_Request->m_DiagFilePath);
 
     outBuffer = std::move(wrapper->m_Request->m_Data);
 
@@ -200,8 +205,7 @@ FileFetcher::ProcessCompletions()
         switch(outcome.result)
         {
             case SDL_ASYNCIO_COMPLETE:
-                wrapper->m_Request->m_BytesRead +=
-                    static_cast<size_t>(outcome.bytes_transferred);
+                wrapper->m_Request->m_BytesRead += static_cast<size_t>(outcome.bytes_transferred);
                 if(wrapper->m_Request->m_BytesRead >= wrapper->m_Request->m_BytesRequested)
                 {
                     SetSucceeded(wrapper->m_RequestId);
@@ -217,7 +221,7 @@ FileFetcher::ProcessCompletions()
             case SDL_ASYNCIO_FAILURE:
                 MLG_ERROR("Async IO {} failed for file: {}, error: {}",
                     (outcome.type == SDL_ASYNCIO_TASK_READ ? "read" : "close"),
-                    wrapper->m_Request->m_FilePath,
+                    wrapper->m_Request->m_DiagFilePath,
                     SDL_GetError());
 
                 SetFailed(wrapper->m_RequestId);
@@ -226,7 +230,7 @@ FileFetcher::ProcessCompletions()
             case SDL_ASYNCIO_CANCELED:
                 MLG_ERROR("Async IO {} canceled for file: {}",
                     (outcome.type == SDL_ASYNCIO_TASK_READ ? "read" : "close"),
-                    wrapper->m_Request->m_FilePath);
+                    wrapper->m_Request->m_DiagFilePath);
                 if(m_IoQueue)
                 {
                     SetFailed(wrapper->m_RequestId);
@@ -244,8 +248,7 @@ FileFetcher::IssueRead(RequestWrapper& wrapper)
 
     MLG_ASSERT(wrapper.m_Request->m_AsyncIO);
 
-    const size_t bytesToRead =
-        wrapper.m_Request->m_BytesRequested - wrapper.m_Request->m_BytesRead;
+    const size_t bytesToRead = wrapper.m_Request->m_BytesRequested - wrapper.m_Request->m_BytesRead;
 
     MLG_CHECK(SDL_ReadAsyncIO(wrapper.m_Request->m_AsyncIO,
                   &wrapper.m_Request->m_Data[wrapper.m_Request->m_BytesRead],
@@ -254,7 +257,7 @@ FileFetcher::IssueRead(RequestWrapper& wrapper)
                   m_IoQueue,
                   &wrapper),
         "Failed to issue async load for file: {}, error: {}",
-        wrapper.m_Request->m_FilePath,
+        wrapper.m_Request->m_DiagFilePath,
         SDL_GetError());
 
     ++wrapper.m_Request->m_ReadAttempts;
@@ -262,9 +265,15 @@ FileFetcher::IssueRead(RequestWrapper& wrapper)
     return Result<>::Ok;
 }
 
-FileFetcher::RequestWrapper*
-FileFetcher::AllocateRequest(const std::string_view filePath)
+Result<FileFetcher::RequestWrapper*>
+FileFetcher::AllocateRequest(const FilePath& filePath)
 {
+    // Inside the request the relative path is only used for logging.
+    // Extract the stem from the full file path so we don't store the full path in the request.
+    const std::string_view stem = filePath.GetStem();
+    auto relativePath = RelativeFilePath::Create(stem);
+    MLG_CHECKV(relativePath, "Failed to create relative file path for: {}", stem);
+
     if(!m_FreeList)
     {
         m_RequestPool.emplace_back(kBucketSize);
@@ -286,7 +295,7 @@ FileFetcher::AllocateRequest(const std::string_view filePath)
     m_FreeList = m_FreeList->m_Next;
     wrapper->m_Next = nullptr;
     void* p = static_cast<void*>(wrapper->m_Storage);
-    wrapper->m_Request = std::construct_at(static_cast<Request*>(p), filePath);
+    wrapper->m_Request = std::construct_at(static_cast<Request*>(p), *relativePath);
 
     ++m_AllocCount;
     return wrapper;

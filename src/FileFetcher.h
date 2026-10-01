@@ -1,6 +1,6 @@
 #pragma once
 
-#include "FixedString.h"
+#include "FilePath.h"
 #include "Result.h"
 
 #include <cstdint>
@@ -55,7 +55,7 @@ public:
 
     /// Initiates an asynchronous fetch for the specified file.
     /// Returns a FetchRequestId that can be used to track the request.
-    Result<FetchRequestId> Fetch(const std::string_view filePath);
+    Result<FetchRequestId> Fetch(const FilePath& filePath);
 
     /// Checks if the specified fetch request is still pending.
     bool IsPending(const FetchRequestId requestId) const;
@@ -76,7 +76,8 @@ private:
     class Request
     {
     public:
-        enum class Stage
+
+    enum class Stage
         {
             None,
             Failure,
@@ -84,8 +85,8 @@ private:
             Success,
         };
 
-        explicit Request(const std::string_view filePath)
-            : m_FilePath(filePath)
+        explicit Request(const RelativeFilePath& relativePath)
+            : m_DiagFilePath(relativePath)
         {
         }
         ~Request();
@@ -99,9 +100,8 @@ private:
 
         SDL_AsyncIO* m_AsyncIO{ nullptr };
 
-        constexpr static size_t kMaxFilePathLen = 256;
-
-        FixedString<kMaxFilePathLen> m_FilePath;
+        // Used only for logging
+        RelativeFilePath m_DiagFilePath;
         size_t m_BytesRequested{ 0 };
         size_t m_BytesRead{ 0 };
         std::vector<uint8_t> m_Data;
@@ -130,7 +130,7 @@ private:
 
     Result<> IssueRead(RequestWrapper& wrapper);
 
-    RequestWrapper* AllocateRequest(const std::string_view filePath);
+    Result<RequestWrapper*> AllocateRequest(const FilePath& filePath);
 
     void FreeRequest(RequestWrapper* wrapper);
 

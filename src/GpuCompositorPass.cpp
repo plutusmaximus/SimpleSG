@@ -119,7 +119,7 @@ CreatePipelineLayout(const GpuHelper& gpuHelper, const wgpu::BindGroupLayout& bi
 
 GpuCompositorPass::CreateTask::CreateTask(const GpuHelper& gpuHelper, FileFetcher& fileFetcher)
     : m_GpuHelper(&gpuHelper),
-      m_ShaderFetcher(ShaderPath, gpuHelper, fileFetcher)
+      m_ShaderFetcher(gpuHelper, fileFetcher)
 {
 }
 
@@ -146,7 +146,13 @@ GpuCompositorPass::CreateTask::OnStart()
 
     m_Stage = Stage::Failed;
 
-    MLG_CHECK(m_ShaderFetcher.Start());
+    auto shaderPath = DirectoryPath::Current().Join(ShaderPath);
+    MLG_CHECKV(shaderPath,
+        "Failed to construct shader path: {}/{}",
+        DirectoryPath::Current(),
+        ShaderPath);
+
+    MLG_CHECK(m_ShaderFetcher.Start(*shaderPath));
 
     m_Stage = Stage::FetchingShader;
 

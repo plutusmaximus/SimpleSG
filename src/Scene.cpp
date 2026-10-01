@@ -83,10 +83,14 @@ CreateColorPassTarget(const GpuHelper& gpuHelper, const uint32_t width, const ui
 Result<std::vector<wgpu::BindGroup>>
 CreateMaterialBindGroups(const GpuHelper& gpuHelper,
     const GpuColorPass& gpuColorPass,
-    const std::span<const MaterialResource> materialRsrcs,
-    const std::span<const wgpu::Texture> textures,
-    const std::span<TextureFetcher::TexturePath> texturePaths)
+    const ResourceBundle& resourceBundle,
+    const std::span<const wgpu::Texture> textures)
 {
+    const std::span materialRsrcs = resourceBundle.GetMaterials();
+    const std::span textureRsrcs = resourceBundle.GetTextures();
+
+    MLG_CHECKV(textures.size() == textureRsrcs.size(), "Texture count mismatch");
+
     std::vector<wgpu::BindGroup> materialBindGroups;
     materialBindGroups.reserve(materialRsrcs.size());
 
@@ -105,8 +109,9 @@ CreateMaterialBindGroups(const GpuHelper& gpuHelper,
         }
         else
         {
+            const TextureResource& textureRsrc = textureRsrcs[mtlRsrc.BaseTextureIndex];
             baseTexture = textures[mtlRsrc.BaseTextureIndex];
-            texturePath = texturePaths[mtlRsrc.BaseTextureIndex];
+            texturePath = resourceBundle.GetStringView(textureRsrc.TexturePath);
         }
 
         const ShaderInterop::MaterialConstants mc //
@@ -388,16 +393,19 @@ Scene::TransformNodes(const wgpu::Device& gpuDevice,
 
 namespace
 {
-std::vector<TextureFetcher::TexturePath>
-GetTexturePaths(const std::filesystem::path& rootPath, const ResourceBundle& resourceBundle)
+Result<std::vector<RelativeFilePath>>
+GetTexturePaths(const ResourceBundle& resourceBundle)
 {
     const std::span texResources = resourceBundle.GetTextures();
-    std::vector<TextureFetcher::TexturePath> texturePaths;
+    std::vector<RelativeFilePath> texturePaths;
     texturePaths.reserve(texResources.size());
-    for(const auto& tr : texResources)
+    for(const auto& texRsrc : texResources)
     {
-        const std::string_view sv = resourceBundle.GetStringView(tr.TexturePath);
-        texturePaths.emplace_back((rootPath / sv).string());
+        const std::string_view sv = resourceBundle.GetStringView(texRsrc.TexturePath);
+        auto path = RelativeFilePath::Create(sv);
+        MLG_CHECK(path, "Failed to create FilePath");
+
+        texturePaths.emplace_back(std::move(*path));
     }
     return texturePaths;
 }
@@ -405,22 +413,16 @@ GetTexturePaths(const std::filesystem::path& rootPath, const ResourceBundle& res
 
 // Scene::CreateTask
 Scene::CreateTask::CreateTask(System& system,
-    std::filesystem::path rootPath,
+    const DirectoryPath& parentPath,
     const ResourceBundle& resourceBundle,
     const Level& level)
     : m_System(&system),
       m_ResourceBundle(&resourceBundle),
       m_Level(&level),
-      m_TexturePaths(GetTexturePaths(rootPath, resourceBundle)),
-      m_TextureFetcher(m_System->GetGpuHelper(),
-          m_System->GetFileFetcher(),
-          m_System->GetThreadPool(),
-          m_TexturePaths),
+      m_ParentPath(parentPath),
       m_ColorPassTask(m_System->GetGpuHelper(), m_System->GetFileFetcher()),
       m_CompositorPassTask(m_System->GetGpuHelper(), m_System->GetFileFetcher()),
-      m_TransformPassTask(m_System->GetGpuHelper(), m_System->GetFileFetcher()),
-      m_TaskBatch(
-          { &m_TextureFetcher, &m_ColorPassTask, &m_CompositorPassTask, &m_TransformPassTask })
+      m_TransformPassTask(m_System->GetGpuHelper(), m_System->GetFileFetcher())
 {
 }
 
@@ -432,7 +434,8 @@ Scene::CreateTask::Take()
 
     m_Consumed = true;
 
-    auto textures = m_TextureFetcher.Take();
+    MLG_CHECKV(m_TextureFetcher, "Texture fetcher is not valid");
+    auto textures = m_TextureFetcher->Take();
     MLG_CHECK(textures, "Failed to fetch textures");
 
     auto gpuColorPassResult = m_ColorPassTask.Take();
@@ -446,11 +449,8 @@ Scene::CreateTask::Take()
 
     const GpuHelper& gpuHelper = m_System->GetGpuHelper();
 
-    auto materialBindGroups = CreateMaterialBindGroups(gpuHelper,
-        *gpuColorPassResult,
-        m_ResourceBundle->GetMaterials(),
-        *textures,
-        m_TexturePaths);
+    auto materialBindGroups =
+        CreateMaterialBindGroups(gpuHelper, *gpuColorPassResult, *m_ResourceBundle, *textures);
     MLG_CHECK(materialBindGroups);
 
     const std::span vertices = m_ResourceBundle->GetVertices();
@@ -508,7 +508,26 @@ Scene::CreateTask::OnStart()
 
     m_Stage = Stage::Failed;
 
-    MLG_CHECK(m_TaskBatch.Start(), "Failed to begin task batch");
+    auto texturePaths = GetTexturePaths(*m_ResourceBundle);
+    MLG_CHECK(texturePaths, "Failed to get texture paths");
+
+    m_TextureFetcher.emplace(m_System->GetGpuHelper(),
+        m_System->GetFileFetcher(),
+        m_System->GetThreadPool(),
+        m_ParentPath,
+        std::move(*texturePaths));
+
+    ICoopTask<>* tasks[] =//
+        {
+            &m_TextureFetcher.value(),
+            &m_ColorPassTask,
+            &m_CompositorPassTask,
+            &m_TransformPassTask,
+        };
+
+    m_TaskBatch.emplace(tasks);
+
+    MLG_CHECK(m_TaskBatch->Start(), "Failed to begin task batch");
 
     m_Stage = Stage::Running;
 
@@ -524,10 +543,14 @@ Scene::CreateTask::OnUpdate()
             break;
 
         case Stage::Running:
-            if(m_TaskBatch.IsRunning())
+            if(!MLG_VERIFY(m_TaskBatch, "Task batch is not valid"))
+            {
+                m_Stage = Stage::Failed;
+            }
+            else if(m_TaskBatch->IsRunning())
             {
                 m_System->GetFileFetcher().ProcessCompletions();
-                m_TaskBatch.Update();
+                m_TaskBatch->Update();
             }
             else
             {

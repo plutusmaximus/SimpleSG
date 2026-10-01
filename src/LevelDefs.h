@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Color.h"
+#include "FilePath.h"
 #include "FixedString.h"
 #include "PhysicsTypes.h"
 #include "Vertex.h"
@@ -10,14 +11,16 @@
 
 namespace LevelDefs
 {
-constexpr size_t kMaxNameLength = 32;
-constexpr size_t kMaxPathLength = 256;
+constexpr size_t kNameStorageSize = 32;
+using NameString = FixedString<kNameStorageSize>;
+
+using FilePathString = FixedString<RelativeFilePath::kStorageSize>;
 
 } // namespace LevelDefs
 
 struct MaterialDef final
 {
-    FixedString<LevelDefs::kMaxPathLength> BaseTexturePath;
+    LevelDefs::FilePathString BaseTexturePath;
     RgbaColorf Color{ 1, 1, 1, 1 };
     float Metalness{ 0.0f };
     float Roughness{ 0.0f };
@@ -70,7 +73,7 @@ struct MeshDef final
 
 struct ModelDef final
 {
-    FixedString<LevelDefs::kMaxNameLength> Name;
+    LevelDefs::NameString Name;
     std::vector<MeshDef> MeshDefs;
 };
 
@@ -81,7 +84,7 @@ struct PropKitDef final
 
 struct ModelRef final
 {
-    FixedString<LevelDefs::kMaxNameLength> Name;
+    LevelDefs::NameString Name;
 };
 
 struct BoxDef final
@@ -171,7 +174,7 @@ struct RigidBodyDef final
 
 struct ChildNodeDef final
 {
-    FixedString<LevelDefs::kMaxNameLength> Name;
+    LevelDefs::NameString Name;
     TrsTransformf Transform;
     std::vector<ChildNodeDef> Children;
     std::optional<ModelRef> Model;
@@ -179,7 +182,7 @@ struct ChildNodeDef final
 
 struct RootNodeDef final
 {
-    FixedString<LevelDefs::kMaxNameLength> Name;
+    LevelDefs::NameString Name;
     TrsTransformf Transform;
     std::vector<ChildNodeDef> Children;
     std::optional<ModelRef> Model;

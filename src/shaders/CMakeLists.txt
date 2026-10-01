@@ -9,6 +9,7 @@ set(WGSL_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/CompositorShader.wgsl"
   "${CMAKE_CURRENT_LIST_DIR}/TransformShader.wgsl"
 )
+set(SSG_WGSL_SOURCES "${WGSL_SOURCES}" PARENT_SCOPE)
 
 if(NOT EMSCRIPTEN)
   if(TARGET tint_cmd_tint_cmd)
@@ -22,47 +23,39 @@ if(NOT EMSCRIPTEN)
   set(TINT_EXE "$<TARGET_FILE:${TINT_TARGET}>")
 endif()
 
-set(_out_dir "${CMAKE_BINARY_DIR}/$<CONFIG>/shaders")
+set(_validated_dir "${CMAKE_BINARY_DIR}/$<CONFIG>/shaders")
 
 # ---------------------------------------------------------------------------
 # Build rules
 # ---------------------------------------------------------------------------
-set(_shader_outputs)
+set(_validation_outputs)
+if(NOT EMSCRIPTEN)
+  foreach(_wgsl IN LISTS WGSL_SOURCES)
+    get_filename_component(_name "${_wgsl}" NAME)
+    set(_wgsl_validate_out "${_validated_dir}/${_name}.validated.wgsl")
 
-foreach(_wgsl IN LISTS WGSL_SOURCES)
-  get_filename_component(_name "${_wgsl}" NAME)
-  set(_wgsl_copy_out "${_out_dir}/${_name}")
-  set(_wgsl_validate_out "${_out_dir}/${_name}.validated.wgsl")
-
-  if(EMSCRIPTEN)
     add_custom_command(
-      OUTPUT "${_wgsl_copy_out}"
-      COMMAND ${CMAKE_COMMAND} -E make_directory "${_out_dir}"
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-              "${_wgsl}" "${_wgsl_copy_out}"
-      DEPENDS "${_wgsl}"
-      VERBATIM
-    )
-  else()
-    add_custom_command(
-      OUTPUT "${_wgsl_copy_out}"
-      COMMAND ${CMAKE_COMMAND} -E make_directory "${_out_dir}"
+      OUTPUT "${_wgsl_validate_out}"
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${_validated_dir}"
       COMMAND "${TINT_EXE}"
               --validate true
               --format wgsl
               --output-name "${_wgsl_validate_out}"
               "${_wgsl}"
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-              "${_wgsl}" "${_wgsl_copy_out}"
       DEPENDS ${TINT_TARGET} "${_wgsl}"
       VERBATIM
     )
-  endif()
+    list(APPEND _validation_outputs "${_wgsl_validate_out}")
+  endforeach()
+endif()
 
-  list(APPEND _shader_outputs "${_wgsl_copy_out}")
-endforeach()
-
-add_custom_target(shaders ALL DEPENDS ${_shader_outputs})
+add_custom_target(shaders ALL
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${RESOURCE_ROOT}/shaders"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          ${WGSL_SOURCES} "${RESOURCE_ROOT}/shaders"
+  DEPENDS ${_validation_outputs}
+  VERBATIM
+)
 if(NOT EMSCRIPTEN)
   add_dependencies(shaders ${TINT_TARGET})
 endif()

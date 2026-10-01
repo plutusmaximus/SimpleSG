@@ -1,7 +1,6 @@
 #pragma once
 
 #include "CoopTask.h"
-#include "FixedString.h"
 #include "GpuColorPass.h"
 #include "GpuCompositorPass.h"
 #include "GpuTransformPass.h"
@@ -10,7 +9,6 @@
 #include "TextureFetcher.h"
 #include "Timer.h"
 
-#include <filesystem>
 #include <memory>
 #include <vector>
 
@@ -87,7 +85,7 @@ class Scene::CreateTask : public ICoopTask<>
 {
 public:
     CreateTask(System& system,
-        std::filesystem::path rootPath,
+        const DirectoryPath& parentPath,
         const ResourceBundle& resourceBundle,
         const Level& level);
 
@@ -118,13 +116,13 @@ private:
     System* m_System{ nullptr };
     const ResourceBundle* m_ResourceBundle{ nullptr };
     const Level* m_Level{ nullptr };
-    std::vector<TextureFetcher::TexturePath> m_TexturePaths;
+    DirectoryPath m_ParentPath;
 
-    TextureFetcher m_TextureFetcher;
+    std::optional<TextureFetcher> m_TextureFetcher;
     GpuColorPass::CreateTask m_ColorPassTask;
     GpuCompositorPass::CreateTask m_CompositorPassTask;
     GpuTransformPass::CreateTask m_TransformPassTask;
-    CoopTaskBatch m_TaskBatch;
+    std::optional<CoopTaskBatch> m_TaskBatch;
     bool m_Consumed{ false };
 
     Stage m_Stage{ Stage::None };

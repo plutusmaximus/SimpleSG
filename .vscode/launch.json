@@ -7,7 +7,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/native/${input:buildType}/${input:target}.exe",
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build/native/${input:buildType}",
+            "cwd": "${workspaceFolder}/resources",
             "console": "integratedTerminal",
             "presentation": {
                 "group": "Windows",
@@ -20,7 +20,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/native/${input:buildType}/${input:target}",
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/build/native/${input:buildType}",
+            "cwd": "${workspaceFolder}/resources",
             "externalConsole": false,
             "MIMode": "gdb",
             "setupCommands": [
@@ -55,7 +55,7 @@
             "type": "lldb",
             "request": "launch",
             "program": "${workspaceFolder}/build/native/${input:buildType}/${input:target}",
-            "cwd": "${workspaceFolder}/build/native/${input:buildType}",
+            "cwd": "${workspaceFolder}/resources",
             "env": {
                 "ASAN_OPTIONS": "abort_on_error=0",
                 "UBSAN_OPTIONS": "abort_on_error=0:print_stacktrace=1"

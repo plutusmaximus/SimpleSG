@@ -2,7 +2,7 @@
 
 #include "CoopTask.h"
 #include "FileFetcher.h"
-#include "FixedString.h"
+#include "FilePath.h"
 #include "Result.h"
 
 #include <cstdint>
@@ -15,11 +15,11 @@ class FileFetcher;
 /// A task that fetches a shader from disk and creates a wgpu::ShaderModule.
 /// Keep calling FileFetcher::ProcessCompletions() while this task is running.
 /// Calling Update() alone does not process file completions.
-class ShaderFetcher : public ICoopTask<>
+class ShaderFetcher : public ICoopTask<const FilePath&>
 {
 public:
 
-    ShaderFetcher(const std::string_view path, const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
+    ShaderFetcher(const GpuHelper& gpuHelper, FileFetcher& fileFetcher);
 
     ShaderFetcher() = delete;
     ~ShaderFetcher() override = default;
@@ -42,14 +42,13 @@ private:
         Failed
     };
 
-    Result<> OnStart() override;
+    Result<> OnStart(const FilePath& path) override;
 
     void OnUpdate() override;
 
     Result<> CreateShaderModule();
 
-    constexpr static size_t kMaxPathLen = 256; // Adjust as needed
-    FixedString<kMaxPathLen> m_Path;
+    FixedString<RelativeFilePath::kStorageSize> m_DiagPath;
     const GpuHelper* m_GpuHelper{ nullptr };
     FileFetcher* m_FileFetcher{ nullptr };
     FetchRequestId m_RequestId;

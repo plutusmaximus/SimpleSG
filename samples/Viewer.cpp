@@ -1,5 +1,6 @@
 #include "CameraActor.h"
 #include "CoopTask.h"
+#include "FilePathHelper.h"
 #include "GltfLoader.h"
 #include "GpuColorPass.h"
 #include "GpuHelper.h"
@@ -13,9 +14,9 @@
 #include "System.h"
 #include "VecMath.h"
 
-#include <filesystem>
 #include <imgui.h>
 #include <SDL3/SDL_events.h>
+#include <string>
 #include <thread>
 
 namespace
@@ -92,9 +93,11 @@ LoadLevel(System& system, const std::string_view path)
 
     std::unique_ptr<Level> level = std::move(*levelResult);
 
-    const std::filesystem::path rootPath = std::filesystem::path(path).parent_path();
+    const std::string_view parentDir = FilePathHelper::GetParent(path);
+    auto parentPath = DirectoryPath::Create(parentDir);
+    MLG_CHECK(parentPath, "Failed to create parent path");
 
-    Scene::CreateTask createTask(system, rootPath, *rsrcBundle, *level);
+    Scene::CreateTask createTask(system, *parentPath, *rsrcBundle, *level);
 
     MLG_CHECK(createTask.Start(), "Failed to begin create task");
 
@@ -116,7 +119,7 @@ constexpr const char* SPONZA_MODEL_PATH =
     "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
 #else
 constexpr const char* SPONZA_MODEL_PATH =
-    "../../../assets/main_sponza/NewSponza_Main_glTF_003.gltf";
+    "main_sponza/NewSponza_Main_glTF_003.gltf";
 #endif
 
 Result<>

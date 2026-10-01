@@ -2,7 +2,7 @@
 
 #include "CoopTask.h"
 #include "FileFetcher.h"
-#include "FixedString.h"
+#include "FilePath.h"
 #include "Result.h"
 
 #include <atomic>
@@ -10,7 +10,6 @@
 #include <cstdint>
 #include <deque>
 #include <optional>
-#include <string>
 #include <vector>
 #include <webgpu/webgpu_cpp.h>
 
@@ -24,14 +23,12 @@ class ThreadPool;
 class TextureFetcher : public ICoopTask<>
 {
 public:
-    static constexpr size_t MaxPathLength = 256;
-
-    using TexturePath = FixedString<MaxPathLength>;
 
     TextureFetcher(const GpuHelper& gpuHelper,
         FileFetcher& fileFetcher,
         ThreadPool& threadPool,
-        std::vector<TexturePath> texturePaths);
+        const DirectoryPath& parentPath,
+        std::vector<RelativeFilePath> texturePaths);
     ~TextureFetcher() override = default;
     TextureFetcher(const TextureFetcher&) = delete;
     TextureFetcher& operator=(const TextureFetcher&) = delete;
@@ -62,7 +59,8 @@ private:
         FetchTask(const GpuHelper& gpuHelper,
             FileFetcher& fileFetcher,
             ThreadPool& threadPool,
-            const std::string_view path,
+            const TextureFetcher& textureFetcher,
+            const RelativeFilePath& relativePath,
             wgpu::CommandEncoder commandEncoder);
 
         FetchTask() = delete;
@@ -102,7 +100,8 @@ private:
         const GpuHelper* m_GpuHelper{ nullptr };
         FileFetcher* m_FileFetcher{ nullptr };
         ThreadPool* m_ThreadPool{ nullptr };
-        FixedString<MaxPathLength> m_Path;
+        const TextureFetcher* m_TextureFetcher{ nullptr };
+        RelativeFilePath m_RelativePath;
         FetchRequestId m_FetchRequestId;
         std::vector<uint8_t> m_FetchedData;
         wgpu::Texture m_Texture{ nullptr };
@@ -129,7 +128,8 @@ private:
     std::deque<FetchTask> m_Tasks;
     std::optional<CoopTaskBatch> m_TaskBatch;
     std::vector<wgpu::Texture> m_Textures;
-    std::vector<TexturePath> m_TexturePaths;
+    DirectoryPath m_ParentPath;
+    std::vector<RelativeFilePath> m_TexturePaths;
 
     Stage m_Stage{ Stage::None };
 

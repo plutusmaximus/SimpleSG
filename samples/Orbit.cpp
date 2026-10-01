@@ -12,7 +12,6 @@
 #include "ThreadPool.h"
 
 #include <arm_neon.h>
-#include <filesystem>
 #include <imgui.h>
 #include <numbers>
 #include <random>
@@ -141,14 +140,14 @@ LoadLevel(System& system)
     auto rsrcBundle = builder.Build(levelDef, propKitDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
-    const std::filesystem::path rootPath{};
-
     auto levelResult = Level::Create(*rsrcBundle);
     MLG_CHECK(levelResult, "Failed to create Level");
 
     std::unique_ptr<Level> level = std::move(*levelResult);
 
-    Scene::CreateTask createTask(system, rootPath, *rsrcBundle, *level);
+    const DirectoryPath parentPath = DirectoryPath::Current();
+
+    Scene::CreateTask createTask(system, parentPath, *rsrcBundle, *level);
 
     MLG_CHECK(createTask.Start(), "Failed to begin create task");
 

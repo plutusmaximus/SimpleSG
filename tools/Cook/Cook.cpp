@@ -1,5 +1,6 @@
 
 #include "GltfLoader.h"
+#include "Level.h"
 #include "LevelDefs.h"
 #include "Log.h"
 #include "ResourceBundle.h"
@@ -82,8 +83,8 @@ static_assert(kTextureRowAlignment % kTextureBytesPerPixel == 0);
 struct CookTextureWorkerParams
 {
     const CookDirs* CookDirs;
-    FixedString<LevelDefs::kMaxPathLength> InTexturePath;
-    FixedString<LevelDefs::kMaxPathLength> OutTexturePath;
+    LevelDefs::FilePathString InTexturePath;
+    LevelDefs::FilePathString OutTexturePath;
     std::latch* Latch{ nullptr };
     Result<> Result;
 };
@@ -160,16 +161,15 @@ AlignUp(uint32_t value, uint32_t alignment)
     return (value + (alignment - 1)) & ~(alignment - 1);
 }
 
-Result<std::unordered_map<FixedString<LevelDefs::kMaxPathLength>, FixedString<LevelDefs::kMaxPathLength>>>
+Result<std::unordered_map<LevelDefs::FilePathString, LevelDefs::FilePathString>>
 ReplaceTexturePaths(PropKitDef& propKitDef)
 {
-    std::unordered_map<FixedString<LevelDefs::kMaxPathLength>, FixedString<LevelDefs::kMaxPathLength>> texPathMap;
+    std::unordered_map<LevelDefs::FilePathString, LevelDefs::FilePathString> texPathMap;
     for(ModelDef& modelDef : propKitDef.ModelDefs)
     {
         for(MeshDef& meshDef : modelDef.MeshDefs)
         {
-            FixedString<LevelDefs::kMaxPathLength>& texPath =
-                meshDef.MaterialDef.BaseTexturePath;
+            LevelDefs::FilePathString& texPath = meshDef.MaterialDef.BaseTexturePath;
 
             if(!texPath.empty())
             {
@@ -177,7 +177,7 @@ ReplaceTexturePaths(PropKitDef& propKitDef)
                 {
                     std::filesystem::path texPathFsPath = std::string_view(texPath);
 
-                    const FixedString<LevelDefs::kMaxPathLength> newPath(
+                    const LevelDefs::FilePathString newPath(
                         texPathFsPath.replace_extension(".ctex").string());
 
                     texPathMap.emplace(texPath, newPath);

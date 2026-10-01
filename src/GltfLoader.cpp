@@ -41,12 +41,12 @@ constexpr RgbaColorf kDefaultColor{ "#FF00FFFF"_rgba };
 
 /// Makes a name for a model or primitive.
 /// If the name is empty, a name will be generated using the baseName and index.
-FixedString<LevelDefs::kMaxNameLength>
+LevelDefs::NameString
 MakeName(const std::string_view name, const char* baseName, const size_t index)
 {
     return !name.empty()
-        ? FixedString<LevelDefs::kMaxNameLength>(name)
-        : FixedString<LevelDefs::kMaxNameLength>(std::format("{}_{}", baseName, index));
+        ? LevelDefs::NameString(name)
+        : LevelDefs::NameString(std::format("{}_{}", baseName, index));
 }
 
 Result<CgltfPrimitiveAttributes>
@@ -183,7 +183,7 @@ CollectMeshes(const cgltf_data* gltfData)
 Result<MaterialDef>
 CreateMaterialDef(const cgltf_material* gltfMaterial)
 {
-    FixedString<LevelDefs::kMaxPathLength> baseTexturePath;
+    LevelDefs::FilePathString baseTexturePath;
     RgbaColorf color = kDefaultColor;
     float metalness = 0;
     float roughness = 0;
@@ -468,7 +468,7 @@ Result<>
 CollectNode(
     const cgltf_node& srcNode, std::vector<T>& nodeDefs, const ModelCollection& modelCollection)
 {
-    const FixedString<LevelDefs::kMaxNameLength> nodeName =
+    const LevelDefs::NameString nodeName =
         MakeName(srcNode.name ? srcNode.name : "", "Node", nodeDefs.size());
 
     MLG_LOG_SCOPE("node {}", nodeName);
@@ -501,8 +501,8 @@ CollectNode(
         MLG_CHECKV(modelDef, "Mesh not found in modelCollection");
     }
 
-    const FixedString<LevelDefs::kMaxNameLength> modelName =
-        modelDef ? modelDef->Name : FixedString<LevelDefs::kMaxNameLength>{};
+    const LevelDefs::NameString modelName =
+        modelDef ? modelDef->Name : LevelDefs::NameString{};
 
     MLG_CHECKV(!modelDef || !modelName.empty(), "Model name must not be empty");
 
