@@ -2,7 +2,7 @@
 
 #include "LevelDefs.h"
 
-class ShapeMeshDefs
+class ShapeDefs
 {
 public:
 

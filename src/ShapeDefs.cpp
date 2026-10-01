@@ -1,4 +1,4 @@
-#include "ShapeMeshDefs.h"
+#include "ShapeDefs.h"
 #include "AssertHelper.h"
 
 #include <algorithm>
@@ -14,7 +14,7 @@ constexpr float kPi = std::numbers::pi_v<float>;
 // NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
 
 MeshDef
-ShapeMeshDefs::Box(const BoxParams& params)
+ShapeDefs::Box(const BoxParams& params)
 {
     MLG_ASSERT(params.Width > 0);
     MLG_ASSERT(params.Height > 0);
@@ -82,7 +82,7 @@ ShapeMeshDefs::Box(const BoxParams& params)
 }
 
 MeshDef
-ShapeMeshDefs::Ball(const BallParams& params)
+ShapeDefs::Ball(const BallParams& params)
 {
     MLG_ASSERT(params.Radius > 0);
     MLG_ASSERT(params.Smoothness > 0);
@@ -221,7 +221,7 @@ ShapeMeshDefs::Ball(const BallParams& params)
 }
 
 MeshDef
-ShapeMeshDefs::Cylinder(const CylinderParams& params)
+ShapeDefs::Cylinder(const CylinderParams& params)
 {
     MLG_ASSERT(params.Height > 0);
     MLG_ASSERT(params.Radius > 0);
@@ -333,7 +333,7 @@ ShapeMeshDefs::Cylinder(const CylinderParams& params)
 }
 
 MeshDef
-ShapeMeshDefs::Cone(const ConeParams& params)
+ShapeDefs::Cone(const ConeParams& params)
 {
     MLG_ASSERT(params.Radius1 >= 0);
     MLG_ASSERT(params.Radius2 >= 0);
@@ -490,7 +490,7 @@ ShapeMeshDefs::Cone(const ConeParams& params)
 }
 
 MeshDef
-ShapeMeshDefs::Torus(const TorusParams& params)
+ShapeDefs::Torus(const TorusParams& params)
 {
     MLG_ASSERT(params.RingRadius >= 0);
     MLG_ASSERT(params.TubeRadius > 0);

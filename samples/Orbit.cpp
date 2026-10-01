@@ -7,7 +7,7 @@
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"
 #include "Scene.h"
-#include "ShapeMeshDefs.h"
+#include "ShapeDefs.h"
 #include "System.h"
 #include "ThreadPool.h"
 
@@ -75,7 +75,7 @@ LoadLevel(System& system)
                     .Name{ "Shape" },
                     .MeshDefs //
                     {
-                        ShapeMeshDefs::Ball({ .Radius = kBallRadius }),
+                        ShapeDefs::Ball({ .Radius = kBallRadius }),
                         // ShapeMeshDefs::Box({ .Width = kBoxExtent, .Height = kBoxExtent, .Depth =
                         // kBoxExtent }),
                     },

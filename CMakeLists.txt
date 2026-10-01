@@ -368,7 +368,7 @@ set(SSG_SOURCES
   src/ResourceBundle.cpp
   src/Scene.cpp
   src/ShaderFetcher.cpp
-  src/ShapeMeshDefs.cpp
+  src/ShapeDefs.cpp
   src/Shell.cpp
   src/stb_image.cpp
   src/System.cpp
@@ -410,7 +410,7 @@ set(SSG_HEADERS
   src/SemanticIdentifier.h
   src/shaders/ShaderInterop.h
   src/ShaderFetcher.h
-  src/ShapeMeshDefs.h
+  src/ShapeDefs.h
   src/Shell.h
   src/System.h
   src/TextureFetcher.h

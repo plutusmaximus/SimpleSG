@@ -48,6 +48,7 @@ private:
 
     Result<> CreateShaderModule();
 
+    // Used only for diagnostics
     FixedString<RelativeFilePath::kStorageSize> m_DiagPath;
     const GpuHelper* m_GpuHelper{ nullptr };
     FileFetcher* m_FileFetcher{ nullptr };
