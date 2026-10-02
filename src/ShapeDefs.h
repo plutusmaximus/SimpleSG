@@ -37,14 +37,17 @@ public:
 
     struct TorusParams
     {
-        float RingRadius{-1}; // Distance from center of tube to center of torus. Pass zero for a sphere.
+        float RingRadius{-1}; // Center to tube center. Must exceed TubeRadius.
         float TubeRadius{-1}; // Radius of the tube.
         float Smoothness{kMaxSmoothness}; // Controls tessellation (1-10, higher = smoother)
     };
 
+    /// Each box face has a flat normal and fills the UV square.
     static MeshDef Box(const BoxParams& params);
 
-    // Smoothness controls tessellation (1-10, higher = smoother)
+    /// Uses a 5 by 4 atlas of separate triangular faces, in base face order.
+    /// Each face fills the lower-left triangle of its cell with a small inset.
+    /// Smoothness controls tessellation (1-10, higher = smoother).
     static MeshDef Ball(const BallParams& params);
 
     // Height along Y axis, centered at origin
@@ -57,10 +60,7 @@ public:
     // Pass zero for one of the radii to produce a pure cone.
     static MeshDef Cone(const ConeParams& params);
 
-    // smoothness controls tessellation (1-10)
-    // ringRadius > tubeRadius - Classic donut shape.
-    // ringRadius == tubeRadius - Horn torus.
-    // ringRadius < tubeRadius - Spindle torus (some geometry is overlapping).
-    // ringRadius == 0 - Sphere of radius == tubeRadius.
+    /// Both UV directions wrap around the torus.
+    /// Smoothness controls tessellation (1-10, higher = smoother).
     static MeshDef Torus(const TorusParams& params);
 };

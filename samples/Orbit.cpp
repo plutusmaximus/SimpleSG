@@ -48,8 +48,11 @@ struct PerfCounterGlobals
 Result<std::tuple<std::unique_ptr<Level>, std::unique_ptr<Scene>>>
 LoadLevel(System& system)
 {
-    constexpr float kBallRadius = 1.0f;
-    // constexpr float kBoxExtent = kBallRadius * 2;
+    [[maybe_unused]] constexpr float kBallRadius = 1.0f;
+    [[maybe_unused]] constexpr float kBoxExtent = kBallRadius * 2;
+    [[maybe_unused]] constexpr float kTorusRingRadius = 2.0f;
+    [[maybe_unused]] constexpr float kTorusTubeRadius = 1.0f;
+    [[maybe_unused]] constexpr float kTorusSmoothness = 1.0f;
 
     // Fixed seed for reproducibility
     constexpr unsigned kRngSeed = 12345;
@@ -67,6 +70,14 @@ LoadLevel(System& system)
     constexpr size_t kNumBodies = 1000;
 #endif
 
+    [[maybe_unused]] const MeshDef torus = ShapeDefs::Torus({ .RingRadius = kTorusRingRadius,
+        .TubeRadius = kTorusTubeRadius,
+        .Smoothness = kTorusSmoothness });
+
+    const MeshDef box =
+        ShapeDefs::Box({ .Width = kBoxExtent, .Height = kBoxExtent, .Depth = kBoxExtent });
+    const MeshDef ball = ShapeDefs::Ball({ .Radius = kBallRadius });
+
     const PropKitDef propKitDef //
         {
             .ModelDefs //
@@ -75,9 +86,9 @@ LoadLevel(System& system)
                     .Name{ "Shape" },
                     .MeshDefs //
                     {
-                        ShapeDefs::Ball({ .Radius = kBallRadius }),
-                        // ShapeMeshDefs::Box({ .Width = kBoxExtent, .Height = kBoxExtent, .Depth =
-                        // kBoxExtent }),
+                        ball,
+                        // box,
+                        //torus,
                     },
                 },
             },

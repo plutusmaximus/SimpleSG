@@ -550,6 +550,7 @@ add_executable(Tests
   "tests/Quat.unit.cpp"
   "tests/Radians.unit.cpp"
   "tests/scope_exit.unit.cpp"
+  "tests/ShapeDefs.unit.cpp"
   "tests/TrsTransform.unit.cpp"
   "tests/Vec2.unit.cpp"
   "tests/Vec3.unit.cpp"

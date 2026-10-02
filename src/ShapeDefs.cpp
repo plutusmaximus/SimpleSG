@@ -3,12 +3,18 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <numbers>
 #include <unordered_map>
 
 namespace
 {
 constexpr float kPi = std::numbers::pi_v<float>;
+
+struct TriangleUvs
+{
+    UV2 Corners[3];
+};
 }
 
 // NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
@@ -22,56 +28,50 @@ ShapeDefs::Box(const BoxParams& params)
 
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
+    vertices.reserve(24);
+    indices.reserve(36);
 
     const float hw = params.Width * 0.5f;
     const float hh = params.Height * 0.5f;
     const float hd = params.Depth * 0.5f;
 
-    // 8 vertices - one per corner
-    vertices.reserve(8);
-    indices.reserve(36);
+    const VertexPos backBottomLeft{ -hw, -hh, -hd };
+    const VertexPos backBottomRight{ hw, -hh, -hd };
+    const VertexPos backTopRight{ hw, hh, -hd };
+    const VertexPos backTopLeft{ -hw, hh, -hd };
+    const VertexPos frontBottomLeft{ -hw, -hh, hd };
+    const VertexPos frontBottomRight{ hw, -hh, hd };
+    const VertexPos frontTopRight{ hw, hh, hd };
+    const VertexPos frontTopLeft{ -hw, hh, hd };
 
-    // Calculate normalized normals for each corner (average of 3 adjacent faces)
-    const float invSqrt3 = std::numbers::inv_sqrt3_v<float>;
+    // A corner needs a separate vertex on each face to keep its normal and UVs flat.
+    auto addFace = [&](const VertexPos& a, const VertexPos& b, const VertexPos& c,
+                       const VertexPos& d, VertexNormal normal) {
+        const VertexIndex start = static_cast<VertexIndex>(vertices.size());
+        vertices.push_back(Vertex{ .pos = a, .normal = normal,
+            .uvs{ UV2{ .u = 0.0f, .v = 0.0f } } });
+        vertices.push_back(Vertex{ .pos = b, .normal = normal,
+            .uvs{ UV2{ .u = 1.0f, .v = 0.0f } } });
+        vertices.push_back(Vertex{ .pos = c, .normal = normal,
+            .uvs{ UV2{ .u = 1.0f, .v = 1.0f } } });
+        vertices.push_back(Vertex{ .pos = d, .normal = normal,
+            .uvs{ UV2{ .u = 0.0f, .v = 1.0f } } });
+        indices.push_back(start); indices.push_back(start + 1); indices.push_back(start + 2);
+        indices.push_back(start); indices.push_back(start + 2); indices.push_back(start + 3);
+    };
 
-    // Vertex order:
-    // 0: (-x, -y, -z)  1: (+x, -y, -z)
-    // 2: (+x, +y, -z)  3: (-x, +y, -z)
-    // 4: (-x, -y, +z)  5: (+x, -y, +z)
-    // 6: (+x, +y, +z)  7: (-x, +y, +z)
-
-    vertices.push_back(Vertex{ .pos{ -hw, -hh, -hd }, .normal{ -invSqrt3, -invSqrt3, -invSqrt3 }, .uvs{} });
-    vertices.push_back(Vertex{ .pos{  hw, -hh, -hd }, .normal{  invSqrt3, -invSqrt3, -invSqrt3 }, .uvs{} });
-    vertices.push_back(Vertex{ .pos{  hw,  hh, -hd }, .normal{  invSqrt3,  invSqrt3, -invSqrt3 }, .uvs{} });
-    vertices.push_back(Vertex{ .pos{ -hw,  hh, -hd }, .normal{ -invSqrt3,  invSqrt3, -invSqrt3 }, .uvs{} });
-    vertices.push_back(Vertex{ .pos{ -hw, -hh,  hd }, .normal{ -invSqrt3, -invSqrt3,  invSqrt3 }, .uvs{} });
-    vertices.push_back(Vertex{ .pos{  hw, -hh,  hd }, .normal{  invSqrt3, -invSqrt3,  invSqrt3 }, .uvs{} });
-    vertices.push_back(Vertex{ .pos{  hw,  hh,  hd }, .normal{  invSqrt3,  invSqrt3,  invSqrt3 }, .uvs{} });
-    vertices.push_back(Vertex{ .pos{ -hw,  hh,  hd }, .normal{ -invSqrt3,  invSqrt3,  invSqrt3 }, .uvs{} });
-
-    // Front face (+Z) - clockwise from front
-    indices.push_back(4); indices.push_back(5); indices.push_back(6);
-    indices.push_back(4); indices.push_back(6); indices.push_back(7);
-
-    // Back face (-Z) - clockwise from back
-    indices.push_back(1); indices.push_back(0); indices.push_back(3);
-    indices.push_back(1); indices.push_back(3); indices.push_back(2);
-
-    // Right face (+X) - clockwise from right
-    indices.push_back(5); indices.push_back(1); indices.push_back(2);
-    indices.push_back(5); indices.push_back(2); indices.push_back(6);
-
-    // Left face (-X) - clockwise from left
-    indices.push_back(0); indices.push_back(4); indices.push_back(7);
-    indices.push_back(0); indices.push_back(7); indices.push_back(3);
-
-    // Top face (+Y) - clockwise from top
-    indices.push_back(7); indices.push_back(6); indices.push_back(2);
-    indices.push_back(7); indices.push_back(2); indices.push_back(3);
-
-    // Bottom face (-Y) - clockwise from bottom
-    indices.push_back(0); indices.push_back(1); indices.push_back(5);
-    indices.push_back(0); indices.push_back(5); indices.push_back(4);
+    addFace(frontBottomLeft, frontBottomRight, frontTopRight, frontTopLeft,
+        VertexNormal{ 0.0f, 0.0f, 1.0f });
+    addFace(backBottomRight, backBottomLeft, backTopLeft, backTopRight,
+        VertexNormal{ 0.0f, 0.0f, -1.0f });
+    addFace(frontBottomRight, backBottomRight, backTopRight, frontTopRight,
+        VertexNormal{ 1.0f, 0.0f, 0.0f });
+    addFace(backBottomLeft, frontBottomLeft, frontTopLeft, backTopLeft,
+        VertexNormal{ -1.0f, 0.0f, 0.0f });
+    addFace(frontTopLeft, frontTopRight, backTopRight, backTopLeft,
+        VertexNormal{ 0.0f, 1.0f, 0.0f });
+    addFace(backBottomLeft, backBottomRight, frontBottomRight, frontBottomLeft,
+        VertexNormal{ 0.0f, -1.0f, 0.0f });
 
     return MeshDef //
         {
@@ -94,12 +94,12 @@ ShapeDefs::Ball(const BallParams& params)
     const float smoothness = std::max(1.0f, std::min(kMaxSmoothness, params.Smoothness));
     const size_t subdivisions = static_cast<size_t>(smoothness * 0.3f); // 0 to 3 subdivisions
 
-    // Calculate exact final sizes with deduplication
-    // With deduplication, vertices are shared between triangles
-    // Formula: V = 10 * 4^n + 2 (for n subdivisions)
+    // Build shared geometry first. The atlas adds seam vertices after subdivision.
+    // Shared geometry has V = 10 * 4^n + 2 vertices after n subdivisions.
     const size_t finalTriangles = 20 * (1uz << (2 * subdivisions)); // 20 * 4^subdivisions
     const size_t finalIndices = finalTriangles * 3;
-    const size_t totalVertices = subdivisions > 0 ? (10 * (1uz << (2 * subdivisions))) + 2 : 12;
+    const size_t totalVertices = (subdivisions > 0)
+        ? ((10 * (1uz << (2 * subdivisions))) + 2) : 12;
 
     vertices.reserve(totalVertices);
     indices.reserve(finalIndices);
@@ -133,11 +133,32 @@ ShapeDefs::Ball(const BallParams& params)
         {4, 9, 5}, {2, 4, 11}, {6, 2, 10}, {8, 6, 7}, {9, 8, 1}
     };
 
-    for (const auto& face : faces)
+    std::vector<TriangleUvs> triangleUvs;
+    std::vector<uint8_t> triangleFaces;
+    triangleUvs.reserve(finalTriangles);
+    triangleFaces.reserve(finalTriangles);
+
+    // Each original face gets its own triangle in a 5 by 4 texture atlas.
+    for (uint8_t faceIndex = 0; faceIndex < 20; ++faceIndex)
     {
+        const auto& face = faces[faceIndex];
         indices.push_back(face[0]);
         indices.push_back(face[1]);
         indices.push_back(face[2]);
+
+        constexpr float cellU = 1.0f / 5.0f;
+        constexpr float cellV = 1.0f / 4.0f;
+        // Remainder picks the column, and integer division picks the row.
+        const uint8_t column = faceIndex % 5;
+        const uint8_t row = faceIndex / 5;
+        const float u = static_cast<float>(column) * cellU;
+        const float v = static_cast<float>(row) * cellV;
+        triangleUvs.push_back(TriangleUvs{ .Corners{
+            UV2{ .u = u + (cellU * 0.05f), .v = v + (cellV * 0.05f) },
+            UV2{ .u = u + (cellU * 0.95f), .v = v + (cellV * 0.05f) },
+            UV2{ .u = u + (cellU * 0.05f), .v = v + (cellV * 0.95f) }
+        } });
+        triangleFaces.push_back(faceIndex);
     }
 
     // Hoist midpoint cache outside the loop
@@ -180,6 +201,8 @@ ShapeDefs::Ball(const BallParams& params)
 
         // Resize to final size for this iteration
         indices.resize(newIndexCount);
+        triangleUvs.resize(currentTriangleCount * 4);
+        triangleFaces.resize(currentTriangleCount * 4);
 
         // Process triangles from back to front to avoid overwriting data we still need
         for (int i = static_cast<int>(currentTriangleCount) - 1; i >= 0; --i)
@@ -190,6 +213,14 @@ ShapeDefs::Ball(const BallParams& params)
             const VertexIndex v0 = indices[oldOffset];
             const VertexIndex v1 = indices[oldOffset + 1];
             const VertexIndex v2 = indices[oldOffset + 2];
+            const auto oldUvs = triangleUvs[static_cast<size_t>(i)];
+            const uint8_t faceIndex = triangleFaces[static_cast<size_t>(i)];
+            const auto midpointUv = [](UV2 uvA, UV2 uvB) -> UV2 {
+                return UV2{ .u = (uvA.u + uvB.u) * 0.5f, .v = (uvA.v + uvB.v) * 0.5f };
+            };
+            const UV2 uv01 = midpointUv(oldUvs.Corners[0], oldUvs.Corners[1]);
+            const UV2 uv12 = midpointUv(oldUvs.Corners[1], oldUvs.Corners[2]);
+            const UV2 uv20 = midpointUv(oldUvs.Corners[2], oldUvs.Corners[0]);
 
             // Get or create midpoint vertices (with deduplication)
             const VertexIndex m01 = getMidpoint(v0, v1);
@@ -201,8 +232,44 @@ ShapeDefs::Ball(const BallParams& params)
             indices[newOffset + 3] = v1;   indices[newOffset + 4] = m12;  indices[newOffset + 5] = m01;
             indices[newOffset + 6] = v2;   indices[newOffset + 7] = m20;  indices[newOffset + 8] = m12;
             indices[newOffset + 9] = m01;  indices[newOffset + 10] = m12; indices[newOffset + 11] = m20;
+
+            // Carry the parent face's UVs into each of its four children.
+            const size_t firstChild = static_cast<size_t>(i) * 4;
+            triangleUvs[firstChild] = TriangleUvs{ .Corners{ oldUvs.Corners[0], uv01, uv20 } };
+            triangleUvs[firstChild + 1] = TriangleUvs{ .Corners{ oldUvs.Corners[1], uv12, uv01 } };
+            triangleUvs[firstChild + 2] = TriangleUvs{ .Corners{ oldUvs.Corners[2], uv20, uv12 } };
+            triangleUvs[firstChild + 3] = TriangleUvs{ .Corners{ uv01, uv12, uv20 } };
+            for (size_t child = 0; child < 4; ++child)
+            {
+                triangleFaces[firstChild + child] = faceIndex;
+            }
         }
     }
+
+    // A shared edge needs separate UVs for each face, even though its positions match.
+    const size_t edgeSegments = 1uz << subdivisions;
+    std::vector<Vertex> atlasVertices;
+    atlasVertices.reserve(20 * (edgeSegments + 1) * (edgeSegments + 2) / 2);
+    std::vector<VertexIndex> atlasIndices(
+        20 * totalVertices, std::numeric_limits<VertexIndex>::max());
+    for (size_t triangle = 0; triangle < finalTriangles; ++triangle)
+    {
+        for (size_t corner = 0; corner < 3; ++corner)
+        {
+            VertexIndex& index = indices[(triangle * 3) + corner];
+            const size_t atlasSlot =
+                (static_cast<size_t>(triangleFaces[triangle]) * totalVertices) + index;
+            VertexIndex& atlasIndex = atlasIndices[atlasSlot];
+            if (atlasIndex == std::numeric_limits<VertexIndex>::max())
+            {
+                atlasIndex = static_cast<VertexIndex>(atlasVertices.size());
+                atlasVertices.push_back(vertices[index]);
+                atlasVertices.back().uvs[0] = triangleUvs[triangle].Corners[corner];
+            }
+            index = atlasIndex;
+        }
+    }
+    vertices = std::move(atlasVertices);
 
     // Scale to desired radius
     for (auto& vertex : vertices)
@@ -236,30 +303,33 @@ ShapeDefs::Cylinder(const CylinderParams& params)
     const uint32_t segments = static_cast<uint32_t>(8 + (smoothness * 4)); // 12 to 48 segments
 
     // Reserve exact sizes
-    const uint32_t totalVertices = (segments * 4) + 2; // sides + cap rings + centers
-    const uint32_t totalIndices = segments * 12; // 4 quads (2 tri each) for sides + 2 caps
+    const uint32_t totalVertices = (segments * 4) + 4; // sides with seam + cap rings + centers
+    const uint32_t totalIndices = segments * 12; // Two side and two cap triangles per segment
     vertices.reserve(totalVertices);
     indices.reserve(totalIndices);
 
-    // Side vertices (top and bottom rings with radial normals)
-    for (uint32_t seg = 0; seg < segments; ++seg)
+    // The last side pair repeats the first position with U = 1, so no triangle crosses the seam.
+    for (uint32_t seg = 0; seg <= segments; ++seg)
     {
         const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
-        const float x = params.Radius * std::cos(theta);
-        const float z = params.Radius * std::sin(theta);
-        const VertexNormal normal = VertexNormal(x / params.Radius, 0.0f, z / params.Radius).Normalize();
+        const float cosTheta = (seg == segments) ? 1.0f : std::cos(theta);
+        const float sinTheta = (seg == segments) ? 0.0f : std::sin(theta);
+        const float x = params.Radius * cosTheta;
+        const float z = params.Radius * sinTheta;
+        const VertexNormal normal{ cosTheta, 0.0f, sinTheta };
+        const float u = static_cast<float>(seg) / static_cast<float>(segments);
 
-        // Bottom vertex
-        vertices.push_back(Vertex{ .pos{ x, -halfHeight, z }, .normal = normal, .uvs{} });
-        // Top vertex
-        vertices.push_back(Vertex{ .pos{ x, halfHeight, z }, .normal = normal, .uvs{} });
+        vertices.push_back(Vertex{ .pos{ x, -halfHeight, z }, .normal = normal,
+            .uvs{ UV2{ .u = u, .v = 0.0f } } });
+        vertices.push_back(Vertex{ .pos{ x, halfHeight, z }, .normal = normal,
+            .uvs{ UV2{ .u = u, .v = 1.0f } } });
     }
 
     // Generate side indices
     for (uint32_t seg = 0; seg < segments; ++seg)
     {
         const uint32_t current = seg * 2;
-        const uint32_t next = ((seg + 1) % segments) * 2;
+        const uint32_t next = (seg + 1) * 2;
 
         // First triangle (clockwise)
         indices.push_back(current);
@@ -273,11 +343,12 @@ ShapeDefs::Cylinder(const CylinderParams& params)
     }
 
     // Cap vertices (separate from side vertices due to different normals)
-    const uint32_t bottomCapStart = segments * 2;
+    const uint32_t bottomCapStart = (segments + 1) * 2;
     const uint32_t topCapStart = bottomCapStart + segments + 1;
 
     // Bottom cap center
-    vertices.push_back(Vertex{ .pos{ 0.0f, -halfHeight, 0.0f }, .normal{ 0.0f, -1.0f, 0.0f }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{ 0.0f, -halfHeight, 0.0f },
+        .normal{ 0.0f, -1.0f, 0.0f }, .uvs{ UV2{ .u = 0.5f, .v = 0.5f } } });
 
     // Bottom cap ring
     for (uint32_t seg = 0; seg < segments; ++seg)
@@ -285,11 +356,14 @@ ShapeDefs::Cylinder(const CylinderParams& params)
         const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
         const float x = params.Radius * std::cos(theta);
         const float z = params.Radius * std::sin(theta);
-        vertices.push_back(Vertex{ .pos{ x, -halfHeight, z }, .normal{ 0.0f, -1.0f, 0.0f }, .uvs{} });
+        vertices.push_back(Vertex{ .pos{ x, -halfHeight, z }, .normal{ 0.0f, -1.0f, 0.0f },
+            .uvs{ UV2{ .u = 0.5f + ((0.5f * x) / params.Radius),
+                .v = 0.5f + ((0.5f * z) / params.Radius) } } });
     }
 
     // Top cap center
-    vertices.push_back(Vertex{ .pos{ 0.0f, halfHeight, 0.0f }, .normal{ 0.0f, 1.0f, 0.0f }, .uvs{} });
+    vertices.push_back(Vertex{ .pos{ 0.0f, halfHeight, 0.0f },
+        .normal{ 0.0f, 1.0f, 0.0f }, .uvs{ UV2{ .u = 0.5f, .v = 0.5f } } });
 
     // Top cap ring
     for (uint32_t seg = 0; seg < segments; ++seg)
@@ -297,7 +371,9 @@ ShapeDefs::Cylinder(const CylinderParams& params)
         const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
         const float x = params.Radius * std::cos(theta);
         const float z = params.Radius * std::sin(theta);
-        vertices.push_back(Vertex{ .pos{ x, halfHeight, z }, .normal{ 0.0f, 1.0f, 0.0f }, .uvs{} });
+        vertices.push_back(Vertex{ .pos{ x, halfHeight, z }, .normal{ 0.0f, 1.0f, 0.0f },
+            .uvs{ UV2{ .u = 0.5f + ((0.5f * x) / params.Radius),
+                .v = 0.5f + ((0.5f * z) / params.Radius) } } });
     }
 
     // Bottom cap indices (clockwise from below)
@@ -337,7 +413,7 @@ ShapeDefs::Cone(const ConeParams& params)
 {
     MLG_ASSERT(params.Radius1 >= 0);
     MLG_ASSERT(params.Radius2 >= 0);
-    MLG_ASSERT(params.Radius1 > 0 || params.Radius2 > 0);
+    MLG_ASSERT((params.Radius1 > 0) || (params.Radius2 > 0));
     MLG_ASSERT(params.Smoothness > 0);
 
     std::vector<Vertex> vertices;
@@ -353,16 +429,16 @@ ShapeDefs::Cone(const ConeParams& params)
     // Calculate exact sizes
     const bool hasBottomCap = params.Radius1 > 0.0f;
     const bool hasTopCap = params.Radius2 > 0.0f;
-    const bool hasSideQuads = params.Radius1 > 0.0f && params.Radius2 > 0.0f;
+    const bool hasSideQuads = hasBottomCap && hasTopCap;
 
-    uint32_t totalVertices = segments * 2; // Side vertices
-    if (hasBottomCap) {totalVertices += segments + 1; } // Bottom cap ring + center
-    if (hasTopCap) {totalVertices += segments + 1; }    // Top cap ring + center
+    uint32_t totalVertices = (segments + 1) * 2; // Side vertices with UV seam
+    if (hasBottomCap) {totalVertices += (segments + 1); } // Bottom cap ring + center
+    if (hasTopCap) {totalVertices += (segments + 1); }    // Top cap ring + center
 
     uint32_t totalIndices = segments * 3; // At least triangular side
-    if (hasSideQuads) {totalIndices += segments * 3; } // Additional triangles for quads
-    if (hasBottomCap) {totalIndices += segments * 3; }
-    if (hasTopCap) {totalIndices += segments * 3; }
+    if (hasSideQuads) {totalIndices += (segments * 3); } // Additional triangles for quads
+    if (hasBottomCap) {totalIndices += (segments * 3); }
+    if (hasTopCap) {totalIndices += (segments * 3); }
 
     vertices.reserve(totalVertices);
     indices.reserve(totalIndices);
@@ -370,15 +446,16 @@ ShapeDefs::Cone(const ConeParams& params)
     // Calculate slant normal for the cone's side
     const float dr = params.Radius2 - params.Radius1;
     const float slantLength = std::sqrt((dr * dr) + (height * height));
-    const float normalY = dr / slantLength;
+    const float normalY = (-dr) / slantLength;
     const float normalXZ = height / slantLength;
 
-    // Side vertices with slant normals
-    for (uint32_t seg = 0; seg < segments; ++seg)
+    // The last pair repeats the first position so U can end at 1 without wrapping a triangle.
+    for (uint32_t seg = 0; seg <= segments; ++seg)
     {
         const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
-        const float cosTheta = std::cos(theta);
-        const float sinTheta = std::sin(theta);
+        const float cosTheta = (seg == segments) ? 1.0f : std::cos(theta);
+        const float sinTheta = (seg == segments) ? 0.0f : std::sin(theta);
+        const float u = static_cast<float>(seg) / static_cast<float>(segments);
 
         const float x1 = params.Radius1 * cosTheta;
         const float z1 = params.Radius1 * sinTheta;
@@ -392,24 +469,27 @@ ShapeDefs::Cone(const ConeParams& params)
         }.Normalize();
 
         // Bottom vertex
-        vertices.push_back(Vertex{ .pos{ x1, -halfHeight, z1 }, .normal = normal, .uvs{} });
+        vertices.push_back(Vertex{ .pos{ x1, -halfHeight, z1 }, .normal = normal,
+            .uvs{ UV2{ .u = u, .v = 0.0f } } });
         // Top vertex
-        vertices.push_back(Vertex{ .pos{ x2, halfHeight, z2 }, .normal = normal, .uvs{} });
+        vertices.push_back(Vertex{ .pos{ x2, halfHeight, z2 }, .normal = normal,
+            .uvs{ UV2{ .u = u, .v = 1.0f } } });
     }
 
     // Generate side indices
     for (uint32_t seg = 0; seg < segments; ++seg)
     {
         const uint32_t current = seg * 2;
-        const uint32_t next = ((seg + 1) % segments) * 2;
+        const uint32_t next = (seg + 1) * 2;
 
-        // First triangle (clockwise)
-        indices.push_back(current);
-        indices.push_back(current + 1);
-        indices.push_back(next);
-
-        // Second triangle (clockwise) - only if both radii are non-zero
-        if (hasSideQuads)
+        // Skip the triangle whose two vertices collapse onto a zero-radius tip.
+        if (hasBottomCap)
+        {
+            indices.push_back(current);
+            indices.push_back(current + 1);
+            indices.push_back(next);
+        }
+        if (hasTopCap)
         {
             indices.push_back(next);
             indices.push_back(current + 1);
@@ -417,7 +497,7 @@ ShapeDefs::Cone(const ConeParams& params)
         }
     }
 
-    uint32_t currentVertexOffset = segments * 2;
+    uint32_t currentVertexOffset = (segments + 1) * 2;
 
     // Bottom cap (only if radius1 > 0)
     if (hasBottomCap)
@@ -426,7 +506,8 @@ ShapeDefs::Cone(const ConeParams& params)
         const uint32_t bottomRingStart = currentVertexOffset + 1;
 
         // Bottom cap center
-        vertices.push_back(Vertex{ .pos{ 0.0f, -halfHeight, 0.0f }, .normal{ 0.0f, -1.0f, 0.0f }, .uvs{} });
+        vertices.push_back(Vertex{ .pos{ 0.0f, -halfHeight, 0.0f },
+            .normal{ 0.0f, -1.0f, 0.0f }, .uvs{ UV2{ .u = 0.5f, .v = 0.5f } } });
 
         // Bottom cap ring with vertical normals
         for (uint32_t seg = 0; seg < segments; ++seg)
@@ -434,7 +515,9 @@ ShapeDefs::Cone(const ConeParams& params)
             const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
             const float x = params.Radius1 * std::cos(theta);
             const float z = params.Radius1 * std::sin(theta);
-            vertices.push_back(Vertex{ .pos{ x, -halfHeight, z }, .normal{ 0.0f, -1.0f, 0.0f }, .uvs{} });
+            vertices.push_back(Vertex{ .pos{ x, -halfHeight, z }, .normal{ 0.0f, -1.0f, 0.0f },
+                .uvs{ UV2{ .u = 0.5f + ((0.5f * x) / params.Radius1),
+                    .v = 0.5f + ((0.5f * z) / params.Radius1) } } });
         }
 
         // Bottom cap indices
@@ -448,7 +531,7 @@ ShapeDefs::Cone(const ConeParams& params)
             indices.push_back(next);
         }
 
-        currentVertexOffset += segments + 1;
+        currentVertexOffset += (segments + 1);
     }
 
     // Top cap (only if radius2 > 0)
@@ -458,7 +541,8 @@ ShapeDefs::Cone(const ConeParams& params)
         const uint32_t topRingStart = currentVertexOffset + 1;
 
         // Top cap center
-        vertices.push_back(Vertex{ .pos{ 0.0f, halfHeight, 0.0f }, .normal{ 0.0f, 1.0f, 0.0f }, .uvs{} });
+        vertices.push_back(Vertex{ .pos{ 0.0f, halfHeight, 0.0f },
+            .normal{ 0.0f, 1.0f, 0.0f }, .uvs{ UV2{ .u = 0.5f, .v = 0.5f } } });
 
         // Top cap ring with vertical normals
         for (uint32_t seg = 0; seg < segments; ++seg)
@@ -466,7 +550,9 @@ ShapeDefs::Cone(const ConeParams& params)
             const float theta = 2.0f * kPi * static_cast<float>(seg) / static_cast<float>(segments);
             const float x = params.Radius2 * std::cos(theta);
             const float z = params.Radius2 * std::sin(theta);
-            vertices.push_back(Vertex{ .pos{ x, halfHeight, z }, .normal{ 0.0f, 1.0f, 0.0f }, .uvs{} });
+            vertices.push_back(Vertex{ .pos{ x, halfHeight, z }, .normal{ 0.0f, 1.0f, 0.0f },
+                .uvs{ UV2{ .u = 0.5f + ((0.5f * x) / params.Radius2),
+                    .v = 0.5f + ((0.5f * z) / params.Radius2) } } });
         }
 
         // Top cap indices
@@ -492,34 +578,33 @@ ShapeDefs::Cone(const ConeParams& params)
 MeshDef
 ShapeDefs::Torus(const TorusParams& params)
 {
-    MLG_ASSERT(params.RingRadius >= 0);
-    MLG_ASSERT(params.TubeRadius > 0);
+    MLG_ASSERT(std::isfinite(params.RingRadius) && std::isfinite(params.TubeRadius) &&
+        (params.TubeRadius > 0.0f) && (params.RingRadius > params.TubeRadius),
+        "Torus requires finite radii with RingRadius > TubeRadius > 0");
     MLG_ASSERT(params.Smoothness > 0);
 
     const float smoothness = std::max(1.0f, std::min(kMaxSmoothness, params.Smoothness));
 
-    if (0 == params.RingRadius)
-    {
-        return Ball(BallParams{ .Radius = params.TubeRadius, .Smoothness = smoothness });
-    }
-
     std::vector<Vertex> vertices;
     std::vector<VertexIndex> indices;
 
-    // Minimum smoothness of 3 to avoid degenerate geometry
-    const size_t numSegmentsMajor = std::max(3uz, static_cast<size_t>(smoothness * 4));
-    const size_t numSegmentsMinor = std::max(3uz, static_cast<size_t>(smoothness * 4));
+    // Keep both circular silhouettes round even at the lowest smoothness.
+    constexpr size_t kBaseSegments = 12;
+    const size_t numSegmentsMajor = kBaseSegments + static_cast<size_t>(smoothness * 4);
+    const size_t numSegmentsMinor = kBaseSegments + static_cast<size_t>(smoothness * 4);
+    MLG_ASSERT(numSegmentsMajor > 0);
+    MLG_ASSERT(numSegmentsMinor > 0);
 
     const float dTheta = 2.0f * kPi / static_cast<float>(numSegmentsMajor);
     const float dPhi = 2.0f * kPi / static_cast<float>(numSegmentsMinor);
 
     // Reserve exact memory
-    const size_t totalVertices = numSegmentsMajor * numSegmentsMinor;
+    const size_t totalVertices = (numSegmentsMajor + 1) * (numSegmentsMinor + 1);
     const size_t totalIndices = numSegmentsMajor * numSegmentsMinor * 6;
     vertices.reserve(totalVertices);
     indices.reserve(totalIndices);
 
-    constexpr size_t kMaxSegments = static_cast<size_t>(ShapeDefs::kMaxSmoothness * 4);
+    constexpr size_t kMaxSegments = kBaseSegments + static_cast<size_t>(ShapeDefs::kMaxSmoothness * 4);
 
     // Precompute trig values for major circle
     float cosThetaCache[kMaxSegments];
@@ -541,16 +626,16 @@ ShapeDefs::Torus(const TorusParams& params)
         sinPhiCache[j] = std::sin(phi);
     }
 
-    // Generate vertices
-    for (size_t i = 0; i < numSegmentsMajor; ++i)
+    // Repeat both boundary rows with UV 1 so neither texture seam crosses a triangle.
+    for (size_t i = 0; i <= numSegmentsMajor; ++i)
     {
-        const float cosTheta = cosThetaCache[i];
-        const float sinTheta = sinThetaCache[i];
+        const float cosTheta = cosThetaCache[i % numSegmentsMajor];
+        const float sinTheta = sinThetaCache[i % numSegmentsMajor];
 
-        for (size_t j = 0; j < numSegmentsMinor; ++j)
+        for (size_t j = 0; j <= numSegmentsMinor; ++j)
         {
-            const float cosPhi = cosPhiCache[j];
-            const float sinPhi = sinPhiCache[j];
+            const float cosPhi = cosPhiCache[j % numSegmentsMinor];
+            const float sinPhi = sinPhiCache[j % numSegmentsMinor];
 
             // Vertex position (left-handed)
             const float distanceFromCenter = params.RingRadius + (params.TubeRadius * cosPhi);
@@ -563,25 +648,26 @@ ShapeDefs::Torus(const TorusParams& params)
             const float ny = sinTheta * cosPhi;
             const float nz = sinPhi;
 
-            vertices.push_back(Vertex{ .pos{ x, y, z }, .normal{ nx, ny, nz }, .uvs{} });
+            vertices.push_back(Vertex{ .pos{ x, y, z }, .normal{ nx, ny, nz },
+                .uvs{ UV2{
+                    .u = static_cast<float>(i) / static_cast<float>(numSegmentsMajor),
+                    .v = static_cast<float>(j) / static_cast<float>(numSegmentsMinor)
+                } } });
         }
     }
 
     // Generate triangle indices (clockwise for left-handed system)
     for (size_t i = 0; i < numSegmentsMajor; ++i)
     {
-        const size_t nextI = (i + 1) % numSegmentsMajor;
-        const size_t rowOffset = i * numSegmentsMinor;
-        const size_t nextRowOffset = nextI * numSegmentsMinor;
+        const size_t rowOffset = i * (numSegmentsMinor + 1);
+        const size_t nextRowOffset = (i + 1) * (numSegmentsMinor + 1);
 
         for (size_t j = 0; j < numSegmentsMinor; ++j)
         {
-            const size_t nextJ = (j + 1) % numSegmentsMinor;
-
             const size_t i0 = rowOffset + j;
             const size_t i1 = nextRowOffset + j;
-            const size_t i2 = nextRowOffset + nextJ;
-            const size_t i3 = rowOffset + nextJ;
+            const size_t i2 = nextRowOffset + j + 1;
+            const size_t i3 = rowOffset + j + 1;
 
             // First triangle
             indices.push_back(static_cast<VertexIndex>(i0));
