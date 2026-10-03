@@ -8,7 +8,7 @@
 #include "ImGuiRenderer.h"
 #include "InputMapper.h"
 #include "Level.h"
-#include "LevelDefs.h"
+#include "LevelTypes.h"
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"
 #include "Scene.h"

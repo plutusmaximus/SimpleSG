@@ -1,6 +1,6 @@
 #pragma once
 
-#include "LevelDefs.h"
+#include "LevelTypes.h"
 
 class ShapeDefs
 {

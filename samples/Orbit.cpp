@@ -70,12 +70,13 @@ LoadLevel(System& system)
     constexpr size_t kNumBodies = 1000;
 #endif
 
-    [[maybe_unused]] const MeshDef torus = ShapeDefs::Torus({ .RingRadius = kTorusRingRadius,
+    const MeshDef torus = ShapeDefs::Torus({ .RingRadius = kTorusRingRadius,
         .TubeRadius = kTorusTubeRadius,
         .Smoothness = kTorusSmoothness });
 
     const MeshDef box =
         ShapeDefs::Box({ .Width = kBoxExtent, .Height = kBoxExtent, .Depth = kBoxExtent });
+        
     const MeshDef ball = ShapeDefs::Ball({ .Radius = kBallRadius });
 
     std::vector<RootNodeDef> nodeDefs;

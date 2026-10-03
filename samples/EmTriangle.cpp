@@ -2,7 +2,7 @@
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
 #include "Level.h"
-#include "LevelDefs.h"
+#include "LevelTypes.h"
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"

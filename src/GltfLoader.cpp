@@ -6,7 +6,7 @@
 #include "GltfLoader.h"
 
 #include "Defer.h"
-#include "LevelDefs.h"
+#include "LevelTypes.h"
 #include "Log.h"
 #include "Vertex.h"
 

@@ -1,6 +1,6 @@
 #include "ResourceBundle.h"
 
-#include "LevelDefs.h"
+#include "LevelTypes.h"
 #include "Result.h"
 
 #include <cstddef>

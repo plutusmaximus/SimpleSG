@@ -400,7 +400,6 @@ set(SSG_HEADERS
   src/InputMapper.h
   src/Level.h
   src/LevelTypes.h
-  src/LevelDefs.h
   src/Log.h
   src/PhysicsTypes.h
   src/PerfMetrics.h

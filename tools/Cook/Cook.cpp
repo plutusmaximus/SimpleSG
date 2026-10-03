@@ -2,7 +2,7 @@
 #include "Defer.h"
 #include "GltfLoader.h"
 #include "Level.h"
-#include "LevelDefs.h"
+#include "LevelTypes.h"
 #include "Log.h"
 #include "ResourceBundle.h"
 #include "Result.h"
