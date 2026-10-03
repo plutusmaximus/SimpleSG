@@ -6,12 +6,11 @@
 #include <cstddef>
 #include <map>
 #include <ranges>
+#include <SDL3/SDL_stdinc.h>
 #include <span>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#include <SDL3/SDL_stdinc.h>
 
 namespace
 {
@@ -24,7 +23,6 @@ using Header = ResourceBundle::Header;
 constexpr IndexType kInvalidIndex = ResourceBundle::kInvalidIndex;
 constexpr OffsetType kInvalidOffset = ResourceBundle::kInvalidOffset;
 constexpr size_t kMaxBundleSize = ResourceBundle::kMaxBundleSize;
-constexpr size_t kMaxOffset = ResourceBundle::kMaxOffset;
 
 template<typename T>
 constexpr size_t kMaxVectorSize = std::min(ResourceBundle::kMaxCount, std::vector<T>().max_size());
@@ -36,6 +34,7 @@ struct FlatNodeDef
     IndexType FirstChildIndex;
 };
 
+/// Used when constructing a std::map to keep track of the original indices of the values.
 template<typename T>
 struct IndexEntry
 {
@@ -43,70 +42,35 @@ struct IndexEntry
     size_t Index;
 };
 
-template<typename T>
-class Collection
+/// Converts a std::map to a std::vector by extracting the values.
+template<typename K, typename V>
+std::vector<V>
+MapToVector(const std::map<K, V>& map)
 {
-public:
-    static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
-    static_assert(std::is_standard_layout_v<T>, "T must have standard layout");
-    static_assert(sizeof(T) < kMaxOffset);
-
-    using ValueType = T;
-
-    explicit Collection(const std::span<const T> span)
-        : m_Storage(span)
+    std::vector<V> vector;
+    vector.reserve(map.size());
+    for(const auto& [key, value] : map)
     {
+        vector.push_back(value);
     }
+    return vector;
+}
 
-    explicit Collection(const std::vector<T>& vector)
-        : Collection(std::span(vector))
+/// Converts a std::map to a std::vector by extracting the values from IndexEntry objects.
+template<typename K, typename V>
+std::vector<V>
+MapToVector(const std::map<K, IndexEntry<V>>& map)
+{
+    std::vector<V> vector;
+    vector.reserve(map.size());
+    for(const auto& [key, value] : map)
     {
+        vector.push_back(value.Value);
     }
+    return vector;
+}
 
-    explicit Collection(std::vector<T>&& vector)
-        : m_Storage(std::move(vector))
-    {
-    }
-
-    explicit Collection(const std::vector<T>&& vector) = delete;
-
-    template<typename K>
-    explicit Collection(const std::map<K, T>& map)
-    {
-        std::vector<T> vector;
-        vector.reserve(map.size());
-        for(const auto& [key, value] : map)
-        {
-            vector.push_back(value);
-        }
-        m_Storage = std::move(vector);
-    }
-
-    template<typename K>
-    explicit Collection(const std::map<K, IndexEntry<T>>& map)
-    {
-        std::vector<T> vector;
-        vector.reserve(map.size());
-        for(const auto& [key, indexEntry] : map)
-        {
-            vector.push_back(indexEntry.Value);
-        }
-        m_Storage = std::move(vector);
-    }
-
-    std::span<const T> GetSpan() const
-    {
-        return std::visit([](const auto& storage) -> std::span<const T>
-            { return std::span<const T>(storage); },
-            m_Storage);
-    }
-
-    size_t size() const { return GetSpan().size(); }
-
-private:
-    std::variant<std::span<const T>, std::vector<T>> m_Storage;
-};
-
+/// Calculates the padding needed to align the given size for type T.
 template<typename T>
 constexpr size_t
 Pad(const size_t size)
@@ -115,13 +79,16 @@ Pad(const size_t size)
 }
 
 /// Pads the given buffer to ensure it is properly aligned for type T.
+/// The buffer is extended with zero bytes as needed.
 template<typename T>
-void AppendPad(std::vector<std::byte>& buffer)
+void
+AppendPad(std::vector<std::byte>& buffer)
 {
     const size_t pad = Pad<T>(buffer.size());
-    buffer.insert(buffer.end(), pad, std::byte{0});
+    buffer.insert(buffer.end(), pad, std::byte{ 0 });
 }
 
+/// Flattens a hierarchy of nodes into a breadth-first ordered vector of FlatNodeDef objects.
 Result<std::vector<FlatNodeDef>>
 FlattenNodesBreadthFirst(const std::span<const RootNodeDef> rootNodeDefs)
 {
@@ -234,6 +201,7 @@ CollectMeshDefs(const std::span<const ModelDef> modelDefs)
     return meshDefs;
 }
 
+/// Adds a string to the string resource map and character buffe.
 Result<StringResource>
 AddString(std::map<std::string_view, StringResource>& stringResourceMap,
     std::vector<char>& chars,
@@ -822,6 +790,7 @@ CollectLevelNodes(const std::span<const FlatNodeDef> flatNodeDefs,
     return levelNodes;
 }
 
+/// Retrieves the header from the buffer. Returns nullptr if the buffer is too small.
 const Header*
 GetHeader(const std::span<const std::byte>& buffer)
 {
@@ -834,18 +803,26 @@ GetHeader(const std::span<const std::byte>& buffer)
     return static_cast<const Header*>(p);
 }
 
+/// Converts a value to a span of bytes.
 template<typename T>
 std::span<const std::byte>
 AsBytes(const T& value)
 {
+    static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
+    static_assert(std::is_standard_layout_v<T>, "T must have standard layout");
+
     const void* p = &value;
     return std::span(static_cast<const std::byte*>(p), sizeof(T));
 }
 
+/// Converts a span of values to a span of bytes.
 template<typename T>
 std::span<const std::byte>
 AsBytes(const std::span<const T> span)
 {
+    static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
+    static_assert(std::is_standard_layout_v<T>, "T must have standard layout");
+
     return std::as_bytes(span);
 }
 
@@ -960,68 +937,60 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKit
     const auto nodes = CollectLevelNodes(*flatNodeDefs, *stringIndexMap);
     MLG_CHECK(nodes);
 
-    const auto charCollection = Collection(chars);
-    const auto stringCollection = Collection(*stringIndexMap);
-    const auto textureCollection = Collection(*textureIndexMap);
-    const auto materialCollection = Collection(*materialIndexMap);
-    const auto modelCollection = Collection(*modelIndexMap);
-    const auto vertexCollection = Collection(*vertices);
-    const auto indexCollection = Collection(*indices);
-    const auto meshCollection = Collection(*meshes);
-    const auto modelInstanceCollection = Collection(*modelInstances);
-    const auto colliderCollection = Collection(*colliders);
-    const auto rigidBodyCollection = Collection(*rigidBodies);
-    const auto nodeCollection = Collection(*nodes);
+    const std::vector<StringResource> strings = MapToVector(*stringIndexMap);
+    const std::vector<TextureResource> textures = MapToVector(*textureIndexMap);
+    const std::vector<MaterialResource> materials = MapToVector(*materialIndexMap);
+    const std::vector<ModelResource> models = MapToVector(*modelIndexMap);
 
     size_t totalSize = sizeof(Header);
 
-    auto addAndCheckOverflow = [&](const auto& collection) -> Result<>
+    auto addAndCheckOverflow = [&](const auto& container) -> Result<>
     {
-        using CollectionType = std::decay_t<decltype(collection)>;
-        using ValueType = CollectionType::ValueType;
+        using Container = std::decay_t<decltype(container)>;
+        using ValueType = Container::value_type;
 
         const size_t pad = Pad<ValueType>(totalSize);
         const size_t remaining = kMaxBundleSize - totalSize;
 
         MLG_CHECK(pad <= remaining, "Padding size exceeds maximum bundle size");
-        MLG_CHECKV((remaining - pad) / sizeof(ValueType) >= collection.size(),
+        MLG_CHECKV((remaining - pad) / sizeof(ValueType) >= container.size(),
             "Collection size would overflow maximum allowable size");
 
-        const size_t byteSizeOfCollection = (collection.size() * sizeof(ValueType)) + pad;
+        const size_t byteSizeOfCollection = (container.size() * sizeof(ValueType)) + pad;
 
         totalSize += byteSizeOfCollection;
 
         return Result<>::Ok;
     };
 
-    MLG_CHECK(addAndCheckOverflow(charCollection));
-    MLG_CHECK(addAndCheckOverflow(stringCollection));
-    MLG_CHECK(addAndCheckOverflow(textureCollection));
-    MLG_CHECK(addAndCheckOverflow(materialCollection));
-    MLG_CHECK(addAndCheckOverflow(vertexCollection));
-    MLG_CHECK(addAndCheckOverflow(indexCollection));
-    MLG_CHECK(addAndCheckOverflow(meshCollection));
-    MLG_CHECK(addAndCheckOverflow(modelCollection));
-    MLG_CHECK(addAndCheckOverflow(modelInstanceCollection));
-    MLG_CHECK(addAndCheckOverflow(colliderCollection));
-    MLG_CHECK(addAndCheckOverflow(rigidBodyCollection));
-    MLG_CHECK(addAndCheckOverflow(nodeCollection));
+    MLG_CHECK(addAndCheckOverflow(chars));
+    MLG_CHECK(addAndCheckOverflow(strings));
+    MLG_CHECK(addAndCheckOverflow(textures));
+    MLG_CHECK(addAndCheckOverflow(materials));
+    MLG_CHECK(addAndCheckOverflow(*vertices));
+    MLG_CHECK(addAndCheckOverflow(*indices));
+    MLG_CHECK(addAndCheckOverflow(*meshes));
+    MLG_CHECK(addAndCheckOverflow(models));
+    MLG_CHECK(addAndCheckOverflow(*modelInstances));
+    MLG_CHECK(addAndCheckOverflow(*colliders));
+    MLG_CHECK(addAndCheckOverflow(*rigidBodies));
+    MLG_CHECK(addAndCheckOverflow(*nodes));
 
     m_Buffer.reserve(totalSize);
 
     AppendHeader(static_cast<OffsetType>(totalSize));
-    MLG_CHECK(Append(charCollection.GetSpan()));
-    MLG_CHECK(Append(stringCollection.GetSpan()));
-    MLG_CHECK(Append(textureCollection.GetSpan()));
-    MLG_CHECK(Append(materialCollection.GetSpan()));
-    MLG_CHECK(Append(vertexCollection.GetSpan()));
-    MLG_CHECK(Append(indexCollection.GetSpan()));
-    MLG_CHECK(Append(meshCollection.GetSpan()));
-    MLG_CHECK(Append(modelCollection.GetSpan()));
-    MLG_CHECK(Append(modelInstanceCollection.GetSpan()));
-    MLG_CHECK(Append(colliderCollection.GetSpan()));
-    MLG_CHECK(Append(rigidBodyCollection.GetSpan()));
-    MLG_CHECK(Append(nodeCollection.GetSpan()));
+    MLG_CHECK(Append(chars));
+    MLG_CHECK(Append(strings));
+    MLG_CHECK(Append(textures));
+    MLG_CHECK(Append(materials));
+    MLG_CHECK(Append(*vertices));
+    MLG_CHECK(Append(*indices));
+    MLG_CHECK(Append(*meshes));
+    MLG_CHECK(Append(models));
+    MLG_CHECK(Append(*modelInstances));
+    MLG_CHECK(Append(*colliders));
+    MLG_CHECK(Append(*rigidBodies));
+    MLG_CHECK(Append(*nodes));
 
     GetHeader()->Checksum = GetChecksum(m_Buffer);
 
@@ -1151,8 +1120,7 @@ ResourceBundleBuilder::Append(const std::span<const ModelInstanceResource>& mode
 {
     Header* h = GetHeader();
     MLG_ASSERT(h != nullptr, "Header is not initialized");
-    MLG_ASSERT(h->ModelInstancesOffset == kInvalidOffset,
-        "Model Instances already appended");
+    MLG_ASSERT(h->ModelInstancesOffset == kInvalidOffset, "Model Instances already appended");
 
     AppendPad<ModelInstanceResource>(m_Buffer);
     h->ModelInstancesOffset = static_cast<OffsetType>(m_Buffer.size());
