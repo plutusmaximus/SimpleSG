@@ -5,7 +5,7 @@
 
 #include <algorithm>
 #include <span>
-#include <string>
+#include <string_view>
 
 /// RGBA color representation.
 template<typename T>
@@ -129,7 +129,7 @@ RgbaColor<uint8_t>::ToHexString() const
     hexStrBuf[offset++] = kHexDigits[a & kMask];
     hexStrBuf[offset] = '\0'; // Null-terminate the string
 
-    return HexString(std::string(&hexStrBuf[0], offset));
+    return HexString(std::string_view(&hexStrBuf[0], offset));
 }
 
 template<>
