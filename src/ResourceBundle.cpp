@@ -4,7 +4,6 @@
 #include "Result.h"
 
 #include <cstddef>
-#include <functional>
 #include <map>
 #include <ranges>
 #include <span>
@@ -17,7 +16,6 @@
 namespace
 {
 
-using MeshDefRef = std::reference_wrapper<const MeshDef>;
 using NodeDefPointer = std::variant<const RootNodeDef*, const ChildNodeDef*>;
 using IndexType = ResourceBundle::IndexType;
 using OffsetType = ResourceBundle::OffsetType;
@@ -204,7 +202,7 @@ FlattenNodesBreadthFirst(const std::span<const RootNodeDef> rootNodeDefs)
     return flatNodes;
 }
 
-Result<std::vector<MeshDefRef>>
+Result<std::vector<const MeshDef*>>
 CollectMeshDefs(const std::span<const ModelDef> modelDefs)
 {
     constexpr size_t kMaxMeshCount = kMaxVectorSize<MeshDef>;
@@ -221,7 +219,7 @@ CollectMeshDefs(const std::span<const ModelDef> modelDefs)
         count += meshCount;
     }
 
-    std::vector<std::reference_wrapper<const MeshDef>> meshDefs;
+    std::vector<const MeshDef*> meshDefs;
     static_assert(kMaxMeshCount <= meshDefs.max_size());
     meshDefs.reserve(count);
 
@@ -229,7 +227,7 @@ CollectMeshDefs(const std::span<const ModelDef> modelDefs)
     {
         for(const MeshDef& meshDef : modelDef.MeshDefs)
         {
-            meshDefs.push_back(std::cref(meshDef));
+            meshDefs.push_back(&meshDef);
         }
     }
 
@@ -270,7 +268,7 @@ AddString(std::map<std::string_view, StringResource>& stringResourceMap,
 
 Result<std::map<std::string_view, StringResource>>
 CollectStrings(const std::span<const FlatNodeDef> flatNodeDefs,
-    const std::span<const MeshDefRef> meshDefs,
+    const std::span<const MeshDef* const> meshDefs,
     std::vector<char>& chars)
 {
     std::map<std::string_view, StringResource> stringResourceMap;
@@ -295,20 +293,19 @@ CollectStrings(const std::span<const FlatNodeDef> flatNodeDefs,
     }
 
     // Collect unique strings from texture paths.
-    for(const MeshDefRef& meshDefRef : meshDefs)
+    for(const MeshDef* meshDef : meshDefs)
     {
-        const MeshDef& meshDef = meshDefRef.get();
-        if(!meshDef.MaterialDef.BaseTexturePath.empty()
-            && !stringResourceMap.contains(meshDef.MaterialDef.BaseTexturePath))
+        if(!meshDef->MaterialDef.BaseTexturePath.empty()
+            && !stringResourceMap.contains(meshDef->MaterialDef.BaseTexturePath))
         {
-            MLG_CHECK(AddString(stringResourceMap, chars, meshDef.MaterialDef.BaseTexturePath));
+            MLG_CHECK(AddString(stringResourceMap, chars, meshDef->MaterialDef.BaseTexturePath));
         }
     }
 
     return stringResourceMap;
 }
 Result<std::map<std::string_view, IndexEntry<TextureResource>>>
-CollectTextures(const std::span<const MeshDefRef> meshDefs,
+CollectTextures(const std::span<const MeshDef* const> meshDefs,
     const std::map<std::string_view, StringResource>& stringIndexMap)
 {
     std::map<std::string_view, IndexEntry<TextureResource>> textureIndexMap;
@@ -316,10 +313,9 @@ CollectTextures(const std::span<const MeshDefRef> meshDefs,
     const size_t kMaxTextureCount =
         std::min(kMaxVectorSize<TextureResource>, textureIndexMap.max_size());
 
-    for(const MeshDefRef& meshDefRef : meshDefs)
+    for(const MeshDef* meshDef : meshDefs)
     {
-        const MeshDef& meshDef = meshDefRef.get();
-        const std::string_view texPath = meshDef.MaterialDef.BaseTexturePath;
+        const std::string_view texPath = meshDef->MaterialDef.BaseTexturePath;
         if(texPath.empty())
         {
             continue;
@@ -360,7 +356,7 @@ CollectTextures(const std::span<const MeshDefRef> meshDefs,
 }
 
 Result<std::map<MaterialDef, IndexEntry<MaterialResource>>>
-CollectMaterials(const std::span<const MeshDefRef> meshDefs,
+CollectMaterials(const std::span<const MeshDef* const> meshDefs,
     const std::map<std::string_view, IndexEntry<TextureResource>>& textureIndexMap)
 {
     std::map<MaterialDef, IndexEntry<MaterialResource>> materialIndexMap;
@@ -368,14 +364,13 @@ CollectMaterials(const std::span<const MeshDefRef> meshDefs,
     const size_t kMaxMaterialCount =
         std::min(kMaxVectorSize<MaterialResource>, materialIndexMap.max_size());
 
-    for(const MeshDefRef& meshDefRef : meshDefs)
+    for(const MeshDef* meshDef : meshDefs)
     {
-        const MeshDef& meshDef = meshDefRef.get();
-        if(!materialIndexMap.contains(meshDef.MaterialDef))
+        if(!materialIndexMap.contains(meshDef->MaterialDef))
         {
             MLG_CHECKV(materialIndexMap.size() < kMaxMaterialCount, "Material index out of range");
 
-            const MaterialDef& materialDef = meshDef.MaterialDef;
+            const MaterialDef& materialDef = meshDef->MaterialDef;
 
             IndexType baseTextureIndex = kInvalidIndex;
 
@@ -398,7 +393,7 @@ CollectMaterials(const std::span<const MeshDefRef> meshDefs,
                 };
 
             // Index will be filled later
-            materialIndexMap.emplace(meshDef.MaterialDef, materialResource);
+            materialIndexMap.emplace(meshDef->MaterialDef, materialResource);
         }
     }
 
@@ -413,15 +408,14 @@ CollectMaterials(const std::span<const MeshDefRef> meshDefs,
 }
 
 Result<std::vector<Vertex>>
-CollectVertices(const std::span<const MeshDefRef> meshDefs)
+CollectVertices(const std::span<const MeshDef* const> meshDefs)
 {
     constexpr size_t kMaxVertexCount = kMaxVectorSize<Vertex>;
 
     size_t count = 0;
-    for(const MeshDefRef& meshDefRef : meshDefs)
+    for(const MeshDef* meshDef : meshDefs)
     {
-        const MeshDef& meshDef = meshDefRef.get();
-        const size_t vtxCount = meshDef.Vertices.size();
+        const size_t vtxCount = meshDef->Vertices.size();
         MLG_CHECKV(vtxCount > 0, "Vertex count must be greater than zero");
         MLG_CHECKV(vtxCount <= kMaxVertexCount, "Vertex count out of range");
         MLG_CHECKV(kMaxVertexCount - count >= vtxCount, "Vertex count out of range");
@@ -431,24 +425,23 @@ CollectVertices(const std::span<const MeshDefRef> meshDefs)
     std::vector<Vertex> vertices;
     vertices.reserve(count);
 
-    for(const MeshDefRef& meshDefRef : meshDefs)
+    for(const MeshDef* meshDef : meshDefs)
     {
-        const MeshDef& meshDef = meshDefRef.get();
-        vertices.append_range(meshDef.Vertices);
+        vertices.append_range(meshDef->Vertices);
     }
 
     return vertices;
 }
 
 Result<std::vector<VertexIndex>>
-CollectIndices(const std::span<const MeshDefRef> meshDefs)
+CollectIndices(const std::span<const MeshDef* const> meshDefs)
 {
     constexpr size_t kMaxIndexCount = kMaxVectorSize<VertexIndex>;
 
     size_t count = 0;
-    for(const MeshDefRef& meshDefRef : meshDefs)
+    for(const MeshDef* meshDef : meshDefs)
     {
-        const size_t idxCount = meshDefRef.get().Indices.size();
+        const size_t idxCount = meshDef->Indices.size();
         MLG_CHECKV(idxCount >= 3, "Index count must be at least three");
         MLG_CHECKV(idxCount <= kMaxIndexCount, "Index count out of range");
         MLG_CHECKV(kMaxIndexCount - count >= idxCount, "Index count out of range");
@@ -458,22 +451,21 @@ CollectIndices(const std::span<const MeshDefRef> meshDefs)
     std::vector<VertexIndex> indices;
     indices.reserve(count);
 
-    for(const MeshDefRef& meshDefRef : meshDefs)
+    for(const MeshDef* meshDef : meshDefs)
     {
-        const MeshDef& meshDef = meshDefRef.get();
-        for(const VertexIndex index : meshDef.Indices)
+        for(const VertexIndex index : meshDef->Indices)
         {
-            MLG_CHECKV(index < meshDef.Vertices.size(), "Invalid vertex index");
+            MLG_CHECKV(index < meshDef->Vertices.size(), "Invalid vertex index");
         }
 
-        indices.append_range(meshDef.Indices);
+        indices.append_range(meshDef->Indices);
     }
 
     return indices;
 }
 
 Result<std::vector<MeshResource>>
-CollectMeshes(const std::span<const MeshDefRef> meshDefs,
+CollectMeshes(const std::span<const MeshDef* const> meshDefs,
     const std::map<MaterialDef, IndexEntry<MaterialResource>>& materialIndexMap)
 {
     constexpr size_t kMaxMeshCount = kMaxVectorSize<MeshResource>;
@@ -486,20 +478,19 @@ CollectMeshes(const std::span<const MeshDefRef> meshDefs,
     size_t indexIndex = 0;
     size_t vertexIndex = 0;
 
-    for(const MeshDefRef& meshDefRef : meshDefs)
+    for(const MeshDef* meshDef : meshDefs)
     {
-        const MeshDef& meshDef = meshDefRef.get();
         const BoundingBox boundingBox =
-            BoundingBox::FromVertices(meshDef.Vertices, meshDef.Indices);
+            BoundingBox::FromVertices(meshDef->Vertices, meshDef->Indices);
 
-        const auto it = materialIndexMap.find(meshDef.MaterialDef);
+        const auto it = materialIndexMap.find(meshDef->MaterialDef);
         MLG_CHECKV(it != materialIndexMap.end(), "Material not found");
         const IndexEntry<MaterialResource>& entry = it->second;
 
         // At this point vertices/indices/materials have been confirmed to not
         // exceed the max count so no checking is needed.
-        const size_t indexCount = meshDef.Indices.size();
-        const size_t vertexCount = meshDef.Vertices.size();
+        const size_t indexCount = meshDef->Indices.size();
+        const size_t vertexCount = meshDef->Vertices.size();
         const size_t materialIndex = entry.Index;
 
         const MeshResource mesh //
