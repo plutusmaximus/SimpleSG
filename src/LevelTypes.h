@@ -14,18 +14,18 @@
 /// Definitions for level structure, including materials, meshes, models, and nodes.
 /// Used to declaratively define the structure and properties of a level.
 
-namespace LevelDefs
+namespace SceneDefs
 {
 constexpr size_t kNameStorageSize = 32;
 using NameString = FixedString<kNameStorageSize>;
 
 using FilePathString = FixedString<RelativeFilePath::kStorageSize>;
 
-} // namespace LevelDefs
+} // namespace SceneDefs
 
 struct MaterialDef final
 {
-    LevelDefs::FilePathString BaseTexturePath;
+    SceneDefs::FilePathString BaseTexturePath;
     RgbaColorf Color{ 1, 1, 1, 1 };
     float Metalness{ 0.0f };
     float Roughness{ 0.0f };
@@ -78,13 +78,13 @@ struct MeshDef final
 
 struct ModelDef final
 {
-    LevelDefs::NameString Name;
+    SceneDefs::NameString Name;
     std::vector<MeshDef> MeshDefs;
 };
 
 struct ModelRef final
 {
-    LevelDefs::NameString Name;
+    SceneDefs::NameString Name;
 };
 
 struct BoxDef final
@@ -174,7 +174,7 @@ struct RigidBodyDef final
 
 struct ChildNodeDef final
 {
-    LevelDefs::NameString Name;
+    SceneDefs::NameString Name;
     TrsTransformf Transform;
     std::vector<ChildNodeDef> Children;
     std::optional<ModelRef> Model;
@@ -182,14 +182,14 @@ struct ChildNodeDef final
 
 struct RootNodeDef final
 {
-    LevelDefs::NameString Name;
+    SceneDefs::NameString Name;
     TrsTransformf Transform;
     std::vector<ChildNodeDef> Children;
     std::optional<ModelRef> Model;
     std::optional<RigidBodyDef> Body;
 };
 
-struct LevelDef final
+struct SceneDef final
 {
     std::vector<ModelDef> ModelDefs;
     std::vector<RootNodeDef> NodeDefs;

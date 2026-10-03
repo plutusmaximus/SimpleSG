@@ -29,7 +29,7 @@ Struct requirements: standard-layout + trivially-copyable
 Layout:              sizeof/offsetof compile-time verified
 */
 
-struct LevelDef;
+struct SceneDef;
 
 static_assert(sizeof(std::uint32_t) == 4);
 static_assert(sizeof(std::uint64_t) == 8); // NOLINT(readability-magic-numbers)
@@ -380,7 +380,7 @@ public:
     ResourceBundleBuilder(ResourceBundleBuilder&&) = default;
     ResourceBundleBuilder& operator=(ResourceBundleBuilder&&) = default;
 
-    Result<ResourceBundle> Build(const LevelDef& levelDef);
+    Result<ResourceBundle> Build(const SceneDef& sceneDef);
 
 private:
     ResourceBundle::Header* GetHeader()

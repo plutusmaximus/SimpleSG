@@ -44,7 +44,7 @@ RenderGui()
     return Result<>::Ok;
 }
 
-Result<LevelDef>
+Result<SceneDef>
 CreateTriangleModel()
 {
     std::vector<Vertex> triangleVertices = //
@@ -83,7 +83,7 @@ CreateTriangleModel()
             .MeshDefs{ std::move(meshDef) },
         };
 
-    LevelDef levelDef //
+    SceneDef sceneDef //
         {
             .ModelDefs{ std::move(modelDef) },
             .NodeDefs //
@@ -96,7 +96,7 @@ CreateTriangleModel()
             },
         };
 
-    return std::move(levelDef);
+    return std::move(sceneDef);
 }
 
 class TriangleApp : public ICoopTask<System&>
@@ -127,7 +127,7 @@ private:
 
     System* m_System{ nullptr };
 
-    LevelDef m_LevelDef;
+    SceneDef m_m_SceneDef;
 
     std::optional<ResourceBundle> m_ResourceBundle;
     std::optional<View::CreateTask> m_ViewCreateTask;
@@ -156,12 +156,12 @@ TriangleApp::OnStart(System& system)
 
     m_System = &system;
 
-    auto levelDef = CreateTriangleModel();
-    MLG_CHECK(levelDef, "Failed to create LevelDef");
-    m_LevelDef = std::move(*levelDef);
+    auto sceneDef = CreateTriangleModel();
+    MLG_CHECK(sceneDef, "Failed to create SceneDef");
+    m_m_SceneDef = std::move(*sceneDef);
 
     ResourceBundleBuilder builder;
-    auto rsrcBundle = builder.Build(m_LevelDef);
+    auto rsrcBundle = builder.Build(m_m_SceneDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
     m_ResourceBundle = std::move(*rsrcBundle);

@@ -127,7 +127,7 @@ LoadLevel(System& system)
         nodeDefs.push_back(std::move(nodeDef));
     }
 
-    const LevelDef levelDef //
+    const SceneDef sceneDef //
         {
             .ModelDefs //
             {
@@ -145,7 +145,7 @@ LoadLevel(System& system)
         };
 
     ResourceBundleBuilder builder;
-    auto rsrcBundle = builder.Build(levelDef);
+    auto rsrcBundle = builder.Build(sceneDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
     auto levelResult = Level::Create(*rsrcBundle);

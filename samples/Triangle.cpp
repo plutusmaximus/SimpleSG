@@ -46,7 +46,7 @@ RenderGui()
     return Result<>::Ok;
 }
 
-Result<LevelDef>
+Result<SceneDef>
 CreateTriangleModel()
 {
     std::vector<Vertex> triangleVertices = //
@@ -85,7 +85,7 @@ CreateTriangleModel()
             .MeshDefs{ std::move(meshDef) },
         };
 
-    LevelDef levelDef//
+    SceneDef sceneDef//
         {
             .ModelDefs{ std::move(modelDef) },
             .NodeDefs //
@@ -98,7 +98,7 @@ CreateTriangleModel()
             },
         };
 
-    return std::move(levelDef);
+    return std::move(sceneDef);
 }
 
 Result<>
@@ -121,10 +121,10 @@ MainLoop()
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
-    auto levelDef = CreateTriangleModel();
+    auto sceneDef = CreateTriangleModel();
 
     ResourceBundleBuilder builder;
-    auto rsrcBundle = builder.Build(*levelDef);
+    auto rsrcBundle = builder.Build(*sceneDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
     auto levelResult = Level::Create(*rsrcBundle);

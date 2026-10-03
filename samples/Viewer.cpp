@@ -84,10 +84,10 @@ LoadLevel(System& system, const std::string_view path)
 {
     auto loadResult = GltfLoader::Load(path);
     MLG_CHECK(loadResult, "Failed to load glTF file: {}", path);
-    const LevelDef levelDef = std::move(*loadResult);
+    const SceneDef sceneDef = std::move(*loadResult);
 
     ResourceBundleBuilder builder;
-    auto rsrcBundle = builder.Build(levelDef);
+    auto rsrcBundle = builder.Build(sceneDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
     auto levelResult = Level::Create(*rsrcBundle);

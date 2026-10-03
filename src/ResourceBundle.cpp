@@ -901,15 +901,15 @@ ResourceBundle::GetStringView(const StringResource& stringResource) const
 // ResourceBundleBuilder
 
 Result<ResourceBundle>
-ResourceBundleBuilder::Build(const LevelDef& levelDef)
+ResourceBundleBuilder::Build(const SceneDef& sceneDef)
 {
     // Free buffer mem
     std::vector<std::byte>().swap(m_Buffer);
 
-    const auto flatNodeDefs = FlattenNodesBreadthFirst(levelDef.NodeDefs);
+    const auto flatNodeDefs = FlattenNodesBreadthFirst(sceneDef.NodeDefs);
     MLG_CHECK(flatNodeDefs);
 
-    const auto meshDefs = CollectMeshDefs(levelDef.ModelDefs);
+    const auto meshDefs = CollectMeshDefs(sceneDef.ModelDefs);
     MLG_CHECK(meshDefs);
 
     std::vector<char> chars;
@@ -926,13 +926,13 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef)
     MLG_CHECK(indices);
     const auto meshes = CollectMeshes(*meshDefs, *materialIndexMap);
     MLG_CHECK(meshes);
-    const auto modelIndexMap = CollectModels(levelDef.ModelDefs, *meshes);
+    const auto modelIndexMap = CollectModels(sceneDef.ModelDefs, *meshes);
     MLG_CHECK(modelIndexMap);
     const auto modelInstances = CollectModelInstances(*flatNodeDefs, *modelIndexMap);
     MLG_CHECK(modelInstances);
-    const auto colliders = CollectColliders(levelDef.NodeDefs);
+    const auto colliders = CollectColliders(sceneDef.NodeDefs);
     MLG_CHECK(colliders);
-    const auto rigidBodies = CollectRigidBodies(levelDef.NodeDefs);
+    const auto rigidBodies = CollectRigidBodies(sceneDef.NodeDefs);
     MLG_CHECK(rigidBodies);
     const auto nodes = CollectSceneNodes(*flatNodeDefs, *stringIndexMap);
     MLG_CHECK(nodes);

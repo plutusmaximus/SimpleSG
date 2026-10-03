@@ -41,11 +41,11 @@ constexpr RgbaColorf kDefaultColor{ "#FF00FFFF"_rgba };
 
 /// Makes a name for a model or primitive.
 /// If the name is empty, a name will be generated using the baseName and index.
-LevelDefs::NameString
+SceneDefs::NameString
 MakeName(const std::string_view name, const char* baseName, const size_t index)
 {
-    return !name.empty() ? LevelDefs::NameString(name)
-                         : LevelDefs::NameString(std::format("{}_{}", baseName, index));
+    return !name.empty() ? SceneDefs::NameString(name)
+                         : SceneDefs::NameString(std::format("{}_{}", baseName, index));
 }
 
 Result<CgltfPrimitiveAttributes>
@@ -185,7 +185,7 @@ CollectMeshes(const cgltf_data* gltfData)
 Result<MaterialDef>
 CreateMaterialDef(const cgltf_material* gltfMaterial)
 {
-    LevelDefs::FilePathString baseTexturePath;
+    SceneDefs::FilePathString baseTexturePath;
     RgbaColorf color = kDefaultColor;
     float metalness = 0;
     float roughness = 0;
@@ -470,7 +470,7 @@ Result<>
 CollectNode(
     const cgltf_node& srcNode, std::vector<T>& nodeDefs, const ModelCollection& modelCollection)
 {
-    const LevelDefs::NameString nodeName =
+    const SceneDefs::NameString nodeName =
         MakeName(srcNode.name ? srcNode.name : "", "Node", nodeDefs.size());
 
     MLG_LOG_SCOPE("node {}", nodeName);
@@ -503,7 +503,7 @@ CollectNode(
         MLG_CHECKV(modelDef, "Mesh not found in modelCollection");
     }
 
-    const LevelDefs::NameString modelName = modelDef ? modelDef->Name : LevelDefs::NameString{};
+    const SceneDefs::NameString modelName = modelDef ? modelDef->Name : SceneDefs::NameString{};
 
     MLG_CHECKV(!modelDef || !modelName.empty(), "Model name must not be empty");
 
@@ -600,7 +600,7 @@ CollectNodes(const cgltf_data* gltfData, const ModelCollection& modelCollection)
 
 } // namespace
 
-Result<LevelDef>
+Result<SceneDef>
 GltfLoader::Load(const std::string_view path)
 {
     MLG_LOG_SCOPE(path);
@@ -645,11 +645,11 @@ GltfLoader::Load(const std::string_view path)
     auto rootNodeDefs = CollectNodes(gltfData, *modelCollection);
     MLG_CHECK(rootNodeDefs);
 
-    LevelDef levelDef //
+    SceneDef sceneDef //
         {
             .ModelDefs = std::move(modelCollection->Models),
             .NodeDefs = std::move(*rootNodeDefs),
         };
         
-    return std::move(levelDef);
+    return std::move(sceneDef);
 }

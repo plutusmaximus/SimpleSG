@@ -81,8 +81,8 @@ static_assert(kTextureRowAlignment % kTextureBytesPerPixel == 0);
 struct CookTextureWorkerParams
 {
     const CookDirs* CookDirs;
-    LevelDefs::FilePathString InTexturePath;
-    LevelDefs::FilePathString OutTexturePath;
+    SceneDefs::FilePathString InTexturePath;
+    SceneDefs::FilePathString OutTexturePath;
     std::latch* Latch{ nullptr };
     Result<> Result;
 };
@@ -159,15 +159,15 @@ AlignUp(uint32_t value, uint32_t alignment)
     return (value + (alignment - 1)) & ~(alignment - 1);
 }
 
-Result<std::unordered_map<LevelDefs::FilePathString, LevelDefs::FilePathString>>
+Result<std::unordered_map<SceneDefs::FilePathString, SceneDefs::FilePathString>>
 ReplaceTexturePaths(std::span<ModelDef> modelDefs)
 {
-    std::unordered_map<LevelDefs::FilePathString, LevelDefs::FilePathString> texPathMap;
+    std::unordered_map<SceneDefs::FilePathString, SceneDefs::FilePathString> texPathMap;
     for(ModelDef& modelDef : modelDefs)
     {
         for(MeshDef& meshDef : modelDef.MeshDefs)
         {
-            LevelDefs::FilePathString& texPath = meshDef.MaterialDef.BaseTexturePath;
+            SceneDefs::FilePathString& texPath = meshDef.MaterialDef.BaseTexturePath;
 
             if(!texPath.empty())
             {
@@ -175,7 +175,7 @@ ReplaceTexturePaths(std::span<ModelDef> modelDefs)
                 {
                     std::filesystem::path texPathFsPath = std::string_view(texPath);
 
-                    const LevelDefs::FilePathString newPath(
+                    const SceneDefs::FilePathString newPath(
                         texPathFsPath.replace_extension(".ctex").string());
 
                     texPathMap.emplace(texPath, newPath);
@@ -386,9 +386,9 @@ Cook(const CmdLinArgs& args, ThreadPool& threadPool)
 
     auto loadResult = GltfLoader::Load(args.InputFile);
     MLG_CHECK(loadResult);
-    LevelDef levelDef = std::move(*loadResult);
+    SceneDef sceneDef = std::move(*loadResult);
 
-    auto texPathMap = ReplaceTexturePaths(levelDef.ModelDefs);
+    auto texPathMap = ReplaceTexturePaths(sceneDef.ModelDefs);
     MLG_CHECK(texPathMap);
 
     const Result<CookDirs> cookDirs = CookDirs::FromArgs(args);
@@ -426,7 +426,7 @@ Cook(const CmdLinArgs& args, ThreadPool& threadPool)
 
     ResourceBundleBuilder builder;
 
-    auto resourceBundle = builder.Build(levelDef);
+    auto resourceBundle = builder.Build(sceneDef);
     MLG_CHECK(resourceBundle);
 
     cookTextureLatch.wait();
