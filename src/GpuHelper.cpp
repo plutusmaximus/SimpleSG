@@ -6,7 +6,7 @@
 #include <SDL3/SDL_init.h>
 #include <SDL3/SDL_metal.h>
 #include <SDL3/SDL_video.h>
-#include <string>
+#include <string_view>
 
 #if !defined(EMSCRIPTEN)
 #if defined(_WIN32)
@@ -411,11 +411,9 @@ void
 UncapturedErrorCb(
     const wgpu::Device& /*device*/, wgpu::ErrorType errorType, wgpu::StringView message)
 {
-    const std::string errorStr = std::format("Uncaptured error (type:{}): {}",
+    MLG_ABORT("Uncaptured error (type:{}): {}",
         static_cast<int>(errorType),
         std::string_view(message.data, message.length));
-
-    MLG_ABORT(errorStr);
 }
 
 } // namespace

@@ -3,9 +3,6 @@
 #include "AssertHelper.h"
 #include "Log.h"
 
-#include <format>
-#include <string>
-#include <string_view>
 #include <variant>
 
 struct ResultFail final {};
@@ -76,33 +73,6 @@ public:
     }
 
     explicit operator bool() const { return std::holds_alternative<SuccessType>(m_Value); }
-
-    template<typename... Args>
-    static std::string Format(std::format_string<Args...> fmt, Args&&... args)
-    {
-        return std::format(fmt, std::forward<Args>(args)...);
-    }
-
-    static std::string Format()
-    {
-        constexpr static const std::string empty;
-        return empty;
-    }
-
-    static const std::string& Format(const std::string& str)
-    {
-        return str; // NOLINT(bugprone-return-const-ref-from-parameter)
-    }
-
-    static std::string_view Format(const std::string_view str)
-    {
-        return str;
-    }
-
-    static const char* Format(const char* str)
-    {
-        return str;
-    }
 
 private:
 

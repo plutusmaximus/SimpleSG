@@ -114,13 +114,7 @@ LoadLevel(System& system, const std::string_view path)
     return std::make_tuple(std::move(level), std::move(scene));
 }
 
-#ifdef _WIN32
-constexpr const char* SPONZA_MODEL_PATH =
-    "C:/Users/kbaca/Downloads/main_sponza/NewSponza_Main_glTF_003.gltf";
-#else
-constexpr const char* SPONZA_MODEL_PATH =
-    "main_sponza/NewSponza_Main_glTF_003.gltf";
-#endif
+constexpr const char* SPONZA_MODEL_PATH = "main_sponza/NewSponza_Main_glTF_003.gltf";
 
 Result<>
 MainLoop()

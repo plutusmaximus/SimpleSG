@@ -184,6 +184,8 @@ TextureFetcher::FetchTask::BeginDecode()
 Result<>
 TextureFetcher::FetchTask::Decode()
 {
+    MLG_LOG_SCOPE(m_RelativePath);
+    
     MLG_DEBUG("Decoding...");
 
     int imgWidth = 0, imgHeight = 0, imgNumChannels = 0;

@@ -113,6 +113,25 @@ private:
 /// Returns failure if their combined length exceeds FilePath::kMaxLength.
 Result<FilePath> Join(const DirectoryPath& directory, const RelativeFilePath& file);
 
+/// format_as is used by fmt::format.
+inline std::string_view
+format_as(const RelativeFilePath& path) noexcept
+{
+    return std::string_view(path);
+}
+
+inline std::string_view
+format_as(const FilePath& path) noexcept
+{
+    return std::string_view(path);
+}
+
+inline std::string_view
+format_as(const DirectoryPath& path) noexcept
+{
+    return std::string_view(path);
+}
+
 /// Formatter specialization for FilePath to be used with std::format.
 template<>
 struct std::formatter<RelativeFilePath> : std::formatter<std::string_view>
@@ -123,7 +142,6 @@ struct std::formatter<RelativeFilePath> : std::formatter<std::string_view>
     }
 };
 
-
 /// Formatter specialization for LongFilePath to be used with std::format.
 template<>
 struct std::formatter<FilePath> : std::formatter<std::string_view>
@@ -133,7 +151,7 @@ struct std::formatter<FilePath> : std::formatter<std::string_view>
         return std::formatter<std::string_view>::format(std::string_view(path), context);
     }
 };
-    
+
 /// Formatter specialization for DirectoryPath to be used with std::format.
 template<>
 struct std::formatter<DirectoryPath> : std::formatter<std::string_view>

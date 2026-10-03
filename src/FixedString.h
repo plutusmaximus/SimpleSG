@@ -15,9 +15,12 @@ template<size_t N>
 // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
 class FixedString
 {
-    static_assert(N > 0, "FixedString size must be greater than 0");
-
 public:
+    static constexpr size_t kStorageSize = N;
+    static constexpr size_t kCapacity = N - 1;
+
+    static_assert(kStorageSize > 0, "FixedString size must be greater than 0");
+
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
     FixedString()
     {
@@ -27,9 +30,9 @@ public:
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
     explicit FixedString(const std::string_view str)
-        : m_Length((str.size() < N) ? str.size() : N - 1)
+        : m_Length((str.size() < kStorageSize) ? str.size() : kCapacity)
     {
-        MLG_ASSERT(str.size() < N);
+        MLG_ASSERT(str.size() < kStorageSize);
 
         for(size_t i = 0; i < m_Length; ++i)
         {
@@ -42,9 +45,9 @@ public:
 
     FixedString& operator=(const std::string_view str)
     {
-        MLG_ASSERT(str.size() < N);
+        MLG_ASSERT(str.size() < kStorageSize);
 
-        m_Length = (str.size() < N) ? str.size() : N - 1;
+        m_Length = (str.size() < kStorageSize) ? str.size() : kCapacity;
 
         for(size_t i = 0; i < m_Length; ++i)
         {
@@ -63,11 +66,14 @@ public:
 
     const char* c_str() const { return &m_Chars[0]; }
 
+    const char* data() const { return &m_Chars[0]; }
+
     /// Attempts to concatenate the given parts into a FixedString.
     /// Returns std::nullopt if the concatenated string would exceed the capacity.
-    [[nodiscard]] static std::optional<FixedString> TryCat(const std::initializer_list<std::string_view> parts)
+    [[nodiscard]] static std::optional<FixedString> TryCat(
+        const std::initializer_list<std::string_view> parts)
     {
-        size_t remaining = (N - 1);
+        size_t remaining = kCapacity;
         for(const std::string_view view : parts)
         {
             if(!MLG_VERIFY(view.size() <= remaining))
@@ -77,14 +83,14 @@ public:
             remaining -= view.size();
         }
 
-        FixedString<N> result;
+        FixedString<kStorageSize> result;
         char* out = &result.m_Chars[0];
         for(const std::string_view view : parts)
         {
             out = std::ranges::copy(view, out).out;
         }
         *out = '\0';
-        result.m_Length = (N - 1) - remaining;
+        result.m_Length = kCapacity - remaining;
         result.m_Hash = ComputeHash(result);
         return result;
     }
@@ -109,10 +115,7 @@ public:
 
     friend bool operator!=(const FixedString& lhs, const FixedString& rhs) { return !(lhs == rhs); }
 
-    size_t GetHashCode() const
-    {
-        return m_Hash;
-    }
+    size_t GetHashCode() const { return m_Hash; }
 
 private:
     static size_t ComputeHash(const std::string_view str)
@@ -120,10 +123,18 @@ private:
         return std::hash<std::string_view>{}(str);
     }
 
-    char m_Chars[N];
+    char m_Chars[kStorageSize];
     size_t m_Length{ 0 };
     size_t m_Hash{ 0 };
 };
+
+/// format_as is used by fmt::format for FixedString.
+template<size_t N>
+inline std::string_view
+format_as(const FixedString<N>& str) noexcept
+{
+    return std::string_view(str);
+}
 
 /// Formatter specialization for FixedString to be used with std::format.
 template<size_t N>

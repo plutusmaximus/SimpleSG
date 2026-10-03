@@ -1,13 +1,11 @@
 #include "AssertHelper.h"
 
-#include "Log.h"
-
 #include <SDL3/SDL_init.h>
 
-#ifndef __clang__
+/*#ifndef __clang__
 // No stack trace support in clang, so we won't include the header.
 #include <stacktrace>
-#endif //__clang__
+#endif //__clang__*/
 
 namespace AssertHelper
 {
@@ -27,37 +25,31 @@ ReportAssertion(SDL_AssertData* data, const char* func, const char* file, int li
 }
 
 void
-Log(const std::string& message)
+Log(const std::source_location& srcLoc, const std::string_view message)
 {
-#ifdef __clang__
-    // No stack trace support in clang, so just log the message.
-    Log::LogAssert(message);
-#else
-    auto trace = std::stacktrace::current(1);
-    Log::LogAssert(std::format("{}\n\n{}", message, std::to_string(trace)));
-#endif
+    // #ifdef __clang__
+    //  No stack trace support in clang, so just log the message.
+    Log::LogAssert(srcLoc, message);
+    /*#else
+        auto trace = std::stacktrace::current(1);
+        Log::LogAssert(std::format("{}\n\n{}", message, std::to_string(trace)));
+    #endif*/
 }
 } // namespace
 
 bool
-Log(AssertData& assertData,
-    const char* expression,
-    const char* function,
-    const char* fileName,
-    const int lineNum,
-    const std::string_view& userMsg)
+Log(AssertData& assertData, const std::string_view expression, const std::source_location& srcLoc)
 {
-    const std::string message =
-        std::format("{}({}): {} - {}", fileName, lineNum, expression, userMsg);
-
-    Log(message);
+    Log(srcLoc, expression);
 
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunreachable-code"
 #endif
-    assertData.sdlAssertState =
-        ReportAssertion(&assertData.sdlAssertData, function, fileName, lineNum);
+    assertData.sdlAssertState = ReportAssertion(&assertData.sdlAssertData,
+        srcLoc.function_name(),
+        srcLoc.file_name(),
+        static_cast<int>(srcLoc.line()));
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
@@ -81,21 +73,24 @@ Log(AssertData& assertData,
 
 bool
 Log(AssertData& assertData,
-    const char* expression,
-    const char* function,
-    const char* fileName,
-    const int lineNum)
+    const std::string_view expression,
+    const std::source_location& srcLoc,
+    const std::string_view userMsg)
 {
-    const std::string message = std::format("{}({}): {}", fileName, lineNum, expression);
+    char buffer[kMaxSizeofFormatBuffer];
+    const std::string_view formattedMsg =
+        Log::FormatToBuffer(buffer, "{} - {}", expression, userMsg);
 
-    Log(message);
+    Log(srcLoc, formattedMsg);
 
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunreachable-code"
 #endif
-    assertData.sdlAssertState =
-        ReportAssertion(&assertData.sdlAssertData, function, fileName, lineNum);
+    assertData.sdlAssertState = ReportAssertion(&assertData.sdlAssertData,
+        srcLoc.function_name(),
+        srcLoc.file_name(),
+        static_cast<int>(srcLoc.line()));
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
@@ -116,5 +111,4 @@ Log(AssertData& assertData,
 
     return false;
 }
-
 } // namespace AssertHelper

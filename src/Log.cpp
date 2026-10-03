@@ -1,14 +1,16 @@
 #include "Log.h"
 
+#include "FixedString.h"
 #include "SanitizerHelpers.h"
 
 #include <mutex>
+#include <span>
 #include <spdlog/sinks/dist_sink.h>
 #include <spdlog/sinks/msvc_sink.h>
 #include <spdlog/sinks/ringbuffer_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
-#include <vector>
+#include <string_view>
 
 namespace
 {
@@ -19,10 +21,20 @@ struct LogState
     std::shared_ptr<spdlog::sinks::dist_sink_mt> MuxSink;
 };
 
-struct ThreadLogState
+constexpr char kPrefixSeparator[] = { ' ', ':', ' ' };
+
+constexpr size_t kMaxPrefixStackSize = 16;
+constexpr size_t kMaxPrefixComponentStorage = 128;
+constexpr size_t kMaxPrefixBufferSize = kMaxPrefixComponentStorage * kMaxPrefixStackSize;
+
+using PrefixComponentString = FixedString<kMaxPrefixComponentStorage>;
+
+struct ThreadLogState // NOLINT(cppcoreguidelines-pro-type-member-init)
 {
-    std::vector<std::string> PrefixStack;
-    std::string Prefix;
+    PrefixComponentString PrefixStack[kMaxPrefixStackSize];
+    size_t PushDepth = 0;
+    char PrefixBuffer[kMaxPrefixBufferSize];
+    std::string_view Prefix;
     bool ShouldRebuildPrefix = false;
 };
 
@@ -61,7 +73,7 @@ GetLogState()
 ThreadLogState&
 GetThreadLogState()
 {
-    static thread_local ThreadLogState* threadLogState { new ThreadLogState };
+    static thread_local ThreadLogState* threadLogState{ new ThreadLogState };
 
     // We intentionally leak this, so hide it from leak sanitizers
     MLG_LSAN_IGNORE_OBJECT(threadLogState);
@@ -80,44 +92,61 @@ GetAssertLogger()
     return *assertLogger;
 }
 
-const std::string&
+std::string_view
 LogPrefix()
 {
-    static thread_local std::string logPrefix;
-
-    if(GetThreadLogState().ShouldRebuildPrefix)
+    ThreadLogState& threadLogState = GetThreadLogState();
+    if(threadLogState.ShouldRebuildPrefix)
     {
-        logPrefix = "[";
+        char* prefixBuffer = &threadLogState.PrefixBuffer[0];
+        std::span<char> appender = std::span(prefixBuffer, kMaxPrefixBufferSize);
 
-        int count = 0;
+        size_t prefixLength = 0;
 
-        for(const auto& component : GetThreadLogState().PrefixStack)
+        const size_t stackDepth = std::min(threadLogState.PushDepth, kMaxPrefixStackSize);
+        const std::span prefixStack(&threadLogState.PrefixStack[0], stackDepth);
+
+        for(const auto& component : prefixStack)
         {
-            if(count > 0)
+            if(prefixLength > 0)
             {
-                logPrefix += " : ";
+                if(appender.size() < std::size(kPrefixSeparator))
+                {
+                    break;
+                }
+
+                std::copy_n(&kPrefixSeparator[0], std::size(kPrefixSeparator), appender.data());
+
+                appender = appender.subspan(std::size(kPrefixSeparator));
+                prefixLength += std::size(kPrefixSeparator);
             }
-            logPrefix += component;
-            ++count;
+
+            const size_t sizeToAppend = std::min(appender.size(), component.size());
+
+            std::copy_n(component.data(), sizeToAppend, appender.data());
+            appender = appender.subspan(sizeToAppend);
+            prefixLength += sizeToAppend;
         }
 
-        logPrefix += "] ";
-        GetThreadLogState().ShouldRebuildPrefix = false;
+        threadLogState.Prefix = std::string_view(prefixBuffer, prefixLength);
+        threadLogState.ShouldRebuildPrefix = false;
     }
 
-    return logPrefix;
+    return threadLogState.Prefix;
 }
 
 std::shared_ptr<spdlog::logger>
-GetLogger(std::string name)
+GetLogger(const std::string_view name)
 {
     const std::lock_guard<std::mutex> lock(GetLogState().Mutex);
 
-    std::shared_ptr<spdlog::logger> logger = spdlog::get(name);
+    std::string loggerName(name);
+
+    std::shared_ptr<spdlog::logger> logger = spdlog::get(loggerName);
 
     if(!logger)
     {
-        logger = std::make_shared<spdlog::logger>(std::move(name), GetLogState().MuxSink);
+        logger = std::make_shared<spdlog::logger>(std::move(loggerName), GetLogState().MuxSink);
 
         spdlog::initialize_logger(logger);
         spdlog::register_or_replace(logger);
@@ -127,13 +156,61 @@ GetLogger(std::string name)
 }
 } // namespace
 
-Log::Logger::Logger(std::string name)
-    : m_Logger(GetLogger(std::move(name)))
+Log::Logger::Logger(const std::string_view name)
+    : m_Logger(GetLogger(name))
 {
 }
 
 void
-Log::Logger::LogImpl(const Level level, const std::string& message)
+Log::Logger::Log(
+    const Level level, const std::source_location& srcLoc, const std::string_view message)
+{
+    char buffer[kMaxSizeofFormatBuffer];
+
+    constexpr size_t kMaxPrefixSize = std::size(buffer) / 2;
+    constexpr const char ellipsis[] = { '.', '.', '.' };
+
+    char logPrefixBuffer[kMaxPrefixSize + std::size(ellipsis)];
+
+    std::string_view logPrefix = LogPrefix();
+
+    if(logPrefix.size() > kMaxPrefixSize)
+    {
+        // Prefix is too long.  Truncate the prefix and add an ellipsis.
+        logPrefix = logPrefix.substr(0, kMaxPrefixSize);
+
+        // Copy the truncated prefix and the ellipsis into the log prefix buffer.
+        std::copy_n(logPrefix.data(), logPrefix.size(), &logPrefixBuffer[0]);
+        std::copy_n(&ellipsis[0], std::size(ellipsis), &logPrefixBuffer[logPrefix.size()]);
+
+        // Update the log prefix to include the truncated prefix and the ellipsis.
+        logPrefix = std::string_view(&logPrefixBuffer[0], std::size(logPrefixBuffer));
+    }
+
+    if(Level::Error == level)
+    {
+        // For errors include the source location in the log message.
+        const std::string_view formattedMsg = FormatToBuffer(buffer,
+            "[{}] {}({}): {} - {}",
+            logPrefix,
+            srcLoc.file_name(),
+            srcLoc.line(),
+            srcLoc.function_name(),
+            message);
+
+        LogImpl(level, formattedMsg);
+    }
+    else
+    {
+        const std::string_view formattedMsg =
+            FormatToBuffer(buffer, "[{}] {}", logPrefix, message);
+
+        LogImpl(level, formattedMsg);
+    }
+}
+
+void
+Log::Logger::LogImpl(const Level level, const std::string_view message)
 {
     switch(level)
     {
@@ -156,9 +233,9 @@ Log::Logger::LogImpl(const Level level, const std::string& message)
 }
 
 void
-Log::LogAssert(const std::string& message)
+Log::LogAssert(const std::source_location& srcLoc, const std::string_view message)
 {
-    GetAssertLogger().Log(Log::Level::Error, message);
+    GetAssertLogger().Log(Log::Level::Error, srcLoc, message);
 }
 
 void
@@ -196,28 +273,53 @@ Log::SetLevel(const Level level)
 }
 
 void
-Log::PushPrefix(std::string message)
+Log::PushPrefix(const std::string_view message)
 {
-    GetThreadLogState().PrefixStack.push_back(std::move(message));
-    GetThreadLogState().ShouldRebuildPrefix = true;
+    ThreadLogState& threadLogState = GetThreadLogState();
+
+    if(threadLogState.PushDepth < kMaxPrefixStackSize)
+    {
+        std::string_view truncatedMsg = message;
+        char truncateBuf[PrefixComponentString::kStorageSize];
+
+        if(message.size() > PrefixComponentString::kCapacity)
+        {
+            // If the prefix component is too long, truncate it and append an ellipsis.
+
+            constexpr const char kEllipsis[] = { '.', '.', '.' };
+            constexpr size_t kSizeToCopy = PrefixComponentString::kCapacity - std::size(kEllipsis);
+
+            std::span<char> bufSpan(truncateBuf);
+            const char* src = message.data();
+            std::copy_n(src, kSizeToCopy, bufSpan.data());
+
+            bufSpan = bufSpan.subspan(kSizeToCopy);
+            std::copy_n(&kEllipsis[0], std::size(kEllipsis), bufSpan.data());
+
+            truncatedMsg = std::string_view(&truncateBuf[0], PrefixComponentString::kCapacity);
+        }
+
+        threadLogState.PrefixStack[threadLogState.PushDepth] = truncatedMsg;
+        threadLogState.ShouldRebuildPrefix = true;
+    }
+
+    // Increment the push count even if nothing was pushed.
+    // Then PopPrefix can correctly decrement the push count.
+    ++threadLogState.PushDepth;
 }
 
 void
 Log::PopPrefix()
 {
-    if(!GetThreadLogState().PrefixStack.empty())
+    ThreadLogState& threadLogState = GetThreadLogState();
+    if(threadLogState.PushDepth > 0)
     {
-        GetThreadLogState().PrefixStack.pop_back();
-        GetThreadLogState().ShouldRebuildPrefix = true;
-    }
-}
+        --threadLogState.PushDepth;
 
-std::string
-Log::Prefix(const std::string_view message)
-{
-    std::string prefixedMessage;
-    prefixedMessage.reserve(LogPrefix().size() + message.size());
-    prefixedMessage = LogPrefix();
-    prefixedMessage.append(message);
-    return prefixedMessage;
+        if(threadLogState.PushDepth < kMaxPrefixStackSize)
+        {
+            // Only rebuild the prefix if the push count is within the maximum limit.
+            threadLogState.ShouldRebuildPrefix = true;
+        }
+    }
 }

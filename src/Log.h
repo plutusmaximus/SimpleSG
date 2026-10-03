@@ -1,9 +1,10 @@
 #pragma once
 
 #include <cstdint>
-#include <format>
 #include <memory>
-#include <string>
+#include <source_location>
+#include <spdlog/fmt/fmt.h>
+#include <string_view>
 
 /// Define MLG_LOGGER_NAME before including this header to create a logger with a specific name.
 /// Otherwise the default logger is used.
@@ -20,6 +21,9 @@ class logger;
 
 class Log final
 {
+    /// Maximum size of the buffer used for formatting log messages.
+    static constexpr size_t kMaxSizeofFormatBuffer = 512;
+
 public:
     enum class Level : uint8_t
     {
@@ -30,10 +34,36 @@ public:
         Error
     };
 
+    /// Formats a message into the provided buffer and returns a string view of the formatted message.
+    /// If the formatted message exceeds the buffer size, it will be truncated and an ellipsis will be appended.
+    template<size_t N, typename... Args>
+    static std::string_view FormatToBuffer(
+        char (&buffer)[N], fmt::format_string<Args...> fmtStr, Args&&... args)
+    {
+        static_assert(N >= 3, "Buffer size must be at least 3 to accommodate ellipsis.");
+
+        auto result = fmt::format_to_n(&buffer[0],
+            N,
+            fmtStr,
+            std::forward<Args>(args)...);
+
+        size_t formattedSize = result.size;
+        if(formattedSize > N)
+        {
+            // Append ellipsis to indicate truncation.
+            buffer[N - 3] = '.';
+            buffer[N - 2] = '.';
+            buffer[N - 1] = '.';
+            formattedSize = N;
+        }
+
+        return std::string_view(&buffer[0], formattedSize);
+    }
+
     class Logger
     {
     public:
-        explicit Logger(std::string name);
+        explicit Logger(std::string_view name);
 
         ~Logger() = default;
 
@@ -43,63 +73,47 @@ public:
         Logger(Logger&&) = delete;
         Logger& operator=(Logger&&) = delete;
 
-        void Log(const Level level, const std::string_view message) { LogImpl(level, Prefix(message)); }
+        void Log(const Level level,
+            const std::source_location& srcLoc,
+            const std::string_view message);
 
         template<typename... Args>
-        void Log(const Level level, std::format_string<Args...> fmt, Args&&... args)
-        {
-            Log(level, std::format(fmt, std::forward<Args>(args)...));
-        }
-
-        void LogError(const char* function,
-            const char* fileName,
-            const int lineNum,
-            const std::string& message)
-        {
-            const std::string formattedMessage =
-                std::format("{}({}): {} - {}", fileName, lineNum, function, message);
-
-            Log(Log::Level::Error, formattedMessage);
-        }
-
-        template<typename... Args>
-        void LogError(const char* function,
-            const char* fileName,
-            const int lineNum,
-            std::format_string<Args...> fmt,
+        void Log(const Level level,
+            const std::source_location& srcLoc,
+            fmt::format_string<Args...> fmtStr,
             Args&&... args)
         {
-            const std::string userMsg = std::format(fmt, std::forward<Args>(args)...);
-
-            LogError(function, fileName, lineNum, userMsg);
+            char buffer[kMaxSizeofFormatBuffer];
+            const std::string_view formattedMsg =
+                FormatToBuffer(buffer, fmtStr, std::forward<Args>(args)...);
+            Log(level, srcLoc, formattedMsg);
         }
 
         void SetLevel(const Level level);
 
     private:
-        void LogImpl(const Level level, const std::string& message);
+        void LogImpl(const Level level, const std::string_view message);
 
         std::shared_ptr<spdlog::logger> m_Logger;
     };
 
-    static void LogAssert(const std::string& message);
+    static void LogAssert(const std::source_location& srcLoc, const std::string_view message);
 
     /// Sets the global log level.
     static void SetLevel(const Level level);
 
     template<typename... Args>
-    static void PushPrefix(std::format_string<Args...> fmt, Args&&... args)
+    static void PushPrefix(fmt::format_string<Args...> fmtStr, Args&&... args)
     {
-        PushPrefix(std::format(fmt, std::forward<Args>(args)...));
+        char buffer[kMaxSizeofFormatBuffer];
+        const std::string_view formattedPrefix =
+            FormatToBuffer(buffer, fmtStr, std::forward<Args>(args)...);
+        PushPrefix(formattedPrefix);
     }
 
-    static void PushPrefix(std::string message);
+    static void PushPrefix(const std::string_view message);
 
     static void PopPrefix();
-
-private:
-
-    static std::string Prefix(const std::string_view message);
 };
 
 namespace mlg
@@ -107,13 +121,12 @@ namespace mlg
 struct LogScope
 {
     template<typename... Args>
-    explicit LogScope(std::format_string<Args...> fmt, Args&&... args)
+    explicit LogScope(fmt::format_string<Args...> fmtStr, Args&&... args)
     {
-        Log::PushPrefix(fmt, std::forward<Args>(args)...);
+        Log::PushPrefix(fmtStr, std::forward<Args>(args)...);
     }
 
-    explicit LogScope(std::string message) { Log::PushPrefix(std::move(message)); }
-    explicit LogScope(std::string_view message) { Log::PushPrefix(std::string(message)); }
+    explicit LogScope(std::string_view message) { Log::PushPrefix(message); }
 
     ~LogScope() { Log::PopPrefix(); }
 
@@ -152,7 +165,7 @@ struct LogScope
 
 #define MLG_LOG_SCOPE_CONCAT_HELPER(a, b) a##b
 #define MLG_LOG_SCOPE_CONCAT(a, b) MLG_LOG_SCOPE_CONCAT_HELPER(a, b)
-#define MLG_LOG_SCOPE(...) \
+#define MLG_LOG_SCOPE(...)                                                                         \
     const mlg::LogScope MLG_LOG_SCOPE_CONCAT(logScope_, __LINE__)(__VA_ARGS__);
 
 static inline Log::Logger&
@@ -162,8 +175,8 @@ MLG_LocalLogger()
     return logger;
 }
 
-#define MLG_TRACE(...) MLG_LocalLogger().Log(Log::Level::Trace, __VA_ARGS__)
-#define MLG_DEBUG(...) MLG_LocalLogger().Log(Log::Level::Debug, __VA_ARGS__)
-#define MLG_INFO(...) MLG_LocalLogger().Log(Log::Level::Info, __VA_ARGS__)
-#define MLG_WARN(...) MLG_LocalLogger().Log(Log::Level::Warn, __VA_ARGS__)
-#define MLG_ERROR(...) MLG_LocalLogger().LogError(__func__, __FILE__, __LINE__ __VA_OPT__(,) __VA_ARGS__)
+#define MLG_TRACE(...) MLG_LocalLogger().Log(Log::Level::Trace, std::source_location::current()__VA_OPT__(, ) __VA_ARGS__)
+#define MLG_DEBUG(...) MLG_LocalLogger().Log(Log::Level::Debug, std::source_location::current()__VA_OPT__(, ) __VA_ARGS__)
+#define MLG_INFO(...) MLG_LocalLogger().Log(Log::Level::Info, std::source_location::current()__VA_OPT__(, ) __VA_ARGS__)
+#define MLG_WARN(...) MLG_LocalLogger().Log(Log::Level::Warn, std::source_location::current()__VA_OPT__(, ) __VA_ARGS__)
+#define MLG_ERROR(...) MLG_LocalLogger().Log(Log::Level::Error, std::source_location::current()__VA_OPT__(, ) __VA_ARGS__)
