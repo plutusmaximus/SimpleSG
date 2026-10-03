@@ -6,7 +6,7 @@
 #include "Level.h"
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"
-#include "Scene.h"
+#include "View.h"
 #include "ShapeDefs.h"
 #include "System.h"
 #include "ThreadPool.h"

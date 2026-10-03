@@ -11,7 +11,7 @@
 #include "LevelTypes.h"
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"
-#include "Scene.h"
+#include "View.h"
 #include "System.h"
 #include "VecMath.h"
 

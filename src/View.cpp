@@ -1,6 +1,6 @@
-#define MLG_LOGGER_NAME "SCEN"
+#define MLG_LOGGER_NAME "VIEW"
 
-#include "Scene.h"
+#include "View.h"
 
 #include "Camera.h"
 #include "FileFetcher.h"

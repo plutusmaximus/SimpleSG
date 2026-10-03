@@ -366,7 +366,6 @@ set(SSG_SOURCES
   src/Log.cpp
   src/PerfMetrics.cpp
   src/ResourceBundle.cpp
-  src/Scene.cpp
   src/ShaderFetcher.cpp
   src/ShapeDefs.cpp
   src/Shell.cpp
@@ -376,6 +375,7 @@ set(SSG_SOURCES
   src/ThreadPool.cpp
   src/Timer.cpp
   src/VecMath.cpp
+  src/View.cpp
 )
 
 set(SSG_HEADERS
@@ -405,7 +405,6 @@ set(SSG_HEADERS
   src/PerfMetrics.h
   src/ResourceBundle.h
   src/Result.h
-  src/Scene.h
   src/SemanticIdentifier.h
   src/shaders/ShaderInterop.h
   src/ShaderFetcher.h
@@ -417,6 +416,7 @@ set(SSG_HEADERS
   src/Timer.h
   src/VecMath.h
   src/Vertex.h
+  src/View.h
 )
 
 add_library(ssg)

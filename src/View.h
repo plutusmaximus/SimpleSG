@@ -17,6 +17,8 @@ class System;
 class ThreadPool;
 class Level;
 
+/// A view of the scene.
+/// Responsible for rendering and compositing the 3D scene.
 class View
 {
 public:
