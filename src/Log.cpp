@@ -282,12 +282,12 @@ Log::PushPrefix(const std::string_view message)
         std::string_view truncatedMsg = message;
         char truncateBuf[PrefixComponentString::kStorageSize];
 
-        if(message.size() > PrefixComponentString::kCapacity)
+        if(message.size() > PrefixComponentString::kMaxLength)
         {
             // If the prefix component is too long, truncate it and append an ellipsis.
 
             constexpr const char kEllipsis[] = { '.', '.', '.' };
-            constexpr size_t kSizeToCopy = PrefixComponentString::kCapacity - std::size(kEllipsis);
+            constexpr size_t kSizeToCopy = PrefixComponentString::kMaxLength - std::size(kEllipsis);
 
             std::span<char> bufSpan(truncateBuf);
             const char* src = message.data();
@@ -296,7 +296,7 @@ Log::PushPrefix(const std::string_view message)
             bufSpan = bufSpan.subspan(kSizeToCopy);
             std::copy_n(&kEllipsis[0], std::size(kEllipsis), bufSpan.data());
 
-            truncatedMsg = std::string_view(&truncateBuf[0], PrefixComponentString::kCapacity);
+            truncatedMsg = std::string_view(&truncateBuf[0], PrefixComponentString::kMaxLength);
         }
 
         threadLogState.PrefixStack[threadLogState.PushDepth] = truncatedMsg;

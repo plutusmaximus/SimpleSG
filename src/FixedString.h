@@ -7,6 +7,7 @@
 #include <format>
 #include <initializer_list>
 #include <optional>
+#include <spdlog/fmt/fmt.h>
 #include <string_view>
 
 /// A fixed-size string class that stores a string of up to N-1 characters and a null terminator.
@@ -16,8 +17,11 @@ template<size_t N>
 class FixedString
 {
 public:
+    /// The size of the storage buffer, including the null terminator.
     static constexpr size_t kStorageSize = N;
-    static constexpr size_t kCapacity = N - 1;
+
+    /// The maximum number of characters that can be stored, excluding the null terminator.
+    static constexpr size_t kMaxLength = N - 1;
 
     static_assert(kStorageSize > 0, "FixedString size must be greater than 0");
 
@@ -30,7 +34,7 @@ public:
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
     explicit FixedString(const std::string_view str)
-        : m_Length((str.size() < kStorageSize) ? str.size() : kCapacity)
+        : m_Length((str.size() < kStorageSize) ? str.size() : kMaxLength)
     {
         MLG_ASSERT(str.size() < kStorageSize);
 
@@ -47,7 +51,7 @@ public:
     {
         MLG_ASSERT(str.size() < kStorageSize);
 
-        m_Length = (str.size() < kStorageSize) ? str.size() : kCapacity;
+        m_Length = (str.size() < kStorageSize) ? str.size() : kMaxLength;
 
         for(size_t i = 0; i < m_Length; ++i)
         {
@@ -68,12 +72,14 @@ public:
 
     const char* data() const { return &m_Chars[0]; }
 
+    size_t GetHashCode() const { return m_Hash; }
+
     /// Attempts to concatenate the given parts into a FixedString.
     /// Returns std::nullopt if the concatenated string would exceed the capacity.
     [[nodiscard]] static std::optional<FixedString> TryCat(
         const std::initializer_list<std::string_view> parts)
     {
-        size_t remaining = kCapacity;
+        size_t remaining = kMaxLength;
         for(const std::string_view view : parts)
         {
             if(!MLG_VERIFY(view.size() <= remaining))
@@ -90,9 +96,35 @@ public:
             out = std::ranges::copy(view, out).out;
         }
         *out = '\0';
-        result.m_Length = kCapacity - remaining;
+        result.m_Length = kMaxLength - remaining;
         result.m_Hash = ComputeHash(result);
         return result;
+    }
+
+    /// Formats a message into the provided buffer and returns a string view of the formatted
+    /// message. If the formatted message exceeds the buffer size, it will be truncated and an
+    /// ellipsis will be appended.
+    template<typename... Args>
+    FixedString static Format(fmt::format_string<Args...> fmtStr, Args&&... args)
+    {
+        FixedString fs;
+        auto result =
+            fmt::format_to_n(&fs.m_Chars[0], kMaxLength, fmtStr, std::forward<Args>(args)...);
+
+        if(result.size > kMaxLength && kMaxLength >= 3)
+        {
+            fs.m_Chars[kMaxLength - 3] = '.';
+            fs.m_Chars[kMaxLength - 2] = '.';
+            fs.m_Chars[kMaxLength - 1] = '.';
+            fs.m_Chars[kMaxLength] = '\0';
+        }
+
+        const size_t formattedSize = std::min(result.size, kMaxLength);
+        fs.m_Length = formattedSize;
+        fs.m_Chars[formattedSize] = '\0';
+        fs.m_Hash = ComputeHash(fs);
+
+        return fs;
     }
 
     // NOLINTNEXTLINE(google-explicit-constructor)
@@ -114,8 +146,6 @@ public:
     }
 
     friend bool operator!=(const FixedString& lhs, const FixedString& rhs) { return !(lhs == rhs); }
-
-    size_t GetHashCode() const { return m_Hash; }
 
 private:
     static size_t ComputeHash(const std::string_view str)

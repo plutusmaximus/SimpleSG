@@ -56,7 +56,9 @@ class PerfStats
 public:
     PerfStats() = delete;
 
-    std::string_view GetName() const { return m_Name; }
+    std::string_view GetName() const;
+
+    PerfCounterCategoryId GetCategoryId() const;
 
     double GetLastValue() const { return m_LastValue; }
     double GetMinValue() const { return m_MinValue; }
@@ -66,14 +68,15 @@ public:
 private:
     friend PerfAggregator;
 
-    explicit PerfStats(const std::string_view name)
-        : m_Name(name)
+    explicit PerfStats(const PerfCounter& counter)
+        : m_Counter(&counter)
     {
     }
 
     constexpr static size_t kMaxNameLen = 64;
 
-    FixedString<kMaxNameLen> m_Name;
+    const PerfCounter* m_Counter{ nullptr};
+
     double m_LastValue{ 0 };
     double m_MinValue{ std::numeric_limits<double>::max() };
     double m_MaxValue{ 0 };
@@ -89,7 +92,7 @@ public:
 
     PerfAggregator() = delete;
 
-    explicit PerfAggregator(const PerfCounter* counter);
+    explicit PerfAggregator(const PerfCounter& counter);
 
     const PerfStats& GetStats() const { return m_Stats; }
 
@@ -154,6 +157,8 @@ public:
     }
 
     std::string_view GetName() const { return m_Name; }
+
+    PerfCounterCategoryId GetCategoryId() const { return m_CategoryId; }
 
     double GetValue() const { return m_Value.load(std::memory_order_relaxed); }
 

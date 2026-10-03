@@ -31,9 +31,12 @@ RenderGui()
     const size_t counterCount = PerfMetrics::SampleCounters(perfStatsSpan);
     for(const auto* counterStat : perfStatsSpan.first(counterCount))
     {
-        const std::string text =
-            std::format("{}: {:.3f} ms", counterStat->GetName(), counterStat->GetEMA());
-        ImGui::Text("%s", text.c_str()); // NOLINT(cppcoreguidelines-pro-type-vararg)
+        const char* units = counterStat->GetCategoryId() == PerfTimerCategory::Id ? "ms" : "";
+        const auto text = FixedString<256>::Format("{}: {:.3f} {}",
+            counterStat->GetName(),
+            counterStat->GetEMA(),
+            units);
+        ImGui::TextUnformatted(text.c_str());
     }
 
     ImGui::End();

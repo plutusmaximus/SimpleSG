@@ -1,5 +1,6 @@
 #include "DevUi.h"
 
+#include "FixedString.h"
 #include "PerfMetrics.h"
 
 #include <algorithm>
@@ -71,10 +72,10 @@ CliState::AddHistory(std::string command)
 }
 
 /// Moves the history pointer back and returns the command at the new position.
-const std::string&
+std::string_view
 CliState::HistoryBack()
 {
-    static const std::string emptyString;
+    constexpr std::string_view emptyString;
 
     if(m_History.empty())
     {
@@ -95,11 +96,9 @@ CliState::HistoryBack()
 }
 
 /// Moves the history pointer forward and returns the command at the new position.
-const std::string&
+std::string_view
 CliState::HistoryForward()
 {
-    static const std::string emptyString;
-
     if(!m_History.empty() && m_HistoryIt != m_History.end())
     {
         ++m_HistoryIt;
@@ -145,15 +144,14 @@ DevUi::DrawDockedEditorLayout() const // NOLINT(readability-convert-member-funct
     ImGui::SetNextWindowSize(workSize);
     ImGui::SetNextWindowViewport(viewport->ID);
 
-    const ImGuiWindowFlags hostFlags =
-        ImGuiWindowFlags_NoTitleBar |
-        ImGuiWindowFlags_NoCollapse |
-        ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoDocking |
-        ImGuiWindowFlags_NoBringToFrontOnFocus |
-        ImGuiWindowFlags_NoNavFocus |
-        ImGuiWindowFlags_NoBackground;
+    const ImGuiWindowFlags hostFlags = ImGuiWindowFlags_NoTitleBar
+        | ImGuiWindowFlags_NoCollapse
+        | ImGuiWindowFlags_NoResize
+        | ImGuiWindowFlags_NoMove
+        | ImGuiWindowFlags_NoDocking
+        | ImGuiWindowFlags_NoBringToFrontOnFocus
+        | ImGuiWindowFlags_NoNavFocus
+        | ImGuiWindowFlags_NoBackground;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
@@ -161,15 +159,14 @@ DevUi::DrawDockedEditorLayout() const // NOLINT(readability-convert-member-funct
 
     ImGui::Begin("Dockspace Host", nullptr, hostFlags);
 
-    const ImGuiDockNodeFlags dockspaceFlags =
-        ImGuiDockNodeFlags_None;
-        //ImGuiDockNodeFlags_PassthruCentralNode;
+    const ImGuiDockNodeFlags dockspaceFlags = ImGuiDockNodeFlags_None;
+    // ImGuiDockNodeFlags_PassthruCentralNode;
 
     ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), dockspaceFlags);
 
     static bool dockspaceBuilt = false;
 
-    if (!dockspaceBuilt)
+    if(!dockspaceBuilt)
     {
         dockspaceBuilt = true;
 
@@ -215,7 +212,10 @@ DevUi::DrawPerfPanel() const // NOLINT(readability-convert-member-functions-to-s
 
     ImGui::SetNextWindowSize(ImVec2(0, 0)); // Auto-fit both width and height
     ImGui::Begin(kPerfPanelName);
-    MLG_DEFER { ImGui::End(); };
+    MLG_DEFER
+    {
+        ImGui::End();
+    };
 
     auto drawSubTree = [](this auto&& self,
                            const std::string_view prefix,
@@ -225,7 +225,7 @@ DevUi::DrawPerfPanel() const // NOLINT(readability-convert-member-functions-to-s
         if(!prefix.empty())
         {
             // Prefix is non empty - render a tree node.
-            const std::string prefixStr(prefix.data(), prefix.size());
+            const FixedString<256> prefixStr(prefix);
             isOpen = ImGui::TreeNode(prefixStr.c_str());
         }
 
@@ -276,10 +276,12 @@ DevUi::DrawPerfPanel() const // NOLINT(readability-convert-member-functions-to-s
                 {
                     // Reached the leaf node.
                     const std::string_view leafName =
-                    curName == prefix 
-                    ? curName
-                    : curName.substr(prefix.size() + 1, pos);
-                    const std::string text = std::format("{}: {:.3f}", leafName, ps.GetEMA());
+                        curName == prefix ? curName : curName.substr(prefix.size() + 1, pos);
+
+                    const char* units = ps.GetCategoryId() == PerfTimerCategory::Id ? "ms" : "";
+
+                    const auto text =
+                        FixedString<256>::Format("{}: {:.3f} {}", leafName, ps.GetEMA(), units);
                     ImGui::TreeNodeEx(text.c_str(),
                         ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen);
 
@@ -313,7 +315,7 @@ DevUi::DrawPerfPanel() const // NOLINT(readability-convert-member-functions-to-s
 void
 DevUi::DrawScenePanel()
 {
-    //ImGui::SetNextWindowBgAlpha(0.0f);
+    // ImGui::SetNextWindowBgAlpha(0.0f);
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
@@ -390,7 +392,7 @@ DevUi::DrawCliPanel()
             const std::string command = m_CliState.GetInput().data();
 
             std::string line;
-            
+
             line.reserve(prompt.size() + command.size());
             line.append(prompt).append(command);
 
@@ -406,7 +408,8 @@ DevUi::DrawCliPanel()
     ImGui::End();
 }
 
-void DevUi::DrawStatusBarPanel() const // NOLINT(readability-convert-member-functions-to-static)
+void
+DevUi::DrawStatusBarPanel() const // NOLINT(readability-convert-member-functions-to-static)
 {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
 
@@ -420,10 +423,12 @@ void DevUi::DrawStatusBarPanel() const // NOLINT(readability-convert-member-func
 
     ImGui::Begin(kStatusBarPanelName,
         nullptr,
-        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-            ImGuiWindowFlags_NoScrollbar);
+        ImGuiWindowFlags_NoTitleBar
+            | ImGuiWindowFlags_NoResize
+            | ImGuiWindowFlags_NoMove
+            | ImGuiWindowFlags_NoScrollbar);
 
-    const std::string statusText = std::format("SPF: {:.3f} ms | FPS: {:.1f} | mouse: {},{}",
+    const auto statusText = FixedString<256>::Format("SPF: {:.3f} ms | FPS: {:.1f} | mouse: {},{}",
         ImGui::GetIO().DeltaTime * 1000.0f,
         1.0f / ImGui::GetIO().DeltaTime,
         m_ScenePanelMousePos.X,

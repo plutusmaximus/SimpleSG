@@ -53,8 +53,9 @@ RenderGui()
 
     for(const auto* counterStat : sortedCounters)
     {
-        const std::string text =
-            std::format("{}: {:.3f} ms", counterStat->GetName(), counterStat->GetEMA());
+        const auto text = FixedString<256>::Format("{}: {:.3f} ms",
+            counterStat->GetName(),
+            counterStat->GetEMA());
         ImGui::TextUnformatted(text.c_str());
     }
 
@@ -67,8 +68,9 @@ RenderGui()
 
     for(const auto* counterStat : sortedCounters)
     {
-        const std::string text =
-            std::format("{}: {:.3f}", counterStat->GetName(), counterStat->GetEMA());
+        const auto text = FixedString<256>::Format("{}: {:.3f}",
+            counterStat->GetName(),
+            counterStat->GetEMA());
         ImGui::TextUnformatted(text.c_str());
     }
 

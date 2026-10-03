@@ -22,10 +22,10 @@ public:
     void AddHistory(std::string command);
 
     /// Moves the history pointer back and returns the command at the new position.
-    const std::string& HistoryBack();
+    std::string_view HistoryBack();
 
     /// Moves the history pointer forward and returns the command at the new position.
-    const std::string& HistoryForward();
+    std::string_view HistoryForward();
 
     std::span<const std::string> GetLines() const { return m_Lines; }
     std::span<const std::string> GetHistory() const { return m_History; }

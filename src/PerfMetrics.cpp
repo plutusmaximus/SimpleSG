@@ -27,11 +27,26 @@ GetPerfMetricsState()
 }
 } // namespace
 
+////////// PerfStats
+
+std::string_view
+PerfStats::GetName() const
+{
+    return m_Counter->GetName();
+}
+
+PerfCounterCategoryId
+PerfStats::GetCategoryId() const
+{
+    return m_Counter->GetCategoryId();
+}
+
+
 ////////// PerfAggregator
 
-PerfAggregator::PerfAggregator(const PerfCounter* counter)
-    : m_Counter(counter),
-      m_Stats(counter->GetName())
+PerfAggregator::PerfAggregator(const PerfCounter& counter)
+    : m_Counter(&counter),
+      m_Stats(counter)
 {
 }
 
@@ -51,7 +66,7 @@ PerfAggregator::Sample()
 
 PerfCounter::PerfCounter(const PerfCounterParams& params)
     : m_Name(params.Name),
-      m_Aggregator(this),
+      m_Aggregator(*this),
       m_SamplePolicy(params.Policy),
       m_CategoryId(params.CategoryId)
 {
