@@ -1,8 +1,8 @@
 #include "Level.h"
 
+#include "Defer.h"
 #include "PhysicsTypes.h"
 #include "ResourceBundle.h"
-#include "scope_exit.h"
 
 #include <box3d/Box3D.h>
 #include <box3d/collision.h>
@@ -306,7 +306,7 @@ Level::Create(const ResourceBundle& resourceBundle)
     const b3WorldId worldId = b3CreateWorld(&worldDef);
     MLG_ASSERT(b3World_IsValid(worldId));
 
-    MLG_DEFER_AS(cleanup)
+    auto cleanup = MLG_MAKE_DEFERRED
     {
         if(b3World_IsValid(worldId))
         {

@@ -1,32 +1,32 @@
 #include <gtest/gtest.h>
 
-#include "scope_exit.h"
+#include "Defer.h"
 
-TEST(scope_exit, RunsOnScopeExit)
+TEST(Defer, RunsOnScopeExit)
 {
     bool called = false;
     {
-        auto guard = scope_exit{ [&called]() { called = true; } };
+        auto guard = Defer{ [&called]() { called = true; } };
         EXPECT_FALSE(called);
     }
     EXPECT_TRUE(called);
 }
 
-TEST(scope_exit, ReleasePreventsExecution)
+TEST(Defer, ReleasePreventsExecution)
 {
     bool called = false;
     {
-        auto guard = scope_exit{ [&called]() { called = true; } };
+        auto guard = Defer{ [&called]() { called = true; } };
         guard.release();
     }
     EXPECT_FALSE(called);
 }
 
-TEST(scope_exit, MoveTransfersResponsibility)
+TEST(Defer, MoveTransfersResponsibility)
 {
     int counter = 0;
     {
-        auto guard1 = scope_exit{ [&counter]() { ++counter; } };
+        auto guard1 = Defer{ [&counter]() { ++counter; } };
         {
             auto guard2 = std::move(guard1);
             EXPECT_EQ(counter, 0);

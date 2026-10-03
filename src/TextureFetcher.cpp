@@ -2,9 +2,9 @@
 
 #include "TextureFetcher.h"
 
+#include "Defer.h"
 #include "FileFetcher.h"
 #include "GpuHelper.h"
-#include "scope_exit.h"
 #include "System.h"
 #include "ThreadPool.h"
 
@@ -12,7 +12,6 @@
 #include <limits>
 #include <ranges>
 #include <stb_image.h>
-#include <string>
 #include <webgpu/webgpu_cpp.h>
 
 TextureFetcher::FetchTask::FetchTask(const GpuHelper& gpuHelper,

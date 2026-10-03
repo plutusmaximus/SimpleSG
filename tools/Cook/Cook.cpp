@@ -1,18 +1,17 @@
 
+#include "Defer.h"
 #include "GltfLoader.h"
 #include "Level.h"
 #include "LevelDefs.h"
 #include "Log.h"
 #include "ResourceBundle.h"
 #include "Result.h"
-#include "scope_exit.h"
 #include "ThreadPool.h"
 #include "Timer.h"
 
 #include <bit>
 #include <cstdint>
 #include <cstring>
-#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -20,7 +19,6 @@
 #include <limits>
 #include <span>
 #include <stb_image.h>
-#include <string>
 #include <string_view>
 #include <system_error>
 #include <type_traits>

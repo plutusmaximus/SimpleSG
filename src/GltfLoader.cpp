@@ -5,9 +5,9 @@
 
 #include "GltfLoader.h"
 
+#include "Defer.h"
 #include "LevelDefs.h"
 #include "Log.h"
-#include "scope_exit.h"
 #include "Vertex.h"
 
 #include <cgltf.h>
@@ -613,14 +613,13 @@ GltfLoader::Load(const std::string_view path, PropKitDef& outPropKit, LevelDef& 
     const cgltf_result result = cgltf_parse_file(&options, filePathStr.c_str(), &gltfData);
     MLG_CHECK(result == cgltf_result_success, "Failed to load glTF file");
 
-    auto cleanup = scope_exit(
-        [&]()
+    auto cleanup = MLG_MAKE_DEFERRED
+    {
+        if(gltfData)
         {
-            if(gltfData)
-            {
-                cgltf_free(gltfData);
-            }
-        });
+            cgltf_free(gltfData);
+        }
+    };
 
     MLG_CHECK(gltfData->scenes_count > 0, "No scenes found");
     MLG_CHECK(gltfData->scenes_count == 1, "Multiple scenes found, only one scene is supported");

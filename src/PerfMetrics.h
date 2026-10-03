@@ -1,8 +1,8 @@
 #pragma once
 
+#include "Defer.h" // used for MLG_SCOPED_TIMER macro
 #include "FixedString.h"
 #include "inlist.h"
-#include "scope_exit.h" // used for MLG_SCOPED_TIMER macro
 #include "Timer.h"
 
 #include <atomic>
@@ -260,5 +260,7 @@ using PerfTimerCategory = PerfCounterCategory<PerfTimerCategoryTag>;
         .CategoryId = PerfTimerCategory::Id });                                                    \
     PerfTimer MLG_PERF_TIMER_CONCAT(timer, __LINE__)(MLG_PERF_TIMER_CONCAT(counter, __LINE__));    \
     MLG_PERF_TIMER_CONCAT(timer, __LINE__).Start();                                                \
-    auto MLG_PERF_TIMER_CONCAT(scope_timer, __LINE__) =                                            \
-        scope_exit([&]() { MLG_PERF_TIMER_CONCAT(timer, __LINE__).Stop(); });
+    MLG_DEFER                                                                                      \
+    {                                                                                              \
+        MLG_PERF_TIMER_CONCAT(timer, __LINE__).Stop();                                             \
+    };

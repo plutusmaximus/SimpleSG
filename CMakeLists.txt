@@ -383,6 +383,7 @@ set(SSG_HEADERS
   src/BoundingVolumes.h
   src/Camera.h
   src/CoopTask.h
+  src/Defer.h
   src/DevUi.h
   src/FileFetcher.h
   src/FilePath.h
@@ -406,7 +407,6 @@ set(SSG_HEADERS
   src/ResourceBundle.h
   src/Result.h
   src/Scene.h
-  src/scope_exit.h
   src/SemanticIdentifier.h
   src/shaders/ShaderInterop.h
   src/ShaderFetcher.h
@@ -544,12 +544,12 @@ add_executable(Tests
   "tests/BoundingBox.unit.cpp"
   "tests/BoundingSphere.unit.cpp"
   "tests/Camera.unit.cpp"
+  "tests/Defer.unit.cpp"
   "tests/FilePath.unit.cpp"
   "tests/inlist.unit.cpp"
   "tests/Mat44.unit.cpp"
   "tests/Quat.unit.cpp"
   "tests/Radians.unit.cpp"
-  "tests/scope_exit.unit.cpp"
   "tests/ShapeDefs.unit.cpp"
   "tests/TrsTransform.unit.cpp"
   "tests/Vec2.unit.cpp"

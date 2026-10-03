@@ -1,13 +1,12 @@
 #include "FileFetcher.h"
 
+#include "Defer.h"
 #include "Log.h"
-#include "scope_exit.h"
 
 #include <cstdint>
 #include <memory>
 #include <SDL3/SDL_asyncio.h>
 #include <SDL3/SDL_error.h>
-#include <string>
 #include <utility>
 
 namespace
@@ -94,7 +93,7 @@ FileFetcher::Fetch(const FilePath& filePath)
     request.m_Stage = Request::Stage::Pending;
 
     // Free resources if we early exit due to an error.
-    MLG_DEFER_AS(freeRequest)
+    auto freeRequest = MLG_MAKE_DEFERRED
     {
         SetFailed(wrapper->m_RequestId);
 
