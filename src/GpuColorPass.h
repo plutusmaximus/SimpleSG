@@ -19,7 +19,6 @@ public:
 
     struct Inputs
     {
-        Viewport Viewport;
         GpuVertexBuffer Vertices;
         GpuIndexBuffer Indices;
         GpuWorldTransformBuffer WorldTransforms;
@@ -34,8 +33,7 @@ public:
 
         friend bool operator==(const Inputs& a, const Inputs& b)
         {
-            return a.Viewport == b.Viewport
-                && a.Vertices == b.Vertices
+            return a.Vertices == b.Vertices
                 && a.Indices == b.Indices
                 && a.WorldTransforms == b.WorldTransforms
                 && a.ClipSpaceTransforms == b.ClipSpaceTransforms
@@ -170,7 +168,8 @@ public:
     Invocation(Invocation&&) = default;
     Invocation& operator=(Invocation&&) = delete;
 
-    Result<> Execute(const std::span<MeshInstance> visibleMeshes,
+    Result<> Execute(const Viewport& viewport,
+        const std::span<MeshInstance> visibleMeshes,
         const std::span<const wgpu::BindGroup> materialBindGroups);
 
 private:

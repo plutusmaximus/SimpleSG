@@ -534,20 +534,6 @@ GpuColorPass::Prepare(const wgpu::CommandEncoder& cmdEncoder)
             m_Inputs->Indices.BufferSize());
     }
 
-    const Viewport& viewport = m_Inputs->Viewport;
-
-    renderPass.SetViewport(static_cast<float>(viewport.GetX()),
-        static_cast<float>(viewport.GetY()),
-        static_cast<float>(viewport.GetWidth()),
-        static_cast<float>(viewport.GetHeight()),
-        viewport.GetMinDepth(),
-        viewport.GetMaxDepth());
-
-    renderPass.SetScissorRect(viewport.GetX(),
-        viewport.GetY(),
-        viewport.GetWidth(),
-        viewport.GetHeight());
-
     return Invocation(m_GpuHelper->GetDevice(), std::move(renderPass));
 }
 
@@ -713,7 +699,8 @@ GpuColorPass::Invocation::~Invocation()
 }
 
 Result<>
-GpuColorPass::Invocation::Execute(const std::span<MeshInstance> visibleMeshes,
+GpuColorPass::Invocation::Execute(const Viewport& viewport,
+    const std::span<MeshInstance> visibleMeshes,
     const std::span<const wgpu::BindGroup> materialBindGroups)
 {
     MLG_SCOPED_TIMER("GpuColorPass.Execute")
@@ -724,6 +711,18 @@ GpuColorPass::Invocation::Execute(const std::span<MeshInstance> visibleMeshes,
     const wgpu::RenderPassEncoder renderPass = std::move(m_RenderPass);
 
     m_RenderPass = {};
+
+    renderPass.SetViewport(static_cast<float>(viewport.GetX()),
+        static_cast<float>(viewport.GetY()),
+        static_cast<float>(viewport.GetWidth()),
+        static_cast<float>(viewport.GetHeight()),
+        viewport.GetMinDepth(),
+        viewport.GetMaxDepth());
+
+    renderPass.SetScissorRect(viewport.GetX(),
+        viewport.GetY(),
+        viewport.GetWidth(),
+        viewport.GetHeight());
 
     // Track how many times we have to change materials.
     static PerfCounter pcMaterialChanges({ .Name = "GpuColorPass.Execute.MaterialChanges" });

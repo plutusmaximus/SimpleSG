@@ -179,8 +179,7 @@ Scene::Render(const Camera& camera, const TrTransformf& cameraXForm)
     const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
     MLG_CHECK(cmdEncoder, "Failed to create command encoder");
 
-    auto transformNodesResult = TransformNodes(gpuDevice, cmdEncoder, cameraXForm, camera);
-    MLG_CHECK(transformNodesResult);
+    MLG_CHECK(TransformNodes(gpuDevice, cmdEncoder, cameraXForm, camera));
 
     const Viewport& viewport = camera.GetViewport();
 
@@ -197,7 +196,6 @@ Scene::Render(const Camera& camera, const TrTransformf& cameraXForm)
 
     const GpuColorPass::Inputs colorPassInputs //
         {
-            .Viewport = viewport,
             .Vertices = m_VertexBuffer,
             .Indices = m_IndexBuffer,
             .WorldTransforms = m_WorldTransformBuffer,
@@ -217,7 +215,7 @@ Scene::Render(const Camera& camera, const TrTransformf& cameraXForm)
     CollectVisibleMeshes(frustum, m_VisibleMeshes);
     std::ranges::sort(m_VisibleMeshes, {}, &MeshInstance::GetMaterialIndex);
 
-    MLG_CHECK(invocation->Execute(m_VisibleMeshes, m_MaterialBindGroups));
+    MLG_CHECK(invocation->Execute(viewport, m_VisibleMeshes, m_MaterialBindGroups));
 
     const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
     MLG_CHECK(cmdBuf, "Failed to finish command buffer");
