@@ -95,7 +95,7 @@ struct SceneNodeResource;
 
 class ResourceBundleBuilder;
 
-/// Owns a level's geometry, materials, texture paths, nodes, and physics data in a single buffer.
+/// Owns a scene's geometry, materials, texture paths, nodes, and physics data in a single buffer.
 ///
 /// Build it with ResourceBundleBuilder::Build(). Accessors return read-only views of the data.
 ///

@@ -127,13 +127,13 @@ MainLoop()
     auto rsrcBundle = builder.Build(*sceneDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
-    auto levelResult = Level::Create(*rsrcBundle);
-    MLG_CHECK(levelResult, "Failed to create Level");
-    const std::unique_ptr<Level> level = std::move(*levelResult);
+    auto sceneResult = Scene::Create(*rsrcBundle);
+    MLG_CHECK(sceneResult, "Failed to create scene");
+    const std::unique_ptr<Scene> scene = std::move(*sceneResult);
 
     const DirectoryPath parentPath = DirectoryPath::Current();
     
-    View::CreateTask createTask(system, parentPath, *rsrcBundle, *level);
+    View::CreateTask createTask(system, parentPath, *rsrcBundle, *scene);
 
     MLG_CHECK(createTask.Start(), "Failed to begin create task");
 

@@ -15,7 +15,7 @@
 class ResourceBundle;
 class System;
 class ThreadPool;
-class Level;
+class Scene;
 
 /// A view of the scene.
 /// Responsible for rendering and compositing the 3D scene.
@@ -40,7 +40,7 @@ public:
 
 private:
     View(const GpuHelper& gpuHelper,
-        const Level& level,
+        const Scene& scene,
         GpuColorPass&& colorPass,
         GpuCompositorPass&& compositorPass,
         GpuTransformPass&& transformPass,
@@ -65,7 +65,7 @@ private:
 
     const GpuHelper* m_GpuHelper{ nullptr };
 
-    const Level* m_Level{ nullptr };
+    const Scene* m_Scene{ nullptr };
 
     std::optional<GpuColorPass::Outputs> m_ColorPassOutputs;
     GpuColorPass m_ColorPass;
@@ -90,7 +90,7 @@ public:
     CreateTask(System& system,
         const DirectoryPath& parentPath,
         const ResourceBundle& resourceBundle,
-        const Level& level);
+        const Scene& scene);
 
     CreateTask() = delete;
     ~CreateTask() override = default;
@@ -118,7 +118,7 @@ private:
     Timer m_Timer;
     System* m_System{ nullptr };
     const ResourceBundle* m_ResourceBundle{ nullptr };
-    const Level* m_Level{ nullptr };
+    const Scene* m_Scene{ nullptr };
     DirectoryPath m_ParentPath;
 
     std::optional<TextureFetcher> m_TextureFetcher;

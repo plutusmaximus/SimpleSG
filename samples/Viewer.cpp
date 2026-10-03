@@ -79,7 +79,7 @@ RenderGui()
     return Result<>::Ok;
 }
 
-Result<std::tuple<std::unique_ptr<Level>, std::unique_ptr<View>>>
+Result<std::tuple<std::unique_ptr<Scene>, std::unique_ptr<View>>>
 LoadLevel(System& system, const std::string_view path)
 {
     auto loadResult = GltfLoader::Load(path);
@@ -90,16 +90,16 @@ LoadLevel(System& system, const std::string_view path)
     auto rsrcBundle = builder.Build(sceneDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
-    auto levelResult = Level::Create(*rsrcBundle);
-    MLG_CHECK(levelResult, "Failed to create Level for {}", path);
+    auto sceneResult = Scene::Create(*rsrcBundle);
+    MLG_CHECK(sceneResult, "Failed to create scene for {}", path);
 
-    std::unique_ptr<Level> level = std::move(*levelResult);
+    std::unique_ptr<Scene> scene = std::move(*sceneResult);
 
     const std::string_view parentDir = FilePathHelper::GetParent(path);
     auto parentPath = DirectoryPath::Create(parentDir);
     MLG_CHECK(parentPath, "Failed to create parent path");
 
-    View::CreateTask createTask(system, *parentPath, *rsrcBundle, *level);
+    View::CreateTask createTask(system, *parentPath, *rsrcBundle, *scene);
 
     MLG_CHECK(createTask.Start(), "Failed to begin create task");
 
@@ -113,7 +113,7 @@ LoadLevel(System& system, const std::string_view path)
 
     std::unique_ptr<View> view = std::move(*viewResult);
 
-    return std::make_tuple(std::move(level), std::move(view));
+    return std::make_tuple(std::move(scene), std::move(view));
 }
 
 constexpr const char* SPONZA_MODEL_PATH = "main_sponza/NewSponza_Main_glTF_003.gltf";
@@ -140,7 +140,7 @@ MainLoop()
     auto loadResult = LoadLevel(system, SPONZA_MODEL_PATH);
     MLG_CHECK(loadResult, "Failed to load resources");
 
-    auto&& [level, view] = std::move(*loadResult);
+    auto&& [scene, view] = std::move(*loadResult);
 
     static constexpr float kDefaultCameraHeight = 2.0f;
     static constexpr float kDefaultCameraYaw = 90.0f; // Degrees

@@ -11,8 +11,8 @@
 #include <vector>
 #include <optional>
 
-/// Definitions for level structure, including materials, meshes, models, and nodes.
-/// Used to declaratively define the structure and properties of a level.
+/// Definitions for scene structure, including materials, meshes, models, and nodes.
+/// Used to declaratively define the structure and properties of a scene.
 
 namespace SceneDefs
 {
@@ -195,9 +195,9 @@ struct SceneDef final
     std::vector<RootNodeDef> NodeDefs;
 };
 
-/// Runtime representations of level elements.
+/// Runtime representations of scene elements.
 
-class Level;
+class Scene;
 
 class MeshInstance
 {
@@ -284,7 +284,7 @@ public:
     }
 
 private:
-    friend Level;
+    friend Scene;
 
     TrsTransformf m_LocalTransform;
     Vec3f m_LinearVelocity{ 0 };
@@ -328,7 +328,7 @@ public:
     float GetInverseMass() const;
 
 private:
-    friend Level;
+    friend Scene;
 
     SceneNode* m_Node{ nullptr };
     RigidBodyIdentifier m_RigidBodyId;
@@ -359,7 +359,7 @@ public:
     bool IsVisible() const { return m_Node->IsVisible(); }
 
 private:
-    friend Level;
+    friend Scene;
 
     const SceneNode* m_Node{ nullptr };
     BoundingSphere m_BoundingSphere;

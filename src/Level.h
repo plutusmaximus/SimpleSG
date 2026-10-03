@@ -9,30 +9,30 @@
 
 class ResourceBundle;
 
-class Level
+class Scene
 {
 public:
-    static Result<std::unique_ptr<Level>> Create(const ResourceBundle& resourceBundle);
+    static Result<std::unique_ptr<Scene>> Create(const ResourceBundle& resourceBundle);
 
-    Level() = delete;
-    ~Level();
-    Level(const Level&) = delete;
-    Level& operator=(const Level&) = delete;
-    Level(Level&&) = delete;
-    Level& operator=(Level&&) = delete;
+    Scene() = delete;
+    ~Scene();
+    Scene(const Scene&) = delete;
+    Scene& operator=(const Scene&) = delete;
+    Scene(Scene&&) = delete;
+    Scene& operator=(Scene&&) = delete;
 
-    /// Returns all nodes in the level, in breadth-first order.
+    /// Returns all nodes in the scene, in breadth-first order.
     std::span<const SceneNode> GetAllNodes() const { return m_Nodes; }
 
-    /// Returns all physics nodes in the level, in breadth-first order.
+    /// Returns all physics nodes in the scene, in breadth-first order.
     std::span<const PhysicsNode> GetAllPhysicsNodes() const { return m_PhysicsNodes; }
     std::span<PhysicsNode> GetAllPhysicsNodes() { return m_PhysicsNodes; }
 
-    /// Returns all model nodes in the level, in breadth-first order.
+    /// Returns all model nodes in the scene, in breadth-first order.
     std::span<const ModelNode> GetAllModelNodes() const { return m_ModelNodes; }
     std::span<ModelNode> GetAllModelNodes() { return m_ModelNodes; }
 
-    /// Returns the root nodes of the level. Root nodes are nodes that have no parent.
+    /// Returns the root nodes of the scene. Root nodes are nodes that have no parent.
     std::span<const SceneNode> GetRoots() const { return m_RootNodes; }
 
     void Update(const float timeStep);
@@ -42,7 +42,7 @@ public:
     void SetVisible(const SceneNode& node, bool visible);
 
 private:
-    Level(std::vector<SceneNode>&& nodes,
+    Scene(std::vector<SceneNode>&& nodes,
         std::vector<PhysicsNode>&& physicsNodes,
         std::vector<ModelNode>&& modelNodes,
         std::vector<MeshInstance>&& meshInstances,

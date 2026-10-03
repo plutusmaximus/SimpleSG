@@ -45,7 +45,7 @@ struct PerfCounterGlobals
     static inline PerfCounter TotalEnergy{ { .Name = "Energy.Total" } };
 };
 
-Result<std::tuple<std::unique_ptr<Level>, std::unique_ptr<View>>>
+Result<std::tuple<std::unique_ptr<Scene>, std::unique_ptr<View>>>
 LoadLevel(System& system)
 {
     [[maybe_unused]] constexpr float kBallRadius = 1.0f;
@@ -148,14 +148,14 @@ LoadLevel(System& system)
     auto rsrcBundle = builder.Build(sceneDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
-    auto levelResult = Level::Create(*rsrcBundle);
-    MLG_CHECK(levelResult, "Failed to create Level");
+    auto sceneResult = Scene::Create(*rsrcBundle);
+    MLG_CHECK(sceneResult, "Failed to create Scene");
 
-    std::unique_ptr<Level> level = std::move(*levelResult);
+    std::unique_ptr<Scene> scene = std::move(*sceneResult);
 
     const DirectoryPath parentPath = DirectoryPath::Current();
 
-    View::CreateTask createTask(system, parentPath, *rsrcBundle, *level);
+    View::CreateTask createTask(system, parentPath, *rsrcBundle, *scene);
 
     MLG_CHECK(createTask.Start(), "Failed to begin create task");
 
@@ -169,12 +169,12 @@ LoadLevel(System& system)
 
     std::unique_ptr<View> view = std::move(*viewResult);
 
-    return std::make_tuple(std::move(level), std::move(view));
+    return std::make_tuple(std::move(scene), std::move(view));
 }
 
-/// Applies random linear velocities to all bodies in the physics level.
+/// Applies random linear velocities to all bodies in the physics scene.
 void
-ApplyRandomVelocities(Level& level)
+ApplyRandomVelocities(Scene& scene)
 {
     constexpr float kMaxSpeed = 0.5f; // 2.0f;
     constexpr float kMinSpeed = 0.1f; // 1.0f;
@@ -183,7 +183,7 @@ ApplyRandomVelocities(Level& level)
     std::mt19937 gen(kRngSeed);
     std::uniform_real_distribution<float> dis(-1, 1);
 
-    for(PhysicsNode& node : level.GetAllPhysicsNodes())
+    for(PhysicsNode& node : scene.GetAllPhysicsNodes())
     {
         const Vec3f randomNormal = Vec3f{ dis(gen), dis(gen), dis(gen) }.Normalize();
         const Vec3f randomVel =
@@ -327,11 +327,11 @@ ApplyGravityBatch(ApplyGravityBatchParams* batchParams)
 
 // Returns the total potential energy of the system after applying gravity.
 void
-ApplyGravity(Level& level, ThreadPool& threadPool)
+ApplyGravity(Scene& scene, ThreadPool& threadPool)
 {
     MLG_SCOPED_TIMER("Physics.ApplyGravity");
 
-    const std::span physNodes = level.GetAllPhysicsNodes();
+    const std::span physNodes = scene.GetAllPhysicsNodes();
 
     const size_t numPairs = physNodes.size() * (physNodes.size() - 1) / 2;
     const size_t workerCount = threadPool.GetWorkerCount();
@@ -489,14 +489,14 @@ ApplyGravity(Level& level, ThreadPool& threadPool)
 }
 
 void
-ApplyExplosionImpulse(Level& level, const float magnitude)
+ApplyExplosionImpulse(Scene& scene, const float magnitude)
 {
     constexpr unsigned kRngSeed = 12345;
     std::mt19937 gen(kRngSeed);
     std::uniform_real_distribution<float> dis(0.5, 1);
     std::bernoulli_distribution sign;
 
-    for(PhysicsNode& node : level.GetAllPhysicsNodes())
+    for(PhysicsNode& node : scene.GetAllPhysicsNodes())
     {
         // Randomize the direction of the impulse.
         const Vec3f normal //
@@ -512,22 +512,22 @@ ApplyExplosionImpulse(Level& level, const float magnitude)
 }
 
 void
-StopAll(Level& level)
+StopAll(Scene& scene)
 {
     constexpr Vec3f zeroVelocity{ 0 };
 
-    for(PhysicsNode& node : level.GetAllPhysicsNodes())
+    for(PhysicsNode& node : scene.GetAllPhysicsNodes())
     {
         node.SetLinearVelocity(zeroVelocity);
     }
 }
 
 float
-ComputeKineticEnergy(const Level& level)
+ComputeKineticEnergy(const Scene& scene)
 {
     float kineticEnergy = 0.0f;
 
-    const std::span<const PhysicsNode> nodes = level.GetAllPhysicsNodes();
+    const std::span<const PhysicsNode> nodes = scene.GetAllPhysicsNodes();
 
     std::vector<float> linearVelocitiesArrays[3] //
         {
@@ -596,9 +596,9 @@ MainLoop()
     auto loadResult = LoadLevel(system);
     MLG_CHECK(loadResult);
 
-    auto&& [level, view] = std::move(*loadResult);
+    auto&& [scene, view] = std::move(*loadResult);
 
-    ApplyRandomVelocities(*level);
+    ApplyRandomVelocities(*scene);
 
     constexpr float kInitialCameraDistance = 40.0f;
 
@@ -721,11 +721,11 @@ MainLoop()
         if(inputMapper.IsActionTriggered(explode))
         {
             constexpr float kImpulseMagnitude = 5.0f;
-            ApplyExplosionImpulse(*level, kImpulseMagnitude);
+            ApplyExplosionImpulse(*scene, kImpulseMagnitude);
         }
         if(inputMapper.IsActionTriggered(stopAll))
         {
-            StopAll(*level);
+            StopAll(*scene);
         }
         if(inputMapper.IsActionTriggered(pause))
         {
@@ -734,10 +734,10 @@ MainLoop()
 
         if(!pauseSim)
         {
-            level->Update(kPhysicsTimeStep);
-            ApplyGravity(*level, system.GetThreadPool());
+            scene->Update(kPhysicsTimeStep);
+            ApplyGravity(*scene, system.GetThreadPool());
 
-            const float kineticEnergy = ComputeKineticEnergy(*level);
+            const float kineticEnergy = ComputeKineticEnergy(*scene);
             const double totalEnergy = kineticEnergy + PerfCounterGlobals::TotalPE.GetValue();
 
             PerfCounterGlobals::TotalKE.Set(kineticEnergy);

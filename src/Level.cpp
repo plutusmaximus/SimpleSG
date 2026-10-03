@@ -296,8 +296,8 @@ GetBodyId(const RigidBodyIdentifier rigidBodyId)
 }
 } // namespace
 
-Result<std::unique_ptr<Level>>
-Level::Create(const ResourceBundle& resourceBundle)
+Result<std::unique_ptr<Scene>>
+Scene::Create(const ResourceBundle& resourceBundle)
 {
     b3WorldDef worldDef = b3DefaultWorldDef();
     worldDef.restitutionThreshold = 0.0f;
@@ -317,7 +317,7 @@ Level::Create(const ResourceBundle& resourceBundle)
     const WorldIdentifier worldIdentifier{ b3StoreWorldId(worldId) };
 
     auto sceneNode = CollectNodes(resourceBundle);
-    MLG_CHECK(sceneNode, "Failed to collect level nodes");
+    MLG_CHECK(sceneNode, "Failed to collect scene nodes");
 
     // Populate child nodes.
     const std::span nodeSpan = std::span(*sceneNode);
@@ -341,14 +341,14 @@ Level::Create(const ResourceBundle& resourceBundle)
 
     cleanup.release();
 
-    return std::unique_ptr<Level>(new Level(std::move(*sceneNode),
+    return std::unique_ptr<Scene>(new Scene(std::move(*sceneNode),
         std::move(*physicsNodes),
         std::move(*modelNodes),
         std::move(*meshInstances),
         worldIdentifier));
 }
 
-Level::Level(std::vector<SceneNode>&& nodes,
+Scene::Scene(std::vector<SceneNode>&& nodes,
     std::vector<PhysicsNode>&& physicsNodes,
     std::vector<ModelNode>&& modelNodes,
     std::vector<MeshInstance>&& meshInstances,
@@ -380,7 +380,7 @@ Level::Level(std::vector<SceneNode>&& nodes,
     UpdateWorldTransforms(m_RootNodes);
 }
 
-Level::~Level()
+Scene::~Scene()
 {
     if(m_WorldId.IsValid())
     {
@@ -393,14 +393,14 @@ Level::~Level()
 }
 
 void
-Level::Update(const float timeStep)
+Scene::Update(const float timeStep)
 {
     constexpr int kSubStepCount = 4;
     const b3WorldId worldId = b3LoadWorldId(m_WorldId.GetValue());
     MLG_ASSERT(b3World_IsValid(worldId));
     b3World_Step(worldId, timeStep, kSubStepCount);
 
-    // Sync to level nodes.
+    // Sync to scene nodes.
     for(const PhysicsNode& physicsNode : m_PhysicsNodes)
     {
         SceneNode* node = physicsNode.m_Node;
@@ -423,7 +423,7 @@ Level::Update(const float timeStep)
 }
 
 void
-Level::SetActive(const SceneNode& nodeRef, bool active)
+Scene::SetActive(const SceneNode& nodeRef, bool active)
 {
     SceneNode* node = GetNode(nodeRef);
     if(!MLG_VERIFY(node, "Invalid or nonexistent node passed to SetActive"))
@@ -441,7 +441,7 @@ Level::SetActive(const SceneNode& nodeRef, bool active)
 }
 
 void
-Level::SetVisible(const SceneNode& nodeRef, bool visible)
+Scene::SetVisible(const SceneNode& nodeRef, bool visible)
 {
     SceneNode* node = GetNode(nodeRef);
 
@@ -462,10 +462,10 @@ Level::SetVisible(const SceneNode& nodeRef, bool visible)
 // private:
 
 SceneNode*
-Level::GetNode(const SceneNode& nodeRef)
+Scene::GetNode(const SceneNode& nodeRef)
 {
     if(!MLG_VERIFY(&nodeRef >= m_Nodes.data() && &nodeRef <= &m_Nodes.back(),
-           "Node is not in level"))
+           "Node is not in scene"))
     {
         return nullptr;
     }
@@ -486,7 +486,7 @@ Level::GetNode(const SceneNode& nodeRef)
 }
 
 void
-Level::UpdateWorldTransforms(std::span<SceneNode> nodes)
+Scene::UpdateWorldTransforms(std::span<SceneNode> nodes)
 {
     for(SceneNode& node : nodes)
     {

@@ -132,7 +132,7 @@ private:
     std::optional<ResourceBundle> m_ResourceBundle;
     std::optional<View::CreateTask> m_ViewCreateTask;
 
-    std::unique_ptr<Level> m_Level;
+    std::unique_ptr<Scene> m_Scene;
     std::unique_ptr<View> m_View;
 
     Viewport m_Viewport //
@@ -166,13 +166,13 @@ TriangleApp::OnStart(System& system)
 
     m_ResourceBundle = std::move(*rsrcBundle);
 
-    auto levelResult = Level::Create(*m_ResourceBundle);
-    MLG_CHECK(levelResult, "Failed to create Level");
-    m_Level = std::move(*levelResult);
+    auto sceneResult = Scene::Create(*m_ResourceBundle);
+    MLG_CHECK(sceneResult, "Failed to create Scene");
+    m_Scene = std::move(*sceneResult);
 
     const DirectoryPath parentPath = DirectoryPath::Current();
 
-    m_ViewCreateTask.emplace(*m_System, parentPath, *m_ResourceBundle, *m_Level);
+    m_ViewCreateTask.emplace(*m_System, parentPath, *m_ResourceBundle, *m_Scene);
 
     MLG_CHECK(m_ViewCreateTask->Start(), "Failed to begin view create task");
 

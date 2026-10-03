@@ -138,7 +138,7 @@ CreateMaterialBindGroups(const GpuHelper& gpuHelper,
 } // namespace
 
 View::View(const GpuHelper& gpuHelper,
-    const Level& level,
+    const Scene& scene,
     GpuColorPass&& colorPass,
     GpuCompositorPass&& compositorPass,
     GpuTransformPass&& transformPass,
@@ -150,7 +150,7 @@ View::View(const GpuHelper& gpuHelper,
     GpuCameraParamsBuffer&& cameraParamsBuffer,
     std::vector<wgpu::BindGroup>&& materialBindGroups)
     : m_GpuHelper(&gpuHelper),
-      m_Level(&level),
+      m_Scene(&scene),
       m_ColorPass(std::move(colorPass)),
       m_CompositorPass(std::move(compositorPass)),
       m_TransformPass(std::move(transformPass)),
@@ -162,7 +162,7 @@ View::View(const GpuHelper& gpuHelper,
       m_CameraParamsBuffer(std::move(cameraParamsBuffer)),
       m_MaterialBindGroups(std::move(materialBindGroups))
 {
-    const size_t meshInstanceCount = CountMeshInstances(level.GetAllModelNodes());
+    const size_t meshInstanceCount = CountMeshInstances(scene.GetAllModelNodes());
     m_VisibleMeshes.reserve(meshInstanceCount);
 }
 
@@ -277,7 +277,7 @@ View::CollectVisibleMeshes(const Frustum& frustum,
 
     size_t totalMeshes = 0;
 
-    for(const ModelNode& modelNode : m_Level->GetAllModelNodes())
+    for(const ModelNode& modelNode : m_Scene->GetAllModelNodes())
     {
         totalMeshes += modelNode.GetMeshCount();
 
@@ -331,7 +331,7 @@ View::SyncToGpu()
 {
     // Brute force copy everything for now.
     uint64_t bufferOffset = 0;
-    for(const ModelNode& modelNode : m_Level->GetAllModelNodes())
+    for(const ModelNode& modelNode : m_Scene->GetAllModelNodes())
     {
         const ShaderInterop::WorldTransform transform{ .Transform = modelNode.GetWorldTransform() };
         m_GpuHelper->GetDevice().GetQueue().WriteBuffer(m_WorldTransformBuffer.GetGpuBuffer(),
@@ -413,10 +413,10 @@ GetTexturePaths(const ResourceBundle& resourceBundle)
 View::CreateTask::CreateTask(System& system,
     const DirectoryPath& parentPath,
     const ResourceBundle& resourceBundle,
-    const Level& level)
+    const Scene& scene)
     : m_System(&system),
       m_ResourceBundle(&resourceBundle),
-      m_Level(&level),
+      m_Scene(&scene),
       m_ParentPath(parentPath),
       m_ColorPassTask(m_System->GetGpuHelper(), m_System->GetFileFetcher()),
       m_CompositorPassTask(m_System->GetGpuHelper(), m_System->GetFileFetcher()),
@@ -461,7 +461,7 @@ View::CreateTask::Take()
     MLG_CHECK(indexBuffer);
     indexBuffer->Store(indices);
 
-    const std::span modelNodes = m_Level->GetAllModelNodes();
+    const std::span modelNodes = m_Scene->GetAllModelNodes();
 
     auto transformBuffer = gpuHelper.CreateStorageBuffer<GpuWorldTransformBuffer>(modelNodes.size(),
         "WorldTransforms");
@@ -478,7 +478,7 @@ View::CreateTask::Take()
     MLG_CHECK(cameraParamsBuf);
 
     std::unique_ptr<View> view(new View(gpuHelper,
-        *m_Level,
+        *m_Scene,
         std::move(*gpuColorPassResult),
         std::move(*gpuCompositorPassResult),
         std::move(*gpuTransformPassResult),
