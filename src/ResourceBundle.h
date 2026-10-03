@@ -30,7 +30,6 @@ Layout:              sizeof/offsetof compile-time verified
 */
 
 struct LevelDef;
-struct PropKitDef;
 
 static_assert(sizeof(std::uint32_t) == 4);
 static_assert(sizeof(std::uint64_t) == 8); // NOLINT(readability-magic-numbers)
@@ -381,7 +380,7 @@ public:
     ResourceBundleBuilder(ResourceBundleBuilder&&) = default;
     ResourceBundleBuilder& operator=(ResourceBundleBuilder&&) = default;
 
-    Result<ResourceBundle> Build(const LevelDef& levelDef, const PropKitDef& propKitDef);
+    Result<ResourceBundle> Build(const LevelDef& levelDef);
 
 private:
     ResourceBundle::Header* GetHeader()

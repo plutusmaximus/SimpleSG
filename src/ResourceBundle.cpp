@@ -901,7 +901,7 @@ ResourceBundle::GetStringView(const StringResource& stringResource) const
 // ResourceBundleBuilder
 
 Result<ResourceBundle>
-ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKitDef)
+ResourceBundleBuilder::Build(const LevelDef& levelDef)
 {
     // Free buffer mem
     std::vector<std::byte>().swap(m_Buffer);
@@ -909,7 +909,7 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKit
     const auto flatNodeDefs = FlattenNodesBreadthFirst(levelDef.NodeDefs);
     MLG_CHECK(flatNodeDefs);
 
-    const auto meshDefs = CollectMeshDefs(propKitDef.ModelDefs);
+    const auto meshDefs = CollectMeshDefs(levelDef.ModelDefs);
     MLG_CHECK(meshDefs);
 
     std::vector<char> chars;
@@ -926,7 +926,7 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef, const PropKitDef& propKit
     MLG_CHECK(indices);
     const auto meshes = CollectMeshes(*meshDefs, *materialIndexMap);
     MLG_CHECK(meshes);
-    const auto modelIndexMap = CollectModels(propKitDef.ModelDefs, *meshes);
+    const auto modelIndexMap = CollectModels(levelDef.ModelDefs, *meshes);
     MLG_CHECK(modelIndexMap);
     const auto modelInstances = CollectModelInstances(*flatNodeDefs, *modelIndexMap);
     MLG_CHECK(modelInstances);

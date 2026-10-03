@@ -4,7 +4,6 @@
 
 #include <string_view>
 
-struct PropKitDef;
 struct LevelDef;
 
 class GltfLoader final
@@ -18,5 +17,5 @@ public:
     GltfLoader(GltfLoader&&) = delete;
     GltfLoader& operator=(GltfLoader&&) = delete;
 
-    static Result<> Load(const std::string_view path, PropKitDef& outPropKit, LevelDef& outLevelDef);
+    static Result<LevelDef> Load(const std::string_view path);
 };

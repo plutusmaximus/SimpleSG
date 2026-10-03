@@ -82,12 +82,12 @@ RenderGui()
 Result<std::tuple<std::unique_ptr<Level>, std::unique_ptr<Scene>>>
 LoadLevel(System& system, const std::string_view path)
 {
-    PropKitDef propKitDef;
-    LevelDef levelDef;
-    MLG_CHECK(GltfLoader::Load(path, propKitDef, levelDef), "Failed to load glTF file: {}", path);
+    auto loadResult = GltfLoader::Load(path);
+    MLG_CHECK(loadResult, "Failed to load glTF file: {}", path);
+    const LevelDef levelDef = std::move(*loadResult);
 
     ResourceBundleBuilder builder;
-    auto rsrcBundle = builder.Build(levelDef, propKitDef);
+    auto rsrcBundle = builder.Build(levelDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
     auto levelResult = Level::Create(*rsrcBundle);

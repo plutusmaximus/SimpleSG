@@ -160,10 +160,10 @@ AlignUp(uint32_t value, uint32_t alignment)
 }
 
 Result<std::unordered_map<LevelDefs::FilePathString, LevelDefs::FilePathString>>
-ReplaceTexturePaths(PropKitDef& propKitDef)
+ReplaceTexturePaths(std::span<ModelDef> modelDefs)
 {
     std::unordered_map<LevelDefs::FilePathString, LevelDefs::FilePathString> texPathMap;
-    for(ModelDef& modelDef : propKitDef.ModelDefs)
+    for(ModelDef& modelDef : modelDefs)
     {
         for(MeshDef& meshDef : modelDef.MeshDefs)
         {
@@ -384,12 +384,11 @@ Cook(const CmdLinArgs& args, ThreadPool& threadPool)
 
     MLG_CHECK(args.IsValid());
 
-    PropKitDef propKitDef;
-    LevelDef levelDef;
+    auto loadResult = GltfLoader::Load(args.InputFile);
+    MLG_CHECK(loadResult);
+    LevelDef levelDef = std::move(*loadResult);
 
-    MLG_CHECK(GltfLoader::Load(args.InputFile, propKitDef, levelDef));
-
-    auto texPathMap = ReplaceTexturePaths(propKitDef);
+    auto texPathMap = ReplaceTexturePaths(levelDef.ModelDefs);
     MLG_CHECK(texPathMap);
 
     const Result<CookDirs> cookDirs = CookDirs::FromArgs(args);
@@ -427,7 +426,7 @@ Cook(const CmdLinArgs& args, ThreadPool& threadPool)
 
     ResourceBundleBuilder builder;
 
-    auto resourceBundle = builder.Build(levelDef, propKitDef);
+    auto resourceBundle = builder.Build(levelDef);
     MLG_CHECK(resourceBundle);
 
     cookTextureLatch.wait();

@@ -44,8 +44,8 @@ RenderGui()
     return Result<>::Ok;
 }
 
-Result<>
-CreateTriangleModel(PropKitDef& outPropKitDef, LevelDef& outLevelDef)
+Result<LevelDef>
+CreateTriangleModel()
 {
     std::vector<Vertex> triangleVertices = //
         {
@@ -83,13 +83,9 @@ CreateTriangleModel(PropKitDef& outPropKitDef, LevelDef& outLevelDef)
             .MeshDefs{ std::move(meshDef) },
         };
 
-    PropKitDef propKitDef //
-        {
-            .ModelDefs{ std::move(modelDef) },
-        };
-
     LevelDef levelDef //
         {
+            .ModelDefs{ std::move(modelDef) },
             .NodeDefs //
             {
                 {
@@ -100,10 +96,7 @@ CreateTriangleModel(PropKitDef& outPropKitDef, LevelDef& outLevelDef)
             },
         };
 
-    outPropKitDef = std::move(propKitDef);
-    outLevelDef = std::move(levelDef);
-
-    return Result<>::Ok;
+    return std::move(levelDef);
 }
 
 class TriangleApp : public ICoopTask<System&>
@@ -134,7 +127,6 @@ private:
 
     System* m_System{ nullptr };
 
-    PropKitDef m_PropKitDef;
     LevelDef m_LevelDef;
 
     std::optional<ResourceBundle> m_ResourceBundle;
@@ -164,10 +156,12 @@ TriangleApp::OnStart(System& system)
 
     m_System = &system;
 
-    MLG_CHECK(CreateTriangleModel(m_PropKitDef, m_LevelDef));
+    auto levelDef = CreateTriangleModel();
+    MLG_CHECK(levelDef, "Failed to create LevelDef");
+    m_LevelDef = std::move(*levelDef);
 
     ResourceBundleBuilder builder;
-    auto rsrcBundle = builder.Build(m_LevelDef, m_PropKitDef);
+    auto rsrcBundle = builder.Build(m_LevelDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
     m_ResourceBundle = std::move(*rsrcBundle);

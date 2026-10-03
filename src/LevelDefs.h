@@ -77,11 +77,6 @@ struct ModelDef final
     std::vector<MeshDef> MeshDefs;
 };
 
-struct PropKitDef final
-{
-    std::vector<ModelDef> ModelDefs;
-};
-
 struct ModelRef final
 {
     LevelDefs::NameString Name;
@@ -191,5 +186,6 @@ struct RootNodeDef final
 
 struct LevelDef final
 {
+    std::vector<ModelDef> ModelDefs;
     std::vector<RootNodeDef> NodeDefs;
 };

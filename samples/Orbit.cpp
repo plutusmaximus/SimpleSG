@@ -78,22 +78,6 @@ LoadLevel(System& system)
         ShapeDefs::Box({ .Width = kBoxExtent, .Height = kBoxExtent, .Depth = kBoxExtent });
     const MeshDef ball = ShapeDefs::Ball({ .Radius = kBallRadius });
 
-    const PropKitDef propKitDef //
-        {
-            .ModelDefs //
-            {
-                {
-                    .Name{ "Shape" },
-                    .MeshDefs //
-                    {
-                        ball,
-                        // box,
-                        //torus,
-                    },
-                },
-            },
-        };
-
     std::vector<RootNodeDef> nodeDefs;
     nodeDefs.reserve(kNumBodies);
     for(size_t i = 0; i < kNumBodies; ++i)
@@ -144,11 +128,23 @@ LoadLevel(System& system)
 
     const LevelDef levelDef //
         {
+            .ModelDefs //
+            {
+                {
+                    .Name{ "Shape" },
+                    .MeshDefs //
+                    {
+                        ball,
+                        // box,
+                        //torus,
+                    },
+                },
+            },
             .NodeDefs = std::move(nodeDefs),
         };
 
     ResourceBundleBuilder builder;
-    auto rsrcBundle = builder.Build(levelDef, propKitDef);
+    auto rsrcBundle = builder.Build(levelDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
     auto levelResult = Level::Create(*rsrcBundle);

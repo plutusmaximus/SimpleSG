@@ -46,8 +46,8 @@ RenderGui()
     return Result<>::Ok;
 }
 
-Result<>
-CreateTriangleModel(PropKitDef& outPropKitDef, LevelDef& outLevelDef)
+Result<LevelDef>
+CreateTriangleModel()
 {
     std::vector<Vertex> triangleVertices = //
         {
@@ -85,13 +85,9 @@ CreateTriangleModel(PropKitDef& outPropKitDef, LevelDef& outLevelDef)
             .MeshDefs{ std::move(meshDef) },
         };
 
-    PropKitDef propKitDef //
+    LevelDef levelDef//
         {
             .ModelDefs{ std::move(modelDef) },
-        };
-
-    LevelDef levelDef //
-        {
             .NodeDefs //
             {
                 {
@@ -102,10 +98,7 @@ CreateTriangleModel(PropKitDef& outPropKitDef, LevelDef& outLevelDef)
             },
         };
 
-    outPropKitDef = std::move(propKitDef);
-    outLevelDef = std::move(levelDef);
-
-    return Result<>::Ok;
+    return std::move(levelDef);
 }
 
 Result<>
@@ -128,12 +121,10 @@ MainLoop()
     auto cwd = std::filesystem::current_path();
     MLG_INFO("Current working directory: {}", cwd.string());
 
-    PropKitDef propKitDef;
-    LevelDef levelDef;
-    MLG_CHECK(CreateTriangleModel(propKitDef, levelDef));
+    auto levelDef = CreateTriangleModel();
 
     ResourceBundleBuilder builder;
-    auto rsrcBundle = builder.Build(levelDef, propKitDef);
+    auto rsrcBundle = builder.Build(*levelDef);
     MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
     auto levelResult = Level::Create(*rsrcBundle);

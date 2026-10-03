@@ -600,8 +600,8 @@ CollectNodes(const cgltf_data* gltfData, const ModelCollection& modelCollection)
 
 } // namespace
 
-Result<>
-GltfLoader::Load(const std::string_view path, PropKitDef& outPropKit, LevelDef& outLevelDef)
+Result<LevelDef>
+GltfLoader::Load(const std::string_view path)
 {
     MLG_LOG_SCOPE(path);
 
@@ -645,18 +645,11 @@ GltfLoader::Load(const std::string_view path, PropKitDef& outPropKit, LevelDef& 
     auto rootNodeDefs = CollectNodes(gltfData, *modelCollection);
     MLG_CHECK(rootNodeDefs);
 
-    PropKitDef propKit //
-        {
-            .ModelDefs = std::move(modelCollection->Models),
-        };
-
     LevelDef levelDef //
         {
+            .ModelDefs = std::move(modelCollection->Models),
             .NodeDefs = std::move(*rootNodeDefs),
         };
-
-    outPropKit = std::move(propKit);
-    outLevelDef = std::move(levelDef);
-
-    return Result<>::Ok;
+        
+    return std::move(levelDef);
 }
