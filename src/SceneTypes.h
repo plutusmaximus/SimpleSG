@@ -13,6 +13,26 @@
 
 /// Definitions for scene structure, including materials, meshes, models, and nodes.
 /// Used to declaratively define the structure and properties of a scene.
+/// For example:
+/// ```
+/// ModelDef modelDef
+/// {
+///     .Name = "MyModel",
+///     .MeshDefs =
+///     {
+///         {
+///             .Vertices = { /* ... */ },
+///             .Indices = { /* ... */ },
+///             .MaterialDef = { /* ... */ }
+///         },
+///         {
+///             .Vertices = { /* ... */ },
+///             .Indices = { /* ... */ },
+///             .MaterialDef = { /* ... */ }
+///         },
+///     }
+/// }
+/// ```
 
 namespace SceneDefs
 {
@@ -195,9 +215,9 @@ struct SceneDef final
     std::vector<RootNodeDef> NodeDefs;
 };
 
-/// Runtime representations of scene elements.
-
-class Scene;
+/// Runtime of scene elements.
+/// Unlike the declarative scene definitions above, these classes represent
+/// the runtime instances of the scene elements.
 
 class MeshInstance
 {
@@ -284,7 +304,7 @@ public:
     }
 
 private:
-    friend Scene;
+    friend class Scene;
 
     TrsTransformf m_LocalTransform;
     Vec3f m_LinearVelocity{ 0 };
@@ -328,7 +348,7 @@ public:
     float GetInverseMass() const;
 
 private:
-    friend Scene;
+    friend class Scene;
 
     SceneNode* m_Node{ nullptr };
     RigidBodyIdentifier m_RigidBodyId;
@@ -359,7 +379,7 @@ public:
     bool IsVisible() const { return m_Node->IsVisible(); }
 
 private:
-    friend Scene;
+    friend class Scene;
 
     const SceneNode* m_Node{ nullptr };
     BoundingSphere m_BoundingSphere;
