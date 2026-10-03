@@ -1,4 +1,5 @@
 #include "CameraActor.h"
+#include "CommonActionIds.h"
 #include "CoopTask.h"
 #include "FilePathHelper.h"
 #include "GltfLoader.h"
@@ -68,9 +69,8 @@ RenderGui()
 
     for(const auto* counterStat : sortedCounters)
     {
-        const auto text = FixedString<256>::Format("{}: {:.3f}",
-            counterStat->GetName(),
-            counterStat->GetEMA());
+        const auto text =
+            FixedString<256>::Format("{}: {:.3f}", counterStat->GetName(), counterStat->GetEMA());
         ImGui::TextUnformatted(text.c_str());
     }
 
@@ -155,20 +155,9 @@ MainLoop()
 
     cameraActor.SetTransform(cameraXForm);
 
-    constexpr ActionIdentifier quit("Quit");
-    constexpr ActionIdentifier moveForward("MoveForward");
-    constexpr ActionIdentifier moveBackward("MoveBackward");
-    constexpr ActionIdentifier moveLeft("MoveLeft");
-    constexpr ActionIdentifier moveRight("MoveRight");
-    constexpr ActionIdentifier moveUpDown("MoveUpDown");
-    constexpr ActionIdentifier lookLeftRight("LookLeftRight");
-    constexpr ActionIdentifier lookUpDown("LookUpDown");
-    constexpr ActionIdentifier captureMouse("CaptureMouse");
-    constexpr ActionIdentifier releaseMouse("ReleaseMouse");
-
     static constexpr float kMouseWheelScale = 20.0f;
 
-    const ActionMapping actionMappings[] //
+    constexpr ActionMapping actionMappings[] //
         {
             {
                 .ActionId = quit,

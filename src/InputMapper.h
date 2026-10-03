@@ -239,28 +239,28 @@ public:
 
     InputTrigger() = delete;
 
-    InputTrigger(const InputButton& button) // NOLINT(google-explicit-constructor)
+    constexpr InputTrigger(const InputButton& button) // NOLINT(google-explicit-constructor)
         : m_Trigger(button)
     {
     }
 
-    InputTrigger(const InputAxis& axis) // NOLINT(google-explicit-constructor)
+    constexpr InputTrigger(const InputAxis& axis) // NOLINT(google-explicit-constructor)
         : m_Trigger(axis)
     {
     }
 
-    Type GetType() const
+    constexpr Type GetType() const
     {
         return std::holds_alternative<InputButton>(m_Trigger) ? Type::Button : Type::Axis;
     }
 
-    const InputButton& GetButton() const
+    constexpr const InputButton& GetButton() const
     {
         MLG_ASSERT(GetType() == Type::Button, "InputTrigger does not hold an InputButton");
         return std::get<InputButton>(m_Trigger);
     }
 
-    const InputAxis& GetAxis() const
+    constexpr const InputAxis& GetAxis() const
     {
         MLG_ASSERT(GetType() == Type::Axis, "InputTrigger does not hold an InputAxis");
         return std::get<InputAxis>(m_Trigger);
