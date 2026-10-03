@@ -1,13 +1,13 @@
 #include "Camera.h"
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
-#include "Level.h"
-#include "LevelTypes.h"
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"
-#include "View.h"
+#include "Scene.h"
+#include "SceneTypes.h"
 #include "System.h"
+#include "View.h"
 
 #include <filesystem>
 #include <imgui.h>
@@ -85,7 +85,7 @@ CreateTriangleModel()
             .MeshDefs{ std::move(meshDef) },
         };
 
-    SceneDef sceneDef//
+    SceneDef sceneDef //
         {
             .ModelDefs{ std::move(modelDef) },
             .NodeDefs //
@@ -132,7 +132,7 @@ MainLoop()
     const std::unique_ptr<Scene> scene = std::move(*sceneResult);
 
     const DirectoryPath parentPath = DirectoryPath::Current();
-    
+
     View::CreateTask createTask(system, parentPath, *rsrcBundle, *scene);
 
     MLG_CHECK(createTask.Start(), "Failed to begin create task");

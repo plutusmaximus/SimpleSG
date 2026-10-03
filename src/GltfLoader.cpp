@@ -6,8 +6,8 @@
 #include "GltfLoader.h"
 
 #include "Defer.h"
-#include "LevelTypes.h"
 #include "Log.h"
+#include "SceneTypes.h"
 #include "Vertex.h"
 
 #include <cgltf.h>

@@ -1,6 +1,4 @@
-#include "LevelTypes.h"
-
-#include "ResourceBundle.h"
+#include "SceneTypes.h"
 
 #include <box3d/Box3D.h>
 

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "LevelTypes.h"
 #include "Result.h"
+#include "SceneTypes.h"
 
 #include <memory>
 #include <span>

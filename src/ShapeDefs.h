@@ -1,6 +1,6 @@
 #pragma once
 
-#include "LevelTypes.h"
+#include "SceneTypes.h"
 
 class ShapeDefs
 {

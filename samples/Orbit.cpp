@@ -3,13 +3,13 @@
 #include "DevUi.h"
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
-#include "Level.h"
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"
-#include "View.h"
+#include "Scene.h"
 #include "ShapeDefs.h"
 #include "System.h"
 #include "ThreadPool.h"
+#include "View.h"
 
 #include <arm_neon.h>
 #include <imgui.h>
@@ -20,6 +20,7 @@
 #include <SDL3/SDL_scancode.h>
 #include <thread>
 #include <vector>
+
 
 // TODO
 // gravity-only energy drift
@@ -76,7 +77,7 @@ LoadLevel(System& system)
 
     const MeshDef box =
         ShapeDefs::Box({ .Width = kBoxExtent, .Height = kBoxExtent, .Depth = kBoxExtent });
-        
+
     const MeshDef ball = ShapeDefs::Ball({ .Radius = kBallRadius });
 
     std::vector<RootNodeDef> nodeDefs;
@@ -137,7 +138,7 @@ LoadLevel(System& system)
                     {
                         ball,
                         // box,
-                        //torus,
+                        // torus,
                     },
                 },
             },

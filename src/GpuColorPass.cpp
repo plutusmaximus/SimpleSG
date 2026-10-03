@@ -4,8 +4,8 @@
 
 #include "FileFetcher.h"
 #include "GpuHelper.h"
-#include "LevelTypes.h"
 #include "PerfMetrics.h"
+#include "SceneTypes.h"
 
 namespace
 {

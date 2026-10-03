@@ -5,11 +5,12 @@
 #include "Camera.h"
 #include "FileFetcher.h"
 #include "GpuHelper.h"
-#include "Level.h"
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"
+#include "Scene.h"
 #include "System.h"
 #include "TextureFetcher.h"
+
 
 namespace
 {
@@ -513,7 +514,7 @@ View::CreateTask::OnStart()
         m_ParentPath,
         std::move(*texturePaths));
 
-    ICoopTask<>* tasks[] =//
+    ICoopTask<>* tasks[] = //
         {
             &m_TextureFetcher.value(),
             &m_ColorPassTask,

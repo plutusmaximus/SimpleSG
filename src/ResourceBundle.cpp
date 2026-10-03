@@ -1,7 +1,7 @@
 #include "ResourceBundle.h"
 
-#include "LevelTypes.h"
 #include "Result.h"
+#include "SceneTypes.h"
 
 #include <cstddef>
 #include <map>

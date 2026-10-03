@@ -1,14 +1,14 @@
 #include "Camera.h"
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
-#include "Level.h"
-#include "LevelTypes.h"
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"
-#include "View.h"
+#include "Scene.h"
+#include "SceneTypes.h"
 #include "Shell.h"
 #include "System.h"
+#include "View.h"
 
 #include <imgui.h>
 #include <optional>
@@ -102,7 +102,6 @@ CreateTriangleModel()
 class TriangleApp : public ICoopTask<System&>
 {
 public:
-
     TriangleApp() = default;
     ~TriangleApp() override = default;
     TriangleApp(const TriangleApp&) = delete;

@@ -361,11 +361,11 @@ set(SSG_SOURCES
   src/GpuHelper.cpp
   src/ImGuiRenderer.cpp
   src/InputMapper.cpp
-  src/Level.cpp
-  src/LevelTypes.cpp
   src/Log.cpp
   src/PerfMetrics.cpp
   src/ResourceBundle.cpp
+  src/Scene.cpp
+  src/SceneTypes.cpp
   src/ShaderFetcher.cpp
   src/ShapeDefs.cpp
   src/Shell.cpp
@@ -398,13 +398,13 @@ set(SSG_HEADERS
   src/ImGuiRenderer.h
   src/inlist.h
   src/InputMapper.h
-  src/Level.h
-  src/LevelTypes.h
   src/Log.h
   src/PhysicsTypes.h
   src/PerfMetrics.h
   src/ResourceBundle.h
   src/Result.h
+  src/Scene.h
+  src/SceneTypes.h
   src/SemanticIdentifier.h
   src/shaders/ShaderInterop.h
   src/ShaderFetcher.h

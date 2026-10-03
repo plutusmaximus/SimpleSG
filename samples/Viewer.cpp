@@ -7,18 +7,19 @@
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
 #include "InputMapper.h"
-#include "Level.h"
-#include "LevelTypes.h"
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"
-#include "View.h"
+#include "Scene.h"
+#include "SceneTypes.h"
 #include "System.h"
 #include "VecMath.h"
+#include "View.h"
 
 #include <imgui.h>
 #include <SDL3/SDL_events.h>
 #include <string>
 #include <thread>
+
 
 namespace
 {

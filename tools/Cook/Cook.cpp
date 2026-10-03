@@ -1,11 +1,11 @@
 
 #include "Defer.h"
 #include "GltfLoader.h"
-#include "Level.h"
-#include "LevelTypes.h"
 #include "Log.h"
 #include "ResourceBundle.h"
 #include "Result.h"
+#include "Scene.h"
+#include "SceneTypes.h"
 #include "ThreadPool.h"
 #include "Timer.h"
 
