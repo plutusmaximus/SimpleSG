@@ -27,6 +27,7 @@ public:
     System(System&&) noexcept;
     System& operator=(System&&) noexcept;
 
+    /// Sets the action mappings for input handling.
     void SetActionMapping(const std::span<const ActionMapping> actionMappings);
 
     GpuHelper& GetGpuHelper();
@@ -42,8 +43,10 @@ public:
 
     const InputMapper& GetInputMapper() const;
 
+    /// Posts a quit event to request the application to terminate.
     static void PostQuitEvent();
 
+    /// Processes all pending system events, such as input, window, and focus events.
     void ProcessEvents();
 
     /// Captures or releases the mouse cursor. When captured, the cursor is hidden and
@@ -102,6 +105,7 @@ private:
     std::unique_ptr<Impl> m_Impl;
 };
 
+/// Task for creating a System instance asynchronously.
 class System::CreateTask : public ICoopTask<>
 {
 public:

@@ -9,14 +9,14 @@
 ///
 /// Usage:
 /// - Add an inlist_node<T> member to your type.
-/// - Instantiate inlist<T, &T::YourNodeMember>.
+/// - Create a list: inlist<T, &T::YourNodeMember> myList.
 /// - Use push_front()/push_back() to add nodes and erase()/pop_front()/pop_back() to remove.
 /// - Iterate from head to tail with begin()/end().
 ///
 /// Example:
-/// struct Item { inlist_node<Item> Node; int id; };
+/// struct Item { int id; inlist_node<Item> Node; };
 /// inlist<Item, &Item::Node> items;
-/// Item a{ {}, 1 }, b{ {}, 2 };
+/// Item a{ .id = 1 }, b{ .id = 2 };
 /// items.push_back(&a);
 /// items.push_back(&b);
 /// items.pop_front(); // a
