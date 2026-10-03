@@ -22,6 +22,11 @@ just to reuse code or give several classes the same shape.
 Prefer types whose instances are always valid. Enforce their rules during
 construction and preserve those rules in any operation that changes the value.  For example, a move operation should not leave one of these types unusable.  Either delete the move operations, or shunt move ops to copy ops.
 
+## C-like C++
+
+Aim for the clarity of a well-architected C program. Use C++ features when they
+make the program easier to understand as a whole.
+
 ## Keep abstractions thin and boundaries strong
 
 - Use a class when it owns something, enforces a rule, or hides a meaningful
