@@ -102,7 +102,7 @@ AttachShapeToBody(const b3BodyId bodyId, const Mass& mass, const ColliderResourc
 }
 
 Result<RigidBodyIdentifier>
-CreateRigidBody(const LevelNode& node,
+CreateRigidBody(const SceneNode& node,
     const RigidBodyResource& rigidBodyRsrc,
     const std::span<const ColliderResource> colliderRsrcs,
     const WorldIdentifier worldId)
@@ -145,17 +145,17 @@ CreateRigidBody(const LevelNode& node,
     return RigidBodyIdentifier{ b3StoreBodyId(bodyId) };
 }
 
-Result<std::vector<LevelNode>>
+Result<std::vector<SceneNode>>
 CollectNodes(const ResourceBundle& resourceBundle)
 {
     const std::span nodeRsrcs = resourceBundle.GetNodes();
 
-    std::vector<LevelNode> nodes;
+    std::vector<SceneNode> nodes;
     nodes.reserve(nodeRsrcs.size());
 
     for(const auto& nodeRsrc : nodeRsrcs)
     {
-        const LevelNode* parent = nullptr;
+        const SceneNode* parent = nullptr;
         if(nodeRsrc.ParentIndex != ResourceBundle::kInvalidIndex)
         {
             parent = &nodes[nodeRsrc.ParentIndex];
@@ -231,7 +231,7 @@ CollectMeshInstances(const ResourceBundle& resourceBundle)
 Result<std::vector<ModelNode>>
 CollectModelNodes(const ResourceBundle& resourceBundle,
     const std::span<const MeshInstance>& meshInstances,
-    const std::span<const LevelNode>& nodes)
+    const std::span<const SceneNode>& nodes)
 {
     const std::span modelRsrcs = resourceBundle.GetModels();
     const std::span modelInstanceRsrcs = resourceBundle.GetModelInstances();
@@ -243,7 +243,7 @@ CollectModelNodes(const ResourceBundle& resourceBundle,
 
     for(const ModelInstanceResource& modelInstanceRsrc : modelInstanceRsrcs)
     {
-        const LevelNode& levelNode = nodes[modelInstanceRsrc.NodeIndex];
+        const SceneNode& sceneNode = nodes[modelInstanceRsrc.NodeIndex];
 
         const ModelResource& modelRsrc = modelRsrcs[modelInstanceRsrc.ModelIndex];
 
@@ -254,7 +254,7 @@ CollectModelNodes(const ResourceBundle& resourceBundle,
         const std::span meshInstanceSpan =
             meshInstances.subspan(meshInstanceOffset, modelRsrc.MeshCount);
 
-        modelNodes.emplace_back(levelNode, BoundingSphere(modelRsrc.BoundingBox), meshInstanceSpan);
+        modelNodes.emplace_back(sceneNode, BoundingSphere(modelRsrc.BoundingBox), meshInstanceSpan);
 
         meshInstanceOffset += modelRsrc.MeshCount;
     }
@@ -265,7 +265,7 @@ CollectModelNodes(const ResourceBundle& resourceBundle,
 Result<std::vector<PhysicsNode>>
 CollectPhysicsNodes(const WorldIdentifier worldId,
     const ResourceBundle& resourceBundle,
-    const std::span<LevelNode>& nodes)
+    const std::span<SceneNode>& nodes)
 {
     const std::span rigidBodies = resourceBundle.GetRigidBodies();
     std::vector<PhysicsNode> physicsNodes;
@@ -273,14 +273,14 @@ CollectPhysicsNodes(const WorldIdentifier worldId,
 
     for(const RigidBodyResource& rigidBody : rigidBodies)
     {
-        LevelNode& levelNode = nodes[rigidBody.NodeIndex];
+        SceneNode& sceneNode = nodes[rigidBody.NodeIndex];
 
         const std::span colliders = resourceBundle.GetColliders(rigidBody);
 
-        auto bodyId = CreateRigidBody(levelNode, rigidBody, colliders, worldId);
+        auto bodyId = CreateRigidBody(sceneNode, rigidBody, colliders, worldId);
         MLG_CHECK(bodyId, "Failed to create rigid body for node");
 
-        physicsNodes.emplace_back(levelNode, *bodyId);
+        physicsNodes.emplace_back(sceneNode, *bodyId);
     }
 
     return physicsNodes;
@@ -316,13 +316,13 @@ Level::Create(const ResourceBundle& resourceBundle)
 
     const WorldIdentifier worldIdentifier{ b3StoreWorldId(worldId) };
 
-    auto levelNodes = CollectNodes(resourceBundle);
-    MLG_CHECK(levelNodes, "Failed to collect level nodes");
+    auto sceneNode = CollectNodes(resourceBundle);
+    MLG_CHECK(sceneNode, "Failed to collect level nodes");
 
     // Populate child nodes.
-    const std::span nodeSpan = std::span(*levelNodes);
+    const std::span nodeSpan = std::span(*sceneNode);
 
-    for(const auto& [nodeRsrc, node] : std::views::zip(resourceBundle.GetNodes(), *levelNodes))
+    for(const auto& [nodeRsrc, node] : std::views::zip(resourceBundle.GetNodes(), *sceneNode))
     {
         if(nodeRsrc.ChildCount > 0)
         {
@@ -333,22 +333,22 @@ Level::Create(const ResourceBundle& resourceBundle)
     auto meshInstances = CollectMeshInstances(resourceBundle);
     MLG_CHECK(meshInstances, "Failed to collect mesh instances");
 
-    auto modelNodes = CollectModelNodes(resourceBundle, *meshInstances, *levelNodes);
+    auto modelNodes = CollectModelNodes(resourceBundle, *meshInstances, *sceneNode);
     MLG_CHECK(modelNodes, "Failed to collect model nodes");
 
-    auto physicsNodes = CollectPhysicsNodes(worldIdentifier, resourceBundle, *levelNodes);
+    auto physicsNodes = CollectPhysicsNodes(worldIdentifier, resourceBundle, *sceneNode);
     MLG_CHECK(physicsNodes, "Failed to collect physics nodes");
 
     cleanup.release();
 
-    return std::unique_ptr<Level>(new Level(std::move(*levelNodes),
+    return std::unique_ptr<Level>(new Level(std::move(*sceneNode),
         std::move(*physicsNodes),
         std::move(*modelNodes),
         std::move(*meshInstances),
         worldIdentifier));
 }
 
-Level::Level(std::vector<LevelNode>&& nodes,
+Level::Level(std::vector<SceneNode>&& nodes,
     std::vector<PhysicsNode>&& physicsNodes,
     std::vector<ModelNode>&& modelNodes,
     std::vector<MeshInstance>&& meshInstances,
@@ -403,7 +403,7 @@ Level::Update(const float timeStep)
     // Sync to level nodes.
     for(const PhysicsNode& physicsNode : m_PhysicsNodes)
     {
-        LevelNode* node = physicsNode.m_Node;
+        SceneNode* node = physicsNode.m_Node;
         const b3BodyId bodyId = GetBodyId(physicsNode.m_RigidBodyId);
         const b3Pos pos = b3Body_GetPosition(bodyId);
         const b3Quat rot = b3Body_GetRotation(bodyId);
@@ -423,16 +423,16 @@ Level::Update(const float timeStep)
 }
 
 void
-Level::SetActive(const LevelNode& nodeRef, bool active)
+Level::SetActive(const SceneNode& nodeRef, bool active)
 {
-    LevelNode* node = GetNode(nodeRef);
+    SceneNode* node = GetNode(nodeRef);
     if(!MLG_VERIFY(node, "Invalid or nonexistent node passed to SetActive"))
     {
         return;
     }
 
-    node->m_Flags = active ? (node->m_Flags | LevelNode::Flags::Active)
-                           : (node->m_Flags & ~LevelNode::Flags::Active);
+    node->m_Flags = active ? (node->m_Flags | SceneNode::Flags::Active)
+                           : (node->m_Flags & ~SceneNode::Flags::Active);
 
     for(const auto& childNode : node->m_Children)
     {
@@ -441,17 +441,17 @@ Level::SetActive(const LevelNode& nodeRef, bool active)
 }
 
 void
-Level::SetVisible(const LevelNode& nodeRef, bool visible)
+Level::SetVisible(const SceneNode& nodeRef, bool visible)
 {
-    LevelNode* node = GetNode(nodeRef);
+    SceneNode* node = GetNode(nodeRef);
 
     if(!MLG_VERIFY(node, "Invalid or nonexistent node passed to SetVisible"))
     {
         return;
     }
 
-    node->m_Flags = visible ? (node->m_Flags | LevelNode::Flags::Visible)
-                            : (node->m_Flags & ~LevelNode::Flags::Visible);
+    node->m_Flags = visible ? (node->m_Flags | SceneNode::Flags::Visible)
+                            : (node->m_Flags & ~SceneNode::Flags::Visible);
 
     for(const auto& childNode : node->m_Children)
     {
@@ -461,8 +461,8 @@ Level::SetVisible(const LevelNode& nodeRef, bool visible)
 
 // private:
 
-LevelNode*
-Level::GetNode(const LevelNode& nodeRef)
+SceneNode*
+Level::GetNode(const SceneNode& nodeRef)
 {
     if(!MLG_VERIFY(&nodeRef >= m_Nodes.data() && &nodeRef <= &m_Nodes.back(),
            "Node is not in level"))
@@ -486,11 +486,11 @@ Level::GetNode(const LevelNode& nodeRef)
 }
 
 void
-Level::UpdateWorldTransforms(std::span<LevelNode> nodes)
+Level::UpdateWorldTransforms(std::span<SceneNode> nodes)
 {
-    for(LevelNode& node : nodes)
+    for(SceneNode& node : nodes)
     {
-        const LevelNode* parent = node.GetParent();
+        const SceneNode* parent = node.GetParent();
 
         if(parent)
         {

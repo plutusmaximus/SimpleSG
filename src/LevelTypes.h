@@ -231,7 +231,7 @@ private:
     Params m_Params;
 };
 
-class LevelNode
+class SceneNode
 {
 public:
     enum class Flags : uint8_t
@@ -242,18 +242,18 @@ public:
         All = Active | Visible
     };
 
-    LevelNode(const TrsTransformf& localTransform, const LevelNode* parent)
+    SceneNode(const TrsTransformf& localTransform, const SceneNode* parent)
         : m_LocalTransform(localTransform),
           m_Parent(parent)
     {
     }
 
-    LevelNode() = delete;
-    ~LevelNode() = default;
-    LevelNode(const LevelNode&) = delete;
-    LevelNode& operator=(const LevelNode&) = delete;
-    LevelNode(LevelNode&&) = default;
-    LevelNode& operator=(LevelNode&&) = default;
+    SceneNode() = delete;
+    ~SceneNode() = default;
+    SceneNode(const SceneNode&) = delete;
+    SceneNode& operator=(const SceneNode&) = delete;
+    SceneNode(SceneNode&&) = default;
+    SceneNode& operator=(SceneNode&&) = default;
 
     bool IsActive() const { return (m_Flags & Flags::Active) == Flags::Active; }
     bool IsVisible() const { return (m_Flags & Flags::Visible) == Flags::Visible; }
@@ -262,7 +262,7 @@ public:
     const Mat44f& GetWorldTransform() const { return m_WorldTransform; }
     const Vec3f& GetLinearVelocity() const { return m_LinearVelocity; }
     const Vec3f& GetAngularVelocity() const { return m_AngularVelocity; }
-    const LevelNode* GetParent() const { return m_Parent; }
+    const SceneNode* GetParent() const { return m_Parent; }
 
     friend Flags operator|(const Flags a, const Flags b)
     {
@@ -290,15 +290,15 @@ private:
     Vec3f m_LinearVelocity{ 0 };
     Vec3f m_AngularVelocity{ 0 };
     Mat44f m_WorldTransform{ 1 };
-    const LevelNode* m_Parent{ nullptr };
-    std::span<LevelNode> m_Children;
+    const SceneNode* m_Parent{ nullptr };
+    std::span<SceneNode> m_Children;
     Flags m_Flags{ Flags::Active | Flags::Visible };
 };
 
 class PhysicsNode
 {
 public:
-    PhysicsNode(LevelNode& node, const RigidBodyIdentifier rigidBodyId);
+    PhysicsNode(SceneNode& node, const RigidBodyIdentifier rigidBodyId);
 
     PhysicsNode() = delete;
     ~PhysicsNode() = default;
@@ -330,14 +330,14 @@ public:
 private:
     friend Level;
 
-    LevelNode* m_Node{ nullptr };
+    SceneNode* m_Node{ nullptr };
     RigidBodyIdentifier m_RigidBodyId;
 };
 
 class ModelNode
 {
 public:
-    ModelNode(const LevelNode& node,
+    ModelNode(const SceneNode& node,
         const BoundingSphere& boundingSphere,
         std::span<const MeshInstance> meshInstances);
 
@@ -361,7 +361,7 @@ public:
 private:
     friend Level;
 
-    const LevelNode* m_Node{ nullptr };
+    const SceneNode* m_Node{ nullptr };
     BoundingSphere m_BoundingSphere;
     std::span<const MeshInstance> m_Meshes;
 };

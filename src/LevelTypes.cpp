@@ -20,13 +20,13 @@ GetBodyId(const RigidBodyIdentifier rigidBodyId)
 
 /// PhysicsNode
 
-PhysicsNode::PhysicsNode(LevelNode& node, const RigidBodyIdentifier rigidBodyId)
+PhysicsNode::PhysicsNode(SceneNode& node, const RigidBodyIdentifier rigidBodyId)
     : m_Node(&node),
       m_RigidBodyId(rigidBodyId)
 {
-    MLG_ASSERT(!node.GetParent(), "PhysicsNode must be associated with a root LevelNode");
+    MLG_ASSERT(!node.GetParent(), "PhysicsNode must be associated with a root SceneNode");
     MLG_ASSERT(rigidBodyId.IsValid(),
-        "PhysicsNode must be associated with a LevelNode that has a valid rigid body ID");
+        "PhysicsNode must be associated with a SceneNode that has a valid rigid body ID");
 }
 
 void
@@ -114,7 +114,7 @@ PhysicsNode::GetInverseMass() const
 
 /// ModelNode
 
-ModelNode::ModelNode(const LevelNode& node,
+ModelNode::ModelNode(const SceneNode& node,
     const BoundingSphere& boundingSphere,
     std::span<const MeshInstance> meshInstances)
     : m_Node(&node),

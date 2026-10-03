@@ -743,16 +743,16 @@ CollectRigidBodies(const std::span<const RootNodeDef> nodeDefs)
     return rigidBodies;
 }
 
-Result<std::vector<LevelNodeResource>>
-CollectLevelNodes(const std::span<const FlatNodeDef> flatNodeDefs,
+Result<std::vector<SceneNodeResource>>
+CollectSceneNodes(const std::span<const FlatNodeDef> flatNodeDefs,
     const std::map<std::string_view, StringResource>& stringIndexMap)
 {
-    constexpr size_t kMaxLevelNodeCount = kMaxVectorSize<LevelNodeResource>;
+    constexpr size_t kMaxSceneNodeCount = kMaxVectorSize<SceneNodeResource>;
 
-    MLG_CHECKV(flatNodeDefs.size() <= kMaxLevelNodeCount, "Level node count out of range");
+    MLG_CHECKV(flatNodeDefs.size() <= kMaxSceneNodeCount, "Scene node count out of range");
 
-    std::vector<LevelNodeResource> levelNodes;
-    levelNodes.reserve(flatNodeDefs.size());
+    std::vector<SceneNodeResource> sceneNodes;
+    sceneNodes.reserve(flatNodeDefs.size());
 
     for(const FlatNodeDef& flatNodeDef : flatNodeDefs)
     {
@@ -765,7 +765,7 @@ CollectLevelNodes(const std::span<const FlatNodeDef> flatNodeDefs,
                 const auto& stringRsrc = it->second;
                 const size_t childCount = nodeDef->Children.size();
 
-                const LevelNodeResource levelNode //
+                const SceneNodeResource sceneNode //
                     {
                         .Name = stringRsrc,
                         .ParentIndex = flatNodeDef.ParentIndex,
@@ -778,7 +778,7 @@ CollectLevelNodes(const std::span<const FlatNodeDef> flatNodeDefs,
 
                 // At this point it's been confirmed that flatNodeDefs does not
                 // exceed the max cout so no bounds checking needed.
-                levelNodes.push_back(levelNode);
+                sceneNodes.push_back(sceneNode);
 
                 return Result<>::Ok;
             },
@@ -787,7 +787,7 @@ CollectLevelNodes(const std::span<const FlatNodeDef> flatNodeDefs,
         MLG_CHECK(result);
     }
 
-    return levelNodes;
+    return sceneNodes;
 }
 
 /// Retrieves the header from the buffer. Returns nullptr if the buffer is too small.
@@ -934,7 +934,7 @@ ResourceBundleBuilder::Build(const LevelDef& levelDef)
     MLG_CHECK(colliders);
     const auto rigidBodies = CollectRigidBodies(levelDef.NodeDefs);
     MLG_CHECK(rigidBodies);
-    const auto nodes = CollectLevelNodes(*flatNodeDefs, *stringIndexMap);
+    const auto nodes = CollectSceneNodes(*flatNodeDefs, *stringIndexMap);
     MLG_CHECK(nodes);
 
     const std::vector<StringResource> strings = MapToVector(*stringIndexMap);
@@ -1155,13 +1155,13 @@ ResourceBundleBuilder::Append(const std::span<const RigidBodyResource>& rigidBod
 }
 
 Result<>
-ResourceBundleBuilder::Append(const std::span<const LevelNodeResource>& nodes)
+ResourceBundleBuilder::Append(const std::span<const SceneNodeResource>& nodes)
 {
     Header* h = GetHeader();
     MLG_ASSERT(h != nullptr, "Header is not initialized");
     MLG_ASSERT(h->NodesOffset == kInvalidOffset, "Nodes already appended");
 
-    AppendPad<LevelNodeResource>(m_Buffer);
+    AppendPad<SceneNodeResource>(m_Buffer);
     h->NodesOffset = static_cast<OffsetType>(m_Buffer.size());
     h->NodeCount = static_cast<IndexType>(nodes.size());
     return AppendSpan(nodes, m_Buffer);

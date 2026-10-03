@@ -91,7 +91,7 @@ struct ModelResource;
 struct ModelInstanceResource;
 struct ColliderResource;
 struct RigidBodyResource;
-struct LevelNodeResource;
+struct SceneNodeResource;
 
 class ResourceBundleBuilder;
 
@@ -314,12 +314,12 @@ public:
             : std::span<const RigidBodyResource>();
     }
 
-    std::span<const LevelNodeResource> GetNodes() const
+    std::span<const SceneNodeResource> GetNodes() const
     {
         const Header* header = GetHeader();
         return MLG_VERIFY(header, "Header is not initialized")
-            ? GetSpan<LevelNodeResource>(header->NodesOffset, header->NodeCount)
-            : std::span<const LevelNodeResource>();
+            ? GetSpan<SceneNodeResource>(header->NodesOffset, header->NodeCount)
+            : std::span<const SceneNodeResource>();
     }
 
     std::string_view GetStringView(const StringResource& stringResource) const;
@@ -405,7 +405,7 @@ private:
     Result<> Append(const std::span<const ModelInstanceResource>& modelInstances);
     Result<> Append(const std::span<const ColliderResource>& colliders);
     Result<> Append(const std::span<const RigidBodyResource>& rigidBodies);
-    Result<> Append(const std::span<const LevelNodeResource>& nodes);
+    Result<> Append(const std::span<const SceneNodeResource>& nodes);
 
     std::vector<std::byte> m_Buffer;
 };
@@ -651,9 +651,9 @@ MLG_ASSERT_OFFSET(RigidBodyResource, FirstColliderIndex, 12)
 MLG_ASSERT_OFFSET(RigidBodyResource, ColliderCount, 16)
 MLG_ASSERT_SIZE(RigidBodyResource, 20)
 
-/// LevelNodeResource
+/// SceneNodeResource
 
-#define LEVEL_NODE_RESOURCE_FIELDS(X)                                                              \
+#define SCENE_NODE_RESOURCE_FIELDS(X)                                                              \
     X(StringResource, Name)                                                                        \
     X(ResourceBundle::IndexType, ParentIndex, ResourceBundle::kInvalidIndex)                       \
     X(ResourceBundle::IndexType, FirstChildIndex, ResourceBundle::kInvalidIndex)                   \
@@ -662,21 +662,21 @@ MLG_ASSERT_SIZE(RigidBodyResource, 20)
     X(Vec4f, LocalRot, Vec4f{ 0.0f, 0.0f, 0.0f, 1.0f })                                            \
     X(Vec3f, LocalScale, Vec3f{ 1.0f, 1.0f, 1.0f })
 
-struct LevelNodeResource final
+struct SceneNodeResource final
 {
-    LEVEL_NODE_RESOURCE_FIELDS(MLG_DECLARE_FIELD)
+    SCENE_NODE_RESOURCE_FIELDS(MLG_DECLARE_FIELD)
 };
-static_assert(BinaryStruct<LevelNodeResource>);
-MLG_ASSERT_FIELD_COUNT(LEVEL_NODE_RESOURCE_FIELDS, 7);
-MLG_ASSERT_NO_PADDING(LevelNodeResource, LEVEL_NODE_RESOURCE_FIELDS);
-MLG_ASSERT_OFFSET(LevelNodeResource, Name, 0)
-MLG_ASSERT_OFFSET(LevelNodeResource, ParentIndex, 8)
-MLG_ASSERT_OFFSET(LevelNodeResource, FirstChildIndex, 12)
-MLG_ASSERT_OFFSET(LevelNodeResource, ChildCount, 16)
-MLG_ASSERT_OFFSET(LevelNodeResource, LocalPos, 20)
-MLG_ASSERT_OFFSET(LevelNodeResource, LocalRot, 32)
-MLG_ASSERT_OFFSET(LevelNodeResource, LocalScale, 48)
-MLG_ASSERT_SIZE(LevelNodeResource, 60)
+static_assert(BinaryStruct<SceneNodeResource>);
+MLG_ASSERT_FIELD_COUNT(SCENE_NODE_RESOURCE_FIELDS, 7);
+MLG_ASSERT_NO_PADDING(SceneNodeResource, SCENE_NODE_RESOURCE_FIELDS);
+MLG_ASSERT_OFFSET(SceneNodeResource, Name, 0)
+MLG_ASSERT_OFFSET(SceneNodeResource, ParentIndex, 8)
+MLG_ASSERT_OFFSET(SceneNodeResource, FirstChildIndex, 12)
+MLG_ASSERT_OFFSET(SceneNodeResource, ChildCount, 16)
+MLG_ASSERT_OFFSET(SceneNodeResource, LocalPos, 20)
+MLG_ASSERT_OFFSET(SceneNodeResource, LocalRot, 32)
+MLG_ASSERT_OFFSET(SceneNodeResource, LocalScale, 48)
+MLG_ASSERT_SIZE(SceneNodeResource, 60)
 
 inline std::span<const MeshResource>
 ResourceBundle::GetMeshes(const ModelResource& modelRsrc) const

@@ -22,7 +22,7 @@ public:
     Level& operator=(Level&&) = delete;
 
     /// Returns all nodes in the level, in breadth-first order.
-    std::span<const LevelNode> GetAllNodes() const { return m_Nodes; }
+    std::span<const SceneNode> GetAllNodes() const { return m_Nodes; }
 
     /// Returns all physics nodes in the level, in breadth-first order.
     std::span<const PhysicsNode> GetAllPhysicsNodes() const { return m_PhysicsNodes; }
@@ -33,29 +33,29 @@ public:
     std::span<ModelNode> GetAllModelNodes() { return m_ModelNodes; }
 
     /// Returns the root nodes of the level. Root nodes are nodes that have no parent.
-    std::span<const LevelNode> GetRoots() const { return m_RootNodes; }
+    std::span<const SceneNode> GetRoots() const { return m_RootNodes; }
 
     void Update(const float timeStep);
 
-    void SetActive(const LevelNode& node, bool active);
+    void SetActive(const SceneNode& node, bool active);
 
-    void SetVisible(const LevelNode& node, bool visible);
+    void SetVisible(const SceneNode& node, bool visible);
 
 private:
-    Level(std::vector<LevelNode>&& nodes,
+    Level(std::vector<SceneNode>&& nodes,
         std::vector<PhysicsNode>&& physicsNodes,
         std::vector<ModelNode>&& modelNodes,
         std::vector<MeshInstance>&& meshInstances,
         const WorldIdentifier worldId);
 
-    LevelNode* GetNode(const LevelNode& node);
+    SceneNode* GetNode(const SceneNode& node);
 
-    void UpdateWorldTransforms(std::span<LevelNode> nodes);
+    void UpdateWorldTransforms(std::span<SceneNode> nodes);
 
-    std::vector<LevelNode> m_Nodes;
+    std::vector<SceneNode> m_Nodes;
     std::vector<PhysicsNode> m_PhysicsNodes;
     std::vector<ModelNode> m_ModelNodes;
     std::vector<MeshInstance> m_MeshInstances;
-    std::span<LevelNode> m_RootNodes;
+    std::span<SceneNode> m_RootNodes;
     WorldIdentifier m_WorldId;
 };
