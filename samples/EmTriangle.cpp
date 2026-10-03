@@ -114,7 +114,7 @@ private:
     enum class Stage
     {
         None,
-        CreatingScene,
+        CreatingView,
         Running,
         Stopped
     };
@@ -123,17 +123,17 @@ private:
 
     void OnUpdate() override;
 
-    Result<> RenderScene();
+    Result<> Render();
 
     System* m_System{ nullptr };
 
     LevelDef m_LevelDef;
 
     std::optional<ResourceBundle> m_ResourceBundle;
-    std::optional<Scene::CreateTask> m_SceneCreateTask;
+    std::optional<View::CreateTask> m_ViewCreateTask;
 
     std::unique_ptr<Level> m_Level;
-    std::unique_ptr<Scene> m_Scene;
+    std::unique_ptr<View> m_View;
 
     Viewport m_Viewport //
         {
@@ -172,14 +172,14 @@ TriangleApp::OnStart(System& system)
 
     const DirectoryPath parentPath = DirectoryPath::Current();
 
-    m_SceneCreateTask.emplace(*m_System, parentPath, *m_ResourceBundle, *m_Level);
+    m_ViewCreateTask.emplace(*m_System, parentPath, *m_ResourceBundle, *m_Level);
 
-    MLG_CHECK(m_SceneCreateTask->Start(), "Failed to begin scene create task");
+    MLG_CHECK(m_ViewCreateTask->Start(), "Failed to begin view create task");
 
     m_Viewport = Viewport(m_System->GetGpuHelper().GetScreenDimensions());
     m_Camera.SetViewport(m_Viewport);
 
-    m_Stage = Stage::CreatingScene;
+    m_Stage = Stage::CreatingView;
 
     return Result<>::Ok;
 }
@@ -195,20 +195,20 @@ TriangleApp::OnUpdate()
             MLG_ABORT("Task is not running");
             break;
 
-        case Stage::CreatingScene:
-            MLG_ABORTIF(!m_SceneCreateTask, "Scene create task is not initialized");
+        case Stage::CreatingView:
+            MLG_ABORTIF(!m_ViewCreateTask, "View create task is not initialized");
 
-            if(m_SceneCreateTask->IsRunning())
+            if(m_ViewCreateTask->IsRunning())
             {
-                m_SceneCreateTask->Update();
+                m_ViewCreateTask->Update();
             }
             else
             {
-                auto sceneResult = m_SceneCreateTask->Take();
-                if(MLG_VERIFY(sceneResult, "Failed to create Scene"))
+                auto viewResult = m_ViewCreateTask->Take();
+                if(MLG_VERIFY(viewResult, "Failed to create View"))
                 {
-                    m_Scene = std::move(*sceneResult);
-                    m_SceneCreateTask.reset();
+                    m_View = std::move(*viewResult);
+                    m_ViewCreateTask.reset();
                     m_ResourceBundle.reset();
                     m_Stage = TriangleApp::Stage::Running;
                 }
@@ -226,7 +226,7 @@ TriangleApp::OnUpdate()
             }
             else if(!m_System->IsMinimized())
             {
-                if(!MLG_VERIFY(RenderScene(), "Failed to render Scene"))
+                if(!MLG_VERIFY(Render(), "Failed to render view"))
                 {
                     m_Stage = Stage::Stopped;
                 }
@@ -240,7 +240,7 @@ TriangleApp::OnUpdate()
 }
 
 Result<>
-TriangleApp::RenderScene()
+TriangleApp::Render()
 {
     MLG_ASSERT(m_System);
 
@@ -249,12 +249,12 @@ TriangleApp::RenderScene()
     m_Viewport = Viewport(gpuHelper.GetScreenDimensions());
     m_Camera.SetViewport(m_Viewport);
 
-    MLG_CHECK(m_Scene->Render(m_Camera, m_CameraXForm), "Failed to render Scene");
+    MLG_CHECK(m_View->Render(m_Camera, m_CameraXForm), "Failed to render view");
 
     auto target = gpuHelper.GetSwapChainTexture();
     MLG_CHECK(target, "Failed to get swap chain texture");
 
-    MLG_CHECK(m_Scene->Composite(*target), "Failed to composite Scene");
+    MLG_CHECK(m_View->Composite(*target), "Failed to composite view");
 
     MLG_CHECK(m_System->GetImGuiRenderer().Render(gpuHelper.GetDevice(), *target, RenderGui),
         "Failed to render ImGui");

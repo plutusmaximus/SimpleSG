@@ -120,7 +120,7 @@ DevUi::Render()
     DrawDockedEditorLayout();
 
     DrawPerfPanel();
-    DrawScenePanel();
+    DrawViewPanel();
     DrawCliPanel();
     DrawStatusBarPanel();
 
@@ -184,7 +184,7 @@ DevUi::DrawDockedEditorLayout() const // NOLINT(readability-convert-member-funct
         const ImGuiID dockBottomId =
             ImGui::DockBuilderSplitNode(dockMainId, ImGuiDir_Down, 0.25f, nullptr, &dockMainId);
 
-        ImGui::DockBuilderDockWindow(kScenePanelName, dockMainId);
+        ImGui::DockBuilderDockWindow(kViewPanelName, dockMainId);
         ImGui::DockBuilderDockWindow(kPerfPanelName, dockLeftId);
         ImGui::DockBuilderDockWindow(kCliPanelName, dockBottomId);
 
@@ -313,20 +313,20 @@ DevUi::DrawPerfPanel() const // NOLINT(readability-convert-member-functions-to-s
 }
 
 void
-DevUi::DrawScenePanel()
+DevUi::DrawViewPanel()
 {
     // ImGui::SetNextWindowBgAlpha(0.0f);
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_ImageBorderSize, 0.0f);
-    ImGui::Begin(kScenePanelName, nullptr, ImGuiWindowFlags_NoBackground);
+    ImGui::Begin(kViewPanelName, nullptr, ImGuiWindowFlags_NoBackground);
 
     const ImVec2 cursorPos = ImGui::GetCursorScreenPos();
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const ImVec2 mousePos = ImGui::GetMousePos();
 
-    m_ScenePanelRect = Rect( //
+    m_ViewPanelRect = Rect( //
         {
             .X = static_cast<int>(cursorPos.x),
             .Y = static_cast<int>(cursorPos.y),
@@ -334,8 +334,8 @@ DevUi::DrawScenePanel()
             .Height = static_cast<unsigned>(avail.y),
         });
 
-    m_ScenePanelMousePos.X = static_cast<int>(mousePos.x - cursorPos.x);
-    m_ScenePanelMousePos.Y = static_cast<int>(mousePos.y - cursorPos.y);
+    m_ViewPanelMousePos.X = static_cast<int>(mousePos.x - cursorPos.x);
+    m_ViewPanelMousePos.Y = static_cast<int>(mousePos.y - cursorPos.y);
 
     ImGui::End();
     ImGui::PopStyleVar(3);
@@ -431,8 +431,8 @@ DevUi::DrawStatusBarPanel() const // NOLINT(readability-convert-member-functions
     const auto statusText = FixedString<256>::Format("SPF: {:.3f} ms | FPS: {:.1f} | mouse: {},{}",
         ImGui::GetIO().DeltaTime * 1000.0f,
         1.0f / ImGui::GetIO().DeltaTime,
-        m_ScenePanelMousePos.X,
-        m_ScenePanelMousePos.Y);
+        m_ViewPanelMousePos.X,
+        m_ViewPanelMousePos.Y);
 
     ImGui::TextUnformatted(statusText.c_str());
 

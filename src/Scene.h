@@ -5,27 +5,28 @@
 #include "GpuCompositorPass.h"
 #include "GpuTransformPass.h"
 #include "GpuTypes.h"
-#include "LevelTypes.h"
 #include "TextureFetcher.h"
 #include "Timer.h"
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 class ResourceBundle;
 class System;
 class ThreadPool;
+class Level;
 
-class Scene
+class View
 {
 public:
 
-    Scene() = delete;
-    ~Scene() = default;
-    Scene(const Scene&) = delete;
-    Scene& operator=(const Scene&) = delete;
-    Scene(Scene&&) = delete;
-    Scene& operator=(Scene&&) = delete;
+    View() = delete;
+    ~View() = default;
+    View(const View&) = delete;
+    View& operator=(const View&) = delete;
+    View(View&&) = delete;
+    View& operator=(View&&) = delete;
 
     Result<> Render(const Camera& camera, const TrTransformf& cameraXForm);
 
@@ -36,7 +37,7 @@ public:
     class CreateTask;
 
 private:
-    Scene(const GpuHelper& gpuHelper,
+    View(const GpuHelper& gpuHelper,
         const Level& level,
         GpuColorPass&& colorPass,
         GpuCompositorPass&& compositorPass,
@@ -81,7 +82,7 @@ private:
     std::vector<MeshInstance> m_VisibleMeshes;
 };
 
-class Scene::CreateTask : public ICoopTask<>
+class View::CreateTask : public ICoopTask<>
 {
 public:
     CreateTask(System& system,
@@ -96,7 +97,7 @@ public:
     CreateTask(CreateTask&&) = delete;
     CreateTask& operator=(CreateTask&&) = delete;
 
-    Result<std::unique_ptr<Scene>> Take();
+    Result<std::unique_ptr<View>> Take();
 
 private:
 

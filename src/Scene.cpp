@@ -137,7 +137,7 @@ CreateMaterialBindGroups(const GpuHelper& gpuHelper,
 }
 } // namespace
 
-Scene::Scene(const GpuHelper& gpuHelper,
+View::View(const GpuHelper& gpuHelper,
     const Level& level,
     GpuColorPass&& colorPass,
     GpuCompositorPass&& compositorPass,
@@ -167,9 +167,9 @@ Scene::Scene(const GpuHelper& gpuHelper,
 }
 
 Result<>
-Scene::Render(const Camera& camera, const TrTransformf& cameraXForm)
+View::Render(const Camera& camera, const TrTransformf& cameraXForm)
 {
-    MLG_SCOPED_TIMER("Scene.Render");
+    MLG_SCOPED_TIMER("View.Render");
 
     MLG_CHECK(SyncToGpu());
 
@@ -229,7 +229,7 @@ Scene::Render(const Camera& camera, const TrTransformf& cameraXForm)
 }
 
 Result<>
-Scene::Composite(const GpuRenderTarget& target)
+View::Composite(const GpuRenderTarget& target)
 {
     const Rect dstRect(
         { .X = 0, .Y = 0, .Width = target->GetWidth(), .Height = target->GetHeight() });
@@ -238,7 +238,7 @@ Scene::Composite(const GpuRenderTarget& target)
 }
 
 Result<>
-Scene::Composite(const GpuRenderTarget& target, const Rect& dstRect)
+View::Composite(const GpuRenderTarget& target, const Rect& dstRect)
 {
     MLG_CHECKV(m_ColorPassOutputs, "Color pass outputs are not valid");
 
@@ -267,11 +267,11 @@ Scene::Composite(const GpuRenderTarget& target, const Rect& dstRect)
 // private:
 
 void
-Scene::CollectVisibleMeshes(const Frustum& frustum,
+View::CollectVisibleMeshes(const Frustum& frustum,
     std::vector<MeshInstance>& outVisibleMeshes) const
 {
-    static PerfCounter pcTotalMeshes({ .Name = "Scene.Meshes.Total" });
-    static PerfCounter pcVisibleMeshes({ .Name = "Scene.Meshes.Visible" });
+    static PerfCounter pcTotalMeshes({ .Name = "View.Meshes.Total" });
+    static PerfCounter pcVisibleMeshes({ .Name = "View.Meshes.Visible" });
 
     outVisibleMeshes.clear();
 
@@ -327,7 +327,7 @@ Scene::CollectVisibleMeshes(const Frustum& frustum,
 }
 
 Result<>
-Scene::SyncToGpu()
+View::SyncToGpu()
 {
     // Brute force copy everything for now.
     uint64_t bufferOffset = 0;
@@ -346,7 +346,7 @@ Scene::SyncToGpu()
 }
 
 Result<>
-Scene::TransformNodes(const wgpu::Device& gpuDevice,
+View::TransformNodes(const wgpu::Device& gpuDevice,
     const wgpu::CommandEncoder& cmdEncoder,
     const TrTransformf& cameraXForm,
     const Camera& camera)
@@ -409,8 +409,8 @@ GetTexturePaths(const ResourceBundle& resourceBundle)
 }
 } // namespace
 
-// Scene::CreateTask
-Scene::CreateTask::CreateTask(System& system,
+// View::CreateTask
+View::CreateTask::CreateTask(System& system,
     const DirectoryPath& parentPath,
     const ResourceBundle& resourceBundle,
     const Level& level)
@@ -424,8 +424,8 @@ Scene::CreateTask::CreateTask(System& system,
 {
 }
 
-Result<std::unique_ptr<Scene>>
-Scene::CreateTask::Take()
+Result<std::unique_ptr<View>>
+View::CreateTask::Take()
 {
     MLG_CHECKV(Stage::Succeeded == m_Stage, "Task did not succeed");
     MLG_CHECKV(!m_Consumed, "Task result already consumed");
@@ -477,7 +477,7 @@ Scene::CreateTask::Take()
     auto cameraParamsBuf = gpuHelper.CreateUniformBuffer<GpuCameraParamsBuffer>(1, "CameraParams");
     MLG_CHECK(cameraParamsBuf);
 
-    std::unique_ptr<Scene> scene(new Scene(gpuHelper,
+    std::unique_ptr<View> view(new View(gpuHelper,
         *m_Level,
         std::move(*gpuColorPassResult),
         std::move(*gpuCompositorPassResult),
@@ -490,17 +490,15 @@ Scene::CreateTask::Take()
         std::move(*cameraParamsBuf),
         std::move(*materialBindGroups)));
 
-    MLG_CHECK(scene->SyncToGpu());
+    MLG_CHECK(view->SyncToGpu());
 
-    MLG_INFO("Scene created in {} ms", m_Timer.GetElapsedSeconds() * 1000);
-
-    return scene;
+    return view;
 }
 
 // private:
 
 Result<>
-Scene::CreateTask::OnStart()
+View::CreateTask::OnStart()
 {
     m_Timer.Start();
 
@@ -532,7 +530,7 @@ Scene::CreateTask::OnStart()
     return Result<>::Ok;
 }
 void
-Scene::CreateTask::OnUpdate()
+View::CreateTask::OnUpdate()
 {
     switch(m_Stage)
     {
@@ -556,9 +554,11 @@ Scene::CreateTask::OnUpdate()
             }
             break;
         case Stage::Failed:
-            MLG_ERROR("Scene creation failed");
+            MLG_ERROR("View creation failed");
             [[fallthrough]];
         case Stage::Succeeded:
+            m_Timer.Stop();
+            MLG_INFO("View created in {} ms", m_Timer.GetElapsedSeconds() * 1000);
             SetComplete();
             break;
     }

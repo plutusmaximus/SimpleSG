@@ -45,7 +45,7 @@ struct PerfCounterGlobals
     static inline PerfCounter TotalEnergy{ { .Name = "Energy.Total" } };
 };
 
-Result<std::tuple<std::unique_ptr<Level>, std::unique_ptr<Scene>>>
+Result<std::tuple<std::unique_ptr<Level>, std::unique_ptr<View>>>
 LoadLevel(System& system)
 {
     [[maybe_unused]] constexpr float kBallRadius = 1.0f;
@@ -155,7 +155,7 @@ LoadLevel(System& system)
 
     const DirectoryPath parentPath = DirectoryPath::Current();
 
-    Scene::CreateTask createTask(system, parentPath, *rsrcBundle, *level);
+    View::CreateTask createTask(system, parentPath, *rsrcBundle, *level);
 
     MLG_CHECK(createTask.Start(), "Failed to begin create task");
 
@@ -164,12 +164,12 @@ LoadLevel(System& system)
         createTask.Update();
     }
 
-    auto sceneResult = createTask.Take();
-    MLG_CHECK(sceneResult, "Failed to create Scene");
+    auto viewResult = createTask.Take();
+    MLG_CHECK(viewResult, "Failed to create view");
 
-    std::unique_ptr<Scene> scene = std::move(*sceneResult);
+    std::unique_ptr<View> view = std::move(*viewResult);
 
-    return std::make_tuple(std::move(level), std::move(scene));
+    return std::make_tuple(std::move(level), std::move(view));
 }
 
 /// Applies random linear velocities to all bodies in the physics level.
@@ -596,7 +596,7 @@ MainLoop()
     auto loadResult = LoadLevel(system);
     MLG_CHECK(loadResult);
 
-    auto&& [level, scene] = std::move(*loadResult);
+    auto&& [level, view] = std::move(*loadResult);
 
     ApplyRandomVelocities(*level);
 
@@ -757,13 +757,13 @@ MainLoop()
         {
             // ImGui must render at least one frame to calculate panel sizes.
 
-            const Rect& scenePanelRect = devUi.GetScenePanelRect();
+            const Rect& viewPanelRect = devUi.GetViewPanelRect();
 
-            const Viewport sceneViewport(scenePanelRect.GetDimensions());
-            cameraActor.SetViewport(sceneViewport);
+            const Viewport viewport(viewPanelRect.GetDimensions());
+            cameraActor.SetViewport(viewport);
 
-            MLG_CHECK(scene->Render(cameraActor.GetCamera(), cameraXForm));
-            MLG_CHECK(scene->Composite(*target, scenePanelRect));
+            MLG_CHECK(view->Render(cameraActor.GetCamera(), cameraXForm));
+            MLG_CHECK(view->Composite(*target, viewPanelRect));
         }
 
         auto renderGui = [&]() { return devUi.Render(); };

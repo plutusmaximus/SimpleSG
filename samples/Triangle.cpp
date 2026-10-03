@@ -133,7 +133,7 @@ MainLoop()
 
     const DirectoryPath parentPath = DirectoryPath::Current();
     
-    Scene::CreateTask createTask(system, parentPath, *rsrcBundle, *level);
+    View::CreateTask createTask(system, parentPath, *rsrcBundle, *level);
 
     MLG_CHECK(createTask.Start(), "Failed to begin create task");
 
@@ -142,9 +142,9 @@ MainLoop()
         createTask.Update();
     }
 
-    auto sceneResult = createTask.Take();
-    MLG_CHECK(sceneResult, "Failed to create Scene");
-    std::unique_ptr<Scene> scene = std::move(*sceneResult);
+    auto viewResult = createTask.Take();
+    MLG_CHECK(viewResult, "Failed to create view");
+    std::unique_ptr<View> view = std::move(*viewResult);
 
     GpuHelper& gpuHelper = system.GetGpuHelper();
 
@@ -235,8 +235,8 @@ MainLoop()
         auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECKV(target, "Failed to get swap chain texture");
 
-        MLG_CHECK(scene->Render(camera, cameraXForm));
-        MLG_CHECK(scene->Composite(*target));
+        MLG_CHECK(view->Render(camera, cameraXForm));
+        MLG_CHECK(view->Composite(*target));
 
         const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
         MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, RenderGui));

@@ -41,7 +41,7 @@ private:
 };
 
 /// Dev UI overlay.  Pass in the renderer for access to the render target
-/// so it can be rendered in the scene panel.
+/// so it can be rendered in the view panel.
 class DevUi
 {
 public:
@@ -54,20 +54,20 @@ public:
 
     Result<> Render();
 
-    const Rect& GetScenePanelRect() const { return m_ScenePanelRect; }
+    const Rect& GetViewPanelRect() const { return m_ViewPanelRect; }
 
-    const Point2& GetScenePanelMousePos() const { return m_ScenePanelMousePos; }
+    const Point2& GetViewPanelMousePos() const { return m_ViewPanelMousePos; }
 
 private:
 
-    constexpr static const char* kScenePanelName = "Scene";
+    constexpr static const char* kViewPanelName = "View";
     constexpr static const char* kPerfPanelName = "Performance";
     constexpr static const char* kCliPanelName = "CLI";
     constexpr static const char* kStatusBarPanelName = "StatusBar";
 
     void DrawPerfPanel() const;
 
-    void DrawScenePanel();
+    void DrawViewPanel();
 
     void DrawCliPanel();
 
@@ -77,9 +77,9 @@ private:
 
     CliState m_CliState;
 
-    Rect m_ScenePanelRect{{.X = 0, .Y = 0, .Width = 1, .Height = 1}};
+    Rect m_ViewPanelRect{{.X = 0, .Y = 0, .Width = 1, .Height = 1}};
 
-    Point2 m_ScenePanelMousePos{.X = 0, .Y = 0};
+    Point2 m_ViewPanelMousePos{.X = 0, .Y = 0};
 
     bool m_CliScrollToBottom{ false };
 };
