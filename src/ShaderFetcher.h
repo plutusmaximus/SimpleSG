@@ -46,7 +46,7 @@ private:
 
     void OnUpdate() override;
 
-    Result<> CreateShaderModule();
+    Result<> CreateShaderModule(const std::span<const uint8_t> shaderData);
 
     // Used only for diagnostics
     FixedString<RelativeFilePath::kStorageSize> m_DiagPath;

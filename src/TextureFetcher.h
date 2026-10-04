@@ -86,7 +86,7 @@ private:
 
         void OnUpdate() override;
 
-        Result<> BeginDecode();
+        Result<> BeginDecode(std::vector<uint8_t>&& fetchedData);
 
         Result<> Decode();
 

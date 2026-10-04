@@ -44,11 +44,6 @@ HasValidComponents(const std::string_view path)
 
 /// RelativeFilePath
 
-RelativeFilePath::RelativeFilePath(FixedString<kStorageSize> value)
-    : m_Value(std::move(value))
-{
-}
-
 Result<RelativeFilePath>
 RelativeFilePath::Create(const std::string_view path)
 {
@@ -58,17 +53,6 @@ RelativeFilePath::Create(const std::string_view path)
 }
 
 /// DirectoryPath
-
-DirectoryPath::DirectoryPath(FixedString<RelativeFilePath::kStorageSize> value)
-    : m_Value(std::move(value))
-{
-}
-
-DirectoryPath
-DirectoryPath::Current()
-{
-    return DirectoryPath(FixedString<RelativeFilePath::kStorageSize>("./"));
-}
 
 Result<DirectoryPath>
 DirectoryPath::Create(const std::string_view path)
@@ -82,7 +66,9 @@ DirectoryPath::Create(const std::string_view path)
 
     if(path.back() == '/')
     {
-        MLG_CHECKV(path.size() <= RelativeFilePath::kMaxLength, "Directory path is too long: {}", path);
+        MLG_CHECKV(path.size() <= RelativeFilePath::kMaxLength,
+            "Directory path is too long: {}",
+            path);
         MLG_CHECKV(HasValidComponents(path.substr(0, path.size() - 1)),
             "Invalid directory path: {}",
             path);
@@ -91,14 +77,27 @@ DirectoryPath::Create(const std::string_view path)
     }
 
     // +1 for the trailing '/'
-    MLG_CHECKV(path.size() + 1 <= RelativeFilePath::kMaxLength, "Directory path is too long: {}", path);
+    MLG_CHECKV(path.size() + 1 <= RelativeFilePath::kMaxLength,
+        "Directory path is too long: {}",
+        path);
     MLG_CHECKV(HasValidComponents(path), "Invalid directory path: {}", path);
 
     // Add the trailing '/' to the directory path
-    auto fixedPath = FixedString<RelativeFilePath::kStorageSize>::TryCat({ path, "/" });
-    MLG_CHECKV(fixedPath, "Failed to create directory path: {}", path);
+    MLG_CHECKV(path.size() + 1 <= RelativeFilePath::kMaxLength,
+        "Directory path is too long: {}",
+        path);
 
-    return DirectoryPath(std::move(*fixedPath));
+    auto fixedPath = FixedString<RelativeFilePath::kStorageSize>::Format("{}{}", path, "/");
+
+    return DirectoryPath(std::move(fixedPath));
+}
+
+DirectoryPath
+DirectoryPath::Current()
+{
+    static const DirectoryPath current(FixedString<RelativeFilePath::kStorageSize>("./"));
+
+    return current;
 }
 
 Result<FilePath>
@@ -117,11 +116,6 @@ DirectoryPath::Join(const std::string_view file) const
 
 /// FilePath
 
-FilePath::FilePath(FixedString<kStorageSize> value)
-    : m_Value(std::move(value))
-{
-}
-
 Result<FilePath>
 Join(const DirectoryPath& directory, const RelativeFilePath& file)
 {
@@ -130,7 +124,7 @@ Join(const DirectoryPath& directory, const RelativeFilePath& file)
 
     if(directoryView == "./")
     {
-        return FilePath(FixedString<FilePath::kStorageSize>(fileView));
+        return FilePath(file.m_Value);
     }
 
     MLG_CHECKV(directoryView.size() <= FilePath::kMaxLength - fileView.size(),
@@ -138,8 +132,8 @@ Join(const DirectoryPath& directory, const RelativeFilePath& file)
         directoryView,
         fileView);
 
-    auto joined = FixedString<FilePath::kStorageSize>::TryCat({ directoryView, fileView });
-    MLG_CHECKV(joined, "Failed to join file path: {}{}", directoryView, fileView);
+    FixedString<FilePath::kStorageSize> joinedPath =
+        FixedString<FilePath::kStorageSize>::Format("{}{}", directoryView, fileView);
 
-    return FilePath(std::move(*joined));
+    return FilePath(std::move(joinedPath));
 }

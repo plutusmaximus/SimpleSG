@@ -10,6 +10,7 @@
 struct SDL_AsyncIO;
 struct SDL_AsyncIOQueue;
 
+/// A unique ID representing a FileFetcher request.
 class FetchRequestId
 {
 public:
@@ -50,7 +51,6 @@ public:
     FileFetcher(FileFetcher&&) = delete;
     FileFetcher& operator=(FileFetcher&&) = delete;
 
-    /// Creates a new instance of the FileFetcher.
     static Result<std::unique_ptr<FileFetcher>> Create();
 
     /// Initiates an asynchronous fetch for the specified file.
@@ -61,9 +61,10 @@ public:
     bool IsPending(const FetchRequestId requestId) const;
 
     /// Retrieves the data for the specified fetch request once it has completed.
-    /// If the request has not completed successfully, this will return a failure result.
-    /// If the request has completed successfully, the data will be moved into the provided output buffer.
-    Result<> Take(const FetchRequestId requestId, std::vector<uint8_t>& outBuffer);
+    /// If the request is still pending, this will return a failure result.
+    /// If the request completed but did failed to fetch the file, this will return a failure result.
+    /// If the request completed successfully, the data will be returned.
+    Result<std::vector<uint8_t>> Take(const FetchRequestId requestId);
 
     /// Processes pending asynchronous IO operations.  Must be called once per frame.
     void ProcessCompletions();

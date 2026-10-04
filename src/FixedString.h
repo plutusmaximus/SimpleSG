@@ -5,17 +5,16 @@
 #include <algorithm>
 #include <cstddef>
 #include <format>
-#include <initializer_list>
-#include <optional>
 #include <spdlog/fmt/fmt.h>
 #include <string_view>
 
 /// A fixed-size string class that stores a string of up to N-1 characters and a null terminator.
-/// Used instead of std::string for strings at rest (e.g. member vars).
 template<size_t N>
-// NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
 class FixedString
 {
+    template<size_t M>
+    friend class FixedString;
+
 public:
     /// The size of the storage buffer, including the null terminator.
     static constexpr size_t kStorageSize = N;
@@ -30,6 +29,21 @@ public:
     {
         m_Chars[0] = '\0';
         m_Hash = ComputeHash(*this); // NOLINT(cppcoreguidelines-prefer-member-initializer)
+    }
+
+    template<size_t M>
+        requires(M <= kStorageSize)
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
+    constexpr explicit FixedString(FixedString<M> value)
+        : m_Length(value.size())
+    {
+        for(size_t i = 0; i < m_Length; ++i)
+        {
+            m_Chars[i] = value.m_Chars[i];
+        }
+        m_Chars[m_Length] = '\0';
+
+        m_Hash = ComputeHash(*this);
     }
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
@@ -74,38 +88,11 @@ public:
 
     size_t GetHashCode() const { return m_Hash; }
 
-    /// Attempts to concatenate the given parts into a FixedString.
-    /// Returns std::nullopt if the concatenated string would exceed the capacity.
-    [[nodiscard]] static std::optional<FixedString> TryCat(
-        const std::initializer_list<std::string_view> parts)
-    {
-        size_t remaining = kMaxLength;
-        for(const std::string_view view : parts)
-        {
-            if(!MLG_VERIFY(view.size() <= remaining))
-            {
-                return std::nullopt;
-            }
-            remaining -= view.size();
-        }
-
-        FixedString<kStorageSize> result;
-        char* out = &result.m_Chars[0];
-        for(const std::string_view view : parts)
-        {
-            out = std::ranges::copy(view, out).out;
-        }
-        *out = '\0';
-        result.m_Length = kMaxLength - remaining;
-        result.m_Hash = ComputeHash(result);
-        return result;
-    }
-
-    /// Formats a message into the provided buffer and returns a string view of the formatted
-    /// message. If the formatted message exceeds the buffer size, it will be truncated and an
+    /// Formats a message into a FixedString.
+    /// If the formatted message exceeds the buffer size, it will be truncated and an
     /// ellipsis will be appended.
     template<typename... Args>
-    FixedString static Format(fmt::format_string<Args...> fmtStr, Args&&... args)
+    static FixedString Format(fmt::format_string<Args...> fmtStr, Args&&... args)
     {
         FixedString fs;
         auto result =
@@ -116,7 +103,6 @@ public:
             fs.m_Chars[kMaxLength - 3] = '.';
             fs.m_Chars[kMaxLength - 2] = '.';
             fs.m_Chars[kMaxLength - 1] = '.';
-            fs.m_Chars[kMaxLength] = '\0';
         }
 
         const size_t formattedSize = std::min(result.size, kMaxLength);
@@ -130,22 +116,22 @@ public:
     // NOLINTNEXTLINE(google-explicit-constructor)
     operator std::string_view() const { return std::string_view(&m_Chars[0], m_Length); }
 
-    friend auto operator<=>(const FixedString& lhs, const FixedString& rhs)
+    friend auto operator<=>(const FixedString& a, const FixedString& b)
     {
-        return std::string_view(lhs) <=> std::string_view(rhs);
+        return std::string_view(a) <=> std::string_view(b);
     }
 
-    friend bool operator==(const FixedString& lhs, const FixedString& rhs)
+    friend bool operator==(const FixedString& a, const FixedString& b)
     {
-        if(lhs.GetHashCode() == rhs.GetHashCode())
+        if(a.GetHashCode() == b.GetHashCode())
         {
-            return std::string_view(lhs) == std::string_view(rhs);
+            return std::string_view(a) == std::string_view(b);
         }
 
         return false;
     }
 
-    friend bool operator!=(const FixedString& lhs, const FixedString& rhs) { return !(lhs == rhs); }
+    friend bool operator!=(const FixedString& a, const FixedString& b) { return !(a == b); }
 
 private:
     static size_t ComputeHash(const std::string_view str)
@@ -176,7 +162,7 @@ struct std::formatter<FixedString<N>> : std::formatter<std::string_view>
     }
 };
 
-/// Hasher specialization for FixedString to be used in unordered containers.
+/// Hash specialization for FixedString to be used in unordered containers.
 template<size_t N>
 struct std::hash<FixedString<N>>
 {

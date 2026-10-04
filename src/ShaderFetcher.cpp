@@ -65,17 +65,12 @@ ShaderFetcher::OnUpdate()
         case Stage::Fetching:
             if(!m_FileFetcher->IsPending(m_RequestId))
             {
-                if(m_FileFetcher->Take(m_RequestId, m_ShaderData))
+                auto shaderData = m_FileFetcher->Take(m_RequestId);
+
+                if(shaderData && CreateShaderModule(*shaderData))
                 {
-                    if(!CreateShaderModule())
-                    {
-                        m_Stage = Stage::Failed;
-                    }
-                    else
-                    {
-                        MLG_DEBUG("Loaded shader");
-                        m_Stage = Stage::Succeeded;
-                    }
+                    MLG_DEBUG("Loaded shader");
+                    m_Stage = Stage::Succeeded;
                 }
                 else
                 {
@@ -93,12 +88,12 @@ ShaderFetcher::OnUpdate()
 }
 
 Result<>
-ShaderFetcher::CreateShaderModule()
+ShaderFetcher::CreateShaderModule(const std::span<const uint8_t> shaderData)
 {
     MLG_LOG_SCOPE(m_DiagPath);
 
-    const void* dataPtr = m_ShaderData.data();
-    const wgpu::StringView shaderCode{ static_cast<const char*>(dataPtr), m_ShaderData.size() };
+    const void* dataPtr = shaderData.data();
+    const wgpu::StringView shaderCode{ static_cast<const char*>(dataPtr), shaderData.size() };
     const wgpu::StringView label = std::string_view(m_DiagPath);
     const wgpu::ShaderSourceWGSL wgsl{ { .code = shaderCode } };
     const wgpu::ShaderModuleDescriptor desc{ .nextInChain = &wgsl, .label = label };

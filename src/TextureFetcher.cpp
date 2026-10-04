@@ -84,12 +84,14 @@ TextureFetcher::FetchTask::OnUpdate()
         case Stage::Fetching:
             if(!m_FileFetcher->IsPending(m_FetchRequestId))
             {
-                if(!m_FileFetcher->Take(m_FetchRequestId, m_FetchedData))
+                auto fetchedData = m_FileFetcher->Take(m_FetchRequestId);
+
+                if(!fetchedData)
                 {
                     MLG_ERROR("Failed to take fetched data");
                     m_Stage = Stage::Failed;
                 }
-                else if(BeginDecode())
+                else if(BeginDecode(std::move(*fetchedData)))
                 {
                     m_Stage = Stage::Decoding;
                 }
@@ -131,9 +133,11 @@ TextureFetcher::FetchTask::OnUpdate()
 }
 
 Result<>
-TextureFetcher::FetchTask::BeginDecode()
+TextureFetcher::FetchTask::BeginDecode(std::vector<uint8_t>&& fetchedData)
 {
     MLG_DEBUG("Staging texture...");
+
+    m_FetchedData = std::move(fetchedData);
 
     int width = 0, height = 0, numChannels = 0;
 

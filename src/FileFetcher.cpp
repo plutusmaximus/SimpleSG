@@ -156,13 +156,13 @@ FileFetcher::IsPending(const FetchRequestId requestId) const
     return MLG_VERIFY(wrapper) && wrapper->m_Request->IsPending();
 }
 
-Result<>
-FileFetcher::Take(const FetchRequestId requestId, std::vector<uint8_t>& outBuffer)
+Result<std::vector<uint8_t>>
+FileFetcher::Take(const FetchRequestId requestId)
 {
     RequestWrapper* wrapper = GetRequest(requestId);
     MLG_CHECKV(wrapper, "Invalid request ID");
 
-    // Check if still pending BEFORE scheuling the FreeRequest to ensure we don't free an active
+    // Check if still pending BEFORE scheduling the FreeRequest to ensure we don't free an active
     // request.
     MLG_CHECKV(!wrapper->m_Request->IsPending(),
         "Request is still pending for file: {}",
@@ -177,9 +177,7 @@ FileFetcher::Take(const FetchRequestId requestId, std::vector<uint8_t>& outBuffe
         "Request did not succeed for file: {}",
         wrapper->m_Request->m_DiagFilePath);
 
-    outBuffer = std::move(wrapper->m_Request->m_Data);
-
-    return Result<>::Ok;
+    return std::move(wrapper->m_Request->m_Data);
 }
 
 void

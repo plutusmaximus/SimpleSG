@@ -20,6 +20,8 @@ public:
 
     RelativeFilePath() = delete;
 
+    /// Creates a RelativeFilePath from a string view, validating its format and length.
+    /// Upon success the result is guaranteed to be a valid RelativeFilePath.
     static Result<RelativeFilePath> Create(std::string_view path);
 
     const char* c_str() const noexcept { return m_Value.c_str(); }
@@ -36,7 +38,12 @@ public:
     size_t GetHashCode() const noexcept { return m_Value.GetHashCode(); }
 
 private:
-    explicit RelativeFilePath(FixedString<kStorageSize> value);
+    template<size_t N>
+        requires(N <= kStorageSize)
+    constexpr explicit RelativeFilePath(FixedString<N> value)
+        : m_Value(std::move(value))
+    {
+    }
 
     FixedString<kStorageSize> m_Value;
 };
@@ -48,8 +55,11 @@ class DirectoryPath final
 public:
     DirectoryPath() = delete;
 
-    static DirectoryPath Current();
+    /// Creates a DirectoryPath from a string view, validating its format and length.
+    /// Upon success the result is guaranteed to be a valid DirectoryPath.
     static Result<DirectoryPath> Create(std::string_view path);
+
+    static DirectoryPath Current();
 
     const char* c_str() const noexcept { return m_Value.c_str(); }
 
@@ -59,7 +69,7 @@ public:
     /// Returns failure if their combined length exceeds FilePath::kMaxLength.
     Result<FilePath> Join(const RelativeFilePath& file) const;
 
-    /// Joins a directory prefix and file path without allocating.
+    /// Joins a directory prefix and string_view file path without allocating.
     /// Returns failure if their combined length exceeds FilePath::kMaxLength.
     Result<FilePath> Join(const std::string_view file) const;
 
@@ -71,14 +81,18 @@ public:
     size_t GetHashCode() const noexcept { return m_Value.GetHashCode(); }
 
 private:
-    explicit DirectoryPath(FixedString<RelativeFilePath::kStorageSize> value);
+    template<size_t N>
+        requires(N <= RelativeFilePath::kStorageSize)
+    constexpr explicit DirectoryPath(FixedString<N> value)
+        : m_Value(std::move(value))
+    {
+    }
 
     FixedString<RelativeFilePath::kStorageSize> m_Value;
 };
 
-// A validated file path that can be longer than the standard FilePath.
-// The result of joining a DirectorPath and a FilePath.
-// A LongFilePath can't be further joined with another path.
+// A validated file path - the result of joining a DirectorPath and a RelativeFilePath.
+// A FilePath can't be further joined with another path.
 class FilePath final
 {
 public:
@@ -96,6 +110,8 @@ public:
 
     friend bool operator==(const FilePath&, const FilePath&) = default;
 
+    /// Joins a directory prefix and file path without allocating.
+    /// Upon success the result is guaranteed to be a valid FilePath.
     friend Result<FilePath> Join(const DirectoryPath& directory, const RelativeFilePath& file);
 
     // NOLINTNEXTLINE(google-explicit-constructor)
@@ -104,7 +120,12 @@ public:
     size_t GetHashCode() const noexcept { return m_Value.GetHashCode(); }
 
 private:
-    explicit FilePath(FixedString<kStorageSize> value);
+    template<size_t N>
+        requires(N <= kStorageSize)
+    constexpr explicit FilePath(FixedString<N> value)
+        : m_Value(std::move(value))
+    {
+    }
 
     FixedString<kStorageSize> m_Value;
 };
@@ -142,7 +163,7 @@ struct std::formatter<RelativeFilePath> : std::formatter<std::string_view>
     }
 };
 
-/// Formatter specialization for LongFilePath to be used with std::format.
+/// Formatter specialization for FilePath to be used with std::format.
 template<>
 struct std::formatter<FilePath> : std::formatter<std::string_view>
 {
@@ -169,7 +190,7 @@ struct std::hash<RelativeFilePath>
     size_t operator()(const RelativeFilePath& path) const noexcept { return path.GetHashCode(); }
 };
 
-/// Hasher specialization for LongFilePath to be used in unordered containers.
+/// Hasher specialization for FilePath to be used in unordered containers.
 template<>
 struct std::hash<FilePath>
 {
