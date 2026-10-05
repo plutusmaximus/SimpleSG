@@ -100,6 +100,14 @@ class ResourceBundleBuilder;
 ///
 /// Build it with ResourceBundleBuilder::Build(). Accessors return read-only views of the data.
 ///
+/// The builder stores nodes in breadth-first order. Roots come first, and each
+/// parent appears before its children. A node's direct children occupy the
+/// range given by FirstChildIndex and ChildCount.
+///
+/// Model instances follow node order. Rigid bodies follow root node order.
+/// Each model's meshes and each rigid body's colliders occupy a contiguous range
+/// given by its first index and count.
+///
 /// Resource indices and ranges can be used without bounds checks.
 /// Returned spans and string views remain valid until the bundle's memory is freed.
 class ResourceBundle final
