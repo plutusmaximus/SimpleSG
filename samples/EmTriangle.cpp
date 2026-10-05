@@ -245,13 +245,13 @@ void
 Run()
 {
     static TriangleApp triangleApp;
-    static Shell shell(kAppName, triangleApp);
+    static Shell shell(triangleApp);
     static bool started = false;
 
     if(!started)
     {
         started = true;
-        if(!shell.Start())
+        if(!shell.Start(kAppName))
         {
             MLG_ERROR("Failed to start Shell");
             return;

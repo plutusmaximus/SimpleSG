@@ -4,66 +4,84 @@
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
 #include "InputMapper.h"
+#include "SystemCreateTask.h"
 #include "ThreadPool.h"
 
 #include <imgui_impl_sdl3.h>
 #include <memory>
+#include <optional>
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_timer.h>
 #include <utility>
 
+namespace
+{
+enum class FocusEvent
+{
+    None,
+    Gained,
+    Lost
+};
+
+enum class WindowStateEvent
+{
+    None,
+    Minimized,
+    Restored
+};
+} // namespace
+
 class System::Impl
 {
 public:
-    explicit Impl(const std::string_view appName)
-        : m_GpuHelperTask(appName)
-    {
-    }
-
-    std::unique_ptr<GpuHelper> m_GpuHelper;
-    std::unique_ptr<FileFetcher> m_FileFetcher;
-    std::unique_ptr<ImGuiRenderer> m_ImGuiRenderer;
+    std::optional<GpuHelper> m_OptGpuHelper;
+    GpuHelper* m_GpuHelper{ nullptr };
+    std::optional<ImGuiRenderer> m_OptImGuiRenderer;
+    ImGuiRenderer* m_ImGuiRenderer{ nullptr };
+    FileFetcher m_FileFetcher;
     ThreadPool m_ThreadPool;
     InputMapper m_InputMapper;
 
-    GpuHelper::CreateTask m_GpuHelperTask;
+    FocusEvent m_FocusEvent{ FocusEvent::None };
+    WindowStateEvent m_WindowStateEvent{ WindowStateEvent::None };
+
+    bool m_Minimized{ false };
+    bool m_ShouldQuit{ false };
 };
 
-System::CreateTask::CreateTask(const std::string_view appName)
-    : m_Impl(std::make_unique<Impl>(appName))
+System::CreateTask::CreateTask()
+    : m_Impl(std::make_unique<Impl>())
 {
 }
 
 System::CreateTask::~CreateTask() = default;
 
-Result<System>
-System::CreateTask::Take()
+Result<>
+System::CreateTask::Take(std::optional<System>& optSystem)
 {
     MLG_CHECKV(Stage::Succeeded == m_Stage, "Task did not succeed");
     MLG_CHECKV(m_Impl, "Task result already consumed");
 
-    auto gpuHelperResult = m_Impl->m_GpuHelperTask.Take();
-    MLG_CHECK(gpuHelperResult, "Failed create GpuHelper");
+    MLG_CHECK(m_GpuHelperTask.Take(m_Impl->m_OptGpuHelper), "Failed create GpuHelper");
+    MLG_CHECK(m_Impl->m_OptGpuHelper.has_value(), "GpuHelper task did not produce a value");
 
-    m_Impl->m_GpuHelper = std::move(*gpuHelperResult);
+    m_Impl->m_GpuHelper = &m_Impl->m_OptGpuHelper.value();
 
-    auto fileFetcherResult = FileFetcher::Create();
-    MLG_CHECK(fileFetcherResult, "Failed to create FileFetcher");
+    MLG_CHECK(ImGuiRenderer::Create(*m_Impl->m_GpuHelper, m_Impl->m_OptImGuiRenderer),
+        "Failed to create ImGuiRenderer");
+    MLG_CHECK(m_Impl->m_OptImGuiRenderer.has_value(), "ImGuiRenderer task did not produce a value");
 
-    m_Impl->m_FileFetcher = std::move(*fileFetcherResult);
+    m_Impl->m_ImGuiRenderer = &m_Impl->m_OptImGuiRenderer.value();
 
-    auto imGuiRendererResult = ImGuiRenderer::Create(*m_Impl->m_GpuHelper);
-    MLG_CHECK(imGuiRendererResult, "Failed to create ImGuiRenderer");
+    optSystem.emplace(std::move(m_Impl));
 
-    m_Impl->m_ImGuiRenderer = std::move(*imGuiRendererResult);
-
-    return System(std::move(m_Impl));
+    return Result<>::Ok;
 }
 
 // private:
 
 Result<>
-System::CreateTask::OnStart()
+System::CreateTask::OnStart(const std::string_view appName)
 {
     MLG_CHECKV(m_Stage == Stage::None, "Task is already in progress");
 
@@ -72,7 +90,7 @@ System::CreateTask::OnStart()
 
     MLG_INFO("Creating System...");
 
-    MLG_CHECK(m_Impl->m_GpuHelperTask.Start(), "Failed to start GpuHelper creation");
+    MLG_CHECK(m_GpuHelperTask.Start(appName), "Failed to start GpuHelper creation");
 
     m_Stage = Stage::CreatingGpuHelper;
 
@@ -89,9 +107,9 @@ System::CreateTask::OnUpdate()
             break;
 
         case Stage::CreatingGpuHelper:
-            if(m_Impl->m_GpuHelperTask.IsRunning())
+            if(m_GpuHelperTask.IsRunning())
             {
-                m_Impl->m_GpuHelperTask.Update();
+                m_GpuHelperTask.Update();
             }
             else
             {
@@ -116,8 +134,6 @@ System::System(std::unique_ptr<Impl>&& impl)
 }
 
 System::~System() = default;
-System::System(System&&) noexcept = default;
-System& System::operator=(System&&) noexcept = default;
 
 void
 System::SetActionMapping(const std::span<const ActionMapping> actionMappings)
@@ -140,13 +156,13 @@ System::GetGpuHelper() const
 FileFetcher&
 System::GetFileFetcher()
 {
-    return *m_Impl->m_FileFetcher;
+    return m_Impl->m_FileFetcher;
 }
 
 const FileFetcher&
 System::GetFileFetcher() const
 {
-    return *m_Impl->m_FileFetcher;
+    return m_Impl->m_FileFetcher;
 }
 
 ThreadPool&
@@ -192,8 +208,8 @@ System::ProcessEvents()
     GetGpuHelper().GetInstance().ProcessEvents();
     GetFileFetcher().ProcessCompletions();
 
-    m_FocusEvent = FocusEvent::None;
-    m_WindowStateEvent = WindowStateEvent::None;
+    m_Impl->m_FocusEvent = FocusEvent::None;
+    m_Impl->m_WindowStateEvent = WindowStateEvent::None;
 
     m_Impl->m_InputMapper.BeginFrame();
 
@@ -205,19 +221,19 @@ System::ProcessEvents()
         switch(sdlEvent.type)
         {
             case SDL_EVENT_QUIT:
-                m_ShouldQuit = true;
+                m_Impl->m_ShouldQuit = true;
                 break;
 
             case SDL_EVENT_WINDOW_RESTORED:
             case SDL_EVENT_WINDOW_MAXIMIZED:
-                m_Minimized = false;
-                m_WindowStateEvent = WindowStateEvent::Restored;
+                m_Impl->m_Minimized = false;
+                m_Impl->m_WindowStateEvent = WindowStateEvent::Restored;
                 m_Impl->m_InputMapper.Clear();
                 break;
 
             case SDL_EVENT_WINDOW_MINIMIZED:
-                m_Minimized = true;
-                m_WindowStateEvent = WindowStateEvent::Minimized;
+                m_Impl->m_Minimized = true;
+                m_Impl->m_WindowStateEvent = WindowStateEvent::Minimized;
                 m_Impl->m_InputMapper.Clear();
                 break;
 
@@ -246,17 +262,17 @@ System::ProcessEvents()
 
             case SDL_EVENT_WINDOW_RESTORED:
             case SDL_EVENT_WINDOW_MAXIMIZED:
-                m_Minimized = false;
+                m_Impl->m_Minimized = false;
                 break;
 
             // case SDL_EVENT_WINDOW_MOUSE_LEAVE:
             case SDL_EVENT_WINDOW_FOCUS_GAINED:
-                m_FocusEvent = FocusEvent::Gained;
+                m_Impl->m_FocusEvent = FocusEvent::Gained;
                 m_Impl->m_InputMapper.Clear();
                 break;
 
             case SDL_EVENT_WINDOW_FOCUS_LOST:
-                m_FocusEvent = FocusEvent::Lost;
+                m_Impl->m_FocusEvent = FocusEvent::Lost;
                 m_Impl->m_InputMapper.Clear();
                 break;
 
@@ -333,4 +349,40 @@ bool
 System::IsMouseCaptured() const
 {
     return SDL_GetWindowRelativeMouseMode(GetGpuHelper().GetWindow());
+}
+
+bool
+System::IsMinimized() const
+{
+    return m_Impl->m_Minimized;
+}
+
+bool
+System::WasMinimized() const
+{
+    return m_Impl->m_WindowStateEvent == WindowStateEvent::Minimized;
+}
+
+bool
+System::WasRestored() const
+{
+    return m_Impl->m_WindowStateEvent == WindowStateEvent::Restored;
+}
+
+bool
+System::ShouldQuit() const
+{
+    return m_Impl->m_ShouldQuit;
+}
+
+bool
+System::WasFocusGained() const
+{
+    return m_Impl->m_FocusEvent == FocusEvent::Gained;
+}
+
+bool
+System::WasFocusLost() const
+{
+    return m_Impl->m_FocusEvent == FocusEvent::Lost;
 }

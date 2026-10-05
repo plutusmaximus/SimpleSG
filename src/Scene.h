@@ -1,11 +1,11 @@
 #pragma once
 
+#include "BoundedVector.h"
 #include "Result.h"
 #include "SceneTypes.h"
 
 #include <memory>
 #include <span>
-#include <vector>
 
 class ResourceBundle;
 
@@ -32,9 +32,6 @@ public:
     std::span<const ModelNode> GetAllModelNodes() const { return m_ModelNodes; }
     std::span<ModelNode> GetAllModelNodes() { return m_ModelNodes; }
 
-    /// Returns the root nodes of the scene. Root nodes are nodes that have no parent.
-    std::span<const SceneNode> GetRoots() const { return m_RootNodes; }
-
     void Update(const float timeStep);
 
     void SetActive(const SceneNode& node, bool active);
@@ -42,20 +39,20 @@ public:
     void SetVisible(const SceneNode& node, bool visible);
 
 private:
-    Scene(std::vector<SceneNode>&& nodes,
-        std::vector<PhysicsNode>&& physicsNodes,
-        std::vector<ModelNode>&& modelNodes,
-        std::vector<MeshInstance>&& meshInstances,
+    Scene(BoundedVector<SceneNode>&& nodes,
+        BoundedVector<PhysicsNode>&& physicsNodes,
+        BoundedVector<ModelNode>&& modelNodes,
+        BoundedVector<MeshInstance>&& meshInstances,
         const WorldIdentifier worldId);
 
-    SceneNode* GetNode(const SceneNode& node);
+    SceneNode* GetMutableNode(const SceneNode& node);
 
-    void UpdateWorldTransforms(std::span<SceneNode> nodes);
+    void UpdateWorldTransforms();
 
-    std::vector<SceneNode> m_Nodes;
-    std::vector<PhysicsNode> m_PhysicsNodes;
-    std::vector<ModelNode> m_ModelNodes;
-    std::vector<MeshInstance> m_MeshInstances;
+    BoundedVector<SceneNode> m_Nodes;
+    BoundedVector<PhysicsNode> m_PhysicsNodes;
+    BoundedVector<ModelNode> m_ModelNodes;
+    BoundedVector<MeshInstance> m_MeshInstances;
     std::span<SceneNode> m_RootNodes;
     WorldIdentifier m_WorldId;
 };

@@ -145,13 +145,12 @@ CreateRigidBody(const SceneNode& node,
     return RigidBodyIdentifier{ b3StoreBodyId(bodyId) };
 }
 
-Result<std::vector<SceneNode>>
+Result<BoundedVector<SceneNode>>
 CollectNodes(const ResourceBundle& resourceBundle)
 {
     const std::span nodeRsrcs = resourceBundle.GetNodes();
 
-    std::vector<SceneNode> nodes;
-    nodes.reserve(nodeRsrcs.size());
+    BoundedVector<SceneNode> nodes(nodeRsrcs.size());
 
     for(const auto& nodeRsrc : nodeRsrcs)
     {
@@ -172,7 +171,7 @@ CollectNodes(const ResourceBundle& resourceBundle)
     return nodes;
 }
 
-Result<std::vector<MeshInstance>>
+Result<BoundedVector<MeshInstance>>
 CollectMeshInstances(const ResourceBundle& resourceBundle)
 {
     const std::span models = resourceBundle.GetModels();
@@ -198,8 +197,7 @@ CollectMeshInstances(const ResourceBundle& resourceBundle)
         count += meshInstanceCount;
     }
 
-    std::vector<MeshInstance> meshInstances;
-    meshInstances.reserve(count);
+    BoundedVector<MeshInstance> meshInstances(count);
 
     for(const ModelInstanceResource& modelInstance : modelInstances)
     {
@@ -228,7 +226,7 @@ CollectMeshInstances(const ResourceBundle& resourceBundle)
     return meshInstances;
 }
 
-Result<std::vector<ModelNode>>
+Result<BoundedVector<ModelNode>>
 CollectModelNodes(const ResourceBundle& resourceBundle,
     const std::span<const MeshInstance>& meshInstances,
     const std::span<const SceneNode>& nodes)
@@ -236,8 +234,7 @@ CollectModelNodes(const ResourceBundle& resourceBundle,
     const std::span modelRsrcs = resourceBundle.GetModels();
     const std::span modelInstanceRsrcs = resourceBundle.GetModelInstances();
 
-    std::vector<ModelNode> modelNodes;
-    modelNodes.reserve(modelInstanceRsrcs.size());
+    BoundedVector<ModelNode> modelNodes(modelInstanceRsrcs.size());
 
     uint32_t meshInstanceOffset = 0;
 
@@ -262,14 +259,13 @@ CollectModelNodes(const ResourceBundle& resourceBundle,
     return modelNodes;
 }
 
-Result<std::vector<PhysicsNode>>
+Result<BoundedVector<PhysicsNode>>
 CollectPhysicsNodes(const WorldIdentifier worldId,
     const ResourceBundle& resourceBundle,
     const std::span<SceneNode>& nodes)
 {
     const std::span rigidBodies = resourceBundle.GetRigidBodies();
-    std::vector<PhysicsNode> physicsNodes;
-    physicsNodes.reserve(rigidBodies.size());
+    BoundedVector<PhysicsNode> physicsNodes(rigidBodies.size());
 
     for(const RigidBodyResource& rigidBody : rigidBodies)
     {
@@ -316,13 +312,13 @@ Scene::Create(const ResourceBundle& resourceBundle)
 
     const WorldIdentifier worldIdentifier{ b3StoreWorldId(worldId) };
 
-    auto sceneNode = CollectNodes(resourceBundle);
-    MLG_CHECK(sceneNode, "Failed to collect scene nodes");
+    auto sceneNodes = CollectNodes(resourceBundle);
+    MLG_CHECK(sceneNodes, "Failed to collect scene nodes");
 
     // Populate child nodes.
-    const std::span nodeSpan = std::span(*sceneNode);
+    const std::span nodeSpan = std::span(*sceneNodes);
 
-    for(const auto& [nodeRsrc, node] : std::views::zip(resourceBundle.GetNodes(), *sceneNode))
+    for(const auto& [nodeRsrc, node] : std::views::zip(resourceBundle.GetNodes(), *sceneNodes))
     {
         if(nodeRsrc.ChildCount > 0)
         {
@@ -333,25 +329,25 @@ Scene::Create(const ResourceBundle& resourceBundle)
     auto meshInstances = CollectMeshInstances(resourceBundle);
     MLG_CHECK(meshInstances, "Failed to collect mesh instances");
 
-    auto modelNodes = CollectModelNodes(resourceBundle, *meshInstances, *sceneNode);
+    auto modelNodes = CollectModelNodes(resourceBundle, *meshInstances, *sceneNodes);
     MLG_CHECK(modelNodes, "Failed to collect model nodes");
 
-    auto physicsNodes = CollectPhysicsNodes(worldIdentifier, resourceBundle, *sceneNode);
+    auto physicsNodes = CollectPhysicsNodes(worldIdentifier, resourceBundle, *sceneNodes);
     MLG_CHECK(physicsNodes, "Failed to collect physics nodes");
 
     cleanup.release();
 
-    return std::unique_ptr<Scene>(new Scene(std::move(*sceneNode),
+    return std::unique_ptr<Scene>(new Scene(std::move(*sceneNodes),
         std::move(*physicsNodes),
         std::move(*modelNodes),
         std::move(*meshInstances),
         worldIdentifier));
 }
 
-Scene::Scene(std::vector<SceneNode>&& nodes,
-    std::vector<PhysicsNode>&& physicsNodes,
-    std::vector<ModelNode>&& modelNodes,
-    std::vector<MeshInstance>&& meshInstances,
+Scene::Scene(BoundedVector<SceneNode>&& nodes,
+    BoundedVector<PhysicsNode>&& physicsNodes,
+    BoundedVector<ModelNode>&& modelNodes,
+    BoundedVector<MeshInstance>&& meshInstances,
     const WorldIdentifier worldId)
     : m_Nodes(std::move(nodes)),
       m_PhysicsNodes(std::move(physicsNodes)),
@@ -377,7 +373,7 @@ Scene::Scene(std::vector<SceneNode>&& nodes,
 
     m_RootNodes = std::span(m_Nodes).subspan(0, rootNodeCount);
 
-    UpdateWorldTransforms(m_RootNodes);
+    UpdateWorldTransforms();
 }
 
 Scene::~Scene()
@@ -419,13 +415,13 @@ Scene::Update(const float timeStep)
         node->m_AngularVelocity = Vec3f{ angVel.x, angVel.y, angVel.z };
     }
 
-    UpdateWorldTransforms(m_RootNodes);
+    UpdateWorldTransforms();
 }
 
 void
 Scene::SetActive(const SceneNode& nodeRef, bool active)
 {
-    SceneNode* node = GetNode(nodeRef);
+    SceneNode* node = GetMutableNode(nodeRef);
     if(!MLG_VERIFY(node, "Invalid or nonexistent node passed to SetActive"))
     {
         return;
@@ -443,7 +439,7 @@ Scene::SetActive(const SceneNode& nodeRef, bool active)
 void
 Scene::SetVisible(const SceneNode& nodeRef, bool visible)
 {
-    SceneNode* node = GetNode(nodeRef);
+    SceneNode* node = GetMutableNode(nodeRef);
 
     if(!MLG_VERIFY(node, "Invalid or nonexistent node passed to SetVisible"))
     {
@@ -462,7 +458,7 @@ Scene::SetVisible(const SceneNode& nodeRef, bool visible)
 // private:
 
 SceneNode*
-Scene::GetNode(const SceneNode& nodeRef)
+Scene::GetMutableNode(const SceneNode& nodeRef)
 {
     if(!MLG_VERIFY(&nodeRef >= m_Nodes.data() && &nodeRef <= &m_Nodes.back(),
            "Node is not in scene"))
@@ -486,22 +482,19 @@ Scene::GetNode(const SceneNode& nodeRef)
 }
 
 void
-Scene::UpdateWorldTransforms(std::span<SceneNode> nodes)
+Scene::UpdateWorldTransforms()
 {
-    for(SceneNode& node : nodes)
-    {
-        const SceneNode* parent = node.GetParent();
+    // Nodes are stored breadth first, enabling a simple non-recursive traversal for updating world transforms.
 
-        if(parent)
+    for(SceneNode& node : m_Nodes)
+    {
+        if(!node.GetParent())
         {
-            node.m_WorldTransform = parent->m_WorldTransform * node.m_LocalTransform.ToMatrix();
+            node.m_WorldTransform = node.m_LocalTransform.ToMatrix();
         }
         else
         {
-            // No parent - the world transform is the same as the local transform.
-            node.m_WorldTransform = node.m_LocalTransform.ToMatrix();
+            node.m_WorldTransform = node.GetParent()->m_WorldTransform * node.m_LocalTransform.ToMatrix();
         }
-
-        UpdateWorldTransforms(node.m_Children);
     }
 }

@@ -64,21 +64,10 @@ FileFetcher::~FileFetcher()
     MLG_ASSERT(m_AllocCount == 0, "FileFetcher destroyed with outstanding allocations");
 }
 
-Result<std::unique_ptr<FileFetcher>>
-FileFetcher::Create()
-{
-    SDL_AsyncIOQueue* asyncIOQueue = SDL_CreateAsyncIOQueue();
-    MLG_CHECKV(asyncIOQueue, "Failed to create SDL Async IO Queue: {}", SDL_GetError());
-
-    std::unique_ptr<FileFetcher> fileFetcher(new FileFetcher(asyncIOQueue));
-
-    return fileFetcher;
-}
-
 Result<FetchRequestId>
 FileFetcher::Fetch(const FilePath& filePath)
 {
-    MLG_CHECKV(m_IoQueue, "FileFetcher::Fetch called on invalid FileFetcher instance");
+    MLG_CHECK(EnsureIoQueue());
 
     auto wrapperResult = AllocateRequest(filePath);
     MLG_CHECKV(wrapperResult, "Failed to allocate request buffer for file: {}", filePath);
@@ -183,8 +172,10 @@ FileFetcher::Take(const FetchRequestId requestId)
 void
 FileFetcher::ProcessCompletions()
 {
-    MLG_ABORTIF(!m_IoQueue,
-        "FileFetcher::ProcessCompletions called on invalid FileFetcher instance");
+    if(!m_IoQueue)
+    {
+        return;
+    }
 
     SDL_AsyncIOOutcome outcome;
     while(SDL_GetAsyncIOResult(m_IoQueue, &outcome))
@@ -241,6 +232,18 @@ FileFetcher::ProcessCompletions()
                 break;
         }
     }
+}
+
+Result<>
+FileFetcher::EnsureIoQueue() 
+{
+    if(!m_IoQueue)
+    {
+        m_IoQueue = SDL_CreateAsyncIOQueue();
+        MLG_CHECKV(m_IoQueue, "Failed to create SDL Async IO queue");
+    }
+
+    return Result<>::Ok;
 }
 
 Result<>

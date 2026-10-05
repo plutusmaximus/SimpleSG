@@ -1,12 +1,11 @@
 #pragma once
 
 #include "CoopTask.h"
-#include "FixedString.h"
 #include "GpuTypes.h"
 #include "VecMath.h"
 
 #include <atomic>
-#include <memory>
+#include <optional>
 #include <string_view>
 
 struct SDL_Window;
@@ -14,6 +13,16 @@ using SDL_MetalView = void*;
 
 class GpuHelper final
 {
+    // Used to restrict who can call the public ctor.
+    // The ctor can't be made private because we use std::optional::emplace
+    // to construct it.
+    struct CreateKey
+    {
+        friend class GpuHelper;
+    private:
+        CreateKey() = default;
+    };
+
 public:
     /// The preferred texture format for render targets.
     static constexpr wgpu::TextureFormat kRenderTargetFormat = wgpu::TextureFormat::RGBA8Unorm;
@@ -25,11 +34,21 @@ public:
     /// A task that creates a GpuHelper instance asynchronously.
     class CreateTask;
 
+    GpuHelper() = delete;
     ~GpuHelper();
     GpuHelper(const GpuHelper&) = delete;
     GpuHelper& operator=(const GpuHelper&) = delete;
     GpuHelper(GpuHelper&&) = delete;
     GpuHelper& operator=(GpuHelper&&) = delete;
+
+    GpuHelper(SDL_Window* window,
+        SDL_MetalView metalView,
+        wgpu::Instance instance,
+        wgpu::Adapter adapter,
+        wgpu::Device device,
+        wgpu::Surface surface,
+        wgpu::TextureFormat surfaceFormat,
+        const CreateKey);
 
     SDL_Window* GetWindow() const;
     const wgpu::Instance& GetInstance() const;
@@ -125,7 +144,6 @@ public:
     static size_t GetTextureAlignedRowStride(const size_t textureWidth);
 
 private:
-    GpuHelper() = default;
 
     enum class BufferMappedState
     {
@@ -153,7 +171,7 @@ private:
     wgpu::Texture m_DefaultTexture{ nullptr };
 };
 
-class GpuHelper::CreateTask : public ICoopTask<>
+class GpuHelper::CreateTask : public ICoopTask<std::string_view>
 {
 public:
     // Passed to the adapter request callback to store the result of the request.
@@ -170,16 +188,16 @@ public:
         std::atomic<bool> IsComplete{ false };
     };
 
-    explicit CreateTask(const std::string_view appName);
-    ~CreateTask() override = default;
+    CreateTask() = default;
+    ~CreateTask() override;
     CreateTask(const CreateTask&) = delete;
     CreateTask& operator=(const CreateTask&) = delete;
     CreateTask(CreateTask&&) = delete;
     CreateTask& operator=(CreateTask&&) = delete;
 
-    /// Returns the GpuHelper instance if the task succeeded, otherwise returns an error.
-    /// This method will invalidate the task, so it can only be called once.
-    Result<std::unique_ptr<GpuHelper>> Take();
+    /// Populates the provided optional with the GpuHelper instance if the task succeeded, otherwise
+    /// returns an error.
+    Result<> Take(std::optional<GpuHelper>& gpuHelper);
 
 private:
     friend GpuHelper;
@@ -194,7 +212,7 @@ private:
         Failed
     };
 
-    Result<> OnStart() override;
+    Result<> OnStart(const std::string_view appName) override;
 
     void OnUpdate() override;
 
@@ -204,13 +222,16 @@ private:
     Result<> FinalizeDevice();
     Result<> Configure();
 
-    constexpr static size_t kMaxAppNameLen = 64;
-    FixedString<kMaxAppNameLen> m_AppName;
-
     AdapterRequestData m_AdapterRequestData;
     DeviceRequestData m_DeviceRequestData;
 
-    std::unique_ptr<GpuHelper> m_GpuHelper;
+    SDL_Window* m_Window{ nullptr };
+    SDL_MetalView m_MetalView{ nullptr };
+    wgpu::Instance m_Instance{ nullptr };
+    wgpu::Adapter m_Adapter{ nullptr };
+    wgpu::Device m_Device{ nullptr };
+    wgpu::Surface m_Surface{ nullptr };
+    mutable wgpu::TextureFormat m_SurfaceFormat{ wgpu::TextureFormat::Undefined };
 
     Stage m_Stage{ Stage::None };
 

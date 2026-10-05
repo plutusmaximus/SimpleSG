@@ -29,19 +29,18 @@ void emscripten_cancel_main_loop()
 
 #endif
 
-Shell::Shell(const char* appName, ICoopTask<System&>& appTask)
+Shell::Shell(ICoopTask<System&>& appTask)
     : m_AppTask(&appTask)
-    , m_SystemCreateTask(appName)
 {
 }
 
-Result<> Shell::OnStart()
+Result<> Shell::OnStart(const std::string_view appName)
 {
     MLG_CHECK(Stage::None == m_Stage, "Task has already been started");
 
     m_Stage = Stage::Stopped;
 
-    MLG_CHECK(m_SystemCreateTask.Start(), "Failed to create System");
+    MLG_CHECK(m_SystemCreateTask.Start(appName), "Failed to create System");
 
     m_Stage = Stage::CreatingSystem;
 
@@ -62,27 +61,28 @@ Shell::OnUpdate()
             {
                 m_SystemCreateTask.Update();
             }
+            else if(!m_SystemCreateTask.Take(m_OptSystem))
+            {
+                MLG_ERROR("Failed to create System");
+                m_Stage = Stage::Shutdown;
+            }
+            else if(!MLG_VERIFY(m_OptSystem.has_value(),
+                        "System creation succeeded but no System instance is available"))
+            {
+                m_Stage = Stage::Shutdown;
+            }
             else
             {
-                auto system = m_SystemCreateTask.Take();
-                if(!system)
+                m_System = &m_OptSystem.value();
+
+                if(!m_AppTask->Start(*m_System))
                 {
-                    MLG_ERROR("Failed to create System");
+                    MLG_ERROR("Failed to start AppTask");
                     m_Stage = Stage::Shutdown;
                 }
                 else
                 {
-                    m_System = std::move(*system);
-
-                    if(!m_AppTask->Start(*m_System))
-                    {
-                        MLG_ERROR("Failed to start AppTask");
-                        m_Stage = Stage::Shutdown;
-                    }
-                    else
-                    {
-                        m_Stage = Stage::Running;
-                    }
+                    m_Stage = Stage::Running;
                 }
             }
             break;

@@ -272,8 +272,8 @@ public:
     ~SceneNode() = default;
     SceneNode(const SceneNode&) = delete;
     SceneNode& operator=(const SceneNode&) = delete;
-    SceneNode(SceneNode&&) = default;
-    SceneNode& operator=(SceneNode&&) = default;
+    SceneNode(SceneNode&&) = delete;
+    SceneNode& operator=(SceneNode&&) = delete;
 
     bool IsActive() const { return (m_Flags & Flags::Active) == Flags::Active; }
     bool IsVisible() const { return (m_Flags & Flags::Visible) == Flags::Visible; }
@@ -324,8 +324,8 @@ public:
     ~PhysicsNode() = default;
     PhysicsNode(const PhysicsNode&) = delete;
     PhysicsNode& operator=(const PhysicsNode&) = delete;
-    PhysicsNode(PhysicsNode&&) = default;
-    PhysicsNode& operator=(PhysicsNode&&) = default;
+    PhysicsNode(PhysicsNode&&) = delete;
+    PhysicsNode& operator=(PhysicsNode&&) = delete;
 
     void ApplyImpulse(const Vec3f& impulse);
 
@@ -365,8 +365,8 @@ public:
     ~ModelNode() = default;
     ModelNode(const ModelNode&) = delete;
     ModelNode& operator=(const ModelNode&) = delete;
-    ModelNode(ModelNode&&) = default;
-    ModelNode& operator=(ModelNode&&) = default;
+    ModelNode(ModelNode&&) = delete;
+    ModelNode& operator=(ModelNode&&) = delete;
 
     const Mat44f& GetWorldTransform() const { return m_Node->GetWorldTransform(); }
 

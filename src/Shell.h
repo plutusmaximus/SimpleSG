@@ -3,12 +3,15 @@
 #include "CoopTask.h"
 #include "Result.h"
 #include "System.h"
+#include "SystemCreateTask.h"
 
-class Shell : public ICoopTask<>
+#include <string_view>
+
+class Shell : public ICoopTask<std::string_view>
 {
 public:
 
-    explicit Shell(const char* appName, ICoopTask<System&>& appTask);
+    explicit Shell(ICoopTask<System&>& appTask);
     Shell() = delete;
     ~Shell() override = default;
     Shell(const Shell&) = delete;
@@ -26,7 +29,7 @@ private:
         Stopped
     };
 
-    Result<> OnStart() override;
+    Result<> OnStart(const std::string_view appName) override;
 
     void OnUpdate() override;
 
@@ -37,7 +40,8 @@ private:
     ICoopTask<System&>* m_AppTask{ nullptr};
 
     System::CreateTask m_SystemCreateTask;
-    Result<System> m_System;
+    std::optional<System> m_OptSystem;
+    System* m_System{ nullptr };
     
     Stage m_Stage{ Stage::None };
 };

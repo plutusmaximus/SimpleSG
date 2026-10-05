@@ -2,6 +2,8 @@
 
 #include "GpuHelper.h"
 
+#include "Defer.h"
+
 #include <atomic>
 #include <SDL3/SDL_init.h>
 #include <SDL3/SDL_metal.h>
@@ -20,7 +22,7 @@ namespace
 
 constexpr std::pair<wgpu::FeatureName, const char*> kRequiredFeatures[] = //
     {
-        {wgpu::FeatureName::CoreFeaturesAndLimits, "CoreFeaturesAndLimits"},
+        { wgpu::FeatureName::CoreFeaturesAndLimits, "CoreFeaturesAndLimits" },
         //{wgpu::FeatureName::IndirectFirstInstance, "IndirectFirstInstance"},
         //{wgpu::FeatureName::MultiDrawIndirect, "MultiDrawIndirect"},
     };
@@ -155,12 +157,12 @@ wgpu::TextureFormat
 ChooseBackbufferFormat(const std::span<const wgpu::TextureFormat> availableFormats)
 {
     constexpr wgpu::TextureFormat preferredFormats[] = //
-    {
-        wgpu::TextureFormat::RGBA8UnormSrgb,
-        wgpu::TextureFormat::BGRA8UnormSrgb,
-        wgpu::TextureFormat::RGBA8Unorm,
-        wgpu::TextureFormat::BGRA8Unorm,
-    };
+        {
+            wgpu::TextureFormat::RGBA8UnormSrgb,
+            wgpu::TextureFormat::BGRA8UnormSrgb,
+            wgpu::TextureFormat::RGBA8Unorm,
+            wgpu::TextureFormat::BGRA8Unorm,
+        };
 
     wgpu::TextureFormat best = wgpu::TextureFormat::Undefined;
     size_t bestIdx = std::numeric_limits<size_t>::max();
@@ -182,7 +184,7 @@ ChooseBackbufferFormat(const std::span<const wgpu::TextureFormat> availableForma
     {
         return best;
     }
-    
+
     // Fallback to first available format
     return availableFormats[0];
 }
@@ -420,27 +422,65 @@ UncapturedErrorCb(
 
 // GpuHelper::CreateTask
 
-GpuHelper::CreateTask::CreateTask(const std::string_view appName)
-    : m_AppName(appName)
+GpuHelper::CreateTask::~CreateTask()
 {
+    if(m_Consumed)
+    {
+        return;
+    }
+
+    if(m_MetalView)
+    {
+        SDL_Metal_DestroyView(m_MetalView);
+        m_MetalView = nullptr;
+    }
+
+    if(m_Window)
+    {
+        SDL_DestroyWindow(m_Window);
+        m_Window = nullptr;
+        SDL_Quit();
+    }
 }
 
-Result<std::unique_ptr<GpuHelper>>
-GpuHelper::CreateTask::Take()
+Result<>
+GpuHelper::CreateTask::Take(std::optional<GpuHelper>& gpuHelper)
 {
     MLG_CHECKV(Stage::Succeeded == m_Stage, "Task has not succeeded");
     MLG_CHECKV(!m_Consumed, "Task result already consumed");
 
     m_Consumed = true;
 
-    auto bye = std::move(m_GpuHelper);
-    return bye;
+    gpuHelper.emplace(
+        m_Window,
+        m_MetalView,
+        m_Instance,
+        m_Adapter,
+        m_Device,
+        m_Surface,
+        m_SurfaceFormat,
+        GpuHelper::CreateKey{});
+
+    auto cleanup = MLG_MAKE_DEFERRED
+    {
+        gpuHelper.reset();
+    };
+
+    auto defaultTexture = CreateDefaultTexture(*gpuHelper);
+
+    MLG_CHECK(defaultTexture);
+
+    gpuHelper->m_DefaultTexture = *defaultTexture;
+
+    cleanup.release();
+
+    return Result<>::Ok;
 }
 
 // private:
 
 Result<>
-GpuHelper::CreateTask::OnStart()
+GpuHelper::CreateTask::OnStart(const std::string_view appName)
 {
     MLG_CHECKV(Stage::None == m_Stage, "Task has already been started");
 
@@ -449,28 +489,24 @@ GpuHelper::CreateTask::OnStart()
 
     MLG_INFO("Creating GpuHelper...");
 
-    std::unique_ptr<GpuHelper> gpuHelper = std::unique_ptr<GpuHelper>(new GpuHelper());
-
-    auto window = CreateSdlWindow(m_AppName);
+    auto window = CreateSdlWindow(appName);
     MLG_CHECK(window);
-    gpuHelper->m_Window = std::move(*window);
+    m_Window = std::move(*window);
 
 #if defined(__APPLE__)
     SDL_MetalView metalView = SDL_Metal_CreateView(*window);
     MLG_CHECK(metalView, SDL_GetError());
-    gpuHelper->m_MetalView = metalView;
+    m_MetalView = metalView;
 #endif
 
     auto instance = CreateInstance();
     MLG_CHECK(instance);
-    gpuHelper->m_Instance = std::move(*instance);
+    m_Instance = std::move(*instance);
 
-    auto surface =
-        CreateSurface(gpuHelper->m_Instance, gpuHelper->m_Window, gpuHelper->m_MetalView);
+    auto surface = CreateSurface(m_Instance, m_Window, m_MetalView);
     MLG_CHECK(surface);
-    gpuHelper->m_Surface = std::move(*surface);
+    m_Surface = std::move(*surface);
 
-    m_GpuHelper = std::move(gpuHelper);
     m_Stage = Stage::CreateAdapter;
 
     return Result<>::Ok;
@@ -480,7 +516,7 @@ void
 GpuHelper::CreateTask::OnUpdate()
 {
     // Process events so callbacks get called.
-    m_GpuHelper->m_Instance.ProcessEvents();
+    m_Instance.ProcessEvents();
 
     switch(m_Stage)
     {
@@ -577,10 +613,10 @@ GpuHelper::CreateTask::CreateAdapter()
 #else
             .backendType = wgpu::BackendType::Vulkan,
 #endif
-            .compatibleSurface = m_GpuHelper->m_Surface,
+            .compatibleSurface = m_Surface,
         };
 
-    m_GpuHelper->m_Instance.RequestAdapter(&options,
+    m_Instance.RequestAdapter(&options,
         wgpu::CallbackMode::AllowSpontaneous,
         RequestAdapterCb,
         &m_AdapterRequestData);
@@ -595,16 +631,16 @@ GpuHelper::CreateTask::FinalizeAdapter()
 
     MLG_CHECK(m_AdapterRequestData.Result, "Failed to create adapter");
 
-    m_GpuHelper->m_Adapter = wgpu::Adapter::Acquire(*m_AdapterRequestData.Result);
+    m_Adapter = wgpu::Adapter::Acquire(*m_AdapterRequestData.Result);
 
     for(const auto& feature : kRequiredFeatures)
     {
-        const bool supported = m_GpuHelper->m_Adapter.HasFeature(feature.first);
+        const bool supported = m_Adapter.HasFeature(feature.first);
         MLG_CHECK(supported, "GPU feature not supported: {}", feature.second);
     }
 
     wgpu::AdapterInfo adapterInfo;
-    m_GpuHelper->m_Adapter.GetInfo(&adapterInfo);
+    m_Adapter.GetInfo(&adapterInfo);
     MLG_INFO("Selected adapter:");
     DumpAdapterInfo(adapterInfo);
 
@@ -668,7 +704,7 @@ GpuHelper::CreateTask::CreateDevice()
     deviceDesc.SetDeviceLostCallback(wgpu::CallbackMode::AllowProcessEvents, DeviceLostCb);
     deviceDesc.SetUncapturedErrorCallback(UncapturedErrorCb);
 
-    m_GpuHelper->m_Adapter.RequestDevice(&deviceDesc,
+    m_Adapter.RequestDevice(&deviceDesc,
         wgpu::CallbackMode::AllowSpontaneous,
         RequestDeviceCb,
         &m_DeviceRequestData);
@@ -682,10 +718,10 @@ GpuHelper::CreateTask::FinalizeDevice()
     MLG_CHECKV(Stage::CreatingDevice == m_Stage, "Task is not in the correct state");
 
     MLG_CHECK(m_DeviceRequestData.Result, "Failed to create device");
-    m_GpuHelper->m_Device = wgpu::Device::Acquire(*m_DeviceRequestData.Result);
+    m_Device = wgpu::Device::Acquire(*m_DeviceRequestData.Result);
 
-    DumpDawnToggles(m_GpuHelper->m_Device);
-    DumpWebgpuLimits(m_GpuHelper->m_Device);
+    DumpDawnToggles(m_Device);
+    DumpWebgpuLimits(m_Device);
 
     return Result<>::Ok;
 }
@@ -696,22 +732,17 @@ GpuHelper::CreateTask::Configure()
     MLG_CHECKV(Stage::CreatingDevice == m_Stage, "Task is not in the correct state");
 
     int width{ 0 }, height{ 0 };
-    SDL_GetWindowSize(m_GpuHelper->m_Window, &width, &height);
+    SDL_GetWindowSize(m_Window, &width, &height);
 
-    auto surfaceFormat = ConfigureSurface(m_GpuHelper->m_Adapter,
-        m_GpuHelper->m_Device,
-        m_GpuHelper->m_Surface,
+    auto surfaceFormat = ConfigureSurface(m_Adapter,
+        m_Device,
+        m_Surface,
         static_cast<uint32_t>(width),
         static_cast<uint32_t>(height));
 
     MLG_CHECK(surfaceFormat);
 
-    m_GpuHelper->m_SurfaceFormat = *surfaceFormat;
-
-    auto defaultTexture = CreateDefaultTexture(*m_GpuHelper);
-    MLG_CHECK(defaultTexture);
-
-    m_GpuHelper->m_DefaultTexture = std::move(*defaultTexture);
+    m_SurfaceFormat = *surfaceFormat;
 
     return Result<>::Ok;
 }
@@ -842,7 +873,7 @@ GpuHelper::Present() const
 
     wgpu::SurfaceTexture surfaceTexture;
     m_Surface.GetCurrentTexture(&surfaceTexture);
-    
+
     auto result = m_Surface.Present();
     MLG_CHECK(result.status == wgpu::Status::Success, "Failed to present current surface texture");
 #endif // !defined(__EMSCRIPTEN__)
@@ -1053,6 +1084,23 @@ GpuHelper::GetTextureAlignedRowStride(const size_t textureWidth)
 }
 
 // private:
+GpuHelper::GpuHelper(SDL_Window* window,
+    SDL_MetalView metalView,
+    wgpu::Instance instance,
+    wgpu::Adapter adapter,
+    wgpu::Device device,
+    wgpu::Surface surface,
+    wgpu::TextureFormat surfaceFormat,
+    const CreateKey)
+    : m_Window(std::move(window)),
+      m_MetalView(std::move(metalView)),
+      m_Instance(std::move(instance)),
+      m_Adapter(std::move(adapter)),
+      m_Device(std::move(device)),
+      m_Surface(std::move(surface)),
+      m_SurfaceFormat(surfaceFormat)
+{
+}
 
 Result<wgpu::Buffer>
 GpuHelper::CreateGpuBuffer(const wgpu::BufferUsage usage,

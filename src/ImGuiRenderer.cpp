@@ -7,12 +7,14 @@
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_wgpu.h>
 
-Result<std::unique_ptr<ImGuiRenderer>>
-ImGuiRenderer::Create(const GpuHelper& gpuHelper)
+Result<>
+ImGuiRenderer::Create(const GpuHelper& gpuHelper, std::optional<ImGuiRenderer>& optRenderer)
 {
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGuiContext* context = ImGui::CreateContext();
+
+    MLG_CHECKV(context, "Failed to create ImGui context");
 
     ImGuiIO& io = ImGui::GetIO();
     (void)io;
@@ -36,7 +38,9 @@ ImGuiRenderer::Create(const GpuHelper& gpuHelper)
     init_info.DepthStencilFormat = WGPUTextureFormat_Undefined;
     ImGui_ImplWGPU_Init(&init_info);
 
-    return std::unique_ptr<ImGuiRenderer>(new ImGuiRenderer(context));
+    optRenderer.emplace(context, CreateKey{});
+
+    return Result<>::Ok;
 }
 
 ImGuiRenderer::~ImGuiRenderer()

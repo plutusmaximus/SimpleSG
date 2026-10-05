@@ -4,7 +4,6 @@
 #include "Result.h"
 
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 struct SDL_AsyncIO;
@@ -14,7 +13,6 @@ struct SDL_AsyncIOQueue;
 class FetchRequestId
 {
 public:
-
     constexpr FetchRequestId() = default;
 
     friend bool operator==(const FetchRequestId& lhs, const FetchRequestId& rhs) = default;
@@ -44,14 +42,12 @@ private:
 class FileFetcher final
 {
 public:
-   
+    FileFetcher() = default;
     ~FileFetcher();
     FileFetcher(const FileFetcher&) = delete;
     FileFetcher& operator=(const FileFetcher&) = delete;
     FileFetcher(FileFetcher&&) = delete;
     FileFetcher& operator=(FileFetcher&&) = delete;
-
-    static Result<std::unique_ptr<FileFetcher>> Create();
 
     /// Initiates an asynchronous fetch for the specified file.
     /// Returns a FetchRequestId that can be used to track the request.
@@ -62,23 +58,21 @@ public:
 
     /// Retrieves the data for the specified fetch request once it has completed.
     /// If the request is still pending, this will return a failure result.
-    /// If the request completed but did failed to fetch the file, this will return a failure result.
-    /// If the request completed successfully, the data will be returned.
+    /// If the request completed but did failed to fetch the file, this will return a failure
+    /// result. If the request completed successfully, the data will be returned.
     Result<std::vector<uint8_t>> Take(const FetchRequestId requestId);
 
     /// Processes pending asynchronous IO operations.  Must be called once per frame.
     void ProcessCompletions();
 
 private:
-
     /// The maximum number of read attempts before failing a request.
     static constexpr uint32_t kMaxReadAttempts = 5;
 
     class Request
     {
     public:
-
-    enum class Stage
+        enum class Stage
         {
             None,
             Pending,
@@ -128,6 +122,8 @@ private:
         : m_IoQueue(ioQueue)
     {
     }
+
+    Result<> EnsureIoQueue();
 
     Result<> IssueRead(RequestWrapper& wrapper);
 

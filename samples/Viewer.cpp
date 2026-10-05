@@ -9,6 +9,7 @@
 #include "PerfMetrics.h"
 #include "Scene.h"
 #include "System.h"
+#include "SystemCreateTask.h"
 #include "VecMath.h"
 #include "View.h"
 
@@ -101,19 +102,20 @@ constexpr const char* SPONZA_MODEL_PATH = "main_sponza/NewSponza_Main_glTF_003.g
 Result<>
 MainLoop()
 {
-    System::CreateTask sysCreateTask(kAppName);
+    System::CreateTask sysCreateTask;
 
-    MLG_CHECK(sysCreateTask.Start());
+    MLG_CHECK(sysCreateTask.Start(kAppName));
 
     while(sysCreateTask.IsRunning())
     {
         sysCreateTask.Update();
     }
 
-    auto systemResult = sysCreateTask.Take();
-    MLG_CHECK(systemResult, "Failed to get create System");
+    std::optional<System> optSystem;
+    MLG_CHECK(sysCreateTask.Take(optSystem), "Failed to get create System");
+    MLG_CHECK(optSystem.has_value(), "System instance is not available");
 
-    System& system = *systemResult;
+    System& system = *optSystem;
 
     CameraActor cameraActor;
 
