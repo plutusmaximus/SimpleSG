@@ -148,7 +148,6 @@
             "type": "pickString",
             "description": "Select executable",
             "options": [
-                "Triangle",
                 "EmTriangle",
                 "Viewer",
                 "Orbit"

@@ -1,4 +1,3 @@
-#include <string_view>
 #define MLG_LOGGER_NAME "PATH"
 
 #include "FilePath.h"
@@ -8,10 +7,10 @@
 namespace
 {
 bool
-HasValidComponents(const std::string_view path)
+HasValidComponents(const std::string_view path, const size_t maxLength)
 {
     if(path.empty()
-        || path.size() > RelativeFilePath::kMaxLength
+        || path.size() > maxLength
         || path.front() == '/'
         || path.back() == '/'
         || path.find_first_of("\\:") != std::string_view::npos
@@ -40,6 +39,72 @@ HasValidComponents(const std::string_view path)
 
     return true;
 }
+
+/// Returns the directory containing the final path component.
+/// The input is a validated relative file or directory path.
+///
+/// Examples:
+/// "assets/textures/brick.png" returns "assets/textures".
+/// "assets/textures/" returns "assets".
+/// "brick.png" returns an empty view.
+constexpr std::string_view
+GetParent(const std::string_view path) noexcept
+{
+    const std::size_t searchPos =
+        path.ends_with('/') ? path.size() - 2 : std::string_view::npos;
+    const std::size_t separator = path.find_last_of('/', searchPos);
+    return separator == std::string_view::npos ? std::string_view{} : path.substr(0, separator);
+}
+
+/// Returns the final path component, including its extension.
+/// The input is a validated file path.
+///
+/// Example:
+/// "assets/textures/brick.png" returns "brick.png".
+constexpr std::string_view
+GetFileName(std::string_view path) noexcept
+{
+    const std::size_t separator = path.find_last_of('/');
+
+    if(separator == std::string_view::npos)
+    {
+        return path;
+    }
+
+    return path.substr(separator + 1);
+}
+
+/// Returns the final extension of a validated filename, including its leading dot.
+/// Returns an empty view when the filename has no extension.
+/// A filename such as ".gitignore" is treated as having no extension.
+///
+/// Example:
+/// "archive.tar.gz" returns ".gz".
+constexpr std::string_view
+GetExtension(const std::string_view fileName) noexcept
+{
+    const std::size_t dot = fileName.find_last_of('.');
+    if(dot == std::string_view::npos || dot == 0)
+    {
+        return {};
+    }
+
+    return fileName.substr(dot);
+}
+
+/// Returns the filename without its final extension.
+/// Directory components are not included.
+///
+/// Example:
+/// "assets/archive.tar.gz" returns "archive.tar".
+constexpr std::string_view
+GetStem(std::string_view path) noexcept
+{
+    const std::string_view fileName = GetFileName(path);
+    const std::string_view extension = GetExtension(fileName);
+
+    return fileName.substr(0, fileName.size() - extension.size());
+}
 } // namespace
 
 /// RelativeFilePath
@@ -47,7 +112,7 @@ HasValidComponents(const std::string_view path)
 Result<RelativeFilePath>
 RelativeFilePath::Create(const std::string_view path)
 {
-    MLG_CHECKV(HasValidComponents(path), "Invalid file path: {}", path);
+    MLG_CHECKV(HasValidComponents(path, kMaxLength), "Invalid file path: {}", path);
 
     return RelativeFilePath(FixedString<kStorageSize>(path));
 }
@@ -66,36 +131,64 @@ DirectoryPath::Create(const std::string_view path)
 
     if(path.back() == '/')
     {
-        MLG_CHECKV(path.size() <= RelativeFilePath::kMaxLength,
+        MLG_CHECKV(path.size() <= kMaxLength,
             "Directory path is too long: {}",
             path);
-        MLG_CHECKV(HasValidComponents(path.substr(0, path.size() - 1)),
+        MLG_CHECKV(HasValidComponents(path.substr(0, path.size() - 1), kMaxLength),
             "Invalid directory path: {}",
             path);
 
-        return DirectoryPath(FixedString<RelativeFilePath::kStorageSize>(path));
+        return DirectoryPath(FixedString<kStorageSize>(path));
     }
 
     // +1 for the trailing '/'
-    MLG_CHECKV(path.size() + 1 <= RelativeFilePath::kMaxLength,
+    MLG_CHECKV(path.size() + 1 <= kMaxLength,
         "Directory path is too long: {}",
         path);
-    MLG_CHECKV(HasValidComponents(path), "Invalid directory path: {}", path);
+    MLG_CHECKV(HasValidComponents(path, kMaxLength),
+        "Invalid directory path: {}",
+        path);
 
     // Add the trailing '/' to the directory path
-    MLG_CHECKV(path.size() + 1 <= RelativeFilePath::kMaxLength,
+    MLG_CHECKV(path.size() + 1 <= kMaxLength,
         "Directory path is too long: {}",
         path);
 
-    auto fixedPath = FixedString<RelativeFilePath::kStorageSize>::Format("{}{}", path, "/");
+    auto fixedPath = FixedString<kStorageSize>::Format("{}/", path);
 
     return DirectoryPath(std::move(fixedPath));
+}
+
+Result<DirectoryPath>
+DirectoryPath::ParentPath(const std::string_view path)
+{
+    if(path == "./")
+    {
+        return Current();
+    }
+
+    // HasValidComponents fails for paths ending with a '/'
+    const std::string_view withoutSlash =
+        path.ends_with('/') ? path.substr(0, path.size() - 1) : path;
+
+    MLG_CHECKV(HasValidComponents(withoutSlash, FilePath::kMaxLength),
+        "Invalid file path: {}",
+        path);
+
+    const std::string_view parentDir = GetParent(withoutSlash);
+
+    if(parentDir.empty())
+    {
+        return DirectoryPath::Current();
+    }
+
+    return DirectoryPath::Create(parentDir);
 }
 
 DirectoryPath
 DirectoryPath::Current()
 {
-    static const DirectoryPath current(FixedString<RelativeFilePath::kStorageSize>("./"));
+    static const DirectoryPath current(FixedString<kStorageSize>("./"));
 
     return current;
 }
@@ -115,6 +208,12 @@ DirectoryPath::Join(const std::string_view file) const
 }
 
 /// FilePath
+
+std::string_view
+FilePath::GetStem() const noexcept
+{
+    return ::GetStem(m_Value);
+}
 
 Result<FilePath>
 Join(const DirectoryPath& directory, const RelativeFilePath& file)

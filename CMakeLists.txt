@@ -361,6 +361,7 @@ set(SSG_SOURCES
   src/GpuHelper.cpp
   src/ImGuiRenderer.cpp
   src/InputMapper.cpp
+  src/Level.cpp
   src/Log.cpp
   src/PerfMetrics.cpp
   src/ResourceBundle.cpp
@@ -387,7 +388,6 @@ set(SSG_HEADERS
   src/DevUi.h
   src/FileFetcher.h
   src/FilePath.h
-  src/FilePathHelper.h
   src/FixedString.h
   src/GltfLoader.h
   src/GpuColorPass.h
@@ -398,6 +398,7 @@ set(SSG_HEADERS
   src/ImGuiRenderer.h
   src/inlist.h
   src/InputMapper.h
+  src/Level.h
   src/Log.h
   src/PhysicsTypes.h
   src/PerfMetrics.h
@@ -493,12 +494,6 @@ endfunction()
 # ============================================================
 add_tool_executable(Cook tools/Cook/Cook.cpp)
 target_include_directories(Cook SYSTEM PRIVATE thirdparty/stb)
-
-# ============================================================
-# Sample: Triangle
-# ============================================================
-add_sample_executable(Triangle samples/Triangle.cpp)
-add_dependencies(Triangle copy_images)
 
 # ============================================================
 # Sample: EmTriangle

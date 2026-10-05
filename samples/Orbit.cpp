@@ -3,6 +3,7 @@
 #include "DevUi.h"
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
+#include "Level.h"
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"
 #include "Scene.h"
@@ -46,7 +47,7 @@ struct PerfCounterGlobals
     static inline PerfCounter TotalEnergy{ { .Name = "Energy.Total" } };
 };
 
-Result<std::tuple<std::unique_ptr<Scene>, std::unique_ptr<View>>>
+Result<std::unique_ptr<Level>>
 LoadLevel(System& system)
 {
     [[maybe_unused]] constexpr float kBallRadius = 1.0f;
@@ -128,7 +129,7 @@ LoadLevel(System& system)
         nodeDefs.push_back(std::move(nodeDef));
     }
 
-    const SceneDef sceneDef //
+    SceneDef sceneDef //
         {
             .ModelDefs //
             {
@@ -145,32 +146,17 @@ LoadLevel(System& system)
             .NodeDefs = std::move(nodeDefs),
         };
 
-    ResourceBundleBuilder builder;
-    auto rsrcBundle = builder.Build(sceneDef);
-    MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
 
-    auto sceneResult = Scene::Create(*rsrcBundle);
-    MLG_CHECK(sceneResult, "Failed to create Scene");
+    Level::CreateTask levelCreateTask(system, std::move(sceneDef));
 
-    std::unique_ptr<Scene> scene = std::move(*sceneResult);
+    MLG_CHECK(levelCreateTask.Start(), "Failed to start level create task");
 
-    const DirectoryPath parentPath = DirectoryPath::Current();
-
-    View::CreateTask createTask(system, parentPath, *rsrcBundle, *scene);
-
-    MLG_CHECK(createTask.Start(), "Failed to begin create task");
-
-    while(createTask.IsRunning())
+    while(levelCreateTask.IsRunning())
     {
-        createTask.Update();
+        levelCreateTask.Update();
     }
 
-    auto viewResult = createTask.Take();
-    MLG_CHECK(viewResult, "Failed to create view");
-
-    std::unique_ptr<View> view = std::move(*viewResult);
-
-    return std::make_tuple(std::move(scene), std::move(view));
+    return levelCreateTask.Take();
 }
 
 /// Applies random linear velocities to all bodies in the physics scene.
@@ -597,9 +583,12 @@ MainLoop()
     auto loadResult = LoadLevel(system);
     MLG_CHECK(loadResult);
 
-    auto&& [scene, view] = std::move(*loadResult);
+    std::unique_ptr<Level> level = std::move(*loadResult);
 
-    ApplyRandomVelocities(*scene);
+    Scene& scene = level->GetScene();
+    View& view = level->GetView();
+
+    ApplyRandomVelocities(scene);
 
     constexpr float kInitialCameraDistance = 40.0f;
 
@@ -722,11 +711,11 @@ MainLoop()
         if(inputMapper.IsActionTriggered(explode))
         {
             constexpr float kImpulseMagnitude = 5.0f;
-            ApplyExplosionImpulse(*scene, kImpulseMagnitude);
+            ApplyExplosionImpulse(scene, kImpulseMagnitude);
         }
         if(inputMapper.IsActionTriggered(stopAll))
         {
-            StopAll(*scene);
+            StopAll(scene);
         }
         if(inputMapper.IsActionTriggered(pause))
         {
@@ -735,10 +724,10 @@ MainLoop()
 
         if(!pauseSim)
         {
-            scene->Update(kPhysicsTimeStep);
-            ApplyGravity(*scene, system.GetThreadPool());
+            scene.Update(kPhysicsTimeStep);
+            ApplyGravity(scene, system.GetThreadPool());
 
-            const float kineticEnergy = ComputeKineticEnergy(*scene);
+            const float kineticEnergy = ComputeKineticEnergy(scene);
             const double totalEnergy = kineticEnergy + PerfCounterGlobals::TotalPE.GetValue();
 
             PerfCounterGlobals::TotalKE.Set(kineticEnergy);
@@ -763,8 +752,8 @@ MainLoop()
             const Viewport viewport(viewPanelRect.GetDimensions());
             cameraActor.SetViewport(viewport);
 
-            MLG_CHECK(view->Render(cameraActor.GetCamera(), cameraXForm));
-            MLG_CHECK(view->Composite(*target, viewPanelRect));
+            MLG_CHECK(view.Render(cameraActor.GetCamera(), cameraXForm));
+            MLG_CHECK(view.Composite(*target, viewPanelRect));
         }
 
         auto renderGui = [&]() { return devUi.Render(); };

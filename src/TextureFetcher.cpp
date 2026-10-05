@@ -338,8 +338,6 @@ TextureFetcher::OnStart()
 void
 TextureFetcher::OnUpdate()
 {
-    MLG_ABORTIF(!m_TaskBatch.has_value(), "Task batch is not initialized");
-
     switch(m_Stage)
     {
         case Stage::None:
@@ -347,7 +345,11 @@ TextureFetcher::OnUpdate()
             break;
 
         case Stage::Fetching:
-            if(m_TaskBatch->IsRunning())
+            if(!MLG_VERIFY(m_TaskBatch, "Task batch is not initialized"))
+            {
+                m_Stage = Stage::Failed;
+            }
+            else if(m_TaskBatch->IsRunning())
             {
                 m_TaskBatch->Update();
             }
@@ -372,6 +374,7 @@ TextureFetcher::OnUpdate()
         case Stage::Failed:
             [[fallthrough]];
         case Stage::Succeeded:
+            m_TaskBatch.reset();
             SetComplete();
             break;
     }

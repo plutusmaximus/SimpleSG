@@ -1,8 +1,8 @@
 #include "FilePath.h"
 
+#include <functional>
 #include <gtest/gtest.h>
 #include <SDL3/SDL_assert.h>
-#include <functional>
 #include <string>
 #include <string_view>
 
@@ -106,6 +106,46 @@ TEST(DirectoryPath, AcceptsDirectories)
     EXPECT_EQ(std::string_view(*current), "./");
 }
 
+TEST(DirectoryPath, CopiesNonTerminatedStringView)
+{
+    char source[] = "assets/texturesEXTRA";
+    constexpr std::string_view input = "assets/textures";
+
+    const auto directory = DirectoryPath::Create(std::string_view(&source[0], input.size()));
+    ASSERT_TRUE(directory);
+
+    source[0] = 'X';
+    EXPECT_EQ(std::string_view(*directory), "assets/textures/");
+    EXPECT_STREQ(directory->c_str(), "assets/textures/");
+}
+
+TEST(DirectoryPath, ParentPathOfNestedFile)
+{
+    const auto nestedParent = DirectoryPath::ParentPath("assets/textures/brick.png");
+    ASSERT_TRUE(nestedParent);
+    EXPECT_EQ(std::string_view(*nestedParent), "assets/textures/");
+
+    const auto parent = DirectoryPath::ParentPath("assets/brick.png");
+    ASSERT_TRUE(parent);
+    EXPECT_EQ(std::string_view(*parent), "assets/");
+}
+
+TEST(DirectoryPath, ParentPathOfNestedDirectory)
+{
+    const auto parent = DirectoryPath::ParentPath("assets/textures/");
+    ASSERT_TRUE(parent);
+    EXPECT_EQ(std::string_view(*parent), "assets/");
+}
+
+TEST(DirectoryPath, ParentPathOfFileInCurrentDirectory)
+{
+    const IgnorePathAssertions ignoreAssertions;
+
+    const auto parent = DirectoryPath::ParentPath("brick.png");
+    ASSERT_TRUE(parent);
+    EXPECT_EQ(*parent, DirectoryPath::Current());
+}
+
 TEST(DirectoryPath, RejectsInvalidDirectories)
 {
     const IgnorePathAssertions ignoreAssertions;
@@ -120,7 +160,8 @@ TEST(DirectoryPath, RejectsInvalidDirectories)
             "textures/..name/",
             "../foo/",
             "foo\\bar/",
-            "C:foo/" })
+            "C:foo/",
+            "C:/foo/" })
     {
         EXPECT_FALSE(DirectoryPath::Create(path)) << path;
     }
@@ -163,6 +204,23 @@ TEST(FilePath, JoinsDirectoriesAndFiles)
     EXPECT_STREQ(fromCurrent->c_str(), "brick.png");
 }
 
+TEST(FilePath, GetsStemForExtensionlessHiddenAndCompoundNames)
+{
+    const DirectoryPath current = DirectoryPath::Current();
+
+    const auto extensionless = current.Join("README");
+    ASSERT_TRUE(extensionless);
+    EXPECT_EQ(extensionless->GetStem(), "README");
+
+    const auto hidden = current.Join(".env");
+    ASSERT_TRUE(hidden);
+    EXPECT_EQ(hidden->GetStem(), ".env");
+
+    const auto compound = current.Join("archive.tar.gz");
+    ASSERT_TRUE(compound);
+    EXPECT_EQ(compound->GetStem(), "archive.tar");
+}
+
 TEST(FilePath, RejectsInvalidStringViewJoin)
 {
     const IgnorePathAssertions ignoreAssertions;
@@ -196,6 +254,17 @@ TEST(DirectoryPath, EnforcesCapacity)
     EXPECT_EQ(*directory, *normalizedDirectory);
     EXPECT_FALSE(DirectoryPath::Create(longestDirectory + "a/"));
     EXPECT_FALSE(DirectoryPath::Create(longestDirectory + 'a'));
+}
+
+TEST(DirectoryPath, NormalizationPreservesEqualityAndHash)
+{
+    const auto normalized = DirectoryPath::Create("assets");
+    const auto terminated = DirectoryPath::Create("assets/");
+    ASSERT_TRUE(normalized);
+    ASSERT_TRUE(terminated);
+
+    EXPECT_EQ(*normalized, *terminated);
+    EXPECT_EQ(std::hash<DirectoryPath>{}(*normalized), std::hash<DirectoryPath>{}(*terminated));
 }
 
 TEST(FilePath, JoinsAtMaximumInputLengths)

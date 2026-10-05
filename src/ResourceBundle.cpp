@@ -900,10 +900,10 @@ ResourceBundle::GetStringView(const StringResource& stringResource) const
 
 // ResourceBundleBuilder
 
-Result<ResourceBundle>
+Result<std::unique_ptr<ResourceBundle>>
 ResourceBundleBuilder::Build(const SceneDef& sceneDef)
 {
-    // Free buffer mem
+    // Free old buffer mem
     std::vector<std::byte>().swap(m_Buffer);
 
     const auto flatNodeDefs = FlattenNodesBreadthFirst(sceneDef.NodeDefs);
@@ -994,7 +994,7 @@ ResourceBundleBuilder::Build(const SceneDef& sceneDef)
 
     GetHeader()->Checksum = GetChecksum(m_Buffer);
 
-    return ResourceBundle{ std::move(m_Buffer) };
+    return std::unique_ptr<ResourceBundle>(new ResourceBundle(std::move(m_Buffer)));
 }
 
 // private:

@@ -1,17 +1,22 @@
 #pragma once
 
-#include "FilePathHelper.h"
 #include "FixedString.h"
 #include "Result.h"
 
 #include <cstddef>
 #include <format>
+#include <functional>
 #include <string_view>
 
 class DirectoryPath;
 class FilePath;
 
 /// A validated file path relative to the application's working directory.
+/// Create rejects a "." path component and ".." anywhere in the path.
+/// It also rejects empty paths, leading or trailing slashes, consecutive slashes,
+/// backslashes, colons, embedded nulls, and paths longer than kMaxLength.
+/// Valid examples: "foo/bar/baz.bin", ".gitignore".
+/// Invalid examples: "./foo/bar/baz.bin", "../foo", "foo/./bar", "foo//bar", "foo/".
 class RelativeFilePath final
 {
 public:
@@ -49,15 +54,27 @@ private:
 };
 
 /// A validated directory prefix relative to the application's working directory.
-/// The current directory is represented by "./".
+/// Create accepts paths with or without a trailing slash and stores a trailing slash.
+/// The exact path "./" represents the current directory.
+/// Other invalid inputs follow the RelativeFilePath rules, except that one trailing
+/// slash is allowed. The stored path, including that slash, must fit kMaxLength.
+/// Valid examples: "foo/bar", "foo/bar/", "./".
+/// Invalid examples: "./foo/bar", "foo/./bar", "foo//bar", "/foo/bar", "foo/../bar".
 class DirectoryPath final
 {
 public:
+    static constexpr size_t kStorageSize = RelativeFilePath::kStorageSize;
+    static constexpr size_t kMaxLength = kStorageSize - 1;
+
     DirectoryPath() = delete;
 
     /// Creates a DirectoryPath from a string view, validating its format and length.
     /// Upon success the result is guaranteed to be a valid DirectoryPath.
     static Result<DirectoryPath> Create(std::string_view path);
+
+    /// Returns the parent directory of the given path.
+    /// Upon success the result is guaranteed to be a valid DirectoryPath.
+    static Result<DirectoryPath> ParentPath(const std::string_view path);
 
     static DirectoryPath Current();
 
@@ -96,7 +113,7 @@ private:
 class FilePath final
 {
 public:
-    static constexpr size_t kStorageSize = RelativeFilePath::kStorageSize * 2;
+    static constexpr size_t kStorageSize = RelativeFilePath::kStorageSize + DirectoryPath::kStorageSize;
     static constexpr size_t kMaxLength = kStorageSize - 1;
 
     FilePath() = delete;
@@ -106,7 +123,7 @@ public:
     size_t size() const noexcept { return m_Value.size(); }
 
     /// Returns the stem (filename without the directory path) of the file path.
-    std::string_view GetStem() const noexcept { return FilePathHelper::GetStem(m_Value); }
+    std::string_view GetStem() const noexcept;
 
     friend bool operator==(const FilePath&, const FilePath&) = default;
 

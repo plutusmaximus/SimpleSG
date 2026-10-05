@@ -10,6 +10,7 @@
 #include <bit>
 #include <cstddef>
 #include <limits>
+#include <memory>
 #include <string_view>
 #include <type_traits>
 #include <vector>
@@ -203,8 +204,8 @@ public:
     ~ResourceBundle() = default;
     ResourceBundle(const ResourceBundle&) = delete;
     ResourceBundle& operator=(const ResourceBundle&) = delete;
-    ResourceBundle(ResourceBundle&&) = default;
-    ResourceBundle& operator=(ResourceBundle&&) = default;
+    ResourceBundle(ResourceBundle&&) = delete;
+    ResourceBundle& operator=(ResourceBundle&&) = delete;
 
     bool ValidateChecksum() const;
 
@@ -380,7 +381,7 @@ public:
     ResourceBundleBuilder(ResourceBundleBuilder&&) = default;
     ResourceBundleBuilder& operator=(ResourceBundleBuilder&&) = default;
 
-    Result<ResourceBundle> Build(const SceneDef& sceneDef);
+    Result<std::unique_ptr<ResourceBundle>> Build(const SceneDef& sceneDef);
 
 private:
     ResourceBundle::Header* GetHeader()

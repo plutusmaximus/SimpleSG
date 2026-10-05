@@ -1,16 +1,13 @@
 #include "CameraActor.h"
 #include "CommonActionIds.h"
 #include "CoopTask.h"
-#include "FilePathHelper.h"
-#include "GltfLoader.h"
 #include "GpuColorPass.h"
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
 #include "InputMapper.h"
+#include "Level.h"
 #include "PerfMetrics.h"
-#include "ResourceBundle.h"
 #include "Scene.h"
-#include "SceneTypes.h"
 #include "System.h"
 #include "VecMath.h"
 #include "View.h"
@@ -80,41 +77,23 @@ RenderGui()
     return Result<>::Ok;
 }
 
-Result<std::tuple<std::unique_ptr<Scene>, std::unique_ptr<View>>>
-LoadLevel(System& system, const std::string_view path)
+Result<std::unique_ptr<Level>>
+LoadLevel(System& system, const FilePath& path)
 {
-    auto loadResult = GltfLoader::Load(path);
-    MLG_CHECK(loadResult, "Failed to load glTF file: {}", path);
-    const SceneDef sceneDef = std::move(*loadResult);
-
-    ResourceBundleBuilder builder;
-    auto rsrcBundle = builder.Build(sceneDef);
-    MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
-
-    auto sceneResult = Scene::Create(*rsrcBundle);
-    MLG_CHECK(sceneResult, "Failed to create scene for {}", path);
-
-    std::unique_ptr<Scene> scene = std::move(*sceneResult);
-
-    const std::string_view parentDir = FilePathHelper::GetParent(path);
-    auto parentPath = DirectoryPath::Create(parentDir);
-    MLG_CHECK(parentPath, "Failed to create parent path");
-
-    View::CreateTask createTask(system, *parentPath, *rsrcBundle, *scene);
-
-    MLG_CHECK(createTask.Start(), "Failed to begin create task");
-
-    while(createTask.IsRunning())
+    const Level::CreateTask::GltfParams gltfParams//
     {
-        createTask.Update();
+        .Path = path
+    };
+    Level::CreateTask levelCreateTask(system, gltfParams);
+
+    MLG_CHECK(levelCreateTask.Start(), "Failed to start level create task");
+
+    while(levelCreateTask.IsRunning())
+    {
+        levelCreateTask.Update();
     }
 
-    auto viewResult = createTask.Take();
-    MLG_CHECK(viewResult, "Failed to create view");
-
-    std::unique_ptr<View> view = std::move(*viewResult);
-
-    return std::make_tuple(std::move(scene), std::move(view));
+    return levelCreateTask.Take();
 }
 
 constexpr const char* SPONZA_MODEL_PATH = "main_sponza/NewSponza_Main_glTF_003.gltf";
@@ -138,10 +117,15 @@ MainLoop()
 
     CameraActor cameraActor;
 
-    auto loadResult = LoadLevel(system, SPONZA_MODEL_PATH);
+    const auto sponzaModelPath = DirectoryPath::Current().Join(SPONZA_MODEL_PATH);
+    MLG_CHECK(sponzaModelPath, "Failed to get sponza model path");
+
+    auto loadResult = LoadLevel(system, *sponzaModelPath);
     MLG_CHECK(loadResult, "Failed to load resources");
 
-    auto&& [scene, view] = std::move(*loadResult);
+    const std::unique_ptr<Level> level = std::move(*loadResult);
+
+    View& view = level->GetView();
 
     static constexpr float kDefaultCameraHeight = 2.0f;
     static constexpr float kDefaultCameraYaw = 90.0f; // Degrees
@@ -270,8 +254,8 @@ MainLoop()
         auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECKV(target, "Failed to get swap chain texture");
 
-        MLG_CHECK(view->Render(camera, cameraXForm));
-        MLG_CHECK(view->Composite(*target));
+        MLG_CHECK(view.Render(camera, cameraXForm));
+        MLG_CHECK(view.Composite(*target));
 
         const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
         MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, RenderGui));

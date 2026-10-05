@@ -426,8 +426,10 @@ Cook(const CmdLinArgs& args, ThreadPool& threadPool)
 
     ResourceBundleBuilder builder;
 
-    auto resourceBundle = builder.Build(sceneDef);
-    MLG_CHECK(resourceBundle);
+    auto buildResult = builder.Build(sceneDef);
+    MLG_CHECK(buildResult);
+
+    const std::unique_ptr<ResourceBundle> bundle = std::move(*buildResult);
 
     cookTextureLatch.wait();
 
@@ -443,7 +445,7 @@ Cook(const CmdLinArgs& args, ThreadPool& threadPool)
 
     MLG_CHECK(cookTexResult, "One or more texture cooking tasks failed");
 
-    MLG_CHECK(WriteResourceBundle(*cookDirs, args.InputFile, *resourceBundle));
+    MLG_CHECK(WriteResourceBundle(*cookDirs, args.InputFile, *bundle));
 
     timer.Stop();
     MLG_INFO("Cook completed in {} ms", std::trunc(timer.GetElapsedSeconds() * 1000));

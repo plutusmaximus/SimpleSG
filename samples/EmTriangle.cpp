@@ -1,6 +1,7 @@
 #include "Camera.h"
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
+#include "Level.h"
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"
@@ -45,7 +46,7 @@ RenderGui()
 }
 
 Result<SceneDef>
-CreateTriangleModel()
+CreateTriangleScene()
 {
     std::vector<Vertex> triangleVertices = //
         {
@@ -113,7 +114,7 @@ private:
     enum class Stage
     {
         None,
-        CreatingView,
+        CreatingLevel,
         Running,
         Stopped
     };
@@ -126,13 +127,9 @@ private:
 
     System* m_System{ nullptr };
 
-    SceneDef m_m_SceneDef;
+    std::optional<Level::CreateTask> m_LevelCreateTask;
 
-    std::optional<ResourceBundle> m_ResourceBundle;
-    std::optional<View::CreateTask> m_ViewCreateTask;
-
-    std::unique_ptr<Scene> m_Scene;
-    std::unique_ptr<View> m_View;
+    std::unique_ptr<Level> m_Level;
 
     Viewport m_Viewport //
         {
@@ -155,30 +152,13 @@ TriangleApp::OnStart(System& system)
 
     m_System = &system;
 
-    auto sceneDef = CreateTriangleModel();
+    auto sceneDef = CreateTriangleScene();
     MLG_CHECK(sceneDef, "Failed to create SceneDef");
-    m_m_SceneDef = std::move(*sceneDef);
 
-    ResourceBundleBuilder builder;
-    auto rsrcBundle = builder.Build(m_m_SceneDef);
-    MLG_CHECK(rsrcBundle, "Failed to build ResourceBundle");
+    m_LevelCreateTask.emplace(*m_System, std::move(*sceneDef));
+    MLG_CHECK(m_LevelCreateTask->Start(), "Failed to start level creation task");
 
-    m_ResourceBundle = std::move(*rsrcBundle);
-
-    auto sceneResult = Scene::Create(*m_ResourceBundle);
-    MLG_CHECK(sceneResult, "Failed to create Scene");
-    m_Scene = std::move(*sceneResult);
-
-    const DirectoryPath parentPath = DirectoryPath::Current();
-
-    m_ViewCreateTask.emplace(*m_System, parentPath, *m_ResourceBundle, *m_Scene);
-
-    MLG_CHECK(m_ViewCreateTask->Start(), "Failed to begin view create task");
-
-    m_Viewport = Viewport(m_System->GetGpuHelper().GetScreenDimensions());
-    m_Camera.SetViewport(m_Viewport);
-
-    m_Stage = Stage::CreatingView;
+    m_Stage = Stage::CreatingLevel;
 
     return Result<>::Ok;
 }
@@ -194,26 +174,26 @@ TriangleApp::OnUpdate()
             MLG_ABORT("Task is not running");
             break;
 
-        case Stage::CreatingView:
-            MLG_ABORTIF(!m_ViewCreateTask, "View create task is not initialized");
+        case Stage::CreatingLevel:
+            MLG_ABORTIF(!m_LevelCreateTask, "Level create task is not initialized");
 
-            if(m_ViewCreateTask->IsRunning())
+            if(m_LevelCreateTask->IsRunning())
             {
-                m_ViewCreateTask->Update();
+                m_LevelCreateTask->Update();
             }
             else
             {
-                auto viewResult = m_ViewCreateTask->Take();
-                if(MLG_VERIFY(viewResult, "Failed to create View"))
+                auto levelResult = m_LevelCreateTask->Take();
+                m_LevelCreateTask.reset();
+
+                if(!MLG_VERIFY(levelResult, "Failed to create Level"))
                 {
-                    m_View = std::move(*viewResult);
-                    m_ViewCreateTask.reset();
-                    m_ResourceBundle.reset();
-                    m_Stage = TriangleApp::Stage::Running;
+                    m_Stage = Stage::Stopped;
                 }
                 else
                 {
-                    m_Stage = Stage::Stopped;
+                    m_Level = std::move(*levelResult);
+                    m_Stage = TriangleApp::Stage::Running;
                 }
             }
             break;
@@ -248,12 +228,12 @@ TriangleApp::Render()
     m_Viewport = Viewport(gpuHelper.GetScreenDimensions());
     m_Camera.SetViewport(m_Viewport);
 
-    MLG_CHECK(m_View->Render(m_Camera, m_CameraXForm), "Failed to render view");
+    MLG_CHECK(m_Level->GetView().Render(m_Camera, m_CameraXForm), "Failed to render view");
 
     auto target = gpuHelper.GetSwapChainTexture();
     MLG_CHECK(target, "Failed to get swap chain texture");
 
-    MLG_CHECK(m_View->Composite(*target), "Failed to composite view");
+    MLG_CHECK(m_Level->GetView().Composite(*target), "Failed to composite view");
 
     MLG_CHECK(m_System->GetImGuiRenderer().Render(gpuHelper.GetDevice(), *target, RenderGui),
         "Failed to render ImGui");
