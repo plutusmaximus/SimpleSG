@@ -5,6 +5,7 @@
 #include "ShaderFetcher.h"
 #include "VecMath.h"
 
+#include <memory>
 #include <optional>
 
 class FileFetcher;
@@ -53,8 +54,8 @@ public:
     ~GpuCompositorPass() = default;
     GpuCompositorPass(const GpuCompositorPass&) = delete;
     GpuCompositorPass& operator=(const GpuCompositorPass&) = delete;
-    GpuCompositorPass(GpuCompositorPass&&) = default;
-    GpuCompositorPass& operator=(GpuCompositorPass&&) = default;
+    GpuCompositorPass(GpuCompositorPass&&) = delete;
+    GpuCompositorPass& operator=(GpuCompositorPass&&) = delete;
 
     Result<> SetInputs(const Inputs& inputs);
     Result<> SetOutputs(const Outputs& outputs);
@@ -120,7 +121,7 @@ public:
     CreateTask(CreateTask&&) = delete;
     CreateTask& operator=(CreateTask&&) = delete;
 
-    Result<GpuCompositorPass> Take();
+    Result<std::unique_ptr<GpuCompositorPass>> Take();
 
 private:
     enum class Stage
@@ -135,13 +136,12 @@ private:
 
     void OnUpdate() override;
 
-    Result<> CreatePass();
-
     const GpuHelper* m_GpuHelper{ nullptr };
     ShaderFetcher m_ShaderFetcher;
-    std::optional<GpuCompositorPass> m_GpuPass;
 
     Stage m_Stage{ Stage::None };
+
+    bool m_Consumed{ false };
 };
 
 class GpuCompositorPass::Invocation

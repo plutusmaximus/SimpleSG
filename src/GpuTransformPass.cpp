@@ -1,8 +1,7 @@
 #define MLG_LOGGER_NAME "TPAS"
 
-#include "GpuTransformPass.h"
-
 #include "GpuHelper.h"
+#include "GpuTransformPass.h"
 
 namespace
 {
@@ -123,16 +122,27 @@ GpuTransformPass::CreateTask::CreateTask(const GpuHelper& gpuHelper, FileFetcher
 {
 }
 
-Result<GpuTransformPass>
+Result<std::unique_ptr<GpuTransformPass>>
 GpuTransformPass::CreateTask::Take()
 {
     MLG_CHECKV(Stage::Succeeded == m_Stage, "Task did not succeed");
-    MLG_CHECKV(m_GpuPass, "Task result already consumed");
+    MLG_CHECKV(!m_Consumed, "Task result already consumed");
 
-    std::optional bye = std::move(m_GpuPass);
-    m_GpuPass.reset(); // Invalidate the result so it can only be taken once
+    m_Consumed = true;
 
-    return std::move(*bye);
+    auto shader = m_ShaderFetcher.Take();
+    MLG_CHECK(shader, "Failed to fetch shader: {}", ShaderPath);
+
+    const wgpu::Device& gpuDevice = m_GpuHelper->GetDevice();
+
+    auto bindGroupLayout = CreateBindGroupLayout(gpuDevice);
+    MLG_CHECK(bindGroupLayout);
+
+    auto pipelineLayout = CreatePipelineLayout(gpuDevice, *bindGroupLayout);
+    MLG_CHECK(pipelineLayout);
+
+    return std::unique_ptr<GpuTransformPass>(
+        new GpuTransformPass(*m_GpuHelper, *shader, *bindGroupLayout, *pipelineLayout));
 }
 
 // private:
@@ -173,15 +183,10 @@ GpuTransformPass::CreateTask::OnUpdate()
             {
                 m_ShaderFetcher.Update();
             }
-            else if(CreatePass())
+            else
             {
                 MLG_DEBUG("Created transform pass");
                 m_Stage = Stage::Succeeded;
-            }
-            else
-            {
-                MLG_ERROR("Failed to create transform pass");
-                m_Stage = Stage::Failed;
             }
             break;
         case Stage::Failed:
@@ -191,25 +196,6 @@ GpuTransformPass::CreateTask::OnUpdate()
             SetComplete();
             break;
     }
-}
-
-Result<>
-GpuTransformPass::CreateTask::CreatePass()
-{
-    auto shader = m_ShaderFetcher.Take();
-    MLG_CHECK(shader, "Failed to fetch shader: {}", ShaderPath);
-
-    const wgpu::Device& gpuDevice = m_GpuHelper->GetDevice();
-
-    auto bindGroupLayout = CreateBindGroupLayout(gpuDevice);
-    MLG_CHECK(bindGroupLayout);
-
-    auto pipelineLayout = CreatePipelineLayout(gpuDevice, *bindGroupLayout);
-    MLG_CHECK(pipelineLayout);
-
-    m_GpuPass = GpuTransformPass(*m_GpuHelper, *shader, *bindGroupLayout, *pipelineLayout);
-
-    return Result<>::Ok;
 }
 
 /// GpuTransformPass

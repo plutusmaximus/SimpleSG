@@ -443,23 +443,22 @@ GpuHelper::CreateTask::~CreateTask()
     }
 }
 
-Result<>
-GpuHelper::CreateTask::Take(std::optional<GpuHelper>& gpuHelper)
+Result<std::unique_ptr<GpuHelper>>
+GpuHelper::CreateTask::Take()
 {
     MLG_CHECKV(Stage::Succeeded == m_Stage, "Task has not succeeded");
     MLG_CHECKV(!m_Consumed, "Task result already consumed");
 
     m_Consumed = true;
 
-    gpuHelper.emplace(
+    std::unique_ptr<GpuHelper> gpuHelper(new GpuHelper(
         m_Window,
         m_MetalView,
         m_Instance,
         m_Adapter,
         m_Device,
         m_Surface,
-        m_SurfaceFormat,
-        GpuHelper::CreateKey{});
+        m_SurfaceFormat));
 
     auto cleanup = MLG_MAKE_DEFERRED
     {
@@ -474,7 +473,7 @@ GpuHelper::CreateTask::Take(std::optional<GpuHelper>& gpuHelper)
 
     cleanup.release();
 
-    return Result<>::Ok;
+    return gpuHelper;
 }
 
 // private:
@@ -1090,8 +1089,7 @@ GpuHelper::GpuHelper(SDL_Window* window,
     wgpu::Adapter adapter,
     wgpu::Device device,
     wgpu::Surface surface,
-    wgpu::TextureFormat surfaceFormat,
-    const CreateKey)
+    wgpu::TextureFormat surfaceFormat)
     : m_Window(std::move(window)),
       m_MetalView(std::move(metalView)),
       m_Instance(std::move(instance)),

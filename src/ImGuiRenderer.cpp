@@ -7,8 +7,8 @@
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_wgpu.h>
 
-Result<>
-ImGuiRenderer::Create(const GpuHelper& gpuHelper, std::optional<ImGuiRenderer>& optRenderer)
+Result<std::unique_ptr<ImGuiRenderer>>
+ImGuiRenderer::Create(const GpuHelper& gpuHelper)
 {
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -38,9 +38,7 @@ ImGuiRenderer::Create(const GpuHelper& gpuHelper, std::optional<ImGuiRenderer>& 
     init_info.DepthStencilFormat = WGPUTextureFormat_Undefined;
     ImGui_ImplWGPU_Init(&init_info);
 
-    optRenderer.emplace(context, CreateKey{});
-
-    return Result<>::Ok;
+    return std::unique_ptr<ImGuiRenderer>(new ImGuiRenderer(context));
 }
 
 ImGuiRenderer::~ImGuiRenderer()

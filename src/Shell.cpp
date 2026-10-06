@@ -61,19 +61,14 @@ Shell::OnUpdate()
             {
                 m_SystemCreateTask.Update();
             }
-            else if(!m_SystemCreateTask.Take(m_OptSystem))
+            else if(auto systemResult = m_SystemCreateTask.Take(); !systemResult)
             {
                 MLG_ERROR("Failed to create System");
                 m_Stage = Stage::Shutdown;
             }
-            else if(!MLG_VERIFY(m_OptSystem.has_value(),
-                        "System creation succeeded but no System instance is available"))
-            {
-                m_Stage = Stage::Shutdown;
-            }
             else
             {
-                m_System = &m_OptSystem.value();
+                m_System = std::move(*systemResult);
 
                 if(!m_AppTask->Start(*m_System))
                 {

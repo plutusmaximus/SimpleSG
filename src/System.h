@@ -17,7 +17,7 @@ class System final
 public:
     class CreateTask;
 
-    explicit System(std::unique_ptr<Impl>&& impl);
+    System() = delete;
     ~System();
     System(const System&) = delete;
     System& operator=(const System&) = delete;
@@ -75,6 +75,8 @@ public:
 
 private:
     friend CreateTask;
+
+    explicit System(std::unique_ptr<Impl>&& impl);
 
     std::unique_ptr<Impl> m_Impl;
 };

@@ -140,9 +140,9 @@ CreateMaterialBindGroups(const GpuHelper& gpuHelper,
 
 View::View(const GpuHelper& gpuHelper,
     const Scene& scene,
-    GpuColorPass&& colorPass,
-    GpuCompositorPass&& compositorPass,
-    GpuTransformPass&& transformPass,
+    std::unique_ptr<GpuColorPass>&& colorPass,
+    std::unique_ptr<GpuCompositorPass>&& compositorPass,
+    std::unique_ptr<GpuTransformPass>&& transformPass,
     GpuVertexBuffer&& vertexBuffer,
     GpuIndexBuffer&& indexBuffer,
     GpuWorldTransformBuffer&& worldTransformBuffer,
@@ -205,10 +205,10 @@ View::Render(const Camera& camera, const TrTransformf& cameraXForm)
             .CameraParams = m_CameraParamsBuffer,
         };
 
-    MLG_CHECK(m_ColorPass.SetInputs(colorPassInputs));
-    MLG_CHECK(m_ColorPass.SetOutputs(*m_ColorPassOutputs));
+    MLG_CHECK(m_ColorPass->SetInputs(colorPassInputs));
+    MLG_CHECK(m_ColorPass->SetOutputs(*m_ColorPassOutputs));
 
-    auto invocation = m_ColorPass.Prepare(cmdEncoder);
+    auto invocation = m_ColorPass->Prepare(cmdEncoder);
     MLG_CHECK(invocation);
 
     m_VisibleMeshes.clear();
@@ -254,10 +254,10 @@ View::Composite(const GpuRenderTarget& target, const Rect& dstRect)
             .RenderTarget = target,
         };
 
-    MLG_CHECK(m_CompositorPass.SetInputs(inputs));
-    MLG_CHECK(m_CompositorPass.SetOutputs(outputs));
+    MLG_CHECK(m_CompositorPass->SetInputs(inputs));
+    MLG_CHECK(m_CompositorPass->SetOutputs(outputs));
 
-    auto pass = m_CompositorPass.Prepare();
+    auto pass = m_CompositorPass->Prepare();
     MLG_CHECK(pass, "Failed to begin compositor pass");
 
     MLG_CHECK(pass->Execute(), "Failed to execute compositor pass");
@@ -380,9 +380,9 @@ View::TransformNodes(const wgpu::Device& gpuDevice,
             .ClipSpaceTransforms = m_ClipSpaceBuffer,
         };
 
-    MLG_CHECK(m_TransformPass.SetInputs(inputs));
-    MLG_CHECK(m_TransformPass.SetOutputs(outputs));
-    auto invocation = m_TransformPass.Prepare(cmdEncoder);
+    MLG_CHECK(m_TransformPass->SetInputs(inputs));
+    MLG_CHECK(m_TransformPass->SetOutputs(outputs));
+    auto invocation = m_TransformPass->Prepare(cmdEncoder);
     MLG_CHECK(invocation, "Failed to prepare transform pass");
 
     MLG_CHECK(invocation->Execute(), "Failed to execute transform pass");
@@ -449,7 +449,7 @@ View::CreateTask::Take()
     const GpuHelper& gpuHelper = m_System->GetGpuHelper();
 
     auto materialBindGroups =
-        CreateMaterialBindGroups(gpuHelper, *gpuColorPassResult, *m_ResourceBundle, *textures);
+        CreateMaterialBindGroups(gpuHelper, **gpuColorPassResult, *m_ResourceBundle, *textures);
     MLG_CHECK(materialBindGroups);
 
     const std::span vertices = m_ResourceBundle->GetVertices();

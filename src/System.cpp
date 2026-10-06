@@ -8,8 +8,6 @@
 #include "ThreadPool.h"
 
 #include <imgui_impl_sdl3.h>
-#include <memory>
-#include <optional>
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_timer.h>
 #include <utility>
@@ -34,10 +32,8 @@ enum class WindowStateEvent
 class System::Impl
 {
 public:
-    std::optional<GpuHelper> m_OptGpuHelper;
-    GpuHelper* m_GpuHelper{ nullptr };
-    std::optional<ImGuiRenderer> m_OptImGuiRenderer;
-    ImGuiRenderer* m_ImGuiRenderer{ nullptr };
+    std::unique_ptr<GpuHelper> m_GpuHelper;
+    std::unique_ptr<ImGuiRenderer> m_ImGuiRenderer;
     FileFetcher m_FileFetcher;
     ThreadPool m_ThreadPool;
     InputMapper m_InputMapper;
@@ -56,26 +52,21 @@ System::CreateTask::CreateTask()
 
 System::CreateTask::~CreateTask() = default;
 
-Result<>
-System::CreateTask::Take(std::optional<System>& optSystem)
+Result<std::unique_ptr<System>>
+System::CreateTask::Take()
 {
     MLG_CHECKV(Stage::Succeeded == m_Stage, "Task did not succeed");
     MLG_CHECKV(m_Impl, "Task result already consumed");
 
-    MLG_CHECK(m_GpuHelperTask.Take(m_Impl->m_OptGpuHelper), "Failed create GpuHelper");
-    MLG_CHECK(m_Impl->m_OptGpuHelper.has_value(), "GpuHelper task did not produce a value");
+    auto gpuHelperResult = m_GpuHelperTask.Take();
+    MLG_CHECK(gpuHelperResult, "Failed create GpuHelper");
+    m_Impl->m_GpuHelper = std::move(*gpuHelperResult);
 
-    m_Impl->m_GpuHelper = &m_Impl->m_OptGpuHelper.value();
+    auto imGuiResult = ImGuiRenderer::Create(*m_Impl->m_GpuHelper);
+    MLG_CHECK(imGuiResult, "Failed to create ImGuiRenderer");
+    m_Impl->m_ImGuiRenderer = std::move(*imGuiResult);
 
-    MLG_CHECK(ImGuiRenderer::Create(*m_Impl->m_GpuHelper, m_Impl->m_OptImGuiRenderer),
-        "Failed to create ImGuiRenderer");
-    MLG_CHECK(m_Impl->m_OptImGuiRenderer.has_value(), "ImGuiRenderer task did not produce a value");
-
-    m_Impl->m_ImGuiRenderer = &m_Impl->m_OptImGuiRenderer.value();
-
-    optSystem.emplace(std::move(m_Impl));
-
-    return Result<>::Ok;
+    return std::unique_ptr<System>(new System(std::move(m_Impl)));
 }
 
 // private:

@@ -8,7 +8,6 @@
 
 #include <memory>
 #include <string_view>
-#include <optional>
 
 /// Task for creating a System instance asynchronously.
 class System::CreateTask : public ICoopTask<std::string_view>
@@ -21,9 +20,9 @@ public:
     CreateTask(CreateTask&&) = delete;
     CreateTask& operator=(CreateTask&&) = delete;
 
-    /// Populates the optional with the System instance if the task succeeded, otherwise returns an error.
+    /// Returns the System instance if the task succeeded, otherwise returns an error.
     /// This method will invalidate the task, so it can only be called once.
-    Result<> Take(std::optional<System>& optSystem);
+    Result<std::unique_ptr<System>> Take();
 
 private:
     friend System;

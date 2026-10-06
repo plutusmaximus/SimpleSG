@@ -2,7 +2,7 @@
 
 #include "Result.h"
 
-#include <optional>
+#include <memory>
 
 struct ImGuiContext;
 class GpuHelper;
@@ -18,14 +18,6 @@ class Texture;
 
 class ImGuiRenderer
 {
-    /// Key type used to control access to the public ctor.
-    struct CreateKey
-    {
-        friend class ImGuiRenderer;
-    private:
-        CreateKey() = default;
-    };
-
 public:
 
     ImGuiRenderer() = delete;
@@ -35,12 +27,7 @@ public:
     ImGuiRenderer(ImGuiRenderer&& other) = delete;
     ImGuiRenderer& operator=(ImGuiRenderer&& other) = delete;
 
-    explicit ImGuiRenderer(ImGuiContext* context, const CreateKey)
-        : m_Context(context)
-    {
-    }
-
-    static Result<> Create(const GpuHelper& gpuHelper, std::optional<ImGuiRenderer>& optRenderer);
+    static Result<std::unique_ptr<ImGuiRenderer>> Create(const GpuHelper& gpuHelper);
 
     template<typename Func>
     Result<> Render(const wgpu::Device& gpuDevice, const GpuRenderTarget& target, Func& renderFunc) const
@@ -60,6 +47,12 @@ public:
     }
 
 private:
+
+    explicit ImGuiRenderer(ImGuiContext* context)
+        : m_Context(context)
+    {
+    }
+
     Result<> NewFrame(const GpuRenderTarget& target) const;
 
     Result<> Composite(const wgpu::Device& gpuDevice, const GpuRenderTarget& target) const;

@@ -40,8 +40,7 @@ private:
     ICoopTask<System&>* m_AppTask{ nullptr};
 
     System::CreateTask m_SystemCreateTask;
-    std::optional<System> m_OptSystem;
-    System* m_System{ nullptr };
+    std::unique_ptr<System> m_System;
     
     Stage m_Stage{ Stage::None };
 };

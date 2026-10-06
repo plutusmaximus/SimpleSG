@@ -5,6 +5,7 @@
 #include "GpuTypes.h"
 #include "ShaderFetcher.h"
 
+#include <memory>
 #include <optional>
 
 class FileFetcher;
@@ -59,8 +60,8 @@ public:
     ~GpuColorPass() = default;
     GpuColorPass(const GpuColorPass&) = delete;
     GpuColorPass& operator=(const GpuColorPass&) = delete;
-    GpuColorPass(GpuColorPass&&) = default;
-    GpuColorPass& operator=(GpuColorPass&&) = default;
+    GpuColorPass(GpuColorPass&&) = delete;
+    GpuColorPass& operator=(GpuColorPass&&) = delete;
 
     Result<> SetInputs(const Inputs& inputs);
     Result<> SetOutputs(const Outputs& outputs);
@@ -134,7 +135,7 @@ public:
     CreateTask(CreateTask&&) = delete;
     CreateTask& operator=(CreateTask&&) = delete;
 
-    Result<GpuColorPass> Take();
+    Result<std::unique_ptr<GpuColorPass>> Take();
 
 private:
     enum class Stage
@@ -149,13 +150,12 @@ private:
 
     void OnUpdate() override;
 
-    Result<> CreatePass();
-
     const GpuHelper* m_GpuHelper{ nullptr };
     ShaderFetcher m_ShaderFetcher;
-    std::optional<GpuColorPass> m_GpuPass;
 
     Stage m_Stage{ Stage::None };
+
+    bool m_Consumed{ false };
 };
 
 class GpuColorPass::Invocation

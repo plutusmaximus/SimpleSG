@@ -1,7 +1,6 @@
 #define MLG_LOGGER_NAME "CMPP"
 
 #include "GpuCompositorPass.h"
-
 #include "GpuHelper.h"
 
 namespace
@@ -123,16 +122,28 @@ GpuCompositorPass::CreateTask::CreateTask(const GpuHelper& gpuHelper, FileFetche
 {
 }
 
-Result<GpuCompositorPass>
+Result<std::unique_ptr<GpuCompositorPass>>
 GpuCompositorPass::CreateTask::Take()
 {
     MLG_CHECKV(Stage::Succeeded == m_Stage, "Task did not succeed");
-    MLG_CHECKV(m_GpuPass, "Task result already consumed");
+    MLG_CHECKV(!m_Consumed, "Task result already consumed");
 
-    std::optional bye = std::move(m_GpuPass);
-    m_GpuPass.reset(); // Invalidate the result so it can only be taken once
+    m_Consumed = true;
+    
+    auto shader = m_ShaderFetcher.Take();
+    MLG_CHECK(shader, "Failed to fetch shader: {}", ShaderPath);
 
-    return std::move(*bye);
+    auto sampler = CreateSampler(*m_GpuHelper);
+    MLG_CHECK(sampler);
+
+    auto bindGroupLayout = CreateBindGroupLayout(*m_GpuHelper);
+    MLG_CHECK(bindGroupLayout);
+
+    auto pipelineLayout = CreatePipelineLayout(*m_GpuHelper, *bindGroupLayout);
+    MLG_CHECK(pipelineLayout);
+
+    return std::unique_ptr<GpuCompositorPass>(
+        new GpuCompositorPass(*m_GpuHelper, *shader, *sampler, *bindGroupLayout, *pipelineLayout));
 }
 
 // private:
@@ -173,15 +184,10 @@ GpuCompositorPass::CreateTask::OnUpdate()
             {
                 m_ShaderFetcher.Update();
             }
-            else if(CreatePass())
+            else
             {
                 MLG_DEBUG("Created compositor pass");
                 m_Stage = Stage::Succeeded;
-            }
-            else
-            {
-                MLG_ERROR("Failed to create compositor pass");
-                m_Stage = Stage::Failed;
             }
             break;
         case Stage::Failed:
@@ -191,27 +197,6 @@ GpuCompositorPass::CreateTask::OnUpdate()
             SetComplete();
             break;
     }
-}
-
-Result<>
-GpuCompositorPass::CreateTask::CreatePass()
-{
-    auto shader = m_ShaderFetcher.Take();
-    MLG_CHECK(shader, "Failed to fetch shader: {}", ShaderPath);
-
-    auto sampler = CreateSampler(*m_GpuHelper);
-    MLG_CHECK(sampler);
-
-    auto bindGroupLayout = CreateBindGroupLayout(*m_GpuHelper);
-    MLG_CHECK(bindGroupLayout);
-
-    auto pipelineLayout = CreatePipelineLayout(*m_GpuHelper, *bindGroupLayout);
-    MLG_CHECK(pipelineLayout);
-
-    m_GpuPass =
-        GpuCompositorPass(*m_GpuHelper, *shader, *sampler, *bindGroupLayout, *pipelineLayout);
-
-    return Result<>::Ok;
 }
 
 /// GpuCompositorPass

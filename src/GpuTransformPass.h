@@ -5,8 +5,8 @@
 #include "Result.h"
 #include "ShaderFetcher.h"
 
+#include <memory>
 #include <optional>
-#include <webgpu/webgpu_cpp.h>
 
 class FileFetcher;
 class GpuHelper;
@@ -46,8 +46,8 @@ public:
     ~GpuTransformPass() = default;
     GpuTransformPass(const GpuTransformPass&) = delete;
     GpuTransformPass& operator=(const GpuTransformPass&) = delete;
-    GpuTransformPass(GpuTransformPass&&) = default;
-    GpuTransformPass& operator=(GpuTransformPass&&) = default;
+    GpuTransformPass(GpuTransformPass&&) = delete;
+    GpuTransformPass& operator=(GpuTransformPass&&) = delete;
 
     Result<> SetInputs(const Inputs& inputs);
     Result<> SetOutputs(const Outputs& outputs);
@@ -101,7 +101,7 @@ public:
     CreateTask(CreateTask&&) = delete;
     CreateTask& operator=(CreateTask&&) = delete;
 
-    Result<GpuTransformPass> Take();
+    Result<std::unique_ptr<GpuTransformPass>> Take();
 
 private:
     enum class Stage
@@ -116,13 +116,12 @@ private:
 
     void OnUpdate() override;
 
-    Result<> CreatePass();
-
     const GpuHelper* m_GpuHelper{ nullptr };
     ShaderFetcher m_ShaderFetcher;
-    std::optional<GpuTransformPass> m_GpuPass;
 
     Stage m_Stage{ Stage::None };
+
+    bool m_Consumed{ false };
 };
 
 class GpuTransformPass::Invocation

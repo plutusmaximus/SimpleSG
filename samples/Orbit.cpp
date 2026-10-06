@@ -575,14 +575,14 @@ MainLoop()
         sysCreateTask.Update();
     }
 
-    std::optional<System> optSystem;
-    MLG_CHECK(sysCreateTask.Take(optSystem), "Failed to get create System");
-    MLG_CHECK(optSystem.has_value(), "System instance is not available");
+    auto systemResult = sysCreateTask.Take();
+    MLG_CHECK(systemResult, "Failed to get create System");
 
-    System& system = *optSystem;
-    const GpuHelper& gpuHelper = system.GetGpuHelper();
+    std::unique_ptr<System> system = std::move(*systemResult);
 
-    auto loadResult = LoadLevel(system);
+    const GpuHelper& gpuHelper = system->GetGpuHelper();
+
+    auto loadResult = LoadLevel(*system);
     MLG_CHECK(loadResult);
 
     std::unique_ptr<Level> level = std::move(*loadResult);
@@ -667,13 +667,13 @@ MainLoop()
             },
         };
 
-    system.SetActionMapping(actionMappings);
+    system->SetActionMapping(actionMappings);
 
     Timer frameTimer;
 
     bool isCameraActorActive = false;
 
-    while(!system.ShouldQuit())
+    while(!system->ShouldQuit())
     {
         MLG_SCOPED_TIMER(" Frame");
 
@@ -681,20 +681,20 @@ MainLoop()
 
         frameTimer.Restart();
 
-        system.ProcessEvents();
+        system->ProcessEvents();
 
-        if(system.IsMinimized())
+        if(system->IsMinimized())
         {
             std::this_thread::yield();
             continue;
         }
 
-        if(system.ShouldQuit())
+        if(system->ShouldQuit())
         {
             break;
         }
 
-        const InputMapper& inputMapper = system.GetInputMapper();
+        const InputMapper& inputMapper = system->GetInputMapper();
 
         if(inputMapper.IsActionTriggered(quit))
         {
@@ -703,12 +703,12 @@ MainLoop()
         if(inputMapper.IsActionTriggered(captureMouse))
         {
             isCameraActorActive = true;
-            system.SetMouseCaptured(true);
+            system->SetMouseCaptured(true);
         }
         if(inputMapper.IsActionTriggered(releaseMouse))
         {
             isCameraActorActive = false;
-            system.SetMouseCaptured(false);
+            system->SetMouseCaptured(false);
         }
         if(inputMapper.IsActionTriggered(explode))
         {
@@ -727,7 +727,7 @@ MainLoop()
         if(!pauseSim)
         {
             scene.Update(kPhysicsTimeStep);
-            ApplyGravity(scene, system.GetThreadPool());
+            ApplyGravity(scene, system->GetThreadPool());
 
             const float kineticEnergy = ComputeKineticEnergy(scene);
             const double totalEnergy = kineticEnergy + PerfCounterGlobals::TotalPE.GetValue();
@@ -760,7 +760,7 @@ MainLoop()
 
         auto renderGui = [&]() { return devUi.Render(); };
 
-        const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
+        const ImGuiRenderer& imGuiRenderer = system->GetImGuiRenderer();
         MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, renderGui));
 
         {

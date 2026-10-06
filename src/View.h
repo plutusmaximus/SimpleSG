@@ -41,9 +41,9 @@ public:
 private:
     View(const GpuHelper& gpuHelper,
         const Scene& scene,
-        GpuColorPass&& colorPass,
-        GpuCompositorPass&& compositorPass,
-        GpuTransformPass&& transformPass,
+        std::unique_ptr<GpuColorPass>&& colorPass,
+        std::unique_ptr<GpuCompositorPass>&& compositorPass,
+        std::unique_ptr<GpuTransformPass>&& transformPass,
         GpuVertexBuffer&& vertexBuffer,
         GpuIndexBuffer&& indexBuffer,
         GpuWorldTransformBuffer&& worldTransformBuffer,
@@ -68,9 +68,9 @@ private:
     const Scene* m_Scene{ nullptr };
 
     std::optional<GpuColorPass::Outputs> m_ColorPassOutputs;
-    GpuColorPass m_ColorPass;
-    GpuCompositorPass m_CompositorPass;
-    GpuTransformPass m_TransformPass;
+    std::unique_ptr<GpuColorPass> m_ColorPass;
+    std::unique_ptr<GpuCompositorPass> m_CompositorPass;
+    std::unique_ptr<GpuTransformPass> m_TransformPass;
 
     GpuVertexBuffer m_VertexBuffer;
     GpuIndexBuffer m_IndexBuffer;

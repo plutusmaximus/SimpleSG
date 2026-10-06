@@ -5,7 +5,7 @@
 #include "VecMath.h"
 
 #include <atomic>
-#include <optional>
+#include <memory>
 #include <string_view>
 
 struct SDL_Window;
@@ -13,16 +13,6 @@ using SDL_MetalView = void*;
 
 class GpuHelper final
 {
-    // Used to restrict who can call the public ctor.
-    // The ctor can't be made private because we use std::optional::emplace
-    // to construct it.
-    struct CreateKey
-    {
-        friend class GpuHelper;
-    private:
-        CreateKey() = default;
-    };
-
 public:
     /// The preferred texture format for render targets.
     static constexpr wgpu::TextureFormat kRenderTargetFormat = wgpu::TextureFormat::RGBA8Unorm;
@@ -40,15 +30,6 @@ public:
     GpuHelper& operator=(const GpuHelper&) = delete;
     GpuHelper(GpuHelper&&) = delete;
     GpuHelper& operator=(GpuHelper&&) = delete;
-
-    GpuHelper(SDL_Window* window,
-        SDL_MetalView metalView,
-        wgpu::Instance instance,
-        wgpu::Adapter adapter,
-        wgpu::Device device,
-        wgpu::Surface surface,
-        wgpu::TextureFormat surfaceFormat,
-        const CreateKey);
 
     SDL_Window* GetWindow() const;
     const wgpu::Instance& GetInstance() const;
@@ -151,6 +132,14 @@ private:
         Mapped,
     };
 
+    GpuHelper(SDL_Window* window,
+        SDL_MetalView metalView,
+        wgpu::Instance instance,
+        wgpu::Adapter adapter,
+        wgpu::Device device,
+        wgpu::Surface surface,
+        wgpu::TextureFormat surfaceFormat);
+
     Result<wgpu::Buffer> CreateGpuBuffer(const wgpu::BufferUsage usage,
         const size_t size,
         BufferMappedState mappedState,
@@ -195,9 +184,7 @@ public:
     CreateTask(CreateTask&&) = delete;
     CreateTask& operator=(CreateTask&&) = delete;
 
-    /// Populates the provided optional with the GpuHelper instance if the task succeeded, otherwise
-    /// returns an error.
-    Result<> Take(std::optional<GpuHelper>& gpuHelper);
+    Result<std::unique_ptr<GpuHelper>> Take();
 
 private:
     friend GpuHelper;

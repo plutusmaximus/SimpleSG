@@ -111,18 +111,16 @@ MainLoop()
         sysCreateTask.Update();
     }
 
-    std::optional<System> optSystem;
-    MLG_CHECK(sysCreateTask.Take(optSystem), "Failed to get create System");
-    MLG_CHECK(optSystem.has_value(), "System instance is not available");
-
-    System& system = *optSystem;
+    auto systemResult = sysCreateTask.Take();
+    MLG_CHECK(systemResult, "Failed to create System");
+    std::unique_ptr<System> system = std::move(*systemResult);
 
     CameraActor cameraActor;
 
     const auto sponzaModelPath = DirectoryPath::Current().Join(SPONZA_MODEL_PATH);
     MLG_CHECK(sponzaModelPath, "Failed to get sponza model path");
 
-    auto loadResult = LoadLevel(system, *sponzaModelPath);
+    auto loadResult = LoadLevel(*system, *sponzaModelPath);
     MLG_CHECK(loadResult, "Failed to load resources");
 
     const std::unique_ptr<Level> level = std::move(*loadResult);
@@ -134,7 +132,7 @@ MainLoop()
 
     const Radiansf cameraYaw = Radiansf::FromDegrees(kDefaultCameraYaw);
 
-    const GpuHelper& gpuHelper = system.GetGpuHelper();
+    const GpuHelper& gpuHelper = system->GetGpuHelper();
 
     Dimension2 screenDimensions = gpuHelper.GetScreenDimensions();
     TrTransformf cameraXForm{ .T{ 0, kDefaultCameraHeight, 0 }, .R{ cameraYaw, Vec3f::YAXIS() } };
@@ -195,13 +193,13 @@ MainLoop()
             },
         };
 
-    system.SetActionMapping(actionMappings);
+    system->SetActionMapping(actionMappings);
 
     Timer frameTimer;
 
     bool isCameraActorActive = false;
 
-    while(!system.ShouldQuit())
+    while(!system->ShouldQuit())
     {
         MLG_SCOPED_TIMER("Frame");
 
@@ -209,20 +207,20 @@ MainLoop()
 
         frameTimer.Restart();
 
-        system.ProcessEvents();
+        system->ProcessEvents();
 
-        if(system.IsMinimized())
+        if(system->IsMinimized())
         {
             std::this_thread::yield();
             continue;
         }
 
-        if(system.ShouldQuit())
+        if(system->ShouldQuit())
         {
             break;
         }
 
-        const InputMapper& inputMapper = system.GetInputMapper();
+        const InputMapper& inputMapper = system->GetInputMapper();
 
         if(inputMapper.IsActionTriggered(quit))
         {
@@ -231,12 +229,12 @@ MainLoop()
         if(inputMapper.IsActionTriggered(captureMouse))
         {
             isCameraActorActive = true;
-            system.SetMouseCaptured(true);
+            system->SetMouseCaptured(true);
         }
         if(inputMapper.IsActionTriggered(releaseMouse))
         {
             isCameraActorActive = false;
-            system.SetMouseCaptured(false);
+            system->SetMouseCaptured(false);
         }
 
         const Dimension2 curScreenDimensions = gpuHelper.GetScreenDimensions();
@@ -259,7 +257,7 @@ MainLoop()
         MLG_CHECK(view.Render(camera, cameraXForm));
         MLG_CHECK(view.Composite(*target));
 
-        const ImGuiRenderer& imGuiRenderer = system.GetImGuiRenderer();
+        const ImGuiRenderer& imGuiRenderer = system->GetImGuiRenderer();
         MLG_CHECK(imGuiRenderer.Render(gpuHelper.GetDevice(), *target, RenderGui));
 
         MLG_CHECK(gpuHelper.Present(), "Failed to present backbuffer");
