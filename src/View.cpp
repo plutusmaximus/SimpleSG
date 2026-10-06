@@ -11,7 +11,6 @@
 #include "System.h"
 #include "TextureFetcher.h"
 
-
 namespace
 {
 
@@ -208,15 +207,12 @@ View::Render(const Camera& camera, const TrTransformf& cameraXForm)
     MLG_CHECK(m_ColorPass->SetInputs(colorPassInputs));
     MLG_CHECK(m_ColorPass->SetOutputs(*m_ColorPassOutputs));
 
-    auto invocation = m_ColorPass->Prepare(cmdEncoder);
-    MLG_CHECK(invocation);
-
     m_VisibleMeshes.clear();
     const Frustum frustum(camera, cameraXForm);
     CollectVisibleMeshes(frustum, m_VisibleMeshes);
     std::ranges::sort(m_VisibleMeshes, {}, &MeshInstance::GetMaterialIndex);
 
-    MLG_CHECK(invocation->Execute(viewport, m_VisibleMeshes, m_MaterialBindGroups));
+    MLG_CHECK(m_ColorPass->Execute(cmdEncoder, viewport, m_VisibleMeshes, m_MaterialBindGroups));
 
     const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
     MLG_CHECK(cmdBuf, "Failed to finish command buffer");
@@ -257,12 +253,7 @@ View::Composite(const GpuRenderTarget& target, const Rect& dstRect)
     MLG_CHECK(m_CompositorPass->SetInputs(inputs));
     MLG_CHECK(m_CompositorPass->SetOutputs(outputs));
 
-    auto pass = m_CompositorPass->Prepare();
-    MLG_CHECK(pass, "Failed to begin compositor pass");
-
-    MLG_CHECK(pass->Execute(), "Failed to execute compositor pass");
-
-    return Result<>::Ok;
+    return m_CompositorPass->Execute();
 }
 
 // private:
@@ -382,12 +373,8 @@ View::TransformNodes(const wgpu::Device& gpuDevice,
 
     MLG_CHECK(m_TransformPass->SetInputs(inputs));
     MLG_CHECK(m_TransformPass->SetOutputs(outputs));
-    auto invocation = m_TransformPass->Prepare(cmdEncoder);
-    MLG_CHECK(invocation, "Failed to prepare transform pass");
 
-    MLG_CHECK(invocation->Execute(), "Failed to execute transform pass");
-
-    return Result<>::Ok;
+    return m_TransformPass->Execute(cmdEncoder);
 }
 
 namespace

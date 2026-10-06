@@ -2,6 +2,7 @@
 
 #include "GpuHelper.h"
 #include "GpuTransformPass.h"
+#include "PerfMetrics.h"
 
 namespace
 {
@@ -232,47 +233,49 @@ GpuTransformPass::SetOutputs(const Outputs& outputs)
     return Result<>::Ok;
 }
 
-Result<GpuTransformPass::Invocation>
-GpuTransformPass::Prepare()
+Result<>
+GpuTransformPass::Execute()
 {
-    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "GpuTransformPass" };
-    const wgpu::CommandEncoder cmdEncoder =
-        m_GpuHelper->GetDevice().CreateCommandEncoder(&encoderDesc);
+    const wgpu::Device gpuDevice = m_GpuHelper->GetDevice();
+    
+    const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder();
     MLG_CHECK(cmdEncoder, "Failed to create command encoder");
 
-    auto invocation = Prepare(cmdEncoder);
+    MLG_CHECK(Execute(cmdEncoder));
 
-    if(invocation)
-    {
-        // We own the encoder - hand it over to the invocation so it can submit the command buffer
-        // when Execute() is called.
-        invocation->m_CmdEncoder = std::move(cmdEncoder);
-    }
+    const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
+    MLG_CHECK(cmdBuf, "Failed to finish command buffer");
 
-    return invocation;
+    const wgpu::Queue queue = gpuDevice.GetQueue();
+    MLG_CHECK(queue, "Failed to get wgpu::Queue");
+
+    queue.Submit(1, &cmdBuf);
+
+    return Result<>::Ok;
 }
 
-Result<GpuTransformPass::Invocation>
-GpuTransformPass::Prepare(wgpu::CommandEncoder cmdEncoder)
+Result<>
+GpuTransformPass::Execute(wgpu::CommandEncoder cmdEncoder)
 {
-    MLG_CHECK(EnsurePipeline());
-    MLG_CHECK(EnsureInputOutputBindGroup());
+    MLG_SCOPED_TIMER("GpuTransformPass.Execute")
+
+    auto computePassResult = CreateComputePassEncoder(cmdEncoder);
+    MLG_CHECK(computePassResult, "Failed to create compute pass encoder");
+
+    const wgpu::ComputePassEncoder computePass = std::move(*computePassResult);
 
     MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
-    MLG_CHECKV(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
-
-    MLG_CHECK(m_Inputs->WorldTransforms.BufferSize() <= m_Outputs->ClipSpaceTransforms.BufferSize(),
-        "The ClipSpaceTransforms buffer must be at least as big as the WorldTransforms buffer");
-
-    const wgpu::ComputePassEncoder computePass = cmdEncoder.BeginComputePass();
-    MLG_CHECK(computePass, "Failed to begin compute pass");
-
-    computePass.SetPipeline(m_Pipeline);
-    computePass.SetBindGroup(0, m_InputOutputBindGroup);
-
     const size_t instanceCount = m_Inputs->WorldTransforms.Count();
 
-    return Invocation(m_GpuHelper->GetDevice(), std::move(computePass), instanceCount);
+    // Number of workgroups to dispatch is the number of instances divided by the workgroup size,
+    // rounded up.
+    const size_t workgroupCountX = (instanceCount / GpuTransformPass::kWorkgroupSize)
+        + (instanceCount % GpuTransformPass::kWorkgroupSize != 0);
+
+    computePass.DispatchWorkgroups(static_cast<uint32_t>(workgroupCountX));
+    computePass.End();
+
+    return Result<>::Ok;
 }
 
 // private:
@@ -341,42 +344,23 @@ GpuTransformPass::EnsureInputOutputBindGroup()
     return Result<>::Ok;
 }
 
-// GpuTransformPass::Invocation
-
-GpuTransformPass::Invocation::~Invocation()
+Result<wgpu::ComputePassEncoder>
+GpuTransformPass::CreateComputePassEncoder(const wgpu::CommandEncoder& cmdEncoder)
 {
-    MLG_ASSERT(!m_ComputePass, "Pass must be executed before destruction");
-}
+    MLG_CHECK(EnsurePipeline());
+    MLG_CHECK(EnsureInputOutputBindGroup());
 
-Result<>
-GpuTransformPass::Invocation::Execute()
-{
-    MLG_CHECKV(m_ComputePass, "Pass has already been executed");
+    MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
+    MLG_CHECKV(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
 
-    // Consume the compute pass so it can't be used again.
-    const wgpu::ComputePassEncoder computePass = std::move(m_ComputePass);
+    MLG_CHECK(m_Inputs->WorldTransforms.BufferSize() <= m_Outputs->ClipSpaceTransforms.BufferSize(),
+        "The ClipSpaceTransforms buffer must be at least as big as the WorldTransforms buffer");
 
-    m_ComputePass = {};
+    const wgpu::ComputePassEncoder computePass = cmdEncoder.BeginComputePass();
+    MLG_CHECK(computePass, "Failed to begin compute pass");
 
-    // Number of workgroups to dispatch is the number of instances divided by the workgroup size,
-    // rounded up.
-    const size_t workgroupCountX = (m_InstanceCount / GpuTransformPass::kWorkgroupSize)
-        + (m_InstanceCount % GpuTransformPass::kWorkgroupSize != 0);
+    computePass.SetPipeline(m_Pipeline);
+    computePass.SetBindGroup(0, m_InputOutputBindGroup);
 
-    computePass.DispatchWorkgroups(static_cast<uint32_t>(workgroupCountX));
-    computePass.End();
-
-    // If m_CmdEncoder is null then it's owned by the caller and they are responsible for submitting
-    // it to the GPU. Otherwise, we own it and we will submit it to the GPU here.
-    if(m_CmdEncoder)
-    {
-        const wgpu::CommandBuffer cmdBuf = m_CmdEncoder.Finish(nullptr);
-        MLG_CHECK(cmdBuf, "Failed to finish command buffer");
-
-        const wgpu::Queue queue = m_GpuDevice.GetQueue();
-        MLG_CHECK(queue, "Failed to get wgpu::Queue");
-        queue.Submit(1, &cmdBuf);
-    }
-
-    return Result<>::Ok;
+    return computePass;
 }

@@ -2,6 +2,7 @@
 
 #include "GpuCompositorPass.h"
 #include "GpuHelper.h"
+#include "PerfMetrics.h"
 
 namespace
 {
@@ -239,91 +240,41 @@ GpuCompositorPass::SetOutputs(const Outputs& outputs)
     return Result<>::Ok;
 }
 
-Result<GpuCompositorPass::Invocation>
-GpuCompositorPass::Prepare()
+Result<>
+GpuCompositorPass::Execute()
 {
-    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "GpuCompositorPass" };
-    wgpu::CommandEncoder cmdEncoder = m_GpuHelper->GetDevice().CreateCommandEncoder(&encoderDesc);
+    const wgpu::Device gpuDevice = m_GpuHelper->GetDevice();
+    
+    const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder();
     MLG_CHECK(cmdEncoder, "Failed to create command encoder");
 
-    auto invocation = Prepare(cmdEncoder);
+    MLG_CHECK(Execute(cmdEncoder));
 
-    if(invocation)
-    {
-        // We own the encoder - hand it over to the invocation so it can submit the command buffer
-        // when Execute() is called.
-        invocation->m_CmdEncoder = std::move(cmdEncoder);
-    }
+    const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
+    MLG_CHECK(cmdBuf, "Failed to finish command buffer");
 
-    return invocation;
+    const wgpu::Queue queue = gpuDevice.GetQueue();
+    MLG_CHECK(queue, "Failed to get wgpu::Queue");
+
+    queue.Submit(1, &cmdBuf);
+
+    return Result<>::Ok;
 }
 
-Result<GpuCompositorPass::Invocation>
-GpuCompositorPass::Prepare(const wgpu::CommandEncoder& cmdEncoder)
+Result<>
+GpuCompositorPass::Execute(const wgpu::CommandEncoder& cmdEncoder)
 {
-    MLG_CHECK(EnsurePipeline());
-    MLG_CHECK(EnsureInputsBindGroup());
+    MLG_SCOPED_TIMER("GpuCompositorPass.Execute")
 
-    MLG_CHECK(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
-    MLG_CHECK(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
+    auto renderPassResult = CreateRenderPassEncoder(cmdEncoder);
+    MLG_CHECK(renderPassResult, "Failed to create render pass encoder");
 
-    MLG_CHECKV(m_Outputs->RenderTarget.Get() != m_Inputs->Texture,
-        "Output texture must be different from input texture");
+    const wgpu::RenderPassEncoder renderPass = std::move(*renderPassResult);
 
-    const Rect targetRect({ .X = 0,
-        .Y = 0,
-        .Width = m_Outputs->RenderTarget->GetWidth(),
-        .Height = m_Outputs->RenderTarget->GetHeight() });
+    renderPass.Draw(3, 1, 0, 0);
+    renderPass.End();
 
-    Rect dstRect = m_Inputs->DstRect;
-
-    if(!targetRect.Contains(m_Inputs->DstRect))
-    {
-        MLG_CHECKV(targetRect.Intersects(m_Inputs->DstRect), "DstRect is outside of target rect");
-
-        dstRect = targetRect.Intersect(m_Inputs->DstRect);
-        MLG_WARN("dstRect clipped");
-    }
-
-    const wgpu::RenderPassColorAttachment attachment //
-        {
-            .view = m_Outputs->RenderTarget->CreateView(),
-            .loadOp = wgpu::LoadOp::Clear,
-            .storeOp = wgpu::StoreOp::Store,
-            .clearValue = { .r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 1.0f },
-        };
-
-    const wgpu::RenderPassDescriptor renderPassDesc //
-        {
-            .label = "GpuCompositorPass",
-            .colorAttachmentCount = 1,
-            .colorAttachments = &attachment,
-        };
-
-    const wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
-    MLG_CHECK(renderPass, "Failed to begin render pass");
-
-    renderPass.SetPipeline(m_Pipeline);
-    renderPass.SetBindGroup(0, m_InputsBindGroup, 0, nullptr);
-
-    {
-        const float x = static_cast<float>(dstRect.GetX());
-        const float y = static_cast<float>(dstRect.GetY());
-        const float width = static_cast<float>(dstRect.GetWidth());
-        const float height = static_cast<float>(dstRect.GetHeight());
-
-        renderPass.SetViewport(x, y, width, height, 0, 1);
-    }
-    {
-        const uint32_t x = static_cast<uint32_t>(dstRect.GetX());
-        const uint32_t y = static_cast<uint32_t>(dstRect.GetY());
-        const uint32_t width = static_cast<uint32_t>(dstRect.GetWidth());
-        const uint32_t height = static_cast<uint32_t>(dstRect.GetHeight());
-
-        renderPass.SetScissorRect(x, y, width, height);
-    }
-
-    return GpuCompositorPass::Invocation(m_GpuHelper->GetDevice(), std::move(renderPass));
+    return Result<>::Ok;
 }
 
 // private:
@@ -444,37 +395,70 @@ GpuCompositorPass::EnsureInputsBindGroup()
     return Result<>::Ok;
 }
 
-// GpuCompositorPass::Pass
-
-GpuCompositorPass::Invocation::~Invocation()
+Result<wgpu::RenderPassEncoder>
+GpuCompositorPass::CreateRenderPassEncoder(const wgpu::CommandEncoder& cmdEncoder)
 {
-    MLG_ASSERT(!m_RenderPass, "Pass must be executed before destruction");
-}
+    MLG_CHECK(EnsurePipeline());
+    MLG_CHECK(EnsureInputsBindGroup());
 
-Result<>
-GpuCompositorPass::Invocation::Execute()
-{
-    MLG_CHECKV(m_RenderPass, "Pass has already been executed");
+    MLG_CHECK(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
+    MLG_CHECK(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
 
-    // Consume the render pass so it can't be used again.
-    const wgpu::RenderPassEncoder renderPass = std::move(m_RenderPass);
+    MLG_CHECKV(m_Outputs->RenderTarget.Get() != m_Inputs->Texture,
+        "Output texture must be different from input texture");
 
-    m_RenderPass = {};
+    const Rect targetRect({ .X = 0,
+        .Y = 0,
+        .Width = m_Outputs->RenderTarget->GetWidth(),
+        .Height = m_Outputs->RenderTarget->GetHeight() });
 
-    renderPass.Draw(3, 1, 0, 0);
-    renderPass.End();
+    Rect dstRect = m_Inputs->DstRect;
 
-    // If m_CmdEncoder is null then it's owned by the caller and they are responsible for submitting
-    // it to the GPU. Otherwise, we own it and we will submit it to the GPU here.
-    if(m_CmdEncoder)
+    if(!targetRect.Contains(m_Inputs->DstRect))
     {
-        const wgpu::CommandBuffer cmdBuf = m_CmdEncoder.Finish(nullptr);
-        MLG_CHECK(cmdBuf, "Failed to finish command buffer");
+        MLG_CHECKV(targetRect.Intersects(m_Inputs->DstRect), "DstRect is outside of target rect");
 
-        const wgpu::Queue queue = m_GpuDevice.GetQueue();
-        MLG_CHECK(queue, "Failed to get wgpu::Queue");
-        queue.Submit(1, &cmdBuf);
+        dstRect = targetRect.Intersect(m_Inputs->DstRect);
+        MLG_WARN("dstRect clipped");
     }
 
-    return Result<>::Ok;
+    const wgpu::RenderPassColorAttachment attachment //
+        {
+            .view = m_Outputs->RenderTarget->CreateView(),
+            .loadOp = wgpu::LoadOp::Clear,
+            .storeOp = wgpu::StoreOp::Store,
+            .clearValue = { .r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 1.0f },
+        };
+
+    const wgpu::RenderPassDescriptor renderPassDesc //
+        {
+            .label = "GpuCompositorPass",
+            .colorAttachmentCount = 1,
+            .colorAttachments = &attachment,
+        };
+
+    const wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
+    MLG_CHECK(renderPass, "Failed to begin render pass");
+
+    renderPass.SetPipeline(m_Pipeline);
+    renderPass.SetBindGroup(0, m_InputsBindGroup, 0, nullptr);
+
+    {
+        const float x = static_cast<float>(dstRect.GetX());
+        const float y = static_cast<float>(dstRect.GetY());
+        const float width = static_cast<float>(dstRect.GetWidth());
+        const float height = static_cast<float>(dstRect.GetHeight());
+
+        renderPass.SetViewport(x, y, width, height, 0, 1);
+    }
+    {
+        const uint32_t x = static_cast<uint32_t>(dstRect.GetX());
+        const uint32_t y = static_cast<uint32_t>(dstRect.GetY());
+        const uint32_t width = static_cast<uint32_t>(dstRect.GetWidth());
+        const uint32_t height = static_cast<uint32_t>(dstRect.GetHeight());
+
+        renderPass.SetScissorRect(x, y, width, height);
+    }
+
+    return renderPass;
 }

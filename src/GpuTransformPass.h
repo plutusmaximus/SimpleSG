@@ -15,7 +15,6 @@ class GpuTransformPass
 {
 public:
     class CreateTask;
-    class Invocation;
 
     struct Inputs
     {
@@ -52,9 +51,15 @@ public:
     Result<> SetInputs(const Inputs& inputs);
     Result<> SetOutputs(const Outputs& outputs);
 
-    Result<Invocation> Prepare();
+    /// Executes the pass using the supplied inputs and outputs.
+    /// This variant of Execute creates a command encoder that's owned and
+    /// submitted to the GPU before returning.
+    Result<> Execute();
 
-    Result<Invocation> Prepare(wgpu::CommandEncoder cmdEncoder);
+    /// Executes the pass using the supplied inputs and outputs.
+    /// This variant of Execute uses the provided command encoder.
+    /// The caller is responsible for submitting the command encoder to the GPU.
+    Result<> Execute(wgpu::CommandEncoder cmdEncoder);
 
 private:
     static constexpr const char* ShaderPath = "shaders/TransformShader.wgsl";
@@ -78,6 +83,7 @@ private:
 
     Result<> EnsurePipeline();
     Result<> EnsureInputOutputBindGroup();
+    Result<wgpu::ComputePassEncoder> CreateComputePassEncoder(const wgpu::CommandEncoder& cmdEncoder);
 
     const GpuHelper* m_GpuHelper;
 
@@ -122,32 +128,4 @@ private:
     Stage m_Stage{ Stage::None };
 
     bool m_Consumed{ false };
-};
-
-class GpuTransformPass::Invocation
-{
-public:
-    Invocation() = delete;
-    ~Invocation();
-    Invocation(const Invocation&) = delete;
-    Invocation& operator=(const Invocation&) = delete;
-    Invocation(Invocation&&) = default;
-    Invocation& operator=(Invocation&&) = delete;
-
-    Result<> Execute();
-
-private:
-    friend GpuTransformPass;
-
-    Invocation(wgpu::Device gpuDevice, wgpu::ComputePassEncoder computePass, size_t instanceCount)
-        : m_GpuDevice(std::move(gpuDevice)),
-          m_ComputePass(std::move(computePass)),
-          m_InstanceCount(instanceCount)
-    {
-    }
-
-    wgpu::Device m_GpuDevice;
-    wgpu::ComputePassEncoder m_ComputePass;
-    wgpu::CommandEncoder m_CmdEncoder;
-    size_t m_InstanceCount = 0;
 };

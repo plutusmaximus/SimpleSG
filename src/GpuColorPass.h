@@ -16,7 +16,6 @@ class GpuColorPass
 {
 public:
     class CreateTask;
-    class Invocation;
 
     struct Inputs
     {
@@ -66,15 +65,20 @@ public:
     Result<> SetInputs(const Inputs& inputs);
     Result<> SetOutputs(const Outputs& outputs);
 
-    /// Prepares an invocation of the pass for execution.
-    /// This variant of Prepare creates a command encoder that's owned and
-    /// submitted to the GPU by the invocation.
-    Result<Invocation> Prepare();
+    /// Executes the pass using the supplied inputs and outputs.
+    /// This variant of Execute creates a command encoder that's owned and
+    /// submitted to the GPU before returning.
+    Result<> Execute(const Viewport& viewport,
+        const std::span<MeshInstance> visibleMeshes,
+        const std::span<const wgpu::BindGroup> materialBindGroups);
 
-    /// Prepares an invocation of the pass for execution.
-    /// This variant of Prepare uses the provided command encoder.
+    /// Executes the pass using the supplied inputs and outputs.
+    /// This variant of Execute uses the provided command encoder.
     /// The caller is responsible for submitting the command encoder to the GPU.
-    Result<Invocation> Prepare(const wgpu::CommandEncoder& cmdEncoder);
+    Result<> Execute(const wgpu::CommandEncoder& cmdEncoder,
+        const Viewport& viewport,
+        const std::span<MeshInstance> visibleMeshes,
+        const std::span<const wgpu::BindGroup> materialBindGroups);
 
     /// Creates a material bind group for the color pass.
     Result<wgpu::BindGroup> CreateMaterialBindGroup(const wgpu::Texture& texture,
@@ -109,6 +113,7 @@ private:
 
     Result<> EnsurePipeline();
     Result<> EnsureInputsBindGroup();
+    Result<wgpu::RenderPassEncoder> CreateRenderPassEncoder(const wgpu::CommandEncoder& cmdEncoder);
 
     const GpuHelper* m_GpuHelper{ nullptr };
 
@@ -156,32 +161,4 @@ private:
     Stage m_Stage{ Stage::None };
 
     bool m_Consumed{ false };
-};
-
-class GpuColorPass::Invocation
-{
-public:
-    Invocation() = delete;
-    ~Invocation();
-    Invocation(const Invocation&) = delete;
-    Invocation& operator=(const Invocation&) = delete;
-    Invocation(Invocation&&) = default;
-    Invocation& operator=(Invocation&&) = delete;
-
-    Result<> Execute(const Viewport& viewport,
-        const std::span<MeshInstance> visibleMeshes,
-        const std::span<const wgpu::BindGroup> materialBindGroups);
-
-private:
-    friend GpuColorPass;
-
-    Invocation(wgpu::Device gpuDevice, wgpu::RenderPassEncoder renderPass)
-        : m_GpuDevice(std::move(gpuDevice)),
-          m_RenderPass(std::move(renderPass))
-    {
-    }
-
-    wgpu::Device m_GpuDevice;
-    wgpu::RenderPassEncoder m_RenderPass;
-    wgpu::CommandEncoder m_CmdEncoder;
 };

@@ -423,104 +423,86 @@ GpuColorPass::SetOutputs(const Outputs& outputs)
     return Result<>::Ok;
 }
 
-Result<GpuColorPass::Invocation>
-GpuColorPass::Prepare()
+Result<>
+GpuColorPass::Execute(const Viewport& viewport,
+    const std::span<MeshInstance> visibleMeshes,
+    const std::span<const wgpu::BindGroup> materialBindGroups)
 {
-    const wgpu::CommandEncoderDescriptor encoderDesc = { .label = "GpuColorPass" };
-    wgpu::CommandEncoder cmdEncoder = m_GpuHelper->GetDevice().CreateCommandEncoder(&encoderDesc);
+    const wgpu::Device gpuDevice = m_GpuHelper->GetDevice();
+    
+    const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder();
     MLG_CHECK(cmdEncoder, "Failed to create command encoder");
 
-    auto invocation = Prepare(cmdEncoder);
+    MLG_CHECK(Execute(cmdEncoder, viewport, visibleMeshes, materialBindGroups));
 
-    if(invocation)
-    {
-        // We own the encoder - hand it over to the invocation so it can submit the command buffer
-        // when Execute() is called.
-        invocation->m_CmdEncoder = std::move(cmdEncoder);
-    }
+    const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
+    MLG_CHECK(cmdBuf, "Failed to finish command buffer");
 
-    return invocation;
+    const wgpu::Queue queue = gpuDevice.GetQueue();
+    MLG_CHECK(queue, "Failed to get wgpu::Queue");
+
+    queue.Submit(1, &cmdBuf);
+
+    return Result<>::Ok;
 }
 
-Result<GpuColorPass::Invocation>
-GpuColorPass::Prepare(const wgpu::CommandEncoder& cmdEncoder)
+Result<>
+GpuColorPass::Execute(const wgpu::CommandEncoder& cmdEncoder,
+    const Viewport& viewport,
+    const std::span<MeshInstance> visibleMeshes,
+    const std::span<const wgpu::BindGroup> materialBindGroups)
 {
-    MLG_CHECK(EnsurePipeline());
-    MLG_CHECK(EnsureInputsBindGroup());
+    MLG_SCOPED_TIMER("GpuColorPass.Execute")
 
-    MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
-    MLG_CHECKV(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
+    auto renderPassResult = CreateRenderPassEncoder(cmdEncoder);
+    MLG_CHECK(renderPassResult, "Failed to create render pass encoder");
 
-    MLG_CHECKV(m_Outputs->RenderTarget->GetFormat() == GpuHelper::kRenderTargetFormat,
-        "Unexpected render target format");
+    const wgpu::RenderPassEncoder renderPass = std::move(*renderPassResult);
 
-    const wgpu::RenderPassColorAttachment attachment //
-        {
-            .view = m_Outputs->RenderTarget->CreateView(),
-            .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
-            .loadOp = wgpu::LoadOp::Clear,
-            .storeOp = wgpu::StoreOp::Store,
-            .clearValue = { .r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 1.0f },
-        };
+    renderPass.SetViewport(static_cast<float>(viewport.GetX()),
+        static_cast<float>(viewport.GetY()),
+        static_cast<float>(viewport.GetWidth()),
+        static_cast<float>(viewport.GetHeight()),
+        viewport.GetMinDepth(),
+        viewport.GetMaxDepth());
 
-    const wgpu::RenderPassDepthStencilAttachment depthStencilAttachment //
-        {
-            .view = m_Outputs->DepthBuffer->CreateView(),
-            .depthLoadOp = wgpu::LoadOp::Clear,
-            .depthStoreOp = wgpu::StoreOp::Store,
-            .depthClearValue = kClearDepth,
-            .stencilLoadOp = wgpu::LoadOp::Undefined,
-            .stencilStoreOp = wgpu::StoreOp::Undefined,
-            .stencilClearValue = 0,
-        };
+    renderPass.SetScissorRect(viewport.GetX(),
+        viewport.GetY(),
+        viewport.GetWidth(),
+        viewport.GetHeight());
 
-    const wgpu::RenderPassDescriptor renderPassDesc //
-        {
-            .label = "GpuColorPass",
-            .colorAttachmentCount = 1,
-            .colorAttachments = &attachment,
-            .depthStencilAttachment = &depthStencilAttachment,
-        };
+    // Track how many times we have to change materials.
+    static PerfCounter pcMaterialChanges({ .Name = "GpuColorPass.Execute.MaterialChanges" });
 
-    const wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
-    MLG_CHECK(renderPass, "Failed to begin render pass");
+    uint32_t materialIndex = std::numeric_limits<uint32_t>::max();
 
+    for(const MeshInstance& meshInstance : visibleMeshes)
     {
-        MLG_SCOPED_TIMER("GpuColorPass.Prepare.SetPipeline");
+        if(meshInstance.GetMaterialIndex() != materialIndex)
+        {
+            pcMaterialChanges.Increment(1);
 
-        renderPass.SetPipeline(m_Pipeline);
+            materialIndex = meshInstance.GetMaterialIndex();
+            MLG_ASSERT(materialIndex < materialBindGroups.size(),
+                "Material index {} is out of bounds (material bind group count: {})",
+                materialIndex,
+                materialBindGroups.size());
+
+            const wgpu::BindGroup& bindGroup = materialBindGroups[materialIndex];
+
+            renderPass.SetBindGroup(1, bindGroup, 0, nullptr);
+        }
+
+        renderPass.DrawIndexed(meshInstance.GetIndexCount(),
+            1,
+            meshInstance.GetFirstIndex(),
+            static_cast<int32_t>(meshInstance.GetBaseVertex()),
+            meshInstance.GetFirstInstance());
     }
 
-    {
-        MLG_SCOPED_TIMER("GpuColorPass.Prepare.SetPerFrameBindGroup");
-        renderPass.SetBindGroup(0, m_InputsBindGroup, 0, nullptr);
-    }
+    renderPass.End();
 
-    {
-        MLG_SCOPED_TIMER("GpuColorPass.Prepare.SetBuffers");
-
-        constexpr size_t kU16BitWidth = 16;
-        constexpr size_t kU32BitWidth = 32;
-
-        static_assert(VERTEX_INDEX_BITS == kU32BitWidth || VERTEX_INDEX_BITS == kU16BitWidth,
-            "Unsupported index buffer format: only 16-bit and 32-bit indices are supported");
-
-        constexpr wgpu::IndexFormat idxFmt = (VERTEX_INDEX_BITS == kU32BitWidth)
-            ? wgpu::IndexFormat::Uint32
-            : wgpu::IndexFormat::Uint16;
-
-        renderPass.SetVertexBuffer(0,
-            m_Inputs->Vertices.GetGpuBuffer(),
-            0,
-            m_Inputs->Vertices.BufferSize());
-
-        renderPass.SetIndexBuffer(m_Inputs->Indices.GetGpuBuffer(),
-            idxFmt,
-            0,
-            m_Inputs->Indices.BufferSize());
-    }
-
-    return Invocation(m_GpuHelper->GetDevice(), std::move(renderPass));
+    return Result<>::Ok;
 }
 
 Result<wgpu::BindGroup>
@@ -677,82 +659,83 @@ GpuColorPass::EnsureInputsBindGroup()
     return Result<>::Ok;
 }
 
-// GpuColorPass::Invocation
-
-GpuColorPass::Invocation::~Invocation()
+Result<wgpu::RenderPassEncoder>
+GpuColorPass::CreateRenderPassEncoder(const wgpu::CommandEncoder& cmdEncoder)
 {
-    MLG_ASSERT(!m_RenderPass, "Pass must be executed before destruction");
-}
+    MLG_CHECK(EnsurePipeline());
+    MLG_CHECK(EnsureInputsBindGroup());
 
-Result<>
-GpuColorPass::Invocation::Execute(const Viewport& viewport,
-    const std::span<MeshInstance> visibleMeshes,
-    const std::span<const wgpu::BindGroup> materialBindGroups)
-{
-    MLG_SCOPED_TIMER("GpuColorPass.Execute")
+    MLG_CHECKV(m_Inputs, "Inputs are not valid - forget to call SetInputs()?");
+    MLG_CHECKV(m_Outputs, "Outputs are not valid - forget to call SetOutputs()?");
 
-    MLG_CHECKV(m_RenderPass, "Pass has already been executed");
+    MLG_CHECKV(m_Outputs->RenderTarget->GetFormat() == GpuHelper::kRenderTargetFormat,
+        "Unexpected render target format");
 
-    // Consume the render pass so it can't be used again.
-    const wgpu::RenderPassEncoder renderPass = std::move(m_RenderPass);
-
-    m_RenderPass = {};
-
-    renderPass.SetViewport(static_cast<float>(viewport.GetX()),
-        static_cast<float>(viewport.GetY()),
-        static_cast<float>(viewport.GetWidth()),
-        static_cast<float>(viewport.GetHeight()),
-        viewport.GetMinDepth(),
-        viewport.GetMaxDepth());
-
-    renderPass.SetScissorRect(viewport.GetX(),
-        viewport.GetY(),
-        viewport.GetWidth(),
-        viewport.GetHeight());
-
-    // Track how many times we have to change materials.
-    static PerfCounter pcMaterialChanges({ .Name = "GpuColorPass.Execute.MaterialChanges" });
-
-    uint32_t materialIndex = std::numeric_limits<uint32_t>::max();
-
-    for(const MeshInstance& meshInstance : visibleMeshes)
-    {
-        if(meshInstance.GetMaterialIndex() != materialIndex)
+    const wgpu::RenderPassColorAttachment attachment //
         {
-            pcMaterialChanges.Increment(1);
+            .view = m_Outputs->RenderTarget->CreateView(),
+            .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+            .loadOp = wgpu::LoadOp::Clear,
+            .storeOp = wgpu::StoreOp::Store,
+            .clearValue = { .r = 0.0f, .g = 0.0f, .b = 0.0f, .a = 1.0f },
+        };
 
-            materialIndex = meshInstance.GetMaterialIndex();
-            MLG_ASSERT(materialIndex < materialBindGroups.size(),
-                "Material index {} is out of bounds (material bind group count: {})",
-                materialIndex,
-                materialBindGroups.size());
+    const wgpu::RenderPassDepthStencilAttachment depthStencilAttachment //
+        {
+            .view = m_Outputs->DepthBuffer->CreateView(),
+            .depthLoadOp = wgpu::LoadOp::Clear,
+            .depthStoreOp = wgpu::StoreOp::Store,
+            .depthClearValue = kClearDepth,
+            .stencilLoadOp = wgpu::LoadOp::Undefined,
+            .stencilStoreOp = wgpu::StoreOp::Undefined,
+            .stencilClearValue = 0,
+        };
 
-            const wgpu::BindGroup& bindGroup = materialBindGroups[materialIndex];
+    const wgpu::RenderPassDescriptor renderPassDesc //
+        {
+            .label = "GpuColorPass",
+            .colorAttachmentCount = 1,
+            .colorAttachments = &attachment,
+            .depthStencilAttachment = &depthStencilAttachment,
+        };
 
-            renderPass.SetBindGroup(1, bindGroup, 0, nullptr);
-        }
+    const wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
+    MLG_CHECK(renderPass, "Failed to begin render pass");
 
-        renderPass.DrawIndexed(meshInstance.GetIndexCount(),
-            1,
-            meshInstance.GetFirstIndex(),
-            static_cast<int32_t>(meshInstance.GetBaseVertex()),
-            meshInstance.GetFirstInstance());
-    }
-
-    renderPass.End();
-
-    // If m_CmdEncoder is null then it's owned by the caller and they are responsible for submitting
-    // it to the GPU. Otherwise, we own it and we will submit it to the GPU here.
-    if(m_CmdEncoder)
     {
-        const wgpu::CommandBuffer cmdBuf = m_CmdEncoder.Finish(nullptr);
-        MLG_CHECK(cmdBuf, "Failed to finish command buffer");
+        MLG_SCOPED_TIMER("GpuColorPass.Prepare.SetPipeline");
 
-        const wgpu::Queue queue = m_GpuDevice.GetQueue();
-        MLG_CHECK(queue, "Failed to get wgpu::Queue");
-
-        queue.Submit(1, &cmdBuf);
+        renderPass.SetPipeline(m_Pipeline);
     }
 
-    return Result<>::Ok;
+    {
+        MLG_SCOPED_TIMER("GpuColorPass.Prepare.SetPerFrameBindGroup");
+        renderPass.SetBindGroup(0, m_InputsBindGroup, 0, nullptr);
+    }
+
+    {
+        MLG_SCOPED_TIMER("GpuColorPass.Prepare.SetBuffers");
+
+        constexpr size_t kU16BitWidth = 16;
+        constexpr size_t kU32BitWidth = 32;
+
+        static_assert(VERTEX_INDEX_BITS == kU32BitWidth || VERTEX_INDEX_BITS == kU16BitWidth,
+            "Unsupported index buffer format: only 16-bit and 32-bit indices are supported");
+
+        constexpr wgpu::IndexFormat idxFmt = (VERTEX_INDEX_BITS == kU32BitWidth)
+            ? wgpu::IndexFormat::Uint32
+            : wgpu::IndexFormat::Uint16;
+
+        renderPass.SetVertexBuffer(0,
+            m_Inputs->Vertices.GetGpuBuffer(),
+            0,
+            m_Inputs->Vertices.BufferSize());
+
+        renderPass.SetIndexBuffer(m_Inputs->Indices.GetGpuBuffer(),
+            idxFmt,
+            0,
+            m_Inputs->Indices.BufferSize());
+    }
+
+    return renderPass;
 }
