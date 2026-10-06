@@ -2,12 +2,15 @@
 
 #include "Camera.h"
 
+#include <numbers>
+
 class InputMapper;
 
 class CameraActor
 {
 public:
-    static constexpr float kDefaultRotPerMouseMove = 0.0001f;
+    static constexpr float kDefaultRotPerMouseMove = 0.0001f * 2 * std::numbers::pi_v<float>;
+    static constexpr float kMouseWheelScale = 20.0f;
     static constexpr float kDefaultMovePerSec = 5.0f;
 
     CameraActor() = default;

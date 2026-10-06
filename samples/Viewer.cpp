@@ -115,8 +115,6 @@ MainLoop()
     MLG_CHECK(systemResult, "Failed to create System");
     std::unique_ptr<System> system = std::move(*systemResult);
 
-    CameraActor cameraActor;
-
     const auto sponzaModelPath = DirectoryPath::Current().Join(SPONZA_MODEL_PATH);
     MLG_CHECK(sponzaModelPath, "Failed to get sponza model path");
 
@@ -135,60 +133,57 @@ MainLoop()
     const GpuHelper& gpuHelper = system->GetGpuHelper();
 
     Dimension2 screenDimensions = gpuHelper.GetScreenDimensions();
-    TrTransformf cameraXForm{ .T{ 0, kDefaultCameraHeight, 0 }, .R{ cameraYaw, Vec3f::YAXIS() } };
-    Camera camera((Viewport(screenDimensions)));
 
-    cameraActor.SetTransform(cameraXForm);
-
-    static constexpr float kMouseWheelScale = 20.0f;
+    CameraActor cameraActor;
+    cameraActor.SetTransform(TrTransformf{ .T{ 0, kDefaultCameraHeight, 0 }, .R{ cameraYaw, Vec3f::YAXIS() } });
 
     constexpr ActionMapping actionMappings[] //
         {
             {
-                .ActionId = quit,
+                .ActionId = CommonActionIds::Quit,
                 .Trigger = InputButton::KeyPressed(SDL_SCANCODE_ESCAPE),
             },
             {
-                .ActionId = moveForward,
+                .ActionId = CommonActionIds::MoveForward,
                 .Trigger = InputButton::KeyHeld(SDL_SCANCODE_W),
                 .Scale = 1,
             },
             {
-                .ActionId = moveBackward,
+                .ActionId = CommonActionIds::MoveBackward,
                 .Trigger = InputButton::KeyHeld(SDL_SCANCODE_S),
                 .Scale = -1,
             },
             {
-                .ActionId = moveLeft,
+                .ActionId = CommonActionIds::MoveLeft,
                 .Trigger = InputButton::KeyHeld(SDL_SCANCODE_A),
                 .Scale = -1,
             },
             {
-                .ActionId = moveRight,
+                .ActionId = CommonActionIds::MoveRight,
                 .Trigger = InputButton::KeyHeld(SDL_SCANCODE_D),
                 .Scale = 1,
             },
             {
-                .ActionId = lookLeftRight,
+                .ActionId = CommonActionIds::LookLeftRight,
                 .Trigger = InputAxis::MouseMoveX(),
-                .Scale = CameraActor::kDefaultRotPerMouseMove * 2 * std::numbers::pi_v<float>,
+                .Scale = CameraActor::kDefaultRotPerMouseMove,
             },
             {
-                .ActionId = lookUpDown,
+                .ActionId = CommonActionIds::LookUpDown,
                 .Trigger = InputAxis::MouseMoveY(),
-                .Scale = CameraActor::kDefaultRotPerMouseMove * 2 * std::numbers::pi_v<float>,
+                .Scale = CameraActor::kDefaultRotPerMouseMove,
             },
             {
-                .ActionId = moveUpDown,
+                .ActionId = CommonActionIds::MoveUpDown,
                 .Trigger = InputAxis::MouseWheelY(),
-                .Scale = kMouseWheelScale,
+                .Scale = CameraActor::kMouseWheelScale,
             },
             {
-                .ActionId = captureMouse,
+                .ActionId = CommonActionIds::CaptureMouse,
                 .Trigger = InputButton::MousePressed(SDL_BUTTON_LEFT),
             },
             {
-                .ActionId = releaseMouse,
+                .ActionId = CommonActionIds::ReleaseMouse,
                 .Trigger = InputButton::MouseReleased(SDL_BUTTON_LEFT),
             },
         };
@@ -222,16 +217,16 @@ MainLoop()
 
         const InputMapper& inputMapper = system->GetInputMapper();
 
-        if(inputMapper.IsActionTriggered(quit))
+        if(inputMapper.IsActionTriggered(CommonActionIds::Quit))
         {
             System::PostQuitEvent();
         }
-        if(inputMapper.IsActionTriggered(captureMouse))
+        if(inputMapper.IsActionTriggered(CommonActionIds::CaptureMouse))
         {
             isCameraActorActive = true;
             system->SetMouseCaptured(true);
         }
-        if(inputMapper.IsActionTriggered(releaseMouse))
+        if(inputMapper.IsActionTriggered(CommonActionIds::ReleaseMouse))
         {
             isCameraActorActive = false;
             system->SetMouseCaptured(false);
@@ -241,7 +236,7 @@ MainLoop()
 
         if(curScreenDimensions != screenDimensions)
         {
-            camera.SetViewport(Viewport(curScreenDimensions));
+            cameraActor.SetViewport(Viewport(curScreenDimensions));
             screenDimensions = curScreenDimensions;
         }
 
@@ -249,12 +244,11 @@ MainLoop()
         {
             cameraActor.Update(inputMapper, elapsedSeconds);
         }
-        cameraXForm = cameraActor.GetTransform();
 
         auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECKV(target, "Failed to get swap chain texture");
 
-        MLG_CHECK(view.Render(camera, cameraXForm));
+        MLG_CHECK(view.Render(cameraActor.GetCamera(), cameraActor.GetTransform()));
         MLG_CHECK(view.Composite(*target));
 
         const ImGuiRenderer& imGuiRenderer = system->GetImGuiRenderer();

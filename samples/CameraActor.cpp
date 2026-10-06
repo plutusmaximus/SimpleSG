@@ -10,32 +10,32 @@ CameraActor::Update(const InputMapper& inputMapper, const float deltaSeconds)
     UnitQuatf yaw = UnitQuatf::Identity, pitch = UnitQuatf::Identity;
     Vec3f moveDelta(0);
 
-    if(inputMapper.IsActionTriggered(moveForward, actionValue))
+    if(inputMapper.IsActionTriggered(CommonActionIds::MoveForward, actionValue))
     {
         moveDelta += m_CurrentTransform.R * Vec3f(0, 0, actionValue);
     }
-    if(inputMapper.IsActionTriggered(moveBackward, actionValue))
+    if(inputMapper.IsActionTriggered(CommonActionIds::MoveBackward, actionValue))
     {
         moveDelta += m_CurrentTransform.R * Vec3f(0, 0, actionValue);
     }
-    if(inputMapper.IsActionTriggered(moveLeft, actionValue))
+    if(inputMapper.IsActionTriggered(CommonActionIds::MoveLeft, actionValue))
     {
         moveDelta += m_CurrentTransform.R * Vec3f(actionValue, 0, 0);
     }
-    if(inputMapper.IsActionTriggered(moveRight, actionValue))
+    if(inputMapper.IsActionTriggered(CommonActionIds::MoveRight, actionValue))
     {
         moveDelta += m_CurrentTransform.R * Vec3f(actionValue, 0, 0);
     }
-    if(inputMapper.IsActionTriggered(moveUpDown, actionValue))
+    if(inputMapper.IsActionTriggered(CommonActionIds::MoveUpDown, actionValue))
     {
         moveDelta += m_CurrentTransform.R * Vec3f(0, actionValue, 0);
     }
-    if(inputMapper.IsActionTriggered(lookLeftRight, actionValue))
+    if(inputMapper.IsActionTriggered(CommonActionIds::LookLeftRight, actionValue))
     {
         yaw = ClampRot(actionValue, Vec3f::YAXIS());
         m_TargetTransform.R = yaw * m_TargetTransform.R;
     }
-    if(inputMapper.IsActionTriggered(lookUpDown, actionValue))
+    if(inputMapper.IsActionTriggered(CommonActionIds::LookUpDown, actionValue))
     {
         pitch = ClampRot(actionValue, Vec3f::XAXIS());
         m_TargetTransform.R = m_TargetTransform.R * pitch;

@@ -46,7 +46,7 @@ RenderGui()
 }
 
 Result<SceneDef>
-CreateTriangleScene()
+CreateScene()
 {
     std::vector<Vertex> triangleVertices = //
         {
@@ -148,7 +148,7 @@ TriangleApp::OnStart(System& system)
 
     m_System = &system;
 
-    auto sceneDef = CreateTriangleScene();
+    auto sceneDef = CreateScene();
     MLG_CHECK(sceneDef, "Failed to create SceneDef");
 
     m_LevelCreateTask.emplace(*m_System, std::move(*sceneDef));
@@ -240,8 +240,8 @@ TriangleApp::Render()
 void
 Run()
 {
-    static TriangleApp triangleApp;
-    static Shell shell(triangleApp);
+    static TriangleApp app;
+    static Shell shell(app);
     static bool started = false;
 
     if(!started)
