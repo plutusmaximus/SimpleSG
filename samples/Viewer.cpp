@@ -136,6 +136,7 @@ MainLoop()
 
     CameraActor cameraActor;
     cameraActor.SetTransform(TrTransformf{ .T{ 0, kDefaultCameraHeight, 0 }, .R{ cameraYaw, Vec3f::YAXIS() } });
+    cameraActor.SetViewport(Viewport(screenDimensions));
 
     constexpr ActionMapping actionMappings[] //
         {
