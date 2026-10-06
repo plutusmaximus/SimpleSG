@@ -63,30 +63,26 @@ CreateTriangleScene()
 
     std::vector<VertexIndex> triangleIndices = { 0, 1, 2 };
 
-    MaterialDef mtlDef //
-        {
-            .BaseTexturePath{ "images/Ant.png" },
-            .Color{ "#FFA500"_rgba },
-            .Metalness = 0,
-            .Roughness = 0,
-        };
-
-    MeshDef meshDef //
-        {
-            .Vertices{ std::move(triangleVertices) },
-            .Indices{ std::move(triangleIndices) },
-            .MaterialDef{ std::move(mtlDef) },
-        };
-
-    ModelDef modelDef //
-        {
-            .Name{ "Triangle" },
-            .MeshDefs{ std::move(meshDef) },
-        };
-
     SceneDef sceneDef //
         {
-            .ModelDefs{ std::move(modelDef) },
+            .ModelDefs //
+            {
+                {
+                    .Name{ "Triangle" },
+                    .MeshDefs //
+                    { {
+                        .Vertices{ std::move(triangleVertices) },
+                        .Indices{ std::move(triangleIndices) },
+                        .MaterialDef //
+                        {
+                            .BaseTexturePath{ "images/Ant.png" },
+                            .Color{ "#FFA500"_rgba },
+                            .Metalness = 0,
+                            .Roughness = 0,
+                        },
+                    } },
+                },
+            },
             .NodeDefs //
             {
                 {

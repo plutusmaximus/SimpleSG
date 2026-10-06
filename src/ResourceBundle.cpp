@@ -17,13 +17,44 @@ template<>
 constexpr bool
 std::less<MaterialDef>::operator()(const MaterialDef& lhs, const MaterialDef& rhs) const
 {
-    return (lhs.BaseTexturePath < rhs.BaseTexturePath)
-        || (lhs.Color.r < rhs.Color.r)
-        || (lhs.Color.g < rhs.Color.g)
-        || (lhs.Color.b < rhs.Color.b)
-        || (lhs.Color.a < rhs.Color.a)
-        || (lhs.Metalness < rhs.Metalness)
-        || (lhs.Roughness < rhs.Roughness);
+    if(lhs.BaseTexturePath != rhs.BaseTexturePath)
+    {
+        return lhs.BaseTexturePath < rhs.BaseTexturePath;
+    }
+
+    // Use strong_order for floating point values ensure consistent ordering of NaNs.
+
+    if(auto cmp = std::strong_order(lhs.Color.r, rhs.Color.r); cmp != 0)
+    {
+        return cmp < 0;
+    }
+    
+    if(auto cmp = std::strong_order(lhs.Color.g, rhs.Color.g); cmp != 0)
+    {
+        return cmp < 0;
+    }
+
+    if(auto cmp = std::strong_order(lhs.Color.b, rhs.Color.b); cmp != 0)
+    {
+        return cmp < 0;
+    }
+
+    if(auto cmp = std::strong_order(lhs.Color.a, rhs.Color.a); cmp != 0)
+    {
+        return cmp < 0;
+    }
+
+    if(auto cmp = std::strong_order(lhs.Metalness, rhs.Metalness); cmp != 0)
+    {
+        return cmp < 0;
+    }
+
+    if(auto cmp = std::strong_order(lhs.Roughness, rhs.Roughness); cmp != 0)
+    {
+        return cmp < 0;
+    }
+    
+    return false;
 }
 
 namespace
