@@ -232,7 +232,7 @@ CreatePipelineLayout(const wgpu::Device& gpuDevice,
     return pipelineLayout;
 }
 
-wgpu::VertexBufferLayout
+constexpr wgpu::VertexBufferLayout
 GetVertexBufferLayout()
 {
     static constexpr wgpu::VertexAttribute attributes[] = //
@@ -471,6 +471,8 @@ GpuColorPass::Execute(const wgpu::CommandEncoder& cmdEncoder,
         viewport.GetWidth(),
         viewport.GetHeight());
 
+    renderPass.SetPipeline(m_TranslucentPipeline);
+
     // Track how many times we have to change materials.
     static PerfCounter pcMaterialChanges({ .Name = "GpuColorPass.Execute.MaterialChanges" });
 
@@ -531,12 +533,12 @@ GpuColorPass::CreateMaterialBindGroup(const wgpu::Texture& texture,
 Result<>
 GpuColorPass::EnsurePipeline()
 {
-    if(m_Pipeline)
+    if(m_TranslucentPipeline && m_OpaquePipeline)
     {
         return Result<>::Ok;
     }
 
-    static constexpr wgpu::BlendState blendState //
+    static constexpr wgpu::BlendState translucentBlendState //
         {
             .color =
             {
@@ -552,11 +554,34 @@ GpuColorPass::EnsurePipeline()
             },
         };
 
-    static constexpr wgpu::ColorTargetState colorTargetState //
+    static constexpr wgpu::ColorTargetState translucentTargetState //
         {
             .format = GpuHelper::kRenderTargetFormat,
-            .blend = &blendState,
+            .blend = &translucentBlendState,
             .writeMask = wgpu::ColorWriteMask::All,
+        };
+
+    static constexpr wgpu::ColorTargetState opaqueTargetState //
+        {
+            .format = GpuHelper::kRenderTargetFormat,
+            .blend = nullptr,
+            .writeMask = wgpu::ColorWriteMask::All,
+        };
+
+    const wgpu::FragmentState translucentFragmentState //
+        {
+            .module = m_Shader,
+            .entryPoint = FragmentEntry,
+            .targetCount = 1,
+            .targets = &translucentTargetState,
+        };
+
+    const wgpu::FragmentState opaqueFragmentState //
+        {
+            .module = m_Shader,
+            .entryPoint = FragmentEntry,
+            .targetCount = 1,
+            .targets = &opaqueTargetState,
         };
 
     static constexpr wgpu::DepthStencilState depthStencilState //
@@ -585,50 +610,62 @@ GpuColorPass::EnsurePipeline()
             .depthBiasClamp = 0.0f,
         };
 
-    const wgpu::FragmentState fragmentState //
-        {
-            .module = m_Shader,
-            .entryPoint = FragmentEntry,
-            .targetCount = 1,
-            .targets = &colorTargetState,
-        };
-
-    const wgpu::VertexBufferLayout vertexBufferLayouts[] //
+    static constexpr wgpu::VertexBufferLayout vertexBufferLayouts[] //
         {
             GetVertexBufferLayout(),
         };
 
-    const wgpu::RenderPipelineDescriptor descriptor//
-    {
-        .label = "GpuColorPass",
-        .layout = m_PipelineLayout,
-        .vertex =
+    const wgpu::VertexState vertexState //
         {
             .module = m_Shader,
             .entryPoint = VertexEntry,
             .bufferCount = 1,
             .buffers = &vertexBufferLayouts[0],
-        },
-        .primitive =
+        };
+        
+    static constexpr wgpu::PrimitiveState primitiveState //
         {
             .topology = wgpu::PrimitiveTopology::TriangleList,
             .stripIndexFormat = wgpu::IndexFormat::Undefined,
             .frontFace = wgpu::FrontFace::CW,
             .cullMode = wgpu::CullMode::Back,
             .unclippedDepth = false,
-        },
-        .depthStencil = &depthStencilState,
-        .multisample =
+        };
+
+    static constexpr wgpu::MultisampleState multisampleState //
         {
             .count = 1,
             .mask = 0xFFFFFFFF,
             .alphaToCoverageEnabled = false,
-        },
-        .fragment = &fragmentState,
+        };
+
+    const wgpu::RenderPipelineDescriptor translucentDescriptor//
+    {
+        .label = "GpuColorPass_Translucent",
+        .layout = m_PipelineLayout,
+        .vertex = vertexState,
+        .primitive = primitiveState,
+        .depthStencil = &depthStencilState,
+        .multisample = multisampleState,
+        .fragment = &translucentFragmentState,
     };
 
-    m_Pipeline = m_GpuHelper->GetDevice().CreateRenderPipeline(&descriptor);
-    MLG_CHECK(m_Pipeline, "Failed to create render pipeline");
+    const wgpu::RenderPipelineDescriptor opaqueDescriptor//
+    {
+        .label = "GpuColorPass_Opaque",
+        .layout = m_PipelineLayout,
+        .vertex = vertexState,
+        .primitive = primitiveState,
+        .depthStencil = &depthStencilState,
+        .multisample = multisampleState,
+        .fragment = &opaqueFragmentState,
+    };
+
+    m_TranslucentPipeline = m_GpuHelper->GetDevice().CreateRenderPipeline(&translucentDescriptor);
+    MLG_CHECK(m_TranslucentPipeline, "Failed to create render pipeline");
+
+    m_OpaquePipeline = m_GpuHelper->GetDevice().CreateRenderPipeline(&opaqueDescriptor);
+    MLG_CHECK(m_OpaquePipeline, "Failed to create render pipeline");
 
     return Result<>::Ok;
 }
@@ -701,12 +738,6 @@ GpuColorPass::CreateRenderPassEncoder(const wgpu::CommandEncoder& cmdEncoder)
 
     const wgpu::RenderPassEncoder renderPass = cmdEncoder.BeginRenderPass(&renderPassDesc);
     MLG_CHECK(renderPass, "Failed to begin render pass");
-
-    {
-        MLG_SCOPED_TIMER("GpuColorPass.Prepare.SetPipeline");
-
-        renderPass.SetPipeline(m_Pipeline);
-    }
 
     {
         MLG_SCOPED_TIMER("GpuColorPass.Prepare.SetPerFrameBindGroup");

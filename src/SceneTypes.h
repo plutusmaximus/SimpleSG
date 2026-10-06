@@ -43,10 +43,18 @@ using FilePathString = FixedString<RelativeFilePath::kStorageSize>;
 
 } // namespace SceneDefs
 
+enum class AlphaMode : uint32_t
+{
+    Opaque,
+    Mask,
+    Blend
+};
+
 struct MaterialDef final
 {
     SceneDefs::FilePathString BaseTexturePath;
     RgbaColorf Color{ 1, 1, 1, 1 };
+    AlphaMode AlphaMode{ AlphaMode::Opaque };
     float Metalness{ 0.0f };
     float Roughness{ 0.0f };
 };

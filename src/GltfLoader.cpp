@@ -187,6 +187,7 @@ CreateMaterialDef(const cgltf_material* gltfMaterial)
 {
     SceneDefs::FilePathString baseTexturePath;
     RgbaColorf color = kDefaultColor;
+    AlphaMode alphaMode = AlphaMode::Opaque;
     float metalness = 0;
     float roughness = 0;
 
@@ -229,10 +230,27 @@ CreateMaterialDef(const cgltf_material* gltfMaterial)
         MLG_WARN("Primitive has no PBR metallic-roughness material");
     }
 
+    switch(gltfMaterial ? gltfMaterial->alpha_mode : cgltf_alpha_mode_opaque)
+    {
+    case cgltf_alpha_mode_opaque:
+        alphaMode = AlphaMode::Opaque;
+        break;
+    case cgltf_alpha_mode_mask:
+        alphaMode = AlphaMode::Mask;
+        break;
+    case cgltf_alpha_mode_blend:
+        alphaMode = AlphaMode::Blend;
+        break;
+    default:
+        MLG_WARN("Unknown alpha mode");
+        break;
+    }
+
     MaterialDef materialDef //
         {
             .BaseTexturePath{ baseTexturePath },
             .Color = color,
+            .AlphaMode = alphaMode,
             .Metalness = metalness,
             .Roughness = roughness,
         };

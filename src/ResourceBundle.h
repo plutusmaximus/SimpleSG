@@ -5,6 +5,7 @@
 #include "Color.h"
 #include "PhysicsTypes.h"
 #include "Result.h"
+#include "SceneTypes.h"
 
 #include <algorithm>
 #include <bit>
@@ -454,6 +455,7 @@ MLG_ASSERT_SIZE(TextureResource, 8)
 #define MATERIAL_RESOURCE_FIELDS(X)                                                                \
     X(ResourceBundle::IndexType, BaseTextureIndex, ResourceBundle::kInvalidIndex)                  \
     X(RgbaColorf, Color, { 1, 0, 1, 1 })                                                           \
+    X(AlphaMode, AlphaMode, AlphaMode::Opaque)                                                     \
     X(float, Metalness, 0)                                                                         \
     X(float, Roughness, 0)
 
@@ -462,13 +464,14 @@ struct MaterialResource final
     MATERIAL_RESOURCE_FIELDS(MLG_DECLARE_FIELD)
 };
 static_assert(BinaryStruct<MaterialResource>);
-MLG_ASSERT_FIELD_COUNT(MATERIAL_RESOURCE_FIELDS, 4);
+MLG_ASSERT_FIELD_COUNT(MATERIAL_RESOURCE_FIELDS, 5);
 MLG_ASSERT_NO_PADDING(MaterialResource, MATERIAL_RESOURCE_FIELDS);
 MLG_ASSERT_OFFSET(MaterialResource, BaseTextureIndex, 0)
 MLG_ASSERT_OFFSET(MaterialResource, Color, 4)
-MLG_ASSERT_OFFSET(MaterialResource, Metalness, 20)
-MLG_ASSERT_OFFSET(MaterialResource, Roughness, 24)
-MLG_ASSERT_SIZE(MaterialResource, 28)
+MLG_ASSERT_OFFSET(MaterialResource, AlphaMode, 20)
+MLG_ASSERT_OFFSET(MaterialResource, Metalness, 24)
+MLG_ASSERT_OFFSET(MaterialResource, Roughness, 28)
+MLG_ASSERT_SIZE(MaterialResource, 32)
 
 /// MeshResource
 

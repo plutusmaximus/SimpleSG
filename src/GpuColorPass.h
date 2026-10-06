@@ -125,7 +125,8 @@ private:
     wgpu::BindGroupLayout m_MaterialBindGroupLayout;
     wgpu::PipelineLayout m_PipelineLayout;
     wgpu::BindGroup m_InputsBindGroup;
-    wgpu::RenderPipeline m_Pipeline;
+    wgpu::RenderPipeline m_TranslucentPipeline;
+    wgpu::RenderPipeline m_OpaquePipeline;
 
     wgpu::Sampler m_DefaultSampler;
 };
