@@ -497,20 +497,45 @@ add_tool_executable(Cook tools/Cook/Cook.cpp)
 target_include_directories(Cook SYSTEM PRIVATE thirdparty/stb)
 
 # ============================================================
-# Sample: EmTriangle
+# Sample: Triangle
 # ============================================================
-add_sample_executable(EmTriangle samples/EmTriangle.cpp)
-add_dependencies(EmTriangle copy_images)
+add_sample_executable(Triangle samples/Triangle.cpp)
+add_dependencies(Triangle copy_images)
 if(EMSCRIPTEN)
-  set_target_properties(EmTriangle PROPERTIES SUFFIX ".html")
+  set_target_properties(Triangle PROPERTIES SUFFIX ".html")
 
   set(browser_shell "${CMAKE_CURRENT_SOURCE_DIR}/samples/browser-shell.html")
   file(GLOB_RECURSE _image_sources CONFIGURE_DEPENDS LIST_DIRECTORIES false
        "${CMAKE_SOURCE_DIR}/images/*")
-  set_property(TARGET EmTriangle APPEND PROPERTY LINK_DEPENDS
+  set_property(TARGET Triangle APPEND PROPERTY LINK_DEPENDS
                "${browser_shell}" ${SSG_WGSL_SOURCES} ${_image_sources})
 
-  target_link_options(EmTriangle PRIVATE
+  target_link_options(Triangle PRIVATE
+    "--shell-file"
+    "${browser_shell}"
+    "-sPTHREAD_POOL_SIZE=8"
+    "-sALLOW_MEMORY_GROWTH=1"
+#    "-sJSPI"
+    "--preload-file=${RESOURCE_ROOT}/images@images"
+    "--preload-file=${RESOURCE_ROOT}/shaders@shaders"
+  )
+endif()
+
+# ============================================================
+# Sample: Translucent
+# ============================================================
+add_sample_executable(Translucent samples/Translucent.cpp)
+add_dependencies(Translucent copy_images)
+if(EMSCRIPTEN)
+  set_target_properties(Translucent PROPERTIES SUFFIX ".html")
+
+  set(browser_shell "${CMAKE_CURRENT_SOURCE_DIR}/samples/browser-shell.html")
+  file(GLOB_RECURSE _image_sources CONFIGURE_DEPENDS LIST_DIRECTORIES false
+       "${CMAKE_SOURCE_DIR}/images/*")
+  set_property(TARGET Translucent APPEND PROPERTY LINK_DEPENDS
+               "${browser_shell}" ${SSG_WGSL_SOURCES} ${_image_sources})
+
+  target_link_options(Translucent PRIVATE
     "--shell-file"
     "${browser_shell}"
     "-sPTHREAD_POOL_SIZE=8"

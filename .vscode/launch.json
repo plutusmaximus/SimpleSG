@@ -148,11 +148,12 @@
             "type": "pickString",
             "description": "Select executable",
             "options": [
-                "EmTriangle",
+                "Triangle",
+                "Translucent",
                 "Viewer",
                 "Orbit"
             ],
-            "default": "Viewer"
+            "default": "Translucent"
         },
         {
             "id": "inputFile",
