@@ -381,9 +381,9 @@ set(SSG_SOURCES
 
 set(SSG_HEADERS
   src/AssertHelper.h
-  src/BoundedVector.h
   src/BoundingVolumes.h
   src/Camera.h
+  src/Containers.h
   src/CoopTask.h
   src/Defer.h
   src/DevUi.h
@@ -564,6 +564,7 @@ add_executable(Tests
   "tests/BoundingBox.unit.cpp"
   "tests/BoundingSphere.unit.cpp"
   "tests/Camera.unit.cpp"
+  "tests/Containers.unit.cpp"
   "tests/Defer.unit.cpp"
   "tests/FilePath.unit.cpp"
   "tests/inlist.unit.cpp"
