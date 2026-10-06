@@ -4,19 +4,19 @@
 #include <type_traits>
 #include <utility>
 
-/// A scope guard that executes a provided callable when it goes out of scope.
+/// A scope guard that executes a cleanup function when it goes out of scope.
 template<typename F>
 class Defer
 {
     static_assert(std::invocable<F> && std::same_as<std::invoke_result_t<F>, void>,
         "Defer requires a callable that returns void");
 private:
-    // Always hold a value type (no references) to keep lifetime independent.
+    // Always hold a value type for the function (no references) to keep lifetime independent.
+    // Ensures captured callables are stored by value, avoiding dangling references.
     using StoredF = std::decay_t<F>;
 
 public:
     template<typename U>
-    // Perfect-forward into the stored value: copies lvalues, moves rvalues.
     explicit Defer(U&& f) noexcept(std::is_nothrow_constructible_v<StoredF, U>)
         requires std::constructible_from<StoredF, U>
         : m_Fn(std::forward<U>(f))

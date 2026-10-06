@@ -53,16 +53,16 @@ public:
     /// Returns a FetchRequestId that can be used to track the request.
     Result<FetchRequestId> Fetch(const FilePath& filePath);
 
-    /// Checks if the specified fetch request is still pending.
+    /// Checks if the fetch request is still pending.
     bool IsPending(const FetchRequestId requestId) const;
 
-    /// Retrieves the data for the specified fetch request once it has completed.
+    /// Retrieves the data for the fetch request once it has completed.
     /// If the request is still pending, this will return a failure result.
-    /// If the request completed but did failed to fetch the file, this will return a failure
+    /// If the request completed but failed to fetch the file, this will return a failure
     /// result. If the request completed successfully, the data will be returned.
     Result<std::vector<uint8_t>> Take(const FetchRequestId requestId);
 
-    /// Processes pending asynchronous IO operations.  Must be called once per frame.
+    /// Processes pending asynchronous IO operations.  Must be called at least once per frame.
     void ProcessCompletions();
 
 private:
@@ -95,8 +95,7 @@ private:
 
         SDL_AsyncIO* m_AsyncIO{ nullptr };
 
-        // Used only for logging
-        RelativeFilePath m_DiagFilePath;
+        RelativeFilePath m_DiagFilePath; // Used only for logging
         size_t m_BytesRequested{ 0 };
         size_t m_BytesRead{ 0 };
         std::vector<uint8_t> m_Data;
@@ -123,8 +122,12 @@ private:
     {
     }
 
+    /// Ensures the SDL IO queue is properly initialized.
     Result<> EnsureIoQueue();
 
+    /// Issues a read request.  Multiple reads can be issued for the
+    /// same request until either the entire file has been read, a failure occurs,
+    /// or the maximum number of tries is reached.
     Result<> IssueRead(RequestWrapper& wrapper);
 
     Result<RequestWrapper*> AllocateRequest(const FilePath& filePath);
