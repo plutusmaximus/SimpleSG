@@ -49,44 +49,6 @@ struct MaterialDef final
     RgbaColorf Color{ 1, 1, 1, 1 };
     float Metalness{ 0.0f };
     float Roughness{ 0.0f };
-
-    // Used to deduplicate materials based on their properties.
-    friend auto operator<=>(const MaterialDef& lhs, const MaterialDef& rhs)
-    {
-        if(auto cmp = lhs.BaseTexturePath <=> rhs.BaseTexturePath; cmp != 0)
-        {
-            return cmp;
-        }
-
-        if(auto cmp = std::strong_order(lhs.Color.r, rhs.Color.r); cmp != 0)
-        {
-            return cmp;
-        }
-        if(auto cmp = std::strong_order(lhs.Color.g, rhs.Color.g); cmp != 0)
-        {
-            return cmp;
-        }
-        if(auto cmp = std::strong_order(lhs.Color.b, rhs.Color.b); cmp != 0)
-        {
-            return cmp;
-        }
-        if(auto cmp = std::strong_order(lhs.Color.a, rhs.Color.a); cmp != 0)
-        {
-            return cmp;
-        }
-
-        if(auto cmp = std::strong_order(lhs.Metalness, rhs.Metalness); cmp != 0)
-        {
-            return cmp;
-        }
-
-        if(auto cmp = std::strong_order(lhs.Roughness, rhs.Roughness); cmp != 0)
-        {
-            return cmp;
-        }
-
-        return std::strong_ordering::equal;
-    }
 };
 
 struct MeshDef final

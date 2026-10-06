@@ -4,6 +4,7 @@
 #include "SceneTypes.h"
 
 #include <cstddef>
+#include <functional>
 #include <map>
 #include <ranges>
 #include <SDL3/SDL_stdinc.h>
@@ -11,6 +12,19 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+
+template<>
+constexpr bool
+std::less<MaterialDef>::operator()(const MaterialDef& lhs, const MaterialDef& rhs) const
+{
+    return (lhs.BaseTexturePath < rhs.BaseTexturePath)
+        || (lhs.Color.r < rhs.Color.r)
+        || (lhs.Color.g < rhs.Color.g)
+        || (lhs.Color.b < rhs.Color.b)
+        || (lhs.Color.a < rhs.Color.a)
+        || (lhs.Metalness < rhs.Metalness)
+        || (lhs.Roughness < rhs.Roughness);
+}
 
 namespace
 {
