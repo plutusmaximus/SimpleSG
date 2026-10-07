@@ -54,6 +54,7 @@
             "name": "Sample (LLDB, macOS)",
             "type": "lldb",
             "request": "launch",
+            "expressions": "native",
             "program": "${workspaceFolder}/build/native/${input:buildType}/${input:target}",
             "cwd": "${workspaceFolder}/resources",
             "env": {
@@ -118,6 +119,7 @@
             "name": "Cook (LLDB, macOS)",
             "type": "lldb",
             "request": "launch",
+            "expressions": "native",
             "program": "${workspaceFolder}/build/native/${input:buildType}/Cook",
             "args": ["-i", "${input:inputFile}", "-o", "${input:outputFile}"],
             "cwd": "${workspaceFolder}/build/native/${input:buildType}",

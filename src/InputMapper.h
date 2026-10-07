@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Containers.h"
 #include "VecMath.h"
 
 #include <array>
@@ -9,7 +10,6 @@
 #include <optional>
 #include <span>
 #include <variant>
-#include <vector>
 
 /// Represents the device to which an input button belongs.
 /// Devices like gamepads, etc. can be added as they are implemented.
@@ -231,6 +231,9 @@ private:
 class InputTrigger
 {
 public:
+
+    using TriggerVariant = std::variant<InputButton, InputAxis>;
+
     enum class Type
     {
         Button,
@@ -248,6 +251,8 @@ public:
         : m_Trigger(axis)
     {
     }
+
+    friend constexpr bool operator==(const InputTrigger& lhs, const InputTrigger& rhs) = default;
 
     constexpr Type GetType() const
     {
@@ -267,7 +272,7 @@ public:
     }
 
 private:
-    std::variant<InputButton, InputAxis> m_Trigger;
+    TriggerVariant m_Trigger;
 };
 
 /// Maps an action identifier to an input.
@@ -350,13 +355,6 @@ private:
         float Value{ 0.0f };
     };
 
-    struct InputTriggerMapping
-    {
-        InputTrigger Trigger;
-        float Scale{ 1 };
-        size_t ActionStateIndex{ static_cast<size_t>(-1) };
-    };
-
     // Tracks the current state of a button.
     struct ButtonState
     {
@@ -375,15 +373,18 @@ private:
     std::optional<float> EvaluateButton(const InputButton& button) const;
     std::optional<float> EvaluateAxis(const InputAxis& axis) const;
 
-    std::vector<InputTriggerMapping> m_InputTriggerMappings;
+    static constexpr size_t kMaxMappings = 64;
+
+    // Sorted list of all action mappings.
+    InplaceVector<ActionMapping, kMaxMappings> m_SortedActionMappings;
+
+    // Current state of all registered actions, sorted in order of action IDs.
+    InplaceVector<ActionState, kMaxMappings> m_SortedActionStates;
 
     // Track button states for all keys and mouse buttons.  The index into the vector is the
     // scancode for keys and the button index for mouse buttons.
     std::array<ButtonState, kMaxKeyButtons> m_KeyStates;
     std::array<ButtonState, kMaxMouseButtons> m_MouseButtonStates{};
-
-    // Current state of all registered actions.
-    std::vector<ActionState> m_ActionStates;
 
     // Mouse move and wheel deltas this frame.
     Vec3f m_MouseDelta{ 0, 0, 0 };

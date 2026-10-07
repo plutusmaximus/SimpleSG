@@ -33,6 +33,7 @@ Checks: >
     -readability-isolate-declaration,
     -readability-function-cognitive-complexity,
     -readability-use-anyofallof,
+    -readability-qualified-auto,
   google-explicit-constructor,
 
 WarningsAsErrors: '*'

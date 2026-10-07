@@ -21,26 +21,10 @@ ValidateInputButton(const InputButton& button)
 
     return false;
 }
-} // namespace
 
-static_assert(InputMapper::kMaxKeyButtons >= SDL_SCANCODE_COUNT,
-    "kMaxKeyButtons must be at least SDL_SCANCODE_COUNT");
-
-InputMapper::InputMapper(const std::span<const ActionMapping> mappings)
+void
+ValidateMappingsOrAbort(const std::span<const ActionMapping> mappings)
 {
-    m_InputTriggerMappings.reserve(mappings.size());
-    m_ActionStates.reserve(mappings.size());
-
-    for(const ActionMapping& mapping : mappings)
-    {
-        m_ActionStates.push_back(ActionState{ .ActionId = mapping.ActionId });
-    }
-
-    // Sort action states and remove duplicates.
-    std::ranges::sort(m_ActionStates, {}, &ActionState::ActionId);
-    const auto dupRange = std::ranges::unique(m_ActionStates, {}, &ActionState::ActionId);
-    m_ActionStates.erase(dupRange.begin(), dupRange.end());
-
     for(const ActionMapping& mapping : mappings)
     {
         if(mapping.Trigger.GetType() == InputTrigger::Type::Button)
@@ -52,16 +36,128 @@ InputMapper::InputMapper(const std::span<const ActionMapping> mappings)
                 static_cast<int>(button.GetDevice()),
                 button.GetId());
         }
-
-        const size_t actionStateIndex = GetActionStateIndex(mapping.ActionId);
-        m_InputTriggerMappings.emplace_back(mapping.Trigger, mapping.Scale, actionStateIndex);
     }
+}
+
+/// Comparator for comparing InputTrigger and ActionMapping objects.
+struct Less
+{
+    constexpr bool operator()(const InputTrigger& lhs, const InputTrigger& rhs) const
+    {
+        if(lhs.GetType() != rhs.GetType())
+        {
+            return lhs.GetType() < rhs.GetType();
+        }
+
+        if(lhs.GetType() == InputTrigger::Type::Button)
+        {
+            const InputButton& lhsButton = lhs.GetButton();
+            const InputButton& rhsButton = rhs.GetButton();
+
+            if(lhsButton.GetDevice() != rhsButton.GetDevice())
+            {
+                return lhsButton.GetDevice() < rhsButton.GetDevice();
+            }
+
+            if(lhsButton.GetId() != rhsButton.GetId())
+            {
+                return lhsButton.GetId() < rhsButton.GetId();
+            }
+
+            if(lhsButton.GetCondition() != rhsButton.GetCondition())
+            {
+                return lhsButton.GetCondition() < rhsButton.GetCondition();
+            }
+
+            return false;
+        }
+
+        if(lhs.GetType() == InputTrigger::Type::Axis)
+        {
+            const InputAxis& lhsAxis = lhs.GetAxis();
+            const InputAxis& rhsAxis = rhs.GetAxis();
+
+            if(lhsAxis.GetDevice() != rhsAxis.GetDevice())
+            {
+                return lhsAxis.GetDevice() < rhsAxis.GetDevice();
+            }
+
+            if(lhsAxis.GetAxisId() != rhsAxis.GetAxisId())
+            {
+                return lhsAxis.GetAxisId() < rhsAxis.GetAxisId();
+            }
+
+            return false;
+        }
+
+        MLG_ABORTIF(false, "Unsupported InputTrigger type");
+
+        return false;
+    }
+
+    constexpr bool operator()(const ActionMapping& lhs, const ActionMapping& rhs) const
+    {
+        if(operator()(lhs.Trigger, rhs.Trigger))
+        {
+            return true;
+        }
+
+        if(!operator()(rhs.Trigger, lhs.Trigger))
+        {
+            // Triggers are equal - compare action IDs.
+
+            if(lhs.ActionId != rhs.ActionId)
+            {
+                return lhs.ActionId < rhs.ActionId;
+            }
+        }
+
+        return false;
+    }
+};
+
+/// Comparator for checking equality of ActionMapping objects.
+struct EqualTo
+{
+    constexpr bool operator()(const ActionMapping& lhs, const ActionMapping& rhs) const
+    {
+        // NOLINTNEXTLINE(readability-suspicious-call-argument)
+        return !Less{}(lhs, rhs) && !Less{}(rhs, lhs);
+    }
+};
+} // namespace
+
+static_assert(InputMapper::kMaxKeyButtons >= SDL_SCANCODE_COUNT,
+    "kMaxKeyButtons must be at least SDL_SCANCODE_COUNT");
+
+InputMapper::InputMapper(const std::span<const ActionMapping> mappings)
+{
+    // Aborts on failure.
+    ValidateMappingsOrAbort(mappings);
+
+    // Sort first by InputTrigger, then by ActionId.
+    //m_SortedActionMappings.reserve(mappings.size());
+    m_SortedActionMappings.append_range(mappings);
+
+    // Remove duplicate action mappings.
+    const auto uniqueEnd = std::ranges::unique(m_SortedActionMappings, EqualTo{});
+    m_SortedActionMappings.erase(uniqueEnd.begin(), uniqueEnd.end());
+
+    for(const ActionMapping& mapping : mappings)
+    {
+        m_SortedActionStates.push_back(ActionState{ .ActionId = mapping.ActionId });
+    }
+
+    // Sort action states and remove duplicates.
+    std::ranges::sort(m_SortedActionStates, {}, &ActionState::ActionId);
+    const auto dupRange = std::ranges::unique(m_SortedActionStates, {}, &ActionState::ActionId);
+    m_SortedActionStates.erase(dupRange.begin(), dupRange.end());
 }
 
 void
 InputMapper::Clear()
 {
-    for(auto& actionState : m_ActionStates)
+    for(auto& actionState : m_SortedActionStates)
     {
         actionState.Triggered = false;
         actionState.Value = 0.0f;
@@ -91,7 +187,7 @@ InputMapper::BeginFrame()
     MLG_ASSERT(!m_InFrame, "BeginFrame() called without a matching EndFrame()");
     m_InFrame = true;
 
-    for(auto& actionState : m_ActionStates)
+    for(auto& actionState : m_SortedActionStates)
     {
         actionState.Triggered = false;
         actionState.Value = 0.0f;
@@ -198,22 +294,30 @@ InputMapper::EndFrame()
 {
     MLG_ASSERT(m_InFrame, "EndFrame() called without a matching BeginFrame()");
 
-    for(const InputTriggerMapping& mapping : m_InputTriggerMappings)
+    for(const ActionMapping& mapping : m_SortedActionMappings)
     {
         const std::optional<float> value = EvaluateTrigger(mapping.Trigger);
 
-        if(value)
+        if(!value)
         {
-            ActionState& actionState = m_ActionStates[mapping.ActionStateIndex];
+            continue;
+        }
 
-            actionState.Triggered = true;
-            const float actionValue = mapping.Scale * value.value();
+        auto it = std::ranges::lower_bound(m_SortedActionStates, mapping.ActionId, {}, &ActionState::ActionId);
+        if(it == m_SortedActionStates.end() || it->ActionId != mapping.ActionId)
+        {
+            continue;
+        }
 
-            // The event that generates the highest absolute value takes precedence.
-            if(std::abs(actionValue) > std::abs(actionState.Value))
-            {
-                actionState.Value = actionValue;
-            }
+        ActionState& actionState = *it;
+
+        actionState.Triggered = true;
+        const float actionValue = mapping.Scale * value.value();
+
+        // The event that generates the highest absolute value takes precedence.
+        if(std::abs(actionValue) > std::abs(actionState.Value))
+        {
+            actionState.Value = actionValue;
         }
     }
 
@@ -247,7 +351,7 @@ InputMapper::IsActionTriggered(const ActionIdentifier& actionId, float& value) c
 {
     MLG_ASSERT(!m_InFrame, "IsActionTriggered() called during BeginFrame()/EndFrame()");
 
-    for(const ActionState& actionState : m_ActionStates)
+    for(const ActionState& actionState : m_SortedActionStates)
     {
         if(actionState.ActionId == actionId && actionState.Triggered)
         {
@@ -265,10 +369,10 @@ InputMapper::IsActionTriggered(const ActionIdentifier& actionId, float& value) c
 size_t
 InputMapper::GetActionStateIndex(const ActionIdentifier& actionId) const
 {
-    const auto it = std::ranges::lower_bound(m_ActionStates, actionId, {}, &ActionState::ActionId);
-    MLG_ABORTIF(it == m_ActionStates.end() || it->ActionId != actionId, "ActionState not found");
+    const auto it = std::ranges::lower_bound(m_SortedActionStates, actionId, {}, &ActionState::ActionId);
+    MLG_ABORTIF(it == m_SortedActionStates.end() || it->ActionId != actionId, "ActionState not found");
 
-    return static_cast<size_t>(std::distance(m_ActionStates.begin(), it));
+    return static_cast<size_t>(std::distance(m_SortedActionStates.begin(), it));
 }
 
 std::optional<float>
