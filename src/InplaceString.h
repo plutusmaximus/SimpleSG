@@ -10,30 +10,31 @@
 
 struct InplaceStringHelper
 {
-    /// The default length for FixedString if no template argument is provided.
+    /// The default length for InplaceString if no template argument is provided.
     static constexpr size_t kDefaultLength = 255;
 };
 
 /// A fixed-size string class that stores a string of up to N characters and a null terminator.
+/// Storage for the string is in-place within the object itself.
 /// The null terminator will add one extra character to the storage requirement.
-/// So FixedString<255> requires 256 characters of storage.
+/// So InplaceString<255> requires 256 characters of storage.
 template<size_t N = InplaceStringHelper::kDefaultLength>
-class FixedString
+class InplaceString
 {
     template<size_t M>
-    friend class FixedString;
+    friend class InplaceString;
 
     /// The size of the storage buffer, including the null terminator.
     static constexpr size_t kStorageSize = N + 1;
 
-    static_assert(kStorageSize > 0, "FixedString size must be greater than 0");
+    static_assert(kStorageSize > 0, "Size must be greater than 0");
 
 public:
     /// The maximum number of characters that can be stored, excluding the null terminator.
     static constexpr size_t kMaxLength = N;
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
-    FixedString()
+    InplaceString()
     {
         m_Chars[0] = '\0';
         m_Hash = ComputeHash(*this); // NOLINT(cppcoreguidelines-prefer-member-initializer)
@@ -42,7 +43,7 @@ public:
     template<size_t M>
         requires(M <= N)
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
-    constexpr explicit FixedString(FixedString<M> value)
+    constexpr explicit InplaceString(InplaceString<M> value)
         : m_Length(value.size())
     {
         for(size_t i = 0; i < m_Length; ++i)
@@ -55,7 +56,7 @@ public:
     }
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
-    explicit FixedString(const std::string_view str)
+    explicit InplaceString(const std::string_view str)
         : m_Length((str.size() <= kMaxLength) ? str.size() : kMaxLength)
     {
         MLG_ASSERT(str.size() <= kMaxLength);
@@ -69,7 +70,7 @@ public:
         m_Hash = ComputeHash(*this);
     }
 
-    FixedString& operator=(const std::string_view str)
+    InplaceString& operator=(const std::string_view str)
     {
         MLG_ASSERT(str.size() <= kMaxLength);
 
@@ -96,13 +97,13 @@ public:
 
     size_t GetHashCode() const { return m_Hash; }
 
-    /// Formats a message into a FixedString.
+    /// Formats a message into an InplaceString.
     /// If the formatted message exceeds the buffer size, it will be truncated and an
     /// ellipsis will be appended.
     template<typename... Args>
-    static FixedString Format(fmt::format_string<Args...> fmtStr, Args&&... args)
+    static InplaceString Format(fmt::format_string<Args...> fmtStr, Args&&... args)
     {
-        FixedString fs;
+        InplaceString fs;
         auto result =
             fmt::format_to_n(&fs.m_Chars[0], kMaxLength, fmtStr, std::forward<Args>(args)...);
 
@@ -124,12 +125,12 @@ public:
     // NOLINTNEXTLINE(google-explicit-constructor)
     operator std::string_view() const { return std::string_view(&m_Chars[0], m_Length); }
 
-    friend auto operator<=>(const FixedString& a, const FixedString& b)
+    friend auto operator<=>(const InplaceString& a, const InplaceString& b)
     {
         return std::string_view(a) <=> std::string_view(b);
     }
 
-    friend bool operator==(const FixedString& a, const FixedString& b)
+    friend bool operator==(const InplaceString& a, const InplaceString& b)
     {
         if(a.GetHashCode() == b.GetHashCode())
         {
@@ -139,7 +140,7 @@ public:
         return false;
     }
 
-    friend bool operator!=(const FixedString& a, const FixedString& b) { return !(a == b); }
+    friend bool operator!=(const InplaceString& a, const InplaceString& b) { return !(a == b); }
 
 private:
     static size_t ComputeHash(const std::string_view str)
@@ -152,27 +153,27 @@ private:
     size_t m_Hash{ 0 };
 };
 
-/// format_as is used by fmt::format for FixedString.
+/// format_as is used by fmt::format for InplaceString.
 template<size_t N>
 inline std::string_view
-format_as(const FixedString<N>& str) noexcept
+format_as(const InplaceString<N>& str) noexcept
 {
     return std::string_view(str);
 }
 
-/// Formatter specialization for FixedString to be used with std::format.
+/// Formatter specialization for InplaceString to be used with std::format.
 template<size_t N>
-struct std::formatter<FixedString<N>> : std::formatter<std::string_view>
+struct std::formatter<InplaceString<N>> : std::formatter<std::string_view>
 {
-    auto format(const FixedString<N>& str, auto& context) const
+    auto format(const InplaceString<N>& str, auto& context) const
     {
         return std::formatter<std::string_view>::format(std::string_view(str), context);
     }
 };
 
-/// Hash specialization for FixedString to be used in unordered containers.
+/// Hash specialization for InplaceString to be used in unordered containers.
 template<size_t N>
-struct std::hash<FixedString<N>>
+struct std::hash<InplaceString<N>>
 {
-    size_t operator()(const FixedString<N>& str) const noexcept { return str.GetHashCode(); }
+    size_t operator()(const InplaceString<N>& str) const noexcept { return str.GetHashCode(); }
 };

@@ -389,7 +389,6 @@ set(SSG_HEADERS
   src/DevUi.h
   src/FileFetcher.h
   src/FilePath.h
-  src/FixedString.h
   src/GltfLoader.h
   src/GpuColorPass.h
   src/GpuCompositorPass.h
@@ -398,6 +397,7 @@ set(SSG_HEADERS
   src/GpuTypes.h
   src/ImGuiRenderer.h
   src/inlist.h
+  src/InplaceString.h
   src/InputMapper.h
   src/Level.h
   src/Log.h

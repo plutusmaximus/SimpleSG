@@ -1,8 +1,8 @@
 #pragma once
 
 #include "Defer.h" // used for MLG_SCOPED_TIMER macro
-#include "FixedString.h"
 #include "inlist.h"
+#include "InplaceString.h"
 #include "Timer.h"
 
 #include <atomic>
@@ -173,7 +173,7 @@ private:
 
     constexpr static size_t kMaxNameLen = 63;
 
-    FixedString<kMaxNameLen> m_Name;
+    InplaceString<kMaxNameLen> m_Name;
     std::atomic<double> m_Value{ 0 };
     PerfAggregator m_Aggregator;
     SamplePolicy m_SamplePolicy{ SamplePolicy::Accumulate };

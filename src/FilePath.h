@@ -1,6 +1,6 @@
 #pragma once
 
-#include "FixedString.h"
+#include "InplaceString.h"
 #include "Result.h"
 
 #include <cstddef>
@@ -22,7 +22,7 @@ class RelativeFilePath final
     static constexpr size_t kMaxLength = 127;
 
 public:
-    using StringStorageType = FixedString<kMaxLength>;
+    using StringStorageType = InplaceString<kMaxLength>;
 
     RelativeFilePath() = delete;
 
@@ -46,7 +46,7 @@ public:
 private:
     template<size_t N>
         requires(N <= StringStorageType::kMaxLength)
-    constexpr explicit RelativeFilePath(FixedString<N> value)
+    constexpr explicit RelativeFilePath(InplaceString<N> value)
         : m_Value(std::move(value))
     {
     }
@@ -101,7 +101,7 @@ public:
 private:
     template<size_t N>
         requires(N <= StringStorageType::kMaxLength)
-    constexpr explicit DirectoryPath(FixedString<N> value)
+    constexpr explicit DirectoryPath(InplaceString<N> value)
         : m_Value(std::move(value))
     {
     }
@@ -119,7 +119,7 @@ class FilePath final
 
 public:
 
-    using StringStorageType = FixedString<kMaxLength>;
+    using StringStorageType = InplaceString<kMaxLength>;
 
     FilePath() = delete;
 
@@ -144,7 +144,7 @@ public:
 private:
     template<size_t N>
         requires(N <= StringStorageType::kMaxLength)
-    constexpr explicit FilePath(FixedString<N> value)
+    constexpr explicit FilePath(InplaceString<N> value)
         : m_Value(std::move(value))
     {
     }

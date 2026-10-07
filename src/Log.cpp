@@ -1,6 +1,6 @@
 #include "Log.h"
 
-#include "FixedString.h"
+#include "InplaceString.h"
 #include "SanitizerHelpers.h"
 
 #include <mutex>
@@ -29,7 +29,7 @@ constexpr size_t kMaxPrefixBufferSize =
     ((kMaxPrefixComponentLen + std::size(kPrefixSeparator)) * kMaxPrefixStackSize)
     + 1; // +1 for null terminator
 
-using PrefixComponentString = FixedString<kMaxPrefixComponentLen>;
+using PrefixComponentString = InplaceString<kMaxPrefixComponentLen>;
 
 struct ThreadLogState // NOLINT(cppcoreguidelines-pro-type-member-init)
 {

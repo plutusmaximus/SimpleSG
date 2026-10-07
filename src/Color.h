@@ -1,7 +1,7 @@
 #pragma once
 
 #include "AssertHelper.h"
-#include "FixedString.h"
+#include "InplaceString.h"
 
 #include <algorithm>
 #include <span>
@@ -18,7 +18,7 @@ public:
     static constexpr T kMinValue = 0;
     static constexpr size_t kHexStringMaxLen = 15; // #RRGGBBAA
 
-    using HexString = FixedString<kHexStringMaxLen>;
+    using HexString = InplaceString<kHexStringMaxLen>;
 
     constexpr RgbaColor() = default;
 

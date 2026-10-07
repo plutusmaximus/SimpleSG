@@ -98,7 +98,7 @@ CreateSdlWindow(const std::string_view appName)
     windowFlags |= SDL_WINDOW_METAL;
 #endif
 
-    const FixedString<64> windowTitle(appName);
+    const InplaceString<64> windowTitle(appName);
     SDL_Window* window = SDL_CreateWindow(windowTitle.c_str(), winW, winH, windowFlags);
     MLG_CHECK(window, SDL_GetError());
 

@@ -3,7 +3,7 @@
 #include "BoundingVolumes.h"
 #include "Color.h"
 #include "FilePath.h"
-#include "FixedString.h"
+#include "InplaceString.h"
 #include "PhysicsTypes.h"
 #include "VecMath.h"
 
@@ -37,7 +37,7 @@
 namespace SceneDefs
 {
 constexpr size_t kMaxNameLen = 31;
-using NameString = FixedString<kMaxNameLen>;
+using NameString = InplaceString<kMaxNameLen>;
 
 using FilePathString = RelativeFilePath::StringStorageType;
 
