@@ -118,7 +118,7 @@ private:
 
     Result<> Render();
 
-    void AddActionMappings();
+    Result<> AddActionMappings();
 
     System* m_System{ nullptr };
 
@@ -131,7 +131,8 @@ private:
             { .x = 0, .y = 0, .width = 1, .height = 1, .minDepth = 0, .maxDepth = 1 },
         };
 
-    CameraActor m_CameraActor;
+    std::optional<CameraActor> m_OptCameraActor;
+    CameraActor* m_CameraActor{ nullptr };
     Timer m_FrameTimer;
     bool m_IsCameraActorActive{ false };
 
@@ -152,6 +153,9 @@ TranslucentApp::OnStart(System& system)
 
     m_LevelCreateTask.emplace(*m_System, std::move(*sceneDef));
     MLG_CHECK(m_LevelCreateTask->Start(), "Failed to start level creation task");
+
+    m_OptCameraActor.emplace(system.GetInputMapper());
+    m_CameraActor = &(*m_OptCameraActor);
 
     m_Stage = Stage::CreatingLevel;
 
@@ -192,9 +196,16 @@ TranslucentApp::OnUpdate()
                 else
                 {
                     m_Level = std::move(*levelResult);
-                    m_CameraActor.SetTransform(TrTransformf{ .T = { 0, 0, -4 } });
-                    AddActionMappings();
-                    m_Stage = TranslucentApp::Stage::Running;
+                    m_CameraActor->SetTransform(TrTransformf{ .T = { 0, 0, -4 } });
+                    if(!AddActionMappings())
+                    {
+                        MLG_ERROR("Failed to add action mappings");
+                        m_Stage = Stage::Stopped;
+                    }
+                    else
+                    {
+                        m_Stage = Stage::Running;
+                    }
                 }
             }
             break;
@@ -225,7 +236,7 @@ TranslucentApp::OnUpdate()
 
                 if(m_IsCameraActorActive)
                 {
-                    m_CameraActor.Update(m_System->GetInputMapper(), elapsedSeconds);
+                    m_CameraActor->Update(m_System->GetInputMapper(), elapsedSeconds);
                 }
 
                 if(!MLG_VERIFY(Render(), "Failed to render view"))
@@ -249,9 +260,9 @@ TranslucentApp::Render()
     const GpuHelper& gpuHelper = m_System->GetGpuHelper();
 
     m_Viewport = Viewport(gpuHelper.GetScreenDimensions());
-    m_CameraActor.SetViewport(m_Viewport);
+    m_CameraActor->SetViewport(m_Viewport);
 
-    MLG_CHECK(m_Level->GetView().Render(m_CameraActor.GetCamera(), m_CameraActor.GetTransform()),
+    MLG_CHECK(m_Level->GetView().Render(m_CameraActor->GetCamera(), m_CameraActor->GetTransform()),
         "Failed to render view");
 
     auto target = gpuHelper.GetSwapChainTexture();
@@ -265,7 +276,7 @@ TranslucentApp::Render()
     return Result<>::Ok;
 }
 
-void
+Result<>
 TranslucentApp::AddActionMappings()
 {
     static constexpr ActionMapping actionMappings[] //
@@ -273,41 +284,6 @@ TranslucentApp::AddActionMappings()
             {
                 .ActionId = CommonActionIds::Quit,
                 .Trigger = InputButton::KeyPressed(SDL_SCANCODE_ESCAPE),
-            },
-            {
-                .ActionId = CommonActionIds::MoveForward,
-                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_W),
-                .Scale = 1,
-            },
-            {
-                .ActionId = CommonActionIds::MoveBackward,
-                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_S),
-                .Scale = -1,
-            },
-            {
-                .ActionId = CommonActionIds::MoveLeft,
-                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_A),
-                .Scale = -1,
-            },
-            {
-                .ActionId = CommonActionIds::MoveRight,
-                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_D),
-                .Scale = 1,
-            },
-            {
-                .ActionId = CommonActionIds::LookLeftRight,
-                .Trigger = InputAxis::MouseMoveX(),
-                .Scale = CameraActor::kDefaultRotPerMouseMove,
-            },
-            {
-                .ActionId = CommonActionIds::LookUpDown,
-                .Trigger = InputAxis::MouseMoveY(),
-                .Scale = CameraActor::kDefaultRotPerMouseMove,
-            },
-            {
-                .ActionId = CommonActionIds::MoveUpDown,
-                .Trigger = InputAxis::MouseWheelY(),
-                .Scale = CameraActor::kMouseWheelScale,
             },
             {
                 .ActionId = CommonActionIds::CaptureMouse,
@@ -319,7 +295,7 @@ TranslucentApp::AddActionMappings()
             },
         };
 
-    m_System->SetActionMapping(actionMappings);
+    return m_System->GetInputMapper().AddActionMappings(actionMappings);
 }
 
 void

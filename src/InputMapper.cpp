@@ -130,28 +130,55 @@ struct EqualTo
 static_assert(InputMapper::kMaxKeyButtons >= SDL_SCANCODE_COUNT,
     "kMaxKeyButtons must be at least SDL_SCANCODE_COUNT");
 
-InputMapper::InputMapper(const std::span<const ActionMapping> mappings)
+Result<>
+InputMapper::AddActionMappings(const std::span<const ActionMapping> mappings)
 {
+    MLG_CHECKV(mappings.size() <= m_SortedActionMappings.capacity());
+    MLG_CHECKV(m_SortedActionMappings.capacity() - m_SortedActionMappings.size() >= mappings.size());
+
     // Aborts on failure.
     ValidateMappingsOrAbort(mappings);
 
-    // Sort first by InputTrigger, then by ActionId.
-    //m_SortedActionMappings.reserve(mappings.size());
-    m_SortedActionMappings.append_range(mappings);
+    constexpr Less less{};
+    constexpr EqualTo equalTo{};
 
-    // Remove duplicate action mappings.
-    const auto uniqueEnd = std::ranges::unique(m_SortedActionMappings, EqualTo{});
-    m_SortedActionMappings.erase(uniqueEnd.begin(), uniqueEnd.end());
-
+    // Return error if duplicates found.
     for(const ActionMapping& mapping : mappings)
     {
-        m_SortedActionStates.push_back(ActionState{ .ActionId = mapping.ActionId });
+        const auto it = std::ranges::lower_bound(m_SortedActionMappings, mapping, less);
+        const bool found = it != m_SortedActionMappings.end() && equalTo(*it, mapping);
+
+        MLG_CHECKV(!found, "Duplicate action mapping found: \"{}\"", std::string_view(mapping.ActionId));
+    }
+
+    // Sort first by InputTrigger, then by ActionId.
+    m_SortedActionMappings.append_range(mappings);
+    std::ranges::sort(m_SortedActionMappings, less);
+    
+    // Remove duplicate action mappings.
+    const auto uniqueEnd = std::ranges::unique(m_SortedActionMappings, equalTo);
+    m_SortedActionMappings.erase(uniqueEnd.begin(), uniqueEnd.end());
+
+    const std::span curActionStats(m_SortedActionStates);
+
+    // Make sure not to overwrite existing action states, which might have state data.
+    for(const ActionMapping& mapping : mappings)
+    {
+        const auto it =
+            std::ranges::lower_bound(curActionStats, mapping.ActionId, {}, &ActionState::ActionId);
+
+        if(it == curActionStats.end() || it->ActionId != mapping.ActionId)
+        {
+            m_SortedActionStates.push_back(ActionState{ .ActionId = mapping.ActionId });
+        }
     }
 
     // Sort action states and remove duplicates.
     std::ranges::sort(m_SortedActionStates, {}, &ActionState::ActionId);
     const auto dupRange = std::ranges::unique(m_SortedActionStates, {}, &ActionState::ActionId);
     m_SortedActionStates.erase(dupRange.begin(), dupRange.end());
+
+    return Result<>::Ok;
 }
 
 void

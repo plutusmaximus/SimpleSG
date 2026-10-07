@@ -41,7 +41,7 @@ constexpr float kGravitationalConstant = 0.1f; // 6.674e-11f;//(m^3 kg^-1 s^-2)
 constexpr bool kApplyGravityMultithreaded = true;
 
 constexpr ActionIdentifier Explode("Explode");
-constexpr ActionIdentifier stopAll("StopAll");
+constexpr ActionIdentifier StopAll("StopAll");
 constexpr ActionIdentifier Pause("Pause");
 
 struct PerfCounterGlobals
@@ -503,7 +503,7 @@ ApplyExplosionImpulse(Scene& scene, const float magnitude)
 }
 
 void
-StopAll(Scene& scene)
+StopAllMovement(Scene& scene)
 {
     constexpr Vec3f zeroVelocity{ 0 };
 
@@ -596,14 +596,9 @@ MainLoop()
 
     constexpr float kInitialCameraDistance = 40.0f;
 
-    TrTransformf cameraXForm{ .T{ 0, 0, -kInitialCameraDistance } };
-    // Camera camera((Viewport(gpuHelper.GetScreenDimensions())));
-
-    CameraActor cameraActor;
-    cameraActor.SetTransform(cameraXForm);
+    CameraActor cameraActor(system->GetInputMapper());
+    cameraActor.SetTransform(TrTransformf{ .T{ 0, 0, -kInitialCameraDistance } });
     cameraActor.SetViewport(Viewport(gpuHelper.GetScreenDimensions()));
-
-    static constexpr float kMouseWheelScale = 20.0f;
 
     bool pauseSim = false;
 
@@ -612,41 +607,6 @@ MainLoop()
             {
                 .ActionId = CommonActionIds::Quit,
                 .Trigger = InputButton::KeyPressed(SDL_SCANCODE_ESCAPE),
-            },
-            {
-                .ActionId = CommonActionIds::MoveForward,
-                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_W),
-                .Scale = 1,
-            },
-            {
-                .ActionId = CommonActionIds::MoveBackward,
-                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_S),
-                .Scale = -1,
-            },
-            {
-                .ActionId = CommonActionIds::MoveLeft,
-                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_A),
-                .Scale = -1,
-            },
-            {
-                .ActionId = CommonActionIds::MoveRight,
-                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_D),
-                .Scale = 1,
-            },
-            {
-                .ActionId = CommonActionIds::LookLeftRight,
-                .Trigger = InputAxis::MouseMoveX(),
-                .Scale = CameraActor::kDefaultRotPerMouseMove,
-            },
-            {
-                .ActionId = CommonActionIds::LookUpDown,
-                .Trigger = InputAxis::MouseMoveY(),
-                .Scale = CameraActor::kDefaultRotPerMouseMove,
-            },
-            {
-                .ActionId = CommonActionIds::MoveUpDown,
-                .Trigger = InputAxis::MouseWheelY(),
-                .Scale = kMouseWheelScale,
             },
             {
                 .ActionId = CommonActionIds::CaptureMouse,
@@ -661,7 +621,7 @@ MainLoop()
                 .Trigger = InputButton::KeyPressed(SDL_SCANCODE_RETURN),
             },
             {
-                .ActionId = stopAll,
+                .ActionId = StopAll,
                 .Trigger = InputButton::KeyPressed(SDL_SCANCODE_BACKSPACE),
             },
             {
@@ -670,7 +630,7 @@ MainLoop()
             },
         };
 
-    system->SetActionMapping(actionMappings);
+    MLG_CHECK(system->GetInputMapper().AddActionMappings(actionMappings));
 
     Timer frameTimer;
 
@@ -718,9 +678,9 @@ MainLoop()
             constexpr float kImpulseMagnitude = 5.0f;
             ApplyExplosionImpulse(scene, kImpulseMagnitude);
         }
-        if(inputMapper.IsActionTriggered(stopAll))
+        if(inputMapper.IsActionTriggered(StopAll))
         {
-            StopAll(scene);
+            StopAllMovement(scene);
         }
         if(inputMapper.IsActionTriggered(Pause))
         {
@@ -743,7 +703,6 @@ MainLoop()
         {
             cameraActor.Update(inputMapper, elapsedSeconds);
         }
-        cameraXForm = cameraActor.GetTransform();
 
         auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECKV(target, "Failed to get swap chain texture");
@@ -757,7 +716,7 @@ MainLoop()
             const Viewport viewport(viewPanelRect.GetDimensions());
             cameraActor.SetViewport(viewport);
 
-            MLG_CHECK(view.Render(cameraActor.GetCamera(), cameraXForm));
+            MLG_CHECK(view.Render(cameraActor.GetCamera(), cameraActor.GetTransform()));
             MLG_CHECK(view.Composite(*target, viewPanelRect));
         }
 

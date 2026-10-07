@@ -2,6 +2,7 @@
 
 #include "Containers.h"
 #include "VecMath.h"
+#include "Result.h"
 
 #include <array>
 #include <cstddef>
@@ -9,6 +10,7 @@
 #include <cstring>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <variant>
 
 /// Represents the device to which an input button belongs.
@@ -178,9 +180,16 @@ public:
         {
             m_Name[i] = name[i];
         }
+        m_Name[N - 1] = '\0';
+        m_Length = N - 1; // Exclude the null terminator
     }
 
     constexpr const char* c_str() const { return &m_Name[0]; }
+
+    explicit constexpr operator std::string_view() const
+    {
+        return std::string_view(c_str(), m_Length);
+    }
 
     friend constexpr auto operator<=>(const ActionIdentifier& a, const ActionIdentifier& b)
     {
@@ -224,6 +233,7 @@ private:
     static constexpr size_t kMaxNameLength = 63; // 63 chars + null terminator
 
     char m_Name[kMaxNameLength + 1]{ 0 };
+    size_t m_Length{ 0 };
     uint64_t m_Hash{ 0 };
 };
 
@@ -276,7 +286,7 @@ private:
 };
 
 /// Maps an action identifier to an input.
-/// The application passes an array of these to InputMapper ctor.
+/// The application passes an array of these to AddActionMappings.
 struct ActionMapping
 {
     /// The unique identifier for the action.
@@ -313,7 +323,10 @@ public:
     InputMapper(InputMapper&&) = default;
     InputMapper& operator=(InputMapper&&) = default;
 
-    explicit InputMapper(const std::span<const ActionMapping> mappings);
+    /// Adds a set of action mappings to the input mapper. Each mapping associates an input event
+    /// with an action. Returns error if the added mappings exceed the capacity of the input mapper,
+    /// or if any of the added mappings are duplicates of existing mappings.
+    Result<> AddActionMappings(const std::span<const ActionMapping> mappings);
 
     /// Clears the state of all actions. This should be called when the application loses
     /// focus or is minimized to prevent actions from being triggered when the application regains
@@ -373,13 +386,13 @@ private:
     std::optional<float> EvaluateButton(const InputButton& button) const;
     std::optional<float> EvaluateAxis(const InputAxis& axis) const;
 
-    static constexpr size_t kMaxMappings = 64;
+    static constexpr size_t kMaxActionMappings = 128;
 
     // Sorted list of all action mappings.
-    InplaceVector<ActionMapping, kMaxMappings> m_SortedActionMappings;
+    InplaceVector<ActionMapping, kMaxActionMappings> m_SortedActionMappings;
 
     // Current state of all registered actions, sorted in order of action IDs.
-    InplaceVector<ActionState, kMaxMappings> m_SortedActionStates;
+    InplaceVector<ActionState, kMaxActionMappings> m_SortedActionStates;
 
     // Track button states for all keys and mouse buttons.  The index into the vector is the
     // scancode for keys and the button index for mouse buttons.

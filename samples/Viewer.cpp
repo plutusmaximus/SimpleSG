@@ -134,7 +134,7 @@ MainLoop()
 
     Dimension2 screenDimensions = gpuHelper.GetScreenDimensions();
 
-    CameraActor cameraActor;
+    CameraActor cameraActor(system->GetInputMapper());
     cameraActor.SetTransform(TrTransformf{ .T{ 0, kDefaultCameraHeight, 0 }, .R{ cameraYaw, Vec3f::YAXIS() } });
     cameraActor.SetViewport(Viewport(screenDimensions));
 
@@ -143,41 +143,6 @@ MainLoop()
             {
                 .ActionId = CommonActionIds::Quit,
                 .Trigger = InputButton::KeyPressed(SDL_SCANCODE_ESCAPE),
-            },
-            {
-                .ActionId = CommonActionIds::MoveForward,
-                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_W),
-                .Scale = 1,
-            },
-            {
-                .ActionId = CommonActionIds::MoveBackward,
-                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_S),
-                .Scale = -1,
-            },
-            {
-                .ActionId = CommonActionIds::MoveLeft,
-                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_A),
-                .Scale = -1,
-            },
-            {
-                .ActionId = CommonActionIds::MoveRight,
-                .Trigger = InputButton::KeyHeld(SDL_SCANCODE_D),
-                .Scale = 1,
-            },
-            {
-                .ActionId = CommonActionIds::LookLeftRight,
-                .Trigger = InputAxis::MouseMoveX(),
-                .Scale = CameraActor::kDefaultRotPerMouseMove,
-            },
-            {
-                .ActionId = CommonActionIds::LookUpDown,
-                .Trigger = InputAxis::MouseMoveY(),
-                .Scale = CameraActor::kDefaultRotPerMouseMove,
-            },
-            {
-                .ActionId = CommonActionIds::MoveUpDown,
-                .Trigger = InputAxis::MouseWheelY(),
-                .Scale = CameraActor::kMouseWheelScale,
             },
             {
                 .ActionId = CommonActionIds::CaptureMouse,
@@ -189,7 +154,7 @@ MainLoop()
             },
         };
 
-    system->SetActionMapping(actionMappings);
+    MLG_CHECK(system->GetInputMapper().AddActionMappings(actionMappings));
 
     Timer frameTimer;
 

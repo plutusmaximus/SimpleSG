@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Result.h"
+
 #include <memory>
 #include <span>
 
@@ -24,9 +26,6 @@ public:
     System(System&&) = delete;
     System& operator=(System&&) = delete;
 
-    /// Sets the action mappings for input handling.
-    void SetActionMapping(const std::span<const ActionMapping> actionMappings);
-
     GpuHelper& GetGpuHelper();
     const GpuHelper& GetGpuHelper() const;
 
@@ -38,6 +37,7 @@ public:
 
     const ImGuiRenderer& GetImGuiRenderer() const;
 
+    InputMapper& GetInputMapper();
     const InputMapper& GetInputMapper() const;
 
     /// Posts a quit event to request the application to terminate.

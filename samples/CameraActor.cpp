@@ -2,6 +2,56 @@
 
 #include "CommonActionIds.h"
 
+#include <SDL3/SDL_events.h>
+
+namespace
+{
+
+constexpr ActionMapping actionMappings[] //
+    {
+        {
+            .ActionId = CommonActionIds::MoveForward,
+            .Trigger = InputButton::KeyHeld(SDL_SCANCODE_W),
+            .Scale = 1,
+        },
+        {
+            .ActionId = CommonActionIds::MoveBackward,
+            .Trigger = InputButton::KeyHeld(SDL_SCANCODE_S),
+            .Scale = -1,
+        },
+        {
+            .ActionId = CommonActionIds::MoveLeft,
+            .Trigger = InputButton::KeyHeld(SDL_SCANCODE_A),
+            .Scale = -1,
+        },
+        {
+            .ActionId = CommonActionIds::MoveRight,
+            .Trigger = InputButton::KeyHeld(SDL_SCANCODE_D),
+            .Scale = 1,
+        },
+        {
+            .ActionId = CommonActionIds::LookLeftRight,
+            .Trigger = InputAxis::MouseMoveX(),
+            .Scale = CameraActor::kDefaultRotPerMouseMove,
+        },
+        {
+            .ActionId = CommonActionIds::LookUpDown,
+            .Trigger = InputAxis::MouseMoveY(),
+            .Scale = CameraActor::kDefaultRotPerMouseMove,
+        },
+        {
+            .ActionId = CommonActionIds::MoveUpDown,
+            .Trigger = InputAxis::MouseWheelY(),
+            .Scale = CameraActor::kMouseWheelScale,
+        },
+    };
+}
+
+CameraActor::CameraActor(InputMapper& inputMapper)
+{
+    MLG_ABORTIF(!inputMapper.AddActionMappings(actionMappings), "Failed to add action mappings");
+}
+
 void
 CameraActor::Update(const InputMapper& inputMapper, const float deltaSeconds)
 {

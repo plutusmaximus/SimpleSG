@@ -13,7 +13,7 @@ public:
     static constexpr float kMouseWheelScale = 20.0f;
     static constexpr float kDefaultMovePerSec = 5.0f;
 
-    CameraActor() = default;
+    explicit CameraActor(InputMapper& inputMapper);
 
     void Update(const InputMapper& inputMapper, const float deltaSeconds);
 

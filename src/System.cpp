@@ -126,12 +126,6 @@ System::System(std::unique_ptr<Impl>&& impl)
 
 System::~System() = default;
 
-void
-System::SetActionMapping(const std::span<const ActionMapping> actionMappings)
-{
-    m_Impl->m_InputMapper = InputMapper(actionMappings);
-}
-
 GpuHelper&
 System::GetGpuHelper()
 {
@@ -172,6 +166,12 @@ const ImGuiRenderer&
 System::GetImGuiRenderer() const
 {
     return *m_Impl->m_ImGuiRenderer;
+}
+
+InputMapper&
+System::GetInputMapper()
+{
+    return m_Impl->m_InputMapper;
 }
 
 const InputMapper&
