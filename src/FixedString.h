@@ -8,21 +8,29 @@
 #include <spdlog/fmt/fmt.h>
 #include <string_view>
 
-/// A fixed-size string class that stores a string of up to N-1 characters and a null terminator.
-template<size_t N>
+struct InplaceStringHelper
+{
+    /// The default length for FixedString if no template argument is provided.
+    static constexpr size_t kDefaultLength = 255;
+};
+
+/// A fixed-size string class that stores a string of up to N characters and a null terminator.
+/// The null terminator will add one extra character to the storage requirement.
+/// So FixedString<255> requires 256 characters of storage.
+template<size_t N = InplaceStringHelper::kDefaultLength>
 class FixedString
 {
     template<size_t M>
     friend class FixedString;
 
-public:
     /// The size of the storage buffer, including the null terminator.
-    static constexpr size_t kStorageSize = N;
-
-    /// The maximum number of characters that can be stored, excluding the null terminator.
-    static constexpr size_t kMaxLength = N - 1;
+    static constexpr size_t kStorageSize = N + 1;
 
     static_assert(kStorageSize > 0, "FixedString size must be greater than 0");
+
+public:
+    /// The maximum number of characters that can be stored, excluding the null terminator.
+    static constexpr size_t kMaxLength = N;
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
     FixedString()
@@ -32,7 +40,7 @@ public:
     }
 
     template<size_t M>
-        requires(M <= kStorageSize)
+        requires(M <= N)
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
     constexpr explicit FixedString(FixedString<M> value)
         : m_Length(value.size())
@@ -48,9 +56,9 @@ public:
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
     explicit FixedString(const std::string_view str)
-        : m_Length((str.size() < kStorageSize) ? str.size() : kMaxLength)
+        : m_Length((str.size() <= kMaxLength) ? str.size() : kMaxLength)
     {
-        MLG_ASSERT(str.size() < kStorageSize);
+        MLG_ASSERT(str.size() <= kMaxLength);
 
         for(size_t i = 0; i < m_Length; ++i)
         {
@@ -63,9 +71,9 @@ public:
 
     FixedString& operator=(const std::string_view str)
     {
-        MLG_ASSERT(str.size() < kStorageSize);
+        MLG_ASSERT(str.size() <= kMaxLength);
 
-        m_Length = (str.size() < kStorageSize) ? str.size() : kMaxLength;
+        m_Length = (str.size() <= kMaxLength) ? str.size() : kMaxLength;
 
         for(size_t i = 0; i < m_Length; ++i)
         {

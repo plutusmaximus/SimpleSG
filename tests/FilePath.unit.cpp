@@ -234,10 +234,10 @@ TEST(FilePath, RejectsInvalidStringViewJoin)
 TEST(RelativeFilePath, EnforcesCapacity)
 {
     const IgnorePathAssertions ignoreAssertions;
-    const std::string longestFile(RelativeFilePath::kMaxLength, 'a');
+    const std::string longestFile(RelativeFilePath::StringStorageType::kMaxLength, 'a');
     const auto longestFilePath = RelativeFilePath::Create(longestFile);
     ASSERT_TRUE(longestFilePath);
-    EXPECT_EQ(longestFilePath->size(), RelativeFilePath::kMaxLength);
+    EXPECT_EQ(longestFilePath->size(), RelativeFilePath::StringStorageType::kMaxLength);
     EXPECT_FALSE(RelativeFilePath::Create(longestFile + 'a'));
 }
 
@@ -245,10 +245,10 @@ TEST(DirectoryPath, EnforcesCapacity)
 {
     const IgnorePathAssertions ignoreAssertions;
     constexpr std::string_view separator = "/";
-    const std::string longestDirectory(RelativeFilePath::kMaxLength - separator.size(), 'a');
+    const std::string longestDirectory(RelativeFilePath::StringStorageType::kMaxLength - separator.size(), 'a');
     const auto directory = DirectoryPath::Create(longestDirectory + '/');
     ASSERT_TRUE(directory);
-    EXPECT_EQ(directory->size(), RelativeFilePath::kMaxLength);
+    EXPECT_EQ(directory->size(), RelativeFilePath::StringStorageType::kMaxLength);
     const auto normalizedDirectory = DirectoryPath::Create(longestDirectory);
     ASSERT_TRUE(normalizedDirectory);
     EXPECT_EQ(*directory, *normalizedDirectory);
@@ -270,8 +270,8 @@ TEST(DirectoryPath, NormalizationPreservesEqualityAndHash)
 TEST(FilePath, JoinsAtMaximumInputLengths)
 {
     constexpr std::string_view separator = "/";
-    const std::string directoryName(RelativeFilePath::kMaxLength - separator.size(), 'd');
-    const std::string fileName(RelativeFilePath::kMaxLength, 'f');
+    const std::string directoryName(RelativeFilePath::StringStorageType::kMaxLength - separator.size(), 'd');
+    const std::string fileName(RelativeFilePath::StringStorageType::kMaxLength, 'f');
     const auto directory = DirectoryPath::Create(directoryName + '/');
     const auto file = RelativeFilePath::Create(fileName);
     ASSERT_TRUE(directory);
@@ -281,8 +281,8 @@ TEST(FilePath, JoinsAtMaximumInputLengths)
     ASSERT_TRUE(joined);
     const std::string expected = directoryName + '/' + fileName;
     EXPECT_EQ(joined->size(), directory->size() + file->size());
-    EXPECT_EQ(joined->size(), RelativeFilePath::kMaxLength + RelativeFilePath::kMaxLength);
-    EXPECT_LE(joined->size(), FilePath::kMaxLength);
+    EXPECT_EQ(joined->size(), RelativeFilePath::StringStorageType::kMaxLength + RelativeFilePath::StringStorageType::kMaxLength);
+    EXPECT_LE(joined->size(), FilePath::StringStorageType::kMaxLength);
     EXPECT_EQ(std::string_view(*joined), std::string_view(expected));
     EXPECT_STREQ(joined->c_str(), expected.c_str());
 

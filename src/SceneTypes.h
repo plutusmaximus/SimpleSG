@@ -36,10 +36,10 @@
 
 namespace SceneDefs
 {
-constexpr size_t kNameStorageSize = 32;
-using NameString = FixedString<kNameStorageSize>;
+constexpr size_t kMaxNameLen = 31;
+using NameString = FixedString<kMaxNameLen>;
 
-using FilePathString = FixedString<RelativeFilePath::kStorageSize>;
+using FilePathString = RelativeFilePath::StringStorageType;
 
 } // namespace SceneDefs
 

@@ -567,6 +567,7 @@ add_executable(Tests
   "tests/Containers.unit.cpp"
   "tests/Defer.unit.cpp"
   "tests/FilePath.unit.cpp"
+  "tests/FixedString.unit.cpp"
   "tests/inlist.unit.cpp"
   "tests/Mat44.unit.cpp"
   "tests/Quat.unit.cpp"

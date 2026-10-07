@@ -49,7 +49,7 @@ private:
     Result<> CreateShaderModule(const std::span<const uint8_t> shaderData);
 
     // Used only for diagnostics
-    FixedString<RelativeFilePath::kStorageSize> m_DiagPath;
+    RelativeFilePath::StringStorageType m_DiagPath;
     const GpuHelper* m_GpuHelper{ nullptr };
     FileFetcher* m_FileFetcher{ nullptr };
     FetchRequestId m_RequestId;

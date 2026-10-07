@@ -16,9 +16,9 @@ public:
 
     static constexpr T kMaxValue = std::is_integral_v<T> ? static_cast<T>(255) : static_cast<T>(1);
     static constexpr T kMinValue = 0;
-    static constexpr size_t kHexStringStorageSize = 16; // #RRGGBBAA
+    static constexpr size_t kHexStringMaxLen = 15; // #RRGGBBAA
 
-    using HexString = FixedString<kHexStringStorageSize>;
+    using HexString = FixedString<kHexStringMaxLen>;
 
     constexpr RgbaColor() = default;
 
@@ -116,7 +116,7 @@ RgbaColor<uint8_t>::ToHexString() const
     constexpr char kHexDigits[] = "0123456789ABCDEF";
     constexpr size_t kMask = 0x0F;
 
-    char hexStrBuf[RgbaColor<uint8_t>::kHexStringStorageSize];
+    char hexStrBuf[RgbaColor<uint8_t>::HexString::kMaxLength + 1];
     size_t offset = 0;
     hexStrBuf[offset++] = '#';
     hexStrBuf[offset++] = kHexDigits[(r >> 4) & kMask];

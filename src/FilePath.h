@@ -19,9 +19,10 @@ class FilePath;
 /// Invalid examples: "./foo/bar/baz.bin", "../foo", "foo/./bar", "foo//bar", "foo/".
 class RelativeFilePath final
 {
+    static constexpr size_t kMaxLength = 127;
+
 public:
-    static constexpr size_t kStorageSize = 128;
-    static constexpr size_t kMaxLength = kStorageSize - 1;
+    using StringStorageType = FixedString<kMaxLength>;
 
     RelativeFilePath() = delete;
 
@@ -44,13 +45,13 @@ public:
 
 private:
     template<size_t N>
-        requires(N <= kStorageSize)
+        requires(N <= StringStorageType::kMaxLength)
     constexpr explicit RelativeFilePath(FixedString<N> value)
         : m_Value(std::move(value))
     {
     }
 
-    FixedString<kStorageSize> m_Value;
+    StringStorageType m_Value;
 };
 
 /// A validated directory prefix relative to the application's working directory.
@@ -63,8 +64,8 @@ private:
 class DirectoryPath final
 {
 public:
-    static constexpr size_t kStorageSize = RelativeFilePath::kStorageSize;
-    static constexpr size_t kMaxLength = kStorageSize - 1;
+
+    using StringStorageType = RelativeFilePath::StringStorageType;
 
     DirectoryPath() = delete;
 
@@ -99,22 +100,26 @@ public:
 
 private:
     template<size_t N>
-        requires(N <= RelativeFilePath::kStorageSize)
+        requires(N <= StringStorageType::kMaxLength)
     constexpr explicit DirectoryPath(FixedString<N> value)
         : m_Value(std::move(value))
     {
     }
 
-    FixedString<RelativeFilePath::kStorageSize> m_Value;
+    StringStorageType m_Value;
 };
 
 // A validated file path - the result of joining a DirectorPath and a RelativeFilePath.
 // A FilePath can't be further joined with another path.
 class FilePath final
 {
+    static constexpr size_t kMaxLength = RelativeFilePath::StringStorageType::kMaxLength
+        + DirectoryPath::StringStorageType::kMaxLength
+        + 1; // +1 for the directory separator
+
 public:
-    static constexpr size_t kStorageSize = RelativeFilePath::kStorageSize + DirectoryPath::kStorageSize;
-    static constexpr size_t kMaxLength = kStorageSize - 1;
+
+    using StringStorageType = FixedString<kMaxLength>;
 
     FilePath() = delete;
 
@@ -138,13 +143,13 @@ public:
 
 private:
     template<size_t N>
-        requires(N <= kStorageSize)
+        requires(N <= StringStorageType::kMaxLength)
     constexpr explicit FilePath(FixedString<N> value)
         : m_Value(std::move(value))
     {
     }
 
-    FixedString<kStorageSize> m_Value;
+    StringStorageType m_Value;
 };
 
 /// Joins a directory prefix and file path without allocating.

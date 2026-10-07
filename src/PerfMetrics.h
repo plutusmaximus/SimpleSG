@@ -171,7 +171,7 @@ private:
 
     inlist_node<PerfCounter> m_ListNode;
 
-    constexpr static size_t kMaxNameLen = 64;
+    constexpr static size_t kMaxNameLen = 63;
 
     FixedString<kMaxNameLen> m_Name;
     std::atomic<double> m_Value{ 0 };

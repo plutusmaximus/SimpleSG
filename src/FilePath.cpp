@@ -112,9 +112,9 @@ GetStem(std::string_view path) noexcept
 Result<RelativeFilePath>
 RelativeFilePath::Create(const std::string_view path)
 {
-    MLG_CHECKV(HasValidComponents(path, kMaxLength), "Invalid file path: {}", path);
+    MLG_CHECKV(HasValidComponents(path, StringStorageType::kMaxLength), "Invalid file path: {}", path);
 
-    return RelativeFilePath(FixedString<kStorageSize>(path));
+    return RelativeFilePath(StringStorageType(path));
 }
 
 /// DirectoryPath
@@ -131,30 +131,30 @@ DirectoryPath::Create(const std::string_view path)
 
     if(path.back() == '/')
     {
-        MLG_CHECKV(path.size() <= kMaxLength,
+        MLG_CHECKV(path.size() <= StringStorageType::kMaxLength,
             "Directory path is too long: {}",
             path);
-        MLG_CHECKV(HasValidComponents(path.substr(0, path.size() - 1), kMaxLength),
+        MLG_CHECKV(HasValidComponents(path.substr(0, path.size() - 1), StringStorageType::kMaxLength),
             "Invalid directory path: {}",
             path);
 
-        return DirectoryPath(FixedString<kStorageSize>(path));
+        return DirectoryPath(StringStorageType(path));
     }
 
     // +1 for the trailing '/'
-    MLG_CHECKV(path.size() + 1 <= kMaxLength,
+    MLG_CHECKV(path.size() + 1 <= StringStorageType::kMaxLength,
         "Directory path is too long: {}",
         path);
-    MLG_CHECKV(HasValidComponents(path, kMaxLength),
+    MLG_CHECKV(HasValidComponents(path, StringStorageType::kMaxLength),
         "Invalid directory path: {}",
         path);
 
     // Add the trailing '/' to the directory path
-    MLG_CHECKV(path.size() + 1 <= kMaxLength,
+    MLG_CHECKV(path.size() + 1 <= StringStorageType::kMaxLength,
         "Directory path is too long: {}",
         path);
 
-    auto fixedPath = FixedString<kStorageSize>::Format("{}/", path);
+    auto fixedPath = StringStorageType::Format("{}/", path);
 
     return DirectoryPath(std::move(fixedPath));
 }
@@ -171,7 +171,7 @@ DirectoryPath::ParentPath(const std::string_view path)
     const std::string_view withoutSlash =
         path.ends_with('/') ? path.substr(0, path.size() - 1) : path;
 
-    MLG_CHECKV(HasValidComponents(withoutSlash, FilePath::kMaxLength),
+    MLG_CHECKV(HasValidComponents(withoutSlash, FilePath::StringStorageType::kMaxLength),
         "Invalid file path: {}",
         path);
 
@@ -188,7 +188,7 @@ DirectoryPath::ParentPath(const std::string_view path)
 DirectoryPath
 DirectoryPath::Current()
 {
-    static const DirectoryPath current(FixedString<kStorageSize>("./"));
+    static const DirectoryPath current(StringStorageType("./"));
 
     return current;
 }
@@ -226,13 +226,13 @@ Join(const DirectoryPath& directory, const RelativeFilePath& file)
         return FilePath(file.m_Value);
     }
 
-    MLG_CHECKV(directoryView.size() <= FilePath::kMaxLength - fileView.size(),
+    MLG_CHECKV(directoryView.size() <= FilePath::StringStorageType::kMaxLength - fileView.size(),
         "Joined file path is too long: {}{}",
         directoryView,
         fileView);
 
-    FixedString<FilePath::kStorageSize> joinedPath =
-        FixedString<FilePath::kStorageSize>::Format("{}{}", directoryView, fileView);
+    FilePath::StringStorageType joinedPath =
+        FilePath::StringStorageType::Format("{}{}", directoryView, fileView);
 
     return FilePath(std::move(joinedPath));
 }

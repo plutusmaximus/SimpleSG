@@ -24,10 +24,12 @@ struct LogState
 constexpr char kPrefixSeparator[] = { ' ', ':', ' ' };
 
 constexpr size_t kMaxPrefixStackSize = 16;
-constexpr size_t kMaxPrefixComponentStorage = 128;
-constexpr size_t kMaxPrefixBufferSize = kMaxPrefixComponentStorage * kMaxPrefixStackSize;
+constexpr size_t kMaxPrefixComponentLen = 127;
+constexpr size_t kMaxPrefixBufferSize =
+    ((kMaxPrefixComponentLen + std::size(kPrefixSeparator)) * kMaxPrefixStackSize)
+    + 1; // +1 for null terminator
 
-using PrefixComponentString = FixedString<kMaxPrefixComponentStorage>;
+using PrefixComponentString = FixedString<kMaxPrefixComponentLen>;
 
 struct ThreadLogState // NOLINT(cppcoreguidelines-pro-type-member-init)
 {
@@ -280,7 +282,7 @@ Log::PushPrefix(const std::string_view message)
     if(threadLogState.PushDepth < kMaxPrefixStackSize)
     {
         std::string_view truncatedMsg = message;
-        char truncateBuf[PrefixComponentString::kStorageSize];
+        char truncateBuf[PrefixComponentString::kMaxLength + 1]; // +1 for null terminator
 
         if(message.size() > PrefixComponentString::kMaxLength)
         {

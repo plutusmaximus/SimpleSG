@@ -225,7 +225,7 @@ DevUi::DrawPerfPanel() const // NOLINT(readability-convert-member-functions-to-s
         if(!prefix.empty())
         {
             // Prefix is non empty - render a tree node.
-            const FixedString<256> prefixStr(prefix);
+            const FixedString<> prefixStr(prefix);
             isOpen = ImGui::TreeNode(prefixStr.c_str());
         }
 
@@ -281,7 +281,7 @@ DevUi::DrawPerfPanel() const // NOLINT(readability-convert-member-functions-to-s
                     const char* units = ps.GetCategoryId() == PerfTimerCategory::Id ? "ms" : "";
 
                     const auto text =
-                        FixedString<256>::Format("{}: {:.3f} {}", leafName, ps.GetEMA(), units);
+                        FixedString<>::Format("{}: {:.3f} {}", leafName, ps.GetEMA(), units);
                     ImGui::TreeNodeEx(text.c_str(),
                         ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen);
 
@@ -428,7 +428,7 @@ DevUi::DrawStatusBarPanel() const // NOLINT(readability-convert-member-functions
             | ImGuiWindowFlags_NoMove
             | ImGuiWindowFlags_NoScrollbar);
 
-    const auto statusText = FixedString<256>::Format("SPF: {:.3f} ms | FPS: {:.1f} | mouse: {},{}",
+    const auto statusText = FixedString<>::Format("SPF: {:.3f} ms | FPS: {:.1f} | mouse: {},{}",
         ImGui::GetIO().DeltaTime * 1000.0f,
         1.0f / ImGui::GetIO().DeltaTime,
         m_ViewPanelMousePos.X,

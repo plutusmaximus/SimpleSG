@@ -53,7 +53,7 @@ RenderGui()
 
     for(const auto* counterStat : sortedCounters)
     {
-        const auto text = FixedString<256>::Format("{}: {:.3f} ms",
+        const auto text = FixedString<>::Format("{}: {:.3f} ms",
             counterStat->GetName(),
             counterStat->GetEMA());
         ImGui::TextUnformatted(text.c_str());
@@ -69,7 +69,7 @@ RenderGui()
     for(const auto* counterStat : sortedCounters)
     {
         const auto text =
-            FixedString<256>::Format("{}: {:.3f}", counterStat->GetName(), counterStat->GetEMA());
+            FixedString<>::Format("{}: {:.3f}", counterStat->GetName(), counterStat->GetEMA());
         ImGui::TextUnformatted(text.c_str());
     }
 

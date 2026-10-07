@@ -36,7 +36,7 @@ RenderGui()
     for(const auto* counterStat : perfStatsSpan.first(counterCount))
     {
         const char* units = counterStat->GetCategoryId() == PerfTimerCategory::Id ? "ms" : "";
-        const auto text = FixedString<256>::Format("{}: {:.3f} {}",
+        const auto text = FixedString<>::Format("{}: {:.3f} {}",
             counterStat->GetName(),
             counterStat->GetEMA(),
             units);
