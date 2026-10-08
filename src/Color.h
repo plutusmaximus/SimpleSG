@@ -7,6 +7,17 @@
 #include <span>
 #include <string_view>
 
+/// Alpha blending mode for materials.
+enum class AlphaMode : uint32_t
+{
+    /// Fully opaque, no transparency.
+    Opaque,
+    /// Transparency is determined by a mask.
+    Mask,
+    /// Full alpha blending.
+    Blend
+};
+
 /// RGBA color representation.
 template<typename T>
 class RgbaColor

@@ -11,6 +11,28 @@
 class FileFetcher;
 class GpuHelper;
 class MeshInstance;
+class CulledMesh;
+
+/// Represents the GPU-side material properties, including alpha mode and bind group.
+/// The bind group encapsulates ShaderInterop::MaterialConstants, a texture, and a sampler.
+class GpuMaterialProperties
+{
+public:
+    GpuMaterialProperties() = delete;
+
+    explicit GpuMaterialProperties(const AlphaMode alphaMode, wgpu::BindGroup bindGroup)
+        : m_AlphaMode(alphaMode)
+        , m_BindGroup(std::move(bindGroup))
+    {
+    }
+
+    AlphaMode GetAlphaMode() const { return m_AlphaMode; }
+    const wgpu::BindGroup& GetBindGroup() const { return m_BindGroup; }
+
+private:
+    AlphaMode m_AlphaMode;
+    wgpu::BindGroup m_BindGroup;
+};
 
 class GpuColorPass
 {
@@ -68,17 +90,19 @@ public:
     /// Executes the pass using the supplied inputs and outputs.
     /// This variant of Execute creates a command encoder that's owned and
     /// submitted to the GPU before returning.
-    Result<> Execute(const Viewport& viewport,
-        const std::span<MeshInstance> visibleMeshes,
-        const std::span<const wgpu::BindGroup> materialBindGroups);
+    /// Note that the meshes span is non-const to allow sorting for optimal rendering order.
+    Result<> Execute(const CameraView& cameraView,
+        std::span<CulledMesh> meshes,
+        const std::span<const GpuMaterialProperties> materialProperties);
 
     /// Executes the pass using the supplied inputs and outputs.
     /// This variant of Execute uses the provided command encoder.
     /// The caller is responsible for submitting the command encoder to the GPU.
+    /// Note that the meshes span is non-const to allow sorting for optimal rendering order.
     Result<> Execute(const wgpu::CommandEncoder& cmdEncoder,
-        const Viewport& viewport,
-        const std::span<MeshInstance> visibleMeshes,
-        const std::span<const wgpu::BindGroup> materialBindGroups);
+        const CameraView& cameraView,
+        std::span<CulledMesh> meshes,
+        const std::span<const GpuMaterialProperties> materialProperties);
 
     /// Creates a material bind group for the color pass.
     Result<wgpu::BindGroup> CreateMaterialBindGroup(const wgpu::Texture& texture,

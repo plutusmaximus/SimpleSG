@@ -220,7 +220,8 @@ TEST(Frustum, Contains_ReturnsInsideForSphereInsideCameraView)
 {
     const Camera camera = MakeFrustumCamera();
     const TrTransformf cameraXform = MakeFrustumCameraXform();
-    const Frustum frustum(camera, cameraXform);
+    const CameraView cameraView(camera, cameraXform);
+    const Frustum frustum(cameraView);
 
     EXPECT_EQ(
         frustum.Contains(
@@ -236,7 +237,8 @@ TEST(Frustum, Contains_ReturnsOutsideForSphereOutsideCameraView)
 {
     const Camera camera = MakeFrustumCamera();
     const TrTransformf cameraXform = MakeFrustumCameraXform();
-    const Frustum frustum(camera, cameraXform);
+    const CameraView cameraView(camera, cameraXform);
+    const Frustum frustum(cameraView);
 
     EXPECT_EQ(
         frustum.Contains(
@@ -252,7 +254,8 @@ TEST(Frustum, Contains_ReturnsIntersectsForSphereStraddlingFrustumPlanes)
 {
     const Camera camera = MakeFrustumCamera();
     const TrTransformf cameraXform = MakeFrustumCameraXform();
-    const Frustum frustum(camera, cameraXform);
+    const CameraView cameraView(camera, cameraXform);
+    const Frustum frustum(cameraView);
 
     const Vec3f interiorPoint = WorldFromCameraPoint(cameraXform, Vec3f(0.31f, -0.27f, 6.4f));
     const Vec4f& leftPlane = frustum.GetLeft();
@@ -277,7 +280,8 @@ TEST(Frustum, Contains_HandlesSpheresTangentToFrustumPlanes)
 {
     const Camera camera = MakeFrustumCamera();
     const TrTransformf cameraXform = MakeFrustumCameraXform();
-    const Frustum frustum(camera, cameraXform);
+    const CameraView cameraView(camera, cameraXform);
+    const Frustum frustum(cameraView);
 
     const Vec3f interiorPoint = WorldFromCameraPoint(cameraXform, Vec3f(0.31f, -0.27f, 6.4f));
     const float leftRadius = 0.47f;
@@ -313,9 +317,10 @@ TEST(Frustum, SelectionRectConstructor_ContainsOnlySelectedScreenRegion)
 {
     const Camera camera = MakeFrustumCamera();
     const TrTransformf cameraXform = MakeFrustumCameraXform();
-    const Frustum fullFrustum(camera, cameraXform);
+    const CameraView cameraView(camera, cameraXform);
+    const Frustum fullFrustum(cameraView);
     const Rect selectRect({ .X = 47, .Y = 41, .Width = 37, .Height = 29 });
-    const Frustum selectionFrustum(camera, cameraXform, selectRect);
+    const Frustum selectionFrustum(cameraView, selectRect);
 
     const Vec3f selectedPoint =
         WorldFromScreenPoint(camera, cameraXform, Vec2f(65.5f, 55.5f), 0.43f);

@@ -214,7 +214,8 @@ MainLoop()
         auto target = gpuHelper.GetSwapChainTexture();
         MLG_CHECKV(target, "Failed to get swap chain texture");
 
-        MLG_CHECK(view.Render(cameraActor.GetCamera(), cameraActor.GetTransform()));
+        const CameraView cameraView(cameraActor.GetCamera(), cameraActor.GetTransform());
+        MLG_CHECK(view.Render(cameraView));
         MLG_CHECK(view.Composite(*target));
 
         const ImGuiRenderer& imGuiRenderer = system->GetImGuiRenderer();

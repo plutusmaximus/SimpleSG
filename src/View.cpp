@@ -27,6 +27,7 @@ CountMeshInstances(const std::span<const ModelNode> modelNodes)
     return count;
 }
 
+/// Builds a GPU buffer containing ShaderInterop::MeshInstanceParams.
 Result<GpuMeshInstanceParamsBuffer>
 BuildMeshInstanceParamsBuffer(const GpuHelper& gpuHelper,
     const std::span<const ModelNode> modelNodes)
@@ -62,6 +63,7 @@ BuildMeshInstanceParamsBuffer(const GpuHelper& gpuHelper,
     return buffer;
 }
 
+/// Creates the render target that will be used as the output for GpuColorPass.
 Result<GpuColorPass::Outputs>
 CreateColorPassTarget(const GpuHelper& gpuHelper, const uint32_t width, const uint32_t height)
 {
@@ -80,8 +82,8 @@ CreateColorPassTarget(const GpuHelper& gpuHelper, const uint32_t width, const ui
         };
 }
 
-Result<std::vector<wgpu::BindGroup>>
-CreateMaterialBindGroups(const GpuHelper& gpuHelper,
+Result<std::vector<GpuMaterialProperties>>
+CreateMaterialProperties(const GpuHelper& gpuHelper,
     const GpuColorPass& gpuColorPass,
     const ResourceBundle& resourceBundle,
     const std::span<const wgpu::Texture> textures)
@@ -91,8 +93,8 @@ CreateMaterialBindGroups(const GpuHelper& gpuHelper,
 
     MLG_CHECKV(textures.size() == textureRsrcs.size(), "Texture count mismatch");
 
-    std::vector<wgpu::BindGroup> materialBindGroups;
-    materialBindGroups.reserve(materialRsrcs.size());
+    std::vector<GpuMaterialProperties> materialProperties;
+    materialProperties.reserve(materialRsrcs.size());
 
     for(const MaterialResource& mtlRsrc : materialRsrcs)
     {
@@ -101,17 +103,20 @@ CreateMaterialBindGroups(const GpuHelper& gpuHelper,
             "Invalid base texture index");
 
         wgpu::Texture baseTexture;
-        std::string_view texturePath;
+
+        std::string_view bindGroupName;
+
         if(mtlRsrc.BaseTextureIndex == ResourceBundle::kInvalidIndex)
         {
             baseTexture = gpuHelper.GetDefaultTexture();
-            texturePath = "<default>";
+            bindGroupName = "<default>";
         }
         else
         {
             const TextureResource& textureRsrc = textureRsrcs[mtlRsrc.BaseTextureIndex];
             baseTexture = textures[mtlRsrc.BaseTextureIndex];
-            texturePath = resourceBundle.GetStringView(textureRsrc.TexturePath);
+            // Use the tecture path as the debug name for the bind group.
+            bindGroupName = resourceBundle.GetStringView(textureRsrc.TexturePath);
         }
 
         const ShaderInterop::MaterialConstants mc //
@@ -127,13 +132,30 @@ CreateMaterialBindGroups(const GpuHelper& gpuHelper,
 
         buffer->Store(0, mc);
 
-        auto bindGroup = gpuColorPass.CreateMaterialBindGroup(baseTexture, *buffer, texturePath);
+        auto bindGroup = gpuColorPass.CreateMaterialBindGroup(baseTexture, *buffer, bindGroupName);
         MLG_CHECK(bindGroup);
 
-        materialBindGroups.push_back(std::move(*bindGroup));
+        materialProperties.emplace_back(mtlRsrc.AlphaMode, std::move(*bindGroup));
     }
 
-    return materialBindGroups;
+    return materialProperties;
+}
+
+Result<std::vector<RelativeFilePath>>
+GetTexturePaths(const ResourceBundle& resourceBundle)
+{
+    const std::span texResources = resourceBundle.GetTextures();
+    std::vector<RelativeFilePath> texturePaths;
+    texturePaths.reserve(texResources.size());
+    for(const auto& texRsrc : texResources)
+    {
+        const std::string_view sv = resourceBundle.GetStringView(texRsrc.TexturePath);
+        auto path = RelativeFilePath::Create(sv);
+        MLG_CHECK(path, "Failed to create FilePath");
+
+        texturePaths.emplace_back(std::move(*path));
+    }
+    return texturePaths;
 }
 } // namespace
 
@@ -148,7 +170,7 @@ View::View(const GpuHelper& gpuHelper,
     GpuClipSpaceBuffer&& clipSpaceBuffer,
     GpuMeshInstanceParamsBuffer&& meshInstanceParamsBuffer,
     GpuCameraParamsBuffer&& cameraParamsBuffer,
-    std::vector<wgpu::BindGroup>&& materialBindGroups)
+    std::vector<GpuMaterialProperties>&& materialProperties)
     : m_GpuHelper(&gpuHelper),
       m_Scene(&scene),
       m_ColorPass(std::move(colorPass)),
@@ -160,14 +182,16 @@ View::View(const GpuHelper& gpuHelper,
       m_ClipSpaceBuffer(std::move(clipSpaceBuffer)),
       m_MeshInstanceParamsBuffer(std::move(meshInstanceParamsBuffer)),
       m_CameraParamsBuffer(std::move(cameraParamsBuffer)),
-      m_MaterialBindGroups(std::move(materialBindGroups))
+      m_MaterialProperties(std::move(materialProperties))
 {
     const size_t meshInstanceCount = CountMeshInstances(scene.GetAllModelNodes());
     m_VisibleMeshes.reserve(meshInstanceCount);
 }
 
+View::~View() = default;
+
 Result<>
-View::Render(const Camera& camera, const TrTransformf& cameraXForm)
+View::Render(const CameraView& cameraView)
 {
     MLG_SCOPED_TIMER("View.Render");
 
@@ -179,9 +203,9 @@ View::Render(const Camera& camera, const TrTransformf& cameraXForm)
     const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder(&encoderDesc);
     MLG_CHECK(cmdEncoder, "Failed to create command encoder");
 
-    MLG_CHECK(TransformNodes(gpuDevice, cmdEncoder, cameraXForm, camera));
+    MLG_CHECK(TransformNodes(gpuDevice, cmdEncoder, cameraView));
 
-    const Viewport& viewport = camera.GetViewport();
+    const Viewport& viewport = cameraView.GetCamera().GetViewport();
 
     if(!m_ColorPassOutputs
         || m_ColorPassOutputs->RenderTarget->GetWidth() != viewport.GetWidth()
@@ -207,12 +231,9 @@ View::Render(const Camera& camera, const TrTransformf& cameraXForm)
     MLG_CHECK(m_ColorPass->SetInputs(colorPassInputs));
     MLG_CHECK(m_ColorPass->SetOutputs(*m_ColorPassOutputs));
 
-    m_VisibleMeshes.clear();
-    const Frustum frustum(camera, cameraXForm);
-    CollectVisibleMeshes(frustum, m_VisibleMeshes);
-    std::ranges::sort(m_VisibleMeshes, {}, &MeshInstance::GetMaterialIndex);
+    CollectVisibleMeshes(cameraView);
 
-    MLG_CHECK(m_ColorPass->Execute(cmdEncoder, viewport, m_VisibleMeshes, m_MaterialBindGroups));
+    MLG_CHECK(m_ColorPass->Execute(cmdEncoder, cameraView, m_VisibleMeshes, m_MaterialProperties));
 
     const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
     MLG_CHECK(cmdBuf, "Failed to finish command buffer");
@@ -259,15 +280,19 @@ View::Composite(const GpuRenderTarget& target, const Rect& dstRect)
 // private:
 
 void
-View::CollectVisibleMeshes(const Frustum& frustum,
-    std::vector<MeshInstance>& outVisibleMeshes) const
+View::CollectVisibleMeshes(const CameraView& cameraView)
 {
     static PerfCounter pcTotalMeshes({ .Name = "View.Meshes.Total" });
     static PerfCounter pcVisibleMeshes({ .Name = "View.Meshes.Visible" });
 
-    outVisibleMeshes.clear();
+    m_VisibleMeshes.clear();
 
     size_t totalMeshes = 0;
+
+    const Frustum frustum(cameraView);
+
+    const TrTransformf& wsCameraXForm = cameraView.GetWorldSpaceTransform();
+    const Vec3f forward = wsCameraXForm.R * Vec3f::ZAXIS();
 
     for(const ModelNode& modelNode : m_Scene->GetAllModelNodes())
     {
@@ -278,10 +303,17 @@ View::CollectVisibleMeshes(const Frustum& frustum,
             continue;
         }
 
-        const BoundingSphere& modelBs =
+        // Transform the bounding sphere into world space.
+        const BoundingSphere& wsModelBounds =
             modelNode.GetWorldTransform() * modelNode.GetBoundingSphere();
 
-        const Frustum::ContainsResult result = frustum.Contains(modelBs);
+        const Frustum::ContainsResult result = frustum.Contains(wsModelBounds);
+
+        if(result == Frustum::ContainsResult::Outside)
+        {
+            // Model is fully outside frustum, skip all mesh instances.
+            continue;
+        }
 
         if(result == Frustum::ContainsResult::Intersects)
         {
@@ -289,13 +321,28 @@ View::CollectVisibleMeshes(const Frustum& frustum,
 
             for(const MeshInstance& meshInstance : modelNode.GetMeshes())
             {
-                const BoundingSphere meshBs =
+                const BoundingSphere wsMeshBounds =
                     modelNode.GetWorldTransform() * meshInstance.GetBoundingSphere();
 
-                if(Frustum::ContainsResult::Outside != frustum.Contains(meshBs))
+                if(Frustum::ContainsResult::Outside == frustum.Contains(wsMeshBounds))
                 {
-                    outVisibleMeshes.push_back(meshInstance);
+                    // Frustum does not contain the mesh, skip it.
+                    continue;
                 }
+
+                // Frustum contains the mesh.
+
+                // Camera space depth of the mesh's bounding sphere center.
+                // Used for depth sorting.
+                const float depth = forward.Dot(wsMeshBounds.GetCenter() - wsCameraXForm.T);
+
+                const uint32_t matIndex = meshInstance.GetMaterialIndex();
+                MLG_ASSERT(matIndex < m_MaterialProperties.size(),
+                    "Material index out of bounds");
+
+                const AlphaMode alphaMode = m_MaterialProperties[matIndex].GetAlphaMode();
+
+                m_VisibleMeshes.emplace_back(meshInstance, alphaMode, depth);
             }
         }
         else if(result == Frustum::ContainsResult::Inside)
@@ -304,18 +351,26 @@ View::CollectVisibleMeshes(const Frustum& frustum,
 
             for(const MeshInstance& meshInstance : modelNode.GetMeshes())
             {
-                outVisibleMeshes.push_back(meshInstance);
+                // Transform the bounding sphere into world space.
+                const BoundingSphere wsMeshBounds =
+                    modelNode.GetWorldTransform() * meshInstance.GetBoundingSphere();
+
+                // Camera space depth of the mesh's bounding sphere center.
+                // Used for depth sorting.
+                const float depth = forward.Dot(wsMeshBounds.GetCenter() - wsCameraXForm.T);
+
+                const uint32_t matIndex = meshInstance.GetMaterialIndex();
+                MLG_ASSERT(matIndex < m_MaterialProperties.size(), "Material index out of bounds");
+                
+                const AlphaMode alphaMode = m_MaterialProperties[matIndex].GetAlphaMode();
+
+                m_VisibleMeshes.emplace_back(meshInstance, alphaMode, depth);
             }
-        }
-        else
-        {
-            // Model is fully outside frustum, skip all mesh instances.
-            continue;
         }
     }
 
     pcTotalMeshes.Increment(totalMeshes);
-    pcVisibleMeshes.Increment(outVisibleMeshes.size());
+    pcVisibleMeshes.Increment(m_VisibleMeshes.size());
 }
 
 Result<>
@@ -340,19 +395,13 @@ View::SyncToGpu()
 Result<>
 View::TransformNodes(const wgpu::Device& gpuDevice,
     const wgpu::CommandEncoder& cmdEncoder,
-    const TrTransformf& cameraXForm,
-    const Camera& camera)
+    const CameraView& cameraView)
 {
-    // Use inverse of camera transform as view matrix
-    const Mat44f viewMat = cameraXForm.Inverse().ToMatrix();
-    const Mat44f& projMat = camera.GetProjectionMatrix();
-    const Mat44f viewProjMat = projMat.Mul(viewMat);
-
     const ShaderInterop::CameraParams cameraParams //
         {
-            .View = viewMat,
-            .Projection = projMat,
-            .ViewProj = viewProjMat,
+            .View = cameraView.GetViewTransform().ToMatrix(),
+            .Projection = cameraView.GetProjectionMatrix(),
+            .ViewProj = cameraView.GetViewProj(),
         };
 
     gpuDevice.GetQueue().WriteBuffer(m_CameraParamsBuffer.GetGpuBuffer(),
@@ -376,26 +425,6 @@ View::TransformNodes(const wgpu::Device& gpuDevice,
 
     return m_TransformPass->Execute(cmdEncoder);
 }
-
-namespace
-{
-Result<std::vector<RelativeFilePath>>
-GetTexturePaths(const ResourceBundle& resourceBundle)
-{
-    const std::span texResources = resourceBundle.GetTextures();
-    std::vector<RelativeFilePath> texturePaths;
-    texturePaths.reserve(texResources.size());
-    for(const auto& texRsrc : texResources)
-    {
-        const std::string_view sv = resourceBundle.GetStringView(texRsrc.TexturePath);
-        auto path = RelativeFilePath::Create(sv);
-        MLG_CHECK(path, "Failed to create FilePath");
-
-        texturePaths.emplace_back(std::move(*path));
-    }
-    return texturePaths;
-}
-} // namespace
 
 // View::CreateTask
 View::CreateTask::CreateTask(System& system,
@@ -435,9 +464,9 @@ View::CreateTask::Take()
 
     const GpuHelper& gpuHelper = m_System->GetGpuHelper();
 
-    auto materialBindGroups =
-        CreateMaterialBindGroups(gpuHelper, **gpuColorPassResult, *m_ResourceBundle, *textures);
-    MLG_CHECK(materialBindGroups);
+    auto materialProperties =
+        CreateMaterialProperties(gpuHelper, **gpuColorPassResult, *m_ResourceBundle, *textures);
+    MLG_CHECK(materialProperties);
 
     const std::span vertices = m_ResourceBundle->GetVertices();
     auto vertexBuffer = gpuHelper.CreateVertexBuffer(vertices.size(), "VertexBuffer");
@@ -476,7 +505,7 @@ View::CreateTask::Take()
         std::move(*clipSpaceBuffer),
         std::move(*meshInstanceParamsBuffer),
         std::move(*cameraParamsBuf),
-        std::move(*materialBindGroups)));
+        std::move(*materialProperties)));
 
     MLG_CHECK(view->SyncToGpu());
 

@@ -44,6 +44,11 @@ std::less<MaterialDef>::operator()(const MaterialDef& lhs, const MaterialDef& rh
         return cmp < 0;
     }
 
+    if(auto cmp = std::strong_order(lhs.AlphaMode, rhs.AlphaMode); cmp != 0)
+    {
+        return cmp < 0;
+    }
+
     if(auto cmp = std::strong_order(lhs.Metalness, rhs.Metalness); cmp != 0)
     {
         return cmp < 0;
@@ -401,6 +406,7 @@ CollectMaterials(const std::span<const MeshDef* const> meshDefs,
                 {
                     .BaseTextureIndex = baseTextureIndex,
                     .Color = materialDef.Color,
+                    .AlphaMode = materialDef.AlphaMode,
                     .Metalness = materialDef.Metalness,
                     .Roughness = materialDef.Roughness,
                 };

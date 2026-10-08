@@ -224,7 +224,8 @@ TriangleApp::Render()
     m_Viewport = Viewport(gpuHelper.GetScreenDimensions());
     m_Camera.SetViewport(m_Viewport);
 
-    MLG_CHECK(m_Level->GetView().Render(m_Camera, m_CameraXForm), "Failed to render view");
+    const CameraView cameraView(m_Camera, m_CameraXForm);
+    MLG_CHECK(m_Level->GetView().Render(cameraView), "Failed to render view");
 
     auto target = gpuHelper.GetSwapChainTexture();
     MLG_CHECK(target, "Failed to get swap chain texture");

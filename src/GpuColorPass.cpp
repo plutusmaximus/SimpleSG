@@ -7,6 +7,9 @@
 #include "PerfMetrics.h"
 #include "SceneTypes.h"
 
+#include <algorithm>
+#include <span>
+
 namespace
 {
 
@@ -62,6 +65,13 @@ constexpr wgpu::BindGroupLayoutEntry InputBindGroupLayoutEntries[]//
     },
 };
 
+constexpr wgpu::BindGroupLayoutDescriptor InputBindGroupLayoutDescriptor //
+    {
+        .label = "GpuColorPass::InputsBindGroupLayout",
+        .entryCount = std::size(InputBindGroupLayoutEntries),
+        .entries = &InputBindGroupLayoutEntries[0],
+    };
+
 constexpr wgpu::BindGroupLayoutEntry MaterialBindGroupLayoutEntries[]//
 {
     // Texture
@@ -86,7 +96,7 @@ constexpr wgpu::BindGroupLayoutEntry MaterialBindGroupLayoutEntries[]//
             .type = wgpu::SamplerBindingType::Filtering,
         },
     },
-    // Material properties
+    // Material constants
     wgpu::BindGroupLayoutEntry//
     {
         .binding = 2,
@@ -98,6 +108,13 @@ constexpr wgpu::BindGroupLayoutEntry MaterialBindGroupLayoutEntries[]//
         },
     },
 };
+
+constexpr wgpu::BindGroupLayoutDescriptor MaterialBindGroupLayoutDescriptor //
+    {
+        .label = "GpuColorPass::MaterialBindGroupLayout",
+        .entryCount = std::size(MaterialBindGroupLayoutEntries),
+        .entries = &MaterialBindGroupLayoutEntries[0],
+    };
 
 auto
 CreateInputBindGroupEntries(const GpuColorPass::Inputs& inputs)
@@ -176,14 +193,7 @@ CreateMaterialBindGroupEntries(const wgpu::Texture& texture,
 Result<wgpu::BindGroupLayout>
 CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
 {
-    static constexpr wgpu::BindGroupLayoutDescriptor desc //
-        {
-            .label = "GpuColorPass::InputsBindGroupLayout",
-            .entryCount = std::size(InputBindGroupLayoutEntries),
-            .entries = &InputBindGroupLayoutEntries[0],
-        };
-
-    wgpu::BindGroupLayout layout = gpuDevice.CreateBindGroupLayout(&desc);
+    wgpu::BindGroupLayout layout = gpuDevice.CreateBindGroupLayout(&InputBindGroupLayoutDescriptor);
     MLG_CHECK(layout, "Failed to create Inputs bind group layout");
 
     return layout;
@@ -192,14 +202,7 @@ CreateInputsBindGroupLayout(const wgpu::Device& gpuDevice)
 Result<wgpu::BindGroupLayout>
 CreateMaterialBindGroupLayout(const wgpu::Device& gpuDevice)
 {
-    static constexpr wgpu::BindGroupLayoutDescriptor desc //
-        {
-            .label = "GpuColorPass::MaterialBindGroupLayout",
-            .entryCount = std::size(MaterialBindGroupLayoutEntries),
-            .entries = &MaterialBindGroupLayoutEntries[0],
-        };
-
-    wgpu::BindGroupLayout layout = gpuDevice.CreateBindGroupLayout(&desc);
+    wgpu::BindGroupLayout layout = gpuDevice.CreateBindGroupLayout(&MaterialBindGroupLayoutDescriptor);
     MLG_CHECK(layout, "Failed to create Material bind group layout");
 
     return layout;
@@ -297,7 +300,6 @@ CreateDefaultSampler(const wgpu::Device& gpuDevice)
 
     return sampler;
 }
-
 } // namespace
 
 /// GpuColorPass::CreateTask
@@ -424,16 +426,16 @@ GpuColorPass::SetOutputs(const Outputs& outputs)
 }
 
 Result<>
-GpuColorPass::Execute(const Viewport& viewport,
-    const std::span<MeshInstance> visibleMeshes,
-    const std::span<const wgpu::BindGroup> materialBindGroups)
+GpuColorPass::Execute(const CameraView& cameraView,
+    std::span<CulledMesh> meshes,
+    const std::span<const GpuMaterialProperties> materialProperties)
 {
     const wgpu::Device gpuDevice = m_GpuHelper->GetDevice();
     
     const wgpu::CommandEncoder cmdEncoder = gpuDevice.CreateCommandEncoder();
     MLG_CHECK(cmdEncoder, "Failed to create command encoder");
 
-    MLG_CHECK(Execute(cmdEncoder, viewport, visibleMeshes, materialBindGroups));
+    MLG_CHECK(Execute(cmdEncoder, cameraView, meshes, materialProperties));
 
     const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
     MLG_CHECK(cmdBuf, "Failed to finish command buffer");
@@ -448,9 +450,9 @@ GpuColorPass::Execute(const Viewport& viewport,
 
 Result<>
 GpuColorPass::Execute(const wgpu::CommandEncoder& cmdEncoder,
-    const Viewport& viewport,
-    const std::span<MeshInstance> visibleMeshes,
-    const std::span<const wgpu::BindGroup> materialBindGroups)
+    const CameraView& cameraView,
+    std::span<CulledMesh> meshes,
+    const std::span<const GpuMaterialProperties> materialProperties)
 {
     MLG_SCOPED_TIMER("GpuColorPass.Execute")
 
@@ -458,6 +460,8 @@ GpuColorPass::Execute(const wgpu::CommandEncoder& cmdEncoder,
     MLG_CHECK(renderPassResult, "Failed to create render pass encoder");
 
     const wgpu::RenderPassEncoder renderPass = std::move(*renderPassResult);
+
+    const Viewport& viewport = cameraView.GetCamera().GetViewport();
 
     renderPass.SetViewport(static_cast<float>(viewport.GetX()),
         static_cast<float>(viewport.GetY()),
@@ -471,28 +475,49 @@ GpuColorPass::Execute(const wgpu::CommandEncoder& cmdEncoder,
         viewport.GetWidth(),
         viewport.GetHeight());
 
-    renderPass.SetPipeline(m_TranslucentPipeline);
+    // Sort the meshes based on material properties to minimize state changes.
+    std::ranges::sort(meshes, {}, &CulledMesh::GetSortKey);
 
-    // Track how many times we have to change materials.
-    static PerfCounter pcMaterialChanges({ .Name = "GpuColorPass.Execute.MaterialChanges" });
+    // Find the first alpha-blended mesh in the sorted list
+    // so we can separate opaque and alpha-blended meshes.
+    size_t firstAlphaIndex = meshes.size();
 
-    uint32_t materialIndex = std::numeric_limits<uint32_t>::max();
-
-    for(const MeshInstance& meshInstance : visibleMeshes)
+    for(; firstAlphaIndex > 0;)
     {
-        if(meshInstance.GetMaterialIndex() != materialIndex)
+        if(meshes[firstAlphaIndex - 1].GetAlphaMode() != AlphaMode::Blend)
         {
+            break;
+        }
+        --firstAlphaIndex;
+    }
+
+    // Split the sorted meshes into opaque and alpha-blended subsets.
+
+    const std::span<CulledMesh> allMeshes = std::span(meshes);
+    const std::span<CulledMesh> opaqueMeshes = allMeshes.subspan(0, firstAlphaIndex);
+    const std::span<CulledMesh> alphaMeshes = allMeshes.subspan(firstAlphaIndex);
+
+    // Track how many times we have to change materials, pipelines.
+    static PerfCounter pcMaterialChanges({ .Name = "GpuColorPass.Execute.MaterialChanges" });
+    static PerfCounter pcPipelineChanges({ .Name = "GpuColorPass.Execute.PipelineChanges" });
+
+    uint32_t currentMaterialIndex = UINT32_MAX;
+
+    // Render opaque meshes.
+
+    renderPass.SetPipeline(m_OpaquePipeline);
+
+    for(const CulledMesh& culledMesh : opaqueMeshes)
+    {
+        const MeshInstance& meshInstance = culledMesh.GetMeshInstance();
+        const uint32_t matIndex = meshInstance.GetMaterialIndex();
+        if(currentMaterialIndex != matIndex)
+        {
+            MLG_ASSERT(matIndex < materialProperties.size(), "Material index out of bounds");
+
             pcMaterialChanges.Increment(1);
-
-            materialIndex = meshInstance.GetMaterialIndex();
-            MLG_ASSERT(materialIndex < materialBindGroups.size(),
-                "Material index {} is out of bounds (material bind group count: {})",
-                materialIndex,
-                materialBindGroups.size());
-
-            const wgpu::BindGroup& bindGroup = materialBindGroups[materialIndex];
-
-            renderPass.SetBindGroup(1, bindGroup, 0, nullptr);
+            currentMaterialIndex = matIndex;
+            renderPass.SetBindGroup(1, materialProperties[matIndex].GetBindGroup(), 0, nullptr);
         }
 
         renderPass.DrawIndexed(meshInstance.GetIndexCount(),
@@ -500,6 +525,37 @@ GpuColorPass::Execute(const wgpu::CommandEncoder& cmdEncoder,
             meshInstance.GetFirstIndex(),
             static_cast<int32_t>(meshInstance.GetBaseVertex()),
             meshInstance.GetFirstInstance());
+    }
+
+    // Render alpha-blended meshes.
+    if(!alphaMeshes.empty())
+    {
+        // Sort back to front.
+        std::ranges::sort(alphaMeshes, std::ranges::greater{}, &CulledMesh::GetDepth);
+        
+        renderPass.SetPipeline(m_TranslucentPipeline);
+        pcPipelineChanges.Increment(1);
+
+        currentMaterialIndex = UINT32_MAX;
+        for(const CulledMesh& culledMesh : alphaMeshes)
+        {
+            const MeshInstance& meshInstance = culledMesh.GetMeshInstance();
+            const uint32_t matIndex = meshInstance.GetMaterialIndex();
+            if(currentMaterialIndex != matIndex)
+            {
+                MLG_ASSERT(matIndex < materialProperties.size(), "Material index out of bounds");
+
+                pcMaterialChanges.Increment(1);
+                currentMaterialIndex = matIndex;
+                renderPass.SetBindGroup(1, materialProperties[matIndex].GetBindGroup(), 0, nullptr);
+            }
+
+            renderPass.DrawIndexed(meshInstance.GetIndexCount(),
+                1,
+                meshInstance.GetFirstIndex(),
+                static_cast<int32_t>(meshInstance.GetBaseVertex()),
+                meshInstance.GetFirstInstance());
+        }
     }
 
     renderPass.End();
@@ -584,10 +640,36 @@ GpuColorPass::EnsurePipeline()
             .targets = &opaqueTargetState,
         };
 
-    static constexpr wgpu::DepthStencilState depthStencilState //
+    static constexpr wgpu::DepthStencilState opaqueDepthStencilState //
         {
             .format = GpuHelper::kDepthBufferFormat,
             .depthWriteEnabled = true,
+            .depthCompare = wgpu::CompareFunction::Less,
+            /*.stencilFront =
+            {
+                .compare = wgpu::CompareFunction::Always,
+                .failOp = wgpu::StencilOperation::Keep,
+                .depthFailOp = wgpu::StencilOperation::Keep,
+                .passOp = wgpu::StencilOperation::Keep,
+            },
+            .stencilBack =
+            {
+                .compare = wgpu::CompareFunction::Always,
+                .failOp = wgpu::StencilOperation::Keep,
+                .depthFailOp = wgpu::StencilOperation::Keep,
+                .passOp = wgpu::StencilOperation::Keep,
+            },
+            .stencilReadMask = 0xFF,
+            .stencilWriteMask = 0xFF,*/
+            .depthBias = 0,
+            .depthBiasSlopeScale = 0.0f,
+            .depthBiasClamp = 0.0f,
+        };
+
+    static constexpr wgpu::DepthStencilState translucentDepthStencilState //
+        {
+            .format = GpuHelper::kDepthBufferFormat,
+            .depthWriteEnabled = false, // Disabled for translucent objects.
             .depthCompare = wgpu::CompareFunction::Less,
             /*.stencilFront =
             {
@@ -639,33 +721,33 @@ GpuColorPass::EnsurePipeline()
             .alphaToCoverageEnabled = false,
         };
 
-    const wgpu::RenderPipelineDescriptor translucentDescriptor//
-    {
-        .label = "GpuColorPass_Translucent",
-        .layout = m_PipelineLayout,
-        .vertex = vertexState,
-        .primitive = primitiveState,
-        .depthStencil = &depthStencilState,
-        .multisample = multisampleState,
-        .fragment = &translucentFragmentState,
-    };
-
     const wgpu::RenderPipelineDescriptor opaqueDescriptor//
     {
         .label = "GpuColorPass_Opaque",
         .layout = m_PipelineLayout,
         .vertex = vertexState,
         .primitive = primitiveState,
-        .depthStencil = &depthStencilState,
+        .depthStencil = &opaqueDepthStencilState,
         .multisample = multisampleState,
         .fragment = &opaqueFragmentState,
     };
 
-    m_TranslucentPipeline = m_GpuHelper->GetDevice().CreateRenderPipeline(&translucentDescriptor);
-    MLG_CHECK(m_TranslucentPipeline, "Failed to create render pipeline");
+    const wgpu::RenderPipelineDescriptor translucentDescriptor//
+    {
+        .label = "GpuColorPass_Translucent",
+        .layout = m_PipelineLayout,
+        .vertex = vertexState,
+        .primitive = primitiveState,
+        .depthStencil = &translucentDepthStencilState,
+        .multisample = multisampleState,
+        .fragment = &translucentFragmentState,
+    };
 
     m_OpaquePipeline = m_GpuHelper->GetDevice().CreateRenderPipeline(&opaqueDescriptor);
     MLG_CHECK(m_OpaquePipeline, "Failed to create render pipeline");
+
+    m_TranslucentPipeline = m_GpuHelper->GetDevice().CreateRenderPipeline(&translucentDescriptor);
+    MLG_CHECK(m_TranslucentPipeline, "Failed to create render pipeline");
 
     return Result<>::Ok;
 }

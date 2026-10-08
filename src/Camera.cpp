@@ -5,10 +5,13 @@
 
 namespace
 {
-Vec2f ScreenToNdc(const Vec2f& screenPos, const Viewport& viewport)
+Vec2f
+ScreenToNdc(const Vec2f& screenPos, const Viewport& viewport)
 {
-    const float x = (screenPos.x - static_cast<float>(viewport.GetX())) / static_cast<float>(viewport.GetWidth());
-    const float y = (screenPos.y - static_cast<float>(viewport.GetY())) / static_cast<float>(viewport.GetHeight());
+    const float x = (screenPos.x - static_cast<float>(viewport.GetX()))
+        / static_cast<float>(viewport.GetWidth());
+    const float y = (screenPos.y - static_cast<float>(viewport.GetY()))
+        / static_cast<float>(viewport.GetHeight());
 
     return Vec2f((2.0f * x) - 1.0f, 1.0f - (2.0f * y));
 }
@@ -22,15 +25,17 @@ Viewport::Viewport(const ViewportParams& params)
       m_MinDepth(params.minDepth),
       m_MaxDepth(params.maxDepth)
 {
-    MLG_ABORTIF(params.maxDepth < 0.0f || params.maxDepth > 1.0f, "Max depth must be in the range [0, 1]");
+    MLG_ABORTIF(params.maxDepth < 0.0f || params.maxDepth > 1.0f,
+        "Max depth must be in the range [0, 1]");
     MLG_ABORTIF(params.maxDepth <= params.minDepth, "Max depth must be greater than min depth");
     MLG_ABORTIF(params.width <= 0, "Viewport width must be greater than 0");
     MLG_ABORTIF(params.height <= 0, "Viewport height must be greater than 0");
 }
 
-Frustum::Frustum(const Camera& camera, const TrTransformf& cameraXForm) // NOLINT(cppcoreguidelines-pro-type-member-init)
+// NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
+Frustum::Frustum(const CameraView& cameraView)
 {
-    const Mat44f VP = camera.GetProjectionMatrix() * cameraXForm.Inverse().ToMatrix();
+    const Mat44f& VP = cameraView.GetViewProj();
     const Vec4f r0(VP[0][0], VP[1][0], VP[2][0], VP[3][0]);
     const Vec4f r1(VP[0][1], VP[1][1], VP[2][1], VP[3][1]);
     const Vec4f r2(VP[0][2], VP[1][2], VP[2][2], VP[3][2]);
@@ -57,14 +62,18 @@ Frustum::Frustum(const Camera& camera, const TrTransformf& cameraXForm) // NOLIN
     m_Planes[kFar] /= lf;
 }
 
-Frustum::Frustum(const Camera& camera, const TrTransformf& cameraXForm, const Rect& selectRect) // NOLINT(cppcoreguidelines-pro-type-member-init)
+// NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
+Frustum::Frustum(const CameraView& cameraView, const Rect& selectRect)
 {
     // Screen space points.
     const Vec2f p00(static_cast<float>(selectRect.GetX()), static_cast<float>(selectRect.GetY()));
-    const Vec2f p11 = p00 + Vec2f(static_cast<float>(selectRect.GetWidth()),
-                                static_cast<float>(selectRect.GetHeight()));
+    const Vec2f p11 = p00
+        + Vec2f(static_cast<float>(selectRect.GetWidth()),
+            static_cast<float>(selectRect.GetHeight()));
     const Vec2f p01(p00.x, p11.y);
     const Vec2f p10(p11.x, p00.y);
+
+    const Camera& camera = cameraView.GetCamera();
 
     // Normalized device coordinates.
     const Vec2f ndc00 = ScreenToNdc(p00, camera.GetViewport());
@@ -82,22 +91,26 @@ Frustum::Frustum(const Camera& camera, const TrTransformf& cameraXForm, const Re
     const Vec3f ray10 = Vec3f(ndc10.x * xScale, ndc10.y * tanHalfFov, 1);
 
     // Frustum plane normals in world space.
-    const Vec3f leftNormal = (cameraXForm.R * ray00.Cross(ray01)).Normalize();
-    const Vec3f rightNormal = (cameraXForm.R * ray11.Cross(ray10)).Normalize();
-    const Vec3f topNormal = (cameraXForm.R * ray10.Cross(ray00)).Normalize();
-    const Vec3f bottomNormal = (cameraXForm.R * ray01.Cross(ray11)).Normalize();
-    const Vec3f nearNormal = (cameraXForm.R * Vec3f(0, 0, 1)).Normalize();
+    const TrTransformf& wsCameraXForm = cameraView.GetWorldSpaceTransform();
+    const Vec3f leftNormal = (wsCameraXForm.R * ray00.Cross(ray01)).Normalize();
+    const Vec3f rightNormal = (wsCameraXForm.R * ray11.Cross(ray10)).Normalize();
+    const Vec3f topNormal = (wsCameraXForm.R * ray10.Cross(ray00)).Normalize();
+    const Vec3f bottomNormal = (wsCameraXForm.R * ray01.Cross(ray11)).Normalize();
+    const Vec3f nearNormal = (wsCameraXForm.R * Vec3f(0, 0, 1)).Normalize();
     const Vec3f farNormal = -nearNormal;
 
+    // Point on the near plane in world space.
+    const Vec3f pnear = wsCameraXForm.T + (wsCameraXForm.R * Vec3f(0, 0, camera.GetNearClip()));
+
     // Point on the far plane in world space.
-    const Vec3f pfar = cameraXForm.T + (cameraXForm.R * Vec3f(0, 0, camera.GetFarClip()));
+    const Vec3f pfar = wsCameraXForm.T + (wsCameraXForm.R * Vec3f(0, 0, camera.GetFarClip()));
 
     // Frustum planes in world space.
-    m_Planes[kLeft] = Vec4f(leftNormal, -leftNormal.Dot(cameraXForm.T));
-    m_Planes[kRight] = Vec4f(rightNormal, -rightNormal.Dot(cameraXForm.T));
-    m_Planes[kTop] = Vec4f(topNormal, -topNormal.Dot(cameraXForm.T));
-    m_Planes[kBottom] = Vec4f(bottomNormal, -bottomNormal.Dot(cameraXForm.T));
-    m_Planes[kNear] = Vec4f(nearNormal, -nearNormal.Dot(cameraXForm.T));
+    m_Planes[kLeft] = Vec4f(leftNormal, -leftNormal.Dot(wsCameraXForm.T));
+    m_Planes[kRight] = Vec4f(rightNormal, -rightNormal.Dot(wsCameraXForm.T));
+    m_Planes[kTop] = Vec4f(topNormal, -topNormal.Dot(wsCameraXForm.T));
+    m_Planes[kBottom] = Vec4f(bottomNormal, -bottomNormal.Dot(wsCameraXForm.T));
+    m_Planes[kNear] = Vec4f(nearNormal, -nearNormal.Dot(pnear));
     m_Planes[kFar] = Vec4f(farNormal, -farNormal.Dot(pfar));
 }
 

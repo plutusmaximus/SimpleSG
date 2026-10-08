@@ -4,6 +4,7 @@
 #include "VecMath.h"
 
 class Camera;
+class CameraView;
 class BoundingSphere;
 
 class Viewport
@@ -68,21 +69,25 @@ public:
     }
 
 private:
-    uint32_t m_X{0};
-    uint32_t m_Y{0};
-    uint32_t m_Width{0};
-    uint32_t m_Height{0};
-    float m_MinDepth{0.0f};
-    float m_MaxDepth{1.0f};
+    uint32_t m_X{ 0 };
+    uint32_t m_Y{ 0 };
+    uint32_t m_Width{ 0 };
+    uint32_t m_Height{ 0 };
+    float m_MinDepth{ 0.0f };
+    float m_MaxDepth{ 1.0f };
 };
 
 class Frustum
 {
 public:
-
     Frustum() = delete;
-    Frustum(const Camera& camera, const TrTransformf& cameraXForm);
-    Frustum(const Camera& camera, const TrTransformf& cameraXForm, const Rect& selectRect);
+
+    /// Construct a frustum from a camera and its world transform.
+    explicit Frustum(const CameraView& cameraView);
+
+    /// Construct a frustum from a camera, its world transform, and a selection rectangle in screen
+    /// space.
+    Frustum(const CameraView& cameraView, const Rect& selectRect);
 
     enum class ContainsResult
     {
@@ -91,6 +96,9 @@ public:
         Inside,
     };
 
+    /// Check if the given bounding sphere is inside, outside, or intersects the frustum.
+    /// The bounding sphere must be in world space (assuming the frustum was constructed from a
+    /// camera and its world transform).
     ContainsResult Contains(const BoundingSphere& sphere) const;
 
     const Vec4f& GetLeft() const { return m_Planes[kLeft]; }
@@ -109,7 +117,7 @@ private:
         const Vec4f& bottom,
         const Vec4f& near,
         const Vec4f& far)
-        : m_Planes {left, right, top, bottom, near, far}
+        : m_Planes{ left, right, top, bottom, near, far }
     {
     }
 
@@ -128,7 +136,7 @@ class Camera
 {
 public:
     Camera() = delete;
-    
+
     explicit Camera(const Viewport& viewport)
         : m_Viewport(viewport)
     {
@@ -164,16 +172,45 @@ public:
     const Mat44f& GetProjectionMatrix() const;
 
 private:
-
     constexpr static float kDefaultFovDegrees = 45.0f;
     constexpr static float kDefaultAspectRatio = 16.0f / 9.0f;
     constexpr static float kDefaultNearClip = 0.1f;
     constexpr static float kDefaultFarClip = 1000.0f;
 
-    Radiansf m_Fov{Radiansf::FromDegrees(kDefaultFovDegrees)};
-    float m_AspectRatio{kDefaultAspectRatio};
+    Radiansf m_Fov{ Radiansf::FromDegrees(kDefaultFovDegrees) };
+    float m_AspectRatio{ kDefaultAspectRatio };
     float m_NearClip{ kDefaultNearClip };
     float m_FarClip{ kDefaultFarClip };
     Mat44f m_Proj = Mat44f::PerspectiveLH(m_Fov, m_AspectRatio, m_NearClip, m_FarClip);
     Viewport m_Viewport;
+};
+
+/// Composite camera properties.
+/// Transforms for projecting, and transforming into view space and clip space.
+class CameraView
+{
+public:
+    CameraView() = delete;
+
+    explicit CameraView(const Camera& camera, const TrTransformf& wsCameraXForm)
+        : m_Camera(camera),
+          m_WsXform(wsCameraXForm),
+          m_ViewXform(wsCameraXForm.Inverse()),
+          m_ViewProj(camera.GetProjectionMatrix() * m_ViewXform.ToMatrix())
+    {
+    }
+
+    const Camera& GetCamera() const { return m_Camera; }
+    const Mat44f& GetProjectionMatrix() const { return m_Camera.GetProjectionMatrix(); }
+    const TrTransformf& GetWorldSpaceTransform() const { return m_WsXform; }
+    const TrTransformf& GetViewTransform() const { return m_ViewXform; }
+
+    /// Projection * View matrix for transforming into clip space.
+    const Mat44f& GetViewProj() const { return m_ViewProj; }
+
+private:
+    Camera m_Camera;
+    TrTransformf m_WsXform;
+    TrTransformf m_ViewXform;
+    Mat44f m_ViewProj;
 };

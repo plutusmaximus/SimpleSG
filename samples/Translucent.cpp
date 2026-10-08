@@ -58,6 +58,7 @@ CreateScene()
         {
             .BaseTexturePath{ "images/StainedGlass1A.png" },
             .Color{ "#FFFFFF"_rgba },
+            .AlphaMode = AlphaMode::Blend,
             .Metalness = 0,
             .Roughness = 0,
         };
@@ -262,8 +263,8 @@ TranslucentApp::Render()
     m_Viewport = Viewport(gpuHelper.GetScreenDimensions());
     m_CameraActor->SetViewport(m_Viewport);
 
-    MLG_CHECK(m_Level->GetView().Render(m_CameraActor->GetCamera(), m_CameraActor->GetTransform()),
-        "Failed to render view");
+    const CameraView cameraView(m_CameraActor->GetCamera(), m_CameraActor->GetTransform());
+    MLG_CHECK(m_Level->GetView().Render(cameraView), "Failed to render view");
 
     auto target = gpuHelper.GetSwapChainTexture();
     MLG_CHECK(target, "Failed to get swap chain texture");

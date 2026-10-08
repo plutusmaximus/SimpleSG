@@ -43,13 +43,6 @@ using FilePathString = RelativeFilePath::StringStorageType;
 
 } // namespace SceneDefs
 
-enum class AlphaMode : uint32_t
-{
-    Opaque,
-    Mask,
-    Blend
-};
-
 struct MaterialDef final
 {
     SceneDefs::FilePathString BaseTexturePath;
@@ -219,6 +212,63 @@ public:
 private:
 
     Params m_Params;
+};
+
+class CulledMesh
+{
+public:
+
+    static_assert(AlphaMode::Opaque < AlphaMode::Mask && AlphaMode::Mask < AlphaMode::Blend,
+        "AlphaMode ordering must be Opaque < Mask < Blend");
+
+    static_assert(std::to_underlying(AlphaMode::Opaque) == 0);
+    static_assert(std::to_underlying(AlphaMode::Mask) == 1);
+    static_assert(std::to_underlying(AlphaMode::Blend) == 2);
+
+    // Sort Priority:
+    // 1. Alpha mode (Opaque < Mask < Blend)
+    // 2. Material index (to minimize state changes)
+    // Encoding is:
+    // [63:62] Alpha mode
+    // [61:30] Material index
+    // [29:0] Reserved for future use
+    static constexpr uint64_t kAlphaBits = 2;
+    static constexpr uint64_t kAlphaBitShift = 64 - kAlphaBits;
+    static constexpr uint64_t kAlphaBitMask = (1ULL << kAlphaBits) - 1;
+    static constexpr uint64_t kMaterialBits = 32;
+    static constexpr uint64_t kMaterialBitShift = 64 - (kAlphaBits + kMaterialBits);
+    static constexpr uint64_t kMaterialBitMask = (1ULL << kMaterialBits) - 1;
+
+    CulledMesh() = delete;
+
+    CulledMesh(const MeshInstance& meshInstance, const AlphaMode alphaMode, const float depth)
+        : m_MeshInstance(&meshInstance),
+          m_Depth(depth)
+    {
+        MLG_ASSERT(alphaMode == AlphaMode::Opaque || alphaMode == AlphaMode::Mask || alphaMode == AlphaMode::Blend);        
+
+        m_SortKey |= (static_cast<uint64_t>(alphaMode) & kAlphaBitMask) << kAlphaBitShift;
+        m_SortKey |= (static_cast<uint64_t>(meshInstance.GetMaterialIndex()) & kMaterialBitMask) << kMaterialBitShift;
+    }
+
+    const MeshInstance& GetMeshInstance() const { return *m_MeshInstance; }
+    float GetDepth() const { return m_Depth; }
+    uint64_t GetSortKey() const { return m_SortKey; }
+
+    AlphaMode GetAlphaMode() const
+    {
+        return static_cast<AlphaMode>((m_SortKey >> kAlphaBitShift) & kAlphaBitMask);
+    }
+
+    uint32_t GetMaterialIndex() const
+    {
+        return static_cast<uint32_t>((m_SortKey >> kMaterialBitShift) & kMaterialBitMask);
+    }
+
+private:
+    const MeshInstance* m_MeshInstance;
+    float m_Depth;
+    uint64_t m_SortKey{ 0 };
 };
 
 class SceneNode

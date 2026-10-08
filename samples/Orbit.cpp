@@ -716,7 +716,8 @@ MainLoop()
             const Viewport viewport(viewPanelRect.GetDimensions());
             cameraActor.SetViewport(viewport);
 
-            MLG_CHECK(view.Render(cameraActor.GetCamera(), cameraActor.GetTransform()));
+            const CameraView cameraView(cameraActor.GetCamera(), cameraActor.GetTransform());
+            MLG_CHECK(view.Render(cameraView));
             MLG_CHECK(view.Composite(*target, viewPanelRect));
         }
 

@@ -5,6 +5,7 @@
 #include "GpuCompositorPass.h"
 #include "GpuTransformPass.h"
 #include "GpuTypes.h"
+#include "SceneTypes.h"
 #include "TextureFetcher.h"
 #include "Timer.h"
 
@@ -24,13 +25,13 @@ class View
 public:
 
     View() = delete;
-    ~View() = default;
+    ~View();
     View(const View&) = delete;
     View& operator=(const View&) = delete;
     View(View&&) = delete;
     View& operator=(View&&) = delete;
 
-    Result<> Render(const Camera& camera, const TrTransformf& cameraXForm);
+    Result<> Render(const CameraView& cameraView);
 
     Result<> Composite(const GpuRenderTarget& target);
 
@@ -39,6 +40,7 @@ public:
     class CreateTask;
 
 private:
+
     View(const GpuHelper& gpuHelper,
         const Scene& scene,
         std::unique_ptr<GpuColorPass>&& colorPass,
@@ -50,18 +52,18 @@ private:
         GpuClipSpaceBuffer&& clipSpaceBuffer,
         GpuMeshInstanceParamsBuffer&& meshInstanceParamsBuffer,
         GpuCameraParamsBuffer&& cameraParamsBuffer,
-        std::vector<wgpu::BindGroup>&& materialBindGroups);
+        std::vector<GpuMaterialProperties>&& materialProperties);
 
-    void CollectVisibleMeshes(const Frustum& frustum,
-        std::vector<MeshInstance>& outVisibleMeshes) const;
+    /// Collects all camera-visible meshes into the m_VisibleMeshes vector.
+    void CollectVisibleMeshes(const CameraView& cameraView);
 
     // Sync updates from CPU -> GPU.
     Result<> SyncToGpu();
 
+    /// Calls a GPU compute shader to transform the scene nodes into camera space.
     Result<> TransformNodes(const wgpu::Device& gpuDevice,
         const wgpu::CommandEncoder& cmdEncoder,
-        const TrTransformf& cameraXForm,
-        const Camera& camera);
+        const CameraView& cameraView);
 
     const GpuHelper* m_GpuHelper{ nullptr };
 
@@ -79,9 +81,9 @@ private:
     GpuMeshInstanceParamsBuffer m_MeshInstanceParamsBuffer;
     GpuCameraParamsBuffer m_CameraParamsBuffer;
 
-    std::vector<wgpu::BindGroup> m_MaterialBindGroups;
+    std::vector<GpuMaterialProperties> m_MaterialProperties;
 
-    std::vector<MeshInstance> m_VisibleMeshes;
+    std::vector<CulledMesh> m_VisibleMeshes;
 };
 
 class View::CreateTask : public ICoopTask<>
