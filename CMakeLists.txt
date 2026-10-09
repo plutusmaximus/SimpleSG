@@ -349,6 +349,7 @@ set(SSG_SOURCES
   src/AssertHelper.cpp
   src/BoundingVolumes.cpp
   src/Camera.cpp
+  src/Cullers.cpp
   src/cgltf.cpp
   src/CoopTask.cpp
   src/DevUi.cpp
@@ -385,6 +386,7 @@ set(SSG_HEADERS
   src/Camera.h
   src/Containers.h
   src/CoopTask.h
+  src/Cullers.h
   src/Defer.h
   src/DevUi.h
   src/FileFetcher.h
