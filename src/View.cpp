@@ -3,6 +3,7 @@
 #include "View.h"
 
 #include "Camera.h"
+#include "Cullers.h"
 #include "FileFetcher.h"
 #include "GpuHelper.h"
 #include "PerfMetrics.h"
@@ -182,10 +183,10 @@ View::View(const GpuHelper& gpuHelper,
       m_ClipSpaceBuffer(std::move(clipSpaceBuffer)),
       m_MeshInstanceParamsBuffer(std::move(meshInstanceParamsBuffer)),
       m_CameraParamsBuffer(std::move(cameraParamsBuffer)),
-      m_MaterialProperties(std::move(materialProperties))
+      m_MaterialProperties(std::move(materialProperties)),
+      m_TotalMeshInstanceCount(CountMeshInstances(scene.GetAllModelNodes()))
 {
-    const size_t meshInstanceCount = CountMeshInstances(scene.GetAllModelNodes());
-    m_VisibleMeshes.reserve(meshInstanceCount);
+    m_CulledMeshes.reserve(m_TotalMeshInstanceCount);
 }
 
 View::~View() = default;
@@ -231,9 +232,9 @@ View::Render(const CameraView& cameraView)
     MLG_CHECK(m_ColorPass->SetInputs(colorPassInputs));
     MLG_CHECK(m_ColorPass->SetOutputs(*m_ColorPassOutputs));
 
-    CollectVisibleMeshes(cameraView);
+    CullMeshes(cameraView);
 
-    MLG_CHECK(m_ColorPass->Execute(cmdEncoder, cameraView, m_VisibleMeshes, m_MaterialProperties));
+    MLG_CHECK(m_ColorPass->Execute(cmdEncoder, cameraView, m_CulledMeshes, m_MaterialProperties));
 
     const wgpu::CommandBuffer cmdBuf = cmdEncoder.Finish(nullptr);
     MLG_CHECK(cmdBuf, "Failed to finish command buffer");
@@ -280,97 +281,44 @@ View::Composite(const GpuRenderTarget& target, const Rect& dstRect)
 // private:
 
 void
-View::CollectVisibleMeshes(const CameraView& cameraView)
+View::CullMeshes(const CameraView& cameraView)
 {
     static PerfCounter pcTotalMeshes({ .Name = "View.Meshes.Total" });
     static PerfCounter pcVisibleMeshes({ .Name = "View.Meshes.Visible" });
 
-    m_VisibleMeshes.clear();
+    m_CulledMeshes.clear();
 
-    size_t totalMeshes = 0;
-
+    const Vec3f cameraPos = cameraView.GetWorldSpaceTransform().T;
+    const Vec3f cameraForward = cameraView.GetWorldSpaceTransform().R * Vec3f::ZAXIS();
     const Frustum frustum(cameraView);
 
-    const TrTransformf& wsCameraXForm = cameraView.GetWorldSpaceTransform();
-    const Vec3f forward = wsCameraXForm.R * Vec3f::ZAXIS();
-
-    for(const ModelNode& modelNode : m_Scene->GetAllModelNodes())
+    const ModelCuller modelCuller(m_Scene->GetAllModelNodes(), frustum);
+    for(const ModelCuller::CulledModel& culledModel : modelCuller)
     {
-        totalMeshes += modelNode.GetMeshCount();
+        const MeshCuller meshCuller(culledModel, frustum);
 
-        if(!modelNode.IsVisible())
+        for(const MeshCuller::CulledMesh& culledMesh : meshCuller)
         {
-            continue;
-        }
+            // Camera space depth of the mesh's bounding sphere center.
+            // Used for depth sorting.
+            const float depth = cameraForward.Dot(culledMesh.WorldSpacePos - cameraPos);
 
-        // Transform the bounding sphere into world space.
-        const BoundingSphere& wsModelBounds =
-            modelNode.GetWorldTransform() * modelNode.GetBoundingSphere();
+            const uint32_t matIndex = culledMesh.Mesh->GetMaterialIndex();
+            MLG_ASSERT(matIndex < m_MaterialProperties.size(), "Material index out of bounds");
 
-        const Frustum::ContainsResult result = frustum.Contains(wsModelBounds);
+            const AlphaMode alphaMode = m_MaterialProperties[matIndex].GetAlphaMode();
 
-        if(result == Frustum::ContainsResult::Outside)
-        {
-            // Model is fully outside frustum, skip all mesh instances.
-            continue;
-        }
+            const MeshInstance meshInstance(*culledMesh.Mesh,
+                culledMesh.InstanceIndex,
+                alphaMode,
+                depth);
 
-        if(result == Frustum::ContainsResult::Intersects)
-        {
-            // Model intersects frustum, check each mesh instance.
-
-            for(const MeshInstance& meshInstance : modelNode.GetMeshes())
-            {
-                const BoundingSphere wsMeshBounds =
-                    modelNode.GetWorldTransform() * meshInstance.GetBoundingSphere();
-
-                if(Frustum::ContainsResult::Outside == frustum.Contains(wsMeshBounds))
-                {
-                    // Frustum does not contain the mesh, skip it.
-                    continue;
-                }
-
-                // Frustum contains the mesh.
-
-                // Camera space depth of the mesh's bounding sphere center.
-                // Used for depth sorting.
-                const float depth = forward.Dot(wsMeshBounds.GetCenter() - wsCameraXForm.T);
-
-                const uint32_t matIndex = meshInstance.GetMaterialIndex();
-                MLG_ASSERT(matIndex < m_MaterialProperties.size(),
-                    "Material index out of bounds");
-
-                const AlphaMode alphaMode = m_MaterialProperties[matIndex].GetAlphaMode();
-
-                m_VisibleMeshes.emplace_back(meshInstance, alphaMode, depth);
-            }
-        }
-        else if(result == Frustum::ContainsResult::Inside)
-        {
-            // Model is fully inside frustum, add all mesh instances.
-
-            for(const MeshInstance& meshInstance : modelNode.GetMeshes())
-            {
-                // Transform the bounding sphere into world space.
-                const BoundingSphere wsMeshBounds =
-                    modelNode.GetWorldTransform() * meshInstance.GetBoundingSphere();
-
-                // Camera space depth of the mesh's bounding sphere center.
-                // Used for depth sorting.
-                const float depth = forward.Dot(wsMeshBounds.GetCenter() - wsCameraXForm.T);
-
-                const uint32_t matIndex = meshInstance.GetMaterialIndex();
-                MLG_ASSERT(matIndex < m_MaterialProperties.size(), "Material index out of bounds");
-                
-                const AlphaMode alphaMode = m_MaterialProperties[matIndex].GetAlphaMode();
-
-                m_VisibleMeshes.emplace_back(meshInstance, alphaMode, depth);
-            }
+            m_CulledMeshes.push_back(meshInstance);
         }
     }
 
-    pcTotalMeshes.Increment(totalMeshes);
-    pcVisibleMeshes.Increment(m_VisibleMeshes.size());
+    pcTotalMeshes.Increment(m_TotalMeshInstanceCount);
+    pcVisibleMeshes.Increment(m_CulledMeshes.size());
 }
 
 Result<>

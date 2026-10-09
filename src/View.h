@@ -23,7 +23,6 @@ class Scene;
 class View
 {
 public:
-
     View() = delete;
     ~View();
     View(const View&) = delete;
@@ -40,7 +39,6 @@ public:
     class CreateTask;
 
 private:
-
     View(const GpuHelper& gpuHelper,
         const Scene& scene,
         std::unique_ptr<GpuColorPass>&& colorPass,
@@ -54,8 +52,8 @@ private:
         GpuCameraParamsBuffer&& cameraParamsBuffer,
         std::vector<GpuMaterialProperties>&& materialProperties);
 
-    /// Collects all camera-visible meshes into the m_VisibleMeshes vector.
-    void CollectVisibleMeshes(const CameraView& cameraView);
+    /// Collects all camera-visible meshes.
+    void CullMeshes(const CameraView& cameraView);
 
     // Sync updates from CPU -> GPU.
     Result<> SyncToGpu();
@@ -83,7 +81,10 @@ private:
 
     std::vector<GpuMaterialProperties> m_MaterialProperties;
 
-    std::vector<CulledMesh> m_VisibleMeshes;
+    std::vector<MeshInstance> m_CulledMeshes;
+
+    /// The number of mesh instances in the scene.
+    size_t m_TotalMeshInstanceCount{ 0 };
 };
 
 class View::CreateTask : public ICoopTask<>
@@ -104,7 +105,6 @@ public:
     Result<std::unique_ptr<View>> Take();
 
 private:
-
     enum class Stage
     {
         None,

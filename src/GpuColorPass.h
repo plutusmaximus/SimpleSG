@@ -11,7 +11,6 @@
 class FileFetcher;
 class GpuHelper;
 class MeshInstance;
-class CulledMesh;
 
 /// Represents the GPU-side material properties, including alpha mode and bind group.
 /// The bind group encapsulates ShaderInterop::MaterialConstants, a texture, and a sampler.
@@ -21,8 +20,8 @@ public:
     GpuMaterialProperties() = delete;
 
     explicit GpuMaterialProperties(const AlphaMode alphaMode, wgpu::BindGroup bindGroup)
-        : m_AlphaMode(alphaMode)
-        , m_BindGroup(std::move(bindGroup))
+        : m_AlphaMode(alphaMode),
+          m_BindGroup(std::move(bindGroup))
     {
     }
 
@@ -92,7 +91,7 @@ public:
     /// submitted to the GPU before returning.
     /// Note that the meshes span is non-const to allow sorting for optimal rendering order.
     Result<> Execute(const CameraView& cameraView,
-        std::span<CulledMesh> meshes,
+        std::span<MeshInstance> meshes,
         const std::span<const GpuMaterialProperties> materialProperties);
 
     /// Executes the pass using the supplied inputs and outputs.
@@ -101,7 +100,7 @@ public:
     /// Note that the meshes span is non-const to allow sorting for optimal rendering order.
     Result<> Execute(const wgpu::CommandEncoder& cmdEncoder,
         const CameraView& cameraView,
-        std::span<CulledMesh> meshes,
+        std::span<MeshInstance> meshes,
         const std::span<const GpuMaterialProperties> materialProperties);
 
     /// Creates a material bind group for the color pass.

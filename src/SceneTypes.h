@@ -7,9 +7,9 @@
 #include "PhysicsTypes.h"
 #include "VecMath.h"
 
+#include <optional>
 #include <span>
 #include <vector>
-#include <optional>
 
 /// Definitions for scene structure, including materials, meshes, models, and nodes.
 /// Used to declaratively define the structure and properties of a scene.
@@ -182,22 +182,21 @@ struct SceneDef final
 /// Unlike the declarative scene definitions above, these classes represent
 /// the runtime instances of the scene elements.
 
-class MeshInstance
+class Mesh
 {
 public:
-    MeshInstance() = delete;
+    Mesh() = delete;
 
     struct Params
     {
         uint32_t IndexCount;
         uint32_t FirstIndex;
         uint32_t BaseVertex;
-        uint32_t FirstInstance;
         uint32_t MaterialIndex;
         BoundingSphere BoundingSphere;
     };
 
-    explicit MeshInstance(const Params& params)
+    explicit Mesh(const Params& params)
         : m_Params(params)
     {
     }
@@ -206,18 +205,16 @@ public:
     uint32_t GetIndexCount() const { return m_Params.IndexCount; }
     uint32_t GetFirstIndex() const { return m_Params.FirstIndex; }
     uint32_t GetBaseVertex() const { return m_Params.BaseVertex; }
-    uint32_t GetFirstInstance() const { return m_Params.FirstInstance; }
     const BoundingSphere& GetBoundingSphere() const { return m_Params.BoundingSphere; }
 
 private:
-
     Params m_Params;
 };
 
-class CulledMesh
+/// Represents an instance of a mesh within the scene, including its sorting key for rendering.
+class MeshInstance
 {
 public:
-
     static_assert(AlphaMode::Opaque < AlphaMode::Mask && AlphaMode::Mask < AlphaMode::Blend,
         "AlphaMode ordering must be Opaque < Mask < Blend");
 
@@ -239,38 +236,59 @@ public:
     static constexpr uint64_t kMaterialBitShift = 64 - (kAlphaBits + kMaterialBits);
     static constexpr uint64_t kMaterialBitMask = (1ULL << kMaterialBits) - 1;
 
-    CulledMesh() = delete;
+    MeshInstance() = delete;
 
-    CulledMesh(const MeshInstance& meshInstance, const AlphaMode alphaMode, const float depth)
-        : m_MeshInstance(&meshInstance),
-          m_Depth(depth)
+    MeshInstance(const Mesh& mesh,
+        const uint32_t instanceIndex,
+        const AlphaMode alphaMode,
+        const float depth)
+        : m_Mesh(&mesh),
+          m_InstanceIndex(instanceIndex),
+          m_SortDepth(depth)
     {
-        MLG_ASSERT(alphaMode == AlphaMode::Opaque || alphaMode == AlphaMode::Mask || alphaMode == AlphaMode::Blend);        
+        MLG_ASSERT(alphaMode == AlphaMode::Opaque
+            || alphaMode == AlphaMode::Mask
+            || alphaMode == AlphaMode::Blend);
 
         m_SortKey |= (static_cast<uint64_t>(alphaMode) & kAlphaBitMask) << kAlphaBitShift;
-        m_SortKey |= (static_cast<uint64_t>(meshInstance.GetMaterialIndex()) & kMaterialBitMask) << kMaterialBitShift;
+        m_SortKey |= (static_cast<uint64_t>(mesh.GetMaterialIndex()) & kMaterialBitMask)
+            << kMaterialBitShift;
     }
 
-    const MeshInstance& GetMeshInstance() const { return *m_MeshInstance; }
-    float GetDepth() const { return m_Depth; }
+    /// Returns the mesh of which this MeshInstance is an instance.
+    const Mesh& GetMesh() const { return *m_Mesh; }
+
+    /// Returns the index of this mesh instance within the scene's mesh instance collection.
+    uint32_t GetInstanceIndex() const { return m_InstanceIndex; }
+
+    /// Returns the depth used for sorting.
+    /// E.g. back to front for translucent meshes, front to back for opaque meshes.
+    float GetSortDepth() const { return m_SortDepth; }
+
+    /// Returns the sort key used for rendering this mesh instance.
     uint64_t GetSortKey() const { return m_SortKey; }
 
+    /// Returns the alpha mode of the material used by this mesh instance.
     AlphaMode GetAlphaMode() const
     {
         return static_cast<AlphaMode>((m_SortKey >> kAlphaBitShift) & kAlphaBitMask);
     }
 
+    /// Returns the material index of the material used by this mesh instance.
     uint32_t GetMaterialIndex() const
     {
         return static_cast<uint32_t>((m_SortKey >> kMaterialBitShift) & kMaterialBitMask);
     }
 
 private:
-    const MeshInstance* m_MeshInstance;
-    float m_Depth;
+    const Mesh* m_Mesh;
+    uint32_t m_InstanceIndex{ 0 };
+    float m_SortDepth;
     uint64_t m_SortKey{ 0 };
 };
 
+/// Represents a node within the scene graph, including its local and world transforms, velocities,
+/// and hierarchical relationships.
 class SceneNode
 {
 public:
@@ -335,6 +353,8 @@ private:
     Flags m_Flags{ Flags::Active | Flags::Visible };
 };
 
+/// Represents a node in the scene to which physics can be applied.
+/// All PhysicsNodes are associated with a SceneNode.
 class PhysicsNode
 {
 public:
@@ -374,12 +394,24 @@ private:
     RigidBodyIdentifier m_RigidBodyId;
 };
 
+/// Represents a renderable model within the scene, including its associated meshes and bounding
+/// volume. All ModelNodes are associated with a SceneNode.
 class ModelNode
 {
 public:
+    /// Constructs a ModelNode with:
+    /// - associated scene node
+    /// - bounding sphere
+    /// - meshes belonging to the model
+    /// - index of the first mesh instance within the scene's mesh instance collection.
+    ///
+    /// firstMeshInstanceIndex is an index into a "virtual" collection
+    /// of mesh instances.  Actual mesh instances are materialzed only after
+    /// culling and just prior to rendering.
     ModelNode(const SceneNode& node,
         const BoundingSphere& boundingSphere,
-        std::span<const MeshInstance> meshInstances);
+        std::span<const Mesh> meshes,
+        const uint32_t firstMeshInstanceIndex);
 
     ModelNode() = delete;
     ~ModelNode() = default;
@@ -390,11 +422,14 @@ public:
 
     const Mat44f& GetWorldTransform() const { return m_Node->GetWorldTransform(); }
 
-    const BoundingSphere& GetBoundingSphere() const { return m_BoundingSphere; }
+    const BoundingSphere& GetLocalSpaceBoundingSphere() const { return m_LocalSpaceBoundingSphere; }
 
     uint32_t GetMeshCount() const { return static_cast<uint32_t>(m_Meshes.size()); }
 
-    std::span<const MeshInstance> GetMeshes() const { return m_Meshes; }
+    /// Returns the index of the first mesh instance associated with this model.
+    uint32_t GetFirstMeshInstanceIndex() const { return m_FirstMeshInstanceIndex; }
+
+    std::span<const Mesh> GetMeshes() const { return m_Meshes; }
 
     bool IsVisible() const { return m_Node->IsVisible(); }
 
@@ -402,6 +437,7 @@ private:
     friend class Scene;
 
     const SceneNode* m_Node{ nullptr };
-    BoundingSphere m_BoundingSphere;
-    std::span<const MeshInstance> m_Meshes;
+    BoundingSphere m_LocalSpaceBoundingSphere;
+    std::span<const Mesh> m_Meshes;
+    uint32_t m_FirstMeshInstanceIndex{ 0 }; // Index of the first mesh instance in the scene's mesh instance collection
 };

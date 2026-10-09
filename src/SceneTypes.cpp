@@ -114,9 +114,11 @@ PhysicsNode::GetInverseMass() const
 
 ModelNode::ModelNode(const SceneNode& node,
     const BoundingSphere& boundingSphere,
-    std::span<const MeshInstance> meshInstances)
+    std::span<const Mesh> meshes,
+    const uint32_t firstMeshInstanceIndex)
     : m_Node(&node),
-      m_BoundingSphere(boundingSphere),
-      m_Meshes(meshInstances)
+      m_LocalSpaceBoundingSphere(boundingSphere),
+      m_Meshes(meshes),
+      m_FirstMeshInstanceIndex(firstMeshInstanceIndex)
 {
 }

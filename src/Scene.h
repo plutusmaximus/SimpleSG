@@ -42,7 +42,7 @@ private:
     Scene(BoundedVector<SceneNode>&& nodes,
         BoundedVector<PhysicsNode>&& physicsNodes,
         BoundedVector<ModelNode>&& modelNodes,
-        BoundedVector<MeshInstance>&& meshInstances,
+        BoundedVector<Mesh>&& meshes,
         const WorldIdentifier worldId);
 
     SceneNode* GetMutableNode(const SceneNode& node);
@@ -52,7 +52,6 @@ private:
     BoundedVector<SceneNode> m_Nodes;
     BoundedVector<PhysicsNode> m_PhysicsNodes;
     BoundedVector<ModelNode> m_ModelNodes;
-    BoundedVector<MeshInstance> m_MeshInstances;
-    std::span<SceneNode> m_RootNodes;
+    BoundedVector<Mesh> m_Meshes;
     WorldIdentifier m_WorldId;
 };

@@ -6,7 +6,6 @@
 
 #include <box3d/Box3D.h>
 #include <box3d/collision.h>
-#include <limits>
 #include <ranges>
 
 namespace
@@ -171,72 +170,45 @@ CollectNodes(const ResourceBundle& resourceBundle)
     return nodes;
 }
 
-Result<BoundedVector<MeshInstance>>
-CollectMeshInstances(const ResourceBundle& resourceBundle)
+Result<BoundedVector<Mesh>>
+CollectMeshes(const ResourceBundle& resourceBundle)
 {
-    const std::span models = resourceBundle.GetModels();
-    const std::span modelInstances = resourceBundle.GetModelInstances();
+    const std::span<const MeshResource> meshRsrcs = resourceBundle.GetMeshes();
+    BoundedVector<Mesh> meshes(meshRsrcs.size());
 
+    for(const MeshResource& mesh : meshRsrcs)
+    {
+        const Mesh::Params params //
+            {
+                .IndexCount = mesh.IndexCount,
+                .FirstIndex = mesh.FirstIndex,
+                .BaseVertex = mesh.BaseVertex,
+                .MaterialIndex = mesh.MaterialIndex,
+                .BoundingSphere = BoundingSphere(mesh.BoundingBox),
+            };
+
+        meshes.emplace_back(params);
+    }
+
+    return meshes;
+}
+
+Result<BoundedVector<ModelNode>>
+CollectModelNodes(const ResourceBundle& resourceBundle,
+    const std::span<const Mesh>& meshes,
+    const std::span<const SceneNode>& nodes)
+{
     constexpr size_t kMaxMeshInstances =
         std::numeric_limits<uint32_t>::max() > std::vector<MeshInstance>().max_size()
         ? std::vector<MeshInstance>().max_size()
         : static_cast<size_t>(std::numeric_limits<uint32_t>::max());
 
-    size_t count = 0;
-
-    for(const ModelInstanceResource& modelInstance : modelInstances)
-    {
-        const ModelResource& modelRsrc = models[modelInstance.ModelIndex];
-
-        const size_t meshInstanceCount = modelRsrc.MeshCount;
-
-        MLG_CHECKV(meshInstanceCount > 0, "Model has no mesh instances");
-        MLG_CHECKV(meshInstanceCount <= kMaxMeshInstances, "Too many mesh instances");
-        MLG_CHECKV(kMaxMeshInstances - count >= meshInstanceCount, "Too many mesh instances");
-
-        count += meshInstanceCount;
-    }
-
-    BoundedVector<MeshInstance> meshInstances(count);
-
-    for(const ModelInstanceResource& modelInstance : modelInstances)
-    {
-        const ModelResource& modelRsrc = models[modelInstance.ModelIndex];
-
-        const std::span modelMeshes = resourceBundle.GetMeshes(modelRsrc);
-
-        for(const MeshResource& mesh : modelMeshes)
-        {
-            const size_t firstInstance = meshInstances.size();
-
-            const MeshInstance::Params params //
-                {
-                    .IndexCount = mesh.IndexCount,
-                    .FirstIndex = mesh.FirstIndex,
-                    .BaseVertex = mesh.BaseVertex,
-                    .FirstInstance = static_cast<uint32_t>(firstInstance),
-                    .MaterialIndex = mesh.MaterialIndex,
-                    .BoundingSphere = BoundingSphere(mesh.BoundingBox),
-                };
-
-            meshInstances.emplace_back(params);
-        }
-    }
-
-    return meshInstances;
-}
-
-Result<BoundedVector<ModelNode>>
-CollectModelNodes(const ResourceBundle& resourceBundle,
-    const std::span<const MeshInstance>& meshInstances,
-    const std::span<const SceneNode>& nodes)
-{
     const std::span modelRsrcs = resourceBundle.GetModels();
     const std::span modelInstanceRsrcs = resourceBundle.GetModelInstances();
 
     BoundedVector<ModelNode> modelNodes(modelInstanceRsrcs.size());
 
-    uint32_t meshInstanceOffset = 0;
+    uint32_t meshInstanceIndex = 0;
 
     for(const ModelInstanceResource& modelInstanceRsrc : modelInstanceRsrcs)
     {
@@ -244,16 +216,18 @@ CollectModelNodes(const ResourceBundle& resourceBundle,
 
         const ModelResource& modelRsrc = modelRsrcs[modelInstanceRsrc.ModelIndex];
 
-        MLG_CHECKV(meshInstanceOffset < meshInstances.size(), "Mesh instance offset out of bounds");
-        MLG_CHECK(meshInstances.size() - meshInstanceOffset >= modelRsrc.MeshCount,
-            "Mesh instance span out of bounds");
+        const std::span modelMeshes = meshes.subspan(modelRsrc.FirstMeshIndex, modelRsrc.MeshCount);
 
-        const std::span meshInstanceSpan =
-            meshInstances.subspan(meshInstanceOffset, modelRsrc.MeshCount);
+        modelNodes.emplace_back(sceneNode,
+            BoundingSphere(modelRsrc.BoundingBox),
+            modelMeshes,
+            meshInstanceIndex);
 
-        modelNodes.emplace_back(sceneNode, BoundingSphere(modelRsrc.BoundingBox), meshInstanceSpan);
+        MLG_CHECKV(modelRsrc.MeshCount > 0, "Model has no mesh instances");
+        MLG_CHECKV(modelRsrc.MeshCount <= kMaxMeshInstances, "Too many mesh instances");
+        MLG_CHECKV(kMaxMeshInstances - meshInstanceIndex >= modelRsrc.MeshCount, "Too many mesh instances");
 
-        meshInstanceOffset += modelRsrc.MeshCount;
+        meshInstanceIndex += modelRsrc.MeshCount;
     }
 
     return modelNodes;
@@ -326,10 +300,10 @@ Scene::Create(const ResourceBundle& resourceBundle)
         }
     }
 
-    auto meshInstances = CollectMeshInstances(resourceBundle);
-    MLG_CHECK(meshInstances, "Failed to collect mesh instances");
+    auto meshes = CollectMeshes(resourceBundle);
+    MLG_CHECK(meshes, "Failed to collect meshes");
 
-    auto modelNodes = CollectModelNodes(resourceBundle, *meshInstances, *sceneNodes);
+    auto modelNodes = CollectModelNodes(resourceBundle, *meshes, *sceneNodes);
     MLG_CHECK(modelNodes, "Failed to collect model nodes");
 
     auto physicsNodes = CollectPhysicsNodes(worldIdentifier, resourceBundle, *sceneNodes);
@@ -340,39 +314,21 @@ Scene::Create(const ResourceBundle& resourceBundle)
     return std::unique_ptr<Scene>(new Scene(std::move(*sceneNodes),
         std::move(*physicsNodes),
         std::move(*modelNodes),
-        std::move(*meshInstances),
+        std::move(*meshes),
         worldIdentifier));
 }
 
 Scene::Scene(BoundedVector<SceneNode>&& nodes,
     BoundedVector<PhysicsNode>&& physicsNodes,
     BoundedVector<ModelNode>&& modelNodes,
-    BoundedVector<MeshInstance>&& meshInstances,
+    BoundedVector<Mesh>&& meshes,
     const WorldIdentifier worldId)
     : m_Nodes(std::move(nodes)),
       m_PhysicsNodes(std::move(physicsNodes)),
       m_ModelNodes(std::move(modelNodes)),
-      m_MeshInstances(std::move(meshInstances)),
+      m_Meshes(std::move(meshes)),
       m_WorldId(worldId)
 {
-    size_t rootNodeCount = 0;
-
-    // Count root nodes.
-    // Nodes are stored in breadth-first order, so all root nodes will be at the beginning
-    // of the vector.
-    for(const auto& node : m_Nodes)
-    {
-        if(node.m_Parent)
-        {
-            // No more root nodes after this.
-            break;
-        }
-
-        ++rootNodeCount;
-    }
-
-    m_RootNodes = std::span(m_Nodes).subspan(0, rootNodeCount);
-
     UpdateWorldTransforms();
 }
 
@@ -422,6 +378,7 @@ void
 Scene::SetActive(const SceneNode& nodeRef, bool active)
 {
     SceneNode* node = GetMutableNode(nodeRef);
+    
     if(!MLG_VERIFY(node, "Invalid or nonexistent node passed to SetActive"))
     {
         return;
@@ -484,7 +441,8 @@ Scene::GetMutableNode(const SceneNode& nodeRef)
 void
 Scene::UpdateWorldTransforms()
 {
-    // Nodes are stored breadth first, enabling a simple non-recursive traversal for updating world transforms.
+    // Nodes are stored breadth first, enabling a simple non-recursive traversal for updating world
+    // transforms.
 
     for(SceneNode& node : m_Nodes)
     {
@@ -494,7 +452,8 @@ Scene::UpdateWorldTransforms()
         }
         else
         {
-            node.m_WorldTransform = node.GetParent()->m_WorldTransform * node.m_LocalTransform.ToMatrix();
+            node.m_WorldTransform =
+                node.GetParent()->m_WorldTransform * node.m_LocalTransform.ToMatrix();
         }
     }
 }
